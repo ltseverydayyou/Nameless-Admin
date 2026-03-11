@@ -874,10 +874,17 @@ local NAStuff = {
 	espScanTokens = {};
 	espSweepCursor = {};
 	nameESPExclusions = { exact = {}, partial = {} };
+	CrosshairGap = 2;
+	CrosshairShowCenter = true;
 	TopbarGlassTransparency = 0.12;
 	TopbarStrokeTransparency = 0.15;
+	TopbarPanelTransparency = 0.1;
+	TopbarButtonTransparency = 0.18;
 	SideSwipeWidth = 80;
 	SideSwipeHandleTransparency = 0.72;
+	SideSwipePanelTransparency = 0.35;
+	SideSwipeButtonTransparency = 0.16;
+	SideSwipeScrollBarThickness = 4;
 	Integrations = {
 		webhook = {
 			url = "";
@@ -14601,6 +14608,20 @@ NAmanage.NASettingsGetSchema=function()
 				return n
 			end;
 		};
+		crosshairGap = {
+			default = 2;
+			coerce = function(value)
+				local n = tonumber(value)
+				if not n then return 2 end
+				return math.clamp(math.floor(n + 0.5), 0, 30)
+			end;
+		};
+		crosshairShowCenter = {
+			default = true;
+			coerce = function(value)
+				return coerceBoolean(value, true)
+			end;
+		};
 		mobileCamSensEnabled = {
 			default = false;
 			coerce = function(value)
@@ -14954,6 +14975,36 @@ NAmanage.NASettingsGetSchema=function()
 				return coerceBoolean(value, true)
 			end;
 		};
+		devConsoleLogLimit = {
+			default = 1200;
+			coerce = function(value)
+				local numberValue = tonumber(value)
+				if not numberValue then
+					return 1200
+				end
+				return math.clamp(math.floor(numberValue + 0.5), 200, 5000)
+			end;
+		};
+		devConsoleQueueLimit = {
+			default = 600;
+			coerce = function(value)
+				local numberValue = tonumber(value)
+				if not numberValue then
+					return 600
+				end
+				return math.clamp(math.floor(numberValue + 0.5), 100, 4000)
+			end;
+		};
+		devConsoleOverscan = {
+			default = 320;
+			coerce = function(value)
+				local numberValue = tonumber(value)
+				if not numberValue then
+					return 320
+				end
+				return math.clamp(math.floor(numberValue + 0.5), 60, 2000)
+			end;
+		};
 		streamerMode = {
 			default = false;
 			coerce = function(value)
@@ -15160,6 +15211,32 @@ NAmanage.NASettingsGetSchema=function()
 				return n
 			end;
 		};
+		sideSwipePanelTransparency = {
+			default = 0.35;
+			coerce = function(value)
+				local n = clampChannel(value)
+				if n == nil then return 0.35 end
+				return n
+			end;
+		};
+		sideSwipeButtonTransparency = {
+			default = 0.16;
+			coerce = function(value)
+				local n = clampChannel(value)
+				if n == nil then return 0.16 end
+				return n
+			end;
+		};
+		sideSwipeScrollBarThickness = {
+			default = 4;
+			coerce = function(value)
+				local numberValue = tonumber(value)
+				if not numberValue then
+					return 4
+				end
+				return math.clamp(math.floor(numberValue + 0.5), 0, 12)
+			end;
+		};
 		topbarVisible = {
 			pathKey = "NATOPBAR";
 			default = true;
@@ -15180,6 +15257,22 @@ NAmanage.NASettingsGetSchema=function()
 			coerce = function(value)
 				local n = clampChannel(value)
 				if n == nil then return 0.15 end
+				return n
+			end;
+		};
+		topbarPanelTransparency = {
+			default = 0.1;
+			coerce = function(value)
+				local n = clampChannel(value)
+				if n == nil then return 0.1 end
+				return n
+			end;
+		};
+		topbarButtonTransparency = {
+			default = 0.18;
+			coerce = function(value)
+				local n = clampChannel(value)
+				if n == nil then return 0.18 end
 				return n
 			end;
 		};
@@ -17452,12 +17545,17 @@ NAStuff.CrosshairColor = NAStuff.CrosshairColor or Color3.new(1, 1, 1)
 NAStuff.CrosshairEnabled = NAStuff.CrosshairEnabled == true
 NAStuff.CrosshairSize = NAStuff.CrosshairSize or 8
 NAStuff.CrosshairThickness = NAStuff.CrosshairThickness or 2
+NAStuff.CrosshairGap = math.clamp(tonumber(NAStuff.CrosshairGap) or 2, 0, 30)
+NAStuff.CrosshairShowCenter = NAStuff.CrosshairShowCenter ~= false
 NAStuff.MobileCamSensEnabled = NAStuff.MobileCamSensEnabled == true
 NAStuff.MobileCamSensitivity = math.clamp(tonumber(NAStuff.MobileCamSensitivity) or 1, 0.2, 4)
 NAStuff.OffVisOn = NAStuff.OffVisOn ~= false
 NAStuff.OffVisAcc = NAStuff.OffVisAcc ~= false
 NAStuff.OffVisFTr = math.clamp(tonumber(NAStuff.OffVisFTr) or 0.82, 0, 1)
 NAStuff.OffVisOTr = math.clamp(tonumber(NAStuff.OffVisOTr) or 0.15, 0, 1)
+NAStuff.DevConsoleLogLimit = math.clamp(math.floor((tonumber(NAStuff.DevConsoleLogLimit) or 1200) + 0.5), 200, 5000)
+NAStuff.DevConsoleQueueLimit = math.clamp(math.floor((tonumber(NAStuff.DevConsoleQueueLimit) or 600) + 0.5), 100, 4000)
+NAStuff.DevConsoleOverscan = math.clamp(math.floor((tonumber(NAStuff.DevConsoleOverscan) or 320) + 0.5), 60, 2000)
 
 if FileSupport then
 	NAStuff.prefixCheck = NAmanage.NASettingsGet("prefix")
@@ -17475,6 +17573,9 @@ if FileSupport then
 	NAStuff.AutoInteractDefaultInterval = math.clamp(tonumber(NAmanage.NASettingsGet("autoInteractDefaultInterval")) or NAStuff.AutoInteractDefaultInterval or 0.1, 0, 1)
 	NAStuff.RobloxDevConsoleCopyButtonsEnabled = NAmanage.NASettingsGet("devConsoleCopyButtons") ~= false
 	NAStuff.NAConsoleMasterEnabled = NAmanage.NASettingsGet("devConsoleMasterInput") ~= false
+	NAStuff.DevConsoleLogLimit = math.clamp(math.floor((tonumber(NAmanage.NASettingsGet("devConsoleLogLimit")) or NAStuff.DevConsoleLogLimit or 1200) + 0.5), 200, 5000)
+	NAStuff.DevConsoleQueueLimit = math.clamp(math.floor((tonumber(NAmanage.NASettingsGet("devConsoleQueueLimit")) or NAStuff.DevConsoleQueueLimit or 600) + 0.5), 100, 4000)
+	NAStuff.DevConsoleOverscan = math.clamp(math.floor((tonumber(NAmanage.NASettingsGet("devConsoleOverscan")) or NAStuff.DevConsoleOverscan or 320) + 0.5), 60, 2000)
 	NAStuff.FPSBoostOptions = NAmanage.NASettingsGet("fpsBoostOptions")
 	local savedMobileCamSens = tonumber(NAmanage.NASettingsGet("mobileCamSensitivity"))
 	if savedMobileCamSens then
@@ -17515,6 +17616,8 @@ if FileSupport then
 	NAStuff.CrosshairEnabled = NAmanage.NASettingsGet("crosshairEnabled") == true
 	NAStuff.CrosshairSize = math.clamp(tonumber(NAmanage.NASettingsGet("crosshairSize")) or 8, 2, 100)
 	NAStuff.CrosshairThickness = math.clamp(tonumber(NAmanage.NASettingsGet("crosshairThickness")) or 2, 1, 20)
+	NAStuff.CrosshairGap = math.clamp(tonumber(NAmanage.NASettingsGet("crosshairGap")) or 2, 0, 30)
+	NAStuff.CrosshairShowCenter = NAmanage.NASettingsGet("crosshairShowCenter") ~= false
 	NAUISTROKER = InitUIStroke()
 	if NAStuff and NAStuff.AprilFoolsData then
 		NAStuff.AprilFoolsData.originalColor = NAUISTROKER
@@ -17539,10 +17642,15 @@ if FileSupport then
 	end
 	NAStuff.SideSwipeWidth = math.clamp(math.floor((tonumber(NAmanage.NASettingsGet("sideSwipeWidth")) or 80) + 0.5), 60, 200)
 	NAStuff.SideSwipeHandleTransparency = clamp01(NAmanage.NASettingsGet("sideSwipeHandleTransparency") or 0.72, 0.72)
+	NAStuff.SideSwipePanelTransparency = clamp01(NAmanage.NASettingsGet("sideSwipePanelTransparency") or 0.35, 0.35)
+	NAStuff.SideSwipeButtonTransparency = clamp01(NAmanage.NASettingsGet("sideSwipeButtonTransparency") or 0.16, 0.16)
+	NAStuff.SideSwipeScrollBarThickness = math.clamp(math.floor((tonumber(NAmanage.NASettingsGet("sideSwipeScrollBarThickness")) or 4) + 0.5), 0, 12)
 	NALoadingStartMinimized = NAmanage.NASettingsGet("loadingStartMinimized")
 	NAAssetsLoading.applyMinimizedPreference()
 	NAStuff.TopbarGlassTransparency = clamp01(NAmanage.NASettingsGet("topbarGlassTransparency") or 0.12, 0.12)
 	NAStuff.TopbarStrokeTransparency = clamp01(NAmanage.NASettingsGet("topbarStrokeTransparency") or 0.15, 0.15)
+	NAStuff.TopbarPanelTransparency = clamp01(NAmanage.NASettingsGet("topbarPanelTransparency") or 0.1, 0.1)
+	NAStuff.TopbarButtonTransparency = clamp01(NAmanage.NASettingsGet("topbarButtonTransparency") or 0.18, 0.18)
 	NAStuff.iconAppearancePrefs = {
 		background = NAmanage.NASettingsGet("iconBgTransparency"),
 		image = NAmanage.NASettingsGet("iconImageTransparency"),
@@ -68100,7 +68208,8 @@ NAmanage.Topbar_AnimateIcon=function(iconText)
 	NAmanage.Topbar_PlayTween("icon_grow",TopBarApp.icon,ti2,{TextSize=24})
 end
 
-NAmanage.Topbar_UpdateToggleVisual=function(open)
+NAmanage.Topbar_UpdateToggleVisual=function(open, opts)
+	opts = opts or {}
 	local ti=TweenInfo.new(0.1,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut)
 	local function clamp01(v, fallback)
 		local n = tonumber(v)
@@ -68116,10 +68225,12 @@ NAmanage.Topbar_UpdateToggleVisual=function(open)
 	if TopBarApp.tStroke then NAmanage.Topbar_PlayTween("tglass_stroke",TopBarApp.tStroke,ti,{Transparency=strokeT}) end
 	local CLOSED_ICON="three-bars-horizontal"
 	local OPENED_ICON="twitter"
-	if open then
-		NAmanage.Topbar_AnimateIcon(OPENED_ICON)
-	else
-		NAmanage.Topbar_AnimateIcon(CLOSED_ICON)
+	if not opts.skipIcon then
+		if open then
+			NAmanage.Topbar_AnimateIcon(OPENED_ICON)
+		else
+			NAmanage.Topbar_AnimateIcon(CLOSED_ICON)
+		end
 	end
 end
 
@@ -68216,7 +68327,7 @@ NAmanage.Topbar_Rebuild=function()
 		bg.ZIndex=203
 		bg.Size=UDim2.new(1,0,1,0)
 		bg.BackgroundColor3=Color3.fromRGB(25,25,28)
-		bg.BackgroundTransparency=0.18
+		bg.BackgroundTransparency=NAStuff.TopbarButtonTransparency or 0.18
 		bg.BorderSizePixel=0
 		local cr=InstanceNew("UICorner",bg); cr.CornerRadius=UDim.new(0,12)
 		local stroke=InstanceNew("UIStroke",bg)
@@ -68441,7 +68552,7 @@ NAmanage.Topbar_Init=function()
 	TopBarApp.underlay=InstanceNew("Frame",TopBarApp.panel)
 	TopBarApp.underlay.Size=UDim2.new(1,0,1,0)
 	TopBarApp.underlay.BackgroundColor3=Color3.fromRGB(18,18,22)
-	TopBarApp.underlay.BackgroundTransparency=0.1
+	TopBarApp.underlay.BackgroundTransparency=NAStuff.TopbarPanelTransparency or 0.1
 	TopBarApp.underlay.ZIndex=201
 	local pCorner=InstanceNew("UICorner",TopBarApp.underlay); pCorner.CornerRadius=UDim.new(0,12)
 	local pStroke=InstanceNew("UIStroke",TopBarApp.underlay)
@@ -68616,8 +68727,9 @@ NAmanage.SideSwipe_Rebuild=function()
 	SideSwipeApp.scroll.BorderSizePixel = 0
 	SideSwipeApp.scroll.Size = UDim2.new(1, 0, 1, 0)
 	SideSwipeApp.scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
-	SideSwipeApp.scroll.ScrollBarThickness = 4
+	SideSwipeApp.scroll.ScrollBarThickness = math.clamp(math.floor((tonumber(NAStuff.SideSwipeScrollBarThickness) or 4) + 0.5), 0, 12)
 	SideSwipeApp.scroll.VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar
+	SideSwipeApp.scroll.Active = true
 	local pad = InstanceNew("UIPadding", SideSwipeApp.scroll)
 	pad.PaddingTop = UDim.new(0, 8)
 	pad.PaddingBottom = UDim.new(0, 8)
@@ -68648,7 +68760,7 @@ NAmanage.SideSwipe_Rebuild=function()
 		bg.ZIndex = 518
 		bg.Size = UDim2.new(1, 0, 1, 0)
 		bg.BackgroundColor3 = Color3.fromRGB(25,25,28)
-		bg.BackgroundTransparency = 0.16
+		bg.BackgroundTransparency = NAStuff.SideSwipeButtonTransparency or 0.16
 		bg.BorderSizePixel = 0
 		local cr = InstanceNew("UICorner", bg)
 		cr.CornerRadius = UDim.new(0, 12)
@@ -68668,8 +68780,6 @@ NAmanage.SideSwipe_Rebuild=function()
 		ic.TextColor3 = Color3.new(1,1,1)
 		ic.TextScaled = false
 		ic.TextSize = 24
-		SideSwipeApp.scroll.CanvasSize = UDim2.new(0, 0, 0, tile * i)
-		SideSwipeApp.scroll.Active = true
 		if def.func then
 			MouseButtonFix(btn, def.func)
 		end
@@ -68715,7 +68825,8 @@ NAmanage.SideSwipe_SetOpen=function(state)
 	local ease = TweenInfo.new(0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
 	local tween = __lt.cm("TweenService", "Create", SideSwipeApp.panel, ease, { Position = UDim2.new(0, targetX, 0, y) })
 	if SideSwipeApp.underlay then
-		local underGoal = SideSwipeApp.isOpen and 0.08 or 0.35
+		local basePanelTransparency = math.clamp(tonumber(NAStuff.SideSwipePanelTransparency) or 0.35, 0, 1)
+		local underGoal = SideSwipeApp.isOpen and math.max(0, basePanelTransparency - 0.27) or basePanelTransparency
 		__lt.cm("TweenService", "Create", SideSwipeApp.underlay, TweenInfo.new(0.18, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { BackgroundTransparency = underGoal }):Play()
 	end
 	tween:Play()
@@ -68832,7 +68943,7 @@ NAmanage.SideSwipe_Init=function()
 	SideSwipeApp.underlay = InstanceNew("Frame", SideSwipeApp.panel)
 	SideSwipeApp.underlay.Size = UDim2.new(1,0,1,0)
 	SideSwipeApp.underlay.BackgroundColor3 = Color3.fromRGB(18,18,22)
-	SideSwipeApp.underlay.BackgroundTransparency = 0.35
+	SideSwipeApp.underlay.BackgroundTransparency = NAStuff.SideSwipePanelTransparency or 0.35
 	SideSwipeApp.underlay.ZIndex = 511
 	local uCorner = InstanceNew("UICorner", SideSwipeApp.underlay); uCorner.CornerRadius = UDim.new(0, 14)
 	local uStroke = InstanceNew("UIStroke", SideSwipeApp.underlay)
@@ -69055,6 +69166,12 @@ NAgui.menuv2 = function(menu)
 			clearButton.Visible = true
 			MouseButtonFix(clearButton, function()
 				local ok, err = NACaller(function()
+					local customHandlers = NAmanage and NAmanage._menuClearHandlers
+					local customClear = customHandlers and customHandlers[menu]
+					if type(customClear) == "function" then
+						customClear()
+						return
+					end
 					local container = menu:FindFirstChild("Container", true)
 					if container then
 						local scrollingFrame = container:FindFirstChildOfClass("ScrollingFrame")
@@ -72516,28 +72633,58 @@ NAmanage.bindToDevConsole = function()
 		NAStuff._devConsoleCleanup = nil
 	end
 	NAlib.disconnect(CONN_KEY)
+	local bindGeneration = (tonumber(NAStuff._devConsoleBindGeneration) or 0) + 1
+	NAStuff._devConsoleBindGeneration = bindGeneration
 
 	if not NAUIMANAGER.NAconsoleLogs or (not NAUIMANAGER.NAconsoleExample) then
 		return;
 	end;
 	for _, child in ipairs(NAUIMANAGER.NAconsoleLogs:GetChildren()) do
-		if NAmanage.GetAttr and NAmanage.GetAttr(child, "NA_DevConsoleLog") == true then
+		if NAmanage.GetAttr and (NAmanage.GetAttr(child, "NA_DevConsoleLog") == true or NAmanage.GetAttr(child, "NA_DevConsoleVirtual") == true) then
 			pcall(function()
 				child:Destroy()
 			end)
 		end
 	end
-	local activeLogs, pool = {}, {};
+	local logsFrame = NAUIMANAGER.NAconsoleLogs;
+	local logsLayout = logsFrame:FindFirstChildOfClass("UIListLayout");
+	if not logsLayout then
+		logsLayout = InstanceNew("UIListLayout");
+		logsLayout.SortOrder = Enum.SortOrder.LayoutOrder;
+		logsLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center;
+		logsLayout.Parent = logsFrame;
+	end;
+	local pool, visibleLabels = {}, {};
+	local allMessages, filteredMessages = {}, {};
 	local pending = {};
 	local pendingHead = 1;
 	local pendingTail = 0;
 	local pendingProcessing = false;
+	local overflowCounts = {};
+	local overflowTotal = 0;
+	local messageCounter = 0;
 	local buttonTypes = {
 		"Output",
 		"Info",
 		"Warn",
 		"Error"
 	};
+	local clampNumber = (NAmanage and NAmanage.clampNumber) or function(value, minValue, maxValue, fallback)
+		local num = tonumber(value);
+		if num == nil then
+			return fallback;
+		end;
+		if minValue ~= nil and num < minValue then
+			num = minValue;
+		end;
+		if maxValue ~= nil and num > maxValue then
+			num = maxValue;
+		end;
+		return num;
+	end;
+	local MAX_MESSAGES = math.floor(clampNumber(NAStuff.DevConsoleLogLimit, 200, 5000, 1200) or 1200);
+	local MAX_PENDING = math.floor(clampNumber(NAStuff.DevConsoleQueueLimit, 100, 4000, 600) or 600);
+	local overscanPx = math.floor(clampNumber(NAStuff.DevConsoleOverscan, 60, 2000, 320) or 320);
 	local savedFilters;
 	if NAmanage and NAmanage.NASettingsGet then
 		local ok, result = pcall(function()
@@ -72558,19 +72705,356 @@ NAmanage.bindToDevConsole = function()
 	end;
 	local SELECTED_COLOR = Color3.fromRGB(0, 255, 0);
 	local DESELECTED_COLOR = Color3.fromRGB(255, 255, 255);
+	local virtualCanvas = InstanceNew("Frame");
+	virtualCanvas.Name = "VirtualCanvas";
+	virtualCanvas.BackgroundTransparency = 1;
+	virtualCanvas.BorderSizePixel = 0;
+	virtualCanvas.Size = UDim2.new(1, 0, 0, 0);
+	virtualCanvas.Position = UDim2.new(0, 0, 0, 0);
+	virtualCanvas.Parent = logsFrame;
+	NAmanage.SetAttr(virtualCanvas, "NA_DevConsoleVirtual", true);
 	local FilterButtons = InstanceNew("Frame");
 	FilterButtons.Name = "FilterButtons";
 	FilterButtons.Size = UDim2.new(1, -10, 0, 22);
 	FilterButtons.Position = UDim2.new(0.5, 0, 0, 30);
 	FilterButtons.AnchorPoint = Vector2.new(0.5, 0);
 	FilterButtons.BackgroundTransparency = 1;
-	FilterButtons.Parent = NAUIMANAGER.NAconsoleLogs.Parent;
-	local layout = InstanceNew("UIListLayout");
-	layout.FillDirection = Enum.FillDirection.Horizontal;
-	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center;
-	layout.SortOrder = Enum.SortOrder.LayoutOrder;
-	layout.Padding = UDim.new(0, 6);
-	layout.Parent = FilterButtons;
+	FilterButtons.Parent = logsFrame.Parent;
+	local filterLayout = InstanceNew("UIListLayout");
+	filterLayout.FillDirection = Enum.FillDirection.Horizontal;
+	filterLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center;
+	filterLayout.SortOrder = Enum.SortOrder.LayoutOrder;
+	filterLayout.Padding = UDim.new(0, 6);
+	filterLayout.Parent = FilterButtons;
+	local function getQuery()
+		local filterBox = NAUIMANAGER.NAfilter;
+		return tostring((filterBox and filterBox.Text) or ""):lower();
+	end;
+	local function matchesQuery(haystack, needle)
+		return needle == "" or string.find(haystack, needle, 1, true) ~= nil;
+	end;
+	local function getMeasureWidth()
+		return math.max(1, math.floor((logsFrame.AbsoluteSize.X or 0) + 0.5));
+	end;
+	local function getPadding()
+		return (logsLayout and logsLayout.Padding and logsLayout.Padding.Offset) or 0;
+	end;
+	local function isBindActive()
+		return NAStuff and NAStuff._devConsoleBindGeneration == bindGeneration;
+	end;
+	local function escape(s)
+		return ((s:gsub("&", "&amp;")):gsub("<", "&lt;")):gsub(">", "&gt;");
+	end;
+	local function measureHeightFromText(plain, width)
+		local baseSize = NAUIMANAGER.NAconsoleExample.TextSize or 14;
+		local vec = __lt.cm("TextService", "GetTextSize", plain, baseSize, NAUIMANAGER.NAconsoleExample.Font, Vector2.new(width, 1000000));
+		local h = vec.Y;
+		if h < 18 then
+			h = 18;
+		end;
+		return math.floor(h + 0.5);
+	end;
+	local function ensureRecordHeight(record, width, force)
+		if not record then
+			return 18;
+		end;
+		width = width or getMeasureWidth();
+		if (not force) and record.height and record.measureWidth == width then
+			return record.height;
+		end;
+		record.measureWidth = width;
+		record.height = measureHeightFromText(record.plainText, width);
+		return record.height;
+	end;
+	local function isNearBottom()
+		local bottomY = logsFrame.CanvasPosition.Y + logsFrame.AbsoluteSize.Y;
+		local canvasY = logsFrame.CanvasSize.Y.Offset;
+		return bottomY >= math.max(0, canvasY - 32);
+	end;
+	local function releaseLabel(lbl)
+		if not lbl then
+			return;
+		end;
+		lbl.Visible = false;
+		lbl.Parent = nil;
+		Insert(pool, lbl);
+	end;
+	local function acquireLabel()
+		if (not isBindActive()) or not logsFrame or (not logsFrame.Parent) or (not virtualCanvas) or (not virtualCanvas.Parent) then
+			return nil;
+		end;
+		local function attachLabel(lbl)
+			return pcall(function()
+				lbl.Parent = virtualCanvas;
+			end);
+		end
+		local lbl = table.remove(pool);
+		while lbl do
+			if attachLabel(lbl) then
+				return lbl;
+			end;
+			lbl = table.remove(pool);
+		end;
+		lbl = NAUIMANAGER.NAconsoleExample:Clone();
+		lbl.RichText = true;
+		lbl.AutoLocalize = false;
+		pcall(function()
+			lbl.Active = true;
+		end);
+		lbl.TextWrapped = true;
+		lbl.TextScaled = true;
+		NAmanage.SetAttr(lbl, "NA_DevConsoleLog", true);
+		if NAmanage.AttachMessageCopy and NAmanage.GetAttr(lbl, "NA_CopyHooked") ~= true then
+			NAmanage.AttachMessageCopy(lbl, function(target)
+				return (NAmanage.GetAttr and NAmanage.GetAttr(target, "NA_CopyText")) or "";
+			end);
+			NAmanage.SetAttr(lbl, "NA_CopyHooked", true);
+		end;
+		if not attachLabel(lbl) then
+			return nil;
+		end;
+		return lbl;
+	end;
+	local function applyRecordToLabel(lbl, record)
+		if not (lbl and record) then
+			return;
+		end;
+		local currentId = NAmanage.GetAttr and NAmanage.GetAttr(lbl, "NA_RecordId");
+		if currentId ~= record.id then
+			lbl.Name = "Log_" .. tostring(record.id);
+			lbl.Text = record.richText;
+			NAmanage.SetAttr(lbl, "Tag", record.tag);
+			NAmanage.SetAttr(lbl, "NA_CopyText", record.copyText);
+			NAmanage.SetAttr(lbl, "NA_RecordId", record.id);
+		end;
+		lbl.Size = UDim2.new(1, 0, 0, record.height or 18);
+		lbl.Position = UDim2.new(0, 0, 0, record.top or 0);
+		lbl.Visible = true;
+	end;
+	local function removeFilteredRecord(record)
+		for i = 1, #filteredMessages do
+			if filteredMessages[i] == record then
+				table.remove(filteredMessages, i);
+				return true;
+			end;
+		end;
+		return false;
+	end;
+	local layoutDirty = true;
+	local layoutWidth = 0;
+	local layoutContentHeight = 0;
+	local syncQueued = false;
+	local syncQueuedFollowBottom = false;
+	local function rebuildRecordLayout(force)
+		if (not isBindActive()) or not logsFrame or (not logsFrame.Parent) then
+			return;
+		end;
+		local width = getMeasureWidth();
+		if (not force) and (not layoutDirty) and layoutWidth == width then
+			return;
+		end;
+		layoutWidth = width;
+		local count = #filteredMessages;
+		local padding = getPadding();
+		local totalHeight = 0;
+		for i = 1, count do
+			local record = filteredMessages[i];
+			local height = ensureRecordHeight(record, width, force);
+			record.top = totalHeight;
+			totalHeight += height;
+			if i < count then
+				totalHeight += padding;
+			end;
+		end;
+		layoutContentHeight = totalHeight;
+		layoutDirty = false;
+		if virtualCanvas then
+			virtualCanvas.Size = UDim2.new(1, 0, 0, layoutContentHeight);
+		end;
+	end;
+	local syncVisibleMessages;
+	local function requestSync(opts)
+		opts = opts or {};
+		if opts.followBottom == true then
+			syncQueuedFollowBottom = true;
+		end;
+		if syncQueued then
+			return;
+		end;
+		syncQueued = true;
+		Defer(function()
+			syncQueued = false;
+			if not isBindActive() then
+				syncQueuedFollowBottom = false;
+				return;
+			end;
+			local followBottom = syncQueuedFollowBottom;
+			syncQueuedFollowBottom = false;
+			syncVisibleMessages({
+				followBottom = followBottom
+			});
+		end);
+	end;
+	local function rebuildFilteredMessages()
+		filteredMessages = {};
+		local width = getMeasureWidth();
+		local query = getQuery();
+		for i = 1, #allMessages do
+			local record = allMessages[i];
+			if record and toggles[record.tag] and matchesQuery(record.searchText, query) then
+				ensureRecordHeight(record, width);
+				filteredMessages[#filteredMessages + 1] = record;
+			end;
+		end;
+		layoutDirty = true;
+		requestSync({
+			followBottom = isNearBottom()
+		});
+	end;
+	local function appendRecord(rawText, tagText, tagColor)
+		messageCounter += 1;
+		local labelText = "[" .. tagText .. "]: " .. rawText;
+		local record = {
+			id = messageCounter,
+			raw = rawText,
+			tag = tagText,
+			color = tagColor,
+			copyText = rawText,
+			plainText = labelText,
+			searchText = labelText:lower(),
+			richText = "<font color=\"" .. tagColor .. "\">[" .. tagText .. "]</font>: <font color=\"#ffffff\">" .. escape(rawText) .. "</font>",
+			height = nil,
+			measureWidth = nil
+		};
+		allMessages[#allMessages + 1] = record;
+		local query = getQuery();
+		if toggles[tagText] and matchesQuery(record.searchText, query) then
+			ensureRecordHeight(record, getMeasureWidth());
+			filteredMessages[#filteredMessages + 1] = record;
+		end;
+		while #allMessages > MAX_MESSAGES do
+			local oldest = table.remove(allMessages, 1);
+			if oldest then
+				removeFilteredRecord(oldest);
+			end;
+		end;
+		layoutDirty = true;
+	end;
+	local function flushOverflowSummary()
+		if overflowTotal <= 0 then
+			return false;
+		end;
+		local parts = {};
+		for _, logType in ipairs(buttonTypes) do
+			local count = overflowCounts[logType];
+			if count and count > 0 then
+				parts[#parts + 1] = tostring(count) .. " " .. logType;
+			end;
+		end;
+		local suffix = (#parts > 0) and (" (" .. table.concat(parts, ", ") .. ")") or "";
+		appendRecord("[NA] Skipped " .. tostring(overflowTotal) .. " console messages while rate-limiting spam." .. suffix, "Warn", "#ffcc00");
+		overflowCounts = {};
+		overflowTotal = 0;
+		return true;
+	end;
+	local function clearConsoleState()
+		allMessages = {};
+		filteredMessages = {};
+		pending = {};
+		pendingHead = 1;
+		pendingTail = 0;
+		overflowCounts = {};
+		overflowTotal = 0;
+		while #visibleLabels > 0 do
+			releaseLabel(table.remove(visibleLabels));
+		end;
+		if virtualCanvas then
+			virtualCanvas.Size = UDim2.new(1, 0, 0, 0);
+		end;
+		layoutDirty = true;
+		layoutWidth = 0;
+		layoutContentHeight = 0;
+		if logsFrame and logsFrame.Parent then
+			logsFrame.CanvasPosition = Vector2.new(0, 0);
+			updateCanvasSize(logsFrame, NAUIMANAGER.AUTOSCALER.Scale);
+		end;
+	end;
+	syncVisibleMessages = function(opts)
+		opts = opts or {};
+		if (not isBindActive()) or not logsFrame or (not logsFrame.Parent) then
+			return;
+		end;
+		local count = #filteredMessages;
+		if count <= 0 then
+			while #visibleLabels > 0 do
+				releaseLabel(table.remove(visibleLabels));
+			end;
+			if virtualCanvas then
+				virtualCanvas.Size = UDim2.new(1, 0, 0, 0);
+			end;
+			updateCanvasSize(logsFrame, NAUIMANAGER.AUTOSCALER.Scale);
+			return;
+		end;
+		rebuildRecordLayout(false);
+		local scrollY = logsFrame.CanvasPosition.Y;
+		local viewHeight = logsFrame.AbsoluteSize.Y;
+		local startY = math.max(0, scrollY - overscanPx);
+		local endY = scrollY + viewHeight + overscanPx;
+		local firstIndex, lastIndex;
+		for i = 1, count do
+			local record = filteredMessages[i];
+			local rowStart = record.top or 0;
+			local rowEnd = rowStart + (record.height or 18);
+			if (not firstIndex) and rowEnd >= startY then
+				firstIndex = i;
+			end;
+			if firstIndex and rowStart <= endY then
+				lastIndex = i;
+			end;
+			if firstIndex and rowStart > endY then
+				break;
+			end;
+		end;
+		if not firstIndex then
+			firstIndex = count;
+			lastIndex = count;
+		end;
+		local needed = math.max(0, lastIndex - firstIndex + 1);
+		while #visibleLabels > needed do
+			releaseLabel(table.remove(visibleLabels));
+		end;
+		if virtualCanvas then
+			virtualCanvas.Size = UDim2.new(1, 0, 0, layoutContentHeight);
+			virtualCanvas.LayoutOrder = 1;
+		end;
+		for offset = 1, needed do
+			local record = filteredMessages[firstIndex + offset - 1];
+			local lbl = visibleLabels[offset];
+			if not lbl then
+				lbl = acquireLabel();
+				visibleLabels[offset] = lbl;
+			end;
+			if lbl then
+				if lbl.Parent ~= virtualCanvas then
+					local ok = pcall(function()
+						lbl.Parent = virtualCanvas;
+					end)
+					if not ok then
+						lbl = acquireLabel();
+						visibleLabels[offset] = lbl;
+					end
+				end;
+				if lbl then
+					applyRecordToLabel(lbl, record);
+					lbl.LayoutOrder = offset;
+				end;
+			end;
+		end;
+		updateCanvasSize(logsFrame, NAUIMANAGER.AUTOSCALER.Scale);
+		if opts.followBottom == true then
+			logsFrame.CanvasPosition = Vector2.new(0, math.max(0, logsFrame.CanvasSize.Y.Offset - logsFrame.AbsoluteSize.Y));
+		end;
+	end;
 	for _, logType in ipairs(buttonTypes) do
 		local btnContainer = InstanceNew("Frame");
 		btnContainer.Name = logType;
@@ -72628,91 +73112,12 @@ NAmanage.bindToDevConsole = function()
 			(__lt.cm("TweenService", "Create", checkbox, tweenInfo, {
 				BackgroundColor3 = targetColor
 			})):Play();
-			local query = NAUIMANAGER.NAfilter.Text:lower();
-			for i = 1, #activeLogs do
-				local lbl = activeLogs[i];
-				if lbl and lbl.Parent then
-					local tag = NAmanage.GetAttr(lbl, "Tag");
-					local matchesSearch = query == "" or Find(lbl.Text:lower(), query);
-					lbl.Visible = toggles[tag] and matchesSearch;
-				end;
-			end;
+			rebuildFilteredMessages();
 		end);
 	end;
 	NAlib.connect(CONN_KEY, (NAUIMANAGER.NAfilter:GetPropertyChangedSignal("Text")):Connect(function()
-		local query = NAUIMANAGER.NAfilter.Text:lower();
-		for i = 1, #activeLogs do
-			local lbl = activeLogs[i];
-			if lbl and lbl.Parent then
-				local tag = NAmanage.GetAttr(lbl, "Tag");
-				local matches = query == "" or Find(lbl.Text:lower(), query);
-				lbl.Visible = toggles[tag] and matches;
-			end;
-		end;
+		rebuildFilteredMessages();
 	end));
-	local function acquireLabel()
-		if not NAUIMANAGER.NAconsoleLogs or (not NAUIMANAGER.NAconsoleLogs.Parent) then
-			return nil;
-		end;
-		local lbl = table.remove(pool);
-		if not lbl then
-			lbl = NAUIMANAGER.NAconsoleExample:Clone();
-			lbl.RichText = true;
-			lbl.AutoLocalize = false;
-			pcall(function()
-				lbl.Active = true;
-			end);
-			lbl.TextWrapped = true;
-			lbl.TextScaled = true;
-		end;
-		if not pcall(function()
-				lbl.Parent = NAUIMANAGER.NAconsoleLogs;
-			end) then
-			return nil;
-		end;
-		return lbl;
-	end;
-	local function recycleOldest()
-		local oldest = table.remove(activeLogs, 1);
-		if oldest then
-			oldest.Visible = false;
-			oldest.Parent = nil;
-			Insert(pool, oldest);
-		end;
-	end;
-	local function escape(s)
-		return ((s:gsub("&", "&amp;")):gsub("<", "&lt;")):gsub(">", "&gt;");
-	end;
-
-	local function stripRichText(s)
-		s = tostring(s or "");
-		s = s:gsub("<.->", "");
-		s = s:gsub("&lt;", "<"):gsub("&gt;", ">"):gsub("&amp;", "&");
-		return s;
-	end;
-	local function measureHeight(lbl, width)
-		local plain = lbl.Text:gsub("<.->", "");
-		local baseSize = NAUIMANAGER.NAconsoleExample.TextSize or 14;
-		local vec = __lt.cm("TextService", "GetTextSize", plain, baseSize, lbl.Font, Vector2.new(width, 1000000));
-		local h = vec.Y;
-		if h < 18 then
-			h = 18;
-		end;
-		return math.floor(h + 0.5);
-	end;
-	local function refreshLogHeights()
-		if not NAUIMANAGER.NAconsoleLogs then
-			return;
-		end;
-		local width = NAUIMANAGER.NAconsoleLogs.AbsoluteSize.X;
-		for i = 1, #activeLogs do
-			local lbl = activeLogs[i];
-			if lbl and lbl.Parent then
-				local h = measureHeight(lbl, width);
-				lbl.Size = UDim2.new(1, 0, 0, h);
-			end;
-		end;
-	end;
 	local function reflowConsole()
 		local logs = NAUIMANAGER.NAconsoleLogs;
 		local filterBox = NAUIMANAGER.NAfilter;
@@ -72733,8 +73138,17 @@ NAmanage.bindToDevConsole = function()
 		logs.Position = UDim2.new(0.5, 0, 0, cursorY);
 		local availableHeight = math.max(0, container.AbsoluteSize.Y - cursorY - 8);
 		logs.Size = UDim2.new(1, -10, 0, availableHeight);
-		refreshLogHeights();
-		updateCanvasSize(logs, NAUIMANAGER.AUTOSCALER.Scale);
+		local width = getMeasureWidth();
+		for i = 1, #filteredMessages do
+			local record = filteredMessages[i];
+			if record then
+				ensureRecordHeight(record, width, true);
+			end;
+		end;
+		layoutDirty = true;
+		requestSync({
+			followBottom = isNearBottom()
+		});
 	end;
 	local function enqueueMessage(msg, msgTYPE)
 		local rawText = tostring(msg or "");
@@ -72750,69 +73164,51 @@ NAmanage.bindToDevConsole = function()
 			tagColor = "#66ccff";
 			tagText = "Info";
 		end;
-		if not toggles[tagText] then
+		local pendingSize = pendingTail - pendingHead + 1;
+		if pendingSize >= MAX_PENDING then
+			overflowTotal += 1;
+			overflowCounts[tagText] = (overflowCounts[tagText] or 0) + 1;
 			return;
 		end;
 		pendingTail += 1;
 		pending[pendingTail] = {
-			m = escape(rawText),
 			raw = rawText,
 			t = tagText,
 			c = tagColor
 		};
 	end;
-	local messageCounter = 0;
-	local MAX_MESSAGES = 200;
 	local function processPendingQueue()
 		if pendingProcessing then
 			return;
 		end;
 		pendingProcessing = true;
 		Spawn(function()
-			while pendingHead <= pendingTail do
+			while isBindActive() and pendingHead <= pendingTail do
 				if not NAUIMANAGER.NAconsoleLogs or (not NAUIMANAGER.NAconsoleLogs.Parent) then
 					pendingProcessing = false;
 					return;
 				end;
-				local perStep = 30;
+				local perStep = 60;
 				local processed = 0;
+				local followBottom = isNearBottom();
 				while processed < perStep and pendingHead <= pendingTail do
 					local item = pending[pendingHead];
 					pending[pendingHead] = nil;
 					pendingHead += 1;
-					if item and toggles[item.t] then
-						local logLabel = acquireLabel();
-						if not logLabel then
-							break;
-						end;
-						messageCounter += 1;
-						logLabel.Name = "Log_" .. tostring(messageCounter);
-						logLabel.LayoutOrder = messageCounter;
-						logLabel.Text = "<font color=\"" .. item.c .. "\">[" .. item.t .. "]</font>: <font color=\"#ffffff\">" .. item.m .. "</font>";
-						NAmanage.SetAttr(logLabel, "Tag", item.t);
-						NAmanage.SetAttr(logLabel, "NA_DevConsoleLog", true);
-						local copyText = item.raw or stripRichText(item.m);
-						NAmanage.SetAttr(logLabel, "NA_CopyText", copyText);
-						if NAmanage.AttachMessageCopy and NAmanage.GetAttr(logLabel, "NA_CopyHooked") ~= true then
-							NAmanage.AttachMessageCopy(logLabel, function(lbl)
-								return (NAmanage.GetAttr and NAmanage.GetAttr(lbl, "NA_CopyText")) or copyText;
-							end);
-							NAmanage.SetAttr(logLabel, "NA_CopyHooked", true);
-						end;
-						local width = NAUIMANAGER.NAconsoleLogs.AbsoluteSize.X;
-						local h = measureHeight(logLabel, width);
-						logLabel.Size = UDim2.new(1, 0, 0, h);
-						activeLogs[(#activeLogs) + 1] = logLabel;
-						if #activeLogs > MAX_MESSAGES then
-							recycleOldest();
-						end;
-						local query = NAUIMANAGER.NAfilter.Text:lower();
-						local matchesSearch = query == "" or Find(logLabel.Text:lower(), query);
-						logLabel.Visible = toggles[item.t] and matchesSearch;
+					if item then
+						appendRecord(item.raw, item.t, item.c);
 						processed += 1;
 					end;
 				end;
+				flushOverflowSummary();
+				requestSync({
+					followBottom = followBottom
+				});
 				Wait();
+			end;
+			if not isBindActive() then
+				pendingProcessing = false;
+				return;
 			end;
 			pending = {};
 			pendingHead = 1;
@@ -72821,6 +73217,12 @@ NAmanage.bindToDevConsole = function()
 		end);
 	end;
 	local logService = SafeGetService("LogService");
+	NAmanage._menuClearHandlers = NAmanage._menuClearHandlers or setmetatable({}, {
+		__mode = "k"
+	});
+	if NAUIMANAGER.NAconsoleFrame then
+		NAmanage._menuClearHandlers[NAUIMANAGER.NAconsoleFrame] = clearConsoleState;
+	end;
 	do
 		local ok, history = pcall(function()
 			if logService then
@@ -72856,16 +73258,58 @@ NAmanage.bindToDevConsole = function()
 	end);
 	pcall(function()
 		NAlib.connect(CONN_KEY, (NAUIMANAGER.NAconsoleLogs:GetPropertyChangedSignal("AbsoluteSize")):Connect(function()
-			refreshLogHeights();
-			updateCanvasSize(NAUIMANAGER.NAconsoleLogs, NAUIMANAGER.AUTOSCALER.Scale);
+			local width = getMeasureWidth();
+			for i = 1, #filteredMessages do
+				local record = filteredMessages[i];
+				if record then
+					ensureRecordHeight(record, width, true);
+				end;
+			end;
+			layoutDirty = true;
+			requestSync({
+				followBottom = isNearBottom()
+			});
+		end));
+	end);
+	pcall(function()
+		NAlib.connect(CONN_KEY, (NAUIMANAGER.NAconsoleLogs:GetPropertyChangedSignal("CanvasPosition")):Connect(function()
+			requestSync();
 		end));
 	end);
 
 	local function cleanup()
 		NAlib.disconnect(CONN_KEY)
+		if NAStuff and NAStuff._devConsoleBindGeneration == bindGeneration then
+			NAStuff._devConsoleBindGeneration = bindGeneration + 1
+		end
+		pending = {}
+		pendingHead = 1
+		pendingTail = 0
+		pendingProcessing = false
+		syncQueued = false
+		syncQueuedFollowBottom = false
+		if NAmanage and NAmanage._menuClearHandlers and NAUIMANAGER.NAconsoleFrame and NAmanage._menuClearHandlers[NAUIMANAGER.NAconsoleFrame] == clearConsoleState then
+			NAmanage._menuClearHandlers[NAUIMANAGER.NAconsoleFrame] = nil
+		end
+		while #visibleLabels > 0 do
+			releaseLabel(table.remove(visibleLabels))
+		end
+		while #pool > 0 do
+			local pooled = table.remove(pool)
+			pcall(function()
+				pooled:Destroy()
+			end)
+		end
+		allMessages = {}
+		filteredMessages = {}
 		pcall(function()
 			if FilterButtons then
 				FilterButtons:Destroy()
+			end
+		end)
+		pcall(function()
+			if virtualCanvas then
+				virtualCanvas:Destroy()
 			end
 		end)
 	end
@@ -77316,6 +77760,18 @@ NAmanage.RegisterToggleAutoSync("NA Console Master Input", function()
 	return NAStuff.NAConsoleMasterEnabled ~= false
 end)
 
+NAgui.addSlider("NA Console Log Buffer", 200, 5000, NAStuff.DevConsoleLogLimit or 1200, 50, " logs", function(v)
+	NAStuff.DevConsoleLogLimit = math.clamp(math.floor((tonumber(v) or 1200) + 0.5), 200, 5000)
+	pcall(NAmanage.NASettingsSet, "devConsoleLogLimit", NAStuff.DevConsoleLogLimit)
+	pcall(NAmanage.bindToDevConsole)
+end)
+
+NAgui.addSlider("NA Console Queue Limit", 100, 4000, NAStuff.DevConsoleQueueLimit or 600, 50, " pending", function(v)
+	NAStuff.DevConsoleQueueLimit = math.clamp(math.floor((tonumber(v) or 600) + 0.5), 100, 4000)
+	pcall(NAmanage.NASettingsSet, "devConsoleQueueLimit", NAStuff.DevConsoleQueueLimit)
+	pcall(NAmanage.bindToDevConsole)
+end)
+
 NAStuff.PRELOAD_ASSET_CLASS_PROPS = NAStuff.PRELOAD_ASSET_CLASS_PROPS or {
 	Animation = { "AnimationId" };
 	AnimationClip = { "AnimationId" };
@@ -80166,7 +80622,8 @@ NAmanage.applyCrosshair = function()
 	local size = math.clamp(tonumber(NAStuff.CrosshairSize) or 8, 2, 100)
 	local thick = math.clamp(tonumber(NAStuff.CrosshairThickness) or 2, 1, 20)
 	local color = NAStuff.CrosshairColor or Color3.new(1, 1, 1)
-	local gap = math.max(1, math.floor(thick))
+	local gap = math.clamp(math.floor((tonumber(NAStuff.CrosshairGap) or 2) + 0.5), 0, 30)
+	local showCenter = NAStuff.CrosshairShowCenter ~= false
 
 	local function line(w, h, pos)
 		local f = InstanceNew("Frame")
@@ -80179,7 +80636,9 @@ NAmanage.applyCrosshair = function()
 		return f
 	end
 
-	local center = line(thick, thick, UDim2.fromScale(0.5, 0.5))
+	if showCenter then
+		line(thick, thick, UDim2.fromScale(0.5, 0.5))
+	end
 
 	line(thick, size, UDim2.new(0.5, 0, 0.5, -(gap + size / 2))) -- top
 	line(thick, size, UDim2.new(0.5, 0, 0.5,  (gap + size / 2))) -- bottom
@@ -80235,8 +80694,24 @@ NAmanage.applyTopbarStyle = function()
 	if stroke then
 		stroke.Transparency = clamp01(NAStuff.TopbarStrokeTransparency or 0.15, 0.15)
 	end
+	local panel = TopBarApp and TopBarApp.underlay
+	if panel then
+		panel.BackgroundTransparency = clamp01(NAStuff.TopbarPanelTransparency or 0.1, 0.1)
+	end
+	local buttonTransparency = clamp01(NAStuff.TopbarButtonTransparency or 0.18, 0.18)
+	local scroll = TopBarApp and TopBarApp.scroll
+	if scroll then
+		for _, btn in ipairs(scroll:GetChildren()) do
+			if btn:IsA("TextButton") then
+				local bg = btn:FindFirstChildOfClass("Frame")
+				if bg then
+					bg.BackgroundTransparency = buttonTransparency
+				end
+			end
+		end
+	end
 	if TopBarApp and TopBarApp.isOpen ~= nil and NAmanage.Topbar_UpdateToggleVisual then
-		NAmanage.Topbar_UpdateToggleVisual(TopBarApp.isOpen)
+		NAmanage.Topbar_UpdateToggleVisual(TopBarApp.isOpen, { skipIcon = true })
 	end
 end
 
@@ -80247,7 +80722,8 @@ NAmanage.applySideSwipeStyle = function(opts)
 	end
 	if SideSwipeApp then
 		if SideSwipeApp.underlay then
-			SideSwipeApp.underlay.BackgroundTransparency = 0.35
+			local basePanelTransparency = clamp01(NAStuff.SideSwipePanelTransparency or 0.35, 0.35)
+			SideSwipeApp.underlay.BackgroundTransparency = SideSwipeApp.isOpen and math.max(0, basePanelTransparency - 0.27) or basePanelTransparency
 		end
 		if SideSwipeApp.handles then
 			local ht = clamp01(NAStuff.SideSwipeHandleTransparency or 0.72, 0.72)
@@ -80260,14 +80736,15 @@ NAmanage.applySideSwipeStyle = function(opts)
 		end
 		local scroll = SideSwipeApp.scroll
 		if scroll then
-			scroll.ScrollBarThickness = 4
+			scroll.ScrollBarThickness = math.clamp(math.floor((tonumber(NAStuff.SideSwipeScrollBarThickness) or 4) + 0.5), 0, 12)
 		end
 		if SideSwipeApp.scroll then
+			local buttonTransparency = clamp01(NAStuff.SideSwipeButtonTransparency or 0.16, 0.16)
 			for _, btn in ipairs(SideSwipeApp.scroll:GetChildren()) do
 				if btn:IsA("TextButton") then
 					local bg = btn:FindFirstChildOfClass("Frame")
 					if bg then
-						bg.BackgroundTransparency = 0.16
+						bg.BackgroundTransparency = buttonTransparency
 					end
 				end
 			end
@@ -80543,6 +81020,19 @@ NAgui.addSlider("Crosshair Thickness", 1, 20, math.clamp(tonumber(NAStuff.Crossh
 	NAmanage.applyCrosshair()
 end)
 
+NAgui.addSlider("Crosshair Gap", 0, 30, math.clamp(tonumber(NAStuff.CrosshairGap) or 2, 0, 30), 1, " px", function(val)
+	local n = math.clamp(math.floor((tonumber(val) or NAStuff.CrosshairGap or 2) + 0.5), 0, 30)
+	NAStuff.CrosshairGap = n
+	NAmanage.NASettingsSet("crosshairGap", n)
+	NAmanage.applyCrosshair()
+end)
+
+NAgui.addToggle("Crosshair Center Dot", NAStuff.CrosshairShowCenter ~= false, function(v)
+	NAStuff.CrosshairShowCenter = v ~= false
+	NAmanage.NASettingsSet("crosshairShowCenter", NAStuff.CrosshairShowCenter)
+	NAmanage.applyCrosshair()
+end)
+
 NAgui.addColorPicker("Crosshair Color", NAStuff.CrosshairColor or Color3.new(1,1,1), function(color)
 	if typeof(color) ~= "Color3" then
 		return
@@ -80605,6 +81095,18 @@ NAgui.addSlider("Topbar Stroke Transparency", 0, 1, NAgui.clamp01(NAStuff.Topbar
 	NAmanage.NASettingsSet("topbarStrokeTransparency", NAStuff.TopbarStrokeTransparency)
 end)
 
+NAgui.addSlider("Topbar Panel Transparency", 0, 1, NAgui.clamp01(NAStuff.TopbarPanelTransparency or 0.1, 0.1), 0.05, "", function(v)
+	NAStuff.TopbarPanelTransparency = NAgui.clamp01(v, 0.1)
+	NAmanage.applyTopbarStyle()
+	NAmanage.NASettingsSet("topbarPanelTransparency", NAStuff.TopbarPanelTransparency)
+end)
+
+NAgui.addSlider("Topbar Button Transparency", 0, 1, NAgui.clamp01(NAStuff.TopbarButtonTransparency or 0.18, 0.18), 0.05, "", function(v)
+	NAStuff.TopbarButtonTransparency = NAgui.clamp01(v, 0.18)
+	NAmanage.applyTopbarStyle()
+	NAmanage.NASettingsSet("topbarButtonTransparency", NAStuff.TopbarButtonTransparency)
+end)
+
 NAgui.addSection("Side Swipe")
 
 NAgui.addToggle("Side Swipe On Left", NASideSwipeSide ~= "right", function(v)
@@ -80636,6 +81138,24 @@ end)
 NAgui.addSlider("Side Swipe Handle Transparency", 0, 1, NAgui.clamp01(NAStuff.SideSwipeHandleTransparency or 0.72, 0.72), 0.05, "", function(v)
 	NAStuff.SideSwipeHandleTransparency = NAgui.clamp01(v, 0.72)
 	NAmanage.NASettingsSet("sideSwipeHandleTransparency", NAStuff.SideSwipeHandleTransparency)
+	NAmanage.applySideSwipeStyle({ rebuild = false })
+end)
+
+NAgui.addSlider("Side Swipe Panel Transparency", 0, 1, NAgui.clamp01(NAStuff.SideSwipePanelTransparency or 0.35, 0.35), 0.05, "", function(v)
+	NAStuff.SideSwipePanelTransparency = NAgui.clamp01(v, 0.35)
+	NAmanage.NASettingsSet("sideSwipePanelTransparency", NAStuff.SideSwipePanelTransparency)
+	NAmanage.applySideSwipeStyle({ rebuild = false })
+end)
+
+NAgui.addSlider("Side Swipe Button Transparency", 0, 1, NAgui.clamp01(NAStuff.SideSwipeButtonTransparency or 0.16, 0.16), 0.05, "", function(v)
+	NAStuff.SideSwipeButtonTransparency = NAgui.clamp01(v, 0.16)
+	NAmanage.NASettingsSet("sideSwipeButtonTransparency", NAStuff.SideSwipeButtonTransparency)
+	NAmanage.applySideSwipeStyle({ rebuild = false })
+end)
+
+NAgui.addSlider("Side Swipe Scrollbar", 0, 12, math.clamp(math.floor((tonumber(NAStuff.SideSwipeScrollBarThickness) or 4) + 0.5), 0, 12), 1, " px", function(v)
+	NAStuff.SideSwipeScrollBarThickness = math.clamp(math.floor((tonumber(v) or NAStuff.SideSwipeScrollBarThickness or 4) + 0.5), 0, 12)
+	NAmanage.NASettingsSet("sideSwipeScrollBarThickness", NAStuff.SideSwipeScrollBarThickness)
 	NAmanage.applySideSwipeStyle({ rebuild = false })
 end)
 
