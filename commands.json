@@ -3587,7 +3587,10 @@
       "name": "autooutfit",
       "aliases": [
         "autooutfit",
-        "aoutfit"
+        "aoutfit",
+        "autooutfitid",
+        "aoutfitid",
+        "aoid"
       ],
       "usage": "",
       "args": "",
@@ -3606,7 +3609,9 @@
     {
       "name": "outfit",
       "aliases": [
-        "outfit"
+        "outfit",
+        "outfitid",
+        "oid"
       ],
       "usage": "",
       "args": "",
