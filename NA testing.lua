@@ -44164,6 +44164,293 @@ cmd.add({"untimestop", "untstop"}, {"untimestop (untstop)", "unfreeze all player
 end)
 
 NAStuff._outfitCache=NAStuff._outfitCache or{};NAStuff._httpBackoff=NAStuff._httpBackoff or{};NAStuff._httpCooldown=NAStuff._httpCooldown or{}
+NAStuff._faceTextureCache=NAStuff._faceTextureCache or{}
+NAmanage._normalizeAssetUrl=function(value)
+	local raw=type(value)=="string" and value or tostring(value or"")
+	local digits=raw:match("^rbxassetid://(%d+)$") or raw:match("id=(%d+)") or raw:match("(%d+)$")
+	if digits then
+		return "http://www.roblox.com/asset/?id="..digits
+	end
+	return raw~="" and raw or nil
+end
+NAmanage._resolveFaceTextureFromAsset=function(faceId)
+	local id=tonumber(faceId)
+	if not id or id<=0 then return nil end
+	local cache=NAStuff._faceTextureCache
+	if cache[id] then
+		return cache[id]
+	end
+	local ok,objects=pcall(function()
+		return game:GetObjects("rbxassetid://"..tostring(id))
+	end)
+	if ok and type(objects)=="table" then
+		for _,obj in ipairs(objects) do
+			local candidates={obj}
+			local okDesc,descendants=pcall(function()
+				return obj:GetDescendants()
+			end)
+			if okDesc and type(descendants)=="table" then
+				for _,inst in ipairs(descendants) do
+					Insert(candidates,inst)
+				end
+			end
+			for _,inst in ipairs(candidates) do
+				if typeof(inst)=="Instance" and inst:IsA("Decal") then
+					local normalized=NAmanage._normalizeAssetUrl(inst.Texture)
+					if normalized then
+						cache[id]=normalized
+						for _,cleanup in ipairs(objects) do
+							if typeof(cleanup)=="Instance" and cleanup.Parent==nil then
+								pcall(function()
+									cleanup:Destroy()
+								end)
+							end
+						end
+						return normalized
+					end
+				end
+			end
+		end
+		for _,cleanup in ipairs(objects) do
+			if typeof(cleanup)=="Instance" and cleanup.Parent==nil then
+				pcall(function()
+					cleanup:Destroy()
+				end)
+			end
+		end
+	end
+	local fallback="http://www.roblox.com/asset/?id="..tostring(id)
+	cache[id]=fallback
+	return fallback
+end
+NAmanage._avatarHttpJSON=function(method,url,body)
+	local req=opt and opt.NAREQUEST
+	if type(req)~="function" then return nil end
+	local payload=nil
+	if body~=nil then
+		local okEncode,encoded=pcall(HttpService.JSONEncode,HttpService,body)
+		if not okEncode or type(encoded)~="string" then return nil end
+		payload=encoded
+	end
+	local okResp,resp=pcall(req,{
+		Url=url,
+		Method=method or"GET",
+		Headers={
+			Accept="application/json",
+			["Content-Type"]=payload and"application/json" or nil,
+			["Cache-Control"]="no-cache",
+			Pragma="no-cache",
+			["User-Agent"]="Roblox-Client",
+		},
+		Body=payload,
+		Timeout=5,
+		FollowRedirects=true,
+	})
+	if not okResp or not resp then return nil end
+	local status=resp.StatusCode or resp.Status or 0
+	local text=resp.Body or resp.body
+	if status~=200 or type(text)~="string" or text=="" then return nil end
+	local okDecode,decoded=pcall(HttpService.JSONDecode,HttpService,text)
+	if not okDecode then return nil end
+	return decoded
+end
+NAmanage._resolveHumanoidUserId=function(target)
+	if target==nil then return nil end
+	local userId=tonumber(target)
+	if userId then return userId end
+	local name=tostring(target)
+	if name=="" then return nil end
+	local ok,id=pcall(Players.GetUserIdFromNameAsync,Players,name)
+	if ok and id then return id end
+	local data=NAmanage._avatarHttpJSON("POST","https://users.roblox.com/v1/usernames/users",{usernames={name},excludeBannedUsers=false})
+	local entry=data and data.data and data.data[1]
+	local resolved=entry and tonumber(entry.id)
+	if resolved then return resolved end
+	return nil
+end
+NAmanage._mapAvatarAssetProp=function(assetType)
+	local t=tostring(assetType or"")
+	if t:find("Animation") then
+		return t:gsub("Animation","").."Animation"
+	end
+	if t=="TShirt" or t=="TShirtGraphic" then
+		return"GraphicTShirt"
+	end
+	if t=="Hat" then
+		return"HatAccessory"
+	end
+	if t=="DynamicHead" then
+		return"Head"
+	end
+	return t
+end
+NAmanage._buildHumanoidDescriptionFromAvatar=function(av)
+	if type(av)~="table" then return nil end
+	local desc=InstanceNew("HumanoidDescription")
+	local function setProp(prop,value)
+		pcall(function()
+			desc[prop]=value
+		end)
+	end
+	local bodyColors=av.bodyColors
+	if type(bodyColors)=="table" then
+		pcall(function() setProp("HeadColor",BrickColor.new(bodyColors.headColorId).Color) end)
+		pcall(function() setProp("TorsoColor",BrickColor.new(bodyColors.torsoColorId).Color) end)
+		pcall(function() setProp("LeftArmColor",BrickColor.new(bodyColors.leftArmColorId).Color) end)
+		pcall(function() setProp("RightArmColor",BrickColor.new(bodyColors.rightArmColorId).Color) end)
+		pcall(function() setProp("LeftLegColor",BrickColor.new(bodyColors.leftLegColorId).Color) end)
+		pcall(function() setProp("RightLegColor",BrickColor.new(bodyColors.rightLegColorId).Color) end)
+	elseif type(av.bodyColor3s)=="table" then
+		local bodyColor3s=av.bodyColor3s
+		local function parseColor3(value)
+			if type(value)~="string" then return nil end
+			local hex=value:gsub("#","")
+			if #hex~=6 then return nil end
+			local n=tonumber(hex,16)
+			if not n then return nil end
+			local r=math.floor(n/65536)%256
+			local g=math.floor(n/256)%256
+			local b=n%256
+			return Color3.fromRGB(r,g,b)
+		end
+		local head=parseColor3(bodyColor3s.headColor3)
+		local torso=parseColor3(bodyColor3s.torsoColor3)
+		local leftArm=parseColor3(bodyColor3s.leftArmColor3)
+		local rightArm=parseColor3(bodyColor3s.rightArmColor3)
+		local leftLeg=parseColor3(bodyColor3s.leftLegColor3)
+		local rightLeg=parseColor3(bodyColor3s.rightLegColor3)
+		if head then setProp("HeadColor",head) end
+		if torso then setProp("TorsoColor",torso) end
+		if leftArm then setProp("LeftArmColor",leftArm) end
+		if rightArm then setProp("RightArmColor",rightArm) end
+		if leftLeg then setProp("LeftLegColor",leftLeg) end
+		if rightLeg then setProp("RightLegColor",rightLeg) end
+	end
+	local accessoryLists={
+		HairAccessory={},
+		FaceAccessory={},
+		NeckAccessory={},
+		ShoulderAccessory={},
+		FrontAccessory={},
+		BackAccessory={},
+		WaistAccessory={},
+		HatAccessory={},
+	}
+	for _,asset in ipairs(av.assets or{}) do
+		local assetType=asset and asset.assetType
+		local rawType=(type(assetType)=="table" and(assetType.name or assetType.id)) or assetType
+		local prop=NAmanage._mapAvatarAssetProp(rawType)
+		local assetId=asset and tonumber(asset.id)
+		if prop and assetId and assetId>0 then
+			if prop:find("Animation",1,true) then
+				setProp(prop,assetId)
+			elseif accessoryLists[prop] then
+				Insert(accessoryLists[prop],tostring(assetId))
+			elseif prop=="Shirt" or prop=="Pants" or prop=="Face" or prop=="GraphicTShirt" then
+				setProp(prop,assetId)
+			elseif prop=="Head" or prop=="Torso" or prop=="LeftArm" or prop=="RightArm" or prop=="LeftLeg" or prop=="RightLeg" then
+				setProp(prop,assetId)
+			end
+		end
+	end
+	for prop,ids in pairs(accessoryLists) do
+		if #ids>0 then
+			setProp(prop,table.concat(ids,","))
+		end
+	end
+	local scales=av.scales
+	if type(scales)=="table" then
+		if tonumber(scales.height) then setProp("HeightScale",scales.height) end
+		if tonumber(scales.width) then setProp("WidthScale",scales.width) end
+		if tonumber(scales.head) then setProp("HeadScale",scales.head) end
+		if tonumber(scales.depth) then setProp("DepthScale",scales.depth) end
+		if tonumber(scales.bodyType) then setProp("BodyTypeScale",scales.bodyType) end
+		if tonumber(scales.proportion) then setProp("ProportionScale",scales.proportion) end
+	end
+	if type(av.emotes)=="table" and #av.emotes>0 then
+		local emoteMap={}
+		local equippedMeta={}
+		local usedNames={}
+		for _,emote in ipairs(av.emotes) do
+			local assetId=tonumber(emote and (emote.assetId or emote.id))
+			if assetId and assetId>0 then
+				local baseName=tostring((emote and (emote.assetName or emote.name)) or ("Emote"..tostring(assetId)))
+				if baseName=="" then
+					baseName="Emote"..tostring(assetId)
+				end
+				local name=baseName
+				if usedNames[name] and usedNames[name]~=assetId then
+					name=baseName.." ("..tostring(assetId)..")"
+				end
+				usedNames[name]=assetId
+				emoteMap[name]={assetId}
+				Insert(equippedMeta,{name=name,position=tonumber(emote.position) or math.huge,id=assetId})
+			end
+		end
+		if next(emoteMap) then
+			table.sort(equippedMeta,function(a,b)
+				if a.position==b.position then
+					return a.id<b.id
+				end
+				return a.position<b.position
+			end)
+			local equipped={}
+			for _,entry in ipairs(equippedMeta) do
+				Insert(equipped,entry.name)
+			end
+			pcall(function()
+				desc:SetEmotes(emoteMap)
+			end)
+			pcall(function()
+				desc:SetEquippedEmotes(equipped)
+			end)
+		end
+	end
+	return desc
+end
+NAmanage._humanoidDescriptionHasAppearance=function(desc)
+	if not desc then return false end
+	for _,key in ipairs({
+		"HatAccessory",
+		"HairAccessory",
+		"FaceAccessory",
+		"NeckAccessory",
+		"ShoulderAccessory",
+		"ShouldersAccessory",
+		"FrontAccessory",
+		"BackAccessory",
+		"WaistAccessory",
+		"AccessoryBlob",
+		"Shirt",
+		"Pants",
+		"GraphicTShirt",
+		"TShirt",
+		"Face",
+		"Head",
+		"Torso",
+		"LeftArm",
+		"RightArm",
+		"LeftLeg",
+		"RightLeg",
+	}) do
+		local ok,value=pcall(function()
+			return desc[key]
+		end)
+		if ok then
+			if type(value)=="number" and value>0 then
+				return true
+			end
+			if type(value)=="string" and value~="" then
+				for id in value:gmatch("%d+") do
+					if tonumber(id) and tonumber(id)>0 then
+						return true
+					end
+				end
+			end
+		end
+	end
+	return false
+end
 NAmanage._waitCharReady=function(timeout)
 	local t=timeout or 5
 	local plr=Players.LocalPlayer
@@ -44202,6 +44489,7 @@ NAmanage._applyFixedDescription=function(desc,uidFallback,opts)
 	end
 	local targetAppearanceModel = nil
 	local targetAccessoryCount = nil
+	local targetAppearanceOwned = false
 
 	local function clearAppearance()
 		for _,inst in ipairs(char:GetChildren()) do
@@ -44212,23 +44500,70 @@ NAmanage._applyFixedDescription=function(desc,uidFallback,opts)
 		local hd=getHead(char)
 		if hd then
 			for _,d in ipairs(hd:GetChildren()) do
-				if d:IsA("Decal") and Lower(d.Name)=="face" then
+				if d:IsA("Decal") then
 					d:Destroy()
 				end
 			end
 		end
 	end
 
+	local function isHeadVisual(inst)
+		if not inst then return false end
+		return inst:IsA("Decal")
+			or inst:IsA("SurfaceAppearance")
+			or inst:IsA("SpecialMesh")
+		end
+
+	local function hasHeadFaceVisual(headInst)
+		if not headInst then return false end
+		for _,inst in ipairs(headInst:GetChildren()) do
+			if inst:IsA("Decal") then
+				local okTexture,texture=pcall(function() return inst.Texture end)
+				if okTexture and type(texture)=="string" and texture~="" then
+					return true
+				end
+			end
+		end
+		return false
+	end
+
+	local function copyHeadVisualsFromSource(sourceHead, targetHead)
+		if not sourceHead or not targetHead then return false end
+		local copied=false
+		for _,inst in ipairs(sourceHead:GetChildren()) do
+			if isHeadVisual(inst) then
+				local clone=inst:Clone()
+				clone.Parent=targetHead
+				copied=true
+			end
+		end
+		return copied
+	end
+
+	local function ensureDefaultFace(headInst)
+		if not headInst or hasHeadFaceVisual(headInst) then return end
+		local dec=InstanceNew("Decal")
+		dec.Name="face"
+		dec.Texture="rbxasset://textures/face.png"
+		dec.Face=Enum.NormalId.Front
+		dec.Parent=headInst
+	end
+
 	local function getTargetAppearance()
 		if targetAppearanceModel ~= nil then
 			return targetAppearanceModel or nil
 		end
-		if not uidFallback then
+		if uidFallback then
+			local ok, appearance = pcall(Players.GetCharacterAppearanceAsync, Players, uidFallback)
+			targetAppearanceModel = ok and appearance or false
+		else
 			targetAppearanceModel = false
-			return nil
 		end
-		local ok, appearance = pcall(Players.GetCharacterAppearanceAsync, Players, uidFallback)
-		targetAppearanceModel = ok and appearance or false
+		if not targetAppearanceModel and desc then
+			local okPreview,preview=pcall(Players.CreateHumanoidModelFromDescription,Players,desc,hum.RigType)
+			targetAppearanceModel=okPreview and preview or false
+			targetAppearanceOwned=targetAppearanceModel and true or false
+		end
 		return targetAppearanceModel or nil
 	end
 
@@ -44241,6 +44576,29 @@ NAmanage._applyFixedDescription=function(desc,uidFallback,opts)
 		if appearance then
 			for _, inst in ipairs(appearance:QueryDescendants("Accessory")) do
 				count += 1
+			end
+		end
+		if count == 0 then
+			for _, key in ipairs({
+				"HatAccessory",
+				"HairAccessory",
+				"FaceAccessory",
+				"NeckAccessory",
+				"ShoulderAccessory",
+				"ShouldersAccessory",
+				"FrontAccessory",
+				"BackAccessory",
+				"WaistAccessory",
+				"AccessoryBlob",
+			}) do
+				local okValue, value = pcall(function()
+					return desc[key]
+				end)
+				if okValue and value ~= nil and value ~= "" then
+					for _ in tostring(value):gmatch("%d+") do
+						count += 1
+					end
+				end
 			end
 		end
 		targetAccessoryCount = count
@@ -44258,33 +44616,27 @@ NAmanage._applyFixedDescription=function(desc,uidFallback,opts)
 	local function ensureFace()
 		local headNow=getHead(char)
 		if not headNow then return end
-		local hasFace=false
-		for _,d in ipairs(headNow:GetChildren()) do
-			if d:IsA("Decal") and Lower(d.Name)=="face" then
-				hasFace=true
-				break
+		if hasHeadFaceVisual(headNow) then return end
+		local copiedFromAppearance=false
+		local ap = getTargetAppearance()
+		if ap then
+			local headSrc=ap:FindFirstChild("Head",true)
+			if headSrc then
+				copiedFromAppearance=copyHeadVisualsFromSource(headSrc,headNow)
 			end
 		end
-		if hasFace then return end
-		local faceId=0
-		pcall(function() faceId=desc.Face or 0 end)
-		if faceId and faceId>0 then
-			local dec=InstanceNew("Decal")
-			dec.Name="face"
-			dec.Texture="rbxassetid://"..tostring(faceId)
-			dec.Face=Enum.NormalId.Front
-			dec.Parent=headNow
-		elseif uidFallback then
-			local ap = getTargetAppearance()
-			if ap then
-				for _,v in ipairs(ap:QueryDescendants("Decal")) do
-					if Lower(v.Name)=="face" then
-						v:Clone().Parent=headNow
-						break
-					end
-				end
+		if not copiedFromAppearance and not hasHeadFaceVisual(headNow) then
+			local faceId=0
+			pcall(function() faceId=desc.Face or 0 end)
+			if faceId and faceId>0 then
+				local dec=InstanceNew("Decal")
+				dec.Name="face"
+				dec.Texture=NAmanage._resolveFaceTextureFromAsset(faceId)
+				dec.Face=Enum.NormalId.Front
+				dec.Parent=headNow
 			end
 		end
+		ensureDefaultFace(headNow)
 	end
 
 	local function ensureClothes()
@@ -44305,6 +44657,77 @@ NAmanage._applyFixedDescription=function(desc,uidFallback,opts)
 			local g=InstanceNew("ShirtGraphic")
 			g.Graphic="rbxassetid://"..gid
 			g.Parent=char
+		end
+	end
+
+	local function sourceHasClass(source,className)
+		if not source then return false end
+		for _,inst in ipairs(source:GetDescendants()) do
+			if inst.ClassName==className then
+				return true
+			end
+		end
+		return false
+	end
+
+	local function charHasFace()
+		local headNow=getHead(char)
+		return hasHeadFaceVisual(headNow)
+	end
+
+	local function sourceHasFace(source)
+		if not source then return false end
+		local headSrc=source:FindFirstChild("Head",true)
+		return hasHeadFaceVisual(headSrc)
+	end
+
+	local function needsAppearanceFill(source)
+		if not source then return false end
+		if getCurrentAccessoryCount()<getTargetAccessoryCount() then
+			return true
+		end
+		for _,className in ipairs({"Shirt","Pants","ShirtGraphic","BodyColors"}) do
+			if sourceHasClass(source,className) and not char:FindFirstChildOfClass(className) then
+				return true
+			end
+		end
+		if sourceHasFace(source) and not charHasFace() then
+			return true
+		end
+		return false
+	end
+
+	local function fillAppearanceFromSource(source)
+		if not source then return end
+		local existingAccessories={}
+		for _,inst in ipairs(char:GetChildren()) do
+			if inst:IsA("Accessory") then
+				existingAccessories[inst.Name]=true
+			end
+		end
+		for _,inst in ipairs(source:GetChildren()) do
+			if inst:IsA("Accessory") then
+				if not existingAccessories[inst.Name] then
+					inst:Clone().Parent=char
+					existingAccessories[inst.Name]=true
+				end
+			elseif inst:IsA("Shirt") or inst:IsA("Pants") or inst:IsA("ShirtGraphic") or inst:IsA("BodyColors") then
+				if not char:FindFirstChildOfClass(inst.ClassName) then
+					inst:Clone().Parent=char
+				end
+			end
+		end
+		for _,inst in ipairs(source:GetDescendants()) do
+			if inst:IsA("CharacterMesh") then
+				inst:Clone().Parent=char
+			end
+		end
+		if not charHasFace() then
+			local headNow=getHead(char)
+			local headSrc=source:FindFirstChild("Head",true)
+			if headNow and headSrc then
+				copyHeadVisualsFromSource(headSrc,headNow)
+			end
 		end
 	end
 
@@ -44442,6 +44865,13 @@ NAmanage._applyFixedDescription=function(desc,uidFallback,opts)
 		applyBlankDescription()
 		applyTargetDescription()
 	end
+	local appearanceSource=getTargetAppearance()
+	if needsAppearanceFill(appearanceSource) then
+		fillAppearanceFromSource(appearanceSource)
+	end
+	if not charHasFace() then
+		ensureFace()
+	end
 	if hum.RigType==Enum.HumanoidRigType.R6 and uidFallback then
 		local ap = getTargetAppearance()
 		if ap then
@@ -44451,6 +44881,11 @@ NAmanage._applyFixedDescription=function(desc,uidFallback,opts)
 		end
 	end
 	restoreEquippedTools(equippedTools, backpack)
+	if targetAppearanceOwned and targetAppearanceModel and targetAppearanceModel.Parent==nil then
+		pcall(function()
+			targetAppearanceModel:Destroy()
+		end)
+	end
 
 	local targetKey = opts.targetKey or (uidFallback and ("uid:"..tostring(uidFallback))) or nil
 	NAStuff._lastDescriptionKey = targetKey
@@ -44460,19 +44895,23 @@ NAmanage._resolveHumanoidDescription=function(target)
 	if not target or target=="" then
 		return nil
 	end
-	local userId=tonumber(target)
-	if not userId then
-		local ok,id=pcall(Players.GetUserIdFromNameAsync,Players,target)
-		if not ok or not id then
-			return nil
-		end
-		userId=id
-	end
+	local userId=NAmanage._resolveHumanoidUserId(target)
+	if not userId then return nil end
 	local okDesc,desc=pcall(Players.GetHumanoidDescriptionFromUserId,Players,userId)
-	if not okDesc or not desc then
-		return nil
+	if okDesc and desc and NAmanage._humanoidDescriptionHasAppearance(desc) then
+		return desc,userId
 	end
-	return desc,userId
+	local avatarData=NAmanage._avatarHttpJSON("GET",Format("https://avatar.roblox.com/v1/users/%d/avatar",userId))
+	if not avatarData then
+		avatarData=NAmanage._avatarHttpJSON("GET",Format("https://avatar.roblox.com/v2/avatar/users/%d/avatar",userId))
+	end
+	if not avatarData then
+		avatarData=NAmanage._avatarHttpJSON("GET",Format("https://avatar.roproxy.com/v1/users/%d/avatar",userId))
+	end
+	if not avatarData then return nil end
+	local builtDesc=NAmanage._buildHumanoidDescriptionFromAvatar(avatarData)
+	if not builtDesc then return nil end
+	return builtDesc,userId
 end
 
 cmd.add({"team"},{"team <team name>","Changes your team (for the client)"},function(...)
@@ -44607,10 +45046,72 @@ cmd.add({"reselectchar","reselectcharacter","pickchar","charpicker"},{"reselectc
 	end)
 end)
 
-cmd.add({"autooutfit","aoutfit"},{"autooutfit {username/userid}","Auto-apply a selected outfit on respawn"},function(arg)
+NAmanage._resolveExplicitOutfitId=function(target)
+	local text=tostring(target or ""):gsub("^%s+",""):gsub("%s+$","")
+	if text=="" then return nil end
+	local matched=text:match("^[Oo][Uu][Tt][Ff][Ii][Tt]%s*[:#%-]?%s*(%d+)$")
+		or text:match("^[Oo][Ii][Dd]%s*[:#%-]?%s*(%d+)$")
+		or text:match("^[Ii][Dd]%s*[:#%-]?%s*(%d+)$")
+		or text:match("^#(%d+)$")
+	return tonumber(matched)
+end
+NAmanage._fetchOutfitDescriptionById=function(outfitId)
+	local id=tonumber(outfitId)
+	if not id or id<=0 then return nil end
+	local okD,desc=pcall(Players.GetHumanoidDescriptionFromOutfitId,Players,id)
+	if not okD or not desc then return nil end
+	return desc,id
+end
+NAmanage._applyOutfitDescriptionById=function(outfitId,keyPrefix)
+	local desc,id=NAmanage._fetchOutfitDescriptionById(outfitId)
+	if not desc or not id then return false end
+	if NAmanage._applyFixedDescription then
+		local outfitKey=(keyPrefix or "outfit")..":"..tostring(id)
+		local opts={targetKey=outfitKey}
+		if NAStuff._lastDescriptionKey==outfitKey then
+			opts.forceRefresh=true
+		end
+		NAmanage._applyFixedDescription(desc:Clone(),nil,opts)
+	else
+		local char=getChar() or Players.LocalPlayer.CharacterAdded:Wait()
+		local hum=getHum() or char:WaitForChild("Humanoid",3)
+		if not hum then return false end
+		local blank=InstanceNew("HumanoidDescription")
+		hum:ApplyDescriptionClientServer(blank)
+		Wait()
+		hum:ApplyDescriptionClientServer(desc)
+	end
+	return true,id,desc
+end
+
+cmd.add({"autooutfit","aoutfit","autooutfitid","aoutfitid","aoid"},{"autooutfit {username/userid|outfit:id}","Auto-apply a selected outfit on respawn"},function(arg)
 	if not arg or arg=="" then return end
+	local explicitOutfitId=NAmanage._resolveExplicitOutfitId(arg)
+	if explicitOutfitId then
+		local desc,outfitId=NAmanage._fetchOutfitDescriptionById(explicitOutfitId)
+		if not desc or not outfitId then DoNotif("Failed to fetch outfit",3,"AutoOutfit") return end
+		NAlib.disconnect("autooutfit")
+		NAStuff.autoOutfitState={id=outfitId,name="Outfit #"..tostring(outfitId),owner=nil,kind="outfit"}
+		local outfitKey="autooutfit:"..tostring(outfitId)
+		local function applyAutoOutfitId()
+			local opts={targetKey=outfitKey}
+			if NAStuff._lastDescriptionKey==outfitKey then
+				opts.forceRefresh=true
+			end
+			NAmanage._applyFixedDescription(desc:Clone(),nil,opts)
+		end
+		NAlib.connect("autooutfit",Players.LocalPlayer.CharacterAdded:Connect(function()
+			SpawnCall(function()
+				Wait(0.3)
+				applyAutoOutfitId()
+			end)
+		end))
+		SpawnCall(applyAutoOutfitId)
+		DoNotif("Auto outfit set: #"..tostring(outfitId),2,"AutoOutfit")
+		return
+	end
 	local req=opt and opt.NAREQUEST;if not req then DoNotif("HTTP not available",3,"AutoOutfit") return end
-	local uid=tonumber(arg);if not uid then local ok,id=pcall(Players.GetUserIdFromNameAsync,Players,arg);if ok and id then uid=id else DoNotif("Couldn't resolve user",3,"AutoOutfit") return end end
+	local uid=NAmanage._resolveHumanoidUserId(arg);if not uid then DoNotif("Couldn't resolve user",3,"AutoOutfit") return end
 	local function lowerKeys(t)local r={};for k,v in pairs(t or{})do r[Lower(k)]=v end;return r end
 	local function hostOf(url)return Match(url,"^https?://([^/]+)") or"" end
 	local function httpJSON(url)
@@ -44636,23 +45137,58 @@ cmd.add({"autooutfit","aoutfit"},{"autooutfit {username/userid}","Auto-apply a s
 		end
 		return false,"bad response "..tostring(status)
 	end
+	local function currentAvatarButton()
+		return {Text=Format("Current Avatar  (#%d)",uid),Callback=function()
+			local desc,userId=NAmanage._resolveHumanoidDescription(tostring(uid))
+			if not desc or not userId then DoNotif("Failed to fetch current avatar",3,"AutoOutfit") return end
+			NAlib.disconnect("autooutfit")
+			NAStuff.autoOutfitState={id=userId,name="Current Avatar",owner=uid,kind="avatar"}
+			NAStuff.AutoChar={UserId=userId,Description=desc:Clone()}
+			local outfitKey="autooutfit:avatar:"..tostring(userId)
+			local function applyAutoAvatar()
+				local opts={targetKey=outfitKey}
+				if NAStuff._lastDescriptionKey==outfitKey then
+					opts.forceRefresh=true
+				end
+				NAmanage._applyFixedDescription(desc:Clone(),userId,opts)
+			end
+			NAlib.connect("autooutfit",Players.LocalPlayer.CharacterAdded:Connect(function()
+				SpawnCall(function()
+					Wait(0.3)
+					applyAutoAvatar()
+				end)
+			end))
+			SpawnCall(applyAutoAvatar)
+			DoNotif("Auto outfit set: Current Avatar",2,"AutoOutfit")
+		end}
+	end
 	local outfits={}
 	local cache=NAStuff._outfitCache[uid]
 	if cache and (time()-cache.t)<120 and cache.list and #cache.list>0 then
 		outfits=cache.list
 	else
-		local cursor=nil
+		local pageNumber=1
 		repeat
-			local url=Format("https://avatar.roblox.com/v1/users/%d/outfits?itemsPerPage=50%s",uid,cursor and("&cursor="..HttpService:UrlEncode(cursor)) or"")
-			local okD,data=httpJSON(url);if not okD then return end
-			for _,it in ipairs(data.data or{})do if it and it.id and it.name and it.isEditable==true then Insert(outfits,{id=it.id,name=it.name}) end end
-			cursor=data.nextPageCursor
-			if cursor then Wait(0.4) end
-		until not cursor
-		if #outfits==0 then DoNotif("No user-created outfits for that user",2,"AutoOutfit") return end
+			local url=Format("https://avatar.roblox.com/v2/avatar/users/%d/outfits?itemsPerPage=50&pageNumber=%d",uid,pageNumber)
+			local okD,data=httpJSON(url);if not okD then
+				local buttons={currentAvatarButton()}
+				Window({Title=Format("AutoOutfit • %s (%d)",tostring(arg),uid),Buttons=buttons})
+				return
+			end
+			local pageData=data.data or{}
+			for _,it in ipairs(pageData)do if it and it.id and it.name then Insert(outfits,{id=it.id,name=it.name,isEditable=it.isEditable}) end end
+			pageNumber+=1
+			if #pageData>0 then Wait(0.4) end
+		until #pageData==0
+		if #outfits==0 then
+			local buttons={currentAvatarButton()}
+			DoNotif("Saved outfits unavailable; showing current avatar",2,"AutoOutfit")
+			Window({Title=Format("AutoOutfit • %s (%d)",tostring(arg),uid),Buttons=buttons})
+			return
+		end
 		NAStuff._outfitCache[uid]={t=time(),list=outfits}
 	end
-	local buttons={}
+	local buttons={currentAvatarButton()}
 	for _,o in ipairs(outfits)do
 		Insert(buttons,{Text=Format("%s  (#%d)",o.name,o.id),Callback=function()
 			NAlib.disconnect("autooutfit")
@@ -44663,7 +45199,7 @@ cmd.add({"autooutfit","aoutfit"},{"autooutfit {username/userid}","Auto-apply a s
 				if NAStuff._lastDescriptionKey==outfitKey then
 					opts.forceRefresh=true
 				end
-				NAmanage._applyFixedDescription(desc:Clone(),Players.LocalPlayer.UserId,opts)
+				NAmanage._applyFixedDescription(desc:Clone(),nil,opts)
 			end
 			NAlib.connect("autooutfit",Players.LocalPlayer.CharacterAdded:Connect(function()
 				SpawnCall(function()
@@ -44685,28 +45221,44 @@ cmd.add({"unautooutfit","unaoutfit"},{"unautooutfit","stop outfit auto-apply"},f
 	NAlib.disconnect("autooutfit");NAStuff.autoOutfitState=nil;DoNotif("Auto outfit disabled",2,"AutoOutfit")
 end)
 
-cmd.add({"outfit"},{"outfit {username/userid}","Open a list of a user's saved outfits"},function(arg)
+cmd.add({"outfit","outfitid","oid"},{"outfit {username/userid|outfit:id}","Open a list of a user's saved outfits or load a specific outfit id"},function(arg)
 	if not arg or arg=="" then return end
+	local explicitOutfitId=NAmanage._resolveExplicitOutfitId(arg)
+	if explicitOutfitId then
+		local okApplied,outfitId=NAmanage._applyOutfitDescriptionById(explicitOutfitId,"outfit")
+		if not okApplied then DoNotif("Failed to fetch outfit",3,"Outfits") return end
+		NAStuff.lastSelectedOutfitId=outfitId
+		DoNotif("Outfit applied: #"..tostring(outfitId),2,"Outfits")
+		return
+	end
 	NAStuff=NAStuff or{};NAStuff._outfitCache=NAStuff._outfitCache or{};NAStuff._httpBackoff=NAStuff._httpBackoff or{};NAStuff._httpCooldown=NAStuff._httpCooldown or{}
 	local req=opt and opt.NAREQUEST;if not req then DoNotif("HTTP not available",3,"Outfits") return end
-	local uid=tonumber(arg)
-	if not uid then
-		local ok,id=pcall(Players.GetUserIdFromNameAsync,Players,arg)
-		if ok and id then uid=id else
-			local body=HttpService:JSONEncode({usernames={arg},excludeBannedUsers=true})
-			local okR,resp=pcall(req,{Url="https://users.roblox.com/v1/usernames/users",Method="POST",Headers={["Content-Type"]="application/json"},Body=body})
-			local status=okR and (resp.StatusCode or resp.Status) or 0
-			local text=okR and (resp.Body or resp.body) or""
-			if status==200 and type(text)=="string" then
-				local okJ,data=pcall(HttpService.JSONDecode,HttpService,text)
-				if okJ and data and data.data and data.data[1] and data.data[1].id then uid=data.data[1].id end
+	local uid=NAmanage._resolveHumanoidUserId(arg)
+	if not uid then DoNotif("Couldn't resolve user",3,"Outfits") return end
+	local function currentAvatarButton()
+		return {Text=Format("Current Avatar  (#%d)",uid),Callback=function()
+			local desc,userId=NAmanage._resolveHumanoidDescription(tostring(uid))
+			if not desc or not userId then DoNotif("Failed to fetch current avatar",3,"Outfits") return end
+			NAStuff.lastSelectedOutfitId=nil
+			if NAmanage._applyFixedDescription then
+				local outfitKey="outfit:avatar:"..tostring(userId)
+				local opts={targetKey=outfitKey}
+				if NAStuff._lastDescriptionKey==outfitKey then
+					opts.forceRefresh=true
+				end
+				NAmanage._applyFixedDescription(desc:Clone(),userId,opts)
+			else
+				local char=getChar() or Players.LocalPlayer.CharacterAdded:Wait()
+				local hum=getHum() or char:WaitForChild("Humanoid",3)
+				if not hum then return end
+				local blank=InstanceNew("HumanoidDescription");hum:ApplyDescriptionClientServer(blank);Wait();hum:ApplyDescriptionClientServer(desc)
 			end
-			if not uid then DoNotif("Couldn't resolve user",3,"Outfits") return end
-		end
+			DoNotif("Outfit applied: Current Avatar",2,"Outfits")
+		end}
 	end
 	local cache=NAStuff._outfitCache[uid]
 	if cache and (time()-cache.t)<120 and cache.list and #cache.list>0 then
-		local buttons={}
+		local buttons={currentAvatarButton()}
 		for _,o in ipairs(cache.list) do
 			Insert(buttons,{Text=Format("%s  (#%d)",o.name,o.id),Callback=function()
 				local okD,desc=pcall(Players.GetHumanoidDescriptionFromOutfitId,Players,o.id)
@@ -44718,7 +45270,7 @@ cmd.add({"outfit"},{"outfit {username/userid}","Open a list of a user's saved ou
 					if NAStuff._lastDescriptionKey==outfitKey then
 						opts.forceRefresh=true
 					end
-					NAmanage._applyFixedDescription(desc:Clone(),Players.LocalPlayer.UserId,opts)
+					NAmanage._applyFixedDescription(desc:Clone(),nil,opts)
 				else
 					local char=getChar() or Players.LocalPlayer.CharacterAdded:Wait()
 					local hum=getHum() or char:WaitForChild("Humanoid",3)
@@ -44756,18 +45308,33 @@ cmd.add({"outfit"},{"outfit {username/userid}","Open a list of a user's saved ou
 		end
 		return false,"bad response "..tostring(status)
 	end
-	local outfits,cursor={},nil
+	local outfits,pageNumber={},1
 	repeat
-		local url=Format("https://avatar.roblox.com/v1/users/%d/outfits?itemsPerPage=50%s",uid,cursor and("&cursor="..HttpService:UrlEncode(cursor)) or"")
+		local url=Format("https://avatar.roblox.com/v2/avatar/users/%d/outfits?itemsPerPage=50&pageNumber=%d",uid,pageNumber)
 		local okD,data=httpJSON(url)
-		if not okD then if data=="429" or data=="5xx" or data=="cooldown" then return else DoNotif(data,3,"Outfits") return end end
-		for _,it in ipairs(data.data or{})do if it and it.id and it.name and it.isEditable==true then Insert(outfits,{id=it.id,name=it.name}) end end
-		cursor=data.nextPageCursor
-		if cursor then Wait(0.4) end
-	until not cursor
-	if #outfits==0 then DoNotif("No user-created outfits for that user",2,"Outfits") return end
+		if not okD then
+			local buttons={currentAvatarButton()}
+			if not (data=="429" or data=="5xx" or data=="cooldown") then
+				DoNotif(data,3,"Outfits")
+			else
+				DoNotif("Saved outfits unavailable; showing current avatar",2,"Outfits")
+			end
+			Window({Title=Format("Outfits • %s (%d)",tostring(arg),uid),Buttons=buttons})
+			return
+		end
+		local pageData=data.data or{}
+		for _,it in ipairs(pageData)do if it and it.id and it.name then Insert(outfits,{id=it.id,name=it.name,isEditable=it.isEditable}) end end
+		pageNumber+=1
+		if #pageData>0 then Wait(0.4) end
+	until #pageData==0
+	if #outfits==0 then
+		local buttons={currentAvatarButton()}
+		DoNotif("Saved outfits unavailable; showing current avatar",2,"Outfits")
+		Window({Title=Format("Outfits • %s (%d)",tostring(arg),uid),Buttons=buttons})
+		return
+	end
 	NAStuff._outfitCache[uid]={t=time(),list=outfits}
-	local buttons={}
+	local buttons={currentAvatarButton()}
 	for _,o in ipairs(outfits)do
 		Insert(buttons,{Text=Format("%s  (#%d)",o.name,o.id),Callback=function()
 			local okD,desc=pcall(Players.GetHumanoidDescriptionFromOutfitId,Players,o.id)
@@ -44779,7 +45346,7 @@ cmd.add({"outfit"},{"outfit {username/userid}","Open a list of a user's saved ou
 				if NAStuff._lastDescriptionKey==outfitKey then
 					opts.forceRefresh=true
 				end
-				NAmanage._applyFixedDescription(desc:Clone(),Players.LocalPlayer.UserId,opts)
+				NAmanage._applyFixedDescription(desc:Clone(),nil,opts)
 			else
 				local char=getChar() or Players.LocalPlayer.CharacterAdded:Wait()
 				local hum=getHum() or char:WaitForChild("Humanoid",3)
@@ -44907,12 +45474,14 @@ specUI = nil
 connStep, connAdd, connRemove = nil, nil, nil
 
 local spectateTarget, spectateSubject = nil, nil
+local spectateDescCharacter = nil
 local spectateConns = {
 	char = nil,
 	leave = nil,
 	loop = nil,
 	cam = nil,
-	camW = nil
+	camW = nil,
+	desc = nil
 }
 
 originalIO.disconnectSpectateConns=function()
@@ -44927,6 +45496,31 @@ originalIO.disconnectSpectateConns=function()
 	NAlib.disconnect("spectate_leave")
 	NAlib.disconnect("spectate_cam")
 	NAlib.disconnect("spectate_camW")
+	NAlib.disconnect("spectate_desc")
+	spectateDescCharacter = nil
+end
+
+originalIO.getSpectateSubject = function(character)
+	if not (character and character.Parent) then
+		return nil
+	end
+
+	local hum = getPlrHum(character)
+	if hum and hum.Parent == character then
+		return hum
+	end
+
+	local root = getRoot(character)
+	if root and root:IsDescendantOf(character) then
+		return root
+	end
+
+	local head = getHead(character)
+	if head and head:IsDescendantOf(character) then
+		return head
+	end
+
+	return character:FindFirstChildWhichIsA("BasePart", true)
 end
 
 originalIO.ensureCam=function()
@@ -44997,23 +45591,51 @@ function spectatePlayer(targetPlayer)
 	spectateSubject = nil
 	originalIO.disconnectSpectateConns()
 
-	local function setCamToCharacter(character)
+	local setCamToCharacter
+	local function watchCharacter(character)
+		if character and spectateConns.desc and spectateDescCharacter == character then
+			return
+		end
+		if spectateConns.desc then
+			spectateConns.desc:Disconnect()
+			spectateConns.desc = nil
+		end
+		spectateDescCharacter = character
+		if not (character and character.Parent) then
+			return
+		end
+		spectateConns.desc = NAlib.connect("spectate_desc", character.DescendantAdded:Connect(function(inst)
+			if spectateTarget ~= targetPlayer or targetPlayer.Character ~= character then return end
+			if inst:IsA("Humanoid") or inst:IsA("BasePart") then
+				setCamToCharacter(character, true)
+			end
+		end))
+	end
+
+	setCamToCharacter = function(character, keepOldSubject)
 		if spectateTarget ~= targetPlayer or not character then return end
 
-		local hum = getPlrHum(character)
-		local subj = hum or getRoot(character)
-		if not subj then return end
+		local subj = originalIO.getSpectateSubject(character)
+		if not subj then
+			if keepOldSubject ~= true and spectateSubject and spectateSubject.Parent == nil then
+				spectateSubject = nil
+			end
+			return false
+		end
 
 		spectateSubject = subj
 		originalIO.ensureCam()
 		originalIO.hookCameraGuard()
+		return true
 	end
 
+	watchCharacter(targetPlayer.Character)
 	setCamToCharacter(targetPlayer.Character)
 
 	spectateConns.char = NAlib.connect("spectate_char", targetPlayer.CharacterAdded:Connect(function(character)
 		if spectateTarget ~= targetPlayer then return end
-		setCamToCharacter(character)
+		watchCharacter(character)
+		setCamToCharacter(character, true)
 	end))
 
 	spectateConns.leave = NAlib.connect("spectate_leave", Players.PlayerRemoving:Connect(function(player)
@@ -45027,10 +45649,27 @@ function spectatePlayer(targetPlayer)
 		if spectateTarget ~= targetPlayer then return end
 
 		local char = targetPlayer.Character
-		if not char or not char.Parent then return end
+		if not char or not char.Parent then
+			if spectateSubject and spectateSubject.Parent then
+				originalIO.ensureCam()
+			end
+			return
+		end
 
-		if not spectateSubject or spectateSubject.Parent ~= char then
-			setCamToCharacter(char)
+		if targetPlayer.Character == char and spectateDescCharacter ~= char then
+			watchCharacter(char)
+		end
+
+		if spectateSubject and not spectateSubject:IsDescendantOf(char) then
+			if not setCamToCharacter(char, true) then
+				if spectateSubject.Parent then
+					originalIO.ensureCam()
+				else
+					spectateSubject = nil
+				end
+			end
+		elseif not spectateSubject then
+			setCamToCharacter(char, true)
 		else
 			originalIO.ensureCam()
 		end
@@ -61522,7 +62161,7 @@ do
 	originalIO.bodyModsState = originalIO.bodyModsState or {
 		boobs = { active = false, size = 1, conn = nil, ox = 0.5, oy = -0.4, oz = nil, sy = 0, vy = 0, sz = 0, vz = 0, sx = 0, vx = 0, rx = 0, vrx = 0, ry = 0, rv = 0, yw = 0, vyw = 0, llv = Vector3.zero, hcf = nil, ccf = nil },
 		ass = { active = false, size = 1, conn = nil, ox = 0.48, oy = nil, oz = nil, sy = 0, vy = 0, sz = 0, vz = 0, sx = 0, vx = 0, rx = 0, vrx = 0, ry = 0, rv = 0, yw = 0, vyw = 0, llv = Vector3.zero, hcf = nil },
-		pp = { active = false, len = 1, animConn = nil, wS = nil, wTip = nil, sh = nil, dr = nil, sy = 0, vy = 0, sz = 0, vz = 0, sx = 0, vx = 0, rx = 0, vrx = 0, ry = 0, vry = 0, baseC0 = nil },
+		pp = { active = false, len = 1, animConn = nil, wS = nil, wTip = nil, wBL = nil, wBR = nil, sh = nil, dr = nil, sy = 0, vy = 0, sz = 0, vz = 0, sx = 0, vx = 0, rx = 0, vrx = 0, ry = 0, vry = 0, bsy = 0, bvy = 0, bsz = 0, bvz = 0, bsx = 0, bvx = 0, brx = 0, bvrx = 0, bry = 0, bvry = 0, baseC0 = nil, baseBL = nil, baseBR = nil, llv = Vector3.zero },
 		colorConn = nil,
 		spawnConn = nil,
 		apConn = nil
@@ -61730,17 +62369,33 @@ do
 		end
 
 		local skin = originalIO.bodyModsGetSkinColor()
-		local baseSize = Vector3.new(1.2, 1.2, 1.2)
-		local baseNipple = Vector3.new(0.32, 0.32, 0.32)
-		local boobSize = baseSize * size
-		local nippleSize = baseNipple * size
-		local areolaSize = nippleSize * 2
+		local sizeScale = math.clamp(size / 4, 0.3, 2)
+		local baseSize = Vector3.new(1.22, 1.14, 1.02)
+		local baseNipple = Vector3.new(0.15, 0.15, 0.15)
+		local boobSize = Vector3.new(
+			baseSize.X * size * (0.96 + sizeScale * 0.06),
+			baseSize.Y * size * (0.92 + sizeScale * 0.05),
+			baseSize.Z * size * (0.88 + sizeScale * 0.08)
+		)
+		local nippleSize = Vector3.new(
+			baseNipple.X * size * (0.92 + sizeScale * 0.04),
+			baseNipple.Y * size * (0.92 + sizeScale * 0.04),
+			baseNipple.Z * size * (0.90 + sizeScale * 0.06)
+		)
+		local areolaThickness = math.clamp(nippleSize.Z * 0.55, 0.06, 0.22)
+		local areolaSize = Vector3.new(
+			areolaThickness,
+			nippleSize.Y * 2.35,
+			nippleSize.Z * 2.35
+		)
 		local popForward = 0.02
 		local backGap = math.max(0.03, nippleSize.Z * 0.45)
 		local nudge = 0.02
 		local radius = boobSize.Z * 0.5
 		local torsoFront = torso.Size.Z * 0.5
-		state.boobs.oz = torsoFront + math.max(0.12, radius * 0.75) - 0.06
+		state.boobs.ox = math.clamp(torso.Size.X * 0.22 + boobSize.X * 0.14, 0.42, math.max(0.64, torso.Size.X * 0.52))
+		state.boobs.oy = -(torso.Size.Y * 0.18 + boobSize.Y * 0.11)
+		state.boobs.oz = torsoFront + math.max(0.10, radius * 0.62) - 0.03
 
 		local function offsetToFront(sphereSize, attachSize)
 			local sphereRadius = (sphereSize and sphereSize.Z or baseSize.Z) * 0.5
@@ -61762,6 +62417,7 @@ do
 			boob.CanCollide = false
 			boob.CanTouch = false
 			boob.CanQuery = false
+			boob.Massless = true
 			boob.Name = "Boob"
 			boob.Parent = character
 
@@ -61774,20 +62430,34 @@ do
 			nipple.CanCollide = false
 			nipple.CanTouch = false
 			nipple.CanQuery = false
+			nipple.Massless = true
 			nipple.Name = "Nipple"
 			nipple.Parent = boob
 
-			local areola = InstanceNew("Part")
-			areola.Shape = Enum.PartType.Ball
-			areola.Size = areolaSize
-			areola.Color = ringColor
-			areola.Material = Enum.Material.SmoothPlastic
-			areola.Anchored = false
-			areola.CanCollide = false
-			areola.CanTouch = false
-			areola.CanQuery = false
+			local areola = InstanceNew("SurfaceGui")
 			areola.Name = "Areola"
+			areola.Face = Enum.NormalId.Front
+			areola.Adornee = boob
+			areola.AlwaysOnTop = false
+			areola.LightInfluence = 1
+			areola.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+			areola.PixelsPerStud = 120
+			areola.ZOffset = 0.01
 			areola.Parent = boob
+
+			local areolaScale = math.clamp(math.max(areolaSize.Y, areolaSize.Z) / math.max(boob.Size.Y, boob.Size.Z), 0.18, 0.42)
+			local areolaFrame = InstanceNew("Frame")
+			areolaFrame.Name = "Disk"
+			areolaFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+			areolaFrame.Position = UDim2.fromScale(0.5, 0.5)
+			areolaFrame.Size = UDim2.fromScale(areolaScale, areolaScale)
+			areolaFrame.BackgroundColor3 = ringColor
+			areolaFrame.BorderSizePixel = 0
+			areolaFrame.Parent = areola
+
+			local areolaCorner = InstanceNew("UICorner")
+			areolaCorner.CornerRadius = UDim.new(1, 0)
+			areolaCorner.Parent = areolaFrame
 
 			local nippleWeld = InstanceNew("Weld")
 			nippleWeld.Part0 = nipple
@@ -61795,19 +62465,13 @@ do
 			nippleWeld.C0 = CFrame.new(0, 0, offsetToFront(boob.Size, nipple.Size) + popForward)
 			nippleWeld.Parent = nipple
 
-			local areolaWeld = InstanceNew("Weld")
-			areolaWeld.Part0 = areola
-			areolaWeld.Part1 = boob
-			areolaWeld.C0 = CFrame.new(0, 0, offsetToFront(boob.Size, areola.Size) - (backGap - nudge))
-			areolaWeld.Parent = areola
-
 			local weld = InstanceNew("Weld")
 			weld.Part0 = boob
 			weld.Part1 = torso
 			weld.C0 = CFrame.new(side * state.boobs.ox, state.boobs.oy, state.boobs.oz)
 			weld.Parent = boob
 
-			return boob, nipple, areola, weld, nippleWeld, areolaWeld
+			return boob, nipple, areola, weld, nippleWeld, nil
 		end
 
 		local left, leftNipple, leftAreola, leftWeld, leftNippleWeld, leftAreolaWeld = createHalf(-1)
@@ -61841,6 +62505,7 @@ do
 			if not hrp then
 				return
 			end
+			local currentHumanoid = currentChar:FindFirstChildOfClass("Humanoid") or humanoid
 			local camera = workspace.CurrentCamera
 			local velocity = hrp.AssemblyLinearVelocity or hrp.Velocity
 			local localVel = hrp.CFrame:VectorToObjectSpace(velocity)
@@ -61857,27 +62522,29 @@ do
 			local angInput = useCam and camAng or localAng
 			local accel = (localVel - state.boobs.llv) / math.max(dt, 1/240)
 			state.boobs.llv = localVel
-			local speed = localVel.Magnitude
+			local planarSpeed = Vector3.new(localVel.X, 0, localVel.Z).Magnitude
 			local sizeScale = math.clamp((state.boobs.size or 1) / 3, 0.4, 2.4)
-			local softness = math.clamp(speed / 26, 0, 1)
+			local softness = math.clamp((planarSpeed + math.abs(localVel.Y) * 0.35) / 20, 0, 1)
+			local moveAlpha = math.clamp((currentHumanoid and currentHumanoid.MoveDirection.Magnitude) or 0, 0, 1)
+			local gait = math.sin(os.clock() * (6.2 + planarSpeed * 0.18)) * math.clamp((planarSpeed - 1.5) / 10, 0, 1) * moveAlpha
+			local settleY = -0.020 * sizeScale
+			local settleZ = 0.012 * sizeScale
+			local massScale = 0.85 + sizeScale * 0.30
 
-			local targetY = math.clamp(((-localVel.Y * 0.016) - accel.Y * 0.0065) * (0.7 + sizeScale * 0.5), -0.14, 0.14)
-			local targetZ = math.clamp(((-localVel.Z * 0.022) - accel.Z * 0.0065) * (0.7 + sizeScale * 0.6), -0.16, 0.16)
-			local targetX = math.clamp((-localVel.X * 0.018) * (0.7 + sizeScale * 0.5), -0.14, 0.14)
+			local targetY = math.clamp(settleY + (((-localVel.Y * 0.013) - accel.Y * 0.0075 + gait * 0.028) * (0.65 + sizeScale * 0.45)), -0.18, 0.18)
+			local targetZ = math.clamp(settleZ + (((-localVel.Z * 0.018) - accel.Z * 0.0085 + math.abs(gait) * 0.018) * (0.68 + sizeScale * 0.55)), -0.19, 0.22)
+			local targetX = math.clamp((((-localVel.X * 0.015) - accel.X * 0.0045) * (0.65 + sizeScale * 0.45)), -0.16, 0.16)
 
-			local targetPitch = math.clamp(((-localVel.Y * 0.016) - accel.Y * 0.006) * (0.4 + sizeScale * 0.4) + angInput.X * 0.65, -0.45, 0.45)
-			local targetRoll = math.clamp((-localVel.X * 0.065) * (0.5 + sizeScale * 0.3) + (-angInput.Y * 0.75), -0.46, 0.46)
-			local targetYaw = math.clamp((localVel.X * 0.065) * (0.5 + sizeScale * 0.3) + (angInput.Z * 0.75), -0.46, 0.46)
+			local targetPitch = math.clamp((settleY * 0.65) + (((-localVel.Y * 0.012) - accel.Y * 0.0055 + gait * 0.080) * (0.35 + sizeScale * 0.32)) + angInput.X * 0.32, -0.38, 0.38)
+			local targetRoll = math.clamp((((-localVel.X * 0.038) - accel.X * 0.004) * (0.45 + sizeScale * 0.22)) + (-angInput.Y * 0.28), -0.34, 0.34)
+			local targetYaw = math.clamp((((localVel.X * 0.034) + accel.X * 0.0025) * (0.45 + sizeScale * 0.22)) + (angInput.Z * 0.22), -0.28, 0.28)
 
-			local kBase = 80
-			local dBase = 4.2
-			local kTrans = kBase - 18 * softness
-			local dTrans = dBase - 1.2 * softness
-			local kRot = kBase - 20 * softness
-			local dRot = 4.0 - 1.1 * softness
-
-			kTrans = kTrans / math.max(sizeScale, 0.5)
-			kRot = kRot / math.max(sizeScale * 0.9, 0.5)
+			local kBase = 62
+			local dBase = 7.6
+			local kTrans = (kBase - 12 * softness) / massScale
+			local dTrans = dBase + sizeScale * 0.40 - 0.7 * softness
+			local kRot = (58 - 10 * softness) / math.max(massScale * 0.95, 0.65)
+			local dRot = 6.8 + sizeScale * 0.30 - 0.5 * softness
 
 			state.boobs.sy, state.boobs.vy = originalIO.bodyModsSpring(state.boobs.sy, state.boobs.vy, targetY, kTrans, dTrans, dt)
 			state.boobs.sz, state.boobs.vz = originalIO.bodyModsSpring(state.boobs.sz, state.boobs.vz, targetZ, kTrans, dTrans, dt)
@@ -61886,13 +62553,15 @@ do
 			state.boobs.ry, state.boobs.rv = originalIO.bodyModsSpring(state.boobs.ry, state.boobs.rv, targetRoll, kRot, dRot, dt)
 			state.boobs.yw, state.boobs.vyw = originalIO.bodyModsSpring(state.boobs.yw, state.boobs.vyw, targetYaw, kRot, dRot, dt)
 
-			state.boobs.sy = math.clamp(state.boobs.sy, -0.50, 0.50)
-			state.boobs.sz = math.clamp(state.boobs.sz, -0.42, 0.42)
-			state.boobs.sx = math.clamp(state.boobs.sx, -0.42, 0.42)
-			state.boobs.ry = math.clamp(state.boobs.ry, -0.5, 0.5)
+			state.boobs.sy = math.clamp(state.boobs.sy, -0.24, 0.26)
+			state.boobs.sz = math.clamp(state.boobs.sz, -0.22, 0.28)
+			state.boobs.sx = math.clamp(state.boobs.sx, -0.18, 0.18)
+			state.boobs.rx = math.clamp(state.boobs.rx, -0.34, 0.34)
+			state.boobs.ry = math.clamp(state.boobs.ry, -0.30, 0.30)
+			state.boobs.yw = math.clamp(state.boobs.yw, -0.24, 0.24)
 
 			local sxCap = math.clamp(state.boobs.sx, -state.boobs.ox * 0.4, state.boobs.ox * 0.4)
-			local forwardZ = state.boobs.oz + state.boobs.sz * 0.10
+			local forwardZ = state.boobs.oz + state.boobs.sz * 0.18
 			local leftOffset = CFrame.new(-state.boobs.ox + (-sxCap), state.boobs.oy + state.boobs.sy, forwardZ) * CFrame.Angles(state.boobs.rx, state.boobs.yw, state.boobs.ry)
 			local rightOffset = CFrame.new(state.boobs.ox + sxCap, state.boobs.oy + state.boobs.sy, forwardZ) * CFrame.Angles(state.boobs.rx, -state.boobs.yw, -state.boobs.ry)
 
@@ -61900,8 +62569,6 @@ do
 			if rightWeld then rightWeld.C0 = rightOffset end
 			if leftNippleWeld and left then leftNippleWeld.C0 = CFrame.new(0, 0, offsetToFront(left.Size, leftNipple.Size) + popForward) end
 			if rightNippleWeld and right then rightNippleWeld.C0 = CFrame.new(0, 0, offsetToFront(right.Size, rightNipple.Size) + popForward) end
-			if leftAreolaWeld and left then leftAreolaWeld.C0 = CFrame.new(0, 0, offsetToFront(left.Size, leftAreola.Size) - (backGap - nudge)) end
-			if rightAreolaWeld and right then rightAreolaWeld.C0 = CFrame.new(0, 0, offsetToFront(right.Size, rightAreola.Size) - (backGap - nudge)) end
 		end)
 
 		originalIO.bodyModsEnsureColorWatcher()
@@ -61971,12 +62638,18 @@ do
 		end
 
 		local skin = originalIO.bodyModsGetSkinColor()
-		local baseSize = Vector3.new(1.1, 1.1, 1.1)
-		local cheekSize = baseSize * size
+		local sizeScale = math.clamp(size / 4, 0.3, 2)
+		local baseSize = Vector3.new(1.14, 1.18, 1.02)
+		local cheekSize = Vector3.new(
+			baseSize.X * size * (0.95 + sizeScale * 0.05),
+			baseSize.Y * size * (0.98 + sizeScale * 0.04),
+			baseSize.Z * size * (0.86 + sizeScale * 0.08)
+		)
 		local radius = cheekSize.Y * 0.5
 
-		state.ass.oy = (humanoid.RigType == Enum.HumanoidRigType.R15) and (-(torso.Size.Y * 0.35)) or 0.75
-		state.ass.oz = -(torso.Size.Z * 0.5 + radius * 0.45)
+		state.ass.ox = math.clamp(torso.Size.X * 0.22 + cheekSize.X * 0.12, 0.42, math.max(0.62, torso.Size.X * 0.50))
+		state.ass.oy = (humanoid.RigType == Enum.HumanoidRigType.R15) and (-(torso.Size.Y * 0.32 + cheekSize.Y * 0.05)) or (0.68 + cheekSize.Y * 0.05)
+		state.ass.oz = -(torso.Size.Z * 0.46 + radius * 0.34)
 
 		local function createCheek(side)
 			local cheek = InstanceNew("Part")
@@ -61988,6 +62661,7 @@ do
 			cheek.CanCollide = false
 			cheek.CanTouch = false
 			cheek.CanQuery = false
+			cheek.Massless = true
 			cheek.Name = "Cheek"
 			cheek.Parent = character
 
@@ -62030,33 +62704,35 @@ do
 			if not hrp then
 				return
 			end
+			local currentHumanoid = currentChar:FindFirstChildOfClass("Humanoid") or humanoid
 			local velocity = hrp.AssemblyLinearVelocity or hrp.Velocity
 			local localVel = hrp.CFrame:VectorToObjectSpace(velocity)
 			local angular = hrp.AssemblyAngularVelocity or Vector3.zero
 			local localAng = hrp.CFrame:VectorToObjectSpace(angular)
 			local accel = (localVel - state.ass.llv) / math.max(dt, 1/240)
 			state.ass.llv = localVel
-			local speed = localVel.Magnitude
+			local planarSpeed = Vector3.new(localVel.X, 0, localVel.Z).Magnitude
 			local sizeScale = math.clamp((state.ass.size or 1) / 3, 0.4, 2.5)
-			local softness = math.clamp(speed / 24, 0, 1)
+			local softness = math.clamp((planarSpeed + math.abs(localVel.Y) * 0.30) / 18, 0, 1)
+			local moveAlpha = math.clamp((currentHumanoid and currentHumanoid.MoveDirection.Magnitude) or 0, 0, 1)
+			local stride = math.sin(os.clock() * (7.0 + planarSpeed * 0.20))
+			local gait = stride * math.clamp((planarSpeed - 1.0) / 9, 0, 1) * moveAlpha
+			local settleY = -0.026 * sizeScale
+			local settleZ = -0.014 * sizeScale
+			local massScale = 0.90 + sizeScale * 0.34
 
-			local targetY = math.clamp((-localVel.Y * 0.055 - accel.Y * 0.010) * (0.7 + sizeScale * 0.5), -0.28, 0.28)
-			local targetZ = math.clamp((localVel.Z * 0.048 + accel.Z * 0.008) * (0.7 + sizeScale * 0.6), -0.24, 0.24)
-			local targetX = math.clamp((localVel.X * 0.052) * (0.7 + sizeScale * 0.5), -0.24, 0.24)
+			local targetY = math.clamp(settleY + (((-localVel.Y * 0.032) - accel.Y * 0.013 + math.abs(gait) * 0.026) * (0.65 + sizeScale * 0.42)), -0.20, 0.20)
+			local targetZ = math.clamp(settleZ + (((localVel.Z * 0.026) + accel.Z * 0.010 + math.abs(gait) * 0.018) * (0.60 + sizeScale * 0.40)), -0.18, 0.16)
+			local targetX = math.clamp((((localVel.X * 0.030) + accel.X * 0.006) * (0.62 + sizeScale * 0.34)), -0.18, 0.18)
 
-			local targetPitch = math.clamp(localAng.X * 0.80 * (0.6 + sizeScale * 0.4), -0.55, 0.55)
-			local targetRoll = math.clamp(-localAng.Y * 0.80 * (0.6 + sizeScale * 0.4), -0.55, 0.55)
-			local targetYaw = math.clamp(-localAng.Z * 0.70 * (0.6 + sizeScale * 0.4), -0.48, 0.48)
+			local targetPitch = math.clamp((((-localVel.Y * 0.010) + localAng.X * 0.36 + gait * 0.050) * (0.55 + sizeScale * 0.20)), -0.32, 0.32)
+			local targetRoll = math.clamp((((-localVel.X * 0.030) - accel.X * 0.004 - localAng.Y * 0.35) * (0.52 + sizeScale * 0.18)), -0.30, 0.30)
+			local targetYaw = math.clamp((((localVel.X * 0.020) - localAng.Z * 0.28) * (0.46 + sizeScale * 0.16)), -0.24, 0.24)
 
-			local kTransBase, dTransBase = 52, 2.6
-			local kRotBase, dRotBase = 48, 2.4
-			local kTrans = kTransBase - 14 * softness
-			local dTrans = dTransBase - 0.7 * softness
-			local kRot = kRotBase - 12 * softness
-			local dRot = dRotBase - 0.6 * softness
-
-			kTrans = kTrans / math.max(sizeScale * 0.85, 0.5)
-			kRot = kRot / math.max(sizeScale, 0.5)
+			local kTrans = (40 - 10 * softness) / massScale
+			local dTrans = 6.2 + sizeScale * 0.35 - 0.5 * softness
+			local kRot = (38 - 8 * softness) / math.max(massScale * 0.95, 0.7)
+			local dRot = 5.8 + sizeScale * 0.25 - 0.4 * softness
 
 			state.ass.sy, state.ass.vy = originalIO.bodyModsSpring(state.ass.sy, state.ass.vy, targetY, kTrans, dTrans, dt)
 			state.ass.sz, state.ass.vz = originalIO.bodyModsSpring(state.ass.sz, state.ass.vz, targetZ, kTrans, dTrans, dt)
@@ -62065,14 +62741,20 @@ do
 			state.ass.ry, state.ass.rv = originalIO.bodyModsSpring(state.ass.ry, state.ass.rv, targetRoll, kRot, dRot, dt)
 			state.ass.yw, state.ass.vyw = originalIO.bodyModsSpring(state.ass.yw, state.ass.vyw, targetYaw, kRot, dRot, dt)
 
-			state.ass.sy = math.clamp(state.ass.sy, -0.32, 0.32)
-			state.ass.sz = math.clamp(state.ass.sz, -0.24, 0.24)
-			state.ass.sx = math.clamp(state.ass.sx, -0.26, 0.26)
+			state.ass.sy = math.clamp(state.ass.sy, -0.18, 0.18)
+			state.ass.sz = math.clamp(state.ass.sz, -0.18, 0.16)
+			state.ass.sx = math.clamp(state.ass.sx, -0.18, 0.18)
+			state.ass.rx = math.clamp(state.ass.rx, -0.24, 0.24)
+			state.ass.ry = math.clamp(state.ass.ry, -0.24, 0.24)
+			state.ass.yw = math.clamp(state.ass.yw, -0.18, 0.18)
 
 			local sxCap = math.clamp(state.ass.sx, -state.ass.ox * 0.55, state.ass.ox * 0.55)
-			local tzCap = math.clamp(state.ass.sz, -0.18, 0.18)
-			local leftOffset = CFrame.new(-state.ass.ox + (-sxCap), state.ass.oy + state.ass.sy, state.ass.oz + tzCap) * CFrame.Angles(state.ass.rx, state.ass.yw, state.ass.ry)
-			local rightOffset = CFrame.new(state.ass.ox + sxCap, state.ass.oy + state.ass.sy, state.ass.oz + tzCap) * CFrame.Angles(state.ass.rx, -state.ass.yw, -state.ass.ry)
+			local tzCap = math.clamp(state.ass.sz, -0.14, 0.12)
+			local cheekLift = gait * math.clamp(0.012 + sizeScale * 0.008, 0.012, 0.030)
+			local cheekRoll = gait * math.clamp(0.030 + sizeScale * 0.010, 0.030, 0.060)
+			local cheekDepth = math.abs(gait) * math.clamp(0.010 + sizeScale * 0.008, 0.010, 0.028)
+			local leftOffset = CFrame.new(-state.ass.ox + (-sxCap), state.ass.oy + state.ass.sy + cheekLift, state.ass.oz + tzCap - cheekDepth) * CFrame.Angles(state.ass.rx, state.ass.yw, state.ass.ry + cheekRoll)
+			local rightOffset = CFrame.new(state.ass.ox + sxCap, state.ass.oy + state.ass.sy - cheekLift, state.ass.oz + tzCap - cheekDepth) * CFrame.Angles(state.ass.rx, -state.ass.yw, -state.ass.ry - cheekRoll)
 
 			if leftWeld then leftWeld.C0 = leftOffset end
 			if rightWeld then rightWeld.C0 = rightOffset end
@@ -62139,8 +62821,10 @@ do
 		state.pp.len = value
 
 		local skin = originalIO.bodyModsGetSkinColor()
-		local shaftBaseLength = 2.0
-		local shaftLength = shaftBaseLength * value
+		local shaftLength = 1.35 + value * 0.78
+		local shaftRadius = math.clamp(0.30 + value * 0.03, 0.32, 0.50)
+		local ballRadius = math.clamp(0.46 + value * 0.035, 0.48, 0.72)
+		local tipRadius = math.clamp(shaftRadius * 1.15, 0.36, 0.58)
 
 		local function createPart(shape, size, color, name)
 			local part = InstanceNew("Part")
@@ -62152,6 +62836,7 @@ do
 			part.CanCollide = false
 			part.CanTouch = false
 			part.CanQuery = false
+			part.Massless = true
 			part.Name = name
 			part.Parent = character
 			return part
@@ -62164,21 +62849,39 @@ do
 			weld.Parent = part0
 		end
 
-		local offsetY = (humanoid.RigType == Enum.HumanoidRigType.R15) and -1.0 or -1.5
-		local leftBall = createPart(Enum.PartType.Ball, Vector3.new(1.2, 1.2, 1.2), skin, "Balls")
-		local rightBall = createPart(Enum.PartType.Ball, Vector3.new(1.2, 1.2, 1.2), skin, "Balls")
-		local shaft = createPart(Enum.PartType.Cylinder, Vector3.new(shaftLength, 0.70, 0.70), skin, "penis")
-		local tip = createPart(Enum.PartType.Ball, Vector3.new(0.70, 0.70, 0.70), pinkColor, "penis")
+		local offsetY = (humanoid.RigType == Enum.HumanoidRigType.R15) and -0.98 or -1.40
+		local scrotumSpread = math.clamp(ballRadius * 0.42, 0.20, 0.34)
+		local leftBall = createPart(Enum.PartType.Ball, Vector3.new(ballRadius * 2, ballRadius * 2.05, ballRadius * 1.95), skin, "Balls")
+		local rightBall = createPart(Enum.PartType.Ball, Vector3.new(ballRadius * 2, ballRadius * 2.05, ballRadius * 1.95), skin, "Balls")
+		local shaft = createPart(Enum.PartType.Cylinder, Vector3.new(shaftLength, shaftRadius * 2, shaftRadius * 2), skin, "penis")
+		local tip = createPart(Enum.PartType.Ball, Vector3.new(tipRadius * 2.1, tipRadius * 2.0, tipRadius * 2.0), pinkColor, "penis")
 
-		leftBall.CFrame = torso.CFrame * CFrame.new(-0.25, offsetY, -0.80)
-		rightBall.CFrame = torso.CFrame * CFrame.new(0.25, offsetY, -0.80)
-		local forwardShift = (shaftLength - shaftBaseLength) * 0.5
-		shaft.CFrame = torso.CFrame * CFrame.new(0.00, offsetY + 0.70, -1.35) * CFrame.Angles(0, math.rad(270), 0) * CFrame.new(-forwardShift, 0, 0)
+		leftBall.CFrame = torso.CFrame * CFrame.new(-scrotumSpread, offsetY, -0.74 - shaftRadius * 0.45)
+		rightBall.CFrame = torso.CFrame * CFrame.new(scrotumSpread, offsetY, -0.74 - shaftRadius * 0.45)
+		local shaftBaseOffset = (humanoid.RigType == Enum.HumanoidRigType.R15) and 0.46 or 0.62
+		local shaftBaseZ = -(torso.Size.Z * 0.5 + shaftRadius * 0.10)
+		local shaftForwardBias = math.max(0, shaftLength * 0.5 - shaftRadius * 0.85)
+		shaft.CFrame = torso.CFrame
+			* CFrame.new(0.00, offsetY + shaftBaseOffset, shaftBaseZ)
+			* CFrame.Angles(0, math.rad(270), 0)
+			* CFrame.new(-shaftForwardBias, 0, 0)
 		tip.CFrame = shaft.CFrame * CFrame.new(-shaftLength * 0.5, 0, 0)
 
-		weldConstraint(leftBall, torso)
-		weldConstraint(rightBall, torso)
 		weldConstraint(tip, shaft)
+
+		local leftBallWeld = InstanceNew("Weld")
+		leftBallWeld.Part0 = torso
+		leftBallWeld.Part1 = leftBall
+		leftBallWeld.C0 = torso.CFrame:ToObjectSpace(leftBall.CFrame)
+		leftBallWeld.C1 = CFrame.new()
+		leftBallWeld.Parent = leftBall
+
+		local rightBallWeld = InstanceNew("Weld")
+		rightBallWeld.Part0 = torso
+		rightBallWeld.Part1 = rightBall
+		rightBallWeld.C0 = torso.CFrame:ToObjectSpace(rightBall.CFrame)
+		rightBallWeld.C1 = CFrame.new()
+		rightBallWeld.Parent = rightBall
 
 		local shaftWeld = InstanceNew("Weld")
 		shaftWeld.Part0 = torso
@@ -62191,6 +62894,8 @@ do
 		state.pp.sh = shaft
 		state.pp.dr = tip
 		state.pp.wS = shaftWeld
+		state.pp.wBL = leftBallWeld
+		state.pp.wBR = rightBallWeld
 		state.pp.sy = 0
 		state.pp.vy = 0
 		state.pp.sz = 0
@@ -62201,7 +62906,20 @@ do
 		state.pp.vrx = 0
 		state.pp.ry = 0
 		state.pp.vry = 0
+		state.pp.bsy = 0
+		state.pp.bvy = 0
+		state.pp.bsz = 0
+		state.pp.bvz = 0
+		state.pp.bsx = 0
+		state.pp.bvx = 0
+		state.pp.brx = 0
+		state.pp.bvrx = 0
+		state.pp.bry = 0
+		state.pp.bvry = 0
 		state.pp.baseC0 = shaftWeld.C0
+		state.pp.baseBL = leftBallWeld.C0
+		state.pp.baseBR = rightBallWeld.C0
+		state.pp.llv = state.pp.llv or Vector3.zero
 
 		state.pp.animConn = originalIO.bodyModsDisconnectConnection(state.pp.animConn)
 		state.pp.animConn = RunService.RenderStepped:Connect(function(dt)
@@ -62218,19 +62936,25 @@ do
 			local localVel = hrp.CFrame:VectorToObjectSpace(velocity)
 			local angular = hrp.AssemblyAngularVelocity or Vector3.zero
 			local localAng = hrp.CFrame:VectorToObjectSpace(angular)
-			local speed = localVel.Magnitude
+			local accel = (localVel - state.pp.llv) / math.max(dt, 1/240)
+			state.pp.llv = localVel
+			local planarSpeed = Vector3.new(localVel.X, 0, localVel.Z).Magnitude
+			local lengthScale = math.clamp(value / 2, 0.45, 3)
+			local softness = math.clamp((planarSpeed + math.abs(localVel.Y) * 0.40) / 20, 0, 1)
+			local gait = math.sin(os.clock() * (5.4 + planarSpeed * 0.16)) * math.clamp((planarSpeed - 1.5) / 10, 0, 1)
+			local settleY = -0.012 * lengthScale
+			local settleZ = -0.040 * lengthScale
 
-			local targetY = math.clamp((-localVel.Y * 0.020) - (localAng.X * 0.010), -0.20, 0.20)
-			local targetZ = math.clamp(-localVel.Z * (0.028 + 0.002 * value), -0.30, 0.30)
-			local targetX = math.clamp(-localVel.X * 0.020, -0.20, 0.20)
-			local targetPitch = math.clamp(localAng.Z * 0.030, -0.25, 0.25)
-			local targetRoll = math.clamp(localAng.X * 0.030, -0.25, 0.25)
+			local targetY = math.clamp(settleY + (-localVel.Y * 0.015) - (accel.Y * 0.006) + math.abs(gait) * 0.010, -0.12, 0.10)
+			local targetZ = math.clamp(settleZ + (-localVel.Z * (0.018 + 0.0025 * value)) - (accel.Z * 0.010) - math.abs(gait) * 0.012, -0.26, 0.12)
+			local targetX = math.clamp((-localVel.X * 0.014) - (accel.X * 0.006), -0.14, 0.14)
+			local targetPitch = math.clamp((localAng.Z * 0.020) - (localVel.Y * 0.006) - (accel.Y * 0.0025), -0.18, 0.18)
+			local targetRoll = math.clamp((localAng.X * 0.020) + (localVel.X * 0.010) + (accel.X * 0.003), -0.18, 0.18)
 
-			local softness = math.clamp(speed / 28, 0, 1)
-			local kTrans = 54 - 16 * softness + value * 3
-			local dTrans = 3.2 - 0.8 * softness
-			local kRot = 42 - 10 * softness + value * 2
-			local dRot = 2.3 - 0.5 * softness
+			local kTrans = (42 - 10 * softness) / math.max(0.65 + lengthScale * 0.35, 0.7)
+			local dTrans = 4.8 + lengthScale * 0.35 - 0.5 * softness
+			local kRot = (36 - 8 * softness) / math.max(0.70 + lengthScale * 0.30, 0.7)
+			local dRot = 4.2 + lengthScale * 0.25 - 0.4 * softness
 
 			state.pp.sy, state.pp.vy = originalIO.bodyModsSpring(state.pp.sy, state.pp.vy, targetY, kTrans, dTrans, dt)
 			state.pp.sz, state.pp.vz = originalIO.bodyModsSpring(state.pp.sz, state.pp.vz, targetZ, kTrans, dTrans, dt)
@@ -62238,14 +62962,45 @@ do
 			state.pp.rx, state.pp.vrx = originalIO.bodyModsSpring(state.pp.rx, state.pp.vrx, targetPitch, kRot, dRot, dt)
 			state.pp.ry, state.pp.vry = originalIO.bodyModsSpring(state.pp.ry, state.pp.vry, targetRoll, kRot, dRot, dt)
 
-			state.pp.sy = math.clamp(state.pp.sy, -0.22, 0.22)
-			state.pp.sz = math.clamp(state.pp.sz, -0.30, 0.30)
-			state.pp.sx = math.clamp(state.pp.sx, -0.22, 0.22)
-			state.pp.rx = math.clamp(state.pp.rx, -0.26, 0.26)
-			state.pp.ry = math.clamp(state.pp.ry, -0.26, 0.26)
+			state.pp.sy = math.clamp(state.pp.sy, -0.12, 0.10)
+			state.pp.sz = math.clamp(state.pp.sz, -0.26, 0.12)
+			state.pp.sx = math.clamp(state.pp.sx, -0.14, 0.14)
+			state.pp.rx = math.clamp(state.pp.rx, -0.18, 0.18)
+			state.pp.ry = math.clamp(state.pp.ry, -0.18, 0.18)
 
 			local sway = CFrame.new(state.pp.sx, state.pp.sy, state.pp.sz) * CFrame.Angles(state.pp.rx, 0, state.pp.ry)
 			state.pp.wS.C0 = state.pp.baseC0 * sway
+
+			if state.pp.wBL and state.pp.wBR and state.pp.baseBL and state.pp.baseBR then
+				local ballTargetY = math.clamp((-0.020 * lengthScale) + (-localVel.Y * 0.020) - (accel.Y * 0.010) + math.abs(gait) * 0.024, -0.16, 0.14)
+				local ballTargetZ = math.clamp((-0.028 * lengthScale) + (-localVel.Z * 0.010) - (accel.Z * 0.012) - math.abs(gait) * 0.018, -0.14, 0.08)
+				local ballTargetX = math.clamp((-localVel.X * 0.018) - (accel.X * 0.008), -0.10, 0.10)
+				local ballTargetPitch = math.clamp((-localVel.Y * 0.010) - (accel.Y * 0.004), -0.16, 0.16)
+				local ballTargetRoll = math.clamp((localVel.X * 0.018) + gait * 0.055, -0.18, 0.18)
+
+				local kBallTrans = (30 - 8 * softness) / math.max(0.75 + lengthScale * 0.22, 0.8)
+				local dBallTrans = 4.6 + lengthScale * 0.25 - 0.3 * softness
+				local kBallRot = (24 - 6 * softness) / math.max(0.80 + lengthScale * 0.18, 0.8)
+				local dBallRot = 4.0 + lengthScale * 0.20 - 0.2 * softness
+
+				state.pp.bsy, state.pp.bvy = originalIO.bodyModsSpring(state.pp.bsy, state.pp.bvy, ballTargetY, kBallTrans, dBallTrans, dt)
+				state.pp.bsz, state.pp.bvz = originalIO.bodyModsSpring(state.pp.bsz, state.pp.bvz, ballTargetZ, kBallTrans, dBallTrans, dt)
+				state.pp.bsx, state.pp.bvx = originalIO.bodyModsSpring(state.pp.bsx, state.pp.bvx, ballTargetX, kBallTrans, dBallTrans, dt)
+				state.pp.brx, state.pp.bvrx = originalIO.bodyModsSpring(state.pp.brx, state.pp.bvrx, ballTargetPitch, kBallRot, dBallRot, dt)
+				state.pp.bry, state.pp.bvry = originalIO.bodyModsSpring(state.pp.bry, state.pp.bvry, ballTargetRoll, kBallRot, dBallRot, dt)
+
+				state.pp.bsy = math.clamp(state.pp.bsy, -0.16, 0.14)
+				state.pp.bsz = math.clamp(state.pp.bsz, -0.14, 0.08)
+				state.pp.bsx = math.clamp(state.pp.bsx, -0.10, 0.10)
+				state.pp.brx = math.clamp(state.pp.brx, -0.16, 0.16)
+				state.pp.bry = math.clamp(state.pp.bry, -0.18, 0.18)
+
+				local spreadJiggle = math.abs(gait) * math.clamp(0.010 + ballRadius * 0.015, 0.010, 0.024)
+				local leftBallSway = CFrame.new(-spreadJiggle - state.pp.bsx, state.pp.bsy, state.pp.bsz) * CFrame.Angles(state.pp.brx, 0, state.pp.bry)
+				local rightBallSway = CFrame.new(spreadJiggle + state.pp.bsx, state.pp.bsy, state.pp.bsz) * CFrame.Angles(state.pp.brx, 0, -state.pp.bry)
+				state.pp.wBL.C0 = state.pp.baseBL * leftBallSway
+				state.pp.wBR.C0 = state.pp.baseBR * rightBallSway
+			end
 		end)
 
 		originalIO.bodyModsEnsureColorWatcher()
@@ -62284,14 +63039,24 @@ do
 		state.pp.active = false
 		state.pp.wS = nil
 		state.pp.wTip = nil
+		state.pp.wBL = nil
+		state.pp.wBR = nil
 		state.pp.sh = nil
 		state.pp.dr = nil
 		state.pp.baseC0 = nil
+		state.pp.baseBL = nil
+		state.pp.baseBR = nil
+		state.pp.llv = Vector3.zero
 		state.pp.sy = 0
 		state.pp.sz = 0
 		state.pp.sx = 0
 		state.pp.rx = 0
 		state.pp.ry = 0
+		state.pp.bsy = 0
+		state.pp.bsz = 0
+		state.pp.bsx = 0
+		state.pp.brx = 0
+		state.pp.bry = 0
 
 		originalIO.bodyModsEnsureColorWatcher()
 		DebugNotif("PP Removed",1.5)
