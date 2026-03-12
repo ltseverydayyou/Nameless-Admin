@@ -733,7 +733,6 @@ local NAStuff = {
 	inviteLink = "https://discord.gg/zzjYhtMGFD";
 	docsLink = "https://ltseverydayyou.github.io/NA-docs";
 	KeybindConnection = nil;
-	ForceAdminRainbow = true;
 	StreamerModeEnabled = false;
 	StreamerModeText = "User";
 	StreamerModeGray = Color3.fromRGB(127, 127, 127);
@@ -14213,6 +14212,16 @@ NAmanage.jlDef = {
 	KeybindNotif = true;
 	PluginNotif = true;
 	NotifyFollowed = false;
+	JoinLeaveShowUserIds = false;
+	ChatShowTimestamps = true;
+	ChatUseDisplayNames = true;
+	ChatShowUserIds = false;
+	ChatLogLocalPlayer = true;
+	LogIncludeGameInfo = true;
+}
+
+NAmanage.jlNumDef = {
+	ChatMaxMessages = 200;
 }
 
 NAmanage.jlNorm = function(cfg)
@@ -14223,9 +14232,23 @@ NAmanage.jlNorm = function(cfg)
 		end
 		return d
 	end
+	local function numDef(v, d, min, max)
+		local n = tonumber(v)
+		if not n then
+			return d
+		end
+		if min ~= nil then
+			n = math.max(min, n)
+		end
+		if max ~= nil then
+			n = math.min(max, n)
+		end
+		return math.floor(n + 0.5)
+	end
 	for key, def in pairs(NAmanage.jlDef) do
 		c[key] = boolDef(c[key], def)
 	end
+	c.ChatMaxMessages = numDef(c.ChatMaxMessages, NAmanage.jlNumDef.ChatMaxMessages, 20, 500)
 	return c
 end
 
@@ -20894,24 +20917,6 @@ NAmanage.ESP_WaitForPlayerCharacter = function(player, timeoutSeconds)
 end
 
 
-NAgui.hasDrawingAPI = function()
-	local draw = Drawing
-	if type(draw) == "table" and type(draw.new) == "function" then
-		return true
-	end
-	local ok, env = false, nil
-	if type(getgenv) == "function" then
-		ok, env = pcall(getgenv)
-	end
-	if ok and type(env) == "table" then
-		local fromEnv = rawget(env, "Drawing")
-		if type(fromEnv) == "table" and type(fromEnv.new) == "function" then
-			return true
-		end
-	end
-	return false
-end
-
 NAgui.getDrawingLibrary = function()
 	local draw = Drawing
 	if type(draw) == "table" and type(draw.new) == "function" then
@@ -20928,6 +20933,67 @@ NAgui.getDrawingLibrary = function()
 		end
 	end
 	return nil
+end
+
+NAmanage.DrawingObjectSupported = function(kind, refresh)
+	local objectKind = tostring(kind or "")
+	if objectKind == "" then
+		return false
+	end
+	local cache = NAmanage._drawingObjectSupport
+	if type(cache) ~= "table" then
+		cache = {}
+		NAmanage._drawingObjectSupport = cache
+	end
+	if not refresh and cache[objectKind] ~= nil then
+		return cache[objectKind] == true
+	end
+	local drawingLib = NAgui.getDrawingLibrary()
+	if not drawingLib then
+		cache[objectKind] = false
+		return false
+	end
+	local ok, obj = pcall(function()
+		return drawingLib.new(objectKind)
+	end)
+	if not ok or not obj then
+		cache[objectKind] = false
+		return false
+	end
+	local applied = pcall(function()
+		obj.Visible = false
+		if objectKind == "Square" then
+			obj.Filled = false
+			obj.Thickness = 1
+			obj.Color = Color3.new(1, 1, 1)
+			obj.Transparency = 1
+			obj.Position = Vector2.new(0, 0)
+			obj.Size = Vector2.new(2, 2)
+		elseif objectKind == "Text" then
+			obj.Center = true
+			obj.Outline = true
+			obj.Color = Color3.new(1, 1, 1)
+			obj.Size = 12
+			obj.Text = ""
+			obj.Transparency = 1
+			obj.Position = Vector2.new(0, 0)
+		elseif objectKind == "Triangle" then
+			obj.Filled = true
+			obj.Thickness = 1
+			obj.Color = Color3.new(1, 1, 1)
+			obj.Transparency = 1
+			obj.PointA = Vector2.new(0, 0)
+			obj.PointB = Vector2.new(1, 0)
+			obj.PointC = Vector2.new(0, 1)
+		end
+	end)
+	NAmanage.DrawingRemoveObject(obj)
+	cache[objectKind] = applied == true
+	return applied == true
+end
+
+NAgui.hasDrawingAPI = function()
+	return NAmanage.DrawingObjectSupported("Square")
 end
 
 NAgui.getESPRenderModeOptions = function()
@@ -21119,7 +21185,18 @@ NAmanage.DrawingRemoveObject = function(obj)
 	end)
 end
 
+NAmanage.DrawingTriangleSupported = function(refresh)
+	return NAmanage.DrawingObjectSupported("Triangle", refresh)
+end
+
+NAmanage.DrawingTextSupported = function(refresh)
+	return NAmanage.DrawingObjectSupported("Text", refresh)
+end
+
 NAmanage.DrawingCreateSquare = function(color, fillTransparency)
+	if NAmanage.DrawingObjectSupported and not NAmanage.DrawingObjectSupported("Square") then
+		return nil
+	end
 	local drawingLib = NAgui.getDrawingLibrary()
 	if not drawingLib then
 		return nil
@@ -21128,6 +21205,9 @@ NAmanage.DrawingCreateSquare = function(color, fillTransparency)
 		return drawingLib.new("Square")
 	end)
 	if not ok or not square then
+		if type(NAmanage._drawingObjectSupport) == "table" then
+			NAmanage._drawingObjectSupport.Square = false
+		end
 		return nil
 	end
 	local alpha = NAgui.toDrawingTransparency(fillTransparency or 0.7)
@@ -21142,16 +21222,16 @@ NAmanage.DrawingCreateSquare = function(color, fillTransparency)
 end
 
 NAmanage.DrawingUpdateSquare = function(square, inst, color, fillTransparency)
-	if not square then return end
+	if not square then return false end
 	local minX, minY, width, height = NAgui.getInstanceViewportBounds(inst)
 	if not minX then
 		pcall(function()
 			square.Visible = false
 		end)
-		return
+		return true
 	end
 	local alpha = NAgui.toDrawingTransparency(fillTransparency or 0.7)
-	pcall(function()
+	local ok = pcall(function()
 		square.Color = color or Color3.new(1, 1, 1)
 		square.Transparency = alpha
 		square.Filled = false
@@ -21160,9 +21240,16 @@ NAmanage.DrawingUpdateSquare = function(square, inst, color, fillTransparency)
 		square.Size = Vector2.new(width, height)
 		square.Visible = true
 	end)
+	if not ok and type(NAmanage._drawingObjectSupport) == "table" then
+		NAmanage._drawingObjectSupport.Square = false
+	end
+	return ok
 end
 
 NAmanage.DrawingCreateText = function(text, color, textSize)
+	if NAmanage.DrawingObjectSupported and not NAmanage.DrawingObjectSupported("Text") then
+		return nil
+	end
 	local drawingLib = NAgui.getDrawingLibrary()
 	if not drawingLib then
 		return nil
@@ -21171,6 +21258,9 @@ NAmanage.DrawingCreateText = function(text, color, textSize)
 		return drawingLib.new("Text")
 	end)
 	if not ok or not txt then
+		if type(NAmanage._drawingObjectSupport) == "table" then
+			NAmanage._drawingObjectSupport.Text = false
+		end
 		return nil
 	end
 	pcall(function()
@@ -21186,31 +21276,38 @@ NAmanage.DrawingCreateText = function(text, color, textSize)
 end
 
 NAmanage.DrawingUpdateText = function(txt, worldPos, text, color, textSize)
-	if not txt then return end
+	if not txt then return false end
 	local cam = workspace and workspace.CurrentCamera
 	if not cam or not worldPos then
 		pcall(function()
 			txt.Visible = false
 		end)
-		return
+		return true
 	end
 	local viewportPoint, onScreen = cam:WorldToViewportPoint(worldPos)
 	if viewportPoint.Z <= 0 or not onScreen then
 		pcall(function()
 			txt.Visible = false
 		end)
-		return
+		return true
 	end
-	pcall(function()
+	local ok = pcall(function()
 		txt.Text = tostring(text or "")
 		txt.Color = color or Color3.new(1, 1, 1)
 		txt.Size = NAgui.sanitizeLabelSize(textSize or 12)
 		txt.Position = Vector2.new(viewportPoint.X, viewportPoint.Y)
 		txt.Visible = true
 	end)
+	if not ok and type(NAmanage._drawingObjectSupport) == "table" then
+		NAmanage._drawingObjectSupport.Text = false
+	end
+	return ok
 end
 
 NAmanage.DrawingCreateTriangle = function(color, alpha)
+	if NAmanage.DrawingTriangleSupported and not NAmanage.DrawingTriangleSupported() then
+		return nil
+	end
 	local drawingLib = NAgui.getDrawingLibrary()
 	if not drawingLib then
 		return nil
@@ -21219,6 +21316,9 @@ NAmanage.DrawingCreateTriangle = function(color, alpha)
 		return drawingLib.new("Triangle")
 	end)
 	if not ok or not tri then
+		if type(NAmanage._drawingObjectSupport) == "table" then
+			NAmanage._drawingObjectSupport.Triangle = false
+		end
 		return nil
 	end
 	pcall(function()
@@ -21257,7 +21357,7 @@ NAmanage.DrawingUpdateTriangle = function(tri, centerX, centerY, dirX, dirY, siz
 	local by = baseY + (py * halfWidth)
 	local cx = baseX - (px * halfWidth)
 	local cy = baseY - (py * halfWidth)
-	pcall(function()
+	local ok = pcall(function()
 		tri.Color = color or Color3.new(1, 1, 1)
 		tri.Transparency = math.clamp(tonumber(alpha) or 1, 0, 1)
 		tri.PointA = Vector2.new(ax, ay)
@@ -21265,6 +21365,10 @@ NAmanage.DrawingUpdateTriangle = function(tri, centerX, centerY, dirX, dirY, siz
 		tri.PointC = Vector2.new(cx, cy)
 		tri.Visible = true
 	end)
+	if not ok and type(NAmanage._drawingObjectSupport) == "table" then
+		NAmanage._drawingObjectSupport.Triangle = false
+	end
+	return ok
 end
 
 NAgui.updateLabelBounds=function(label)
@@ -21630,7 +21734,10 @@ NAmanage.PartESP_UpdateEntry = function(entry, force, rootPart)
 		if showPartText then
 			local textColor = entry.lightColor or entry.baseColor or Color3.new(1, 1, 1)
 			local textPos = NAgui.getInstanceLabelWorldPosition(part, 0.2)
-			NAmanage.DrawingUpdateText(drawingLabel, textPos, display, textColor, NAStuff.ESP_LabelTextSize)
+			if not NAmanage.DrawingUpdateText(drawingLabel, textPos, display, textColor, NAStuff.ESP_LabelTextSize) then
+				NAmanage.ESP_RequestVisualRebuild()
+				return
+			end
 		else
 			pcall(function()
 				drawingLabel.Visible = false
@@ -21642,7 +21749,10 @@ NAmanage.PartESP_UpdateEntry = function(entry, force, rootPart)
 	local drawingSquare = entry.drawingSquare
 	if drawingSquare then
 		local drawColor = entry.lightColor or entry.baseColor or Color3.new(1, 1, 1)
-		NAmanage.DrawingUpdateSquare(drawingSquare, part, drawColor, transparency)
+		if not NAmanage.DrawingUpdateSquare(drawingSquare, part, drawColor, transparency) then
+			NAmanage.ESP_RequestVisualRebuild()
+			return
+		end
 	end
 	if visual and visual.Parent then
 		if visual:IsA("Highlight") then
@@ -22042,6 +22152,9 @@ NAmanage.ESP_EnsureDrawingLabel = function(model)
 	if not data then
 		return nil
 	end
+	if not NAmanage.DrawingTextSupported() then
+		return nil
+	end
 	local label = data.drawingLabel
 	if label then
 		return label
@@ -22055,9 +22168,9 @@ NAmanage.ESP_UpdateDrawingLabel = function(model, text, color)
 	local data = espCONS[model]
 	if not data then return end
 	local label = data.drawingLabel or NAmanage.ESP_EnsureDrawingLabel(model)
-	if not label then return end
+	if not label then return false end
 	local worldPos = NAmanage.ESP_GetLabelWorldPosition(model)
-	NAmanage.DrawingUpdateText(label, worldPos, text, color, NAStuff.ESP_LabelTextSize)
+	return NAmanage.DrawingUpdateText(label, worldPos, text, color, NAStuff.ESP_LabelTextSize)
 end
 
 NAmanage.ESP_EnsureLabel = function(model)
@@ -22066,7 +22179,7 @@ NAmanage.ESP_EnsureLabel = function(model)
 	local owner = __lt.cm("Players", "GetPlayerFromCharacter", model)
 	local forceLabel = owner and NAmanage.ESP_HasPlayerLabelOverride(owner) == true
 	if chamsEnabled and not forceLabel then return end
-	if NAgui.espUsesDrawing("players") then
+	if NAgui.espUsesDrawing("players") and NAmanage.DrawingTextSupported() then
 		if data.billboard then
 			data.billboard:Destroy()
 			data.billboard = nil
@@ -22180,6 +22293,31 @@ NAmanage.ESP_EnsureDrawing = function(data)
 	box = NAmanage.DrawingCreateSquare(Color3.new(1, 1, 1), NAStuff.ESP_Transparency or 0.7)
 	data.drawingBox = box
 	return box
+end
+
+NAmanage.ESP_RecoverFromDrawingFailure = function(model, data)
+	data = data or espCONS[model]
+	if not data then
+		return
+	end
+	NAmanage.ESP_RemoveDrawing(data)
+	NAmanage.ESP_RemoveDrawingLabel(data)
+	data.boxEnabled = false
+	if model then
+		NAmanage.ESP_AddBoxes(model)
+		NAmanage.ESP_EnsureLabel(model)
+	end
+end
+
+NAmanage.ESP_RequestVisualRebuild = function()
+	if NAStuff._espVisualRebuildPending == true then
+		return
+	end
+	NAStuff._espVisualRebuildPending = true
+	task.defer(function()
+		NAStuff._espVisualRebuildPending = false
+		NAmanage.ESP_RebuildVisuals()
+	end)
 end
 
 NAmanage.ESP_AddBoxForPart = function(model, part)
@@ -22507,7 +22645,11 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 			if drawingBox then
 				local tr = NAgui.sanitizeTransparency(NAStuff.ESP_Transparency or 0.7)
 				local color = finalColor or Color3.new(1, 1, 1)
-				NAmanage.DrawingUpdateSquare(drawingBox, model, color, tr)
+				if not NAmanage.DrawingUpdateSquare(drawingBox, model, color, tr) then
+					NAmanage.ESP_RecoverFromDrawingFailure(model, data)
+				end
+			else
+				NAmanage.ESP_RecoverFromDrawingFailure(model, data)
 			end
 		elseif NAgui.espUsesHighlight("players") then
 			NAmanage.ESP_RemoveDrawing(data)
@@ -22581,9 +22723,17 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 	if wantLabel and pieces and #pieces > 0 then
 		local txt = Concat(pieces, " | ")
 		local txtColor = finalColor or Color3.new(1, 1, 1)
-		if NAgui.espUsesDrawing("players") then
+		if NAgui.espUsesDrawing("players") and NAmanage.DrawingTextSupported() then
 			NAmanage.ESP_EnsureLabel(model)
-			NAmanage.ESP_UpdateDrawingLabel(model, txt, txtColor)
+			if not NAmanage.ESP_UpdateDrawingLabel(model, txt, txtColor) then
+				NAmanage.ESP_EnsureLabel(model)
+				local label = data.textLabel
+				if label then
+					NAgui.applyLabelStyle(label)
+					if label.Text ~= txt then label.Text = txt end
+					if label.TextColor3 ~= txtColor then label.TextColor3 = txtColor end
+				end
+			end
 		else
 			NAmanage.ESP_EnsureLabel(model)
 			local label = data.textLabel
@@ -25754,15 +25904,23 @@ NAmanage.LogJoinLeave = function(message)
 
 	local logPath = NAfiles.NAJOINLEAVELOG
 	local timestamp = os.date("[%Y-%m-%d %H:%M:%S]")
+	local includeGameInfo = NAmanage.jlCfg.LogIncludeGameInfo ~= false
+	local suffix = ""
+	if includeGameInfo then
+		suffix = Format(
+			" | Game: %s | PlaceId: %s | GameId: %s | JobId: %s",
+			placeName() or "unknown",
+			tostring(PlaceId),
+			tostring(GameId),
+			tostring(JobId)
+		)
+	end
 
 	local logMessage = Format(
-		"%s %s | Game: %s | PlaceId: %s | GameId: %s | JobId: %s\n",
+		"%s %s%s\n",
 		timestamp,
 		message,
-		placeName() or "unknown",
-		tostring(PlaceId),
-		tostring(GameId),
-		tostring(JobId)
+		suffix
 	)
 
 	if isfile(logPath) then
@@ -56494,6 +56652,23 @@ NAmanage.ESP_LocatorDisposeHolder = function(holder)
 	end
 end
 
+NAmanage.ESP_LocatorUseGuiFallback = function()
+	NAlib.disconnect("esp_locator_loop")
+	if NAStuff.ESP_LocatorArrows then
+		for _, holder in pairs(NAStuff.ESP_LocatorArrows) do
+			NAmanage.ESP_LocatorDisposeHolder(holder)
+		end
+	end
+	NAStuff.ESP_LocatorArrows = {}
+	NAStuff.ESP_LocatorBackend = nil
+	task.defer(function()
+		if NAStuff.ESP_LocatorEnabled then
+			NAmanage.ESP_LocatorEnableGui(true)
+			NAmanage.ESP_LocatorApplyFlags()
+		end
+	end)
+end
+
 NAmanage.ESP_LocatorEnableGui = function(force)
 	if NAStuff.ESP_LocatorEnabled and not force and NAlib.isConnected("esp_locator_loop") and NAStuff.ESP_LocatorBackend == "gui" then return end
 	NAStuff.ESP_LocatorEnabled = true
@@ -56818,6 +56993,11 @@ NAmanage.ESP_LocatorEnableGui = function(force)
 end
 
 NAmanage.ESP_LocatorEnableDrawing = function(force)
+	if not NAmanage.DrawingTriangleSupported(true) then
+		NAStuff.ESP_LocatorEnabled = true
+		NAmanage.ESP_LocatorUseGuiFallback()
+		return
+	end
 	if NAStuff.ESP_LocatorEnabled and not force and NAlib.isConnected("esp_locator_loop") and NAStuff.ESP_LocatorBackend == "drawing" then return end
 	NAStuff.ESP_LocatorEnabled = true
 	NAStuff.ESP_LocatorBackend = "drawing"
@@ -56852,6 +57032,7 @@ NAmanage.ESP_LocatorEnableDrawing = function(force)
 
 		local tri = NAmanage.DrawingCreateTriangle(Color3.new(1, 1, 1), 1)
 		if not tri then
+			NAmanage.ESP_LocatorUseGuiFallback()
 			return nil
 		end
 		local label = NAStuff.ESP_LocatorShowText == true and NAmanage.DrawingCreateText("", Color3.new(1, 1, 1), NAStuff.ESP_LocatorTextSize or 14) or nil
@@ -56897,11 +57078,7 @@ NAmanage.ESP_LocatorEnableDrawing = function(force)
 			return
 		end
 		accum += tonumber(dt) or 0
-		local configuredRate = tonumber(NAStuff.ESP_LocatorUpdateRate)
-		local updateRate = math.clamp((configuredRate and math.floor(configuredRate + 0.5)) or 60, 8, 60)
-		if updateRate < 60 then
-			updateRate = 60
-		end
+		local updateRate = math.clamp(tonumber(NAStuff.ESP_LocatorUpdateRate) or 25, 8, 60)
 		local stepInterval = 1 / updateRate
 		if accum < stepInterval then
 			return
@@ -56916,10 +57093,7 @@ NAmanage.ESP_LocatorEnableDrawing = function(force)
 		local size = math.clamp(tonumber(NAStuff.ESP_LocatorSize) or 26, 12, 128)
 		local textOn = (NAStuff.ESP_LocatorShowText == true)
 		local textSize = math.clamp(tonumber(NAStuff.ESP_LocatorTextSize) or 14, 10, 48)
-		local perStep = math.clamp(math.floor(tonumber(NAStuff.ESP_LocatorPerStep) or 72), 12, 600)
-		if perStep < 180 then
-			perStep = 180
-		end
+		local perStep = math.clamp(math.floor(tonumber(NAStuff.ESP_LocatorPerStep) or 72), 12, 400)
 		local staleSeconds = math.clamp(tonumber(NAStuff.ESP_LocatorHoldSeconds) or 0.5, 0.15, 3)
 		local now = os.clock()
 
@@ -56994,7 +57168,10 @@ NAmanage.ESP_LocatorEnableDrawing = function(force)
 							if px < minX then px = minX elseif px > maxX then px = maxX end
 							if py < minY then py = minY elseif py > maxY then py = maxY end
 
-							NAmanage.DrawingUpdateTriangle(holder.drawingArrow, px, py, dirX, dirY, size, col, 1)
+							if not NAmanage.DrawingUpdateTriangle(holder.drawingArrow, px, py, dirX, dirY, size, col, 1) then
+								NAmanage.ESP_LocatorUseGuiFallback()
+								return
+							end
 
 							local hs = holderState[holder]
 							if hs then
@@ -57053,7 +57230,7 @@ NAmanage.ESP_LocatorEnableDrawing = function(force)
 end
 
 NAmanage.ESP_LocatorShouldUseDrawing = function()
-	return NAgui.espUsesDrawing("part") and NAgui.hasDrawingAPI()
+	return NAgui.espUsesDrawing("part") and NAmanage.DrawingTriangleSupported()
 end
 
 NAmanage.ESP_LocatorEnable = function(force)
@@ -57096,7 +57273,24 @@ NAmanage.ESP_PlayerLocatorEnsureGui = function()
 end
 
 NAmanage.ESP_PlayerLocatorShouldUseDrawing = function()
-	return NAgui.espUsesDrawing("players") and NAgui.hasDrawingAPI()
+	return NAgui.espUsesDrawing("players") and NAmanage.DrawingTriangleSupported()
+end
+
+NAmanage.ESP_PlayerLocatorUseGuiFallback = function()
+	NAlib.disconnect("esp_player_locator_loop")
+	if NAStuff.ESP_PlayerLocatorArrows then
+		for _, holder in pairs(NAStuff.ESP_PlayerLocatorArrows) do
+			NAmanage.ESP_LocatorDisposeHolder(holder)
+		end
+	end
+	NAStuff.ESP_PlayerLocatorArrows = {}
+	NAStuff.ESP_PlayerLocatorBackend = nil
+	task.defer(function()
+		if NAStuff.ESP_PlayerLocatorEnabled then
+			NAmanage.ESP_PlayerLocatorEnableGui(true)
+			NAmanage.ESP_PlayerLocatorApplyFlags()
+		end
+	end)
 end
 
 NAmanage.ESP_PlayerLocatorEnableGui = function(force)
@@ -57419,6 +57613,11 @@ NAmanage.ESP_PlayerLocatorEnableGui = function(force)
 end
 
 NAmanage.ESP_PlayerLocatorEnableDrawing = function(force)
+	if not NAmanage.DrawingTriangleSupported(true) then
+		NAStuff.ESP_PlayerLocatorEnabled = true
+		NAmanage.ESP_PlayerLocatorUseGuiFallback()
+		return
+	end
 	if NAStuff.ESP_PlayerLocatorEnabled and not force and NAlib.isConnected("esp_player_locator_loop") and NAStuff.ESP_PlayerLocatorBackend == "drawing" then return end
 	NAStuff.ESP_PlayerLocatorEnabled = true
 	NAStuff.ESP_PlayerLocatorBackend = "drawing"
@@ -57451,6 +57650,7 @@ NAmanage.ESP_PlayerLocatorEnableDrawing = function(force)
 		end
 		local tri = NAmanage.DrawingCreateTriangle(Color3.new(1, 1, 1), 1)
 		if not tri then
+			NAmanage.ESP_PlayerLocatorUseGuiFallback()
 			return nil
 		end
 		local label = NAStuff.ESP_PlayerLocatorShowText == true and NAmanage.DrawingCreateText("", Color3.new(1, 1, 1), NAStuff.ESP_PlayerLocatorTextSize or 14) or nil
@@ -57494,11 +57694,7 @@ NAmanage.ESP_PlayerLocatorEnableDrawing = function(force)
 	NAlib.connect("esp_player_locator_loop", RunService.RenderStepped:Connect(function(dt)
 		if not NAStuff.ESP_PlayerLocatorEnabled then return end
 		accum += tonumber(dt) or 0
-		local configuredRate = tonumber(NAStuff.ESP_PlayerLocatorUpdateRate)
-		local updateRate = math.clamp((configuredRate and math.floor(configuredRate + 0.5)) or 60, 8, 60)
-		if updateRate < 60 then
-			updateRate = 60
-		end
+		local updateRate = math.clamp(tonumber(NAStuff.ESP_PlayerLocatorUpdateRate) or 25, 8, 60)
 		local stepInterval = 1 / updateRate
 		if accum < stepInterval then
 			return
@@ -57513,10 +57709,7 @@ NAmanage.ESP_PlayerLocatorEnableDrawing = function(force)
 		local size = math.clamp(tonumber(NAStuff.ESP_PlayerLocatorSize) or 26, 12, 128)
 		local textOn = (NAStuff.ESP_PlayerLocatorShowText == true)
 		local textSize = math.clamp(tonumber(NAStuff.ESP_PlayerLocatorTextSize) or 14, 10, 48)
-		local perStep = math.clamp(math.floor(tonumber(NAStuff.ESP_PlayerLocatorPerStep) or 96), 12, 600)
-		if perStep < 180 then
-			perStep = 180
-		end
+		local perStep = math.clamp(math.floor(tonumber(NAStuff.ESP_PlayerLocatorPerStep) or 96), 12, 400)
 		local staleSeconds = math.clamp(tonumber(NAStuff.ESP_PlayerLocatorHoldSeconds) or 0.5, 0.15, 3)
 		local now = os.clock()
 
@@ -57584,7 +57777,10 @@ NAmanage.ESP_PlayerLocatorEnableDrawing = function(force)
 							if px < minX then px = minX elseif px > maxX then px = maxX end
 							if py < minY then py = minY elseif py > maxY then py = maxY end
 
-							NAmanage.DrawingUpdateTriangle(holder.drawingArrow, px, py, dirX, dirY, size, col, 1)
+							if not NAmanage.DrawingUpdateTriangle(holder.drawingArrow, px, py, dirX, dirY, size, col, 1) then
+								NAmanage.ESP_PlayerLocatorUseGuiFallback()
+								return
+							end
 							local hs = holderState[holder]
 							if hs then hs.seen = now end
 
@@ -66056,10 +66252,15 @@ NAgui.addInfo = function(label, value, opts)
 	box.Text = value or ""
 	box.PlaceholderText = ""
 	box.ClearTextOnFocus = false
-	box.TextEditable = false
+	pcall(function()
+		box.TextEditable = false
+	end)
+	pcall(function()
+		box.Interactable = false
+	end)
 	box.Active = false
 	box.Selectable = false
-	box.CursorPosition = -1
+
 	box.TextXAlignment = Enum.TextXAlignment.Center
 	box.TextWrapped = false
 	box.TextTruncate = Enum.TextTruncate.None
@@ -66074,10 +66275,6 @@ NAgui.addInfo = function(label, value, opts)
 	end
 	local clampAlignLeft = opts.clampAlignLeft ~= false
 	local autoShrink = opts.autoShrink ~= false
-
-	box.Focused:Connect(function()
-		box:ReleaseFocus()
-	end)
 
 	local lastW
 
@@ -73222,7 +73419,19 @@ NAmanage.CommandKeybindsUIWire=function()
 end
 
 --[[ CHAT TO USE COMMANDS ]]--
-function bindToChat(plr, msg)
+NAmanage.formatLogPlayerName=function(plr, opts)
+	opts = type(opts) == "table" and opts or {}
+	local baseName = nameChecker(plr)
+	if opts.useDisplayName == false then
+		baseName = "@"..tostring((plr and plr.Name) or "Unknown")
+	end
+	if opts.showUserId == true then
+		baseName = baseName.." [UserId: "..tostring((plr and plr.UserId) or "Unknown").."]"
+	end
+	return baseName
+end
+
+NAmanage.bindToChat=function(plr, msg)
 	local shouldDisplay = NAmanage.jlCfg.ChatLog ~= false
 	local shouldSave = NAmanage.jlCfg.SaveChatLog == true
 	NAStuff.ChatLogState = NAStuff.ChatLogState or {
@@ -73231,19 +73440,28 @@ function bindToChat(plr, msg)
 		maxMessages = 200;
 	}
 	local chatLogState = NAStuff.ChatLogState
+	local logOwnMessages = NAmanage.jlCfg.ChatLogLocalPlayer ~= false
+	local includeGameInfo = NAmanage.jlCfg.LogIncludeGameInfo ~= false
+
+	if plr == LocalPlayer and not logOwnMessages then
+		return
+	end
+
+	chatLogState.maxMessages = tonumber(NAmanage.jlCfg.ChatMaxMessages) or chatLogState.maxMessages or 200
 
 	if not shouldDisplay and not shouldSave then
 		return
 	end
 
-	local displayName = plr.DisplayName or "Unknown"
-	local userName = plr.Name or "Unknown"
 	local currentTime = os.date("%Y-%m-%d %H:%M:%S")
-	local baseText
-	if displayName == userName then
-		baseText = ("@%s: %s"):format(userName, msg)
-	else
-		baseText = ("%s [@%s]: %s"):format(displayName, userName, msg)
+	local chatName = NAmanage.formatLogPlayerName(plr, {
+		useDisplayName = NAmanage.jlCfg.ChatUseDisplayNames ~= false;
+		showUserId = NAmanage.jlCfg.ChatShowUserIds == true;
+	})
+	local baseText = ("%s: %s"):format(chatName, msg)
+	local displayText = baseText
+	if NAmanage.jlCfg.ChatShowTimestamps ~= false then
+		displayText = ("[%s] %s"):format(os.date("%H:%M:%S"), baseText)
 	end
 
 	local chatMsg = nil
@@ -73254,7 +73472,7 @@ function bindToChat(plr, msg)
 		chatMsg.Parent = NAUIMANAGER.chatLogs
 		chatLogState.nextOrder = (chatLogState.nextOrder or 0) + 1
 		chatMsg.LayoutOrder = chatLogState.nextOrder
-		chatMsg.Text = baseText
+		chatMsg.Text = displayText
 
 		if NAmanage.AttachMessageCopy then
 			NAmanage.AttachMessageCopy(chatMsg, tostring(msg or ""))
@@ -73318,21 +73536,23 @@ function bindToChat(plr, msg)
 
 		local translator = NAStuff.ChatTranslator
 		if translator then
-			translator:registerMessage(chatMsg, baseText, msg)
+			translator:registerMessage(chatMsg, displayText, msg)
 		end
 	end
 
 	pcall(function()
 		if shouldSave and FileSupport and appendfile then
-			local cEntry = Format(
-				"[%s] %s | Game: %s | PlaceId: %s | GameId: %s | JobId: %s\n",
-				currentTime,
-				baseText,
-				placeName() or "unknown",
-				tostring(PlaceId),
-				tostring(GameId),
-				tostring(JobId)
-			)
+			local cEntry = ("[%s] %s"):format(currentTime, baseText)
+			if includeGameInfo then
+				cEntry = cEntry..Format(
+					" | Game: %s | PlaceId: %s | GameId: %s | JobId: %s",
+					placeName() or "unknown",
+					tostring(PlaceId),
+					tostring(GameId),
+					tostring(JobId)
+				)
+			end
+			cEntry = cEntry.."\n"
 			if isfile(NAfiles.NACHATLOGS) then
 				appendfile(NAfiles.NACHATLOGS, cEntry)
 			else
@@ -73477,6 +73697,24 @@ NAmanage.bindToDevConsole = function()
 	end;
 	local function matchesQuery(haystack, needle)
 		return needle == "" or string.find(haystack, needle, 1, true) ~= nil;
+	end;
+	local function getTagInfo(msgTYPE)
+		local tagColor = "#cccccc";
+		local tagText = "Output";
+		if msgTYPE == Enum.MessageType.MessageError then
+			tagColor = "#ff6464";
+			tagText = "Error";
+		elseif msgTYPE == Enum.MessageType.MessageWarning then
+			tagColor = "#ffcc00";
+			tagText = "Warn";
+		elseif msgTYPE == Enum.MessageType.MessageInfo then
+			tagColor = "#66ccff";
+			tagText = "Info";
+		end;
+		return tagText, tagColor;
+	end;
+	local function shouldCaptureTag(tagText)
+		return toggles[tagText] == true;
 	end;
 	local function getMeasureWidth()
 		return math.max(1, math.floor((logsFrame.AbsoluteSize.X or 0) + 0.5));
@@ -73897,17 +74135,9 @@ NAmanage.bindToDevConsole = function()
 	end;
 	local function enqueueMessage(msg, msgTYPE)
 		local rawText = tostring(msg or "");
-		local tagColor = "#cccccc";
-		local tagText = "Output";
-		if msgTYPE == Enum.MessageType.MessageError then
-			tagColor = "#ff6464";
-			tagText = "Error";
-		elseif msgTYPE == Enum.MessageType.MessageWarning then
-			tagColor = "#ffcc00";
-			tagText = "Warn";
-		elseif msgTYPE == Enum.MessageType.MessageInfo then
-			tagColor = "#66ccff";
-			tagText = "Info";
+		local tagText, tagColor = getTagInfo(msgTYPE);
+		if not shouldCaptureTag(tagText) then
+			return;
 		end;
 		local pendingSize = pendingTail - pendingHead + 1;
 		if pendingSize >= MAX_PENDING then
@@ -73982,7 +74212,10 @@ NAmanage.bindToDevConsole = function()
 					local text = entry.message or entry.Message or entry[1];
 					local msgType = entry.messageType or entry.MessageType or entry.type;
 					if text ~= nil then
-						enqueueMessage(text, msgType);
+						local tagText = getTagInfo(msgType);
+						if shouldCaptureTag(tagText) then
+							enqueueMessage(text, msgType);
+						end;
 					end;
 				end;
 			end;
@@ -73991,6 +74224,10 @@ NAmanage.bindToDevConsole = function()
 	processPendingQueue();
 	if logService then
 		NAlib.connect(CONN_KEY, logService.MessageOut:Connect(function(msg, msgTYPE)
+			local tagText = getTagInfo(msgTYPE);
+			if not shouldCaptureTag(tagText) then
+				return;
+			end;
 			enqueueMessage(msg, msgTYPE);
 			processPendingQueue();
 		end));
@@ -74069,13 +74306,13 @@ end;
 	AUTOSCALER.Scale = math.clamp(screenHeight / baseHeight, 0.75, 1.25)
 end]]
 
-logClrs={
+NAStuff.logClrs=NAStuff.logClrs or {
 	GREEN   = "#00FF00";
 	WHITE   = "#FFFFFF";
 	RED     = "#FF0000";
 }
 
-binderKillerTags = {
+NAStuff.binderKillerTags = NAStuff.binderKillerTags or {
 	"creator",
 	"Creator",
 	"creatorPlayer",
@@ -74146,7 +74383,7 @@ originalIO.binderFindKiller=function(humanoid)
 	if not humanoid then
 		return nil
 	end
-	for _, name in ipairs(binderKillerTags) do
+	for _, name in ipairs(NAStuff.binderKillerTags) do
 		local tag = humanoid:FindFirstChild(name)
 		local killer = originalIO.binderFindPlayerInTag(tag)
 		if killer then
@@ -74501,7 +74738,7 @@ NAmanage.queueCharacterWork = NAmanage.queueCharacterWork or function(plr, char,
 	end)
 end
 
-function setupPlayer(plr,bruh)
+originalIO.setupPlayer=function(plr,bruh)
 	NAmanage.ExecuteBindings("OnJoin", plr)
 
 	local chatKey = NAmanage.lcKey("playerLifecycle_chat", plr)
@@ -74510,7 +74747,7 @@ function setupPlayer(plr,bruh)
 	NAlib.disconnect(charKey)
 
 	NAlib.connect(chatKey, plr.Chatted:Connect(function(msg)
-		bindToChat(plr, msg)
+		NAmanage.bindToChat(plr, msg)
 		NAmanage.ExecuteBindings("OnChatted", plr, msg)
 		if NAmanage.WebhookChat then
 			NAmanage.WebhookChat(plr, msg)
@@ -74543,8 +74780,10 @@ function setupPlayer(plr,bruh)
 	local suppressJoinLeave = NAStuff and NAStuff.StreamerModeEnabled == true
 
 	if NAmanage.jlCfg.JoinLog and not bruh and not suppressJoinLeave then
-		local joinMsg = nameChecker(plr).." has joined the game."
-		local categoryRT = ('<font color="%s">Join</font>/'..'<font color="%s">Leave</font>'):format(logClrs.GREEN, logClrs.WHITE)
+		local joinMsg = NAmanage.formatLogPlayerName(plr, {
+			showUserId = NAmanage.jlCfg.JoinLeaveShowUserIds == true;
+		}).." has joined the game."
+		local categoryRT = ('<font color="%s">Join</font>/'..'<font color="%s">Leave</font>'):format(NAStuff.logClrs.GREEN, NAStuff.logClrs.WHITE)
 		DoNotif(joinMsg, 1, categoryRT)
 		NAmanage.LogJoinLeave(joinMsg)
 	end
@@ -74560,7 +74799,7 @@ function setupPlayer(plr,bruh)
 end
 
 for _, plr in pairs(__lt.cm("Players", "GetPlayers")) do
-	setupPlayer(plr, true)
+	originalIO.setupPlayer(plr, true)
 	if plr.Character and NAmanage.BinderNeedsCharacterHooks() then
 		NAmanage.queueCharacterWork(plr, plr.Character, false)
 	end
@@ -74569,7 +74808,7 @@ end
 NAlib.disconnect("playerLifecycle")
 NAlib.connect("playerLifecycle", NAmanage.playersSub({
 	added = function(plr)
-		setupPlayer(plr)
+		originalIO.setupPlayer(plr)
 		if NAmanage.WebhookJoinLeave then
 			NAmanage.WebhookJoinLeave(plr, "join")
 		end
@@ -74590,8 +74829,10 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 		NAmanage.ESP_Disconnect(plr)
 		local suppressJoinLeave = NAStuff and NAStuff.StreamerModeEnabled == true
 		if NAmanage.jlCfg.LeaveLog and not suppressJoinLeave then
-			local leaveMsg = nameChecker(plr).." has left the game."
-			local categoryRT = ('<font color="%s">Join</font>/'..'<font color="%s">Leave</font>'):format(logClrs.WHITE, logClrs.RED)
+			local leaveMsg = NAmanage.formatLogPlayerName(plr, {
+				showUserId = NAmanage.jlCfg.JoinLeaveShowUserIds == true;
+			}).." has left the game."
+			local categoryRT = ('<font color="%s">Join</font>/'..'<font color="%s">Leave</font>'):format(NAStuff.logClrs.WHITE, NAStuff.logClrs.RED)
 			DoNotif(leaveMsg, 1, categoryRT)
 			NAmanage.LogJoinLeave(leaveMsg)
 		end
@@ -78189,15 +78430,6 @@ NAgui.addSlider("Slider", 0, 100, 50, 5, "%", function(val) -- min, max, default
 end)
 
 ]]
-
---[[if Discover(_na_env.NAadminsLol or {}, LocalPlayer.UserId) then
-	if NAgui.addSection then
-		NAgui.addSection("NA Admin")
-	end
-	NAgui.addToggle("Admin RGB Username", NAStuff.ForceAdminRainbow, function(state)
-		NAStuff.ForceAdminRainbow = state
-	end)
-end]]
 
 NAgui.addTab(NA_TABS.TAB_ALL, { default = true, order = 0, textIcon = "grid" })
 NAgui.addTab(NA_TABS.TAB_GENERAL, { order = 1, textIcon = "gear" })
@@ -83042,6 +83274,12 @@ NAgui.addToggle("Save Join/Leave Logs", NAmanage.jlCfg.SaveLog, function(v)
 	DoNotif("Join/Leave log saving has been "..(v and "enabled" or "disabled"), 2)
 end)
 
+NAgui.addToggle("Include User IDs In Join/Leave Logs", NAmanage.jlCfg.JoinLeaveShowUserIds == true, function(v)
+	NAmanage.jlCfg.JoinLeaveShowUserIds = v and true or false
+	NAmanage.jlSave()
+	DoNotif("Join/leave user IDs "..(v and "enabled" or "disabled"), 2)
+end)
+
 NAgui.addSection("Chat Logging")
 
 NAgui.addToggle("Log Chat Messages", NAmanage.jlCfg.ChatLog, function(v)
@@ -83054,6 +83292,55 @@ NAgui.addToggle("Save Chat Logs", NAmanage.jlCfg.SaveChatLog, function(v)
 	NAmanage.jlCfg.SaveChatLog = v
 	NAmanage.jlSave()
 	DoNotif("Chat log saving has been "..(v and "enabled" or "disabled"), 2)
+end)
+
+NAgui.addToggle("Show Chat Timestamps", NAmanage.jlCfg.ChatShowTimestamps ~= false, function(v)
+	NAmanage.jlCfg.ChatShowTimestamps = v and true or false
+	NAmanage.jlSave()
+	DoNotif("Chat timestamps "..(v and "enabled" or "disabled"), 2)
+end)
+
+NAgui.addToggle("Use Display Names In Chat Log", NAmanage.jlCfg.ChatUseDisplayNames ~= false, function(v)
+	NAmanage.jlCfg.ChatUseDisplayNames = v and true or false
+	NAmanage.jlSave()
+	DoNotif("Display names in chat log "..(v and "enabled" or "disabled"), 2)
+end)
+
+NAgui.addToggle("Include User IDs In Chat Log", NAmanage.jlCfg.ChatShowUserIds == true, function(v)
+	NAmanage.jlCfg.ChatShowUserIds = v and true or false
+	NAmanage.jlSave()
+	DoNotif("Chat log user IDs "..(v and "enabled" or "disabled"), 2)
+end)
+
+NAgui.addToggle("Log Your Own Chat Messages", NAmanage.jlCfg.ChatLogLocalPlayer ~= false, function(v)
+	NAmanage.jlCfg.ChatLogLocalPlayer = v and true or false
+	NAmanage.jlSave()
+	DoNotif("Own chat logging "..(v and "enabled" or "disabled"), 2)
+end)
+
+NAgui.addSlider("On-Screen Chat Buffer", 20, 500, tonumber(NAmanage.jlCfg.ChatMaxMessages) or 200, 10, " messages", function(v)
+	NAmanage.jlCfg.ChatMaxMessages = math.floor(tonumber(v) or 200)
+	if NAStuff.ChatLogState then
+		NAStuff.ChatLogState.maxMessages = NAmanage.jlCfg.ChatMaxMessages
+		local entries = NAStuff.ChatLogState.entries
+		if type(entries) == "table" then
+			while #entries > NAStuff.ChatLogState.maxMessages do
+				local old = table.remove(entries, 1)
+				if old and old.Parent then
+					old:Destroy()
+				end
+			end
+		end
+	end
+	NAmanage.jlSave()
+end)
+
+NAgui.addSection("Saved Log Format")
+
+NAgui.addToggle("Include Game/Server Info In Saved Logs", NAmanage.jlCfg.LogIncludeGameInfo ~= false, function(v)
+	NAmanage.jlCfg.LogIncludeGameInfo = v and true or false
+	NAmanage.jlSave()
+	DoNotif("Saved log metadata "..(v and "enabled" or "disabled"), 2)
 end)
 
 NAgui.addSection("Notification Preferences")
@@ -83137,6 +83424,7 @@ local function addPartESPColorPicker(label, key, defaultColor, refreshFn)
 end
 
 NAgui.addSection("Visuals & Color")
+NAgui.addInfo("Drawing API Warning", "Drawing library may break with DisableDirect3D11 or PreferVulkan if a bootstrapper manages them (aka: voidstrap)")
 
 local espRenderOptions = NAgui.getESPRenderModeOptions()
 NAStuff.ESP_RenderMode = NAgui.sanitizeESPRenderMode(NAStuff.ESP_RenderMode, "BoxHandleAdornment")
