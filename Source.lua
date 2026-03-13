@@ -51853,6 +51853,10 @@ cmd.add({"scriptviewer","viewscripts"},{"scriptviewer (viewscripts)","Can view s
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/main/scriptviewer",true))()
 end)
 
+cmd.add({"moduleeditor","modulartable","mtable","mt"},{"moduleeditor (modulartable, mtable, mt)","loads the module editor UI"},function()
+	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/ModuleEditor.lua"))()
+end)
+
 -- idk if this is either broken or patched but i'll keep it ig?
 cmd.add({"hydroxide","hydro"},{"hydroxide (hydro)","executes hydroxide"},function()
 	local owner = IsOnMobile and "Hosvile" or "Upbolt"
