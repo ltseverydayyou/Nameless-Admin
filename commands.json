@@ -5012,9 +5012,22 @@
         "mtable",
         "mt"
       ],
-      "usage": "moduleeditor (modulartable, mtable, mt)",
+      "usage": "moduleeditor",
       "args": "",
       "desc": "loads the module editor UI"
+    },
+    {
+      "name": "upvalueeditor",
+      "aliases": [
+        "upvalueeditor",
+        "upvaleditor",
+        "uveditor",
+        "upeditor",
+        "uve"
+      ],
+      "usage": "upvalueeditor",
+      "args": "",
+      "desc": "loads the upvalue editor UI"
     },
     {
       "name": "hydroxide",
