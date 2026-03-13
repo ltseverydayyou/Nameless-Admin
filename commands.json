@@ -5005,6 +5005,18 @@
       "desc": "Can view scripts made by 0866"
     },
     {
+      "name": "moduleeditor",
+      "aliases": [
+        "moduleeditor",
+        "modulartable",
+        "mtable",
+        "mt"
+      ],
+      "usage": "moduleeditor (modulartable, mtable, mt)",
+      "args": "",
+      "desc": "loads the module editor UI"
+    },
+    {
       "name": "hydroxide",
       "aliases": [
         "hydroxide",
