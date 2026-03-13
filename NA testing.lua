@@ -51875,27 +51875,30 @@ end)
 
 -- idk if this is either broken or patched but i'll keep it ig?
 cmd.add({"hydroxide","hydro"},{"hydroxide (hydro)","executes hydroxide"},function()
-	if IsOnMobile then
-		local owner = "Hosvile"
-		local branch = "revision"
+	local owner = IsOnMobile and "Hosvile" or "Upbolt"
+	local repo = IsOnMobile and "MC-Hydroxide" or "Hydroxide"
+	local branch = "revision"
 
-		local function webImport(file)
-			return loadstring(game:HttpGet(("https://raw.githubusercontent.com/%s/MC-Hydroxide/%s/%s.lua"):format(owner, branch, file)), file..'.lua')()
+	local function patchHydroxideSource(file, source)
+		if file ~= "init" or type(source) ~= "string" then
+			return source
 		end
-
-		webImport("init")
-		webImport("ui/main")
-	else
-		local owner="Upbolt"
-		local branch="revision"
-
-		local function webImport(file)
-			return loadstring(game:HttpGet(("https://raw.githubusercontent.com/%s/Hydroxide/%s/%s.lua"):format(owner,branch,file)),file..'.lua')()
-		end
-
-		webImport("init")
-		webImport("ui/main")
+		local patched, replacements = source:gsub(
+			"local releaseInfo = HttpService:JSONDecode%(game:HttpGetAsync%([^\r\n]+%)%)%[1%]",
+			'local releaseInfo = { tag_name = tostring(branch or "revision") }'
+		)
+		return replacements > 0 and patched or source
 	end
+
+	local function webImport(file)
+		local url = ("https://raw.githubusercontent.com/%s/%s/%s/%s.lua"):format(owner, repo, branch, file)
+		local source = game:HttpGet(url)
+		source = patchHydroxideSource(file, source)
+		return loadstring(source, file..".lua")()
+	end
+
+	webImport("init")
+	webImport("ui/main")
 end)
 
 cmd.add({"remotespy","simplespy","rspy"},{"remotespy (simplespy,rspy)","executes simplespy that supports both pc and mobile"},function()
