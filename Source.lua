@@ -40344,20 +40344,42 @@ cmd.add({"autorejoin", "autorj"}, {"autorejoin (autorj)", "Rejoins the server if
 	local triggerCooldown = 2
 	local lastTriggerAt = 0
 	local inFlight = false
+	local watchedPromptLabels = {}
+
+	local function getAutoRejoinPromptLabels()
+		local promptGui = COREGUI and COREGUI:FindFirstChild("RobloxPromptGui")
+		local promptOverlay = promptGui and promptGui:FindFirstChild("promptOverlay")
+		local errorPrompt = promptOverlay and promptOverlay:FindFirstChild("ErrorPrompt")
+		local titleFrame = errorPrompt and errorPrompt:FindFirstChild("TitleFrame")
+		local messageArea = errorPrompt and errorPrompt:FindFirstChild("MessageArea")
+		local errorFrame = messageArea and messageArea:FindFirstChild("ErrorFrame")
+		local titleLabel = titleFrame and titleFrame:FindFirstChild("ErrorTitle")
+		local descriptionLabel = errorFrame and errorFrame:FindFirstChild("ErrorMessage")
+		return titleLabel, descriptionLabel
+	end
 
 	local function shouldTriggerFromMessage(message)
-		local text = Lower(tostring(message or ""))
-		if text == "" then
+		local titleLabel, descriptionLabel = getAutoRejoinPromptLabels()
+		local titleText = Lower(titleLabel and tostring(titleLabel.Text or "") or "")
+		local descriptionText = Lower(descriptionLabel and tostring(descriptionLabel.Text or "") or "")
+		local messageText = Lower(tostring(message or ""))
+		local autoRejoinErrorCodes = {
+			["264"] = true,
+			["267"] = true,
+			["268"] = true,
+			["273"] = true,
+			["277"] = true,
+			["279"] = true,
+		}
+		local text = table.concat({messageText, titleText, descriptionText}, "\n")
+		if text:gsub("%s+", "") == "" then
 			return false
 		end
-		if text:find("disconnect", 1, true)
-			or text:find("kicked", 1, true)
-			or text:find("kick", 1, true)
-			or text:find("connection", 1, true)
-			or text:find("same account", 1, true)
-			or text:find("error code", 1, true)
-		then
-			return true
+		if titleText == "disconnected" then
+			local promptErrorCode = descriptionText:match("error code:%s*(%d+)")
+			if promptErrorCode and autoRejoinErrorCodes[promptErrorCode] then
+				return true
+			end
 		end
 		return false
 	end
@@ -40390,9 +40412,51 @@ cmd.add({"autorejoin", "autorj"}, {"autorejoin (autorj)", "Rejoins the server if
 		end)
 	end
 
+	local function watchPromptLabel(label)
+		if not label or watchedPromptLabels[label] then
+			return
+		end
+		if not label:IsA("TextLabel") then
+			return
+		end
+		watchedPromptLabels[label] = true
+		NAlib.connect("autorejoin", label:GetPropertyChangedSignal("Text"):Connect(function()
+			handleRejoin(label.Text)
+		end))
+	end
+
+	local function bindPromptWatchers()
+		local titleLabel, descriptionLabel = getAutoRejoinPromptLabels()
+		watchPromptLabel(titleLabel)
+		watchPromptLabel(descriptionLabel)
+		if titleLabel or descriptionLabel then
+			handleRejoin(table.concat({
+				titleLabel and tostring(titleLabel.Text or "") or "",
+				descriptionLabel and tostring(descriptionLabel.Text or "") or ""
+			}, "\n"))
+		end
+	end
+
 	NAlib.connect("autorejoin", GuiService.ErrorMessageChanged:Connect(function(message)
 		handleRejoin(message)
 	end))
+	NAlib.connect("autorejoin", game:GetService("CoreGui").DescendantAdded:Connect(function(descendant)
+		if descendant.Name == "RobloxPromptGui"
+			or descendant.Name == "promptOverlay"
+			or descendant.Name == "ErrorPrompt"
+			or descendant.Name == "ErrorTitle"
+			or descendant.Name == "ErrorMessage"
+		then
+			bindPromptWatchers()
+			if descendant:IsA("TextLabel") then
+				handleRejoin(descendant.Text)
+			end
+		end
+	end))
+	NAlib.connect("autorejoin", game:GetService("CoreGui").DescendantRemoving:Connect(function(descendant)
+		watchedPromptLabels[descendant] = nil
+	end))
+	bindPromptWatchers()
 
 	DebugNotif("Auto Rejoin is now enabled!")
 end)
@@ -51853,8 +51917,12 @@ cmd.add({"scriptviewer","viewscripts"},{"scriptviewer (viewscripts)","Can view s
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/main/scriptviewer",true))()
 end)
 
-cmd.add({"moduleeditor","modulartable","mtable","mt"},{"moduleeditor (modulartable, mtable, mt)","loads the module editor UI"},function()
+cmd.add({"moduleeditor","modulartable","mtable","mt"},{"moduleeditor","loads the module editor UI"},function()
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/ModuleEditor.lua"))()
+end)
+
+cmd.add({"upvalueeditor","upvaleditor","uveditor","upeditor","uve"},{"upvalueeditor","loads the upvalue editor UI"},function()
+	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/UpvalueEditor.lua"))()
 end)
 
 -- idk if this is either broken or patched but i'll keep it ig?
