@@ -148,6 +148,7 @@ function __lt.cm(name, method, ...)
 	end;
 	return fn(service, ...);
 end;
+
 NAbegin=tick()
 CMDAUTOFILL={}
 
@@ -3568,6 +3569,8 @@ local ContentProvider = SafeGetService("ContentProvider");
 local LocalizationService = SafeGetService("LocalizationService");
 local MarketplaceService = SafeGetService("MarketplaceService");
 local GuiService = SafeGetService("GuiService");
+local ContextActionService = SafeGetService("ContextActionService");
+local StatsService = SafeGetService("Stats");
 
 NAmanage.StreamerEscapePattern = NAmanage.StreamerEscapePattern or function(value)
 	value = tostring(value or "")
@@ -5269,7 +5272,6 @@ NAmanage.CreateNAFreecam=function()
 	local tan = math.tan
 
 	local Camera = workspace.CurrentCamera
-	local ContextActionService = SafeGetService("ContextActionService")
 
 	workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
 		if workspace.CurrentCamera then
@@ -11688,9 +11690,8 @@ NAmanage.GetBasicInfoSnapshot = function()
 	local maxPlayers = Players and Players.MaxPlayers or 0
 
 	local serverPing = "Unknown"
-	local statsService = SafeGetService("Stats") or nil
-	if statsService and statsService.Network and statsService.Network.ServerStatsItem then
-		local pingStat = statsService.Network.ServerStatsItem["Data Ping"]
+	if StatsService and StatsService.Network and StatsService.Network.ServerStatsItem then
+		local pingStat = StatsService.Network.ServerStatsItem["Data Ping"]
 		if pingStat then
 			local okPingNum, pingNum = pcall(function()
 				if pingStat.GetValue then
@@ -11898,7 +11899,7 @@ NAmanage.centerFrame = function(f)
 end
 
 NAmanage.guiCHECKINGAHHHHH=function()
-	return (NAlib.huiGrabber and NAlib.huiGrabber()) or __lt.cm("CoreGui", "FindFirstChildWhichIsA", "ScreenGui") or SafeGetService("CoreGui") or SafeGetService("Players").LocalPlayer:FindFirstChildWhichIsA("PlayerGui")
+	return (NAlib.huiGrabber and NAlib.huiGrabber()) or __lt.cm("CoreGui", "FindFirstChildWhichIsA", "ScreenGui") or COREGUI or Players.LocalPlayer:FindFirstChildWhichIsA("PlayerGui")
 end
 
 if not NAlib.huiGrabber() then
@@ -14143,7 +14144,7 @@ function DoPopup(text, title)
 	Popup(buildNotifArgs(text, nil, title, false))
 end
 
-local mouse=SafeGetService("Players").LocalPlayer:GetMouse()
+local mouse=Players.LocalPlayer:GetMouse()
 
 for _, ev in ipairs(events) do
 	if type(Bindings[ev]) ~= "table" then
@@ -25404,7 +25405,7 @@ NAmanage.LoadPlugins = function(opts)
 			proxyEnv.PlayerGui = lp and lp:FindFirstChildWhichIsA("PlayerGui") or nil
 			proxyEnv.PlaceId = tonumber(game and game.PlaceId) or 0
 			proxyEnv.JobId = tostring((game and game.JobId) or "")
-			proxyEnv.COREGUI = SafeGetService and SafeGetService("CoreGui") or nil
+			proxyEnv.COREGUI = SafeGetService("CoreGui") or nil
 			proxyEnv.UserInputService = proxyEnv.UserInputService or UserInputService
 			proxyEnv.RunService = proxyEnv.RunService or RunService
 			proxyEnv.TweenService = proxyEnv.TweenService or TweenService
@@ -27610,7 +27611,7 @@ NAmanage.NAremoveShaderEffects=function(lighting)
 end
 
 cmd.add({"shaders", "shader", "rtx", "hd"}, {"shaders (shader, rtx, hd)", "Enable a shader preset for Lighting"}, function()
-	local lighting = Lighting or SafeGetService("Lighting")
+	local lighting = Lighting
 	if not lighting then
 		DoNotif("Lighting service unavailable", 3)
 		return
@@ -27766,7 +27767,7 @@ cmd.add({"shaders", "shader", "rtx", "hd"}, {"shaders (shader, rtx, hd)", "Enabl
 end)
 
 cmd.add({"unshaders", "shadersoff", "rtxoff"}, {"unshaders (shadersoff, rtxoff)", "Disable the shader preset and restore Lighting"}, function()
-	local lighting = Lighting or SafeGetService("Lighting")
+	local lighting = Lighting
 	if not lighting then
 		DoNotif("Lighting service unavailable", 3)
 		return
@@ -30207,7 +30208,6 @@ end)
 NAstatsUI = {}
 windowCounter = (windowCounter or 0)
 windowRegistry = windowRegistry or {}
-StatsService = SafeGetService("Stats")
 
 NAstatsUI.Theme = {
 	Colors = {
@@ -30917,7 +30917,6 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 	local RENDER_BIND = "CharDebug"
 
 	local LogService = SafeGetService("LogService")
-	local StatsService = SafeGetService("Stats")
 	local CoreGui = SafeGetService("CoreGui")
 
 	local UI_BASE = Vector2.new(860, 520)
@@ -31972,10 +31971,20 @@ cmd.add({"rjre","rejoinrefresh"},{"rjre (rejoinrefresh)","Rejoins and teleports 
 			local tpScript = Format([[
 local s,err = pcall(function()
 	repeat Wait() until game:IsLoaded()
+	local function resolveService(name)
+		local svc = game:FindService(name)
+		if svc then
+			return svc
+		end
+		local okNew, newSvc = pcall(Instance.new, name)
+		if okNew and newSvc then
+			return newSvc
+		end
+	end
 	local plrs
 	if type(cloneref) == "function" then
 		local okRef, ref = pcall(function()
-			return __lt.cs("Players", cloneref)
+			return cloneref(resolveService("Players"))
 		end)
 		if okRef and ref then
 			plrs = ref
@@ -40510,8 +40519,7 @@ cmd.add({"autorejoin", "autorj"}, {"autorejoin (autorj)", "Rejoins the server if
 	NAlib.connect("autorejoin", GuiService.ErrorMessageChanged:Connect(function(message)
 		handleRejoin(message)
 	end))
-	local autoRejoinCoreGui = SafeGetService("CoreGui")
-	NAlib.connect("autorejoin", autoRejoinCoreGui.DescendantAdded:Connect(function(descendant)
+	NAlib.connect("autorejoin", COREGUI.DescendantAdded:Connect(function(descendant)
 		if descendant.Name == "RobloxPromptGui"
 			or descendant.Name == "promptOverlay"
 			or descendant.Name == "ErrorPrompt"
@@ -40524,7 +40532,7 @@ cmd.add({"autorejoin", "autorj"}, {"autorejoin (autorj)", "Rejoins the server if
 			end
 		end
 	end))
-	NAlib.connect("autorejoin", autoRejoinCoreGui.DescendantRemoving:Connect(function(descendant)
+	NAlib.connect("autorejoin", COREGUI.DescendantRemoving:Connect(function(descendant)
 		watchedPromptLabels[descendant] = nil
 	end))
 	bindPromptWatchers()
