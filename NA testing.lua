@@ -25265,11 +25265,8 @@ NAmanage.LoadPlugins = function(opts)
 				if SafeGetService then
 					svc = SafeGetService(name)
 				end
-				if not svc and game and game.GetService then
-					local ok, res = pcall(game.GetService, game, name)
-					if ok then
-						svc = res
-					end
+				if not svc then
+					svc = __lt.gs(name)
 				end
 				servicesCache[name] = svc
 				return svc
@@ -29201,7 +29198,7 @@ cmd.add({"clickfling","mousefling"},{"clickfling (mousefling)","Fling a player b
 	local conn = Mouse.Button1Down:Connect(function()
 		if not clickflingEnabled then return end
 		local Target = Mouse.Target
-		local Players = game.GetService(game,"Players")
+		local Players = __lt.gs("Players")
 		if Target and Target.Parent and Target.Parent:IsA("Model") and Players:GetPlayerFromCharacter(Target.Parent) then
 			local PlayerName = Players:GetPlayerFromCharacter(Target.Parent).Name
 			local playerLocal = Players.LocalPlayer
@@ -44182,7 +44179,7 @@ cmd.add({"jend"}, {"jend", "nil"}, function()
 end)
 
 cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(plr)
-	local Players = game.GetService(game,"Players")
+	local Players = __lt.gs("Players")
 	local LocalPlayer    = Players.LocalPlayer
 	local Character      = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 	local Humanoid       = getPlrHum(Character)
@@ -46939,7 +46936,7 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 	Loopvoid = true
 	repeat Wait()
 		local mouse = LocalPlayer:GetMouse()
-		local Players = game.GetService(game,"Players")
+		local Players = __lt.gs("Players")
 		local Player = Players.LocalPlayer
 		local AllBool = false
 		local GetPlayer = function(Name)

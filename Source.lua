@@ -31,7 +31,61 @@ pcall(function()
 	end
 end)
 
-local __lt = { cr = type(cloneref) == "function" and cloneref or nil };
+local __lt = {
+	cr = type(cloneref) == "function" and cloneref or nil;
+	svc = {
+		cache = {};
+		fallback = {};
+		invalid = {};
+	};
+};
+function __lt.sv(value)
+	return typeof(value) == "Instance";
+end;
+function __lt.fs(name)
+	local ok, service = pcall(function()
+		return game:FindService(name);
+	end);
+	if ok and __lt.sv(service) then
+		return service;
+	end;
+	return nil;
+end;
+function __lt.ns(name)
+	local ok, service = pcall(Instance.new, name);
+	if ok and __lt.sv(service) then
+		return service;
+	end;
+	return nil;
+end;
+function __lt.gs(name)
+	local cached = __lt.svc.cache[name];
+	local isFallback = __lt.svc.fallback[name] == true;
+	if __lt.sv(cached) and not isFallback then
+		return cached;
+	end;
+	local service = __lt.fs(name);
+	if __lt.sv(service) then
+		__lt.svc.invalid[name] = nil;
+		__lt.svc.cache[name] = service;
+		__lt.svc.fallback[name] = nil;
+		return service;
+	end;
+	if __lt.sv(cached) and isFallback then
+		return cached;
+	end;
+	if __lt.svc.invalid[name] then
+		return nil;
+	end;
+	service = __lt.ns(name);
+	if __lt.sv(service) then
+		__lt.svc.cache[name] = service;
+		__lt.svc.fallback[name] = true;
+		return service;
+	end;
+	__lt.svc.invalid[name] = true;
+	return nil;
+end;
 function __lt.cv(value)
 	if __lt.cr and typeof(value) == "Instance" then
 		local ok, cloned = pcall(__lt.cr, value);
@@ -43,15 +97,33 @@ function __lt.cv(value)
 end;
 function __lt.cs(name, refFn)
 	if type(refFn) ~= "function" then
-		return game:GetService(name);
+		return __lt.gs(name);
 	end;
 	local ok, ref = pcall(function()
-		return refFn(game:GetService(name));
+		return refFn(game:FindService(name));
 	end);
-	if ok and ref ~= nil then
+	if ok and __lt.sv(ref) then
 		return ref;
 	end;
-	return game:GetService(name);
+	local service = __lt.fs(name);
+	if __lt.sv(service) then
+		return service;
+	end;
+	if __lt.svc.invalid[name] then
+		return nil;
+	end;
+	local fallbackOk, fallbackRef = pcall(function()
+		return refFn(Instance.new(name));
+	end);
+	if fallbackOk and __lt.sv(fallbackRef) then
+		return fallbackRef;
+	end;
+	service = __lt.ns(name);
+	if __lt.sv(service) then
+		return service;
+	end;
+	__lt.svc.invalid[name] = true;
+	return nil;
 end;
 function __lt.ig(method)
 	return method == "FindFirstChild"
@@ -66,16 +138,16 @@ function __lt.ig(method)
 		or method == "QueryDescendants";
 end;
 function __lt.cm(name, method, ...)
-	local service = __lt.ig(method)
-		and __lt.cs(name, __lt.cr)
-		or game:GetService(name);
+	local service = __lt.cs(name, __lt.cr);
+	if not __lt.sv(service) then
+		error(string.format("Service %s could not be resolved", tostring(name)));
+	end;
 	local fn = service[method];
 	if type(fn) ~= "function" then
 		error(string.format("Service method %s.%s is not callable", tostring(name), tostring(method)));
 	end;
 	return fn(service, ...);
 end;
-
 NAbegin=tick()
 CMDAUTOFILL={}
 
@@ -1025,10 +1097,10 @@ NAmanage.NA_getServiceRef = function(name)
 	if ref then
 		return __lt.cs(name, ref)
 	end
-	return game:GetService(name)
+	return __lt.gs(name)
 end
 NAmanage.NA_getServiceRaw = NAmanage.NA_getServiceRaw or function(name)
-	return game:GetService(name)
+	return __lt.gs(name)
 end
 
 local NA_SRV = setmetatable({}, {
@@ -25172,11 +25244,8 @@ NAmanage.LoadPlugins = function(opts)
 				if SafeGetService then
 					svc = SafeGetService(name)
 				end
-				if not svc and game and game.GetService then
-					local ok, res = pcall(game.GetService, game, name)
-					if ok then
-						svc = res
-					end
+				if not svc then
+					svc = __lt.gs(name)
 				end
 				servicesCache[name] = svc
 				return svc
@@ -29108,7 +29177,7 @@ cmd.add({"clickfling","mousefling"},{"clickfling (mousefling)","Fling a player b
 	local conn = Mouse.Button1Down:Connect(function()
 		if not clickflingEnabled then return end
 		local Target = Mouse.Target
-		local Players = game.GetService(game,"Players")
+		local Players = __lt.gs("Players")
 		if Target and Target.Parent and Target.Parent:IsA("Model") and Players:GetPlayerFromCharacter(Target.Parent) then
 			local PlayerName = Players:GetPlayerFromCharacter(Target.Parent).Name
 			local playerLocal = Players.LocalPlayer
@@ -31906,13 +31975,14 @@ local s,err = pcall(function()
 	local plrs
 	if type(cloneref) == "function" then
 		local okRef, ref = pcall(function()
-			return cloneref(game:GetService("Players"))
+			return __lt.cs("Players", cloneref)
 		end)
 		if okRef and ref then
 			plrs = ref
 		end
 	end
-	plrs = plrs or game:GetService("Players")
+	plrs = plrs or resolveService("Players")
+	if not plrs then return end
 	local lp = plrs.LocalPlayer
 	if not lp then return end
 
@@ -40440,7 +40510,8 @@ cmd.add({"autorejoin", "autorj"}, {"autorejoin (autorj)", "Rejoins the server if
 	NAlib.connect("autorejoin", GuiService.ErrorMessageChanged:Connect(function(message)
 		handleRejoin(message)
 	end))
-	NAlib.connect("autorejoin", game:GetService("CoreGui").DescendantAdded:Connect(function(descendant)
+	local autoRejoinCoreGui = SafeGetService("CoreGui")
+	NAlib.connect("autorejoin", autoRejoinCoreGui.DescendantAdded:Connect(function(descendant)
 		if descendant.Name == "RobloxPromptGui"
 			or descendant.Name == "promptOverlay"
 			or descendant.Name == "ErrorPrompt"
@@ -40453,7 +40524,7 @@ cmd.add({"autorejoin", "autorj"}, {"autorejoin (autorj)", "Rejoins the server if
 			end
 		end
 	end))
-	NAlib.connect("autorejoin", game:GetService("CoreGui").DescendantRemoving:Connect(function(descendant)
+	NAlib.connect("autorejoin", autoRejoinCoreGui.DescendantRemoving:Connect(function(descendant)
 		watchedPromptLabels[descendant] = nil
 	end))
 	bindPromptWatchers()
@@ -44080,7 +44151,7 @@ cmd.add({"jend"}, {"jend", "nil"}, function()
 end)
 
 cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(plr)
-	local Players = game.GetService(game,"Players")
+	local Players = __lt.gs("Players")
 	local LocalPlayer    = Players.LocalPlayer
 	local Character      = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 	local Humanoid       = getPlrHum(Character)
@@ -46837,7 +46908,7 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 	Loopvoid = true
 	repeat Wait()
 		local mouse = LocalPlayer:GetMouse()
-		local Players = game.GetService(game,"Players")
+		local Players = __lt.gs("Players")
 		local Player = Players.LocalPlayer
 		local AllBool = false
 		local GetPlayer = function(Name)
