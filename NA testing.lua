@@ -51,7 +51,61 @@ pcall(function()
 	end
 end)
 
-local __lt = { cr = type(cloneref) == "function" and cloneref or nil };
+local __lt = {
+	cr = type(cloneref) == "function" and cloneref or nil;
+	svc = {
+		cache = {};
+		fallback = {};
+		invalid = {};
+	};
+};
+function __lt.sv(value)
+	return typeof(value) == "Instance";
+end;
+function __lt.fs(name)
+	local ok, service = pcall(function()
+		return game:FindService(name);
+	end);
+	if ok and __lt.sv(service) then
+		return service;
+	end;
+	return nil;
+end;
+function __lt.ns(name)
+	local ok, service = pcall(Instance.new, name);
+	if ok and __lt.sv(service) then
+		return service;
+	end;
+	return nil;
+end;
+function __lt.gs(name)
+	local cached = __lt.svc.cache[name];
+	local isFallback = __lt.svc.fallback[name] == true;
+	if __lt.sv(cached) and not isFallback then
+		return cached;
+	end;
+	local service = __lt.fs(name);
+	if __lt.sv(service) then
+		__lt.svc.invalid[name] = nil;
+		__lt.svc.cache[name] = service;
+		__lt.svc.fallback[name] = nil;
+		return service;
+	end;
+	if __lt.sv(cached) and isFallback then
+		return cached;
+	end;
+	if __lt.svc.invalid[name] then
+		return nil;
+	end;
+	service = __lt.ns(name);
+	if __lt.sv(service) then
+		__lt.svc.cache[name] = service;
+		__lt.svc.fallback[name] = true;
+		return service;
+	end;
+	__lt.svc.invalid[name] = true;
+	return nil;
+end;
 function __lt.cv(value)
 	if __lt.cr and typeof(value) == "Instance" then
 		local ok, cloned = pcall(__lt.cr, value);
@@ -63,15 +117,33 @@ function __lt.cv(value)
 end;
 function __lt.cs(name, refFn)
 	if type(refFn) ~= "function" then
-		return game:GetService(name);
+		return __lt.gs(name);
 	end;
 	local ok, ref = pcall(function()
-		return refFn(game:GetService(name));
+		return refFn(game:FindService(name));
 	end);
-	if ok and ref ~= nil then
+	if ok and __lt.sv(ref) then
 		return ref;
 	end;
-	return game:GetService(name);
+	local service = __lt.fs(name);
+	if __lt.sv(service) then
+		return service;
+	end;
+	if __lt.svc.invalid[name] then
+		return nil;
+	end;
+	local fallbackOk, fallbackRef = pcall(function()
+		return refFn(Instance.new(name));
+	end);
+	if fallbackOk and __lt.sv(fallbackRef) then
+		return fallbackRef;
+	end;
+	service = __lt.ns(name);
+	if __lt.sv(service) then
+		return service;
+	end;
+	__lt.svc.invalid[name] = true;
+	return nil;
 end;
 function __lt.ig(method)
 	return method == "FindFirstChild"
@@ -86,9 +158,10 @@ function __lt.ig(method)
 		or method == "QueryDescendants";
 end;
 function __lt.cm(name, method, ...)
-	local service = __lt.ig(method)
-		and __lt.cs(name, __lt.cr)
-		or game:GetService(name);
+	local service = __lt.cs(name, __lt.cr);
+	if not __lt.sv(service) then
+		error(string.format("Service %s could not be resolved", tostring(name)));
+	end;
 	local fn = service[method];
 	if type(fn) ~= "function" then
 		error(string.format("Service method %s.%s is not callable", tostring(name), tostring(method)));
@@ -1045,10 +1118,10 @@ NAmanage.NA_getServiceRef = function(name)
 	if ref then
 		return __lt.cs(name, ref)
 	end
-	return game:GetService(name)
+	return __lt.gs(name)
 end
 NAmanage.NA_getServiceRaw = NAmanage.NA_getServiceRaw or function(name)
-	return game:GetService(name)
+	return __lt.gs(name)
 end
 
 local NA_SRV = setmetatable({}, {
@@ -3516,6 +3589,8 @@ local ContentProvider = SafeGetService("ContentProvider");
 local LocalizationService = SafeGetService("LocalizationService");
 local MarketplaceService = SafeGetService("MarketplaceService");
 local GuiService = SafeGetService("GuiService");
+local ContextActionService = SafeGetService("ContextActionService");
+local StatsService = SafeGetService("Stats");
 
 NAmanage.StreamerEscapePattern = NAmanage.StreamerEscapePattern or function(value)
 	value = tostring(value or "")
@@ -5217,7 +5292,6 @@ NAmanage.CreateNAFreecam=function()
 	local tan = math.tan
 
 	local Camera = workspace.CurrentCamera
-	local ContextActionService = SafeGetService("ContextActionService")
 
 	workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
 		if workspace.CurrentCamera then
@@ -11636,9 +11710,8 @@ NAmanage.GetBasicInfoSnapshot = function()
 	local maxPlayers = Players and Players.MaxPlayers or 0
 
 	local serverPing = "Unknown"
-	local statsService = SafeGetService("Stats") or nil
-	if statsService and statsService.Network and statsService.Network.ServerStatsItem then
-		local pingStat = statsService.Network.ServerStatsItem["Data Ping"]
+	if StatsService and StatsService.Network and StatsService.Network.ServerStatsItem then
+		local pingStat = StatsService.Network.ServerStatsItem["Data Ping"]
 		if pingStat then
 			local okPingNum, pingNum = pcall(function()
 				if pingStat.GetValue then
@@ -11846,7 +11919,7 @@ NAmanage.centerFrame = function(f)
 end
 
 NAmanage.guiCHECKINGAHHHHH=function()
-	return (NAlib.huiGrabber and NAlib.huiGrabber()) or __lt.cm("CoreGui", "FindFirstChildWhichIsA", "ScreenGui") or SafeGetService("CoreGui") or SafeGetService("Players").LocalPlayer:FindFirstChildWhichIsA("PlayerGui")
+	return (NAlib.huiGrabber and NAlib.huiGrabber()) or __lt.cm("CoreGui", "FindFirstChildWhichIsA", "ScreenGui") or COREGUI or Players.LocalPlayer:FindFirstChildWhichIsA("PlayerGui")
 end
 
 if not NAlib.huiGrabber() then
@@ -14091,7 +14164,7 @@ function DoPopup(text, title)
 	Popup(buildNotifArgs(text, nil, title, false))
 end
 
-local mouse=SafeGetService("Players").LocalPlayer:GetMouse()
+local mouse=Players.LocalPlayer:GetMouse()
 
 for _, ev in ipairs(events) do
 	if type(Bindings[ev]) ~= "table" then
@@ -25355,7 +25428,7 @@ NAmanage.LoadPlugins = function(opts)
 			proxyEnv.PlayerGui = lp and lp:FindFirstChildWhichIsA("PlayerGui") or nil
 			proxyEnv.PlaceId = tonumber(game and game.PlaceId) or 0
 			proxyEnv.JobId = tostring((game and game.JobId) or "")
-			proxyEnv.COREGUI = SafeGetService and SafeGetService("CoreGui") or nil
+			proxyEnv.COREGUI = SafeGetService("CoreGui") or nil
 			proxyEnv.UserInputService = proxyEnv.UserInputService or UserInputService
 			proxyEnv.RunService = proxyEnv.RunService or RunService
 			proxyEnv.TweenService = proxyEnv.TweenService or TweenService
@@ -27561,7 +27634,7 @@ NAmanage.NAremoveShaderEffects=function(lighting)
 end
 
 cmd.add({"shaders", "shader", "rtx", "hd"}, {"shaders (shader, rtx, hd)", "Enable a shader preset for Lighting"}, function()
-	local lighting = Lighting or SafeGetService("Lighting")
+	local lighting = Lighting
 	if not lighting then
 		DoNotif("Lighting service unavailable", 3)
 		return
@@ -27717,7 +27790,7 @@ cmd.add({"shaders", "shader", "rtx", "hd"}, {"shaders (shader, rtx, hd)", "Enabl
 end)
 
 cmd.add({"unshaders", "shadersoff", "rtxoff"}, {"unshaders (shadersoff, rtxoff)", "Disable the shader preset and restore Lighting"}, function()
-	local lighting = Lighting or SafeGetService("Lighting")
+	local lighting = Lighting
 	if not lighting then
 		DoNotif("Lighting service unavailable", 3)
 		return
@@ -30158,7 +30231,6 @@ end)
 NAstatsUI = {}
 windowCounter = (windowCounter or 0)
 windowRegistry = windowRegistry or {}
-StatsService = SafeGetService("Stats")
 
 NAstatsUI.Theme = {
 	Colors = {
@@ -30868,7 +30940,6 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 	local RENDER_BIND = "CharDebug"
 
 	local LogService = SafeGetService("LogService")
-	local StatsService = SafeGetService("Stats")
 	local CoreGui = SafeGetService("CoreGui")
 
 	local UI_BASE = Vector2.new(860, 520)
@@ -31923,16 +31994,27 @@ cmd.add({"rjre","rejoinrefresh"},{"rjre (rejoinrefresh)","Rejoins and teleports 
 			local tpScript = Format([[
 local s,err = pcall(function()
 	repeat Wait() until game:IsLoaded()
+	local function resolveService(name)
+		local svc = game:FindService(name)
+		if svc then
+			return svc
+		end
+		local okNew, newSvc = pcall(Instance.new, name)
+		if okNew and newSvc then
+			return newSvc
+		end
+	end
 	local plrs
 	if type(cloneref) == "function" then
 		local okRef, ref = pcall(function()
-			return cloneref(game:GetService("Players"))
+			return cloneref(resolveService("Players"))
 		end)
 		if okRef and ref then
 			plrs = ref
 		end
 	end
-	plrs = plrs or game:GetService("Players")
+	plrs = plrs or resolveService("Players")
+	if not plrs then return end
 	local lp = plrs.LocalPlayer
 	if not lp then return end
 
@@ -40460,7 +40542,7 @@ cmd.add({"autorejoin", "autorj"}, {"autorejoin (autorj)", "Rejoins the server if
 	NAlib.connect("autorejoin", GuiService.ErrorMessageChanged:Connect(function(message)
 		handleRejoin(message)
 	end))
-	NAlib.connect("autorejoin", game:GetService("CoreGui").DescendantAdded:Connect(function(descendant)
+	NAlib.connect("autorejoin", COREGUI.DescendantAdded:Connect(function(descendant)
 		if descendant.Name == "RobloxPromptGui"
 			or descendant.Name == "promptOverlay"
 			or descendant.Name == "ErrorPrompt"
@@ -40473,7 +40555,7 @@ cmd.add({"autorejoin", "autorj"}, {"autorejoin (autorj)", "Rejoins the server if
 			end
 		end
 	end))
-	NAlib.connect("autorejoin", game:GetService("CoreGui").DescendantRemoving:Connect(function(descendant)
+	NAlib.connect("autorejoin", COREGUI.DescendantRemoving:Connect(function(descendant)
 		watchedPromptLabels[descendant] = nil
 	end))
 	bindPromptWatchers()
