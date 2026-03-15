@@ -34703,6 +34703,190 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 	_na_env.NA_FPS_ACTIVE = true;
 end);
 
+cmd.add({"pingbooster","boostping","lowping"}, {"pingbooster","Applies a best-effort network FastFlag preset, run again to restore"}, function()
+	local title = "PingBooster";
+	local presets = {
+		{ name = "OptimizeNetwork", value = true };
+		{ name = "OptimizeNetworkTransport", value = true };
+		{ name = "OptimizeNetworkRouting", value = true };
+		{ name = "OptimizePingThreshold", value = true };
+		{ name = "QueueDataPingFromSendData", value = true };
+		{ name = "DontCreatePingJob", value = false };
+		{ name = "RenderPerformanceTelemetry", value = false };
+		{ name = "DebugDisableTelemetryEphemeralCounter", value = true };
+		{ name = "DebugDisableTelemetryEphemeralStat", value = true };
+		{ name = "DebugDisableTelemetryEventIngest", value = true };
+		{ name = "DebugDisableTelemetryPoint", value = true };
+		{ name = "DebugDisableTelemetryV2Counter", value = true };
+		{ name = "DebugDisableTelemetryV2Event", value = true };
+		{ name = "DebugDisableTelemetryV2Stat", value = true };
+		{ name = "NetworkLatencyTolerance", value = 0 };
+		{ name = "NetworkPrediction", value = true };
+	};
+	if not (NAFFlags and type(NAFFlags.apply) == "function") then
+		DoNotif("FastFlag helpers are unavailable. Use pingserverhop for an actual ping improvement.", 4, title);
+		return;
+	end;
+	local function snapshotTabFlagState(name)
+		local state = {
+			hasValue = false,
+			value = nil,
+			hasConfig = false,
+			configValue = nil,
+			hasLocked = false,
+			lockedValue = nil
+		};
+		if NAFFlags.values then
+			state.hasValue = NAFFlags.values[name] ~= nil;
+			state.value = NAFFlags.values[name];
+		end;
+		if NAFFlags.config and NAFFlags.config.flags then
+			state.hasConfig = NAFFlags.config.flags[name] ~= nil;
+			state.configValue = NAFFlags.config.flags[name];
+		end;
+		if NAFFlags._lockedDefaults then
+			state.hasLocked = NAFFlags._lockedDefaults[name] ~= nil;
+			state.lockedValue = NAFFlags._lockedDefaults[name];
+		end;
+		return state;
+	end;
+	local function restoreTabFlagState(name, state)
+		if not state then
+			return;
+		end;
+		if NAFFlags.values then
+			NAFFlags.values[name] = state.hasValue and state.value or nil;
+		end;
+		if NAFFlags.config and NAFFlags.config.flags then
+			NAFFlags.config.flags[name] = state.hasConfig and state.configValue or nil;
+		end;
+		if NAFFlags._lockedDefaults then
+			NAFFlags._lockedDefaults[name] = state.hasLocked and state.lockedValue or nil;
+		end;
+	end;
+	local function applyTransientFlag(name, value)
+		local uiState = snapshotTabFlagState(name);
+		local ok, err = NAFFlags.apply(name, value, { allowDisabled = true, silent = true });
+		restoreTabFlagState(name, uiState);
+		return ok, err;
+	end;
+	local function readLiveFlagValue(name, entry)
+		if type(getfflag) ~= "function" then
+			return nil, false;
+		end;
+		local ok, value = pcall(getfflag, name);
+		if not ok then
+			return nil, false;
+		end;
+		if entry and NAFFlags.normalizeValue then
+			local normalized = NAFFlags.normalizeValue(entry, value, { silent = true });
+			if normalized ~= nil then
+				return normalized, true;
+			end;
+		end;
+		if NAFFlags.parseCustomValue then
+			return NAFFlags.parseCustomValue(value), true;
+		end;
+		return value, true;
+	end;
+	if _na_env.NA_PING_ACTIVE then
+		local restored = 0;
+		local failed = 0;
+		local locked = 0;
+		for _, snapshot in ipairs(_na_env.NA_PING_STATE or {}) do
+			local ok, err = applyTransientFlag(snapshot.name, snapshot.value);
+			if ok then
+				restored = restored + 1;
+			else
+				failed = failed + 1;
+				if err == "default-locked" then
+					locked = locked + 1;
+				end;
+			end;
+		end;
+		if type(NAFFlags.save) == "function" then
+			NAFFlags.save();
+		end;
+		local unreadable = tonumber(_na_env.NA_PING_UNREADABLE) or 0;
+		_na_env.NA_PING_ACTIVE = false;
+		_na_env.NA_PING_STATE = nil;
+		_na_env.NA_PING_UNREADABLE = nil;
+		if restored > 0 then
+			DoNotif(Format("Restored %d network flag%s.", restored, restored == 1 and "" or "s"), 3, title);
+		else
+			DoNotif("PingBooster disabled.", 3, title);
+		end;
+		if failed > 0 then
+			DoNotif(Format("%d flag%s could not be restored on this client.", failed, failed == 1 and "" or "s"), 4, title);
+		end;
+		if locked > 0 then
+			DoNotif(Format("%d restore attempt%s hit executor default-locks.", locked, locked == 1 and "" or "s"), 3, title);
+		end;
+		if unreadable > 0 then
+			DoNotif(Format("%d flag%s were never changed because their live values could not be read safely.", unreadable, unreadable == 1 and "" or "s"), 3, title);
+		end;
+		return;
+	end;
+	if not NAFFlags.hasSupport() then
+		DoNotif("Your executor does not support FastFlags. Use pingserverhop for an actual ping improvement.", 4, title);
+		return;
+	end;
+	local snapshots = {};
+	local applied = 0;
+	local skipped = 0;
+	local locked = 0;
+	local unreadable = 0;
+	for _, preset in ipairs(presets) do
+		local entry = NAFFlags.getEntry and NAFFlags.getEntry(preset.name) or nil;
+		local original, canReadLive = readLiveFlagValue(preset.name, entry);
+		if not canReadLive then
+			unreadable = unreadable + 1;
+			skipped = skipped + 1;
+			continue;
+		end;
+		snapshots[#snapshots + 1] = {
+			name = preset.name;
+			value = original;
+		};
+		local ok, err = applyTransientFlag(preset.name, preset.value);
+		if ok then
+			applied = applied + 1;
+		else
+			skipped = skipped + 1;
+			if err == "default-locked" then
+				locked = locked + 1;
+			end;
+		end;
+	end;
+	if type(NAFFlags.save) == "function" then
+		NAFFlags.save();
+	end;
+	if applied <= 0 then
+		DoNotif("No supported network FastFlags were applied on this client.", 4, title);
+		if unreadable > 0 then
+			DoNotif(Format("%d flag%s were skipped because their live values could not be read safely.", unreadable, unreadable == 1 and "" or "s"), 3, title);
+		end;
+		if locked > 0 then
+			DoNotif(Format("%d flag%s are default-locked on this executor.", locked, locked == 1 and "" or "s"), 3, title);
+		end;
+		return;
+	end;
+	_na_env.NA_PING_STATE = snapshots;
+	_na_env.NA_PING_ACTIVE = true;
+	_na_env.NA_PING_UNREADABLE = unreadable;
+	DoNotif(Format("Applied %d network flag%s. Run pingbooster again to restore.", applied, applied == 1 and "" or "s"), 4, title);
+	if skipped > 0 then
+		DoNotif(Format("%d flag%s were skipped.", skipped, skipped == 1 and "" or "s"), 3, title);
+	end;
+	if locked > 0 then
+		DoNotif(Format("%d skipped flag%s are default-locked on this executor.", locked, locked == 1 and "" or "s"), 3, title);
+	end;
+	if unreadable > 0 then
+		DoNotif(Format("%d flag%s were skipped because their live values could not be read safely.", unreadable, unreadable == 1 and "" or "s"), 3, title);
+	end;
+	DoNotif("This is a best-effort preset. Use pingserverhop for actual server-side latency gains.", 4, title);
+end);
+
 NAStuff.annoyLoop = false
 
 cmd.add({"annoy"}, {"annoy <player>", "Annoys the given player"}, function(...)
@@ -80080,6 +80264,11 @@ NAFFlags.whitelist = NAFFlags.whitelist or {
 	{ name = "AddJoinAttemptId", default = true, valueType = "boolean" };
 	{ name = "ChatTranslationSettingEnabled3", default = true, valueType = "boolean" };
 	{ name = "EnableQuickGameLaunch", default = false, valueType = "boolean" };
+	{ name = "GameBasicSettingsFramerateCap5", default = true, valueType = "boolean" };
+	{ name = "UserShowGuiHideToggles", default = true, valueType = "boolean" };
+	{ name = "GuiHidingApiSupport2", default = true, valueType = "boolean" };
+	{ name = "CameraMaxZoomDistance", default = 400, valueType = "number" };
+	{ name = "DebugForceChatDisabled", default = false, valueType = "boolean" };
 
 	{ name = "LCCageDeformLimit", default = -1, valueType = "number" };
 	{ name = "FullscreenTitleBarTriggerDelayMillis", default = 3600000, valueType = "number" };
@@ -80191,6 +80380,7 @@ NAFFlags.whitelist = NAFFlags.whitelist or {
 	{ name = "PartTexturePackTablePre2022", default = false, valueType = "boolean" };
 
 	{ name = "CloudsReflectOnWater", default = false, valueType = "boolean" };
+	{ name = "DebugForceFutureIsBrightPhase2", default = false, valueType = "boolean" };
 	{ name = "DebugForceFutureIsBrightPhase3", default = false, valueType = "boolean" };
 
 	{ name = "InGameMenuV1FullScreenTitleBar", default = false, valueType = "boolean" };
@@ -80218,6 +80408,8 @@ NAFFlags.whitelist = NAFFlags.whitelist or {
 	{ name = "NetworkPrediction", default = true, valueType = "boolean" };
 
 	{ name = "RenderLocalLightFadeInMs_enabled", default = true, valueType = "boolean" };
+	{ name = "RenderLocalLightUpdatesMax", default = 1, valueType = "number" };
+	{ name = "RenderLocalLightUpdatesMin", default = 1, valueType = "number" };
 	{ name = "GraphicsGLEnableHQShadersExclusion", default = true, valueType = "boolean" };
 	{ name = "GraphicsGLEnableSuperHQShadersExclusion", default = true, valueType = "boolean" };
 	{ name = "NullCheckCloudsRendering", default = true, valueType = "boolean" };
@@ -80271,6 +80463,11 @@ NAFFlags.info = NAFFlags.info or {
 	ChatTranslationSettingEnabled3 = "Toggles the current chat auto-translation system. If your chat is being translated in ways you don’t like, turn this off.";
 	EnableQuickGameLaunch = "Loads into games faster by front-loading some work. Good on strong PCs, might feel heavy on weaker ones. Turn it off if starting a game freezes your PC for a moment.";
 
+	GameBasicSettingsFramerateCap5 = "Unlocks more FPS cap options inside Roblox's own settings menu. Useful if you want the menu to expose higher caps instead of only the usual small set.";
+	UserShowGuiHideToggles = "Shows Roblox's built-in GUI hiding toggles in settings. Helpful for screenshots, clean recordings, or quick UI-off testing.";
+	GuiHidingApiSupport2 = "Enables the API support behind the GUI hide toggles. Usually paired with UserShowGuiHideToggles so the controls actually work.";
+	CameraMaxZoomDistance = "Raises the maximum distance your camera is allowed to zoom out to. Useful in games that do not hard-lock zoom themselves. Lower it again if the camera feels too far away.";
+	DebugForceChatDisabled = "Forces chat off on the client. Useful for distraction-free testing or recording. Leave it false if you want normal chat behavior.";
 	LCCageDeformLimit = "Limit for how much cage-based mesh deforms. -1 basically means no artificial limit. If an avatar looks broken, try using a small positive number or just disable the flag.";
 	FullscreenTitleBarTriggerDelayMillis = "How long you have to hover at the top in fullscreen before the title bar appears, in milliseconds. Set it very high to almost never see the bar. Reset to 2 if you want the default.";
 	DebugPauseVoxelizer = "Freezes updates to the lighting voxel data. Only for debugging; the world lighting will be stuck. Leave it false unless you know what you’re doing.";
@@ -80381,6 +80578,7 @@ NAFFlags.info = NAFFlags.info or {
 	PartTexturePackTablePre2022 = "Uses the old part texture packing scheme. Only useful if the new one is broken for a specific game. Turn this off once you no longer need the workaround.";
 
 	CloudsReflectOnWater = "Lets clouds show up in water reflections. Looks nice, costs GPU. If water reflections stutter, disable it.";
+	DebugForceFutureIsBrightPhase2 = "Forces the older ShadowMap-style Future Is Bright lighting path. Useful as a middle ground if full Future lighting is too heavy or looks wrong in a game.";
 	DebugForceFutureIsBrightPhase3 = "Forces the latest version of the Future is Bright lighting pipeline. Looks best on strong GPUs; if you’re struggling for FPS or see bugs, turn it off.";
 
 	InGameMenuV1FullScreenTitleBar = "Brings back the older fullscreen title bar behavior. Nice if you prefer the classic UI. Turn it off if it conflicts with newer menu layouts.";
@@ -80409,6 +80607,8 @@ NAFFlags.info = NAFFlags.info or {
 	NetworkPrediction = "Controls whether the client uses prediction to guess short-term movement. If everything feels snappy, keep it on. If a game behaves strangely with prediction, try toggling this off as a test.";
 
 	RenderLocalLightFadeInMs_enabled = "Controls whether local lights gently fade in instead of appearing instantly. If you hate popping when lights switch on, keep this true.";
+	RenderLocalLightUpdatesMax = "Upper limit for how many local light updates Roblox performs in one pass. Lower values can reduce spikes in games with a lot of dynamic lights.";
+	RenderLocalLightUpdatesMin = "Lower bound for local light updates. Keeping it low can reduce some lighting overhead, while raising it can make fast-changing lights react more quickly.";
 	GraphicsGLEnableHQShadersExclusion = "Prevents certain weaker GL setups from using heavy shaders. If you force it off, old/weak GPUs may suffer.";
 	GraphicsGLEnableSuperHQShadersExclusion = "Same idea but for the very heaviest shader paths. Leave it on unless you know you want those shaders at any cost.";
 	NullCheckCloudsRendering = "Adds safety checks around cloud rendering. Usually helps stability; only disable if chasing down a very specific bug.";
@@ -81645,6 +81845,121 @@ NAgui.addButton("Copy Server Info + Note", function()
 		DoNotif("Server info copied to clipboard.", 2)
 	else
 		DoNotif(payload, 3)
+	end
+end)
+
+NAgui.addSection("Server Actions")
+local function copyIntegrationText(label, value)
+	if type(setclipboard) ~= "function" then
+		DoNotif("Your executor does not support setclipboard.", 3)
+		return false
+	end
+	local ok, err = pcall(setclipboard, tostring(value or ""))
+	if ok then
+		DoNotif(label.." copied to clipboard.", 2)
+		return true
+	end
+	DoNotif("Clipboard failed: "..tostring(err), 3)
+	return false
+end
+
+local function getIntegrationTeleportScript()
+	local placeId = tostring(game.PlaceId or "")
+	local jobId = tostring(game.JobId or "")
+	if placeId == "" or jobId == "" then
+		return ""
+	end
+	return Format(
+		'game:GetService("TeleportService"):TeleportToPlaceInstance(%s, "%s", game:GetService("Players").LocalPlayer)',
+		placeId,
+		jobId
+	)
+end
+
+local function getIntegrationServerIds()
+	local parts = {
+		"PlaceId: "..tostring(game.PlaceId or ""),
+		"GameId: "..tostring(game.GameId or ""),
+	}
+	local jobId = tostring(game.JobId or "")
+	if jobId ~= "" then
+		parts[#parts + 1] = "JobId: "..jobId
+	end
+	return Concat(parts, " | ")
+end
+
+local function getIntegrationGameUrl()
+	local placeId = tostring(game.PlaceId or "")
+	if placeId == "" then
+		return ""
+	end
+	return "https://www.roblox.com/games/"..placeId
+end
+
+NAgui.addButton("Copy PlaceId", function()
+	copyIntegrationText("PlaceId", game.PlaceId or "")
+end)
+NAgui.addButton("Copy GameId", function()
+	local gameId = tostring(game.GameId or "")
+	if gameId == "" then
+		DoNotif("This game does not expose a GameId yet.", 3)
+		return
+	end
+	copyIntegrationText("GameId", gameId)
+end)
+NAgui.addButton("Copy JobId", function()
+	local jobId = tostring(game.JobId or "")
+	if jobId == "" then
+		DoNotif("This server does not expose a JobId yet.", 3)
+		return
+	end
+	copyIntegrationText("JobId", jobId)
+end)
+NAgui.addButton("Copy Teleport Script", function()
+	local scriptText = getIntegrationTeleportScript()
+	if scriptText == "" then
+		DoNotif("Teleport script unavailable right now.", 3)
+		return
+	end
+	copyIntegrationText("Teleport script", scriptText)
+end)
+NAgui.addButton("Copy All Server IDs", function()
+	copyIntegrationText("Server IDs", getIntegrationServerIds())
+end)
+NAgui.addButton("Copy Game URL", function()
+	local gameUrl = getIntegrationGameUrl()
+	if gameUrl == "" then
+		DoNotif("Game URL unavailable right now.", 3)
+		return
+	end
+	copyIntegrationText("Game URL", gameUrl)
+end)
+NAgui.addButton("Send Server Info To Main Webhook", function()
+	local payload = NAmanage.ComposeServerNote(NAStuff.Integrations.notes.last or "")
+	local ok, err = NAmanage.SendIntegrationWebhook("main", payload)
+	if ok then
+		DoNotif("Server info sent to main webhook.", 2)
+	else
+		DoNotif("Main webhook failed: "..tostring(err), 3)
+	end
+end)
+NAgui.addButton("Ping Main Webhook + Server Info", function()
+	local note = NAStuff.Integrations.notes.last or ""
+	local payload = Format("[Ping] %s | %s", adminName or "NA", NAmanage.ComposeServerNote(note))
+	local ok, err = NAmanage.SendIntegrationWebhook("main", payload)
+	if ok then
+		DoNotif("Main webhook ping sent.", 2)
+	else
+		DoNotif("Main webhook failed: "..tostring(err), 3)
+	end
+end)
+NAgui.addButton("Send Server IDs To Main Webhook", function()
+	local payload = Format("[Server IDs] %s | %s", adminName or "NA", getIntegrationServerIds())
+	local ok, err = NAmanage.SendIntegrationWebhook("main", payload)
+	if ok then
+		DoNotif("Server IDs sent to main webhook.", 2)
+	else
+		DoNotif("Main webhook failed: "..tostring(err), 3)
 	end
 end)
 
