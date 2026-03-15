@@ -2353,7 +2353,7 @@ function NotifFuns.build(kind, p)
 			CURD[kind] = newDock;
 			saveDocks();
 		end;
-		local tgt = getStack(newDock);
+		local tgt = NotifFuns.getStack(newDock);
 		local newW = widthForDock(newDock, kind);
 		local extra = s.trk.Visible and s.ftr.AbsoluteSize.Y or 0;
 		local hdr = findHeaderFrame(card);
@@ -2504,7 +2504,7 @@ function NotifFuns.build(kind, p)
 	local dur = typeof(p.Duration) == "number" and p.Duration > 0 and p.Duration or nil;
 	local showProg = kind == "Notify" and #btns == 0 and dur ~= nil;
 	local shouldTimer = kind == "Notify" and dur ~= nil;
-	local parent = kind == "Popup" and grp or getStack(dock);
+	local parent = kind == "Popup" and grp or NotifFuns.getStack(dock);
 	trk.Visible = showProg;
 	openIn(card, parent, ftr, showProg and trk or nil, st, sc, from, cnt);
 	if kind == "Popup" then
