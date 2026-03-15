@@ -1217,6 +1217,17 @@
       "desc": "Enables maximum-performance low graphics mode, run again to restore"
     },
     {
+      "name": "pingbooster",
+      "aliases": [
+        "pingbooster",
+        "boostping",
+        "lowping"
+      ],
+      "usage": "pingbooster",
+      "args": "",
+      "desc": "Applies a best-effort network FastFlag preset, run again to restore"
+    },
+    {
       "name": "annoy",
       "aliases": [
         "annoy"
