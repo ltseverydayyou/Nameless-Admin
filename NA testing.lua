@@ -1637,13 +1637,30 @@ NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 			if (hub.addCount or 0) <= 0 then
 				return
 			end
-			dispatch(hub.added, inst)
+			if not hasInterested(hub.added, inst) then
+				return
+			end
+			if hub.aSet[inst] then
+				return
+			end
+			hub.aSet[inst] = true
+			hub.aTail += 1
+			hub.aQ[hub.aTail] = inst
 		else
 			if (hub.remCount or 0) <= 0 then
 				return
 			end
-			dispatch(hub.removing, inst)
+			if not hasInterested(hub.removing, inst) then
+				return
+			end
+			if hub.rSet[inst] then
+				return
+			end
+			hub.rSet[inst] = true
+			hub.rTail += 1
+			hub.rQ[hub.rTail] = inst
 		end
+		kickQ()
 	end
 
 	local function runScan()
@@ -1996,13 +2013,30 @@ NAmanage._cgHubGet = NAmanage._cgHubGet or function()
 			if (hub.addCount or 0) <= 0 then
 				return
 			end
-			dispatch(hub.added, inst)
+			if not hasInterested(hub.added, inst) then
+				return
+			end
+			if hub.aSet[inst] then
+				return
+			end
+			hub.aSet[inst] = true
+			hub.aTail += 1
+			hub.aQ[hub.aTail] = inst
 		else
 			if (hub.remCount or 0) <= 0 then
 				return
 			end
-			dispatch(hub.removing, inst)
+			if not hasInterested(hub.removing, inst) then
+				return
+			end
+			if hub.rSet[inst] then
+				return
+			end
+			hub.rSet[inst] = true
+			hub.rTail += 1
+			hub.rQ[hub.rTail] = inst
 		end
+		kickQ()
 	end
 
 	local function wantsRootEvents()
@@ -2271,13 +2305,30 @@ NAmanage._pgHubGet = NAmanage._pgHubGet or function()
 			if (hub.addCount or 0) <= 0 then
 				return
 			end
-			dispatch(hub.added, inst)
+			if not hasInterested(hub.added, inst) then
+				return
+			end
+			if hub.aSet[inst] then
+				return
+			end
+			hub.aSet[inst] = true
+			hub.aTail += 1
+			hub.aQ[hub.aTail] = inst
 		else
 			if (hub.remCount or 0) <= 0 then
 				return
 			end
-			dispatch(hub.removing, inst)
+			if not hasInterested(hub.removing, inst) then
+				return
+			end
+			if hub.rSet[inst] then
+				return
+			end
+			hub.rSet[inst] = true
+			hub.rTail += 1
+			hub.rQ[hub.rTail] = inst
 		end
+		kickQ()
 	end
 
 	local function wantsRootEvents()
@@ -2593,13 +2644,30 @@ NAmanage._playersHubGet = NAmanage._playersHubGet or function()
 			if (hub.addCount or 0) <= 0 then
 				return
 			end
-			dispatch(hub.added, plr)
+			if not hasInterested(hub.added, plr) then
+				return
+			end
+			if hub.aSet[plr] then
+				return
+			end
+			hub.aSet[plr] = true
+			hub.aTail += 1
+			hub.aQ[hub.aTail] = plr
 		else
 			if (hub.remCount or 0) <= 0 then
 				return
 			end
-			dispatch(hub.removing, plr)
+			if not hasInterested(hub.removing, plr) then
+				return
+			end
+			if hub.rSet[plr] then
+				return
+			end
+			hub.rSet[plr] = true
+			hub.rTail += 1
+			hub.rQ[hub.rTail] = plr
 		end
+		kickQ()
 	end
 
 	local function wantsEvents()
@@ -2839,13 +2907,30 @@ NAmanage._descHubGet = NAmanage._descHubGet or function(root)
 			if (hub.addCount or 0) <= 0 then
 				return
 			end
-			dispatch(hub.added, inst)
+			if not hasInterested(hub.added, inst) then
+				return
+			end
+			if hub.aSet[inst] then
+				return
+			end
+			hub.aSet[inst] = true
+			hub.aTail += 1
+			hub.aQ[hub.aTail] = inst
 		else
 			if (hub.remCount or 0) <= 0 then
 				return
 			end
-			dispatch(hub.removing, inst)
+			if not hasInterested(hub.removing, inst) then
+				return
+			end
+			if hub.rSet[inst] then
+				return
+			end
+			hub.rSet[inst] = true
+			hub.rTail += 1
+			hub.rQ[hub.rTail] = inst
 		end
+		kickQ()
 	end
 
 	hub.cAdd = root.DescendantAdded:Connect(function(inst)
@@ -7705,10 +7790,6 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		guiRootSeen = {},
 		restoring = false,
 	}
-	CE.store = setmetatable(CE.store, { __mode = "k" })
-	CE.watchers = setmetatable(CE.watchers, { __mode = "k" })
-	CE.guiRootWatchers = setmetatable(CE.guiRootWatchers, { __mode = "k" })
-	CE.guiRootSeen = setmetatable(CE.guiRootSeen, { __mode = "k" })
 
 	local data = {
 		enabled = CE.default.enabled,
@@ -7778,16 +7859,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 
 		Spawn(function()
 			while #uiScanJobs > 0 do
-				local budget, waitDelay
-				if NAmanage and NAmanage.lpProf then
-					budget, waitDelay = NAmanage.lpProf(12, {
-						delay = 0,
-						ldSc = 0.22,
-						ldDel = 0.014,
-					})
-				else
-					budget, waitDelay = 12, 0
-				end
+				local budget = 35
 
 				while budget > 0 and #uiScanJobs > 0 do
 					local job = uiScanJobs[1]
@@ -7824,11 +7896,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 					end
 				end
 
-				if waitDelay and waitDelay > 0 then
-					Wait(waitDelay)
-				else
-					Wait()
-				end
+				Wait()
 			end
 
 			uiScanning = false
@@ -7985,15 +8053,12 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			info = { original = o.CornerRadius }
 			CE.store[o] = info
 		end
-		local desired = getCRad()
-		if o.CornerRadius ~= desired then
-			o.CornerRadius = desired
-		end
+		o.CornerRadius = getCRad()
 		setCWat(o)
 	end
 
 	local cornerApplyQueue = {}
-	local cornerApplySet = setmetatable({}, { __mode = "k" })
+	local cornerApplySet = {}
 	local cornerApplyHead = 1
 	local cornerApplyTail = 0
 	local cornerApplyBusy = false
@@ -8014,16 +8079,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		cornerApplyBusy = true
 		Spawn(function()
 			while cornerApplyHead <= cornerApplyTail do
-				local budget, waitDelay
-				if NAmanage and NAmanage.lpProf then
-					budget, waitDelay = NAmanage.lpProf(18, {
-						delay = 0,
-						ldSc = 0.22,
-						ldDel = 0.014,
-					})
-				else
-					budget, waitDelay = 18, 0
-				end
+				local budget = 90
 				while budget > 0 and cornerApplyHead <= cornerApplyTail do
 					local inst = cornerApplyQueue[cornerApplyHead]
 					cornerApplyQueue[cornerApplyHead] = nil
@@ -8036,11 +8092,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 					end
 					budget -= 1
 				end
-				if waitDelay and waitDelay > 0 then
-					Wait(waitDelay)
-				else
-					Wait()
-				end
+				Wait()
 			end
 			cornerApplyQueue = {}
 			cornerApplyHead = 1
@@ -8055,8 +8107,8 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			if conns.anc then conns.anc:Disconnect() end
 			CE.guiRootWatchers[root] = nil
 		end
-		CE.guiRootWatchers = setmetatable({}, { __mode = "k" })
-		CE.guiRootSeen = setmetatable({}, { __mode = "k" })
+		CE.guiRootWatchers = {}
+		CE.guiRootSeen = {}
 	end
 
 	local function resetCorn()
@@ -8070,10 +8122,10 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			stopCWat(corner)
 		end
 		CE.restoring = false
-		CE.store = setmetatable({}, { __mode = "k" })
-		CE.watchers = setmetatable({}, { __mode = "k" })
+		CE.store = {}
+		CE.watchers = {}
 		cornerApplyQueue = {}
-		cornerApplySet = setmetatable({}, { __mode = "k" })
+		cornerApplySet = {}
 		cornerApplyHead = 1
 		cornerApplyTail = 0
 		clearGuiRootWatchers()
@@ -8146,11 +8198,16 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			return
 		end
 		local conns = {}
-		conns.desc = root.DescendantAdded:Connect(function(d)
-			if CE.data.enabled and d and d:IsA("UICorner") then
-				queueCornerApply(d)
-			end
-		end)
+		conns.desc = NAmanage.descSub(root, {
+			added = function(d)
+				if CE.data.enabled then
+					queueCornerApply(d)
+				end
+			end,
+			filterAdded = function(d)
+				return d and d:IsA("UICorner")
+			end,
+		})
 		conns.anc = root.AncestryChanged:Connect(function(obj, parent)
 			if parent == nil then
 				if CE.guiRootWatchers[root] then
@@ -8220,32 +8277,32 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		local shouldWatch = CE.data.enabled == true
 		NAlib.disconnect("CornerEditor")
 		if shouldWatch and CE.data.targetCoreGui and CE.cg then
-			NAlib.connect("CornerEditor", CE.cg.DescendantAdded:Connect(function(o)
-				if o and o:IsA("UICorner") then
-					onCDesc(o)
-				end
-			end))
+			NAlib.connect("CornerEditor", NAmanage.descSub(CE.cg, {
+				added = onCDesc,
+				filterAdded = function(o)
+					return o and o:IsA("UICorner")
+				end,
+			}))
 		end
 
 		NAlib.disconnect("CornerEditor_PlayerGui")
 		if shouldWatch and CE.data.targetPlayerGui then
-			local pg = getPlayerGui()
-			if pg then
-				NAlib.connect("CornerEditor_PlayerGui", pg.DescendantAdded:Connect(function(o)
-					if o and o:IsA("UICorner") then
-						onCDesc(o)
-					end
-				end))
-			end
+			NAlib.connect("CornerEditor_PlayerGui", NAmanage.pgSub({
+				added = onCDesc,
+				filterAdded = function(o)
+					return o and o:IsA("UICorner")
+				end,
+			}))
 		end
 
 		NAlib.disconnect("CornerEditor_HUI")
 		if shouldWatch and CE.data.targetHiddenUi and HUI then
-			NAlib.connect("CornerEditor_HUI", HUI.DescendantAdded:Connect(function(o)
-				if o and o:IsA("UICorner") then
-					onCDesc(o)
-				end
-			end))
+			NAlib.connect("CornerEditor_HUI", NAmanage.descSub(HUI, {
+				added = onCDesc,
+				filterAdded = function(o)
+					return o and o:IsA("UICorner")
+				end,
+			}))
 		end
 
 		NAlib.disconnect("CornerEditor_Billboard")
@@ -8303,7 +8360,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 	local persistFontData
 
 	local function newFontStore()
-		return setmetatable({}, { __mode = "k" })
+		return {}
 	end
 
 	local FontChoices = {}
@@ -9384,10 +9441,6 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		restoring = false,
 		dlBusy = false,
 	}
-	FontEditor.watchers = setmetatable(FontEditor.watchers, { __mode = "k" })
-	FontEditor.guiRootWatchers = setmetatable(FontEditor.guiRootWatchers, { __mode = "k" })
-	FontEditor.guiRootSeen = setmetatable(FontEditor.guiRootSeen, { __mode = "k" })
-
 	local ex = identifyexecutor and identifyexecutor():lower() or ""
 	local isDelta = (ex == "delta")
 
@@ -9619,22 +9672,16 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 				ensureFontWatcher(o)
 			end
 			if info and info.FontFaceSupported then
-				local currentFace = NAlib.isProperty(o, "FontFace")
-				if currentFace ~= FontEditor.currentFont then
-					pcall(function()
-						o.FontFace = FontEditor.currentFont
-					end)
-				end
+				pcall(function()
+					o.FontFace = FontEditor.currentFont
+				end)
 			end
 		else
 			if info and info.FontFaceSupported then
 				ensureFontWatcher(o)
-				local currentFace = NAlib.isProperty(o, "FontFace")
-				if currentFace ~= info.FontFace then
-					pcall(function()
-						o.FontFace = info.FontFace
-					end)
-				end
+				pcall(function()
+					o.FontFace = info.FontFace
+				end)
 			end
 			local cur = NAlib.isProperty(o, "Font")
 			if cur == FontEditor.currentFont then
@@ -9647,7 +9694,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 	end
 
 	local fontApplyQueue = {}
-	local fontApplySet = setmetatable({}, { __mode = "k" })
+	local fontApplySet = {}
 	local fontApplyHead = 1
 	local fontApplyTail = 0
 	local fontApplyBusy = false
@@ -9668,16 +9715,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		fontApplyBusy = true
 		Spawn(function()
 			while fontApplyHead <= fontApplyTail do
-				local budget, waitDelay
-				if NAmanage and NAmanage.lpProf then
-					budget, waitDelay = NAmanage.lpProf(20, {
-						delay = 0,
-						ldSc = 0.22,
-						ldDel = 0.014,
-					})
-				else
-					budget, waitDelay = 20, 0
-				end
+				local budget = 100
 				while budget > 0 and fontApplyHead <= fontApplyTail do
 					local inst = fontApplyQueue[fontApplyHead]
 					fontApplyQueue[fontApplyHead] = nil
@@ -9690,11 +9728,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 					end
 					budget -= 1
 				end
-				if waitDelay and waitDelay > 0 then
-					Wait(waitDelay)
-				else
-					Wait()
-				end
+				Wait()
 			end
 			fontApplyQueue = {}
 			fontApplyHead = 1
@@ -9709,8 +9743,8 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			if conns.anc then conns.anc:Disconnect() end
 			FontEditor.guiRootWatchers[root] = nil
 		end
-		FontEditor.guiRootWatchers = setmetatable({}, { __mode = "k" })
-		FontEditor.guiRootSeen = setmetatable({}, { __mode = "k" })
+		FontEditor.guiRootWatchers = {}
+		FontEditor.guiRootSeen = {}
 	end
 
 	local function watchFontGuiRoot(root)
@@ -9718,11 +9752,16 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			return
 		end
 		local conns = {}
-		conns.desc = root.DescendantAdded:Connect(function(d)
-			if FontEditor.data.enabled and isFontTarget(d) then
-				queueFontApply(d)
-			end
-		end)
+		conns.desc = NAmanage.descSub(root, {
+			added = function(d)
+				if FontEditor.data.enabled then
+					queueFontApply(d)
+				end
+			end,
+			filterAdded = function(d)
+				return isFontTarget(d)
+			end,
+		})
 		conns.anc = root.AncestryChanged:Connect(function(obj, parent)
 			if parent == nil then
 				if FontEditor.guiRootWatchers[root] then
@@ -9787,10 +9826,10 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		end
 		FontEditor.restoring = false
 		FontEditor.store = newFontStore()
-		FontEditor.watchers = setmetatable({}, { __mode = "k" })
+		FontEditor.watchers = {}
 		clearFontGuiRootWatchers()
 		fontApplyQueue = {}
-		fontApplySet = setmetatable({}, { __mode = "k" })
+		fontApplySet = {}
 		fontApplyHead = 1
 		fontApplyTail = 0
 	end
@@ -9961,32 +10000,32 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		local shouldWatch = FontEditor.data.enabled == true
 		NAlib.disconnect("FontEditor")
 		if shouldWatch and FontEditor.data.targetCoreGui and FontEditor.cg then
-			NAlib.connect("FontEditor", FontEditor.cg.DescendantAdded:Connect(function(o)
-				if isFontTarget(o) then
-					onFontDescendantAdded(o)
-				end
-			end))
+			NAlib.connect("FontEditor", NAmanage.descSub(FontEditor.cg, {
+				added = onFontDescendantAdded,
+				filterAdded = function(o)
+					return isFontTarget(o)
+				end,
+			}))
 		end
 
 		NAlib.disconnect("FontEditor_PlayerGui")
 		if shouldWatch and FontEditor.data.targetPlayerGui then
-			local pg = getPlayerGui()
-			if pg then
-				NAlib.connect("FontEditor_PlayerGui", pg.DescendantAdded:Connect(function(o)
-					if isFontTarget(o) then
-						onFontDescendantAdded(o)
-					end
-				end))
-			end
+			NAlib.connect("FontEditor_PlayerGui", NAmanage.pgSub({
+				added = onFontDescendantAdded,
+				filterAdded = function(o)
+					return isFontTarget(o)
+				end,
+			}))
 		end
 
 		NAlib.disconnect("FontEditor_HUI")
 		if shouldWatch and FontEditor.data.targetHiddenUi and HUI then
-			NAlib.connect("FontEditor_HUI", HUI.DescendantAdded:Connect(function(o)
-				if isFontTarget(o) then
-					onFontDescendantAdded(o)
-				end
-			end))
+			NAlib.connect("FontEditor_HUI", NAmanage.descSub(HUI, {
+				added = onFontDescendantAdded,
+				filterAdded = function(o)
+					return isFontTarget(o)
+				end,
+			}))
 		end
 
 		NAlib.disconnect("FontEditor_Billboard")
@@ -75127,7 +75166,7 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 
 	SpawnCall(function()
 		local HUI = NAlib.huiGrabber();
-		local fhSet = setmetatable({}, { __mode = "k" })
+		local fhSet = {}
 		local fhCount = 0
 		local fhWarned = false
 		local FH_SOFT_LIMIT = 1200
@@ -75440,13 +75479,13 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 			while scanHead <= scanTail do
 				local budget, waitDelay
 				if NAmanage and NAmanage.lpProf then
-					budget, waitDelay = NAmanage.lpProf(12, {
+					budget, waitDelay = NAmanage.lpProf(35, {
 						delay = 0,
 						ldSc = 0.22,
 						ldDel = 0.014,
 					});
 				else
-					budget, waitDelay = 12, 0
+					budget, waitDelay = 35, 0
 				end
 				while budget > 0 and scanHead <= scanTail do
 					local job = scanJobs[scanHead];
@@ -75516,13 +75555,13 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 			while dHead <= dTail do
 				local budget, waitDelay
 				if NAmanage and NAmanage.lpProf then
-					budget, waitDelay = NAmanage.lpProf(24, {
+					budget, waitDelay = NAmanage.lpProf(120, {
 						delay = 0,
 						ldSc = 0.22,
 						ldDel = 0.014,
 					});
 				else
-					budget, waitDelay = 24, 0
+					budget, waitDelay = 120, 0
 				end
 				while budget > 0 and dHead <= dTail do
 					local inst = dQ[dHead];
@@ -75683,18 +75722,55 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 					return
 				end
 				queueScan(root, function(inst)
-					hookLbl(inst);
+					qDesc(inst, true, nil, nil, nil);
 				end);
-				local connName = root == CoreGui and "NA_FriendLabel_CoreGui" or "NA_FriendLabel_PlayerGui"
-				NAlib.connect(connName, root.DescendantAdded:Connect(function(o)
-					if not isFLbl(o) then
-						return
-					end
-					if HUI and o:IsDescendantOf(HUI) then
-						return
-					end
-					hookLbl(o)
-				end))
+				if root == CoreGui and NAmanage.cgSub then
+					NAlib.connect("NA_FriendLabel_CoreGui", NAmanage.cgSub({
+						added = function(o)
+							qDesc(o, true, nil, nil, nil);
+						end,
+						filterAdded = function(o)
+							if not isFLbl(o) then
+								return false
+							end
+							if HUI and o:IsDescendantOf(HUI) then
+								return false
+							end
+							return true
+						end,
+					}))
+				elseif root ~= CoreGui and NAmanage.pgSub then
+					NAlib.connect("NA_FriendLabel_PlayerGui", NAmanage.pgSub({
+						added = function(o)
+							qDesc(o, true, nil, nil, nil);
+						end,
+						filterAdded = function(o)
+							if not isFLbl(o) then
+								return false
+							end
+							if HUI and o:IsDescendantOf(HUI) then
+								return false
+							end
+							return true
+						end,
+					}))
+				elseif NAmanage.descSub then
+					local connName = root == CoreGui and "NA_FriendLabel_CoreGui" or "NA_FriendLabel_PlayerGui"
+					NAlib.connect(connName, NAmanage.descSub(root, {
+						added = function(o)
+							qDesc(o, true, nil, nil, nil);
+						end,
+						filterAdded = function(o)
+							if not isFLbl(o) then
+								return false
+							end
+							if HUI and o:IsDescendantOf(HUI) then
+								return false
+							end
+							return true
+						end,
+					}))
+				end
 			end
 
 			NAmanage.refreshConnectionsFriendLabels = function()
@@ -75714,7 +75790,7 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 					return
 				end
 				queueScan(root, function(inst)
-					hookLbl(inst);
+					qDesc(inst, true, nil, nil, nil);
 				end);
 			end
 
@@ -82532,7 +82608,6 @@ if CoreGui then
 		default   = { enabled = false, start = { h = 0.8, s = 1, v = 1 }, finish = { h = 0, s = 1, v = 1 } },
 		cg        = CoreGui,
 		images    = {},
-		applied   = {},
 		queue     = {},
 		queueHead = 1,
 		queueTail = 0,
@@ -82559,9 +82634,6 @@ if CoreGui then
 	end
 
 	PT.data = data
-	PT.images = setmetatable(PT.images, { __mode = "k" })
-	PT.applied = setmetatable(PT.applied, { __mode = "k" })
-	PT.queueSet = setmetatable(PT.queueSet, { __mode = "k" })
 
 	local HUI = NAlib.huiGrabber()
 
@@ -82590,67 +82662,6 @@ if CoreGui then
 		end
 		return nil
 	end
-
-	local function buildPlexColorSequence()
-		return ColorSequence.new{
-			ColorSequenceKeypoint.new(0, Color3.fromHSV(PT.data.start.h, PT.data.start.s, PT.data.start.v)),
-			ColorSequenceKeypoint.new(1, Color3.fromHSV(PT.data.finish.h, PT.data.finish.s, PT.data.finish.v)),
-		}
-	end
-
-	local PLEX_TRANSPARENCY = NumberSequence.new{
-		NumberSequenceKeypoint.new(0, 0, 0),
-		NumberSequenceKeypoint.new(0.5, 0, 0),
-		NumberSequenceKeypoint.new(1, 0, 0),
-	}
-
-	local function refreshPlexStyleCache()
-		PT.colorSequence = buildPlexColorSequence()
-	end
-
-	local function getExistingPlexGradient(o)
-		if not o then
-			return nil
-		end
-		local g = o:FindFirstChild("PlexityGradient")
-		if g and g:IsA("UIGradient") then
-			return g
-		end
-		return nil
-	end
-
-	local function applyPlexGradientStyle(gradient)
-		if not (gradient and gradient.Parent) then
-			return false
-		end
-		if gradient.Color ~= PT.colorSequence then
-			gradient.Color = PT.colorSequence
-		end
-		if gradient.Rotation ~= 45 then
-			gradient.Rotation = 45
-		end
-		if gradient.Transparency ~= PLEX_TRANSPARENCY then
-			gradient.Transparency = PLEX_TRANSPARENCY
-		end
-		return true
-	end
-
-	local function updateAppliedGradients()
-		for o in pairs(PT.applied) do
-			if not (o and o.Parent) then
-				PT.applied[o] = nil
-			else
-				local g = getExistingPlexGradient(o)
-				if g then
-					applyPlexGradientStyle(g)
-				else
-					PT.applied[o] = nil
-				end
-			end
-		end
-	end
-
-	refreshPlexStyleCache()
 
 	local function applyIfReady(o)
 		if not (o and o.Parent) then
@@ -82700,8 +82711,7 @@ if CoreGui then
 			return
 		end
 		PT.queueSet[o] = nil
-		PT.applied[o] = nil
-		local g = getExistingPlexGradient(o)
+		local g = o:FindFirstChild("PlexityGradient")
 		if g and g:IsA("UIGradient") then
 			g:Destroy()
 		end
@@ -82717,18 +82727,23 @@ if CoreGui then
 		if isPlexTarget(o) then
 			PT.images[o] = true
 		end
-		if not PT.data.enabled then
-			NAmanage.plex_remove(o)
-			return
-		end
-		local ug = getExistingPlexGradient(o)
-		if not ug then
-			ug = InstanceNew("UIGradient")
+		NAmanage.plex_remove(o)
+		if PT.data.enabled then
+			local seq = ColorSequence.new{
+				ColorSequenceKeypoint.new(0, Color3.fromHSV(PT.data.start.h, PT.data.start.s, PT.data.start.v)),
+				ColorSequenceKeypoint.new(1, Color3.fromHSV(PT.data.finish.h, PT.data.finish.s, PT.data.finish.v)),
+			}
+			local ug = InstanceNew("UIGradient")
 			ug.Name = "PlexityGradient"
+			ug.Color = seq
+			ug.Rotation = 45
+			ug.Transparency = NumberSequence.new{
+				NumberSequenceKeypoint.new(0,   0, 0),
+				NumberSequenceKeypoint.new(0.5, 0, 0),
+				NumberSequenceKeypoint.new(1,   0, 0),
+			}
 			ug.Parent = o
 		end
-		applyPlexGradientStyle(ug)
-		PT.applied[o] = true
 	end
 
 	local function enqueue(o)
@@ -82756,16 +82771,7 @@ if CoreGui then
 		PT.processing = true
 		coroutine.wrap(function()
 			while PT.queueHead <= PT.queueTail do
-				local budget, waitDelay
-				if NAmanage and NAmanage.lpProf then
-					budget, waitDelay = NAmanage.lpProf(16, {
-						delay = 0,
-						ldSc = 0.22,
-						ldDel = 0.014,
-					})
-				else
-					budget, waitDelay = 16, 0
-				end
+				local budget = 40
 				while budget > 0 and PT.queueHead <= PT.queueTail do
 					local o = PT.queue[PT.queueHead]
 					PT.queue[PT.queueHead] = nil
@@ -82778,11 +82784,7 @@ if CoreGui then
 					end
 					budget -= 1
 				end
-				if waitDelay and waitDelay > 0 then
-					Wait(waitDelay)
-				else
-					Wait()
-				end
+				Wait()
 			end
 			PT.queue = {}
 			PT.queueHead = 1
@@ -82816,18 +82818,18 @@ if CoreGui then
 		PT.needApplyAll = false
 
 		coroutine.wrap(function()
-			refreshPlexStyleCache()
-			updateAppliedGradients()
 			local cg = PT.cg
 			if cg then
 				local desc = cg:QueryDescendants("Instance")
 				for i = 1, #desc do
-					enqueue(desc[i])
-					if i % 48 == 0 then
+					local o = desc[i]
+					if o and o.Parent then
+						applyIfReady(o)
+					end
+					if i % 200 == 0 then
 						Wait()
 					end
 				end
-				processQueue()
 			end
 			PT.applying = false
 			if PT.needApplyAll then
@@ -82843,7 +82845,7 @@ if CoreGui then
 				local desc = cg:QueryDescendants("Instance")
 				for i = 1, #desc do
 					enqueue(desc[i])
-					if i % 48 == 0 then
+					if i % 200 == 0 then
 						Wait()
 					end
 				end
@@ -82866,14 +82868,15 @@ if CoreGui then
 		if not on or not PT.cg then
 			return
 		end
-		NAlib.connect("PlexyDescAdded", PT.cg.DescendantAdded:Connect(function(o)
-			onDescendantAdded(o)
-		end))
-		NAlib.connect("PlexyDescRemoving", PT.cg.DescendantRemoving:Connect(function(o)
-			PT.images[o] = nil
-			PT.applied[o] = nil
-			PT.queueSet[o] = nil
-		end))
+		NAlib.connect("PlexyDescAdded", NAmanage.descSub(PT.cg, {
+			added = onDescendantAdded,
+		}))
+		NAlib.connect("PlexyDescRemoving", NAmanage.descSub(PT.cg, {
+			removing = function(o)
+				PT.images[o] = nil
+				PT.queueSet[o] = nil
+			end,
+		}))
 	end
 
 	if PT.data.enabled then
@@ -82887,16 +82890,15 @@ if CoreGui then
 	NAgui.addToggle("Enable Theme", PT.data.enabled, function(v)
 		PT.data.enabled = v
 		if v then
-			refreshPlexStyleCache()
 			setPlexW(true)
 			rescanAll()
+			NAmanage.plex_applyAll()
 		else
 			setPlexW(false)
 			PT.queue = {}
 			PT.queueHead = 1
 			PT.queueTail = 0
-			PT.queueSet = setmetatable({}, { __mode = "k" })
-			PT.applied = setmetatable({}, { __mode = "k" })
+			PT.queueSet = {}
 			local cg = PT.cg
 			if cg then
 				local desc = cg:QueryDescendants("Instance")
@@ -82917,8 +82919,7 @@ if CoreGui then
 		local h, s, v = c:ToHSV()
 		PT.data.start.h, PT.data.start.s, PT.data.start.v = h, s, v
 		if PT.data.enabled then
-			refreshPlexStyleCache()
-			updateAppliedGradients()
+			NAmanage.plex_applyAll()
 		end
 		if FileSupport then
 			writefile(PT.path, HttpService:JSONEncode(PT.data))
@@ -82929,8 +82930,7 @@ if CoreGui then
 		local h, s, v = c:ToHSV()
 		PT.data.finish.h, PT.data.finish.s, PT.data.finish.v = h, s, v
 		if PT.data.enabled then
-			refreshPlexStyleCache()
-			updateAppliedGradients()
+			NAmanage.plex_applyAll()
 		end
 		if FileSupport then
 			writefile(PT.path, HttpService:JSONEncode(PT.data))
