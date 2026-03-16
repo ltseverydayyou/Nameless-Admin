@@ -83247,6 +83247,21 @@ if CoreGui then
 			return Format("%s | %s", originalDisplay, getBuilderIconPath(inst))
 		end
 
+		local function isTrackedBuilderIconTarget(o)
+			if o == BuilderIconEditor.selectedInst then
+				return true
+			end
+			if BuilderIconEditor.originalText[o] ~= nil then
+				return true
+			end
+			for _, inst in pairs(BuilderIconEditor.entries) do
+				if inst == o then
+					return true
+				end
+			end
+			return false
+		end
+
 		local function normalizeBuilderIconData(raw)
 			local out = {
 				overrides = {},
@@ -84069,13 +84084,9 @@ if CoreGui then
 			added = function(o)
 				applySavedBuilderIconOverrideToInstance(o)
 				queueBuilderIconRefresh()
-				queueSavedBuilderIconReapply()
 			end,
 			filterAdded = function(o)
-				if HUI and o:IsDescendantOf(HUI) then
-					return false
-				end
-				return o:IsA("TextLabel") or o:IsA("TextButton")
+				return isBuilderIconTarget(o)
 			end,
 		}))
 		NAlib.connect("BuilderIconEditorRemoving", NAmanage.descSub(CoreGui, {
@@ -84101,7 +84112,9 @@ if CoreGui then
 					BuilderIconEditor.entryPaths[removedLabel] = nil
 				end
 				queueBuilderIconRefresh()
-				queueSavedBuilderIconReapply()
+			end,
+			filterRemoving = function(o)
+				return isBuilderIconTarget(o) or isTrackedBuilderIconTarget(o)
 			end,
 		}))
 	end
