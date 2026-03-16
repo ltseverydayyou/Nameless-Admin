@@ -7778,7 +7778,16 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 
 		Spawn(function()
 			while #uiScanJobs > 0 do
-				local budget = 35
+				local budget, waitDelay
+				if NAmanage and NAmanage.lpProf then
+					budget, waitDelay = NAmanage.lpProf(12, {
+						delay = 0,
+						ldSc = 0.22,
+						ldDel = 0.014,
+					})
+				else
+					budget, waitDelay = 12, 0
+				end
 
 				while budget > 0 and #uiScanJobs > 0 do
 					local job = uiScanJobs[1]
@@ -7815,7 +7824,11 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 					end
 				end
 
-				Wait()
+				if waitDelay and waitDelay > 0 then
+					Wait(waitDelay)
+				else
+					Wait()
+				end
 			end
 
 			uiScanning = false
@@ -8001,7 +8014,16 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		cornerApplyBusy = true
 		Spawn(function()
 			while cornerApplyHead <= cornerApplyTail do
-				local budget = 90
+				local budget, waitDelay
+				if NAmanage and NAmanage.lpProf then
+					budget, waitDelay = NAmanage.lpProf(18, {
+						delay = 0,
+						ldSc = 0.22,
+						ldDel = 0.014,
+					})
+				else
+					budget, waitDelay = 18, 0
+				end
 				while budget > 0 and cornerApplyHead <= cornerApplyTail do
 					local inst = cornerApplyQueue[cornerApplyHead]
 					cornerApplyQueue[cornerApplyHead] = nil
@@ -8014,7 +8036,11 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 					end
 					budget -= 1
 				end
-				Wait()
+				if waitDelay and waitDelay > 0 then
+					Wait(waitDelay)
+				else
+					Wait()
+				end
 			end
 			cornerApplyQueue = {}
 			cornerApplyHead = 1
@@ -9642,7 +9668,16 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		fontApplyBusy = true
 		Spawn(function()
 			while fontApplyHead <= fontApplyTail do
-				local budget = 100
+				local budget, waitDelay
+				if NAmanage and NAmanage.lpProf then
+					budget, waitDelay = NAmanage.lpProf(20, {
+						delay = 0,
+						ldSc = 0.22,
+						ldDel = 0.014,
+					})
+				else
+					budget, waitDelay = 20, 0
+				end
 				while budget > 0 and fontApplyHead <= fontApplyTail do
 					local inst = fontApplyQueue[fontApplyHead]
 					fontApplyQueue[fontApplyHead] = nil
@@ -9655,7 +9690,11 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 					end
 					budget -= 1
 				end
-				Wait()
+				if waitDelay and waitDelay > 0 then
+					Wait(waitDelay)
+				else
+					Wait()
+				end
 			end
 			fontApplyQueue = {}
 			fontApplyHead = 1
@@ -75401,13 +75440,13 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 			while scanHead <= scanTail do
 				local budget, waitDelay
 				if NAmanage and NAmanage.lpProf then
-					budget, waitDelay = NAmanage.lpProf(35, {
+					budget, waitDelay = NAmanage.lpProf(12, {
 						delay = 0,
-						ldSc = 0.35,
-						ldDel = 0.012,
+						ldSc = 0.22,
+						ldDel = 0.014,
 					});
 				else
-					budget, waitDelay = 35, 0
+					budget, waitDelay = 12, 0
 				end
 				while budget > 0 and scanHead <= scanTail do
 					local job = scanJobs[scanHead];
@@ -75477,13 +75516,13 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 			while dHead <= dTail do
 				local budget, waitDelay
 				if NAmanage and NAmanage.lpProf then
-					budget, waitDelay = NAmanage.lpProf(120, {
+					budget, waitDelay = NAmanage.lpProf(24, {
 						delay = 0,
-						ldSc = 0.4,
-						ldDel = 0.008,
+						ldSc = 0.22,
+						ldDel = 0.014,
 					});
 				else
-					budget, waitDelay = 120, 0
+					budget, waitDelay = 24, 0
 				end
 				while budget > 0 and dHead <= dTail do
 					local inst = dQ[dHead];
@@ -82717,7 +82756,16 @@ if CoreGui then
 		PT.processing = true
 		coroutine.wrap(function()
 			while PT.queueHead <= PT.queueTail do
-				local budget = 40
+				local budget, waitDelay
+				if NAmanage and NAmanage.lpProf then
+					budget, waitDelay = NAmanage.lpProf(16, {
+						delay = 0,
+						ldSc = 0.22,
+						ldDel = 0.014,
+					})
+				else
+					budget, waitDelay = 16, 0
+				end
 				while budget > 0 and PT.queueHead <= PT.queueTail do
 					local o = PT.queue[PT.queueHead]
 					PT.queue[PT.queueHead] = nil
@@ -82730,7 +82778,11 @@ if CoreGui then
 					end
 					budget -= 1
 				end
-				Wait()
+				if waitDelay and waitDelay > 0 then
+					Wait(waitDelay)
+				else
+					Wait()
+				end
 			end
 			PT.queue = {}
 			PT.queueHead = 1
@@ -82771,7 +82823,7 @@ if CoreGui then
 				local desc = cg:QueryDescendants("Instance")
 				for i = 1, #desc do
 					enqueue(desc[i])
-					if i % 128 == 0 then
+					if i % 48 == 0 then
 						Wait()
 					end
 				end
@@ -82791,7 +82843,7 @@ if CoreGui then
 				local desc = cg:QueryDescendants("Instance")
 				for i = 1, #desc do
 					enqueue(desc[i])
-					if i % 128 == 0 then
+					if i % 48 == 0 then
 						Wait()
 					end
 				end
