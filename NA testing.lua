@@ -1637,30 +1637,13 @@ NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 			if (hub.addCount or 0) <= 0 then
 				return
 			end
-			if not hasInterested(hub.added, inst) then
-				return
-			end
-			if hub.aSet[inst] then
-				return
-			end
-			hub.aSet[inst] = true
-			hub.aTail += 1
-			hub.aQ[hub.aTail] = inst
+			dispatch(hub.added, inst)
 		else
 			if (hub.remCount or 0) <= 0 then
 				return
 			end
-			if not hasInterested(hub.removing, inst) then
-				return
-			end
-			if hub.rSet[inst] then
-				return
-			end
-			hub.rSet[inst] = true
-			hub.rTail += 1
-			hub.rQ[hub.rTail] = inst
+			dispatch(hub.removing, inst)
 		end
-		kickQ()
 	end
 
 	local function runScan()
@@ -2013,30 +1996,13 @@ NAmanage._cgHubGet = NAmanage._cgHubGet or function()
 			if (hub.addCount or 0) <= 0 then
 				return
 			end
-			if not hasInterested(hub.added, inst) then
-				return
-			end
-			if hub.aSet[inst] then
-				return
-			end
-			hub.aSet[inst] = true
-			hub.aTail += 1
-			hub.aQ[hub.aTail] = inst
+			dispatch(hub.added, inst)
 		else
 			if (hub.remCount or 0) <= 0 then
 				return
 			end
-			if not hasInterested(hub.removing, inst) then
-				return
-			end
-			if hub.rSet[inst] then
-				return
-			end
-			hub.rSet[inst] = true
-			hub.rTail += 1
-			hub.rQ[hub.rTail] = inst
+			dispatch(hub.removing, inst)
 		end
-		kickQ()
 	end
 
 	local function wantsRootEvents()
@@ -2305,30 +2271,13 @@ NAmanage._pgHubGet = NAmanage._pgHubGet or function()
 			if (hub.addCount or 0) <= 0 then
 				return
 			end
-			if not hasInterested(hub.added, inst) then
-				return
-			end
-			if hub.aSet[inst] then
-				return
-			end
-			hub.aSet[inst] = true
-			hub.aTail += 1
-			hub.aQ[hub.aTail] = inst
+			dispatch(hub.added, inst)
 		else
 			if (hub.remCount or 0) <= 0 then
 				return
 			end
-			if not hasInterested(hub.removing, inst) then
-				return
-			end
-			if hub.rSet[inst] then
-				return
-			end
-			hub.rSet[inst] = true
-			hub.rTail += 1
-			hub.rQ[hub.rTail] = inst
+			dispatch(hub.removing, inst)
 		end
-		kickQ()
 	end
 
 	local function wantsRootEvents()
@@ -2644,30 +2593,13 @@ NAmanage._playersHubGet = NAmanage._playersHubGet or function()
 			if (hub.addCount or 0) <= 0 then
 				return
 			end
-			if not hasInterested(hub.added, plr) then
-				return
-			end
-			if hub.aSet[plr] then
-				return
-			end
-			hub.aSet[plr] = true
-			hub.aTail += 1
-			hub.aQ[hub.aTail] = plr
+			dispatch(hub.added, plr)
 		else
 			if (hub.remCount or 0) <= 0 then
 				return
 			end
-			if not hasInterested(hub.removing, plr) then
-				return
-			end
-			if hub.rSet[plr] then
-				return
-			end
-			hub.rSet[plr] = true
-			hub.rTail += 1
-			hub.rQ[hub.rTail] = plr
+			dispatch(hub.removing, plr)
 		end
-		kickQ()
 	end
 
 	local function wantsEvents()
@@ -2907,30 +2839,13 @@ NAmanage._descHubGet = NAmanage._descHubGet or function(root)
 			if (hub.addCount or 0) <= 0 then
 				return
 			end
-			if not hasInterested(hub.added, inst) then
-				return
-			end
-			if hub.aSet[inst] then
-				return
-			end
-			hub.aSet[inst] = true
-			hub.aTail += 1
-			hub.aQ[hub.aTail] = inst
+			dispatch(hub.added, inst)
 		else
 			if (hub.remCount or 0) <= 0 then
 				return
 			end
-			if not hasInterested(hub.removing, inst) then
-				return
-			end
-			if hub.rSet[inst] then
-				return
-			end
-			hub.rSet[inst] = true
-			hub.rTail += 1
-			hub.rQ[hub.rTail] = inst
+			dispatch(hub.removing, inst)
 		end
-		kickQ()
 	end
 
 	hub.cAdd = root.DescendantAdded:Connect(function(inst)
@@ -7790,6 +7705,10 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		guiRootSeen = {},
 		restoring = false,
 	}
+	CE.store = setmetatable(CE.store, { __mode = "k" })
+	CE.watchers = setmetatable(CE.watchers, { __mode = "k" })
+	CE.guiRootWatchers = setmetatable(CE.guiRootWatchers, { __mode = "k" })
+	CE.guiRootSeen = setmetatable(CE.guiRootSeen, { __mode = "k" })
 
 	local data = {
 		enabled = CE.default.enabled,
@@ -8053,12 +7972,15 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			info = { original = o.CornerRadius }
 			CE.store[o] = info
 		end
-		o.CornerRadius = getCRad()
+		local desired = getCRad()
+		if o.CornerRadius ~= desired then
+			o.CornerRadius = desired
+		end
 		setCWat(o)
 	end
 
 	local cornerApplyQueue = {}
-	local cornerApplySet = {}
+	local cornerApplySet = setmetatable({}, { __mode = "k" })
 	local cornerApplyHead = 1
 	local cornerApplyTail = 0
 	local cornerApplyBusy = false
@@ -8107,8 +8029,8 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			if conns.anc then conns.anc:Disconnect() end
 			CE.guiRootWatchers[root] = nil
 		end
-		CE.guiRootWatchers = {}
-		CE.guiRootSeen = {}
+		CE.guiRootWatchers = setmetatable({}, { __mode = "k" })
+		CE.guiRootSeen = setmetatable({}, { __mode = "k" })
 	end
 
 	local function resetCorn()
@@ -8122,10 +8044,10 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			stopCWat(corner)
 		end
 		CE.restoring = false
-		CE.store = {}
-		CE.watchers = {}
+		CE.store = setmetatable({}, { __mode = "k" })
+		CE.watchers = setmetatable({}, { __mode = "k" })
 		cornerApplyQueue = {}
-		cornerApplySet = {}
+		cornerApplySet = setmetatable({}, { __mode = "k" })
 		cornerApplyHead = 1
 		cornerApplyTail = 0
 		clearGuiRootWatchers()
@@ -8198,16 +8120,11 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			return
 		end
 		local conns = {}
-		conns.desc = NAmanage.descSub(root, {
-			added = function(d)
-				if CE.data.enabled then
-					queueCornerApply(d)
-				end
-			end,
-			filterAdded = function(d)
-				return d and d:IsA("UICorner")
-			end,
-		})
+		conns.desc = root.DescendantAdded:Connect(function(d)
+			if CE.data.enabled and d and d:IsA("UICorner") then
+				queueCornerApply(d)
+			end
+		end)
 		conns.anc = root.AncestryChanged:Connect(function(obj, parent)
 			if parent == nil then
 				if CE.guiRootWatchers[root] then
@@ -8277,32 +8194,32 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		local shouldWatch = CE.data.enabled == true
 		NAlib.disconnect("CornerEditor")
 		if shouldWatch and CE.data.targetCoreGui and CE.cg then
-			NAlib.connect("CornerEditor", NAmanage.descSub(CE.cg, {
-				added = onCDesc,
-				filterAdded = function(o)
-					return o and o:IsA("UICorner")
-				end,
-			}))
+			NAlib.connect("CornerEditor", CE.cg.DescendantAdded:Connect(function(o)
+				if o and o:IsA("UICorner") then
+					onCDesc(o)
+				end
+			end))
 		end
 
 		NAlib.disconnect("CornerEditor_PlayerGui")
 		if shouldWatch and CE.data.targetPlayerGui then
-			NAlib.connect("CornerEditor_PlayerGui", NAmanage.pgSub({
-				added = onCDesc,
-				filterAdded = function(o)
-					return o and o:IsA("UICorner")
-				end,
-			}))
+			local pg = getPlayerGui()
+			if pg then
+				NAlib.connect("CornerEditor_PlayerGui", pg.DescendantAdded:Connect(function(o)
+					if o and o:IsA("UICorner") then
+						onCDesc(o)
+					end
+				end))
+			end
 		end
 
 		NAlib.disconnect("CornerEditor_HUI")
 		if shouldWatch and CE.data.targetHiddenUi and HUI then
-			NAlib.connect("CornerEditor_HUI", NAmanage.descSub(HUI, {
-				added = onCDesc,
-				filterAdded = function(o)
-					return o and o:IsA("UICorner")
-				end,
-			}))
+			NAlib.connect("CornerEditor_HUI", HUI.DescendantAdded:Connect(function(o)
+				if o and o:IsA("UICorner") then
+					onCDesc(o)
+				end
+			end))
 		end
 
 		NAlib.disconnect("CornerEditor_Billboard")
@@ -8360,7 +8277,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 	local persistFontData
 
 	local function newFontStore()
-		return {}
+		return setmetatable({}, { __mode = "k" })
 	end
 
 	local FontChoices = {}
@@ -9441,6 +9358,9 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		restoring = false,
 		dlBusy = false,
 	}
+	FontEditor.watchers = setmetatable(FontEditor.watchers, { __mode = "k" })
+	FontEditor.guiRootWatchers = setmetatable(FontEditor.guiRootWatchers, { __mode = "k" })
+	FontEditor.guiRootSeen = setmetatable(FontEditor.guiRootSeen, { __mode = "k" })
 
 	local ex = identifyexecutor and identifyexecutor():lower() or ""
 	local isDelta = (ex == "delta")
@@ -9673,16 +9593,22 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 				ensureFontWatcher(o)
 			end
 			if info and info.FontFaceSupported then
-				pcall(function()
-					o.FontFace = FontEditor.currentFont
-				end)
+				local currentFace = NAlib.isProperty(o, "FontFace")
+				if currentFace ~= FontEditor.currentFont then
+					pcall(function()
+						o.FontFace = FontEditor.currentFont
+					end)
+				end
 			end
 		else
 			if info and info.FontFaceSupported then
 				ensureFontWatcher(o)
-				pcall(function()
-					o.FontFace = info.FontFace
-				end)
+				local currentFace = NAlib.isProperty(o, "FontFace")
+				if currentFace ~= info.FontFace then
+					pcall(function()
+						o.FontFace = info.FontFace
+					end)
+				end
 			end
 			local cur = NAlib.isProperty(o, "Font")
 			if cur == FontEditor.currentFont then
@@ -9695,7 +9621,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 	end
 
 	local fontApplyQueue = {}
-	local fontApplySet = {}
+	local fontApplySet = setmetatable({}, { __mode = "k" })
 	local fontApplyHead = 1
 	local fontApplyTail = 0
 	local fontApplyBusy = false
@@ -9744,8 +9670,8 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			if conns.anc then conns.anc:Disconnect() end
 			FontEditor.guiRootWatchers[root] = nil
 		end
-		FontEditor.guiRootWatchers = {}
-		FontEditor.guiRootSeen = {}
+		FontEditor.guiRootWatchers = setmetatable({}, { __mode = "k" })
+		FontEditor.guiRootSeen = setmetatable({}, { __mode = "k" })
 	end
 
 	local function watchFontGuiRoot(root)
@@ -9753,16 +9679,11 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			return
 		end
 		local conns = {}
-		conns.desc = NAmanage.descSub(root, {
-			added = function(d)
-				if FontEditor.data.enabled then
-					queueFontApply(d)
-				end
-			end,
-			filterAdded = function(d)
-				return isFontTarget(d)
-			end,
-		})
+		conns.desc = root.DescendantAdded:Connect(function(d)
+			if FontEditor.data.enabled and isFontTarget(d) then
+				queueFontApply(d)
+			end
+		end)
 		conns.anc = root.AncestryChanged:Connect(function(obj, parent)
 			if parent == nil then
 				if FontEditor.guiRootWatchers[root] then
@@ -9827,10 +9748,10 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		end
 		FontEditor.restoring = false
 		FontEditor.store = newFontStore()
-		FontEditor.watchers = {}
+		FontEditor.watchers = setmetatable({}, { __mode = "k" })
 		clearFontGuiRootWatchers()
 		fontApplyQueue = {}
-		fontApplySet = {}
+		fontApplySet = setmetatable({}, { __mode = "k" })
 		fontApplyHead = 1
 		fontApplyTail = 0
 	end
@@ -10001,32 +9922,32 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		local shouldWatch = FontEditor.data.enabled == true
 		NAlib.disconnect("FontEditor")
 		if shouldWatch and FontEditor.data.targetCoreGui and FontEditor.cg then
-			NAlib.connect("FontEditor", NAmanage.descSub(FontEditor.cg, {
-				added = onFontDescendantAdded,
-				filterAdded = function(o)
-					return isFontTarget(o)
-				end,
-			}))
+			NAlib.connect("FontEditor", FontEditor.cg.DescendantAdded:Connect(function(o)
+				if isFontTarget(o) then
+					onFontDescendantAdded(o)
+				end
+			end))
 		end
 
 		NAlib.disconnect("FontEditor_PlayerGui")
 		if shouldWatch and FontEditor.data.targetPlayerGui then
-			NAlib.connect("FontEditor_PlayerGui", NAmanage.pgSub({
-				added = onFontDescendantAdded,
-				filterAdded = function(o)
-					return isFontTarget(o)
-				end,
-			}))
+			local pg = getPlayerGui()
+			if pg then
+				NAlib.connect("FontEditor_PlayerGui", pg.DescendantAdded:Connect(function(o)
+					if isFontTarget(o) then
+						onFontDescendantAdded(o)
+					end
+				end))
+			end
 		end
 
 		NAlib.disconnect("FontEditor_HUI")
 		if shouldWatch and FontEditor.data.targetHiddenUi and HUI then
-			NAlib.connect("FontEditor_HUI", NAmanage.descSub(HUI, {
-				added = onFontDescendantAdded,
-				filterAdded = function(o)
-					return isFontTarget(o)
-				end,
-			}))
+			NAlib.connect("FontEditor_HUI", HUI.DescendantAdded:Connect(function(o)
+				if isFontTarget(o) then
+					onFontDescendantAdded(o)
+				end
+			end))
 		end
 
 		NAlib.disconnect("FontEditor_Billboard")
@@ -34721,190 +34642,6 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 	end;
 	enable();
 	_na_env.NA_FPS_ACTIVE = true;
-end);
-
-cmd.add({"pingbooster","boostping","lowping"}, {"pingbooster","Applies a best-effort network FastFlag preset, run again to restore"}, function()
-	local title = "PingBooster";
-	local presets = {
-		{ name = "OptimizeNetwork", value = true };
-		{ name = "OptimizeNetworkTransport", value = true };
-		{ name = "OptimizeNetworkRouting", value = true };
-		{ name = "OptimizePingThreshold", value = true };
-		{ name = "QueueDataPingFromSendData", value = true };
-		{ name = "DontCreatePingJob", value = false };
-		{ name = "RenderPerformanceTelemetry", value = false };
-		{ name = "DebugDisableTelemetryEphemeralCounter", value = true };
-		{ name = "DebugDisableTelemetryEphemeralStat", value = true };
-		{ name = "DebugDisableTelemetryEventIngest", value = true };
-		{ name = "DebugDisableTelemetryPoint", value = true };
-		{ name = "DebugDisableTelemetryV2Counter", value = true };
-		{ name = "DebugDisableTelemetryV2Event", value = true };
-		{ name = "DebugDisableTelemetryV2Stat", value = true };
-		{ name = "NetworkLatencyTolerance", value = 0 };
-		{ name = "NetworkPrediction", value = true };
-	};
-	if not (NAFFlags and type(NAFFlags.apply) == "function") then
-		DoNotif("FastFlag helpers are unavailable. Use pingserverhop for an actual ping improvement.", 4, title);
-		return;
-	end;
-	local function snapshotTabFlagState(name)
-		local state = {
-			hasValue = false,
-			value = nil,
-			hasConfig = false,
-			configValue = nil,
-			hasLocked = false,
-			lockedValue = nil
-		};
-		if NAFFlags.values then
-			state.hasValue = NAFFlags.values[name] ~= nil;
-			state.value = NAFFlags.values[name];
-		end;
-		if NAFFlags.config and NAFFlags.config.flags then
-			state.hasConfig = NAFFlags.config.flags[name] ~= nil;
-			state.configValue = NAFFlags.config.flags[name];
-		end;
-		if NAFFlags._lockedDefaults then
-			state.hasLocked = NAFFlags._lockedDefaults[name] ~= nil;
-			state.lockedValue = NAFFlags._lockedDefaults[name];
-		end;
-		return state;
-	end;
-	local function restoreTabFlagState(name, state)
-		if not state then
-			return;
-		end;
-		if NAFFlags.values then
-			NAFFlags.values[name] = state.hasValue and state.value or nil;
-		end;
-		if NAFFlags.config and NAFFlags.config.flags then
-			NAFFlags.config.flags[name] = state.hasConfig and state.configValue or nil;
-		end;
-		if NAFFlags._lockedDefaults then
-			NAFFlags._lockedDefaults[name] = state.hasLocked and state.lockedValue or nil;
-		end;
-	end;
-	local function applyTransientFlag(name, value)
-		local uiState = snapshotTabFlagState(name);
-		local ok, err = NAFFlags.apply(name, value, { allowDisabled = true, silent = true });
-		restoreTabFlagState(name, uiState);
-		return ok, err;
-	end;
-	local function readLiveFlagValue(name, entry)
-		if type(getfflag) ~= "function" then
-			return nil, false;
-		end;
-		local ok, value = pcall(getfflag, name);
-		if not ok then
-			return nil, false;
-		end;
-		if entry and NAFFlags.normalizeValue then
-			local normalized = NAFFlags.normalizeValue(entry, value, { silent = true });
-			if normalized ~= nil then
-				return normalized, true;
-			end;
-		end;
-		if NAFFlags.parseCustomValue then
-			return NAFFlags.parseCustomValue(value), true;
-		end;
-		return value, true;
-	end;
-	if _na_env.NA_PING_ACTIVE then
-		local restored = 0;
-		local failed = 0;
-		local locked = 0;
-		for _, snapshot in ipairs(_na_env.NA_PING_STATE or {}) do
-			local ok, err = applyTransientFlag(snapshot.name, snapshot.value);
-			if ok then
-				restored = restored + 1;
-			else
-				failed = failed + 1;
-				if err == "default-locked" then
-					locked = locked + 1;
-				end;
-			end;
-		end;
-		if type(NAFFlags.save) == "function" then
-			NAFFlags.save();
-		end;
-		local unreadable = tonumber(_na_env.NA_PING_UNREADABLE) or 0;
-		_na_env.NA_PING_ACTIVE = false;
-		_na_env.NA_PING_STATE = nil;
-		_na_env.NA_PING_UNREADABLE = nil;
-		if restored > 0 then
-			DoNotif(Format("Restored %d network flag%s.", restored, restored == 1 and "" or "s"), 3, title);
-		else
-			DoNotif("PingBooster disabled.", 3, title);
-		end;
-		if failed > 0 then
-			DoNotif(Format("%d flag%s could not be restored on this client.", failed, failed == 1 and "" or "s"), 4, title);
-		end;
-		if locked > 0 then
-			DoNotif(Format("%d restore attempt%s hit executor default-locks.", locked, locked == 1 and "" or "s"), 3, title);
-		end;
-		if unreadable > 0 then
-			DoNotif(Format("%d flag%s were never changed because their live values could not be read safely.", unreadable, unreadable == 1 and "" or "s"), 3, title);
-		end;
-		return;
-	end;
-	if not NAFFlags.hasSupport() then
-		DoNotif("Your executor does not support FastFlags. Use pingserverhop for an actual ping improvement.", 4, title);
-		return;
-	end;
-	local snapshots = {};
-	local applied = 0;
-	local skipped = 0;
-	local locked = 0;
-	local unreadable = 0;
-	for _, preset in ipairs(presets) do
-		local entry = NAFFlags.getEntry and NAFFlags.getEntry(preset.name) or nil;
-		local original, canReadLive = readLiveFlagValue(preset.name, entry);
-		if not canReadLive then
-			unreadable = unreadable + 1;
-			skipped = skipped + 1;
-			continue;
-		end;
-		snapshots[#snapshots + 1] = {
-			name = preset.name;
-			value = original;
-		};
-		local ok, err = applyTransientFlag(preset.name, preset.value);
-		if ok then
-			applied = applied + 1;
-		else
-			skipped = skipped + 1;
-			if err == "default-locked" then
-				locked = locked + 1;
-			end;
-		end;
-	end;
-	if type(NAFFlags.save) == "function" then
-		NAFFlags.save();
-	end;
-	if applied <= 0 then
-		DoNotif("No supported network FastFlags were applied on this client.", 4, title);
-		if unreadable > 0 then
-			DoNotif(Format("%d flag%s were skipped because their live values could not be read safely.", unreadable, unreadable == 1 and "" or "s"), 3, title);
-		end;
-		if locked > 0 then
-			DoNotif(Format("%d flag%s are default-locked on this executor.", locked, locked == 1 and "" or "s"), 3, title);
-		end;
-		return;
-	end;
-	_na_env.NA_PING_STATE = snapshots;
-	_na_env.NA_PING_ACTIVE = true;
-	_na_env.NA_PING_UNREADABLE = unreadable;
-	DoNotif(Format("Applied %d network flag%s. Run pingbooster again to restore.", applied, applied == 1 and "" or "s"), 4, title);
-	if skipped > 0 then
-		DoNotif(Format("%d flag%s were skipped.", skipped, skipped == 1 and "" or "s"), 3, title);
-	end;
-	if locked > 0 then
-		DoNotif(Format("%d skipped flag%s are default-locked on this executor.", locked, locked == 1 and "" or "s"), 3, title);
-	end;
-	if unreadable > 0 then
-		DoNotif(Format("%d flag%s were skipped because their live values could not be read safely.", unreadable, unreadable == 1 and "" or "s"), 3, title);
-	end;
-	DoNotif("This is a best-effort preset. Use pingserverhop for actual server-side latency gains.", 4, title);
 end);
 
 NAStuff.annoyLoop = false
@@ -75351,7 +75088,7 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 
 	SpawnCall(function()
 		local HUI = NAlib.huiGrabber();
-		local fhSet = {}
+		local fhSet = setmetatable({}, { __mode = "k" })
 		local fhCount = 0
 		local fhWarned = false
 		local FH_SOFT_LIMIT = 1200
@@ -75907,54 +75644,18 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 					return
 				end
 				queueScan(root, function(inst)
-					qDesc(inst, true, nil, nil, nil);
+					hookLbl(inst);
 				end);
-				if root == CoreGui and NAmanage.cgSub then
-					NAlib.connect("NA_FriendLabel_CoreGui", NAmanage.cgSub({
-						added = function(o)
-							qDesc(o, true, nil, nil, nil);
-						end,
-						filterAdded = function(o)
-							if not isFLbl(o) then
-								return false
-							end
-							if HUI and o:IsDescendantOf(HUI) then
-								return false
-							end
-							return true
-						end,
-					}))
-				elseif root:IsA("PlayerGui") and NAmanage.pgSub then
-					NAlib.connect("NA_FriendLabel_PlayerGui", NAmanage.pgSub({
-						added = function(o)
-							qDesc(o, true, nil, nil, nil);
-						end,
-						filterAdded = function(o)
-							if not isFLbl(o) then
-								return false
-							end
-							if HUI and o:IsDescendantOf(HUI) then
-								return false
-							end
-							return true
-						end,
-					}))
-				elseif NAmanage.descSub then
-					NAlib.connect("NA_FriendLabel_CoreGui", NAmanage.descSub(root, {
-						added = function(o)
-							qDesc(o, true, nil, nil, nil);
-						end,
-						filterAdded = function(o)
-							if not isFLbl(o) then
-								return false
-							end
-							if HUI and o:IsDescendantOf(HUI) then
-								return false
-							end
-							return true
-						end,
-					}))
-				end
+				local connName = root == CoreGui and "NA_FriendLabel_CoreGui" or "NA_FriendLabel_PlayerGui"
+				NAlib.connect(connName, root.DescendantAdded:Connect(function(o)
+					if not isFLbl(o) then
+						return
+					end
+					if HUI and o:IsDescendantOf(HUI) then
+						return
+					end
+					hookLbl(o)
+				end))
 			end
 
 			NAmanage.refreshConnectionsFriendLabels = function()
@@ -75974,7 +75675,7 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 					return
 				end
 				queueScan(root, function(inst)
-					qDesc(inst, true, nil, nil, nil);
+					hookLbl(inst);
 				end);
 			end
 
@@ -82792,6 +82493,7 @@ if CoreGui then
 		default   = { enabled = false, start = { h = 0.8, s = 1, v = 1 }, finish = { h = 0, s = 1, v = 1 } },
 		cg        = CoreGui,
 		images    = {},
+		applied   = {},
 		queue     = {},
 		queueHead = 1,
 		queueTail = 0,
@@ -82818,6 +82520,9 @@ if CoreGui then
 	end
 
 	PT.data = data
+	PT.images = setmetatable(PT.images, { __mode = "k" })
+	PT.applied = setmetatable(PT.applied, { __mode = "k" })
+	PT.queueSet = setmetatable(PT.queueSet, { __mode = "k" })
 
 	local HUI = NAlib.huiGrabber()
 
@@ -82846,6 +82551,67 @@ if CoreGui then
 		end
 		return nil
 	end
+
+	local function buildPlexColorSequence()
+		return ColorSequence.new{
+			ColorSequenceKeypoint.new(0, Color3.fromHSV(PT.data.start.h, PT.data.start.s, PT.data.start.v)),
+			ColorSequenceKeypoint.new(1, Color3.fromHSV(PT.data.finish.h, PT.data.finish.s, PT.data.finish.v)),
+		}
+	end
+
+	local PLEX_TRANSPARENCY = NumberSequence.new{
+		NumberSequenceKeypoint.new(0, 0, 0),
+		NumberSequenceKeypoint.new(0.5, 0, 0),
+		NumberSequenceKeypoint.new(1, 0, 0),
+	}
+
+	local function refreshPlexStyleCache()
+		PT.colorSequence = buildPlexColorSequence()
+	end
+
+	local function getExistingPlexGradient(o)
+		if not o then
+			return nil
+		end
+		local g = o:FindFirstChild("PlexityGradient")
+		if g and g:IsA("UIGradient") then
+			return g
+		end
+		return nil
+	end
+
+	local function applyPlexGradientStyle(gradient)
+		if not (gradient and gradient.Parent) then
+			return false
+		end
+		if gradient.Color ~= PT.colorSequence then
+			gradient.Color = PT.colorSequence
+		end
+		if gradient.Rotation ~= 45 then
+			gradient.Rotation = 45
+		end
+		if gradient.Transparency ~= PLEX_TRANSPARENCY then
+			gradient.Transparency = PLEX_TRANSPARENCY
+		end
+		return true
+	end
+
+	local function updateAppliedGradients()
+		for o in pairs(PT.applied) do
+			if not (o and o.Parent) then
+				PT.applied[o] = nil
+			else
+				local g = getExistingPlexGradient(o)
+				if g then
+					applyPlexGradientStyle(g)
+				else
+					PT.applied[o] = nil
+				end
+			end
+		end
+	end
+
+	refreshPlexStyleCache()
 
 	local function applyIfReady(o)
 		if not (o and o.Parent) then
@@ -82895,7 +82661,8 @@ if CoreGui then
 			return
 		end
 		PT.queueSet[o] = nil
-		local g = o:FindFirstChild("PlexityGradient")
+		PT.applied[o] = nil
+		local g = getExistingPlexGradient(o)
 		if g and g:IsA("UIGradient") then
 			g:Destroy()
 		end
@@ -82911,23 +82678,18 @@ if CoreGui then
 		if isPlexTarget(o) then
 			PT.images[o] = true
 		end
-		NAmanage.plex_remove(o)
-		if PT.data.enabled then
-			local seq = ColorSequence.new{
-				ColorSequenceKeypoint.new(0, Color3.fromHSV(PT.data.start.h, PT.data.start.s, PT.data.start.v)),
-				ColorSequenceKeypoint.new(1, Color3.fromHSV(PT.data.finish.h, PT.data.finish.s, PT.data.finish.v)),
-			}
-			local ug = InstanceNew("UIGradient")
+		if not PT.data.enabled then
+			NAmanage.plex_remove(o)
+			return
+		end
+		local ug = getExistingPlexGradient(o)
+		if not ug then
+			ug = InstanceNew("UIGradient")
 			ug.Name = "PlexityGradient"
-			ug.Color = seq
-			ug.Rotation = 45
-			ug.Transparency = NumberSequence.new{
-				NumberSequenceKeypoint.new(0,   0, 0),
-				NumberSequenceKeypoint.new(0.5, 0, 0),
-				NumberSequenceKeypoint.new(1,   0, 0),
-			}
 			ug.Parent = o
 		end
+		applyPlexGradientStyle(ug)
+		PT.applied[o] = true
 	end
 
 	local function enqueue(o)
@@ -82955,7 +82717,7 @@ if CoreGui then
 		PT.processing = true
 		coroutine.wrap(function()
 			while PT.queueHead <= PT.queueTail do
-				local budget = 80
+				local budget = 40
 				while budget > 0 and PT.queueHead <= PT.queueTail do
 					local o = PT.queue[PT.queueHead]
 					PT.queue[PT.queueHead] = nil
@@ -83002,18 +82764,18 @@ if CoreGui then
 		PT.needApplyAll = false
 
 		coroutine.wrap(function()
+			refreshPlexStyleCache()
+			updateAppliedGradients()
 			local cg = PT.cg
 			if cg then
 				local desc = cg:QueryDescendants("Instance")
 				for i = 1, #desc do
-					local o = desc[i]
-					if o and o.Parent then
-						applyIfReady(o)
-					end
-					if i % 200 == 0 then
+					enqueue(desc[i])
+					if i % 128 == 0 then
 						Wait()
 					end
 				end
+				processQueue()
 			end
 			PT.applying = false
 			if PT.needApplyAll then
@@ -83029,7 +82791,7 @@ if CoreGui then
 				local desc = cg:QueryDescendants("Instance")
 				for i = 1, #desc do
 					enqueue(desc[i])
-					if i % 200 == 0 then
+					if i % 128 == 0 then
 						Wait()
 					end
 				end
@@ -83052,15 +82814,14 @@ if CoreGui then
 		if not on or not PT.cg then
 			return
 		end
-		NAlib.connect("PlexyDescAdded", NAmanage.descSub(PT.cg, {
-			added = onDescendantAdded,
-		}))
-		NAlib.connect("PlexyDescRemoving", NAmanage.descSub(PT.cg, {
-			removing = function(o)
-				PT.images[o] = nil
-				PT.queueSet[o] = nil
-			end,
-		}))
+		NAlib.connect("PlexyDescAdded", PT.cg.DescendantAdded:Connect(function(o)
+			onDescendantAdded(o)
+		end))
+		NAlib.connect("PlexyDescRemoving", PT.cg.DescendantRemoving:Connect(function(o)
+			PT.images[o] = nil
+			PT.applied[o] = nil
+			PT.queueSet[o] = nil
+		end))
 	end
 
 	if PT.data.enabled then
@@ -83074,15 +82835,16 @@ if CoreGui then
 	NAgui.addToggle("Enable Theme", PT.data.enabled, function(v)
 		PT.data.enabled = v
 		if v then
+			refreshPlexStyleCache()
 			setPlexW(true)
 			rescanAll()
-			NAmanage.plex_applyAll()
 		else
 			setPlexW(false)
 			PT.queue = {}
 			PT.queueHead = 1
 			PT.queueTail = 0
-			PT.queueSet = {}
+			PT.queueSet = setmetatable({}, { __mode = "k" })
+			PT.applied = setmetatable({}, { __mode = "k" })
 			local cg = PT.cg
 			if cg then
 				local desc = cg:QueryDescendants("Instance")
@@ -83103,7 +82865,8 @@ if CoreGui then
 		local h, s, v = c:ToHSV()
 		PT.data.start.h, PT.data.start.s, PT.data.start.v = h, s, v
 		if PT.data.enabled then
-			NAmanage.plex_applyAll()
+			refreshPlexStyleCache()
+			updateAppliedGradients()
 		end
 		if FileSupport then
 			writefile(PT.path, HttpService:JSONEncode(PT.data))
@@ -83114,7 +82877,8 @@ if CoreGui then
 		local h, s, v = c:ToHSV()
 		PT.data.finish.h, PT.data.finish.s, PT.data.finish.v = h, s, v
 		if PT.data.enabled then
-			NAmanage.plex_applyAll()
+			refreshPlexStyleCache()
+			updateAppliedGradients()
 		end
 		if FileSupport then
 			writefile(PT.path, HttpService:JSONEncode(PT.data))
@@ -83154,6 +82918,7 @@ if CoreGui then
 			catalogLoaded = false,
 			catalogError = nil,
 			selectedIconLabel = "Loading BuilderIcons...",
+			watchersEnabled = false,
 		}
 		BuilderIconEditor.originalText = setmetatable(BuilderIconEditor.originalText, {
 			__mode = "k",
@@ -83936,6 +83701,57 @@ if CoreGui then
 			end)
 		end
 
+		local function disconnectBuilderIconWatchers()
+			if not BuilderIconEditor.watchersEnabled then
+				return
+			end
+			BuilderIconEditor.watchersEnabled = false
+			NAlib.disconnect("BuilderIconEditorAdded")
+			NAlib.disconnect("BuilderIconEditorRemoving")
+		end
+
+		local function connectBuilderIconWatchers()
+			if BuilderIconEditor.watchersEnabled then
+				return
+			end
+			BuilderIconEditor.watchersEnabled = true
+			NAlib.disconnect("BuilderIconEditorAdded")
+			NAlib.disconnect("BuilderIconEditorRemoving")
+			NAlib.connect("BuilderIconEditorAdded", CoreGui.DescendantAdded:Connect(function(o)
+				if not isBuilderIconTarget(o) then
+					return
+				end
+					applySavedBuilderIconOverrideToInstance(o)
+					queueBuilderIconRefresh()
+				end))
+			NAlib.connect("BuilderIconEditorRemoving", CoreGui.DescendantRemoving:Connect(function(o)
+				if not (isBuilderIconTarget(o) or isTrackedBuilderIconTarget(o)) then
+					return
+				end
+				local removedLabel = nil
+				local removedPath = nil
+				for label, inst in pairs(BuilderIconEditor.entries) do
+					if inst == o then
+						removedLabel = label
+						removedPath = BuilderIconEditor.entryPaths[label]
+						break
+					end
+				end
+				if o == BuilderIconEditor.selectedInst then
+					BuilderIconEditor.selectedInst = nil
+					if type(removedPath) == "string" and removedPath ~= "" then
+						BuilderIconEditor.selectedPath = removedPath
+					end
+				end
+				BuilderIconEditor.originalText[o] = nil
+				if removedLabel then
+					BuilderIconEditor.entries[removedLabel] = nil
+					BuilderIconEditor.entryPaths[removedLabel] = nil
+				end
+				queueBuilderIconRefresh()
+			end))
+		end
+
 		NAgui.addSection("BuilderIcon Editor (BETA)")
 		NAgui.addDropdown(builderIconDropdownLabel, { "None" }, "None", function(selection)
 			local picked = getBuilderIconSelectionValue(selection)
@@ -84078,45 +83894,7 @@ if CoreGui then
 			delay = 0.05,
 		})
 
-		NAlib.disconnect("BuilderIconEditorAdded")
-		NAlib.disconnect("BuilderIconEditorRemoving")
-		NAlib.connect("BuilderIconEditorAdded", NAmanage.descSub(CoreGui, {
-			added = function(o)
-				applySavedBuilderIconOverrideToInstance(o)
-				queueBuilderIconRefresh()
-			end,
-			filterAdded = function(o)
-				return isBuilderIconTarget(o)
-			end,
-		}))
-		NAlib.connect("BuilderIconEditorRemoving", NAmanage.descSub(CoreGui, {
-			removing = function(o)
-				local removedLabel = nil
-				local removedPath = nil
-				for label, inst in pairs(BuilderIconEditor.entries) do
-					if inst == o then
-						removedLabel = label
-						removedPath = BuilderIconEditor.entryPaths[label]
-						break
-					end
-				end
-				if o == BuilderIconEditor.selectedInst then
-					BuilderIconEditor.selectedInst = nil
-					if type(removedPath) == "string" and removedPath ~= "" then
-						BuilderIconEditor.selectedPath = removedPath
-					end
-				end
-				BuilderIconEditor.originalText[o] = nil
-				if removedLabel then
-					BuilderIconEditor.entries[removedLabel] = nil
-					BuilderIconEditor.entryPaths[removedLabel] = nil
-				end
-				queueBuilderIconRefresh()
-			end,
-			filterRemoving = function(o)
-				return isBuilderIconTarget(o) or isTrackedBuilderIconTarget(o)
-			end,
-		}))
+		connectBuilderIconWatchers()
 	end
 	initBuilderIconEditor()
 
