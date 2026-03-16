@@ -83831,6 +83831,7 @@ if CoreGui then
 				if not isBuilderIconTarget(o) then
 					return
 				end
+				BuilderIconEditor.liveTargets[o] = true
 				local path = getBuilderIconPath(o)
 				applySavedBuilderIconOverrideToInstance(o)
 				if type(BuilderIconEditor.selectedPath) == "string" and BuilderIconEditor.selectedPath ~= "" and BuilderIconEditor.selectedPath == path then
@@ -83838,11 +83839,13 @@ if CoreGui then
 					BuilderIconEditor.pendingText = getBuilderIconText(o)
 					syncBuilderIconInput()
 				end
+				queueBuilderIconRefresh()
 			end))
 			NAlib.connect("BuilderIconEditorRemoving", CoreGui.DescendantRemoving:Connect(function(o)
 				if not (isBuilderIconTarget(o) or isTrackedBuilderIconTarget(o)) then
 					return
 				end
+				BuilderIconEditor.liveTargets[o] = nil
 				local removedPath = getBuilderIconPath(o)
 				if o == BuilderIconEditor.selectedInst then
 					BuilderIconEditor.selectedInst = nil
@@ -83851,6 +83854,7 @@ if CoreGui then
 					end
 				end
 				BuilderIconEditor.originalText[o] = nil
+				queueBuilderIconRefresh()
 			end))
 		end
 
@@ -84009,6 +84013,7 @@ if CoreGui then
 		NAgui.addButton("Refresh BuilderIcon List", function()
 			refreshBuilderIconDropdown({
 				syncText = true,
+				fullScan = true,
 			})
 			fetchBuilderIconCatalog({
 				notify = true,
@@ -84017,6 +84022,7 @@ if CoreGui then
 
 		refreshBuilderIconDropdown({
 			syncText = true,
+				fullScan = true,
 		})
 		fetchBuilderIconCatalog({
 			notify = false,
