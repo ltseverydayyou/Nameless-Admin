@@ -8310,16 +8310,18 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 	end
 
 	local function monCPGui()
+		NAlib.disconnect("CornerEditor_PlayerGuiAdded")
+		NAlib.disconnect("CornerEditor_PlayerGuiRemoved")
 		if NAmanage.pgSub then
-			NAlib.disconnect("CornerEditor_PlayerGuiAdded")
-			NAlib.disconnect("CornerEditor_PlayerGuiRemoved")
+			return
+		end
+		if not (CE.data.enabled and CE.data.targetPlayerGui) then
 			return
 		end
 		local lp = Players and Players.LocalPlayer
 		if not lp then
 			return
 		end
-		NAlib.disconnect("CornerEditor_PlayerGuiAdded")
 		NAlib.connect("CornerEditor_PlayerGuiAdded", lp.ChildAdded:Connect(function(child)
 			if child:IsA("PlayerGui") then
 				syncCConn()
@@ -8328,7 +8330,6 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 				end
 			end
 		end))
-		NAlib.disconnect("CornerEditor_PlayerGuiRemoved")
 		NAlib.connect("CornerEditor_PlayerGuiRemoved", lp.ChildRemoved:Connect(function(child)
 			if child:IsA("PlayerGui") then
 				syncCConn()
@@ -8343,6 +8344,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		CE.data[field] = value
 		saveCData()
 		syncCConn()
+		monCPGui()
 		if CE.data.enabled then
 			resetCorn()
 			applyCorn()
@@ -10033,16 +10035,18 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 	end
 
 	local function monitorFontPlayerGui()
+		NAlib.disconnect("FontEditor_PlayerGuiAdded")
+		NAlib.disconnect("FontEditor_PlayerGuiRemoved")
 		if NAmanage.pgSub then
-			NAlib.disconnect("FontEditor_PlayerGuiAdded")
-			NAlib.disconnect("FontEditor_PlayerGuiRemoved")
+			return
+		end
+		if not (FontEditor.data.enabled and FontEditor.data.targetPlayerGui) then
 			return
 		end
 		local lp = Players and Players.LocalPlayer
 		if not lp then
 			return
 		end
-		NAlib.disconnect("FontEditor_PlayerGuiAdded")
 		NAlib.connect("FontEditor_PlayerGuiAdded", lp.ChildAdded:Connect(function(child)
 			if child:IsA("PlayerGui") then
 				refreshFontConnections()
@@ -10051,7 +10055,6 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 				end
 			end
 		end))
-		NAlib.disconnect("FontEditor_PlayerGuiRemoved")
 		NAlib.connect("FontEditor_PlayerGuiRemoved", lp.ChildRemoved:Connect(function(child)
 			if child:IsA("PlayerGui") then
 				refreshFontConnections()
@@ -10066,6 +10069,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		FontEditor.data[field] = value
 		persistFontData()
 		refreshFontConnections()
+		monitorFontPlayerGui()
 		if FontEditor.data.enabled then
 			restoreAllFonts()
 			applyAllFonts()
@@ -10089,6 +10093,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 	NAgui.addToggle("Override Corner Radius", CE.data.enabled, function(v)
 		CE.data.enabled = v
 		syncCConn()
+		monCPGui()
 		if CE.data.enabled then
 			resetCorn()
 			applyCorn()
@@ -10126,6 +10131,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 	NAgui.addToggle("Override Text Font", FontEditor.data.enabled, function(v)
 		FontEditor.data.enabled = v
 		refreshFontConnections()
+		monitorFontPlayerGui()
 		if FontEditor.data.enabled then
 			restoreAllFonts()
 			applyAllFonts()
@@ -82941,11 +82947,11 @@ if CoreGui then
 		local BuilderIconEditor = {
 			path = NAfiles.NAFILEPATH.."/BuilderIconsEditor.json",
 			default = {
-				enabled = true,
+				enabled = false,
 				overrides = {},
 			},
 			data = {
-				enabled = true,
+				enabled = false,
 				overrides = {},
 			},
 			entries = {},
@@ -83087,7 +83093,7 @@ if CoreGui then
 
 		local function normalizeBuilderIconData(raw)
 			local out = {
-				enabled = true,
+				enabled = false,
 				overrides = {},
 			}
 			if type(raw) ~= "table" then
@@ -83867,11 +83873,13 @@ if CoreGui then
 			BuilderIconEditor.data.enabled = enabled
 			saveBuilderIconData()
 			if enabled then
+				connectBuilderIconWatchers()
 				queueSavedBuilderIconReapply({
 					delay = 0.05,
 					refreshDropdown = true,
 				})
 			else
+				disconnectBuilderIconWatchers()
 				restoreAppliedBuilderIconOverrides()
 				BuilderIconEditor.pendingText = BuilderIconEditor.selectedInst and getBuilderIconText(BuilderIconEditor.selectedInst) or BuilderIconEditor.pendingText
 				syncBuilderIconInput()
@@ -84032,7 +84040,11 @@ if CoreGui then
 			refreshDropdown = false,
 		})
 
-		connectBuilderIconWatchers()
+		if BuilderIconEditor.data.enabled == true then
+			connectBuilderIconWatchers()
+		else
+			disconnectBuilderIconWatchers()
+		end
 	end
 	initBuilderIconEditor()
 

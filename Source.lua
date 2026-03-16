@@ -8290,16 +8290,18 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 	end
 
 	local function monCPGui()
+		NAlib.disconnect("CornerEditor_PlayerGuiAdded")
+		NAlib.disconnect("CornerEditor_PlayerGuiRemoved")
 		if NAmanage.pgSub then
-			NAlib.disconnect("CornerEditor_PlayerGuiAdded")
-			NAlib.disconnect("CornerEditor_PlayerGuiRemoved")
+			return
+		end
+		if not (CE.data.enabled and CE.data.targetPlayerGui) then
 			return
 		end
 		local lp = Players and Players.LocalPlayer
 		if not lp then
 			return
 		end
-		NAlib.disconnect("CornerEditor_PlayerGuiAdded")
 		NAlib.connect("CornerEditor_PlayerGuiAdded", lp.ChildAdded:Connect(function(child)
 			if child:IsA("PlayerGui") then
 				syncCConn()
@@ -8308,7 +8310,6 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 				end
 			end
 		end))
-		NAlib.disconnect("CornerEditor_PlayerGuiRemoved")
 		NAlib.connect("CornerEditor_PlayerGuiRemoved", lp.ChildRemoved:Connect(function(child)
 			if child:IsA("PlayerGui") then
 				syncCConn()
@@ -8323,6 +8324,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		CE.data[field] = value
 		saveCData()
 		syncCConn()
+		monCPGui()
 		if CE.data.enabled then
 			resetCorn()
 			applyCorn()
@@ -9421,7 +9423,6 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		restoring = false,
 		dlBusy = false,
 	}
-
 	local ex = identifyexecutor and identifyexecutor():lower() or ""
 	local isDelta = (ex == "delta")
 
@@ -10014,16 +10015,18 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 	end
 
 	local function monitorFontPlayerGui()
+		NAlib.disconnect("FontEditor_PlayerGuiAdded")
+		NAlib.disconnect("FontEditor_PlayerGuiRemoved")
 		if NAmanage.pgSub then
-			NAlib.disconnect("FontEditor_PlayerGuiAdded")
-			NAlib.disconnect("FontEditor_PlayerGuiRemoved")
+			return
+		end
+		if not (FontEditor.data.enabled and FontEditor.data.targetPlayerGui) then
 			return
 		end
 		local lp = Players and Players.LocalPlayer
 		if not lp then
 			return
 		end
-		NAlib.disconnect("FontEditor_PlayerGuiAdded")
 		NAlib.connect("FontEditor_PlayerGuiAdded", lp.ChildAdded:Connect(function(child)
 			if child:IsA("PlayerGui") then
 				refreshFontConnections()
@@ -10032,7 +10035,6 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 				end
 			end
 		end))
-		NAlib.disconnect("FontEditor_PlayerGuiRemoved")
 		NAlib.connect("FontEditor_PlayerGuiRemoved", lp.ChildRemoved:Connect(function(child)
 			if child:IsA("PlayerGui") then
 				refreshFontConnections()
@@ -10047,6 +10049,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		FontEditor.data[field] = value
 		persistFontData()
 		refreshFontConnections()
+		monitorFontPlayerGui()
 		if FontEditor.data.enabled then
 			restoreAllFonts()
 			applyAllFonts()
@@ -10070,6 +10073,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 	NAgui.addToggle("Override Corner Radius", CE.data.enabled, function(v)
 		CE.data.enabled = v
 		syncCConn()
+		monCPGui()
 		if CE.data.enabled then
 			resetCorn()
 			applyCorn()
@@ -10107,6 +10111,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 	NAgui.addToggle("Override Text Font", FontEditor.data.enabled, function(v)
 		FontEditor.data.enabled = v
 		refreshFontConnections()
+		monitorFontPlayerGui()
 		if FontEditor.data.enabled then
 			restoreAllFonts()
 			applyAllFonts()
@@ -34701,190 +34706,6 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 	end;
 	enable();
 	_na_env.NA_FPS_ACTIVE = true;
-end);
-
-cmd.add({"pingbooster","boostping","lowping"}, {"pingbooster","Applies a best-effort network FastFlag preset, run again to restore"}, function()
-	local title = "PingBooster";
-	local presets = {
-		{ name = "OptimizeNetwork", value = true };
-		{ name = "OptimizeNetworkTransport", value = true };
-		{ name = "OptimizeNetworkRouting", value = true };
-		{ name = "OptimizePingThreshold", value = true };
-		{ name = "QueueDataPingFromSendData", value = true };
-		{ name = "DontCreatePingJob", value = false };
-		{ name = "RenderPerformanceTelemetry", value = false };
-		{ name = "DebugDisableTelemetryEphemeralCounter", value = true };
-		{ name = "DebugDisableTelemetryEphemeralStat", value = true };
-		{ name = "DebugDisableTelemetryEventIngest", value = true };
-		{ name = "DebugDisableTelemetryPoint", value = true };
-		{ name = "DebugDisableTelemetryV2Counter", value = true };
-		{ name = "DebugDisableTelemetryV2Event", value = true };
-		{ name = "DebugDisableTelemetryV2Stat", value = true };
-		{ name = "NetworkLatencyTolerance", value = 0 };
-		{ name = "NetworkPrediction", value = true };
-	};
-	if not (NAFFlags and type(NAFFlags.apply) == "function") then
-		DoNotif("FastFlag helpers are unavailable. Use pingserverhop for an actual ping improvement.", 4, title);
-		return;
-	end;
-	local function snapshotTabFlagState(name)
-		local state = {
-			hasValue = false,
-			value = nil,
-			hasConfig = false,
-			configValue = nil,
-			hasLocked = false,
-			lockedValue = nil
-		};
-		if NAFFlags.values then
-			state.hasValue = NAFFlags.values[name] ~= nil;
-			state.value = NAFFlags.values[name];
-		end;
-		if NAFFlags.config and NAFFlags.config.flags then
-			state.hasConfig = NAFFlags.config.flags[name] ~= nil;
-			state.configValue = NAFFlags.config.flags[name];
-		end;
-		if NAFFlags._lockedDefaults then
-			state.hasLocked = NAFFlags._lockedDefaults[name] ~= nil;
-			state.lockedValue = NAFFlags._lockedDefaults[name];
-		end;
-		return state;
-	end;
-	local function restoreTabFlagState(name, state)
-		if not state then
-			return;
-		end;
-		if NAFFlags.values then
-			NAFFlags.values[name] = state.hasValue and state.value or nil;
-		end;
-		if NAFFlags.config and NAFFlags.config.flags then
-			NAFFlags.config.flags[name] = state.hasConfig and state.configValue or nil;
-		end;
-		if NAFFlags._lockedDefaults then
-			NAFFlags._lockedDefaults[name] = state.hasLocked and state.lockedValue or nil;
-		end;
-	end;
-	local function applyTransientFlag(name, value)
-		local uiState = snapshotTabFlagState(name);
-		local ok, err = NAFFlags.apply(name, value, { allowDisabled = true, silent = true });
-		restoreTabFlagState(name, uiState);
-		return ok, err;
-	end;
-	local function readLiveFlagValue(name, entry)
-		if type(getfflag) ~= "function" then
-			return nil, false;
-		end;
-		local ok, value = pcall(getfflag, name);
-		if not ok then
-			return nil, false;
-		end;
-		if entry and NAFFlags.normalizeValue then
-			local normalized = NAFFlags.normalizeValue(entry, value, { silent = true });
-			if normalized ~= nil then
-				return normalized, true;
-			end;
-		end;
-		if NAFFlags.parseCustomValue then
-			return NAFFlags.parseCustomValue(value), true;
-		end;
-		return value, true;
-	end;
-	if _na_env.NA_PING_ACTIVE then
-		local restored = 0;
-		local failed = 0;
-		local locked = 0;
-		for _, snapshot in ipairs(_na_env.NA_PING_STATE or {}) do
-			local ok, err = applyTransientFlag(snapshot.name, snapshot.value);
-			if ok then
-				restored = restored + 1;
-			else
-				failed = failed + 1;
-				if err == "default-locked" then
-					locked = locked + 1;
-				end;
-			end;
-		end;
-		if type(NAFFlags.save) == "function" then
-			NAFFlags.save();
-		end;
-		local unreadable = tonumber(_na_env.NA_PING_UNREADABLE) or 0;
-		_na_env.NA_PING_ACTIVE = false;
-		_na_env.NA_PING_STATE = nil;
-		_na_env.NA_PING_UNREADABLE = nil;
-		if restored > 0 then
-			DoNotif(Format("Restored %d network flag%s.", restored, restored == 1 and "" or "s"), 3, title);
-		else
-			DoNotif("PingBooster disabled.", 3, title);
-		end;
-		if failed > 0 then
-			DoNotif(Format("%d flag%s could not be restored on this client.", failed, failed == 1 and "" or "s"), 4, title);
-		end;
-		if locked > 0 then
-			DoNotif(Format("%d restore attempt%s hit executor default-locks.", locked, locked == 1 and "" or "s"), 3, title);
-		end;
-		if unreadable > 0 then
-			DoNotif(Format("%d flag%s were never changed because their live values could not be read safely.", unreadable, unreadable == 1 and "" or "s"), 3, title);
-		end;
-		return;
-	end;
-	if not NAFFlags.hasSupport() then
-		DoNotif("Your executor does not support FastFlags. Use pingserverhop for an actual ping improvement.", 4, title);
-		return;
-	end;
-	local snapshots = {};
-	local applied = 0;
-	local skipped = 0;
-	local locked = 0;
-	local unreadable = 0;
-	for _, preset in ipairs(presets) do
-		local entry = NAFFlags.getEntry and NAFFlags.getEntry(preset.name) or nil;
-		local original, canReadLive = readLiveFlagValue(preset.name, entry);
-		if not canReadLive then
-			unreadable = unreadable + 1;
-			skipped = skipped + 1;
-			continue;
-		end;
-		snapshots[#snapshots + 1] = {
-			name = preset.name;
-			value = original;
-		};
-		local ok, err = applyTransientFlag(preset.name, preset.value);
-		if ok then
-			applied = applied + 1;
-		else
-			skipped = skipped + 1;
-			if err == "default-locked" then
-				locked = locked + 1;
-			end;
-		end;
-	end;
-	if type(NAFFlags.save) == "function" then
-		NAFFlags.save();
-	end;
-	if applied <= 0 then
-		DoNotif("No supported network FastFlags were applied on this client.", 4, title);
-		if unreadable > 0 then
-			DoNotif(Format("%d flag%s were skipped because their live values could not be read safely.", unreadable, unreadable == 1 and "" or "s"), 3, title);
-		end;
-		if locked > 0 then
-			DoNotif(Format("%d flag%s are default-locked on this executor.", locked, locked == 1 and "" or "s"), 3, title);
-		end;
-		return;
-	end;
-	_na_env.NA_PING_STATE = snapshots;
-	_na_env.NA_PING_ACTIVE = true;
-	_na_env.NA_PING_UNREADABLE = unreadable;
-	DoNotif(Format("Applied %d network flag%s. Run pingbooster again to restore.", applied, applied == 1 and "" or "s"), 4, title);
-	if skipped > 0 then
-		DoNotif(Format("%d flag%s were skipped.", skipped, skipped == 1 and "" or "s"), 3, title);
-	end;
-	if locked > 0 then
-		DoNotif(Format("%d skipped flag%s are default-locked on this executor.", locked, locked == 1 and "" or "s"), 3, title);
-	end;
-	if unreadable > 0 then
-		DoNotif(Format("%d flag%s were skipped because their live values could not be read safely.", unreadable, unreadable == 1 and "" or "s"), 3, title);
-	end;
-	DoNotif("This is a best-effort preset. Use pingserverhop for actual server-side latency gains.", 4, title);
 end);
 
 NAStuff.annoyLoop = false
@@ -68799,6 +68620,33 @@ NAgui.addDropdown = function(label, values, defaultValue, callback, opts)
 	NAgui._dropdownConnCounter = (NAgui._dropdownConnCounter or 0) + 1
 	local connKey = "NAgui_dropdown:"..DropdownSettings.Name..":"..tostring(NAgui._dropdownConnCounter)
 
+	local function normalizeOption(option)
+		if type(option) == "table" then
+			local rawValue = option.value
+			if rawValue == nil then
+				rawValue = option.id or option.key or option.name or option[1]
+			end
+			local value = tostring(rawValue or "")
+			local rawDisplay = option.display
+			if rawDisplay == nil then
+				rawDisplay = option.text or option.label or rawValue or value
+			end
+			return {
+				value = value,
+				display = tostring(rawDisplay or value),
+				selectedDisplay = tostring(option.selectedDisplay or option.SelectedDisplay or rawDisplay or value),
+				richText = option.richText == true or option.RichText == true,
+			}
+		end
+		local text = tostring(option)
+		return {
+			value = text,
+			display = text,
+			selectedDisplay = text,
+			richText = false,
+		}
+	end
+
 	local function normalizeOptions(raw)
 		local out = {}
 		if type(raw) ~= "table" then
@@ -68807,11 +68655,11 @@ NAgui.addDropdown = function(label, values, defaultValue, callback, opts)
 		local n = #raw
 		if n > 0 then
 			for i = 1, n do
-				out[#out + 1] = tostring(raw[i])
+				out[#out + 1] = normalizeOption(raw[i])
 			end
 		else
 			for _, v in pairs(raw) do
-				out[#out + 1] = tostring(v)
+				out[#out + 1] = normalizeOption(v)
 			end
 		end
 		return out
@@ -68819,7 +68667,99 @@ NAgui.addDropdown = function(label, values, defaultValue, callback, opts)
 
 	DropdownSettings.Options = normalizeOptions(DropdownSettings.Options)
 
-	local dropdown = templates.Dropdown:Clone()
+	local function getOptionRecordByValue(value)
+		local wanted = tostring(value or "")
+		for _, option in ipairs(DropdownSettings.Options) do
+			if option.value == wanted then
+				return option
+			end
+		end
+		return nil
+	end
+
+	local function getOptionDisplay(value)
+		local option = getOptionRecordByValue(value)
+		if option then
+			return option.display
+		end
+		return tostring(value or "")
+	end
+
+	local function getOptionSelectedDisplay(value)
+		local option = getOptionRecordByValue(value)
+		if option then
+			return option.selectedDisplay or option.display
+		end
+		return tostring(value or "")
+	end
+
+	local function hasOptionValue(value)
+		return getOptionRecordByValue(value) ~= nil
+	end
+
+	local function dropdownUsesRichText()
+		if opts and (opts.RichText == true or opts.richText == true) then
+			return true
+		end
+		for _, option in ipairs(DropdownSettings.Options) do
+			if option.richText == true then
+				return true
+			end
+		end
+		return false
+	end
+
+	local dropdown, title, selected, toggle
+	local collapsedHeight, openHeight
+
+	local function resizeSelectedLabel()
+		if not (dropdown and selected and selected:IsA("TextLabel")) then
+			return
+		end
+		local rowWidth = dropdown.AbsoluteSize.X
+		if not rowWidth or rowWidth <= 0 then
+			return
+		end
+
+		local titleWidth = 0
+		if title and title:IsA("TextLabel") then
+			titleWidth = title.TextBounds.X
+		end
+
+		local toggleWidth = 26
+		if toggle and toggle:IsA("GuiObject") then
+			local abs = toggle.AbsoluteSize.X
+			if abs and abs > 0 then
+				toggleWidth = abs
+			end
+		end
+
+		local leftInset = 12
+		local gap = 10
+		local rightInset = 10
+		local selectedLeft = leftInset
+		if title and title:IsA("TextLabel") then
+			local titleStart = title.AbsolutePosition.X - dropdown.AbsolutePosition.X
+			if not titleStart or titleStart < 0 then
+				titleStart = leftInset
+			end
+			selectedLeft = math.max(selectedLeft, math.floor(titleStart + titleWidth + gap + 0.5))
+		end
+		local rightLimit = rowWidth - toggleWidth - rightInset
+		local available = math.max(72, rightLimit - selectedLeft)
+		local selectedHeight = math.max(16, selected.TextBounds.Y > 0 and selected.TextBounds.Y or selected.AbsoluteSize.Y > 0 and selected.AbsoluteSize.Y or 18)
+		local headerYOffset = math.max(0, math.floor((collapsedHeight - selectedHeight) * 0.5))
+
+		selected.AnchorPoint = Vector2.new(1, 0)
+		selected.Position = UDim2.new(0, rightLimit, 0, headerYOffset)
+		selected.Size = UDim2.new(0, available, 0, selectedHeight)
+		selected.TextScaled = false
+		selected.TextWrapped = false
+		selected.TextTruncate = Enum.TextTruncate.AtEnd
+		selected.TextXAlignment = Enum.TextXAlignment.Right
+	end
+
+	dropdown = templates.Dropdown:Clone()
 	if string.find(DropdownSettings.Name, "closed") then
 		dropdown.Name = "Dropdown"
 	else
@@ -68835,9 +68775,9 @@ NAgui.addDropdown = function(label, values, defaultValue, callback, opts)
 		NAgui.RegisterStrokesFrom(dropdown)
 	end
 
-	local title = dropdown:FindFirstChild("Title")
-	local selected = dropdown:FindFirstChild("Selected")
-	local toggle = dropdown:FindFirstChild("Toggle")
+	title = dropdown:FindFirstChild("Title")
+	selected = dropdown:FindFirstChild("Selected")
+	toggle = dropdown:FindFirstChild("Toggle")
 	local interact = dropdown:FindFirstChild("Interact")
 	local list = dropdown:FindFirstChild("List")
 	local listLayout = list and list:FindFirstChildWhichIsA("UIListLayout")
@@ -68875,8 +68815,8 @@ NAgui.addDropdown = function(label, values, defaultValue, callback, opts)
 		listLayout.Parent = list
 	end
 
-	local collapsedHeight = tonumber((opts and opts.CollapsedHeight) or (opts and opts.collapsedHeight)) or 45
-	local openHeight = tonumber((opts and opts.OpenHeight) or (opts and opts.openHeight)) or 180
+	collapsedHeight = tonumber((opts and opts.CollapsedHeight) or (opts and opts.collapsedHeight)) or 45
+	openHeight = tonumber((opts and opts.OpenHeight) or (opts and opts.openHeight)) or 180
 	collapsedHeight = math.max(36, math.floor(collapsedHeight + 0.5))
 	openHeight = math.max(collapsedHeight + 20, math.floor(openHeight + 0.5))
 
@@ -68910,17 +68850,19 @@ NAgui.addDropdown = function(label, values, defaultValue, callback, opts)
 		if not (selected and selected:IsA("TextLabel")) then
 			return
 		end
+		selected.RichText = dropdownUsesRichText()
 		if DropdownSettings.MultipleOptions then
 			if #DropdownSettings.CurrentOption == 1 then
-				selected.Text = tostring(DropdownSettings.CurrentOption[1])
+				selected.Text = getOptionSelectedDisplay(DropdownSettings.CurrentOption[1])
 			elseif #DropdownSettings.CurrentOption == 0 then
 				selected.Text = "None"
 			else
 				selected.Text = "Various"
 			end
 		else
-			selected.Text = tostring(DropdownSettings.CurrentOption[1] or "None")
+			selected.Text = getOptionSelectedDisplay(DropdownSettings.CurrentOption[1] or "None")
 		end
+		resizeSelectedLabel()
 	end
 
 	local function eachOptionRow(fn)
@@ -68933,11 +68875,32 @@ NAgui.addDropdown = function(label, values, defaultValue, callback, opts)
 
 	local function applySelectionColors()
 		eachOptionRow(function(row)
-			local on = table.find(DropdownSettings.CurrentOption, row.Name) ~= nil
+			local optionValue = row:GetAttribute("DropdownValue") or row.Name
+			local on = table.find(DropdownSettings.CurrentOption, optionValue) ~= nil
 			row.BackgroundColor3 = on and selectedColor or unselectedColor
 			local rowStroke = row:FindFirstChild("UIStroke")
 			if rowStroke and rowStroke:IsA("UIStroke") then
 				rowStroke.Transparency = on and 1 or 0
+			end
+		end)
+	end
+
+	local function syncOptionRowVisualState(isOpen)
+		eachOptionRow(function(row)
+			local rowStroke = row:FindFirstChild("UIStroke")
+			local rowTitle = row:FindFirstChild("Title")
+			local optionValue = row:GetAttribute("DropdownValue") or row.Name
+			local isSelected = table.find(DropdownSettings.CurrentOption, optionValue) ~= nil
+			row.BackgroundTransparency = isOpen and 0 or 1
+			if rowTitle and rowTitle:IsA("TextLabel") then
+				rowTitle.TextTransparency = isOpen and 0 or 1
+			end
+			if rowStroke and rowStroke:IsA("UIStroke") then
+				if isOpen then
+					rowStroke.Transparency = isSelected and 1 or 0
+				else
+					rowStroke.Transparency = 1
+				end
 			end
 		end)
 	end
@@ -68954,8 +68917,9 @@ NAgui.addDropdown = function(label, values, defaultValue, callback, opts)
 		eachOptionRow(function(row)
 			local rowStroke = row:FindFirstChild("UIStroke")
 			local rowTitle = row:FindFirstChild("Title")
+			local optionValue = row:GetAttribute("DropdownValue") or row.Name
 			if rowStroke and rowStroke:IsA("UIStroke") then
-				if not table.find(DropdownSettings.CurrentOption, row.Name) then
+				if not table.find(DropdownSettings.CurrentOption, optionValue) then
 					__lt.cm("TweenService", "Create", rowStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
 				end
 			end
@@ -69033,7 +68997,6 @@ NAgui.addDropdown = function(label, values, defaultValue, callback, opts)
 		txt.Size = UDim2.new(1, -20, 0, 14)
 		txt.BackgroundTransparency = 1
 		txt.TextXAlignment = Enum.TextXAlignment.Left
-		txt.TextScaled = true
 		txt.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
 		txt.TextColor3 = Color3.fromRGB(245, 245, 250)
 		txt.Parent = row
@@ -69077,17 +69040,21 @@ NAgui.addDropdown = function(label, values, defaultValue, callback, opts)
 		if templateRow and templateRow:IsA("GuiObject") then
 			templateRow.Visible = false
 		end
-		for _, option in ipairs(DropdownSettings.Options) do
-			local optionText = tostring(option)
+		for index, option in ipairs(DropdownSettings.Options) do
+			local optionValue = tostring(option.value or "")
+			local optionDisplay = tostring(option.display or optionValue)
+			local optionRichText = option.richText == true or (opts and (opts.RichText == true or opts.richText == true))
 			local row = (templateRow and templateRow:Clone()) or makeFallbackTemplate()
-			row.Name = optionText
+			row.Name = "Option_"..tostring(index)
+			row:SetAttribute("DropdownValue", optionValue)
 			row.Visible = true
 			row.Parent = list
 			local rowTitle = row:FindFirstChild("Title")
 			local rowInteract = row:FindFirstChild("Interact")
 			local rowStroke = row:FindFirstChild("UIStroke")
 			if rowTitle and rowTitle:IsA("TextLabel") then
-				rowTitle.Text = optionText
+				rowTitle.Text = optionDisplay
+				rowTitle.RichText = optionRichText
 				rowTitle.TextTransparency = 1
 			end
 			if rowStroke and rowStroke:IsA("UIStroke") then
@@ -69106,18 +69073,18 @@ NAgui.addDropdown = function(label, values, defaultValue, callback, opts)
 			rowInteract.ZIndex = 50
 
 			MouseButtonFix(rowInteract, function()
-				if not DropdownSettings.MultipleOptions and table.find(DropdownSettings.CurrentOption, optionText) then
+				if not DropdownSettings.MultipleOptions and table.find(DropdownSettings.CurrentOption, optionValue) then
 					return
 				end
 
-				local idx = table.find(DropdownSettings.CurrentOption, optionText)
+				local idx = table.find(DropdownSettings.CurrentOption, optionValue)
 				if idx then
 					table.remove(DropdownSettings.CurrentOption, idx)
 				else
 					if not DropdownSettings.MultipleOptions then
 						table.clear(DropdownSettings.CurrentOption)
 					end
-					table.insert(DropdownSettings.CurrentOption, optionText)
+					table.insert(DropdownSettings.CurrentOption, optionValue)
 				end
 
 				updateSelectedText()
@@ -69131,6 +69098,7 @@ NAgui.addDropdown = function(label, values, defaultValue, callback, opts)
 			end)
 		end
 		applySelectionColors()
+		syncOptionRowVisualState(list.Visible == true)
 	end
 
 	updateSelectedText()
@@ -69138,6 +69106,21 @@ NAgui.addDropdown = function(label, values, defaultValue, callback, opts)
 	if toggle and toggle:IsA("GuiObject") then
 		toggle.Rotation = 180
 	end
+
+	pcall(function()
+		NAlib.connect(connKey, dropdown:GetPropertyChangedSignal("AbsoluteSize"):Connect(resizeSelectedLabel))
+	end)
+	if title and title:IsA("TextLabel") then
+		pcall(function()
+			NAlib.connect(connKey, title:GetPropertyChangedSignal("TextBounds"):Connect(resizeSelectedLabel))
+		end)
+	end
+	if selected and selected:IsA("TextLabel") then
+		pcall(function()
+			NAlib.connect(connKey, selected:GetPropertyChangedSignal("TextBounds"):Connect(resizeSelectedLabel))
+		end)
+	end
+	resizeSelectedLabel()
 
 	MouseButtonFix(interact, toggleDropdown)
 	if toggle and toggle:IsA("GuiButton") then
@@ -69173,7 +69156,7 @@ NAgui.addDropdown = function(label, values, defaultValue, callback, opts)
 		DropdownSettings.Options = normalizeOptions(optionsTable)
 		for i = #DropdownSettings.CurrentOption, 1, -1 do
 			local val = DropdownSettings.CurrentOption[i]
-			if not table.find(DropdownSettings.Options, val) then
+			if not hasOptionValue(val) then
 				table.remove(DropdownSettings.CurrentOption, i)
 			end
 		end
@@ -75484,8 +75467,8 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 				if NAmanage and NAmanage.lpProf then
 					budget, waitDelay = NAmanage.lpProf(35, {
 						delay = 0,
-						ldSc = 0.35,
-						ldDel = 0.012,
+						ldSc = 0.22,
+						ldDel = 0.014,
 					});
 				else
 					budget, waitDelay = 35, 0
@@ -75560,8 +75543,8 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 				if NAmanage and NAmanage.lpProf then
 					budget, waitDelay = NAmanage.lpProf(120, {
 						delay = 0,
-						ldSc = 0.4,
-						ldDel = 0.008,
+						ldSc = 0.22,
+						ldDel = 0.014,
 					});
 				else
 					budget, waitDelay = 120, 0
@@ -75742,7 +75725,7 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 							return true
 						end,
 					}))
-				elseif root:IsA("PlayerGui") and NAmanage.pgSub then
+				elseif root ~= CoreGui and NAmanage.pgSub then
 					NAlib.connect("NA_FriendLabel_PlayerGui", NAmanage.pgSub({
 						added = function(o)
 							qDesc(o, true, nil, nil, nil);
@@ -75758,7 +75741,8 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 						end,
 					}))
 				elseif NAmanage.descSub then
-					NAlib.connect("NA_FriendLabel_CoreGui", NAmanage.descSub(root, {
+					local connName = root == CoreGui and "NA_FriendLabel_CoreGui" or "NA_FriendLabel_PlayerGui"
+					NAlib.connect(connName, NAmanage.descSub(root, {
 						added = function(o)
 							qDesc(o, true, nil, nil, nil);
 						end,
@@ -82773,7 +82757,7 @@ if CoreGui then
 		PT.processing = true
 		coroutine.wrap(function()
 			while PT.queueHead <= PT.queueTail do
-				local budget = 80
+				local budget = 40
 				while budget > 0 and PT.queueHead <= PT.queueTail do
 					local o = PT.queue[PT.queueHead]
 					PT.queue[PT.queueHead] = nil
@@ -82938,6 +82922,1111 @@ if CoreGui then
 			writefile(PT.path, HttpService:JSONEncode(PT.data))
 		end
 	end)
+
+	local function initBuilderIconEditor()
+		local BuilderIconEditor = {
+			path = NAfiles.NAFILEPATH.."/BuilderIconsEditor.json",
+			default = {
+				enabled = false,
+				overrides = {},
+			},
+			data = {
+				enabled = false,
+				overrides = {},
+			},
+			entries = {},
+			entryPaths = {},
+			liveTargets = {},
+			selectedLabel = "None",
+			selectedDisplay = "None",
+			selectedPath = nil,
+			selectedInst = nil,
+			pendingText = "",
+			originalText = {},
+			refreshQueued = false,
+			reapplyQueued = false,
+			catalogUrl = "https://raw.githubusercontent.com/ltseverydayyou/ltseverydayyou.github.io/refs/heads/main/.well-known/buildericons/icons.json",
+			catalogPlaceholder = "Select BuilderIcon",
+			catalogLoadingLabel = "Loading BuilderIcons...",
+			catalogEntries = {},
+			catalogOptions = {},
+			catalogLookupByText = {},
+			catalogLookupByStyle = {
+				regular = {},
+				filled = {},
+			},
+			catalogLoading = false,
+			catalogLoaded = false,
+			catalogError = nil,
+			selectedIconLabel = "Loading BuilderIcons...",
+			watchersEnabled = false,
+		}
+		BuilderIconEditor.originalText = setmetatable(BuilderIconEditor.originalText, {
+			__mode = "k",
+		})
+		BuilderIconEditor.liveTargets = setmetatable(BuilderIconEditor.liveTargets, {
+			__mode = "k",
+		})
+		local builderIconDropdownLabel = "BuilderIcon Target"
+		local builderIconInputLabel = "Custom BuilderIcon"
+
+		local function isBuilderIconTarget(o)
+			if not (o and o.Parent) then
+				return false
+			end
+			if HUI and o:IsDescendantOf(HUI) then
+				return false
+			end
+			if not (o:IsA("TextLabel") or o:IsA("TextButton")) then
+				return false
+			end
+			local ff = NAlib.isProperty(o, "FontFace")
+			local ffType = ff and typeof(ff) or nil
+			local family = ff and ff.Family or nil
+			return (ffType == "Font" or ffType == "FontFace")
+				and type(family) == "string"
+				and family:find("BuilderIcons/BuilderIcons.json", 1, true) ~= nil
+		end
+
+		local function getBuilderIconSelectionValue(selection)
+			local value = selection
+			if type(value) == "table" then
+				value = value[1]
+			end
+			if type(value) ~= "string" then
+				return nil
+			end
+			value = value:match("^%s*(.-)%s*$")
+			if not value or value == "" or Lower(value) == "none" then
+				return nil
+			end
+			return value
+		end
+
+		local function getBuilderIconText(inst)
+			local text = NAlib.isProperty(inst, "Text")
+			if type(text) ~= "string" then
+				return ""
+			end
+			return text
+		end
+
+		local resolveBuilderIconDisplayText
+		local findBuilderIconCatalogLabelByText
+		local getBuilderIconTextTokenForEntry
+
+		local function getBuilderIconPreviewText(text)
+			text = tostring(text or "")
+			text = text:gsub("[\r\n\t]", " ")
+			if text == "" then
+				return "<empty>"
+			end
+			if #text > 14 then
+				return text:sub(1, 14) .. "..."
+			end
+			return text
+		end
+
+		local function getBuilderIconPath(inst)
+			local parts = {}
+			local current = inst
+			local depth = 0
+			while current and depth < 64 do
+				Insert(parts, 1, tostring(current.Name or current.ClassName))
+				if current == CoreGui then
+					break
+				end
+				current = current.Parent
+				depth += 1
+			end
+			return Concat(parts, "/")
+		end
+
+		local function makeBuilderIconLabel(inst)
+			local currentText = getBuilderIconText(inst)
+			local originalText = BuilderIconEditor.originalText[inst]
+			if type(originalText) ~= "string" or originalText == "" then
+				originalText = currentText
+			end
+			local originalDisplay = resolveBuilderIconDisplayText and resolveBuilderIconDisplayText(originalText) or getBuilderIconPreviewText(originalText)
+			if currentText ~= originalText then
+				local modifiedDisplay = resolveBuilderIconDisplayText and resolveBuilderIconDisplayText(currentText) or getBuilderIconPreviewText(currentText)
+				return Format("%s | %s | %s", originalDisplay, modifiedDisplay, getBuilderIconPath(inst))
+			end
+			return Format("%s | %s", originalDisplay, getBuilderIconPath(inst))
+		end
+
+		local function isTrackedBuilderIconTarget(o)
+			if o == BuilderIconEditor.selectedInst then
+				return true
+			end
+			if BuilderIconEditor.originalText[o] ~= nil then
+				return true
+			end
+			for _, inst in pairs(BuilderIconEditor.entries) do
+				if inst == o then
+					return true
+				end
+			end
+			return false
+		end
+
+		local function normalizeBuilderIconData(raw)
+			local out = {
+				enabled = false,
+				overrides = {},
+			}
+			if type(raw) ~= "table" then
+				return out
+			end
+			if type(raw.enabled) == "boolean" then
+				out.enabled = raw.enabled
+			end
+			local overrides = raw.overrides
+			if type(overrides) == "table" then
+				for path, text in pairs(overrides) do
+					if type(path) == "string" and path ~= "" and type(text) == "string" then
+						out.overrides[path] = text
+					end
+				end
+			end
+			return out
+		end
+
+		local function saveBuilderIconData()
+			if not FileSupport then
+				return
+			end
+			pcall(function()
+				writefile(BuilderIconEditor.path, HttpService:JSONEncode(BuilderIconEditor.data))
+			end)
+		end
+
+		local function loadBuilderIconData()
+			BuilderIconEditor.data = normalizeBuilderIconData(BuilderIconEditor.default)
+			if not FileSupport then
+				return
+			end
+			if not isfile(BuilderIconEditor.path) then
+				saveBuilderIconData()
+				return
+			end
+			local okRead, raw = pcall(readfile, BuilderIconEditor.path)
+			if not okRead or type(raw) ~= "string" or raw == "" then
+				saveBuilderIconData()
+				return
+			end
+			local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+			if okDecode then
+				BuilderIconEditor.data = normalizeBuilderIconData(decoded)
+			else
+				saveBuilderIconData()
+			end
+		end
+
+		local function getSavedBuilderIconTextForPath(path)
+			local overrides = BuilderIconEditor.data and BuilderIconEditor.data.overrides
+			if type(overrides) ~= "table" then
+				return nil
+			end
+			local value = overrides[path]
+			if type(value) ~= "string" then
+				return nil
+			end
+			return value
+		end
+
+		local function setSavedBuilderIconOverride(path, text)
+			if type(path) ~= "string" or path == "" then
+				return
+			end
+			BuilderIconEditor.data.overrides[path] = tostring(text or "")
+			saveBuilderIconData()
+		end
+
+		local function clearSavedBuilderIconOverride(path)
+			if type(path) ~= "string" or path == "" then
+				return
+			end
+			if BuilderIconEditor.data.overrides[path] == nil then
+				return
+			end
+			BuilderIconEditor.data.overrides[path] = nil
+			saveBuilderIconData()
+		end
+
+		local function clearAllSavedBuilderIconOverrides()
+			BuilderIconEditor.data.overrides = {}
+			saveBuilderIconData()
+		end
+
+		local function hasSavedBuilderIconOverrides()
+			return type(BuilderIconEditor.data) == "table"
+				and type(BuilderIconEditor.data.overrides) == "table"
+				and next(BuilderIconEditor.data.overrides) ~= nil
+		end
+
+		local function restoreAppliedBuilderIconOverrides()
+			local restoredAny = false
+			for inst, original in pairs(BuilderIconEditor.originalText) do
+				if type(original) == "string" and inst and inst.Parent and isBuilderIconTarget(inst) then
+					if getBuilderIconText(inst) ~= original then
+						pcall(function()
+							inst.Text = original
+						end)
+						restoredAny = true
+					end
+				end
+			end
+			return restoredAny
+		end
+
+		local function applySavedBuilderIconOverrideToInstance(inst)
+			if BuilderIconEditor.data.enabled ~= true then
+				return false
+			end
+			if not isBuilderIconTarget(inst) then
+				return false
+			end
+			local path = getBuilderIconPath(inst)
+			local savedText = getSavedBuilderIconTextForPath(path)
+			if type(savedText) ~= "string" then
+				return false
+			end
+			if BuilderIconEditor.originalText[inst] == nil then
+				BuilderIconEditor.originalText[inst] = getBuilderIconText(inst)
+			end
+			if getBuilderIconText(inst) ~= savedText then
+				pcall(function()
+					inst.Text = savedText
+				end)
+			end
+			return true
+		end
+
+		local function applySavedBuilderIconOverrides()
+			if BuilderIconEditor.data.enabled ~= true then
+				return false, false
+			end
+			if not hasSavedBuilderIconOverrides() then
+				return false, false
+			end
+			local foundAny = false
+			local appliedAny = false
+			local desc = CoreGui:QueryDescendants("Instance")
+			for i = 1, #desc do
+				local inst = desc[i]
+				if isBuilderIconTarget(inst) then
+					local path = getBuilderIconPath(inst)
+					if getSavedBuilderIconTextForPath(path) ~= nil then
+						foundAny = true
+						if applySavedBuilderIconOverrideToInstance(inst) then
+							appliedAny = true
+						end
+					end
+				end
+			end
+			return foundAny, appliedAny
+		end
+
+		local function hasPendingSavedBuilderIconPaths()
+			if BuilderIconEditor.data.enabled ~= true then
+				return false
+			end
+			if not hasSavedBuilderIconOverrides() then
+				return false
+			end
+			local foundPaths = {}
+			local desc = CoreGui:QueryDescendants("Instance")
+			for i = 1, #desc do
+				local inst = desc[i]
+				if isBuilderIconTarget(inst) then
+					foundPaths[getBuilderIconPath(inst)] = true
+				end
+			end
+			for path in pairs(BuilderIconEditor.data.overrides) do
+				if not foundPaths[path] then
+					return true
+				end
+			end
+			return false
+		end
+
+		local refreshBuilderIconDropdown
+
+		local function collectBuilderIconLiveTargets()
+			local found = {}
+			local seen = {}
+			for inst in pairs(BuilderIconEditor.liveTargets) do
+				if isBuilderIconTarget(inst) and not seen[inst] then
+					seen[inst] = true
+					found[#found + 1] = inst
+				else
+					BuilderIconEditor.liveTargets[inst] = nil
+				end
+			end
+			return found
+		end
+
+		local function queueSavedBuilderIconReapply(opts)
+			opts = opts or {}
+			if BuilderIconEditor.reapplyQueued then
+				return
+			end
+			BuilderIconEditor.reapplyQueued = true
+			Delay(opts.delay or 0.2, function()
+				BuilderIconEditor.reapplyQueued = false
+				local _, appliedAny = applySavedBuilderIconOverrides()
+				if appliedAny and opts.refreshDropdown == true and NAgui and NAgui._dropdownRegistry and NAgui._dropdownRegistry[builderIconDropdownLabel] then
+					refreshBuilderIconDropdown({
+						keepInstance = BuilderIconEditor.selectedInst,
+						syncText = false,
+					})
+				end
+				if opts.repeatPending == true and hasPendingSavedBuilderIconPaths() then
+					queueSavedBuilderIconReapply({
+						refreshDropdown = opts.refreshDropdown == true,
+						repeatPending = true,
+						delay = 1,
+					})
+				end
+			end)
+		end
+
+		local function getBuilderIconCatalogSelectionValue(selection)
+			local value = selection
+			if type(value) == "table" then
+				value = value[1]
+			end
+			if type(value) ~= "string" then
+				return nil
+			end
+			value = value:match("^%s*(.-)%s*$")
+			if not value or value == "" then
+				return nil
+			end
+			if value == BuilderIconEditor.catalogPlaceholder or value == BuilderIconEditor.catalogLoadingLabel then
+				return nil
+			end
+			return value
+		end
+
+		local function normalizeBuilderIconCatalog(raw)
+			local catalog = raw
+			if type(raw) == "table" and type(raw.icons) == "table" then
+				catalog = raw.icons
+			end
+			if type(catalog) ~= "table" then
+				return {}
+			end
+
+			local sourceEntries = {}
+			if #catalog > 0 then
+				for _, entry in ipairs(catalog) do
+					sourceEntries[#sourceEntries + 1] = entry
+				end
+			else
+				for _, entry in pairs(catalog) do
+					if type(entry) == "table" then
+						sourceEntries[#sourceEntries + 1] = entry
+					end
+				end
+			end
+
+			local out = {}
+			for _, entry in ipairs(sourceEntries) do
+				if type(entry) == "table" then
+					local name = entry.name or entry.label or entry.components
+					local styles = {}
+					if type(entry.styles) == "table" then
+						for _, styleName in ipairs({ "regular", "filled" }) do
+							local styleEntry = entry.styles[styleName]
+							if type(styleEntry) == "table" then
+								local character = styleEntry.character or styleEntry.glyph or styleEntry.text
+								if type(character) == "string" and character ~= "" then
+									styles[styleName] = character
+								end
+							elseif type(styleEntry) == "string" and styleEntry ~= "" then
+								styles[styleName] = styleEntry
+							end
+						end
+					end
+					if type(name) == "string" and name ~= "" and next(styles) ~= nil then
+						out[#out + 1] = {
+							name = name,
+							components = type(entry.components) == "string" and entry.components or name,
+							styles = styles,
+						}
+					end
+				end
+			end
+
+			table.sort(out, function(a, b)
+				local left = Lower(a.name or a.components or "")
+				local right = Lower(b.name or b.components or "")
+				if left == right then
+					return tostring(a.components or "") < tostring(b.components or "")
+				end
+				return left < right
+			end)
+
+			return out
+		end
+
+		local function escapeBuilderIconRichText(text)
+			text = tostring(text or "")
+			text = text:gsub("&", "&amp;")
+			text = text:gsub("<", "&lt;")
+			text = text:gsub(">", "&gt;")
+			text = text:gsub('"', "&quot;")
+			text = text:gsub("'", "&apos;")
+			return text
+		end
+
+		local function getBuilderIconCatalogEntryByText(text)
+			local matched = findBuilderIconCatalogLabelByText(text)
+			if type(matched) ~= "string" or matched == "" then
+				return nil
+			end
+			local entry = BuilderIconEditor.catalogEntries and BuilderIconEditor.catalogEntries[matched]
+			if type(entry) ~= "table" then
+				return nil
+			end
+			return entry
+		end
+
+		local function makeBuilderIconRichSegment(text)
+			local entry = getBuilderIconCatalogEntryByText(text)
+			if type(entry) == "table" then
+				local token = getBuilderIconTextTokenForEntry(entry)
+				if type(token) == "string" and token ~= "" then
+					return Format(
+						'<font family="rbxasset://LuaPackages/Packages/_Index/BuilderIcons/BuilderIcons/BuilderIcons.json">%s</font>',
+						escapeBuilderIconRichText(token)
+					)
+				end
+			end
+			local preview = resolveBuilderIconDisplayText and resolveBuilderIconDisplayText(text) or getBuilderIconPreviewText(text)
+			return escapeBuilderIconRichText(preview)
+		end
+
+		local function makeBuilderIconDisplayLabel(inst)
+			local currentText = getBuilderIconText(inst)
+			local originalText = BuilderIconEditor.originalText[inst]
+			if type(originalText) ~= "string" or originalText == "" then
+				originalText = currentText
+			end
+			local pathDisplay = escapeBuilderIconRichText(getBuilderIconPath(inst))
+			local originalDisplay = makeBuilderIconRichSegment(originalText)
+			if currentText ~= originalText then
+				local modifiedDisplay = makeBuilderIconRichSegment(currentText)
+				return Format("%s | %s | %s", originalDisplay, modifiedDisplay, pathDisplay)
+			end
+			return Format("%s | %s", originalDisplay, pathDisplay)
+		end
+
+		local function rebuildBuilderIconCatalog(entries)
+			local options = {}
+			local catalogEntries = {}
+			local lookupByText = {}
+			local lookupByStyle = {
+				regular = {},
+				filled = {},
+			}
+			local labelCount = {}
+
+			for _, entry in ipairs(entries) do
+				local baseLabel = entry.name or entry.components or "BuilderIcon"
+				labelCount[baseLabel] = (labelCount[baseLabel] or 0) + 1
+				local label = baseLabel
+				if labelCount[baseLabel] > 1 then
+					label = baseLabel .. " #" .. tostring(labelCount[baseLabel])
+				end
+				entry.label = label
+				catalogEntries[label] = entry
+				if type(entry.components) == "string" and entry.components ~= "" then
+					lookupByText[entry.components] = label
+				end
+				if type(entry.name) == "string" and entry.name ~= "" then
+					lookupByText[entry.name] = label
+				end
+				local token = type(entry.components) == "string" and entry.components ~= "" and entry.components or baseLabel
+				local richDisplay = Format(
+					'<font family="rbxasset://LuaPackages/Packages/_Index/BuilderIcons/BuilderIcons/BuilderIcons.json">%s</font>  %s',
+					escapeBuilderIconRichText(token),
+					escapeBuilderIconRichText(label)
+				)
+				options[#options + 1] = {
+					value = label,
+					display = richDisplay,
+					selectedDisplay = richDisplay,
+					richText = true,
+				}
+				for styleName, character in pairs(entry.styles or {}) do
+					if type(character) == "string" and character ~= "" and type(lookupByStyle[styleName]) == "table" then
+						lookupByStyle[styleName][character] = label
+					end
+				end
+			end
+
+			BuilderIconEditor.catalogEntries = catalogEntries
+			BuilderIconEditor.catalogOptions = options
+			BuilderIconEditor.catalogLookupByText = lookupByText
+			BuilderIconEditor.catalogLookupByStyle = lookupByStyle
+			BuilderIconEditor.catalogLoaded = #entries > 0
+			BuilderIconEditor.catalogError = (#entries > 0) and nil or "No BuilderIcons available."
+		end
+
+		getBuilderIconTextTokenForEntry = function(entry)
+			if type(entry) ~= "table" then
+				return nil
+			end
+			local components = entry.components
+			if type(components) == "string" and components ~= "" then
+				return components
+			end
+			local name = entry.name
+			if type(name) == "string" and name ~= "" then
+				return name
+			end
+			return nil
+		end
+
+		findBuilderIconCatalogLabelByText = function(text)
+			if type(text) ~= "string" or text == "" then
+				return nil
+			end
+			local byText = BuilderIconEditor.catalogLookupByText
+			if type(byText) == "table" and byText[text] then
+				return byText[text]
+			end
+			for label, entry in pairs(BuilderIconEditor.catalogEntries or {}) do
+				if type(entry) == "table" then
+					if entry.components == text or entry.name == text then
+						return label
+					end
+				end
+			end
+			for _, lookup in pairs(BuilderIconEditor.catalogLookupByStyle or {}) do
+				if type(lookup) == "table" and lookup[text] then
+					return lookup[text]
+				end
+			end
+			return nil
+		end
+
+		resolveBuilderIconDisplayText = function(text)
+			local matched = findBuilderIconCatalogLabelByText(text)
+			if type(matched) == "string" and matched ~= "" then
+				return matched
+			end
+			return getBuilderIconPreviewText(text)
+		end
+
+		local syncBuilderIconInput
+
+		local function getVisibleBuilderIconCatalogOptions()
+			local selectedLabel = BuilderIconEditor.selectedIconLabel
+			local visible = {}
+			for _, option in ipairs(BuilderIconEditor.catalogOptions or {}) do
+				if type(option) == "table" then
+					if option.value ~= selectedLabel then
+						visible[#visible + 1] = option
+					end
+				else
+					visible[#visible + 1] = option
+				end
+			end
+			return visible
+		end
+
+		local function syncBuilderIconCatalogDropdown()
+			if NAgui.setDropdownOptions then
+				NAgui.setDropdownOptions(builderIconInputLabel, getVisibleBuilderIconCatalogOptions())
+			end
+			if syncBuilderIconInput then
+				syncBuilderIconInput()
+			end
+		end
+
+		local function fetchBuilderIconCatalog(opts)
+			opts = opts or {}
+			if BuilderIconEditor.catalogLoading then
+				return
+			end
+			BuilderIconEditor.catalogLoading = true
+			BuilderIconEditor.catalogError = nil
+			BuilderIconEditor.catalogLoaded = false
+			BuilderIconEditor.catalogOptions = {}
+			BuilderIconEditor.catalogEntries = {}
+			BuilderIconEditor.catalogLookupByText = {}
+			BuilderIconEditor.catalogLookupByStyle = {
+				regular = {},
+				filled = {},
+			}
+			syncBuilderIconCatalogDropdown()
+
+			Spawn(function()
+				local okHttp, raw = pcall(function()
+					return game:HttpGet(BuilderIconEditor.catalogUrl)
+				end)
+				if not (okHttp and type(raw) == "string" and raw ~= "") then
+					BuilderIconEditor.catalogLoading = false
+					BuilderIconEditor.catalogError = "Unable to fetch BuilderIcons catalog."
+					BuilderIconEditor.catalogOptions = {}
+					syncBuilderIconCatalogDropdown()
+					if opts.notify ~= false then
+						DoNotif(BuilderIconEditor.catalogError, 3)
+					end
+					return
+				end
+
+				local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+				if not (okDecode and type(decoded) == "table") then
+					BuilderIconEditor.catalogLoading = false
+					BuilderIconEditor.catalogError = "Invalid BuilderIcons catalog."
+					BuilderIconEditor.catalogOptions = {}
+					syncBuilderIconCatalogDropdown()
+					if opts.notify ~= false then
+						DoNotif(BuilderIconEditor.catalogError, 3)
+					end
+					return
+				end
+
+				local entries = normalizeBuilderIconCatalog(decoded)
+				BuilderIconEditor.catalogLoading = false
+				rebuildBuilderIconCatalog(entries)
+				if not BuilderIconEditor.catalogLoaded then
+					BuilderIconEditor.catalogOptions = {}
+					syncBuilderIconCatalogDropdown()
+					if opts.notify ~= false then
+						DoNotif(BuilderIconEditor.catalogError or "No BuilderIcons available.", 3)
+					end
+					return
+				end
+
+				syncBuilderIconCatalogDropdown()
+				if refreshBuilderIconDropdown then
+					refreshBuilderIconDropdown({
+						keepInstance = BuilderIconEditor.selectedInst,
+						syncText = false,
+					})
+				end
+				if opts.notify then
+					DoNotif("BuilderIcon list refreshed.", 2)
+				end
+			end)
+		end
+
+		syncBuilderIconInput = function()
+			local selectedLabel = BuilderIconEditor.catalogPlaceholder
+			if BuilderIconEditor.catalogLoading then
+				selectedLabel = BuilderIconEditor.catalogLoadingLabel
+			elseif BuilderIconEditor.catalogLoaded then
+				local matched = findBuilderIconCatalogLabelByText(BuilderIconEditor.pendingText or "")
+				if type(matched) == "string" and matched ~= "" then
+					selectedLabel = matched
+				end
+			end
+			BuilderIconEditor.selectedIconLabel = selectedLabel
+			if NAgui.setDropdownValue then
+				NAgui.setDropdownValue(builderIconInputLabel, selectedLabel, {
+					fire = false,
+				})
+			end
+		end
+
+		refreshBuilderIconDropdown = function(opts)
+			opts = opts or {}
+			local previousInst = BuilderIconEditor.selectedInst
+			local previousLabel = BuilderIconEditor.selectedLabel
+			local previousDisplay = BuilderIconEditor.selectedDisplay
+			local previousPath = BuilderIconEditor.selectedPath
+			local keepInst = opts.keepInstance
+			if keepInst == nil then
+				keepInst = previousInst
+			end
+
+			local found = {}
+			local entries = {}
+			local entryPaths = {}
+			if opts.fullScan == true then
+				local desc = CoreGui:QueryDescendants("Instance")
+				BuilderIconEditor.liveTargets = setmetatable({}, {
+					__mode = "k",
+				})
+				for i = 1, #desc do
+					local inst = desc[i]
+					if isBuilderIconTarget(inst) then
+						BuilderIconEditor.liveTargets[inst] = true
+						Insert(found, inst)
+					end
+				end
+			else
+				found = collectBuilderIconLiveTargets()
+			end
+			table.sort(found, function(a, b)
+				local aPath = getBuilderIconPath(a)
+				local bPath = getBuilderIconPath(b)
+				if aPath == bPath then
+					return getBuilderIconText(a) < getBuilderIconText(b)
+				end
+				return aPath < bPath
+			end)
+
+			local labels = {}
+			local labelCount = {}
+			local selectedLabel = nil
+			local selectedDisplay = nil
+			local selectedPath = nil
+			for i = 1, #found do
+				local inst = found[i]
+				local path = getBuilderIconPath(inst)
+				local base = makeBuilderIconLabel(inst)
+				local display = makeBuilderIconDisplayLabel(inst)
+				labelCount[base] = (labelCount[base] or 0) + 1
+				local label = base
+				if labelCount[base] > 1 then
+					label = base .. " #" .. tostring(labelCount[base])
+				end
+				entries[label] = inst
+				entryPaths[label] = path
+				labels[#labels + 1] = {
+					value = label,
+					display = display,
+					selectedDisplay = display,
+					richText = true,
+				}
+				if inst == keepInst or (keepInst == nil and type(previousPath) == "string" and previousPath ~= "" and previousPath == path) then
+					selectedLabel = label
+					selectedDisplay = display
+					selectedPath = path
+				end
+			end
+
+			local keepMissingSelection = keepInst == nil
+				and type(previousPath) == "string"
+				and previousPath ~= ""
+				and selectedPath == nil
+				and type(previousLabel) == "string"
+				and previousLabel ~= ""
+				and type(previousDisplay) == "string"
+				and previousDisplay ~= ""
+
+			if keepMissingSelection then
+				table.insert(labels, 1, {
+					value = previousLabel,
+					display = previousDisplay,
+					selectedDisplay = previousDisplay,
+					richText = true,
+				})
+				selectedLabel = previousLabel
+				selectedDisplay = previousDisplay
+				selectedPath = previousPath
+				BuilderIconEditor.selectedInst = nil
+				BuilderIconEditor.selectedLabel = selectedLabel
+				BuilderIconEditor.selectedDisplay = selectedDisplay
+				BuilderIconEditor.selectedPath = selectedPath
+			elseif #labels == 0 then
+				labels = { "None" }
+				entries = {}
+				entryPaths = {}
+				selectedLabel = "None"
+				selectedDisplay = "None"
+				selectedPath = nil
+				BuilderIconEditor.selectedInst = nil
+				BuilderIconEditor.selectedLabel = selectedLabel
+				BuilderIconEditor.selectedDisplay = selectedDisplay
+				BuilderIconEditor.selectedPath = selectedPath
+				if opts.syncText ~= false then
+					BuilderIconEditor.pendingText = ""
+				end
+			else
+				if not selectedLabel then
+					local firstOption = labels[1]
+					if type(firstOption) == "table" then
+						selectedLabel = firstOption.value
+						selectedDisplay = firstOption.selectedDisplay or firstOption.display or selectedLabel
+					else
+						selectedLabel = firstOption
+						selectedDisplay = firstOption
+					end
+					BuilderIconEditor.selectedInst = entries[selectedLabel]
+					selectedPath = entryPaths[selectedLabel]
+				else
+					BuilderIconEditor.selectedInst = entries[selectedLabel]
+					selectedPath = selectedPath or entryPaths[selectedLabel]
+				end
+				BuilderIconEditor.selectedLabel = selectedLabel
+				BuilderIconEditor.selectedDisplay = selectedDisplay or BuilderIconEditor.selectedDisplay or selectedLabel
+				BuilderIconEditor.selectedPath = selectedPath
+				if opts.syncText == true or BuilderIconEditor.selectedInst ~= previousInst then
+					BuilderIconEditor.pendingText = BuilderIconEditor.selectedInst and getBuilderIconText(BuilderIconEditor.selectedInst) or BuilderIconEditor.pendingText
+				end
+			end
+
+			BuilderIconEditor.entries = entries
+			BuilderIconEditor.entryPaths = entryPaths
+			if NAgui.setDropdownOptions then
+				NAgui.setDropdownOptions(builderIconDropdownLabel, labels)
+			end
+			if NAgui.setDropdownValue then
+				NAgui.setDropdownValue(builderIconDropdownLabel, BuilderIconEditor.selectedLabel, {
+					fire = false,
+				})
+			end
+			if opts.syncText ~= false or BuilderIconEditor.selectedInst ~= previousInst then
+				syncBuilderIconInput()
+			end
+		end
+
+		loadBuilderIconData()
+
+		local function queueBuilderIconRefresh(opts)
+			opts = opts or {}
+			if BuilderIconEditor.refreshQueued then
+				return
+			end
+			BuilderIconEditor.refreshQueued = true
+			Delay(opts.delay or 0.15, function()
+				BuilderIconEditor.refreshQueued = false
+				refreshBuilderIconDropdown({
+					keepInstance = BuilderIconEditor.selectedInst,
+					syncText = false,
+				})
+			end)
+		end
+
+		local function disconnectBuilderIconWatchers()
+			if not BuilderIconEditor.watchersEnabled then
+				return
+			end
+			BuilderIconEditor.watchersEnabled = false
+			NAlib.disconnect("BuilderIconEditorAdded")
+			NAlib.disconnect("BuilderIconEditorRemoving")
+		end
+
+		local function connectBuilderIconWatchers()
+			if BuilderIconEditor.watchersEnabled then
+				return
+			end
+			BuilderIconEditor.watchersEnabled = true
+			NAlib.disconnect("BuilderIconEditorAdded")
+			NAlib.disconnect("BuilderIconEditorRemoving")
+			NAlib.connect("BuilderIconEditorAdded", CoreGui.DescendantAdded:Connect(function(o)
+				if not isBuilderIconTarget(o) then
+					return
+				end
+				BuilderIconEditor.liveTargets[o] = true
+				local path = getBuilderIconPath(o)
+				applySavedBuilderIconOverrideToInstance(o)
+				if type(BuilderIconEditor.selectedPath) == "string" and BuilderIconEditor.selectedPath ~= "" and BuilderIconEditor.selectedPath == path then
+					BuilderIconEditor.selectedInst = o
+					BuilderIconEditor.pendingText = getBuilderIconText(o)
+					syncBuilderIconInput()
+				end
+				queueBuilderIconRefresh()
+			end))
+			NAlib.connect("BuilderIconEditorRemoving", CoreGui.DescendantRemoving:Connect(function(o)
+				if not (isBuilderIconTarget(o) or isTrackedBuilderIconTarget(o)) then
+					return
+				end
+				BuilderIconEditor.liveTargets[o] = nil
+				local removedPath = getBuilderIconPath(o)
+				if o == BuilderIconEditor.selectedInst then
+					BuilderIconEditor.selectedInst = nil
+					if type(removedPath) == "string" and removedPath ~= "" then
+						BuilderIconEditor.selectedPath = removedPath
+					end
+				end
+				BuilderIconEditor.originalText[o] = nil
+				queueBuilderIconRefresh()
+			end))
+		end
+
+		NAgui.addSection("BuilderIcon Editor (BETA)")
+		NAgui.addToggle("Use Modified BuilderIcons", BuilderIconEditor.data.enabled == true, function(v)
+			local enabled = v == true
+			if BuilderIconEditor.data.enabled == enabled then
+				return
+			end
+			BuilderIconEditor.data.enabled = enabled
+			saveBuilderIconData()
+			if enabled then
+				connectBuilderIconWatchers()
+				queueSavedBuilderIconReapply({
+					delay = 0.05,
+					refreshDropdown = true,
+				})
+			else
+				disconnectBuilderIconWatchers()
+				restoreAppliedBuilderIconOverrides()
+				BuilderIconEditor.pendingText = BuilderIconEditor.selectedInst and getBuilderIconText(BuilderIconEditor.selectedInst) or BuilderIconEditor.pendingText
+				syncBuilderIconInput()
+				refreshBuilderIconDropdown({
+					keepInstance = BuilderIconEditor.selectedInst,
+					syncText = true,
+				})
+			end
+		end)
+		NAgui.addDropdown(builderIconDropdownLabel, { "None" }, "None", function(selection)
+			local picked = getBuilderIconSelectionValue(selection)
+			local inst = picked and BuilderIconEditor.entries[picked] or nil
+			if inst and inst.Parent then
+				BuilderIconEditor.selectedLabel = picked
+				BuilderIconEditor.selectedDisplay = makeBuilderIconDisplayLabel(inst)
+				BuilderIconEditor.selectedPath = BuilderIconEditor.entryPaths[picked] or getBuilderIconPath(inst)
+				BuilderIconEditor.selectedInst = inst
+				BuilderIconEditor.pendingText = getBuilderIconText(inst)
+				syncBuilderIconInput()
+				return
+			end
+			refreshBuilderIconDropdown({
+				syncText = true,
+			})
+		end)
+		NAgui.addDropdown(builderIconInputLabel, { BuilderIconEditor.catalogLoadingLabel }, BuilderIconEditor.catalogLoadingLabel, function(selection)
+			local chosen = getBuilderIconCatalogSelectionValue(selection)
+			if not chosen then
+				return
+			end
+			local entry = BuilderIconEditor.catalogEntries[chosen]
+			if type(entry) ~= "table" then
+				return
+			end
+			local token = getBuilderIconTextTokenForEntry(entry)
+			if type(token) ~= "string" or token == "" then
+				DoNotif("Selected BuilderIcon has no usable text token.", 3)
+				syncBuilderIconInput()
+				return
+			end
+			BuilderIconEditor.selectedIconLabel = chosen
+			BuilderIconEditor.pendingText = token
+		end)
+		NAgui.addButton("Apply BuilderIcon", function()
+			local inst = BuilderIconEditor.selectedInst
+			local path = BuilderIconEditor.selectedPath
+			local hasLiveInst = inst and inst.Parent and isBuilderIconTarget(inst)
+			if hasLiveInst then
+				path = getBuilderIconPath(inst)
+			end
+			if type(path) ~= "string" or path == "" then
+				refreshBuilderIconDropdown({
+					syncText = false,
+				})
+				DoNotif("Selected BuilderIcon is no longer available.", 2)
+				return
+			end
+			if hasLiveInst and BuilderIconEditor.originalText[inst] == nil then
+				BuilderIconEditor.originalText[inst] = getBuilderIconText(inst)
+			end
+			local newText = tostring(BuilderIconEditor.pendingText or "")
+			if hasLiveInst then
+				if BuilderIconEditor.data.enabled == true then
+					local ok, err = pcall(function()
+						inst.Text = newText
+					end)
+					if not ok then
+						DoNotif("Failed to apply BuilderIcon: "..tostring(err), 3)
+						return
+					end
+				end
+			end
+			BuilderIconEditor.selectedPath = path
+			setSavedBuilderIconOverride(path, newText)
+			queueSavedBuilderIconReapply({
+				delay = 0.05,
+				refreshDropdown = false,
+			})
+			refreshBuilderIconDropdown({
+				keepInstance = hasLiveInst and inst or nil,
+				syncText = false,
+			})
+			if BuilderIconEditor.data.enabled == true then
+				DoNotif("BuilderIcon updated.", 2)
+			else
+				DoNotif("BuilderIcon saved but not active.", 2)
+			end
+		end)
+		NAgui.addButton("Restore BuilderIcon", function()
+			local inst = BuilderIconEditor.selectedInst
+			if not (inst and inst.Parent and isBuilderIconTarget(inst)) then
+				refreshBuilderIconDropdown({
+					syncText = false,
+				})
+				DoNotif("Selected BuilderIcon is no longer available.", 2)
+				return
+			end
+			local original = BuilderIconEditor.originalText[inst]
+			if type(original) ~= "string" then
+				DoNotif("No saved BuilderIcon text for this entry yet.", 2)
+				return
+			end
+			local path = getBuilderIconPath(inst)
+			local ok, err = pcall(function()
+				inst.Text = original
+			end)
+			if not ok then
+				DoNotif("Failed to restore BuilderIcon: "..tostring(err), 3)
+				return
+			end
+			clearSavedBuilderIconOverride(path)
+			BuilderIconEditor.pendingText = original
+			syncBuilderIconInput()
+			refreshBuilderIconDropdown({
+				keepInstance = inst,
+				syncText = false,
+			})
+			DoNotif("BuilderIcon restored.", 2)
+		end)
+		NAgui.addButton("Clear All Saved BuilderIcons", function()
+			clearAllSavedBuilderIconOverrides()
+			local restoredCount = 0
+			for inst, original in pairs(BuilderIconEditor.originalText) do
+				if type(original) == "string" and inst and inst.Parent and isBuilderIconTarget(inst) then
+					pcall(function()
+						inst.Text = original
+					end)
+					restoredCount += 1
+				end
+			end
+			BuilderIconEditor.pendingText = BuilderIconEditor.selectedInst and getBuilderIconText(BuilderIconEditor.selectedInst) or ""
+			syncBuilderIconInput()
+			refreshBuilderIconDropdown({
+				keepInstance = BuilderIconEditor.selectedInst,
+				syncText = false,
+			})
+			DoNotif("Cleared saved BuilderIcon overrides ("..tostring(restoredCount)..").", 2)
+		end)
+		NAgui.addButton("Refresh BuilderIcon List", function()
+			refreshBuilderIconDropdown({
+				syncText = true,
+				fullScan = true,
+			})
+			fetchBuilderIconCatalog({
+				notify = true,
+			})
+		end)
+
+		refreshBuilderIconDropdown({
+			syncText = true,
+				fullScan = true,
+		})
+		fetchBuilderIconCatalog({
+			notify = false,
+		})
+		queueSavedBuilderIconReapply({
+			delay = 0.05,
+			refreshDropdown = false,
+		})
+
+		if BuilderIconEditor.data.enabled == true then
+			connectBuilderIconWatchers()
+		else
+			disconnectBuilderIconWatchers()
+		end
+	end
+	initBuilderIconEditor()
 
 	NAmanage.initUIEditors(CoreGui, HUI)
 
