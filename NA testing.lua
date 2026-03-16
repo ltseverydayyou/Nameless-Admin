@@ -83243,14 +83243,16 @@ if CoreGui then
 			Delay(opts.delay or 0.2, function()
 				BuilderIconEditor.reapplyQueued = false
 				local _, appliedAny = applySavedBuilderIconOverrides()
-				if appliedAny and NAgui and NAgui._dropdownRegistry and NAgui._dropdownRegistry[builderIconDropdownLabel] then
+				if appliedAny and opts.refreshDropdown == true and NAgui and NAgui._dropdownRegistry and NAgui._dropdownRegistry[builderIconDropdownLabel] then
 					refreshBuilderIconDropdown({
 						keepInstance = BuilderIconEditor.selectedInst,
 						syncText = false,
 					})
 				end
-				if hasPendingSavedBuilderIconPaths() then
+				if opts.repeatPending == true and hasPendingSavedBuilderIconPaths() then
 					queueSavedBuilderIconReapply({
+						refreshDropdown = opts.refreshDropdown == true,
+						repeatPending = true,
 						delay = 1,
 					})
 				end
@@ -83773,22 +83775,19 @@ if CoreGui then
 				if not isBuilderIconTarget(o) then
 					return
 				end
-					applySavedBuilderIconOverrideToInstance(o)
-					queueBuilderIconRefresh()
-				end))
+				local path = getBuilderIconPath(o)
+				applySavedBuilderIconOverrideToInstance(o)
+				if type(BuilderIconEditor.selectedPath) == "string" and BuilderIconEditor.selectedPath ~= "" and BuilderIconEditor.selectedPath == path then
+					BuilderIconEditor.selectedInst = o
+					BuilderIconEditor.pendingText = getBuilderIconText(o)
+					syncBuilderIconInput()
+				end
+			end))
 			NAlib.connect("BuilderIconEditorRemoving", CoreGui.DescendantRemoving:Connect(function(o)
 				if not (isBuilderIconTarget(o) or isTrackedBuilderIconTarget(o)) then
 					return
 				end
-				local removedLabel = nil
-				local removedPath = nil
-				for label, inst in pairs(BuilderIconEditor.entries) do
-					if inst == o then
-						removedLabel = label
-						removedPath = BuilderIconEditor.entryPaths[label]
-						break
-					end
-				end
+				local removedPath = getBuilderIconPath(o)
 				if o == BuilderIconEditor.selectedInst then
 					BuilderIconEditor.selectedInst = nil
 					if type(removedPath) == "string" and removedPath ~= "" then
@@ -83796,11 +83795,6 @@ if CoreGui then
 					end
 				end
 				BuilderIconEditor.originalText[o] = nil
-				if removedLabel then
-					BuilderIconEditor.entries[removedLabel] = nil
-					BuilderIconEditor.entryPaths[removedLabel] = nil
-				end
-				queueBuilderIconRefresh()
 			end))
 		end
 
@@ -83870,6 +83864,7 @@ if CoreGui then
 			setSavedBuilderIconOverride(path, newText)
 			queueSavedBuilderIconReapply({
 				delay = 0.05,
+				refreshDropdown = false,
 			})
 			refreshBuilderIconDropdown({
 				keepInstance = hasLiveInst and inst or nil,
@@ -83944,6 +83939,7 @@ if CoreGui then
 		})
 		queueSavedBuilderIconReapply({
 			delay = 0.05,
+			refreshDropdown = false,
 		})
 
 		connectBuilderIconWatchers()
