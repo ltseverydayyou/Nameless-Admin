@@ -82941,13 +82941,16 @@ if CoreGui then
 		local BuilderIconEditor = {
 			path = NAfiles.NAFILEPATH.."/BuilderIconsEditor.json",
 			default = {
+				enabled = true,
 				overrides = {},
 			},
 			data = {
+				enabled = true,
 				overrides = {},
 			},
 			entries = {},
 			entryPaths = {},
+			liveTargets = {},
 			selectedLabel = "None",
 			selectedDisplay = "None",
 			selectedPath = nil,
@@ -82973,6 +82976,9 @@ if CoreGui then
 			watchersEnabled = false,
 		}
 		BuilderIconEditor.originalText = setmetatable(BuilderIconEditor.originalText, {
+			__mode = "k",
+		})
+		BuilderIconEditor.liveTargets = setmetatable(BuilderIconEditor.liveTargets, {
 			__mode = "k",
 		})
 		local builderIconDropdownLabel = "BuilderIcon Target"
@@ -83081,10 +83087,14 @@ if CoreGui then
 
 		local function normalizeBuilderIconData(raw)
 			local out = {
+				enabled = true,
 				overrides = {},
 			}
 			if type(raw) ~= "table" then
 				return out
+			end
+			if type(raw.enabled) == "boolean" then
+				out.enabled = raw.enabled
 			end
 			local overrides = raw.overrides
 			if type(overrides) == "table" then
@@ -83170,7 +83180,25 @@ if CoreGui then
 				and next(BuilderIconEditor.data.overrides) ~= nil
 		end
 
+		local function restoreAppliedBuilderIconOverrides()
+			local restoredAny = false
+			for inst, original in pairs(BuilderIconEditor.originalText) do
+				if type(original) == "string" and inst and inst.Parent and isBuilderIconTarget(inst) then
+					if getBuilderIconText(inst) ~= original then
+						pcall(function()
+							inst.Text = original
+						end)
+						restoredAny = true
+					end
+				end
+			end
+			return restoredAny
+		end
+
 		local function applySavedBuilderIconOverrideToInstance(inst)
+			if BuilderIconEditor.data.enabled ~= true then
+				return false
+			end
 			if not isBuilderIconTarget(inst) then
 				return false
 			end
@@ -83191,6 +83219,9 @@ if CoreGui then
 		end
 
 		local function applySavedBuilderIconOverrides()
+			if BuilderIconEditor.data.enabled ~= true then
+				return false, false
+			end
 			if not hasSavedBuilderIconOverrides() then
 				return false, false
 			end
@@ -83213,6 +83244,9 @@ if CoreGui then
 		end
 
 		local function hasPendingSavedBuilderIconPaths()
+			if BuilderIconEditor.data.enabled ~= true then
+				return false
+			end
 			if not hasSavedBuilderIconOverrides() then
 				return false
 			end
@@ -83233,6 +83267,20 @@ if CoreGui then
 		end
 
 		local refreshBuilderIconDropdown
+
+		local function collectBuilderIconLiveTargets()
+			local found = {}
+			local seen = {}
+			for inst in pairs(BuilderIconEditor.liveTargets) do
+				if isBuilderIconTarget(inst) and not seen[inst] then
+					seen[inst] = true
+					found[#found + 1] = inst
+				else
+					BuilderIconEditor.liveTargets[inst] = nil
+				end
+			end
+			return found
+		end
 
 		local function queueSavedBuilderIconReapply(opts)
 			opts = opts or {}
@@ -83616,12 +83664,20 @@ if CoreGui then
 			local found = {}
 			local entries = {}
 			local entryPaths = {}
-			local desc = CoreGui:QueryDescendants("Instance")
-			for i = 1, #desc do
-				local inst = desc[i]
-				if isBuilderIconTarget(inst) then
-					Insert(found, inst)
+			if opts.fullScan == true then
+				local desc = CoreGui:QueryDescendants("Instance")
+				BuilderIconEditor.liveTargets = setmetatable({}, {
+					__mode = "k",
+				})
+				for i = 1, #desc do
+					local inst = desc[i]
+					if isBuilderIconTarget(inst) then
+						BuilderIconEditor.liveTargets[inst] = true
+						Insert(found, inst)
+					end
 				end
+			else
+				found = collectBuilderIconLiveTargets()
 			end
 			table.sort(found, function(a, b)
 				local aPath = getBuilderIconPath(a)
@@ -83799,6 +83855,28 @@ if CoreGui then
 		end
 
 		NAgui.addSection("BuilderIcon Editor (BETA)")
+		NAgui.addToggle("Use Modified BuilderIcons", BuilderIconEditor.data.enabled == true, function(v)
+			local enabled = v == true
+			if BuilderIconEditor.data.enabled == enabled then
+				return
+			end
+			BuilderIconEditor.data.enabled = enabled
+			saveBuilderIconData()
+			if enabled then
+				queueSavedBuilderIconReapply({
+					delay = 0.05,
+					refreshDropdown = true,
+				})
+			else
+				restoreAppliedBuilderIconOverrides()
+				BuilderIconEditor.pendingText = BuilderIconEditor.selectedInst and getBuilderIconText(BuilderIconEditor.selectedInst) or BuilderIconEditor.pendingText
+				syncBuilderIconInput()
+				refreshBuilderIconDropdown({
+					keepInstance = BuilderIconEditor.selectedInst,
+					syncText = true,
+				})
+			end
+		end)
 		NAgui.addDropdown(builderIconDropdownLabel, { "None" }, "None", function(selection)
 			local picked = getBuilderIconSelectionValue(selection)
 			local inst = picked and BuilderIconEditor.entries[picked] or nil
@@ -83852,12 +83930,14 @@ if CoreGui then
 			end
 			local newText = tostring(BuilderIconEditor.pendingText or "")
 			if hasLiveInst then
-				local ok, err = pcall(function()
-					inst.Text = newText
-				end)
-				if not ok then
-					DoNotif("Failed to apply BuilderIcon: "..tostring(err), 3)
-					return
+				if BuilderIconEditor.data.enabled == true then
+					local ok, err = pcall(function()
+						inst.Text = newText
+					end)
+					if not ok then
+						DoNotif("Failed to apply BuilderIcon: "..tostring(err), 3)
+						return
+					end
 				end
 			end
 			BuilderIconEditor.selectedPath = path
@@ -83870,7 +83950,11 @@ if CoreGui then
 				keepInstance = hasLiveInst and inst or nil,
 				syncText = false,
 			})
-			DoNotif("BuilderIcon updated.", 2)
+			if BuilderIconEditor.data.enabled == true then
+				DoNotif("BuilderIcon updated.", 2)
+			else
+				DoNotif("BuilderIcon saved but not active.", 2)
+			end
 		end)
 		NAgui.addButton("Restore BuilderIcon", function()
 			local inst = BuilderIconEditor.selectedInst
