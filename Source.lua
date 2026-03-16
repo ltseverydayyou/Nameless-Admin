@@ -83032,14 +83032,29 @@ if CoreGui then
 			local current = inst
 			local depth = 0
 			while current and depth < 64 do
-				Insert(parts, 1, tostring(current.Name or current.ClassName))
 				if current == CoreGui then
 					break
 				end
+				Insert(parts, 1, tostring(current.Name or current.ClassName))
 				current = current.Parent
 				depth += 1
 			end
 			return Concat(parts, "/")
+		end
+
+		local function normalizeBuilderIconOverridePath(path)
+			if type(path) ~= "string" or path == "" then
+				return nil
+			end
+			local trimmed = path:match("^%s*(.-)%s*$")
+			if not trimmed or trimmed == "" then
+				return nil
+			end
+			local suffix = trimmed:match("CoreGui/(.+)$")
+			if type(suffix) == "string" and suffix ~= "" then
+				return suffix
+			end
+			return trimmed
 		end
 
 		local function makeBuilderIconLabel(inst)
@@ -83085,8 +83100,9 @@ if CoreGui then
 			local overrides = raw.overrides
 			if type(overrides) == "table" then
 				for path, text in pairs(overrides) do
-					if type(path) == "string" and path ~= "" and type(text) == "string" then
-						out.overrides[path] = text
+					local normalizedPath = normalizeBuilderIconOverridePath(path)
+					if type(normalizedPath) == "string" and normalizedPath ~= "" and type(text) == "string" then
+						out.overrides[normalizedPath] = text
 					end
 				end
 			end
@@ -83125,6 +83141,10 @@ if CoreGui then
 		end
 
 		local function getSavedBuilderIconTextForPath(path)
+			path = normalizeBuilderIconOverridePath(path)
+			if type(path) ~= "string" or path == "" then
+				return nil
+			end
 			local overrides = BuilderIconEditor.data and BuilderIconEditor.data.overrides
 			if type(overrides) ~= "table" then
 				return nil
@@ -83137,6 +83157,7 @@ if CoreGui then
 		end
 
 		local function setSavedBuilderIconOverride(path, text)
+			path = normalizeBuilderIconOverridePath(path)
 			if type(path) ~= "string" or path == "" then
 				return
 			end
@@ -83145,6 +83166,7 @@ if CoreGui then
 		end
 
 		local function clearSavedBuilderIconOverride(path)
+			path = normalizeBuilderIconOverridePath(path)
 			if type(path) ~= "string" or path == "" then
 				return
 			end
@@ -83241,7 +83263,10 @@ if CoreGui then
 			for i = 1, #desc do
 				local inst = desc[i]
 				if isBuilderIconTarget(inst) then
-					foundPaths[getBuilderIconPath(inst)] = true
+					local path = normalizeBuilderIconOverridePath(getBuilderIconPath(inst))
+					if type(path) == "string" and path ~= "" then
+						foundPaths[path] = true
+					end
 				end
 			end
 			for path in pairs(BuilderIconEditor.data.overrides) do
