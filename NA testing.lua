@@ -36932,19 +36932,10 @@ cmd.add({"antiafk","noafk"},{"antiafk (noafk)","Prevents you from being kicked f
 			DebugNotif("Anti AFK failed: no Idled connections modified")
 		end
 	else
-		local function enable()
-			local myConn = lp.Idled:Connect(antiAFKHandler)
-			NAlib.connect("antiAFK", myConn)
-			SpawnCall(antiAFKHandler)
-			DebugNotif("Anti AFK enabled")
-		end
-		Window({
-			Title = "This Anti AFK uses VirtualInputManager key events and may be detected in some games.\nEnable anyway?",
-			Buttons = {
-				{ Text = "Enable Anyway", Callback = enable },
-				{ Text = "Cancel", Callback = function() DebugNotif("Anti AFK cancelled") end }
-			}
-		})
+		local myConn = lp.Idled:Connect(antiAFKHandler)
+		NAlib.connect("antiAFK", myConn)
+		SpawnCall(antiAFKHandler)
+		DebugNotif("Anti AFK enabled")
 	end
 end)
 
