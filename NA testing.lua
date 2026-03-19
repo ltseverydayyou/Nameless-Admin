@@ -45389,6 +45389,165 @@ NAmanage._applyOutfitDescriptionById=function(outfitId,keyPrefix)
 	end
 	return true,id,desc
 end
+NAmanage._outfitHttpJSON=function(url)
+	local req=opt and opt.NAREQUEST
+	local function lowerKeys(t)local r={};for k,v in pairs(t or{})do r[Lower(k)]=v end;return r end
+	local function decodeBody(text)
+		if type(text)~="string" or text=="" then return nil end
+		local okJ,data=pcall(HttpService.JSONDecode,HttpService,text)
+		if okJ and type(data)=="table" then
+			return data
+		end
+		return nil
+	end
+	local host=Match(url,"^https?://([^/]+)") or""
+	local cd=NAStuff._httpCooldown[host]
+	local cooldownActive=cd and time()<cd
+	local sawCooldown=cooldownActive and true or false
+	local sawRateLimit=false
+	local sawServerError=false
+	local lastFailure=nil
+	local function markRetry(resp,kind)
+		local hdrs=lowerKeys(resp and (resp.Headers or resp.headers) or{})
+		local ra=tonumber(hdrs["retry-after"]) or tonumber(hdrs["x-ratelimit-retryafter"]) or nil
+		local waitSec
+		if kind=="429" then
+			waitSec=math.clamp((ra or (NAStuff._httpBackoff[host] and NAStuff._httpBackoff[host]*2 or 1.5))+math.random()*0.25,1,10)
+			sawRateLimit=true
+		else
+			waitSec=math.clamp((NAStuff._httpBackoff[host] and NAStuff._httpBackoff[host]*1.5 or 1.0)+math.random()*0.2,0.8,8)
+			sawServerError=true
+		end
+		NAStuff._httpBackoff[host]=waitSec
+		NAStuff._httpCooldown[host]=time()+waitSec
+	end
+	local function clearRetry()
+		NAStuff._httpBackoff[host]=0
+		NAStuff._httpCooldown[host]=nil
+	end
+	if type(req)=="function" and not cooldownActive then
+		local payloads={
+			{
+				Url=url,
+				Method="GET",
+				Headers={Accept="application/json"},
+				Timeout=5,
+				FollowRedirects=true,
+				SslVerify=false,
+			},
+			{
+				Url=url,
+				Method="GET",
+				Timeout=5,
+				FollowRedirects=true,
+				SslVerify=false,
+			},
+			{
+				Url=url,
+				Method="GET",
+				Headers={Accept="application/json"},
+			},
+			{
+				Url=url,
+				Method="GET",
+			},
+			{
+				url=url,
+				method="GET",
+			},
+		}
+		for _,payload in ipairs(payloads)do
+			local okR,resp=pcall(req,payload)
+			local status=okR and resp and (resp.StatusCode or resp.Status) or 0
+			local text=okR and resp and (resp.Body or resp.body) or""
+			if status==200 then
+				local data=decodeBody(text)
+				if data then
+					clearRetry()
+					return true,data
+				end
+				lastFailure="bad json"
+			elseif status==429 then
+				markRetry(resp,"429")
+			elseif status>=500 and status<600 then
+				markRetry(resp,"5xx")
+			elseif status and status~=0 then
+				lastFailure="bad response "..tostring(status)
+			elseif not okR then
+				lastFailure=resp or lastFailure
+			end
+		end
+	end
+	if HttpService and type(HttpService.GetAsync)=="function" then
+		local okHttp,text=pcall(HttpService.GetAsync,HttpService,url)
+		local data=okHttp and decodeBody(text) or nil
+		if data then
+			clearRetry()
+			return true,data
+		end
+	end
+	local okHttpGet,textHttpGet=pcall(function()
+		return game and game.HttpGet and game:HttpGet(url)
+	end)
+	local dataHttpGet=okHttpGet and decodeBody(textHttpGet) or nil
+	if dataHttpGet then
+		clearRetry()
+		return true,dataHttpGet
+	end
+	if sawCooldown then
+		return false,"cooldown"
+	end
+	if sawRateLimit then
+		return false,"429"
+	end
+	if sawServerError then
+		return false,"5xx"
+	end
+	return false,lastFailure or "HTTP not available"
+end
+NAmanage._fetchUserOutfits=function(userId)
+	local uid=tonumber(userId)
+	if not uid or uid<=0 then return nil,"Couldn't resolve user" end
+	local candidates={
+		"https://avatar.roblox.com/v1/users/%d/outfits?itemsPerPage=50%s",
+		"https://avatar.roproxy.com/v1/users/%d/outfits?itemsPerPage=50%s",
+		"https://avatar.rprxy.xyz/v1/users/%d/outfits?itemsPerPage=50%s",
+	}
+	local softFailure=nil
+	for _,base in ipairs(candidates)do
+		local outfits={}
+		local cursor=nil
+		repeat
+			local cursorQuery=cursor and ("&cursor="..HttpService:UrlEncode(cursor)) or ""
+			local url=Format(base,uid,cursorQuery)
+			local okD,data=NAmanage._outfitHttpJSON(url)
+			if not okD then
+				softFailure=data or softFailure
+				outfits=nil
+				break
+			end
+			for _,it in ipairs(data and data.data or{})do
+				if it and it.id and it.name and it.isEditable==true then
+					Insert(outfits,{id=it.id,name=it.name})
+				end
+			end
+			cursor=(data and (data.nextPageCursor or data.paginationToken)) or nil
+			if cursor then
+				Wait(0.4)
+			end
+		until not cursor
+		if outfits and #outfits>0 then
+			return outfits,nil,"v1-cursor"
+		end
+		if outfits then
+			softFailure=nil
+		end
+	end
+	if softFailure then
+		return {},softFailure
+	end
+	return {},nil,"v1-cursor"
+end
 
 cmd.add({"autooutfit","aoutfit","autooutfitid","aoutfitid","aoid"},{"autooutfit {username/userid|outfit:id}","Auto-apply a selected outfit on respawn"},function(arg)
 	if not arg or arg=="" then return end
@@ -45416,33 +45575,7 @@ cmd.add({"autooutfit","aoutfit","autooutfitid","aoutfitid","aoid"},{"autooutfit 
 		DoNotif("Auto outfit set: #"..tostring(outfitId),2,"AutoOutfit")
 		return
 	end
-	local req=opt and opt.NAREQUEST;if not req then DoNotif("HTTP not available",3,"AutoOutfit") return end
 	local uid=NAmanage._resolveHumanoidUserId(arg);if not uid then DoNotif("Couldn't resolve user",3,"AutoOutfit") return end
-	local function lowerKeys(t)local r={};for k,v in pairs(t or{})do r[Lower(k)]=v end;return r end
-	local function hostOf(url)return Match(url,"^https?://([^/]+)") or"" end
-	local function httpJSON(url)
-		local host=hostOf(url)
-		local cd=NAStuff._httpCooldown[host];if cd and time()<cd then local left=math.max(0,cd-time());DoNotif(Format("Loading outfits… retrying in %.1fs",left),math.max(1.2,left),"AutoOutfit");return false,"cooldown" end
-		local okR,resp=pcall(req,{Url=url,Method="GET"})
-		local status=okR and (resp.StatusCode or resp.Status) or 0
-		local text=okR and (resp.Body or resp.body) or""
-		if status==200 and type(text)=="string" then local okJ,data=pcall(HttpService.JSONDecode,HttpService,text);if okJ then NAStuff._httpBackoff[host]=0 return true,data end return false,"bad json" end
-		if status==429 then
-			local hdrs=lowerKeys(resp and (resp.Headers or resp.headers) or{})
-			local ra=tonumber(hdrs["retry-after"]) or tonumber(hdrs["x-ratelimit-retryafter"]) or nil
-			local waitSec=math.clamp((ra or (NAStuff._httpBackoff[host] and NAStuff._httpBackoff[host]*2 or 1.5))+math.random()*0.25,1,10)
-			NAStuff._httpBackoff[host]=waitSec;NAStuff._httpCooldown[host]=time()+waitSec
-			DoNotif(Format("Loading outfits… retrying in %.1fs",waitSec),math.max(1.5,waitSec),"AutoOutfit")
-			return false,"retry"
-		end
-		if status>=500 and status<600 then
-			local waitSec=math.clamp((NAStuff._httpBackoff[host] and NAStuff._httpBackoff[host]*1.5 or 1.0)+math.random()*0.2,0.8,8)
-			NAStuff._httpBackoff[host]=waitSec;NAStuff._httpCooldown[host]=time()+waitSec
-			DoNotif(Format("Loading outfits… retrying in %.1fs",waitSec),math.max(1.5,waitSec),"AutoOutfit")
-			return false,"retry"
-		end
-		return false,"bad response "..tostring(status)
-	end
 	local function currentAvatarButton()
 		return {Text=Format("Current Avatar  (#%d)",uid),Callback=function()
 			local desc,userId=NAmanage._resolveHumanoidDescription(tostring(uid))
@@ -45473,22 +45606,35 @@ cmd.add({"autooutfit","aoutfit","autooutfitid","aoutfitid","aoid"},{"autooutfit 
 	if cache and (time()-cache.t)<120 and cache.list and #cache.list>0 then
 		outfits=cache.list
 	else
-		local pageNumber=1
-		repeat
-			local url=Format("https://avatar.roblox.com/v2/avatar/users/%d/outfits?itemsPerPage=50&pageNumber=%d",uid,pageNumber)
-			local okD,data=httpJSON(url);if not okD then
-				local buttons={currentAvatarButton()}
-				Window({Title=Format("AutoOutfit • %s (%d)",tostring(arg),uid),Buttons=buttons})
+		local failedReason
+		outfits,failedReason=NAmanage._fetchUserOutfits(uid)
+		if #outfits==0 then
+			if not failedReason then
+				DoNotif("No user-created outfits for that user",2,"AutoOutfit")
 				return
 			end
-			local pageData=data.data or{}
-			for _,it in ipairs(pageData)do if it and it.id and it.name then Insert(outfits,{id=it.id,name=it.name,isEditable=it.isEditable}) end end
-			pageNumber+=1
-			if #pageData>0 then Wait(0.4) end
-		until #pageData==0
-		if #outfits==0 then
 			local buttons={currentAvatarButton()}
-			DoNotif("Saved outfits unavailable; showing current avatar",2,"AutoOutfit")
+			if failedReason=="cooldown" then
+				local retryAt=math.huge
+				for _,stamp in pairs(NAStuff._httpCooldown or{})do
+					if type(stamp)=="number" then retryAt=math.min(retryAt,stamp) end
+				end
+				local left=retryAt<math.huge and math.max(0,retryAt-time()) or 0
+				if left>0 then
+					DoNotif(Format("Loading outfits… retrying in %.1fs",left),math.max(1.2,left),"AutoOutfit")
+				end
+			elseif failedReason=="429" or failedReason=="5xx" then
+				local waitSec=0
+				for _,stamp in pairs(NAStuff._httpCooldown or{})do
+					if type(stamp)=="number" then waitSec=math.max(waitSec,stamp-time()) end
+				end
+				waitSec=math.max(waitSec,1.5)
+				DoNotif(Format("Loading outfits… retrying in %.1fs",waitSec),math.max(1.5,waitSec),"AutoOutfit")
+				return
+			end
+			if failedReason then
+				DoNotif(tostring(failedReason),3,"AutoOutfit")
+			end
 			Window({Title=Format("AutoOutfit • %s (%d)",tostring(arg),uid),Buttons=buttons})
 			return
 		end
@@ -45538,7 +45684,6 @@ cmd.add({"outfit","outfitid","oid"},{"outfit {username/userid|outfit:id}","Open 
 		return
 	end
 	NAStuff=NAStuff or{};NAStuff._outfitCache=NAStuff._outfitCache or{};NAStuff._httpBackoff=NAStuff._httpBackoff or{};NAStuff._httpCooldown=NAStuff._httpCooldown or{}
-	local req=opt and opt.NAREQUEST;if not req then DoNotif("HTTP not available",3,"Outfits") return end
 	local uid=NAmanage._resolveHumanoidUserId(arg)
 	if not uid then DoNotif("Couldn't resolve user",3,"Outfits") return end
 	local function currentAvatarButton()
@@ -45589,53 +45734,33 @@ cmd.add({"outfit","outfitid","oid"},{"outfit {username/userid|outfit:id}","Open 
 		Window({Title=Format("Outfits • %s (%d) [cache]",tostring(arg),uid),Buttons=buttons})
 		return
 	end
-	local function lowerKeys(t)local r={};for k,v in pairs(t or{})do r[Lower(k)]=v end;return r end
-	local function hostOf(url)return Match(url,"^https?://([^/]+)") or"" end
-	local function httpJSON(url)
-		local host=hostOf(url)
-		local cd=NAStuff._httpCooldown[host];if cd and time()<cd then local left=math.max(0,cd-time());DoNotif(Format("Loading outfits… retrying in %.1fs",left),math.max(1.2,left),"Outfits");return false,"cooldown" end
-		local okR,resp=pcall(req,{Url=url,Method="GET"})
-		local status=okR and (resp.StatusCode or resp.Status) or 0
-		local text=okR and (resp.Body or resp.body) or""
-		if status==200 and type(text)=="string" then local okJ,data=pcall(HttpService.JSONDecode,HttpService,text);if okJ then NAStuff._httpBackoff[host]=0 return true,data end return false,"bad json" end
-		if status==429 then
-			local hdrs=lowerKeys(resp and (resp.Headers or resp.headers) or{})
-			local ra=tonumber(hdrs["retry-after"]) or tonumber(hdrs["x-ratelimit-retryafter"]) or nil
-			local waitSec=math.clamp((ra or (NAStuff._httpBackoff[host] and NAStuff._httpBackoff[host]*2 or 1.5))+math.random()*0.25,1,10)
-			NAStuff._httpBackoff[host]=waitSec;NAStuff._httpCooldown[host]=time()+waitSec
-			DoNotif(Format("Loading outfits… retrying in %.1fs",waitSec),math.max(1.5,waitSec),"Outfits")
-			return false,"429"
-		end
-		if status>=500 and status<600 then
-			local waitSec=math.clamp((NAStuff._httpBackoff[host] and NAStuff._httpBackoff[host]*1.5 or 1.0)+math.random()*0.2,0.8,8)
-			NAStuff._httpBackoff[host]=waitSec;NAStuff._httpCooldown[host]=time()+waitSec
-			DoNotif(Format("Loading outfits… retrying in %.1fs",waitSec),math.max(1.5,waitSec),"Outfits")
-			return false,"5xx"
-		end
-		return false,"bad response "..tostring(status)
-	end
-	local outfits,pageNumber={},1
-	repeat
-		local url=Format("https://avatar.roblox.com/v2/avatar/users/%d/outfits?itemsPerPage=50&pageNumber=%d",uid,pageNumber)
-		local okD,data=httpJSON(url)
-		if not okD then
-			local buttons={currentAvatarButton()}
-			if not (data=="429" or data=="5xx" or data=="cooldown") then
-				DoNotif(data,3,"Outfits")
-			else
-				DoNotif("Saved outfits unavailable; showing current avatar",2,"Outfits")
-			end
-			Window({Title=Format("Outfits • %s (%d)",tostring(arg),uid),Buttons=buttons})
+	local outfits,failedReason=NAmanage._fetchUserOutfits(uid)
+	if #outfits==0 then
+		if not failedReason then
+			DoNotif("No user-created outfits for that user",2,"Outfits")
 			return
 		end
-		local pageData=data.data or{}
-		for _,it in ipairs(pageData)do if it and it.id and it.name then Insert(outfits,{id=it.id,name=it.name,isEditable=it.isEditable}) end end
-		pageNumber+=1
-		if #pageData>0 then Wait(0.4) end
-	until #pageData==0
-	if #outfits==0 then
 		local buttons={currentAvatarButton()}
-		DoNotif("Saved outfits unavailable; showing current avatar",2,"Outfits")
+		if failedReason=="cooldown" then
+			local retryAt=math.huge
+			for _,stamp in pairs(NAStuff._httpCooldown or{})do
+				if type(stamp)=="number" then retryAt=math.min(retryAt,stamp) end
+			end
+			local left=retryAt<math.huge and math.max(0,retryAt-time()) or 0
+			if left>0 then
+				DoNotif(Format("Loading outfits… retrying in %.1fs",left),math.max(1.2,left),"Outfits")
+			end
+		elseif failedReason=="429" or failedReason=="5xx" then
+			local waitSec=0
+			for _,stamp in pairs(NAStuff._httpCooldown or{})do
+				if type(stamp)=="number" then waitSec=math.max(waitSec,stamp-time()) end
+			end
+			waitSec=math.max(waitSec,1.5)
+			DoNotif(Format("Loading outfits… retrying in %.1fs",waitSec),math.max(1.5,waitSec),"Outfits")
+			return
+		elseif failedReason then
+			DoNotif(failedReason,3,"Outfits")
+		end
 		Window({Title=Format("Outfits • %s (%d)",tostring(arg),uid),Buttons=buttons})
 		return
 	end
