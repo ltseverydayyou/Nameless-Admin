@@ -38380,7 +38380,7 @@ originalIO.startForceReverb=function(targetType)
 	originalIO.ensureForceReverb()
 	originalIO.bindForceReverbWatcher()
 
-	NAlib.connect("forcereverb_main", game:GetPropertyChangedSignal("SoundService"):Connect(function()
+	NAlib.connect("forcereverb_main", __lt.cm("SoundService", "GetPropertyChangedSignal", "AmbientReverb"):Connect(function()
 		originalIO.ensureForceReverb()
 		originalIO.bindForceReverbWatcher()
 	end))
