@@ -14613,6 +14613,25 @@ NAmanage.NASettingsGetSchema=function()
 				return coerceBoolean(value, true)
 			end;
 		};
+		lightingStyleAutomation = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
+		lightingStyleAutomationStyle = {
+			default = "Soft";
+			coerce = function(value)
+				local name = type(value) == "string" and value or tostring(value or "Soft")
+				name = name:match("^%s*(.-)%s*$") or name
+				for _, item in ipairs(Enum.LightingStyle:GetEnumItems()) do
+					if Lower(item.Name) == Lower(name) then
+						return item.Name
+					end
+				end
+				return "Soft"
+			end;
+		};
 		mobileCamSensEnabled = {
 			default = false;
 			coerce = function(value)
@@ -17427,6 +17446,8 @@ NAStuff.StreamerModeEnabled = NAmanage.NASettingsGet("streamerMode") == true
 NAStuff.PurchasePromptsDisabled = NAmanage.NASettingsGet("purchasePromptsDisabled")
 NAStuff.CmdIntegrationAutoRun = NAmanage.NASettingsGet("cmdIntegrationAutoRun")
 NAStuff.AutoPreloadAssets = NAmanage.NASettingsGet("autoPreloadAssets")
+NAStuff.LightingStyleAutomation = NAmanage.NASettingsGet("lightingStyleAutomation") == true
+NAStuff.LightingStyleAutomationStyle = NAmanage.NASettingsGet("lightingStyleAutomationStyle") or "Soft"
 NAStuff.AssetLoadMode = NAmanage.NASettingsGet("assetLoadMode") or NAStuff.AssetLoadMode
 NAStuff.AssetDownloadMethod = NAmanage.normalizeAssetDownloadMethod(NAmanage.NASettingsGet("assetDownloadMethod") or NAStuff.AssetDownloadMethod)
 
@@ -42225,20 +42246,6 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		ownedTag.Visible = true
 	end
 
-	local function tweenTransparency(container, target, tinfo)
-		for _, d in ipairs(container:QueryDescendants("Instance")) do
-			if d:IsA("TextLabel") or d:IsA("TextButton") or d:IsA("TextBox") then
-				__lt.cm("TweenService", "Create", d, tinfo, {TextTransparency = target}):Play()
-			elseif d:IsA("ImageLabel") or d:IsA("ImageButton") then
-				__lt.cm("TweenService", "Create", d, tinfo, {ImageTransparency = target}):Play()
-			elseif d:IsA("Frame") then
-				__lt.cm("TweenService", "Create", d, tinfo, {BackgroundTransparency = math.clamp(target,0,1)}):Play()
-			elseif d:IsA("UIStroke") then
-				__lt.cm("TweenService", "Create", d, tinfo, {Transparency = target}):Play()
-			end
-		end
-	end
-
 	local function copyToClipboard(str, msg)
 		local s = tostring(str)
 		local ok
@@ -42321,11 +42328,13 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		fixedBar.ZIndex = 5
 		local fixedLayout = InstanceNew("UIListLayout", fixedBar)
 		fixedLayout.FillDirection = Enum.FillDirection.Horizontal
+		fixedLayout.SortOrder = Enum.SortOrder.LayoutOrder
 		fixedLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 		fixedLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
 		fixedLayout.Padding = UDim.new(0, 4)
 
 		local minBtn = InstanceNew("TextButton", fixedBar)
+		minBtn.LayoutOrder = 1
 		minBtn.Size = UDim2.new(0, 32, 1, 0)
 		minBtn.Text = "-"
 		minBtn.Font = Enum.Font.Gotham
@@ -42336,6 +42345,7 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		local tsMin = InstanceNew("UITextSizeConstraint", minBtn); tsMin.MinTextSize = 14; tsMin.MaxTextSize = 22
 
 		local closeBtn = InstanceNew("TextButton", fixedBar)
+		closeBtn.LayoutOrder = 2
 		closeBtn.Size = UDim2.new(0, 32, 1, 0)
 		closeBtn.Text = "X"
 		closeBtn.Font = Enum.Font.Gotham
@@ -42361,6 +42371,7 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		tabsRow.Size = UDim2.new(0,0,1,0)
 		local tabsLayout = InstanceNew("UIListLayout", tabsRow)
 		tabsLayout.FillDirection = Enum.FillDirection.Horizontal
+		tabsLayout.SortOrder = Enum.SortOrder.LayoutOrder
 		tabsLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 		tabsLayout.Padding = UDim.new(0, 8)
 
@@ -42395,6 +42406,7 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		end
 
 		local searchWrap = InstanceNew("Frame", tabsRow)
+		searchWrap.LayoutOrder = 1
 		searchWrap.BackgroundColor3 = COLORS.BUTTON
 		searchWrap.BackgroundTransparency = 0.18
 		searchWrap.Size = UDim2.new(0, 260, 0, 24)
@@ -42407,10 +42419,12 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 
 		local swLayout = InstanceNew("UIListLayout", searchWrap)
 		swLayout.FillDirection = Enum.FillDirection.Horizontal
+		swLayout.SortOrder = Enum.SortOrder.LayoutOrder
 		swLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 		swLayout.Padding = UDim.new(0, 6)
 
 		local searchIcon = InstanceNew("TextLabel", searchWrap)
+		searchIcon.LayoutOrder = 1
 		searchIcon.BackgroundTransparency = 1
 		searchIcon.Text = "🔎"
 		searchIcon.Font = Enum.Font.Gotham
@@ -42420,6 +42434,7 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		local tsSI = InstanceNew("UITextSizeConstraint", searchIcon); tsSI.MinTextSize = 12; tsSI.MaxTextSize = 18
 
 		local search = InstanceNew("TextBox", searchWrap)
+		search.LayoutOrder = 2
 		search.Size = UDim2.new(1, -70, 1, 0)
 		search.PlaceholderText = "Search badges..."
 		search.ClearTextOnFocus = false
@@ -42433,6 +42448,7 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		local tsSearch = InstanceNew("UITextSizeConstraint", search); tsSearch.MinTextSize = 10; tsSearch.MaxTextSize = 18
 
 		local clearSearch = InstanceNew("TextButton", searchWrap)
+		clearSearch.LayoutOrder = 3
 		clearSearch.BackgroundTransparency = 1
 		clearSearch.Text = "Clear"
 		clearSearch.Font = Enum.Font.GothamSemibold
@@ -42443,10 +42459,15 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		local tsClr = InstanceNew("UITextSizeConstraint", clearSearch); tsClr.MinTextSize = 10; tsClr.MaxTextSize = 16
 
 		local ownedOnlyBtn = mkBtn(tabsRow, "Owned: OFF", 110)
+		ownedOnlyBtn.LayoutOrder = 2
 		local unownedOnlyBtn = mkBtn(tabsRow, "Unowned: OFF", 130)
+		unownedOnlyBtn.LayoutOrder = 3
 		local layoutToggle = mkBtn(tabsRow, "List", 80)
+		layoutToggle.LayoutOrder = 4
 		local sortBtn = mkBtn(tabsRow, "Sort: Default", 130)
+		sortBtn.LayoutOrder = 5
 		local refreshBtn = mkBtn(tabsRow, "Refresh", 100)
+		refreshBtn.LayoutOrder = 6
 
 		local content = InstanceNew("Frame", main)
 		content.Name = "Content"
@@ -42535,6 +42556,14 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		local badgesData = data
 		local gridBuilt = false
 		local ownershipRunId = 0
+		local minimized = false
+		local minimizeTweenId = 0
+		local loadingOverlayShown = true
+
+		local function setLoadingOverlayVisible(visible)
+			loadingOverlayShown = visible and true or false
+			loadingOverlay.Visible = loadingOverlayShown and content.Visible and not minimized
+		end
 
 		local function mkToolBtn(parent, label, cb)
 			local b = InstanceNew("TextButton", parent)
@@ -42910,24 +42939,39 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 			applyFilters()
 		end)
 
-		local minimized = false
 		local function minimize()
 			if minimized then return end
-			tweenTransparency(content, 1, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+			minimized = true
+			minimizeTweenId += 1
+			local tweenId = minimizeTweenId
+			scroll.Visible = false
+			loadingOverlay.Visible = false
 			local tA = __lt.cm("TweenService", "Create", content, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1,0,0,0)})
 			local tB = __lt.cm("TweenService", "Create", main, TweenInfo.new(0.26, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(expandedMainSize.X.Scale, expandedMainSize.X.Offset, 0, headerH)})
 			tA:Play(); tB:Play()
-			Delay(0.18, function() content.Visible = false end)
-			minimized = true
+			Delay(0.18, function()
+				if minimized and minimizeTweenId == tweenId then
+					content.Visible = false
+				end
+			end)
 		end
 		local function restore()
 			if not minimized then return end
+			minimized = false
+			minimizeTweenId += 1
+			local tweenId = minimizeTweenId
 			content.Visible = true
+			scroll.Visible = false
+			loadingOverlay.Visible = false
 			local tB = __lt.cm("TweenService", "Create", main, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Size = expandedMainSize})
 			local tA = __lt.cm("TweenService", "Create", content, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1,0,1, -headerH)})
 			tB:Play(); tA:Play()
-			Delay(0.1, function() tweenTransparency(content, 0, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)) end)
-			minimized = false
+			Delay(0.22, function()
+				if not minimized and minimizeTweenId == tweenId then
+					scroll.Visible = true
+					loadingOverlay.Visible = loadingOverlayShown
+				end
+			end)
 		end
 		MouseButtonFix(minBtn, function() if minimized then restore() else minimize() end end)
 
@@ -42945,11 +42989,11 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		local function runOwnershipChecks(dataset)
 			ownershipRunId += 1
 			local runId = ownershipRunId
-			loadingOverlay.Visible = true
+			setLoadingOverlayVisible(true)
 			local total = #dataset
 			loadingText.Text = "Loading..."
 			if total == 0 then
-				loadingOverlay.Visible = false
+				setLoadingOverlayVisible(false)
 				loadingText.Text = "Loading..."
 				refreshBtn.AutoButtonColor = true
 				refreshBtn.Text = "Refresh"
@@ -43006,7 +43050,7 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 					return
 				end
 
-				loadingOverlay.Visible = false
+				setLoadingOverlayVisible(false)
 				loadingText.Text = "Loading..."
 				refreshBtn.AutoButtonColor = true
 				refreshBtn.Text = "Refresh"
@@ -43025,7 +43069,7 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 			refreshBtn.Active = false
 			refreshBtn.AutoButtonColor = false
 			refreshBtn.Text = "Refreshing..."
-			loadingOverlay.Visible = true
+			setLoadingOverlayVisible(true)
 			loadingText.Text = "Loading..."
 			for _, c in ipairs(listCards) do if c.frame and c.frame.Parent then c.frame:Destroy() end end
 			for _, c in ipairs(gridCards) do if c.frame and c.frame.Parent then c.frame:Destroy() end end
@@ -43051,7 +43095,7 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 				attachLayout()
 				runOwnershipChecks(badgesData)
 			else
-				loadingOverlay.Visible = false
+				setLoadingOverlayVisible(false)
 				refreshBtn.AutoButtonColor = true
 				refreshBtn.Text = "Refresh"
 				refreshBtn.Active = true
@@ -43059,7 +43103,6 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 			end
 		end)
 
-		tweenTransparency(content, 0, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
 		attachLayout()
 		runOwnershipChecks(badgesData)
 	end
@@ -47217,6 +47260,706 @@ end)
 NA_DEVPROD_GUI=nil
 
 cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Products"},function()
+	do
+		if NA_DEVPROD_GUI and NA_DEVPROD_GUI.Parent then NA_DEVPROD_GUI:Destroy() end
+		local MarketplaceService=SafeGetService("MarketplaceService")
+		local UserInputService=SafeGetService("UserInputService")
+		local TweenService=SafeGetService("TweenService")
+		local LocalPlayer=Players.LocalPlayer
+		local GROUP="DevProductsGUI"
+		NAlib.disconnect(GROUP)
+
+		local COLORS={
+			Back=Color3.fromRGB(9,12,18),
+			Window=Color3.fromRGB(18,23,32),
+			Header=Color3.fromRGB(22,28,40),
+			Panel=Color3.fromRGB(16,20,29),
+			PanelSoft=Color3.fromRGB(24,31,44),
+			Card=Color3.fromRGB(24,31,44),
+			CardAlt=Color3.fromRGB(19,24,34),
+			Stroke=Color3.fromRGB(86,104,132),
+			Text=Color3.fromRGB(242,246,252),
+			Muted=Color3.fromRGB(151,167,191),
+			Accent=Color3.fromRGB(35,198,144),
+			AccentDark=Color3.fromRGB(23,132,101),
+			Loop=Color3.fromRGB(76,89,112),
+			LoopDark=Color3.fromRGB(58,69,88),
+			Danger=Color3.fromRGB(191,80,93),
+			DangerDark=Color3.fromRGB(135,46,62)
+		}
+
+		local function addTextConstraint(obj,minSize,maxSize)
+			local constraint=InstanceNew("UITextSizeConstraint",obj)
+			constraint.MinTextSize=minSize
+			constraint.MaxTextSize=maxSize
+			return constraint
+		end
+
+		local function addGradient(obj,colorA,colorB,rotation)
+			local gradient=InstanceNew("UIGradient",obj)
+			gradient.Color=ColorSequence.new(colorA,colorB)
+			gradient.Rotation=rotation or 90
+			return gradient
+		end
+
+		local function stylePill(obj,radius,strokeTransparency)
+			local corner=InstanceNew("UICorner",obj)
+			corner.CornerRadius=UDim.new(0,radius)
+			local stroke=InstanceNew("UIStroke",obj)
+			stroke.Color=COLORS.Stroke
+			stroke.Thickness=1
+			stroke.Transparency=strokeTransparency or 0.45
+			return stroke
+		end
+
+		local function styleButton(btn,colorA,colorB,textColor)
+			btn.AutoButtonColor=false
+			btn.TextColor3=textColor or COLORS.Text
+			btn.Font=Enum.Font.GothamSemibold
+			btn.TextScaled=true
+			local stroke=stylePill(btn,12,0.35)
+			local gradient=addGradient(btn,colorA,colorB,0)
+			addTextConstraint(btn,11,18)
+			return stroke,gradient
+		end
+
+		local function tween(obj,goal,duration)
+			pcall(function()
+				TweenService:Create(obj,TweenInfo.new(duration or 0.18,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),goal):Play()
+			end)
+		end
+
+		local function getViewport()
+			local cam=workspace.CurrentCamera
+			if cam and cam.ViewportSize.X > 0 and cam.ViewportSize.Y > 0 then
+				return cam.ViewportSize
+			end
+			return Vector2.new(1280,720)
+		end
+
+		local function isCompactViewport(vp)
+			local touchOnly=UserInputService and UserInputService.TouchEnabled and not (UserInputService.KeyboardEnabled or UserInputService.MouseEnabled)
+			return vp.X < 760 or (touchOnly and vp.X < 980)
+		end
+
+		local gui=InstanceNew("ScreenGui")
+		gui.IgnoreGuiInset=true
+		gui.ResetOnSpawn=false
+		NAgui.NAProtection(gui)
+		NAgui.NaProtectUI(gui)
+		NA_DEVPROD_GUI=gui
+
+		local backdrop=InstanceNew("Frame",gui)
+		backdrop.BackgroundColor3=COLORS.Back
+		backdrop.BackgroundTransparency=1
+		backdrop.BorderSizePixel=0
+		backdrop.Size=UDim2.fromScale(1,1)
+		backdrop.ZIndex=0
+
+		local shadow=InstanceNew("Frame",gui)
+		shadow.BackgroundColor3=Color3.new(0,0,0)
+		shadow.BackgroundTransparency=0.5
+		shadow.BorderSizePixel=0
+		shadow.ZIndex=1
+		stylePill(shadow,28,1)
+
+		local win=InstanceNew("Frame",gui)
+		win.BackgroundColor3=COLORS.Window
+		win.BorderSizePixel=0
+		win.ClipsDescendants=true
+		win.ZIndex=2
+		NAgui.NAProtection(win)
+		local winStroke=stylePill(win,28,0.2)
+		winStroke.Color=COLORS.Stroke
+		addGradient(win,Color3.fromRGB(26,35,49),Color3.fromRGB(13,17,24),90)
+
+		local header=InstanceNew("Frame",win)
+		header.BackgroundColor3=COLORS.Header
+		header.BorderSizePixel=0
+		header.ZIndex=3
+		stylePill(header,24,0.32)
+		addGradient(header,Color3.fromRGB(31,41,59),Color3.fromRGB(21,27,39),0)
+
+		local headerMask=InstanceNew("Frame",header)
+		headerMask.BackgroundTransparency=1
+		headerMask.ZIndex=4
+		NAgui.draggerV2(win,headerMask)
+
+		local title=InstanceNew("TextLabel",header)
+		title.BackgroundTransparency=1
+		title.Font=Enum.Font.GothamBold
+		title.TextXAlignment=Enum.TextXAlignment.Left
+		title.TextColor3=COLORS.Text
+		title.Text="Developer Products"
+		title.TextScaled=true
+		title.ZIndex=4
+		addTextConstraint(title,14,26)
+
+		local countBadge=InstanceNew("TextLabel",header)
+		countBadge.BackgroundColor3=COLORS.PanelSoft
+		countBadge.TextColor3=COLORS.Text
+		countBadge.Font=Enum.Font.GothamSemibold
+		countBadge.Text="0 items"
+		countBadge.TextScaled=true
+		countBadge.ZIndex=4
+		stylePill(countBadge,11,0.38)
+		addTextConstraint(countBadge,10,14)
+
+		local topButtons=InstanceNew("Frame",header)
+		topButtons.BackgroundTransparency=1
+		topButtons.ZIndex=4
+
+		local minimize=InstanceNew("TextButton",topButtons)
+		minimize.Text="-"
+		minimize.BackgroundColor3=COLORS.PanelSoft
+		minimize.ZIndex=5
+		styleButton(minimize,Color3.fromRGB(65,76,95),Color3.fromRGB(46,54,68))
+
+		local close=InstanceNew("TextButton",topButtons)
+		close.Text="X"
+		close.BackgroundColor3=COLORS.PanelSoft
+		close.ZIndex=5
+		styleButton(close,Color3.fromRGB(170,71,82),Color3.fromRGB(128,45,57))
+
+		local controls=InstanceNew("Frame",win)
+		controls.BackgroundColor3=COLORS.Panel
+		controls.BorderSizePixel=0
+		controls.ZIndex=3
+		stylePill(controls,22,0.28)
+
+		local actionsRow=InstanceNew("Frame",controls)
+		actionsRow.BackgroundTransparency=1
+		actionsRow.ZIndex=4
+
+		local refresh=InstanceNew("TextButton",actionsRow)
+		refresh.Text="Refresh"
+		refresh.ZIndex=5
+		styleButton(refresh,Color3.fromRGB(70,88,114),Color3.fromRGB(50,62,82))
+
+		local buyAll=InstanceNew("TextButton",actionsRow)
+		buyAll.Text="Buy All"
+		buyAll.ZIndex=5
+		styleButton(buyAll,Color3.fromRGB(52,161,128),Color3.fromRGB(31,115,93))
+
+		local interval=InstanceNew("TextBox",actionsRow)
+		interval.PlaceholderText="Interval (s)"
+		interval.Text="0.1"
+		interval.ClearTextOnFocus=false
+		interval.TextXAlignment=Enum.TextXAlignment.Center
+		interval.Font=Enum.Font.GothamSemibold
+		interval.TextColor3=COLORS.Text
+		interval.PlaceholderColor3=COLORS.Muted
+		interval.BackgroundColor3=COLORS.PanelSoft
+		interval.TextScaled=true
+		interval.ZIndex=5
+		stylePill(interval,12,0.36)
+		addTextConstraint(interval,11,17)
+
+		local searchWrap=InstanceNew("Frame",controls)
+		searchWrap.BackgroundColor3=COLORS.PanelSoft
+		searchWrap.BorderSizePixel=0
+		searchWrap.ZIndex=4
+		stylePill(searchWrap,14,0.4)
+
+		local search=InstanceNew("TextBox",searchWrap)
+		search.BackgroundTransparency=1
+		search.PlaceholderText="Search by name or product ID"
+		search.Text=""
+		search.ClearTextOnFocus=false
+		search.TextXAlignment=Enum.TextXAlignment.Left
+		search.Font=Enum.Font.Gotham
+		search.TextColor3=COLORS.Text
+		search.PlaceholderColor3=COLORS.Muted
+		search.TextScaled=true
+		search.ZIndex=5
+		addTextConstraint(search,11,18)
+
+		local status=InstanceNew("TextLabel",controls)
+		status.BackgroundTransparency=1
+		status.Font=Enum.Font.Gotham
+		status.TextXAlignment=Enum.TextXAlignment.Left
+		status.TextColor3=COLORS.Muted
+		status.Text="Ready."
+		status.TextScaled=true
+		status.ZIndex=4
+		addTextConstraint(status,10,14)
+
+		local body=InstanceNew("Frame",win)
+		body.BackgroundColor3=COLORS.Panel
+		body.BorderSizePixel=0
+		body.ClipsDescendants=true
+		body.ZIndex=3
+		stylePill(body,24,0.28)
+
+		local list=InstanceNew("ScrollingFrame",body)
+		list.Active=true
+		list.BackgroundTransparency=1
+		list.BorderSizePixel=0
+		list.Position=UDim2.fromOffset(10,10)
+		list.Size=UDim2.new(1,-20,1,-20)
+		list.ScrollBarThickness=6
+		list.CanvasSize=UDim2.new()
+		list.ScrollingDirection=Enum.ScrollingDirection.Y
+		list.ScrollBarImageColor3=Color3.fromRGB(102,123,156)
+		list.ZIndex=4
+
+		local layout=InstanceNew("UIListLayout",list)
+		layout.Padding=UDim.new(0,10)
+		layout.SortOrder=Enum.SortOrder.LayoutOrder
+
+		local listPadding=InstanceNew("UIPadding",list)
+		listPadding.PaddingTop=UDim.new(0,2)
+		listPadding.PaddingBottom=UDim.new(0,2)
+		listPadding.PaddingLeft=UDim.new(0,2)
+		listPadding.PaddingRight=UDim.new(0,2)
+
+		local minimized=false
+		local isCompact=false
+		local fullSize=UDim2.fromOffset(760,600)
+		local miniSize=UDim2.fromOffset(760,118)
+		local didInitialCenter=false
+		local rows={}
+		local rowLayouts={}
+		local allItems={}
+		local loops={}
+		local fetching=false
+
+		local function setCanvas()
+			list.CanvasSize=UDim2.fromOffset(0,layout.AbsoluteContentSize.Y+18)
+		end
+		NAlib.connect(GROUP,layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(setCanvas))
+
+		local function updateCountText(visibleCount,totalCount)
+			totalCount=totalCount or #allItems
+			if totalCount <= 0 then
+				countBadge.Text="0 items"
+			elseif visibleCount and visibleCount ~= totalCount then
+				countBadge.Text=Format("%d / %d items",visibleCount,totalCount)
+			else
+				countBadge.Text=Format("%d items",totalCount)
+			end
+		end
+
+		local function notify(m,t)
+			if DoNotif then
+				DoNotif(m,t or 4,"DevProducts")
+			else
+				warn("[DevProducts] "..m)
+			end
+			status.Text=m
+		end
+
+		local function stopAllLoops()
+			for _,state in pairs(loops) do
+				state.running=false
+			end
+			table.clear(loops)
+		end
+
+		local function setLoopVisual(rowData,active)
+			if not (rowData and rowData.loopBtn and rowData.loopGradient) then return end
+			rowData.loopBtn.Text=active and "Stop Loop" or "Loop Buy"
+			if active then
+				rowData.loopBtn.BackgroundColor3=COLORS.Danger
+				rowData.loopGradient.Color=ColorSequence.new(COLORS.Danger,COLORS.DangerDark)
+			else
+				rowData.loopBtn.BackgroundColor3=COLORS.Loop
+				rowData.loopGradient.Color=ColorSequence.new(COLORS.Loop,COLORS.LoopDark)
+			end
+		end
+
+		local function updatePriceText(rowData,price)
+			if rowData then
+				rowData.priceBadge.Text=price and (tostring(price).." R$") or "Price N/A"
+			end
+		end
+
+		local function parseInterval()
+			local v=tonumber(interval.Text) or tonumber(Match(interval.Text or "","%d*%.?%d+")) or 0.1
+			if v < 0 then v=0 end
+			return v
+		end
+
+		local function clearList()
+			for _,ch in ipairs(list:GetChildren()) do
+				if ch:IsA("Frame") then
+					ch:Destroy()
+				end
+			end
+			table.clear(rows)
+			table.clear(rowLayouts)
+			setCanvas()
+			updateCountText(0,0)
+		end
+
+		local function updateWindowLayout()
+			local vp=getViewport()
+			isCompact=isCompactViewport(vp)
+			local width=isCompact and math.clamp(vp.X-28,320,540) or math.clamp(vp.X-120,640,860)
+			local height=isCompact and math.clamp(math.floor(vp.Y*0.76),430,620) or math.clamp(math.floor(vp.Y*0.82),500,700)
+			local headerH=isCompact and 72 or 68
+			local controlsH=isCompact and 124 or 118
+
+			fullSize=UDim2.fromOffset(width,height)
+			miniSize=UDim2.fromOffset(width,isCompact and 116 or 108)
+
+			win.Size=minimized and miniSize or fullSize
+			shadow.Size=win.Size
+			if not didInitialCenter then
+				NAmanage.centerFrame(win)
+				didInitialCenter=true
+			end
+			shadow.Position=win.Position
+
+			header.Size=UDim2.new(1,0,0,headerH)
+			headerMask.Size=UDim2.new(1,-24,1,-16)
+			headerMask.Position=UDim2.fromOffset(12,8)
+
+			title.Position=UDim2.fromOffset(18,12)
+			title.Size=UDim2.new(1,-130,0,isCompact and 28 or 30)
+
+			countBadge.Position=UDim2.fromOffset(18,isCompact and 42 or 40)
+			countBadge.Size=UDim2.fromOffset(isCompact and 112 or 120,22)
+
+			topButtons.Position=UDim2.new(1,-90,0,12)
+			topButtons.Size=UDim2.fromOffset(72,34)
+			minimize.Position=UDim2.fromOffset(0,0)
+			minimize.Size=UDim2.fromOffset(34,34)
+			close.Position=UDim2.fromOffset(38,0)
+			close.Size=UDim2.fromOffset(34,34)
+
+			controls.Position=UDim2.fromOffset(16,headerH+12)
+			controls.Size=UDim2.new(1,-32,0,controlsH)
+
+			actionsRow.Position=UDim2.fromOffset(12,12)
+			actionsRow.Size=UDim2.new(1,-24,0,38)
+			if isCompact then
+				refresh.Position=UDim2.new(0,0,0,0)
+				refresh.Size=UDim2.new(0.33,-4,1,0)
+				buyAll.Position=UDim2.new(0.33,2,0,0)
+				buyAll.Size=UDim2.new(0.33,-4,1,0)
+				interval.Position=UDim2.new(0.66,4,0,0)
+				interval.Size=UDim2.new(0.34,-4,1,0)
+			else
+				refresh.Position=UDim2.fromOffset(0,0)
+				refresh.Size=UDim2.fromOffset(116,38)
+				buyAll.Position=UDim2.fromOffset(124,0)
+				buyAll.Size=UDim2.fromOffset(124,38)
+				interval.Size=UDim2.fromOffset(138,38)
+				interval.Position=UDim2.new(1,-138,0,0)
+			end
+
+			searchWrap.Position=UDim2.fromOffset(12,58)
+			searchWrap.Size=UDim2.new(1,-24,0,38)
+			search.Position=UDim2.fromOffset(12,0)
+			search.Size=UDim2.new(1,-24,1,0)
+
+			status.Position=UDim2.fromOffset(14,102)
+			status.Size=UDim2.new(1,-28,0,14)
+
+			body.Position=UDim2.fromOffset(16,headerH+controlsH+24)
+			body.Size=UDim2.new(1,-32,1,-(headerH+controlsH+40))
+
+			for _,updateRow in pairs(rowLayouts) do
+				updateRow(isCompact)
+			end
+			setCanvas()
+		end
+
+		local function makeChip(parent,text)
+			local chip=InstanceNew("TextLabel",parent)
+			chip.BackgroundColor3=COLORS.CardAlt
+			chip.TextColor3=COLORS.Text
+			chip.Font=Enum.Font.GothamSemibold
+			chip.Text=text
+			chip.TextScaled=true
+			chip.Size=UDim2.fromOffset(96,24)
+			chip.ZIndex=5
+			stylePill(chip,10,0.44)
+			addTextConstraint(chip,9,13)
+			return chip
+		end
+
+		local function makeRow(info)
+			local id=info.ProductId
+			local row=InstanceNew("Frame",list)
+			row.BackgroundColor3=COLORS.Card
+			row.BorderSizePixel=0
+			row.ZIndex=4
+			stylePill(row,20,0.32)
+			addGradient(row,Color3.fromRGB(30,39,55),Color3.fromRGB(20,26,36),90)
+
+			local inner=InstanceNew("Frame",row)
+			inner.BackgroundTransparency=1
+			inner.ZIndex=5
+
+			local nameL=InstanceNew("TextLabel",inner)
+			nameL.BackgroundTransparency=1
+			nameL.Font=Enum.Font.GothamSemibold
+			nameL.TextXAlignment=Enum.TextXAlignment.Left
+			nameL.TextYAlignment=Enum.TextYAlignment.Top
+			nameL.TextColor3=COLORS.Text
+			nameL.Text=info.Name or ("Product "..id)
+			nameL.TextWrapped=true
+			nameL.TextScaled=true
+			nameL.ZIndex=6
+			addTextConstraint(nameL,12,20)
+
+			local metaRow=InstanceNew("Frame",inner)
+			metaRow.BackgroundTransparency=1
+			metaRow.ZIndex=6
+			local metaLayout=InstanceNew("UIListLayout",metaRow)
+			metaLayout.FillDirection=Enum.FillDirection.Horizontal
+			metaLayout.VerticalAlignment=Enum.VerticalAlignment.Center
+			metaLayout.SortOrder=Enum.SortOrder.LayoutOrder
+			metaLayout.Padding=UDim.new(0,8)
+
+			local idBadge=makeChip(metaRow,"ID "..tostring(id))
+			idBadge.LayoutOrder=1
+			local priceBadge=makeChip(metaRow,info.PriceInRobux and (tostring(info.PriceInRobux).." R$") or "Price N/A")
+			priceBadge.LayoutOrder=2
+
+			local buttons=InstanceNew("Frame",row)
+			buttons.BackgroundTransparency=1
+			buttons.ZIndex=6
+
+			local purchase=InstanceNew("TextButton",buttons)
+			purchase.Text="Purchase"
+			purchase.ZIndex=7
+			styleButton(purchase,COLORS.Accent,COLORS.AccentDark)
+
+			local loopBtn=InstanceNew("TextButton",buttons)
+			loopBtn.Text="Loop Buy"
+			loopBtn.ZIndex=7
+			local _,loopGradient=styleButton(loopBtn,COLORS.Loop,COLORS.LoopDark)
+
+			local rowData={
+				frame=row,
+				info=info,
+				nameL=nameL,
+				idBadge=idBadge,
+				priceBadge=priceBadge,
+				purchase=purchase,
+				loopBtn=loopBtn,
+				loopGradient=loopGradient
+			}
+
+			local function updateRowLayout(compact)
+				if compact then
+					row.Size=UDim2.new(1,0,0,114)
+					inner.Position=UDim2.fromOffset(14,12)
+					inner.Size=UDim2.new(1,-28,0,56)
+					nameL.Position=UDim2.fromOffset(0,0)
+					nameL.Size=UDim2.new(1,0,0,28)
+					metaRow.Position=UDim2.fromOffset(0,34)
+					metaRow.Size=UDim2.new(1,0,0,24)
+					buttons.Position=UDim2.fromOffset(14,72)
+					buttons.Size=UDim2.new(1,-28,0,30)
+					purchase.Position=UDim2.new(0,0,0,0)
+					purchase.Size=UDim2.new(0.5,-4,1,0)
+					loopBtn.Position=UDim2.new(0.5,4,0,0)
+					loopBtn.Size=UDim2.new(0.5,-4,1,0)
+				else
+					row.Size=UDim2.new(1,0,0,92)
+					inner.Position=UDim2.fromOffset(16,14)
+					inner.Size=UDim2.new(1,-156,1,-28)
+					nameL.Position=UDim2.fromOffset(0,0)
+					nameL.Size=UDim2.new(1,0,0,26)
+					metaRow.Position=UDim2.fromOffset(0,34)
+					metaRow.Size=UDim2.new(1,0,0,24)
+					buttons.Position=UDim2.new(1,-128,0.5,-37)
+					buttons.Size=UDim2.fromOffset(112,74)
+					purchase.Position=UDim2.fromOffset(0,0)
+					purchase.Size=UDim2.new(1,0,0,34)
+					loopBtn.Position=UDim2.fromOffset(0,40)
+					loopBtn.Size=UDim2.new(1,0,0,34)
+				end
+			end
+
+			rowData.updateLayout=updateRowLayout
+			rowLayouts[id]=updateRowLayout
+			updateRowLayout(isCompact)
+			setLoopVisual(rowData,false)
+
+			NAlib.connect(GROUP, MouseButtonFix(purchase,function()
+				__lt.cm("MarketplaceService", "SignalPromptProductPurchaseFinished", LocalPlayer.UserId, id, true)
+			end))
+
+			NAlib.connect(GROUP, MouseButtonFix(loopBtn,function()
+				local state=loops[id]
+				if state and state.running then
+					state.running=false
+					setLoopVisual(rowData,false)
+				else
+					state={running=true}
+					loops[id]=state
+					setLoopVisual(rowData,true)
+					SpawnCall(function()
+						while state.running do
+							__lt.cm("MarketplaceService", "SignalPromptProductPurchaseFinished", LocalPlayer.UserId, id, true)
+							Wait(parseInterval())
+						end
+						if rowData.frame and rowData.frame.Parent then
+							setLoopVisual(rowData,false)
+						end
+						loops[id]=nil
+					end)
+				end
+			end))
+
+			rows[id]=rowData
+
+			SpawnCall(function()
+				local ok,pi=pcall(function()
+					return __lt.cm("MarketplaceService", "GetProductInfo", id,Enum.InfoType.Product)
+				end)
+				if ok and type(pi)=="table" and rows[id] and rows[id].frame and rows[id].frame.Parent then
+					info.Name=pi.Name or info.Name
+					info.PriceInRobux=pi.PriceInRobux
+					nameL.Text=info.Name or nameL.Text
+					updatePriceText(rowData,pi.PriceInRobux)
+				end
+			end)
+		end
+
+		local function applyFilter(q)
+			q=Lower(q or "")
+			local visibleCount=0
+			for _,info in ipairs(allItems) do
+				local rowData=rows[info.ProductId]
+				if rowData then
+					local nameText=Lower(info.Name or rowData.nameL.Text or "")
+					local idText=tostring(info.ProductId)
+					local visible=(q=="" or Find(nameText,q,1,true)~=nil or Find(idText,q,1,true)~=nil)
+					rowData.frame.Visible=visible
+					if visible then
+						visibleCount=visibleCount+1
+					end
+				end
+			end
+			updateCountText(visibleCount,#allItems)
+			setCanvas()
+		end
+
+		local function fetchAll()
+			if fetching then return end
+			fetching=true
+			stopAllLoops()
+			clearList()
+			table.clear(allItems)
+			notify("Loading developer products...")
+
+			local ok,pagesOrErr=pcall(function()
+				return __lt.cm("MarketplaceService", "GetDeveloperProductsAsync")
+			end)
+			if not ok then
+				notify("Failed to get pages: "..tostring(pagesOrErr),8)
+				fetching=false
+				return
+			end
+
+			local pages=pagesOrErr
+			while true do
+				local pageOk,pageRes=pcall(function()
+					return pages:GetCurrentPage()
+				end)
+				if not pageOk then
+					notify("Page error: "..tostring(pageRes),8)
+					break
+				end
+
+				for _,entry in ipairs(pageRes) do
+					local id=entry.ProductId or entry.DeveloperProductId
+					if id then
+						Insert(allItems,{
+							ProductId=id,
+							Name=entry.Name,
+							PriceInRobux=entry.PriceInRobux
+						})
+					end
+				end
+
+				if pages.IsFinished then break end
+
+				local advanceOk,advanceErr=pcall(function()
+					pages:AdvanceToNextPageAsync()
+				end)
+				if not advanceOk then
+					notify("Advance failed: "..tostring(advanceErr),8)
+					break
+				end
+				Wait()
+			end
+
+			table.sort(allItems,function(a,b)
+				local an=Lower(a.Name or ("Product "..tostring(a.ProductId)))
+				local bn=Lower(b.Name or ("Product "..tostring(b.ProductId)))
+				return an < bn
+			end)
+
+			for _,info in ipairs(allItems) do
+				makeRow(info)
+				Wait()
+			end
+
+			applyFilter(search.Text)
+			notify(Format("Loaded %d developer product(s).",#allItems))
+			fetching=false
+		end
+
+		NAlib.connect(GROUP, MouseButtonFix(close,function()
+			stopAllLoops()
+			NAlib.disconnect(GROUP)
+			pcall(gui.Destroy,gui)
+			NA_DEVPROD_GUI=nil
+		end))
+
+		NAlib.connect(GROUP, MouseButtonFix(minimize,function()
+			minimized=not minimized
+			controls.Visible=not minimized
+			body.Visible=not minimized
+			minimize.Text=minimized and "+" or "-"
+			local target=minimized and miniSize or fullSize
+			tween(win,{Size=target},0.18)
+			tween(shadow,{Size=target},0.18)
+			shadow.Position=win.Position
+		end))
+
+		NAlib.connect(GROUP,win:GetPropertyChangedSignal("Position"):Connect(function()
+			shadow.Position=win.Position
+		end))
+
+		local cam=workspace.CurrentCamera
+		if cam then
+			NAlib.connect(GROUP,cam:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+				updateWindowLayout()
+			end))
+		end
+
+		NAlib.connect(GROUP,search:GetPropertyChangedSignal("Text"):Connect(function()
+			applyFilter(search.Text)
+		end))
+
+		NAlib.connect(GROUP, MouseButtonFix(refresh,function()
+			search.Text=""
+			fetchAll()
+		end))
+
+		NAlib.connect(GROUP, MouseButtonFix(buyAll,function()
+			if #allItems==0 then return end
+			local delayS=parseInterval()
+			SpawnCall(function()
+				for _,info in ipairs(allItems) do
+					__lt.cm("MarketplaceService", "SignalPromptProductPurchaseFinished", LocalPlayer.UserId, info.ProductId, true)
+					Wait(delayS)
+				end
+			end)
+		end))
+
+		updateWindowLayout()
+		fetchAll()
+		return
+	end
 	if NA_DEVPROD_GUI and NA_DEVPROD_GUI.Parent then NA_DEVPROD_GUI:Destroy() end
 	local MarketplaceService=SafeGetService("MarketplaceService")
 	local GROUP="DevProductsGUI"
@@ -47610,6 +48353,817 @@ end)
 NA_GAMEPASS_GUI=nil
 
 cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passes (manual IDs)"},function()
+	do
+		if NA_GAMEPASS_GUI and NA_GAMEPASS_GUI.Parent then NA_GAMEPASS_GUI:Destroy() end
+		local MarketplaceService=SafeGetService("MarketplaceService")
+		local UserInputService=SafeGetService("UserInputService")
+		local TweenService=SafeGetService("TweenService")
+		local LocalPlayer=Players.LocalPlayer
+		local GROUP="GamePassesGUI"
+		NAlib.disconnect(GROUP)
+
+		local COLORS={
+			Window=Color3.fromRGB(18,23,32),
+			Header=Color3.fromRGB(22,28,40),
+			Panel=Color3.fromRGB(16,20,29),
+			PanelSoft=Color3.fromRGB(24,31,44),
+			Card=Color3.fromRGB(24,31,44),
+			CardAlt=Color3.fromRGB(19,24,34),
+			Stroke=Color3.fromRGB(86,104,132),
+			Text=Color3.fromRGB(242,246,252),
+			Muted=Color3.fromRGB(151,167,191),
+			Accent=Color3.fromRGB(35,198,144),
+			AccentDark=Color3.fromRGB(23,132,101),
+			Loop=Color3.fromRGB(76,89,112),
+			LoopDark=Color3.fromRGB(58,69,88),
+			Danger=Color3.fromRGB(191,80,93),
+			DangerDark=Color3.fromRGB(135,46,62),
+			Warn=Color3.fromRGB(190,132,56),
+			WarnDark=Color3.fromRGB(138,92,34)
+		}
+
+		local function addTextConstraint(obj,minSize,maxSize)
+			local constraint=InstanceNew("UITextSizeConstraint",obj)
+			constraint.MinTextSize=minSize
+			constraint.MaxTextSize=maxSize
+			return constraint
+		end
+
+		local function addGradient(obj,colorA,colorB,rotation)
+			local gradient=InstanceNew("UIGradient",obj)
+			gradient.Color=ColorSequence.new(colorA,colorB)
+			gradient.Rotation=rotation or 90
+			return gradient
+		end
+
+		local function stylePill(obj,radius,strokeTransparency)
+			local corner=InstanceNew("UICorner",obj)
+			corner.CornerRadius=UDim.new(0,radius)
+			local stroke=InstanceNew("UIStroke",obj)
+			stroke.Color=COLORS.Stroke
+			stroke.Thickness=1
+			stroke.Transparency=strokeTransparency or 0.45
+			return stroke
+		end
+
+		local function styleButton(btn,colorA,colorB,textColor)
+			btn.AutoButtonColor=false
+			btn.TextColor3=textColor or COLORS.Text
+			btn.Font=Enum.Font.GothamSemibold
+			btn.TextScaled=true
+			local stroke=stylePill(btn,12,0.35)
+			local gradient=addGradient(btn,colorA,colorB,0)
+			addTextConstraint(btn,11,18)
+			return stroke,gradient
+		end
+
+		local function tween(obj,goal,duration)
+			pcall(function()
+				TweenService:Create(obj,TweenInfo.new(duration or 0.18,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),goal):Play()
+			end)
+		end
+
+		local function getViewport()
+			local cam=workspace.CurrentCamera
+			if cam and cam.ViewportSize.X > 0 and cam.ViewportSize.Y > 0 then
+				return cam.ViewportSize
+			end
+			return Vector2.new(1280,720)
+		end
+
+		local function isCompactViewport(vp)
+			local touchOnly=UserInputService and UserInputService.TouchEnabled and not (UserInputService.KeyboardEnabled or UserInputService.MouseEnabled)
+			return vp.X < 760 or (touchOnly and vp.X < 980)
+		end
+
+		local gui=InstanceNew("ScreenGui")
+		gui.IgnoreGuiInset=true
+		gui.ResetOnSpawn=false
+		NAgui.NAProtection(gui)
+		NAgui.NaProtectUI(gui)
+		NA_GAMEPASS_GUI=gui
+
+		local shadow=InstanceNew("Frame",gui)
+		shadow.BackgroundColor3=Color3.new(0,0,0)
+		shadow.BackgroundTransparency=0.5
+		shadow.BorderSizePixel=0
+		shadow.ZIndex=1
+		stylePill(shadow,28,1)
+
+		local win=InstanceNew("Frame",gui)
+		win.BackgroundColor3=COLORS.Window
+		win.BorderSizePixel=0
+		win.ClipsDescendants=true
+		win.ZIndex=2
+		NAgui.NAProtection(win)
+		local winStroke=stylePill(win,28,0.2)
+		winStroke.Color=COLORS.Stroke
+		addGradient(win,Color3.fromRGB(26,35,49),Color3.fromRGB(13,17,24),90)
+
+		local header=InstanceNew("Frame",win)
+		header.BackgroundColor3=COLORS.Header
+		header.BorderSizePixel=0
+		header.ZIndex=3
+		stylePill(header,24,0.32)
+		addGradient(header,Color3.fromRGB(31,41,59),Color3.fromRGB(21,27,39),0)
+
+		local headerMask=InstanceNew("Frame",header)
+		headerMask.BackgroundTransparency=1
+		headerMask.ZIndex=4
+		NAgui.draggerV2(win,headerMask)
+
+		local title=InstanceNew("TextLabel",header)
+		title.BackgroundTransparency=1
+		title.Font=Enum.Font.GothamBold
+		title.TextXAlignment=Enum.TextXAlignment.Left
+		title.TextColor3=COLORS.Text
+		title.Text="Game Passes"
+		title.TextScaled=true
+		title.ZIndex=4
+		addTextConstraint(title,14,26)
+
+		local countBadge=InstanceNew("TextLabel",header)
+		countBadge.BackgroundColor3=COLORS.PanelSoft
+		countBadge.TextColor3=COLORS.Text
+		countBadge.Font=Enum.Font.GothamSemibold
+		countBadge.Text="0 passes"
+		countBadge.TextScaled=true
+		countBadge.ZIndex=4
+		stylePill(countBadge,11,0.38)
+		addTextConstraint(countBadge,10,14)
+
+		local topButtons=InstanceNew("Frame",header)
+		topButtons.BackgroundTransparency=1
+		topButtons.ZIndex=4
+
+		local minimize=InstanceNew("TextButton",topButtons)
+		minimize.Text="-"
+		minimize.BackgroundColor3=COLORS.PanelSoft
+		minimize.ZIndex=5
+		styleButton(minimize,Color3.fromRGB(65,76,95),Color3.fromRGB(46,54,68))
+
+		local close=InstanceNew("TextButton",topButtons)
+		close.Text="X"
+		close.BackgroundColor3=COLORS.PanelSoft
+		close.ZIndex=5
+		styleButton(close,Color3.fromRGB(170,71,82),Color3.fromRGB(128,45,57))
+
+		local controls=InstanceNew("Frame",win)
+		controls.BackgroundColor3=COLORS.Panel
+		controls.BorderSizePixel=0
+		controls.ZIndex=3
+		stylePill(controls,22,0.28)
+
+		local actionsRow=InstanceNew("Frame",controls)
+		actionsRow.BackgroundTransparency=1
+		actionsRow.ZIndex=4
+
+		local refresh=InstanceNew("TextButton",actionsRow)
+		refresh.Text="Refresh"
+		refresh.ZIndex=5
+		styleButton(refresh,Color3.fromRGB(70,88,114),Color3.fromRGB(50,62,82))
+
+		local buyAll=InstanceNew("TextButton",actionsRow)
+		buyAll.Text="Buy All"
+		buyAll.ZIndex=5
+		styleButton(buyAll,Color3.fromRGB(52,161,128),Color3.fromRGB(31,115,93))
+
+		local interval=InstanceNew("TextBox",actionsRow)
+		interval.PlaceholderText="Interval (s)"
+		interval.Text="0.1"
+		interval.ClearTextOnFocus=false
+		interval.TextXAlignment=Enum.TextXAlignment.Center
+		interval.Font=Enum.Font.GothamSemibold
+		interval.TextColor3=COLORS.Text
+		interval.PlaceholderColor3=COLORS.Muted
+		interval.BackgroundColor3=COLORS.PanelSoft
+		interval.TextScaled=true
+		interval.ZIndex=5
+		stylePill(interval,12,0.36)
+		addTextConstraint(interval,11,17)
+
+		local searchWrap=InstanceNew("Frame",controls)
+		searchWrap.BackgroundColor3=COLORS.PanelSoft
+		searchWrap.BorderSizePixel=0
+		searchWrap.ZIndex=4
+		stylePill(searchWrap,14,0.4)
+
+		local search=InstanceNew("TextBox",searchWrap)
+		search.BackgroundTransparency=1
+		search.PlaceholderText="Search by name or pass ID"
+		search.Text=""
+		search.ClearTextOnFocus=false
+		search.TextXAlignment=Enum.TextXAlignment.Left
+		search.Font=Enum.Font.Gotham
+		search.TextColor3=COLORS.Text
+		search.PlaceholderColor3=COLORS.Muted
+		search.TextScaled=true
+		search.ZIndex=5
+		addTextConstraint(search,11,18)
+
+		local status=InstanceNew("TextLabel",controls)
+		status.BackgroundTransparency=1
+		status.Font=Enum.Font.Gotham
+		status.TextXAlignment=Enum.TextXAlignment.Left
+		status.TextColor3=COLORS.Muted
+		status.Text="Ready."
+		status.TextScaled=true
+		status.ZIndex=4
+		addTextConstraint(status,10,14)
+
+		local body=InstanceNew("Frame",win)
+		body.BackgroundColor3=COLORS.Panel
+		body.BorderSizePixel=0
+		body.ClipsDescendants=true
+		body.ZIndex=3
+		stylePill(body,24,0.28)
+
+		local list=InstanceNew("ScrollingFrame",body)
+		list.Active=true
+		list.BackgroundTransparency=1
+		list.BorderSizePixel=0
+		list.Position=UDim2.fromOffset(10,10)
+		list.Size=UDim2.new(1,-20,1,-20)
+		list.ScrollBarThickness=6
+		list.CanvasSize=UDim2.new()
+		list.ScrollingDirection=Enum.ScrollingDirection.Y
+		list.ScrollBarImageColor3=Color3.fromRGB(102,123,156)
+		list.ZIndex=4
+
+		local layout=InstanceNew("UIListLayout",list)
+		layout.Padding=UDim.new(0,10)
+		layout.SortOrder=Enum.SortOrder.LayoutOrder
+
+		local listPadding=InstanceNew("UIPadding",list)
+		listPadding.PaddingTop=UDim.new(0,2)
+		listPadding.PaddingBottom=UDim.new(0,2)
+		listPadding.PaddingLeft=UDim.new(0,2)
+		listPadding.PaddingRight=UDim.new(0,2)
+
+		local minimized=false
+		local isCompact=false
+		local didInitialCenter=false
+		local fullSize=UDim2.fromOffset(760,600)
+		local miniSize=UDim2.fromOffset(760,118)
+		local rows={}
+		local allItems={}
+		local loops={}
+		local rowLayouts={}
+		local fetching=false
+
+		local function setCanvas()
+			list.CanvasSize=UDim2.fromOffset(0,layout.AbsoluteContentSize.Y+18)
+		end
+		NAlib.connect(GROUP,layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(setCanvas))
+
+		local function notify(m,t)
+			if DoNotif then
+				DoNotif(m,t or 4,"GamePasses")
+			else
+				warn("[GamePasses] "..m)
+			end
+			status.Text=m
+		end
+
+		local function updateCountText(visibleCount,totalCount)
+			totalCount=totalCount or #allItems
+			if totalCount <= 0 then
+				countBadge.Text="0 passes"
+			elseif visibleCount and visibleCount ~= totalCount then
+				countBadge.Text=Format("%d / %d passes",visibleCount,totalCount)
+			else
+				countBadge.Text=Format("%d passes",totalCount)
+			end
+		end
+
+		local function parseInterval()
+			local v=tonumber(interval.Text) or tonumber(Match(interval.Text or "","%d*%.?%d+")) or 0.1
+			if v < 0 then v=0 end
+			return v
+		end
+
+		local function stopAllLoops()
+			for _,state in pairs(loops) do
+				state.running=false
+			end
+			table.clear(loops)
+		end
+
+		local function clearRows()
+			stopAllLoops()
+			for _,rowData in pairs(rows) do
+				if rowData.frame then
+					pcall(rowData.frame.Destroy,rowData.frame)
+				end
+			end
+			table.clear(rows)
+			table.clear(rowLayouts)
+			table.clear(allItems)
+			updateCountText(0,0)
+			setCanvas()
+		end
+
+		local function setSpamVisual(rowData,active)
+			if not (rowData and rowData.spamBtn and rowData.spamGradient) then return end
+			rowData.spamBtn.Text=active and "Stop Spam" or "Spam Buy"
+			if active then
+				rowData.spamBtn.BackgroundColor3=COLORS.Danger
+				rowData.spamGradient.Color=ColorSequence.new(COLORS.Danger,COLORS.DangerDark)
+			else
+				rowData.spamBtn.BackgroundColor3=COLORS.Loop
+				rowData.spamGradient.Color=ColorSequence.new(COLORS.Loop,COLORS.LoopDark)
+			end
+		end
+
+		local function getPriceText(priceText,isForSale)
+			if isForSale == false then
+				return "Offsale"
+			end
+			return priceText or "Unknown"
+		end
+
+		local function normalizeDescription(text)
+			if type(text)~="string" then return nil end
+			text=text:gsub("[%c\r\n]+"," "):gsub("%s+"," ")
+			if text=="" then return nil end
+			if #text > 120 then
+				text=text:sub(1,117).."..."
+			end
+			return text
+		end
+
+		local function normalizeAssetId(value)
+			if typeof(value)=="number" then
+				return value
+			end
+			if typeof(value)=="string" then
+				local digits=value:match("(%d+)")
+				if digits then
+					return tonumber(digits)
+				end
+			end
+			return nil
+		end
+
+		local function getImageSource(passInfo)
+			local iconId=normalizeAssetId(passInfo.iconAssetId)
+			if iconId and iconId > 0 then
+				return "rbxthumb://type=Asset&id="..tostring(iconId).."&w=420&h=420"
+			end
+			if type(passInfo.imageUrl)=="string" and passInfo.imageUrl~="" then
+				return passInfo.imageUrl
+			end
+			return ""
+		end
+
+		local function updateWindowLayout()
+			local vp=getViewport()
+			isCompact=isCompactViewport(vp)
+			local width=isCompact and math.clamp(vp.X-28,320,540) or math.clamp(vp.X-120,640,860)
+			local height=isCompact and math.clamp(math.floor(vp.Y*0.76),430,620) or math.clamp(math.floor(vp.Y*0.82),500,700)
+			local headerH=isCompact and 72 or 68
+			local controlsH=isCompact and 124 or 118
+
+			fullSize=UDim2.fromOffset(width,height)
+			miniSize=UDim2.fromOffset(width,isCompact and 116 or 108)
+
+			win.Size=minimized and miniSize or fullSize
+			shadow.Size=win.Size
+			if not didInitialCenter then
+				NAmanage.centerFrame(win)
+				didInitialCenter=true
+			end
+			shadow.Position=win.Position
+
+			header.Size=UDim2.new(1,0,0,headerH)
+			headerMask.Size=UDim2.new(1,-24,1,-16)
+			headerMask.Position=UDim2.fromOffset(12,8)
+
+			title.Position=UDim2.fromOffset(18,12)
+			title.Size=UDim2.new(1,-130,0,isCompact and 28 or 30)
+			countBadge.Position=UDim2.fromOffset(18,isCompact and 42 or 40)
+			countBadge.Size=UDim2.fromOffset(isCompact and 112 or 120,22)
+
+			topButtons.Position=UDim2.new(1,-90,0,12)
+			topButtons.Size=UDim2.fromOffset(72,34)
+			minimize.Position=UDim2.fromOffset(0,0)
+			minimize.Size=UDim2.fromOffset(34,34)
+			close.Position=UDim2.fromOffset(38,0)
+			close.Size=UDim2.fromOffset(34,34)
+
+			controls.Position=UDim2.fromOffset(16,headerH+12)
+			controls.Size=UDim2.new(1,-32,0,controlsH)
+
+			actionsRow.Position=UDim2.fromOffset(12,12)
+			actionsRow.Size=UDim2.new(1,-24,0,38)
+			if isCompact then
+				refresh.Position=UDim2.new(0,0,0,0)
+				refresh.Size=UDim2.new(0.33,-4,1,0)
+				buyAll.Position=UDim2.new(0.33,2,0,0)
+				buyAll.Size=UDim2.new(0.33,-4,1,0)
+				interval.Position=UDim2.new(0.66,4,0,0)
+				interval.Size=UDim2.new(0.34,-4,1,0)
+			else
+				refresh.Position=UDim2.fromOffset(0,0)
+				refresh.Size=UDim2.fromOffset(116,38)
+				buyAll.Position=UDim2.fromOffset(124,0)
+				buyAll.Size=UDim2.fromOffset(124,38)
+				interval.Size=UDim2.fromOffset(138,38)
+				interval.Position=UDim2.new(1,-138,0,0)
+			end
+
+			searchWrap.Position=UDim2.fromOffset(12,58)
+			searchWrap.Size=UDim2.new(1,-24,0,38)
+			search.Position=UDim2.fromOffset(12,0)
+			search.Size=UDim2.new(1,-24,1,0)
+			status.Position=UDim2.fromOffset(14,102)
+			status.Size=UDim2.new(1,-28,0,14)
+
+			body.Position=UDim2.fromOffset(16,headerH+controlsH+24)
+			body.Size=UDim2.new(1,-32,1,-(headerH+controlsH+40))
+
+			for _,updateRow in pairs(rowLayouts) do
+				updateRow(isCompact)
+			end
+			setCanvas()
+		end
+
+		local function makeChip(parent,text)
+			local chip=InstanceNew("TextLabel",parent)
+			chip.BackgroundColor3=COLORS.CardAlt
+			chip.TextColor3=COLORS.Text
+			chip.Font=Enum.Font.GothamSemibold
+			chip.Text=text
+			chip.TextScaled=true
+			chip.Size=UDim2.fromOffset(96,24)
+			chip.ZIndex=5
+			stylePill(chip,10,0.44)
+			addTextConstraint(chip,9,13)
+			return chip
+		end
+
+		local function makeRow(passInfo)
+			local id=passInfo.id
+			if rows[id] then return end
+
+			local row=InstanceNew("Frame",list)
+			row.BackgroundColor3=COLORS.Card
+			row.BorderSizePixel=0
+			row.ZIndex=4
+			stylePill(row,20,0.32)
+			addGradient(row,Color3.fromRGB(30,39,55),Color3.fromRGB(20,26,36),90)
+
+			local iconHolder=InstanceNew("Frame",row)
+			iconHolder.BackgroundColor3=COLORS.CardAlt
+			iconHolder.BorderSizePixel=0
+			iconHolder.ZIndex=6
+			stylePill(iconHolder,16,0.42)
+
+			local icon=InstanceNew("ImageLabel",iconHolder)
+			icon.BackgroundTransparency=1
+			icon.Position=UDim2.fromOffset(4,4)
+			icon.Size=UDim2.new(1,-8,1,-8)
+			icon.ScaleType=Enum.ScaleType.Crop
+			icon.Image=getImageSource(passInfo)
+			icon.ZIndex=7
+			local iconCorner=InstanceNew("UICorner",icon)
+			iconCorner.CornerRadius=UDim.new(0,12)
+
+			local inner=InstanceNew("Frame",row)
+			inner.BackgroundTransparency=1
+			inner.ZIndex=5
+
+			local nameL=InstanceNew("TextLabel",inner)
+			nameL.BackgroundTransparency=1
+			nameL.Font=Enum.Font.GothamSemibold
+			nameL.TextXAlignment=Enum.TextXAlignment.Left
+			nameL.TextYAlignment=Enum.TextYAlignment.Top
+			nameL.TextColor3=COLORS.Text
+			nameL.Text=passInfo.name or ("Pass "..id)
+			nameL.TextWrapped=true
+			nameL.TextScaled=true
+			nameL.ZIndex=6
+			addTextConstraint(nameL,12,20)
+
+			local metaRow=InstanceNew("Frame",inner)
+			metaRow.BackgroundTransparency=1
+			metaRow.ZIndex=6
+			local metaLayout=InstanceNew("UIListLayout",metaRow)
+			metaLayout.FillDirection=Enum.FillDirection.Horizontal
+			metaLayout.VerticalAlignment=Enum.VerticalAlignment.Center
+			metaLayout.SortOrder=Enum.SortOrder.LayoutOrder
+			metaLayout.Padding=UDim.new(0,8)
+
+			local idBadge=makeChip(metaRow,"ID "..tostring(id))
+			idBadge.LayoutOrder=1
+
+			local priceBadge=makeChip(metaRow,getPriceText(passInfo.priceText,passInfo.isForSale))
+			priceBadge.LayoutOrder=2
+
+			local saleBadge
+			if passInfo.isForSale == false then
+				saleBadge=makeChip(metaRow,"OFFSALE")
+				saleBadge.LayoutOrder=3
+				saleBadge.BackgroundColor3=COLORS.Warn
+			end
+
+			local detail=InstanceNew("TextLabel",inner)
+			detail.BackgroundTransparency=1
+			detail.Font=Enum.Font.Gotham
+			detail.TextXAlignment=Enum.TextXAlignment.Left
+			detail.TextYAlignment=Enum.TextYAlignment.Top
+			detail.TextColor3=COLORS.Muted
+			detail.TextWrapped=true
+			detail.TextScaled=true
+			detail.ZIndex=6
+			addTextConstraint(detail,10,14)
+
+			local buttons=InstanceNew("Frame",row)
+			buttons.BackgroundTransparency=1
+			buttons.ZIndex=6
+
+			local buyBtn=InstanceNew("TextButton",buttons)
+			buyBtn.Text="Buy"
+			buyBtn.ZIndex=7
+			local _,buyGradient=styleButton(buyBtn,COLORS.Accent,COLORS.AccentDark)
+
+			local spamBtn=InstanceNew("TextButton",buttons)
+			spamBtn.Text="Spam Buy"
+			spamBtn.ZIndex=7
+			local _,spamGradient=styleButton(spamBtn,COLORS.Loop,COLORS.LoopDark)
+
+			local rowData={
+				frame=row,
+				info=passInfo,
+				iconHolder=iconHolder,
+				icon=icon,
+				nameL=nameL,
+				idBadge=idBadge,
+				priceBadge=priceBadge,
+				saleBadge=saleBadge,
+				detail=detail,
+				buyBtn=buyBtn,
+				buyGradient=buyGradient,
+				spamBtn=spamBtn,
+				spamGradient=spamGradient
+			}
+
+			local function updateRowLayout(compact)
+				local hasDetail=detail.Visible
+				if compact then
+					row.Size=UDim2.new(1,0,0,hasDetail and 138 or 114)
+					iconHolder.Position=UDim2.fromOffset(14,12)
+					iconHolder.Size=UDim2.fromOffset(48,48)
+					inner.Position=UDim2.fromOffset(72,12)
+					inner.Size=UDim2.new(1,-86,0,hasDetail and 80 or 56)
+					nameL.Position=UDim2.fromOffset(0,0)
+					nameL.Size=UDim2.new(1,0,0,28)
+					metaRow.Position=UDim2.fromOffset(0,34)
+					metaRow.Size=UDim2.new(1,0,0,24)
+					detail.Position=UDim2.fromOffset(0,60)
+					detail.Size=UDim2.new(1,0,0,20)
+					buttons.Position=UDim2.fromOffset(14,hasDetail and 96 or 72)
+					buttons.Size=UDim2.new(1,-28,0,30)
+					buyBtn.Position=UDim2.new(0,0,0,0)
+					buyBtn.Size=UDim2.new(0.5,-4,1,0)
+					spamBtn.Position=UDim2.new(0.5,4,0,0)
+					spamBtn.Size=UDim2.new(0.5,-4,1,0)
+				else
+					row.Size=UDim2.new(1,0,0,hasDetail and 112 or 92)
+					iconHolder.Position=UDim2.fromOffset(16,16)
+					iconHolder.Size=UDim2.fromOffset(58,58)
+					inner.Position=UDim2.fromOffset(88,14)
+					inner.Size=UDim2.new(1,-228,1,-28)
+					nameL.Position=UDim2.fromOffset(0,0)
+					nameL.Size=UDim2.new(1,0,0,26)
+					metaRow.Position=UDim2.fromOffset(0,34)
+					metaRow.Size=UDim2.new(1,0,0,24)
+					detail.Position=UDim2.fromOffset(0,64)
+					detail.Size=UDim2.new(1,0,0,20)
+					buttons.Position=UDim2.new(1,-128,0.5,-37)
+					buttons.Size=UDim2.fromOffset(112,74)
+					buyBtn.Position=UDim2.fromOffset(0,0)
+					buyBtn.Size=UDim2.new(1,0,0,34)
+					spamBtn.Position=UDim2.fromOffset(0,40)
+					spamBtn.Size=UDim2.new(1,0,0,34)
+				end
+			end
+
+			rowLayouts[id]=updateRowLayout
+			detail.Text=normalizeDescription(passInfo.description) or ""
+			detail.Visible=detail.Text~=""
+			updateRowLayout(isCompact)
+			setSpamVisual(rowData,false)
+
+			NAlib.connect(GROUP, MouseButtonFix(buyBtn,function()
+				__lt.cm("MarketplaceService", "SignalPromptGamePassPurchaseFinished", LocalPlayer,id,true)
+			end))
+
+			NAlib.connect(GROUP, MouseButtonFix(spamBtn,function()
+				local state=loops[id]
+				if state and state.running then
+					state.running=false
+					setSpamVisual(rowData,false)
+				else
+					state={running=true}
+					loops[id]=state
+					setSpamVisual(rowData,true)
+					SpawnCall(function()
+						while state.running do
+							__lt.cm("MarketplaceService", "SignalPromptGamePassPurchaseFinished", LocalPlayer,id,true)
+							Wait(parseInterval())
+						end
+						if rowData.frame and rowData.frame.Parent then
+							setSpamVisual(rowData,false)
+						end
+						loops[id]=nil
+					end)
+				end
+			end))
+
+			rows[id]=rowData
+		end
+
+		local function applyFilter(q)
+			q=Lower(q or "")
+			local visibleCount=0
+			for _,info in ipairs(allItems) do
+				local rowData=rows[info.id]
+				if rowData then
+					local nameText=Lower(info.name or rowData.nameL.Text or "")
+					local idText=tostring(info.id)
+					local visible=(q=="" or Find(nameText,q,1,true)~=nil or Find(idText,q,1,true)~=nil)
+					rowData.frame.Visible=visible
+					if visible then
+						visibleCount=visibleCount+1
+					end
+				end
+			end
+			updateCountText(visibleCount,#allItems)
+			setCanvas()
+		end
+
+		local function buyAllQueued()
+			if #allItems==0 then return end
+			local delayS=parseInterval()
+			SpawnCall(function()
+				for _,info in ipairs(allItems) do
+					__lt.cm("MarketplaceService", "SignalPromptGamePassPurchaseFinished", LocalPlayer,info.id,true)
+					Wait(delayS)
+				end
+			end)
+		end
+
+		local function fetchPasses()
+			local fetched={}
+			local base=Format("https://apis.roblox.com/game-passes/v1/universes/%s/game-passes?passView=Full&pageSize=100", tostring(GameId))
+			local nextToken=nil
+
+			repeat
+				local url=base
+				if nextToken and nextToken~="" then
+					url=Format("%s&pageToken=%s",base,tostring(nextToken))
+				end
+
+				local ok,decoded=pcall(function()
+					return HttpService:JSONDecode(game:HttpGet(url))
+				end)
+
+				if not ok or type(decoded)~="table" then
+					return nil,"Failed to decode API response"
+				end
+
+				if decoded.gamePasses and type(decoded.gamePasses)=="table" then
+					for _,gp in next, decoded.gamePasses do
+						if gp and gp.id then
+							local priceText
+							if gp.isForSale == false then
+								priceText="Offsale"
+							elseif gp.price then
+								priceText=tostring(gp.price).." R$"
+							elseif gp.displayPrice then
+								priceText=tostring(gp.displayPrice)
+							else
+								priceText="Unknown"
+							end
+
+							Insert(fetched,{
+								id=gp.id,
+								name=gp.displayName or gp.name or ("Pass "..tostring(gp.id)),
+								priceText=priceText,
+								isForSale=gp.isForSale,
+								description=gp.description,
+								iconAssetId=normalizeAssetId(gp.iconImageAssetId or gp.iconImageAssetID or gp.imageAssetId),
+								imageUrl=gp.imageUrl
+							})
+						end
+					end
+				end
+
+				nextToken=decoded.nextPageToken
+				if nextToken=="" then
+					nextToken=nil
+				end
+			until not nextToken
+
+			table.sort(fetched,function(a,b)
+				return Lower(a.name or "") < Lower(b.name or "")
+			end)
+
+			return fetched
+		end
+
+		local function fetchFromApi()
+			if fetching then return end
+			fetching=true
+			clearRows()
+			notify("Fetching gamepasses...")
+
+			local passes,err=fetchPasses()
+			if not passes then
+				notify("Failed to fetch gamepasses: "..tostring(err),6)
+				fetching=false
+				return
+			end
+
+			for _,passInfo in ipairs(passes) do
+				Insert(allItems,passInfo)
+				makeRow(passInfo)
+				SpawnCall(function()
+					local ok,info=pcall(function()
+						return __lt.cm("MarketplaceService", "GetProductInfo", passInfo.id,Enum.InfoType.GamePass)
+					end)
+					if ok and type(info)=="table" and rows[passInfo.id] and rows[passInfo.id].frame and rows[passInfo.id].frame.Parent then
+						passInfo.name=info.Name or passInfo.name
+						passInfo.description=info.Description or passInfo.description
+						passInfo.iconAssetId=normalizeAssetId(info.IconImageAssetId or info.IconImageAssetID) or passInfo.iconAssetId
+						if info.PriceInRobux then
+							passInfo.priceText=tostring(info.PriceInRobux).." R$"
+						end
+						rows[passInfo.id].nameL.Text=passInfo.name or rows[passInfo.id].nameL.Text
+						rows[passInfo.id].priceBadge.Text=getPriceText(passInfo.priceText,passInfo.isForSale)
+						rows[passInfo.id].icon.Image=getImageSource(passInfo)
+						rows[passInfo.id].detail.Text=normalizeDescription(passInfo.description) or ""
+						rows[passInfo.id].detail.Visible=rows[passInfo.id].detail.Text~=""
+						if rowLayouts[passInfo.id] then
+							rowLayouts[passInfo.id](isCompact)
+						end
+					end
+				end)
+				Wait()
+			end
+
+			applyFilter(search.Text)
+			notify(Format("Loaded %d gamepasses.",#allItems))
+			fetching=false
+		end
+
+		NAlib.connect(GROUP, MouseButtonFix(close,function()
+			stopAllLoops()
+			NAlib.disconnect(GROUP)
+			pcall(gui.Destroy,gui)
+			NA_GAMEPASS_GUI=nil
+		end))
+
+		NAlib.connect(GROUP, MouseButtonFix(minimize,function()
+			minimized=not minimized
+			controls.Visible=not minimized
+			body.Visible=not minimized
+			minimize.Text=minimized and "+" or "-"
+			local target=minimized and miniSize or fullSize
+			tween(win,{Size=target},0.18)
+			tween(shadow,{Size=target},0.18)
+			shadow.Position=win.Position
+		end))
+
+		NAlib.connect(GROUP,win:GetPropertyChangedSignal("Position"):Connect(function()
+			shadow.Position=win.Position
+		end))
+
+		local cam=workspace.CurrentCamera
+		if cam then
+			NAlib.connect(GROUP,cam:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+				updateWindowLayout()
+			end))
+		end
+
+		NAlib.connect(GROUP,search:GetPropertyChangedSignal("Text"):Connect(function()
+			applyFilter(search.Text)
+		end))
+
+		NAlib.connect(GROUP, MouseButtonFix(refresh,function()
+			search.Text=""
+			fetchFromApi()
+		end))
+
+		NAlib.connect(GROUP, MouseButtonFix(buyAll,function()
+			buyAllQueued()
+		end))
+
+		updateWindowLayout()
+		fetchFromApi()
+		return
+	end
 	if NA_GAMEPASS_GUI and NA_GAMEPASS_GUI.Parent then NA_GAMEPASS_GUI:Destroy() end
 	local MarketplaceService=SafeGetService("MarketplaceService")
 	local LocalPlayer=Players.LocalPlayer
@@ -77793,9 +79347,21 @@ NAmanage.destroyNAConsole = function()
 	NAmanage._naConsoleInitialized = false
 end
 
+NAmanage.applyLightingStyleAutomation = function()
+	if NAStuff.LightingStyleAutomation ~= true or not Lighting then
+		return false
+	end
+	local styleName = type(NAStuff.LightingStyleAutomationStyle) == "string" and NAStuff.LightingStyleAutomationStyle or "Soft"
+	local style = Enum.LightingStyle[styleName] or Enum.LightingStyle.Soft
+	local ok = pcall(function()
+		Lighting.LightingStyle = style
+	end)
+	return ok == true
+end
+
 if not NAmanage._autoJumpGuardInitialized then
 	NAmanage._autoJumpGuardInitialized = true
-	Lighting.LightingStyle = Enum.LightingStyle.Soft
+	NAmanage.applyLightingStyleAutomation()
 
 	local function disableAutoJump(hum)
 		if not hum or not hum.Parent then
@@ -79731,6 +81297,48 @@ NAgui.addSlider("AutoFire Extra Distance", 0, 250, autoInteractExtraDefault, 1, 
 	n = math.clamp(n, 0, 250)
 	NAStuff.AutoInteractExtraRange = n
 	pcall(NAmanage.NASettingsSet, "autoInteractExtraRange", n)
+end)
+
+NAgui.addSection("Environment Automation")
+
+NAStuff.lightingStyleOptions = NAStuff.lightingStyleOptions or {}
+for _, item in ipairs(Enum.LightingStyle:GetEnumItems()) do
+	NAStuff.lightingStyleOptions[#NAStuff.lightingStyleOptions + 1] = item.Name
+end
+table.sort(NAStuff.lightingStyleOptions, function(a, b)
+	return Lower(a) < Lower(b)
+end)
+
+NAStuff.LightingStyleAutomationDropdownLabel = NAStuff.LightingStyleAutomationDropdownLabel or "LightingStyle Auto Apply"
+NAgui.addDropdown(NAStuff.LightingStyleAutomationDropdownLabel, NAStuff.lightingStyleOptions, NAStuff.LightingStyleAutomationStyle or "Soft", function(selection)
+	local styleName = nil
+	if type(selection) == "table" then
+		styleName = tostring(selection[1] or "")
+	else
+		styleName = tostring(selection or "")
+	end
+	styleName = styleName:match("^%s*(.-)%s*$") or styleName
+	if styleName == "" or not Enum.LightingStyle[styleName] then
+		return
+	end
+	NAStuff.LightingStyleAutomationStyle = styleName
+	pcall(NAmanage.NASettingsSet, "lightingStyleAutomationStyle", styleName)
+	if NAStuff.LightingStyleAutomation == true then
+		NAmanage.applyLightingStyleAutomation()
+	end
+	DoNotif("LightingStyle auto-apply set to "..styleName, 2)
+end)
+
+NAgui.addToggle("Auto Apply LightingStyle", NAStuff.LightingStyleAutomation == true, function(v)
+	NAStuff.LightingStyleAutomation = v == true
+	pcall(NAmanage.NASettingsSet, "lightingStyleAutomation", NAStuff.LightingStyleAutomation)
+	if NAStuff.LightingStyleAutomation then
+		NAmanage.applyLightingStyleAutomation()
+	end
+	DoNotif("LightingStyle auto-apply "..(NAStuff.LightingStyleAutomation and "enabled" or "disabled"), 2)
+end)
+NAmanage.RegisterToggleAutoSync("Auto Apply LightingStyle", function()
+	return NAStuff.LightingStyleAutomation == true
 end)
 
 NAgui.addSection("Offset Visualizer")
