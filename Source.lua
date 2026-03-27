@@ -64272,32 +64272,29 @@ do
 
 		local skin = originalIO.bodyModsGetSkinColor()
 		local sizeScale = math.clamp(size / 4, 0.3, 2)
-		local baseSize = Vector3.new(1.22, 1.14, 1.02)
-		local baseNipple = Vector3.new(0.15, 0.15, 0.15)
+		local baseSize = Vector3.new(1.28, 1.22, 1.10)
+		local baseNipple = Vector3.new(0.17, 0.17, 0.17)
 		local boobSize = Vector3.new(
-			baseSize.X * size * (0.96 + sizeScale * 0.06),
-			baseSize.Y * size * (0.92 + sizeScale * 0.05),
-			baseSize.Z * size * (0.88 + sizeScale * 0.08)
+			baseSize.X * size * (0.98 + sizeScale * 0.09),
+			baseSize.Y * size * (0.96 + sizeScale * 0.08),
+			baseSize.Z * size * (0.93 + sizeScale * 0.11)
 		)
 		local nippleSize = Vector3.new(
-			baseNipple.X * size * (0.92 + sizeScale * 0.04),
-			baseNipple.Y * size * (0.92 + sizeScale * 0.04),
-			baseNipple.Z * size * (0.90 + sizeScale * 0.06)
+			baseNipple.X * size * (1.05 + sizeScale * 0.10),
+			baseNipple.Y * size * (1.05 + sizeScale * 0.10),
+			baseNipple.Z * size * (0.98 + sizeScale * 0.09)
 		)
-		local areolaThickness = math.clamp(nippleSize.Z * 0.55, 0.06, 0.22)
+		local areolaThickness = math.clamp(nippleSize.Z * 0.62, 0.08, 0.26)
 		local areolaSize = Vector3.new(
 			areolaThickness,
-			nippleSize.Y * 2.35,
-			nippleSize.Z * 2.35
+			nippleSize.Y * 2.55,
+			nippleSize.Z * 2.55
 		)
-		local popForward = 0.02
-		local backGap = math.max(0.03, nippleSize.Z * 0.45)
-		local nudge = 0.02
-		local radius = boobSize.Z * 0.5
+		local popForward = 0.035
 		local torsoFront = torso.Size.Z * 0.5
-		state.boobs.ox = math.clamp(torso.Size.X * 0.22 + boobSize.X * 0.14, 0.42, math.max(0.64, torso.Size.X * 0.52))
-		state.boobs.oy = -(torso.Size.Y * 0.18 + boobSize.Y * 0.11)
-		state.boobs.oz = torsoFront + math.max(0.10, radius * 0.62) - 0.03
+		state.boobs.ox = math.clamp(torso.Size.X * 0.23 + boobSize.X * 0.15, 0.43, math.max(0.66, torso.Size.X * 0.54))
+		state.boobs.oy = -(torso.Size.Y * 0.14 + boobSize.Y * 0.09)
+		state.boobs.oz = torsoFront + math.max(0.13, (boobSize.Z * 0.5) * 0.67) - 0.025
 
 		local function offsetToFront(sphereSize, attachSize)
 			local sphereRadius = (sphereSize and sphereSize.Z or baseSize.Z) * 0.5
@@ -64347,7 +64344,7 @@ do
 			areola.ZOffset = 0.01
 			areola.Parent = boob
 
-			local areolaScale = math.clamp(math.max(areolaSize.Y, areolaSize.Z) / math.max(boob.Size.Y, boob.Size.Z), 0.18, 0.42)
+			local areolaScale = math.clamp(math.max(areolaSize.Y, areolaSize.Z) / math.max(boob.Size.Y, boob.Size.Z), 0.22, 0.48)
 			local areolaFrame = InstanceNew("Frame")
 			areolaFrame.Name = "Disk"
 			areolaFrame.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -64426,27 +64423,27 @@ do
 			state.boobs.llv = localVel
 			local planarSpeed = Vector3.new(localVel.X, 0, localVel.Z).Magnitude
 			local sizeScale = math.clamp((state.boobs.size or 1) / 3, 0.4, 2.4)
-			local softness = math.clamp((planarSpeed + math.abs(localVel.Y) * 0.35) / 20, 0, 1)
+			local softness = math.clamp((planarSpeed + math.abs(localVel.Y) * 0.42) / 18, 0, 1)
 			local moveAlpha = math.clamp((currentHumanoid and currentHumanoid.MoveDirection.Magnitude) or 0, 0, 1)
 			local gait = math.sin(os.clock() * (6.2 + planarSpeed * 0.18)) * math.clamp((planarSpeed - 1.5) / 10, 0, 1) * moveAlpha
-			local settleY = -0.020 * sizeScale
-			local settleZ = 0.012 * sizeScale
-			local massScale = 0.85 + sizeScale * 0.30
+			local settleY = -0.018 * sizeScale
+			local settleZ = 0.014 * sizeScale
+			local massScale = 0.82 + sizeScale * 0.28
 
-			local targetY = math.clamp(settleY + (((-localVel.Y * 0.013) - accel.Y * 0.0075 + gait * 0.028) * (0.65 + sizeScale * 0.45)), -0.18, 0.18)
-			local targetZ = math.clamp(settleZ + (((-localVel.Z * 0.018) - accel.Z * 0.0085 + math.abs(gait) * 0.018) * (0.68 + sizeScale * 0.55)), -0.19, 0.22)
-			local targetX = math.clamp((((-localVel.X * 0.015) - accel.X * 0.0045) * (0.65 + sizeScale * 0.45)), -0.16, 0.16)
+			local targetY = math.clamp(settleY + (((-localVel.Y * 0.014) - accel.Y * 0.008 + gait * 0.030) * (0.68 + sizeScale * 0.48)), -0.19, 0.19)
+			local targetZ = math.clamp(settleZ + (((-localVel.Z * 0.019) - accel.Z * 0.009 + math.abs(gait) * 0.020) * (0.70 + sizeScale * 0.58)), -0.20, 0.24)
+			local targetX = math.clamp((((-localVel.X * 0.016) - accel.X * 0.005) * (0.68 + sizeScale * 0.48)), -0.17, 0.17)
 
-			local targetPitch = math.clamp((settleY * 0.65) + (((-localVel.Y * 0.012) - accel.Y * 0.0055 + gait * 0.080) * (0.35 + sizeScale * 0.32)) + angInput.X * 0.32, -0.38, 0.38)
-			local targetRoll = math.clamp((((-localVel.X * 0.038) - accel.X * 0.004) * (0.45 + sizeScale * 0.22)) + (-angInput.Y * 0.28), -0.34, 0.34)
-			local targetYaw = math.clamp((((localVel.X * 0.034) + accel.X * 0.0025) * (0.45 + sizeScale * 0.22)) + (angInput.Z * 0.22), -0.28, 0.28)
+			local targetPitch = math.clamp((settleY * 0.68) + (((-localVel.Y * 0.013) - accel.Y * 0.006 + gait * 0.085) * (0.38 + sizeScale * 0.35)) + angInput.X * 0.34, -0.39, 0.39)
+			local targetRoll = math.clamp((((-localVel.X * 0.040) - accel.X * 0.005) * (0.48 + sizeScale * 0.25)) + (-angInput.Y * 0.30), -0.36, 0.36)
+			local targetYaw = math.clamp((((localVel.X * 0.036) + accel.X * 0.003) * (0.48 + sizeScale * 0.25)) + (angInput.Z * 0.24), -0.30, 0.30)
 
-			local kBase = 62
-			local dBase = 7.6
-			local kTrans = (kBase - 12 * softness) / massScale
-			local dTrans = dBase + sizeScale * 0.40 - 0.7 * softness
-			local kRot = (58 - 10 * softness) / math.max(massScale * 0.95, 0.65)
-			local dRot = 6.8 + sizeScale * 0.30 - 0.5 * softness
+			local kBase = 54
+			local dBase = 8.2
+			local kTrans = (kBase - 15 * softness) / massScale
+			local dTrans = dBase + sizeScale * 0.42 - 0.75 * softness
+			local kRot = (55 - 11 * softness) / math.max(massScale * 0.94, 0.64)
+			local dRot = 7.1 + sizeScale * 0.32 - 0.55 * softness
 
 			state.boobs.sy, state.boobs.vy = originalIO.bodyModsSpring(state.boobs.sy, state.boobs.vy, targetY, kTrans, dTrans, dt)
 			state.boobs.sz, state.boobs.vz = originalIO.bodyModsSpring(state.boobs.sz, state.boobs.vz, targetZ, kTrans, dTrans, dt)
@@ -64541,17 +64538,17 @@ do
 
 		local skin = originalIO.bodyModsGetSkinColor()
 		local sizeScale = math.clamp(size / 4, 0.3, 2)
-		local baseSize = Vector3.new(1.14, 1.18, 1.02)
+		local baseSize = Vector3.new(1.20, 1.28, 1.08)
 		local cheekSize = Vector3.new(
-			baseSize.X * size * (0.95 + sizeScale * 0.05),
-			baseSize.Y * size * (0.98 + sizeScale * 0.04),
-			baseSize.Z * size * (0.86 + sizeScale * 0.08)
+			baseSize.X * size * (0.97 + sizeScale * 0.07),
+			baseSize.Y * size * (1.02 + sizeScale * 0.06),
+			baseSize.Z * size * (0.89 + sizeScale * 0.10)
 		)
 		local radius = cheekSize.Y * 0.5
 
-		state.ass.ox = math.clamp(torso.Size.X * 0.22 + cheekSize.X * 0.12, 0.42, math.max(0.62, torso.Size.X * 0.50))
-		state.ass.oy = (humanoid.RigType == Enum.HumanoidRigType.R15) and (-(torso.Size.Y * 0.32 + cheekSize.Y * 0.05)) or (0.68 + cheekSize.Y * 0.05)
-		state.ass.oz = -(torso.Size.Z * 0.46 + radius * 0.34)
+		state.ass.ox = math.clamp(torso.Size.X * 0.24 + cheekSize.X * 0.14, 0.43, math.max(0.64, torso.Size.X * 0.52))
+		state.ass.oy = (humanoid.RigType == Enum.HumanoidRigType.R15) and (-(torso.Size.Y * 0.29 + cheekSize.Y * 0.06)) or (0.66 + cheekSize.Y * 0.06)
+		state.ass.oz = -(torso.Size.Z * 0.42 + radius * 0.39)
 
 		local function createCheek(side)
 			local cheek = InstanceNew("Part")
@@ -64615,13 +64612,13 @@ do
 			state.ass.llv = localVel
 			local planarSpeed = Vector3.new(localVel.X, 0, localVel.Z).Magnitude
 			local sizeScale = math.clamp((state.ass.size or 1) / 3, 0.4, 2.5)
-			local softness = math.clamp((planarSpeed + math.abs(localVel.Y) * 0.30) / 18, 0, 1)
+			local softness = math.clamp((planarSpeed + math.abs(localVel.Y) * 0.38) / 17, 0, 1)
 			local moveAlpha = math.clamp((currentHumanoid and currentHumanoid.MoveDirection.Magnitude) or 0, 0, 1)
 			local stride = math.sin(os.clock() * (7.0 + planarSpeed * 0.20))
 			local gait = stride * math.clamp((planarSpeed - 1.0) / 9, 0, 1) * moveAlpha
-			local settleY = -0.026 * sizeScale
-			local settleZ = -0.014 * sizeScale
-			local massScale = 0.90 + sizeScale * 0.34
+			local settleY = -0.028 * sizeScale
+			local settleZ = -0.016 * sizeScale
+			local massScale = 0.87 + sizeScale * 0.36
 
 			local targetY = math.clamp(settleY + (((-localVel.Y * 0.032) - accel.Y * 0.013 + math.abs(gait) * 0.026) * (0.65 + sizeScale * 0.42)), -0.20, 0.20)
 			local targetZ = math.clamp(settleZ + (((localVel.Z * 0.026) + accel.Z * 0.010 + math.abs(gait) * 0.018) * (0.60 + sizeScale * 0.40)), -0.18, 0.16)
@@ -64631,10 +64628,10 @@ do
 			local targetRoll = math.clamp((((-localVel.X * 0.030) - accel.X * 0.004 - localAng.Y * 0.35) * (0.52 + sizeScale * 0.18)), -0.30, 0.30)
 			local targetYaw = math.clamp((((localVel.X * 0.020) - localAng.Z * 0.28) * (0.46 + sizeScale * 0.16)), -0.24, 0.24)
 
-			local kTrans = (40 - 10 * softness) / massScale
-			local dTrans = 6.2 + sizeScale * 0.35 - 0.5 * softness
-			local kRot = (38 - 8 * softness) / math.max(massScale * 0.95, 0.7)
-			local dRot = 5.8 + sizeScale * 0.25 - 0.4 * softness
+			local kTrans = (38 - 12 * softness) / massScale
+			local dTrans = 6.5 + sizeScale * 0.38 - 0.55 * softness
+			local kRot = (36 - 9 * softness) / math.max(massScale * 0.94, 0.68)
+			local dRot = 6.1 + sizeScale * 0.28 - 0.45 * softness
 
 			state.ass.sy, state.ass.vy = originalIO.bodyModsSpring(state.ass.sy, state.ass.vy, targetY, kTrans, dTrans, dt)
 			state.ass.sz, state.ass.vz = originalIO.bodyModsSpring(state.ass.sz, state.ass.vz, targetZ, kTrans, dTrans, dt)
@@ -64723,10 +64720,10 @@ do
 		state.pp.len = value
 
 		local skin = originalIO.bodyModsGetSkinColor()
-		local shaftLength = 1.35 + value * 0.78
-		local shaftRadius = math.clamp(0.30 + value * 0.03, 0.32, 0.50)
-		local ballRadius = math.clamp(0.46 + value * 0.035, 0.48, 0.72)
-		local tipRadius = math.clamp(shaftRadius * 1.15, 0.36, 0.58)
+		local shaftLength = 1.42 + value * 0.85
+		local shaftRadius = math.clamp(0.34 + value * 0.042, 0.35, 0.58)
+		local ballRadius = math.clamp(0.49 + value * 0.042, 0.50, 0.78)
+		local tipRadius = math.clamp(shaftRadius * 1.24, 0.39, 0.65)
 
 		local function createPart(shape, size, color, name)
 			local part = InstanceNew("Part")
@@ -64752,17 +64749,17 @@ do
 		end
 
 		local offsetY = (humanoid.RigType == Enum.HumanoidRigType.R15) and -0.98 or -1.40
-		local scrotumSpread = math.clamp(ballRadius * 0.42, 0.20, 0.34)
-		local leftBall = createPart(Enum.PartType.Ball, Vector3.new(ballRadius * 2, ballRadius * 2.05, ballRadius * 1.95), skin, "Balls")
-		local rightBall = createPart(Enum.PartType.Ball, Vector3.new(ballRadius * 2, ballRadius * 2.05, ballRadius * 1.95), skin, "Balls")
+		local scrotumSpread = math.clamp(ballRadius * 0.44, 0.21, 0.36)
+		local leftBall = createPart(Enum.PartType.Ball, Vector3.new(ballRadius * 2, ballRadius * 2.08, ballRadius * 1.98), skin, "Balls")
+		local rightBall = createPart(Enum.PartType.Ball, Vector3.new(ballRadius * 2, ballRadius * 2.08, ballRadius * 1.98), skin, "Balls")
 		local shaft = createPart(Enum.PartType.Cylinder, Vector3.new(shaftLength, shaftRadius * 2, shaftRadius * 2), skin, "penis")
-		local tip = createPart(Enum.PartType.Ball, Vector3.new(tipRadius * 2.1, tipRadius * 2.0, tipRadius * 2.0), pinkColor, "penis")
+		local tip = createPart(Enum.PartType.Ball, Vector3.new(tipRadius * 2.15, tipRadius * 2.05, tipRadius * 2.05), pinkColor, "penis")
 
-		leftBall.CFrame = torso.CFrame * CFrame.new(-scrotumSpread, offsetY, -0.74 - shaftRadius * 0.45)
-		rightBall.CFrame = torso.CFrame * CFrame.new(scrotumSpread, offsetY, -0.74 - shaftRadius * 0.45)
+		leftBall.CFrame = torso.CFrame * CFrame.new(-scrotumSpread, offsetY, -0.74 - shaftRadius * 0.46)
+		rightBall.CFrame = torso.CFrame * CFrame.new(scrotumSpread, offsetY, -0.74 - shaftRadius * 0.46)
 		local shaftBaseOffset = (humanoid.RigType == Enum.HumanoidRigType.R15) and 0.46 or 0.62
-		local shaftBaseZ = -(torso.Size.Z * 0.5 + shaftRadius * 0.10)
-		local shaftForwardBias = math.max(0, shaftLength * 0.5 - shaftRadius * 0.85)
+		local shaftBaseZ = -(torso.Size.Z * 0.5 + shaftRadius * 0.11)
+		local shaftForwardBias = math.max(0, shaftLength * 0.5 - shaftRadius * 0.88)
 		shaft.CFrame = torso.CFrame
 			* CFrame.new(0.00, offsetY + shaftBaseOffset, shaftBaseZ)
 			* CFrame.Angles(0, math.rad(270), 0)
@@ -64842,21 +64839,21 @@ do
 			state.pp.llv = localVel
 			local planarSpeed = Vector3.new(localVel.X, 0, localVel.Z).Magnitude
 			local lengthScale = math.clamp(value / 2, 0.45, 3)
-			local softness = math.clamp((planarSpeed + math.abs(localVel.Y) * 0.40) / 20, 0, 1)
+			local softness = math.clamp((planarSpeed + math.abs(localVel.Y) * 0.45) / 19, 0, 1)
 			local gait = math.sin(os.clock() * (5.4 + planarSpeed * 0.16)) * math.clamp((planarSpeed - 1.5) / 10, 0, 1)
-			local settleY = -0.012 * lengthScale
-			local settleZ = -0.040 * lengthScale
+			local settleY = -0.013 * lengthScale
+			local settleZ = -0.042 * lengthScale
 
-			local targetY = math.clamp(settleY + (-localVel.Y * 0.015) - (accel.Y * 0.006) + math.abs(gait) * 0.010, -0.12, 0.10)
-			local targetZ = math.clamp(settleZ + (-localVel.Z * (0.018 + 0.0025 * value)) - (accel.Z * 0.010) - math.abs(gait) * 0.012, -0.26, 0.12)
-			local targetX = math.clamp((-localVel.X * 0.014) - (accel.X * 0.006), -0.14, 0.14)
+			local targetY = math.clamp(settleY + (-localVel.Y * 0.016) - (accel.Y * 0.007) + math.abs(gait) * 0.012, -0.13, 0.11)
+			local targetZ = math.clamp(settleZ + (-localVel.Z * (0.019 + 0.0028 * value)) - (accel.Z * 0.011) - math.abs(gait) * 0.014, -0.27, 0.13)
+			local targetX = math.clamp((-localVel.X * 0.015) - (accel.X * 0.007), -0.15, 0.15)
 			local targetPitch = math.clamp((localAng.Z * 0.020) - (localVel.Y * 0.006) - (accel.Y * 0.0025), -0.18, 0.18)
 			local targetRoll = math.clamp((localAng.X * 0.020) + (localVel.X * 0.010) + (accel.X * 0.003), -0.18, 0.18)
 
-			local kTrans = (42 - 10 * softness) / math.max(0.65 + lengthScale * 0.35, 0.7)
-			local dTrans = 4.8 + lengthScale * 0.35 - 0.5 * softness
-			local kRot = (36 - 8 * softness) / math.max(0.70 + lengthScale * 0.30, 0.7)
-			local dRot = 4.2 + lengthScale * 0.25 - 0.4 * softness
+			local kTrans = (39 - 11 * softness) / math.max(0.65 + lengthScale * 0.35, 0.7)
+			local dTrans = 4.9 + lengthScale * 0.36 - 0.55 * softness
+			local kRot = (34 - 9 * softness) / math.max(0.70 + lengthScale * 0.30, 0.7)
+			local dRot = 4.3 + lengthScale * 0.26 - 0.45 * softness
 
 			state.pp.sy, state.pp.vy = originalIO.bodyModsSpring(state.pp.sy, state.pp.vy, targetY, kTrans, dTrans, dt)
 			state.pp.sz, state.pp.vz = originalIO.bodyModsSpring(state.pp.sz, state.pp.vz, targetZ, kTrans, dTrans, dt)
@@ -64880,10 +64877,10 @@ do
 				local ballTargetPitch = math.clamp((-localVel.Y * 0.010) - (accel.Y * 0.004), -0.16, 0.16)
 				local ballTargetRoll = math.clamp((localVel.X * 0.018) + gait * 0.055, -0.18, 0.18)
 
-				local kBallTrans = (30 - 8 * softness) / math.max(0.75 + lengthScale * 0.22, 0.8)
-				local dBallTrans = 4.6 + lengthScale * 0.25 - 0.3 * softness
-				local kBallRot = (24 - 6 * softness) / math.max(0.80 + lengthScale * 0.18, 0.8)
-				local dBallRot = 4.0 + lengthScale * 0.20 - 0.2 * softness
+				local kBallTrans = (28 - 9 * softness) / math.max(0.75 + lengthScale * 0.22, 0.8)
+				local dBallTrans = 4.7 + lengthScale * 0.26 - 0.35 * softness
+				local kBallRot = (23 - 7 * softness) / math.max(0.80 + lengthScale * 0.18, 0.8)
+				local dBallRot = 4.1 + lengthScale * 0.21 - 0.25 * softness
 
 				state.pp.bsy, state.pp.bvy = originalIO.bodyModsSpring(state.pp.bsy, state.pp.bvy, ballTargetY, kBallTrans, dBallTrans, dt)
 				state.pp.bsz, state.pp.bvz = originalIO.bodyModsSpring(state.pp.bsz, state.pp.bvz, ballTargetZ, kBallTrans, dBallTrans, dt)
