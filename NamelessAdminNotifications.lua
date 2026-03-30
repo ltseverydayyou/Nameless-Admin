@@ -28,6 +28,7 @@ end)()
 
 local _naNotif_env = (getgenv and getgenv()) or _G or {}
 local NotifFuns = {}
+local _naNotif_gui
 
 local S
 local randomUiName, tag, hasTag, protectUiInst, findTaggedChild, isCardFrame, findCardAncestor, findHeaderFrame
@@ -71,14 +72,6 @@ local UI_ATTR = {
 }
 
 function NotifFuns.randomUiName()
-	local ng = rawget(_naNotif_env, "NAgui")
-	local fn = (type(ng) == "table" and type(ng.rStringgg) == "function" and ng.rStringgg) or (type(NAgui) == "table" and type(NAgui.rStringgg) == "function" and NAgui.rStringgg)
-	if fn then
-		local ok, res = pcall(fn)
-		if ok and type(res) == "string" and res ~= "" then
-			return res
-		end
-	end
 	if hs and hs.GenerateGUID then
 		local ok, res = pcall(function()
 			return hs:GenerateGUID(false)
@@ -168,12 +161,14 @@ function NotifFuns.registerUI(guiInst)
 	if typeof(guiInst) ~= "Instance" then
 		return
 	end
+	_naNotif_gui = guiInst
 	_naNotif_env.EnhancedNotifsGui = guiInst
 	_naNotif_env.EnhancedNotifsUI = function()
-		if type(checkcaller) == "function" and not checkcaller() then
-			return nil
+		local ref = rawget(_naNotif_env, "EnhancedNotifsGui")
+		if typeof(ref) == "Instance" and ref:IsA("ScreenGui") and ref.Parent then
+			return ref
 		end
-		return _naNotif_env.EnhancedNotifsGui
+		return nil
 	end
 	_naNotif_env.NA_NOTIF_UI = _naNotif_env.EnhancedNotifsUI
 end
@@ -201,12 +196,16 @@ end
 pick = NotifFuns.pick
 
 function NotifFuns.findGui()
-	local uiFn = _naNotif_env and _naNotif_env.EnhancedNotifsUI
+	local uiFn = rawget(_naNotif_env, "EnhancedNotifsUI")
 	if type(uiFn) == "function" then
 		local ok, uiRef = pcall(uiFn)
 		if ok and typeof(uiRef) == "Instance" and uiRef:IsA("ScreenGui") and uiRef.Parent then
+			_naNotif_gui = uiRef
 			return uiRef, uiRef.Parent
 		end
+	end
+	if typeof(_naNotif_gui) == "Instance" and _naNotif_gui:IsA("ScreenGui") and _naNotif_gui.Parent then
+		return _naNotif_gui, _naNotif_gui.Parent
 	end
 	local targets = {}
 	local function push(v)
@@ -2534,12 +2533,18 @@ local api = {
 		end
 	end,
 	UI = function()
-		local uiFn = _naNotif_env and _naNotif_env.EnhancedNotifsUI
+		local uiFn = rawget(_naNotif_env, "EnhancedNotifsUI")
 		if type(uiFn) == "function" then
 			local ok, uiRef = pcall(uiFn)
 			if ok then
 				return uiRef
 			end
+		end
+		if typeof(_naNotif_gui) == "Instance" and _naNotif_gui.Parent then
+			return _naNotif_gui
+		end
+		if typeof(gui) == "Instance" and gui.Parent then
+			return gui
 		end
 		return nil
 	end,
@@ -2547,6 +2552,5 @@ local api = {
 }
 
 _naNotif_env.EnhancedNotifs = api
-_naNotif_env.__lt_en = api
 
 return api
