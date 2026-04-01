@@ -12115,6 +12115,18 @@ NAStuff.AprilFoolsData.placeholderJokes = NAStuff.AprilFoolsData.placeholderJoke
 }
 NAStuff.AprilFoolsData.originalColor = NAStuff.AprilFoolsData.originalColor or NAUISTROKER
 NAStuff.AprilFoolsData.reverted = NAStuff.AprilFoolsData.reverted or false
+NAStuff.AprilFoolsData.prankNotifCooldown = NAStuff.AprilFoolsData.prankNotifCooldown or {
+	min = 60,
+	max = 120,
+}
+NAStuff.AprilFoolsData.prankSoundCooldown = NAStuff.AprilFoolsData.prankSoundCooldown or {
+	min = 300,
+	max = 480,
+}
+NAStuff.AprilFoolsData.prankOverlayCooldown = NAStuff.AprilFoolsData.prankOverlayCooldown or {
+	min = 420,
+	max = 720,
+}
 
 MockText = function(text)
 	local result = {}
@@ -12233,8 +12245,14 @@ NAmanage.startAprilPranks = function()
 	end
 
 	SpawnCall(function()
+		local notifCooldown = aprilData.prankNotifCooldown or {}
+		local notifMin = tonumber(notifCooldown.min) or 60
+		local notifMax = tonumber(notifCooldown.max) or 120
+		if notifMax < notifMin then
+			notifMin, notifMax = notifMax, notifMin
+		end
 		while isAprilFools() do
-			Wait(math.random(14, 30))
+			Wait(math.random(notifMin, notifMax))
 			local msg = NAmanage.AprilPick(aprilData.prankNotifs)
 			if msg and type(DoNotif) == "function" then
 				DoNotif(maybeMock(msg), 4)
@@ -18882,7 +18900,9 @@ if not NAStuff._bgSoundLoopStarted then
 		while true do
 			local waitTime
 			if isAprilFools and isAprilFools() then
-				waitTime = NAmanage._bgScaledWait(600, 900) -- 10-15 minutes (AF mode), scaled per user
+				local aprilData = NAStuff and NAStuff.AprilFoolsData or {}
+				local soundCooldown = aprilData.prankSoundCooldown or {}
+				waitTime = NAmanage._bgScaledWait(tonumber(soundCooldown.min) or 300, tonumber(soundCooldown.max) or 480) -- 5-8 minutes (AF mode), scaled per user
 			else
 				waitTime = NAmanage._bgScaledWait(180, 300) -- 3-5 minutes, scaled per user
 			end
@@ -18902,7 +18922,9 @@ if not NAStuff._bgOverlayLoopStarted then
 		while true do
 			local waitTime
 			if isAprilFools and isAprilFools() then
-				waitTime = NAmanage._bgScaledWait(900, 1800) -- 15-30 minutes (AF mode), scaled per user
+				local aprilData = NAStuff and NAStuff.AprilFoolsData or {}
+				local overlayCooldown = aprilData.prankOverlayCooldown or {}
+				waitTime = NAmanage._bgScaledWait(tonumber(overlayCooldown.min) or 420, tonumber(overlayCooldown.max) or 720) -- 7-12 minutes (AF mode), scaled per user
 			else
 				waitTime = NAmanage._bgScaledWait(300, 900) -- 5-15 minutes, scaled per user
 			end
