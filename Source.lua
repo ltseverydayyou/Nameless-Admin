@@ -12395,15 +12395,17 @@ NAgui.dragger = function(ui, dragui)
 		local ok = pcall(function()
 			list = GS:GetGuiObjectsAtPosition(pos.X, pos.Y)
 		end)
-		if not ok or not list or #list == 0 then
+		if not ok or type(list) ~= "table" or #list == 0 then
 			return true
 		end
 		local top, topO
 		for _, g in ipairs(list) do
-			local o = getOrder(g)
-			if not top or o > topO then
-				top = g
-				topO = o
+			if typeof(g) == "Instance" and g:IsA("GuiObject") then
+				local o = getOrder(g)
+				if not top or o > topO then
+					top = g
+					topO = o
+				end
 			end
 		end
 		if not top then return true end
@@ -12599,15 +12601,17 @@ NAgui.draggerV2 = function(ui, dragui)
 		local ok = pcall(function()
 			list = GS:GetGuiObjectsAtPosition(pos.X, pos.Y)
 		end)
-		if not ok or not list or #list == 0 then
+		if not ok or type(list) ~= "table" or #list == 0 then
 			return true
 		end
 		local top, topO
 		for _, g in ipairs(list) do
-			local o = getOrder(g)
-			if not top or o > topO then
-				top = g
-				topO = o
+			if typeof(g) == "Instance" and g:IsA("GuiObject") then
+				local o = getOrder(g)
+				if not top or o > topO then
+					top = g
+					topO = o
+				end
 			end
 		end
 		if not top then return true end
