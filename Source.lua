@@ -897,6 +897,10 @@ local NAStuff = {
 		window = {
 			enabled = true;
 			font = "rbxasset://fonts/families/BuilderSans.json";
+			widthScale = 1;
+			heightScale = 1;
+			horizontalAlignment = "Left";
+			verticalAlignment = "Top";
 			textSize = 16;
 			textColor = {235,235,235};
 			strokeColor = {0,0,0};
@@ -911,28 +915,37 @@ local NAStuff = {
 			textSize = 18;
 			backgroundColor = {25,27,29};
 			backgroundTransparency = 0;
+			hoverBackgroundColor = {41,44,48};
 			textTransparency = 0;
 			textColor = {255,255,255};
 			selectedTextColor = {170,255,170};
 			unselectedTextColor = {200,200,200};
+			strokeColor = {0,0,0};
+			strokeTransparency = 0.5;
 		};
 		input = {
 			enabled = true;
 			autocomplete = true;
 			font = "rbxasset://fonts/families/BuilderSans.json";
 			keyCode = "Slash";
+			targetChannel = "";
 			textSize = 16;
 			textColor = {255,255,255};
 			strokeColor = {0,0,0};
 			strokeTransparency = 0.5;
+			placeholderColor = {178,178,178};
 			backgroundColor = {25,27,29};
 			backgroundTransparency = 0.2;
 			targetGeneral = false;
 		};
 		bubbles = {
 			enabled = true; -- ENABLED IT SINCE YOU CAN'T STOP CRYING ABOUT IT
+			font = "";
+			adorneeName = "HumanoidRootPart";
+			localPlayerStudsOffset = {0,0,0};
 			maxDistance = 100;
 			minimizeDistance = 20;
+			verticalStudsOffset = 0;
 			textSize = 14;
 			textColor = {255,255,255};
 			textTransparency = 0;
@@ -2823,23 +2836,45 @@ NAmanage._descHubGet = NAmanage._descHubGet or function(root)
 		kickQ()
 	end
 
-	hub.cAdd = root.DescendantAdded:Connect(function(inst)
-		qEvt("add", inst)
-	end)
-	hub.cRem = root.DescendantRemoving:Connect(function(inst)
-		qEvt("rem", inst)
-	end)
+	local function wantsEvents()
+		return (hub.addCount or 0) > 0 or (hub.remCount or 0) > 0
+	end
+
+	local function disconnectHooks()
+		disc(hub.cAdd)
+		disc(hub.cRem)
+		hub.cAdd = nil
+		hub.cRem = nil
+	end
+
+	local function connectHooks()
+		if not (hub.alive and wantsEvents()) then
+			return
+		end
+		if not hub.cAdd then
+			hub.cAdd = root.DescendantAdded:Connect(function(inst)
+				qEvt("add", inst)
+			end)
+		end
+		if not hub.cRem then
+			hub.cRem = root.DescendantRemoving:Connect(function(inst)
+				qEvt("rem", inst)
+			end)
+		end
+	end
+
 	hub.rAnc = root.AncestryChanged:Connect(function(_, parent)
 		if parent then
 			return
 		end
 		hub.alive = false
-		disc(hub.cAdd)
-		disc(hub.cRem)
+		disconnectHooks()
 		disc(hub.rAnc)
 		hubs[root] = nil
 	end)
 
+	hub.enableHooks = connectHooks
+	hub.disableHooks = disconnectHooks
 	hubs[root] = hub
 	return hub
 end
@@ -2899,6 +2934,9 @@ NAmanage.descSub = NAmanage.descSub or function(root, spec)
 		} or onRem
 		hub.remCount = (hub.remCount or 0) + 1
 	end
+	if type(hub.enableHooks) == "function" then
+		hub.enableHooks()
+	end
 
 	local conn = {
 		Connected = true,
@@ -2925,6 +2963,9 @@ NAmanage.descSub = NAmanage.descSub or function(root, spec)
 			hub.aTail = 0
 			hub.rHead = 1
 			hub.rTail = 0
+			if type(hub.disableHooks) == "function" then
+				hub.disableHooks()
+			end
 		end
 	end
 	return conn
@@ -2941,6 +2982,287 @@ NAmanage.descRem = NAmanage.descRem or function(root, fn, filter)
 	return NAmanage.descSub(root, {
 		removing = fn,
 		filterRemoving = filter,
+	})
+end
+
+NAmanage._childHubs = NAmanage._childHubs or {}
+
+NAmanage._childHubGet = NAmanage._childHubGet or function(root)
+	if typeof(root) ~= "Instance" then
+		return nil
+	end
+	local hubs = NAmanage._childHubs
+	local hub = hubs[root]
+	if hub and hub.alive and hub.root == root then
+		return hub
+	end
+
+	local function disc(c)
+		if c then
+			pcall(function()
+				c:Disconnect()
+			end)
+		end
+	end
+
+	if hub then
+		hub.alive = false
+		disc(hub.cAdd)
+		disc(hub.cRem)
+		disc(hub.rAnc)
+	end
+
+	hub = {
+		root = root,
+		nextId = 0,
+		added = {},
+		removed = {},
+		addCount = 0,
+		remCount = 0,
+		aQ = {},
+		rQ = {},
+		aSet = {},
+		rSet = {},
+		aHead = 1,
+		aTail = 0,
+		rHead = 1,
+		rTail = 0,
+		qBusy = false,
+		qKick = false,
+		cAdd = nil,
+		cRem = nil,
+		rAnc = nil,
+		alive = true,
+	}
+
+	local dispatch = NAmanage._evtHubDispatch
+	local hasInterested = NAmanage._evtHubHasInterested
+
+	local function runQ()
+		if hub.qBusy or not hub.alive then
+			return
+		end
+		hub.qBusy = true
+		Spawn(function()
+			while hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
+				local budget, waitDelay = NAmanage._evtHubBudget(120, {
+					delay = 0,
+					ldSc = 0.35,
+					ldDel = 0.008,
+				})
+				while budget > 0 and hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
+					if hub.rHead <= hub.rTail then
+						local inst = hub.rQ[hub.rHead]
+						hub.rQ[hub.rHead] = nil
+						hub.rHead += 1
+						if inst then
+							hub.rSet[inst] = nil
+							dispatch(hub.removed, inst)
+						end
+					elseif hub.aHead <= hub.aTail then
+						local inst = hub.aQ[hub.aHead]
+						hub.aQ[hub.aHead] = nil
+						hub.aHead += 1
+						if inst then
+							hub.aSet[inst] = nil
+							dispatch(hub.added, inst)
+						end
+					end
+					budget -= 1
+				end
+				if waitDelay > 0 then
+					Wait(waitDelay)
+				else
+					Wait()
+				end
+			end
+			hub.aQ = {}
+			hub.rQ = {}
+			hub.aHead = 1
+			hub.aTail = 0
+			hub.rHead = 1
+			hub.rTail = 0
+			hub.qBusy = false
+		end)
+	end
+
+	local function kickQ()
+		if hub.qKick then
+			return
+		end
+		hub.qKick = true
+		Defer(function()
+			hub.qKick = false
+			runQ()
+		end)
+	end
+
+	local function qEvt(kind, inst)
+		if not (hub.alive and inst) then
+			return
+		end
+		if kind == "add" then
+			if (hub.addCount or 0) <= 0 then
+				return
+			end
+			if not hasInterested(hub.added, inst) then
+				return
+			end
+			if hub.aSet[inst] then
+				return
+			end
+			hub.aSet[inst] = true
+			hub.aTail += 1
+			hub.aQ[hub.aTail] = inst
+		else
+			if (hub.remCount or 0) <= 0 then
+				return
+			end
+			if not hasInterested(hub.removed, inst) then
+				return
+			end
+			if hub.rSet[inst] then
+				return
+			end
+			hub.rSet[inst] = true
+			hub.rTail += 1
+			hub.rQ[hub.rTail] = inst
+		end
+		kickQ()
+	end
+
+	local function wantsEvents()
+		return (hub.addCount or 0) > 0 or (hub.remCount or 0) > 0
+	end
+
+	local function disconnectHooks()
+		disc(hub.cAdd)
+		disc(hub.cRem)
+		hub.cAdd = nil
+		hub.cRem = nil
+	end
+
+	local function connectHooks()
+		if not (hub.alive and wantsEvents()) then
+			return
+		end
+		if not hub.cAdd then
+			hub.cAdd = root.ChildAdded:Connect(function(inst)
+				qEvt("add", inst)
+			end)
+		end
+		if not hub.cRem then
+			hub.cRem = root.ChildRemoved:Connect(function(inst)
+				qEvt("rem", inst)
+			end)
+		end
+	end
+
+	hub.rAnc = root.AncestryChanged:Connect(function(_, parent)
+		if parent then
+			return
+		end
+		hub.alive = false
+		disconnectHooks()
+		disc(hub.rAnc)
+		hubs[root] = nil
+	end)
+
+	hub.enableHooks = connectHooks
+	hub.disableHooks = disconnectHooks
+	hubs[root] = hub
+	return hub
+end
+
+NAmanage.childSub = NAmanage.childSub or function(root, spec)
+	spec = spec or {}
+	local onAdd = type(spec.added) == "function" and spec.added or nil
+	local onRem = type(spec.removed) == "function" and spec.removed
+		or (type(spec.removing) == "function" and spec.removing or nil)
+	local addFilter = type(spec.filterAdded) == "function" and spec.filterAdded
+		or (type(spec.filter) == "function" and spec.filter or nil)
+	local remFilter = type(spec.filterRemoved) == "function" and spec.filterRemoved
+		or (type(spec.filterRemoving) == "function" and spec.filterRemoving
+		or (type(spec.filter) == "function" and spec.filter or nil))
+	local noop = {
+		Connected = false,
+		Disconnect = function() end,
+	}
+	if not onAdd and not onRem then
+		return noop
+	end
+	if typeof(root) ~= "Instance" then
+		return noop
+	end
+
+	local hub = NAmanage._childHubGet(root)
+	if not hub then
+		return noop
+	end
+	hub.nextId += 1
+	local id = hub.nextId
+	if onAdd then
+		hub.added[id] = addFilter and {
+			fn = onAdd,
+			filter = addFilter,
+		} or onAdd
+		hub.addCount = (hub.addCount or 0) + 1
+	end
+	if onRem then
+		hub.removed[id] = remFilter and {
+			fn = onRem,
+			filter = remFilter,
+		} or onRem
+		hub.remCount = (hub.remCount or 0) + 1
+	end
+	if type(hub.enableHooks) == "function" then
+		hub.enableHooks()
+	end
+
+	local conn = {
+		Connected = true,
+	}
+	function conn:Disconnect()
+		if not self.Connected then
+			return
+		end
+		self.Connected = false
+		if hub.added[id] then
+			hub.added[id] = nil
+			hub.addCount = math.max(0, (hub.addCount or 0) - 1)
+		end
+		if hub.removed[id] then
+			hub.removed[id] = nil
+			hub.remCount = math.max(0, (hub.remCount or 0) - 1)
+		end
+		if (hub.addCount or 0) <= 0 and (hub.remCount or 0) <= 0 then
+			hub.aQ = {}
+			hub.rQ = {}
+			hub.aSet = {}
+			hub.rSet = {}
+			hub.aHead = 1
+			hub.aTail = 0
+			hub.rHead = 1
+			hub.rTail = 0
+			if type(hub.disableHooks) == "function" then
+				hub.disableHooks()
+			end
+		end
+	end
+	return conn
+end
+
+NAmanage.childAdd = NAmanage.childAdd or function(root, fn, filter)
+	return NAmanage.childSub(root, {
+		added = fn,
+		filterAdded = filter,
+	})
+end
+
+NAmanage.childRem = NAmanage.childRem or function(root, fn, filter)
+	return NAmanage.childSub(root, {
+		removed = fn,
+		filterRemoved = filter,
 	})
 end
 
@@ -3766,11 +4088,11 @@ NAmanage.StreamerWatchContainer = NAmanage.StreamerWatchContainer or function(co
 	end
 	local rec = NAmanage.StreamerGetRecord(container)
 	if not rec.containerDescConn then
-		rec.containerDescConn = container.DescendantAdded:Connect(function(inst)
+		rec.containerDescConn = NAmanage.descAdd(container, function(inst)
 			if NAmanage.StreamerIsRelevant(inst) then
 				NAmanage.StreamerHandleAdded(inst)
 			end
-		end)
+		end, NAmanage.StreamerIsRelevant)
 	end
 	if not rec.containerAncConn then
 		rec.containerAncConn = container.AncestryChanged:Connect(function(_, parent)
@@ -3960,11 +4282,11 @@ NAmanage.StreamerHandleCharacter = NAmanage.StreamerHandleCharacter or function(
 			or inst:IsA("ShirtGraphic")
 			or inst:IsA("BodyColors")
 	end
-	charRec.charDescConn = char.DescendantAdded:Connect(function(inst)
+	charRec.charDescConn = NAmanage.descAdd(char, function(inst)
 		if isRelevant(inst) then
 			NAmanage.StreamerHandleCharacterDesc(inst, scanToken)
 		end
-	end)
+	end, isRelevant)
 	charRec.charAncConn = char.AncestryChanged:Connect(function(_, parent)
 		if parent then
 			return
@@ -4891,11 +5213,11 @@ NA_GRAB_BODY = (function()
 				end
 			end
 
-			rec.a = model.DescendantAdded:Connect(function(d)
+			rec.a = NAmanage.descAdd(model, function(d)
 				applyCandidate(d)
 			end);
 
-			rec.r = model.DescendantRemoving:Connect(function(d)
+			rec.r = NAmanage.descRem(model, function(d)
 				local removedTracked = false
 				if rec.head == d then
 					rec.head = nil;
@@ -8212,18 +8534,22 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		if not lp then
 			return
 		end
-		NAlib.connect("CornerEditor_PlayerGuiAdded", lp.ChildAdded:Connect(function(child)
+		NAlib.connect("CornerEditor_PlayerGuiAdded", NAmanage.childAdd(lp, function(child)
 			if child:IsA("PlayerGui") then
 				syncCConn()
 				if CE.data.enabled then
 					applyCorn()
 				end
 			end
+		end, function(child)
+			return child and child:IsA("PlayerGui")
 		end))
-		NAlib.connect("CornerEditor_PlayerGuiRemoved", lp.ChildRemoved:Connect(function(child)
+		NAlib.connect("CornerEditor_PlayerGuiRemoved", NAmanage.childRem(lp, function(child)
 			if child:IsA("PlayerGui") then
 				syncCConn()
 			end
+		end, function(child)
+			return child and child:IsA("PlayerGui")
 		end))
 	end
 
@@ -9937,18 +10263,22 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		if not lp then
 			return
 		end
-		NAlib.connect("FontEditor_PlayerGuiAdded", lp.ChildAdded:Connect(function(child)
+		NAlib.connect("FontEditor_PlayerGuiAdded", NAmanage.childAdd(lp, function(child)
 			if child:IsA("PlayerGui") then
 				refreshFontConnections()
 				if FontEditor.data.enabled then
 					applyAllFonts()
 				end
 			end
+		end, function(child)
+			return child and child:IsA("PlayerGui")
 		end))
-		NAlib.connect("FontEditor_PlayerGuiRemoved", lp.ChildRemoved:Connect(function(child)
+		NAlib.connect("FontEditor_PlayerGuiRemoved", NAmanage.childRem(lp, function(child)
 			if child:IsA("PlayerGui") then
 				refreshFontConnections()
 			end
+		end, function(child)
+			return child and child:IsA("PlayerGui")
 		end))
 	end
 
@@ -14571,12 +14901,46 @@ NAmanage.NASettingsGetSchema=function()
 					return value == true
 				end;
 			};
-			connectionsToFriends = {
-				default = false;
-				coerce = function(value)
-					return coerceBoolean(value, false)
-				end;
-			};
+		customMovementSoundsEnabled = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
+		customMovementSoundsWalk = {
+			default = "";
+			coerce = function(value)
+				return tostring(value or "")
+			end;
+		};
+		customMovementSoundsJump = {
+			default = "";
+			coerce = function(value)
+				return tostring(value or "")
+			end;
+		};
+		customMovementSoundsFall = {
+			default = "";
+			coerce = function(value)
+				return tostring(value or "")
+			end;
+		};
+		customMovementSoundsLand = {
+			default = "";
+			coerce = function(value)
+				return tostring(value or "")
+			end;
+		};
+		customMovementSoundsVolume = {
+			default = 1;
+			coerce = function(value)
+				local n = tonumber(value)
+				if not n then
+					return 1
+				end
+				return math.clamp(n, 0, 10)
+			end;
+		};
 		uiScale = {
 			pathKey = "NAUISIZEPATH";
 			default = function()
@@ -17460,7 +17824,6 @@ opt.settingsTranslateTarget = NAmanage.NASettingsGet("settingsTranslateTarget")
 NAStuff.AutoExecEnabled = NAmanage.NASettingsGet("autoExecEnabled")
 NAStuff.UserButtonsAutoLoad = NAmanage.NASettingsGet("userButtonsAutoLoad")
 NAStuff.CmdBar2AutoRun = NAmanage.NASettingsGet("cmdbar2AutoRun")
-NAStuff.ConnectionsToFriends = NAmanage.NASettingsGet("connectionsToFriends") == true
 NAStuff.NetworkPauseDisabled = NAmanage.NASettingsGet("networkPauseDisabled")
 NAStuff.UnsafeFunctionsDisabled = NAmanage.NASettingsGet("disableUnsafeFunctions") == true
 NAStuff.FriendRequestAutoDismiss = NAmanage.NASettingsGet("friendRequestAutoDismiss")
@@ -17470,6 +17833,13 @@ NAStuff.CmdIntegrationAutoRun = NAmanage.NASettingsGet("cmdIntegrationAutoRun")
 NAStuff.AutoPreloadAssets = NAmanage.NASettingsGet("autoPreloadAssets")
 NAStuff.LightingStyleAutomation = NAmanage.NASettingsGet("lightingStyleAutomation") == true
 NAStuff.LightingStyleAutomationStyle = NAmanage.NASettingsGet("lightingStyleAutomationStyle") or "Soft"
+NAStuff.CustomMovementSounds = NAStuff.CustomMovementSounds or {}
+NAStuff.CustomMovementSounds.Enabled = NAmanage.NASettingsGet("customMovementSoundsEnabled") == true
+NAStuff.CustomMovementSounds.WalkInput = tostring(NAmanage.NASettingsGet("customMovementSoundsWalk") or "")
+NAStuff.CustomMovementSounds.JumpInput = tostring(NAmanage.NASettingsGet("customMovementSoundsJump") or "")
+NAStuff.CustomMovementSounds.FallInput = tostring(NAmanage.NASettingsGet("customMovementSoundsFall") or "")
+NAStuff.CustomMovementSounds.LandInput = tostring(NAmanage.NASettingsGet("customMovementSoundsLand") or "")
+NAStuff.CustomMovementSounds.Volume = math.clamp(tonumber(NAmanage.NASettingsGet("customMovementSoundsVolume")) or 1, 0, 10)
 NAStuff.AssetLoadMode = NAmanage.NASettingsGet("assetLoadMode") or NAStuff.AssetLoadMode
 NAStuff.AssetDownloadMethod = NAmanage.normalizeAssetDownloadMethod(NAmanage.NASettingsGet("assetDownloadMethod") or NAStuff.AssetDownloadMethod)
 
@@ -17802,6 +18172,17 @@ if FileSupport then
 	local function clampAlpha(v)
 		return math.clamp(tonumber(v) or 0, 0, 1)
 	end
+	local function tblToVec3(t)
+		if typeof(t) == "Vector3" then return t end
+		local x = tonumber(t and (t.X or t[1])) or 0
+		local y = tonumber(t and (t.Y or t[2])) or 0
+		local z = tonumber(t and (t.Z or t[3])) or 0
+		return Vector3.new(x, y, z)
+	end
+	local function normalizeChatFontPath(value)
+		if type(value) ~= "string" then return "" end
+		return value:match("^%s*(.-)%s*$") or ""
+	end
 	local function blendColorAlpha(base, bg, alpha)
 		bg = bg or Color3.new(0, 0, 0)
 		alpha = clampAlpha(alpha)
@@ -17977,6 +18358,18 @@ if FileSupport then
 			if not ok or typeof(color) ~= "Color3" then return end
 			NAgui.setColorPickerValue(label, color, { fire = shouldFire and true or false })
 		end
+		local function setInput(label, value)
+			if value == nil or not NAgui.setInputValue then return end
+			NAgui.setInputValue(label, tostring(value), { force = true, fire = shouldFire and true or false })
+		end
+		local function setDropdown(label, value)
+			if value == nil or not NAgui.setDropdownValue then return end
+			NAgui.setDropdownValue(label, tostring(value), { fire = shouldFire and true or false })
+		end
+		local function setDropdownOptions(label, options)
+			if type(options) ~= "table" or not NAgui.setDropdownOptions then return end
+			NAgui.setDropdownOptions(label, options)
+		end
 
 		setToggle("Enable Custom Chat Styling", chat.customEnabled)
 		setToggle("Enable Chat (CoreGui)", chat.coreGuiChat)
@@ -17989,12 +18382,15 @@ if FileSupport then
 		setToggle("Tail Visible", bubbles.tailVisible)
 
 		setSlider("Text Size (Window)", window.textSize)
+		setSlider("Window Width Scale", window.widthScale)
+		setSlider("Window Height Scale", window.heightScale)
 		setSlider("Text Transparency (Window)", window.textTransparency)
 		setSlider("Text Stroke Transparency", window.strokeTransparency)
 		setSlider("Window Background Transparency", window.backgroundTransparency)
 		setSlider("Text Size (Tabs)", tabs.textSize)
 		setSlider("Text Transparency (Tabs)", tabs.textTransparency)
 		setSlider("Background Transparency (Tabs)", tabs.backgroundTransparency)
+		setSlider("Text Stroke Transparency (Tabs)", tabs.strokeTransparency)
 		setSlider("Text Size (Input)", input.textSize)
 		setSlider("Text Stroke Transparency (Input)", input.strokeTransparency)
 		setSlider("Background Transparency (Input)", input.backgroundTransparency)
@@ -18006,19 +18402,36 @@ if FileSupport then
 		setSlider("Background Transparency (Bubble)", bubbles.backgroundTransparency)
 		setSlider("Bubble Duration", bubbles.bubbleDuration)
 		setSlider("Max Bubbles", bubbles.maxBubbles)
+		setSlider("Vertical Studs Offset", bubbles.verticalStudsOffset)
+		setSlider("Local Player Offset X", type(bubbles.localPlayerStudsOffset) == "table" and tonumber(bubbles.localPlayerStudsOffset[1] or bubbles.localPlayerStudsOffset.X) or nil)
+		setSlider("Local Player Offset Y", type(bubbles.localPlayerStudsOffset) == "table" and tonumber(bubbles.localPlayerStudsOffset[2] or bubbles.localPlayerStudsOffset.Y) or nil)
+		setSlider("Local Player Offset Z", type(bubbles.localPlayerStudsOffset) == "table" and tonumber(bubbles.localPlayerStudsOffset[3] or bubbles.localPlayerStudsOffset.Z) or nil)
 
 		setColor("Text Color", window.textColor)
 		setColor("Text Stroke Color", window.strokeColor)
 		setColor("Window Background", window.backgroundColor)
 		setColor("Tab Background", tabs.backgroundColor)
+		setColor("Tab Hover Background", tabs.hoverBackgroundColor)
 		setColor("Text Color (Tabs)", tabs.textColor)
 		setColor("Selected Text Color", tabs.selectedTextColor)
 		setColor("Unselected Text Color", tabs.unselectedTextColor)
+		setColor("Text Stroke Color (Tabs)", tabs.strokeColor)
 		setColor("Text Color (Input)", input.textColor)
 		setColor("Input Background", input.backgroundColor)
 		setColor("Input Stroke Color", input.strokeColor)
+		setColor("Placeholder Color", input.placeholderColor)
 		setColor("Bubble Text Color", bubbles.textColor)
 		setColor("Bubble Background", bubbles.backgroundColor)
+
+		setInput("Window Font Asset", window.font)
+		setInput("Tabs Font Asset", tabs.font)
+		setInput("Input Font Asset", input.font)
+		setInput("Bubble Font Asset", bubbles.font)
+		setInput("Bubble Adornee Name", bubbles.adorneeName)
+		setDropdownOptions("Target Chat Channel", NAmanage.GetTextChatChannelOptions and NAmanage.GetTextChatChannelOptions() or nil)
+		setDropdown("Target Chat Channel", (type(input.targetChannel) == "string" and input.targetChannel ~= "") and input.targetChannel or (input.targetGeneral and "RBXGeneral" or "Keep Default"))
+		setDropdown("Window Horizontal Alignment", window.horizontalAlignment)
+		setDropdown("Window Vertical Alignment", window.verticalAlignment)
 	end
 
 	local function hasProp(inst, prop)
@@ -18049,6 +18462,43 @@ if FileSupport then
 		end
 		return NAStuff.ChatSettingsDefaults
 	end
+	originalIO.getChatDefaultValue=function(group, prop)
+		local defaults = originalIO.getChatDefaults()
+		local groupDefaults = defaults and defaults[group]
+		local info = groupDefaults and groupDefaults[prop]
+		if info and info.has then
+			return info.value
+		end
+		return nil
+	end
+	local function getNamedChannel(TCS, name)
+		if type(name) ~= "string" or name == "" then return nil end
+		local container = TCS:FindFirstChild("TextChannels")
+		if not container then return nil end
+		local channel = container:FindFirstChild(name)
+		if channel and channel:IsA("TextChannel") then
+			return channel
+		end
+		for _, child in ipairs(container:GetChildren()) do
+			if child:IsA("TextChannel") and child.Name == name then
+				return child
+			end
+		end
+		return nil
+	end
+	NAmanage.GetTextChatChannelOptions = function()
+		local options = { "Keep Default" }
+		local container = TextChatService and TextChatService:FindFirstChild("TextChannels")
+		if not container then
+			return options
+		end
+		for _, child in ipairs(container:GetChildren()) do
+			if child:IsA("TextChannel") then
+				Insert(options, child.Name)
+			end
+		end
+		return options
+	end
 
 	originalIO.rememberChatDefault=function(group, inst, prop)
 		if not inst then return end
@@ -18071,10 +18521,10 @@ if FileSupport then
 		end
 
 		originalIO.getChatDefaults()
-		captureGroup("window", Window, { "Enabled", "FontFace", "TextSize", "TextColor3", "TextTransparency", "TextStrokeColor3", "TextStrokeTransparency", "BackgroundColor3", "BackgroundTransparency" })
-		captureGroup("tabs", Tabs, { "Enabled", "FontFace", "TextSize", "BackgroundColor3", "BackgroundTransparency", "TextColor3", "TextTransparency", "SelectedTabTextColor3", "UnselectedTabTextColor3" })
-		captureGroup("input", InputBar, { "Enabled", "AutocompleteEnabled", "FontFace", "TargetTextChannel", "KeyboardKeyCode", "TextSize", "TextColor3", "TextStrokeColor3", "TextStrokeTransparency", "BackgroundColor3", "BackgroundTransparency" })
-		captureGroup("bubbles", Bubbles, { "Enabled", "MaxDistance", "MinimizeDistance", "TextSize", "TextColor3", "TextTransparency", "BubblesSpacing", "BackgroundColor3", "BackgroundTransparency", "BubbleDuration", "MaxBubbles", "TailVisible" })
+		captureGroup("window", Window, { "Enabled", "FontFace", "HeightScale", "HorizontalAlignment", "TextSize", "TextColor3", "TextTransparency", "TextStrokeColor3", "TextStrokeTransparency", "VerticalAlignment", "WidthScale", "BackgroundColor3", "BackgroundTransparency" })
+		captureGroup("tabs", Tabs, { "Enabled", "FontFace", "TextSize", "BackgroundColor3", "BackgroundTransparency", "HoverBackgroundColor3", "TextColor3", "TextTransparency", "TextStrokeColor3", "TextStrokeTransparency", "SelectedTabTextColor3", "UnselectedTabTextColor3" })
+		captureGroup("input", InputBar, { "Enabled", "AutocompleteEnabled", "FontFace", "TargetTextChannel", "KeyboardKeyCode", "PlaceholderColor3", "TextSize", "TextColor3", "TextStrokeColor3", "TextStrokeTransparency", "BackgroundColor3", "BackgroundTransparency" })
+		captureGroup("bubbles", Bubbles, { "AdorneeName", "Enabled", "FontFace", "LocalPlayerStudsOffset", "MaxDistance", "MinimizeDistance", "TextSize", "TextColor3", "TextTransparency", "BubblesSpacing", "BackgroundColor3", "BackgroundTransparency", "BubbleDuration", "MaxBubbles", "TailVisible", "VerticalStudsOffset" })
 	end
 
 	originalIO.applyChatDefaultGroup=function(group, inst)
@@ -18147,8 +18597,24 @@ if FileSupport then
 			local windowAlpha = clampAlpha(NAStuff.ChatSettings.window.textTransparency)
 			local windowHasAlpha = hasProp(Window, "TextTransparency")
 			local windowColor = windowHasAlpha and windowText or blendColorAlpha(windowText, windowBg, windowAlpha)
+			local horizontalAlignment = Enum.HorizontalAlignment[tostring(NAStuff.ChatSettings.window.horizontalAlignment or "Left")] or Enum.HorizontalAlignment.Left
+			local verticalAlignment = Enum.VerticalAlignment[tostring(NAStuff.ChatSettings.window.verticalAlignment or "Top")] or Enum.VerticalAlignment.Top
 			safeSet(Window, "Enabled", NAStuff.ChatSettings.window.enabled)
-			if hasProp(Window, "FontFace") and NAStuff.ChatSettings.window.font then pcall(function() Window.FontFace = Font.new(NAStuff.ChatSettings.window.font) end) end
+			if hasProp(Window, "FontFace") then
+				local fontPath = normalizeChatFontPath(NAStuff.ChatSettings.window.font)
+				if fontPath ~= "" then
+					pcall(function() Window.FontFace = Font.new(fontPath) end)
+				else
+					local defaultFont = originalIO.getChatDefaultValue("window", "FontFace")
+					if defaultFont ~= nil then
+						safeSet(Window, "FontFace", defaultFont)
+					end
+				end
+			end
+			safeSet(Window, "WidthScale", math.clamp(tonumber(NAStuff.ChatSettings.window.widthScale) or 1, 0.5, 2))
+			safeSet(Window, "HeightScale", math.clamp(tonumber(NAStuff.ChatSettings.window.heightScale) or 1, 0.5, 2))
+			safeSet(Window, "HorizontalAlignment", horizontalAlignment)
+			safeSet(Window, "VerticalAlignment", verticalAlignment)
 			safeSet(Window, "TextSize", NAStuff.ChatSettings.window.textSize)
 			safeSet(Window, "TextColor3", windowColor)
 			if windowHasAlpha then
@@ -18168,14 +18634,27 @@ if FileSupport then
 			local tabsUnselected = tblToC3(NAStuff.ChatSettings.tabs.unselectedTextColor)
 			local tabsHasAlpha = hasProp(Tabs, "TextTransparency")
 			safeSet(Tabs, "Enabled", NAStuff.ChatSettings.tabs.enabled)
-			if hasProp(Tabs, "FontFace") and NAStuff.ChatSettings.tabs.font then pcall(function() Tabs.FontFace = Font.new(NAStuff.ChatSettings.tabs.font) end) end
+			if hasProp(Tabs, "FontFace") then
+				local fontPath = normalizeChatFontPath(NAStuff.ChatSettings.tabs.font)
+				if fontPath ~= "" then
+					pcall(function() Tabs.FontFace = Font.new(fontPath) end)
+				else
+					local defaultFont = originalIO.getChatDefaultValue("tabs", "FontFace")
+					if defaultFont ~= nil then
+						safeSet(Tabs, "FontFace", defaultFont)
+					end
+				end
+			end
 			safeSet(Tabs, "TextSize", NAStuff.ChatSettings.tabs.textSize)
 			safeSet(Tabs, "BackgroundColor3", tblToC3(NAStuff.ChatSettings.tabs.backgroundColor))
 			safeSet(Tabs, "BackgroundTransparency", NAStuff.ChatSettings.tabs.backgroundTransparency)
+			safeSet(Tabs, "HoverBackgroundColor3", tblToC3(NAStuff.ChatSettings.tabs.hoverBackgroundColor))
 			safeSet(Tabs, "TextColor3", tabsHasAlpha and tabsText or blendColorAlpha(tabsText, tabsBg, tabsAlpha))
 			if tabsHasAlpha then
 				safeSet(Tabs, "TextTransparency", tabsAlpha)
 			end
+			safeSet(Tabs, "TextStrokeColor3", tblToC3(NAStuff.ChatSettings.tabs.strokeColor))
+			safeSet(Tabs, "TextStrokeTransparency", clampAlpha(NAStuff.ChatSettings.tabs.strokeTransparency))
 			safeSet(Tabs, "SelectedTabTextColor3", tabsHasAlpha and tabsSelected or blendColorAlpha(tabsSelected, tabsBg, tabsAlpha))
 			safeSet(Tabs, "UnselectedTabTextColor3", tabsHasAlpha and tabsUnselected or blendColorAlpha(tabsUnselected, tabsBg, tabsAlpha))
 		end
@@ -18185,10 +18664,31 @@ if FileSupport then
 			local inputText = tblToC3(NAStuff.ChatSettings.input.textColor)
 			safeSet(InputBar, "Enabled", NAStuff.ChatSettings.input.enabled)
 			safeSet(InputBar, "AutocompleteEnabled", NAStuff.ChatSettings.input.autocomplete)
-			if hasProp(InputBar, "FontFace") and NAStuff.ChatSettings.input.font then pcall(function() InputBar.FontFace = Font.new(NAStuff.ChatSettings.input.font) end) end
-			if NAStuff.ChatSettings.input.targetGeneral and hasProp(InputBar, "TargetTextChannel") then
-				local ch = getDefaultChannel(TCS)
-				if ch then safeSet(InputBar, "TargetTextChannel", ch) end
+			if hasProp(InputBar, "FontFace") then
+				local fontPath = normalizeChatFontPath(NAStuff.ChatSettings.input.font)
+				if fontPath ~= "" then
+					pcall(function() InputBar.FontFace = Font.new(fontPath) end)
+				else
+					local defaultFont = originalIO.getChatDefaultValue("input", "FontFace")
+					if defaultFont ~= nil then
+						safeSet(InputBar, "FontFace", defaultFont)
+					end
+				end
+			end
+			if hasProp(InputBar, "TargetTextChannel") then
+				local targetName = tostring(NAStuff.ChatSettings.input.targetChannel or "")
+				local targetChannel = getNamedChannel(TCS, targetName)
+				if targetChannel then
+					safeSet(InputBar, "TargetTextChannel", targetChannel)
+				elseif NAStuff.ChatSettings.input.targetGeneral then
+					local ch = getDefaultChannel(TCS)
+					if ch then safeSet(InputBar, "TargetTextChannel", ch) end
+				else
+					local defaultChannel = originalIO.getChatDefaultValue("input", "TargetTextChannel")
+					if defaultChannel ~= nil then
+						safeSet(InputBar, "TargetTextChannel", defaultChannel)
+					end
+				end
 			end
 			if not IsOnMobile then
 				local keyName = tostring(NAStuff.ChatSettings.input.keyCode or "Slash")
@@ -18202,6 +18702,7 @@ if FileSupport then
 			safeSet(InputBar, "TextColor3", inputText)
 			safeSet(InputBar, "TextStrokeColor3", tblToC3(NAStuff.ChatSettings.input.strokeColor))
 			safeSet(InputBar, "TextStrokeTransparency", NAStuff.ChatSettings.input.strokeTransparency)
+			safeSet(InputBar, "PlaceholderColor3", tblToC3(NAStuff.ChatSettings.input.placeholderColor))
 			safeSet(InputBar, "BackgroundColor3", tblToC3(NAStuff.ChatSettings.input.backgroundColor))
 			safeSet(InputBar, "BackgroundTransparency", NAStuff.ChatSettings.input.backgroundTransparency)
 		end
@@ -18211,7 +18712,23 @@ if FileSupport then
 			local bubbleAlpha = clampAlpha(NAStuff.ChatSettings.bubbles.textTransparency)
 			local bubbleText = tblToC3(NAStuff.ChatSettings.bubbles.textColor)
 			local bubbleHasAlpha = hasProp(Bubbles, "TextTransparency")
+			local localOffset = tblToVec3(NAStuff.ChatSettings.bubbles.localPlayerStudsOffset)
+			local defaultAdorneeName = originalIO.getChatDefaultValue("bubbles", "AdorneeName")
+			local adorneeName = tostring(NAStuff.ChatSettings.bubbles.adorneeName or defaultAdorneeName or "HumanoidRootPart"):match("^%s*(.-)%s*$")
 			safeSet(Bubbles, "Enabled", NAStuff.ChatSettings.bubbles.enabled)
+			safeSet(Bubbles, "AdorneeName", adorneeName ~= "" and adorneeName or tostring(defaultAdorneeName or "HumanoidRootPart"))
+			if hasProp(Bubbles, "FontFace") then
+				local fontPath = normalizeChatFontPath(NAStuff.ChatSettings.bubbles.font)
+				if fontPath ~= "" then
+					pcall(function() Bubbles.FontFace = Font.new(fontPath) end)
+				else
+					local defaultFont = originalIO.getChatDefaultValue("bubbles", "FontFace")
+					if defaultFont ~= nil then
+						safeSet(Bubbles, "FontFace", defaultFont)
+					end
+				end
+			end
+			safeSet(Bubbles, "LocalPlayerStudsOffset", localOffset)
 			if hasProp(Bubbles, "MaxDistance") then safeSet(Bubbles, "MaxDistance", math.max(NAStuff.ChatSettings.bubbles.maxDistance, 0)) end
 			if hasProp(Bubbles, "MinimizeDistance") then safeSet(Bubbles, "MinimizeDistance", math.max(NAStuff.ChatSettings.bubbles.minimizeDistance, 0)) end
 			if hasProp(Bubbles, "TextSize") then safeSet(Bubbles, "TextSize", math.max(NAStuff.ChatSettings.bubbles.textSize, 1)) end
@@ -18225,12 +18742,13 @@ if FileSupport then
 			if hasProp(Bubbles, "BubbleDuration") then safeSet(Bubbles, "BubbleDuration", math.max(1, tonumber(NAStuff.ChatSettings.bubbles.bubbleDuration) or 0)) end
 			if hasProp(Bubbles, "MaxBubbles") then safeSet(Bubbles, "MaxBubbles", math.max(1, math.min(5, tonumber(NAStuff.ChatSettings.bubbles.maxBubbles) or 1))) end
 			safeSet(Bubbles, "TailVisible", NAStuff.ChatSettings.bubbles.tailVisible)
+			safeSet(Bubbles, "VerticalStudsOffset", tonumber(NAStuff.ChatSettings.bubbles.verticalStudsOffset) or 0)
 		end
 		NAStuff.ChatSettingsDirty = not coreChatApplied
 	end
 
 	NAlib.disconnect("TCS_OnDescendantAdded")
-	NAlib.connect("TCS_OnDescendantAdded", TextChatService.DescendantAdded:Connect(function()
+	NAlib.connect("TCS_OnDescendantAdded", NAmanage.descAdd(TextChatService, function()
 		markChatSettingsDirty()
 		Defer(NAmanage.ApplyTextChatSettings)
 	end))
@@ -18259,9 +18777,9 @@ if FileSupport then
 					NAmanage.ApplyTextChatSettings()
 					didWork = true
 				end
-				local waitTime = didWork and 0.5 or 1
+				local waitTime = didWork and 0.05 or 0.1
 				if NAmanage.isLoad and NAmanage.isLoad() then
-					waitTime = math.max(waitTime, 1.2)
+					waitTime = math.max(waitTime, 0.15)
 				end
 				Wait(waitTime)
 			end
@@ -22858,16 +23376,18 @@ NAmanage.ESP_Add = function(target, persistent, isNPC)
 	NAmanage.ESP_RegisterModel(model)
 	local key = NAmanage.ESP_Key(model)
 
-	NAlib.connect(key.."_descAdded", model.DescendantAdded:Connect(function(desc)
+	NAlib.connect(key.."_descAdded", NAmanage.descAdd(model, function(desc)
 		if not (ESPenabled or chamsEnabled) then return end
 		local data = espCONS[model]
 		if not data or data.isNPC then return end
 		if desc:IsA("BasePart") and data.boxEnabled then
 			NAmanage.ESP_AddBoxForPart(model, desc)
 		end
+	end, function(desc)
+		return desc and desc:IsA("BasePart")
 	end))
 
-	NAlib.connect(key.."_descRemoved", model.DescendantRemoving:Connect(function(desc)
+	NAlib.connect(key.."_descRemoved", NAmanage.descRem(model, function(desc)
 		local data = espCONS[model]
 		if not data then return end
 		local box = data.boxTable[desc]
@@ -27038,7 +27558,7 @@ else
 	end)
 
 	if __lt.cm("TextChatService", "FindFirstChild", "TextChannels") then
-		TextChatService.TextChannels.ChildAdded:Connect(function(v)
+		NAmanage.childAdd(TextChatService.TextChannels, function(v)
 			if  v:IsA("TextChannel") and Find(v.Name,"RBXWhisper:") then
 				Wait(0.25)
 				for target, entry in pairs(chatmsgshooks) do
@@ -27054,6 +27574,8 @@ else
 					end
 				end
 			end
+		end, function(v)
+			return v and v:IsA("TextChannel") and Find(v.Name,"RBXWhisper:")
 		end)
 	end
 end
@@ -27709,7 +28231,7 @@ cmd.add({"shaders", "shader", "rtx", "hd"}, {"shaders (shader, rtx, hd)", "Enabl
 				shader.apply()
 			end) end)
 
-		st.hook("shader_effects_removed", function() return lighting.DescendantRemoving:Connect(function(inst)
+		st.hook("shader_effects_removed", function() return NAmanage.descRem(lighting, function(inst)
 				if not (st.shader and st.shader.enabled) or not inst then return end
 				for _, name in ipairs(NA_SHADER_EFFECT_NAMES) do
 					if inst.Name == name then
@@ -29423,15 +29945,19 @@ NAmanage.ovTrack = function(st, chr)
 	end
 	st.ovConns = {}
 	local conns = st.ovConns
-	conns[#conns + 1] = chr.DescendantAdded:Connect(function(desc)
+	conns[#conns + 1] = NAmanage.descAdd(chr, function(desc)
 		if desc:IsA("BasePart") then
 			NAmanage.ovPartAdd(st, desc)
 		end
+	end, function(desc)
+		return desc and desc:IsA("BasePart")
 	end)
-	conns[#conns + 1] = chr.DescendantRemoving:Connect(function(desc)
+	conns[#conns + 1] = NAmanage.descRem(chr, function(desc)
 		if desc:IsA("BasePart") then
 			NAmanage.ovPartRem(st, desc)
 		end
+	end, function(desc)
+		return desc and desc:IsA("BasePart")
 	end)
 	conns[#conns + 1] = chr.AncestryChanged:Connect(function(_, parent)
 		if not parent then
@@ -33228,7 +33754,7 @@ NAmanage.AntiKnockBack=function(char, state)
 	bindRoot()
 	bindHum()
 
-	NAlib.connect("antiknockback_char_desc", char.DescendantAdded:Connect(function(obj)
+	NAlib.connect("antiknockback_char_desc", NAmanage.descAdd(char, function(obj)
 		if state ~= NAStuff._antiKnockbackState then
 			return
 		end
@@ -33238,9 +33764,11 @@ NAmanage.AntiKnockBack=function(char, state)
 			bindRoot()
 		end
 		NAmanage.antiKBBindObj(state, obj)
+	end, function(desc)
+		return desc and desc:IsA("BasePart")
 	end))
 
-	NAlib.connect("antiknockback_char_rem", char.DescendantRemoving:Connect(function(obj)
+	NAlib.connect("antiknockback_char_rem", NAmanage.descRem(char, function(obj)
 		if state ~= NAStuff._antiKnockbackState then
 			return
 		end
@@ -35627,11 +36155,13 @@ NAStuff.ATPC._hookChar = function(char)
 		hookPart(d)
 	end
 
-	local addCon = char.DescendantAdded:Connect(function(d)
+	local addCon = NAmanage.descAdd(char, function(d)
 		if not NAStuff.ATPC.state then return end
 		if d:IsA("BasePart") then
 			hookPart(d)
 		end
+	end, function(d)
+		return d and d:IsA("BasePart")
 	end)
 	NAlib.connect("AntiCFrame", addCon)
 
@@ -36202,7 +36732,7 @@ cmd.add({"oldroblox"},{"oldroblox","Old skybox and studs"},function()
 	end))
 
 	NAlib.disconnect("oldrbx_skywatch")
-	NAlib.connect("oldrbx_skywatch", Lighting.ChildAdded:Connect(function(obj)
+	NAlib.connect("oldrbx_skywatch", NAmanage.childAdd(Lighting, function(obj)
 		if not NAmanage.GetAttr(Lighting, "NAOldRbx_Enabled") then return end
 		if obj:IsA("Sky") and obj.Name ~= "NAOldRobloxSky" then
 			local c = obj:Clone()
@@ -36210,14 +36740,18 @@ cmd.add({"oldroblox"},{"oldroblox","Old skybox and studs"},function()
 			obj:Destroy()
 			ensureSky()
 		end
+	end, function(obj)
+		return obj and obj:IsA("Sky")
 	end))
 
 	NAlib.disconnect("oldrbx_skyguard")
-	NAlib.connect("oldrbx_skyguard", Lighting.ChildRemoved:Connect(function(obj)
+	NAlib.connect("oldrbx_skyguard", NAmanage.childRem(Lighting, function(obj)
 		if not NAmanage.GetAttr(Lighting, "NAOldRbx_Enabled") then return end
 		if obj:IsA("Sky") and not __lt.cm("Lighting", "FindFirstChild", "NAOldRobloxSky") then
 			ensureSky()
 		end
+	end, function(obj)
+		return obj and obj:IsA("Sky")
 	end))
 end)
 
@@ -37726,15 +38260,19 @@ cmd.add({"antifling"},{"antifling","makes other players non-collidable with you"
 		for _, d in ipairs(char:QueryDescendants("BasePart")) do
 			apply(d)
 		end
-		NAlib.connect("antifling", char.DescendantAdded:Connect(function(inst)
+		NAlib.connect("antifling", NAmanage.descAdd(char, function(inst)
 			if inst:IsA("BasePart") then
 				apply(inst)
 			end
+		end, function(inst)
+			return inst and inst:IsA("BasePart")
 		end))
-		NAlib.connect("antifling", char.DescendantRemoving:Connect(function(inst)
+		NAlib.connect("antifling", NAmanage.descRem(char, function(inst)
 			if inst:IsA("BasePart") then
 				clearPart(inst)
 			end
+		end, function(inst)
+			return inst and inst:IsA("BasePart")
 		end))
 	end
 
@@ -39958,7 +40496,7 @@ cmd.add({"mimic","mirror","mclone","mcopy","mimi"}, {"mimic <target> [delay]","C
 		scheduleTrackStart(tt, now())
 	end))
 
-	NAlib.connect(NAStuff.MIMIC_TAG, targetChar.ChildAdded:Connect(function(child)
+	NAlib.connect(NAStuff.MIMIC_TAG, NAmanage.childAdd(targetChar, function(child)
 		if child:IsA("Tool") then
 			local bp = getBp()
 			if bp then
@@ -39966,9 +40504,13 @@ cmd.add({"mimic","mirror","mclone","mcopy","mimi"}, {"mimic <target> [delay]","C
 				if match and match:IsA("Tool") then pcall(function() myHum:EquipTool(match) end) end
 			end
 		end
+	end, function(child)
+		return child and child:IsA("Tool")
 	end))
-	NAlib.connect(NAStuff.MIMIC_TAG, targetChar.ChildRemoved:Connect(function(child)
+	NAlib.connect(NAStuff.MIMIC_TAG, NAmanage.childRem(targetChar, function(child)
 		if child:IsA("Tool") then pcall(function() myHum:UnequipTools() end) end
+	end, function(child)
+		return child and child:IsA("Tool")
 	end))
 
 	local poseQ, poseHead = {}, 1
@@ -40472,7 +41014,7 @@ cmd.add({"autorejoin", "autorj"}, {"autorejoin (autorj)", "Rejoins the server if
 	NAlib.connect("autorejoin", GuiService.ErrorMessageChanged:Connect(function(message)
 		handleRejoin(message)
 	end))
-	NAlib.connect("autorejoin", COREGUI.DescendantAdded:Connect(function(descendant)
+	NAlib.connect("autorejoin", NAmanage.descAdd(COREGUI, function(descendant)
 		if descendant.Name == "RobloxPromptGui"
 			or descendant.Name == "promptOverlay"
 			or descendant.Name == "ErrorPrompt"
@@ -40484,8 +41026,16 @@ cmd.add({"autorejoin", "autorj"}, {"autorejoin (autorj)", "Rejoins the server if
 				handleRejoin(descendant.Text)
 			end
 		end
+	end, function(descendant)
+		return descendant and (
+			descendant.Name == "RobloxPromptGui"
+			or descendant.Name == "promptOverlay"
+			or descendant.Name == "ErrorPrompt"
+			or descendant.Name == "ErrorTitle"
+			or descendant.Name == "ErrorMessage"
+		)
 	end))
-	NAlib.connect("autorejoin", COREGUI.DescendantRemoving:Connect(function(descendant)
+	NAlib.connect("autorejoin", NAmanage.descRem(COREGUI, function(descendant)
 		watchedPromptLabels[descendant] = nil
 	end))
 	bindPromptWatchers()
@@ -41006,13 +41556,17 @@ cmd.add({"antianchor","aa"},{"antianchor","Prevent your parts from being anchore
 		for _,d in ipairs(char:QueryDescendants("BasePart")) do
 			enforce(d)
 		end
-		NAlib.connect("antianchor", char.DescendantAdded:Connect(function(inst)
+		NAlib.connect("antianchor", NAmanage.descAdd(char, function(inst)
 			if inst:IsA("BasePart") then enforce(inst) end
+		end, function(inst)
+			return inst and inst:IsA("BasePart")
 		end))
-		NAlib.connect("antianchor", char.DescendantRemoving:Connect(function(inst)
+		NAlib.connect("antianchor", NAmanage.descRem(char, function(inst)
 			if signals[inst] then signals[inst]:Disconnect(); signals[inst] = nil end
 			tracked[inst] = nil
 			orig[inst] = nil
+		end, function(inst)
+			return inst and inst:IsA("BasePart")
 		end))
 	end
 	if lp.Character then seed(lp.Character) end
@@ -43187,8 +43741,8 @@ cmd.add({"bodytransparency","btransparency","bodyt"}, {"bodytransparency <number
 		st.d = true
 		st.mp = {}
 		if ch then
-			st.a = ch.DescendantAdded:Connect(function() st.d = true end)
-			st.r = ch.DescendantRemoving:Connect(function() st.d = true end)
+			st.a = NAmanage.descAdd(ch, function() st.d = true end)
+			st.r = NAmanage.descRem(ch, function() st.d = true end)
 		end
 	end
 
@@ -45985,11 +46539,13 @@ function spectatePlayer(targetPlayer)
 		if not (character and character.Parent) then
 			return
 		end
-		spectateConns.desc = NAlib.connect("spectate_desc", character.DescendantAdded:Connect(function(inst)
+		spectateConns.desc = NAlib.connect("spectate_desc", NAmanage.descAdd(character, function(inst)
 			if spectateTarget ~= targetPlayer or targetPlayer.Character ~= character then return end
 			if inst:IsA("Humanoid") or inst:IsA("BasePart") then
 				setCamToCharacter(character, true)
 			end
+		end, function(inst)
+			return inst and (inst:IsA("Humanoid") or inst:IsA("BasePart"))
 		end))
 	end
 
@@ -50132,11 +50688,13 @@ NAmanage.tvAttach=function(plr, data, char)
 	local head = getHead(char)
 	if not head then
 		if data.headConn then data.headConn:Disconnect() end
-		data.headConn = char.ChildAdded:Connect(function(child)
+		data.headConn = NAmanage.childAdd(char, function(child)
 			if child:IsA("BasePart") and child.Name == "Head" then
 				if data.headConn then data.headConn:Disconnect() data.headConn = nil end
 				NAmanage.tvAttach(plr, data, char)
 			end
+		end, function(child)
+			return child and child:IsA("BasePart") and child.Name == "Head"
 		end)
 		return
 	end
@@ -50566,36 +51124,48 @@ cmd.add({"toolview2", "tview2"}, {"toolview2 (tview2)", "Live-updating tool view
 		local function connectBackpack(bp)
 			disconnectAll(sec.backpackConns)
 			if typeof(bp) ~= "Instance" then return end
-			registerConn(sec.backpackConns, bp.ChildAdded:Connect(function(item)
+			registerConn(sec.backpackConns, NAmanage.childAdd(bp, function(item)
 				if item:IsA("Tool") then updateTools(plr) end
+			end, function(item)
+				return item and item:IsA("Tool")
 			end))
-			registerConn(sec.backpackConns, bp.ChildRemoved:Connect(function(item)
+			registerConn(sec.backpackConns, NAmanage.childRem(bp, function(item)
 				if item:IsA("Tool") then updateTools(plr) end
+			end, function(item)
+				return item and item:IsA("Tool")
 			end))
 		end
 
 		local function connectCharacter(char)
 			disconnectAll(sec.charConns)
 			if typeof(char) ~= "Instance" then return end
-			registerConn(sec.charConns, char.ChildAdded:Connect(function(item)
+			registerConn(sec.charConns, NAmanage.childAdd(char, function(item)
 				if item:IsA("Tool") then updateTools(plr) end
+			end, function(item)
+				return item and item:IsA("Tool")
 			end))
-			registerConn(sec.charConns, char.ChildRemoved:Connect(function(item)
+			registerConn(sec.charConns, NAmanage.childRem(char, function(item)
 				if item:IsA("Tool") then updateTools(plr) end
+			end, function(item)
+				return item and item:IsA("Tool")
 			end))
 		end
 
-		registerConn(sec.playerConns, plr.ChildAdded:Connect(function(child)
+		registerConn(sec.playerConns, NAmanage.childAdd(plr, function(child)
 			if typeof(child) == "Instance" and child:IsA("Backpack") then
 				connectBackpack(child)
 				updateTools(plr)
 			end
+		end, function(child)
+			return typeof(child) == "Instance" and child:IsA("Backpack")
 		end))
-		registerConn(sec.playerConns, plr.ChildRemoved:Connect(function(child)
+		registerConn(sec.playerConns, NAmanage.childRem(plr, function(child)
 			if typeof(child) == "Instance" and child:IsA("Backpack") then
 				disconnectAll(sec.backpackConns)
 				updateTools(plr)
 			end
+		end, function(child)
+			return typeof(child) == "Instance" and child:IsA("Backpack")
 		end))
 		registerConn(sec.playerConns, plr.CharacterAdded:Connect(function(char)
 			connectCharacter(char)
@@ -51603,7 +52173,7 @@ originalIO.startMultiTool=function()
 			end
 		end
 
-		MultiToolCons.charChildAdded = charRef.ChildAdded:Connect(function(item)
+		MultiToolCons.charChildAdded = NAmanage.childAdd(charRef, function(item)
 			if item:IsA("Tool") then
 				if MultiToolCons.restacking then
 					return
@@ -51612,9 +52182,11 @@ originalIO.startMultiTool=function()
 				trackTool(item)
 				Defer(stackTrackedTools)
 			end
+		end, function(item)
+			return item and item:IsA("Tool")
 		end)
 
-		MultiToolCons.charChildRemoved = charRef.ChildRemoved:Connect(function(item)
+		MultiToolCons.charChildRemoved = NAmanage.childRem(charRef, function(item)
 			if not item:IsA("Tool") then
 				return
 			end
@@ -51650,6 +52222,8 @@ originalIO.startMultiTool=function()
 					untrackTool(item)
 				end
 			end)
+		end, function(item)
+			return item and item:IsA("Tool")
 		end)
 	end
 
@@ -51663,10 +52237,12 @@ originalIO.startMultiTool=function()
 			return
 		end
 
-		MultiToolCons.backpackChildAdded = backpackRef.ChildAdded:Connect(function(item)
+		MultiToolCons.backpackChildAdded = NAmanage.childAdd(backpackRef, function(item)
 			if item:IsA("Tool") and tracked[item] then
 				-- Re-equip only when a true equip-swap happens (handled by char ChildAdded).
 			end
+		end, function(item)
+			return item and item:IsA("Tool")
 		end)
 	end
 
@@ -51678,11 +52254,13 @@ originalIO.startMultiTool=function()
 		Defer(stackTrackedTools)
 	end)
 
-	MultiToolCons.playerChildAdded = localPlayer.ChildAdded:Connect(function(child)
+	MultiToolCons.playerChildAdded = NAmanage.childAdd(localPlayer, function(child)
 		if typeof(child) == "Instance" and child:IsA("Backpack") then
 			connectBackpack(child)
 			Defer(stackTrackedTools)
 		end
+	end, function(child)
+		return typeof(child) == "Instance" and child:IsA("Backpack")
 	end)
 
 	DoNotif("Multitool enabled. Equip another tool to stack it.", 3)
@@ -53264,7 +53842,9 @@ NAmanage.setFriendRequestAutoDismiss = function(enable)
 				handleChild(child)
 			end
 
-			Insert(tbl.conns, nf.ChildAdded:Connect(handleChild))
+			Insert(tbl.conns, NAmanage.childAdd(nf, handleChild, function(child)
+				return child and child:IsA("Frame")
+			end))
 			Insert(tbl.conns, nf:GetPropertyChangedSignal("Parent"):Connect(function()
 				if not nf.Parent then
 					tbl.frames[nf] = nil
@@ -53289,11 +53869,13 @@ NAmanage.setFriendRequestAutoDismiss = function(enable)
 			if nf and nf:IsA("Frame") then
 				bindNotificationFrame(nf)
 			end
-			Insert(tbl.conns, rg.ChildAdded:Connect(function(inst)
+			Insert(tbl.conns, NAmanage.childAdd(rg, function(inst)
 				if not tbl.blocking or not inst then return end
 				if inst.Name == "NotificationFrame" and inst:IsA("Frame") then
 					bindNotificationFrame(inst)
 				end
+			end, function(inst)
+				return inst and inst.Name == "NotificationFrame" and inst:IsA("Frame")
 			end))
 		end
 
@@ -53304,11 +53886,13 @@ NAmanage.setFriendRequestAutoDismiss = function(enable)
 
 			attachExisting()
 			bindRobloxGui(coreGui:FindFirstChild("RobloxGui"))
-			Insert(tbl.conns, coreGui.ChildAdded:Connect(function(inst)
+			Insert(tbl.conns, NAmanage.childAdd(coreGui, function(inst)
 				if not tbl.blocking or not inst then return end
 				if inst.Name == "RobloxGui" and inst:IsA("LayerCollector") then
 					bindRobloxGui(inst)
 				end
+			end, function(inst)
+				return inst and inst.Name == "RobloxGui" and inst:IsA("LayerCollector")
 			end))
 		else
 			if not tbl.blocking then return end
@@ -54250,14 +54834,16 @@ NAjobs._ensureTracked = function()
 			NAjobs._trackedAdd("click", inst)
 		end
 	end
-	NAlib.connect("NAjobs_track_add", workspace.DescendantAdded:Connect(function(inst)
+	NAlib.connect("NAjobs_track_add", NAmanage.descAdd(workspace, function(inst)
 		if inst:IsA("ProximityPrompt") then
 			NAjobs._trackedAdd("prompt", inst)
 		elseif inst:IsA("ClickDetector") then
 			NAjobs._trackedAdd("click", inst)
 		end
+	end, function(inst)
+		return inst and (inst:IsA("ProximityPrompt") or inst:IsA("ClickDetector"))
 	end))
-	NAlib.connect("NAjobs_track_rem", workspace.DescendantRemoving:Connect(function(inst)
+	NAlib.connect("NAjobs_track_rem", NAmanage.descRem(workspace, function(inst)
 		if inst:IsA("ProximityPrompt") then
 			NAjobs._trackedRemove("prompt", inst)
 		elseif inst:IsA("ClickDetector") then
@@ -55486,7 +56072,15 @@ NAmanage.God_Enable = function(method)
 	local h = getHum()
 	if not h then
 		NAlib.connect("god_char", lp.CharacterAdded:Connect(function(char)
-			local c; c = char.DescendantAdded:Connect(function(inst) if inst:IsA("Humanoid") then c:Disconnect(); NAmanage.God_Enable(NAStuff._godMethod) end end)
+			local c
+			c = NAmanage.descAdd(char, function(inst)
+				if inst:IsA("Humanoid") then
+					c:Disconnect()
+					NAmanage.God_Enable(NAStuff._godMethod)
+				end
+			end, function(inst)
+				return inst and inst:IsA("Humanoid")
+			end)
 		end))
 		return
 	end
@@ -57872,8 +58466,8 @@ NAmanage.CreateBox = function(part, color, transparency)
 	Defer(update)
 	local key = "esp_update_"..HttpService:GenerateGUID(false)
 	if part:IsA("Model") then
-		NAlib.connect(key, part.DescendantAdded:Connect(update))
-		NAlib.connect(key, part.DescendantRemoving:Connect(update))
+		NAlib.connect(key, NAmanage.descAdd(part, update))
+		NAlib.connect(key, NAmanage.descRem(part, update))
 	elseif NAlib.isProperty(part, "Size") then
 		NAlib.connect(key, part:GetPropertyChangedSignal("Size"):Connect(update))
 	end
@@ -60033,8 +60627,8 @@ NAmanage.FolderESP_Enable = function(folder)
 		end
 	end
 
-	NAlib.connect(key, folder.DescendantAdded:Connect(onAdded))
-	NAlib.connect(key, folder.DescendantRemoving:Connect(onRemoving))
+	NAlib.connect(key, NAmanage.descAdd(folder, onAdded))
+	NAlib.connect(key, NAmanage.descRem(folder, onRemoving))
 end
 
 NAmanage.FolderESP_RefreshActive = function()
@@ -60778,10 +61372,12 @@ cmd.add({"hitbox","hbox"}, {"hitbox <player> {size}",""}, function(pArg, sArg)
 						if D.md[m] then
 							D.md[m]:Disconnect();
 						end;
-						D.md[m] = m.DescendantAdded:Connect(function(inst)
+						D.md[m] = NAmanage.descAdd(m, function(inst)
 							if inst and inst:IsA("BasePart") then
 								Track(m, inst);
 							end;
+						end, function(inst)
+							return inst and inst:IsA("BasePart")
 						end);
 						if D.ac[m] then
 							D.ac[m]:Disconnect();
@@ -60950,10 +61546,12 @@ cmd.add({"hitbox","hbox"}, {"hitbox <player> {size}",""}, function(pArg, sArg)
 						if D.da[k] then
 							D.da[k]:Disconnect();
 						end;
-						D.da[k] = ch.DescendantAdded:Connect(function(inst)
+						D.da[k] = NAmanage.descAdd(ch, function(inst)
 							if inst and inst:IsA("BasePart") then
 								Track(k, inst);
 							end;
+						end, function(inst)
+							return inst and inst:IsA("BasePart")
 						end);
 						if D.ac[k] then
 							D.ac[k]:Disconnect();
@@ -62337,7 +62935,7 @@ cmd.add({"loopnoeffect","lnoeffect","loopne","lne"},{"loopnoeffect","Keeps Light
 		ne.lastCamera = cam
 		processCamera()
 		local ok,conn=pcall(function()
-			return cam.DescendantAdded:Connect(function(child)
+			return NAmanage.descAdd(cam, function(child)
 				if not (st.ne and st.ne.enabled) then return end
 				if not ne.lastCamera or (child and not child:IsDescendantOf(ne.lastCamera)) then return end
 				disableEffect(child)
@@ -62460,7 +63058,7 @@ cmd.add({"loopnofog","lnofog","lnf","loopnf"},{"loopnofog","See clearly forever!
 					if st.safeGet(Lighting,"FogStart") ~= 0 then st.safeSet(Lighting,"FogStart",0) end
 				end
 			end) end)
-		st.hook("nf_added", function() return Lighting.DescendantAdded:Connect(function(inst)
+		st.hook("nf_added", function() return NAmanage.descAdd(Lighting, function(inst)
 				if not (st.nf and st.nf.enabled) then return end
 				disableEffect(inst)
 			end) end)
@@ -63025,7 +63623,7 @@ cmd.add({"toolinvisible", "tinvis"}, {"toolinvisible (tinvis)", "Be invisible wh
 		tool.Parent = Players.LocalPlayer.Backpack
 	end)
 
-	getChar().ChildAdded:Connect(function(child)
+	NAmanage.childAdd(getChar(), function(child)
 		Wait()
 		if invisible and child:IsA("Tool") and child ~= heldTool and child ~= tool then
 			heldTool = child
@@ -63062,6 +63660,8 @@ cmd.add({"toolinvisible", "tinvis"}, {"toolinvisible (tinvis)", "Be invisible wh
 				end
 			end)
 		end
+	end, function(child)
+		return child and child:IsA("Tool")
 	end)
 end)
 
@@ -63604,8 +64204,14 @@ cmd.add({"preventtools", "noequip", "antiequip"}, {"preventtools (noequip,antieq
 		end
 	end
 
-	NAlib.connect("noequip_char", c.ChildAdded:Connect(onTool))
-	NAlib.connect("noequip_hum", h.ChildAdded:Connect(onTool))
+	NAlib.connect("noequip_char", NAmanage.childAdd(c, onTool, function(child)
+		return child and child:IsA("Tool")
+	end, function(inst)
+		return inst and (inst:IsA("ProximityPrompt") or inst:IsA("ClickDetector"))
+	end))
+	NAlib.connect("noequip_hum", NAmanage.childAdd(h, onTool, function(child)
+		return child and child:IsA("Tool")
+	end))
 
 	DebugNotif("Tool prevention on", 3)
 end)
@@ -76459,15 +77065,19 @@ originalIO.binderAttachToolListeners=function(plr, char)
 			rec.conns[i] = NAmanage.tryDisconnect(rec.conns[i])
 		end
 	end
-	rec.conns[#rec.conns + 1] = char.ChildAdded:Connect(function(child)
+	rec.conns[#rec.conns + 1] = NAmanage.childAdd(char, function(child)
 		if wantEquip and child:IsA("Tool") then
 			NAmanage.ExecuteBindings("OnEquipItem", plr, child)
 		end
+	end, function(child)
+		return child and child:IsA("Tool")
 	end)
-	rec.conns[#rec.conns + 1] = char.ChildRemoved:Connect(function(child)
+	rec.conns[#rec.conns + 1] = NAmanage.childRem(char, function(child)
 		if wantUnequip and child:IsA("Tool") then
 			NAmanage.ExecuteBindings("OnUnequipItem", plr, child)
 		end
+	end, function(child)
+		return child and child:IsA("Tool")
 	end)
 	rec.conns[#rec.conns + 1] = char.AncestryChanged:Connect(function(_, parent)
 		if parent == nil then
@@ -76755,221 +77365,6 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 
 	SpawnCall(function()
 		local HUI = NAlib.huiGrabber();
-		local fhSet = {}
-		local fhCount = 0
-		local fhWarned = false
-		local FH_SOFT_LIMIT = 1200
-		local FH_HARD_LIMIT = 1600
-		local FH_RETRY_SLACK = 0.002
-		local function discConn(conn)
-			if conn then
-				pcall(function()
-					conn:Disconnect()
-				end)
-			end
-		end
-		local function releaseLbl(o)
-			local state = fhSet[o]
-			if not state then
-				return
-			end
-			fhSet[o] = nil
-			state.dead = true
-			discConn(state.textConn)
-			discConn(state.placeholderConn)
-			discConn(state.ancestryConn)
-			discConn(state.destroyConn)
-			if fhCount > 0 then
-				fhCount -= 1
-			end
-		end
-		local function recountLbls()
-			local n = 0
-			for _ in pairs(fhSet) do
-				n += 1
-			end
-			fhCount = n
-		end
-		local function conToFriendsEnabled()
-			return NAStuff and NAStuff.ConnectionsToFriends == true
-		end
-		local function hasCon(v)
-			return type(v) == "string" and v ~= "" and v:find("Connection", 1, true) ~= nil
-		end
-		local function needCon(o)
-			local okText, textVal = pcall(function()
-				return o.Text
-			end)
-			if okText and hasCon(textVal) then
-				return true
-			end
-			if o:IsA("TextBox") then
-				local okPh, phVal = pcall(function()
-					return o.PlaceholderText
-				end)
-				if okPh and hasCon(phVal) then
-					return true
-				end
-			end
-			return false
-		end
-		local function canTrackLbl(o)
-			if fhSet[o] then
-				return true
-			end
-			if fhCount >= FH_SOFT_LIMIT then
-				recountLbls()
-			end
-			if fhCount < FH_SOFT_LIMIT then
-				return true
-			end
-			if fhCount >= FH_HARD_LIMIT then
-				if not fhWarned then
-					fhWarned = true
-					pcall(function()
-						DoNotif("Connections rename: hit tracking cap, skipping new labels for performance.", 3, "CoreGui Customization")
-					end)
-				end
-				return false
-			end
-			if needCon(o) then
-				return true
-			end
-			if not fhWarned then
-				fhWarned = true
-				pcall(function()
-					DoNotif("Connections rename: limiting passive label watchers for performance.", 3, "CoreGui Customization")
-				end)
-			end
-			return false
-		end
-		local function hookLbl(o)
-			if not o or typeof(o) ~= "Instance" then
-				return
-			end
-			if HUI and o:IsDescendantOf(HUI) then
-				return
-			end
-			if not (o:IsA("TextLabel") or o:IsA("TextButton") or o:IsA("TextBox")) then
-				return
-			end
-			if not conToFriendsEnabled() then
-				return
-			end
-			local state = fhSet[o]
-			if state then
-				if state.scheduleApply then
-					state.scheduleApply(true)
-				end
-				return
-			end
-			if not canTrackLbl(o) then
-				return
-			end
-			state = {
-				dead = false;
-				applying = false;
-				pending = false;
-				retryQueued = false;
-				nextAt = 0;
-			}
-			fhSet[o] = state
-			fhCount += 1
-			local function rep(p)
-				local ok, t = pcall(function()
-					return o[p]
-				end)
-				if not (ok and hasCon(t)) then
-					return false
-				end
-				local new = (t:gsub("Connections", "Friends")):gsub("Connection", "Friend")
-				if new ~= t then
-					pcall(function()
-						o[p] = new
-					end)
-					return true
-				end
-				return false
-			end
-			local function scheduleApply(forceNow)
-				if state.dead or state.pending then
-					return
-				end
-				state.pending = true
-				Defer(function()
-					state.pending = false
-					if state.dead then
-						return
-					end
-					if not (o and o.Parent) then
-						releaseLbl(o)
-						return
-					end
-					if not conToFriendsEnabled() then
-						return
-					end
-					local now = os.clock()
-					if (not forceNow) and (now + FH_RETRY_SLACK < state.nextAt) then
-						if not state.retryQueued then
-							state.retryQueued = true
-							local waitFor = math.max(0.01, state.nextAt - now)
-							Delay(waitFor, function()
-								state.retryQueued = false
-								if state.dead then
-									return
-								end
-								scheduleApply(true)
-							end)
-						end
-						return
-					end
-					if state.applying then
-						return
-					end
-					state.applying = true
-					local changed = rep("Text")
-					if o:IsA("TextBox") then
-						changed = rep("PlaceholderText") or changed
-					end
-					state.applying = false
-					state.nextAt = os.clock() + (changed and 0.03 or 0.08)
-				end)
-			end
-			state.scheduleApply = scheduleApply
-			state.textConn = (o:GetPropertyChangedSignal("Text")):Connect(function()
-				scheduleApply(false)
-			end)
-			if o:IsA("TextBox") then
-				state.placeholderConn = (o:GetPropertyChangedSignal("PlaceholderText")):Connect(function()
-					scheduleApply(false)
-				end)
-			end
-			state.ancestryConn = o.AncestryChanged:Connect(function(_, parent)
-				if not parent then
-					releaseLbl(o)
-				end
-			end)
-			local okDestroy, destroySig = pcall(function()
-				return o.Destroying
-			end)
-			if okDestroy and destroySig then
-				state.destroyConn = destroySig:Connect(function()
-					releaseLbl(o)
-				end)
-			end
-			scheduleApply(true)
-		end
-		NAmanage.clearConnectionsFriendLabelHooks = function()
-			local list = {}
-			for inst in pairs(fhSet) do
-				list[#list + 1] = inst
-			end
-			for i = 1, #list do
-				releaseLbl(list[i])
-			end
-			recountLbls()
-			fhWarned = false
-		end
 	local iIdx = {
 		click = {};
 		proxy = {};
@@ -77029,10 +77424,6 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 		elseif inst:IsA("TouchTransmitter") then
 			remI("touch", inst);
 		end;
-	end;
-	local function isFLbl(inst)
-		return inst
-			and (inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox"));
 	end;
 	local function isITgt(inst)
 		if not inst then
@@ -77115,7 +77506,6 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 	end;
 	local dQ = {};
 	local dSet = {};
-	local fPend = {};
 	local iPend = {};
 	local wsAddP = {};
 	local wsRemP = {};
@@ -77158,17 +77548,12 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 					dHead += 1;
 					if inst then
 						dSet[inst] = nil;
-						local doFriend = fPend[inst];
 						local addInt = iPend[inst];
 						local doWsAdd = wsAddP[inst];
 						local doWsRem = wsRemP[inst];
-						fPend[inst] = nil;
 						iPend[inst] = nil;
 						wsAddP[inst] = nil;
 						wsRemP[inst] = nil;
-						if doFriend then
-							hookLbl(inst);
-						end;
 						if addInt ~= nil then
 							if addInt then
 								regI(inst);
@@ -77207,17 +77592,11 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 			runDQ();
 		end);
 	end;
-	local function enqueueDesc(inst, friendFlag, interactState, wsAddFlag, wsRemFlag)
+	local function enqueueDesc(inst, interactState, wsAddFlag, wsRemFlag)
 		if not (inst and typeof(inst) == "Instance") then
 			return;
 		end;
 		local hasAny = false;
-		if friendFlag == true and conToFriendsEnabled() and isFLbl(inst) then
-			if not (HUI and inst:IsDescendantOf(HUI)) then
-				fPend[inst] = true;
-				hasAny = true;
-			end;
-		end;
 		if interactState ~= nil and isITgt(inst) then
 			iPend[inst] = interactState and true or false;
 			hasAny = true;
@@ -77250,11 +77629,11 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 		end;
 		return false;
 	end;
-	local function shouldBulkAddScan(inst, friendFlag, interactState, wsAddFlag, wsRemFlag)
+	local function shouldBulkAddScan(inst, interactState, wsAddFlag, wsRemFlag)
 		if wsRemFlag == true then
 			return false;
 		end;
-		if not (friendFlag == true or interactState ~= nil or wsAddFlag == true) then
+		if not (interactState ~= nil or wsAddFlag == true) then
 			return false;
 		end;
 		if not (inst and inst.Parent) then
@@ -77266,17 +77645,17 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 		local ok, children = pcall(inst.GetChildren, inst);
 		return ok and children and #children > 0;
 	end;
-	local function qDesc(inst, friendFlag, interactState, wsAddFlag, wsRemFlag)
+	local function qDesc(inst, interactState, wsAddFlag, wsRemFlag)
 		if not (inst and typeof(inst) == "Instance") then
 			return;
 		end;
-		if shouldBulkAddScan(inst, friendFlag, interactState, wsAddFlag, wsRemFlag) then
+		if shouldBulkAddScan(inst, interactState, wsAddFlag, wsRemFlag) then
 			if hasBulkAddRoot(inst) then
 				return;
 			end;
 			bulkAddRoots[inst] = true;
 			queueScan(inst, function(desc)
-				enqueueDesc(desc, friendFlag, interactState, wsAddFlag, wsRemFlag);
+				enqueueDesc(desc, interactState, wsAddFlag, wsRemFlag);
 			end, function()
 				bulkAddRoots[inst] = nil;
 			end);
@@ -77285,125 +77664,15 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 		if wsRemFlag ~= true and hasBulkAddRoot(inst) then
 			return;
 		end;
-		enqueueDesc(inst, friendFlag, interactState, wsAddFlag, wsRemFlag);
+		enqueueDesc(inst, interactState, wsAddFlag, wsRemFlag);
 	end;
-		if CoreGui then
-			local friendRoot = nil
-			local function clrFRoot()
-				friendRoot = nil
-				NAlib.disconnect("NA_FriendLabel_CoreGui")
-				NAlib.disconnect("NA_FriendLabel_PlayerGui")
-				NAlib.disconnect("NA_FriendLabel_CoreGuiRoot")
-				NAlib.disconnect("NA_FriendLabel_CoreGuiRootRemoved")
-			end
-			local function setFRoot(root)
-				if not conToFriendsEnabled() then
-					clrFRoot()
-					return
-				end
-				if friendRoot == root then
-					return
-				end
-				friendRoot = root
-				NAlib.disconnect("NA_FriendLabel_CoreGui")
-				NAlib.disconnect("NA_FriendLabel_PlayerGui")
-				if not root then
-					return
-				end
-				queueScan(root, function(inst)
-					qDesc(inst, true, nil, nil, nil);
-				end);
-				if root == CoreGui and NAmanage.cgSub then
-					NAlib.connect("NA_FriendLabel_CoreGui", NAmanage.cgSub({
-						added = function(o)
-							qDesc(o, true, nil, nil, nil);
-						end,
-						filterAdded = function(o)
-							if not isFLbl(o) then
-								return false
-							end
-							if HUI and o:IsDescendantOf(HUI) then
-								return false
-							end
-							return true
-						end,
-					}))
-				elseif root ~= CoreGui and NAmanage.pgSub then
-					NAlib.connect("NA_FriendLabel_PlayerGui", NAmanage.pgSub({
-						added = function(o)
-							qDesc(o, true, nil, nil, nil);
-						end,
-						filterAdded = function(o)
-							if not isFLbl(o) then
-								return false
-							end
-							if HUI and o:IsDescendantOf(HUI) then
-								return false
-							end
-							return true
-						end,
-					}))
-				elseif NAmanage.descSub then
-					local connName = root == CoreGui and "NA_FriendLabel_CoreGui" or "NA_FriendLabel_PlayerGui"
-					NAlib.connect(connName, NAmanage.descSub(root, {
-						added = function(o)
-							qDesc(o, true, nil, nil, nil);
-						end,
-						filterAdded = function(o)
-							if not isFLbl(o) then
-								return false
-							end
-							if HUI and o:IsDescendantOf(HUI) then
-								return false
-							end
-							return true
-						end,
-					}))
-				end
-			end
-
-			NAmanage.refreshConnectionsFriendLabels = function()
-				if not conToFriendsEnabled() then
-					clrFRoot()
-					return
-				end
-				local root = friendRoot
-				if not (root and root.Parent) then
-					root = CoreGui
-				end
-				if not root then
-					return
-				end
-				if friendRoot ~= root then
-					setFRoot(root)
-					return
-				end
-				queueScan(root, function(inst)
-					qDesc(inst, true, nil, nil, nil);
-				end);
-			end
-
-			local prevClearConnectionsFriendLabelHooks = NAmanage.clearConnectionsFriendLabelHooks
-			NAmanage.clearConnectionsFriendLabelHooks = function()
-				if type(prevClearConnectionsFriendLabelHooks) == "function" then
-					prevClearConnectionsFriendLabelHooks()
-				end
-				clrFRoot()
-			end
-
-			if conToFriendsEnabled() then
-				setFRoot(CoreGui)
-			else
-				clrFRoot()
-			end
-		end;
 	queueScan(workspace, function(inst)
-		qDesc(inst, nil, true, nil, nil);
+		qDesc(inst, true, nil, nil);
 	end);
 	NAlib.disconnect("NA_InteractAdded");
 	NAlib.connect("NA_InteractAdded", NAmanage.wsSub({
 		added = function(inst)
-			qDesc(inst, nil, true, true, nil);
+			qDesc(inst, true, true, nil);
 		end,
 		filterAdded = function(inst)
 			if NAmanage.hasWsH("add") then
@@ -77415,7 +77684,7 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 	NAlib.disconnect("NA_InteractRemoved");
 	NAlib.connect("NA_InteractRemoved", NAmanage.wsSub({
 		removing = function(inst)
-			qDesc(inst, nil, false, nil, true);
+			qDesc(inst, false, nil, true);
 		end,
 		filterRemoving = function(inst)
 			if NAmanage.hasWsH("rem") then
@@ -78904,7 +79173,7 @@ NAmanage.bindRobloxDevConsoleCopyButtons = NAmanage.bindRobloxDevConsoleCopyButt
 	end
 
 	scan(clientLog)
-	Insert(connections, clientLog.DescendantAdded:Connect(function(desc)
+	Insert(connections, NAmanage.descAdd(clientLog, function(desc)
 		attach(desc)
 	end))
 	Insert(connections, clientLog.AncestryChanged:Connect(function(_, parent)
@@ -79418,10 +79687,12 @@ if not NAmanage._autoJumpGuardInitialized then
 			return
 		end
 		bindHumanoid(char:FindFirstChildOfClass("Humanoid"))
-		NAlib.connect("na_autojump_char_desc", char.DescendantAdded:Connect(function(inst)
+		NAlib.connect("na_autojump_char_desc", NAmanage.descAdd(char, function(inst)
 			if inst and inst:IsA("Humanoid") then
 				bindHumanoid(inst)
 			end
+		end, function(inst)
+			return inst and inst:IsA("Humanoid")
 		end))
 		NAlib.connect("na_autojump_char_desc", char.AncestryChanged:Connect(function(_, parent)
 			if not parent then
@@ -84235,16 +84506,6 @@ end)
 
 NAgui.addSection("CoreGui Customization")
 
-NAgui.addToggle("Rename Connections To Friends", NAStuff.ConnectionsToFriends == true, function(v)
-	NAStuff.ConnectionsToFriends = v == true
-	NAmanage.NASettingsSet("connectionsToFriends", NAStuff.ConnectionsToFriends)
-	if NAStuff.ConnectionsToFriends and type(NAmanage.refreshConnectionsFriendLabels) == "function" then
-		NAmanage.refreshConnectionsFriendLabels()
-	elseif (not NAStuff.ConnectionsToFriends) and type(NAmanage.clearConnectionsFriendLabelHooks) == "function" then
-		NAmanage.clearConnectionsFriendLabelHooks()
-	end
-end)
-
 if CoreGui then
 	local PT = {
 		path      = NAfiles.NAFILEPATH.."/plexity_theme.json",
@@ -85495,7 +85756,7 @@ if CoreGui then
 			BuilderIconEditor.watchersEnabled = true
 			NAlib.disconnect("BuilderIconEditorAdded")
 			NAlib.disconnect("BuilderIconEditorRemoving")
-			NAlib.connect("BuilderIconEditorAdded", CoreGui.DescendantAdded:Connect(function(o)
+			NAlib.connect("BuilderIconEditorAdded", NAmanage.descAdd(CoreGui, function(o)
 				if not isBuilderIconTarget(o) then
 					return
 				end
@@ -85508,8 +85769,8 @@ if CoreGui then
 					syncBuilderIconInput()
 				end
 				queueBuilderIconRefresh()
-			end))
-			NAlib.connect("BuilderIconEditorRemoving", CoreGui.DescendantRemoving:Connect(function(o)
+			end, isBuilderIconTarget))
+			NAlib.connect("BuilderIconEditorRemoving", NAmanage.descRem(CoreGui, function(o)
 				if not (isBuilderIconTarget(o) or isTrackedBuilderIconTarget(o)) then
 					return
 				end
@@ -85523,6 +85784,8 @@ if CoreGui then
 				end
 				BuilderIconEditor.originalText[o] = nil
 				queueBuilderIconRefresh()
+			end, function(o)
+				return o and (isBuilderIconTarget(o) or isTrackedBuilderIconTarget(o))
 			end))
 		end
 
@@ -87060,6 +87323,37 @@ do
 	local function c3ToTbl(c)
 		return { math.floor(c.R * 255 + 0.5), math.floor(c.G * 255 + 0.5), math.floor(c.B * 255 + 0.5) }
 	end
+	local function dropdownValue(selection, fallback)
+		if type(selection) == "table" then
+			selection = selection[1]
+		end
+		if selection == nil then
+			return fallback
+		end
+		return tostring(selection)
+	end
+	local function saveApplyChat()
+		NAmanage.SaveTextChatSettings()
+		NAmanage.ApplyTextChatSettings()
+	end
+	local function updateBubbleLocalOffset(index, value)
+		local bubbles = NAStuff.ChatSettings.bubbles
+		local current = bubbles.localPlayerStudsOffset
+		if type(current) ~= "table" then
+			current = {0,0,0}
+			bubbles.localPlayerStudsOffset = current
+		end
+		current[index] = tonumber(value) or 0
+		saveApplyChat()
+	end
+	local bubbleOffsetDefault = NAStuff.ChatSettings.bubbles.localPlayerStudsOffset or {}
+	local chatChannelDropdownLabel = "Target Chat Channel"
+	local function getTextChatChannelOptions()
+		if NAmanage.GetTextChatChannelOptions then
+			return NAmanage.GetTextChatChannelOptions()
+		end
+		return { "Keep Default" }
+	end
 
 	NAgui.addSection("Text Chat")
 	NAgui.addToggle("Enable Custom Chat Styling", NAStuff.ChatSettings.customEnabled, function(v)
@@ -87122,12 +87416,30 @@ do
 	end)
 
 	NAgui.addToggle("Enable Chat (CoreGui)", NAStuff.ChatSettings.coreGuiChat, function(v)
-		NAStuff.ChatSettings.coreGuiChat = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+		NAStuff.ChatSettings.coreGuiChat = v
+		NAStuff.ChatSettingsDirty = true
+		NAmanage.SaveTextChatSettings()
+		NAmanage.ApplyTextChatSettings(true)
 	end)
 
 	NAgui.addSection("Chat Window")
 	NAgui.addToggle("Window Enabled", NAStuff.ChatSettings.window.enabled, function(v)
 		NAStuff.ChatSettings.window.enabled = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+	end)
+	NAgui.addInput("Window Font Asset", "rbxasset://fonts/families/BuilderSans.json", NAStuff.ChatSettings.window.font or "", function(text)
+		NAStuff.ChatSettings.window.font = tostring(text or ""); saveApplyChat()
+	end)
+	NAgui.addSlider("Window Width Scale", 0.5, 2, tonumber(NAStuff.ChatSettings.window.widthScale) or 1, 0.05, "", function(v)
+		NAStuff.ChatSettings.window.widthScale = v; saveApplyChat()
+	end)
+	NAgui.addSlider("Window Height Scale", 0.5, 2, tonumber(NAStuff.ChatSettings.window.heightScale) or 1, 0.05, "", function(v)
+		NAStuff.ChatSettings.window.heightScale = v; saveApplyChat()
+	end)
+	NAgui.addDropdown("Window Horizontal Alignment", { "Left", "Center", "Right" }, tostring(NAStuff.ChatSettings.window.horizontalAlignment or "Left"), function(selection)
+		NAStuff.ChatSettings.window.horizontalAlignment = dropdownValue(selection, "Left"); saveApplyChat()
+	end)
+	NAgui.addDropdown("Window Vertical Alignment", { "Top", "Center", "Bottom" }, tostring(NAStuff.ChatSettings.window.verticalAlignment or "Top"), function(selection)
+		NAStuff.ChatSettings.window.verticalAlignment = dropdownValue(selection, "Top"); saveApplyChat()
 	end)
 	NAgui.addSlider("Text Size (Window)", 5, 50, NAStuff.ChatSettings.window.textSize, 1, " px", function(v)
 		NAStuff.ChatSettings.window.textSize = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
@@ -87155,6 +87467,9 @@ do
 	NAgui.addToggle("Tabs Enabled", NAStuff.ChatSettings.tabs.enabled, function(v)
 		NAStuff.ChatSettings.tabs.enabled = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
 	end)
+	NAgui.addInput("Tabs Font Asset", "rbxasset://fonts/families/BuilderSans.json", NAStuff.ChatSettings.tabs.font or "", function(text)
+		NAStuff.ChatSettings.tabs.font = tostring(text or ""); saveApplyChat()
+	end)
 	NAgui.addSlider("Text Size (Tabs)", 5, 50, NAStuff.ChatSettings.tabs.textSize, 1, " px", function(v)
 		NAStuff.ChatSettings.tabs.textSize = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
 	end)
@@ -87163,6 +87478,9 @@ do
 	end)
 	NAgui.addSlider("Background Transparency (Tabs)", 0, 1, NAStuff.ChatSettings.tabs.backgroundTransparency, 0.05, "", function(v)
 		NAStuff.ChatSettings.tabs.backgroundTransparency = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+	end)
+	NAgui.addColorPicker("Tab Hover Background", tblToC3(NAStuff.ChatSettings.tabs.hoverBackgroundColor), function(c)
+		NAStuff.ChatSettings.tabs.hoverBackgroundColor = c3ToTbl(c); saveApplyChat()
 	end)
 	NAgui.addSlider("Text Transparency (Tabs)", 0, 1, NAStuff.ChatSettings.tabs.textTransparency, 0.05, "", function(v)
 		NAStuff.ChatSettings.tabs.textTransparency = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
@@ -87176,16 +87494,42 @@ do
 	NAgui.addColorPicker("Unselected Text Color", tblToC3(NAStuff.ChatSettings.tabs.unselectedTextColor), function(c)
 		NAStuff.ChatSettings.tabs.unselectedTextColor = c3ToTbl(c); NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
 	end)
+	NAgui.addColorPicker("Text Stroke Color (Tabs)", tblToC3(NAStuff.ChatSettings.tabs.strokeColor), function(c)
+		NAStuff.ChatSettings.tabs.strokeColor = c3ToTbl(c); saveApplyChat()
+	end)
+	NAgui.addSlider("Text Stroke Transparency (Tabs)", 0, 1, tonumber(NAStuff.ChatSettings.tabs.strokeTransparency) or 0.5, 0.05, "", function(v)
+		NAStuff.ChatSettings.tabs.strokeTransparency = v; saveApplyChat()
+	end)
 
 	NAgui.addSection("Chat Input")
 	NAgui.addToggle("Input Enabled", NAStuff.ChatSettings.input.enabled, function(v)
 		NAStuff.ChatSettings.input.enabled = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
 	end)
+	NAgui.addInput("Input Font Asset", "rbxasset://fonts/families/BuilderSans.json", NAStuff.ChatSettings.input.font or "", function(text)
+		NAStuff.ChatSettings.input.font = tostring(text or ""); saveApplyChat()
+	end)
 	NAgui.addToggle("Autocomplete", NAStuff.ChatSettings.input.autocomplete, function(v)
 		NAStuff.ChatSettings.input.autocomplete = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
 	end)
 	NAgui.addToggle("Target #RBXGeneral", NAStuff.ChatSettings.input.targetGeneral, function(v)
-		NAStuff.ChatSettings.input.targetGeneral = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+		NAStuff.ChatSettings.input.targetGeneral = v
+		if v then
+			NAStuff.ChatSettings.input.targetChannel = "RBXGeneral"
+		elseif NAStuff.ChatSettings.input.targetChannel == "RBXGeneral" then
+			NAStuff.ChatSettings.input.targetChannel = ""
+		end
+		saveApplyChat()
+	end)
+	NAgui.addDropdown(chatChannelDropdownLabel, getTextChatChannelOptions(), (type(NAStuff.ChatSettings.input.targetChannel) == "string" and NAStuff.ChatSettings.input.targetChannel ~= "") and NAStuff.ChatSettings.input.targetChannel or (NAStuff.ChatSettings.input.targetGeneral and "RBXGeneral" or "Keep Default"), function(selection)
+		local channelName = dropdownValue(selection, "Keep Default")
+		if channelName == "Keep Default" then
+			NAStuff.ChatSettings.input.targetChannel = ""
+			NAStuff.ChatSettings.input.targetGeneral = false
+		else
+			NAStuff.ChatSettings.input.targetChannel = channelName
+			NAStuff.ChatSettings.input.targetGeneral = (channelName == "RBXGeneral")
+		end
+		saveApplyChat()
 	end)
 	NAgui.addSlider("Text Size (Input)", 5, 25, NAStuff.ChatSettings.input.textSize, 1, " px", function(v)
 		NAStuff.ChatSettings.input.textSize = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
@@ -87198,6 +87542,9 @@ do
 	end)
 	NAgui.addSlider("Text Stroke Transparency (Input)", 0, 1, NAStuff.ChatSettings.input.strokeTransparency, 0.05, "", function(v)
 		NAStuff.ChatSettings.input.strokeTransparency = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+	end)
+	NAgui.addColorPicker("Placeholder Color", tblToC3(NAStuff.ChatSettings.input.placeholderColor), function(c)
+		NAStuff.ChatSettings.input.placeholderColor = c3ToTbl(c); saveApplyChat()
 	end)
 	NAgui.addColorPicker("Input Background", tblToC3(NAStuff.ChatSettings.input.backgroundColor), function(c)
 		NAStuff.ChatSettings.input.backgroundColor = c3ToTbl(c); NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
@@ -87215,11 +87562,29 @@ do
 	NAgui.addToggle("Bubbles Enabled", NAStuff.ChatSettings.bubbles.enabled, function(v)
 		NAStuff.ChatSettings.bubbles.enabled = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
 	end)
+	NAgui.addInput("Bubble Font Asset", "leave blank to use Roblox default", NAStuff.ChatSettings.bubbles.font or "", function(text)
+		NAStuff.ChatSettings.bubbles.font = tostring(text or ""); saveApplyChat()
+	end)
+	NAgui.addInput("Bubble Adornee Name", "HumanoidRootPart", NAStuff.ChatSettings.bubbles.adorneeName or "HumanoidRootPart", function(text)
+		NAStuff.ChatSettings.bubbles.adorneeName = tostring(text or "HumanoidRootPart"); saveApplyChat()
+	end)
 	NAgui.addSlider("Max Distance", 10, 500, NAStuff.ChatSettings.bubbles.maxDistance, 5, " u", function(v)
 		NAStuff.ChatSettings.bubbles.maxDistance = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
 	end)
 	NAgui.addSlider("Minimize Distance", 0, 350, NAStuff.ChatSettings.bubbles.minimizeDistance, 2, " u", function(v)
 		NAStuff.ChatSettings.bubbles.minimizeDistance = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
+	end)
+	NAgui.addSlider("Vertical Studs Offset", -10, 20, tonumber(NAStuff.ChatSettings.bubbles.verticalStudsOffset) or 0, 0.25, "", function(v)
+		NAStuff.ChatSettings.bubbles.verticalStudsOffset = v; saveApplyChat()
+	end)
+	NAgui.addSlider("Local Player Offset X", -20, 20, tonumber(bubbleOffsetDefault[1] or bubbleOffsetDefault.X) or 0, 0.25, "", function(v)
+		updateBubbleLocalOffset(1, v)
+	end)
+	NAgui.addSlider("Local Player Offset Y", -20, 20, tonumber(bubbleOffsetDefault[2] or bubbleOffsetDefault.Y) or 0, 0.25, "", function(v)
+		updateBubbleLocalOffset(2, v)
+	end)
+	NAgui.addSlider("Local Player Offset Z", -20, 20, tonumber(bubbleOffsetDefault[3] or bubbleOffsetDefault.Z) or 0, 0.25, "", function(v)
+		updateBubbleLocalOffset(3, v)
 	end)
 	NAgui.addSlider("Text Size (Bubble)", 5, 30, NAStuff.ChatSettings.bubbles.textSize, 1, " px", function(v)
 		NAStuff.ChatSettings.bubbles.textSize = v; NAmanage.SaveTextChatSettings(); NAmanage.ApplyTextChatSettings()
@@ -87365,6 +87730,219 @@ NAmanage.ApplyJump = function(val)
 	end
 end
 
+NAStuff.CustomMovementSounds = NAStuff.CustomMovementSounds or {
+	Enabled = false,
+	WalkInput = "",
+	JumpInput = "",
+	FallInput = "",
+	LandInput = "",
+	Volume = 1,
+}
+
+do
+	local cfg = NAStuff.CustomMovementSounds
+	cfg.WalkInput = tostring(cfg.WalkInput or cfg.WalkSoundId or "")
+	cfg.JumpInput = tostring(cfg.JumpInput or cfg.JumpSoundId or "")
+	cfg.FallInput = tostring(cfg.FallInput or cfg.FallSoundId or "")
+	cfg.LandInput = tostring(cfg.LandInput or cfg.LandSoundId or "")
+	cfg.Volume = math.clamp(tonumber(cfg.Volume) or 1, 0, 10)
+end
+
+NAmanage.CustomMovementSoundSaveSettings = NAmanage.CustomMovementSoundSaveSettings or function()
+	local cfg = NAStuff.CustomMovementSounds or {}
+	NAmanage.NASettingsSet("customMovementSoundsEnabled", cfg.Enabled == true)
+	NAmanage.NASettingsSet("customMovementSoundsWalk", tostring(cfg.WalkInput or ""))
+	NAmanage.NASettingsSet("customMovementSoundsJump", tostring(cfg.JumpInput or ""))
+	NAmanage.NASettingsSet("customMovementSoundsFall", tostring(cfg.FallInput or ""))
+	NAmanage.NASettingsSet("customMovementSoundsLand", tostring(cfg.LandInput or ""))
+	NAmanage.NASettingsSet("customMovementSoundsVolume", math.clamp(tonumber(cfg.Volume) or 1, 0, 10))
+end
+
+NAmanage.CustomMovementSoundNormalize = NAmanage.CustomMovementSoundNormalize or function(raw)
+	if typeof(raw) ~= "string" then
+		raw = tostring(raw or "")
+	end
+	raw = raw:match("^%s*(.-)%s*$")
+	if raw == "" then
+		return ""
+	end
+	local digits = raw:match("^rbxassetid://(%d+)$") or raw:match("id=(%d+)") or raw:match("(%d+)$")
+	if not digits then
+		return nil
+	end
+	return "rbxassetid://"..digits
+end
+
+NAmanage.CustomMovementSoundKind = NAmanage.CustomMovementSoundKind or function(sound)
+	if typeof(sound) ~= "Instance" or not sound:IsA("Sound") then
+		return nil
+	end
+	local name = tostring(sound.Name or "")
+	if name == "Running" or name == "Run" or name == "Walk" then
+		return "Walk"
+	end
+	if name == "Jumping" or name == "Jump" then
+		return "Jump"
+	end
+	if name == "FreeFalling" or name == "Falling" or name == "Fall" then
+		return "Fall"
+	end
+	if name == "Landing" or name == "Land" then
+		return "Land"
+	end
+	return nil
+end
+
+NAmanage.CustomMovementSoundCapture = NAmanage.CustomMovementSoundCapture or function(sound)
+	if typeof(sound) ~= "Instance" or not sound:IsA("Sound") then
+		return
+	end
+	if sound:GetAttribute("NA_MoveSoundCaptured") then
+		return
+	end
+	local okId, soundId = pcall(function()
+		return sound.SoundId
+	end)
+	local okVol, volume = pcall(function()
+		return sound.Volume
+	end)
+	pcall(function()
+		sound:SetAttribute("NA_MoveSoundCaptured", true)
+		sound:SetAttribute("NA_MoveSoundOrigSoundId", okId and tostring(soundId or "") or "")
+		sound:SetAttribute("NA_MoveSoundOrigVolume", okVol and tonumber(volume) or 1)
+	end)
+end
+
+NAmanage.CustomMovementSoundRestore = NAmanage.CustomMovementSoundRestore or function(sound)
+	if typeof(sound) ~= "Instance" or not sound:IsA("Sound") then
+		return
+	end
+	local captured = sound:GetAttribute("NA_MoveSoundCaptured")
+	if captured ~= true then
+		return
+	end
+	local origId = sound:GetAttribute("NA_MoveSoundOrigSoundId")
+	local origVol = sound:GetAttribute("NA_MoveSoundOrigVolume")
+	if origId ~= nil then
+		pcall(function()
+			sound.SoundId = tostring(origId)
+		end)
+	end
+	if type(origVol) == "number" then
+		pcall(function()
+			sound.Volume = origVol
+		end)
+	end
+end
+
+NAmanage.CustomMovementSoundApplyOne = NAmanage.CustomMovementSoundApplyOne or function(sound)
+	local kind = NAmanage.CustomMovementSoundKind(sound)
+	if not kind then
+		return false
+	end
+	NAmanage.CustomMovementSoundCapture(sound)
+	local cfg = NAStuff.CustomMovementSounds or {}
+	if cfg.Enabled ~= true then
+		NAmanage.CustomMovementSoundRestore(sound)
+		return true
+	end
+	local asset = cfg[kind.."SoundId"]
+	if type(asset) ~= "string" then
+		asset = ""
+	end
+	if asset ~= "" then
+		pcall(function()
+			sound.SoundId = asset
+		end)
+	else
+		local origId = sound:GetAttribute("NA_MoveSoundOrigSoundId")
+		if origId ~= nil then
+			pcall(function()
+				sound.SoundId = tostring(origId)
+			end)
+		end
+	end
+	pcall(function()
+		sound.Volume = math.clamp(tonumber(cfg.Volume) or 1, 0, 10)
+	end)
+	return true
+end
+
+NAmanage.CustomMovementSoundApplyToCharacter = NAmanage.CustomMovementSoundApplyToCharacter or function(char)
+	char = char or getChar()
+	if typeof(char) ~= "Instance" then
+		return 0
+	end
+	local applied = 0
+	for _, desc in ipairs(char:GetDescendants()) do
+		if NAmanage.CustomMovementSoundApplyOne(desc) then
+			applied += 1
+		end
+	end
+	return applied
+end
+
+NAmanage.CustomMovementSoundSyncConfig = NAmanage.CustomMovementSoundSyncConfig or function(notifyInvalid)
+	local cfg = NAStuff.CustomMovementSounds or {}
+	local invalid = {}
+	for _, key in ipairs({"Walk", "Jump", "Fall", "Land"}) do
+		local normalized = NAmanage.CustomMovementSoundNormalize(cfg[key.."Input"])
+		if normalized == nil then
+			invalid[#invalid + 1] = Lower(key)
+			normalized = ""
+		end
+		cfg[key.."SoundId"] = normalized
+	end
+	cfg.Volume = math.clamp(tonumber(cfg.Volume) or 1, 0, 10)
+	if notifyInvalid and #invalid > 0 then
+		DoNotif("Invalid movement sound id for: "..Concat(invalid, ", "), 3, "Movement Sounds")
+	end
+	return #invalid == 0
+end
+
+NAmanage.CustomMovementSoundBindCharacter = NAmanage.CustomMovementSoundBindCharacter or function(char)
+	NAlib.disconnect("na_move_sounds_desc")
+	if typeof(char) ~= "Instance" then
+		return
+	end
+	NAlib.connect("na_move_sounds_desc", NAmanage.descAdd(char, function(inst)
+		NAmanage.CustomMovementSoundApplyOne(inst)
+	end, function(inst)
+		return NAmanage.CustomMovementSoundKind(inst) ~= nil
+	end))
+end
+
+NAmanage.CustomMovementSoundSetEnabled = NAmanage.CustomMovementSoundSetEnabled or function(enabled, opts)
+	local cfg = NAStuff.CustomMovementSounds or {}
+	cfg.Enabled = enabled and true or false
+	NAmanage.CustomMovementSoundSaveSettings()
+	opts = opts or {}
+	if cfg.Enabled then
+		NAmanage.CustomMovementSoundSyncConfig(opts.notifyInvalid == true)
+		NAlib.disconnect("na_move_sounds_char")
+		NAlib.connect("na_move_sounds_char", Players.LocalPlayer.CharacterAdded:Connect(function(char)
+			Defer(function()
+				NAmanage.CustomMovementSoundBindCharacter(char)
+				NAmanage.CustomMovementSoundApplyToCharacter(char)
+			end)
+		end))
+		local char = getChar()
+		NAmanage.CustomMovementSoundBindCharacter(char)
+		local applied = NAmanage.CustomMovementSoundApplyToCharacter(char)
+		if opts.notifyApplied == true then
+			DoNotif("Applied custom movement sounds to "..tostring(applied).." sound(s).", 2, "Movement Sounds")
+		end
+	else
+		NAlib.disconnect("na_move_sounds_char")
+		NAlib.disconnect("na_move_sounds_desc")
+		local char = getChar()
+		local restored = NAmanage.CustomMovementSoundApplyToCharacter(char)
+		if opts.notifyApplied == true then
+			DoNotif("Restored "..tostring(restored).." movement sound(s).", 2, "Movement Sounds")
+		end
+	end
+end
+
 NAgui.addSection("Character Morph")
 NAgui.addInput("Target User", "UserId or Username", "", function(val)
 	morphTarget = val
@@ -87442,6 +88020,75 @@ NAgui.addButton("Remove Accessories", function()
 	end
 	DoNotif(removed > 0 and ("Removed "..removed.." accessory(ies).") or "No accessories to remove.", 2)
 end)
+
+NAgui.addSection("Custom Movement Sounds")
+NAgui.addToggle("Enable Custom Movement Sounds", NAStuff.CustomMovementSounds.Enabled == true, function(state)
+	NAmanage.CustomMovementSoundSetEnabled(state, {
+		notifyInvalid = state == true,
+		notifyApplied = true,
+	})
+end)
+NAgui.addInput("Walk Sound", "asset id for running/walk", NAStuff.CustomMovementSounds.WalkInput or "", function(val)
+	NAStuff.CustomMovementSounds.WalkInput = tostring(val or "")
+	NAmanage.CustomMovementSoundSaveSettings()
+end)
+NAgui.addInput("Jump Sound", "asset id for jumping", NAStuff.CustomMovementSounds.JumpInput or "", function(val)
+	NAStuff.CustomMovementSounds.JumpInput = tostring(val or "")
+	NAmanage.CustomMovementSoundSaveSettings()
+end)
+NAgui.addInput("Fall Sound", "asset id for freefall", NAStuff.CustomMovementSounds.FallInput or "", function(val)
+	NAStuff.CustomMovementSounds.FallInput = tostring(val or "")
+	NAmanage.CustomMovementSoundSaveSettings()
+end)
+NAgui.addInput("Land Sound", "optional landing asset id", NAStuff.CustomMovementSounds.LandInput or "", function(val)
+	NAStuff.CustomMovementSounds.LandInput = tostring(val or "")
+	NAmanage.CustomMovementSoundSaveSettings()
+end)
+NAgui.addSlider("Movement Sound Volume", 0, 10, tonumber(NAStuff.CustomMovementSounds.Volume) or 1, 0.05, "", function(val)
+	NAStuff.CustomMovementSounds.Volume = val
+	NAmanage.CustomMovementSoundSaveSettings()
+	if NAStuff.CustomMovementSounds.Enabled == true then
+		NAmanage.CustomMovementSoundApplyToCharacter(getChar())
+	end
+end)
+NAgui.addButton("Apply Movement Sounds", function()
+	NAmanage.CustomMovementSoundSyncConfig(true)
+	if NAStuff.CustomMovementSounds.Enabled == true then
+		NAmanage.CustomMovementSoundSetEnabled(true, {
+			notifyInvalid = true,
+			notifyApplied = true,
+		})
+	else
+		DoNotif("Enable custom movement sounds first.", 2, "Movement Sounds")
+	end
+end)
+NAgui.addButton("Restore Default Movement Sounds", function()
+	NAStuff.CustomMovementSounds.WalkInput = ""
+	NAStuff.CustomMovementSounds.JumpInput = ""
+	NAStuff.CustomMovementSounds.FallInput = ""
+	NAStuff.CustomMovementSounds.LandInput = ""
+	NAStuff.CustomMovementSounds.WalkSoundId = ""
+	NAStuff.CustomMovementSounds.JumpSoundId = ""
+	NAStuff.CustomMovementSounds.FallSoundId = ""
+	NAStuff.CustomMovementSounds.LandSoundId = ""
+	NAStuff.CustomMovementSounds.Volume = 1
+	NAmanage.CustomMovementSoundSetEnabled(false, {
+		notifyApplied = true,
+	})
+	NAmanage.CustomMovementSoundSaveSettings()
+	if NAgui.setToggleState then
+		NAgui.setToggleState("Enable Custom Movement Sounds", false, { force = true, fire = false })
+	end
+	if NAgui.setSliderValue then
+		NAgui.setSliderValue("Movement Sound Volume", 1, { force = true, fire = false })
+	end
+	DoNotif("Movement sounds reset. Reopen the Character tab to refresh the sound-id inputs.", 2, "Movement Sounds")
+end)
+if NAStuff.CustomMovementSounds.Enabled == true then
+	Defer(function()
+		NAmanage.CustomMovementSoundSetEnabled(true)
+	end)
+end
 
 NAmanage.SetupBasicInfoTab = function()
 	local previousTab = NAgui.getActiveTab()
