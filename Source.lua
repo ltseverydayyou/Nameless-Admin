@@ -29704,6 +29704,26 @@ cmd.add({"clickfling","mousefling"},{"clickfling (mousefling)","Fling a player b
 				local Handle = Accessory and Accessory:FindFirstChild("Handle")
 
 				if Character and Humanoid and RootPart then
+					local flingPart = InstanceNew("Part")
+					flingPart.Anchored = false
+					flingPart.CanCollide = false
+					flingPart.Transparency = 1
+					flingPart.Size = Vector3.new(1, 1, 1)
+					flingPart.CFrame = RootPart.CFrame
+					flingPart.Parent = workspace
+
+					local flingWeld = InstanceNew("WeldConstraint")
+					flingWeld.Part0 = flingPart
+					flingWeld.Part1 = RootPart
+					flingWeld.Parent = flingPart
+
+					local function cleanupFlingPart()
+						if flingPart then
+							flingPart:Destroy()
+							flingPart = nil
+						end
+					end
+
 					if not flingManager.cFlingOldPos or RootPart.Velocity.Magnitude<50 then
 						flingManager.cFlingOldPos = RootPart.CFrame
 					end
@@ -29714,13 +29734,17 @@ cmd.add({"clickfling","mousefling"},{"clickfling (mousefling)","Fling a player b
 					elseif THumanoid and TRootPart then
 						workspace.CurrentCamera.CameraSubject = THumanoid
 					end
-					if not TCharacter:FindFirstChildWhichIsA("BasePart") then return end
+					if not TCharacter:FindFirstChildWhichIsA("BasePart") then
+						cleanupFlingPart()
+						return
+					end
 
 					local function FPos(BasePart,Pos,Ang)
-						RootPart.CFrame = CFrame.new(BasePart.Position)*Pos*Ang
-						Character:SetPrimaryPartCFrame(CFrame.new(BasePart.Position)*Pos*Ang)
-						RootPart.Velocity = Vector3.new(9e7,9e7*10,9e7)
-						RootPart.RotVelocity = Vector3.new(9e8,9e8,9e8)
+						local targetCFrame = CFrame.new(BasePart.Position)*Pos*Ang
+						flingPart.CFrame = targetCFrame
+						Character:SetPrimaryPartCFrame(targetCFrame)
+						flingPart.Velocity = Vector3.new(9e7,9e7*10,9e7)
+						flingPart.RotVelocity = Vector3.new(9e8,9e8,9e8)
 					end
 
 					local function SFBasePart(BasePart)
@@ -29758,7 +29782,7 @@ cmd.add({"clickfling","mousefling"},{"clickfling (mousefling)","Fling a player b
 					workspace.FallenPartsDestroyHeight = 0/0
 
 					local BV = InstanceNew("BodyVelocity")
-					BV.Parent = RootPart
+					BV.Parent = flingPart
 					BV.Velocity = Vector3.new(9e8,9e8,9e8)
 					BV.MaxForce = Vector3.new(1/0,1/0,1/0)
 
@@ -29775,6 +29799,7 @@ cmd.add({"clickfling","mousefling"},{"clickfling (mousefling)","Fling a player b
 					end
 
 					BV:Destroy()
+					cleanupFlingPart()
 					Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated,true)
 					workspace.CurrentCamera.CameraSubject = Humanoid
 
@@ -35634,10 +35659,16 @@ end)
 cmd.add({"cartornado", "ctornado"}, {"cartornado (ctornado)", "Tornados a car just sit in the car"}, function()
 	NAStuff = NAStuff or {}
 	local CONN_KEY = "cartornado"
+	local ACTIVE_KEY = "cartornado_active"
 	NAlib.disconnect(CONN_KEY)
+	NAlib.disconnect(ACTIVE_KEY)
 	if NAStuff._cartornadoPart then
 		pcall(function() NAStuff._cartornadoPart:Destroy() end)
 		NAStuff._cartornadoPart = nil
+	end
+	if NAStuff._cartornadoHelper then
+		pcall(function() NAStuff._cartornadoHelper:Destroy() end)
+		NAStuff._cartornadoHelper = nil
 	end
 
 	local Player = Players.LocalPlayer
@@ -35681,10 +35712,49 @@ cmd.add({"cartornado", "ctornado"}, {"cartornado (ctornado)", "Tornados a car ju
 		NAStuff._cartornadoPart = nil
 
 		local torso = getTorso(Character)
-		if not torso then return end
+		if not torso then
+			SPart:Destroy()
+			return
+		end
 
 		local hum = getHum()
-		if not hum then return end
+		if not hum then
+			SPart:Destroy()
+			return
+		end
+
+		local motionBase = Character.PrimaryPart or torso
+		if not motionBase then
+			SPart:Destroy()
+			return
+		end
+
+		local helperPart = InstanceNew("Part")
+		helperPart.Anchored = false
+		helperPart.CanCollide = false
+		helperPart.Transparency = 1
+		helperPart.Size = Vector3.new(1, 1, 1)
+		helperPart.CFrame = motionBase.CFrame
+		helperPart.Parent = workspace
+		NAStuff._cartornadoHelper = helperPart
+
+		local helperWeld = InstanceNew("WeldConstraint")
+		helperWeld.Part0 = helperPart
+		helperWeld.Part1 = motionBase
+		helperWeld.Parent = helperPart
+
+		local isFlying = true
+		local function cleanupHelperPart()
+			isFlying = false
+			if helperPart then
+				helperPart:Destroy()
+				helperPart = nil
+			end
+			if NAStuff._cartornadoHelper then
+				NAStuff._cartornadoHelper = nil
+			end
+			NAlib.disconnect(ACTIVE_KEY)
+		end
 
 		local flyv = InstanceNew("BodyVelocity")
 		local flyg = InstanceNew("BodyGyro")
@@ -35693,21 +35763,37 @@ cmd.add({"cartornado", "ctornado"}, {"cartornado (ctornado)", "Tornados a car ju
 		local maxSpeed = 100
 		local isRunning = false
 		local f = 0
-		local isFlying = true
 
-		flyv.Parent = torso
+		flyv.Parent = helperPart
 		flyv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
 
-		flyg.Parent = torso
+		flyg.Parent = helperPart
 		flyg.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
 		flyg.P = 1000
 		flyg.D = 50
 
 		hum.PlatformStand = true
 
-		hum.Changed:Connect(function()
+		NAlib.connect(ACTIVE_KEY, hum.Changed:Connect(function()
 			isRunning = hum.MoveDirection.Magnitude > 0
-		end)
+		end))
+		NAlib.connect(ACTIVE_KEY, hum.Died:Connect(cleanupHelperPart))
+		NAlib.connect(ACTIVE_KEY, Character.AncestryChanged:Connect(function(_, parent)
+			if not parent then
+				cleanupHelperPart()
+			end
+		end))
+		NAlib.connect(ACTIVE_KEY, helperPart.AncestryChanged:Connect(function(_, parent)
+			if not parent then
+				isFlying = false
+				if NAStuff._cartornadoHelper then
+					NAStuff._cartornadoHelper = nil
+				end
+				Defer(function()
+					NAlib.disconnect(ACTIVE_KEY)
+				end)
+			end
+		end))
 
 		SpawnCall(function()
 			while isFlying do
@@ -35736,7 +35822,10 @@ cmd.add({"cartornado", "ctornado"}, {"cartornado (ctornado)", "Tornados a car ju
 		SPart:Destroy()
 
 		local seat = hum.SeatPart
-		if not seat then return end
+		if not seat then
+			cleanupHelperPart()
+			return
+		end
 
 		local vehicleModel = seat.Parent
 		while vehicleModel and not vehicleModel:IsA("Model") do
@@ -35757,7 +35846,7 @@ cmd.add({"cartornado", "ctornado"}, {"cartornado (ctornado)", "Tornados a car ju
 		local spin = InstanceNew("BodyAngularVelocity")
 		spin.MaxTorque = Vector3.new(0, math.huge, 0)
 		spin.AngularVelocity = Vector3.new(0, 2000, 0)
-		spin.Parent = Character.PrimaryPart
+		spin.Parent = helperPart
 	end))
 end)
 
@@ -44732,6 +44821,26 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(plr)
 		local Handle    = Acc and Acc:FindFirstChild("Handle")
 
 		if Character and Humanoid and RootPart then
+			local flingPart = InstanceNew("Part")
+			flingPart.Anchored = false
+			flingPart.CanCollide = false
+			flingPart.Transparency = 1
+			flingPart.Size = Vector3.new(1, 1, 1)
+			flingPart.CFrame = RootPart.CFrame
+			flingPart.Parent = workspace
+
+			local flingWeld = InstanceNew("WeldConstraint")
+			flingWeld.Part0 = flingPart
+			flingWeld.Part1 = RootPart
+			flingWeld.Parent = flingPart
+
+			local function cleanupFlingPart()
+				if flingPart then
+					flingPart:Destroy()
+					flingPart = nil
+				end
+			end
+
 			if not flingManager.cFlingOldPos or RootPart.Velocity.Magnitude < 50 then
 				flingManager.cFlingOldPos = RootPart.CFrame
 			end
@@ -44744,13 +44853,17 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(plr)
 				workspace.CurrentCamera.CameraSubject = THumanoid
 			end
 
-			if not TChar:FindFirstChildWhichIsA("BasePart") then return end
+			if not TChar:FindFirstChildWhichIsA("BasePart") then
+				cleanupFlingPart()
+				return
+			end
 
 			local function FPos(BasePart, Pos, Ang)
-				RootPart.CFrame = CFrame.new(BasePart.Position) * Pos * Ang
-				Character:SetPrimaryPartCFrame(CFrame.new(BasePart.Position) * Pos * Ang)
-				RootPart.Velocity    = Vector3.new(9e7, 9e7*10, 9e7)
-				RootPart.RotVelocity = Vector3.new(9e8, 9e8, 9e8)
+				local targetCFrame = CFrame.new(BasePart.Position) * Pos * Ang
+				flingPart.CFrame = targetCFrame
+				Character:SetPrimaryPartCFrame(targetCFrame)
+				flingPart.Velocity    = Vector3.new(9e7, 9e7*10, 9e7)
+				flingPart.RotVelocity = Vector3.new(9e8, 9e8, 9e8)
 			end
 
 			local function SFBasePart(BasePart)
@@ -44794,7 +44907,7 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(plr)
 			workspace.FallenPartsDestroyHeight = 0/0
 
 			local BV = InstanceNew("BodyVelocity")
-			BV.Parent    = RootPart
+			BV.Parent    = flingPart
 			BV.Velocity  = Vector3.new(9e8,9e8,9e8)
 			BV.MaxForce  = Vector3.new(1/0,1/0,1/0)
 
@@ -44815,6 +44928,7 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(plr)
 			end
 
 			BV:Destroy()
+			cleanupFlingPart()
 			Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
 			workspace.CurrentCamera.CameraSubject = Humanoid
 
@@ -47619,10 +47733,21 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 			bodyGyro.D = 1000
 			bodyGyro.P = 2000
 			bodyGyro.Parent = LOOPPROTECT
+
+			local function cleanupLoopProtect()
+				if LOOPPROTECT then
+					LOOPPROTECT:Destroy()
+					LOOPPROTECT = nil
+				end
+			end
+
 			local RootPart = HRP
 			local TCharacter = TargetPlayer.Character
 			local THumanoid, TRootPart, THead, Accessory, Handle
-			if not TCharacter then if LOOPPROTECT then LOOPPROTECT:Destroy() LOOPPROTECT = nil end return end
+			if not TCharacter then
+				cleanupLoopProtect()
+				return
+			end
 			if getPlrHum(TCharacter) then
 				THumanoid = getPlrHum(TCharacter)
 			end
@@ -47643,6 +47768,7 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 					flingManager.lFlingOldPos = RootPart.CFrame
 				end
 				if THumanoid and THumanoid.Sit and not AllBool then
+					cleanupLoopProtect()
 					return
 				end
 				if THead then
@@ -47653,13 +47779,15 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 					workspace.CurrentCamera.CameraSubject = THumanoid
 				end
 				if not TCharacter:FindFirstChildWhichIsA("BasePart") then
+					cleanupLoopProtect()
 					return
 				end
 				local FPos = function(BasePart, Pos, Ang)
-					RootPart.CFrame = CFrame.new(BasePart.Position) * Pos * Ang
-					Character:SetPrimaryPartCFrame(CFrame.new(BasePart.Position) * Pos * Ang)
-					RootPart.Velocity = Vector3.new(9e7, 9e7 * 10, 9e7)
-					RootPart.RotVelocity = Vector3.new(9e8, 9e8, 9e8)
+					local targetCFrame = CFrame.new(BasePart.Position) * Pos * Ang
+					LOOPPROTECT.CFrame = targetCFrame
+					Character:SetPrimaryPartCFrame(targetCFrame)
+					LOOPPROTECT.Velocity = Vector3.new(9e7, 9e7 * 10, 9e7)
+					LOOPPROTECT.RotVelocity = Vector3.new(9e8, 9e8, 9e8)
 				end
 				local SFBasePart = function(BasePart)
 					local TimeToWait = 2
@@ -47707,11 +47835,11 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 							break
 						end
 					until BasePart.Velocity.Magnitude > 500 or BasePart.Parent ~= TargetPlayer.Character or TargetPlayer.Parent ~= Players or not TargetPlayer.Character == TCharacter or THumanoid.Sit or Humanoid.Health <= 0 or tick() > Time + TimeToWait
-					if LOOPPROTECT then LOOPPROTECT:Destroy() LOOPPROTECT = nil end
+					cleanupLoopProtect()
 				end
 				workspace.FallenPartsDestroyHeight = 0/0
 				local BV = InstanceNew("BodyVelocity")
-				BV.Parent = RootPart
+				BV.Parent = LOOPPROTECT
 				BV.Velocity = Vector3.new(9e8, 9e8, 9e8)
 				BV.MaxForce = Vector3.new(1/0, 1/0, 1/0)
 				Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
@@ -47728,6 +47856,7 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 				elseif not TRootPart and not THead and Accessory and Handle then
 					SFBasePart(Handle)
 				else
+					cleanupLoopProtect()
 					return
 				end
 				BV:Destroy()
@@ -47745,8 +47874,9 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 					Wait()
 				until (RootPart.Position - flingManager.lFlingOldPos.p).Magnitude < 25
 				workspace.FallenPartsDestroyHeight = OrgDestroyHeight
-				if LOOPPROTECT then LOOPPROTECT:Destroy() LOOPPROTECT = nil end
+				cleanupLoopProtect()
 			else
+				cleanupLoopProtect()
 				return
 			end
 		end
