@@ -747,6 +747,7 @@ local NAStuff = {
 	tpDelay = 0.2;
 	AutoInteractDefaultInterval = 0.1;
 	FreecamSpeed = 5;
+	MobileFlyAutoEnableOnRun = true;
 	MobileCamSensitivity = 1;
 	MobileCamSensEnabled = false;
 	OffVisOn = true;
@@ -5688,9 +5689,9 @@ NAmanage.CreateNAFreecam=function()
 			return
 		end
 
-		local vel = velSpring:Update(dt, inputVel(dt))
-		local pan = panSpring:Update(dt, inputPan(dt))
-		local fovStep = fovSpring:Update(dt, inputFov(dt))
+		local vel = inputVel(dt)
+		local pan = inputPan(dt)
+		local fovStep = inputFov(dt)
 
 		local zoomFactor = sqrt(tan(rad(70/2))/tan(rad(cameraFov/2)))
 		cameraFov = clamp(cameraFov + fovStep*FOV_GAIN*(dt/zoomFactor), 1, 120)
@@ -5733,10 +5734,6 @@ NAmanage.CreateNAFreecam=function()
 		cameraPos = cframe.Position
 		cameraRot = Vector2.new(x, y)
 		cameraFov = Camera.FieldOfView
-
-		velSpring:Reset(Vector3.new())
-		panSpring:Reset(Vector2.new())
-		fovSpring:Reset(0)
 
 		Camera.CameraType = Enum.CameraType.Scriptable
 		UserInputService.MouseIconEnabled = false
@@ -15034,6 +15031,12 @@ NAmanage.NASettingsGetSchema=function()
 				return math.clamp(n, 0.2, 4)
 			end;
 		};
+		mobileFlyAutoEnableOnRun = {
+			default = true;
+			coerce = function(value)
+				return coerceBoolean(value, true)
+			end;
+		};
 		crosshairColor = {
 			default = function()
 				return { R = 1; G = 1; B = 1 }
@@ -17939,6 +17942,7 @@ NAStuff.FreecamSpeed = math.clamp(tonumber(NAmanage.NASettingsGet("freecamSpeed"
 if NAFreecam and NAFreecam.SetSpeed then
 	NAFreecam.SetSpeed(math.clamp(NAStuff.FreecamSpeed / 5, 0.01, 4))
 end
+NAStuff.MobileFlyAutoEnableOnRun = NAmanage.NASettingsGet("mobileFlyAutoEnableOnRun") ~= false
 
 NAStuff.AutoInteractDistanceEnabled = true
 NAStuff.AutoInteractExtraRange = 5
@@ -24461,7 +24465,9 @@ NAmanage._applyMode = function(mode, resume)
 	NAmanage._bindCameraWatch()
 end
 
-NAmanage.activateMode = function(mode)
+NAmanage.activateMode = function(mode, opts)
+	opts = type(opts) == "table" and opts or {}
+	local shouldResume = opts.resume ~= false
 	local currentMode=NAmanage._state.mode
 	if currentMode and currentMode~="none" and currentMode~=mode then
 		NAmanage.deactivateMode(currentMode)
@@ -24472,11 +24478,11 @@ NAmanage.activateMode = function(mode)
 	local root=char and getRoot(char) or nil
 	local hum=char and getHum(char) or nil
 	if char and root and hum then
-		NAmanage._applyMode(mode,true)
+		NAmanage._applyMode(mode, shouldResume)
 		return
 	end
 	NAmanage._persist.lastMode=mode
-	NAmanage._persist.resumeAfterSpawn=true
+	NAmanage._persist.resumeAfterSpawn=shouldResume
 	if NAlib.isConnected("fly_pending_char") then
 		NAlib.disconnect("fly_pending_char")
 	end
@@ -24486,11 +24492,24 @@ NAmanage.activateMode = function(mode)
 			while t<5 and (not getChar() or not getRoot(getChar()) or not getHum()) do
 				t+=(Wait() or 0.03)
 			end
-			NAmanage._applyMode(mode,true)
+			NAmanage._applyMode(mode, shouldResume)
 			NAmanage._persist.resumeAfterSpawn=false
 			NAlib.disconnect("fly_pending_char")
 		end)
 	end))
+end
+
+NAmanage.activateFlightModeFromCommand = function(mode)
+	local shouldResume = true
+	if IsOnMobile then
+		shouldResume = NAStuff.MobileFlyAutoEnableOnRun ~= false
+	end
+	NAmanage.activateMode(mode, {
+		resume = shouldResume;
+	})
+	if IsOnMobile and shouldResume and NAmanage._state.mode == mode and not FLYING then
+		NAmanage.resumeCurrent()
+	end
 end
 
 NAmanage.keyToggle=function(mode)
@@ -29662,7 +29681,7 @@ cmd.add({"clickfling","mousefling"},{"clickfling (mousefling)","Fling a player b
 	local conn = Mouse.Button1Down:Connect(function()
 		if not clickflingEnabled then return end
 		local Target = Mouse.Target
-		local Players = __lt.gs("Players")
+		local Players = game:GetService("Players")
 		if Target and Target.Parent and Target.Parent:IsA("Model") and Players:GetPlayerFromCharacter(Target.Parent) then
 			local PlayerName = Players:GetPlayerFromCharacter(Target.Parent).Name
 			local playerLocal = Players.LocalPlayer
@@ -32914,7 +32933,7 @@ cmd.add({"vfly","vehiclefly"},{"vehiclefly (vfly)","be able to fly vehicles"},fu
 	local arg=(...) or nil
 	flyVariables.vFlySpeed=tonumber(arg) or flyVariables.vFlySpeed or 1
 	NAmanage.connectVFlyKey()
-	NAmanage.activateMode("vfly")
+	NAmanage.activateFlightModeFromCommand("vfly")
 	if not IsOnMobile then
 		Wait()
 		DebugNotif("Vehicle fly enabled. Press '"..string.upper(flyVariables.vToggleKey).."' to vfly/unvfly.")
@@ -41541,7 +41560,7 @@ cmd.add({"fly"},{"fly [speed]","Enable flight"},function(...)
 	local arg=(...) or nil
 	flyVariables.flySpeed=tonumber(arg) or flyVariables.flySpeed or 1
 	NAmanage.connectFlyKey()
-	NAmanage.activateMode("fly")
+	NAmanage.activateFlightModeFromCommand("fly")
 	if not IsOnMobile then
 		Wait()
 		DebugNotif("Fly enabled. Press '"..string.upper(flyVariables.toggleKey).."' to fly/unfly.")
@@ -41557,7 +41576,7 @@ cmd.add({"cframefly","cfly"},{"cframefly [speed] (cfly)","Enable CFrame-based fl
 	flyVariables.cFlySpeed=tonumber(arg) or flyVariables.cFlySpeed or 1
 	flyVariables.flySpeed=flyVariables.cFlySpeed
 	NAmanage.connectCFlyKey()
-	NAmanage.activateMode("cfly")
+	NAmanage.activateFlightModeFromCommand("cfly")
 	if not IsOnMobile then
 		Wait()
 		DebugNotif("CFrame Fly enabled. Press '"..string.upper(flyVariables.cToggleKey).."' to cfly/uncfly.")
@@ -41572,7 +41591,7 @@ cmd.add({"tfly","tweenfly"},{"tfly [speed] (tweenfly)","Enables smooth flying"},
 	local arg=(...) or nil
 	flyVariables.TflySpeed=tonumber(arg) or flyVariables.TflySpeed or 1
 	NAmanage.connectTFlyKey()
-	NAmanage.activateMode("tfly")
+	NAmanage.activateFlightModeFromCommand("tfly")
 	if not IsOnMobile then
 		Wait()
 		DebugNotif("TFly enabled. Press '"..string.upper(flyVariables.tflyToggleKey).."' to tfly/untfly.")
@@ -42003,9 +42022,9 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 			)
 
 			local moveDir = CFrame.new(x, y, z)
-			moveCF = moveCF:lerp(moveDir, 0.2)
+			moveCF = moveDir
 			NAmanage.SetAttr(primaryPart, freecamMoveAttr, moveCF)
-			primaryPart.CFrame = primaryPart.CFrame:lerp(primaryPart.CFrame * moveCF, 0.2)
+			primaryPart.CFrame = primaryPart.CFrame * moveCF
 		end))
 	end
 
@@ -44777,7 +44796,7 @@ cmd.add({"jend"}, {"jend", "nil"}, function()
 end)
 
 cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(plr)
-	local Players = __lt.gs("Players")
+	local Players = game:GetService("Players")
 	local LocalPlayer    = Players.LocalPlayer
 	local Character      = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 	local Humanoid       = getPlrHum(Character)
@@ -47686,7 +47705,7 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 	Loopvoid = true
 	repeat Wait()
 		local mouse = LocalPlayer:GetMouse()
-		local Players = __lt.gs("Players")
+		local Players = game:GetService("Players")
 		local Player = Players.LocalPlayer
 		local AllBool = false
 		local GetPlayer = function(Name)
@@ -81722,6 +81741,18 @@ NAgui.addSlider("AutoFire Extra Distance", 0, 250, autoInteractExtraDefault, 1, 
 	NAStuff.AutoInteractExtraRange = n
 	pcall(NAmanage.NASettingsSet, "autoInteractExtraRange", n)
 end)
+
+if IsOnMobile then
+	NAgui.addSection("Mobile Flight Automation")
+	NAgui.addToggle("Auto Enable Fly On Run", NAStuff.MobileFlyAutoEnableOnRun ~= false, function(v)
+		NAStuff.MobileFlyAutoEnableOnRun = v ~= false
+		pcall(NAmanage.NASettingsSet, "mobileFlyAutoEnableOnRun", NAStuff.MobileFlyAutoEnableOnRun)
+		DoNotif("Mobile fly commands will "..(NAStuff.MobileFlyAutoEnableOnRun and "start flying immediately" or "only show the button"), 2)
+	end)
+	NAmanage.RegisterToggleAutoSync("Auto Enable Fly On Run", function()
+		return NAStuff.MobileFlyAutoEnableOnRun ~= false
+	end)
+end
 
 NAgui.addSection("Environment Automation")
 
