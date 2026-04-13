@@ -5559,15 +5559,12 @@ NAmanage.CreateNAFreecam=function()
 	local fovSpring = Spring.new(4.0, 0)
 
 	local NAV_GAIN = Vector3.new(1, 1, 1)*64
-	local PAN_GAIN = Vector2.new(0.75, 1)*8
 	local FOV_GAIN = 300
 	local PITCH_LIMIT = rad(90)
 
-	local DEFAULT_FPS = 60
-	local PAN_MOUSE_SPEED = Vector2.new(1, 1)*(pi/64)
-	local PAN_MOUSE_SPEED_DT = PAN_MOUSE_SPEED/DEFAULT_FPS
+	local PAN_PIXELS_TO_RADIANS = rad(0.5)
 	local FOV_WHEEL_SPEED = 1.0
-	local FOV_WHEEL_SPEED_DT = FOV_WHEEL_SPEED/DEFAULT_FPS
+	local FOV_WHEEL_SPEED_DT = FOV_WHEEL_SPEED/60
 
 	local NAV_ADJ_SPEED = 0.75
 	local NAV_MIN_SPEED = 0.01
@@ -5664,10 +5661,7 @@ NAmanage.CreateNAFreecam=function()
 	end
 
 	local function inputPan(dt)
-		local kMouse = mouse.Delta*PAN_MOUSE_SPEED
-		if dt > 0 then
-			kMouse = (mouse.Delta/dt)*PAN_MOUSE_SPEED_DT
-		end
+		local kMouse = mouse.Delta
 		mouse.Delta = Vector2.new()
 		return kMouse
 	end
@@ -5696,7 +5690,7 @@ NAmanage.CreateNAFreecam=function()
 		local zoomFactor = sqrt(tan(rad(70/2))/tan(rad(cameraFov/2)))
 		cameraFov = clamp(cameraFov + fovStep*FOV_GAIN*(dt/zoomFactor), 1, 120)
 
-		cameraRot = cameraRot + pan*PAN_GAIN*(dt/zoomFactor)
+		cameraRot = cameraRot + pan*(PAN_PIXELS_TO_RADIANS/zoomFactor)
 		cameraRot = Vector2.new(clamp(cameraRot.X, -PITCH_LIMIT, PITCH_LIMIT), cameraRot.Y%(2*pi))
 
 		local cf = CFrame.new(cameraPos)*CFrame.fromOrientation(cameraRot.X, cameraRot.Y, 0)*CFrame.new(vel*NAV_GAIN*dt)
@@ -19593,11 +19587,18 @@ function isRelAdmin(Player)
 	return false
 end
 
-NAmanage.rebuildIndex=function()
+NAmanage.rebuildIndex=function(entriesOverride)
 	table.clear(searchIndex)
+	local entries = entriesOverride
+	if type(entries) ~= "table" then
+		entries = NAStuff.AutofillEntries or {}
+	end
 	local metaByName = NAStuff.AutofillMetaByName or {}
-	for _,frame in ipairs(CMDAUTOFILL) do
-		local cmdName = frame.Name
+	for _, entry in ipairs(entries) do
+		local cmdName = entry and entry.name
+		if not cmdName then
+			continue
+		end
 		local meta = metaByName[cmdName]
 		local command = cmds.Commands[cmdName]
 		local displayInfo = meta and meta.displayText or ""
@@ -19630,7 +19631,7 @@ NAmanage.rebuildIndex=function()
 			lowerName = lowerName,
 			searchable = searchable,
 			extraAliases = extra,
-			frame = frame,
+			display = entry.display,
 			meta = meta
 		})
 	end
@@ -67937,16 +67938,262 @@ NAmanage.totalCommandCount=function()
 	end
 	return count
 end
+local COMMAND_LIST_TOP_PADDING = 5
+local COMMAND_OVERSCAN_ROWS = 8
+
+local function releaseCommandListLabel(state, label)
+	if not label then
+		return
+	end
+	label.Visible = false
+	label.Parent = nil
+	Insert(state.pooledLabels, label)
+end
+
+local function acquireCommandListLabel(state)
+	local label = table.remove(state.pooledLabels)
+	while label do
+		if typeof(label) == "Instance" and label.Parent ~= state.virtualCanvas then
+			local ok = pcall(function()
+				label.Parent = state.virtualCanvas
+			end)
+			if ok then
+				return label
+			end
+		end
+		label = table.remove(state.pooledLabels)
+	end
+
+	label = NAUIMANAGER.commandExample:Clone()
+	label.MouseEnter:Connect(function()
+		local desc = NAmanage.GetAttr(label, "CmdDesc")
+		if type(desc) == "string" and desc ~= "" then
+			NAUIMANAGER.description.Visible = true
+			NAUIMANAGER.description.Text = desc
+		else
+			NAUIMANAGER.description.Visible = false
+			NAUIMANAGER.description.Text = ""
+		end
+	end)
+	label.MouseLeave:Connect(function()
+		NAUIMANAGER.description.Visible = false
+		NAUIMANAGER.description.Text = ""
+	end)
+	label.Parent = state.virtualCanvas
+	return label
+end
+
+local function applyCommandListEntry(state, label, entry, index)
+	local meta = entry.meta or {}
+	local cmdName = entry.name
+	local finalText = meta.displayText or entry.display or cmdName
+	local isPatched = meta.patched == true
+	local isCmdIntegration = meta.origin == "cmd"
+	local isPluginCmd = meta.pluginType ~= nil
+
+	if isPatched then
+		label.TextColor3 = patchedCommandColor
+	elseif isCmdIntegration then
+		label.TextColor3 = cmdIntegrationColor
+	elseif isPluginCmd then
+		label.TextColor3 = pluginCommandColor
+	elseif state.defaultCmdColor then
+		label.TextColor3 = state.defaultCmdColor
+	end
+
+	local desc = meta.desc
+	if desc ~= nil then
+		desc = tostring(desc)
+	end
+	desc = desc or ""
+	if desc ~= "" and isAprilFools() then
+		desc = maybeMock(desc)
+	end
+
+	if label.SetAttribute then
+		NAmanage.SetAttr(label, "CmdDesc", desc)
+		NAmanage.SetAttr(label, "IsPluginCommand", isPluginCmd)
+		NAmanage.SetAttr(label, "IsPatchedCommand", isPatched)
+		NAmanage.SetAttr(label, "IsCmdIntegration", isCmdIntegration)
+	end
+
+	label.Name = cmdName
+	label.Text = " "..finalText
+	label.Size = state.templateSize or label.Size
+	local rowStep = state.rowStep or 20
+	label.Position = UDim2.new(0, 0, 0, COMMAND_LIST_TOP_PADDING + ((index - 1) * rowStep))
+	label.Visible = true
+end
+
+local function requestCommandListSync(state)
+	if not state or state.syncQueued == true then
+		return
+	end
+	state.syncQueued = true
+	Defer(function()
+		if not state then
+			return
+		end
+		state.syncQueued = false
+		if type(NAmanage.syncVisibleCommandRows) == "function" then
+			NAmanage.syncVisibleCommandRows(state)
+		end
+	end)
+end
+
+local function getCommandTemplateHeight()
+	local template = NAUIMANAGER and NAUIMANAGER.commandExample
+	if not template then
+		return 18
+	end
+
+	local absY = template.AbsoluteSize and template.AbsoluteSize.Y or 0
+	if absY and absY > 0 then
+		return math.floor(absY + 0.5)
+	end
+
+	local size = template.Size
+	if size and size.Y then
+		local offset = tonumber(size.Y.Offset) or 0
+		if offset > 0 then
+			return offset
+		end
+	end
+
+	return 18
+end
+
+NAmanage.ensureCommandListState=function()
+	local cList = NAUIMANAGER and NAUIMANAGER.commandsList
+	if not (cList and NAUIMANAGER and NAUIMANAGER.commandExample) then
+		return nil
+	end
+
+	local state = NAStuff.CommandListState
+	if type(state) == "table" and state.list == cList and state.virtualCanvas and state.virtualCanvas.Parent == cList then
+		return state
+	end
+
+	local pooled = {}
+	for _, label in pairs(NAStuff.CommandLabelPool or {}) do
+		if typeof(label) == "Instance" then
+			Insert(pooled, label)
+		end
+	end
+	NAStuff.CommandLabelPool = pooled
+
+	local virtualCanvas = cList:FindFirstChild("VirtualCanvas")
+	if not virtualCanvas then
+		virtualCanvas = InstanceNew("Frame")
+		virtualCanvas.Name = "VirtualCanvas"
+		virtualCanvas.BackgroundTransparency = 1
+		virtualCanvas.BorderSizePixel = 0
+		virtualCanvas.Size = UDim2.new(1, 0, 0, 0)
+		virtualCanvas.Position = UDim2.new(0, 0, 0, 0)
+		virtualCanvas.Parent = cList
+	end
+
+	local templateHeight = getCommandTemplateHeight()
+	local rowGap = math.max(2, math.floor(templateHeight * 0.15 + 0.5))
+	local rowStep = templateHeight + rowGap
+
+	state = {
+		list = cList;
+		virtualCanvas = virtualCanvas;
+		entries = {};
+		filteredEntries = {};
+		visibleLabels = {};
+		pooledLabels = pooled;
+		defaultCmdColor = NAUIMANAGER.commandExample.TextColor3;
+		templateSize = NAUIMANAGER.commandExample.Size;
+		templateHeight = templateHeight;
+		rowGap = rowGap;
+		rowStep = rowStep;
+		syncQueued = false;
+	}
+	NAStuff.CommandListState = state
+
+	if NAUIMANAGER.description then
+		NAUIMANAGER.description.Visible = false
+		NAUIMANAGER.description.Text = ""
+	end
+
+	NAlib.disconnect("NA_CommandListCanvasPos")
+	NAlib.disconnect("NA_CommandListAbsSize")
+	NAlib.connect("NA_CommandListCanvasPos", cList:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
+		requestCommandListSync(state)
+	end))
+	NAlib.connect("NA_CommandListAbsSize", cList:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+		requestCommandListSync(state)
+	end))
+
+	return state
+end
+
+NAmanage.syncVisibleCommandRows=function(state)
+	state = state or NAmanage.ensureCommandListState()
+	if not state then
+		return
+	end
+
+	local cList = state.list
+	local virtualCanvas = state.virtualCanvas
+	local filteredEntries = state.filteredEntries or {}
+	local count = #filteredEntries
+
+	if NAUIMANAGER.description then
+		NAUIMANAGER.description.Visible = false
+		NAUIMANAGER.description.Text = ""
+	end
+
+	if count <= 0 then
+		while #state.visibleLabels > 0 do
+			releaseCommandListLabel(state, table.remove(state.visibleLabels))
+		end
+		if virtualCanvas then
+			virtualCanvas.Size = UDim2.new(1, 0, 0, 0)
+		end
+		cList.CanvasSize = UDim2.new(0, 0, 0, 0)
+		return
+	end
+
+	local rowStep = state.rowStep or 20
+	local totalHeight = COMMAND_LIST_TOP_PADDING + (count * rowStep)
+	virtualCanvas.Size = UDim2.new(1, 0, 0, totalHeight)
+	cList.CanvasSize = UDim2.new(0, 0, 0, totalHeight)
+
+	local overscanPx = COMMAND_OVERSCAN_ROWS * rowStep
+	local scrollY = cList.CanvasPosition.Y
+	local viewHeight = cList.AbsoluteSize.Y
+	local firstIndex = math.max(1, math.floor((math.max(0, scrollY - COMMAND_LIST_TOP_PADDING - overscanPx)) / rowStep) + 1)
+	local lastIndex = math.min(count, math.ceil((math.max(0, scrollY + viewHeight - COMMAND_LIST_TOP_PADDING + overscanPx)) / rowStep))
+	if lastIndex < firstIndex then
+		lastIndex = firstIndex
+	end
+
+	local needed = math.max(0, lastIndex - firstIndex + 1)
+	while #state.visibleLabels > needed do
+		releaseCommandListLabel(state, table.remove(state.visibleLabels))
+	end
+
+	for offset = 1, needed do
+		local entryIndex = firstIndex + offset - 1
+		local entry = filteredEntries[entryIndex]
+		local label = state.visibleLabels[offset]
+		if not label then
+			label = acquireCommandListLabel(state)
+			state.visibleLabels[offset] = label
+		elseif label.Parent ~= virtualCanvas then
+			label.Parent = virtualCanvas
+		end
+		applyCommandListEntry(state, label, entry, entryIndex)
+	end
+end
 NAgui.commands = function()
 	local cFrame, cList = NAUIMANAGER.commandsFrame, NAUIMANAGER.commandsList
 	if not (cFrame and cList and NAUIMANAGER.commandExample) then
 		return
 	end
-	local defaultCmdColor = NAUIMANAGER.commandExample and NAUIMANAGER.commandExample.TextColor3
-	NAStuff.CommandLabelPool = NAStuff.CommandLabelPool or {}
-	local pool = NAStuff.CommandLabelPool
-	NAStuff.CommandBuildToken = (tonumber(NAStuff.CommandBuildToken) or 0) + 1
-	local buildToken = NAStuff.CommandBuildToken
 
 	if not cFrame.Visible then
 		cFrame.Visible = true
@@ -67954,183 +68201,20 @@ NAgui.commands = function()
 	end
 	NAmanage.centerFrame(cFrame)
 
-	local entries = NAmanage.buildCommandEntries()
-	local seenNames = {}
-	local filterEntries = {}
-
-	local stale = {}
-	for name, label in pairs(pool) do
-		stale[name] = label
+	local state = NAmanage.ensureCommandListState()
+	if not state then
+		return
 	end
 
-	local batchSize = 40
-	if NAmanage.isLoad and NAmanage.isLoad() then
-		batchSize = 22
+	state.entries = NAmanage.buildCommandEntries() or {}
+	state.filteredEntries = state.entries
+	NAStuff.CommandFilterEntries = nil
+
+	if NAgui.filterCommandList then
+		NAgui.filterCommandList(NAUIMANAGER.commandsFilter and NAUIMANAGER.commandsFilter.Text or "")
+	else
+		NAmanage.syncVisibleCommandRows(state)
 	end
-
-	Spawn(function()
-		local yOffset = 5
-		for i = 1, #entries do
-			if buildToken ~= NAStuff.CommandBuildToken then
-				return
-			end
-
-			local entry = entries[i]
-			local cmdName = entry.name
-			if seenNames[cmdName] then
-				continue
-			end
-			seenNames[cmdName] = true
-			local meta = entry.meta or {}
-			local tbl = cmds.Commands[cmdName]
-			local Cmd = pool[cmdName]
-			if not Cmd then
-				Cmd = NAUIMANAGER.commandExample:Clone()
-				Cmd.Parent = cList
-				Cmd.Name = cmdName
-				Cmd.MouseEnter:Connect(function()
-					local desc = NAmanage.GetAttr(Cmd, "CmdDesc")
-					if type(desc) == "string" and desc ~= "" then
-						NAUIMANAGER.description.Visible = true
-						NAUIMANAGER.description.Text = desc
-					else
-						NAUIMANAGER.description.Visible = false
-						NAUIMANAGER.description.Text = ""
-					end
-				end)
-				Cmd.MouseLeave:Connect(function()
-					NAUIMANAGER.description.Visible = false
-					NAUIMANAGER.description.Text = ""
-				end)
-				pool[cmdName] = Cmd
-			end
-
-			stale[cmdName] = nil
-
-			local finalText = meta.displayText or entry.display or cmdName
-			local isPatched = meta.patched == true
-			local isCmdIntegration = meta.origin == "cmd"
-			local pluginType = meta.pluginType
-			local isPluginCmd = pluginType ~= nil
-			if not isPluginCmd and NAmanage.IsPluginCommand then
-				isPluginCmd = NAmanage.IsPluginCommand(cmdName)
-			end
-			if isPatched then
-				Cmd.TextColor3 = patchedCommandColor
-				if Cmd.SetAttribute then
-					NAmanage.SetAttr(Cmd, "IsPatchedCommand", true)
-					NAmanage.SetAttr(Cmd, "IsPluginCommand", false)
-					NAmanage.SetAttr(Cmd, "IsCmdIntegration", false)
-				end
-				finalText = NAgui.addPatchedLabel(finalText)
-			elseif isCmdIntegration then
-				Cmd.TextColor3 = cmdIntegrationColor
-				if Cmd.SetAttribute then
-					NAmanage.SetAttr(Cmd, "IsCmdIntegration", true)
-					NAmanage.SetAttr(Cmd, "IsPatchedCommand", false)
-					NAmanage.SetAttr(Cmd, "IsPluginCommand", false)
-				end
-			elseif isPluginCmd then
-				Cmd.TextColor3 = pluginCommandColor
-				if Cmd.SetAttribute then
-					NAmanage.SetAttr(Cmd, "IsPluginCommand", true)
-					NAmanage.SetAttr(Cmd, "IsPatchedCommand", false)
-					NAmanage.SetAttr(Cmd, "IsCmdIntegration", false)
-				end
-			else
-				if defaultCmdColor then
-					Cmd.TextColor3 = defaultCmdColor
-				end
-				if Cmd.SetAttribute then
-					NAmanage.SetAttr(Cmd, "IsPluginCommand", false)
-					NAmanage.SetAttr(Cmd, "IsPatchedCommand", false)
-					NAmanage.SetAttr(Cmd, "IsCmdIntegration", false)
-				end
-			end
-
-			local function resolveDesc()
-				local desc = meta.desc
-				if desc == nil and tbl and type(tbl[2]) == "table" then
-					desc = tbl[2][2]
-				end
-				if desc ~= nil then
-					desc = tostring(desc)
-				end
-				desc = desc or ""
-				if desc ~= "" and isAprilFools() then
-					desc = maybeMock(desc)
-				end
-				return desc
-			end
-
-			if Cmd.SetAttribute then
-				NAmanage.SetAttr(Cmd, "CmdDesc", resolveDesc())
-			end
-
-			Cmd.Text = " "..finalText
-			Cmd.Position = UDim2.new(0, 0, 0, yOffset)
-			Cmd.Visible = true
-			if Cmd.Parent ~= cList then
-				pcall(function()
-					Cmd.Parent = cList
-				end)
-			end
-			local aliases = {}
-			if type(meta.aliases) == "table" then
-				for _, alias in ipairs(meta.aliases) do
-					local aliasText = Lower(tostring(alias or ""))
-					if aliasText ~= "" then
-						aliases[#aliases + 1] = aliasText
-					end
-				end
-			end
-			local searchable = meta.searchable
-			if type(searchable) ~= "string" or searchable == "" then
-				if type(NAgui.sanitizeCommandInfo) == "function" then
-					searchable = NAgui.sanitizeCommandInfo(finalText)
-				else
-					searchable = NAmanage.stripMarkup(Lower(tostring(finalText or cmdName)))
-				end
-			else
-				searchable = Lower(searchable)
-			end
-			filterEntries[#filterEntries + 1] = {
-				label = Cmd;
-				lowerName = Lower(cmdName);
-				searchable = searchable;
-				aliases = aliases;
-			}
-			yOffset += 20
-
-			if i % batchSize == 0 then
-				if buildToken ~= NAStuff.CommandBuildToken then
-					return
-				end
-				cList.CanvasSize = UDim2.new(0, 0, 0, yOffset)
-				Wait()
-			end
-		end
-
-		if buildToken ~= NAStuff.CommandBuildToken then
-			return
-		end
-
-		for name, label in pairs(stale) do
-			pool[name] = nil
-			if label then
-				pcall(function()
-					label:Destroy()
-				end)
-			end
-		end
-
-		cList.CanvasSize = UDim2.new(0, 0, 0, 5 + (#entries * 20))
-		NAStuff.CommandFilterEntries = filterEntries
-		NAmanage.centerFrame(cFrame)
-		if NAgui.filterCommandList then
-			NAgui.filterCommandList(NAUIMANAGER.commandsFilter and NAUIMANAGER.commandsFilter.Text or "")
-		end
-	end)
 end
 NAgui.chatlogs = function()
 	if NAUIMANAGER.chatLogsFrame then
@@ -72879,6 +72963,172 @@ NAmanage.setCmdAutofillClickable = function(enabled)
 	end
 end
 
+NAmanage.applyCmdAutofillFill = function(frame)
+	if not NAStuff.cmdAutofillClickable or not NAStuff.cmdBarSelected then
+		return
+	end
+	if not (frame and NAUIMANAGER and NAUIMANAGER.cmdInput) then
+		return
+	end
+	if NAStuff.defaultCmdClear == nil then
+		NAStuff.defaultCmdClear = NAUIMANAGER.cmdInput.ClearTextOnFocus
+	end
+	local raw = (NAmanage.GetAttr and NAmanage.GetAttr(frame, "NA_FillText")) or ""
+	if raw == "" then
+		local inputObj = frame:FindFirstChild("Input")
+		raw = (inputObj and inputObj.Text) or frame.Text or ""
+	end
+	local sanitizedText = NAmanage.stripChar(raw)
+	task.defer(function()
+		NAStuff.cmdFocusGuardUntil = os.clock() + 0.45
+		NAStuff.autofillRefocusGuard = os.clock() + 0.25
+		NAUIMANAGER.cmdInput.Text = sanitizedText
+		local caret = #sanitizedText + 1
+		NAUIMANAGER.cmdInput.CursorPosition = caret
+		if NAUIMANAGER.cmdInput.ClearTextOnFocus ~= false then
+			NAUIMANAGER.cmdInput.ClearTextOnFocus = false
+		end
+		if NAUIMANAGER.cmdInput.SelectionStart then
+			pcall(function()
+				NAUIMANAGER.cmdInput.SelectionStart = caret
+				NAUIMANAGER.cmdInput.SelectionEnd = caret
+			end)
+		end
+		if predictionInput then
+			predictionInput.Text = ""
+		end
+		if not IsOnMobile then
+			NAgui.ensureCmdFocus(true)
+		else
+			NAStuff.autofillSelecting = true
+			NAUIMANAGER.cmdInput:ReleaseFocus()
+			task.delay(0.2, function()
+				if NAUIMANAGER and NAUIMANAGER.cmdInput then
+					NAUIMANAGER.cmdInput:CaptureFocus()
+					NAUIMANAGER.cmdInput.ClearTextOnFocus = NAStuff.defaultCmdClear or false
+				end
+				NAStuff.autofillSelecting = false
+			end)
+		end
+		task.delay(0.5, function()
+			NAStuff.cmdFocusGuardUntil = 0
+		end)
+	end)
+end
+
+NAmanage.bindCmdAutofillFrame = function(frame)
+	if not frame or NAmanage.GetAttr(frame, "NA_AutofillBound") == true then
+		return
+	end
+
+	local function bind(obj)
+		if not obj then
+			return
+		end
+		if obj:IsA("TextButton") or obj:IsA("ImageButton") then
+			obj.MouseButton1Click:Connect(function()
+				NAmanage.applyCmdAutofillFill(frame)
+			end)
+		end
+		if obj.InputBegan then
+			obj.InputBegan:Connect(function(input)
+				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+					NAmanage.applyCmdAutofillFill(frame)
+				end
+			end)
+		end
+	end
+
+	bind(frame)
+	bind(frame:FindFirstChild("Input"))
+	NAmanage.SetAttr(frame, "NA_AutofillBound", true)
+end
+
+NAmanage.ensureCmdAutofillSuggestionPool = function(requiredCount)
+	requiredCount = math.max(5, tonumber(requiredCount) or 5)
+	local host = NAUIMANAGER and NAUIMANAGER.cmdAutofill
+	local template = NAUIMANAGER and NAUIMANAGER.cmdExample
+	if not (host and template) then
+		return {}
+	end
+
+	local pool = NAStuff.CmdAutofillPool
+	if type(pool) ~= "table" then
+		pool = {}
+		NAStuff.CmdAutofillPool = pool
+	end
+
+	if NAStuff.CmdAutofillPoolInitialized ~= true then
+		for _, child in ipairs(host:GetChildren()) do
+			if child:IsA("GuiObject") and child ~= template and not child:IsA("UIListLayout") then
+				child:Destroy()
+			end
+		end
+		table.clear(pool)
+		NAStuff.CmdAutofillPoolInitialized = true
+	end
+
+	for i = 1, requiredCount do
+		local frame = pool[i]
+		if not (frame and frame.Parent) then
+			frame = template:Clone()
+			frame.Visible = false
+			frame.Parent = host
+			pool[i] = frame
+			NAmanage.bindCmdAutofillFrame(frame)
+		end
+		frame.LayoutOrder = i
+	end
+
+	for i = requiredCount + 1, #pool do
+		local frame = pool[i]
+		if frame then
+			frame.Visible = false
+			frame.LayoutOrder = i
+		end
+	end
+
+	CMDAUTOFILL = pool
+	return pool
+end
+
+NAmanage.applyCmdAutofillEntryToFrame = function(frame, entry)
+	if not (frame and entry) then
+		return
+	end
+
+	local meta = entry.meta or {}
+	local name = entry.name or frame.Name
+	local finalDisplay = meta.displayText or entry.display or name
+	local isPatched = meta.patched == true
+	local isCmdIntegration = meta.origin == "cmd"
+	local isPluginCmd = meta.pluginType ~= nil
+	local inputObj = frame:FindFirstChild("Input")
+	local defaultInputColor = NAStuff.defaultCmdAutofillInputColor
+
+	if inputObj then
+		if isPatched then
+			inputObj.TextColor3 = patchedCommandColor
+			finalDisplay = NAgui.addPatchedLabel(finalDisplay)
+		elseif isCmdIntegration then
+			inputObj.TextColor3 = cmdIntegrationColor
+		elseif isPluginCmd then
+			inputObj.TextColor3 = pluginCommandColor
+		elseif defaultInputColor then
+			inputObj.TextColor3 = defaultInputColor
+		end
+		inputObj.Text = finalDisplay
+	else
+		frame.Text = finalDisplay
+	end
+
+	frame.Name = tostring(name)
+	NAmanage.SetAttr(frame, "NA_FillText", tostring(name))
+	NAmanage.SetAttr(frame, "IsCmdIntegration", isCmdIntegration)
+	NAmanage.SetAttr(frame, "IsPluginCommand", isPluginCmd)
+	NAmanage.SetAttr(frame, "IsPatchedCommand", isPatched)
+end
+
 NAgui.loadCMDS = function()
 	if NAStuff.cmdAutofillLoading == true then
 		NAStuff.cmdAutofillLoadRequested = true
@@ -72901,21 +73151,8 @@ NAgui.loadCMDS = function()
 		end
 	end
 	NAmanage.setCmdAutofillClickable(false)
-	local autofillPool = NAStuff.CmdAutofillPool or {}
-	NAStuff.CmdAutofillPool = autofillPool
-	local staleAutofill = {}
-	for name, btn in pairs(autofillPool) do
-		staleAutofill[name] = btn
-	end
-	CMDAUTOFILL = {}
 	table.clear(prevVisible)
-	if next(autofillPool) == nil and NAUIMANAGER and NAUIMANAGER.cmdAutofill then
-		for _, v in pairs(NAUIMANAGER.cmdAutofill:GetChildren()) do
-			if v:IsA("GuiObject") and v.Name ~= "UIListLayout" and v ~= NAUIMANAGER.cmdExample then
-				v:Destroy()
-			end
-		end
-	end
+	NAmanage.ensureCmdAutofillSuggestionPool(5)
 	local layout = NAStuff.cmdAutofillLayout
 	if not (layout and layout.Parent == NAUIMANAGER.cmdAutofill) then
 		layout = NAUIMANAGER.cmdAutofill and NAUIMANAGER.cmdAutofill:FindFirstChildOfClass("UIListLayout")
@@ -72925,153 +73162,25 @@ NAgui.loadCMDS = function()
 		layout.SortOrder = Enum.SortOrder.LayoutOrder
 	end
 	local templateInput = NAUIMANAGER.cmdExample and NAUIMANAGER.cmdExample:FindFirstChild("Input")
-	local defaultInputColor = templateInput and templateInput.TextColor3
+	NAStuff.defaultCmdAutofillInputColor = templateInput and templateInput.TextColor3
 	NAStuff.defaultCmdClear = nil
 	NAStuff.autofillSelecting = false
 	NAStuff.cmdFocusGuardUntil = 0
 	NAStuff.autofillRefocusGuard = 0
-	local function wireAutofillClick(btn, textObj, fillText)
-		local function applyFill()
-			if not NAStuff.cmdAutofillClickable or not NAStuff.cmdBarSelected then
-				return
-			end
-			if not NAUIMANAGER.cmdInput then
-				return
-			end
-			if NAStuff.defaultCmdClear == nil then
-				NAStuff.defaultCmdClear = NAUIMANAGER.cmdInput.ClearTextOnFocus
-			end
-			local raw = fillText or (textObj and textObj.Text) or (btn and btn.Text) or ""
-			local sanitizedText = NAmanage.stripChar(raw)
-			task.defer(function()
-				NAStuff.cmdFocusGuardUntil = os.clock() + 0.45
-				NAStuff.autofillRefocusGuard = os.clock() + 0.25
-				NAUIMANAGER.cmdInput.Text = sanitizedText
-				local caret = #sanitizedText + 1
-				NAUIMANAGER.cmdInput.CursorPosition = caret
-				if NAUIMANAGER.cmdInput.ClearTextOnFocus ~= false then
-					NAUIMANAGER.cmdInput.ClearTextOnFocus = false
-				end
-				if NAUIMANAGER.cmdInput.SelectionStart then
-					pcall(function()
-						NAUIMANAGER.cmdInput.SelectionStart = caret
-						NAUIMANAGER.cmdInput.SelectionEnd = caret
-					end)
-				end
-				if predictionInput then
-					predictionInput.Text = ""
-				end
-				if not IsOnMobile then
-					NAgui.ensureCmdFocus(true)
-				else
-					NAStuff.autofillSelecting = true
-					NAUIMANAGER.cmdInput:ReleaseFocus()
-					task.delay(0.2, function()
-						if NAUIMANAGER and NAUIMANAGER.cmdInput then
-							NAUIMANAGER.cmdInput:CaptureFocus()
-							NAUIMANAGER.cmdInput.ClearTextOnFocus = defaultCmdClear or false
-						end
-						NAStuff.autofillSelecting = false
-					end)
-				end
-				task.delay(0.5, function()
-					NAStuff.cmdFocusGuardUntil = 0
-				end)
-			end)
-		end
-		local function bind(obj)
-			if not obj then
-				return
-			end
-			if obj:IsA("TextButton") or obj:IsA("ImageButton") then
-				obj.MouseButton1Click:Connect(applyFill)
-			end
-			if obj.InputBegan then
-				obj.InputBegan:Connect(function(input)
-					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-						applyFill()
-					end
-				end)
-			end
-		end
-		bind(btn)
-		bind(textObj)
-	end
 	local entries = NAmanage.buildCommandEntries()
-	local batchSize = 60
-	if NAmanage.isLoad and NAmanage.isLoad() then
-		batchSize = 24
-	end
-	local seenCmdNames = {}
-	local i = 0
-	for _, entry in ipairs(entries) do
-		local name = entry.name
-		if seenCmdNames[name] then
-			continue
-		end
-		seenCmdNames[name] = true
-		local meta = entry.meta or {}
-		local btn = autofillPool[name]
-		if not (btn and btn.Parent) then
-			btn = NAUIMANAGER.cmdExample:Clone()
-			btn.Parent = NAUIMANAGER.cmdAutofill
-			autofillPool[name] = btn
-			wireAutofillClick(btn, btn.Input, name)
-		end
-		staleAutofill[name] = nil
-		btn.Visible = false
-		if btn.Parent ~= NAUIMANAGER.cmdAutofill then
-			btn.Parent = NAUIMANAGER.cmdAutofill
-		end
-		btn.Name = name
-		local finalDisplay = meta.displayText or entry.display or name
-		local isPatched = meta.patched == true
-		local isCmdIntegration = meta.origin == "cmd"
-		local pluginType = meta.pluginType
-		local isPluginCmd = pluginType ~= nil
-		if not isPluginCmd and NAmanage.IsPluginCommand then
-			isPluginCmd = NAmanage.IsPluginCommand(name)
-		end
-		if btn.Input then
-			if isPatched then
-				btn.Input.TextColor3 = patchedCommandColor
-				finalDisplay = NAgui.addPatchedLabel(finalDisplay)
-			elseif isCmdIntegration then
-				btn.Input.TextColor3 = cmdIntegrationColor
-			elseif isPluginCmd then
-				btn.Input.TextColor3 = pluginCommandColor
-			elseif defaultInputColor then
-				btn.Input.TextColor3 = defaultInputColor
-			end
-			btn.Input.Text = finalDisplay
-		else
-			btn.Text = finalDisplay
-		end
-		if btn.SetAttribute then
-			NAmanage.SetAttr(btn, "IsCmdIntegration", isCmdIntegration)
-			NAmanage.SetAttr(btn, "IsPluginCommand", isPluginCmd)
-			NAmanage.SetAttr(btn, "IsPatchedCommand", isPatched)
-		end
-		i += 1
-		btn.LayoutOrder = i
-		NAmanage.setCmdAutofillItemInteractivity(btn, false)
-		Insert(CMDAUTOFILL, btn)
-		if i % batchSize == 0 then
-			Wait()
-		end
-	end
-	for staleName, staleBtn in pairs(staleAutofill) do
-		autofillPool[staleName] = nil
-		if staleBtn then
-			pcall(function()
-				staleBtn:Destroy()
-			end)
+	NAStuff.AutofillEntries = entries
+	local pool = NAmanage.ensureCmdAutofillSuggestionPool(5)
+	for i = 1, #pool do
+		local btn = pool[i]
+		if btn then
+			btn.Visible = false
+			NAmanage.setCmdAutofillItemInteractivity(btn, false)
 		end
 	end
 	NAmanage.setCmdAutofillClickable(NAStuff.cmdBarSelected == true)
-	cmdNAnum = i
+	cmdNAnum = #entries
 	NAgui.hideFill()
-	NAmanage.rebuildIndex()
+	NAmanage.rebuildIndex(entries)
 	NAmanage.rebuildSearchAliasCache()
 	NAStuff.cmdAutofillLoading = false
 	if cmdInput then
@@ -73414,6 +73523,7 @@ NAmanage.performSearch = function(term)
 	for _, f in ipairs(prevVisible) do f.Visible = false end
 	table.clear(prevVisible)
 	table.clear(results)
+	local suggestionPool = NAmanage.ensureCmdAutofillSuggestionPool and NAmanage.ensureCmdAutofillSuggestionPool(5) or {}
 	local function pushTop(candidate)
 		local insertAt = #results + 1
 		for idx = 1, #results do
@@ -73429,8 +73539,10 @@ NAmanage.performSearch = function(term)
 		end
 	end
 
-	local function revealFrame(frame, index)
+	local function revealEntry(entry, index)
+		local frame = suggestionPool[index]
 		if not frame then return end
+		NAmanage.applyCmdAutofillEntryToFrame(frame, entry)
 		Insert(prevVisible, frame)
 		frame.Visible = true
 		NAmanage.setCmdAutofillItemInteractivity(frame, NAStuff.cmdAutofillClickable == true and NAStuff.cmdBarSelected == true)
@@ -73459,7 +73571,7 @@ NAmanage.performSearch = function(term)
 				for _, entry in ipairs(searchIndex) do
 					if NAmanage.defaultCommandMatches(entry, target) then
 						displayed += 1
-						revealFrame(entry.frame, displayed)
+						revealEntry(entry, displayed)
 						break
 					end
 				end
@@ -73468,7 +73580,7 @@ NAmanage.performSearch = function(term)
 			for i = 1, math.min(5, #searchIndex) do
 				local entry = searchIndex[i]
 				if entry then
-					revealFrame(entry.frame, i)
+					revealEntry(entry, i)
 				end
 			end
 		end
@@ -73552,7 +73664,7 @@ NAmanage.performSearch = function(term)
 		if not lockedTerm or not lockedHasMatch or matchesLockedEntry(entry) then
 			local sc, txt = NAmanage.computeScore(entry, term, len, aliasExactCache, savedExactCache, aliasPrefixCache, savedPrefixCache)
 			if sc then
-				pushTop({frame = entry.frame, score = sc, text = txt, name = entry.name})
+				pushTop({entry = entry, score = sc, text = txt, name = entry.name})
 			end
 		end
 	end
@@ -73562,7 +73674,7 @@ NAmanage.performSearch = function(term)
 
 	for i = 1, #results do
 		local r = results[i]
-		revealFrame(r.frame, i)
+		revealEntry(r.entry, i)
 	end
 end
 
@@ -73941,32 +74053,35 @@ NAgui.sanitizeCommandInfo=function(info)
 end
 
 NAgui.filterCommandList = function(rawText)
-	if not NAUIMANAGER.commandsList then return end
+	local state = NAmanage.ensureCommandListState and NAmanage.ensureCommandListState()
+	if not (state and NAUIMANAGER.commandsList) then return end
 	local searchText = NAgui.normalizeCommandFilter(rawText)
-	local cached = NAStuff.CommandFilterEntries
-	if type(cached) ~= "table" then
+	local entries = state.entries
+	if type(entries) ~= "table" then
 		return
 	end
-	for i = 1, #cached do
-		local entry = cached[i]
-		local label = entry and entry.label
-		if label and label.Parent and label:IsA("TextLabel") then
-			local matches
+
+	local filtered = {}
+	for i = 1, #entries do
+		local entry = entries[i]
+		if entry then
+			local meta = entry.meta or {}
+			local lowerName = Lower(tostring(entry.name or ""))
+			local matches = false
 			if searchText == "" then
 				matches = true
 			else
-				local lowerName = entry.lowerName or ""
 				if Sub(lowerName, 1, #searchText) == searchText then
 					matches = true
 				else
-					local searchableInfo = entry.searchable or ""
+					local searchableInfo = meta.searchable or ""
 					if searchableInfo ~= "" and Find(searchableInfo, searchText, 1, true) then
 						matches = true
 					else
-						local aliases = entry.aliases
+						local aliases = meta.aliases
 						if type(aliases) == "table" then
 							for j = 1, #aliases do
-								local alias = aliases[j]
+								local alias = Lower(tostring(aliases[j] or ""))
 								if alias and (Sub(alias, 1, #searchText) == searchText or Find(alias, searchText, 1, true)) then
 									matches = true
 									break
@@ -73976,9 +74091,15 @@ NAgui.filterCommandList = function(rawText)
 					end
 				end
 			end
-			label.Visible = matches and true or false
+			if matches then
+				filtered[#filtered + 1] = entry
+			end
 		end
 	end
+
+	state.filteredEntries = filtered
+	NAUIMANAGER.commandsList.CanvasPosition = Vector2.new(0, 0)
+	NAmanage.syncVisibleCommandRows(state)
 end
 
 local commandFilterTick = 0
