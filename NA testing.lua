@@ -13147,7 +13147,7 @@ NAmanage.createLoadingUI=function(text, opts)
 	local mobileMinWidth = tonumber(opts.mobileMinWidth) or 320
 	local desktopMargin = tonumber(opts.desktopMargin) or 120
 	local mobileMargin = tonumber(opts.mobileMargin) or 24
-	local blacklist = opts.blacklist or { [8523781134] = true, [2521585756] = true, [3350084310] = true }
+	local blacklist = opts.blacklist or { [8523781134] = true, [2521585756] = true, [3350084310] = true, [8227032133] = true, [10250882660] = true }
 	local lp = Players and Players.LocalPlayer
 
 	if lp and blacklist[lp.UserId] then
