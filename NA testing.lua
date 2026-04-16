@@ -797,13 +797,19 @@ local NAStuff = {
 		exact = {},
 		partial = {},
 	};
-	ESP_RenderMode = "BoxHandleAdornment";
+	ESP_RenderMode = "Highlight";
 	ESP_PartRenderMode = "BoxHandleAdornment";
 	ESP_Transparency = 0.7;
 	ESP_PartTransparency = 0.45;
 	ESP_LabelTextSize = 12;
 	ESP_LabelTextScaled = false;
 	ESP_LabelStrokeTransparency = 0.5;
+	ESP_DrawingTextOutline = true;
+	ESP_DrawingBoxStyle = "Square";
+	ESP_DrawingBoxThickness = 1;
+	ESP_DrawingTracerEnabled = false;
+	ESP_DrawingTracerOrigin = "Bottom";
+	ESP_DrawingTracerThickness = 1;
 	ESP_UseCustomColor = false;
 	ESP_CustomColor = Color3.new(1, 1, 1);
 	ESP_OutlineTransparency = 0;
@@ -16518,11 +16524,17 @@ NAmanage.LoadESPSettings = function()
 		ESP_ShowName = true;
 		ESP_ShowHealth = true;
 		ESP_ShowDistance = true;
-		ESP_RenderMode = "BoxHandleAdornment";
+		ESP_RenderMode = "Highlight";
 		ESP_PartRenderMode = "BoxHandleAdornment";
 		ESP_LabelTextSize = 12;
 		ESP_LabelTextScaled = false;
 		ESP_LabelStrokeTransparency = 0.5;
+		ESP_DrawingTextOutline = true;
+		ESP_DrawingBoxStyle = "Square";
+		ESP_DrawingBoxThickness = 1;
+		ESP_DrawingTracerEnabled = false;
+		ESP_DrawingTracerOrigin = "Bottom";
+		ESP_DrawingTracerThickness = 1;
 		ESP_UseCustomColor = false;
 		ESP_CustomColor = {255, 255, 255};
 		ESP_OutlineTransparency = 0;
@@ -16596,13 +16608,15 @@ NAmanage.LoadESPSettings = function()
 		end
 		return defaultColor
 	end
-	local legacyMode = tostring(d.ESP_RenderMode or "BoxHandleAdornment")
-	local mode = NAgui.sanitizeESPRenderMode(legacyMode, "BoxHandleAdornment")
-	local partMode = NAgui.sanitizeESPRenderMode(d.ESP_PartRenderMode or legacyMode, mode)
+	local legacyMode = tostring(d.ESP_RenderMode or "Highlight")
+	local mode = NAgui.sanitizeESPRenderMode(legacyMode, "Highlight")
+	local partMode = NAgui.sanitizeESPRenderMode(d.ESP_PartRenderMode or "BoxHandleAdornment", "BoxHandleAdornment")
 	local partTransparency = NAgui.sanitizeTransparency(d.ESP_PartTransparency ~= nil and d.ESP_PartTransparency or d.ESP_Transparency)
 	local sz = tonumber(d.ESP_LabelTextSize) or 12
 	if sz < 8 then sz = 8 elseif sz > 72 then sz = 72 end
 	local stroke = math.clamp(tonumber(d.ESP_LabelStrokeTransparency) or 0.5, 0, 1)
+	local drawingBoxThickness = math.clamp(tonumber(d.ESP_DrawingBoxThickness) or 1, 1, 6)
+	local drawingTracerThickness = math.clamp(tonumber(d.ESP_DrawingTracerThickness) or 1, 1, 6)
 	local outline = NAgui.sanitizeTransparency(d.ESP_OutlineTransparency)
 	local maxPerStep = math.clamp(math.floor(tonumber(d.ESP_MaxPerStep) or 32), 1, 256)
 	local customColor = sanitizeColor(d.ESP_CustomColor, Color3.new(1, 1, 1))
@@ -16622,6 +16636,12 @@ NAmanage.LoadESPSettings = function()
 	NAStuff.ESP_LabelTextSize    = sz
 	NAStuff.ESP_LabelTextScaled  = d.ESP_LabelTextScaled == true
 	NAStuff.ESP_LabelStrokeTransparency = stroke
+	NAStuff.ESP_DrawingTextOutline = d.ESP_DrawingTextOutline ~= false
+	NAStuff.ESP_DrawingBoxStyle = NAgui.sanitizeESPDrawingBoxStyle(d.ESP_DrawingBoxStyle)
+	NAStuff.ESP_DrawingBoxThickness = drawingBoxThickness
+	NAStuff.ESP_DrawingTracerEnabled = d.ESP_DrawingTracerEnabled == true
+	NAStuff.ESP_DrawingTracerOrigin = NAgui.sanitizeESPDrawingTracerOrigin(d.ESP_DrawingTracerOrigin)
+	NAStuff.ESP_DrawingTracerThickness = drawingTracerThickness
 	NAStuff.ESP_UseCustomColor   = d.ESP_UseCustomColor == true
 	NAStuff.ESP_CustomColor      = customColor
 	NAStuff.ESP_OutlineTransparency = outline
@@ -16668,8 +16688,8 @@ end
 
 NAmanage.SaveESPSettings = function()
 	if not FileSupport then return end
-	local mode = NAgui.sanitizeESPRenderMode(NAStuff.ESP_RenderMode, "BoxHandleAdornment")
-	local partMode = NAgui.sanitizeESPRenderMode(NAStuff.ESP_PartRenderMode, mode)
+	local mode = NAgui.sanitizeESPRenderMode(NAStuff.ESP_RenderMode, "Highlight")
+	local partMode = NAgui.sanitizeESPRenderMode(NAStuff.ESP_PartRenderMode, "BoxHandleAdornment")
 	local sz = tonumber(NAStuff.ESP_LabelTextSize) or 12
 	if sz < 8 then sz = 8 elseif sz > 72 then sz = 72 end
 	local d = {
@@ -16688,6 +16708,12 @@ NAmanage.SaveESPSettings = function()
 		ESP_LabelTextSize = sz;
 		ESP_LabelTextScaled = NAStuff.ESP_LabelTextScaled == true;
 		ESP_LabelStrokeTransparency = math.clamp(tonumber(NAStuff.ESP_LabelStrokeTransparency) or 0.5, 0, 1);
+		ESP_DrawingTextOutline = NAStuff.ESP_DrawingTextOutline ~= false;
+		ESP_DrawingBoxStyle = NAgui.sanitizeESPDrawingBoxStyle(NAStuff.ESP_DrawingBoxStyle);
+		ESP_DrawingBoxThickness = math.clamp(tonumber(NAStuff.ESP_DrawingBoxThickness) or 1, 1, 6);
+		ESP_DrawingTracerEnabled = NAStuff.ESP_DrawingTracerEnabled == true;
+		ESP_DrawingTracerOrigin = NAgui.sanitizeESPDrawingTracerOrigin(NAStuff.ESP_DrawingTracerOrigin);
+		ESP_DrawingTracerThickness = math.clamp(tonumber(NAStuff.ESP_DrawingTracerThickness) or 1, 1, 6);
 		ESP_UseCustomColor = NAStuff.ESP_UseCustomColor == true;
 		ESP_CustomColor = NAmanage.UserButtonColorToTable(NAStuff.ESP_CustomColor or Color3.new(1, 1, 1));
 		ESP_OutlineTransparency = NAgui.sanitizeTransparency(NAStuff.ESP_OutlineTransparency or 0);
@@ -21547,6 +21573,12 @@ NAmanage.DrawingObjectSupported = function(kind, refresh)
 			obj.Transparency = 1
 			obj.Position = Vector2.new(0, 0)
 			obj.Size = Vector2.new(2, 2)
+		elseif objectKind == "Line" then
+			obj.Color = Color3.new(1, 1, 1)
+			obj.Transparency = 1
+			obj.Thickness = 1
+			obj.From = Vector2.new(0, 0)
+			obj.To = Vector2.new(1, 1)
 		elseif objectKind == "Text" then
 			obj.Center = true
 			obj.Outline = true
@@ -21582,6 +21614,33 @@ NAgui.getESPRenderModeOptions = function()
 	return options
 end
 
+NAgui.getESPDrawingBoxStyleOptions = function()
+	return { "Square", "Corners" }
+end
+
+NAgui.sanitizeESPDrawingBoxStyle = function(value)
+	local normalized = Lower(tostring(value or "square"))
+	if normalized == "corners" or normalized == "corner" then
+		return "Corners"
+	end
+	return "Square"
+end
+
+NAgui.getESPDrawingTracerOriginOptions = function()
+	return { "Bottom", "Center", "Top" }
+end
+
+NAgui.sanitizeESPDrawingTracerOrigin = function(value)
+	local normalized = Lower(tostring(value or "bottom"))
+	if normalized == "top" then
+		return "Top"
+	end
+	if normalized == "center" or normalized == "middle" then
+		return "Center"
+	end
+	return "Bottom"
+end
+
 NAgui.sanitizeESPRenderMode = function(mode, fallback)
 	local desired = Lower(tostring(mode or ""))
 	if desired == "highlight" then
@@ -21607,7 +21666,8 @@ NAgui.getESPRenderMode = function(target)
 	local rawMode = (key == "part" or key == "parts" or key == "partesp")
 		and NAStuff.ESP_PartRenderMode
 		or NAStuff.ESP_RenderMode
-	return NAgui.sanitizeESPRenderMode(rawMode, "BoxHandleAdornment")
+	local fallback = (key == "part" or key == "parts" or key == "partesp") and "BoxHandleAdornment" or "Highlight"
+	return NAgui.sanitizeESPRenderMode(rawMode, fallback)
 end
 
 NAgui.espUsesHighlight=function(target)
@@ -21767,6 +21827,10 @@ NAmanage.DrawingTriangleSupported = function(refresh)
 	return NAmanage.DrawingObjectSupported("Triangle", refresh)
 end
 
+NAmanage.DrawingLineSupported = function(refresh)
+	return NAmanage.DrawingObjectSupported("Line", refresh)
+end
+
 NAmanage.DrawingTextSupported = function(refresh)
 	return NAmanage.DrawingObjectSupported("Text", refresh)
 end
@@ -21844,11 +21908,12 @@ NAmanage.DrawingCreateText = function(text, color, textSize)
 	pcall(function()
 		txt.Visible = false
 		txt.Center = true
-		txt.Outline = true
+		txt.Outline = NAStuff.ESP_DrawingTextOutline ~= false
 		txt.Color = color or Color3.new(1, 1, 1)
 		txt.Size = NAgui.sanitizeLabelSize(textSize or 12)
 		txt.Text = tostring(text or "")
 		txt.Transparency = 1
+		txt.OutlineColor = Color3.new(0.05, 0.05, 0.05)
 	end)
 	return txt
 end
@@ -21873,11 +21938,63 @@ NAmanage.DrawingUpdateText = function(txt, worldPos, text, color, textSize)
 		txt.Text = tostring(text or "")
 		txt.Color = color or Color3.new(1, 1, 1)
 		txt.Size = NAgui.sanitizeLabelSize(textSize or 12)
+		txt.Outline = NAStuff.ESP_DrawingTextOutline ~= false
+		txt.OutlineColor = Color3.new(0.05, 0.05, 0.05)
 		txt.Position = Vector2.new(viewportPoint.X, viewportPoint.Y)
 		txt.Visible = true
 	end)
 	if not ok and type(NAmanage._drawingObjectSupport) == "table" then
 		NAmanage._drawingObjectSupport.Text = false
+	end
+	return ok
+end
+
+NAmanage.DrawingCreateLine = function(color, alpha, thickness)
+	if NAmanage.DrawingLineSupported and not NAmanage.DrawingLineSupported() then
+		return nil
+	end
+	local drawingLib = NAgui.getDrawingLibrary()
+	if not drawingLib then
+		return nil
+	end
+	local ok, line = pcall(function()
+		return drawingLib.new("Line")
+	end)
+	if not ok or not line then
+		if type(NAmanage._drawingObjectSupport) == "table" then
+			NAmanage._drawingObjectSupport.Line = false
+		end
+		return nil
+	end
+	pcall(function()
+		line.Visible = false
+		line.Color = color or Color3.new(1, 1, 1)
+		line.Transparency = math.clamp(tonumber(alpha) or 1, 0, 1)
+		line.Thickness = math.max(1, tonumber(thickness) or 1)
+		line.From = Vector2.new(0, 0)
+		line.To = Vector2.new(0, 0)
+	end)
+	return line
+end
+
+NAmanage.DrawingUpdateLine = function(line, fromPos, toPos, color, alpha, thickness)
+	if not line then return false end
+	if typeof(fromPos) ~= "Vector2" or typeof(toPos) ~= "Vector2" then
+		pcall(function()
+			line.Visible = false
+		end)
+		return true
+	end
+	local ok = pcall(function()
+		line.From = fromPos
+		line.To = toPos
+		line.Color = color or Color3.new(1, 1, 1)
+		line.Transparency = math.clamp(tonumber(alpha) or 1, 0, 1)
+		line.Thickness = math.max(1, tonumber(thickness) or 1)
+		line.Visible = true
+	end)
+	if not ok and type(NAmanage._drawingObjectSupport) == "table" then
+		NAmanage._drawingObjectSupport.Line = false
 	end
 	return ok
 end
@@ -22029,6 +22146,25 @@ NAmanage.ESP_ApplyLabelStyles = function()
 				if entry.drawingLabel then
 					pcall(function()
 						entry.drawingLabel.Size = size
+					end)
+				end
+			end
+		end
+	end
+	if type(espCONS) == "table" then
+		for _, data in pairs(espCONS) do
+			if type(data) == "table" then
+				if data.textLabel then
+					data.textLabel.TextScaled = scaled
+					if not scaled then
+						data.textLabel.TextSize = size
+					end
+				end
+				if data.drawingLabel then
+					pcall(function()
+						data.drawingLabel.Size = size
+						data.drawingLabel.Outline = NAStuff.ESP_DrawingTextOutline ~= false
+						data.drawingLabel.OutlineColor = Color3.new(0.05, 0.05, 0.05)
 					end)
 				end
 			end
@@ -22270,13 +22406,22 @@ NAmanage.PartESP_UpdateEntry = function(entry, force, rootPart)
 	local billboard = entry.billboard
 	local label = entry.label
 	local drawingLabel = entry.drawingLabel
-	if (not billboard or not billboard.Parent) and (not drawingLabel) then
+	local drawingSquare = entry.drawingSquare
+	local visual = entry.visual
+	local hasBillboard = billboard and billboard.Parent
+	local hasDrawingLabel = drawingLabel ~= nil
+	local hasDrawingSquare = drawingSquare ~= nil
+	local hasVisual = visual and visual.Parent
+	if not (hasBillboard or hasDrawingLabel or hasDrawingSquare or hasVisual) then
 		NAmanage.PartESP_UnregisterEntry(entry)
 		return
 	end
 	if billboard and ((not label) or label.Parent ~= billboard) then
 		label = billboard:FindFirstChildWhichIsA("TextLabel")
 		entry.label = label
+	end
+	if billboard and billboard.Parent then
+		NAmanage.ESP_StoreVisual(billboard)
 	end
 	local baseName = entry.customName or part.Name or "Part"
 	local display = baseName
@@ -22322,9 +22467,7 @@ NAmanage.PartESP_UpdateEntry = function(entry, force, rootPart)
 			end)
 		end
 	end
-	local visual = entry.visual
 	local transparency = NAgui.sanitizeTransparency(NAStuff.ESP_PartTransparency or entry.transparency)
-	local drawingSquare = entry.drawingSquare
 	if drawingSquare then
 		local drawColor = entry.lightColor or entry.baseColor or Color3.new(1, 1, 1)
 		if not NAmanage.DrawingUpdateSquare(drawingSquare, part, drawColor, transparency) then
@@ -22333,6 +22476,7 @@ NAmanage.PartESP_UpdateEntry = function(entry, force, rootPart)
 		end
 	end
 	if visual and visual.Parent then
+		NAmanage.ESP_StoreVisual(visual)
 		if visual:IsA("Highlight") then
 			if visual.FillTransparency ~= transparency then
 				visual.FillTransparency = transparency
@@ -22451,6 +22595,14 @@ NAmanage.PartESP_RegisterEntry = function(entry)
 	if entry.visualCleanup then
 		entry.visualCleanup:Disconnect()
 	end
+	if entry.partCleanup then
+		entry.partCleanup:Disconnect()
+		entry.partCleanup = nil
+	end
+	if entry.partDestroyingCleanup then
+		entry.partDestroyingCleanup:Disconnect()
+		entry.partDestroyingCleanup = nil
+	end
 	if entry.billboard then
 		entry.billboardCleanup = entry.billboard.AncestryChanged:Connect(function(_, parent)
 			if not parent then
@@ -22463,6 +22615,18 @@ NAmanage.PartESP_RegisterEntry = function(entry)
 			if not parent then
 				NAmanage.PartESP_UnregisterEntry(entry)
 			end
+		end)
+	end
+	if entry.part and typeof(entry.part) == "Instance" then
+		entry.partCleanup = entry.part.AncestryChanged:Connect(function(_, parent)
+			if not parent then
+				NAmanage.PartESP_UnregisterEntry(entry)
+			end
+		end)
+		pcall(function()
+			entry.partDestroyingCleanup = entry.part.Destroying:Connect(function()
+				NAmanage.PartESP_UnregisterEntry(entry)
+			end)
 		end)
 	end
 	NAmanage.PartESP_StartHeartbeat()
@@ -22479,6 +22643,14 @@ NAmanage.PartESP_UnregisterEntry = function(entry)
 	if entry.visualCleanup then
 		entry.visualCleanup:Disconnect()
 		entry.visualCleanup = nil
+	end
+	if entry.partCleanup then
+		entry.partCleanup:Disconnect()
+		entry.partCleanup = nil
+	end
+	if entry.partDestroyingCleanup then
+		entry.partDestroyingCleanup:Disconnect()
+		entry.partDestroyingCleanup = nil
 	end
 	if entry.updateKey then
 		NAlib.disconnect(entry.updateKey)
@@ -22662,6 +22834,97 @@ NAmanage.ESP_Key = function(model)
 	return tostring(model)
 end
 
+NAmanage.ESP_GetSecureHost = function()
+	local host = (NAlib.huiGrabber and NAlib.huiGrabber())
+		or COREGUI
+		or (Players and Players.LocalPlayer and Players.LocalPlayer:FindFirstChildOfClass("PlayerGui"))
+		or workspace.CurrentCamera
+	if typeof(host) == "Instance" then
+		return host
+	end
+	return nil
+end
+
+NAmanage.ESP_HardenVisual = function(inst)
+	if typeof(inst) ~= "Instance" then
+		return
+	end
+	pcall(function()
+		inst.Archivable = false
+	end)
+	if NAmanage.GetAttr(inst, "NA_ESP_SECURE") ~= true then
+		NAmanage.SetAttr(inst, "NA_ESP_SECURE", true)
+		pcall(function()
+			inst.Name = (NAgui.rStringgg and NAgui.rStringgg()) or "\0"
+		end)
+	end
+	local hiddenSetter = (opt and opt.hiddenprop) or hiddenprop or sethiddenproperty or set_hidden_property or set_hidden_prop
+	if hiddenSetter then
+		pcall(function()
+			hiddenSetter(inst, "RobloxLocked", true)
+		end)
+	end
+end
+
+NAmanage.ESP_EnsureSecureContainer = function()
+	local host = NAmanage.ESP_GetSecureHost()
+	if not host then
+		return nil
+	end
+	local container = NAStuff.ESP_SecureContainer
+	if container and not container.Parent then
+		NAStuff.ESP_SecureContainer = nil
+		container = nil
+	end
+	if not container then
+		container = InstanceNew("Folder")
+		NAStuff.ESP_SecureContainer = container
+	end
+	NAmanage.ESP_HardenVisual(container)
+	if container.Parent ~= host then
+		pcall(function()
+			container.Parent = host
+		end)
+	end
+	return container
+end
+
+NAmanage.ESP_StoreVisual = function(inst)
+	if typeof(inst) ~= "Instance" then
+		return nil
+	end
+	local container = NAmanage.ESP_EnsureSecureContainer()
+	if not container then
+		return nil
+	end
+	NAmanage.ESP_HardenVisual(inst)
+	if inst.Parent ~= container then
+		pcall(function()
+			inst.Parent = container
+		end)
+	end
+	return container
+end
+
+NAmanage.ESP_CollectTrackedBillboards = function(model, uid)
+	local list = {}
+	local seen = {}
+	local function scan(root)
+		if not (root and root.Parent) then
+			return
+		end
+		for _, d in ipairs(root:QueryDescendants("BillboardGui")) do
+			if not seen[d] and NAmanage.GetAttr(d, "NA_ESP_UID") == uid then
+				seen[d] = true
+				list[#list + 1] = d
+			end
+		end
+	end
+	scan(model)
+	scan(NAStuff.ESP_SecureContainer)
+	return list
+end
+
 NAmanage.ESP_DestroyLabel = function(model)
 	local data = espCONS[model]
 	if not data then return end
@@ -22681,11 +22944,9 @@ NAmanage.ESP_DestroyLabel = function(model)
 		data.drawingLabel = nil
 	end
 
-	if uid and model and model.Parent then
-		for _, d in ipairs(model:QueryDescendants("BillboardGui")) do
-			if NAmanage.GetAttr(d, "NA_ESP_UID") == uid then
-				d:Destroy()
-			end
+	if uid then
+		for _, d in ipairs(NAmanage.ESP_CollectTrackedBillboards(model, uid)) do
+			d:Destroy()
 		end
 	end
 end
@@ -22792,14 +23053,7 @@ NAmanage.ESP_EnsureLabel = function(model)
 		data.textLabel = nil
 	end
 
-	local list = {}
-	if model.Parent then
-		for _, d in ipairs(model:QueryDescendants("BillboardGui")) do
-			if NAmanage.GetAttr(d, "NA_ESP_UID") == uid then
-				list[#list + 1] = d
-			end
-		end
-	end
+	local list = NAmanage.ESP_CollectTrackedBillboards(model, uid)
 
 	local keep = nil
 	if bb and bb.Parent and NAmanage.GetAttr(bb, "NA_ESP_UID") == uid then
@@ -22822,7 +23076,7 @@ NAmanage.ESP_EnsureLabel = function(model)
 		keep.AlwaysOnTop = true
 		keep.Size = UDim2.new(0,150,0,40)
 		keep.StudsOffset = Vector3.new(0,2.5,0)
-		keep.Parent = anchor
+		NAmanage.ESP_StoreVisual(keep)
 
 		tl = InstanceNew("TextLabel")
 		tl.Size = UDim2.new(1,0,1,0)
@@ -22831,6 +23085,7 @@ NAmanage.ESP_EnsureLabel = function(model)
 		tl.TextStrokeTransparency = 0.5
 		tl.Text = ""
 		tl.Parent = keep
+		NAmanage.ESP_HardenVisual(tl)
 	else
 		if not (tl and tl.Parent == keep) then
 			tl = keep:FindFirstChildWhichIsA("TextLabel")
@@ -22847,7 +23102,8 @@ NAmanage.ESP_EnsureLabel = function(model)
 	end
 
 	keep.Adornee = anchor
-	keep.Parent = anchor
+	NAmanage.ESP_StoreVisual(keep)
+	NAmanage.ESP_HardenVisual(tl)
 
 	NAgui.applyLabelStyle(tl)
 	data.billboard = keep
@@ -22860,17 +23116,265 @@ NAmanage.ESP_RemoveDrawing = function(data)
 		NAmanage.DrawingRemoveObject(data.drawingBox)
 		data.drawingBox = nil
 	end
+	if data.drawingBoxOutline then
+		NAmanage.DrawingRemoveObject(data.drawingBoxOutline)
+		data.drawingBoxOutline = nil
+	end
+	if type(data.drawingCornerLines) == "table" then
+		for i = 1, #data.drawingCornerLines do
+			NAmanage.DrawingRemoveObject(data.drawingCornerLines[i])
+		end
+		data.drawingCornerLines = nil
+	end
+	if type(data.drawingCornerOutlineLines) == "table" then
+		for i = 1, #data.drawingCornerOutlineLines do
+			NAmanage.DrawingRemoveObject(data.drawingCornerOutlineLines[i])
+		end
+		data.drawingCornerOutlineLines = nil
+	end
+	if data.drawingTracer then
+		NAmanage.DrawingRemoveObject(data.drawingTracer)
+		data.drawingTracer = nil
+	end
+	if data.drawingTracerOutline then
+		NAmanage.DrawingRemoveObject(data.drawingTracerOutline)
+		data.drawingTracerOutline = nil
+	end
+end
+
+NAmanage.ESP_HideDrawingElements = function(data)
+	if not data then return end
+	local function hide(obj)
+		if obj then
+			pcall(function()
+				obj.Visible = false
+			end)
+		end
+	end
+	hide(data.drawingBox)
+	hide(data.drawingBoxOutline)
+	hide(data.drawingTracer)
+	hide(data.drawingTracerOutline)
+	if type(data.drawingCornerLines) == "table" then
+		for i = 1, #data.drawingCornerLines do
+			hide(data.drawingCornerLines[i])
+		end
+	end
+	if type(data.drawingCornerOutlineLines) == "table" then
+		for i = 1, #data.drawingCornerOutlineLines do
+			hide(data.drawingCornerOutlineLines[i])
+		end
+	end
+end
+
+NAmanage.ESP_GetDrawingBoxStyle = function()
+	return NAgui.sanitizeESPDrawingBoxStyle(NAStuff.ESP_DrawingBoxStyle)
+end
+
+NAmanage.ESP_GetDrawingTracerOrigin = function(viewportSize)
+	local vp = viewportSize or (workspace and workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize)
+	if typeof(vp) ~= "Vector2" then
+		return nil
+	end
+	local origin = NAgui.sanitizeESPDrawingTracerOrigin(NAStuff.ESP_DrawingTracerOrigin)
+	if origin == "Top" then
+		return Vector2.new(vp.X * 0.5, 18)
+	end
+	if origin == "Center" then
+		return Vector2.new(vp.X * 0.5, vp.Y * 0.5)
+	end
+	return Vector2.new(vp.X * 0.5, math.max(18, vp.Y - 18))
+end
+
+NAmanage.ESP_EnsureDrawingObjects = function(data)
+	if not data then return nil end
+	local style = NAmanage.ESP_GetDrawingBoxStyle()
+	local wantCorners = style == "Corners" and NAmanage.DrawingLineSupported()
+	local tracerEnabled = NAStuff.ESP_DrawingTracerEnabled == true and NAmanage.DrawingLineSupported()
+
+	if wantCorners then
+		if data.drawingBox then
+			NAmanage.DrawingRemoveObject(data.drawingBox)
+			data.drawingBox = nil
+		end
+		if data.drawingBoxOutline then
+			NAmanage.DrawingRemoveObject(data.drawingBoxOutline)
+			data.drawingBoxOutline = nil
+		end
+		if type(data.drawingCornerLines) ~= "table" then
+			data.drawingCornerLines = {}
+		end
+		if type(data.drawingCornerOutlineLines) ~= "table" then
+			data.drawingCornerOutlineLines = {}
+		end
+		for i = 1, 8 do
+			if not data.drawingCornerLines[i] then
+				data.drawingCornerLines[i] = NAmanage.DrawingCreateLine(Color3.new(1, 1, 1), 1, 1)
+			end
+			if not data.drawingCornerOutlineLines[i] then
+				data.drawingCornerOutlineLines[i] = NAmanage.DrawingCreateLine(Color3.new(0.1, 0.1, 0.1), 0.9, 3)
+			end
+		end
+	else
+		if type(data.drawingCornerLines) == "table" then
+			for i = 1, #data.drawingCornerLines do
+				NAmanage.DrawingRemoveObject(data.drawingCornerLines[i])
+			end
+			data.drawingCornerLines = nil
+		end
+		if type(data.drawingCornerOutlineLines) == "table" then
+			for i = 1, #data.drawingCornerOutlineLines do
+				NAmanage.DrawingRemoveObject(data.drawingCornerOutlineLines[i])
+			end
+			data.drawingCornerOutlineLines = nil
+		end
+		if not data.drawingBox then
+			data.drawingBox = NAmanage.DrawingCreateSquare(Color3.new(1, 1, 1), NAStuff.ESP_Transparency or 0.7)
+		end
+		if not data.drawingBoxOutline then
+			data.drawingBoxOutline = NAmanage.DrawingCreateSquare(Color3.new(0.1, 0.1, 0.1), 0.2)
+		end
+	end
+
+	if tracerEnabled then
+		if not data.drawingTracer then
+			data.drawingTracer = NAmanage.DrawingCreateLine(Color3.new(1, 1, 1), 0.7, tonumber(NAStuff.ESP_DrawingTracerThickness) or 1)
+		end
+		if not data.drawingTracerOutline then
+			data.drawingTracerOutline = NAmanage.DrawingCreateLine(Color3.new(0.1, 0.1, 0.1), 0.55, (tonumber(NAStuff.ESP_DrawingTracerThickness) or 1) + 2)
+		end
+	else
+		if data.drawingTracer then
+			NAmanage.DrawingRemoveObject(data.drawingTracer)
+			data.drawingTracer = nil
+		end
+		if data.drawingTracerOutline then
+			NAmanage.DrawingRemoveObject(data.drawingTracerOutline)
+			data.drawingTracerOutline = nil
+		end
+	end
+
+	return data.drawingBox or data.drawingBoxOutline or data.drawingTracer or data.drawingTracerOutline or (type(data.drawingCornerLines) == "table" and data.drawingCornerLines[1]) or (type(data.drawingCornerOutlineLines) == "table" and data.drawingCornerOutlineLines[1])
+end
+
+NAmanage.ESP_UpdateDrawingBox = function(data, inst, color, fillTransparency)
+	if not data then
+		return false
+	end
+	local minX, minY, width, height = NAgui.getInstanceViewportBounds(inst)
+	if not minX then
+		NAmanage.ESP_HideDrawingElements(data)
+		return true
+	end
+
+	local alpha = NAgui.toDrawingTransparency(fillTransparency or 0.7)
+	local mainThickness = math.max(1, tonumber(NAStuff.ESP_DrawingBoxThickness) or 1)
+	local outlineThickness = mainThickness + 2
+	local style = NAmanage.ESP_GetDrawingBoxStyle()
+
+	if style == "Corners" and type(data.drawingCornerLines) == "table" and type(data.drawingCornerOutlineLines) == "table" then
+		if data.drawingBox then pcall(function() data.drawingBox.Visible = false end) end
+		if data.drawingBoxOutline then pcall(function() data.drawingBoxOutline.Visible = false end) end
+		local segX = math.max(6, width * 0.25)
+		local segY = math.max(6, height * 0.25)
+		local points = {
+			{ Vector2.new(minX, minY), Vector2.new(minX + segX, minY) },
+			{ Vector2.new(minX + width, minY), Vector2.new(minX + width - segX, minY) },
+			{ Vector2.new(minX, minY + height), Vector2.new(minX + segX, minY + height) },
+			{ Vector2.new(minX + width, minY + height), Vector2.new(minX + width - segX, minY + height) },
+			{ Vector2.new(minX, minY), Vector2.new(minX, minY + segY) },
+			{ Vector2.new(minX + width, minY), Vector2.new(minX + width, minY + segY) },
+			{ Vector2.new(minX, minY + height), Vector2.new(minX, minY + height - segY) },
+			{ Vector2.new(minX + width, minY + height), Vector2.new(minX + width, minY + height - segY) },
+		}
+		if #data.drawingCornerLines < 8 then
+			for i = #data.drawingCornerLines + 1, 8 do
+				data.drawingCornerLines[i] = NAmanage.DrawingCreateLine(Color3.new(1, 1, 1), alpha, mainThickness)
+			end
+		end
+		if #data.drawingCornerOutlineLines < 8 then
+			for i = #data.drawingCornerOutlineLines + 1, 8 do
+				data.drawingCornerOutlineLines[i] = NAmanage.DrawingCreateLine(Color3.new(0.1, 0.1, 0.1), math.min(1, alpha + 0.15), outlineThickness)
+			end
+		end
+		for i = 1, 8 do
+			local seg = points[i]
+			if not NAmanage.DrawingUpdateLine(data.drawingCornerOutlineLines[i], seg[1], seg[2], Color3.new(0.1, 0.1, 0.1), math.min(1, alpha + 0.15), outlineThickness) then
+				return false
+			end
+			if not NAmanage.DrawingUpdateLine(data.drawingCornerLines[i], seg[1], seg[2], color, alpha, mainThickness) then
+				return false
+			end
+		end
+		return true
+	end
+
+	if type(data.drawingCornerLines) == "table" then
+		for i = 1, #data.drawingCornerLines do
+			pcall(function()
+				data.drawingCornerLines[i].Visible = false
+			end)
+		end
+	end
+	if type(data.drawingCornerOutlineLines) == "table" then
+		for i = 1, #data.drawingCornerOutlineLines do
+			pcall(function()
+				data.drawingCornerOutlineLines[i].Visible = false
+			end)
+		end
+	end
+	local ok = true
+	if data.drawingBoxOutline then
+		ok = NAmanage.DrawingUpdateSquare(data.drawingBoxOutline, inst, Color3.new(0.1, 0.1, 0.1), 0.15) and ok
+		pcall(function()
+			data.drawingBoxOutline.Thickness = outlineThickness
+		end)
+	end
+	if data.drawingBox then
+		ok = NAmanage.DrawingUpdateSquare(data.drawingBox, inst, color, fillTransparency) and ok
+		pcall(function()
+			data.drawingBox.Thickness = mainThickness
+		end)
+	end
+	return ok
+end
+
+NAmanage.ESP_UpdateDrawingTracer = function(data, inst, color)
+	if not data then
+		return false
+	end
+	if NAStuff.ESP_DrawingTracerEnabled ~= true then
+		if data.drawingTracer then pcall(function() data.drawingTracer.Visible = false end) end
+		if data.drawingTracerOutline then pcall(function() data.drawingTracerOutline.Visible = false end) end
+		return true
+	end
+	local cam = workspace and workspace.CurrentCamera
+	if not cam then
+		return false
+	end
+	local minX, minY, width, height = NAgui.getInstanceViewportBounds(inst, cam)
+	if not minX then
+		if data.drawingTracer then pcall(function() data.drawingTracer.Visible = false end) end
+		if data.drawingTracerOutline then pcall(function() data.drawingTracerOutline.Visible = false end) end
+		return true
+	end
+	local fromPos = NAmanage.ESP_GetDrawingTracerOrigin(cam.ViewportSize)
+	local toPos = Vector2.new(minX + width * 0.5, minY + height)
+	local thickness = math.max(1, tonumber(NAStuff.ESP_DrawingTracerThickness) or 1)
+	local alpha = math.clamp(0.75, 0, 1)
+	local ok = true
+	if data.drawingTracerOutline then
+		ok = NAmanage.DrawingUpdateLine(data.drawingTracerOutline, fromPos, toPos, Color3.new(0.1, 0.1, 0.1), math.max(0, alpha - 0.15), thickness + 2) and ok
+	end
+	if data.drawingTracer then
+		ok = NAmanage.DrawingUpdateLine(data.drawingTracer, fromPos, toPos, color, alpha, thickness) and ok
+	end
+	return ok
 end
 
 NAmanage.ESP_EnsureDrawing = function(data)
 	if not data then return nil end
-	local box = data.drawingBox
-	if box then
-		return box
-	end
-	box = NAmanage.DrawingCreateSquare(Color3.new(1, 1, 1), NAStuff.ESP_Transparency or 0.7)
-	data.drawingBox = box
-	return box
+	return NAmanage.ESP_EnsureDrawingObjects(data)
 end
 
 NAmanage.ESP_RecoverFromDrawingFailure = function(model, data)
@@ -22910,7 +23414,7 @@ NAmanage.ESP_AddBoxForPart = function(model, part)
 	box.Transparency = NAgui.sanitizeTransparency(NAStuff.ESP_Transparency or 0.7)
 	box.Size = part.Size
 	box.Color3 = Color3.new(1,1,1)
-	box.Parent = part
+	NAmanage.ESP_StoreVisual(box)
 	data.boxTable[part] = box
 end
 
@@ -22947,7 +23451,7 @@ NAmanage.ESP_AddBoxes = function(model)
 			hl.OutlineColor = baseColor
 			hl.FillTransparency = NAgui.sanitizeTransparency(NAStuff.ESP_Transparency or 0.7)
 			hl.OutlineTransparency = outline
-			hl.Parent = model
+			NAmanage.ESP_StoreVisual(hl)
 
 			data.highlight = hl
 			NAmanage.ESP_AdjustHighlightMaterial(model, true)
@@ -23002,7 +23506,7 @@ NAmanage.ESP_AddBoxes = function(model)
 			hl.OutlineColor = baseColor
 			hl.FillTransparency = NAgui.sanitizeTransparency(NAStuff.ESP_Transparency or 0.7)
 			hl.OutlineTransparency = outline
-			hl.Parent = model
+			NAmanage.ESP_StoreVisual(hl)
 
 			data.highlight = hl
 			NAmanage.ESP_AdjustHighlightMaterial(model, true)
@@ -23199,6 +23703,7 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 				end
 			end
 			if highlight then
+				NAmanage.ESP_StoreVisual(highlight)
 				local tr = NAgui.sanitizeTransparency(NAStuff.ESP_Transparency or 0.7)
 				if highlight.FillTransparency ~= tr then highlight.FillTransparency = tr end
 				local outline = NAgui.sanitizeTransparency(NAStuff.ESP_OutlineTransparency or 0)
@@ -23219,11 +23724,13 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 				data.highlight:Destroy()
 				data.highlight = nil
 			end
-			local drawingBox = data.drawingBox or NAmanage.ESP_EnsureDrawing(data)
-			if drawingBox then
+			local drawingReady = NAmanage.ESP_EnsureDrawing(data)
+			if drawingReady then
 				local tr = NAgui.sanitizeTransparency(NAStuff.ESP_Transparency or 0.7)
 				local color = finalColor or Color3.new(1, 1, 1)
-				if not NAmanage.DrawingUpdateSquare(drawingBox, model, color, tr) then
+				local okBox = NAmanage.ESP_UpdateDrawingBox(data, model, color, tr)
+				local okTracer = NAmanage.ESP_UpdateDrawingTracer(data, model, color)
+				if not okBox or not okTracer then
 					NAmanage.ESP_RecoverFromDrawingFailure(model, data)
 				end
 			else
@@ -23246,6 +23753,7 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 				end
 			end
 			if highlight then
+				NAmanage.ESP_StoreVisual(highlight)
 				local tr = NAgui.sanitizeTransparency(NAStuff.ESP_Transparency or 0.7)
 				if highlight.FillTransparency ~= tr then highlight.FillTransparency = tr end
 				local outline = NAgui.sanitizeTransparency(NAStuff.ESP_OutlineTransparency or 0)
@@ -23258,10 +23766,14 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 			NAmanage.ESP_RemoveDrawing(data)
 			local tr = NAgui.sanitizeTransparency(NAStuff.ESP_Transparency or 0.7)
 			for part, box in pairs(data.boxTable) do
-				if not part or not part.Parent then
+				if not part or not part.Parent or not box or not box.Parent then
 					if box then box:Destroy() end
 					data.boxTable[part] = nil
+					if part and part.Parent and wantBoxes then
+						NAmanage.ESP_AddBoxForPart(model, part)
+					end
 				else
+					NAmanage.ESP_StoreVisual(box)
 					if box.Color3 ~= finalColor then box.Color3 = finalColor end
 					if part:IsA("BasePart") and box.Size ~= part.Size then box.Size = part.Size end
 					if box.Transparency ~= tr then box.Transparency = tr end
@@ -58556,7 +59068,7 @@ NAmanage.CreateBox = function(part, color, transparency)
 	end
 	if not useDrawing then
 		if useHighlight then
-			visual = InstanceNew("Highlight", part)
+			visual = InstanceNew("Highlight")
 			visual.Name = adornName
 			visual.Adornee = part
 			visual.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
@@ -58565,19 +59077,21 @@ NAmanage.CreateBox = function(part, color, transparency)
 			visual.FillTransparency = entryTransparency
 			visual.OutlineTransparency = NAgui.sanitizeTransparency(NAStuff.ESP_OutlineTransparency or 0)
 			visual.Enabled = false
+			NAmanage.ESP_StoreVisual(visual)
 			Defer(function()
 				if visual and visual.Parent then
 					visual.Enabled = true
 				end
 			end)
 		else
-			visual = InstanceNew("BoxHandleAdornment", part)
+			visual = InstanceNew("BoxHandleAdornment")
 			visual.Name = adornName
 			visual.Adornee = part
 			visual.AlwaysOnTop = true
 			visual.ZIndex = 0
 			visual.Transparency = entryTransparency
 			visual.Color3 = lighter
+			NAmanage.ESP_StoreVisual(visual)
 		end
 	end
 	local bb, tl, gr, drawingLabel = nil, nil, nil, nil
@@ -58585,13 +59099,14 @@ NAmanage.CreateBox = function(part, color, transparency)
 		drawingLabel = NAmanage.DrawingCreateText(part.Name, lighter, NAStuff.ESP_LabelTextSize)
 	end
 	if (not useDrawing) or (not drawingLabel) then
-		bb = InstanceNew("BillboardGui", part)
+		bb = InstanceNew("BillboardGui")
 		bb.Name = Lower(part.Name).."_label"
 		bb.Adornee = part
 		bb.Size = UDim2.new(0, 160, 0, 28)
 		bb.StudsOffset = Vector3.new(0, 0.5, 0)
 		bb.AlwaysOnTop = true
 		bb.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+		NAmanage.ESP_StoreVisual(bb)
 		tl = InstanceNew("TextLabel", bb)
 		tl.Size = UDim2.new(1, 0, 1, 0)
 		tl.BackgroundTransparency = 1
@@ -58603,10 +59118,17 @@ NAmanage.CreateBox = function(part, color, transparency)
 		NAgui.applyLabelStyle(tl)
 		gr = InstanceNew("UIGradient", tl)
 		gr.Color = ColorSequence.new(darker, lighter)
+		NAmanage.ESP_HardenVisual(bb)
 	end
 	local function update()
 		if not part or not part.Parent then return end
 		if bb and not bb.Parent then return end
+		if visual and visual.Parent then
+			NAmanage.ESP_StoreVisual(visual)
+		end
+		if bb and bb.Parent then
+			NAmanage.ESP_StoreVisual(bb)
+		end
 		local sizeY = 2.5
 		if part:IsA("Model") then
 			local ok, _, ms = pcall(part.GetBoundingBox, part)
@@ -58668,7 +59190,6 @@ end
 
 NAmanage.RemoveEspFromPart = function(part)
 	if not part then return end
-	local removed = false
 	local partMap = NAStuff.partESPPartMap
 	local bucket = type(partMap) == "table" and partMap[part] or nil
 	if type(bucket) == "table" then
@@ -58677,12 +59198,8 @@ NAmanage.RemoveEspFromPart = function(part)
 			removeList[#removeList + 1] = entry
 		end
 		for i = 1, #removeList do
-			removed = true
 			NAmanage.PartESP_UnregisterEntry(removeList[i])
 		end
-	end
-	if removed then
-		return
 	end
 	for _, child in ipairs(part:GetChildren()) do
 		if (child:IsA("BoxHandleAdornment") or child:IsA("Highlight")) and Sub(child.Name,-7) == "_peepee" then
@@ -87219,8 +87736,10 @@ NAgui.addSection("Visuals & Color")
 NAgui.addInfo("Drawing API Warning", "Drawing library may break with DisableDirect3D11 or PreferVulkan if a bootstrapper manages them (aka: voidstrap)")
 
 local espRenderOptions = NAgui.getESPRenderModeOptions()
-NAStuff.ESP_RenderMode = NAgui.sanitizeESPRenderMode(NAStuff.ESP_RenderMode, "BoxHandleAdornment")
-NAStuff.ESP_PartRenderMode = NAgui.sanitizeESPRenderMode(NAStuff.ESP_PartRenderMode, NAStuff.ESP_RenderMode)
+NAStuff.ESP_RenderMode = NAgui.sanitizeESPRenderMode(NAStuff.ESP_RenderMode, "Highlight")
+NAStuff.ESP_PartRenderMode = NAgui.sanitizeESPRenderMode(NAStuff.ESP_PartRenderMode, "BoxHandleAdornment")
+NAStuff.ESP_DrawingBoxStyle = NAgui.sanitizeESPDrawingBoxStyle(NAStuff.ESP_DrawingBoxStyle)
+NAStuff.ESP_DrawingTracerOrigin = NAgui.sanitizeESPDrawingTracerOrigin(NAStuff.ESP_DrawingTracerOrigin)
 
 NAgui.addDropdown("ESP Render Mode", espRenderOptions, NAStuff.ESP_RenderMode, function(selection)
 	local picked = type(selection) == "table" and selection[1] or selection
@@ -87300,6 +87819,52 @@ NAgui.addSlider("Highlight Outline Transparency", 0, 1, NAgui.sanitizeTransparen
 	end
 	NAmanage.SaveESPSettings()
 	NAmanage.PartESP_UpdateTexts(true)
+end)
+
+NAgui.addSection("Player Drawing API")
+
+NAgui.addDropdown("Drawing Box Style", NAgui.getESPDrawingBoxStyleOptions(), NAStuff.ESP_DrawingBoxStyle, function(selection)
+	local picked = type(selection) == "table" and selection[1] or selection
+	local style = NAgui.sanitizeESPDrawingBoxStyle(picked)
+	if style == NAStuff.ESP_DrawingBoxStyle then
+		return
+	end
+	NAStuff.ESP_DrawingBoxStyle = style
+	NAmanage.SaveESPSettings()
+	NAmanage.ESP_RebuildVisuals()
+end)
+
+NAgui.addSlider("Drawing Box Thickness", 1, 6, math.clamp(tonumber(NAStuff.ESP_DrawingBoxThickness) or 1, 1, 6), 1, " px", function(v)
+	NAStuff.ESP_DrawingBoxThickness = math.clamp(tonumber(v) or 1, 1, 6)
+	NAmanage.SaveESPSettings()
+end)
+
+NAgui.addToggle("Drawing Text Outline", NAStuff.ESP_DrawingTextOutline ~= false, function(state)
+	NAStuff.ESP_DrawingTextOutline = state ~= false
+	NAmanage.SaveESPSettings()
+	NAmanage.ESP_ApplyLabelStyles()
+end)
+
+NAgui.addToggle("Drawing Tracers", NAStuff.ESP_DrawingTracerEnabled == true, function(state)
+	NAStuff.ESP_DrawingTracerEnabled = state == true
+	NAmanage.SaveESPSettings()
+	NAmanage.ESP_RebuildVisuals()
+end)
+
+NAgui.addDropdown("Tracer Origin", NAgui.getESPDrawingTracerOriginOptions(), NAStuff.ESP_DrawingTracerOrigin, function(selection)
+	local picked = type(selection) == "table" and selection[1] or selection
+	local origin = NAgui.sanitizeESPDrawingTracerOrigin(picked)
+	if origin == NAStuff.ESP_DrawingTracerOrigin then
+		return
+	end
+	NAStuff.ESP_DrawingTracerOrigin = origin
+	NAmanage.SaveESPSettings()
+end)
+
+NAgui.addSlider("Tracer Thickness", 1, 6, math.clamp(tonumber(NAStuff.ESP_DrawingTracerThickness) or 1, 1, 6), 1, " px", function(v)
+	NAStuff.ESP_DrawingTracerThickness = math.clamp(tonumber(v) or 1, 1, 6)
+	NAmanage.SaveESPSettings()
+	NAmanage.ESP_RebuildVisuals()
 end)
 
 NAgui.addSection("Visibility & Performance")
