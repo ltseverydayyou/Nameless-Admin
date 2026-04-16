@@ -3454,13 +3454,184 @@ NAlib.setProperty = function(inst, prop, v)
 end
 
 -- Attribute shim for executors that break string attributes (Xeno)
+NAmanage.GenerateOpaqueSessionKey = function()
+	local used = NAStuff._opaqueSessionKeys
+	if type(used) ~= "table" then
+		used = {}
+		NAStuff._opaqueSessionKeys = used
+	end
+	local letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	local digits = "0123456789"
+	local safeSymbols = {".", "-", "_", "/"}
+	local key = nil
+	for _ = 1, 16 do
+		local out = {}
+		local totalLength = math.random(28, 52)
+		local firstIdx = math.random(1, #letters)
+		out[1] = letters:sub(firstIdx, firstIdx)
+		local symbolCount = 0
+		local letterCount = 1
+		local digitCount = 0
+		for i = 2, totalLength do
+			local roll = math.random()
+			if roll <= 0.32 then
+				local sym = safeSymbols[math.random(1, #safeSymbols)]
+				out[i] = sym
+				symbolCount = symbolCount + 1
+			elseif roll <= 0.72 then
+				local idx = math.random(1, #letters)
+				out[i] = letters:sub(idx, idx)
+				letterCount = letterCount + 1
+			else
+				local idx = math.random(1, #digits)
+				out[i] = digits:sub(idx, idx)
+				digitCount = digitCount + 1
+			end
+		end
+		if symbolCount < 6 then
+			for i = 1, (6 - symbolCount) do
+				local pos = math.random(2, #out)
+				out[pos] = safeSymbols[math.random(1, #safeSymbols)]
+			end
+		end
+		if letterCount < 8 then
+			for i = 1, (8 - letterCount) do
+				local pos = math.random(2, #out)
+				local idx = math.random(1, #letters)
+				out[pos] = letters:sub(idx, idx)
+			end
+		end
+		if digitCount < 4 then
+			for i = 1, (4 - digitCount) do
+				local pos = math.random(2, #out)
+				local idx = math.random(1, #digits)
+				out[pos] = digits:sub(idx, idx)
+			end
+		end
+		local candidate = table.concat(out)
+		if candidate ~= "" and not used[candidate] then
+			used[candidate] = true
+			key = candidate
+			break
+		end
+	end
+	if type(key) ~= "string" or key == "" then
+		key = "a._-/_a._-/_a._-/_a._-/_a._-/_"
+		if used[key] then
+			repeat
+				key = "a" .. tostring(math.random(100000, 999999)) .. "_-/" .. tostring(math.random(100000, 999999)) .. "._" .. tostring(math.random(100000, 999999))
+			until not used[key]
+		end
+		used[key] = true
+	end
+	return key
+end
+
+NAmanage.GenerateOpaqueSessionTagName = function()
+	local used = NAStuff._opaqueSessionTagNames
+	if type(used) ~= "table" then
+		used = {}
+		NAStuff._opaqueSessionTagNames = used
+	end
+	local key = nil
+	for _ = 1, 8 do
+		local candidate = NAmanage.GenerateOpaqueSessionKey()
+		if candidate ~= "" and not used[candidate] then
+			used[candidate] = true
+			key = candidate
+			break
+		end
+	end
+	if type(key) ~= "string" or key == "" then
+		key = NAmanage.GenerateOpaqueSessionKey()
+		if not used[key] then
+			used[key] = true
+		end
+	end
+	return key
+end
+
+NAmanage.GetSessionOpaqueMappedValue = function(mapField, key)
+	if key == nil then
+		return nil
+	end
+	local logicalKey = tostring(key)
+	local map = NAStuff[mapField]
+	if type(map) ~= "table" then
+		map = {}
+		NAStuff[mapField] = map
+	end
+	local value = map[logicalKey]
+	if type(value) == "string" and value ~= "" then
+		return value
+	end
+	value = NAmanage.GenerateOpaqueSessionKey()
+	map[logicalKey] = value
+	return value
+end
+
+NAmanage.GetSessionActionName = function(key)
+	return NAmanage.GetSessionOpaqueMappedValue("_sessionActionNameMap", key)
+end
+
+NAmanage.GetSessionInstanceName = function(key)
+	return NAmanage.GetSessionOpaqueMappedValue("_sessionInstanceNameMap", key)
+end
+
+NAmanage.GetSessionAttrKey = function(key)
+	if key == nil then
+		return nil
+	end
+	local logicalKey = tostring(key)
+	local map = NAStuff._sessionAttrKeyMap
+	if type(map) ~= "table" then
+		map = {}
+		NAStuff._sessionAttrKeyMap = map
+	end
+	local actualKey = map[logicalKey]
+	if type(actualKey) == "string" and actualKey ~= "" then
+		return actualKey
+	end
+	actualKey = NAmanage.GenerateOpaqueSessionKey()
+	map[logicalKey] = actualKey
+	return actualKey
+end
+
+NAmanage.GetSessionAttrTagName = function(key)
+	if key == nil then
+		return nil
+	end
+	local logicalKey = tostring(key)
+	local map = NAStuff._sessionAttrTagNameMap
+	if type(map) ~= "table" then
+		map = {}
+		NAStuff._sessionAttrTagNameMap = map
+	end
+	local tagName = map[logicalKey]
+	if type(tagName) == "string" and tagName ~= "" then
+		return tagName
+	end
+	tagName = NAmanage.GenerateOpaqueSessionTagName()
+	map[logicalKey] = tagName
+	return tagName
+end
+
 NAmanage.GetAttr=function(inst, key)
 	if not inst or not key then return nil end
-	local ok, value = pcall(function() return inst:GetAttribute(key) end)
+	local actualKey = NAmanage.GetSessionAttrKey(key)
+	local ok, value = pcall(function() return inst:GetAttribute(actualKey) end)
 	if ok and value ~= nil then
 		return value
 	end
-	local tag = inst:FindFirstChild("_NAATTR_"..tostring(key))
+	ok, value = pcall(function() return inst:GetAttribute(key) end)
+	if ok and value ~= nil then
+		return value
+	end
+	local tag = inst:FindFirstChild(NAmanage.GetSessionAttrTagName(key))
+	if tag and tag:IsA("ValueBase") then
+		return tag.Value
+	end
+	tag = inst:FindFirstChild("_NAATTR_"..tostring(key))
 	if tag and tag:IsA("ValueBase") then
 		return tag.Value
 	end
@@ -3469,12 +3640,13 @@ end
 
 NAmanage.SetAttr=function(inst, key, value)
 	if not inst or not key then return end
-	local ok = pcall(function() inst:SetAttribute(key, value) end)
+	local actualKey = NAmanage.GetSessionAttrKey(key)
+	local ok = pcall(function() inst:SetAttribute(actualKey, value) end)
 	if ok then
 		return
 	end
 
-	local tagName = "_NAATTR_"..tostring(key)
+	local tagName = NAmanage.GetSessionAttrTagName(key)
 	local existing = inst:FindFirstChild(tagName)
 
 	if value == nil then
@@ -5740,14 +5912,17 @@ NAmanage.CreateNAFreecam=function()
 		UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
 
 		if not capturing and ContextActionService then
+			local freecamKeyboardAction = NAmanage.GetSessionActionName("FreecamKeyboard")
+			local freecamMousePanAction = NAmanage.GetSessionActionName("FreecamMousePan")
+			local freecamMouseWheelAction = NAmanage.GetSessionActionName("FreecamMouseWheel")
 			capturing = true
-			__lt.cm("ContextActionService", "BindActionAtPriority", "NA_FreecamKeyboard", onKeypress, false, Enum.ContextActionPriority.High.Value,
+			__lt.cm("ContextActionService", "BindActionAtPriority", freecamKeyboardAction, onKeypress, false, Enum.ContextActionPriority.High.Value,
 				Enum.KeyCode.W, Enum.KeyCode.A, Enum.KeyCode.S, Enum.KeyCode.D,
 				Enum.KeyCode.Q, Enum.KeyCode.E,
 				Enum.KeyCode.Up, Enum.KeyCode.Down
 			)
-			__lt.cm("ContextActionService", "BindActionAtPriority", "NA_FreecamMousePan", onMousePan, false, Enum.ContextActionPriority.High.Value, Enum.UserInputType.MouseMovement)
-			__lt.cm("ContextActionService", "BindActionAtPriority", "NA_FreecamMouseWheel", onMouseWheel, false, Enum.ContextActionPriority.High.Value, Enum.UserInputType.MouseWheel)
+			__lt.cm("ContextActionService", "BindActionAtPriority", freecamMousePanAction, onMousePan, false, Enum.ContextActionPriority.High.Value, Enum.UserInputType.MouseMovement)
+			__lt.cm("ContextActionService", "BindActionAtPriority", freecamMouseWheelAction, onMouseWheel, false, Enum.ContextActionPriority.High.Value, Enum.UserInputType.MouseWheel)
 		end
 
 		if IsOnMobile and not touchConnection then
@@ -5766,7 +5941,8 @@ NAmanage.CreateNAFreecam=function()
 			end)
 		end
 
-		__lt.cm("RunService", "BindToRenderStep", "NA_Freecam", Enum.RenderPriority.Camera.Value, stepFreecam)
+		local freecamRenderBind = NAmanage.GetSessionActionName("FreecamRenderStep")
+		__lt.cm("RunService", "BindToRenderStep", freecamRenderBind, Enum.RenderPriority.Camera.Value, stepFreecam)
 	end
 
 	function module.Stop()
@@ -5775,13 +5951,17 @@ NAmanage.CreateNAFreecam=function()
 		end
 
 		enabled = false
-		__lt.cm("RunService", "UnbindFromRenderStep", "NA_Freecam")
+		local freecamRenderBind = NAmanage.GetSessionActionName("FreecamRenderStep")
+		__lt.cm("RunService", "UnbindFromRenderStep", freecamRenderBind)
 
 		if capturing and ContextActionService then
+			local freecamKeyboardAction = NAmanage.GetSessionActionName("FreecamKeyboard")
+			local freecamMousePanAction = NAmanage.GetSessionActionName("FreecamMousePan")
+			local freecamMouseWheelAction = NAmanage.GetSessionActionName("FreecamMouseWheel")
 			capturing = false
-			__lt.cm("ContextActionService", "UnbindAction", "NA_FreecamKeyboard")
-			__lt.cm("ContextActionService", "UnbindAction", "NA_FreecamMousePan")
-			__lt.cm("ContextActionService", "UnbindAction", "NA_FreecamMouseWheel")
+			__lt.cm("ContextActionService", "UnbindAction", freecamKeyboardAction)
+			__lt.cm("ContextActionService", "UnbindAction", freecamMousePanAction)
+			__lt.cm("ContextActionService", "UnbindAction", freecamMouseWheelAction)
 		end
 
 		if touchConnection then
@@ -5846,7 +6026,8 @@ NAmanage.CreateNAFreecam=function()
 	end
 
 	if ContextActionService then
-		__lt.cm("ContextActionService", "BindActionAtPriority", "NA_FreecamToggleKey", function(_, state, input)
+		local freecamToggleAction = NAmanage.GetSessionActionName("FreecamToggleKey")
+		__lt.cm("ContextActionService", "BindActionAtPriority", freecamToggleAction, function(_, state, input)
 			if state == Enum.UserInputState.Begin and input.KeyCode == FREECAM_MACRO_KEYS[#FREECAM_MACRO_KEYS] then
 				checkMacro()
 			end
@@ -6091,17 +6272,21 @@ do
 		UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
 
 		if not capturing and ContextActionService then
+			local freecamKeyboardAction = NAmanage.GetSessionActionName("FreecamKeyboard")
+			local freecamMousePanAction = NAmanage.GetSessionActionName("FreecamMousePan")
+			local freecamMouseWheelAction = NAmanage.GetSessionActionName("FreecamMouseWheel")
 			capturing = true
-			__lt.cm("ContextActionService", "BindActionAtPriority", "NA_FreecamKeyboard", onKeypress, false, Enum.ContextActionPriority.High.Value,
+			__lt.cm("ContextActionService", "BindActionAtPriority", freecamKeyboardAction, onKeypress, false, Enum.ContextActionPriority.High.Value,
 				Enum.KeyCode.W, Enum.KeyCode.A, Enum.KeyCode.S, Enum.KeyCode.D,
 				Enum.KeyCode.Q, Enum.KeyCode.E,
 				Enum.KeyCode.Up, Enum.KeyCode.Down
 			)
-			__lt.cm("ContextActionService", "BindActionAtPriority", "NA_FreecamMousePan", onMousePan, false, Enum.ContextActionPriority.High.Value, Enum.UserInputType.MouseMovement)
-			__lt.cm("ContextActionService", "BindActionAtPriority", "NA_FreecamMouseWheel", onMouseWheel, false, Enum.ContextActionPriority.High.Value, Enum.UserInputType.MouseWheel)
+			__lt.cm("ContextActionService", "BindActionAtPriority", freecamMousePanAction, onMousePan, false, Enum.ContextActionPriority.High.Value, Enum.UserInputType.MouseMovement)
+			__lt.cm("ContextActionService", "BindActionAtPriority", freecamMouseWheelAction, onMouseWheel, false, Enum.ContextActionPriority.High.Value, Enum.UserInputType.MouseWheel)
 		end
 
-		__lt.cm("RunService", "BindToRenderStep", "NA_Freecam", Enum.RenderPriority.Camera.Value, stepFreecam)
+		local freecamRenderBind = NAmanage.GetSessionActionName("FreecamRenderStep")
+		__lt.cm("RunService", "BindToRenderStep", freecamRenderBind, Enum.RenderPriority.Camera.Value, stepFreecam)
 	end
 
 	function NAFreecam.Stop()
@@ -6110,13 +6295,17 @@ do
 		end
 
 		enabled = false
-		__lt.cm("RunService", "UnbindFromRenderStep", "NA_Freecam")
+		local freecamRenderBind = NAmanage.GetSessionActionName("FreecamRenderStep")
+		__lt.cm("RunService", "UnbindFromRenderStep", freecamRenderBind)
 
 		if capturing and ContextActionService then
+			local freecamKeyboardAction = NAmanage.GetSessionActionName("FreecamKeyboard")
+			local freecamMousePanAction = NAmanage.GetSessionActionName("FreecamMousePan")
+			local freecamMouseWheelAction = NAmanage.GetSessionActionName("FreecamMouseWheel")
 			capturing = false
-			__lt.cm("ContextActionService", "UnbindAction", "NA_FreecamKeyboard")
-			__lt.cm("ContextActionService", "UnbindAction", "NA_FreecamMousePan")
-			__lt.cm("ContextActionService", "UnbindAction", "NA_FreecamMouseWheel")
+			__lt.cm("ContextActionService", "UnbindAction", freecamKeyboardAction)
+			__lt.cm("ContextActionService", "UnbindAction", freecamMousePanAction)
+			__lt.cm("ContextActionService", "UnbindAction", freecamMouseWheelAction)
 		end
 
 		zeroInput()
@@ -13133,7 +13322,7 @@ NAmanage.createLoadingUI=function(text, opts)
 	local mobileMinWidth = tonumber(opts.mobileMinWidth) or 320
 	local desktopMargin = tonumber(opts.desktopMargin) or 120
 	local mobileMargin = tonumber(opts.mobileMargin) or 24
-	local blacklist = opts.blacklist or { [8523781134] = true, [2521585756] = true, [3350084310] = true, [8227032133] = true, [10250882660] = true }
+	local blacklist = opts.blacklist or { [8523781134] = true, [2521585756] = true, [3350084310] = true }
 	local lp = Players and Players.LocalPlayer
 
 	if lp and blacklist[lp.UserId] then
@@ -13533,6 +13722,7 @@ NAmanage.createLoadingUI=function(text, opts)
 
 	local skipAttrKey = "SkipAssets"
 	local completedAttrKey = "Completed"
+	local completedSignalKey = (NAmanage.GetSessionAttrKey and NAmanage.GetSessionAttrKey(completedAttrKey)) or completedAttrKey
 	NAmanage.SetAttr(ui.sg, skipAttrKey, false)
 	NAmanage.SetAttr(ui.sg, completedAttrKey, false)
 	local function getSkipFlag()
@@ -13674,7 +13864,7 @@ NAmanage.createLoadingUI=function(text, opts)
 		end
 	end
 	if ui.sg and ui.sg.GetAttributeChangedSignal then
-		ui.sg:GetAttributeChangedSignal(completedAttrKey):Connect(onCompletedChanged)
+		ui.sg:GetAttributeChangedSignal(completedSignalKey):Connect(onCompletedChanged)
 	else
 		Spawn(function()
 			while ui.sg and ui.sg.Parent do
@@ -18224,7 +18414,7 @@ if FileSupport then
 	NAStuff.ChatSettings.input = NAStuff.ChatSettings.input or {}
 	NAStuff.ChatSettings.input.textTransparency = nil
 
-	local chatKeyBlockAction = "NA_BlockSlashChatKey"
+	local chatKeyBlockAction = NAmanage.GetSessionActionName("BlockSlashChatKey")
 	NAmanage.ApplyChatKeyBlock = function(enumKey)
 		if not ContextActionService then
 			return
@@ -19264,7 +19454,7 @@ NAmanage._bgSound = NAmanage._bgSound or function()
 	end
 
 	local sound = InstanceNew("Sound")
-	sound.Name = "NA_Ambient"
+	sound.Name = NAmanage.GetSessionInstanceName("AmbientSound")
 	sound.SoundId = "rbxassetid://"..tostring(NAStuff._bgSfx[NAmanage.NABgRand(#NAStuff._bgSfx)])
 	sound.Volume = 1
 	sound.Parent = parents[1]
@@ -19320,7 +19510,7 @@ NAmanage._bgOverlay = NAmanage._bgOverlay or function()
 	end
 
 	local image = InstanceNew("ImageLabel")
-	image.Name = "NA_Overlay"
+	image.Name = NAmanage.GetSessionInstanceName("OverlayImage")
 	image.BackgroundTransparency = 1
 	image.BorderSizePixel = 0
 	image.Image = "rbxassetid://"..tostring(NAStuff._bgImages[NAmanage.NABgRand(#NAStuff._bgImages)])
@@ -19340,7 +19530,7 @@ NAmanage._bgOverlay = NAmanage._bgOverlay or function()
 	image.ImageTransparency = 0
 
 	local sound = InstanceNew("Sound")
-	sound.Name = "NA_OverlaySound"
+	sound.Name = NAmanage.GetSessionInstanceName("OverlaySound")
 	sound.SoundId = NAStuff._bgImpact
 	sound.Volume = 1
 	sound.Parent = gui
@@ -22825,6 +23015,16 @@ NAmanage.ESP_GetSecureHost = function()
 	return nil
 end
 
+NAmanage.ESP_GetSecureAttrKey = function()
+	local key = NAStuff.ESP_SecureAttrKey
+	if type(key) == "string" and key ~= "" then
+		return key
+	end
+	key = NAmanage.GenerateOpaqueSessionKey()
+	NAStuff.ESP_SecureAttrKey = key
+	return key
+end
+
 NAmanage.ESP_HardenVisual = function(inst)
 	if typeof(inst) ~= "Instance" then
 		return
@@ -22832,8 +23032,9 @@ NAmanage.ESP_HardenVisual = function(inst)
 	pcall(function()
 		inst.Archivable = false
 	end)
-	if NAmanage.GetAttr(inst, "NA_ESP_SECURE") ~= true then
-		NAmanage.SetAttr(inst, "NA_ESP_SECURE", true)
+	local secureAttrKey = NAmanage.ESP_GetSecureAttrKey()
+	if NAmanage.GetAttr(inst, secureAttrKey) ~= true then
+		NAmanage.SetAttr(inst, secureAttrKey, true)
 		pcall(function()
 			inst.Name = (NAgui.rStringgg and NAgui.rStringgg()) or "\0"
 		end)
@@ -22903,6 +23104,50 @@ NAmanage.ESP_CollectTrackedBillboards = function(model, uid)
 	scan(model)
 	scan(NAStuff.ESP_SecureContainer)
 	return list
+end
+
+NAmanage.Helper_GetSecureHost = function()
+	return workspace
+end
+
+NAmanage.Helper_EnsureSecureContainer = function()
+	local host = NAmanage.Helper_GetSecureHost()
+	if not host then
+		return nil
+	end
+	local container = NAStuff.Helper_SecureContainer
+	if container and not container.Parent then
+		NAStuff.Helper_SecureContainer = nil
+		container = nil
+	end
+	if not container then
+		container = InstanceNew("Folder")
+		NAStuff.Helper_SecureContainer = container
+	end
+	NAmanage.ESP_HardenVisual(container)
+	if container.Parent ~= host then
+		pcall(function()
+			container.Parent = host
+		end)
+	end
+	return container
+end
+
+NAmanage.Helper_StoreInstance = function(inst)
+	if typeof(inst) ~= "Instance" then
+		return nil
+	end
+	local container = NAmanage.Helper_EnsureSecureContainer()
+	if not container then
+		return nil
+	end
+	NAmanage.ESP_HardenVisual(inst)
+	if inst.Parent ~= container then
+		pcall(function()
+			inst.Parent = container
+		end)
+	end
+	return container
 end
 
 NAmanage.ESP_DestroyLabel = function(model)
@@ -24284,6 +24529,7 @@ NAmanage.configureFlyHelper=function(part)
 	pcall(function() part.CanTouch = false end)
 	pcall(function() part.CanQuery = false end)
 	pcall(function() part.Massless = true end)
+	NAmanage.Helper_StoreInstance(part)
 end
 
 NAmanage._state={mode="none"}
@@ -30381,7 +30627,8 @@ cmd.add({"unclickfling","unmousefling"},{"unclickfling (unmousefling)","disables
 end)
 
 NAStuff.NAundergroundState = NAStuff.NAundergroundState or {}
-NAStuff.NA_UNDERGROUND_BIND_NAME = NAStuff.NA_UNDERGROUND_BIND_NAME or "NAundergroundBind"
+NAStuff.NA_UNDERGROUND_BIND_NAME = NAStuff.NA_UNDERGROUND_BIND_NAME
+	or NAmanage.GetSessionActionName("UndergroundBind")
 NAStuff.NA_UNDERGROUND_OFFSET = NAStuff.NA_UNDERGROUND_OFFSET or Vector3.new(0, -15, 0)
 
 NAStuff.ovOld = NAStuff.ovOld or {
@@ -30391,7 +30638,16 @@ NAStuff.ovOld = NAStuff.ovOld or {
 	NA_OffsetBillboard = true,
 	NA_OffsetMarkerAttachment = true,
 	NA_OffsetRootAttachment = true,
+	NA_OffsetCharacterVisualizer = true,
+	NA_OffVis = true,
+	NA_OffMdl = true,
+	NA_OffHL = true,
+	NA_OffPart = true,
 }
+NAStuff.ovOld[NAmanage.GetSessionInstanceName("OffsetFolder")] = true
+NAStuff.ovOld[NAmanage.GetSessionInstanceName("OffsetModel")] = true
+NAStuff.ovOld[NAmanage.GetSessionInstanceName("OffsetHighlight")] = true
+NAStuff.ovOld[NAmanage.GetSessionInstanceName("OffsetPart")] = true
 
 NAmanage.ovCfg = function()
 	local on = (NAStuff.OffVisOn ~= false)
@@ -30583,8 +30839,9 @@ NAmanage.ovPrg = function()
 			pcall(function() inst:Destroy() end)
 		end
 	end
+	local currentOffsetFolderName = NAmanage.GetSessionInstanceName("OffsetFolder")
 	for _, inst in ipairs(workspace:GetChildren()) do
-		if inst:IsA("Folder") and (inst.Name == "NA_OffsetCharacterVisualizer" or inst.Name == "NA_OffVis") then
+		if inst:IsA("Folder") and (inst.Name == "NA_OffsetCharacterVisualizer" or inst.Name == "NA_OffVis" or inst.Name == currentOffsetFolderName) then
 			pcall(function() inst:Destroy() end)
 		end
 	end
@@ -30602,7 +30859,7 @@ NAmanage.ovEns = function(st)
 			st.ovPruned = true
 		end
 		fld = InstanceNew("Folder", workspace)
-		fld.Name = "NA_OffVis"
+		fld.Name = NAmanage.GetSessionInstanceName("OffsetFolder")
 		st.ovFld = fld
 	end
 	if type(st.ovMap) ~= "table" then
@@ -30612,14 +30869,14 @@ NAmanage.ovEns = function(st)
 	local mdl = st.ovMdl
 	if not (mdl and mdl.Parent) then
 		mdl = InstanceNew("Model", fld)
-		mdl.Name = "NA_OffMdl"
+		mdl.Name = NAmanage.GetSessionInstanceName("OffsetModel")
 		st.ovMdl = mdl
 	end
 
 	local hl = st.ovHL
 	if not (hl and hl.Parent) then
 		hl = InstanceNew("Highlight", fld)
-		hl.Name = "NA_OffHL"
+		hl.Name = NAmanage.GetSessionInstanceName("OffsetHighlight")
 		st.ovHL = hl
 	end
 
@@ -30652,7 +30909,7 @@ NAmanage.ovMk = function(src, parent)
 		gp.Size = src.Size
 	end
 
-	gp.Name = "NA_OffPart"
+	gp.Name = NAmanage.GetSessionInstanceName("OffsetPart")
 
 	for _, d in ipairs(gp:QueryDescendants("Instance")) do
 		if not d:IsA("SpecialMesh") then
@@ -33888,7 +34145,7 @@ cmd.add({"invisfling"}, {"invisfling", "Enables invisible fling (the invis part 
 	humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
 
 	local proxyModel = InstanceNew("Model")
-	proxyModel.Name = "NA_InvisFlingProxy"
+	proxyModel.Name = NAmanage.GetSessionInstanceName("InvisFlingProxy")
 	proxyModel.Parent = character
 
 	local torso = InstanceNew("Part")
@@ -53322,7 +53579,7 @@ cmd.add({"climb"}, {"climb", "Allows you to climb while in air"}, function()
 	climbPart.Transparency = 1
 	climbPart.CanCollide = true
 	climbPart.Anchored = true
-	climbPart.Name = "NA_ClimbPart"
+	climbPart.Name = NAmanage.GetSessionInstanceName("ClimbPart")
 	climbPart.Parent = workspace
 
 	climbLoop = RunService.Heartbeat:Connect(function()
@@ -54809,7 +55066,7 @@ cmd.add({"spin"}, {"spin {amount}", "Makes your character spin as fast as you wa
 	spinPart.CanCollide = false
 	spinPart.Transparency = 1
 	spinPart.Size = Vector3.new(1, 1, 1)
-	spinPart.Parent = workspace
+	NAmanage.Helper_StoreInstance(spinPart)
 	spinPart.CFrame = getRoot(LocalPlayer.Character).CFrame
 
 	spinThingy = InstanceNew("BodyAngularVelocity")
@@ -57892,7 +58149,7 @@ do
 			return;
 		end;
 		local tracer = InstanceNew("Part", workspace);
-		tracer.Name = "NA_GotoNextTracer";
+		tracer.Name = NAmanage.GetSessionInstanceName("GotoNextTracer");
 		tracer.Anchored = true;
 		tracer.CanCollide = false;
 		tracer.Material = Enum.Material.Neon;
@@ -72708,7 +72965,7 @@ NAmanage.Topbar_Init=function()
 	if TopBarApp.top and TopBarApp.top.Parent then TopBarApp.top:Destroy() end
 	NATopbarDock = NAmanage.topbar_readDock()
 	TopBarApp.top=InstanceNew("ScreenGui")
-	TopBarApp.top.Name="NA_Topbar_Styled"
+	TopBarApp.top.Name=NAmanage.GetSessionInstanceName("TopbarStyled")
 	TopBarApp.top.ZIndexBehavior=Enum.ZIndexBehavior.Global
 	TopBarApp.top.DisplayOrder=9999
 	TopBarApp.top.IgnoreGuiInset=true
@@ -73141,7 +73398,7 @@ end
 NAmanage.SideSwipe_Init=function()
 	if SideSwipeApp.gui and SideSwipeApp.gui.Parent then return true end
 	SideSwipeApp.gui = InstanceNew("ScreenGui")
-	SideSwipeApp.gui.Name = "NA_SideSwipe"
+	SideSwipeApp.gui.Name = NAmanage.GetSessionInstanceName("SideSwipe")
 	SideSwipeApp.gui.Enabled = NASideSwipeEnabled
 	NAgui.NaProtectUI(SideSwipeApp.gui)
 	SideSwipeApp.panel = InstanceNew("Frame", SideSwipeApp.gui)
@@ -75182,7 +75439,13 @@ originalIO.naTransLatooor=function()
 			return
 		end
 		pcall(function()
-			if inst:GetAttribute(attrName) == nil then
+			local existing = nil
+			if NAmanage and NAmanage.GetAttr then
+				existing = NAmanage.GetAttr(inst, attrName)
+			else
+				existing = inst:GetAttribute(attrName)
+			end
+			if existing == nil then
 				NAmanage.SetAttr(inst, attrName, text)
 			end
 		end)
@@ -75212,7 +75475,11 @@ originalIO.naTransLatooor=function()
 		end
 		local out = nil
 		pcall(function()
-			out = inst:GetAttribute(attrName)
+			if NAmanage and NAmanage.GetAttr then
+				out = NAmanage.GetAttr(inst, attrName)
+			else
+				out = inst:GetAttribute(attrName)
+			end
 		end)
 		return out
 	end
@@ -75411,7 +75678,7 @@ originalIO.naTransLatooor=function()
 
 					local objectUsesBuilderFont = usesBuilderIconFont(obj)
 					local richEnabled = isRichTextEnabled(obj)
-					local originalText = obj:GetAttribute("NAOriginalText")
+					local originalText = (NAmanage.GetAttr and NAmanage.GetAttr(obj, "NAOriginalText")) or obj:GetAttribute("NAOriginalText")
 					if type(originalText) ~= "string" or originalText == "" then
 						originalText = tostring(obj.Text or "")
 						if originalText ~= "" then
@@ -75460,7 +75727,7 @@ originalIO.naTransLatooor=function()
 				end
 			elseif obj:IsA("TextBox") then
 				if obj.Name ~= "TranslateInput" then
-					local originalPlaceholder = obj:GetAttribute("NAOriginalPlaceholder")
+					local originalPlaceholder = (NAmanage.GetAttr and NAmanage.GetAttr(obj, "NAOriginalPlaceholder")) or obj:GetAttribute("NAOriginalPlaceholder")
 					if type(originalPlaceholder) ~= "string" or originalPlaceholder == "" then
 						originalPlaceholder = tostring(obj.PlaceholderText or "")
 						if originalPlaceholder ~= "" then
@@ -82290,10 +82557,11 @@ if NAgui.screenGuiNoRenderSupported then
 	NAgui.ScreenGuiNoRenderSet(false, { silent = true })
 end
 
-NAgui.EnsureScreenGuiNoRenderKeybind=function()
+	NAgui.EnsureScreenGuiNoRenderKeybind=function()
 	if NAStuff.ScreenGuiNoRenderConn then
 		if ContextActionService then
-			pcall(function() __lt.cm("ContextActionService", "UnbindAction", "NA_ScreenGuiNoRenderToggle") end)
+			local screenGuiNoRenderAction = NAmanage.GetSessionActionName("ScreenGuiNoRenderToggle")
+			pcall(function() __lt.cm("ContextActionService", "UnbindAction", screenGuiNoRenderAction) end)
 		end
 		NAStuff.ScreenGuiNoRenderConn = nil
 	end
@@ -82306,8 +82574,9 @@ NAgui.EnsureScreenGuiNoRenderKeybind=function()
 	end
 
 	local macroKey = Enum.KeyCode.C
+	local screenGuiNoRenderAction = NAmanage.GetSessionActionName("ScreenGuiNoRenderToggle")
 	NAStuff.ScreenGuiNoRenderConn = __lt.cm("ContextActionService", "BindActionAtPriority",
-		"NA_ScreenGuiNoRenderToggle",
+		screenGuiNoRenderAction,
 		function(_, state, input)
 			if state ~= Enum.UserInputState.Begin then
 				return Enum.ContextActionResult.Pass
@@ -88641,10 +88910,13 @@ NAmanage.CustomMovementSoundKind = NAmanage.CustomMovementSoundKind or function(
 end
 
 NAmanage.CustomMovementSoundCapture = NAmanage.CustomMovementSoundCapture or function(sound)
+	local capturedAttr = "NA_MoveSoundCaptured"
+	local origIdAttr = "NA_MoveSoundOrigSoundId"
+	local origVolAttr = "NA_MoveSoundOrigVolume"
 	if typeof(sound) ~= "Instance" or not sound:IsA("Sound") then
 		return
 	end
-	if sound:GetAttribute("NA_MoveSoundCaptured") then
+	if NAmanage.GetAttr(sound, capturedAttr) then
 		return
 	end
 	local okId, soundId = pcall(function()
@@ -88654,22 +88926,25 @@ NAmanage.CustomMovementSoundCapture = NAmanage.CustomMovementSoundCapture or fun
 		return sound.Volume
 	end)
 	pcall(function()
-		sound:SetAttribute("NA_MoveSoundCaptured", true)
-		sound:SetAttribute("NA_MoveSoundOrigSoundId", okId and tostring(soundId or "") or "")
-		sound:SetAttribute("NA_MoveSoundOrigVolume", okVol and tonumber(volume) or 1)
+		NAmanage.SetAttr(sound, capturedAttr, true)
+		NAmanage.SetAttr(sound, origIdAttr, okId and tostring(soundId or "") or "")
+		NAmanage.SetAttr(sound, origVolAttr, okVol and tonumber(volume) or 1)
 	end)
 end
 
 NAmanage.CustomMovementSoundRestore = NAmanage.CustomMovementSoundRestore or function(sound)
+	local capturedAttr = "NA_MoveSoundCaptured"
+	local origIdAttr = "NA_MoveSoundOrigSoundId"
+	local origVolAttr = "NA_MoveSoundOrigVolume"
 	if typeof(sound) ~= "Instance" or not sound:IsA("Sound") then
 		return
 	end
-	local captured = sound:GetAttribute("NA_MoveSoundCaptured")
+	local captured = NAmanage.GetAttr(sound, capturedAttr)
 	if captured ~= true then
 		return
 	end
-	local origId = sound:GetAttribute("NA_MoveSoundOrigSoundId")
-	local origVol = sound:GetAttribute("NA_MoveSoundOrigVolume")
+	local origId = NAmanage.GetAttr(sound, origIdAttr)
+	local origVol = NAmanage.GetAttr(sound, origVolAttr)
 	if origId ~= nil then
 		pcall(function()
 			sound.SoundId = tostring(origId)
@@ -88683,6 +88958,7 @@ NAmanage.CustomMovementSoundRestore = NAmanage.CustomMovementSoundRestore or fun
 end
 
 NAmanage.CustomMovementSoundApplyOne = NAmanage.CustomMovementSoundApplyOne or function(sound)
+	local origIdAttr = "NA_MoveSoundOrigSoundId"
 	local kind = NAmanage.CustomMovementSoundKind(sound)
 	if not kind then
 		return false
@@ -88702,7 +88978,7 @@ NAmanage.CustomMovementSoundApplyOne = NAmanage.CustomMovementSoundApplyOne or f
 			sound.SoundId = asset
 		end)
 	else
-		local origId = sound:GetAttribute("NA_MoveSoundOrigSoundId")
+		local origId = NAmanage.GetAttr(sound, origIdAttr)
 		if origId ~= nil then
 			pcall(function()
 				sound.SoundId = tostring(origId)
