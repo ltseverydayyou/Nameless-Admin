@@ -5698,6 +5698,34 @@ updateCanvasSize = function(frame, scale)
 	end
 end
 
+NAmanage.GetUIScaleFactor = function(inst)
+	local scale = 1
+	local current = inst
+	while current do
+		local uiScale = current:FindFirstChildOfClass("UIScale")
+		if uiScale and uiScale.Scale then
+			local uiScaleValue = tonumber(uiScale.Scale)
+			if uiScaleValue and uiScaleValue > 0 then
+				scale *= uiScaleValue
+			end
+		end
+		current = current.Parent
+	end
+	return scale
+end
+
+NAmanage.GetLogicalAbsoluteSize = function(inst)
+	if not inst then
+		return Vector2.new()
+	end
+	local size = inst.AbsoluteSize or Vector2.new()
+	local scale = NAmanage.GetUIScaleFactor and NAmanage.GetUIScaleFactor(inst) or 1
+	if not scale or scale <= 0 then
+		scale = 1
+	end
+	return Vector2.new(size.X / scale, size.Y / scale)
+end
+
 NAmanage.CreateNAFreecam=function()
 	local module = {}
 
@@ -67823,6 +67851,10 @@ do
 			if not target then
 				return 0;
 			end;
+			local logicalSize = NAmanage.GetLogicalAbsoluteSize and NAmanage.GetLogicalAbsoluteSize(target) or nil;
+			if logicalSize then
+				return math.max(0, logicalSize.Y or 0);
+			end;
 			return math.max(0, (target.AbsoluteSize.Y or 0) / registry.getScale());
 		end;
 
@@ -69601,17 +69633,18 @@ local function getCommandTemplateHeight()
 		return 18
 	end
 
-	local absY = template.AbsoluteSize and template.AbsoluteSize.Y or 0
-	if absY and absY > 0 then
-		return math.floor(absY + 0.5)
-	end
-
 	local size = template.Size
 	if size and size.Y then
 		local offset = tonumber(size.Y.Offset) or 0
 		if offset > 0 then
 			return offset
 		end
+	end
+
+	local logicalSize = NAmanage.GetLogicalAbsoluteSize and NAmanage.GetLogicalAbsoluteSize(template) or nil
+	local absY = logicalSize and logicalSize.Y or (template.AbsoluteSize and template.AbsoluteSize.Y or 0)
+	if absY and absY > 0 then
+		return math.floor(absY + 0.5)
 	end
 
 	return 18
@@ -69724,7 +69757,8 @@ NAmanage.syncVisibleCommandRows=function(state)
 
 	local overscanPx = COMMAND_OVERSCAN_ROWS * rowStep
 	local scrollY = cList.CanvasPosition.Y
-	local viewHeight = cList.AbsoluteSize.Y
+	local logicalListSize = NAmanage.GetLogicalAbsoluteSize and NAmanage.GetLogicalAbsoluteSize(cList) or nil
+	local viewHeight = logicalListSize and logicalListSize.Y or cList.AbsoluteSize.Y
 	local firstIndex = math.max(1, math.floor((math.max(0, scrollY - COMMAND_LIST_TOP_PADDING - overscanPx)) / rowStep) + 1)
 	local lastIndex = math.min(count, math.ceil((math.max(0, scrollY + viewHeight - COMMAND_LIST_TOP_PADDING + overscanPx)) / rowStep))
 	if lastIndex < firstIndex then
@@ -78091,7 +78125,9 @@ NAmanage.bindToDevConsole = function()
 		return toggles[tagText] == true;
 	end;
 	local function getMeasureWidth()
-		return math.max(1, math.floor((logsFrame.AbsoluteSize.X or 0) + 0.5));
+		local logicalSize = NAmanage.GetLogicalAbsoluteSize and NAmanage.GetLogicalAbsoluteSize(logsFrame) or nil;
+		local width = logicalSize and logicalSize.X or (logsFrame.AbsoluteSize.X or 0);
+		return math.max(1, math.floor(width + 0.5));
 	end;
 	local function getPadding()
 		return (logsLayout and logsLayout.Padding and logsLayout.Padding.Offset) or 0;
@@ -78123,8 +78159,12 @@ NAmanage.bindToDevConsole = function()
 		record.height = measureHeightFromText(record.plainText, width);
 		return record.height;
 	end;
+	local function getVisibleHeight()
+		local logicalSize = NAmanage.GetLogicalAbsoluteSize and NAmanage.GetLogicalAbsoluteSize(logsFrame) or nil;
+		return math.max(0, logicalSize and logicalSize.Y or (logsFrame.AbsoluteSize.Y or 0));
+	end;
 	local function isNearBottom()
-		local bottomY = logsFrame.CanvasPosition.Y + logsFrame.AbsoluteSize.Y;
+		local bottomY = logsFrame.CanvasPosition.Y + getVisibleHeight();
 		local canvasY = logsFrame.CanvasSize.Y.Offset;
 		return bottomY >= math.max(0, canvasY - 32);
 	end;
@@ -78354,7 +78394,7 @@ NAmanage.bindToDevConsole = function()
 		end;
 		rebuildRecordLayout(false);
 		local scrollY = logsFrame.CanvasPosition.Y;
-		local viewHeight = logsFrame.AbsoluteSize.Y;
+		local viewHeight = getVisibleHeight();
 		local startY = math.max(0, scrollY - overscanPx);
 		local endY = scrollY + viewHeight + overscanPx;
 		local firstIndex, lastIndex;
@@ -78409,7 +78449,7 @@ NAmanage.bindToDevConsole = function()
 		end;
 		updateCanvasSize(logsFrame, NAUIMANAGER.AUTOSCALER.Scale);
 		if opts.followBottom == true then
-			logsFrame.CanvasPosition = Vector2.new(0, math.max(0, logsFrame.CanvasSize.Y.Offset - logsFrame.AbsoluteSize.Y));
+			logsFrame.CanvasPosition = Vector2.new(0, math.max(0, logsFrame.CanvasSize.Y.Offset - getVisibleHeight()));
 		end;
 	end;
 	for _, logType in ipairs(buttonTypes) do
@@ -81291,16 +81331,10 @@ NAmanage.injectNAConsole = function()
 	local testService = SafeGetService("TestService")
 
 	local function getUIScaleFactor(inst)
-		local scale = 1
-		local current = inst
-		while current do
-			local uiScale = current:FindFirstChildOfClass("UIScale")
-			if uiScale and uiScale.Scale then
-				scale *= uiScale.Scale
-			end
-			current = current.Parent
+		if NAmanage and NAmanage.GetUIScaleFactor then
+			return NAmanage.GetUIScaleFactor(inst)
 		end
-		return scale
+		return 1
 	end
 
 	local function resolveLineHeight(window)
