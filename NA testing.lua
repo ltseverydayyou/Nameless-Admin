@@ -5686,10 +5686,16 @@ updateCanvasSize = function(frame, scale)
 
 	local cs = frame.CanvasSize
 	if cs.Y.Scale == 0 and (cs.Y.Offset or 0) == targetHeight then
+		if NAmanage.CustomScroll and NAmanage.CustomScroll.refreshByTarget then
+			NAmanage.CustomScroll.refreshByTarget(frame);
+		end
 		return
 	end
 
 	frame.CanvasSize = UDim2.new(0, 0, 0, targetHeight)
+	if NAmanage.CustomScroll and NAmanage.CustomScroll.refreshByTarget then
+		NAmanage.CustomScroll.refreshByTarget(frame);
+	end
 end
 
 NAmanage.CreateNAFreecam=function()
@@ -67297,11 +67303,21 @@ NAUIMANAGER = {
 	chatLogsFrame = NAStuff.NASCREENGUI:FindFirstChild("ChatLogs"),
 	chatLogs = NAStuff.NASCREENGUI:FindFirstChild("ChatLogs") and (NAStuff.NASCREENGUI:FindFirstChild("ChatLogs")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("ChatLogs")):FindFirstChild("Container")):FindFirstChild("Logs"),
 	chatExample = NAStuff.NASCREENGUI:FindFirstChild("ChatLogs") and (NAStuff.NASCREENGUI:FindFirstChild("ChatLogs")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("ChatLogs")):FindFirstChild("Container")):FindFirstChild("Logs") and (((NAStuff.NASCREENGUI:FindFirstChild("ChatLogs")):FindFirstChild("Container")):FindFirstChild("Logs")):FindFirstChildWhichIsA("TextLabel"),
+	ChatCustomScrollBar = NAStuff.NASCREENGUI:FindFirstChild("ChatLogs") and (NAStuff.NASCREENGUI:FindFirstChild("ChatLogs")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("ChatLogs")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar"),
+	ChatCustomScrollUp = NAStuff.NASCREENGUI:FindFirstChild("ChatLogs") and (NAStuff.NASCREENGUI:FindFirstChild("ChatLogs")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("ChatLogs")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar") and (((NAStuff.NASCREENGUI:FindFirstChild("ChatLogs")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Up"),
+	ChatCustomScrollDown = NAStuff.NASCREENGUI:FindFirstChild("ChatLogs") and (NAStuff.NASCREENGUI:FindFirstChild("ChatLogs")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("ChatLogs")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar") and (((NAStuff.NASCREENGUI:FindFirstChild("ChatLogs")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Down"),
+	ChatCustomScrollTrack = NAStuff.NASCREENGUI:FindFirstChild("ChatLogs") and (NAStuff.NASCREENGUI:FindFirstChild("ChatLogs")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("ChatLogs")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar") and (((NAStuff.NASCREENGUI:FindFirstChild("ChatLogs")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Track"),
+	ChatCustomScrollThumb = NAStuff.NASCREENGUI:FindFirstChild("ChatLogs") and (NAStuff.NASCREENGUI:FindFirstChild("ChatLogs")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("ChatLogs")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar") and (((NAStuff.NASCREENGUI:FindFirstChild("ChatLogs")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Track") and ((((NAStuff.NASCREENGUI:FindFirstChild("ChatLogs")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Track")):FindFirstChild("Thumb"),
 	NAconsoleFrame = NAStuff.NASCREENGUI:FindFirstChild("soRealConsole"),
 	NAconsoleLogs = NAStuff.NASCREENGUI:FindFirstChild("soRealConsole") and (NAStuff.NASCREENGUI:FindFirstChild("soRealConsole")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("soRealConsole")):FindFirstChild("Container")):FindFirstChild("Logs"),
 	NAconsoleExample = NAStuff.NASCREENGUI:FindFirstChild("soRealConsole") and (NAStuff.NASCREENGUI:FindFirstChild("soRealConsole")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("soRealConsole")):FindFirstChild("Container")):FindFirstChild("Logs") and (((NAStuff.NASCREENGUI:FindFirstChild("soRealConsole")):FindFirstChild("Container")):FindFirstChild("Logs")):FindFirstChildWhichIsA("TextLabel"),
 	NAcontainer = NAStuff.NASCREENGUI:FindFirstChild("soRealConsole") and (NAStuff.NASCREENGUI:FindFirstChild("soRealConsole")):FindFirstChild("Container"),
 	NAfilter = NAStuff.NASCREENGUI:FindFirstChild("soRealConsole") and (NAStuff.NASCREENGUI:FindFirstChild("soRealConsole")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("soRealConsole")):FindFirstChild("Container")):FindFirstChild("Filter"),
+	ConsoleCustomScrollBar = NAStuff.NASCREENGUI:FindFirstChild("soRealConsole") and (NAStuff.NASCREENGUI:FindFirstChild("soRealConsole")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("soRealConsole")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar"),
+	ConsoleCustomScrollUp = NAStuff.NASCREENGUI:FindFirstChild("soRealConsole") and (NAStuff.NASCREENGUI:FindFirstChild("soRealConsole")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("soRealConsole")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar") and (((NAStuff.NASCREENGUI:FindFirstChild("soRealConsole")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Up"),
+	ConsoleCustomScrollDown = NAStuff.NASCREENGUI:FindFirstChild("soRealConsole") and (NAStuff.NASCREENGUI:FindFirstChild("soRealConsole")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("soRealConsole")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar") and (((NAStuff.NASCREENGUI:FindFirstChild("soRealConsole")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Down"),
+	ConsoleCustomScrollTrack = NAStuff.NASCREENGUI:FindFirstChild("soRealConsole") and (NAStuff.NASCREENGUI:FindFirstChild("soRealConsole")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("soRealConsole")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar") and (((NAStuff.NASCREENGUI:FindFirstChild("soRealConsole")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Track"),
+	ConsoleCustomScrollThumb = NAStuff.NASCREENGUI:FindFirstChild("soRealConsole") and (NAStuff.NASCREENGUI:FindFirstChild("soRealConsole")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("soRealConsole")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar") and (((NAStuff.NASCREENGUI:FindFirstChild("soRealConsole")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Track") and ((((NAStuff.NASCREENGUI:FindFirstChild("soRealConsole")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Track")):FindFirstChild("Thumb"),
 	commandsFrame = NAStuff.NASCREENGUI:FindFirstChild("Commands"),
 	commandsFilter = NAStuff.NASCREENGUI:FindFirstChild("Commands") and (NAStuff.NASCREENGUI:FindFirstChild("Commands")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("Commands")):FindFirstChild("Container")):FindFirstChild("Filter"),
 	commandsList = NAStuff.NASCREENGUI:FindFirstChild("Commands") and (NAStuff.NASCREENGUI:FindFirstChild("Commands")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("Commands")):FindFirstChild("Container")):FindFirstChild("List"),
@@ -67324,6 +67340,11 @@ NAUIMANAGER = {
 	SettingsKeybind = NAStuff.NASCREENGUI:FindFirstChild("setsettings") and (NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer") and (((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages") and ((((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages")):FindFirstChild("List") and (((((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages")):FindFirstChild("List")):FindFirstChild("Keybind"),
 	SettingsSlider = NAStuff.NASCREENGUI:FindFirstChild("setsettings") and (NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer") and (((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages") and ((((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages")):FindFirstChild("List") and (((((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages")):FindFirstChild("List")):FindFirstChild("Slider"),
 	SettingsDropdown = NAStuff.NASCREENGUI:FindFirstChild("setsettings") and (NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer") and (((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages") and ((((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages")):FindFirstChild("List") and (((((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages")):FindFirstChild("List")):FindFirstChild("Dropdown"),
+	SettingsCustomScrollBar = NAStuff.NASCREENGUI:FindFirstChild("setsettings") and (NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer") and (((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages") and ((((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages")):FindFirstChild("CustomScrollBar"),
+	SettingsCustomScrollUp = NAStuff.NASCREENGUI:FindFirstChild("setsettings") and (NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer") and (((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages") and ((((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages")):FindFirstChild("CustomScrollBar") and (((((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages")):FindFirstChild("CustomScrollBar")):FindFirstChild("Up"),
+	SettingsCustomScrollDown = NAStuff.NASCREENGUI:FindFirstChild("setsettings") and (NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer") and (((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages") and ((((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages")):FindFirstChild("CustomScrollBar") and (((((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages")):FindFirstChild("CustomScrollBar")):FindFirstChild("Down"),
+	SettingsCustomScrollTrack = NAStuff.NASCREENGUI:FindFirstChild("setsettings") and (NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer") and (((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages") and ((((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages")):FindFirstChild("CustomScrollBar") and (((((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages")):FindFirstChild("CustomScrollBar")):FindFirstChild("Track"),
+	SettingsCustomScrollThumb = NAStuff.NASCREENGUI:FindFirstChild("setsettings") and (NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer") and (((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages") and ((((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages")):FindFirstChild("CustomScrollBar") and (((((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages")):FindFirstChild("CustomScrollBar")):FindFirstChild("Track") and ((((((NAStuff.NASCREENGUI:FindFirstChild("setsettings")):FindFirstChild("Container")):FindFirstChild("TabContainer")):FindFirstChild("Pages")):FindFirstChild("CustomScrollBar")):FindFirstChild("Track")):FindFirstChild("Thumb"),
 	WaypointFrame = NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint"),
 	WaypointContainer = NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint") and (NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container"),
 	WaypointList = NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint") and (NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container")):FindFirstChild("List"),
@@ -67636,6 +67657,638 @@ if TabManager.defaultPage then
 	TabManager.fallbackIndex = maxOrder;
 	TabManager.defaultPage.Visible = true;
 end;
+NAmanage.CustomScroll = NAmanage.CustomScroll or {};
+do
+	local registry = NAmanage.CustomScroll;
+	registry.controllers = registry.controllers or {};
+	registry._byTarget = registry._byTarget or setmetatable({}, {
+		__mode = "k"
+	});
+	registry.step = registry.step or 54;
+	registry.repeatDelay = registry.repeatDelay or 0.28;
+	registry.repeatRate = registry.repeatRate or 0.05;
+
+	local function disconnectConn(conn)
+		if conn and conn.Disconnect then
+			pcall(function()
+				conn:Disconnect();
+			end);
+		end;
+	end;
+
+	local function disconnectAll(conns)
+		if not conns then
+			return;
+		end;
+		for key, conn in pairs(conns) do
+			disconnectConn(conn);
+			conns[key] = nil;
+		end;
+	end;
+
+	local function isPressInput(inputType)
+		return inputType == Enum.UserInputType.MouseButton1 or inputType == Enum.UserInputType.Touch;
+	end;
+
+	local function isScrollingFrame(frame)
+		return frame and typeof(frame) == "Instance" and frame:IsA("ScrollingFrame");
+	end;
+
+	local function normalizeWidgets(widgets)
+		if type(widgets) ~= "table" then
+			return nil;
+		end;
+		local bar = widgets.bar or widgets[1];
+		local upButton = widgets.upButton or widgets.up or widgets[2];
+		local downButton = widgets.downButton or widgets.down or widgets[3];
+		local track = widgets.track or widgets[4];
+		local thumb = widgets.thumb or widgets[5];
+		if not (bar and upButton and downButton and track and thumb) then
+			return nil;
+		end;
+		return {
+			bar = bar,
+			upButton = upButton,
+			downButton = downButton,
+			track = track,
+			thumb = thumb
+		};
+	end;
+
+	function registry.getScale()
+		local scaler = NAUIMANAGER and NAUIMANAGER.AUTOSCALER;
+		local scale = tonumber(scaler and scaler.Scale) or 1;
+		if not scale or scale <= 0 then
+			scale = 1;
+		end;
+		return scale;
+	end;
+
+	function registry.refreshByTarget(frame)
+		if not frame then
+			return;
+		end;
+		local ctrls = registry._byTarget[frame];
+		if not ctrls then
+			return;
+		end;
+		for ctrl in pairs(ctrls) do
+			if ctrl and ctrl.scheduleRefresh then
+				ctrl.scheduleRefresh();
+			end;
+		end;
+	end;
+
+	local function untrackTarget(ctrl)
+		local target = ctrl and ctrl.target;
+		if not target then
+			return;
+		end;
+		local bucket = registry._byTarget[target];
+		if bucket then
+			bucket[ctrl] = nil;
+			if next(bucket) == nil then
+				registry._byTarget[target] = nil;
+			end;
+		end;
+	end;
+
+	local function trackTarget(ctrl, target)
+		if not target then
+			return;
+		end;
+		local bucket = registry._byTarget[target];
+		if not bucket then
+			bucket = {};
+			registry._byTarget[target] = bucket;
+		end;
+		bucket[ctrl] = true;
+	end;
+
+	function registry.create(name, config)
+		local ctrl = registry.controllers[name] or {};
+		registry.controllers[name] = ctrl;
+
+		ctrl.name = name;
+		ctrl.config = config or ctrl.config or {};
+		ctrl.step = ctrl.config.step or ctrl.step or registry.step;
+		ctrl.repeatDelay = ctrl.config.repeatDelay or ctrl.repeatDelay or registry.repeatDelay;
+		ctrl.repeatRate = ctrl.config.repeatRate or ctrl.repeatRate or registry.repeatRate;
+		ctrl._widgetConns = ctrl._widgetConns or {};
+		ctrl._targetConns = ctrl._targetConns or {};
+		ctrl._widgetRoot = ctrl._widgetRoot or nil;
+
+		function ctrl.getWidgets()
+			local getter = ctrl.config and ctrl.config.getWidgets;
+			if not getter then
+				return nil;
+			end;
+			local ok, widgets = pcall(getter, ctrl);
+			if not ok then
+				return nil;
+			end;
+			return normalizeWidgets(widgets);
+		end;
+
+		function ctrl.getTarget()
+			if isScrollingFrame(ctrl.target) then
+				return ctrl.target;
+			end;
+			local getter = ctrl.config and ctrl.config.getTarget;
+			if getter then
+				local ok, target = pcall(getter, ctrl);
+				if ok and isScrollingFrame(target) then
+					return target;
+				end;
+			end;
+			return nil;
+		end;
+
+		function ctrl.getVisibleSpace(target)
+			if not target then
+				return 0;
+			end;
+			return math.max(0, (target.AbsoluteSize.Y or 0) / registry.getScale());
+		end;
+
+		function ctrl.getMaxPosition(target)
+			if not target then
+				return 0;
+			end;
+			local total = tonumber(target.CanvasSize.Y.Offset) or 0;
+			local visible = ctrl.getVisibleSpace(target);
+			return math.max(0, total - visible);
+		end;
+
+		function ctrl.applyTargetDefaults(target)
+			if not isScrollingFrame(target) then
+				return;
+			end;
+			pcall(function()
+				target.Active = true;
+				target.ScrollBarThickness = 0;
+				target.ScrollBarImageTransparency = 1;
+				target.VerticalScrollBarInset = Enum.ScrollBarInset.None;
+			end);
+			if ctrl.config and ctrl.config.applyTargetDefaults then
+				pcall(ctrl.config.applyTargetDefaults, ctrl, target);
+			end;
+		end;
+
+		ctrl.applyPageDefaults = ctrl.applyTargetDefaults;
+
+		function ctrl.hide()
+			local widgets = ctrl.getWidgets();
+			if widgets and widgets.bar then
+				widgets.bar.Visible = false;
+			end;
+		end;
+
+		function ctrl.scheduleRefresh()
+			if ctrl._refreshQueued then
+				return;
+			end;
+			ctrl._refreshQueued = true;
+			Defer(function()
+				ctrl._refreshQueued = false;
+				if registry.controllers[name] == ctrl then
+					ctrl.refresh();
+				end;
+			end);
+		end;
+
+		function ctrl.stopArrowHold()
+			if ctrl._arrowHold and ctrl._arrowHold.stop then
+				ctrl._arrowHold.stop();
+			end;
+			ctrl._arrowHold = nil;
+		end;
+
+		function ctrl.stopThumbDrag()
+			if ctrl._thumbDrag and ctrl._thumbDrag.stop then
+				ctrl._thumbDrag.stop();
+			end;
+			ctrl._thumbDrag = nil;
+		end;
+
+		function ctrl.disconnectTarget()
+			ctrl.stopArrowHold();
+			ctrl.stopThumbDrag();
+			untrackTarget(ctrl);
+			disconnectAll(ctrl._targetConns);
+			ctrl._layout = nil;
+			ctrl.target = nil;
+		end;
+
+		function ctrl.refresh()
+			local widgets = ctrl.getWidgets();
+			if not widgets then
+				return;
+			end;
+			local bar = widgets.bar;
+			local upButton = widgets.upButton;
+			local downButton = widgets.downButton;
+			local track = widgets.track;
+			local thumb = widgets.thumb;
+			local target = ctrl.getTarget();
+
+			if ctrl.config and ctrl.config.layoutForTarget then
+				pcall(ctrl.config.layoutForTarget, ctrl, target, widgets);
+			end;
+
+			if not (target and target.Parent and target.Visible ~= false and bar and bar.Parent and track and thumb) then
+				ctrl.hide();
+				return;
+			end;
+
+			ctrl.applyTargetDefaults(target);
+
+			local layout = target:FindFirstChildOfClass("UIListLayout");
+			if layout ~= ctrl._layout then
+				disconnectConn(ctrl._targetConns.layout);
+				ctrl._targetConns.layout = nil;
+				ctrl._layout = layout;
+				if layout then
+					ctrl._targetConns.layout = layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+						updateCanvasSize(target, NAUIMANAGER and NAUIMANAGER.AUTOSCALER and NAUIMANAGER.AUTOSCALER.Scale or nil);
+						ctrl.scheduleRefresh();
+					end);
+				end;
+			end;
+
+			local visible = ctrl.getVisibleSpace(target);
+			local total = math.max(visible, tonumber(target.CanvasSize.Y.Offset) or 0);
+			local maxPos = math.max(0, total - visible);
+			local trackHeight = math.max(0, track.AbsoluteSize.Y or 0);
+			local canScroll = maxPos > 1 and visible > 0 and trackHeight > 0;
+			bar.Visible = canScroll;
+			if not canScroll then
+				return;
+			end;
+
+			local currentY = math.clamp(tonumber(target.CanvasPosition.Y) or 0, 0, maxPos);
+			local upEnabled = currentY > 0.5;
+			local downEnabled = currentY < (maxPos - 0.5);
+			upButton.BackgroundTransparency = upEnabled and 0.15 or 0.55;
+			downButton.BackgroundTransparency = downEnabled and 0.15 or 0.55;
+			upButton.TextTransparency = upEnabled and 0 or 0.5;
+			downButton.TextTransparency = downEnabled and 0 or 0.5;
+
+			local minThumb = ctrl.config.minThumb or (IsOnMobile and 28 or 18);
+			local thumbHeight = trackHeight;
+			if total > 0 then
+				thumbHeight = math.floor(math.clamp(trackHeight * (visible / total), minThumb, trackHeight) + 0.5);
+			end;
+			local travel = math.max(0, trackHeight - thumbHeight);
+			local percent = maxPos > 0 and (currentY / maxPos) or 0;
+			thumb.Size = UDim2.new(1, 0, 0, thumbHeight);
+			thumb.Position = UDim2.new(0, 0, 0, math.floor(travel * percent + 0.5));
+		end;
+
+		function ctrl.scrollTo(y)
+			local target = ctrl.getTarget();
+			if not target then
+				ctrl.hide();
+				return;
+			end;
+			local maxPos = ctrl.getMaxPosition(target);
+			local nextY = math.clamp(tonumber(y) or 0, 0, maxPos);
+			local currentX = tonumber(target.CanvasPosition.X) or 0;
+			target.CanvasPosition = Vector2.new(currentX, nextY);
+			ctrl.scheduleRefresh();
+		end;
+
+		function ctrl.scrollBy(delta)
+			local target = ctrl.getTarget();
+			if not target then
+				ctrl.hide();
+				return;
+			end;
+			ctrl.scrollTo((tonumber(target.CanvasPosition.Y) or 0) + (tonumber(delta) or 0));
+		end;
+
+		function ctrl.pageStep(direction)
+			local target = ctrl.getTarget();
+			if not target then
+				ctrl.hide();
+				return;
+			end;
+			local amount = math.max(24, ctrl.getVisibleSpace(target) - 24);
+			ctrl.scrollBy((direction or 1) < 0 and -amount or amount);
+		end;
+
+		function ctrl.setTarget(target)
+			if not isScrollingFrame(target) then
+				target = nil;
+			end;
+			if ctrl.target == target then
+				ctrl.scheduleRefresh();
+				return target;
+			end;
+
+			ctrl.disconnectTarget();
+			ctrl.target = target;
+			if not target then
+				ctrl.hide();
+				return nil;
+			end;
+
+			trackTarget(ctrl, target);
+			ctrl.applyTargetDefaults(target);
+			ctrl._targetConns.canvasPos = target:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
+				ctrl.scheduleRefresh();
+			end);
+			ctrl._targetConns.canvasSize = target:GetPropertyChangedSignal("CanvasSize"):Connect(function()
+				ctrl.scheduleRefresh();
+			end);
+			ctrl._targetConns.absSize = target:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+				ctrl.scheduleRefresh();
+			end);
+			ctrl._targetConns.ancestry = target.AncestryChanged:Connect(function(_, parent)
+				if not parent then
+					ctrl.setTarget(nil);
+				else
+					ctrl.scheduleRefresh();
+				end;
+			end);
+			if target.Destroying then
+				ctrl._targetConns.destroying = target.Destroying:Connect(function()
+					ctrl.setTarget(nil);
+				end);
+			end;
+
+			ctrl.scheduleRefresh();
+			return target;
+		end;
+
+		function ctrl.install()
+			local widgets = ctrl.getWidgets();
+			if not widgets then
+				return nil;
+			end;
+			local bar = widgets.bar;
+			local upButton = widgets.upButton;
+			local downButton = widgets.downButton;
+			local track = widgets.track;
+			local thumb = widgets.thumb;
+			if ctrl._widgetRoot ~= bar then
+				ctrl.stopArrowHold();
+				ctrl.stopThumbDrag();
+				disconnectAll(ctrl._widgetConns);
+				ctrl._widgetRoot = bar;
+
+				local function startArrowHold(delta, input)
+					if not input or not isPressInput(input.UserInputType) then
+						return;
+					end;
+					ctrl.stopThumbDrag();
+					ctrl.stopArrowHold();
+
+					local active = true;
+					local pointer = input.UserInputType == Enum.UserInputType.Touch and input or nil;
+					local touchLocked = false;
+					local endConn;
+					local touchMode = ctrl.name .. "-scroll-arrow";
+
+					if pointer and NAgui.tryLockTouchGesture and not NAgui.tryLockTouchGesture(bar, touchMode, pointer) then
+						return;
+					end;
+					touchLocked = pointer ~= nil;
+
+					local function stop()
+						if not active then
+							return;
+						end;
+						active = false;
+						if touchLocked and NAgui.releaseTouchGesture then
+							NAgui.releaseTouchGesture(bar, touchMode, pointer);
+						end;
+						disconnectConn(endConn);
+						if ctrl._arrowHold and ctrl._arrowHold.stop == stop then
+							ctrl._arrowHold = nil;
+						end;
+						ctrl.scheduleRefresh();
+					end;
+
+					ctrl._arrowHold = {
+						stop = stop
+					};
+					ctrl.scrollBy(delta);
+					endConn = UserInputService.InputEnded:Connect(function(endedInput)
+						if endedInput.UserInputType == Enum.UserInputType.MouseButton1
+							or (endedInput.UserInputType == Enum.UserInputType.Touch and endedInput == pointer) then
+							stop();
+						end;
+					end);
+
+					task.spawn(function()
+						local startedAt = tick();
+						while active do
+							if tick() - startedAt >= ctrl.repeatDelay then
+								ctrl.scrollBy(delta);
+								task.wait(ctrl.repeatRate);
+							else
+								task.wait(0.03);
+							end;
+						end
+					end);
+				end;
+
+				ctrl._widgetConns.up = upButton.InputBegan:Connect(function(input)
+					startArrowHold(-(ctrl.step or registry.step), input);
+				end);
+				ctrl._widgetConns.down = downButton.InputBegan:Connect(function(input)
+					startArrowHold(ctrl.step or registry.step, input);
+				end);
+				ctrl._widgetConns.track = track.InputBegan:Connect(function(input)
+					if not input or not isPressInput(input.UserInputType) then
+						return;
+					end;
+					local y = input.Position and input.Position.Y;
+					if not y then
+						return;
+					end;
+					local thumbTop = thumb.AbsolutePosition.Y;
+					local thumbBottom = thumbTop + thumb.AbsoluteSize.Y;
+					if y >= thumbTop and y <= thumbBottom then
+						return;
+					end;
+					ctrl.stopArrowHold();
+					ctrl.stopThumbDrag();
+					if y < thumbTop then
+						ctrl.pageStep(-1);
+					else
+						ctrl.pageStep(1);
+					end;
+				end);
+				ctrl._widgetConns.thumb = thumb.InputBegan:Connect(function(input)
+					if not input or not isPressInput(input.UserInputType) then
+						return;
+					end;
+					ctrl.stopArrowHold();
+					ctrl.stopThumbDrag();
+
+					local active = true;
+					local pointer = input.UserInputType == Enum.UserInputType.Touch and input or nil;
+					local touchLocked = false;
+					local moveConn;
+					local endConn;
+					local offsetY = input.Position and (input.Position.Y - thumb.AbsolutePosition.Y) or 0;
+					local touchMode = ctrl.name .. "-scroll-thumb";
+
+					if pointer and NAgui.tryLockTouchGesture and not NAgui.tryLockTouchGesture(bar, touchMode, pointer) then
+						return;
+					end;
+					touchLocked = pointer ~= nil;
+
+					local function stop()
+						if not active then
+							return;
+						end;
+						active = false;
+						if touchLocked and NAgui.releaseTouchGesture then
+							NAgui.releaseTouchGesture(bar, touchMode, pointer);
+						end;
+						disconnectConn(moveConn);
+						disconnectConn(endConn);
+						if ctrl._thumbDrag and ctrl._thumbDrag.stop == stop then
+							ctrl._thumbDrag = nil;
+						end;
+						ctrl.scheduleRefresh();
+					end;
+
+					ctrl._thumbDrag = {
+						stop = stop
+					};
+					moveConn = UserInputService.InputChanged:Connect(function(changedInput)
+						if not active then
+							return;
+						end;
+						local inputType = changedInput.UserInputType;
+						if inputType ~= Enum.UserInputType.MouseMovement
+							and not (inputType == Enum.UserInputType.Touch and changedInput == pointer) then
+							return;
+						end;
+						local target = ctrl.getTarget();
+						if not target then
+							stop();
+							return;
+						end;
+						local trackHeight = math.max(0, track.AbsoluteSize.Y - thumb.AbsoluteSize.Y);
+						local rawY = changedInput.Position.Y - track.AbsolutePosition.Y - offsetY;
+						local thumbY = math.clamp(rawY, 0, trackHeight);
+						local percent = trackHeight > 0 and (thumbY / trackHeight) or 0;
+						ctrl.scrollTo(percent * ctrl.getMaxPosition(target));
+					end);
+					endConn = UserInputService.InputEnded:Connect(function(endedInput)
+						if endedInput.UserInputType == Enum.UserInputType.MouseButton1
+							or (endedInput.UserInputType == Enum.UserInputType.Touch and endedInput == pointer) then
+							stop();
+						end;
+					end);
+				end);
+				ctrl._widgetConns.ancestry = bar.AncestryChanged:Connect(function(_, parent)
+					if not parent then
+						ctrl.stopArrowHold();
+						ctrl.stopThumbDrag();
+						disconnectAll(ctrl._widgetConns);
+						ctrl._widgetRoot = nil;
+					else
+						ctrl.scheduleRefresh();
+					end;
+				end);
+			end;
+
+			ctrl._installed = true;
+			ctrl.setTarget(ctrl.getTarget());
+			return ctrl;
+		end;
+
+		return ctrl;
+	end;
+
+	local function settingsWidgets()
+		local mgr = NAUIMANAGER;
+		if not mgr then
+			return nil;
+		end;
+		return {
+			bar = mgr.SettingsCustomScrollBar,
+			upButton = mgr.SettingsCustomScrollUp,
+			downButton = mgr.SettingsCustomScrollDown,
+			track = mgr.SettingsCustomScrollTrack,
+			thumb = mgr.SettingsCustomScrollThumb
+		};
+	end;
+
+	local function chatWidgets()
+		local mgr = NAUIMANAGER;
+		if not mgr then
+			return nil;
+		end;
+		return {
+			bar = mgr.ChatCustomScrollBar,
+			upButton = mgr.ChatCustomScrollUp,
+			downButton = mgr.ChatCustomScrollDown,
+			track = mgr.ChatCustomScrollTrack,
+			thumb = mgr.ChatCustomScrollThumb
+		};
+	end;
+
+	local function consoleWidgets()
+		local mgr = NAUIMANAGER;
+		if not mgr then
+			return nil;
+		end;
+		return {
+			bar = mgr.ConsoleCustomScrollBar,
+			upButton = mgr.ConsoleCustomScrollUp,
+			downButton = mgr.ConsoleCustomScrollDown,
+			track = mgr.ConsoleCustomScrollTrack,
+			thumb = mgr.ConsoleCustomScrollThumb
+		};
+	end;
+
+	NAmanage.SettingsScroll = registry.create("settings", {
+		getWidgets = settingsWidgets,
+		getTarget = function()
+			return NAUIMANAGER and NAUIMANAGER.SettingsList or nil;
+		end
+	});
+
+	NAmanage.ChatScroll = registry.create("chat", {
+		getWidgets = chatWidgets,
+		getTarget = function()
+			return NAUIMANAGER and NAUIMANAGER.chatLogs or nil;
+		end
+	});
+
+	NAmanage.ConsoleScroll = registry.create("console", {
+		getWidgets = consoleWidgets,
+		getTarget = function()
+			return NAUIMANAGER and NAUIMANAGER.NAconsoleLogs or nil;
+		end,
+		layoutForTarget = function(_, target, widgets)
+			local bar = widgets and widgets.bar;
+			if not (target and bar and target.Parent == bar.Parent) then
+				return;
+			end;
+			local offsetY = math.floor((target.Position.Y.Offset or 0) + 0.5);
+			local height = math.max(0, math.floor((target.AbsoluteSize.Y or target.Size.Y.Offset or 0) + 0.5));
+			bar.Position = UDim2.new(1, -18, 0, offsetY);
+			bar.Size = UDim2.new(0, 16, 0, height);
+		end
+	});
+end;
+if NAmanage.SettingsScroll and NAmanage.SettingsScroll.install then
+	NAmanage.SettingsScroll.install();
+end;
+if NAmanage.ChatScroll and NAmanage.ChatScroll.install then
+	NAmanage.ChatScroll.install();
+end;
+if NAmanage.ConsoleScroll and NAmanage.ConsoleScroll.install then
+	NAmanage.ConsoleScroll.install();
+end;
 NAStuff.settingsAllDirty = true;
 NAmanage.markAllTabDirty = function(tabName)
 	if not tabName or not NA_TABS or tabName == NA_TABS.TAB_ALL then
@@ -67907,6 +68560,9 @@ NAgui.setTab = function(name)
 		end;
 		if info.page then
 			NAUIMANAGER.SettingsList = info.page;
+			if NAmanage.SettingsScroll and NAmanage.SettingsScroll.setTarget then
+				NAmanage.SettingsScroll.setTarget(info.page);
+			end;
 		end;
 		if isAllTab and NAStuff.settingsAllDirty then
 			NAmanage.prepareAllTabDisplay(info);
@@ -67940,6 +68596,9 @@ NAgui.setTab = function(name)
 		NAmanage.prepareAllTabDisplay(info);
 	elseif info.page and info.page:IsA("ScrollingFrame") then
 		updateCanvasSize(info.page, NAUIMANAGER and NAUIMANAGER.AUTOSCALER and NAUIMANAGER.AUTOSCALER.Scale or nil);
+	end;
+	if NAmanage.SettingsScroll and NAmanage.SettingsScroll.setTarget then
+		NAmanage.SettingsScroll.setTarget(info.page);
 	end;
 	return info.page;
 end;
@@ -68084,6 +68743,9 @@ function NAmanage.SetSearch.reset()
 	table.clear(NAmanage.SetSearch.state.vis);
 	NAmanage.SetSearch.state.active = false;
 	NAmanage.SetSearch.state.last = "";
+	if NAUIMANAGER and NAUIMANAGER.SettingsList then
+		updateCanvasSize(NAUIMANAGER.SettingsList, NAUIMANAGER.AUTOSCALER and NAUIMANAGER.AUTOSCALER.Scale or nil);
+	end;
 end;
 function NAmanage.SetSearch.match(element, query)
 	if query == "" then
@@ -68166,6 +68828,7 @@ function NAmanage.SetSearch.apply(rawText)
 		element.Visible = matches;
 	end);
 	NAmanage.SetSearch.sectVis(list, matchesMap);
+	updateCanvasSize(list, NAUIMANAGER and NAUIMANAGER.AUTOSCALER and NAUIMANAGER.AUTOSCALER.Scale or nil);
 end;
 function NAmanage.SetSearch.init()
 	local input = NAUIMANAGER.SettingsSearchBox;
@@ -68276,6 +68939,9 @@ NAgui.addTab=function(name, options)
 	end
 
 	if info.page then
+		if NAmanage.SettingsScroll and NAmanage.SettingsScroll.applyPageDefaults then
+			NAmanage.SettingsScroll.applyPageDefaults(info.page);
+		end
 		NAgui.RegisterStrokesFrom(info.page)
 	end
 	if info.button and originalIO.applyTabDisplayText then
@@ -77153,6 +77819,13 @@ NAmanage.bindToChat=function(plr, msg)
 	end)
 
 	if shouldDisplay and chatMsg then
+		local logsFrame = NAUIMANAGER and NAUIMANAGER.chatLogs;
+		local followBottom = false;
+		if logsFrame and logsFrame.Parent then
+			local bottomY = (tonumber(logsFrame.CanvasPosition.Y) or 0) + (logsFrame.AbsoluteSize.Y or 0);
+			local canvasY = tonumber(logsFrame.CanvasSize.Y.Offset) or 0;
+			followBottom = bottomY >= math.max(0, canvasY - 32);
+		end
 		local txtSize = NAgui.txtSize(chatMsg, chatMsg.AbsoluteSize.X, 200)
 		chatMsg.Size = UDim2.new(1, -5, 0, txtSize.Y)
 
@@ -77177,6 +77850,15 @@ NAmanage.bindToChat=function(plr, msg)
 			if old and old.Parent then
 				old:Destroy()
 			end
+		end
+		if logsFrame and logsFrame.Parent then
+			updateCanvasSize(logsFrame, NAUIMANAGER and NAUIMANAGER.AUTOSCALER and NAUIMANAGER.AUTOSCALER.Scale or nil)
+			if followBottom then
+				logsFrame.CanvasPosition = Vector2.new(0, math.max(0, (logsFrame.CanvasSize.Y.Offset or 0) - (logsFrame.AbsoluteSize.Y or 0)))
+			end
+		end
+		if NAmanage.ChatScroll and NAmanage.ChatScroll.scheduleRefresh then
+			NAmanage.ChatScroll.scheduleRefresh();
 		end
 	end
 end
@@ -77711,7 +78393,7 @@ NAmanage.bindToDevConsole = function()
 		logs.AnchorPoint = Vector2.new(0.5, 0);
 		logs.Position = UDim2.new(0.5, 0, 0, cursorY);
 		local availableHeight = math.max(0, container.AbsoluteSize.Y - cursorY - 8);
-		logs.Size = UDim2.new(1, -10, 0, availableHeight);
+		logs.Size = UDim2.new(1, -28, 0, availableHeight);
 		local width = getMeasureWidth();
 		for i = 1, #filteredMessages do
 			local record = filteredMessages[i];
@@ -77723,6 +78405,9 @@ NAmanage.bindToDevConsole = function()
 		requestSync({
 			followBottom = isNearBottom()
 		});
+		if NAmanage.ConsoleScroll and NAmanage.ConsoleScroll.scheduleRefresh then
+			NAmanage.ConsoleScroll.scheduleRefresh();
+		end;
 	end;
 	local function enqueueMessage(msg, msgTYPE)
 		local rawText = tostring(msg or "");
