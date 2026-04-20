@@ -69527,6 +69527,44 @@ end
 local COMMAND_LIST_TOP_PADDING = 5
 local COMMAND_OVERSCAN_ROWS = 8
 
+local function shouldUseStaticCommandList()
+	if IsOnMobile == true then
+		return true
+	end
+	if UserInputService and UserInputService.TouchEnabled then
+		return true
+	end
+	local camera = workspace and workspace.CurrentCamera
+	local viewport = camera and camera.ViewportSize
+	if viewport then
+		local shortSide = math.min(tonumber(viewport.X) or 0, tonumber(viewport.Y) or 0)
+		local longSide = math.max(tonumber(viewport.X) or 0, tonumber(viewport.Y) or 0)
+		if shortSide > 0 and shortSide <= 420 and longSide <= 900 then
+			return true
+		end
+	end
+	return false
+end
+
+local function createCommandListLabel(state)
+	local label = NAUIMANAGER.commandExample:Clone()
+	label.MouseEnter:Connect(function()
+		local desc = NAmanage.GetAttr(label, "CmdDesc")
+		if type(desc) == "string" and desc ~= "" then
+			NAUIMANAGER.description.Visible = true
+			NAUIMANAGER.description.Text = desc
+		else
+			NAUIMANAGER.description.Visible = false
+			NAUIMANAGER.description.Text = ""
+		end
+	end)
+	label.MouseLeave:Connect(function()
+		NAUIMANAGER.description.Visible = false
+		NAUIMANAGER.description.Text = ""
+	end)
+	return label
+end
+
 local function releaseCommandListLabel(state, label)
 	if not label then
 		return
@@ -69550,21 +69588,7 @@ local function acquireCommandListLabel(state)
 		label = table.remove(state.pooledLabels)
 	end
 
-	label = NAUIMANAGER.commandExample:Clone()
-	label.MouseEnter:Connect(function()
-		local desc = NAmanage.GetAttr(label, "CmdDesc")
-		if type(desc) == "string" and desc ~= "" then
-			NAUIMANAGER.description.Visible = true
-			NAUIMANAGER.description.Text = desc
-		else
-			NAUIMANAGER.description.Visible = false
-			NAUIMANAGER.description.Text = ""
-		end
-	end)
-	label.MouseLeave:Connect(function()
-		NAUIMANAGER.description.Visible = false
-		NAUIMANAGER.description.Text = ""
-	end)
+	label = createCommandListLabel(state)
 	label.Parent = state.virtualCanvas
 	return label
 end
@@ -69606,9 +69630,63 @@ local function applyCommandListEntry(state, label, entry, index)
 	label.Name = cmdName
 	label.Text = " "..finalText
 	label.Size = state.templateSize or label.Size
-	local rowStep = state.rowStep or 20
-	label.Position = UDim2.new(0, 0, 0, COMMAND_LIST_TOP_PADDING + ((index - 1) * rowStep))
+	if state.staticMode then
+		label.LayoutOrder = index
+		label.Position = UDim2.new(0, 0, 0, 0)
+	else
+		local rowStep = state.rowStep or 20
+		label.Position = UDim2.new(0, 0, 0, COMMAND_LIST_TOP_PADDING + ((index - 1) * rowStep))
+	end
 	label.Visible = true
+end
+
+local function clearStaticCommandLabels(state)
+	if type(state.staticLabels) ~= "table" then
+		state.staticLabels = {}
+		return
+	end
+	for i = 1, #state.staticLabels do
+		local label = state.staticLabels[i]
+		if typeof(label) == "Instance" then
+			pcall(function()
+				label:Destroy()
+			end)
+		end
+	end
+	state.staticLabels = {}
+end
+
+local function rebuildStaticCommandLabels(state)
+	if not state then
+		return
+	end
+	local cList = state.list
+	if not cList then
+		return
+	end
+
+	if state.virtualCanvas and state.virtualCanvas.Parent == cList then
+		state.virtualCanvas.Parent = nil
+	end
+	while #state.visibleLabels > 0 do
+		releaseCommandListLabel(state, table.remove(state.visibleLabels))
+	end
+	clearStaticCommandLabels(state)
+
+	local entries = state.entries or {}
+	state.staticLabels = state.staticLabels or {}
+	for i = 1, #entries do
+		local entry = entries[i]
+		local label = createCommandListLabel(state)
+		label.Parent = cList
+		applyCommandListEntry(state, label, entry, i)
+		state.staticLabels[i] = label
+	end
+
+	updateCanvasSize(cList, NAUIMANAGER and NAUIMANAGER.AUTOSCALER and NAUIMANAGER.AUTOSCALER.Scale or nil)
+	if NAmanage.CustomScroll and NAmanage.CustomScroll.refreshByTarget then
+		NAmanage.CustomScroll.refreshByTarget(cList)
+	end
 end
 
 local function requestCommandListSync(state)
@@ -69655,9 +69733,52 @@ NAmanage.ensureCommandListState=function()
 	if not (cList and NAUIMANAGER and NAUIMANAGER.commandExample) then
 		return nil
 	end
+	local staticMode = shouldUseStaticCommandList()
 
 	local state = NAStuff.CommandListState
-	if type(state) == "table" and state.list == cList and state.virtualCanvas and state.virtualCanvas.Parent == cList then
+	if type(state) == "table" and state.list == cList and state.staticMode == staticMode then
+		if staticMode then
+			return state
+		end
+		if state.virtualCanvas and state.virtualCanvas.Parent == cList then
+			return state
+		end
+	end
+
+	if type(state) == "table" and state.list == cList and state.staticMode ~= staticMode then
+		clearStaticCommandLabels(state)
+		while #state.visibleLabels > 0 do
+			releaseCommandListLabel(state, table.remove(state.visibleLabels))
+		end
+		if state.virtualCanvas then
+			pcall(function()
+				state.virtualCanvas:Destroy()
+			end)
+		end
+		NAStuff.CommandListState = nil
+		state = nil
+	end
+
+	local virtualCanvas = nil
+	if not staticMode then
+		virtualCanvas = cList:FindFirstChild("VirtualCanvas")
+		if not virtualCanvas then
+			virtualCanvas = InstanceNew("Frame")
+			virtualCanvas.Name = "VirtualCanvas"
+			virtualCanvas.BackgroundTransparency = 1
+			virtualCanvas.BorderSizePixel = 0
+			virtualCanvas.Size = UDim2.new(1, 0, 0, 0)
+			virtualCanvas.Position = UDim2.new(0, 0, 0, 0)
+			virtualCanvas.Parent = cList
+		end
+	else
+		virtualCanvas = cList:FindFirstChild("VirtualCanvas")
+		if virtualCanvas then
+			virtualCanvas.Parent = nil
+		end
+	end
+
+	if type(state) == "table" and state.list == cList and state.staticMode == staticMode then
 		return state
 	end
 
@@ -69668,17 +69789,6 @@ NAmanage.ensureCommandListState=function()
 		end
 	end
 	NAStuff.CommandLabelPool = pooled
-
-	local virtualCanvas = cList:FindFirstChild("VirtualCanvas")
-	if not virtualCanvas then
-		virtualCanvas = InstanceNew("Frame")
-		virtualCanvas.Name = "VirtualCanvas"
-		virtualCanvas.BackgroundTransparency = 1
-		virtualCanvas.BorderSizePixel = 0
-		virtualCanvas.Size = UDim2.new(1, 0, 0, 0)
-		virtualCanvas.Position = UDim2.new(0, 0, 0, 0)
-		virtualCanvas.Parent = cList
-	end
 
 	local templateHeight = getCommandTemplateHeight()
 	local rowGap = math.max(2, math.floor(templateHeight * 0.15 + 0.5))
@@ -69697,6 +69807,8 @@ NAmanage.ensureCommandListState=function()
 		rowGap = rowGap;
 		rowStep = rowStep;
 		syncQueued = false;
+		staticMode = staticMode;
+		staticLabels = {};
 	}
 	NAStuff.CommandListState = state
 
@@ -69707,12 +69819,14 @@ NAmanage.ensureCommandListState=function()
 
 	NAlib.disconnect("NA_CommandListCanvasPos")
 	NAlib.disconnect("NA_CommandListAbsSize")
-	NAlib.connect("NA_CommandListCanvasPos", cList:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
-		requestCommandListSync(state)
-	end))
-	NAlib.connect("NA_CommandListAbsSize", cList:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-		requestCommandListSync(state)
-	end))
+	if not staticMode then
+		NAlib.connect("NA_CommandListCanvasPos", cList:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
+			requestCommandListSync(state)
+		end))
+		NAlib.connect("NA_CommandListAbsSize", cList:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+			requestCommandListSync(state)
+		end))
+	end
 
 	return state
 end
@@ -69727,6 +69841,14 @@ NAmanage.syncVisibleCommandRows=function(state)
 	local virtualCanvas = state.virtualCanvas
 	local filteredEntries = state.filteredEntries or {}
 	local count = #filteredEntries
+
+	if state.staticMode then
+		updateCanvasSize(cList, NAUIMANAGER and NAUIMANAGER.AUTOSCALER and NAUIMANAGER.AUTOSCALER.Scale or nil)
+		if NAmanage.CustomScroll and NAmanage.CustomScroll.refreshByTarget then
+			NAmanage.CustomScroll.refreshByTarget(cList)
+		end
+		return
+	end
 
 	if NAUIMANAGER.description then
 		NAUIMANAGER.description.Visible = false
@@ -69803,6 +69925,9 @@ NAgui.commands = function()
 	state.entries = NAmanage.buildCommandEntries() or {}
 	state.filteredEntries = state.entries
 	NAStuff.CommandFilterEntries = nil
+	if state.staticMode then
+		rebuildStaticCommandLabels(state)
+	end
 
 	if NAgui.filterCommandList then
 		NAgui.filterCommandList(NAUIMANAGER.commandsFilter and NAUIMANAGER.commandsFilter.Text or "")
@@ -75694,6 +75819,34 @@ NAgui.filterCommandList = function(rawText)
 
 	state.filteredEntries = filtered
 	NAUIMANAGER.commandsList.CanvasPosition = Vector2.new(0, 0)
+	if state.staticMode then
+		local labels = state.staticLabels or {}
+		local filteredMap = {}
+		for i = 1, #filtered do
+			filteredMap[filtered[i]] = true
+		end
+		for i = 1, #labels do
+			local label = labels[i]
+			local entry = entries[i]
+			if label and entry then
+				local visible = searchText == "" or filteredMap[entry] == true
+				if visible then
+					if label.Parent ~= NAUIMANAGER.commandsList then
+						label.Parent = NAUIMANAGER.commandsList
+					end
+					label.Visible = true
+				else
+					label.Visible = false
+					label.Parent = nil
+				end
+			end
+		end
+		updateCanvasSize(NAUIMANAGER.commandsList, NAUIMANAGER and NAUIMANAGER.AUTOSCALER and NAUIMANAGER.AUTOSCALER.Scale or nil)
+		if NAmanage.CustomScroll and NAmanage.CustomScroll.refreshByTarget then
+			NAmanage.CustomScroll.refreshByTarget(NAUIMANAGER.commandsList)
+		end
+		return
+	end
 	NAmanage.syncVisibleCommandRows(state)
 end
 
