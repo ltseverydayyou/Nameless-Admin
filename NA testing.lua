@@ -67322,6 +67322,11 @@ NAUIMANAGER = {
 	commandsFilter = NAStuff.NASCREENGUI:FindFirstChild("Commands") and (NAStuff.NASCREENGUI:FindFirstChild("Commands")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("Commands")):FindFirstChild("Container")):FindFirstChild("Filter"),
 	commandsList = NAStuff.NASCREENGUI:FindFirstChild("Commands") and (NAStuff.NASCREENGUI:FindFirstChild("Commands")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("Commands")):FindFirstChild("Container")):FindFirstChild("List"),
 	commandExample = NAStuff.NASCREENGUI:FindFirstChild("Commands") and (NAStuff.NASCREENGUI:FindFirstChild("Commands")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("Commands")):FindFirstChild("Container")):FindFirstChild("List") and (((NAStuff.NASCREENGUI:FindFirstChild("Commands")):FindFirstChild("Container")):FindFirstChild("List")):FindFirstChild("TextLabel"),
+	CommandsCustomScrollBar = NAStuff.NASCREENGUI:FindFirstChild("Commands") and (NAStuff.NASCREENGUI:FindFirstChild("Commands")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("Commands")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar"),
+	CommandsCustomScrollUp = NAStuff.NASCREENGUI:FindFirstChild("Commands") and (NAStuff.NASCREENGUI:FindFirstChild("Commands")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("Commands")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar") and (((NAStuff.NASCREENGUI:FindFirstChild("Commands")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Up"),
+	CommandsCustomScrollDown = NAStuff.NASCREENGUI:FindFirstChild("Commands") and (NAStuff.NASCREENGUI:FindFirstChild("Commands")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("Commands")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar") and (((NAStuff.NASCREENGUI:FindFirstChild("Commands")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Down"),
+	CommandsCustomScrollTrack = NAStuff.NASCREENGUI:FindFirstChild("Commands") and (NAStuff.NASCREENGUI:FindFirstChild("Commands")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("Commands")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar") and (((NAStuff.NASCREENGUI:FindFirstChild("Commands")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Track"),
+	CommandsCustomScrollThumb = NAStuff.NASCREENGUI:FindFirstChild("Commands") and (NAStuff.NASCREENGUI:FindFirstChild("Commands")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("Commands")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar") and (((NAStuff.NASCREENGUI:FindFirstChild("Commands")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Track") and ((((NAStuff.NASCREENGUI:FindFirstChild("Commands")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Track")):FindFirstChild("Thumb"),
 	resizeFrame = NAStuff.NASCREENGUI:FindFirstChild("Resizeable"),
 	ModalFixer = NAStuff.NASCREENGUI:FindFirstChildWhichIsA("ImageButton"),
 	SettingsFrame = NAStuff.NASCREENGUI:FindFirstChild("setsettings"),
@@ -67350,9 +67355,19 @@ NAUIMANAGER = {
 	WaypointList = NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint") and (NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container")):FindFirstChild("List"),
 	filterBox = NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint") and (NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container")):FindFirstChildWhichIsA("TextBox"),
 	WPFrame = NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint") and (NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container")):FindFirstChild("List") and (((NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container")):FindFirstChild("List")):FindFirstChild("WP"),
+	WaypointCustomScrollBar = NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint") and (NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar"),
+	WaypointCustomScrollUp = NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint") and (NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar") and (((NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Up"),
+	WaypointCustomScrollDown = NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint") and (NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar") and (((NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Down"),
+	WaypointCustomScrollTrack = NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint") and (NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar") and (((NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Track"),
+	WaypointCustomScrollThumb = NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint") and (NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar") and (((NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Track") and ((((NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Track")):FindFirstChild("Thumb"),
 	BindersFrame = NAStuff.NASCREENGUI:FindFirstChild("binders"),
 	BindersContainer = NAStuff.NASCREENGUI:FindFirstChild("binders") and (NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container"),
-	BindersList = NAStuff.NASCREENGUI:FindFirstChild("binders") and (NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container")):FindFirstChild("List")
+	BindersList = NAStuff.NASCREENGUI:FindFirstChild("binders") and (NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container")):FindFirstChild("List"),
+	BindersCustomScrollBar = NAStuff.NASCREENGUI:FindFirstChild("binders") and (NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar"),
+	BindersCustomScrollUp = NAStuff.NASCREENGUI:FindFirstChild("binders") and (NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar") and (((NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Up"),
+	BindersCustomScrollDown = NAStuff.NASCREENGUI:FindFirstChild("binders") and (NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar") and (((NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Down"),
+	BindersCustomScrollTrack = NAStuff.NASCREENGUI:FindFirstChild("binders") and (NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar") and (((NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Track"),
+	BindersCustomScrollThumb = NAStuff.NASCREENGUI:FindFirstChild("binders") and (NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar") and (((NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Track") and ((((NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Track")):FindFirstChild("Thumb")
 };
 
 originalIO.resizeCursors = function(key, fallback)
@@ -68235,6 +68250,48 @@ do
 		};
 	end;
 
+	local function commandsWidgets()
+		local mgr = NAUIMANAGER;
+		if not mgr then
+			return nil;
+		end;
+		return {
+			bar = mgr.CommandsCustomScrollBar,
+			upButton = mgr.CommandsCustomScrollUp,
+			downButton = mgr.CommandsCustomScrollDown,
+			track = mgr.CommandsCustomScrollTrack,
+			thumb = mgr.CommandsCustomScrollThumb
+		};
+	end;
+
+	local function waypointWidgets()
+		local mgr = NAUIMANAGER;
+		if not mgr then
+			return nil;
+		end;
+		return {
+			bar = mgr.WaypointCustomScrollBar,
+			upButton = mgr.WaypointCustomScrollUp,
+			downButton = mgr.WaypointCustomScrollDown,
+			track = mgr.WaypointCustomScrollTrack,
+			thumb = mgr.WaypointCustomScrollThumb
+		};
+	end;
+
+	local function bindersWidgets()
+		local mgr = NAUIMANAGER;
+		if not mgr then
+			return nil;
+		end;
+		return {
+			bar = mgr.BindersCustomScrollBar,
+			upButton = mgr.BindersCustomScrollUp,
+			downButton = mgr.BindersCustomScrollDown,
+			track = mgr.BindersCustomScrollTrack,
+			thumb = mgr.BindersCustomScrollThumb
+		};
+	end;
+
 	local function consoleWidgets()
 		local mgr = NAUIMANAGER;
 		if not mgr then
@@ -68249,6 +68306,18 @@ do
 		};
 	end;
 
+	local function alignBarToTarget(_, target, widgets)
+		local bar = widgets and widgets.bar;
+		if not (target and bar and bar.Parent and target.Parent == bar.Parent) then
+			return;
+		end;
+		local parentY = bar.Parent.AbsolutePosition and bar.Parent.AbsolutePosition.Y or 0;
+		local offsetY = math.floor(((target.AbsolutePosition and target.AbsolutePosition.Y) or parentY) - parentY + 0.5);
+		local height = math.max(0, math.floor(((target.AbsoluteSize and target.AbsoluteSize.Y) or 0) + 0.5));
+		bar.Position = UDim2.new(1, -18, 0, offsetY);
+		bar.Size = UDim2.new(0, 16, 0, height);
+	end;
+
 	NAmanage.SettingsScroll = registry.create("settings", {
 		getWidgets = settingsWidgets,
 		getTarget = function()
@@ -68260,7 +68329,32 @@ do
 		getWidgets = chatWidgets,
 		getTarget = function()
 			return NAUIMANAGER and NAUIMANAGER.chatLogs or nil;
-		end
+		end,
+		layoutForTarget = alignBarToTarget
+	});
+
+	NAmanage.CommandsScroll = registry.create("commands", {
+		getWidgets = commandsWidgets,
+		getTarget = function()
+			return NAUIMANAGER and NAUIMANAGER.commandsList or nil;
+		end,
+		layoutForTarget = alignBarToTarget
+	});
+
+	NAmanage.WaypointScroll = registry.create("waypoints", {
+		getWidgets = waypointWidgets,
+		getTarget = function()
+			return NAUIMANAGER and NAUIMANAGER.WaypointList or nil;
+		end,
+		layoutForTarget = alignBarToTarget
+	});
+
+	NAmanage.BindersScroll = registry.create("binders", {
+		getWidgets = bindersWidgets,
+		getTarget = function()
+			return NAUIMANAGER and NAUIMANAGER.BindersList or nil;
+		end,
+		layoutForTarget = alignBarToTarget
 	});
 
 	NAmanage.ConsoleScroll = registry.create("console", {
@@ -68268,16 +68362,7 @@ do
 		getTarget = function()
 			return NAUIMANAGER and NAUIMANAGER.NAconsoleLogs or nil;
 		end,
-		layoutForTarget = function(_, target, widgets)
-			local bar = widgets and widgets.bar;
-			if not (target and bar and target.Parent == bar.Parent) then
-				return;
-			end;
-			local offsetY = math.floor((target.Position.Y.Offset or 0) + 0.5);
-			local height = math.max(0, math.floor((target.AbsoluteSize.Y or target.Size.Y.Offset or 0) + 0.5));
-			bar.Position = UDim2.new(1, -18, 0, offsetY);
-			bar.Size = UDim2.new(0, 16, 0, height);
-		end
+		layoutForTarget = alignBarToTarget
 	});
 end;
 if NAmanage.SettingsScroll and NAmanage.SettingsScroll.install then
@@ -68285,6 +68370,15 @@ if NAmanage.SettingsScroll and NAmanage.SettingsScroll.install then
 end;
 if NAmanage.ChatScroll and NAmanage.ChatScroll.install then
 	NAmanage.ChatScroll.install();
+end;
+if NAmanage.CommandsScroll and NAmanage.CommandsScroll.install then
+	NAmanage.CommandsScroll.install();
+end;
+if NAmanage.WaypointScroll and NAmanage.WaypointScroll.install then
+	NAmanage.WaypointScroll.install();
+end;
+if NAmanage.BindersScroll and NAmanage.BindersScroll.install then
+	NAmanage.BindersScroll.install();
 end;
 if NAmanage.ConsoleScroll and NAmanage.ConsoleScroll.install then
 	NAmanage.ConsoleScroll.install();
@@ -69614,6 +69708,9 @@ NAmanage.syncVisibleCommandRows=function(state)
 			virtualCanvas.Size = UDim2.new(1, 0, 0, 0)
 		end
 		cList.CanvasSize = UDim2.new(0, 0, 0, 0)
+		if NAmanage.CustomScroll and NAmanage.CustomScroll.refreshByTarget then
+			NAmanage.CustomScroll.refreshByTarget(cList)
+		end
 		return
 	end
 
@@ -69621,6 +69718,9 @@ NAmanage.syncVisibleCommandRows=function(state)
 	local totalHeight = COMMAND_LIST_TOP_PADDING + (count * rowStep)
 	virtualCanvas.Size = UDim2.new(1, 0, 0, totalHeight)
 	cList.CanvasSize = UDim2.new(0, 0, 0, totalHeight)
+	if NAmanage.CustomScroll and NAmanage.CustomScroll.refreshByTarget then
+		NAmanage.CustomScroll.refreshByTarget(cList)
+	end
 
 	local overscanPx = COMMAND_OVERSCAN_ROWS * rowStep
 	local scrollY = cList.CanvasPosition.Y
@@ -70121,6 +70221,7 @@ NAmanage.UpdateWaypointList=function()
 			end
 		end
 	end
+	updateCanvasSize(list, NAUIMANAGER and NAUIMANAGER.AUTOSCALER and NAUIMANAGER.AUTOSCALER.Scale or nil)
 end
 
 NAgui.atchSettings = function(row, hoverKey, strength)
@@ -81604,6 +81705,7 @@ SpawnCall(function()
 				itemsFrame:TweenSize(UDim2.new(1,0,0,h), "Out", "Quint", 0.25, true)
 				binderFrame:TweenSize(UDim2.new(1,0,0, HEADER_H + h), "Out", "Quint", 0.25, true)
 			end
+			updateCanvasSize(NAStuff.bindersList, NAUIMANAGER and NAUIMANAGER.AUTOSCALER and NAUIMANAGER.AUTOSCALER.Scale or nil)
 		end)
 
 		MouseButtonFix(header, function()
