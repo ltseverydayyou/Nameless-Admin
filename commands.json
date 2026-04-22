@@ -6237,6 +6237,16 @@
       "desc": ""
     },
     {
+      "name": "modelesp",
+      "aliases": [
+        "modelesp",
+        "mesp"
+      ],
+      "usage": "",
+      "args": "",
+      "desc": ""
+    },
+    {
       "name": "unfolderesp",
       "aliases": [
         "unfolderesp",
@@ -6245,6 +6255,16 @@
       "usage": "unfolderesp [folderName]",
       "args": "[folderName]",
       "desc": "Disables folder ESP for a folder or all"
+    },
+    {
+      "name": "unmodelesp",
+      "aliases": [
+        "unmodelesp",
+        "unmesp"
+      ],
+      "usage": "unmodelesp [modelName]",
+      "args": "[modelName]",
+      "desc": "Disables model ESP for a model or all"
     },
     {
       "name": "viewpart",
