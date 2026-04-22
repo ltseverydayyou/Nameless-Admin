@@ -787,6 +787,10 @@ local NAStuff = {
 	ESP_DrawingTextOutline = true;
 	ESP_DrawingBoxStyle = "Square";
 	ESP_DrawingBoxThickness = 1;
+	ESP_DrawingPartBoxStyle = "Square";
+	ESP_DrawingPartTextOutline = true;
+	ESP_DrawingPartBoxThickness = 1;
+	ESP_DrawingPartQueuePerStep = 128;
 	ESP_DrawingTracerEnabled = false;
 	ESP_DrawingTracerOrigin = "Bottom";
 	ESP_DrawingTracerThickness = 1;
@@ -797,6 +801,7 @@ local NAStuff = {
 	ESP_ShowPartDistance = false;
 	ESP_PartColor_Name = Color3.fromRGB(255, 255, 255);
 	ESP_PartColor_Folder = Color3.fromRGB(255, 220, 0);
+	ESP_PartColor_Model = Color3.fromRGB(0, 200, 255);
 	ESP_PartColor_Touch = Color3.fromRGB(255, 0, 0);
 	ESP_PartColor_Proximity = Color3.fromRGB(0, 0, 255);
 	ESP_PartColor_Click = Color3.fromRGB(255, 165, 0);
@@ -816,6 +821,7 @@ local NAStuff = {
 	ESP_LastExactPart = "";
 	ESP_LastPartialPart = "";
 	ESP_LastFolderName = "";
+	ESP_LastModelName = "";
 	ESP_LocatorGui = nil;
 	ESP_LocatorArrows = {};
 	ESP_PlayerLocatorGui = nil;
@@ -827,6 +833,8 @@ local NAStuff = {
 	ESP_ScanDelay = 0;
 	ESP_RescanPerStep = 90;
 	ESP_FolderMode = "parts";
+	ESP_ModelMode = "parts";
+	NPC_ESP_RenderMode = "Highlight";
 	NPC_ESP_MaxDist = 400;
 	NPC_ESP_MaxCount = 200;
 	NPC_ESP_ShowLabels = true;
@@ -16736,6 +16744,10 @@ NAmanage.LoadESPSettings = function()
 		ESP_DrawingTextOutline = true;
 		ESP_DrawingBoxStyle = "Square";
 		ESP_DrawingBoxThickness = 1;
+		ESP_DrawingPartBoxStyle = "Square";
+		ESP_DrawingPartTextOutline = true;
+		ESP_DrawingPartBoxThickness = 1;
+		ESP_DrawingPartQueuePerStep = 128;
 		ESP_DrawingTracerEnabled = false;
 		ESP_DrawingTracerOrigin = "Bottom";
 		ESP_DrawingTracerThickness = 1;
@@ -16746,6 +16758,7 @@ NAmanage.LoadESPSettings = function()
 		ESP_ShowPartDistance = false;
 		ESP_PartColor_Name = {255, 255, 255};
 		ESP_PartColor_Folder = {255, 220, 0};
+		ESP_PartColor_Model = {0, 200, 255};
 		ESP_PartColor_Touch = {255, 0, 0};
 		ESP_PartColor_Proximity = {0, 0, 255};
 		ESP_PartColor_Click = {255, 165, 0};
@@ -16764,6 +16777,8 @@ NAmanage.LoadESPSettings = function()
 		ESP_PlayerLocatorTextSize = 14;
 		ESP_MaxPerStep = 32;
 		ESP_FolderMode = "parts";
+		ESP_ModelMode = "parts";
+		NPC_ESP_RenderMode = "Highlight";
 	}
 	if FileSupport then
 		if not isfile(NAfiles.NAESPSETTINGSPATH) then
@@ -16815,11 +16830,15 @@ NAmanage.LoadESPSettings = function()
 	local legacyMode = tostring(d.ESP_RenderMode or "Highlight")
 	local mode = NAgui.sanitizeESPRenderMode(legacyMode, "Highlight")
 	local partMode = NAgui.sanitizeESPRenderMode(d.ESP_PartRenderMode or "BoxHandleAdornment", "BoxHandleAdornment")
+	local npcMode = NAgui.sanitizeNPCESPRenderMode(d.NPC_ESP_RenderMode)
 	local partTransparency = NAgui.sanitizeTransparency(d.ESP_PartTransparency ~= nil and d.ESP_PartTransparency or d.ESP_Transparency)
 	local sz = tonumber(d.ESP_LabelTextSize) or 12
 	if sz < 8 then sz = 8 elseif sz > 72 then sz = 72 end
 	local stroke = math.clamp(tonumber(d.ESP_LabelStrokeTransparency) or 0.5, 0, 1)
 	local drawingBoxThickness = math.clamp(tonumber(d.ESP_DrawingBoxThickness) or 1, 1, 6)
+	local drawingPartBoxStyle = NAgui.sanitizeESPDrawingBoxStyle(d.ESP_DrawingPartBoxStyle)
+	local drawingPartBoxThickness = math.clamp(tonumber(d.ESP_DrawingPartBoxThickness) or 1, 1, 6)
+	local drawingPartQueuePerStep = math.clamp(math.floor(tonumber(d.ESP_DrawingPartQueuePerStep) or 128), 1, 512)
 	local drawingTracerThickness = math.clamp(tonumber(d.ESP_DrawingTracerThickness) or 1, 1, 6)
 	local outline = NAgui.sanitizeTransparency(d.ESP_OutlineTransparency)
 	local maxPerStep = math.clamp(math.floor(tonumber(d.ESP_MaxPerStep) or 32), 1, 256)
@@ -16843,6 +16862,10 @@ NAmanage.LoadESPSettings = function()
 	NAStuff.ESP_DrawingTextOutline = d.ESP_DrawingTextOutline ~= false
 	NAStuff.ESP_DrawingBoxStyle = NAgui.sanitizeESPDrawingBoxStyle(d.ESP_DrawingBoxStyle)
 	NAStuff.ESP_DrawingBoxThickness = drawingBoxThickness
+	NAStuff.ESP_DrawingPartBoxStyle = drawingPartBoxStyle
+	NAStuff.ESP_DrawingPartTextOutline = d.ESP_DrawingPartTextOutline ~= false
+	NAStuff.ESP_DrawingPartBoxThickness = drawingPartBoxThickness
+	NAStuff.ESP_DrawingPartQueuePerStep = drawingPartQueuePerStep
 	NAStuff.ESP_DrawingTracerEnabled = d.ESP_DrawingTracerEnabled == true
 	NAStuff.ESP_DrawingTracerOrigin = NAgui.sanitizeESPDrawingTracerOrigin(d.ESP_DrawingTracerOrigin)
 	NAStuff.ESP_DrawingTracerThickness = drawingTracerThickness
@@ -16852,6 +16875,7 @@ NAmanage.LoadESPSettings = function()
 	NAStuff.ESP_ShowPartText = d.ESP_ShowPartText ~= false
 	NAStuff.ESP_PartColor_Name = sanitizeColor(d.ESP_PartColor_Name, Color3.fromRGB(255, 255, 255))
 	NAStuff.ESP_PartColor_Folder = sanitizeColor(d.ESP_PartColor_Folder, Color3.fromRGB(255, 220, 0))
+	NAStuff.ESP_PartColor_Model = sanitizeColor(d.ESP_PartColor_Model, Color3.fromRGB(0, 200, 255))
 	NAStuff.ESP_PartColor_Touch = sanitizeColor(d.ESP_PartColor_Touch, Color3.fromRGB(255, 0, 0))
 	NAStuff.ESP_PartColor_Proximity = sanitizeColor(d.ESP_PartColor_Proximity, Color3.fromRGB(0, 0, 255))
 	NAStuff.ESP_PartColor_Click = sanitizeColor(d.ESP_PartColor_Click, Color3.fromRGB(255, 165, 0))
@@ -16866,6 +16890,12 @@ NAmanage.LoadESPSettings = function()
 		folderMode = "parts"
 	end
 	NAStuff.ESP_FolderMode = folderMode
+	local modelMode = Lower(tostring(d.ESP_ModelMode or "parts"))
+	if modelMode ~= "models" then
+		modelMode = "parts"
+	end
+	NAStuff.ESP_ModelMode = modelMode
+	NAStuff.NPC_ESP_RenderMode = npcMode
 
 	NAStuff.ESP_LocatorEnabled   = d.ESP_LocatorEnabled == true
 	NAStuff.ESP_LocatorSize      = math.clamp(tonumber(d.ESP_LocatorSize) or 26, 12, 128)
@@ -16894,6 +16924,7 @@ NAmanage.SaveESPSettings = function()
 	if not FileSupport then return end
 	local mode = NAgui.sanitizeESPRenderMode(NAStuff.ESP_RenderMode, "Highlight")
 	local partMode = NAgui.sanitizeESPRenderMode(NAStuff.ESP_PartRenderMode, "BoxHandleAdornment")
+	local npcMode = NAgui.sanitizeNPCESPRenderMode(NAStuff.NPC_ESP_RenderMode)
 	local sz = tonumber(NAStuff.ESP_LabelTextSize) or 12
 	if sz < 8 then sz = 8 elseif sz > 72 then sz = 72 end
 	local d = {
@@ -16915,6 +16946,10 @@ NAmanage.SaveESPSettings = function()
 		ESP_DrawingTextOutline = NAStuff.ESP_DrawingTextOutline ~= false;
 		ESP_DrawingBoxStyle = NAgui.sanitizeESPDrawingBoxStyle(NAStuff.ESP_DrawingBoxStyle);
 		ESP_DrawingBoxThickness = math.clamp(tonumber(NAStuff.ESP_DrawingBoxThickness) or 1, 1, 6);
+		ESP_DrawingPartBoxStyle = NAgui.sanitizeESPDrawingBoxStyle(NAStuff.ESP_DrawingPartBoxStyle);
+		ESP_DrawingPartTextOutline = NAStuff.ESP_DrawingPartTextOutline ~= false;
+		ESP_DrawingPartBoxThickness = math.clamp(tonumber(NAStuff.ESP_DrawingPartBoxThickness) or 1, 1, 6);
+		ESP_DrawingPartQueuePerStep = math.clamp(math.floor(tonumber(NAStuff.ESP_DrawingPartQueuePerStep) or 128), 1, 512);
 		ESP_DrawingTracerEnabled = NAStuff.ESP_DrawingTracerEnabled == true;
 		ESP_DrawingTracerOrigin = NAgui.sanitizeESPDrawingTracerOrigin(NAStuff.ESP_DrawingTracerOrigin);
 		ESP_DrawingTracerThickness = math.clamp(tonumber(NAStuff.ESP_DrawingTracerThickness) or 1, 1, 6);
@@ -16924,6 +16959,7 @@ NAmanage.SaveESPSettings = function()
 		ESP_ShowPartText = (NAStuff.ESP_ShowPartText ~= false);
 		ESP_PartColor_Name = NAmanage.UserButtonColorToTable(NAStuff.ESP_PartColor_Name or Color3.fromRGB(255, 255, 255));
 		ESP_PartColor_Folder = NAmanage.UserButtonColorToTable(NAStuff.ESP_PartColor_Folder or Color3.fromRGB(255, 220, 0));
+		ESP_PartColor_Model = NAmanage.UserButtonColorToTable(NAStuff.ESP_PartColor_Model or Color3.fromRGB(0, 200, 255));
 		ESP_PartColor_Touch = NAmanage.UserButtonColorToTable(NAStuff.ESP_PartColor_Touch or Color3.fromRGB(255, 0, 0));
 		ESP_PartColor_Proximity = NAmanage.UserButtonColorToTable(NAStuff.ESP_PartColor_Proximity or Color3.fromRGB(0, 0, 255));
 		ESP_PartColor_Click = NAmanage.UserButtonColorToTable(NAStuff.ESP_PartColor_Click or Color3.fromRGB(255, 165, 0));
@@ -16942,6 +16978,8 @@ NAmanage.SaveESPSettings = function()
 		ESP_PlayerLocatorTextSize = math.clamp(tonumber(NAStuff.ESP_PlayerLocatorTextSize) or 14, 10, 48);
 		ESP_MaxPerStep = math.clamp(math.floor(tonumber(NAStuff.ESP_MaxPerStep) or 32), 1, 256);
 		ESP_FolderMode = (Lower(tostring(NAStuff.ESP_FolderMode)) == "models") and "models" or "parts";
+		ESP_ModelMode = (Lower(tostring(NAStuff.ESP_ModelMode)) == "models") and "models" or "parts";
+		NPC_ESP_RenderMode = npcMode;
 	}
 	writefile(NAfiles.NAESPSETTINGSPATH, HttpService:JSONEncode(d))
 end
@@ -21818,6 +21856,14 @@ NAgui.getESPRenderModeOptions = function()
 	return options
 end
 
+NAgui.getNPCESPRenderModeOptions = function()
+	local options = { "Highlight" }
+	if NAgui.hasDrawingAPI() then
+		options[#options + 1] = "Drawing API"
+	end
+	return options
+end
+
 NAgui.getESPDrawingBoxStyleOptions = function()
 	return { "Square", "Corners" }
 end
@@ -21865,8 +21911,21 @@ NAgui.sanitizeESPRenderMode = function(mode, fallback)
 	return defaultMode
 end
 
+NAgui.sanitizeNPCESPRenderMode = function(mode)
+	local desired = Lower(tostring(mode or ""))
+	if desired == "drawing api" or desired == "drawingapi" or desired == "drawing" then
+		if NAgui.hasDrawingAPI() then
+			return "Drawing API"
+		end
+	end
+	return "Highlight"
+end
+
 NAgui.getESPRenderMode = function(target)
 	local key = Lower(tostring(target or "players"))
+	if key == "npc" or key == "npcs" or key == "npcesp" then
+		return NAgui.sanitizeNPCESPRenderMode(NAStuff.NPC_ESP_RenderMode)
+	end
 	local rawMode = (key == "part" or key == "parts" or key == "partesp")
 		and NAStuff.ESP_PartRenderMode
 		or NAStuff.ESP_RenderMode
@@ -22039,7 +22098,7 @@ NAmanage.DrawingTextSupported = function(refresh)
 	return NAmanage.DrawingObjectSupported("Text", refresh)
 end
 
-NAmanage.DrawingCreateSquare = function(color, fillTransparency)
+NAmanage.DrawingCreateSquare = function(color, fillTransparency, options)
 	if NAmanage.DrawingObjectSupported and not NAmanage.DrawingObjectSupported("Square") then
 		return nil
 	end
@@ -22057,17 +22116,18 @@ NAmanage.DrawingCreateSquare = function(color, fillTransparency)
 		return nil
 	end
 	local alpha = NAgui.toDrawingTransparency(fillTransparency or 0.7)
+	local thickness = math.max(1, tonumber(options and options.thickness) or 1)
 	pcall(function()
 		square.Visible = false
 		square.Filled = false
-		square.Thickness = 1
+		square.Thickness = thickness
 		square.Color = color or Color3.new(1, 1, 1)
 		square.Transparency = alpha
 	end)
 	return square
 end
 
-NAmanage.DrawingUpdateSquare = function(square, inst, color, fillTransparency)
+NAmanage.DrawingUpdateSquare = function(square, inst, color, fillTransparency, options)
 	if not square then return false end
 	local minX, minY, width, height = NAgui.getInstanceViewportBounds(inst)
 	if not minX then
@@ -22077,11 +22137,12 @@ NAmanage.DrawingUpdateSquare = function(square, inst, color, fillTransparency)
 		return true
 	end
 	local alpha = NAgui.toDrawingTransparency(fillTransparency or 0.7)
+	local thickness = math.max(1, tonumber(options and options.thickness) or 1)
 	local ok = pcall(function()
 		square.Color = color or Color3.new(1, 1, 1)
 		square.Transparency = alpha
 		square.Filled = false
-		square.Thickness = 1
+		square.Thickness = thickness
 		square.Position = Vector2.new(minX, minY)
 		square.Size = Vector2.new(width, height)
 		square.Visible = true
@@ -22092,7 +22153,7 @@ NAmanage.DrawingUpdateSquare = function(square, inst, color, fillTransparency)
 	return ok
 end
 
-NAmanage.DrawingCreateText = function(text, color, textSize)
+NAmanage.DrawingCreateText = function(text, color, textSize, options)
 	if NAmanage.DrawingObjectSupported and not NAmanage.DrawingObjectSupported("Text") then
 		return nil
 	end
@@ -22109,10 +22170,16 @@ NAmanage.DrawingCreateText = function(text, color, textSize)
 		end
 		return nil
 	end
+	local outlineEnabled
+	if options and options.outlineEnabled ~= nil then
+		outlineEnabled = options.outlineEnabled == true
+	else
+		outlineEnabled = NAStuff.ESP_DrawingTextOutline ~= false
+	end
 	pcall(function()
 		txt.Visible = false
 		txt.Center = true
-		txt.Outline = NAStuff.ESP_DrawingTextOutline ~= false
+		txt.Outline = outlineEnabled
 		txt.Color = color or Color3.new(1, 1, 1)
 		txt.Size = NAgui.sanitizeLabelSize(textSize or 12)
 		txt.Text = tostring(text or "")
@@ -22122,7 +22189,7 @@ NAmanage.DrawingCreateText = function(text, color, textSize)
 	return txt
 end
 
-NAmanage.DrawingUpdateText = function(txt, worldPos, text, color, textSize)
+NAmanage.DrawingUpdateText = function(txt, worldPos, text, color, textSize, options)
 	if not txt then return false end
 	local cam = workspace and workspace.CurrentCamera
 	if not cam or not worldPos then
@@ -22138,11 +22205,17 @@ NAmanage.DrawingUpdateText = function(txt, worldPos, text, color, textSize)
 		end)
 		return true
 	end
+	local outlineEnabled
+	if options and options.outlineEnabled ~= nil then
+		outlineEnabled = options.outlineEnabled == true
+	else
+		outlineEnabled = NAStuff.ESP_DrawingTextOutline ~= false
+	end
 	local ok = pcall(function()
 		txt.Text = tostring(text or "")
 		txt.Color = color or Color3.new(1, 1, 1)
 		txt.Size = NAgui.sanitizeLabelSize(textSize or 12)
-		txt.Outline = NAStuff.ESP_DrawingTextOutline ~= false
+		txt.Outline = outlineEnabled
 		txt.OutlineColor = Color3.new(0.05, 0.05, 0.05)
 		txt.Position = Vector2.new(viewportPoint.X, viewportPoint.Y)
 		txt.Visible = true
@@ -22332,6 +22405,8 @@ NAmanage.ESP_ApplyLabelStyles = function()
 				if entry.drawingLabel then
 					pcall(function()
 						entry.drawingLabel.Size = size
+						entry.drawingLabel.Outline = NAStuff.ESP_DrawingPartTextOutline ~= false
+						entry.drawingLabel.OutlineColor = Color3.new(0.05, 0.05, 0.05)
 					end)
 				end
 			end
@@ -22350,6 +22425,8 @@ NAmanage.ESP_ApplyLabelStyles = function()
 				if entry.drawingLabel then
 					pcall(function()
 						entry.drawingLabel.Size = size
+						entry.drawingLabel.Outline = NAStuff.ESP_DrawingPartTextOutline ~= false
+						entry.drawingLabel.OutlineColor = Color3.new(0.05, 0.05, 0.05)
 					end)
 				end
 			end
@@ -22611,12 +22688,16 @@ NAmanage.PartESP_UpdateEntry = function(entry, force, rootPart)
 	local label = entry.label
 	local drawingLabel = entry.drawingLabel
 	local drawingSquare = entry.drawingSquare
+	local drawingCornerLines = entry.drawingCornerLines
+	local drawingCornerOutlineLines = entry.drawingCornerOutlineLines
 	local visual = entry.visual
 	local hasBillboard = billboard and billboard.Parent
 	local hasDrawingLabel = drawingLabel ~= nil
 	local hasDrawingSquare = drawingSquare ~= nil
+	local hasDrawingCorners = type(drawingCornerLines) == "table" and #drawingCornerLines > 0
+		or type(drawingCornerOutlineLines) == "table" and #drawingCornerOutlineLines > 0
 	local hasVisual = visual and visual.Parent
-	if not (hasBillboard or hasDrawingLabel or hasDrawingSquare or hasVisual) then
+	if not (hasBillboard or hasDrawingLabel or hasDrawingSquare or hasDrawingCorners or hasVisual) then
 		NAmanage.PartESP_UnregisterEntry(entry)
 		return
 	end
@@ -22661,7 +22742,9 @@ NAmanage.PartESP_UpdateEntry = function(entry, force, rootPart)
 		if showPartText then
 			local textColor = entry.lightColor or entry.baseColor or Color3.new(1, 1, 1)
 			local textPos = NAgui.getInstanceLabelWorldPosition(part, 0.2)
-			if not NAmanage.DrawingUpdateText(drawingLabel, textPos, display, textColor, NAStuff.ESP_LabelTextSize) then
+			if not NAmanage.DrawingUpdateText(drawingLabel, textPos, display, textColor, NAStuff.ESP_LabelTextSize, {
+				outlineEnabled = NAStuff.ESP_DrawingPartTextOutline ~= false
+			}) then
 				NAmanage.ESP_RequestVisualRebuild()
 				return
 			end
@@ -22672,11 +22755,60 @@ NAmanage.PartESP_UpdateEntry = function(entry, force, rootPart)
 		end
 	end
 	local transparency = NAgui.sanitizeTransparency(NAStuff.ESP_PartTransparency or entry.transparency)
+	local partDrawingStyle = NAgui.sanitizeESPDrawingBoxStyle(NAStuff.ESP_DrawingPartBoxStyle)
 	if drawingSquare then
 		local drawColor = entry.lightColor or entry.baseColor or Color3.new(1, 1, 1)
-		if not NAmanage.DrawingUpdateSquare(drawingSquare, part, drawColor, transparency) then
+		if partDrawingStyle == "Corners" then
+			pcall(function()
+				drawingSquare.Visible = false
+			end)
+		elseif not NAmanage.DrawingUpdateSquare(drawingSquare, part, drawColor, transparency, {
+			thickness = NAStuff.ESP_DrawingPartBoxThickness
+		}) then
 			NAmanage.ESP_RequestVisualRebuild()
 			return
+		end
+	end
+	if partDrawingStyle == "Corners" and type(drawingCornerLines) == "table" and type(drawingCornerOutlineLines) == "table" then
+		local minX, minY, width, height = NAgui.getInstanceViewportBounds(part)
+		if minX then
+			local alpha = NAgui.toDrawingTransparency(transparency)
+			local mainThickness = math.max(1, tonumber(NAStuff.ESP_DrawingPartBoxThickness) or 1)
+			local outlineThickness = mainThickness + 2
+			local segX = math.max(6, width * 0.25)
+			local segY = math.max(6, height * 0.25)
+			local points = {
+				{ Vector2.new(minX, minY), Vector2.new(minX + segX, minY) },
+				{ Vector2.new(minX + width, minY), Vector2.new(minX + width - segX, minY) },
+				{ Vector2.new(minX, minY + height), Vector2.new(minX + segX, minY + height) },
+				{ Vector2.new(minX + width, minY + height), Vector2.new(minX + width - segX, minY + height) },
+				{ Vector2.new(minX, minY), Vector2.new(minX, minY + segY) },
+				{ Vector2.new(minX + width, minY), Vector2.new(minX + width, minY + segY) },
+				{ Vector2.new(minX, minY + height), Vector2.new(minX, minY + height - segY) },
+				{ Vector2.new(minX + width, minY + height), Vector2.new(minX + width, minY + height - segY) },
+			}
+			for i = 1, 8 do
+				local seg = points[i]
+				if not NAmanage.DrawingUpdateLine(drawingCornerOutlineLines[i], seg[1], seg[2], Color3.new(0.1, 0.1, 0.1), math.min(1, alpha + 0.15), outlineThickness) then
+					NAmanage.ESP_RequestVisualRebuild()
+					return
+				end
+				if not NAmanage.DrawingUpdateLine(drawingCornerLines[i], seg[1], seg[2], entry.lightColor or entry.baseColor or Color3.new(1, 1, 1), alpha, mainThickness) then
+					NAmanage.ESP_RequestVisualRebuild()
+					return
+				end
+			end
+		else
+			for i = 1, #(drawingCornerLines or {}) do
+				pcall(function()
+					drawingCornerLines[i].Visible = false
+				end)
+			end
+			for i = 1, #(drawingCornerOutlineLines or {}) do
+				pcall(function()
+					drawingCornerOutlineLines[i].Visible = false
+				end)
+			end
 		end
 	end
 	if visual and visual.Parent then
@@ -22840,6 +22972,7 @@ end
 NAmanage.PartESP_UnregisterEntry = function(entry)
 	if not entry or entry.removed then return end
 	entry.removed = true
+	NAmanage.ESP_LocatorRemoveArrow(entry)
 	if entry.billboardCleanup then
 		entry.billboardCleanup:Disconnect()
 		entry.billboardCleanup = nil
@@ -22878,6 +23011,18 @@ NAmanage.PartESP_UnregisterEntry = function(entry)
 	if entry.drawingSquare then
 		NAmanage.DrawingRemoveObject(entry.drawingSquare)
 		entry.drawingSquare = nil
+	end
+	if type(entry.drawingCornerLines) == "table" then
+		for i = 1, #entry.drawingCornerLines do
+			NAmanage.DrawingRemoveObject(entry.drawingCornerLines[i])
+		end
+		entry.drawingCornerLines = nil
+	end
+	if type(entry.drawingCornerOutlineLines) == "table" then
+		for i = 1, #entry.drawingCornerOutlineLines do
+			NAmanage.DrawingRemoveObject(entry.drawingCornerOutlineLines[i])
+		end
+		entry.drawingCornerOutlineLines = nil
 	end
 	if entry.drawingLabel then
 		NAmanage.DrawingRemoveObject(entry.drawingLabel)
@@ -23277,7 +23422,8 @@ NAmanage.ESP_EnsureLabel = function(model)
 	local owner = __lt.cm("Players", "GetPlayerFromCharacter", model)
 	local forceLabel = owner and NAmanage.ESP_HasPlayerLabelOverride(owner) == true
 	if chamsEnabled and not forceLabel then return end
-	if NAgui.espUsesDrawing("players") and NAmanage.DrawingTextSupported() then
+	local renderTarget = (data.isNPC == true) and "npcs" or "players"
+	if NAgui.espUsesDrawing(renderTarget) and NAmanage.DrawingTextSupported() then
 		if data.billboard then
 			data.billboard:Destroy()
 			data.billboard = nil
@@ -23680,53 +23826,9 @@ end
 NAmanage.ESP_AddBoxes = function(model)
 	local data = espCONS[model]
 	if not data then return end
-	local playerRenderMode = NAgui.getESPRenderMode("players")
+	local renderMode = data.isNPC and NAgui.getESPRenderMode("npcs") or NAgui.getESPRenderMode("players")
 
-	if data.isNPC then
-		NAmanage.ESP_RemoveDrawing(data)
-		for part, box in pairs(data.boxTable) do
-			if box then box:Destroy() end
-			data.boxTable[part] = nil
-		end
-
-		local highlight = data.highlight
-		if highlight and not highlight.Parent then
-			highlight = nil
-		end
-
-		if not highlight then
-			local hl = InstanceNew("Highlight")
-			hl.Name = "NAESP_Highlight"
-			hl.Adornee = model
-			hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-
-			local baseColor = (NAStuff.ESP_UseCustomColor == true and typeof(NAStuff.ESP_CustomColor) == "Color3")
-				and NAStuff.ESP_CustomColor
-				or Color3.new(1, 1, 1)
-
-			local outline = NAgui.sanitizeTransparency(NAStuff.ESP_OutlineTransparency or 0)
-
-			hl.FillColor = baseColor
-			hl.OutlineColor = baseColor
-			hl.FillTransparency = NAgui.sanitizeTransparency(NAStuff.ESP_Transparency or 0.7)
-			hl.OutlineTransparency = outline
-			NAmanage.ESP_StoreVisual(hl)
-
-			data.highlight = hl
-			NAmanage.ESP_AdjustHighlightMaterial(model, true)
-		else
-			data.highlight = highlight
-		end
-
-		if data.highlight then
-			data.highlight.Enabled = true
-		end
-
-		data.boxEnabled = true
-		return
-	end
-
-	if playerRenderMode == "Drawing API" then
+	if renderMode == "Drawing API" then
 		for part, box in pairs(data.boxTable) do
 			if box then box:Destroy() end
 			data.boxTable[part] = nil
@@ -23743,7 +23845,7 @@ NAmanage.ESP_AddBoxes = function(model)
 
 	NAmanage.ESP_RemoveDrawing(data)
 
-	if playerRenderMode == "Highlight" then
+	if renderMode == "Highlight" then
 		local highlight = data.highlight
 		if highlight and not highlight.Parent then
 			highlight = nil
@@ -23812,6 +23914,7 @@ NAmanage.ESP_ClearModel = function(model)
 	NAlib.disconnect(key.."_descRemoved")
 	NAlib.disconnect(key.."_ancestry")
 	NAlib.disconnect(key.."_charAdded")
+	NAmanage.ESP_PlayerLocatorRemoveArrow(model)
 	NAmanage.ESP_UnregisterModel(model)
 	NAmanage.ESP_RemoveBoxes(model)
 	NAmanage.ESP_DestroyLabel(model)
@@ -23910,7 +24013,8 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 	local teamColor = team and team.TeamColor and team.TeamColor.Color or nil
 
 	local dist = (localRoot and rootPart) and math.floor((localRoot.Position - rootPart.Position).Magnitude) or nil
-	local drawingPlayers = NAgui.espUsesDrawing("players")
+	local renderTarget = data.isNPC and "npcs" or "players"
+	local drawingPlayers = NAgui.espUsesDrawing(renderTarget)
 	local budget
 	if drawingPlayers then
 		budget = dist and ((dist <= 50 and 0.015) or (dist <= 150 and 0.035) or (dist <= 400 and 0.08) or 0.16) or 0.03
@@ -23951,27 +24055,7 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 	end
 
 	if data.boxEnabled then
-		if isNPC then
-			NAmanage.ESP_RemoveDrawing(data)
-			local highlight = data.highlight
-			if not highlight or not highlight.Parent then
-				data.highlight = nil
-				if wantBoxes then
-					NAmanage.ESP_AddBoxes(model)
-					highlight = data.highlight
-				end
-			end
-			if highlight then
-				NAmanage.ESP_StoreVisual(highlight)
-				local tr = NAgui.sanitizeTransparency(NAStuff.ESP_Transparency or 0.7)
-				if highlight.FillTransparency ~= tr then highlight.FillTransparency = tr end
-				local outline = NAgui.sanitizeTransparency(NAStuff.ESP_OutlineTransparency or 0)
-				if highlight.OutlineTransparency ~= outline then highlight.OutlineTransparency = outline end
-				local color = finalColor or Color3.new(1, 1, 1)
-				if highlight.FillColor ~= color then highlight.FillColor = color end
-				if highlight.OutlineColor ~= color then highlight.OutlineColor = color end
-			end
-		elseif NAgui.espUsesDrawing("players") then
+		if NAgui.espUsesDrawing(renderTarget) then
 			if next(data.boxTable) ~= nil then
 				for part, box in pairs(data.boxTable) do
 					if box then box:Destroy() end
@@ -23995,7 +24079,7 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 			else
 				NAmanage.ESP_RecoverFromDrawingFailure(model, data)
 			end
-		elseif NAgui.espUsesHighlight("players") then
+		elseif NAgui.espUsesHighlight(renderTarget) then
 			NAmanage.ESP_RemoveDrawing(data)
 			if next(data.boxTable) ~= nil then
 				for part, box in pairs(data.boxTable) do
@@ -24072,7 +24156,7 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 	if wantLabel and pieces and #pieces > 0 then
 		local txt = Concat(pieces, " | ")
 		local txtColor = finalColor or Color3.new(1, 1, 1)
-		if NAgui.espUsesDrawing("players") and NAmanage.DrawingTextSupported() then
+		if NAgui.espUsesDrawing(renderTarget) and NAmanage.DrawingTextSupported() then
 			NAmanage.ESP_EnsureLabel(model)
 			if not NAmanage.ESP_UpdateDrawingLabel(model, txt, txtColor) then
 				NAmanage.ESP_EnsureLabel(model)
@@ -24231,7 +24315,7 @@ NAmanage.ESP_StartGlobal = function()
 
 		local idx = NAStuff.ESP_ModelIndex or 1
 		local maxStep = math.clamp(math.floor(tonumber(NAStuff.ESP_MaxPerStep) or 32), 1, 256)
-		if NAgui.espUsesDrawing("players") then
+		if NAgui.espUsesDrawing("players") or NAgui.espUsesDrawing("npcs") then
 			local drawingStep = tonumber(NAStuff.ESP_DrawingMaxPerStep) or 192
 			drawingStep = math.clamp(math.floor(drawingStep), 16, 512)
 			maxStep = math.max(maxStep, drawingStep)
@@ -59328,13 +59412,45 @@ NAmanage.CreateBox = function(part, color, transparency)
 	local mode = NAgui.getESPRenderMode("part")
 	local useHighlight = mode == "Highlight"
 	local useDrawing = mode == "Drawing API"
+	local drawingStyle = NAgui.sanitizeESPDrawingBoxStyle(NAStuff.ESP_DrawingPartBoxStyle)
 	local adornName = Lower(part.Name).."_peepee"
 	local visual
 	local drawingSquare
+	local drawingCornerLines
+	local drawingCornerOutlineLines
 	if useDrawing then
-		drawingSquare = NAmanage.DrawingCreateSquare(lighter, entryTransparency)
-		if not drawingSquare then
-			useDrawing = false
+		if drawingStyle == "Corners" and NAmanage.DrawingLineSupported() then
+			drawingCornerLines = {}
+			drawingCornerOutlineLines = {}
+			for i = 1, 8 do
+				drawingCornerLines[i] = NAmanage.DrawingCreateLine(lighter, 1, NAStuff.ESP_DrawingPartBoxThickness)
+				drawingCornerOutlineLines[i] = NAmanage.DrawingCreateLine(darker, 1, (tonumber(NAStuff.ESP_DrawingPartBoxThickness) or 1) + 2)
+				if not drawingCornerLines[i] or not drawingCornerOutlineLines[i] then
+					useDrawing = false
+					break
+				end
+			end
+		else
+			drawingSquare = NAmanage.DrawingCreateSquare(lighter, entryTransparency, {
+				thickness = NAStuff.ESP_DrawingPartBoxThickness
+			})
+			if not drawingSquare then
+				useDrawing = false
+			end
+		end
+		if not useDrawing then
+			if type(drawingCornerLines) == "table" then
+				for i = 1, #drawingCornerLines do
+					NAmanage.DrawingRemoveObject(drawingCornerLines[i])
+				end
+				drawingCornerLines = nil
+			end
+			if type(drawingCornerOutlineLines) == "table" then
+				for i = 1, #drawingCornerOutlineLines do
+					NAmanage.DrawingRemoveObject(drawingCornerOutlineLines[i])
+				end
+				drawingCornerOutlineLines = nil
+			end
 		end
 	end
 	if not useDrawing then
@@ -59367,7 +59483,9 @@ NAmanage.CreateBox = function(part, color, transparency)
 	end
 	local bb, tl, gr, drawingLabel = nil, nil, nil, nil
 	if useDrawing then
-		drawingLabel = NAmanage.DrawingCreateText(part.Name, lighter, NAStuff.ESP_LabelTextSize)
+		drawingLabel = NAmanage.DrawingCreateText(part.Name, lighter, NAStuff.ESP_LabelTextSize, {
+			outlineEnabled = NAStuff.ESP_DrawingPartTextOutline ~= false
+		})
 	end
 	if (not useDrawing) or (not drawingLabel) then
 		bb = InstanceNew("BillboardGui")
@@ -59446,6 +59564,8 @@ NAmanage.CreateBox = function(part, color, transparency)
 		drawingLabel = drawingLabel,
 		visual = visual,
 		drawingSquare = drawingSquare,
+		drawingCornerLines = drawingCornerLines,
+		drawingCornerOutlineLines = drawingCornerOutlineLines,
 		baseColor = c,
 		lightColor = lighter,
 		darkColor = darker,
@@ -59531,6 +59651,26 @@ NAmanage.RecolorFolderESPEntries = function(color)
 			NAmanage.RecolorPartESPList(list, applyColor)
 		end
 	end
+end
+
+NAmanage.RecolorModelESPEntries = function(color)
+	local applyColor = (typeof(color) == "Color3") and color or Color3.fromRGB(0, 200, 255)
+	local members = NAStuff and NAStuff.modelESPMembers
+	if type(members) == "table" then
+		local found = false
+		for _, list in pairs(members) do
+			if type(list) == "table" then
+				found = true
+				NAmanage.RecolorPartESPList(list, applyColor)
+			end
+		end
+		if found then
+			return
+		end
+	end
+	local models = NAStuff and NAStuff.modelESPModels
+	if type(models) ~= "table" then return end
+	NAmanage.RecolorPartESPList(models, applyColor)
 end
 
 NAmanage.RecolorNameESPEntries = function(color)
@@ -61436,6 +61576,62 @@ originalIO.folderESPMode=function()
 	return (Lower(tostring(NAStuff.ESP_FolderMode or "parts")) == "models") and "models" or "parts"
 end
 
+originalIO.modelESPMode=function()
+	return (Lower(tostring(NAStuff.ESP_ModelMode or "parts")) == "models") and "models" or "parts"
+end
+
+originalIO.espSortNameMatches=function(matches, needle)
+	table.sort(matches, function(a, b)
+		local la, lb = Lower(a.Name), Lower(b.Name)
+		local pa = Find(la, needle, 1, true) or math.huge
+		local pb = Find(lb, needle, 1, true) or math.huge
+		if pa == pb then
+			if #la == #lb then
+				return la < lb
+			end
+			return #la < #lb
+		end
+		return pa < pb
+	end)
+end
+
+originalIO.espDisplayName=function(instance)
+	if typeof(instance) ~= "Instance" then
+		return tostring(instance)
+	end
+	local ok, fullName = pcall(function()
+		return instance:GetFullName()
+	end)
+	if ok and type(fullName) == "string" and fullName ~= "" then
+		return fullName
+	end
+	return instance.Name
+end
+
+originalIO.espCollectNameMatches=function(rawInput, searchToken, filterFn)
+	local loweredInput = Lower(rawInput)
+	local matches = {}
+	local exactMatch
+	NAmanage.ForEachWorkspaceYield(function(obj)
+		if searchToken.cancelled or exactMatch then
+			return
+		end
+		if filterFn(obj) then
+			local lowered = Lower(obj.Name)
+			if lowered == loweredInput then
+				exactMatch = obj
+			elseif Find(lowered, loweredInput, 1, true) then
+				Insert(matches, obj)
+			end
+		end
+	end, {
+		yieldEvery = tonumber(NAStuff.ESP_ScanBatchSize) or 160,
+		delayTime = tonumber(NAStuff.ESP_ScanDelay) or 0,
+		cancelToken = searchToken,
+	})
+	return exactMatch, matches
+end
+
 NAmanage.FolderESP_Enable = function(folder)
 	if typeof(folder) ~= "Instance" or not folder:IsA("Folder") then
 		return
@@ -61607,6 +61803,216 @@ NAmanage.FolderESP_RefreshActive = function()
 	end
 end
 
+NAmanage.ModelESP_Enable = function(model)
+	if typeof(model) ~= "Instance" or not model:IsA("Model") then
+		return
+	end
+	if not model.Parent or not model:FindFirstChildWhichIsA("BasePart", true) then
+		DoNotif("Model ESP needs a model with a BasePart: "..originalIO.espDisplayName(model), 3)
+		return
+	end
+	if not NAStuff.modelESPModels then NAStuff.modelESPModels = {} end
+	if not NAStuff.modelESPMap then NAStuff.modelESPMap = {} end
+	if not NAStuff.modelESPMembers then NAStuff.modelESPMembers = {} end
+	if not NAStuff.modelESPMemberMaps then NAStuff.modelESPMemberMaps = {} end
+	if not NAStuff.modelESPKeys then NAStuff.modelESPKeys = {} end
+	if not NAStuff.modelESPScanTokens then NAStuff.modelESPScanTokens = {} end
+
+	NAmanage.ESP_ListAdd(NAStuff.modelESPModels, NAStuff.modelESPMap, model)
+
+	local mode = originalIO.modelESPMode()
+	local function currentColor()
+		return NAmanage.GetPartESPColor("ESP_PartColor_Model", Color3.fromRGB(0, 200, 255))
+	end
+
+	local function addTarget(list, map, target)
+		if not target or not target.Parent then
+			return
+		end
+		if NAmanage.ESP_ListAdd(list, map, target) then
+			NAmanage.PartESP_QueueCreate(target, currentColor(), NAStuff.ESP_PartTransparency or 0.45, function(entry)
+				return map[entry] ~= nil
+			end)
+		end
+	end
+
+	local function removeTarget(list, map, target)
+		if not target then
+			return
+		end
+		if NAmanage.ESP_ListRemove(list, map, target) then
+			NAmanage.RemoveEspFromPart(target)
+		end
+	end
+
+	local function rescanModel(rootModel, list, map, token)
+		if mode == "models" then
+			if rootModel.Parent and rootModel:FindFirstChildWhichIsA("BasePart", true) then
+				addTarget(list, map, rootModel)
+			end
+			return
+		end
+		NAmanage.ForEachDescendantYield(rootModel, function(desc)
+			if token and token.cancelled then
+				return
+			end
+			if desc:IsA("BasePart") then
+				addTarget(list, map, desc)
+			end
+		end, {
+			yieldEvery = tonumber(NAStuff.ESP_ScanBatchSize) or 160,
+			delayTime = tonumber(NAStuff.ESP_ScanDelay) or 0,
+			cancelToken = token,
+		})
+	end
+
+	local list = NAStuff.modelESPMembers[model]
+	if not list then
+		list = {}
+	end
+	local map = NAStuff.modelESPMemberMaps[model]
+	if type(map) ~= "table" then
+		map = {}
+	end
+	for i = #list, 1, -1 do
+		NAmanage.RemoveEspFromPart(list[i])
+		list[i] = nil
+	end
+	table.clear(map)
+	NAStuff.modelESPMembers[model] = list
+	NAStuff.modelESPMemberMaps[model] = map
+
+	local key = NAStuff.modelESPKeys[model]
+	if not key then
+		key = "esp_model_"..tostring(model)
+		NAStuff.modelESPKeys[model] = key
+	end
+
+	if NAlib.isConnected(key) then
+		NAlib.disconnect(key)
+	end
+
+	local prevToken = NAStuff.modelESPScanTokens[model]
+	if prevToken then
+		NAmanage.CancelTokenCancel(prevToken)
+	end
+	local scanToken = NAmanage.NewCancelToken()
+	NAStuff.modelESPScanTokens[model] = scanToken
+	SpawnCall(function()
+		rescanModel(model, list, map, scanToken)
+		if NAStuff.modelESPScanTokens and NAStuff.modelESPScanTokens[model] == scanToken then
+			NAStuff.modelESPScanTokens[model] = nil
+		end
+	end)
+
+	local function onAdded(obj)
+		if mode == "models" then
+			if obj:IsA("BasePart") then
+				addTarget(list, map, model)
+			end
+		elseif obj:IsA("BasePart") then
+			addTarget(list, map, obj)
+		end
+	end
+
+	local function onRemoving(obj)
+		if mode == "models" then
+			if obj:IsA("BasePart") then
+				Defer(function()
+					if not (model and model.Parent) then
+						return
+					end
+					if not model:FindFirstChildWhichIsA("BasePart", true) then
+						removeTarget(list, map, model)
+					end
+				end)
+			end
+		elseif obj:IsA("BasePart") then
+			removeTarget(list, map, obj)
+		end
+	end
+
+	NAlib.connect(key, model.DescendantAdded:Connect(onAdded))
+	NAlib.connect(key, model.DescendantRemoving:Connect(onRemoving))
+	NAlib.connect(key, model.AncestryChanged:Connect(function(_, parentNow)
+		if not parentNow then
+			NAmanage.ModelESP_Disable(model)
+		end
+	end))
+end
+
+NAmanage.ModelESP_Disable = function(model)
+	if typeof(model) ~= "Instance" then
+		return false
+	end
+
+	local removed = false
+	local models = NAStuff.modelESPModels
+	local modelMap = NAStuff.modelESPMap
+	local memberLists = NAStuff.modelESPMembers
+	local memberMaps = NAStuff.modelESPMemberMaps
+	local keys = NAStuff.modelESPKeys
+	local scanTokens = NAStuff.modelESPScanTokens
+
+	if type(scanTokens) == "table" then
+		local token = scanTokens[model]
+		if token then
+			NAmanage.CancelTokenCancel(token)
+			scanTokens[model] = nil
+		end
+	end
+
+	if type(keys) == "table" then
+		local key = keys[model]
+		if key then
+			NAlib.disconnect(key)
+			keys[model] = nil
+		end
+	end
+
+	if type(memberLists) == "table" then
+		local list = memberLists[model]
+		if type(list) == "table" then
+			for i = #list, 1, -1 do
+				NAmanage.RemoveEspFromPart(list[i])
+				list[i] = nil
+				removed = true
+			end
+		end
+		memberLists[model] = nil
+	end
+
+	if type(memberMaps) == "table" then
+		local map = memberMaps[model]
+		if type(map) == "table" then
+			table.clear(map)
+		end
+		memberMaps[model] = nil
+	end
+
+	NAmanage.RemoveEspFromPart(model)
+	if type(models) == "table" and type(modelMap) == "table" and NAmanage.ESP_ListRemove(models, modelMap, model) then
+		removed = true
+	end
+	return removed
+end
+
+NAmanage.ModelESP_RefreshActive = function()
+	local models = NAStuff.modelESPModels
+	local map = NAStuff.modelESPMap
+	if type(models) ~= "table" or type(map) ~= "table" then
+		return
+	end
+	for i = #models, 1, -1 do
+		local model = models[i]
+		if typeof(model) ~= "Instance" or not model:IsA("Model") or not model.Parent or not model:FindFirstChildWhichIsA("BasePart", true) then
+			NAmanage.ModelESP_Disable(model)
+		else
+			NAmanage.ModelESP_Enable(model)
+		end
+	end
+end
+
 cmd.add({"folderesp","fesp"},{"folderesp {folderName}","Highlights folder contents (parts or models)"},function(...)
 	local rawInput = Concat({...}, " ")
 	local name = Lower(rawInput)
@@ -61620,25 +62026,9 @@ cmd.add({"folderesp","fesp"},{"folderesp {folderName}","Highlights folder conten
 	NAStuff.folderSearchToken = searchToken
 
 	SpawnCall(function()
-		local matches = {}
-		local exactFolder
-		NAmanage.ForEachWorkspaceYield(function(obj)
-			if searchToken.cancelled or exactFolder then
-				return
-			end
-			if obj and obj:IsA("Folder") then
-				local lowered = Lower(obj.Name)
-				if lowered == name then
-					exactFolder = obj
-				elseif Find(lowered, name, 1, true) then
-					Insert(matches, obj)
-				end
-			end
-		end, {
-			yieldEvery = tonumber(NAStuff.ESP_ScanBatchSize) or 160,
-			delayTime = tonumber(NAStuff.ESP_ScanDelay) or 0,
-			cancelToken = searchToken,
-		})
+		local exactFolder, matches = originalIO.espCollectNameMatches(rawInput, searchToken, function(obj)
+			return obj and obj:IsA("Folder")
+		end)
 
 		if searchToken.cancelled then
 			return
@@ -61657,18 +62047,7 @@ cmd.add({"folderesp","fesp"},{"folderesp {folderName}","Highlights folder conten
 			return
 		end
 
-		table.sort(matches, function(a, b)
-			local la, lb = Lower(a.Name), Lower(b.Name)
-			local pa = Find(la, name, 1, true) or math.huge
-			local pb = Find(lb, name, 1, true) or math.huge
-			if pa == pb then
-				if #la == #lb then
-					return la < lb
-				end
-				return #la < #lb
-			end
-			return pa < pb
-		end)
+		originalIO.espSortNameMatches(matches, name)
 
 		local buttons = {}
 		if #matches > 1 then
@@ -61676,7 +62055,9 @@ cmd.add({"folderesp","fesp"},{"folderesp {folderName}","Highlights folder conten
 				Text = "All Matches",
 				Callback = function()
 					for _, folder in ipairs(matches) do
-						NAmanage.FolderESP_Enable(folder)
+						if folder and folder:IsA("Folder") then
+							NAmanage.FolderESP_Enable(folder)
+						end
 					end
 				end
 			})
@@ -61684,9 +62065,11 @@ cmd.add({"folderesp","fesp"},{"folderesp {folderName}","Highlights folder conten
 		for _, folder in ipairs(matches) do
 			local folderRef = folder
 			Insert(buttons, {
-				Text = folderRef.Name,
+				Text = originalIO.espDisplayName(folderRef),
 				Callback = function()
-					NAmanage.FolderESP_Enable(folderRef)
+					if folderRef and folderRef:IsA("Folder") then
+						NAmanage.FolderESP_Enable(folderRef)
+					end
 				end
 			})
 		end
@@ -61694,6 +62077,75 @@ cmd.add({"folderesp","fesp"},{"folderesp {folderName}","Highlights folder conten
 		Window({
 			Title = "Folder ESP",
 			Description = "Select folder(s) to highlight. Toggle multi-select in the header to pick several.",
+			Buttons = buttons
+		})
+	end)
+end,true)
+
+cmd.add({"modelesp","mesp"},{"modelesp {modelName}","Highlights matching models"},function(...)
+	local rawInput = Concat({...}, " ")
+	local name = Lower(rawInput)
+	if name == "" then
+		return
+	end
+	if NAStuff.modelSearchToken then
+		NAmanage.CancelTokenCancel(NAStuff.modelSearchToken)
+	end
+	local searchToken = NAmanage.NewCancelToken()
+	NAStuff.modelSearchToken = searchToken
+
+	SpawnCall(function()
+		local exactModel, matches = originalIO.espCollectNameMatches(rawInput, searchToken, function(obj)
+			return obj and obj:IsA("Model")
+		end)
+
+		if searchToken.cancelled then
+			return
+		end
+		if NAStuff.modelSearchToken == searchToken then
+			NAStuff.modelSearchToken = nil
+		end
+
+		if exactModel then
+			NAmanage.ModelESP_Enable(exactModel)
+			return
+		end
+
+		if #matches == 0 then
+			DoNotif(Format("No models found containing '%s'.", rawInput), 3)
+			return
+		end
+
+		originalIO.espSortNameMatches(matches, name)
+
+		local buttons = {}
+		if #matches > 1 then
+			Insert(buttons, {
+				Text = "All Matches",
+				Callback = function()
+					for _, model in ipairs(matches) do
+						if model and model:IsA("Model") then
+							NAmanage.ModelESP_Enable(model)
+						end
+					end
+				end
+			})
+		end
+		for _, model in ipairs(matches) do
+			local modelRef = model
+			Insert(buttons, {
+				Text = originalIO.espDisplayName(modelRef),
+				Callback = function()
+					if modelRef and modelRef:IsA("Model") then
+						NAmanage.ModelESP_Enable(modelRef)
+					end
+				end
+			})
+		end
+
+		Window({
+			Title = "Model ESP",
+			Description = "Select model(s) to highlight. Toggle multi-select in the header to pick several.",
 			Buttons = buttons
 		})
 	end)
@@ -61799,7 +62251,7 @@ cmd.add({"unfolderesp","unfesp"},{"unfolderesp [folderName]","Disables folder ES
 
 		if not picked then
 			for _, folder in ipairs(trackedFolders) do
-				if Match(Lower(folder.Name), loweredInput) then
+				if Find(Lower(folder.Name), loweredInput, 1, true) then
 					picked = folder
 					break
 				end
@@ -61843,6 +62295,120 @@ cmd.add({"unfolderesp","unfesp"},{"unfolderesp [folderName]","Disables folder ES
 	Window({
 		Title = "Folder ESP",
 		Description = "Select a folder ESP entry to disable.",
+		Buttons = buttons
+	})
+end,true)
+
+cmd.add({"unmodelesp","unmesp"},{"unmodelesp [modelName]","Disables model ESP for a model or all"},function(...)
+	local models = NAStuff.modelESPModels
+	local map = NAStuff.modelESPMap
+	if type(models) ~= "table" or #models == 0 then
+		DoNotif("No model ESP entries are active.", 2)
+		return
+	end
+
+	local function detachModel(model)
+		if typeof(model) ~= "Instance" then
+			return false
+		end
+		return NAmanage.ModelESP_Disable(model)
+	end
+
+	local function collectTrackedModels()
+		local tracked = {}
+		for i = #models, 1, -1 do
+			local model = models[i]
+			if typeof(model) == "Instance" and model:IsA("Model") and model.Parent and model:FindFirstChildWhichIsA("BasePart", true) then
+				tracked[#tracked + 1] = model
+			else
+				NAmanage.ModelESP_Disable(model)
+			end
+		end
+		table.sort(tracked, function(a, b)
+			return Lower(a.Name) < Lower(b.Name)
+		end)
+		return tracked
+	end
+
+	local function removeAllModels()
+		local tracked = collectTrackedModels()
+		local removed = 0
+		for _, model in ipairs(tracked) do
+			if detachModel(model) then
+				removed += 1
+			end
+		end
+		if removed > 0 then
+			DoNotif(Format("Stopped model ESP for %d model(s).", removed), 2)
+		else
+			DoNotif("No model ESP entries were active.", 2)
+		end
+	end
+
+	local trackedModels = collectTrackedModels()
+	local rawInput = Concat({...}, " ")
+	rawInput = (type(rawInput) == "string") and rawInput:gsub("^%s+", ""):gsub("%s+$", "") or ""
+	local loweredInput = Lower(rawInput)
+
+	if loweredInput ~= "" then
+		if loweredInput == "all" or loweredInput == "*" then
+			removeAllModels()
+			return
+		end
+
+		local picked = nil
+		for _, model in ipairs(trackedModels) do
+			if Lower(model.Name) == loweredInput then
+				picked = model
+				break
+			end
+		end
+		if not picked then
+			for _, model in ipairs(trackedModels) do
+				if Find(Lower(model.Name), loweredInput, 1, true) then
+					picked = model
+					break
+				end
+			end
+		end
+
+		if picked and detachModel(picked) then
+			DoNotif(Format("Stopped model ESP for '%s'.", picked.Name), 2)
+		else
+			DoNotif(Format("No model ESP entry matching '%s'.", rawInput ~= "" and rawInput or loweredInput), 3)
+		end
+		return
+	end
+
+	if #trackedModels == 0 then
+		DoNotif("No model ESP entries are active.", 2)
+		return
+	end
+
+	local buttons = {
+		{
+			Text = "All",
+			Callback = removeAllModels
+		}
+	}
+
+	for _, model in ipairs(trackedModels) do
+		local modelRef = model
+		buttons[#buttons + 1] = {
+			Text = modelRef.Name,
+			Callback = function()
+				if detachModel(modelRef) then
+					DoNotif(Format("Stopped model ESP for '%s'.", modelRef.Name), 2)
+				else
+					DoNotif("Model ESP entry was not active.", 2)
+				end
+			end
+		}
+	end
+
+	Window({
+		Title = "Model ESP",
+		Description = "Select a model ESP entry to disable.",
 		Buttons = buttons
 	})
 end,true)
@@ -88959,8 +89525,10 @@ NAgui.addSection("Visuals & Color")
 NAgui.addInfo("Drawing API Warning", "Drawing library may break with DisableDirect3D11 or PreferVulkan if a bootstrapper manages them (aka: voidstrap)")
 
 local espRenderOptions = NAgui.getESPRenderModeOptions()
+local npcEspRenderOptions = NAgui.getNPCESPRenderModeOptions()
 NAStuff.ESP_RenderMode = NAgui.sanitizeESPRenderMode(NAStuff.ESP_RenderMode, "Highlight")
 NAStuff.ESP_PartRenderMode = NAgui.sanitizeESPRenderMode(NAStuff.ESP_PartRenderMode, "BoxHandleAdornment")
+NAStuff.NPC_ESP_RenderMode = NAgui.sanitizeNPCESPRenderMode(NAStuff.NPC_ESP_RenderMode)
 NAStuff.ESP_DrawingBoxStyle = NAgui.sanitizeESPDrawingBoxStyle(NAStuff.ESP_DrawingBoxStyle)
 NAStuff.ESP_DrawingTracerOrigin = NAgui.sanitizeESPDrawingTracerOrigin(NAStuff.ESP_DrawingTracerOrigin)
 
@@ -88982,6 +89550,17 @@ NAgui.addDropdown("Part ESP Render Mode", espRenderOptions, NAStuff.ESP_PartRend
 		return
 	end
 	NAStuff.ESP_PartRenderMode = mode
+	NAmanage.SaveESPSettings()
+	NAmanage.ESP_RebuildVisuals()
+end)
+
+NAgui.addDropdown("NPC ESP Render Mode", npcEspRenderOptions, NAStuff.NPC_ESP_RenderMode, function(selection)
+	local picked = type(selection) == "table" and selection[1] or selection
+	local mode = NAgui.sanitizeNPCESPRenderMode(picked)
+	if mode == NAStuff.NPC_ESP_RenderMode then
+		return
+	end
+	NAStuff.NPC_ESP_RenderMode = mode
 	NAmanage.SaveESPSettings()
 	NAmanage.ESP_RebuildVisuals()
 end)
@@ -89090,6 +89669,37 @@ NAgui.addSlider("Tracer Thickness", 1, 6, math.clamp(tonumber(NAStuff.ESP_Drawin
 	NAmanage.ESP_RebuildVisuals()
 end)
 
+NAgui.addSection("Part Drawing API")
+
+NAgui.addDropdown("Part Drawing Box Style", NAgui.getESPDrawingBoxStyleOptions(), NAgui.sanitizeESPDrawingBoxStyle(NAStuff.ESP_DrawingPartBoxStyle), function(selection)
+	local picked = type(selection) == "table" and selection[1] or selection
+	local style = NAgui.sanitizeESPDrawingBoxStyle(picked)
+	if style == NAgui.sanitizeESPDrawingBoxStyle(NAStuff.ESP_DrawingPartBoxStyle) then
+		return
+	end
+	NAStuff.ESP_DrawingPartBoxStyle = style
+	NAmanage.SaveESPSettings()
+	NAmanage.PartESP_RebuildVisuals()
+end)
+
+NAgui.addSlider("Part Drawing Box Thickness", 1, 6, math.clamp(tonumber(NAStuff.ESP_DrawingPartBoxThickness) or 1, 1, 6), 1, " px", function(v)
+	NAStuff.ESP_DrawingPartBoxThickness = math.clamp(tonumber(v) or 1, 1, 6)
+	NAmanage.SaveESPSettings()
+	NAmanage.PartESP_RebuildVisuals()
+end)
+
+NAgui.addToggle("Part Drawing Text Outline", NAStuff.ESP_DrawingPartTextOutline ~= false, function(state)
+	NAStuff.ESP_DrawingPartTextOutline = state ~= false
+	NAmanage.SaveESPSettings()
+	NAmanage.ESP_ApplyLabelStyles()
+	NAmanage.PartESP_UpdateTexts(true)
+end)
+
+NAgui.addSlider("Part Drawing Queue Batch", 1, 512, math.clamp(math.floor(tonumber(NAStuff.ESP_DrawingPartQueuePerStep) or 128), 1, 512), 1, " items", function(v)
+	NAStuff.ESP_DrawingPartQueuePerStep = math.clamp(math.floor(tonumber(v) or 128), 1, 512)
+	NAmanage.SaveESPSettings()
+end)
+
 NAgui.addSection("Visibility & Performance")
 
 NAgui.addSlider("ESP Box Distance", 0, 2000, NAStuff.ESP_BoxMaxDistance or 120, 5, " studs", function(v)
@@ -89193,6 +89803,9 @@ end)
 addPartESPColorPicker("Folder ESP Color", "ESP_PartColor_Folder", Color3.fromRGB(255, 220, 0), function(color)
 	NAmanage.RecolorFolderESPEntries(color)
 end)
+addPartESPColorPicker("Model ESP Color", "ESP_PartColor_Model", Color3.fromRGB(0, 200, 255), function(color)
+	NAmanage.RecolorModelESPEntries(color)
+end)
 addPartESPColorPicker("Touch ESP Color", "ESP_PartColor_Touch", Color3.fromRGB(255, 0, 0), function(color)
 	NAmanage.RecolorPartESPList(NAStuff.touchESPList, color)
 end)
@@ -89216,17 +89829,6 @@ addPartESPColorPicker("Collidable ESP Color", "ESP_PartColor_CollisionTrue", Col
 end)
 addPartESPColorPicker("Non-Collidable ESP Color", "ESP_PartColor_CollisionFalse", Color3.fromRGB(255, 120, 120), function(color)
 	NAmanage.RecolorPartESPList(NAStuff.collisionfalseESPList, color)
-end)
-
-NAgui.addSection("Folder ESP")
-
-NAgui.addToggle("Highlight Folder ESP By Models", (NAStuff.ESP_FolderMode == "models"), function(state)
-	NAStuff.ESP_FolderMode = state and "models" or "parts"
-	NAmanage.SaveESPSettings()
-	DoNotif("Folder ESP will highlight by "..(state and "models" or "parts")..".", 2)
-	if NAmanage.FolderESP_RefreshActive then
-		NAmanage.FolderESP_RefreshActive()
-	end
 end)
 
 NAgui.addSection("Part ESP Locator Arrows")
@@ -89375,6 +89977,15 @@ end)
 
 NAgui.addSection("Folder ESP")
 
+NAgui.addToggle("Highlight Folder ESP By Models", (NAStuff.ESP_FolderMode == "models"), function(state)
+	NAStuff.ESP_FolderMode = state and "models" or "parts"
+	NAmanage.SaveESPSettings()
+	DoNotif("Folder ESP will highlight by "..(state and "models" or "parts")..".", 2)
+	if NAmanage.FolderESP_RefreshActive then
+		NAmanage.FolderESP_RefreshActive()
+	end
+end)
+
 NAgui.addInput("Folder Name", "Folder name to highlight", NAStuff.ESP_LastFolderName, function(text)
 	NAStuff.ESP_LastFolderName = text
 end)
@@ -89395,6 +90006,41 @@ NAgui.addButton("Clear Folder ESP", function()
 			cmd.run({"unfolderesp", name})
 		else
 			cmd.run({"unfolderesp"})
+		end
+	end)
+end)
+
+NAgui.addSection("Model ESP")
+
+NAgui.addToggle("Highlight Model ESP By Models", (NAStuff.ESP_ModelMode == "models"), function(state)
+	NAStuff.ESP_ModelMode = state and "models" or "parts"
+	NAmanage.SaveESPSettings()
+	DoNotif("Model ESP will highlight by "..(state and "models" or "parts")..".", 2)
+	if NAmanage.ModelESP_RefreshActive then
+		NAmanage.ModelESP_RefreshActive()
+	end
+end)
+
+NAgui.addInput("Model Name", "Model name to highlight", NAStuff.ESP_LastModelName, function(text)
+	NAStuff.ESP_LastModelName = text
+end)
+
+NAgui.addButton("Apply Model ESP", function()
+	local name = NAgui.trimText(NAStuff.ESP_LastModelName)
+	if name == "" then
+		DoNotif("Enter a model name before using modelesp.", 2)
+		return
+	end
+	SpawnCall(function() cmd.run({"modelesp", name}) end)
+end)
+
+NAgui.addButton("Clear Model ESP", function()
+	local name = NAgui.trimText(NAStuff.ESP_LastModelName)
+	SpawnCall(function()
+		if name ~= "" then
+			cmd.run({"unmodelesp", name})
+		else
+			cmd.run({"unmodelesp"})
 		end
 	end)
 end)
