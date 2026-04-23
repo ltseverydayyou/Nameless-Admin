@@ -48872,21 +48872,58 @@ cmd.add({"freegamepass", "freegp"},{"freegamepass (freegp)", "Pretends you own e
 		return result
 	end)()
 
+	local function fireProductPurchaseSignals(id)
+		local fired = 0
+		if pcall(function()
+			__lt.cm("MarketplaceService", "SignalPromptProductPurchaseFinished", LocalPlayer.UserId, id, true)
+		end) then
+			fired += 1
+		end
+		if pcall(function()
+			__lt.cm("MarketplaceService", "SignalPromptBulkPurchaseFinished", LocalPlayer.UserId, id, true)
+		end) then
+			fired += 1
+		end
+		if pcall(function()
+			__lt.cm("MarketplaceService", "SignalPromptPurchaseFinished", LocalPlayer.UserId, id, true)
+		end) then
+			fired += 1
+		end
+		return fired
+	end
+
+	local function fireGamePassPurchaseSignals(id)
+		local fired = 0
+		if pcall(function()
+			__lt.cm("MarketplaceService", "SignalPromptGamePassPurchaseFinished", LocalPlayer, id, true)
+		end) then
+			fired += 1
+		end
+		if pcall(function()
+			__lt.cm("MarketplaceService", "SignalPromptBulkPurchaseFinished", LocalPlayer.UserId, id, true)
+		end) then
+			fired += 1
+		end
+		if pcall(function()
+			__lt.cm("MarketplaceService", "SignalPromptPurchaseFinished", LocalPlayer.UserId, id, true)
+		end) then
+			fired += 1
+		end
+		return fired
+	end
+
 	local totalSignals = 0
 
 	for _, product in next, (products or {}) do
 		for key, id in next, product do
 			if (key == "ProductId") or (key == "DeveloperProductId") then
-				__lt.cm("MarketplaceService", "SignalPromptProductPurchaseFinished", LocalPlayer.UserId, id, true)
-				totalSignals += 1
+				totalSignals += fireProductPurchaseSignals(id)
 			end
 		end
 	end
 
 	for _, gamepass in next, (gamepasses or {}) do
-		pcall(function()
-			__lt.cm("MarketplaceService", "SignalPromptGamePassPurchaseFinished", LocalPlayer, gamepass, true)
-		end)
+		totalSignals += fireGamePassPurchaseSignals(gamepass)
 	end
 
 	if okProducts then
@@ -49219,6 +49256,18 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 			return v
 		end
 
+		local function fireProductPurchaseSignals(id)
+			pcall(function()
+				__lt.cm("MarketplaceService", "SignalPromptProductPurchaseFinished", LocalPlayer.UserId, id, true)
+			end)
+			pcall(function()
+				__lt.cm("MarketplaceService", "SignalPromptBulkPurchaseFinished", LocalPlayer.UserId, id, true)
+			end)
+			pcall(function()
+				__lt.cm("MarketplaceService", "SignalPromptPurchaseFinished", LocalPlayer.UserId, id, true)
+			end)
+		end
+
 		local function clearList()
 			for _,ch in ipairs(list:GetChildren()) do
 				if ch:IsA("Frame") then
@@ -49421,7 +49470,7 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 			setLoopVisual(rowData,false)
 
 			NAlib.connect(GROUP, MouseButtonFix(purchase,function()
-				__lt.cm("MarketplaceService", "SignalPromptProductPurchaseFinished", LocalPlayer.UserId, id, true)
+				fireProductPurchaseSignals(id)
 			end))
 
 			NAlib.connect(GROUP, MouseButtonFix(loopBtn,function()
@@ -49435,7 +49484,7 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 					setLoopVisual(rowData,true)
 					SpawnCall(function()
 						while state.running do
-							__lt.cm("MarketplaceService", "SignalPromptProductPurchaseFinished", LocalPlayer.UserId, id, true)
+							fireProductPurchaseSignals(id)
 							Wait(parseInterval())
 						end
 						if rowData.frame and rowData.frame.Parent then
@@ -49589,7 +49638,7 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 			local delayS=parseInterval()
 			SpawnCall(function()
 				for _,info in ipairs(allItems) do
-					__lt.cm("MarketplaceService", "SignalPromptProductPurchaseFinished", LocalPlayer.UserId, info.ProductId, true)
+					fireProductPurchaseSignals(info.ProductId)
 					Wait(delayS)
 				end
 			end)
@@ -49821,6 +49870,18 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 		return v
 	end
 
+	local function fireProductPurchaseSignals(id)
+		pcall(function()
+			__lt.cm("MarketplaceService", "SignalPromptProductPurchaseFinished", LocalPlayer.UserId, id, true)
+		end)
+		pcall(function()
+			__lt.cm("MarketplaceService", "SignalPromptBulkPurchaseFinished", LocalPlayer.UserId, id, true)
+		end)
+		pcall(function()
+			__lt.cm("MarketplaceService", "SignalPromptPurchaseFinished", LocalPlayer.UserId, id, true)
+		end)
+	end
+
 	local function makeRow(info)
 		local id=info.ProductId
 		local row=InstanceNew("Frame",list)
@@ -49875,7 +49936,7 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 		local lCorner=InstanceNew("UICorner",loopBtn); lCorner.CornerRadius=UDim.new(0,12)
 
 		NAlib.connect(GROUP, MouseButtonFix(purchase, function()
-			__lt.cm("MarketplaceService", "SignalPromptProductPurchaseFinished", LocalPlayer.UserId, id, true)
+			fireProductPurchaseSignals(id)
 		end))
 		NAlib.connect(GROUP, MouseButtonFix(loopBtn, function()
 			local l=loops[id]
@@ -49890,7 +49951,7 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 				loopBtn.BackgroundColor3=Color3.fromRGB(180,60,60)
 				SpawnCall(function()
 					while state.running do
-						__lt.cm("MarketplaceService", "SignalPromptProductPurchaseFinished", LocalPlayer.UserId, id, true)
+						fireProductPurchaseSignals(id)
 						Wait(parseInterval())
 					end
 					if loopBtn and loopBtn.Parent then
@@ -49980,7 +50041,7 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 		local delayS=parseInterval()
 		SpawnCall(function()
 			for _,info in ipairs(allItems) do
-				__lt.cm("MarketplaceService", "SignalPromptProductPurchaseFinished", LocalPlayer.UserId, info.ProductId, true)
+				fireProductPurchaseSignals(info.ProductId)
 				Wait(delayS)
 			end
 		end)
@@ -50279,6 +50340,18 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 			local v=tonumber(interval.Text) or tonumber(Match(interval.Text or "","%d*%.?%d+")) or 0.1
 			if v < 0 then v=0 end
 			return v
+		end
+
+		local function fireGamePassPurchaseSignals(id)
+			pcall(function()
+				__lt.cm("MarketplaceService", "SignalPromptGamePassPurchaseFinished", LocalPlayer,id,true)
+			end)
+			pcall(function()
+				__lt.cm("MarketplaceService", "SignalPromptBulkPurchaseFinished", LocalPlayer.UserId,id,true)
+			end)
+			pcall(function()
+				__lt.cm("MarketplaceService", "SignalPromptPurchaseFinished", LocalPlayer.UserId,id,true)
+			end)
 		end
 
 		local function stopAllLoops()
@@ -50595,7 +50668,7 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 			setSpamVisual(rowData,false)
 
 			NAlib.connect(GROUP, MouseButtonFix(buyBtn,function()
-				__lt.cm("MarketplaceService", "SignalPromptGamePassPurchaseFinished", LocalPlayer,id,true)
+				fireGamePassPurchaseSignals(id)
 			end))
 
 			NAlib.connect(GROUP, MouseButtonFix(spamBtn,function()
@@ -50609,7 +50682,7 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 					setSpamVisual(rowData,true)
 					SpawnCall(function()
 						while state.running do
-							__lt.cm("MarketplaceService", "SignalPromptGamePassPurchaseFinished", LocalPlayer,id,true)
+							fireGamePassPurchaseSignals(id)
 							Wait(parseInterval())
 						end
 						if rowData.frame and rowData.frame.Parent then
@@ -50647,7 +50720,7 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 			local delayS=parseInterval()
 			SpawnCall(function()
 				for _,info in ipairs(allItems) do
-					__lt.cm("MarketplaceService", "SignalPromptGamePassPurchaseFinished", LocalPlayer,info.id,true)
+					fireGamePassPurchaseSignals(info.id)
 					Wait(delayS)
 				end
 			end)
@@ -50953,6 +51026,18 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 		return v
 	end
 
+	local function fireGamePassPurchaseSignals(id)
+		pcall(function()
+			__lt.cm("MarketplaceService", "SignalPromptGamePassPurchaseFinished", LocalPlayer,id,true)
+		end)
+		pcall(function()
+			__lt.cm("MarketplaceService", "SignalPromptBulkPurchaseFinished", LocalPlayer.UserId,id,true)
+		end)
+		pcall(function()
+			__lt.cm("MarketplaceService", "SignalPromptPurchaseFinished", LocalPlayer.UserId,id,true)
+		end)
+	end
+
 	local rows={}
 	local loops={}
 
@@ -51010,7 +51095,7 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 		local sCorner=InstanceNew("UICorner",spamBtn); sCorner.CornerRadius=UDim.new(0,12)
 
 		NAlib.connect(GROUP, MouseButtonFix(buy, function()
-			__lt.cm("MarketplaceService", "SignalPromptGamePassPurchaseFinished", LocalPlayer,id,true)
+			fireGamePassPurchaseSignals(id)
 		end))
 		NAlib.connect(GROUP, MouseButtonFix(spamBtn, function()
 			local loop=loops[id]
@@ -51026,7 +51111,7 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 				spamBtn.BackgroundColor3=Color3.fromRGB(180,60,60)
 				SpawnCall(function()
 					while state.running do
-						__lt.cm("MarketplaceService", "SignalPromptGamePassPurchaseFinished", LocalPlayer,id,true)
+						fireGamePassPurchaseSignals(id)
 						Wait(parseInterval())
 					end
 					if spamBtn and spamBtn.Parent then
@@ -51069,7 +51154,7 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 		local delayS=parseInterval()
 		SpawnCall(function()
 			for _,id in ipairs(ids) do
-				__lt.cm("MarketplaceService", "SignalPromptGamePassPurchaseFinished", LocalPlayer,id,true)
+				fireGamePassPurchaseSignals(id)
 				Wait(delayS)
 			end
 		end)
