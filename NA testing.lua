@@ -297,6 +297,8 @@ NAmanage.pruneRuntimeInstanceState = NAmanage.pruneRuntimeInstanceState or funct
 
 	NAmanage.pruneInstanceKeyMap(state._afTracked)
 	NAmanage.pruneInstanceKeyMap(state._afOrigCan)
+	NAmanage.pruneInstanceKeyMap(state._afpTracked)
+	NAmanage.pruneInstanceKeyMap(state._afpOrigCan)
 	NAmanage.pruneInstanceKeyMap(state._aaTracked)
 	NAmanage.pruneInstanceKeyMap(state._aaOrig)
 	NAmanage.pruneInstanceKeyMap(state._godOrig)
@@ -310,6 +312,13 @@ NAmanage.pruneRuntimeInstanceState = NAmanage.pruneRuntimeInstanceState or funct
 
 	NAmanage.pruneInstanceKeyMap(state._afSignals, function(conn)
 		NAmanage.tryDisconnect(conn)
+	end)
+	NAmanage.pruneInstanceKeyMap(state._afpSignals, function(arr)
+		if type(arr) == "table" then
+			for i = 1, #arr do
+				arr[i] = NAmanage.tryDisconnect(arr[i])
+			end
+		end
 	end)
 	NAmanage.pruneInstanceKeyMap(state._aaSignals, function(conn)
 		NAmanage.tryDisconnect(conn)
@@ -39409,6 +39418,276 @@ cmd.add({"unantifling"},{"unantifling","restores collision for other players"},f
 	DebugNotif("Antifling Disabled")
 end)
 
+cmd.add({"antiflingparts","antiunanchoredfling","afparts"},{"antiflingparts","Disables collision on nearby high-velocity unanchored non-player parts"},function()
+	NAlib.disconnect("antifling_parts")
+	NAlib.disconnect("antifling_parts_scan")
+
+	NAStuff._afpTracked = NAStuff._afpTracked or {}
+	NAStuff._afpOrigCan = NAStuff._afpOrigCan or {}
+	NAStuff._afpSignals = NAStuff._afpSignals or {}
+
+	local tracked = NAStuff._afpTracked
+	local orig = NAStuff._afpOrigCan
+	local sigs = NAStuff._afpSignals
+
+	local LINEAR_THREAT = 60
+	local ANGULAR_THREAT = 40
+	local LINEAR_RELEASE = 32
+	local ANGULAR_RELEASE = 22
+	local DISTANCE_LIMIT = 80
+	local NEARBY_SCAN_MAX = 96
+	local TRACK_QUOTA = 72
+	local LINEAR_THREAT_SQ = LINEAR_THREAT * LINEAR_THREAT
+	local ANGULAR_THREAT_SQ = ANGULAR_THREAT * ANGULAR_THREAT
+	local LINEAR_RELEASE_SQ = LINEAR_RELEASE * LINEAR_RELEASE
+	local ANGULAR_RELEASE_SQ = ANGULAR_RELEASE * ANGULAR_RELEASE
+	local DISTANCE_LIMIT_SQ = DISTANCE_LIMIT * DISTANCE_LIMIT
+	local overlapParams = nil
+
+	pcall(function()
+		local params = OverlapParams.new()
+		params.FilterType = Enum.RaycastFilterType.Blacklist
+		params.MaxParts = NEARBY_SCAN_MAX
+		overlapParams = params
+	end)
+
+	local function velocitySquared(part)
+		local assemblyVel = NAlib.isProperty(part, "AssemblyLinearVelocity")
+		local legacyVel = NAlib.isProperty(part, "Velocity")
+		local bestSq = 0
+		if typeof(assemblyVel) == "Vector3" then
+			bestSq = assemblyVel:Dot(assemblyVel)
+		end
+		if typeof(legacyVel) == "Vector3" then
+			local legacySq = legacyVel:Dot(legacyVel)
+			if legacySq > bestSq then
+				bestSq = legacySq
+			end
+		end
+		return bestSq
+	end
+
+	local function angularVelocitySquared(part)
+		local assemblyVel = NAlib.isProperty(part, "AssemblyAngularVelocity")
+		local legacyVel = NAlib.isProperty(part, "RotVelocity")
+		local bestSq = 0
+		if typeof(assemblyVel) == "Vector3" then
+			bestSq = assemblyVel:Dot(assemblyVel)
+		end
+		if typeof(legacyVel) == "Vector3" then
+			local legacySq = legacyVel:Dot(legacyVel)
+			if legacySq > bestSq then
+				bestSq = legacySq
+			end
+		end
+		return bestSq
+	end
+
+	local function isThreatPart(part, localRoot)
+		if not (part and typeof(part) == "Instance" and part:IsA("BasePart") and part.Parent) then
+			return false
+		end
+		if part.Anchored then
+			return false
+		end
+		if NAlib.isProperty(part, "CanCollide") == nil then
+			return false
+		end
+		local model = part:FindFirstAncestorOfClass("Model")
+		if model and __lt.cm("Players", "GetPlayerFromCharacter", model) then
+			return false
+		end
+		if localRoot and localRoot.Parent then
+			local offset = part.Position - localRoot.Position
+			if offset:Dot(offset) > DISTANCE_LIMIT_SQ then
+				return false
+			end
+		end
+		local linearSq = velocitySquared(part)
+		local angularSq = angularVelocitySquared(part)
+		if tracked[part] then
+			return linearSq >= LINEAR_RELEASE_SQ
+				or angularSq >= ANGULAR_RELEASE_SQ
+		end
+		return linearSq >= LINEAR_THREAT_SQ
+			or angularSq >= ANGULAR_THREAT_SQ
+	end
+
+	local function clearPart(part, restore)
+		local originalValue = orig[part]
+		local hadState = tracked[part] or originalValue ~= nil
+		tracked[part] = nil
+		if restore and hadState and originalValue ~= nil and typeof(part) == "Instance" and part:IsA("BasePart") and part.Parent then
+			NAlib.setProperty(part, "CanCollide", originalValue)
+		end
+		orig[part] = nil
+		sigs[part] = nil
+	end
+
+	local function enforcePart(part, localRoot)
+		if not isThreatPart(part, localRoot) then
+			if tracked[part] or orig[part] ~= nil then
+				clearPart(part, true)
+			end
+			return false
+		end
+
+		local current = NAlib.isProperty(part, "CanCollide")
+		if current == nil then
+			clearPart(part, false)
+			return false
+		end
+		if orig[part] == nil then
+			orig[part] = current
+		end
+
+		tracked[part] = true
+
+		if current ~= false then
+			NAlib.setProperty(part, "CanCollide", false)
+			return true
+		end
+		return false
+	end
+
+	local function scanNearby(root)
+		if not (root and root.Parent) then
+			return 0
+		end
+
+		local character = root.Parent
+		local parts
+
+		if overlapParams then
+			overlapParams.FilterDescendantsInstances = {character}
+			local ok, result = pcall(function()
+				return workspace:GetPartBoundsInRadius(root.Position, DISTANCE_LIMIT, overlapParams)
+			end)
+			if ok and type(result) == "table" then
+				parts = result
+			end
+		end
+
+		if type(parts) ~= "table" then
+			local wsList = NAmanage.wsDescs()
+			parts = {}
+			local count = 0
+			for i = 1, #wsList do
+				local obj = wsList[i]
+				if obj and obj:IsA("BasePart") and not obj:IsDescendantOf(character) then
+					local offset = obj.Position - root.Position
+					if offset:Dot(offset) <= DISTANCE_LIMIT_SQ then
+						count += 1
+						parts[count] = obj
+						if count >= NEARBY_SCAN_MAX then
+							break
+						end
+					end
+				end
+			end
+		end
+
+		local changed = 0
+		for i = 1, #parts do
+			if enforcePart(parts[i], root) then
+				changed += 1
+			end
+		end
+		return changed
+	end
+
+	local changed = scanNearby(getRoot(getChar()))
+
+	NAlib.connect("antifling_parts", NAmanage.wsAdd(function(inst)
+		if inst:IsA("BasePart") then
+			enforcePart(inst, getRoot(getChar()))
+		end
+	end))
+
+	NAlib.connect("antifling_parts", NAmanage.wsRem(function(inst)
+		if tracked[inst] then
+			clearPart(inst, false)
+		end
+	end))
+
+	NAlib.connect("antifling_parts_scan", RunService.PreSimulation:Connect(function()
+		local localRoot = getRoot(getChar())
+		local quota = TRACK_QUOTA
+		if not localRoot then
+			for part in pairs(tracked) do
+				if quota <= 0 then
+					break
+				end
+				clearPart(part, true)
+				quota -= 1
+			end
+			return
+		end
+
+		scanNearby(localRoot)
+
+		for part in pairs(tracked) do
+			if quota <= 0 then
+				break
+			end
+			if isThreatPart(part, localRoot) then
+				if NAlib.isProperty(part, "CanCollide") ~= false then
+					NAlib.setProperty(part, "CanCollide", false)
+				end
+			else
+				clearPart(part, true)
+			end
+			quota -= 1
+		end
+	end))
+
+	if changed > 0 then
+		DoNotif(("AntiFling Parts enabled. Disabled collision on %d high-velocity part(s)."):format(changed), 3, "AntiFling Parts")
+	else
+		DoNotif("AntiFling Parts enabled. Watching for nearby high-velocity unanchored parts.", 2, "AntiFling Parts")
+	end
+end)
+
+cmd.add({"unantiflingparts","unantiunanchoredfling","unafparts"},{"unantiflingparts","Restores collision for unanchored parts changed by antiflingparts"},function()
+	NAlib.disconnect("antifling_parts")
+	NAlib.disconnect("antifling_parts_scan")
+
+	local tracked = NAStuff._afpTracked or {}
+	local orig = NAStuff._afpOrigCan or {}
+	local sigs = NAStuff._afpSignals or {}
+
+	for part in pairs(tracked) do
+		local originalValue = orig[part]
+		if originalValue ~= nil and typeof(part) == "Instance" and part:IsA("BasePart") and part.Parent then
+			NAlib.setProperty(part, "CanCollide", originalValue)
+		end
+	end
+
+	for _, cons in pairs(sigs) do
+		if type(cons) == "table" then
+			for i = 1, #cons do
+				local conn = cons[i]
+				cons[i] = nil
+				if conn and conn.Disconnect then
+					conn:Disconnect()
+				end
+			end
+		end
+	end
+
+	for key in pairs(sigs) do
+		sigs[key] = nil
+	end
+	for key in pairs(tracked) do
+		tracked[key] = nil
+	end
+	for key in pairs(orig) do
+		orig[key] = nil
+	end
+
+	DoNotif("AntiFling Parts disabled.", 2, "AntiFling Parts")
+end)
+
 cmd.addPatched({"gravitygun"},{"gravitygun","Probably the best gravity gun script thats fe"},function()
 	Wait();
 	DoNotif("Wait a few seconds for it to load",2.5)
@@ -45252,51 +45531,93 @@ NAmanage.AntiTouchEnableCanTouch = function()
 	return true, { changed = changed }
 end
 
-cmd.add({"antitouch","antikillbrick","antikb"},{"antitouch (antikillbrick, antikb)","Disables touchable parts"},function()
-	local function finishEnable(method)
-		NAmanage.AntiTouchRestoreState()
-		local ok, result
-		if method == "cantouch" then
-			ok, result = NAmanage.AntiTouchEnableCanTouch()
-		else
-			ok, result = NAmanage.AntiTouchEnableRemoveParts()
-		end
-		if not ok then
+NAmanage.AntiTouchNormalizeMethod = function(method)
+	if method == nil then
+		return nil
+	end
+	local normalized = Lower(tostring(method)):gsub("[%s_%-]+", "")
+	if normalized == "" then
+		return nil
+	end
+	if normalized == "remove" or normalized == "removeparts" or normalized == "delete" or normalized == "loop" or normalized == "silent" or normalized == "autoremove" then
+		return "remove"
+	end
+	if normalized == "cantouch" or normalized == "disabletouch" or normalized == "property" or normalized == "touchoff" or normalized == "autodisable" then
+		return "cantouch"
+	end
+	return nil
+end
+
+NAmanage.AntiTouchEnable = function(method, opts)
+	opts = opts or {}
+	local resolved = NAmanage.AntiTouchNormalizeMethod(method) or "remove"
+
+	NAmanage.AntiTouchRestoreState()
+
+	local ok, result
+	if resolved == "cantouch" then
+		ok, result = NAmanage.AntiTouchEnableCanTouch()
+	else
+		ok, result = NAmanage.AntiTouchEnableRemoveParts()
+	end
+	if not ok then
+		if opts.notify ~= false then
 			DoNotif(tostring(result or "Unable to enable AntiTouch."), 3, "AntiTouch")
-			return
 		end
-		local changed = (type(result) == "table" and tonumber(result.changed)) or 0
-		local methodText = (method == "cantouch") and "Disable touchable property" or "Remove parts"
+		return false, result
+	end
+
+	local changed = (type(result) == "table" and tonumber(result.changed)) or 0
+	local methodText = (resolved == "cantouch") and "Disable touchable property" or "Remove parts"
+	if opts.notify ~= false then
 		if changed > 0 then
 			DoNotif(("AntiTouch enabled (%s). Disabled %d touchable part(s)."):format(methodText, changed), 3, "AntiTouch")
 		else
 			DoNotif(("AntiTouch enabled (%s). No touchable parts found yet (live tracking active)."):format(methodText), 2, "AntiTouch")
 		end
 	end
+	return true, result, resolved
+end
+
+cmd.add({"antitouch","antikillbrick","antikb"},{"antitouch [remove/cantouch/loop] (antikillbrick, antikb)","Disables touchable parts"},function(methodArg)
+	local directMethod = NAmanage.AntiTouchNormalizeMethod(methodArg)
+	if directMethod then
+		NAmanage.AntiTouchEnable(directMethod)
+		return
+	end
+
+	if methodArg ~= nil and tostring(methodArg) ~= "" then
+		DoNotif("Unknown AntiTouch method. Use remove, cantouch, or loop.", 2, "AntiTouch")
+		return
+	end
 
 	if type(Window) ~= "function" then
-		finishEnable("remove")
+		NAmanage.AntiTouchEnable("remove")
 		return
 	end
 
 	Window({
 		Title = "AntiTouch Method",
-		Description = "Choose which method to use.",
+		Description = "Choose which method to use. Both methods live-track new touch parts.",
 		Buttons = {
 			{
 				Text = "Method 1: Remove parts",
 				Callback = function()
-					finishEnable("remove")
+					NAmanage.AntiTouchEnable("remove")
 				end
 			},
 			{
 				Text = "Method 2: Disable touchable property",
 				Callback = function()
-					finishEnable("cantouch")
+					NAmanage.AntiTouchEnable("cantouch")
 				end
 			}
 		}
 	})
+end)
+
+cmd.add({"loopantitouch","loopantikillbrick","loopantikb"},{"loopantitouch (loopantikillbrick, loopantikb)","Enables AntiTouch live tracking without opening the method popup"},function()
+	NAmanage.AntiTouchEnable("remove")
 end)
 
 cmd.add({"unantitouch","unantikillbrick","unantikb"},{"unantitouch (unantikillbrick, unantikb)","Re-enables touchable parts"},function()
@@ -75351,8 +75672,13 @@ NAmanage.applyCmdAutofillFill = function(frame)
 	end
 	local sanitizedText = NAmanage.stripChar(raw)
 	task.defer(function()
-		NAStuff.cmdFocusGuardUntil = os.clock() + 0.45
-		NAStuff.autofillRefocusGuard = os.clock() + 0.25
+		if IsOnMobile then
+			NAStuff.cmdFocusGuardUntil = os.clock() + 0.45
+			NAStuff.autofillRefocusGuard = os.clock() + 0.25
+		else
+			NAStuff.cmdFocusGuardUntil = 0
+			NAStuff.autofillRefocusGuard = 0
+		end
 		NAUIMANAGER.cmdInput.Text = sanitizedText
 		local caret = #sanitizedText + 1
 		NAUIMANAGER.cmdInput.CursorPosition = caret
@@ -75370,6 +75696,7 @@ NAmanage.applyCmdAutofillFill = function(frame)
 		end
 		if not IsOnMobile then
 			NAgui.ensureCmdFocus(true)
+			NAStuff.autofillSelecting = false
 		else
 			NAStuff.autofillSelecting = true
 			NAUIMANAGER.cmdInput:ReleaseFocus()
@@ -75378,12 +75705,16 @@ NAmanage.applyCmdAutofillFill = function(frame)
 					NAUIMANAGER.cmdInput:CaptureFocus()
 					NAUIMANAGER.cmdInput.ClearTextOnFocus = NAStuff.defaultCmdClear or false
 				end
+				NAStuff.autofillRefocusGuard = 0
 				NAStuff.autofillSelecting = false
 			end)
 		end
-		task.delay(0.5, function()
-			NAStuff.cmdFocusGuardUntil = 0
-		end)
+		if IsOnMobile then
+			task.delay(0.5, function()
+				NAStuff.cmdFocusGuardUntil = 0
+				NAStuff.autofillRefocusGuard = 0
+			end)
+		end
 	end)
 end
 
@@ -75731,7 +76062,7 @@ NAgui.activateCmdInput = function(opts)
 end
 
 NAgui.barDeselect = function(speed)
-	if NAStuff.autofillRefocusGuard > 0 and os.clock() < NAStuff.autofillRefocusGuard then
+	if IsOnMobile and NAStuff.autofillRefocusGuard > 0 and os.clock() < NAStuff.autofillRefocusGuard then
 		return
 	end
 	speed = speed or 0.4
@@ -76289,10 +76620,10 @@ end))
 --[[ CLOSE THE COMMAND BAR ]]--
 NAlib.disconnect("cmdbar_input_focuslost")
 NAlib.connect("cmdbar_input_focuslost", NAUIMANAGER.cmdInput.FocusLost:Connect(function(enter)
-	if NAStuff.cmdFocusGuardUntil and os.clock() < NAStuff.cmdFocusGuardUntil then
+	if IsOnMobile and NAStuff.cmdFocusGuardUntil and os.clock() < NAStuff.cmdFocusGuardUntil then
 		return
 	end
-	if NAStuff.autofillRefocusGuard > 0 and os.clock() < NAStuff.autofillRefocusGuard then
+	if IsOnMobile and NAStuff.autofillRefocusGuard > 0 and os.clock() < NAStuff.autofillRefocusGuard then
 		return
 	end
 	if IsOnMobile and NAStuff.cmdFocusGuardUntil then
@@ -76325,7 +76656,7 @@ NAlib.connect("cmdbar_input_focuslost", NAUIMANAGER.cmdInput.FocusLost:Connect(f
 		predictionInput.Text = ""
 	end
 	local checkDelay = 0.05
-	if NAStuff.autofillRefocusGuard > 0 then
+	if IsOnMobile and NAStuff.autofillRefocusGuard > 0 then
 		checkDelay = math.max(0.22, NAStuff.autofillRefocusGuard - os.clock())
 	end
 	Wait(checkDelay)
