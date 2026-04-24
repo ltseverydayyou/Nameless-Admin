@@ -2153,6 +2153,28 @@
       "desc": "restores collision for other players"
     },
     {
+      "name": "antiflingparts",
+      "aliases": [
+        "antiflingparts",
+        "antiunanchoredfling",
+        "afparts"
+      ],
+      "usage": "antiflingparts",
+      "args": "",
+      "desc": "Disables collision on nearby high-velocity unanchored non-player parts"
+    },
+    {
+      "name": "unantiflingparts",
+      "aliases": [
+        "unantiflingparts",
+        "unantiunanchoredfling",
+        "unafparts"
+      ],
+      "usage": "unantiflingparts",
+      "args": "",
+      "desc": "Restores collision for unanchored parts changed by antiflingparts"
+    },
+    {
       "name": "lockws",
       "aliases": [
         "lockws",
@@ -3283,9 +3305,20 @@
         "antikillbrick",
         "antikb"
       ],
-      "usage": "antitouch (antikillbrick, antikb)",
-      "args": "",
+      "usage": "antitouch [remove/cantouch/loop] (antikillbrick, antikb)",
+      "args": "[remove/cantouch/loop]",
       "desc": "Disables touchable parts"
+    },
+    {
+      "name": "loopantitouch",
+      "aliases": [
+        "loopantitouch",
+        "loopantikillbrick",
+        "loopantikb"
+      ],
+      "usage": "loopantitouch (loopantikillbrick, loopantikb)",
+      "args": "",
+      "desc": "Enables AntiTouch live tracking without opening the method popup"
     },
     {
       "name": "unantitouch",
