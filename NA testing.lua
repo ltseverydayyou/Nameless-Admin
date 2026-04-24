@@ -710,6 +710,7 @@ local NA_TABS = {
 	TAB_FFLAGS = "FFlags";
 	TAB_AUTOMATION = "Automation";
 	TAB_MANAGEMENT = "Management";
+	TAB_SAVE_INSTANCE = "Save Instance";
 	TAB_USER_BUTTONS = "User Buttons";
 	TAB_LOGGING = "Logging";
 	TAB_ESP = "ESP";
@@ -16219,6 +16220,278 @@ NAmanage.NASettingsGetSchema=function()
 				return NAmanage.normalizeAssetDownloadMethod(value)
 			end;
 		};
+		saveInstanceSafeMode = {
+			default = true;
+			coerce = function(value)
+				return coerceBoolean(value, true)
+			end;
+		};
+		saveInstanceKillAllScripts = {
+			default = true;
+			coerce = function(value)
+				return coerceBoolean(value, true)
+			end;
+		};
+		saveInstanceBoostFPS = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
+		saveInstanceShutdownWhenDone = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
+		saveInstanceAntiIdle = {
+			default = true;
+			coerce = function(value)
+				return coerceBoolean(value, true)
+			end;
+		};
+		saveInstanceShowStatus = {
+			default = true;
+			coerce = function(value)
+				return coerceBoolean(value, true)
+			end;
+		};
+		saveInstanceReadMe = {
+			default = true;
+			coerce = function(value)
+				return coerceBoolean(value, true)
+			end;
+		};
+		saveInstanceDebugMode = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
+		saveInstanceAnonymous = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
+		saveInstanceMode = {
+			default = "optimized";
+			coerce = function(value)
+				local mode = type(value) == "string" and value:lower() or tostring(value or ""):lower()
+				if mode == "full" then
+					return "full"
+				elseif mode == "scripts" then
+					return "scripts"
+				end
+				return "optimized"
+			end;
+		};
+		saveInstanceDecompile = {
+			default = true;
+			coerce = function(value)
+				return coerceBoolean(value, true)
+			end;
+		};
+		saveInstanceScriptCache = {
+			default = true;
+			coerce = function(value)
+				return coerceBoolean(value, true)
+			end;
+		};
+		saveInstanceDecompileTimeout = {
+			default = 10;
+			coerce = function(value)
+				local n = tonumber(value)
+				if not n then return 10 end
+				return math.clamp(math.floor(n + 0.5), 1, 120)
+			end;
+		};
+		saveInstanceDecompileJobless = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
+		saveInstanceSaveBytecode = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
+		saveInstanceSaveCacheInterval = {
+			default = 56320;
+			coerce = function(value)
+				local n = tonumber(value)
+				if not n then return 56320 end
+				return math.max(0, math.floor(n + 0.5))
+			end;
+		};
+		saveInstanceAvoidFileOverwrite = {
+			default = true;
+			coerce = function(value)
+				return coerceBoolean(value, true)
+			end;
+		};
+		saveInstanceNilInstances = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
+		saveInstanceIgnoreDefaultProperties = {
+			default = true;
+			coerce = function(value)
+				return coerceBoolean(value, true)
+			end;
+		};
+		saveInstanceIgnoreNotArchivable = {
+			default = true;
+			coerce = function(value)
+				return coerceBoolean(value, true)
+			end;
+		};
+		saveInstanceIgnorePropertiesOfNotScriptsOnScriptsMode = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
+		saveInstanceIgnoreSpecialProperties = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
+		saveInstanceIsolateStarterPlayer = {
+			default = true;
+			coerce = function(value)
+				return coerceBoolean(value, true)
+			end;
+		};
+		saveInstanceIsolatePlayers = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
+		saveInstanceIsolateLocalPlayer = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
+		saveInstanceIsolateLocalPlayerCharacter = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
+		saveInstanceSavePlayerCharacters = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
+		saveInstanceSaveNotCreatable = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
+		saveInstanceAlternativeWritefile = {
+			default = true;
+			coerce = function(value)
+				return coerceBoolean(value, true)
+			end;
+		};
+		saveInstanceIgnoreDefaultPlayerScripts = {
+			default = true;
+			coerce = function(value)
+				return coerceBoolean(value, true)
+			end;
+		};
+		saveInstanceIgnoreSharedStrings = {
+			default = true;
+			coerce = function(value)
+				return coerceBoolean(value, true)
+			end;
+		};
+		saveInstanceSharedStringOverwrite = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
+		saveInstanceTreatUnionsAsParts = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
+		saveInstanceDecompileIgnore = {
+			default = "Chat,CoreGui,CorePackages";
+			coerce = function(value)
+				if type(value) ~= "string" then
+					value = tostring(value or "")
+				end
+				return value:match("^%s*(.-)%s*$") or value
+			end;
+		};
+		saveInstanceIgnoreList = {
+			default = "CoreGui,CorePackages";
+			coerce = function(value)
+				if type(value) ~= "string" then
+					value = tostring(value or "")
+				end
+				return value:match("^%s*(.-)%s*$") or value
+			end;
+		};
+		saveInstanceIgnoreProperties = {
+			default = "";
+			coerce = function(value)
+				if type(value) ~= "string" then
+					value = tostring(value or "")
+				end
+				return value:match("^%s*(.-)%s*$") or value
+			end;
+		};
+		saveInstanceNotCreatableFixes = {
+			default = "Player,PlayerScripts,PlayerGui,TouchTransmitter";
+			coerce = function(value)
+				if type(value) ~= "string" then
+					value = tostring(value or "")
+				end
+				return value:match("^%s*(.-)%s*$") or value
+			end;
+		};
+		saveInstanceExtraOptionsJson = {
+			default = "";
+			coerce = function(value)
+				if type(value) ~= "string" then
+					value = tostring(value or "")
+				end
+				return value:match("^%s*(.-)%s*$") or value
+			end;
+		};
+		saveInstanceCommandHintShown = {
+			default = false;
+			coerce = function(value)
+				return coerceBoolean(value, false)
+			end;
+		};
+		saveInstanceFileNameFormat = {
+			default = "{placeName}_{timestamp}";
+			coerce = function(value)
+				if type(value) ~= "string" then
+					value = tostring(value or "")
+				end
+				value = value:match("^%s*(.-)%s*$") or value
+				if value == "" then
+					return "{placeName}_{timestamp}"
+				end
+				return value
+			end;
+		};
 		loadingStartMinimized = {
 			default = false;
 			coerce = function(value)
@@ -18156,6 +18429,47 @@ NAStuff.CustomMovementSounds.LandInput = tostring(NAmanage.NASettingsGet("custom
 NAStuff.CustomMovementSounds.Volume = math.clamp(tonumber(NAmanage.NASettingsGet("customMovementSoundsVolume")) or 1, 0, 10)
 NAStuff.AssetLoadMode = NAmanage.NASettingsGet("assetLoadMode") or NAStuff.AssetLoadMode
 NAStuff.AssetDownloadMethod = NAmanage.normalizeAssetDownloadMethod(NAmanage.NASettingsGet("assetDownloadMethod") or NAStuff.AssetDownloadMethod)
+NAStuff.SaveInstanceConfig = {
+	safeMode = NAmanage.NASettingsGet("saveInstanceSafeMode") == true;
+	killAllScripts = NAmanage.NASettingsGet("saveInstanceKillAllScripts") == true;
+	boostFPS = NAmanage.NASettingsGet("saveInstanceBoostFPS") == true;
+	shutdownWhenDone = NAmanage.NASettingsGet("saveInstanceShutdownWhenDone") == true;
+	antiIdle = NAmanage.NASettingsGet("saveInstanceAntiIdle") ~= false;
+	showStatus = NAmanage.NASettingsGet("saveInstanceShowStatus") ~= false;
+	readMe = NAmanage.NASettingsGet("saveInstanceReadMe") ~= false;
+	debugMode = NAmanage.NASettingsGet("saveInstanceDebugMode") == true;
+	anonymous = NAmanage.NASettingsGet("saveInstanceAnonymous") == true;
+	mode = tostring(NAmanage.NASettingsGet("saveInstanceMode") or "optimized");
+	decompile = NAmanage.NASettingsGet("saveInstanceDecompile") ~= false;
+	scriptCache = NAmanage.NASettingsGet("saveInstanceScriptCache") ~= false;
+	decompileTimeout = math.clamp(tonumber(NAmanage.NASettingsGet("saveInstanceDecompileTimeout")) or 10, 1, 120);
+	decompileJobless = NAmanage.NASettingsGet("saveInstanceDecompileJobless") == true;
+	saveBytecode = NAmanage.NASettingsGet("saveInstanceSaveBytecode") == true;
+	saveCacheInterval = math.max(0, math.floor((tonumber(NAmanage.NASettingsGet("saveInstanceSaveCacheInterval")) or 56320) + 0.5));
+	avoidFileOverwrite = NAmanage.NASettingsGet("saveInstanceAvoidFileOverwrite") ~= false;
+	nilInstances = NAmanage.NASettingsGet("saveInstanceNilInstances") == true;
+	ignoreDefaultProperties = NAmanage.NASettingsGet("saveInstanceIgnoreDefaultProperties") ~= false;
+	ignoreNotArchivable = NAmanage.NASettingsGet("saveInstanceIgnoreNotArchivable") ~= false;
+	ignorePropertiesOfNotScriptsOnScriptsMode = NAmanage.NASettingsGet("saveInstanceIgnorePropertiesOfNotScriptsOnScriptsMode") == true;
+	ignoreSpecialProperties = NAmanage.NASettingsGet("saveInstanceIgnoreSpecialProperties") == true;
+	isolateStarterPlayer = NAmanage.NASettingsGet("saveInstanceIsolateStarterPlayer") ~= false;
+	isolatePlayers = NAmanage.NASettingsGet("saveInstanceIsolatePlayers") == true;
+	isolateLocalPlayer = NAmanage.NASettingsGet("saveInstanceIsolateLocalPlayer") == true;
+	isolateLocalPlayerCharacter = NAmanage.NASettingsGet("saveInstanceIsolateLocalPlayerCharacter") == true;
+	savePlayerCharacters = NAmanage.NASettingsGet("saveInstanceSavePlayerCharacters") == true;
+	saveNotCreatable = NAmanage.NASettingsGet("saveInstanceSaveNotCreatable") == true;
+	alternativeWritefile = NAmanage.NASettingsGet("saveInstanceAlternativeWritefile") ~= false;
+	ignoreDefaultPlayerScripts = NAmanage.NASettingsGet("saveInstanceIgnoreDefaultPlayerScripts") ~= false;
+	ignoreSharedStrings = NAmanage.NASettingsGet("saveInstanceIgnoreSharedStrings") ~= false;
+	sharedStringOverwrite = NAmanage.NASettingsGet("saveInstanceSharedStringOverwrite") == true;
+	treatUnionsAsParts = NAmanage.NASettingsGet("saveInstanceTreatUnionsAsParts") == true;
+	decompileIgnore = tostring(NAmanage.NASettingsGet("saveInstanceDecompileIgnore") or "Chat,CoreGui,CorePackages");
+	ignoreList = tostring(NAmanage.NASettingsGet("saveInstanceIgnoreList") or "CoreGui,CorePackages");
+	ignoreProperties = tostring(NAmanage.NASettingsGet("saveInstanceIgnoreProperties") or "");
+	notCreatableFixes = tostring(NAmanage.NASettingsGet("saveInstanceNotCreatableFixes") or "Player,PlayerScripts,PlayerGui,TouchTransmitter");
+	extraOptionsJson = tostring(NAmanage.NASettingsGet("saveInstanceExtraOptionsJson") or "");
+	fileNameFormat = tostring(NAmanage.NASettingsGet("saveInstanceFileNameFormat") or "{placeName}_{timestamp}");
+}
 
 pcall(NAmanage.SetAssetLoadMode, NAStuff.AssetLoadMode)
 pcall(NAmanage.setAssetDownloadMethod, NAStuff.AssetDownloadMethod, { persist = false })
@@ -41966,19 +42280,443 @@ cmd.add({"unlockiconposition","unlockicon"},{"unlockiconposition","Unlocks the N
 	end
 end)
 
-cmd.add({"saveinstance","savegame"},{"saveinstance (savegame)","if it bugs out try removing stuff from your AutoExec folder"},function()
-	--saveinstance({})
-	if saveinstance then saveinstance() return end
-	local Params={
-		RepoURL="https://raw.githubusercontent.com/luau/SynSaveInstance/main/",
-		SSI="saveinstance",
-	}
-	local synsaveinstance=loadstring(game:HttpGet(Params.RepoURL..Params.SSI..".luau",true),Params.SSI)()
-	local Options={}
-	if identifyexecutor()=="Fluxus" then
-		Options={ IgnoreSpecialProperties=true }
+NAmanage.GetUniversalSaveInstance = NAmanage.GetUniversalSaveInstance or function()
+	local cacheHost = _na_env or _G
+	local cached = type(cacheHost) == "table" and rawget(cacheHost, "__na_ussi_saveinstance")
+	if type(cached) == "function" then
+		return cached
 	end
-	synsaveinstance(Options)
+
+	local loader = loadstring or load
+	if type(loader) ~= "function" then
+		error("saveinstance loader unavailable")
+	end
+
+	local repoUrl = "https://raw.githubusercontent.com/luau/UniversalSynSaveInstance/main/saveinstance.luau"
+	local chunk = loader(game:HttpGet(repoUrl, true), "@UniversalSynSaveInstance/saveinstance.luau")
+	if type(chunk) ~= "function" then
+		error("failed to compile UniversalSynSaveInstance")
+	end
+
+	local ussi = chunk()
+	if type(ussi) ~= "function" then
+		error("failed to load UniversalSynSaveInstance")
+	end
+
+	if type(cacheHost) == "table" then
+		rawset(cacheHost, "__na_ussi_saveinstance", ussi)
+	end
+	return ussi
+end
+
+NAmanage.GetSaveInstancePlaceName = NAmanage.GetSaveInstancePlaceName or function()
+	if type(NAStuff._SaveInstancePlaceName) == "string" and NAStuff._SaveInstancePlaceName ~= "" then
+		return NAStuff._SaveInstancePlaceName
+	end
+
+	local placeName = "UnknownPlace"
+	local okInfo, info = pcall(function()
+		return game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId)
+	end)
+	if okInfo and type(info) == "table" and type(info.Name) == "string" and info.Name ~= "" then
+		placeName = info.Name
+	end
+	placeName = tostring(placeName):gsub("[%c\\/:*?\"<>|]", "_")
+	placeName = placeName:gsub("%s+", " "):gsub("^%s+", ""):gsub("%s+$", "")
+	if placeName == "" then
+		placeName = "UnknownPlace"
+	end
+
+	NAStuff._SaveInstancePlaceName = placeName
+	return placeName
+end
+
+NAmanage.FormatSaveInstanceFileName = NAmanage.FormatSaveInstanceFileName or function(template, extra)
+	local formatText = tostring(template or "")
+	if formatText == "" then
+		formatText = "{placeName}_{timestamp}"
+	end
+
+	local tokens = {
+		placeName = NAmanage.GetSaveInstancePlaceName();
+		placeId = tostring(game.PlaceId);
+		timestamp = os.date("%d-%m-%Y_%H-%M-%S");
+		date = os.date("%d-%m-%Y");
+		time = os.date("%H-%M-%S");
+		unix = tostring(os.time());
+	}
+	if type(extra) == "table" then
+		for key, value in pairs(extra) do
+			tokens[key] = value
+		end
+	end
+	tokens.TIMESTAMP = tokens.TIMESTAMP or tokens.timestamp
+	tokens.DATE = tokens.DATE or tokens.date
+	tokens.TIME = tokens.TIME or tokens.time
+	tokens.UNIX = tokens.UNIX or tokens.unix
+	tokens.PLACENAME = tokens.PLACENAME or tokens.placeName
+	tokens.PLACEID = tokens.PLACEID or tokens.placeId
+
+	local resolved = formatText:gsub("{([%w_]+)}", function(token)
+		local value = tokens[token]
+		if value == nil then
+			return "{"..token.."}"
+		end
+		value = tostring(value)
+		value = value:gsub("[%c\\/:*?\"<>|]", "_")
+		value = value:gsub("%s+", " "):gsub("^%s+", ""):gsub("%s+$", "")
+		if value == "" then
+			return "Unnamed"
+		end
+		return value
+	end)
+
+	return resolved
+end
+
+NAmanage.TrimSaveInstanceText = NAmanage.TrimSaveInstanceText or function(value, fallback)
+	local text = tostring(value or ""):match("^%s*(.-)%s*$") or ""
+	if text == "" and fallback ~= nil then
+		return fallback
+	end
+	return text
+end
+
+NAmanage.ParseSaveInstanceList = NAmanage.ParseSaveInstanceList or function(value)
+	local out = {}
+	local seen = {}
+	for _, entry in ipairs(string.split(tostring(value or ""), ",")) do
+		local clean = tostring(entry):match("^%s*(.-)%s*$") or ""
+		if clean ~= "" and not seen[clean] then
+			seen[clean] = true
+			out[#out + 1] = clean
+		end
+	end
+	return out
+end
+
+NAmanage.DecodeSaveInstanceExtraOptions = NAmanage.DecodeSaveInstanceExtraOptions or function(text)
+	local trimmed = NAmanage.TrimSaveInstanceText(text, "")
+	if trimmed == "" then
+		return {}
+	end
+	local okDecode, decoded = pcall(function()
+		return HttpService:JSONDecode(trimmed)
+	end)
+	if not okDecode or type(decoded) ~= "table" then
+		error("Extra Options JSON is invalid")
+	end
+	return decoded
+end
+
+NAmanage.BuildSaveInstanceOptions = NAmanage.BuildSaveInstanceOptions or function(extra)
+	local cfg = NAStuff.SaveInstanceConfig or {}
+	local options = {
+		SafeMode = cfg.safeMode == true;
+		KillAllScripts = cfg.killAllScripts == true;
+		BoostFPS = cfg.boostFPS == true;
+		ShutdownWhenDone = cfg.shutdownWhenDone == true;
+		AntiIdle = cfg.antiIdle ~= false;
+		ShowStatus = cfg.showStatus ~= false;
+		ReadMe = cfg.readMe ~= false;
+		__DEBUG_MODE = cfg.debugMode == true;
+		Anonymous = cfg.anonymous == true;
+		mode = (cfg.mode == "full" or cfg.mode == "scripts") and cfg.mode or "optimized";
+		Decompile = cfg.decompile ~= false;
+		scriptcache = cfg.scriptCache ~= false;
+		DecompileTimeout = math.clamp(tonumber(cfg.decompileTimeout) or 10, 1, 120);
+		DecompileJobless = cfg.decompileJobless == true;
+		SaveBytecode = cfg.saveBytecode == true;
+		DecompileIgnore = NAmanage.ParseSaveInstanceList(cfg.decompileIgnore);
+		IgnoreList = NAmanage.ParseSaveInstanceList(cfg.ignoreList);
+		IgnoreProperties = NAmanage.ParseSaveInstanceList(cfg.ignoreProperties);
+		SaveCacheInterval = math.max(0, math.floor((tonumber(cfg.saveCacheInterval) or 56320) + 0.5));
+		AvoidFileOverwrite = cfg.avoidFileOverwrite ~= false;
+		NilInstances = cfg.nilInstances == true;
+		IgnoreDefaultProperties = cfg.ignoreDefaultProperties ~= false;
+		IgnoreNotArchivable = cfg.ignoreNotArchivable ~= false;
+		IgnorePropertiesOfNotScriptsOnScriptsMode = cfg.ignorePropertiesOfNotScriptsOnScriptsMode == true;
+		IgnoreSpecialProperties = cfg.ignoreSpecialProperties == true;
+		IsolateStarterPlayer = cfg.isolateStarterPlayer ~= false;
+		IsolatePlayers = cfg.isolatePlayers == true;
+		IsolateLocalPlayer = cfg.isolateLocalPlayer == true;
+		IsolateLocalPlayerCharacter = cfg.isolateLocalPlayerCharacter == true;
+		SavePlayerCharacters = cfg.savePlayerCharacters == true;
+		SaveNotCreatable = cfg.saveNotCreatable == true;
+		AlternativeWritefile = cfg.alternativeWritefile ~= false;
+		IgnoreDefaultPlayerScripts = cfg.ignoreDefaultPlayerScripts ~= false;
+		IgnoreSharedStrings = cfg.ignoreSharedStrings ~= false;
+		SharedStringOverwrite = cfg.sharedStringOverwrite == true;
+		TreatUnionsAsParts = cfg.treatUnionsAsParts == true;
+		NotCreatableFixes = NAmanage.ParseSaveInstanceList(cfg.notCreatableFixes);
+		FilePath = NAmanage.FormatSaveInstanceFileName(cfg.fileNameFormat);
+		Object = game;
+	}
+
+	local executorName = ""
+	pcall(function()
+		if type(identifyexecutor) == "function" then
+			executorName = tostring(identifyexecutor())
+		end
+	end)
+	if executorName == "Fluxus" and extra == nil then
+		options.IgnoreSpecialProperties = true
+	end
+
+	local extraOptions = NAmanage.DecodeSaveInstanceExtraOptions(cfg.extraOptionsJson)
+	for key, value in pairs(extraOptions) do
+		options[key] = value
+	end
+
+	if type(extra) == "table" then
+		for key, value in pairs(extra) do
+			options[key] = value
+		end
+	end
+
+	return options
+end
+
+NAmanage.RunSaveInstance = NAmanage.RunSaveInstance or function(extra)
+	local ussi = NAmanage.GetUniversalSaveInstance()
+	local options = NAmanage.BuildSaveInstanceOptions(extra)
+	local ok, result = pcall(ussi, options)
+	if not ok then
+		error(result)
+	end
+	return result
+end
+
+NAmanage.BuildSaveInstanceTab = NAmanage.BuildSaveInstanceTab or function()
+	local cfg = NAStuff.SaveInstanceConfig
+	local function setValue(configKey, settingKey, value)
+		cfg[configKey] = value
+		pcall(NAmanage.NASettingsSet, settingKey, value)
+	end
+	local function dropdownValue(selection, fallback)
+		local value = selection
+		if type(selection) == "table" then
+			value = selection[1]
+		end
+		value = tostring(value or fallback or "")
+		if value == "" then
+			return fallback
+		end
+		return value
+	end
+
+	NAgui.addSection("Protection")
+	NAgui.addToggle("Safe Mode", cfg.safeMode == true, function(v)
+		setValue("safeMode", "saveInstanceSafeMode", v == true)
+	end)
+	NAgui.addToggle("Kill All Scripts", cfg.killAllScripts == true, function(v)
+		setValue("killAllScripts", "saveInstanceKillAllScripts", v == true)
+	end)
+	NAgui.addToggle("Boost FPS", cfg.boostFPS == true, function(v)
+		setValue("boostFPS", "saveInstanceBoostFPS", v == true)
+	end)
+	NAgui.addToggle("Shutdown When Done", cfg.shutdownWhenDone == true, function(v)
+		setValue("shutdownWhenDone", "saveInstanceShutdownWhenDone", v == true)
+	end)
+	NAgui.addToggle("Anti Idle", cfg.antiIdle ~= false, function(v)
+		setValue("antiIdle", "saveInstanceAntiIdle", v ~= false)
+	end)
+	NAgui.addToggle("Show Status", cfg.showStatus ~= false, function(v)
+		setValue("showStatus", "saveInstanceShowStatus", v ~= false)
+	end)
+	NAgui.addToggle("Write ReadMe", cfg.readMe ~= false, function(v)
+		setValue("readMe", "saveInstanceReadMe", v ~= false)
+	end)
+	NAgui.addToggle("Debug Mode", cfg.debugMode == true, function(v)
+		setValue("debugMode", "saveInstanceDebugMode", v == true)
+	end)
+	NAgui.addToggle("Anonymous", cfg.anonymous == true, function(v)
+		setValue("anonymous", "saveInstanceAnonymous", v == true)
+	end)
+
+	NAgui.addSection("Decompile")
+	NAgui.addDropdown("Save Mode", { "optimized", "full", "scripts" }, tostring(cfg.mode or "optimized"), function(selection)
+		local mode = dropdownValue(selection, "optimized"):lower()
+		if mode ~= "full" and mode ~= "scripts" then
+			mode = "optimized"
+		end
+		setValue("mode", "saveInstanceMode", mode)
+	end)
+	NAgui.addToggle("Decompile Scripts", cfg.decompile ~= false, function(v)
+		setValue("decompile", "saveInstanceDecompile", v ~= false)
+	end)
+	NAgui.addToggle("Use Script Cache", cfg.scriptCache ~= false, function(v)
+		setValue("scriptCache", "saveInstanceScriptCache", v ~= false)
+	end)
+	NAgui.addSlider("Decompile Timeout", 1, 120, tonumber(cfg.decompileTimeout) or 10, 1, " s", function(v)
+		setValue("decompileTimeout", "saveInstanceDecompileTimeout", math.clamp(math.floor((tonumber(v) or 10) + 0.5), 1, 120))
+	end)
+	NAgui.addToggle("Decompile Jobless", cfg.decompileJobless == true, function(v)
+		setValue("decompileJobless", "saveInstanceDecompileJobless", v == true)
+	end)
+	NAgui.addToggle("Save Bytecode", cfg.saveBytecode == true, function(v)
+		setValue("saveBytecode", "saveInstanceSaveBytecode", v == true)
+	end)
+	NAgui.addInput("Decompile Ignore", "Chat,CoreGui,CorePackages", tostring(cfg.decompileIgnore or ""), function(text)
+		setValue("decompileIgnore", "saveInstanceDecompileIgnore", NAmanage.TrimSaveInstanceText(text, ""))
+	end)
+
+	NAgui.addSection("Instances")
+	NAgui.addInput("Ignore List", "CoreGui,CorePackages", tostring(cfg.ignoreList or ""), function(text)
+		setValue("ignoreList", "saveInstanceIgnoreList", NAmanage.TrimSaveInstanceText(text, ""))
+	end)
+	NAgui.addInput("Ignore Properties", "PropertyA,PropertyB", tostring(cfg.ignoreProperties or ""), function(text)
+		setValue("ignoreProperties", "saveInstanceIgnoreProperties", NAmanage.TrimSaveInstanceText(text, ""))
+	end)
+	NAgui.addInput("Not Creatable Fixes", "Player,PlayerScripts,...", tostring(cfg.notCreatableFixes or ""), function(text)
+		setValue("notCreatableFixes", "saveInstanceNotCreatableFixes", NAmanage.TrimSaveInstanceText(text, ""))
+	end)
+	NAgui.addInput("Save Cache Interval", "56320", tostring(cfg.saveCacheInterval or 56320), function(text)
+		local value = math.max(0, math.floor((tonumber(text) or 56320) + 0.5))
+		setValue("saveCacheInterval", "saveInstanceSaveCacheInterval", value)
+	end)
+	NAgui.addToggle("Avoid File Overwrite", cfg.avoidFileOverwrite ~= false, function(v)
+		setValue("avoidFileOverwrite", "saveInstanceAvoidFileOverwrite", v ~= false)
+	end)
+	NAgui.addToggle("Save Nil Instances", cfg.nilInstances == true, function(v)
+		setValue("nilInstances", "saveInstanceNilInstances", v == true)
+	end)
+	NAgui.addToggle("Ignore Default Properties", cfg.ignoreDefaultProperties ~= false, function(v)
+		setValue("ignoreDefaultProperties", "saveInstanceIgnoreDefaultProperties", v ~= false)
+	end)
+	NAgui.addToggle("Ignore Not Archivable", cfg.ignoreNotArchivable ~= false, function(v)
+		setValue("ignoreNotArchivable", "saveInstanceIgnoreNotArchivable", v ~= false)
+	end)
+	NAgui.addToggle("Ignore Non-Script Props In Scripts Mode", cfg.ignorePropertiesOfNotScriptsOnScriptsMode == true, function(v)
+		setValue("ignorePropertiesOfNotScriptsOnScriptsMode", "saveInstanceIgnorePropertiesOfNotScriptsOnScriptsMode", v == true)
+	end)
+	NAgui.addToggle("Ignore Special Properties", cfg.ignoreSpecialProperties == true, function(v)
+		setValue("ignoreSpecialProperties", "saveInstanceIgnoreSpecialProperties", v == true)
+	end)
+	NAgui.addToggle("Isolate StarterPlayer", cfg.isolateStarterPlayer ~= false, function(v)
+		setValue("isolateStarterPlayer", "saveInstanceIsolateStarterPlayer", v ~= false)
+	end)
+	NAgui.addToggle("Isolate Players", cfg.isolatePlayers == true, function(v)
+		setValue("isolatePlayers", "saveInstanceIsolatePlayers", v == true)
+	end)
+	NAgui.addToggle("Isolate Local Player", cfg.isolateLocalPlayer == true, function(v)
+		setValue("isolateLocalPlayer", "saveInstanceIsolateLocalPlayer", v == true)
+	end)
+	NAgui.addToggle("Isolate Local Player Character", cfg.isolateLocalPlayerCharacter == true, function(v)
+		setValue("isolateLocalPlayerCharacter", "saveInstanceIsolateLocalPlayerCharacter", v == true)
+	end)
+	NAgui.addToggle("Save Player Characters", cfg.savePlayerCharacters == true, function(v)
+		setValue("savePlayerCharacters", "saveInstanceSavePlayerCharacters", v == true)
+	end)
+	NAgui.addToggle("Save Not Creatable", cfg.saveNotCreatable == true, function(v)
+		setValue("saveNotCreatable", "saveInstanceSaveNotCreatable", v == true)
+	end)
+	NAgui.addToggle("Alternative Writefile", cfg.alternativeWritefile ~= false, function(v)
+		setValue("alternativeWritefile", "saveInstanceAlternativeWritefile", v ~= false)
+	end)
+	NAgui.addToggle("Ignore Default PlayerScripts", cfg.ignoreDefaultPlayerScripts ~= false, function(v)
+		setValue("ignoreDefaultPlayerScripts", "saveInstanceIgnoreDefaultPlayerScripts", v ~= false)
+	end)
+	NAgui.addToggle("Ignore SharedStrings", cfg.ignoreSharedStrings ~= false, function(v)
+		setValue("ignoreSharedStrings", "saveInstanceIgnoreSharedStrings", v ~= false)
+	end)
+	NAgui.addToggle("SharedString Overwrite", cfg.sharedStringOverwrite == true, function(v)
+		setValue("sharedStringOverwrite", "saveInstanceSharedStringOverwrite", v == true)
+	end)
+	NAgui.addToggle("Treat Unions As Parts", cfg.treatUnionsAsParts == true, function(v)
+		setValue("treatUnionsAsParts", "saveInstanceTreatUnionsAsParts", v == true)
+	end)
+
+	NAgui.addSection("File")
+	NAgui.addInput("File Name Format", "{placeName}_{timestamp}", tostring(cfg.fileNameFormat or "{placeName}_{timestamp}"), function(text)
+		setValue("fileNameFormat", "saveInstanceFileNameFormat", NAmanage.TrimSaveInstanceText(text, "{placeName}_{timestamp}"))
+	end)
+	NAgui.addInput("Extra Options JSON", "{\"Option\":true}", tostring(cfg.extraOptionsJson or ""), function(text)
+		setValue("extraOptionsJson", "saveInstanceExtraOptionsJson", NAmanage.TrimSaveInstanceText(text, ""))
+	end)
+	NAgui.addButton("Save Current Game", function()
+		local ok, err = pcall(NAmanage.RunSaveInstance)
+		if ok then
+			DoNotif("Started Save Instance with your saved NA settings.", 3)
+		else
+			DoNotif("Save Instance failed: "..tostring(err), 4)
+		end
+	end)
+end
+
+NAmanage.OpenSaveInstanceSettings = NAmanage.OpenSaveInstanceSettings or function()
+	if NAgui and type(NAgui.settingss) == "function" then
+		pcall(NAgui.settingss)
+	end
+
+	local settingsFrame = NAUIMANAGER and NAUIMANAGER.SettingsFrame
+	if settingsFrame then
+		pcall(function()
+			if settingsFrame.Visible ~= true then
+				settingsFrame.Visible = true
+			end
+
+			if settingsFrame.GetAttribute and settingsFrame.Size then
+				local minimized = NAmanage.GetAttr(settingsFrame, "NAMenuMinimized") == true
+				if minimized then
+					local restoreX = tonumber(NAmanage.GetAttr(settingsFrame, "NAMenuStoredSizeX")) or settingsFrame.Size.X.Offset
+					local restoreY = tonumber(NAmanage.GetAttr(settingsFrame, "NAMenuStoredSizeY")) or settingsFrame.Size.Y.Offset
+					NAmanage.SetAttr(settingsFrame, "NAMenuMinimized", false)
+					settingsFrame.Size = UDim2.new(0, restoreX, 0, restoreY)
+				end
+			end
+
+			if NAmanage and type(NAmanage.centerFrame) == "function" then
+				NAmanage.centerFrame(settingsFrame)
+			end
+		end)
+	end
+
+	if NAgui and type(NAgui.setTab) == "function" then
+		pcall(function()
+			NAgui.setTab(NA_TABS.TAB_SAVE_INSTANCE)
+		end)
+	end
+end
+
+NAmanage.RunSaveInstanceCommand = NAmanage.RunSaveInstanceCommand or function()
+	local ok, err = pcall(NAmanage.RunSaveInstance)
+	if ok then
+		DoNotif("Started Save Instance with your saved NA settings.", 3)
+	else
+		DoNotif("Save Instance failed: "..tostring(err), 4)
+	end
+end
+
+cmd.add({"saveinstance","savegame"},{"saveinstance (savegame)","if it bugs out try removing stuff from your AutoExec folder"},function()
+	if NAmanage.NASettingsGet("saveInstanceCommandHintShown") ~= true then
+		pcall(NAmanage.NASettingsSet, "saveInstanceCommandHintShown", true)
+		if type(Popup) == "function" then
+			Popup({
+				Title = "Save Instance Setup",
+				Description = "Do you want to configure your Save Instance options first? Confirm will open the settings menu on the Save Instance tab. Ignore will keep the current saved defaults.",
+				Duration = 0,
+				Buttons = {
+					{
+						Text = "Confirm",
+						Callback = function()
+							NAmanage.OpenSaveInstanceSettings()
+						end,
+					},
+					{
+						Text = "Ignore",
+						Callback = function()
+							NAmanage.RunSaveInstanceCommand()
+						end,
+					},
+				},
+			})
+			return
+		else
+			DoNotif("Tip: open the Save Instance tab in settings if you want to configure the save options first.", 7)
+		end
+	end
+	NAmanage.RunSaveInstanceCommand()
 end)
 
 cmd.add({"admin","whitelist"},{"admin <player>","Whitelist the user to have access to *your* client-side commands, anything they type runs on *you*, not on themselves"},function(...)
@@ -83660,6 +84398,7 @@ NAgui.addTab(NA_TABS.TAB_ALL, { default = true, order = 0, textIcon = "grid" })
 NAgui.addTab(NA_TABS.TAB_GENERAL, { order = 1, textIcon = "gear" })
 NAgui.addTab(NA_TABS.TAB_AUTOMATION, { order = 2, textIcon = "cube-vertexes" })
 NAgui.addTab(NA_TABS.TAB_MANAGEMENT, { order = 3, textIcon = "nebula" })
+NAgui.addTab(NA_TABS.TAB_SAVE_INSTANCE, { order = 3.5, textIcon = "arrow-down-to-line" })
 NAgui.setTab(NA_TABS.TAB_GENERAL)
 
 NAgui.addSection("Prefix Settings")
@@ -84467,6 +85206,9 @@ if FileSupport then
 		NAmanage.openSettingsCleanupPopup()
 	end)
 end
+
+NAgui.setTab(NA_TABS.TAB_SAVE_INSTANCE)
+NAmanage.BuildSaveInstanceTab()
 
 NAgui.SCREEN_GUI_NO_RENDER_FLAG = NAgui.SCREEN_GUI_NO_RENDER_FLAG or "DebugDontRenderScreenGui"
 NAgui.screenGuiNoRenderSupported = NAgui.screenGuiNoRenderSupported or false
