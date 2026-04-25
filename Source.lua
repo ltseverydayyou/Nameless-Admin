@@ -52318,13 +52318,35 @@ cmd.add({"gear"}, {"gear [id]", "This is client sided and will probably not work
 		return
 	end
 
-	local ok, objects = pcall(game.GetObjects, "rbxassetid://"..assetId)
+	local ok, objects = pcall(function()
+		return game:GetObjects("rbxassetid://"..assetId)
+	end)
 	if not ok or not objects or #objects == 0 then
 		DoNotif("Failed to load gear "..assetId, 3)
 		return
 	end
 
-	local gear = objects[1]
+	local gear
+	for _, object in ipairs(objects) do
+		if typeof(object) == "Instance" then
+			if object:IsA("Tool") then
+				gear = object
+				break
+			end
+
+			local nestedTool = object:FindFirstChildWhichIsA("Tool", true)
+			if nestedTool then
+				gear = nestedTool
+				break
+			end
+		end
+	end
+
+	if not gear then
+		DoNotif("Asset "..assetId.." did not contain a gear tool.", 3)
+		return
+	end
+
 	local backpack = getBp()
 	if not backpack then
 		DoNotif("Unable to access your backpack.", 3)
