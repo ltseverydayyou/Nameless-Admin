@@ -30558,8 +30558,8 @@ cmd.add({"clearautoexec", "caexec", "clearauto", "autoexecclear", "aexecclear", 
 	})
 end)
 
-cmd.add({"executor","exec"},{"executor (exec)","Very simple executor"},function()
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NAexecutor.lua"))()
+cmd.add({"executor","exec"},{"executor (exec)","Open the integrated executor UI"},function()
+	NAmanage.Executor_Toggle(true)
 end)
 
 cmd.add({"lastcommand","lastcmd"},{"lastcommand (lastcmd)","Re-run your previously executed command"},function()
@@ -69107,7 +69107,9 @@ NAUIMANAGER = {
 	BindersCustomScrollUp = NAStuff.NASCREENGUI:FindFirstChild("binders") and (NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar") and (((NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Up"),
 	BindersCustomScrollDown = NAStuff.NASCREENGUI:FindFirstChild("binders") and (NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar") and (((NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Down"),
 	BindersCustomScrollTrack = NAStuff.NASCREENGUI:FindFirstChild("binders") and (NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar") and (((NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Track"),
-	BindersCustomScrollThumb = NAStuff.NASCREENGUI:FindFirstChild("binders") and (NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar") and (((NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Track") and ((((NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Track")):FindFirstChild("Thumb")
+	BindersCustomScrollThumb = NAStuff.NASCREENGUI:FindFirstChild("binders") and (NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar") and (((NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Track") and ((((NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Track")):FindFirstChild("Thumb"),
+	ExecutorFrame = NAStuff.NASCREENGUI:FindFirstChild("Executor"),
+	ExecutorContainer = NAStuff.NASCREENGUI:FindFirstChild("Executor") and (NAStuff.NASCREENGUI:FindFirstChild("Executor")):FindFirstChild("Container")
 };
 
 originalIO.resizeCursors = function(key, fallback)
@@ -75616,6 +75618,9 @@ NAmanage.Topbar_BuildBaseButtons=function()
 				NAmanage.centerFrame(NAUIMANAGER.BindersFrame)
 			end
 		end},
+		{name="executor",icon="code",func=function()
+			NAmanage.Executor_Toggle()
+		end},
 	}
 end
 
@@ -77429,6 +77434,1559 @@ if NAUIMANAGER.filterBox then
 	NAlib.connect("waypoint_filter_text", NAUIMANAGER.filterBox:GetPropertyChangedSignal("Text"):Connect(NAmanage.UpdateWaypointList))
 end
 
+NAmanage.Executor_Init = NAmanage.Executor_Init or function()
+	if not (NAUIMANAGER and NAUIMANAGER.ExecutorFrame and NAUIMANAGER.ExecutorContainer) then
+		return false
+	end
+
+	local frame = NAUIMANAGER.ExecutorFrame
+	local container = NAUIMANAGER.ExecutorContainer
+	if frame.GetAttribute and NAmanage.GetAttr(frame, "NAExecutorReady") then
+		return true
+	end
+	if frame.SetAttribute then
+		NAmanage.SetAttr(frame, "NAExecutorReady", true)
+	end
+
+	for _, child in ipairs(container:GetChildren()) do
+		child:Destroy()
+	end
+
+	local TweenService = SafeGetService("TweenService")
+	local TextServiceRef = SafeGetService("TextService")
+	local baseExecDir = "Nameless-Admin"
+	local execDir = baseExecDir.."/NA-Exec"
+	local settingsFile = execDir.."/settings.json"
+	local tabsFile = execDir.."/tabs.json"
+	local indexFile = execDir.."/scripts.json"
+	local scriptsDir = execDir.."/Scripts"
+	local fsOk = type(isfolder) == "function"
+		and type(makefolder) == "function"
+		and type(isfile) == "function"
+		and type(readfile) == "function"
+		and type(writefile) == "function"
+	local delOk = type(delfile) == "function"
+	local listOk = type(listfiles) == "function"
+	local cfg = {
+		syntax = true,
+		lineNumbers = true,
+		showHub = true,
+	}
+	local colors = {
+		panel = Color3.fromRGB(17, 17, 21),
+		panel2 = Color3.fromRGB(24, 24, 30),
+		panel3 = Color3.fromRGB(31, 31, 38),
+		stroke = Color3.fromRGB(72, 72, 82),
+		text = Color3.fromRGB(235, 235, 242),
+		subtle = Color3.fromRGB(170, 170, 180),
+		tabIdle = Color3.fromRGB(27, 27, 34),
+		tabActive = Color3.fromRGB(40, 40, 52),
+		tabTextIdle = Color3.fromRGB(178, 178, 190),
+		tabTextActive = Color3.fromRGB(241, 241, 248),
+		lineNumber = Color3.fromRGB(125, 125, 140),
+		code = Color3.fromRGB(230, 230, 236),
+		keyword = Color3.fromRGB(255, 171, 247),
+		global = Color3.fromRGB(132, 203, 255),
+		string = Color3.fromRGB(166, 226, 128),
+		comment = Color3.fromRGB(112, 122, 132),
+		number = Color3.fromRGB(255, 214, 112),
+		success = Color3.fromRGB(156, 235, 174),
+		warn = Color3.fromRGB(255, 214, 112),
+		error = Color3.fromRGB(255, 146, 146),
+	}
+	local keywordSet = {
+		["and"] = true, ["break"] = true, ["continue"] = true, ["do"] = true, ["else"] = true, ["elseif"] = true,
+		["end"] = true, ["false"] = true, ["for"] = true, ["function"] = true, ["if"] = true, ["in"] = true,
+		["local"] = true, ["nil"] = true, ["not"] = true, ["or"] = true, ["repeat"] = true, ["return"] = true,
+		["then"] = true, ["true"] = true, ["until"] = true, ["while"] = true, ["export"] = true, ["type"] = true,
+		["typeof"] = true,
+	}
+	local globalSet = {
+		["game"] = true, ["workspace"] = true, ["script"] = true, ["shared"] = true, ["plugin"] = true, ["Enum"] = true,
+		["Color3"] = true, ["Vector2"] = true, ["Vector3"] = true, ["CFrame"] = true, ["UDim2"] = true,
+		["Instance"] = true, ["math"] = true, ["string"] = true, ["table"] = true, ["task"] = true, ["debug"] = true,
+		["pairs"] = true, ["ipairs"] = true, ["next"] = true, ["print"] = true, ["warn"] = true, ["error"] = true,
+		["pcall"] = true, ["xpcall"] = true, ["select"] = true, ["rawget"] = true, ["rawset"] = true,
+		["setmetatable"] = true, ["getmetatable"] = true, ["loadstring"] = true, ["require"] = true,
+		["coroutine"] = true, ["os"] = true, ["utf8"] = true,
+	}
+
+	local function makeCornerAndStroke(obj, radius, thickness)
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0, radius or 8)
+		corner.Parent = obj
+		local stroke = Instance.new("UIStroke")
+		stroke.Color = colors.stroke
+		stroke.Transparency = 0.18
+		stroke.Thickness = thickness or 1
+		stroke.Parent = obj
+		return corner, stroke
+	end
+
+	local function makeButton(parent, text, background)
+		local button = Instance.new("TextButton")
+		button.AutoButtonColor = false
+		button.BackgroundColor3 = background or colors.panel3
+		button.BorderSizePixel = 0
+		button.Font = Enum.Font.GothamSemibold
+		button.Text = text
+		button.TextColor3 = colors.text
+		button.TextSize = 13
+		button.Parent = parent
+		makeCornerAndStroke(button, 8, 1)
+		button.MouseEnter:Connect(function()
+			TweenService:Create(button, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				BackgroundColor3 = (background or colors.panel3):Lerp(Color3.new(1, 1, 1), 0.06)
+			}):Play()
+		end)
+		button.MouseLeave:Connect(function()
+			local targetColor = background or colors.panel3
+			if button.GetAttribute and NAmanage.GetAttr(button, "NAExecutorSelected") then
+				targetColor = colors.tabActive
+			end
+			TweenService:Create(button, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				BackgroundColor3 = targetColor
+			}):Play()
+		end)
+		return button
+	end
+
+	local function sanitizeScriptName(name)
+		name = tostring(name or "")
+		name = name:gsub('[\\/:*?"<>|]', "")
+		name = name:gsub("%s+", " ")
+		name = name:gsub("^%s+", ""):gsub("%s+$", "")
+		if name == "" then
+			name = "script"
+		end
+		if not name:lower():match("%.lua$") then
+			name ..= ".lua"
+		end
+		return name
+	end
+
+	local function stripLuaExt(name)
+		return tostring(name or ""):gsub("%.lua$", ""):gsub("%.txt$", "")
+	end
+
+	local function scriptPath(name)
+		return scriptsDir.."/"..sanitizeScriptName(name)
+	end
+
+	local ensureExecutorFolders
+
+	local function readScriptIndex()
+		local list = {}
+		if not (fsOk and isfile(indexFile)) then
+			return list
+		end
+		local ok, raw = pcall(readfile, indexFile)
+		if not ok or type(raw) ~= "string" or raw == "" then
+			return list
+		end
+		local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+		if okDecode and type(decoded) == "table" then
+			for _, value in ipairs(decoded) do
+				if type(value) == "string" and value ~= "" then
+					list[#list + 1] = sanitizeScriptName(value)
+				end
+			end
+		end
+		return list
+	end
+
+	local function saveScriptIndex(names)
+		if not ensureExecutorFolders() then
+			return false
+		end
+		local seen = {}
+		local clean = {}
+		for _, name in ipairs(names or {}) do
+			local fileName = sanitizeScriptName(name)
+			local key = fileName:lower()
+			if not seen[key] then
+				seen[key] = true
+				clean[#clean + 1] = fileName
+			end
+		end
+		table.sort(clean, function(a, b)
+			return a:lower() < b:lower()
+		end)
+		local ok, encoded = pcall(function()
+			return HttpService:JSONEncode(clean)
+		end)
+		if ok and encoded then
+			return pcall(writefile, indexFile, encoded)
+		end
+		return false
+	end
+
+	local function addScriptIndex(name)
+		local fileName = sanitizeScriptName(name)
+		local names = readScriptIndex()
+		local exists = false
+		for _, item in ipairs(names) do
+			if item:lower() == fileName:lower() then
+				exists = true
+				break
+			end
+		end
+		if not exists then
+			names[#names + 1] = fileName
+		end
+		saveScriptIndex(names)
+	end
+
+	local function removeScriptIndex(name)
+		local fileName = sanitizeScriptName(name)
+		local names = readScriptIndex()
+		for i = #names, 1, -1 do
+			if names[i]:lower() == fileName:lower() then
+				table.remove(names, i)
+			end
+		end
+		saveScriptIndex(names)
+	end
+
+	local function setStatus(message, color)
+		if NAStuff.ExecutorStatusLabel then
+			NAStuff.ExecutorStatusLabel.Text = message or "Ready"
+			NAStuff.ExecutorStatusLabel.TextColor3 = color or colors.subtle
+		end
+	end
+
+	function ensureExecutorFolders()
+		if not fsOk then
+			return false
+		end
+		local ok = true
+		local function mk(path)
+			if not ok then
+				return
+			end
+			local has = false
+			local okCheck, result = pcall(isfolder, path)
+			if okCheck and result == true then
+				has = true
+			end
+			if not has then
+				local okMake = pcall(makefolder, path)
+				if not okMake then
+					ok = false
+				end
+			end
+		end
+		mk(baseExecDir)
+		mk(execDir)
+		mk(scriptsDir)
+		return ok
+	end
+
+	if fsOk then
+		ensureExecutorFolders()
+		pcall(function()
+			if isfile(settingsFile) then
+				local raw = readfile(settingsFile)
+				if raw and raw ~= "" then
+					local ok, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+					if ok and type(decoded) == "table" then
+						if type(decoded.syntax) == "boolean" then cfg.syntax = decoded.syntax end
+						if type(decoded.lineNumbers) == "boolean" then cfg.lineNumbers = decoded.lineNumbers end
+						if type(decoded.showHub) == "boolean" then cfg.showHub = decoded.showHub end
+						if type(decoded.scriptHub) == "boolean" then cfg.showHub = decoded.scriptHub end
+					end
+				end
+			end
+		end)
+	end
+
+	local function saveSettings()
+		if not fsOk then
+			return false
+		end
+		if not ensureExecutorFolders() then
+			return false
+		end
+		local payload = {
+			syntax = cfg.syntax == true,
+			lineNumbers = cfg.lineNumbers == true,
+			showHub = cfg.showHub ~= false,
+			scriptHub = cfg.showHub ~= false,
+		}
+		local ok, encoded = pcall(function()
+			return HttpService:JSONEncode(payload)
+		end)
+		if ok and encoded then
+			local wrote = pcall(writefile, settingsFile, encoded)
+			return wrote == true
+		end
+		return false
+	end
+
+	local rootPad = Instance.new("UIPadding")
+	rootPad.PaddingBottom = UDim.new(0, 10)
+	rootPad.PaddingLeft = UDim.new(0, 10)
+	rootPad.PaddingRight = UDim.new(0, 10)
+	rootPad.PaddingTop = UDim.new(0, 10)
+	rootPad.Parent = container
+
+	local topbar = frame:FindFirstChild("Topbar")
+	local settingsButton = topbar and topbar:FindFirstChild("Settings")
+	if topbar and not settingsButton then
+		settingsButton = Instance.new("TextButton")
+		settingsButton.Name = "Settings"
+		settingsButton.Parent = topbar
+		settingsButton.BorderSizePixel = 0
+		settingsButton.TextSize = 15
+		settingsButton.TextColor3 = Color3.fromRGB(245, 245, 245)
+		settingsButton.BackgroundColor3 = Color3.fromRGB(55, 55, 65)
+		settingsButton.Font = Enum.Font.Gotham
+		settingsButton.AnchorPoint = Vector2.new(1, 0.5)
+		settingsButton.BackgroundTransparency = 0.3
+		settingsButton.Size = UDim2.new(0, 24, 0, 24)
+		settingsButton.Text = "S"
+		settingsButton.Position = UDim2.new(1, -70, 0.5, 0)
+		makeCornerAndStroke(settingsButton, 6, 2)
+	end
+
+	local tabsBar = Instance.new("Frame")
+	tabsBar.Name = "TabsBar"
+	tabsBar.BackgroundTransparency = 1
+	tabsBar.BorderSizePixel = 0
+	tabsBar.Position = UDim2.new(0, 0, 0, 0)
+	tabsBar.Size = UDim2.new(1, 0, 0, 34)
+	tabsBar.Parent = container
+
+	local tabScroll = Instance.new("ScrollingFrame")
+	tabScroll.Name = "Tabs"
+	tabScroll.Active = true
+	tabScroll.BackgroundTransparency = 1
+	tabScroll.BorderSizePixel = 0
+	tabScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+	tabScroll.Position = UDim2.new(0, 0, 0, 0)
+	tabScroll.ScrollBarImageColor3 = colors.subtle
+	tabScroll.ScrollBarThickness = 3
+	tabScroll.ScrollingDirection = Enum.ScrollingDirection.X
+	tabScroll.Size = UDim2.new(1, -42, 1, 0)
+	tabScroll.Parent = tabsBar
+
+	local tabWrap = Instance.new("Frame")
+	tabWrap.Name = "Wrap"
+	tabWrap.BackgroundTransparency = 1
+	tabWrap.BorderSizePixel = 0
+	tabWrap.Position = UDim2.new(0, 0, 0, 0)
+	tabWrap.Size = UDim2.new(0, 0, 1, 0)
+	tabWrap.Parent = tabScroll
+
+	local tabLayout = Instance.new("UIListLayout")
+	tabLayout.FillDirection = Enum.FillDirection.Horizontal
+	tabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+	tabLayout.Padding = UDim.new(0, 6)
+	tabLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	tabLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+	tabLayout.Parent = tabWrap
+
+	local addTabButton = makeButton(tabsBar, "+", colors.panel3)
+	addTabButton.Name = "AddTab"
+	addTabButton.Position = UDim2.new(1, -34, 0, 1)
+	addTabButton.Size = UDim2.new(0, 34, 0, 28)
+	addTabButton.TextSize = 18
+
+	local body = Instance.new("Frame")
+	body.Name = "Body"
+	body.BackgroundTransparency = 1
+	body.BorderSizePixel = 0
+	body.Position = UDim2.new(0, 0, 0, 42)
+	body.Size = UDim2.new(1, 0, 1, -92)
+	body.Parent = container
+
+	local editorPane = Instance.new("Frame")
+	editorPane.Name = "EditorPane"
+	editorPane.BackgroundColor3 = colors.panel
+	editorPane.BorderSizePixel = 0
+	editorPane.Position = UDim2.new(0, 0, 0, 0)
+	editorPane.Size = UDim2.new(1, -252, 1, 0)
+	editorPane.Parent = body
+	makeCornerAndStroke(editorPane, 10, 1)
+
+	local hubPane = Instance.new("Frame")
+	hubPane.Name = "ScriptHub"
+	hubPane.BackgroundColor3 = colors.panel
+	hubPane.BorderSizePixel = 0
+	hubPane.Position = UDim2.new(1, -242, 0, 0)
+	hubPane.Size = UDim2.new(0, 242, 1, 0)
+	hubPane.Parent = body
+	makeCornerAndStroke(hubPane, 10, 1)
+
+	local editorPad = Instance.new("UIPadding")
+	editorPad.PaddingBottom = UDim.new(0, 8)
+	editorPad.PaddingLeft = UDim.new(0, 8)
+	editorPad.PaddingRight = UDim.new(0, 8)
+	editorPad.PaddingTop = UDim.new(0, 8)
+	editorPad.Parent = editorPane
+
+	local gutter = Instance.new("Frame")
+	gutter.Name = "Gutter"
+	gutter.BackgroundColor3 = colors.panel2
+	gutter.BorderSizePixel = 0
+	gutter.Position = UDim2.new(0, 0, 0, 0)
+	gutter.Size = UDim2.new(0, 44, 1, 0)
+	gutter.Parent = editorPane
+	makeCornerAndStroke(gutter, 8, 1)
+
+	local gutterClip = Instance.new("Frame")
+	gutterClip.BackgroundTransparency = 1
+	gutterClip.BorderSizePixel = 0
+	gutterClip.ClipsDescendants = true
+	gutterClip.Size = UDim2.new(1, 0, 1, 0)
+	gutterClip.Parent = gutter
+
+	local gutterLabel = Instance.new("TextLabel")
+	gutterLabel.Name = "Lines"
+	gutterLabel.AnchorPoint = Vector2.new(1, 0)
+	gutterLabel.BackgroundTransparency = 1
+	gutterLabel.BorderSizePixel = 0
+	gutterLabel.Font = Enum.Font.Code
+	gutterLabel.Position = UDim2.new(1, -6, 0, 0)
+	gutterLabel.Size = UDim2.new(1, -10, 0, 0)
+	gutterLabel.Text = "1"
+	gutterLabel.TextColor3 = colors.lineNumber
+	gutterLabel.TextSize = 15
+	gutterLabel.TextXAlignment = Enum.TextXAlignment.Right
+	gutterLabel.TextYAlignment = Enum.TextYAlignment.Top
+	gutterLabel.Parent = gutterClip
+
+	local editorScroll = Instance.new("ScrollingFrame")
+	editorScroll.Name = "Scroll"
+	editorScroll.Active = true
+	editorScroll.BackgroundColor3 = colors.panel
+	editorScroll.BorderSizePixel = 0
+	editorScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+	editorScroll.Position = UDim2.new(0, 50, 0, 0)
+	editorScroll.ScrollBarImageColor3 = colors.subtle
+	editorScroll.ScrollBarThickness = 6
+	editorScroll.ScrollingDirection = Enum.ScrollingDirection.XY
+	editorScroll.Size = UDim2.new(1, -50, 1, 0)
+	editorScroll.Parent = editorPane
+	makeCornerAndStroke(editorScroll, 8, 1)
+
+	local textBox = Instance.new("TextBox")
+	textBox.Name = "Source"
+	textBox.BackgroundTransparency = 1
+	textBox.BorderSizePixel = 0
+	textBox.ClearTextOnFocus = false
+	textBox.Font = Enum.Font.Code
+	textBox.MultiLine = true
+	textBox.PlaceholderColor3 = colors.subtle
+	textBox.PlaceholderText = "-- Write your script here"
+	textBox.Position = UDim2.new(0, 8, 0, 0)
+	textBox.Size = UDim2.new(0, 320, 0, 200)
+	textBox.Text = ""
+	textBox.TextColor3 = colors.code
+	textBox.TextSize = 15
+	textBox.TextWrapped = false
+	textBox.TextXAlignment = Enum.TextXAlignment.Left
+	textBox.TextYAlignment = Enum.TextYAlignment.Top
+	textBox.Parent = editorScroll
+
+	local function makeLayer(name, color, zIndex)
+		local layer = Instance.new("TextLabel")
+		layer.Name = name
+		layer.BackgroundTransparency = 1
+		layer.BorderSizePixel = 0
+		layer.Font = Enum.Font.Code
+		layer.Position = textBox.Position
+		layer.Size = textBox.Size
+		layer.Text = ""
+		layer.TextColor3 = color
+		layer.TextSize = textBox.TextSize
+		layer.TextWrapped = false
+		layer.TextXAlignment = Enum.TextXAlignment.Left
+		layer.TextYAlignment = Enum.TextYAlignment.Top
+		layer.ZIndex = zIndex
+		layer.Parent = editorScroll
+		return layer
+	end
+
+	local keywordLayer = makeLayer("Keywords", colors.keyword, 4)
+	local globalLayer = makeLayer("Globals", colors.global, 4)
+	local stringLayer = makeLayer("Strings", colors.string, 4)
+	local commentLayer = makeLayer("Comments", colors.comment, 4)
+	local numberLayer = makeLayer("Numbers", colors.number, 4)
+	textBox.ZIndex = 3
+
+	local hubPad = Instance.new("UIPadding")
+	hubPad.PaddingBottom = UDim.new(0, 8)
+	hubPad.PaddingLeft = UDim.new(0, 8)
+	hubPad.PaddingRight = UDim.new(0, 8)
+	hubPad.PaddingTop = UDim.new(0, 8)
+	hubPad.Parent = hubPane
+
+	local hubTitle = Instance.new("TextLabel")
+	hubTitle.BackgroundTransparency = 1
+	hubTitle.BorderSizePixel = 0
+	hubTitle.Font = Enum.Font.GothamBold
+	hubTitle.Size = UDim2.new(1, 0, 0, 18)
+	hubTitle.Text = "Saved Scripts"
+	hubTitle.TextColor3 = colors.text
+	hubTitle.TextSize = 15
+	hubTitle.TextXAlignment = Enum.TextXAlignment.Left
+	hubTitle.Parent = hubPane
+
+	local hubSubtitle = Instance.new("TextLabel")
+	hubSubtitle.Name = "SelectedLabel"
+	hubSubtitle.BackgroundTransparency = 1
+	hubSubtitle.BorderSizePixel = 0
+	hubSubtitle.Font = Enum.Font.Gotham
+	hubSubtitle.Position = UDim2.new(0, 0, 0, 20)
+	hubSubtitle.Size = UDim2.new(1, 0, 0, 14)
+	hubSubtitle.Text = "No script selected"
+	hubSubtitle.TextColor3 = colors.subtle
+	hubSubtitle.TextSize = 11
+	hubSubtitle.TextWrapped = true
+	hubSubtitle.TextXAlignment = Enum.TextXAlignment.Left
+	hubSubtitle.Parent = hubPane
+
+	local hubList = Instance.new("ScrollingFrame")
+	hubList.Name = "List"
+	hubList.Active = true
+	hubList.BackgroundColor3 = colors.panel2
+	hubList.BorderSizePixel = 0
+	hubList.CanvasSize = UDim2.new(0, 0, 0, 0)
+	hubList.Position = UDim2.new(0, 0, 0, 42)
+	hubList.ScrollBarImageColor3 = colors.subtle
+	hubList.ScrollBarThickness = 5
+	hubList.Size = UDim2.new(1, 0, 1, -204)
+	hubList.Parent = hubPane
+	makeCornerAndStroke(hubList, 8, 1)
+
+	local hubListLayout = Instance.new("UIListLayout")
+	hubListLayout.Padding = UDim.new(0, 6)
+	hubListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	hubListLayout.Parent = hubList
+
+	local hubListPad = Instance.new("UIPadding")
+	hubListPad.PaddingBottom = UDim.new(0, 8)
+	hubListPad.PaddingLeft = UDim.new(0, 8)
+	hubListPad.PaddingRight = UDim.new(0, 8)
+	hubListPad.PaddingTop = UDim.new(0, 8)
+	hubListPad.Parent = hubList
+
+	local hubButtons = Instance.new("Frame")
+	hubButtons.Name = "Actions"
+	hubButtons.BackgroundTransparency = 1
+	hubButtons.BorderSizePixel = 0
+	hubButtons.Position = UDim2.new(0, 0, 1, -154)
+	hubButtons.Size = UDim2.new(1, 0, 0, 154)
+	hubButtons.Parent = hubPane
+
+	local hubButtonsLayout = Instance.new("UIListLayout")
+	hubButtonsLayout.Padding = UDim.new(0, 6)
+	hubButtonsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	hubButtonsLayout.Parent = hubButtons
+
+	local hubOpen = makeButton(hubButtons, "Open In Tab", colors.panel3)
+	hubOpen.Size = UDim2.new(1, 0, 0, 26)
+	local hubOpenNew = makeButton(hubButtons, "Open In New Tab", colors.panel3)
+	hubOpenNew.Size = UDim2.new(1, 0, 0, 26)
+	local hubSave = makeButton(hubButtons, "Save Current Script", colors.panel3)
+	hubSave.Size = UDim2.new(1, 0, 0, 26)
+	local hubDelete = makeButton(hubButtons, "Delete Selected", colors.panel3)
+	hubDelete.Size = UDim2.new(1, 0, 0, 26)
+	local hubRefresh = makeButton(hubButtons, "Refresh List", colors.panel3)
+	hubRefresh.Size = UDim2.new(1, 0, 0, 26)
+
+	local statusLabel = Instance.new("TextLabel")
+	statusLabel.Name = "Status"
+	statusLabel.BackgroundTransparency = 1
+	statusLabel.BorderSizePixel = 0
+	statusLabel.Font = Enum.Font.Gotham
+	statusLabel.Position = UDim2.new(0, 0, 1, -42)
+	statusLabel.Size = UDim2.new(1, 0, 0, 16)
+	statusLabel.Text = "Ready"
+	statusLabel.TextColor3 = colors.subtle
+	statusLabel.TextSize = 12
+	statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+	statusLabel.Parent = container
+	NAStuff.ExecutorStatusLabel = statusLabel
+
+	local actions = Instance.new("Frame")
+	actions.Name = "Buttons"
+	actions.BackgroundTransparency = 1
+	actions.BorderSizePixel = 0
+	actions.Position = UDim2.new(0, 0, 1, -22)
+	actions.Size = UDim2.new(1, 0, 0, 28)
+	actions.Parent = container
+
+	local actionLayout = Instance.new("UIGridLayout")
+	actionLayout.CellPadding = UDim2.new(0, 6, 0, 0)
+	actionLayout.CellSize = UDim2.new(0.1666, -5, 1, 0)
+	actionLayout.FillDirectionMaxCells = 6
+	actionLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	actionLayout.Parent = actions
+
+	local executeButton = makeButton(actions, "Execute", colors.tabActive)
+	local clearButton = makeButton(actions, "Clear", colors.panel3)
+	local copyButton = makeButton(actions, "Copy", colors.panel3)
+	local renameButton = makeButton(actions, "Rename Tab", colors.panel3)
+	local duplicateButton = makeButton(actions, "Duplicate Tab", colors.panel3)
+	local deleteTabButton = makeButton(actions, "Delete Tab", colors.panel3)
+
+	local settingsPanel = Instance.new("Frame")
+	settingsPanel.Name = "SettingsPanel"
+	settingsPanel.BackgroundColor3 = colors.panel
+	settingsPanel.BorderSizePixel = 0
+	settingsPanel.AnchorPoint = Vector2.new(1, 0)
+	settingsPanel.Position = UDim2.new(1, -10, 0, 42)
+	settingsPanel.Size = UDim2.new(0, 216, 0, 156)
+	settingsPanel.Visible = false
+	settingsPanel.ZIndex = 45
+	settingsPanel.Parent = frame
+	makeCornerAndStroke(settingsPanel, 10, 1)
+
+	local settingsTitle = Instance.new("TextLabel")
+	settingsTitle.BackgroundTransparency = 1
+	settingsTitle.BorderSizePixel = 0
+	settingsTitle.Font = Enum.Font.GothamBold
+	settingsTitle.Position = UDim2.new(0, 12, 0, 10)
+	settingsTitle.Size = UDim2.new(1, -24, 0, 18)
+	settingsTitle.Text = "Executor Settings"
+	settingsTitle.TextColor3 = colors.text
+	settingsTitle.TextSize = 14
+	settingsTitle.TextXAlignment = Enum.TextXAlignment.Left
+	settingsTitle.ZIndex = 46
+	settingsTitle.Parent = settingsPanel
+
+	local settingsContent = Instance.new("Frame")
+	settingsContent.Name = "Content"
+	settingsContent.BackgroundTransparency = 1
+	settingsContent.BorderSizePixel = 0
+	settingsContent.Position = UDim2.new(0, 0, 0, 36)
+	settingsContent.Size = UDim2.new(1, 0, 1, -36)
+	settingsContent.ZIndex = 46
+	settingsContent.Parent = settingsPanel
+
+	local settingsList = Instance.new("UIListLayout")
+	settingsList.Padding = UDim.new(0, 8)
+	settingsList.SortOrder = Enum.SortOrder.LayoutOrder
+	settingsList.Parent = settingsContent
+
+	local settingsPad = Instance.new("UIPadding")
+	settingsPad.PaddingTop = UDim.new(0, 0)
+	settingsPad.PaddingBottom = UDim.new(0, 12)
+	settingsPad.PaddingLeft = UDim.new(0, 12)
+	settingsPad.PaddingRight = UDim.new(0, 12)
+	settingsPad.Parent = settingsContent
+
+	local function makeSettingToggle(labelText)
+		local row = Instance.new("Frame")
+		row.BackgroundTransparency = 1
+		row.BorderSizePixel = 0
+		row.Size = UDim2.new(1, 0, 0, 28)
+		row.ZIndex = 46
+		row.Parent = settingsContent
+
+		local label = Instance.new("TextLabel")
+		label.BackgroundTransparency = 1
+		label.BorderSizePixel = 0
+		label.Font = Enum.Font.Gotham
+		label.Size = UDim2.new(1, -84, 1, 0)
+		label.Text = labelText
+		label.TextColor3 = colors.text
+		label.TextSize = 12
+		label.TextXAlignment = Enum.TextXAlignment.Left
+		label.ZIndex = 46
+		label.Parent = row
+
+		local hit = Instance.new("TextButton")
+		hit.Name = "Hitbox"
+		hit.AutoButtonColor = false
+		hit.BackgroundTransparency = 1
+		hit.BorderSizePixel = 0
+		hit.Text = ""
+		hit.Position = UDim2.new(0, 0, 0, 0)
+		hit.Size = UDim2.new(1, -82, 1, 0)
+		hit.ZIndex = 47
+		hit.Parent = row
+
+		local toggle = makeButton(row, "On", colors.panel3)
+		toggle.AnchorPoint = Vector2.new(1, 0.5)
+		toggle.Position = UDim2.new(1, 0, 0.5, 0)
+		toggle.Size = UDim2.new(0, 74, 0, 24)
+		toggle.ZIndex = 48
+
+		return toggle, hit
+	end
+
+	local syntaxToggle, syntaxHit = makeSettingToggle("Syntax Highlight")
+	local lineNumbersToggle, lineNumbersHit = makeSettingToggle("Line Numbers")
+	local scriptHubToggle, scriptHubHit = makeSettingToggle("Script Hub")
+
+	local promptOverlay = Instance.new("Frame")
+	promptOverlay.Name = "Prompt"
+	promptOverlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	promptOverlay.BackgroundTransparency = 0.3
+	promptOverlay.BorderSizePixel = 0
+	promptOverlay.Size = UDim2.new(1, 0, 1, 0)
+	promptOverlay.Visible = false
+	promptOverlay.ZIndex = 50
+	promptOverlay.Parent = container
+
+	local promptCard = Instance.new("Frame")
+	promptCard.BackgroundColor3 = colors.panel
+	promptCard.BorderSizePixel = 0
+	promptCard.AnchorPoint = Vector2.new(0.5, 0.5)
+	promptCard.Position = UDim2.new(0.5, 0, 0.5, 0)
+	promptCard.Size = UDim2.new(0, 320, 0, 152)
+	promptCard.ZIndex = 51
+	promptCard.Parent = promptOverlay
+	makeCornerAndStroke(promptCard, 10, 1)
+
+	local promptTitle = Instance.new("TextLabel")
+	promptTitle.BackgroundTransparency = 1
+	promptTitle.BorderSizePixel = 0
+	promptTitle.Font = Enum.Font.GothamBold
+	promptTitle.Position = UDim2.new(0, 14, 0, 12)
+	promptTitle.Size = UDim2.new(1, -28, 0, 20)
+	promptTitle.Text = "Name"
+	promptTitle.TextColor3 = colors.text
+	promptTitle.TextSize = 15
+	promptTitle.TextXAlignment = Enum.TextXAlignment.Left
+	promptTitle.ZIndex = 52
+	promptTitle.Parent = promptCard
+
+	local promptInput = Instance.new("TextBox")
+	promptInput.BackgroundColor3 = colors.panel2
+	promptInput.BorderSizePixel = 0
+	promptInput.ClearTextOnFocus = false
+	promptInput.Font = Enum.Font.Gotham
+	promptInput.PlaceholderText = "Enter a name"
+	promptInput.Position = UDim2.new(0, 14, 0, 46)
+	promptInput.Size = UDim2.new(1, -28, 0, 38)
+	promptInput.Text = ""
+	promptInput.TextColor3 = colors.text
+	promptInput.TextSize = 14
+	promptInput.ZIndex = 52
+	promptInput.Parent = promptCard
+	makeCornerAndStroke(promptInput, 8, 1)
+
+	local promptOk = makeButton(promptCard, "OK", colors.tabActive)
+	promptOk.Position = UDim2.new(0, 14, 1, -42)
+	promptOk.Size = UDim2.new(0.5, -20, 0, 28)
+	promptOk.ZIndex = 52
+	local promptCancel = makeButton(promptCard, "Cancel", colors.panel3)
+	promptCancel.Position = UDim2.new(0.5, 6, 1, -42)
+	promptCancel.Size = UDim2.new(0.5, -20, 0, 28)
+	promptCancel.ZIndex = 52
+
+	local promptCallback
+	local tabs = {}
+	local currentTab = 1
+	local selectedScript
+	local refreshQueued = false
+	local tabSaveDirty = false
+	local tabSaveScheduled = false
+	local lastTabClickIndex = 0
+	local lastTabClickTime = 0
+
+	local function showPrompt(title, initialText, callback)
+		promptTitle.Text = title or "Name"
+		promptInput.Text = initialText or ""
+		promptCallback = callback
+		promptOverlay.Visible = true
+		task.defer(function()
+			pcall(function()
+				promptInput:CaptureFocus()
+				promptInput.CursorPosition = #promptInput.Text + 1
+			end)
+		end)
+	end
+
+	local function closePrompt(okPressed)
+		promptOverlay.Visible = false
+		local callback = promptCallback
+		promptCallback = nil
+		if callback then
+			callback(okPressed == true, promptInput.Text or "")
+		end
+	end
+
+	promptOk.MouseButton1Click:Connect(function()
+		closePrompt(true)
+	end)
+	promptCancel.MouseButton1Click:Connect(function()
+		closePrompt(false)
+	end)
+	promptInput.FocusLost:Connect(function(enterPressed)
+		if promptOverlay.Visible then
+			closePrompt(enterPressed == true)
+		end
+	end)
+
+	local function updateTabCanvas()
+		local width = tabLayout.AbsoluteContentSize.X
+		tabWrap.Size = UDim2.new(0, width, 1, 0)
+		tabScroll.CanvasSize = UDim2.new(0, width, 0, 0)
+	end
+	tabLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateTabCanvas)
+	tabScroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateTabCanvas)
+
+	local function saveTabsNow()
+		if not fsOk then
+			return
+		end
+		local payload = { cur = currentTab, tabs = {} }
+		for i, tab in ipairs(tabs) do
+			payload.tabs[i] = {
+				title = tab.title or ("Tab "..i),
+				text = tab.text or "",
+			}
+		end
+		local ok, encoded = pcall(function()
+			return HttpService:JSONEncode(payload)
+		end)
+		if ok and encoded then
+			pcall(writefile, tabsFile, encoded)
+		end
+	end
+
+	local function scheduleTabsSave()
+		if not fsOk then
+			return
+		end
+		tabSaveDirty = true
+		if tabSaveScheduled then
+			return
+		end
+		tabSaveScheduled = true
+		task.delay(0.8, function()
+			if tabSaveDirty then
+				tabSaveDirty = false
+				saveTabsNow()
+			end
+			tabSaveScheduled = false
+		end)
+	end
+
+	local function measureSource(source)
+		local lineHeight = textBox.TextSize + 4
+		local longest = 0
+		local lines = 0
+		for line in ((source or "").."\n"):gmatch("(.-)\n") do
+			lines += 1
+			local width = TextServiceRef:GetTextSize((line ~= "" and line or " "), textBox.TextSize, textBox.Font, Vector2.new(10000, 10000)).X
+			if width > longest then
+				longest = width
+			end
+		end
+		if lines <= 0 then
+			lines = 1
+		end
+		local desiredWidth = math.max(editorScroll.AbsoluteSize.X - 20, longest + 26)
+		local desiredHeight = math.max(editorScroll.AbsoluteSize.Y - 4, lines * lineHeight + 12)
+		return desiredWidth, desiredHeight, lines, lineHeight
+	end
+
+	local function buildHighlightLayers(source)
+		source = source or ""
+		local buffers = {
+			keywords = {},
+			globals = {},
+			strings = {},
+			comments = {},
+			numbers = {},
+		}
+		local function blankFor(ch)
+			if ch == "\n" or ch == "\r" or ch == "\t" then
+				return ch
+			end
+			return " "
+		end
+		local function appendToLayer(layerName, text)
+			for i = 1, #text do
+				local ch = text:sub(i, i)
+				for key, arr in pairs(buffers) do
+					arr[#arr + 1] = (key == layerName) and ch or blankFor(ch)
+				end
+			end
+		end
+		local function appendPlain(text)
+			for i = 1, #text do
+				local ch = text:sub(i, i)
+				local blank = blankFor(ch)
+				for _, arr in pairs(buffers) do
+					arr[#arr + 1] = blank
+				end
+			end
+		end
+		local i = 1
+		local n = #source
+		while i <= n do
+			local ch = source:sub(i, i)
+			local nextTwo = source:sub(i, i + 1)
+			local nextFour = source:sub(i, i + 3)
+			if nextFour == "--[[" then
+				local closeIndex = source:find("%]%]", i + 4, false)
+				local endIndex = closeIndex and (closeIndex + 1) or n
+				appendToLayer("comments", source:sub(i, endIndex))
+				i = endIndex + 1
+			elseif nextTwo == "--" then
+				local newlineIndex = source:find("\n", i + 2, true)
+				local endIndex = newlineIndex and (newlineIndex - 1) or n
+				appendToLayer("comments", source:sub(i, endIndex))
+				i = endIndex + 1
+			elseif ch == "\"" or ch == "'" then
+				local quote = ch
+				local j = i + 1
+				local escaped = false
+				while j <= n do
+					local cur = source:sub(j, j)
+					if escaped then
+						escaped = false
+					elseif cur == "\\" then
+						escaped = true
+					elseif cur == quote then
+						break
+					end
+					j += 1
+				end
+				if j > n then
+					j = n
+				end
+				appendToLayer("strings", source:sub(i, j))
+				i = j + 1
+			elseif nextTwo == "[[" then
+				local closeIndex = source:find("%]%]", i + 2, false)
+				local endIndex = closeIndex and (closeIndex + 1) or n
+				appendToLayer("strings", source:sub(i, endIndex))
+				i = endIndex + 1
+			elseif ch:match("[%a_]") then
+				local j = i
+				while j <= n and source:sub(j, j):match("[%w_]") do
+					j += 1
+				end
+				local token = source:sub(i, j - 1)
+				if keywordSet[token] then
+					appendToLayer("keywords", token)
+				elseif globalSet[token] then
+					appendToLayer("globals", token)
+				else
+					appendPlain(token)
+				end
+				i = j
+			elseif ch:match("%d") then
+				local j = i
+				while j <= n and source:sub(j, j):match("[%da-fA-FxX_%.]") do
+					j += 1
+				end
+				appendToLayer("numbers", source:sub(i, j - 1))
+				i = j
+			else
+				appendPlain(ch)
+				i += 1
+			end
+		end
+		return table.concat(buffers.keywords), table.concat(buffers.globals), table.concat(buffers.strings), table.concat(buffers.comments), table.concat(buffers.numbers)
+	end
+
+	local function syncCurrentTabText()
+		if tabs[currentTab] then
+			tabs[currentTab].text = textBox.Text or ""
+			scheduleTabsSave()
+		end
+	end
+
+	local function refreshEditorNow()
+		local source = textBox.Text or ""
+		local width, height, lineCount, lineHeight = measureSource(source)
+		textBox.Size = UDim2.new(0, width, 0, height)
+		for _, layer in ipairs({ keywordLayer, globalLayer, stringLayer, commentLayer, numberLayer }) do
+			layer.Position = textBox.Position
+			layer.Size = textBox.Size
+		end
+		editorScroll.CanvasSize = UDim2.new(0, width + 16, 0, height + 8)
+		local gutterWidth = 0
+		if cfg.lineNumbers then
+			local digits = #tostring(lineCount)
+			gutterWidth = math.max(44, 16 + digits * 9)
+			gutter.Size = UDim2.new(0, gutterWidth, 1, 0)
+		end
+		editorScroll.Position = UDim2.new(0, gutterWidth > 0 and (gutterWidth + 6) or 0, 0, 0)
+		editorScroll.Size = UDim2.new(1, gutterWidth > 0 and -(gutterWidth + 6) or 0, 1, 0)
+		local numbers = {}
+		for index = 1, lineCount do
+			numbers[index] = tostring(index)
+		end
+		gutterLabel.Text = table.concat(numbers, "\n")
+		gutterLabel.Size = UDim2.new(1, -10, 0, lineCount * lineHeight + 8)
+		local keywordText, globalText, stringText, commentText, numberText = buildHighlightLayers(source)
+		keywordLayer.Text = keywordText
+		globalLayer.Text = globalText
+		stringLayer.Text = stringText
+		commentLayer.Text = commentText
+		numberLayer.Text = numberText
+		gutterLabel.Position = UDim2.new(1, -6, 0, -editorScroll.CanvasPosition.Y)
+	end
+
+	local function queueRefreshEditor()
+		if refreshQueued then
+			return
+		end
+		refreshQueued = true
+		task.defer(function()
+			refreshQueued = false
+			refreshEditorNow()
+		end)
+	end
+
+	editorScroll:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
+		gutterLabel.Position = UDim2.new(1, -6, 0, -editorScroll.CanvasPosition.Y)
+	end)
+	editorScroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(queueRefreshEditor)
+
+	local function refreshSettingsButtons()
+		syntaxToggle.Text = cfg.syntax and "On" or "Off"
+		syntaxToggle.BackgroundColor3 = cfg.syntax and colors.tabActive or colors.panel3
+		lineNumbersToggle.Text = cfg.lineNumbers and "On" or "Off"
+		lineNumbersToggle.BackgroundColor3 = cfg.lineNumbers and colors.tabActive or colors.panel3
+		scriptHubToggle.Text = cfg.showHub and "On" or "Off"
+		scriptHubToggle.BackgroundColor3 = cfg.showHub and colors.tabActive or colors.panel3
+	end
+
+	local function updateBodyLayout()
+		hubPane.Visible = cfg.showHub
+		if cfg.showHub then
+			editorPane.Size = UDim2.new(1, -252, 1, 0)
+			hubPane.Position = UDim2.new(1, -242, 0, 0)
+			hubPane.Size = UDim2.new(0, 242, 1, 0)
+		else
+			editorPane.Size = UDim2.new(1, 0, 1, 0)
+		end
+	end
+
+	local function applySettings(skipSave)
+		cfg.syntax = cfg.syntax == true
+		cfg.lineNumbers = cfg.lineNumbers == true
+		cfg.showHub = cfg.showHub ~= false
+		for _, layer in ipairs({ keywordLayer, globalLayer, stringLayer, commentLayer, numberLayer }) do
+			layer.Visible = cfg.syntax
+		end
+		gutter.Visible = cfg.lineNumbers
+		updateBodyLayout()
+		refreshSettingsButtons()
+		queueRefreshEditor()
+		if not skipSave then
+			if saveSettings() then
+				setStatus("Saved executor settings", colors.success)
+			else
+				setStatus("Executor settings changed locally", colors.warn)
+			end
+		end
+	end
+
+	local function updateTabButtonVisuals()
+		for index, tab in ipairs(tabs) do
+			if tab.holder and tab.label and tab.close then
+				local isCurrent = index == currentTab
+				tab.holder.BackgroundColor3 = isCurrent and colors.tabActive or colors.tabIdle
+				tab.label.TextColor3 = isCurrent and colors.tabTextActive or colors.tabTextIdle
+				tab.close.TextColor3 = isCurrent and colors.tabTextActive or colors.tabTextIdle
+			end
+		end
+	end
+
+	local function renameTab(index)
+		local tab = tabs[index]
+		if not tab then
+			return
+		end
+		showPrompt("Rename tab", tab.title or "", function(okPressed, value)
+			if not okPressed then
+				return
+			end
+			value = tostring(value or ""):gsub("^%s+", ""):gsub("%s+$", "")
+			if value == "" then
+				value = "Tab "..index
+			end
+			tab.title = value
+			if tab.label then
+				tab.label.Text = value
+				local width = TextServiceRef:GetTextSize(value, 13, Enum.Font.GothamSemibold, Vector2.new(1000, 1000)).X + 46
+				tab.holder.Size = UDim2.new(0, math.clamp(width, 96, 230), 0, 28)
+			end
+			updateTabCanvas()
+			scheduleTabsSave()
+			setStatus("Renamed tab", colors.success)
+		end)
+	end
+
+	local function selectTab(index)
+		local tab = tabs[index]
+		if not tab then
+			return
+		end
+		currentTab = index
+		textBox.Text = tab.text or ""
+		updateTabButtonVisuals()
+		queueRefreshEditor()
+		scheduleTabsSave()
+	end
+
+	local function closeTab(index)
+		if #tabs <= 1 then
+			textBox.Text = ""
+			syncCurrentTabText()
+			queueRefreshEditor()
+			setStatus("Cleared current tab", colors.warn)
+			return
+		end
+		local tab = tabs[index]
+		if tab and tab.holder then
+			tab.holder:Destroy()
+		end
+		table.remove(tabs, index)
+		if currentTab > #tabs then
+			currentTab = #tabs
+		elseif currentTab > index then
+			currentTab -= 1
+		elseif currentTab == index then
+			currentTab = math.max(1, currentTab)
+		end
+		for tabIndex, entry in ipairs(tabs) do
+			if (entry.title or "") == "" then
+				entry.title = "Tab "..tabIndex
+			end
+		end
+		selectTab(currentTab)
+		setStatus("Deleted tab", colors.warn)
+	end
+
+	local function createTab(initialText, initialTitle)
+		local tab = {
+			title = initialTitle and tostring(initialTitle) or ("Tab "..(#tabs + 1)),
+			text = initialText or "",
+		}
+		local holder = Instance.new("Frame")
+		holder.BackgroundColor3 = colors.tabIdle
+		holder.BorderSizePixel = 0
+		holder.Size = UDim2.new(0, 120, 0, 28)
+		holder.Parent = tabWrap
+		makeCornerAndStroke(holder, 8, 1)
+
+		local openButton = Instance.new("TextButton")
+		openButton.AutoButtonColor = false
+		openButton.BackgroundTransparency = 1
+		openButton.BorderSizePixel = 0
+		openButton.Position = UDim2.new(0, 10, 0, 0)
+		openButton.Size = UDim2.new(1, -34, 1, 0)
+		openButton.Font = Enum.Font.GothamSemibold
+		openButton.Text = tab.title
+		openButton.TextColor3 = colors.tabTextIdle
+		openButton.TextSize = 13
+		openButton.TextXAlignment = Enum.TextXAlignment.Left
+		openButton.Parent = holder
+
+		local closeButton = Instance.new("TextButton")
+		closeButton.AutoButtonColor = false
+		closeButton.BackgroundTransparency = 1
+		closeButton.BorderSizePixel = 0
+		closeButton.Position = UDim2.new(1, -24, 0, 0)
+		closeButton.Size = UDim2.new(0, 24, 1, 0)
+		closeButton.Font = Enum.Font.GothamBold
+		closeButton.Text = "×"
+		closeButton.TextColor3 = colors.tabTextIdle
+		closeButton.TextSize = 13
+		closeButton.Parent = holder
+
+		tab.holder = holder
+		tab.label = openButton
+		tab.close = closeButton
+		tabs[#tabs + 1] = tab
+
+		local width = TextServiceRef:GetTextSize(tab.title, 13, Enum.Font.GothamSemibold, Vector2.new(1000, 1000)).X + 46
+		holder.Size = UDim2.new(0, math.clamp(width, 96, 230), 0, 28)
+
+		openButton.MouseButton1Click:Connect(function()
+			local tabIndex = table.find(tabs, tab)
+			if not tabIndex then
+				return
+			end
+			local now = os.clock()
+			if lastTabClickIndex == tabIndex and (now - lastTabClickTime) <= 0.35 then
+				renameTab(tabIndex)
+			else
+				selectTab(tabIndex)
+			end
+			lastTabClickIndex = tabIndex
+			lastTabClickTime = now
+		end)
+		closeButton.MouseButton1Click:Connect(function()
+			local tabIndex = table.find(tabs, tab)
+			if tabIndex then
+				closeTab(tabIndex)
+			end
+		end)
+		updateTabCanvas()
+		return #tabs
+	end
+
+	local function readScriptFile(name)
+		if not (fsOk and name) then
+			return nil
+		end
+		local path = scriptPath(name)
+		if not isfile(path) then
+			return nil
+		end
+		local ok, data = pcall(readfile, path)
+		if ok and type(data) == "string" then
+			return data
+		end
+		return nil
+	end
+
+	local function selectSavedScript(name)
+		selectedScript = name
+		hubSubtitle.Text = name and ("Selected: "..name) or "No script selected"
+		for _, child in ipairs(hubList:GetChildren()) do
+			if child:IsA("TextButton") then
+				if child.SetAttribute then
+					NAmanage.SetAttr(child, "NAExecutorSelected", child.Name == (name or ""))
+				end
+				child.BackgroundColor3 = (child.Name == (name or "")) and colors.tabActive or colors.panel3
+			end
+		end
+	end
+
+	local function refreshSavedScripts()
+		for _, child in ipairs(hubList:GetChildren()) do
+			if child:IsA("TextButton") then
+				child:Destroy()
+			end
+		end
+		local names = {}
+		local seen = {}
+		local function pushName(name)
+			if type(name) ~= "string" then
+				return
+			end
+			name = sanitizeScriptName(name)
+			if not (name:lower():match("%.lua$") or name:lower():match("%.txt$")) then
+				return
+			end
+			local key = name:lower()
+			if seen[key] then
+				return
+			end
+			seen[key] = true
+			names[#names + 1] = name
+		end
+		if fsOk and listOk then
+			ensureExecutorFolders()
+			local ok, files = pcall(listfiles, scriptsDir)
+			if ok and type(files) == "table" then
+				for _, file in ipairs(files) do
+					if type(file) == "string" then
+						pushName(file:match("([^/\\]+)$"))
+					end
+				end
+			end
+		end
+		for _, name in ipairs(readScriptIndex()) do
+			pushName(name)
+		end
+		table.sort(names, function(a, b)
+			return a:lower() < b:lower()
+		end)
+		saveScriptIndex(names)
+		for _, name in ipairs(names) do
+			local item = makeButton(hubList, name, colors.panel3)
+			item.Name = name
+			item.Size = UDim2.new(1, 0, 0, 28)
+			item.TextSize = 12
+			item.TextXAlignment = Enum.TextXAlignment.Left
+			item.MouseButton1Click:Connect(function()
+				selectSavedScript(name)
+			end)
+		end
+		hubList.CanvasSize = UDim2.new(0, 0, 0, hubListLayout.AbsoluteContentSize.Y + 14)
+		if selectedScript then
+			selectSavedScript(selectedScript)
+		end
+	end
+
+	hubListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+		hubList.CanvasSize = UDim2.new(0, 0, 0, hubListLayout.AbsoluteContentSize.Y + 14)
+	end)
+
+	local function getCurrentScriptName()
+		local tab = tabs[currentTab]
+		local title = tab and tab.title or selectedScript or "script"
+		title = stripLuaExt(title)
+		if title == "" or title:match("^Tab%s*%d+$") then
+			title = "Script_"..os.date("%Y%m%d_%H%M%S")
+		end
+		return title
+	end
+
+	local function saveCurrentScriptAs(name)
+		if not fsOk then
+			setStatus("Filesystem unavailable", colors.error)
+			return false
+		end
+		if not ensureExecutorFolders() then
+			setStatus("Failed to create Scripts folder", colors.error)
+			return false
+		end
+		syncCurrentTabText()
+		local fileName = sanitizeScriptName(name)
+		local path = scriptPath(fileName)
+		local ok, err = pcall(writefile, path, textBox.Text or "")
+		if ok and (type(isfile) ~= "function" or isfile(path)) then
+			addScriptIndex(fileName)
+			refreshSavedScripts()
+			selectSavedScript(fileName)
+			setStatus("Saved script: "..fileName, colors.success)
+			return true
+		end
+		setStatus("Failed to save script: "..tostring(err or "writefile failed"), colors.error)
+		return false
+	end
+
+	local function promptSaveCurrentScript()
+		saveCurrentScriptAs(selectedScript or getCurrentScriptName())
+	end
+
+	local function loadSavedScriptIntoCurrent(newTab)
+		if not selectedScript then
+			setStatus("Select a saved script first", colors.warn)
+			return
+		end
+		local source = readScriptFile(selectedScript)
+		if type(source) ~= "string" then
+			setStatus("Could not read saved script", colors.error)
+			return
+		end
+		if newTab then
+			local tabIndex = createTab(source, stripLuaExt(selectedScript))
+			selectTab(tabIndex)
+			setStatus("Opened "..selectedScript.." in a new tab", colors.success)
+		else
+			if tabs[currentTab] then
+				tabs[currentTab].text = source
+				if (tabs[currentTab].title or "") == "" or tabs[currentTab].title:match("^Tab %d+$") then
+					tabs[currentTab].title = stripLuaExt(selectedScript)
+					tabs[currentTab].label.Text = tabs[currentTab].title
+					local width = TextServiceRef:GetTextSize(tabs[currentTab].title, 13, Enum.Font.GothamSemibold, Vector2.new(1000, 1000)).X + 46
+					tabs[currentTab].holder.Size = UDim2.new(0, math.clamp(width, 96, 230), 0, 28)
+				end
+			end
+			textBox.Text = source
+			updateTabButtonVisuals()
+			queueRefreshEditor()
+			scheduleTabsSave()
+			setStatus("Loaded "..selectedScript, colors.success)
+		end
+	end
+
+	local function loadTabsFromDisk()
+		local loaded = false
+		if fsOk and isfile(tabsFile) then
+			local ok, raw = pcall(readfile, tabsFile)
+			if ok and raw and raw ~= "" then
+				local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+				if okDecode and type(decoded) == "table" then
+					if type(decoded.tabs) == "table" then
+						for index, entry in ipairs(decoded.tabs) do
+							if type(entry) == "table" then
+								createTab(entry.text or "", entry.title or ("Tab "..index))
+								loaded = true
+							elseif type(entry) == "string" then
+								createTab(entry, "Tab "..index)
+								loaded = true
+							end
+						end
+						currentTab = math.clamp(tonumber(decoded.cur) or 1, 1, math.max(#tabs, 1))
+					elseif type(decoded[1]) == "string" then
+						for index, entry in ipairs(decoded) do
+							createTab(entry, "Tab "..index)
+							loaded = true
+						end
+						currentTab = 1
+					end
+				end
+			end
+		end
+		if not loaded then
+			createTab("", "Tab 1")
+			currentTab = 1
+		end
+	end
+
+	textBox:GetPropertyChangedSignal("Text"):Connect(function()
+		syncCurrentTabText()
+		queueRefreshEditor()
+	end)
+
+	addTabButton.MouseButton1Click:Connect(function()
+		local tabIndex = createTab("", "Tab "..(#tabs + 1))
+		selectTab(tabIndex)
+		scheduleTabsSave()
+		setStatus("Created a new tab", colors.success)
+	end)
+
+	local function placeSettingsPanel()
+		settingsPanel.AnchorPoint = Vector2.new(1, 0)
+		settingsPanel.Position = UDim2.new(1, -10, 0, 42)
+	end
+
+	if settingsButton then
+		settingsButton.MouseButton1Click:Connect(function()
+			placeSettingsPanel()
+			settingsPanel.Visible = not settingsPanel.Visible
+		end)
+	end
+	frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(placeSettingsPanel)
+
+	local function bindSetting(toggle, hit, key)
+		local function flip()
+			cfg[key] = not cfg[key]
+			applySettings()
+		end
+		toggle.MouseButton1Click:Connect(flip)
+		if hit then
+			hit.MouseButton1Click:Connect(flip)
+		end
+	end
+
+	bindSetting(syntaxToggle, syntaxHit, "syntax")
+	bindSetting(lineNumbersToggle, lineNumbersHit, "lineNumbers")
+	bindSetting(scriptHubToggle, scriptHubHit, "showHub")
+
+	executeButton.MouseButton1Click:Connect(function()
+		local source = textBox.Text or ""
+		if source == "" then
+			setStatus("Nothing to execute", colors.warn)
+			return
+		end
+		setStatus("Running script...", colors.warn)
+		local chunkName = "Executor/"..(tabs[currentTab] and (tabs[currentTab].title or ("Tab "..currentTab)) or "Script")
+		local fn, loadErr = loadstring(source, chunkName)
+		if not fn then
+			setStatus(tostring(loadErr), colors.error)
+			return
+		end
+		task.spawn(function()
+			local ok, runErr = xpcall(fn, function(err)
+				return tostring(err).."\n"..debug.traceback(nil, 2)
+			end)
+			if ok then
+				setStatus("Execution finished", colors.success)
+			else
+				setStatus(tostring(runErr), colors.error)
+			end
+		end)
+	end)
+	clearButton.MouseButton1Click:Connect(function()
+		textBox.Text = ""
+		setStatus("Cleared current tab", colors.warn)
+	end)
+	copyButton.MouseButton1Click:Connect(function()
+		local ok = pcall(setclipboard, textBox.Text or "")
+		if ok then
+			setStatus("Copied tab contents", colors.success)
+		else
+			setStatus("Clipboard unavailable", colors.error)
+		end
+	end)
+	renameButton.MouseButton1Click:Connect(function()
+		renameTab(currentTab)
+	end)
+	duplicateButton.MouseButton1Click:Connect(function()
+		local tab = tabs[currentTab]
+		local tabIndex = createTab(tab and tab.text or "", tab and ((tab.title or "Tab").." Copy") or "Copy")
+		selectTab(tabIndex)
+		scheduleTabsSave()
+		setStatus("Duplicated tab", colors.success)
+	end)
+	deleteTabButton.MouseButton1Click:Connect(function()
+		closeTab(currentTab)
+		scheduleTabsSave()
+	end)
+
+	hubOpen.MouseButton1Click:Connect(function()
+		loadSavedScriptIntoCurrent(false)
+	end)
+	hubOpenNew.MouseButton1Click:Connect(function()
+		loadSavedScriptIntoCurrent(true)
+	end)
+	hubSave.MouseButton1Click:Connect(function()
+		local target = selectedScript or getCurrentScriptName()
+		saveCurrentScriptAs(target)
+	end)
+	hubDelete.MouseButton1Click:Connect(function()
+		if not selectedScript then
+			setStatus("Select a saved script first", colors.warn)
+			return
+		end
+		if not (fsOk and delOk) then
+			setStatus("Delete is unavailable here", colors.error)
+			return
+		end
+		ensureExecutorFolders()
+		local deleting = selectedScript
+		local ok = pcall(delfile, scriptPath(deleting))
+		if ok then
+			removeScriptIndex(deleting)
+			selectedScript = nil
+			refreshSavedScripts()
+			selectSavedScript(nil)
+			setStatus("Deleted "..deleting, colors.warn)
+		else
+			setStatus("Failed to delete "..deleting, colors.error)
+		end
+	end)
+	hubRefresh.MouseButton1Click:Connect(function()
+		refreshSavedScripts()
+		setStatus("Refreshed saved scripts", colors.success)
+	end)
+
+	loadTabsFromDisk()
+	refreshSavedScripts()
+	applySettings(true)
+	selectTab(currentTab)
+	queueRefreshEditor()
+	NAStuff.ExecutorRefresh = queueRefreshEditor
+	setStatus("Executor ready", colors.success)
+	return true
+end
+
+NAmanage.Executor_Toggle = NAmanage.Executor_Toggle or function(forceState)
+	if not (NAUIMANAGER and NAUIMANAGER.ExecutorFrame) then
+		local ok, err = pcall(function()
+			loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NAexecutor.lua"))()
+		end)
+		if not ok then
+			DoNotif("Executor UI unavailable: "..tostring(err), 3)
+		end
+		return false
+	end
+	NAmanage.Executor_Init()
+	local execFrame = NAUIMANAGER.ExecutorFrame
+	local nextState = forceState
+	if type(nextState) ~= "boolean" then
+		nextState = not execFrame.Visible
+	end
+	execFrame.Visible = nextState
+	if execFrame.Visible then
+		NAmanage.centerFrame(execFrame)
+		if type(NAStuff.ExecutorRefresh) == "function" then
+			task.defer(NAStuff.ExecutorRefresh)
+		end
+	end
+	return true
+end
+
 NAStuff.cmdInputAtInit = NAUIMANAGER and NAUIMANAGER.cmdInput
 NAStuff.keepCmdFocus = false
 if NAStuff.cmdInputAtInit then
@@ -77451,6 +79009,7 @@ if NAUIMANAGER.commandsFrame then NAgui.menu(NAUIMANAGER.commandsFrame) end
 if NAUIMANAGER.SettingsFrame then NAgui.menu(NAUIMANAGER.SettingsFrame) end
 if NAUIMANAGER.WaypointFrame then NAgui.menu(NAUIMANAGER.WaypointFrame) end
 if NAUIMANAGER.BindersFrame then NAgui.menu(NAUIMANAGER.BindersFrame) end
+if NAUIMANAGER.ExecutorFrame then NAgui.menu(NAUIMANAGER.ExecutorFrame) end
 
 --[[ GUI RESIZE FUNCTION ]]--
 
@@ -77460,6 +79019,9 @@ if NAUIMANAGER.commandsFrame then NAgui.resizeable(NAUIMANAGER.commandsFrame) en
 if NAUIMANAGER.SettingsFrame then NAgui.resizeable(NAUIMANAGER.SettingsFrame) end
 if NAUIMANAGER.WaypointFrame then NAgui.resizeable(NAUIMANAGER.WaypointFrame) end
 if NAUIMANAGER.BindersFrame then NAgui.resizeable(NAUIMANAGER.BindersFrame) end
+if NAUIMANAGER.ExecutorFrame then NAgui.resizeable(NAUIMANAGER.ExecutorFrame, Vector2.new(680, 420), Vector2.new(1600, 1000)) end
+
+NAmanage.Executor_Init()
 
 if NAStuff.uiBootHidden and NAStuff.NASCREENGUI and NAStuff.NASCREENGUI:IsA("ScreenGui") then
 	pcall(function()
