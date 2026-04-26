@@ -2915,8 +2915,8 @@
       "aliases": [
         "orbit"
       ],
-      "usage": "orbit <player> <distance>",
-      "args": "<player> <distance>",
+      "usage": "orbit <player> <distance> [speed]",
+      "args": "<player> <distance> [speed]",
       "desc": "Orbit around a player"
     },
     {
@@ -2924,8 +2924,8 @@
       "aliases": [
         "uporbit"
       ],
-      "usage": "uporbit <player> <distance>",
-      "args": "<player> <distance>",
+      "usage": "uporbit <player> <distance> [speed]",
+      "args": "<player> <distance> [speed]",
       "desc": "Orbit around a player on the Y axis"
     },
     {
