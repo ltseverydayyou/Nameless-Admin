@@ -249,7 +249,7 @@
       ],
       "usage": "executor (exec)",
       "args": "",
-      "desc": "Very simple executor"
+      "desc": "Open the integrated executor UI"
     },
     {
       "name": "lastcommand",
