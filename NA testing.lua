@@ -1333,6 +1333,19 @@ NAmanage.prnAllCon = NAmanage.prnAllCon or function(limit)
 	return checked
 end
 
+NAmanage.safeConnect = NAmanage.safeConnect or function(sig, fn)
+	if sig == nil or type(fn) ~= "function" then
+		return nil
+	end
+	local ok, conn = pcall(function()
+		return sig:Connect(fn)
+	end)
+	if ok then
+		return conn
+	end
+	return nil
+end
+
 NAmanage._evtHubDispatch = NAmanage._evtHubDispatch or function(handlers, inst)
 	for _, rec in pairs(handlers or {}) do
 		local fn = rec
@@ -1396,6 +1409,130 @@ NAmanage._evtHubBudget = NAmanage._evtHubBudget or function(baseBudget, opts)
 		end
 	end
 	return budget, waitDelay
+end
+
+NAmanage.rawDesc = NAmanage.rawDesc or function(root, className, opts)
+	if typeof(root) ~= "Instance" then
+		return {}
+	end
+	className = type(className) == "string" and className or "Instance"
+	opts = type(opts) == "table" and opts or {}
+	local out = {}
+	local hard = tonumber(opts.hardLimit) or 0
+	local budget = tonumber(opts.budget) or 1200
+	local delayTime = tonumber(opts.delay) or 0
+	local function add(inst)
+		if not inst then
+			return false
+		end
+		if className == "Instance" then
+			out[#out + 1] = inst
+		else
+			local ok, pass = pcall(function()
+				return inst:IsA(className)
+			end)
+			if ok and pass then
+				out[#out + 1] = inst
+			end
+		end
+		return hard > 0 and #out >= hard
+	end
+	if opts.query ~= false and type(root.QueryDescendants) == "function" then
+		local ok, list = pcall(function()
+			return root:QueryDescendants(className)
+		end)
+		if ok and type(list) == "table" then
+			for i = 1, #list do
+				if add(list[i]) then
+					break
+				end
+				if budget > 0 and i % budget == 0 then
+					Wait(delayTime)
+				end
+			end
+			return out
+		end
+	end
+	if opts.native ~= false and type(root.GetDescendants) == "function" then
+		local ok, list = pcall(function()
+			return root:GetDescendants()
+		end)
+		if ok and type(list) == "table" then
+			for i = 1, #list do
+				if add(list[i]) then
+					break
+				end
+				if budget > 0 and i % budget == 0 then
+					Wait(delayTime)
+				end
+			end
+			return out
+		end
+	end
+	local stack = {}
+	local okChildren, children = pcall(function()
+		return root:GetChildren()
+	end)
+	if okChildren and type(children) == "table" then
+		for i = #children, 1, -1 do
+			stack[#stack + 1] = children[i]
+		end
+	end
+	local steps = 0
+	while #stack > 0 do
+		local inst = stack[#stack]
+		stack[#stack] = nil
+		if inst then
+			if add(inst) then
+				break
+			end
+			local okCh, ch = pcall(function()
+				return inst:GetChildren()
+			end)
+			if okCh and type(ch) == "table" then
+				for i = #ch, 1, -1 do
+					stack[#stack + 1] = ch[i]
+				end
+			end
+		end
+		steps += 1
+		if budget > 0 and steps % budget == 0 then
+			Wait(delayTime)
+		end
+	end
+	return out
+end
+
+NAmanage.qDesc = NAmanage.qDesc or function(root, className, opts)
+	if typeof(root) ~= "Instance" then
+		return {}
+	end
+	className = type(className) == "string" and className or "Instance"
+	opts = type(opts) == "table" and opts or {}
+	if root == workspace and type(NAmanage.wsDescs) == "function" and opts.workspaceCache ~= false then
+		local base = NAmanage.wsDescs()
+		if className == "Instance" then
+			return base
+		end
+		local out = {}
+		local budget = tonumber(opts.budget) or 1600
+		for i = 1, #base do
+			local inst = base[i]
+			if inst and inst.Parent then
+				local ok, pass = pcall(function()
+					return inst:IsA(className)
+				end)
+				if ok and pass then
+					out[#out + 1] = inst
+				end
+			end
+			if budget > 0 and i % budget == 0 then
+				Wait(tonumber(opts.delay) or 0)
+			end
+		end
+		return out
+	end
+	return NAmanage.rawDesc(root, className, opts)
 end
 
 NAmanage._wsHub = NAmanage._wsHub or nil
@@ -1651,13 +1788,13 @@ NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 	end
 
 	if cRoot then
-		hub.cAdd = cRoot.DescendantAdded:Connect(function(inst)
+		hub.cAdd = NAmanage.safeConnect(cRoot.DescendantAdded, function(inst)
 			if hub.cacheLive then
 				addC(inst)
 			end
 			qEvt("add", inst)
 		end)
-		hub.cRem = cRoot.DescendantRemoving:Connect(function(inst)
+		hub.cRem = NAmanage.safeConnect(cRoot.DescendantRemoving, function(inst)
 			if hub.cacheLive then
 				remC(inst)
 			end
@@ -1720,7 +1857,7 @@ NAmanage.wsDescs = NAmanage.wsDescs or function()
 		local root = hub.root
 		local ok, descs = pcall(function()
 			if root then
-				return root:QueryDescendants("Instance")
+				return NAmanage.rawDesc(root, "Instance")
 			end
 			return {}
 		end)
@@ -2007,12 +2144,12 @@ NAmanage._cgHubGet = NAmanage._cgHubGet or function()
 			return
 		end
 		if not hub.cAdd then
-			hub.cAdd = root.DescendantAdded:Connect(function(inst)
+			hub.cAdd = NAmanage.safeConnect(root.DescendantAdded, function(inst)
 				qEvt("add", inst)
 			end)
 		end
 		if not hub.cRem then
-			hub.cRem = root.DescendantRemoving:Connect(function(inst)
+			hub.cRem = NAmanage.safeConnect(root.DescendantRemoving, function(inst)
 				qEvt("rem", inst)
 			end)
 		end
@@ -2295,12 +2432,12 @@ NAmanage._pgHubGet = NAmanage._pgHubGet or function()
 			return
 		end
 		if not hub.cAdd then
-			hub.cAdd = hub.root.DescendantAdded:Connect(function(inst)
+			hub.cAdd = NAmanage.safeConnect(hub.root.DescendantAdded, function(inst)
 				qEvt("add", inst)
 			end)
 		end
 		if not hub.cRem then
-			hub.cRem = hub.root.DescendantRemoving:Connect(function(inst)
+			hub.cRem = NAmanage.safeConnect(hub.root.DescendantRemoving, function(inst)
 				qEvt("rem", inst)
 			end)
 		end
@@ -2321,7 +2458,7 @@ NAmanage._pgHubGet = NAmanage._pgHubGet or function()
 		hub.rAnc = nil
 		hub.root = root
 		if root then
-			hub.rAnc = root.AncestryChanged:Connect(function(_, parent)
+			hub.rAnc = NAmanage.safeConnect(root.AncestryChanged, function(_, parent)
 				if not parent then
 					bindRoot(nil)
 					Defer(function()
@@ -2897,18 +3034,18 @@ NAmanage._descHubGet = NAmanage._descHubGet or function(root)
 			return
 		end
 		if not hub.cAdd then
-			hub.cAdd = root.DescendantAdded:Connect(function(inst)
+			hub.cAdd = NAmanage.safeConnect(root.DescendantAdded, function(inst)
 				qEvt("add", inst)
 			end)
 		end
 		if not hub.cRem then
-			hub.cRem = root.DescendantRemoving:Connect(function(inst)
+			hub.cRem = NAmanage.safeConnect(root.DescendantRemoving, function(inst)
 				qEvt("rem", inst)
 			end)
 		end
 	end
 
-	hub.rAnc = root.AncestryChanged:Connect(function(_, parent)
+	hub.rAnc = NAmanage.safeConnect(root.AncestryChanged, function(_, parent)
 		if parent then
 			return
 		end
@@ -3203,7 +3340,7 @@ NAmanage._childHubGet = NAmanage._childHubGet or function(root)
 		end
 	end
 
-	hub.rAnc = root.AncestryChanged:Connect(function(_, parent)
+	hub.rAnc = NAmanage.safeConnect(root.AncestryChanged, function(_, parent)
 		if parent then
 			return
 		end
@@ -11894,7 +12031,7 @@ NAgui.RegisterStrokesFrom=function(instance)
 		NAgui.RegisterColoredStroke(instance)
 		return
 	end
-	for _, descendant in ipairs(instance:QueryDescendants("UIStroke")) do
+	for _, descendant in ipairs(NAmanage.qDesc(instance, "UIStroke")) do
 		NAgui.RegisterColoredStroke(descendant)
 	end
 end
@@ -15434,6 +15571,20 @@ NAmanage.NASettingsGetSchema=function()
 				return coerceBoolean(value, false)
 			end;
 		};
+		loopMethod = {
+			default = "RenderStepped";
+			coerce = function(value)
+				local v = type(value) == "string" and value or tostring(value or "")
+				v = v:match("^%s*(.-)%s*$") or v
+				local l = v:lower():gsub("[%s_%-]", "")
+				if l == "presimulation" then
+					return "PreSimulation"
+				elseif l == "heartbeat" then
+					return "Heartbeat"
+				end
+				return "RenderStepped"
+			end;
+		};
 		cmdbar2Width = {
 			default = NAStuff.CmdBar2.defaultWidth;
 			coerce = function(value)
@@ -18411,6 +18562,8 @@ opt.settingsTranslateTarget = NAmanage.NASettingsGet("settingsTranslateTarget")
 NAStuff.AutoExecEnabled = NAmanage.NASettingsGet("autoExecEnabled")
 NAStuff.UserButtonsAutoLoad = NAmanage.NASettingsGet("userButtonsAutoLoad")
 NAStuff.CmdBar2AutoRun = NAmanage.NASettingsGet("cmdbar2AutoRun")
+NAStuff.LoopMethodOptions = { "RenderStepped", "PreSimulation", "Heartbeat" }
+NAStuff.LoopMethod = NAmanage.NASettingsGet("loopMethod") or "RenderStepped"
 NAStuff.NetworkPauseDisabled = NAmanage.NASettingsGet("networkPauseDisabled")
 NAStuff.UnsafeFunctionsDisabled = NAmanage.NASettingsGet("disableUnsafeFunctions") == true
 NAStuff.FriendRequestAutoDismiss = NAmanage.NASettingsGet("friendRequestAutoDismiss")
@@ -20387,6 +20540,83 @@ function ParseArguments(input)
 	return args
 end
 
+NAmanage.isCmdLoopCommand = function(name)
+	name = Lower(tostring(name or ""))
+	return name == "cmdloop"
+		or name == "commandloop"
+end
+
+NAmanage.getCmdAutofillContext = function(rawText)
+	local raw = tostring(rawText or "")
+	local prefix = tostring(opt and opt.prefix or "")
+	if prefix ~= "" then
+		local escapedPrefix = (NAmanage.StreamerEscapePattern and NAmanage.StreamerEscapePattern(prefix)) or prefix:gsub("([%%%^%$%(%)%.%[%]%*%+%-%?])", "%%%1")
+		raw = raw:gsub("^%s*"..escapedPrefix.."+", "")
+	end
+
+	local sanitized = NAmanage.stripChar(raw, false) or raw
+	local lowerSanitized = Lower(sanitized)
+	local tokens = {}
+	for startPos, word, endPos in sanitized:gmatch("()(%S+)()") do
+		tokens[#tokens + 1] = {
+			text = word,
+			lower = Lower(word),
+			startPos = startPos,
+			endPos = endPos - 1,
+		}
+	end
+
+	local ctx = {
+		raw = sanitized,
+		query = lowerSanitized:gsub("%s+$", ""),
+		prefix = "",
+		suffix = "",
+		mode = "command",
+	}
+
+	local first = tokens[1]
+	if first and NAmanage.isCmdLoopCommand(first.lower) then
+		local second = tokens[2]
+		ctx.mode = "cmdloop-command"
+		if second then
+			ctx.query = second.lower
+			ctx.prefix = sanitized:sub(1, second.startPos - 1)
+			ctx.suffix = sanitized:sub(second.endPos + 1)
+		else
+			ctx.query = ""
+			ctx.prefix = sanitized
+			if sanitized ~= "" and not sanitized:match("%s$") then
+				ctx.prefix = sanitized.." "
+			end
+			ctx.suffix = ""
+		end
+		return ctx
+	end
+
+	local trimmed = ctx.query
+	if Match(trimmed, "%s") then
+		local commandToken = tokens[1]
+		if commandToken then
+			ctx.query = commandToken.lower
+			ctx.prefix = sanitized:sub(1, commandToken.startPos - 1)
+			ctx.suffix = sanitized:sub(commandToken.endPos + 1)
+		end
+	end
+
+	return ctx
+end
+
+NAmanage.composeCmdAutofillText = function(ctx, commandName)
+	local name = NAmanage.stripChar(tostring(commandName or ""))
+	if name == "" then
+		return ""
+	end
+	if ctx and (ctx.mode == "cmdloop-command" or ctx.suffix ~= "" or ctx.prefix ~= "") then
+		return (ctx.prefix or "")..name..(ctx.suffix or "")
+	end
+	return name
+end
+
 NAgui.MakeSwitchRow=function(parent, name, labelText)
 	local f = InstanceNew("Frame")
 	f.Name = name or "SwitchRow"
@@ -21163,6 +21393,110 @@ cmd.run = function(args)
 	if not success then warn(adminName.." script error:\n"..msg) end
 end
 
+NAmanage.SanitizeLoopMethod = function(method)
+	local value = type(method) == "string" and method or tostring(method or "")
+	value = value:match("^%s*(.-)%s*$") or value
+	local key = value:lower():gsub("[%s_%-]", "")
+	if key == "presimulation" then
+		return "PreSimulation"
+	elseif key == "heartbeat" then
+		return "Heartbeat"
+	end
+	return "RenderStepped"
+end
+
+NAmanage.GetLoopSignal = function(method)
+	local picked = NAmanage.SanitizeLoopMethod(method or NAStuff.LoopMethod)
+	local sig = RunService and RunService[picked]
+	if sig and type(sig.Connect) == "function" then
+		return sig, picked
+	end
+	if picked == "PreSimulation" then
+		return nil, picked
+	end
+	if RunService and RunService.RenderStepped and type(RunService.RenderStepped.Connect) == "function" then
+		return RunService.RenderStepped, "RenderStepped"
+	end
+	if RunService and RunService.Heartbeat and type(RunService.Heartbeat.Connect) == "function" then
+		return RunService.Heartbeat, "Heartbeat"
+	end
+	return nil, picked
+end
+
+NAmanage.GetLoopDt = function(...)
+	local n = select("#", ...)
+	for i = n, 1, -1 do
+		local v = select(i, ...)
+		if type(v) == "number" then
+			return v
+		end
+	end
+	return 0
+end
+
+NAmanage.ConnectLoop = function(loopKey)
+	local loopData = Loops and Loops[loopKey]
+	if not loopData then
+		return false, "Loop not found."
+	end
+	local connKey = loopData.key or ("loop::"..loopKey)
+	loopData.key = connKey
+	NAlib.disconnect(connKey)
+	local sig, method = NAmanage.GetLoopSignal(NAStuff.LoopMethod)
+	if not sig then
+		return false, "Loop signal is unavailable."
+	end
+	loopData.method = method
+	local acc = 0
+	NAlib.connect(connKey, sig:Connect(function(...)
+		local currentLoop = Loops[loopKey]
+		if not currentLoop or not currentLoop.running then
+			NAlib.disconnect(connKey)
+			return
+		end
+		if currentLoop.interval <= 0 then
+			pcall(function()
+				currentLoop.command(Unpack(currentLoop.args))
+			end)
+			return
+		end
+		acc += NAmanage.GetLoopDt(...)
+		if acc >= currentLoop.interval then
+			acc %= currentLoop.interval
+			pcall(function()
+				currentLoop.command(Unpack(currentLoop.args))
+			end)
+		end
+	end))
+	return true, method
+end
+
+NAmanage.RebindLoops = function()
+	if type(Loops) ~= "table" then
+		return
+	end
+	for loopKey, loopData in pairs(Loops) do
+		if loopData and loopData.running then
+			NAmanage.ConnectLoop(loopKey)
+		end
+	end
+end
+
+NAmanage.SetLoopMethod = function(method, opts)
+	local picked = NAmanage.SanitizeLoopMethod(method)
+	NAStuff.LoopMethod = picked
+	if not opts or opts.save ~= false then
+		pcall(NAmanage.NASettingsSet, "loopMethod", picked)
+	end
+	if not opts or opts.rebind ~= false then
+		NAmanage.RebindLoops()
+	end
+	return picked
+end
+
+NAStuff.LoopMethodOptions = NAStuff.LoopMethodOptions or { "RenderStepped", "PreSimulation", "Heartbeat" }
+NAStuff.LoopMethod = NAmanage.SanitizeLoopMethod(NAStuff.LoopMethod or "RenderStepped")
+
 NAmanage.FmtLoop = function(args)
 	if not args or #args == 0 then
 		return "(no args)"
@@ -21209,6 +21543,7 @@ NAmanage.StartLoop = function(cmdName, args, interval)
 		interval = interval,
 		running = true,
 		key = connKey,
+		method = NAmanage.SanitizeLoopMethod(NAStuff.LoopMethod),
 	}
 
 	Loops[loopKey] = loopData
@@ -21217,27 +21552,11 @@ NAmanage.StartLoop = function(cmdName, args, interval)
 		loopData.command(Unpack(loopData.args))
 	end)
 
-	local acc = 0
-	NAlib.connect(connKey, RunService.RenderStepped:Connect(function(dt)
-		local currentLoop = Loops[loopKey]
-		if not currentLoop or not currentLoop.running then
-			NAlib.disconnect(connKey)
-			return
-		end
-		if currentLoop.interval <= 0 then
-			pcall(function()
-				currentLoop.command(Unpack(currentLoop.args))
-			end)
-			return
-		end
-		acc += dt
-		if acc >= currentLoop.interval then
-			acc %= currentLoop.interval
-			pcall(function()
-				currentLoop.command(Unpack(currentLoop.args))
-			end)
-		end
-	end))
+	local ok, msg = NAmanage.ConnectLoop(loopKey)
+	if not ok then
+		Loops[loopKey] = nil
+		return false, msg or "Loop signal is unavailable."
+	end
 
 	return true, loopKey, loopData
 end
@@ -21263,7 +21582,7 @@ NAmanage.GetLoops = function()
 		Insert(entries, {
 			key = loopKey,
 			data = loopData,
-			label = Format("'%s' | Args: %s | Delay: %ss", loopData.commandName, NAmanage.FmtLoop(loopData.args), loopData.interval),
+			label = Format("'%s' | Args: %s | Delay: %ss | Method: %s", loopData.commandName, NAmanage.FmtLoop(loopData.args), loopData.interval, loopData.method or NAmanage.SanitizeLoopMethod(NAStuff.LoopMethod)),
 		})
 	end
 	table.sort(entries, function(a, b)
@@ -21292,7 +21611,7 @@ cmd.loop = function(commandName, args)
 							DoNotif(result, 3)
 							return
 						end
-						DoNotif("Loop started for '"..commandName.."' with delay: "..loopData.interval.."s. Args: "..NAmanage.FmtLoop(loopData.args), 3)
+						DoNotif("Loop started for '"..commandName.."' with delay: "..loopData.interval.."s. Method: "..(loopData.method or NAmanage.SanitizeLoopMethod(NAStuff.LoopMethod))..". Args: "..NAmanage.FmtLoop(loopData.args), 3)
 					end)
 				end
 			}
@@ -22869,7 +23188,7 @@ NAgui.adjustHighlightMaterialFor = function(target, enable)
 	if target:IsA("BasePart") then
 		handlePart(target)
 	elseif target:IsA("Model") then
-		for _, desc in ipairs(target:QueryDescendants("BasePart")) do
+		for _, desc in ipairs(NAmanage.qDesc(target, "BasePart")) do
 			handlePart(desc)
 		end
 	end
@@ -23616,7 +23935,7 @@ NAmanage.ESP_CollectTrackedBillboards = function(model, uid)
 		if not (root and root.Parent) then
 			return
 		end
-		for _, d in ipairs(root:QueryDescendants("BillboardGui")) do
+		for _, d in ipairs(NAmanage.qDesc(root, "BillboardGui")) do
 			if not seen[d] and NAmanage.GetAttr(d, "NA_ESP_UID") == uid then
 				seen[d] = true
 				list[#list + 1] = d
@@ -23700,7 +24019,7 @@ end
 
 NAmanage.ESP_FirstBasePart = function(model)
 	if not model or not model.Parent then return nil end
-	for _, d in ipairs(model:QueryDescendants("BasePart")) do
+	for _, d in ipairs(NAmanage.qDesc(model, "BasePart")) do
 		return d
 	end
 	return nil
@@ -24227,7 +24546,7 @@ NAmanage.ESP_AddBoxes = function(model)
 		return
 	end
 
-	for _, part in ipairs(model:QueryDescendants("BasePart")) do
+	for _, part in ipairs(NAmanage.qDesc(model, "BasePart")) do
 		NAmanage.ESP_AddBoxForPart(model, part)
 	end
 
@@ -24466,7 +24785,7 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 				end
 			end
 			if now % 0.5 < 0.05 then
-				for _, part in ipairs(model:QueryDescendants("BasePart")) do
+				for _, part in ipairs(NAmanage.qDesc(model, "BasePart")) do
 					if not data.boxTable[part] then
 						NAmanage.ESP_AddBoxForPart(model, part)
 					end
@@ -31212,7 +31531,7 @@ NAmanage.ovTrack = function(st, chr)
 	st.ovParts = {}
 	st.ovPartIdx = {}
 	st.ovMeshCache = {}
-	for _, desc in ipairs(chr:QueryDescendants("Instance")) do
+	for _, desc in ipairs(NAmanage.qDesc(chr, "Instance")) do
 		if desc:IsA("BasePart") then
 			NAmanage.ovPartAdd(st, desc)
 		end
@@ -31295,7 +31614,7 @@ end
 
 NAmanage.ovPrg = function()
 	local old = NAStuff.ovOld or {}
-	for _, inst in ipairs(workspace:QueryDescendants("Instance")) do
+	for _, inst in ipairs(NAmanage.qDesc(workspace, "Instance")) do
 		if old[inst.Name] then
 			pcall(function() inst:Destroy() end)
 		end
@@ -31372,7 +31691,7 @@ NAmanage.ovMk = function(src, parent)
 
 	gp.Name = NAmanage.GetSessionInstanceName("OffsetPart")
 
-	for _, d in ipairs(gp:QueryDescendants("Instance")) do
+	for _, d in ipairs(NAmanage.qDesc(gp, "Instance")) do
 		if not d:IsA("SpecialMesh") then
 			pcall(function() d:Destroy() end)
 		end
@@ -33585,7 +33904,7 @@ cmd.add({"stoptrackstaff", "untrackstaff"}, {"stoptrackstaff (untrackstaff)", "S
 end)
 
 cmd.add({"deletevelocity", "dv", "removevelocity", "removeforces"}, {"deletevelocity (dv, removevelocity, removeforces)", "removes any velocity/force instanceson your character"}, function()
-	for _,vel in pairs(LocalPlayer.Character:QueryDescendants("Instance")) do
+	for _,vel in pairs(NAmanage.qDesc(LocalPlayer.Character, "Instance")) do
 		if vel:IsA("BodyVelocity") or vel:IsA("BodyGyro") or vel:IsA("RocketPropulsion") or vel:IsA("BodyThrust") or vel:IsA("BodyAngularVelocity") or vel:IsA("AngularVelocity") or vel:IsA("BodyForce") or vel:IsA("VectorForce") or vel:IsA("LineForce") then
 			vel:Destroy()
 		end
@@ -33791,7 +34110,7 @@ local s,err = pcall(function()
 		repeat
 			root = char:FindFirstChild("HumanoidRootPart")
 			if not root then
-				for _,d in ipairs(char:QueryDescendants("BasePart")) do
+				for _,d in ipairs(NAmanage.qDesc(char, "BasePart")) do
 					root = d
 					break
 				end
@@ -34321,7 +34640,7 @@ cmd.add({"reach", "swordreach"}, {"reach [number] (swordreach)", "Extends sword 
 	if not Tool then return end
 
 	local partSet = {}
-	for _, p in ipairs(Tool:QueryDescendants("BasePart")) do
+	for _, p in ipairs(NAmanage.qDesc(Tool, "BasePart")) do
 		partSet[p.Name] = true
 	end
 
@@ -34369,7 +34688,7 @@ cmd.add({"boxreach"}, {"boxreach [number]", "Creates a box-shaped hitbox around 
 	if not Tool then return end
 
 	local partSet = {}
-	for _, p in ipairs(Tool:QueryDescendants("BasePart")) do
+	for _, p in ipairs(NAmanage.qDesc(Tool, "BasePart")) do
 		partSet[p.Name] = true
 	end
 
@@ -34414,7 +34733,7 @@ cmd.add({"resetreach", "normalreach", "unreach"}, {"resetreach (normalreach, unr
 	local Tool = char and char:FindFirstChildOfClass("Tool") or bp and bp:FindFirstChildOfClass("Tool")
 	if not Tool then return end
 
-	for _, p in ipairs(Tool:QueryDescendants("BasePart")) do
+	for _, p in ipairs(NAmanage.qDesc(Tool, "BasePart")) do
 		local originalSize = NAmanage.GetAttr(p, NAStuff.reachOrigSize)
 		if typeof(originalSize) == "Vector3" then
 			p.Size = originalSize
@@ -34452,7 +34771,7 @@ cmd.add({"aura"},{"aura [distance]","Continuously damages nearby players with eq
 	local function getDamagePart()
 		local c=getChar() if not c then return end
 		local t=c:FindFirstChildWhichIsA("Tool") if not t then return end
-		for _,desc in ipairs(t:QueryDescendants("TouchTransmitter")) do
+		for _,desc in ipairs(NAmanage.qDesc(t, "TouchTransmitter")) do
 			local parent=desc.Parent
 			if parent and parent:IsA("BasePart") then
 				return parent
@@ -34510,7 +34829,7 @@ cmd.add({"npcaura"},{"npcaura [distance]","Continuously damages nearby NPCs with
 	local function getDamagePart()
 		local c=getChar() if not c then return end
 		local t=c:FindFirstChildWhichIsA("Tool") if not t then return end
-		for _,desc in ipairs(t:QueryDescendants("TouchTransmitter")) do
+		for _,desc in ipairs(NAmanage.qDesc(t, "TouchTransmitter")) do
 			local parent=desc.Parent
 			if parent and parent:IsA("BasePart") then
 				return parent
@@ -35023,7 +35342,7 @@ NAmanage.AntiKnockBack=function(char, state)
 		end
 	end
 
-	for _, obj in ipairs(char:QueryDescendants("Instance")) do
+	for _, obj in ipairs(NAmanage.qDesc(char, "Instance")) do
 		NAmanage.antiKBBindObj(state, obj)
 	end
 	bindRoot()
@@ -35609,10 +35928,10 @@ cmd.add({"droptools"}, {"dropalltools", "Drop all of your tools"}, function()
 end)
 
 cmd.add({"notools"},{"notools","Remove your tools"},function()
-	for _,tool in pairs(getChar():QueryDescendants("Tool")) do
+	for _,tool in pairs(NAmanage.qDesc(getChar(), "Tool")) do
 		tool:Destroy()
 	end
-	for _,tool in pairs(getBp():QueryDescendants("Tool")) do
+	for _,tool in pairs(NAmanage.qDesc(getBp(), "Tool")) do
 		tool:Destroy()
 	end
 end)
@@ -35648,7 +35967,7 @@ cmd.addPatched({"breaklayeredclothing","blc"},{"breaklayeredclothing (blc)","Str
 	Wait(0.1)
 	function NoclipLoop()
 		if Clip==false and char~=nil then
-			for _,child in pairs(char:QueryDescendants("BasePart")) do
+			for _,child in pairs(NAmanage.qDesc(char, "BasePart")) do
 				if child.CanCollide==true then
 					child.CanCollide=false
 				end
@@ -36446,7 +36765,7 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 			DoNotif("FPSBooster destroy mode: effects are removed until you rejoin", 3);
 		end;
 
-		for _, v in ipairs(__lt.cm("Lighting", "QueryDescendants", "Instance")) do
+		for _, v in ipairs(NAmanage.qDesc(Lighting, "Instance")) do
 			safeOptimize(v);
 		end;
 		sweepAll();
@@ -36535,7 +36854,7 @@ cmd.add({"unannoy"}, {"unannoy", "Stops the annoy command"}, function()
 end)
 
 cmd.add({"deleteinvisparts","deleteinvisibleparts","dip"},{"deleteinvisparts (deleteinvisibleparts,dip)","Deletes invisible parts"},function()
-	for i,v in pairs(workspace:QueryDescendants("BasePart")) do
+	for i,v in pairs(NAmanage.qDesc(workspace, "BasePart")) do
 		if v.Transparency==1 and v.CanCollide then
 			v:Destroy()
 		end
@@ -36545,7 +36864,7 @@ end)
 NAStuff.shownParts = {}
 
 cmd.add({"invisibleparts","invisparts"},{"invisibleparts (invisparts)","Shows invisible parts"},function()
-	for _, v in ipairs(workspace:QueryDescendants("BasePart")) do
+	for _, v in ipairs(NAmanage.qDesc(workspace, "BasePart")) do
 		if v.Transparency == 1 then
 			local alreadyShown = false
 			for _, p in ipairs(NAStuff.shownParts) do
@@ -36603,7 +36922,7 @@ cmd.add({"removeads","adblock"},{"removeads (adblock)","Continuously removes bil
 	SpawnCall(function()
 		while state.active do
 			pcall(function()
-				for _,obj in ipairs(workspace:QueryDescendants("PackageLink")) do
+				for _,obj in ipairs(NAmanage.qDesc(workspace, "PackageLink")) do
 					local parent=obj.Parent
 					if parent then
 						if parent:FindFirstChild("ADpart") then
@@ -36757,7 +37076,7 @@ end)
 
 cmd.add({"strengthen"},{"strengthen","Makes your character more dense (CustomPhysicalProperties)"},function(...)
 	local args={...}
-	for _,child in pairs(getChar():QueryDescendants("BasePart")) do
+	for _,child in pairs(NAmanage.qDesc(getChar(), "BasePart")) do
 		if args[1] then
 			child.CustomPhysicalProperties=PhysicalProperties.new(args[1],0.3,0.5)
 		else
@@ -36767,14 +37086,14 @@ cmd.add({"strengthen"},{"strengthen","Makes your character more dense (CustomPhy
 end,true)
 
 cmd.add({"unweaken","unstrengthen"},{"unweaken (unstrengthen)","Sets your characters CustomPhysicalProperties to default"},function()
-	for _,child in pairs(getChar():QueryDescendants("BasePart")) do
+	for _,child in pairs(NAmanage.qDesc(getChar(), "BasePart")) do
 		child.CustomPhysicalProperties=PhysicalProperties.new(0.7,0.3,0.5)
 	end
 end)
 
 cmd.add({"weaken"},{"weaken","Makes your character less dense"},function(...)
 	local args={...}
-	for _,child in pairs(getChar():QueryDescendants("BasePart")) do
+	for _,child in pairs(NAmanage.qDesc(getChar(), "BasePart")) do
 		if args[1] then
 			child.CustomPhysicalProperties=PhysicalProperties.new(-args[1],0.3,0.5)
 		else
@@ -36794,7 +37113,7 @@ cmd.add({"seat"}, {"seat", "Finds a seat and automatically sits on it"}, functio
 	end
 
 	local seats = {}
-	for _, v in ipairs(game:QueryDescendants("Seat")) do
+	for _, v in ipairs(NAmanage.qDesc(game, "Seat")) do
 		if not v.Occupant then
 			Insert(seats, v)
 		end
@@ -36829,7 +37148,7 @@ cmd.add({"vehicleseat", "vseat"}, {"vehicleseat (vseat)", "Sits you in a vehicle
 	end
 
 	local vehicleSeats = {}
-	for _, v in ipairs(game:QueryDescendants("VehicleSeat")) do
+	for _, v in ipairs(NAmanage.qDesc(game, "VehicleSeat")) do
 		if not v.Occupant then
 			Insert(vehicleSeats, v)
 		end
@@ -37083,7 +37402,7 @@ cmd.add({"cartornado", "ctornado"}, {"cartornado (ctornado)", "Tornados a car ju
 		end
 
 		if vehicleModel then
-			for _, v in pairs(vehicleModel:QueryDescendants("BasePart")) do
+			for _, v in pairs(NAmanage.qDesc(vehicleModel, "BasePart")) do
 				if v.CanCollide then
 					v.CanCollide = false
 				end
@@ -37490,7 +37809,7 @@ NAStuff.ATPC._hookChar = function(char)
 		NAlib.connect("AntiCFrame", con)
 	end
 
-	for _, d in ipairs(char:QueryDescendants("BasePart")) do
+	for _, d in ipairs(NAmanage.qDesc(char, "BasePart")) do
 		hookPart(d)
 	end
 
@@ -38513,7 +38832,7 @@ cmd.add({"tospawn", "ts"}, {"tospawn (ts)", "Teleports you to a SpawnLocation"},
 	local closestSpawn = nil
 	local shortestDistance = math.huge
 	local rootPosition = root.Position
-	for _, descendant in ipairs(workspace:QueryDescendants("SpawnLocation")) do
+	for _, descendant in ipairs(NAmanage.qDesc(workspace, "SpawnLocation")) do
 		local distance = (descendant.Position - rootPosition).Magnitude
 		if distance < shortestDistance then
 			shortestDistance = distance
@@ -38672,7 +38991,7 @@ cmd.add({"hamster"}, {"hamster <number>", "Hamster ball"}, function(...)
 		Sit = humanoid.Sit;
 	}
 
-	for _, v in ipairs(character:QueryDescendants("BasePart")) do
+	for _, v in ipairs(NAmanage.qDesc(character, "BasePart")) do
 		oldCollide[v] = v.CanCollide
 		v.CanCollide = false
 	end
@@ -38926,7 +39245,7 @@ NAmanage.safePivotModel = function(model, cf)
 
 	local root = model.PrimaryPart or getRoot(model)
 	if not root then
-		for _, part in ipairs(model:QueryDescendants("BasePart")) do
+		for _, part in ipairs(NAmanage.qDesc(model, "BasePart")) do
 			root = part
 			break
 		end
@@ -39596,7 +39915,7 @@ cmd.add({"antifling"},{"antifling","makes other players non-collidable with you"
 		if not char then
 			return
 		end
-		for _, d in ipairs(char:QueryDescendants("BasePart")) do
+		for _, d in ipairs(NAmanage.qDesc(char, "BasePart")) do
 			apply(d)
 		end
 		NAlib.connect("antifling", NAmanage.descAdd(char, function(inst)
@@ -39619,7 +39938,7 @@ cmd.add({"antifling"},{"antifling","makes other players non-collidable with you"
 		if not char then
 			return
 		end
-		for _, d in ipairs(char:QueryDescendants("Instance")) do
+		for _, d in ipairs(NAmanage.qDesc(char, "Instance")) do
 			if tracked[d] then
 				clearPart(d)
 			end
@@ -40228,7 +40547,7 @@ cmd.add({"vehiclespeed", "vspeed"}, {"vehiclespeed <amount> (vspeed)", "Change t
 			if root then
 				local model = root:FindFirstAncestorOfClass("Model")
 				if model then
-					for _, part in ipairs(model:QueryDescendants("Instance")) do
+					for _, part in ipairs(NAmanage.qDesc(model, "Instance")) do
 						if part:IsA("BasePart") then
 							part.AssemblyLinearVelocity = Vector3.zero
 							part.AssemblyAngularVelocity = Vector3.zero
@@ -40289,7 +40608,7 @@ cmd.add({"unvehiclespeed", "unvspeed"}, {"unvehiclespeed (unvspeed)", "Stops the
 		if root then
 			local model = root:FindFirstAncestorOfClass("Model")
 			if model then
-				for _, part in ipairs(model:QueryDescendants("Instance")) do
+				for _, part in ipairs(NAmanage.qDesc(model, "Instance")) do
 					if part:IsA("BasePart") then
 						part.AssemblyLinearVelocity = Vector3.zero
 						part.AssemblyAngularVelocity = Vector3.zero
@@ -41079,7 +41398,7 @@ cmd.add({"vehiclenoclip", "vnoclip"}, {"vehiclenoclip (vnoclip)", "Disables vehi
 	Wait(0.1)
 	cmd.run({"noclip"})
 
-	for _, pp in ipairs(model:QueryDescendants("BasePart")) do
+	for _, pp in ipairs(NAmanage.qDesc(model, "BasePart")) do
 		if pp.CanCollide then
 			Insert(VVVVVVVVVVVCARRR, pp)
 			pp.CanCollide = false
@@ -41122,7 +41441,7 @@ cmd.add({"handlekill", "hkill"}, {"handlekill <player> (hkill)", "Kills a player
 
 	local function findDamagePart(tool)
 		local ttPart = nil
-		for _, desc in ipairs(tool:QueryDescendants("TouchTransmitter")) do
+		for _, desc in ipairs(NAmanage.qDesc(tool, "TouchTransmitter")) do
 			local parent = desc.Parent
 			if parent and parent:IsA("BasePart") then
 				ttPart = parent
@@ -41211,7 +41530,7 @@ cmd.add({"creep"}, {"creep <player>", "Teleports from a player behind them and u
 	NAlib.connect("noclip", RunService.PreSimulation:Connect(function()
 		local char = getChar()
 		if not char then return end
-		for _, part in ipairs(char:QueryDescendants("BasePart")) do
+		for _, part in ipairs(NAmanage.qDesc(char, "BasePart")) do
 			part.CanCollide = false
 		end
 	end))
@@ -41244,7 +41563,7 @@ cmd.add({"netless","net"},{"netless (net)","Executes netless which makes scripts
 	NAlib.connect("netless", RunService.PreSimulation:Connect(function()
 		local c = getChar()
 		if not c then return end
-		for _, v in ipairs(c:QueryDescendants("BasePart")) do
+		for _, v in ipairs(NAmanage.qDesc(c, "BasePart")) do
 			if v.Name ~= "HumanoidRootPart" then
 				v.Velocity = Vector3.new(-30, 0, 0)
 			end
@@ -41708,7 +42027,7 @@ cmd.add({"animcopycore","animcopy","copyanim","copyan"}, {"animcopycore <target>
 	if not (myAnimate and targetAnimate) then return end
 	local function mapAnims(root)
 		local t = {}
-		for _, inst in ipairs(root:QueryDescendants("Animation")) do
+		for _, inst in ipairs(NAmanage.qDesc(root, "Animation")) do
 			local k = Lower(((inst.Parent and inst.Parent.Name) or "root").."|"..inst.Name)
 			t[k] = inst
 		end
@@ -41728,7 +42047,7 @@ cmd.add({"animcopycore","animcopy","copyanim","copyan"}, {"animcopycore <target>
 		if NAStuff.SavedDefaultMap then return end
 		if not myAnimate then return end
 		NAStuff.SavedDefaultMap = {}
-		for _, a in ipairs(myAnimate:QueryDescendants("Animation")) do
+		for _, a in ipairs(NAmanage.qDesc(myAnimate, "Animation")) do
 			local parentName = Lower((a.Parent and a.Parent.Name) or "root")
 			if NAStuff.CORE_FOLDERS[parentName] then
 				local key = Lower(parentName.."|"..a.Name)
@@ -41918,7 +42237,7 @@ cmd.add({"animresetcore","animreset","resetanim","resetan"}, {"animresetcore","R
 	if not (myHum and myAnimate and NAStuff.SavedDefaultMap) then return end
 	local function mapAnims(root)
 		local t = {}
-		for _, inst in ipairs(root:QueryDescendants("Animation")) do
+		for _, inst in ipairs(NAmanage.qDesc(root, "Animation")) do
 			local k = Lower(((inst.Parent and inst.Parent.Name) or "root").."|"..inst.Name)
 			t[k] = inst
 		end
@@ -41966,7 +42285,7 @@ cmd.add({"unsyncreset","unsync","unsres","unsr"}, {"unsyncreset","Stop sync and 
 	if not (myHum and myAnimate and NAStuff.SavedDefaultMap) then return end
 	local function mapAnims(root)
 		local t = {}
-		for _, inst in ipairs(root:QueryDescendants("Animation")) do
+		for _, inst in ipairs(NAmanage.qDesc(root, "Animation")) do
 			local k = Lower(((inst.Parent and inst.Parent.Name) or "root").."|"..inst.Name)
 			t[k] = inst
 		end
@@ -43314,7 +43633,7 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 			for i,v in pairs(connections) do
 				v:Disconnect()
 			end
-			for i,v in pairs(Main.LeftPanel:QueryDescendants("TextButton")) do
+			for i,v in pairs(NAmanage.qDesc(Main.LeftPanel, "TextButton")) do
 				if v.Visible==true then
 					v:Destroy()
 				end
@@ -43530,36 +43849,53 @@ end)
 -- idk what i am doing lol (bored af :P)
 
 cmd.add({"noclip","nclip","nc"},{"noclip","Disable your player's collision"},function()
-	NAStuff._ncColl = {}
+	if type(NAStuff._ncColl) ~= "table" then
+		NAStuff._ncColl = setmetatable({}, { __mode = "k" })
+	end
+
 	local collMap = NAStuff._ncColl
 
-	NAlib.disconnect("noclip")
-	NAlib.connect("noclip", RunService.PreSimulation:Connect(function()
+	local function step()
 		local char = getChar()
 		if not char then return end
-		for _,p in pairs(char:QueryDescendants("BasePart")) do
-			local currentState = NAlib.isProperty(p, "CanCollide")
-			if collMap and collMap[p] == nil and currentState ~= nil then
-				collMap[p] = currentState
-			end
-			if currentState ~= false then
-				NAlib.setProperty(p,"CanCollide", false)
+
+		for _, p in pairs(NAmanage.qDesc(char, "BasePart")) do
+			if p and p:IsA("BasePart") then
+				local cur = NAlib.isProperty(p, "CanCollide")
+				if cur ~= nil then
+					if collMap[p] == nil then
+						collMap[p] = cur
+					end
+
+					if cur ~= false then
+						NAlib.setProperty(p, "CanCollide", false)
+					end
+				end
 			end
 		end
-	end))
+	end
+
+	step()
+
+	if NAlib.isConnected("noclip") then
+		return
+	end
+
+	NAlib.connect("noclip", RunService.PreSimulation:Connect(step))
 end)
 
 cmd.add({"clip","unnoclip","stopclip","unnclip","unnc"},{"clip","Enable your player's collision"},function()
 	NAlib.disconnect("noclip")
 
 	local collMap = NAStuff._ncColl
-	if collMap then
-		for part, wasCollidable in pairs(collMap) do
-			if part and part:IsA("BasePart") and wasCollidable ~= nil then
-				NAlib.setProperty(part, "CanCollide", wasCollidable)
+	if type(collMap) == "table" then
+		for part, old in pairs(collMap) do
+			if part and part.Parent and part:IsA("BasePart") and old ~= nil then
+				NAlib.setProperty(part, "CanCollide", old)
 			end
 		end
 	end
+
 	NAStuff._ncColl = nil
 end)
 
@@ -43586,7 +43922,7 @@ cmd.add({"antianchor","aa"},{"antianchor","Prevent your parts from being anchore
 	end
 	local seed = function(char)
 		if not char then return end
-		for _,d in ipairs(char:QueryDescendants("BasePart")) do
+		for _,d in ipairs(NAmanage.qDesc(char, "BasePart")) do
 			enforce(d)
 		end
 		NAlib.connect("antianchor", NAmanage.descAdd(char, function(inst)
@@ -43829,7 +44165,15 @@ cmd.add({"unantibang"}, {"unantibang", "disables antibang"}, function()
 	DebugNotif("Antibang Disabled", 3)
 end)
 
-cmd.add({"orbit"}, {"orbit <player> <distance>", "Orbit around a player"}, function(p, d)
+NAmanage.getOrbitSpeed=function(v)
+	local n = tonumber(v)
+	if not n then
+		return 0.05
+	end
+	return math.clamp(n, 0.005, 1)
+end
+
+cmd.add({"orbit"}, {"orbit <player> <distance> [speed]", "Orbit around a player"}, function(p, d, s)
 	NAlib.disconnect("orbit")
 	local targets = getPlr(p)
 	if #targets == 0 then return end
@@ -43841,20 +44185,22 @@ cmd.add({"orbit"}, {"orbit <player> <distance>", "Orbit around a player"}, funct
 	local hrp = getRoot(char)
 	if not thrp or not hrp then return end
 	local dist = tonumber(d) or 4
+	local spd = NAmanage.getOrbitSpeed(s)
 	local sineX, sineZ = 0, math.pi / 2
-	NAlib.connect("orbit", RunService.PreSimulation:Connect(function()
+	NAlib.connect("orbit", RunService.PreSimulation:Connect(function(dt)
 		if not (thrp.Parent and hrp.Parent) then
 			NAlib.disconnect("orbit")
 			return
 		end
-		sineX, sineZ = sineX + 0.05, sineZ + 0.05
+		local step = spd * math.clamp((tonumber(dt) or 1 / 60) * 60, 0.25, 2)
+		sineX, sineZ = sineX + step, sineZ + step
 		local sinX, sinZ = math.sin(sineX), math.sin(sineZ)
 		hrp.Velocity = Vector3.zero
 		hrp.CFrame = CFrame.new(sinX * dist, 0, sinZ * dist) * (hrp.CFrame - hrp.CFrame.p) + thrp.CFrame.p
 	end))
 end, true)
 
-cmd.add({"uporbit"}, {"uporbit <player> <distance>", "Orbit around a player on the Y axis"}, function(p, d)
+cmd.add({"uporbit"}, {"uporbit <player> <distance> [speed]", "Orbit around a player on the Y axis"}, function(p, d, s)
 	NAlib.disconnect("orbit")
 	local targets = getPlr(p)
 	if #targets == 0 then return end
@@ -43866,13 +44212,15 @@ cmd.add({"uporbit"}, {"uporbit <player> <distance>", "Orbit around a player on t
 	local hrp = getRoot(char)
 	if not thrp or not hrp then return end
 	local dist = tonumber(d) or 4
+	local spd = NAmanage.getOrbitSpeed(s)
 	local sineX, sineY = 0, math.pi / 2
-	NAlib.connect("orbit", RunService.PreSimulation:Connect(function()
+	NAlib.connect("orbit", RunService.PreSimulation:Connect(function(dt)
 		if not (thrp.Parent and hrp.Parent) then
 			NAlib.disconnect("orbit")
 			return
 		end
-		sineX, sineY = sineX + 0.05, sineY + 0.05
+		local step = spd * math.clamp((tonumber(dt) or 1 / 60) * 60, 0.25, 2)
+		sineX, sineY = sineX + step, sineY + step
 		local sinX, sinY = math.sin(sineX), math.sin(sineY)
 		hrp.Velocity = Vector3.zero
 		hrp.CFrame = CFrame.new(sinX * dist, sinY * dist, 0) * (hrp.CFrame - hrp.CFrame.p) + thrp.CFrame.p
@@ -44614,7 +44962,7 @@ NAmanage.grabAllTools=function(range)
 	local useRange = range and range > 0
 
 	local count = 0
-	for _, tool in ipairs(workspace:QueryDescendants("Tool")) do
+	for _, tool in ipairs(NAmanage.qDesc(workspace, "Tool")) do
 		if useRange then
 			local handle = tool:FindFirstChild("Handle") or tool:FindFirstChildWhichIsA("BasePart")
 			if handle and (handle.Position - root.Position).Magnitude <= range then
@@ -45783,7 +46131,7 @@ cmd.add({"bodytransparency","btransparency","bodyt"}, {"bodytransparency <number
 		local ch = st.ch
 		if not ch then return end
 		local mp = {}
-		for _,p in ipairs(ch:QueryDescendants("Instance")) do
+		for _,p in ipairs(NAmanage.qDesc(ch, "Instance")) do
 			if okp(p) then
 				local n = Lower(p.Name)
 				mp[n] = mp[n] or {}
@@ -45797,7 +46145,7 @@ cmd.add({"bodytransparency","btransparency","bodyt"}, {"bodytransparency <number
 	local function clr()
 		local ch = st.ch
 		if not ch then return end
-		for _,p in ipairs(ch:QueryDescendants("Instance")) do
+		for _,p in ipairs(NAmanage.qDesc(ch, "Instance")) do
 			if okp(p) then
 				p.LocalTransparencyModifier = 0
 			end
@@ -45922,7 +46270,7 @@ cmd.add({"bodytransparency","btransparency","bodyt"}, {"bodytransparency <number
 
 	if ch then
 		local seen = {}
-		for _,p in ipairs(ch:QueryDescendants("Instance")) do
+		for _,p in ipairs(NAmanage.qDesc(ch, "Instance")) do
 			if okp(p) then
 				local n = p.Name
 				if not seen[n] then
@@ -45952,7 +46300,7 @@ cmd.add({"unbodytransparency","unbtransparency","unbodyt"}, {"unbodytransparency
 
 	local ch = getChar() or (Players.LocalPlayer and Players.LocalPlayer.Character)
 	if ch then
-		for _,p in ipairs(ch:QueryDescendants("BasePart")) do
+		for _,p in ipairs(NAmanage.qDesc(ch, "BasePart")) do
 			if Lower(p.Name) ~= "head" and not p:FindFirstAncestorOfClass("Accessory") and not p:FindFirstAncestorOfClass("Tool") then
 				p.LocalTransparencyModifier = 0
 			end
@@ -47031,14 +47379,14 @@ cmd.add({"timestop", "tstop"}, {"timestop (tstop)", "freezes all players (ZA WAR
 	for _, plr in pairs(target) do
 		local char = plr.Character or getPlrChar(plr)
 		if char then
-			for _, v in pairs(char:QueryDescendants("BasePart")) do
+			for _, v in pairs(NAmanage.qDesc(char, "BasePart")) do
 				v.Anchored = true
 			end
 		end
 
 		NAlib.connect("timestop_char_"..plr.UserId, plr.CharacterAdded:Connect(function(char)
 			while not getRoot(char) do Wait(.1) end
-			for _, v in pairs(char:QueryDescendants("BasePart")) do
+			for _, v in pairs(NAmanage.qDesc(char, "BasePart")) do
 				v.Anchored = true
 			end
 		end))
@@ -47047,7 +47395,7 @@ cmd.add({"timestop", "tstop"}, {"timestop (tstop)", "freezes all players (ZA WAR
 	NAlib.connect("timestop_playeradd", Players.PlayerAdded:Connect(function(plr)
 		NAlib.connect("timestop_char_"..plr.UserId, plr.CharacterAdded:Connect(function(char)
 			while not getRoot(char) do Wait(.1) end
-			for _, v in pairs(char:QueryDescendants("BasePart")) do
+			for _, v in pairs(NAmanage.qDesc(char, "BasePart")) do
 				v.Anchored = true
 			end
 		end))
@@ -47066,7 +47414,7 @@ cmd.add({"untimestop", "untstop"}, {"untimestop (untstop)", "unfreeze all player
 	for _, plr in pairs(target) do
 		local char = plr.Character or getPlrChar(plr)
 		if char then
-			for _, v in pairs(char:QueryDescendants("BasePart")) do
+			for _, v in pairs(NAmanage.qDesc(char, "BasePart")) do
 				v.Anchored = false
 			end
 		end
@@ -47097,7 +47445,7 @@ NAmanage._resolveFaceTextureFromAsset=function(faceId)
 		for _,obj in ipairs(objects) do
 			local candidates={obj}
 			local okDesc,descendants=pcall(function()
-				return obj:GetDescendants()
+				return NAmanage.qDesc(obj, "Instance")
 			end)
 			if okDesc and type(descendants)=="table" then
 				for _,inst in ipairs(descendants) do
@@ -47484,7 +47832,7 @@ NAmanage._applyFixedDescription=function(desc,uidFallback,opts)
 		local appearance = getTargetAppearance()
 		local count = 0
 		if appearance then
-			for _, inst in ipairs(appearance:QueryDescendants("Accessory")) do
+			for _, inst in ipairs(NAmanage.qDesc(appearance, "Accessory")) do
 				count += 1
 			end
 		end
@@ -47517,7 +47865,7 @@ NAmanage._applyFixedDescription=function(desc,uidFallback,opts)
 
 	local function getCurrentAccessoryCount()
 		local count = 0
-		for _, inst in ipairs(char:QueryDescendants("Accessory")) do
+		for _, inst in ipairs(NAmanage.qDesc(char, "Accessory")) do
 			count += 1
 		end
 		return count
@@ -47572,7 +47920,7 @@ NAmanage._applyFixedDescription=function(desc,uidFallback,opts)
 
 	local function sourceHasClass(source,className)
 		if not source then return false end
-		for _,inst in ipairs(source:GetDescendants()) do
+		for _,inst in ipairs(NAmanage.qDesc(source, "Instance")) do
 			if inst.ClassName==className then
 				return true
 			end
@@ -47627,7 +47975,7 @@ NAmanage._applyFixedDescription=function(desc,uidFallback,opts)
 				end
 			end
 		end
-		for _,inst in ipairs(source:GetDescendants()) do
+		for _,inst in ipairs(NAmanage.qDesc(source, "Instance")) do
 			if inst:IsA("CharacterMesh") then
 				inst:Clone().Parent=char
 			end
@@ -47785,7 +48133,7 @@ NAmanage._applyFixedDescription=function(desc,uidFallback,opts)
 	if hum.RigType==Enum.HumanoidRigType.R6 and uidFallback then
 		local ap = getTargetAppearance()
 		if ap then
-			for _,v in ipairs(ap:QueryDescendants("CharacterMesh")) do
+			for _,v in ipairs(NAmanage.qDesc(ap, "CharacterMesh")) do
 				v:Clone().Parent=char
 			end
 		end
@@ -47848,7 +48196,7 @@ cmd.add({"team"},{"team <team name>","Changes your team (for the client)"},funct
 		end)
 	end
 	if typeof(firetouchinterest)=="function" and root then
-		for _,spawnLocation in ipairs(workspace:QueryDescendants("SpawnLocation")) do
+		for _,spawnLocation in ipairs(NAmanage.qDesc(workspace, "SpawnLocation")) do
 			if spawnLocation.BrickColor==targetTeam.TeamColor and spawnLocation.AllowTeamChangeOnTouch then
 				pcall(firetouchinterest,spawnLocation,root,0)
 				Wait()
@@ -49183,7 +49531,7 @@ cmd.add({"stealaudio","getaudio","steal","logaudio"},{"stealaudio <player>","Sav
 	for _,plr in pairs(players)do
 		local char=plr and plr.Character
 		if char then
-			for _,snd in pairs(char:QueryDescendants("Sound"))do
+			for _,snd in pairs(NAmanage.qDesc(char, "Sound"))do
 				if snd.Playing then
 					ids[#ids+1]=snd.SoundId
 				end
@@ -49519,7 +49867,7 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 		_na_env.BlackholeActive=not _na_env.BlackholeActive
 		toggleBtn.Text=_na_env.BlackholeActive and "Disable Blackhole" or "Enable Blackhole"
 		if not _na_env.BlackholeActive then
-			for _,p in ipairs(workspace:QueryDescendants("BasePart")) do
+			for _,p in ipairs(NAmanage.qDesc(workspace, "BasePart")) do
 				if not p.Anchored then
 					for _,o in ipairs(p:GetChildren()) do
 						if o:IsA("AlignPosition") or o:IsA("Torque") or o:IsA("Attachment") then o:Destroy() end
@@ -52994,7 +53342,7 @@ end)
 
 cmd.add({"tools", "gears"}, {"tools (gears)", "Copies tools from ReplicatedStorage and Lighting"}, function()
 	function copyTools(source)
-		for _, item in pairs(source:QueryDescendants("Instance")) do
+		for _, item in pairs(NAmanage.qDesc(source, "Instance")) do
 			if item:IsA('Tool') or item:IsA('HopperBin') then
 				item:Clone().Parent = getBp()
 			end
@@ -54257,7 +54605,7 @@ originalIO.findToolImage=function(tool)
 		return direct
 	end
 
-	for _, desc in ipairs(tool:QueryDescendants("Instance")) do
+	for _, desc in ipairs(NAmanage.qDesc(tool, "Instance")) do
 		local image
 		if desc:IsA("Decal") or desc:IsA("Texture") then
 			image = originalIO.safeToolImage(desc, { "Texture" })
@@ -55717,7 +56065,7 @@ cmd.add({"loopcbring", "loppclientb", "loopclientbring", "lcbring", "lclientb"},
 	NAlib.connect("cbnoclip", RunService.RenderStepped:Connect(function()
 		local char = getChar()
 		if not char then return end
-		for _, descendant in pairs(char:QueryDescendants("BasePart")) do
+		for _, descendant in pairs(NAmanage.qDesc(char, "BasePart")) do
 			descendant.CanCollide = false
 		end
 	end))
@@ -55754,7 +56102,7 @@ cmd.add({"mute", "muteboombox"}, {"mute <player> (muteboombox)", "Mutes the play
 	if #pp == 0 then return end
 
 	local function NONOSOUND(container)
-		for _, descendant in ipairs(container:QueryDescendants("Sound")) do
+		for _, descendant in ipairs(NAmanage.qDesc(container, "Sound")) do
 			if descendant.Playing then
 				descendant.Playing = false
 			end
@@ -55827,7 +56175,7 @@ cmd.add({"loopmute", "loopmuteboombox"}, {"loopmute <player> (loopmuteboombox)",
 
 	local function mute(p)
 		if p and p.Character then
-			for _, d in ipairs(p.Character:QueryDescendants("Sound")) do
+			for _, d in ipairs(NAmanage.qDesc(p.Character, "Sound")) do
 				if d.Playing then
 					d.Playing = false
 				end
@@ -55835,7 +56183,7 @@ cmd.add({"loopmute", "loopmuteboombox"}, {"loopmute <player> (loopmuteboombox)",
 		end
 		local bp = p:FindFirstChildOfClass("Backpack")
 		if bp then
-			for _, d in ipairs(bp:QueryDescendants("Sound")) do
+			for _, d in ipairs(NAmanage.qDesc(bp, "Sound")) do
 				if d.Playing then
 					d.Playing = false
 				end
@@ -56045,7 +56393,7 @@ function NAmanage.nuhuhprompt(v)
 
 				disableGui(gui)
 
-				for _, x in ipairs(gui:QueryDescendants("ScreenGui")) do
+				for _, x in ipairs(NAmanage.qDesc(gui, "ScreenGui")) do
 					disableGui(x)
 				end
 
@@ -56135,7 +56483,7 @@ NAmanage._isFriendRequestFrame=function(inst)
 				end
 			end
 		end
-		for _, d in ipairs(container:QueryDescendants("Instance")) do
+		for _, d in ipairs(NAmanage.qDesc(container, "Instance")) do
 			checkBtn(d)
 			if foundAccept and foundDecline then break end
 		end
@@ -56144,7 +56492,7 @@ NAmanage._isFriendRequestFrame=function(inst)
 
 	local hasThumb = hasThumbImage(inst)
 	if not hasThumb then
-		for _, desc in ipairs(inst:QueryDescendants("Instance")) do
+		for _, desc in ipairs(NAmanage.qDesc(inst, "Instance")) do
 			if hasThumbImage(desc) then
 				hasThumb = true
 				break
@@ -56196,7 +56544,7 @@ NAmanage.setFriendRequestAutoDismiss = function(enable)
 					end
 
 					disableGuiObject(child)
-					for _, d in ipairs(child:QueryDescendants("GuiObject")) do
+					for _, d in ipairs(NAmanage.qDesc(child, "GuiObject")) do
 						disableGuiObject(d)
 					end
 				end
@@ -56446,7 +56794,7 @@ hiddenGUIS = hiddenGUIS or {}
 showPrev = showPrev or {}
 
 cmd.add({"hideguis"}, {"hideguis","Hides GUIs"}, function()
-	for _, guiElement in pairs(PlrGui:QueryDescendants("GuiObject")) do
+	for _, guiElement in pairs(NAmanage.qDesc(PlrGui, "GuiObject")) do
 		if guiElement.Visible then
 			guiElement.Visible = false
 			if not Discover(hiddenGUIS, guiElement) then
@@ -56466,7 +56814,7 @@ cmd.add({"unhideguis"}, {"unhideguis","Restores GUIs hidden by hideguis"}, funct
 end)
 
 cmd.add({"showguis"}, {"showguis","Enables every UI"}, function()
-	for _, inst in pairs(PlrGui:QueryDescendants("Instance")) do
+	for _, inst in pairs(NAmanage.qDesc(PlrGui, "Instance")) do
 		if inst:IsA("ScreenGui") then
 			if not showPrev[inst] then showPrev[inst] = {enabled = inst.Enabled} end
 			inst.Enabled = true
@@ -57191,7 +57539,7 @@ NAjobs._ensureTracked = function()
 		return
 	end
 	NAjobs._trackedReady = true
-	for _, inst in ipairs(workspace:QueryDescendants("Instance")) do
+	for _, inst in ipairs(NAmanage.qDesc(workspace, "Instance")) do
 		if inst:IsA("ProximityPrompt") then
 			NAjobs._trackedAdd("prompt", inst)
 		elseif inst:IsA("ClickDetector") then
@@ -58244,7 +58592,7 @@ cmd.add({"breakvelocity"},{"breakvelocity","Sets your character's velocity to ze
 	local zero=Vector3.zero
 	local stopAt=time()+1
 	repeat
-		for _,part in ipairs(char:QueryDescendants("BasePart")) do
+		for _,part in ipairs(NAmanage.qDesc(char, "BasePart")) do
 			NAlib.setProperty(part,"AssemblyLinearVelocity",zero)
 			NAlib.setProperty(part,"AssemblyAngularVelocity",zero)
 			NAlib.setProperty(part,"Velocity",zero)
@@ -58980,13 +59328,13 @@ cmd.add({"deletefind", "removefind", "delfind"}, {"deletefind {partname} (remove
 end, true)
 
 cmd.add({"deletelighting", "removelighting", "removel", "ldel"},{"deletelighting (removelighting, removel, ldel)","Removes all descendants (objects) within Lighting."},function()
-	for _, l in ipairs(__lt.cm("Lighting", "QueryDescendants", "Instance")) do
+	for _, l in ipairs(NAmanage.qDesc(Lighting, "Instance")) do
 		l:Destroy()
 	end
 end)
 
 cmd.add({"lightingdisable", "disablelighting", "ldisable"},{"lightingdisable (disablelighting, ldisable)", "Disables all post-processing effects in Lighting instead of deleting them."},function()
-	for _, inst in ipairs(__lt.cm("Lighting", "QueryDescendants", "PostEffect")) do
+	for _, inst in ipairs(NAmanage.qDesc(Lighting, "PostEffect")) do
 		inst.Enabled = false
 	end
 end)
@@ -59388,7 +59736,7 @@ cmd.add({"chardelete", "charremove", "chardel", "cdelete", "cremove", "cdel"}, {
 	local targetName = Concat(args, " "):lower()
 	local deleteCount = 0
 
-	for _, part in pairs(Player.Character:QueryDescendants("Instance")) do
+	for _, part in pairs(NAmanage.qDesc(Player.Character, "Instance")) do
 		if part.Name:lower() == targetName then
 			part:Destroy()
 			deleteCount = deleteCount + 1
@@ -59408,7 +59756,7 @@ cmd.add({"chardeletefind", "charremovefind", "chardelfind", "cdeletefind", "crem
 	local kw = Concat(args, " "):lower()
 	local count = 0
 
-	for _, obj in pairs(Player.Character:QueryDescendants("Instance")) do
+	for _, obj in pairs(NAmanage.qDesc(Player.Character, "Instance")) do
 		if obj.Name:lower():find(kw) then
 			obj:Destroy()
 			count = count + 1
@@ -59428,7 +59776,7 @@ cmd.add({"chardeleteclass", "charremoveclass", "chardeleteclassname", "cdc"}, {"
 	local targetClass = args[1]:lower()
 	local deleteCount = 0
 
-	for _, part in pairs(Player.Character:QueryDescendants("Instance")) do
+	for _, part in pairs(NAmanage.qDesc(Player.Character, "Instance")) do
 		if part.ClassName:lower() == targetClass then
 			part:Destroy()
 			deleteCount = deleteCount + 1
@@ -59746,7 +60094,7 @@ do
 	end;
 	function gotoNext.collectFolderParts(folder)
 		local parts = {};
-		for _, descendant in ipairs(folder:QueryDescendants("BasePart")) do
+		for _, descendant in ipairs(NAmanage.qDesc(folder, "BasePart")) do
 			Insert(parts, descendant);
 		end;
 		table.sort(parts, function(a, b)
@@ -60179,7 +60527,7 @@ cmd.add({"gotopart", "topart", "toprt"}, {"gotopart {partname}", "Teleports you 
 
 	SpawnCall(function()
 		local partDelay = NAmanage.tpDelay()
-		for _, part in pairs(workspace:QueryDescendants("BasePart")) do
+		for _, part in pairs(NAmanage.qDesc(workspace, "BasePart")) do
 			if not taskState.active then return end
 			if part.Name:lower() == partName then
 				if getHum() then getHum().Sit = false Wait(0.1) end
@@ -60202,7 +60550,7 @@ cmd.add({"tweengotopart","tgotopart","ttopart","ttoprt"},{"tweengotopart <partNa
 	local tweenAttrCurrent = "NATweenGoToPartCurrentCF"
 	SpawnCall(function()
 		local partDelay = NAmanage.tpDelay()
-		for _,obj in ipairs(workspace:QueryDescendants("BasePart")) do
+		for _,obj in ipairs(NAmanage.qDesc(workspace, "BasePart")) do
 			if not state.active then return end
 			if obj.Name:lower() == partName then
 				local hum = getHum()
@@ -60268,7 +60616,7 @@ cmd.add({"gotopartfind", "topartfind", "toprtfind"}, {"gotopartfind {name}", "Te
 
 	SpawnCall(function()
 		local partDelay = NAmanage.tpDelay()
-		for _, part in pairs(workspace:QueryDescendants("BasePart")) do
+		for _, part in pairs(NAmanage.qDesc(workspace, "BasePart")) do
 			if not taskState.active then return end
 			if part.Name:lower():find(name) then
 				if getHum() then getHum().Sit = false Wait(0.1) end
@@ -60292,7 +60640,7 @@ cmd.add({"tweengotopartfind", "tgotopartfind", "ttopartfind", "ttoprtfind"}, {"t
 
 	SpawnCall(function()
 		local partDelay = NAmanage.tpDelay()
-		for _, part in pairs(workspace:QueryDescendants("BasePart")) do
+		for _, part in pairs(NAmanage.qDesc(workspace, "BasePart")) do
 			if not taskState.active then return end
 			if part.Name:lower():find(name) then
 				local hum = getHum()
@@ -60326,7 +60674,7 @@ cmd.add({"gotopartclass", "gpc", "gotopartc", "gotoprtc"}, {"gotopartclass {clas
 
 	SpawnCall(function()
 		local partDelay = NAmanage.tpDelay()
-		for _, part in pairs(workspace:QueryDescendants("BasePart")) do
+		for _, part in pairs(NAmanage.qDesc(workspace, "BasePart")) do
 			if not taskState.active then return end
 			if part.ClassName:lower() == className then
 				if getHum() then getHum().Sit = false Wait(0.1) end
@@ -60340,7 +60688,7 @@ end, true)
 cmd.add({"bringpart", "bpart", "bprt"}, {"bringpart {partname} (bpart, bprt)", "Brings a part to your character by name"}, function(...)
 	local partName = Concat({...}, " "):lower()
 
-	for _, part in pairs(workspace:QueryDescendants("BasePart")) do
+	for _, part in pairs(NAmanage.qDesc(workspace, "BasePart")) do
 		if part.Name:lower() == partName then
 			if getChar() then
 				part:PivotTo(getChar():GetPivot())
@@ -60357,7 +60705,7 @@ cmd.add({"bringpartfind","bpartfind","bprtfind"},{"bringpartfind {name} (bpartfi
 	if not char then return end
 	local pivot = char:GetPivot()
 
-	for _, part in ipairs(workspace:QueryDescendants("BasePart")) do
+	for _, part in ipairs(NAmanage.qDesc(workspace, "BasePart")) do
 		local n = part.Name:lower()
 		if Find(n, name, 1, true) ~= nil then
 			part:PivotTo(pivot)
@@ -60368,7 +60716,7 @@ end,true)
 cmd.add({"bringmodel", "bmodel"}, {"bringmodel {modelname} (bmodel)", "Brings a model to your character by name"}, function(...)
 	local modelName = Concat({...}, " "):lower()
 
-	for _, model in pairs(workspace:QueryDescendants("Model")) do
+	for _, model in pairs(NAmanage.qDesc(workspace, "Model")) do
 		if model.Name:lower() == modelName then
 			if getChar() then
 				model:PivotTo(getChar():GetPivot())
@@ -60385,7 +60733,7 @@ cmd.add({"bringmodelfind","bmodelfind"},{"bringmodelfind {name} (bmodelfind)","B
 	if not char then return end
 	local pivot = char:GetPivot()
 
-	for _, model in ipairs(workspace:QueryDescendants("Model")) do
+	for _, model in ipairs(NAmanage.qDesc(workspace, "Model")) do
 		local n = model.Name:lower()
 		if Find(n, name, 1, true) ~= nil then
 			model:PivotTo(pivot)
@@ -60401,18 +60749,18 @@ cmd.add({"bringfolder","bfldr"},{"bringfolder {folderName} [partName] (bfldr)","
 	local folder, partFilter
 	do
 		local nameAll = Concat(lower," ")
-		for _,obj in ipairs(workspace:QueryDescendants("Folder")) do
+		for _,obj in ipairs(NAmanage.qDesc(workspace, "Folder")) do
 			if obj.Name:lower() == nameAll then folder = obj break end
 		end
 		if not folder and #lower>=2 then
 			local nameWithoutLast = Concat(lower," ",1,#lower-1)
 			local last = lower[#lower]
-			for _,obj in ipairs(workspace:QueryDescendants("Folder")) do
+			for _,obj in ipairs(NAmanage.qDesc(workspace, "Folder")) do
 				if obj.Name:lower() == nameWithoutLast then folder = obj partFilter = last break end
 			end
 		end
 		if not folder then
-			for _,obj in ipairs(workspace:QueryDescendants("Folder")) do
+			for _,obj in ipairs(NAmanage.qDesc(workspace, "Folder")) do
 				if obj.Name:lower() == lower[1] then folder = obj break end
 			end
 			if folder and #lower>1 then
@@ -60424,7 +60772,7 @@ cmd.add({"bringfolder","bfldr"},{"bringfolder {folderName} [partName] (bfldr)","
 	local char = getChar()
 	if not char then return end
 	local pivot = char:GetPivot()
-	for _,desc in ipairs(folder:QueryDescendants("BasePart")) do
+	for _,desc in ipairs(NAmanage.qDesc(folder, "BasePart")) do
 		local ok = true
 		if partFilter and partFilter ~= "" then
 			local n = desc.Name:lower()
@@ -60449,7 +60797,7 @@ cmd.add({"gotomodel", "tomodel"}, {"gotomodel {modelname}", "Teleports to each m
 
 	SpawnCall(function()
 		local partDelay = NAmanage.tpDelay()
-		for _, model in pairs(workspace:QueryDescendants("Model")) do
+		for _, model in pairs(NAmanage.qDesc(workspace, "Model")) do
 			if not taskState.active then return end
 			if model.Name:lower() == modelName then
 				if getHum() then getHum().Sit = false Wait(0.1) end
@@ -60473,7 +60821,7 @@ cmd.add({"gotomodelfind", "tomodelfind"}, {"gotomodelfind {name}", "Teleports to
 
 	SpawnCall(function()
 		local partDelay = NAmanage.tpDelay()
-		for _, model in pairs(workspace:QueryDescendants("Model")) do
+		for _, model in pairs(NAmanage.qDesc(workspace, "Model")) do
 			if not taskState.active then return end
 			if model.Name:lower():find(name) then
 				if getHum() then getHum().Sit = false Wait(0.1) end
@@ -60488,7 +60836,7 @@ cmd.add({"gotomodelfind", "tomodelfind"}, {"gotomodelfind {name} (tomodelfind)",
 	local name = Concat({...}, " "):lower()
 	local partDelay = NAmanage.tpDelay()
 
-	for _, model in pairs(workspace:QueryDescendants("Model")) do
+	for _, model in pairs(NAmanage.qDesc(workspace, "Model")) do
 		if model.Name:lower():find(name) then
 			if getHum() then
 				getHum().Sit = false
@@ -60514,11 +60862,11 @@ cmd.add({"gotofolder","gofldr"},{"gotofolder {folderName}","Teleports you to all
 	SpawnCall(function()
 		local partDelay = NAmanage.tpDelay()
 		local folder
-		for _,obj in ipairs(workspace:QueryDescendants("Folder")) do
+		for _,obj in ipairs(NAmanage.qDesc(workspace, "Folder")) do
 			if obj.Name:lower() == folderName then folder = obj break end
 		end
 		if not folder then return end
-		for _,desc in ipairs(folder:QueryDescendants("BasePart")) do
+		for _,desc in ipairs(NAmanage.qDesc(folder, "BasePart")) do
 			if not state.active then return end
 			local hum = getHum()
 			if hum then hum.Sit = false Wait(0.1) end
@@ -61047,7 +61395,7 @@ NAmanage.EnableEsp = function(objType, color, list)
 		NAmanage.RecolorPartESPList(list, currentColor())
 		return
 	end
-	for _,obj in ipairs(workspace:QueryDescendants(objType)) do
+	for _,obj in ipairs(NAmanage.qDesc(workspace, objType)) do
 		local parent = obj:FindFirstAncestorWhichIsA("BasePart") or obj:FindFirstAncestorWhichIsA("Model")
 		if parent then
 			objectMap[obj] = parent
@@ -63259,8 +63607,8 @@ NAmanage.ModelESP_Enable = function(model)
 		end
 	end
 
-	NAlib.connect(key, model.DescendantAdded:Connect(onAdded))
-	NAlib.connect(key, model.DescendantRemoving:Connect(onRemoving))
+	NAlib.connect(key, NAmanage.descAdd(model, onAdded))
+	NAlib.connect(key, NAmanage.descRem(model, onRemoving))
 	NAlib.connect(key, model.AncestryChanged:Connect(function(_, parentNow)
 		if not parentNow then
 			NAmanage.ModelESP_Disable(model)
@@ -63745,13 +64093,13 @@ cmd.add({"viewpart", "viewp", "vpart"}, {"viewpart {partName} (viewp, vpart)", "
 	local ws = workspace
 	local camera = ws.CurrentCamera
 
-	for _, obj in ipairs(ws:QueryDescendants("Instance")) do
+	for _, obj in ipairs(NAmanage.qDesc(ws, "Instance")) do
 		if obj.Name:lower() == partName then
 			if obj:IsA("BasePart") then
 				camera.CameraSubject = obj
 				return
 			elseif obj:IsA("Model") or obj:IsA("Folder") then
-				for _, child in ipairs(obj:QueryDescendants("BasePart")) do
+				for _, child in ipairs(NAmanage.qDesc(obj, "BasePart")) do
 					camera.CameraSubject = child
 					return
 				end
@@ -63775,13 +64123,13 @@ cmd.add({"viewpartfind", "viewpfind", "vpartfind"}, {"viewpartfind {name} (viewp
 	local ws = workspace
 	local cam = ws.CurrentCamera
 
-	for _, obj in ipairs(ws:QueryDescendants("Instance")) do
+	for _, obj in ipairs(NAmanage.qDesc(ws, "Instance")) do
 		if obj.Name:lower():find(name) then
 			if obj:IsA("BasePart") then
 				cam.CameraSubject = obj
 				return
 			elseif obj:IsA("Model") or obj:IsA("Folder") then
-				for _, child in ipairs(obj:QueryDescendants("BasePart")) do
+				for _, child in ipairs(NAmanage.qDesc(obj, "BasePart")) do
 					cam.CameraSubject = child
 					return
 				end
@@ -64622,7 +64970,7 @@ cmd.add({"unhitbox","unhbox"}, {"unhitbox <player>",""}, function(pArg)
 		local ch = GetChar(k)
 		if ch and ch.Parent then
 			local mp = D.og[k]
-			for _, bp in ipairs(ch:QueryDescendants("BasePart")) do
+			for _, bp in ipairs(NAmanage.qDesc(ch, "BasePart")) do
 				local pr = mp and mp[bp] or nil
 				RestorePart(bp, pr)
 			end
@@ -64649,7 +64997,7 @@ cmd.add({"unhitbox","unhbox"}, {"unhitbox <player>",""}, function(pArg)
 		local ch = GetChar(k)
 		if ch and ch.Parent then
 			local mp = D.og[k]
-			for _, bp in ipairs(ch:QueryDescendants("BasePart")) do
+			for _, bp in ipairs(NAmanage.qDesc(ch, "BasePart")) do
 				local pr = mp and mp[bp] or nil
 				RestorePart(bp, pr)
 			end
@@ -64816,7 +65164,7 @@ cmd.add({"partsize","psize","sizepart"},{"partsize {name} {size}", "Grow a part 
 		NAmanage.resizePart(p, sizeVec, NAStuff.PST.exact)
 	end
 	for _, m in ipairs(elser) do
-		for _, d in ipairs(m:QueryDescendants("BasePart")) do
+		for _, d in ipairs(NAmanage.qDesc(m, "BasePart")) do
 			NAmanage.resizePart(d, sizeVec, NAStuff.PST.exact)
 		end
 	end
@@ -64833,7 +65181,7 @@ cmd.add({"partsize","psize","sizepart"},{"partsize {name} {size}", "Grow a part 
 			else
 				local sz = NAStuff.PST.sizeE[Lower(obj.Name)]
 				if sz then
-					for _, d in ipairs(obj:QueryDescendants("BasePart")) do
+					for _, d in ipairs(NAmanage.qDesc(obj, "BasePart")) do
 						NAmanage.resizePart(d, sz, NAStuff.PST.exact)
 					end
 				end
@@ -64862,7 +65210,7 @@ cmd.add({"partsizefind","psizefind","sizefind","partsizef"},{"partsizefind {term
 		NAmanage.resizePart(p, sizeVec, PST.partial)
 	end
 	for _, m in ipairs(elser) do
-		for _, d in ipairs(m:QueryDescendants("BasePart")) do
+		for _, d in ipairs(NAmanage.qDesc(m, "BasePart")) do
 			NAmanage.resizePart(d, sizeVec, PST.partial)
 		end
 	end
@@ -64880,7 +65228,7 @@ cmd.add({"partsizefind","psizefind","sizefind","partsizef"},{"partsizefind {term
 			else
 				for t, sz in pairs(PST.sizeP) do
 					if Lower(obj.Name):find(t) then
-						for _, d in ipairs(obj:QueryDescendants("BasePart")) do
+						for _, d in ipairs(NAmanage.qDesc(obj, "BasePart")) do
 							NAmanage.resizePart(d, sz, PST.partial)
 						end
 						return
@@ -65760,7 +66108,7 @@ cmd.add({"loopnoeffect","lnoeffect","loopne","lne"},{"loopnoeffect","Keeps Light
 		end
 	end
 	local function processLighting()
-		for _,inst in ipairs(__lt.cm("Lighting", "QueryDescendants", "Instance")) do disableEffect(inst) end
+		for _,inst in ipairs(NAmanage.qDesc(Lighting, "Instance")) do disableEffect(inst) end
 	end
 	local function processCamera()
 		local cam = w.CurrentCamera
@@ -65771,7 +66119,7 @@ cmd.add({"loopnoeffect","lnoeffect","loopne","lne"},{"loopnoeffect","Keeps Light
 		if ne.lastCamera~=cam then
 			ne.lastCamera=cam
 		end
-		for _,inst in ipairs(cam:QueryDescendants("Instance")) do disableEffect(inst) end
+		for _,inst in ipairs(NAmanage.qDesc(cam, "Instance")) do disableEffect(inst) end
 	end
 	local function attachCameraWatcher()
 		if ne.camDescConn then
@@ -65861,10 +66209,10 @@ cmd.add({"noeffect","cleareffects","disableeffects"},{"noeffect","Disables Light
 			if glare~=nil and glare~=0 then st.safeSet(inst,"Glare",0) end
 		end
 	end
-	for _,inst in ipairs(__lt.cm("Lighting", "QueryDescendants", "Instance")) do disableEffect(inst) end
+	for _,inst in ipairs(NAmanage.qDesc(Lighting, "Instance")) do disableEffect(inst) end
 	local cam = workspace.CurrentCamera
 	if cam then
-		for _,inst in ipairs(cam:QueryDescendants("Instance")) do disableEffect(inst) end
+		for _,inst in ipairs(NAmanage.qDesc(cam, "Instance")) do disableEffect(inst) end
 	end
 end)
 
@@ -65919,7 +66267,7 @@ cmd.add({"loopnofog","lnofog","lnf","loopnf"},{"loopnofog","See clearly forever!
 				scanAccumulator = scanAccumulator + dt
 				if scanAccumulator >= 0.5 then
 					scanAccumulator = 0
-					for _, inst in ipairs(__lt.cm("Lighting", "QueryDescendants", "Instance")) do
+					for _, inst in ipairs(NAmanage.qDesc(Lighting, "Instance")) do
 						disableEffect(inst)
 					end
 				end
@@ -65932,7 +66280,7 @@ cmd.add({"loopnofog","lnofog","lnf","loopnf"},{"loopnofog","See clearly forever!
 	nf.baselineFogStart = st.safeGet(Lighting,"FogStart") or nf.baselineFogStart
 	st.safeSet(Lighting,"FogEnd",786543)
 	st.safeSet(Lighting,"FogStart",0)
-	for _,v in ipairs(__lt.cm("Lighting", "QueryDescendants", "Instance")) do disableEffect(v) end
+	for _,v in ipairs(NAmanage.qDesc(Lighting, "Instance")) do disableEffect(v) end
 end)
 
 cmd.add({"unloopnofog","unlnofog","unlnf","unloopnf","unnf"},{"unloopnofog","No more sight."},function()
@@ -65975,7 +66323,7 @@ cmd.add({"nofog"},{"nofog","Removes all fog from the game"},function()
 	end
 	st.safeSet(Lighting,"FogEnd",786543)
 	if st.safeGet(Lighting,"FogStart")~=nil then st.safeSet(Lighting,"FogStart",0) end
-	for _,v in ipairs(__lt.cm("Lighting", "QueryDescendants", "Instance")) do disableEffect(v) end
+	for _,v in ipairs(NAmanage.qDesc(Lighting, "Instance")) do disableEffect(v) end
 end)
 
 cmd.add({"nightmare","nm"},{"nightmare","Make it dark and spooky"},function()
@@ -66557,7 +66905,7 @@ cmd.add({"invisible", "invis"},{"invisible (invis)", "Sets invisibility to scare
 			IsInvis = true
 			InvisibleCharacter = Character:Clone()
 			InvisibleCharacter.Parent = workspace
-			for _, v in ipairs(InvisibleCharacter:QueryDescendants("BasePart")) do
+			for _, v in ipairs(NAmanage.qDesc(InvisibleCharacter, "BasePart")) do
 				v.Transparency = v.Name:lower() == "humanoidrootpart" and 1 or 0.5
 			end
 			local root = getRoot(Character)
@@ -67259,7 +67607,7 @@ cmd.add({"blockremote","br"},{"blockremote [name]","Block a remote event/functio
 	local function scanAll()
 		local list, seen = {}, {}
 		local function scan(parent)
-			for _, obj in ipairs(parent:QueryDescendants("Instance")) do
+			for _, obj in ipairs(NAmanage.qDesc(parent, "Instance")) do
 				if (obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction")) and not seen[obj] then
 					seen[obj] = true
 					Insert(list, obj)
@@ -68638,7 +68986,7 @@ end)
 
 cmd.add({"npcwalkspeed","npcws"},{"npcwalkspeed <speed>","Sets all NPC WalkSpeed to <speed> (default 16)"},function(speedStr)
 	local speed = tonumber(speedStr) or 16
-	for _, hum in pairs(workspace:QueryDescendants("Humanoid")) do
+	for _, hum in pairs(NAmanage.qDesc(workspace, "Humanoid")) do
 		if CheckIfNPC(hum.Parent) then
 			local root = getRoot(hum.Parent)
 			if root then hum.WalkSpeed = speed end
@@ -68648,7 +68996,7 @@ end,true)
 
 cmd.add({"npcjumppower","npcjp"},{"npcjumppower <power>","Sets all NPC JumpPower to <power> (default 50)"},function(powerStr)
 	local power=tonumber(powerStr) or 50
-	for _,hum in pairs(workspace:QueryDescendants("Humanoid")) do
+	for _,hum in pairs(NAmanage.qDesc(workspace, "Humanoid")) do
 		if CheckIfNPC(hum.Parent) then
 			local root=getRoot(hum.Parent)
 			if root then hum.JumpPower=power end
@@ -68677,7 +69025,7 @@ npcCache = {}
 cmd.add({"loopbringnpcs", "lbnpcs"}, {"loopbringnpcs (lbnpcs)", "Loops NPC bringing"}, function()
 	if NAlib.isConnected("loopbringnpcs") then NAlib.disconnect("loopbringnpcs") end
 	table.clear(npcCache)
-	for _, hum in ipairs(workspace:QueryDescendants("Humanoid")) do
+	for _, hum in ipairs(NAmanage.qDesc(workspace, "Humanoid")) do
 		if CheckIfNPC(hum.Parent) then
 			Insert(npcCache, hum)
 		end
@@ -68693,7 +69041,7 @@ cmd.add({"loopbringnpcs", "lbnpcs"}, {"loopbringnpcs (lbnpcs)", "Loops NPC bring
 					rootPart.CFrame = localRoot.CFrame
 				end
 				SpawnCall(function()
-					for _, part in ipairs(model:QueryDescendants("BasePart")) do
+					for _, part in ipairs(NAmanage.qDesc(model, "BasePart")) do
 						if NAlib.isProperty(part, "CanCollide") then
 							NAlib.setProperty(part, "CanCollide", false)
 						end
@@ -68711,7 +69059,7 @@ end)
 cmd.add({"gotonpcs"}, {"gotonpcs", "Teleports to each NPC"}, function()
 	local LocalPlayer = Players.LocalPlayer
 	local npcs = {}
-	for _, d in pairs(workspace:QueryDescendants("Humanoid")) do
+	for _, d in pairs(NAmanage.qDesc(workspace, "Humanoid")) do
 		if CheckIfNPC(d.Parent) then
 			local root = getRoot(d.Parent)
 			if root then
@@ -68882,7 +69230,7 @@ cmd.add({"unclickkillnpc", "uncknpc"}, {"unclickkillnpc (uncknpc)", "Disable cli
 end)
 
 cmd.add({"voidnpcs", "vnpcs"}, {"voidnpcs (vnpcs)", "Teleports NPC's to void"}, function()
-	for _, d in ipairs(workspace:QueryDescendants("Humanoid")) do
+	for _, d in ipairs(NAmanage.qDesc(workspace, "Humanoid")) do
 		if CheckIfNPC(d.Parent) then
 			local root = getPlrHum(d.Parent)
 			if root then
@@ -70984,7 +71332,7 @@ NAgui.addTab=function(name, options)
 end
 
 SpawnCall(function()
-	for _,v in ipairs(NAStuff.NASCREENGUI:QueryDescendants("UIStroke")) do
+	for _,v in ipairs(NAmanage.qDesc(NAStuff.NASCREENGUI, "UIStroke")) do
 		NAgui.RegisterColoredStroke(v)
 	end
 end)
@@ -71013,7 +71361,7 @@ predictionInput.PlaceholderText = ""
 opt.NAAUTOSCALER = NAUIMANAGER.AUTOSCALER
 
 	--[[NACaller(function()
-		for i,v in pairs(NAStuff.NASCREENGUI:QueryDescendants("Instance")) do
+		for i,v in pairs(NAmanage.qDesc(NAStuff.NASCREENGUI, "Instance")) do
 			coreGuiProtection[v]=rPlayer.Name
 		end
 		NAStuff.NASCREENGUI.DescendantAdded:Connect(function(v)
@@ -71187,12 +71535,22 @@ NAgui.txtSize=function(ui,x,y)
 
 	return Vector2.new(0, 0)
 end
+NAmanage.cmdYield=function(i, budget)
+	budget = tonumber(budget) or 120
+	if budget > 0 and i > 0 and i % budget == 0 then
+		Wait()
+	end
+end
+
 NAmanage.buildCommandEntries=function()
 	local entries = {}
 	local metaByName = {}
 	local used = {}
 	local aliasByFunc = {}
+	local aliasStep = 0
 	for alias, data in pairs(cmds.Aliases or {}) do
+		aliasStep += 1
+		NAmanage.cmdYield(aliasStep, 180)
 		local func = type(data) == "table" and data[1]
 		if func then
 			local bucket = aliasByFunc[func]
@@ -71302,13 +71660,17 @@ NAmanage.buildCommandEntries=function()
 		}
 	end
 
+	local cmdStep = 0
 	for name, data in pairs(cmds.Commands) do
+		cmdStep += 1
 		addNACommand(name, data)
+		NAmanage.cmdYield(cmdStep, 120)
 	end
 
 	local cmdList = NAStuff.CmdIntegrationCommands
 	if type(cmdList) == "table" then
-		for _, info in ipairs(cmdList) do
+		for cmdInfoIndex, info in ipairs(cmdList) do
+			NAmanage.cmdYield(cmdInfoIndex, 120)
 			local baseName = info and info.name
 			if baseName then
 				baseName = tostring(baseName)
@@ -71403,22 +71765,14 @@ local COMMAND_LIST_TOP_PADDING = 5
 local COMMAND_OVERSCAN_ROWS = 8
 
 local function shouldUseStaticCommandList()
-	if IsOnMobile == true then
-		return true
-	end
-	if UserInputService and UserInputService.TouchEnabled then
-		return true
-	end
-	local camera = workspace and workspace.CurrentCamera
-	local viewport = camera and camera.ViewportSize
-	if viewport then
-		local shortSide = math.min(tonumber(viewport.X) or 0, tonumber(viewport.Y) or 0)
-		local longSide = math.max(tonumber(viewport.X) or 0, tonumber(viewport.Y) or 0)
-		if shortSide > 0 and shortSide <= 420 and longSide <= 900 then
-			return true
-		end
-	end
 	return false
+end
+
+function NAmanage.cmdYield(i, budget)
+	budget = tonumber(budget) or 120
+	if budget > 0 and i > 0 and i % budget == 0 then
+		Wait()
+	end
 end
 
 local function createCommandListLabel(state)
@@ -71797,18 +72151,22 @@ NAgui.commands = function()
 		return
 	end
 
-	state.entries = NAmanage.buildCommandEntries() or {}
-	state.filteredEntries = state.entries
+	local entries = NAStuff.AutofillEntries
+	if type(entries) ~= "table" or NAmanage.totalCommandCount() ~= cmdNAnum then
+		entries = NAmanage.buildCommandEntries() or {}
+		NAStuff.AutofillEntries = entries
+	end
+	state.entries = entries
+	state.filteredEntries = entries
 	NAStuff.CommandFilterEntries = nil
-	if state.staticMode then
-		rebuildStaticCommandLabels(state)
-	end
 
-	if NAgui.filterCommandList then
-		NAgui.filterCommandList(NAUIMANAGER.commandsFilter and NAUIMANAGER.commandsFilter.Text or "")
-	else
-		NAmanage.syncVisibleCommandRows(state)
-	end
+	Defer(function()
+		if NAgui.filterCommandList then
+			NAgui.filterCommandList(NAUIMANAGER.commandsFilter and NAUIMANAGER.commandsFilter.Text or "")
+		else
+			NAmanage.syncVisibleCommandRows(state)
+		end
+	end)
 end
 NAgui.chatlogs = function()
 	if NAUIMANAGER.chatLogsFrame then
@@ -72634,7 +72992,7 @@ NAgui.addToggle = function(lbl, def, cb, opt)
 		cbtn.Parent = chip
 
 		chip.ZIndex = it.ZIndex + 1
-		for _, d in ipairs(chip:QueryDescendants("GuiObject")) do
+		for _, d in ipairs(NAmanage.qDesc(chip, "GuiObject")) do
 			d.ZIndex = it.ZIndex + 2
 		end
 		cbtn.ZIndex = it.ZIndex + 3
@@ -72652,7 +73010,7 @@ NAgui.addToggle = function(lbl, def, cb, opt)
 	NAmanage.SetSearch.tag(tgl, lbl)
 	tgl.Parent = NAUIMANAGER.SettingsList
 	tgl.ZIndex = 1
-	for _, d in ipairs(tgl:QueryDescendants("GuiObject")) do
+	for _, d in ipairs(NAmanage.qDesc(tgl, "GuiObject")) do
 		d.ZIndex = d == it and 999999 or d.ZIndex
 	end
 	tgl.LayoutOrder = NAgui._nextLayoutOrder()
@@ -76576,7 +76934,16 @@ NAmanage.applyCmdAutofillFill = function(frame)
 		local inputObj = frame:FindFirstChild("Input")
 		raw = (inputObj and inputObj.Text) or frame.Text or ""
 	end
-	local sanitizedText = NAmanage.stripChar(raw)
+	local cmdText = NAUIMANAGER.cmdInput.Text or ""
+	local ctx = NAmanage.getCmdAutofillContext and NAmanage.getCmdAutofillContext(cmdText) or nil
+	local sanitizedText
+	if NAmanage.composeCmdAutofillText then
+		sanitizedText = NAmanage.composeCmdAutofillText(ctx, raw)
+	else
+		sanitizedText = NAmanage.stripChar(raw)
+	end
+	sanitizedText = NAmanage.stripChar(sanitizedText)
+	NAStuff.lastCmdAutofillCompletion = sanitizedText
 	task.defer(function()
 		if IsOnMobile then
 			NAStuff.cmdFocusGuardUntil = os.clock() + 0.45
@@ -77127,7 +77494,8 @@ NAmanage.computeScore=function(entry,term,len,aliasExact,savedExact,aliasPrefix,
 	end
 end
 
-NAmanage.performSearch = function(term)
+NAmanage.performSearch = function(term, ctx)
+	ctx = ctx or NAmanage.getCmdAutofillContext((NAUIMANAGER and NAUIMANAGER.cmdInput and NAUIMANAGER.cmdInput.Text) or term or "")
 	for _, f in ipairs(prevVisible) do f.Visible = false end
 	table.clear(prevVisible)
 	table.clear(results)
@@ -77168,6 +77536,7 @@ NAmanage.performSearch = function(term)
 
 	if term == "" or Match(term, "^%s*$") then
 		predictionInput.Text = ""
+		NAStuff.lastCmdAutofillCompletion = ""
 		if shouldShowDefaultAutofill then
 			shouldShowDefaultAutofill = false
 			local displayed = 0
@@ -77278,7 +77647,9 @@ NAmanage.performSearch = function(term)
 	end
 
 	local topText = (results[1] and results[1].text) or ""
-	predictionInput.Text = NAmanage.stripChar(topText)
+	local fullText = NAmanage.composeCmdAutofillText(ctx, topText)
+	NAStuff.lastCmdAutofillCompletion = fullText
+	predictionInput.Text = NAmanage.stripChar(fullText)
 
 	for i = 1, #results do
 		local r = results[i]
@@ -77298,9 +77669,9 @@ NAgui.searchCommands = function()
 		if suspendedUntil > 0 and os.clock() < suspendedUntil then
 			return
 		end
+		local ctx = NAmanage.getCmdAutofillContext(NAUIMANAGER.cmdInput.Text)
+		local query = ctx.query or ""
 		local cleaned = Lower(GSub(NAUIMANAGER.cmdInput.Text,";",""))
-		local trimmed = cleaned:gsub("%s+$", "")
-		local query = (trimmed ~= "" and trimmed) or cleaned
 		shouldShowDefaultAutofill = cleaned == ""
 		if query == lastSearchText then
 			return
@@ -77329,7 +77700,7 @@ NAgui.searchCommands = function()
 			if not focused and NAStuff.cmdBarSelected ~= true then
 				return
 			end
-			NAmanage.performSearch(query)
+			NAmanage.performSearch(query, ctx)
 		end)
 	end))
 end
@@ -77339,13 +77710,11 @@ NAgui.searchCommands()
 
 NAgui.autoFILLLL=function()
 	if not NAUIMANAGER.cmdInput then return end
-	local current = NAUIMANAGER.cmdInput.Text or ""
-	local cleaned = Lower(GSub(current, ";", ""))
-	local trimmed = cleaned:gsub("%s+$", "")
-	local query = (trimmed ~= "" and trimmed) or cleaned
+	local ctx = NAmanage.getCmdAutofillContext(NAUIMANAGER.cmdInput.Text or "")
+	local query = ctx.query or ""
 	lastSearchText = query
 	gen += 1
-	NAmanage.performSearch(query)
+	NAmanage.performSearch(query, ctx)
 end
 
 if NAUIMANAGER.cmdInput then
@@ -77472,7 +77841,7 @@ NAlib.connect("cmdbar_hotkeys", UserInputService.InputBegan:Connect(function(i, 
 	end
 	if i.KeyCode == Enum.KeyCode.Tab
 		and __lt.cm("UserInputService", "GetFocusedTextBox") == (NAUIMANAGER and NAUIMANAGER.cmdInput) then
-		local predictionText = predictionInput and predictionInput.Text or ""
+		local predictionText = (NAStuff and NAStuff.lastCmdAutofillCompletion) or (predictionInput and predictionInput.Text) or ""
 		if predictionText ~= "" then
 			Defer(function()
 				local box = NAUIMANAGER and NAUIMANAGER.cmdInput
@@ -77482,6 +77851,7 @@ NAlib.connect("cmdbar_hotkeys", UserInputService.InputBegan:Connect(function(i, 
 				local sanitizedText = NAmanage.stripChar(predictionText)
 				box.Text = sanitizedText
 				box.CursorPosition = #sanitizedText + 1
+				NAStuff.lastCmdAutofillCompletion = ""
 				predictionInput.Text = ""
 			end)
 		end
@@ -79362,6 +79732,7 @@ NAgui.filterCommandList = function(rawText)
 
 	local filtered = {}
 	for i = 1, #entries do
+		NAmanage.cmdYield(i, 180)
 		local entry = entries[i]
 		if entry then
 			local meta = entry.meta or {}
@@ -80207,7 +80578,7 @@ originalIO.naTransLatooor=function()
 			return nil
 		end
 
-		for _, obj in ipairs(root:QueryDescendants("Instance")) do
+		for _, obj in ipairs(NAmanage.qDesc(root, "Instance")) do
 			local _, rowTab = findTaggedSettingsAncestor(obj, root)
 			local isFflagsRow = rowTab == (NA_TABS and NA_TABS.TAB_FFLAGS or "FFlags")
 
@@ -84680,7 +85051,7 @@ NAmanage.bindRobloxDevConsoleCopyButtons = NAmanage.bindRobloxDevConsoleCopyButt
 	local function collectCopyText(label)
 		local host = resolveHost(label)
 		local labels = {}
-		for _, desc in ipairs(host:GetDescendants()) do
+		for _, desc in ipairs(NAmanage.qDesc(host, "Instance")) do
 			if desc:IsA("TextLabel") then
 				local text = tostring(desc.Text or ""):match("^%s*(.-)%s*$")
 				if text ~= "" then
@@ -84799,7 +85170,7 @@ NAmanage.bindRobloxDevConsoleCopyButtons = NAmanage.bindRobloxDevConsoleCopyButt
 		setMark(host, "NA_RBXDevConsoleCopyBound", true)
 	end
 	local function scan(root)
-		for _, desc in ipairs(root:GetDescendants()) do
+		for _, desc in ipairs(NAmanage.qDesc(root, "Instance")) do
 			attach(desc)
 		end
 	end
@@ -87658,6 +88029,16 @@ end
 
 NAgui.addSection("Command Loop Manager")
 
+NAgui.addDropdown("Command Loop Method", NAStuff.LoopMethodOptions or { "RenderStepped", "PreSimulation", "Heartbeat" }, NAmanage.SanitizeLoopMethod(NAStuff.LoopMethod), function(sel)
+	local txt = NAmanage.getDDTxt(sel) or "RenderStepped"
+	local picked = NAmanage.SetLoopMethod(txt, { save = true; rebind = true })
+	if NAgui.setDropdownValue then
+		NAgui.setDropdownValue("Command Loop Method", picked, { fire = false })
+	end
+	NAmanage.syncLoopDD()
+	DoNotif("Command loop method set to "..picked, 2)
+end)
+
 NAgui.addInput("Loop Command", "command arguments", NAStuff.MgmtUI.loopCmd, function(text)
 	NAStuff.MgmtUI.loopCmd = tostring(text or "")
 end)
@@ -87688,7 +88069,7 @@ NAgui.addButton("Start Loop", function()
 		return
 	end
 
-	DoNotif("Loop started for '"..cmdName.."' with delay: "..loopData.interval.."s. Args: "..NAmanage.FmtLoop(loopData.args), 2)
+	DoNotif("Loop started for '"..cmdName.."' with delay: "..loopData.interval.."s. Method: "..(loopData.method or NAmanage.SanitizeLoopMethod(NAStuff.LoopMethod))..". Args: "..NAmanage.FmtLoop(loopData.args), 2)
 	NAmanage.syncLoopDD()
 end)
 
@@ -90369,7 +90750,7 @@ if CoreGui then
 		coroutine.wrap(function()
 			local cg = PT.cg
 			if cg then
-				local desc = cg:QueryDescendants("Instance")
+				local desc = NAmanage.qDesc(cg, "Instance")
 				for i = 1, #desc do
 					local o = desc[i]
 					if o and o.Parent then
@@ -90391,7 +90772,7 @@ if CoreGui then
 		coroutine.wrap(function()
 			local cg = PT.cg
 			if cg then
-				local desc = cg:QueryDescendants("Instance")
+				local desc = NAmanage.qDesc(cg, "Instance")
 				for i = 1, #desc do
 					enqueue(desc[i])
 					if i % 200 == 0 then
@@ -90450,7 +90831,7 @@ if CoreGui then
 			PT.queueSet = {}
 			local cg = PT.cg
 			if cg then
-				local desc = cg:QueryDescendants("Instance")
+				local desc = NAmanage.qDesc(cg, "Instance")
 				for i = 1, #desc do
 					NAmanage.plex_remove(desc[i])
 					if i % 200 == 0 then
@@ -90798,7 +91179,7 @@ if CoreGui then
 			end
 			local foundAny = false
 			local appliedAny = false
-			local desc = CoreGui:QueryDescendants("Instance")
+			local desc = NAmanage.qDesc(CoreGui, "Instance")
 			for i = 1, #desc do
 				local inst = desc[i]
 				if isBuilderIconTarget(inst) then
@@ -90822,7 +91203,7 @@ if CoreGui then
 				return false
 			end
 			local foundPaths = {}
-			local desc = CoreGui:QueryDescendants("Instance")
+			local desc = NAmanage.qDesc(CoreGui, "Instance")
 			for i = 1, #desc do
 				local inst = desc[i]
 				if isBuilderIconTarget(inst) then
@@ -91239,7 +91620,7 @@ if CoreGui then
 			local entries = {}
 			local entryPaths = {}
 			if opts.fullScan == true then
-				local desc = CoreGui:QueryDescendants("Instance")
+				local desc = NAmanage.qDesc(CoreGui, "Instance")
 				BuilderIconEditor.liveTargets = setmetatable({}, {
 					__mode = "k",
 				})
@@ -93654,7 +94035,7 @@ NAmanage.CustomMovementSoundApplyToCharacter = NAmanage.CustomMovementSoundApply
 		return 0
 	end
 	local applied = 0
-	for _, desc in ipairs(char:GetDescendants()) do
+	for _, desc in ipairs(NAmanage.qDesc(char, "Instance")) do
 		if NAmanage.CustomMovementSoundApplyOne(desc) then
 			applied += 1
 		end
