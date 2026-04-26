@@ -49645,232 +49645,373 @@ cmd.add({"firekey","fkey"},{"firekey <key> (fkey)","makes you fire a keybind usi
 end,true)
 
 LOOPPROTECT = nil
+LOOPFLING_ID = LOOPFLING_ID or 0
 
 cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(plr)
 	local Targets = {plr}
+	if not Targets[1] then
+		return
+	end
+
+	local Players = game:GetService("Players")
+	local Player = Players.LocalPlayer
+
 	Loopvoid = false
+	Wait()
 	Loopvoid = true
-	repeat Wait()
-		local mouse = LocalPlayer:GetMouse()
-		local Players = game:GetService("Players")
-		local Player = Players.LocalPlayer
-		local AllBool = false
-		local GetPlayer = function(Name)
-			Name = Name:lower()
-			if Name == "all" or Name == "others" then
-				AllBool = true
-				return
-			elseif Name == "random" then
-				local GetPlayers = Players:GetPlayers()
-				if Discover(GetPlayers, Player) then table.remove(GetPlayers, Discover(GetPlayers, Player)) end
-				return GetPlayers[math.random(#GetPlayers)]
-			elseif Name ~= "random" and Name ~= "all" and Name ~= "others" then
-				for _, x in next, Players:GetPlayers() do
-					if x ~= Player then
-						if x.Name:lower():match("^"..Name) then
-							return x
-						elseif x.DisplayName:lower():match("^"..Name) then
-							return x
-						end
-					end
-				end
-			else
-				return
+	LOOPFLING_ID += 1
+
+	local id = LOOPFLING_ID
+	local AllBool = false
+
+	local function clean()
+		if LOOPPROTECT then
+			pcall(function()
+				LOOPPROTECT:Destroy()
+			end)
+			LOOPPROTECT = nil
+		end
+	end
+
+	local function alive()
+		local ch = Player.Character
+		if not ch or not ch.Parent then
+			return
+		end
+
+		local hum = getPlrHum(ch)
+		local root = hum and hum.RootPart or getRoot(ch) or ch:FindFirstChild("HumanoidRootPart")
+
+		if not hum or not root or hum.Health <= 0 then
+			return
+		end
+
+		return ch, hum, root
+	end
+
+	local function waitAlive()
+		local ch, hum, root = alive()
+
+		while Loopvoid and id == LOOPFLING_ID and not ch do
+			Wait(0.1)
+			ch, hum, root = alive()
+		end
+
+		return ch, hum, root
+	end
+
+	local function startsWith(a, b)
+		a = Lower(tostring(a or ""))
+		b = Lower(tostring(b or ""))
+		return b ~= "" and Sub(a, 1, #b) == b
+	end
+
+	local function GetPlayer(Name)
+		Name = Lower(tostring(Name or ""))
+
+		if Name == "all" or Name == "others" then
+			AllBool = true
+			return
+		elseif Name == "random" then
+			local list = Players:GetPlayers()
+			local i = Discover(list, Player)
+			if i then
+				table.remove(list, i)
+			end
+			if #list > 0 then
+				return list[math.random(#list)]
+			end
+			return
+		end
+
+		for _, x in next, Players:GetPlayers() do
+			if x ~= Player and (startsWith(x.Name, Name) or startsWith(x.DisplayName, Name)) then
+				return x
 			end
 		end
-		local SkidFling = function(TargetPlayer)
-			if LOOPPROTECT then LOOPPROTECT:Destroy() LOOPPROTECT = nil end
-			local Character = Player.Character
-			local Humanoid = getPlrHum(Character)
-			local HRP = Humanoid and Humanoid.RootPart
-			local camera = workspace.CurrentCamera
-			LOOPPROTECT = InstanceNew("Part")
-			LOOPPROTECT.Size = Vector3.new(1, 1, 1)
-			LOOPPROTECT.Transparency = 1
-			LOOPPROTECT.CanCollide = false
-			LOOPPROTECT.Anchored = false
-			LOOPPROTECT.Parent = camera
-			local weld = InstanceNew("WeldConstraint")
-			weld.Part0 = HRP
-			weld.Part1 = LOOPPROTECT
-			weld.Parent = LOOPPROTECT
-			local bodyGyro = InstanceNew("BodyGyro")
-			bodyGyro.MaxTorque = Vector3.new(400000, 400000, 400000)
-			bodyGyro.D = 1000
-			bodyGyro.P = 2000
-			bodyGyro.Parent = LOOPPROTECT
+	end
 
-			local function cleanupLoopProtect()
-				if LOOPPROTECT then
-					LOOPPROTECT:Destroy()
-					LOOPPROTECT = nil
-				end
+	local function SkidFling(TargetPlayer)
+		if not Loopvoid or id ~= LOOPFLING_ID or TargetPlayer == Player or TargetPlayer.Parent ~= Players then
+			return
+		end
+
+		clean()
+
+		local Character, Humanoid, HRP = waitAlive()
+		if not Character or not Humanoid or not HRP then
+			clean()
+			return
+		end
+
+		local TCharacter = TargetPlayer.Character
+		if not TCharacter or not TCharacter.Parent then
+			clean()
+			return
+		end
+
+		local THumanoid = getPlrHum(TCharacter)
+		local TRootPart = THumanoid and THumanoid.RootPart or getRoot(TCharacter) or TCharacter:FindFirstChild("HumanoidRootPart")
+		local THead = getHead(TCharacter)
+		local Accessory = TCharacter:FindFirstChildOfClass("Accessory")
+		local Handle = Accessory and Accessory:FindFirstChild("Handle")
+
+		if THumanoid and THumanoid.Sit and not AllBool then
+			clean()
+			return
+		end
+
+		local BaseTarget = nil
+		if TRootPart and THead then
+			if (TRootPart.Position - THead.Position).Magnitude > 5 then
+				BaseTarget = THead
+			else
+				BaseTarget = TRootPart
+			end
+		elseif TRootPart then
+			BaseTarget = TRootPart
+		elseif THead then
+			BaseTarget = THead
+		elseif Handle then
+			BaseTarget = Handle
+		end
+
+		if not BaseTarget or not BaseTarget:IsA("BasePart") then
+			clean()
+			return
+		end
+
+		local camera = workspace.CurrentCamera
+
+		LOOPPROTECT = InstanceNew("Part")
+		LOOPPROTECT.Size = Vector3.new(1, 1, 1)
+		LOOPPROTECT.Transparency = 1
+		LOOPPROTECT.CanCollide = false
+		LOOPPROTECT.Anchored = false
+		LOOPPROTECT.Massless = true
+		LOOPPROTECT.Parent = camera
+
+		local weld = InstanceNew("WeldConstraint")
+		weld.Part0 = HRP
+		weld.Part1 = LOOPPROTECT
+		weld.Parent = LOOPPROTECT
+
+		local bodyGyro = InstanceNew("BodyGyro")
+		bodyGyro.MaxTorque = Vector3.new(400000, 400000, 400000)
+		bodyGyro.D = 1000
+		bodyGyro.P = 2000
+		bodyGyro.Parent = LOOPPROTECT
+
+		local BV = InstanceNew("BodyVelocity")
+		BV.Parent = LOOPPROTECT
+		BV.Velocity = Vector3.new(9e8, 9e8, 9e8)
+		BV.MaxForce = Vector3.new(1/0, 1/0, 1/0)
+
+		local oldFdh = workspace.FallenPartsDestroyHeight
+
+		if not flingManager.lFlingOldPos or HRP.Velocity.Magnitude < 50 then
+			flingManager.lFlingOldPos = HRP.CFrame
+		end
+
+		local oldCam = camera.CameraSubject
+		if THead then
+			camera.CameraSubject = THead
+		elseif Handle then
+			camera.CameraSubject = Handle
+		elseif THumanoid then
+			camera.CameraSubject = THumanoid
+		end
+
+		local function moveTo(cf)
+			if not LOOPPROTECT or not Character.Parent or not HRP.Parent or Humanoid.Health <= 0 then
+				return false
 			end
 
-			local RootPart = HRP
-			local TCharacter = TargetPlayer.Character
-			local THumanoid, TRootPart, THead, Accessory, Handle
-			if not TCharacter then
-				cleanupLoopProtect()
-				return
+			LOOPPROTECT.CFrame = cf
+			pcall(function()
+				Character:PivotTo(cf)
+			end)
+			HRP.CFrame = cf
+			LOOPPROTECT.Velocity = Vector3.new(9e7, 9e8, 9e7)
+			LOOPPROTECT.RotVelocity = Vector3.new(9e8, 9e8, 9e8)
+			return true
+		end
+
+		local function FPos(BasePart, Pos, Ang)
+			if not BasePart or not BasePart.Parent then
+				return false
 			end
-			if getPlrHum(TCharacter) then
-				THumanoid = getPlrHum(TCharacter)
-			end
-			if THumanoid and THumanoid.RootPart then
-				TRootPart = THumanoid.RootPart
-			end
-			if getHead(TCharacter) then
-				THead = getHead(TCharacter)
-			end
-			if TCharacter:FindFirstChildOfClass("Accessory") then
-				Accessory = TCharacter:FindFirstChildOfClass("Accessory")
-			end
-			if Accessory and Accessory:FindFirstChild("Handle") then
-				Handle = Accessory.Handle
-			end
-			if Character and Humanoid and HRP then
-				if not flingManager.lFlingOldPos or RootPart.Velocity.Magnitude < 50 then
-					flingManager.lFlingOldPos = RootPart.CFrame
+			return moveTo(CFrame.new(BasePart.Position) * Pos * Ang)
+		end
+
+		local function SFBasePart(BasePart)
+			local TimeToWait = 2
+			local Time = tick()
+			local Angle = 0
+
+			repeat
+				Character, Humanoid, HRP = alive()
+				if not Character or not Humanoid or not HRP or not BasePart or not BasePart.Parent then
+					break
 				end
-				if THumanoid and THumanoid.Sit and not AllBool then
-					cleanupLoopProtect()
-					return
+
+				THumanoid = getPlrHum(TargetPlayer.Character)
+				if not THumanoid then
+					break
 				end
-				if THead then
-					workspace.CurrentCamera.CameraSubject = THead
-				elseif not THead and Handle then
-					workspace.CurrentCamera.CameraSubject = Handle
-				elseif THumanoid and TRootPart then
-					workspace.CurrentCamera.CameraSubject = THumanoid
-				end
-				if not TCharacter:FindFirstChildWhichIsA("BasePart") then
-					cleanupLoopProtect()
-					return
-				end
-				local FPos = function(BasePart, Pos, Ang)
-					local targetCFrame = CFrame.new(BasePart.Position) * Pos * Ang
-					LOOPPROTECT.CFrame = targetCFrame
-					Character:SetPrimaryPartCFrame(targetCFrame)
-					LOOPPROTECT.Velocity = Vector3.new(9e7, 9e7 * 10, 9e7)
-					LOOPPROTECT.RotVelocity = Vector3.new(9e8, 9e8, 9e8)
-				end
-				local SFBasePart = function(BasePart)
-					local TimeToWait = 2
-					local Time = tick()
-					local Angle = 0
-					repeat
-						if RootPart and THumanoid then
-							if BasePart.Velocity.Magnitude < 50 then
-								Angle = Angle + 100
-								FPos(BasePart, CFrame.new(0, 1.5, 0) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
-								Wait()
-								FPos(BasePart, CFrame.new(0, -1.5, 0) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
-								Wait()
-								FPos(BasePart, CFrame.new(2.25, 1.5, -2.25) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
-								Wait()
-								FPos(BasePart, CFrame.new(-2.25, -1.5, 2.25) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
-								Wait()
-								FPos(BasePart, CFrame.new(0, 1.5, 0) + THumanoid.MoveDirection, CFrame.Angles(math.rad(Angle), 0, 0))
-								Wait()
-								FPos(BasePart, CFrame.new(0, -1.5, 0) + THumanoid.MoveDirection, CFrame.Angles(math.rad(Angle), 0, 0))
-								Wait()
-							else
-								FPos(BasePart, CFrame.new(0, 1.5, THumanoid.WalkSpeed), CFrame.Angles(math.rad(90), 0, 0))
-								Wait()
-								FPos(BasePart, CFrame.new(0, -1.5, -THumanoid.WalkSpeed), CFrame.Angles(0, 0, 0))
-								Wait()
-								FPos(BasePart, CFrame.new(0, 1.5, THumanoid.WalkSpeed), CFrame.Angles(math.rad(90), 0, 0))
-								Wait()
-								FPos(BasePart, CFrame.new(0, 1.5, TRootPart.Velocity.Magnitude / 1.25), CFrame.Angles(math.rad(90), 0, 0))
-								Wait()
-								FPos(BasePart, CFrame.new(0, -1.5, -TRootPart.Velocity.Magnitude / 1.25), CFrame.Angles(0, 0, 0))
-								Wait()
-								FPos(BasePart, CFrame.new(0, 1.5, TRootPart.Velocity.Magnitude / 1.25), CFrame.Angles(math.rad(90), 0, 0))
-								Wait()
-								FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(math.rad(90), 0, 0))
-								Wait()
-								FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(0, 0, 0))
-								Wait()
-								FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(math.rad(-90), 0, 0))
-								Wait()
-								FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(0, 0, 0))
-								Wait()
-							end
-						else
-							break
-						end
-					until BasePart.Velocity.Magnitude > 500 or BasePart.Parent ~= TargetPlayer.Character or TargetPlayer.Parent ~= Players or not TargetPlayer.Character == TCharacter or THumanoid.Sit or Humanoid.Health <= 0 or tick() > Time + TimeToWait
-					cleanupLoopProtect()
-				end
-				workspace.FallenPartsDestroyHeight = 0/0
-				local BV = InstanceNew("BodyVelocity")
-				BV.Parent = LOOPPROTECT
-				BV.Velocity = Vector3.new(9e8, 9e8, 9e8)
-				BV.MaxForce = Vector3.new(1/0, 1/0, 1/0)
-				Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
-				if TRootPart and THead then
-					if (TRootPart.CFrame.p - THead.CFrame.p).Magnitude > 5 then
-						SFBasePart(THead)
-					else
-						SFBasePart(TRootPart)
-					end
-				elseif TRootPart and not THead then
-					SFBasePart(TRootPart)
-				elseif not TRootPart and THead then
-					SFBasePart(THead)
-				elseif not TRootPart and not THead and Accessory and Handle then
-					SFBasePart(Handle)
-				else
-					cleanupLoopProtect()
-					return
-				end
-				BV:Destroy()
-				Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
-				workspace.CurrentCamera.CameraSubject = Humanoid
-				repeat
-					RootPart.CFrame = flingManager.lFlingOldPos * CFrame.new(0, 0.5, 0)
-					Character:SetPrimaryPartCFrame(flingManager.lFlingOldPos * CFrame.new(0, 0.5, 0))
-					Humanoid:ChangeState("GettingUp")
-					Foreach(Character:GetChildren(), function(_, x)
-						if x:IsA("BasePart") then
-							x.Velocity, x.RotVelocity = Vector3.new(), Vector3.new()
-						end
-					end)
+
+				TRootPart = THumanoid.RootPart or getRoot(TargetPlayer.Character) or TargetPlayer.Character:FindFirstChild("HumanoidRootPart")
+
+				if BasePart.Velocity.Magnitude < 50 then
+					Angle += 100
+					if not FPos(BasePart, CFrame.new(0, 1.5, 0) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0)) then break end
 					Wait()
-				until (RootPart.Position - flingManager.lFlingOldPos.p).Magnitude < 25
-				workspace.FallenPartsDestroyHeight = OrgDestroyHeight
-				cleanupLoopProtect()
-			else
-				cleanupLoopProtect()
-				return
-			end
+					if not FPos(BasePart, CFrame.new(0, -1.5, 0) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0)) then break end
+					Wait()
+					if not FPos(BasePart, CFrame.new(2.25, 1.5, -2.25) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0)) then break end
+					Wait()
+					if not FPos(BasePart, CFrame.new(-2.25, -1.5, 2.25) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0)) then break end
+					Wait()
+					if not FPos(BasePart, CFrame.new(0, 1.5, 0) + THumanoid.MoveDirection, CFrame.Angles(math.rad(Angle), 0, 0)) then break end
+					Wait()
+					if not FPos(BasePart, CFrame.new(0, -1.5, 0) + THumanoid.MoveDirection, CFrame.Angles(math.rad(Angle), 0, 0)) then break end
+					Wait()
+				else
+					local ws = THumanoid.WalkSpeed
+					local vel = TRootPart and TRootPart.Velocity.Magnitude or BasePart.Velocity.Magnitude
+					if not FPos(BasePart, CFrame.new(0, 1.5, ws), CFrame.Angles(math.rad(90), 0, 0)) then break end
+					Wait()
+					if not FPos(BasePart, CFrame.new(0, -1.5, -ws), CFrame.Angles(0, 0, 0)) then break end
+					Wait()
+					if not FPos(BasePart, CFrame.new(0, 1.5, ws), CFrame.Angles(math.rad(90), 0, 0)) then break end
+					Wait()
+					if not FPos(BasePart, CFrame.new(0, 1.5, vel / 1.25), CFrame.Angles(math.rad(90), 0, 0)) then break end
+					Wait()
+					if not FPos(BasePart, CFrame.new(0, -1.5, -vel / 1.25), CFrame.Angles(0, 0, 0)) then break end
+					Wait()
+					if not FPos(BasePart, CFrame.new(0, 1.5, vel / 1.25), CFrame.Angles(math.rad(90), 0, 0)) then break end
+					Wait()
+					if not FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(math.rad(90), 0, 0)) then break end
+					Wait()
+					if not FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(0, 0, 0)) then break end
+					Wait()
+					if not FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(math.rad(-90), 0, 0)) then break end
+					Wait()
+					if not FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(0, 0, 0)) then break end
+					Wait()
+				end
+			until not Loopvoid
+				or id ~= LOOPFLING_ID
+				or BasePart.Velocity.Magnitude > 500
+				or BasePart.Parent ~= TargetPlayer.Character
+				or TargetPlayer.Parent ~= Players
+				or TargetPlayer.Character ~= TCharacter
+				or THumanoid.Sit
+				or not alive()
+				or tick() > Time + TimeToWait
 		end
-		if not _na_env.Welcome then DebugNotif("Enjoy!", 5, "Script by AnthonyIsntHere") end
-		_na_env.Welcome = true
-		if Targets[1] then for _, x in next, Targets do GetPlayer(x) end else return end
+
+		pcall(function()
+			workspace.FallenPartsDestroyHeight = 0/0
+		end)
+
+		pcall(function()
+			Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+		end)
+
+		SFBasePart(BaseTarget)
+
+		pcall(function()
+			if BV then
+				BV:Destroy()
+			end
+		end)
+
+		pcall(function()
+			Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
+		end)
+
+		pcall(function()
+			workspace.FallenPartsDestroyHeight = oldFdh
+		end)
+
+		Character, Humanoid, HRP = alive()
+		if Character and Humanoid and HRP and flingManager.lFlingOldPos then
+			local Time = tick()
+			repeat
+				HRP.CFrame = flingManager.lFlingOldPos * CFrame.new(0, 0.5, 0)
+				pcall(function()
+					Character:PivotTo(flingManager.lFlingOldPos * CFrame.new(0, 0.5, 0))
+				end)
+				pcall(function()
+					Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+				end)
+				Foreach(Character:GetChildren(), function(_, x)
+					if x:IsA("BasePart") then
+						x.Velocity = Vector3.new()
+						x.RotVelocity = Vector3.new()
+					end
+				end)
+				Wait()
+			until not Loopvoid
+				or id ~= LOOPFLING_ID
+				or not alive()
+				or (HRP.Position - flingManager.lFlingOldPos.Position).Magnitude < 25
+				or tick() > Time + 1
+		end
+
+		pcall(function()
+			camera.CameraSubject = alive() and select(2, alive()) or oldCam
+		end)
+
+		clean()
+	end
+
+	if not _na_env.Welcome then
+		DebugNotif("Enjoy!", 5, "Script by AnthonyIsntHere")
+	end
+	_na_env.Welcome = true
+
+	while Loopvoid and id == LOOPFLING_ID do
+		AllBool = false
+
+		for _, x in next, Targets do
+			GetPlayer(x)
+		end
+
 		if AllBool then
 			for _, x in next, Players:GetPlayers() do
-				SkidFling(x)
-			end
-		end
-		for _, x in next, Targets do
-			if GetPlayer(x) and GetPlayer(x) ~= Player then
-				if GetPlayer(x).UserId ~= 1414978355 then
-					local TPlayer = GetPlayer(x)
-					if TPlayer then
-						SkidFling(TPlayer)
-					end
+				if x ~= Player then
+					pcall(SkidFling, x)
 				end
-			elseif not GetPlayer(x) and not AllBool then
+			end
+		else
+			for _, x in next, Targets do
+				local TPlayer = GetPlayer(x)
+				if TPlayer and TPlayer ~= Player and TPlayer.UserId ~= 1414978355 then
+					pcall(SkidFling, TPlayer)
+				end
 			end
 		end
-	until Loopvoid == false
+
+		Wait(0.05)
+	end
+
+	clean()
 end, true)
 
 cmd.add({"unloopfling"}, {"unloopfling", "Stops loop flinging a player"}, function()
 	Loopvoid = false
-	repeat Wait() if LOOPPROTECT then LOOPPROTECT:Destroy() LOOPPROTECT = nil end until LOOPPROTECT == nil
+	LOOPFLING_ID += 1
+	repeat
+		Wait()
+		if LOOPPROTECT then
+			pcall(function()
+				LOOPPROTECT:Destroy()
+			end)
+			LOOPPROTECT = nil
+		end
+	until LOOPPROTECT == nil
 end)
 
 cmd.add({"freegamepass", "freegp"},{"freegamepass (freegp)", "Pretends you own every gamepass and fires product purchase signals"},function()
