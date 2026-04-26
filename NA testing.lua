@@ -77474,6 +77474,14 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 
 	local TweenService = SafeGetService("TweenService")
 	local TextServiceRef = SafeGetService("TextService")
+	local UserInputServiceRef = SafeGetService("UserInputService")
+	local GuiServiceRef = SafeGetService("GuiService")
+	local execResponsive = {
+		compact = false,
+		phone = false,
+		lastW = 0,
+		lastH = 0,
+	}
 	local baseExecDir = "Nameless-Admin"
 	local execDir = baseExecDir.."/NA-Exec"
 	local settingsFile = execDir.."/settings.json"
@@ -77741,6 +77749,66 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			return wrote == true
 		end
 		return false
+	end
+
+	local function getExecutorViewport()
+		local screenGui = NAStuff and NAStuff.NASCREENGUI
+		if screenGui and screenGui.AbsoluteSize and screenGui.AbsoluteSize.X > 0 and screenGui.AbsoluteSize.Y > 0 then
+			return screenGui.AbsoluteSize
+		end
+		local cam = workspace and workspace.CurrentCamera
+		if cam and cam.ViewportSize and cam.ViewportSize.X > 0 and cam.ViewportSize.Y > 0 then
+			return cam.ViewportSize
+		end
+		return Vector2.new(1280, 720)
+	end
+
+	local function getSafePad()
+		local padX, padY = 12, 12
+		if GuiServiceRef and GuiServiceRef.GetGuiInset then
+			local ok, insetA, insetB = pcall(function()
+				return GuiServiceRef:GetGuiInset()
+			end)
+			if ok then
+				padX += math.max(insetA.X, insetB.X)
+				padY += math.max(insetA.Y, insetB.Y)
+			end
+		end
+		return padX, padY
+	end
+
+	local function isTouchCompact(vp)
+		local touch = UserInputServiceRef and UserInputServiceRef.TouchEnabled
+		local mouse = UserInputServiceRef and UserInputServiceRef.MouseEnabled
+		local key = UserInputServiceRef and UserInputServiceRef.KeyboardEnabled
+		return IsOnMobile or vp.Y < 600 or vp.X < 900 or (touch and not (mouse or key))
+	end
+
+	local function applyExecutorFrameSize()
+		if not frame or not frame.Parent then
+			return
+		end
+		local vp = getExecutorViewport()
+		local padX, padY = getSafePad()
+		local maxW = math.max(320, vp.X - padX * 2)
+		local maxH = math.max(260, vp.Y - padY * 2)
+		local mobile = isTouchCompact(vp)
+		local targetW
+		local targetH
+		if mobile then
+			targetW = math.clamp(math.floor(vp.X * 0.965), 340, maxW)
+			targetH = math.clamp(math.floor(vp.Y * (vp.Y < 520 and 0.88 or 0.90)), 280, maxH)
+		else
+			targetW = math.clamp(920, 680, maxW)
+			targetH = math.clamp(540, 420, maxH)
+		end
+		execResponsive.compact = targetW < 760 or targetH < 430
+		execResponsive.phone = targetW < 560
+		execResponsive.lastW = targetW
+		execResponsive.lastH = targetH
+		frame.AnchorPoint = Vector2.new(0.5, 0.5)
+		frame.Size = UDim2.fromOffset(targetW, targetH)
+		frame.Position = UDim2.new(0.5, 0, 0.5, 0)
 	end
 
 	local rootPad = Instance.new("UIPadding")
@@ -78474,14 +78542,55 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	end
 
 	local function updateBodyLayout()
-		hubPane.Visible = cfg.showHub
-		if cfg.showHub then
-			editorPane.Size = UDim2.new(1, -252, 1, 0)
-			hubPane.Position = UDim2.new(1, -242, 0, 0)
-			hubPane.Size = UDim2.new(0, 242, 1, 0)
+		local w = execResponsive.lastW > 0 and execResponsive.lastW or frame.AbsoluteSize.X
+		local h = execResponsive.lastH > 0 and execResponsive.lastH or frame.AbsoluteSize.Y
+		local compact = execResponsive.compact or h < 430
+		local phone = execResponsive.phone or w < 560
+		local hubW = compact and 196 or 242
+		local gap = compact and 8 or 10
+		local showHub = cfg.showHub and not phone and w >= 650
+		hubPane.Visible = showHub
+		if showHub then
+			editorPane.Size = UDim2.new(1, -(hubW + gap), 1, 0)
+			hubPane.Position = UDim2.new(1, -hubW, 0, 0)
+			hubPane.Size = UDim2.new(0, hubW, 1, 0)
 		else
 			editorPane.Size = UDim2.new(1, 0, 1, 0)
 		end
+		local pad = compact and 6 or 10
+		rootPad.PaddingBottom = UDim.new(0, pad)
+		rootPad.PaddingLeft = UDim.new(0, pad)
+		rootPad.PaddingRight = UDim.new(0, pad)
+		rootPad.PaddingTop = UDim.new(0, pad)
+		tabsBar.Size = UDim2.new(1, 0, 0, compact and 30 or 34)
+		body.Position = UDim2.new(0, 0, 0, compact and 36 or 42)
+		body.Size = UDim2.new(1, 0, 1, compact and -82 or -92)
+		statusLabel.Position = UDim2.new(0, 0, 1, compact and -38 or -42)
+		actions.Position = UDim2.new(0, 0, 1, compact and -20 or -22)
+		actions.Size = UDim2.new(1, 0, 0, compact and 24 or 28)
+		actionLayout.CellPadding = UDim2.new(0, compact and 4 or 6, 0, 0)
+		actionLayout.CellSize = UDim2.new(0.1666, compact and -4 or -5, 1, 0)
+		hubList.Size = UDim2.new(1, 0, 1, compact and -174 or -204)
+		hubButtons.Position = UDim2.new(0, 0, 1, compact and -132 or -154)
+		hubButtons.Size = UDim2.new(1, 0, 0, compact and 132 or 154)
+		for _, btn in ipairs({ hubOpen, hubOpenNew, hubSave, hubDelete, hubRefresh }) do
+			btn.Size = UDim2.new(1, 0, 0, compact and 22 or 26)
+			btn.TextSize = compact and 11 or 13
+		end
+		for _, btn in ipairs({ executeButton, clearButton, copyButton, renameButton, duplicateButton, deleteTabButton }) do
+			btn.TextSize = compact and 11 or 13
+		end
+		textBox.TextSize = compact and 13 or 15
+		gutterLabel.TextSize = textBox.TextSize
+		for _, layer in ipairs({ keywordLayer, globalLayer, stringLayer, commentLayer, numberLayer }) do
+			layer.TextSize = textBox.TextSize
+		end
+	end
+
+	local function queueExecutorResponsive()
+		applyExecutorFrameSize()
+		updateBodyLayout()
+		queueRefreshEditor()
 	end
 
 	local function applySettings(skipSave)
@@ -78971,6 +79080,19 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		setStatus("Refreshed saved scripts", colors.success)
 	end)
 
+	queueExecutorResponsive()
+	NAlib.disconnect("NAExecutorResponsive")
+	if workspace and workspace.CurrentCamera then
+		NAlib.connect("NAExecutorResponsive", workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(queueExecutorResponsive))
+	end
+	if NAStuff and NAStuff.NASCREENGUI then
+		NAlib.connect("NAExecutorResponsive", NAStuff.NASCREENGUI:GetPropertyChangedSignal("AbsoluteSize"):Connect(queueExecutorResponsive))
+	end
+	NAlib.connect("NAExecutorResponsive", frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+		updateBodyLayout()
+		queueRefreshEditor()
+	end))
+
 	loadTabsFromDisk()
 	refreshSavedScripts()
 	applySettings(true)
@@ -79039,7 +79161,10 @@ if NAUIMANAGER.commandsFrame then NAgui.resizeable(NAUIMANAGER.commandsFrame) en
 if NAUIMANAGER.SettingsFrame then NAgui.resizeable(NAUIMANAGER.SettingsFrame) end
 if NAUIMANAGER.WaypointFrame then NAgui.resizeable(NAUIMANAGER.WaypointFrame) end
 if NAUIMANAGER.BindersFrame then NAgui.resizeable(NAUIMANAGER.BindersFrame) end
-if NAUIMANAGER.ExecutorFrame then NAgui.resizeable(NAUIMANAGER.ExecutorFrame, Vector2.new(680, 420), Vector2.new(1600, 1000)) end
+if NAUIMANAGER.ExecutorFrame then
+	local exMin = IsOnMobile and Vector2.new(340, 280) or Vector2.new(680, 420)
+	NAgui.resizeable(NAUIMANAGER.ExecutorFrame, exMin, Vector2.new(1600, 1000))
+end
 
 NAmanage.Executor_Init()
 
