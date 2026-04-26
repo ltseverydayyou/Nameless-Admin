@@ -101,6 +101,21 @@ NAmanage.isLiveInstance = NAmanage.isLiveInstance or function(inst)
 	return ok and parent ~= nil
 end
 
+NAmanage.ensureWeakKeyTable = NAmanage.ensureWeakKeyTable or function(tbl)
+	if type(tbl) ~= "table" then
+		tbl = {}
+	end
+	local mt = getmetatable(tbl)
+	if type(mt) == "table" and mt.__mode == "k" then
+		return tbl
+	end
+	local weak = setmetatable({}, { __mode = "k" })
+	for key, value in pairs(tbl) do
+		weak[key] = value
+	end
+	return weak
+end
+
 NAmanage.tryDisconnect = NAmanage.tryDisconnect or function(conn)
 	if conn and type(conn.Disconnect) == "function" then
 		pcall(function()
@@ -365,6 +380,10 @@ NAmanage.pruneRuntimeInstanceState = NAmanage.pruneRuntimeInstanceState or funct
 	NAmanage.pruneInstanceKeyMap(state.collisiontrueESPSet)
 	NAmanage.pruneInstanceKeyMap(state.collisionfalseESPSet)
 	NAmanage.pruneInstanceKeyMap(state._ncColl)
+	if type(state.ChatTranslator) == "table" and type(state.ChatTranslator.messages) == "table" then
+		state.ChatTranslator.messages = NAmanage.ensureWeakKeyTable(state.ChatTranslator.messages)
+		NAmanage.pruneInstanceKeyMap(state.ChatTranslator.messages)
+	end
 	NAmanage.pruneInstanceKeyMap(state._messageCopyHooks, function(hook)
 		if type(hook) == "table" and type(hook.cleanup) == "function" then
 			pcall(hook.cleanup)
@@ -376,6 +395,27 @@ NAmanage.pruneRuntimeInstanceState = NAmanage.pruneRuntimeInstanceState or funct
 	NAmanage.pruneInstanceKeyMap(state.BlockedInvokeSaved)
 	NAmanage.pruneInstanceKeyMap(NAmanage._canvasLayoutCache)
 	NAmanage.pruneInstanceKeyMap(NAmanage._canvasHeightCache)
+	if type(NAmanage._descHubs) == "table" and type(NAmanage._descHubDispose) == "function" then
+		for root, hub in pairs(NAmanage._descHubs) do
+			if not NAmanage.isLiveInstance(root) or type(hub) ~= "table" or hub.root ~= root or hub.alive == false then
+				pcall(NAmanage._descHubDispose, root, hub)
+			end
+		end
+	end
+	if type(NAmanage._childHubs) == "table" and type(NAmanage._childHubDispose) == "function" then
+		for root, hub in pairs(NAmanage._childHubs) do
+			if not NAmanage.isLiveInstance(root) or type(hub) ~= "table" or hub.root ~= root or hub.alive == false then
+				pcall(NAmanage._childHubDispose, root, hub)
+			end
+		end
+	end
+	if type(NAmanage._mouseMoveHubs) == "table" and type(NAmanage._mouseMoveHubDispose) == "function" then
+		for mouseObj, hub in pairs(NAmanage._mouseMoveHubs) do
+			if mouseObj == nil or type(hub) ~= "table" or hub.mouse ~= mouseObj or hub.alive == false or (tonumber(hub.count) or 0) <= 0 then
+				pcall(NAmanage._mouseMoveHubDispose, mouseObj, hub)
+			end
+		end
+	end
 
 	if type(state.CommandLabelPool) == "table" then
 		for name, label in pairs(state.CommandLabelPool) do
@@ -512,6 +552,98 @@ NAmanage.pruneRuntimeInstanceState = NAmanage.pruneRuntimeInstanceState or funct
 				pcall(NAmanage.CancelTokenCancel, token)
 			end
 		end)
+	end
+	if type(state.folderESPModes) == "table" then
+		NAmanage.pruneInstanceKeyMap(state.folderESPModes)
+	end
+
+	if type(state.modelESPMembers) == "table" then
+		for model, list in pairs(state.modelESPMembers) do
+			local validModel = NAmanage.isLiveInstance(model) and model:IsA("Model")
+			if not validModel then
+				local key = type(state.modelESPKeys) == "table" and state.modelESPKeys[model] or nil
+				if key then
+					NAlib.disconnect(key)
+					state.modelESPKeys[model] = nil
+				end
+				local token = type(state.modelESPScanTokens) == "table" and state.modelESPScanTokens[model] or nil
+				if token and type(NAmanage.CancelTokenCancel) == "function" then
+					pcall(NAmanage.CancelTokenCancel, token)
+				end
+				if type(list) == "table" then
+					for i = #list, 1, -1 do
+						local part = list[i]
+						if type(NAmanage.PartESP_QueueRemove) == "function" then
+							pcall(NAmanage.PartESP_QueueRemove, part)
+						end
+						if type(NAmanage.RemoveEspFromPart) == "function" then
+							pcall(NAmanage.RemoveEspFromPart, part)
+						end
+						list[i] = nil
+					end
+				end
+				if type(state.modelESPMemberMaps) == "table" then
+					state.modelESPMemberMaps[model] = nil
+				end
+				if type(state.modelESPMap) == "table" then
+					state.modelESPMap[model] = nil
+				end
+				if type(state.modelESPScanTokens) == "table" then
+					state.modelESPScanTokens[model] = nil
+				end
+				if type(state.modelESPModes) == "table" then
+					state.modelESPModes[model] = nil
+				end
+				state.modelESPMembers[model] = nil
+			else
+				NAmanage.pruneInstanceArray(list)
+				local map = type(state.modelESPMemberMaps) == "table" and state.modelESPMemberMaps[model] or nil
+				if type(map) == "table" then
+					NAmanage.pruneInstanceKeyMap(map)
+				end
+			end
+		end
+	end
+	if type(state.modelESPKeys) == "table" then
+		NAmanage.pruneInstanceKeyMap(state.modelESPKeys, function(key)
+			if key then
+				NAlib.disconnect(key)
+			end
+		end)
+	end
+	if type(state.modelESPScanTokens) == "table" then
+		NAmanage.pruneInstanceKeyMap(state.modelESPScanTokens, function(token)
+			if token and type(NAmanage.CancelTokenCancel) == "function" then
+				pcall(NAmanage.CancelTokenCancel, token)
+			end
+		end)
+	end
+	if type(state.modelESPModes) == "table" then
+		NAmanage.pruneInstanceKeyMap(state.modelESPModes)
+	end
+	if type(state.modelESPModels) == "table" then
+		for i = #state.modelESPModels, 1, -1 do
+			local model = state.modelESPModels[i]
+			if not (NAmanage.isLiveInstance(model) and model:IsA("Model")) then
+				if type(NAmanage.ESP_ListRemove) == "function" and type(state.modelESPMap) == "table" then
+					pcall(NAmanage.ESP_ListRemove, state.modelESPModels, state.modelESPMap, model)
+				else
+					table.remove(state.modelESPModels, i)
+					if type(state.modelESPMap) == "table" then
+						state.modelESPMap[model] = nil
+						for idx = i, #state.modelESPModels do
+							local current = state.modelESPModels[idx]
+							if current ~= nil then
+								state.modelESPMap[current] = idx
+							end
+						end
+					end
+				end
+				if type(state.modelESPModes) == "table" then
+					state.modelESPModes[model] = nil
+				end
+			end
+		end
 	end
 
 	if type(state.PST) == "table" then
@@ -1517,6 +1649,52 @@ end
 
 NAmanage._wsHub = NAmanage._wsHub or nil
 
+NAmanage._wsHubDispose = NAmanage._wsHubDispose or function(hub)
+	hub = hub or NAmanage._wsHub
+	if type(hub) ~= "table" then
+		return
+	end
+	hub.alive = false
+	if hub.cAdd then
+		pcall(function()
+			hub.cAdd:Disconnect()
+		end)
+		hub.cAdd = nil
+	end
+	if hub.cRem then
+		pcall(function()
+			hub.cRem:Disconnect()
+		end)
+		hub.cRem = nil
+	end
+	hub.added = {}
+	hub.removing = {}
+	hub.addCount = 0
+	hub.remCount = 0
+	hub.cacheLive = false
+	hub.cache = {}
+	hub.idx = {}
+	hub.aQ = {}
+	hub.rQ = {}
+	hub.aSet = {}
+	hub.rSet = {}
+	hub.sQ = {}
+	hub.aHead = 1
+	hub.aTail = 0
+	hub.rHead = 1
+	hub.rTail = 0
+	hub.sHead = 1
+	hub.sTail = 0
+	hub.qBusy = false
+	hub.qKick = false
+	hub.sBusy = false
+	hub.cIdx = 1
+	hub.cacheLastTouch = 0
+	if NAmanage._wsHub == hub then
+		NAmanage._wsHub = nil
+	end
+end
+
 NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 	local cRoot = workspace
 	local hub = NAmanage._wsHub
@@ -1525,13 +1703,7 @@ NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 	end
 
 	if hub then
-		hub.alive = false
-		if hub.cAdd then
-			hub.cAdd:Disconnect()
-		end
-		if hub.cRem then
-			hub.cRem:Disconnect()
-		end
+		NAmanage._wsHubDispose(hub)
 	end
 
 	hub = {
@@ -1802,6 +1974,9 @@ NAmanage.wsReleaseCache = NAmanage.wsReleaseCache or function(hub)
 	hub.sHead = 1
 	hub.sTail = 0
 	hub.cacheLastTouch = 0
+	if (hub.addCount or 0) <= 0 and (hub.remCount or 0) <= 0 then
+		NAmanage._wsHubDispose(hub)
+	end
 	return true
 end
 
@@ -1935,21 +2110,18 @@ NAmanage.wsSub = NAmanage.wsSub or function(spec)
 			hub.remCount = math.max(0, (hub.remCount or 0) - 1)
 		end
 		if (hub.addCount or 0) <= 0 and (hub.remCount or 0) <= 0 then
-			hub.aQ = {}
-			hub.rQ = {}
-			hub.aSet = {}
-			hub.rSet = {}
-			hub.aHead = 1
-			hub.aTail = 0
-			hub.rHead = 1
-			hub.rTail = 0
-			hub.cacheLive = false
-			hub.cache = {}
-			hub.idx = {}
-			hub.cIdx = 1
-			hub.sQ = {}
-			hub.sHead = 1
-			hub.sTail = 0
+			if hub.cacheLive then
+				hub.aQ = {}
+				hub.rQ = {}
+				hub.aSet = {}
+				hub.rSet = {}
+				hub.aHead = 1
+				hub.aTail = 0
+				hub.rHead = 1
+				hub.rTail = 0
+			else
+				NAmanage._wsHubDispose(hub)
+			end
 		end
 	end
 	return conn
@@ -1969,6 +2141,44 @@ end
 
 NAmanage._cgHub = NAmanage._cgHub or nil
 
+NAmanage._cgHubDispose = NAmanage._cgHubDispose or function(hub)
+	hub = hub or NAmanage._cgHub
+	if type(hub) ~= "table" then
+		return
+	end
+	hub.alive = false
+	if hub.cAdd then
+		pcall(function()
+			hub.cAdd:Disconnect()
+		end)
+		hub.cAdd = nil
+	end
+	if hub.cRem then
+		pcall(function()
+			hub.cRem:Disconnect()
+		end)
+		hub.cRem = nil
+	end
+	hub.added = {}
+	hub.removing = {}
+	hub.addCount = 0
+	hub.remCount = 0
+	hub.aQ = {}
+	hub.rQ = {}
+	hub.aSet = {}
+	hub.rSet = {}
+	hub.aHead = 1
+	hub.aTail = 0
+	hub.rHead = 1
+	hub.rTail = 0
+	hub.qBusy = false
+	hub.qKick = false
+	hub.root = nil
+	if NAmanage._cgHub == hub then
+		NAmanage._cgHub = nil
+	end
+end
+
 NAmanage._cgHubGet = NAmanage._cgHubGet or function()
 	local root = (typeof(COREGUI) == "Instance" and COREGUI) or SafeGetService("CoreGui")
 	local hub = NAmanage._cgHub
@@ -1977,13 +2187,7 @@ NAmanage._cgHubGet = NAmanage._cgHubGet or function()
 	end
 
 	if hub then
-		hub.alive = false
-		if hub.cAdd then
-			hub.cAdd:Disconnect()
-		end
-		if hub.cRem then
-			hub.cRem:Disconnect()
-		end
+		NAmanage._cgHubDispose(hub)
 	end
 
 	hub = {
@@ -2195,17 +2399,7 @@ NAmanage.cgSub = NAmanage.cgSub or function(spec)
 			hub.remCount = math.max(0, (hub.remCount or 0) - 1)
 		end
 		if (hub.addCount or 0) <= 0 and (hub.remCount or 0) <= 0 then
-			hub.aQ = {}
-			hub.rQ = {}
-			hub.aSet = {}
-			hub.rSet = {}
-			hub.aHead = 1
-			hub.aTail = 0
-			hub.rHead = 1
-			hub.rTail = 0
-			if type(hub.disableRootHooks) == "function" then
-				hub.disableRootHooks()
-			end
+			NAmanage._cgHubDispose(hub)
 		end
 	end
 	return conn
@@ -2227,6 +2421,69 @@ end
 
 NAmanage._pgHub = NAmanage._pgHub or nil
 
+NAmanage._pgHubDispose = NAmanage._pgHubDispose or function(hub)
+	hub = hub or NAmanage._pgHub
+	if type(hub) ~= "table" then
+		return
+	end
+	hub.alive = false
+	if hub.cAdd then
+		pcall(function()
+			hub.cAdd:Disconnect()
+		end)
+		hub.cAdd = nil
+	end
+	if hub.cRem then
+		pcall(function()
+			hub.cRem:Disconnect()
+		end)
+		hub.cRem = nil
+	end
+	if hub.rAnc then
+		pcall(function()
+			hub.rAnc:Disconnect()
+		end)
+		hub.rAnc = nil
+	end
+	if hub.lpAdd then
+		pcall(function()
+			hub.lpAdd:Disconnect()
+		end)
+		hub.lpAdd = nil
+	end
+	if hub.lpRem then
+		pcall(function()
+			hub.lpRem:Disconnect()
+		end)
+		hub.lpRem = nil
+	end
+	if hub.lpAnc then
+		pcall(function()
+			hub.lpAnc:Disconnect()
+		end)
+		hub.lpAnc = nil
+	end
+	hub.added = {}
+	hub.removing = {}
+	hub.addCount = 0
+	hub.remCount = 0
+	hub.aQ = {}
+	hub.rQ = {}
+	hub.aSet = {}
+	hub.rSet = {}
+	hub.aHead = 1
+	hub.aTail = 0
+	hub.rHead = 1
+	hub.rTail = 0
+	hub.qBusy = false
+	hub.qKick = false
+	hub.root = nil
+	hub.player = nil
+	if NAmanage._pgHub == hub then
+		NAmanage._pgHub = nil
+	end
+end
+
 NAmanage._pgHubGet = NAmanage._pgHubGet or function()
 	local players = SafeGetService("Players")
 	local lp = players and players.LocalPlayer or nil
@@ -2240,28 +2497,8 @@ NAmanage._pgHubGet = NAmanage._pgHubGet or function()
 		end
 	end
 
-	local function killHub(old)
-		if not old then
-			return
-		end
-		old.alive = false
-		disc(old.cAdd)
-		disc(old.cRem)
-		disc(old.rAnc)
-		disc(old.lpAdd)
-		disc(old.lpRem)
-		disc(old.lpAnc)
-		old.cAdd = nil
-		old.cRem = nil
-		old.rAnc = nil
-		old.lpAdd = nil
-		old.lpRem = nil
-		old.lpAnc = nil
-		old.root = nil
-	end
-
 	if hub and (not hub.alive or hub.player ~= lp) then
-		killHub(hub)
+		NAmanage._pgHubDispose(hub)
 		hub = nil
 		NAmanage._pgHub = nil
 	end
@@ -2552,17 +2789,7 @@ NAmanage.pgSub = NAmanage.pgSub or function(spec)
 			hub.remCount = math.max(0, (hub.remCount or 0) - 1)
 		end
 		if (hub.addCount or 0) <= 0 and (hub.remCount or 0) <= 0 then
-			hub.aQ = {}
-			hub.rQ = {}
-			hub.aSet = {}
-			hub.rSet = {}
-			hub.aHead = 1
-			hub.aTail = 0
-			hub.rHead = 1
-			hub.rTail = 0
-			if type(hub.disableRootHooks) == "function" then
-				hub.disableRootHooks()
-			end
+			NAmanage._pgHubDispose(hub)
 		end
 	end
 	return conn
@@ -2584,6 +2811,44 @@ end
 
 NAmanage._playersHub = NAmanage._playersHub or nil
 
+NAmanage._playersHubDispose = NAmanage._playersHubDispose or function(hub)
+	hub = hub or NAmanage._playersHub
+	if type(hub) ~= "table" then
+		return
+	end
+	hub.alive = false
+	if hub.cAdd then
+		pcall(function()
+			hub.cAdd:Disconnect()
+		end)
+		hub.cAdd = nil
+	end
+	if hub.cRem then
+		pcall(function()
+			hub.cRem:Disconnect()
+		end)
+		hub.cRem = nil
+	end
+	hub.added = {}
+	hub.removing = {}
+	hub.addCount = 0
+	hub.remCount = 0
+	hub.aQ = {}
+	hub.rQ = {}
+	hub.aSet = {}
+	hub.rSet = {}
+	hub.aHead = 1
+	hub.aTail = 0
+	hub.rHead = 1
+	hub.rTail = 0
+	hub.qBusy = false
+	hub.qKick = false
+	hub.players = nil
+	if NAmanage._playersHub == hub then
+		NAmanage._playersHub = nil
+	end
+end
+
 NAmanage._playersHubGet = NAmanage._playersHubGet or function()
 	local players = SafeGetService("Players")
 	local hub = NAmanage._playersHub
@@ -2596,20 +2861,8 @@ NAmanage._playersHubGet = NAmanage._playersHubGet or function()
 		end
 	end
 
-	local function killHub(old)
-		if not old then
-			return
-		end
-		old.alive = false
-		disc(old.cAdd)
-		disc(old.cRem)
-		old.cAdd = nil
-		old.cRem = nil
-		old.players = nil
-	end
-
 	if hub and (not hub.alive or hub.players ~= players) then
-		killHub(hub)
+		NAmanage._playersHubDispose(hub)
 		hub = nil
 		NAmanage._playersHub = nil
 	end
@@ -2822,17 +3075,7 @@ NAmanage.playersSub = NAmanage.playersSub or function(spec)
 			hub.remCount = math.max(0, (hub.remCount or 0) - 1)
 		end
 		if (hub.addCount or 0) <= 0 and (hub.remCount or 0) <= 0 then
-			hub.aQ = {}
-			hub.rQ = {}
-			hub.aSet = {}
-			hub.rSet = {}
-			hub.aHead = 1
-			hub.aTail = 0
-			hub.rHead = 1
-			hub.rTail = 0
-			if type(hub.disableHooks) == "function" then
-				hub.disableHooks()
-			end
+			NAmanage._playersHubDispose(hub)
 		end
 	end
 	return conn
@@ -2854,6 +3097,52 @@ end
 
 NAmanage._descHubs = NAmanage._descHubs or {}
 
+NAmanage._descHubDispose = NAmanage._descHubDispose or function(root, hub)
+	local hubs = NAmanage._descHubs
+	if type(hub) ~= "table" then
+		hub = type(hubs) == "table" and hubs[root] or nil
+	end
+	if type(hub) ~= "table" then
+		return
+	end
+	hub.alive = false
+	if hub.cAdd then
+		pcall(function()
+			hub.cAdd:Disconnect()
+		end)
+		hub.cAdd = nil
+	end
+	if hub.cRem then
+		pcall(function()
+			hub.cRem:Disconnect()
+		end)
+		hub.cRem = nil
+	end
+	if hub.rAnc then
+		pcall(function()
+			hub.rAnc:Disconnect()
+		end)
+		hub.rAnc = nil
+	end
+	hub.added = {}
+	hub.removing = {}
+	hub.addCount = 0
+	hub.remCount = 0
+	hub.aQ = {}
+	hub.rQ = {}
+	hub.aSet = {}
+	hub.rSet = {}
+	hub.aHead = 1
+	hub.aTail = 0
+	hub.rHead = 1
+	hub.rTail = 0
+	hub.qBusy = false
+	hub.qKick = false
+	if type(hubs) == "table" and root ~= nil and hubs[root] == hub then
+		hubs[root] = nil
+	end
+end
+
 NAmanage._descHubGet = NAmanage._descHubGet or function(root)
 	if typeof(root) ~= "Instance" then
 		return nil
@@ -2873,10 +3162,7 @@ NAmanage._descHubGet = NAmanage._descHubGet or function(root)
 	end
 
 	if hub then
-		hub.alive = false
-		disc(hub.cAdd)
-		disc(hub.cRem)
-		disc(hub.rAnc)
+		NAmanage._descHubDispose(root, hub)
 	end
 
 	hub = {
@@ -3029,10 +3315,7 @@ NAmanage._descHubGet = NAmanage._descHubGet or function(root)
 		if parent then
 			return
 		end
-		hub.alive = false
-		disconnectHooks()
-		disc(hub.rAnc)
-		hubs[root] = nil
+		NAmanage._descHubDispose(root, hub)
 	end)
 
 	hub.enableHooks = connectHooks
@@ -3117,17 +3400,7 @@ NAmanage.descSub = NAmanage.descSub or function(root, spec)
 			hub.remCount = math.max(0, (hub.remCount or 0) - 1)
 		end
 		if (hub.addCount or 0) <= 0 and (hub.remCount or 0) <= 0 then
-			hub.aQ = {}
-			hub.rQ = {}
-			hub.aSet = {}
-			hub.rSet = {}
-			hub.aHead = 1
-			hub.aTail = 0
-			hub.rHead = 1
-			hub.rTail = 0
-			if type(hub.disableHooks) == "function" then
-				hub.disableHooks()
-			end
+			NAmanage._descHubDispose(root, hub)
 		end
 	end
 	return conn
@@ -3149,6 +3422,52 @@ end
 
 NAmanage._childHubs = NAmanage._childHubs or {}
 
+NAmanage._childHubDispose = NAmanage._childHubDispose or function(root, hub)
+	local hubs = NAmanage._childHubs
+	if type(hub) ~= "table" then
+		hub = type(hubs) == "table" and hubs[root] or nil
+	end
+	if type(hub) ~= "table" then
+		return
+	end
+	hub.alive = false
+	if hub.cAdd then
+		pcall(function()
+			hub.cAdd:Disconnect()
+		end)
+		hub.cAdd = nil
+	end
+	if hub.cRem then
+		pcall(function()
+			hub.cRem:Disconnect()
+		end)
+		hub.cRem = nil
+	end
+	if hub.rAnc then
+		pcall(function()
+			hub.rAnc:Disconnect()
+		end)
+		hub.rAnc = nil
+	end
+	hub.added = {}
+	hub.removed = {}
+	hub.addCount = 0
+	hub.remCount = 0
+	hub.aQ = {}
+	hub.rQ = {}
+	hub.aSet = {}
+	hub.rSet = {}
+	hub.aHead = 1
+	hub.aTail = 0
+	hub.rHead = 1
+	hub.rTail = 0
+	hub.qBusy = false
+	hub.qKick = false
+	if type(hubs) == "table" and root ~= nil and hubs[root] == hub then
+		hubs[root] = nil
+	end
+end
+
 NAmanage._childHubGet = NAmanage._childHubGet or function(root)
 	if typeof(root) ~= "Instance" then
 		return nil
@@ -3168,10 +3487,7 @@ NAmanage._childHubGet = NAmanage._childHubGet or function(root)
 	end
 
 	if hub then
-		hub.alive = false
-		disc(hub.cAdd)
-		disc(hub.cRem)
-		disc(hub.rAnc)
+		NAmanage._childHubDispose(root, hub)
 	end
 
 	hub = {
@@ -3324,10 +3640,7 @@ NAmanage._childHubGet = NAmanage._childHubGet or function(root)
 		if parent then
 			return
 		end
-		hub.alive = false
-		disconnectHooks()
-		disc(hub.rAnc)
-		hubs[root] = nil
+		NAmanage._childHubDispose(root, hub)
 	end)
 
 	hub.enableHooks = connectHooks
@@ -3398,17 +3711,7 @@ NAmanage.childSub = NAmanage.childSub or function(root, spec)
 			hub.remCount = math.max(0, (hub.remCount or 0) - 1)
 		end
 		if (hub.addCount or 0) <= 0 and (hub.remCount or 0) <= 0 then
-			hub.aQ = {}
-			hub.rQ = {}
-			hub.aSet = {}
-			hub.rSet = {}
-			hub.aHead = 1
-			hub.aTail = 0
-			hub.rHead = 1
-			hub.rTail = 0
-			if type(hub.disableHooks) == "function" then
-				hub.disableHooks()
-			end
+			NAmanage._childHubDispose(root, hub)
 		end
 	end
 	return conn
@@ -3430,6 +3733,28 @@ end
 
 NAmanage._mouseMoveHubs = NAmanage._mouseMoveHubs or {}
 
+NAmanage._mouseMoveHubDispose = NAmanage._mouseMoveHubDispose or function(mouseObj, hub)
+	local hubs = NAmanage._mouseMoveHubs
+	if type(hub) ~= "table" then
+		hub = type(hubs) == "table" and hubs[mouseObj] or nil
+	end
+	if type(hub) ~= "table" then
+		return
+	end
+	hub.alive = false
+	if hub.moveCon then
+		pcall(function()
+			hub.moveCon:Disconnect()
+		end)
+		hub.moveCon = nil
+	end
+	hub.subs = {}
+	hub.count = 0
+	if type(hubs) == "table" and mouseObj ~= nil and hubs[mouseObj] == hub then
+		hubs[mouseObj] = nil
+	end
+end
+
 NAmanage._mouseMoveHubGet = NAmanage._mouseMoveHubGet or function(mouseObj)
 	if not mouseObj then
 		return nil
@@ -3447,8 +3772,7 @@ NAmanage._mouseMoveHubGet = NAmanage._mouseMoveHubGet or function(mouseObj)
 	end
 
 	if hub and not hub.alive then
-		disc(hub.moveCon)
-		hubs[mouseObj] = nil
+		NAmanage._mouseMoveHubDispose(mouseObj, hub)
 		hub = nil
 	end
 
@@ -3583,7 +3907,9 @@ NAmanage.mouseMoveSub = NAmanage.mouseMoveSub or function(mouseObj, spec)
 			hub.subs[id] = nil
 			hub.count = math.max(0, (hub.count or 0) - 1)
 		end
-		if type(hub.stopIfIdle) == "function" then
+		if (hub.count or 0) <= 0 then
+			NAmanage._mouseMoveHubDispose(mouseObj, hub)
+		elseif type(hub.stopIfIdle) == "function" then
 			hub.stopIfIdle()
 		end
 	end
@@ -7257,8 +7583,14 @@ end
 			local okList, list = pcall(bridge.list)
 			if okList and type(list) == "table" then
 				NAStuff.CmdIntegrationCommands = list
+				if type(NAmanage.invalidateCommandBuild) == "function" then
+					NAmanage.invalidateCommandBuild()
+				end
 			else
 				NAStuff.CmdIntegrationCommands = nil
+				if type(NAmanage.invalidateCommandBuild) == "function" then
+					NAmanage.invalidateCommandBuild()
+				end
 			end
 		end
 	end
@@ -7327,6 +7659,9 @@ NAmanage.detectCmdManualLoad=function(opts)
 				local okList, list = pcall(existingBridge.list)
 				if okList and type(list) == "table" then
 					NAStuff.CmdIntegrationCommands = list
+					if type(NAmanage.invalidateCommandBuild) == "function" then
+						NAmanage.invalidateCommandBuild()
+					end
 				end
 			end
 			return true, "manual-bridge"
@@ -7435,6 +7770,9 @@ NAmanage.detectCmdManualLoad=function(opts)
 		local okList, list = pcall(buildList)
 		if okList and type(list) == "table" then
 			NAStuff.CmdIntegrationCommands = list
+			if type(NAmanage.invalidateCommandBuild) == "function" then
+				NAmanage.invalidateCommandBuild()
+			end
 		end
 		NAStuff.CmdIntegrationLoaded = true
 		NAStuff.CmdIntegrationLastSource = "manual-detect"
@@ -20421,6 +20759,30 @@ NAmanage.rebuildSearchAliasCache = function()
 	end
 end
 
+NAmanage.applyCommandDataPackage = NAmanage.applyCommandDataPackage or function(package)
+	if type(package) ~= "table" then
+		return false
+	end
+	NAStuff.AutofillEntries = package.entries or {}
+	NAStuff.AutofillMetaByName = package.metaByName or {}
+	NAStuff.DefaultBarAutofillEntries = package.defaultEntryMap or {}
+	table.clear(searchIndex)
+	for i = 1, #(package.searchEntries or {}) do
+		searchIndex[i] = package.searchEntries[i]
+	end
+	table.clear(aliasOwnerByAlias)
+	for alias, owner in pairs(package.aliasOwnerMap or {}) do
+		aliasOwnerByAlias[alias] = owner
+	end
+	table.clear(savedOwnerByAlias)
+	for alias, owner in pairs(package.savedOwnerMap or {}) do
+		savedOwnerByAlias[alias] = owner
+	end
+	NAStuff.CommandBuildSignatureApplied = package.signature or (NAmanage.getCommandBuildSignature and NAmanage.getCommandBuildSignature()) or nil
+	cmdNAnum = tonumber(package.totalCount) or #(package.entries or {})
+	return true
+end
+
 NAmanage.ControlLock_FromString = function(s)
 	NAStuff._ctrlLockList = {}
 	NAStuff._ctrlLockSet = {}
@@ -21249,6 +21611,9 @@ cmd.add = function(aliases, info, func, requiresArguments, meta)
 			cmds.Aliases[Lower(aliasName)] = data
 		end
 	end
+	if type(NAmanage.invalidateCommandBuild) == "function" then
+		NAmanage.invalidateCommandBuild()
+	end
 end
 
 cmd.addPatched = function(aliases, info, func, requiresArguments)
@@ -21791,7 +22156,7 @@ NAmanage.AttachMessageCopy = function(gui, rawMessage)
 	if not (gui and gui.InputBegan and gui.InputEnded) then
 		return
 	end
-	NAStuff._messageCopyHooks = NAStuff._messageCopyHooks or {}
+	NAStuff._messageCopyHooks = NAmanage.ensureWeakKeyTable(NAStuff._messageCopyHooks)
 	local hooks = NAStuff._messageCopyHooks
 
 	local function buildResolver()
@@ -23274,6 +23639,24 @@ NAmanage.PartESP_QueueCreate = function(part, color, transparency, guard)
 	qMap[part] = item
 	NAStuff.partESPQueueTail = tail
 	NAmanage.PartESP_QueueRun()
+end
+
+NAmanage.PartESP_QueueRemove = function(part)
+	if not part then
+		return false
+	end
+	local qMap = NAStuff.partESPQueueMap
+	if type(qMap) ~= "table" then
+		return false
+	end
+	local item = qMap[part]
+	if not item then
+		return false
+	end
+	qMap[part] = nil
+	item.part = nil
+	item.guard = nil
+	return true
 end
 
 NAmanage.PartESP_StartSweep = function(key, predicate, budget)
@@ -30316,8 +30699,13 @@ cmd.add({"setfflag", "setff"}, {"setfflag <flag> <value> [save] (setff)", "Set a
 end, true)
 
 NAgui.refAliasesCmds=function()
-	if type(NAgui) == "table" and type(NAgui.loadCMDS) == "function" then
-		pcall(NAgui.loadCMDS)
+	if type(NAmanage.invalidateCommandBuild) == "function" then
+		NAmanage.invalidateCommandBuild()
+	end
+	if type(NAmanage.queueCommandDataBuild) == "function" then
+		pcall(NAmanage.queueCommandDataBuild, { force = true })
+	elseif type(NAgui) == "table" and type(NAgui.loadCMDS) == "function" then
+		pcall(NAgui.loadCMDS, { force = true })
 	else
 		pcall(NAmanage.rebuildSearchAliasCache)
 	end
@@ -61236,6 +61624,7 @@ end
 
 NAmanage.RemoveEspFromPart = function(part)
 	if not part then return end
+	NAmanage.PartESP_QueueRemove(part)
 	local partMap = NAStuff.partESPPartMap
 	local bucket = type(partMap) == "table" and partMap[part] or nil
 	if type(bucket) == "table" then
@@ -63296,10 +63685,19 @@ NAmanage.FolderESP_Enable = function(folder)
 	if not NAStuff.folderESPMemberMaps then NAStuff.folderESPMemberMaps = {} end
 	if not NAStuff.folderESPKeys then NAStuff.folderESPKeys = {} end
 	if not NAStuff.folderESPScanTokens then NAStuff.folderESPScanTokens = {} end
+	if not NAStuff.folderESPModes then NAStuff.folderESPModes = {} end
 
 	local mode = originalIO.folderESPMode()
 	local function currentColor()
 		return NAmanage.GetPartESPColor("ESP_PartColor_Folder", Color3.fromRGB(255,220,0))
+	end
+
+	local activeKey = NAStuff.folderESPKeys[folder]
+	local lastMode = NAStuff.folderESPModes[folder]
+	local isActive = activeKey and NAlib.isConnected(activeKey)
+	local existingList = NAStuff.folderESPMembers[folder]
+	if isActive and lastMode == mode and type(existingList) == "table" then
+		return
 	end
 
 	local function topModelFor(instance, rootFolder)
@@ -63336,6 +63734,7 @@ NAmanage.FolderESP_Enable = function(folder)
 			return
 		end
 		if NAmanage.ESP_ListRemove(list, map, target) then
+			NAmanage.PartESP_QueueRemove(target)
 			NAmanage.RemoveEspFromPart(target)
 		end
 	end
@@ -63388,6 +63787,7 @@ NAmanage.FolderESP_Enable = function(folder)
 	table.clear(map)
 	NAStuff.folderESPMembers[folder] = list
 	NAStuff.folderESPMemberMaps[folder] = map
+	NAStuff.folderESPModes[folder] = mode
 
 	local key = NAStuff.folderESPKeys[folder]
 	if not key then
@@ -63440,6 +63840,64 @@ NAmanage.FolderESP_Enable = function(folder)
 	NAlib.connect(key, NAmanage.descRem(folder, onRemoving))
 end
 
+NAmanage.FolderESP_Disable = function(folder)
+	if typeof(folder) ~= "Instance" then
+		return false
+	end
+
+	local removed = false
+	local members = NAStuff.folderESPMembers
+	local keysCache = NAStuff.folderESPKeys
+	local mapsCache = NAStuff.folderESPMemberMaps
+	local scanTokens = NAStuff.folderESPScanTokens
+	local modeCache = NAStuff.folderESPModes
+
+	if type(keysCache) == "table" then
+		local conn = keysCache[folder]
+		if conn then
+			NAlib.disconnect(conn)
+			keysCache[folder] = nil
+			removed = true
+		end
+	end
+
+	if type(scanTokens) == "table" then
+		local token = scanTokens[folder]
+		if token then
+			NAmanage.CancelTokenCancel(token)
+			scanTokens[folder] = nil
+		end
+	end
+
+	if type(members) == "table" then
+		local list = members[folder]
+		if type(list) == "table" then
+			for i = #list, 1, -1 do
+				local part = list[i]
+				NAmanage.PartESP_QueueRemove(part)
+				NAmanage.RemoveEspFromPart(part)
+				list[i] = nil
+				removed = true
+			end
+			members[folder] = nil
+		end
+	end
+
+	if type(mapsCache) == "table" then
+		local map = mapsCache[folder]
+		if type(map) == "table" then
+			table.clear(map)
+		end
+		mapsCache[folder] = nil
+	end
+
+	if type(modeCache) == "table" then
+		modeCache[folder] = nil
+	end
+
+	return removed
+end
+
 NAmanage.FolderESP_RefreshActive = function()
 	local members = NAStuff.folderESPMembers
 	if type(members) ~= "table" then
@@ -63454,6 +63912,7 @@ NAmanage.FolderESP_RefreshActive = function()
 		end
 	end
 	for _, folder in ipairs(tracked) do
+		NAmanage.FolderESP_Disable(folder)
 		NAmanage.FolderESP_Enable(folder)
 	end
 end
@@ -63472,12 +63931,21 @@ NAmanage.ModelESP_Enable = function(model)
 	if not NAStuff.modelESPMemberMaps then NAStuff.modelESPMemberMaps = {} end
 	if not NAStuff.modelESPKeys then NAStuff.modelESPKeys = {} end
 	if not NAStuff.modelESPScanTokens then NAStuff.modelESPScanTokens = {} end
+	if not NAStuff.modelESPModes then NAStuff.modelESPModes = {} end
 
 	NAmanage.ESP_ListAdd(NAStuff.modelESPModels, NAStuff.modelESPMap, model)
 
 	local mode = originalIO.modelESPMode()
 	local function currentColor()
 		return NAmanage.GetPartESPColor("ESP_PartColor_Model", Color3.fromRGB(0, 200, 255))
+	end
+
+	local activeKey = NAStuff.modelESPKeys[model]
+	local lastMode = NAStuff.modelESPModes[model]
+	local isActive = activeKey and NAlib.isConnected(activeKey)
+	local existingList = NAStuff.modelESPMembers[model]
+	if isActive and lastMode == mode and type(existingList) == "table" then
+		return
 	end
 
 	local function addTarget(list, map, target)
@@ -63496,6 +63964,7 @@ NAmanage.ModelESP_Enable = function(model)
 			return
 		end
 		if NAmanage.ESP_ListRemove(list, map, target) then
+			NAmanage.PartESP_QueueRemove(target)
 			NAmanage.RemoveEspFromPart(target)
 		end
 	end
@@ -63536,6 +64005,7 @@ NAmanage.ModelESP_Enable = function(model)
 	table.clear(map)
 	NAStuff.modelESPMembers[model] = list
 	NAStuff.modelESPMemberMaps[model] = map
+	NAStuff.modelESPModes[model] = mode
 
 	local key = NAStuff.modelESPKeys[model]
 	if not key then
@@ -63608,6 +64078,7 @@ NAmanage.ModelESP_Disable = function(model)
 	local memberMaps = NAStuff.modelESPMemberMaps
 	local keys = NAStuff.modelESPKeys
 	local scanTokens = NAStuff.modelESPScanTokens
+	local modes = NAStuff.modelESPModes
 
 	if type(scanTokens) == "table" then
 		local token = scanTokens[model]
@@ -63629,6 +64100,7 @@ NAmanage.ModelESP_Disable = function(model)
 		local list = memberLists[model]
 		if type(list) == "table" then
 			for i = #list, 1, -1 do
+				NAmanage.PartESP_QueueRemove(list[i])
 				NAmanage.RemoveEspFromPart(list[i])
 				list[i] = nil
 				removed = true
@@ -63643,6 +64115,9 @@ NAmanage.ModelESP_Disable = function(model)
 			table.clear(map)
 		end
 		memberMaps[model] = nil
+	end
+	if type(modes) == "table" then
+		modes[model] = nil
 	end
 
 	NAmanage.RemoveEspFromPart(model)
@@ -63663,6 +64138,7 @@ NAmanage.ModelESP_RefreshActive = function()
 		if typeof(model) ~= "Instance" or not model:IsA("Model") or not model.Parent or not model:FindFirstChildWhichIsA("BasePart", true) then
 			NAmanage.ModelESP_Disable(model)
 		else
+			NAmanage.ModelESP_Disable(model)
 			NAmanage.ModelESP_Enable(model)
 		end
 	end
@@ -63813,45 +64289,8 @@ cmd.add({"unfolderesp","unfesp"},{"unfolderesp [folderName]","Disables folder ES
 		return
 	end
 
-	local keysCache = NAStuff.folderESPKeys
-	local mapsCache = NAStuff.folderESPMemberMaps
-	local scanTokens = NAStuff.folderESPScanTokens
-
 	local function detachFolder(folder)
-		if typeof(folder) ~= "Instance" then
-			return false
-		end
-
-		local removed = false
-
-		if keysCache then
-			local conn = keysCache[folder]
-			if conn then
-				NAlib.disconnect(conn)
-				keysCache[folder] = nil
-				removed = true
-			end
-		end
-
-		local list = members[folder]
-		if list then
-			for _, part in ipairs(list) do
-				NAmanage.RemoveEspFromPart(part)
-			end
-			table.clear(list)
-			members[folder] = nil
-			removed = true
-		end
-		if mapsCache and mapsCache[folder] then
-			table.clear(mapsCache[folder])
-			mapsCache[folder] = nil
-		end
-		if scanTokens and scanTokens[folder] then
-			NAmanage.CancelTokenCancel(scanTokens[folder])
-			scanTokens[folder] = nil
-		end
-
-		return removed
+		return NAmanage.FolderESP_Disable(folder)
 	end
 
 	local function collectTrackedFolders()
@@ -71522,15 +71961,62 @@ NAmanage.cmdYield=function(i, budget)
 	end
 end
 
-NAmanage.buildCommandEntries=function()
+NAStuff.CommandBuildRevision = tonumber(NAStuff.CommandBuildRevision) or 0
+NAStuff.CommandBuildSignatureApplied = NAStuff.CommandBuildSignatureApplied or nil
+
+NAmanage.invalidateCommandBuild = NAmanage.invalidateCommandBuild or function()
+	NAStuff.CommandBuildRevision = (tonumber(NAStuff.CommandBuildRevision) or 0) + 1
+	return NAStuff.CommandBuildRevision
+end
+
+NAmanage.getCommandBuildSignature = NAmanage.getCommandBuildSignature or function()
+	local cmdCount = countDictNA(cmds.Commands)
+	local aliasCount = countDictNA(cmds.Aliases)
+	local savedAliasCount = countDictNA(cmds.NASAVEDALIASES)
+	local integrationCount = type(NAStuff.CmdIntegrationCommands) == "table" and #NAStuff.CmdIntegrationCommands or 0
+	local revision = tonumber(NAStuff.CommandBuildRevision) or 0
+	return table.concat({
+		tostring(revision),
+		tostring(cmdCount),
+		tostring(aliasCount),
+		tostring(savedAliasCount),
+		tostring(integrationCount),
+	}, ":")
+end
+
+NAmanage.isCommandDataStale = NAmanage.isCommandDataStale or function()
+	local currentSignature = NAmanage.getCommandBuildSignature and NAmanage.getCommandBuildSignature() or nil
+	return currentSignature ~= (NAStuff.CommandBuildSignatureApplied or nil)
+end
+
+NAmanage.buildCommandDataPackage = function()
+	local signature = NAmanage.getCommandBuildSignature and NAmanage.getCommandBuildSignature() or nil
 	local entries = {}
 	local metaByName = {}
 	local used = {}
 	local aliasByFunc = {}
+	local dataToName = {}
+	local aliasOwnerMap = {}
+	local savedOwnerMap = {}
 	local aliasStep = 0
+	local cmdMapStep = 0
+	for name, data in pairs(cmds.Commands or {}) do
+		cmdMapStep += 1
+		if name then
+			dataToName[data] = tostring(name)
+		end
+		NAmanage.cmdYield(cmdMapStep, 220)
+	end
 	for alias, data in pairs(cmds.Aliases or {}) do
 		aliasStep += 1
 		NAmanage.cmdYield(aliasStep, 180)
+		local lowerAlias = Lower(tostring(alias or ""))
+		if lowerAlias ~= "" then
+			local owner = dataToName[data]
+			if owner then
+				aliasOwnerMap[lowerAlias] = owner
+			end
+		end
 		local func = type(data) == "table" and data[1]
 		if func then
 			local bucket = aliasByFunc[func]
@@ -71539,6 +72025,13 @@ NAmanage.buildCommandEntries=function()
 				aliasByFunc[func] = bucket
 			end
 			bucket[Lower(tostring(alias))] = true
+		end
+	end
+	for alias, original in pairs(cmds.NASAVEDALIASES or {}) do
+		local lowerAlias = Lower(tostring(alias or ""))
+		local lowerOriginal = Lower(tostring(original or ""))
+		if lowerAlias ~= "" and lowerOriginal ~= "" then
+			savedOwnerMap[lowerAlias] = lowerOriginal
 		end
 	end
 	local function resolveCommandDisplay(name, data)
@@ -71621,6 +72114,12 @@ NAmanage.buildCommandEntries=function()
 		end
 		used[Lower(name)] = true
 		local searchable = NAmanage.stripMarkup(Lower(finalText or displayText or name))
+		if #aliasList > 0 then
+			searchable = searchable.." "..Concat(aliasList, " ")
+		end
+		if desc ~= "" then
+			searchable = searchable.." "..NAmanage.stripMarkup(Lower(desc))
+		end
 		if isPatched then
 			searchable = searchable.." patched"
 		end
@@ -71637,6 +72136,7 @@ NAmanage.buildCommandEntries=function()
 			name = name;
 			display = finalText;
 			meta = metaByName[name];
+			sortKey = Lower(tostring(finalText or name));
 		}
 	end
 
@@ -71721,17 +72221,74 @@ NAmanage.buildCommandEntries=function()
 					name = key;
 					display = finalText;
 					meta = metaByName[key];
+					sortKey = Lower(tostring(finalText or key));
 				}
 			end
 		end
 	end
 
 	table.sort(entries, function(a, b)
-		return Lower(tostring(a.display or a.name)) < Lower(tostring(b.display or b.name))
+		return tostring(a.sortKey or a.display or a.name) < tostring(b.sortKey or b.display or b.name)
 	end)
 
-	NAStuff.AutofillMetaByName = metaByName
-	return entries, metaByName
+	local searchEntries = {}
+	local defaultEntryMap = {}
+	local defaultTargets = {}
+	for _, cmdName in ipairs(defaultBarCommands or {}) do
+		local lowerCmd = Lower(tostring(cmdName or ""))
+		if lowerCmd ~= "" then
+			defaultTargets[lowerCmd] = true
+		end
+	end
+	for i = 1, #entries do
+		NAmanage.cmdYield(i, 180)
+		local entry = entries[i]
+		local cmdName = entry and entry.name
+		if cmdName then
+			local meta = entry.meta or metaByName[cmdName] or {}
+			local lowerName = Lower(tostring(cmdName))
+			local extraAliases = {}
+			if type(meta.aliases) == "table" then
+				for j = 1, #meta.aliases do
+					local aliasText = Lower(tostring(meta.aliases[j] or ""))
+					if aliasText ~= "" then
+						extraAliases[#extraAliases + 1] = aliasText
+						if defaultTargets[aliasText] and not defaultEntryMap[aliasText] then
+							defaultEntryMap[aliasText] = entry
+						end
+					end
+				end
+			end
+			if defaultTargets[lowerName] and not defaultEntryMap[lowerName] then
+				defaultEntryMap[lowerName] = entry
+			end
+			searchEntries[#searchEntries + 1] = {
+				name = cmdName,
+				lowerName = lowerName,
+				searchable = meta.searchable or NAmanage.stripMarkup(Lower(tostring(entry.display or cmdName))),
+				extraAliases = extraAliases,
+				display = entry.display,
+				meta = meta,
+			}
+		end
+	end
+
+	return {
+		signature = signature;
+		totalCount = NAmanage.totalCommandCount and NAmanage.totalCommandCount() or #entries;
+		entries = entries;
+		metaByName = metaByName;
+		searchEntries = searchEntries;
+		aliasOwnerMap = aliasOwnerMap;
+		savedOwnerMap = savedOwnerMap;
+		defaultEntryMap = defaultEntryMap;
+	}
+end
+
+NAmanage.buildCommandEntries=function()
+	local package = NAmanage.buildCommandDataPackage()
+	NAStuff.AutofillMetaByName = package and package.metaByName or {}
+	return package and package.entries or {}, package and package.metaByName or {}
 end
 
 NAmanage.totalCommandCount=function()
@@ -72132,9 +72689,15 @@ NAgui.commands = function()
 	end
 
 	local entries = NAStuff.AutofillEntries
-	if type(entries) ~= "table" or NAmanage.totalCommandCount() ~= cmdNAnum then
-		entries = NAmanage.buildCommandEntries() or {}
-		NAStuff.AutofillEntries = entries
+	if type(entries) ~= "table" then
+		entries = {}
+	end
+	if type(NAmanage.isCommandDataStale) == "function" and NAmanage.isCommandDataStale() then
+		if type(NAmanage.queueCommandDataBuild) == "function" then
+			pcall(NAmanage.queueCommandDataBuild, { force = (#entries <= 0) })
+		elseif type(NAgui.loadCMDS) == "function" then
+			pcall(NAgui.loadCMDS, { force = (#entries <= 0) })
+		end
 	end
 	state.entries = entries
 	state.filteredEntries = entries
@@ -77084,27 +77647,26 @@ NAmanage.applyCmdAutofillEntryToFrame = function(frame, entry)
 	NAmanage.SetAttr(frame, "IsPatchedCommand", isPatched)
 end
 
-NAgui.loadCMDS = function()
+NAgui.loadCMDS = function(opts)
+	opts = opts or {}
+	local targetSignature = opts.signature
+	if targetSignature == nil and type(NAmanage.getCommandBuildSignature) == "function" then
+		targetSignature = NAmanage.getCommandBuildSignature()
+	end
+	local cachedEntries = NAStuff.AutofillEntries
+	if not opts.force
+		and type(cachedEntries) == "table"
+		and targetSignature ~= nil
+		and targetSignature == NAStuff.CommandBuildSignatureApplied then
+		cmdNAnum = NAmanage.totalCommandCount and NAmanage.totalCommandCount() or #cachedEntries
+		return cachedEntries
+	end
 	if NAStuff.cmdAutofillLoading == true then
 		NAStuff.cmdAutofillLoadRequested = true
-		return
+		return cachedEntries
 	end
-	local cmdInput = NAUIMANAGER and NAUIMANAGER.cmdInput
-	local prevCmdEditable, prevCmdActive, prevCmdSelectable, prevCmdPlaceholder
 	NAStuff.cmdAutofillLoadRequested = false
 	NAStuff.cmdAutofillLoading = true
-	if cmdInput then
-		prevCmdPlaceholder = cmdInput.PlaceholderText
-		prevCmdEditable = cmdInput.TextEditable
-		prevCmdActive = cmdInput.Active
-		prevCmdSelectable = cmdInput.Selectable
-		pcall(function() cmdInput.TextEditable = false end)
-		pcall(function() cmdInput.Active = false end)
-		pcall(function() cmdInput.Selectable = false end)
-		if cmdInput.PlaceholderText ~= nil then
-			cmdInput.PlaceholderText = "Loading commands..."
-		end
-	end
 	NAmanage.setCmdAutofillClickable(false)
 	table.clear(prevVisible)
 	NAmanage.ensureCmdAutofillSuggestionPool(5)
@@ -77122,8 +77684,20 @@ NAgui.loadCMDS = function()
 	NAStuff.autofillSelecting = false
 	NAStuff.cmdFocusGuardUntil = 0
 	NAStuff.autofillRefocusGuard = 0
-	local entries = NAmanage.buildCommandEntries()
-	NAStuff.AutofillEntries = entries
+	local okBuild, packageOrErr = pcall(function()
+		local package = NAmanage.buildCommandDataPackage and NAmanage.buildCommandDataPackage() or nil
+		if type(package) == "table" and type(NAmanage.applyCommandDataPackage) == "function" then
+			NAmanage.applyCommandDataPackage(package)
+		end
+		return package
+	end)
+	if not okBuild then
+		NAStuff.cmdAutofillLoading = false
+		warn("[NA] Command build failed:", packageOrErr)
+		return cachedEntries
+	end
+	local package = packageOrErr
+	local entries = NAStuff.AutofillEntries or {}
 	local pool = NAmanage.ensureCmdAutofillSuggestionPool(5)
 	for i = 1, #pool do
 		local btn = pool[i]
@@ -77133,42 +77707,75 @@ NAgui.loadCMDS = function()
 		end
 	end
 	NAmanage.setCmdAutofillClickable(NAStuff.cmdBarSelected == true)
-	cmdNAnum = #entries
 	NAgui.hideFill()
-	NAmanage.rebuildIndex(entries)
-	NAmanage.rebuildSearchAliasCache()
 	NAStuff.cmdAutofillLoading = false
-	if cmdInput then
-		pcall(function()
-			if prevCmdEditable ~= nil then
-				cmdInput.TextEditable = prevCmdEditable
+	if NAUIMANAGER and NAUIMANAGER.commandsFrame and NAUIMANAGER.commandsFrame.Visible and type(NAgui.filterCommandList) == "function" then
+		task.defer(function()
+			if NAUIMANAGER and NAUIMANAGER.commandsFilter then
+				NAgui.filterCommandList(NAUIMANAGER.commandsFilter.Text)
 			end
 		end)
-		pcall(function()
-			if prevCmdActive ~= nil then
-				cmdInput.Active = prevCmdActive
+	end
+	if type(NAgui.autoFILLLL) == "function" then
+		task.defer(function()
+			local box = NAUIMANAGER and NAUIMANAGER.cmdInput
+			if not box then
+				return
+			end
+			local focused = false
+			pcall(function()
+				focused = box:IsFocused()
+			end)
+			if focused or NAStuff.cmdBarSelected == true or (box.Text or "") ~= "" then
+				NAgui.autoFILLLL()
 			end
 		end)
-		pcall(function()
-			if prevCmdSelectable ~= nil then
-				cmdInput.Selectable = prevCmdSelectable
-			end
-		end)
-		if cmdInput.PlaceholderText ~= nil and prevCmdPlaceholder ~= nil then
-			cmdInput.PlaceholderText = prevCmdPlaceholder
-		end
 	end
 	if NAStuff.cmdAutofillLoadRequested == true then
 		NAStuff.cmdAutofillLoadRequested = false
 		task.defer(function()
 			if type(NAgui.loadCMDS) == "function" then
-				local ok, err = pcall(NAgui.loadCMDS)
+				local ok, err = pcall(NAgui.loadCMDS, { force = true })
 				if not ok then
 					warn("[NA] Queued command rebuild failed:", err)
 				end
 			end
 		end)
 	end
+	return entries
+end
+
+NAmanage.queueCommandDataBuild = NAmanage.queueCommandDataBuild or function(opts)
+	opts = opts or {}
+	local signature = opts.signature
+	if signature == nil and type(NAmanage.getCommandBuildSignature) == "function" then
+		signature = NAmanage.getCommandBuildSignature()
+	end
+	if not opts.force
+		and signature ~= nil
+		and signature == NAStuff.CommandBuildSignatureApplied
+		and type(NAStuff.AutofillEntries) == "table" then
+		return false
+	end
+	if NAStuff.cmdAutofillLoading == true or NAStuff.CommandBuildWorkerQueued == true then
+		NAStuff.cmdAutofillLoadRequested = true
+		return false
+	end
+	NAStuff.CommandBuildWorkerQueued = true
+	task.defer(function()
+		NAStuff.CommandBuildWorkerQueued = false
+		if type(NAgui.loadCMDS) == "function" then
+			local ok, err = pcall(NAgui.loadCMDS, {
+				force = opts.force,
+				signature = signature,
+				background = true,
+			})
+			if not ok then
+				warn("[NA] Background command rebuild failed:", err)
+			end
+		end
+	end)
+	return true
 end
 
 SpawnCall(function() -- plugin tester
@@ -77184,9 +77791,14 @@ SpawnCall(function() -- plugin tester
 			waitTime = math.min(8, waitTime + 1)
 		else
 			if NAStuff.cmdAutofillLoading ~= true
-				and type(NAgui.loadCMDS) == "function"
-				and NAmanage.totalCommandCount() ~= cmdNAnum then
-				local ok, err = pcall(NAgui.loadCMDS)
+				and type(NAmanage.isCommandDataStale) == "function"
+				and NAmanage.isCommandDataStale() then
+				local ok, err = pcall(function()
+					if type(NAmanage.queueCommandDataBuild) == "function" then
+						return NAmanage.queueCommandDataBuild()
+					end
+					return NAgui.loadCMDS({ force = true })
+				end)
 				if not ok then
 					warn("[NA] Command refresh loop failed:", err)
 				end
@@ -77269,9 +77881,6 @@ end
 
 NAgui.activateCmdInput = function(opts)
 	opts = opts or {}
-	if NAStuff.cmdAutofillLoading == true then
-		return false
-	end
 	local box = NAUIMANAGER and NAUIMANAGER.cmdInput
 	if not box then
 		return false
@@ -77479,6 +78088,9 @@ NAmanage.performSearch = function(term, ctx)
 	for _, f in ipairs(prevVisible) do f.Visible = false end
 	table.clear(prevVisible)
 	table.clear(results)
+	if #searchIndex <= 0 and type(NAmanage.queueCommandDataBuild) == "function" then
+		pcall(NAmanage.queueCommandDataBuild, { force = true })
+	end
 	local suggestionPool = NAmanage.ensureCmdAutofillSuggestionPool and NAmanage.ensureCmdAutofillSuggestionPool(5) or {}
 	local function pushTop(candidate)
 		local insertAt = #results + 1
@@ -77525,12 +78137,18 @@ NAmanage.performSearch = function(term, ctx)
 					break
 				end
 				local target = Lower(cmdName)
-				for _, entry in ipairs(searchIndex) do
-					if NAmanage.defaultCommandMatches(entry, target) then
-						displayed += 1
-						revealEntry(entry, displayed)
-						break
+				local entry = type(NAStuff.DefaultBarAutofillEntries) == "table" and NAStuff.DefaultBarAutofillEntries[target] or nil
+				if not entry then
+					for _, searchEntry in ipairs(searchIndex) do
+						if NAmanage.defaultCommandMatches(searchEntry, target) then
+							entry = searchEntry
+							break
+						end
 					end
+				end
+				if entry then
+					displayed += 1
+					revealEntry(entry, displayed)
 				end
 			end
 		else
@@ -77685,7 +78303,11 @@ NAgui.searchCommands = function()
 	end))
 end
 
-NAgui.loadCMDS()
+if type(NAmanage.queueCommandDataBuild) == "function" then
+	NAmanage.queueCommandDataBuild({ force = true })
+else
+	NAgui.loadCMDS({ force = true })
+end
 NAgui.searchCommands()
 
 NAgui.autoFILLLL=function()
@@ -78806,8 +79428,8 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		closePrompt(false)
 	end)
 	promptInput.FocusLost:Connect(function(enterPressed)
-		if promptOverlay.Visible then
-			closePrompt(enterPressed == true)
+		if promptOverlay.Visible and enterPressed == true then
+			closePrompt(true)
 		end
 	end)
 
@@ -79799,10 +80421,7 @@ originalIO.naTransLatooor=function()
 	local translator = NAStuff.ChatTranslator or {}
 	NAStuff.ChatTranslator = translator
 
-	translator.messages = translator.messages or {}
-	if getmetatable(translator.messages) then
-		setmetatable(translator.messages, nil)
-	end
+	translator.messages = NAmanage.ensureWeakKeyTable(translator.messages)
 	translator.enabled = opt.chatTranslateEnabled ~= false
 	opt.chatTranslateEnabled = translator.enabled
 
@@ -95173,32 +95792,15 @@ pcall(function()
 	if type(NAmanage.queueAssetMethodResync) == "function" then
 		NAmanage.queueAssetMethodResync({ 0.25, 3 }, { silent = true })
 	end
-	if type(NAgui.loadCMDS) == "function" and type(NAmanage.totalCommandCount) == "function" then
-		local syncDeadline = os.clock() + 4
-		repeat
-			local targetCount = NAmanage.totalCommandCount()
-			local currentCount = tonumber(cmdNAnum) or 0
-			local needsBuild = (NAStuff.cmdAutofillLoading == true) or (NAStuff.cmdAutofillLoadRequested == true) or (currentCount ~= targetCount)
-			if needsBuild and NAAssetsLoading and NAAssetsLoading.setStatus then
-				if targetCount > 0 then
-					NAAssetsLoading.setStatus(Format("building command list and autofill (%d/%d)", math.min(currentCount, targetCount), targetCount))
-				else
-					NAAssetsLoading.setStatus("building command list and autofill")
-				end
-			end
-			if not needsBuild then
-				break
-			end
-			if NAStuff.cmdAutofillLoading ~= true then
-				local ok, err = pcall(NAgui.loadCMDS)
-				if not ok then
-					warn("[NA] Final command sync failed:", err)
-					break
-				end
-			else
-				Wait()
-			end
-		until os.clock() >= syncDeadline
+	if type(NAmanage.isCommandDataStale) == "function" and NAmanage.isCommandDataStale() then
+		if NAAssetsLoading and NAAssetsLoading.setStatus then
+			NAAssetsLoading.setStatus("warming command list and autofill")
+		end
+		if type(NAmanage.queueCommandDataBuild) == "function" then
+			pcall(NAmanage.queueCommandDataBuild, { force = true })
+		elseif type(NAgui.loadCMDS) == "function" then
+			pcall(NAgui.loadCMDS, { force = true })
+		end
 	end
 	if NAAssetsLoading and NAAssetsLoading.setStatus and NAAssetsLoading.setPercent and NAAssetsLoading.completed then
 		NAAssetsLoading.setStatus("ready")
