@@ -77786,9 +77786,9 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		execResponsive.phone = targetW < 560
 		execResponsive.lastW = targetW
 		execResponsive.lastH = targetH
-		frame.AnchorPoint = Vector2.new(0.5, 0.5)
+		frame.AnchorPoint = Vector2.new(0, 0)
 		frame.Size = UDim2.fromOffset(targetW, targetH)
-		frame.Position = UDim2.new(0.5, 0, 0.5, 0)
+		NAmanage.centerFrame(frame)
 	end
 
 	local rootPad = Instance.new("UIPadding")
