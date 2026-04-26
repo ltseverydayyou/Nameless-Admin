@@ -77784,23 +77784,33 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		return IsOnMobile or vp.Y < 600 or vp.X < 900 or (touch and not (mouse or key))
 	end
 
+	local function clampSize(v, lo, hi)
+		v = tonumber(v) or 0
+		lo = tonumber(lo) or 0
+		hi = tonumber(hi) or lo
+		if hi < lo then
+			return math.max(1, hi)
+		end
+		return math.clamp(v, lo, hi)
+	end
+
 	local function applyExecutorFrameSize()
 		if not frame or not frame.Parent then
 			return
 		end
 		local vp = getExecutorViewport()
 		local padX, padY = getSafePad()
-		local maxW = math.max(320, vp.X - padX * 2)
-		local maxH = math.max(260, vp.Y - padY * 2)
+		local maxW = math.max(1, vp.X - padX * 2)
+		local maxH = math.max(1, vp.Y - padY * 2)
 		local mobile = isTouchCompact(vp)
 		local targetW
 		local targetH
 		if mobile then
-			targetW = math.clamp(math.floor(vp.X * 0.965), 340, maxW)
-			targetH = math.clamp(math.floor(vp.Y * (vp.Y < 520 and 0.88 or 0.90)), 280, maxH)
+			targetW = clampSize(math.floor(vp.X * 0.965), 340, maxW)
+			targetH = clampSize(math.floor(vp.Y * (vp.Y < 520 and 0.88 or 0.90)), 280, maxH)
 		else
-			targetW = math.clamp(920, 680, maxW)
-			targetH = math.clamp(540, 420, maxH)
+			targetW = clampSize(920, 680, maxW)
+			targetH = clampSize(540, 420, maxH)
 		end
 		execResponsive.compact = targetW < 760 or targetH < 430
 		execResponsive.phone = targetW < 560
@@ -77810,7 +77820,6 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		frame.Size = UDim2.fromOffset(targetW, targetH)
 		NAmanage.centerFrame(frame)
 	end
-
 	local rootPad = Instance.new("UIPadding")
 	rootPad.PaddingBottom = UDim.new(0, 10)
 	rootPad.PaddingLeft = UDim.new(0, 10)
