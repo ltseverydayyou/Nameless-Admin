@@ -2079,6 +2079,64 @@ NAmanage.wsDescs = NAmanage.wsDescs or function()
 	return hub.cache
 end
 
+NAmanage.fastDesc = NAmanage.fastDesc or function(root, className, opts)
+	if typeof(root) ~= "Instance" then
+		return {}
+	end
+
+	className = type(className) == "string" and className or "Instance"
+	opts = type(opts) == "table" and opts or {}
+
+	local match = type(opts.match) == "function" and opts.match or nil
+	local hardLimit = tonumber(opts.hardLimit) or tonumber(opts.limit) or 0
+	local source = {}
+
+	if root == workspace then
+		local hub = NAmanage._wsHub
+		if type(hub) == "table" and hub.root == workspace and hub.cacheLive and type(hub.cache) == "table" then
+			hub.cacheLastTouch = os.clock()
+			source = hub.cache
+		else
+			local ok, descs = pcall(function()
+				return workspace:GetDescendants()
+			end)
+			if ok and type(descs) == "table" then
+				source = descs
+			end
+		end
+	else
+		local ok, descs = pcall(function()
+			return root:GetDescendants()
+		end)
+		if ok and type(descs) == "table" then
+			source = descs
+		end
+	end
+
+	local out = {}
+	for i = 1, #source do
+		local inst = source[i]
+		if inst and inst.Parent then
+			local pass = className == "Instance"
+			if not pass then
+				local ok, isA = pcall(function()
+					return inst:IsA(className)
+				end)
+				pass = ok and isA == true
+			end
+
+			if pass and (not match or match(inst)) then
+				out[#out + 1] = inst
+				if hardLimit > 0 and #out >= hardLimit then
+					break
+				end
+			end
+		end
+	end
+
+	return out
+end
+
 NAmanage.wsSub = NAmanage.wsSub or function(spec)
 	spec = spec or {}
 	local onAdd = type(spec.added) == "function" and spec.added or nil
@@ -36287,6 +36345,9 @@ NAmanage.dropToolStep=function(tool, character, backpack, done)
 		done = function() end
 	end
 
+	character = character or getChar()
+	backpack = backpack or getBp()
+
 	if not (tool and tool.Parent and character) then
 		done(false)
 		return false
@@ -36297,47 +36358,25 @@ NAmanage.dropToolStep=function(tool, character, backpack, done)
 		return false
 	end
 
-	if tool.Parent == character then
-		NACaller(function()
-			tool.Parent = workspace
-		end)
-
-		Defer(function()
-			done(tool and tool.Parent == workspace)
-		end)
-		return true
-	end
-
-	if not (backpack and tool.Parent == backpack) then
+	if tool.Parent ~= character and not (backpack and tool.Parent == backpack) then
 		done(false)
 		return false
 	end
 
-	NACaller(function()
-		tool.Parent = character
-	end)
-
-	Defer(function()
-		if not (tool and tool.Parent and NAmanage.canDropTool(tool)) then
-			done(false)
-			return
-		end
-
-		if tool.Parent ~= character then
-			done(tool.Parent == workspace)
-			return
-		end
-
+	if tool.Parent ~= character then
 		NACaller(function()
-			tool.Parent = workspace
+			tool.Parent = character
 		end)
+		Wait()
+	end
 
-		Defer(function()
-			done(tool and tool.Parent == workspace)
-		end)
+	NACaller(function()
+		tool.Parent = workspace
 	end)
 
-	return true
+	local dropped = tool.Parent == workspace
+	done(dropped)
+	return dropped
 end
 
 NAmanage.dropToolFast=function(tool, character, backpack)
@@ -36455,16 +36494,53 @@ NAmanage.dropAllToolsSafe=function(done)
 		return 0, "No droppable tools found"
 	end
 
+	local hum = getHum(character)
+	if hum and hum:IsA("Humanoid") then
+		pcall(function()
+			hum:UnequipTools()
+		end)
+	end
+
+	local dropped = 0
+	local failed = 0
+	for _, tool in ipairs(queue) do
+		if tool and tool.Parent and tool.Parent ~= workspace and NAmanage.canDropTool(tool) then
+			if tool.Parent ~= character then
+				NACaller(function()
+					tool.Parent = character
+				end)
+				Wait()
+			end
+
+			NACaller(function()
+				tool.Parent = workspace
+			end)
+
+			if tool.Parent == workspace then
+				dropped += 1
+			else
+				failed += 1
+			end
+		else
+			failed += 1
+		end
+	end
+
 	local state = {
-		dropped = 0,
-		failed = 0,
-		done = false,
-		doneFn = done
+		dropped = dropped,
+		failed = failed,
+		done = true
 	}
 
-	NAmanage.dropQueueStep(queue, 1, state)
+	if type(done) == "function" then
+		done(state)
+	end
 
-	return #queue
+	if dropped > 0 then
+		return dropped
+	end
+
+	return 0, "No droppable tools found"
 end
 cmd.add({"droptool","dropatool","dtool"}, {"droptool", "Drop one of your tools"}, function()
 	local ok, info = NAmanage.dropOneTool()
@@ -45644,6 +45720,161 @@ NAmanage.toolParts=function(tool)
 	return parts
 end
 
+NAmanage.toolPrompts = NAmanage.toolPrompts or function(tool)
+	local prompts = {}
+	if typeof(tool) ~= "Instance" then
+		return prompts
+	end
+
+	for _, inst in ipairs(tool:GetDescendants()) do
+		if inst:IsA("ProximityPrompt") and inst.Parent then
+			prompts[#prompts + 1] = inst
+		end
+	end
+
+	return prompts
+end
+
+NAmanage.toolHasPrompt = NAmanage.toolHasPrompt or function(tool)
+	return #NAmanage.toolPrompts(tool) > 0
+end
+
+NAmanage.fireToolPrompts = NAmanage.fireToolPrompts or function(tool, waitTime, attempts)
+	if typeof(tool) ~= "Instance" or typeof(fireproximityprompt) ~= "function" then
+		return false, false
+	end
+
+	local prompts = NAmanage.toolPrompts(tool)
+	if #prompts == 0 then
+		return false, false
+	end
+
+	local fired = false
+	local tries = math.max(1, tonumber(attempts) or 1)
+	for attempt = 1, tries do
+		for _, inst in ipairs(prompts) do
+			if inst and inst.Parent then
+				fired = true
+				local holdDuration = inst.HoldDuration
+				local maxDistance = inst.MaxActivationDistance
+
+				NACaller(function()
+					if holdDuration > 0 then
+						inst.HoldDuration = 0
+					end
+					if maxDistance < 32 then
+						inst.MaxActivationDistance = 32
+					end
+				end)
+
+				pcall(fireproximityprompt, inst)
+
+				NACaller(function()
+					if inst and inst.Parent then
+						if inst.HoldDuration ~= holdDuration then
+							inst.HoldDuration = holdDuration
+						end
+						if inst.MaxActivationDistance ~= maxDistance then
+							inst.MaxActivationDistance = maxDistance
+						end
+					end
+				end)
+			end
+		end
+
+		if NAmanage.isOwnPackTool(tool) then
+			break
+		end
+
+		local settleBetween = tonumber(waitTime)
+		if settleBetween and settleBetween > 0 and attempt < tries then
+			Wait(settleBetween)
+		end
+	end
+
+	local settle = tonumber(waitTime)
+	if settle and settle > 0 then
+		Wait(settle)
+	end
+
+	return fired, NAmanage.isOwnPackTool(tool)
+end
+
+NAmanage.fireToolPromptsFromCharacter = NAmanage.fireToolPromptsFromCharacter or function(tool)
+	if typeof(tool) ~= "Instance" or typeof(fireproximityprompt) ~= "function" then
+		return false, false
+	end
+
+	local prompts = NAmanage.toolPrompts(tool)
+	if #prompts == 0 then
+		return false, false
+	end
+
+	local char = getChar()
+	local root = char and getRoot(char)
+	if not (char and root) then
+		return false, false
+	end
+
+	local oldCF = root.CFrame
+	local moved = false
+	local firedAny = false
+
+	for _, pp in ipairs(prompts) do
+		if pp and pp.Parent then
+			local part = (NAindex and NAindex.getPromptPart and NAindex.getPromptPart(pp)) or nil
+			if part and part.Parent then
+				local offset = math.max(3, math.min(6, (pp.MaxActivationDistance or 0) * 0.6))
+				local targetPos = part.Position + Vector3.new(0, 0, offset)
+				local targetCF = CFrame.new(targetPos, part.Position)
+				NAmanage.safePivotModel(char, targetCF)
+				moved = true
+				Wait(0.2)
+
+				local fired = false
+				fired, _ = NAmanage.fireToolPrompts(tool, 0.12, 3)
+				firedAny = firedAny or fired
+				if NAmanage.isOwnPackTool(tool) then
+					break
+				end
+			end
+		end
+	end
+
+	if moved and char and char.Parent and root and root.Parent then
+		NAmanage.safePivotModel(char, oldCF)
+	end
+
+	return firedAny, NAmanage.isOwnPackTool(tool)
+end
+
+NAmanage.touchEquipTool = NAmanage.touchEquipTool or function(tool, root, hum, settleTime)
+	if not (tool and root) then
+		return false
+	end
+
+	NAmanage.touchTool(tool, root)
+	local settle = tonumber(settleTime) or 0.05
+	if settle > 0 then
+		Wait(settle)
+	end
+
+	if NAmanage.isOwnPackTool(tool) then
+		return true
+	end
+
+	if hum then
+		NACaller(function()
+			hum:EquipTool(tool)
+		end)
+		if settle > 0 then
+			Wait(settle)
+		end
+	end
+
+	return NAmanage.isOwnPackTool(tool)
+end
+
 NAmanage.addToolCache=function(tool)
 	if typeof(tool) == "Instance" and tool:IsA("Tool") then
 		NAmanage.toolCache[tool] = true
@@ -45727,9 +45958,13 @@ NAmanage.toolList=function()
 	NAmanage.initToolCache()
 
 	local list = {}
+	local seen = {}
 	for tool in pairs(NAmanage.toolCache) do
 		if NAmanage.isDroppedTool(tool) then
-			list[#list + 1] = tool
+			if not seen[tool] then
+				seen[tool] = true
+				list[#list + 1] = tool
+			end
 		else
 			NAmanage.toolCache[tool] = nil
 			NAmanage.grabBusy[tool] = nil
@@ -45741,12 +45976,26 @@ NAmanage.toolList=function()
 		return list
 	end
 
+	if type(NAmanage.fastDesc) == "function" then
+		for _, tool in ipairs(NAmanage.fastDesc(workspace, "Tool")) do
+			NAmanage.addToolCache(tool)
+			if NAmanage.isDroppedTool(tool) and not seen[tool] then
+				seen[tool] = true
+				list[#list + 1] = tool
+			end
+		end
+		if #list > 0 then
+			return list
+		end
+	end
+
 	for _, ch in ipairs(workspace:GetChildren()) do
 		NAmanage.scanToolBranch(ch)
 	end
 
 	for tool in pairs(NAmanage.toolCache) do
-		if NAmanage.isDroppedTool(tool) then
+		if NAmanage.isDroppedTool(tool) and not seen[tool] then
+			seen[tool] = true
 			list[#list + 1] = tool
 		end
 	end
@@ -45837,10 +46086,13 @@ NAmanage.grabTool=function(tool, tries)
 	end
 
 	NAmanage.grabBusy[tool] = true
-	NAmanage.saveToolCollision(tool)
+	local wantsPrompt = NAmanage.toolHasPrompt(tool)
+	if not wantsPrompt then
+		NAmanage.saveToolCollision(tool)
+	end
 
 	local ok = false
-	tries = tonumber(tries) or 4
+	tries = tonumber(tries) or 6
 
 	for _ = 1, tries do
 		local char = getChar()
@@ -45856,8 +46108,29 @@ NAmanage.grabTool=function(tool, tries)
 			break
 		end
 
-		NAmanage.pullTool(tool, root)
-		NAmanage.touchTool(tool, root)
+		if wantsPrompt then
+			local fired, picked = NAmanage.fireToolPrompts(tool, 0.12, 2)
+			if picked then
+				ok = true
+				break
+			end
+
+			if fired and not picked then
+				_, picked = NAmanage.fireToolPromptsFromCharacter(tool)
+				if picked then
+					ok = true
+					break
+				end
+			end
+
+			if NAmanage.touchEquipTool(tool, root, hum, 0.08) then
+				ok = true
+				break
+			end
+		else
+			NAmanage.pullTool(tool, root)
+			NAmanage.touchTool(tool, root)
+		end
 
 		if NAmanage.isOwnPackTool(tool) then
 			ok = true
@@ -45876,9 +46149,20 @@ NAmanage.grabTool=function(tool, tries)
 		Defer(function()
 			local c = getChar()
 			local r = c and getRoot(c)
+			local h = c and getHum(c)
 			if tool and r and NAmanage.isDroppedTool(tool) then
-				NAmanage.pullTool(tool, r)
-				NAmanage.touchTool(tool, r)
+				if wantsPrompt then
+					local fired, picked = NAmanage.fireToolPrompts(tool, 0.12, 2)
+					if not picked then
+						if fired then
+							NAmanage.fireToolPromptsFromCharacter(tool)
+						end
+						NAmanage.touchEquipTool(tool, r, h, 0.08)
+					end
+				else
+					NAmanage.pullTool(tool, r)
+					NAmanage.touchTool(tool, r)
+				end
 			end
 		end)
 
@@ -45887,11 +46171,18 @@ NAmanage.grabTool=function(tool, tries)
 			local h = c and getHum(c)
 			local r = c and getRoot(c)
 			if tool and h and r and NAmanage.isDroppedTool(tool) then
-				NAmanage.pullTool(tool, r)
-				NAmanage.touchTool(tool, r)
-				NACaller(function()
-					h:EquipTool(tool)
-				end)
+				if wantsPrompt then
+					local fired, picked = NAmanage.fireToolPrompts(tool, 0.12, 2)
+					if not picked then
+						if fired then
+							NAmanage.fireToolPromptsFromCharacter(tool)
+						end
+						NAmanage.touchEquipTool(tool, r, h, 0.08)
+					end
+				else
+					NAmanage.pullTool(tool, r)
+					NAmanage.touchTool(tool, r)
+				end
 			end
 		end)
 
@@ -45936,10 +46227,21 @@ NAmanage.grabAllTools=function(range, silent)
 	for _, tool in ipairs(queue) do
 		local c = getChar()
 		local r = c and getRoot(c)
+		local h = c and getHum(c)
 		if r and NAmanage.isDroppedTool(tool) then
-			NAmanage.saveToolCollision(tool)
-			NAmanage.pullTool(tool, r)
-			NAmanage.touchTool(tool, r)
+			if NAmanage.toolHasPrompt(tool) then
+				local fired, picked = NAmanage.fireToolPrompts(tool, 0.12, 2)
+				if not picked then
+					if fired then
+						NAmanage.fireToolPromptsFromCharacter(tool)
+					end
+					NAmanage.touchEquipTool(tool, r, h, 0.08)
+				end
+			else
+				NAmanage.saveToolCollision(tool)
+				NAmanage.pullTool(tool, r)
+				NAmanage.touchTool(tool, r)
+			end
 		end
 	end
 
@@ -45950,7 +46252,7 @@ NAmanage.grabAllTools=function(range, silent)
 		if NAmanage.isDroppedTool(tool) and not NAmanage.grabBusy[tool] then
 			started += 1
 			Defer(function()
-				if NAmanage.grabTool(tool, 4) then
+				if NAmanage.grabTool(tool, 6) then
 					got += 1
 				end
 			end)
@@ -45964,9 +46266,20 @@ NAmanage.grabAllTools=function(range, silent)
 		for _, tool in ipairs(queue) do
 			local c = getChar()
 			local r = c and getRoot(c)
+			local h = c and getHum(c)
 			if r and NAmanage.isDroppedTool(tool) then
-				NAmanage.pullTool(tool, r)
-				NAmanage.touchTool(tool, r)
+				if NAmanage.toolHasPrompt(tool) then
+					local fired, picked = NAmanage.fireToolPrompts(tool, 0.12, 2)
+					if not picked then
+						if fired then
+							NAmanage.fireToolPromptsFromCharacter(tool)
+						end
+						NAmanage.touchEquipTool(tool, r, h, 0.08)
+					end
+				else
+					NAmanage.pullTool(tool, r)
+					NAmanage.touchTool(tool, r)
+				end
 			end
 		end
 	end)
@@ -61529,6 +61842,28 @@ cmd.add({"gotobreak", "gb"}, {"gotobreak (gb)", "Stop the active goto sequence a
 	originalIO.gotoNext.cancelSequence()
 end)
 
+NAmanage.fastWorkspaceMatches=function(className, needle, mode)
+	local query = type(needle) == "string" and Lower(needle) or ""
+	if query == "" then
+		return {}
+	end
+
+	return NAmanage.fastDesc(workspace, className, {
+		match = function(inst)
+			if mode == "class" then
+				return Lower(inst.ClassName) == query
+			end
+
+			local instName = Lower(inst.Name)
+			if mode == "exact" then
+				return instName == query
+			end
+
+			return Find(instName, query, 1, true) ~= nil
+		end
+	})
+end
+
 cmd.add({"gotopart", "topart", "toprt"}, {"gotopart {partname}", "Teleports you to each matching part by name once"}, function(...)
 	local partName = Concat({...}, " "):lower()
 	local commandKey = "gotopart"
@@ -61542,7 +61877,7 @@ cmd.add({"gotopart", "topart", "toprt"}, {"gotopart {partname}", "Teleports you 
 
 	SpawnCall(function()
 		local partDelay = NAmanage.tpDelay()
-		for _, part in pairs(NAmanage.qDesc(workspace, "BasePart")) do
+		for _, part in ipairs(NAmanage.fastWorkspaceMatches("BasePart", partName, "exact")) do
 			if not taskState.active then return end
 			if part.Name:lower() == partName then
 				if getHum() then getHum().Sit = false Wait(0.1) end
@@ -61565,7 +61900,7 @@ cmd.add({"tweengotopart","tgotopart","ttopart","ttoprt"},{"tweengotopart <partNa
 	local tweenAttrCurrent = "NATweenGoToPartCurrentCF"
 	SpawnCall(function()
 		local partDelay = NAmanage.tpDelay()
-		for _,obj in ipairs(NAmanage.qDesc(workspace, "BasePart")) do
+		for _,obj in ipairs(NAmanage.fastWorkspaceMatches("BasePart", partName, "exact")) do
 			if not state.active then return end
 			if obj.Name:lower() == partName then
 				local hum = getHum()
@@ -61631,7 +61966,7 @@ cmd.add({"gotopartfind", "topartfind", "toprtfind"}, {"gotopartfind {name}", "Te
 
 	SpawnCall(function()
 		local partDelay = NAmanage.tpDelay()
-		for _, part in pairs(NAmanage.qDesc(workspace, "BasePart")) do
+		for _, part in ipairs(NAmanage.fastWorkspaceMatches("BasePart", name, "contains")) do
 			if not taskState.active then return end
 			if part.Name:lower():find(name) then
 				if getHum() then getHum().Sit = false Wait(0.1) end
@@ -61655,7 +61990,7 @@ cmd.add({"tweengotopartfind", "tgotopartfind", "ttopartfind", "ttoprtfind"}, {"t
 
 	SpawnCall(function()
 		local partDelay = NAmanage.tpDelay()
-		for _, part in pairs(NAmanage.qDesc(workspace, "BasePart")) do
+		for _, part in ipairs(NAmanage.fastWorkspaceMatches("BasePart", name, "contains")) do
 			if not taskState.active then return end
 			if part.Name:lower():find(name) then
 				local hum = getHum()
@@ -61689,7 +62024,7 @@ cmd.add({"gotopartclass", "gpc", "gotopartc", "gotoprtc"}, {"gotopartclass {clas
 
 	SpawnCall(function()
 		local partDelay = NAmanage.tpDelay()
-		for _, part in pairs(NAmanage.qDesc(workspace, "BasePart")) do
+		for _, part in ipairs(NAmanage.fastWorkspaceMatches("BasePart", className, "class")) do
 			if not taskState.active then return end
 			if part.ClassName:lower() == className then
 				if getHum() then getHum().Sit = false Wait(0.1) end
@@ -61703,7 +62038,7 @@ end, true)
 cmd.add({"bringpart", "bpart", "bprt"}, {"bringpart {partname} (bpart, bprt)", "Brings a part to your character by name"}, function(...)
 	local partName = Concat({...}, " "):lower()
 
-	for _, part in pairs(NAmanage.qDesc(workspace, "BasePart")) do
+	for _, part in ipairs(NAmanage.fastWorkspaceMatches("BasePart", partName, "exact")) do
 		if part.Name:lower() == partName then
 			if getChar() then
 				part:PivotTo(getChar():GetPivot())
@@ -61720,7 +62055,7 @@ cmd.add({"bringpartfind","bpartfind","bprtfind"},{"bringpartfind {name} (bpartfi
 	if not char then return end
 	local pivot = char:GetPivot()
 
-	for _, part in ipairs(NAmanage.qDesc(workspace, "BasePart")) do
+	for _, part in ipairs(NAmanage.fastWorkspaceMatches("BasePart", name, "contains")) do
 		local n = part.Name:lower()
 		if Find(n, name, 1, true) ~= nil then
 			part:PivotTo(pivot)
@@ -61731,7 +62066,7 @@ end,true)
 cmd.add({"bringmodel", "bmodel"}, {"bringmodel {modelname} (bmodel)", "Brings a model to your character by name"}, function(...)
 	local modelName = Concat({...}, " "):lower()
 
-	for _, model in pairs(NAmanage.qDesc(workspace, "Model")) do
+	for _, model in ipairs(NAmanage.fastWorkspaceMatches("Model", modelName, "exact")) do
 		if model.Name:lower() == modelName then
 			if getChar() then
 				model:PivotTo(getChar():GetPivot())
@@ -61748,7 +62083,7 @@ cmd.add({"bringmodelfind","bmodelfind"},{"bringmodelfind {name} (bmodelfind)","B
 	if not char then return end
 	local pivot = char:GetPivot()
 
-	for _, model in ipairs(NAmanage.qDesc(workspace, "Model")) do
+	for _, model in ipairs(NAmanage.fastWorkspaceMatches("Model", name, "contains")) do
 		local n = model.Name:lower()
 		if Find(n, name, 1, true) ~= nil then
 			model:PivotTo(pivot)
@@ -61764,18 +62099,18 @@ cmd.add({"bringfolder","bfldr"},{"bringfolder {folderName} [partName] (bfldr)","
 	local folder, partFilter
 	do
 		local nameAll = Concat(lower," ")
-		for _,obj in ipairs(NAmanage.qDesc(workspace, "Folder")) do
+		for _,obj in ipairs(NAmanage.fastWorkspaceMatches("Folder", nameAll, "exact")) do
 			if obj.Name:lower() == nameAll then folder = obj break end
 		end
 		if not folder and #lower>=2 then
 			local nameWithoutLast = Concat(lower," ",1,#lower-1)
 			local last = lower[#lower]
-			for _,obj in ipairs(NAmanage.qDesc(workspace, "Folder")) do
+			for _,obj in ipairs(NAmanage.fastWorkspaceMatches("Folder", nameWithoutLast, "exact")) do
 				if obj.Name:lower() == nameWithoutLast then folder = obj partFilter = last break end
 			end
 		end
 		if not folder then
-			for _,obj in ipairs(NAmanage.qDesc(workspace, "Folder")) do
+			for _,obj in ipairs(NAmanage.fastWorkspaceMatches("Folder", lower[1], "exact")) do
 				if obj.Name:lower() == lower[1] then folder = obj break end
 			end
 			if folder and #lower>1 then
@@ -61812,7 +62147,7 @@ cmd.add({"gotomodel", "tomodel"}, {"gotomodel {modelname}", "Teleports to each m
 
 	SpawnCall(function()
 		local partDelay = NAmanage.tpDelay()
-		for _, model in pairs(NAmanage.qDesc(workspace, "Model")) do
+		for _, model in ipairs(NAmanage.fastWorkspaceMatches("Model", modelName, "exact")) do
 			if not taskState.active then return end
 			if model.Name:lower() == modelName then
 				if getHum() then getHum().Sit = false Wait(0.1) end
@@ -61836,7 +62171,7 @@ cmd.add({"gotomodelfind", "tomodelfind"}, {"gotomodelfind {name}", "Teleports to
 
 	SpawnCall(function()
 		local partDelay = NAmanage.tpDelay()
-		for _, model in pairs(NAmanage.qDesc(workspace, "Model")) do
+		for _, model in ipairs(NAmanage.fastWorkspaceMatches("Model", name, "contains")) do
 			if not taskState.active then return end
 			if model.Name:lower():find(name) then
 				if getHum() then getHum().Sit = false Wait(0.1) end
@@ -61851,7 +62186,7 @@ cmd.add({"gotomodelfind", "tomodelfind"}, {"gotomodelfind {name} (tomodelfind)",
 	local name = Concat({...}, " "):lower()
 	local partDelay = NAmanage.tpDelay()
 
-	for _, model in pairs(NAmanage.qDesc(workspace, "Model")) do
+	for _, model in ipairs(NAmanage.fastWorkspaceMatches("Model", name, "contains")) do
 		if model.Name:lower():find(name) then
 			if getHum() then
 				getHum().Sit = false
@@ -61877,7 +62212,7 @@ cmd.add({"gotofolder","gofldr"},{"gotofolder {folderName}","Teleports you to all
 	SpawnCall(function()
 		local partDelay = NAmanage.tpDelay()
 		local folder
-		for _,obj in ipairs(NAmanage.qDesc(workspace, "Folder")) do
+		for _,obj in ipairs(NAmanage.fastWorkspaceMatches("Folder", folderName, "exact")) do
 			if obj.Name:lower() == folderName then folder = obj break end
 		end
 		if not folder then return end
@@ -65690,7 +66025,7 @@ cmd.add({"hitbox","hbox"}, {"hitbox <player> {size}",""}, function(pArg, sArg)
 					D.run = RunService.Heartbeat:Connect(function(dt)
 						acc += dt;
 						acc2 += dt;
-						if acc >= 0.45 then
+						if acc >= 0.12 then
 							acc = 0;
 							for m, c in pairs(D.md) do
 								if not (m and m.Parent) then
@@ -65729,7 +66064,7 @@ cmd.add({"hitbox","hbox"}, {"hitbox <player> {size}",""}, function(pArg, sArg)
 								end;
 							end;
 						end;
-						if acc2 >= 1.2 then
+						if acc2 >= 0.35 then
 							acc2 = 0;
 							for _, ch in ipairs(workspace:GetChildren()) do
 								if ch:IsA("Model") and CheckIfNPC(ch) and (not D.md[ch]) then
@@ -65887,7 +66222,7 @@ cmd.add({"hitbox","hbox"}, {"hitbox <player> {size}",""}, function(pArg, sArg)
 					local acc = 0;
 					D.run = RunService.Heartbeat:Connect(function(dt)
 						acc += dt;
-						if acc < 0.45 then
+						if acc < 0.12 then
 							return;
 						end;
 						acc = 0;
