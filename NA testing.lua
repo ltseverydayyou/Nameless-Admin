@@ -4542,6 +4542,88 @@ local GuiService = SafeGetService("GuiService");
 local ContextActionService = SafeGetService("ContextActionService");
 local StatsService = SafeGetService("Stats");
 
+NAmanage.GetDataPingStat = NAmanage.GetDataPingStat or function()
+	local ok, pingStat = pcall(function()
+		if not StatsService then
+			return nil
+		end
+
+		local network = StatsService:FindFirstChild("Network")
+		if not network then
+			return nil
+		end
+
+		local serverStats = network:FindFirstChild("ServerStatsItem")
+		if serverStats then
+			local nested = serverStats:FindFirstChild("Data Ping")
+			if nested then
+				return nested
+			end
+		end
+
+		return network:FindFirstChild("Data Ping")
+	end)
+
+	if ok then
+		return pingStat
+	end
+
+	return nil
+end
+
+NAmanage.GetDataPingMs = NAmanage.GetDataPingMs or function()
+	local pingStat = NAmanage.GetDataPingStat()
+	if not pingStat then
+		return nil
+	end
+
+	local okValue, value = pcall(function()
+		if pingStat.GetValue then
+			return pingStat:GetValue()
+		end
+	end)
+	if okValue and type(value) == "number" then
+		return value
+	end
+
+	local okString, str = pcall(function()
+		if pingStat.GetValueString then
+			return pingStat:GetValueString()
+		end
+	end)
+	if okString and type(str) == "string" then
+		local num = tonumber((str:gsub("[^%d%.]", "")))
+		if num then
+			return num
+		end
+	end
+
+	return nil
+end
+
+NAmanage.GetDataPingText = NAmanage.GetDataPingText or function()
+	local pingStat = NAmanage.GetDataPingStat()
+	if not pingStat then
+		return nil
+	end
+
+	local ms = NAmanage.GetDataPingMs()
+	if type(ms) == "number" then
+		return Format("%d ms", math.floor(ms + 0.5)), ms
+	end
+
+	local okString, str = pcall(function()
+		if pingStat.GetValueString then
+			return pingStat:GetValueString()
+		end
+	end)
+	if okString and type(str) == "string" and str ~= "" then
+		return str, nil
+	end
+
+	return nil
+end
+
 NAmanage.StreamerEscapePattern = NAmanage.StreamerEscapePattern or function(value)
 	value = tostring(value or "")
 	return value:gsub("([%%%^%$%(%)%.%[%]%*%+%-%?])", "%%%1")
@@ -12726,27 +12808,9 @@ NAmanage.GetBasicInfoSnapshot = function()
 	local maxPlayers = Players and Players.MaxPlayers or 0
 
 	local serverPing = "Unknown"
-	if StatsService and StatsService.Network and StatsService.Network.ServerStatsItem then
-		local pingStat = StatsService.Network.ServerStatsItem["Data Ping"]
-		if pingStat then
-			local okPingNum, pingNum = pcall(function()
-				if pingStat.GetValue then
-					return pingStat:GetValue()
-				end
-			end)
-			if okPingNum and type(pingNum) == "number" then
-				serverPing = Format("%d ms", math.floor(pingNum + 0.5))
-			else
-				local okPingStr, pingStr = pcall(function()
-					if pingStat.GetValueString then
-						return pingStat:GetValueString()
-					end
-				end)
-				if okPingStr and type(pingStr) == "string" and pingStr ~= "" then
-					serverPing = pingStr
-				end
-			end
-		end
+	local safePingText = NAmanage.GetDataPingText and NAmanage.GetDataPingText() or nil
+	if type(safePingText) == "string" and safePingText ~= "" then
+		serverPing = safePingText
 	end
 
 	snapshot.server.playerCount = Format("%d/%d", playerCount, maxPlayers)
@@ -33203,8 +33267,7 @@ cmd.add({ "ping" }, { "ping", "Shows your network latency" }, function()
 		subtitle = "Network latency",
 		position = UDim2.new(0.5, 0, 0.22, 0),
 		updateFn = function()
-			local pingItem = StatsService.Network.ServerStatsItem["Data Ping"]
-			local rawPing = tonumber(pingItem:GetValueString():match("%d+")) or 0
+			local rawPing = tonumber(NAmanage.GetDataPingMs and NAmanage.GetDataPingMs()) or 0
 			return tostring(rawPing).." ms", rawPing
 		end,
 		colorFn = function(ping)
@@ -33310,8 +33373,7 @@ cmd.add({ "stats" }, { "stats", "Shows both FPS and ping" }, function()
 
 		local fps = NAmanage.getRealFPS()
 
-		local pingItem = StatsService.Network.ServerStatsItem["Data Ping"]
-		local p = tonumber(pingItem:GetValueString():match("%d+")) or 0
+		local p = tonumber(NAmanage.GetDataPingMs and NAmanage.GetDataPingMs()) or 0
 
 		pingValue.Text = "<b>"..tostring(p).." ms</b>"
 		pingValue.TextColor3 = pingColorFn(p)
@@ -33509,20 +33571,8 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 	end
 	local function getPingMs()
 		local ok,ms = pcall(function()
-			local net = __lt.cm("Stats", "FindFirstChild", "Network")
-			if not net then return nil end
-			local p = (net:FindFirstChild("ServerStatsItem") and net.ServerStatsItem:FindFirstChild("Data Ping")) or net:FindFirstChild("Data Ping")
-			if not p then return nil end
-			if p.GetValue then
-				local v = p:GetValue()
-				if typeof(v) == "number" then return v end
-			end
-			if p.GetValueString then
-				local s = p:GetValueString()
-				if type(s) == "string" then
-					local n = tonumber((s:gsub("[^%d%.]","")))
-					return n
-				end
+			if NAmanage.GetDataPingMs then
+				return NAmanage.GetDataPingMs()
 			end
 			return nil
 		end)
