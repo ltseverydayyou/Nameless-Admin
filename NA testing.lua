@@ -46357,122 +46357,44 @@ NAmanage.grabTool=function(tool, tries)
 	return ok
 end
 
-NAmanage.grabAllTools=function(range, silent)
+NAmanage.grabAllTools=function(range)
 	local char = getChar()
+	local hum = char and getHum(char)
 	local root = char and getRoot(char)
-	if not root then
-		return 0, 0
-	end
+	if not hum or not root then return 0 end
 
 	range = tonumber(range)
 	local useRange = range and range > 0
-	local queue = {}
 
-	for _, tool in ipairs(NAmanage.toolList()) do
-		if not NAmanage.grabBusy[tool] then
-			local part = NAmanage.toolPart(tool)
-			if part and (not useRange or (part.Position - root.Position).Magnitude <= range) then
-				queue[#queue + 1] = tool
+	local count = 0
+	for _, tool in ipairs(NAmanage.qDesc(workspace, "Tool")) do
+		if useRange then
+			local handle = tool:FindFirstChild("Handle") or tool:FindFirstChildWhichIsA("BasePart")
+			if handle and (handle.Position - root.Position).Magnitude <= range then
+				if NACaller(function() hum:EquipTool(tool) end) then
+					count += 1
+				end
+			end
+		else
+			if NACaller(function() hum:EquipTool(tool) end) then
+				count += 1
 			end
 		end
 	end
-
-	if #queue == 0 then
-		return 0, 0
-	end
-
-	for _, tool in ipairs(queue) do
-		local c = getChar()
-		local r = c and getRoot(c)
-		local h = c and getHum(c)
-		if r and NAmanage.isDroppedTool(tool) then
-			if NAmanage.toolHasPrompt(tool) then
-				local fired, picked = NAmanage.fireToolPrompts(tool, 0.12, 2)
-				if not picked then
-					if fired then
-						NAmanage.fireToolPromptsFromCharacter(tool)
-					end
-					NAmanage.touchEquipTool(tool, r, h, 0.08)
-				end
-			else
-				NAmanage.saveToolCollision(tool)
-				NAmanage.pullTool(tool, r)
-				NAmanage.touchTool(tool, r)
-			end
-		end
-	end
-
-	local got = 0
-	local started = 0
-
-	for _, tool in ipairs(queue) do
-		if NAmanage.isDroppedTool(tool) and not NAmanage.grabBusy[tool] then
-			started += 1
-			Defer(function()
-				if NAmanage.grabTool(tool, 6) then
-					got += 1
-				end
-			end)
-		elseif NAmanage.isOwnPackTool(tool) then
-			got += 1
-			NAmanage.restoreToolCollision(tool)
-		end
-	end
-
-	Defer(function()
-		for _, tool in ipairs(queue) do
-			local c = getChar()
-			local r = c and getRoot(c)
-			local h = c and getHum(c)
-			if r and NAmanage.isDroppedTool(tool) then
-				if NAmanage.toolHasPrompt(tool) then
-					local fired, picked = NAmanage.fireToolPrompts(tool, 0.12, 2)
-					if not picked then
-						if fired then
-							NAmanage.fireToolPromptsFromCharacter(tool)
-						end
-						NAmanage.touchEquipTool(tool, r, h, 0.08)
-					end
-				else
-					NAmanage.pullTool(tool, r)
-					NAmanage.touchTool(tool, r)
-				end
-			end
-		end
-	end)
-
-	Wait(0.035)
-
-	local seen = {}
-	for _, tool in ipairs(queue) do
-		if NAmanage.isOwnPackTool(tool) and not seen[tool] then
-			seen[tool] = true
-			got += 1
-			NAmanage.restoreToolCollision(tool)
-			NAmanage.toolCache[tool] = nil
-		elseif not NAmanage.isDroppedTool(tool) then
-			NAmanage.restoreToolCollision(tool)
-			NAmanage.toolCache[tool] = nil
-			NAmanage.grabBusy[tool] = nil
-		end
-	end
-
-	return got, started
+	return count
 end
 
 cmd.add({"grabtools","gtools","gtls"},{"grabtools [range]","Grabs dropped tools"},function(...)
 	local firstArg = ...
 	local range = tonumber(firstArg)
 
-	local count, started = NAmanage.grabAllTools(range)
+	local count = NAmanage.grabAllTools(range)
 	if count > 0 then
 		if range and range > 0 then
 			DebugNotif(("Grabbed %d tools within %d studs"):format(count, range), 2)
 		else
 			DebugNotif(("Grabbed %d tools"):format(count), 2)
 		end
-	elseif started and started > 0 then
-		DebugNotif(("Grabbing %d tools"):format(started), 2)
 	else
 		DebugNotif("No tools to grab", 2)
 	end
@@ -46490,10 +46412,8 @@ cmd.add({"loopgrabtools","loopgrab","lgtools","lgtls","lgrab","lg"},{"loopgrabto
 	DebugNotif("Started loop grabbing tools", 2)
 	SpawnCall(function()
 		while loopgrab do
-			Defer(function()
-				NAmanage.grabAllTools(range, true)
-			end)
-			Wait(0.08)
+			NAmanage.grabAllTools(range)
+			Wait(1)
 		end
 		DebugNotif("Stopped loop grabbing tools", 2)
 	end)
