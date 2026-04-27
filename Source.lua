@@ -829,7 +829,6 @@ local NA_TABS = {
 	TAB_CHAT = "Chat";
 	TAB_CHARACTER = "Character";
 	TAB_KEYBINDS = "Keybinds";
-	TAB_COMMAND_KEYBINDS = "Command Keybinds";
 	TAB_BASIC_INFO = "Basic Info";
 	TAB_ROBLOX_DATA = "Roblox Data";
 	TAB_ADMIN_INFO = "NA Info";
@@ -18275,6 +18274,15 @@ NAmanage.CKBRes = function(cand, nMap)
 	return nil, nil
 end
 
+NAmanage.CanUseCommandKeybinds = function(showNotif)
+	local UIS = UserInputService
+	local allowed = UIS and UIS.KeyboardEnabled == true
+	if not allowed and showNotif then
+		DoNotif("Command Keybinds require keyboard input.", 2)
+	end
+	return allowed and true or false
+end
+
 NAmanage.SaveCommandKeybinds=function()
 	if not FileSupport then return end
 
@@ -18290,6 +18298,14 @@ NAmanage.SaveCommandKeybinds=function()
 				entry = {
 					args1 = args;
 					args2 = opt.args2 or args;
+				}
+				if opt.hold then
+					entry.hold = true
+				end
+			elseif opt and opt.spam then
+				entry = {
+					args = args;
+					spam = true;
 				}
 				if opt.hold then
 					entry.hold = true
@@ -18317,6 +18333,10 @@ NAmanage.SaveCommandKeybinds=function()
 end
 
 NAmanage.ApplyCommandKeybinds=function()
+	if type(NAStuff.CommandKeySpamCleanup) == "function" then
+		pcall(NAStuff.CommandKeySpamCleanup)
+	end
+	NAStuff.CommandKeySpamCleanup = nil
 	if NAStuff.KeybindConnection then
 		NAStuff.KeybindConnection:Disconnect()
 		NAStuff.KeybindConnection = nil
@@ -18333,6 +18353,9 @@ NAmanage.ApplyCommandKeybinds=function()
 	if not UIS then
 		return
 	end
+	if not NAmanage.CanUseCommandKeybinds() then
+		return
+	end
 
 	local function cloneArgs(src)
 		local dst = {}
@@ -18344,6 +18367,7 @@ NAmanage.ApplyCommandKeybinds=function()
 
 	local function shouldBlock(gameProcessed)
 		if gameProcessed then return true end
+		if not NAmanage.CanUseCommandKeybinds() then return true end
 		if NAStuff._capturingCommandKeybind then return true end
 		if UIS.GetFocusedTextBox and __lt.cm("UserInputService", "GetFocusedTextBox") then return true end
 		return false
@@ -18471,6 +18495,8 @@ NAmanage.ApplyCommandKeybinds=function()
 
 	local activeHoldKeys = {}
 	local keySpamState = {}
+	local activeSpamKeys = {}
+	local keyInputGap = 0.06
 	local keySpamGap = tonumber(NAStuff.CommandKeySpamGap) or 0.06
 	local nMap = {}
 	local bindLut = {}
@@ -18478,6 +18504,7 @@ NAmanage.ApplyCommandKeybinds=function()
 	local clkBinds = {}
 	local anyBind = false
 	local holdBind = false
+	local spamHoldBind = false
 
 	for rawKey, args in pairs(CommandKeybinds) do
 		if type(rawKey) == "string" and type(args) == "table" then
@@ -18504,6 +18531,9 @@ NAmanage.ApplyCommandKeybinds=function()
 				local opt = CommandKeybindOptions[canonical] or CommandKeybindOptions[rawKey]
 				if opt and opt.toggle and opt.hold and type(opt.args2) == "table" then
 					holdBind = true
+				end
+				if opt and opt.spam and opt.hold then
+					spamHoldBind = true
 				end
 			end
 		end
@@ -18580,6 +18610,49 @@ NAmanage.ApplyCommandKeybinds=function()
 		return nil, nil
 	end
 
+	local function stopSpam(boundKey)
+		local rec = activeSpamKeys[boundKey]
+		if not rec then
+			return false
+		end
+		rec.active = false
+		activeSpamKeys[boundKey] = nil
+		local opt = getBOpt(boundKey)
+		if opt then
+			opt.state = false
+		end
+		return true
+	end
+
+	local function startSpam(boundKey, args)
+		if activeSpamKeys[boundKey] or type(args) ~= "table" or #args == 0 then
+			return false
+		end
+		local rec = {
+			active = true;
+		}
+		activeSpamKeys[boundKey] = rec
+		local opt = getBOpt(boundKey)
+		if opt then
+			opt.state = true
+		end
+		Spawn(function()
+			while rec.active do
+				pcall(function()
+					cmd.run(cloneArgs(args))
+				end)
+				Wait(keySpamGap)
+			end
+		end)
+		return true
+	end
+
+	NAStuff.CommandKeySpamCleanup = function()
+		for boundKey in pairs(activeSpamKeys) do
+			stopSpam(boundKey)
+		end
+	end
+
 	NAStuff.KeybindConnection = UIS.InputBegan:Connect(function(input, gameProcessed)
 		if not input then return end
 		if shouldBlock(gameProcessed) then return end
@@ -18601,7 +18674,7 @@ NAmanage.ApplyCommandKeybinds=function()
 		end
 		local now = os.clock()
 		local last = keySpamState[boundKey]
-		if last and (now - last) < keySpamGap then
+		if last and (now - last) < keyInputGap then
 			return
 		end
 		keySpamState[boundKey] = now
@@ -18611,6 +18684,20 @@ NAmanage.ApplyCommandKeybinds=function()
 			return
 		end
 		if resolveBindOnlyClickAction(args) then
+			return
+		end
+		if opt and opt.spam then
+			if opt.hold then
+				if activeSpamKeys[boundKey] then
+					return
+				end
+				startSpam(boundKey, args)
+				return
+			end
+			if stopSpam(boundKey) then
+				return
+			end
+			startSpam(boundKey, args)
 			return
 		end
 		if opt and opt.toggle and opt.hold and type(opt.args2) == "table" then
@@ -18636,20 +18723,27 @@ NAmanage.ApplyCommandKeybinds=function()
 		end
 	end)
 
-	if holdBind then
+	if holdBind or spamHoldBind then
 		NAStuff.KeybindEndConnection = UIS.InputEnded:Connect(function(input, gameProcessed)
 			local keyName = resolveInputBindName(input)
 			if not keyName then
 				return
 			end
 			local relHolds = {}
+			local relSpams = {}
 			for holdKey in pairs(activeHoldKeys) do
 				if NAmanage.CKBRel(holdKey, keyName) then
 					Insert(relHolds, holdKey)
 				end
 			end
+			for spamKey in pairs(activeSpamKeys) do
+				local opt = getBOpt(spamKey)
+				if opt and opt.spam and opt.hold and NAmanage.CKBRel(spamKey, keyName) then
+					Insert(relSpams, spamKey)
+				end
+			end
 
-			if #relHolds == 0 and shouldBlock(gameProcessed) then
+			if #relHolds == 0 and #relSpams == 0 and shouldBlock(gameProcessed) then
 				return
 			end
 
@@ -18662,6 +18756,9 @@ NAmanage.ApplyCommandKeybinds=function()
 				if opt then
 					opt.state = false
 				end
+			end
+			for _, spamKey in ipairs(relSpams) do
+				stopSpam(spamKey)
 			end
 		end)
 	end
@@ -18714,7 +18811,13 @@ NAmanage.LoadCommandKeybinds=function()
 							}
 						elseif type(value.args) == "table" then
 							args = value.args
-							if value.toggle == true then
+							if value.spam == true then
+								opt = {
+									spam = true;
+									state = false;
+									hold = value.hold == true;
+								}
+							elseif value.toggle == true then
 								local args2 = {}
 								for i, v in ipairs(args) do
 									args2[i] = v
@@ -33395,6 +33498,10 @@ end)
 
 cmd.add({"settings"},{"settings","Open the settings menu"},function()
 	NAgui.settingss()
+end)
+
+cmd.add({"commandkeybinds", "cmdkeybinds", "ckeybinds"}, {"commandkeybinds (cmdkeybinds, ckeybinds)", "Open the command keybinds window"}, function()
+	NAgui.commandkeybinds()
 end)
 
 cmd.add({"waypoints", "wp"},{"waypoints","Open the waypoints menu"},function()
@@ -71007,6 +71114,14 @@ NAUIMANAGER = {
 	CommandsCustomScrollDown = NAStuff.NASCREENGUI:FindFirstChild("Commands") and (NAStuff.NASCREENGUI:FindFirstChild("Commands")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("Commands")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar") and (((NAStuff.NASCREENGUI:FindFirstChild("Commands")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Down"),
 	CommandsCustomScrollTrack = NAStuff.NASCREENGUI:FindFirstChild("Commands") and (NAStuff.NASCREENGUI:FindFirstChild("Commands")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("Commands")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar") and (((NAStuff.NASCREENGUI:FindFirstChild("Commands")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Track"),
 	CommandsCustomScrollThumb = NAStuff.NASCREENGUI:FindFirstChild("Commands") and (NAStuff.NASCREENGUI:FindFirstChild("Commands")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("Commands")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar") and (((NAStuff.NASCREENGUI:FindFirstChild("Commands")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Track") and ((((NAStuff.NASCREENGUI:FindFirstChild("Commands")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Track")):FindFirstChild("Thumb"),
+	CommandKeybindsFrame = NAStuff.NASCREENGUI:FindFirstChild("CommandKeybinds"),
+	CommandKeybindsContainer = NAStuff.NASCREENGUI:FindFirstChild("CommandKeybinds") and (NAStuff.NASCREENGUI:FindFirstChild("CommandKeybinds")):FindFirstChild("Container"),
+	CommandKeybindsList = NAStuff.NASCREENGUI:FindFirstChild("CommandKeybinds") and (NAStuff.NASCREENGUI:FindFirstChild("CommandKeybinds")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("CommandKeybinds")):FindFirstChild("Container")):FindFirstChild("List"),
+	CommandKeybindsCustomScrollBar = NAStuff.NASCREENGUI:FindFirstChild("CommandKeybinds") and (NAStuff.NASCREENGUI:FindFirstChild("CommandKeybinds")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("CommandKeybinds")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar"),
+	CommandKeybindsCustomScrollUp = NAStuff.NASCREENGUI:FindFirstChild("CommandKeybinds") and (NAStuff.NASCREENGUI:FindFirstChild("CommandKeybinds")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("CommandKeybinds")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar") and (((NAStuff.NASCREENGUI:FindFirstChild("CommandKeybinds")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Up"),
+	CommandKeybindsCustomScrollDown = NAStuff.NASCREENGUI:FindFirstChild("CommandKeybinds") and (NAStuff.NASCREENGUI:FindFirstChild("CommandKeybinds")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("CommandKeybinds")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar") and (((NAStuff.NASCREENGUI:FindFirstChild("CommandKeybinds")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Down"),
+	CommandKeybindsCustomScrollTrack = NAStuff.NASCREENGUI:FindFirstChild("CommandKeybinds") and (NAStuff.NASCREENGUI:FindFirstChild("CommandKeybinds")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("CommandKeybinds")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar") and (((NAStuff.NASCREENGUI:FindFirstChild("CommandKeybinds")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Track"),
+	CommandKeybindsCustomScrollThumb = NAStuff.NASCREENGUI:FindFirstChild("CommandKeybinds") and (NAStuff.NASCREENGUI:FindFirstChild("CommandKeybinds")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("CommandKeybinds")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar") and (((NAStuff.NASCREENGUI:FindFirstChild("CommandKeybinds")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Track") and ((((NAStuff.NASCREENGUI:FindFirstChild("CommandKeybinds")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Track")):FindFirstChild("Thumb"),
 	resizeFrame = NAStuff.NASCREENGUI:FindFirstChild("Resizeable"),
 	ModalFixer = NAStuff.NASCREENGUI:FindFirstChildWhichIsA("ImageButton"),
 	SettingsFrame = NAStuff.NASCREENGUI:FindFirstChild("setsettings"),
@@ -71950,6 +72065,20 @@ do
 		};
 	end;
 
+	local function commandKeybindWidgets()
+		local mgr = NAUIMANAGER;
+		if not mgr then
+			return nil;
+		end;
+		return {
+			bar = mgr.CommandKeybindsCustomScrollBar,
+			upButton = mgr.CommandKeybindsCustomScrollUp,
+			downButton = mgr.CommandKeybindsCustomScrollDown,
+			track = mgr.CommandKeybindsCustomScrollTrack,
+			thumb = mgr.CommandKeybindsCustomScrollThumb
+		};
+	end;
+
 	local function waypointWidgets()
 		local mgr = NAUIMANAGER;
 		if not mgr then
@@ -72027,6 +72156,14 @@ do
 		layoutForTarget = alignBarToTarget
 	});
 
+	NAmanage.CommandKeybindsScroll = registry.create("command_keybinds", {
+		getWidgets = commandKeybindWidgets,
+		getTarget = function()
+			return NAUIMANAGER and NAUIMANAGER.CommandKeybindsList or nil;
+		end,
+		layoutForTarget = alignBarToTarget
+	});
+
 	NAmanage.WaypointScroll = registry.create("waypoints", {
 		getWidgets = waypointWidgets,
 		getTarget = function()
@@ -72059,6 +72196,9 @@ if NAmanage.ChatScroll and NAmanage.ChatScroll.install then
 end;
 if NAmanage.CommandsScroll and NAmanage.CommandsScroll.install then
 	NAmanage.CommandsScroll.install();
+end;
+if NAmanage.CommandKeybindsScroll and NAmanage.CommandKeybindsScroll.install then
+	NAmanage.CommandKeybindsScroll.install();
 end;
 if NAmanage.WaypointScroll and NAmanage.WaypointScroll.install then
 	NAmanage.WaypointScroll.install();
@@ -73751,6 +73891,29 @@ NAgui.settingss = function()
 		end
 		--NAUIMANAGER.SettingsFrame.Position = UDim2.new(0.43, 0, 0.4, 0)
 		NAmanage.centerFrame(NAUIMANAGER.SettingsFrame)
+	end
+end
+NAgui.commandkeybinds = function()
+	local frame = NAUIMANAGER and NAUIMANAGER.CommandKeybindsFrame
+	if not frame then
+		return
+	end
+	if not NAmanage.CanUseCommandKeybinds(true) then
+		frame.Visible = false
+		return
+	end
+	if type(NAmanage.CommandKeybindsUIInit) == "function" then
+		NAmanage.CommandKeybindsUIInit()
+	end
+	if type(NAmanage.CommandKeybindsUIWire) == "function" then
+		NAmanage.CommandKeybindsUIWire()
+	end
+	if not frame.Visible then
+		frame.Visible = true
+	end
+	NAmanage.centerFrame(frame)
+	if type(NAmanage.CommandKeybindsUIRefresh) == "function" then
+		NAmanage.CommandKeybindsUIRefresh()
 	end
 end
 NAgui.waypointers = function()
@@ -77668,6 +77831,16 @@ NAmanage.Topbar_BuildBaseButtons=function()
 			end
 		end},
 		{name="cmds",icon="list-bulleted",func=NAgui.commands},
+		{name="ckeybinds",icon="xbox-a",func=function()
+			local frame = NAUIMANAGER and NAUIMANAGER.CommandKeybindsFrame
+			if frame then
+				if frame.Visible then
+					frame.Visible = false
+				else
+					NAgui.commandkeybinds()
+				end
+			end
+		end},
 		{name="chatlogs",icon="speech-bubble-align-center",func=function()
 			if NAUIMANAGER.chatLogsFrame then
 				NAUIMANAGER.chatLogsFrame.Visible=not NAUIMANAGER.chatLogsFrame.Visible
@@ -81282,6 +81455,7 @@ NAUIMANAGER.cmdBar.Visible=true
 if NAUIMANAGER.chatLogsFrame then NAgui.menuv3(NAUIMANAGER.chatLogsFrame) end
 if NAUIMANAGER.NAconsoleFrame then NAgui.menuv2(NAUIMANAGER.NAconsoleFrame) end
 if NAUIMANAGER.commandsFrame then NAgui.menu(NAUIMANAGER.commandsFrame) end
+if NAUIMANAGER.CommandKeybindsFrame then NAgui.menu(NAUIMANAGER.CommandKeybindsFrame) end
 if NAUIMANAGER.SettingsFrame then NAgui.menu(NAUIMANAGER.SettingsFrame) end
 if NAUIMANAGER.WaypointFrame then NAgui.menu(NAUIMANAGER.WaypointFrame) end
 if NAUIMANAGER.BindersFrame then NAgui.menu(NAUIMANAGER.BindersFrame) end
@@ -81292,6 +81466,7 @@ if NAUIMANAGER.ExecutorFrame then NAgui.menu(NAUIMANAGER.ExecutorFrame) end
 if NAUIMANAGER.chatLogsFrame then NAgui.resizeable(NAUIMANAGER.chatLogsFrame) end
 if NAUIMANAGER.NAconsoleFrame then NAgui.resizeable(NAUIMANAGER.NAconsoleFrame) end
 if NAUIMANAGER.commandsFrame then NAgui.resizeable(NAUIMANAGER.commandsFrame) end
+if NAUIMANAGER.CommandKeybindsFrame then NAgui.resizeable(NAUIMANAGER.CommandKeybindsFrame, Vector2.new(520, 360), Vector2.new(1400, 920)) end
 if NAUIMANAGER.SettingsFrame then NAgui.resizeable(NAUIMANAGER.SettingsFrame) end
 if NAUIMANAGER.WaypointFrame then NAgui.resizeable(NAUIMANAGER.WaypointFrame) end
 if NAUIMANAGER.BindersFrame then NAgui.resizeable(NAUIMANAGER.BindersFrame) end
@@ -82755,7 +82930,10 @@ NAmanage.CommandKeybindsRemove=function()
 	for keyName, args in pairs(CommandKeybinds) do
 		local label = (type(args) == "table" and #args > 0) and Concat(args, " ") or ""
 		local opt = CommandKeybindOptions[keyName]
-		if opt and opt.toggle then
+		if opt and opt.spam then
+			local spamTag = opt.hold and "[spam hold]" or "[spam]"
+			label = spamTag.." "..(label ~= "" and label or "(empty)")
+		elseif opt and opt.toggle then
 			local toggleTag = opt.hold and "[hold]" or "[toggle]"
 			local mainCmd = (type(args) == "table" and tostring(args[1] or "")) or ""
 			local secondCmd = ""
@@ -82802,7 +82980,10 @@ NAmanage.CommandKeybindsList=function()
 	for keyName, args in pairs(CommandKeybinds) do
 		local label = (type(args) == "table" and #args > 0) and Concat(args, " ") or ""
 		local opt = CommandKeybindOptions[keyName]
-		if opt and opt.toggle then
+		if opt and opt.spam then
+			local spamTag = opt.hold and "[spam hold]" or "[spam]"
+			label = spamTag.." "..(label ~= "" and label or "(empty)")
+		elseif opt and opt.toggle then
 			local toggleTag = opt.hold and "[hold]" or "[toggle]"
 			local mainCmd = (type(args) == "table" and tostring(args[1] or "")) or ""
 			local secondCmd = ""
@@ -82834,16 +83015,26 @@ NAmanage.CommandKeybindsList=function()
 end
 
 NAmanage.CommandKeybindsUIInit=function()
-	local list = NAUIMANAGER and NAUIMANAGER.SettingsList
-	if not list then
+	local root = NAUIMANAGER and NAUIMANAGER.CommandKeybindsContainer
+	if not root then
 		return false
 	end
 
 	NAStuff._commandKeybindUI = NAStuff._commandKeybindUI or {}
 	local ui = NAStuff._commandKeybindUI
 
-	if ui.root and ui.root.Parent then
+	if ui._initialized and ui.listFrame and ui.listFrame.Parent == root then
 		return true
+	end
+
+	local function applyResponsiveText(obj, minSize, maxSize)
+		if not obj then
+			return
+		end
+		obj.TextScaled = true
+		local constraint = obj:FindFirstChildOfClass("UITextSizeConstraint") or InstanceNew("UITextSizeConstraint", obj)
+		constraint.MinTextSize = minSize or 10
+		constraint.MaxTextSize = maxSize or 16
 	end
 
 	local function cloneSearchBox(parent, placeholder)
@@ -82872,20 +83063,10 @@ NAmanage.CommandKeybindsUIInit=function()
 		box.Text = ""
 		box.PlaceholderText = placeholder or ""
 		box.ClearTextOnFocus = false
+		applyResponsiveText(box, 11, 16)
 		NAgui.RegisterStrokesFrom(box)
 		return box
 	end
-
-	local root = InstanceNew("Frame", list)
-	root.Name = "CommandKeybindsPanel"
-	root.BackgroundTransparency = 1
-	root.BorderSizePixel = 0
-	root.Size = UDim2.new(1, -10, 1, 0)
-	root.LayoutOrder = NAgui._nextLayoutOrder()
-	root.ClipsDescendants = false
-	pcall(function()
-		NAmanage.SetAttr(root, "NAHideInAll", true)
-	end)
 
 	local keyBox = cloneSearchBox(root, "Key / Combo")
 	keyBox.Name = "KeyBox"
@@ -82926,6 +83107,7 @@ NAmanage.CommandKeybindsUIInit=function()
 		btn.Text = text
 		btn.Position = pos
 		btn.Size = size
+		applyResponsiveText(btn, 10, 16)
 		local c = InstanceNew("UICorner", btn)
 		c.CornerRadius = UDim.new(0, 8)
 		local s = InstanceNew("UIStroke", btn)
@@ -82937,10 +83119,11 @@ NAmanage.CommandKeybindsUIInit=function()
 		return btn
 	end
 
-	local setKeyBtn = makeActionButton(root, "Set Key/Combo", UDim2.new(0, 10, 0, 46), UDim2.new(0.22, -10, 0, 30), Color3.fromRGB(54, 54, 64))
-	local newBtn = makeActionButton(root, "New", UDim2.new(0.22, 10, 0, 46), UDim2.new(0.14, -10, 0, 30), Color3.fromRGB(54, 54, 64))
-	local saveBtn = makeActionButton(root, "Save", UDim2.new(0.36, 10, 0, 46), UDim2.new(0.16, -10, 0, 30), Color3.fromRGB(80, 120, 80))
-	local toggleBtn = makeActionButton(root, "Toggle: Off", UDim2.new(0.52, 10, 0, 46), UDim2.new(0.16, -10, 0, 30), Color3.fromRGB(54, 54, 64))
+	local setKeyBtn = makeActionButton(root, "Set Key/Combo", UDim2.new(0, 10, 0, 46), UDim2.new(0.16, -10, 0, 30), Color3.fromRGB(54, 54, 64))
+	local newBtn = makeActionButton(root, "New", UDim2.new(0.16, 10, 0, 46), UDim2.new(0.10, -10, 0, 30), Color3.fromRGB(54, 54, 64))
+	local saveBtn = makeActionButton(root, "Save", UDim2.new(0.26, 10, 0, 46), UDim2.new(0.14, -10, 0, 30), Color3.fromRGB(80, 120, 80))
+	local toggleBtn = makeActionButton(root, "Toggle: Off", UDim2.new(0.40, 10, 0, 46), UDim2.new(0.14, -10, 0, 30), Color3.fromRGB(54, 54, 64))
+	local spamBtn = makeActionButton(root, "Spam: Off", UDim2.new(0.54, 10, 0, 46), UDim2.new(0.14, -10, 0, 30), Color3.fromRGB(54, 54, 64))
 	local holdBtn = makeActionButton(root, "Hold: Off", UDim2.new(0.68, 10, 0, 46), UDim2.new(0.14, -10, 0, 30), Color3.fromRGB(54, 54, 64))
 	local delBtn = makeActionButton(root, "Delete", UDim2.new(0.82, 10, 0, 46), UDim2.new(0.18, -10, 0, 30), Color3.fromRGB(184, 54, 54))
 
@@ -82953,10 +83136,11 @@ NAmanage.CommandKeybindsUIInit=function()
 	listFrame.Name = "List"
 	listFrame.BackgroundTransparency = 1
 	listFrame.BorderSizePixel = 0
-	listFrame.Size = UDim2.new(1, -10, 1, 0)
+	listFrame.Size = UDim2.new(1, -28, 1, -170)
 	listFrame.Position = UDim2.new(0, 5, 0, 160)
-	listFrame.ScrollBarThickness = 3
+	listFrame.ScrollBarThickness = 0
 	listFrame.ScrollBarImageColor3 = Color3.fromRGB(104, 104, 114)
+	listFrame.ScrollBarImageTransparency = 1
 	listFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
 	local layout = InstanceNew("UIListLayout", listFrame)
 	layout.SortOrder = Enum.SortOrder.LayoutOrder
@@ -82975,34 +83159,40 @@ NAmanage.CommandKeybindsUIInit=function()
 	ui.newBtn = newBtn
 	ui.saveBtn = saveBtn
 	ui.toggleBtn = toggleBtn
+	ui.spamBtn = spamBtn
 	ui.holdBtn = holdBtn
 	ui.delBtn = delBtn
 	ui.selectedKey = nil
 	ui.toggleState = false
+	ui.spamState = false
 	ui.holdState = false
 	ui.disabledState = false
+	ui._initialized = true
+	if NAUIMANAGER then
+		NAUIMANAGER.CommandKeybindsList = listFrame
+	end
 
-	NAmanage.registerElementForCurrentTab(root)
 	NAgui.RegisterStrokesFrom(root)
 	do
 		local canvasKey = "CommandKeybinds_canvas"
 		NAlib.disconnect(canvasKey)
 		local function refreshCanvas()
 			if not root or not root.Parent then return end
-			local parent = root.Parent
-			pcall(function()
-				if parent and parent:IsA("ScrollingFrame") then
-					updateCanvasSize(parent)
-				end
-			end)
 			pcall(function()
 				updateCanvasSize(listFrame)
+			end)
+			pcall(function()
+				if NAmanage.CommandKeybindsScroll and NAmanage.CommandKeybindsScroll.scheduleRefresh then
+					NAmanage.CommandKeybindsScroll.scheduleRefresh()
+				elseif NAmanage.CustomScroll and NAmanage.CustomScroll.refreshByTarget then
+					NAmanage.CustomScroll.refreshByTarget(listFrame)
+				end
 			end)
 		end
 		refreshCanvas()
 		NAlib.connect(canvasKey, layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(refreshCanvas))
 		NAlib.connect(canvasKey, listFrame:GetPropertyChangedSignal("AbsoluteSize"):Connect(refreshCanvas))
-		NAlib.connect(canvasKey, root:GetPropertyChangedSignal("Parent"):Connect(refreshCanvas))
+		NAlib.connect(canvasKey, root:GetPropertyChangedSignal("AbsoluteSize"):Connect(refreshCanvas))
 		NAlib.connect(canvasKey, root.AncestryChanged:Connect(function(_, parent)
 			if not parent then
 				Defer(function() NAlib.disconnect(canvasKey) end)
@@ -83015,7 +83205,7 @@ end
 
 NAmanage.CommandKeybindsUpdateToggleLayout=function(ui)
 	if not ui then return end
-	local show = ui.toggleState and ui.toggleCmdBox and ui.toggleArgsBox
+	local show = ui.toggleState and not ui.spamState and ui.toggleCmdBox and ui.toggleArgsBox
 	if ui.toggleCmdBox then ui.toggleCmdBox.Visible = show and true or false end
 	if ui.toggleArgsBox then ui.toggleArgsBox.Visible = show and true or false end
 
@@ -83036,17 +83226,25 @@ NAmanage.CommandKeybindsUpdateToggleLayout=function(ui)
 		end
 	end
 
-	place(ui.setKeyBtn, 0, 0.22)
-	place(ui.newBtn, 0.22, 0.14)
-	place(ui.saveBtn, 0.36, 0.16)
-	place(ui.toggleBtn, 0.52, 0.16)
+	place(ui.setKeyBtn, 0, 0.16)
+	place(ui.newBtn, 0.16, 0.10)
+	place(ui.saveBtn, 0.26, 0.14)
+	place(ui.toggleBtn, 0.40, 0.14)
+	place(ui.spamBtn, 0.54, 0.14)
 	place(ui.holdBtn, 0.68, 0.14)
 	place(ui.delBtn, 0.82, 0.18)
 
+	if ui.toggleBtn then
+		ui.toggleBtn.Text = ui.toggleState and "Toggle: On" or "Toggle: Off"
+	end
+	if ui.spamBtn then
+		ui.spamBtn.Text = ui.spamState and "Spam: On" or "Spam: Off"
+	end
 	if ui.holdBtn then
-		ui.holdBtn.AutoButtonColor = ui.toggleState and true or false
-		ui.holdBtn.BackgroundTransparency = ui.toggleState and 0.2 or 0.5
-		ui.holdBtn.TextColor3 = ui.toggleState and Color3.fromRGB(234, 234, 244) or Color3.fromRGB(180, 180, 190)
+		local modeActive = ui.toggleState or ui.spamState
+		ui.holdBtn.AutoButtonColor = modeActive and true or false
+		ui.holdBtn.BackgroundTransparency = modeActive and 0.2 or 0.5
+		ui.holdBtn.TextColor3 = modeActive and Color3.fromRGB(234, 234, 244) or Color3.fromRGB(180, 180, 190)
 		ui.holdBtn.Text = ui.holdState and "Hold: On" or "Hold: Off"
 	end
 end
@@ -83091,6 +83289,13 @@ NAmanage.CommandKeybindsUIRefresh=function()
 	local function buildDisplayLabel(keyName, args)
 		local baseLabel = normalizeLabel(args)
 		local opt = CommandKeybindOptions[keyName]
+		if opt and opt.spam then
+			local label = (opt.hold and "[spam hold]" or "[spam]").." "..(baseLabel ~= "" and baseLabel or "(empty)")
+			if isDisabled(keyName) then
+				return label.." (disabled)"
+			end
+			return label
+		end
 		if not (opt and opt.toggle) then
 			local label = baseLabel ~= "" and baseLabel or "(empty)"
 			if isDisabled(keyName) then
@@ -83230,18 +83435,16 @@ NAmanage.CommandKeybindsUIRefresh=function()
 
 			local opt = CommandKeybindOptions[tostring(keyName)]
 			local isToggle = opt and opt.toggle or false
+			local isSpam = opt and opt.spam or false
 			ui.disabledState = (opt and opt.disabled == true) or false
 
 			if ui.toggleBtn then
 				ui.toggleState = isToggle
-				ui.toggleBtn.Text = ui.toggleState and "Toggle: On" or "Toggle: Off"
 			end
+			ui.spamState = isSpam and true or false
 			ui.holdState = (opt and opt.hold == true) or false
-			if not ui.toggleState then
+			if not (ui.toggleState or ui.spamState) then
 				ui.holdState = false
-			end
-			if ui.holdBtn then
-				ui.holdBtn.Text = ui.holdState and "Hold: On" or "Hold: Off"
 			end
 
 			local args2 = (opt and type(opt.args2) == "table") and opt.args2 or nil
@@ -83267,7 +83470,7 @@ NAmanage.CommandKeybindsUIRefresh=function()
 			local k = tostring(keyName)
 			local opt = CommandKeybindOptions[k] or {}
 			opt.disabled = not (opt.disabled == true)
-			if not opt.toggle and not opt.disabled then
+			if not opt.toggle and not opt.spam and not opt.disabled then
 				CommandKeybindOptions[k] = nil
 			else
 				CommandKeybindOptions[k] = opt
@@ -83295,9 +83498,8 @@ NAmanage.CommandKeybindsUIRefresh=function()
 				if ui.toggleArgsBox then ui.toggleArgsBox.Text = "" end
 				ui.disabledState = false
 				ui.toggleState = false
+				ui.spamState = false
 				ui.holdState = false
-				if ui.toggleBtn then ui.toggleBtn.Text = "Toggle: Off" end
-				if ui.holdBtn then ui.holdBtn.Text = "Hold: Off" end
 				NAmanage.CommandKeybindsUpdateToggleLayout(ui)
 			end
 			NAmanage.CommandKeybindsUIRefresh()
@@ -83329,14 +83531,9 @@ NAmanage.CommandKeybindsUIWire=function()
 		if ui.toggleCmdBox then ui.toggleCmdBox.Text = "" end
 		if ui.toggleArgsBox then ui.toggleArgsBox.Text = "" end
 		ui.disabledState = false
-		if ui.toggleBtn then
-			ui.toggleState = false
-			ui.toggleBtn.Text = "Toggle: Off"
-		end
+		ui.toggleState = false
+		ui.spamState = false
 		ui.holdState = false
-		if ui.holdBtn then
-			ui.holdBtn.Text = "Hold: Off"
-		end
 		NAmanage.CommandKeybindsUpdateToggleLayout(ui)
 	end
 
@@ -83349,12 +83546,25 @@ NAmanage.CommandKeybindsUIWire=function()
 	if ui.toggleBtn then
 		MouseButtonFix(ui.toggleBtn, function()
 			ui.toggleState = not ui.toggleState
-			if not ui.toggleState then
-				ui.holdState = false
+			if ui.toggleState then
+				ui.spamState = false
 			end
-			ui.toggleBtn.Text = ui.toggleState and "Toggle: On" or "Toggle: Off"
-			if ui.holdBtn then
-				ui.holdBtn.Text = ui.holdState and "Hold: On" or "Hold: Off"
+			if not ui.toggleState then
+				if not ui.spamState then
+					ui.holdState = false
+				end
+			end
+			NAmanage.CommandKeybindsUpdateToggleLayout(ui)
+		end)
+	end
+
+	if ui.spamBtn then
+		MouseButtonFix(ui.spamBtn, function()
+			ui.spamState = not ui.spamState
+			if ui.spamState then
+				ui.toggleState = false
+			elseif not ui.toggleState then
+				ui.holdState = false
 			end
 			NAmanage.CommandKeybindsUpdateToggleLayout(ui)
 		end)
@@ -83362,12 +83572,11 @@ NAmanage.CommandKeybindsUIWire=function()
 
 	if ui.holdBtn then
 		MouseButtonFix(ui.holdBtn, function()
-			if not ui.toggleState then
-				DoNotif("Enable Toggle before using Hold mode.", 1.5)
+			if not (ui.toggleState or ui.spamState) then
+				DoNotif("Enable Toggle or Spam before using Hold mode.", 1.5)
 				return
 			end
 			ui.holdState = not ui.holdState
-			ui.holdBtn.Text = ui.holdState and "Hold: On" or "Hold: Off"
 			NAmanage.CommandKeybindsUpdateToggleLayout(ui)
 		end)
 	end
@@ -83461,8 +83670,15 @@ NAmanage.CommandKeybindsUIWire=function()
 			end
 			CommandKeybinds[keyName] = args
 			local opt = CommandKeybindOptions[keyName] or {}
-			if ui.toggleState then
+			if ui.spamState then
+				opt.spam = true
+				opt.toggle = nil
+				opt.state = false
+				opt.args2 = nil
+				opt.hold = ui.holdState and true or nil
+			elseif ui.toggleState then
 				opt.toggle = true
+				opt.spam = nil
 				opt.state = false
 				opt.hold = ui.holdState and true or nil
 				-- build second layer: either from explicit toggle fields or just reuse the first command
@@ -83483,6 +83699,7 @@ NAmanage.CommandKeybindsUIWire=function()
 				end
 				opt.args2 = args2
 			else
+				opt.spam = nil
 				opt.toggle = nil
 				opt.state = nil
 				opt.args2 = nil
@@ -83490,7 +83707,7 @@ NAmanage.CommandKeybindsUIWire=function()
 				ui.holdState = false
 			end
 			opt.disabled = ui.disabledState and true or nil
-			if not opt.toggle and not opt.disabled then
+			if not opt.toggle and not opt.spam and not opt.disabled then
 				CommandKeybindOptions[keyName] = nil
 			else
 				CommandKeybindOptions[keyName] = opt
@@ -87322,6 +87539,7 @@ SpawnCall(function() -- init
 	--if NAUIMANAGER.NAchatFrame then NAgui.NAProtection(NAUIMANAGER.NAchatFrame) end
 	if NAUIMANAGER.NAconsoleFrame then NAgui.NAProtection(NAUIMANAGER.NAconsoleFrame) end
 	if NAUIMANAGER.commandsFrame then NAgui.NAProtection(NAUIMANAGER.commandsFrame) end
+	if NAUIMANAGER.CommandKeybindsFrame then NAgui.NAProtection(NAUIMANAGER.CommandKeybindsFrame) end
 	if NAUIMANAGER.resizeFrame then NAgui.NAProtection(NAUIMANAGER.resizeFrame) end
 	if NAUIMANAGER.description then NAgui.NAProtection(NAUIMANAGER.description) end
 	if NAUIMANAGER.ModalFixer then NAgui.NAProtection(NAUIMANAGER.ModalFixer) end
@@ -95380,7 +95598,7 @@ do
 	end)
 end
 
-if not IsOnMobile then
+if not IsOnMobile or NAmanage.CanUseCommandKeybinds() then
 	NAgui.addTab(NA_TABS.TAB_KEYBINDS, { order = 8, textIcon = "xbox-a" })
 	NAgui.setTab(NA_TABS.TAB_KEYBINDS)
 
@@ -95456,21 +95674,17 @@ if not IsOnMobile then
 			"Please provide a key."
 			))
 
+	end
+
+	if NAmanage.CanUseCommandKeybinds() then
 		NAgui.addSection("Command Keybinds")
 		NAgui.addButton("Open Command Keybinds", function()
-			NAgui.setTab(NA_TABS.TAB_COMMAND_KEYBINDS)
-			Defer(function()
-				NAmanage.CommandKeybindsUIRefresh()
-			end)
+			NAgui.commandkeybinds()
 		end)
-
-		local prevTab = NAgui.getActiveTab()
-		NAgui.addTab(NA_TABS.TAB_COMMAND_KEYBINDS, { order = 9, textIcon = "xbox-a" })
-		NAgui.setTab(NA_TABS.TAB_COMMAND_KEYBINDS)
-		NAmanage.CommandKeybindsUIInit()
-		NAmanage.CommandKeybindsUIWire()
-		NAmanage.CommandKeybindsUIRefresh()
-		NAgui.setTab(prevTab)
+		if NAmanage.CommandKeybindsUIInit() then
+			NAmanage.CommandKeybindsUIWire()
+			NAmanage.CommandKeybindsUIRefresh()
+		end
 	end
 end
 
