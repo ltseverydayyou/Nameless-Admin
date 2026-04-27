@@ -36466,6 +36466,15 @@ NAmanage.dropAllToolsSafe=function(done)
 
 	return #queue
 end
+cmd.add({"droptool","dropatool","dtool"}, {"droptool", "Drop one of your tools"}, function()
+	local ok, info = NAmanage.dropOneTool()
+	if ok then
+		DebugNotif("Dropped: "..tostring(info), 4)
+	else
+		DebugNotif(tostring(info or "No droppable tool found"), 4)
+	end
+end)
+
 cmd.add({"droptools"}, {"dropalltools", "Drop all of your tools"}, function()
 	local dropped, err = NAmanage.dropAllToolsSafe()
 	if dropped and dropped > 0 then
