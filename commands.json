@@ -531,6 +531,17 @@
       "desc": "Open the settings menu"
     },
     {
+      "name": "commandkeybinds",
+      "aliases": [
+        "commandkeybinds",
+        "cmdkeybinds",
+        "ckeybinds"
+      ],
+      "usage": "commandkeybinds (cmdkeybinds, ckeybinds)",
+      "args": "",
+      "desc": "Open the command keybinds window"
+    },
+    {
       "name": "waypoints",
       "aliases": [
         "waypoints",
