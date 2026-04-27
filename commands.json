@@ -1176,6 +1176,17 @@
       "desc": "Remove COM tracker"
     },
     {
+      "name": "droptool",
+      "aliases": [
+        "droptool",
+        "dropatool",
+        "dtool"
+      ],
+      "usage": "droptool",
+      "args": "",
+      "desc": "Drop one of your tools"
+    },
+    {
       "name": "droptools",
       "aliases": [
         "droptools"
