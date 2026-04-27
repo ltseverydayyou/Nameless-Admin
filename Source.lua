@@ -20092,6 +20092,7 @@ local LegacyChat=TextChatService.ChatVersion==Enum.ChatVersion.LegacyChatService
 local FakeLag=false
 local Loopvoid=false
 local loopgrab=false
+local loopdrop=false
 local OrgDestroyHeight = nil
 local Watch=false
 local AntiVelocityLimit = nil
@@ -36216,83 +36217,279 @@ cmd.add({"hidecom","unshowcom","uncom"},{"hidecom","Remove COM tracker"},functio
 	if comPart then pcall(function() comPart:Destroy() end) comPart=nil end
 end)
 
-cmd.add({"droptool"}, {"dropatool", "Drop one of your tools"}, function()
-	local backpack = getBp()
-	local toolToDrop = nil
+NAmanage.canDropTool=function(tool)
+	if not (tool and tool:IsA("Tool")) then
+		return false
+	end
 
-	for _, tool in ipairs(getChar():GetChildren()) do
-		if tool:IsA("Tool") and NAlib.isProperty(tool, "CanBeDropped") == true then
-			toolToDrop = tool
-			break
+	local ok, val = pcall(function()
+		return tool.CanBeDropped
+	end)
+
+	return ok and val == true
+end
+
+NAmanage.waitToolParent=function(tool, parent, tries, step)
+	tries = tonumber(tries) or 10
+	step = tonumber(step) or 0.035
+
+	for _ = 1, tries do
+		if tool and tool.Parent == parent then
+			return true
+		end
+		Wait(step)
+	end
+
+	return tool and tool.Parent == parent
+end
+
+NAmanage.waitDropParent=function(tool, parent, tries, step)
+	tries = tries or 20
+	step = step or 0.045
+
+	for _ = 1, tries do
+		if not (tool and tool.Parent) then
+			return false
+		end
+
+		if tool.Parent == parent then
+			return true
+		end
+
+		Wait(step)
+	end
+
+	return tool and tool.Parent == parent
+end
+
+NAmanage.dropToolStep=function(tool, character, backpack, done)
+	if type(done) ~= "function" then
+		done = function() end
+	end
+
+	if not (tool and tool.Parent and character) then
+		done(false)
+		return false
+	end
+
+	if not NAmanage.canDropTool(tool) then
+		done(false)
+		return false
+	end
+
+	if tool.Parent == character then
+		NACaller(function()
+			tool.Parent = workspace
+		end)
+
+		Defer(function()
+			done(tool and tool.Parent == workspace)
+		end)
+		return true
+	end
+
+	if not (backpack and tool.Parent == backpack) then
+		done(false)
+		return false
+	end
+
+	NACaller(function()
+		tool.Parent = character
+	end)
+
+	Defer(function()
+		if not (tool and tool.Parent and NAmanage.canDropTool(tool)) then
+			done(false)
+			return
+		end
+
+		if tool.Parent ~= character then
+			done(tool.Parent == workspace)
+			return
+		end
+
+		NACaller(function()
+			tool.Parent = workspace
+		end)
+
+		Defer(function()
+			done(tool and tool.Parent == workspace)
+		end)
+	end)
+
+	return true
+end
+
+NAmanage.dropToolFast=function(tool, character, backpack)
+	return NAmanage.dropToolStep(tool, character, backpack, function() end)
+end
+
+NAmanage.dropToolSafe=function(tool, character, backpack)
+	return NAmanage.dropToolStep(tool, character or getChar(), backpack or getBp(), function() end)
+end
+
+NAmanage.collectDropTools=function(from, queue, seen, skip)
+	if not from then
+		return
+	end
+
+	for _, tool in ipairs(from:GetChildren()) do
+		if NAmanage.canDropTool(tool) and not seen[tool] and not (skip and skip[tool]) then
+			seen[tool] = true
+			Insert(queue, tool)
 		end
 	end
+end
 
-	Wait()
+NAmanage.buildDropQueue=function(character, backpack, skip)
+	local seen = {}
+	local queue = {}
 
-	if backpack and not toolToDrop then
-		for _, tool in ipairs(backpack:GetChildren()) do
-			if tool:IsA("Tool") and NAlib.isProperty(tool, "CanBeDropped") == true then
-				tool.Parent = getChar()
-				toolToDrop = tool
-				break
-			end
-		end
+	NAmanage.collectDropTools(character, queue, seen, skip)
+	NAmanage.collectDropTools(backpack, queue, seen, skip)
+
+	return queue
+end
+
+NAmanage.findNextDropTool=function(character, backpack, skip)
+	local queue = NAmanage.buildDropQueue(character, backpack, skip)
+	return queue[1]
+end
+
+NAmanage.isToolDropReady=function(tool, character, backpack)
+	if not (tool and tool.Parent and character) then
+		return false
 	end
 
-	if toolToDrop then
-		toolToDrop.Parent = workspace
-		DebugNotif("Dropped: "..toolToDrop.Name, 4)
-	else
-		DebugNotif("No droppable tool found", 4)
+	if not NAmanage.canDropTool(tool) then
+		return false
 	end
-end)
 
-cmd.add({"droptools"}, {"dropalltools", "Drop all of your tools"}, function()
+	return tool.Parent == character or tool.Parent == backpack
+end
+
+NAmanage.dropOneTool=function(skip, done)
 	local backpack = getBp()
 	local character = getChar()
 	if not character then
-		return DebugNotif("Character not available", 4)
+		if type(done) == "function" then done(false) end
+		return false, "Character not available"
 	end
 
-	local queue = {}
-	local function collect(from)
-		if not from then return end
-		for _, tool in ipairs(from:GetChildren()) do
-			if tool:IsA("Tool") and NAlib.isProperty(tool, "CanBeDropped") == true then
-				Insert(queue, tool)
-			end
+	local tool = NAmanage.findNextDropTool(character, backpack, skip)
+	if tool then
+		return NAmanage.dropToolStep(tool, character, backpack, done), tool.Name, tool
+	end
+
+	if type(done) == "function" then done(false) end
+	return false, "No droppable tool found"
+end
+
+NAmanage.dropQueueStep=function(queue, index, state)
+	state = state or {}
+	index = index or 1
+
+	local tool = queue and queue[index]
+	if not tool then
+		state.done = true
+		if type(state.doneFn) == "function" then
+			state.doneFn(state)
 		end
+		return
 	end
 
-	collect(character)
-	collect(backpack)
+	local character = getChar()
+	local backpack = getBp()
 
+	if character and NAmanage.isToolDropReady(tool, character, backpack) then
+		NAmanage.dropToolStep(tool, character, backpack, function(ok)
+			if ok then
+				state.dropped = (state.dropped or 0) + 1
+			else
+				state.failed = (state.failed or 0) + 1
+			end
+
+			Defer(function()
+				NAmanage.dropQueueStep(queue, index + 1, state)
+			end)
+		end)
+	else
+		state.failed = (state.failed or 0) + 1
+		Defer(function()
+			NAmanage.dropQueueStep(queue, index + 1, state)
+		end)
+	end
+end
+
+NAmanage.dropAllToolsSafe=function(done)
+	local backpack = getBp()
+	local character = getChar()
+	if not character then
+		if type(done) == "function" then done({dropped = 0, failed = 0, done = true}) end
+		return 0, "Character not available"
+	end
+
+	local queue = NAmanage.buildDropQueue(character, backpack)
 	if #queue == 0 then
-		return DebugNotif("No droppable tools found", 4)
+		if type(done) == "function" then done({dropped = 0, failed = 0, done = true}) end
+		return 0, "No droppable tools found"
 	end
 
-	local dropped = 0
+	local state = {
+		dropped = 0,
+		failed = 0,
+		done = false,
+		doneFn = done
+	}
 
-	for _, tool in ipairs(queue) do
-		if tool and tool.Parent then
-			if tool.Parent == backpack then
-				tool.Parent = character
-				Wait()
-			end
+	NAmanage.dropQueueStep(queue, 1, state)
 
-			if tool.Parent == character then
-				tool.Parent = workspace
-				dropped += 1
-				Wait(.05)
-			end
-		end
-	end
-
-	if dropped > 0 then
+	return #queue
+end
+cmd.add({"droptools"}, {"dropalltools", "Drop all of your tools"}, function()
+	local dropped, err = NAmanage.dropAllToolsSafe()
+	if dropped and dropped > 0 then
 		DebugNotif("Dropped "..dropped.." tool(s)", 4)
 	else
-		DebugNotif("No droppable tools found", 4)
+		DebugNotif(err or "No droppable tools found", 4)
 	end
+end)
+
+cmd.add({"loopdroptools","loopdrop","ldtools","ldtls"}, {"loopdroptools", "Loop drops your tools"}, function()
+	if loopdrop then
+		DebugNotif("Loop drop already running", 2)
+		return
+	end
+
+	loopdrop = true
+	DebugNotif("Started loop dropping tools", 2)
+	SpawnCall(function()
+		while loopdrop do
+			if not NAmanage.dropBusy then
+				NAmanage.dropBusy = true
+				local ok, count = pcall(function()
+					return NAmanage.dropAllToolsSafe(function()
+						NAmanage.dropBusy = false
+					end)
+				end)
+
+				if not ok or not count or count <= 0 then
+					NAmanage.dropBusy = false
+				end
+			end
+			Wait(0.2)
+		end
+		NAmanage.dropBusy = false
+		DebugNotif("Stopped loop dropping tools", 2)
+	end)
+end)
+
+cmd.add({"unloopdroptools","unloopdrop","unldtools","unldtls"}, {"unloopdroptools", "Stops loop dropping tools"}, function()
+	if not loopdrop then
+		DebugNotif("Loop drop is not running", 2)
+		return
+	end
+	loopdrop = false
 end)
 
 cmd.add({"notools"},{"notools","Remove your tools"},function()
@@ -45320,50 +45517,469 @@ if IsOnPC then
 	end)
 end
 
-NAmanage.grabAllTools=function(range)
+NAmanage.toolCache = NAmanage.ensureWeakKeyTable(NAmanage.toolCache or {})
+NAmanage.toolGrabCol = NAmanage.ensureWeakKeyTable(NAmanage.toolGrabCol or {})
+NAmanage.grabBusy = NAmanage.ensureWeakKeyTable(NAmanage.grabBusy or {})
+NAmanage.toolCacheReady = NAmanage.toolCacheReady or false
+
+NAmanage.isOwnPackTool = NAmanage.isOwnPackTool or function(tool)
+	if typeof(tool) ~= "Instance" or not tool:IsA("Tool") then
+		return false
+	end
+
 	local char = getChar()
-	local hum = char and getHum()
-	local root = char and getRoot(char)
-	if not hum or not root then return 0 end
+	local bp = getBp()
+	return (char and tool:IsDescendantOf(char)) or (bp and tool:IsDescendantOf(bp))
+end
 
-	range = tonumber(range)
-	local useRange = range and range > 0
+NAmanage.isCharTool = NAmanage.isCharTool or function(tool)
+	if typeof(tool) ~= "Instance" or not tool:IsA("Tool") then
+		return false
+	end
 
-	local count = 0
-	for _, tool in ipairs(NAmanage.qDesc(workspace, "Tool")) do
-		if useRange then
-			local handle = tool:FindFirstChild("Handle") or tool:FindFirstChildWhichIsA("BasePart")
-			if handle and (handle.Position - root.Position).Magnitude <= range then
-				if NACaller(function() hum:EquipTool(tool) end) then
-					count += 1
-				end
+	if NAmanage.isOwnPackTool(tool) then
+		return false
+	end
+
+	local inst = tool.Parent
+	while inst and inst ~= workspace do
+		if inst:IsA("Model") then
+			local okPlr, plr = pcall(function()
+				return Players:GetPlayerFromCharacter(inst)
+			end)
+			if okPlr and plr then
+				return true
 			end
-		else
-			if NACaller(function() hum:EquipTool(tool) end) then
-				count += 1
+			if inst:FindFirstChildOfClass("Humanoid") then
+				return true
+			end
+		end
+		inst = inst.Parent
+	end
+
+	return false
+end
+
+NAmanage.isDroppedTool = NAmanage.isDroppedTool or function(tool)
+	if typeof(tool) ~= "Instance" or not tool:IsA("Tool") then
+		return false
+	end
+	if not tool:IsDescendantOf(workspace) then
+		return false
+	end
+	if NAmanage.isOwnPackTool(tool) then
+		return false
+	end
+	if NAmanage.isCharTool(tool) then
+		return false
+	end
+	return true
+end
+
+NAmanage.toolPart = NAmanage.toolPart or function(tool)
+	if typeof(tool) ~= "Instance" then
+		return nil
+	end
+
+	local handle = tool:FindFirstChild("Handle")
+	if handle and handle:IsA("BasePart") then
+		return handle
+	end
+
+	for _, d in ipairs(tool:GetDescendants()) do
+		if d:IsA("BasePart") then
+			return d
+		end
+	end
+
+	return nil
+end
+
+NAmanage.toolParts=function(tool)
+	local parts = {}
+	if typeof(tool) ~= "Instance" then
+		return parts
+	end
+
+	local handle = tool:FindFirstChild("Handle")
+	if handle and handle:IsA("BasePart") then
+		parts[#parts + 1] = handle
+	end
+
+	for _, d in ipairs(tool:GetDescendants()) do
+		if d:IsA("BasePart") and d ~= handle then
+			parts[#parts + 1] = d
+		end
+	end
+
+	return parts
+end
+
+NAmanage.addToolCache=function(tool)
+	if typeof(tool) == "Instance" and tool:IsA("Tool") then
+		NAmanage.toolCache[tool] = true
+	end
+end
+
+NAmanage.scanToolBranch=function(inst)
+	if typeof(inst) ~= "Instance" then
+		return
+	end
+
+	if inst:IsA("Tool") then
+		NAmanage.addToolCache(inst)
+		return
+	end
+
+	if inst:IsA("Folder") or inst:IsA("Model") then
+		for _, d in ipairs(inst:GetDescendants()) do
+			if d:IsA("Tool") then
+				NAmanage.addToolCache(d)
 			end
 		end
 	end
-	return count
+end
+
+NAmanage.dropToolCache=function(tool)
+	if typeof(tool) == "Instance" and tool:IsA("Tool") then
+		NAmanage.toolCache[tool] = nil
+		NAmanage.grabBusy[tool] = nil
+		NAmanage.restoreToolCollision(tool)
+	end
+end
+
+NAmanage.initToolCache=function()
+	if NAmanage.toolCacheStarted then
+		return
+	end
+
+	NAmanage.toolCacheStarted = true
+	NAmanage.toolCache = NAmanage.ensureWeakKeyTable(NAmanage.toolCache)
+	NAmanage.grabBusy = NAmanage.ensureWeakKeyTable(NAmanage.grabBusy)
+	NAmanage.toolGrabCol = NAmanage.ensureWeakKeyTable(NAmanage.toolGrabCol)
+
+	for _, ch in ipairs(workspace:GetChildren()) do
+		NAmanage.scanToolBranch(ch)
+	end
+
+	NAlib.connect("grabtools_cache_add", workspace.DescendantAdded:Connect(function(inst)
+		NAmanage.scanToolBranch(inst)
+		if inst:IsA("Folder") or inst:IsA("Model") then
+			Defer(function()
+				if inst and inst.Parent then
+					NAmanage.scanToolBranch(inst)
+				end
+			end)
+		end
+	end))
+
+	NAlib.connect("grabtools_cache_rem", workspace.DescendantRemoving:Connect(function(inst)
+		if inst:IsA("Tool") then
+			NAmanage.dropToolCache(inst)
+		end
+	end))
+
+	Spawn(function()
+		local scanned = 0
+		for _, inst in ipairs(workspace:GetDescendants()) do
+			if inst:IsA("Tool") then
+				NAmanage.addToolCache(inst)
+			end
+			scanned += 1
+			if scanned % 2500 == 0 then
+				Wait()
+			end
+		end
+		NAmanage.toolCacheReady = true
+	end)
+end
+
+NAmanage.toolList=function()
+	NAmanage.initToolCache()
+
+	local list = {}
+	for tool in pairs(NAmanage.toolCache) do
+		if NAmanage.isDroppedTool(tool) then
+			list[#list + 1] = tool
+		else
+			NAmanage.toolCache[tool] = nil
+			NAmanage.grabBusy[tool] = nil
+			NAmanage.restoreToolCollision(tool)
+		end
+	end
+
+	if #list > 0 or NAmanage.toolCacheReady then
+		return list
+	end
+
+	for _, ch in ipairs(workspace:GetChildren()) do
+		NAmanage.scanToolBranch(ch)
+	end
+
+	for tool in pairs(NAmanage.toolCache) do
+		if NAmanage.isDroppedTool(tool) then
+			list[#list + 1] = tool
+		end
+	end
+
+	return list
+end
+
+NAmanage.saveToolCollision=function(tool)
+	if not tool or NAmanage.toolGrabCol[tool] then
+		return
+	end
+
+	local saved = setmetatable({}, { __mode = "k" })
+	for _, part in ipairs(NAmanage.toolParts(tool)) do
+		local ok, val = pcall(function()
+			return part.CanCollide
+		end)
+		if ok then
+			saved[part] = val
+			if val ~= false then
+				NACaller(function()
+					part.CanCollide = false
+				end)
+			end
+		end
+	end
+	NAmanage.toolGrabCol[tool] = saved
+end
+
+NAmanage.restoreToolCollision=function(tool)
+	local saved = tool and NAmanage.toolGrabCol[tool]
+	if not saved then
+		return
+	end
+
+	for part, val in pairs(saved) do
+		if part and part.Parent then
+			NACaller(function()
+				part.CanCollide = val
+			end)
+		end
+	end
+	NAmanage.toolGrabCol[tool] = nil
+end
+
+NAmanage.touchTool=function(tool, root)
+	if not tool or not root then
+		return
+	end
+
+	for _, part in ipairs(NAmanage.toolParts(tool)) do
+		if part and part.Parent and firetouchinterest then
+			NACaller(function()
+				firetouchinterest(root, part, 0)
+				firetouchinterest(part, root, 0)
+				firetouchinterest(root, part, 1)
+				firetouchinterest(part, root, 1)
+			end)
+		end
+	end
+end
+
+NAmanage.pullTool=function(tool, root)
+	if not tool or not root then
+		return
+	end
+
+	local cf = root.CFrame
+	local n = 0
+	for _, part in ipairs(NAmanage.toolParts(tool)) do
+		if part and part.Parent then
+			n += 1
+			NACaller(function()
+				part.AssemblyLinearVelocity = Vector3.zero
+				part.AssemblyAngularVelocity = Vector3.zero
+				part.CFrame = cf * CFrame.new((n % 3 - 1) * 0.35, 0, -0.7 - (n * 0.03))
+			end)
+		end
+	end
+end
+
+NAmanage.grabTool=function(tool, tries)
+	if not NAmanage.isDroppedTool(tool) then
+		return false
+	end
+	if NAmanage.grabBusy[tool] then
+		return false
+	end
+
+	NAmanage.grabBusy[tool] = true
+	NAmanage.saveToolCollision(tool)
+
+	local ok = false
+	tries = tonumber(tries) or 4
+
+	for _ = 1, tries do
+		local char = getChar()
+		local hum = char and getHum(char)
+		local root = char and getRoot(char)
+
+		if not (char and hum and root) then
+			break
+		end
+
+		if not NAmanage.isDroppedTool(tool) then
+			ok = NAmanage.isOwnPackTool(tool)
+			break
+		end
+
+		NAmanage.pullTool(tool, root)
+		NAmanage.touchTool(tool, root)
+
+		if NAmanage.isOwnPackTool(tool) then
+			ok = true
+			break
+		end
+
+		NACaller(function()
+			hum:EquipTool(tool)
+		end)
+
+		if NAmanage.isOwnPackTool(tool) then
+			ok = true
+			break
+		end
+
+		Defer(function()
+			local c = getChar()
+			local r = c and getRoot(c)
+			if tool and r and NAmanage.isDroppedTool(tool) then
+				NAmanage.pullTool(tool, r)
+				NAmanage.touchTool(tool, r)
+			end
+		end)
+
+		Defer(function()
+			local c = getChar()
+			local h = c and getHum(c)
+			local r = c and getRoot(c)
+			if tool and h and r and NAmanage.isDroppedTool(tool) then
+				NAmanage.pullTool(tool, r)
+				NAmanage.touchTool(tool, r)
+				NACaller(function()
+					h:EquipTool(tool)
+				end)
+			end
+		end)
+
+		Wait(0.01)
+	end
+
+	ok = ok or NAmanage.isOwnPackTool(tool)
+	NAmanage.grabBusy[tool] = nil
+	NAmanage.restoreToolCollision(tool)
+
+	if ok then
+		NAmanage.toolCache[tool] = nil
+	end
+
+	return ok
+end
+
+NAmanage.grabAllTools=function(range, silent)
+	local char = getChar()
+	local root = char and getRoot(char)
+	if not root then
+		return 0, 0
+	end
+
+	range = tonumber(range)
+	local useRange = range and range > 0
+	local queue = {}
+
+	for _, tool in ipairs(NAmanage.toolList()) do
+		if not NAmanage.grabBusy[tool] then
+			local part = NAmanage.toolPart(tool)
+			if part and (not useRange or (part.Position - root.Position).Magnitude <= range) then
+				queue[#queue + 1] = tool
+			end
+		end
+	end
+
+	if #queue == 0 then
+		return 0, 0
+	end
+
+	for _, tool in ipairs(queue) do
+		local c = getChar()
+		local r = c and getRoot(c)
+		if r and NAmanage.isDroppedTool(tool) then
+			NAmanage.saveToolCollision(tool)
+			NAmanage.pullTool(tool, r)
+			NAmanage.touchTool(tool, r)
+		end
+	end
+
+	local got = 0
+	local started = 0
+
+	for _, tool in ipairs(queue) do
+		if NAmanage.isDroppedTool(tool) and not NAmanage.grabBusy[tool] then
+			started += 1
+			Defer(function()
+				if NAmanage.grabTool(tool, 4) then
+					got += 1
+				end
+			end)
+		elseif NAmanage.isOwnPackTool(tool) then
+			got += 1
+			NAmanage.restoreToolCollision(tool)
+		end
+	end
+
+	Defer(function()
+		for _, tool in ipairs(queue) do
+			local c = getChar()
+			local r = c and getRoot(c)
+			if r and NAmanage.isDroppedTool(tool) then
+				NAmanage.pullTool(tool, r)
+				NAmanage.touchTool(tool, r)
+			end
+		end
+	end)
+
+	Wait(0.035)
+
+	local seen = {}
+	for _, tool in ipairs(queue) do
+		if NAmanage.isOwnPackTool(tool) and not seen[tool] then
+			seen[tool] = true
+			got += 1
+			NAmanage.restoreToolCollision(tool)
+			NAmanage.toolCache[tool] = nil
+		elseif not NAmanage.isDroppedTool(tool) then
+			NAmanage.restoreToolCollision(tool)
+			NAmanage.toolCache[tool] = nil
+			NAmanage.grabBusy[tool] = nil
+		end
+	end
+
+	return got, started
 end
 
 cmd.add({"grabtools","gtools","gtls"},{"grabtools [range]","Grabs dropped tools"},function(...)
 	local firstArg = ...
 	local range = tonumber(firstArg)
 
-	local count = NAmanage.grabAllTools(range)
+	local count, started = NAmanage.grabAllTools(range)
 	if count > 0 then
 		if range and range > 0 then
 			DebugNotif(("Grabbed %d tools within %d studs"):format(count, range), 2)
 		else
 			DebugNotif(("Grabbed %d tools"):format(count), 2)
 		end
+	elseif started and started > 0 then
+		DebugNotif(("Grabbing %d tools"):format(started), 2)
 	else
 		DebugNotif("No tools to grab", 2)
 	end
 end)
 
-cmd.add({"loopgrabtools","lgtools","lgtls"},{"loopgrabtools [range]","Loop grabs dropped tools"},function(...)
+cmd.add({"loopgrabtools","loopgrab","lgtools","lgtls","lgrab","lg"},{"loopgrabtools [range]","Loop grabs dropped tools"},function(...)
 	if loopgrab then
 		DebugNotif("Loop grab already running", 2)
 		return
@@ -45375,14 +45991,16 @@ cmd.add({"loopgrabtools","lgtools","lgtls"},{"loopgrabtools [range]","Loop grabs
 	DebugNotif("Started loop grabbing tools", 2)
 	SpawnCall(function()
 		while loopgrab do
-			NAmanage.grabAllTools(range)
-			Wait(1)
+			Defer(function()
+				NAmanage.grabAllTools(range, true)
+			end)
+			Wait(0.08)
 		end
 		DebugNotif("Stopped loop grabbing tools", 2)
 	end)
 end)
 
-cmd.add({"unloopgrabtools"},{"unloopgrabtools","Stops the loop grab command"},function()
+cmd.add({"unloopgrabtools","unloopgrab","unlgtools","unlgtls","unlgrab","unlg"},{"unloopgrabtools","Stops the loop grab command"},function()
 	if not loopgrab then
 		DebugNotif("Loop grab is not running", 2)
 		return
