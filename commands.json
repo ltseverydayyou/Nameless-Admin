@@ -1176,15 +1176,6 @@
       "desc": "Remove COM tracker"
     },
     {
-      "name": "droptool",
-      "aliases": [
-        "droptool"
-      ],
-      "usage": "dropatool",
-      "args": "",
-      "desc": "Drop one of your tools"
-    },
-    {
       "name": "droptools",
       "aliases": [
         "droptools"
@@ -1192,6 +1183,30 @@
       "usage": "dropalltools",
       "args": "",
       "desc": "Drop all of your tools"
+    },
+    {
+      "name": "loopdroptools",
+      "aliases": [
+        "loopdroptools",
+        "loopdrop",
+        "ldtools",
+        "ldtls"
+      ],
+      "usage": "loopdroptools",
+      "args": "",
+      "desc": "Loop drops your tools"
+    },
+    {
+      "name": "unloopdroptools",
+      "aliases": [
+        "unloopdroptools",
+        "unloopdrop",
+        "unldtools",
+        "unldtls"
+      ],
+      "usage": "unloopdroptools",
+      "args": "",
+      "desc": "Stops loop dropping tools"
     },
     {
       "name": "notools",
@@ -3104,8 +3119,11 @@
       "name": "loopgrabtools",
       "aliases": [
         "loopgrabtools",
+        "loopgrab",
         "lgtools",
-        "lgtls"
+        "lgtls",
+        "lgrab",
+        "lg"
       ],
       "usage": "loopgrabtools [range]",
       "args": "[range]",
@@ -3114,7 +3132,12 @@
     {
       "name": "unloopgrabtools",
       "aliases": [
-        "unloopgrabtools"
+        "unloopgrabtools",
+        "unloopgrab",
+        "unlgtools",
+        "unlgtls",
+        "unlgrab",
+        "unlg"
       ],
       "usage": "unloopgrabtools",
       "args": "",
