@@ -5057,11 +5057,12 @@
     {
       "name": "notepad",
       "aliases": [
-        "notepad"
+        "notepad",
+        "npad"
       ],
       "usage": "notepad",
       "args": "",
-      "desc": "notepad for making scripts / etc"
+      "desc": "integrated notepad"
     },
     {
       "name": "rc7",
