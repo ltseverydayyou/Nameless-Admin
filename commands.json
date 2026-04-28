@@ -4750,6 +4750,28 @@
       "desc": "Stops the airwalk command"
     },
     {
+      "name": "airmomentum",
+      "aliases": [
+        "airmomentum",
+        "amomentum",
+        "aircontrol"
+      ],
+      "usage": "airmomentum (amomentum, aircontrol)",
+      "args": "",
+      "desc": "Overrides default in-air horizontal movement with custom air control"
+    },
+    {
+      "name": "unairmomentum",
+      "aliases": [
+        "unairmomentum",
+        "unamomentum",
+        "unaircontrol"
+      ],
+      "usage": "unairmomentum (unamomentum, unaircontrol)",
+      "args": "",
+      "desc": "Stops the custom air momentum command"
+    },
+    {
       "name": "cbring",
       "aliases": [
         "cbring",
