@@ -2442,15 +2442,6 @@
       "desc": ""
     },
     {
-      "name": "crash",
-      "aliases": [
-        "crash"
-      ],
-      "usage": "crash",
-      "args": "",
-      "desc": "crashes ur client lol (why would you even use this tho)"
-    },
-    {
       "name": "vehiclenoclip",
       "aliases": [
         "vehiclenoclip",
@@ -3473,24 +3464,6 @@
       "usage": "fixcam",
       "args": "",
       "desc": "Fix your camera"
-    },
-    {
-      "name": "saw",
-      "aliases": [
-        "saw"
-      ],
-      "usage": "saw <challenge>",
-      "args": "<challenge>",
-      "desc": "shush"
-    },
-    {
-      "name": "jend",
-      "aliases": [
-        "jend"
-      ],
-      "usage": "jend",
-      "args": "",
-      "desc": "nil"
     },
     {
       "name": "fling",
