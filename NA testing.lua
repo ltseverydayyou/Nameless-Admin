@@ -42554,14 +42554,20 @@ NAmanage.abHas=function(t)
 	return false
 end
 
-NAmanage.abRig=function()
-	if type(IsR6) == "function" and IsR6() then
-		return "R6"
+NAmanage.abRig=function(char)
+	local hum
+	if typeof(char) == "Instance" then
+		hum = char:FindFirstChildWhichIsA("Humanoid",true)
 	end
-	if type(IsR15) == "function" and IsR15() then
-		return "R15"
+	if not hum then
+		if type(IsR6) == "function" and IsR6() then
+			return "R6"
+		end
+		if type(IsR15) == "function" and IsR15() then
+			return "R15"
+		end
+		hum = getHum and getHum()
 	end
-	local hum = getHum and getHum()
 	if hum and hum.RigType == Enum.HumanoidRigType.R15 then
 		return "R15"
 	end
@@ -42600,7 +42606,7 @@ NAmanage.abSave=function(rig, src)
 	local memKey = NAmanage.abKey(rigKey)
 	local data = NAmanage.abRead()
 	local clean = NAmanage.abClean(src)
-	data._ver = 3
+	data._ver = 4
 	data.rigs = type(data.rigs) == "table" and data.rigs or {}
 	data.rigs[rigKey] = clean
 	data.R6 = nil
@@ -42617,7 +42623,7 @@ NAmanage.abForget=function(rig)
 		NAStuff.savedAnims[memKey] = nil
 	end
 	local data = NAmanage.abRead()
-	data._ver = 3
+	data._ver = 4
 	if type(data.rigs) == "table" then
 		data.rigs[rigKey] = nil
 	else
@@ -42628,10 +42634,177 @@ NAmanage.abForget=function(rig)
 	return NAmanage.abWrite(data)
 end
 
+NAmanage.abAutoEnabled=function()
+	if type(NAStuff.abAutoReapply) == "boolean" then
+		return NAStuff.abAutoReapply
+	end
+	local data = NAmanage.abRead()
+	local got = false
+	if type(data.settings) == "table" and type(data.settings.autoReapply) == "boolean" then
+		got = data.settings.autoReapply
+	end
+	NAStuff.abAutoReapply = got
+	return got
+end
+
+NAmanage.abSetAuto=function(val)
+	val = val == true
+	NAStuff.abAutoReapply = val
+	NAStuff.abAutoApplyRespawn = nil
+	local data = NAmanage.abRead()
+	data._ver = 5
+	data.settings = type(data.settings) == "table" and data.settings or {}
+	data.settings.autoReapply = val
+	data.settings.autoRespawn = nil
+	data.autoRespawn = nil
+	return NAmanage.abWrite(data)
+end
+
+NAmanage.abStates = NAmanage.abStates or {"Idle","Walk","Run","Jump","Fall","Climb","Swim","Sit"}
+
+NAmanage.abData=function(char)
+	local c = typeof(char) == "Instance" and char or nil
+	local hum
+	if c then
+		hum = c:FindFirstChildOfClass("Humanoid")
+		if not hum then
+			pcall(function() hum = c:WaitForChild("Humanoid", 5) end)
+		end
+	else
+		hum = getHum and getHum()
+		c = hum and hum.Parent
+	end
+	if not hum or not c then return end
+	local animate = c:FindFirstChild("Animate")
+	if not animate then
+		pcall(function() animate = c:WaitForChild("Animate", 5) end)
+	end
+	if not animate then return end
+	return hum, animate
+end
+
+NAmanage.abCapture=function(rig, char)
+	local rk = tostring(rig or NAmanage.abRig(char))
+	local ak = NAmanage.abKey(rk)
+	if type(NAStuff.storedAnims) ~= "table" then
+		NAStuff.storedAnims = {}
+	end
+	if type(NAStuff.storedAnims[ak]) == "table" then
+		return NAStuff.storedAnims[ak]
+	end
+	local _, animate = NAmanage.abData(char)
+	if not animate then return end
+	local store = {}
+	for _, v in pairs(animate:GetChildren()) do
+		if v:IsA("StringValue") then
+			local a = v:FindFirstChildWhichIsA("Animation")
+			if a then
+				store[v.Name:lower()] = a.AnimationId
+			end
+		end
+	end
+	NAStuff.storedAnims[ak] = store
+	return store
+end
+
+NAmanage.abSetAnim=function(animate, key, raw)
+	local id, num = NAmanage.abId(raw)
+	if not id or not animate then return false end
+	local sv = animate:FindFirstChild(tostring(key):lower())
+	if not sv or not sv:IsA("StringValue") then return false end
+	local hit = false
+	for _, obj in ipairs(sv:GetDescendants()) do
+		if obj:IsA("Animation") then
+			obj.AnimationId = id
+			hit = true
+		end
+	end
+	local a = sv:FindFirstChildWhichIsA("Animation")
+	if a and not hit then
+		a.AnimationId = id
+		hit = true
+	end
+	return hit, num
+end
+
+NAmanage.abRefresh=function(hum, animate)
+	if animate and NAlib and NAlib.isProperty and NAlib.isProperty(animate, "Disabled") ~= nil then
+		pcall(function()
+			animate.Disabled = true
+			Delay(0.04, function()
+				if animate and animate.Parent then
+					animate.Disabled = false
+				end
+			end)
+		end)
+	elseif hum then
+		pcall(function() hum:ChangeState(Enum.HumanoidStateType.Jumping) end)
+	end
+end
+
+NAmanage.abApply=function(src, rig, opts)
+	opts = type(opts) == "table" and opts or {}
+	local char = opts.char
+	local rk = tostring(rig or NAmanage.abRig(char))
+	local cur = NAmanage.abRig(char)
+	if cur ~= rk then
+		return false, "rig"
+	end
+	local hum, animate = NAmanage.abData(char)
+	if not animate then
+		return false, "animate"
+	end
+	NAmanage.abCapture(rk, char)
+	local data = NAmanage.abClean(src or NAmanage.abLoad(rk))
+	if not NAmanage.abHas(data) then
+		return false, "empty"
+	end
+	local did = false
+	for _, n in ipairs(NAmanage.abStates) do
+		local key = Lower(n)
+		local ok, num = NAmanage.abSetAnim(animate, key, data[key])
+		if ok then
+			did = true
+			if opts.inputs and opts.inputs[key] then
+				opts.inputs[key].Text = num or ""
+			end
+		end
+	end
+	if did and opts.refresh ~= false then
+		NAmanage.abRefresh(hum, animate)
+	end
+	return did, did and "ok" or "none"
+end
+
+NAmanage.abApplySaved=function(rig, opts)
+	local char = type(opts) == "table" and opts.char or nil
+	local rk = tostring(rig or NAmanage.abRig(char))
+	local data = NAmanage.abLoad(rk)
+	return NAmanage.abApply(data, rk, opts)
+end
+
+NAmanage.abQueue=function(char, force)
+	if force ~= true and not NAmanage.abAutoEnabled() then return end
+	NAStuff.abTok = (NAStuff.abTok or 0) + 1
+	local tok = NAStuff.abTok
+	for _, d in ipairs({0.15, 0.75, 1.5}) do
+		Delay(d, function()
+			if NAStuff.abTok ~= tok then return end
+			if force ~= true and not NAmanage.abAutoEnabled() then return end
+			local rk = NAmanage.abRig(char)
+			NAmanage.abApplySaved(rk, {char = char, silent = true, refresh = true})
+		end)
+	end
+end
+
+
 cmd.add({"animbuilder","abuilder"},{"animbuilder (abuilder)","Opens animation builder GUI"},function()
 	if builderAnim then NACaller(function() builderAnim:Destroy() end) builderAnim = nil end
 	local rig = NAmanage.abRig()
 	local animKey = NAmanage.abKey(rig)
+	local autoApply = NAmanage.abAutoEnabled()
+	local abMinimized = false
+	local abPlaced = false
 	local cons = {}
 
 	NAmanage.abTrack=function(conn)
@@ -42648,26 +42821,9 @@ cmd.add({"animbuilder","abuilder"},{"animbuilder (abuilder)","Opens animation bu
 		end
 	end
 
-	NAmanage.getData=function()
-		local hum = getHum()
-		if not hum then return end
-		local animate = hum.Parent:FindFirstChild("Animate")
-		if not animate then return end
-		return hum, animate
-	end
+	NAmanage.getData=NAmanage.abData
 
-	if not NAStuff.storedAnims[animKey] then
-		local _, animate0 = NAmanage.getData()
-		if not animate0 then return end
-		local store = {}
-		for _, v in pairs(animate0:GetChildren()) do
-			if v:IsA("StringValue") then
-				local a = v:FindFirstChildWhichIsA("Animation")
-				if a then store[v.Name:lower()] = a.AnimationId end
-			end
-		end
-		NAStuff.storedAnims[animKey] = store
-	end
+	if not NAmanage.abCapture(rig) then return end
 
 	local savedData = NAmanage.abLoad(rig)
 
@@ -42723,7 +42879,7 @@ cmd.add({"animbuilder","abuilder"},{"animbuilder (abuilder)","Opens animation bu
 	sub.Position = UDim2.new(0,20,0,42)
 	sub.Size = UDim2.new(1,-86,0,20)
 	sub.BackgroundTransparency = 1
-	sub.Text = "Edit "..rig.." Animate IDs and save them for next run"
+	sub.Text = "Edit "..rig.." Animate IDs, test, save, or auto re-apply"
 	sub.TextColor3 = Color3.fromRGB(150,154,170)
 	sub.Font = Enum.Font.Gotham
 	sub.TextSize = 13
@@ -42745,6 +42901,21 @@ cmd.add({"animbuilder","abuilder"},{"animbuilder (abuilder)","Opens animation bu
 	local closeStroke = InstanceNew("UIStroke", closeBtn)
 	closeStroke.Color = Color3.fromRGB(68,70,86)
 	closeStroke.Transparency = 0.3
+
+	local minBtn = InstanceNew("TextButton", header)
+	minBtn.Position = UDim2.new(1,-92,0,20)
+	minBtn.Size = UDim2.new(0,34,0,34)
+	minBtn.BackgroundColor3 = Color3.fromRGB(36,37,48)
+	minBtn.BackgroundTransparency = 0.05
+	minBtn.Text = "–"
+	minBtn.TextColor3 = Color3.fromRGB(210,215,235)
+	minBtn.Font = Enum.Font.GothamBold
+	minBtn.TextSize = 18
+	minBtn.AutoButtonColor = true
+	InstanceNew("UICorner", minBtn).CornerRadius = UDim.new(0,10)
+	local minStroke = InstanceNew("UIStroke", minBtn)
+	minStroke.Color = Color3.fromRGB(68,70,86)
+	minStroke.Transparency = 0.3
 
 	local scroll = InstanceNew("ScrollingFrame", main)
 	scroll.Position = UDim2.new(0,14,0,headerH + 12)
@@ -42777,9 +42948,15 @@ cmd.add({"animbuilder","abuilder"},{"animbuilder (abuilder)","Opens animation bu
 	bar.Size = UDim2.new(1,-40,0,46)
 	bar.BackgroundTransparency = 1
 
-	local states = {"Idle","Walk","Run","Jump","Fall","Climb","Swim","Sit"}
+	local states = NAmanage.abStates
 	local inputs = {}
 	local rows = {}
+	local autoBtn
+
+	NAmanage.abAutoText=function()
+		autoBtn.Text = autoApply and "Auto Re-apply: ON" or "Auto Re-apply: OFF"
+		autoBtn.BackgroundColor3 = autoApply and Color3.fromRGB(94,92,162) or Color3.fromRGB(72,74,88)
+	end
 
 	NAmanage.abStatus=function(txt, col)
 		sub.Text = txt or ""
@@ -42806,9 +42983,12 @@ cmd.add({"animbuilder","abuilder"},{"animbuilder (abuilder)","Opens animation bu
 		return b
 	end
 
-	local revert = NAmanage.abButton(bar, "Revert", Color3.fromRGB(150,76,78), UDim2.new(0,0,0,0))
-	local forget = NAmanage.abButton(bar, "Forget", Color3.fromRGB(82,84,100), UDim2.new(0.333,4,0,0))
-	local save = NAmanage.abButton(bar, "Save", Color3.fromRGB(56,137,78), UDim2.new(0.666,8,0,0))
+	local apply = NAmanage.abButton(bar, "Apply Test", Color3.fromRGB(70,104,178), UDim2.new(0,0,0,0))
+	local save = NAmanage.abButton(bar, "Save", Color3.fromRGB(56,137,78), UDim2.new(0.333,4,0,0))
+	autoBtn = NAmanage.abButton(bar, "Auto Re-apply: ON", Color3.fromRGB(94,92,162), UDim2.new(0.666,8,0,0))
+	NAmanage.abAutoText()
+	local revert = NAmanage.abButton(bar, "Revert", Color3.fromRGB(150,76,78), UDim2.new(0,0,0,50))
+	local forget = NAmanage.abButton(bar, "Forget", Color3.fromRGB(82,84,100), UDim2.new(0.5,4,0,50))
 
 	NAmanage.abVP=function()
 		local cam = workspace.CurrentCamera
@@ -42819,8 +42999,32 @@ cmd.add({"animbuilder","abuilder"},{"animbuilder (abuilder)","Opens animation bu
 		return vp
 	end
 
+	NAmanage.abArea=function()
+		local area
+		pcall(function()
+			area = main.Parent and main.Parent.AbsoluteSize
+		end)
+		if typeof(area) ~= "Vector2" or area.X <= 0 or area.Y <= 0 then
+			area = NAmanage.abVP()
+		end
+		return area
+	end
+
+	NAmanage.abSetTopLeft=function(x, y, w, h)
+		local area = NAmanage.abArea()
+		local maxX = math.max(4, area.X - w - 4)
+		local maxY = math.max(4, area.Y - h - 4)
+		x = math.clamp(math.floor((tonumber(x) or 4) + 0.5), 4, maxX)
+		y = math.clamp(math.floor((tonumber(y) or 4) + 0.5), 4, maxY)
+		main.Position = UDim2.new((x + (w * main.AnchorPoint.X)) / area.X, 0, (y + (h * main.AnchorPoint.Y)) / area.Y, 0)
+	end
+
 	NAmanage.abFit=function()
 		local vp = NAmanage.abVP()
+		local area = NAmanage.abArea()
+		local old = main.AbsolutePosition
+		local oldX = old and old.X or 0
+		local oldY = old and old.Y or 0
 		local touch = IsOnMobile == true
 		isMob = vp.X <= 560 or vp.Y <= 520 or (touch and vp.X <= 900)
 		local mx = isMob and 12 or 80
@@ -42832,20 +43036,34 @@ cmd.add({"animbuilder","abuilder"},{"animbuilder (abuilder)","Opens animation bu
 		local w = math.clamp(vp.X - mx, minW, maxW)
 		local h = math.clamp(vp.Y - my, minH, maxH)
 		headerH = isMob and 62 or 74
-		footerH = isMob and 148 or 74
+		footerH = isMob and 236 or 122
+		if abMinimized then
+			h = headerH
+		end
+		if not abPlaced then
+			oldX = math.floor((area.X - w) * 0.5)
+			oldY = math.floor((area.Y - h) * 0.5)
+			abPlaced = true
+		end
 		uiScale.Scale = vp.X <= 320 and math.clamp(vp.X / 320, 0.84, 1) or 1
 		main.Size = UDim2.new(0, w, 0, h)
-		main.Position = UDim2.new(0.5, 0, 0.5, 0)
+		NAmanage.abSetTopLeft(oldX, oldY, w, h)
 		header.Size = UDim2.new(1, 0, 0, headerH)
 		title.Position = UDim2.new(0, isMob and 16 or 20, 0, isMob and 8 or 10)
-		title.Size = UDim2.new(1, isMob and -70 or -86, 0, isMob and 26 or 30)
+		title.Size = UDim2.new(1, isMob and -106 or -126, 0, isMob and 26 or 30)
 		title.TextSize = isMob and 18 or 21
 		sub.Position = UDim2.new(0, isMob and 16 or 20, 0, isMob and 35 or 42)
-		sub.Size = UDim2.new(1, isMob and -70 or -86, 0, isMob and 18 or 20)
+		sub.Size = UDim2.new(1, isMob and -106 or -126, 0, isMob and 18 or 20)
 		sub.TextSize = isMob and 11 or 13
+		minBtn.Position = UDim2.new(1, isMob and -82 or -92, 0, isMob and 14 or 20)
+		minBtn.Size = UDim2.new(0, isMob and 32 or 34, 0, isMob and 32 or 34)
+		minBtn.TextSize = isMob and 17 or 18
+		minBtn.Text = abMinimized and "+" or "–"
 		closeBtn.Position = UDim2.new(1, isMob and -46 or -52, 0, isMob and 14 or 20)
 		closeBtn.Size = UDim2.new(0, isMob and 32 or 34, 0, isMob and 32 or 34)
 		closeBtn.TextSize = isMob and 15 or 16
+		scroll.Visible = not abMinimized
+		footer.Visible = not abMinimized
 		scroll.Position = UDim2.new(0, isMob and 10 or 14, 0, headerH + (isMob and 8 or 12))
 		scroll.Size = UDim2.new(1, isMob and -20 or -28, 1, -headerH - footerH - (isMob and 16 or 24))
 		scroll.ScrollBarThickness = isMob and 3 or 4
@@ -42854,19 +43072,27 @@ cmd.add({"animbuilder","abuilder"},{"animbuilder (abuilder)","Opens animation bu
 		bar.Position = UDim2.new(0, isMob and 12 or 20, 0, isMob and 10 or 13)
 		bar.Size = UDim2.new(1, isMob and -24 or -40, 1, isMob and -20 or -28)
 		if isMob then
-			revert.Position = UDim2.new(0, 0, 0, 0)
-			forget.Position = UDim2.new(0, 0, 0, 44)
-			save.Position = UDim2.new(0, 0, 0, 88)
-			revert.Size = UDim2.new(1, 0, 0, 38)
-			forget.Size = UDim2.new(1, 0, 0, 38)
-			save.Size = UDim2.new(1, 0, 0, 38)
+			apply.Position = UDim2.new(0, 0, 0, 0)
+			save.Position = UDim2.new(0, 0, 0, 40)
+			autoBtn.Position = UDim2.new(0, 0, 0, 80)
+			revert.Position = UDim2.new(0, 0, 0, 120)
+			forget.Position = UDim2.new(0, 0, 0, 160)
+			apply.Size = UDim2.new(1, 0, 0, 36)
+			save.Size = UDim2.new(1, 0, 0, 36)
+			autoBtn.Size = UDim2.new(1, 0, 0, 36)
+			revert.Size = UDim2.new(1, 0, 0, 36)
+			forget.Size = UDim2.new(1, 0, 0, 36)
 		else
-			revert.Position = UDim2.new(0, 0, 0, 0)
-			forget.Position = UDim2.new(0.333, 4, 0, 0)
-			save.Position = UDim2.new(0.666, 8, 0, 0)
-			revert.Size = UDim2.new(0.333, -8, 1, 0)
-			forget.Size = UDim2.new(0.333, -8, 1, 0)
-			save.Size = UDim2.new(0.333, -8, 1, 0)
+			apply.Position = UDim2.new(0, 0, 0, 0)
+			save.Position = UDim2.new(0.333, 4, 0, 0)
+			autoBtn.Position = UDim2.new(0.666, 8, 0, 0)
+			revert.Position = UDim2.new(0, 0, 0, 50)
+			forget.Position = UDim2.new(0.5, 4, 0, 50)
+			apply.Size = UDim2.new(0.333, -8, 0, 40)
+			save.Size = UDim2.new(0.333, -8, 0, 40)
+			autoBtn.Size = UDim2.new(0.333, -8, 0, 40)
+			revert.Size = UDim2.new(0.5, -6, 0, 40)
+			forget.Size = UDim2.new(0.5, -6, 0, 40)
 		end
 		for _, row in pairs(rows) do
 			local r = row.r
@@ -42984,58 +43210,63 @@ cmd.add({"animbuilder","abuilder"},{"animbuilder (abuilder)","Opens animation bu
 	end
 
 	NAmanage.applyAnims=function(mode)
-		local _, animate = NAmanage.getData()
-		if not animate then DoNotif("No Animate object found") return end
 		local curRig = NAmanage.abRig()
 		if curRig ~= rig then
 			NAmanage.abStatus("Rig changed to "..curRig.."; reopen AnimBuilder", Color3.fromRGB(255,205,120))
 			DoNotif("Rig changed. Reopen AnimBuilder")
 			return
 		end
-		local out = {}
-		for _, k in ipairs(states) do
-			local key = Lower(k)
-			local sv = animate:FindFirstChild(key)
-			if sv and sv:IsA("StringValue") then
-				local anim = sv:FindFirstChildWhichIsA("Animation")
-				if anim then
-					if mode == "save" then
-						local raw, num = NAmanage.abId(inputs[key].Text)
-						if raw then
-							anim.AnimationId = raw
-							out[key] = num
-						end
-					else
-						local raw = NAStuff.storedAnims[animKey] and NAStuff.storedAnims[animKey][key]
-						local id, num = NAmanage.abId(raw)
-						if id then
-							anim.AnimationId = id
-							inputs[key].Text = num or ""
-						end
-					end
+		if mode == "save" or mode == "test" then
+			local out = {}
+			for _, k in ipairs(states) do
+				local key = Lower(k)
+				local _, num = NAmanage.abId(inputs[key].Text)
+				if num then
+					out[key] = num
 				end
 			end
-		end
-		if mode == "save" then
+			local applied = NAmanage.abApply(out, rig, {inputs = inputs, refresh = true})
+			if not applied then
+				NAmanage.abStatus(mode == "save" and "No valid animation IDs to save" or "No valid animation IDs to apply", Color3.fromRGB(255,120,120))
+				DoNotif(mode == "save" and "No valid animation IDs to save" or "No valid animation IDs to apply")
+				return
+			end
+			if mode == "test" then
+				NAmanage.abStatus("Applied test "..rig.." animations without saving", Color3.fromRGB(120,190,255))
+				DoNotif("Applied test animations without saving")
+				return
+			end
 			local ok = NAmanage.abSave(rig, out)
+			savedData = NAmanage.abLoad(rig)
+			NAmanage.abQueue(getChar and getChar())
 			if ok then
-				NAmanage.abStatus("Saved "..rig.." animations to Nameless-Admin/AnimBuilder.json", Color3.fromRGB(120,220,145))
-				DoNotif("Saved "..rig.." animations for next run")
+				NAmanage.abStatus("Saved and applied "..rig.." animations", Color3.fromRGB(120,220,145))
+				DoNotif("Saved and applied "..rig.." animations")
 			else
-				NAmanage.abStatus("Saved "..rig.." animations for this session only", Color3.fromRGB(255,205,120))
-				DoNotif("Saved "..rig.." animations for this session only")
+				NAmanage.abStatus("Applied, but file save failed", Color3.fromRGB(255,205,120))
+				DoNotif("Applied animations, but file save failed")
 			end
 		else
-			NAmanage.abStatus("Reverted "..rig.." Animate values", Color3.fromRGB(255,205,120))
-			DoNotif("Reverted "..rig.." animations")
+			local raw = NAStuff.storedAnims[animKey]
+			local applied = NAmanage.abApply(raw, rig, {inputs = inputs, refresh = true})
+			if applied then
+				NAmanage.abStatus("Reverted "..rig.." Animate values", Color3.fromRGB(255,205,120))
+				DoNotif("Reverted "..rig.." animations")
+			else
+				NAmanage.abStatus("No "..rig.." default animations captured", Color3.fromRGB(255,120,120))
+				DoNotif("No "..rig.." default animations captured")
+			end
 		end
 	end
 
 	NAmanage.abClose=function()
 		NAmanage.abClearCons()
+		local pos = main.AbsolutePosition
+		local sz = main.AbsoluteSize
+		local area = NAmanage.abArea()
+		main.Position = UDim2.new((pos.X + sz.X * main.AnchorPoint.X) / area.X, 0, (pos.Y + sz.Y * main.AnchorPoint.Y) / area.Y, 0)
 		local t = __lt.cm("TweenService", "Create", main, TweenInfo.new(0.22, Enum.EasingStyle.Quint, Enum.EasingDirection.InOut), {
 			Size = UDim2.new(0, 12, 0, 12),
-			Position = UDim2.new(0.5,0,0.5,0),
 			BackgroundTransparency = 1
 		})
 		t:Play()
@@ -43046,14 +43277,36 @@ cmd.add({"animbuilder","abuilder"},{"animbuilder (abuilder)","Opens animation bu
 
 	NAmanage.setBoxes(savedData, NAStuff.storedAnims[animKey])
 	if NAmanage.abHas(savedData) then
-		NAmanage.abStatus("Loaded saved "..rig.." Animation Builder values", Color3.fromRGB(120,220,145))
-		DoNotif("Loaded saved "..rig.." Animation Builder values")
+		if autoApply then
+			local applied = NAmanage.abApply(savedData, rig, {inputs = inputs, refresh = true})
+			if applied then
+				NAmanage.abStatus("Loaded and auto re-applied saved "..rig.." animations", Color3.fromRGB(120,220,145))
+				DoNotif("Loaded and auto re-applied saved "..rig.." animations")
+			else
+				NAmanage.abStatus("Loaded saved "..rig.." values, but could not apply", Color3.fromRGB(255,205,120))
+				DoNotif("Loaded saved values, but could not apply")
+			end
+		else
+			NAmanage.abStatus("Loaded saved "..rig.." values", Color3.fromRGB(150,154,170))
+		end
 	else
-		NAmanage.abStatus("Edit "..rig.." Animate IDs and save them for next run", Color3.fromRGB(150,154,170))
+		NAmanage.abStatus("Edit "..rig.." Animate IDs, test, save, or auto re-apply", Color3.fromRGB(150,154,170))
 	end
 
 	MouseButtonFix(closeBtn, function() NAmanage.abClose() end)
+	MouseButtonFix(minBtn, function()
+		abMinimized = not abMinimized
+		NAmanage.abFit()
+	end)
+	MouseButtonFix(apply, function() NAmanage.applyAnims("test") end)
 	MouseButtonFix(save, function() NAmanage.applyAnims("save") end)
+	MouseButtonFix(autoBtn, function()
+		autoApply = not autoApply
+		NAmanage.abSetAuto(autoApply)
+		NAmanage.abAutoText()
+		NAmanage.abStatus(autoApply and "Auto Re-apply enabled" or "Auto Re-apply disabled", autoApply and Color3.fromRGB(120,220,145) or Color3.fromRGB(255,205,120))
+		DoNotif(autoApply and "Auto Re-apply enabled" or "Auto Re-apply disabled")
+	end)
 	MouseButtonFix(revert, function() NAmanage.applyAnims("revert") end)
 	MouseButtonFix(forget, function()
 		local ok = NAmanage.abForget(rig)
@@ -43070,6 +43323,7 @@ cmd.add({"animbuilder","abuilder"},{"animbuilder (abuilder)","Opens animation bu
 
 	NAgui.dragger(main, header)
 end)
+
 
 cmd.add({"setkiller", "killeranim"}, {"setkiller (killeranim)", "Sets killer animation set"}, function()
 	if not IsR6() then DoNotif("command requires R6") return end
@@ -81673,14 +81927,98 @@ NAmanage.Executor_Toggle = NAmanage.Executor_Toggle or function(forceState)
 	return true
 end
 
-NAmanage.Notepad_Init = NAmanage.Notepad_Init or function()
+NAmanage.Notepad_Init = function()
 	if not (NAUIMANAGER and NAUIMANAGER.NotepadFrame and NAUIMANAGER.NotepadContainer) then
 		return false
 	end
 
 	local frame = NAUIMANAGER.NotepadFrame
 	local cont = NAUIMANAGER.NotepadContainer
+	local function getNotepadScale()
+		local s = (NAUIMANAGER and NAUIMANAGER.AUTOSCALER and tonumber(NAUIMANAGER.AUTOSCALER.Scale)) or 1
+		if not s or s <= 0 then
+			s = 1
+		end
+		return s
+	end
+
+	local function getNotepadViewport()
+		local sg = NAStuff and NAStuff.NASCREENGUI
+		if sg and sg.AbsoluteSize and sg.AbsoluteSize.X > 0 and sg.AbsoluteSize.Y > 0 then
+			return sg.AbsoluteSize
+		end
+		local cam = workspace and workspace.CurrentCamera
+		if cam and cam.ViewportSize and cam.ViewportSize.X > 0 and cam.ViewportSize.Y > 0 then
+			return cam.ViewportSize
+		end
+		return Vector2.new(1280, 720)
+	end
+
+	local function getNotepadPad()
+		local s = getNotepadScale()
+		local x = IsOnMobile and 8 or 16
+		local y = IsOnMobile and 8 or 18
+		if GuiService and GuiService.GetGuiInset then
+			local ok, a, b = pcall(function()
+				return GuiService:GetGuiInset()
+			end)
+			if ok and typeof(a) == "Vector2" and typeof(b) == "Vector2" then
+				x += math.max(a.X, b.X) / s
+				y += math.max(a.Y, b.Y) / s
+			end
+		end
+		return x, y
+	end
+
+	local function applyNotepadResponsive(center)
+		if not frame or not frame.Parent then
+			return
+		end
+		if frame.GetAttribute and NAmanage.GetAttr(frame, "NAMenuMinimized") == true then
+			return
+		end
+		local vp = getNotepadViewport()
+		local s = getNotepadScale()
+		local padX, padY = getNotepadPad()
+		local wide = math.max(1, vp.X / s)
+		local tall = math.max(1, vp.Y / s)
+		local maxW = math.max(1, math.floor(wide - padX * 2 + 0.5))
+		local maxH = math.max(1, math.floor(tall - padY * 2 + 0.5))
+		local small = IsOnMobile or wide < 900 or tall < 620
+		local minW = math.min(small and 280 or 460, maxW)
+		local minH = math.min(small and 230 or 340, maxH)
+		local curW = tonumber(frame.Size.X.Offset) or 0
+		local curH = tonumber(frame.Size.Y.Offset) or 0
+		if curW <= 0 then
+			curW = small and maxW or 720
+		end
+		if curH <= 0 then
+			curH = small and maxH or 455
+		end
+		local targetW = math.clamp(curW, minW, maxW)
+		local targetH = math.clamp(curH, minH, maxH)
+		frame.AnchorPoint = Vector2.new(0, 0)
+		frame.Size = UDim2.fromOffset(targetW, targetH)
+		local x
+		local y
+		if center then
+			x = math.floor((wide - targetW) * 0.5 + 0.5)
+			y = math.floor((tall - targetH) * 0.5 + 0.5)
+		else
+			x = math.floor(frame.Position.X.Scale * wide + frame.Position.X.Offset + 0.5)
+			y = math.floor(frame.Position.Y.Scale * tall + frame.Position.Y.Offset + 0.5)
+		end
+		x = math.clamp(x, padX, math.max(padX, wide - targetW - padX))
+		y = math.clamp(y, padY, math.max(padY, tall - targetH - padY))
+		frame.Position = UDim2.fromOffset(x, y)
+	end
+
+	NAmanage.Notepad_ApplyResponsive = applyNotepadResponsive
 	if frame.GetAttribute and NAmanage.GetAttr(frame, "NANotepadReady") then
+		applyNotepadResponsive(false)
+		if type(NAStuff.NotepadRefresh) == "function" then
+			task.defer(NAStuff.NotepadRefresh)
+		end
 		return true
 	end
 	if frame.SetAttribute then
@@ -82636,6 +82974,7 @@ NAmanage.Notepad_Init = NAmanage.Notepad_Init or function()
 		updEditorSize()
 	end)
 	NAStuff.NotepadRefresh = function()
+		applyNotepadResponsive(false)
 		updateNotepadLayout()
 		updEditorSize()
 		updCount()
@@ -82675,14 +83014,52 @@ NAmanage.Notepad_Init = NAmanage.Notepad_Init or function()
 
 	ensure()
 	refreshList()
+	applyNotepadResponsive(false)
 	updateNotepadLayout()
 	updEditorSize()
 	updCount()
+	NAlib.disconnect("NANotepadResponsive")
+	if workspace and workspace.CurrentCamera then
+		NAlib.connect("NANotepadResponsive", workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+			task.defer(function()
+				if frame and frame.Parent then
+					applyNotepadResponsive(frame.Visible == true)
+					updateNotepadLayout()
+					updEditorSize()
+					updCount()
+				end
+			end)
+		end))
+	end
+	if NAStuff and NAStuff.NASCREENGUI then
+		NAlib.connect("NANotepadResponsive", NAStuff.NASCREENGUI:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+			task.defer(function()
+				if frame and frame.Parent then
+					applyNotepadResponsive(frame.Visible == true)
+					updateNotepadLayout()
+					updEditorSize()
+					updCount()
+				end
+			end)
+		end))
+	end
+	if NAUIMANAGER and NAUIMANAGER.AUTOSCALER then
+		NAlib.connect("NANotepadResponsive", NAUIMANAGER.AUTOSCALER:GetPropertyChangedSignal("Scale"):Connect(function()
+			task.defer(function()
+				if frame and frame.Parent then
+					applyNotepadResponsive(frame.Visible == true)
+					updateNotepadLayout()
+					updEditorSize()
+					updCount()
+				end
+			end)
+		end))
+	end
 	setStatus(fsOk and ("Ready | "..dir) or "Filesystem unavailable", fsOk and col.sub or col.err)
 	return true
 end
 
-NAmanage.Notepad_Toggle = NAmanage.Notepad_Toggle or function(forceState)
+NAmanage.Notepad_Toggle = function(forceState)
 	if not (NAUIMANAGER and NAUIMANAGER.NotepadFrame) then
 		DoNotif("Notepad UI unavailable.", 3)
 		return false
@@ -82695,7 +83072,11 @@ NAmanage.Notepad_Toggle = NAmanage.Notepad_Toggle or function(forceState)
 	end
 	frame.Visible = nextState
 	if frame.Visible then
-		NAmanage.centerFrame(frame)
+		if type(NAmanage.Notepad_ApplyResponsive) == "function" then
+			NAmanage.Notepad_ApplyResponsive(true)
+		else
+			NAmanage.centerFrame(frame)
+		end
 		if type(NAStuff.NotepadRefresh) == "function" then
 			task.defer(NAStuff.NotepadRefresh)
 		end
@@ -82743,7 +83124,9 @@ if NAUIMANAGER.ExecutorFrame then
 	NAgui.resizeable(NAUIMANAGER.ExecutorFrame, exMin, Vector2.new(1600, 1000))
 end
 if NAUIMANAGER.NotepadFrame then
-	local npMin = IsOnMobile and Vector2.new(340, 300) or Vector2.new(460, 340)
+	local npVp = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
+	local npSmall = IsOnMobile or npVp.X < 720 or npVp.Y < 520
+	local npMin = npSmall and Vector2.new(280, 230) or Vector2.new(460, 340)
 	NAgui.resizeable(NAUIMANAGER.NotepadFrame, npMin, Vector2.new(1500, 980))
 end
 
@@ -86844,6 +87227,9 @@ SpawnCall(function()
 	NAlib.connect("flashback_char_added", LocalPlayer.CharacterAdded:Connect(function(c)
 		setupFLASHBACK(c)
 		NAmanage.ExecuteBindings("OnSpawn", LocalPlayer, c)
+		if NAmanage.abQueue then
+			NAmanage.abQueue(c)
+		end
 
 		NAmanage.connectFlyKey()
 		NAmanage.connectVFlyKey()
@@ -86887,6 +87273,9 @@ SpawnCall(function()
 
 	if LocalPlayer.Character then
 		setupFLASHBACK(LocalPlayer.Character)
+		if NAmanage.abQueue then
+			NAmanage.abQueue(LocalPlayer.Character)
+		end
 	end
 
 	NAmanage.startWatcher()
