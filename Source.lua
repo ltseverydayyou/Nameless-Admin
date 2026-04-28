@@ -42442,14 +42442,193 @@ cmd.add({"runanim", "playanim", "anim"}, {"runanim <id> [speed] (playanim,anim)"
 	end)
 end, true)
 
-NAStuff.storedAnims = {}
+NAStuff.storedAnims = NAStuff.storedAnims or {}
+NAStuff.savedAnims = NAStuff.savedAnims or {}
 builderAnim = nil
+
+NAmanage.animBuilderPath = NAmanage.animBuilderPath or (((NAfiles and NAfiles.NAFILEPATH) or "Nameless-Admin").."/AnimBuilder.json")
+
+NAmanage.abFileOk=function()
+	return type(isfile) == "function"
+		and type(readfile) == "function"
+		and type(writefile) == "function"
+		and HttpService
+		and type(HttpService.JSONEncode) == "function"
+		and type(HttpService.JSONDecode) == "function"
+end
+
+NAmanage.abDir=function()
+	local dir = (NAfiles and NAfiles.NAFILEPATH) or "Nameless-Admin"
+	if type(isfolder) ~= "function" or type(makefolder) ~= "function" then
+		return
+	end
+	local ok, ex = pcall(isfolder, dir)
+	if ok and not ex then
+		pcall(makefolder, dir)
+	end
+end
+
+NAmanage.abId=function(raw)
+	raw = tostring(raw or ""):match("%d+")
+	if raw and raw ~= "" then
+		return "rbxassetid://"..raw, raw
+	end
+end
+
+NAmanage.abRead=function()
+	if not NAmanage.abFileOk() then
+		return {}
+	end
+	local path = NAmanage.animBuilderPath
+	local okEx, ex = pcall(isfile, path)
+	if not okEx or not ex then
+		return {}
+	end
+	local okRead, raw = pcall(readfile, path)
+	if not okRead or type(raw) ~= "string" or raw == "" then
+		return {}
+	end
+	local okDec, data = pcall(HttpService.JSONDecode, HttpService, raw)
+	if okDec and type(data) == "table" then
+		return data
+	end
+	return {}
+end
+
+NAmanage.abWrite=function(data)
+	if not NAmanage.abFileOk() then
+		return false
+	end
+	NAmanage.abDir()
+	local okEnc, enc = pcall(HttpService.JSONEncode, HttpService, data)
+	if not okEnc or type(enc) ~= "string" then
+		return false
+	end
+	local okWrite = pcall(writefile, NAmanage.animBuilderPath, enc)
+	return okWrite == true
+end
+
+NAmanage.abClean=function(src)
+	local out = {}
+	if type(src) ~= "table" then
+		return out
+	end
+	for k, v in pairs(src) do
+		local _, num = NAmanage.abId(v)
+		if num then
+			out[tostring(k):lower()] = num
+		end
+	end
+	return out
+end
+
+NAmanage.abHas=function(t)
+	if type(t) ~= "table" then
+		return false
+	end
+	for _, v in pairs(t) do
+		if NAmanage.abId(v) then
+			return true
+		end
+	end
+	return false
+end
+
+NAmanage.abRig=function()
+	if type(IsR6) == "function" and IsR6() then
+		return "R6"
+	end
+	if type(IsR15) == "function" and IsR15() then
+		return "R15"
+	end
+	local hum = getHum and getHum()
+	if hum and hum.RigType == Enum.HumanoidRigType.R15 then
+		return "R15"
+	end
+	return "R6"
+end
+
+NAmanage.abKey=function(rig)
+	return tostring(rig or NAmanage.abRig())
+end
+
+NAmanage.abLoad=function(rig)
+	local rigKey = tostring(rig or NAmanage.abRig())
+	local memKey = NAmanage.abKey(rigKey)
+	if type(NAStuff.savedAnims) ~= "table" then
+		NAStuff.savedAnims = {}
+	end
+	local mem = NAStuff.savedAnims[memKey]
+	if type(mem) == "table" then
+		return mem
+	end
+	local data = NAmanage.abRead()
+	local got
+	if type(data.rigs) == "table" then
+		got = data.rigs[rigKey]
+	end
+	if type(got) ~= "table" and type(data[rigKey]) == "table" then
+		got = data[rigKey]
+	end
+	got = NAmanage.abClean(got)
+	NAStuff.savedAnims[memKey] = got
+	return got
+end
+
+NAmanage.abSave=function(rig, src)
+	local rigKey = tostring(rig or NAmanage.abRig())
+	local memKey = NAmanage.abKey(rigKey)
+	local data = NAmanage.abRead()
+	local clean = NAmanage.abClean(src)
+	data._ver = 3
+	data.rigs = type(data.rigs) == "table" and data.rigs or {}
+	data.rigs[rigKey] = clean
+	data.R6 = nil
+	data.R15 = nil
+	data.animations = nil
+	NAStuff.savedAnims[memKey] = clean
+	return NAmanage.abWrite(data)
+end
+
+NAmanage.abForget=function(rig)
+	local rigKey = tostring(rig or NAmanage.abRig())
+	local memKey = NAmanage.abKey(rigKey)
+	if type(NAStuff.savedAnims) == "table" then
+		NAStuff.savedAnims[memKey] = nil
+	end
+	local data = NAmanage.abRead()
+	data._ver = 3
+	if type(data.rigs) == "table" then
+		data.rigs[rigKey] = nil
+	else
+		data.rigs = {}
+	end
+	data[rigKey] = nil
+	data.animations = nil
+	return NAmanage.abWrite(data)
+end
 
 cmd.add({"animbuilder","abuilder"},{"animbuilder (abuilder)","Opens animation builder GUI"},function()
 	if builderAnim then NACaller(function() builderAnim:Destroy() end) builderAnim = nil end
-	local p = Players.LocalPlayer
+	local rig = NAmanage.abRig()
+	local animKey = NAmanage.abKey(rig)
+	local cons = {}
 
-	local function getData()
+	NAmanage.abTrack=function(conn)
+		cons[#cons + 1] = conn
+		return conn
+	end
+
+	NAmanage.abClearCons=function()
+		for i = 1, #cons do
+			if cons[i] then
+				pcall(function() cons[i]:Disconnect() end)
+				cons[i] = nil
+			end
+		end
+	end
+
+	NAmanage.getData=function()
 		local hum = getHum()
 		if not hum then return end
 		local animate = hum.Parent:FindFirstChild("Animate")
@@ -42457,9 +42636,8 @@ cmd.add({"animbuilder","abuilder"},{"animbuilder (abuilder)","Opens animation bu
 		return hum, animate
 	end
 
-	local uid = p.UserId
-	if not NAStuff.storedAnims[uid] then
-		local _, animate0 = getData()
+	if not NAStuff.storedAnims[animKey] then
+		local _, animate0 = NAmanage.getData()
 		if not animate0 then return end
 		local store = {}
 		for _, v in pairs(animate0:GetChildren()) do
@@ -42468,190 +42646,333 @@ cmd.add({"animbuilder","abuilder"},{"animbuilder (abuilder)","Opens animation bu
 				if a then store[v.Name:lower()] = a.AnimationId end
 			end
 		end
-		NAStuff.storedAnims[uid] = store
+		NAStuff.storedAnims[animKey] = store
 	end
+
+	local savedData = NAmanage.abLoad(rig)
 
 	builderAnim = InstanceNew("ScreenGui")
 	NAgui.NaProtectUI(builderAnim)
 	builderAnim.Name = "AnimationBuilder"
+	builderAnim.ResetOnSpawn = false
+	builderAnim.IgnoreGuiInset = true
+	pcall(function() builderAnim.ScreenInsets = Enum.ScreenInsets.DeviceSafeInsets end)
+	pcall(function() builderAnim.ClipToDeviceSafeArea = true end)
+	pcall(function() builderAnim.SafeAreaCompatibility = Enum.SafeAreaCompatibility.FullscreenExtension end)
 
 	local main = InstanceNew("Frame", builderAnim)
-	main.Size = UDim2.new(0.46,0,0.56,0)
-	main.Position = UDim2.new(0.27,0,0.22,0)
-	main.BackgroundColor3 = Color3.fromRGB(28,28,32)
-	main.BackgroundTransparency = 0.08
+	main.AnchorPoint = Vector2.new(0.5,0.5)
+	main.Size = UDim2.new(0, 660, 0, 500)
+	main.Position = UDim2.new(0.5,0,0.5,0)
+	main.BackgroundColor3 = Color3.fromRGB(16,17,22)
+	main.BackgroundTransparency = 0.03
 	main.BorderSizePixel = 0
 	main.ClipsDescendants = true
-	InstanceNew("UICorner", main).CornerRadius = UDim.new(0, 14)
+	InstanceNew("UICorner", main).CornerRadius = UDim.new(0, 16)
 	local mainStroke = InstanceNew("UIStroke", main)
-	mainStroke.Color = Color3.fromRGB(60,60,65)
+	mainStroke.Color = Color3.fromRGB(65,68,82)
 	mainStroke.Thickness = 1
-	mainStroke.Transparency = 0.2
+	mainStroke.Transparency = 0.1
 
-	local headerH = 56
+	local uiScale = InstanceNew("UIScale", main)
+	uiScale.Scale = 1
+
+	local headerH = 74
+	local footerH = 74
+	local isMob = false
+
 	local header = InstanceNew("Frame", main)
 	header.Size = UDim2.new(1,0,0,headerH)
-	header.BackgroundColor3 = Color3.fromRGB(24,24,26)
-	header.BackgroundTransparency = 0.12
-	InstanceNew("UICorner", header).CornerRadius = UDim.new(0, 14)
-	local headerPad = InstanceNew("UIPadding", header)
-	headerPad.PaddingLeft = UDim.new(0, 10)
-	headerPad.PaddingRight = UDim.new(0, 10)
+	header.BackgroundColor3 = Color3.fromRGB(20,21,28)
+	header.BorderSizePixel = 0
+	InstanceNew("UICorner", header).CornerRadius = UDim.new(0, 16)
 
-	local row = InstanceNew("Frame", header)
-	row.BackgroundTransparency = 1
-	row.Size = UDim2.new(1,0,1,0)
-	local rowLayout = InstanceNew("UIListLayout", row)
-	rowLayout.FillDirection = Enum.FillDirection.Horizontal
-	rowLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
-	rowLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-	rowLayout.Padding = UDim.new(0,8)
-
-	local title = InstanceNew("TextLabel", row)
-	title.Size = UDim2.new(0.8, 0, 1, 0)
+	local title = InstanceNew("TextLabel", header)
+	title.Position = UDim2.new(0,20,0,10)
+	title.Size = UDim2.new(1,-86,0,30)
 	title.BackgroundTransparency = 1
-	title.Text = "Animation Builder"
-	title.TextColor3 = Color3.fromRGB(240,240,240)
+	title.Text = "Animation Builder · "..rig
+	title.TextColor3 = Color3.fromRGB(245,246,250)
 	title.Font = Enum.Font.GothamBold
-	title.TextScaled = true
-	do local ts = InstanceNew("UITextSizeConstraint", title) ts.MinTextSize = 12 ts.MaxTextSize = 20 end
+	title.TextSize = 21
 	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.TextYAlignment = Enum.TextYAlignment.Center
+	title.TextTruncate = Enum.TextTruncate.AtEnd
 
-	local closeBtn = InstanceNew("TextButton", row)
-	closeBtn.Size = UDim2.new(0.2, 0, 0.82, 0)
-	closeBtn.BackgroundTransparency = 1
+	local sub = InstanceNew("TextLabel", header)
+	sub.Position = UDim2.new(0,20,0,42)
+	sub.Size = UDim2.new(1,-86,0,20)
+	sub.BackgroundTransparency = 1
+	sub.Text = "Edit "..rig.." Animate IDs and save them for next run"
+	sub.TextColor3 = Color3.fromRGB(150,154,170)
+	sub.Font = Enum.Font.Gotham
+	sub.TextSize = 13
+	sub.TextXAlignment = Enum.TextXAlignment.Left
+	sub.TextYAlignment = Enum.TextYAlignment.Center
+	sub.TextTruncate = Enum.TextTruncate.AtEnd
+
+	local closeBtn = InstanceNew("TextButton", header)
+	closeBtn.Position = UDim2.new(1,-52,0,20)
+	closeBtn.Size = UDim2.new(0,34,0,34)
+	closeBtn.BackgroundColor3 = Color3.fromRGB(36,37,48)
+	closeBtn.BackgroundTransparency = 0.05
 	closeBtn.Text = "X"
-	closeBtn.TextColor3 = Color3.fromRGB(255, 90, 90)
-	closeBtn.Font = Enum.Font.Gotham
-	closeBtn.TextScaled = true
-	do local ts = InstanceNew("UITextSizeConstraint", closeBtn) ts.MinTextSize = 12 ts.MaxTextSize = 22 end
+	closeBtn.TextColor3 = Color3.fromRGB(255,105,105)
+	closeBtn.Font = Enum.Font.GothamBold
+	closeBtn.TextSize = 16
+	closeBtn.AutoButtonColor = true
+	InstanceNew("UICorner", closeBtn).CornerRadius = UDim.new(0,10)
+	local closeStroke = InstanceNew("UIStroke", closeBtn)
+	closeStroke.Color = Color3.fromRGB(68,70,86)
+	closeStroke.Transparency = 0.3
 
-	local body = InstanceNew("Frame", main)
-	body.BackgroundTransparency = 1
-	body.Size = UDim2.new(1,0,1,-headerH-58)
-	body.Position = UDim2.new(0,0,0,headerH)
-
-	local scroll = InstanceNew("ScrollingFrame", body)
-	scroll.Size = UDim2.new(1,0,1,0)
+	local scroll = InstanceNew("ScrollingFrame", main)
+	scroll.Position = UDim2.new(0,14,0,headerH + 12)
+	scroll.Size = UDim2.new(1,-28,1,-headerH-footerH-24)
 	scroll.BackgroundTransparency = 1
-	scroll.ScrollBarThickness = 6
+	scroll.BorderSizePixel = 0
+	scroll.ScrollBarThickness = 4
+	scroll.ScrollBarImageColor3 = Color3.fromRGB(94,98,118)
 	scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	scroll.CanvasSize = UDim2.new(0,0,0,0)
+
 	local pad = InstanceNew("UIPadding", scroll)
-	pad.PaddingLeft = UDim.new(0,10)
-	pad.PaddingRight = UDim.new(0,10)
-	pad.PaddingTop = UDim.new(0,10)
-	pad.PaddingBottom = UDim.new(0,10)
+	pad.PaddingTop = UDim.new(0,2)
+	pad.PaddingBottom = UDim.new(0,2)
+	pad.PaddingLeft = UDim.new(0,2)
+	pad.PaddingRight = UDim.new(0,8)
+
 	local list = InstanceNew("UIListLayout", scroll)
 	list.Padding = UDim.new(0, 8)
 	list.SortOrder = Enum.SortOrder.LayoutOrder
 
 	local footer = InstanceNew("Frame", main)
-	footer.Size = UDim2.new(1,0,0,50)
-	footer.Position = UDim2.new(0,0,1,-50)
-	footer.BackgroundTransparency = 1
-	local footerPad = InstanceNew("UIPadding", footer)
-	footerPad.PaddingLeft = UDim.new(0,10)
-	footerPad.PaddingRight = UDim.new(0,10)
-	footerPad.PaddingBottom = UDim.new(0,8)
-	local footerRow = InstanceNew("Frame", footer)
-	footerRow.BackgroundTransparency = 1
-	footerRow.Size = UDim2.new(1,0,1,0)
-	local fl = InstanceNew("UIListLayout", footerRow)
-	fl.FillDirection = Enum.FillDirection.Horizontal
-	fl.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	fl.VerticalAlignment = Enum.VerticalAlignment.Center
-	fl.Padding = UDim.new(0,10)
+	footer.Position = UDim2.new(0,0,1,-footerH)
+	footer.Size = UDim2.new(1,0,0,footerH)
+	footer.BackgroundColor3 = Color3.fromRGB(18,19,25)
+	footer.BorderSizePixel = 0
 
-	local save = InstanceNew("TextButton", footerRow)
-	save.Size = UDim2.new(0.48,0,1,0)
-	save.BackgroundColor3 = Color3.fromRGB(60,140,80)
-	save.BackgroundTransparency = 0.1
-	save.Text = "💾 Save"
-	save.TextColor3 = Color3.new(1,1,1)
-	save.Font = Enum.Font.GothamSemibold
-	save.TextScaled = true
-	do InstanceNew("UICorner", save).CornerRadius = UDim.new(0,10) end
-	do local ts = InstanceNew("UITextSizeConstraint", save) ts.MinTextSize = 12 ts.MaxTextSize = 20 end
-
-	local revert = InstanceNew("TextButton", footerRow)
-	revert.Size = UDim2.new(0.48,0,1,0)
-	revert.BackgroundColor3 = Color3.fromRGB(160,80,80)
-	revert.BackgroundTransparency = 0.1
-	revert.Text = "↩️ Revert"
-	revert.TextColor3 = Color3.new(1,1,1)
-	revert.Font = Enum.Font.GothamSemibold
-	revert.TextScaled = true
-	do InstanceNew("UICorner", revert).CornerRadius = UDim.new(0,10) end
-	do local ts = InstanceNew("UITextSizeConstraint", revert) ts.MinTextSize = 12 ts.MaxTextSize = 20 end
+	local bar = InstanceNew("Frame", footer)
+	bar.Position = UDim2.new(0,20,0,13)
+	bar.Size = UDim2.new(1,-40,0,46)
+	bar.BackgroundTransparency = 1
 
 	local states = {"Idle","Walk","Run","Jump","Fall","Climb","Swim","Sit"}
 	local inputs = {}
+	local rows = {}
 
-	local function makeRow(name)
-		local r = InstanceNew("Frame", scroll)
-		r.Size = UDim2.new(1,0,0,54)
-		r.BackgroundColor3 = Color3.fromRGB(36,36,40)
-		r.BackgroundTransparency = 0.12
-		InstanceNew("UICorner", r).CornerRadius = UDim.new(0,10)
-		local rs = InstanceNew("UIStroke", r)
-		rs.Color = Color3.fromRGB(60,60,65)
-		rs.Thickness = 1
-		rs.Transparency = 0.2
-
-		local inner = InstanceNew("Frame", r)
-		inner.BackgroundTransparency = 1
-		inner.Size = UDim2.new(1,-16,1,-12)
-		inner.Position = UDim2.new(0,8,0,6)
-
-		local hl = InstanceNew("UIListLayout", inner)
-		hl.FillDirection = Enum.FillDirection.Horizontal
-		hl.HorizontalAlignment = Enum.HorizontalAlignment.Left
-		hl.VerticalAlignment = Enum.VerticalAlignment.Center
-		hl.Padding = UDim.new(0,8)
-
-		local label = InstanceNew("TextLabel", inner)
-		label.Size = UDim2.new(0.28,0,1,0)
-		label.BackgroundTransparency = 1
-		label.Text = name
-		label.TextColor3 = Color3.new(1,1,1)
-		label.Font = Enum.Font.GothamSemibold
-		label.TextXAlignment = Enum.TextXAlignment.Left
-		label.TextScaled = true
-		do local ts = InstanceNew("UITextSizeConstraint", label) ts.MinTextSize = 12 ts.MaxTextSize = 18 end
-
-		local boxHolder = InstanceNew("Frame", inner)
-		boxHolder.Size = UDim2.new(0.72,0,1,0)
-		boxHolder.BackgroundTransparency = 1
-
-		local box = InstanceNew("TextBox", boxHolder)
-		box.AnchorPoint = Vector2.new(0.5,0.5)
-		box.Position = UDim2.new(0.5,0,0.5,0)
-		box.Size = UDim2.new(1,0,1,0)
-		box.Text = ""
-		box.PlaceholderText = "rbxassetid (numbers only)"
-		box.ClearTextOnFocus = false
-		box.TextColor3 = Color3.new(1,1,1)
-		box.BackgroundColor3 = Color3.fromRGB(50,50,55)
-		box.BackgroundTransparency = 0.15
-		box.Font = Enum.Font.Gotham
-		box.TextScaled = true
-		do InstanceNew("UICorner", box).CornerRadius = UDim.new(0,8) end
-		do local ts = InstanceNew("UITextSizeConstraint", box) ts.MinTextSize = 11 ts.MaxTextSize = 18 end
-
-		box:GetPropertyChangedSignal("Text"):Connect(function()
-			local clean = box.Text:gsub("%D","")
-			if box.Text ~= clean then box.Text = clean end
-		end)
-
-		inputs[Lower(name)] = box
+	NAmanage.abStatus=function(txt, col)
+		sub.Text = txt or ""
+		sub.TextColor3 = col or Color3.fromRGB(150,154,170)
 	end
 
-	for _, n in ipairs(states) do makeRow(n) end
+	NAmanage.abButton=function(parent, text, col, pos)
+		local b = InstanceNew("TextButton", parent)
+		b.Position = pos
+		b.Size = UDim2.new(0.333,-8,1,0)
+		b.BackgroundColor3 = col
+		b.BackgroundTransparency = 0
+		b.BorderSizePixel = 0
+		b.Text = text
+		b.TextColor3 = Color3.fromRGB(248,248,252)
+		b.Font = Enum.Font.GothamSemibold
+		b.TextSize = 15
+		b.AutoButtonColor = true
+		InstanceNew("UICorner", b).CornerRadius = UDim.new(0, 12)
+		local st = InstanceNew("UIStroke", b)
+		st.Color = Color3.fromRGB(255,255,255)
+		st.Transparency = 0.88
+		st.Thickness = 1
+		return b
+	end
 
-	local function applyAnims(mode)
-		local _, animate = getData()
+	local revert = NAmanage.abButton(bar, "Revert", Color3.fromRGB(150,76,78), UDim2.new(0,0,0,0))
+	local forget = NAmanage.abButton(bar, "Forget", Color3.fromRGB(82,84,100), UDim2.new(0.333,4,0,0))
+	local save = NAmanage.abButton(bar, "Save", Color3.fromRGB(56,137,78), UDim2.new(0.666,8,0,0))
+
+	NAmanage.abVP=function()
+		local cam = workspace.CurrentCamera
+		local vp = cam and cam.ViewportSize
+		if not vp or vp.X <= 0 or vp.Y <= 0 then
+			vp = Vector2.new(660, 500)
+		end
+		return vp
+	end
+
+	NAmanage.abFit=function()
+		local vp = NAmanage.abVP()
+		local touch = IsOnMobile == true
+		isMob = vp.X <= 560 or vp.Y <= 520 or (touch and vp.X <= 900)
+		local mx = isMob and 12 or 80
+		local my = isMob and 12 or 80
+		local minW = math.min(300, math.max(240, vp.X - 8))
+		local minH = math.min(340, math.max(300, vp.Y - 8))
+		local maxW = isMob and 560 or 660
+		local maxH = isMob and 620 or 520
+		local w = math.clamp(vp.X - mx, minW, maxW)
+		local h = math.clamp(vp.Y - my, minH, maxH)
+		headerH = isMob and 62 or 74
+		footerH = isMob and 148 or 74
+		uiScale.Scale = vp.X <= 320 and math.clamp(vp.X / 320, 0.84, 1) or 1
+		main.Size = UDim2.new(0, w, 0, h)
+		main.Position = UDim2.new(0.5, 0, 0.5, 0)
+		header.Size = UDim2.new(1, 0, 0, headerH)
+		title.Position = UDim2.new(0, isMob and 16 or 20, 0, isMob and 8 or 10)
+		title.Size = UDim2.new(1, isMob and -70 or -86, 0, isMob and 26 or 30)
+		title.TextSize = isMob and 18 or 21
+		sub.Position = UDim2.new(0, isMob and 16 or 20, 0, isMob and 35 or 42)
+		sub.Size = UDim2.new(1, isMob and -70 or -86, 0, isMob and 18 or 20)
+		sub.TextSize = isMob and 11 or 13
+		closeBtn.Position = UDim2.new(1, isMob and -46 or -52, 0, isMob and 14 or 20)
+		closeBtn.Size = UDim2.new(0, isMob and 32 or 34, 0, isMob and 32 or 34)
+		closeBtn.TextSize = isMob and 15 or 16
+		scroll.Position = UDim2.new(0, isMob and 10 or 14, 0, headerH + (isMob and 8 or 12))
+		scroll.Size = UDim2.new(1, isMob and -20 or -28, 1, -headerH - footerH - (isMob and 16 or 24))
+		scroll.ScrollBarThickness = isMob and 3 or 4
+		footer.Position = UDim2.new(0, 0, 1, -footerH)
+		footer.Size = UDim2.new(1, 0, 0, footerH)
+		bar.Position = UDim2.new(0, isMob and 12 or 20, 0, isMob and 10 or 13)
+		bar.Size = UDim2.new(1, isMob and -24 or -40, 1, isMob and -20 or -28)
+		if isMob then
+			revert.Position = UDim2.new(0, 0, 0, 0)
+			forget.Position = UDim2.new(0, 0, 0, 44)
+			save.Position = UDim2.new(0, 0, 0, 88)
+			revert.Size = UDim2.new(1, 0, 0, 38)
+			forget.Size = UDim2.new(1, 0, 0, 38)
+			save.Size = UDim2.new(1, 0, 0, 38)
+		else
+			revert.Position = UDim2.new(0, 0, 0, 0)
+			forget.Position = UDim2.new(0.333, 4, 0, 0)
+			save.Position = UDim2.new(0.666, 8, 0, 0)
+			revert.Size = UDim2.new(0.333, -8, 1, 0)
+			forget.Size = UDim2.new(0.333, -8, 1, 0)
+			save.Size = UDim2.new(0.333, -8, 1, 0)
+		end
+		for _, row in pairs(rows) do
+			local r = row.r
+			local label = row.label
+			local box = row.box
+			if isMob then
+				r.Size = UDim2.new(1, 0, 0, 76)
+				label.Position = UDim2.new(0, 14, 0, 7)
+				label.Size = UDim2.new(1, -28, 0, 22)
+				label.TextSize = 14
+				box.Position = UDim2.new(0, 12, 0, 34)
+				box.Size = UDim2.new(1, -24, 0, 34)
+				box.TextSize = 14
+			else
+				r.Size = UDim2.new(1, 0, 0, 50)
+				label.Position = UDim2.new(0, 16, 0, 0)
+				label.Size = UDim2.new(0, 116, 1, 0)
+				label.TextSize = 15
+				box.Position = UDim2.new(0, 132, 0.5, -17)
+				box.Size = UDim2.new(1, -148, 0, 34)
+				box.TextSize = 15
+			end
+		end
+	end
+
+	NAmanage.makeRow=function(name, ord)
+		local r = InstanceNew("Frame", scroll)
+		r.Name = "AnimRow_"..name
+		r.LayoutOrder = ord
+		r.Size = UDim2.new(1,0,0,50)
+		r.BackgroundColor3 = Color3.fromRGB(27,28,36)
+		r.BackgroundTransparency = 0
+		r.BorderSizePixel = 0
+		InstanceNew("UICorner", r).CornerRadius = UDim.new(0, 12)
+		local rs = InstanceNew("UIStroke", r)
+		rs.Color = Color3.fromRGB(54,57,70)
+		rs.Thickness = 1
+		rs.Transparency = 0.18
+
+		local label = InstanceNew("TextLabel", r)
+		label.Position = UDim2.new(0,16,0,0)
+		label.Size = UDim2.new(0,116,1,0)
+		label.BackgroundTransparency = 1
+		label.Text = name
+		label.TextColor3 = Color3.fromRGB(232,234,242)
+		label.Font = Enum.Font.GothamSemibold
+		label.TextSize = 15
+		label.TextXAlignment = Enum.TextXAlignment.Left
+		label.TextYAlignment = Enum.TextYAlignment.Center
+
+		local box = InstanceNew("TextBox", r)
+		box.Position = UDim2.new(0,132,0.5,-17)
+		box.Size = UDim2.new(1,-148,0,34)
+		box.Text = ""
+		box.PlaceholderText = "animation id"
+		box.ClearTextOnFocus = false
+		box.TextColor3 = Color3.fromRGB(245,246,250)
+		box.PlaceholderColor3 = Color3.fromRGB(118,122,138)
+		box.BackgroundColor3 = Color3.fromRGB(40,42,52)
+		box.BorderSizePixel = 0
+		box.Font = Enum.Font.Gotham
+		box.TextSize = 15
+		box.TextXAlignment = Enum.TextXAlignment.Center
+		box.TextYAlignment = Enum.TextYAlignment.Center
+		box.TextTruncate = Enum.TextTruncate.AtEnd
+		InstanceNew("UICorner", box).CornerRadius = UDim.new(0, 10)
+		local bs = InstanceNew("UIStroke", box)
+		bs.Color = Color3.fromRGB(58,61,74)
+		bs.Transparency = 0.15
+		bs.Thickness = 1
+
+		NAmanage.abTrack(box.Focused:Connect(function()
+			bs.Color = Color3.fromRGB(115,135,255)
+			bs.Transparency = 0
+			box.BackgroundColor3 = Color3.fromRGB(46,48,60)
+		end))
+
+		NAmanage.abTrack(box.FocusLost:Connect(function()
+			bs.Color = Color3.fromRGB(58,61,74)
+			bs.Transparency = 0.15
+			box.BackgroundColor3 = Color3.fromRGB(40,42,52)
+		end))
+
+		NAmanage.abTrack(box:GetPropertyChangedSignal("Text"):Connect(function()
+			local clean = box.Text:gsub("%D","")
+			if box.Text ~= clean then box.Text = clean end
+		end))
+
+		inputs[Lower(name)] = box
+		rows[Lower(name)] = {r = r, label = label, box = box}
+	end
+
+	for i, n in ipairs(states) do NAmanage.makeRow(n, i) end
+	NAmanage.abFit()
+	local cam = workspace.CurrentCamera
+	if cam then
+		NAmanage.abTrack(cam:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+			NAmanage.abFit()
+		end))
+	end
+	NAmanage.abTrack(workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+		task.defer(NAmanage.abFit)
+	end))
+
+	NAmanage.setBoxes=function(src, fallback)
+		for _, k in ipairs(states) do
+			local key = Lower(k)
+			local raw = src and src[key]
+			if not NAmanage.abId(raw) then
+				raw = fallback and fallback[key]
+			end
+			local _, num = NAmanage.abId(raw)
+			inputs[key].Text = num or ""
+		end
+	end
+
+	NAmanage.applyAnims=function(mode)
+		local _, animate = NAmanage.getData()
 		if not animate then DoNotif("No Animate object found") return end
+		local curRig = NAmanage.abRig()
+		if curRig ~= rig then
+			NAmanage.abStatus("Rig changed to "..curRig.."; reopen AnimBuilder", Color3.fromRGB(255,205,120))
+			DoNotif("Rig changed. Reopen AnimBuilder")
+			return
+		end
+		local out = {}
 		for _, k in ipairs(states) do
 			local key = Lower(k)
 			local sv = animate:FindFirstChild(key)
@@ -42659,50 +42980,73 @@ cmd.add({"animbuilder","abuilder"},{"animbuilder (abuilder)","Opens animation bu
 				local anim = sv:FindFirstChildWhichIsA("Animation")
 				if anim then
 					if mode == "save" then
-						local id = tonumber(inputs[key].Text)
-						if id then
-							anim.AnimationId = "rbxassetid://"..id
-						end
-					else
-						local raw = NAStuff.storedAnims[uid] and NAStuff.storedAnims[uid][key]
+						local raw, num = NAmanage.abId(inputs[key].Text)
 						if raw then
 							anim.AnimationId = raw
-							local num = raw:match("%d+")
-							if num then inputs[key].Text = num end
+							out[key] = num
+						end
+					else
+						local raw = NAStuff.storedAnims[animKey] and NAStuff.storedAnims[animKey][key]
+						local id, num = NAmanage.abId(raw)
+						if id then
+							anim.AnimationId = id
+							inputs[key].Text = num or ""
 						end
 					end
 				end
 			end
 		end
-		if mode == "save" then DoNotif("Saved animations") else DoNotif("Reverted animations") end
-	end
-
-	local function prefill()
-		for _, k in ipairs(states) do
-			local key = Lower(k)
-			local raw = NAStuff.storedAnims[uid] and NAStuff.storedAnims[uid][key]
-			if raw then
-				local num = raw:match("%d+")
-				if num then inputs[key].Text = num end
+		if mode == "save" then
+			local ok = NAmanage.abSave(rig, out)
+			if ok then
+				NAmanage.abStatus("Saved "..rig.." animations to Nameless-Admin/AnimBuilder.json", Color3.fromRGB(120,220,145))
+				DoNotif("Saved "..rig.." animations for next run")
 			else
-				inputs[key].Text = ""
+				NAmanage.abStatus("Saved "..rig.." animations for this session only", Color3.fromRGB(255,205,120))
+				DoNotif("Saved "..rig.." animations for this session only")
 			end
+		else
+			NAmanage.abStatus("Reverted "..rig.." Animate values", Color3.fromRGB(255,205,120))
+			DoNotif("Reverted "..rig.." animations")
 		end
 	end
-	prefill()
 
-	MouseButtonFix(closeBtn, function()
-		local t = __lt.cm("TweenService", "Create", main, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.InOut), {
-			Size = UDim2.new(0.02,0,0.02,0),
-			Position = UDim2.new(0.99,0,0.01,0)
+	NAmanage.abClose=function()
+		NAmanage.abClearCons()
+		local t = __lt.cm("TweenService", "Create", main, TweenInfo.new(0.22, Enum.EasingStyle.Quint, Enum.EasingDirection.InOut), {
+			Size = UDim2.new(0, 12, 0, 12),
+			Position = UDim2.new(0.5,0,0.5,0),
+			BackgroundTransparency = 1
 		})
-		t:Play(); t.Completed:Wait()
+		t:Play()
+		t.Completed:Wait()
 		NACaller(function() builderAnim:Destroy() end)
 		builderAnim = nil
-	end)
+	end
 
-	MouseButtonFix(save, function() applyAnims("save") end)
-	MouseButtonFix(revert, function() applyAnims("revert") end)
+	NAmanage.setBoxes(savedData, NAStuff.storedAnims[animKey])
+	if NAmanage.abHas(savedData) then
+		NAmanage.abStatus("Loaded saved "..rig.." Animation Builder values", Color3.fromRGB(120,220,145))
+		DoNotif("Loaded saved "..rig.." Animation Builder values")
+	else
+		NAmanage.abStatus("Edit "..rig.." Animate IDs and save them for next run", Color3.fromRGB(150,154,170))
+	end
+
+	MouseButtonFix(closeBtn, function() NAmanage.abClose() end)
+	MouseButtonFix(save, function() NAmanage.applyAnims("save") end)
+	MouseButtonFix(revert, function() NAmanage.applyAnims("revert") end)
+	MouseButtonFix(forget, function()
+		local ok = NAmanage.abForget(rig)
+		savedData = {}
+		NAmanage.setBoxes(nil, NAStuff.storedAnims[animKey])
+		if ok then
+			NAmanage.abStatus("Forgot saved "..rig.." Animation Builder values", Color3.fromRGB(255,205,120))
+			DoNotif("Forgot saved "..rig.." Animation Builder values")
+		else
+			NAmanage.abStatus("Cleared saved values for this session only", Color3.fromRGB(255,205,120))
+			DoNotif("Cleared saved values for this session only")
+		end
+	end)
 
 	NAgui.dragger(main, header)
 end)
