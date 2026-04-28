@@ -8466,6 +8466,7 @@ local NAfiles = {
 	NACUSTOMFONTPATH = "Nameless-Admin/CustomFont";
 	NACUSTOMICONPATH = "Nameless-Admin/CustomIcon";
 	NACOMMANDKEYBINDS = "Nameless-Admin/CommandKeybinds.json";
+	NANOTEPADPATH = "Nameless-Admin/NA-Notepad";
 	NAFLYBINDSPATH = "Nameless-Admin/FlyBinds.json";
 	NAFFLAGSPATH = "Nameless-Admin/NAFFlags.json";
 }
@@ -58296,8 +58297,12 @@ cmd.add({"unspin"}, {"unspin", "Makes your character unspin"}, function()
 	DebugNotif("Spin Disabled", 3)
 end)
 
-cmd.add({"notepad"},{"notepad","notepad for making scripts / etc"},function()
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NAnotepad.lua"))()
+cmd.add({"notepad","npad"},{"notepad","integrated notepad"},function()
+	if NAmanage.Notepad_Toggle then
+		NAmanage.Notepad_Toggle()
+	else
+		DoNotif("Notepad UI unavailable.", 3)
+	end
 end)
 
 cmd.add({"rc7"},{"rc7","RC7 Internal UI"},function()
@@ -71104,7 +71109,9 @@ NAUIMANAGER = {
 	BindersCustomScrollTrack = NAStuff.NASCREENGUI:FindFirstChild("binders") and (NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar") and (((NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Track"),
 	BindersCustomScrollThumb = NAStuff.NASCREENGUI:FindFirstChild("binders") and (NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar") and (((NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Track") and ((((NAStuff.NASCREENGUI:FindFirstChild("binders")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Track")):FindFirstChild("Thumb"),
 	ExecutorFrame = NAStuff.NASCREENGUI:FindFirstChild("Executor"),
-	ExecutorContainer = NAStuff.NASCREENGUI:FindFirstChild("Executor") and (NAStuff.NASCREENGUI:FindFirstChild("Executor")):FindFirstChild("Container")
+	ExecutorContainer = NAStuff.NASCREENGUI:FindFirstChild("Executor") and (NAStuff.NASCREENGUI:FindFirstChild("Executor")):FindFirstChild("Container"),
+	NotepadFrame = NAStuff.NASCREENGUI:FindFirstChild("Notepad"),
+	NotepadContainer = NAStuff.NASCREENGUI:FindFirstChild("Notepad") and (NAStuff.NASCREENGUI:FindFirstChild("Notepad")):FindFirstChild("Container")
 };
 
 originalIO.resizeCursors = function(key, fallback)
@@ -77808,6 +77815,13 @@ NAmanage.Topbar_BuildBaseButtons=function()
 		{name="executor",icon="code",func=function()
 			NAmanage.Executor_Toggle()
 		end},
+		{name="notepad",icon="three-ring-note",func=function()
+			if NAmanage.Notepad_Toggle then
+				NAmanage.Notepad_Toggle()
+			else
+				DoNotif("Notepad UI unavailable.", 3)
+			end
+		end},
 	}
 end
 
@@ -79710,10 +79724,9 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		child:Destroy()
 	end
 
-	local TweenService = SafeGetService("TweenService")
-	local TextServiceRef = SafeGetService("TextService")
-	local UserInputServiceRef = SafeGetService("UserInputService")
-	local GuiServiceRef = SafeGetService("GuiService")
+	local TextServiceRef = TextService
+	local UserInputServiceRef = UserInputService
+	local GuiServiceRef = GuiService
 	local execResponsive = {
 		compact = false,
 		phone = false,
@@ -79778,10 +79791,10 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	}
 
 	local function makeCornerAndStroke(obj, radius, thickness)
-		local corner = Instance.new("UICorner")
+		local corner = InstanceNew("UICorner")
 		corner.CornerRadius = UDim.new(0, radius or 8)
 		corner.Parent = obj
-		local stroke = Instance.new("UIStroke")
+		local stroke = InstanceNew("UIStroke")
 		stroke.Color = colors.stroke
 		stroke.Transparency = 0.18
 		stroke.Thickness = thickness or 1
@@ -79790,7 +79803,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	end
 
 	local function makeButton(parent, text, background)
-		local button = Instance.new("TextButton")
+		local button = InstanceNew("TextButton")
 		button.AutoButtonColor = false
 		button.BackgroundColor3 = background or colors.panel3
 		button.BorderSizePixel = 0
@@ -80058,7 +80071,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		frame.Size = UDim2.fromOffset(targetW, targetH)
 		NAmanage.centerFrame(frame)
 	end
-	local rootPad = Instance.new("UIPadding")
+	local rootPad = InstanceNew("UIPadding")
 	rootPad.PaddingBottom = UDim.new(0, 10)
 	rootPad.PaddingLeft = UDim.new(0, 10)
 	rootPad.PaddingRight = UDim.new(0, 10)
@@ -80068,7 +80081,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	local topbar = frame:FindFirstChild("Topbar")
 	local settingsButton = topbar and topbar:FindFirstChild("Settings")
 	if topbar and not settingsButton then
-		settingsButton = Instance.new("TextButton")
+		settingsButton = InstanceNew("TextButton")
 		settingsButton.Name = "Settings"
 		settingsButton.Parent = topbar
 		settingsButton.BorderSizePixel = 0
@@ -80084,7 +80097,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		makeCornerAndStroke(settingsButton, 6, 2)
 	end
 
-	local tabsBar = Instance.new("Frame")
+	local tabsBar = InstanceNew("Frame")
 	tabsBar.Name = "TabsBar"
 	tabsBar.BackgroundTransparency = 1
 	tabsBar.BorderSizePixel = 0
@@ -80092,7 +80105,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	tabsBar.Size = UDim2.new(1, 0, 0, 34)
 	tabsBar.Parent = container
 
-	local tabScroll = Instance.new("ScrollingFrame")
+	local tabScroll = InstanceNew("ScrollingFrame")
 	tabScroll.Name = "Tabs"
 	tabScroll.Active = true
 	tabScroll.BackgroundTransparency = 1
@@ -80105,7 +80118,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	tabScroll.Size = UDim2.new(1, -42, 1, 0)
 	tabScroll.Parent = tabsBar
 
-	local tabWrap = Instance.new("Frame")
+	local tabWrap = InstanceNew("Frame")
 	tabWrap.Name = "Wrap"
 	tabWrap.BackgroundTransparency = 1
 	tabWrap.BorderSizePixel = 0
@@ -80113,7 +80126,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	tabWrap.Size = UDim2.new(0, 0, 1, 0)
 	tabWrap.Parent = tabScroll
 
-	local tabLayout = Instance.new("UIListLayout")
+	local tabLayout = InstanceNew("UIListLayout")
 	tabLayout.FillDirection = Enum.FillDirection.Horizontal
 	tabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
 	tabLayout.Padding = UDim.new(0, 6)
@@ -80127,7 +80140,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	addTabButton.Size = UDim2.new(0, 34, 0, 28)
 	addTabButton.TextSize = 18
 
-	local body = Instance.new("Frame")
+	local body = InstanceNew("Frame")
 	body.Name = "Body"
 	body.BackgroundTransparency = 1
 	body.BorderSizePixel = 0
@@ -80135,7 +80148,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	body.Size = UDim2.new(1, 0, 1, -92)
 	body.Parent = container
 
-	local editorPane = Instance.new("Frame")
+	local editorPane = InstanceNew("Frame")
 	editorPane.Name = "EditorPane"
 	editorPane.BackgroundColor3 = colors.panel
 	editorPane.BorderSizePixel = 0
@@ -80144,7 +80157,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	editorPane.Parent = body
 	makeCornerAndStroke(editorPane, 10, 1)
 
-	local hubPane = Instance.new("Frame")
+	local hubPane = InstanceNew("Frame")
 	hubPane.Name = "ScriptHub"
 	hubPane.BackgroundColor3 = colors.panel
 	hubPane.BorderSizePixel = 0
@@ -80153,14 +80166,14 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	hubPane.Parent = body
 	makeCornerAndStroke(hubPane, 10, 1)
 
-	local editorPad = Instance.new("UIPadding")
+	local editorPad = InstanceNew("UIPadding")
 	editorPad.PaddingBottom = UDim.new(0, 8)
 	editorPad.PaddingLeft = UDim.new(0, 8)
 	editorPad.PaddingRight = UDim.new(0, 8)
 	editorPad.PaddingTop = UDim.new(0, 8)
 	editorPad.Parent = editorPane
 
-	local gutter = Instance.new("Frame")
+	local gutter = InstanceNew("Frame")
 	gutter.Name = "Gutter"
 	gutter.BackgroundColor3 = colors.panel2
 	gutter.BorderSizePixel = 0
@@ -80169,14 +80182,14 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	gutter.Parent = editorPane
 	makeCornerAndStroke(gutter, 8, 1)
 
-	local gutterClip = Instance.new("Frame")
+	local gutterClip = InstanceNew("Frame")
 	gutterClip.BackgroundTransparency = 1
 	gutterClip.BorderSizePixel = 0
 	gutterClip.ClipsDescendants = true
 	gutterClip.Size = UDim2.new(1, 0, 1, 0)
 	gutterClip.Parent = gutter
 
-	local gutterLabel = Instance.new("TextLabel")
+	local gutterLabel = InstanceNew("TextLabel")
 	gutterLabel.Name = "Lines"
 	gutterLabel.AnchorPoint = Vector2.new(1, 0)
 	gutterLabel.BackgroundTransparency = 1
@@ -80191,7 +80204,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	gutterLabel.TextYAlignment = Enum.TextYAlignment.Top
 	gutterLabel.Parent = gutterClip
 
-	local editorScroll = Instance.new("ScrollingFrame")
+	local editorScroll = InstanceNew("ScrollingFrame")
 	editorScroll.Name = "Scroll"
 	editorScroll.Active = true
 	editorScroll.BackgroundColor3 = colors.panel
@@ -80205,7 +80218,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	editorScroll.Parent = editorPane
 	makeCornerAndStroke(editorScroll, 8, 1)
 
-	local textBox = Instance.new("TextBox")
+	local textBox = InstanceNew("TextBox")
 	textBox.Name = "Source"
 	textBox.BackgroundTransparency = 1
 	textBox.BorderSizePixel = 0
@@ -80225,7 +80238,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	textBox.Parent = editorScroll
 
 	local function makeLayer(name, color, zIndex)
-		local layer = Instance.new("TextLabel")
+		local layer = InstanceNew("TextLabel")
 		layer.Name = name
 		layer.BackgroundTransparency = 1
 		layer.BorderSizePixel = 0
@@ -80250,14 +80263,59 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	local numberLayer = makeLayer("Numbers", colors.number, 4)
 	textBox.ZIndex = 3
 
-	local hubPad = Instance.new("UIPadding")
+	local pagePanel = InstanceNew("Frame")
+	pagePanel.Name = "PageControls"
+	pagePanel.AnchorPoint = Vector2.new(1, 0)
+	pagePanel.BackgroundColor3 = colors.panel2
+	pagePanel.BorderSizePixel = 0
+	pagePanel.Position = UDim2.new(1, -14, 0, 14)
+	pagePanel.Size = UDim2.new(0, 210, 0, 28)
+	pagePanel.ZIndex = 30
+	pagePanel.Parent = editorPane
+	makeCornerAndStroke(pagePanel, 8, 1)
+
+	local pageLayout = InstanceNew("UIListLayout")
+	pageLayout.FillDirection = Enum.FillDirection.Horizontal
+	pageLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+	pageLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+	pageLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	pageLayout.Padding = UDim.new(0, 5)
+	pageLayout.Parent = pagePanel
+
+	local pagePad = InstanceNew("UIPadding")
+	pagePad.PaddingLeft = UDim.new(0, 5)
+	pagePad.PaddingRight = UDim.new(0, 5)
+	pagePad.Parent = pagePanel
+
+	local pagePrev = makeButton(pagePanel, "<", colors.panel3)
+	pagePrev.LayoutOrder = 1
+	pagePrev.Size = UDim2.new(0, 32, 0, 22)
+	pagePrev.ZIndex = 31
+	local pageLabel = InstanceNew("TextLabel")
+	pageLabel.BackgroundTransparency = 1
+	pageLabel.BorderSizePixel = 0
+	pageLabel.Font = Enum.Font.GothamSemibold
+	pageLabel.LayoutOrder = 2
+	pageLabel.Size = UDim2.new(1, -74, 0, 22)
+	pageLabel.Text = "Page 1/1"
+	pageLabel.TextColor3 = colors.subtle
+	pageLabel.TextSize = 12
+	pageLabel.TextXAlignment = Enum.TextXAlignment.Center
+	pageLabel.ZIndex = 31
+	pageLabel.Parent = pagePanel
+	local pageNext = makeButton(pagePanel, ">", colors.panel3)
+	pageNext.LayoutOrder = 3
+	pageNext.Size = UDim2.new(0, 32, 0, 22)
+	pageNext.ZIndex = 31
+
+	local hubPad = InstanceNew("UIPadding")
 	hubPad.PaddingBottom = UDim.new(0, 8)
 	hubPad.PaddingLeft = UDim.new(0, 8)
 	hubPad.PaddingRight = UDim.new(0, 8)
 	hubPad.PaddingTop = UDim.new(0, 8)
 	hubPad.Parent = hubPane
 
-	local hubTitle = Instance.new("TextLabel")
+	local hubTitle = InstanceNew("TextLabel")
 	hubTitle.BackgroundTransparency = 1
 	hubTitle.BorderSizePixel = 0
 	hubTitle.Font = Enum.Font.GothamBold
@@ -80268,7 +80326,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	hubTitle.TextXAlignment = Enum.TextXAlignment.Left
 	hubTitle.Parent = hubPane
 
-	local hubSubtitle = Instance.new("TextLabel")
+	local hubSubtitle = InstanceNew("TextLabel")
 	hubSubtitle.Name = "SelectedLabel"
 	hubSubtitle.BackgroundTransparency = 1
 	hubSubtitle.BorderSizePixel = 0
@@ -80282,7 +80340,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	hubSubtitle.TextXAlignment = Enum.TextXAlignment.Left
 	hubSubtitle.Parent = hubPane
 
-	local hubList = Instance.new("ScrollingFrame")
+	local hubList = InstanceNew("ScrollingFrame")
 	hubList.Name = "List"
 	hubList.Active = true
 	hubList.BackgroundColor3 = colors.panel2
@@ -80295,19 +80353,19 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	hubList.Parent = hubPane
 	makeCornerAndStroke(hubList, 8, 1)
 
-	local hubListLayout = Instance.new("UIListLayout")
+	local hubListLayout = InstanceNew("UIListLayout")
 	hubListLayout.Padding = UDim.new(0, 6)
 	hubListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	hubListLayout.Parent = hubList
 
-	local hubListPad = Instance.new("UIPadding")
+	local hubListPad = InstanceNew("UIPadding")
 	hubListPad.PaddingBottom = UDim.new(0, 8)
 	hubListPad.PaddingLeft = UDim.new(0, 8)
 	hubListPad.PaddingRight = UDim.new(0, 8)
 	hubListPad.PaddingTop = UDim.new(0, 8)
 	hubListPad.Parent = hubList
 
-	local hubButtons = Instance.new("Frame")
+	local hubButtons = InstanceNew("Frame")
 	hubButtons.Name = "Actions"
 	hubButtons.BackgroundTransparency = 1
 	hubButtons.BorderSizePixel = 0
@@ -80315,7 +80373,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	hubButtons.Size = UDim2.new(1, 0, 0, 154)
 	hubButtons.Parent = hubPane
 
-	local hubButtonsLayout = Instance.new("UIListLayout")
+	local hubButtonsLayout = InstanceNew("UIListLayout")
 	hubButtonsLayout.Padding = UDim.new(0, 6)
 	hubButtonsLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	hubButtonsLayout.Parent = hubButtons
@@ -80331,7 +80389,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	local hubRefresh = makeButton(hubButtons, "Refresh List", colors.panel3)
 	hubRefresh.Size = UDim2.new(1, 0, 0, 26)
 
-	local statusLabel = Instance.new("TextLabel")
+	local statusLabel = InstanceNew("TextLabel")
 	statusLabel.Name = "Status"
 	statusLabel.BackgroundTransparency = 1
 	statusLabel.BorderSizePixel = 0
@@ -80345,7 +80403,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	statusLabel.Parent = container
 	NAStuff.ExecutorStatusLabel = statusLabel
 
-	local actions = Instance.new("Frame")
+	local actions = InstanceNew("Frame")
 	actions.Name = "Buttons"
 	actions.BackgroundTransparency = 1
 	actions.BorderSizePixel = 0
@@ -80353,7 +80411,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	actions.Size = UDim2.new(1, 0, 0, 28)
 	actions.Parent = container
 
-	local actionLayout = Instance.new("UIGridLayout")
+	local actionLayout = InstanceNew("UIGridLayout")
 	actionLayout.CellPadding = UDim2.new(0, 6, 0, 0)
 	actionLayout.CellSize = UDim2.new(0.1666, -5, 1, 0)
 	actionLayout.FillDirectionMaxCells = 6
@@ -80367,7 +80425,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	local duplicateButton = makeButton(actions, "Duplicate Tab", colors.panel3)
 	local deleteTabButton = makeButton(actions, "Delete Tab", colors.panel3)
 
-	local settingsPanel = Instance.new("Frame")
+	local settingsPanel = InstanceNew("Frame")
 	settingsPanel.Name = "SettingsPanel"
 	settingsPanel.BackgroundColor3 = colors.panel
 	settingsPanel.BorderSizePixel = 0
@@ -80379,7 +80437,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	settingsPanel.Parent = frame
 	makeCornerAndStroke(settingsPanel, 10, 1)
 
-	local settingsTitle = Instance.new("TextLabel")
+	local settingsTitle = InstanceNew("TextLabel")
 	settingsTitle.BackgroundTransparency = 1
 	settingsTitle.BorderSizePixel = 0
 	settingsTitle.Font = Enum.Font.GothamBold
@@ -80392,7 +80450,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	settingsTitle.ZIndex = 46
 	settingsTitle.Parent = settingsPanel
 
-	local settingsContent = Instance.new("Frame")
+	local settingsContent = InstanceNew("Frame")
 	settingsContent.Name = "Content"
 	settingsContent.BackgroundTransparency = 1
 	settingsContent.BorderSizePixel = 0
@@ -80401,12 +80459,12 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	settingsContent.ZIndex = 46
 	settingsContent.Parent = settingsPanel
 
-	local settingsList = Instance.new("UIListLayout")
+	local settingsList = InstanceNew("UIListLayout")
 	settingsList.Padding = UDim.new(0, 8)
 	settingsList.SortOrder = Enum.SortOrder.LayoutOrder
 	settingsList.Parent = settingsContent
 
-	local settingsPad = Instance.new("UIPadding")
+	local settingsPad = InstanceNew("UIPadding")
 	settingsPad.PaddingTop = UDim.new(0, 0)
 	settingsPad.PaddingBottom = UDim.new(0, 12)
 	settingsPad.PaddingLeft = UDim.new(0, 12)
@@ -80414,14 +80472,14 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	settingsPad.Parent = settingsContent
 
 	local function makeSettingToggle(labelText)
-		local row = Instance.new("Frame")
+		local row = InstanceNew("Frame")
 		row.BackgroundTransparency = 1
 		row.BorderSizePixel = 0
 		row.Size = UDim2.new(1, 0, 0, 28)
 		row.ZIndex = 46
 		row.Parent = settingsContent
 
-		local label = Instance.new("TextLabel")
+		local label = InstanceNew("TextLabel")
 		label.BackgroundTransparency = 1
 		label.BorderSizePixel = 0
 		label.Font = Enum.Font.Gotham
@@ -80433,7 +80491,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		label.ZIndex = 46
 		label.Parent = row
 
-		local hit = Instance.new("TextButton")
+		local hit = InstanceNew("TextButton")
 		hit.Name = "Hitbox"
 		hit.AutoButtonColor = false
 		hit.BackgroundTransparency = 1
@@ -80457,7 +80515,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	local lineNumbersToggle, lineNumbersHit = makeSettingToggle("Line Numbers")
 	local scriptHubToggle, scriptHubHit = makeSettingToggle("Script Hub")
 
-	local promptOverlay = Instance.new("Frame")
+	local promptOverlay = InstanceNew("Frame")
 	promptOverlay.Name = "Prompt"
 	promptOverlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 	promptOverlay.BackgroundTransparency = 0.3
@@ -80467,7 +80525,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	promptOverlay.ZIndex = 50
 	promptOverlay.Parent = container
 
-	local promptCard = Instance.new("Frame")
+	local promptCard = InstanceNew("Frame")
 	promptCard.BackgroundColor3 = colors.panel
 	promptCard.BorderSizePixel = 0
 	promptCard.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -80477,7 +80535,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	promptCard.Parent = promptOverlay
 	makeCornerAndStroke(promptCard, 10, 1)
 
-	local promptTitle = Instance.new("TextLabel")
+	local promptTitle = InstanceNew("TextLabel")
 	promptTitle.BackgroundTransparency = 1
 	promptTitle.BorderSizePixel = 0
 	promptTitle.Font = Enum.Font.GothamBold
@@ -80490,7 +80548,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	promptTitle.ZIndex = 52
 	promptTitle.Parent = promptCard
 
-	local promptInput = Instance.new("TextBox")
+	local promptInput = InstanceNew("TextBox")
 	promptInput.BackgroundColor3 = colors.panel2
 	promptInput.BorderSizePixel = 0
 	promptInput.ClearTextOnFocus = false
@@ -80523,6 +80581,89 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	local tabSaveScheduled = false
 	local lastTabClickIndex = 0
 	local lastTabClickTime = 0
+	local chunkLimit = 12000
+	local editorLoading = false
+	local editorLoaded = false
+
+	local function splitEditorText(source)
+		source = tostring(source or "")
+		if source == "" then
+			return { "" }
+		end
+		local out = {}
+		local pos = 1
+		while pos <= #source do
+			local endPos = math.min(pos + chunkLimit - 1, #source)
+			if endPos < #source then
+				local seg = source:sub(pos, endPos)
+				local cut
+				local from = 1
+				while true do
+					local found = seg:find("\n", from, true)
+					if not found then
+						break
+					end
+					cut = found
+					from = found + 1
+				end
+				if cut and cut > math.floor(chunkLimit * 0.35) then
+					endPos = pos + cut - 1
+				end
+			end
+			out[#out + 1] = source:sub(pos, endPos)
+			pos = endPos + 1
+		end
+		if #out == 0 then
+			out[1] = ""
+		end
+		return out
+	end
+
+	local function mergeEditorChunks(chunks)
+		if type(chunks) ~= "table" or #chunks == 0 then
+			return ""
+		end
+		return table.concat(chunks, "")
+	end
+
+	local function compactEditorPages(chunks, preferPage)
+		if type(chunks) ~= "table" then
+			chunks = { "" }
+		end
+		preferPage = tonumber(preferPage) or 1
+		for i = #chunks, 1, -1 do
+			if #chunks > 1 and tostring(chunks[i] or "") == "" then
+				table.remove(chunks, i)
+				if preferPage > i then
+					preferPage -= 1
+				elseif preferPage == i then
+					preferPage = math.min(i, #chunks)
+				end
+			end
+		end
+		if #chunks == 0 then
+			chunks[1] = ""
+			preferPage = 1
+		end
+		return math.clamp(preferPage, 1, math.max(#chunks, 1))
+	end
+
+	local function normalizeEditorTab(tab)
+		if not tab then
+			return nil
+		end
+		if type(tab.chunks) ~= "table" or #tab.chunks == 0 then
+			tab.chunks = splitEditorText(tab.text or "")
+		end
+		tab.page = math.clamp(tonumber(tab.page) or 1, 1, math.max(#tab.chunks, 1))
+		tab.text = mergeEditorChunks(tab.chunks)
+		return tab
+	end
+
+	local function getEditorTabText(tab)
+		tab = normalizeEditorTab(tab)
+		return tab and (tab.text or mergeEditorChunks(tab.chunks)) or ""
+	end
 
 	local function showPrompt(title, initialText, callback)
 		promptTitle.Text = title or "Name"
@@ -80601,6 +80742,68 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			end
 			tabSaveScheduled = false
 		end)
+	end
+
+	local function updatePageInfo()
+		local tab = normalizeEditorTab(tabs[currentTab])
+		local total = tab and math.max(#tab.chunks, 1) or 1
+		local page = tab and (tab.page or 1) or 1
+		pageLabel.Text = "Page "..tostring(page).."/"..tostring(total)
+		pagePrev.Visible = total > 1
+		pageNext.Visible = total > 1
+		pagePanel.Visible = total > 1
+	end
+
+	local function setEditorBoxText(text)
+		editorLoading = true
+		textBox.Text = tostring(text or "")
+		editorLoading = false
+	end
+
+	local function commitCurrentPage(skipSave)
+		if editorLoading then
+			return
+		end
+		local tab = normalizeEditorTab(tabs[currentTab])
+		if not tab then
+			return
+		end
+		local oldTotal = math.max(#tab.chunks, 1)
+		local page = math.clamp(tonumber(tab.page) or 1, 1, oldTotal)
+		local text = tostring(textBox.Text or "")
+		local reloadPage = false
+		if #text > chunkLimit then
+			local parts = splitEditorText(text)
+			table.remove(tab.chunks, page)
+			for i = #parts, 1, -1 do
+				table.insert(tab.chunks, page, parts[i])
+			end
+			tab.page = math.clamp(page, 1, math.max(#tab.chunks, 1))
+			reloadPage = true
+			setStatus("Text split into pages to avoid Roblox TextBox limits", colors.warn)
+		else
+			tab.chunks[page] = text
+			tab.page = compactEditorPages(tab.chunks, page)
+			reloadPage = oldTotal ~= #tab.chunks or tab.page ~= page
+		end
+		tab.text = mergeEditorChunks(tab.chunks)
+		if reloadPage then
+			setEditorBoxText(tab.chunks[tab.page] or "")
+		end
+		updatePageInfo()
+		if not skipSave then
+			scheduleTabsSave()
+		end
+	end
+
+	local function setTabFullText(tab, source)
+		if not tab then
+			return
+		end
+		tab.text = tostring(source or "")
+		tab.chunks = splitEditorText(tab.text)
+		tab.page = 1
+		tab.text = mergeEditorChunks(tab.chunks)
 	end
 
 	local function measureSource(source)
@@ -80725,14 +80928,12 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	end
 
 	local function syncCurrentTabText()
-		if tabs[currentTab] then
-			tabs[currentTab].text = textBox.Text or ""
-			scheduleTabsSave()
-		end
+		commitCurrentPage()
 	end
 
 	local function refreshEditorNow()
 		local source = textBox.Text or ""
+		updatePageInfo()
 		local width, height, lineCount, lineHeight = measureSource(source)
 		textBox.Size = UDim2.new(0, width, 0, height)
 		for _, layer in ipairs({ keywordLayer, globalLayer, stringLayer, commentLayer, numberLayer }) do
@@ -80772,6 +80973,38 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			refreshQueued = false
 			refreshEditorNow()
 		end)
+	end
+
+	local function loadCurrentPage()
+		local tab = normalizeEditorTab(tabs[currentTab])
+		if not tab then
+			setEditorBoxText("")
+			updatePageInfo()
+			queueRefreshEditor()
+			return
+		end
+		tab.page = math.clamp(tonumber(tab.page) or 1, 1, math.max(#tab.chunks, 1))
+		setEditorBoxText(tab.chunks[tab.page] or "")
+		updatePageInfo()
+		queueRefreshEditor()
+	end
+
+	local function turnEditorPage(delta)
+		local tab = normalizeEditorTab(tabs[currentTab])
+		if not tab then
+			return
+		end
+		commitCurrentPage()
+		local total = math.max(#tab.chunks, 1)
+		local nextPage = math.clamp((tab.page or 1) + delta, 1, total)
+		if nextPage == tab.page then
+			updatePageInfo()
+			return
+		end
+		tab.page = nextPage
+		loadCurrentPage()
+		scheduleTabsSave()
+		setStatus("Switched to page "..tostring(nextPage).."/"..tostring(total), colors.subtle)
 	end
 
 	editorScroll:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
@@ -80901,18 +81134,22 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		if not tab then
 			return
 		end
+		if editorLoaded then
+			commitCurrentPage(true)
+		end
 		currentTab = index
-		textBox.Text = tab.text or ""
+		normalizeEditorTab(tab)
+		loadCurrentPage()
+		editorLoaded = true
 		updateTabButtonVisuals()
-		queueRefreshEditor()
 		scheduleTabsSave()
 	end
 
 	local function closeTab(index)
 		if #tabs <= 1 then
-			textBox.Text = ""
-			syncCurrentTabText()
-			queueRefreshEditor()
+			setTabFullText(tabs[currentTab], "")
+			loadCurrentPage()
+			scheduleTabsSave()
 			setStatus("Cleared current tab", colors.warn)
 			return
 		end
@@ -80940,16 +81177,17 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	local function createTab(initialText, initialTitle)
 		local tab = {
 			title = initialTitle and tostring(initialTitle) or ("Tab "..(#tabs + 1)),
-			text = initialText or "",
+			text = tostring(initialText or ""),
 		}
-		local holder = Instance.new("Frame")
+		normalizeEditorTab(tab)
+		local holder = InstanceNew("Frame")
 		holder.BackgroundColor3 = colors.tabIdle
 		holder.BorderSizePixel = 0
 		holder.Size = UDim2.new(0, 120, 0, 28)
 		holder.Parent = tabWrap
 		makeCornerAndStroke(holder, 8, 1)
 
-		local openButton = Instance.new("TextButton")
+		local openButton = InstanceNew("TextButton")
 		openButton.AutoButtonColor = false
 		openButton.BackgroundTransparency = 1
 		openButton.BorderSizePixel = 0
@@ -80962,7 +81200,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		openButton.TextXAlignment = Enum.TextXAlignment.Left
 		openButton.Parent = holder
 
-		local closeButton = Instance.new("TextButton")
+		local closeButton = InstanceNew("TextButton")
 		closeButton.AutoButtonColor = false
 		closeButton.BackgroundTransparency = 1
 		closeButton.BorderSizePixel = 0
@@ -81117,7 +81355,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		syncCurrentTabText()
 		local fileName = sanitizeScriptName(name)
 		local path = scriptPath(fileName)
-		local ok, err = pcall(writefile, path, textBox.Text or "")
+		local ok, err = pcall(writefile, path, getEditorTabText(tabs[currentTab]))
 		if ok and (type(isfile) ~= "function" or isfile(path)) then
 			addScriptIndex(fileName)
 			refreshSavedScripts()
@@ -81149,7 +81387,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			setStatus("Opened "..selectedScript.." in a new tab", colors.success)
 		else
 			if tabs[currentTab] then
-				tabs[currentTab].text = source
+				setTabFullText(tabs[currentTab], source)
 				if (tabs[currentTab].title or "") == "" or tabs[currentTab].title:match("^Tab %d+$") then
 					tabs[currentTab].title = stripLuaExt(selectedScript)
 					tabs[currentTab].label.Text = tabs[currentTab].title
@@ -81157,9 +81395,8 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 					tabs[currentTab].holder.Size = UDim2.new(0, math.clamp(width, 96, 230), 0, 28)
 				end
 			end
-			textBox.Text = source
+			loadCurrentPage()
 			updateTabButtonVisuals()
-			queueRefreshEditor()
 			scheduleTabsSave()
 			setStatus("Loaded "..selectedScript, colors.success)
 		end
@@ -81200,7 +81437,9 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	end
 
 	textBox:GetPropertyChangedSignal("Text"):Connect(function()
-		syncCurrentTabText()
+		if not editorLoading then
+			syncCurrentTabText()
+		end
 		queueRefreshEditor()
 	end)
 
@@ -81239,8 +81478,16 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	bindSetting(lineNumbersToggle, lineNumbersHit, "lineNumbers")
 	bindSetting(scriptHubToggle, scriptHubHit, "showHub")
 
+	MouseButtonFix(pagePrev, function()
+		turnEditorPage(-1)
+	end)
+	MouseButtonFix(pageNext, function()
+		turnEditorPage(1)
+	end)
+
 	executeButton.MouseButton1Click:Connect(function()
-		local source = textBox.Text or ""
+		commitCurrentPage(true)
+		local source = getEditorTabText(tabs[currentTab])
 		if source == "" then
 			setStatus("Nothing to execute", colors.warn)
 			return
@@ -81264,11 +81511,14 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		end)
 	end)
 	clearButton.MouseButton1Click:Connect(function()
-		textBox.Text = ""
+		setTabFullText(tabs[currentTab], "")
+		loadCurrentPage()
+		scheduleTabsSave()
 		setStatus("Cleared current tab", colors.warn)
 	end)
 	copyButton.MouseButton1Click:Connect(function()
-		local ok = pcall(setclipboard, textBox.Text or "")
+		commitCurrentPage(true)
+		local ok = pcall(setclipboard, getEditorTabText(tabs[currentTab]))
 		if ok then
 			setStatus("Copied tab contents", colors.success)
 		else
@@ -81279,8 +81529,9 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		renameTab(currentTab)
 	end)
 	duplicateButton.MouseButton1Click:Connect(function()
+		commitCurrentPage(true)
 		local tab = tabs[currentTab]
-		local tabIndex = createTab(tab and tab.text or "", tab and ((tab.title or "Tab").." Copy") or "Copy")
+		local tabIndex = createTab(tab and getEditorTabText(tab) or "", tab and ((tab.title or "Tab").." Copy") or "Copy")
 		selectTab(tabIndex)
 		scheduleTabsSave()
 		setStatus("Duplicated tab", colors.success)
@@ -81376,6 +81627,1036 @@ NAmanage.Executor_Toggle = NAmanage.Executor_Toggle or function(forceState)
 	return true
 end
 
+NAmanage.Notepad_Init = NAmanage.Notepad_Init or function()
+	if not (NAUIMANAGER and NAUIMANAGER.NotepadFrame and NAUIMANAGER.NotepadContainer) then
+		return false
+	end
+
+	local frame = NAUIMANAGER.NotepadFrame
+	local cont = NAUIMANAGER.NotepadContainer
+	if frame.GetAttribute and NAmanage.GetAttr(frame, "NANotepadReady") then
+		return true
+	end
+	if frame.SetAttribute then
+		NAmanage.SetAttr(frame, "NANotepadReady", true)
+	end
+
+	for _, child in ipairs(cont:GetChildren()) do
+		child:Destroy()
+	end
+
+	local dir = (NAfiles and NAfiles.NANOTEPADPATH) or "Nameless-Admin/NA-Notepad"
+	local idx = dir.."/index.json"
+	local fsOk = type(isfolder) == "function" and type(makefolder) == "function" and type(isfile) == "function" and type(readfile) == "function" and type(writefile) == "function"
+	local delOk = type(delfile) == "function"
+	local listOk = type(listfiles) == "function"
+	local sel
+
+	local col = {
+		bg = Color3.fromRGB(17, 17, 21),
+		bg2 = Color3.fromRGB(24, 24, 30),
+		bg3 = Color3.fromRGB(31, 31, 38),
+		st = Color3.fromRGB(72, 72, 82),
+		tx = Color3.fromRGB(235, 235, 242),
+		sub = Color3.fromRGB(170, 170, 180),
+		on = Color3.fromRGB(45, 45, 58),
+		ok = Color3.fromRGB(156, 235, 174),
+		warn = Color3.fromRGB(255, 214, 112),
+		err = Color3.fromRGB(255, 146, 146),
+	}
+
+	local function trim(s)
+		return (tostring(s or ""):gsub("^%s+", ""):gsub("%s+$", ""))
+	end
+
+	local exts = {
+		".txt",
+		".lua",
+		".json",
+		".md",
+		".log",
+		".cfg",
+		".csv",
+		".xml",
+		".ini",
+		".html",
+		".css",
+		".js",
+	}
+	local selectedExt = ".txt"
+
+	local function normExt(e)
+		e = trim(tostring(e or "")):lower()
+		e = e:gsub("^%.", "")
+		if e == "" or not e:match("^[%w]+$") or #e > 16 then
+			return ".txt"
+		end
+		return "."..e
+	end
+
+	local function cleanName(n)
+		n = trim(n)
+		n = n:gsub("\\", "/")
+		n = n:match("([^/]+)$") or n
+		n = n:gsub('[%c%z<>:"/\\|%?%*]', "_")
+		n = n:gsub("^%.*", "")
+		n = n:gsub("%s+", " ")
+		n = trim(n)
+		if n == "" then
+			n = "note"
+		end
+		return n
+	end
+
+	local function getExt(n)
+		return normExt((tostring(n or ""):match("(%.[%w]+)$")))
+	end
+
+	local function safeName(n, forcePicker)
+		n = cleanName(n)
+		local base, ext = n:match("^(.*)(%.[%w]+)$")
+		if forcePicker then
+			local pick = normExt(selectedExt)
+			n = (base and base ~= "" and base or n)..pick
+		elseif ext then
+			n = base..normExt(ext)
+		else
+			n ..= normExt(selectedExt)
+		end
+		base, ext = n:match("^(.*)(%.[%w]+)$")
+		if #n > 96 and base and ext then
+			n = base:sub(1, math.max(1, 96 - #ext))..ext
+		elseif #n > 96 then
+			n = n:sub(1, 96)
+		end
+		return n
+	end
+
+	local function filePath(n, forcePicker)
+		return dir.."/"..safeName(n, forcePicker)
+	end
+
+	local function setStatus(txt, c)
+		if NAStuff.NotepadStatusLabel then
+			NAStuff.NotepadStatusLabel.Text = tostring(txt or "Ready")
+			NAStuff.NotepadStatusLabel.TextColor3 = c or col.sub
+		end
+	end
+
+	local function ensure()
+		if not fsOk then
+			return false
+		end
+		local ok = true
+		local function mk(p)
+			if not ok then return end
+			local has = false
+			local okCheck, res = pcall(isfolder, p)
+			if okCheck and res == true then
+				has = true
+			end
+			if not has then
+				local okMake = pcall(makefolder, p)
+				if not okMake then
+					ok = false
+				end
+			end
+		end
+		mk("Nameless-Admin")
+		mk(dir)
+		return ok
+	end
+
+	local function readIdx()
+		local names = {}
+		if not (fsOk and isfile(idx)) then
+			return names
+		end
+		local ok, raw = pcall(readfile, idx)
+		if not ok or type(raw) ~= "string" or raw == "" then
+			return names
+		end
+		local okDec, data = pcall(HttpService.JSONDecode, HttpService, raw)
+		if okDec and type(data) == "table" then
+			for _, v in ipairs(data) do
+				if type(v) == "string" and v ~= "" then
+					names[#names + 1] = safeName(v)
+				end
+			end
+		end
+		return names
+	end
+
+	local function saveIdx(names)
+		if not ensure() then
+			return false
+		end
+		local seen = {}
+		local out = {}
+		for _, n in ipairs(names or {}) do
+			local clean = safeName(n)
+			local key = clean:lower()
+			if not seen[key] then
+				seen[key] = true
+				out[#out + 1] = clean
+			end
+		end
+		table.sort(out, function(a, b)
+			return a:lower() < b:lower()
+		end)
+		local okEnc, raw = pcall(HttpService.JSONEncode, HttpService, out)
+		if okEnc and raw then
+			return pcall(writefile, idx, raw)
+		end
+		return false
+	end
+
+	local function names()
+		local seen = {}
+		local out = {}
+		local function push(n)
+			if type(n) ~= "string" then return end
+			n = n:gsub("\\", "/")
+			n = n:match("([^/]+)$") or n
+			if n == "" or n:lower() == "index.json" then return end
+			local clean = safeName(n)
+			local key = clean:lower()
+			if not seen[key] then
+				seen[key] = true
+				out[#out + 1] = clean
+			end
+		end
+		if fsOk and listOk then
+			ensure()
+			local ok, files = pcall(listfiles, dir)
+			if ok and type(files) == "table" then
+				for _, f in ipairs(files) do
+					push(f)
+				end
+			end
+		end
+		for _, n in ipairs(readIdx()) do
+			push(n)
+		end
+		table.sort(out, function(a, b)
+			return a:lower() < b:lower()
+		end)
+		saveIdx(out)
+		return out
+	end
+
+	local function addIdx(n)
+		local cur = readIdx()
+		cur[#cur + 1] = safeName(n)
+		saveIdx(cur)
+	end
+
+	local function remIdx(n)
+		local rem = safeName(n):lower()
+		local cur = readIdx()
+		local out = {}
+		for _, v in ipairs(cur) do
+			if safeName(v):lower() ~= rem then
+				out[#out + 1] = v
+			end
+		end
+		saveIdx(out)
+	end
+
+	local function skin(obj, r, t)
+		local c = InstanceNew("UICorner")
+		c.CornerRadius = UDim.new(0, r or 8)
+		c.Parent = obj
+		local s = InstanceNew("UIStroke")
+		s.Color = col.st
+		s.Transparency = 0.18
+		s.Thickness = t or 1
+		s.Parent = obj
+		return obj
+	end
+
+	local function btn(par, txt, w, order)
+		local b = InstanceNew("TextButton")
+		b.AutoButtonColor = false
+		b.BackgroundColor3 = col.bg3
+		b.BorderSizePixel = 0
+		b.Font = Enum.Font.GothamSemibold
+		b.Text = txt
+		b.TextColor3 = col.tx
+		b.TextSize = 13
+		b.Size = UDim2.new(0, w or 64, 1, 0)
+		if order ~= nil then
+			b.LayoutOrder = order
+		end
+		b.Parent = par
+		skin(b, 8, 1)
+		b.MouseEnter:Connect(function()
+			if TweenService then
+				TweenService:Create(b, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = col.bg3:Lerp(Color3.new(1, 1, 1), 0.06)}):Play()
+			else
+				b.BackgroundColor3 = col.bg3:Lerp(Color3.new(1, 1, 1), 0.06)
+			end
+		end)
+		b.MouseLeave:Connect(function()
+			local c = (sel and b.Name == sel) and col.on or col.bg3
+			if TweenService then
+				TweenService:Create(b, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = c}):Play()
+			else
+				b.BackgroundColor3 = c
+			end
+		end)
+		return b
+	end
+
+	local root = InstanceNew("Frame")
+	root.BackgroundTransparency = 1
+	root.Size = UDim2.new(1, -14, 1, -14)
+	root.Position = UDim2.new(0, 7, 0, 7)
+	root.Parent = cont
+
+	local side = InstanceNew("Frame")
+	side.BackgroundColor3 = col.bg
+	side.BorderSizePixel = 0
+	side.Size = UDim2.new(0, 182, 1, 0)
+	side.Parent = root
+	skin(side, 10, 1)
+
+	local sideTitle = InstanceNew("TextLabel")
+	sideTitle.BackgroundTransparency = 1
+	sideTitle.Font = Enum.Font.GothamSemibold
+	sideTitle.Text = "Saved Files"
+	sideTitle.TextColor3 = col.tx
+	sideTitle.TextSize = 14
+	sideTitle.TextXAlignment = Enum.TextXAlignment.Left
+	sideTitle.Size = UDim2.new(1, -20, 0, 30)
+	sideTitle.Position = UDim2.new(0, 10, 0, 4)
+	sideTitle.Parent = side
+
+	local list = InstanceNew("ScrollingFrame")
+	list.BackgroundTransparency = 1
+	list.BorderSizePixel = 0
+	list.ScrollBarImageColor3 = Color3.fromRGB(125, 125, 135)
+	list.ScrollBarThickness = 4
+	list.Position = UDim2.new(0, 8, 0, 38)
+	list.Size = UDim2.new(1, -16, 1, -46)
+	list.CanvasSize = UDim2.new()
+	list.Parent = side
+
+	local listLay = InstanceNew("UIListLayout")
+	listLay.SortOrder = Enum.SortOrder.LayoutOrder
+	listLay.Padding = UDim.new(0, 6)
+	listLay.Parent = list
+
+	local main = InstanceNew("Frame")
+	main.BackgroundColor3 = col.bg
+	main.BorderSizePixel = 0
+	main.Position = UDim2.new(0, 192, 0, 0)
+	main.Size = UDim2.new(1, -192, 1, 0)
+	main.Parent = root
+	skin(main, 10, 1)
+
+	local tool = InstanceNew("Frame")
+	tool.BackgroundTransparency = 1
+	tool.Position = UDim2.new(0, 10, 0, 10)
+	tool.Size = UDim2.new(1, -20, 0, 30)
+	tool.Parent = main
+
+	local toolLay = InstanceNew("UIListLayout")
+	toolLay.FillDirection = Enum.FillDirection.Horizontal
+	toolLay.HorizontalAlignment = Enum.HorizontalAlignment.Left
+	toolLay.VerticalAlignment = Enum.VerticalAlignment.Center
+	toolLay.SortOrder = Enum.SortOrder.LayoutOrder
+	toolLay.Padding = UDim.new(0, 6)
+	toolLay.Parent = tool
+
+	local nameBox = InstanceNew("TextBox")
+	nameBox.BackgroundColor3 = col.bg2
+	nameBox.BorderSizePixel = 0
+	nameBox.ClearTextOnFocus = false
+	nameBox.Font = Enum.Font.Gotham
+	nameBox.PlaceholderText = "note"
+	nameBox.Text = "note.txt"
+	nameBox.TextColor3 = col.tx
+	nameBox.PlaceholderColor3 = col.sub
+	nameBox.TextSize = 13
+	nameBox.TextXAlignment = Enum.TextXAlignment.Left
+	nameBox.Size = UDim2.new(0, 135, 1, 0)
+	nameBox.LayoutOrder = 1
+	nameBox.Parent = tool
+	skin(nameBox, 8, 1)
+
+	local extBtn = btn(tool, selectedExt, 54, 2)
+	extBtn.Name = "ExtensionPicker"
+
+	local newBtn = btn(tool, "New", 40, 3)
+	local openBtn = btn(tool, "Open", 45, 4)
+	local saveBtn = btn(tool, "Save", 43, 5)
+	local clearBtn = btn(tool, "Clear", 45, 6)
+	local delBtn = btn(tool, "Del", 36, 7)
+	local refBtn = btn(tool, "Refresh", 55, 8)
+
+	local extDrop = InstanceNew("Frame")
+	extDrop.Visible = false
+	extDrop.ClipsDescendants = true
+	extDrop.BackgroundColor3 = col.bg2
+	extDrop.BorderSizePixel = 0
+	extDrop.ZIndex = 40
+	extDrop.Position = UDim2.fromOffset(0, 0)
+	extDrop.Size = UDim2.new(0, 72, 0, math.min(#exts * 25 + 8, 160))
+	extDrop.Parent = main
+	skin(extDrop, 8, 1)
+
+	local extScroll = InstanceNew("ScrollingFrame")
+	extScroll.BackgroundTransparency = 1
+	extScroll.BorderSizePixel = 0
+	extScroll.ScrollBarThickness = 3
+	extScroll.ScrollBarImageColor3 = Color3.fromRGB(125, 125, 135)
+	extScroll.ZIndex = 41
+	extScroll.Size = UDim2.new(1, -8, 1, -8)
+	extScroll.Position = UDim2.new(0, 4, 0, 4)
+	extScroll.CanvasSize = UDim2.new()
+	extScroll.Parent = extDrop
+
+	local extLay = InstanceNew("UIListLayout")
+	extLay.Padding = UDim.new(0, 4)
+	extLay.SortOrder = Enum.SortOrder.LayoutOrder
+	extLay.Parent = extScroll
+
+	local function setPicker(ext, noRename)
+		selectedExt = normExt(ext)
+		extBtn.Text = selectedExt
+		if not noRename then
+			nameBox.Text = safeName(nameBox.Text, true)
+		end
+	end
+
+	local function setPickerFromName(n)
+		local e = tostring(n or ""):match("(%.[%w]+)$")
+		if e then
+			setPicker(e, true)
+		end
+	end
+
+	local function posExtDrop()
+		local mainPos = main.AbsolutePosition
+		local btnPos = extBtn.AbsolutePosition
+		local btnSize = extBtn.AbsoluteSize
+		local dropSize = extDrop.AbsoluteSize
+		local dropW = dropSize.X > 0 and dropSize.X or 72
+		local dropH = dropSize.Y > 0 and dropSize.Y or math.min(#exts * 25 + 8, 160)
+		local x = btnPos.X - mainPos.X
+		local y = btnPos.Y - mainPos.Y + btnSize.Y + 4
+		x = math.clamp(x, 4, math.max(4, main.AbsoluteSize.X - dropW - 8))
+		if y + dropH + 8 > main.AbsoluteSize.Y then
+			y = btnPos.Y - mainPos.Y - dropH - 4
+		end
+		extDrop.Position = UDim2.fromOffset(x, math.max(4, y))
+	end
+
+	local function toggleExt()
+		local state = not extDrop.Visible
+		if state then
+			posExtDrop()
+		end
+		extDrop.Visible = state
+	end
+
+	extBtn:GetPropertyChangedSignal("AbsolutePosition"):Connect(function()
+		if extDrop.Visible then
+			posExtDrop()
+		end
+	end)
+	main:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+		if extDrop.Visible then
+			posExtDrop()
+		end
+	end)
+
+	for i, e in ipairs(exts) do
+		local item = btn(extScroll, e, 1, i)
+		item.Name = "Ext"..e:gsub("%.", "")
+		item.Size = UDim2.new(1, -2, 0, 23)
+		item.Text = e
+		item.TextSize = 12
+		item.ZIndex = 42
+		for _, d in ipairs(item:GetDescendants()) do
+			if d:IsA("GuiObject") then
+				d.ZIndex = 42
+			end
+		end
+		MouseButtonFix(item, function()
+			setPicker(e)
+			extDrop.Visible = false
+		end)
+	end
+
+	extLay:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+		extScroll.CanvasSize = UDim2.new(0, 0, 0, extLay.AbsoluteContentSize.Y + 6)
+	end)
+	extScroll.CanvasSize = UDim2.new(0, 0, 0, extLay.AbsoluteContentSize.Y + 6)
+	MouseButtonFix(extBtn, toggleExt)
+
+	local body = InstanceNew("ScrollingFrame")
+	body.Active = true
+	body.BackgroundColor3 = col.bg2
+	body.BorderSizePixel = 0
+	body.CanvasSize = UDim2.new(0, 0, 0, 0)
+	body.Position = UDim2.new(0, 10, 0, 48)
+	body.ScrollBarImageColor3 = col.sub
+	body.ScrollBarThickness = 6
+	body.ScrollingDirection = Enum.ScrollingDirection.XY
+	body.Size = UDim2.new(1, -20, 1, -88)
+	body.Parent = main
+	skin(body, 10, 1)
+
+	local box = InstanceNew("TextBox")
+	box.BackgroundTransparency = 1
+	box.ClearTextOnFocus = false
+	box.Font = Enum.Font.Code
+	box.MultiLine = true
+	box.PlaceholderText = "type here..."
+	box.PlaceholderColor3 = col.sub
+	box.Text = ""
+	box.TextColor3 = col.tx
+	box.TextSize = 15
+	box.TextXAlignment = Enum.TextXAlignment.Left
+	box.TextYAlignment = Enum.TextYAlignment.Top
+	box.TextWrapped = false
+	box.Size = UDim2.new(0, 320, 0, 200)
+	box.Position = UDim2.new(0, 8, 0, 8)
+	box.Parent = body
+
+	local bottom = InstanceNew("Frame")
+	bottom.BackgroundTransparency = 1
+	bottom.Position = UDim2.new(0, 10, 1, -32)
+	bottom.Size = UDim2.new(1, -20, 0, 24)
+	bottom.Parent = main
+
+	local status = InstanceNew("TextLabel")
+	status.BackgroundTransparency = 1
+	status.Font = Enum.Font.Gotham
+	status.Text = fsOk and ("Ready | "..dir) or "Filesystem unavailable"
+	status.TextColor3 = fsOk and col.sub or col.err
+	status.TextSize = 12
+	status.TextXAlignment = Enum.TextXAlignment.Left
+	status.Size = UDim2.new(1, -180, 1, 0)
+	status.Parent = bottom
+	NAStuff.NotepadStatusLabel = status
+
+	local count = InstanceNew("TextLabel")
+	count.BackgroundTransparency = 1
+	count.Font = Enum.Font.Gotham
+	count.Text = "0 chars | 0 lines"
+	count.TextColor3 = col.sub
+	count.TextSize = 12
+	count.TextXAlignment = Enum.TextXAlignment.Right
+	count.AnchorPoint = Vector2.new(1, 0)
+	count.Position = UDim2.new(1, 0, 0, 0)
+	count.Size = UDim2.new(0, 170, 1, 0)
+	count.Parent = bottom
+
+	local pageBar = InstanceNew("Frame")
+	pageBar.BackgroundTransparency = 1
+	pageBar.BorderSizePixel = 0
+	pageBar.AnchorPoint = Vector2.new(0.5, 0)
+	pageBar.Position = UDim2.new(0.5, 30, 0, 0)
+	pageBar.Size = UDim2.new(0, 174, 1, 0)
+	pageBar.Parent = bottom
+
+	local pageLay = InstanceNew("UIListLayout")
+	pageLay.FillDirection = Enum.FillDirection.Horizontal
+	pageLay.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	pageLay.VerticalAlignment = Enum.VerticalAlignment.Center
+	pageLay.SortOrder = Enum.SortOrder.LayoutOrder
+	pageLay.Padding = UDim.new(0, 5)
+	pageLay.Parent = pageBar
+
+	local pagePrev = btn(pageBar, "<", 34, 1)
+	local pageText = InstanceNew("TextLabel")
+	pageText.BackgroundTransparency = 1
+	pageText.BorderSizePixel = 0
+	pageText.Font = Enum.Font.GothamSemibold
+	pageText.LayoutOrder = 2
+	pageText.Size = UDim2.new(0, 86, 1, 0)
+	pageText.Text = "Page 1/1"
+	pageText.TextColor3 = col.sub
+	pageText.TextSize = 12
+	pageText.Parent = pageBar
+	local pageNext = btn(pageBar, ">", 34, 3)
+
+	local function setBtnSize(b, w, s)
+		if not b then
+			return
+		end
+		b.Size = UDim2.new(0, w, 1, 0)
+		b.TextSize = s
+	end
+
+	local function updateNotepadLayout()
+		local w = frame.AbsoluteSize.X
+		local h = frame.AbsoluteSize.Y
+		local compact = w < 720 or h < 390
+		local tiny = w < 590
+		local micro = w < 430
+		local pad = compact and 6 or 7
+		local gap = compact and 8 or 10
+		root.Position = UDim2.new(0, pad, 0, pad)
+		root.Size = UDim2.new(1, -pad * 2, 1, -pad * 2)
+		if tiny then
+			side.Visible = false
+			main.Position = UDim2.new(0, 0, 0, 0)
+			main.Size = UDim2.new(1, 0, 1, 0)
+		else
+			local sideW = compact and 150 or 182
+			side.Visible = true
+			side.Size = UDim2.new(0, sideW, 1, 0)
+			main.Position = UDim2.new(0, sideW + gap, 0, 0)
+			main.Size = UDim2.new(1, -(sideW + gap), 1, 0)
+		end
+		local inner = compact and 8 or 10
+		local toolH = compact and 28 or 30
+		local txtSize = compact and 12 or 13
+		tool.Position = UDim2.new(0, inner, 0, inner)
+		tool.Size = UDim2.new(1, -inner * 2, 0, toolH)
+		toolLay.Padding = UDim.new(0, compact and 4 or 6)
+		nameBox.TextSize = txtSize
+		nameBox.Size = UDim2.new(0, micro and 82 or (tiny and 100 or (compact and 110 or 135)), 1, 0)
+		setBtnSize(extBtn, micro and 42 or (tiny and 44 or (compact and 46 or 54)), txtSize)
+		setBtnSize(newBtn, micro and 32 or (tiny and 34 or (compact and 36 or 40)), txtSize)
+		setBtnSize(openBtn, micro and 36 or (tiny and 40 or (compact and 42 or 45)), txtSize)
+		setBtnSize(saveBtn, micro and 34 or (tiny and 36 or (compact and 38 or 43)), txtSize)
+		setBtnSize(clearBtn, micro and 36 or (tiny and 40 or (compact and 42 or 45)), txtSize)
+		setBtnSize(delBtn, micro and 28 or (tiny and 30 or (compact and 32 or 36)), txtSize)
+		if micro then
+			refBtn.Visible = false
+			refBtn.Size = UDim2.new(0, 0, 1, 0)
+		else
+			refBtn.Visible = true
+			setBtnSize(refBtn, tiny and 44 or (compact and 50 or 55), txtSize)
+		end
+		body.Position = UDim2.new(0, inner, 0, inner + toolH + 8)
+		body.Size = UDim2.new(1, -inner * 2, 1, -(inner + toolH + 44))
+		body.ScrollBarThickness = compact and 4 or 6
+		bottom.Position = UDim2.new(0, inner, 1, compact and -28 or -32)
+		bottom.Size = UDim2.new(1, -inner * 2, 0, 24)
+		status.TextSize = compact and 11 or 12
+		count.TextSize = compact and 11 or 12
+		count.Size = UDim2.new(0, micro and 112 or 170, 1, 0)
+		status.Size = UDim2.new(1, -(micro and 116 or 180), 1, 0)
+		pageBar.Position = UDim2.new(0.5, tiny and 0 or 30, 0, 0)
+		pageBar.Size = UDim2.new(0, micro and 142 or 174, 1, 0)
+		pageText.Size = UDim2.new(0, micro and 74 or 86, 1, 0)
+		pageText.TextSize = compact and 11 or 12
+		setBtnSize(pagePrev, micro and 28 or 34, compact and 11 or 12)
+		setBtnSize(pageNext, micro and 28 or 34, compact and 11 or 12)
+		box.TextSize = compact and 13 or 15
+		if extDrop.Visible then
+			posExtDrop()
+		end
+	end
+
+	local function lineCount(s)
+
+		s = tostring(s or "")
+		if s == "" then
+			return 0
+		end
+		return select(2, s:gsub("\n", "")) + 1
+	end
+
+	local chunkLimit = 12000
+	local chunks = { "" }
+	local page = 1
+	local loadingText = false
+
+	local function splitText(source)
+		source = tostring(source or "")
+		if source == "" then
+			return { "" }
+		end
+		local out = {}
+		local pos = 1
+		while pos <= #source do
+			local endPos = math.min(pos + chunkLimit - 1, #source)
+			if endPos < #source then
+				local seg = source:sub(pos, endPos)
+				local cut
+				local from = 1
+				while true do
+					local found = seg:find("\n", from, true)
+					if not found then
+						break
+					end
+					cut = found
+					from = found + 1
+				end
+				if cut and cut > math.floor(chunkLimit * 0.35) then
+					endPos = pos + cut - 1
+				end
+			end
+			out[#out + 1] = source:sub(pos, endPos)
+			pos = endPos + 1
+		end
+		if #out == 0 then
+			out[1] = ""
+		end
+		return out
+	end
+
+	local function buildFullText(useBox)
+		local out = {}
+		for i = 1, math.max(#chunks, 1) do
+			if useBox and i == page then
+				out[i] = tostring(box.Text or "")
+			else
+				out[i] = tostring(chunks[i] or "")
+			end
+		end
+		return table.concat(out, "")
+	end
+
+	local function compactPages(preferPage)
+		preferPage = tonumber(preferPage) or page or 1
+		for i = #chunks, 1, -1 do
+			if #chunks > 1 and tostring(chunks[i] or "") == "" then
+				table.remove(chunks, i)
+				if preferPage > i then
+					preferPage -= 1
+				elseif preferPage == i then
+					preferPage = math.min(i, #chunks)
+				end
+			end
+		end
+		if #chunks == 0 then
+			chunks[1] = ""
+			preferPage = 1
+		end
+		return math.clamp(preferPage, 1, math.max(#chunks, 1))
+	end
+
+	local function measureNotepadText(source)
+		local lineHeight = box.TextSize + 4
+		local longest = 0
+		local lines = 0
+		for line in ((source or "").."\n"):gmatch("(.-)\n") do
+			lines += 1
+			local width = 0
+			if TextService and TextService.GetTextSize then
+				local ok, res = pcall(function()
+					return TextService:GetTextSize((line ~= "" and line or " "), box.TextSize, box.Font, Vector2.new(10000, 10000)).X
+				end)
+				if ok and type(res) == "number" then
+					width = res
+				end
+			end
+			if width <= 0 then
+				width = #line * math.max(box.TextSize * 0.62, 8)
+			end
+			if width > longest then
+				longest = width
+			end
+		end
+		if lines <= 0 then
+			lines = 1
+		end
+		local w = math.max(body.AbsoluteSize.X - 20, longest + 28)
+		local h = math.max(body.AbsoluteSize.Y - 20, lines * lineHeight + 18)
+		return w, h
+	end
+
+	local function updEditorSize()
+		local w, h = measureNotepadText(box.Text or "")
+		box.Size = UDim2.new(0, w, 0, h)
+		body.CanvasSize = UDim2.new(0, w + 16, 0, h + 16)
+	end
+
+	local function updCount()
+		local tx = buildFullText(true)
+		count.Text = tostring(#tx).." chars | "..tostring(lineCount(tx)).." lines"
+		page = math.clamp(tonumber(page) or 1, 1, math.max(#chunks, 1))
+		pageText.Text = "Page "..tostring(page).."/"..tostring(math.max(#chunks, 1))
+		pageBar.Visible = #chunks > 1
+		pagePrev.Visible = #chunks > 1
+		pageNext.Visible = #chunks > 1
+		updEditorSize()
+	end
+
+	local function loadPage(nextPage)
+		page = math.clamp(tonumber(nextPage) or page or 1, 1, math.max(#chunks, 1))
+		loadingText = true
+		box.Text = tostring(chunks[page] or "")
+		loadingText = false
+		body.CanvasPosition = Vector2.new(0, 0)
+		updCount()
+	end
+
+	local function commitPage()
+		if loadingText then
+			return
+		end
+		local oldPage = page
+		local oldTotal = math.max(#chunks, 1)
+		chunks[page] = tostring(box.Text or "")
+		local reloadPage = false
+		if #chunks[page] > chunkLimit then
+			local parts = splitText(chunks[page])
+			table.remove(chunks, page)
+			for i = #parts, 1, -1 do
+				table.insert(chunks, page, parts[i])
+			end
+			page = math.clamp(oldPage, 1, math.max(#chunks, 1))
+			reloadPage = true
+			setStatus("Text split into pages to avoid Roblox TextBox limits", col.warn)
+		else
+			page = compactPages(page)
+			reloadPage = oldTotal ~= #chunks or page ~= oldPage
+		end
+		if reloadPage then
+			loadingText = true
+			box.Text = tostring(chunks[page] or "")
+			loadingText = false
+		end
+		updCount()
+	end
+
+	local function setFullText(source)
+		chunks = splitText(source)
+		page = 1
+		loadPage(1)
+	end
+
+	local function getFullText()
+		commitPage()
+		return buildFullText(false)
+	end
+
+	local function refreshList()
+		for _, child in ipairs(list:GetChildren()) do
+			if child ~= listLay then
+				child:Destroy()
+			end
+		end
+		for i, n in ipairs(names()) do
+			local item = btn(list, n, 1, i)
+			item.Name = n
+			item.Size = UDim2.new(1, -2, 0, 28)
+			item.Text = n
+			item.TextSize = 12
+			item.TextXAlignment = Enum.TextXAlignment.Left
+			item.BackgroundColor3 = (sel and sel:lower() == n:lower()) and col.on or col.bg3
+			MouseButtonFix(item, function()
+				sel = n
+				nameBox.Text = n
+				setPickerFromName(n)
+				refreshList()
+				setStatus("Selected "..n, col.sub)
+			end)
+		end
+		list.CanvasSize = UDim2.new(0, 0, 0, listLay.AbsoluteContentSize.Y + 8)
+	end
+
+	listLay:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+		list.CanvasSize = UDim2.new(0, 0, 0, listLay.AbsoluteContentSize.Y + 8)
+	end)
+
+	local function loadFile(n)
+		if not fsOk then
+			setStatus("Filesystem unavailable", col.err)
+			return false
+		end
+		ensure()
+		n = safeName(n or nameBox.Text, false)
+		local path = filePath(n, false)
+		if not isfile(path) then
+			setStatus("No such file: "..n, col.err)
+			return false
+		end
+		local ok, raw = pcall(readfile, path)
+		if ok then
+			sel = n
+			nameBox.Text = n
+			setPickerFromName(n)
+			setFullText(tostring(raw or ""))
+			refreshList()
+			setStatus("Opened "..n, col.ok)
+			return true
+		end
+		setStatus("Open failed: "..n, col.err)
+		return false
+	end
+
+	local function saveFile(n)
+		if not fsOk then
+			setStatus("Filesystem unavailable", col.err)
+			return false
+		end
+		if not ensure() then
+			setStatus("Failed to create "..dir, col.err)
+			return false
+		end
+		n = safeName(n or nameBox.Text, true)
+		local path = filePath(n, false)
+		local ok, err = pcall(writefile, path, getFullText())
+		if ok and (type(isfile) ~= "function" or isfile(path)) then
+			sel = n
+			nameBox.Text = n
+			setPickerFromName(n)
+			addIdx(n)
+			refreshList()
+			setStatus("Saved "..n, col.ok)
+			return true
+		end
+		setStatus("Save failed: "..tostring(err or n), col.err)
+		return false
+	end
+
+	local function delFile(n)
+		if not fsOk then
+			setStatus("Filesystem unavailable", col.err)
+			return false
+		end
+		if not delOk then
+			setStatus("Delete unavailable", col.err)
+			return false
+		end
+		ensure()
+		n = safeName(n or nameBox.Text, false)
+		local path = filePath(n, false)
+		if not isfile(path) then
+			remIdx(n)
+			refreshList()
+			setStatus("No such file: "..n, col.err)
+			return false
+		end
+		local ok = pcall(delfile, path)
+		if ok then
+			remIdx(n)
+			if sel and sel:lower() == n:lower() then
+				sel = nil
+			end
+			refreshList()
+			setStatus("Deleted "..n, col.warn)
+			return true
+		end
+		setStatus("Delete failed: "..n, col.err)
+		return false
+	end
+
+	MouseButtonFix(newBtn, function()
+		sel = nil
+		setPicker(".txt", true)
+		nameBox.Text = "note.txt"
+		setFullText("")
+		refreshList()
+		setStatus("New note", col.ok)
+	end)
+
+	MouseButtonFix(openBtn, function()
+		loadFile(sel or nameBox.Text)
+	end)
+
+	MouseButtonFix(saveBtn, function()
+		saveFile(nameBox.Text)
+	end)
+
+	MouseButtonFix(clearBtn, function()
+		setFullText("")
+		setStatus("Cleared notepad", col.warn)
+	end)
+
+	MouseButtonFix(delBtn, function()
+		delFile(sel or nameBox.Text)
+	end)
+
+	MouseButtonFix(refBtn, function()
+		refreshList()
+		setStatus("Refreshed", col.ok)
+	end)
+
+	box:GetPropertyChangedSignal("Text"):Connect(function()
+		if not loadingText then
+			commitPage()
+		else
+			updCount()
+		end
+	end)
+	body:GetPropertyChangedSignal("AbsoluteSize"):Connect(updEditorSize)
+	frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+		updateNotepadLayout()
+		updEditorSize()
+	end)
+	cont:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+		updateNotepadLayout()
+		updEditorSize()
+	end)
+	NAStuff.NotepadRefresh = function()
+		updateNotepadLayout()
+		updEditorSize()
+		updCount()
+	end
+	MouseButtonFix(pagePrev, function()
+
+		commitPage()
+		loadPage(page - 1)
+		setStatus("Page "..tostring(page).."/"..tostring(math.max(#chunks, 1)), col.sub)
+	end)
+	MouseButtonFix(pageNext, function()
+		commitPage()
+		loadPage(page + 1)
+		setStatus("Page "..tostring(page).."/"..tostring(math.max(#chunks, 1)), col.sub)
+	end)
+	nameBox.FocusLost:Connect(function()
+		local e = tostring(nameBox.Text or ""):match("(%.[%w]+)$")
+		if e then
+			setPicker(e, true)
+		end
+	end)
+
+	if UserInputService then
+		UserInputService.InputBegan:Connect(function(input, gp)
+			if input.KeyCode == Enum.KeyCode.Tab and box:IsFocused() then
+				local pos = box.CursorPosition
+				if pos and pos > 0 then
+					local tx = box.Text or ""
+					box.Text = tx:sub(1, pos - 1).."    "..tx:sub(pos)
+					box.CursorPosition = pos + 4
+				end
+			elseif input.KeyCode == Enum.KeyCode.S and box:IsFocused() and (UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) or UserInputService:IsKeyDown(Enum.KeyCode.RightControl)) then
+				saveFile(nameBox.Text)
+			end
+		end)
+	end
+
+	ensure()
+	refreshList()
+	updateNotepadLayout()
+	updEditorSize()
+	updCount()
+	setStatus(fsOk and ("Ready | "..dir) or "Filesystem unavailable", fsOk and col.sub or col.err)
+	return true
+end
+
+NAmanage.Notepad_Toggle = NAmanage.Notepad_Toggle or function(forceState)
+	if not (NAUIMANAGER and NAUIMANAGER.NotepadFrame) then
+		DoNotif("Notepad UI unavailable.", 3)
+		return false
+	end
+	NAmanage.Notepad_Init()
+	local frame = NAUIMANAGER.NotepadFrame
+	local nextState = forceState
+	if type(nextState) ~= "boolean" then
+		nextState = not frame.Visible
+	end
+	frame.Visible = nextState
+	if frame.Visible then
+		NAmanage.centerFrame(frame)
+		if type(NAStuff.NotepadRefresh) == "function" then
+			task.defer(NAStuff.NotepadRefresh)
+		end
+	end
+	return true
+end
+
 NAStuff.cmdInputAtInit = NAUIMANAGER and NAUIMANAGER.cmdInput
 NAStuff.keepCmdFocus = false
 if NAStuff.cmdInputAtInit then
@@ -81400,6 +82681,7 @@ if NAUIMANAGER.SettingsFrame then NAgui.menu(NAUIMANAGER.SettingsFrame) end
 if NAUIMANAGER.WaypointFrame then NAgui.menu(NAUIMANAGER.WaypointFrame) end
 if NAUIMANAGER.BindersFrame then NAgui.menu(NAUIMANAGER.BindersFrame) end
 if NAUIMANAGER.ExecutorFrame then NAgui.menu(NAUIMANAGER.ExecutorFrame) end
+if NAUIMANAGER.NotepadFrame then NAgui.menu(NAUIMANAGER.NotepadFrame) end
 
 --[[ GUI RESIZE FUNCTION ]]--
 
@@ -81414,8 +82696,13 @@ if NAUIMANAGER.ExecutorFrame then
 	local exMin = IsOnMobile and Vector2.new(340, 280) or Vector2.new(680, 420)
 	NAgui.resizeable(NAUIMANAGER.ExecutorFrame, exMin, Vector2.new(1600, 1000))
 end
+if NAUIMANAGER.NotepadFrame then
+	local npMin = IsOnMobile and Vector2.new(340, 300) or Vector2.new(460, 340)
+	NAgui.resizeable(NAUIMANAGER.NotepadFrame, npMin, Vector2.new(1500, 980))
+end
 
 NAmanage.Executor_Init()
+NAmanage.Notepad_Init()
 
 if NAStuff.uiBootHidden and NAStuff.NASCREENGUI and NAStuff.NASCREENGUI:IsA("ScreenGui") then
 	pcall(function()
@@ -83369,7 +84656,7 @@ NAmanage.CommandKeybindsUIRefresh=function()
 					end
 					ui.argsBox.Text = Concat(parts, " ")
 				else
-					ui.argsBox.Text = ""
+					ui.argsB.Text = ""
 				end
 			end
 
@@ -87487,6 +88774,7 @@ SpawnCall(function() -- init
 	if NAUIMANAGER.SettingsFrame then NAgui.NAProtection(NAUIMANAGER.SettingsFrame) end
 	if NAUIMANAGER.WaypointFrame then NAgui.NAProtection(NAUIMANAGER.WaypointFrame) end
 	if NAUIMANAGER.BindersFrame then NAgui.NAProtection(NAUIMANAGER.BindersFrame) end
+	if NAUIMANAGER.NotepadFrame then NAgui.NAProtection(NAUIMANAGER.NotepadFrame) end
 	if not PlrGui then PlrGui=Player:WaitForChild("PlayerGui",math.huge) end
 end)
 
