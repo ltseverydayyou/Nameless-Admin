@@ -395,6 +395,33 @@ NAmanage.pruneRuntimeInstanceState = NAmanage.pruneRuntimeInstanceState or funct
 	NAmanage.pruneInstanceKeyMap(state.BlockedInvokeSaved)
 	NAmanage.pruneInstanceKeyMap(NAmanage._canvasLayoutCache)
 	NAmanage.pruneInstanceKeyMap(NAmanage._canvasHeightCache)
+	if type(state.airMomentum) == "table" then
+		NAmanage.pruneConnectionValueMap(state.airMomentum.connections)
+		if typeof(state.airMomentum.root) == "Instance" and not NAmanage.isLiveInstance(state.airMomentum.root) then
+			state.airMomentum.root = nil
+		end
+		if typeof(state.airMomentum.hum) == "Instance" and not NAmanage.isLiveInstance(state.airMomentum.hum) then
+			state.airMomentum.hum = nil
+		end
+	end
+	if type(NAmanage._charAddHub) == "table" then
+		NAmanage.pruneInstanceKeyMap(NAmanage._charAddHub.pending)
+	end
+	if type(NAmanage.pruneChatLogState) == "function" then
+		NAmanage.pruneChatLogState()
+	end
+	if type(NAmanage.pruneAdminChatRainbow) == "function" then
+		NAmanage.pruneAdminChatRainbow()
+	end
+	if state._rbxDevConsoleCopyTarget and not NAmanage.isLiveInstance(state._rbxDevConsoleCopyTarget) then
+		if type(NAmanage.cleanupRobloxDevConsoleCopyButtons) == "function" then
+			pcall(NAmanage.cleanupRobloxDevConsoleCopyButtons)
+		else
+			state._rbxDevConsoleCopyTarget = nil
+			state._rbxDevConsoleCopyRefresh = nil
+			state._rbxDevConsoleCopyCleanup = nil
+		end
+	end
 	if type(NAmanage._descHubs) == "table" and type(NAmanage._descHubDispose) == "function" then
 		for root, hub in pairs(NAmanage._descHubs) do
 			if not NAmanage.isLiveInstance(root) or type(hub) ~= "table" or hub.root ~= root or hub.alive == false then
@@ -1389,6 +1416,24 @@ NAlib.isConnected = function(name)
 	return NAmanage.prnCon(name) > 0
 end
 
+NAmanage.countMapKeys = NAmanage.countMapKeys or function(map, hardLimit)
+	if type(map) ~= "table" then
+		return 0
+	end
+	local count = 0
+	local limit = tonumber(hardLimit)
+	if limit ~= nil then
+		limit = math.max(1, math.floor(limit))
+	end
+	for _ in pairs(map) do
+		count += 1
+		if limit and count >= limit then
+			break
+		end
+	end
+	return count
+end
+
 NAmanage.prnAllCon = NAmanage.prnAllCon or function(limit)
 	local conns = NAStuff.conns
 	if type(conns) ~= "table" then
@@ -1441,6 +1486,42 @@ NAmanage.prnAllCon = NAmanage.prnAllCon or function(limit)
 
 	NAStuff._prnAllConCursor = cursor
 	return checked
+end
+
+NAmanage.pruneChatLogState = NAmanage.pruneChatLogState or function()
+	local state = NAStuff and NAStuff.ChatLogState
+	if type(state) ~= "table" then
+		return
+	end
+	if type(state.entries) == "table" then
+		NAmanage.pruneInstanceArray(state.entries)
+		local maxMessages = tonumber(state.maxMessages) or tonumber(NAmanage and NAmanage.jlCfg and NAmanage.jlCfg.ChatMaxMessages) or 200
+		maxMessages = math.max(20, math.floor(maxMessages))
+		while #state.entries > maxMessages do
+			local old = table.remove(state.entries, 1)
+			if typeof(old) == "Instance" and old.Parent then
+				pcall(function()
+					old:Destroy()
+				end)
+			end
+		end
+	end
+end
+
+NAmanage.pruneAdminChatRainbow = NAmanage.pruneAdminChatRainbow or function()
+	local state = NAStuff
+	if type(state) ~= "table" then
+		return
+	end
+	if type(state.AdminChatRainbowMessages) == "table" then
+		NAmanage.pruneInstanceArray(state.AdminChatRainbowMessages)
+		if #state.AdminChatRainbowMessages == 0 and state.AdminChatRainbowConnection then
+			pcall(function()
+				state.AdminChatRainbowConnection:Disconnect()
+			end)
+			state.AdminChatRainbowConnection = nil
+		end
+	end
 end
 
 NAmanage.safeConnect = NAmanage.safeConnect or function(sig, fn)
@@ -57716,6 +57797,164 @@ cmd.add({"unairwalk", "unfloat", "unaw"}, {"unairwalk (unfloat, unaw)", "Stops t
 	DebugNotif("Airwalk: OFF")
 end)
 
+NAStuff.airMomentum = NAStuff.airMomentum or {
+	enabled = false,
+	connections = {},
+	root = nil,
+	hum = nil,
+	flatMask = Vector3.new(1, 0, 1),
+	upMask = Vector3.new(0, 1, 0),
+	config = {
+		airAcc = 140,
+		airSpd = 70,
+		airDrag = 2.5,
+		keep = 0.02,
+	},
+}
+
+NAmanage.AirMomentumFlat = function(v)
+	return v * NAStuff.airMomentum.flatMask
+end
+
+NAmanage.AirMomentumUp = function(v)
+	return v * NAStuff.airMomentum.upMask
+end
+
+NAmanage.AirMomentumDisconnect = function(key)
+	local conn = NAStuff.airMomentum.connections[key]
+	if conn then
+		conn:Disconnect()
+		NAStuff.airMomentum.connections[key] = nil
+	end
+end
+
+NAmanage.AirMomentumStopSim = function()
+	NAmanage.AirMomentumDisconnect("sim")
+end
+
+NAmanage.AirMomentumSim = function(dt)
+	local state = NAStuff.airMomentum
+	local root = state.root
+	local hum = state.hum
+	if not state.enabled or not root or not hum or not root.Parent then
+		NAmanage.AirMomentumStopSim()
+		return
+	end
+
+	local humState = hum:GetState()
+	if humState ~= Enum.HumanoidStateType.Freefall and humState ~= Enum.HumanoidStateType.Jumping then
+		NAmanage.AirMomentumStopSim()
+		return
+	end
+
+	local velY = NAmanage.AirMomentumUp(root.AssemblyLinearVelocity)
+	local velXZ = NAmanage.AirMomentumFlat(root.AssemblyLinearVelocity)
+	local move = NAmanage.AirMomentumFlat(hum.MoveDirection)
+
+	if move.Magnitude > 0.001 then
+		local wish = move.Unit * state.config.airSpd
+		local diff = wish - velXZ
+		local add = state.config.airAcc * dt
+		if diff.Magnitude > add then
+			diff = diff.Unit * add
+		end
+		velXZ += diff
+	else
+		local speed = velXZ.Magnitude
+		if speed > 0 then
+			local drop = state.config.airDrag * dt * speed + state.config.keep
+			local newSpeed = math.max(0, speed - drop)
+			velXZ = newSpeed > 0 and velXZ.Unit * newSpeed or Vector3.zero
+		end
+	end
+
+	if velXZ.Magnitude > state.config.airSpd then
+		velXZ = velXZ.Unit * state.config.airSpd
+	end
+
+	root.AssemblyLinearVelocity = velXZ + velY
+end
+
+NAmanage.AirMomentumStartSim = function()
+	local state = NAStuff.airMomentum
+	if not state.enabled or state.connections.sim or not state.root or not state.hum then
+		return
+	end
+
+	local signal = RunService.PreSimulation or RunService.Heartbeat
+	state.connections.sim = signal:Connect(NAmanage.AirMomentumSim)
+end
+
+NAmanage.AirMomentumHandleState = function(_, newState)
+	if newState == Enum.HumanoidStateType.Jumping or newState == Enum.HumanoidStateType.Freefall then
+		NAmanage.AirMomentumStartSim()
+	else
+		NAmanage.AirMomentumStopSim()
+	end
+end
+
+NAmanage.AirMomentumBindCharacter = function(char)
+	local state = NAStuff.airMomentum
+	NAmanage.AirMomentumStopSim()
+	NAmanage.AirMomentumDisconnect("state")
+	NAmanage.AirMomentumDisconnect("died")
+	state.root = nil
+	state.hum = nil
+
+	if not state.enabled or not char or not char.Parent then
+		return
+	end
+
+	local hum = char:FindFirstChildOfClass("Humanoid") or char:WaitForChild("Humanoid", 5)
+	local root = char:FindFirstChild("HumanoidRootPart") or char.PrimaryPart or char:WaitForChild("HumanoidRootPart", 5)
+	if not hum or not root then
+		return
+	end
+
+	state.hum = hum
+	state.root = root
+	state.connections.state = hum.StateChanged:Connect(NAmanage.AirMomentumHandleState)
+	state.connections.died = hum.Died:Connect(NAmanage.AirMomentumStopSim)
+
+	local currentState = hum:GetState()
+	if currentState == Enum.HumanoidStateType.Jumping or currentState == Enum.HumanoidStateType.Freefall then
+		NAmanage.AirMomentumStartSim()
+	end
+end
+
+NAmanage.DisableAirMomentum = function(notify)
+	local state = NAStuff.airMomentum
+	state.enabled = false
+	NAmanage.AirMomentumStopSim()
+	NAmanage.AirMomentumDisconnect("state")
+	NAmanage.AirMomentumDisconnect("died")
+	NAmanage.AirMomentumDisconnect("charAdded")
+	state.root = nil
+	state.hum = nil
+	if notify ~= false then
+		DebugNotif("Air momentum: OFF")
+	end
+end
+
+NAmanage.EnableAirMomentum = function()
+	local state = NAStuff.airMomentum
+	state.enabled = true
+	NAmanage.AirMomentumDisconnect("charAdded")
+	state.connections.charAdded = LocalPlayer.CharacterAdded:Connect(function(char)
+		task.defer(NAmanage.AirMomentumBindCharacter, char)
+	end)
+	NAmanage.AirMomentumBindCharacter(getChar())
+	DebugNotif("Air momentum: ON")
+end
+
+cmd.add({"airmomentum", "amomentum", "aircontrol"}, {"airmomentum (amomentum, aircontrol)", "Overrides default in-air horizontal movement with custom air control"}, function()
+	NAmanage.EnableAirMomentum()
+end)
+
+cmd.add({"unairmomentum", "unamomentum", "unaircontrol"}, {"unairmomentum (unamomentum, unaircontrol)", "Stops the custom air momentum command"}, function()
+	NAmanage.DisableAirMomentum()
+end)
+
 bringc = {}
 
 cmd.add({"cbring", "clientbring", "clientb"}, {"cbring <player>", "Brings the player once on your client"}, function(...)
@@ -87391,7 +87630,19 @@ do
 					pcall(NAgui.pruneRegisteredStrokes, false)
 				end
 				if NAmanage and type(NAmanage.prnAllCon) == "function" then
-					pcall(NAmanage.prnAllCon, 64)
+					local connMap = NAStuff and NAStuff.conns
+					local connKeyCount = type(NAmanage.countMapKeys) == "function" and NAmanage.countMapKeys(connMap, 2048) or 0
+					local pruneBudget
+					if connKeyCount >= 1024 then
+						pruneBudget = nil
+					elseif connKeyCount >= 512 then
+						pruneBudget = 512
+					elseif connKeyCount >= 256 then
+						pruneBudget = 256
+					else
+						pruneBudget = 128
+					end
+					pcall(NAmanage.prnAllCon, pruneBudget)
 				end
 				if NAmanage and type(NAmanage.wsReleaseCacheIfIdle) == "function" then
 					pcall(NAmanage.wsReleaseCacheIfIdle)
