@@ -71997,11 +71997,14 @@ do
 			upButton.TextTransparency = upEnabled and 0 or 0.5;
 			downButton.TextTransparency = downEnabled and 0 or 0.5;
 
-			local minThumb = ctrl.config.minThumb or (IsOnMobile and 28 or 18);
-			local thumbHeight = trackHeight;
-			if total > 0 then
-				thumbHeight = math.floor(math.clamp(trackHeight * (visible / total), minThumb, trackHeight) + 0.5);
-			end;
+			local minThumb = tonumber(ctrl.config.minThumb) or (IsOnMobile and 28 or 18);
+				local thumbHeight = trackHeight;
+				if total > 0 then
+					local maxThumb = math.max(1, trackHeight);
+					local minSafe = math.min(math.max(1, minThumb), maxThumb);
+					local rawThumb = trackHeight * (visible / total);
+					thumbHeight = math.floor(math.clamp(rawThumb, minSafe, maxThumb) + 0.5);
+				end;
 			local travel = math.max(0, trackHeight - thumbHeight);
 			local percent = maxPos > 0 and (currentY / maxPos) or 0;
 			thumb.Size = UDim2.new(1, 0, 0, thumbHeight);
