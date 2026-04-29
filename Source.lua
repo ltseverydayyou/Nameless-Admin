@@ -1246,29 +1246,110 @@ function SafeGetService(name, useCloneRef)
 	return NA_SRV[name]
 end
 
+NAmanage.uiObj = NAmanage.uiObj or function(v, seen)
+	if typeof(v) == "Instance" and v:IsA("ScreenGui") then
+		return v
+	end
+
+	if type(v) == "function" then
+		local ok, res = pcall(v)
+		if ok then
+			return NAmanage.uiObj(res, seen)
+		end
+		return nil
+	end
+
+	if type(v) == "table" then
+		seen = seen or {}
+		if seen[v] then
+			return nil
+		end
+		seen[v] = true
+
+		local keys = {
+			"ScreenGui",
+			"screenGui",
+			"Gui",
+			"gui",
+			"UI",
+			"ui",
+			"Instance",
+			"instance",
+		}
+
+		for i = 1, #keys do
+			local gui = NAmanage.uiObj(rawget(v, keys[i]), seen)
+			if gui then
+				return gui
+			end
+		end
+	end
+
+	return nil
+end
+
+NAmanage.getUI = NAmanage.getUI or function()
+	local gui = NAmanage.uiObj(NAStuff and NAStuff.NASCREENGUI)
+	if gui then
+		return gui
+	end
+
+	if _na_env then
+		gui = NAmanage.uiObj(rawget(_na_env, "NA_UI_INSTANCE"))
+			or NAmanage.uiObj(rawget(_na_env, "NA_RAW_UI"))
+			or NAmanage.uiObj(rawget(_na_env, "NA_UI"))
+		if gui then
+			return gui
+		end
+	end
+
+	if _na_shared then
+		gui = NAmanage.uiObj(rawget(_na_shared, "NA_UI_INSTANCE"))
+			or NAmanage.uiObj(rawget(_na_shared, "NA_RAW_UI"))
+			or NAmanage.uiObj(rawget(_na_shared, "NA_UI"))
+		if gui then
+			return gui
+		end
+	end
+
+	return nil
+end
+
 NAmanage.NARegisterUI=function(gui)
+	gui = NAmanage.uiObj(gui)
 	if not gui then
-		return
+		return false
 	end
 
 	NAStuff.NASCREENGUI = gui
-	if typeof(gui) == "Instance" and gui:IsA("ScreenGui") then
-		NAStuff.uiBootHidden = true
-		pcall(function()
-			gui.Enabled = false
-		end)
+	NAStuff.uiBootHidden = true
+
+	pcall(function()
+		gui.Enabled = false
+	end)
+
+	local function get()
+		if type(checkcaller) == "function" and not checkcaller() then
+			return nil
+		end
+		return NAStuff.NASCREENGUI
 	end
 
 	if _na_env then
 		_na_env.NAUILOADEDORSUM = true
-
-		_na_env.NA_UI = function()
-			if not checkcaller() then
-				return nil
-			end
-			return NAStuff.NASCREENGUI
-		end
+		_na_env.NA_UI_INSTANCE = gui
+		_na_env.NA_RAW_UI = gui
+		_na_env.NA_UI = get
 	end
+
+	if _na_shared then
+		_na_shared.NAUILOADEDORSUM = true
+		_na_shared.NA_UI_INSTANCE = gui
+		_na_shared.NA_RAW_UI = gui
+		_na_shared.NA_UI = get
+	end
+
+	return true
 end
 
 NAmanage.waitForPlay=function()
@@ -8032,15 +8113,18 @@ NAmanage.loaderWarn=function(label, detail)
 end
 
 function NAmanage.waitForScreenGui(timeoutSeconds)
-	timeoutSeconds = timeoutSeconds or 5
-	local deadline = tick() + timeoutSeconds
+	local t = tonumber(timeoutSeconds) or 5
+	local deadline = tick() + math.max(t, 0)
+
 	repeat
-		local gui = NAStuff.NASCREENGUI
-		if gui and gui.Parent then
+		local gui = NAmanage.getUI and NAmanage.getUI() or nil
+		if gui then
+			NAStuff.NASCREENGUI = gui
 			return gui
 		end
-		Wait(0.1)
+		Wait(0.05)
 	until tick() >= deadline
+
 	return nil
 end
 
@@ -71462,61 +71546,63 @@ originalIO.NAfetchUILoaderSource=function()
 	return nil, "ui source helper unavailable"
 end
 
-if not (_na_env and _na_env.NAUILOADEDORSUM and _na_env.NA_UI and _na_env.NA_UI.Parent) then
-	do
-		if not NAStuff.NASCREENGUI then
-			local maxTry = 6
-			local attempt = 0
-			while not NAStuff.NASCREENGUI and attempt < maxTry do
-				attempt += 1
+do
+	local gui = NAmanage.getUI and NAmanage.getUI() or nil
+	if gui then
+		NAmanage.NARegisterUI(gui)
+	end
 
-				local okRun, result = false, nil
-				if NAmanage and NAmanage.uiRun then
-					okRun, result = NAmanage.uiRun(attempt > 1)
+	if not NAmanage.waitForScreenGui(0.15) then
+		local maxTry = 8
+		local attempt = 0
+		local lastErr = nil
+
+		while not NAmanage.waitForScreenGui(0.05) and attempt < maxTry do
+			attempt += 1
+
+			local okRun, result = false, nil
+
+			if NAmanage and NAmanage.uiRun then
+				okRun, result = NAmanage.uiRun(attempt > 1)
+			else
+				local src, err = originalIO.NAfetchUILoaderSource()
+				if not src then
+					okRun, result = false, err
 				else
-					local src, err = originalIO.NAfetchUILoaderSource()
-					if not src then
-						okRun, result = false, err
+					local fn, lerr = loadstring(src)
+					if type(fn) == "function" then
+						okRun, result = pcall(fn)
 					else
-						local fn, lerr = loadstring(src)
-						if type(fn) == "function" then
-							okRun, result = pcall(fn)
-						else
-							okRun, result = false, lerr
-						end
+						okRun, result = false, lerr
 					end
 				end
+			end
 
-				if okRun and result then
-					NAmanage.NARegisterUI(result)
+			if okRun then
+				local loaded = NAmanage.uiObj(result)
+				if loaded and NAmanage.NARegisterUI(loaded) then
 					if type(NAmanage.queueAssetMethodResync) == "function" then
 						NAmanage.queueAssetMethodResync({ 0, 2, 5 }, { silent = true })
 					end
 					break
 				end
 
-				if attempt < maxTry then
-					warn(Format("%d | Failed to load UI module: %s | retrying...", math.random(1, 999999), tostring(result)))
-					Wait(0.2 + (attempt * 0.05))
-				else
-					warn(Format("%d | Failed to load UI module after %d attempts: %s", math.random(1, 999999), attempt, tostring(result)))
-				end
+				lastErr = "UI loader returned " .. typeof(result)
+			else
+				lastErr = result
+			end
+
+			if attempt < maxTry and not NAmanage.waitForScreenGui(0.05) then
+				warn(Format("%d | Failed to load UI module: %s | retrying...", math.random(1, 999999), tostring(lastErr)))
+				Wait(0.15 + attempt * 0.1)
 			end
 		end
-	end
-else
-	NAStuff.NASCREENGUI = _na_env.NA_UI or NAStuff.NASCREENGUI
-end
 
-do
-	if _na_env and type(_na_env.NA_UI) == "function" then
-		local ok, existing = pcall(_na_env.NA_UI)
-		if ok and existing then
-			NAmanage.NARegisterUI(existing)
+		if not NAmanage.waitForScreenGui(0.05) then
+			warn(Format("%d | Failed to load UI module after %d attempts: %s", math.random(1, 999999), maxTry, tostring(lastErr)))
 		end
 	end
 end
-
 rPlayer = __lt.cm("Players", "FindFirstChildWhichIsA", "Player")
 coreGuiProtection = {}
 if not __lt.cm("RunService", "IsStudio") then
@@ -71531,6 +71617,15 @@ else
 	end
 end
 --repeat Wait() until ScreenGui~=nil -- if it loads late then I'll just add this here
+
+do
+	local ready = NAmanage.waitForScreenGui(8)
+	if not ready then
+		warn("[NA loader] UI never became a ScreenGui; stopping before NAUIMANAGER")
+		return
+	end
+	NAStuff.NASCREENGUI = ready
+end
 
 if NAStuff.NASCREENGUI and NAStuff.NASCREENGUI:IsA("ScreenGui") then
 	NAStuff.uiBootHidden = true
