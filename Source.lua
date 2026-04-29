@@ -6315,6 +6315,84 @@ function getHum(char, waitSeconds)
 	return rec and rec.humanoid or nil
 end
 
+NAmanage.GetJumpLaunchVelocity = function(hum)
+	if not hum then return nil end
+
+	local jumpPower = tonumber(NAlib.isProperty(hum, "JumpPower"))
+	if hum.UseJumpPower ~= false and jumpPower and jumpPower > 0 then
+		return jumpPower
+	end
+
+	local jumpHeight = tonumber(NAlib.isProperty(hum, "JumpHeight"))
+	if jumpHeight and jumpHeight > 0 then
+		return math.sqrt(2 * workspace.Gravity * jumpHeight)
+	end
+
+	return jumpPower
+end
+
+NAmanage.PrepareHumanoidForLaunch = function(hum)
+	if not hum then return end
+
+	pcall(function()
+		if NAlib.isProperty(hum, "Sit") ~= nil then
+			hum.Sit = false
+		end
+	end)
+
+	pcall(function()
+		if NAlib.isProperty(hum, "PlatformStand") ~= nil then
+			hum.PlatformStand = false
+		end
+	end)
+
+	local state
+	pcall(function()
+		state = hum:GetState()
+	end)
+
+	if state == Enum.HumanoidStateType.Seated
+		or state == Enum.HumanoidStateType.FallingDown
+		or state == Enum.HumanoidStateType.Ragdoll
+		or state == Enum.HumanoidStateType.PlatformStanding then
+		pcall(function()
+			hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+		end)
+	end
+end
+
+NAmanage.LaunchHumanoid = function(hum, root)
+	if not hum then return false end
+
+	if NAStuff.SafeJumpMethod == false then
+		return pcall(function()
+			hum:ChangeState(Enum.HumanoidStateType.Jumping)
+		end)
+	end
+
+	root = root or getRoot(hum.Parent)
+	if not root then return false end
+
+	NAmanage.PrepareHumanoidForLaunch(hum)
+
+	local launchY = NAmanage.GetJumpLaunchVelocity(hum)
+	if not launchY then return false end
+
+	local velocity = NAlib.isProperty(root, "AssemblyLinearVelocity") or root.Velocity
+	if typeof(velocity) ~= "Vector3" then
+		velocity = Vector3.new()
+	end
+
+	local boostedY = math.max(velocity.Y, launchY)
+	if NAlib.setProperty(root, "AssemblyLinearVelocity", Vector3.new(velocity.X, boostedY, velocity.Z)) then
+		return true
+	end
+
+	return pcall(function()
+		root.Velocity = Vector3.new(velocity.X, boostedY, velocity.Z)
+	end)
+end
+
 function getPlrHum(plr)
 	return getHum(plr)
 end
@@ -18530,8 +18608,12 @@ NAmanage.ApplyCommandKeybinds=function()
 		return dst
 	end
 
-	local function shouldBlock(gameProcessed)
-		if gameProcessed then return true end
+	local function isStrongKeybindInput(input)
+		return input and input.UserInputType == Enum.UserInputType.Keyboard
+	end
+
+	local function shouldBlock(input, gameProcessed)
+		if gameProcessed and not isStrongKeybindInput(input) then return true end
 		if not NAmanage.CanUseCommandKeybinds() then return true end
 		if NAStuff._capturingCommandKeybind then return true end
 		if UIS.GetFocusedTextBox and __lt.cm("UserInputService", "GetFocusedTextBox") then return true end
@@ -18820,7 +18902,7 @@ NAmanage.ApplyCommandKeybinds=function()
 
 	NAStuff.KeybindConnection = UIS.InputBegan:Connect(function(input, gameProcessed)
 		if not input then return end
-		if shouldBlock(gameProcessed) then return end
+		if shouldBlock(input, gameProcessed) then return end
 		local inputType = input.UserInputType
 		if inputType ~= Enum.UserInputType.Keyboard
 			and inputType ~= Enum.UserInputType.MouseButton1
@@ -18908,7 +18990,7 @@ NAmanage.ApplyCommandKeybinds=function()
 				end
 			end
 
-			if #relHolds == 0 and #relSpams == 0 and shouldBlock(gameProcessed) then
+			if #relHolds == 0 and #relSpams == 0 and shouldBlock(input, gameProcessed) then
 				return
 			end
 
@@ -19281,6 +19363,7 @@ NAStuff.CmdIntegrationAutoRun = NAmanage.NASettingsGet("cmdIntegrationAutoRun")
 NAStuff.AutoPreloadAssets = NAmanage.NASettingsGet("autoPreloadAssets")
 NAStuff.LightingStyleAutomation = NAmanage.NASettingsGet("lightingStyleAutomation") == true
 NAStuff.LightingStyleAutomationStyle = NAmanage.NASettingsGet("lightingStyleAutomationStyle") or "Soft"
+NAStuff.SafeJumpMethod = NAmanage.NASettingsGet("safeJumpMethod") ~= false
 NAStuff.CustomMovementSounds = NAStuff.CustomMovementSounds or {}
 NAStuff.CustomMovementSounds.Enabled = NAmanage.NASettingsGet("customMovementSoundsEnabled") == true
 NAStuff.CustomMovementSounds.WalkInput = tostring(NAmanage.NASettingsGet("customMovementSoundsWalk") or "")
@@ -49176,7 +49259,7 @@ cmd.add({"commitoof", "suicide", "kys"}, {"commitoof (suicide, kys)", "Triggers 
 	Wait(2)
 
 	h:MoveTo(r.Position + r.CFrame.LookVector * 10)
-	h:ChangeState(Enum.HumanoidStateType.Jumping)
+	NAmanage.LaunchHumanoid(h, r)
 	Wait(0.45)
 
 	cmd.run({'die'})
@@ -51541,7 +51624,7 @@ cmd.add({"pathfind"},{"pathfind <player>","Follow a player using the pathfinder 
 						for _,wp in ipairs(path:GetWaypoints())do
 							if wp.Action==Enum.PathWaypointAction.Jump then
 								if hum:GetState()~=Enum.HumanoidStateType.Freefall and hum.FloorMaterial~=Enum.Material.Air then
-									hum:ChangeState(Enum.HumanoidStateType.Jumping)
+									NAmanage.LaunchHumanoid(hum)
 								end
 							end
 							hum:MoveTo(wp.Position)
@@ -54825,7 +54908,7 @@ cmd.add({"unheadsit"}, {"unheadsit", "Stop the headsit command."}, function()
 	local char = getChar()
 	local hum = getHum()
 	if hum then
-		hum:ChangeState(Enum.HumanoidStateType.Jumping)
+		NAmanage.LaunchHumanoid(hum, char and getRoot(char))
 	end
 end)
 
@@ -54866,7 +54949,7 @@ cmd.add({"wallhop"},{"wallhop","wallhop helper"},function()
 					local newYaw = originalYaw + flickAngle
 
 					root.CFrame = CFrame.new(root.Position) * CFrame.Angles(0, math.rad(newYaw), 0)
-					hum:ChangeState(Enum.HumanoidStateType.Jumping)
+					NAmanage.LaunchHumanoid(hum, root)
 
 					Delay(0.1, function()
 						if root and root.Parent then
@@ -54892,7 +54975,12 @@ cmd.add({"joinvoice", "joinvc"},{"joinvoice","let's you use vc if you were suspe
 end)
 
 cmd.add({"jump"},{"jump","jump."},function()
-	getHum():ChangeState(Enum.HumanoidStateType.Jumping)
+	local char = getChar()
+	local hum = getHum(char)
+	local root = char and getRoot(char)
+	if not hum or not root then return end
+
+	NAmanage.LaunchHumanoid(hum, root)
 end)
 
 cmd.add({"loopjump","bhop"},{"loopjump (bhop)","Continuously jump."},function()
@@ -54900,7 +54988,7 @@ cmd.add({"loopjump","bhop"},{"loopjump (bhop)","Continuously jump."},function()
 	NAlib.connect("loopjump",RunService.RenderStepped:Connect(function()
 		local h=getHum()
 		if h and h:GetState()~=Enum.HumanoidStateType.Freefall and h.FloorMaterial~=Enum.Material.Air then
-			h:ChangeState(Enum.HumanoidStateType.Jumping)
+			NAmanage.LaunchHumanoid(h)
 		end
 	end))
 end)
@@ -57398,7 +57486,10 @@ cmd.add({"suslay", "laysus"}, {"suslay (laysus)", "Lay down in a suspicious way"
 end)
 
 cmd.add({"unsuslay"}, {"unsuslay", "Stand up from the sussy lay"}, function()
-	getHum():ChangeState(Enum.HumanoidStateType.Jumping)
+	local hum = getHum()
+	if hum then
+		NAmanage.LaunchHumanoid(hum)
+	end
 
 	if susTrack then
 		susTrack:Stop()
@@ -67656,7 +67747,7 @@ cmd.add({"infjump", "infinitejump"}, {"infjump (infinitejump)", "Enables infinit
 		NAlib.connect("infjump_jump", UserInputService.JumpRequest:Connect(function()
 			if not debounce and humanoid:GetState() ~= Enum.HumanoidStateType.Dead then
 				debounce = true
-				humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+				NAmanage.LaunchHumanoid(humanoid)
 
 				Delay(0.25, function()
 					debounce = false
@@ -67687,7 +67778,10 @@ cmd.add({"flyjump"},{"flyjump","Allows you to hold space to fly up"},function()
 
 	NAlib.disconnect("flyjump")
 	NAlib.connect("flyjump", UserInputService.JumpRequest:Connect(function()
-		getHum():ChangeState(Enum.HumanoidStateType.Jumping)
+		local hum = getHum()
+		if hum then
+			NAmanage.LaunchHumanoid(hum)
+		end
 	end))
 end)
 
@@ -71201,7 +71295,7 @@ cmd.add({"actnpc"}, {"actnpc", "Start acting like an NPC"}, function()
 		if hum.Sit then
 			DebugNotif("Sitting detected — jumping to escape", 1.5)
 			hum.Sit = false
-			hum:ChangeState(Enum.HumanoidStateType.Jumping)
+			NAmanage.LaunchHumanoid(hum, root)
 			NPCControl._jumpCooldown = 1.5
 			return
 		end
@@ -71237,7 +71331,7 @@ cmd.add({"actnpc"}, {"actnpc", "Start acting like an NPC"}, function()
 			if part.CanCollide and not isPlayerChar then
 				if hum:GetState() == Enum.HumanoidStateType.Running then
 					DebugNotif("Obstacle detected — jumping", 1.5)
-					hum:ChangeState(Enum.HumanoidStateType.Jumping)
+					NAmanage.LaunchHumanoid(hum, root)
 					NPCControl._jumpCooldown = 1.5
 				end
 			end
@@ -84843,7 +84937,8 @@ NAmanage.CommandKeybindsAdd=function()
 	DoNotif("Press a key, key combo, or click combo to bind to a command...", 3)
 	NAStuff._capturingCommandKeybind = true
 	bindConn = UIS.InputBegan:Connect(function(input, gameProcessed)
-		if gameProcessed or not listening then return end
+		if not listening then return end
+		if gameProcessed and input and input.UserInputType ~= Enum.UserInputType.Keyboard then return end
 		local keyName = NAmanage.CKBBind(input, UIS)
 		if not keyName then
 			return
@@ -85587,7 +85682,7 @@ NAmanage.CommandKeybindsUIWire=function()
 
 			conn = UserInputService.InputBegan:Connect(function(input, gp)
 				if tok ~= ui._capTok then return end
-				if gp then return end
+				if gp and input and input.UserInputType ~= Enum.UserInputType.Keyboard then return end
 
 				local keyName = NAmanage.CKBBind(input, UserInputService)
 				if not keyName then
@@ -97692,11 +97787,17 @@ NAmanage.ApplyJump = function(val)
 	if hum then
 		if hum.UseJumpPower ~= false then
 			hum.JumpPower = val
-		elseif hum.ChangeState then
-			hum:ChangeState(Enum.HumanoidStateType.Jumping)
+		else
+			hum.JumpHeight = val
 		end
 	end
 end
+
+NAgui.addSection("Jump")
+NAgui.addToggle("Safe Jump Method", NAStuff.SafeJumpMethod ~= false, function(state)
+	NAStuff.SafeJumpMethod = state ~= false
+	NAmanage.NASettingsSet("safeJumpMethod", NAStuff.SafeJumpMethod)
+end)
 
 NAStuff.CustomMovementSounds = NAStuff.CustomMovementSounds or {
 	Enabled = false,
