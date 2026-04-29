@@ -46516,13 +46516,10 @@ cmd.add({"unhide", "show"}, {"show <player> (unhide)", "places the selected play
 	end
 end, true)
 
-
-if IsOnPC then
-	cmd.add({"aimbot","aimbotui","aimbotgui"},{"aimbot (aimbotui,aimbotgui)","aimbot and yeah"},function()
-		loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/NewAimbot.lua"))()
-		--loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/Aimbot.lua",true))()
-	end)
-end
+cmd.add({"aimbot","aimbotui","aimbotgui"},{"aimbot (aimbotui,aimbotgui)","aimbot and yeah"},function()
+	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/NewAimbot.lua"))()
+	--loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/Aimbot.lua",true))()
+end)
 
 NAmanage.toolCache = NAmanage.ensureWeakKeyTable(NAmanage.toolCache or {})
 NAmanage.toolGrabCol = NAmanage.ensureWeakKeyTable(NAmanage.toolGrabCol or {})
