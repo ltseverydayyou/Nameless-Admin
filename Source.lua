@@ -32616,6 +32616,8 @@ NAmanage.ovUpd = function(st, root, base, offVec)
 	end
 
 	local off = (typeof(offVec) == "Vector3") and offVec or Vector3.new()
+	local rootBase = base
+	local rootTarget = (rootBase * NAmanage.UG_getTransform(st)) + off
 	local mdl = NAmanage.ovEns(st)
 	if not mdl then
 		return
@@ -32675,8 +32677,9 @@ NAmanage.ovUpd = function(st, root, base, offVec)
 
 				if gp then
 					pcall(function()
+						local rel = rootBase:ToObjectSpace(src.CFrame)
 						gp.Size = src.Size
-						gp.CFrame = src.CFrame + off
+						gp.CFrame = rootTarget * rel
 						gp.Material = Enum.Material.Glass
 						gp.Color = Color3.new(1, 1, 1)
 						gp.Transparency = 1
@@ -32742,7 +32745,11 @@ NAmanage.ovLive = function(reb)
 		return
 	end
 	local base = st.UndergroundCurrent or root.CFrame
-	local off = st.UndergroundOffset or NAStuff.NA_UNDERGROUND_OFFSET or Vector3.new(0, -15, 0)
+	local off = st.UndergroundResolvedOffset or st.UndergroundOffset or Vector3.new()
+	if off.Magnitude <= 0.0001 then
+		NAmanage.ovClr(st)
+		return
+	end
 	NAmanage.ovUpd(st, root, base, off)
 end
 
@@ -32760,8 +32767,199 @@ do
 	st.Underground = false
 	st.UndergroundBind = false
 	st.UndergroundCurrent = nil
+	st.UndergroundTransform = nil
+	st.UndergroundMirrorGround = nil
+	st.UndergroundResolvedOffset = nil
 	st.PendingTranslation = nil
 	st.heartbeatConnection = nil
+end
+
+NAStuff.NA_UNDERGROUND_IDENTITY_CFRAME = NAStuff.NA_UNDERGROUND_IDENTITY_CFRAME or CFrame.new()
+NAStuff.NA_UNDERGROUND_UPSIDEDOWN_CFRAME = NAStuff.NA_UNDERGROUND_UPSIDEDOWN_CFRAME
+	or (CFrame.Angles(math.rad(180), 0, 0) * CFrame.Angles(0, math.rad(180), 0))
+NAStuff.NA_UNDERGROUND_MIRROR_RAY_DISTANCE = NAStuff.NA_UNDERGROUND_MIRROR_RAY_DISTANCE or 2048
+NAStuff.NA_UNDERGROUND_MIRROR_FALLBACK_OFFSET = NAStuff.NA_UNDERGROUND_MIRROR_FALLBACK_OFFSET or Vector3.new(0, -15, 0)
+
+NAmanage.UG_hasOffset = function(vec)
+	return typeof(vec) == "Vector3" and vec.Magnitude > 0.0001
+end
+
+NAmanage.UG_getTransform = function(state)
+	local transform = state and state.UndergroundTransform
+	if typeof(transform) == "CFrame" then
+		return transform
+	end
+	return NAStuff.NA_UNDERGROUND_IDENTITY_CFRAME
+end
+
+NAmanage.UG_hasTransform = function(state)
+	return NAmanage.UG_getTransform(state) ~= NAStuff.NA_UNDERGROUND_IDENTITY_CFRAME
+end
+
+NAmanage.UG_updateVisualizer = function(state, root, current)
+	local offsetVec = (state and state.UndergroundResolvedOffset) or (state and state.UndergroundOffset) or Vector3.new()
+	if state and root and current and NAmanage.UG_hasOffset(offsetVec) then
+		NAmanage.ovUpd(state, root, current, offsetVec)
+	else
+		NAmanage.ovClr(state)
+	end
+end
+
+NAmanage.UG_fetchCharPieces = function()
+	local chr = getChar()
+	if not chr then
+		return nil, nil, nil
+	end
+	local hum = getHum()
+	local root = getRoot(chr)
+	if not root then
+		for _, part in ipairs(chr:GetChildren()) do
+			if part:IsA("BasePart") then
+				root = part
+				break
+			end
+		end
+	end
+	return chr, root, hum
+end
+
+NAmanage.UG_raycastDown = function(origin)
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	local filter = {}
+	local chr = getChar()
+	if chr then
+		Insert(filter, chr)
+	end
+	params.FilterDescendantsInstances = filter
+	return workspace:Raycast(origin, Vector3.new(0, -NAStuff.NA_UNDERGROUND_MIRROR_RAY_DISTANCE, 0), params)
+end
+
+NAmanage.UG_getActiveOffset = function(state, root, hum)
+	local extraOffset = (state and state.UndergroundOffset) or Vector3.new()
+	if not (state and state.UndergroundMirrorGround and root) then
+		return extraOffset
+	end
+
+	local rayOrigin = root.Position + Vector3.new(0, 4, 0)
+	local hit = NAmanage.UG_raycastDown(rayOrigin)
+	if hit and hit.Position then
+		local mirroredRootY = (2 * hit.Position.Y) - root.Position.Y
+		return Vector3.new(0, mirroredRootY - root.Position.Y, 0) + extraOffset
+	end
+
+	local hrpHalf = ((NAlib.isProperty(root, "Size") and root.Size.Y) or 2) * 0.5
+	local feetFromRoot = hrpHalf + ((hum and hum.HipHeight) or 2)
+	return Vector3.new(0, -(feetFromRoot * 2), 0) + extraOffset + NAStuff.NA_UNDERGROUND_MIRROR_FALLBACK_OFFSET
+end
+
+NAmanage.UG_disable = function(state, message)
+	if type(state) ~= "table" then
+		return
+	end
+
+	local function fetchRoot()
+		local _, root = NAmanage.UG_fetchCharPieces()
+		return root
+	end
+
+	for _ = 1, 10 do
+		local root = fetchRoot()
+		if root then
+			root.CFrame = state.UndergroundCurrent or root.CFrame
+		end
+		Wait()
+	end
+
+	state.UndergroundCurrent = nil
+	state.UndergroundTransform = nil
+	state.UndergroundMirrorGround = nil
+	state.UndergroundResolvedOffset = nil
+
+	local hb = state.heartbeatConnection
+	if hb then
+		pcall(function()
+			hb:Disconnect()
+		end)
+		state.heartbeatConnection = nil
+	end
+
+	state.UndergroundOffset = nil
+	state.PendingTranslation = nil
+	state.Underground = false
+	NAmanage.ovClr(state)
+
+	if state.UndergroundBind then
+		state.UndergroundBind = false
+		if RunService and RunService.UnbindFromRenderStep then
+			pcall(RunService.UnbindFromRenderStep, RunService, NAStuff.NA_UNDERGROUND_BIND_NAME)
+		end
+	end
+
+	if message and type(DoNotif) == "function" then
+		DoNotif(message, 2)
+	end
+end
+
+NAmanage.UG_enable = function(state, rootPart)
+	if state.Underground then
+		NAmanage.UG_updateVisualizer(state, rootPart, state.UndergroundCurrent or (rootPart and rootPart.CFrame))
+		return
+	end
+
+	state.Underground = true
+	state.UndergroundCurrent = rootPart.CFrame
+	state.PendingTranslation = nil
+
+	local prevHB = state.heartbeatConnection
+	if prevHB then
+		pcall(function() prevHB:Disconnect() end)
+	end
+
+	state.heartbeatConnection = RunService.Heartbeat:Connect(function()
+		if not state.Underground then
+			return
+		end
+
+		local _, currentRoot, hum = NAmanage.UG_fetchCharPieces()
+		if not currentRoot then
+			return
+		end
+
+		local baseCFrame = currentRoot.CFrame
+		local pendingTranslation = state.PendingTranslation
+		if typeof(pendingTranslation) == "Vector3" and pendingTranslation.Magnitude > 0 then
+			baseCFrame += pendingTranslation
+			state.PendingTranslation = nil
+		end
+
+		state.UndergroundCurrent = baseCFrame
+		if hum then
+			hum.Sit = false
+		end
+
+		local activeTransform = NAmanage.UG_getTransform(state)
+		local activeOffset = NAmanage.UG_getActiveOffset(state, currentRoot, hum)
+		state.UndergroundResolvedOffset = activeOffset
+		currentRoot.CFrame = (baseCFrame * activeTransform) + activeOffset
+	end)
+
+	if RunService and RunService.UnbindFromRenderStep then
+		pcall(RunService.UnbindFromRenderStep, RunService, NAStuff.NA_UNDERGROUND_BIND_NAME)
+	end
+	state.UndergroundBind = true
+	__lt.cm("RunService", "BindToRenderStep", NAStuff.NA_UNDERGROUND_BIND_NAME, Enum.RenderPriority.First.Value, function()
+		local current = state.UndergroundCurrent
+		if state.Underground and current then
+			local _, root = NAmanage.UG_fetchCharPieces()
+			if root then
+				root.CFrame = current
+				NAmanage.UG_updateVisualizer(state, root, current)
+			end
+		end
+	end)
+
+	NAmanage.UG_updateVisualizer(state, rootPart, state.UndergroundCurrent or rootPart.CFrame)
 end
 
 cmd.add({"offset","offpos","off"},{"offset [x y z|y]","Offsets your character for others (positive Y = up, negative Y = down)"},function(...)
@@ -32775,25 +32973,7 @@ cmd.add({"offset","offpos","off"},{"offset [x y z|y]","Offsets your character fo
 		return val
 	end
 
-	local function fetchCharPieces()
-		local chr = getChar()
-		if not chr then
-			return nil, nil, nil
-		end
-		local hum = getHum()
-		local root = getRoot(chr)
-		if not root then
-			for _, part in ipairs(chr:GetChildren()) do
-				if part:IsA("BasePart") then
-					root = part
-					break
-				end
-			end
-		end
-		return chr, root, hum
-	end
-
-	local character, rootPart, humanoid = fetchCharPieces()
+	local character, rootPart, humanoid = NAmanage.UG_fetchCharPieces()
 	if not (character and rootPart and humanoid) then
 		if type(DoNotif) == "function" then
 			DoNotif("Character is not ready yet", 2)
@@ -32825,69 +33005,53 @@ cmd.add({"offset","offpos","off"},{"offset [x y z|y]","Offsets your character fo
 	local Underground = UG_Get("Underground")
 	if Underground then
 		UG_Set("UndergroundOffset", offsetVec)
-		NAmanage.ovLive(false)
+		state.UndergroundResolvedOffset = state.UndergroundMirrorGround and NAmanage.UG_getActiveOffset(state, rootPart, humanoid) or offsetVec
+		NAmanage.UG_updateVisualizer(state, rootPart, UG_Get("UndergroundCurrent") or rootPart.CFrame)
 		if type(DoNotif) == "function" then
 			DoNotif("Offset updated", 2)
 		end
 		return
 	end
 
-	UG_Set("Underground", true)
-	UG_Set("UndergroundCurrent", rootPart.CFrame)
 	UG_Set("UndergroundOffset", offsetVec)
+	state.UndergroundResolvedOffset = state.UndergroundMirrorGround and NAmanage.UG_getActiveOffset(state, rootPart, humanoid) or offsetVec
 	UG_Set("PendingTranslation", nil)
 
-	local prevHB = UG_Get("heartbeatConnection")
-	if prevHB then
-		pcall(function() prevHB:Disconnect() end)
-	end
-
-	UG_Set("heartbeatConnection", RunService.Heartbeat:Connect(function()
-		if not UG_Get("Underground") then
-			return
-		end
-
-		local _, currentRoot, hum = fetchCharPieces()
-		if not currentRoot then
-			return
-		end
-
-		local baseCFrame = currentRoot.CFrame
-		local pendingTranslation = UG_Get("PendingTranslation")
-		if typeof(pendingTranslation) == "Vector3" and pendingTranslation.Magnitude > 0 then
-			baseCFrame += pendingTranslation
-			UG_Set("PendingTranslation", nil)
-		end
-		local activeOffset = UG_Get("UndergroundOffset") or defaultOffset
-		UG_Set("UndergroundCurrent", baseCFrame)
-		if hum then
-			hum.Sit = false
-		end
-
-		currentRoot.CFrame = baseCFrame + activeOffset
-	end))
-
-	if RunService and RunService.UnbindFromRenderStep then
-		pcall(RunService.UnbindFromRenderStep, RunService, NAStuff.NA_UNDERGROUND_BIND_NAME)
-	end
-	UG_Set("UndergroundBind", true)
-	__lt.cm("RunService", "BindToRenderStep", NAStuff.NA_UNDERGROUND_BIND_NAME, Enum.RenderPriority.First.Value, function()
-		local current = UG_Get("UndergroundCurrent")
-		if UG_Get("Underground") and current then
-			local _, r = fetchCharPieces()
-			if r then
-				r.CFrame = current
-				NAmanage.ovUpd(state, r, current, UG_Get("UndergroundOffset") or defaultOffset)
-			end
-		end
-	end)
-
-	NAmanage.ovUpd(state, rootPart, UG_Get("UndergroundCurrent") or rootPart.CFrame, UG_Get("UndergroundOffset") or defaultOffset)
+	NAmanage.UG_enable(state, rootPart)
 
 	if type(DoNotif) == "function" then
 		DoNotif("Offset enabled (replicates for others)", 2)
 	end
 	return
+end)
+
+cmd.add({"upsidedown","flipchar"},{"upsidedown","Flips your character upside down for others using the offset replication method"},function()
+	local state = NAStuff.NAundergroundState
+	local character, rootPart, humanoid = NAmanage.UG_fetchCharPieces()
+	if not (character and rootPart and humanoid) then
+		if type(DoNotif) == "function" then
+			DoNotif("Character is not ready yet", 2)
+		end
+		return
+	end
+
+	state.UndergroundTransform = NAStuff.NA_UNDERGROUND_UPSIDEDOWN_CFRAME
+	state.UndergroundMirrorGround = true
+	if not state.Underground then
+		state.UndergroundOffset = state.UndergroundOffset or Vector3.new()
+		state.PendingTranslation = nil
+		NAmanage.UG_enable(state, rootPart)
+		if type(DoNotif) == "function" then
+			DoNotif("Upsidedown enabled (replicates for others)", 2)
+		end
+		return
+	end
+
+	state.UndergroundResolvedOffset = NAmanage.UG_getActiveOffset(state, rootPart, humanoid)
+	NAmanage.UG_updateVisualizer(state, rootPart, state.UndergroundCurrent or rootPart.CFrame)
+	if type(DoNotif) == "function" then
+		DoNotif("Upsidedown updated", 2)
+	end
 end)
 
 cmd.add({"unoffset","unoffpos","unoff"},{"unoffset","Disables offset and restores your character"},function()
@@ -32902,56 +33066,42 @@ cmd.add({"unoffset","unoffpos","unoff"},{"unoffset","Disables offset and restore
 		return
 	end
 
-	local function fetchRoot()
-		local chr = getChar()
-		if not chr then
-			return nil
-		end
-		local root = getRoot(chr)
-		if not root then
-			for _, part in ipairs(chr:GetChildren()) do
-				if part:IsA("BasePart") then
-					root = part
-					break
-				end
-			end
-		end
-		return root
-	end
-
-	for _ = 1, 10 do
-		local r = fetchRoot()
-		if r then
-			r.CFrame = state.UndergroundCurrent or r.CFrame
-		end
-		Wait()
-	end
-
-	state.UndergroundCurrent = nil
-
-	local hb = state.heartbeatConnection
-	if hb then
-		pcall(function()
-			hb:Disconnect()
-		end)
-		state.heartbeatConnection = nil
-	end
-
 	state.UndergroundOffset = nil
-	state.PendingTranslation = nil
-	state.Underground = false
-	NAmanage.ovClr(state)
-
-	if state.UndergroundBind then
-		state.UndergroundBind = false
-		if RunService and RunService.UnbindFromRenderStep then
-			pcall(RunService.UnbindFromRenderStep, RunService, NAStuff.NA_UNDERGROUND_BIND_NAME)
+	if NAmanage.UG_hasTransform(state) then
+		local _, root, hum = NAmanage.UG_fetchCharPieces()
+		state.UndergroundResolvedOffset = NAmanage.UG_getActiveOffset(state, root, hum)
+		NAmanage.UG_updateVisualizer(state, root, state.UndergroundCurrent or (root and root.CFrame))
+		if type(DoNotif) == "function" then
+			DoNotif("Offset disabled, upside down is still active", 2)
 		end
+		return
 	end
 
-	if type(DoNotif) == "function" then
-		DoNotif("Offset disabled, you're back to normal", 2)
+	NAmanage.UG_disable(state, "Offset disabled, you're back to normal")
+end)
+
+cmd.add({"unupsidedown","unflipchar"},{"unupsidedown","Disables the upside down replication and restores your character"},function()
+	local state = NAStuff.NAundergroundState
+	if type(state) ~= "table" or state.Underground ~= true then
+		if type(DoNotif) == "function" then
+			DoNotif("Upsidedown is already disabled", 2)
+		end
+		return
 	end
+
+	state.UndergroundTransform = nil
+	state.UndergroundMirrorGround = nil
+	if NAmanage.UG_hasOffset(state.UndergroundOffset) then
+		state.UndergroundResolvedOffset = state.UndergroundOffset
+		local _, root = NAmanage.UG_fetchCharPieces()
+		NAmanage.UG_updateVisualizer(state, root, state.UndergroundCurrent or (root and root.CFrame))
+		if type(DoNotif) == "function" then
+			DoNotif("Upsidedown disabled, offset is still active", 2)
+		end
+		return
+	end
+
+	NAmanage.UG_disable(state, "Upsidedown disabled, you're back to normal")
 end)
 
 clickscareUI = nil
