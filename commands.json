@@ -424,6 +424,16 @@
       "desc": "Offsets your character for others (positive Y = up, negative Y = down)"
     },
     {
+      "name": "upsidedown",
+      "aliases": [
+        "upsidedown",
+        "flipchar"
+      ],
+      "usage": "upsidedown",
+      "args": "",
+      "desc": "Flips your character upside down for others using the offset replication method"
+    },
+    {
       "name": "unoffset",
       "aliases": [
         "unoffset",
@@ -433,6 +443,16 @@
       "usage": "unoffset",
       "args": "",
       "desc": "Disables offset and restores your character"
+    },
+    {
+      "name": "unupsidedown",
+      "aliases": [
+        "unupsidedown",
+        "unflipchar"
+      ],
+      "usage": "unupsidedown",
+      "args": "",
+      "desc": "Disables the upside down replication and restores your character"
     },
     {
       "name": "clickscare",
