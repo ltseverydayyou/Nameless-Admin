@@ -55548,7 +55548,7 @@ cmd.add({"loopwalkspeed", "loopws", "lws"}, {"loopwalkspeed <number> (loopws,lws
 	NAmanage.StartLegacyLoopWalkSpeed(val)
 end, true)
 
-cmd.add({"unloopwalkspeed", "unloopws", "unlws"}, {"unloopwalkspeed (unloopws,unlws)", "Disable loop walkspeed"}, function()
+cmd.add({"unloopwalkspeed", "unloopws", "unlws", "unspeed"}, {"unloopwalkspeed", "Disable loop walkspeed"}, function()
 	if NAStuff.SafeSpeedMethod ~= false then
 		_na_env.NamelessSpeed = nil
 		NAmanage.StopVelocityWalkSpeed()
