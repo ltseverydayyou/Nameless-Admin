@@ -19383,6 +19383,7 @@ NAStuff.CmdIntegrationAutoRun = NAmanage.NASettingsGet("cmdIntegrationAutoRun")
 NAStuff.AutoPreloadAssets = NAmanage.NASettingsGet("autoPreloadAssets")
 NAStuff.LightingStyleAutomation = NAmanage.NASettingsGet("lightingStyleAutomation") == true
 NAStuff.LightingStyleAutomationStyle = NAmanage.NASettingsGet("lightingStyleAutomationStyle") or "Soft"
+NAStuff.SafeSpeedMethod = NAmanage.NASettingsGet("safeSpeedMethod") ~= false
 NAStuff.SafeJumpMethod = NAmanage.NASettingsGet("safeJumpMethod") ~= false
 NAStuff.CustomMovementSounds = NAStuff.CustomMovementSounds or {}
 NAStuff.CustomMovementSounds.Enabled = NAmanage.NASettingsGet("customMovementSoundsEnabled") == true
@@ -26276,6 +26277,7 @@ NAmanage.FLY_Cleanup = function(char)
 	local c = char or getChar()
 	local hum = getHum(c)
 	local head = getHead(c)
+	NAmanage.ClearVelocityWalkSpeedClampState()
 	if head then pcall(function() head.Anchored = false end) end
 	if hum then
 		pcall(function() hum.PlatformStand = false end)
@@ -26486,6 +26488,7 @@ NAmanage.sFLY=function(vfly,cfly,tfly)
 	while not getChar() or not getRoot(getChar()) or not getHum() do Wait() end
 	CONTROL={Q=0,E=0}; lCONTROL={Q=0,E=0}; SPEED=0
 	local hum=getHum(); local head=getHead(getChar()); local root=getRoot(getChar())
+	NAmanage.EnsureVelocityWalkSpeedClampLoop()
 	NAmanage._bindQE()
 	if tfly then
 		goofyFLY=goofyFLY or InstanceNew("Part",workspace)
@@ -26508,6 +26511,9 @@ NAmanage.sFLY=function(vfly,cfly,tfly)
 				while NAmanage._state.mode=="tfly" do
 					local cam=NAmanage._camera()
 					if cam and FLYING and flyVariables.TFpos and flyVariables.TFgyro then
+						local currentChar=getChar()
+						local currentHum=getHum(currentChar)
+						local currentRoot=currentChar and getRoot(currentChar)
 						local sp=tonumber(flyVariables.TflySpeed) or 1
 						local mv=GetCustomMoveVector(); mv=Vector3.new(mv.X,mv.Y,-mv.Z)
 						local np=flyVariables.TFgyro.cframe-flyVariables.TFgyro.cframe.p+flyVariables.TFpos.position
@@ -26520,9 +26526,15 @@ NAmanage.sFLY=function(vfly,cfly,tfly)
 							flyVariables.TFpos.position=np.p
 							flyVariables.TFgyro.cframe=cam.CFrame
 						end)
+						if currentRoot and currentHum then
+							NAmanage.SetVelocityWalkSpeedClampState(currentRoot, currentHum, Vector3.new(1,1,1))
+						end
+					else
+						NAmanage.ClearVelocityWalkSpeedClampState()
 					end
 					Wait()
 				end
+				NAmanage.ClearVelocityWalkSpeedClampState()
 				flyVariables._tflyLoop=false
 			end)
 		end
@@ -26566,6 +26578,9 @@ NAmanage.sFLY=function(vfly,cfly,tfly)
 				while (NAmanage._state.mode=="fly" or NAmanage._state.mode=="vfly") do
 					local cam=NAmanage._camera()
 					if cam and FLYING and flyVariables.BV and flyVariables.BG then
+						local currentChar=getChar()
+						local currentHum=getHum(currentChar)
+						local currentRoot=currentChar and getRoot(currentChar)
 						local mv=GetCustomMoveVector(); mv=Vector3.new(mv.X,mv.Y,-mv.Z)
 						local has=mv.Magnitude>0 or CONTROL.Q~=0 or CONTROL.E~=0
 						if has then
@@ -26576,17 +26591,26 @@ NAmanage.sFLY=function(vfly,cfly,tfly)
 						if has then
 							flyVariables.BV.velocity=((cam.CFrame.LookVector*mv.Z)+((cam.CFrame*CFrame.new(mv.X,(mv.Z+CONTROL.Q+CONTROL.E)*0.2,0).p)-cam.CFrame.p))*SPEED
 							lCONTROL={Q=CONTROL.Q,E=CONTROL.E}
+							if currentRoot and currentHum then
+								NAmanage.SetVelocityWalkSpeedClampState(currentRoot, currentHum, Vector3.new(1,1,1))
+							end
 						elseif SPEED~=0 then
 							flyVariables.BV.velocity=((cam.CFrame.LookVector*mv.Z)+((cam.CFrame*CFrame.new(mv.X,(mv.Z+lCONTROL.Q+lCONTROL.E)*0.2,0).p)-cam.CFrame.p))*SPEED
+							if currentRoot and currentHum then
+								NAmanage.SetVelocityWalkSpeedClampState(currentRoot, currentHum, Vector3.new(1,1,1))
+							end
 						else
 							flyVariables.BV.velocity=Vector3.zero
+							NAmanage.ClearVelocityWalkSpeedClampState()
 						end
 						flyVariables.BG.cframe=cam.CFrame
 					elseif flyVariables.BV then
 						flyVariables.BV.velocity=Vector3.zero
+						NAmanage.ClearVelocityWalkSpeedClampState()
 					end
 					Wait()
 				end
+				NAmanage.ClearVelocityWalkSpeedClampState()
 				if flyVariables.BG then pcall(function() flyVariables.BG:Destroy() end) end
 				if flyVariables.BV then pcall(function() flyVariables.BV:Destroy() end) end
 				flyVariables.BG=nil; flyVariables.BV=nil
@@ -26681,6 +26705,9 @@ NAmanage._ensureLoops=function()
 						Wait()
 					else
 						if FLYING then
+							local currentChar=getChar()
+							local currentHum=getHum(currentChar)
+							local currentRoot=currentChar and getRoot(currentChar)
 							local cam=workspace.CurrentCamera
 							local sp=tonumber(flyVariables.TflySpeed) or 1
 							local mv=GetCustomMoveVector(); mv=Vector3.new(mv.X,mv.Y,-mv.Z)
@@ -26694,10 +26721,16 @@ NAmanage._ensureLoops=function()
 								flyVariables.TFpos.position=np.p
 								flyVariables.TFgyro.cframe=cam.CFrame
 							end)
+							if currentRoot and currentHum then
+								NAmanage.SetVelocityWalkSpeedClampState(currentRoot, currentHum, Vector3.new(1,1,1))
+							end
+						else
+							NAmanage.ClearVelocityWalkSpeedClampState()
 						end
 					end
 					Wait()
 				end
+				NAmanage.ClearVelocityWalkSpeedClampState()
 				flyVariables._tflyLoop=false
 			end)
 		end
@@ -26711,6 +26744,9 @@ NAmanage._ensureLoops=function()
 						Wait()
 					else
 						if FLYING then
+							local currentChar=getChar()
+							local currentHum=getHum(currentChar)
+							local currentRoot=currentChar and getRoot(currentChar)
 							local cam=workspace.CurrentCamera
 							local mv=GetCustomMoveVector(); mv=Vector3.new(mv.X,mv.Y,-mv.Z)
 							local has=mv.Magnitude>0 or CONTROL.Q~=0 or CONTROL.E~=0
@@ -26725,23 +26761,32 @@ NAmanage._ensureLoops=function()
 									flyVariables.BG.cframe=cam.CFrame
 								end)
 								lCONTROL={Q=CONTROL.Q,E=CONTROL.E}
+								if currentRoot and currentHum then
+									NAmanage.SetVelocityWalkSpeedClampState(currentRoot, currentHum, Vector3.new(1,1,1))
+								end
 							elseif SPEED~=0 then
 								pcall(function()
 									flyVariables.BV.velocity=((cam.CFrame.LookVector*mv.Z)+((cam.CFrame*CFrame.new(mv.X,(mv.Z+lCONTROL.Q+lCONTROL.E)*0.2,0).p)-cam.CFrame.p))*SPEED
 									flyVariables.BG.cframe=cam.CFrame
 								end)
+								if currentRoot and currentHum then
+									NAmanage.SetVelocityWalkSpeedClampState(currentRoot, currentHum, Vector3.new(1,1,1))
+								end
 							else
 								pcall(function()
 									flyVariables.BV.velocity=Vector3.zero
 									flyVariables.BG.cframe=cam.CFrame
 								end)
+								NAmanage.ClearVelocityWalkSpeedClampState()
 							end
 						else
 							if flyVariables.BV then pcall(function() flyVariables.BV.velocity=Vector3.zero end) end
+							NAmanage.ClearVelocityWalkSpeedClampState()
 						end
 					end
 					Wait()
 				end
+				NAmanage.ClearVelocityWalkSpeedClampState()
 				flyVariables._stdLoop=false
 			end)
 		end
@@ -55146,40 +55191,372 @@ cmd.add({"unheadstand"}, {"unheadstand", "Stop the headstand command."}, functio
 end)
 
 _na_env.NamelessWs = nil
+_na_env.NamelessSpeed = nil
 NAStuff.loopws = false
 
-cmd.add({"loopwalkspeed", "loopws", "lws"}, {"loopwalkspeed <number> (loopws,lws)", "Loop walkspeed"}, function(...)
-	local val = tonumber(...) or 16
-	_na_env.NamelessWs = val
-	NAStuff.loopws = true
+NAmanage.GetVelocityWalkSpeedValue = function()
+	return tonumber(_na_env.NamelessSpeed)
+end
 
+NAmanage.GetVelocityWalkSpeedState = function()
+	NAStuff.velocityWalkSpeed = NAStuff.velocityWalkSpeed or {}
+	return NAStuff.velocityWalkSpeed
+end
+
+NAmanage.ClearVelocityWalkSpeedClampState = function()
+	local state = NAmanage.GetVelocityWalkSpeedState()
+	state.clampRoot = nil
+	state.clampHum = nil
+	state.clampAxes = nil
+end
+
+NAmanage.SetVelocityWalkSpeedClampState = function(root, hum, axes)
+	local state = NAmanage.GetVelocityWalkSpeedState()
+	state.clampRoot = root
+	state.clampHum = hum
+	state.clampAxes = axes
+end
+
+NAmanage.ClampVelocityWalkSpeedRoot = function()
+	local state = NAmanage.GetVelocityWalkSpeedState()
+	local root = state.clampRoot
+	local hum = state.clampHum
+	local axes = state.clampAxes
+	if not root or not hum or not axes or not root.Parent or not hum.Parent then
+		return
+	end
+	local cap = tonumber(hum.WalkSpeed) or 0
+	if cap <= 0 then
+		return
+	end
+	local velocity = NAlib.isProperty(root, "AssemblyLinearVelocity") or root.Velocity
+	if typeof(velocity) ~= "Vector3" then
+		return
+	end
+	local newVelocity = velocity
+	if math.abs(axes.X) > 0.05 then
+		newVelocity = Vector3.new(math.clamp(newVelocity.X, -cap, cap), newVelocity.Y, newVelocity.Z)
+	end
+	if math.abs(axes.Y) > 0.05 then
+		newVelocity = Vector3.new(newVelocity.X, math.clamp(newVelocity.Y, -cap, cap), newVelocity.Z)
+	end
+	if math.abs(axes.Z) > 0.05 then
+		newVelocity = Vector3.new(newVelocity.X, newVelocity.Y, math.clamp(newVelocity.Z, -cap, cap))
+	end
+	if newVelocity ~= velocity then
+		if not NAlib.setProperty(root, "AssemblyLinearVelocity", newVelocity) then
+			root.Velocity = newVelocity
+		end
+	end
+end
+
+NAmanage.EnsureVelocityWalkSpeedClampLoop = function()
+	if NAlib.isConnected("na_velocityws_cap") then
+		return
+	end
+	local clampSignal = RunService.PostSimulation or RunService.Heartbeat
+	NAlib.connect("na_velocityws_cap", clampSignal:Connect(function()
+		NAmanage.ClampVelocityWalkSpeedRoot()
+	end))
+end
+
+NAmanage.DestroyVelocityWalkSpeedHelper = function()
+	local state = NAmanage.GetVelocityWalkSpeedState()
+	NAmanage.ClearVelocityWalkSpeedClampState()
+	if state.bv then
+		pcall(function()
+			state.bv:Destroy()
+		end)
+	end
+	if state.weld then
+		pcall(function()
+			state.weld:Destroy()
+		end)
+	end
+	if state.part then
+		pcall(function()
+			state.part:Destroy()
+		end)
+	end
+	state.bv = nil
+	state.weld = nil
+	state.part = nil
+end
+
+NAmanage.SetVelocityWalkSpeedHelperActive = function(velocity, enabled, root)
+	local state = NAmanage.GetVelocityWalkSpeedState()
+	local bv = state.bv
+	if not bv or bv.Parent == nil then
+		return
+	end
+	pcall(function()
+		bv.Velocity = velocity or Vector3.zero
+		if enabled and root then
+			local mass = math.max(tonumber(root.AssemblyMass) or 1, 1)
+			local flatSpeed = typeof(velocity) == "Vector3" and Vector3.new(velocity.X, 0, velocity.Z).Magnitude or 0
+			local verticalSpeed = typeof(velocity) == "Vector3" and math.abs(velocity.Y) or 0
+			local planarForce = math.clamp(mass * (3500 + flatSpeed * 260), 8000, 250000)
+			local verticalForce = math.clamp(mass * (4200 + verticalSpeed * 320), 10000, 300000)
+			bv.MaxForce = Vector3.new(
+				flatSpeed > 0.05 and planarForce or 0,
+				verticalSpeed > 0.05 and verticalForce or 0,
+				flatSpeed > 0.05 and planarForce or 0
+			)
+		else
+			bv.MaxForce = Vector3.zero
+		end
+	end)
+end
+
+NAmanage.GetVelocityWalkSpeedWallAdjustedVelocity = function(root, desiredVelocity, ignoreList)
+	if not root or not root.Parent or typeof(desiredVelocity) ~= "Vector3" or desiredVelocity.Magnitude <= 0 then
+		return desiredVelocity
+	end
+	local flatDesired = Vector3.new(desiredVelocity.X, 0, desiredVelocity.Z)
+	if flatDesired.Magnitude <= 0 then
+		return desiredVelocity
+	end
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Blacklist
+	params.FilterDescendantsInstances = ignoreList or { root.Parent }
+	local rootSize = root.Size
+	local halfX = math.abs(rootSize.X) * 0.5
+	local halfZ = math.abs(rootSize.Z) * 0.5
+	local buffer = 0.12
+	local look = flatDesired.Unit
+	local localLook = root.CFrame:VectorToObjectSpace(look)
+	local reach = math.abs(localLook.X) * halfX + math.abs(localLook.Z) * halfZ
+	local stopDistance = reach + buffer
+	local direction = look * math.clamp(stopDistance + math.clamp(flatDesired.Magnitude * 0.012, 0.05, 0.25), 0.75, 2.1)
+	local origins = {
+		root.Position,
+		root.Position + Vector3.new(0, 1.5, 0),
+	}
+	for i = 1, #origins do
+		local result = workspace:Raycast(origins[i], direction, params)
+		if result and result.Instance and result.Instance.CanCollide and result.Distance <= stopDistance then
+			local flatNormal = Vector3.new(result.Normal.X, 0, result.Normal.Z)
+			if flatNormal.Magnitude > 0.05 and math.abs(result.Normal.Y) < 0.45 then
+				flatNormal = flatNormal.Unit
+				local dot = flatDesired:Dot(flatNormal)
+				if dot < 0 then
+					flatDesired = flatDesired - flatNormal * dot
+				end
+			end
+		end
+	end
+	if flatDesired.Magnitude < 0.05 then
+		return Vector3.zero
+	end
+	return Vector3.new(flatDesired.X, 0, flatDesired.Z)
+end
+
+NAmanage.EnsureVelocityWalkSpeedHelper = function(root)
+	if not root or not root.Parent then
+		return nil
+	end
+	local state = NAmanage.GetVelocityWalkSpeedState()
+	local part = state.part
+	if not part or part.Parent == nil then
+		part = InstanceNew("Part", workspace)
+		NAmanage.configureFlyHelper(part)
+		pcall(function()
+			part.Anchored = false
+			part.CFrame = root.CFrame
+		end)
+		state.part = part
+		state.weld = nil
+		state.bv = nil
+	end
+	local weld = state.weld
+	if not weld or weld.Parent ~= part then
+		if weld then
+			pcall(function()
+				weld:Destroy()
+			end)
+		end
+		weld = InstanceNew("Weld", part)
+		state.weld = weld
+	end
+	local bv = state.bv
+	if not bv or bv.Parent ~= part then
+		if bv then
+			pcall(function()
+				bv:Destroy()
+			end)
+		end
+		bv = InstanceNew("BodyVelocity", part)
+		bv.P = 1.2e4
+		bv.Velocity = Vector3.zero
+		bv.MaxForce = Vector3.zero
+		state.bv = bv
+	end
+	pcall(function()
+		if weld.Part0 ~= part then
+			weld.Part0 = part
+		end
+		if weld.Part1 ~= root then
+			weld.Part1 = root
+			part.CFrame = root.CFrame
+		end
+		weld.C0 = CFrame.new()
+	end)
+	return state
+end
+
+NAmanage.StopVelocityWalkSpeed = function()
+	NAlib.disconnect("na_velocityws_apply")
+	NAmanage.ClearVelocityWalkSpeedClampState()
+	NAmanage.DestroyVelocityWalkSpeedHelper()
+end
+
+NAmanage.StopLegacyLoopWalkSpeed = function()
 	NAlib.disconnect("loopws_apply")
 	NAlib.disconnect("loopws_char")
+end
 
+NAmanage.StartLegacyLoopWalkSpeed = function(val)
+	if not val then
+		return
+	end
+	NAmanage.StopLegacyLoopWalkSpeed()
 	local function applyWS()
 		local hum = getHum()
 		if hum then
 			hum.WalkSpeed = val
+			NAlib.disconnect("loopws_apply")
 			NAlib.connect("loopws_apply", hum:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
-				if NAStuff.loopws and hum.WalkSpeed ~= val then
+				if NAStuff.loopws and NAStuff.SafeSpeedMethod == false and hum.Parent and hum.WalkSpeed ~= val then
 					hum.WalkSpeed = val
 				end
 			end))
 		end
 	end
-
 	applyWS()
-
 	NAlib.connect("loopws_char", LocalPlayer.CharacterAdded:Connect(function()
 		while not getHum() do Wait(.1) end
-		if NAStuff.loopws then applyWS() end
+		if NAStuff.loopws and NAStuff.SafeSpeedMethod == false then
+			applyWS()
+		end
 	end))
+end
+
+NAmanage.RefreshVelocityWalkSpeed = function()
+	local targetSpeed = NAmanage.GetVelocityWalkSpeedValue()
+	if not targetSpeed or targetSpeed <= 0 then
+		NAmanage.StopVelocityWalkSpeed()
+		return
+	end
+	if NAlib.isConnected("na_velocityws_apply") then
+		return
+	end
+	NAmanage.EnsureVelocityWalkSpeedClampLoop()
+	NAlib.connect("na_velocityws_apply", RunService.PreSimulation:Connect(function()
+		local speed = NAmanage.GetVelocityWalkSpeedValue()
+		if not speed or speed <= 0 then
+			NAmanage.ClearVelocityWalkSpeedClampState()
+			NAmanage.SetVelocityWalkSpeedHelperActive(Vector3.zero, false)
+			return
+		end
+		local hum = getHum()
+		if not hum or hum.Health <= 0 or hum.Sit then
+			NAmanage.ClearVelocityWalkSpeedClampState()
+			NAmanage.SetVelocityWalkSpeedHelperActive(Vector3.zero, false)
+			return
+		end
+		local root = hum.RootPart or getRoot(hum.Parent)
+		if not root then
+			NAmanage.ClearVelocityWalkSpeedClampState()
+			NAmanage.SetVelocityWalkSpeedHelperActive(Vector3.zero, false)
+			return
+		end
+		if FLYING and NAmanage._state and NAmanage._state.mode ~= "none" then
+			NAmanage.ClearVelocityWalkSpeedClampState()
+			NAmanage.SetVelocityWalkSpeedHelperActive(Vector3.zero, false, root)
+			return
+		end
+		local helperState = NAmanage.EnsureVelocityWalkSpeedHelper(root)
+		if not helperState then
+			return
+		end
+		if hum:GetState() == Enum.HumanoidStateType.Climbing then
+			local climbInput = hum.MoveDirection.Y
+			if math.abs(climbInput) <= 0.05 then
+				local mv = GetCustomMoveVector()
+				if math.abs(mv.Y) > 0.05 then
+					climbInput = mv.Y
+				else
+					climbInput = -mv.Z
+				end
+			end
+			if math.abs(climbInput) <= 0.05 then
+				NAmanage.ClearVelocityWalkSpeedClampState()
+				NAmanage.SetVelocityWalkSpeedHelperActive(Vector3.zero, false, root)
+				return
+			end
+			NAmanage.SetVelocityWalkSpeedClampState(root, hum, Vector3.new(0, 1, 0))
+			NAmanage.SetVelocityWalkSpeedHelperActive(Vector3.new(0, math.clamp(climbInput, -1, 1) * speed, 0), true, root)
+			return
+		end
+		local moveDirection = hum.MoveDirection
+		local flatDirection = Vector3.new(moveDirection.X, 0, moveDirection.Z)
+		if flatDirection.Magnitude <= 0 then
+			NAmanage.ClearVelocityWalkSpeedClampState()
+			NAmanage.SetVelocityWalkSpeedHelperActive(Vector3.zero, false, root)
+			return
+		end
+		local desiredVelocity = flatDirection.Unit * speed
+		local adjustedVelocity = NAmanage.GetVelocityWalkSpeedWallAdjustedVelocity(root, desiredVelocity, {
+			hum.Parent,
+			helperState.part,
+		})
+		NAmanage.SetVelocityWalkSpeedClampState(root, hum, Vector3.new(1, 0, 1))
+		NAmanage.SetVelocityWalkSpeedHelperActive(adjustedVelocity, adjustedVelocity.Magnitude > 0.05, root)
+	end))
+end
+
+NAmanage.SyncSpeedMethodState = function()
+	NAmanage.StopVelocityWalkSpeed()
+	NAmanage.StopLegacyLoopWalkSpeed()
+	if NAStuff.SafeSpeedMethod ~= false then
+		if NAStuff.loopws and tonumber(_na_env.NamelessWs) then
+			_na_env.NamelessSpeed = tonumber(_na_env.NamelessWs)
+		end
+		NAStuff.loopws = false
+		_na_env.NamelessWs = nil
+		NAmanage.RefreshVelocityWalkSpeed()
+		return
+	end
+	if NAStuff.loopws and tonumber(_na_env.NamelessWs) then
+		NAmanage.StartLegacyLoopWalkSpeed(tonumber(_na_env.NamelessWs))
+	elseif tonumber(_na_env.NamelessSpeed) then
+		NAmanage.ApplyWalkSpeed(tonumber(_na_env.NamelessSpeed))
+	end
+end
+
+cmd.add({"loopwalkspeed", "loopws", "lws"}, {"loopwalkspeed <number> (loopws,lws)", "Loop walkspeed"}, function(...)
+	local val = tonumber(...) or 16
+	if NAStuff.SafeSpeedMethod ~= false then
+		_na_env.NamelessSpeed = val
+		NAStuff.loopws = false
+		_na_env.NamelessWs = nil
+		NAmanage.RefreshVelocityWalkSpeed()
+		return
+	end
+	_na_env.NamelessWs = val
+	NAStuff.loopws = true
+	NAmanage.StartLegacyLoopWalkSpeed(val)
 end, true)
 
 cmd.add({"unloopwalkspeed", "unloopws", "unlws"}, {"unloopwalkspeed (unloopws,unlws)", "Disable loop walkspeed"}, function()
+	if NAStuff.SafeSpeedMethod ~= false then
+		_na_env.NamelessSpeed = nil
+		NAmanage.StopVelocityWalkSpeed()
+		return
+	end
 	NAStuff.loopws = false
-	NAlib.disconnect("loopws_apply")
-	NAlib.disconnect("loopws_char")
+	_na_env.NamelessWs = nil
+	NAmanage.StopLegacyLoopWalkSpeed()
 end)
 
 _na_env.NamelessJP = nil
@@ -69633,9 +70010,13 @@ end)
 cmd.add({"ws", "speed", "walkspeed"}, {"walkspeed <number> (speed,ws)", "Sets your WalkSpeed"}, function(...)
 	local a = {...}
 	local s = tonumber(a[2] or a[1]) or 16
-	local h = getHum()
-	if s and h then
-		h.WalkSpeed = s
+	if s then
+		_na_env.NamelessSpeed = s
+		if NAStuff.SafeSpeedMethod ~= false then
+			NAmanage.RefreshVelocityWalkSpeed()
+		else
+			NAmanage.ApplyWalkSpeed(s)
+		end
 	end
 end, true)
 
@@ -97825,7 +98206,16 @@ NAmanage.ApplyJump = function(val)
 	end
 end
 
-NAgui.addSection("Jump")
+NAgui.addSection("Methods")
+NAgui.addToggle("Safe Speed Method", NAStuff.SafeSpeedMethod ~= false, function(state)
+	NAStuff.SafeSpeedMethod = state ~= false
+	NAmanage.NASettingsSet("safeSpeedMethod", NAStuff.SafeSpeedMethod)
+	NAmanage.SyncSpeedMethodState()
+end)
+NAmanage.RegisterToggleAutoSync("Safe Speed Method", function()
+	return NAStuff.SafeSpeedMethod ~= false
+end)
+
 NAgui.addToggle("Safe Jump Method", NAStuff.SafeJumpMethod ~= false, function(state)
 	NAStuff.SafeJumpMethod = state ~= false
 	NAmanage.NASettingsSet("safeJumpMethod", NAStuff.SafeJumpMethod)
