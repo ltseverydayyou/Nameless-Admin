@@ -64081,9 +64081,12 @@ NAmanage.ESP_LocatorEnableGui = function(force)
 			root = ch and getRoot(ch)
 		end
 
-		local entries = NAStuff.partESPEntries or {}
+		local entries = type(NAStuff.partESPEntries) == "table" and NAStuff.partESPEntries or {}
 		local processed = 0
 		while processed < perStep do
+			if iterKey ~= nil and entries[iterKey] == nil then
+				iterKey = nil
+			end
 			local key, entry = next(entries, iterKey)
 			if key == nil then
 				key, entry = next(entries, nil)
@@ -64352,9 +64355,12 @@ NAmanage.ESP_LocatorEnableDrawing = function(force)
 			root = ch and getRoot(ch)
 		end
 
-		local entries = NAStuff.partESPEntries or {}
+		local entries = type(NAStuff.partESPEntries) == "table" and NAStuff.partESPEntries or {}
 		local processed = 0
 		while processed < perStep do
+			if iterKey ~= nil and entries[iterKey] == nil then
+				iterKey = nil
+			end
 			local key, entry = next(entries, iterKey)
 			if key == nil then
 				key, entry = next(entries, nil)
@@ -64705,6 +64711,9 @@ NAmanage.ESP_PlayerLocatorEnableGui = function(force)
 
 		local processed = 0
 		while processed < perStep do
+			if iterKey ~= nil and espCONS[iterKey] == nil then
+				iterKey = nil
+			end
 			local model, data = next(espCONS, iterKey)
 			if model == nil then
 				model, data = next(espCONS, nil)
@@ -64967,6 +64976,9 @@ NAmanage.ESP_PlayerLocatorEnableDrawing = function(force)
 
 		local processed = 0
 		while processed < perStep do
+			if iterKey ~= nil and espCONS[iterKey] == nil then
+				iterKey = nil
+			end
 			local model, data = next(espCONS, iterKey)
 			if model == nil then
 				model, data = next(espCONS, nil)
