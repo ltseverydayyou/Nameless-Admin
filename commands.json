@@ -4180,9 +4180,10 @@
       "aliases": [
         "unloopwalkspeed",
         "unloopws",
-        "unlws"
+        "unlws",
+        "unspeed"
       ],
-      "usage": "unloopwalkspeed (unloopws,unlws)",
+      "usage": "unloopwalkspeed",
       "args": "",
       "desc": "Disable loop walkspeed"
     },
