@@ -1,12 +1,51 @@
-local __lt = (function()
-	local globalEnv = (getgenv and getgenv()) or _G or {}
-	local sharedEnv = rawget(_G, "shared")
-	local cacheHost = type(sharedEnv) == "table" and sharedEnv or (type(globalEnv) == "table" and globalEnv or nil)
-	if cacheHost then
-		local cached = rawget(cacheHost, "__lt_service_resolver")
-		if type(cached) == "table" then
-			return cached
+local _naNotif_host_env = (getgenv and getgenv()) or _G or {}
+local _naNotif_debug = rawget(_naNotif_host_env, "debug") or debug
+
+local function _naNotifGetPrivateRegistry()
+	local registry
+	if type(getreg) == "function" then
+		pcall(function()
+			registry = getreg()
+		end)
+	end
+	if type(registry) ~= "table" and type(_naNotif_debug) == "table" and type(_naNotif_debug.getregistry) == "function" then
+		pcall(function()
+			registry = _naNotif_debug.getregistry()
+		end)
+	end
+	if type(registry) ~= "table" then
+		registry = _naNotif_host_env
+	end
+	return registry
+end
+
+local function _naNotifEnsureTable(host, key)
+	local value = type(host) == "table" and rawget(host, key) or nil
+	if type(value) ~= "table" then
+		value = {}
+		if type(host) == "table" then
+			pcall(rawset, host, key, value)
+			if rawget(host, key) ~= value then
+				host[key] = value
+			end
 		end
+	end
+	return value
+end
+
+local _naNotif_private_registry = _naNotifGetPrivateRegistry()
+local _naNotif_private_root = _naNotifEnsureTable(_naNotif_private_registry, "__nameless_admin_private")
+local _naNotif_env = _naNotifEnsureTable(_naNotif_private_root, "notifications")
+local _naNotif_owner_token = rawget(_naNotif_env, "__ownerToken")
+if type(_naNotif_owner_token) ~= "table" then
+	_naNotif_owner_token = {}
+	_naNotif_env.__ownerToken = _naNotif_owner_token
+end
+
+local __lt = (function()
+	local cached = rawget(_naNotif_private_root, "serviceResolver")
+	if type(cached) == "table" then
+		return cached
 	end
 	local loader = loadstring or load
 	if type(loader) ~= "function" then
@@ -20,13 +59,10 @@ local __lt = (function()
 	if type(loaded) ~= "table" then
 		error("Service resolver failed to load")
 	end
-	if cacheHost then
-		cacheHost.__lt_service_resolver = loaded
-	end
+	_naNotif_private_root.serviceResolver = loaded
 	return loaded
 end)()
 
-local _naNotif_env = (getgenv and getgenv()) or _G or {}
 local NotifFuns = {}
 local _naNotif_gui
 
@@ -68,8 +104,30 @@ local UI_ATTR = {
 	STACK = "_na_en_stack",
 	CARD = "_na_en_card",
 	HEADER = "_na_en_header",
-	POPUPROOT = "_na_en_popuproot"
+	POPUPROOT = "_na_en_popuproot",
+	OWNER = "_na_en_owner"
 }
+
+local function isTrustedGui(inst)
+	if typeof(inst) ~= "Instance" or not inst:IsA("ScreenGui") then
+		return false
+	end
+	if not hasTag(inst, UI_ATTR.GUI) then
+		return false
+	end
+	local ok, owner = pcall(function()
+		return inst:GetAttribute(UI_ATTR.OWNER)
+	end)
+	return ok and owner == tostring(_naNotif_owner_token)
+end
+
+local function isTrustedApi(api)
+	return type(api) == "table"
+		and rawget(api, "__na_owner_token") == _naNotif_owner_token
+		and type(api.Notify) == "function"
+		and type(api.Window) == "function"
+		and type(api.Popup) == "function"
+end
 
 function NotifFuns.randomUiName()
 	if hs and hs.GenerateGUID then
@@ -161,11 +219,15 @@ function NotifFuns.registerUI(guiInst)
 	if typeof(guiInst) ~= "Instance" then
 		return
 	end
+	tag(guiInst, UI_ATTR.GUI)
+	pcall(function()
+		guiInst:SetAttribute(UI_ATTR.OWNER, tostring(_naNotif_owner_token))
+	end)
 	_naNotif_gui = guiInst
 	_naNotif_env.EnhancedNotifsGui = guiInst
 	_naNotif_env.EnhancedNotifsUI = function()
 		local ref = rawget(_naNotif_env, "EnhancedNotifsGui")
-		if typeof(ref) == "Instance" and ref:IsA("ScreenGui") and ref.Parent then
+		if isTrustedGui(ref) and ref.Parent then
 			return ref
 		end
 		return nil
@@ -199,12 +261,12 @@ function NotifFuns.findGui()
 	local uiFn = rawget(_naNotif_env, "EnhancedNotifsUI")
 	if type(uiFn) == "function" then
 		local ok, uiRef = pcall(uiFn)
-		if ok and typeof(uiRef) == "Instance" and uiRef:IsA("ScreenGui") and uiRef.Parent then
+		if ok and isTrustedGui(uiRef) and uiRef.Parent then
 			_naNotif_gui = uiRef
 			return uiRef, uiRef.Parent
 		end
 	end
-	if typeof(_naNotif_gui) == "Instance" and _naNotif_gui:IsA("ScreenGui") and _naNotif_gui.Parent then
+	if isTrustedGui(_naNotif_gui) and _naNotif_gui.Parent then
 		return _naNotif_gui, _naNotif_gui.Parent
 	end
 	local targets = {}
@@ -219,12 +281,8 @@ function NotifFuns.findGui()
 	push(plrs.LocalPlayer and plrs.LocalPlayer:FindFirstChildWhichIsA("PlayerGui") or nil)
 	for _, p in ipairs(targets) do
 		local tagged = findTaggedChild(p, "ScreenGui", UI_ATTR.GUI)
-		if tagged then
+		if isTrustedGui(tagged) then
 			return tagged, p
-		end
-		local g = p:FindFirstChild("EnhancedNotif")
-		if g then
-			return g, p
 		end
 	end
 end
@@ -263,9 +321,10 @@ table.sort(FONTS, function(a, b)
 end)
 
 local ex, exPar = findGui()
-if _naNotif_env.EnhancedNotifs and ex then
+local cachedApi = rawget(_naNotif_env, "EnhancedNotifs")
+if isTrustedApi(cachedApi) and isTrustedGui(ex) then
 	registerUI(ex)
-	return _naNotif_env.EnhancedNotifs
+	return cachedApi
 end
 
 local root = exPar or pick()
@@ -2551,6 +2610,7 @@ local api = {
 	NotifFuns = NotifFuns
 }
 
+rawset(api, "__na_owner_token", _naNotif_owner_token)
 _naNotif_env.EnhancedNotifs = api
 
 return api
