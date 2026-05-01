@@ -20800,25 +20800,48 @@ NAStuff._moveInputEnded = UserInputService.InputEnded:Connect(function(input)
 end)
 
 function GetCustomMoveVector()
-	local fallback = Vector3.new(customVECTORMOVE.X, customVECTORMOVE.Y, -customVECTORMOVE.Z)
+	local function normalizeMoveVec(vec, invertYToZ)
+		local vecType = typeof(vec)
+		if vecType == "Vector3" then
+			return vec
+		end
+		if vecType == "Vector2" then
+			return Vector3.new(vec.X, 0, (invertYToZ and -vec.Y or vec.Y))
+		end
+		if type(vec) == "table" then
+			local x = tonumber(vec.X or vec.x or vec[1]) or 0
+			local y = tonumber(vec.Y or vec.y or vec[2]) or 0
+			local z = tonumber(vec.Z or vec.z or vec[3])
+			if z ~= nil then
+				return Vector3.new(x, y, z)
+			end
+			return Vector3.new(x, 0, (invertYToZ and -y or y))
+		end
+		return nil
+	end
 
 	if opt.ctrlModule then
 		local ok, vec = pcall(function()
 			return opt.ctrlModule:GetMoveVector()
 		end)
-		if ok and typeof(vec) == "Vector3" and vec.Magnitude > 0 then
-			return vec
+		if ok then
+			local normalized = normalizeMoveVec(vec, true)
+			if normalized and normalized.Magnitude > 0 then
+				return normalized
+			end
 		end
 	end
 
+	local fallbackSource = normalizeMoveVec(customVECTORMOVE, false) or Vector3.zero
+	local fallback = Vector3.new(fallbackSource.X, fallbackSource.Y, -fallbackSource.Z)
 	if fallback.Magnitude > 0 then
 		return fallback
 	end
 
 	local hum = getHum and getHum() or nil
 	if hum then
-		local md = hum.MoveDirection
-		if typeof(md) == "Vector3" and md.Magnitude > 0 then
+		local md = normalizeMoveVec(hum.MoveDirection, false)
+		if md and md.Magnitude > 0 then
 			return md
 		end
 	end
@@ -55416,6 +55439,49 @@ NAmanage.GetVelocityWalkSpeedValue = function()
 	return tonumber(_na_env.NamelessSpeed)
 end
 
+NAmanage.IsCharacterFullyNoClip = function(char)
+	if typeof(char) ~= "Instance" then
+		return false
+	end
+	local parts = 0
+	for _, part in ipairs(NAmanage.qDesc(char, "BasePart")) do
+		parts += 1
+		if NAlib.isProperty(part, "CanCollide") ~= false then
+			return false
+		end
+	end
+	return parts > 0
+end
+
+NAmanage.GetVelocityWalkSpeedMoveDirection = function(root)
+	local moveVec = typeof(GetCustomMoveVector) == "function" and GetCustomMoveVector() or Vector3.zero
+	if typeof(moveVec) == "Vector3" then
+		local flatInput = Vector3.new(moveVec.X, 0, moveVec.Z)
+		if flatInput.Magnitude > 0.05 then
+			local basisCF = workspace.CurrentCamera and workspace.CurrentCamera.CFrame or (root and root.CFrame)
+			if basisCF then
+				local right = Vector3.new(basisCF.RightVector.X, 0, basisCF.RightVector.Z)
+				local look = Vector3.new(basisCF.LookVector.X, 0, basisCF.LookVector.Z)
+				if look.Magnitude <= 0.05 and root then
+					look = Vector3.new(root.CFrame.LookVector.X, 0, root.CFrame.LookVector.Z)
+					right = Vector3.new(root.CFrame.RightVector.X, 0, root.CFrame.RightVector.Z)
+				end
+				local desired = Vector3.zero
+				if right.Magnitude > 0.05 then
+					desired += right.Unit * flatInput.X
+				end
+				if look.Magnitude > 0.05 then
+					desired += look.Unit * -flatInput.Z
+				end
+				if desired.Magnitude > 0.05 then
+					return desired.Unit
+				end
+			end
+		end
+	end
+	return Vector3.zero
+end
+
 NAmanage.GetVelocityWalkSpeedState = function()
 	NAStuff.velocityWalkSpeed = NAStuff.velocityWalkSpeed or {}
 	return NAStuff.velocityWalkSpeed
@@ -55426,13 +55492,20 @@ NAmanage.ClearVelocityWalkSpeedClampState = function()
 	state.clampRoot = nil
 	state.clampHum = nil
 	state.clampAxes = nil
+	state.clampPlanarDirection = nil
 end
 
-NAmanage.SetVelocityWalkSpeedClampState = function(root, hum, axes)
+NAmanage.SetVelocityWalkSpeedClampState = function(root, hum, axes, planarDirection)
 	local state = NAmanage.GetVelocityWalkSpeedState()
 	state.clampRoot = root
 	state.clampHum = hum
 	state.clampAxes = axes
+	if typeof(planarDirection) == "Vector3" then
+		local flatDir = Vector3.new(planarDirection.X, 0, planarDirection.Z)
+		state.clampPlanarDirection = flatDir.Magnitude > 0.05 and flatDir.Unit or nil
+	else
+		state.clampPlanarDirection = nil
+	end
 end
 
 NAmanage.ClampVelocityWalkSpeedRoot = function()
@@ -55440,6 +55513,7 @@ NAmanage.ClampVelocityWalkSpeedRoot = function()
 	local root = state.clampRoot
 	local hum = state.clampHum
 	local axes = state.clampAxes
+	local planarDirection = state.clampPlanarDirection
 	if not root or not hum or not axes or not root.Parent or not hum.Parent then
 		return
 	end
@@ -55452,6 +55526,12 @@ NAmanage.ClampVelocityWalkSpeedRoot = function()
 		return
 	end
 	local newVelocity = velocity
+	if planarDirection and (math.abs(axes.X) > 0.05 or math.abs(axes.Z) > 0.05) then
+		local flatVelocity = Vector3.new(newVelocity.X, 0, newVelocity.Z)
+		local alignedSpeed = math.clamp(flatVelocity:Dot(planarDirection), -cap, cap)
+		local alignedVelocity = planarDirection * alignedSpeed
+		newVelocity = Vector3.new(alignedVelocity.X, newVelocity.Y, alignedVelocity.Z)
+	end
 	if math.abs(axes.X) > 0.05 then
 		newVelocity = Vector3.new(math.clamp(newVelocity.X, -cap, cap), newVelocity.Y, newVelocity.Z)
 	end
@@ -55528,6 +55608,9 @@ end
 
 NAmanage.GetVelocityWalkSpeedWallAdjustedVelocity = function(root, desiredVelocity, ignoreList)
 	if not root or not root.Parent or typeof(desiredVelocity) ~= "Vector3" or desiredVelocity.Magnitude <= 0 then
+		return desiredVelocity
+	end
+	if NAmanage.IsCharacterFullyNoClip(root.Parent) then
 		return desiredVelocity
 	end
 	local flatDesired = Vector3.new(desiredVelocity.X, 0, desiredVelocity.Z)
@@ -55716,19 +55799,18 @@ NAmanage.RefreshVelocityWalkSpeed = function()
 			NAmanage.SetVelocityWalkSpeedHelperActive(Vector3.new(0, math.clamp(climbInput, -1, 1) * speed, 0), true, root)
 			return
 		end
-		local moveDirection = hum.MoveDirection
-		local flatDirection = Vector3.new(moveDirection.X, 0, moveDirection.Z)
+		local flatDirection = NAmanage.GetVelocityWalkSpeedMoveDirection(root)
 		if flatDirection.Magnitude <= 0 then
 			NAmanage.ClearVelocityWalkSpeedClampState()
 			NAmanage.SetVelocityWalkSpeedHelperActive(Vector3.zero, false, root)
 			return
 		end
-		local desiredVelocity = flatDirection.Unit * speed
+		local desiredVelocity = flatDirection * speed
 		local adjustedVelocity = NAmanage.GetVelocityWalkSpeedWallAdjustedVelocity(root, desiredVelocity, {
 			hum.Parent,
 			helperState.part,
 		})
-		NAmanage.SetVelocityWalkSpeedClampState(root, hum, Vector3.new(1, 0, 1))
+		NAmanage.SetVelocityWalkSpeedClampState(root, hum, Vector3.new(1, 0, 1), adjustedVelocity)
 		NAmanage.SetVelocityWalkSpeedHelperActive(adjustedVelocity, adjustedVelocity.Magnitude > 0.05, root)
 	end))
 end
