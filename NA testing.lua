@@ -20,8 +20,81 @@
 
 -- © 2026 Nameless Admin. @ltseverydayyou and @Cosmella own all rights to this script. Do not copy, paste, redistribute, or claim as your own.
 
-local _na_env = (getgenv and getgenv()) or _G or {}
-local _na_shared = rawget(_G, "shared")
+local _na_boot = {
+	hostEnv = (getgenv and getgenv()) or _G or {},
+}
+_na_boot.hostGetfenv = type(_na_boot.hostEnv.getfenv) == "function" and _na_boot.hostEnv.getfenv or getfenv
+_na_boot.hostSetfenv = type(_na_boot.hostEnv.setfenv) == "function" and _na_boot.hostEnv.setfenv or setfenv
+_na_boot.debug = rawget(_na_boot.hostEnv, "debug") or debug
+_na_boot.getPrivateRegistry = function()
+	local registry
+	if type(getreg) == "function" then
+		pcall(function()
+			registry = getreg()
+		end)
+	end
+	if type(registry) ~= "table" and type(_na_boot.debug) == "table" and type(_na_boot.debug.getregistry) == "function" then
+		pcall(function()
+			registry = _na_boot.debug.getregistry()
+		end)
+	end
+	if type(registry) ~= "table" then
+		registry = _na_boot.hostEnv
+	end
+	return registry
+end
+_na_boot.ensureTable = function(host, key)
+	local value = type(host) == "table" and rawget(host, key) or nil
+	if type(value) ~= "table" then
+		value = {}
+		if type(host) == "table" then
+			pcall(rawset, host, key, value)
+			if rawget(host, key) ~= value then
+				host[key] = value
+			end
+		end
+	end
+	return value
+end
+_na_boot.privateRegistry = _na_boot.getPrivateRegistry()
+_na_boot.privateRoot = _na_boot.ensureTable(_na_boot.privateRegistry, "__nameless_admin_private")
+local _na_env = _na_boot.ensureTable(_na_boot.privateRoot, "testing")
+local _na_shared = _na_boot.ensureTable(_na_env, "shared")
+_na_boot.runtimeEnv = _na_boot.ensureTable(_na_env, "runtime")
+
+_na_boot.runtimeEnv.shared = _na_shared
+_na_boot.runtimeEnv._G = _na_boot.runtimeEnv
+_na_boot.runtimeEnv.getgenv = function()
+	return _na_boot.runtimeEnv
+end
+_na_boot.runtimeEnv.getfenv = function(target)
+	if target == nil or target == 0 then
+		return _na_boot.runtimeEnv
+	end
+	if type(_na_boot.hostGetfenv) == "function" then
+		return _na_boot.hostGetfenv(target)
+	end
+	return _na_boot.runtimeEnv
+end
+
+setmetatable(_na_boot.runtimeEnv, {
+	__index = function(_, key)
+		if key == "_G" then
+			return _na_boot.runtimeEnv
+		elseif key == "shared" then
+			return _na_shared
+		elseif key == "getgenv" then
+			return _na_boot.runtimeEnv.getgenv
+		elseif key == "getfenv" then
+			return _na_boot.runtimeEnv.getfenv
+		end
+		return _na_boot.hostEnv[key]
+	end
+})
+
+if type(_na_boot.hostSetfenv) == "function" then
+	pcall(_na_boot.hostSetfenv, 1, _na_boot.runtimeEnv)
+end
 
 local function naAlreadyLoaded()
 	if _na_env and (_na_env.ltseverydayyou_NA or _na_env.NA_LOADED) then
@@ -38,28 +111,17 @@ if naAlreadyLoaded() then
 end
 
 local naFlagValue = tick()
-pcall(function()
-	if _na_env then
-		_na_env.ltseverydayyou_NA = naFlagValue
-		_na_env.NA_LOADED = naFlagValue
-		_na_env.NATestingVer = true
-		_na_env.NAverify = "Haryas Admin Is SKIDDED AS FUCK"
-	end
-	if _na_shared then
-		_na_shared.ltseverydayyou_NA = naFlagValue
-		_na_shared.NA_LOADED = naFlagValue
-	end
-end)
+_na_env.ltseverydayyou_NA = naFlagValue
+_na_env.NA_LOADED = naFlagValue
+_na_env.NATestingVer = true
+_na_env.NAverify = "Haryas Admin Is SKIDDED AS FUCK"
+_na_shared.ltseverydayyou_NA = naFlagValue
+_na_shared.NA_LOADED = naFlagValue
 
 local __lt = (function()
-	local globalEnv = (getgenv and getgenv()) or _G or {};
-	local sharedEnv = rawget(_G, "shared");
-	local cacheHost = type(sharedEnv) == "table" and sharedEnv or (type(globalEnv) == "table" and globalEnv or nil);
-	if cacheHost then
-		local cached = rawget(cacheHost, "__lt_service_resolver");
-		if type(cached) == "table" then
-			return cached;
-		end;
+	local cached = rawget(_na_boot.privateRoot, "serviceResolver");
+	if type(cached) == "table" then
+		return cached;
 	end;
 	local loader = loadstring or load;
 	if type(loader) ~= "function" then
@@ -73,9 +135,7 @@ local __lt = (function()
 	if type(loaded) ~= "table" then
 		error("Service resolver failed to load");
 	end;
-	if cacheHost then
-		cacheHost.__lt_service_resolver = loaded;
-	end;
+	_na_boot.privateRoot.serviceResolver = loaded;
 	return loaded;
 end)();
 
@@ -35191,6 +35251,26 @@ cmd.add({"rjre","rejoinrefresh"},{"rjre (rejoinrefresh)","Rejoins and teleports 
 			local tpScript = Format([[
 local s,err = pcall(function()
 	repeat Wait() until game:IsLoaded()
+	local function naPrivateRoot()
+		local env = (getgenv and getgenv()) or _G or {}
+		local dbg = rawget(env, "debug") or debug
+		local registry
+		if type(getreg) == "function" then
+			pcall(function()
+				registry = getreg()
+			end)
+		end
+		if type(registry) ~= "table" and type(dbg) == "table" and type(dbg.getregistry) == "function" then
+			pcall(function()
+				registry = dbg.getregistry()
+			end)
+		end
+		if type(registry) ~= "table" then
+			registry = env
+		end
+		local root = type(registry) == "table" and rawget(registry, "__nameless_admin_private") or nil
+		return type(root) == "table" and root or nil
+	end
 	local function resolveService(name)
 		local svc = game:FindService(name)
 		if svc then
@@ -35217,6 +35297,11 @@ local s,err = pcall(function()
 
 	local gb
 	local ok,env = pcall(function()
+		local root = naPrivateRoot()
+		local scope = root and root.testing
+		if type(scope) == "table" then
+			return scope.runtime or scope
+		end
 		return getgenv and getgenv() or _G
 	end)
 	if ok and env then
