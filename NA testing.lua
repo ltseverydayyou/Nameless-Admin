@@ -16219,6 +16219,39 @@ NAmanage.NASettingsGetSchema=function()
 				return math.clamp(numberValue, 0, 1)
 			end;
 		};
+		offsetVisualizerEnabled = {
+			default = nil;
+			coerce = function(value)
+				return coerceBoolean(value, nil)
+			end;
+		};
+		offsetVisualizerIncludeAccessories = {
+			default = nil;
+			coerce = function(value)
+				return coerceBoolean(value, nil)
+			end;
+		};
+		offsetVisualizerFillTransparency = {
+			default = nil;
+			coerce = function(value)
+				local numberValue = tonumber(value)
+				if not numberValue then
+					return nil
+				end
+				return math.clamp(numberValue, 0, 1)
+			end;
+		};
+		offsetVisualizerOutlineTransparency = {
+			default = nil;
+			coerce = function(value)
+				local numberValue = tonumber(value)
+				if not numberValue then
+					return nil
+				end
+				return math.clamp(numberValue, 0, 1)
+			end;
+		};
+
 		freecamSpeed = {
 			default = 5;
 			coerce = function(value)
@@ -16285,6 +16318,18 @@ NAmanage.NASettingsGetSchema=function()
 					return "Heartbeat"
 				end
 				return "RenderStepped"
+			end;
+		};
+		safeSpeedMethod = {
+			default = true;
+			coerce = function(value)
+				return coerceBoolean(value, true)
+			end;
+		};
+		safeJumpMethod = {
+			default = true;
+			coerce = function(value)
+				return coerceBoolean(value, true)
 			end;
 		};
 		cmdbar2Width = {
@@ -16639,6 +16684,16 @@ NAmanage.NASettingsGetSchema=function()
 				return ""
 			end;
 		};
+		customIconLocalPath = {
+			default = "";
+			coerce = function(value)
+				if typeof(value) ~= "string" then
+					value = tostring(value or "")
+				end
+				return value:match("^%s*(.-)%s*$") or ""
+			end;
+		};
+
 		customIconEnabled = {
 			default = false;
 			coerce = function(value)
@@ -17420,6 +17475,19 @@ NAmanage.NASettingsEnsure=function()
 
 	if typeof(NAStuff.NASettingsData) ~= "table" then
 		NAStuff.NASettingsData = {}
+	end
+
+	if NAStuff.NASettingsData.offVisOn == nil and NAStuff.NASettingsData.offsetVisualizerEnabled ~= nil then
+		NAStuff.NASettingsData.offVisOn = NAStuff.NASettingsData.offsetVisualizerEnabled
+	end
+	if NAStuff.NASettingsData.offVisAcc == nil and NAStuff.NASettingsData.offsetVisualizerIncludeAccessories ~= nil then
+		NAStuff.NASettingsData.offVisAcc = NAStuff.NASettingsData.offsetVisualizerIncludeAccessories
+	end
+	if NAStuff.NASettingsData.offVisFTr == nil and NAStuff.NASettingsData.offsetVisualizerFillTransparency ~= nil then
+		NAStuff.NASettingsData.offVisFTr = NAStuff.NASettingsData.offsetVisualizerFillTransparency
+	end
+	if NAStuff.NASettingsData.offVisOTr == nil and NAStuff.NASettingsData.offsetVisualizerOutlineTransparency ~= nil then
+		NAStuff.NASettingsData.offVisOTr = NAStuff.NASettingsData.offsetVisualizerOutlineTransparency
 	end
 
 	local legacyIconPath = "Nameless-Admin/IconPosition.json"
@@ -88691,6 +88759,7 @@ function NAgui._saveIconSettings()
 		assetValue = ""
 	end
 	pcall(NAmanage.NASettingsSet, "customIconAssetId", assetValue)
+	pcall(NAmanage.NASettingsSet, "customIconLocalPath", typeof(NAStuff.CustomIcon.localPath) == "string" and NAStuff.CustomIcon.localPath or "")
 	pcall(NAmanage.NASettingsSet, "customIconEnabled", NAStuff.CustomIcon.enabled == true)
 end
 
@@ -98369,6 +98438,9 @@ end)
 NAgui.addToggle("Safe Jump Method", NAStuff.SafeJumpMethod ~= false, function(state)
 	NAStuff.SafeJumpMethod = state ~= false
 	NAmanage.NASettingsSet("safeJumpMethod", NAStuff.SafeJumpMethod)
+end)
+NAmanage.RegisterToggleAutoSync("Safe Jump Method", function()
+	return NAStuff.SafeJumpMethod ~= false
 end)
 
 NAStuff.CustomMovementSounds = NAStuff.CustomMovementSounds or {
