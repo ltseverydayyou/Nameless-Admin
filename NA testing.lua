@@ -111,12 +111,31 @@ if naAlreadyLoaded() then
 end
 
 local naFlagValue = tick()
+local naVerifyKey = "Haryas Admin Is SKIDDED AS FUCK"
+
 _na_env.ltseverydayyou_NA = naFlagValue
 _na_env.NA_LOADED = naFlagValue
 _na_env.NATestingVer = true
-_na_env.NAverify = "Haryas Admin Is SKIDDED AS FUCK"
+_na_env.NAverify = naVerifyKey
+_na_env.__NAKeySource = "NA testing.lua"
+
 _na_shared.ltseverydayyou_NA = naFlagValue
 _na_shared.NA_LOADED = naFlagValue
+_na_shared.NATestingVer = true
+_na_shared.NAverify = naVerifyKey
+_na_shared.__NAKeySource = "NA testing.lua"
+
+_na_boot.runtimeEnv.ltseverydayyou_NA = naFlagValue
+_na_boot.runtimeEnv.NA_LOADED = naFlagValue
+_na_boot.runtimeEnv.NATestingVer = true
+_na_boot.runtimeEnv.NAverify = naVerifyKey
+_na_boot.runtimeEnv.__NAKeySource = "NA testing.lua"
+
+pcall(function()
+	_na_boot.hostEnv.NAverify = naVerifyKey
+	_na_boot.hostEnv.NATestingVer = true
+	_na_boot.hostEnv.__NAKeySource = "NA testing.lua"
+end)
 
 local __lt = (function()
 	local cached = rawget(_na_boot.privateRoot, "serviceResolver");
@@ -89471,27 +89490,88 @@ SpawnCall(function()
 		local function mirrorGuardState(env)
 			env = (type(env) == "table" and env) or guardEnv()
 
-			local key = tostring(env.NAverify or (_G and _G.NAverify) or (_na_shared and _na_shared.NAverify) or "")
+			local key = ""
+			local function takeKey(src)
+				if key ~= "" or type(src) ~= "table" then
+					return
+				end
+				local ok, value = pcall(rawget, src, "NAverify")
+				if ok and type(value) == "string" and value ~= "" then
+					key = value
+					return
+				end
+				ok, value = pcall(function()
+					return src.NAverify
+				end)
+				if ok and type(value) == "string" and value ~= "" then
+					key = value
+				end
+			end
+
+			takeKey(_na_env)
+			takeKey(_na_shared)
+			takeKey(_na_boot and _na_boot.runtimeEnv)
+			takeKey(env)
+			takeKey(_G)
+			takeKey(_na_boot and _na_boot.hostEnv)
+
 			if key ~= "" then
 				env.NAverify = key
-				pcall(function() _G.NAverify = key end)
+				env.__NAKeySource = "NA testing.lua"
+				pcall(function()
+					_G.NAverify = key
+					_G.__NAKeySource = "NA testing.lua"
+				end)
+				if _na_env then
+					pcall(function()
+						_na_env.NAverify = key
+						_na_env.__NAKeySource = "NA testing.lua"
+					end)
+				end
 				if _na_shared then
-					pcall(function() _na_shared.NAverify = key end)
+					pcall(function()
+						_na_shared.NAverify = key
+						_na_shared.__NAKeySource = "NA testing.lua"
+					end)
+				end
+				if _na_boot and type(_na_boot.runtimeEnv) == "table" then
+					pcall(function()
+						_na_boot.runtimeEnv.NAverify = key
+						_na_boot.runtimeEnv.__NAKeySource = "NA testing.lua"
+					end)
+				end
+				if _na_boot and type(_na_boot.hostEnv) == "table" then
+					pcall(function()
+						_na_boot.hostEnv.NAverify = key
+						_na_boot.hostEnv.__NAKeySource = "NA testing.lua"
+					end)
 				end
 			end
 
 			local flag = env[guardFlagName]
-			if flag == nil and _G then
-				flag = _G[guardFlagName]
+			if flag == nil and _na_env then
+				flag = _na_env[guardFlagName]
 			end
 			if flag == nil and _na_shared then
 				flag = _na_shared[guardFlagName]
 			end
+			if flag == nil and _na_boot and type(_na_boot.runtimeEnv) == "table" then
+				flag = _na_boot.runtimeEnv[guardFlagName]
+			end
+			if flag == nil and _G then
+				flag = _G[guardFlagName]
+			end
 			if flag ~= nil then
 				env[guardFlagName] = flag
 				pcall(function() _G[guardFlagName] = flag end)
+				if _na_env then
+					pcall(function() _na_env[guardFlagName] = flag end)
+				end
 				if _na_shared then
 					pcall(function() _na_shared[guardFlagName] = flag end)
+				end
+				if _na_boot and type(_na_boot.runtimeEnv) == "table" then
+					pcall(function() _na_boot.runtimeEnv[guardFlagName] = flag end)
 				end
 			end
 		end
@@ -89546,6 +89626,9 @@ SpawnCall(function()
 				"mainName",
 				"testingName",
 				"NATestingVer",
+				"NA_LOADED",
+				"ltseverydayyou_NA",
+				"__NAKeySource",
 			}
 			if type(guardFlagName) == "string" and guardFlagName ~= "" then
 				seedKeys[#seedKeys + 1] = guardFlagName
@@ -89553,6 +89636,15 @@ SpawnCall(function()
 
 			for _, keyName in ipairs(seedKeys) do
 				local value = sharedEnv[keyName]
+				if value == nil and _na_env then
+					value = _na_env[keyName]
+				end
+				if value == nil and _na_shared then
+					value = _na_shared[keyName]
+				end
+				if value == nil and _na_boot and type(_na_boot.runtimeEnv) == "table" then
+					value = _na_boot.runtimeEnv[keyName]
+				end
 				if value == nil and _G then
 					value = _G[keyName]
 				end
@@ -89589,7 +89681,30 @@ SpawnCall(function()
 					elseif key == "getfenv" then
 						return sandbox.getfenv
 					end
-					return sharedEnv[key]
+
+					local value = sharedEnv[key]
+					if value ~= nil then
+						return value
+					end
+					if _na_env then
+						value = _na_env[key]
+						if value ~= nil then
+							return value
+						end
+					end
+					if _na_shared then
+						value = _na_shared[key]
+						if value ~= nil then
+							return value
+						end
+					end
+					if _na_boot and type(_na_boot.runtimeEnv) == "table" then
+						value = _na_boot.runtimeEnv[key]
+						if value ~= nil then
+							return value
+						end
+					end
+					return _G and _G[key]
 				end
 			})
 
@@ -89609,6 +89724,9 @@ SpawnCall(function()
 				"mainName",
 				"testingName",
 				"NATestingVer",
+				"NA_LOADED",
+				"ltseverydayyou_NA",
+				"__NAKeySource",
 			}
 			if type(guardFlagName) == "string" and guardFlagName ~= "" then
 				keys[#keys + 1] = guardFlagName
@@ -89625,9 +89743,19 @@ SpawnCall(function()
 					pcall(function()
 						_G[keyName] = value
 					end)
+					if _na_env then
+						pcall(function()
+							_na_env[keyName] = value
+						end)
+					end
 					if _na_shared then
 						pcall(function()
 							_na_shared[keyName] = value
+						end)
+					end
+					if _na_boot and type(_na_boot.runtimeEnv) == "table" then
+						pcall(function()
+							_na_boot.runtimeEnv[keyName] = value
 						end)
 					end
 				end
