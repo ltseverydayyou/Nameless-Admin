@@ -113,29 +113,30 @@ end
 local naFlagValue = tick()
 local naVerifyKey = "Haryas Admin Is SKIDDED AS FUCK"
 
-_na_env.ltseverydayyou_NA = naFlagValue
-_na_env.NA_LOADED = naFlagValue
-_na_env.NATestingVer = true
-_na_env.NAverify = naVerifyKey
-_na_env.__NAKeySource = "NA testing.lua"
+_na_boot.syncRuntimeGlobals = function(values)
+	if type(values) ~= "table" then
+		return
+	end
 
-_na_shared.ltseverydayyou_NA = naFlagValue
-_na_shared.NA_LOADED = naFlagValue
-_na_shared.NATestingVer = true
-_na_shared.NAverify = naVerifyKey
-_na_shared.__NAKeySource = "NA testing.lua"
+	for _, target in ipairs({ _na_env, _na_shared, _na_boot.runtimeEnv, _na_boot.hostEnv }) do
+		if type(target) == "table" then
+			for key, value in pairs(values) do
+				pcall(function()
+					target[key] = value
+				end)
+			end
+		end
+	end
+end
 
-_na_boot.runtimeEnv.ltseverydayyou_NA = naFlagValue
-_na_boot.runtimeEnv.NA_LOADED = naFlagValue
-_na_boot.runtimeEnv.NATestingVer = true
-_na_boot.runtimeEnv.NAverify = naVerifyKey
-_na_boot.runtimeEnv.__NAKeySource = "NA testing.lua"
-
-pcall(function()
-	_na_boot.hostEnv.NAverify = naVerifyKey
-	_na_boot.hostEnv.NATestingVer = true
-	_na_boot.hostEnv.__NAKeySource = "NA testing.lua"
-end)
+_na_boot.syncRuntimeGlobals({
+	ltseverydayyou_NA = naFlagValue,
+	NA_LOADED = naFlagValue,
+	NATestingVer = true,
+	NAverify = naVerifyKey,
+	NAKey = naVerifyKey,
+	__NAKeySource = "NA testing.lua",
+})
 
 local __lt = (function()
 	local cached = rawget(_na_boot.privateRoot, "serviceResolver");
@@ -157,6 +158,12 @@ local __lt = (function()
 	_na_boot.privateRoot.serviceResolver = loaded;
 	return loaded;
 end)();
+
+pcall(function()
+	_na_boot.syncRuntimeGlobals({
+		__NAServiceResolver = __lt,
+	})
+end)
 
 NAbegin=tick()
 CMDAUTOFILL={}
@@ -1496,9 +1503,13 @@ local testingName = 'NA Testing'
 local adminName = 'NA'
 
 NAmanage.syncNameGlobals=function()
-	_na_env.mainName = mainName
-	_na_env.testingName = testingName
-	_na_env.adminName = adminName
+	if _na_boot and type(_na_boot.syncRuntimeGlobals) == "function" then
+		_na_boot.syncRuntimeGlobals({
+			mainName = mainName,
+			testingName = testingName,
+			adminName = adminName,
+		})
+	end
 end
 
 pcall(NAmanage.syncNameGlobals)
@@ -89487,104 +89498,112 @@ SpawnCall(function()
 			return env
 		end
 
+		local function readGuardValue(keyName, primary)
+			if keyName == nil then
+				return nil
+			end
+
+			local value = nil
+			local function take(source)
+				if value ~= nil or type(source) ~= "table" then
+					return
+				end
+
+				local ok, got = pcall(rawget, source, keyName)
+				if ok and got ~= nil then
+					value = got
+					return
+				end
+
+				ok, got = pcall(function()
+					return source[keyName]
+				end)
+				if ok and got ~= nil then
+					value = got
+				end
+			end
+
+			take(primary)
+			take(_na_env)
+			take(_na_shared)
+			take(_na_boot and _na_boot.runtimeEnv)
+			take(_G)
+			take(_na_boot and _na_boot.hostEnv)
+
+			return value
+		end
+
+		local function writeGuardValue(keyName, value, primary)
+			if keyName == nil then
+				return
+			end
+
+			local function put(target)
+				if type(target) == "table" then
+					pcall(function()
+						target[keyName] = value
+					end)
+				end
+			end
+
+			put(primary)
+			put(_na_env)
+			put(_na_shared)
+			put(_na_boot and _na_boot.runtimeEnv)
+			put(_G)
+			put(_na_boot and _na_boot.hostEnv)
+		end
+
+		local guardSeedKeys = {
+			"NAverify",
+			"NAKey",
+			"__NAKeySource",
+			"adminName",
+			"mainName",
+			"testingName",
+			"NATestingVer",
+			"ActivateAprilMode",
+			"NA_LOADED",
+			"ltseverydayyou_NA",
+			"__NAServiceResolver",
+		}
+		if type(guardFlagName) == "string" and guardFlagName ~= "" then
+			guardSeedKeys[#guardSeedKeys + 1] = guardFlagName
+		end
+
 		local function mirrorGuardState(env)
 			env = (type(env) == "table" and env) or guardEnv()
 
-			local key = ""
-			local function takeKey(src)
-				if key ~= "" or type(src) ~= "table" then
-					return
-				end
-				local ok, value = pcall(rawget, src, "NAverify")
-				if ok and type(value) == "string" and value ~= "" then
-					key = value
-					return
-				end
-				ok, value = pcall(function()
-					return src.NAverify
-				end)
-				if ok and type(value) == "string" and value ~= "" then
-					key = value
-				end
+			local key = readGuardValue("NAverify", env)
+			if key == nil then
+				key = readGuardValue("NAKey", env)
 			end
-
-			takeKey(_na_env)
-			takeKey(_na_shared)
-			takeKey(_na_boot and _na_boot.runtimeEnv)
-			takeKey(env)
-			takeKey(_G)
-			takeKey(_na_boot and _na_boot.hostEnv)
-
+			key = tostring(key or "")
 			if key ~= "" then
-				env.NAverify = key
-				env.__NAKeySource = "NA testing.lua"
-				pcall(function()
-					_G.NAverify = key
-					_G.__NAKeySource = "NA testing.lua"
-				end)
-				if _na_env then
-					pcall(function()
-						_na_env.NAverify = key
-						_na_env.__NAKeySource = "NA testing.lua"
-					end)
-				end
-				if _na_shared then
-					pcall(function()
-						_na_shared.NAverify = key
-						_na_shared.__NAKeySource = "NA testing.lua"
-					end)
-				end
-				if _na_boot and type(_na_boot.runtimeEnv) == "table" then
-					pcall(function()
-						_na_boot.runtimeEnv.NAverify = key
-						_na_boot.runtimeEnv.__NAKeySource = "NA testing.lua"
-					end)
-				end
-				if _na_boot and type(_na_boot.hostEnv) == "table" then
-					pcall(function()
-						_na_boot.hostEnv.NAverify = key
-						_na_boot.hostEnv.__NAKeySource = "NA testing.lua"
-					end)
-				end
+				writeGuardValue("NAverify", key, env)
+				writeGuardValue("NAKey", key, env)
+				writeGuardValue("__NAKeySource", "NA testing.lua", env)
 			end
 
-			local flag = env[guardFlagName]
-			if flag == nil and _na_env then
-				flag = _na_env[guardFlagName]
+			local flag = readGuardValue(guardFlagName, env)
+			if flag == nil and type(guardFlagValue) == "string" and guardFlagValue ~= "" then
+				flag = guardFlagValue
 			end
-			if flag == nil and _na_shared then
-				flag = _na_shared[guardFlagName]
-			end
-			if flag == nil and _na_boot and type(_na_boot.runtimeEnv) == "table" then
-				flag = _na_boot.runtimeEnv[guardFlagName]
-			end
-			if flag == nil and _G then
-				flag = _G[guardFlagName]
-			end
-			if flag ~= nil then
-				env[guardFlagName] = flag
-				pcall(function() _G[guardFlagName] = flag end)
-				if _na_env then
-					pcall(function() _na_env[guardFlagName] = flag end)
-				end
-				if _na_shared then
-					pcall(function() _na_shared[guardFlagName] = flag end)
-				end
-				if _na_boot and type(_na_boot.runtimeEnv) == "table" then
-					pcall(function() _na_boot.runtimeEnv[guardFlagName] = flag end)
-				end
+			if flag ~= nil and type(guardFlagName) == "string" and guardFlagName ~= "" then
+				writeGuardValue(guardFlagName, flag, env)
 			end
 		end
 
 		local function primeGuardEnv()
 			local env = guardEnv()
+			local testing = readGuardValue("NATestingVer", env) == true
 
 			local resolvedName = tostring(adminName or "")
 			if resolvedName ~= "NA" and resolvedName ~= "Nameless Admin" and resolvedName ~= "NA Testing" then
-				resolvedName = (env.NATestingVer == true) and "NA Testing" or "Nameless Admin"
+				resolvedName = testing and "NA Testing" or "Nameless Admin"
 			end
 			if resolvedName == "" then
-				resolvedName = (env.NATestingVer == true) and "NA Testing" or "Nameless Admin"
+				resolvedName = testing and "NA Testing" or "Nameless Admin"
 			end
 
 			if type(env.adminName) ~= "string" or env.adminName == "" then
@@ -89593,24 +89612,18 @@ SpawnCall(function()
 			if type(env.mainName) ~= "string" or env.mainName == "" then
 				env.mainName = "Nameless Admin"
 			end
-			if env.NATestingVer == true then
+			if testing then
 				env.testingName = "NA Testing"
 			elseif type(env.testingName) ~= "string" or env.testingName == "" then
 				env.testingName = resolvedName
 			end
 
-			pcall(function()
-				_G.adminName = env.adminName
-				_G.mainName = env.mainName
-				_G.testingName = env.testingName
-			end)
-			if _na_shared then
-				pcall(function()
-					_na_shared.adminName = env.adminName
-					_na_shared.mainName = env.mainName
-					_na_shared.testingName = env.testingName
-				end)
-			end
+			writeGuardValue("adminName", env.adminName, env)
+			writeGuardValue("mainName", env.mainName, env)
+			writeGuardValue("testingName", env.testingName, env)
+			writeGuardValue("NATestingVer", testing, env)
+			writeGuardValue("NA_LOADED", readGuardValue("NA_LOADED", env) or naFlagValue, env)
+			writeGuardValue("ltseverydayyou_NA", readGuardValue("ltseverydayyou_NA", env) or naFlagValue, env)
 
 			mirrorGuardState(env)
 			return env
@@ -89620,46 +89633,20 @@ SpawnCall(function()
 			sharedEnv = (type(sharedEnv) == "table" and sharedEnv) or guardEnv()
 			local sandbox = {}
 			local sandboxShared = {}
-			local seedKeys = {
-				"NAverify",
-				"adminName",
-				"mainName",
-				"testingName",
-				"NATestingVer",
-				"NA_LOADED",
-				"ltseverydayyou_NA",
-				"__NAKeySource",
-			}
-			if type(guardFlagName) == "string" and guardFlagName ~= "" then
-				seedKeys[#seedKeys + 1] = guardFlagName
-			end
 
-			for _, keyName in ipairs(seedKeys) do
-				local value = sharedEnv[keyName]
-				if value == nil and _na_env then
-					value = _na_env[keyName]
-				end
-				if value == nil and _na_shared then
-					value = _na_shared[keyName]
-				end
-				if value == nil and _na_boot and type(_na_boot.runtimeEnv) == "table" then
-					value = _na_boot.runtimeEnv[keyName]
-				end
-				if value == nil and _G then
-					value = _G[keyName]
-				end
+			for _, keyName in ipairs(guardSeedKeys) do
+				local value = readGuardValue(keyName, sharedEnv)
 				if value ~= nil then
 					sandbox[keyName] = value
-				end
-
-				local sharedValue = _na_shared and _na_shared[keyName] or nil
-				if sharedValue == nil then
-					sharedValue = value
-				end
-				if sharedValue ~= nil then
-					sandboxShared[keyName] = sharedValue
+					sandboxShared[keyName] = value
 				end
 			end
+
+			setmetatable(sandboxShared, {
+				__index = function(_, key)
+					return readGuardValue(key, sharedEnv)
+				end
+			})
 
 			sandbox.shared = sandboxShared
 			sandbox._G = sandbox
@@ -89681,30 +89668,7 @@ SpawnCall(function()
 					elseif key == "getfenv" then
 						return sandbox.getfenv
 					end
-
-					local value = sharedEnv[key]
-					if value ~= nil then
-						return value
-					end
-					if _na_env then
-						value = _na_env[key]
-						if value ~= nil then
-							return value
-						end
-					end
-					if _na_shared then
-						value = _na_shared[key]
-						if value ~= nil then
-							return value
-						end
-					end
-					if _na_boot and type(_na_boot.runtimeEnv) == "table" then
-						value = _na_boot.runtimeEnv[key]
-						if value ~= nil then
-							return value
-						end
-					end
-					return _G and _G[key]
+					return readGuardValue(key, sharedEnv)
 				end
 			})
 
@@ -89718,46 +89682,14 @@ SpawnCall(function()
 				return
 			end
 
-			local keys = {
-				"NAverify",
-				"adminName",
-				"mainName",
-				"testingName",
-				"NATestingVer",
-				"NA_LOADED",
-				"ltseverydayyou_NA",
-				"__NAKeySource",
-			}
-			if type(guardFlagName) == "string" and guardFlagName ~= "" then
-				keys[#keys + 1] = guardFlagName
-			end
-
 			local sandboxShared = rawget(sandboxEnv, "shared")
-			for _, keyName in ipairs(keys) do
+			for _, keyName in ipairs(guardSeedKeys) do
 				local value = rawget(sandboxEnv, keyName)
 				if value == nil and type(sandboxShared) == "table" then
 					value = rawget(sandboxShared, keyName)
 				end
 				if value ~= nil then
-					sharedEnv[keyName] = value
-					pcall(function()
-						_G[keyName] = value
-					end)
-					if _na_env then
-						pcall(function()
-							_na_env[keyName] = value
-						end)
-					end
-					if _na_shared then
-						pcall(function()
-							_na_shared[keyName] = value
-						end)
-					end
-					if _na_boot and type(_na_boot.runtimeEnv) == "table" then
-						pcall(function()
-							_na_boot.runtimeEnv[keyName] = value
-						end)
-					end
+					writeGuardValue(keyName, value, sharedEnv)
 				end
 			end
 
