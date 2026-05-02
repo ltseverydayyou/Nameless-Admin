@@ -20820,15 +20820,18 @@ NAmanage.updateInputVector=function()
 	if sussyINPUTTER.A then x = x - 1 end
 	if sussyINPUTTER.D then x = x + 1 end
 
+	NAStuff._moveInputKeyboardVector = Vector3.new(x, 0, z)
 	if thumberSTICKER.Magnitude > 0.1 then
 		customVECTORMOVE = Vector3.new(thumberSTICKER.X, 0, thumberSTICKER.Y)
 	else
-		customVECTORMOVE = Vector3.new(x, 0, z)
+		customVECTORMOVE = NAStuff._moveInputKeyboardVector
 	end
 
 	if customVECTORMOVE.Magnitude > 1 then
 		customVECTORMOVE = customVECTORMOVE.Unit
 	end
+	NAStuff._moveInputLastUpdate = os.clock()
+	NAStuff._moveInputKeyboardActive = x ~= 0 or z ~= 0
 end
 
 if NAStuff._moveInputBegan then
@@ -20859,7 +20862,7 @@ NAStuff._moveInputEnded = UserInputService.InputEnded:Connect(function(input)
 	end
 end)
 
-function GetCustomMoveVector()
+function GetCustomMoveVector(useHumanoidFallback)
 	local function normalizeMoveVec(vec, invertYToZ)
 		local vecType = typeof(vec)
 		if vecType == "Vector3" then
@@ -20880,6 +20883,14 @@ function GetCustomMoveVector()
 		return nil
 	end
 
+	local function getHumanoidMoveDirection()
+		local hum = getHum and getHum() or nil
+		if not hum then
+			return nil
+		end
+		return normalizeMoveVec(NAlib.isProperty(hum, "MoveDirection"), false)
+	end
+
 	if opt.ctrlModule then
 		local ok, vec = pcall(function()
 			return opt.ctrlModule:GetMoveVector()
@@ -20892,18 +20903,30 @@ function GetCustomMoveVector()
 		end
 	end
 
+	local keyboardSource = normalizeMoveVec(NAStuff._moveInputKeyboardVector, false) or Vector3.zero
+	local keyboardFallback = Vector3.new(keyboardSource.X, keyboardSource.Y, -keyboardSource.Z)
+	if keyboardFallback.Magnitude > 0 then
+		return keyboardFallback
+	end
+
 	local fallbackSource = normalizeMoveVec(customVECTORMOVE, false) or Vector3.zero
 	local fallback = Vector3.new(fallbackSource.X, fallbackSource.Y, -fallbackSource.Z)
 	if fallback.Magnitude > 0 then
 		return fallback
 	end
 
-	local hum = getHum and getHum() or nil
-	if hum then
-		local md = normalizeMoveVec(hum.MoveDirection, false)
-		if md and md.Magnitude > 0 then
-			return md
-		end
+	if useHumanoidFallback == false then
+		return Vector3.zero
+	end
+
+	local magnitudeMove = getHumanoidMoveDirection()
+	if magnitudeMove and magnitudeMove.Magnitude > 0.05 then
+		return magnitudeMove
+	end
+
+	local humanoidMove = getHumanoidMoveDirection()
+	if humanoidMove and humanoidMove.Magnitude > 0 then
+		return humanoidMove
 	end
 
 	return Vector3.zero
@@ -55538,10 +55561,19 @@ NAmanage.IsCharacterFullyNoClip = function(char)
 	return parts > 0
 end
 
-NAmanage.GetVelocityWalkSpeedMoveDirection = function(root)
-	local moveVec = typeof(GetCustomMoveVector) == "function" and GetCustomMoveVector() or Vector3.zero
+NAmanage.GetVelocityWalkSpeedMoveDirection = function(root, hum)
+	local moveVec = Vector3.zero
+	local inputUpdatedAt = tonumber(NAStuff._moveInputLastUpdate)
+	local recentlyChangedInput = inputUpdatedAt and os.clock() - inputUpdatedAt <= 0.18
+	if typeof(GetCustomMoveVector) == "function" then
+		moveVec = GetCustomMoveVector(false)
+	end
+	local flatMoveVec = typeof(moveVec) == "Vector3" and Vector3.new(moveVec.X, 0, moveVec.Z) or Vector3.zero
+	if flatMoveVec.Magnitude <= 0.05 and NAStuff._moveInputKeyboardActive ~= true and recentlyChangedInput then
+		return Vector3.zero
+	end
 	if typeof(moveVec) == "Vector3" then
-		local flatInput = Vector3.new(moveVec.X, 0, moveVec.Z)
+		local flatInput = flatMoveVec
 		if flatInput.Magnitude > 0.05 then
 			local basisCF = workspace.CurrentCamera and workspace.CurrentCamera.CFrame or (root and root.CFrame)
 			if basisCF then
@@ -55664,6 +55696,12 @@ NAmanage.DestroyVelocityWalkSpeedHelper = function()
 	state.bv = nil
 	state.weld = nil
 	state.part = nil
+	state.lastPlanarDriveRoot = nil
+	state.lastPlanarDriveSpeed = nil
+	state.lastPlanarDriveTime = nil
+	state.planarBrakeRoot = nil
+	state.planarBrakeDriveTime = nil
+	state.planarBrakeUntil = nil
 end
 
 NAmanage.SetVelocityWalkSpeedHelperActive = function(velocity, enabled, root)
@@ -55689,6 +55727,73 @@ NAmanage.SetVelocityWalkSpeedHelperActive = function(velocity, enabled, root)
 			bv.MaxForce = Vector3.zero
 		end
 	end)
+end
+
+NAmanage.MarkVelocityWalkSpeedPlanarDrive = function(root, velocity)
+	if not root or typeof(velocity) ~= "Vector3" then
+		return
+	end
+	local flatVelocity = Vector3.new(velocity.X, 0, velocity.Z)
+	if flatVelocity.Magnitude <= 0.05 then
+		return
+	end
+	local state = NAmanage.GetVelocityWalkSpeedState()
+	state.lastPlanarDriveRoot = root
+	state.lastPlanarDriveSpeed = flatVelocity.Magnitude
+	state.lastPlanarDriveTime = os.clock()
+end
+
+NAmanage.BrakeVelocityWalkSpeedPlanarDrift = function(root, hum)
+	if not root or not root.Parent then
+		return
+	end
+	local state = NAmanage.GetVelocityWalkSpeedState()
+	local lastTime = tonumber(state.lastPlanarDriveTime)
+	if state.lastPlanarDriveRoot ~= root or not lastTime then
+		return
+	end
+	local clockNow = os.clock()
+	if clockNow - lastTime > 0.35 then
+		return
+	end
+	if state.planarBrakeRoot ~= root or state.planarBrakeDriveTime ~= lastTime then
+		state.planarBrakeRoot = root
+		state.planarBrakeDriveTime = lastTime
+		state.planarBrakeUntil = clockNow + 0.16
+	end
+	if clockNow > (tonumber(state.planarBrakeUntil) or 0) then
+		state.planarBrakeRoot = nil
+		state.planarBrakeDriveTime = nil
+		state.planarBrakeUntil = nil
+		return
+	end
+	local floorMaterial = hum and NAlib.isProperty(hum, "FloorMaterial")
+	if floorMaterial == Enum.Material.Air then
+		return
+	end
+	local velocity = NAlib.isProperty(root, "AssemblyLinearVelocity") or root.Velocity
+	if typeof(velocity) ~= "Vector3" then
+		return
+	end
+	local flatSpeed = Vector3.new(velocity.X, 0, velocity.Z).Magnitude
+	if flatSpeed <= 0.05 then
+		return
+	end
+	local expectedSpeed = math.max(
+		tonumber(state.lastPlanarDriveSpeed) or 0,
+		tonumber(hum and NAlib.isProperty(hum, "WalkSpeed")) or 0,
+		8
+	)
+	if flatSpeed > expectedSpeed * 1.45 then
+		state.planarBrakeRoot = nil
+		state.planarBrakeDriveTime = nil
+		state.planarBrakeUntil = nil
+		return
+	end
+	local newVelocity = Vector3.new(0, velocity.Y, 0)
+	if not NAlib.setProperty(root, "AssemblyLinearVelocity", newVelocity) then
+		root.Velocity = newVelocity
+	end
 end
 
 NAmanage.GetVelocityWalkSpeedWallAdjustedVelocity = function(root, desiredVelocity, ignoreList)
@@ -55884,10 +55989,11 @@ NAmanage.RefreshVelocityWalkSpeed = function()
 			NAmanage.SetVelocityWalkSpeedHelperActive(Vector3.new(0, math.clamp(climbInput, -1, 1) * speed, 0), true, root)
 			return
 		end
-		local flatDirection = NAmanage.GetVelocityWalkSpeedMoveDirection(root)
+		local flatDirection = NAmanage.GetVelocityWalkSpeedMoveDirection(root, hum)
 		if flatDirection.Magnitude <= 0 then
 			NAmanage.ClearVelocityWalkSpeedClampState()
 			NAmanage.SetVelocityWalkSpeedHelperActive(Vector3.zero, false, root)
+			NAmanage.BrakeVelocityWalkSpeedPlanarDrift(root, hum)
 			return
 		end
 		local desiredVelocity = flatDirection * speed
@@ -55897,6 +56003,7 @@ NAmanage.RefreshVelocityWalkSpeed = function()
 		})
 		NAmanage.SetVelocityWalkSpeedClampState(root, hum, Vector3.new(1, 0, 1), adjustedVelocity)
 		NAmanage.SetVelocityWalkSpeedHelperActive(adjustedVelocity, adjustedVelocity.Magnitude > 0.05, root)
+		NAmanage.MarkVelocityWalkSpeedPlanarDrive(root, adjustedVelocity)
 	end))
 end
 
