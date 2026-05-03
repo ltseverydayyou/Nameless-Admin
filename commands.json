@@ -4799,8 +4799,8 @@
         "clientbring",
         "clientb"
       ],
-      "usage": "cbring <player>",
-      "args": "<player>",
+      "usage": "cbring <player> [distance]",
+      "args": "<player> [distance]",
       "desc": "Brings the player once on your client"
     },
     {
@@ -4812,8 +4812,8 @@
         "lcbring",
         "lclientb"
       ],
-      "usage": "loopcbring <player>",
-      "args": "<player>",
+      "usage": "loopcbring <player> [distance]",
+      "args": "<player> [distance]",
       "desc": "Continuously brings the player on your client"
     },
     {
@@ -7362,27 +7362,35 @@
       "aliases": [
         "bringnpcs"
       ],
-      "usage": "bringnpcs",
-      "args": "",
+      "usage": "bringnpcs [distance]",
+      "args": "[distance]",
       "desc": "Brings NPCs"
     },
     {
       "name": "loopbringnpcs",
       "aliases": [
         "loopbringnpcs",
-        "lbnpcs"
+        "lbnpcs",
+        "loopbnpcs",
+        "lbringnpcs",
+        "lbringnpc",
+        "loopbringnpc"
       ],
-      "usage": "loopbringnpcs (lbnpcs)",
-      "args": "",
+      "usage": "loopbringnpcs [distance] (lbnpcs, loopbnpcs, lbringnpcs)",
+      "args": "[distance]",
       "desc": "Loops NPC bringing"
     },
     {
       "name": "unloopbringnpcs",
       "aliases": [
         "unloopbringnpcs",
-        "unlbnpcs"
+        "unlbnpcs",
+        "unloopbnpcs",
+        "unlbringnpcs",
+        "unlbringnpc",
+        "unloopbringnpc"
       ],
-      "usage": "unloopbringnpcs (unlbnpcs)",
+      "usage": "unloopbringnpcs (unlbnpcs, unloopbnpcs, unlbringnpcs)",
       "args": "",
       "desc": "Stops NPC bring loop"
     },
