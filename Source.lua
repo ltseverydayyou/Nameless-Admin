@@ -115,7 +115,7 @@ _na_boot.syncRuntimeGlobals({
 	NATestingVer = false,
 	NAverify = naVerifyKey,
 	NAKey = naVerifyKey,
-	__NAKeySource = "NA testing.lua",
+	__NAKeySource = "Source.lua",
 })
 
 local __lt = (function()
@@ -82799,12 +82799,12 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		end)
 	end
 
-	local function selectTab(index)
+	local function selectTab(index, skipCommit)
 		local tab = tabs[index]
 		if not tab then
 			return
 		end
-		if editorLoaded then
+		if editorLoaded and skipCommit ~= true then
 			commitCurrentPage(true)
 		end
 		currentTab = index
@@ -82823,24 +82823,28 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			setStatus("Cleared current tab", colors.warn)
 			return
 		end
+		local wasCurrent = index == currentTab
+		if editorLoaded and not wasCurrent then
+			commitCurrentPage(true)
+		end
 		local tab = tabs[index]
 		if tab and tab.holder then
 			tab.holder:Destroy()
 		end
 		table.remove(tabs, index)
-		if currentTab > #tabs then
+		if wasCurrent then
+			currentTab = math.clamp(index, 1, #tabs)
+		elseif currentTab > #tabs then
 			currentTab = #tabs
 		elseif currentTab > index then
 			currentTab -= 1
-		elseif currentTab == index then
-			currentTab = math.max(1, currentTab)
 		end
 		for tabIndex, entry in ipairs(tabs) do
 			if (entry.title or "") == "" then
 				entry.title = "Tab "..tabIndex
 			end
 		end
-		selectTab(currentTab)
+		selectTab(currentTab, true)
 		setStatus("Deleted tab", colors.warn)
 	end
 
