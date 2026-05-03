@@ -59028,8 +59028,25 @@ end)
 
 bringc = {}
 
-cmd.add({"cbring", "clientbring", "clientb"}, {"cbring <player>", "Brings the player once on your client"}, function(...)
-	local username = (...)
+NAmanage.parseBringDistance=function(args, defaultDistance)
+	local distance = tonumber(args[#args])
+	if distance then
+		table.remove(args, #args)
+		return math.clamp(distance, 0, 1000)
+	end
+	return defaultDistance or 0
+end
+
+NAmanage.bringOffsetCFrame=function(cf, distance)
+	if not cf then return nil end
+	distance = tonumber(distance) or 0
+	return cf + cf.LookVector * distance
+end
+
+cmd.add({"cbring", "clientbring", "clientb"}, {"cbring <player> [distance]", "Brings the player once on your client"}, function(...)
+	local args = {...}
+	local distance = NAmanage.parseBringDistance(args, 3)
+	local username = args[1]
 	local target = getPlr(username)
 	if #target == 0 then return end
 	local localChar = getChar()
@@ -59041,14 +59058,16 @@ cmd.add({"cbring", "clientbring", "clientb"}, {"cbring <player>", "Brings the pl
 		if targetChar then
 			local targetRoot = getRoot(targetChar)
 			if targetRoot then
-				targetRoot.CFrame = localRoot.CFrame + localRoot.CFrame.LookVector * 3
+				targetRoot.CFrame = NAmanage.bringOffsetCFrame(localRoot.CFrame, distance)
 			end
 		end
 	end
 end, true)
 
-cmd.add({"loopcbring", "loppclientb", "loopclientbring", "lcbring", "lclientb"}, {"loopcbring <player>", "Continuously brings the player on your client"}, function(...)
-	local username = (...)
+cmd.add({"loopcbring", "loppclientb", "loopclientbring", "lcbring", "lclientb"}, {"loopcbring <player> [distance]", "Continuously brings the player on your client"}, function(...)
+	local args = {...}
+	local distance = NAmanage.parseBringDistance(args, 3)
+	local username = args[1]
 	local target = getPlr(username)
 	if #target == 0 then return end
 	for _, conn in ipairs(bringc) do
@@ -59074,7 +59093,7 @@ cmd.add({"loopcbring", "loppclientb", "loopclientbring", "lcbring", "lclientb"},
 				local targetRoot = getRoot(targetChar)
 				local localRoot = getRoot(localChar)
 				if targetRoot and localRoot then
-					targetRoot.CFrame = localRoot.CFrame + localRoot.CFrame.LookVector * 3
+					targetRoot.CFrame = NAmanage.bringOffsetCFrame(localRoot.CFrame, distance)
 				end
 			end
 		end)
@@ -63707,25 +63726,35 @@ cmd.add({"gotopartclass", "gpc", "gotopartc", "gotoprtc"}, {"gotopartclass {clas
 	end)
 end, true)
 
-cmd.add({"bringpart", "bpart", "bprt"}, {"bringpart {partname} (bpart, bprt)", "Brings a part to your character by name"}, function(...)
-	local partName = Concat({...}, " "):lower()
+cmd.add({"bringpart", "bpart", "bprt"}, {"bringpart {partname} [distance] (bpart, bprt)", "Brings a part to your character by name"}, function(...)
+	local args = {...}
+	local distance = NAmanage.parseBringDistance(args, 0)
+	local partName = Concat(args, " "):lower()
+	if partName == "" then return end
+	local char = getChar()
+	if not char then return end
+	local root = getRoot(char)
+	local pivot = NAmanage.bringOffsetCFrame((root and root.CFrame) or char:GetPivot(), distance)
+	if not pivot then return end
 
 	for _, part in ipairs(NAmanage.fastWorkspaceMatches("BasePart", partName, "exact")) do
 		if part.Name:lower() == partName then
-			if getChar() then
-				part:PivotTo(getChar():GetPivot())
-			end
+			part:PivotTo(pivot)
 		end
 	end
 end, true)
 
-cmd.add({"bringpartfind","bpartfind","bprtfind"},{"bringpartfind {name} (bpartfind, bprtfind)","Brings all parts containing name to your character"},function(...)
-	local name = Concat({...}," "):lower()
+cmd.add({"bringpartfind","bpartfind","bprtfind"},{"bringpartfind {name} [distance] (bpartfind, bprtfind)","Brings all parts containing name to your character"},function(...)
+	local args = {...}
+	local distance = NAmanage.parseBringDistance(args, 0)
+	local name = Concat(args," "):lower()
 	if name == "" then return end
 
 	local char = getChar()
 	if not char then return end
-	local pivot = char:GetPivot()
+	local root = getRoot(char)
+	local pivot = NAmanage.bringOffsetCFrame((root and root.CFrame) or char:GetPivot(), distance)
+	if not pivot then return end
 
 	for _, part in ipairs(NAmanage.fastWorkspaceMatches("BasePart", name, "contains")) do
 		local n = part.Name:lower()
@@ -63735,25 +63764,35 @@ cmd.add({"bringpartfind","bpartfind","bprtfind"},{"bringpartfind {name} (bpartfi
 	end
 end,true)
 
-cmd.add({"bringmodel", "bmodel"}, {"bringmodel {modelname} (bmodel)", "Brings a model to your character by name"}, function(...)
-	local modelName = Concat({...}, " "):lower()
+cmd.add({"bringmodel", "bmodel"}, {"bringmodel {modelname} [distance] (bmodel)", "Brings a model to your character by name"}, function(...)
+	local args = {...}
+	local distance = NAmanage.parseBringDistance(args, 0)
+	local modelName = Concat(args, " "):lower()
+	if modelName == "" then return end
+	local char = getChar()
+	if not char then return end
+	local root = getRoot(char)
+	local pivot = NAmanage.bringOffsetCFrame((root and root.CFrame) or char:GetPivot(), distance)
+	if not pivot then return end
 
 	for _, model in ipairs(NAmanage.fastWorkspaceMatches("Model", modelName, "exact")) do
 		if model.Name:lower() == modelName then
-			if getChar() then
-				model:PivotTo(getChar():GetPivot())
-			end
+			model:PivotTo(pivot)
 		end
 	end
 end, true)
 
-cmd.add({"bringmodelfind","bmodelfind"},{"bringmodelfind {name} (bmodelfind)","Brings all models whose name contains the given text to your character"},function(...)
-	local name = Concat({...}," "):lower()
+cmd.add({"bringmodelfind","bmodelfind"},{"bringmodelfind {name} [distance] (bmodelfind)","Brings all models whose name contains the given text to your character"},function(...)
+	local args = {...}
+	local distance = NAmanage.parseBringDistance(args, 0)
+	local name = Concat(args," "):lower()
 	if name == "" then return end
 
 	local char = getChar()
 	if not char then return end
-	local pivot = char:GetPivot()
+	local root = getRoot(char)
+	local pivot = NAmanage.bringOffsetCFrame((root and root.CFrame) or char:GetPivot(), distance)
+	if not pivot then return end
 
 	for _, model in ipairs(NAmanage.fastWorkspaceMatches("Model", name, "contains")) do
 		local n = model.Name:lower()
@@ -63763,8 +63802,9 @@ cmd.add({"bringmodelfind","bmodelfind"},{"bringmodelfind {name} (bmodelfind)","B
 	end
 end,true)
 
-cmd.add({"bringfolder","bfldr"},{"bringfolder {folderName} [partName] (bfldr)","Brings all parts in a folder or a specified part"},function(...)
+cmd.add({"bringfolder","bfldr"},{"bringfolder {folderName} [partName] [distance] (bfldr)","Brings all parts in a folder or a specified part"},function(...)
 	local raw = {...}
+	local distance = NAmanage.parseBringDistance(raw, 0)
 	if #raw == 0 then return end
 	local lower = {}
 	for i=1,#raw do lower[i] = tostring(raw[i]):lower() end
@@ -63793,7 +63833,9 @@ cmd.add({"bringfolder","bfldr"},{"bringfolder {folderName} [partName] (bfldr)","
 	if not folder then return end
 	local char = getChar()
 	if not char then return end
-	local pivot = char:GetPivot()
+	local root = getRoot(char)
+	local pivot = NAmanage.bringOffsetCFrame((root and root.CFrame) or char:GetPivot(), distance)
+	if not pivot then return end
 	for _,desc in ipairs(NAmanage.qDesc(folder, "BasePart")) do
 		local ok = true
 		if partFilter and partFilter ~= "" then
@@ -72096,15 +72138,18 @@ cmd.add({"npcjumppower","npcjp"},{"npcjumppower <power>","Sets all NPC JumpPower
 	end
 end,true)
 
-cmd.add({"bringnpcs"}, {"bringnpcs", "Brings NPCs"}, function()
+cmd.add({"bringnpcs"}, {"bringnpcs [distance]", "Brings NPCs"}, function(...)
+	local args = {...}
+	local distance = NAmanage.parseBringDistance(args, 0)
 	local npcs = {}
 
 	local function disappear(hum)
 		if hum:IsA("Humanoid") and CheckIfNPC(hum.Parent) then
 			Insert(npcs,{hum,hum.HipHeight})
 			local rootPart = getRoot(hum.Parent)
-			if rootPart then
-				rootPart.CFrame = getRoot(LocalPlayer.Character).CFrame
+			local localRoot = LocalPlayer.Character and getRoot(LocalPlayer.Character)
+			if rootPart and localRoot then
+				rootPart.CFrame = NAmanage.bringOffsetCFrame(localRoot.CFrame, distance)
 			end
 		end
 	end
@@ -72114,7 +72159,9 @@ cmd.add({"bringnpcs"}, {"bringnpcs", "Brings NPCs"}, function()
 end)
 
 npcCache = {}
-cmd.add({"loopbringnpcs", "lbnpcs"}, {"loopbringnpcs (lbnpcs)", "Loops NPC bringing"}, function()
+cmd.add({"loopbringnpcs", "lbnpcs", "loopbnpcs", "lbringnpcs", "lbringnpc", "loopbringnpc"}, {"loopbringnpcs [distance] (lbnpcs, loopbnpcs, lbringnpcs)", "Loops NPC bringing"}, function(...)
+	local args = {...}
+	local distance = NAmanage.parseBringDistance(args, 0)
 	if NAlib.isConnected("loopbringnpcs") then NAlib.disconnect("loopbringnpcs") end
 	table.clear(npcCache)
 	for _, hum in ipairs(NAmanage.qDesc(workspace, "Humanoid")) do
@@ -72130,7 +72177,7 @@ cmd.add({"loopbringnpcs", "lbnpcs"}, {"loopbringnpcs (lbnpcs)", "Loops NPC bring
 				local rootPart = getRoot(model)
 				local localRoot = LocalPlayer.Character and getRoot(LocalPlayer.Character)
 				if rootPart and localRoot then
-					rootPart.CFrame = localRoot.CFrame
+					rootPart.CFrame = NAmanage.bringOffsetCFrame(localRoot.CFrame, distance)
 				end
 				SpawnCall(function()
 					for _, part in ipairs(NAmanage.qDesc(model, "BasePart")) do
@@ -72144,7 +72191,7 @@ cmd.add({"loopbringnpcs", "lbnpcs"}, {"loopbringnpcs (lbnpcs)", "Loops NPC bring
 	end))
 end)
 
-cmd.add({"unloopbringnpcs", "unlbnpcs"}, {"unloopbringnpcs (unlbnpcs)", "Stops NPC bring loop"}, function()
+cmd.add({"unloopbringnpcs", "unlbnpcs", "unloopbnpcs", "unlbringnpcs", "unlbringnpc", "unloopbringnpc"}, {"unloopbringnpcs (unlbnpcs, unloopbnpcs, unlbringnpcs)", "Stops NPC bring loop"}, function()
 	NAlib.disconnect("loopbringnpcs")
 end)
 
