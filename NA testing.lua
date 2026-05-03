@@ -73217,6 +73217,7 @@ do
 
 		ctrl.name = name;
 		ctrl.config = config or ctrl.config or {};
+		ctrl.axis = (ctrl.config.axis == "X" or ctrl.config.axis == "Horizontal") and "X" or "Y";
 		ctrl.step = ctrl.config.step or ctrl.step or registry.step;
 		ctrl.repeatDelay = ctrl.config.repeatDelay or ctrl.repeatDelay or registry.repeatDelay;
 		ctrl.repeatRate = ctrl.config.repeatRate or ctrl.repeatRate or registry.repeatRate;
@@ -73254,18 +73255,51 @@ do
 			if not target then
 				return 0;
 			end;
+			if ctrl.config and type(ctrl.config.getVisibleSpace) == "function" then
+				local ok, result = pcall(ctrl.config.getVisibleSpace, ctrl, target);
+				if ok and type(result) == "number" then
+					return math.max(0, result);
+				end;
+			end;
 			local logicalSize = NAmanage.GetLogicalAbsoluteSize and NAmanage.GetLogicalAbsoluteSize(target) or nil;
 			if logicalSize then
-				return math.max(0, logicalSize.Y or 0);
+				return math.max(0, (ctrl.axis == "X" and logicalSize.X or logicalSize.Y) or 0);
 			end;
-			return math.max(0, (target.AbsoluteSize.Y or 0) / registry.getScale());
+			local absSize = ctrl.axis == "X" and target.AbsoluteSize.X or target.AbsoluteSize.Y;
+			return math.max(0, (absSize or 0) / registry.getScale());
+		end;
+
+		function ctrl.getTotalSpace(target)
+			if not target then
+				return 0;
+			end;
+			if ctrl.config and type(ctrl.config.getTotalSpace) == "function" then
+				local ok, result = pcall(ctrl.config.getTotalSpace, ctrl, target);
+				if ok and type(result) == "number" then
+					return math.max(0, result);
+				end;
+			end;
+			return math.max(ctrl.getVisibleSpace(target), tonumber((ctrl.axis == "X" and target.CanvasSize.X or target.CanvasSize.Y).Offset) or 0);
+		end;
+
+		function ctrl.getPosition(target)
+			if not target then
+				return 0;
+			end;
+			if ctrl.config and type(ctrl.config.getPosition) == "function" then
+				local ok, result = pcall(ctrl.config.getPosition, ctrl, target);
+				if ok and type(result) == "number" then
+					return result;
+				end;
+			end;
+			return tonumber(ctrl.axis == "X" and target.CanvasPosition.X or target.CanvasPosition.Y) or 0;
 		end;
 
 		function ctrl.getMaxPosition(target)
 			if not target then
 				return 0;
 			end;
-			local total = tonumber(target.CanvasSize.Y.Offset) or 0;
+			local total = ctrl.getTotalSpace(target);
 			local visible = ctrl.getVisibleSpace(target);
 			return math.max(0, total - visible);
 		end;
@@ -73279,6 +73313,7 @@ do
 				target.ScrollBarThickness = 0;
 				target.ScrollBarImageTransparency = 1;
 				target.VerticalScrollBarInset = Enum.ScrollBarInset.None;
+				target.HorizontalScrollBarInset = Enum.ScrollBarInset.None;
 			end);
 			if ctrl.config and ctrl.config.applyTargetDefaults then
 				pcall(ctrl.config.applyTargetDefaults, ctrl, target);
@@ -73346,7 +73381,7 @@ do
 				pcall(ctrl.config.layoutForTarget, ctrl, target, widgets);
 			end;
 
-			if not (target and target.Parent and target.Visible ~= false and bar and bar.Parent and track and thumb) then
+			if not (target and target.Parent and (target.Visible ~= false or (ctrl.config and ctrl.config.allowHiddenTarget == true)) and bar and bar.Parent and track and thumb) then
 				ctrl.hide();
 				return;
 			end;
@@ -73367,47 +73402,58 @@ do
 			end;
 
 			local visible = ctrl.getVisibleSpace(target);
-			local total = math.max(visible, tonumber(target.CanvasSize.Y.Offset) or 0);
+			local total = math.max(visible, ctrl.getTotalSpace(target));
 			local maxPos = math.max(0, total - visible);
-			local trackHeight = math.max(0, track.AbsoluteSize.Y or 0);
-			local canScroll = maxPos > 1 and visible > 0 and trackHeight > 0;
+			local trackSize = math.max(0, ctrl.axis == "X" and (track.AbsoluteSize.X or 0) or (track.AbsoluteSize.Y or 0));
+			local canScroll = maxPos > 1 and visible > 0 and trackSize > 0;
 			bar.Visible = canScroll;
 			if not canScroll then
 				return;
 			end;
 
-			local currentY = math.clamp(tonumber(target.CanvasPosition.Y) or 0, 0, maxPos);
-			local upEnabled = currentY > 0.5;
-			local downEnabled = currentY < (maxPos - 0.5);
+			local currentPos = math.clamp(tonumber(ctrl.getPosition(target)) or 0, 0, maxPos);
+			local upEnabled = currentPos > 0.5;
+			local downEnabled = currentPos < (maxPos - 0.5);
 			upButton.BackgroundTransparency = upEnabled and 0.15 or 0.55;
 			downButton.BackgroundTransparency = downEnabled and 0.15 or 0.55;
 			upButton.TextTransparency = upEnabled and 0 or 0.5;
 			downButton.TextTransparency = downEnabled and 0 or 0.5;
 
 			local minThumb = tonumber(ctrl.config.minThumb) or (IsOnMobile and 28 or 18);
-				local thumbHeight = trackHeight;
+				local thumbMainSize = trackSize;
 				if total > 0 then
-					local maxThumb = math.max(1, trackHeight);
+					local maxThumb = math.max(1, trackSize);
 					local minSafe = math.min(math.max(1, minThumb), maxThumb);
-					local rawThumb = trackHeight * (visible / total);
-					thumbHeight = math.floor(math.clamp(rawThumb, minSafe, maxThumb) + 0.5);
+					local rawThumb = trackSize * (visible / total);
+					thumbMainSize = math.floor(math.clamp(rawThumb, minSafe, maxThumb) + 0.5);
 				end;
-			local travel = math.max(0, trackHeight - thumbHeight);
-			local percent = maxPos > 0 and (currentY / maxPos) or 0;
-			thumb.Size = UDim2.new(1, 0, 0, thumbHeight);
-			thumb.Position = UDim2.new(0, 0, 0, math.floor(travel * percent + 0.5));
+			local travel = math.max(0, trackSize - thumbMainSize);
+			local percent = maxPos > 0 and (currentPos / maxPos) or 0;
+			if ctrl.axis == "X" then
+				thumb.Size = UDim2.new(0, thumbMainSize, 1, 0);
+				thumb.Position = UDim2.new(0, math.floor(travel * percent + 0.5), 0, 0);
+			else
+				thumb.Size = UDim2.new(1, 0, 0, thumbMainSize);
+				thumb.Position = UDim2.new(0, 0, 0, math.floor(travel * percent + 0.5));
+			end;
 		end;
 
-		function ctrl.scrollTo(y)
+		function ctrl.scrollTo(pos)
 			local target = ctrl.getTarget();
 			if not target then
 				ctrl.hide();
 				return;
 			end;
 			local maxPos = ctrl.getMaxPosition(target);
-			local nextY = math.clamp(tonumber(y) or 0, 0, maxPos);
+			local nextPos = math.clamp(tonumber(pos) or 0, 0, maxPos);
+			if ctrl.config and type(ctrl.config.setPosition) == "function" then
+				pcall(ctrl.config.setPosition, ctrl, target, nextPos);
+				ctrl.scheduleRefresh();
+				return;
+			end;
 			local currentX = tonumber(target.CanvasPosition.X) or 0;
-			target.CanvasPosition = Vector2.new(currentX, nextY);
+			local currentY = tonumber(target.CanvasPosition.Y) or 0;
+			target.CanvasPosition = ctrl.axis == "X" and Vector2.new(nextPos, currentY) or Vector2.new(currentX, nextPos);
 			ctrl.scheduleRefresh();
 		end;
 
@@ -73417,7 +73463,8 @@ do
 				ctrl.hide();
 				return;
 			end;
-			ctrl.scrollTo((tonumber(target.CanvasPosition.Y) or 0) + (tonumber(delta) or 0));
+			local current = ctrl.getPosition(target);
+			ctrl.scrollTo((tonumber(current) or 0) + (tonumber(delta) or 0));
 		end;
 
 		function ctrl.pageStep(direction)
@@ -73557,18 +73604,18 @@ do
 					if not input or not isPressInput(input.UserInputType) then
 						return;
 					end;
-					local y = input.Position and input.Position.Y;
-					if not y then
+					local pointerPos = input.Position and (ctrl.axis == "X" and input.Position.X or input.Position.Y);
+					if not pointerPos then
 						return;
 					end;
-					local thumbTop = thumb.AbsolutePosition.Y;
-					local thumbBottom = thumbTop + thumb.AbsoluteSize.Y;
-					if y >= thumbTop and y <= thumbBottom then
+					local thumbStart = ctrl.axis == "X" and thumb.AbsolutePosition.X or thumb.AbsolutePosition.Y;
+					local thumbEnd = thumbStart + (ctrl.axis == "X" and thumb.AbsoluteSize.X or thumb.AbsoluteSize.Y);
+					if pointerPos >= thumbStart and pointerPos <= thumbEnd then
 						return;
 					end;
 					ctrl.stopArrowHold();
 					ctrl.stopThumbDrag();
-					if y < thumbTop then
+					if pointerPos < thumbStart then
 						ctrl.pageStep(-1);
 					else
 						ctrl.pageStep(1);
@@ -73586,7 +73633,7 @@ do
 					local touchLocked = false;
 					local moveConn;
 					local endConn;
-					local offsetY = input.Position and (input.Position.Y - thumb.AbsolutePosition.Y) or 0;
+					local offset = input.Position and ((ctrl.axis == "X" and input.Position.X or input.Position.Y) - (ctrl.axis == "X" and thumb.AbsolutePosition.X or thumb.AbsolutePosition.Y)) or 0;
 					local touchMode = ctrl.name .. "-scroll-thumb";
 
 					if pointer and NAgui.tryLockTouchGesture and not NAgui.tryLockTouchGesture(bar, touchMode, pointer) then
@@ -73627,10 +73674,14 @@ do
 							stop();
 							return;
 						end;
-						local trackHeight = math.max(0, track.AbsoluteSize.Y - thumb.AbsoluteSize.Y);
-						local rawY = changedInput.Position.Y - track.AbsolutePosition.Y - offsetY;
-						local thumbY = math.clamp(rawY, 0, trackHeight);
-						local percent = trackHeight > 0 and (thumbY / trackHeight) or 0;
+						local trackMain = ctrl.axis == "X" and track.AbsoluteSize.X or track.AbsoluteSize.Y;
+						local thumbMain = ctrl.axis == "X" and thumb.AbsoluteSize.X or thumb.AbsoluteSize.Y;
+						local trackTravel = math.max(0, trackMain - thumbMain);
+						local inputPos = ctrl.axis == "X" and changedInput.Position.X or changedInput.Position.Y;
+						local trackPos = ctrl.axis == "X" and track.AbsolutePosition.X or track.AbsolutePosition.Y;
+						local rawPos = inputPos - trackPos - offset;
+						local thumbPos = math.clamp(rawPos, 0, trackTravel);
+						local percent = trackTravel > 0 and (thumbPos / trackTravel) or 0;
 						ctrl.scrollTo(percent * ctrl.getMaxPosition(target));
 					end);
 					endConn = UserInputService.InputEnded:Connect(function(endedInput)
@@ -81429,9 +81480,9 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	local tabsFile = execDir.."/tabs.json"
 	local indexFile = execDir.."/scripts.json"
 	local scriptsDir = execDir.."/Scripts"
-	local fsOk = type(isfolder) == "function"
+	local folderApiOk = type(isfolder) == "function"
 		and type(makefolder) == "function"
-		and type(isfile) == "function"
+	local fsOk = type(isfile) == "function"
 		and type(readfile) == "function"
 		and type(writefile) == "function"
 	local delOk = type(delfile) == "function"
@@ -81459,6 +81510,11 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		string = Color3.fromRGB(166, 226, 128),
 		comment = Color3.fromRGB(112, 122, 132),
 		number = Color3.fromRGB(255, 214, 112),
+		func = Color3.fromRGB(130, 230, 210),
+		method = Color3.fromRGB(118, 194, 255),
+		property = Color3.fromRGB(205, 194, 255),
+		operator = Color3.fromRGB(255, 155, 190),
+		bracket = Color3.fromRGB(210, 210, 225),
 		success = Color3.fromRGB(156, 235, 174),
 		warn = Color3.fromRGB(255, 214, 112),
 		error = Color3.fromRGB(255, 146, 146),
@@ -81468,16 +81524,27 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		["end"] = true, ["false"] = true, ["for"] = true, ["function"] = true, ["if"] = true, ["in"] = true,
 		["local"] = true, ["nil"] = true, ["not"] = true, ["or"] = true, ["repeat"] = true, ["return"] = true,
 		["then"] = true, ["true"] = true, ["until"] = true, ["while"] = true, ["export"] = true, ["type"] = true,
-		["typeof"] = true,
+		["typeof"] = true, ["as"] = true,
 	}
 	local globalSet = {
 		["game"] = true, ["workspace"] = true, ["script"] = true, ["shared"] = true, ["plugin"] = true, ["Enum"] = true,
-		["Color3"] = true, ["Vector2"] = true, ["Vector3"] = true, ["CFrame"] = true, ["UDim2"] = true,
-		["Instance"] = true, ["math"] = true, ["string"] = true, ["table"] = true, ["task"] = true, ["debug"] = true,
+		["Color3"] = true, ["Vector2"] = true, ["Vector3"] = true, ["CFrame"] = true, ["UDim"] = true, ["UDim2"] = true,
+		["Instance"] = true, ["TweenInfo"] = true, ["Ray"] = true, ["Rect"] = true, ["Region3"] = true, ["Random"] = true,
+		["DateTime"] = true, ["NumberRange"] = true, ["NumberSequence"] = true, ["ColorSequence"] = true,
+		["BrickColor"] = true, ["Axes"] = true, ["Faces"] = true, ["Font"] = true, ["math"] = true, ["string"] = true,
+		["table"] = true, ["task"] = true, ["debug"] = true, ["coroutine"] = true, ["os"] = true, ["utf8"] = true,
+		["vector"] = true,
 		["pairs"] = true, ["ipairs"] = true, ["next"] = true, ["print"] = true, ["warn"] = true, ["error"] = true,
-		["pcall"] = true, ["xpcall"] = true, ["select"] = true, ["rawget"] = true, ["rawset"] = true,
-		["setmetatable"] = true, ["getmetatable"] = true, ["loadstring"] = true, ["require"] = true,
-		["coroutine"] = true, ["os"] = true, ["utf8"] = true,
+		["assert"] = true, ["pcall"] = true, ["xpcall"] = true, ["select"] = true, ["rawequal"] = true,
+		["rawget"] = true, ["rawset"] = true, ["rawlen"] = true, ["setmetatable"] = true, ["getmetatable"] = true,
+		["loadstring"] = true, ["load"] = true, ["require"] = true, ["tonumber"] = true, ["tostring"] = true,
+		["type"] = true, ["typeof"] = true, ["unpack"] = true, ["wait"] = true, ["delay"] = true, ["spawn"] = true,
+		["tick"] = true, ["time"] = true, ["elapsedTime"] = true, ["gcinfo"] = true, ["collectgarbage"] = true,
+		["getfenv"] = true, ["setfenv"] = true, ["newproxy"] = true, ["settings"] = true, ["UserSettings"] = true,
+	}
+	local typeSet = {
+		["any"] = true, ["boolean"] = true, ["buffer"] = true, ["nil"] = true, ["number"] = true,
+		["string"] = true, ["thread"] = true, ["unknown"] = true, ["never"] = true, ["userdata"] = true,
 	}
 
 	local function makeCornerAndStroke(obj, radius, thickness)
@@ -81628,6 +81695,9 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		if not fsOk then
 			return false
 		end
+		if not folderApiOk then
+			return true
+		end
 		local ok = true
 		local function mk(path)
 			if not ok then
@@ -81744,23 +81814,43 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		local maxW = math.max(1, vp.X - padX * 2)
 		local maxH = math.max(1, vp.Y - padY * 2)
 		local mobile = isTouchCompact(vp)
-		local targetW
-		local targetH
-		if mobile then
-			targetW = clampSize(math.floor(vp.X * 0.965), 340, maxW)
-			targetH = clampSize(math.floor(vp.Y * (vp.Y < 520 and 0.88 or 0.90)), 280, maxH)
-		else
-			targetW = clampSize(920, 680, maxW)
-			targetH = clampSize(540, 420, maxH)
+		local defaultW = mobile and math.floor(vp.X * 0.965) or 920
+		local defaultH = mobile and math.floor(vp.Y * (vp.Y < 520 and 0.88 or 0.90)) or 540
+		local initialized = frame.GetAttribute and NAmanage.GetAttr(frame, "NAExecutorDefaultSized") == true
+		local curW = tonumber(frame.Size.X.Offset) or 0
+		local curH = tonumber(frame.Size.Y.Offset) or 0
+		local targetW = initialized and curW or defaultW
+		local targetH = initialized and curH or defaultH
+		if targetW <= 0 then
+			targetW = defaultW
 		end
+		if targetH <= 0 then
+			targetH = defaultH
+		end
+		targetW = math.clamp(math.floor(targetW + 0.5), 1, maxW)
+		targetH = math.clamp(math.floor(targetH + 0.5), 1, maxH)
 		execResponsive.compact = targetW < 760 or targetH < 430
 		execResponsive.phone = targetW < 560
 		execResponsive.lastW = targetW
 		execResponsive.lastH = targetH
 		frame.AnchorPoint = Vector2.new(0, 0)
-		frame.Size = UDim2.fromOffset(targetW, targetH)
-		NAmanage.centerFrame(frame)
+		if frame.AbsoluteSize.X ~= targetW or frame.AbsoluteSize.Y ~= targetH then
+			frame.Size = UDim2.fromOffset(targetW, targetH)
+		end
+		if frame.SetAttribute then
+			NAmanage.SetAttr(frame, "NAExecutorDefaultSized", true)
+		end
+		if not initialized then
+			NAmanage.centerFrame(frame)
+		else
+			local x = math.floor(frame.Position.X.Scale * vp.X + frame.Position.X.Offset + 0.5)
+			local y = math.floor(frame.Position.Y.Scale * vp.Y + frame.Position.Y.Offset + 0.5)
+			x = math.clamp(x, padX, math.max(padX, vp.X - targetW - padX))
+			y = math.clamp(y, padY, math.max(padY, vp.Y - targetH - padY))
+			frame.Position = UDim2.fromOffset(x, y)
+		end
 	end
+	NAmanage.Executor_ApplyResponsive = applyExecutorFrameSize
 	local rootPad = InstanceNew("UIPadding")
 	rootPad.PaddingBottom = UDim.new(0, 10)
 	rootPad.PaddingLeft = UDim.new(0, 10)
@@ -81902,11 +81992,174 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	editorScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
 	editorScroll.Position = UDim2.new(0, 50, 0, 0)
 	editorScroll.ScrollBarImageColor3 = colors.subtle
-	editorScroll.ScrollBarThickness = 6
+	editorScroll.ScrollBarThickness = 0
 	editorScroll.ScrollingDirection = Enum.ScrollingDirection.XY
 	editorScroll.Size = UDim2.new(1, -50, 1, 0)
 	editorScroll.Parent = editorPane
 	makeCornerAndStroke(editorScroll, 8, 1)
+
+	local editorLineScroll = InstanceNew("ScrollingFrame")
+	editorLineScroll.Name = "LineScrollProxy"
+	editorLineScroll.Active = false
+	editorLineScroll.BackgroundTransparency = 1
+	editorLineScroll.BorderSizePixel = 0
+	editorLineScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+	editorLineScroll.Position = editorScroll.Position
+	editorLineScroll.ScrollBarThickness = 0
+	editorLineScroll.ScrollingDirection = Enum.ScrollingDirection.Y
+	editorLineScroll.Size = editorScroll.Size
+	editorLineScroll.Visible = false
+	editorLineScroll.Parent = editorPane
+
+	local function makeEditorScrollBar(parent, name, axis)
+		local horizontal = axis == "X"
+		local bar = InstanceNew("Frame")
+		bar.Name = name
+		bar.BackgroundColor3 = colors.panel2
+		bar.BorderSizePixel = 0
+		bar.Visible = false
+		bar.ZIndex = 35
+		bar.Parent = parent
+		makeCornerAndStroke(bar, 7, 1)
+
+		local upButton = InstanceNew("TextButton")
+		upButton.Name = horizontal and "Left" or "Up"
+		upButton.AutoButtonColor = false
+		upButton.BackgroundColor3 = colors.panel3
+		upButton.BorderSizePixel = 0
+		upButton.Font = Enum.Font.GothamBold
+		upButton.Text = horizontal and "<" or "^"
+		upButton.TextColor3 = colors.text
+		upButton.TextSize = 10
+		upButton.ZIndex = 36
+		upButton.Parent = bar
+		makeCornerAndStroke(upButton, 5, 1)
+
+		local downButton = InstanceNew("TextButton")
+		downButton.Name = horizontal and "Right" or "Down"
+		downButton.AutoButtonColor = false
+		downButton.BackgroundColor3 = colors.panel3
+		downButton.BorderSizePixel = 0
+		downButton.Font = Enum.Font.GothamBold
+		downButton.Text = horizontal and ">" or "v"
+		downButton.TextColor3 = colors.text
+		downButton.TextSize = 10
+		downButton.ZIndex = 36
+		downButton.Parent = bar
+		makeCornerAndStroke(downButton, 5, 1)
+
+		local track = InstanceNew("Frame")
+		track.Name = "Track"
+		track.BackgroundColor3 = colors.panel
+		track.BorderSizePixel = 0
+		track.ZIndex = 36
+		track.Parent = bar
+		makeCornerAndStroke(track, 5, 1)
+
+		local thumb = InstanceNew("Frame")
+		thumb.Name = "Thumb"
+		thumb.BackgroundColor3 = colors.subtle
+		thumb.BorderSizePixel = 0
+		thumb.ZIndex = 37
+		thumb.Parent = track
+		makeCornerAndStroke(thumb, 5, 1)
+
+		if horizontal then
+			bar.Size = UDim2.new(0, 120, 0, 16)
+			upButton.Position = UDim2.new(0, 0, 0, 0)
+			upButton.Size = UDim2.new(0, 16, 1, 0)
+			downButton.AnchorPoint = Vector2.new(1, 0)
+			downButton.Position = UDim2.new(1, 0, 0, 0)
+			downButton.Size = UDim2.new(0, 16, 1, 0)
+			track.Position = UDim2.new(0, 18, 0, 0)
+			track.Size = UDim2.new(1, -36, 1, 0)
+		else
+			bar.Size = UDim2.new(0, 16, 0, 120)
+			upButton.Position = UDim2.new(0, 0, 0, 0)
+			upButton.Size = UDim2.new(1, 0, 0, 16)
+			downButton.AnchorPoint = Vector2.new(0, 1)
+			downButton.Position = UDim2.new(0, 0, 1, 0)
+			downButton.Size = UDim2.new(1, 0, 0, 16)
+			track.Position = UDim2.new(0, 0, 0, 18)
+			track.Size = UDim2.new(1, 0, 1, -36)
+		end
+
+		return {
+			bar = bar,
+			upButton = upButton,
+			downButton = downButton,
+			track = track,
+			thumb = thumb,
+		}
+	end
+
+	local editorVScroll = makeEditorScrollBar(editorPane, "CustomScrollBar", "Y")
+	local editorHScroll = makeEditorScrollBar(editorPane, "CustomHorizontalScrollBar", "X")
+	local editorGetVisibleLines
+	local editorGetTotalLines
+	local editorGetViewLine
+	local editorSetViewLine
+
+	local function layoutEditorScrollBar(_, target, widgets)
+		local bar = widgets and widgets.bar
+		if not (target and bar and bar.Parent) then
+			return
+		end
+		local parentPos = bar.Parent.AbsolutePosition
+		local relX = math.floor(target.AbsolutePosition.X - parentPos.X + 0.5)
+		local relY = math.floor(target.AbsolutePosition.Y - parentPos.Y + 0.5)
+		local w = math.floor(target.AbsoluteSize.X + 0.5)
+		local h = math.floor(target.AbsoluteSize.Y + 0.5)
+		if bar == editorHScroll.bar then
+			bar.Position = UDim2.new(0, relX, 0, relY + h - 16)
+			bar.Size = UDim2.new(0, math.max(48, w - 18), 0, 16)
+		else
+			bar.Position = UDim2.new(0, relX + w - 16, 0, relY)
+			bar.Size = UDim2.new(0, 16, 0, math.max(48, h - 18))
+		end
+	end
+
+	local executorVerticalScroll = NAmanage.CustomScroll and NAmanage.CustomScroll.create and NAmanage.CustomScroll.create("executor_editor_v", {
+		getWidgets = function()
+			return editorVScroll
+		end,
+		getTarget = function()
+			return editorScroll
+		end,
+		getVisibleSpace = function()
+			return editorGetVisibleLines and editorGetVisibleLines() or 1
+		end,
+		getTotalSpace = function()
+			return editorGetTotalLines and editorGetTotalLines() or 1
+		end,
+		getPosition = function()
+			return math.max(0, (editorGetViewLine and editorGetViewLine() or 1) - 1)
+		end,
+		setPosition = function(_, _, pos)
+			if editorSetViewLine then
+				editorSetViewLine(math.floor((tonumber(pos) or 0) + 1.5))
+			end
+		end,
+		layoutForTarget = layoutEditorScrollBar,
+		step = 3,
+	})
+	local executorHorizontalScroll = NAmanage.CustomScroll and NAmanage.CustomScroll.create and NAmanage.CustomScroll.create("executor_editor_h", {
+		axis = "X",
+		getWidgets = function()
+			return editorHScroll
+		end,
+		getTarget = function()
+			return editorScroll
+		end,
+		layoutForTarget = layoutEditorScrollBar,
+		step = 96,
+	})
+	if executorVerticalScroll and executorVerticalScroll.install then
+		executorVerticalScroll.install()
+	end
+	if executorHorizontalScroll and executorHorizontalScroll.install then
+		executorHorizontalScroll.install()
+	end
 
 	local textBox = InstanceNew("TextBox")
 	textBox.Name = "Source"
@@ -81951,6 +82204,11 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	local stringLayer = makeLayer("Strings", colors.string, 4)
 	local commentLayer = makeLayer("Comments", colors.comment, 4)
 	local numberLayer = makeLayer("Numbers", colors.number, 4)
+	local functionLayer = makeLayer("Functions", colors.func, 4)
+	local methodLayer = makeLayer("Methods", colors.method, 4)
+	local propertyLayer = makeLayer("Properties", colors.property, 4)
+	local operatorLayer = makeLayer("Operators", colors.operator, 4)
+	local bracketLayer = makeLayer("Brackets", colors.bracket, 4)
 	textBox.ZIndex = 3
 
 	local pagePanel = InstanceNew("Frame")
@@ -81987,7 +82245,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	pageLabel.Font = Enum.Font.GothamSemibold
 	pageLabel.LayoutOrder = 2
 	pageLabel.Size = UDim2.new(1, -74, 0, 22)
-	pageLabel.Text = "Page 1/1"
+	pageLabel.Text = "Lines 1-1/1"
 	pageLabel.TextColor3 = colors.subtle
 	pageLabel.TextSize = 12
 	pageLabel.TextXAlignment = Enum.TextXAlignment.Center
@@ -82103,14 +82361,21 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 
 	local actionLayout = InstanceNew("UIGridLayout")
 	actionLayout.CellPadding = UDim2.new(0, 6, 0, 0)
-	actionLayout.CellSize = UDim2.new(0.1666, -5, 1, 0)
-	actionLayout.FillDirectionMaxCells = 6
+	local hasClipboardPaste = type(getclipboard) == "function"
+	local actionButtonCount = hasClipboardPaste and 8 or 7
+	actionLayout.CellSize = UDim2.new(1 / actionButtonCount, -6, 1, 0)
+	actionLayout.FillDirectionMaxCells = actionButtonCount
 	actionLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	actionLayout.Parent = actions
 
 	local executeButton = makeButton(actions, "Execute", colors.tabActive)
 	local clearButton = makeButton(actions, "Clear", colors.panel3)
 	local copyButton = makeButton(actions, "Copy", colors.panel3)
+	local pasteButton = hasClipboardPaste and makeButton(actions, "Paste from Clipboard", colors.panel3) or nil
+	if pasteButton then
+		pasteButton.TextSize = 10
+	end
+	local formatButton = makeButton(actions, "Format", colors.panel3)
 	local renameButton = makeButton(actions, "Rename Tab", colors.panel3)
 	local duplicateButton = makeButton(actions, "Duplicate Tab", colors.panel3)
 	local deleteTabButton = makeButton(actions, "Delete Tab", colors.panel3)
@@ -82271,42 +82536,512 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	local tabSaveScheduled = false
 	local lastTabClickIndex = 0
 	local lastTabClickTime = 0
-	local chunkLimit = 12000
+	local editorLineBuffer = 24
+	local editorVirtualStart = 1
+	local editorVirtualEnd = 1
+	local editorVirtualLineHeight = 19
 	local editorLoading = false
 	local editorLoaded = false
+	local commitCurrentPage
 
-	local function splitEditorText(source)
-		source = tostring(source or "")
-		if source == "" then
-			return { "" }
-		end
+	local function splitEditorLines(source)
+		source = tostring(source or ""):gsub("\r\n", "\n"):gsub("\r", "\n")
 		local out = {}
-		local pos = 1
-		while pos <= #source do
-			local endPos = math.min(pos + chunkLimit - 1, #source)
-			if endPos < #source then
-				local seg = source:sub(pos, endPos)
-				local cut
-				local from = 1
-				while true do
-					local found = seg:find("\n", from, true)
-					if not found then
-						break
-					end
-					cut = found
-					from = found + 1
-				end
-				if cut and cut > math.floor(chunkLimit * 0.35) then
-					endPos = pos + cut - 1
-				end
-			end
-			out[#out + 1] = source:sub(pos, endPos)
-			pos = endPos + 1
+		for line in (source.."\n"):gmatch("(.-)\n") do
+			out[#out + 1] = line
 		end
 		if #out == 0 then
 			out[1] = ""
 		end
 		return out
+	end
+
+	local function joinEditorLines(lines)
+		if type(lines) ~= "table" or #lines == 0 then
+			return ""
+		end
+		return table.concat(lines, "\n")
+	end
+
+	local function sliceEditorLines(lines, firstLine, lastLine)
+		local out = {}
+		firstLine = math.max(1, tonumber(firstLine) or 1)
+		lastLine = math.max(firstLine, tonumber(lastLine) or firstLine)
+		for line = firstLine, lastLine do
+			out[#out + 1] = tostring(lines[line] or "")
+		end
+		if #out == 0 then
+			out[1] = ""
+		end
+		return table.concat(out, "\n")
+	end
+
+	local function replaceEditorLineRange(lines, firstLine, lastLine, text)
+		lines = type(lines) == "table" and lines or { "" }
+		local insertLines = splitEditorLines(text)
+		local rebuilt = {}
+		firstLine = math.clamp(tonumber(firstLine) or 1, 1, math.max(#lines + 1, 1))
+		lastLine = math.clamp(tonumber(lastLine) or (firstLine - 1), firstLine - 1, math.max(#lines, firstLine - 1))
+		for line = 1, firstLine - 1 do
+			rebuilt[#rebuilt + 1] = tostring(lines[line] or "")
+		end
+		for _, lineText in ipairs(insertLines) do
+			rebuilt[#rebuilt + 1] = tostring(lineText or "")
+		end
+		for line = lastLine + 1, #lines do
+			rebuilt[#rebuilt + 1] = tostring(lines[line] or "")
+		end
+		if #rebuilt == 0 then
+			rebuilt[1] = ""
+		end
+		return rebuilt
+	end
+
+	local function stripLuaLineForIndent(line, state)
+		line = tostring(line or "")
+		state = state or {}
+		local out = {}
+		local i = 1
+		local len = #line
+		local function pushSpaces(count)
+			if count > 0 then
+				out[#out + 1] = string.rep(" ", count)
+			end
+		end
+		while i <= len do
+			if state.longClose then
+				local closeStart, closeEnd = line:find(state.longClose, i, true)
+				if closeStart then
+					pushSpaces(closeEnd - i + 1)
+					i = closeEnd + 1
+					state.longClose = nil
+				else
+					pushSpaces(len - i + 1)
+					break
+				end
+			else
+				local two = line:sub(i, i + 1)
+				if two == "--" then
+					local eq = line:match("^%-%-%[(=*)%[", i)
+					if eq then
+						local closePattern = "]"..eq.."]"
+						local closeStart, closeEnd = line:find(closePattern, i + 4 + #eq, true)
+						if closeStart then
+							pushSpaces(len - i + 1)
+						else
+							state.longClose = closePattern
+							pushSpaces(len - i + 1)
+						end
+					else
+						pushSpaces(len - i + 1)
+					end
+					break
+				elseif line:sub(i, i):match("[\"'`]") then
+					local quote = line:sub(i, i)
+					local j = i + 1
+					local escaped = false
+					while j <= len do
+						local ch = line:sub(j, j)
+						if escaped then
+							escaped = false
+						elseif ch == "\\" then
+							escaped = true
+						elseif ch == quote then
+							break
+						end
+						j += 1
+					end
+					if j > len then
+						j = len
+					end
+					pushSpaces(j - i + 1)
+					i = j + 1
+				else
+					local eq = line:match("^%[(=*)%[", i)
+					if eq then
+						local closePattern = "]"..eq.."]"
+						local closeStart, closeEnd = line:find(closePattern, i + 2 + #eq, true)
+						if closeStart then
+							pushSpaces(closeEnd - i + 1)
+							i = closeEnd + 1
+						else
+							state.longClose = closePattern
+							pushSpaces(len - i + 1)
+							break
+						end
+					else
+						out[#out + 1] = line:sub(i, i)
+						i += 1
+					end
+				end
+			end
+		end
+		return table.concat(out)
+	end
+
+	local function splitLuaStatementLine(line, state)
+		line = tostring(line or "")
+		state = state or {}
+		local parts = {}
+		local startPos = 1
+		local i = 1
+		local len = #line
+		while i <= len do
+			if state.longClose then
+				local closeStart, closeEnd = line:find(state.longClose, i, true)
+				if closeStart then
+					i = closeEnd + 1
+					state.longClose = nil
+				else
+					break
+				end
+			else
+				local two = line:sub(i, i + 1)
+				if two == "--" then
+					local eq = line:match("^%-%-%[(=*)%[", i)
+					if eq then
+						local closePattern = "]"..eq.."]"
+						local closeStart, closeEnd = line:find(closePattern, i + 4 + #eq, true)
+						if closeStart then
+							i = closeEnd + 1
+						else
+							state.longClose = closePattern
+							break
+						end
+					else
+						break
+					end
+				elseif line:sub(i, i):match("[\"'`]") then
+					local quote = line:sub(i, i)
+					i += 1
+					local escaped = false
+					while i <= len do
+						local ch = line:sub(i, i)
+						if escaped then
+							escaped = false
+						elseif ch == "\\" then
+							escaped = true
+						elseif ch == quote then
+							break
+						end
+						i += 1
+					end
+					i += 1
+				else
+					local eq = line:match("^%[(=*)%[", i)
+					if eq then
+						local closePattern = "]"..eq.."]"
+						local closeStart, closeEnd = line:find(closePattern, i + 2 + #eq, true)
+						if closeStart then
+							i = closeEnd + 1
+						else
+							state.longClose = closePattern
+							break
+						end
+					elseif line:sub(i, i) == ";" then
+						parts[#parts + 1] = line:sub(startPos, i - 1)
+						startPos = i + 1
+						i += 1
+					else
+						i += 1
+					end
+				end
+			end
+		end
+		parts[#parts + 1] = line:sub(startPos)
+		return parts
+	end
+
+	local function formatLuaLineSpacing(line)
+		line = tostring(line or "")
+		local out = {}
+		local i = 1
+		local len = #line
+		local function currentText()
+			return table.concat(out)
+		end
+		local function trimRight()
+			if #out > 0 then
+				out[#out] = out[#out]:gsub("%s+$", "")
+				if out[#out] == "" then
+					table.remove(out, #out)
+				end
+			end
+		end
+		local function append(text)
+			out[#out + 1] = text
+		end
+		local function appendOperator(op)
+			trimRight()
+			append(" "..op.." ")
+			while i <= len and line:sub(i, i):match("%s") do
+				i += 1
+			end
+		end
+		local function previousSignificant()
+			local text = currentText():gsub("%s+$", "")
+			return text:sub(-1)
+		end
+		local function previousWord()
+			return currentText():match("([%a_][%w_]*)%s*$")
+		end
+		local function isUnaryMinus()
+			local prev = previousSignificant()
+			local word = previousWord()
+			return prev == "" or prev:match("[%(%[%{=,%+%-%*/%%%^#<>~]") or word == "return" or word == "local" or word == "then" or word == "do" or word == "else" or word == "elseif" or word == "and" or word == "or" or word == "not"
+		end
+		while i <= len do
+			local ch = line:sub(i, i)
+			local two = line:sub(i, i + 1)
+			local three = line:sub(i, i + 2)
+			if two == "--" then
+				append(line:sub(i))
+				break
+			elseif ch:match("[\"'`]") then
+				local quote = ch
+				local startQuote = i
+				i += 1
+				local escaped = false
+				while i <= len do
+					local cur = line:sub(i, i)
+					if escaped then
+						escaped = false
+					elseif cur == "\\" then
+						escaped = true
+					elseif cur == quote then
+						break
+					end
+					i += 1
+				end
+				if i > len then
+					i = len
+				end
+				append(line:sub(startQuote, i))
+				i += 1
+			else
+				local eq = line:match("^%[(=*)%[", i)
+				if eq then
+					local closePattern = "]"..eq.."]"
+					local closeStart, closeEnd = line:find(closePattern, i + 2 + #eq, true)
+					if closeStart then
+						append(line:sub(i, closeEnd))
+						i = closeEnd + 1
+					else
+						append(line:sub(i))
+						break
+					end
+				elseif three == "..." then
+					append("...")
+					i += 3
+				elseif three == "//=" or three == "..=" then
+					i += 3
+					appendOperator(three)
+				elseif two == "//" or two == "->" then
+					i += 2
+					appendOperator(two)
+				elseif two == ".." then
+					i += 2
+					appendOperator("..")
+				elseif two == "::" then
+					append("::")
+					i += 2
+				elseif two == "==" or two == "~=" or two == "<=" or two == ">=" or two == "+=" or two == "-=" or two == "*=" or two == "/=" or two == "%=" or two == "^=" then
+					i += 2
+					appendOperator(two)
+				elseif ch == "?" then
+					append("?")
+					i += 1
+				elseif ch == "=" or ch == "+" or ch == "*" or ch == "/" or ch == "%" or ch == "^" or ch == "<" or ch == ">" or ch == "|" or ch == "&" then
+					i += 1
+					appendOperator(ch)
+				elseif ch == "-" then
+					if isUnaryMinus() then
+						append("-")
+						i += 1
+						while i <= len and line:sub(i, i):match("%s") do
+							i += 1
+						end
+					else
+						i += 1
+						appendOperator("-")
+					end
+				elseif ch == "," then
+					trimRight()
+					append(", ")
+					i += 1
+					while i <= len and line:sub(i, i):match("%s") do
+						i += 1
+					end
+				else
+					append(ch)
+					i += 1
+				end
+			end
+		end
+		return table.concat(out):gsub("%s+$", "")
+	end
+
+	local function luaParenBalance(line)
+		line = tostring(line or "")
+		local balance = 0
+		local i = 1
+		local len = #line
+		while i <= len do
+			local ch = line:sub(i, i)
+			local two = line:sub(i, i + 1)
+			if two == "--" then
+				break
+			elseif ch:match("[\"'`]") then
+				local quote = ch
+				i += 1
+				local escaped = false
+				while i <= len do
+					local cur = line:sub(i, i)
+					if escaped then
+						escaped = false
+					elseif cur == "\\" then
+						escaped = true
+					elseif cur == quote then
+						break
+					end
+					i += 1
+				end
+			elseif ch == "(" then
+				balance += 1
+			elseif ch == ")" then
+				balance -= 1
+			end
+			i += 1
+		end
+		return balance
+	end
+
+	local function collapseLuaShortCalls(source)
+		local lines = {}
+		for line in (tostring(source or "").."\n"):gmatch("(.-)\n") do
+			lines[#lines + 1] = line
+		end
+		if #lines > 0 and lines[#lines] == "" and tostring(source or ""):sub(-1) ~= "\n" then
+			table.remove(lines)
+		end
+
+		local out = {}
+		local i = 1
+		local function hasCollapseBlockKeyword(text)
+			for _, word in ipairs({ "function", "then", "do", "end", "repeat", "until", "else", "elseif" }) do
+				if text:find("%f[%w_]"..word.."%f[^%w_]") then
+					return true
+				end
+			end
+			return false
+		end
+		while i <= #lines do
+			local line = lines[i]
+			local indent, content = line:match("^(%s*)(.-)%s*$")
+			if content and content:match("%(%s*$") then
+				local balance = luaParenBalance(content)
+				local pieces = { content }
+				local j = i + 1
+				local canCollapse = balance > 0
+				while canCollapse and j <= #lines and balance > 0 do
+					local nextContent = lines[j]:match("^%s*(.-)%s*$") or ""
+					if nextContent == "" or nextContent:find("%-%-", 1, true) or hasCollapseBlockKeyword(nextContent) then
+						canCollapse = false
+						break
+					end
+					pieces[#pieces + 1] = nextContent
+					balance += luaParenBalance(nextContent)
+					j += 1
+				end
+				if canCollapse and balance <= 0 and #pieces > 1 then
+					local joined = pieces[1]
+					for pieceIndex = 2, #pieces do
+						local piece = pieces[pieceIndex]
+						if piece:match("^%)") then
+							joined = joined:gsub("%s+$", "")..piece
+						else
+							joined = joined:gsub("%s+$", "")..(joined:match("%(%s*$") and "" or " ")..piece
+						end
+					end
+					joined = formatLuaLineSpacing(joined)
+					if #joined <= 160 then
+						out[#out + 1] = indent..joined
+						i = j
+					else
+						out[#out + 1] = line
+						i += 1
+					end
+				else
+					out[#out + 1] = line
+					i += 1
+				end
+			else
+				out[#out + 1] = line
+				i += 1
+			end
+		end
+		return table.concat(out, "\n")
+	end
+
+	local function formatLuaSource(source)
+		source = tostring(source or ""):gsub("\r\n", "\n"):gsub("\r", "\n")
+		local lines = {}
+		local splitState = {}
+		for line in (source.."\n"):gmatch("(.-)\n") do
+			for _, part in ipairs(splitLuaStatementLine(line, splitState)) do
+				lines[#lines + 1] = part
+			end
+		end
+		if #lines > 0 and lines[#lines] == "" and source:sub(-1) ~= "\n" then
+			table.remove(lines)
+		end
+
+		local formatted = {}
+		local indent = 0
+		local state = {}
+		local indentText = "\t"
+
+		for _, rawLine in ipairs(lines) do
+			local line = tostring(rawLine or ""):gsub("%s+$", "")
+			local trimmed = line:gsub("^%s+", "")
+			local code = stripLuaLineForIndent(trimmed, state)
+			local spaced = formatLuaLineSpacing(trimmed)
+			local compact = code:gsub("^%s+", "")
+			local closeOutdent = 0
+			local branchOutdent = 0
+			if compact ~= "" then
+				if compact:match("^end%f[^%w_]") or compact:match("^until%f[^%w_]") or compact:sub(1, 1) == "}" then
+					closeOutdent += 1
+				end
+				if compact:match("^else%f[^%w_]") or compact:match("^elseif%f[^%w_]") then
+					branchOutdent += 1
+				end
+			end
+			indent = math.max(indent - closeOutdent - branchOutdent, 0)
+			if trimmed == "" then
+				formatted[#formatted + 1] = ""
+			else
+				formatted[#formatted + 1] = string.rep(indentText, indent)..spaced
+			end
+
+			local opens = 0
+			local closes = 0
+			for token in code:gmatch("%f[%w_](%w+)%f[^%w_]") do
+				if token == "function" or token == "then" or token == "do" or token == "repeat" then
+					opens += 1
+				elseif token == "end" or token == "until" then
+					closes += 1
+				end
+			end
+			for _ in code:gmatch("{") do opens += 1 end
+			for _ in code:gmatch("}") do closes += 1 end
+			if compact:match("^else%f[^%w_]") then
+				opens += 1
+			end
+			indent = math.max(indent + opens - math.max(closes - closeOutdent, 0), 0)
+		end
+
+		return collapseLuaShortCalls(table.concat(formatted, "\n")):gsub("%s+$", "")
 	end
 
 	local function mergeEditorChunks(chunks)
@@ -82316,43 +83051,37 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		return table.concat(chunks, "")
 	end
 
-	local function compactEditorPages(chunks, preferPage)
-		if type(chunks) ~= "table" then
-			chunks = { "" }
-		end
-		preferPage = tonumber(preferPage) or 1
-		for i = #chunks, 1, -1 do
-			if #chunks > 1 and tostring(chunks[i] or "") == "" then
-				table.remove(chunks, i)
-				if preferPage > i then
-					preferPage -= 1
-				elseif preferPage == i then
-					preferPage = math.min(i, #chunks)
-				end
-			end
-		end
-		if #chunks == 0 then
-			chunks[1] = ""
-			preferPage = 1
-		end
-		return math.clamp(preferPage, 1, math.max(#chunks, 1))
-	end
-
 	local function normalizeEditorTab(tab)
 		if not tab then
 			return nil
 		end
-		if type(tab.chunks) ~= "table" or #tab.chunks == 0 then
-			tab.chunks = splitEditorText(tab.text or "")
+		if type(tab.text) ~= "string" then
+			if type(tab.chunks) == "table" and #tab.chunks > 0 then
+				tab.text = mergeEditorChunks(tab.chunks)
+			else
+				tab.text = ""
+			end
 		end
-		tab.page = math.clamp(tonumber(tab.page) or 1, 1, math.max(#tab.chunks, 1))
-		tab.text = mergeEditorChunks(tab.chunks)
+		if type(tab.lines) ~= "table" or #tab.lines == 0 then
+			tab.lines = splitEditorLines(tab.text)
+		end
+		tab.viewLine = math.clamp(tonumber(tab.viewLine or tab.page) or 1, 1, math.max(#tab.lines, 1))
+		tab.page = 1
+		tab.chunks = { tab.text }
 		return tab
 	end
 
 	local function getEditorTabText(tab)
 		tab = normalizeEditorTab(tab)
-		return tab and (tab.text or mergeEditorChunks(tab.chunks)) or ""
+		if not tab then
+			return ""
+		end
+		if tab.textDirty == true or type(tab.text) ~= "string" then
+			tab.text = joinEditorLines(tab.lines)
+			tab.chunks = { tab.text }
+			tab.textDirty = false
+		end
+		return tostring(tab.text or "")
 	end
 
 	local function showPrompt(title, initialText, callback)
@@ -82399,25 +83128,64 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 
 	local function saveTabsNow()
 		if not fsOk then
-			return
+			setStatus("Executor tabs cannot save: filesystem unavailable", colors.error)
+			return false
+		end
+		if not ensureExecutorFolders() then
+			setStatus("Executor tabs cannot save: folder create failed", colors.error)
+			return false
+		end
+		if editorLoaded and type(commitCurrentPage) == "function" then
+			commitCurrentPage(true)
 		end
 		local payload = { cur = currentTab, tabs = {} }
 		for i, tab in ipairs(tabs) do
+			normalizeEditorTab(tab)
 			payload.tabs[i] = {
 				title = tab.title or ("Tab "..i),
-				text = tab.text or "",
+				text = getEditorTabText(tab),
 			}
 		end
 		local ok, encoded = pcall(function()
 			return HttpService:JSONEncode(payload)
 		end)
-		if ok and encoded then
-			pcall(writefile, tabsFile, encoded)
+		if not (ok and encoded) then
+			setStatus("Executor tabs cannot save: encode failed", colors.error)
+			return false
 		end
+		local function tryWrite(fn)
+			if type(fn) ~= "function" then
+				return false, "writefile missing"
+			end
+			local wrote, err = pcall(fn, tabsFile, encoded)
+			if not wrote then
+				return false, err or "writefile failed"
+			end
+			if type(readfile) == "function" then
+				local okRead, saved = pcall(readfile, tabsFile)
+				if okRead and saved == encoded then
+					return true
+				end
+				return false, "write verification failed"
+			end
+			return true
+		end
+
+		local wrote, err = tryWrite(writefile)
+		if not wrote and NAStuff and type(NAStuff._wf) == "function" and NAStuff._wf ~= writefile then
+			wrote, err = tryWrite(NAStuff._wf)
+		end
+		if not wrote then
+			setStatus("Executor tabs cannot save: "..tostring(err or "writefile failed"), colors.error)
+			return false
+		end
+		setStatus("Executor tabs saved", colors.success)
+		return true
 	end
 
 	local function scheduleTabsSave()
 		if not fsOk then
+			setStatus("Executor tabs cannot save: filesystem unavailable", colors.error)
 			return
 		end
 		tabSaveDirty = true
@@ -82428,20 +83196,37 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		task.delay(0.8, function()
 			if tabSaveDirty then
 				tabSaveDirty = false
-				saveTabsNow()
+				if not saveTabsNow() then
+					tabSaveDirty = true
+				end
 			end
 			tabSaveScheduled = false
+			if tabSaveDirty then
+				scheduleTabsSave()
+			end
 		end)
+	end
+
+	local function getEditorLineHeight()
+		local fallback = tonumber(textBox.TextSize) or 15
+		local ok, measured = pcall(function()
+			return TextServiceRef:GetTextSize("M", textBox.TextSize, textBox.Font, Vector2.new(1000, 1000)).Y
+		end)
+		return math.max(1, math.ceil((ok and type(measured) == "number" and measured or fallback)))
 	end
 
 	local function updatePageInfo()
 		local tab = normalizeEditorTab(tabs[currentTab])
-		local total = tab and math.max(#tab.chunks, 1) or 1
-		local page = tab and (tab.page or 1) or 1
-		pageLabel.Text = "Page "..tostring(page).."/"..tostring(total)
-		pagePrev.Visible = total > 1
-		pageNext.Visible = total > 1
-		pagePanel.Visible = total > 1
+		local total = tab and math.max(#tab.lines, 1) or 1
+		local lineHeight = getEditorLineHeight()
+		local viewHeight = math.max(1, (editorScroll.AbsoluteSize.Y or 0) - 22)
+		local visibleCount = math.max(1, math.floor(viewHeight / math.max(lineHeight, 1)))
+		local firstLine = math.clamp(math.floor(math.max(editorLineScroll.CanvasPosition.Y, 0) / math.max(lineHeight, 1)) + 1, 1, total)
+		local lastLine = math.clamp(firstLine + visibleCount - 1, firstLine, total)
+		pageLabel.Text = "Lines "..tostring(firstLine).."-"..tostring(lastLine).."/"..tostring(total)
+		pagePrev.Visible = false
+		pageNext.Visible = false
+		pagePanel.Visible = total > math.max(1, lastLine - firstLine + 1)
 	end
 
 	local function setEditorBoxText(text)
@@ -82450,7 +83235,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		editorLoading = false
 	end
 
-	local function commitCurrentPage(skipSave)
+	commitCurrentPage = function(skipSave)
 		if editorLoading then
 			return
 		end
@@ -82458,28 +83243,13 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		if not tab then
 			return
 		end
-		local oldTotal = math.max(#tab.chunks, 1)
-		local page = math.clamp(tonumber(tab.page) or 1, 1, oldTotal)
-		local text = tostring(textBox.Text or "")
-		local reloadPage = false
-		if #text > chunkLimit then
-			local parts = splitEditorText(text)
-			table.remove(tab.chunks, page)
-			for i = #parts, 1, -1 do
-				table.insert(tab.chunks, page, parts[i])
-			end
-			tab.page = math.clamp(page, 1, math.max(#tab.chunks, 1))
-			reloadPage = true
-			setStatus("Text split into pages to avoid Roblox TextBox limits", colors.warn)
-		else
-			tab.chunks[page] = text
-			tab.page = compactEditorPages(tab.chunks, page)
-			reloadPage = oldTotal ~= #tab.chunks or tab.page ~= page
-		end
-		tab.text = mergeEditorChunks(tab.chunks)
-		if reloadPage then
-			setEditorBoxText(tab.chunks[tab.page] or "")
-		end
+		local visibleText = tostring(textBox.Text or "")
+		local oldEnd = editorVirtualEnd
+		tab.lines = replaceEditorLineRange(tab.lines, editorVirtualStart, oldEnd, visibleText)
+		editorVirtualEnd = editorVirtualStart + #splitEditorLines(visibleText) - 1
+		tab.textDirty = true
+		local lineHeight = getEditorLineHeight()
+		tab.viewLine = math.clamp(math.floor(math.max(editorLineScroll.CanvasPosition.Y, 0) / lineHeight) + 1, 1, math.max(#tab.lines, 1))
 		updatePageInfo()
 		if not skipSave then
 			scheduleTabsSave()
@@ -82491,13 +83261,15 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			return
 		end
 		tab.text = tostring(source or "")
-		tab.chunks = splitEditorText(tab.text)
+		tab.lines = splitEditorLines(tab.text)
+		tab.chunks = { tab.text }
+		tab.textDirty = false
 		tab.page = 1
-		tab.text = mergeEditorChunks(tab.chunks)
+		tab.viewLine = 1
 	end
 
 	local function measureSource(source)
-		local lineHeight = textBox.TextSize + 4
+		local lineHeight = getEditorLineHeight()
 		local longest = 0
 		local lines = 0
 		for line in ((source or "").."\n"):gmatch("(.-)\n") do
@@ -82510,9 +83282,36 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		if lines <= 0 then
 			lines = 1
 		end
-		local desiredWidth = math.max(editorScroll.AbsoluteSize.X - 20, longest + 26)
-		local desiredHeight = math.max(editorScroll.AbsoluteSize.Y - 4, lines * lineHeight + 12)
+		local viewportWidth = math.max(1, (editorScroll.AbsoluteSize.X or 0) - 18)
+		local desiredWidth = math.max(viewportWidth, longest + 12)
+		local desiredHeight = math.max(math.max(editorScroll.AbsoluteSize.Y - 22, 1), lines * lineHeight + 12)
 		return desiredWidth, desiredHeight, lines, lineHeight
+	end
+
+	local function getEditorViewportHeight()
+		return math.max(1, (editorScroll.AbsoluteSize.Y or 0) - 22)
+	end
+
+	local function getEditorWindowMetrics()
+		local lineHeight = getEditorLineHeight()
+		local visible = math.max(1, math.floor(getEditorViewportHeight() / math.max(lineHeight, 1)))
+		return lineHeight, visible
+	end
+
+	local function getEditorVisibleLine(totalLines)
+		local lineHeight = getEditorWindowMetrics()
+		local total = math.max(tonumber(totalLines) or 1, 1)
+		return math.clamp(math.floor(math.max(editorLineScroll.CanvasPosition.Y, 0) / math.max(lineHeight, 1)) + 1, 1, total)
+	end
+
+	local function getEditorWindowRange(totalLines, firstVisibleLine)
+		local _, visibleLines = getEditorWindowMetrics()
+		local total = math.max(tonumber(totalLines) or 1, 1)
+		local firstVisible = math.clamp(tonumber(firstVisibleLine) or getEditorVisibleLine(total), 1, total)
+		local lastVisible = math.clamp(firstVisible + visibleLines - 1, firstVisible, total)
+		local firstRender = firstVisible
+		local lastRender = lastVisible
+		return firstRender, lastRender, firstVisible, lastVisible
 	end
 
 	local function buildHighlightLayers(source)
@@ -82523,6 +83322,11 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			strings = {},
 			comments = {},
 			numbers = {},
+			functions = {},
+			methods = {},
+			properties = {},
+			operators = {},
+			brackets = {},
 		}
 		local function blankFor(ch)
 			if ch == "\n" or ch == "\r" or ch == "\t" then
@@ -82549,13 +83353,35 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		end
 		local i = 1
 		local n = #source
+		local function findLongBracket(pos)
+			local eq = source:match("^%[(=*)%[", pos)
+			if not eq then
+				return nil
+			end
+			local closePattern = "]"..eq.."]"
+			local closeStart, closeEnd = source:find(closePattern, pos + 2 + #eq, true)
+			return closeStart, closeEnd, closePattern
+		end
+		local function nextNonSpace(pos)
+			local j = pos
+			while j <= n and source:sub(j, j):match("%s") do
+				j += 1
+			end
+			return source:sub(j, j), j
+		end
+		local function prevNonSpace(pos)
+			local j = pos
+			while j >= 1 and source:sub(j, j):match("%s") do
+				j -= 1
+			end
+			return source:sub(j, j), j
+		end
 		while i <= n do
 			local ch = source:sub(i, i)
 			local nextTwo = source:sub(i, i + 1)
-			local nextFour = source:sub(i, i + 3)
-			if nextFour == "--[[" then
-				local closeIndex = source:find("%]%]", i + 4, false)
-				local endIndex = closeIndex and (closeIndex + 1) or n
+			if nextTwo == "--" and source:sub(i + 2, i + 2) == "[" then
+				local _, closeEnd = findLongBracket(i + 2)
+				local endIndex = closeEnd or n
 				appendToLayer("comments", source:sub(i, endIndex))
 				i = endIndex + 1
 			elseif nextTwo == "--" then
@@ -82563,7 +83389,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 				local endIndex = newlineIndex and (newlineIndex - 1) or n
 				appendToLayer("comments", source:sub(i, endIndex))
 				i = endIndex + 1
-			elseif ch == "\"" or ch == "'" then
+			elseif ch == "\"" or ch == "'" or ch == "`" then
 				local quote = ch
 				local j = i + 1
 				local escaped = false
@@ -82583,9 +83409,9 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 				end
 				appendToLayer("strings", source:sub(i, j))
 				i = j + 1
-			elseif nextTwo == "[[" then
-				local closeIndex = source:find("%]%]", i + 2, false)
-				local endIndex = closeIndex and (closeIndex + 1) or n
+			elseif ch == "[" and findLongBracket(i) then
+				local _, closeEnd = findLongBracket(i)
+				local endIndex = closeEnd or n
 				appendToLayer("strings", source:sub(i, endIndex))
 				i = endIndex + 1
 			elseif ch:match("[%a_]") then
@@ -82594,8 +83420,18 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 					j += 1
 				end
 				local token = source:sub(i, j - 1)
+				local prevChar = prevNonSpace(i - 1)
+				local nextChar = nextNonSpace(j)
 				if keywordSet[token] then
 					appendToLayer("keywords", token)
+				elseif typeSet[token] then
+					appendToLayer("keywords", token)
+				elseif prevChar == ":" and nextChar == "(" then
+					appendToLayer("methods", token)
+				elseif prevChar == "." then
+					appendToLayer("properties", token)
+				elseif nextChar == "(" then
+					appendToLayer(globalSet[token] and "globals" or "functions", token)
 				elseif globalSet[token] then
 					appendToLayer("globals", token)
 				else
@@ -82604,17 +83440,34 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 				i = j
 			elseif ch:match("%d") then
 				local j = i
-				while j <= n and source:sub(j, j):match("[%da-fA-FxX_%.]") do
+				while j <= n and source:sub(j, j):match("[%w_%.]") do
 					j += 1
 				end
 				appendToLayer("numbers", source:sub(i, j - 1))
 				i = j
+			elseif ch:match("[%[%]%(%){}]") then
+				appendToLayer("brackets", ch)
+				i += 1
+			elseif source:sub(i, i + 2) == "..." then
+				appendToLayer("operators", "...")
+				i += 3
+			elseif source:sub(i, i + 2) == "//=" or source:sub(i, i + 2) == "..=" then
+				appendToLayer("operators", source:sub(i, i + 2))
+				i += 3
+			elseif ch:match("[%+%-%*/%%%^#=<>~:;,%.,|&%?]") or nextTwo == ".." or nextTwo == "==" or nextTwo == "~=" or nextTwo == "<=" or nextTwo == ">=" or nextTwo == "//" or nextTwo == "->" then
+				if nextTwo == ".." or nextTwo == "==" or nextTwo == "~=" or nextTwo == "<=" or nextTwo == ">=" or nextTwo == "::" or nextTwo == "//" or nextTwo == "->" then
+					appendToLayer("operators", nextTwo)
+					i += 2
+				else
+					appendToLayer("operators", ch)
+					i += 1
+				end
 			else
 				appendPlain(ch)
 				i += 1
 			end
 		end
-		return table.concat(buffers.keywords), table.concat(buffers.globals), table.concat(buffers.strings), table.concat(buffers.comments), table.concat(buffers.numbers)
+		return table.concat(buffers.keywords), table.concat(buffers.globals), table.concat(buffers.strings), table.concat(buffers.comments), table.concat(buffers.numbers), table.concat(buffers.functions), table.concat(buffers.methods), table.concat(buffers.properties), table.concat(buffers.operators), table.concat(buffers.brackets)
 	end
 
 	local function syncCurrentTabText()
@@ -82624,34 +83477,57 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	local function refreshEditorNow()
 		local source = textBox.Text or ""
 		updatePageInfo()
-		local width, height, lineCount, lineHeight = measureSource(source)
-		textBox.Size = UDim2.new(0, width, 0, height)
-		for _, layer in ipairs({ keywordLayer, globalLayer, stringLayer, commentLayer, numberLayer }) do
+		local tab = normalizeEditorTab(tabs[currentTab])
+		local totalLineCount = tab and math.max(#tab.lines, 1) or 1
+		local width, visibleHeight, renderedLineCount, lineHeight = measureSource(source)
+		editorVirtualLineHeight = lineHeight
+		local fullHeight = math.max(getEditorViewportHeight(), totalLineCount * lineHeight + 12)
+		local _, visibleLines = getEditorWindowMetrics()
+		local virtualTotal = math.max(totalLineCount + 1, visibleLines)
+		local maxTopY = math.max(0, (virtualTotal - visibleLines) * lineHeight)
+		local proxyHeight = math.max(fullHeight + lineHeight + 8, (editorScroll.AbsoluteSize.Y or 0) + maxTopY + lineHeight)
+		local yOffset = 0
+		textBox.Position = UDim2.new(0, 8, 0, 0)
+		textBox.Size = UDim2.new(0, width, 0, visibleHeight)
+		for _, layer in ipairs({ keywordLayer, globalLayer, stringLayer, commentLayer, numberLayer, functionLayer, methodLayer, propertyLayer, operatorLayer, bracketLayer }) do
 			layer.Position = textBox.Position
 			layer.Size = textBox.Size
 		end
-		editorScroll.CanvasSize = UDim2.new(0, width + 16, 0, height + 8)
+		local canvasWidth = math.max(editorScroll.AbsoluteSize.X or 1, 8 + width + 2)
+		editorScroll.CanvasSize = UDim2.new(0, canvasWidth, 0, math.max(editorScroll.AbsoluteSize.Y, 1))
+		editorLineScroll.Position = editorScroll.Position
+		editorLineScroll.Size = editorScroll.Size
+		editorLineScroll.CanvasSize = UDim2.new(0, 0, 0, proxyHeight)
+		if NAmanage.CustomScroll and NAmanage.CustomScroll.refreshByTarget then
+			NAmanage.CustomScroll.refreshByTarget(editorScroll)
+			NAmanage.CustomScroll.refreshByTarget(editorLineScroll)
+		end
 		local gutterWidth = 0
 		if cfg.lineNumbers then
-			local digits = #tostring(lineCount)
+			local digits = #tostring(totalLineCount)
 			gutterWidth = math.max(44, 16 + digits * 9)
 			gutter.Size = UDim2.new(0, gutterWidth, 1, 0)
 		end
 		editorScroll.Position = UDim2.new(0, gutterWidth > 0 and (gutterWidth + 6) or 0, 0, 0)
 		editorScroll.Size = UDim2.new(1, gutterWidth > 0 and -(gutterWidth + 6) or 0, 1, 0)
 		local numbers = {}
-		for index = 1, lineCount do
-			numbers[index] = tostring(index)
+		for index = editorVirtualStart, editorVirtualEnd do
+			numbers[#numbers + 1] = tostring(index)
 		end
 		gutterLabel.Text = table.concat(numbers, "\n")
-		gutterLabel.Size = UDim2.new(1, -10, 0, lineCount * lineHeight + 8)
-		local keywordText, globalText, stringText, commentText, numberText = buildHighlightLayers(source)
+		gutterLabel.Size = UDim2.new(1, -10, 0, math.max(renderedLineCount, 1) * lineHeight + 8)
+		local keywordText, globalText, stringText, commentText, numberText, functionText, methodText, propertyText, operatorText, bracketText = buildHighlightLayers(source)
 		keywordLayer.Text = keywordText
 		globalLayer.Text = globalText
 		stringLayer.Text = stringText
 		commentLayer.Text = commentText
 		numberLayer.Text = numberText
-		gutterLabel.Position = UDim2.new(1, -6, 0, -editorScroll.CanvasPosition.Y)
+		functionLayer.Text = functionText
+		methodLayer.Text = methodText
+		propertyLayer.Text = propertyText
+		operatorLayer.Text = operatorText
+		bracketLayer.Text = bracketText
+		gutterLabel.Position = UDim2.new(1, -6, 0, 0)
 	end
 
 	local function queueRefreshEditor()
@@ -82665,7 +83541,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		end)
 	end
 
-	local function loadCurrentPage()
+	local function loadCurrentPage(preserveScroll)
 		local tab = normalizeEditorTab(tabs[currentTab])
 		if not tab then
 			setEditorBoxText("")
@@ -82673,10 +83549,47 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			queueRefreshEditor()
 			return
 		end
-		tab.page = math.clamp(tonumber(tab.page) or 1, 1, math.max(#tab.chunks, 1))
-		setEditorBoxText(tab.chunks[tab.page] or "")
+		local total = math.max(#tab.lines, 1)
+		local lineHeight = getEditorWindowMetrics()
+		local visibleLine = preserveScroll == true and getEditorVisibleLine(total) or math.clamp(tonumber(tab.viewLine) or 1, 1, total)
+		local firstRender, lastRender, firstVisible = getEditorWindowRange(total, visibleLine)
+		editorVirtualStart = firstRender
+		editorVirtualEnd = lastRender
+		tab.viewLine = firstVisible
+		editorLoading = true
+		if preserveScroll ~= true then
+			editorLineScroll.CanvasPosition = Vector2.new(0, math.max(0, (firstVisible - 1) * lineHeight))
+		end
+		textBox.Text = sliceEditorLines(tab.lines, editorVirtualStart, editorVirtualEnd)
+		editorLoading = false
 		updatePageInfo()
 		queueRefreshEditor()
+	end
+
+	editorGetVisibleLines = function()
+		local _, visibleLines = getEditorWindowMetrics()
+		return math.max(1, visibleLines)
+	end
+	editorGetTotalLines = function()
+		local tab = normalizeEditorTab(tabs[currentTab])
+		return tab and math.max(#tab.lines + 1, editorGetVisibleLines()) or 1
+	end
+	editorGetViewLine = function()
+		local tab = normalizeEditorTab(tabs[currentTab])
+		return tab and getEditorVisibleLine(math.max(#tab.lines, 1)) or 1
+	end
+	editorSetViewLine = function(line)
+		local tab = normalizeEditorTab(tabs[currentTab])
+		if not tab then
+			return
+		end
+		commitCurrentPage(true)
+		local total = math.max(#tab.lines, 1)
+		local lineHeight = getEditorWindowMetrics()
+		local nextLine = math.clamp(tonumber(line) or 1, 1, total)
+		tab.viewLine = nextLine
+		editorLineScroll.CanvasPosition = Vector2.new(0, math.max(0, (nextLine - 1) * lineHeight))
+		loadCurrentPage(true)
 	end
 
 	local function turnEditorPage(delta)
@@ -82685,22 +83598,92 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			return
 		end
 		commitCurrentPage()
-		local total = math.max(#tab.chunks, 1)
-		local nextPage = math.clamp((tab.page or 1) + delta, 1, total)
-		if nextPage == tab.page then
+		local _, windowLines = getEditorWindowMetrics()
+		local total = math.max(#tab.lines, 1)
+		local currentLine = getEditorVisibleLine(total)
+		local nextLine = math.clamp(currentLine + (delta * windowLines), 1, total)
+		if nextLine == tab.viewLine then
 			updatePageInfo()
 			return
 		end
-		tab.page = nextPage
+		tab.viewLine = nextLine
+		editorLineScroll.CanvasPosition = Vector2.new(0, math.max(0, (nextLine - 1) * editorVirtualLineHeight))
 		loadCurrentPage()
 		scheduleTabsSave()
-		setStatus("Switched to page "..tostring(nextPage).."/"..tostring(total), colors.subtle)
+		setStatus("Scrolled to line "..tostring(nextLine).."/"..tostring(total), colors.subtle)
 	end
 
-	editorScroll:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
-		gutterLabel.Position = UDim2.new(1, -6, 0, -editorScroll.CanvasPosition.Y)
+	editorLineScroll:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
+		if editorLoading then
+			return
+		end
+		local tab = normalizeEditorTab(tabs[currentTab])
+		local total = tab and math.max(#tab.lines, 1) or 1
+		local _, _, firstVisible, lastVisible = getEditorWindowRange(total)
+		local edgeBuffer = math.max(1, math.floor(editorLineBuffer / 3))
+		if firstVisible < editorVirtualStart or lastVisible > editorVirtualEnd or (firstVisible - editorVirtualStart) < edgeBuffer or (editorVirtualEnd - lastVisible) < edgeBuffer then
+			commitCurrentPage(true)
+			tab = normalizeEditorTab(tabs[currentTab])
+			if tab then
+				tab.viewLine = firstVisible
+			end
+			loadCurrentPage(true)
+		else
+			gutterLabel.Position = UDim2.new(1, -6, 0, 0)
+		end
 	end)
-	editorScroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(queueRefreshEditor)
+	local redirectingEditorScroll = false
+	editorScroll:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
+		if editorLoading or redirectingEditorScroll then
+			return
+		end
+		local y = tonumber(editorScroll.CanvasPosition.Y) or 0
+		if math.abs(y) <= 0.5 then
+			return
+		end
+		redirectingEditorScroll = true
+		if executorVerticalScroll and executorVerticalScroll.scrollBy then
+			local lineDelta = y / math.max(editorVirtualLineHeight, 1)
+			if math.abs(lineDelta) < 1 then
+				lineDelta = y > 0 and 1 or -1
+			end
+			executorVerticalScroll.scrollBy(lineDelta)
+		else
+			editorLineScroll.CanvasPosition = Vector2.new(0, math.max(0, editorLineScroll.CanvasPosition.Y + y))
+		end
+		editorScroll.CanvasPosition = Vector2.new(editorScroll.CanvasPosition.X, 0)
+		redirectingEditorScroll = false
+	end)
+	editorScroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+		if editorLoading then
+			return
+		end
+		if normalizeEditorTab(tabs[currentTab]) then
+			commitCurrentPage(true)
+			loadCurrentPage(true)
+		else
+			queueRefreshEditor()
+		end
+	end)
+
+	local function handleEditorWheel(input)
+		if not input or input.UserInputType ~= Enum.UserInputType.MouseWheel then
+			return
+		end
+		local wheel = input.Position and input.Position.Z or 0
+		if wheel == 0 then
+			return
+		end
+		local step = math.max(24, getEditorLineHeight() * 3)
+		local horizontal = UserInputService and (UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.RightShift))
+		if horizontal and executorHorizontalScroll and executorHorizontalScroll.scrollBy then
+			executorHorizontalScroll.scrollBy(-wheel * step)
+		elseif executorVerticalScroll and executorVerticalScroll.scrollBy then
+			executorVerticalScroll.scrollBy(-wheel * 3)
+		end
+	end
+	editorScroll.InputChanged:Connect(handleEditorWheel)
+	textBox.InputChanged:Connect(handleEditorWheel)
 
 	local function refreshSettingsButtons()
 		syntaxToggle.Text = cfg.syntax and "On" or "Off"
@@ -82739,7 +83722,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		actions.Position = UDim2.new(0, 0, 1, compact and -20 or -22)
 		actions.Size = UDim2.new(1, 0, 0, compact and 24 or 28)
 		actionLayout.CellPadding = UDim2.new(0, compact and 4 or 6, 0, 0)
-		actionLayout.CellSize = UDim2.new(0.1666, compact and -4 or -5, 1, 0)
+		actionLayout.CellSize = UDim2.new(1 / actionButtonCount, compact and -5 or -6, 1, 0)
 		hubList.Size = UDim2.new(1, 0, 1, compact and -174 or -204)
 		hubButtons.Position = UDim2.new(0, 0, 1, compact and -132 or -154)
 		hubButtons.Size = UDim2.new(1, 0, 0, compact and 132 or 154)
@@ -82747,12 +83730,20 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			btn.Size = UDim2.new(1, 0, 0, compact and 22 or 26)
 			btn.TextSize = compact and 11 or 13
 		end
-		for _, btn in ipairs({ executeButton, clearButton, copyButton, renameButton, duplicateButton, deleteTabButton }) do
-			btn.TextSize = compact and 11 or 13
+		local actionButtons = { executeButton, clearButton, copyButton }
+		if pasteButton then
+			actionButtons[#actionButtons + 1] = pasteButton
+		end
+		actionButtons[#actionButtons + 1] = formatButton
+		actionButtons[#actionButtons + 1] = renameButton
+		actionButtons[#actionButtons + 1] = duplicateButton
+		actionButtons[#actionButtons + 1] = deleteTabButton
+		for _, btn in ipairs(actionButtons) do
+			btn.TextSize = (btn == pasteButton) and (compact and 9 or 10) or (compact and 11 or 13)
 		end
 		textBox.TextSize = compact and 13 or 15
 		gutterLabel.TextSize = textBox.TextSize
-		for _, layer in ipairs({ keywordLayer, globalLayer, stringLayer, commentLayer, numberLayer }) do
+		for _, layer in ipairs({ keywordLayer, globalLayer, stringLayer, commentLayer, numberLayer, functionLayer, methodLayer, propertyLayer, operatorLayer, bracketLayer }) do
 			layer.TextSize = textBox.TextSize
 		end
 	end
@@ -82760,14 +83751,19 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	local function queueExecutorResponsive()
 		applyExecutorFrameSize()
 		updateBodyLayout()
-		queueRefreshEditor()
+		if normalizeEditorTab(tabs[currentTab]) then
+			commitCurrentPage(true)
+			loadCurrentPage(true)
+		else
+			queueRefreshEditor()
+		end
 	end
 
 	local function applySettings(skipSave)
 		cfg.syntax = cfg.syntax == true
 		cfg.lineNumbers = cfg.lineNumbers == true
 		cfg.showHub = cfg.showHub ~= false
-		for _, layer in ipairs({ keywordLayer, globalLayer, stringLayer, commentLayer, numberLayer }) do
+		for _, layer in ipairs({ keywordLayer, globalLayer, stringLayer, commentLayer, numberLayer, functionLayer, methodLayer, propertyLayer, operatorLayer, bracketLayer }) do
 			layer.Visible = cfg.syntax
 		end
 		gutter.Visible = cfg.lineNumbers
@@ -83136,6 +84132,11 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		end
 		queueRefreshEditor()
 	end)
+	textBox.FocusLost:Connect(function()
+		if editorLoaded and type(saveTabsNow) == "function" then
+			saveTabsNow()
+		end
+	end)
 
 	addTabButton.MouseButton1Click:Connect(function()
 		local tabIndex = createTab("", "Tab "..(#tabs + 1))
@@ -83219,6 +84220,55 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			setStatus("Clipboard unavailable", colors.error)
 		end
 	end)
+	if pasteButton then
+		pasteButton.MouseButton1Click:Connect(function()
+			local ok, clip = pcall(getclipboard)
+			if not ok or type(clip) ~= "string" then
+				setStatus("Clipboard unavailable", colors.error)
+				return
+			end
+			local currentText = tostring(textBox.Text or "")
+			local cursor = tonumber(textBox.CursorPosition) or -1
+			local selectionStart = tonumber(textBox.SelectionStart) or -1
+			local startPos
+			local endPos
+			if cursor > 0 and selectionStart > 0 and cursor ~= selectionStart then
+				startPos = math.min(cursor, selectionStart)
+				endPos = math.max(cursor, selectionStart) - 1
+			else
+				startPos = cursor > 0 and cursor or (#currentText + 1)
+				endPos = startPos - 1
+			end
+			startPos = math.clamp(startPos, 1, #currentText + 1)
+			endPos = math.clamp(endPos, 0, #currentText)
+			setEditorBoxText(currentText:sub(1, startPos - 1)..clip..currentText:sub(endPos + 1))
+			pcall(function()
+				textBox.CursorPosition = math.clamp(startPos + #clip, 1, #textBox.Text + 1)
+			end)
+			commitCurrentPage(true)
+			scheduleTabsSave()
+			queueRefreshEditor()
+			setStatus("Pasted clipboard", colors.success)
+		end)
+	end
+	formatButton.MouseButton1Click:Connect(function()
+		commitCurrentPage(true)
+		local tab = tabs[currentTab]
+		local source = getEditorTabText(tab)
+		if source:gsub("%s+", "") == "" then
+			setStatus("Nothing to format", colors.warn)
+			return
+		end
+		local formatted = formatLuaSource(source)
+		if formatted == source then
+			setStatus("Already formatted", colors.subtle)
+			return
+		end
+		setTabFullText(tab, formatted)
+		loadCurrentPage()
+		scheduleTabsSave()
+		setStatus("Formatted Lua/Luau script", colors.success)
+	end)
 	renameButton.MouseButton1Click:Connect(function()
 		renameTab(currentTab)
 	end)
@@ -83291,6 +84341,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	selectTab(currentTab)
 	queueRefreshEditor()
 	NAStuff.ExecutorRefresh = queueRefreshEditor
+	NAStuff.ExecutorSaveTabs = saveTabsNow
 	setStatus("Executor ready", colors.success)
 	return true
 end
@@ -83311,9 +84362,16 @@ NAmanage.Executor_Toggle = NAmanage.Executor_Toggle or function(forceState)
 	if type(nextState) ~= "boolean" then
 		nextState = not execFrame.Visible
 	end
+	if execFrame.Visible and nextState == false and type(NAStuff.ExecutorSaveTabs) == "function" then
+		pcall(NAStuff.ExecutorSaveTabs)
+	end
 	execFrame.Visible = nextState
 	if execFrame.Visible then
-		NAmanage.centerFrame(execFrame)
+		if type(NAmanage.Executor_ApplyResponsive) == "function" then
+			NAmanage.Executor_ApplyResponsive()
+		else
+			NAmanage.centerFrame(execFrame)
+		end
 		if type(NAStuff.ExecutorRefresh) == "function" then
 			task.defer(NAStuff.ExecutorRefresh)
 		end
@@ -83379,23 +84437,27 @@ NAmanage.Notepad_Init = function()
 		local maxW = math.max(1, math.floor(wide - padX * 2 + 0.5))
 		local maxH = math.max(1, math.floor(tall - padY * 2 + 0.5))
 		local small = IsOnMobile or wide < 900 or tall < 620
-		local minW = math.min(small and 280 or 460, maxW)
-		local minH = math.min(small and 230 or 340, maxH)
 		local curW = tonumber(frame.Size.X.Offset) or 0
 		local curH = tonumber(frame.Size.Y.Offset) or 0
-		if curW <= 0 then
+		local initialized = frame.GetAttribute and NAmanage.GetAttr(frame, "NANotepadDefaultSized") == true
+		if curW <= 0 or not initialized then
 			curW = small and maxW or 720
 		end
-		if curH <= 0 then
+		if curH <= 0 or not initialized then
 			curH = small and maxH or 455
 		end
-		local targetW = math.clamp(curW, minW, maxW)
-		local targetH = math.clamp(curH, minH, maxH)
+		local targetW = math.clamp(math.floor(curW + 0.5), 1, maxW)
+		local targetH = math.clamp(math.floor(curH + 0.5), 1, maxH)
 		frame.AnchorPoint = Vector2.new(0, 0)
-		frame.Size = UDim2.fromOffset(targetW, targetH)
+		if frame.AbsoluteSize.X ~= targetW or frame.AbsoluteSize.Y ~= targetH then
+			frame.Size = UDim2.fromOffset(targetW, targetH)
+		end
+		if frame.SetAttribute then
+			NAmanage.SetAttr(frame, "NANotepadDefaultSized", true)
+		end
 		local x
 		local y
-		if center then
+		if center and not initialized then
 			x = math.floor((wide - targetW) * 0.5 + 0.5)
 			y = math.floor((tall - targetH) * 0.5 + 0.5)
 		else
@@ -83881,11 +84943,171 @@ NAmanage.Notepad_Init = function()
 	body.CanvasSize = UDim2.new(0, 0, 0, 0)
 	body.Position = UDim2.new(0, 10, 0, 48)
 	body.ScrollBarImageColor3 = col.sub
-	body.ScrollBarThickness = 6
+	body.ScrollBarThickness = 0
 	body.ScrollingDirection = Enum.ScrollingDirection.XY
 	body.Size = UDim2.new(1, -20, 1, -88)
 	body.Parent = main
 	skin(body, 10, 1)
+
+	local notepadLineScroll = InstanceNew("ScrollingFrame")
+	notepadLineScroll.Name = "LineScrollProxy"
+	notepadLineScroll.Active = false
+	notepadLineScroll.BackgroundTransparency = 1
+	notepadLineScroll.BorderSizePixel = 0
+	notepadLineScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+	notepadLineScroll.Position = body.Position
+	notepadLineScroll.ScrollBarThickness = 0
+	notepadLineScroll.ScrollingDirection = Enum.ScrollingDirection.Y
+	notepadLineScroll.Size = body.Size
+	notepadLineScroll.Visible = false
+	notepadLineScroll.Parent = main
+
+	local function makeNotepadScrollBar(parent, name, axis)
+		local horizontal = axis == "X"
+		local bar = InstanceNew("Frame")
+		bar.Name = name
+		bar.BackgroundColor3 = col.bg3
+		bar.BorderSizePixel = 0
+		bar.Visible = false
+		bar.ZIndex = 35
+		bar.Parent = parent
+		skin(bar, 7, 1)
+
+		local upButton = InstanceNew("TextButton")
+		upButton.Name = horizontal and "Left" or "Up"
+		upButton.AutoButtonColor = false
+		upButton.BackgroundColor3 = col.bg2
+		upButton.BorderSizePixel = 0
+		upButton.Font = Enum.Font.GothamBold
+		upButton.Text = horizontal and "<" or "^"
+		upButton.TextColor3 = col.tx
+		upButton.TextSize = 10
+		upButton.ZIndex = 36
+		upButton.Parent = bar
+		skin(upButton, 5, 1)
+
+		local downButton = InstanceNew("TextButton")
+		downButton.Name = horizontal and "Right" or "Down"
+		downButton.AutoButtonColor = false
+		downButton.BackgroundColor3 = col.bg2
+		downButton.BorderSizePixel = 0
+		downButton.Font = Enum.Font.GothamBold
+		downButton.Text = horizontal and ">" or "v"
+		downButton.TextColor3 = col.tx
+		downButton.TextSize = 10
+		downButton.ZIndex = 36
+		downButton.Parent = bar
+		skin(downButton, 5, 1)
+
+		local track = InstanceNew("Frame")
+		track.Name = "Track"
+		track.BackgroundColor3 = col.bg
+		track.BorderSizePixel = 0
+		track.ZIndex = 36
+		track.Parent = bar
+		skin(track, 5, 1)
+
+		local thumb = InstanceNew("Frame")
+		thumb.Name = "Thumb"
+		thumb.BackgroundColor3 = col.sub
+		thumb.BorderSizePixel = 0
+		thumb.ZIndex = 37
+		thumb.Parent = track
+		skin(thumb, 5, 1)
+
+		if horizontal then
+			upButton.Position = UDim2.new(0, 0, 0, 0)
+			upButton.Size = UDim2.new(0, 16, 1, 0)
+			downButton.AnchorPoint = Vector2.new(1, 0)
+			downButton.Position = UDim2.new(1, 0, 0, 0)
+			downButton.Size = UDim2.new(0, 16, 1, 0)
+			track.Position = UDim2.new(0, 18, 0, 0)
+			track.Size = UDim2.new(1, -36, 1, 0)
+		else
+			upButton.Position = UDim2.new(0, 0, 0, 0)
+			upButton.Size = UDim2.new(1, 0, 0, 16)
+			downButton.AnchorPoint = Vector2.new(0, 1)
+			downButton.Position = UDim2.new(0, 0, 1, 0)
+			downButton.Size = UDim2.new(1, 0, 0, 16)
+			track.Position = UDim2.new(0, 0, 0, 18)
+			track.Size = UDim2.new(1, 0, 1, -36)
+		end
+
+		return {
+			bar = bar,
+			upButton = upButton,
+			downButton = downButton,
+			track = track,
+			thumb = thumb,
+		}
+	end
+
+	local notepadVScroll = makeNotepadScrollBar(main, "CustomScrollBar", "Y")
+	local notepadHScroll = makeNotepadScrollBar(main, "CustomHorizontalScrollBar", "X")
+	local notepadGetVisibleLines
+	local notepadGetTotalLines
+	local notepadGetViewLine
+	local notepadSetViewLine
+	local function layoutNotepadScrollBar(_, target, widgets)
+		local bar = widgets and widgets.bar
+		if not (target and bar and bar.Parent) then
+			return
+		end
+		local parentPos = bar.Parent.AbsolutePosition
+		local relX = math.floor(target.AbsolutePosition.X - parentPos.X + 0.5)
+		local relY = math.floor(target.AbsolutePosition.Y - parentPos.Y + 0.5)
+		local w = math.floor(target.AbsoluteSize.X + 0.5)
+		local h = math.floor(target.AbsoluteSize.Y + 0.5)
+		if bar == notepadHScroll.bar then
+			bar.Position = UDim2.new(0, relX, 0, relY + h - 16)
+			bar.Size = UDim2.new(0, math.max(48, w - 18), 0, 16)
+		else
+			bar.Position = UDim2.new(0, relX + w - 16, 0, relY)
+			bar.Size = UDim2.new(0, 16, 0, math.max(48, h - 18))
+		end
+	end
+
+	local notepadVerticalScroll = NAmanage.CustomScroll and NAmanage.CustomScroll.create and NAmanage.CustomScroll.create("notepad_editor_v", {
+		getWidgets = function()
+			return notepadVScroll
+		end,
+		getTarget = function()
+			return body
+		end,
+		getVisibleSpace = function()
+			return notepadGetVisibleLines and notepadGetVisibleLines() or 1
+		end,
+		getTotalSpace = function()
+			return notepadGetTotalLines and notepadGetTotalLines() or 1
+		end,
+		getPosition = function()
+			return math.max(0, (notepadGetViewLine and notepadGetViewLine() or 1) - 1)
+		end,
+		setPosition = function(_, _, pos)
+			if notepadSetViewLine then
+				notepadSetViewLine(math.floor((tonumber(pos) or 0) + 1.5))
+			end
+		end,
+		layoutForTarget = layoutNotepadScrollBar,
+		step = 3,
+	})
+	local notepadHorizontalScroll = NAmanage.CustomScroll and NAmanage.CustomScroll.create and NAmanage.CustomScroll.create("notepad_editor_h", {
+		axis = "X",
+		getWidgets = function()
+			return notepadHScroll
+		end,
+		getTarget = function()
+			return body
+		end,
+		layoutForTarget = layoutNotepadScrollBar,
+		step = 96,
+	})
+	if notepadVerticalScroll and notepadVerticalScroll.install then
+		notepadVerticalScroll.install()
+	end
+	if notepadHorizontalScroll and notepadHorizontalScroll.install then
+		notepadHorizontalScroll.install()
+	end
 
 	local box = InstanceNew("TextBox")
 	box.BackgroundTransparency = 1
@@ -83956,7 +85178,7 @@ NAmanage.Notepad_Init = function()
 	pageText.Font = Enum.Font.GothamSemibold
 	pageText.LayoutOrder = 2
 	pageText.Size = UDim2.new(0, 86, 1, 0)
-	pageText.Text = "Page 1/1"
+	pageText.Text = "Lines 1-1/1"
 	pageText.TextColor3 = col.sub
 	pageText.TextSize = 12
 	pageText.Parent = pageBar
@@ -84014,7 +85236,9 @@ NAmanage.Notepad_Init = function()
 		end
 		body.Position = UDim2.new(0, inner, 0, inner + toolH + 8)
 		body.Size = UDim2.new(1, -inner * 2, 1, -(inner + toolH + 44))
-		body.ScrollBarThickness = compact and 4 or 6
+		body.ScrollBarThickness = 0
+		notepadLineScroll.Position = body.Position
+		notepadLineScroll.Size = body.Size
 		bottom.Position = UDim2.new(0, inner, 1, compact and -28 or -32)
 		bottom.Size = UDim2.new(1, -inner * 2, 0, 24)
 		status.TextSize = compact and 11 or 12
@@ -84042,38 +85266,18 @@ NAmanage.Notepad_Init = function()
 		return select(2, s:gsub("\n", "")) + 1
 	end
 
-	local chunkLimit = 12000
+	local notepadLineBuffer = 24
 	local chunks = { "" }
 	local page = 1
+	local visibleEndLine = 1
+	local notepadLineHeight = 19
 	local loadingText = false
 
 	local function splitText(source)
-		source = tostring(source or "")
-		if source == "" then
-			return { "" }
-		end
+		source = tostring(source or ""):gsub("\r\n", "\n"):gsub("\r", "\n")
 		local out = {}
-		local pos = 1
-		while pos <= #source do
-			local endPos = math.min(pos + chunkLimit - 1, #source)
-			if endPos < #source then
-				local seg = source:sub(pos, endPos)
-				local cut
-				local from = 1
-				while true do
-					local found = seg:find("\n", from, true)
-					if not found then
-						break
-					end
-					cut = found
-					from = found + 1
-				end
-				if cut and cut > math.floor(chunkLimit * 0.35) then
-					endPos = pos + cut - 1
-				end
-			end
-			out[#out + 1] = source:sub(pos, endPos)
-			pos = endPos + 1
+		for line in (source.."\n"):gmatch("(.-)\n") do
+			out[#out + 1] = line
 		end
 		if #out == 0 then
 			out[1] = ""
@@ -84081,39 +85285,86 @@ NAmanage.Notepad_Init = function()
 		return out
 	end
 
-	local function buildFullText(useBox)
-		local out = {}
-		for i = 1, math.max(#chunks, 1) do
-			if useBox and i == page then
-				out[i] = tostring(box.Text or "")
-			else
-				out[i] = tostring(chunks[i] or "")
-			end
+	local function joinText(lines)
+		if type(lines) ~= "table" or #lines == 0 then
+			return ""
 		end
-		return table.concat(out, "")
+		return table.concat(lines, "\n")
 	end
 
-	local function compactPages(preferPage)
-		preferPage = tonumber(preferPage) or page or 1
-		for i = #chunks, 1, -1 do
-			if #chunks > 1 and tostring(chunks[i] or "") == "" then
-				table.remove(chunks, i)
-				if preferPage > i then
-					preferPage -= 1
-				elseif preferPage == i then
-					preferPage = math.min(i, #chunks)
-				end
+	local function sliceText(lines, firstLine, lastLine)
+		local out = {}
+		firstLine = math.max(1, tonumber(firstLine) or 1)
+		lastLine = math.max(firstLine, tonumber(lastLine) or firstLine)
+		for line = firstLine, lastLine do
+			out[#out + 1] = tostring(lines[line] or "")
+		end
+		if #out == 0 then
+			out[1] = ""
+		end
+		return table.concat(out, "\n")
+	end
+
+	local function replaceTextRange(lines, firstLine, lastLine, text)
+		lines = type(lines) == "table" and lines or { "" }
+		local inserted = splitText(text)
+		local rebuilt = {}
+		firstLine = math.clamp(tonumber(firstLine) or 1, 1, math.max(#lines + 1, 1))
+		lastLine = math.clamp(tonumber(lastLine) or (firstLine - 1), firstLine - 1, math.max(#lines, firstLine - 1))
+		for line = 1, firstLine - 1 do
+			rebuilt[#rebuilt + 1] = tostring(lines[line] or "")
+		end
+		for _, lineText in ipairs(inserted) do
+			rebuilt[#rebuilt + 1] = tostring(lineText or "")
+		end
+		for line = lastLine + 1, #lines do
+			rebuilt[#rebuilt + 1] = tostring(lines[line] or "")
+		end
+		if #rebuilt == 0 then
+			rebuilt[1] = ""
+		end
+		return rebuilt
+	end
+
+	local function syncVisibleNotepadText()
+		if not loadingText then
+			local oldEnd = visibleEndLine
+			chunks = replaceTextRange(chunks, page, oldEnd, box.Text or "")
+			visibleEndLine = page + #splitText(box.Text or "") - 1
+		end
+	end
+
+	local function countNotepadChars()
+		local total = math.max(#chunks - 1, 0)
+		for _, line in ipairs(chunks) do
+			total += #tostring(line or "")
+		end
+		return total
+	end
+
+	local function buildFullText(useBox)
+		if useBox and not loadingText then
+			syncVisibleNotepadText()
+		end
+		return joinText(chunks)
+	end
+
+	local function getNotepadLineHeight()
+		local fallback = tonumber(box.TextSize) or 15
+		local widthService = TextService or TextServiceRef
+		if widthService and widthService.GetTextSize then
+			local ok, measured = pcall(function()
+				return widthService:GetTextSize("M", box.TextSize, box.Font, Vector2.new(1000, 1000)).Y
+			end)
+			if ok and type(measured) == "number" then
+				return math.max(1, math.ceil(measured))
 			end
 		end
-		if #chunks == 0 then
-			chunks[1] = ""
-			preferPage = 1
-		end
-		return math.clamp(preferPage, 1, math.max(#chunks, 1))
+		return math.max(1, math.ceil(fallback))
 	end
 
 	local function measureNotepadText(source)
-		local lineHeight = box.TextSize + 4
+		local lineHeight = getNotepadLineHeight()
 		local longest = 0
 		local lines = 0
 		for line in ((source or "").."\n"):gmatch("(.-)\n") do
@@ -84137,34 +85388,85 @@ NAmanage.Notepad_Init = function()
 		if lines <= 0 then
 			lines = 1
 		end
-		local w = math.max(body.AbsoluteSize.X - 20, longest + 28)
-		local h = math.max(body.AbsoluteSize.Y - 20, lines * lineHeight + 18)
+		local viewWidth = math.max(1, (body.AbsoluteSize.X or 0) - 18)
+		local w = math.max(viewWidth, longest + 12)
+		local h = math.max(math.max(body.AbsoluteSize.Y - 30, 1), lines * lineHeight + 18)
 		return w, h
+	end
+
+	local function getNotepadViewportHeight()
+		return math.max(1, (body.AbsoluteSize.Y or 0) - 30)
+	end
+
+	local function getNotepadWindowMetrics()
+		local lineHeight = getNotepadLineHeight()
+		local visible = math.max(1, math.floor(getNotepadViewportHeight() / math.max(lineHeight, 1)))
+		return lineHeight, visible
+	end
+
+	local function getNotepadVisibleLine(totalLines)
+		local lineHeight = getNotepadWindowMetrics()
+		local total = math.max(tonumber(totalLines) or 1, 1)
+		return math.clamp(math.floor(math.max(notepadLineScroll.CanvasPosition.Y, 0) / math.max(lineHeight, 1)) + 1, 1, total)
+	end
+
+	local function getNotepadWindowRange(totalLines, firstVisibleLine)
+		local _, visibleLines = getNotepadWindowMetrics()
+		local total = math.max(tonumber(totalLines) or 1, 1)
+		local firstVisible = math.clamp(tonumber(firstVisibleLine) or getNotepadVisibleLine(total), 1, total)
+		local lastVisible = math.clamp(firstVisible + visibleLines - 1, firstVisible, total)
+		local firstRender = firstVisible
+		local lastRender = lastVisible
+		return firstRender, lastRender, firstVisible, lastVisible
 	end
 
 	local function updEditorSize()
 		local w, h = measureNotepadText(box.Text or "")
+		notepadLineHeight = getNotepadLineHeight()
+		local fullHeight = math.max(getNotepadViewportHeight(), math.max(#chunks, 1) * notepadLineHeight + 18)
+		local _, visibleLines = getNotepadWindowMetrics()
+		local virtualTotal = math.max(#chunks + 1, visibleLines)
+		local maxTopY = math.max(0, (virtualTotal - visibleLines) * notepadLineHeight)
+		local proxyHeight = math.max(fullHeight + notepadLineHeight + 16, (body.AbsoluteSize.Y or 0) + maxTopY + notepadLineHeight)
+		box.Position = UDim2.new(0, 8, 0, 8)
 		box.Size = UDim2.new(0, w, 0, h)
-		body.CanvasSize = UDim2.new(0, w + 16, 0, h + 16)
+		local canvasWidth = math.max(body.AbsoluteSize.X or 1, 8 + w + 2)
+		body.CanvasSize = UDim2.new(0, canvasWidth, 0, math.max(body.AbsoluteSize.Y, 1))
+		notepadLineScroll.Position = body.Position
+		notepadLineScroll.Size = body.Size
+		notepadLineScroll.CanvasSize = UDim2.new(0, 0, 0, proxyHeight)
+		if NAmanage.CustomScroll and NAmanage.CustomScroll.refreshByTarget then
+			NAmanage.CustomScroll.refreshByTarget(body)
+			NAmanage.CustomScroll.refreshByTarget(notepadLineScroll)
+		end
 	end
 
 	local function updCount()
-		local tx = buildFullText(true)
-		count.Text = tostring(#tx).." chars | "..tostring(lineCount(tx)).." lines"
+		syncVisibleNotepadText()
+		count.Text = tostring(countNotepadChars()).." chars | "..tostring(math.max(#chunks, 1)).." lines"
 		page = math.clamp(tonumber(page) or 1, 1, math.max(#chunks, 1))
-		pageText.Text = "Page "..tostring(page).."/"..tostring(math.max(#chunks, 1))
-		pageBar.Visible = #chunks > 1
-		pagePrev.Visible = #chunks > 1
-		pageNext.Visible = #chunks > 1
+		visibleEndLine = math.clamp(visibleEndLine, page, math.max(#chunks, 1))
+		local _, _, firstVisible, lastVisible = getNotepadWindowRange(math.max(#chunks, 1))
+		pageText.Text = "Lines "..tostring(firstVisible).."-"..tostring(lastVisible).."/"..tostring(math.max(#chunks, 1))
+		pageBar.Visible = #chunks > math.max(1, lastVisible - firstVisible + 1)
+		pagePrev.Visible = false
+		pageNext.Visible = false
 		updEditorSize()
 	end
 
-	local function loadPage(nextPage)
-		page = math.clamp(tonumber(nextPage) or page or 1, 1, math.max(#chunks, 1))
+	local function loadPage(nextPage, preserveScroll)
+		local total = math.max(#chunks, 1)
+		local lineHeight = getNotepadWindowMetrics()
+		local visibleLine = preserveScroll == true and getNotepadVisibleLine(total) or math.clamp(tonumber(nextPage) or page or 1, 1, total)
+		local firstRender, lastRender, firstVisible = getNotepadWindowRange(total, visibleLine)
+		page = firstRender
+		visibleEndLine = lastRender
 		loadingText = true
-		box.Text = tostring(chunks[page] or "")
+		if preserveScroll ~= true then
+			notepadLineScroll.CanvasPosition = Vector2.new(0, math.max(0, (firstVisible - 1) * lineHeight))
+		end
+		box.Text = sliceText(chunks, page, visibleEndLine)
 		loadingText = false
-		body.CanvasPosition = Vector2.new(0, 0)
 		updCount()
 	end
 
@@ -84172,34 +85474,47 @@ NAmanage.Notepad_Init = function()
 		if loadingText then
 			return
 		end
-		local oldPage = page
-		local oldTotal = math.max(#chunks, 1)
-		chunks[page] = tostring(box.Text or "")
-		local reloadPage = false
-		if #chunks[page] > chunkLimit then
-			local parts = splitText(chunks[page])
-			table.remove(chunks, page)
-			for i = #parts, 1, -1 do
-				table.insert(chunks, page, parts[i])
-			end
-			page = math.clamp(oldPage, 1, math.max(#chunks, 1))
-			reloadPage = true
-			setStatus("Text split into pages to avoid Roblox TextBox limits", col.warn)
-		else
-			page = compactPages(page)
-			reloadPage = oldTotal ~= #chunks or page ~= oldPage
-		end
-		if reloadPage then
-			loadingText = true
-			box.Text = tostring(chunks[page] or "")
-			loadingText = false
-		end
+		local oldEnd = visibleEndLine
+		chunks = replaceTextRange(chunks, page, oldEnd, box.Text or "")
+		visibleEndLine = page + #splitText(box.Text or "") - 1
 		updCount()
 	end
 
+	local function refreshNotepadViewport()
+		if loadingText then
+			return
+		end
+		commitPage()
+		loadPage(getNotepadVisibleLine(math.max(#chunks, 1)), true)
+	end
+
+	notepadGetVisibleLines = function()
+		local _, visibleLines = getNotepadWindowMetrics()
+		return math.max(1, visibleLines)
+	end
+	notepadGetTotalLines = function()
+		return math.max(#chunks + 1, notepadGetVisibleLines())
+	end
+	notepadGetViewLine = function()
+		return getNotepadVisibleLine(math.max(#chunks, 1))
+	end
+	notepadSetViewLine = function(line)
+		commitPage()
+		local total = math.max(#chunks, 1)
+		local lineHeight = getNotepadWindowMetrics()
+		local nextLine = math.clamp(tonumber(line) or 1, 1, total)
+		notepadLineScroll.CanvasPosition = Vector2.new(0, math.max(0, (nextLine - 1) * lineHeight))
+		loadPage(nextLine, true)
+	end
+
 	local function setFullText(source)
+		loadingText = true
 		chunks = splitText(source)
 		page = 1
+		visibleEndLine = 1
+		notepadLineScroll.CanvasPosition = Vector2.new(0, 0)
+		body.CanvasPosition = Vector2.new(0, 0)
+		loadingText = false
 		loadPage(1)
 	end
 
@@ -84358,31 +85673,86 @@ NAmanage.Notepad_Init = function()
 			updCount()
 		end
 	end)
-	body:GetPropertyChangedSignal("AbsoluteSize"):Connect(updEditorSize)
+	notepadLineScroll:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
+		if loadingText then
+			return
+		end
+		local total = math.max(#chunks, 1)
+		local _, _, firstVisible, lastVisible = getNotepadWindowRange(total)
+		local edgeBuffer = math.max(1, math.floor(notepadLineBuffer / 3))
+		if firstVisible < page or lastVisible > visibleEndLine or (firstVisible - page) < edgeBuffer or (visibleEndLine - lastVisible) < edgeBuffer then
+			commitPage()
+			loadPage(firstVisible, true)
+		end
+	end)
+	local redirectingNotepadScroll = false
+	body:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
+		if loadingText or redirectingNotepadScroll then
+			return
+		end
+		local y = tonumber(body.CanvasPosition.Y) or 0
+		if math.abs(y) <= 0.5 then
+			return
+		end
+		redirectingNotepadScroll = true
+		if notepadVerticalScroll and notepadVerticalScroll.scrollBy then
+			local lineDelta = y / math.max(notepadLineHeight, 1)
+			if math.abs(lineDelta) < 1 then
+				lineDelta = y > 0 and 1 or -1
+			end
+			notepadVerticalScroll.scrollBy(lineDelta)
+		else
+			notepadLineScroll.CanvasPosition = Vector2.new(0, math.max(0, notepadLineScroll.CanvasPosition.Y + y))
+		end
+		body.CanvasPosition = Vector2.new(body.CanvasPosition.X, 0)
+		redirectingNotepadScroll = false
+	end)
+	local function handleNotepadWheel(input)
+		if not input or input.UserInputType ~= Enum.UserInputType.MouseWheel then
+			return
+		end
+		local wheel = input.Position and input.Position.Z or 0
+		if wheel == 0 then
+			return
+		end
+		local step = math.max(24, getNotepadLineHeight() * 3)
+		local horizontal = UserInputService and (UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.RightShift))
+		if horizontal and notepadHorizontalScroll and notepadHorizontalScroll.scrollBy then
+			notepadHorizontalScroll.scrollBy(-wheel * step)
+		elseif notepadVerticalScroll and notepadVerticalScroll.scrollBy then
+			notepadVerticalScroll.scrollBy(-wheel * 3)
+		end
+	end
+	body.InputChanged:Connect(handleNotepadWheel)
+	box.InputChanged:Connect(handleNotepadWheel)
+	body:GetPropertyChangedSignal("AbsoluteSize"):Connect(refreshNotepadViewport)
 	frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
 		updateNotepadLayout()
-		updEditorSize()
+		refreshNotepadViewport()
 	end)
 	cont:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
 		updateNotepadLayout()
-		updEditorSize()
+		refreshNotepadViewport()
 	end)
 	NAStuff.NotepadRefresh = function()
 		applyNotepadResponsive(false)
 		updateNotepadLayout()
-		updEditorSize()
-		updCount()
+		refreshNotepadViewport()
 	end
 	MouseButtonFix(pagePrev, function()
 
 		commitPage()
-		loadPage(page - 1)
-		setStatus("Page "..tostring(page).."/"..tostring(math.max(#chunks, 1)), col.sub)
+		local _, visibleLines = getNotepadWindowMetrics()
+		local nextLine = math.clamp(getNotepadVisibleLine(math.max(#chunks, 1)) - visibleLines, 1, math.max(#chunks, 1))
+		loadPage(nextLine)
+		setStatus("Line "..tostring(nextLine).."/"..tostring(math.max(#chunks, 1)), col.sub)
 	end)
 	MouseButtonFix(pageNext, function()
 		commitPage()
-		loadPage(page + 1)
-		setStatus("Page "..tostring(page).."/"..tostring(math.max(#chunks, 1)), col.sub)
+		local _, visibleLines = getNotepadWindowMetrics()
+		local nextLine = math.clamp(getNotepadVisibleLine(math.max(#chunks, 1)) + visibleLines, 1, math.max(#chunks, 1))
+		loadPage(nextLine)
+		setStatus("Line "..tostring(nextLine).."/"..tostring(math.max(#chunks, 1)), col.sub)
 	end)
 	nameBox.FocusLost:Connect(function()
 		local e = tostring(nameBox.Text or ""):match("(%.[%w]+)$")
@@ -84419,8 +85789,7 @@ NAmanage.Notepad_Init = function()
 				if frame and frame.Parent then
 					applyNotepadResponsive(frame.Visible == true)
 					updateNotepadLayout()
-					updEditorSize()
-					updCount()
+					refreshNotepadViewport()
 				end
 			end)
 		end))
@@ -84431,8 +85800,7 @@ NAmanage.Notepad_Init = function()
 				if frame and frame.Parent then
 					applyNotepadResponsive(frame.Visible == true)
 					updateNotepadLayout()
-					updEditorSize()
-					updCount()
+					refreshNotepadViewport()
 				end
 			end)
 		end))
@@ -84443,8 +85811,7 @@ NAmanage.Notepad_Init = function()
 				if frame and frame.Parent then
 					applyNotepadResponsive(frame.Visible == true)
 					updateNotepadLayout()
-					updEditorSize()
-					updCount()
+					refreshNotepadViewport()
 				end
 			end)
 		end))
@@ -84515,13 +85882,13 @@ if NAUIMANAGER.WaypointFrame then NAgui.resizeable(NAUIMANAGER.WaypointFrame) en
 if NAUIMANAGER.BindersFrame then NAgui.resizeable(NAUIMANAGER.BindersFrame) end
 if NAUIMANAGER.ExecutorFrame then
 	local exMin = IsOnMobile and Vector2.new(340, 280) or Vector2.new(680, 420)
-	NAgui.resizeable(NAUIMANAGER.ExecutorFrame, exMin, Vector2.new(1600, 1000))
+	NAgui.resizeable(NAUIMANAGER.ExecutorFrame, exMin, Vector2.new(5000, 5000))
 end
 if NAUIMANAGER.NotepadFrame then
 	local npVp = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
 	local npSmall = IsOnMobile or npVp.X < 720 or npVp.Y < 520
 	local npMin = npSmall and Vector2.new(280, 230) or Vector2.new(460, 340)
-	NAgui.resizeable(NAUIMANAGER.NotepadFrame, npMin, Vector2.new(1500, 980))
+	NAgui.resizeable(NAUIMANAGER.NotepadFrame, npMin, Vector2.new(5000, 5000))
 end
 
 NAmanage.Executor_Init()
