@@ -15599,7 +15599,7 @@ function DoPopup(text, title)
 	Popup(buildNotifArgs(text, nil, title, false))
 end
 
-local mouse=Players.LocalPlayer:GetMouse()
+local mouse=cloneref(Players.LocalPlayer:GetMouse())
 
 for _, ev in ipairs(events) do
 	if type(Bindings[ev]) ~= "table" then
@@ -28564,13 +28564,7 @@ NAmanage.LoadPlugins = function(opts)
 			proxyEnv.ContextActionService = proxyEnv.ContextActionService or SafeGetService("ContextActionService")
 
 			local function iyMouse()
-				if lp and lp.GetMouse then
-					local ok, m = pcall(lp.GetMouse, lp)
-					if ok and m then
-						return m
-					end
-				end
-				return nil
+				return cloneref(lp:GetMouse()) -- 😭 fix detection
 			end
 			proxyEnv.IYMouse = iyMouse()
 
@@ -32298,7 +32292,7 @@ cmd.add({"clickfling","mousefling"},{"clickfling (mousefling)","Fling a player b
 	if clickflingUI then clickflingUI:Destroy() end
 	NAlib.disconnect("clickfling_mouse")
 
-	local Mouse = player:GetMouse()
+	local Mouse = cloneref(player:GetMouse())
 	clickflingUI = InstanceNew("ScreenGui")
 	NAgui.NaProtectUI(clickflingUI)
 
@@ -33336,7 +33330,7 @@ cmd.add({"clickscare","clickspook"},{"clickscare (clickspook)","Teleports next t
 	if clickscareUI then clickscareUI:Destroy() end
 	NAlib.disconnect("clickscare_mouse")
 
-	local Mouse = player:GetMouse()
+	local Mouse = cloneref(player:GetMouse())
 	clickscareUI = InstanceNew("ScreenGui")
 	NAgui.NaProtectUI(clickscareUI)
 
@@ -33439,7 +33433,7 @@ cmd.add({"hovername","namehover"}, {"hovername", "Shows player's username on hov
 	hoverNameSelection.Adornee = nil
 	hoverNameSelection.Parent = nil
 
-	local mouse = player and player:GetMouse()
+	local mouse = player and cloneref(player:GetMouse())
 	if not mouse then
 		NAmanage.cleanupHoverName()
 		return
@@ -40042,7 +40036,7 @@ cmd.add({"triggerbot", "tbot"}, {"triggerbot (tbot)", "Executes a script that au
 	local Camera = workspace.CurrentCamera
 
 	local Player = Players.LocalPlayer
-	local Mouse = Player:GetMouse()
+	local Mouse = cloneref(Player:GetMouse())
 	local Toggled = false
 	local Mode = "FFA"
 	local LastMode = nil
@@ -40780,7 +40774,7 @@ NAmanage.makeClickTweenUI = function()
 	NAmanage.clearAllTP()
 	local TweenService = SafeGetService("TweenService")
 	local player = Players.LocalPlayer
-	local mouse = player:GetMouse()
+	local mouse = cloneref(player:GetMouse())
 
 	NAStuff.tpUI = InstanceNew("ScreenGui")
 	NAgui.NaProtectUI(NAStuff.tpUI)
@@ -40926,7 +40920,7 @@ NAmanage.makeClickTweenTools = function()
 		tool.CanBeDropped = false
 		tool.Parent = player.Backpack
 		tool.Activated:Connect(function()
-			local mouse = player:GetMouse()
+			local mouse = cloneref(player:GetMouse())
 			local char = player.Character
 			if not (mouse and char) then
 				return
@@ -46868,7 +46862,7 @@ cmd.add({"seizure"}, {"seizure", "Gives you a seizure"}, function()
 			Anim.AnimationId = "rbxassetid://180436148"
 		end
 		local k = getHum():LoadAnimation(Anim)
-		_na_env.ssss = LocalPlayer:GetMouse()
+		_na_env.ssss = cloneref(LocalPlayer:GetMouse())
 		_na_env.Lzzz = false
 
 		if Lzzz == false then
@@ -52166,7 +52160,7 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 	if NAlib.isConnected("blackhole_force") then return DebugNotif("Blackhole already exists.") end
 
 	local UIS=SafeGetService("UserInputService")
-	local Mouse=LocalPlayer:GetMouse()
+	local Mouse=cloneref(LocalPlayer:GetMouse())
 	local Folder=InstanceNew("Folder",workspace)
 	local Part=InstanceNew("Part",Folder)
 	local Attachment1=InstanceNew("Attachment",Part)
@@ -58477,7 +58471,7 @@ hugModeEnabled = false
 
 cmd.add({"hug", "clickhug"}, {"hug (clickhug)", "huggies time (click on a target to hug)"}, function()
 	if IsR6() then
-		local mouse = LocalPlayer:GetMouse()
+		local mouse = cloneref(LocalPlayer:GetMouse())
 
 		NAlib.disconnect("hug_toggle")
 		NAlib.disconnect("hug_side")
@@ -58622,7 +58616,7 @@ cmd.add({"hug", "clickhug"}, {"hug (clickhug)", "huggies time (click on a target
 			sideToggleButton.Text = (hugFromFront and "Hug Side: Front") or "Hug Side: Back"
 		end))
 
-		NAlib.connect("hug_click", LocalPlayer:GetMouse().Button1Down:Connect(function()
+		NAlib.connect("hug_click", cloneref(LocalPlayer:GetMouse()).Button1Down:Connect(function()
 			if not hugModeEnabled then return end
 			local target = mouse.Target
 			if target and target.Parent then
@@ -68563,7 +68557,7 @@ cmd.add({"breakcars", "bcars"}, {"breakcars (bcars)", "Breaks any car"}, functio
 	DebugNotif("Car breaker loaded, sit on a vehicle and be the driver")
 
 	local Player = Players.LocalPlayer
-	local Mouse = Player:GetMouse()
+	local Mouse = cloneref(Player:GetMouse())
 
 	local Folder = InstanceNew("Folder")
 	Folder.Parent = workspace
@@ -72339,7 +72333,7 @@ cmd.add({"clickkillnpc", "cknpc"}, {"clickkillnpc (cknpc)", "Click on an NPC to 
 	if NAStuff.clickkillUI then NAStuff.clickkillUI:Destroy() end
 	NAlib.disconnect("clickkill_mouse")
 
-	local Mouse = player:GetMouse()
+	local Mouse = cloneref(player:GetMouse())
 
 	NAStuff.clickkillUI = InstanceNew("ScreenGui")
 	NAgui.NaProtectUI(NAStuff.clickkillUI)
@@ -72431,7 +72425,7 @@ cmd.add({"clickvoidnpc", "cvnpc"}, {"clickvoidnpc (cvnpc)", "Click to void NPCs"
 		button.Text = clickVoidEnabled and "ClickVoid: ON" or "ClickVoid: OFF"
 	end)
 
-	local mouse = player:GetMouse()
+	local mouse = cloneref(player:GetMouse())
 	NAlib.connect("clickvoid_mouse", mouse.Button1Down:Connect(function()
 		if not clickVoidEnabled then return end
 
@@ -72458,7 +72452,7 @@ cmd.add({"clicknpcws","cnpcws"},{"clicknpcws","Click on an NPC to set its WalkSp
 	if clickSpeedUI then clickSpeedUI:Destroy() end
 	NAlib.disconnect("clickspeed_mouse")
 	local player=Players.LocalPlayer
-	local mouse=player:GetMouse()
+	local mouse=cloneref(player:GetMouse())
 	clickSpeedUI=InstanceNew("ScreenGui")
 	NAgui.NaProtectUI(clickSpeedUI)
 	local btn=InstanceNew("TextButton")
@@ -72522,7 +72516,7 @@ cmd.add({"clicknpcjp","cnpcjp"},{"clicknpcjp","Click on an NPC to set its JumpPo
 	if clickJumpUI then clickJumpUI:Destroy() end
 	NAlib.disconnect("clickjump_mouse")
 	local player=Players.LocalPlayer
-	local mouse=player:GetMouse()
+	local mouse=cloneref(player:GetMouse())
 	clickJumpUI=InstanceNew("ScreenGui")
 	NAgui.NaProtectUI(clickJumpUI)
 	local btn=InstanceNew("TextButton")
