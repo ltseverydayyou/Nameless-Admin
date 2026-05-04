@@ -81521,6 +81521,621 @@ if NAUIMANAGER.filterBox then
 	NAlib.connect("waypoint_filter_text", NAUIMANAGER.filterBox:GetPropertyChangedSignal("Text"):Connect(NAmanage.UpdateWaypointList))
 end
 
+NAStuff.ExecutorKeywordSet = NAStuff.ExecutorKeywordSet or {
+	["and"] = true, ["break"] = true, ["continue"] = true, ["do"] = true, ["else"] = true, ["elseif"] = true,
+	["end"] = true, ["false"] = true, ["for"] = true, ["function"] = true, ["if"] = true, ["in"] = true,
+	["local"] = true, ["nil"] = true, ["not"] = true, ["or"] = true, ["repeat"] = true, ["return"] = true,
+	["then"] = true, ["true"] = true, ["until"] = true, ["while"] = true, ["export"] = true, ["type"] = true,
+	["typeof"] = true, ["as"] = true,
+}
+NAStuff.ExecutorGlobalSet = NAStuff.ExecutorGlobalSet or {
+	["game"] = true, ["workspace"] = true, ["script"] = true, ["shared"] = true, ["plugin"] = true, ["Enum"] = true,
+	["Color3"] = true, ["Vector2"] = true, ["Vector3"] = true, ["CFrame"] = true, ["UDim"] = true, ["UDim2"] = true,
+	["Instance"] = true, ["TweenInfo"] = true, ["Ray"] = true, ["Rect"] = true, ["Region3"] = true, ["Random"] = true,
+	["DateTime"] = true, ["NumberRange"] = true, ["NumberSequence"] = true, ["ColorSequence"] = true,
+	["BrickColor"] = true, ["Axes"] = true, ["Faces"] = true, ["Font"] = true, ["math"] = true, ["string"] = true,
+	["table"] = true, ["task"] = true, ["debug"] = true, ["coroutine"] = true, ["os"] = true, ["utf8"] = true,
+	["vector"] = true,
+	["pairs"] = true, ["ipairs"] = true, ["next"] = true, ["print"] = true, ["warn"] = true, ["error"] = true,
+	["assert"] = true, ["pcall"] = true, ["xpcall"] = true, ["select"] = true, ["rawequal"] = true,
+	["rawget"] = true, ["rawset"] = true, ["rawlen"] = true, ["setmetatable"] = true, ["getmetatable"] = true,
+	["loadstring"] = true, ["load"] = true, ["require"] = true, ["tonumber"] = true, ["tostring"] = true,
+	["type"] = true, ["typeof"] = true, ["unpack"] = true, ["wait"] = true, ["delay"] = true, ["spawn"] = true,
+	["tick"] = true, ["time"] = true, ["elapsedTime"] = true, ["gcinfo"] = true, ["collectgarbage"] = true,
+	["getfenv"] = true, ["setfenv"] = true, ["newproxy"] = true, ["settings"] = true, ["UserSettings"] = true,
+}
+NAStuff.ExecutorTypeSet = NAStuff.ExecutorTypeSet or {
+	["any"] = true, ["boolean"] = true, ["buffer"] = true, ["nil"] = true, ["number"] = true,
+	["string"] = true, ["thread"] = true, ["unknown"] = true, ["never"] = true, ["userdata"] = true,
+}
+
+NAmanage.ExecutorSplitEditorLines = NAmanage.ExecutorSplitEditorLines or function(source)
+	source = tostring(source or ""):gsub("\r\n", "\n"):gsub("\r", "\n")
+	local out = {}
+	for line in (source.."\n"):gmatch("(.-)\n") do
+		out[#out + 1] = line
+	end
+	if #out == 0 then
+		out[1] = ""
+	end
+	return out
+end
+
+NAmanage.ExecutorJoinEditorLines = NAmanage.ExecutorJoinEditorLines or function(lines)
+	if type(lines) ~= "table" or #lines == 0 then
+		return ""
+	end
+	return table.concat(lines, "\n")
+end
+
+NAmanage.ExecutorRepairTabText = NAmanage.ExecutorRepairTabText or function(source)
+	source = tostring(source or ""):gsub("\r\n", "\n"):gsub("\r", "\n")
+	if source == "" then
+		return ""
+	end
+	local var = source:match("unpack%s*%(%s*([%a_][%w_]*)%s*%)")
+	if not var then
+		return source
+	end
+	if not (source:find(":FireServer%s*%(%s*unpack%s*%(") or source:find(":InvokeServer%s*%(%s*unpack%s*%(")) then
+		return source
+	end
+	local fixed = {}
+	local lastKeyLine
+	for line in (source.."\n"):gmatch("(.-)\n") do
+		local keyLine = line:match("^%s*%[%s*[%d\"'].-%]%s*=%s*.+$") and line:gsub("%s+", "") or nil
+		if not (keyLine and keyLine == lastKeyLine) then
+			fixed[#fixed + 1] = line
+		end
+		lastKeyLine = keyLine
+	end
+	source = table.concat(fixed, "\n")
+	if source:match("^%s*local%s+"..var.."%s*=%s*{") or source:match("^%s*"..var.."%s*=%s*{") then
+		return source
+	end
+	if source:match("^%s*%[%s*[%d\"'].-%]%s*=") then
+		return "local "..var.." = {\n"..source
+	end
+	return source
+end
+
+NAmanage.ExecutorSliceEditorLines = NAmanage.ExecutorSliceEditorLines or function(lines, firstLine, lastLine)
+	local out = {}
+	firstLine = math.max(1, tonumber(firstLine) or 1)
+	lastLine = math.max(firstLine, tonumber(lastLine) or firstLine)
+	for line = firstLine, lastLine do
+		out[#out + 1] = tostring(lines[line] or "")
+	end
+	if #out == 0 then
+		out[1] = ""
+	end
+	return table.concat(out, "\n")
+end
+
+NAmanage.ExecutorReplaceEditorLineRange = NAmanage.ExecutorReplaceEditorLineRange or function(lines, firstLine, lastLine, text)
+	lines = type(lines) == "table" and lines or { "" }
+	local insertLines = NAmanage.ExecutorSplitEditorLines(text)
+	local rebuilt = {}
+	firstLine = math.clamp(tonumber(firstLine) or 1, 1, math.max(#lines + 1, 1))
+	lastLine = math.clamp(tonumber(lastLine) or (firstLine - 1), firstLine - 1, math.max(#lines, firstLine - 1))
+	for line = 1, firstLine - 1 do
+		rebuilt[#rebuilt + 1] = tostring(lines[line] or "")
+	end
+	for _, lineText in ipairs(insertLines) do
+		rebuilt[#rebuilt + 1] = tostring(lineText or "")
+	end
+	for line = lastLine + 1, #lines do
+		rebuilt[#rebuilt + 1] = tostring(lines[line] or "")
+	end
+	if #rebuilt == 0 then
+		rebuilt[1] = ""
+	end
+	return rebuilt
+end
+
+NAmanage.ExecutorStripLuaLineForIndent = NAmanage.ExecutorStripLuaLineForIndent or function(line, state)
+	line = tostring(line or "")
+	state = state or {}
+	local out = {}
+	local i = 1
+	local len = #line
+	local function pushSpaces(count)
+		if count > 0 then
+			out[#out + 1] = string.rep(" ", count)
+		end
+	end
+	while i <= len do
+		if state.longClose then
+			local closeStart, closeEnd = line:find(state.longClose, i, true)
+			if closeStart then
+				pushSpaces(closeEnd - i + 1)
+				i = closeEnd + 1
+				state.longClose = nil
+			else
+				pushSpaces(len - i + 1)
+				break
+			end
+		else
+			local two = line:sub(i, i + 1)
+			if two == "--" then
+				local eq = line:match("^%-%-%[(=*)%[", i)
+				if eq then
+					local closePattern = "]"..eq.."]"
+					local closeStart = line:find(closePattern, i + 4 + #eq, true)
+					if closeStart then
+						pushSpaces(len - i + 1)
+					else
+						state.longClose = closePattern
+						pushSpaces(len - i + 1)
+					end
+				else
+					pushSpaces(len - i + 1)
+				end
+				break
+			elseif line:sub(i, i):match("[\"'`]") then
+				local quote = line:sub(i, i)
+				local j = i + 1
+				local escaped = false
+				while j <= len do
+					local ch = line:sub(j, j)
+					if escaped then
+						escaped = false
+					elseif ch == "\\" then
+						escaped = true
+					elseif ch == quote then
+						break
+					end
+					j += 1
+				end
+				if j > len then
+					j = len
+				end
+				pushSpaces(j - i + 1)
+				i = j + 1
+			else
+				local eq = line:match("^%[(=*)%[", i)
+				if eq then
+					local closePattern = "]"..eq.."]"
+					local closeStart, closeEnd = line:find(closePattern, i + 2 + #eq, true)
+					if closeStart then
+						pushSpaces(closeEnd - i + 1)
+						i = closeEnd + 1
+					else
+						state.longClose = closePattern
+						pushSpaces(len - i + 1)
+						break
+					end
+				else
+					out[#out + 1] = line:sub(i, i)
+					i += 1
+				end
+			end
+		end
+	end
+	return table.concat(out)
+end
+
+NAmanage.ExecutorSplitLuaStatementLine = NAmanage.ExecutorSplitLuaStatementLine or function(line, state)
+	line = tostring(line or "")
+	state = state or {}
+	local parts = {}
+	local startPos = 1
+	local i = 1
+	local len = #line
+	while i <= len do
+		if state.longClose then
+			local closeStart, closeEnd = line:find(state.longClose, i, true)
+			if closeStart then
+				i = closeEnd + 1
+				state.longClose = nil
+			else
+				break
+			end
+		else
+			local two = line:sub(i, i + 1)
+			if two == "--" then
+				local eq = line:match("^%-%-%[(=*)%[", i)
+				if eq then
+					local closePattern = "]"..eq.."]"
+					local closeStart, closeEnd = line:find(closePattern, i + 4 + #eq, true)
+					if closeStart then
+						i = closeEnd + 1
+					else
+						state.longClose = closePattern
+						break
+					end
+				else
+					break
+				end
+			elseif line:sub(i, i):match("[\"'`]") then
+				local quote = line:sub(i, i)
+				i += 1
+				local escaped = false
+				while i <= len do
+					local ch = line:sub(i, i)
+					if escaped then
+						escaped = false
+					elseif ch == "\\" then
+						escaped = true
+					elseif ch == quote then
+						break
+					end
+					i += 1
+				end
+				i += 1
+			else
+				local eq = line:match("^%[(=*)%[", i)
+				if eq then
+					local closePattern = "]"..eq.."]"
+					local closeStart, closeEnd = line:find(closePattern, i + 2 + #eq, true)
+					if closeStart then
+						i = closeEnd + 1
+					else
+						state.longClose = closePattern
+						break
+					end
+				elseif line:sub(i, i) == ";" then
+					parts[#parts + 1] = line:sub(startPos, i - 1)
+					startPos = i + 1
+					i += 1
+				else
+					i += 1
+				end
+			end
+		end
+	end
+	parts[#parts + 1] = line:sub(startPos)
+	return parts
+end
+
+NAmanage.ExecutorFormatLuaLineSpacing = NAmanage.ExecutorFormatLuaLineSpacing or function(line)
+	line = tostring(line or "")
+	local out = {}
+	local i = 1
+	local len = #line
+	local function currentText()
+		return table.concat(out)
+	end
+	local function trimRight()
+		if #out > 0 then
+			out[#out] = out[#out]:gsub("%s+$", "")
+			if out[#out] == "" then
+				table.remove(out, #out)
+			end
+		end
+	end
+	local function append(text)
+		out[#out + 1] = text
+	end
+	local function appendOperator(op)
+		trimRight()
+		append(" "..op.." ")
+		while i <= len and line:sub(i, i):match("%s") do
+			i += 1
+		end
+	end
+	local function previousSignificant()
+		local text = currentText():gsub("%s+$", "")
+		return text:sub(-1)
+	end
+	local function previousWord()
+		return currentText():match("([%a_][%w_]*)%s*$")
+	end
+	local function isUnaryMinus()
+		local prev = previousSignificant()
+		local word = previousWord()
+		return prev == "" or prev:match("[%(%[%{=,%+%-%*/%%%^#<>~]") or word == "return" or word == "local" or word == "then" or word == "do" or word == "else" or word == "elseif" or word == "and" or word == "or" or word == "not"
+	end
+	while i <= len do
+		local ch = line:sub(i, i)
+		local two = line:sub(i, i + 1)
+		local three = line:sub(i, i + 2)
+		if two == "--" then
+			append(line:sub(i))
+			break
+		elseif ch:match("[\"'`]") then
+			local quote = ch
+			local startQuote = i
+			i += 1
+			local escaped = false
+			while i <= len do
+				local cur = line:sub(i, i)
+				if escaped then
+					escaped = false
+				elseif cur == "\\" then
+					escaped = true
+				elseif cur == quote then
+					break
+				end
+				i += 1
+			end
+			if i > len then
+				i = len
+			end
+			append(line:sub(startQuote, i))
+			i += 1
+		else
+			local eq = line:match("^%[(=*)%[", i)
+			if eq then
+				local closePattern = "]"..eq.."]"
+				local closeStart, closeEnd = line:find(closePattern, i + 2 + #eq, true)
+				if closeStart then
+					append(line:sub(i, closeEnd))
+					i = closeEnd + 1
+				else
+					append(line:sub(i))
+					break
+				end
+			elseif three == "..." then
+				append("...")
+				i += 3
+			elseif three == "//=" or three == "..=" then
+				i += 3
+				appendOperator(three)
+			elseif two == "//" or two == "->" then
+				i += 2
+				appendOperator(two)
+			elseif two == ".." then
+				i += 2
+				appendOperator("..")
+			elseif two == "::" then
+				append("::")
+				i += 2
+			elseif two == "==" or two == "~=" or two == "<=" or two == ">=" or two == "+=" or two == "-=" or two == "*=" or two == "/=" or two == "%=" or two == "^=" then
+				i += 2
+				appendOperator(two)
+			elseif ch == "?" then
+				append("?")
+				i += 1
+			elseif ch == "=" or ch == "+" or ch == "*" or ch == "/" or ch == "%" or ch == "^" or ch == "<" or ch == ">" or ch == "|" or ch == "&" then
+				i += 1
+				appendOperator(ch)
+			elseif ch == "-" then
+				if isUnaryMinus() then
+					append("-")
+					i += 1
+					while i <= len and line:sub(i, i):match("%s") do
+						i += 1
+					end
+				else
+					i += 1
+					appendOperator("-")
+				end
+			elseif ch == "," then
+				trimRight()
+				append(", ")
+				i += 1
+				while i <= len and line:sub(i, i):match("%s") do
+					i += 1
+				end
+			else
+				append(ch)
+				i += 1
+			end
+		end
+	end
+	return table.concat(out):gsub("%s+$", "")
+end
+
+NAmanage.ExecutorLuaParenBalance = NAmanage.ExecutorLuaParenBalance or function(line)
+	line = tostring(line or "")
+	local balance = 0
+	local i = 1
+	local len = #line
+	while i <= len do
+		local ch = line:sub(i, i)
+		local two = line:sub(i, i + 1)
+		if two == "--" then
+			break
+		elseif ch:match("[\"'`]") then
+			local quote = ch
+			i += 1
+			local escaped = false
+			while i <= len do
+				local cur = line:sub(i, i)
+				if escaped then
+					escaped = false
+				elseif cur == "\\" then
+					escaped = true
+				elseif cur == quote then
+					break
+				end
+				i += 1
+			end
+		elseif ch == "(" then
+			balance += 1
+		elseif ch == ")" then
+			balance -= 1
+		end
+		i += 1
+	end
+	return balance
+end
+
+NAmanage.ExecutorCollapseLuaShortCalls = NAmanage.ExecutorCollapseLuaShortCalls or function(source)
+	local lines = {}
+	for line in (tostring(source or "").."\n"):gmatch("(.-)\n") do
+		lines[#lines + 1] = line
+	end
+	if #lines > 0 and lines[#lines] == "" and tostring(source or ""):sub(-1) ~= "\n" then
+		table.remove(lines)
+	end
+
+	local out = {}
+	local i = 1
+	local function hasCollapseBlockKeyword(text)
+		for _, word in ipairs({ "function", "then", "do", "end", "repeat", "until", "else", "elseif" }) do
+			if text:find("%f[%w_]"..word.."%f[^%w_]") then
+				return true
+			end
+		end
+		return false
+	end
+	while i <= #lines do
+		local line = lines[i]
+		local indent, content = line:match("^(%s*)(.-)%s*$")
+		if content and content:match("%(%s*$") then
+			local balance = NAmanage.ExecutorLuaParenBalance(content)
+			local pieces = { content }
+			local j = i + 1
+			local canCollapse = balance > 0
+			while canCollapse and j <= #lines and balance > 0 do
+				local nextContent = lines[j]:match("^%s*(.-)%s*$") or ""
+				if nextContent == "" or nextContent:find("%-%-", 1, true) or hasCollapseBlockKeyword(nextContent) then
+					canCollapse = false
+					break
+				end
+				pieces[#pieces + 1] = nextContent
+				balance += NAmanage.ExecutorLuaParenBalance(nextContent)
+				j += 1
+			end
+			if canCollapse and balance <= 0 and #pieces > 1 then
+				local joined = pieces[1]
+				for pieceIndex = 2, #pieces do
+					local piece = pieces[pieceIndex]
+					if piece:match("^%)") then
+						joined = joined:gsub("%s+$", "")..piece
+					else
+						joined = joined:gsub("%s+$", "")..(joined:match("%(%s*$") and "" or " ")..piece
+					end
+				end
+				joined = NAmanage.ExecutorFormatLuaLineSpacing(joined)
+				if #joined <= 160 then
+					out[#out + 1] = indent..joined
+					i = j
+				else
+					out[#out + 1] = line
+					i += 1
+				end
+			else
+				out[#out + 1] = line
+				i += 1
+			end
+		else
+			out[#out + 1] = line
+			i += 1
+		end
+	end
+	return table.concat(out, "\n")
+end
+
+NAmanage.ExecutorFormatLuaSource = NAmanage.ExecutorFormatLuaSource or function(source)
+	source = tostring(source or ""):gsub("\r\n", "\n"):gsub("\r", "\n")
+	local lines = {}
+	local splitState = {}
+	for line in (source.."\n"):gmatch("(.-)\n") do
+		for _, part in ipairs(NAmanage.ExecutorSplitLuaStatementLine(line, splitState)) do
+			lines[#lines + 1] = part
+		end
+	end
+	if #lines > 0 and lines[#lines] == "" and source:sub(-1) ~= "\n" then
+		table.remove(lines)
+	end
+
+	local formatted = {}
+	local indent = 0
+	local state = {}
+	local indentText = "\t"
+
+	for _, rawLine in ipairs(lines) do
+		local line = tostring(rawLine or ""):gsub("%s+$", "")
+		local trimmed = line:gsub("^%s+", "")
+		local code = NAmanage.ExecutorStripLuaLineForIndent(trimmed, state)
+		local spaced = NAmanage.ExecutorFormatLuaLineSpacing(trimmed)
+		local compact = code:gsub("^%s+", "")
+		local closeOutdent = 0
+		local branchOutdent = 0
+		if compact ~= "" then
+			if compact:match("^end%f[^%w_]") or compact:match("^until%f[^%w_]") or compact:sub(1, 1) == "}" then
+				closeOutdent += 1
+			end
+			if compact:match("^else%f[^%w_]") or compact:match("^elseif%f[^%w_]") then
+				branchOutdent += 1
+			end
+		end
+		indent = math.max(indent - closeOutdent - branchOutdent, 0)
+		if trimmed == "" then
+			formatted[#formatted + 1] = ""
+		else
+			formatted[#formatted + 1] = string.rep(indentText, indent)..spaced
+		end
+
+		local opens = 0
+		local closes = 0
+		for token in code:gmatch("%f[%w_](%w+)%f[^%w_]") do
+			if token == "function" or token == "then" or token == "do" or token == "repeat" then
+				opens += 1
+			elseif token == "end" or token == "until" then
+				closes += 1
+			end
+		end
+		for _ in code:gmatch("{") do opens += 1 end
+		for _ in code:gmatch("}") do closes += 1 end
+		if compact:match("^else%f[^%w_]") then
+			opens += 1
+		end
+		indent = math.max(indent + opens - math.max(closes - closeOutdent, 0), 0)
+	end
+
+	return NAmanage.ExecutorCollapseLuaShortCalls(table.concat(formatted, "\n")):gsub("%s+$", "")
+end
+
+NAmanage.ExecutorMergeEditorChunks = NAmanage.ExecutorMergeEditorChunks or function(chunks)
+	if type(chunks) ~= "table" or #chunks == 0 then
+		return ""
+	end
+	return table.concat(chunks, "")
+end
+
+NAmanage.ExecutorNormalizeTab = NAmanage.ExecutorNormalizeTab or function(tab)
+	if not tab then
+		return nil
+	end
+	if type(tab.text) ~= "string" then
+		if type(tab.chunks) == "table" and #tab.chunks > 0 then
+			tab.text = NAmanage.ExecutorMergeEditorChunks(tab.chunks)
+		else
+			tab.text = ""
+		end
+	end
+	if type(tab.lines) ~= "table" or #tab.lines == 0 then
+		tab.lines = NAmanage.ExecutorSplitEditorLines(tab.text)
+	end
+	tab.viewLine = math.clamp(tonumber(tab.viewLine or tab.page) or 1, 1, math.max(#tab.lines, 1))
+	tab.page = 1
+	tab.chunks = { tab.text }
+	return tab
+end
+
+NAmanage.ExecutorGetTabText = NAmanage.ExecutorGetTabText or function(tab)
+	tab = NAmanage.ExecutorNormalizeTab(tab)
+	if not tab then
+		return ""
+	end
+	if tab.textDirty == true or type(tab.text) ~= "string" then
+		tab.text = NAmanage.ExecutorJoinEditorLines(tab.lines)
+		tab.chunks = { tab.text }
+		tab.textDirty = false
+	end
+	return tostring(tab.text or "")
+end
+
+NAmanage.ExecutorPlaceSettingsPanel = NAmanage.ExecutorPlaceSettingsPanel or function(settingsPanel)
+	settingsPanel.AnchorPoint = Vector2.new(1, 0)
+	settingsPanel.Position = UDim2.new(1, -10, 0, 42)
+end
+
+NAmanage.ExecutorBindSetting = NAmanage.ExecutorBindSetting or function(toggle, hit, cfg, key, applySettings)
+	local function flip()
+		cfg[key] = not cfg[key]
+		applySettings()
+	end
+	toggle.MouseButton1Click:Connect(flip)
+	if hit then
+		hit.MouseButton1Click:Connect(flip)
+	end
+end
+
 NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	if not (NAUIMANAGER and NAUIMANAGER.ExecutorFrame and NAUIMANAGER.ExecutorContainer) then
 		return false
@@ -81593,34 +82208,6 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		warn = Color3.fromRGB(255, 214, 112),
 		error = Color3.fromRGB(255, 146, 146),
 	}
-	local keywordSet = {
-		["and"] = true, ["break"] = true, ["continue"] = true, ["do"] = true, ["else"] = true, ["elseif"] = true,
-		["end"] = true, ["false"] = true, ["for"] = true, ["function"] = true, ["if"] = true, ["in"] = true,
-		["local"] = true, ["nil"] = true, ["not"] = true, ["or"] = true, ["repeat"] = true, ["return"] = true,
-		["then"] = true, ["true"] = true, ["until"] = true, ["while"] = true, ["export"] = true, ["type"] = true,
-		["typeof"] = true, ["as"] = true,
-	}
-	local globalSet = {
-		["game"] = true, ["workspace"] = true, ["script"] = true, ["shared"] = true, ["plugin"] = true, ["Enum"] = true,
-		["Color3"] = true, ["Vector2"] = true, ["Vector3"] = true, ["CFrame"] = true, ["UDim"] = true, ["UDim2"] = true,
-		["Instance"] = true, ["TweenInfo"] = true, ["Ray"] = true, ["Rect"] = true, ["Region3"] = true, ["Random"] = true,
-		["DateTime"] = true, ["NumberRange"] = true, ["NumberSequence"] = true, ["ColorSequence"] = true,
-		["BrickColor"] = true, ["Axes"] = true, ["Faces"] = true, ["Font"] = true, ["math"] = true, ["string"] = true,
-		["table"] = true, ["task"] = true, ["debug"] = true, ["coroutine"] = true, ["os"] = true, ["utf8"] = true,
-		["vector"] = true,
-		["pairs"] = true, ["ipairs"] = true, ["next"] = true, ["print"] = true, ["warn"] = true, ["error"] = true,
-		["assert"] = true, ["pcall"] = true, ["xpcall"] = true, ["select"] = true, ["rawequal"] = true,
-		["rawget"] = true, ["rawset"] = true, ["rawlen"] = true, ["setmetatable"] = true, ["getmetatable"] = true,
-		["loadstring"] = true, ["load"] = true, ["require"] = true, ["tonumber"] = true, ["tostring"] = true,
-		["type"] = true, ["typeof"] = true, ["unpack"] = true, ["wait"] = true, ["delay"] = true, ["spawn"] = true,
-		["tick"] = true, ["time"] = true, ["elapsedTime"] = true, ["gcinfo"] = true, ["collectgarbage"] = true,
-		["getfenv"] = true, ["setfenv"] = true, ["newproxy"] = true, ["settings"] = true, ["UserSettings"] = true,
-	}
-	local typeSet = {
-		["any"] = true, ["boolean"] = true, ["buffer"] = true, ["nil"] = true, ["number"] = true,
-		["string"] = true, ["thread"] = true, ["unknown"] = true, ["never"] = true, ["userdata"] = true,
-	}
-
 	local function makeCornerAndStroke(obj, radius, thickness)
 		local corner = InstanceNew("UICorner")
 		corner.CornerRadius = UDim.new(0, radius or 8)
@@ -82622,577 +83209,6 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	local editorRenderedEnd = 1
 	local commitCurrentPage
 
-	local function splitEditorLines(source)
-		source = tostring(source or ""):gsub("\r\n", "\n"):gsub("\r", "\n")
-		local out = {}
-		for line in (source.."\n"):gmatch("(.-)\n") do
-			out[#out + 1] = line
-		end
-		if #out == 0 then
-			out[1] = ""
-		end
-		return out
-	end
-
-	local function joinEditorLines(lines)
-		if type(lines) ~= "table" or #lines == 0 then
-			return ""
-		end
-		return table.concat(lines, "\n")
-	end
-
-	local function repairExecutorTabText(source)
-		source = tostring(source or ""):gsub("\r\n", "\n"):gsub("\r", "\n")
-		if source == "" then
-			return ""
-		end
-		local var = source:match("unpack%s*%(%s*([%a_][%w_]*)%s*%)")
-		if not var then
-			return source
-		end
-		if not (source:find(":FireServer%s*%(%s*unpack%s*%(") or source:find(":InvokeServer%s*%(%s*unpack%s*%(")) then
-			return source
-		end
-		local fixed = {}
-		local lastKeyLine
-		for line in (source.."\n"):gmatch("(.-)\n") do
-			local keyLine = line:match("^%s*%[%s*[%d\"'].-%]%s*=%s*.+$") and line:gsub("%s+", "") or nil
-			if not (keyLine and keyLine == lastKeyLine) then
-				fixed[#fixed + 1] = line
-			end
-			lastKeyLine = keyLine
-		end
-		source = table.concat(fixed, "\n")
-		if source:match("^%s*local%s+"..var.."%s*=%s*{") or source:match("^%s*"..var.."%s*=%s*{") then
-			return source
-		end
-		if source:match("^%s*%[%s*[%d\"'].-%]%s*=") then
-			return "local "..var.." = {\n"..source
-		end
-		return source
-	end
-
-	local function sliceEditorLines(lines, firstLine, lastLine)
-		local out = {}
-		firstLine = math.max(1, tonumber(firstLine) or 1)
-		lastLine = math.max(firstLine, tonumber(lastLine) or firstLine)
-		for line = firstLine, lastLine do
-			out[#out + 1] = tostring(lines[line] or "")
-		end
-		if #out == 0 then
-			out[1] = ""
-		end
-		return table.concat(out, "\n")
-	end
-
-	local function replaceEditorLineRange(lines, firstLine, lastLine, text)
-		lines = type(lines) == "table" and lines or { "" }
-		local insertLines = splitEditorLines(text)
-		local rebuilt = {}
-		firstLine = math.clamp(tonumber(firstLine) or 1, 1, math.max(#lines + 1, 1))
-		lastLine = math.clamp(tonumber(lastLine) or (firstLine - 1), firstLine - 1, math.max(#lines, firstLine - 1))
-		for line = 1, firstLine - 1 do
-			rebuilt[#rebuilt + 1] = tostring(lines[line] or "")
-		end
-		for _, lineText in ipairs(insertLines) do
-			rebuilt[#rebuilt + 1] = tostring(lineText or "")
-		end
-		for line = lastLine + 1, #lines do
-			rebuilt[#rebuilt + 1] = tostring(lines[line] or "")
-		end
-		if #rebuilt == 0 then
-			rebuilt[1] = ""
-		end
-		return rebuilt
-	end
-
-	local function stripLuaLineForIndent(line, state)
-		line = tostring(line or "")
-		state = state or {}
-		local out = {}
-		local i = 1
-		local len = #line
-		local function pushSpaces(count)
-			if count > 0 then
-				out[#out + 1] = string.rep(" ", count)
-			end
-		end
-		while i <= len do
-			if state.longClose then
-				local closeStart, closeEnd = line:find(state.longClose, i, true)
-				if closeStart then
-					pushSpaces(closeEnd - i + 1)
-					i = closeEnd + 1
-					state.longClose = nil
-				else
-					pushSpaces(len - i + 1)
-					break
-				end
-			else
-				local two = line:sub(i, i + 1)
-				if two == "--" then
-					local eq = line:match("^%-%-%[(=*)%[", i)
-					if eq then
-						local closePattern = "]"..eq.."]"
-						local closeStart, closeEnd = line:find(closePattern, i + 4 + #eq, true)
-						if closeStart then
-							pushSpaces(len - i + 1)
-						else
-							state.longClose = closePattern
-							pushSpaces(len - i + 1)
-						end
-					else
-						pushSpaces(len - i + 1)
-					end
-					break
-				elseif line:sub(i, i):match("[\"'`]") then
-					local quote = line:sub(i, i)
-					local j = i + 1
-					local escaped = false
-					while j <= len do
-						local ch = line:sub(j, j)
-						if escaped then
-							escaped = false
-						elseif ch == "\\" then
-							escaped = true
-						elseif ch == quote then
-							break
-						end
-						j += 1
-					end
-					if j > len then
-						j = len
-					end
-					pushSpaces(j - i + 1)
-					i = j + 1
-				else
-					local eq = line:match("^%[(=*)%[", i)
-					if eq then
-						local closePattern = "]"..eq.."]"
-						local closeStart, closeEnd = line:find(closePattern, i + 2 + #eq, true)
-						if closeStart then
-							pushSpaces(closeEnd - i + 1)
-							i = closeEnd + 1
-						else
-							state.longClose = closePattern
-							pushSpaces(len - i + 1)
-							break
-						end
-					else
-						out[#out + 1] = line:sub(i, i)
-						i += 1
-					end
-				end
-			end
-		end
-		return table.concat(out)
-	end
-
-	local function splitLuaStatementLine(line, state)
-		line = tostring(line or "")
-		state = state or {}
-		local parts = {}
-		local startPos = 1
-		local i = 1
-		local len = #line
-		while i <= len do
-			if state.longClose then
-				local closeStart, closeEnd = line:find(state.longClose, i, true)
-				if closeStart then
-					i = closeEnd + 1
-					state.longClose = nil
-				else
-					break
-				end
-			else
-				local two = line:sub(i, i + 1)
-				if two == "--" then
-					local eq = line:match("^%-%-%[(=*)%[", i)
-					if eq then
-						local closePattern = "]"..eq.."]"
-						local closeStart, closeEnd = line:find(closePattern, i + 4 + #eq, true)
-						if closeStart then
-							i = closeEnd + 1
-						else
-							state.longClose = closePattern
-							break
-						end
-					else
-						break
-					end
-				elseif line:sub(i, i):match("[\"'`]") then
-					local quote = line:sub(i, i)
-					i += 1
-					local escaped = false
-					while i <= len do
-						local ch = line:sub(i, i)
-						if escaped then
-							escaped = false
-						elseif ch == "\\" then
-							escaped = true
-						elseif ch == quote then
-							break
-						end
-						i += 1
-					end
-					i += 1
-				else
-					local eq = line:match("^%[(=*)%[", i)
-					if eq then
-						local closePattern = "]"..eq.."]"
-						local closeStart, closeEnd = line:find(closePattern, i + 2 + #eq, true)
-						if closeStart then
-							i = closeEnd + 1
-						else
-							state.longClose = closePattern
-							break
-						end
-					elseif line:sub(i, i) == ";" then
-						parts[#parts + 1] = line:sub(startPos, i - 1)
-						startPos = i + 1
-						i += 1
-					else
-						i += 1
-					end
-				end
-			end
-		end
-		parts[#parts + 1] = line:sub(startPos)
-		return parts
-	end
-
-	local function formatLuaLineSpacing(line)
-		line = tostring(line or "")
-		local out = {}
-		local i = 1
-		local len = #line
-		local function currentText()
-			return table.concat(out)
-		end
-		local function trimRight()
-			if #out > 0 then
-				out[#out] = out[#out]:gsub("%s+$", "")
-				if out[#out] == "" then
-					table.remove(out, #out)
-				end
-			end
-		end
-		local function append(text)
-			out[#out + 1] = text
-		end
-		local function appendOperator(op)
-			trimRight()
-			append(" "..op.." ")
-			while i <= len and line:sub(i, i):match("%s") do
-				i += 1
-			end
-		end
-		local function previousSignificant()
-			local text = currentText():gsub("%s+$", "")
-			return text:sub(-1)
-		end
-		local function previousWord()
-			return currentText():match("([%a_][%w_]*)%s*$")
-		end
-		local function isUnaryMinus()
-			local prev = previousSignificant()
-			local word = previousWord()
-			return prev == "" or prev:match("[%(%[%{=,%+%-%*/%%%^#<>~]") or word == "return" or word == "local" or word == "then" or word == "do" or word == "else" or word == "elseif" or word == "and" or word == "or" or word == "not"
-		end
-		while i <= len do
-			local ch = line:sub(i, i)
-			local two = line:sub(i, i + 1)
-			local three = line:sub(i, i + 2)
-			if two == "--" then
-				append(line:sub(i))
-				break
-			elseif ch:match("[\"'`]") then
-				local quote = ch
-				local startQuote = i
-				i += 1
-				local escaped = false
-				while i <= len do
-					local cur = line:sub(i, i)
-					if escaped then
-						escaped = false
-					elseif cur == "\\" then
-						escaped = true
-					elseif cur == quote then
-						break
-					end
-					i += 1
-				end
-				if i > len then
-					i = len
-				end
-				append(line:sub(startQuote, i))
-				i += 1
-			else
-				local eq = line:match("^%[(=*)%[", i)
-				if eq then
-					local closePattern = "]"..eq.."]"
-					local closeStart, closeEnd = line:find(closePattern, i + 2 + #eq, true)
-					if closeStart then
-						append(line:sub(i, closeEnd))
-						i = closeEnd + 1
-					else
-						append(line:sub(i))
-						break
-					end
-				elseif three == "..." then
-					append("...")
-					i += 3
-				elseif three == "//=" or three == "..=" then
-					i += 3
-					appendOperator(three)
-				elseif two == "//" or two == "->" then
-					i += 2
-					appendOperator(two)
-				elseif two == ".." then
-					i += 2
-					appendOperator("..")
-				elseif two == "::" then
-					append("::")
-					i += 2
-				elseif two == "==" or two == "~=" or two == "<=" or two == ">=" or two == "+=" or two == "-=" or two == "*=" or two == "/=" or two == "%=" or two == "^=" then
-					i += 2
-					appendOperator(two)
-				elseif ch == "?" then
-					append("?")
-					i += 1
-				elseif ch == "=" or ch == "+" or ch == "*" or ch == "/" or ch == "%" or ch == "^" or ch == "<" or ch == ">" or ch == "|" or ch == "&" then
-					i += 1
-					appendOperator(ch)
-				elseif ch == "-" then
-					if isUnaryMinus() then
-						append("-")
-						i += 1
-						while i <= len and line:sub(i, i):match("%s") do
-							i += 1
-						end
-					else
-						i += 1
-						appendOperator("-")
-					end
-				elseif ch == "," then
-					trimRight()
-					append(", ")
-					i += 1
-					while i <= len and line:sub(i, i):match("%s") do
-						i += 1
-					end
-				else
-					append(ch)
-					i += 1
-				end
-			end
-		end
-		return table.concat(out):gsub("%s+$", "")
-	end
-
-	local function luaParenBalance(line)
-		line = tostring(line or "")
-		local balance = 0
-		local i = 1
-		local len = #line
-		while i <= len do
-			local ch = line:sub(i, i)
-			local two = line:sub(i, i + 1)
-			if two == "--" then
-				break
-			elseif ch:match("[\"'`]") then
-				local quote = ch
-				i += 1
-				local escaped = false
-				while i <= len do
-					local cur = line:sub(i, i)
-					if escaped then
-						escaped = false
-					elseif cur == "\\" then
-						escaped = true
-					elseif cur == quote then
-						break
-					end
-					i += 1
-				end
-			elseif ch == "(" then
-				balance += 1
-			elseif ch == ")" then
-				balance -= 1
-			end
-			i += 1
-		end
-		return balance
-	end
-
-	local function collapseLuaShortCalls(source)
-		local lines = {}
-		for line in (tostring(source or "").."\n"):gmatch("(.-)\n") do
-			lines[#lines + 1] = line
-		end
-		if #lines > 0 and lines[#lines] == "" and tostring(source or ""):sub(-1) ~= "\n" then
-			table.remove(lines)
-		end
-
-		local out = {}
-		local i = 1
-		local function hasCollapseBlockKeyword(text)
-			for _, word in ipairs({ "function", "then", "do", "end", "repeat", "until", "else", "elseif" }) do
-				if text:find("%f[%w_]"..word.."%f[^%w_]") then
-					return true
-				end
-			end
-			return false
-		end
-		while i <= #lines do
-			local line = lines[i]
-			local indent, content = line:match("^(%s*)(.-)%s*$")
-			if content and content:match("%(%s*$") then
-				local balance = luaParenBalance(content)
-				local pieces = { content }
-				local j = i + 1
-				local canCollapse = balance > 0
-				while canCollapse and j <= #lines and balance > 0 do
-					local nextContent = lines[j]:match("^%s*(.-)%s*$") or ""
-					if nextContent == "" or nextContent:find("%-%-", 1, true) or hasCollapseBlockKeyword(nextContent) then
-						canCollapse = false
-						break
-					end
-					pieces[#pieces + 1] = nextContent
-					balance += luaParenBalance(nextContent)
-					j += 1
-				end
-				if canCollapse and balance <= 0 and #pieces > 1 then
-					local joined = pieces[1]
-					for pieceIndex = 2, #pieces do
-						local piece = pieces[pieceIndex]
-						if piece:match("^%)") then
-							joined = joined:gsub("%s+$", "")..piece
-						else
-							joined = joined:gsub("%s+$", "")..(joined:match("%(%s*$") and "" or " ")..piece
-						end
-					end
-					joined = formatLuaLineSpacing(joined)
-					if #joined <= 160 then
-						out[#out + 1] = indent..joined
-						i = j
-					else
-						out[#out + 1] = line
-						i += 1
-					end
-				else
-					out[#out + 1] = line
-					i += 1
-				end
-			else
-				out[#out + 1] = line
-				i += 1
-			end
-		end
-		return table.concat(out, "\n")
-	end
-
-	local function formatLuaSource(source)
-		source = tostring(source or ""):gsub("\r\n", "\n"):gsub("\r", "\n")
-		local lines = {}
-		local splitState = {}
-		for line in (source.."\n"):gmatch("(.-)\n") do
-			for _, part in ipairs(splitLuaStatementLine(line, splitState)) do
-				lines[#lines + 1] = part
-			end
-		end
-		if #lines > 0 and lines[#lines] == "" and source:sub(-1) ~= "\n" then
-			table.remove(lines)
-		end
-
-		local formatted = {}
-		local indent = 0
-		local state = {}
-		local indentText = "\t"
-
-		for _, rawLine in ipairs(lines) do
-			local line = tostring(rawLine or ""):gsub("%s+$", "")
-			local trimmed = line:gsub("^%s+", "")
-			local code = stripLuaLineForIndent(trimmed, state)
-			local spaced = formatLuaLineSpacing(trimmed)
-			local compact = code:gsub("^%s+", "")
-			local closeOutdent = 0
-			local branchOutdent = 0
-			if compact ~= "" then
-				if compact:match("^end%f[^%w_]") or compact:match("^until%f[^%w_]") or compact:sub(1, 1) == "}" then
-					closeOutdent += 1
-				end
-				if compact:match("^else%f[^%w_]") or compact:match("^elseif%f[^%w_]") then
-					branchOutdent += 1
-				end
-			end
-			indent = math.max(indent - closeOutdent - branchOutdent, 0)
-			if trimmed == "" then
-				formatted[#formatted + 1] = ""
-			else
-				formatted[#formatted + 1] = string.rep(indentText, indent)..spaced
-			end
-
-			local opens = 0
-			local closes = 0
-			for token in code:gmatch("%f[%w_](%w+)%f[^%w_]") do
-				if token == "function" or token == "then" or token == "do" or token == "repeat" then
-					opens += 1
-				elseif token == "end" or token == "until" then
-					closes += 1
-				end
-			end
-			for _ in code:gmatch("{") do opens += 1 end
-			for _ in code:gmatch("}") do closes += 1 end
-			if compact:match("^else%f[^%w_]") then
-				opens += 1
-			end
-			indent = math.max(indent + opens - math.max(closes - closeOutdent, 0), 0)
-		end
-
-		return collapseLuaShortCalls(table.concat(formatted, "\n")):gsub("%s+$", "")
-	end
-
-	local function mergeEditorChunks(chunks)
-		if type(chunks) ~= "table" or #chunks == 0 then
-			return ""
-		end
-		return table.concat(chunks, "")
-	end
-
-	local function normalizeEditorTab(tab)
-		if not tab then
-			return nil
-		end
-		if type(tab.text) ~= "string" then
-			if type(tab.chunks) == "table" and #tab.chunks > 0 then
-				tab.text = mergeEditorChunks(tab.chunks)
-			else
-				tab.text = ""
-			end
-		end
-		if type(tab.lines) ~= "table" or #tab.lines == 0 then
-			tab.lines = splitEditorLines(tab.text)
-		end
-		tab.viewLine = math.clamp(tonumber(tab.viewLine or tab.page) or 1, 1, math.max(#tab.lines, 1))
-		tab.page = 1
-		tab.chunks = { tab.text }
-		return tab
-	end
-
-	local function getEditorTabText(tab)
-		tab = normalizeEditorTab(tab)
-		if not tab then
-			return ""
-		end
-		if tab.textDirty == true or type(tab.text) ~= "string" then
-			tab.text = joinEditorLines(tab.lines)
-			tab.chunks = { tab.text }
-			tab.textDirty = false
-		end
-		return tostring(tab.text or "")
-	end
-
 	local function showPrompt(title, initialText, callback)
 		promptTitle.Text = title or "Name"
 		promptInput.Text = initialText or ""
@@ -83249,11 +83265,11 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		end
 		local payload = { cur = currentTab, tabs = {} }
 		for i, tab in ipairs(tabs) do
-			normalizeEditorTab(tab)
-			local tabText = repairExecutorTabText(getEditorTabText(tab))
+			NAmanage.ExecutorNormalizeTab(tab)
+			local tabText = NAmanage.ExecutorRepairTabText(NAmanage.ExecutorGetTabText(tab))
 			if tabText ~= tab.text then
 				tab.text = tabText
-				tab.lines = splitEditorLines(tabText)
+				tab.lines = NAmanage.ExecutorSplitEditorLines(tabText)
 				tab.chunks = { tabText }
 				tab.textDirty = false
 			end
@@ -83332,7 +83348,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	end
 
 	local function updatePageInfo()
-		local tab = normalizeEditorTab(tabs[currentTab])
+		local tab = NAmanage.ExecutorNormalizeTab(tabs[currentTab])
 		local total = tab and math.max(#tab.lines, 1) or 1
 		local lineHeight = getEditorLineHeight()
 		local viewHeight = math.max(1, (editorScroll.AbsoluteSize.Y or 0) - 22)
@@ -83367,7 +83383,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		if editorLoading then
 			return
 		end
-		local tab = normalizeEditorTab(tabs[currentTab])
+		local tab = NAmanage.ExecutorNormalizeTab(tabs[currentTab])
 		if not tab then
 			return
 		end
@@ -83384,9 +83400,9 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		local total = math.max(#tab.lines, 1)
 		local firstLine = math.clamp(tonumber(editorRenderedStart) or editorVirtualStart or 1, 1, total)
 		local lastLine = math.clamp(tonumber(editorRenderedEnd) or editorVirtualEnd or firstLine, firstLine, total)
-		tab.lines = replaceEditorLineRange(tab.lines, firstLine, lastLine, visibleText)
+		tab.lines = NAmanage.ExecutorReplaceEditorLineRange(tab.lines, firstLine, lastLine, visibleText)
 		editorVirtualStart = firstLine
-		editorVirtualEnd = firstLine + #splitEditorLines(visibleText) - 1
+		editorVirtualEnd = firstLine + #(NAmanage.ExecutorSplitEditorLines(visibleText)) - 1
 		editorRenderedStart = editorVirtualStart
 		editorRenderedEnd = editorVirtualEnd
 		editorRenderedText = visibleText
@@ -83402,7 +83418,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			return
 		end
 		tab.text = tostring(source or "")
-		tab.lines = splitEditorLines(tab.text)
+		tab.lines = NAmanage.ExecutorSplitEditorLines(tab.text)
 		tab.chunks = { tab.text }
 		tab.textDirty = false
 		tab.page = 1
@@ -83563,17 +83579,17 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 				local token = source:sub(i, j - 1)
 				local prevChar = prevNonSpace(i - 1)
 				local nextChar = nextNonSpace(j)
-				if keywordSet[token] then
+				if NAStuff.ExecutorKeywordSet[token] then
 					appendToLayer("keywords", token)
-				elseif typeSet[token] then
+				elseif NAStuff.ExecutorTypeSet[token] then
 					appendToLayer("keywords", token)
 				elseif prevChar == ":" and nextChar == "(" then
 					appendToLayer("methods", token)
 				elseif prevChar == "." then
 					appendToLayer("properties", token)
 				elseif nextChar == "(" then
-					appendToLayer(globalSet[token] and "globals" or "functions", token)
-				elseif globalSet[token] then
+					appendToLayer(NAStuff.ExecutorGlobalSet[token] and "globals" or "functions", token)
+				elseif NAStuff.ExecutorGlobalSet[token] then
 					appendToLayer("globals", token)
 				else
 					appendPlain(token)
@@ -83618,7 +83634,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	local function refreshEditorNow()
 		local source = textBox.Text or ""
 		updatePageInfo()
-		local tab = normalizeEditorTab(tabs[currentTab])
+		local tab = NAmanage.ExecutorNormalizeTab(tabs[currentTab])
 		local totalLineCount = tab and math.max(#tab.lines, 1) or 1
 		local width, visibleHeight, renderedLineCount, lineHeight = measureSource(source)
 		editorVirtualLineHeight = lineHeight
@@ -83683,7 +83699,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	end
 
 	local function loadCurrentPage(preserveScroll)
-		local tab = normalizeEditorTab(tabs[currentTab])
+		local tab = NAmanage.ExecutorNormalizeTab(tabs[currentTab])
 		if not tab then
 			editorRenderedStart = 1
 			editorRenderedEnd = 1
@@ -83700,7 +83716,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		editorVirtualStart = firstRender
 		editorVirtualEnd = lastRender
 		tab.viewLine = firstVisible
-		local renderedText = sliceEditorLines(tab.lines, editorVirtualStart, editorVirtualEnd)
+		local renderedText = NAmanage.ExecutorSliceEditorLines(tab.lines, editorVirtualStart, editorVirtualEnd)
 		editorRenderedStart = editorVirtualStart
 		editorRenderedEnd = editorVirtualEnd
 		editorRenderedText = renderedText
@@ -83719,15 +83735,15 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		return math.max(1, visibleLines)
 	end
 	editorGetTotalLines = function()
-		local tab = normalizeEditorTab(tabs[currentTab])
+		local tab = NAmanage.ExecutorNormalizeTab(tabs[currentTab])
 		return tab and math.max(#tab.lines + 1, editorGetVisibleLines()) or 1
 	end
 	editorGetViewLine = function()
-		local tab = normalizeEditorTab(tabs[currentTab])
+		local tab = NAmanage.ExecutorNormalizeTab(tabs[currentTab])
 		return tab and getEditorVisibleLine(math.max(#tab.lines, 1)) or 1
 	end
 	editorSetViewLine = function(line)
-		local tab = normalizeEditorTab(tabs[currentTab])
+		local tab = NAmanage.ExecutorNormalizeTab(tabs[currentTab])
 		if not tab then
 			return
 		end
@@ -83741,7 +83757,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	end
 
 	local function turnEditorPage(delta)
-		local tab = normalizeEditorTab(tabs[currentTab])
+		local tab = NAmanage.ExecutorNormalizeTab(tabs[currentTab])
 		if not tab then
 			return
 		end
@@ -83765,13 +83781,13 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		if editorLoading then
 			return
 		end
-		local tab = normalizeEditorTab(tabs[currentTab])
+		local tab = NAmanage.ExecutorNormalizeTab(tabs[currentTab])
 		local total = tab and math.max(#tab.lines, 1) or 1
 		local _, _, firstVisible, lastVisible = getEditorWindowRange(total)
 		local edgeBuffer = math.max(1, math.floor(editorLineBuffer / 3))
 		if firstVisible < editorVirtualStart or lastVisible > editorVirtualEnd or (firstVisible - editorVirtualStart) < edgeBuffer or (editorVirtualEnd - lastVisible) < edgeBuffer then
 			commitCurrentPage(true)
-			tab = normalizeEditorTab(tabs[currentTab])
+			tab = NAmanage.ExecutorNormalizeTab(tabs[currentTab])
 			if tab then
 				tab.viewLine = firstVisible
 			end
@@ -83806,7 +83822,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		if editorLoading then
 			return
 		end
-		if normalizeEditorTab(tabs[currentTab]) then
+		if NAmanage.ExecutorNormalizeTab(tabs[currentTab]) then
 			commitCurrentPage(true)
 			loadCurrentPage(true)
 		else
@@ -83899,7 +83915,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	local function queueExecutorResponsive()
 		applyExecutorFrameSize()
 		updateBodyLayout()
-		if normalizeEditorTab(tabs[currentTab]) then
+		if NAmanage.ExecutorNormalizeTab(tabs[currentTab]) then
 			commitCurrentPage(true)
 			loadCurrentPage(true)
 		else
@@ -83972,7 +83988,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			commitCurrentPage(true)
 		end
 		currentTab = index
-		normalizeEditorTab(tab)
+		NAmanage.ExecutorNormalizeTab(tab)
 		loadCurrentPage()
 		editorLoaded = true
 		updateTabButtonVisuals()
@@ -84017,7 +84033,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			title = initialTitle and tostring(initialTitle) or ("Tab "..(#tabs + 1)),
 			text = tostring(initialText or ""),
 		}
-		normalizeEditorTab(tab)
+		NAmanage.ExecutorNormalizeTab(tab)
 		local holder = InstanceNew("Frame")
 		holder.BackgroundColor3 = colors.tabIdle
 		holder.BorderSizePixel = 0
@@ -84193,7 +84209,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		syncCurrentTabText()
 		local fileName = sanitizeScriptName(name)
 		local path = scriptPath(fileName)
-		local ok, err = pcall(writefile, path, getEditorTabText(tabs[currentTab]))
+		local ok, err = pcall(writefile, path, NAmanage.ExecutorGetTabText(tabs[currentTab]))
 		if ok and (type(isfile) ~= "function" or isfile(path)) then
 			addScriptIndex(fileName)
 			refreshSavedScripts()
@@ -84250,17 +84266,17 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 					if type(decoded.tabs) == "table" then
 						for index, entry in ipairs(decoded.tabs) do
 							if type(entry) == "table" then
-								createTab(repairExecutorTabText(entry.text or ""), entry.title or ("Tab "..index))
+								createTab(NAmanage.ExecutorRepairTabText(entry.text or ""), entry.title or ("Tab "..index))
 								loaded = true
 							elseif type(entry) == "string" then
-								createTab(repairExecutorTabText(entry), "Tab "..index)
+								createTab(NAmanage.ExecutorRepairTabText(entry), "Tab "..index)
 								loaded = true
 							end
 						end
 						currentTab = math.clamp(tonumber(decoded.cur) or 1, 1, math.max(#tabs, 1))
 					elseif type(decoded[1]) == "string" then
 						for index, entry in ipairs(decoded) do
-							createTab(repairExecutorTabText(entry), "Tab "..index)
+							createTab(NAmanage.ExecutorRepairTabText(entry), "Tab "..index)
 							loaded = true
 						end
 						currentTab = 1
@@ -84293,33 +84309,19 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		setStatus("Created a new tab", colors.success)
 	end)
 
-	local function placeSettingsPanel()
-		settingsPanel.AnchorPoint = Vector2.new(1, 0)
-		settingsPanel.Position = UDim2.new(1, -10, 0, 42)
-	end
-
 	if settingsButton then
 		settingsButton.MouseButton1Click:Connect(function()
-			placeSettingsPanel()
+			NAmanage.ExecutorPlaceSettingsPanel(settingsPanel)
 			settingsPanel.Visible = not settingsPanel.Visible
 		end)
 	end
-	frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(placeSettingsPanel)
+	frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+		NAmanage.ExecutorPlaceSettingsPanel(settingsPanel)
+	end)
 
-	local function bindSetting(toggle, hit, key)
-		local function flip()
-			cfg[key] = not cfg[key]
-			applySettings()
-		end
-		toggle.MouseButton1Click:Connect(flip)
-		if hit then
-			hit.MouseButton1Click:Connect(flip)
-		end
-	end
-
-	bindSetting(syntaxToggle, syntaxHit, "syntax")
-	bindSetting(lineNumbersToggle, lineNumbersHit, "lineNumbers")
-	bindSetting(scriptHubToggle, scriptHubHit, "showHub")
+	NAmanage.ExecutorBindSetting(syntaxToggle, syntaxHit, cfg, "syntax", applySettings)
+	NAmanage.ExecutorBindSetting(lineNumbersToggle, lineNumbersHit, cfg, "lineNumbers", applySettings)
+	NAmanage.ExecutorBindSetting(scriptHubToggle, scriptHubHit, cfg, "showHub", applySettings)
 
 	MouseButtonFix(pagePrev, function()
 		turnEditorPage(-1)
@@ -84330,7 +84332,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 
 	executeButton.MouseButton1Click:Connect(function()
 		commitCurrentPage(true)
-		local source = getEditorTabText(tabs[currentTab])
+		local source = NAmanage.ExecutorGetTabText(tabs[currentTab])
 		if source == "" then
 			setStatus("Nothing to execute", colors.warn)
 			return
@@ -84361,7 +84363,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	end)
 	copyButton.MouseButton1Click:Connect(function()
 		commitCurrentPage(true)
-		local ok = pcall(setclipboard, getEditorTabText(tabs[currentTab]))
+		local ok = pcall(setclipboard, NAmanage.ExecutorGetTabText(tabs[currentTab]))
 		if ok then
 			setStatus("Copied tab contents", colors.success)
 		else
@@ -84402,12 +84404,12 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	formatButton.MouseButton1Click:Connect(function()
 		commitCurrentPage(true)
 		local tab = tabs[currentTab]
-		local source = getEditorTabText(tab)
+		local source = NAmanage.ExecutorGetTabText(tab)
 		if source:gsub("%s+", "") == "" then
 			setStatus("Nothing to format", colors.warn)
 			return
 		end
-		local formatted = formatLuaSource(source)
+		local formatted = NAmanage.ExecutorFormatLuaSource(source)
 		if formatted == source then
 			setStatus("Already formatted", colors.subtle)
 			return
@@ -84423,7 +84425,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	duplicateButton.MouseButton1Click:Connect(function()
 		commitCurrentPage(true)
 		local tab = tabs[currentTab]
-		local tabIndex = createTab(tab and getEditorTabText(tab) or "", tab and ((tab.title or "Tab").." Copy") or "Copy")
+		local tabIndex = createTab(tab and NAmanage.ExecutorGetTabText(tab) or "", tab and ((tab.title or "Tab").." Copy") or "Copy")
 		selectTab(tabIndex)
 		scheduleTabsSave()
 		setStatus("Duplicated tab", colors.success)
