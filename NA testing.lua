@@ -1374,11 +1374,20 @@ NAmanage.GetMouse = NAmanage.GetMouse or function(plr)
 	if not plr then
 		return nil
 	end
+	local ref = NAmanage.NA_getCloneRef and NAmanage.NA_getCloneRef() or nil
+	if type(ref) == "function" then
+		local ok, mouse = pcall(function()
+			return ref(plr:GetMouse())
+		end)
+		if ok and mouse then
+			return mouse
+		end
+	end
 	local ok, mouse = pcall(function()
 		return plr:GetMouse()
 	end)
 	if ok and mouse then
-		return NAmanage.SafeCloneRef(mouse)
+		return mouse
 	end
 	return nil
 end
