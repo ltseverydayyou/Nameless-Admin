@@ -87997,7 +87997,7 @@ NAmanage.CommandKeybindsUIRefresh=function()
 					end
 					ui.argsBox.Text = Concat(parts, " ")
 				else
-					ui.argsB.Text = ""
+					ui.argsBox.Text = ""
 				end
 			end
 
