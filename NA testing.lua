@@ -82616,6 +82616,10 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	local editorVirtualLineHeight = 19
 	local editorLoading = false
 	local editorLoaded = false
+	local editorTextLock = 0
+	local editorRenderedText = ""
+	local editorRenderedStart = 1
+	local editorRenderedEnd = 1
 	local commitCurrentPage
 
 	local function splitEditorLines(source)
@@ -82635,6 +82639,37 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			return ""
 		end
 		return table.concat(lines, "\n")
+	end
+
+	local function repairExecutorTabText(source)
+		source = tostring(source or ""):gsub("\r\n", "\n"):gsub("\r", "\n")
+		if source == "" then
+			return ""
+		end
+		local var = source:match("unpack%s*%(%s*([%a_][%w_]*)%s*%)")
+		if not var then
+			return source
+		end
+		if not (source:find(":FireServer%s*%(%s*unpack%s*%(") or source:find(":InvokeServer%s*%(%s*unpack%s*%(")) then
+			return source
+		end
+		local fixed = {}
+		local lastKeyLine
+		for line in (source.."\n"):gmatch("(.-)\n") do
+			local keyLine = line:match("^%s*%[%s*[%d\"'].-%]%s*=%s*.+$") and line:gsub("%s+", "") or nil
+			if not (keyLine and keyLine == lastKeyLine) then
+				fixed[#fixed + 1] = line
+			end
+			lastKeyLine = keyLine
+		end
+		source = table.concat(fixed, "\n")
+		if source:match("^%s*local%s+"..var.."%s*=%s*{") or source:match("^%s*"..var.."%s*=%s*{") then
+			return source
+		end
+		if source:match("^%s*%[%s*[%d\"'].-%]%s*=") then
+			return "local "..var.." = {\n"..source
+		end
+		return source
 	end
 
 	local function sliceEditorLines(lines, firstLine, lastLine)
@@ -83215,9 +83250,16 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		local payload = { cur = currentTab, tabs = {} }
 		for i, tab in ipairs(tabs) do
 			normalizeEditorTab(tab)
+			local tabText = repairExecutorTabText(getEditorTabText(tab))
+			if tabText ~= tab.text then
+				tab.text = tabText
+				tab.lines = splitEditorLines(tabText)
+				tab.chunks = { tabText }
+				tab.textDirty = false
+			end
 			payload.tabs[i] = {
 				title = tab.title or ("Tab "..i),
-				text = getEditorTabText(tab),
+				text = tabText,
 			}
 		end
 		local ok, encoded = pcall(function()
@@ -83303,10 +83345,22 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		pagePanel.Visible = total > math.max(1, lastLine - firstLine + 1)
 	end
 
-	local function setEditorBoxText(text)
+	local function beginEditorTextSet()
+		editorTextLock += 1
 		editorLoading = true
-		textBox.Text = tostring(text or "")
+	end
+
+	local function finishEditorTextSet()
 		editorLoading = false
+		task.defer(function()
+			editorTextLock = math.max(editorTextLock - 1, 0)
+		end)
+	end
+
+	local function setEditorBoxText(text)
+		beginEditorTextSet()
+		textBox.Text = tostring(text or "")
+		finishEditorTextSet()
 	end
 
 	commitCurrentPage = function(skipSave)
@@ -83318,13 +83372,26 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			return
 		end
 		local visibleText = tostring(textBox.Text or "")
-		local oldEnd = editorVirtualEnd
-		tab.lines = replaceEditorLineRange(tab.lines, editorVirtualStart, oldEnd, visibleText)
-		editorVirtualEnd = editorVirtualStart + #splitEditorLines(visibleText) - 1
-		tab.textDirty = true
 		local lineHeight = getEditorLineHeight()
-		tab.viewLine = math.clamp(math.floor(math.max(editorLineScroll.CanvasPosition.Y, 0) / lineHeight) + 1, 1, math.max(#tab.lines, 1))
-		updatePageInfo()
+		local function syncViewOnly()
+			tab.viewLine = math.clamp(math.floor(math.max(editorLineScroll.CanvasPosition.Y, 0) / lineHeight) + 1, 1, math.max(#tab.lines, 1))
+			updatePageInfo()
+		end
+		if visibleText == tostring(editorRenderedText or "") then
+			syncViewOnly()
+			return
+		end
+		local total = math.max(#tab.lines, 1)
+		local firstLine = math.clamp(tonumber(editorRenderedStart) or editorVirtualStart or 1, 1, total)
+		local lastLine = math.clamp(tonumber(editorRenderedEnd) or editorVirtualEnd or firstLine, firstLine, total)
+		tab.lines = replaceEditorLineRange(tab.lines, firstLine, lastLine, visibleText)
+		editorVirtualStart = firstLine
+		editorVirtualEnd = firstLine + #splitEditorLines(visibleText) - 1
+		editorRenderedStart = editorVirtualStart
+		editorRenderedEnd = editorVirtualEnd
+		editorRenderedText = visibleText
+		tab.textDirty = true
+		syncViewOnly()
 		if not skipSave then
 			scheduleTabsSave()
 		end
@@ -83618,6 +83685,9 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	local function loadCurrentPage(preserveScroll)
 		local tab = normalizeEditorTab(tabs[currentTab])
 		if not tab then
+			editorRenderedStart = 1
+			editorRenderedEnd = 1
+			editorRenderedText = ""
 			setEditorBoxText("")
 			updatePageInfo()
 			queueRefreshEditor()
@@ -83630,12 +83700,16 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		editorVirtualStart = firstRender
 		editorVirtualEnd = lastRender
 		tab.viewLine = firstVisible
-		editorLoading = true
+		local renderedText = sliceEditorLines(tab.lines, editorVirtualStart, editorVirtualEnd)
+		editorRenderedStart = editorVirtualStart
+		editorRenderedEnd = editorVirtualEnd
+		editorRenderedText = renderedText
+		beginEditorTextSet()
 		if preserveScroll ~= true then
 			editorLineScroll.CanvasPosition = Vector2.new(0, math.max(0, (firstVisible - 1) * lineHeight))
 		end
-		textBox.Text = sliceEditorLines(tab.lines, editorVirtualStart, editorVirtualEnd)
-		editorLoading = false
+		textBox.Text = renderedText
+		finishEditorTextSet()
 		updatePageInfo()
 		queueRefreshEditor()
 	end
@@ -84176,17 +84250,17 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 					if type(decoded.tabs) == "table" then
 						for index, entry in ipairs(decoded.tabs) do
 							if type(entry) == "table" then
-								createTab(entry.text or "", entry.title or ("Tab "..index))
+								createTab(repairExecutorTabText(entry.text or ""), entry.title or ("Tab "..index))
 								loaded = true
 							elseif type(entry) == "string" then
-								createTab(entry, "Tab "..index)
+								createTab(repairExecutorTabText(entry), "Tab "..index)
 								loaded = true
 							end
 						end
 						currentTab = math.clamp(tonumber(decoded.cur) or 1, 1, math.max(#tabs, 1))
 					elseif type(decoded[1]) == "string" then
 						for index, entry in ipairs(decoded) do
-							createTab(entry, "Tab "..index)
+							createTab(repairExecutorTabText(entry), "Tab "..index)
 							loaded = true
 						end
 						currentTab = 1
@@ -84201,7 +84275,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	end
 
 	textBox:GetPropertyChangedSignal("Text"):Connect(function()
-		if not editorLoading then
+		if not editorLoading and editorTextLock <= 0 then
 			syncCurrentTabText()
 		end
 		queueRefreshEditor()
