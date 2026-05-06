@@ -75215,8 +75215,101 @@ end
 local COMMAND_LIST_TOP_PADDING = 5
 local COMMAND_OVERSCAN_ROWS = 8
 
-local function shouldUseStaticCommandList()
+NAmanage.cmdStatic = function()
 	return false
+end
+
+NAmanage.vpSize = function()
+	local sg = NAStuff and NAStuff.NASCREENGUI
+	local vp = nil
+	if sg and sg.AbsoluteSize then
+		vp = sg.AbsoluteSize
+	end
+	if (not vp or vp.X <= 0 or vp.Y <= 0) and workspace.CurrentCamera then
+		vp = workspace.CurrentCamera.ViewportSize
+	end
+	vp = vp or Vector2.new(1280, 720)
+
+	local scale = 1
+	local scaler = NAUIMANAGER and NAUIMANAGER.AUTOSCALER
+	if scaler then
+		scale = tonumber(scaler.Scale) or 1
+	end
+	if not scale or scale <= 0 then
+		scale = 1
+	end
+
+	return Vector2.new(math.max(1, vp.X / scale), math.max(1, vp.Y / scale))
+end
+
+NAmanage.virtView = function(sf, viewH, totalH, minH)
+	if not viewH or viewH <= 0 then
+		local vp = NAmanage.vpSize and NAmanage.vpSize() or Vector2.new(1280, 720)
+		viewH = math.max(tonumber(minH) or 1, vp.Y * 0.25)
+	end
+
+	local y = sf and sf.CanvasPosition and sf.CanvasPosition.Y or 0
+	local maxY = math.max(0, (tonumber(totalH) or 0) - viewH)
+	if sf and y > maxY + (tonumber(minH) or 1) then
+		y = maxY
+		sf.CanvasPosition = Vector2.new(sf.CanvasPosition.X, y)
+	end
+
+	return viewH, y
+end
+
+NAmanage.cmdResp = function(center)
+	local frame = NAUIMANAGER and NAUIMANAGER.commandsFrame
+	if not (frame and frame:IsA("GuiObject")) then
+		return
+	end
+
+	local vp = NAmanage.vpSize()
+	local margin = (vp.X < 420 or vp.Y < 260) and 8 or 16
+	local maxW = math.max(180, vp.X - margin)
+	local maxH = math.max(118, vp.Y - margin)
+	local minW = math.min(260, math.max(180, maxW))
+	local minH = math.min(180, math.max(118, maxH))
+	local curW = tonumber(frame.Size.X.Offset) or 300
+	local curH = tonumber(frame.Size.Y.Offset) or 320
+	local nextW = math.clamp(curW, minW, maxW)
+	local nextH = math.clamp(curH, minH, maxH)
+
+	if nextW ~= curW or nextH ~= curH then
+		frame.Size = UDim2.new(0, math.floor(nextW + 0.5), 0, math.floor(nextH + 0.5))
+	end
+
+	local compact = nextH <= 190 or nextW <= 235
+	local container = frame:FindFirstChild("Container")
+	if container and container:IsA("GuiObject") then
+		container.Size = compact and UDim2.new(1, -10, 1, -42) or UDim2.new(1, -15, 1, -50)
+		container.Position = compact and UDim2.new(0.5, 0, 1, -6) or UDim2.new(0.5, 0, 1, -10)
+
+		local filter = container:FindFirstChild("Filter")
+		if filter and filter:IsA("GuiObject") then
+			filter.Size = compact and UDim2.new(1, -8, 0, 20) or UDim2.new(1, -10, 0, 24)
+			filter.Position = compact and UDim2.new(0.5, 0, 0, 4) or UDim2.new(0.5, 0, 0, 5)
+			if NAlib and NAlib.isProperty and NAlib.isProperty(filter, "TextSize") then
+				filter.TextSize = compact and 14 or 16
+			end
+		end
+
+		local list = container:FindFirstChild("List")
+		if list and list:IsA("GuiObject") then
+			list.Position = compact and UDim2.new(0, 4, 0, 27) or UDim2.new(0, 5, 0, 30)
+			list.Size = compact and UDim2.new(1, -24, 1, -31) or UDim2.new(1, -28, 1, -35)
+		end
+
+		local scrollBar = container:FindFirstChild("CustomScrollBar")
+		if scrollBar and scrollBar:IsA("GuiObject") then
+			scrollBar.Position = compact and UDim2.new(1, -17, 0, 27) or UDim2.new(1, -18, 0, 30)
+			scrollBar.Size = compact and UDim2.new(0, 14, 1, -31) or UDim2.new(0, 16, 1, -35)
+		end
+	end
+
+	if center and NAmanage.centerFrame then
+		NAmanage.centerFrame(frame)
+	end
 end
 
 function NAmanage.cmdYield(i, budget)
@@ -75413,7 +75506,7 @@ NAmanage.ensureCommandListState=function()
 	if not (cList and NAUIMANAGER and NAUIMANAGER.commandExample) then
 		return nil
 	end
-	local staticMode = shouldUseStaticCommandList()
+	local staticMode = NAmanage.cmdStatic and NAmanage.cmdStatic() or false
 
 	local state = NAStuff.CommandListState
 	if type(state) == "table" and state.list == cList and state.staticMode == staticMode then
@@ -75561,7 +75654,10 @@ NAmanage.syncVisibleCommandRows=function(state)
 	local scrollY = cList.CanvasPosition.Y
 	local logicalListSize = NAmanage.GetLogicalAbsoluteSize and NAmanage.GetLogicalAbsoluteSize(cList) or nil
 	local viewHeight = logicalListSize and logicalListSize.Y or cList.AbsoluteSize.Y
-	local firstIndex = math.max(1, math.floor((math.max(0, scrollY - COMMAND_LIST_TOP_PADDING - overscanPx)) / rowStep) + 1)
+	if NAmanage.virtView then
+		viewHeight, scrollY = NAmanage.virtView(cList, viewHeight, totalHeight, rowStep * 3)
+	end
+	local firstIndex = math.min(count, math.max(1, math.floor((math.max(0, scrollY - COMMAND_LIST_TOP_PADDING - overscanPx)) / rowStep) + 1))
 	local lastIndex = math.min(count, math.ceil((math.max(0, scrollY + viewHeight - COMMAND_LIST_TOP_PADDING + overscanPx)) / rowStep))
 	if lastIndex < firstIndex then
 		lastIndex = firstIndex
@@ -75575,14 +75671,16 @@ NAmanage.syncVisibleCommandRows=function(state)
 	for offset = 1, needed do
 		local entryIndex = firstIndex + offset - 1
 		local entry = filteredEntries[entryIndex]
-		local label = state.visibleLabels[offset]
-		if not label then
-			label = acquireCommandListLabel(state)
-			state.visibleLabels[offset] = label
-		elseif label.Parent ~= virtualCanvas then
-			label.Parent = virtualCanvas
+		if entry then
+			local label = state.visibleLabels[offset]
+			if not label then
+				label = acquireCommandListLabel(state)
+				state.visibleLabels[offset] = label
+			elseif label.Parent ~= virtualCanvas then
+				label.Parent = virtualCanvas
+			end
+			applyCommandListEntry(state, label, entry, entryIndex)
 		end
-		applyCommandListEntry(state, label, entry, entryIndex)
 	end
 end
 NAgui.commands = function()
@@ -75594,6 +75692,9 @@ NAgui.commands = function()
 	if not cFrame.Visible then
 		cFrame.Visible = true
 		cList.CanvasSize = UDim2.new(0, 0, 0, 0)
+	end
+	if NAmanage.cmdResp then
+		NAmanage.cmdResp(false)
 	end
 	NAmanage.centerFrame(cFrame)
 
@@ -83351,7 +83452,11 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		local tab = NAmanage.ExecutorNormalizeTab(tabs[currentTab])
 		local total = tab and math.max(#tab.lines, 1) or 1
 		local lineHeight = getEditorLineHeight()
-		local viewHeight = math.max(1, (editorScroll.AbsoluteSize.Y or 0) - 22)
+		local viewHeight = (editorScroll.AbsoluteSize.Y or 0) - 22
+		if NAmanage.virtView then
+			viewHeight = NAmanage.virtView(editorLineScroll, viewHeight, editorLineScroll.CanvasSize.Y.Offset, lineHeight * 3)
+		end
+		viewHeight = math.max(1, viewHeight)
 		local visibleCount = math.max(1, math.floor(viewHeight / math.max(lineHeight, 1)))
 		local firstLine = math.clamp(math.floor(math.max(editorLineScroll.CanvasPosition.Y, 0) / math.max(lineHeight, 1)) + 1, 1, total)
 		local lastLine = math.clamp(firstLine + visibleCount - 1, firstLine, total)
@@ -83446,7 +83551,11 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	end
 
 	local function getEditorViewportHeight()
-		return math.max(1, (editorScroll.AbsoluteSize.Y or 0) - 22)
+		local h = (editorScroll.AbsoluteSize.Y or 0) - 22
+		if NAmanage.virtView then
+			h = NAmanage.virtView(editorLineScroll, h, editorLineScroll.CanvasSize.Y.Offset, getEditorLineHeight() * 3)
+		end
+		return math.max(1, h)
 	end
 
 	local function getEditorWindowMetrics()
@@ -85545,7 +85654,11 @@ NAmanage.Notepad_Init = function()
 	end
 
 	local function getNotepadViewportHeight()
-		return math.max(1, (body.AbsoluteSize.Y or 0) - 30)
+		local h = (body.AbsoluteSize.Y or 0) - 30
+		if NAmanage.virtView then
+			h = NAmanage.virtView(notepadLineScroll, h, notepadLineScroll.CanvasSize.Y.Offset, getNotepadLineHeight() * 3)
+		end
+		return math.max(1, h)
 	end
 
 	local function getNotepadWindowMetrics()
@@ -86025,7 +86138,35 @@ if NAUIMANAGER.NotepadFrame then NAgui.menu(NAUIMANAGER.NotepadFrame) end
 
 if NAUIMANAGER.chatLogsFrame then NAgui.resizeable(NAUIMANAGER.chatLogsFrame) end
 if NAUIMANAGER.NAconsoleFrame then NAgui.resizeable(NAUIMANAGER.NAconsoleFrame) end
-if NAUIMANAGER.commandsFrame then NAgui.resizeable(NAUIMANAGER.commandsFrame) end
+if NAUIMANAGER.commandsFrame then
+	NAgui.resizeable(NAUIMANAGER.commandsFrame, Vector2.new(180, 118), Vector2.new(5000, 5000))
+	if NAmanage.cmdResp then
+		NAmanage.cmdResp(false)
+		NAmanage.cmdRespRf = function(center)
+			if not (NAUIMANAGER and NAUIMANAGER.commandsFrame and NAUIMANAGER.commandsFrame.Visible) then
+				return
+			end
+			NAmanage.cmdResp(center == true)
+			if NAmanage["syncVisibleCommandRows"] then
+				NAmanage["syncVisibleCommandRows"]()
+			end
+		end
+		NAlib.disconnect("NA_CommandsResponsive")
+		if NAStuff.NASCREENGUI then
+			NAlib.connect("NA_CommandsResponsive", NAStuff.NASCREENGUI:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+				NAmanage.cmdRespRf(true)
+			end))
+		end
+		if NAUIMANAGER.AUTOSCALER then
+			NAlib.connect("NA_CommandsResponsive", NAUIMANAGER.AUTOSCALER:GetPropertyChangedSignal("Scale"):Connect(function()
+				NAmanage.cmdRespRf(true)
+			end))
+		end
+		NAlib.connect("NA_CommandsResponsive", NAUIMANAGER.commandsFrame:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+			NAmanage.cmdRespRf(false)
+		end))
+	end
+end
 if NAUIMANAGER.CommandKeybindsFrame then NAgui.resizeable(NAUIMANAGER.CommandKeybindsFrame, Vector2.new(520, 360), Vector2.new(1400, 920)) end
 if NAUIMANAGER.SettingsFrame then NAgui.resizeable(NAUIMANAGER.SettingsFrame) end
 if NAUIMANAGER.WaypointFrame then NAgui.resizeable(NAUIMANAGER.WaypointFrame) end
@@ -88894,6 +89035,9 @@ NAmanage.bindToDevConsole = function()
 		rebuildRecordLayout(false);
 		local scrollY = logsFrame.CanvasPosition.Y;
 		local viewHeight = getVisibleHeight();
+		if NAmanage.virtView then
+			viewHeight, scrollY = NAmanage.virtView(logsFrame, viewHeight, layoutContentHeight, 54);
+		end;
 		local startY = math.max(0, scrollY - overscanPx);
 		local endY = scrollY + viewHeight + overscanPx;
 		local firstIndex, lastIndex;
@@ -88948,7 +89092,11 @@ NAmanage.bindToDevConsole = function()
 		end;
 		updateCanvasSize(logsFrame, NAUIMANAGER.AUTOSCALER.Scale);
 		if opts.followBottom == true then
-			logsFrame.CanvasPosition = Vector2.new(0, math.max(0, logsFrame.CanvasSize.Y.Offset - getVisibleHeight()));
+			local followH = getVisibleHeight();
+			if NAmanage.virtView then
+				followH = NAmanage.virtView(logsFrame, followH, logsFrame.CanvasSize.Y.Offset, 54);
+			end;
+			logsFrame.CanvasPosition = Vector2.new(0, math.max(0, logsFrame.CanvasSize.Y.Offset - followH));
 		end;
 	end;
 	for _, logType in ipairs(buttonTypes) do
