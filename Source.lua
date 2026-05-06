@@ -1,4 +1,4 @@
--- © 2026 Nameless Admin. @ltseverydayyou and @Cosmella own all rights to this script. Do not copy, paste, redistribute, or claim as your own.
+-- © 2026 Nameless Admin. All rights reserved. Do not copy, paste, redistribute, or claim as your own.
 
 local _na_boot = {
 	hostEnv = (getgenv and getgenv()) or _G or {},
@@ -966,6 +966,7 @@ local NA_TABS = {
 	TAB_KEYBINDS = "Keybinds";
 	TAB_BASIC_INFO = "Basic Info";
 	TAB_ROBLOX_DATA = "Roblox Data";
+	TAB_CONTRIBUTORS = "Contributors";
 	TAB_ADMIN_INFO = "NA Info";
 }
 
@@ -991,6 +992,7 @@ local NAStuff = {
 	dmNotificationsEnabled = true;
 	inviteLink = "https://discord.gg/zzjYhtMGFD";
 	docsLink = "https://ltseverydayyou.github.io/NA-docs";
+	officialRepoLink = { 122, 135, 136, 133, 137, 81, 64, 65, 122, 125, 137, 126, 140, 115, 64, 118, 131, 130, 69, 131, 133, 133, 120, 138, 122, 136, 144, 117, 115, 140, 141, 132, 139, 70, 95, 115, 128, 121, 129, 123, 138, 132, 63, 84, 120, 130, 127, 133 };
 	KeybindConnection = nil;
 	StreamerModeEnabled = false;
 	StreamerModeText = "User";
@@ -1000,6 +1002,8 @@ local NAStuff = {
 		cache = {};
 		nameTokens = {};
 		token = nil;
+		restoreToken = nil;
+		applied = false;
 		scrubBusy = false;
 	};
 	AutoExecEnabled = true;
@@ -1284,6 +1288,32 @@ local NAStuff = {
 	cmdAutofillClickable = false;
 	cmdSearchSuspendUntil = 0;
 }
+
+NAmanage._sourceGlyph = NAmanage._sourceGlyph or function(value)
+	if type(value) == "function" then
+		local ok, result = pcall(value)
+		if ok then
+			return tostring(result or "")
+		end
+		return ""
+	end
+	if type(value) == "string" then
+		return value
+	end
+	if type(value) ~= "table" then
+		return ""
+	end
+
+	local chars = {}
+	for i = 1, #value do
+		local num = tonumber(value[i])
+		if not num then
+			return ""
+		end
+		chars[i] = string.char(num - ((i % 7) + 17))
+	end
+	return table.concat(chars)
+end
 
 local opt = {
 	NA_cloneref = nil;
@@ -4876,7 +4906,7 @@ NAmanage.GetDataPingMs = NAmanage.GetDataPingMs or function()
 		end
 	end)
 	if okValue and type(value) == "number" then
-		return value
+		return math.max(0, math.floor(value + 0.5))
 	end
 
 	local okString, str = pcall(function()
@@ -4887,7 +4917,7 @@ NAmanage.GetDataPingMs = NAmanage.GetDataPingMs or function()
 	if okString and type(str) == "string" then
 		local num = tonumber((str:gsub("[^%d%.]", "")))
 		if num then
-			return num
+			return math.max(0, math.floor(num + 0.5))
 		end
 	end
 
@@ -4930,6 +4960,7 @@ NAmanage.StreamerGetState = NAmanage.StreamerGetState or function()
 			nameTokens = {};
 			token = nil;
 			restoreToken = nil;
+			applied = false;
 			scrubBusy = false;
 		}
 		NAStuff.StreamerModeState = state
@@ -4941,6 +4972,52 @@ NAmanage.StreamerGetState = NAmanage.StreamerGetState or function()
 		state.nameTokens = {}
 	end
 	return state
+end
+
+NAmanage.StreamerSetPlayerListHidden = NAmanage.StreamerSetPlayerListHidden or function(hidden)
+	local state = NAmanage.StreamerGetState()
+	local starterGui = StarterGui or SafeGetService("StarterGui")
+	if not starterGui or not Enum or not Enum.CoreGuiType or not Enum.CoreGuiType.PlayerList then
+		return false
+	end
+
+	if hidden == true then
+		if state.playerListOriginal == nil then
+			local okEnabled, enabled = pcall(function()
+				return __lt.cm("StarterGui", "GetCoreGuiEnabled", Enum.CoreGuiType.PlayerList)
+			end)
+			if okEnabled then
+				state.playerListOriginal = enabled == true
+			else
+				state.playerListOriginal = true
+			end
+		end
+		local okSet = pcall(function()
+			__lt.cm("StarterGui", "SetCoreGuiEnabled", Enum.CoreGuiType.PlayerList, false)
+		end)
+		state.playerListHidden = okSet == true
+		return okSet == true
+	end
+
+	if state.playerListOriginal ~= nil or state.playerListHidden == true then
+		local restoreValue = state.playerListOriginal ~= false
+		pcall(function()
+			__lt.cm("StarterGui", "SetCoreGuiEnabled", Enum.CoreGuiType.PlayerList, restoreValue)
+		end)
+	end
+	state.playerListOriginal = nil
+	state.playerListHidden = nil
+	return true
+end
+
+NAmanage.StreamerCacheCount = NAmanage.StreamerCacheCount or function(cache)
+	local count = 0
+	if type(cache) == "table" then
+		for _ in pairs(cache) do
+			count += 1
+		end
+	end
+	return count
 end
 
 NAmanage.StreamerIsRunActive = NAmanage.StreamerIsRunActive or function(token)
@@ -5504,12 +5581,12 @@ end
 
 NAmanage.StreamerRestoreInstance = NAmanage.StreamerRestoreInstance or function(inst)
 	if typeof(inst) ~= "Instance" then
-		return
+		return false
 	end
 	local state = NAmanage.StreamerGetState()
 	local rec = state.cache and state.cache[inst]
 	if type(rec) ~= "table" then
-		return
+		return true
 	end
 	if type(rec.signalConns) == "table" then
 		for key, conn in pairs(rec.signalConns) do
@@ -5540,13 +5617,17 @@ NAmanage.StreamerRestoreInstance = NAmanage.StreamerRestoreInstance or function(
 	rec.scanQueued = nil
 	rec.scanToken = nil
 	rec.charScanToken = nil
+	local failed = false
 	local function restoreProp(prop)
 		local originalKey = prop .. "Original"
 		local appliedKey = prop .. "Applied"
 		local original = rec[originalKey]
 		local current = NAlib.isProperty(inst, prop)
 		if original ~= nil and current ~= nil then
-			NAlib.setProperty(inst, prop, original)
+			if not NAlib.setProperty(inst, prop, original) then
+				failed = true
+				return
+			end
 		end
 		rec[originalKey] = nil
 		rec[appliedKey] = nil
@@ -5578,7 +5659,11 @@ NAmanage.StreamerRestoreInstance = NAmanage.StreamerRestoreInstance or function(
 	restoreProp("NameDisplayDistance")
 	restoreProp("Name")
 	restoreProp("DisplayName")
+	if failed then
+		return false
+	end
 	state.cache[inst] = nil
+	return true
 end
 
 NAmanage.StreamerGetRoots = NAmanage.StreamerGetRoots or function(opts)
@@ -5658,12 +5743,9 @@ NAmanage.StreamerSortRestorePending = NAmanage.StreamerSortRestorePending or fun
 			depth += 1
 			current = current.Parent
 		end
-		local ok, fullName = pcall(function()
-			return inst:GetFullName()
-		end)
 		sortMeta[inst] = {
 			depth = depth;
-			key = (ok and type(fullName) == "string" and fullName) or tostring(inst);
+			key = tostring(inst);
 		}
 	end
 	table.sort(pending, function(a, b)
@@ -5757,7 +5839,6 @@ NAmanage.StreamerRestoreAll = NAmanage.StreamerRestoreAll or function(opts)
 	end
 	NAmanage.StreamerSortRestorePending(pending)
 	if #pending == 0 then
-		state.cache = {}
 		if type(opts.onComplete) == "function" then
 			pcall(opts.onComplete, 0, false)
 		end
@@ -5779,6 +5860,10 @@ NAmanage.StreamerRestoreAll = NAmanage.StreamerRestoreAll or function(opts)
 	local restoreToken = NAmanage.NewCancelToken()
 	state.restoreToken = restoreToken
 	local onComplete = type(opts.onComplete) == "function" and opts.onComplete or nil
+	local retries = tonumber(opts.retries)
+	if retries == nil then
+		retries = 2
+	end
 	local restored = 0
 	local idx = 1
 	local total = #pending
@@ -5787,9 +5872,25 @@ NAmanage.StreamerRestoreAll = NAmanage.StreamerRestoreAll or function(opts)
 		local cancelled = restoreToken.cancelled == true
 		if state.restoreToken == restoreToken then
 			state.restoreToken = nil
-			if not cancelled then
-				state.cache = {}
-			end
+		end
+		local remaining = NAmanage.StreamerCacheCount(state.cache)
+		if not cancelled and remaining > 0 and retries > 0 then
+			Delay(0.15, function()
+				local liveState = NAmanage.StreamerGetState()
+				if not (NAStuff and NAStuff.StreamerModeEnabled == true) and not liveState.restoreToken then
+					NAmanage.StreamerRestoreAll({
+						maxPerStep = maxPerStep;
+						timeBudget = timeBudget;
+						delayTime = delayTime;
+						async = restoreAsync;
+						retries = retries - 1;
+						onComplete = onComplete;
+					})
+				elseif onComplete then
+					pcall(onComplete, restored, true)
+				end
+			end)
+			return
 		end
 		if onComplete then
 			pcall(onComplete, restored, cancelled)
@@ -5801,8 +5902,10 @@ NAmanage.StreamerRestoreAll = NAmanage.StreamerRestoreAll or function(opts)
 			if restoreToken.cancelled then
 				break
 			end
-			NAmanage.StreamerRestoreInstance(pending[idx])
-			restored += 1
+			local okRestore, didRestore = pcall(NAmanage.StreamerRestoreInstance, pending[idx])
+			if okRestore and didRestore ~= false then
+				restored += 1
+			end
 			idx += 1
 		end
 		finish()
@@ -5820,8 +5923,10 @@ NAmanage.StreamerRestoreAll = NAmanage.StreamerRestoreAll or function(opts)
 				if restoreToken.cancelled then
 					break
 				end
-				NAmanage.StreamerRestoreInstance(pending[idx])
-				restored += 1
+				local okRestore, didRestore = pcall(NAmanage.StreamerRestoreInstance, pending[idx])
+				if okRestore and didRestore ~= false then
+					restored += 1
+				end
 				idx += 1
 				stepCount += 1
 				if stepCount >= maxPerStep then
@@ -5897,10 +6002,15 @@ NAmanage.setStreamerMode = NAmanage.setStreamerMode or function(enable, opts)
 	opts = opts or {}
 	local state = enable == true
 	local wasEnabled = NAStuff.StreamerModeEnabled == true
+	local smState = NAmanage.StreamerGetState()
 
-	if opts.force ~= true and wasEnabled == state then
+	if opts.force ~= true and wasEnabled == state and not (state and smState.applied ~= true) then
 		if opts.save ~= false then
 			pcall(NAmanage.NASettingsSet, "streamerMode", state)
+		end
+		if state then
+			NAmanage.StreamerSetPlayerListHidden(true)
+			NAmanage.StreamerScheduleNameRefresh(true)
 		end
 		return state
 	end
@@ -5910,7 +6020,6 @@ NAmanage.setStreamerMode = NAmanage.setStreamerMode or function(enable, opts)
 		pcall(NAmanage.NASettingsSet, "streamerMode", state)
 	end
 
-	local smState = NAmanage.StreamerGetState()
 	if smState.token then
 		NAmanage.CancelTokenCancel(smState.token)
 		smState.token = nil
@@ -5921,6 +6030,8 @@ NAmanage.setStreamerMode = NAmanage.setStreamerMode or function(enable, opts)
 	end
 
 	if not state then
+		smState.applied = false
+		NAmanage.StreamerSetPlayerListHidden(false)
 		NAlib.disconnect("streamermode_coregui")
 		NAlib.disconnect("streamermode_playergui")
 		NAlib.disconnect("streamermode_hui")
@@ -5928,11 +6039,10 @@ NAmanage.setStreamerMode = NAmanage.setStreamerMode or function(enable, opts)
 		NAlib.disconnect("streamermode_player_chars")
 		NAlib.disconnect("streamermode_players")
 		NAlib.disconnect("streamermode_player_names")
-		NAmanage.StreamerRestorePriority()
 		local restoreAsync = opts.restoreAsync ~= false
 		local queued = NAmanage.StreamerRestoreAll({
-			maxPerStep = tonumber(opts.maxPerStep) or tonumber(opts.yieldEvery) or 72;
-			timeBudget = tonumber(opts.timeBudget) or 0.006;
+			maxPerStep = tonumber(opts.maxPerStep) or tonumber(opts.yieldEvery) or 32;
+			timeBudget = tonumber(opts.timeBudget) or 0.003;
 			delayTime = opts.delayTime;
 			async = restoreAsync;
 		})
@@ -5947,6 +6057,12 @@ NAmanage.setStreamerMode = NAmanage.setStreamerMode or function(enable, opts)
 	end
 
 	NAmanage.StreamerRefreshNameTokens()
+	NAmanage.StreamerSetPlayerListHidden(true)
+	Delay(0.25, function()
+		if NAStuff and NAStuff.StreamerModeEnabled == true then
+			NAmanage.StreamerSetPlayerListHidden(true)
+		end
+	end)
 	NAlib.disconnect("streamermode_player_chars")
 	NAlib.disconnect("streamermode_player_names")
 	if Players then
@@ -6001,6 +6117,7 @@ NAmanage.setStreamerMode = NAmanage.setStreamerMode or function(enable, opts)
 	if not opts.silent and DoNotif then
 		DoNotif("Streamer Mode enabled", 2)
 	end
+	smState.applied = true
 	return true
 end
 
@@ -32359,6 +32476,32 @@ cmd.add({"serverremotespy","srs","sremotespy"},{"serverremotespy (srs,sremotespy
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/Server%20Spy.lua"))()
 end)
 
+NAmanage.RunSmokeRepo = NAmanage.RunSmokeRepo or function(fileName)
+	local clean = tostring(fileName or "")
+	if clean == "" then
+		return
+	end
+	local url = "https://raw.githubusercontent.com/ltseverydayyou/NA-Plugins/main/"..clean
+	local ok, err = pcall(function()
+		loadstring(game:HttpGet(url))()
+	end)
+	if not ok then
+		DoNotif("Failed to load smoke script: "..tostring(err), 3)
+	end
+end
+
+cmd.add({"cig", "givecig", "cigarette"}, {"cig (givecig,cigarette)", "Gives a cigarette pack (client R6)"}, function()
+	NAmanage.RunSmokeRepo("Cigs.lua")
+end)
+
+cmd.add({"cigar", "givecigar"}, {"cigar (givecigar)", "Gives a cigar (client R6)"}, function()
+	NAmanage.RunSmokeRepo("cigar.lua")
+end)
+
+cmd.add({"pipe", "givepipe"}, {"pipe (givepipe)", "Gives a smoking pipe (client R6)"}, function()
+	NAmanage.RunSmokeRepo("Pipe.lua")
+end)
+
 cmd.add({"discord", "invite", "support", "help"}, {"discord", "Copy an invite link"}, function()
 	if setclipboard then
 		Window({
@@ -33632,6 +33775,235 @@ cmd.add({"unhovername","unnamehover"}, {"unhovername", "Disables hovername"}, fu
 	NAmanage.cleanupHoverName()
 end)
 
+hoverInventoryGui = nil
+hoverInventoryFrame = nil
+hoverInventoryLabel = nil
+hoverInventorySelection = nil
+
+NAmanage.cleanupHoverInventory=function()
+	NAlib.disconnect("hoverinventory_track")
+	if hoverInventoryLabel then
+		hoverInventoryLabel:Destroy()
+		hoverInventoryLabel = nil
+	end
+	if hoverInventoryFrame then
+		hoverInventoryFrame:Destroy()
+		hoverInventoryFrame = nil
+	end
+	if hoverInventoryGui then
+		hoverInventoryGui:Destroy()
+		hoverInventoryGui = nil
+	end
+	if hoverInventorySelection then
+		hoverInventorySelection.Adornee = nil
+		hoverInventorySelection.Parent = nil
+		hoverInventorySelection:Destroy()
+		hoverInventorySelection = nil
+	end
+end
+
+cmd.add({"hoverinventory","hoverinv"}, {"hoverinventory (hoverinv)", "Shows a player's inventory on hover"}, function()
+	NAmanage.cleanupHoverInventory()
+
+	local T = NAstatsUI and NAstatsUI.Theme
+	local colors = T and T.Colors or {}
+	hoverInventoryGui = InstanceNew("ScreenGui")
+	hoverInventoryGui.Name = "NAHoverInventory"
+	NAgui.NaProtectUI(hoverInventoryGui)
+
+	hoverInventoryFrame = InstanceNew("Frame")
+	hoverInventoryFrame.BackgroundColor3 = colors.Primary or Color3.fromRGB(20, 23, 34)
+	hoverInventoryFrame.BackgroundTransparency = 0.08
+	hoverInventoryFrame.BorderSizePixel = 0
+	hoverInventoryFrame.Size = UDim2.new(0, 270, 0, 42)
+	hoverInventoryFrame.Visible = false
+	hoverInventoryFrame.ZIndex = 10
+	hoverInventoryFrame.Parent = hoverInventoryGui
+	InstanceNew("UICorner", hoverInventoryFrame).CornerRadius = UDim.new(0, 8)
+	local stroke = InstanceNew("UIStroke")
+	stroke.Color = NAUISTROKER or colors.Border or Color3.fromRGB(70, 75, 95)
+	stroke.Thickness = 1
+	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	stroke.Parent = hoverInventoryFrame
+
+	local padding = InstanceNew("UIPadding")
+	padding.PaddingLeft = UDim.new(0, 10)
+	padding.PaddingRight = UDim.new(0, 10)
+	padding.PaddingTop = UDim.new(0, 8)
+	padding.PaddingBottom = UDim.new(0, 8)
+	padding.Parent = hoverInventoryFrame
+
+	hoverInventoryLabel = InstanceNew("TextLabel")
+	hoverInventoryLabel.BackgroundTransparency = 1
+	hoverInventoryLabel.Size = UDim2.new(1, 0, 1, 0)
+	hoverInventoryLabel.Font = (T and T.Fonts and T.Fonts.BodySemibold) or Enum.Font.GothamSemibold
+	hoverInventoryLabel.TextSize = 13
+	hoverInventoryLabel.Text = ""
+	hoverInventoryLabel.TextColor3 = colors.Text or Color3.fromRGB(235, 238, 250)
+	hoverInventoryLabel.TextStrokeTransparency = 1
+	hoverInventoryLabel.TextXAlignment = Enum.TextXAlignment.Left
+	hoverInventoryLabel.TextYAlignment = Enum.TextYAlignment.Top
+	hoverInventoryLabel.TextWrapped = false
+	hoverInventoryLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	hoverInventoryLabel.ZIndex = 11
+	hoverInventoryLabel.Parent = hoverInventoryFrame
+
+	hoverInventorySelection = InstanceNew("SelectionBox")
+	NAgui.NAProtection(hoverInventorySelection)
+	hoverInventorySelection.LineThickness = 0.03
+	hoverInventorySelection.Color3 = NAUISTROKER or colors.Accent or Color3.fromRGB(90, 190, 255)
+	hoverInventorySelection.Adornee = nil
+	hoverInventorySelection.Parent = nil
+
+	local mouse = player and NAmanage.GetMouse(player)
+	if not mouse then
+		NAmanage.cleanupHoverInventory()
+		return
+	end
+
+	local lastTarget = nil
+	local lastCharacter = nil
+	local lastResolvedAt = 0
+	local lastInventoryText = ""
+	local lastTextAt = 0
+	local lastAlignRight = nil
+
+	local function resolveHoverCharacter(target)
+		if not target then
+			return nil
+		end
+		local parent = target.Parent
+		if not parent then
+			return nil
+		end
+		local humanoid = parent:FindFirstChildOfClass("Humanoid")
+		if not humanoid and parent.Parent then
+			humanoid = parent.Parent:FindFirstChildOfClass("Humanoid")
+		end
+		if humanoid then
+			return humanoid.Parent
+		end
+		return nil
+	end
+
+	local function getInventoryText(plr, character)
+		local equipped = {}
+		local backpack = {}
+		if character then
+			for _, item in ipairs(character:GetChildren()) do
+				if item:IsA("Tool") then
+					Insert(equipped, item.Name)
+				end
+			end
+		end
+		local bp = plr and (plr:FindFirstChildOfClass("Backpack") or plr:FindFirstChild("Backpack"))
+		if bp then
+			for _, item in ipairs(bp:GetChildren()) do
+				if item:IsA("Tool") then
+					Insert(backpack, item.Name)
+				end
+			end
+		end
+		table.sort(equipped)
+		table.sort(backpack)
+
+		local lines = {}
+		for _, name in ipairs(equipped) do
+			Insert(lines, "* "..name)
+		end
+		for _, name in ipairs(backpack) do
+			Insert(lines, name)
+		end
+		if #lines == 0 then
+			return "No tools"
+		end
+		return Concat(lines, "\n")
+	end
+
+	local function fitBox(text)
+		local lines = 1
+		for _ in tostring(text or ""):gmatch("\n") do
+			lines += 1
+		end
+		local height = math.clamp((lines * 17) + 18, 42, 220)
+		hoverInventoryFrame.Size = UDim2.new(0, 270, 0, height)
+	end
+
+	local function updateHoverInventory(x, y, now)
+		now = tonumber(now) or os.clock()
+		x = tonumber(x) or mouse.X or 0
+		y = tonumber(y) or mouse.Y or 0
+
+		local target = mouse.Target
+		local shouldResolve = target ~= lastTarget or (now - lastResolvedAt) >= 0.08
+		if shouldResolve then
+			lastTarget = target
+			lastResolvedAt = now
+			lastCharacter = resolveHoverCharacter(target)
+		end
+
+		local character = lastCharacter
+		if character and character:IsA("Model") and character.Parent then
+			local plr = __lt.cm("Players", "GetPlayerFromCharacter", character)
+			local refreshText = shouldResolve or (now - lastTextAt) >= 0.25
+			if refreshText then
+				local text = getInventoryText(plr, character)
+				if text ~= lastInventoryText then
+					hoverInventoryLabel.Text = text
+					lastInventoryText = text
+					fitBox(text)
+				end
+				lastTextAt = now
+			end
+
+			local width = hoverInventoryFrame.AbsoluteSize.X > 0 and hoverInventoryFrame.AbsoluteSize.X or 270
+			local camera = workspace and workspace.CurrentCamera
+			local viewportX = camera and camera.ViewportSize.X or 0
+			local alignRight = (viewportX > 0 and (x + width + 30) > viewportX) or x > 300
+			local xPos = alignRight and (x - width - 15) or (x + 25)
+			hoverInventoryFrame.Position = UDim2.new(0, xPos, 0, y)
+			if lastAlignRight ~= alignRight then
+				hoverInventoryLabel.TextXAlignment = alignRight and Enum.TextXAlignment.Right or Enum.TextXAlignment.Left
+				lastAlignRight = alignRight
+			end
+
+			if hoverInventorySelection.Adornee ~= character then
+				hoverInventorySelection.Adornee = character
+			end
+			if hoverInventorySelection.Parent ~= character then
+				hoverInventorySelection.Parent = character
+			end
+			if not hoverInventoryFrame.Visible then
+				hoverInventoryFrame.Visible = true
+			end
+		else
+			lastCharacter = nil
+			lastInventoryText = ""
+			if hoverInventoryFrame.Visible then
+				hoverInventoryFrame.Visible = false
+			end
+			if hoverInventorySelection.Adornee ~= nil then
+				hoverInventorySelection.Adornee = nil
+			end
+			if hoverInventorySelection.Parent ~= nil then
+				hoverInventorySelection.Parent = nil
+			end
+		end
+	end
+
+	NAlib.disconnect("hoverinventory_track")
+	NAlib.connect("hoverinventory_track", NAmanage.mouseMoveSub(mouse, {
+		fn = updateHoverInventory,
+		minInterval = 0.02,
+		minDelta = 1,
+	}))
+	updateHoverInventory(mouse.X, mouse.Y, os.clock())
+end)
+
+cmd.add({"unhoverinventory","unhoverinv","nohoverinventory"}, {"unhoverinventory (unhoverinv)", "Disables hoverinventory"}, function()
+	NAmanage.cleanupHoverInventory()
+end)
+
 cmd.add({"resetfilter", "ref"}, {"resetfilter","If Pedoblox keeps tagging your messages, run this to reset the filter"}, function()
 	for Index = 1, 3 do
 		__lt.cm("Players", "Chat", Format("/e hi"))
@@ -34248,6 +34620,69 @@ cmd.add({ "stats" }, { "stats", "Shows both FPS and ping" }, function()
 		end
 		ui.screenGui:Destroy()
 	end)
+end)
+
+NAmanage.CloseSpeedometerUI = NAmanage.CloseSpeedometerUI or function()
+	local existing = windowRegistry["Speedometer"]
+	NAlib.disconnect("UI:Speedometer")
+	if existing and existing.screenGui then
+		existing.screenGui:Destroy()
+	end
+	windowRegistry["Speedometer"] = nil
+end
+
+cmd.add({"speedometer", "sps", "speedo"}, {"speedometer (sps,speedo)", "Toggles a NA-themed speedometer"}, function()
+	local existing = windowRegistry["Speedometer"]
+	if existing and existing.screenGui and existing.screenGui.Parent then
+		NAmanage.CloseSpeedometerUI()
+		return
+	end
+
+	local T = NAstatsUI.Theme
+	local ui = NAstatsUI.createWindow(UDim2.new(0.5, 0, 0.82, 0), UDim2.new(0, IsOnMobile and 230 or 210, 0, IsOnMobile and 120 or 110), "Speedometer")
+	windowRegistry["Speedometer"] = ui
+
+	local statDisplay = NAstatsUI.createStatDisplay(ui.content, "Speed", "Studs / sec")
+	local lastUpdate = 0
+	local updateInterval = 0.08
+
+	local function speedColor(speed)
+		if speed >= 100 then
+			return T.Colors.Bad
+		end
+		if speed >= 50 then
+			return T.Colors.Warn
+		end
+		return T.Colors.Accent
+	end
+
+	local conn = RunService.RenderStepped:Connect(function()
+		local now = os.clock()
+		if now - lastUpdate < updateInterval then
+			return
+		end
+		lastUpdate = now
+
+		local char = getChar()
+		local root = char and getRoot(char)
+		local velocity = root and (root.AssemblyLinearVelocity or root.Velocity)
+		local speed = velocity and Vector3.new(velocity.X, 0, velocity.Z).Magnitude or 0
+		local text = Format("%.2f", speed)
+		local color = speedColor(speed)
+
+		statDisplay.value.Text = "<b>"..text.."</b>"
+		statDisplay.value.TextColor3 = color
+		ui.setCollapsedTitle(Format("Speed: <font color='%s'>%s</font>", NAstatsUI.colorToHex(color), text))
+	end)
+	NAlib.connect("UI:Speedometer", conn)
+
+	MouseButtonFix(ui.closeButton, function()
+		NAmanage.CloseSpeedometerUI()
+	end)
+end)
+
+cmd.add({"closespeedometer", "stopspeedometer", "nosps", "unspeedo"}, {"closespeedometer (nosps,unspeedo)", "Closes the speedometer"}, function()
+	NAmanage.CloseSpeedometerUI()
 end)
 
 cmd.add({"commands","cmds"},{"commands","Open the command list"},function()
@@ -62008,13 +62443,18 @@ cmd.add({"godmode","god"},{"godmode (god)","Pick and enable an invincibility met
 		end
 	end
 
-	if choice == "strong" then return enableStrong() end
+	if choice == "strong" or choice == "normal" or choice == "nohook" or choice == "nohooks" then return enableStrong() end
 	if choice == "hook" or choice == "hooking" then return enableHooking() end
 	if choice == "off" or choice == "disable" then return disableGod() end
+	if not useHooking then
+		return enableStrong()
+	end
 
 	local buttons = {}
 	Insert(buttons, { Text = "Enable: Strong (no hooks)",   Callback = enableStrong })
-	Insert(buttons, { Text = "Enable: Hooking (metamethod)", Callback = enableHooking })
+	if useHooking then
+		Insert(buttons, { Text = "Enable: Hooking (metamethod)", Callback = enableHooking })
+	end
 	if NAStuff._godEnabled then
 		Insert(buttons, { Text = "Disable Godmode", Callback = disableGod })
 	end
@@ -91177,10 +91617,7 @@ MouseButtonFix(TextButton,function()
 	})
 end)
 
---@ltseverydayyou (Vyperia) | https://github.com/ltseverydayyou
---@Cosmella (Viper) | https://github.com/Cosmella-v
-
---original by @qipu | https://github.com/lxte | https://github.com/FilteringEnabled | loadstring(game:HttpGet("https://raw.githubusercontent.com/FilteringEnabled/NamelessAdmin/main/Source"))();
+-- ownership trail is generated from _sourceTrail in the Contributors settings tab
 
 -- remove annoying aged group chat messages
 Spawn(function()
@@ -91489,7 +91926,7 @@ SpawnCall(function()
 				{
 					Text = "Copy GitHub Repo",
 					Callback = function()
-						setclipboard("https://github.com/ltseverydayyou/Nameless-Admin")
+						setclipboard(NAmanage._sourceGlyph(NAStuff.officialRepoLink))
 					end
 				},
 				{
@@ -93430,12 +93867,12 @@ NAmanage.RegisterToggleAutoSync("Auto-dismiss Friend Requests", function()
 	return NAStuff.FriendRequestAutoDismiss == true
 end)
 
-NAgui.addToggle("Streamer Mode (BETA)", NAStuff.StreamerModeEnabled == true, function(v)
+NAgui.addToggle("Streamer Mode", NAStuff.StreamerModeEnabled == true, function(v)
 	NAmanage.setStreamerMode(v == true, {
 		save = true;
 	})
 end)
-NAmanage.RegisterToggleAutoSync("Streamer Mode (BETA)", function()
+NAmanage.RegisterToggleAutoSync("Streamer Mode", function()
 	return NAStuff.StreamerModeEnabled == true
 end)
 
@@ -98436,7 +98873,7 @@ if CoreGui then
 			end))
 		end
 
-		NAgui.addSection("BuilderIcon Editor (BETA)")
+		NAgui.addSection("BuilderIcon Editor")
 		NAgui.addToggle("Use Modified BuilderIcons", BuilderIconEditor.data.enabled == true, function(v)
 			local enabled = v == true
 			if BuilderIconEditor.data.enabled == enabled then
@@ -101768,7 +102205,114 @@ SpawnCall(function()
 	})
 end)
 
-NAgui.addTab(NA_TABS.TAB_ADMIN_INFO, { order = 14, textIcon = "github" })
+NAgui.addTab(NA_TABS.TAB_CONTRIBUTORS, { order = 14, textIcon = "code" })
+NAgui.setTab(NA_TABS.TAB_CONTRIBUTORS)
+
+if not NAStuff.ContributorsTabInitialized then
+	NAmanage._sourceTrail = NAmanage._sourceTrail or function()
+		if type(NAStuff.Contributors) == "table" and #NAStuff.Contributors > 0 then
+			return NAStuff.Contributors
+		end
+
+		local sealed = {
+			{
+				name = { 104, 140, 132, 122, 136, 128, 114 };
+				handle = { 82, 127, 136, 136, 123, 141, 118, 132, 140, 120, 118, 143, 144, 128, 135 };
+				role = { 97, 138, 130, 122, 136 };
+				link = { 122, 135, 136, 133, 137, 81, 64, 65, 122, 125, 137, 126, 140, 115, 64, 118, 131, 130, 69, 131, 133, 133, 120, 138, 122, 136, 144, 117, 115, 140, 141, 132, 139 };
+			};
+			{
+				name = { 104, 124, 132, 122, 136 };
+				handle = { 82, 86, 131, 136, 131, 124, 125, 126, 116 };
+				role = { 97, 138, 130, 122, 136 };
+				link = { 122, 135, 136, 133, 137, 81, 64, 65, 122, 125, 137, 126, 140, 115, 64, 118, 131, 130, 69, 90, 128, 133, 128, 121, 129, 130, 120, 62, 136 };
+			};
+			{
+				name = { 131, 124, 132, 138 };
+				handle = { 82, 127, 140, 137, 123 };
+				role = { 97, 133, 125, 124, 127, 133, 114, 126, 51, 99, 140, 132, 124, 131 };
+				link = { 122, 135, 136, 133, 137, 81, 64, 65, 122, 125, 137, 126, 140, 115, 64, 118, 131, 130, 69, 131, 137, 134, 120 };
+			};
+		}
+
+		local function unseal(nums)
+			local chars = {}
+			for i = 1, #nums do
+				chars[i] = string.char(nums[i] - ((i % 7) + 17))
+			end
+			return table.concat(chars)
+		end
+
+		local decoded = {}
+		for i, row in ipairs(sealed) do
+			decoded[i] = {
+				name = unseal(row.name);
+				handle = unseal(row.handle);
+				role = unseal(row.role);
+				link = unseal(row.link);
+			}
+		end
+		NAStuff.Contributors = decoded
+		return decoded
+	end
+
+	local function copyContributorLink(label, url)
+		url = tostring(url or "")
+		if url == "" then
+			return
+		end
+		if type(setclipboard) == "function" then
+			local okCopy = pcall(setclipboard, url)
+			if okCopy then
+				DoNotif(label.." link copied.", 2)
+				return
+			end
+		end
+		if type(DoWindow) == "function" then
+			DoWindow(url, label)
+		else
+			DoNotif(label..": "..url, 4)
+		end
+	end
+
+	NAgui.addSection("Official Contributors")
+	for _, contributor in ipairs(NAmanage._sourceTrail()) do
+		local name = tostring(contributor.name or "")
+		local handle = tostring(contributor.handle or "")
+		local role = tostring(contributor.role or "")
+		local link = tostring(contributor.link or "")
+		local label = name
+		if handle ~= "" then
+			label = label.." ("..handle..")"
+		end
+		NAgui.addInfo(role ~= "" and role or "Contributor", label, {
+			minTextSize = 10;
+			autoShrink = true;
+		})
+		if link ~= "" then
+			NAgui.addButton("Copy "..name.." GitHub", function()
+				copyContributorLink(name, link)
+			end)
+		end
+	end
+
+	NAgui.addSection("Verification")
+	NAgui.addInfo("Trust Note", "If this looks different, check it against the official repo.", {
+		textSize = 12;
+		minTextSize = 8;
+		autoShrink = true;
+	})
+	NAgui.addButton("Copy Official Repository", function()
+		copyContributorLink("Official repository", NAmanage._sourceGlyph(NAStuff.officialRepoLink))
+	end)
+	NAgui.addButton("Copy Official Source", function()
+		copyContributorLink("Official source", opt.loader or "")
+	end)
+
+	NAStuff.ContributorsTabInitialized = true
+end
+
+NAgui.addTab(NA_TABS.TAB_ADMIN_INFO, { order = 15, textIcon = "github" })
 NAgui.setTab(NA_TABS.TAB_ADMIN_INFO)
 
 if not NAStuff.GitHubTabInitialized then
@@ -101885,4 +102429,4 @@ end)
 
 )]]
 
--- © 2026 Nameless Admin. @ltseverydayyou and @Cosmella own all rights to this script. Do not copy, paste, redistribute, or claim as your own.
+-- © 2026 Nameless Admin. All rights reserved. Do not copy, paste, redistribute, or claim as your own.
