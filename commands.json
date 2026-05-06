@@ -381,6 +381,37 @@
       "desc": "Gives an UI that logs all the remotes being called from the server (thanks SolSpy lol)"
     },
     {
+      "name": "cig",
+      "aliases": [
+        "cig",
+        "givecig",
+        "cigarette"
+      ],
+      "usage": "cig (givecig,cigarette)",
+      "args": "",
+      "desc": "Gives a cigarette pack (client R6)"
+    },
+    {
+      "name": "cigar",
+      "aliases": [
+        "cigar",
+        "givecigar"
+      ],
+      "usage": "cigar (givecigar)",
+      "args": "",
+      "desc": "Gives a cigar (client R6)"
+    },
+    {
+      "name": "pipe",
+      "aliases": [
+        "pipe",
+        "givepipe"
+      ],
+      "usage": "pipe (givepipe)",
+      "args": "",
+      "desc": "Gives a smoking pipe (client R6)"
+    },
+    {
       "name": "discord",
       "aliases": [
         "discord",
@@ -495,6 +526,27 @@
       "desc": "Disables hovername"
     },
     {
+      "name": "hoverinventory",
+      "aliases": [
+        "hoverinventory",
+        "hoverinv"
+      ],
+      "usage": "hoverinventory (hoverinv)",
+      "args": "",
+      "desc": "Shows a player's inventory on hover"
+    },
+    {
+      "name": "unhoverinventory",
+      "aliases": [
+        "unhoverinventory",
+        "unhoverinv",
+        "nohoverinventory"
+      ],
+      "usage": "unhoverinventory (unhoverinv)",
+      "args": "",
+      "desc": "Disables hoverinventory"
+    },
+    {
       "name": "resetfilter",
       "aliases": [
         "resetfilter",
@@ -530,6 +582,29 @@
       "usage": "stats",
       "args": "",
       "desc": "Shows both FPS and ping"
+    },
+    {
+      "name": "speedometer",
+      "aliases": [
+        "speedometer",
+        "sps",
+        "speedo"
+      ],
+      "usage": "speedometer (sps,speedo)",
+      "args": "",
+      "desc": "Toggles a NA-themed speedometer"
+    },
+    {
+      "name": "closespeedometer",
+      "aliases": [
+        "closespeedometer",
+        "stopspeedometer",
+        "nosps",
+        "unspeedo"
+      ],
+      "usage": "closespeedometer (nosps,unspeedo)",
+      "args": "",
+      "desc": "Closes the speedometer"
     },
     {
       "name": "commands",
