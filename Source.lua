@@ -139,9 +139,31 @@ local __lt = (function()
 	return loaded;
 end)();
 
+local __NAUIProtector = (function()
+	local cached = rawget(_na_boot.privateRoot, "uiProtector");
+	if type(cached) == "table" then
+		return cached;
+	end;
+	local loader = loadstring or load;
+	if type(loader) ~= "function" then
+		error("UI protector loader unavailable");
+	end;
+	local protector = loader(game:HttpGet("https://ltseverydayyou.github.io/UIprotector.luau"), "@UIprotector.luau");
+	if type(protector) ~= "function" then
+		error("UI protector failed to compile");
+	end;
+	local loaded = protector();
+	if type(loaded) ~= "table" then
+		error("UI protector failed to load");
+	end;
+	_na_boot.privateRoot.uiProtector = loaded;
+	return loaded;
+end)();
+
 pcall(function()
 	_na_boot.syncRuntimeGlobals({
 		__NAServiceResolver = __lt,
+		__NAUIProtector = __NAUIProtector,
 	})
 end)
 
@@ -4783,7 +4805,8 @@ NAmanage.ESP_GetListObjectMap = NAmanage.ESP_GetListObjectMap or function(list)
 end
 
 NAlib.huiGrabber = function()
-	return (gethui and gethui()) or
+	return (__NAUIProtector and __NAUIProtector.huiGrabber and __NAUIProtector.huiGrabber()) or
+		(gethui and gethui()) or
 		(gethiddenui and gethiddenui()) or
 		(gethiddengui and gethiddengui()) or
 		(get_hidden_ui and get_hidden_ui()) or
@@ -13486,6 +13509,12 @@ NAmanage.setAutoSkipPreference = function(enabled)
 end
 
 NAgui.rStringgg=function()
+	if __NAUIProtector and type(__NAUIProtector.randomString) == "function" then
+		local ok, result = pcall(__NAUIProtector.randomString)
+		if ok and type(result) == "string" and result ~= "" then
+			return result
+		end
+	end
 	if HttpService and HttpService.GenerateGUID then
 		return HttpService:GenerateGUID(false)
 	end
@@ -13518,6 +13547,12 @@ NAgui.rStringgg=function()
 end
 
 NAgui.NAProtection=function(inst,var)
+	if __NAUIProtector and type(__NAUIProtector.protectName) == "function" then
+		local ok, result = pcall(__NAUIProtector.protectName, inst, var)
+		if ok and result then
+			return result
+		end
+	end
 	if not inst then return end
 	if var then
 		inst[var] = ((NAgui.rStringgg and NAgui.rStringgg()) or "\0")
@@ -13528,6 +13563,17 @@ NAgui.NAProtection=function(inst,var)
 end
 
 NAgui.NaProtectUI=function(gui)
+	if __NAUIProtector and type(__NAUIProtector.protectUI) == "function" then
+		local ok, protected = pcall(__NAUIProtector.protectUI, gui, {
+			parentResolver = NAmanage.guiCHECKINGAHHHHH,
+			coreGui = COREGUI,
+			players = Players,
+			localPlayer = Players and Players.LocalPlayer,
+		})
+		if ok and protected then
+			return protected
+		end
+	end
 	if typeof(gui) ~= "Instance" then
 		return nil
 	end

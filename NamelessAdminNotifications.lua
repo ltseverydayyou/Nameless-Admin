@@ -62,6 +62,64 @@ local __lt = (function()
 	_naNotif_private_root.serviceResolver = loaded
 	return loaded
 end)()
+local __NAUIProtector = (function()
+	local globalEnv = (getgenv and getgenv()) or _G or {};
+	local sharedEnv = rawget(_G, "shared");
+	local cacheHost = type(sharedEnv) == "table" and sharedEnv or (type(globalEnv) == "table" and globalEnv or nil);
+	if cacheHost then
+		local cached = rawget(cacheHost, "__lt_ui_protector");
+		if type(cached) == "table" then
+			return cached;
+		end;
+	end;
+	local loader = loadstring or load;
+	if type(loader) ~= "function" then
+		return nil;
+	end;
+	local okSource, source = pcall(function()
+		return game:HttpGet("https://ltseverydayyou.github.io/UIprotector.luau");
+	end);
+	if not okSource or type(source) ~= "string" or source == "" then
+		return nil;
+	end;
+	local chunk = loader(source, "@UIprotector.luau");
+	if type(chunk) ~= "function" then
+		return nil;
+	end;
+	local okLoaded, loaded = pcall(chunk);
+	if okLoaded and type(loaded) == "table" then
+		if cacheHost then
+			cacheHost.__lt_ui_protector = loaded;
+		end;
+		return loaded;
+	end;
+	return nil;
+end)();
+local __NAOriginalGetHui = gethui;
+local gethui = function()
+	if __NAUIProtector and type(__NAUIProtector.huiGrabber) == "function" then
+		local ok, ui = pcall(__NAUIProtector.huiGrabber);
+		if ok and typeof(ui) == "Instance" then
+			return ui;
+		end;
+	end;
+	if type(__NAOriginalGetHui) == "function" then
+		local ok, ui = pcall(__NAOriginalGetHui);
+		if ok then
+			return ui;
+		end;
+	end;
+	return nil;
+end;
+local function __NAProtectUI(gui, options)
+	if __NAUIProtector and type(__NAUIProtector.protectUI) == "function" then
+		local ok, protected = pcall(__NAUIProtector.protectUI, gui, options);
+		if ok and protected then
+			return protected;
+		end;
+	end;
+	return nil;
+end;
 
 local NotifFuns = {}
 local _naNotif_gui
@@ -130,6 +188,12 @@ local function isTrustedApi(api)
 end
 
 function NotifFuns.randomUiName()
+	if __NAUIProtector and type(__NAUIProtector.randomString) == "function" then
+		local ok, res = pcall(__NAUIProtector.randomString)
+		if ok and type(res) == "string" and res ~= "" then
+			return res
+		end
+	end
 	if hs and hs.GenerateGUID then
 		local ok, res = pcall(function()
 			return hs:GenerateGUID(false)
@@ -169,6 +233,12 @@ function NotifFuns.protectUiInst(inst, attr)
 	end
 	if attr then
 		tag(inst, attr)
+	end
+	if __NAUIProtector and type(__NAUIProtector.protectName) == "function" then
+		local ok, protected = pcall(__NAUIProtector.protectName, inst)
+		if ok and protected then
+			return protected
+		end
 	end
 	pcall(function()
 		inst.Name = randomUiName()
