@@ -14094,6 +14094,8 @@ end
 
 NAgui._dragState = NAgui._dragState or {}
 NAgui._touchGestureLock = NAgui._touchGestureLock or { owner = nil, mode = nil, input = nil }
+NAgui._draggerCleanups = NAgui._draggerCleanups or {}
+NAgui._draggerUiCleanups = NAgui._draggerUiCleanups or {}
 
 NAgui.tryLockTouchGesture = NAgui.tryLockTouchGesture or function(owner, mode, input)
 	if not (input and input.UserInputType == Enum.UserInputType.Touch) then
@@ -14127,7 +14129,14 @@ end
 NAgui.dragger = function(ui, dragui)
 	if not ui then return end
 	dragui = dragui or ui
-	local connName = "Dragger_"..tostring((ui and ui.GetDebugId and ui:GetDebugId()) or ui)
+	local draggerId = tostring((ui and ui.GetDebugId and ui:GetDebugId()) or ui)
+	local connName = "Dragger_"..draggerId
+	if type(NAgui._draggerUiCleanups[draggerId]) == "function" then
+		pcall(NAgui._draggerUiCleanups[draggerId])
+	end
+	if type(NAgui._draggerCleanups[connName]) == "function" then
+		pcall(NAgui._draggerCleanups[connName])
+	end
 	NAlib.disconnect(connName)
 	local GS = GuiService
 	local ds = NAgui._dragState
@@ -14144,18 +14153,21 @@ NAgui.dragger = function(ui, dragui)
 
 	local function disconnectLiveInput()
 		if moveConn then
-			moveConn:Disconnect()
+			pcall(function() moveConn:Disconnect() end)
 			moveConn = nil
 		end
 		if endConn then
-			endConn:Disconnect()
+			pcall(function() endConn:Disconnect() end)
 			endConn = nil
 		end
 		if stepConn then
-			stepConn:Disconnect()
+			pcall(function() stepConn:Disconnect() end)
 			stepConn = nil
 		end
 		pendingInput = nil
+		if NAmanage and NAmanage.prnCon then
+			NAmanage.prnCon(connName)
+		end
 	end
 
 	local function stopDrag()
@@ -14177,8 +14189,16 @@ NAgui.dragger = function(ui, dragui)
 		if cleaned then return end
 		cleaned = true
 		stopDrag()
+		if NAgui._draggerCleanups[connName] == cleanupDragger then
+			NAgui._draggerCleanups[connName] = nil
+		end
+		if NAgui._draggerUiCleanups[draggerId] == cleanupDragger then
+			NAgui._draggerUiCleanups[draggerId] = nil
+		end
 		NAlib.disconnect(connName)
 	end
+	NAgui._draggerCleanups[connName] = cleanupDragger
+	NAgui._draggerUiCleanups[draggerId] = cleanupDragger
 
 	local function getOrder(g)
 		local z = (g.ZIndex or 0)
@@ -14243,7 +14263,7 @@ NAgui.dragger = function(ui, dragui)
 				dragStart = input.Position
 				startPos = ui.Position
 				disconnectLiveInput()
-				moveConn = UserInputService.InputChanged:Connect(function(changedInput)
+				moveConn = NAlib.connect(connName, UserInputService.InputChanged:Connect(function(changedInput)
 					if not dragging or ds.owner ~= ui then
 						return
 					end
@@ -14255,8 +14275,8 @@ NAgui.dragger = function(ui, dragui)
 					if inputType == Enum.UserInputType.Touch and changedInput == dragPointer then
 						pendingInput = changedInput
 					end
-				end)
-				endConn = UserInputService.InputEnded:Connect(function(endedInput)
+				end))
+				endConn = NAlib.connect(connName, UserInputService.InputEnded:Connect(function(endedInput)
 					if not dragging then
 						return
 					end
@@ -14265,8 +14285,8 @@ NAgui.dragger = function(ui, dragui)
 						or (inputType == Enum.UserInputType.Touch and endedInput == dragPointer) then
 						stopDrag()
 					end
-				end)
-				stepConn = RunService.RenderStepped:Connect(function()
+				end))
+				stepConn = NAlib.connect(connName, RunService.RenderStepped:Connect(function()
 					local frameInput = pendingInput
 					if not frameInput then
 						return
@@ -14276,7 +14296,7 @@ NAgui.dragger = function(ui, dragui)
 						return
 					end
 					update(frameInput)
-				end)
+				end))
 			end
 		end)
 	end))
@@ -14293,6 +14313,18 @@ NAgui.dragger = function(ui, dragui)
 	if ui and ui.Destroying then
 		NAlib.connect(connName, ui.Destroying:Connect(cleanupDragger))
 	end
+	if dragui and dragui ~= ui and dragui.AncestryChanged then
+		NAlib.connect(connName, dragui.AncestryChanged:Connect(function(_, parent)
+			if not parent then
+				Defer(function()
+					cleanupDragger()
+				end)
+			end
+		end))
+	end
+	if dragui and dragui ~= ui and dragui.Destroying then
+		NAlib.connect(connName, dragui.Destroying:Connect(cleanupDragger))
+	end
 
 	pcall(function() ui.Active = true end)
 	pcall(function() dragui.Active = true end)
@@ -14301,7 +14333,14 @@ end
 NAgui.draggerV2 = function(ui, dragui)
 	if not ui then return end
 	dragui = dragui or ui
-	local connName = "DraggerV2_"..ui:GetDebugId()
+	local draggerId = tostring((ui and ui.GetDebugId and ui:GetDebugId()) or ui)
+	local connName = "DraggerV2_"..draggerId
+	if type(NAgui._draggerUiCleanups[draggerId]) == "function" then
+		pcall(NAgui._draggerUiCleanups[draggerId])
+	end
+	if type(NAgui._draggerCleanups[connName]) == "function" then
+		pcall(NAgui._draggerCleanups[connName])
+	end
 	NAlib.disconnect(connName)
 	local GS = GuiService
 	local ds = NAgui._dragState
@@ -14318,18 +14357,21 @@ NAgui.draggerV2 = function(ui, dragui)
 
 	local function disconnectLiveInput()
 		if moveConn then
-			moveConn:Disconnect()
+			pcall(function() moveConn:Disconnect() end)
 			moveConn = nil
 		end
 		if endConn then
-			endConn:Disconnect()
+			pcall(function() endConn:Disconnect() end)
 			endConn = nil
 		end
 		if stepConn then
-			stepConn:Disconnect()
+			pcall(function() stepConn:Disconnect() end)
 			stepConn = nil
 		end
 		pendingInput = nil
+		if NAmanage and NAmanage.prnCon then
+			NAmanage.prnCon(connName)
+		end
 	end
 
 	local function stopDrag()
@@ -14351,8 +14393,16 @@ NAgui.draggerV2 = function(ui, dragui)
 		if cleaned then return end
 		cleaned = true
 		stopDrag()
+		if NAgui._draggerCleanups[connName] == cleanupDragger then
+			NAgui._draggerCleanups[connName] = nil
+		end
+		if NAgui._draggerUiCleanups[draggerId] == cleanupDragger then
+			NAgui._draggerUiCleanups[draggerId] = nil
+		end
 		NAlib.disconnect(connName)
 	end
+	NAgui._draggerCleanups[connName] = cleanupDragger
+	NAgui._draggerUiCleanups[draggerId] = cleanupDragger
 
 	local function safeClamp(v, lo, hi)
 		if hi < lo then hi = lo end
@@ -14463,7 +14513,7 @@ NAgui.draggerV2 = function(ui, dragui)
 				dragStart = input.Position
 				startPos = ui.Position
 				disconnectLiveInput()
-				moveConn = UserInputService.InputChanged:Connect(function(changedInput)
+				moveConn = NAlib.connect(connName, UserInputService.InputChanged:Connect(function(changedInput)
 					if not dragging or ds.owner ~= ui then
 						return
 					end
@@ -14475,8 +14525,8 @@ NAgui.draggerV2 = function(ui, dragui)
 					if inputType == Enum.UserInputType.Touch and changedInput == dragPointer then
 						pendingInput = changedInput
 					end
-				end)
-				endConn = UserInputService.InputEnded:Connect(function(endedInput)
+				end))
+				endConn = NAlib.connect(connName, UserInputService.InputEnded:Connect(function(endedInput)
 					if not dragging then
 						return
 					end
@@ -14485,8 +14535,8 @@ NAgui.draggerV2 = function(ui, dragui)
 						or (inputType == Enum.UserInputType.Touch and endedInput == dragPointer) then
 						stopDrag()
 					end
-				end)
-				stepConn = RunService.RenderStepped:Connect(function()
+				end))
+				stepConn = NAlib.connect(connName, RunService.RenderStepped:Connect(function()
 					local frameInput = pendingInput
 					if not frameInput then
 						return
@@ -14496,7 +14546,7 @@ NAgui.draggerV2 = function(ui, dragui)
 						return
 					end
 					update(frameInput)
-				end)
+				end))
 			end
 		end)
 	end))
@@ -23003,7 +23053,7 @@ end
 
 function MouseButtonFix(button, clickCallback)
 	if not button or type(clickCallback) ~= "function" then
-		return { Disconnect = function() end }
+		return { Connected = false, Disconnect = function() end }
 	end
 
 	local clickTimeThreshold = 0.45
@@ -23014,6 +23064,38 @@ function MouseButtonFix(button, clickCallback)
 	local startPosition = nil
 	local maxMoveDistance = 0
 	local connections = {}
+	local disconnected = false
+	NAStuff._mouseButtonFixHooks = NAmanage.ensureWeakKeyTable(NAStuff._mouseButtonFixHooks)
+	local hooks = NAStuff._mouseButtonFixHooks
+	local existing = hooks[button]
+	if existing then
+		NAmanage.tryDisconnect(existing)
+	end
+
+	local state = {
+		Connected = true,
+	}
+
+	local function disconnectAll()
+		if disconnected then
+			return
+		end
+		disconnected = true
+		state.Connected = false
+		for i = 1, #connections do
+			NAmanage.tryDisconnect(connections[i])
+			connections[i] = nil
+		end
+		if hooks[button] == state then
+			hooks[button] = nil
+		end
+	end
+
+	function state:Disconnect()
+		disconnectAll()
+	end
+
+	hooks[button] = state
 
 	local function getSignal(obj, signalName)
 		local ok, signal = pcall(function()
@@ -23026,7 +23108,7 @@ function MouseButtonFix(button, clickCallback)
 	end
 
 	local function connectSignal(signal, fn)
-		if not signal then
+		if disconnected or not signal then
 			return false
 		end
 		local ok, conn = pcall(function()
@@ -23052,6 +23134,9 @@ function MouseButtonFix(button, clickCallback)
 	end
 
 	local function beginPointer(input)
+		if disconnected then
+			return
+		end
 		isPointerDown = true
 		mouseDownTime = tick()
 		maxMoveDistance = 0
@@ -23060,6 +23145,9 @@ function MouseButtonFix(button, clickCallback)
 	end
 
 	local function endPointer()
+		if disconnected then
+			return
+		end
 		if not isPointerDown or mouseDownTime == 0 then
 			resetState()
 			return
@@ -23134,18 +23222,22 @@ function MouseButtonFix(button, clickCallback)
 	end)
 
 	if not boundPress then
-		return { Disconnect = function() end }
+		disconnectAll()
+		return state
 	end
 
-	return {
-		Disconnect = function()
-			for _, conn in ipairs(connections) do
-				if conn and conn.Disconnect then
-					conn:Disconnect()
-				end
+	if button.AncestryChanged then
+		connectSignal(button.AncestryChanged, function(_, parent)
+			if not parent then
+				Defer(disconnectAll)
 			end
-		end
-	}
+		end)
+	end
+	if button.Destroying then
+		connectSignal(button.Destroying, disconnectAll)
+	end
+
+	return state
 end
 
 NAmanage.AttachMessageCopy = function(gui, rawMessage)
@@ -76373,7 +76465,16 @@ NAgui.tween = function(obj, style, direction, duration, goal, callback)
 	direction = direction or "Out"
 	local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle[style], Enum.EasingDirection[direction])
 	local tween = __lt.cm("TweenService", "Create", obj, tweenInfo, goal)
-	if callback then tween.Completed:Connect(callback) end
+	if callback then
+		local completedConn
+		completedConn = tween.Completed:Connect(function(...)
+			if completedConn then
+				pcall(function() completedConn:Disconnect() end)
+				completedConn = nil
+			end
+			callback(...)
+		end)
+	end
 	tween:Play()
 	return tween
 end
@@ -76608,7 +76709,7 @@ NAgui.resizeable = function(ui, min, max)
 		if button:IsA("GuiObject") then
 			button.Active = true
 			pcall(function()
-				button.InputBegan:Connect(function(input)
+				Insert(overlayConns, button.InputBegan:Connect(function(input)
 					pcall(function()
 						if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 							if input.UserInputType == Enum.UserInputType.Touch then
@@ -76637,11 +76738,11 @@ NAgui.resizeable = function(ui, min, max)
 							end)
 						end
 					end)
-				end)
+				end))
 			end)
 
 			pcall(function()
-				button.InputEnded:Connect(function(input)
+				Insert(overlayConns, button.InputEnded:Connect(function(input)
 					pcall(function()
 						if not dragging or mode ~= button or input.UserInputState ~= Enum.UserInputState.End then return end
 						if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -76650,24 +76751,24 @@ NAgui.resizeable = function(ui, min, max)
 							endDrag()
 						end
 					end)
-				end)
+				end))
 			end)
 
 			pcall(function()
-				button.MouseEnter:Connect(function()
+				Insert(overlayConns, button.MouseEnter:Connect(function()
 					pcall(function()
 						local map = resizeXY and resizeXY[button.Name]
 						if map then setCursor(map[3]) end
 					end)
-				end)
+				end))
 			end)
 
 			pcall(function()
-				button.MouseLeave:Connect(function()
+				Insert(overlayConns, button.MouseLeave:Connect(function()
 					pcall(function()
 						if not dragging then restoreCursor() end
 					end)
-				end)
+				end))
 			end)
 		end
 	end
@@ -80188,16 +80289,18 @@ NAmanage.Topbar_ClampToggle=function()
 end
 
 NAmanage.Topbar_MakeDraggableHorizontal=function(ui)
+	local key = "tb_drag_ui"
+	NAlib.disconnect(key)
 	local dragging=false
 	local dragInput,dragStart,startPos
 
-	ui.InputBegan:Connect(function(input)
+	NAlib.connect(key, ui.InputBegan:Connect(function(input)
 		if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
 			dragging=true
 			dragStart=input.Position
 			startPos=ui.Position
 			local endConn
-			endConn=input.Changed:Connect(function()
+			endConn=NAlib.connect(key, input.Changed:Connect(function()
 				if input.UserInputState==Enum.UserInputState.End then
 					dragging=false
 					if NATopbarKeepPosition then
@@ -80206,17 +80309,20 @@ NAmanage.Topbar_MakeDraggableHorizontal=function(ui)
 					if endConn then
 						endConn:Disconnect()
 						endConn=nil
+						if NAmanage and NAmanage.prnCon then
+							NAmanage.prnCon(key)
+						end
 					end
 				end
-			end)
+			end))
 		end
-	end)
+	end))
 
-	ui.InputChanged:Connect(function(input)
+	NAlib.connect(key, ui.InputChanged:Connect(function(input)
 		if input.UserInputType==Enum.UserInputType.MouseMovement or input.UserInputType==Enum.UserInputType.Touch then
 			dragInput=input
 		end
-	end)
+	end))
 
 	local lastStep=0
 	NAlib.disconnect("tb_drag_input")
@@ -80400,6 +80506,7 @@ NAmanage.Topbar_Destroy=function()
 	NAlib.disconnect("tb_repos_frame")
 	NAlib.disconnect("tb_repos_vp")
 	NAlib.disconnect("tb_follow")
+	NAlib.disconnect("tb_drag_ui")
 	NAlib.disconnect("tb_drag_input")
 	if TopBarApp and TopBarApp.top then TopBarApp.top:Destroy() end
 	TopBarApp={ top=nil; frame=nil; toggle=nil; tGlass=nil; tStroke=nil; icon=nil; panel=nil; underlay=nil; scroll=nil; layout=nil; isOpen=false; childButtons={}; buttonDefs={}, mode=NAmanage.topbar_readMode(), sidePref="right", dock=NAmanage.topbar_readDock() }
@@ -80647,7 +80754,12 @@ NAmanage.SideSwipe_SetOpen=function(state)
 		__lt.cm("TweenService", "Create", SideSwipeApp.underlay, TweenInfo.new(0.18, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { BackgroundTransparency = underGoal }):Play()
 	end
 	tween:Play()
-	tween.Completed:Connect(function()
+	local completedConn
+	completedConn = tween.Completed:Connect(function()
+		if completedConn then
+			pcall(function() completedConn:Disconnect() end)
+			completedConn = nil
+		end
 		if not SideSwipeApp.isOpen then
 			SideSwipeApp.panel.Visible = false
 			SideSwipeApp.handlesHidden = false
@@ -80682,6 +80794,8 @@ end
 
 NAmanage.SideSwipe_WireHandle=function(btn, side)
 	if not btn then return end
+	local key=side=="right" and "ss_swipe_right" or "ss_swipe_left"
+	NAlib.disconnect(key)
 	local SWIPE_THRESHOLD=28
 	local dragging=false
 	local dragStart
@@ -80693,37 +80807,38 @@ NAmanage.SideSwipe_WireHandle=function(btn, side)
 		dragInput=nil
 	end
 
-	btn.MouseButton1Down:Connect(function()
+	NAlib.connect(key, btn.MouseButton1Down:Connect(function()
 		NAmanage.SideSwipe_SetSide(side,{skipAnimate=true})
-	end)
+	end))
 
-	btn.InputBegan:Connect(function(input)
+	NAlib.connect(key, btn.InputBegan:Connect(function(input)
 		if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
 			NAmanage.SideSwipe_SetSide(side,{skipAnimate=true})
 			dragging=true
 			dragStart=input.Position
 			dragInput=input
 			local endConn
-			endConn=input.Changed:Connect(function()
+			endConn=NAlib.connect(key, input.Changed:Connect(function()
 				if input.UserInputState==Enum.UserInputState.End or input.UserInputState==Enum.UserInputState.Cancel then
 					resetDrag()
 					if endConn then
 						endConn:Disconnect()
 						endConn=nil
+						if NAmanage and NAmanage.prnCon then
+							NAmanage.prnCon(key)
+						end
 					end
 				end
-			end)
+			end))
 		end
-	end)
+	end))
 
-	btn.InputChanged:Connect(function(input)
+	NAlib.connect(key, btn.InputChanged:Connect(function(input)
 		if input.UserInputType==Enum.UserInputType.MouseMovement or input.UserInputType==Enum.UserInputType.Touch then
 			dragInput=input
 		end
-	end)
+	end))
 
-	local key=side=="right" and "ss_swipe_right" or "ss_swipe_left"
-	NAlib.disconnect(key)
 	NAlib.connect(key,UserInputService.InputChanged:Connect(function(input)
 		if input==dragInput and dragging and dragStart then
 			local delta=input.Position-dragStart
@@ -80835,7 +80950,74 @@ NAmanage.SideSwipe_Destroy=function()
 	SideSwipeApp={ gui=nil; panel=nil; underlay=nil; scroll=nil; layout=nil; handles={left=nil,right=nil}; isOpen=false; animating=false; handlesHidden=false; side=NASideSwipeSide or "left" }
 end
 
+NAgui._menuCleanups = NAgui._menuCleanups or {}
+
+NAgui._getMenuCleanupKey = NAgui._getMenuCleanupKey or function(menu)
+	return "NAMenu_"..tostring((menu and menu.GetDebugId and menu:GetDebugId()) or menu)
+end
+
+NAgui.cleanupMenu = NAgui.cleanupMenu or function(menu)
+	if not menu then return end
+	local key = NAgui._getMenuCleanupKey(menu)
+	local cleanup = NAgui._menuCleanups[key]
+	if type(cleanup) == "function" then
+		pcall(cleanup)
+	end
+	NAlib.disconnect(key)
+end
+
+NAgui._bindMenuCleanup = NAgui._bindMenuCleanup or function(menu)
+	local key = NAgui._getMenuCleanupKey(menu)
+	NAgui.cleanupMenu(menu)
+	local cleaned = false
+	local function cleanup()
+		if cleaned then return end
+		cleaned = true
+		if NAgui._menuCleanups[key] == cleanup then
+			NAgui._menuCleanups[key] = nil
+		end
+		NAlib.disconnect(key)
+	end
+	NAgui._menuCleanups[key] = cleanup
+	if menu and menu.AncestryChanged then
+		NAlib.connect(key, menu.AncestryChanged:Connect(function(_, parent)
+			if not parent then
+				Defer(cleanup)
+			end
+		end))
+	end
+	if menu and menu.Destroying then
+		NAlib.connect(key, menu.Destroying:Connect(cleanup))
+	end
+	return key, cleanup
+end
+
+NAgui._menuCompleted = NAgui._menuCompleted or function(key, tween, callback)
+	if not (key and tween and tween.Completed) then
+		if type(callback) == "function" then
+			callback()
+		end
+		return nil
+	end
+	local conn
+	conn = NAlib.connect(key, tween.Completed:Connect(function()
+		if conn then
+			pcall(function() conn:Disconnect() end)
+			conn = nil
+		end
+		if NAmanage and NAmanage.prnCon then
+			NAmanage.prnCon(key)
+		end
+		if type(callback) == "function" then
+			callback()
+		end
+	end))
+	return conn
+end
+
 NAgui.menu = function(menu)
+	if not menu then return end
+	local menuConnName = NAgui._bindMenuCleanup(menu)
 	if menu:IsA("Frame") then menu.AnchorPoint = Vector2.new(0, 0) end
 	local exitButton = menu:FindFirstChild("Exit", true)
 	local minimizeButton = menu:FindFirstChild("Minimize", true)
@@ -80877,28 +81059,28 @@ NAgui.menu = function(menu)
 			local currentX = menu.Size.X.Offset
 			local currentY = menu.Size.Y.Offset
 			setStoredSize(currentX, currentY)
-			NAgui.tween(menu, "Quart", "Out", 0.5, {Size = UDim2.new(0, currentX, 0, 35)})
-				.Completed:Connect(function()
+			NAgui._menuCompleted(menuConnName, NAgui.tween(menu, "Quart", "Out", 0.5, {Size = UDim2.new(0, currentX, 0, 35)}), function()
 					isAnimating = false
 				end)
 		else
 			local restoreX, restoreY = getStoredSize()
-			NAgui.tween(menu, "Quart", "Out", 0.5, {Size = UDim2.new(0, restoreX, 0, restoreY)})
-				.Completed:Connect(function()
+			NAgui._menuCompleted(menuConnName, NAgui.tween(menu, "Quart", "Out", 0.5, {Size = UDim2.new(0, restoreX, 0, restoreY)}), function()
 					isAnimating = false
 				end)
 		end
 	end
 
-	MouseButtonFix(minimizeButton, toggleMinimize)
-	MouseButtonFix(exitButton, function()
+	NAlib.connect(menuConnName, MouseButtonFix(minimizeButton, toggleMinimize))
+	NAlib.connect(menuConnName, MouseButtonFix(exitButton, function()
 		menu.Visible = false
-	end)
+	end))
 	NAgui.draggerV2(menu, menu.Topbar)
 	menu.Visible = false
 end
 
 NAgui.menuv2 = function(menu)
+	if not menu then return end
+	local menuConnName = NAgui._bindMenuCleanup(menu)
 	NACaller(function()
 		if menu:IsA("Frame") then
 			menu.AnchorPoint = Vector2.new(0, 0)
@@ -80948,16 +81130,16 @@ NAgui.menuv2 = function(menu)
 				local currentX = menu.Size.X.Offset
 				local currentY = menu.Size.Y.Offset
 				setStoredSize(currentX, currentY)
-				NAgui.tween(menu, "Quart", "Out", 0.5, {
+				NAgui._menuCompleted(menuConnName, NAgui.tween(menu, "Quart", "Out", 0.5, {
 					Size = UDim2.new(0, currentX, 0, 35)
-				}).Completed:Connect(function()
+				}), function()
 					isAnimating = false
 				end)
 			else
 				local restoreX, restoreY = getStoredSize()
-				NAgui.tween(menu, "Quart", "Out", 0.5, {
+				NAgui._menuCompleted(menuConnName, NAgui.tween(menu, "Quart", "Out", 0.5, {
 					Size = UDim2.new(0, restoreX, 0, restoreY)
-				}).Completed:Connect(function()
+				}), function()
 					isAnimating = false
 				end)
 			end
@@ -80966,22 +81148,22 @@ NAgui.menuv2 = function(menu)
 	end
 
 	NACaller(function()
-		MouseButtonFix(minimizeButton, toggleMinimize)
+		NAlib.connect(menuConnName, MouseButtonFix(minimizeButton, toggleMinimize))
 	end)
 
 	NACaller(function()
-		MouseButtonFix(exitButton, function()
+		NAlib.connect(menuConnName, MouseButtonFix(exitButton, function()
 			local ok, err = NACaller(function()
 				menu.Visible = false
 			end)
 			if not ok then warn("menuv2 exit button error:", err) end
-		end)
+		end))
 	end)
 
 	if clearButton then
 		NACaller(function()
 			clearButton.Visible = true
-			MouseButtonFix(clearButton, function()
+			NAlib.connect(menuConnName, MouseButtonFix(clearButton, function()
 				local ok, err = NACaller(function()
 					local customHandlers = NAmanage and NAmanage._menuClearHandlers
 					local customClear = customHandlers and customHandlers[menu]
@@ -81005,7 +81187,7 @@ NAgui.menuv2 = function(menu)
 					end
 				end)
 				if not ok then warn("menuv2 clear button error:", err) end
-			end)
+			end))
 		end)
 	end
 
@@ -81033,6 +81215,21 @@ NAgui.menuv3 = function(menu)
 
 	if translator then
 		translator:attachControls(translateButton, translateInput)
+		local menuConnName = NAgui._getMenuCleanupKey(menu)
+		NAlib.connect(menuConnName, {
+			Connected = true,
+			Disconnect = function(self)
+				self.Connected = false
+				if translator.button == translateButton then
+					translator._buttonConn = NAmanage.tryDisconnect(translator._buttonConn)
+					translator.button = nil
+				end
+				if translator.input == translateInput then
+					translator._inputConn = NAmanage.tryDisconnect(translator._inputConn)
+					translator.input = nil
+				end
+			end
+		})
 	end
 end
 
@@ -87972,8 +88169,9 @@ originalIO.naTransLatooor=function()
 		self.settingsRoot = root
 
 		if button and self.settingsButton ~= button then
+			self._settingsButtonConn = NAmanage.tryDisconnect(self._settingsButtonConn)
 			self.settingsButton = button
-			MouseButtonFix(button, function()
+			self._settingsButtonConn = MouseButtonFix(button, function()
 				local langText = self.settingsInput and self.settingsInput.Text or ""
 				langText = langText:match("^%s*(.-)%s*$") or ""
 				if langText == "" then
@@ -88025,8 +88223,9 @@ originalIO.naTransLatooor=function()
 
 	function translator:attachControls(button, input)
 		if button and self.button ~= button then
+			self._buttonConn = NAmanage.tryDisconnect(self._buttonConn)
 			self.button = button
-			MouseButtonFix(button, function()
+			self._buttonConn = MouseButtonFix(button, function()
 				local nowEnabled = self:toggle()
 				self:updateUI()
 				DebugNotif("Chat translation "..(nowEnabled and "enabled" or "disabled"), 2)
