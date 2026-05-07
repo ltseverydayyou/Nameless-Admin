@@ -12889,6 +12889,69 @@ NAmanage.ApplyUIScale = function(value, opts)
 end
 
 local flingManager = { FlingOldPos = nil; lFlingOldPos = nil; cFlingOldPos = nil; }
+
+flingManager.GetPartVelocity = function(part)
+	local best = Vector3.new()
+	local bestSq = 0
+	if not part then
+		return best, 0
+	end
+
+	local ok, assemblyVel = pcall(function()
+		return part.AssemblyLinearVelocity
+	end)
+	if ok and typeof(assemblyVel) == "Vector3" then
+		best = assemblyVel
+		bestSq = assemblyVel:Dot(assemblyVel)
+	end
+
+	local legacyOk, legacyVel = pcall(function()
+		return part.Velocity
+	end)
+	if legacyOk and typeof(legacyVel) == "Vector3" then
+		local legacySq = legacyVel:Dot(legacyVel)
+		if legacySq > bestSq then
+			best = legacyVel
+			bestSq = legacySq
+		end
+	end
+
+	return best, math.sqrt(bestSq)
+end
+
+flingManager.GetPlayerCharacter = function(plr)
+	if not plr or typeof(plr) ~= "Instance" or not plr:IsA("Player") then
+		return nil
+	end
+
+	local char = plr.Character
+	if char and char.Parent and char:IsDescendantOf(workspace) then
+		return char
+	end
+
+	local names = {}
+	names[plr.Name] = true
+	names[plr.DisplayName] = true
+
+	local function isUsableCharacter(model)
+		if not model or not model:IsA("Model") or not names[model.Name] or not model:IsDescendantOf(workspace) then
+			return false
+		end
+
+		local hum = getPlrHum(model)
+		local root = hum and hum.RootPart or getRoot(model) or model:FindFirstChild("HumanoidRootPart", true)
+		return hum ~= nil and root ~= nil
+	end
+
+	for _, inst in next, workspace:GetDescendants() do
+		if isUsableCharacter(inst) then
+			return inst
+		end
+	end
+
+	return char
+end
+
 local settingsLight = { range = 30; brightness = 1; color = Color3.new(1,1,1); LIGHTER = nil; }
 local events = {
 	"OnSpawn",
@@ -50054,9 +50117,9 @@ end)
 cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(plr)
 	local Players = game:GetService("Players")
 	local LocalPlayer    = Players.LocalPlayer
-	local Character      = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+	local Character      = flingManager.GetPlayerCharacter(LocalPlayer) or LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 	local Humanoid       = getPlrHum(Character)
-	local RootPart       = Humanoid and Humanoid.RootPart
+	local RootPart       = Humanoid and Humanoid.RootPart or getRoot(Character)
 	if not RootPart then return end
 
 	local AllBool = false
@@ -50085,15 +50148,20 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(plr)
 	local OrgDestroyHeight   = workspace.FallenPartsDestroyHeight
 
 	local function SkidFling(TargetPlayer)
-		local Character = LocalPlayer.Character
+		local Character = flingManager.GetPlayerCharacter(LocalPlayer) or LocalPlayer.Character
 		local Humanoid  = getPlrHum(Character)
-		local RootPart  = Humanoid and Humanoid.RootPart
-		local TChar     = TargetPlayer.Character
+		local RootPart  = Humanoid and Humanoid.RootPart or getRoot(Character)
+		local TChar     = flingManager.GetPlayerCharacter(TargetPlayer)
+		if not TChar then return end
 		local THumanoid = getPlrHum(TChar)
-		local TRootPart = THumanoid and THumanoid.RootPart
+		local TRootPart = THumanoid and THumanoid.RootPart or getRoot(TChar)
 		local THead     = getHead(TChar)
 		local Acc       = TChar:FindFirstChildOfClass("Accessory")
 		local Handle    = Acc and Acc:FindFirstChild("Handle")
+		local function targetChangedOrLost(BasePart)
+			local current = flingManager.GetPlayerCharacter(TargetPlayer)
+			return not current or current ~= TChar or not BasePart:IsDescendantOf(current)
+		end
 
 		if Character and Humanoid and RootPart then
 			local flingPart = InstanceNew("Part")
@@ -50116,7 +50184,8 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(plr)
 				end
 			end
 
-			if not flingManager.cFlingOldPos or RootPart.Velocity.Magnitude < 50 then
+			local _, rootSpeed = flingManager.GetPartVelocity(RootPart)
+			if not flingManager.cFlingOldPos or rootSpeed < 50 then
 				flingManager.cFlingOldPos = RootPart.CFrame
 			end
 
@@ -50147,21 +50216,23 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(plr)
 				local Angle      = 0
 				repeat
 					if RootPart and THumanoid then
-						if BasePart.Velocity.Magnitude < 50 then
+						local _, baseSpeed = flingManager.GetPartVelocity(BasePart)
+						if baseSpeed < 50 then
 							Angle = Angle + 100
-							FPos(BasePart, CFrame.new(0,1.5,0) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude/1.25, CFrame.Angles(math.rad(Angle),0,0)) Wait()
-							FPos(BasePart, CFrame.new(0,-1.5,0) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude/1.25, CFrame.Angles(math.rad(Angle),0,0)) Wait()
-							FPos(BasePart, CFrame.new(2.25,1.5,-2.25) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude/1.25, CFrame.Angles(math.rad(Angle),0,0)) Wait()
-							FPos(BasePart, CFrame.new(-2.25,-1.5,2.25) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude/1.25, CFrame.Angles(math.rad(Angle),0,0)) Wait()
+							FPos(BasePart, CFrame.new(0,1.5,0) + THumanoid.MoveDirection * baseSpeed/1.25, CFrame.Angles(math.rad(Angle),0,0)) Wait()
+							FPos(BasePart, CFrame.new(0,-1.5,0) + THumanoid.MoveDirection * baseSpeed/1.25, CFrame.Angles(math.rad(Angle),0,0)) Wait()
+							FPos(BasePart, CFrame.new(2.25,1.5,-2.25) + THumanoid.MoveDirection * baseSpeed/1.25, CFrame.Angles(math.rad(Angle),0,0)) Wait()
+							FPos(BasePart, CFrame.new(-2.25,-1.5,2.25) + THumanoid.MoveDirection * baseSpeed/1.25, CFrame.Angles(math.rad(Angle),0,0)) Wait()
 							FPos(BasePart, CFrame.new(0,1.5,0) + THumanoid.MoveDirection, CFrame.Angles(math.rad(Angle),0,0)) Wait()
 							FPos(BasePart, CFrame.new(0,-1.5,0) + THumanoid.MoveDirection, CFrame.Angles(math.rad(Angle),0,0)) Wait()
 						else
+							local _, targetRootSpeed = flingManager.GetPartVelocity(TRootPart)
 							FPos(BasePart, CFrame.new(0,1.5,THumanoid.WalkSpeed), CFrame.Angles(math.rad(90),0,0)) Wait()
 							FPos(BasePart, CFrame.new(0,-1.5,-THumanoid.WalkSpeed), CFrame.Angles(0,0,0)) Wait()
 							FPos(BasePart, CFrame.new(0,1.5,THumanoid.WalkSpeed), CFrame.Angles(math.rad(90),0,0)) Wait()
-							FPos(BasePart, CFrame.new(0,1.5,TRootPart.Velocity.Magnitude/1.25), CFrame.Angles(math.rad(90),0,0)) Wait()
-							FPos(BasePart, CFrame.new(0,-1.5,-TRootPart.Velocity.Magnitude/1.25), CFrame.Angles(0,0,0)) Wait()
-							FPos(BasePart, CFrame.new(0,1.5,TRootPart.Velocity.Magnitude/1.25), CFrame.Angles(math.rad(90),0,0)) Wait()
+							FPos(BasePart, CFrame.new(0,1.5,targetRootSpeed/1.25), CFrame.Angles(math.rad(90),0,0)) Wait()
+							FPos(BasePart, CFrame.new(0,-1.5,-targetRootSpeed/1.25), CFrame.Angles(0,0,0)) Wait()
+							FPos(BasePart, CFrame.new(0,1.5,targetRootSpeed/1.25), CFrame.Angles(math.rad(90),0,0)) Wait()
 							FPos(BasePart, CFrame.new(0,-1.5,0), CFrame.Angles(math.rad(90),0,0)) Wait()
 							FPos(BasePart, CFrame.new(0,-1.5,0), CFrame.Angles(0,0,0)) Wait()
 							FPos(BasePart, CFrame.new(0,-1.5,0), CFrame.Angles(math.rad(-90),0,0)) Wait()
@@ -50170,11 +50241,8 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(plr)
 					else
 						break
 					end
-				until BasePart.Velocity.Magnitude > 500
-					or BasePart.Parent ~= TargetPlayer.Character
+				until targetChangedOrLost(BasePart)
 					or TargetPlayer.Parent ~= Players
-					or TargetPlayer.Character ~= TChar
-					or THumanoid.Sit
 					or Humanoid.Health <= 0
 					or tick() > Time + TimeToWait
 			end
@@ -52983,13 +53051,13 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 	end
 
 	local function alive()
-		local ch = Player.Character
+		local ch = flingManager.GetPlayerCharacter(Player) or Player.Character
 		if not ch or not ch.Parent then
 			return
 		end
 
 		local hum = getPlrHum(ch)
-		local root = hum and hum.RootPart or getRoot(ch) or ch:FindFirstChild("HumanoidRootPart")
+		local root = hum and hum.RootPart or getRoot(ch) or ch:FindFirstChild("HumanoidRootPart", true)
 
 		if not hum or not root or hum.Health <= 0 then
 			return
@@ -53053,7 +53121,7 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 			return
 		end
 
-		local TCharacter = TargetPlayer.Character
+		local TCharacter = flingManager.GetPlayerCharacter(TargetPlayer)
 		if not TCharacter or not TCharacter.Parent then
 			clean()
 			return
@@ -53064,10 +53132,9 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 		local THead = getHead(TCharacter)
 		local Accessory = TCharacter:FindFirstChildOfClass("Accessory")
 		local Handle = Accessory and Accessory:FindFirstChild("Handle")
-
-		if THumanoid and THumanoid.Sit and not AllBool then
-			clean()
-			return
+		local function targetChangedOrLost(BasePart)
+			local current = flingManager.GetPlayerCharacter(TargetPlayer)
+			return not current or current ~= TCharacter or not BasePart:IsDescendantOf(current)
 		end
 
 		local BaseTarget = nil
@@ -53118,7 +53185,8 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 
 		local oldFdh = workspace.FallenPartsDestroyHeight
 
-		if not flingManager.lFlingOldPos or HRP.Velocity.Magnitude < 50 then
+		local _, rootSpeed = flingManager.GetPartVelocity(HRP)
+		if not flingManager.lFlingOldPos or rootSpeed < 50 then
 			flingManager.lFlingOldPos = HRP.CFrame
 		end
 
@@ -53164,22 +53232,22 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 					break
 				end
 
-				THumanoid = getPlrHum(TargetPlayer.Character)
-				if not THumanoid then
+				local currentTargetCharacter = flingManager.GetPlayerCharacter(TargetPlayer)
+				THumanoid = getPlrHum(currentTargetCharacter)
+				if not THumanoid or not currentTargetCharacter then
 					break
 				end
-
-				TRootPart = THumanoid.RootPart or getRoot(TargetPlayer.Character) or TargetPlayer.Character:FindFirstChild("HumanoidRootPart")
-
-				if BasePart.Velocity.Magnitude < 50 then
+				TRootPart = THumanoid.RootPart or getRoot(currentTargetCharacter) or currentTargetCharacter:FindFirstChild("HumanoidRootPart", true)
+				local _, baseSpeed = flingManager.GetPartVelocity(BasePart)
+				if baseSpeed < 50 then
 					Angle += 100
-					if not FPos(BasePart, CFrame.new(0, 1.5, 0) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0)) then break end
+					if not FPos(BasePart, CFrame.new(0, 1.5, 0) + THumanoid.MoveDirection * baseSpeed / 1.25, CFrame.Angles(math.rad(Angle), 0, 0)) then break end
 					Wait()
-					if not FPos(BasePart, CFrame.new(0, -1.5, 0) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0)) then break end
+					if not FPos(BasePart, CFrame.new(0, -1.5, 0) + THumanoid.MoveDirection * baseSpeed / 1.25, CFrame.Angles(math.rad(Angle), 0, 0)) then break end
 					Wait()
-					if not FPos(BasePart, CFrame.new(2.25, 1.5, -2.25) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0)) then break end
+					if not FPos(BasePart, CFrame.new(2.25, 1.5, -2.25) + THumanoid.MoveDirection * baseSpeed / 1.25, CFrame.Angles(math.rad(Angle), 0, 0)) then break end
 					Wait()
-					if not FPos(BasePart, CFrame.new(-2.25, -1.5, 2.25) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0)) then break end
+					if not FPos(BasePart, CFrame.new(-2.25, -1.5, 2.25) + THumanoid.MoveDirection * baseSpeed / 1.25, CFrame.Angles(math.rad(Angle), 0, 0)) then break end
 					Wait()
 					if not FPos(BasePart, CFrame.new(0, 1.5, 0) + THumanoid.MoveDirection, CFrame.Angles(math.rad(Angle), 0, 0)) then break end
 					Wait()
@@ -53187,7 +53255,7 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 					Wait()
 				else
 					local ws = THumanoid.WalkSpeed
-					local vel = TRootPart and TRootPart.Velocity.Magnitude or BasePart.Velocity.Magnitude
+					local _, vel = flingManager.GetPartVelocity(TRootPart or BasePart)
 					if not FPos(BasePart, CFrame.new(0, 1.5, ws), CFrame.Angles(math.rad(90), 0, 0)) then break end
 					Wait()
 					if not FPos(BasePart, CFrame.new(0, -1.5, -ws), CFrame.Angles(0, 0, 0)) then break end
@@ -53211,11 +53279,8 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 				end
 			until not Loopvoid
 				or id ~= LOOPFLING_ID
-				or BasePart.Velocity.Magnitude > 500
-				or BasePart.Parent ~= TargetPlayer.Character
+				or targetChangedOrLost(BasePart)
 				or TargetPlayer.Parent ~= Players
-				or TargetPlayer.Character ~= TCharacter
-				or THumanoid.Sit
 				or not alive()
 				or tick() > Time + TimeToWait
 		end
