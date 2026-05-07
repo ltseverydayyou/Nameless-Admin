@@ -32501,6 +32501,26 @@ NAmanage.RunSmokeRepo = NAmanage.RunSmokeRepo or function(fileName)
 	if clean == "" then
 		return
 	end
+	if type(IsR6) == "function" and not IsR6() then
+		DoNotif("Smoke commands require R6.", 3)
+		return
+	end
+	local char = LocalPlayer and LocalPlayer.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid",true)
+	local torso = char and char:FindFirstChild("Torso",true)
+	if hum and torso and (not torso:FindFirstChild("Left Shoulder",true) or not torso:FindFirstChild("Right Shoulder",true)) then
+		pcall(function()
+			hum:UnequipTools()
+		end)
+		local deadline = os.clock() + 1.5
+		repeat
+			task.wait()
+		until (torso:FindFirstChild("Left Shoulder",true) and torso:FindFirstChild("Right Shoulder",true)) or os.clock() >= deadline
+	end
+	if torso and (not torso:FindFirstChild("Left Shoulder",true) or not torso:FindFirstChild("Right Shoulder",true)) then
+		DoNotif("Wait for your current smoke tool to unequip, then try again.", 3)
+		return
+	end
 	local url = "https://raw.githubusercontent.com/ltseverydayyou/NA-Plugins/main/"..clean
 	local ok, err = pcall(function()
 		loadstring(game:HttpGet(url))()
