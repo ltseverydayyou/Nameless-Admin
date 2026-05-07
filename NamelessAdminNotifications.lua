@@ -679,7 +679,7 @@ function NotifFuns.getStack(key)
 end
 getStack = NotifFuns.getStack
 
-local gSzCon, gDeadCon
+local gSzCon, gDeadCon, gBoundGui
 
 function NotifFuns.onGuiSize()
 	for k, f in pairs(stacks) do
@@ -706,6 +706,9 @@ end
 onGuiSize = NotifFuns.onGuiSize
 
 function NotifFuns.bindGui()
+	if gui and gBoundGui == gui and gSzCon and gSzCon.Connected and gDeadCon and gDeadCon.Connected then
+		return
+	end
 	if gSzCon and gSzCon.Connected then
 		gSzCon:Disconnect()
 	end
@@ -714,12 +717,15 @@ function NotifFuns.bindGui()
 	end
 	gSzCon = nil
 	gDeadCon = nil
+	gBoundGui = nil
 	if not gui then
 		return
 	end
+	gBoundGui = gui
 	gSzCon = gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(onGuiSize)
 	gDeadCon = gui.Destroying:Connect(function()
 		gui = nil
+		gBoundGui = nil
 		stacks = {}
 	end)
 end
@@ -863,8 +869,12 @@ function NotifFuns.addTween(obj, tween)
 				st.connections[doneConn] = nil
 			end
 		end
-		if doneConn and doneConn.Connected then
-			doneConn:Disconnect()
+		if doneConn then
+			pcall(function()
+				if doneConn.Connected then
+					doneConn:Disconnect()
+				end
+			end)
 		end
 		doneConn = nil
 	end)
@@ -1658,7 +1668,16 @@ function NotifFuns.attachTimer(card, fil, dur)
 		tn = tw:Create(fil, TweenInfo.new(d, Enum.EasingStyle.Linear, Enum.EasingDirection.Out), {
 			Size = UDim2.new(0, 0, 1, 0)
 		})
-		addConnection(fil, tn.Completed:Connect(function()
+		local doneConn
+		doneConn = addConnection(fil, tn.Completed:Connect(function()
+			if doneConn then
+				local sf = ctxMap[fil]
+				if sf and sf.connections then
+					sf.connections[doneConn] = nil
+				end
+				pcall(function() doneConn:Disconnect() end)
+				doneConn = nil
+			end
 			if not ext and (not hov) and fil.Size.X.Scale <= 0.001 and (not s.closing) then
 				closeCard()
 			end
@@ -1907,8 +1926,28 @@ function NotifFuns.mkBtnArea(cntObj, list, owner, z, maxH, font)
 		lb.TextXAlignment = hasIcon and Enum.TextXAlignment.Left or Enum.TextXAlignment.Center
 		lb.Size = UDim2.new(1, hasIcon and (isMobile and -36 or -32) or 0, 1, 0)
 		lb.Parent = b
-		local function setSel(on)
+		local function setSel(on, instant)
 			b:SetAttribute("sel", on)
+			if instant then
+				if on then
+					b.BackgroundColor3 = TH.BtnSel
+					b.BackgroundTransparency = 0
+					st.Transparency = 0.7
+					lb.TextColor3 = TH.Bg
+					if hasIcon then
+						ic.ImageColor3 = TH.Bg
+					end
+				else
+					b.BackgroundColor3 = TH.Btn
+					b.BackgroundTransparency = 1
+					st.Transparency = 0.92
+					lb.TextColor3 = TH.Txt
+					if hasIcon then
+						ic.ImageColor3 = TH.Txt
+					end
+				end
+				return
+			end
 			if on then
 				tw:Create(b, TweenInfo.new(0.12), {
 					BackgroundColor3 = TH.BtnSel,
@@ -1947,7 +1986,7 @@ function NotifFuns.mkBtnArea(cntObj, list, owner, z, maxH, font)
 			info = info,
 			set = setSel
 		}
-		setSel(false)
+		setSel(false, true)
 		addConnection(b, b.MouseEnter:Connect(function()
 			if b:GetAttribute("sel") then
 				return
@@ -2065,14 +2104,6 @@ end
 notifyStackKey = NotifFuns.notifyStackKey
 
 function NotifFuns.appear(card, sc, st, tgt, from, cntObj)
-	walkDescImpl(cntObj, function(d)
-		if d:IsA("TextLabel") or d:IsA("TextButton") or d:IsA("TextBox") then
-			d.TextTransparency = 1
-		end
-		if d:IsA("ImageLabel") then
-			d.ImageTransparency = 1
-		end
-	end, 120)
 	local bs = (ctx(card).baseScale) or (isMobile and mobScale() or 1)
 	card.Rotation = from.rot or -1.5
 	card.BackgroundTransparency = 1
@@ -2106,23 +2137,12 @@ function NotifFuns.appear(card, sc, st, tgt, from, cntObj)
 	addTween(card, t2)
 	addTween(card, t3)
 	task.delay(0.18, function()
+		if not (card and card.Parent) then
+			return
+		end
 		local t4 = tw:Create(sc, tB, { Scale = bs })
 		t4:Play()
 		addTween(card, t4)
-	end)
-	task.delay(0.05, function()
-		local tC = TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-		walkDescImpl(cntObj, function(d)
-			if d:IsA("TextLabel") or d:IsA("TextButton") or d:IsA("TextBox") then
-				local t = tw:Create(d, tC, { TextTransparency = 0 })
-				t:Play()
-				addTween(card, t)
-			elseif d:IsA("ImageLabel") then
-				local t = tw:Create(d, tC, { ImageTransparency = 0 })
-				t:Play()
-				addTween(card, t)
-			end
-		end, 120)
 	end)
 end
 appear = NotifFuns.appear
@@ -2339,6 +2359,7 @@ function NotifFuns.build(kind, p)
 		local rootObj = grp
 		grp = nil
 		if rootObj and rootObj.Parent then
+			cleanup(rootObj)
 			pcall(function()
 				rootObj:Destroy()
 			end)
