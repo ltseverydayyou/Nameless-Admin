@@ -83892,7 +83892,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	local actionLayout = InstanceNew("UIGridLayout")
 	actionLayout.CellPadding = UDim2.new(0, 6, 0, 0)
 	local hasClipboardPaste = type(getclipboard) == "function"
-	local actionButtonCount = hasClipboardPaste and 8 or 7
+	local actionButtonCount = hasClipboardPaste and 9 or 8
 	actionLayout.CellSize = UDim2.new(1 / actionButtonCount, -6, 1, 0)
 	actionLayout.FillDirectionMaxCells = actionButtonCount
 	actionLayout.SortOrder = Enum.SortOrder.LayoutOrder
@@ -83901,6 +83901,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	local executeButton = makeButton(actions, "Execute", colors.tabActive)
 	local clearButton = makeButton(actions, "Clear", colors.panel3)
 	local copyButton = makeButton(actions, "Copy", colors.panel3)
+	local newLineButton = makeButton(actions, "New Line", colors.panel3)
 	local pasteButton = hasClipboardPaste and makeButton(actions, "Paste from Clipboard", colors.panel3) or nil
 	if pasteButton then
 		pasteButton.TextSize = 10
@@ -84076,7 +84077,9 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	local editorRenderedText = ""
 	local editorRenderedStart = 1
 	local editorRenderedEnd = 1
+	local editorLastCursorPosition = 1
 	local commitCurrentPage
+	local queueRefreshEditor
 
 	local function showPrompt(title, initialText, callback)
 		promptTitle.Text = title or "Name"
@@ -84250,6 +84253,29 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		beginEditorTextSet()
 		textBox.Text = tostring(text or "")
 		finishEditorTextSet()
+	end
+
+	local function insertEditorNewLine()
+		local currentText = tostring(textBox.Text or "")
+		local cursor = tonumber(textBox.CursorPosition) or -1
+		local selectionStart = tonumber(textBox.SelectionStart) or -1
+		if cursor <= 0 then
+			cursor = tonumber(editorLastCursorPosition) or (#currentText + 1)
+		end
+		cursor = math.clamp(cursor, 1, #currentText + 1)
+
+		local startPos = cursor
+		local endPos = cursor - 1
+		if selectionStart > 0 and selectionStart ~= cursor then
+			startPos = math.clamp(math.min(selectionStart, cursor), 1, #currentText + 1)
+			endPos = math.clamp(math.max(selectionStart, cursor) - 1, 0, #currentText)
+		end
+
+		setEditorBoxText(currentText:sub(1, startPos - 1).."\n"..currentText:sub(endPos + 1))
+		editorLastCursorPosition = math.clamp(startPos + 1, 1, #textBox.Text + 1)
+		commitCurrentPage(true)
+		scheduleTabsSave()
+		queueRefreshEditor()
 	end
 
 	commitCurrentPage = function(skipSave)
@@ -84564,7 +84590,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		gutterLabel.Position = UDim2.new(1, -6, 0, 0)
 	end
 
-	local function queueRefreshEditor()
+	queueRefreshEditor = function()
 		if refreshQueued then
 			return
 		end
@@ -84771,7 +84797,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			btn.Size = UDim2.new(1, 0, 0, compact and 22 or 26)
 			btn.TextSize = compact and 11 or 13
 		end
-		local actionButtons = { executeButton, clearButton, copyButton }
+		local actionButtons = { executeButton, clearButton, copyButton, newLineButton }
 		if pasteButton then
 			actionButtons[#actionButtons + 1] = pasteButton
 		end
@@ -85173,6 +85199,12 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		end
 		queueRefreshEditor()
 	end)
+	textBox:GetPropertyChangedSignal("CursorPosition"):Connect(function()
+		local cursor = tonumber(textBox.CursorPosition) or -1
+		if cursor > 0 then
+			editorLastCursorPosition = cursor
+		end
+	end)
 	textBox.FocusLost:Connect(function()
 		if editorLoaded and type(saveTabsNow) == "function" then
 			saveTabsNow()
@@ -85246,6 +85278,9 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		else
 			setStatus("Clipboard unavailable", colors.error)
 		end
+	end)
+	newLineButton.MouseButton1Click:Connect(function()
+		insertEditorNewLine()
 	end)
 	if pasteButton then
 		pasteButton.MouseButton1Click:Connect(function()
