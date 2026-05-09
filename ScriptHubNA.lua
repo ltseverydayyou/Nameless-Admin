@@ -773,11 +773,28 @@ local function isMeaningfulImageUrl(url)
 	end;
 	return true;
 end;
+local function robloxApiUrls(url)
+	local subdomain, path = tostring(url):match("^https?://([%w%-]+)%.roblox%.com(/.*)$");
+	if not subdomain then
+		subdomain, path = tostring(url):match("^https?://([%w%-]+)%.roproxy%.com(/.*)$");
+	end;
+	if not subdomain then
+		subdomain, path = tostring(url):match("^https?://([%w%-]+)%.rotunnel%.com(/.*)$");
+	end;
+	if not subdomain or not path then
+		return {url};
+	end;
+	return {
+		"https://" .. subdomain .. ".roproxy.com" .. path,
+		"https://" .. subdomain .. ".rotunnel.com" .. path,
+		"https://" .. subdomain .. ".roblox.com" .. path
+	};
+end;
 local function httpGetBinary(url, headers)
 	if type(url) ~= "string" or url == "" then
 		return nil;
 	end;
-	local function tryRequest(customHeaders, tag)
+	local function tryRequest(targetUrl, customHeaders, tag)
 		if type(rq) ~= "function" then
 			return nil;
 		end;
@@ -790,7 +807,7 @@ local function httpGetBinary(url, headers)
 		hdr["User-Agent"] = hdr["User-Agent"] or "Roblox/Http/1.1";
 		hdr.Accept = hdr.Accept or "*/*";
 		local okReq, res = pcall(rq, {
-			Url = url,
+			Url = targetUrl,
 			Method = "GET",
 			Headers = hdr
 		});
@@ -805,19 +822,21 @@ local function httpGetBinary(url, headers)
 		end;
 		return nil;
 	end;
-	local data = tryRequest(headers, "rq1");
-	if not (type(data) == "string" and data ~= "") then
-		local okDirect, direct = pcall(function()
-			return game:HttpGet(url);
-		end);
-		if okDirect and type(direct) == "string" and direct ~= "" then
-			data = direct;
-		else
-			data = tryRequest(nil, "rq2");
+	for _, targetUrl in ipairs(robloxApiUrls(url)) do
+		local data = tryRequest(targetUrl, headers, "rq1");
+		if not (type(data) == "string" and data ~= "") then
+			local okDirect, direct = pcall(function()
+				return game:HttpGet(targetUrl);
+			end);
+			if okDirect and type(direct) == "string" and direct ~= "" then
+				data = direct;
+			else
+				data = tryRequest(targetUrl, nil, "rq2");
+			end;
 		end;
-	end;
-	if type(data) == "string" and data ~= "" then
-		return data;
+		if type(data) == "string" and data ~= "" then
+			return data;
+		end;
 	end;
 	return nil;
 end;

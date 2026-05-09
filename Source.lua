@@ -12932,6 +12932,86 @@ flingManager.GetPlayerCharacter = function(plr)
 	return char
 end
 
+NAmanage.GetRobloxApiUrls = function(url)
+	if type(url) ~= "string" or url == "" then
+		return {}
+	end
+
+	local subdomain, path = url:match("^https?://([%w%-]+)%.roblox%.com(/.*)$")
+	if not subdomain then
+		subdomain, path = url:match("^https?://([%w%-]+)%.roproxy%.com(/.*)$")
+	end
+	if not subdomain then
+		subdomain, path = url:match("^https?://([%w%-]+)%.rotunnel%.com(/.*)$")
+	end
+	if not subdomain or not path then
+		return { url }
+	end
+
+	return {
+		"https://"..subdomain..".roproxy.com"..path,
+		"https://"..subdomain..".rotunnel.com"..path,
+		"https://"..subdomain..".roblox.com"..path,
+	}
+end
+
+NAmanage.FetchRobloxApiBody = function(url, opts)
+	opts = opts or {}
+	local method = opts.Method or opts.method or "GET"
+	local body = opts.Body or opts.body
+	local headers = opts.Headers or opts.headers or { Accept = "application/json" }
+	local timeout = opts.Timeout or opts.timeout or 5
+	local req = opt and opt.NAREQUEST
+
+	for _, apiUrl in ipairs(NAmanage.GetRobloxApiUrls(url)) do
+		if type(req) == "function" then
+			local okReq, resp = pcall(req, {
+				Url = apiUrl,
+				Method = method,
+				Headers = headers,
+				Body = body,
+				Timeout = timeout,
+				FollowRedirects = true,
+				SslVerify = false,
+			})
+			if okReq and resp then
+				if type(resp) == "string" and resp ~= "" then
+					return resp, apiUrl
+				end
+				local status = tonumber(resp.StatusCode or resp.Status or 200) or 200
+				local text = resp.Body or resp.body or resp.Data or resp.data or resp.Text or resp.text or resp.Content or resp.content or resp.ResponseBody
+				if status >= 200 and status < 300 and type(text) == "string" and text ~= "" then
+					return text, apiUrl
+				end
+			end
+		end
+
+		if method == "GET" then
+			local okGet, text = pcall(function()
+				return game:HttpGet(apiUrl)
+			end)
+			if okGet and type(text) == "string" and text ~= "" then
+				return text, apiUrl
+			end
+		end
+	end
+
+	return nil, nil
+end
+
+NAmanage.FetchRobloxApiJSON = function(url, opts)
+	local body = NAmanage.FetchRobloxApiBody(url, opts)
+	if type(body) ~= "string" or body == "" or not HttpService or not HttpService.JSONDecode then
+		return nil
+	end
+
+	local ok, decoded = pcall(HttpService.JSONDecode, HttpService, body)
+	if ok and type(decoded) == "table" then
+		return decoded
+	end
+	return nil
+end
+
 local settingsLight = { range = 30; brightness = 1; color = Color3.new(1,1,1); LIGHTER = nil; }
 local events = {
 	"OnSpawn",
@@ -13286,17 +13366,7 @@ NAmanage.GetBasicInfoSnapshot = function()
 
 			SpawnCall(function()
 				local url = "https://games.roblox.com/v1/games?universeIds="..tostring(universeId)
-				local body
-
-				local okBody, result = pcall(game.HttpGet, game, url)
-				if okBody and type(result) == "string" then
-					body = result
-				elseif type(opt.NAREQUEST) == "function" then
-					local okReq, resp = pcall(opt.NAREQUEST, { Url = url, Method = "GET" })
-					if okReq and type(resp) == "table" then
-						body = resp.Body or resp.body or resp.ResponseBody
-					end
-				end
+				local body = NAmanage.FetchRobloxApiBody(url, { Timeout = 5 })
 
 				if type(body) == "string" and body ~= "" and HttpService and HttpService.JSONDecode then
 					local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, body)
@@ -13419,17 +13489,7 @@ NAmanage.prefetchRobloxGameInfo = function()
 		local fetchUniverseId = universeId
 		SpawnCall(function()
 			local url = "https://games.roblox.com/v1/games?universeIds="..tostring(fetchUniverseId)
-			local body
-
-			local okBody, result = pcall(game.HttpGet, game, url)
-			if okBody and type(result) == "string" then
-				body = result
-			elseif type(opt.NAREQUEST) == "function" then
-				local okReq, resp = pcall(opt.NAREQUEST, { Url = url, Method = "GET" })
-				if okReq and type(resp) == "table" then
-					body = resp.Body or resp.body or resp.ResponseBody
-				end
-			end
+			local body = NAmanage.FetchRobloxApiBody(url, { Timeout = 5 })
 
 			if type(body) == "string" and body ~= "" and HttpService and HttpService.JSONDecode then
 				local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, body)
@@ -45919,13 +45979,13 @@ NAStuff.srv = NAStuff.srv or {}
 
 NAStuff.srvWorker = NAStuff.srvWorker or "https://solaraserverhop.ltseverydayyou.workers.dev"
 
-NAStuff.srv.b = NAStuff.srv.b or {
-	"https://games.roblox.com",
+NAStuff.srv.b = {
 	"https://games.roproxy.com",
-	"https://roxytheproxy.com/games.roblox.com",
+	"https://games.rotunnel.com",
+	"https://games.roblox.com",
 }
 
-NAStuff.srv.j = NAStuff.srv.j or function(self, s)
+NAStuff.srv.j = function(self, s)
 	if type(s) ~= "string" or #s == 0 then
 		return nil
 	end
@@ -45938,18 +45998,47 @@ NAStuff.srv.j = NAStuff.srv.j or function(self, s)
 	return nil
 end
 
-NAStuff.srv.pg = NAStuff.srv.pg or function(self, cid)
-	local q = "?sortOrder=Asc&limit=100"
+NAStuff.srv.get = function(self, url)
+	local req = opt and opt.NAREQUEST
+	if type(req) == "function" then
+		local ok, res = pcall(req, {
+			Url = url,
+			Method = "GET",
+			Headers = { Accept = "application/json" },
+			Timeout = 4,
+			FollowRedirects = true,
+			SslVerify = false,
+		})
+		if ok and res then
+			if type(res) == "string" then
+				return res
+			end
+			local body = res.Body or res.body or res.Data or res.data or res.Text or res.text or res.Content or res.content
+			if type(body) == "string" and #body > 0 then
+				return body
+			end
+		end
+	end
+
+	local ok, body = pcall(function()
+		return game:HttpGet(url)
+	end)
+	if ok and type(body) == "string" and #body > 0 then
+		return body
+	end
+end
+
+NAStuff.srv.pg = function(self, cid, mode)
+	local sortOrder = mode == "high" and "Desc" or "Asc"
+	local q = "?sortOrder="..sortOrder.."&excludeFullGames=true&limit=100"
 	if cid and cid ~= "" then
 		q = q.."&cursor="..HttpService:UrlEncode(cid)
 	end
 
 	for _, b in ipairs(self.b) do
 		local url = b.."/v1/games/"..tostring(PlaceId).."/servers/Public"..q
-		local ok, body = pcall(function()
-			return game:HttpGet(url)
-		end)
-		if ok and type(body) == "string" and #body > 0 then
+		local body = self:get(url)
+		if type(body) == "string" and #body > 0 then
 			local js = self:j(body)
 			if type(js) == "table" and type(js.data) == "table" then
 				return js.data, js.nextPageCursor
@@ -45958,15 +46047,14 @@ NAStuff.srv.pg = NAStuff.srv.pg or function(self, cid)
 	end
 
 	local wq = "placeId="..tostring(PlaceId)
+	wq = wq.."&sortOrder="..HttpService:UrlEncode(sortOrder).."&excludeFullGames=true"
 	if cid and cid ~= "" then
 		wq = wq.."&cursor="..HttpService:UrlEncode(cid)
 	end
 
 	local wurl = NAStuff.srvWorker.."/servers?"..wq
-	local wok, wbody = pcall(function()
-		return game:HttpGet(wurl)
-	end)
-	if wok and type(wbody) == "string" and #wbody > 0 then
+	local wbody = self:get(wurl)
+	if type(wbody) == "string" and #wbody > 0 then
 		local ok2, js = pcall(function()
 			return HttpService:JSONDecode(wbody)
 		end)
@@ -45978,13 +46066,14 @@ NAStuff.srv.pg = NAStuff.srv.pg or function(self, cid)
 	return nil, nil
 end
 
-NAStuff.srv.scan = NAStuff.srv.scan or function(self, mode)
+NAStuff.srv.scan = function(self, mode)
 	local id, bp, bg = nil, nil, nil
 	local cid, pgc = nil, 0
+	local maxPages = mode == "ping" and 4 or 2
 
-	while pgc < 8 do
+	while pgc < maxPages do
 		pgc += 1
-		local dat, nxt = self:pg(cid)
+		local dat, nxt = self:pg(cid, mode)
 		if type(dat) ~= "table" then
 			break
 		end
@@ -46011,6 +46100,10 @@ NAStuff.srv.scan = NAStuff.srv.scan or function(self, mode)
 					end
 				end
 			end
+		end
+
+		if id and mode ~= "ping" then
+			break
 		end
 
 		if not nxt or nxt == "" then
@@ -48483,79 +48576,112 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		OWNERSHIP_CACHE[userId][badgeId] = { v = value, t = os.time() }
 	end
 
-	local function hasBadgeWithRetry(userId, badgeId)
-		local cached = cacheGet(userId, badgeId)
-		if cached ~= nil then
-			return true, cached
-		end
-		local tries, delay = 0, 0.5
-		while tries < 5 do
-			tries += 1
-			local ok, has = pcall(BadgeService.UserHasBadgeAsync, BadgeService, userId, badgeId)
-			if ok then
-				has = has == true
-				cachePut(userId, badgeId, has)
-				return true, has
-			end
-			Wait(delay)
-			delay = delay * 1.6
-		end
-		return false, nil
-	end
+	local function checkBadgesViaAwardedDates(userId, badgeIds)
+		local pending = {}
+		local results = {}
 
-	local function checkBadgesBatchWithRetry(userId, badgeIds)
-		local canBatch = type(BadgeService.CheckUserBadgesAsync) == "function"
-		if canBatch then
-			local tries, delay = 0, 1
-			while tries < 4 do
-				tries += 1
-				local ok, ownedIds = pcall(BadgeService.CheckUserBadgesAsync, BadgeService, userId, badgeIds)
-				if ok then
-					local results = {}
-					for _, badgeId in ipairs(badgeIds) do
-						results[badgeId] = false
-					end
-					for _, ownedId in ipairs(ownedIds or {}) do
-						results[ownedId] = true
-						cachePut(userId, ownedId, true)
-					end
-					for _, badgeId in ipairs(badgeIds) do
-						if results[badgeId] ~= true then
-							cachePut(userId, badgeId, false)
-						end
-					end
-					return true, results
-				end
-				Wait(delay)
-				delay = math.min(delay * 1.8, 8)
+		for _, badgeId in ipairs(badgeIds) do
+			local cached = cacheGet(userId, badgeId)
+			if cached ~= nil then
+				results[badgeId] = cached
+			else
+				results[badgeId] = false
+				Insert(pending, badgeId)
 			end
+		end
+
+		if #pending == 0 then
+			return true, results
+		end
+
+		local queryIds = {}
+		for _, badgeId in ipairs(pending) do
+			Insert(queryIds, tostring(badgeId))
+		end
+
+		local url = ("https://badges.roblox.com/v1/users/%d/badges/awarded-dates?badgeIds=%s"):format(
+			tonumber(userId) or 0,
+			HttpService:UrlEncode(table.concat(queryIds, ","))
+		)
+		local data = NAmanage.FetchRobloxApiJSON(url, { Timeout = 6 })
+		if type(data) ~= "table" or type(data.data) ~= "table" then
 			return false, nil
 		end
 
-		local anySuccess = false
-		local results = {}
-		for _, badgeId in ipairs(badgeIds) do
-			local ok, has = hasBadgeWithRetry(userId, badgeId)
-			if ok then
-				anySuccess = true
-				results[badgeId] = has
-			else
-				results[badgeId] = nil
+		for _, entry in ipairs(data.data) do
+			local badgeId = tonumber(entry and (entry.badgeId or entry.id))
+			if badgeId then
+				results[badgeId] = true
 			end
 		end
-		return anySuccess, results
+
+		for _, badgeId in ipairs(pending) do
+			cachePut(userId, badgeId, results[badgeId] == true)
+		end
+
+		return true, results
+	end
+
+	local function checkBadgesBatchWithRetry(userId, badgeIds)
+		local okApi, apiResults = checkBadgesViaAwardedDates(userId, badgeIds)
+		if okApi and apiResults then
+			return true, apiResults
+		end
+
+		if type(BadgeService.CheckUserBadgesAsync) ~= "function" then
+			return false, nil
+		end
+
+		local results = {}
+		for _, badgeId in ipairs(badgeIds) do
+			results[badgeId] = false
+		end
+
+		local processedAny = false
+		for startIndex = 1, #badgeIds, 10 do
+			local chunk = {}
+			for i = startIndex, math.min(startIndex + 9, #badgeIds) do
+				Insert(chunk, badgeIds[i])
+			end
+
+			local tries, delay = 0, 1
+			local chunkOk = false
+			while tries < 3 do
+				tries += 1
+				local ok, ownedIds = pcall(BadgeService.CheckUserBadgesAsync, BadgeService, userId, chunk)
+				if ok then
+					for _, ownedId in ipairs(ownedIds or {}) do
+						results[ownedId] = true
+					end
+					chunkOk = true
+					processedAny = true
+					break
+				end
+				Wait(delay)
+				delay = math.min(delay * 1.8, 6)
+			end
+
+			if not chunkOk then
+				return false, nil
+			end
+		end
+
+		for _, badgeId in ipairs(badgeIds) do
+			cachePut(userId, badgeId, results[badgeId] == true)
+		end
+
+		return processedAny, results
 	end
 
 	local function getBadges()
 		local all, cursor = {}, ""
 		repeat
-			local url = ("https://badges.roproxy.com/v1/universes/%d/badges?limit=100&sortOrder=Asc%s"):format(
+			local url = ("https://badges.roblox.com/v1/universes/%d/badges?limit=100&sortOrder=Asc%s"):format(
 				GameId,
 				cursor ~= "" and "&cursor="..HttpService:UrlEncode(cursor) or ""
 			)
-			local res = opt.NAREQUEST({Url = url, Method = "GET"})
-			if not res or res.StatusCode ~= 200 then break end
-			local body = HttpService:JSONDecode(res.Body)
+			local body = NAmanage.FetchRobloxApiJSON(url, { Timeout = 5 })
+			if type(body) ~= "table" then break end
 			for _, b in ipairs(body.data or {}) do
 				Insert(all, {
 					id = b.id,
@@ -49359,7 +49485,7 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 				refreshBtn.Active = true
 				return
 			end
-			local batchSize = type(BadgeService.CheckUserBadgesAsync) == "function" and 10 or 1
+			local batchSize = 50
 
 			Spawn(function()
 				local processed = 0
@@ -50586,16 +50712,13 @@ NAmanage._resolveFaceTextureFromAsset=function(faceId)
 	return fallback
 end
 NAmanage._avatarHttpJSON=function(method,url,body)
-	local req=opt and opt.NAREQUEST
-	if type(req)~="function" then return nil end
 	local payload=nil
 	if body~=nil then
 		local okEncode,encoded=pcall(HttpService.JSONEncode,HttpService,body)
 		if not okEncode or type(encoded)~="string" then return nil end
 		payload=encoded
 	end
-	local okResp,resp=pcall(req,{
-		Url=url,
+	local text=NAmanage.FetchRobloxApiBody(url,{
 		Method=method or"GET",
 		Headers={
 			Accept="application/json",
@@ -50606,12 +50729,8 @@ NAmanage._avatarHttpJSON=function(method,url,body)
 		},
 		Body=payload,
 		Timeout=5,
-		FollowRedirects=true,
 	})
-	if not okResp or not resp then return nil end
-	local status=resp.StatusCode or resp.Status or 0
-	local text=resp.Body or resp.body
-	if status~=200 or type(text)~="string" or text=="" then return nil end
+	if type(text)~="string" or text=="" then return nil end
 	local okDecode,decoded=pcall(HttpService.JSONDecode,HttpService,text)
 	if not okDecode then return nil end
 	return decoded
@@ -51267,9 +51386,6 @@ NAmanage._resolveHumanoidDescription=function(target)
 	if not avatarData then
 		avatarData=NAmanage._avatarHttpJSON("GET",Format("https://avatar.roblox.com/v2/avatar/users/%d/avatar",userId))
 	end
-	if not avatarData then
-		avatarData=NAmanage._avatarHttpJSON("GET",Format("https://avatar.roproxy.com/v1/users/%d/avatar",userId))
-	end
 	if not avatarData then return nil end
 	local builtDesc=NAmanage._buildHumanoidDescriptionFromAvatar(avatarData)
 	if not builtDesc then return nil end
@@ -51565,9 +51681,9 @@ NAmanage._fetchUserOutfits=function(userId)
 	local uid=tonumber(userId)
 	if not uid or uid<=0 then return nil,"Couldn't resolve user" end
 	local candidates={
-		"https://avatar.roblox.com/v1/users/%d/outfits?itemsPerPage=50%s",
 		"https://avatar.roproxy.com/v1/users/%d/outfits?itemsPerPage=50%s",
-		"https://avatar.rprxy.xyz/v1/users/%d/outfits?itemsPerPage=50%s",
+		"https://avatar.rotunnel.com/v1/users/%d/outfits?itemsPerPage=50%s",
+		"https://avatar.roblox.com/v1/users/%d/outfits?itemsPerPage=50%s",
 	}
 	local softFailure=nil
 	for _,base in ipairs(candidates)do
@@ -53510,8 +53626,8 @@ cmd.add({"freegamepass", "freegp"},{"freegamepass (freegp)", "Pretends you own e
 		local result = {}
 
 		pcall(function()
-			local raw = game:HttpGet(Format("https://apis.roblox.com/game-passes/v1/universes/%s/game-passes?passView=Full&pageSize=100", tostring(GameId)))
-			local decoded = HttpService:JSONDecode(raw)
+			local decoded = NAmanage.FetchRobloxApiJSON(Format("https://apis.roblox.com/game-passes/v1/universes/%s/game-passes?passView=Full&pageSize=100", tostring(GameId)), { Timeout = 5 })
+			if type(decoded) ~= "table" then return end
 
 			for _, gamepass in next, decoded.gamePasses do
 				Insert(result, gamepass.id)
@@ -55386,11 +55502,8 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 					url=Format("%s&pageToken=%s",base,tostring(nextToken))
 				end
 
-				local ok,decoded=pcall(function()
-					return HttpService:JSONDecode(game:HttpGet(url))
-				end)
-
-				if not ok or type(decoded)~="table" then
+				local decoded=NAmanage.FetchRobloxApiJSON(url, { Timeout = 5 })
+				if type(decoded)~="table" then
 					return nil,"Failed to decode API response"
 				end
 
@@ -55835,11 +55948,8 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 					url=Format("%s&pageToken=%s",base,tostring(nextToken))
 				end
 
-				local ok, decoded=pcall(function()
-					return HttpService:JSONDecode(game:HttpGet(url))
-				end)
-
-				if not ok or type(decoded)~="table" then
+				local decoded=NAmanage.FetchRobloxApiJSON(url, { Timeout = 5 })
+				if type(decoded)~="table" then
 					return nil, "Failed to decode API response"
 				end
 
