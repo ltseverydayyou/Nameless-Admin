@@ -36101,16 +36101,31 @@ if IsOnMobile then
 		local target = args[1]
 		local buttons = originalIO.screenOrientationButtons()
 		if target and target ~= "" then
-			local found = false
+			local q = Lower(tostring(target))
+			local hit
+			local hits = {}
 			for _, btn in ipairs(buttons) do
-				if Match(Lower(btn.Text), Lower(target)) then
-					btn.Callback()
-					DebugNotif("ScreenOrientation set to "..btn.Text, 3)
-					found = true
+				if Lower(btn.Text) == q then
+					hit = btn
 					break
 				end
+				if Find(Lower(btn.Text), q, 1, true) then
+					Insert(hits, btn)
+				end
 			end
-			if not found then
+			if not hit and #hits == 1 then
+				hit = hits[1]
+			end
+			if hit then
+				hit.Callback()
+				DebugNotif("ScreenOrientation set to "..hit.Text, 3)
+			elseif #hits > 1 then
+				local names = {}
+				for i = 1, #hits do
+					names[i] = hits[i].Text
+				end
+				DebugNotif("Multiple ScreenOrientation matches: "..Concat(names, ", "), 3)
+			else
 				DebugNotif("No matching ScreenOrientation for: "..tostring(target), 3)
 			end
 		else
