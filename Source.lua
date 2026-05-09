@@ -39529,29 +39529,38 @@ end)
 
 cmd.add({"strengthen"},{"strengthen","Makes your character more dense (CustomPhysicalProperties)"},function(...)
 	local args={...}
+	local density = math.clamp(tonumber(args[1]) or 100, 0.01, 100)
 	for _,child in pairs(NAmanage.qDesc(getChar(), "BasePart")) do
-		if args[1] then
-			child.CustomPhysicalProperties=PhysicalProperties.new(args[1],0.3,0.5)
-		else
-			child.CustomPhysicalProperties=PhysicalProperties.new(100,0.3,0.5)
-		end
+		pcall(function()
+			child.CustomPhysicalProperties=PhysicalProperties.new(density,0.3,0.5)
+		end)
+	end
+	if NAmanage.RebuildVelocityWalkSpeedHelper then
+		NAmanage.RebuildVelocityWalkSpeedHelper()
 	end
 end,true)
 
 cmd.add({"unweaken","unstrengthen"},{"unweaken (unstrengthen)","Sets your characters CustomPhysicalProperties to default"},function()
 	for _,child in pairs(NAmanage.qDesc(getChar(), "BasePart")) do
-		child.CustomPhysicalProperties=PhysicalProperties.new(0.7,0.3,0.5)
+		pcall(function()
+			child.CustomPhysicalProperties=PhysicalProperties.new(0.7,0.3,0.5)
+		end)
+	end
+	if NAmanage.RebuildVelocityWalkSpeedHelper then
+		NAmanage.RebuildVelocityWalkSpeedHelper()
 	end
 end)
 
 cmd.add({"weaken"},{"weaken","Makes your character less dense"},function(...)
 	local args={...}
+	local density = math.clamp(tonumber(args[1]) or 0.01, 0.01, 100)
 	for _,child in pairs(NAmanage.qDesc(getChar(), "BasePart")) do
-		if args[1] then
-			child.CustomPhysicalProperties=PhysicalProperties.new(-args[1],0.3,0.5)
-		else
-			child.CustomPhysicalProperties=PhysicalProperties.new(0,0.3,0.5)
-		end
+		pcall(function()
+			child.CustomPhysicalProperties=PhysicalProperties.new(density,0.3,0.5)
+		end)
+	end
+	if NAmanage.RebuildVelocityWalkSpeedHelper then
+		NAmanage.RebuildVelocityWalkSpeedHelper()
 	end
 end,true)
 
@@ -56679,7 +56688,7 @@ NAmanage.ClampVelocityWalkSpeedRoot = function()
 	if not root or not hum or not axes or not root.Parent or not hum.Parent then
 		return
 	end
-	local cap = tonumber(hum.WalkSpeed) or 0
+	local cap = math.max(tonumber(hum.WalkSpeed) or 0, tonumber(NAmanage.GetVelocityWalkSpeedValue()) or 0)
 	if cap <= 0 then
 		return
 	end
@@ -56749,6 +56758,37 @@ NAmanage.DestroyVelocityWalkSpeedHelper = function()
 	state.planarBrakeUntil = nil
 end
 
+NAmanage.GetVelocityWalkSpeedAssemblyMass = function(root)
+	local mass = tonumber(root and root.AssemblyMass) or 0
+	if mass > 0 then
+		return mass
+	end
+	local char = root and root.Parent
+	if typeof(char) ~= "Instance" then
+		return 1
+	end
+	local total = 0
+	for _, part in ipairs(NAmanage.qDesc(char, "BasePart")) do
+		local ok, partMass = pcall(function()
+			return part:GetMass()
+		end)
+		if ok and tonumber(partMass) then
+			total += partMass
+		end
+	end
+	return math.max(total, 1)
+end
+
+NAmanage.GetVelocityWalkSpeedForce = function(root, velocity)
+	local mass = math.max(NAmanage.GetVelocityWalkSpeedAssemblyMass(root), 1)
+	local flatSpeed = typeof(velocity) == "Vector3" and Vector3.new(velocity.X, 0, velocity.Z).Magnitude or 0
+	local verticalSpeed = typeof(velocity) == "Vector3" and math.abs(velocity.Y) or 0
+	local forceCap = 9e9
+	local planarForce = math.clamp(mass * (12000 + flatSpeed * 950), 25000, forceCap)
+	local verticalForce = math.clamp(mass * (14000 + verticalSpeed * 1100), 30000, forceCap)
+	return flatSpeed, verticalSpeed, planarForce, verticalForce
+end
+
 NAmanage.SetVelocityWalkSpeedHelperActive = function(velocity, enabled, root)
 	local state = NAmanage.GetVelocityWalkSpeedState()
 	local bv = state.bv
@@ -56758,11 +56798,7 @@ NAmanage.SetVelocityWalkSpeedHelperActive = function(velocity, enabled, root)
 	pcall(function()
 		bv.Velocity = velocity or Vector3.zero
 		if enabled and root then
-			local mass = math.max(tonumber(root.AssemblyMass) or 1, 1)
-			local flatSpeed = typeof(velocity) == "Vector3" and Vector3.new(velocity.X, 0, velocity.Z).Magnitude or 0
-			local verticalSpeed = typeof(velocity) == "Vector3" and math.abs(velocity.Y) or 0
-			local planarForce = math.clamp(mass * (3500 + flatSpeed * 260), 8000, 250000)
-			local verticalForce = math.clamp(mass * (4200 + verticalSpeed * 320), 10000, 300000)
+			local flatSpeed, verticalSpeed, planarForce, verticalForce = NAmanage.GetVelocityWalkSpeedForce(root, velocity)
 			bv.MaxForce = Vector3.new(
 				flatSpeed > 0.05 and planarForce or 0,
 				verticalSpeed > 0.05 and verticalForce or 0,
@@ -56772,6 +56808,15 @@ NAmanage.SetVelocityWalkSpeedHelperActive = function(velocity, enabled, root)
 			bv.MaxForce = Vector3.zero
 		end
 	end)
+end
+
+NAmanage.RebuildVelocityWalkSpeedHelper = function()
+	local speed = NAmanage.GetVelocityWalkSpeedValue()
+	if NAStuff.SafeSpeedMethod == false or not speed or speed <= 0 then
+		return
+	end
+	NAmanage.DestroyVelocityWalkSpeedHelper()
+	NAmanage.RefreshVelocityWalkSpeed()
 end
 
 NAmanage.MarkVelocityWalkSpeedPlanarDrive = function(root, velocity)
