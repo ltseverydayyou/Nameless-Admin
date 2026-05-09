@@ -9369,6 +9369,12 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		return
 	end
 
+	local function weakKeyMap()
+		return setmetatable({}, {
+			__mode = "k",
+		})
+	end
+
 	local CE = {
 		path = NAfiles.NAFILEPATH.."/corner_editor.json",
 		default = {
@@ -9381,10 +9387,10 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			targetHiddenUi = false,
 		},
 		cg = coreGui,
-		store = {},
-		watchers = {},
-		guiRootWatchers = {},
-		guiRootSeen = {},
+		store = weakKeyMap(),
+		watchers = weakKeyMap(),
+		guiRootWatchers = weakKeyMap(),
+		guiRootSeen = weakKeyMap(),
 		restoring = false,
 	}
 
@@ -9432,6 +9438,9 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 	CE.data = data
 
 	local uiScanJobs = {}
+	local uiScanJobKeys = {}
+	local uiScanHead = 1
+	local uiScanTail = 0
 	local uiScanning = false
 
 	local function queueUIScan(root, fn, opts)
@@ -9440,14 +9449,27 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		end
 		opts = opts or {}
 		local guard = type(opts.guard) == "function" and opts.guard or nil
+		local key = opts.key
+		if key ~= nil then
+			key = tostring(key)
+			if uiScanJobKeys[key] then
+				return
+			end
+		end
 
-		Insert(uiScanJobs, {
+		uiScanTail += 1
+		local job = {
 			fn = fn,
 			guard = guard,
+			key = key,
 			q = { root },
 			qi = 1,
 			qn = 1,
-		})
+		}
+		uiScanJobs[uiScanTail] = job
+		if key then
+			uiScanJobKeys[key] = job
+		end
 
 		if uiScanning then
 			return
@@ -9455,14 +9477,31 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		uiScanning = true
 
 		Spawn(function()
-			while #uiScanJobs > 0 do
+			local function finishJob(jobToClear)
+				if jobToClear and jobToClear.key then
+					uiScanJobKeys[jobToClear.key] = nil
+				end
+				if jobToClear and type(jobToClear.q) == "table" then
+					for i = jobToClear.qi or 1, jobToClear.qn or #jobToClear.q do
+						jobToClear.q[i] = nil
+					end
+				end
+			end
+
+			while uiScanHead <= uiScanTail do
 				local budget = 35
 
-				while budget > 0 and #uiScanJobs > 0 do
-					local job = uiScanJobs[1]
+				while budget > 0 and uiScanHead <= uiScanTail do
+					local job = uiScanJobs[uiScanHead]
+					if not job then
+						uiScanHead += 1
+						continue
+					end
 					local jobGuard = job.guard
 					if jobGuard and not jobGuard() then
-						table.remove(uiScanJobs, 1)
+						finishJob(job)
+						uiScanJobs[uiScanHead] = nil
+						uiScanHead += 1
 						continue
 					end
 					local q = job.q
@@ -9471,23 +9510,34 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 					local jobFn = job.fn
 
 					if qi > qn then
-						table.remove(uiScanJobs, 1)
+						finishJob(job)
+						uiScanJobs[uiScanHead] = nil
+						uiScanHead += 1
 					else
 						local inst = q[qi]
+						q[qi] = nil
 						job.qi = qi + 1
 
 						if jobGuard and not jobGuard() then
-							table.remove(uiScanJobs, 1)
+							finishJob(job)
+							uiScanJobs[uiScanHead] = nil
+							uiScanHead += 1
 							continue
 						end
-						jobFn(inst)
+						if inst and inst.Parent then
+							pcall(jobFn, inst)
 
-						local ch = inst:GetChildren()
-						for i = 1, #ch do
-							qn += 1
-							q[qn] = ch[i]
+							local okChildren, ch = pcall(function()
+								return inst:GetChildren()
+							end)
+							if okChildren and type(ch) == "table" then
+								for i = 1, #ch do
+									qn += 1
+									q[qn] = ch[i]
+								end
+								job.qn = qn
+							end
 						end
-						job.qn = qn
 
 						budget -= 1
 					end
@@ -9496,6 +9546,10 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 				Wait()
 			end
 
+			uiScanJobs = {}
+			uiScanJobKeys = {}
+			uiScanHead = 1
+			uiScanTail = 0
 			uiScanning = false
 		end)
 	end
@@ -9605,10 +9659,14 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			return
 		end
 		if watcher.change then
-			watcher.change:Disconnect()
+			pcall(function()
+				watcher.change:Disconnect()
+			end)
 		end
 		if watcher.ancestry then
-			watcher.ancestry:Disconnect()
+			pcall(function()
+				watcher.ancestry:Disconnect()
+			end)
 		end
 		CE.watchers[target] = nil
 	end
@@ -9655,10 +9713,11 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 	end
 
 	local cornerApplyQueue = {}
-	local cornerApplySet = {}
+	local cornerApplySet = weakKeyMap()
 	local cornerApplyHead = 1
 	local cornerApplyTail = 0
 	local cornerApplyBusy = false
+	local cornerApplyToken = 0
 
 	local function queueCornerApply(o)
 		if not (CE.data.enabled and o and o.Parent and o:IsA("UICorner")) then
@@ -9674,10 +9733,12 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			return
 		end
 		cornerApplyBusy = true
+		cornerApplyToken += 1
+		local token = cornerApplyToken
 		Spawn(function()
-			while cornerApplyHead <= cornerApplyTail do
+			while cornerApplyToken == token and cornerApplyHead <= cornerApplyTail do
 				local budget = 90
-				while budget > 0 and cornerApplyHead <= cornerApplyTail do
+				while budget > 0 and cornerApplyToken == token and cornerApplyHead <= cornerApplyTail do
 					local inst = cornerApplyQueue[cornerApplyHead]
 					cornerApplyQueue[cornerApplyHead] = nil
 					cornerApplyHead += 1
@@ -9691,21 +9752,24 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 				end
 				Wait()
 			end
-			cornerApplyQueue = {}
-			cornerApplyHead = 1
-			cornerApplyTail = 0
-			cornerApplyBusy = false
+			if cornerApplyToken == token then
+				cornerApplyQueue = {}
+				cornerApplySet = weakKeyMap()
+				cornerApplyHead = 1
+				cornerApplyTail = 0
+				cornerApplyBusy = false
+			end
 		end)
 	end
 
 	local function clearGuiRootWatchers()
 		for root, conns in pairs(CE.guiRootWatchers) do
-			if conns.desc then conns.desc:Disconnect() end
-			if conns.anc then conns.anc:Disconnect() end
+			if conns.desc then pcall(function() conns.desc:Disconnect() end) end
+			if conns.anc then pcall(function() conns.anc:Disconnect() end) end
 			CE.guiRootWatchers[root] = nil
 		end
-		CE.guiRootWatchers = {}
-		CE.guiRootSeen = {}
+		CE.guiRootWatchers = weakKeyMap()
+		CE.guiRootSeen = weakKeyMap()
 	end
 
 	local function resetCorn()
@@ -9719,12 +9783,14 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			stopCWat(corner)
 		end
 		CE.restoring = false
-		CE.store = {}
-		CE.watchers = {}
+		CE.store = weakKeyMap()
+		CE.watchers = weakKeyMap()
+		cornerApplyToken += 1
 		cornerApplyQueue = {}
-		cornerApplySet = {}
+		cornerApplySet = weakKeyMap()
 		cornerApplyHead = 1
 		cornerApplyTail = 0
+		cornerApplyBusy = false
 		clearGuiRootWatchers()
 	end
 
@@ -9737,6 +9803,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 				setCorner(inst)
 			end
 		end, {
+			key = "corner-container:"..tostring(container),
 			guard = function()
 				return CE.data.enabled
 			end,
@@ -9771,17 +9838,35 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 					watchGuiRoot(inst)
 				end
 			end, {
+				key = "corner-world",
 				guard = function()
 					return CE.data.enabled and (CE.data.targetBillboardGui or CE.data.targetSurfaceGui)
 				end,
 			})
 		end
 	end
-
-	local function saveCData()
-		if FileSupport then
-			writefile(CE.path, HttpService:JSONEncode(CE.data))
+	local cornerSaveSeq = 0
+	local function saveCData(opts)
+		if not FileSupport then
+			return
 		end
+		opts = opts or {}
+		cornerSaveSeq += 1
+		local seq = cornerSaveSeq
+		local function writeCornerData()
+			pcall(function()
+				writefile(CE.path, HttpService:JSONEncode(CE.data))
+			end)
+		end
+		if opts.immediate == true then
+			writeCornerData()
+			return
+		end
+		Delay(0.2, function()
+			if seq == cornerSaveSeq then
+				writeCornerData()
+			end
+		end)
 	end
 
 	local function onCDesc(o)
@@ -9808,8 +9893,8 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		conns.anc = root.AncestryChanged:Connect(function(obj, parent)
 			if parent == nil then
 				if CE.guiRootWatchers[root] then
-					if conns.desc then conns.desc:Disconnect() end
-					if conns.anc then conns.anc:Disconnect() end
+					if conns.desc then pcall(function() conns.desc:Disconnect() end) end
+					if conns.anc then pcall(function() conns.anc:Disconnect() end) end
 					CE.guiRootWatchers[root] = nil
 				end
 				CE.guiRootSeen[root] = nil
@@ -9963,7 +10048,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 	local persistFontData
 
 	local function newFontStore()
-		return {}
+		return weakKeyMap()
 	end
 
 	local FontChoices = {}
@@ -11038,9 +11123,9 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		customFontMap = {},
 		customInputs = { name = "", url = "" },
 		refreshCustomFontUI = nil,
-		watchers = {},
-		guiRootWatchers = {},
-		guiRootSeen = {},
+		watchers = weakKeyMap(),
+		guiRootWatchers = weakKeyMap(),
+		guiRootSeen = weakKeyMap(),
 		restoring = false,
 		dlBusy = false,
 	}
@@ -11053,10 +11138,14 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			return
 		end
 		if watcher.change then
-			watcher.change:Disconnect()
+			pcall(function()
+				watcher.change:Disconnect()
+			end)
 		end
 		if watcher.ancestry then
-			watcher.ancestry:Disconnect()
+			pcall(function()
+				watcher.ancestry:Disconnect()
+			end)
 		end
 		FontEditor.watchers[target] = nil
 	end
@@ -11297,10 +11386,11 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 	end
 
 	local fontApplyQueue = {}
-	local fontApplySet = {}
+	local fontApplySet = weakKeyMap()
 	local fontApplyHead = 1
 	local fontApplyTail = 0
 	local fontApplyBusy = false
+	local fontApplyToken = 0
 
 	local function queueFontApply(o)
 		if not (FontEditor.data.enabled and o and o.Parent and isFontTarget(o)) then
@@ -11316,10 +11406,12 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			return
 		end
 		fontApplyBusy = true
+		fontApplyToken += 1
+		local token = fontApplyToken
 		Spawn(function()
-			while fontApplyHead <= fontApplyTail do
+			while fontApplyToken == token and fontApplyHead <= fontApplyTail do
 				local budget = 100
-				while budget > 0 and fontApplyHead <= fontApplyTail do
+				while budget > 0 and fontApplyToken == token and fontApplyHead <= fontApplyTail do
 					local inst = fontApplyQueue[fontApplyHead]
 					fontApplyQueue[fontApplyHead] = nil
 					fontApplyHead += 1
@@ -11333,21 +11425,23 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 				end
 				Wait()
 			end
-			fontApplyQueue = {}
-			fontApplyHead = 1
-			fontApplyTail = 0
-			fontApplyBusy = false
+			if fontApplyToken == token then
+				fontApplyQueue = {}
+				fontApplySet = weakKeyMap()
+				fontApplyHead = 1
+				fontApplyTail = 0
+				fontApplyBusy = false
+			end
 		end)
 	end
-
 	local function clearFontGuiRootWatchers()
 		for root, conns in pairs(FontEditor.guiRootWatchers) do
-			if conns.desc then conns.desc:Disconnect() end
-			if conns.anc then conns.anc:Disconnect() end
+			if conns.desc then pcall(function() conns.desc:Disconnect() end) end
+			if conns.anc then pcall(function() conns.anc:Disconnect() end) end
 			FontEditor.guiRootWatchers[root] = nil
 		end
-		FontEditor.guiRootWatchers = {}
-		FontEditor.guiRootSeen = {}
+		FontEditor.guiRootWatchers = weakKeyMap()
+		FontEditor.guiRootSeen = weakKeyMap()
 	end
 
 	local function watchFontGuiRoot(root)
@@ -11368,8 +11462,8 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		conns.anc = root.AncestryChanged:Connect(function(obj, parent)
 			if parent == nil then
 				if FontEditor.guiRootWatchers[root] then
-					if conns.desc then conns.desc:Disconnect() end
-					if conns.anc then conns.anc:Disconnect() end
+					if conns.desc then pcall(function() conns.desc:Disconnect() end) end
+					if conns.anc then pcall(function() conns.anc:Disconnect() end) end
 					FontEditor.guiRootWatchers[root] = nil
 				end
 				FontEditor.guiRootSeen[root] = nil
@@ -11387,6 +11481,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 				queueFontApply(inst)
 			end
 		end, {
+			key = "font-container:"..tostring(container),
 			guard = function()
 				return FontEditor.data.enabled
 			end,
@@ -11429,12 +11524,14 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		end
 		FontEditor.restoring = false
 		FontEditor.store = newFontStore()
-		FontEditor.watchers = {}
+		FontEditor.watchers = weakKeyMap()
 		clearFontGuiRootWatchers()
+		fontApplyToken += 1
 		fontApplyQueue = {}
-		fontApplySet = {}
+		fontApplySet = weakKeyMap()
 		fontApplyHead = 1
 		fontApplyTail = 0
+		fontApplyBusy = false
 	end
 
 	local function applyAllFonts()
@@ -11467,6 +11564,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 					watchFontGuiRoot(inst)
 				end
 			end, {
+				key = "font-world",
 				guard = function()
 					return FontEditor.data.enabled and (FontEditor.data.targetBillboardGui or FontEditor.data.targetSurfaceGui)
 				end,
@@ -98166,15 +98264,22 @@ if CoreGui then
 		path      = NAfiles.NAFILEPATH.."/plexity_theme.json",
 		default   = { enabled = false, start = { h = 0.8, s = 1, v = 1 }, finish = { h = 0, s = 1, v = 1 } },
 		cg        = CoreGui,
-		images    = {},
+		images    = setmetatable({}, { __mode = "k" }),
 		queue     = {},
 		queueHead = 1,
 		queueTail = 0,
-		queueSet  = {},
+		queueSet  = setmetatable({}, { __mode = "k" }),
+		queueToken = 0,
 		processing = false,
 		queueKickPending = false,
 		applying   = false,
 		needApplyAll = false,
+		applyAllSeq = 0,
+		trackedApplyQueued = false,
+		rescanning = false,
+		rescanAgain = false,
+		gradientSeq = nil,
+		gradientSeqKey = nil,
 	}
 
 	local data = PT.default
@@ -98192,11 +98297,110 @@ if CoreGui then
 		end
 	end
 
-	PT.data = data
+	local function normalizePlexData(raw)
+		local out = {
+			enabled = false,
+			start = {
+				h = PT.default.start.h,
+				s = PT.default.start.s,
+				v = PT.default.start.v,
+			},
+			finish = {
+				h = PT.default.finish.h,
+				s = PT.default.finish.s,
+				v = PT.default.finish.v,
+			},
+		}
+		if type(raw) ~= "table" then
+			return out
+		end
+		out.enabled = raw.enabled == true
+		if type(raw.start) == "table" then
+			out.start.h = math.clamp(tonumber(raw.start.h) or out.start.h, 0, 1)
+			out.start.s = math.clamp(tonumber(raw.start.s) or out.start.s, 0, 1)
+			out.start.v = math.clamp(tonumber(raw.start.v) or out.start.v, 0, 1)
+		end
+		if type(raw.finish) == "table" then
+			out.finish.h = math.clamp(tonumber(raw.finish.h) or out.finish.h, 0, 1)
+			out.finish.s = math.clamp(tonumber(raw.finish.s) or out.finish.s, 0, 1)
+			out.finish.v = math.clamp(tonumber(raw.finish.v) or out.finish.v, 0, 1)
+		end
+		return out
+	end
+
+	PT.data = normalizePlexData(data)
+	local plexSaveSeq = 0
+
+	local function savePlexData(opts)
+		if not FileSupport then
+			return
+		end
+		opts = opts or {}
+		plexSaveSeq += 1
+		local seq = plexSaveSeq
+		local function writePlexData()
+			pcall(function()
+				writefile(PT.path, HttpService:JSONEncode(PT.data))
+			end)
+		end
+		if opts.immediate == true then
+			writePlexData()
+			return
+		end
+		Delay(0.2, function()
+			if seq == plexSaveSeq then
+				writePlexData()
+			end
+		end)
+	end
 
 	local HUI = NAlib.huiGrabber()
 
+	local function resetPlexQueue()
+		PT.queueToken += 1
+		PT.queue = {}
+		PT.queueHead = 1
+		PT.queueTail = 0
+		PT.queueSet = setmetatable({}, { __mode = "k" })
+		PT.processing = false
+		PT.queueKickPending = false
+	end
+
+	local function resetPlexImages()
+		PT.images = setmetatable({}, { __mode = "k" })
+	end
+
+	local function getPlexGradientSequence()
+		local start = PT.data.start or PT.default.start
+		local finish = PT.data.finish or PT.default.finish
+		local sh = math.clamp(tonumber(start.h) or PT.default.start.h, 0, 1)
+		local ss = math.clamp(tonumber(start.s) or PT.default.start.s, 0, 1)
+		local sv = math.clamp(tonumber(start.v) or PT.default.start.v, 0, 1)
+		local fh = math.clamp(tonumber(finish.h) or PT.default.finish.h, 0, 1)
+		local fs = math.clamp(tonumber(finish.s) or PT.default.finish.s, 0, 1)
+		local fv = math.clamp(tonumber(finish.v) or PT.default.finish.v, 0, 1)
+		local key = Format("%.5f:%.5f:%.5f|%.5f:%.5f:%.5f",
+			sh,
+			ss,
+			sv,
+			fh,
+			fs,
+			fv
+		)
+		if PT.gradientSeqKey ~= key then
+			PT.gradientSeqKey = key
+			PT.gradientSeq = ColorSequence.new{
+				ColorSequenceKeypoint.new(0, Color3.fromHSV(sh, ss, sv)),
+				ColorSequenceKeypoint.new(1, Color3.fromHSV(fh, fs, fv)),
+			}
+		end
+		return PT.gradientSeq
+	end
+
 	local function isPlexTarget(o)
+		if not (o and o.Parent) then
+			return false
+		end
 		if HUI and o:IsDescendantOf(HUI) then
 			return false
 		end
@@ -98223,7 +98427,7 @@ if CoreGui then
 	end
 
 	local function applyIfReady(o)
-		if not (o and o.Parent) then
+		if not (PT.data.enabled and o and o.Parent) then
 			return false
 		end
 
@@ -98270,9 +98474,19 @@ if CoreGui then
 			return
 		end
 		PT.queueSet[o] = nil
-		local g = o:FindFirstChild("PlexityGradient")
-		if g and g:IsA("UIGradient") then
-			g:Destroy()
+		local okChildren, children = pcall(function()
+			return o:GetChildren()
+		end)
+		if not (okChildren and type(children) == "table") then
+			return
+		end
+		for i = 1, #children do
+			local g = children[i]
+			if g and g.Name == "PlexityGradient" and g:IsA("UIGradient") then
+				pcall(function()
+					g:Destroy()
+				end)
+			end
 		end
 	end
 
@@ -98286,27 +98500,32 @@ if CoreGui then
 		if isPlexTarget(o) then
 			PT.images[o] = true
 		end
-		NAmanage.plex_remove(o)
 		if PT.data.enabled then
-			local seq = ColorSequence.new{
-				ColorSequenceKeypoint.new(0, Color3.fromHSV(PT.data.start.h, PT.data.start.s, PT.data.start.v)),
-				ColorSequenceKeypoint.new(1, Color3.fromHSV(PT.data.finish.h, PT.data.finish.s, PT.data.finish.v)),
-			}
-			local ug = InstanceNew("UIGradient")
-			ug.Name = "PlexityGradient"
-			ug.Color = seq
+			local ug = o:FindFirstChild("PlexityGradient")
+			if not (ug and ug:IsA("UIGradient")) then
+				if ug then
+					pcall(function()
+						ug:Destroy()
+					end)
+				end
+				ug = InstanceNew("UIGradient")
+				ug.Name = "PlexityGradient"
+				ug.Parent = o
+			end
+			ug.Color = getPlexGradientSequence()
 			ug.Rotation = 45
 			ug.Transparency = NumberSequence.new{
 				NumberSequenceKeypoint.new(0,   0, 0),
 				NumberSequenceKeypoint.new(0.5, 0, 0),
 				NumberSequenceKeypoint.new(1,   0, 0),
 			}
-			ug.Parent = o
+		else
+			NAmanage.plex_remove(o)
 		end
 	end
 
 	local function enqueue(o)
-		if not o or not o.Parent then
+		if not (PT.data.enabled and o and o.Parent) then
 			return
 		end
 		if PT.cg and not o:IsDescendantOf(PT.cg) then
@@ -98328,16 +98547,17 @@ if CoreGui then
 			return
 		end
 		PT.processing = true
+		local token = PT.queueToken
 		coroutine.wrap(function()
-			while PT.queueHead <= PT.queueTail do
+			while token == PT.queueToken and PT.data.enabled and PT.queueHead <= PT.queueTail do
 				local budget = 40
-				while budget > 0 and PT.queueHead <= PT.queueTail do
+				while budget > 0 and token == PT.queueToken and PT.data.enabled and PT.queueHead <= PT.queueTail do
 					local o = PT.queue[PT.queueHead]
 					PT.queue[PT.queueHead] = nil
 					PT.queueHead += 1
 					if o then
 						PT.queueSet[o] = nil
-						if o.Parent then
+						if o.Parent and PT.data.enabled then
 							applyIfReady(o)
 						end
 					end
@@ -98345,10 +98565,14 @@ if CoreGui then
 				end
 				Wait()
 			end
-			PT.queue = {}
-			PT.queueHead = 1
-			PT.queueTail = 0
-			PT.processing = false
+			if token == PT.queueToken then
+				PT.queue = {}
+				PT.queueHead = 1
+				PT.queueTail = 0
+				PT.queueSet = setmetatable({}, { __mode = "k" })
+				PT.processing = false
+				PT.queueKickPending = false
+			end
 		end)()
 	end
 
@@ -98369,18 +98593,27 @@ if CoreGui then
 	end
 
 	NAmanage.plex_applyAll = function()
+		if not PT.data.enabled then
+			PT.needApplyAll = false
+			return
+		end
 		if PT.applying then
 			PT.needApplyAll = true
 			return
 		end
 		PT.applying = true
 		PT.needApplyAll = false
+		PT.applyAllSeq += 1
+		local seq = PT.applyAllSeq
 
 		coroutine.wrap(function()
 			local cg = PT.cg
-			if cg then
+			if cg and PT.data.enabled and seq == PT.applyAllSeq then
 				local desc = NAmanage.qDesc(cg, "Instance")
 				for i = 1, #desc do
+					if not (PT.data.enabled and seq == PT.applyAllSeq) then
+						break
+					end
 					local o = desc[i]
 					if o and o.Parent then
 						applyIfReady(o)
@@ -98397,19 +98630,56 @@ if CoreGui then
 		end)()
 	end
 
-	local function rescanAll()
-		coroutine.wrap(function()
-			local cg = PT.cg
-			if cg then
-				local desc = NAmanage.qDesc(cg, "Instance")
-				for i = 1, #desc do
-					enqueue(desc[i])
-					if i % 200 == 0 then
+	local function scheduleTrackedPlexApply()
+		if not PT.data.enabled or PT.trackedApplyQueued then
+			return
+		end
+		PT.trackedApplyQueued = true
+		Delay(0.05, function()
+			PT.trackedApplyQueued = false
+			if not PT.data.enabled then
+				return
+			end
+			local count = 0
+			for o in pairs(PT.images) do
+				if o and o.Parent then
+					NAmanage.plex_apply(o)
+					count += 1
+					if count % 80 == 0 then
 						Wait()
 					end
+				else
+					PT.images[o] = nil
 				end
-				processQueue()
 			end
+		end)
+	end
+
+	local function rescanAll()
+		if PT.rescanning then
+			PT.rescanAgain = true
+			return
+		end
+		PT.rescanning = true
+		coroutine.wrap(function()
+			repeat
+				PT.rescanAgain = false
+				local cg = PT.cg
+				if cg and PT.data.enabled then
+					local desc = NAmanage.qDesc(cg, "Instance")
+					for i = 1, #desc do
+						if not PT.data.enabled then
+							break
+						end
+						enqueue(desc[i])
+						if i % 200 == 0 then
+							Wait()
+						end
+					end
+					processQueue()
+				end
+			until not (PT.data.enabled and PT.rescanAgain)
+			PT.rescanning = false
 		end)()
 	end
 
@@ -98429,11 +98699,15 @@ if CoreGui then
 		end
 		NAlib.connect("PlexyDescAdded", NAmanage.descSub(PT.cg, {
 			added = onDescendantAdded,
+			filterAdded = isPlexTarget,
 		}))
 		NAlib.connect("PlexyDescRemoving", NAmanage.descSub(PT.cg, {
 			removing = function(o)
 				PT.images[o] = nil
 				PT.queueSet[o] = nil
+			end,
+			filterRemoving = function(o)
+				return PT.images[o] == true or PT.queueSet[o] == true
 			end,
 		}))
 	end
@@ -98451,13 +98725,11 @@ if CoreGui then
 		if v then
 			setPlexW(true)
 			rescanAll()
-			NAmanage.plex_applyAll()
 		else
 			setPlexW(false)
-			PT.queue = {}
-			PT.queueHead = 1
-			PT.queueTail = 0
-			PT.queueSet = {}
+			PT.applyAllSeq += 1
+			PT.needApplyAll = false
+			resetPlexQueue()
 			local cg = PT.cg
 			if cg then
 				local desc = NAmanage.qDesc(cg, "Instance")
@@ -98468,32 +98740,29 @@ if CoreGui then
 					end
 				end
 			end
+			resetPlexImages()
 		end
-		if FileSupport then
-			writefile(PT.path, HttpService:JSONEncode(PT.data))
-		end
+		savePlexData({ immediate = true })
 	end)
 
 	NAgui.addColorPicker("Gradient Start Color", Color3.fromHSV(PT.data.start.h, PT.data.start.s, PT.data.start.v), function(c)
 		local h, s, v = c:ToHSV()
 		PT.data.start.h, PT.data.start.s, PT.data.start.v = h, s, v
+		PT.gradientSeqKey = nil
 		if PT.data.enabled then
-			NAmanage.plex_applyAll()
+			scheduleTrackedPlexApply()
 		end
-		if FileSupport then
-			writefile(PT.path, HttpService:JSONEncode(PT.data))
-		end
+		savePlexData()
 	end)
 
 	NAgui.addColorPicker("Gradient End Color", Color3.fromHSV(PT.data.finish.h, PT.data.finish.s, PT.data.finish.v), function(c)
 		local h, s, v = c:ToHSV()
 		PT.data.finish.h, PT.data.finish.s, PT.data.finish.v = h, s, v
+		PT.gradientSeqKey = nil
 		if PT.data.enabled then
-			NAmanage.plex_applyAll()
+			scheduleTrackedPlexApply()
 		end
-		if FileSupport then
-			writefile(PT.path, HttpService:JSONEncode(PT.data))
-		end
+		savePlexData()
 	end)
 
 	local function initBuilderIconEditor()
@@ -98509,6 +98778,7 @@ if CoreGui then
 			},
 			entries = {},
 			entryPaths = {},
+			entryInstSet = setmetatable({}, { __mode = "k" }),
 			liveTargets = {},
 			selectedLabel = "None",
 			selectedDisplay = "None",
@@ -98651,10 +98921,8 @@ if CoreGui then
 			if BuilderIconEditor.originalText[o] ~= nil then
 				return true
 			end
-			for _, inst in pairs(BuilderIconEditor.entries) do
-				if inst == o then
-					return true
-				end
+			if BuilderIconEditor.entryInstSet[o] == true then
+				return true
 			end
 			return false
 		end
@@ -98820,6 +99088,9 @@ if CoreGui then
 						end
 					end
 				end
+				if i % 200 == 0 then
+					Wait()
+				end
 			end
 			return foundAny, appliedAny
 		end
@@ -98840,6 +99111,9 @@ if CoreGui then
 					if type(path) == "string" and path ~= "" then
 						foundPaths[path] = true
 					end
+				end
+				if i % 200 == 0 then
+					Wait()
 				end
 			end
 			for path in pairs(BuilderIconEditor.data.overrides) do
@@ -99259,6 +99533,9 @@ if CoreGui then
 						BuilderIconEditor.liveTargets[inst] = true
 						Insert(found, inst)
 					end
+					if i % 200 == 0 then
+						Wait()
+					end
 				end
 			else
 				found = collectBuilderIconLiveTargets()
@@ -99365,6 +99642,12 @@ if CoreGui then
 
 			BuilderIconEditor.entries = entries
 			BuilderIconEditor.entryPaths = entryPaths
+			BuilderIconEditor.entryInstSet = setmetatable({}, { __mode = "k" })
+			for _, inst in pairs(entries) do
+				if inst then
+					BuilderIconEditor.entryInstSet[inst] = true
+				end
+			end
 			if NAgui.setDropdownOptions then
 				NAgui.setDropdownOptions(builderIconDropdownLabel, labels)
 			end
@@ -99411,37 +99694,36 @@ if CoreGui then
 			BuilderIconEditor.watchersEnabled = true
 			NAlib.disconnect("BuilderIconEditorAdded")
 			NAlib.disconnect("BuilderIconEditorRemoving")
-			NAlib.connect("BuilderIconEditorAdded", NAmanage.descAdd(CoreGui, function(o)
-				if not isBuilderIconTarget(o) then
-					return
-				end
-				BuilderIconEditor.liveTargets[o] = true
-				local path = getBuilderIconPath(o)
-				applySavedBuilderIconOverrideToInstance(o)
-				if type(BuilderIconEditor.selectedPath) == "string" and BuilderIconEditor.selectedPath ~= "" and BuilderIconEditor.selectedPath == path then
-					BuilderIconEditor.selectedInst = o
-					BuilderIconEditor.pendingText = getBuilderIconText(o)
-					syncBuilderIconInput()
-				end
-				queueBuilderIconRefresh()
-			end, isBuilderIconTarget))
-			NAlib.connect("BuilderIconEditorRemoving", NAmanage.descRem(CoreGui, function(o)
-				if not (isBuilderIconTarget(o) or isTrackedBuilderIconTarget(o)) then
-					return
-				end
-				BuilderIconEditor.liveTargets[o] = nil
-				local removedPath = getBuilderIconPath(o)
-				if o == BuilderIconEditor.selectedInst then
-					BuilderIconEditor.selectedInst = nil
-					if type(removedPath) == "string" and removedPath ~= "" then
-						BuilderIconEditor.selectedPath = removedPath
+			NAlib.connect("BuilderIconEditorAdded", NAmanage.descSub(CoreGui, {
+				added = function(o)
+					BuilderIconEditor.liveTargets[o] = true
+					local path = getBuilderIconPath(o)
+					applySavedBuilderIconOverrideToInstance(o)
+					if type(BuilderIconEditor.selectedPath) == "string" and BuilderIconEditor.selectedPath ~= "" and BuilderIconEditor.selectedPath == path then
+						BuilderIconEditor.selectedInst = o
+						BuilderIconEditor.pendingText = getBuilderIconText(o)
+						syncBuilderIconInput()
 					end
-				end
-				BuilderIconEditor.originalText[o] = nil
-				queueBuilderIconRefresh()
-			end, function(o)
-				return o and (isBuilderIconTarget(o) or isTrackedBuilderIconTarget(o))
-			end))
+					queueBuilderIconRefresh()
+				end,
+				removing = function(o)
+					BuilderIconEditor.liveTargets[o] = nil
+					local removedPath = getBuilderIconPath(o)
+					if o == BuilderIconEditor.selectedInst then
+						BuilderIconEditor.selectedInst = nil
+						if type(removedPath) == "string" and removedPath ~= "" then
+							BuilderIconEditor.selectedPath = removedPath
+						end
+					end
+					BuilderIconEditor.originalText[o] = nil
+					BuilderIconEditor.entryInstSet[o] = nil
+					queueBuilderIconRefresh()
+				end,
+				filterAdded = isBuilderIconTarget,
+				filterRemoving = function(o)
+					return o and (isBuilderIconTarget(o) or isTrackedBuilderIconTarget(o))
+				end,
+			}))
 		end
 
 		NAgui.addSection("BuilderIcon Editor")
