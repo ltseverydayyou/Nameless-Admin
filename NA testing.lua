@@ -24063,16 +24063,39 @@ NAgui.getInstanceWorldPosition=function(inst)
 		return inst.Position
 	elseif inst:IsA("Model") then
 		local primary = inst.PrimaryPart
-		if primary then
+		if primary and primary.Parent then
 			return primary.Position
+		end
+		local okBox, cf = pcall(inst.GetBoundingBox, inst)
+		if okBox and cf then
+			return cf.Position
 		end
 		local okPivot, pivot = pcall(inst.GetPivot, inst)
 		if okPivot and pivot then
 			return pivot.Position
 		end
-		local okBox, cf = pcall(inst.GetBoundingBox, inst)
-		if okBox and cf then
-			return cf.Position
+	end
+	return nil
+end
+
+NAgui.getInstanceAdornee = function(inst)
+	if not inst then return nil end
+	if inst:IsA("BasePart") then
+		return inst
+	end
+	if inst:IsA("Model") then
+		local primary = inst.PrimaryPart
+		if primary and primary.Parent then
+			return primary
+		end
+		local root = getRoot(inst)
+		if root and root:IsA("BasePart") then
+			return root
+		end
+		for _, desc in ipairs(NAmanage.qDesc(inst, "BasePart")) do
+			if desc and desc.Parent then
+				return desc
+			end
 		end
 	end
 	return nil
@@ -64909,6 +64932,7 @@ NAmanage.CreateBox = function(part, color, transparency)
 	local useHighlight = mode == "Highlight"
 	local useDrawing = mode == "Drawing API"
 	local drawingStyle = NAgui.sanitizeESPDrawingBoxStyle(NAStuff.ESP_DrawingPartBoxStyle)
+	local adornTarget = NAgui.getInstanceAdornee(part)
 	local adornName = Lower(part.Name).."_peepee"
 	local visual
 	local drawingSquare
@@ -64967,9 +64991,12 @@ NAmanage.CreateBox = function(part, color, transparency)
 				end
 			end)
 		else
+			if not adornTarget then
+				return
+			end
 			visual = InstanceNew("BoxHandleAdornment")
 			visual.Name = adornName
-			visual.Adornee = part
+			visual.Adornee = adornTarget
 			visual.AlwaysOnTop = true
 			visual.ZIndex = 0
 			visual.Transparency = entryTransparency
@@ -64986,7 +65013,7 @@ NAmanage.CreateBox = function(part, color, transparency)
 	if (not useDrawing) or (not drawingLabel) then
 		bb = InstanceNew("BillboardGui")
 		bb.Name = Lower(part.Name).."_label"
-		bb.Adornee = part
+		bb.Adornee = adornTarget
 		bb.Size = UDim2.new(0, 160, 0, 28)
 		bb.StudsOffset = Vector3.new(0, 0.5, 0)
 		bb.AlwaysOnTop = true
@@ -65008,34 +65035,68 @@ NAmanage.CreateBox = function(part, color, transparency)
 	local function update()
 		if not part or not part.Parent then return end
 		if bb and not bb.Parent then return end
+		adornTarget = NAgui.getInstanceAdornee(part)
 		if visual and visual.Parent then
 			NAmanage.ESP_StoreVisual(visual)
 		end
 		if bb and bb.Parent then
 			NAmanage.ESP_StoreVisual(bb)
+			if adornTarget and bb.Adornee ~= adornTarget then
+				bb.Adornee = adornTarget
+			end
 		end
 		local sizeY = 2.5
 		if part:IsA("Model") then
-			local ok, _, ms = pcall(part.GetBoundingBox, part)
+			local ok, modelCf, ms = pcall(part.GetBoundingBox, part)
 			if ok and ms then
 				sizeY = ms.Y
-				if (not useHighlight) and (not useDrawing) and visual and visual:IsA("BoxHandleAdornment") then
+				if (not useHighlight) and (not useDrawing) and visual and visual:IsA("BoxHandleAdornment") and adornTarget then
+					if visual.Adornee ~= adornTarget then
+						visual.Adornee = adornTarget
+					end
 					local newSize = ms + Vector3.new(0.1,0.1,0.1)
 					if visual.Size ~= newSize then
 						visual.Size = newSize
+					end
+					pcall(function()
+						visual.CFrame = adornTarget.CFrame:ToObjectSpace(modelCf)
+					end)
+				end
+				if bb and adornTarget and modelCf then
+					local labelWorld = modelCf.Position + Vector3.new(0, (sizeY / 2) + 0.2, 0)
+					local offsetWorld = labelWorld - adornTarget.Position
+					local offsetLocal = adornTarget.CFrame:PointToObjectSpace(labelWorld)
+					local usedWorldOffset = pcall(function()
+						bb.StudsOffset = Vector3.new()
+						bb.StudsOffsetWorldSpace = offsetWorld
+					end)
+					if not usedWorldOffset then
+						bb.StudsOffset = offsetLocal
 					end
 				end
 			end
 		elseif part:IsA("BasePart") then
 			sizeY = part.Size.Y
 			if (not useHighlight) and (not useDrawing) and visual and visual:IsA("BoxHandleAdornment") then
+				if visual.Adornee ~= part then
+					visual.Adornee = part
+				end
 				local newSize = part.Size + Vector3.new(0.1,0.1,0.1)
 				if visual.Size ~= newSize then
 					visual.Size = newSize
 				end
+				pcall(function()
+					visual.CFrame = CFrame.new()
+				end)
+			end
+			if bb and bb.Adornee ~= part then
+				bb.Adornee = part
 			end
 		end
-		if bb then
+		if bb and not part:IsA("Model") then
+			pcall(function()
+				bb.StudsOffsetWorldSpace = Vector3.new()
+			end)
 			bb.StudsOffset = Vector3.new(0, (sizeY / 2) + 0.2, 0)
 		end
 	end
@@ -65593,6 +65654,30 @@ NAmanage.ESP_LocatorDisposeHolder = function(holder)
 	end
 end
 
+NAmanage.ESP_LocatorDirection = function(camera, worldPosition, viewportPoint, viewportSize)
+	if not (camera and worldPosition and viewportPoint and viewportSize) then
+		return 0, -1
+	end
+	local cx, cy = viewportSize.X * 0.5, viewportSize.Y * 0.5
+	local dirX, dirY
+	if viewportPoint.Z > 0 then
+		dirX = viewportPoint.X - cx
+		dirY = viewportPoint.Y - cy
+	else
+		local rel = camera.CFrame:PointToObjectSpace(worldPosition)
+		dirX = rel.X
+		dirY = -rel.Y
+		if math.abs(dirX) < 1e-3 and math.abs(dirY) < 1e-3 then
+			dirY = 1
+		end
+	end
+	local mag = math.sqrt((dirX * dirX) + (dirY * dirY))
+	if mag < 1e-3 then
+		return 0, -1
+	end
+	return dirX / mag, dirY / mag
+end
+
 NAmanage.ESP_LocatorUseGuiFallback = function()
 	NAlib.disconnect("esp_locator_loop")
 	if NAStuff.ESP_LocatorArrows then
@@ -65819,10 +65904,7 @@ NAmanage.ESP_LocatorEnableGui = function(force)
 							local col = entry.lightColor or entry.baseColor or Color3.new(1,1,1)
 							applyStyle(holder, col)
 
-							local dirX, dirY = x - cx, y - cy
-							if z <= 0 then dirX = -dirX dirY = -dirY end
-							local mag = math.sqrt(dirX*dirX + dirY*dirY)
-							if mag < 1e-3 then dirX, dirY = 0, -1 else dirX, dirY = dirX/mag, dirY/mag end
+							local dirX, dirY = NAmanage.ESP_LocatorDirection(cam, pos, v3, vp)
 
 							local sx = (cx - margin) / math.max(1e-4, math.abs(dirX))
 							local sy = (cy - margin) / math.max(1e-4, math.abs(dirY))
@@ -66095,17 +66177,7 @@ NAmanage.ESP_LocatorEnableDrawing = function(force)
 						if type(holder) == "table" and holder.drawingArrow then
 							local col = entry.lightColor or entry.baseColor or Color3.new(1, 1, 1)
 
-							local dirX, dirY = x - cx, y - cy
-							if z <= 0 then
-								dirX = -dirX
-								dirY = -dirY
-							end
-							local mag = math.sqrt((dirX * dirX) + (dirY * dirY))
-							if mag < 1e-3 then
-								dirX, dirY = 0, -1
-							else
-								dirX, dirY = dirX / mag, dirY / mag
-							end
+							local dirX, dirY = NAmanage.ESP_LocatorDirection(cam, pos, v3, vp)
 
 							local sx = (cx - margin) / math.max(1e-4, math.abs(dirX))
 							local sy = (cy - margin) / math.max(1e-4, math.abs(dirY))
@@ -66454,10 +66526,7 @@ NAmanage.ESP_PlayerLocatorEnableGui = function(force)
 								or Color3.new(1, 1, 1)
 							applyStyle(holder, col)
 
-							local dirX, dirY = x - cx, y - cy
-							if z <= 0 then dirX = -dirX dirY = -dirY end
-							local mag = math.sqrt(dirX * dirX + dirY * dirY)
-							if mag < 1e-3 then dirX, dirY = 0, -1 else dirX, dirY = dirX / mag, dirY / mag end
+							local dirX, dirY = NAmanage.ESP_LocatorDirection(cam, pos, v3, vp)
 
 							local sx = (cx - margin) / math.max(1e-4, math.abs(dirX))
 							local sy = (cy - margin) / math.max(1e-4, math.abs(dirY))
@@ -66717,10 +66786,7 @@ NAmanage.ESP_PlayerLocatorEnableDrawing = function(force)
 								or (owner and owner.Team and owner.Team.TeamColor and owner.Team.TeamColor.Color)
 								or Color3.new(1, 1, 1)
 
-							local dirX, dirY = x - cx, y - cy
-							if z <= 0 then dirX = -dirX dirY = -dirY end
-							local mag = math.sqrt((dirX * dirX) + (dirY * dirY))
-							if mag < 1e-3 then dirX, dirY = 0, -1 else dirX, dirY = dirX / mag, dirY / mag end
+							local dirX, dirY = NAmanage.ESP_LocatorDirection(cam, pos, v3, vp)
 
 							local sx = (cx - margin) / math.max(1e-4, math.abs(dirX))
 							local sy = (cy - margin) / math.max(1e-4, math.abs(dirY))
@@ -81274,6 +81340,39 @@ NAgui.hideFill = function()
 		end
 	end
 	table.clear(prevVisible)
+	local pool = NAStuff and NAStuff.CmdAutofillPool
+	if type(pool) == "table" then
+		for i = 1, #pool do
+			local frame = pool[i]
+			if frame and frame.Parent and frame:IsA("GuiObject") then
+				frame.Visible = false
+				NAmanage.setCmdAutofillItemInteractivity(frame, false)
+			end
+		end
+	end
+	local host = NAUIMANAGER and NAUIMANAGER.cmdAutofill
+	if host then
+		for _, child in ipairs(host:GetChildren()) do
+			if child:IsA("GuiObject") then
+				child.Visible = false
+				NAmanage.setCmdAutofillItemInteractivity(child, false)
+			end
+		end
+	end
+end
+
+NAmanage.isCmdBarActive = function()
+	if NAStuff and NAStuff.cmdBarSelected == true then
+		return true
+	end
+	local box = NAUIMANAGER and NAUIMANAGER.cmdInput
+	if not box then
+		return false
+	end
+	local ok, focused = pcall(function()
+		return box:IsFocused()
+	end)
+	return ok and focused == true
 end
 
 NAmanage.setCmdAutofillClickable = function(enabled)
@@ -81549,8 +81648,10 @@ NAgui.loadCMDS = function(opts)
 			pcall(function()
 				focused = box:IsFocused()
 			end)
-			if focused or NAStuff.cmdBarSelected == true or (box.Text or "") ~= "" then
+			if focused or NAmanage.isCmdBarActive() then
 				NAgui.autoFILLLL()
+			else
+				NAgui.hideFill()
 			end
 		end)
 	end
@@ -81755,6 +81856,8 @@ NAgui.barDeselect = function(speed)
 	shouldShowDefaultAutofill = false
 	NAStuff.cmdBarSelected = false
 	NAmanage.setCmdAutofillClickable(false)
+	NAStuff.cmdSearchSuspendUntil = math.max(tonumber(NAStuff.cmdSearchSuspendUntil) or 0, os.clock() + 0.15)
+	gen += 1
 
 	NAgui.tween(NAUIMANAGER.centerBar, "Back", "InOut", speed, {
 		Size = UDim2.new(0, 0, 0, 0)
@@ -81788,6 +81891,9 @@ NAgui.barDeselect = function(speed)
 			if frame and frame.Parent and frame:IsA("GuiObject") then
 				frame.Visible = false
 			end
+		end
+		if not NAmanage.isCmdBarActive() then
+			NAgui.hideFill()
 		end
 	end)
 	if not hadVisible then
@@ -81908,6 +82014,14 @@ end
 
 NAmanage.performSearch = function(term, ctx)
 	ctx = ctx or NAmanage.getCmdAutofillContext((NAUIMANAGER and NAUIMANAGER.cmdInput and NAUIMANAGER.cmdInput.Text) or term or "")
+	if not NAmanage.isCmdBarActive() then
+		if predictionInput then
+			predictionInput.Text = ""
+		end
+		NAStuff.lastCmdAutofillCompletion = ""
+		NAgui.hideFill()
+		return
+	end
 	for _, f in ipairs(prevVisible) do f.Visible = false end
 	table.clear(prevVisible)
 	table.clear(results)
@@ -82135,6 +82249,14 @@ NAgui.searchCommands()
 
 NAgui.autoFILLLL=function()
 	if not NAUIMANAGER.cmdInput then return end
+	if not NAmanage.isCmdBarActive() then
+		if predictionInput then
+			predictionInput.Text = ""
+		end
+		NAStuff.lastCmdAutofillCompletion = ""
+		NAgui.hideFill()
+		return
+	end
 	local ctx = NAmanage.getCmdAutofillContext(NAUIMANAGER.cmdInput.Text or "")
 	local query = ctx.query or ""
 	lastSearchText = query
