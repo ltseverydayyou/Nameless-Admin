@@ -36066,20 +36066,77 @@ end)
 
 --Mobile Commands for the screen
 if IsOnMobile then
+	originalIO.setScreenOrientation=function(target)
+		if target == "Default" then
+			PlrGui.ScreenOrientation = StarterGui.ScreenOrientation
+			return "Default"
+		end
+		if typeof(target) == "EnumItem" then
+			PlrGui.ScreenOrientation = target
+			return target.Name
+		end
+	end
+
+	originalIO.screenOrientationButtons=function()
+		local buttons = {}
+		Insert(buttons, {
+			Text = "Default",
+			Callback = function()
+				originalIO.setScreenOrientation("Default")
+			end
+		})
+		for _, so in ipairs(Enum.ScreenOrientation:GetEnumItems()) do
+			Insert(buttons, {
+				Text = so.Name,
+				Callback = function()
+					originalIO.setScreenOrientation(so)
+				end
+			})
+		end
+		return buttons
+	end
+
+	originalIO.screenOrientationCommand=function(...)
+		local args = {...}
+		local target = args[1]
+		local buttons = originalIO.screenOrientationButtons()
+		if target and target ~= "" then
+			local found = false
+			for _, btn in ipairs(buttons) do
+				if Match(Lower(btn.Text), Lower(target)) then
+					btn.Callback()
+					DebugNotif("ScreenOrientation set to "..btn.Text, 3)
+					found = true
+					break
+				end
+			end
+			if not found then
+				DebugNotif("No matching ScreenOrientation for: "..tostring(target), 3)
+			end
+		else
+			Window({
+				Title = "Screen Orientation Options",
+				Buttons = buttons
+			})
+		end
+	end
+
+	cmd.add({"screenorientation","screenorient","scrorientation","scrorient","screenrotation","scrrotation","scrrot","so"},{"screenorientation [type]","Manage ScreenOrientation"},originalIO.screenOrientationCommand)
+
 	cmd.add({"sensorrotationscreen","sensorscreen","senscreen"},{"sensorrotationscreen","Changes ScreenOrientation to Sensor"},function()
-		PlrGui.ScreenOrientation=Enum.ScreenOrientation.Sensor
+		originalIO.screenOrientationCommand("Sensor")
 	end)
 
 	cmd.add({"landscaperotationscreen","landscapescreen","landscreen"},{"landscaperotationscreen","Changes ScreenOrientation to Landscape Sensor"},function()
-		PlrGui.ScreenOrientation=Enum.ScreenOrientation.LandscapeSensor
+		originalIO.screenOrientationCommand("LandscapeSensor")
 	end)
 
 	cmd.add({"portraitrotationscreen","portraitscreen","portscreen"},{"portraitrotationscreen","Changes ScreenOrientation to Portrait"},function()
-		PlrGui.ScreenOrientation=Enum.ScreenOrientation.Portrait
+		originalIO.screenOrientationCommand("Portrait")
 	end)
 
-	cmd.add({"defaultrotaionscreen","defaultscreen","defscreen"},{"defaultrotaionscreen","Changes ScreenOrientation to Portrait"},function()
-		PlrGui.ScreenOrientation=StarterGui.ScreenOrientation
+	cmd.add({"defaultrotationscreen","defaultrotaionscreen","defaultscreen","defscreen"},{"defaultrotationscreen","Changes ScreenOrientation to Default"},function()
+		originalIO.screenOrientationCommand("Default")
 	end)
 end
 
@@ -60047,7 +60104,7 @@ cmd.add({"cbring", "clientbring", "clientb"}, {"cbring <player> [distance]", "Br
 	end
 end, true)
 
-cmd.add({"loopcbring", "loppclientb", "loopclientbring", "lcbring", "lclientb"}, {"loopcbring <player> [distance]", "Continuously brings the player on your client"}, function(...)
+cmd.add({"loopcbring", "loopclientb", "loppclientb", "loopclientbring", "lcbring", "lclientb"}, {"loopcbring <player> [distance]", "Continuously brings the player on your client"}, function(...)
 	local args = {...}
 	local distance = NAmanage.parseBringDistance(args, 3)
 	local username = args[1]
@@ -60084,7 +60141,7 @@ cmd.add({"loopcbring", "loppclientb", "loopclientbring", "lcbring", "lclientb"},
 	end
 end, true)
 
-cmd.add({"unloopcbring", "unloopcientb", "unlcbring", "unlclientb", "uncbring", "unclientb"}, {"unloopcbring", "Disable looped client bring"}, function()
+cmd.add({"unloopcbring", "unloopclientb", "unloopcientb", "unlcbring", "unlclientb", "uncbring", "unclientb"}, {"unloopcbring", "Disable looped client bring"}, function()
 	for _, conn in ipairs(bringc) do
 		conn:Disconnect()
 	end
@@ -60905,7 +60962,7 @@ cmd.add({"scriptviewer","viewscripts"},{"scriptviewer (viewscripts)","Can view s
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/main/scriptviewer",true))()
 end)
 
-cmd.add({"moduleeditor","modulartable","mtable","mt"},{"moduleeditor","loads the module editor UI"},function()
+cmd.add({"moduleeditor","moduletable","modulartable","mtable","mt"},{"moduleeditor","loads the module editor UI"},function()
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/ModuleEditor.lua"))()
 end)
 
