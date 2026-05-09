@@ -806,6 +806,22 @@
       "desc": "removes any velocity/force instanceson your character"
     },
     {
+      "name": "screenorientation",
+      "aliases": [
+        "screenorientation",
+        "screenorient",
+        "scrorientation",
+        "scrorient",
+        "screenrotation",
+        "scrrotation",
+        "scrrot",
+        "so"
+      ],
+      "usage": "screenorientation [type]",
+      "args": "[type]",
+      "desc": "Manage ScreenOrientation"
+    },
+    {
       "name": "sensorrotationscreen",
       "aliases": [
         "sensorrotationscreen",
@@ -839,15 +855,16 @@
       "desc": "Changes ScreenOrientation to Portrait"
     },
     {
-      "name": "defaultrotaionscreen",
+      "name": "defaultrotationscreen",
       "aliases": [
+        "defaultrotationscreen",
         "defaultrotaionscreen",
         "defaultscreen",
         "defscreen"
       ],
-      "usage": "defaultrotaionscreen",
+      "usage": "defaultrotationscreen",
       "args": "",
-      "desc": "Changes ScreenOrientation to Portrait"
+      "desc": "Changes ScreenOrientation to Default"
     },
     {
       "name": "commandcount",
@@ -4882,6 +4899,7 @@
       "name": "loopcbring",
       "aliases": [
         "loopcbring",
+        "loopclientb",
         "loppclientb",
         "loopclientbring",
         "lcbring",
@@ -4895,6 +4913,7 @@
       "name": "unloopcbring",
       "aliases": [
         "unloopcbring",
+        "unloopclientb",
         "unloopcientb",
         "unlcbring",
         "unlclientb",
@@ -5178,6 +5197,7 @@
       "name": "moduleeditor",
       "aliases": [
         "moduleeditor",
+        "moduletable",
         "modulartable",
         "mtable",
         "mt"
