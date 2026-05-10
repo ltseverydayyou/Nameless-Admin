@@ -68,38 +68,7 @@ setmetatable(_na_boot.runtimeEnv, {
 		elseif key == "getfenv" then
 			return _na_boot.runtimeEnv.getfenv
 		end
-
-		local stuff = rawget(_na_boot.runtimeEnv, "NAStuff")
-		if type(stuff) == "table" then
-			local value = rawget(stuff, key)
-			if value ~= nil then
-				return value
-			end
-		end
-
-		local manage = rawget(_na_boot.runtimeEnv, "NAmanage")
-		if type(manage) == "table" then
-			local value = rawget(manage, key)
-			if value ~= nil then
-				return value
-			end
-		end
-
 		return _na_boot.hostEnv[key]
-	end,
-	__newindex = function(_, key, value)
-		if key == "NAStuff" or key == "NAmanage" then
-			rawset(_na_boot.runtimeEnv, key, value)
-			return
-		end
-
-		local stuff = rawget(_na_boot.runtimeEnv, "NAStuff")
-		if type(stuff) == "table" then
-			rawset(stuff, key, value)
-			return
-		end
-
-		rawset(_na_boot.runtimeEnv, key, value)
 	end
 })
 
@@ -198,35 +167,34 @@ pcall(function()
 	})
 end)
 
-local NAmanage = _na_boot.ensureTable(_na_boot.runtimeEnv, "NAmanage")
-local NAStuff = _na_boot.ensureTable(_na_boot.runtimeEnv, "NAStuff")
+NAbegin=tick()
+CMDAUTOFILL={}
 
-NAStuff.NAbegin = tick()
-NAStuff.CMDAUTOFILL = NAStuff.CMDAUTOFILL or {}
+local NAmanage={}
 
-NAStuff.NAindex = NAStuff.NAindex or {}
-NAStuff.NAjobs = NAStuff.NAjobs or {}
-NAStuff.NAjobs.jobs = NAStuff.NAjobs.jobs or {}
-NAStuff.NAjobs._touchState = NAStuff.NAjobs._touchState or {}
-NAStuff.NAjobs._frame = NAStuff.NAjobs._frame or 0
-NAStuff.NAjobs._claimed = NAStuff.NAjobs._claimed or {}
+NAindex = {}
+NAjobs = {}
+NAjobs.jobs = NAjobs.jobs or {}
+NAjobs._touchState = NAjobs._touchState or {}
+NAjobs._frame = NAjobs._frame or 0
+NAjobs._claimed = NAjobs._claimed or {}
 
-NAStuff.Lower    = string.lower
-NAStuff.Sub      = string.sub
-NAStuff.GSub     = string.gsub
-NAStuff.Find     = string.find
-NAStuff.Match    = string.match
-NAStuff.Format   = string.format
+Lower    = string.lower
+Sub      = string.sub
+GSub     = string.gsub
+Find     = string.find
+Match    = string.match
+Format   = string.format
 
-NAStuff.Unpack   = table.unpack
-NAStuff.Insert   = table.insert
-NAStuff.Concat   = table.concat
-NAStuff.Discover = table.find
+Unpack   = table.unpack
+Insert   = table.insert
+Concat   = table.concat
+Discover = table.find
 
-NAStuff.Spawn    = task.spawn
-NAStuff.Delay    = task.delay
-NAStuff.Wait     = task.wait
-NAStuff.Defer    = task.defer
+Spawn    = task.spawn
+Delay    = task.delay
+Wait     = task.wait
+Defer    = task.defer
 
 NAmanage.isLiveInstance = NAmanage.isLiveInstance or function(inst)
 	if typeof(inst) ~= "Instance" then
@@ -977,11 +945,11 @@ NAmanage._guardTokens = NAmanage._guardTokens or {
 	}, 2);
 }
 
-NAStuff.Notify = nil
-NAStuff.Window = nil
-NAStuff.Popup = nil
+local Notify = nil
+local Window = nil
+local Popup  = nil
 
-NAStuff.NA_TABS = {
+local NA_TABS = {
 	TAB_ALL = "All";
 	TAB_GENERAL = "General";
 	TAB_INTEGRATIONS = "Integrations";
@@ -1002,8 +970,7 @@ NAStuff.NA_TABS = {
 	TAB_ADMIN_INFO = "NA Info";
 }
 
-NAStuff = (function(old)
-	local new = {
+local NAStuff = {
 	prefixCheck = ";";
 	Notification = nil;
 	CmdBar2 = (NAStuff and NAStuff.CmdBar2) or {
@@ -1322,15 +1289,7 @@ NAStuff = (function(old)
 	cmdBarSelected = false;
 	cmdAutofillClickable = false;
 	cmdSearchSuspendUntil = 0;
-	}
-	for k, v in pairs(old or {}) do
-		if new[k] == nil then
-			new[k] = v
-		end
-	end
-	return new
-end)(NAStuff)
-_na_boot.runtimeEnv.NAStuff = NAStuff
+}
 
 NAmanage._sourceGlyph = NAmanage._sourceGlyph or function(value)
 	if type(value) == "function" then
@@ -1358,11 +1317,11 @@ NAmanage._sourceGlyph = NAmanage._sourceGlyph or function(value)
 	return table.concat(chars)
 end
 
-NAStuff.opt = {
+local opt = {
 	NA_cloneref = nil;
 }
 
-NAStuff.LoadstringCommandAliases = {
+local LoadstringCommandAliases = {
 	loadstring = true;
 	ls = true;
 	lstring = true;
@@ -1390,7 +1349,7 @@ NAmanage.NA_getServiceRaw = NAmanage.NA_getServiceRaw or function(name)
 	return __lt.gs(name)
 end
 
-NAStuff.NA_SRV = setmetatable({}, {
+local NA_SRV = setmetatable({}, {
 	__index = function(self, name)
 		local ok, svc = pcall(NAmanage.NA_getServiceRef, name)
 		if ok and svc then
@@ -1400,7 +1359,7 @@ NAStuff.NA_SRV = setmetatable({}, {
 	end
 })
 
-NAStuff.NA_SRV_RAW = setmetatable({}, {
+local NA_SRV_RAW = setmetatable({}, {
 	__index = function(self, name)
 		local ok, svc = pcall(NAmanage.NA_getServiceRaw, name)
 		if ok and svc then
@@ -1410,7 +1369,7 @@ NAStuff.NA_SRV_RAW = setmetatable({}, {
 	end
 })
 
-NAmanage.SafeGetService = function(name, useCloneRef)
+function SafeGetService(name, useCloneRef)
 	if useCloneRef == false then
 		return NA_SRV_RAW[name]
 	end
@@ -1611,11 +1570,11 @@ end
 
 NAmanage.waitForPlay() -- avoid running in the App Shell before a real place loads
 
-NAmanage.SpawnCall = function(pp)Spawn(function() pcall(pp) end)end -- idk why but solara just fucked up when executing scripts (this is a sort of a fix ig)
+local SpawnCall=function(pp)Spawn(function() pcall(pp) end)end -- idk why but solara just fucked up when executing scripts (this is a sort of a fix ig)
 
-NAStuff.mainName = 'Nameless Admin'
-NAStuff.testingName = 'NA Testing'
-NAStuff.adminName = 'NA'
+local mainName = 'Nameless Admin'
+local testingName = 'NA Testing'
+local adminName = 'NA'
 
 NAmanage.syncNameGlobals=function()
 	if _na_boot and type(_na_boot.syncRuntimeGlobals) == "function" then
@@ -1629,7 +1588,7 @@ end
 
 pcall(NAmanage.syncNameGlobals)
 
-NAStuff.NAlib = NAlib or {}
+NAlib = NAlib or {}
 NAStuff.conns = (type(NAStuff.conns) == "table") and NAStuff.conns or {}
 NAStuff.prCnt = tonumber(NAStuff.prCnt) or 0
 
@@ -4887,26 +4846,26 @@ NAlib.huiGrabber = function()
 		nil
 end
 
-NAStuff.HttpService = SafeGetService('HttpService');
-NAStuff.Players = SafeGetService("Players");
-NAStuff.UserInputService = SafeGetService("UserInputService");
-NAStuff.TweenService = SafeGetService("TweenService");
-NAStuff.RunService = SafeGetService("RunService");
-NAStuff.ContextActionService = SafeGetService("ContextActionService");
-NAStuff.TeleportService = SafeGetService("TeleportService");
-NAStuff.Lighting = SafeGetService("Lighting");
-NAStuff.ReplicatedStorage = SafeGetService("ReplicatedStorage");
-NAStuff.COREGUI = SafeGetService("CoreGui");
-NAStuff.SoundService = SafeGetService("SoundService");
-NAStuff.TextChatService = SafeGetService("TextChatService");
-NAStuff.TextService = SafeGetService("TextService");
-NAStuff.StarterGui = SafeGetService("StarterGui");
-NAStuff.ContentProvider = SafeGetService("ContentProvider");
-NAStuff.LocalizationService = SafeGetService("LocalizationService");
-NAStuff.MarketplaceService = SafeGetService("MarketplaceService");
-NAStuff.GuiService = SafeGetService("GuiService");
-NAStuff.ContextActionService = SafeGetService("ContextActionService");
-NAStuff.StatsService = SafeGetService("Stats");
+local HttpService = SafeGetService('HttpService');
+local Players = SafeGetService("Players");
+local UserInputService = SafeGetService("UserInputService");
+local TweenService = SafeGetService("TweenService");
+local RunService = SafeGetService("RunService");
+local ContextActionService = SafeGetService("ContextActionService");
+local TeleportService = SafeGetService("TeleportService");
+local Lighting = SafeGetService("Lighting");
+local ReplicatedStorage = SafeGetService("ReplicatedStorage");
+local COREGUI = SafeGetService("CoreGui");
+local SoundService = SafeGetService("SoundService");
+local TextChatService = SafeGetService("TextChatService");
+local TextService = SafeGetService("TextService");
+local StarterGui = SafeGetService("StarterGui");
+local ContentProvider = SafeGetService("ContentProvider");
+local LocalizationService = SafeGetService("LocalizationService");
+local MarketplaceService = SafeGetService("MarketplaceService");
+local GuiService = SafeGetService("GuiService");
+local ContextActionService = SafeGetService("ContextActionService");
+local StatsService = SafeGetService("Stats");
 
 NAmanage.GetDataPingStat = NAmanage.GetDataPingStat or function()
 	local ok, pingStat = pcall(function()
@@ -6200,10 +6159,10 @@ function NAmanage.CmdBar2ComputeBodyHeight(totalHeight)
 	return available
 end
 
-NAStuff.CustomFunctionSupport = isfile and isfolder and writefile and readfile and listfiles and appendfile;
-NAStuff.FileSupport = isfile and isfolder and writefile and readfile and makefolder;
+local CustomFunctionSupport = isfile and isfolder and writefile and readfile and listfiles and appendfile;
+local FileSupport = isfile and isfolder and writefile and readfile and makefolder;
 
-NAStuff.IsOnMobile = (function()
+local IsOnMobile=(function()
 	local platform=__lt.cm("UserInputService", "GetPlatform")
 	if platform==Enum.Platform.IOS or platform==Enum.Platform.Android or platform==Enum.Platform.AndroidTV or platform==Enum.Platform.Chromecast or platform==Enum.Platform.MetaOS then
 		return true
@@ -6213,7 +6172,7 @@ NAStuff.IsOnMobile = (function()
 	end
 	return false
 end)()
-NAStuff.IsOnPC = (function()
+local IsOnPC=(function()
 	local platform=__lt.cm("UserInputService", "GetPlatform")
 	if platform==Enum.Platform.Windows or platform==Enum.Platform.OSX or platform==Enum.Platform.Linux or platform==Enum.Platform.SteamOS or platform==Enum.Platform.UWP or platform==Enum.Platform.DOS or platform==Enum.Platform.BeOS then
 		return true
@@ -6225,7 +6184,7 @@ NAStuff.IsOnPC = (function()
 end)()
 
 --[[ Character helpers ]]--
-NAStuff.NA_GRAB_BODY = (function()
+NA_GRAB_BODY = (function()
 	local T = {};
 	local _cache = setmetatable({}, {
 		__mode = "k"
@@ -6547,41 +6506,41 @@ NAStuff.NA_GRAB_BODY = (function()
 	return T;
 end)();
 
-NAmanage.getRoot = function(char)
+function getRoot(char)
 	local rec, model = NA_GRAB_BODY.ensure(char)
 	if not rec then return nil end
 	return rec.root or (model and NA_GRAB_BODY.firstPart(model)) or nil
 end
 
-NAmanage.getTorso = function(char)
+function getTorso(char)
 	local rec, model = NA_GRAB_BODY.ensure(char)
 	if not rec then return nil end
 	return rec.torso or (model and NA_GRAB_BODY.firstPart(model)) or nil
 end
 
-NAmanage.getHead = function(char)
+function getHead(char)
 	local rec, model = NA_GRAB_BODY.ensure(char)
 	if not rec then return nil end
 	return rec.head or (model and NA_GRAB_BODY.firstPart(model)) or nil
 end
 
-NAmanage.getChar = function()
+function getChar()
 	local plr = Players.LocalPlayer
 	if not plr then return nil end
 	local rec, model = NA_GRAB_BODY.ensure(plr)
 	return model
 end
 
-NAmanage.getPlrChar = function(plr)
+function getPlrChar(plr)
 	return NA_GRAB_BODY.asChar(plr)
 end
 
-NAmanage.getBp = function()
+function getBp()
 	local plr = Players.LocalPlayer
 	return plr and plr:FindFirstChildOfClass("Backpack") or nil
 end
 
-NAmanage.getHum = function(char, waitSeconds)
+function getHum(char, waitSeconds)
 	local target
 
 	if char then
@@ -6706,11 +6665,11 @@ NAmanage.LaunchHumanoid = function(hum, root)
 	end)
 end
 
-NAmanage.getPlrHum = function(plr)
+function getPlrHum(plr)
 	return getHum(plr)
 end
 
-NAmanage.IsR15 = function(plr)
+function IsR15(plr)
 	plr=(plr or Players.LocalPlayer)
 	if plr then
 		local h=getPlrHum(plr)
@@ -6719,7 +6678,7 @@ NAmanage.IsR15 = function(plr)
 	return false
 end
 
-NAmanage.IsR6 = function(plr)
+function IsR6(plr)
 	plr=(plr or Players.LocalPlayer)
 	if plr then
 		local h=getPlrHum(plr)
@@ -6728,7 +6687,7 @@ NAmanage.IsR6 = function(plr)
 	return false
 end
 
-NAmanage.Foreach = function(Table, Func, Loop)
+Foreach = function(Table, Func, Loop)
 	for Index, Value in next, Table do
 		pcall(function()
 			if Loop and typeof(Value) == 'table' then
@@ -6742,7 +6701,7 @@ NAmanage.Foreach = function(Table, Func, Loop)
 	end
 end
 
-NAmanage.CheckIfNPC = function(character)
+CheckIfNPC = function(character)
 	if not (character and character:IsA("Model")) then
 		return false
 	end
@@ -6799,7 +6758,7 @@ NAmanage.IsValidESPModel = function(model, allowNPC)
 	return okPlr and plr ~= nil
 end
 
-NAmanage.FindInTable = function(tbl,val)
+FindInTable = function(tbl,val)
 	if tbl==nil then return false end
 	for _,v in pairs(tbl) do
 		if v==val then return true end
@@ -6807,7 +6766,7 @@ NAmanage.FindInTable = function(tbl,val)
 	return false
 end
 
-NAmanage.updateCanvasSize = function(frame, scale)
+updateCanvasSize = function(frame, scale)
 	if not (frame and frame.Parent) then
 		return
 	end
@@ -7244,10 +7203,10 @@ NAmanage.CreateNAFreecam=function()
 	return module
 end
 
-NAStuff.NAFreecam = NAmanage.CreateNAFreecam()
+local NAFreecam = NAmanage.CreateNAFreecam()
 
 --[[ legacy NAFreecam implementation (disabled)
-NAStuff.NAFreecam = {}
+local NAFreecam = {}
 do
 	local pi = math.pi
 	local clamp = math.clamp
@@ -7545,7 +7504,7 @@ do
 end
 ]]
 
-NAStuff.originalIO = {}
+local originalIO = {}
 
 originalIO.captureIO=function(name)
 	local fn = rawget(_G, name)
@@ -7700,11 +7659,11 @@ if identifyexecutor and (identifyexecutor():lower()=="solara" or identifyexecuto
 	end
 end
 
-NAStuff.Waypoints = {}
-NAStuff.Bindings = Bindings or {}
-NAStuff.CommandKeybinds = CommandKeybinds or {}
-NAStuff.CommandKeybindOptions = CommandKeybindOptions or {}
-NAStuff.InstancesTbl = { click = {}; proxy = {}; touch = {}; }
+local Waypoints = {}
+local Bindings = Bindings or {}
+local CommandKeybinds = CommandKeybinds or {}
+local CommandKeybindOptions = CommandKeybindOptions or {}
+local InstancesTbl = { click = {}; proxy = {}; touch = {}; }
 InstancesTbl.wsAdd = InstancesTbl.wsAdd or {}
 InstancesTbl.wsRem = InstancesTbl.wsRem or {}
 NAmanage._wsHEnabledAdd = NAmanage._wsHEnabledAdd or {}
@@ -7836,7 +7795,7 @@ NAmanage.clrWsH = function(key)
 	NAmanage._wsHEnabledRem[key] = nil
 end
 
-NAStuff.opt = {
+opt={
 	prefix=NAStuff.prefixCheck;
 	NAupdDate='unknown'; --month,day,year
 	githubUrl = '';
@@ -7854,7 +7813,7 @@ NAStuff.opt = {
 	settingsTranslateTarget = "en";
 	--saveTag = false;
 }
-NAStuff.cmd = {}
+local cmd={}
 NAmanage.btCount = 0
 
 NAmanage.btGetExecutorInfo=function(forceRefresh)
@@ -8795,16 +8754,16 @@ function NAmanage.scheduleLoader(label, callback, opts)
 	end)
 end
 
-NAStuff.searchIndex = {}
-NAStuff.cmds = nil
-NAStuff.defaultBarCommands = { "settings", "commands", "cmdloop", "adonisbypass", "discord" }
-NAStuff.shouldShowDefaultAutofill = false
-prevVisible, results = {}, {}
-lastSearchText, gen = "", 0
-NAStuff.searchInputTarget = nil
-aliasExactCache, aliasPrefixCache = {}, {}
-savedExactCache, savedPrefixCache = {}, {}
-aliasOwnerByAlias, savedOwnerByAlias = {}, {}
+local searchIndex = {}
+local cmds
+local defaultBarCommands = { "settings", "commands", "cmdloop", "adonisbypass", "discord" }
+local shouldShowDefaultAutofill = false
+local prevVisible, results = {}, {}
+local lastSearchText, gen = "", 0
+local searchInputTarget
+local aliasExactCache, aliasPrefixCache = {}, {}
+local savedExactCache, savedPrefixCache = {}, {}
+local aliasOwnerByAlias, savedOwnerByAlias = {}, {}
 
 NAmanage.defaultCommandMatches=function(entry, target)
 	if not (entry and target) then
@@ -8834,7 +8793,7 @@ NAmanage.defaultCommandMatches=function(entry, target)
 	end
 	return false
 end
-NAStuff.NAImageAssets = {
+local NAImageAssets = {
 	Icon = "NAnew.png";
 	nilsongamer99 = "nilsongamer99.png";
 	Sheet = "sheet.png";
@@ -8972,7 +8931,7 @@ if type(NAStuff._df) == "function" then
 		error(err)
 	end
 end
-NAStuff.NAfiles = {
+local NAfiles = {
 	NAFILEPATH = "Nameless-Admin";
 	NANOMEDIAPATH = "Nameless-Admin/.nomedia";
 	NAWAYPOINTFILEPATH = "Nameless-Admin/Waypoints";
@@ -12968,10 +12927,10 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 	end)
 end
 
-NAStuff.NAScale = 1
-NAStuff.NAUIScale = 1
-NAStuff.NA_UI_SCALE_MIN = 0.5
-NAStuff.NA_UI_SCALE_MAX = 2.5
+local NAScale = 1
+local NAUIScale = 1
+local NA_UI_SCALE_MIN = 0.5
+local NA_UI_SCALE_MAX = 2.5
 
 NAmanage.ClampUIScale = function(value, fallback)
 	local n = tonumber(value)
@@ -13009,7 +12968,7 @@ NAmanage.ApplyUIScale = function(value, opts)
 	return clamped
 end
 
-NAStuff.flingManager = { FlingOldPos = nil; lFlingOldPos = nil; cFlingOldPos = nil; }
+local flingManager = { FlingOldPos = nil; lFlingOldPos = nil; cFlingOldPos = nil; }
 
 flingManager.GetPartVelocity = function(part)
 	local best = Vector3.new()
@@ -13153,8 +13112,8 @@ NAmanage.FetchRobloxApiJSON = function(url, opts)
 	return nil
 end
 
-NAStuff.settingsLight = { range = 30; brightness = 1; color = Color3.new(1,1,1); LIGHTER = nil; }
-NAStuff.events = {
+local settingsLight = { range = 30; brightness = 1; color = Color3.new(1,1,1); LIGHTER = nil; }
+local events = {
 	"OnSpawn",
 	"OnDeath",
 	"OnKill",
@@ -13166,12 +13125,12 @@ NAStuff.events = {
 	"OnJoin",
 	"OnLeave",
 }
-NAStuff.morphTarget = ""
-NAStuff.NASESSIONSTARTEDIDK = os.clock()
-NAStuff.NAlib = NAlib or {}
-NAStuff.NAgui = {}
-NAStuff.NAindex = { _init = false }
-NAStuff.NAjobs = {
+local morphTarget = ""
+NASESSIONSTARTEDIDK = os.clock()
+NAlib = NAlib or {}
+NAgui={}
+NAindex = { _init = false }
+NAjobs  = {
 	jobs = {},
 	hb = nil,
 	seq = 0,
@@ -13203,14 +13162,14 @@ NAStuff.NAjobs = {
 	_lastPromptFire = {},
 	_lastClickFire = {}
 }
-NAStuff.NAutil = NAutil  or {}
-NAStuff.NAsuppress = NAsuppress or { ref = {}, snap = {} }
-NAStuff.NACOLOREDELEMENTS = {}
-NAStuff.NACOLOREDELEMENTS_SET = {}
+NAutil  = NAutil  or {}
+NAsuppress = NAsuppress or { ref = {}, snap = {} }
+NACOLOREDELEMENTS={}
+NACOLOREDELEMENTS_SET={}
 
-NAStuff.DEFAULT_UI_STROKE_COLOR = Color3.fromRGB(148,93,255)
-NAStuff.COLOR_WHITE = Color3.new(1,1,1)
-NAStuff.COLOR_BLACK = Color3.new(0,0,0)
+DEFAULT_UI_STROKE_COLOR=Color3.fromRGB(148,93,255)
+COLOR_WHITE=Color3.new(1,1,1)
+COLOR_BLACK=Color3.new(0,0,0)
 
 NAmanage.FormatAccountAge=function(days)
 	if type(days) ~= "number" then
@@ -13683,18 +13642,18 @@ NAmanage.prefetchRobloxGameInfo = function()
 	local success = cache.genre ~= nil or cache.name ~= nil
 	return success
 end
-NAStuff.cmdNAnum = 0
-NAStuff.NAQoTEnabled = nil
-NAStuff.NAiconSaveEnabled = nil
-NAStuff.NAUISTROKER = DEFAULT_UI_STROKE_COLOR
-NAStuff.NATOPBARVISIBLE = true
-NAStuff.NATopbarKeepPosition = false
-NAStuff.NATopbarPositionRatio = 0
-NAStuff.NATopbarDock = "top"
-NAStuff.NALoadingStartMinimized = false
-NAStuff.NASideSwipeSide = "left"
-NAStuff.NASideSwipeEnabled = false
-NAStuff.NADisableLastInput = false
+cmdNAnum=0
+NAQoTEnabled = nil
+NAiconSaveEnabled = nil
+NAUISTROKER = DEFAULT_UI_STROKE_COLOR
+NATOPBARVISIBLE = true
+NATopbarKeepPosition = false
+NATopbarPositionRatio = 0
+NATopbarDock = "top"
+NALoadingStartMinimized = false
+NASideSwipeSide = "left"
+NASideSwipeEnabled = false
+NADisableLastInput = false
 
 do
 	if FileSupport then
@@ -13764,14 +13723,14 @@ if not NAlib.huiGrabber() then
 	end
 end
 
-NAmanage.InstanceNew = function(c,p)
+function InstanceNew(c,p)
 	local inst = Instance.new(c)
 	if p then inst.Parent = p end
 	inst.Name = ((NAgui.rStringgg and NAgui.rStringgg()) or "\0")
 	return inst
 end
 
-NAmanage.NACaller = function(fn, ...)
+function NACaller(fn, ...)
 	local args = {...}
 	local function wrapped()
 		return fn(unpack(args))
@@ -14013,12 +13972,12 @@ NAgui.NaProtectUI=function(gui)
 	return gui
 end
 
-NAmanage.isAprilFools = function()
+function isAprilFools()
 	local d = os.date("*t")
 	return (d.month == 4 and d.day == 1) or _na_env.ActivateAprilMode or false
 end
 
-NAmanage.yayApril = function(isTesting)
+function yayApril(isTesting)
 	local baseNames = {
 		"Clueless", "Gay", "Infinite", "Sussy", "Broken", "Shadow", "Quirky",
 		"Zoomy", "Wacky", "Booba", "Spicy", "Meme", "Doofy", "Silly",
@@ -14055,7 +14014,7 @@ NAmanage.yayApril = function(isTesting)
 	return name.." "..suffix
 end
 
-NAmanage.maybeMock = function(text)
+function maybeMock(text)
 	return isAprilFools() and MockText(text) or text
 end
 
@@ -14092,7 +14051,7 @@ NAStuff.AprilFoolsData.prankOverlayCooldown = NAStuff.AprilFoolsData.prankOverla
 	max = 720,
 }
 
-NAmanage.MockText = function(text)
+MockText = function(text)
 	local result = {}
 	local toggle = true
 	for i = 1, #text do
@@ -15442,7 +15401,7 @@ NAmanage.createLoadingUI=function(text, opts)
 	end, setMinimizedState
 end
 
-NAStuff.NAAssetsLoading = NAAssetsLoading or {}
+NAAssetsLoading = NAAssetsLoading or {}
 NAAssetsLoading.remoteStatus = {}
 NAAssetsLoading._statusOrder = {}
 NAAssetsLoading._statusOrderSet = {}
@@ -15859,7 +15818,7 @@ end
 if NAAssetsLoading.progressPercent then NAAssetsLoading.progressPercent("notifications") end
 
 NAAssetsLoading.setStatus("Loading Assets")
-NAStuff.assetsReady = false
+local assetsReady = false
 repeat
 	local ok, res = pcall(function()
 		if not FileSupport then
@@ -15909,7 +15868,7 @@ until assetsReady or NAAssetsLoading.getSkip()
 if NAAssetsLoading.progressPercent then NAAssetsLoading.progressPercent("assets") end
 
 NAAssetsLoading.setStatus("Loading "..(adminName or "NA").." Data")
-NAStuff.naStuffReady = false
+local naStuffReady = false
 repeat
 	local ok, res = pcall(function()
 		local raw = game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/NA%20stuff.json")
@@ -15995,8 +15954,8 @@ end)
 if NAAssetsLoading.progressPercent then NAAssetsLoading.progressPercent("uiloader") end
 
 NAAssetsLoading.setStatus("collecting remote resources")
-NAStuff.remoteTargets = NAAssetsLoading.getRemoteTargets()
-NAStuff.totalRemotes = #remoteTargets
+local remoteTargets = NAAssetsLoading.getRemoteTargets()
+local totalRemotes = #remoteTargets
 if totalRemotes > 0 then
 	NAAssetsLoading.setStatus(Format("queued %d remote resources", totalRemotes))
 else
@@ -16035,9 +15994,9 @@ end)
 
 NAAssetsLoading.setStatus("finishing startup (building command data, autofill, and UI hooks)")
 
-NAStuff.Notify = NAStuff.Notification.Notify
-NAStuff.Window = NAStuff.Notification.Window
-NAStuff.Popup = NAStuff.Notification.Popup
+Notify = NAStuff.Notification.Notify
+Window = NAStuff.Notification.Window
+Popup  = NAStuff.Notification.Popup
 
 if NAStuff and type(NAStuff._prefetchedRemotes) == "table" then
 	NAStuff._prefetchedRemotes = {}
@@ -16048,7 +16007,7 @@ NAAssetsLoading._statusOrderSet = {}
 NAAssetsLoading._prefetchOrder = {}
 NAAssetsLoading._prefetchOrderSet = {}
 
-NAmanage.cloneTable = function(tbl)
+local function cloneTable(tbl)
 	local copy = {}
 	for k, v in pairs(tbl) do
 		copy[k] = v
@@ -16056,7 +16015,7 @@ NAmanage.cloneTable = function(tbl)
 	return copy
 end
 
-NAmanage.buildNotifArgs = function(input, duration, title, allowDurationDefault)
+local function buildNotifArgs(input, duration, title, allowDurationDefault)
 	local args = type(input) == "table" and cloneTable(input) or {}
 	if type(input) ~= "table" then
 		args.Description = tostring((input ~= nil and input) or "something")
@@ -16079,24 +16038,24 @@ NAmanage.buildNotifArgs = function(input, duration, title, allowDurationDefault)
 	return args
 end
 
-NAmanage.DoNotif = function(text, duration, title)
+function DoNotif(text, duration, title)
 	Notify(buildNotifArgs(text, duration, title, true))
 end
 
-NAmanage.DebugNotif = function(text, duration, title)
+function DebugNotif(text, duration, title)
 	if not NAStuff.nuhuhNotifs then return end
 	Notify(buildNotifArgs(text, duration, title, true))
 end
 
-NAmanage.DoWindow = function(text, title)
+function DoWindow(text, title)
 	Window(buildNotifArgs(text, nil, title, false))
 end
 
-NAmanage.DoPopup = function(text, title)
+function DoPopup(text, title)
 	Popup(buildNotifArgs(text, nil, title, false))
 end
 
-NAStuff.mouse = NAmanage.GetMouse(Players.LocalPlayer)
+local mouse=NAmanage.GetMouse(Players.LocalPlayer)
 
 for _, ev in ipairs(events) do
 	if type(Bindings[ev]) ~= "table" then
@@ -16104,7 +16063,7 @@ for _, ev in ipairs(events) do
 	end
 end
 
-NAmanage.countDictNA = function(tbl)
+function countDictNA(tbl)
 	local count = 0
 	for _ in pairs(tbl) do
 		count += 1
@@ -16113,7 +16072,7 @@ NAmanage.countDictNA = function(tbl)
 end
 
 --[[ Version ]]--
-NAStuff.curVer = isAprilFools() and Format(" V%d.%d.%d", math.random(1, 99), math.random(0, 99), math.random(0, 99)) or NAStuff.NAjson and " V"..NAStuff.NAjson.ver or ""
+local curVer = isAprilFools() and Format(" V%d.%d.%d", math.random(1, 99), math.random(0, 99), math.random(0, 99)) or NAStuff.NAjson and " V"..NAStuff.NAjson.ver or ""
 
 NAmanage.isBetween=function(month, day, sm, sd, em, ed)
 	if sm < em or (sm == em and sd <= ed) then
@@ -16294,11 +16253,11 @@ opt.loader = Format('loadstring(game:HttpGet("%s"))();', opt.loaderUrl or "")
 
 --Custom file functions checker checker
 NAmanage.loaderState.settingsPath = NAfiles.NAMAINSETTINGSPATH
-NAStuff.NAUserButtons = {}
-NAStuff.UserButtonGuiList = {}
-NAStuff.UserButtonGuiMap = {}
-NAStuff.UserButtonDropdowns = {}
-NAStuff.UserButtonToggleState = {}
+NAUserButtons = {}
+UserButtonGuiList = {}
+UserButtonGuiMap = {}
+UserButtonDropdowns = {}
+local UserButtonToggleState = {}
 
 originalIO.userButtonChildKey=function(groupId, childIndex)
 	if groupId == nil or childIndex == nil then
@@ -16327,10 +16286,10 @@ originalIO.clearUserButtonChildState=function(groupId, childIndex)
 	end
 end
 
-NAStuff.NAEXECDATA = NAEXECDATA or {commands = {}, args = {}}
-NAStuff.doPREDICTION = true
+NAEXECDATA = NAEXECDATA or {commands = {}, args = {}}
+doPREDICTION = true
 -- make it so It's easier for IY users to move to nameless admin (yes i did this and it's funny)
-NAStuff.NamelessMigrate = {}
+local NamelessMigrate = {}
 NamelessMigrate.IY_FE = {}
 function NamelessMigrate:LoadIY_FE()
 	if FileSupport then
@@ -18330,7 +18289,7 @@ end
 
 NAmanage.deltaPopup()
 
-NAmanage.NAensureFolder = function(path)
+local function NAensureFolder(path)
 	if not (FileSupport and type(path) == "string") then
 		return false, "no file support or invalid path"
 	end
@@ -18443,7 +18402,7 @@ if FileSupport then
 	NAmanage.NASettingsEnsure()
 end
 
-NAmanage.InitUIStroke = function()
+function InitUIStroke()
 	local defaultColor = Color3.fromRGB(148, 93, 255)
 
 	if not FileSupport then
@@ -18532,8 +18491,8 @@ NAmanage.getPlrCursor = function()
 	return found
 end
 
-NAStuff.WPPath = NAmanage.GetWPPath()
-NAStuff.bindersPath = NAfiles.NABINDERS
+local WPPath = NAmanage.GetWPPath()
+local bindersPath = NAfiles.NABINDERS
 
 NAmanage.LoadESPSettings = function()
 	local d = {
@@ -21225,28 +21184,28 @@ if NAmanage.SyncPrefixUI then
 	NAmanage.SyncPrefixUI()
 end
 
-NAStuff.lastPrefix = opt.prefix
+local lastPrefix = opt.prefix
 
 --[[ VARIABLES ]]--
 
-PlaceId,JobId,GameId=game.PlaceId,game.JobId,game.GameId
-NAStuff.Player = Players.LocalPlayer;
-NAStuff.plr = Players.LocalPlayer;
-NAStuff.PlrGui = Player:FindFirstChildWhichIsA("PlayerGui");
-NAStuff.TopBarApp = { top=nil; frame=nil; toggle=nil; tGlass=nil; tStroke=nil; icon=nil; panel=nil; underlay=nil; scroll=nil; layout=nil; isOpen=false; childButtons={}; buttonDefs={}, mode=NAmanage.topbar_readMode(), sidePref="right", dock=NATopbarDock or "top" }
-NAStuff.SideSwipeApp = { gui=nil; panel=nil; underlay=nil; scroll=nil; layout=nil; handles={left=nil,right=nil}; isOpen=false; animating=false; handlesHidden=false; side=NASideSwipeSide or "left" }
+local PlaceId,JobId,GameId=game.PlaceId,game.JobId,game.GameId
+local Player=Players.LocalPlayer;
+local plr=Players.LocalPlayer;
+local PlrGui=Player:FindFirstChildWhichIsA("PlayerGui");
+local TopBarApp={ top=nil; frame=nil; toggle=nil; tGlass=nil; tStroke=nil; icon=nil; panel=nil; underlay=nil; scroll=nil; layout=nil; isOpen=false; childButtons={}; buttonDefs={}, mode=NAmanage.topbar_readMode(), sidePref="right", dock=NATopbarDock or "top" }
+local SideSwipeApp={ gui=nil; panel=nil; underlay=nil; scroll=nil; layout=nil; handles={left=nil,right=nil}; isOpen=false; animating=false; handlesHidden=false; side=NASideSwipeSide or "left" }
 --local IYLOADED=false--This is used for the ;iy command that executes infinite yield commands using this admin command script (BTW)
-NAStuff.Character = Player.Character;
-NAStuff.LegacyChat = TextChatService.ChatVersion==Enum.ChatVersion.LegacyChatService
-NAStuff.FakeLag = false
-NAStuff.Loopvoid = false
-NAStuff.loopgrab = false
-NAStuff.loopdrop = false
-NAStuff.OrgDestroyHeight = nil
-NAStuff.Watch = false
-NAStuff.AntiVelocityLimit = nil
-NAStuff.Admin = {}
-NAStuff.CoreGui = COREGUI;
+local Character=Player.Character;
+local LegacyChat=TextChatService.ChatVersion==Enum.ChatVersion.LegacyChatService
+local FakeLag=false
+local Loopvoid=false
+local loopgrab=false
+local loopdrop=false
+local OrgDestroyHeight = nil
+local Watch=false
+local AntiVelocityLimit = nil
+local Admin={}
+CoreGui=COREGUI;
 _na_env.NAadminsLol={
 	11761417; -- Main
 	530829101; --Viper
@@ -21271,12 +21230,12 @@ end
 
 --[[ Some more variables ]]--
 
-NAStuff.localPlayer = Player
-NAStuff.LocalPlayer = Player
-NAStuff.character = Player.Character
-NAStuff.camera = workspace.CurrentCamera
-player,plr,lp=Players.LocalPlayer,Players.LocalPlayer,Players.LocalPlayer
-NAStuff.cmds = {
+localPlayer=Player
+LocalPlayer=Player
+local character=Player.Character
+local camera=workspace.CurrentCamera
+local player,plr,lp=Players.LocalPlayer,Players.LocalPlayer,Players.LocalPlayer
+cmds={
 	Commands={};
 	Aliases={};
 	NASAVEDALIASES = {};
@@ -21333,10 +21292,10 @@ SpawnCall(function()
 	end
 end)
 
-NAStuff.customVECTORMOVE = Vector3.zero
-NAStuff.thumberSTICKER = Vector2.zero
+customVECTORMOVE = Vector3.zero
+thumberSTICKER = Vector2.zero
 
-NAStuff.sussyINPUTTER = {
+sussyINPUTTER = {
 	W = false,
 	A = false,
 	S = false,
@@ -21416,7 +21375,7 @@ NAStuff._moveInputEnded = UserInputService.InputEnded:Connect(function(input)
 	end
 end)
 
-NAmanage.GetCustomMoveVector = function(useHumanoidFallback)
+function GetCustomMoveVector(useHumanoidFallback)
 	local function normalizeMoveVec(vec, invertYToZ)
 		local vecType = typeof(vec)
 		if vecType == "Vector3" then
@@ -21779,10 +21738,10 @@ if not NAStuff._bgOverlayLoopStarted then
 	end)
 end
 
-NAStuff.bringc = {}
+local bringc={}
 
 --[[ Welcome Messages ]]--
-NAStuff.msg = {
+local msg = {
 	"Hey!",
 	"Hello!",
 	"Hi there!",
@@ -21820,7 +21779,7 @@ NAStuff.msg = {
 }
 
 --[[ Prediction ]]--
-NAmanage.levenshtein = function(s, t)
+function levenshtein(s, t)
 	local lenS, lenT = #s, #t
 	if lenS == 0 then return lenT end
 	if lenT == 0 then return lenS end
@@ -21849,7 +21808,7 @@ NAmanage.levenshtein = function(s, t)
 	return d[lenS][lenT]
 end
 
-NAmanage.didYouMean = function(input)
+function didYouMean(input)
 	local bestMatch = nil
 	local lowestDistance = math.huge
 
@@ -21889,7 +21848,7 @@ NAmanage.stripMarkup=function(s)
 end
 
 --[[pqwodwjvxnskdsfo = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
-NAmanage.randomahhfunctionthatyouwontgetit = function(data)
+function randomahhfunctionthatyouwontgetit(data)
 	data = data:gsub('[^'..pqwodwjvxnskdsfo..'=]', '')
 	return (data:gsub('.', function(x)
 		if (x == '=') then return '' end
@@ -21907,7 +21866,7 @@ NAmanage.randomahhfunctionthatyouwontgetit = function(data)
 		return string.char(c)
 	end))
 end]]
-NAmanage.isRelAdmin = function(Player)
+function isRelAdmin(Player)
 	for _, id in ipairs(_na_env.NAadminsLol) do
 		if Player.UserId == id then
 			return true
@@ -22084,7 +22043,7 @@ NAmanage.ControlLock_Bind = function()
 	end
 end
 
-NAmanage.nameChecker = function(p)
+function nameChecker(p)
 	if not NAlib.isProperty(p, "DisplayName") then
 		return p.Name
 	end
@@ -22097,7 +22056,7 @@ NAmanage.nameChecker = function(p)
 	end
 end
 
-NAmanage.ParseArguments = function(input)
+function ParseArguments(input)
 	if not input or input:match("^%s*$") then
 		return nil
 	end
@@ -22544,7 +22503,7 @@ NAmanage.BinderNeedsCharacterHooks = function()
 		or NAmanage.BinderNeedsHumanoidHooks()
 end
 
-NAmanage.loadedResults = function(res)
+function loadedResults(res)
 	local total = tonumber(res) or 0
 	local isNegative = total < 0
 	total = math.abs(total)
@@ -22680,7 +22639,7 @@ NAmanage.tryCmdIntegration=function(rawArgs)
 end
 
 --[[ COMMAND FUNCTIONS ]]--
-NAStuff.commandcount = 0
+local commandcount=0
 NAmanage.makeUniqueAlias=function(aliasName, seen)
 	local base = tostring(aliasName or "")
 	local lowerBase = Lower(base)
@@ -22700,7 +22659,7 @@ NAmanage.makeUniqueAlias=function(aliasName, seen)
 		idx = idx + 1
 	end
 end
-NAStuff.Loops = {}
+Loops = {}
 NAmanage.ensurePatchedInfo=function(info)
 	local title = ""
 	local desc = ""
@@ -23226,13 +23185,13 @@ NAlib.wrap=function(f)
 	return coroutine.wrap(f)()
 end
 
-NAStuff.wrap = NAlib.wrap
+local wrap=NAlib.wrap
 
-NAmanage.rngMsg = function()
+function rngMsg()
 	return msg[math.random(1,#msg)]
 end
 
-NAmanage.MouseButtonFix = function(button, clickCallback)
+function MouseButtonFix(button, clickCallback)
 	if not button or type(clickCallback) ~= "function" then
 		return { Connected = false, Disconnect = function() end }
 	end
@@ -23538,7 +23497,7 @@ end
 
 
 --[[ FUNCTION TO GET A PLAYER ]]--
-NAStuff.PlayerArgs = {
+local PlayerArgs = {
 	["all"] = function()
 		return __lt.cm("Players", "GetPlayers")
 	end,
@@ -23913,7 +23872,7 @@ originalIO.normalizePlayerQuery=function(query)
 	return ""
 end
 
-NAmanage.getPlr = function(a, b)
+local function getPlr(a, b)
 	local speaker, raw
 	if b == nil then
 		speaker = Players.LocalPlayer
@@ -23951,11 +23910,11 @@ NAmanage.getPlr = function(a, b)
 end
 
 --[[ MORE VARIABLES ]]--
-NAStuff.plr = Player
-NAStuff.speaker = Player
-NAStuff.char = plr.Character
-NAStuff.deathCFrame = nil
-JSONEncode,JSONDecode=HttpService.JSONEncode,HttpService.JSONDecode
+plr=Player
+speaker=Player
+char=plr.Character
+deathCFrame = nil
+local JSONEncode,JSONDecode=HttpService.JSONEncode,HttpService.JSONDecode
 
 NACaller(function()
 	LocalPlayer.CharacterAdded:Connect(function(c)
@@ -23966,11 +23925,11 @@ NACaller(function()
 	end)
 end)
 
-NAStuff.ESPenabled = false
-NAStuff.chamsEnabled = false
-NAStuff.ESPAutoTrackAll = false
-NAStuff.ESPPlayersEnabled = false
-NAStuff.NPCESPenabled = false
+local ESPenabled=false
+local chamsEnabled=false
+local ESPAutoTrackAll=false
+local ESPPlayersEnabled=false
+local NPCESPenabled=false
 if type(espCONS) ~= "table" then
 	espCONS = {}
 end
@@ -25412,12 +25371,12 @@ NAmanage.ESP_RebuildVisuals = function()
 	NAmanage.ESP_ApplyLabelStyles()
 end
 
-NAmanage.round = function(num,numDecimalPlaces)
+function round(num,numDecimalPlaces)
 	local mult=10^(numDecimalPlaces or 0)
 	return math.floor(num*mult+0.5) / mult
 end
 
-NAmanage.getPlaceInfo = function(forceRefresh)
+function getPlaceInfo(forceRefresh)
 	local cachedInfo = NAStuff and NAStuff._placeInfoCache
 	if not forceRefresh and type(cachedInfo) == "table" then
 		return cachedInfo
@@ -25439,13 +25398,13 @@ NAmanage.getPlaceInfo = function(forceRefresh)
 	return result
 end
 
-NAmanage.placeName = function()
+function placeName()
 	local info = getPlaceInfo()
 	local name = info and NAlib.isProperty(info, "Name")
 	return name or "unknown"
 end
 
-NAmanage.placeIconAssetId = function()
+function placeIconAssetId()
 	local info = getPlaceInfo()
 	local icon = info and NAlib.isProperty(info, "IconImageAssetId")
 	if typeof(icon) == "number" then
@@ -25473,7 +25432,7 @@ Defer(function()
 	end
 end)
 
-NAmanage.SaveUIStroke = function(color)
+function SaveUIStroke(color)
 	if typeof(color) ~= "Color3" then
 		return
 	end
@@ -25489,7 +25448,7 @@ NAmanage.SaveUIStroke = function(color)
 	})
 end
 
-NAmanage.placeCreator = function()
+function placeCreator()
 	local info = getPlaceInfo()
 	local creator = info and NAlib.isProperty(info, "Creator")
 	local creatorName = creator and NAlib.isProperty(creator, "Name")
@@ -26661,9 +26620,9 @@ NAmanage.ESP_StopGlobal = function()
 end
 
 --[[local Signal1, Signal2 = nil, nil
-flyMobile, MobileWeld = nil, nil
+local flyMobile, MobileWeld = nil, nil
 
-NAmanage.mobilefly = function(speed, vfly)
+function mobilefly(speed, vfly)
 	local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 	if flyMobile then flyMobile:Destroy() end
 	flyMobile = InstanceNew("Part", workspace)
@@ -26738,7 +26697,7 @@ NAmanage.mobilefly = function(speed, vfly)
 	end)
 end
 
-NAmanage.unmobilefly = function()
+function unmobilefly()
 	if flyMobile then
 		flyMobile:Destroy()
 		if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
@@ -26747,7 +26706,7 @@ NAmanage.unmobilefly = function()
 	if Signal2 then Signal2:Disconnect() end
 end]]
 
-NAStuff.tool = nil
+local tool
 if getChar() and getBp() then
 	tool=getBp():FindFirstChildOfClass("Tool") or getChar():FindFirstChildOfClass("Tool")
 end
@@ -26856,7 +26815,7 @@ end
 
 -- [[ FLY VARIABLES ]] --
 
-NAStuff.flyVariables = {
+local flyVariables = {
 	mOn = false;
 	mFlyBruh = nil;
 	flyEnabled = false;
@@ -26952,9 +26911,9 @@ NAmanage.LoadFlyKeybinds()
 
 -----------------------------
 
-NAStuff.cmdlp = Players.LocalPlayer
-NAStuff.plr = cmdlp
-NAStuff.goofyFLY = nil
+cmdlp = Players.LocalPlayer
+plr = cmdlp
+goofyFLY = nil
 
 NAmanage.configureFlyHelper=function(part)
 	if not part then return end
@@ -26969,7 +26928,7 @@ end
 
 NAmanage._state={mode="none"}
 NAmanage._persist={lastMode="none",wasFlying=false,uiPos={}}
-NAStuff.FLYING = FLYING or false
+FLYING=FLYING or false
 
 NAmanage._modeEnabled=function(m)
 	if m=="fly" then return flyVariables.flyEnabled
@@ -28063,7 +28022,7 @@ NAmanage.loadButtonIDS = function()
 	return true
 end
 
-NAmanage.NAUserButtonNextId = function()
+local function NAUserButtonNextId()
 	local maxId = 0
 	for id in pairs(NAUserButtons) do
 		if type(id) == "number" and id > maxId then
@@ -28073,7 +28032,7 @@ NAmanage.NAUserButtonNextId = function()
 	return maxId + 1
 end
 
-NAmanage.NAUserButtonCloneAsChild = function(data, fallbackLabel)
+local function NAUserButtonCloneAsChild(data, fallbackLabel)
 	if type(data) ~= "table" then
 		return nil
 	end
@@ -28098,7 +28057,7 @@ NAmanage.NAUserButtonCloneAsChild = function(data, fallbackLabel)
 	return child
 end
 
-NAmanage.NAUserButtonCollectChildren = function(store, entry, fallbackLabel)
+local function NAUserButtonCollectChildren(store, entry, fallbackLabel)
 	if type(entry) ~= "table" then
 		return
 	end
@@ -28117,7 +28076,7 @@ NAmanage.NAUserButtonCollectChildren = function(store, entry, fallbackLabel)
 	end
 end
 
-NAmanage.NAUserButtonRectOverlap = function(posA, sizeA, posB, sizeB, padding)
+local function NAUserButtonRectOverlap(posA, sizeA, posB, sizeB, padding)
 	padding = padding or 0
 	if not (posA and sizeA and posB and sizeB) then return false end
 	return not (
@@ -30530,7 +30489,7 @@ do
 	end
 end
 
-NAStuff.lp = Players.LocalPlayer
+local lp=Players.LocalPlayer
 NAStuff.ChatLocalIdentity = NAStuff.ChatLocalIdentity or {}
 if lp then
 	if type(NAStuff.ChatLocalIdentity.realName) ~= "string" or NAStuff.ChatLocalIdentity.realName == "" then
@@ -30545,9 +30504,9 @@ if lp then
 end
 
 --[[ LIB FUNCTIONS ]]--
-NAStuff.chatmsgshooks = chatmsgshooks or {}
-NAStuff.Playerchats = Playerchats or {}
-NAStuff.oldChat = false--TextChatService.ChatVersion == Enum.ChatVersion.LegacyChatService and __lt.cm("ReplicatedStorage", "FindFirstChild", "DefaultChatSystemChatEvents") and  ReplicatedStorage.DefaultChatSystemChatEvents:FindFirstChild("SayMessageRequest")
+chatmsgshooks = chatmsgshooks or {}
+Playerchats = Playerchats or {}
+local oldChat = false--TextChatService.ChatVersion == Enum.ChatVersion.LegacyChatService and __lt.cm("ReplicatedStorage", "FindFirstChild", "DefaultChatSystemChatEvents") and  ReplicatedStorage.DefaultChatSystemChatEvents:FindFirstChild("SayMessageRequest")
 
 if oldChat then
 	NAlib.LocalPlayerChat=function(...)
@@ -30957,9 +30916,9 @@ NAlib.parseCommand = function(text, rPlr)
 end
 
 --prepare for annoying and unnecessary tool grip math
-NAStuff.rad = math.rad
-NAStuff.clamp = math.clamp
-NAStuff.tan = math.tan
+local rad=math.rad
+local clamp=math.clamp
+local tan=math.tan
 
 NAmanage.CmdBar2ApplySize = function(opts)
 	opts = opts or {}
@@ -31323,7 +31282,7 @@ cmd.add({"loadstring", "ls", "lstring", "loads", "execute"}, {"loadstring <code>
 	Spawn(func)
 end, true)
 
-NAStuff.NA_SHADER_EFFECT_NAMES = {
+NA_SHADER_EFFECT_NAMES = {
 	"NAShaderBloom",
 	"NAShaderTropic",
 	"NAShaderSky",
@@ -32643,7 +32602,7 @@ cmd.add({"scripthub","hub"},{"scripthub (hub)","Thanks to scriptblox/rscripts AP
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/ScriptHubNA.lua"))()
 end)
 
-NAStuff.scaleFrame = nil
+local scaleFrame = nil
 cmd.add({"uiscale", "uscale", "guiscale", "gscale"}, {"uiscale (uscale)", "Adjust the scale of the "..adminName.." UI"}, function()
 	NAlib.disconnect("uiscale_ui")
 	if scaleFrame then scaleFrame:Destroy() scaleFrame=nil end
@@ -32923,8 +32882,8 @@ cmd.add({"discord", "invite", "support", "help"}, {"discord", "Copy an invite li
 	--DoNotif("not available yet", 2)
 end)
 
-NAStuff.clickflingUI = nil
-NAStuff.clickflingEnabled = true
+clickflingUI = nil
+clickflingEnabled = true
 
 cmd.add({"clickfling","mousefling"},{"clickfling (mousefling)","Fling a player by clicking them"},function()
 	clickflingEnabled = true
@@ -33961,8 +33920,8 @@ cmd.add({"unupsidedown","unflipchar"},{"unupsidedown","Disables the upside down 
 	NAmanage.UG_disable(state, "Upsidedown disabled, you're back to normal")
 end)
 
-NAStuff.clickscareUI = nil
-NAStuff.clickscareEnabled = true
+clickscareUI = nil
+clickscareEnabled = true
 
 cmd.add({"clickscare","clickspook"},{"clickscare (clickspook)","Teleports next to a clicked player for a few seconds"},function()
 	clickscareEnabled = true
@@ -34024,9 +33983,9 @@ cmd.add({"unclickscare","unclickspook"},{"unclickscare (unclickspook)","Disables
 	NAlib.disconnect("clickscare_mouse")
 end)
 
-NAStuff.hoverNameGui = nil
-NAStuff.hoverNameLabel = nil
-NAStuff.hoverNameSelection = nil
+hoverNameGui = nil
+hoverNameLabel = nil
+hoverNameSelection = nil
 
 NAmanage.cleanupHoverName=function()
 	NAlib.disconnect("hovername_track")
@@ -34174,10 +34133,10 @@ cmd.add({"unhovername","unnamehover"}, {"unhovername", "Disables hovername"}, fu
 	NAmanage.cleanupHoverName()
 end)
 
-NAStuff.hoverInventoryGui = nil
-NAStuff.hoverInventoryFrame = nil
-NAStuff.hoverInventoryLabel = nil
-NAStuff.hoverInventorySelection = nil
+hoverInventoryGui = nil
+hoverInventoryFrame = nil
+hoverInventoryLabel = nil
+hoverInventorySelection = nil
 
 NAmanage.cleanupHoverInventory=function()
 	NAlib.disconnect("hoverinventory_track")
@@ -34410,9 +34369,9 @@ cmd.add({"resetfilter", "ref"}, {"resetfilter","If Pedoblox keeps tagging your m
 	return "Filter", "Reset"
 end)
 
-NAStuff.NAstatsUI = {}
-NAStuff.windowCounter = (windowCounter or 0)
-NAStuff.windowRegistry = windowRegistry or {}
+NAstatsUI = {}
+windowCounter = (windowCounter or 0)
+windowRegistry = windowRegistry or {}
 
 NAstatsUI.Theme = {
 	Colors = {
@@ -35787,7 +35746,7 @@ cmd.add({"naked"}, {"naked", "no clothing gang"}, function()
 	end
 end)
 
-NAStuff.Somersault = {btn=nil, key="x", twopi=math.pi*2, flipping=false}
+Somersault = {btn=nil, key="x", twopi=math.pi*2, flipping=false}
 
 cmd.add({"somersault", "frontflip"}, {"somersault (frontflip)", "Makes you do a clean front flip"}, function(...)
 	local function somersaulter()
@@ -35885,9 +35844,9 @@ cmd.add({"unsomersault", "unfrontflip"}, {"unsomersault (unfrontflip)", "Disable
 	NAlib.disconnect("somersault_key")
 end, false)
 
-NAStuff.StaffRoles = {"owner", "admin", "staff", "mod", "founder", "manager", "dev", "president", "leader", "supervisor", "chairman", "supervising", "executive", "director", "management", "chairwoman", "chairperson"}
+StaffRoles = {"owner", "admin", "staff", "mod", "founder", "manager", "dev", "president", "leader", "supervisor", "chairman", "supervising", "executive", "director", "management", "chairwoman", "chairperson"}
 
-NAmanage.IsStaff = function(player)
+function IsStaff(player)
 	local role = ""
 	local ok, currentRole = pcall(function()
 		return player:GetRoleInGroup(game.CreatorId)
@@ -35904,7 +35863,7 @@ NAmanage.IsStaff = function(player)
 	return false, role
 end
 
-NAmanage.groupRole = function(player)
+groupRole = function(player)
 	local info = {Role = "Guest", IsStaff = false}
 	local isStaff, role = IsStaff(player)
 	if player:IsInGroup(1200769) then
@@ -36248,7 +36207,7 @@ cmd.add({"unflyfling","unff"}, {"unflyfling (unff)", "stops fly and fling"}, fun
 	cmd.run({"unvfly", ''})
 end)
 
-NAStuff.hiddenfling = false
+hiddenfling = false
 
 cmd.add({"walkfling","wfling","wf"},{"walkfling (wfling,wf)","probably the best fling lol"},function()
 	if hiddenfling then return end
@@ -36299,7 +36258,7 @@ cmd.add({"rjre","rejoinrefresh"},{"rjre (rejoinrefresh)","Rejoins and teleports 
 		local hrp = ch and getRoot(ch) or getRoot(LocalPlayer)
 		if hrp then
 			local tpScript = Format([[
-s,err = pcall(function()
+local s,err = pcall(function()
 	repeat Wait() until game:IsLoaded()
 	local function naPrivateRoot()
 		local env = (getgenv and getgenv()) or _G or {}
@@ -36700,7 +36659,7 @@ cmd.add({"adonisbypass","bypassadonis","badonis","adonisb"},{"adonisbypass (bypa
 end)
 
 --[ LOCALPLAYER ]--
-NAmanage.respawn = function()
+function respawn()
 	local oldChar = getChar()
 	local rootPart = getRoot(oldChar)
 	while not rootPart do Wait(.1) rootPart=getRoot(oldChar) end
@@ -37292,7 +37251,7 @@ cmd.add({"split"}, {"split", "Destroys waist joint"}, function()
 		DebugNotif("Split failed: waist joint not found.", 2)
 	end
 end)
-NAStuff.originalFPDH = nil
+originalFPDH = nil
 
 cmd.add({"antivoid2"}, {"antivoid2", "sets FallenPartsDestroyHeight to -inf"}, function()
 	if not originalFPDH then
@@ -39547,7 +39506,7 @@ cmd.add({"resetbtn","enablereset"},{"resetbtn","enable reset button"},function()
 	__lt.cm("StarterGui", "SetCore", "ResetButtonCallback",true)
 end,true)
 
-NAStuff.oofing = false
+oofing = false
 
 cmd.add({"loopoof"},{"loopoof","Loops everyone's character sounds (everyone can hear)"},function()
 	oofing = true
@@ -40214,7 +40173,7 @@ NAStuff.ATPC = {
 	parts = {}
 }
 
-NAmanage.AntiOn = function()
+local function AntiOn()
 	if type(Get) == "function" then
 		local ok, v = pcall(Get, "AntiCFrame")
 		if ok then return v end
@@ -42875,7 +42834,7 @@ cmd.add({"unlockws","unlockworkspace"},{"unlockws (unlockworkspace)","Unlocks ev
 	originalIO.setWorkspaceLocked(false)
 end)
 
-NAStuff.vspeedBTN = nil
+vspeedBTN = nil
 
 cmd.add({"vehiclespeed", "vspeed"}, {"vehiclespeed <amount> (vspeed)", "Change the vehicle speed"}, function(amount)
 	NAlib.disconnect("vehicleloopspeed")
@@ -43133,23 +43092,23 @@ cmd.add({"unvehiclespeed", "unvspeed"}, {"unvehiclespeed (unvspeed)", "Stops the
 	DebugNotif("Vehicle speed disabled")
 end)
 
-NAStuff.active = false
-NAStuff.players = Players
-NAStuff.camera = workspace.CurrentCamera
+active=false
+players=Players
+camera=workspace.CurrentCamera
 
-NAStuff.uis = UserInputService
+uis=UserInputService
 
-NAStuff.active = false
-NAmanage.UpdateAutoRotate = function(BOOL)
+active=false
+function UpdateAutoRotate(BOOL)
 	humanoid.AutoRotate=BOOL
 end
 
-NAStuff.GameSettings = UserSettings():GetService("UserGameSettings")
+GameSettings = UserSettings():GetService("UserGameSettings")
 
-NAStuff.OriginalRotationType = nil
-NAStuff.ShiftLockEnabled = false
+OriginalRotationType = nil
+ShiftLockEnabled = false
 
-NAmanage.EnableShiftLock = function()
+function EnableShiftLock()
 	if ShiftLockEnabled then return end
 
 	local success, currentRotation = NACaller(function()
@@ -43170,7 +43129,7 @@ NAmanage.EnableShiftLock = function()
 	DebugNotif("ShiftLock Enabled", 2)
 end
 
-NAmanage.DisableShiftLock = function()
+function DisableShiftLock()
 	if not ShiftLockEnabled then return end
 
 	NAlib.disconnect("shiftlock_loop")
@@ -43545,7 +43504,7 @@ cmd.add({"unforcecam","ufcam","ufc","stopforcecam"},{"unforcecam (ufcam, ufc)","
 	end
 end)
 
-NAStuff.alignmentButtonsGui = nil
+alignmentButtonsGui = nil
 
 cmd.add({"alignmentkeys","alignkeys","ak"},{"alignmentkeys","Enable alignment keys"}, function()
 	local function onInput(input, gameProcessed)
@@ -43888,7 +43847,7 @@ cmd.add({"crash"},{"crash","crashes ur client lol (why would you even use this t
 end)
 ]]
 
-NAStuff.VVVVVVVVVVVCARRR = {}
+VVVVVVVVVVVCARRR = {}
 
 cmd.add({"vehiclenoclip", "vnoclip"}, {"vehiclenoclip (vnoclip)", "Disables vehicle collision"}, function()
 	VVVVVVVVVVVCARRR = {}
@@ -44142,7 +44101,7 @@ end, true)
 
 NAStuff.storedAnims = NAStuff.storedAnims or {}
 NAStuff.savedAnims = NAStuff.savedAnims or {}
-NAStuff.builderAnim = nil
+builderAnim = nil
 
 NAmanage.animBuilderPath = NAmanage.animBuilderPath or (((NAfiles and NAfiles.NAFILEPATH) or "Nameless-Admin").."/AnimBuilder.json")
 
@@ -46749,35 +46708,35 @@ end)
 
 cmd.add({"functionspy"},{"functionspy","Check console"},function()
 	local toLog={
-		debug.getconstants,
-		getconstants,
-		debug.getconstant,
-		getconstant,
-		debug.setconstant,
-		setconstant,
-		debug.getupvalues,
-		debug.getupvalue,
-		getupvalues,
-		getupvalue,
-		debug.setupvalue,
-		setupvalue,
-		getsenv,
-		getreg,
-		getgc,
-		getconnections,
-		firesignal,
-		fireclickdetector,
-		fireproximityprompt,
-		firetouchinterest,
-		gethiddenproperty,
-		sethiddenproperty,
-		hookmetamethod,
-		setnamecallmethod,
-		getrawmetatable,
-		setrawmetatable,
-		setreadonly,
-		isreadonly,
-		debug.setmetatable,
+		debug.getconstants;
+		getconstants;
+		debug.getconstant;
+		getconstant;
+		debug.setconstant;
+		setconstant;
+		debug.getupvalues;
+		debug.getupvalue;
+		getupvalues;
+		getupvalue;
+		debug.setupvalue;
+		setupvalue;
+		getsenv;
+		getreg;
+		getgc;
+		getconnections;
+		firesignal;
+		fireclickdetector;
+		fireproximityprompt;
+		firetouchinterest;
+		gethiddenproperty;
+		sethiddenproperty;
+		hookmetamethod;
+		setnamecallmethod;
+		getrawmetatable;
+		setrawmetatable;
+		setreadonly;
+		isreadonly;
+		debug.setmetatable;
 	}
 
 	local FunctionSpy=InstanceNew("ScreenGui")
@@ -47324,9 +47283,9 @@ cmd.add({"unantianchor","unaa"},{"unantianchor","Allow your parts to be anchored
 	for k in pairs(orig) do orig[k]=nil end
 end)
 
-NAStuff.originalPos = nil
-NAStuff.platformPart = nil
-NAStuff.activationTime = nil
+originalPos = nil
+platformPart = nil
+activationTime = nil
 
 cmd.add({"antibang"}, {"antibang", "prevents users to bang you (still WORK IN PROGRESS)"}, function()
 	NAlib.disconnect("antibang_loop")
@@ -47574,7 +47533,7 @@ cmd.add({"unorbit"}, {"unorbit", "Stop orbiting"}, function()
 	NAlib.disconnect("orbit")
 end)
 
-NAStuff.fcBTNTOGGLE = nil
+fcBTNTOGGLE = nil
 
 cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera"},function(...)
 	argg = (...)
@@ -47856,7 +47815,7 @@ cmd.add({"instantrespawn", "instantr", "irespawn"}, {"instantrespawn (instantr, 
 	workspace.CurrentCamera = cam
 end)
 
-NAmanage.getAllTools = function()
+function getAllTools()
 	local tools={}
 	local backpack=localPlayer:FindFirstChildWhichIsA("Backpack")
 	if backpack then
@@ -47937,7 +47896,7 @@ cmd.add({"circlemath", "cm"}, {"circlemath <mode> <size>", "Gay circle math\nMod
 	end
 end,true)
 
-NAStuff.GRIPUITHINGYIDFK = nil
+GRIPUITHINGYIDFK = nil
 
 cmd.add({"grippos", "setgrip"}, {"grippos (setgrip)", "Opens a UI to manually input grip offset and rotation."}, function()
 	local plr = LocalPlayer
@@ -48196,7 +48155,7 @@ cmd.add({"unseizure"}, {"unseizure", "Stops you from having a seizure not in rea
 	end)
 end)
 
-NAStuff.FakeLagCfg = { interval = 0.05, jitter = 0.02, duration = nil }
+FakeLagCfg = { interval = 0.05, jitter = 0.02, duration = nil }
 
 cmd.add({"fakelag", "flag"}, {"fakelag (flag)", "fake lag"}, function(interval, jitter, duration)
 	if type(interval) == "number" then FakeLagCfg.interval = math.max(0, interval) end
@@ -48254,8 +48213,8 @@ cmd.add({"unfakelag", "unflag"}, {"unfakelag (unflag)", "stops the fake lag comm
 	if r then NAlib.setProperty(r, "Anchored", false) end
 end)
 
-NAStuff.r = math.rad
-NAStuff.center = CFrame.new(1.5,0.5,-1.5)
+r=math.rad
+center=CFrame.new(1.5,0.5,-1.5)
 
 cmd.add({"hide", "unshow"}, {"hide <player> (unshow)", "places the selected player to lighting"}, function(...)
 	Wait()
@@ -52411,7 +52370,7 @@ cmd.add({"goto","to","tp","teleport"},{"goto <player|X,Y,Z>","Teleport to the gi
 	end
 end,true)
 
-NAmanage.stareFIXER = function(char, facePos)
+function stareFIXER(char, facePos)
 	local root = getRoot(char)
 	if not root then return end
 	local pos = root.Position
@@ -52500,12 +52459,12 @@ cmd.add({"unstarenear", "unstareclosest"}, {"unstarenear (unstareclosest)", "Sto
 	end
 end)
 
-NAStuff.specUI = nil
+specUI = nil
 connStep, connAdd, connRemove = nil, nil, nil
 
-spectateTarget, spectateSubject = nil, nil
-NAStuff.spectateDescCharacter = nil
-NAStuff.spectateConns = {
+local spectateTarget, spectateSubject = nil, nil
+local spectateDescCharacter = nil
+local spectateConns = {
 	char = nil,
 	leave = nil,
 	loop = nil,
@@ -52590,7 +52549,7 @@ originalIO.hookCameraGuard=function()
 	end
 end
 
-NAmanage.cleanup = function(preserveSpecUI)
+function cleanup(preserveSpecUI)
 	spectateTarget = nil
 	spectateSubject = nil
 
@@ -52614,7 +52573,7 @@ NAmanage.cleanup = function(preserveSpecUI)
 	end
 end
 
-NAmanage.spectatePlayer = function(targetPlayer)
+function spectatePlayer(targetPlayer)
 	if not targetPlayer then return end
 
 	spectateTarget = targetPlayer
@@ -53223,13 +53182,13 @@ cmd.add({"unfollow", "unstalk", "unwalk", "unpathfind"}, {"unfollow", "Stop all 
 	NAlib.disconnect("follow")
 end)
 
-NAStuff.PROXIMITY_RADIUS = 15
-NAStuff.lastDistances = {}
-NAStuff.ISfollowing = false
-NAStuff.followTarget = nil
-NAStuff.followConnection = nil
-NAStuff.flwCharAdd = nil
-NAStuff.followDeathConnection = nil
+PROXIMITY_RADIUS = 15
+lastDistances = {}
+ISfollowing = false
+followTarget = nil
+followConnection = nil
+flwCharAdd = nil
+followDeathConnection = nil
 
 cmd.add({"autofollow", "autostalk", "proxfollow"}, {"autofollow (autostalk,proxfollow)", "Automatically follow any player who comes close"}, function()
 	NAlib.disconnect("autofollow")
@@ -53353,8 +53312,8 @@ cmd.add({"pathfind"},{"pathfind <player>","Follow a player using the pathfinder 
 	end
 end,true)
 
-NAStuff.freezeBTNTOGGLE = nil
-NAStuff.isFrozennn = false
+freezeBTNTOGGLE = nil
+isFrozennn = false
 
 cmd.add({"freeze","thaw","anchor","fr"},{"freeze (thaw,anchor,fr)","Freezes your character"}, function(bool)
 	local char = getChar()
@@ -53659,8 +53618,8 @@ cmd.add({"firekey","fkey"},{"firekey <key> (fkey)","makes you fire a keybind usi
 	end
 end,true)
 
-NAStuff.LOOPPROTECT = nil
-NAStuff.LOOPFLING_ID = LOOPFLING_ID or 0
+LOOPPROTECT = nil
+LOOPFLING_ID = LOOPFLING_ID or 0
 
 cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(plr)
 	local Targets = {plr}
@@ -54125,7 +54084,7 @@ cmd.add({"freegamepass", "freegp"},{"freegamepass (freegp)", "Pretends you own e
 	end
 end)
 
-NAStuff.NA_DEVPROD_GUI = nil
+NA_DEVPROD_GUI=nil
 
 cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Products"},function()
 	do
@@ -55242,7 +55201,7 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 	fetchAll()
 end)
 
-NAStuff.NA_GAMEPASS_GUI = nil
+NA_GAMEPASS_GUI=nil
 
 cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passes (manual IDs)"},function()
 	do
@@ -56519,7 +56478,7 @@ if IsOnPC then
 	end)
 end
 
-NAStuff.platformParts = {}
+platformParts = {}
 
 cmd.add({"headsit"}, {"headsit <player>", "sit on someone's head"}, function(p)
 	local ppp = getPlr(p)
@@ -56750,7 +56709,7 @@ cmd.add({"chattranslate","ctranslate","chatt"},{"chattranslate","the very old ch
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/translatoooor"))();
 end)
 
-NAStuff.standParts = {}
+standParts = {}
 
 cmd.add({"headstand"}, {"headstand <player>", "Stand on someone's head."}, function(p)
 	NAlib.disconnect("headstand_follow")
@@ -57467,7 +57426,7 @@ cmd.add({"refreshanimations", "refreshanimation", "refreshanims", "refreshanim"}
 	DoNotif("Animations refreshed",2)
 end)
 
-NAStuff.loopwave = false
+loopwave = false
 
 cmd.add({"loopwaveat", "loopwat"}, {"loopwaveat <player> (loopwat)", "Wave to a player in a loop"}, function(...)
 	loopwave = true
@@ -57534,7 +57493,7 @@ else
 	toolConnections = {}
 end
 
-NAStuff.idkwhyididntmakethisbruh = nil
+idkwhyididntmakethisbruh = nil
 
 NAmanage.tvCleanupVisual=function(data)
 	if data.renderConn then data.renderConn:Disconnect() data.renderConn = nil end
@@ -58333,11 +58292,11 @@ cmd.add({"unjerkuser", "unjorkuser", "unhandjob", "unhjob", "unhandj"}, {"unjerk
 	jerkParts = {}
 end)
 
-NAStuff.suckLOOP = nil
-NAStuff.suckANIM = nil
-NAStuff.suckDIED = nil
-NAStuff.doSUCKING = nil
-NAStuff.SUCKYSUCKY = {}
+suckLOOP = nil
+suckANIM = nil
+suckDIED = nil
+doSUCKING = nil
+SUCKYSUCKY = {}
 
 cmd.add({"suck","dicksuck"},{"suck <player> <number>","suck it"},function(h,d)
 	if suckLOOP then suckLOOP = nil end
@@ -58682,10 +58641,10 @@ cmd.addPatched({"reserveserver","privateserver","ps","rs"},{"reserveserver [code
 	Popup({Title="Select Place",Description=providedRaw and "Choose the place for the reserved server code." or "Choose a place to create a reserved server.",Buttons=buttons})
 end)
 
-NAStuff.HumanModCons = {}
+HumanModCons = {}
 
-NAStuff.ToolLoopCons = {}
-NAStuff.MultiToolCons = {}
+ToolLoopCons = {}
+MultiToolCons = {}
 
 originalIO.stopEquipToolLoop=function(silent)
 	if ToolLoopCons.loop then
@@ -59309,11 +59268,11 @@ cmd.add({"unmultitool","nomultitool"},{"unmultitool (nomultitool)","Disables mul
 	end
 end)
 
-NAStuff.bangLoop = nil
-NAStuff.bangAnim = nil
-NAStuff.bangDied = nil
-NAStuff.doBang = nil
-NAStuff.BANGPARTS = {}
+bangLoop = nil
+bangAnim = nil
+bangDied = nil
+doBang = nil
+BANGPARTS = {}
 
 cmd.add({"bang", "fuck"}, {"bang <player> <number> (fuck)", "fucks the player by attaching to them"}, function(h, d)
 	if bangLoop then
@@ -59409,11 +59368,11 @@ cmd.add({"unbang", "unfuck"}, {"unbang (unfuck)", "Unbangs the player"}, functio
 	BANGPARTS = {}
 end)
 
-NAStuff.carpetLoop = nil
-NAStuff.carpetAnim = nil
-NAStuff.carpetTrack = nil
-NAStuff.carpetDied = nil
-NAStuff.CARPETPARTS = {}
+carpetLoop = nil
+carpetAnim = nil
+carpetTrack = nil
+carpetDied = nil
+CARPETPARTS = {}
 originalIO.stopCarpet=function()
 	if carpetLoop then
 		carpetLoop:Disconnect()
@@ -59508,8 +59467,8 @@ cmd.add({"uncarpet", "nocarpet"}, {"uncarpet (nocarpet)", "Undoes carpet"}, func
 	originalIO.stopCarpet()
 end)
 
-NAStuff.climbPart = nil
-NAStuff.climbLoop = nil
+climbPart = nil
+climbLoop = nil
 originalIO.stopClimb=function()
 	if climbLoop then
 		climbLoop:Disconnect()
@@ -59557,15 +59516,15 @@ cmd.add({"unclimb"}, {"unclimb", "Disables climb"}, function()
 	originalIO.stopClimb()
 end)
 
-NAStuff.inversebangLoop = nil
-NAStuff.inversebangAnim = nil
-NAStuff.inversebangAnim2 = nil
-NAStuff.inversebangDied = nil
-NAStuff.doInversebang = nil
-NAStuff.doInversebang2 = nil
-NAStuff.INVERSEBANGPARTS = {}
+inversebangLoop = nil
+inversebangAnim = nil
+inversebangAnim2 = nil
+inversebangDied = nil
+doInversebang = nil
+doInversebang2 = nil
+INVERSEBANGPARTS = {}
 
-NAmanage.stopInversebang = function()
+function stopInversebang()
 	if inversebangLoop then
 		inversebangLoop:Disconnect()
 		inversebangLoop = nil
@@ -59668,7 +59627,7 @@ cmd.add({"uninversebang","unibang","uninverseb"},{"uninversebang","no more fun"}
 	stopInversebang()
 end)
 
-NAStuff.sussyID = "rbxassetid://106772613"
+sussyID = "rbxassetid://106772613"
 susTrack, susCONN = nil, nil
 
 cmd.add({"suslay", "laysus"}, {"suslay (laysus)", "Lay down in a suspicious way"}, function()
@@ -59776,12 +59735,12 @@ cmd.add({"jerk", "jork"}, {"jerk (jork)", "jorking it"}, function()
 	end
 end)
 
-NAStuff.huggiePARTS = {}
-NAStuff.hugUI = nil
-NAStuff.currentHugTracks = {}
-NAStuff.currentHugTarget = nil
-NAStuff.hugFromFront = false
-NAStuff.hugModeEnabled = false
+huggiePARTS = {}
+hugUI = nil
+currentHugTracks = {}
+currentHugTarget = nil
+hugFromFront = false
+hugModeEnabled = false
 
 cmd.add({"hug", "clickhug"}, {"hug (clickhug)", "huggies time (click on a target to hug)"}, function()
 	if IsR6() then
@@ -59961,7 +59920,7 @@ cmd.add({"unhug"}, {"unhug", "no huggies :("}, function()
 	if hugUI then hugUI:Destroy() hugUI = nil end
 end)
 
-NAStuff.glueloop = {}
+glueloop = {}
 
 cmd.add({"glue","loopgoto","lgoto"},{"glue <player>","Loop teleport to a player"},function(...)
 	local input = (...)
@@ -59983,7 +59942,7 @@ cmd.add({"unglue","unloopgoto","noloopgoto"},{"unglue","Stops teleporting you to
 	glueloop = {}
 end)
 
-NAStuff.glueBACKER = {}
+glueBACKER = {}
 
 cmd.add({"glueback","loopbehind","lbehind"},{"glueback <player>","Loop teleport behind a player"},function(...)
 	local input   = (...)
@@ -60027,7 +59986,7 @@ cmd.add({"spook", "scare"}, {"spook <player> (scare)", "Teleports next to a play
 	end
 end, true)
 
-NAStuff.loopspook = false
+loopspook = false
 
 cmd.add({"loopspook","loopscare"},{"loopspook <player>","Teleports next to a player repeatedly"},function(...)
 	local input = (...)
@@ -60354,7 +60313,7 @@ cmd.add({"unairmomentum", "unamomentum", "unaircontrol"}, {"unairmomentum (unamo
 	NAmanage.DisableAirMomentum()
 end)
 
-NAStuff.bringc = {}
+bringc = {}
 
 NAmanage.parseBringDistance=function(args, defaultDistance)
 	local distance = tonumber(args[#args])
@@ -60464,7 +60423,7 @@ cmd.add({"mute", "muteboombox"}, {"mute <player> (muteboombox)", "Mutes the play
 	end
 end, true)
 
-NAStuff.TPWalk = false
+TPWalk = false
 
 cmd.add({"tpwalk", "tpwalk"}, {"tpwalk <number>", "More undetectable walkspeed script"}, function(...)
 	if TPWalk then
@@ -60509,7 +60468,7 @@ cmd.add({"untpwalk"}, {"untpwalk", "Stops the tpwalk command"}, function()
 	NAlib.disconnect("TPWalkingConnection")
 end)
 
-NAStuff.muteLOOP = {}
+muteLOOP = {}
 
 cmd.add({"loopmute", "loopmuteboombox"}, {"loopmute <player> (loopmuteboombox)", "Loop mutes the player's boombox"}, function(...)
 	local u = ...
@@ -60664,7 +60623,7 @@ cmd.add({"inspect"}, {"inspect", "checks a user's items"}, function(args)
 	end
 end, true)
 
-NAStuff.promptTBL = promptTBL or {}
+promptTBL = promptTBL or {}
 promptTBL.tracked = promptTBL.tracked or {}
 promptTBL.conns = promptTBL.conns or {}
 promptTBL.blocking = promptTBL.blocking == true
@@ -60797,7 +60756,7 @@ if NAStuff and NAStuff.PurchasePromptsDisabled == true then
 	NAmanage.nuhuhprompt(false)
 end
 
-NAStuff.notificationButtonBlock = notificationButtonBlock or { conns = {}, blocking = false, frames = {} }
+notificationButtonBlock = notificationButtonBlock or { conns = {}, blocking = false, frames = {} }
 
 NAmanage._isFriendRequestFrame=function(inst)
 	if not inst or typeof(inst) ~= "Instance" or not inst:IsA("Frame") then return false end
@@ -60960,7 +60919,7 @@ if NAStuff and NAStuff.FriendRequestAutoDismiss == true then
 	NAmanage.setFriendRequestAutoDismiss(true)
 end
 
-NAStuff.networkPauseBlock = networkPauseBlock or {}
+networkPauseBlock = networkPauseBlock or {}
 networkPauseBlock.tracked = networkPauseBlock.tracked or {}
 networkPauseBlock.conns = networkPauseBlock.conns or {}
 networkPauseBlock.blocking = networkPauseBlock.blocking == true
@@ -61133,8 +61092,8 @@ cmd.add({"wallwalk"},{"wallwalk","Makes you walk on walls"},function()
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/main/WallWalk.lua"))() -- backup cause i don't trust pastebin
 end)
 
-NAStuff.hiddenGUIS = hiddenGUIS or {}
-NAStuff.showPrev = showPrev or {}
+hiddenGUIS = hiddenGUIS or {}
+showPrev = showPrev or {}
 
 cmd.add({"hideguis"}, {"hideguis","Hides GUIs"}, function()
 	for _, guiElement in pairs(NAmanage.qDesc(PlrGui, "GuiObject")) do
@@ -61178,8 +61137,8 @@ cmd.add({"unshowguis"}, {"unshowguis","Restores UI states set by showguis"}, fun
 	end
 end)
 
-NAStuff.spinThingy = nil
-NAStuff.spinPart = nil
+spinThingy = nil
+spinPart = nil
 
 cmd.add({"spin"}, {"spin {amount}", "Makes your character spin as fast as you want"}, function(...)
 	Wait()
@@ -61534,11 +61493,11 @@ NAmanage.getAutoInteractDefaultInterval = function()
 	return math.clamp(tonumber(NAStuff.AutoInteractDefaultInterval) or 0.1, 0, 1)
 end
 
-NAStuff.promptPartCache = {}
-NAStuff.carPartCache = {}
-NAStuff.promptNamesCache = {}
-NAStuff.clickNamesCache = {}
-NAStuff.partNamesCache = {}
+local promptPartCache = {}
+local carPartCache = {}
+local promptNamesCache = {}
+local clickNamesCache = {}
+local partNamesCache = {}
 
 NAindex.lc = function(s)
 	if s then
@@ -62684,7 +62643,7 @@ NAmanage._sortedJobs = function(kind, useFind)
 	return list
 end
 
-NAmanage.buildStopWindow = function(kind, titleText, useFind)
+local function buildStopWindow(kind, titleText, useFind)
 	local buttons = {}
 	for _, job in ipairs(NAmanage._sortedJobs(kind, useFind)) do
 		local label = job.id..(job.target and (" • "..job.target) or "")
@@ -62889,7 +62848,7 @@ cmd.add({"disableproximityprompts","disableprox","disprox","dprx","dpp"},{"disab
 	end
 end,true)
 
-NAStuff.proxyEnableLoopState = {active=false;}
+proxyEnableLoopState = {active=false;}
 
 cmd.add({"loopenableproximityprompts","loopenableprox","lenprox","lenpp"},{"loopenableproximityprompts [name]","Continuously enable ProximityPrompts (all or matching)"},function(...)
 	local term = Lower(Concat({...}," "))
@@ -63691,10 +63650,10 @@ cmd.add({"lightingdisable", "disablelighting", "ldisable"},{"lightingdisable (di
 	end
 end)
 
-NAStuff.autoRemover = {}
-NAStuff.autoRemoveConnection = nil
+autoRemover = {}
+autoRemoveConnection = nil
 
-NAmanage.handleDescendantAdd = function(part)
+function handleDescendantAdd(part)
 	if #autoRemover > 0 then
 		if FindInTable(autoRemover, part.Name:lower()) then
 			Defer(function()
@@ -63814,10 +63773,10 @@ cmd.add({"unautodelete", "unautoremove", "unautodel"}, {"unautodelete {partname}
 	})
 end)
 
-NAStuff.autoFinder = {}
-NAStuff.finderConn = nil
+autoFinder = {}
+finderConn = nil
 
-NAmanage.onAdd = function(obj)
+function onAdd(obj)
 	if #autoFinder > 0 then
 		for _, kw in pairs(autoFinder) do
 			if obj.Name:lower():find(kw) then
@@ -63963,7 +63922,7 @@ end, true)
 NAStuff.autoClassRemover = {}
 NAStuff.autoClassConnection = nil
 
-NAmanage.handleClassDescendantAdd = function(part)
+function handleClassDescendantAdd(part)
 	if #NAStuff.autoClassRemover > 0 then
 		if FindInTable(NAStuff.autoClassRemover, part.ClassName:lower()) then
 			Defer(function()
@@ -65274,8 +65233,8 @@ cmd.add({"gotofolder","gofldr"},{"gotofolder {folderName}","Teleports you to all
 	end)
 end,true)
 
-NAStuff.OGGRAVV = workspace.Gravity;
-NAStuff.SWIMMERRRR = false;
+OGGRAVV = workspace.Gravity;
+SWIMMERRRR = false;
 
 NAStuff.SWIM_STATES = NAStuff.SWIM_STATES or {
 	Enum.HumanoidStateType.FallingDown,
@@ -65287,7 +65246,7 @@ NAStuff.SWIM_STATES = NAStuff.SWIM_STATES or {
 	Enum.HumanoidStateType.Seated
 };
 
-NAmanage.ZEhumSTATE = function(humanoid, enabled)
+function ZEhumSTATE(humanoid, enabled)
 	for _, st in ipairs(NAStuff.SWIM_STATES) do
 		humanoid:SetStateEnabled(st, enabled);
 	end;
@@ -69629,7 +69588,7 @@ NAStuff.PST = {
 	sizeE  = {},
 	sizeP  = {},
 }
-NAStuff.PST = NAStuff.PST
+PST = NAStuff.PST
 
 NAmanage.cachePart = function(p)
 	NAStuff.PST.orig[p] = {
@@ -71370,12 +71329,12 @@ cmd.add({"toolinvisible", "tinvis"}, {"toolinvisible (tinvis)", "Be invisible wh
 	end)
 end)
 
-NAStuff.invisBtnlol = nil
-NAStuff.invisKeybindConnection = nil
-NAStuff.IsInvis = false
-NAStuff.InvisibleCharacter = nil
-NAStuff.OriginalPosition = nil
-NAStuff.InvisBindLol = Enum.KeyCode.E
+invisBtnlol = nil
+invisKeybindConnection = nil
+IsInvis = false
+InvisibleCharacter = nil
+OriginalPosition = nil
+InvisBindLol = Enum.KeyCode.E
 
 cmd.add({"invisible", "invis"},{"invisible (invis)", "Sets invisibility to scare people or something"}, function()
 	if invisKeybindConnection then
@@ -71854,7 +71813,7 @@ cmd.add({"fatesadmin"},{"fatesadmin","Executes fates admin"},function()
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/fatesc/fates-admin/main/main.lua"))();
 end)
 
-NAStuff.storedTools = {}
+storedTools = {}
 
 cmd.add({"savetools", "stools"}, {"savetools (stools)", "Saves your tools to memory"}, function()
 	storedTools = {}
@@ -73418,7 +73377,7 @@ cmd.add({"npcfollow"}, {"npcfollow", "Makes NPCS follow you"}, function()
 	end
 end)
 
-NAStuff.npcfollowloop = false
+npcfollowloop = false
 cmd.add({"loopnpcfollow"}, {"loopnpcfollow", "Makes NPCS follow you in a loop"}, function()
 	npcfollowloop = true
 
@@ -73534,7 +73493,7 @@ cmd.add({"bringnpcs"}, {"bringnpcs [distance]", "Brings NPCs"}, function(...)
 	end
 end)
 
-NAStuff.npcCache = {}
+npcCache = {}
 cmd.add({"loopbringnpcs", "lbnpcs", "loopbnpcs", "lbringnpcs", "lbringnpc", "loopbringnpc"}, {"loopbringnpcs [distance] (lbnpcs, loopbnpcs, lbringnpcs)", "Loops NPC bringing"}, function(...)
 	local args = {...}
 	local distance = NAmanage.parseBringDistance(args, 0)
@@ -73599,7 +73558,7 @@ NAStuff.NPCControl = {
 	MoveCooldown = 0
 }
 
-NAStuff.NPCControl = NAStuff.NPCControl
+NPCControl = NAStuff.NPCControl
 
 cmd.add({"actnpc"}, {"actnpc", "Start acting like an NPC"}, function()
 	if NPCControl.Enabled then return end
@@ -73755,8 +73714,8 @@ cmd.add({"voidnpcs", "vnpcs"}, {"voidnpcs (vnpcs)", "Teleports NPC's to void"}, 
 	end
 end)
 
-NAStuff.clickVoidUI = nil
-NAStuff.clickVoidEnabled = false
+clickVoidUI = nil
+clickVoidEnabled = false
 
 cmd.add({"clickvoidnpc", "cvnpc"}, {"clickvoidnpc (cvnpc)", "Click to void NPCs"}, function()
 	clickVoidEnabled = true
@@ -73942,13 +73901,13 @@ LocalPlayer.Chatted:Connect(function(str)
 end)
 
 --[[ Admin Player]]
-NAmanage.IsAdminAndRun = function(Message, Player)
+function IsAdminAndRun(Message, Player)
 	if Admin[Player.UserId] or isRelAdmin(Player) then
 		NAlib.parseCommand(Message, Player)
 	end
 end
 
-NAmanage.CheckPermissions = function(Player)
+function CheckPermissions(Player)
 	Player.Chatted:Connect(function(Message)
 		IsAdminAndRun(Message,Player)
 	end)
@@ -74032,8 +73991,8 @@ do
 		end
 	end
 end
-NAStuff.rPlayer = __lt.cm("Players", "FindFirstChildWhichIsA", "Player")
-NAStuff.coreGuiProtection = {}
+rPlayer = __lt.cm("Players", "FindFirstChildWhichIsA", "Player")
+coreGuiProtection = {}
 if not __lt.cm("RunService", "IsStudio") then
 else
 	repeat Wait() until player:FindFirstChild("AdminUI", true)
@@ -74065,7 +74024,7 @@ end
 
 NAgui.NaProtectUI(NAStuff.NASCREENGUI)
 
-NAStuff.NAUIMANAGER = {
+NAUIMANAGER = {
 	description = NAStuff.NASCREENGUI:FindFirstChild("Description"),
 	AUTOSCALER = NAStuff.NASCREENGUI:FindFirstChild("AutoScale"),
 	cmdBar = NAStuff.NASCREENGUI:FindFirstChild("CmdBar"),
@@ -74170,7 +74129,7 @@ NAStuff.resizeHorizontalAsset = originalIO.resizeCursors("ResizeHorizontal", "rb
 NAStuff.resizeDiagonal1Asset = originalIO.resizeCursors("ResizeDiagonal1", "rbxassetid://2911851859")
 NAStuff.resizeDiagonal2Asset = originalIO.resizeCursors("ResizeDiagonal2", "rbxassetid://2911852219")
 
-NAStuff.resizeXY = {
+resizeXY = {
 	Top = {
 		Vector2.new(0, -1),
 		Vector2.new(0, -1),
@@ -74213,7 +74172,7 @@ NAStuff.resizeXY = {
 	}
 };
 
-NAStuff.fillSizes = {
+fillSizes = {
 	right = NAUIMANAGER.rightFill.Size,
 	left = NAUIMANAGER.leftFill.Size
 };
@@ -74262,7 +74221,7 @@ end;
 if NAUIMANAGER.WPFrame then
 	NAUIMANAGER.WPFrame.Parent = nil;
 end;
-NAStuff.templates = {
+templates = {
 	Button = NAUIMANAGER.SettingsButton,
 	ColorPicker = NAUIMANAGER.SettingsColorPicker,
 	SectionTitle = NAUIMANAGER.SettingsSectionTitle,
@@ -74273,7 +74232,7 @@ NAStuff.templates = {
 	Dropdown = NAUIMANAGER.SettingsDropdown,
 	WaypointerFrame = NAUIMANAGER.WPFrame
 };
-NAStuff.TabManager = {
+TabManager = {
 	holder = NAUIMANAGER.SettingsTabs,
 	container = NAUIMANAGER.SettingsPages,
 	template = NAUIMANAGER.SettingsTabButton,
@@ -74286,7 +74245,7 @@ NAStuff.TabManager = {
 	lastNonAll = nil
 };
 
-NAStuff.BUILDER_ICON_FONT_PATH = "rbxasset://LuaPackages/Packages/_Index/BuilderIcons/BuilderIcons/BuilderIcons.json"
+BUILDER_ICON_FONT_PATH = "rbxasset://LuaPackages/Packages/_Index/BuilderIcons/BuilderIcons/BuilderIcons.json"
 
 originalIO.escapeRichTextText = function(text)
 	text = tostring(text or "");
@@ -75963,7 +75922,7 @@ NAmanage.stripChar = function(text, trimWhitespace)
 	return cleaned
 end
 
-NAStuff.predictionInput = NAUIMANAGER.cmdInput:Clone()
+predictionInput = NAUIMANAGER.cmdInput:Clone()
 predictionInput.Name = "predictionInput"
 predictionInput.TextEditable = false
 predictionInput.TextTransparency = 1
@@ -76116,9 +76075,9 @@ originalIO.RevertLastInputPatch = function()
 end
 
 --[[ GUI FUNCTIONS ]]--
-NAStuff.patchedCommandColor = Color3.fromRGB(255, 115, 115)
-NAStuff.pluginCommandColor = Color3.fromRGB(255, 196, 125)
-NAStuff.cmdIntegrationColor = Color3.fromRGB(120, 180, 255)
+local patchedCommandColor = Color3.fromRGB(255, 115, 115)
+local pluginCommandColor = Color3.fromRGB(255, 196, 125)
+local cmdIntegrationColor = Color3.fromRGB(120, 180, 255)
 
 NAgui.addPatchedLabel=function(text)
 	if not text then return text end
@@ -76494,8 +76453,8 @@ NAmanage.totalCommandCount=function()
 	end
 	return count
 end
-NAStuff.COMMAND_LIST_TOP_PADDING = 5
-NAStuff.COMMAND_OVERSCAN_ROWS = 8
+local COMMAND_LIST_TOP_PADDING = 5
+local COMMAND_OVERSCAN_ROWS = 8
 
 NAmanage.cmdStatic = function()
 	return false
@@ -76601,7 +76560,7 @@ function NAmanage.cmdYield(i, budget)
 	end
 end
 
-NAmanage.createCommandListLabel = function(state)
+local function createCommandListLabel(state)
 	local label = NAUIMANAGER.commandExample:Clone()
 	label.MouseEnter:Connect(function()
 		local desc = NAmanage.GetAttr(label, "CmdDesc")
@@ -76620,7 +76579,7 @@ NAmanage.createCommandListLabel = function(state)
 	return label
 end
 
-NAmanage.releaseCommandListLabel = function(state, label)
+local function releaseCommandListLabel(state, label)
 	if not label then
 		return
 	end
@@ -76629,7 +76588,7 @@ NAmanage.releaseCommandListLabel = function(state, label)
 	Insert(state.pooledLabels, label)
 end
 
-NAmanage.acquireCommandListLabel = function(state)
+local function acquireCommandListLabel(state)
 	local label = table.remove(state.pooledLabels)
 	while label do
 		if typeof(label) == "Instance" and label.Parent ~= state.virtualCanvas then
@@ -76648,7 +76607,7 @@ NAmanage.acquireCommandListLabel = function(state)
 	return label
 end
 
-NAmanage.applyCommandListEntry = function(state, label, entry, index)
+local function applyCommandListEntry(state, label, entry, index)
 	local meta = entry.meta or {}
 	local cmdName = entry.name
 	local finalText = meta.displayText or entry.display or cmdName
@@ -76695,7 +76654,7 @@ NAmanage.applyCommandListEntry = function(state, label, entry, index)
 	label.Visible = true
 end
 
-NAmanage.clearStaticCommandLabels = function(state)
+local function clearStaticCommandLabels(state)
 	if type(state.staticLabels) ~= "table" then
 		state.staticLabels = {}
 		return
@@ -76711,7 +76670,7 @@ NAmanage.clearStaticCommandLabels = function(state)
 	state.staticLabels = {}
 end
 
-NAmanage.rebuildStaticCommandLabels = function(state)
+local function rebuildStaticCommandLabels(state)
 	if not state then
 		return
 	end
@@ -76744,7 +76703,7 @@ NAmanage.rebuildStaticCommandLabels = function(state)
 	end
 end
 
-NAmanage.requestCommandListSync = function(state)
+local function requestCommandListSync(state)
 	if not state or state.syncQueued == true then
 		return
 	end
@@ -76760,7 +76719,7 @@ NAmanage.requestCommandListSync = function(state)
 	end)
 end
 
-NAmanage.getCommandTemplateHeight = function()
+local function getCommandTemplateHeight()
 	local template = NAUIMANAGER and NAUIMANAGER.commandExample
 	if not template then
 		return 18
@@ -80522,7 +80481,7 @@ NAmanage.Topbar_ComputedSize=function()
 	end
 end
 
-NAmanage.Topbar_GetMaxOffset = function()
+function Topbar_GetMaxOffset()
 	if not (TopBarApp and TopBarApp.frame and TopBarApp.toggle) then
 		return nil
 	end
@@ -82298,7 +82257,7 @@ SpawnCall(function()
 	NAmanage.SideSwipe_Init()
 end)
 
-NAStuff.cmdDefaultClear = nil
+local cmdDefaultClear = nil
 NAgui.ensureCmdFocus = function()
 	if not (NAUIMANAGER and NAUIMANAGER.cmdInput) then return end
 	local box = NAUIMANAGER.cmdInput
@@ -82461,7 +82420,7 @@ NAgui.barDeselect = function(speed)
 end
 
 --[[ AUTOFILL SEARCHER ]]--
-NAmanage.fixStupidSearchGoober = function(cmdName, command)
+function fixStupidSearchGoober(cmdName, command)
 	local dInfo = command and command[2] and command[2][1] or ""
 	local func = command and command[1]
 
@@ -87775,7 +87734,7 @@ NAgui.filterCommandList = function(rawText)
 	NAmanage.syncVisibleCommandRows(state)
 end
 
-NAStuff.commandFilterTick = 0
+local commandFilterTick = 0
 NAUIMANAGER.commandsFilter:GetPropertyChangedSignal("Text"):Connect(function()
 	commandFilterTick += 1
 	local thisTick = commandFilterTick
@@ -92035,12 +91994,12 @@ NACaller(function()
 end);
 
 --[[ COMMAND BAR BUTTON ]]--
-NAStuff.TextLabel = InstanceNew("TextLabel")
-NAStuff.UICorner = InstanceNew("UICorner")
-NAStuff.UIStroke = InstanceNew("UIStroke")
-NAStuff.TextButton = nil
-NAStuff.IconFallbackText = nil
-NAStuff.UICorner2 = InstanceNew("UICorner")
+TextLabel = InstanceNew("TextLabel")
+UICorner = InstanceNew("UICorner")
+UIStroke = InstanceNew("UIStroke")
+TextButton = nil
+IconFallbackText = nil
+UICorner2 = InstanceNew("UICorner")
 
 NAgui.getIconShapeOptions = NAgui.getIconShapeOptions or function()
 	return {
@@ -92079,14 +92038,14 @@ end
 
 NAStuff.IconShape = NAgui.sanitizeIconShape(NAStuff.IconShape)
 
-NAStuff.NAICONASSET = nil
+NAICONASSET = nil
 
 pcall(function()
 	local key = isAprilFools() and "nilsongamer99" or "Icon"
 	NAICONASSET = NAmanage.getNAImageAsset(key, nil)
 end)
 
-NAStuff.TextButton = InstanceNew("ImageButton")
+TextButton = InstanceNew("ImageButton")
 TextButton.Image = NAICONASSET or ""
 
 if NAICONASSET then
@@ -92494,9 +92453,9 @@ end
 
 NAmanage.IconSetLocked = NAgui.setIconLocked
 
-NAStuff.swooshySWOOSH = false
+swooshySWOOSH = false
 
-NAmanage.Swoosh = function()
+function Swoosh()
 	__lt.cm("TweenService", "Create", TextButton, TweenInfo.new(1.5, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {Rotation = 720}):Play()
 	if not NAStuff.IconLocked then
 		NAgui.draggerV2(TextButton)
@@ -92526,7 +92485,7 @@ NAmanage.Swoosh = function()
 	end)
 end
 
-NAmanage.mainNameless = function()
+function mainNameless()
 	local txtLabel = TextLabel
 	local showIntroLabel = not (NAmanage.jlCfg and NAmanage.jlCfg.IconLabel == false)
 	if txtLabel and not showIntroLabel then
@@ -93841,7 +93800,7 @@ NAmanage.scheduleLoader('Waypoints', NAmanage.UpdateWaypointList)
 NAmanage.LoadESPSettings()
 NAmanage.scheduleLoader('ESPSettings', NAmanage.LoadESPSettings)
 
-NAStuff.OrgDestroyHeight = NAlib.isProperty(workspace, "FallenPartsDestroyHeight") or math.huge
+OrgDestroyHeight=NAlib.isProperty(workspace, "FallenPartsDestroyHeight") or math.huge
 
 NAStuff.bindersList      = NAUIMANAGER.BindersList
 SpawnCall(function()
@@ -95643,8 +95602,8 @@ NAgui.EnsureScreenGuiNoRenderKeybind()
 NAgui.setTab(NA_TABS.TAB_AUTOMATION)
 NAgui.addSection("Command & AutoFire Options")
 
-NAStuff.autoInteractExtraDefault = math.clamp(tonumber(NAStuff.AutoInteractExtraRange) or 5, 0, 1000)
-NAStuff.autoInteractIntervalDefault = math.clamp(tonumber(NAStuff.AutoInteractDefaultInterval) or 0.1, 0, 1)
+local autoInteractExtraDefault = math.clamp(tonumber(NAStuff.AutoInteractExtraRange) or 5, 0, 1000)
+local autoInteractIntervalDefault = math.clamp(tonumber(NAStuff.AutoInteractDefaultInterval) or 0.1, 0, 1)
 NAgui.addSlider("AutoFire Default Delay", 0, 1, autoInteractIntervalDefault, 0.01, "", function(val)
 	local n = tonumber(val) or autoInteractIntervalDefault
 	n = math.floor((math.clamp(n, 0, 1) * 100) + 0.5) / 100
@@ -95885,7 +95844,7 @@ NAmanage.RegisterToggleAutoSync("Ignore Self", function()
 	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.ignoreSelf ~= false) == true
 end)
 
-NAStuff.streamRadiusDefault = math.clamp(tonumber(NAStuff.FPSBoostOptions.streamRadius) or 96, 16, 4096)
+local streamRadiusDefault = math.clamp(tonumber(NAStuff.FPSBoostOptions.streamRadius) or 96, 16, 4096)
 NAgui.addSlider("Streaming Radius (FPSBooster)", 16, 1024, streamRadiusDefault, 8, " studs", function(val)
 	local n = math.clamp(tonumber(val) or streamRadiusDefault, 16, 4096)
 	NAmanage.updateFpsBoostOpt("streamRadius", n)
@@ -95953,21 +95912,21 @@ if IsOnPC then
 	end)
 end
 
-NAStuff.tweenDurationDefault = math.clamp(tonumber(NAStuff.tweenSpeed) or 1, 0.05, 5)
+tweenDurationDefault = math.clamp(tonumber(NAStuff.tweenSpeed) or 1, 0.05, 5)
 NAgui.addSlider("Teleport Tween Duration", 0.05, 5, tweenDurationDefault, 0.05, " s", function(val)
 	local clamped = math.clamp(tonumber(val) or tweenDurationDefault, 0.05, 5)
 	NAStuff.tweenSpeed = clamped
 	NAmanage.NASettingsSet("tweenSpeed", clamped)
 end)
 
-NAStuff.tpdDef = math.clamp(tonumber(NAStuff.tpDelay) or 0.2, 0, 5)
+local tpdDef = math.clamp(tonumber(NAStuff.tpDelay) or 0.2, 0, 5)
 NAgui.addSlider("TP Delay", 0, 5, tpdDef, 0.05, " s", function(val)
 	local clp = math.clamp(tonumber(val) or tpdDef, 0, 5)
 	NAStuff.tpDelay = clp
 	NAmanage.NASettingsSet("tpDelay", clp)
 end)
 
-NAStuff.freecamSpeedDefault = math.clamp(tonumber(NAStuff.FreecamSpeed) or 5, 0.05, 20)
+local freecamSpeedDefault = math.clamp(tonumber(NAStuff.FreecamSpeed) or 5, 0.05, 20)
 NAgui.addInput("Freecam Speed", "Enter speed (e.g. 10)", tostring(freecamSpeedDefault), function(text)
 	local value = tonumber(text)
 	if not value then
@@ -96236,7 +96195,7 @@ NAgui.addTab(NA_TABS.TAB_FFLAGS, { order = 4, textIcon = "flag" })
 NAgui.setTab(NA_TABS.TAB_FFLAGS)
 NAgui.setTab(NA_TABS.TAB_FFLAGS)
 
-NAStuff.NAFFlags = NAmanage.NAFFlags or {}
+local NAFFlags = NAmanage.NAFFlags or {}
 NAmanage.NAFFlags = NAFFlags
 
 NAFFlags.whitelist = NAFFlags.whitelist or {
@@ -97706,7 +97665,7 @@ end)
 
 NAgui.addSection("Discord Webhook")
 NAStuff.Integrations = NAStuff.Integrations or {}
-NAStuff.webhookCfg = NAStuff.Integrations.webhook or {}
+local webhookCfg = NAStuff.Integrations.webhook or {}
 NAStuff.Integrations.webhook = webhookCfg
 webhookCfg.urls = webhookCfg.urls or {}
 webhookCfg.urls.main = webhookCfg.urls.main or webhookCfg.url or webhookCfg.urls.all or ""
@@ -97806,13 +97765,13 @@ NAgui.addButton("Send Main Webhook Message", function()
 end)
 
 NAgui.addSection("API Health Checks")
-NAmanage.setHealthEndpoint = function(i, val)
+local function setHealthEndpoint(i, val)
 	NAStuff.Integrations.health.endpoints[i] = val or ""
 	if NAmanage.NASettingsSet then
 		NAmanage.NASettingsSet("integrationHealthEndpoints", NAStuff.Integrations.health.endpoints)
 	end
 end
-NAStuff.healthDefaults = NAStuff.Integrations.health.endpoints
+local healthDefaults = NAStuff.Integrations.health.endpoints
 for i = 1, 3 do
 	NAgui.addInput("Endpoint #"..i, "https://example.com/health", healthDefaults[i] or "", function(text)
 		setHealthEndpoint(i, text)
@@ -97846,7 +97805,7 @@ NAgui.addButton("Copy Server Info + Note", function()
 end)
 
 NAgui.addSection("Server Actions")
-NAmanage.copyIntegrationText = function(label, value)
+local function copyIntegrationText(label, value)
 	if type(setclipboard) ~= "function" then
 		DoNotif("Your executor does not support setclipboard.", 3)
 		return false
@@ -97860,7 +97819,7 @@ NAmanage.copyIntegrationText = function(label, value)
 	return false
 end
 
-NAmanage.getIntegrationTeleportScript = function()
+local function getIntegrationTeleportScript()
 	local placeId = tostring(game.PlaceId or "")
 	local jobId = tostring(game.JobId or "")
 	if placeId == "" or jobId == "" then
@@ -97873,7 +97832,7 @@ NAmanage.getIntegrationTeleportScript = function()
 	)
 end
 
-NAmanage.getIntegrationServerIds = function()
+local function getIntegrationServerIds()
 	local parts = {
 		"PlaceId: "..tostring(game.PlaceId or ""),
 		"GameId: "..tostring(game.GameId or ""),
@@ -97885,7 +97844,7 @@ NAmanage.getIntegrationServerIds = function()
 	return Concat(parts, " | ")
 end
 
-NAmanage.getIntegrationGameUrl = function()
+local function getIntegrationGameUrl()
 	local placeId = tostring(game.PlaceId or "")
 	if placeId == "" then
 		return ""
@@ -98242,10 +98201,10 @@ NAgui.addDropdown("NA Icon Shape", NAgui.getIconShapeOptions(), NAgui.sanitizeIc
 	NAmanage.NASettingsSet("iconShape", shape)
 end)
 
-NAStuff.mainColorDefault = (NAStuff and NAStuff.AprilFoolsData and NAStuff.AprilFoolsData.originalColor) or NAUISTROKER
+local mainColorDefault = (NAStuff and NAStuff.AprilFoolsData and NAStuff.AprilFoolsData.originalColor) or NAUISTROKER
 
-NAStuff.MAIN_COLOR_TAB_REFRESH_INTERVAL = 1 / 30
-NAStuff.MAIN_COLOR_SAVE_DEBOUNCE = 0.2
+local MAIN_COLOR_TAB_REFRESH_INTERVAL = 1 / 30
+local MAIN_COLOR_SAVE_DEBOUNCE = 0.2
 
 NAmanage._mainColorState = NAmanage._mainColorState or {
 	pendingTabColor = nil,
@@ -98491,7 +98450,7 @@ NAgui.addToggle("Dropdown Under Toggle", TopBarApp.mode == "bottom", function(st
 	NAmanage.Topbar_SetMode(state and "bottom" or "side")
 end)
 
-NAStuff.NATopbarDock = NAmanage.topbar_readDock()
+NATopbarDock = NAmanage.topbar_readDock()
 NAgui.addToggle("Topbar on Bottom", NATopbarDock == "bottom", function(state)
 	NAmanage.Topbar_SetDock(state and "bottom" or "top")
 end)
@@ -101180,7 +101139,7 @@ NAgui.trimText=function(str)
 	return (str or ""):match("^%s*(.-)%s*$")
 end
 
-NAmanage.addPartESPColorPicker = function(label, key, defaultColor, refreshFn)
+local function addPartESPColorPicker(label, key, defaultColor, refreshFn)
 	local startColor = NAmanage.GetPartESPColor(key, defaultColor)
 	NAgui.addColorPicker(label, startColor, function(color)
 		if typeof(color) ~= "Color3" then
@@ -101198,8 +101157,8 @@ end
 NAgui.addSection("Visuals & Color")
 NAgui.addInfo("Drawing API Warning", "Drawing library may break with DisableDirect3D11 or PreferVulkan if a bootstrapper manages them (aka: voidstrap)")
 
-NAStuff.espRenderOptions = NAgui.getESPRenderModeOptions()
-NAStuff.npcEspRenderOptions = NAgui.getNPCESPRenderModeOptions()
+local espRenderOptions = NAgui.getESPRenderModeOptions()
+local npcEspRenderOptions = NAgui.getNPCESPRenderModeOptions()
 NAStuff.ESP_RenderMode = NAgui.sanitizeESPRenderMode(NAStuff.ESP_RenderMode, "Highlight")
 NAStuff.ESP_PartRenderMode = NAgui.sanitizeESPRenderMode(NAStuff.ESP_PartRenderMode, "BoxHandleAdornment")
 NAStuff.NPC_ESP_RenderMode = NAgui.sanitizeNPCESPRenderMode(NAStuff.NPC_ESP_RenderMode)
@@ -102832,12 +102791,12 @@ originalIO.normalizeRobloxVersionData=function(decoded)
 	end
 
 	local candidates = {
-		decoded,
-		decoded.current,
-		decoded.data,
-		decoded.data and decoded.data.current,
-		decoded.versions,
-		decoded.versions and decoded.versions.current,
+		decoded;
+		decoded.current;
+		decoded.data;
+		decoded.data and decoded.data.current;
+		decoded.versions;
+		decoded.versions and decoded.versions.current;
 	}
 	for _, candidate in ipairs(candidates) do
 		local normalized = normalizeCandidate(candidate)
@@ -103628,185 +103587,3 @@ end)
 )]]
 
 -- © 2026 Nameless Admin. All rights reserved. Do not copy, paste, redistribute, or claim as your own.
-
-pcall(function()
-	NAmanage = NAmanage or {}
-	NAStuff = NAStuff or {}
-	if Notify ~= nil then NAStuff.Notify = Notify end
-	if Window ~= nil then NAStuff.Window = Window end
-	if Popup ~= nil then NAStuff.Popup = Popup end
-	if NA_TABS ~= nil then NAStuff.NA_TABS = NA_TABS end
-	if opt ~= nil then NAStuff.opt = opt end
-	if LoadstringCommandAliases ~= nil then NAStuff.LoadstringCommandAliases = LoadstringCommandAliases end
-	if NA_SRV ~= nil then NAStuff.NA_SRV = NA_SRV end
-	if NA_SRV_RAW ~= nil then NAStuff.NA_SRV_RAW = NA_SRV_RAW end
-	if SpawnCall ~= nil then NAStuff.SpawnCall = SpawnCall end
-	if mainName ~= nil then NAStuff.mainName = mainName end
-	if testingName ~= nil then NAStuff.testingName = testingName end
-	if adminName ~= nil then NAStuff.adminName = adminName end
-	if HttpService ~= nil then NAStuff.HttpService = HttpService end
-	if Players ~= nil then NAStuff.Players = Players end
-	if UserInputService ~= nil then NAStuff.UserInputService = UserInputService end
-	if TweenService ~= nil then NAStuff.TweenService = TweenService end
-	if RunService ~= nil then NAStuff.RunService = RunService end
-	if ContextActionService ~= nil then NAStuff.ContextActionService = ContextActionService end
-	if TeleportService ~= nil then NAStuff.TeleportService = TeleportService end
-	if Lighting ~= nil then NAStuff.Lighting = Lighting end
-	if ReplicatedStorage ~= nil then NAStuff.ReplicatedStorage = ReplicatedStorage end
-	if COREGUI ~= nil then NAStuff.COREGUI = COREGUI end
-	if SoundService ~= nil then NAStuff.SoundService = SoundService end
-	if TextChatService ~= nil then NAStuff.TextChatService = TextChatService end
-	if TextService ~= nil then NAStuff.TextService = TextService end
-	if StarterGui ~= nil then NAStuff.StarterGui = StarterGui end
-	if ContentProvider ~= nil then NAStuff.ContentProvider = ContentProvider end
-	if LocalizationService ~= nil then NAStuff.LocalizationService = LocalizationService end
-	if MarketplaceService ~= nil then NAStuff.MarketplaceService = MarketplaceService end
-	if GuiService ~= nil then NAStuff.GuiService = GuiService end
-	if StatsService ~= nil then NAStuff.StatsService = StatsService end
-	if CustomFunctionSupport ~= nil then NAStuff.CustomFunctionSupport = CustomFunctionSupport end
-	if FileSupport ~= nil then NAStuff.FileSupport = FileSupport end
-	if IsOnMobile ~= nil then NAStuff.IsOnMobile = IsOnMobile end
-	if IsOnPC ~= nil then NAStuff.IsOnPC = IsOnPC end
-	if NAFreecam ~= nil then NAStuff.NAFreecam = NAFreecam end
-	if originalIO ~= nil then NAStuff.originalIO = originalIO end
-	if Waypoints ~= nil then NAStuff.Waypoints = Waypoints end
-	if Bindings ~= nil then NAStuff.Bindings = Bindings end
-	if CommandKeybinds ~= nil then NAStuff.CommandKeybinds = CommandKeybinds end
-	if CommandKeybindOptions ~= nil then NAStuff.CommandKeybindOptions = CommandKeybindOptions end
-	if InstancesTbl ~= nil then NAStuff.InstancesTbl = InstancesTbl end
-	if cmd ~= nil then NAStuff.cmd = cmd end
-	if searchIndex ~= nil then NAStuff.searchIndex = searchIndex end
-	if cmds ~= nil then NAStuff.cmds = cmds end
-	if defaultBarCommands ~= nil then NAStuff.defaultBarCommands = defaultBarCommands end
-	if shouldShowDefaultAutofill ~= nil then NAStuff.shouldShowDefaultAutofill = shouldShowDefaultAutofill end
-	if prevVisible ~= nil then NAStuff.prevVisible = prevVisible end
-	if results ~= nil then NAStuff.results = results end
-	if lastSearchText ~= nil then NAStuff.lastSearchText = lastSearchText end
-	if gen ~= nil then NAStuff.gen = gen end
-	if searchInputTarget ~= nil then NAStuff.searchInputTarget = searchInputTarget end
-	if aliasExactCache ~= nil then NAStuff.aliasExactCache = aliasExactCache end
-	if aliasPrefixCache ~= nil then NAStuff.aliasPrefixCache = aliasPrefixCache end
-	if savedExactCache ~= nil then NAStuff.savedExactCache = savedExactCache end
-	if savedPrefixCache ~= nil then NAStuff.savedPrefixCache = savedPrefixCache end
-	if aliasOwnerByAlias ~= nil then NAStuff.aliasOwnerByAlias = aliasOwnerByAlias end
-	if savedOwnerByAlias ~= nil then NAStuff.savedOwnerByAlias = savedOwnerByAlias end
-	if NAImageAssets ~= nil then NAStuff.NAImageAssets = NAImageAssets end
-	if NAfiles ~= nil then NAStuff.NAfiles = NAfiles end
-	if NAScale ~= nil then NAStuff.NAScale = NAScale end
-	if NAUIScale ~= nil then NAStuff.NAUIScale = NAUIScale end
-	if NA_UI_SCALE_MIN ~= nil then NAStuff.NA_UI_SCALE_MIN = NA_UI_SCALE_MIN end
-	if NA_UI_SCALE_MAX ~= nil then NAStuff.NA_UI_SCALE_MAX = NA_UI_SCALE_MAX end
-	if flingManager ~= nil then NAStuff.flingManager = flingManager end
-	if settingsLight ~= nil then NAStuff.settingsLight = settingsLight end
-	if events ~= nil then NAStuff.events = events end
-	if morphTarget ~= nil then NAStuff.morphTarget = morphTarget end
-	if assetsReady ~= nil then NAStuff.assetsReady = assetsReady end
-	if naStuffReady ~= nil then NAStuff.naStuffReady = naStuffReady end
-	if remoteTargets ~= nil then NAStuff.remoteTargets = remoteTargets end
-	if totalRemotes ~= nil then NAStuff.totalRemotes = totalRemotes end
-	if type(cloneTable) == "function" then NAmanage.cloneTable = NAmanage.cloneTable or cloneTable end
-	if type(buildNotifArgs) == "function" then NAmanage.buildNotifArgs = NAmanage.buildNotifArgs or buildNotifArgs end
-	if mouse ~= nil then NAStuff.mouse = mouse end
-	if curVer ~= nil then NAStuff.curVer = curVer end
-	if UserButtonToggleState ~= nil then NAStuff.UserButtonToggleState = UserButtonToggleState end
-	if NamelessMigrate ~= nil then NAStuff.NamelessMigrate = NamelessMigrate end
-	if type(NAensureFolder) == "function" then NAmanage.NAensureFolder = NAmanage.NAensureFolder or NAensureFolder end
-	if WPPath ~= nil then NAStuff.WPPath = WPPath end
-	if bindersPath ~= nil then NAStuff.bindersPath = bindersPath end
-	if lastPrefix ~= nil then NAStuff.lastPrefix = lastPrefix end
-	if PlaceId ~= nil then NAStuff.PlaceId = PlaceId end
-	if JobId ~= nil then NAStuff.JobId = JobId end
-	if GameId ~= nil then NAStuff.GameId = GameId end
-	if Player ~= nil then NAStuff.Player = Player end
-	if plr ~= nil then NAStuff.plr = plr end
-	if PlrGui ~= nil then NAStuff.PlrGui = PlrGui end
-	if TopBarApp ~= nil then NAStuff.TopBarApp = TopBarApp end
-	if SideSwipeApp ~= nil then NAStuff.SideSwipeApp = SideSwipeApp end
-	if Character ~= nil then NAStuff.Character = Character end
-	if LegacyChat ~= nil then NAStuff.LegacyChat = LegacyChat end
-	if FakeLag ~= nil then NAStuff.FakeLag = FakeLag end
-	if Loopvoid ~= nil then NAStuff.Loopvoid = Loopvoid end
-	if loopgrab ~= nil then NAStuff.loopgrab = loopgrab end
-	if loopdrop ~= nil then NAStuff.loopdrop = loopdrop end
-	if OrgDestroyHeight ~= nil then NAStuff.OrgDestroyHeight = OrgDestroyHeight end
-	if Watch ~= nil then NAStuff.Watch = Watch end
-	if AntiVelocityLimit ~= nil then NAStuff.AntiVelocityLimit = AntiVelocityLimit end
-	if Admin ~= nil then NAStuff.Admin = Admin end
-	if character ~= nil then NAStuff.character = character end
-	if camera ~= nil then NAStuff.camera = camera end
-	if player ~= nil then NAStuff.player = player end
-	if lp ~= nil then NAStuff.lp = lp end
-	if bringc ~= nil then NAStuff.bringc = bringc end
-	if msg ~= nil then NAStuff.msg = msg end
-	if commandcount ~= nil then NAStuff.commandcount = commandcount end
-	if wrap ~= nil then NAStuff.wrap = wrap end
-	if PlayerArgs ~= nil then NAStuff.PlayerArgs = PlayerArgs end
-	if type(getPlr) == "function" then NAmanage.getPlr = NAmanage.getPlr or getPlr end
-	if JSONEncode ~= nil then NAStuff.JSONEncode = JSONEncode end
-	if JSONDecode ~= nil then NAStuff.JSONDecode = JSONDecode end
-	if ESPenabled ~= nil then NAStuff.ESPenabled = ESPenabled end
-	if chamsEnabled ~= nil then NAStuff.chamsEnabled = chamsEnabled end
-	if ESPAutoTrackAll ~= nil then NAStuff.ESPAutoTrackAll = ESPAutoTrackAll end
-	if ESPPlayersEnabled ~= nil then NAStuff.ESPPlayersEnabled = ESPPlayersEnabled end
-	if NPCESPenabled ~= nil then NAStuff.NPCESPenabled = NPCESPenabled end
-	if flyMobile ~= nil then NAStuff.flyMobile = flyMobile end
-	if MobileWeld ~= nil then NAStuff.MobileWeld = MobileWeld end
-	if tool ~= nil then NAStuff.tool = tool end
-	if flyVariables ~= nil then NAStuff.flyVariables = flyVariables end
-	if type(NAUserButtonNextId) == "function" then NAmanage.NAUserButtonNextId = NAmanage.NAUserButtonNextId or NAUserButtonNextId end
-	if type(NAUserButtonCloneAsChild) == "function" then NAmanage.NAUserButtonCloneAsChild = NAmanage.NAUserButtonCloneAsChild or NAUserButtonCloneAsChild end
-	if type(NAUserButtonCollectChildren) == "function" then NAmanage.NAUserButtonCollectChildren = NAmanage.NAUserButtonCollectChildren or NAUserButtonCollectChildren end
-	if type(NAUserButtonRectOverlap) == "function" then NAmanage.NAUserButtonRectOverlap = NAmanage.NAUserButtonRectOverlap or NAUserButtonRectOverlap end
-	if oldChat ~= nil then NAStuff.oldChat = oldChat end
-	if rad ~= nil then NAStuff.rad = rad end
-	if clamp ~= nil then NAStuff.clamp = clamp end
-	if tan ~= nil then NAStuff.tan = tan end
-	if scaleFrame ~= nil then NAStuff.scaleFrame = scaleFrame end
-	if s ~= nil then NAStuff.s = s end
-	if err ~= nil then NAStuff.err = err end
-	if type(AntiOn) == "function" then NAmanage.AntiOn = NAmanage.AntiOn or AntiOn end
-	if spectateTarget ~= nil then NAStuff.spectateTarget = spectateTarget end
-	if spectateSubject ~= nil then NAStuff.spectateSubject = spectateSubject end
-	if spectateDescCharacter ~= nil then NAStuff.spectateDescCharacter = spectateDescCharacter end
-	if spectateConns ~= nil then NAStuff.spectateConns = spectateConns end
-	if promptPartCache ~= nil then NAStuff.promptPartCache = promptPartCache end
-	if carPartCache ~= nil then NAStuff.carPartCache = carPartCache end
-	if promptNamesCache ~= nil then NAStuff.promptNamesCache = promptNamesCache end
-	if clickNamesCache ~= nil then NAStuff.clickNamesCache = clickNamesCache end
-	if partNamesCache ~= nil then NAStuff.partNamesCache = partNamesCache end
-	if type(buildStopWindow) == "function" then NAmanage.buildStopWindow = NAmanage.buildStopWindow or buildStopWindow end
-	if patchedCommandColor ~= nil then NAStuff.patchedCommandColor = patchedCommandColor end
-	if pluginCommandColor ~= nil then NAStuff.pluginCommandColor = pluginCommandColor end
-	if cmdIntegrationColor ~= nil then NAStuff.cmdIntegrationColor = cmdIntegrationColor end
-	if COMMAND_LIST_TOP_PADDING ~= nil then NAStuff.COMMAND_LIST_TOP_PADDING = COMMAND_LIST_TOP_PADDING end
-	if COMMAND_OVERSCAN_ROWS ~= nil then NAStuff.COMMAND_OVERSCAN_ROWS = COMMAND_OVERSCAN_ROWS end
-	if type(createCommandListLabel) == "function" then NAmanage.createCommandListLabel = NAmanage.createCommandListLabel or createCommandListLabel end
-	if type(releaseCommandListLabel) == "function" then NAmanage.releaseCommandListLabel = NAmanage.releaseCommandListLabel or releaseCommandListLabel end
-	if type(acquireCommandListLabel) == "function" then NAmanage.acquireCommandListLabel = NAmanage.acquireCommandListLabel or acquireCommandListLabel end
-	if type(applyCommandListEntry) == "function" then NAmanage.applyCommandListEntry = NAmanage.applyCommandListEntry or applyCommandListEntry end
-	if type(clearStaticCommandLabels) == "function" then NAmanage.clearStaticCommandLabels = NAmanage.clearStaticCommandLabels or clearStaticCommandLabels end
-	if type(rebuildStaticCommandLabels) == "function" then NAmanage.rebuildStaticCommandLabels = NAmanage.rebuildStaticCommandLabels or rebuildStaticCommandLabels end
-	if type(requestCommandListSync) == "function" then NAmanage.requestCommandListSync = NAmanage.requestCommandListSync or requestCommandListSync end
-	if type(getCommandTemplateHeight) == "function" then NAmanage.getCommandTemplateHeight = NAmanage.getCommandTemplateHeight or getCommandTemplateHeight end
-	if cmdDefaultClear ~= nil then NAStuff.cmdDefaultClear = cmdDefaultClear end
-	if commandFilterTick ~= nil then NAStuff.commandFilterTick = commandFilterTick end
-	if autoInteractExtraDefault ~= nil then NAStuff.autoInteractExtraDefault = autoInteractExtraDefault end
-	if autoInteractIntervalDefault ~= nil then NAStuff.autoInteractIntervalDefault = autoInteractIntervalDefault end
-	if streamRadiusDefault ~= nil then NAStuff.streamRadiusDefault = streamRadiusDefault end
-	if tpdDef ~= nil then NAStuff.tpdDef = tpdDef end
-	if freecamSpeedDefault ~= nil then NAStuff.freecamSpeedDefault = freecamSpeedDefault end
-	if NAFFlags ~= nil then NAStuff.NAFFlags = NAFFlags end
-	if webhookCfg ~= nil then NAStuff.webhookCfg = webhookCfg end
-	if type(setHealthEndpoint) == "function" then NAmanage.setHealthEndpoint = NAmanage.setHealthEndpoint or setHealthEndpoint end
-	if healthDefaults ~= nil then NAStuff.healthDefaults = healthDefaults end
-	if type(copyIntegrationText) == "function" then NAmanage.copyIntegrationText = NAmanage.copyIntegrationText or copyIntegrationText end
-	if type(getIntegrationTeleportScript) == "function" then NAmanage.getIntegrationTeleportScript = NAmanage.getIntegrationTeleportScript or getIntegrationTeleportScript end
-	if type(getIntegrationServerIds) == "function" then NAmanage.getIntegrationServerIds = NAmanage.getIntegrationServerIds or getIntegrationServerIds end
-	if type(getIntegrationGameUrl) == "function" then NAmanage.getIntegrationGameUrl = NAmanage.getIntegrationGameUrl or getIntegrationGameUrl end
-	if mainColorDefault ~= nil then NAStuff.mainColorDefault = mainColorDefault end
-	if MAIN_COLOR_TAB_REFRESH_INTERVAL ~= nil then NAStuff.MAIN_COLOR_TAB_REFRESH_INTERVAL = MAIN_COLOR_TAB_REFRESH_INTERVAL end
-	if MAIN_COLOR_SAVE_DEBOUNCE ~= nil then NAStuff.MAIN_COLOR_SAVE_DEBOUNCE = MAIN_COLOR_SAVE_DEBOUNCE end
-	if type(addPartESPColorPicker) == "function" then NAmanage.addPartESPColorPicker = NAmanage.addPartESPColorPicker or addPartESPColorPicker end
-	if espRenderOptions ~= nil then NAStuff.espRenderOptions = espRenderOptions end
-	if npcEspRenderOptions ~= nil then NAStuff.npcEspRenderOptions = npcEspRenderOptions end
-end)
