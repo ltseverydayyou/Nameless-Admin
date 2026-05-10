@@ -1445,6 +1445,27 @@
       "desc": "Stop removing billboard advertisements"
     },
     {
+      "name": "reloadassets",
+      "aliases": [
+        "reloadassets",
+        "renderreloadassets"
+      ],
+      "usage": "reloadassets",
+      "args": "",
+      "desc": "Set RenderSettings.ReloadAssets"
+    },
+    {
+      "name": "enginesettingsinfo",
+      "aliases": [
+        "enginesettingsinfo",
+        "enginedebug",
+        "rblxsettingsinfo"
+      ],
+      "usage": "enginesettingsinfo",
+      "args": "",
+      "desc": "Show Roblox settings service diagnostics"
+    },
+    {
       "name": "replicationlag",
       "aliases": [
         "replicationlag",
