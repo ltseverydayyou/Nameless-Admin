@@ -229,19 +229,24 @@ NAmanage.isLiveInstance = NAmanage.isLiveInstance or function(inst)
 	return ok and parent ~= nil
 end
 
-NAmanage.ensureWeakKeyTable = NAmanage.ensureWeakKeyTable or function(tbl)
+NAmanage.ensureWeakTable = NAmanage.ensureWeakTable or function(tbl, mode)
+	mode = type(mode) == "string" and mode or "k"
 	if type(tbl) ~= "table" then
 		tbl = {}
 	end
 	local mt = getmetatable(tbl)
-	if type(mt) == "table" and mt.__mode == "k" then
+	if type(mt) == "table" and mt.__mode == mode then
 		return tbl
 	end
-	local weak = setmetatable({}, { __mode = "k" })
+	local weak = setmetatable({}, { __mode = mode })
 	for key, value in pairs(tbl) do
 		weak[key] = value
 	end
 	return weak
+end
+
+NAmanage.ensureWeakKeyTable = NAmanage.ensureWeakKeyTable or function(tbl)
+	return NAmanage.ensureWeakTable(tbl, "k")
 end
 
 NAmanage.tryDisconnect = NAmanage.tryDisconnect or function(conn)
@@ -867,6 +872,9 @@ NAmanage.pruneRuntimeInstanceState = NAmanage.pruneRuntimeInstanceState or funct
 	if type(npcCache) == "table" then
 		NAmanage.pruneInstanceArray(npcCache)
 	end
+	if type(NAmanage.pruneInteractionIndex) == "function" then
+		pcall(NAmanage.pruneInteractionIndex)
+	end
 	if type(HumanModCons) == "table" then
 		NAmanage.pruneConnectionValueMap(HumanModCons)
 	end
@@ -1330,6 +1338,41 @@ local NAStuff = {
 	cmdAutofillClickable = false;
 	cmdSearchSuspendUntil = 0;
 }
+
+NAmanage.ensureRuntimeWeakTables = NAmanage.ensureRuntimeWeakTables or function()
+	if type(NAStuff) ~= "table" or type(NAmanage.ensureWeakTable) ~= "function" then
+		return
+	end
+
+	if type(NAStuff.StreamerModeState) == "table" then
+		NAStuff.StreamerModeState.cache = NAmanage.ensureWeakTable(NAStuff.StreamerModeState.cache, "k")
+	end
+
+	for _, field in ipairs({
+		"unanchoredESPSet",
+		"collisiontrueESPSet",
+		"collisionfalseESPSet",
+		"partESPGlassOriginal",
+		"partESPGlassCount",
+		"partESPLocalTransOriginal",
+		"partESPLocalTransCount",
+		"partESPQueueMap",
+		"partESPVisualMap",
+		"partESPPartMap",
+		"BlockedEventSaved",
+		"BlockedInvokeSaved",
+		"BlockedRemoteModes",
+		"BlockedRemoteReturns",
+		"BlockedSignals",
+	}) do
+		NAStuff[field] = NAmanage.ensureWeakTable(NAStuff[field], "k")
+	end
+
+	NAStuff.elementOriginalParent = NAmanage.ensureWeakTable(NAStuff.elementOriginalParent, "kv")
+	NAStuff.genericESPListMeta = NAmanage.ensureWeakTable(NAStuff.genericESPListMeta, "k")
+end
+
+NAmanage.ensureRuntimeWeakTables()
 
 NAmanage._sourceGlyph = NAmanage._sourceGlyph or function(value)
 	if type(value) == "function" then
@@ -2057,11 +2100,11 @@ NAmanage._wsHubDispose = NAmanage._wsHubDispose or function(hub)
 	hub.remCount = 0
 	hub.cacheLive = false
 	hub.cache = {}
-	hub.idx = {}
+	hub.idx = NAmanage.ensureWeakTable(nil, "k")
 	hub.aQ = {}
 	hub.rQ = {}
-	hub.aSet = {}
-	hub.rSet = {}
+	hub.aSet = NAmanage.ensureWeakTable(nil, "k")
+	hub.rSet = NAmanage.ensureWeakTable(nil, "k")
 	hub.sQ = {}
 	hub.aHead = 1
 	hub.aTail = 0
@@ -2098,12 +2141,12 @@ NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 		addCount = 0,
 		remCount = 0,
 		cache = {},
-		idx = {},
+		idx = NAmanage.ensureWeakTable(nil, "k"),
 		cacheLive = false,
 		aQ = {},
 		rQ = {},
-		aSet = {},
-		rSet = {},
+		aSet = NAmanage.ensureWeakTable(nil, "k"),
+		rSet = NAmanage.ensureWeakTable(nil, "k"),
 		aHead = 1,
 		aTail = 0,
 		rHead = 1,
@@ -2352,7 +2395,7 @@ NAmanage.wsReleaseCache = NAmanage.wsReleaseCache or function(hub)
 	end
 	hub.cacheLive = false
 	hub.cache = {}
-	hub.idx = {}
+	hub.idx = NAmanage.ensureWeakTable(nil, "k")
 	hub.cIdx = 1
 	hub.sQ = {}
 	hub.sHead = 1
@@ -2392,7 +2435,7 @@ NAmanage.wsDescs = NAmanage.wsDescs or function()
 	if not hub.cacheLive then
 		hub.cacheLive = true
 		hub.cache = {}
-		hub.idx = {}
+		hub.idx = NAmanage.ensureWeakTable(nil, "k")
 		local root = hub.root
 		local ok, descs = pcall(function()
 			if root then
@@ -2555,8 +2598,8 @@ NAmanage.wsSub = NAmanage.wsSub or function(spec)
 			if hub.cacheLive then
 				hub.aQ = {}
 				hub.rQ = {}
-				hub.aSet = {}
-				hub.rSet = {}
+				hub.aSet = NAmanage.ensureWeakTable(nil, "k")
+				hub.rSet = NAmanage.ensureWeakTable(nil, "k")
 				hub.aHead = 1
 				hub.aTail = 0
 				hub.rHead = 1
@@ -2607,8 +2650,8 @@ NAmanage._cgHubDispose = NAmanage._cgHubDispose or function(hub)
 	hub.remCount = 0
 	hub.aQ = {}
 	hub.rQ = {}
-	hub.aSet = {}
-	hub.rSet = {}
+	hub.aSet = NAmanage.ensureWeakTable(nil, "k")
+	hub.rSet = NAmanage.ensureWeakTable(nil, "k")
 	hub.aHead = 1
 	hub.aTail = 0
 	hub.rHead = 1
@@ -2641,8 +2684,8 @@ NAmanage._cgHubGet = NAmanage._cgHubGet or function()
 		remCount = 0,
 		aQ = {},
 		rQ = {},
-		aSet = {},
-		rSet = {},
+		aSet = NAmanage.ensureWeakTable(nil, "k"),
+		rSet = NAmanage.ensureWeakTable(nil, "k"),
 		aHead = 1,
 		aTail = 0,
 		rHead = 1,
@@ -2911,8 +2954,8 @@ NAmanage._pgHubDispose = NAmanage._pgHubDispose or function(hub)
 	hub.remCount = 0
 	hub.aQ = {}
 	hub.rQ = {}
-	hub.aSet = {}
-	hub.rSet = {}
+	hub.aSet = NAmanage.ensureWeakTable(nil, "k")
+	hub.rSet = NAmanage.ensureWeakTable(nil, "k")
 	hub.aHead = 1
 	hub.aTail = 0
 	hub.rHead = 1
@@ -2962,8 +3005,8 @@ NAmanage._pgHubGet = NAmanage._pgHubGet or function()
 		remCount = 0,
 		aQ = {},
 		rQ = {},
-		aSet = {},
-		rSet = {},
+		aSet = NAmanage.ensureWeakTable(nil, "k"),
+		rSet = NAmanage.ensureWeakTable(nil, "k"),
 		aHead = 1,
 		aTail = 0,
 		rHead = 1,
@@ -3277,8 +3320,8 @@ NAmanage._playersHubDispose = NAmanage._playersHubDispose or function(hub)
 	hub.remCount = 0
 	hub.aQ = {}
 	hub.rQ = {}
-	hub.aSet = {}
-	hub.rSet = {}
+	hub.aSet = NAmanage.ensureWeakTable(nil, "k")
+	hub.rSet = NAmanage.ensureWeakTable(nil, "k")
 	hub.aHead = 1
 	hub.aTail = 0
 	hub.rHead = 1
@@ -3321,8 +3364,8 @@ NAmanage._playersHubGet = NAmanage._playersHubGet or function()
 		remCount = 0,
 		aQ = {},
 		rQ = {},
-		aSet = {},
-		rSet = {},
+		aSet = NAmanage.ensureWeakTable(nil, "k"),
+		rSet = NAmanage.ensureWeakTable(nil, "k"),
 		aHead = 1,
 		aTail = 0,
 		rHead = 1,
@@ -3537,7 +3580,7 @@ NAmanage.playersRem = NAmanage.playersRem or function(fn, filter)
 	})
 end
 
-NAmanage._descHubs = NAmanage._descHubs or {}
+NAmanage._descHubs = NAmanage.ensureWeakTable(NAmanage._descHubs, "kv")
 
 NAmanage._descHubDispose = NAmanage._descHubDispose or function(root, hub)
 	local hubs = NAmanage._descHubs
@@ -3572,8 +3615,8 @@ NAmanage._descHubDispose = NAmanage._descHubDispose or function(root, hub)
 	hub.remCount = 0
 	hub.aQ = {}
 	hub.rQ = {}
-	hub.aSet = {}
-	hub.rSet = {}
+	hub.aSet = NAmanage.ensureWeakTable(nil, "k")
+	hub.rSet = NAmanage.ensureWeakTable(nil, "k")
 	hub.aHead = 1
 	hub.aTail = 0
 	hub.rHead = 1
@@ -3616,8 +3659,8 @@ NAmanage._descHubGet = NAmanage._descHubGet or function(root)
 		remCount = 0,
 		aQ = {},
 		rQ = {},
-		aSet = {},
-		rSet = {},
+		aSet = NAmanage.ensureWeakTable(nil, "k"),
+		rSet = NAmanage.ensureWeakTable(nil, "k"),
 		aHead = 1,
 		aTail = 0,
 		rHead = 1,
@@ -3862,7 +3905,7 @@ NAmanage.descRem = NAmanage.descRem or function(root, fn, filter)
 	})
 end
 
-NAmanage._childHubs = NAmanage._childHubs or {}
+NAmanage._childHubs = NAmanage.ensureWeakTable(NAmanage._childHubs, "kv")
 
 NAmanage._childHubDispose = NAmanage._childHubDispose or function(root, hub)
 	local hubs = NAmanage._childHubs
@@ -3897,8 +3940,8 @@ NAmanage._childHubDispose = NAmanage._childHubDispose or function(root, hub)
 	hub.remCount = 0
 	hub.aQ = {}
 	hub.rQ = {}
-	hub.aSet = {}
-	hub.rSet = {}
+	hub.aSet = NAmanage.ensureWeakTable(nil, "k")
+	hub.rSet = NAmanage.ensureWeakTable(nil, "k")
 	hub.aHead = 1
 	hub.aTail = 0
 	hub.rHead = 1
@@ -3941,8 +3984,8 @@ NAmanage._childHubGet = NAmanage._childHubGet or function(root)
 		remCount = 0,
 		aQ = {},
 		rQ = {},
-		aSet = {},
-		rSet = {},
+		aSet = NAmanage.ensureWeakTable(nil, "k"),
+		rSet = NAmanage.ensureWeakTable(nil, "k"),
 		aHead = 1,
 		aTail = 0,
 		rHead = 1,
@@ -4173,7 +4216,7 @@ NAmanage.childRem = NAmanage.childRem or function(root, fn, filter)
 	})
 end
 
-NAmanage._mouseMoveHubs = NAmanage._mouseMoveHubs or {}
+NAmanage._mouseMoveHubs = NAmanage.ensureWeakTable(NAmanage._mouseMoveHubs, "kv")
 
 NAmanage._mouseMoveHubDispose = NAmanage._mouseMoveHubDispose or function(mouseObj, hub)
 	local hubs = NAmanage._mouseMoveHubs
@@ -4837,7 +4880,10 @@ NAmanage.ESP_GetListMeta = NAmanage.ESP_GetListMeta or function(list)
 	end
 	local store = NAStuff and NAStuff.genericESPListMeta
 	if type(store) ~= "table" then
-		store = {}
+		store = NAmanage.ensureWeakTable(nil, "k")
+		NAStuff.genericESPListMeta = store
+	else
+		store = NAmanage.ensureWeakTable(store, "k")
 		NAStuff.genericESPListMeta = store
 	end
 	local meta = store[list]
@@ -5010,6 +5056,7 @@ NAmanage.StreamerGetState = NAmanage.StreamerGetState or function()
 	if type(state.cache) ~= "table" then
 		state.cache = {}
 	end
+	state.cache = NAmanage.ensureWeakTable(state.cache, "k")
 	if type(state.nameTokens) ~= "table" then
 		state.nameTokens = {}
 	end
@@ -6811,8 +6858,8 @@ updateCanvasSize = function(frame, scale)
 		return
 	end
 
-	NAmanage._canvasLayoutCache = NAmanage._canvasLayoutCache or {}
-	NAmanage._canvasHeightCache = NAmanage._canvasHeightCache or {}
+	NAmanage._canvasLayoutCache = NAmanage.ensureWeakTable(NAmanage._canvasLayoutCache, "kv")
+	NAmanage._canvasHeightCache = NAmanage.ensureWeakTable(NAmanage._canvasHeightCache, "k")
 
 	local layout = NAmanage._canvasLayoutCache[frame]
 	if not (layout and layout.Parent == frame) then
@@ -21536,7 +21583,7 @@ local PlaceId,JobId,GameId=game.PlaceId,game.JobId,game.GameId
 local Player=Players.LocalPlayer;
 local plr=Players.LocalPlayer;
 local PlrGui=Player:FindFirstChildWhichIsA("PlayerGui");
-local TopBarApp={ top=nil; frame=nil; toggle=nil; tGlass=nil; tStroke=nil; icon=nil; panel=nil; underlay=nil; scroll=nil; layout=nil; isOpen=false; childButtons={}; buttonDefs={}, mode=NAmanage.topbar_readMode(), sidePref="right", dock=NATopbarDock or "top" }
+local TopBarApp={ top=nil; frame=nil; toggle=nil; tGlass=nil; tStroke=nil; icon=nil; panel=nil; underlay=nil; scroll=nil; layout=nil; isOpen=false; childButtons=NAmanage.ensureWeakTable(nil, "k"); buttonDefs={}, mode=NAmanage.topbar_readMode(), sidePref="right", dock=NATopbarDock or "top" }
 local SideSwipeApp={ gui=nil; panel=nil; underlay=nil; scroll=nil; layout=nil; handles={left=nil,right=nil}; isOpen=false; animating=false; handlesHidden=false; side=NASideSwipeSide or "left" }
 --local IYLOADED=false--This is used for the ;iy command that executes infinite yield commands using this admin command script (BTW)
 local Character=Player.Character;
@@ -25073,19 +25120,31 @@ NAgui.adjustHighlightMaterialFor = function(target, enable)
 	local ltOriginals = NAStuff.partESPLocalTransOriginal
 	local ltCounts = NAStuff.partESPLocalTransCount
 	if not originals then
-		originals = {}
+		originals = NAmanage.ensureWeakTable(nil, "k")
+		NAStuff.partESPGlassOriginal = originals
+	else
+		originals = NAmanage.ensureWeakTable(originals, "k")
 		NAStuff.partESPGlassOriginal = originals
 	end
 	if not counts then
-		counts = {}
+		counts = NAmanage.ensureWeakTable(nil, "k")
+		NAStuff.partESPGlassCount = counts
+	else
+		counts = NAmanage.ensureWeakTable(counts, "k")
 		NAStuff.partESPGlassCount = counts
 	end
 	if not ltOriginals then
-		ltOriginals = {}
+		ltOriginals = NAmanage.ensureWeakTable(nil, "k")
+		NAStuff.partESPLocalTransOriginal = ltOriginals
+	else
+		ltOriginals = NAmanage.ensureWeakTable(ltOriginals, "k")
 		NAStuff.partESPLocalTransOriginal = ltOriginals
 	end
 	if not ltCounts then
-		ltCounts = {}
+		ltCounts = NAmanage.ensureWeakTable(nil, "k")
+		NAStuff.partESPLocalTransCount = ltCounts
+	else
+		ltCounts = NAmanage.ensureWeakTable(ltCounts, "k")
 		NAStuff.partESPLocalTransCount = ltCounts
 	end
 	local function handlePart(base)
@@ -25150,9 +25209,9 @@ NAmanage.ESP_AdjustHighlightMaterial = function(target, enable)
 end
 
 NAStuff.partESPEntries = NAStuff.partESPEntries or {}
-NAStuff.partESPVisualMap = NAStuff.partESPVisualMap or {}
-NAStuff.partESPPartMap = NAStuff.partESPPartMap or {}
-NAStuff.partESPQueueMap = NAStuff.partESPQueueMap or {}
+NAStuff.partESPVisualMap = NAmanage.ensureWeakTable(NAStuff.partESPVisualMap, "k")
+NAStuff.partESPPartMap = NAmanage.ensureWeakTable(NAStuff.partESPPartMap, "k")
+NAStuff.partESPQueueMap = NAmanage.ensureWeakTable(NAStuff.partESPQueueMap, "k")
 NAStuff.partESPQueue = NAStuff.partESPQueue or {}
 NAStuff.partESPQueueHead = tonumber(NAStuff.partESPQueueHead) or 1
 NAStuff.partESPQueueTail = tonumber(NAStuff.partESPQueueTail) or 0
@@ -25161,7 +25220,7 @@ NAStuff.espSweepCursor = NAStuff.espSweepCursor or {}
 
 NAmanage.PartESP_QueueClear = function()
 	NAStuff.partESPQueue = {}
-	NAStuff.partESPQueueMap = {}
+	NAStuff.partESPQueueMap = NAmanage.ensureWeakTable(nil, "k")
 	NAStuff.partESPQueueHead = 1
 	NAStuff.partESPQueueTail = 0
 	NAlib.disconnect("esp_part_queue")
@@ -25741,7 +25800,10 @@ NAmanage.PartESP_RegisterEntry = function(entry)
 	if entry.part and typeof(entry.part) == "Instance" then
 		local partMap = NAStuff.partESPPartMap
 		if type(partMap) ~= "table" then
-			partMap = {}
+			partMap = NAmanage.ensureWeakTable(nil, "k")
+			NAStuff.partESPPartMap = partMap
+		else
+			partMap = NAmanage.ensureWeakTable(partMap, "k")
 			NAStuff.partESPPartMap = partMap
 		end
 		local bucket = partMap[entry.part]
@@ -74726,7 +74788,7 @@ do
 	end
 end
 rPlayer = __lt.cm("Players", "FindFirstChildWhichIsA", "Player")
-coreGuiProtection = {}
+coreGuiProtection = NAmanage.ensureWeakTable(coreGuiProtection, "k")
 if not __lt.cm("RunService", "IsStudio") then
 else
 	repeat Wait() until player:FindFirstChild("AdminUI", true)
@@ -77791,7 +77853,7 @@ NAgui.tween = function(obj, style, direction, duration, goal, callback)
 	return tween
 end
 
-NAgui._resizeCleanup = NAgui._resizeCleanup or {}
+NAgui._resizeCleanup = NAmanage.ensureWeakTable(NAgui._resizeCleanup, "k")
 NAgui.resizeable = function(ui, min, max)
 	if not ui or not ui:IsA("GuiObject") then return function() end end
 	local prevCleanup = NAgui._resizeCleanup[ui]
@@ -81821,7 +81883,7 @@ NAmanage.Topbar_Destroy=function()
 	NAlib.disconnect("tb_drag_ui")
 	NAlib.disconnect("tb_drag_input")
 	if TopBarApp and TopBarApp.top then TopBarApp.top:Destroy() end
-	TopBarApp={ top=nil; frame=nil; toggle=nil; tGlass=nil; tStroke=nil; icon=nil; panel=nil; underlay=nil; scroll=nil; layout=nil; isOpen=false; childButtons={}; buttonDefs={}, mode=NAmanage.topbar_readMode(), sidePref="right", dock=NAmanage.topbar_readDock() }
+	TopBarApp={ top=nil; frame=nil; toggle=nil; tGlass=nil; tStroke=nil; icon=nil; panel=nil; underlay=nil; scroll=nil; layout=nil; isOpen=false; childButtons=NAmanage.ensureWeakTable(nil, "k"); buttonDefs={}, mode=NAmanage.topbar_readMode(), sidePref="right", dock=NAmanage.topbar_readDock() }
 end
 
 NAmanage.SideSwipe_GetButtons=function()
@@ -92127,10 +92189,37 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 	SpawnCall(function()
 		local HUI = NAlib.huiGrabber();
 	local iIdx = {
-		click = {};
-		proxy = {};
-		touch = {};
+		click = NAmanage.ensureWeakTable(nil, "k");
+		proxy = NAmanage.ensureWeakTable(nil, "k");
+		touch = NAmanage.ensureWeakTable(nil, "k");
 	};
+	local function pruneI(kind)
+		local list = InstancesTbl[kind];
+		local idxMap = iIdx[kind];
+		if type(list) ~= "table" or type(idxMap) ~= "table" then
+			return;
+		end;
+		local write = 1;
+		for read = 1, #list do
+			local inst = list[read];
+			local keep = NAmanage.isLiveInstance(inst) and not (HUI and inst:IsDescendantOf(HUI));
+			if keep then
+				list[write] = inst;
+				idxMap[inst] = write;
+				write += 1;
+			elseif inst then
+				idxMap[inst] = nil;
+			end;
+		end;
+		for i = write, #list do
+			list[i] = nil;
+		end;
+	end;
+	NAmanage.pruneInteractionIndex = function()
+		pruneI("click");
+		pruneI("proxy");
+		pruneI("touch");
+	end;
 	local function addI(kind, inst)
 		local list = InstancesTbl[kind];
 		local idxMap = iIdx[kind];
@@ -92197,7 +92286,7 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 	local scanHead = 1;
 	local scanTail = 0;
 	local scanning = false;
-	local bulkAddRoots = {};
+	local bulkAddRoots = NAmanage.ensureWeakTable(nil, "k");
 	local function queueScan(root, fn, onDone)
 		if not root or (not fn) then
 			return;
@@ -92266,10 +92355,10 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 		end);
 	end;
 	local dQ = {};
-	local dSet = {};
-	local iPend = {};
-	local wsAddP = {};
-	local wsRemP = {};
+	local dSet = NAmanage.ensureWeakTable(nil, "k");
+	local iPend = NAmanage.ensureWeakTable(nil, "k");
+	local wsAddP = NAmanage.ensureWeakTable(nil, "k");
+	local wsRemP = NAmanage.ensureWeakTable(nil, "k");
 	local dHead = 1;
 	local dTail = 0;
 	local dBusy = false;
