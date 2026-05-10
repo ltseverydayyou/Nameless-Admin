@@ -98581,1668 +98581,1670 @@ NAgui.addSlider("Side Swipe Scrollbar", 0, 12, math.clamp(math.floor((tonumber(N
 	NAmanage.applySideSwipeStyle({ rebuild = false })
 end)
 
-NAgui.addSection("CoreGui Customization")
+NAmanage.NAInitCoreGuiCustomization=function()
+	NAgui.addSection("CoreGui Customization")
 
-if CoreGui then
-	local PT = {
-		path      = NAfiles.NAFILEPATH.."/plexity_theme.json",
-		default   = { enabled = false, start = { h = 0.8, s = 1, v = 1 }, finish = { h = 0, s = 1, v = 1 } },
-		cg        = CoreGui,
-		images    = setmetatable({}, { __mode = "k" }),
-		queue     = {},
-		queueHead = 1,
-		queueTail = 0,
-		queueSet  = setmetatable({}, { __mode = "k" }),
-		queueToken = 0,
-		processing = false,
-		queueKickPending = false,
-		applying   = false,
-		needApplyAll = false,
-		applyAllSeq = 0,
-		trackedApplyQueued = false,
-		rescanning = false,
-		rescanAgain = false,
-		gradientSeq = nil,
-		gradientSeqKey = nil,
-	}
+	if CoreGui then
+		local PT = {
+			path      = NAfiles.NAFILEPATH.."/plexity_theme.json",
+			default   = { enabled = false, start = { h = 0.8, s = 1, v = 1 }, finish = { h = 0, s = 1, v = 1 } },
+			cg        = CoreGui,
+			images    = setmetatable({}, { __mode = "k" }),
+			queue     = {},
+			queueHead = 1,
+			queueTail = 0,
+			queueSet  = setmetatable({}, { __mode = "k" }),
+			queueToken = 0,
+			processing = false,
+			queueKickPending = false,
+			applying   = false,
+			needApplyAll = false,
+			applyAllSeq = 0,
+			trackedApplyQueued = false,
+			rescanning = false,
+			rescanAgain = false,
+			gradientSeq = nil,
+			gradientSeqKey = nil,
+		}
 
-	local data = PT.default
-	if FileSupport then
-		if not isfile(PT.path) then
-			writefile(PT.path, HttpService:JSONEncode(PT.default))
-		end
+		local data = PT.default
+		if FileSupport then
+			if not isfile(PT.path) then
+				writefile(PT.path, HttpService:JSONEncode(PT.default))
+			end
 
-		local okRead, raw = pcall(readfile, PT.path)
-		if okRead and type(raw) == "string" then
-			local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
-			if okDecode and type(decoded) == "table" then
-				data = decoded
+			local okRead, raw = pcall(readfile, PT.path)
+			if okRead and type(raw) == "string" then
+				local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+				if okDecode and type(decoded) == "table" then
+					data = decoded
+				end
 			end
 		end
-	end
 
-	local function normalizePlexData(raw)
-		local out = {
-			enabled = false,
-			start = {
-				h = PT.default.start.h,
-				s = PT.default.start.s,
-				v = PT.default.start.v,
-			},
-			finish = {
-				h = PT.default.finish.h,
-				s = PT.default.finish.s,
-				v = PT.default.finish.v,
-			},
-		}
-		if type(raw) ~= "table" then
+		local function normalizePlexData(raw)
+			local out = {
+				enabled = false,
+				start = {
+					h = PT.default.start.h,
+					s = PT.default.start.s,
+					v = PT.default.start.v,
+				},
+				finish = {
+					h = PT.default.finish.h,
+					s = PT.default.finish.s,
+					v = PT.default.finish.v,
+				},
+			}
+			if type(raw) ~= "table" then
+				return out
+			end
+			out.enabled = raw.enabled == true
+			if type(raw.start) == "table" then
+				out.start.h = math.clamp(tonumber(raw.start.h) or out.start.h, 0, 1)
+				out.start.s = math.clamp(tonumber(raw.start.s) or out.start.s, 0, 1)
+				out.start.v = math.clamp(tonumber(raw.start.v) or out.start.v, 0, 1)
+			end
+			if type(raw.finish) == "table" then
+				out.finish.h = math.clamp(tonumber(raw.finish.h) or out.finish.h, 0, 1)
+				out.finish.s = math.clamp(tonumber(raw.finish.s) or out.finish.s, 0, 1)
+				out.finish.v = math.clamp(tonumber(raw.finish.v) or out.finish.v, 0, 1)
+			end
 			return out
 		end
-		out.enabled = raw.enabled == true
-		if type(raw.start) == "table" then
-			out.start.h = math.clamp(tonumber(raw.start.h) or out.start.h, 0, 1)
-			out.start.s = math.clamp(tonumber(raw.start.s) or out.start.s, 0, 1)
-			out.start.v = math.clamp(tonumber(raw.start.v) or out.start.v, 0, 1)
-		end
-		if type(raw.finish) == "table" then
-			out.finish.h = math.clamp(tonumber(raw.finish.h) or out.finish.h, 0, 1)
-			out.finish.s = math.clamp(tonumber(raw.finish.s) or out.finish.s, 0, 1)
-			out.finish.v = math.clamp(tonumber(raw.finish.v) or out.finish.v, 0, 1)
-		end
-		return out
-	end
 
-	PT.data = normalizePlexData(data)
-	local plexSaveSeq = 0
+		PT.data = normalizePlexData(data)
+		local plexSaveSeq = 0
 
-	local function savePlexData(opts)
-		if not FileSupport then
-			return
-		end
-		opts = opts or {}
-		plexSaveSeq += 1
-		local seq = plexSaveSeq
-		local function writePlexData()
-			pcall(function()
-				writefile(PT.path, HttpService:JSONEncode(PT.data))
-			end)
-		end
-		if opts.immediate == true then
-			writePlexData()
-			return
-		end
-		Delay(0.2, function()
-			if seq == plexSaveSeq then
-				writePlexData()
-			end
-		end)
-	end
-
-	local HUI = NAlib.huiGrabber()
-
-	local function resetPlexQueue()
-		PT.queueToken += 1
-		PT.queue = {}
-		PT.queueHead = 1
-		PT.queueTail = 0
-		PT.queueSet = setmetatable({}, { __mode = "k" })
-		PT.processing = false
-		PT.queueKickPending = false
-	end
-
-	local function resetPlexImages()
-		PT.images = setmetatable({}, { __mode = "k" })
-	end
-
-	local function getPlexGradientSequence()
-		local start = PT.data.start or PT.default.start
-		local finish = PT.data.finish or PT.default.finish
-		local sh = math.clamp(tonumber(start.h) or PT.default.start.h, 0, 1)
-		local ss = math.clamp(tonumber(start.s) or PT.default.start.s, 0, 1)
-		local sv = math.clamp(tonumber(start.v) or PT.default.start.v, 0, 1)
-		local fh = math.clamp(tonumber(finish.h) or PT.default.finish.h, 0, 1)
-		local fs = math.clamp(tonumber(finish.s) or PT.default.finish.s, 0, 1)
-		local fv = math.clamp(tonumber(finish.v) or PT.default.finish.v, 0, 1)
-		local key = Format("%.5f:%.5f:%.5f|%.5f:%.5f:%.5f",
-			sh,
-			ss,
-			sv,
-			fh,
-			fs,
-			fv
-		)
-		if PT.gradientSeqKey ~= key then
-			PT.gradientSeqKey = key
-			PT.gradientSeq = ColorSequence.new{
-				ColorSequenceKeypoint.new(0, Color3.fromHSV(sh, ss, sv)),
-				ColorSequenceKeypoint.new(1, Color3.fromHSV(fh, fs, fv)),
-			}
-		end
-		return PT.gradientSeq
-	end
-
-	local function isPlexTarget(o)
-		if not (o and o.Parent) then
-			return false
-		end
-		if HUI and o:IsDescendantOf(HUI) then
-			return false
-		end
-		return o:IsA("ImageLabel")
-			or o:IsA("ImageButton")
-			or o:IsA("TextLabel")
-			or o:IsA("TextButton")
-	end
-
-	local function getImageId(o)
-		local value = NAlib.isProperty(o, "Image")
-		if type(value) == "string" and value ~= "" then
-			return value
-		end
-		value = NAlib.isProperty(o, "Texture")
-		if type(value) == "string" and value ~= "" then
-			return value
-		end
-		value = NAlib.isProperty(o, "TextureId")
-		if type(value) == "string" and value ~= "" then
-			return value
-		end
-		return nil
-	end
-
-	local function applyIfReady(o)
-		if not (PT.data.enabled and o and o.Parent) then
-			return false
-		end
-
-		if HUI and o:IsDescendantOf(HUI) then
-			return false
-		end
-
-		if PT.images[o] then
-			NAmanage.plex_apply(o)
-			return true
-		end
-
-		if not isPlexTarget(o) then
-			return false
-		end
-
-		local imgId = getImageId(o)
-		if type(imgId) == "string" and imgId:match("img_set_%dx_%d+%.png$") then
-			PT.images[o] = true
-			NAmanage.plex_apply(o)
-			return true
-		end
-
-		if o:IsA("TextLabel") or o:IsA("TextButton") then
-			local ff = NAlib.isProperty(o, "FontFace")
-			local ffType = ff and typeof(ff) or nil
-			local fam = ff and ff.Family or nil
-
-			if (ffType == "Font" or ffType == "FontFace")
-				and type(fam) == "string"
-				and fam:find("BuilderIcons/BuilderIcons.json", 1, true)
-			then
-				PT.images[o] = true
-				NAmanage.plex_apply(o)
-				return true
-			end
-		end
-
-		return false
-	end
-
-	NAmanage.plex_remove = function(o)
-		if not o then
-			return
-		end
-		PT.queueSet[o] = nil
-		local okChildren, children = pcall(function()
-			return o:GetChildren()
-		end)
-		if not (okChildren and type(children) == "table") then
-			return
-		end
-		for i = 1, #children do
-			local g = children[i]
-			if g and g.Name == "PlexityGradient" and g:IsA("UIGradient") then
-				pcall(function()
-					g:Destroy()
-				end)
-			end
-		end
-	end
-
-	NAmanage.plex_apply = function(o)
-		if not (o and o.Parent) then
-			return
-		end
-		if HUI and o:IsDescendantOf(HUI) then
-			return
-		end
-		if isPlexTarget(o) then
-			PT.images[o] = true
-		end
-		if PT.data.enabled then
-			local ug = o:FindFirstChild("PlexityGradient")
-			if not (ug and ug:IsA("UIGradient")) then
-				if ug then
-					pcall(function()
-						ug:Destroy()
-					end)
-				end
-				ug = InstanceNew("UIGradient")
-				ug.Name = "PlexityGradient"
-				ug.Parent = o
-			end
-			ug.Color = getPlexGradientSequence()
-			ug.Rotation = 45
-			ug.Transparency = NumberSequence.new{
-				NumberSequenceKeypoint.new(0,   0, 0),
-				NumberSequenceKeypoint.new(0.5, 0, 0),
-				NumberSequenceKeypoint.new(1,   0, 0),
-			}
-		else
-			NAmanage.plex_remove(o)
-		end
-	end
-
-	local function enqueue(o)
-		if not (PT.data.enabled and o and o.Parent) then
-			return
-		end
-		if PT.cg and not o:IsDescendantOf(PT.cg) then
-			return
-		end
-		if PT.queueSet[o] then
-			return
-		end
-		if HUI and o:IsDescendantOf(HUI) then
-			return
-		end
-		PT.queueSet[o] = true
-		PT.queueTail += 1
-		PT.queue[PT.queueTail] = o
-	end
-
-	local function processQueue()
-		if PT.processing then
-			return
-		end
-		PT.processing = true
-		local token = PT.queueToken
-		coroutine.wrap(function()
-			while token == PT.queueToken and PT.data.enabled and PT.queueHead <= PT.queueTail do
-				local budget = 40
-				while budget > 0 and token == PT.queueToken and PT.data.enabled and PT.queueHead <= PT.queueTail do
-					local o = PT.queue[PT.queueHead]
-					PT.queue[PT.queueHead] = nil
-					PT.queueHead += 1
-					if o then
-						PT.queueSet[o] = nil
-						if o.Parent and PT.data.enabled then
-							applyIfReady(o)
-						end
-					end
-					budget -= 1
-				end
-				Wait()
-			end
-			if token == PT.queueToken then
-				PT.queue = {}
-				PT.queueHead = 1
-				PT.queueTail = 0
-				PT.queueSet = setmetatable({}, { __mode = "k" })
-				PT.processing = false
-				PT.queueKickPending = false
-			end
-		end)()
-	end
-
-	local function scheduleQueueProcess()
-		if PT.queueKickPending then
-			return
-		end
-		PT.queueKickPending = true
-		Defer(function()
-			PT.queueKickPending = false
-			processQueue()
-		end)
-	end
-
-	NAmanage.plex_add = function(o)
-		enqueue(o)
-		scheduleQueueProcess()
-	end
-
-	NAmanage.plex_applyAll = function()
-		if not PT.data.enabled then
-			PT.needApplyAll = false
-			return
-		end
-		if PT.applying then
-			PT.needApplyAll = true
-			return
-		end
-		PT.applying = true
-		PT.needApplyAll = false
-		PT.applyAllSeq += 1
-		local seq = PT.applyAllSeq
-
-		coroutine.wrap(function()
-			local cg = PT.cg
-			if cg and PT.data.enabled and seq == PT.applyAllSeq then
-				local desc = NAmanage.qDesc(cg, "Instance")
-				for i = 1, #desc do
-					if not (PT.data.enabled and seq == PT.applyAllSeq) then
-						break
-					end
-					local o = desc[i]
-					if o and o.Parent then
-						applyIfReady(o)
-					end
-					if i % 200 == 0 then
-						Wait()
-					end
-				end
-			end
-			PT.applying = false
-			if PT.needApplyAll then
-				NAmanage.plex_applyAll()
-			end
-		end)()
-	end
-
-	local function scheduleTrackedPlexApply()
-		if not PT.data.enabled or PT.trackedApplyQueued then
-			return
-		end
-		PT.trackedApplyQueued = true
-		Delay(0.05, function()
-			PT.trackedApplyQueued = false
-			if not PT.data.enabled then
+		local function savePlexData(opts)
+			if not FileSupport then
 				return
 			end
-			local count = 0
-			for o in pairs(PT.images) do
-				if o and o.Parent then
-					NAmanage.plex_apply(o)
-					count += 1
-					if count % 80 == 0 then
-						Wait()
-					end
-				else
-					PT.images[o] = nil
-				end
+			opts = opts or {}
+			plexSaveSeq += 1
+			local seq = plexSaveSeq
+			local function writePlexData()
+				pcall(function()
+					writefile(PT.path, HttpService:JSONEncode(PT.data))
+				end)
 			end
-		end)
-	end
-
-	local function rescanAll()
-		if PT.rescanning then
-			PT.rescanAgain = true
-			return
-		end
-		PT.rescanning = true
-		coroutine.wrap(function()
-			repeat
-				PT.rescanAgain = false
-				local cg = PT.cg
-				if cg and PT.data.enabled then
-					local desc = NAmanage.qDesc(cg, "Instance")
-					for i = 1, #desc do
-						if not PT.data.enabled then
-							break
-						end
-						enqueue(desc[i])
-						if i % 200 == 0 then
-							Wait()
-						end
-					end
-					processQueue()
-				end
-			until not (PT.data.enabled and PT.rescanAgain)
-			PT.rescanning = false
-		end)()
-	end
-
-	local function onDescendantAdded(o)
-		if not PT.data.enabled then
-			return
-		end
-		enqueue(o)
-		scheduleQueueProcess()
-	end
-
-	local function setPlexW(on)
-		NAlib.disconnect("PlexyDescAdded")
-		NAlib.disconnect("PlexyDescRemoving")
-		if not on or not PT.cg then
-			return
-		end
-		NAlib.connect("PlexyDescAdded", NAmanage.descSub(PT.cg, {
-			added = onDescendantAdded,
-			filterAdded = isPlexTarget,
-		}))
-		NAlib.connect("PlexyDescRemoving", NAmanage.descSub(PT.cg, {
-			removing = function(o)
-				PT.images[o] = nil
-				PT.queueSet[o] = nil
-			end,
-			filterRemoving = function(o)
-				return PT.images[o] == true or PT.queueSet[o] == true
-			end,
-		}))
-	end
-
-	if PT.data.enabled then
-		rescanAll()
-		setPlexW(true)
-	else
-		setPlexW(false)
-	end
-
-	NAgui.addSection("Plexity Theme")
-	NAgui.addToggle("Enable Theme", PT.data.enabled, function(v)
-		PT.data.enabled = v
-		if v then
-			setPlexW(true)
-			rescanAll()
-		else
-			setPlexW(false)
-			PT.applyAllSeq += 1
-			PT.needApplyAll = false
-			resetPlexQueue()
-			local cg = PT.cg
-			if cg then
-				local desc = NAmanage.qDesc(cg, "Instance")
-				for i = 1, #desc do
-					NAmanage.plex_remove(desc[i])
-					if i % 200 == 0 then
-						Wait()
-					end
-				end
+			if opts.immediate == true then
+				writePlexData()
+				return
 			end
-			resetPlexImages()
+			Delay(0.2, function()
+				if seq == plexSaveSeq then
+					writePlexData()
+				end
+			end)
 		end
-		savePlexData({ immediate = true })
-	end)
 
-	NAgui.addColorPicker("Gradient Start Color", Color3.fromHSV(PT.data.start.h, PT.data.start.s, PT.data.start.v), function(c)
-		local h, s, v = c:ToHSV()
-		PT.data.start.h, PT.data.start.s, PT.data.start.v = h, s, v
-		PT.gradientSeqKey = nil
-		if PT.data.enabled then
-			scheduleTrackedPlexApply()
+		local HUI = NAlib.huiGrabber()
+
+		local function resetPlexQueue()
+			PT.queueToken += 1
+			PT.queue = {}
+			PT.queueHead = 1
+			PT.queueTail = 0
+			PT.queueSet = setmetatable({}, { __mode = "k" })
+			PT.processing = false
+			PT.queueKickPending = false
 		end
-		savePlexData()
-	end)
 
-	NAgui.addColorPicker("Gradient End Color", Color3.fromHSV(PT.data.finish.h, PT.data.finish.s, PT.data.finish.v), function(c)
-		local h, s, v = c:ToHSV()
-		PT.data.finish.h, PT.data.finish.s, PT.data.finish.v = h, s, v
-		PT.gradientSeqKey = nil
-		if PT.data.enabled then
-			scheduleTrackedPlexApply()
+		local function resetPlexImages()
+			PT.images = setmetatable({}, { __mode = "k" })
 		end
-		savePlexData()
-	end)
 
-	local function initBuilderIconEditor()
-		local BuilderIconEditor = {
-			path = NAfiles.NAFILEPATH.."/BuilderIconsEditor.json",
-			default = {
-				enabled = false,
-				overrides = {},
-			},
-			data = {
-				enabled = false,
-				overrides = {},
-			},
-			entries = {},
-			entryPaths = {},
-			entryInstSet = setmetatable({}, { __mode = "k" }),
-			liveTargets = {},
-			selectedLabel = "None",
-			selectedDisplay = "None",
-			selectedPath = nil,
-			selectedInst = nil,
-			pendingText = "",
-			originalText = {},
-			refreshQueued = false,
-			reapplyQueued = false,
-			catalogUrl = "https://raw.githubusercontent.com/ltseverydayyou/ltseverydayyou.github.io/refs/heads/main/.well-known/buildericons/icons.json",
-			catalogPlaceholder = "Select BuilderIcon",
-			catalogLoadingLabel = "Loading BuilderIcons...",
-			catalogEntries = {},
-			catalogOptions = {},
-			catalogLookupByText = {},
-			catalogLookupByStyle = {
-				regular = {},
-				filled = {},
-			},
-			catalogLoading = false,
-			catalogLoaded = false,
-			catalogError = nil,
-			selectedIconLabel = "Loading BuilderIcons...",
-			watchersEnabled = false,
-		}
-		BuilderIconEditor.originalText = setmetatable(BuilderIconEditor.originalText, {
-			__mode = "k",
-		})
-		BuilderIconEditor.liveTargets = setmetatable(BuilderIconEditor.liveTargets, {
-			__mode = "k",
-		})
-		local builderIconDropdownLabel = "BuilderIcon Target"
-		local builderIconInputLabel = "Custom BuilderIcon"
+		local function getPlexGradientSequence()
+			local start = PT.data.start or PT.default.start
+			local finish = PT.data.finish or PT.default.finish
+			local sh = math.clamp(tonumber(start.h) or PT.default.start.h, 0, 1)
+			local ss = math.clamp(tonumber(start.s) or PT.default.start.s, 0, 1)
+			local sv = math.clamp(tonumber(start.v) or PT.default.start.v, 0, 1)
+			local fh = math.clamp(tonumber(finish.h) or PT.default.finish.h, 0, 1)
+			local fs = math.clamp(tonumber(finish.s) or PT.default.finish.s, 0, 1)
+			local fv = math.clamp(tonumber(finish.v) or PT.default.finish.v, 0, 1)
+			local key = Format("%.5f:%.5f:%.5f|%.5f:%.5f:%.5f",
+				sh,
+				ss,
+				sv,
+				fh,
+				fs,
+				fv
+			)
+			if PT.gradientSeqKey ~= key then
+				PT.gradientSeqKey = key
+				PT.gradientSeq = ColorSequence.new{
+					ColorSequenceKeypoint.new(0, Color3.fromHSV(sh, ss, sv)),
+					ColorSequenceKeypoint.new(1, Color3.fromHSV(fh, fs, fv)),
+				}
+			end
+			return PT.gradientSeq
+		end
 
-		local function isBuilderIconTarget(o)
+		local function isPlexTarget(o)
 			if not (o and o.Parent) then
 				return false
 			end
 			if HUI and o:IsDescendantOf(HUI) then
 				return false
 			end
-			if not (o:IsA("TextLabel") or o:IsA("TextButton")) then
+			return o:IsA("ImageLabel")
+				or o:IsA("ImageButton")
+				or o:IsA("TextLabel")
+				or o:IsA("TextButton")
+		end
+
+		local function getImageId(o)
+			local value = NAlib.isProperty(o, "Image")
+			if type(value) == "string" and value ~= "" then
+				return value
+			end
+			value = NAlib.isProperty(o, "Texture")
+			if type(value) == "string" and value ~= "" then
+				return value
+			end
+			value = NAlib.isProperty(o, "TextureId")
+			if type(value) == "string" and value ~= "" then
+				return value
+			end
+			return nil
+		end
+
+		local function applyIfReady(o)
+			if not (PT.data.enabled and o and o.Parent) then
 				return false
 			end
-			local ff = NAlib.isProperty(o, "FontFace")
-			local ffType = ff and typeof(ff) or nil
-			local family = ff and ff.Family or nil
-			return (ffType == "Font" or ffType == "FontFace")
-				and type(family) == "string"
-				and family:find("BuilderIcons/BuilderIcons.json", 1, true) ~= nil
-		end
 
-		local function getBuilderIconSelectionValue(selection)
-			local value = selection
-			if type(value) == "table" then
-				value = value[1]
+			if HUI and o:IsDescendantOf(HUI) then
+				return false
 			end
-			if type(value) ~= "string" then
-				return nil
-			end
-			value = value:match("^%s*(.-)%s*$")
-			if not value or value == "" or Lower(value) == "none" then
-				return nil
-			end
-			return value
-		end
 
-		local function getBuilderIconText(inst)
-			local text = NAlib.isProperty(inst, "Text")
-			if type(text) ~= "string" then
-				return ""
-			end
-			return text
-		end
-
-		local resolveBuilderIconDisplayText
-		local findBuilderIconCatalogLabelByText
-		local getBuilderIconTextTokenForEntry
-
-		local function getBuilderIconPreviewText(text)
-			text = tostring(text or "")
-			text = text:gsub("[\r\n\t]", " ")
-			if text == "" then
-				return "<empty>"
-			end
-			if #text > 14 then
-				return text:sub(1, 14) .. "..."
-			end
-			return text
-		end
-
-		local function getBuilderIconPath(inst)
-			local parts = {}
-			local current = inst
-			local depth = 0
-			while current and depth < 64 do
-				if current == CoreGui then
-					break
-				end
-				Insert(parts, 1, tostring(current.Name or current.ClassName))
-				current = current.Parent
-				depth += 1
-			end
-			return Concat(parts, "/")
-		end
-
-		local function normalizeBuilderIconOverridePath(path)
-			if type(path) ~= "string" or path == "" then
-				return nil
-			end
-			local trimmed = path:match("^%s*(.-)%s*$")
-			if not trimmed or trimmed == "" then
-				return nil
-			end
-			local suffix = trimmed:match("CoreGui/(.+)$")
-			if type(suffix) == "string" and suffix ~= "" then
-				return suffix
-			end
-			return trimmed
-		end
-
-		local function makeBuilderIconLabel(inst)
-			local currentText = getBuilderIconText(inst)
-			local originalText = BuilderIconEditor.originalText[inst]
-			if type(originalText) ~= "string" or originalText == "" then
-				originalText = currentText
-			end
-			local originalDisplay = resolveBuilderIconDisplayText and resolveBuilderIconDisplayText(originalText) or getBuilderIconPreviewText(originalText)
-			if currentText ~= originalText then
-				local modifiedDisplay = resolveBuilderIconDisplayText and resolveBuilderIconDisplayText(currentText) or getBuilderIconPreviewText(currentText)
-				return Format("%s | %s | %s", originalDisplay, modifiedDisplay, getBuilderIconPath(inst))
-			end
-			return Format("%s | %s", originalDisplay, getBuilderIconPath(inst))
-		end
-
-		local function isTrackedBuilderIconTarget(o)
-			if o == BuilderIconEditor.selectedInst then
+			if PT.images[o] then
+				NAmanage.plex_apply(o)
 				return true
 			end
-			if BuilderIconEditor.originalText[o] ~= nil then
+
+			if not isPlexTarget(o) then
+				return false
+			end
+
+			local imgId = getImageId(o)
+			if type(imgId) == "string" and imgId:match("img_set_%dx_%d+%.png$") then
+				PT.images[o] = true
+				NAmanage.plex_apply(o)
 				return true
 			end
-			if BuilderIconEditor.entryInstSet[o] == true then
-				return true
-			end
-			return false
-		end
 
-		local function normalizeBuilderIconData(raw)
-			local out = {
-				enabled = false,
-				overrides = {},
-			}
-			if type(raw) ~= "table" then
-				return out
-			end
-			if type(raw.enabled) == "boolean" then
-				out.enabled = raw.enabled
-			end
-			local overrides = raw.overrides
-			if type(overrides) == "table" then
-				for path, text in pairs(overrides) do
-					local normalizedPath = normalizeBuilderIconOverridePath(path)
-					if type(normalizedPath) == "string" and normalizedPath ~= "" and type(text) == "string" then
-						out.overrides[normalizedPath] = text
-					end
-				end
-			end
-			return out
-		end
+			if o:IsA("TextLabel") or o:IsA("TextButton") then
+				local ff = NAlib.isProperty(o, "FontFace")
+				local ffType = ff and typeof(ff) or nil
+				local fam = ff and ff.Family or nil
 
-		local function saveBuilderIconData()
-			if not FileSupport then
-				return
-			end
-			pcall(function()
-				writefile(BuilderIconEditor.path, HttpService:JSONEncode(BuilderIconEditor.data))
-			end)
-		end
-
-		local function loadBuilderIconData()
-			BuilderIconEditor.data = normalizeBuilderIconData(BuilderIconEditor.default)
-			if not FileSupport then
-				return
-			end
-			if not isfile(BuilderIconEditor.path) then
-				saveBuilderIconData()
-				return
-			end
-			local okRead, raw = pcall(readfile, BuilderIconEditor.path)
-			if not okRead or type(raw) ~= "string" or raw == "" then
-				saveBuilderIconData()
-				return
-			end
-			local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
-			if okDecode then
-				BuilderIconEditor.data = normalizeBuilderIconData(decoded)
-			else
-				saveBuilderIconData()
-			end
-		end
-
-		local function getSavedBuilderIconTextForPath(path)
-			path = normalizeBuilderIconOverridePath(path)
-			if type(path) ~= "string" or path == "" then
-				return nil
-			end
-			local overrides = BuilderIconEditor.data and BuilderIconEditor.data.overrides
-			if type(overrides) ~= "table" then
-				return nil
-			end
-			local value = overrides[path]
-			if type(value) ~= "string" then
-				return nil
-			end
-			return value
-		end
-
-		local function setSavedBuilderIconOverride(path, text)
-			path = normalizeBuilderIconOverridePath(path)
-			if type(path) ~= "string" or path == "" then
-				return
-			end
-			BuilderIconEditor.data.overrides[path] = tostring(text or "")
-			saveBuilderIconData()
-		end
-
-		local function clearSavedBuilderIconOverride(path)
-			path = normalizeBuilderIconOverridePath(path)
-			if type(path) ~= "string" or path == "" then
-				return
-			end
-			if BuilderIconEditor.data.overrides[path] == nil then
-				return
-			end
-			BuilderIconEditor.data.overrides[path] = nil
-			saveBuilderIconData()
-		end
-
-		local function clearAllSavedBuilderIconOverrides()
-			BuilderIconEditor.data.overrides = {}
-			saveBuilderIconData()
-		end
-
-		local function hasSavedBuilderIconOverrides()
-			return type(BuilderIconEditor.data) == "table"
-				and type(BuilderIconEditor.data.overrides) == "table"
-				and next(BuilderIconEditor.data.overrides) ~= nil
-		end
-
-		local function restoreAppliedBuilderIconOverrides()
-			local restoredAny = false
-			for inst, original in pairs(BuilderIconEditor.originalText) do
-				if type(original) == "string" and inst and inst.Parent and isBuilderIconTarget(inst) then
-					if getBuilderIconText(inst) ~= original then
-						pcall(function()
-							inst.Text = original
-						end)
-						restoredAny = true
-					end
-				end
-			end
-			return restoredAny
-		end
-
-		local function applySavedBuilderIconOverrideToInstance(inst)
-			if BuilderIconEditor.data.enabled ~= true then
-				return false
-			end
-			if not isBuilderIconTarget(inst) then
-				return false
-			end
-			local path = getBuilderIconPath(inst)
-			local savedText = getSavedBuilderIconTextForPath(path)
-			if type(savedText) ~= "string" then
-				return false
-			end
-			if BuilderIconEditor.originalText[inst] == nil then
-				BuilderIconEditor.originalText[inst] = getBuilderIconText(inst)
-			end
-			if getBuilderIconText(inst) ~= savedText then
-				pcall(function()
-					inst.Text = savedText
-				end)
-			end
-			return true
-		end
-
-		local function applySavedBuilderIconOverrides()
-			if BuilderIconEditor.data.enabled ~= true then
-				return false, false
-			end
-			if not hasSavedBuilderIconOverrides() then
-				return false, false
-			end
-			local foundAny = false
-			local appliedAny = false
-			local desc = NAmanage.qDesc(CoreGui, "Instance")
-			for i = 1, #desc do
-				local inst = desc[i]
-				if isBuilderIconTarget(inst) then
-					local path = getBuilderIconPath(inst)
-					if getSavedBuilderIconTextForPath(path) ~= nil then
-						foundAny = true
-						if applySavedBuilderIconOverrideToInstance(inst) then
-							appliedAny = true
-						end
-					end
-				end
-				if i % 200 == 0 then
-					Wait()
-				end
-			end
-			return foundAny, appliedAny
-		end
-
-		local function hasPendingSavedBuilderIconPaths()
-			if BuilderIconEditor.data.enabled ~= true then
-				return false
-			end
-			if not hasSavedBuilderIconOverrides() then
-				return false
-			end
-			local foundPaths = {}
-			local desc = NAmanage.qDesc(CoreGui, "Instance")
-			for i = 1, #desc do
-				local inst = desc[i]
-				if isBuilderIconTarget(inst) then
-					local path = normalizeBuilderIconOverridePath(getBuilderIconPath(inst))
-					if type(path) == "string" and path ~= "" then
-						foundPaths[path] = true
-					end
-				end
-				if i % 200 == 0 then
-					Wait()
-				end
-			end
-			for path in pairs(BuilderIconEditor.data.overrides) do
-				if not foundPaths[path] then
+				if (ffType == "Font" or ffType == "FontFace")
+					and type(fam) == "string"
+					and fam:find("BuilderIcons/BuilderIcons.json", 1, true)
+				then
+					PT.images[o] = true
+					NAmanage.plex_apply(o)
 					return true
 				end
 			end
+
 			return false
 		end
 
-		local refreshBuilderIconDropdown
-
-		local function collectBuilderIconLiveTargets()
-			local found = {}
-			local seen = {}
-			for inst in pairs(BuilderIconEditor.liveTargets) do
-				if isBuilderIconTarget(inst) and not seen[inst] then
-					seen[inst] = true
-					found[#found + 1] = inst
-				else
-					BuilderIconEditor.liveTargets[inst] = nil
-				end
-			end
-			return found
-		end
-
-		local function queueSavedBuilderIconReapply(opts)
-			opts = opts or {}
-			if BuilderIconEditor.reapplyQueued then
+		NAmanage.plex_remove = function(o)
+			if not o then
 				return
 			end
-			BuilderIconEditor.reapplyQueued = true
-			Delay(opts.delay or 0.2, function()
-				BuilderIconEditor.reapplyQueued = false
-				local _, appliedAny = applySavedBuilderIconOverrides()
-				if appliedAny and opts.refreshDropdown == true and NAgui and NAgui._dropdownRegistry and NAgui._dropdownRegistry[builderIconDropdownLabel] then
-					refreshBuilderIconDropdown({
-						keepInstance = BuilderIconEditor.selectedInst,
-						syncText = false,
-					})
-				end
-				if opts.repeatPending == true and hasPendingSavedBuilderIconPaths() then
-					queueSavedBuilderIconReapply({
-						refreshDropdown = opts.refreshDropdown == true,
-						repeatPending = true,
-						delay = 1,
-					})
-				end
+			PT.queueSet[o] = nil
+			local okChildren, children = pcall(function()
+				return o:GetChildren()
 			end)
-		end
-
-		local function getBuilderIconCatalogSelectionValue(selection)
-			local value = selection
-			if type(value) == "table" then
-				value = value[1]
+			if not (okChildren and type(children) == "table") then
+				return
 			end
-			if type(value) ~= "string" then
-				return nil
-			end
-			value = value:match("^%s*(.-)%s*$")
-			if not value or value == "" then
-				return nil
-			end
-			if value == BuilderIconEditor.catalogPlaceholder or value == BuilderIconEditor.catalogLoadingLabel then
-				return nil
-			end
-			return value
-		end
-
-		local function normalizeBuilderIconCatalog(raw)
-			local catalog = raw
-			if type(raw) == "table" and type(raw.icons) == "table" then
-				catalog = raw.icons
-			end
-			if type(catalog) ~= "table" then
-				return {}
-			end
-
-			local sourceEntries = {}
-			if #catalog > 0 then
-				for _, entry in ipairs(catalog) do
-					sourceEntries[#sourceEntries + 1] = entry
+			for i = 1, #children do
+				local g = children[i]
+				if g and g.Name == "PlexityGradient" and g:IsA("UIGradient") then
+					pcall(function()
+						g:Destroy()
+					end)
 				end
-			else
-				for _, entry in pairs(catalog) do
-					if type(entry) == "table" then
-						sourceEntries[#sourceEntries + 1] = entry
+			end
+		end
+
+		NAmanage.plex_apply = function(o)
+			if not (o and o.Parent) then
+				return
+			end
+			if HUI and o:IsDescendantOf(HUI) then
+				return
+			end
+			if isPlexTarget(o) then
+				PT.images[o] = true
+			end
+			if PT.data.enabled then
+				local ug = o:FindFirstChild("PlexityGradient")
+				if not (ug and ug:IsA("UIGradient")) then
+					if ug then
+						pcall(function()
+							ug:Destroy()
+						end)
 					end
+					ug = InstanceNew("UIGradient")
+					ug.Name = "PlexityGradient"
+					ug.Parent = o
 				end
+				ug.Color = getPlexGradientSequence()
+				ug.Rotation = 45
+				ug.Transparency = NumberSequence.new{
+					NumberSequenceKeypoint.new(0,   0, 0),
+					NumberSequenceKeypoint.new(0.5, 0, 0),
+					NumberSequenceKeypoint.new(1,   0, 0),
+				}
+			else
+				NAmanage.plex_remove(o)
 			end
+		end
 
-			local out = {}
-			for _, entry in ipairs(sourceEntries) do
-				if type(entry) == "table" then
-					local name = entry.name or entry.label or entry.components
-					local styles = {}
-					if type(entry.styles) == "table" then
-						for _, styleName in ipairs({ "regular", "filled" }) do
-							local styleEntry = entry.styles[styleName]
-							if type(styleEntry) == "table" then
-								local character = styleEntry.character or styleEntry.glyph or styleEntry.text
-								if type(character) == "string" and character ~= "" then
-									styles[styleName] = character
-								end
-							elseif type(styleEntry) == "string" and styleEntry ~= "" then
-								styles[styleName] = styleEntry
+		local function enqueue(o)
+			if not (PT.data.enabled and o and o.Parent) then
+				return
+			end
+			if PT.cg and not o:IsDescendantOf(PT.cg) then
+				return
+			end
+			if PT.queueSet[o] then
+				return
+			end
+			if HUI and o:IsDescendantOf(HUI) then
+				return
+			end
+			PT.queueSet[o] = true
+			PT.queueTail += 1
+			PT.queue[PT.queueTail] = o
+		end
+
+		local function processQueue()
+			if PT.processing then
+				return
+			end
+			PT.processing = true
+			local token = PT.queueToken
+			coroutine.wrap(function()
+				while token == PT.queueToken and PT.data.enabled and PT.queueHead <= PT.queueTail do
+					local budget = 40
+					while budget > 0 and token == PT.queueToken and PT.data.enabled and PT.queueHead <= PT.queueTail do
+						local o = PT.queue[PT.queueHead]
+						PT.queue[PT.queueHead] = nil
+						PT.queueHead += 1
+						if o then
+							PT.queueSet[o] = nil
+							if o.Parent and PT.data.enabled then
+								applyIfReady(o)
 							end
 						end
+						budget -= 1
 					end
-					if type(name) == "string" and name ~= "" and next(styles) ~= nil then
-						out[#out + 1] = {
-							name = name,
-							components = type(entry.components) == "string" and entry.components or name,
-							styles = styles,
-						}
-					end
+					Wait()
 				end
-			end
-
-			table.sort(out, function(a, b)
-				local left = Lower(a.name or a.components or "")
-				local right = Lower(b.name or b.components or "")
-				if left == right then
-					return tostring(a.components or "") < tostring(b.components or "")
+				if token == PT.queueToken then
+					PT.queue = {}
+					PT.queueHead = 1
+					PT.queueTail = 0
+					PT.queueSet = setmetatable({}, { __mode = "k" })
+					PT.processing = false
+					PT.queueKickPending = false
 				end
-				return left < right
-			end)
-
-			return out
+			end)()
 		end
 
-		local function escapeBuilderIconRichText(text)
-			text = tostring(text or "")
-			text = text:gsub("&", "&amp;")
-			text = text:gsub("<", "&lt;")
-			text = text:gsub(">", "&gt;")
-			text = text:gsub('"', "&quot;")
-			text = text:gsub("'", "&apos;")
-			return text
-		end
-
-		local function getBuilderIconCatalogEntryByText(text)
-			local matched = findBuilderIconCatalogLabelByText(text)
-			if type(matched) ~= "string" or matched == "" then
-				return nil
-			end
-			local entry = BuilderIconEditor.catalogEntries and BuilderIconEditor.catalogEntries[matched]
-			if type(entry) ~= "table" then
-				return nil
-			end
-			return entry
-		end
-
-		local function makeBuilderIconRichSegment(text)
-			local entry = getBuilderIconCatalogEntryByText(text)
-			if type(entry) == "table" then
-				local token = getBuilderIconTextTokenForEntry(entry)
-				if type(token) == "string" and token ~= "" then
-					return Format(
-						'<font family="rbxasset://LuaPackages/Packages/_Index/BuilderIcons/BuilderIcons/BuilderIcons.json">%s</font>',
-						escapeBuilderIconRichText(token)
-					)
-				end
-			end
-			local preview = resolveBuilderIconDisplayText and resolveBuilderIconDisplayText(text) or getBuilderIconPreviewText(text)
-			return escapeBuilderIconRichText(preview)
-		end
-
-		local function makeBuilderIconDisplayLabel(inst)
-			local currentText = getBuilderIconText(inst)
-			local originalText = BuilderIconEditor.originalText[inst]
-			if type(originalText) ~= "string" or originalText == "" then
-				originalText = currentText
-			end
-			local pathDisplay = escapeBuilderIconRichText(getBuilderIconPath(inst))
-			local originalDisplay = makeBuilderIconRichSegment(originalText)
-			if currentText ~= originalText then
-				local modifiedDisplay = makeBuilderIconRichSegment(currentText)
-				return Format("%s | %s | %s", originalDisplay, modifiedDisplay, pathDisplay)
-			end
-			return Format("%s | %s", originalDisplay, pathDisplay)
-		end
-
-		local function rebuildBuilderIconCatalog(entries)
-			local options = {}
-			local catalogEntries = {}
-			local lookupByText = {}
-			local lookupByStyle = {
-				regular = {},
-				filled = {},
-			}
-			local labelCount = {}
-
-			for _, entry in ipairs(entries) do
-				local baseLabel = entry.name or entry.components or "BuilderIcon"
-				labelCount[baseLabel] = (labelCount[baseLabel] or 0) + 1
-				local label = baseLabel
-				if labelCount[baseLabel] > 1 then
-					label = baseLabel .. " #" .. tostring(labelCount[baseLabel])
-				end
-				entry.label = label
-				catalogEntries[label] = entry
-				if type(entry.components) == "string" and entry.components ~= "" then
-					lookupByText[entry.components] = label
-				end
-				if type(entry.name) == "string" and entry.name ~= "" then
-					lookupByText[entry.name] = label
-				end
-				local token = type(entry.components) == "string" and entry.components ~= "" and entry.components or baseLabel
-				local richDisplay = Format(
-					'<font family="rbxasset://LuaPackages/Packages/_Index/BuilderIcons/BuilderIcons/BuilderIcons.json">%s</font>  %s',
-					escapeBuilderIconRichText(token),
-					escapeBuilderIconRichText(label)
-				)
-				options[#options + 1] = {
-					value = label,
-					display = richDisplay,
-					selectedDisplay = richDisplay,
-					richText = true,
-				}
-				for styleName, character in pairs(entry.styles or {}) do
-					if type(character) == "string" and character ~= "" and type(lookupByStyle[styleName]) == "table" then
-						lookupByStyle[styleName][character] = label
-					end
-				end
-			end
-
-			BuilderIconEditor.catalogEntries = catalogEntries
-			BuilderIconEditor.catalogOptions = options
-			BuilderIconEditor.catalogLookupByText = lookupByText
-			BuilderIconEditor.catalogLookupByStyle = lookupByStyle
-			BuilderIconEditor.catalogLoaded = #entries > 0
-			BuilderIconEditor.catalogError = (#entries > 0) and nil or "No BuilderIcons available."
-		end
-
-		getBuilderIconTextTokenForEntry = function(entry)
-			if type(entry) ~= "table" then
-				return nil
-			end
-			local components = entry.components
-			if type(components) == "string" and components ~= "" then
-				return components
-			end
-			local name = entry.name
-			if type(name) == "string" and name ~= "" then
-				return name
-			end
-			return nil
-		end
-
-		findBuilderIconCatalogLabelByText = function(text)
-			if type(text) ~= "string" or text == "" then
-				return nil
-			end
-			local byText = BuilderIconEditor.catalogLookupByText
-			if type(byText) == "table" and byText[text] then
-				return byText[text]
-			end
-			for label, entry in pairs(BuilderIconEditor.catalogEntries or {}) do
-				if type(entry) == "table" then
-					if entry.components == text or entry.name == text then
-						return label
-					end
-				end
-			end
-			for _, lookup in pairs(BuilderIconEditor.catalogLookupByStyle or {}) do
-				if type(lookup) == "table" and lookup[text] then
-					return lookup[text]
-				end
-			end
-			return nil
-		end
-
-		resolveBuilderIconDisplayText = function(text)
-			local matched = findBuilderIconCatalogLabelByText(text)
-			if type(matched) == "string" and matched ~= "" then
-				return matched
-			end
-			return getBuilderIconPreviewText(text)
-		end
-
-		local syncBuilderIconInput
-
-		local function getVisibleBuilderIconCatalogOptions()
-			local selectedLabel = BuilderIconEditor.selectedIconLabel
-			local visible = {}
-			for _, option in ipairs(BuilderIconEditor.catalogOptions or {}) do
-				if type(option) == "table" then
-					if option.value ~= selectedLabel then
-						visible[#visible + 1] = option
-					end
-				else
-					visible[#visible + 1] = option
-				end
-			end
-			return visible
-		end
-
-		local function syncBuilderIconCatalogDropdown()
-			if NAgui.setDropdownOptions then
-				NAgui.setDropdownOptions(builderIconInputLabel, getVisibleBuilderIconCatalogOptions())
-			end
-			if syncBuilderIconInput then
-				syncBuilderIconInput()
-			end
-		end
-
-		local function fetchBuilderIconCatalog(opts)
-			opts = opts or {}
-			if BuilderIconEditor.catalogLoading then
+		local function scheduleQueueProcess()
+			if PT.queueKickPending then
 				return
 			end
-			BuilderIconEditor.catalogLoading = true
-			BuilderIconEditor.catalogError = nil
-			BuilderIconEditor.catalogLoaded = false
-			BuilderIconEditor.catalogOptions = {}
-			BuilderIconEditor.catalogEntries = {}
-			BuilderIconEditor.catalogLookupByText = {}
-			BuilderIconEditor.catalogLookupByStyle = {
-				regular = {},
-				filled = {},
-			}
-			syncBuilderIconCatalogDropdown()
+			PT.queueKickPending = true
+			Defer(function()
+				PT.queueKickPending = false
+				processQueue()
+			end)
+		end
 
-			Spawn(function()
-				local okHttp, raw = pcall(function()
-					return game:HttpGet(BuilderIconEditor.catalogUrl)
-				end)
-				if not (okHttp and type(raw) == "string" and raw ~= "") then
-					BuilderIconEditor.catalogLoading = false
-					BuilderIconEditor.catalogError = "Unable to fetch BuilderIcons catalog."
-					BuilderIconEditor.catalogOptions = {}
-					syncBuilderIconCatalogDropdown()
-					if opts.notify ~= false then
-						DoNotif(BuilderIconEditor.catalogError, 3)
+		NAmanage.plex_add = function(o)
+			enqueue(o)
+			scheduleQueueProcess()
+		end
+
+		NAmanage.plex_applyAll = function()
+			if not PT.data.enabled then
+				PT.needApplyAll = false
+				return
+			end
+			if PT.applying then
+				PT.needApplyAll = true
+				return
+			end
+			PT.applying = true
+			PT.needApplyAll = false
+			PT.applyAllSeq += 1
+			local seq = PT.applyAllSeq
+
+			coroutine.wrap(function()
+				local cg = PT.cg
+				if cg and PT.data.enabled and seq == PT.applyAllSeq then
+					local desc = NAmanage.qDesc(cg, "Instance")
+					for i = 1, #desc do
+						if not (PT.data.enabled and seq == PT.applyAllSeq) then
+							break
+						end
+						local o = desc[i]
+						if o and o.Parent then
+							applyIfReady(o)
+						end
+						if i % 200 == 0 then
+							Wait()
+						end
 					end
+				end
+				PT.applying = false
+				if PT.needApplyAll then
+					NAmanage.plex_applyAll()
+				end
+			end)()
+		end
+
+		PT.scheduleTrackedPlexApply = function()
+			if not PT.data.enabled or PT.trackedApplyQueued then
+				return
+			end
+			PT.trackedApplyQueued = true
+			Delay(0.05, function()
+				PT.trackedApplyQueued = false
+				if not PT.data.enabled then
 					return
 				end
-
-				local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
-				if not (okDecode and type(decoded) == "table") then
-					BuilderIconEditor.catalogLoading = false
-					BuilderIconEditor.catalogError = "Invalid BuilderIcons catalog."
-					BuilderIconEditor.catalogOptions = {}
-					syncBuilderIconCatalogDropdown()
-					if opts.notify ~= false then
-						DoNotif(BuilderIconEditor.catalogError, 3)
+				local count = 0
+				for o in pairs(PT.images) do
+					if o and o.Parent then
+						NAmanage.plex_apply(o)
+						count += 1
+						if count % 80 == 0 then
+							Wait()
+						end
+					else
+						PT.images[o] = nil
 					end
-					return
-				end
-
-				local entries = normalizeBuilderIconCatalog(decoded)
-				BuilderIconEditor.catalogLoading = false
-				rebuildBuilderIconCatalog(entries)
-				if not BuilderIconEditor.catalogLoaded then
-					BuilderIconEditor.catalogOptions = {}
-					syncBuilderIconCatalogDropdown()
-					if opts.notify ~= false then
-						DoNotif(BuilderIconEditor.catalogError or "No BuilderIcons available.", 3)
-					end
-					return
-				end
-
-				syncBuilderIconCatalogDropdown()
-				if refreshBuilderIconDropdown then
-					refreshBuilderIconDropdown({
-						keepInstance = BuilderIconEditor.selectedInst,
-						syncText = false,
-					})
-				end
-				if opts.notify then
-					DoNotif("BuilderIcon list refreshed.", 2)
 				end
 			end)
 		end
 
-		syncBuilderIconInput = function()
-			local selectedLabel = BuilderIconEditor.catalogPlaceholder
-			if BuilderIconEditor.catalogLoading then
-				selectedLabel = BuilderIconEditor.catalogLoadingLabel
-			elseif BuilderIconEditor.catalogLoaded then
-				local matched = findBuilderIconCatalogLabelByText(BuilderIconEditor.pendingText or "")
-				if type(matched) == "string" and matched ~= "" then
-					selectedLabel = matched
-				end
+		PT.rescanAll = function()
+			if PT.rescanning then
+				PT.rescanAgain = true
+				return
 			end
-			BuilderIconEditor.selectedIconLabel = selectedLabel
-			if NAgui.setDropdownValue then
-				NAgui.setDropdownValue(builderIconInputLabel, selectedLabel, {
-					fire = false,
-				})
-			end
+			PT.rescanning = true
+			coroutine.wrap(function()
+				repeat
+					PT.rescanAgain = false
+					local cg = PT.cg
+					if cg and PT.data.enabled then
+						local desc = NAmanage.qDesc(cg, "Instance")
+						for i = 1, #desc do
+							if not PT.data.enabled then
+								break
+							end
+							enqueue(desc[i])
+							if i % 200 == 0 then
+								Wait()
+							end
+						end
+						processQueue()
+					end
+				until not (PT.data.enabled and PT.rescanAgain)
+				PT.rescanning = false
+			end)()
 		end
 
-		refreshBuilderIconDropdown = function(opts)
-			opts = opts or {}
-			local previousInst = BuilderIconEditor.selectedInst
-			local previousLabel = BuilderIconEditor.selectedLabel
-			local previousDisplay = BuilderIconEditor.selectedDisplay
-			local previousPath = BuilderIconEditor.selectedPath
-			local keepInst = opts.keepInstance
-			if keepInst == nil then
-				keepInst = previousInst
+		PT.onDescendantAdded = function(o)
+			if not PT.data.enabled then
+				return
+			end
+			enqueue(o)
+			scheduleQueueProcess()
+		end
+
+		PT.setPlexW = function(on)
+			NAlib.disconnect("PlexyDescAdded")
+			NAlib.disconnect("PlexyDescRemoving")
+			if not on or not PT.cg then
+				return
+			end
+			NAlib.connect("PlexyDescAdded", NAmanage.descSub(PT.cg, {
+				added = PT.onDescendantAdded,
+				filterAdded = isPlexTarget,
+			}))
+			NAlib.connect("PlexyDescRemoving", NAmanage.descSub(PT.cg, {
+				removing = function(o)
+					PT.images[o] = nil
+					PT.queueSet[o] = nil
+				end,
+				filterRemoving = function(o)
+					return PT.images[o] == true or PT.queueSet[o] == true
+				end,
+			}))
+		end
+
+		if PT.data.enabled then
+			PT.rescanAll()
+			PT.setPlexW(true)
+		else
+			PT.setPlexW(false)
+		end
+
+		NAgui.addSection("Plexity Theme")
+		NAgui.addToggle("Enable Theme", PT.data.enabled, function(v)
+			PT.data.enabled = v
+			if v then
+				PT.setPlexW(true)
+				PT.rescanAll()
+			else
+				PT.setPlexW(false)
+				PT.applyAllSeq += 1
+				PT.needApplyAll = false
+				resetPlexQueue()
+				local cg = PT.cg
+				if cg then
+					local desc = NAmanage.qDesc(cg, "Instance")
+					for i = 1, #desc do
+						NAmanage.plex_remove(desc[i])
+						if i % 200 == 0 then
+							Wait()
+						end
+					end
+				end
+				resetPlexImages()
+			end
+			savePlexData({ immediate = true })
+		end)
+
+		NAgui.addColorPicker("Gradient Start Color", Color3.fromHSV(PT.data.start.h, PT.data.start.s, PT.data.start.v), function(c)
+			local h, s, v = c:ToHSV()
+			PT.data.start.h, PT.data.start.s, PT.data.start.v = h, s, v
+			PT.gradientSeqKey = nil
+			if PT.data.enabled then
+				PT.scheduleTrackedPlexApply()
+			end
+			savePlexData()
+		end)
+
+		NAgui.addColorPicker("Gradient End Color", Color3.fromHSV(PT.data.finish.h, PT.data.finish.s, PT.data.finish.v), function(c)
+			local h, s, v = c:ToHSV()
+			PT.data.finish.h, PT.data.finish.s, PT.data.finish.v = h, s, v
+			PT.gradientSeqKey = nil
+			if PT.data.enabled then
+				PT.scheduleTrackedPlexApply()
+			end
+			savePlexData()
+		end)
+
+		local function initBuilderIconEditor()
+			local BuilderIconEditor = {
+				path = NAfiles.NAFILEPATH.."/BuilderIconsEditor.json",
+				default = {
+					enabled = false,
+					overrides = {},
+				},
+				data = {
+					enabled = false,
+					overrides = {},
+				},
+				entries = {},
+				entryPaths = {},
+				entryInstSet = setmetatable({}, { __mode = "k" }),
+				liveTargets = {},
+				selectedLabel = "None",
+				selectedDisplay = "None",
+				selectedPath = nil,
+				selectedInst = nil,
+				pendingText = "",
+				originalText = {},
+				refreshQueued = false,
+				reapplyQueued = false,
+				catalogUrl = "https://raw.githubusercontent.com/ltseverydayyou/ltseverydayyou.github.io/refs/heads/main/.well-known/buildericons/icons.json",
+				catalogPlaceholder = "Select BuilderIcon",
+				catalogLoadingLabel = "Loading BuilderIcons...",
+				catalogEntries = {},
+				catalogOptions = {},
+				catalogLookupByText = {},
+				catalogLookupByStyle = {
+					regular = {},
+					filled = {},
+				},
+				catalogLoading = false,
+				catalogLoaded = false,
+				catalogError = nil,
+				selectedIconLabel = "Loading BuilderIcons...",
+				watchersEnabled = false,
+			}
+			BuilderIconEditor.originalText = setmetatable(BuilderIconEditor.originalText, {
+				__mode = "k",
+			})
+			BuilderIconEditor.liveTargets = setmetatable(BuilderIconEditor.liveTargets, {
+				__mode = "k",
+			})
+			local builderIconDropdownLabel = "BuilderIcon Target"
+			local builderIconInputLabel = "Custom BuilderIcon"
+
+			local function isBuilderIconTarget(o)
+				if not (o and o.Parent) then
+					return false
+				end
+				if HUI and o:IsDescendantOf(HUI) then
+					return false
+				end
+				if not (o:IsA("TextLabel") or o:IsA("TextButton")) then
+					return false
+				end
+				local ff = NAlib.isProperty(o, "FontFace")
+				local ffType = ff and typeof(ff) or nil
+				local family = ff and ff.Family or nil
+				return (ffType == "Font" or ffType == "FontFace")
+					and type(family) == "string"
+					and family:find("BuilderIcons/BuilderIcons.json", 1, true) ~= nil
 			end
 
-			local found = {}
-			local entries = {}
-			local entryPaths = {}
-			if opts.fullScan == true then
+			local function getBuilderIconSelectionValue(selection)
+				local value = selection
+				if type(value) == "table" then
+					value = value[1]
+				end
+				if type(value) ~= "string" then
+					return nil
+				end
+				value = value:match("^%s*(.-)%s*$")
+				if not value or value == "" or Lower(value) == "none" then
+					return nil
+				end
+				return value
+			end
+
+			local function getBuilderIconText(inst)
+				local text = NAlib.isProperty(inst, "Text")
+				if type(text) ~= "string" then
+					return ""
+				end
+				return text
+			end
+
+			local resolveBuilderIconDisplayText
+			local findBuilderIconCatalogLabelByText
+			local getBuilderIconTextTokenForEntry
+
+			local function getBuilderIconPreviewText(text)
+				text = tostring(text or "")
+				text = text:gsub("[\r\n\t]", " ")
+				if text == "" then
+					return "<empty>"
+				end
+				if #text > 14 then
+					return text:sub(1, 14) .. "..."
+				end
+				return text
+			end
+
+			local function getBuilderIconPath(inst)
+				local parts = {}
+				local current = inst
+				local depth = 0
+				while current and depth < 64 do
+					if current == CoreGui then
+						break
+					end
+					Insert(parts, 1, tostring(current.Name or current.ClassName))
+					current = current.Parent
+					depth += 1
+				end
+				return Concat(parts, "/")
+			end
+
+			local function normalizeBuilderIconOverridePath(path)
+				if type(path) ~= "string" or path == "" then
+					return nil
+				end
+				local trimmed = path:match("^%s*(.-)%s*$")
+				if not trimmed or trimmed == "" then
+					return nil
+				end
+				local suffix = trimmed:match("CoreGui/(.+)$")
+				if type(suffix) == "string" and suffix ~= "" then
+					return suffix
+				end
+				return trimmed
+			end
+
+			local function makeBuilderIconLabel(inst)
+				local currentText = getBuilderIconText(inst)
+				local originalText = BuilderIconEditor.originalText[inst]
+				if type(originalText) ~= "string" or originalText == "" then
+					originalText = currentText
+				end
+				local originalDisplay = resolveBuilderIconDisplayText and resolveBuilderIconDisplayText(originalText) or getBuilderIconPreviewText(originalText)
+				if currentText ~= originalText then
+					local modifiedDisplay = resolveBuilderIconDisplayText and resolveBuilderIconDisplayText(currentText) or getBuilderIconPreviewText(currentText)
+					return Format("%s | %s | %s", originalDisplay, modifiedDisplay, getBuilderIconPath(inst))
+				end
+				return Format("%s | %s", originalDisplay, getBuilderIconPath(inst))
+			end
+
+			local function isTrackedBuilderIconTarget(o)
+				if o == BuilderIconEditor.selectedInst then
+					return true
+				end
+				if BuilderIconEditor.originalText[o] ~= nil then
+					return true
+				end
+				if BuilderIconEditor.entryInstSet[o] == true then
+					return true
+				end
+				return false
+			end
+
+			local function normalizeBuilderIconData(raw)
+				local out = {
+					enabled = false,
+					overrides = {},
+				}
+				if type(raw) ~= "table" then
+					return out
+				end
+				if type(raw.enabled) == "boolean" then
+					out.enabled = raw.enabled
+				end
+				local overrides = raw.overrides
+				if type(overrides) == "table" then
+					for path, text in pairs(overrides) do
+						local normalizedPath = normalizeBuilderIconOverridePath(path)
+						if type(normalizedPath) == "string" and normalizedPath ~= "" and type(text) == "string" then
+							out.overrides[normalizedPath] = text
+						end
+					end
+				end
+				return out
+			end
+
+			local function saveBuilderIconData()
+				if not FileSupport then
+					return
+				end
+				pcall(function()
+					writefile(BuilderIconEditor.path, HttpService:JSONEncode(BuilderIconEditor.data))
+				end)
+			end
+
+			local function loadBuilderIconData()
+				BuilderIconEditor.data = normalizeBuilderIconData(BuilderIconEditor.default)
+				if not FileSupport then
+					return
+				end
+				if not isfile(BuilderIconEditor.path) then
+					saveBuilderIconData()
+					return
+				end
+				local okRead, raw = pcall(readfile, BuilderIconEditor.path)
+				if not okRead or type(raw) ~= "string" or raw == "" then
+					saveBuilderIconData()
+					return
+				end
+				local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+				if okDecode then
+					BuilderIconEditor.data = normalizeBuilderIconData(decoded)
+				else
+					saveBuilderIconData()
+				end
+			end
+
+			local function getSavedBuilderIconTextForPath(path)
+				path = normalizeBuilderIconOverridePath(path)
+				if type(path) ~= "string" or path == "" then
+					return nil
+				end
+				local overrides = BuilderIconEditor.data and BuilderIconEditor.data.overrides
+				if type(overrides) ~= "table" then
+					return nil
+				end
+				local value = overrides[path]
+				if type(value) ~= "string" then
+					return nil
+				end
+				return value
+			end
+
+			local function setSavedBuilderIconOverride(path, text)
+				path = normalizeBuilderIconOverridePath(path)
+				if type(path) ~= "string" or path == "" then
+					return
+				end
+				BuilderIconEditor.data.overrides[path] = tostring(text or "")
+				saveBuilderIconData()
+			end
+
+			local function clearSavedBuilderIconOverride(path)
+				path = normalizeBuilderIconOverridePath(path)
+				if type(path) ~= "string" or path == "" then
+					return
+				end
+				if BuilderIconEditor.data.overrides[path] == nil then
+					return
+				end
+				BuilderIconEditor.data.overrides[path] = nil
+				saveBuilderIconData()
+			end
+
+			local function clearAllSavedBuilderIconOverrides()
+				BuilderIconEditor.data.overrides = {}
+				saveBuilderIconData()
+			end
+
+			local function hasSavedBuilderIconOverrides()
+				return type(BuilderIconEditor.data) == "table"
+					and type(BuilderIconEditor.data.overrides) == "table"
+					and next(BuilderIconEditor.data.overrides) ~= nil
+			end
+
+			local function restoreAppliedBuilderIconOverrides()
+				local restoredAny = false
+				for inst, original in pairs(BuilderIconEditor.originalText) do
+					if type(original) == "string" and inst and inst.Parent and isBuilderIconTarget(inst) then
+						if getBuilderIconText(inst) ~= original then
+							pcall(function()
+								inst.Text = original
+							end)
+							restoredAny = true
+						end
+					end
+				end
+				return restoredAny
+			end
+
+			local function applySavedBuilderIconOverrideToInstance(inst)
+				if BuilderIconEditor.data.enabled ~= true then
+					return false
+				end
+				if not isBuilderIconTarget(inst) then
+					return false
+				end
+				local path = getBuilderIconPath(inst)
+				local savedText = getSavedBuilderIconTextForPath(path)
+				if type(savedText) ~= "string" then
+					return false
+				end
+				if BuilderIconEditor.originalText[inst] == nil then
+					BuilderIconEditor.originalText[inst] = getBuilderIconText(inst)
+				end
+				if getBuilderIconText(inst) ~= savedText then
+					pcall(function()
+						inst.Text = savedText
+					end)
+				end
+				return true
+			end
+
+			local function applySavedBuilderIconOverrides()
+				if BuilderIconEditor.data.enabled ~= true then
+					return false, false
+				end
+				if not hasSavedBuilderIconOverrides() then
+					return false, false
+				end
+				local foundAny = false
+				local appliedAny = false
 				local desc = NAmanage.qDesc(CoreGui, "Instance")
-				BuilderIconEditor.liveTargets = setmetatable({}, {
-					__mode = "k",
-				})
 				for i = 1, #desc do
 					local inst = desc[i]
 					if isBuilderIconTarget(inst) then
-						BuilderIconEditor.liveTargets[inst] = true
-						Insert(found, inst)
+						local path = getBuilderIconPath(inst)
+						if getSavedBuilderIconTextForPath(path) ~= nil then
+							foundAny = true
+							if applySavedBuilderIconOverrideToInstance(inst) then
+								appliedAny = true
+							end
+						end
 					end
 					if i % 200 == 0 then
 						Wait()
 					end
 				end
-			else
-				found = collectBuilderIconLiveTargets()
+				return foundAny, appliedAny
 			end
-			table.sort(found, function(a, b)
-				local aPath = getBuilderIconPath(a)
-				local bPath = getBuilderIconPath(b)
-				if aPath == bPath then
-					return getBuilderIconText(a) < getBuilderIconText(b)
+
+			local function hasPendingSavedBuilderIconPaths()
+				if BuilderIconEditor.data.enabled ~= true then
+					return false
 				end
-				return aPath < bPath
-			end)
-
-			local labels = {}
-			local labelCount = {}
-			local selectedLabel = nil
-			local selectedDisplay = nil
-			local selectedPath = nil
-			for i = 1, #found do
-				local inst = found[i]
-				local path = getBuilderIconPath(inst)
-				local base = makeBuilderIconLabel(inst)
-				local display = makeBuilderIconDisplayLabel(inst)
-				labelCount[base] = (labelCount[base] or 0) + 1
-				local label = base
-				if labelCount[base] > 1 then
-					label = base .. " #" .. tostring(labelCount[base])
+				if not hasSavedBuilderIconOverrides() then
+					return false
 				end
-				entries[label] = inst
-				entryPaths[label] = path
-				labels[#labels + 1] = {
-					value = label,
-					display = display,
-					selectedDisplay = display,
-					richText = true,
-				}
-				if inst == keepInst or (keepInst == nil and type(previousPath) == "string" and previousPath ~= "" and previousPath == path) then
-					selectedLabel = label
-					selectedDisplay = display
-					selectedPath = path
-				end
-			end
-
-			local keepMissingSelection = keepInst == nil
-				and type(previousPath) == "string"
-				and previousPath ~= ""
-				and selectedPath == nil
-				and type(previousLabel) == "string"
-				and previousLabel ~= ""
-				and type(previousDisplay) == "string"
-				and previousDisplay ~= ""
-
-			if keepMissingSelection then
-				table.insert(labels, 1, {
-					value = previousLabel,
-					display = previousDisplay,
-					selectedDisplay = previousDisplay,
-					richText = true,
-				})
-				selectedLabel = previousLabel
-				selectedDisplay = previousDisplay
-				selectedPath = previousPath
-				BuilderIconEditor.selectedInst = nil
-				BuilderIconEditor.selectedLabel = selectedLabel
-				BuilderIconEditor.selectedDisplay = selectedDisplay
-				BuilderIconEditor.selectedPath = selectedPath
-			elseif #labels == 0 then
-				labels = { "None" }
-				entries = {}
-				entryPaths = {}
-				selectedLabel = "None"
-				selectedDisplay = "None"
-				selectedPath = nil
-				BuilderIconEditor.selectedInst = nil
-				BuilderIconEditor.selectedLabel = selectedLabel
-				BuilderIconEditor.selectedDisplay = selectedDisplay
-				BuilderIconEditor.selectedPath = selectedPath
-				if opts.syncText ~= false then
-					BuilderIconEditor.pendingText = ""
-				end
-			else
-				if not selectedLabel then
-					local firstOption = labels[1]
-					if type(firstOption) == "table" then
-						selectedLabel = firstOption.value
-						selectedDisplay = firstOption.selectedDisplay or firstOption.display or selectedLabel
-					else
-						selectedLabel = firstOption
-						selectedDisplay = firstOption
-					end
-					BuilderIconEditor.selectedInst = entries[selectedLabel]
-					selectedPath = entryPaths[selectedLabel]
-				else
-					BuilderIconEditor.selectedInst = entries[selectedLabel]
-					selectedPath = selectedPath or entryPaths[selectedLabel]
-				end
-				BuilderIconEditor.selectedLabel = selectedLabel
-				BuilderIconEditor.selectedDisplay = selectedDisplay or BuilderIconEditor.selectedDisplay or selectedLabel
-				BuilderIconEditor.selectedPath = selectedPath
-				if opts.syncText == true or BuilderIconEditor.selectedInst ~= previousInst then
-					BuilderIconEditor.pendingText = BuilderIconEditor.selectedInst and getBuilderIconText(BuilderIconEditor.selectedInst) or BuilderIconEditor.pendingText
-				end
-			end
-
-			BuilderIconEditor.entries = entries
-			BuilderIconEditor.entryPaths = entryPaths
-			BuilderIconEditor.entryInstSet = setmetatable({}, { __mode = "k" })
-			for _, inst in pairs(entries) do
-				if inst then
-					BuilderIconEditor.entryInstSet[inst] = true
-				end
-			end
-			if NAgui.setDropdownOptions then
-				NAgui.setDropdownOptions(builderIconDropdownLabel, labels)
-			end
-			if NAgui.setDropdownValue then
-				NAgui.setDropdownValue(builderIconDropdownLabel, BuilderIconEditor.selectedLabel, {
-					fire = false,
-				})
-			end
-			if opts.syncText ~= false or BuilderIconEditor.selectedInst ~= previousInst then
-				syncBuilderIconInput()
-			end
-		end
-
-		loadBuilderIconData()
-
-		local function queueBuilderIconRefresh(opts)
-			opts = opts or {}
-			if BuilderIconEditor.refreshQueued then
-				return
-			end
-			BuilderIconEditor.refreshQueued = true
-			Delay(opts.delay or 0.15, function()
-				BuilderIconEditor.refreshQueued = false
-				refreshBuilderIconDropdown({
-					keepInstance = BuilderIconEditor.selectedInst,
-					syncText = false,
-				})
-			end)
-		end
-
-		local function disconnectBuilderIconWatchers()
-			if not BuilderIconEditor.watchersEnabled then
-				return
-			end
-			BuilderIconEditor.watchersEnabled = false
-			NAlib.disconnect("BuilderIconEditorAdded")
-			NAlib.disconnect("BuilderIconEditorRemoving")
-		end
-
-		local function connectBuilderIconWatchers()
-			if BuilderIconEditor.watchersEnabled then
-				return
-			end
-			BuilderIconEditor.watchersEnabled = true
-			NAlib.disconnect("BuilderIconEditorAdded")
-			NAlib.disconnect("BuilderIconEditorRemoving")
-			NAlib.connect("BuilderIconEditorAdded", NAmanage.descSub(CoreGui, {
-				added = function(o)
-					BuilderIconEditor.liveTargets[o] = true
-					local path = getBuilderIconPath(o)
-					applySavedBuilderIconOverrideToInstance(o)
-					if type(BuilderIconEditor.selectedPath) == "string" and BuilderIconEditor.selectedPath ~= "" and BuilderIconEditor.selectedPath == path then
-						BuilderIconEditor.selectedInst = o
-						BuilderIconEditor.pendingText = getBuilderIconText(o)
-						syncBuilderIconInput()
-					end
-					queueBuilderIconRefresh()
-				end,
-				removing = function(o)
-					BuilderIconEditor.liveTargets[o] = nil
-					local removedPath = getBuilderIconPath(o)
-					if o == BuilderIconEditor.selectedInst then
-						BuilderIconEditor.selectedInst = nil
-						if type(removedPath) == "string" and removedPath ~= "" then
-							BuilderIconEditor.selectedPath = removedPath
+				local foundPaths = {}
+				local desc = NAmanage.qDesc(CoreGui, "Instance")
+				for i = 1, #desc do
+					local inst = desc[i]
+					if isBuilderIconTarget(inst) then
+						local path = normalizeBuilderIconOverridePath(getBuilderIconPath(inst))
+						if type(path) == "string" and path ~= "" then
+							foundPaths[path] = true
 						end
 					end
-					BuilderIconEditor.originalText[o] = nil
-					BuilderIconEditor.entryInstSet[o] = nil
-					queueBuilderIconRefresh()
-				end,
-				filterAdded = isBuilderIconTarget,
-				filterRemoving = function(o)
-					return o and (isBuilderIconTarget(o) or isTrackedBuilderIconTarget(o))
-				end,
-			}))
-		end
-
-		NAgui.addSection("BuilderIcon Editor")
-		NAgui.addToggle("Use Modified BuilderIcons", BuilderIconEditor.data.enabled == true, function(v)
-			local enabled = v == true
-			if BuilderIconEditor.data.enabled == enabled then
-				return
+					if i % 200 == 0 then
+						Wait()
+					end
+				end
+				for path in pairs(BuilderIconEditor.data.overrides) do
+					if not foundPaths[path] then
+						return true
+					end
+				end
+				return false
 			end
-			BuilderIconEditor.data.enabled = enabled
-			saveBuilderIconData()
-			if enabled then
-				connectBuilderIconWatchers()
+
+			local refreshBuilderIconDropdown
+
+			local function collectBuilderIconLiveTargets()
+				local found = {}
+				local seen = {}
+				for inst in pairs(BuilderIconEditor.liveTargets) do
+					if isBuilderIconTarget(inst) and not seen[inst] then
+						seen[inst] = true
+						found[#found + 1] = inst
+					else
+						BuilderIconEditor.liveTargets[inst] = nil
+					end
+				end
+				return found
+			end
+
+			local function queueSavedBuilderIconReapply(opts)
+				opts = opts or {}
+				if BuilderIconEditor.reapplyQueued then
+					return
+				end
+				BuilderIconEditor.reapplyQueued = true
+				Delay(opts.delay or 0.2, function()
+					BuilderIconEditor.reapplyQueued = false
+					local _, appliedAny = applySavedBuilderIconOverrides()
+					if appliedAny and opts.refreshDropdown == true and NAgui and NAgui._dropdownRegistry and NAgui._dropdownRegistry[builderIconDropdownLabel] then
+						refreshBuilderIconDropdown({
+							keepInstance = BuilderIconEditor.selectedInst,
+							syncText = false,
+						})
+					end
+					if opts.repeatPending == true and hasPendingSavedBuilderIconPaths() then
+						queueSavedBuilderIconReapply({
+							refreshDropdown = opts.refreshDropdown == true,
+							repeatPending = true,
+							delay = 1,
+						})
+					end
+				end)
+			end
+
+			local function getBuilderIconCatalogSelectionValue(selection)
+				local value = selection
+				if type(value) == "table" then
+					value = value[1]
+				end
+				if type(value) ~= "string" then
+					return nil
+				end
+				value = value:match("^%s*(.-)%s*$")
+				if not value or value == "" then
+					return nil
+				end
+				if value == BuilderIconEditor.catalogPlaceholder or value == BuilderIconEditor.catalogLoadingLabel then
+					return nil
+				end
+				return value
+			end
+
+			local function normalizeBuilderIconCatalog(raw)
+				local catalog = raw
+				if type(raw) == "table" and type(raw.icons) == "table" then
+					catalog = raw.icons
+				end
+				if type(catalog) ~= "table" then
+					return {}
+				end
+
+				local sourceEntries = {}
+				if #catalog > 0 then
+					for _, entry in ipairs(catalog) do
+						sourceEntries[#sourceEntries + 1] = entry
+					end
+				else
+					for _, entry in pairs(catalog) do
+						if type(entry) == "table" then
+							sourceEntries[#sourceEntries + 1] = entry
+						end
+					end
+				end
+
+				local out = {}
+				for _, entry in ipairs(sourceEntries) do
+					if type(entry) == "table" then
+						local name = entry.name or entry.label or entry.components
+						local styles = {}
+						if type(entry.styles) == "table" then
+							for _, styleName in ipairs({ "regular", "filled" }) do
+								local styleEntry = entry.styles[styleName]
+								if type(styleEntry) == "table" then
+									local character = styleEntry.character or styleEntry.glyph or styleEntry.text
+									if type(character) == "string" and character ~= "" then
+										styles[styleName] = character
+									end
+								elseif type(styleEntry) == "string" and styleEntry ~= "" then
+									styles[styleName] = styleEntry
+								end
+							end
+						end
+						if type(name) == "string" and name ~= "" and next(styles) ~= nil then
+							out[#out + 1] = {
+								name = name,
+								components = type(entry.components) == "string" and entry.components or name,
+								styles = styles,
+							}
+						end
+					end
+				end
+
+				table.sort(out, function(a, b)
+					local left = Lower(a.name or a.components or "")
+					local right = Lower(b.name or b.components or "")
+					if left == right then
+						return tostring(a.components or "") < tostring(b.components or "")
+					end
+					return left < right
+				end)
+
+				return out
+			end
+
+			local function escapeBuilderIconRichText(text)
+				text = tostring(text or "")
+				text = text:gsub("&", "&amp;")
+				text = text:gsub("<", "&lt;")
+				text = text:gsub(">", "&gt;")
+				text = text:gsub('"', "&quot;")
+				text = text:gsub("'", "&apos;")
+				return text
+			end
+
+			local function getBuilderIconCatalogEntryByText(text)
+				local matched = findBuilderIconCatalogLabelByText(text)
+				if type(matched) ~= "string" or matched == "" then
+					return nil
+				end
+				local entry = BuilderIconEditor.catalogEntries and BuilderIconEditor.catalogEntries[matched]
+				if type(entry) ~= "table" then
+					return nil
+				end
+				return entry
+			end
+
+			local function makeBuilderIconRichSegment(text)
+				local entry = getBuilderIconCatalogEntryByText(text)
+				if type(entry) == "table" then
+					local token = getBuilderIconTextTokenForEntry(entry)
+					if type(token) == "string" and token ~= "" then
+						return Format(
+							'<font family="rbxasset://LuaPackages/Packages/_Index/BuilderIcons/BuilderIcons/BuilderIcons.json">%s</font>',
+							escapeBuilderIconRichText(token)
+						)
+					end
+				end
+				local preview = resolveBuilderIconDisplayText and resolveBuilderIconDisplayText(text) or getBuilderIconPreviewText(text)
+				return escapeBuilderIconRichText(preview)
+			end
+
+			local function makeBuilderIconDisplayLabel(inst)
+				local currentText = getBuilderIconText(inst)
+				local originalText = BuilderIconEditor.originalText[inst]
+				if type(originalText) ~= "string" or originalText == "" then
+					originalText = currentText
+				end
+				local pathDisplay = escapeBuilderIconRichText(getBuilderIconPath(inst))
+				local originalDisplay = makeBuilderIconRichSegment(originalText)
+				if currentText ~= originalText then
+					local modifiedDisplay = makeBuilderIconRichSegment(currentText)
+					return Format("%s | %s | %s", originalDisplay, modifiedDisplay, pathDisplay)
+				end
+				return Format("%s | %s", originalDisplay, pathDisplay)
+			end
+
+			local function rebuildBuilderIconCatalog(entries)
+				local options = {}
+				local catalogEntries = {}
+				local lookupByText = {}
+				local lookupByStyle = {
+					regular = {},
+					filled = {},
+				}
+				local labelCount = {}
+
+				for _, entry in ipairs(entries) do
+					local baseLabel = entry.name or entry.components or "BuilderIcon"
+					labelCount[baseLabel] = (labelCount[baseLabel] or 0) + 1
+					local label = baseLabel
+					if labelCount[baseLabel] > 1 then
+						label = baseLabel .. " #" .. tostring(labelCount[baseLabel])
+					end
+					entry.label = label
+					catalogEntries[label] = entry
+					if type(entry.components) == "string" and entry.components ~= "" then
+						lookupByText[entry.components] = label
+					end
+					if type(entry.name) == "string" and entry.name ~= "" then
+						lookupByText[entry.name] = label
+					end
+					local token = type(entry.components) == "string" and entry.components ~= "" and entry.components or baseLabel
+					local richDisplay = Format(
+						'<font family="rbxasset://LuaPackages/Packages/_Index/BuilderIcons/BuilderIcons/BuilderIcons.json">%s</font>  %s',
+						escapeBuilderIconRichText(token),
+						escapeBuilderIconRichText(label)
+					)
+					options[#options + 1] = {
+						value = label,
+						display = richDisplay,
+						selectedDisplay = richDisplay,
+						richText = true,
+					}
+					for styleName, character in pairs(entry.styles or {}) do
+						if type(character) == "string" and character ~= "" and type(lookupByStyle[styleName]) == "table" then
+							lookupByStyle[styleName][character] = label
+						end
+					end
+				end
+
+				BuilderIconEditor.catalogEntries = catalogEntries
+				BuilderIconEditor.catalogOptions = options
+				BuilderIconEditor.catalogLookupByText = lookupByText
+				BuilderIconEditor.catalogLookupByStyle = lookupByStyle
+				BuilderIconEditor.catalogLoaded = #entries > 0
+				BuilderIconEditor.catalogError = (#entries > 0) and nil or "No BuilderIcons available."
+			end
+
+			getBuilderIconTextTokenForEntry = function(entry)
+				if type(entry) ~= "table" then
+					return nil
+				end
+				local components = entry.components
+				if type(components) == "string" and components ~= "" then
+					return components
+				end
+				local name = entry.name
+				if type(name) == "string" and name ~= "" then
+					return name
+				end
+				return nil
+			end
+
+			findBuilderIconCatalogLabelByText = function(text)
+				if type(text) ~= "string" or text == "" then
+					return nil
+				end
+				local byText = BuilderIconEditor.catalogLookupByText
+				if type(byText) == "table" and byText[text] then
+					return byText[text]
+				end
+				for label, entry in pairs(BuilderIconEditor.catalogEntries or {}) do
+					if type(entry) == "table" then
+						if entry.components == text or entry.name == text then
+							return label
+						end
+					end
+				end
+				for _, lookup in pairs(BuilderIconEditor.catalogLookupByStyle or {}) do
+					if type(lookup) == "table" and lookup[text] then
+						return lookup[text]
+					end
+				end
+				return nil
+			end
+
+			resolveBuilderIconDisplayText = function(text)
+				local matched = findBuilderIconCatalogLabelByText(text)
+				if type(matched) == "string" and matched ~= "" then
+					return matched
+				end
+				return getBuilderIconPreviewText(text)
+			end
+
+			local syncBuilderIconInput
+
+			local function getVisibleBuilderIconCatalogOptions()
+				local selectedLabel = BuilderIconEditor.selectedIconLabel
+				local visible = {}
+				for _, option in ipairs(BuilderIconEditor.catalogOptions or {}) do
+					if type(option) == "table" then
+						if option.value ~= selectedLabel then
+							visible[#visible + 1] = option
+						end
+					else
+						visible[#visible + 1] = option
+					end
+				end
+				return visible
+			end
+
+			local function syncBuilderIconCatalogDropdown()
+				if NAgui.setDropdownOptions then
+					NAgui.setDropdownOptions(builderIconInputLabel, getVisibleBuilderIconCatalogOptions())
+				end
+				if syncBuilderIconInput then
+					syncBuilderIconInput()
+				end
+			end
+
+			local function fetchBuilderIconCatalog(opts)
+				opts = opts or {}
+				if BuilderIconEditor.catalogLoading then
+					return
+				end
+				BuilderIconEditor.catalogLoading = true
+				BuilderIconEditor.catalogError = nil
+				BuilderIconEditor.catalogLoaded = false
+				BuilderIconEditor.catalogOptions = {}
+				BuilderIconEditor.catalogEntries = {}
+				BuilderIconEditor.catalogLookupByText = {}
+				BuilderIconEditor.catalogLookupByStyle = {
+					regular = {},
+					filled = {},
+				}
+				syncBuilderIconCatalogDropdown()
+
+				Spawn(function()
+					local okHttp, raw = pcall(function()
+						return game:HttpGet(BuilderIconEditor.catalogUrl)
+					end)
+					if not (okHttp and type(raw) == "string" and raw ~= "") then
+						BuilderIconEditor.catalogLoading = false
+						BuilderIconEditor.catalogError = "Unable to fetch BuilderIcons catalog."
+						BuilderIconEditor.catalogOptions = {}
+						syncBuilderIconCatalogDropdown()
+						if opts.notify ~= false then
+							DoNotif(BuilderIconEditor.catalogError, 3)
+						end
+						return
+					end
+
+					local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+					if not (okDecode and type(decoded) == "table") then
+						BuilderIconEditor.catalogLoading = false
+						BuilderIconEditor.catalogError = "Invalid BuilderIcons catalog."
+						BuilderIconEditor.catalogOptions = {}
+						syncBuilderIconCatalogDropdown()
+						if opts.notify ~= false then
+							DoNotif(BuilderIconEditor.catalogError, 3)
+						end
+						return
+					end
+
+					local entries = normalizeBuilderIconCatalog(decoded)
+					BuilderIconEditor.catalogLoading = false
+					rebuildBuilderIconCatalog(entries)
+					if not BuilderIconEditor.catalogLoaded then
+						BuilderIconEditor.catalogOptions = {}
+						syncBuilderIconCatalogDropdown()
+						if opts.notify ~= false then
+							DoNotif(BuilderIconEditor.catalogError or "No BuilderIcons available.", 3)
+						end
+						return
+					end
+
+					syncBuilderIconCatalogDropdown()
+					if refreshBuilderIconDropdown then
+						refreshBuilderIconDropdown({
+							keepInstance = BuilderIconEditor.selectedInst,
+							syncText = false,
+						})
+					end
+					if opts.notify then
+						DoNotif("BuilderIcon list refreshed.", 2)
+					end
+				end)
+			end
+
+			syncBuilderIconInput = function()
+				local selectedLabel = BuilderIconEditor.catalogPlaceholder
+				if BuilderIconEditor.catalogLoading then
+					selectedLabel = BuilderIconEditor.catalogLoadingLabel
+				elseif BuilderIconEditor.catalogLoaded then
+					local matched = findBuilderIconCatalogLabelByText(BuilderIconEditor.pendingText or "")
+					if type(matched) == "string" and matched ~= "" then
+						selectedLabel = matched
+					end
+				end
+				BuilderIconEditor.selectedIconLabel = selectedLabel
+				if NAgui.setDropdownValue then
+					NAgui.setDropdownValue(builderIconInputLabel, selectedLabel, {
+						fire = false,
+					})
+				end
+			end
+
+			refreshBuilderIconDropdown = function(opts)
+				opts = opts or {}
+				local previousInst = BuilderIconEditor.selectedInst
+				local previousLabel = BuilderIconEditor.selectedLabel
+				local previousDisplay = BuilderIconEditor.selectedDisplay
+				local previousPath = BuilderIconEditor.selectedPath
+				local keepInst = opts.keepInstance
+				if keepInst == nil then
+					keepInst = previousInst
+				end
+
+				local found = {}
+				local entries = {}
+				local entryPaths = {}
+				if opts.fullScan == true then
+					local desc = NAmanage.qDesc(CoreGui, "Instance")
+					BuilderIconEditor.liveTargets = setmetatable({}, {
+						__mode = "k",
+					})
+					for i = 1, #desc do
+						local inst = desc[i]
+						if isBuilderIconTarget(inst) then
+							BuilderIconEditor.liveTargets[inst] = true
+							Insert(found, inst)
+						end
+						if i % 200 == 0 then
+							Wait()
+						end
+					end
+				else
+					found = collectBuilderIconLiveTargets()
+				end
+				table.sort(found, function(a, b)
+					local aPath = getBuilderIconPath(a)
+					local bPath = getBuilderIconPath(b)
+					if aPath == bPath then
+						return getBuilderIconText(a) < getBuilderIconText(b)
+					end
+					return aPath < bPath
+				end)
+
+				local labels = {}
+				local labelCount = {}
+				local selectedLabel = nil
+				local selectedDisplay = nil
+				local selectedPath = nil
+				for i = 1, #found do
+					local inst = found[i]
+					local path = getBuilderIconPath(inst)
+					local base = makeBuilderIconLabel(inst)
+					local display = makeBuilderIconDisplayLabel(inst)
+					labelCount[base] = (labelCount[base] or 0) + 1
+					local label = base
+					if labelCount[base] > 1 then
+						label = base .. " #" .. tostring(labelCount[base])
+					end
+					entries[label] = inst
+					entryPaths[label] = path
+					labels[#labels + 1] = {
+						value = label,
+						display = display,
+						selectedDisplay = display,
+						richText = true,
+					}
+					if inst == keepInst or (keepInst == nil and type(previousPath) == "string" and previousPath ~= "" and previousPath == path) then
+						selectedLabel = label
+						selectedDisplay = display
+						selectedPath = path
+					end
+				end
+
+				local keepMissingSelection = keepInst == nil
+					and type(previousPath) == "string"
+					and previousPath ~= ""
+					and selectedPath == nil
+					and type(previousLabel) == "string"
+					and previousLabel ~= ""
+					and type(previousDisplay) == "string"
+					and previousDisplay ~= ""
+
+				if keepMissingSelection then
+					table.insert(labels, 1, {
+						value = previousLabel,
+						display = previousDisplay,
+						selectedDisplay = previousDisplay,
+						richText = true,
+					})
+					selectedLabel = previousLabel
+					selectedDisplay = previousDisplay
+					selectedPath = previousPath
+					BuilderIconEditor.selectedInst = nil
+					BuilderIconEditor.selectedLabel = selectedLabel
+					BuilderIconEditor.selectedDisplay = selectedDisplay
+					BuilderIconEditor.selectedPath = selectedPath
+				elseif #labels == 0 then
+					labels = { "None" }
+					entries = {}
+					entryPaths = {}
+					selectedLabel = "None"
+					selectedDisplay = "None"
+					selectedPath = nil
+					BuilderIconEditor.selectedInst = nil
+					BuilderIconEditor.selectedLabel = selectedLabel
+					BuilderIconEditor.selectedDisplay = selectedDisplay
+					BuilderIconEditor.selectedPath = selectedPath
+					if opts.syncText ~= false then
+						BuilderIconEditor.pendingText = ""
+					end
+				else
+					if not selectedLabel then
+						local firstOption = labels[1]
+						if type(firstOption) == "table" then
+							selectedLabel = firstOption.value
+							selectedDisplay = firstOption.selectedDisplay or firstOption.display or selectedLabel
+						else
+							selectedLabel = firstOption
+							selectedDisplay = firstOption
+						end
+						BuilderIconEditor.selectedInst = entries[selectedLabel]
+						selectedPath = entryPaths[selectedLabel]
+					else
+						BuilderIconEditor.selectedInst = entries[selectedLabel]
+						selectedPath = selectedPath or entryPaths[selectedLabel]
+					end
+					BuilderIconEditor.selectedLabel = selectedLabel
+					BuilderIconEditor.selectedDisplay = selectedDisplay or BuilderIconEditor.selectedDisplay or selectedLabel
+					BuilderIconEditor.selectedPath = selectedPath
+					if opts.syncText == true or BuilderIconEditor.selectedInst ~= previousInst then
+						BuilderIconEditor.pendingText = BuilderIconEditor.selectedInst and getBuilderIconText(BuilderIconEditor.selectedInst) or BuilderIconEditor.pendingText
+					end
+				end
+
+				BuilderIconEditor.entries = entries
+				BuilderIconEditor.entryPaths = entryPaths
+				BuilderIconEditor.entryInstSet = setmetatable({}, { __mode = "k" })
+				for _, inst in pairs(entries) do
+					if inst then
+						BuilderIconEditor.entryInstSet[inst] = true
+					end
+				end
+				if NAgui.setDropdownOptions then
+					NAgui.setDropdownOptions(builderIconDropdownLabel, labels)
+				end
+				if NAgui.setDropdownValue then
+					NAgui.setDropdownValue(builderIconDropdownLabel, BuilderIconEditor.selectedLabel, {
+						fire = false,
+					})
+				end
+				if opts.syncText ~= false or BuilderIconEditor.selectedInst ~= previousInst then
+					syncBuilderIconInput()
+				end
+			end
+
+			loadBuilderIconData()
+
+			local function queueBuilderIconRefresh(opts)
+				opts = opts or {}
+				if BuilderIconEditor.refreshQueued then
+					return
+				end
+				BuilderIconEditor.refreshQueued = true
+				Delay(opts.delay or 0.15, function()
+					BuilderIconEditor.refreshQueued = false
+					refreshBuilderIconDropdown({
+						keepInstance = BuilderIconEditor.selectedInst,
+						syncText = false,
+					})
+				end)
+			end
+
+			local function disconnectBuilderIconWatchers()
+				if not BuilderIconEditor.watchersEnabled then
+					return
+				end
+				BuilderIconEditor.watchersEnabled = false
+				NAlib.disconnect("BuilderIconEditorAdded")
+				NAlib.disconnect("BuilderIconEditorRemoving")
+			end
+
+			local function connectBuilderIconWatchers()
+				if BuilderIconEditor.watchersEnabled then
+					return
+				end
+				BuilderIconEditor.watchersEnabled = true
+				NAlib.disconnect("BuilderIconEditorAdded")
+				NAlib.disconnect("BuilderIconEditorRemoving")
+				NAlib.connect("BuilderIconEditorAdded", NAmanage.descSub(CoreGui, {
+					added = function(o)
+						BuilderIconEditor.liveTargets[o] = true
+						local path = getBuilderIconPath(o)
+						applySavedBuilderIconOverrideToInstance(o)
+						if type(BuilderIconEditor.selectedPath) == "string" and BuilderIconEditor.selectedPath ~= "" and BuilderIconEditor.selectedPath == path then
+							BuilderIconEditor.selectedInst = o
+							BuilderIconEditor.pendingText = getBuilderIconText(o)
+							syncBuilderIconInput()
+						end
+						queueBuilderIconRefresh()
+					end,
+					removing = function(o)
+						BuilderIconEditor.liveTargets[o] = nil
+						local removedPath = getBuilderIconPath(o)
+						if o == BuilderIconEditor.selectedInst then
+							BuilderIconEditor.selectedInst = nil
+							if type(removedPath) == "string" and removedPath ~= "" then
+								BuilderIconEditor.selectedPath = removedPath
+							end
+						end
+						BuilderIconEditor.originalText[o] = nil
+						BuilderIconEditor.entryInstSet[o] = nil
+						queueBuilderIconRefresh()
+					end,
+					filterAdded = isBuilderIconTarget,
+					filterRemoving = function(o)
+						return o and (isBuilderIconTarget(o) or isTrackedBuilderIconTarget(o))
+					end,
+				}))
+			end
+
+			NAgui.addSection("BuilderIcon Editor")
+			NAgui.addToggle("Use Modified BuilderIcons", BuilderIconEditor.data.enabled == true, function(v)
+				local enabled = v == true
+				if BuilderIconEditor.data.enabled == enabled then
+					return
+				end
+				BuilderIconEditor.data.enabled = enabled
+				saveBuilderIconData()
+				if enabled then
+					connectBuilderIconWatchers()
+					queueSavedBuilderIconReapply({
+						delay = 0.05,
+						refreshDropdown = true,
+					})
+				else
+					disconnectBuilderIconWatchers()
+					restoreAppliedBuilderIconOverrides()
+					BuilderIconEditor.pendingText = BuilderIconEditor.selectedInst and getBuilderIconText(BuilderIconEditor.selectedInst) or BuilderIconEditor.pendingText
+					syncBuilderIconInput()
+					refreshBuilderIconDropdown({
+						keepInstance = BuilderIconEditor.selectedInst,
+						syncText = true,
+					})
+				end
+			end)
+			NAgui.addDropdown(builderIconDropdownLabel, { "None" }, "None", function(selection)
+				local picked = getBuilderIconSelectionValue(selection)
+				local inst = picked and BuilderIconEditor.entries[picked] or nil
+				if inst and inst.Parent then
+					BuilderIconEditor.selectedLabel = picked
+					BuilderIconEditor.selectedDisplay = makeBuilderIconDisplayLabel(inst)
+					BuilderIconEditor.selectedPath = BuilderIconEditor.entryPaths[picked] or getBuilderIconPath(inst)
+					BuilderIconEditor.selectedInst = inst
+					BuilderIconEditor.pendingText = getBuilderIconText(inst)
+					syncBuilderIconInput()
+					return
+				end
+				refreshBuilderIconDropdown({
+					syncText = true,
+				})
+			end)
+			NAgui.addDropdown(builderIconInputLabel, { BuilderIconEditor.catalogLoadingLabel }, BuilderIconEditor.catalogLoadingLabel, function(selection)
+				local chosen = getBuilderIconCatalogSelectionValue(selection)
+				if not chosen then
+					return
+				end
+				local entry = BuilderIconEditor.catalogEntries[chosen]
+				if type(entry) ~= "table" then
+					return
+				end
+				local token = getBuilderIconTextTokenForEntry(entry)
+				if type(token) ~= "string" or token == "" then
+					DoNotif("Selected BuilderIcon has no usable text token.", 3)
+					syncBuilderIconInput()
+					return
+				end
+				BuilderIconEditor.selectedIconLabel = chosen
+				BuilderIconEditor.pendingText = token
+			end)
+			NAgui.addButton("Apply BuilderIcon", function()
+				local inst = BuilderIconEditor.selectedInst
+				local path = BuilderIconEditor.selectedPath
+				local hasLiveInst = inst and inst.Parent and isBuilderIconTarget(inst)
+				if hasLiveInst then
+					path = getBuilderIconPath(inst)
+				end
+				if type(path) ~= "string" or path == "" then
+					refreshBuilderIconDropdown({
+						syncText = false,
+					})
+					DoNotif("Selected BuilderIcon is no longer available.", 2)
+					return
+				end
+				if hasLiveInst and BuilderIconEditor.originalText[inst] == nil then
+					BuilderIconEditor.originalText[inst] = getBuilderIconText(inst)
+				end
+				local newText = tostring(BuilderIconEditor.pendingText or "")
+				if hasLiveInst then
+					if BuilderIconEditor.data.enabled == true then
+						local ok, err = pcall(function()
+							inst.Text = newText
+						end)
+						if not ok then
+							DoNotif("Failed to apply BuilderIcon: "..tostring(err), 3)
+							return
+						end
+					end
+				end
+				BuilderIconEditor.selectedPath = path
+				setSavedBuilderIconOverride(path, newText)
 				queueSavedBuilderIconReapply({
 					delay = 0.05,
-					refreshDropdown = true,
+					refreshDropdown = false,
 				})
-			else
-				disconnectBuilderIconWatchers()
-				restoreAppliedBuilderIconOverrides()
-				BuilderIconEditor.pendingText = BuilderIconEditor.selectedInst and getBuilderIconText(BuilderIconEditor.selectedInst) or BuilderIconEditor.pendingText
+				refreshBuilderIconDropdown({
+					keepInstance = hasLiveInst and inst or nil,
+					syncText = false,
+				})
+				if BuilderIconEditor.data.enabled == true then
+					DoNotif("BuilderIcon updated.", 2)
+				else
+					DoNotif("BuilderIcon saved but not active.", 2)
+				end
+			end)
+			NAgui.addButton("Restore BuilderIcon", function()
+				local inst = BuilderIconEditor.selectedInst
+				if not (inst and inst.Parent and isBuilderIconTarget(inst)) then
+					refreshBuilderIconDropdown({
+						syncText = false,
+					})
+					DoNotif("Selected BuilderIcon is no longer available.", 2)
+					return
+				end
+				local original = BuilderIconEditor.originalText[inst]
+				if type(original) ~= "string" then
+					DoNotif("No saved BuilderIcon text for this entry yet.", 2)
+					return
+				end
+				local path = getBuilderIconPath(inst)
+				local ok, err = pcall(function()
+					inst.Text = original
+				end)
+				if not ok then
+					DoNotif("Failed to restore BuilderIcon: "..tostring(err), 3)
+					return
+				end
+				clearSavedBuilderIconOverride(path)
+				BuilderIconEditor.pendingText = original
+				syncBuilderIconInput()
+				refreshBuilderIconDropdown({
+					keepInstance = inst,
+					syncText = false,
+				})
+				DoNotif("BuilderIcon restored.", 2)
+			end)
+			NAgui.addButton("Clear All Saved BuilderIcons", function()
+				clearAllSavedBuilderIconOverrides()
+				local restoredCount = 0
+				for inst, original in pairs(BuilderIconEditor.originalText) do
+					if type(original) == "string" and inst and inst.Parent and isBuilderIconTarget(inst) then
+						pcall(function()
+							inst.Text = original
+						end)
+						restoredCount += 1
+					end
+				end
+				BuilderIconEditor.pendingText = BuilderIconEditor.selectedInst and getBuilderIconText(BuilderIconEditor.selectedInst) or ""
 				syncBuilderIconInput()
 				refreshBuilderIconDropdown({
 					keepInstance = BuilderIconEditor.selectedInst,
-					syncText = true,
-				})
-			end
-		end)
-		NAgui.addDropdown(builderIconDropdownLabel, { "None" }, "None", function(selection)
-			local picked = getBuilderIconSelectionValue(selection)
-			local inst = picked and BuilderIconEditor.entries[picked] or nil
-			if inst and inst.Parent then
-				BuilderIconEditor.selectedLabel = picked
-				BuilderIconEditor.selectedDisplay = makeBuilderIconDisplayLabel(inst)
-				BuilderIconEditor.selectedPath = BuilderIconEditor.entryPaths[picked] or getBuilderIconPath(inst)
-				BuilderIconEditor.selectedInst = inst
-				BuilderIconEditor.pendingText = getBuilderIconText(inst)
-				syncBuilderIconInput()
-				return
-			end
-			refreshBuilderIconDropdown({
-				syncText = true,
-			})
-		end)
-		NAgui.addDropdown(builderIconInputLabel, { BuilderIconEditor.catalogLoadingLabel }, BuilderIconEditor.catalogLoadingLabel, function(selection)
-			local chosen = getBuilderIconCatalogSelectionValue(selection)
-			if not chosen then
-				return
-			end
-			local entry = BuilderIconEditor.catalogEntries[chosen]
-			if type(entry) ~= "table" then
-				return
-			end
-			local token = getBuilderIconTextTokenForEntry(entry)
-			if type(token) ~= "string" or token == "" then
-				DoNotif("Selected BuilderIcon has no usable text token.", 3)
-				syncBuilderIconInput()
-				return
-			end
-			BuilderIconEditor.selectedIconLabel = chosen
-			BuilderIconEditor.pendingText = token
-		end)
-		NAgui.addButton("Apply BuilderIcon", function()
-			local inst = BuilderIconEditor.selectedInst
-			local path = BuilderIconEditor.selectedPath
-			local hasLiveInst = inst and inst.Parent and isBuilderIconTarget(inst)
-			if hasLiveInst then
-				path = getBuilderIconPath(inst)
-			end
-			if type(path) ~= "string" or path == "" then
-				refreshBuilderIconDropdown({
 					syncText = false,
 				})
-				DoNotif("Selected BuilderIcon is no longer available.", 2)
-				return
-			end
-			if hasLiveInst and BuilderIconEditor.originalText[inst] == nil then
-				BuilderIconEditor.originalText[inst] = getBuilderIconText(inst)
-			end
-			local newText = tostring(BuilderIconEditor.pendingText or "")
-			if hasLiveInst then
-				if BuilderIconEditor.data.enabled == true then
-					local ok, err = pcall(function()
-						inst.Text = newText
-					end)
-					if not ok then
-						DoNotif("Failed to apply BuilderIcon: "..tostring(err), 3)
-						return
-					end
-				end
-			end
-			BuilderIconEditor.selectedPath = path
-			setSavedBuilderIconOverride(path, newText)
+				DoNotif("Cleared saved BuilderIcon overrides ("..tostring(restoredCount)..").", 2)
+			end)
+			NAgui.addButton("Refresh BuilderIcon List", function()
+				refreshBuilderIconDropdown({
+					syncText = true,
+					fullScan = true,
+				})
+				fetchBuilderIconCatalog({
+					notify = true,
+				})
+			end)
+
+			refreshBuilderIconDropdown({
+				syncText = true,
+					fullScan = true,
+			})
+			fetchBuilderIconCatalog({
+				notify = false,
+			})
 			queueSavedBuilderIconReapply({
 				delay = 0.05,
 				refreshDropdown = false,
 			})
-			refreshBuilderIconDropdown({
-				keepInstance = hasLiveInst and inst or nil,
-				syncText = false,
-			})
+
 			if BuilderIconEditor.data.enabled == true then
-				DoNotif("BuilderIcon updated.", 2)
+				connectBuilderIconWatchers()
 			else
-				DoNotif("BuilderIcon saved but not active.", 2)
+				disconnectBuilderIconWatchers()
 			end
-		end)
-		NAgui.addButton("Restore BuilderIcon", function()
-			local inst = BuilderIconEditor.selectedInst
-			if not (inst and inst.Parent and isBuilderIconTarget(inst)) then
-				refreshBuilderIconDropdown({
-					syncText = false,
-				})
-				DoNotif("Selected BuilderIcon is no longer available.", 2)
-				return
-			end
-			local original = BuilderIconEditor.originalText[inst]
-			if type(original) ~= "string" then
-				DoNotif("No saved BuilderIcon text for this entry yet.", 2)
-				return
-			end
-			local path = getBuilderIconPath(inst)
-			local ok, err = pcall(function()
-				inst.Text = original
-			end)
-			if not ok then
-				DoNotif("Failed to restore BuilderIcon: "..tostring(err), 3)
-				return
-			end
-			clearSavedBuilderIconOverride(path)
-			BuilderIconEditor.pendingText = original
-			syncBuilderIconInput()
-			refreshBuilderIconDropdown({
-				keepInstance = inst,
-				syncText = false,
-			})
-			DoNotif("BuilderIcon restored.", 2)
-		end)
-		NAgui.addButton("Clear All Saved BuilderIcons", function()
-			clearAllSavedBuilderIconOverrides()
-			local restoredCount = 0
-			for inst, original in pairs(BuilderIconEditor.originalText) do
-				if type(original) == "string" and inst and inst.Parent and isBuilderIconTarget(inst) then
-					pcall(function()
-						inst.Text = original
-					end)
-					restoredCount += 1
-				end
-			end
-			BuilderIconEditor.pendingText = BuilderIconEditor.selectedInst and getBuilderIconText(BuilderIconEditor.selectedInst) or ""
-			syncBuilderIconInput()
-			refreshBuilderIconDropdown({
-				keepInstance = BuilderIconEditor.selectedInst,
-				syncText = false,
-			})
-			DoNotif("Cleared saved BuilderIcon overrides ("..tostring(restoredCount)..").", 2)
-		end)
-		NAgui.addButton("Refresh BuilderIcon List", function()
-			refreshBuilderIconDropdown({
-				syncText = true,
-				fullScan = true,
-			})
-			fetchBuilderIconCatalog({
-				notify = true,
-			})
-		end)
-
-		refreshBuilderIconDropdown({
-			syncText = true,
-				fullScan = true,
-		})
-		fetchBuilderIconCatalog({
-			notify = false,
-		})
-		queueSavedBuilderIconReapply({
-			delay = 0.05,
-			refreshDropdown = false,
-		})
-
-		if BuilderIconEditor.data.enabled == true then
-			connectBuilderIconWatchers()
-		else
-			disconnectBuilderIconWatchers()
 		end
-	end
-	initBuilderIconEditor()
+		initBuilderIconEditor()
 
-	NAmanage.initUIEditors(CoreGui, HUI)
+		NAmanage.initUIEditors(CoreGui, HUI)
 
-	if previousTab and previousTab ~= NA_TABS.TAB_INTERFACE then
-		if NAgui.getActiveTab() == NA_TABS.TAB_INTERFACE then
-			NAgui.setTab(previousTab)
+		if previousTab and previousTab ~= NA_TABS.TAB_INTERFACE then
+			if NAgui.getActiveTab() == NA_TABS.TAB_INTERFACE then
+				NAgui.setTab(previousTab)
+			end
 		end
 	end
 end
-
+NAmanage.NAInitCoreGuiCustomization()
 NAgui.addTab(NA_TABS.TAB_USER_BUTTONS, { order = 10, textIcon = "circle-plus" })
 NAgui.setTab(NA_TABS.TAB_USER_BUTTONS)
 
