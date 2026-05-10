@@ -1074,6 +1074,26 @@ local NAStuff = {
 	ESP_DrawingTracerEnabled = false;
 	ESP_DrawingTracerOrigin = "Bottom";
 	ESP_DrawingTracerThickness = 1;
+	ESP_OcclusionEnabled = false;
+	ESP_OcclusionIncludePlayers = false;
+	ESP_OcclusionIncludeNPCs = false;
+	ESP_OcclusionIncludeParts = false;
+	ESP_OcclusionHideLabels = false;
+	ESP_OcclusionHidePartLabels = false;
+	ESP_OcclusionHideTracers = false;
+	ESP_OcclusionDimBoxes = false;
+	ESP_OcclusionDimLabels = false;
+	ESP_OcclusionIgnoreTransparent = false;
+	ESP_OcclusionTransparentThreshold = 0.85;
+	ESP_OcclusionIgnoreNonCollidable = false;
+	ESP_OcclusionIgnoreSameModel = false;
+	ESP_OcclusionHitProbeLimit = 6;
+	ESP_OcclusionDimAmount = 0.55;
+	ESP_OcclusionUpdateInterval = 0.18;
+	ESP_OcclusionMaxPerStep = 24;
+	ESP_OcclusionMaxDistance = 1500;
+	ESP_OcclusionColor = Color3.fromRGB(130, 130, 130);
+	ESP_OcclusionCache = setmetatable({}, { __mode = "k" });
 	ESP_UseCustomColor = false;
 	ESP_CustomColor = Color3.new(1, 1, 1);
 	ESP_OutlineTransparency = 0;
@@ -17062,6 +17082,12 @@ NAmanage.NASettingsGetSchema=function()
 				return coerceBoolean(value, false)
 			end;
 		};
+		forceRconsoleNAConsole = {
+			default = true;
+			coerce = function(value)
+				return coerceBoolean(value, true)
+			end;
+		};
 		friendRequestAutoDismiss = {
 			default = false;
 			coerce = function(value)
@@ -18159,6 +18185,223 @@ NAmanage.GetUnsafeFunctionStores = NAmanage.GetUnsafeFunctionStores or function(
 	return stores
 end
 
+NAmanage.RConsoleFunctionNames = NAmanage.RConsoleFunctionNames or {
+	"rconsoleprint",
+	"rconsolewarn",
+	"rconsoleerr",
+	"rconsoleerror",
+	"rconsoleinfo",
+	"rconsoleclear",
+	"rconsolecreate",
+	"rconsoledestroy",
+	"rconsoleclose",
+	"rconsolename",
+	"rconsoleinput",
+}
+
+NAmanage.RConsoleFunctionSet = NAmanage.RConsoleFunctionSet or {}
+for _, name in ipairs(NAmanage.RConsoleFunctionNames) do
+	NAmanage.RConsoleFunctionSet[name] = true
+end
+
+NAmanage.NAConsoleNormalizeTag = NAmanage.NAConsoleNormalizeTag or function(tag)
+	tag = Lower(tostring(tag or "Output"))
+	if tag == "warn" or tag == "warning" then
+		return "Warn"
+	elseif tag == "err" or tag == "error" then
+		return "Error"
+	elseif tag == "info" then
+		return "Info"
+	end
+	return "Output"
+end
+
+NAmanage.NAConsoleTagColor = NAmanage.NAConsoleTagColor or function(tag)
+	tag = NAmanage.NAConsoleNormalizeTag(tag)
+	if tag == "Error" then
+		return "#ff6464"
+	elseif tag == "Warn" then
+		return "#ffcc00"
+	elseif tag == "Info" then
+		return "#66ccff"
+	end
+	return "#cccccc"
+end
+
+NAmanage.NAConsoleWrite = NAmanage.NAConsoleWrite or function(text, tag)
+	tag = NAmanage.NAConsoleNormalizeTag(tag)
+	text = tostring(text or "")
+	if type(NAmanage._NAConsoleExternalWrite) == "function" then
+		return NAmanage._NAConsoleExternalWrite(text, tag)
+	end
+	local pending = NAStuff.NAConsoleExternalPending
+	if type(pending) ~= "table" then
+		pending = {}
+		NAStuff.NAConsoleExternalPending = pending
+	end
+	pending[#pending + 1] = {
+		text = text,
+		tag = tag,
+	}
+	return true
+end
+
+NAmanage.NAConsoleClear = NAmanage.NAConsoleClear or function()
+	if type(NAmanage._NAConsoleExternalClear) == "function" then
+		return NAmanage._NAConsoleExternalClear()
+	end
+	NAStuff.NAConsoleExternalPending = {}
+	return true
+end
+
+NAmanage.NAConsoleShow = NAmanage.NAConsoleShow or function()
+	if NAgui and NAgui.consoleeee then
+		pcall(NAgui.consoleeee)
+	elseif NAUIMANAGER and NAUIMANAGER.NAconsoleFrame then
+		NAUIMANAGER.NAconsoleFrame.Visible = true
+		if NAmanage.centerFrame then
+			pcall(NAmanage.centerFrame, NAUIMANAGER.NAconsoleFrame)
+		end
+	end
+	return true
+end
+
+NAmanage.NAConsoleHide = NAmanage.NAConsoleHide or function()
+	if NAUIMANAGER and NAUIMANAGER.NAconsoleFrame then
+		NAUIMANAGER.NAconsoleFrame.Visible = false
+	end
+	return true
+end
+
+NAmanage.NAConsoleSetTitle = NAmanage.NAConsoleSetTitle or function(title)
+	NAStuff.NAConsoleTitle = tostring(title or "")
+	local frame = NAUIMANAGER and NAUIMANAGER.NAconsoleFrame
+	if frame then
+		local titleLabel = frame:FindFirstChild("Title", true) or frame:FindFirstChild("TextLabel", true)
+		if titleLabel and titleLabel:IsA("TextLabel") then
+			titleLabel.Text = NAStuff.NAConsoleTitle
+		end
+	end
+	return true
+end
+
+NAmanage.RConsoleJoinArgs = NAmanage.RConsoleJoinArgs or function(...)
+	local argc = select("#", ...)
+	if argc <= 0 then
+		return ""
+	end
+	local parts = {}
+	for i = 1, argc do
+		parts[#parts + 1] = tostring(select(i, ...))
+	end
+	return Concat(parts, " ")
+end
+
+NAmanage.GetRConsoleWrapper = NAmanage.GetRConsoleWrapper or function(name)
+	NAmanage.RConsoleWrappers = NAmanage.RConsoleWrappers or {}
+	if NAmanage.RConsoleWrappers[name] then
+		return NAmanage.RConsoleWrappers[name]
+	end
+	local fn
+	if name == "rconsoleclear" then
+		fn = function()
+			return NAmanage.NAConsoleClear()
+		end
+	elseif name == "rconsolecreate" then
+		fn = function()
+			return NAmanage.NAConsoleShow()
+		end
+	elseif name == "rconsoledestroy" or name == "rconsoleclose" then
+		fn = function()
+			return NAmanage.NAConsoleHide()
+		end
+	elseif name == "rconsolename" then
+		fn = function(title)
+			return NAmanage.NAConsoleSetTitle(title)
+		end
+	elseif name == "rconsoleinput" then
+		fn = function()
+			NAmanage.NAConsoleWrite("[NA] rconsoleinput is not interactive here; returning an empty string.", "Warn")
+			return ""
+		end
+	else
+		local tag = "Output"
+		if name == "rconsolewarn" then
+			tag = "Warn"
+		elseif name == "rconsoleerr" or name == "rconsoleerror" then
+			tag = "Error"
+		elseif name == "rconsoleinfo" then
+			tag = "Info"
+		end
+		fn = function(...)
+			return NAmanage.NAConsoleWrite(NAmanage.RConsoleJoinArgs(...), tag)
+		end
+	end
+	NAmanage.RConsoleWrappers[name] = fn
+	return fn
+end
+
+NAmanage.SetForceRconsoleNAConsole = NAmanage.SetForceRconsoleNAConsole or function(state, opts)
+	opts = opts or {}
+	state = state ~= false
+	local prev = NAStuff.ForceRconsoleNAConsole == true
+	NAStuff.ForceRconsoleNAConsole = state
+	if opts.save ~= false and NAmanage.NASettingsSet then
+		pcall(NAmanage.NASettingsSet, "forceRconsoleNAConsole", state)
+	end
+	local rcState = NAStuff.RConsoleFunctionState
+	if type(rcState) ~= "table" then
+		rcState = { originals = {} }
+		NAStuff.RConsoleFunctionState = rcState
+	end
+	if type(rcState.originals) ~= "table" then
+		rcState.originals = {}
+	end
+	if not opts.force and prev == state then
+		return state
+	end
+	local stores = NAmanage.GetUnsafeFunctionStores()
+	local names = NAmanage.RConsoleFunctionNames or {}
+	if state then
+		for i = 1, #stores do
+			local store = stores[i]
+			local originals = rcState.originals[store]
+			if type(originals) ~= "table" then
+				originals = {}
+				rcState.originals[store] = originals
+			end
+			for j = 1, #names do
+				local name = names[j]
+				local wrapper = NAmanage.GetRConsoleWrapper(name)
+				local current = rawget(store, name)
+				if originals[name] == nil and current ~= nil and current ~= wrapper then
+					originals[name] = current
+				end
+				pcall(rawset, store, name, wrapper)
+			end
+		end
+	else
+		for store, originals in pairs(rcState.originals) do
+			if type(store) == "table" and type(originals) == "table" then
+				for _, name in ipairs(names) do
+					pcall(rawset, store, name, originals[name])
+				end
+			end
+		end
+		if NAStuff.UnsafeFunctionsDisabled == true and NAmanage.SetUnsafeFunctionsDisabled then
+			pcall(NAmanage.SetUnsafeFunctionsDisabled, true, {
+				save = false;
+				silent = true;
+				force = true;
+			})
+		end
+	end
+	if not opts.silent and DoNotif then
+		DoNotif("rconsole API now uses "..(state and "NA console" or "executor defaults"), 2)
+	end
+	return state
+end
+
 NAmanage.SetUnsafeFunctionsDisabled = NAmanage.SetUnsafeFunctionsDisabled or function(state, opts)
 	opts = opts or {}
 	state = state == true
@@ -18194,7 +18437,11 @@ NAmanage.SetUnsafeFunctionsDisabled = NAmanage.SetUnsafeFunctionsDisabled or fun
 				if originals[name] == nil and current ~= nil then
 					originals[name] = current
 				end
-				pcall(rawset, store, name, nil)
+				if NAStuff.ForceRconsoleNAConsole == true and NAmanage.RConsoleFunctionSet and NAmanage.RConsoleFunctionSet[name] then
+					pcall(rawset, store, name, NAmanage.GetRConsoleWrapper(name))
+				else
+					pcall(rawset, store, name, nil)
+				end
 			end
 		end
 	else
@@ -18204,6 +18451,13 @@ NAmanage.SetUnsafeFunctionsDisabled = NAmanage.SetUnsafeFunctionsDisabled or fun
 					pcall(rawset, store, name, original)
 				end
 			end
+		end
+		if NAStuff.ForceRconsoleNAConsole == true and NAmanage.SetForceRconsoleNAConsole then
+			pcall(NAmanage.SetForceRconsoleNAConsole, true, {
+				save = false;
+				silent = true;
+				force = true;
+			})
 		end
 	end
 	if not opts.silent and DoNotif then
@@ -18520,6 +18774,25 @@ NAmanage.LoadESPSettings = function()
 		ESP_DrawingTracerEnabled = false;
 		ESP_DrawingTracerOrigin = "Bottom";
 		ESP_DrawingTracerThickness = 1;
+		ESP_OcclusionEnabled = false;
+		ESP_OcclusionIncludePlayers = false;
+		ESP_OcclusionIncludeNPCs = false;
+		ESP_OcclusionIncludeParts = false;
+		ESP_OcclusionHideLabels = false;
+		ESP_OcclusionHidePartLabels = false;
+		ESP_OcclusionHideTracers = false;
+		ESP_OcclusionDimBoxes = false;
+		ESP_OcclusionDimLabels = false;
+		ESP_OcclusionIgnoreTransparent = false;
+		ESP_OcclusionTransparentThreshold = 0.85;
+		ESP_OcclusionIgnoreNonCollidable = false;
+		ESP_OcclusionIgnoreSameModel = false;
+		ESP_OcclusionHitProbeLimit = 6;
+		ESP_OcclusionDimAmount = 0.55;
+		ESP_OcclusionUpdateInterval = 0.18;
+		ESP_OcclusionMaxPerStep = 24;
+		ESP_OcclusionMaxDistance = 1500;
+		ESP_OcclusionColor = {130, 130, 130};
 		ESP_UseCustomColor = false;
 		ESP_CustomColor = {255, 255, 255};
 		ESP_OutlineTransparency = 0;
@@ -18609,9 +18882,16 @@ NAmanage.LoadESPSettings = function()
 	local drawingPartBoxThickness = math.clamp(tonumber(d.ESP_DrawingPartBoxThickness) or 1, 1, 6)
 	local drawingPartQueuePerStep = math.clamp(math.floor(tonumber(d.ESP_DrawingPartQueuePerStep) or 128), 1, 512)
 	local drawingTracerThickness = math.clamp(tonumber(d.ESP_DrawingTracerThickness) or 1, 1, 6)
+	local occlusionDimAmount = math.clamp(tonumber(d.ESP_OcclusionDimAmount) or 0.55, 0, 1)
+	local occlusionUpdateInterval = math.clamp(tonumber(d.ESP_OcclusionUpdateInterval) or 0.18, 0.05, 1)
+	local occlusionMaxPerStep = math.clamp(math.floor(tonumber(d.ESP_OcclusionMaxPerStep) or 24), 1, 128)
+	local occlusionMaxDistance = math.clamp(tonumber(d.ESP_OcclusionMaxDistance) or 1500, 0, 10000)
+	local occlusionTransparentThreshold = math.clamp(tonumber(d.ESP_OcclusionTransparentThreshold) or 0.85, 0, 1)
+	local occlusionHitProbeLimit = math.clamp(math.floor(tonumber(d.ESP_OcclusionHitProbeLimit) or 6), 1, 20)
 	local outline = NAgui.sanitizeTransparency(d.ESP_OutlineTransparency)
 	local maxPerStep = math.clamp(math.floor(tonumber(d.ESP_MaxPerStep) or 32), 1, 256)
 	local customColor = sanitizeColor(d.ESP_CustomColor, Color3.new(1, 1, 1))
+	local occlusionColor = sanitizeColor(d.ESP_OcclusionColor, Color3.fromRGB(130, 130, 130))
 
 	NAStuff.ESP_Transparency     = NAgui.sanitizeTransparency(d.ESP_Transparency)
 	NAStuff.ESP_BoxMaxDistance   = d.ESP_BoxMaxDistance
@@ -18638,6 +18918,25 @@ NAmanage.LoadESPSettings = function()
 	NAStuff.ESP_DrawingTracerEnabled = d.ESP_DrawingTracerEnabled == true
 	NAStuff.ESP_DrawingTracerOrigin = NAgui.sanitizeESPDrawingTracerOrigin(d.ESP_DrawingTracerOrigin)
 	NAStuff.ESP_DrawingTracerThickness = drawingTracerThickness
+	NAStuff.ESP_OcclusionEnabled = d.ESP_OcclusionEnabled == true
+	NAStuff.ESP_OcclusionIncludePlayers = d.ESP_OcclusionIncludePlayers == true
+	NAStuff.ESP_OcclusionIncludeNPCs = d.ESP_OcclusionIncludeNPCs == true
+	NAStuff.ESP_OcclusionIncludeParts = d.ESP_OcclusionIncludeParts == true
+	NAStuff.ESP_OcclusionHideLabels = d.ESP_OcclusionHideLabels == true
+	NAStuff.ESP_OcclusionHidePartLabels = d.ESP_OcclusionHidePartLabels == true
+	NAStuff.ESP_OcclusionHideTracers = d.ESP_OcclusionHideTracers == true
+	NAStuff.ESP_OcclusionDimBoxes = d.ESP_OcclusionDimBoxes == true
+	NAStuff.ESP_OcclusionDimLabels = d.ESP_OcclusionDimLabels == true
+	NAStuff.ESP_OcclusionIgnoreTransparent = d.ESP_OcclusionIgnoreTransparent == true
+	NAStuff.ESP_OcclusionTransparentThreshold = occlusionTransparentThreshold
+	NAStuff.ESP_OcclusionIgnoreNonCollidable = d.ESP_OcclusionIgnoreNonCollidable == true
+	NAStuff.ESP_OcclusionIgnoreSameModel = d.ESP_OcclusionIgnoreSameModel == true
+	NAStuff.ESP_OcclusionHitProbeLimit = occlusionHitProbeLimit
+	NAStuff.ESP_OcclusionDimAmount = occlusionDimAmount
+	NAStuff.ESP_OcclusionUpdateInterval = occlusionUpdateInterval
+	NAStuff.ESP_OcclusionMaxPerStep = occlusionMaxPerStep
+	NAStuff.ESP_OcclusionMaxDistance = occlusionMaxDistance
+	NAStuff.ESP_OcclusionColor = occlusionColor
 	NAStuff.ESP_UseCustomColor   = d.ESP_UseCustomColor == true
 	NAStuff.ESP_CustomColor      = customColor
 	NAStuff.ESP_OutlineTransparency = outline
@@ -18722,6 +19021,25 @@ NAmanage.SaveESPSettings = function()
 		ESP_DrawingTracerEnabled = NAStuff.ESP_DrawingTracerEnabled == true;
 		ESP_DrawingTracerOrigin = NAgui.sanitizeESPDrawingTracerOrigin(NAStuff.ESP_DrawingTracerOrigin);
 		ESP_DrawingTracerThickness = math.clamp(tonumber(NAStuff.ESP_DrawingTracerThickness) or 1, 1, 6);
+		ESP_OcclusionEnabled = NAStuff.ESP_OcclusionEnabled == true;
+		ESP_OcclusionIncludePlayers = NAStuff.ESP_OcclusionIncludePlayers == true;
+		ESP_OcclusionIncludeNPCs = NAStuff.ESP_OcclusionIncludeNPCs == true;
+		ESP_OcclusionIncludeParts = NAStuff.ESP_OcclusionIncludeParts == true;
+		ESP_OcclusionHideLabels = NAStuff.ESP_OcclusionHideLabels == true;
+		ESP_OcclusionHidePartLabels = NAStuff.ESP_OcclusionHidePartLabels == true;
+		ESP_OcclusionHideTracers = NAStuff.ESP_OcclusionHideTracers == true;
+		ESP_OcclusionDimBoxes = NAStuff.ESP_OcclusionDimBoxes == true;
+		ESP_OcclusionDimLabels = NAStuff.ESP_OcclusionDimLabels == true;
+		ESP_OcclusionIgnoreTransparent = NAStuff.ESP_OcclusionIgnoreTransparent == true;
+		ESP_OcclusionTransparentThreshold = math.clamp(tonumber(NAStuff.ESP_OcclusionTransparentThreshold) or 0.85, 0, 1);
+		ESP_OcclusionIgnoreNonCollidable = NAStuff.ESP_OcclusionIgnoreNonCollidable == true;
+		ESP_OcclusionIgnoreSameModel = NAStuff.ESP_OcclusionIgnoreSameModel == true;
+		ESP_OcclusionHitProbeLimit = math.clamp(math.floor(tonumber(NAStuff.ESP_OcclusionHitProbeLimit) or 6), 1, 20);
+		ESP_OcclusionDimAmount = math.clamp(tonumber(NAStuff.ESP_OcclusionDimAmount) or 0.55, 0, 1);
+		ESP_OcclusionUpdateInterval = math.clamp(tonumber(NAStuff.ESP_OcclusionUpdateInterval) or 0.18, 0.05, 1);
+		ESP_OcclusionMaxPerStep = math.clamp(math.floor(tonumber(NAStuff.ESP_OcclusionMaxPerStep) or 24), 1, 128);
+		ESP_OcclusionMaxDistance = math.clamp(tonumber(NAStuff.ESP_OcclusionMaxDistance) or 1500, 0, 10000);
+		ESP_OcclusionColor = NAmanage.UserButtonColorToTable(NAStuff.ESP_OcclusionColor or Color3.fromRGB(130, 130, 130));
 		ESP_UseCustomColor = NAStuff.ESP_UseCustomColor == true;
 		ESP_CustomColor = NAmanage.UserButtonColorToTable(NAStuff.ESP_CustomColor or Color3.new(1, 1, 1));
 		ESP_OutlineTransparency = NAgui.sanitizeTransparency(NAStuff.ESP_OutlineTransparency or 0);
@@ -19366,7 +19684,7 @@ NAmanage.ApplyCommandKeybinds=function()
 
 		if actionName == "delete" then
 			pcall(function()
-				local target = mouse and mouse.Target
+				local target = NAmanage.GetMouseTargetPart(mouse, { player and player.Character }, 1024)
 				if target and target.Parent then
 					target:Destroy()
 				end
@@ -19990,6 +20308,7 @@ NAStuff.LoopMethodOptions = { "RenderStepped", "PreSimulation", "Heartbeat" }
 NAStuff.LoopMethod = NAmanage.NASettingsGet("loopMethod") or "RenderStepped"
 NAStuff.NetworkPauseDisabled = NAmanage.NASettingsGet("networkPauseDisabled")
 NAStuff.UnsafeFunctionsDisabled = NAmanage.NASettingsGet("disableUnsafeFunctions") == true
+NAStuff.ForceRconsoleNAConsole = NAmanage.NASettingsGet("forceRconsoleNAConsole") ~= false
 NAStuff.FriendRequestAutoDismiss = NAmanage.NASettingsGet("friendRequestAutoDismiss")
 NAStuff.StreamerModeEnabled = NAmanage.NASettingsGet("streamerMode") == true
 NAStuff.PurchasePromptsDisabled = NAmanage.NASettingsGet("purchasePromptsDisabled")
@@ -20053,6 +20372,11 @@ NAStuff.SaveInstanceConfig = {
 pcall(NAmanage.SetAssetLoadMode, NAStuff.AssetLoadMode)
 pcall(NAmanage.setAssetDownloadMethod, NAStuff.AssetDownloadMethod, { persist = false })
 pcall(NAmanage.SetUnsafeFunctionsDisabled, NAStuff.UnsafeFunctionsDisabled == true, {
+	save = false;
+	silent = true;
+	force = true;
+})
+pcall(NAmanage.SetForceRconsoleNAConsole, NAStuff.ForceRconsoleNAConsole == true, {
 	save = false;
 	silent = true;
 	force = true;
@@ -23974,6 +24298,17 @@ NAmanage.ESP_RecomputeEnabled=function()
 	ESPenabled = ESPPlayersEnabled or NPCESPenabled
 end
 
+NAmanage.ESP_IsWithinDistance=function(dist, maxDistance)
+	local max = tonumber(maxDistance)
+	if not max or max <= 0 then
+		return true
+	end
+	if dist == nil then
+		return true
+	end
+	return dist <= max
+end
+
 NAmanage.ESP_WaitForPlayerCharacter = function(player, timeoutSeconds)
 	if not (typeof(player) == "Instance" and player:IsA("Player")) then
 		return nil
@@ -24953,6 +25288,176 @@ NAmanage.PartESP_StartSweep = function(key, predicate, budget)
 	end))
 end
 
+NAmanage.ESP_ClearOcclusionCache = function()
+	NAStuff.ESP_OcclusionCache = setmetatable({}, { __mode = "k" })
+	NAStuff.ESP_OcclusionFrame = nil
+	NAStuff.ESP_OcclusionUsed = 0
+	NAStuff.partESPLastUpdate = 0
+	if type(espCONS) == "table" then
+		for _, data in pairs(espCONS) do
+			if data then
+				data.next = 0
+			end
+		end
+	end
+end
+
+NAmanage.ESP_GetOccludedColor = function(color)
+	if typeof(color) ~= "Color3" then
+		color = Color3.new(1, 1, 1)
+	end
+	local blockedColor = NAStuff.ESP_OcclusionColor
+	if typeof(blockedColor) ~= "Color3" then
+		blockedColor = Color3.fromRGB(130, 130, 130)
+	end
+	local amount = math.clamp(tonumber(NAStuff.ESP_OcclusionDimAmount) or 0.55, 0, 1)
+	return color:Lerp(blockedColor, amount)
+end
+
+NAmanage.ESP_GetOccludedTransparency = function(transparency)
+	local base = NAgui.sanitizeTransparency(transparency)
+	local amount = math.clamp(tonumber(NAStuff.ESP_OcclusionDimAmount) or 0.55, 0, 1)
+	return math.clamp(base + ((1 - base) * amount), 0, 1)
+end
+
+NAmanage.ESP_CanSpendOcclusionRay = function(now)
+	now = tonumber(now) or tick()
+	local frame = math.floor(now * 30)
+	if NAStuff.ESP_OcclusionFrame ~= frame then
+		NAStuff.ESP_OcclusionFrame = frame
+		NAStuff.ESP_OcclusionUsed = 0
+	end
+	local maxPerStep = math.clamp(math.floor(tonumber(NAStuff.ESP_OcclusionMaxPerStep) or 24), 1, 128)
+	local used = tonumber(NAStuff.ESP_OcclusionUsed) or 0
+	if used >= maxPerStep then
+		return false
+	end
+	NAStuff.ESP_OcclusionUsed = used + 1
+	return true
+end
+
+NAmanage.ESP_ShouldIgnoreOcclusionHit = function(inst)
+	if not (inst and typeof(inst) == "Instance") then
+		return false
+	end
+	if inst:IsA("BasePart") then
+		if NAStuff.ESP_OcclusionIgnoreNonCollidable == true then
+			local ok, canCollide = pcall(function()
+				return inst.CanCollide
+			end)
+			if ok and canCollide == false then
+				return true
+			end
+		end
+		if NAStuff.ESP_OcclusionIgnoreTransparent == true then
+			local threshold = math.clamp(tonumber(NAStuff.ESP_OcclusionTransparentThreshold) or 0.85, 0, 1)
+			local transparency = 0
+			pcall(function()
+				transparency = math.max(tonumber(inst.Transparency) or 0, tonumber(inst.LocalTransparencyModifier) or 0)
+			end)
+			if transparency >= threshold then
+				return true
+			end
+		end
+	end
+	return false
+end
+
+NAmanage.ESP_GetOcclusionFilterList = function(inst, localChar, opts)
+	local filter = {}
+	if localChar then
+		filter[#filter + 1] = localChar
+	end
+	if typeof(inst) == "Instance" then
+		if opts and opts.partESP == true and NAStuff.ESP_OcclusionIgnoreSameModel == true then
+			local parent = inst.Parent
+			if parent and parent:IsA("Model") then
+				filter[#filter + 1] = parent
+			else
+				filter[#filter + 1] = inst
+			end
+		else
+			filter[#filter + 1] = inst
+		end
+	end
+	return filter
+end
+
+NAmanage.ESP_RaycastOccluded = function(inst, targetPos, localChar, opts)
+	local cam = workspace and workspace.CurrentCamera
+	if not (cam and workspace and workspace.Raycast and targetPos) then
+		return false
+	end
+	local origin = cam.CFrame.Position
+	local direction = targetPos - origin
+	local distance = direction.Magnitude
+	if distance <= 0.5 then
+		return false
+	end
+	local maxDistance = tonumber(NAStuff.ESP_OcclusionMaxDistance) or 1500
+	if maxDistance > 0 and distance > maxDistance then
+		return false
+	end
+	local params = RaycastParams.new()
+	local okFilter = pcall(function()
+		params.FilterType = Enum.RaycastFilterType.Exclude
+	end)
+	if not okFilter then
+		pcall(function()
+			params.FilterType = Enum.RaycastFilterType.Blacklist
+		end)
+	end
+	params.IgnoreWater = true
+	local filter = NAmanage.ESP_GetOcclusionFilterList(inst, localChar, opts)
+	local probeLimit = math.clamp(math.floor(tonumber(NAStuff.ESP_OcclusionHitProbeLimit) or 6), 1, 20)
+	for _ = 1, probeLimit do
+		params.FilterDescendantsInstances = filter
+		local result = workspace:Raycast(origin, direction, params)
+		if not result then
+			return false
+		end
+		local hit = result.Instance
+		if hit and NAmanage.ESP_ShouldIgnoreOcclusionHit(hit) then
+			filter[#filter + 1] = hit
+		else
+			return result.Distance < (distance - 0.5)
+		end
+	end
+	return false
+end
+
+NAmanage.ESP_GetOcclusionState = function(key, inst, targetPos, localChar, now, force, opts)
+	if NAStuff.ESP_OcclusionEnabled ~= true then
+		return false
+	end
+	if not targetPos then
+		return false
+	end
+	local cache = NAStuff.ESP_OcclusionCache
+	if type(cache) ~= "table" then
+		cache = setmetatable({}, { __mode = "k" })
+		NAStuff.ESP_OcclusionCache = cache
+	end
+	key = key or inst
+	if key == nil then
+		return false
+	end
+	now = tonumber(now) or tick()
+	local entry = cache[key]
+	local interval = math.clamp(tonumber(NAStuff.ESP_OcclusionUpdateInterval) or 0.18, 0.05, 1)
+	if entry and not force and now < (entry.next or 0) then
+		return entry.blocked == true
+	end
+	if not force and not NAmanage.ESP_CanSpendOcclusionRay(now) then
+		return entry and entry.blocked == true or false
+	end
+	entry = entry or {}
+	entry.blocked = NAmanage.ESP_RaycastOccluded(inst, targetPos, localChar, opts) == true
+	entry.next = now + interval
+	cache[key] = entry
+	return entry.blocked == true
+end
+
 NAmanage.PartESP_UpdateEntry = function(entry, force, rootPart)
 	if not entry or entry.removed then return end
 	local part = entry.part
@@ -24984,9 +25489,36 @@ NAmanage.PartESP_UpdateEntry = function(entry, force, rootPart)
 	if billboard and billboard.Parent then
 		NAmanage.ESP_StoreVisual(billboard)
 	end
+	local baseLight = entry.lightColor or entry.baseColor or Color3.new(1, 1, 1)
+	local baseDark = entry.darkColor or baseLight
+	local visualLight = baseLight
+	local visualDark = baseDark
+	local labelColor = baseLight
+	local transparency = NAgui.sanitizeTransparency(NAStuff.ESP_PartTransparency or entry.transparency)
+	local occluded = false
+	if NAStuff.ESP_OcclusionEnabled == true and NAStuff.ESP_OcclusionIncludeParts == true then
+		local pos = NAgui.getInstanceWorldPosition(part)
+		if pos then
+			local plr = Players.LocalPlayer
+			local char = plr and plr.Character
+			occluded = NAmanage.ESP_GetOcclusionState(part, part, pos, char, tick(), false, {
+				partESP = true
+			})
+		end
+	end
+	if occluded then
+		if NAStuff.ESP_OcclusionDimBoxes == true then
+			visualLight = NAmanage.ESP_GetOccludedColor(visualLight)
+			visualDark = NAmanage.ESP_GetOccludedColor(visualDark)
+			transparency = NAmanage.ESP_GetOccludedTransparency(transparency)
+		end
+		if NAStuff.ESP_OcclusionDimLabels == true then
+			labelColor = NAmanage.ESP_GetOccludedColor(labelColor)
+		end
+	end
 	local baseName = entry.customName or part.Name or "Part"
 	local display = baseName
-	local showPartText = (NAStuff.ESP_ShowPartText ~= false)
+	local showPartText = (NAStuff.ESP_ShowPartText ~= false) and not (occluded and NAStuff.ESP_OcclusionHidePartLabels == true)
 	local showDistance = (NAStuff.ESP_ShowPartDistance == true)
 	local root = rootPart
 	if showDistance and not root then
@@ -25010,15 +25542,17 @@ NAmanage.PartESP_UpdateEntry = function(entry, force, rootPart)
 				label.Visible = true
 			end
 			NAgui.applyLabelStyle(label)
+			if label.TextColor3 ~= labelColor then
+				label.TextColor3 = labelColor
+			end
 		elseif label.Visible then
 			label.Visible = false
 		end
 	end
 	if drawingLabel then
 		if showPartText then
-			local textColor = entry.lightColor or entry.baseColor or Color3.new(1, 1, 1)
 			local textPos = NAgui.getInstanceLabelWorldPosition(part, 0.2)
-			if not NAmanage.DrawingUpdateText(drawingLabel, textPos, display, textColor, NAStuff.ESP_LabelTextSize, {
+			if not NAmanage.DrawingUpdateText(drawingLabel, textPos, display, labelColor, NAStuff.ESP_LabelTextSize, {
 				outlineEnabled = NAStuff.ESP_DrawingPartTextOutline ~= false
 			}) then
 				NAmanage.ESP_RequestVisualRebuild()
@@ -25030,15 +25564,13 @@ NAmanage.PartESP_UpdateEntry = function(entry, force, rootPart)
 			end)
 		end
 	end
-	local transparency = NAgui.sanitizeTransparency(NAStuff.ESP_PartTransparency or entry.transparency)
 	local partDrawingStyle = NAgui.sanitizeESPDrawingBoxStyle(NAStuff.ESP_DrawingPartBoxStyle)
 	if drawingSquare then
-		local drawColor = entry.lightColor or entry.baseColor or Color3.new(1, 1, 1)
 		if partDrawingStyle == "Corners" then
 			pcall(function()
 				drawingSquare.Visible = false
 			end)
-		elseif not NAmanage.DrawingUpdateSquare(drawingSquare, part, drawColor, transparency, {
+		elseif not NAmanage.DrawingUpdateSquare(drawingSquare, part, visualLight, transparency, {
 			thickness = NAStuff.ESP_DrawingPartBoxThickness
 		}) then
 			NAmanage.ESP_RequestVisualRebuild()
@@ -25069,7 +25601,7 @@ NAmanage.PartESP_UpdateEntry = function(entry, force, rootPart)
 					NAmanage.ESP_RequestVisualRebuild()
 					return
 				end
-				if not NAmanage.DrawingUpdateLine(drawingCornerLines[i], seg[1], seg[2], entry.lightColor or entry.baseColor or Color3.new(1, 1, 1), alpha, mainThickness) then
+				if not NAmanage.DrawingUpdateLine(drawingCornerLines[i], seg[1], seg[2], visualLight, alpha, mainThickness) then
 					NAmanage.ESP_RequestVisualRebuild()
 					return
 				end
@@ -25093,21 +25625,19 @@ NAmanage.PartESP_UpdateEntry = function(entry, force, rootPart)
 			if visual.FillTransparency ~= transparency then
 				visual.FillTransparency = transparency
 			end
-			local fill = entry.lightColor or entry.baseColor or Color3.new(1,1,1)
-			local outline = entry.darkColor or fill
 			local outlineTr = NAgui.sanitizeTransparency(NAStuff.ESP_OutlineTransparency or 0)
-			if visual.FillColor ~= fill then
-				visual.FillColor = fill
+			if visual.FillColor ~= visualLight then
+				visual.FillColor = visualLight
 			end
-			if visual.OutlineColor ~= outline then
-				visual.OutlineColor = outline
+			if visual.OutlineColor ~= visualDark then
+				visual.OutlineColor = visualDark
 			end
 			if visual.OutlineTransparency ~= outlineTr then
 				visual.OutlineTransparency = outlineTr
 			end
 		elseif visual:IsA("BoxHandleAdornment") then
-			if entry.lightColor and visual.Color3 ~= entry.lightColor then
-				visual.Color3 = entry.lightColor
+			if visual.Color3 ~= visualLight then
+				visual.Color3 = visualLight
 			end
 			if visual.Transparency ~= transparency then
 				visual.Transparency = transparency
@@ -26315,14 +26845,38 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 
 	local isNPC = data.isNPC == true
 	local boxDist = isNPC and (NAStuff.NPC_ESP_BoxMaxDistance or NAStuff.ESP_BoxMaxDistance or 120) or (NAStuff.ESP_BoxMaxDistance or 120)
-	local wantBoxes = ESPenabled and (dist == nil or dist <= boxDist)
+	local wantBoxes = ESPenabled and NAmanage.ESP_IsWithinDistance(dist, boxDist)
 	local labelDist = isNPC and (NAStuff.NPC_ESP_LabelMaxDistance or NAStuff.ESP_LabelMaxDistance or 600) or (NAStuff.ESP_LabelMaxDistance or 1000)
 	local allowLabel = (not isNPC) or (NAStuff.NPC_ESP_ShowLabels ~= false)
 	local forceLabel = owner and NAmanage.ESP_HasPlayerLabelOverride(owner) == true
 	local wantLabel = ESPenabled
 		and allowLabel
-		and (dist == nil or dist <= labelDist)
+		and NAmanage.ESP_IsWithinDistance(dist, labelDist)
 		and ((not chamsEnabled) or forceLabel)
+
+	local occluded = false
+	local checkOcclusion = (isNPC and NAStuff.ESP_OcclusionIncludeNPCs == true)
+		or ((not isNPC) and NAStuff.ESP_OcclusionIncludePlayers == true)
+	if rootPart and checkOcclusion then
+		local plr = Players.LocalPlayer
+		local char = plr and plr.Character
+		occluded = NAmanage.ESP_GetOcclusionState(model, model, rootPart.Position, char, now)
+	end
+	local boxColor = finalColor or Color3.new(1, 1, 1)
+	local labelColor = boxColor
+	local displayTransparency = NAgui.sanitizeTransparency(NAStuff.ESP_Transparency or 0.7)
+	if occluded then
+		if NAStuff.ESP_OcclusionDimBoxes == true then
+			boxColor = NAmanage.ESP_GetOccludedColor(boxColor)
+			displayTransparency = NAmanage.ESP_GetOccludedTransparency(displayTransparency)
+		end
+		if NAStuff.ESP_OcclusionDimLabels == true then
+			labelColor = NAmanage.ESP_GetOccludedColor(labelColor)
+		end
+		if NAStuff.ESP_OcclusionHideLabels == true then
+			wantLabel = false
+		end
+	end
 
 	if wantBoxes and not data.boxEnabled then
 		NAmanage.ESP_AddBoxes(model)
@@ -26345,10 +26899,14 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 			end
 			local drawingReady = NAmanage.ESP_EnsureDrawing(data)
 			if drawingReady then
-				local tr = NAgui.sanitizeTransparency(NAStuff.ESP_Transparency or 0.7)
-				local color = finalColor or Color3.new(1, 1, 1)
-				local okBox = NAmanage.ESP_UpdateDrawingBox(data, model, color, tr)
-				local okTracer = NAmanage.ESP_UpdateDrawingTracer(data, model, color)
+				local okBox = NAmanage.ESP_UpdateDrawingBox(data, model, boxColor, displayTransparency)
+				local okTracer = true
+				if occluded and NAStuff.ESP_OcclusionHideTracers == true then
+					if data.drawingTracer then pcall(function() data.drawingTracer.Visible = false end) end
+					if data.drawingTracerOutline then pcall(function() data.drawingTracerOutline.Visible = false end) end
+				else
+					okTracer = NAmanage.ESP_UpdateDrawingTracer(data, model, boxColor)
+				end
 				if not okBox or not okTracer then
 					NAmanage.ESP_RecoverFromDrawingFailure(model, data)
 				end
@@ -26373,17 +26931,14 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 			end
 			if highlight then
 				NAmanage.ESP_StoreVisual(highlight)
-				local tr = NAgui.sanitizeTransparency(NAStuff.ESP_Transparency or 0.7)
-				if highlight.FillTransparency ~= tr then highlight.FillTransparency = tr end
+				if highlight.FillTransparency ~= displayTransparency then highlight.FillTransparency = displayTransparency end
 				local outline = NAgui.sanitizeTransparency(NAStuff.ESP_OutlineTransparency or 0)
 				if highlight.OutlineTransparency ~= outline then highlight.OutlineTransparency = outline end
-				local color = finalColor or Color3.new(1, 1, 1)
-				if highlight.FillColor ~= color then highlight.FillColor = color end
-				if highlight.OutlineColor ~= color then highlight.OutlineColor = color end
+				if highlight.FillColor ~= boxColor then highlight.FillColor = boxColor end
+				if highlight.OutlineColor ~= boxColor then highlight.OutlineColor = boxColor end
 			end
 		else
 			NAmanage.ESP_RemoveDrawing(data)
-			local tr = NAgui.sanitizeTransparency(NAStuff.ESP_Transparency or 0.7)
 			for part, box in pairs(data.boxTable) do
 				if not part or not part.Parent or not box or not box.Parent then
 					if box then box:Destroy() end
@@ -26393,9 +26948,9 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 					end
 				else
 					NAmanage.ESP_StoreVisual(box)
-					if box.Color3 ~= finalColor then box.Color3 = finalColor end
+					if box.Color3 ~= boxColor then box.Color3 = boxColor end
 					if part:IsA("BasePart") and box.Size ~= part.Size then box.Size = part.Size end
-					if box.Transparency ~= tr then box.Transparency = tr end
+					if box.Transparency ~= displayTransparency then box.Transparency = displayTransparency end
 				end
 			end
 			if now % 0.5 < 0.05 then
@@ -26431,7 +26986,7 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 
 	if wantLabel and pieces and #pieces > 0 then
 		local txt = Concat(pieces, " | ")
-		local txtColor = finalColor or Color3.new(1, 1, 1)
+		local txtColor = labelColor
 		if NAgui.espUsesDrawing(renderTarget) and NAmanage.DrawingTextSupported() then
 			NAmanage.ESP_EnsureLabel(model)
 			if not NAmanage.ESP_UpdateDrawingLabel(model, txt, txtColor) then
@@ -31887,7 +32442,7 @@ cmd.add({"ibtools"}, {"ibtools", "Load the iBuild Tools helper tool"}, function(
 		updateStatus(state.currentPart)
 
 		local function refreshTarget()
-			local target = mouse.Target
+			local target = NAmanage.GetMouseTargetPart(mouse, nil, 2048)
 			if not (target and target:IsA("BasePart")) then
 				if state.currentPart ~= nil then
 					setTarget(nil)
@@ -31907,7 +32462,7 @@ cmd.add({"ibtools"}, {"ibtools", "Load the iBuild Tools helper tool"}, function(
 			minDelta = 1,
 		}))
 		Insert(state.connections, mouse.Button1Down:Connect(function()
-			local target = mouse.Target
+			local target = NAmanage.GetMouseTargetPart(mouse, nil, 2048)
 			if target and target:IsA("BasePart") then
 				applyMode(target)
 			end
@@ -32922,10 +33477,12 @@ cmd.add({"clickfling","mousefling"},{"clickfling (mousefling)","Fling a player b
 
 	local conn = Mouse.Button1Down:Connect(function()
 		if not clickflingEnabled then return end
-		local Target = Mouse.Target
+		local Target = NAmanage.GetMouseTargetPart(Mouse, { player and player.Character }, 1024)
 		local Players = game:GetService("Players")
-		if Target and Target.Parent and Target.Parent:IsA("Model") and Players:GetPlayerFromCharacter(Target.Parent) then
-			local PlayerName = Players:GetPlayerFromCharacter(Target.Parent).Name
+		local targetCharacter = NAmanage.ResolveHumanoidModelFromPart(Target)
+		local targetPlayer = targetCharacter and Players:GetPlayerFromCharacter(targetCharacter)
+		if targetPlayer then
+			local PlayerName = targetPlayer.Name
 			local playerLocal = Players.LocalPlayer
 			local Targets = {PlayerName}
 			local Player = Players.LocalPlayer
@@ -33956,9 +34513,10 @@ cmd.add({"clickscare","clickspook"},{"clickscare (clickspook)","Teleports next t
 
 	local conn = Mouse.Button1Down:Connect(function()
 		if not clickscareEnabled then return end
-		local target = Mouse.Target
-		if not (target and target.Parent and target.Parent:IsA("Model")) then return end
-		local clickedPlayer = __lt.cm("Players", "GetPlayerFromCharacter", target.Parent)
+		local target = NAmanage.GetMouseTargetPart(Mouse, { player and player.Character }, 1024)
+		local targetCharacter = NAmanage.ResolveHumanoidModelFromPart(target)
+		if not targetCharacter then return end
+		local clickedPlayer = __lt.cm("Players", "GetPlayerFromCharacter", targetCharacter)
 		if not clickedPlayer or not getPlrHum(clickedPlayer) then return end
 
 		local char = getChar()
@@ -34066,7 +34624,7 @@ cmd.add({"hovername","namehover"}, {"hovername", "Shows player's username on hov
 		x = tonumber(x) or mouse.X or 0
 		y = tonumber(y) or mouse.Y or 0
 
-		local target = mouse.Target
+		local target = NAmanage.GetMouseTargetPart(mouse, { player and player.Character }, 1024)
 		local shouldResolve = target ~= lastTarget or (now - lastResolvedAt) >= 0.08
 		if shouldResolve then
 			lastTarget = target
@@ -34292,7 +34850,7 @@ cmd.add({"hoverinventory","hoverinv"}, {"hoverinventory (hoverinv)", "Shows a pl
 		x = tonumber(x) or mouse.X or 0
 		y = tonumber(y) or mouse.Y or 0
 
-		local target = mouse.Target
+		local target = NAmanage.GetMouseTargetPart(mouse, { player and player.Character }, 1024)
 		local shouldResolve = target ~= lastTarget or (now - lastResolvedAt) >= 0.08
 		if shouldResolve then
 			lastTarget = target
@@ -39725,15 +40283,18 @@ cmd.add({"cartornado", "ctornado"}, {"cartornado (ctornado)", "Tornados a car ju
 		end
 	end))
 
+	local rayParams = RaycastParams.new()
+	NAmanage._raycastFilterType(rayParams)
+	rayParams.FilterDescendantsInstances = { Character }
+
 	NAlib.connect(CONN_KEY, RunService.PreSimulation:Connect(function()
 		if not SPart or not SPart.Parent then return end
 		local hum = Character and getHum()
 		if hum and Character.PrimaryPart then
 			local rayOrigin = Character.PrimaryPart.Position + Character.PrimaryPart.CFrame.LookVector * 6
 			local rayDir = Vector3.new(0, -4, 0)
-			local ray = Ray.new(rayOrigin, rayDir)
-			local part = workspace:FindPartOnRayWithIgnoreList(ray, {Character})
-			if part then
+			local result = workspace:Raycast(rayOrigin, rayDir, rayParams)
+			if result then
 				SPart.CFrame = Character.PrimaryPart.CFrame + Character.PrimaryPart.CFrame.LookVector * 6
 			end
 		end
@@ -41657,30 +42218,140 @@ end)
 NAStuff.tpUI = nil
 NAStuff.tpTools = {}
 
+NAmanage._raycastFilterType = NAmanage._raycastFilterType or function(params)
+	if not params then
+		return
+	end
+	local ok = pcall(function()
+		params.FilterType = Enum.RaycastFilterType.Blacklist
+	end)
+	if not ok then
+		pcall(function()
+			params.FilterType = Enum.RaycastFilterType.Exclude
+		end)
+	end
+end
+
+NAmanage._raycastFilterList = NAmanage._raycastFilterList or function(excludeList)
+	local filter = {}
+	local function add(item)
+		if typeof(item) == "Instance" then
+			Insert(filter, item)
+		elseif type(item) == "table" then
+			for _, child in pairs(item) do
+				add(child)
+			end
+		end
+	end
+	add(excludeList)
+	return filter
+end
+
+NAmanage._raycastIsExcluded = NAmanage._raycastIsExcluded or function(inst, excludeList)
+	if not (inst and typeof(inst) == "Instance") then
+		return false
+	end
+	local function check(item)
+		if typeof(item) == "Instance" then
+			return inst == item or inst:IsDescendantOf(item)
+		elseif type(item) == "table" then
+			for _, child in pairs(item) do
+				if check(child) then
+					return true
+				end
+			end
+		end
+		return false
+	end
+	return check(excludeList)
+end
+
+NAmanage.RaycastFromMouse = NAmanage.RaycastFromMouse or function(mouse, maxDistance, excludeList)
+	if not (mouse and workspace and workspace.Raycast) then
+		return nil
+	end
+
+	local unitRay
+	pcall(function()
+		unitRay = mouse.UnitRay
+	end)
+	if not unitRay then
+		local camera = workspace.CurrentCamera
+		if camera and camera.ViewportPointToRay then
+			local x = tonumber(mouse.X) or 0
+			local y = tonumber(mouse.Y) or 0
+			local ok, ray = pcall(function()
+				return camera:ViewportPointToRay(x, y)
+			end)
+			if ok then
+				unitRay = ray
+			end
+		end
+	end
+	if not unitRay then
+		return nil
+	end
+
+	local params = RaycastParams.new()
+	NAmanage._raycastFilterType(params)
+	params.FilterDescendantsInstances = NAmanage._raycastFilterList(excludeList)
+	params.IgnoreWater = true
+	return workspace:Raycast(unitRay.Origin, unitRay.Direction * (tonumber(maxDistance) or 1024), params)
+end
+
+NAmanage.GetMouseWorldCFrame = NAmanage.GetMouseWorldCFrame or function(mouse, excludeList, maxDistance)
+	local result = NAmanage.RaycastFromMouse(mouse, maxDistance, excludeList)
+	if result and result.Position then
+		return CFrame.new(result.Position), result
+	end
+	if mouse then
+		local ok, hit = pcall(function()
+			return mouse.Hit
+		end)
+		if ok and typeof(hit) == "CFrame" then
+			return hit, nil
+		end
+	end
+	return nil, nil
+end
+
+NAmanage.GetMouseTargetPart = NAmanage.GetMouseTargetPart or function(mouse, excludeList, maxDistance)
+	local result = NAmanage.RaycastFromMouse(mouse, maxDistance, excludeList)
+	if result and result.Instance and result.Instance:IsA("BasePart") then
+		return result.Instance, result
+	end
+	if mouse then
+		local ok, target = pcall(function()
+			return mouse.Target
+		end)
+		if ok and target and target:IsA("BasePart") and not NAmanage._raycastIsExcluded(target, excludeList) then
+			return target, nil
+		end
+	end
+	return nil, nil
+end
+
+NAmanage.ResolveHumanoidModelFromPart = NAmanage.ResolveHumanoidModelFromPart or function(part)
+	local current = part
+	while current and current ~= workspace do
+		if current:IsA("Model") then
+			local humanoid = current:FindFirstChildOfClass("Humanoid")
+			if humanoid then
+				return current, humanoid
+			end
+		end
+		current = current.Parent
+	end
+	return nil, nil
+end
+
 NAmanage._tpTargetFromMouse=function(mouse, char)
 	if not mouse then
 		return nil
 	end
 
-	local hit = mouse.Hit
-	if typeof(hit) == "CFrame" then
-		return hit
-	end
-
-	local unitRay = mouse.UnitRay
-	if unitRay and workspace and workspace.Raycast then
-		local params = RaycastParams.new()
-		params.FilterType = Enum.RaycastFilterType.Blacklist
-		if char then
-			params.FilterDescendantsInstances = { char }
-		end
-		local result = workspace:Raycast(unitRay.Origin, unitRay.Direction * 512, params)
-		if result and result.Position then
-			return CFrame.new(result.Position)
-		end
-	end
-
-	return nil
+	local hit = NAmanage.GetMouseWorldCFrame(mouse, char and { char } or nil, 1024)
+	return hit
 end
 
 NAmanage.safePivotModel = function(model, cf)
@@ -41988,8 +42659,34 @@ cmd.add({"thru"},{"thru <distance>","Move forward by distance"},function(distanc
 	if num < 1 then
 		num = 1
 	end
-	local targetPos = root.CFrame.Position + (root.CFrame.LookVector * num)
-	local targetCF = CFrame.new(targetPos, targetPos + root.CFrame.LookVector)
+	local rootCF = root.CFrame
+	local look = rootCF.LookVector
+	local targetPos = rootCF.Position + (look * num)
+
+	if workspace and workspace.Raycast and look.Magnitude > 0 then
+		local params = RaycastParams.new()
+		NAmanage._raycastFilterType(params)
+		params.FilterDescendantsInstances = { char }
+		params.IgnoreWater = true
+
+		local rootSize = NAlib.isProperty(root, "Size") or Vector3.new(2, 2, 1)
+		local clearance = math.max(3, math.max(math.abs(rootSize.X), math.abs(rootSize.Z)) + 1.5)
+		local scanDistance = math.max(num + clearance, clearance + 4)
+		local origin = rootCF.Position + Vector3.new(0, math.min(math.max(rootSize.Y * 0.15, 0), 1), 0)
+		local hit = workspace:Raycast(origin, look * scanDistance, params)
+		if hit and hit.Position then
+			local probeDistance = math.max(num + clearance, clearance + 12)
+			local farOrigin = hit.Position + (look * probeDistance)
+			local backHit = workspace:Raycast(farOrigin, -look * (probeDistance + clearance), params)
+			if backHit and backHit.Position then
+				targetPos = backHit.Position + (look * clearance)
+			else
+				targetPos = hit.Position + (look * math.max(num, clearance))
+			end
+		end
+	end
+
+	local targetCF = CFrame.new(targetPos, targetPos + look)
 
 	if char and NAmanage.safePivotModel then
 		if not NAmanage.safePivotModel(char, targetCF) then
@@ -43734,7 +44431,6 @@ cmd.add({"npcesp","espnpc"},{"npcesp (espnpc)","locate where the npcs are"},func
 			local plr = Players.LocalPlayer
 			local char = plr and plr.Character
 			local root = char and getRoot(char)
-			if not root then return end
 
 			local found = {}
 			local cnt = 0
@@ -43751,8 +44447,8 @@ cmd.add({"npcesp","espnpc"},{"npcesp (espnpc)","locate where the npcs are"},func
 					end
 					local rp = getRoot(inst)
 					if rp then
-						local d = (rp.Position - root.Position).Magnitude
-						if d <= maxDist then
+						local d = root and (rp.Position - root.Position).Magnitude or nil
+						if NAmanage.ESP_IsWithinDistance(d, maxDist) then
 							found[inst] = true
 							if not NAStuff.npcESPList[inst] then
 								NAStuff.npcESPList[inst] = true
@@ -53403,7 +54099,15 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 	local Attachment1=InstanceNew("Attachment",Part)
 	Part.Anchored=true Part.CanCollide=false Part.Transparency=1
 
-	local Updated=Mouse.Hit+Vector3.new(0,5,0)
+	local function getBlackholeTarget()
+		local cf = NAmanage.GetMouseWorldCFrame(Mouse, { LocalPlayer and LocalPlayer.Character, Folder }, 2048)
+		if cf then
+			return cf + Vector3.new(0, 5, 0)
+		end
+		return CFrame.new(Part.Position)
+	end
+
+	local Updated=getBlackholeTarget()
 	_na_env.BlackholeAttachment=Attachment1
 	_na_env.BlackholeTarget=Updated
 	_na_env.BlackholeActive=false
@@ -53450,7 +54154,7 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 
 	UIS.InputBegan:Connect(function(k,chat)
 		if k.KeyCode==Enum.KeyCode.E and not chat then
-			_na_env.BlackholeTarget=Mouse.Hit+Vector3.new(0,5,0)
+			_na_env.BlackholeTarget=getBlackholeTarget()
 		end
 	end)
 
@@ -53500,7 +54204,7 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 	moveCorner.CornerRadius=UDim.new(0.25,0)
 
 	MouseButtonFix(moveBtn,function()
-		_na_env.BlackholeTarget=Mouse.Hit+Vector3.new(0,5,0)
+		_na_env.BlackholeTarget=getBlackholeTarget()
 	end)
 
 	NAgui.draggerV2(toggleBtn)
@@ -59891,9 +60595,10 @@ cmd.add({"hug", "clickhug"}, {"hug (clickhug)", "huggies time (click on a target
 
 		NAlib.connect("hug_click", mouse.Button1Down:Connect(function()
 			if not hugModeEnabled then return end
-			local target = mouse.Target
-			if target and target.Parent then
-				local targetPlayer = __lt.cm("Players", "GetPlayerFromCharacter", target.Parent)
+			local target = NAmanage.GetMouseTargetPart(mouse, { LocalPlayer and LocalPlayer.Character }, 1024)
+			if target then
+				local targetCharacter = NAmanage.ResolveHumanoidModelFromPart(target)
+				local targetPlayer = targetCharacter and __lt.cm("Players", "GetPlayerFromCharacter", targetCharacter)
 				if targetPlayer and targetPlayer ~= LocalPlayer and targetPlayer.Character then
 					performHug(targetPlayer.Character)
 				end
@@ -69903,7 +70608,15 @@ cmd.add({"breakcars", "bcars"}, {"breakcars (bcars)", "Breaks any car"}, functio
 	local Attachment1 = InstanceNew("Attachment")
 	Attachment1.Parent = Part
 
-	local UpdatedPosition = Mouse.Hit + Vector3.new(0, 5, 0)
+	local function getBreakcarsTarget()
+		local cf = NAmanage.GetMouseWorldCFrame(Mouse, { Player and Player.Character, Folder }, 2048)
+		if cf then
+			return cf + Vector3.new(0, 5, 0)
+		end
+		return CFrame.new(Part.Position)
+	end
+
+	local UpdatedPosition = getBreakcarsTarget()
 
 	SpawnCall(function()
 		while NAStuff._breakcarsEnabled and Wait() do
@@ -69963,7 +70676,7 @@ cmd.add({"breakcars", "bcars"}, {"breakcars (bcars)", "Breaks any car"}, functio
 
 	NAlib.connect(CONN_KEY, UserInputService.InputBegan:Connect(function(input, isChatting)
 		if input.KeyCode == Enum.KeyCode.E and not isChatting then
-			UpdatedPosition = Mouse.Hit + Vector3.new(0, 5, 0)
+			UpdatedPosition = getBreakcarsTarget()
 		end
 	end))
 
@@ -73684,14 +74397,12 @@ cmd.add({"clickkillnpc", "cknpc"}, {"clickkillnpc (cknpc)", "Click on an NPC to 
 	NAlib.connect("clickkill_mouse", Mouse.Button1Down:Connect(function()
 		if not NAStuff.clickkillEnabled then return end
 
-		local Target = Mouse.Target
-		if Target and Target.Parent then
-			local Character = Target.Parent
-			if CheckIfNPC(Character) then
-				local Humanoid = getPlrHum(Character)
-				if Humanoid then
-					Humanoid.Health = 0
-				end
+		local Target = NAmanage.GetMouseTargetPart(Mouse, { player and player.Character }, 1024)
+		local Character = NAmanage.ResolveHumanoidModelFromPart(Target)
+		if Character and CheckIfNPC(Character) then
+			local Humanoid = getPlrHum(Character)
+			if Humanoid then
+				Humanoid.Health = 0
 			end
 		end
 	end))
@@ -73750,9 +74461,10 @@ cmd.add({"clickvoidnpc", "cvnpc"}, {"clickvoidnpc (cvnpc)", "Click to void NPCs"
 	NAlib.connect("clickvoid_mouse", mouse.Button1Down:Connect(function()
 		if not clickVoidEnabled then return end
 
-		local target = mouse.Target
-		if target and target.Parent and CheckIfNPC(target.Parent) then
-			local root = getPlrHum(target.Parent)
+		local target = NAmanage.GetMouseTargetPart(mouse, { player and player.Character }, 1024)
+		local character = NAmanage.ResolveHumanoidModelFromPart(target)
+		if character and CheckIfNPC(character) then
+			local root = getPlrHum(character)
 			if root then
 				root.HipHeight = math.huge
 			end
@@ -73816,9 +74528,10 @@ cmd.add({"clicknpcws","cnpcws"},{"clicknpcws","Click on an NPC to set its WalkSp
 	end)
 	NAlib.connect("clickspeed_mouse",mouse.Button1Down:Connect(function()
 		if not clickSpeedEnabled then return end
-		local hit=mouse.Target
-		if hit and hit.Parent and CheckIfNPC(hit.Parent) then
-			local hum=getPlrHum(hit.Parent)
+		local hit=NAmanage.GetMouseTargetPart(mouse, { player and player.Character }, 1024)
+		local character=NAmanage.ResolveHumanoidModelFromPart(hit)
+		if character and CheckIfNPC(character) then
+			local hum=getPlrHum(character)
 			if hum then hum.WalkSpeed=speedNumber end
 		end
 	end))
@@ -73880,9 +74593,10 @@ cmd.add({"clicknpcjp","cnpcjp"},{"clicknpcjp","Click on an NPC to set its JumpPo
 	end)
 	NAlib.connect("clickjump_mouse",mouse.Button1Down:Connect(function()
 		if not clickJumpEnabled then return end
-		local hit=mouse.Target
-		if hit and hit.Parent and CheckIfNPC(hit.Parent) then
-			local hum=getPlrHum(hit.Parent)
+		local hit=NAmanage.GetMouseTargetPart(mouse, { player and player.Character }, 1024)
+		local character=NAmanage.ResolveHumanoidModelFromPart(hit)
+		if character and CheckIfNPC(character) then
+			local hum=getPlrHum(character)
 			if hum then hum.JumpPower=jumpPowerNumber end
 		end
 	end))
@@ -90377,7 +91091,7 @@ NAmanage.bindToDevConsole = function()
 		local query = getQuery();
 		for i = 1, #allMessages do
 			local record = allMessages[i];
-			if record and toggles[record.tag] and matchesQuery(record.searchText, query) then
+			if record and (record.forceVisible == true or toggles[record.tag]) and matchesQuery(record.searchText, query) then
 				ensureRecordHeight(record, width);
 				filteredMessages[#filteredMessages + 1] = record;
 			end;
@@ -90387,7 +91101,7 @@ NAmanage.bindToDevConsole = function()
 			followBottom = isNearBottom()
 		});
 	end;
-	local function appendRecord(rawText, tagText, tagColor)
+	local function appendRecord(rawText, tagText, tagColor, forceVisible)
 		messageCounter += 1;
 		local labelText = "[" .. tagText .. "]: " .. rawText;
 		local record = {
@@ -90395,6 +91109,7 @@ NAmanage.bindToDevConsole = function()
 			raw = rawText,
 			tag = tagText,
 			color = tagColor,
+			forceVisible = forceVisible == true,
 			copyText = rawText,
 			plainText = labelText,
 			searchText = labelText:lower(),
@@ -90404,7 +91119,7 @@ NAmanage.bindToDevConsole = function()
 		};
 		allMessages[#allMessages + 1] = record;
 		local query = getQuery();
-		if toggles[tagText] and matchesQuery(record.searchText, query) then
+		if (record.forceVisible == true or toggles[tagText]) and matchesQuery(record.searchText, query) then
 			ensureRecordHeight(record, getMeasureWidth());
 			filteredMessages[#filteredMessages + 1] = record;
 		end;
@@ -90636,10 +91351,10 @@ NAmanage.bindToDevConsole = function()
 			NAmanage.ConsoleScroll.scheduleRefresh();
 		end;
 	end;
-	local function enqueueMessage(msg, msgTYPE)
+	local function enqueueMessage(msg, msgTYPE, forceVisible)
 		local rawText = tostring(msg or "");
 		local tagText, tagColor = getTagInfo(msgTYPE);
-		if not shouldCaptureTag(tagText) then
+		if forceVisible ~= true and not shouldCaptureTag(tagText) then
 			return;
 		end;
 		local pendingSize = pendingTail - pendingHead + 1;
@@ -90652,7 +91367,8 @@ NAmanage.bindToDevConsole = function()
 		pending[pendingTail] = {
 			raw = rawText,
 			t = tagText,
-			c = tagColor
+			c = tagColor,
+			f = forceVisible == true
 		};
 	end;
 	local function processPendingQueue()
@@ -90674,7 +91390,7 @@ NAmanage.bindToDevConsole = function()
 					pending[pendingHead] = nil;
 					pendingHead += 1;
 					if item then
-						appendRecord(item.raw, item.t, item.c);
+						appendRecord(item.raw, item.t, item.c, item.f);
 						processed += 1;
 					end;
 				end;
@@ -90694,6 +91410,39 @@ NAmanage.bindToDevConsole = function()
 			pendingProcessing = false;
 		end);
 	end;
+	local function externalMessageTypeFromTag(tag)
+		tag = NAmanage.NAConsoleNormalizeTag(tag)
+		if tag == "Error" then
+			return Enum.MessageType.MessageError
+		elseif tag == "Warn" then
+			return Enum.MessageType.MessageWarning
+		elseif tag == "Info" then
+			return Enum.MessageType.MessageInfo
+		end
+		return nil
+	end
+	NAmanage._NAConsoleExternalWrite = function(text, tag)
+		tag = NAmanage.NAConsoleNormalizeTag(tag)
+		enqueueMessage(tostring(text or ""), externalMessageTypeFromTag(tag), true)
+		processPendingQueue()
+		return true
+	end
+	NAmanage._NAConsoleExternalClear = function()
+		clearConsoleState()
+		return true
+	end
+	do
+		local externalPending = NAStuff.NAConsoleExternalPending
+		if type(externalPending) == "table" and #externalPending > 0 then
+			for i = 1, #externalPending do
+				local item = externalPending[i]
+				if item then
+					enqueueMessage(item.text, externalMessageTypeFromTag(item.tag), true)
+				end
+			end
+			NAStuff.NAConsoleExternalPending = {}
+		end
+	end
 	local logService = SafeGetService("LogService");
 	NAmanage._menuClearHandlers = NAmanage._menuClearHandlers or setmetatable({}, {
 		__mode = "k"
@@ -90775,6 +91524,12 @@ NAmanage.bindToDevConsole = function()
 		syncQueuedFollowBottom = false
 		if NAmanage and NAmanage._menuClearHandlers and NAUIMANAGER.NAconsoleFrame and NAmanage._menuClearHandlers[NAUIMANAGER.NAconsoleFrame] == clearConsoleState then
 			NAmanage._menuClearHandlers[NAUIMANAGER.NAconsoleFrame] = nil
+		end
+		if NAmanage and NAmanage._NAConsoleExternalWrite then
+			NAmanage._NAConsoleExternalWrite = nil
+		end
+		if NAmanage and NAmanage._NAConsoleExternalClear then
+			NAmanage._NAConsoleExternalClear = nil
 		end
 		while #visibleLabels > 0 do
 			releaseLabel(table.remove(visibleLabels))
@@ -94828,6 +95583,15 @@ NAgui.addToggle("Disable Unsafe Functions", NAStuff.UnsafeFunctionsDisabled == t
 end)
 NAmanage.RegisterToggleAutoSync("Disable Unsafe Functions", function()
 	return NAStuff.UnsafeFunctionsDisabled == true
+end)
+
+NAgui.addToggle("Force rconsole To NA Console", NAStuff.ForceRconsoleNAConsole ~= false, function(v)
+	pcall(NAmanage.SetForceRconsoleNAConsole, v ~= false, {
+		save = true;
+	})
+end)
+NAmanage.RegisterToggleAutoSync("Force rconsole To NA Console", function()
+	return NAStuff.ForceRconsoleNAConsole ~= false
 end)
 
 NAgui.addToggle("Auto-dismiss Friend Requests", NAStuff.FriendRequestAutoDismiss == true, function(v)
@@ -101336,6 +102100,7 @@ NAgui.addSlider("Part Drawing Queue Batch", 1, 512, math.clamp(math.floor(tonumb
 end)
 
 NAgui.addSection("Visibility & Performance")
+NAgui.addInfo("ESP Distance Note", "Set a distance slider to 0 to remove that limit.")
 
 NAgui.addSlider("ESP Box Distance", 0, 2000, NAStuff.ESP_BoxMaxDistance or 120, 5, " studs", function(v)
 	NAStuff.ESP_BoxMaxDistance = v
@@ -101350,6 +102115,136 @@ end)
 NAgui.addSlider("ESP Update Batch Size", 1, 256, math.clamp(math.floor(tonumber(NAStuff.ESP_MaxPerStep) or 32), 1, 256), 1, " models", function(v)
 	NAStuff.ESP_MaxPerStep = math.clamp(math.floor(tonumber(v) or 32), 1, 256)
 	NAmanage.SaveESPSettings()
+end)
+
+NAgui.addToggle("ESP Raycast Occlusion", NAStuff.ESP_OcclusionEnabled == true, function(state)
+	NAStuff.ESP_OcclusionEnabled = state == true
+	NAmanage.SaveESPSettings()
+	NAmanage.ESP_ClearOcclusionCache()
+	NAmanage.PartESP_UpdateTexts(true)
+end)
+
+NAgui.addToggle("Occlusion Affects Player ESP", NAStuff.ESP_OcclusionIncludePlayers == true, function(state)
+	NAStuff.ESP_OcclusionIncludePlayers = state == true
+	NAmanage.SaveESPSettings()
+	NAmanage.ESP_ClearOcclusionCache()
+end)
+
+NAgui.addToggle("Occlusion Affects NPC ESP", NAStuff.ESP_OcclusionIncludeNPCs == true, function(state)
+	NAStuff.ESP_OcclusionIncludeNPCs = state == true
+	NAmanage.SaveESPSettings()
+	NAmanage.ESP_ClearOcclusionCache()
+end)
+
+NAgui.addToggle("Occlusion Affects Part ESP", NAStuff.ESP_OcclusionIncludeParts == true, function(state)
+	NAStuff.ESP_OcclusionIncludeParts = state == true
+	NAmanage.SaveESPSettings()
+	NAmanage.ESP_ClearOcclusionCache()
+	NAmanage.PartESP_UpdateTexts(true)
+end)
+
+NAgui.addToggle("Occlusion Hides Player/NPC Labels", NAStuff.ESP_OcclusionHideLabels == true, function(state)
+	NAStuff.ESP_OcclusionHideLabels = state == true
+	NAmanage.SaveESPSettings()
+	NAmanage.ESP_ClearOcclusionCache()
+	NAmanage.PartESP_UpdateTexts(true)
+end)
+
+NAgui.addToggle("Occlusion Hides Part Labels", NAStuff.ESP_OcclusionHidePartLabels == true, function(state)
+	NAStuff.ESP_OcclusionHidePartLabels = state == true
+	NAmanage.SaveESPSettings()
+	NAmanage.ESP_ClearOcclusionCache()
+	NAmanage.PartESP_UpdateTexts(true)
+end)
+
+NAgui.addToggle("Occlusion Hides Tracers", NAStuff.ESP_OcclusionHideTracers == true, function(state)
+	NAStuff.ESP_OcclusionHideTracers = state == true
+	NAmanage.SaveESPSettings()
+	NAmanage.ESP_ClearOcclusionCache()
+end)
+
+NAgui.addToggle("Occlusion Dims Boxes", NAStuff.ESP_OcclusionDimBoxes == true, function(state)
+	NAStuff.ESP_OcclusionDimBoxes = state == true
+	NAmanage.SaveESPSettings()
+	NAmanage.ESP_ClearOcclusionCache()
+	NAmanage.PartESP_UpdateTexts(true)
+end)
+
+NAgui.addToggle("Occlusion Dims Labels", NAStuff.ESP_OcclusionDimLabels == true, function(state)
+	NAStuff.ESP_OcclusionDimLabels = state == true
+	NAmanage.SaveESPSettings()
+	NAmanage.ESP_ClearOcclusionCache()
+	NAmanage.PartESP_UpdateTexts(true)
+end)
+
+NAgui.addToggle("Occlusion Ignores Transparent", NAStuff.ESP_OcclusionIgnoreTransparent == true, function(state)
+	NAStuff.ESP_OcclusionIgnoreTransparent = state == true
+	NAmanage.SaveESPSettings()
+	NAmanage.ESP_ClearOcclusionCache()
+	NAmanage.PartESP_UpdateTexts(true)
+end)
+
+NAgui.addSlider("Transparent Ignore Threshold", 0, 1, math.clamp(tonumber(NAStuff.ESP_OcclusionTransparentThreshold) or 0.85, 0, 1), 0.05, "", function(v)
+	NAStuff.ESP_OcclusionTransparentThreshold = math.clamp(tonumber(v) or 0.85, 0, 1)
+	NAmanage.SaveESPSettings()
+	NAmanage.ESP_ClearOcclusionCache()
+	NAmanage.PartESP_UpdateTexts(true)
+end)
+
+NAgui.addToggle("Occlusion Ignores Non-Collidable", NAStuff.ESP_OcclusionIgnoreNonCollidable == true, function(state)
+	NAStuff.ESP_OcclusionIgnoreNonCollidable = state == true
+	NAmanage.SaveESPSettings()
+	NAmanage.ESP_ClearOcclusionCache()
+	NAmanage.PartESP_UpdateTexts(true)
+end)
+
+NAgui.addToggle("Occlusion Ignores Same Model", NAStuff.ESP_OcclusionIgnoreSameModel == true, function(state)
+	NAStuff.ESP_OcclusionIgnoreSameModel = state == true
+	NAmanage.SaveESPSettings()
+	NAmanage.ESP_ClearOcclusionCache()
+	NAmanage.PartESP_UpdateTexts(true)
+end)
+
+NAgui.addColorPicker("Occluded ESP Color", NAStuff.ESP_OcclusionColor or Color3.fromRGB(130, 130, 130), function(color)
+	if typeof(color) ~= "Color3" then
+		return
+	end
+	NAStuff.ESP_OcclusionColor = color
+	NAmanage.SaveESPSettings()
+	NAmanage.ESP_ClearOcclusionCache()
+	NAmanage.PartESP_UpdateTexts(true)
+end)
+
+NAgui.addSlider("Occlusion Dim Amount", 0, 1, math.clamp(tonumber(NAStuff.ESP_OcclusionDimAmount) or 0.55, 0, 1), 0.05, "", function(v)
+	NAStuff.ESP_OcclusionDimAmount = math.clamp(tonumber(v) or 0.55, 0, 1)
+	NAmanage.SaveESPSettings()
+	NAmanage.ESP_ClearOcclusionCache()
+	NAmanage.PartESP_UpdateTexts(true)
+end)
+
+NAgui.addSlider("Occlusion Update Interval", 0.05, 1, math.clamp(tonumber(NAStuff.ESP_OcclusionUpdateInterval) or 0.18, 0.05, 1), 0.05, " s", function(v)
+	NAStuff.ESP_OcclusionUpdateInterval = math.clamp(tonumber(v) or 0.18, 0.05, 1)
+	NAmanage.SaveESPSettings()
+	NAmanage.ESP_ClearOcclusionCache()
+end)
+
+NAgui.addSlider("Occlusion Ray Batch", 1, 128, math.clamp(math.floor(tonumber(NAStuff.ESP_OcclusionMaxPerStep) or 24), 1, 128), 1, " rays", function(v)
+	NAStuff.ESP_OcclusionMaxPerStep = math.clamp(math.floor(tonumber(v) or 24), 1, 128)
+	NAmanage.SaveESPSettings()
+	NAmanage.ESP_ClearOcclusionCache()
+end)
+
+NAgui.addSlider("Occlusion Hit Probe Limit", 1, 20, math.clamp(math.floor(tonumber(NAStuff.ESP_OcclusionHitProbeLimit) or 6), 1, 20), 1, " hits", function(v)
+	NAStuff.ESP_OcclusionHitProbeLimit = math.clamp(math.floor(tonumber(v) or 6), 1, 20)
+	NAmanage.SaveESPSettings()
+	NAmanage.ESP_ClearOcclusionCache()
+	NAmanage.PartESP_UpdateTexts(true)
+end)
+
+NAgui.addSlider("Occlusion Max Distance", 0, 10000, math.clamp(tonumber(NAStuff.ESP_OcclusionMaxDistance) or 1500, 0, 10000), 50, " studs", function(v)
+	NAStuff.ESP_OcclusionMaxDistance = math.clamp(tonumber(v) or 1500, 0, 10000)
+	NAmanage.SaveESPSettings()
+	NAmanage.ESP_ClearOcclusionCache()
 end)
 
 NAgui.addSection("Label Content")
