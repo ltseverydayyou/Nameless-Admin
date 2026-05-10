@@ -1008,6 +1008,7 @@ local NA_TABS = {
 	TAB_INTEGRATIONS = "Integrations";
 	TAB_INTERFACE = "Interface";
 	TAB_FFLAGS = "FFlags";
+	TAB_ENGINE_SETTINGS = "Engine Settings";
 	TAB_AUTOMATION = "Automation";
 	TAB_MANAGEMENT = "Management";
 	TAB_SAVE_INSTANCE = "Save Instance";
@@ -40177,6 +40178,248 @@ cmd.add({"unremoveads","noadblock","disableads"},{"unremoveads (noadblock,disabl
 	state.active=false
 	NAStuff._removeAdsLoop=nil
 	DoNotif("Remove Ads disabled",2)
+end)
+
+NAmanage.EngineSettings = NAmanage.EngineSettings or {}
+
+NAmanage.EngineSettings.parseBool = function(value, default)
+	if type(value) == "boolean" then
+		return value
+	end
+	if value == nil or value == "" then
+		return default ~= false
+	end
+	local text = Lower(tostring(value))
+	if text == "true" or text == "1" or text == "on" or text == "yes" or text == "enable" or text == "enabled" then
+		return true
+	end
+	if text == "false" or text == "0" or text == "off" or text == "no" or text == "disable" or text == "disabled" then
+		return false
+	end
+	return default ~= false
+end
+
+NAmanage.EngineSettings.getService = function(serviceName)
+	local ok, service = pcall(function()
+		return settings():GetService(serviceName)
+	end)
+	if ok and service then
+		return service
+	end
+	return nil
+end
+
+NAmanage.EngineSettings.get = function(serviceName, propertyName, fallback)
+	local service = NAmanage.EngineSettings.getService(serviceName)
+	if not service then
+		return fallback
+	end
+	local ok, value = pcall(function()
+		return service[propertyName]
+	end)
+	if ok then
+		return value
+	end
+	return fallback
+end
+
+NAmanage.EngineSettings.set = function(serviceName, propertyName, value, label, silent)
+	local service = NAmanage.EngineSettings.getService(serviceName)
+	label = label or (serviceName.."."..propertyName)
+	if not service then
+		if not silent then
+			DoNotif(serviceName.." unavailable", 3)
+		end
+		return false
+	end
+	local ok, err = pcall(function()
+		service[propertyName] = value
+	end)
+	if ok then
+		if not silent then
+			DoNotif(label.." set to "..tostring(value), 2)
+		end
+		return true
+	end
+	if not silent then
+		DoNotif("Failed to set "..label..": "..tostring(err), 3)
+	end
+	return false
+end
+
+NAmanage.EngineSettings.setBool = function(entry, value, silent)
+	if type(entry.setter) == "function" then
+		return entry.setter(value == true, silent)
+	end
+	return NAmanage.EngineSettings.set(entry.service, entry.property, value == true, entry.label, silent)
+end
+
+NAmanage.EngineSettings.setNumber = function(entry, value, silent)
+	if type(entry.setter) == "function" then
+		return entry.setter(value, silent)
+	end
+	local n = tonumber(value)
+	if not n then
+		if not silent then
+			DoNotif("Usage: "..entry.usage, 2)
+		end
+		return false
+	end
+	if entry.integer then
+		n = math.floor(n + 0.5)
+	end
+	if entry.min ~= nil then
+		n = math.max(entry.min, n)
+	end
+	if entry.max ~= nil then
+		n = math.min(entry.max, n)
+	end
+	return NAmanage.EngineSettings.set(entry.service, entry.property, n, entry.label, silent)
+end
+
+NAmanage.EngineSettings.applyNetworkEmulation = function(enabled, minDelay, maxDelay, loss)
+	local ok = NAmanage.EngineSettings.set("NetworkSettings", "NetworkEmulationEnabled", enabled == true, "Network Emulation", true)
+	if enabled == true then
+		minDelay = math.max(0, math.floor((tonumber(minDelay) or 150) + 0.5))
+		maxDelay = math.max(minDelay, math.floor((tonumber(maxDelay) or minDelay) + 0.5))
+		loss = math.clamp(tonumber(loss) or 0, 0, 100)
+		ok = NAmanage.EngineSettings.set("NetworkSettings", "InboundNetworkMinDelayMs", minDelay, "Inbound Network Min Delay", true) and ok
+		ok = NAmanage.EngineSettings.set("NetworkSettings", "InboundNetworkMaxDelayMs", maxDelay, "Inbound Network Max Delay", true) and ok
+		ok = NAmanage.EngineSettings.set("NetworkSettings", "OutboundNetworkMinDelayMs", minDelay, "Outbound Network Min Delay", true) and ok
+		ok = NAmanage.EngineSettings.set("NetworkSettings", "OutboundNetworkMaxDelayMs", maxDelay, "Outbound Network Max Delay", true) and ok
+		ok = NAmanage.EngineSettings.set("NetworkSettings", "InboundNetworkLossPercent", loss, "Inbound Network Loss Percent", true) and ok
+		ok = NAmanage.EngineSettings.set("NetworkSettings", "OutboundNetworkLossPercent", loss, "Outbound Network Loss Percent", true) and ok
+		if ok then
+			DoNotif("Network Emulation enabled: "..tostring(minDelay).."-"..tostring(maxDelay).." ms, "..tostring(loss).."% loss", 3)
+		else
+			DoNotif("Network Emulation could not be fully applied", 3)
+		end
+		return ok
+	end
+	local resetOk = NAmanage.EngineSettings.set("NetworkSettings", "InboundNetworkMinDelayMs", 0, "Inbound Network Min Delay", true)
+	resetOk = NAmanage.EngineSettings.set("NetworkSettings", "InboundNetworkMaxDelayMs", 0, "Inbound Network Max Delay", true) and resetOk
+	resetOk = NAmanage.EngineSettings.set("NetworkSettings", "OutboundNetworkMinDelayMs", 0, "Outbound Network Min Delay", true) and resetOk
+	resetOk = NAmanage.EngineSettings.set("NetworkSettings", "OutboundNetworkMaxDelayMs", 0, "Outbound Network Max Delay", true) and resetOk
+	resetOk = NAmanage.EngineSettings.set("NetworkSettings", "InboundNetworkLossPercent", 0, "Inbound Network Loss Percent", true) and resetOk
+	resetOk = NAmanage.EngineSettings.set("NetworkSettings", "OutboundNetworkLossPercent", 0, "Outbound Network Loss Percent", true) and resetOk
+	if ok and resetOk then
+		DoNotif("Network Emulation disabled", 2)
+	else
+		DoNotif("Network Emulation could not be fully disabled", 3)
+	end
+	return ok and resetOk
+end
+
+NAmanage.EngineSettings.boolCommands = {
+	{ aliases = {"networkemulation","netemulation","netemu"}, offAliases = {"unnetworkemulation","nonetworkemulation","unnetemu"}, service = "NetworkSettings", property = "NetworkEmulationEnabled", label = "Network Emulation", usage = "networkemulation [minMs] [maxMs] [loss%]", networkEmulation = true, setter = function(state) return NAmanage.EngineSettings.applyNetworkEmulation(state == true) end },
+	{ aliases = {"renderstreamedregions","streamedregions"}, offAliases = {"unrenderstreamedregions","nostreamedregions"}, service = "NetworkSettings", property = "RenderStreamedRegions", label = "Render Streamed Regions" },
+	{ aliases = {"joinbreakdown","printjoinsize"}, offAliases = {"unjoinbreakdown","noprintjoinsize"}, service = "NetworkSettings", property = "PrintJoinSizeBreakdown", label = "Print Join Size Breakdown" },
+	{ aliases = {"streamquota","printstreamquota"}, offAliases = {"unstreamquota","noprintstreamquota"}, service = "NetworkSettings", property = "PrintStreamInstanceQuota", label = "Print Stream Instance Quota" },
+	{ aliases = {"animationassetdata","showanimationasset"}, offAliases = {"unanimationassetdata","noanimationasset"}, service = "NetworkSettings", property = "ShowActiveAnimationAsset", label = "Show Active Animation Asset" },
+	{ aliases = {"randomizejoinorder","randomjoinorder"}, offAliases = {"unrandomizejoinorder","norandomjoinorder"}, service = "NetworkSettings", property = "RandomizeJoinInstanceOrder", label = "Randomize Join Instance Order" },
+	{ aliases = {"physallowsleep","allowsleep"}, offAliases = {"unphysallowsleep","noallowsleep"}, service = "PhysicsSettings", property = "AllowSleep", label = "Physics Allow Sleep" },
+	{ aliases = {"physanchors","anchorsshown"}, offAliases = {"unphysanchors","noanchorsshown"}, service = "PhysicsSettings", property = "AreAnchorsShown", label = "Physics Anchors Shown" },
+	{ aliases = {"physassemblies","assembliesshown"}, offAliases = {"unphysassemblies","noassembliesshown"}, service = "PhysicsSettings", property = "AreAssembliesShown", label = "Physics Assemblies Shown" },
+	{ aliases = {"physbodytypes","bodytypesshown"}, offAliases = {"unphysbodytypes","nobodytypesshown"}, service = "PhysicsSettings", property = "AreBodyTypesShown", label = "Physics Body Types Shown" },
+	{ aliases = {"collisioncosts","physcollisioncosts"}, offAliases = {"uncollisioncosts","nophyscollisioncosts"}, service = "PhysicsSettings", property = "AreCollisionCostsShown", label = "Collision Costs Shown" },
+	{ aliases = {"jointcoords","physjointcoords"}, offAliases = {"unjointcoords","nophysjointcoords"}, service = "PhysicsSettings", property = "AreJointCoordinatesShown", label = "Joint Coordinates Shown" },
+	{ aliases = {"physowners","ownersshown"}, offAliases = {"unphysowners","noownersshown"}, service = "PhysicsSettings", property = "AreOwnersShown", label = "Physics Owners Shown" },
+	{ aliases = {"physregions","regionsshown"}, offAliases = {"unphysregions","noregionsshown"}, service = "PhysicsSettings", property = "AreRegionsShown", label = "Physics Regions Shown" },
+	{ aliases = {"awakeparts","awakehighlight"}, offAliases = {"unawakeparts","noawakehighlight"}, service = "PhysicsSettings", property = "AreAwakePartsHighlighted", label = "Awake Parts Highlighted" },
+	{ aliases = {"contactpoints","physcontactpoints"}, offAliases = {"uncontactpoints","nophyscontactpoints"}, service = "PhysicsSettings", property = "AreContactPointsShown", label = "Contact Points Shown" },
+	{ aliases = {"mechanismsshown","physmechanisms"}, offAliases = {"unmechanismsshown","nophysmechanisms"}, service = "PhysicsSettings", property = "AreMechanismsShown", label = "Mechanisms Shown" },
+	{ aliases = {"unalignedparts","showunaligned"}, offAliases = {"ununalignedparts","nounalignedparts"}, service = "PhysicsSettings", property = "AreUnalignedPartsShown", label = "Unaligned Parts Shown" },
+	{ aliases = {"receiveage","showreceiveage"}, offAliases = {"unreceiveage","noreceiveage"}, service = "PhysicsSettings", property = "IsReceiveAgeShown", label = "Receive Age Shown" },
+	{ aliases = {"interpolationthrottle","showinterpolationthrottle"}, offAliases = {"uninterpolationthrottle","nointerpolationthrottle"}, service = "PhysicsSettings", property = "IsInterpolationThrottleShown", label = "Interpolation Throttle Shown" },
+	{ aliases = {"phystree","physicstree"}, offAliases = {"unphystree","nophysicstree"}, service = "PhysicsSettings", property = "IsTreeShown", label = "Physics Tree Shown" },
+	{ aliases = {"decompositiongeometry","showdecomposition"}, offAliases = {"undecompositiongeometry","nodecomposition"}, service = "PhysicsSettings", property = "ShowDecompositionGeometry", label = "Decomposition Geometry" },
+	{ aliases = {"drawcontactsforce","contactsnetforce"}, offAliases = {"undrawcontactsforce","nocontactsnetforce"}, service = "PhysicsSettings", property = "DrawContactsNetForce", label = "Draw Contacts Net Force" },
+	{ aliases = {"drawconstraintsforce","constraintsnetforce"}, offAliases = {"undrawconstraintsforce","noconstraintsnetforce"}, service = "PhysicsSettings", property = "DrawConstraintsNetForce", label = "Draw Constraints Net Force" },
+	{ aliases = {"drawtotalforce","totalnetforce"}, offAliases = {"undrawtotalforce","nototalnetforce"}, service = "PhysicsSettings", property = "DrawTotalNetForce", label = "Draw Total Net Force" },
+	{ aliases = {"forceinstancenames","drawforcenames"}, offAliases = {"unforceinstancenames","noforcenames"}, service = "PhysicsSettings", property = "ShowInstanceNamesForDrawnForcesAndTorques", label = "Force Instance Names" },
+	{ aliases = {"renderboundingboxes","showboundingboxes"}, offAliases = {"unrenderboundingboxes","noboundingboxes"}, service = "RenderSettings", property = "ShowBoundingBoxes", label = "Render Bounding Boxes" },
+	{ aliases = {"rendercsgtriangles","rendercsgdebug"}, offAliases = {"unrendercsgtriangles","norendercsgdebug"}, service = "RenderSettings", property = "RenderCSGTrianglesDebug", label = "Render CSG Triangles Debug" },
+	{ aliases = {"renderfrm","enablefrm"}, offAliases = {"unrenderfrm","disablefrm"}, service = "RenderSettings", property = "EnableFRM", label = "Frame Rate Manager" },
+	{ aliases = {"eagerbulkexecution","renderbulk"}, offAliases = {"uneagerbulkexecution","norenderbulk"}, service = "RenderSettings", property = "EagerBulkExecution", label = "Eager Bulk Execution" },
+	{ aliases = {"exportmergebymaterial","mergebymaterial"}, offAliases = {"unexportmergebymaterial","nomergebymaterial"}, service = "RenderSettings", property = "ExportMergeByMaterial", label = "Export Merge By Material" },
+	{ aliases = {"soundwarnings","reportsoundwarnings"}, offAliases = {"unsoundwarnings","noreportsoundwarnings"}, service = "DebugSettings", property = "ReportSoundWarnings", label = "Report Sound Warnings" },
+	{ aliases = {"videocapture","videocaptureenabled"}, offAliases = {"unvideocapture","novideocapture"}, service = "GameSettings", property = "VideoCaptureEnabled", label = "Video Capture Enabled" },
+}
+
+NAmanage.EngineSettings.numberCommands = {
+	{ aliases = {"inboundloss","inloss","netinloss"}, service = "NetworkSettings", property = "InboundNetworkLossPercent", label = "Inbound Network Loss Percent", usage = "inboundloss <0-100>", min = 0, max = 100 },
+	{ aliases = {"outboundloss","outloss","netoutloss"}, service = "NetworkSettings", property = "OutboundNetworkLossPercent", label = "Outbound Network Loss Percent", usage = "outboundloss <0-100>", min = 0, max = 100 },
+	{ aliases = {"inboundmindelay","inmindelay","netinmin"}, service = "NetworkSettings", property = "InboundNetworkMinDelayMs", label = "Inbound Network Min Delay", usage = "inboundmindelay <ms>", min = 0, max = 60000, integer = true },
+	{ aliases = {"inboundmaxdelay","inmaxdelay","netinmax"}, service = "NetworkSettings", property = "InboundNetworkMaxDelayMs", label = "Inbound Network Max Delay", usage = "inboundmaxdelay <ms>", min = 0, max = 60000, integer = true },
+	{ aliases = {"outboundmindelay","outmindelay","netoutmin"}, service = "NetworkSettings", property = "OutboundNetworkMinDelayMs", label = "Outbound Network Min Delay", usage = "outboundmindelay <ms>", min = 0, max = 60000, integer = true },
+	{ aliases = {"outboundmaxdelay","outmaxdelay","netoutmax"}, service = "NetworkSettings", property = "OutboundNetworkMaxDelayMs", label = "Outbound Network Max Delay", usage = "outboundmaxdelay <ms>", min = 0, max = 60000, integer = true },
+	{ aliases = {"forcedrawscale","forcevisualscale"}, service = "PhysicsSettings", property = "ForceDrawScale", label = "Force Draw Scale", usage = "forcedrawscale <number>", min = 0, max = 1000 },
+	{ aliases = {"torquedrawscale","torquevisualscale"}, service = "PhysicsSettings", property = "TorqueDrawScale", label = "Torque Draw Scale", usage = "torquedrawscale <number>", min = 0, max = 1000 },
+	{ aliases = {"fluidforcedrawscale","fluidforcescale"}, service = "PhysicsSettings", property = "FluidForceDrawScale", label = "Fluid Force Draw Scale", usage = "fluidforcedrawscale <number>", min = 0, max = 1000 },
+	{ aliases = {"forcesmoothingsteps","forcevisualsteps"}, service = "PhysicsSettings", property = "ForceVisualizationSmoothingSteps", label = "Force Smoothing Steps", usage = "forcesmoothingsteps <0-100>", min = 0, max = 100, integer = true },
+	{ aliases = {"throttleadjusttime","physadjusttime"}, service = "PhysicsSettings", property = "ThrottleAdjustTime", label = "Throttle Adjust Time", usage = "throttleadjusttime <seconds>", min = 0, max = 120 },
+	{ aliases = {"renderautofrm","autofrmlevel"}, service = "RenderSettings", property = "AutoFRMLevel", label = "Auto FRM Level", usage = "renderautofrm <number>", min = 0, max = 21, integer = true },
+	{ aliases = {"meshcachesize","rendermeshcache"}, service = "RenderSettings", property = "MeshCacheSize", label = "Mesh Cache Size", usage = "meshcachesize <number>", min = 0, integer = true },
+}
+
+for _, entry in ipairs(NAmanage.EngineSettings.boolCommands) do
+	cmd.add(entry.aliases, {entry.usage or (entry.aliases[1].." [on/off]"), "Set "..entry.label}, function(...)
+		local args = {...}
+		if entry.networkEmulation then
+			if args[1] ~= nil and tonumber(args[1]) then
+				NAmanage.EngineSettings.applyNetworkEmulation(true, args[1], args[2], args[3])
+				return
+			end
+			local state = NAmanage.EngineSettings.parseBool(args[1], true)
+			if state then
+				NAmanage.EngineSettings.applyNetworkEmulation(true, args[2], args[3], args[4])
+			else
+				NAmanage.EngineSettings.applyNetworkEmulation(false)
+			end
+			return
+		end
+		NAmanage.EngineSettings.setBool(entry, NAmanage.EngineSettings.parseBool(args[1], true))
+	end)
+	if entry.offAliases then
+		cmd.add(entry.offAliases, {entry.offAliases[1], "Disable "..entry.label}, function()
+			NAmanage.EngineSettings.setBool(entry, false)
+		end)
+	end
+end
+
+for _, entry in ipairs(NAmanage.EngineSettings.numberCommands) do
+	cmd.add(entry.aliases, {entry.usage, "Set "..entry.label}, function(value)
+		NAmanage.EngineSettings.setNumber(entry, value)
+	end, true)
+end
+
+cmd.add({"reloadassets","renderreloadassets"},{"reloadassets","Set RenderSettings.ReloadAssets"},function()
+	NAmanage.EngineSettings.set("RenderSettings", "ReloadAssets", true, "Reload Assets")
+end)
+
+cmd.add({"enginesettingsinfo","enginedebug","rblxsettingsinfo"},{"enginesettingsinfo","Show Roblox settings service diagnostics"},function()
+	local lines = {}
+	local debugSettings = NAmanage.EngineSettings.getService("DebugSettings")
+	if debugSettings then
+		local function addDebug(label, prop)
+			local ok, value = pcall(function()
+				return debugSettings[prop]
+			end)
+			if ok and value ~= nil then
+				Insert(lines, label..": "..tostring(value))
+			end
+		end
+		addDebug("RobloxVersion", "RobloxVersion")
+		addDebug("InstanceCount", "InstanceCount")
+		addDebug("JobCount", "JobCount")
+		addDebug("PlayerCount", "PlayerCount")
+	else
+		Insert(lines, "DebugSettings unavailable")
+	end
+	Insert(lines, "GameSettings: "..(NAmanage.EngineSettings.getService("GameSettings") and "available" or "unavailable"))
+	Insert(lines, "LuaSettings: "..(NAmanage.EngineSettings.getService("LuaSettings") and "available" or "unavailable"))
+	Insert(lines, "Studio: "..(NAmanage.EngineSettings.getService("Studio") and "available" or "unavailable"))
+	DoNotif(Concat(lines, "\n"), 6, "Engine Settings")
 end)
 
 cmd.add({"replicationlag", "backtrack"}, {"replicationlag (backtrack)", "Set IncomingReplicationLag"}, function(num)
@@ -95689,6 +95932,7 @@ NAgui.addTab(NA_TABS.TAB_GENERAL, { order = 1, textIcon = "gear" })
 NAgui.addTab(NA_TABS.TAB_AUTOMATION, { order = 2, textIcon = "cube-vertexes" })
 NAgui.addTab(NA_TABS.TAB_MANAGEMENT, { order = 3, textIcon = "nebula" })
 NAgui.addTab(NA_TABS.TAB_SAVE_INSTANCE, { order = 3.5, textIcon = "arrow-down-to-line" })
+NAgui.addTab(NA_TABS.TAB_ENGINE_SETTINGS, { order = 4.5, textIcon = "three-sliders-horizontal" })
 NAgui.setTab(NA_TABS.TAB_GENERAL)
 
 NAgui.addSection("Prefix Settings")
@@ -95850,6 +96094,76 @@ NAmanage.RegisterToggleAutoSync("Disable Network Pause", function()
 	return NAStuff.NetworkPauseDisabled == true
 end)
 
+NAgui.setTab(NA_TABS.TAB_ENGINE_SETTINGS)
+NAgui.addSection("Roblox Engine Settings")
+
+local function engineBoolValue(entry)
+	return NAmanage.EngineSettings.get(entry.service, entry.property, false) == true
+end
+
+for _, entry in ipairs(NAmanage.EngineSettings.boolCommands or {}) do
+	NAgui.addToggle(entry.label, engineBoolValue(entry), function(v)
+		NAmanage.EngineSettings.setBool(entry, v == true)
+	end)
+	NAmanage.RegisterToggleAutoSync(entry.label, function()
+		return engineBoolValue(entry)
+	end)
+end
+
+NAgui.addSection("Network Emulation Preset")
+local netEmulationMinDelay = tostring(NAmanage.EngineSettings.get("NetworkSettings", "InboundNetworkMinDelayMs", 150) or 150)
+local netEmulationMaxDelay = tostring(NAmanage.EngineSettings.get("NetworkSettings", "InboundNetworkMaxDelayMs", 150) or 150)
+local netEmulationLoss = tostring(NAmanage.EngineSettings.get("NetworkSettings", "InboundNetworkLossPercent", 0) or 0)
+NAgui.addInput("Preset Min Delay", "milliseconds", netEmulationMinDelay, function(text)
+	netEmulationMinDelay = tostring(text or "")
+end)
+NAgui.addInput("Preset Max Delay", "milliseconds", netEmulationMaxDelay, function(text)
+	netEmulationMaxDelay = tostring(text or "")
+end)
+NAgui.addInput("Preset Packet Loss", "percent", netEmulationLoss, function(text)
+	netEmulationLoss = tostring(text or "")
+end)
+NAgui.addButton("Apply Network Emulation Preset", function()
+	NAmanage.EngineSettings.applyNetworkEmulation(true, netEmulationMinDelay, netEmulationMaxDelay, netEmulationLoss)
+end)
+NAgui.addButton("Disable Network Emulation", function()
+	NAmanage.EngineSettings.applyNetworkEmulation(false)
+end)
+
+NAgui.addSection("Engine Number Settings")
+for _, entry in ipairs(NAmanage.EngineSettings.numberCommands or {}) do
+	NAgui.addInput(entry.label, entry.usage or "number", tostring(NAmanage.EngineSettings.get(entry.service, entry.property, 0) or 0), function(text)
+		NAmanage.EngineSettings.setNumber(entry, text)
+	end)
+end
+
+NAgui.addInput("Incoming Replication Lag", "seconds", tostring(NAmanage.EngineSettings.get("NetworkSettings", "IncomingReplicationLag", 0) or 0), function(text)
+	local n = tonumber(text)
+	if not n then
+		DoNotif("Incoming Replication Lag must be a number", 2)
+		return
+	end
+	NAmanage.EngineSettings.set("NetworkSettings", "IncomingReplicationLag", math.max(0, n), "Incoming Replication Lag")
+end)
+
+NAgui.addInput("Physics Environmental Throttle", "1 default, 2 disabled", tostring(NAmanage.EngineSettings.get("PhysicsSettings", "PhysicsEnvironmentalThrottle", 1) or 1), function(text)
+	local n = tonumber(text)
+	if not n then
+		DoNotif("Physics Environmental Throttle must be a number", 2)
+		return
+	end
+	NAmanage.EngineSettings.set("PhysicsSettings", "PhysicsEnvironmentalThrottle", n, "Physics Environmental Throttle")
+end)
+
+NAgui.addButton("Reload Render Assets", function()
+	NAmanage.EngineSettings.set("RenderSettings", "ReloadAssets", true, "Reload Assets")
+end)
+
+NAgui.addButton("Show Engine Settings Info", function()
+	cmd.run({"enginesettingsinfo"})
+end)
+
+NAgui.setTab(NA_TABS.TAB_GENERAL)
 NAgui.addToggle("Disable Unsafe Functions", NAStuff.UnsafeFunctionsDisabled == true, function(v)
 	pcall(NAmanage.SetUnsafeFunctionsDisabled, v == true, {
 		save = true;
