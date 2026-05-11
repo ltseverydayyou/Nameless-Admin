@@ -85652,17 +85652,17 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	end
 
 	local function getSafePad()
-		local padX, padY = 12, 12
+		local x, y = 12, 12
 		if GuiServiceRef and GuiServiceRef.GetGuiInset then
-			local ok, insetA, insetB = pcall(function()
+			local ok, a, b = pcall(function()
 				return GuiServiceRef:GetGuiInset()
 			end)
-			if ok then
-				padX += math.max(insetA.X, insetB.X)
-				padY += math.max(insetA.Y, insetB.Y)
+			if ok and typeof(a) == "Vector2" and typeof(b) == "Vector2" then
+				x += math.max(a.X, b.X)
+				y += math.max(a.Y, b.Y)
 			end
 		end
-		return padX, padY
+		return x, y
 	end
 
 	local function isTouchCompact(vp)
@@ -85672,40 +85672,48 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		return IsOnMobile or vp.Y < 600 or vp.X < 900 or (touch and not (mouse or key))
 	end
 
-	local function clampSize(v, lo, hi)
-		v = tonumber(v) or 0
-		lo = tonumber(lo) or 0
-		hi = tonumber(hi) or lo
-		if hi < lo then
-			return math.max(1, hi)
+	local function getExecutorSize(vp)
+		local padX, padY = getSafePad()
+		local maxW = math.max(1, math.floor(vp.X - padX * 2 + 0.5))
+		local maxH = math.max(1, math.floor(vp.Y - padY * 2 + 0.5))
+		local mobile = isTouchCompact(vp)
+		local baseW, baseH = 920, 540
+		local capW = mobile and math.floor(maxW * 0.90 + 0.5) or math.min(baseW, maxW)
+		local capH = mobile and math.floor(maxH * 0.90 + 0.5) or math.min(baseH, maxH)
+		capW = math.max(1, capW)
+		capH = math.max(1, capH)
+		local scale = math.min(capW / baseW, capH / baseH, 1)
+		if not scale or scale <= 0 then
+			scale = 1
 		end
-		return math.clamp(v, lo, hi)
+		local w = math.floor(baseW * scale + 0.5)
+		local h = math.floor(baseH * scale + 0.5)
+		local minW = math.min(mobile and 340 or 680, capW)
+		local minH = math.min(mobile and 280 or 420, capH)
+		w = math.clamp(w, minW, capW)
+		h = math.clamp(h, minH, capH)
+		return w, h, capW, capH, mobile
 	end
 
-	local function applyExecutorFrameSize()
+	local function applyExecutorFrameSize(center)
 		if not frame or not frame.Parent then
 			return
 		end
 		local vp = getExecutorViewport()
-		local padX, padY = getSafePad()
-		local maxW = math.max(1, vp.X - padX * 2)
-		local maxH = math.max(1, vp.Y - padY * 2)
-		local mobile = isTouchCompact(vp)
-		local defaultW = mobile and math.floor(vp.X * 0.965) or 920
-		local defaultH = mobile and math.floor(vp.Y * (vp.Y < 520 and 0.88 or 0.90)) or 540
+		local defW, defH, capW, capH, mobile = getExecutorSize(vp)
 		local initialized = frame.GetAttribute and NAmanage.GetAttr(frame, "NAExecutorDefaultSized") == true
 		local curW = tonumber(frame.Size.X.Offset) or 0
 		local curH = tonumber(frame.Size.Y.Offset) or 0
-		local targetW = initialized and curW or defaultW
-		local targetH = initialized and curH or defaultH
-		if targetW <= 0 then
-			targetW = defaultW
+		local targetW = defW
+		local targetH = defH
+		if initialized and curW > 0 and curH > 0 then
+			targetW = math.clamp(math.floor(curW + 0.5), math.min(mobile and 340 or 680, capW), capW)
+			targetH = math.clamp(math.floor(curH + 0.5), math.min(mobile and 280 or 420, capH), capH)
+			if mobile and (targetW >= capW * 0.96 or targetW / math.max(targetH, 1) > 1.95 or targetH < defH * 0.82) then
+				targetW = defW
+				targetH = defH
+			end
 		end
-		if targetH <= 0 then
-			targetH = defaultH
-		end
-		targetW = math.clamp(math.floor(targetW + 0.5), 1, maxW)
-		targetH = math.clamp(math.floor(targetH + 0.5), 1, maxH)
 		execResponsive.compact = targetW < 760 or targetH < 430
 		execResponsive.phone = targetW < 560
 		execResponsive.lastW = targetW
@@ -85717,14 +85725,8 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		if frame.SetAttribute then
 			NAmanage.SetAttr(frame, "NAExecutorDefaultSized", true)
 		end
-		if not initialized then
+		if center == true and NAmanage.centerFrame then
 			NAmanage.centerFrame(frame)
-		else
-			local x = math.floor(frame.Position.X.Scale * vp.X + frame.Position.X.Offset + 0.5)
-			local y = math.floor(frame.Position.Y.Scale * vp.Y + frame.Position.Y.Offset + 0.5)
-			x = math.clamp(x, padX, math.max(padX, vp.X - targetW - padX))
-			y = math.clamp(y, padY, math.max(padY, vp.Y - targetH - padY))
-			frame.Position = UDim2.fromOffset(x, y)
 		end
 	end
 	NAmanage.Executor_ApplyResponsive = applyExecutorFrameSize
@@ -87777,8 +87779,8 @@ NAmanage.Executor_Toggle = NAmanage.Executor_Toggle or function(forceState)
 	execFrame.Visible = nextState
 	if execFrame.Visible then
 		if type(NAmanage.Executor_ApplyResponsive) == "function" then
-			NAmanage.Executor_ApplyResponsive()
-		else
+			NAmanage.Executor_ApplyResponsive(true)
+		elseif NAmanage.centerFrame then
 			NAmanage.centerFrame(execFrame)
 		end
 		if type(NAStuff.ExecutorRefresh) == "function" then
@@ -87831,6 +87833,29 @@ NAmanage.Notepad_Init = function()
 		return x, y
 	end
 
+	local function getNotepadSize(wide, tall)
+		local padX, padY = getNotepadPad()
+		local maxW = math.max(1, math.floor(wide - padX * 2 + 0.5))
+		local maxH = math.max(1, math.floor(tall - padY * 2 + 0.5))
+		local small = IsOnMobile or wide < 900 or tall < 620
+		local baseW, baseH = 720, 455
+		local capW = small and math.floor(maxW * 0.90 + 0.5) or math.min(baseW, maxW)
+		local capH = small and math.floor(maxH * 0.90 + 0.5) or math.min(baseH, maxH)
+		capW = math.max(1, capW)
+		capH = math.max(1, capH)
+		local scale = math.min(capW / baseW, capH / baseH, 1)
+		if not scale or scale <= 0 then
+			scale = 1
+		end
+		local w = math.floor(baseW * scale + 0.5)
+		local h = math.floor(baseH * scale + 0.5)
+		local minW = math.min(small and 280 or 460, capW)
+		local minH = math.min(small and 230 or 340, capH)
+		w = math.clamp(w, minW, capW)
+		h = math.clamp(h, minH, capH)
+		return w, h, capW, capH, small
+	end
+
 	local function applyNotepadResponsive(center)
 		if not frame or not frame.Parent then
 			return
@@ -87840,23 +87865,22 @@ NAmanage.Notepad_Init = function()
 		end
 		local vp = getNotepadViewport()
 		local s = getNotepadScale()
-		local padX, padY = getNotepadPad()
 		local wide = math.max(1, vp.X / s)
 		local tall = math.max(1, vp.Y / s)
-		local maxW = math.max(1, math.floor(wide - padX * 2 + 0.5))
-		local maxH = math.max(1, math.floor(tall - padY * 2 + 0.5))
-		local small = IsOnMobile or wide < 900 or tall < 620
+		local defW, defH, capW, capH, small = getNotepadSize(wide, tall)
 		local curW = tonumber(frame.Size.X.Offset) or 0
 		local curH = tonumber(frame.Size.Y.Offset) or 0
 		local initialized = frame.GetAttribute and NAmanage.GetAttr(frame, "NANotepadDefaultSized") == true
-		if curW <= 0 or not initialized then
-			curW = small and maxW or 720
+		local targetW = defW
+		local targetH = defH
+		if initialized and curW > 0 and curH > 0 then
+			targetW = math.clamp(math.floor(curW + 0.5), math.min(small and 280 or 460, capW), capW)
+			targetH = math.clamp(math.floor(curH + 0.5), math.min(small and 230 or 340, capH), capH)
+			if small and (targetW >= capW * 0.96 or targetW / math.max(targetH, 1) > 1.95 or targetH < defH * 0.82) then
+				targetW = defW
+				targetH = defH
+			end
 		end
-		if curH <= 0 or not initialized then
-			curH = small and maxH or 455
-		end
-		local targetW = math.clamp(math.floor(curW + 0.5), 1, maxW)
-		local targetH = math.clamp(math.floor(curH + 0.5), 1, maxH)
 		frame.AnchorPoint = Vector2.new(0, 0)
 		if frame.AbsoluteSize.X ~= targetW or frame.AbsoluteSize.Y ~= targetH then
 			frame.Size = UDim2.fromOffset(targetW, targetH)
@@ -87864,18 +87888,9 @@ NAmanage.Notepad_Init = function()
 		if frame.SetAttribute then
 			NAmanage.SetAttr(frame, "NANotepadDefaultSized", true)
 		end
-		local x
-		local y
-		if center and not initialized then
-			x = math.floor((wide - targetW) * 0.5 + 0.5)
-			y = math.floor((tall - targetH) * 0.5 + 0.5)
-		else
-			x = math.floor(frame.Position.X.Scale * wide + frame.Position.X.Offset + 0.5)
-			y = math.floor(frame.Position.Y.Scale * tall + frame.Position.Y.Offset + 0.5)
+		if center == true and NAmanage.centerFrame then
+			NAmanage.centerFrame(frame)
 		end
-		x = math.clamp(x, padX, math.max(padX, wide - targetW - padX))
-		y = math.clamp(y, padY, math.max(padY, tall - targetH - padY))
-		frame.Position = UDim2.fromOffset(x, y)
 	end
 
 	NAmanage.Notepad_ApplyResponsive = applyNotepadResponsive
@@ -94772,7 +94787,20 @@ NAmanage.getRobloxDevConsoleWindow = function()
 	return master:FindFirstChild("DevConsoleWindow")
 end
 
-NAmanage.bindRobloxDevConsoleCopyButtons = NAmanage.bindRobloxDevConsoleCopyButtons or function(window)
+NAmanage.getRobloxDevConsoleClientLog = function(window, deep)
+	local consoleUI = window and (window:FindFirstChild("DevConsoleUI") or window)
+	local mainView = consoleUI and consoleUI:FindFirstChild("MainView")
+	if not mainView then
+		return nil
+	end
+	local clientLog = mainView:FindFirstChild("ClientLog")
+	if clientLog or deep == false then
+		return clientLog
+	end
+	return mainView:FindFirstChild("ClientLog", true)
+end
+
+NAmanage.bindRobloxDevConsoleCopyButtons = function(window, forceScan)
 	if NAStuff and NAStuff.RobloxDevConsoleCopyButtonsEnabled == false then
 		NAmanage.cleanupRobloxDevConsoleCopyButtons()
 		return false
@@ -94782,9 +94810,7 @@ NAmanage.bindRobloxDevConsoleCopyButtons = NAmanage.bindRobloxDevConsoleCopyButt
 		return false
 	end
 
-	local consoleUI = window and (window:FindFirstChild("DevConsoleUI") or window)
-	local mainView = consoleUI and consoleUI:FindFirstChild("MainView")
-	local clientLog = mainView and (mainView:FindFirstChild("ClientLog") or mainView:FindFirstChild("ClientLog", true))
+	local clientLog = NAmanage.getRobloxDevConsoleClientLog and NAmanage.getRobloxDevConsoleClientLog(window, true) or nil
 	if not clientLog then
 		if NAStuff._rbxDevConsoleCopyCleanup and NAStuff._rbxDevConsoleCopyTarget and not NAStuff._rbxDevConsoleCopyTarget.Parent then
 			NAmanage.cleanupRobloxDevConsoleCopyButtons()
@@ -94793,7 +94819,7 @@ NAmanage.bindRobloxDevConsoleCopyButtons = NAmanage.bindRobloxDevConsoleCopyButt
 	end
 
 	if NAStuff._rbxDevConsoleCopyTarget == clientLog and NAStuff._rbxDevConsoleCopyRefresh then
-		pcall(NAStuff._rbxDevConsoleCopyRefresh)
+		pcall(NAStuff._rbxDevConsoleCopyRefresh, forceScan == true)
 		return true
 	end
 
@@ -94803,8 +94829,22 @@ NAmanage.bindRobloxDevConsoleCopyButtons = NAmanage.bindRobloxDevConsoleCopyButt
 
 	local connections = {}
 	local createdButtons = {}
-	local boundHosts = {}
+	local boundHosts = setmetatable({}, { __mode = "k" })
+	local buttonHosts = setmetatable({}, { __mode = "k" })
+	local attachCount = 0
+	local lastScan = 0
+	local scanQueued = false
+	local maxButtons = math.floor(tonumber(NAStuff and NAStuff.RobloxDevConsoleCopyLimit) or 180)
+	if maxButtons < 40 then
+		maxButtons = 40
+	elseif maxButtons > 400 then
+		maxButtons = 400
+	end
+
 	local function setMark(inst, key, value)
+		if not inst then
+			return
+		end
 		if NAmanage.SetAttr then
 			pcall(NAmanage.SetAttr, inst, key, value)
 		else
@@ -94813,7 +94853,11 @@ NAmanage.bindRobloxDevConsoleCopyButtons = NAmanage.bindRobloxDevConsoleCopyButt
 			end)
 		end
 	end
+
 	local function getMark(inst, key)
+		if not inst then
+			return nil
+		end
 		if NAmanage.GetAttr then
 			local ok, value = pcall(NAmanage.GetAttr, inst, key)
 			if ok then
@@ -94825,6 +94869,7 @@ NAmanage.bindRobloxDevConsoleCopyButtons = NAmanage.bindRobloxDevConsoleCopyButt
 		end)
 		return ok and value or nil
 	end
+
 	local function isDescendantOf(node, ancestor)
 		local current = node
 		while current do
@@ -94835,18 +94880,20 @@ NAmanage.bindRobloxDevConsoleCopyButtons = NAmanage.bindRobloxDevConsoleCopyButt
 		end
 		return false
 	end
+
 	local function resolveHost(label)
-		local host = label.Parent
+		local host = label and label.Parent or nil
 		if not (host and host:IsA("GuiObject")) or host == clientLog then
 			host = label
 		end
 		return host
 	end
+
 	local function sanitizeConsoleCopyText(parts, fallback)
 		local out = {}
 		for i = 1, #(parts or {}) do
 			local text = tostring(parts[i] or ""):match("^%s*(.-)%s*$")
-			if text ~= "" then
+			if text ~= "" and text ~= "COPY" and text ~= "DONE" then
 				Insert(out, text)
 			end
 		end
@@ -94859,15 +94906,19 @@ NAmanage.bindRobloxDevConsoleCopyButtons = NAmanage.bindRobloxDevConsoleCopyButt
 		local text = (#out > 0 and Concat(out, " ") or tostring(fallback or "")):gsub("^%s*%d%d:%d%d:%d%d%s*%-%-%s*", "")
 		return text:match("^%s*(.-)%s*$")
 	end
+
 	local function collectCopyText(label)
 		local host = resolveHost(label)
+		if not host then
+			return ""
+		end
 		local labels = {}
-		for _, desc in ipairs(NAmanage.qDesc(host, "Instance")) do
-			if desc:IsA("TextLabel") then
-				local text = tostring(desc.Text or ""):match("^%s*(.-)%s*$")
-				if text ~= "" then
-					Insert(labels, desc)
-				end
+		local list = NAmanage.qDesc(host, "TextLabel", { budget = 600, delay = 0, hardLimit = 80 })
+		for i = 1, #list do
+			local desc = list[i]
+			local text = tostring(desc.Text or ""):match("^%s*(.-)%s*$")
+			if text ~= "" then
+				Insert(labels, desc)
 			end
 		end
 		if #labels == 0 then
@@ -94885,14 +94936,47 @@ NAmanage.bindRobloxDevConsoleCopyButtons = NAmanage.bindRobloxDevConsoleCopyButt
 			return (a.LayoutOrder or 0) < (b.LayoutOrder or 0)
 		end)
 		local parts = {}
-		for _, textLabel in ipairs(labels) do
-			local text = tostring(textLabel.Text or ""):match("^%s*(.-)%s*$")
+		for i = 1, #labels do
+			local text = tostring(labels[i].Text or ""):match("^%s*(.-)%s*$")
 			if text ~= "" then
 				Insert(parts, text)
 			end
 		end
 		return sanitizeConsoleCopyText(parts, label.Text or "")
 	end
+
+	local function removeButtonAt(index)
+		local button = createdButtons[index]
+		if not button then
+			table.remove(createdButtons, index)
+			return
+		end
+		local host = buttonHosts[button]
+		if host then
+			setMark(host, "NA_RBXDevConsoleCopyBound", nil)
+			boundHosts[host] = nil
+		end
+		buttonHosts[button] = nil
+		pcall(function()
+			if button.Parent then
+				button:Destroy()
+			end
+		end)
+		table.remove(createdButtons, index)
+	end
+
+	local function pruneButtons()
+		for i = #createdButtons, 1, -1 do
+			local button = createdButtons[i]
+			if not (button and button.Parent) then
+				removeButtonAt(i)
+			end
+		end
+		while #createdButtons > maxButtons do
+			removeButtonAt(1)
+		end
+	end
+
 	local function attach(label)
 		if not (label and label.Parent and label:IsA("TextLabel")) then
 			return
@@ -94906,8 +94990,17 @@ NAmanage.bindRobloxDevConsoleCopyButtons = NAmanage.bindRobloxDevConsoleCopyButt
 		end
 
 		local host = resolveHost(label)
+		if not (host and host.Parent) then
+			return
+		end
 		if getMark(host, "NA_RBXDevConsoleCopyBound") == true then
 			return
+		end
+		if #createdButtons >= maxButtons then
+			pruneButtons()
+			if #createdButtons >= maxButtons then
+				removeButtonAt(1)
+			end
 		end
 
 		local copyButton = InstanceNew("TextButton")
@@ -94919,7 +95012,7 @@ NAmanage.bindRobloxDevConsoleCopyButtons = NAmanage.bindRobloxDevConsoleCopyButt
 		copyButton.BackgroundColor3 = Color3.fromRGB(20, 24, 29)
 		copyButton.BackgroundTransparency = 0.12
 		copyButton.BorderSizePixel = 0
-		copyButton.AutoButtonColor = false
+		copyButton.AutoButtonColor = true
 		copyButton.AnchorPoint = Vector2.new(1, 0.5)
 		copyButton.Position = UDim2.new(1, -8, 0.5, 0)
 		copyButton.Size = UDim2.new(0, 38, 0, 16)
@@ -94937,25 +95030,6 @@ NAmanage.bindRobloxDevConsoleCopyButtons = NAmanage.bindRobloxDevConsoleCopyButt
 		stroke.Transparency = 0.45
 		stroke.Thickness = 1
 		stroke.Parent = copyButton
-
-		Insert(connections, copyButton.MouseEnter:Connect(function()
-			__lt.cm("TweenService", "Create", copyButton, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-				BackgroundColor3 = Color3.fromRGB(32, 38, 45),
-				TextColor3 = Color3.fromRGB(255, 255, 255)
-			}):Play()
-			__lt.cm("TweenService", "Create", stroke, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-				Transparency = 0.15
-			}):Play()
-		end))
-		Insert(connections, copyButton.MouseLeave:Connect(function()
-			__lt.cm("TweenService", "Create", copyButton, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-				BackgroundColor3 = Color3.fromRGB(20, 24, 29),
-				TextColor3 = Color3.fromRGB(240, 244, 247)
-			}):Play()
-			__lt.cm("TweenService", "Create", stroke, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-				Transparency = 0.45
-			}):Play()
-		end))
 
 		local clickConn = MouseButtonFix(copyButton, function()
 			local copyText = collectCopyText(label)
@@ -94975,26 +95049,64 @@ NAmanage.bindRobloxDevConsoleCopyButtons = NAmanage.bindRobloxDevConsoleCopyButt
 				DoNotif("Clipboard unavailable", 1.5)
 			end
 		end)
-		Insert(connections, clickConn)
+		if clickConn then
+			Insert(connections, clickConn)
+		end
 		Insert(createdButtons, copyButton)
+		buttonHosts[copyButton] = host
 		boundHosts[host] = true
 		setMark(host, "NA_RBXDevConsoleCopyBound", true)
-	end
-	local function scan(root)
-		for _, desc in ipairs(NAmanage.qDesc(root, "Instance")) do
-			attach(desc)
+		attachCount += 1
+		if attachCount % 32 == 0 then
+			pruneButtons()
 		end
 	end
 
-	scan(clientLog)
+	local function scan(root, force)
+		if not (root and root.Parent) then
+			return
+		end
+		local now = tick()
+		if force ~= true and now - lastScan < 5 then
+			return
+		end
+		lastScan = now
+		pruneButtons()
+		local list = NAmanage.qDesc(root, "TextLabel", { budget = 500, delay = 0, hardLimit = math.max(maxButtons * 3, 300) })
+		for i = 1, #list do
+			attach(list[i])
+			if i % 120 == 0 then
+				Wait()
+			end
+		end
+		pruneButtons()
+	end
+
+	local function queueScan(force)
+		if scanQueued then
+			return
+		end
+		scanQueued = true
+		Defer(function()
+			scanQueued = false
+			if NAStuff and NAStuff._rbxDevConsoleCopyTarget == clientLog then
+				scan(clientLog, force == true)
+			end
+		end)
+	end
+
+	scan(clientLog, true)
 	Insert(connections, NAmanage.descAdd(clientLog, function(desc)
 		attach(desc)
+	end, function(desc)
+		return desc and desc:IsA("TextLabel")
 	end))
 	Insert(connections, clientLog.AncestryChanged:Connect(function(_, parent)
 		if not parent and NAStuff._rbxDevConsoleCopyCleanup then
 			pcall(NAStuff._rbxDevConsoleCopyCleanup)
 			NAStuff._rbxDevConsoleCopyCleanup = nil
 			NAStuff._rbxDevConsoleCopyTarget = nil
+			NAStuff._rbxDevConsoleCopyRefresh = nil
 		end
 	end))
 
@@ -95004,29 +95116,39 @@ NAmanage.bindRobloxDevConsoleCopyButtons = NAmanage.bindRobloxDevConsoleCopyButt
 				setMark(host, "NA_RBXDevConsoleCopyBound", nil)
 			end
 		end
-		boundHosts = {}
-		for _, button in ipairs(createdButtons) do
-			if button and button.Parent then
+		boundHosts = setmetatable({}, { __mode = "k" })
+		buttonHosts = setmetatable({}, { __mode = "k" })
+		for i = #createdButtons, 1, -1 do
+			local button = createdButtons[i]
+			if button then
 				pcall(function()
-					button:Destroy()
+					if button.Parent then
+						button:Destroy()
+					end
 				end)
 			end
+			createdButtons[i] = nil
 		end
-		createdButtons = {}
-		for _, conn in ipairs(connections) do
+		for i = #connections, 1, -1 do
+			local conn = connections[i]
 			if conn and conn.Disconnect then
 				pcall(function()
 					conn:Disconnect()
 				end)
 			end
+			connections[i] = nil
 		end
-		connections = {}
+		scanQueued = false
 	end
 
 	NAStuff._rbxDevConsoleCopyTarget = clientLog
-	NAStuff._rbxDevConsoleCopyRefresh = function()
-		if clientLog and clientLog.Parent then
-			scan(clientLog)
+	NAStuff._rbxDevConsoleCopyRefresh = function(force)
+		if force == true then
+			queueScan(true)
+		elseif tick() - lastScan >= 5 then
+			queueScan(false)
+		elseif #createdButtons > maxButtons then
+			pruneButtons()
 		end
 	end
 	NAStuff._rbxDevConsoleCopyCleanup = cleanup
@@ -95059,28 +95181,34 @@ NAmanage.refreshDevConsoleFeatures = function()
 end
 
 NAmanage.ensureRobloxDevConsoleCopyLoop = function()
-	NAlib.disconnect("rbx_devconsole_copy_loop")
+	if NAlib.isConnected and NAlib.isConnected("rbx_devconsole_copy_loop") then
+		return
+	end
 	if not (NAStuff and NAStuff.RobloxDevConsoleCopyButtonsEnabled == true) then
 		NAmanage.cleanupRobloxDevConsoleCopyButtons()
 		return
 	end
 
-	local elapsed = 0
+	local elapsed = 1
+	local lastVisible = false
 	NAlib.connect("rbx_devconsole_copy_loop", RunService.Heartbeat:Connect(function(dt)
 		elapsed = elapsed + (dt or 0)
-		if elapsed < 0.35 then
+		local interval = lastVisible and 1 or 2
+		if elapsed < interval then
 			return
 		end
 		elapsed = 0
 
 		if not (NAStuff and NAStuff.RobloxDevConsoleCopyButtonsEnabled == true) then
+			NAlib.disconnect("rbx_devconsole_copy_loop")
 			NAmanage.cleanupRobloxDevConsoleCopyButtons()
 			return
 		end
 
 		local window = NAmanage.getRobloxDevConsoleWindow and NAmanage.getRobloxDevConsoleWindow() or nil
-		if window and window.Visible ~= false then
-			NAmanage.bindRobloxDevConsoleCopyButtons(window)
+		lastVisible = window and window.Visible ~= false or false
+		if lastVisible then
+			NAmanage.bindRobloxDevConsoleCopyButtons(window, false)
 		elseif NAStuff._rbxDevConsoleCopyTarget and not NAStuff._rbxDevConsoleCopyTarget.Parent then
 			NAmanage.cleanupRobloxDevConsoleCopyButtons()
 		end
@@ -95417,7 +95545,7 @@ NAmanage.injectNAConsole = function()
 		local consoleVisible = ensureInjection() == true
 		NAlib.connect("naconsole_loop", RunService.Heartbeat:Connect(function(dt)
 			injectTick = injectTick + (dt or 0)
-			local pollInterval = consoleVisible and 0.15 or 0.75
+			local pollInterval = consoleVisible and 0.35 or 1.25
 			if injectTick < pollInterval then
 				return
 			end
