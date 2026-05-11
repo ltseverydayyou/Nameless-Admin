@@ -38157,6 +38157,288 @@ cmd.add({"unantivoid"},{"unantivoid","Disables antivoid"},function()
 	DebugNotif("AntiVoid Disabled", 3)
 end)
 
+cmd.add({"nofall","nofalldamage","antifall","nofalldmg"},{"nofall [limit] [slow]","Prevents fall damage by slowing falls and cancelling landing velocity (STILL IN BETA)"},function(limitArg, slowArg)
+	local lim = tonumber(limitArg) or 70
+	local slow = tonumber(slowArg) or 20
+
+	lim = math.clamp(lim, 10, 500)
+	slow = math.clamp(slow, 4, 80)
+
+	NAlib.disconnect("nofall")
+	NAlib.disconnect("nofall_char")
+
+	local rp = RaycastParams.new()
+	rp.FilterType = Enum.RaycastFilterType.Exclude
+	rp.IgnoreWater = true
+
+	local st = {
+		lim = lim,
+		slow = slow,
+		char = nil,
+		hum = nil,
+		root = nil,
+		last = 0,
+		pulse = 0,
+		hard = 0,
+		peak = 0,
+		dead = false,
+		ray = rp,
+	}
+
+	NAStuff._noFall = st
+
+	local plr = LocalPlayer or (Players and Players.LocalPlayer) or game:GetService("Players").LocalPlayer
+
+	local function getv(root)
+		local ok, v = pcall(function()
+			return root.AssemblyLinearVelocity
+		end)
+
+		if ok and typeof(v) == "Vector3" then
+			return v
+		end
+
+		return root.Velocity
+	end
+
+	local function setv(root, v)
+		if not root or not root.Parent then return end
+
+		pcall(function()
+			root.AssemblyLinearVelocity = v
+		end)
+
+		pcall(function()
+			root.Velocity = v
+		end)
+	end
+
+	local function reset(char)
+		if NAStuff._noFall ~= st or st.dead then return end
+
+		st.char = char
+		st.hum = char and getHum(char)
+		st.root = char and getRoot(char)
+		st.last = 0
+		st.pulse = 0
+		st.hard = 0
+		st.peak = st.root and st.root.Position.Y or 0
+		st.ray.FilterDescendantsInstances = char and {char} or {}
+	end
+
+	local function refresh(char)
+		if NAStuff._noFall ~= st or st.dead then return end
+		if not char or st.char ~= char then return end
+
+		st.hum = getHum(char)
+		st.root = getRoot(char)
+
+		if st.root then
+			st.peak = st.root.Position.Y
+		end
+
+		st.ray.FilterDescendantsInstances = {char}
+	end
+
+	local function refs()
+		local char = getChar()
+
+		if st.char ~= char then
+			reset(char)
+		end
+
+		if st.char and (not st.hum or not st.hum.Parent) then
+			st.hum = getHum(st.char)
+		end
+
+		if st.char and (not st.root or not st.root.Parent) then
+			st.root = getRoot(st.char)
+		end
+
+		return st.char, st.hum, st.root
+	end
+
+	local function isair(hum)
+		local s = hum:GetState()
+
+		return hum.FloorMaterial == Enum.Material.Air
+			or s == Enum.HumanoidStateType.Freefall
+			or s == Enum.HumanoidStateType.FallingDown
+	end
+
+	local function ground(root, spd)
+		local len = math.clamp((spd * 0.1) + 10, 12, 70)
+		local hit = workspace:Raycast(root.Position, Vector3.new(0, -len, 0), st.ray)
+
+		if not hit or not hit.Instance then
+			return nil, math.huge
+		end
+
+		return hit, root.Position.Y - hit.Position.Y
+	end
+
+	local function pulse(hum)
+		if not hum or not hum.Parent or hum.Health <= 0 then return end
+
+		pcall(function()
+			hum:ChangeState(Enum.HumanoidStateType.Climbing)
+		end)
+
+		task.defer(function()
+			if NAStuff._noFall ~= st or st.dead then return end
+			if not hum or not hum.Parent or hum.Health <= 0 then return end
+
+			pcall(function()
+				hum:ChangeState(Enum.HumanoidStateType.Freefall)
+			end)
+		end)
+	end
+
+	local function land(hum, root, v)
+		if not hum or not root then return end
+		if not hum.Parent or not root.Parent or hum.Health <= 0 then return end
+
+		local nv = Vector3.new(v.X, -1, v.Z)
+
+		pcall(function()
+			hum:ChangeState(Enum.HumanoidStateType.Climbing)
+		end)
+
+		setv(root, nv)
+
+		task.delay(0.04, function()
+			if NAStuff._noFall ~= st or st.dead then return end
+			if not hum or not root then return end
+			if not hum.Parent or not root.Parent or hum.Health <= 0 then return end
+
+			local cv = getv(root)
+
+			if hum.FloorMaterial == Enum.Material.Air and cv.Y < 2 then
+				pcall(function()
+					hum:ChangeState(Enum.HumanoidStateType.Freefall)
+				end)
+			else
+				pcall(function()
+					hum:ChangeState(Enum.HumanoidStateType.Running)
+				end)
+			end
+		end)
+	end
+
+	NAlib.connect("nofall_char", plr.CharacterAdded:Connect(function(char)
+		if NAStuff._noFall ~= st or st.dead then return end
+
+		reset(char)
+
+		task.defer(function()
+			if NAStuff._noFall ~= st or st.dead then return end
+			refresh(char)
+		end)
+
+		task.delay(0.25, function()
+			if NAStuff._noFall ~= st or st.dead then return end
+			refresh(char)
+		end)
+
+		task.delay(1, function()
+			if NAStuff._noFall ~= st or st.dead then return end
+			refresh(char)
+		end)
+	end))
+
+	if plr.Character then
+		reset(plr.Character)
+	end
+
+	NAlib.connect("nofall", RunService.Heartbeat:Connect(function(dt)
+		if NAStuff._noFall ~= st or st.dead then return end
+
+		local char, hum, root = refs()
+		if not char or not hum or not root then return end
+		if not char.Parent or not hum.Parent or not root.Parent then return end
+		if hum.Health <= 0 then return end
+
+		local v = getv(root)
+		local y = v.Y
+		local now = os.clock()
+		local pos = root.Position
+
+		if pos.Y > st.peak then
+			st.peak = pos.Y
+		end
+
+		if not isair(hum) then
+			st.peak = pos.Y
+			st.hard = 0
+
+			if y < -st.slow then
+				setv(root, Vector3.new(v.X, -2, v.Z))
+			end
+
+			return
+		end
+
+		if y >= -2 then return end
+
+		local spd = -y
+		local drop = st.peak - pos.Y
+
+		if spd < st.lim and drop < 18 then return end
+
+		local hit, dst = ground(root, spd)
+		local near = hit and dst <= math.clamp((spd * 0.07) + 5, 6, 24)
+
+		if y < -st.slow then
+			local xz = Vector3.new(v.X, 0, v.Z)
+			local mx = math.max(30, st.slow * 2.5)
+
+			if xz.Magnitude > mx then
+				xz = xz.Unit * mx
+			end
+
+			setv(root, Vector3.new(xz.X, -st.slow, xz.Z))
+		end
+
+		if now - st.pulse >= 0.24 then
+			st.pulse = now
+			pulse(hum)
+		end
+
+		if near then
+			st.hard = now + 0.22
+		end
+
+		if near or now <= st.hard then
+			if now - st.last >= 0.025 then
+				st.last = now
+				land(hum, root, getv(root))
+			end
+		end
+	end))
+
+	DebugNotif("NoFall enabled | limit: "..tostring(lim).." | slow: "..tostring(slow), 2)
+end, true)
+
+cmd.add({"unnofall","unnofalldamage","unantifall","unnofalldmg"},{"unnofall","Disables nofall"},function()
+	local st = NAStuff._noFall
+
+	if st then
+		st.dead = true
+		st.char = nil
+		st.hum = nil
+		st.root = nil
+
+		if st.ray then
+			st.ray.FilterDescendantsInstances = {}
+		end
+	end
+
+	NAStuff._noFall = nil
+	NAlib.disconnect("nofall")
+	NAlib.disconnect("nofall_char")
+	DebugNotif("NoFall disabled", 2)
+end)
+
 cmd.add({"fakeout"}, {"fakeout", "tp to void and back"}, function()
 	local character = getChar()
 	local root = character and getRoot(character)
