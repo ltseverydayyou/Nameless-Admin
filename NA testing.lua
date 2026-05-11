@@ -85379,6 +85379,33 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		lastW = 0,
 		lastH = 0,
 	}
+	local execSizeXAttr = "NAExecutorSavedSizeX"
+	local execSizeYAttr = "NAExecutorSavedSizeY"
+	local function saveExecutorFrameSize()
+		if not (frame and frame.Parent and frame.SetAttribute) then
+			return
+		end
+		if frame.GetAttribute and NAmanage.GetAttr(frame, "NAMenuMinimized") == true then
+			return
+		end
+		local w = tonumber(frame.Size.X.Offset) or 0
+		local h = tonumber(frame.Size.Y.Offset) or 0
+		if w > 0 and h > 0 then
+			NAmanage.SetAttr(frame, execSizeXAttr, math.floor(w + 0.5))
+			NAmanage.SetAttr(frame, execSizeYAttr, math.floor(h + 0.5))
+		end
+	end
+	local function getExecutorSavedSize()
+		if frame and frame.GetAttribute then
+			local w = tonumber(NAmanage.GetAttr(frame, execSizeXAttr))
+			local h = tonumber(NAmanage.GetAttr(frame, execSizeYAttr))
+			if w and h and w > 0 and h > 0 then
+				return w, h
+			end
+		end
+		return nil
+	end
+	NAmanage.Executor_SaveFrameSize = saveExecutorFrameSize
 	local baseExecDir = "Nameless-Admin"
 	local execDir = baseExecDir.."/NA-Exec"
 	local settingsFile = execDir.."/settings.json"
@@ -85702,13 +85729,19 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		local vp = getExecutorViewport()
 		local defW, defH, capW, capH, mobile = getExecutorSize(vp)
 		local initialized = frame.GetAttribute and NAmanage.GetAttr(frame, "NAExecutorDefaultSized") == true
+		local minW = math.min(mobile and 340 or 680, capW)
+		local minH = math.min(mobile and 280 or 420, capH)
 		local curW = tonumber(frame.Size.X.Offset) or 0
 		local curH = tonumber(frame.Size.Y.Offset) or 0
+		local savedW, savedH = getExecutorSavedSize()
 		local targetW = defW
 		local targetH = defH
-		if initialized and curW > 0 and curH > 0 then
-			targetW = math.clamp(math.floor(curW + 0.5), math.min(mobile and 340 or 680, capW), capW)
-			targetH = math.clamp(math.floor(curH + 0.5), math.min(mobile and 280 or 420, capH), capH)
+		if savedW and savedH then
+			targetW = math.clamp(math.floor(savedW + 0.5), minW, capW)
+			targetH = math.clamp(math.floor(savedH + 0.5), minH, capH)
+		elseif initialized and curW > 0 and curH > 0 then
+			targetW = math.clamp(math.floor(curW + 0.5), minW, capW)
+			targetH = math.clamp(math.floor(curH + 0.5), minH, capH)
 			if mobile and (targetW >= capW * 0.96 or targetW / math.max(targetH, 1) > 1.95 or targetH < defH * 0.82) then
 				targetW = defW
 				targetH = defH
@@ -85725,6 +85758,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		if frame.SetAttribute then
 			NAmanage.SetAttr(frame, "NAExecutorDefaultSized", true)
 		end
+		saveExecutorFrameSize()
 		if center == true and NAmanage.centerFrame then
 			NAmanage.centerFrame(frame)
 		end
@@ -87741,6 +87775,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	if NAStuff and NAStuff.NASCREENGUI then
 		NAlib.connect("NAExecutorResponsive", NAStuff.NASCREENGUI:GetPropertyChangedSignal("AbsoluteSize"):Connect(queueExecutorResponsive))
 	end
+	NAlib.connect("NAExecutorResponsive", frame:GetPropertyChangedSignal("Size"):Connect(saveExecutorFrameSize))
 	NAlib.connect("NAExecutorResponsive", frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
 		updateBodyLayout()
 		queueRefreshEditor()
@@ -87773,8 +87808,13 @@ NAmanage.Executor_Toggle = NAmanage.Executor_Toggle or function(forceState)
 	if type(nextState) ~= "boolean" then
 		nextState = not execFrame.Visible
 	end
-	if execFrame.Visible and nextState == false and type(NAStuff.ExecutorSaveTabs) == "function" then
-		pcall(NAStuff.ExecutorSaveTabs)
+	if execFrame.Visible and nextState == false then
+		if type(NAmanage.Executor_SaveFrameSize) == "function" then
+			pcall(NAmanage.Executor_SaveFrameSize)
+		end
+		if type(NAStuff.ExecutorSaveTabs) == "function" then
+			pcall(NAStuff.ExecutorSaveTabs)
+		end
 	end
 	execFrame.Visible = nextState
 	if execFrame.Visible then
@@ -87797,6 +87837,33 @@ NAmanage.Notepad_Init = function()
 
 	local frame = NAUIMANAGER.NotepadFrame
 	local cont = NAUIMANAGER.NotepadContainer
+	local noteSizeXAttr = "NANotepadSavedSizeX"
+	local noteSizeYAttr = "NANotepadSavedSizeY"
+	local function saveNotepadFrameSize()
+		if not (frame and frame.Parent and frame.SetAttribute) then
+			return
+		end
+		if frame.GetAttribute and NAmanage.GetAttr(frame, "NAMenuMinimized") == true then
+			return
+		end
+		local w = tonumber(frame.Size.X.Offset) or 0
+		local h = tonumber(frame.Size.Y.Offset) or 0
+		if w > 0 and h > 0 then
+			NAmanage.SetAttr(frame, noteSizeXAttr, math.floor(w + 0.5))
+			NAmanage.SetAttr(frame, noteSizeYAttr, math.floor(h + 0.5))
+		end
+	end
+	local function getNotepadSavedSize()
+		if frame and frame.GetAttribute then
+			local w = tonumber(NAmanage.GetAttr(frame, noteSizeXAttr))
+			local h = tonumber(NAmanage.GetAttr(frame, noteSizeYAttr))
+			if w and h and w > 0 and h > 0 then
+				return w, h
+			end
+		end
+		return nil
+	end
+	NAmanage.Notepad_SaveFrameSize = saveNotepadFrameSize
 	local function getNotepadScale()
 		local s = (NAUIMANAGER and NAUIMANAGER.AUTOSCALER and tonumber(NAUIMANAGER.AUTOSCALER.Scale)) or 1
 		if not s or s <= 0 then
@@ -87868,14 +87935,20 @@ NAmanage.Notepad_Init = function()
 		local wide = math.max(1, vp.X / s)
 		local tall = math.max(1, vp.Y / s)
 		local defW, defH, capW, capH, small = getNotepadSize(wide, tall)
+		local minW = math.min(small and 280 or 460, capW)
+		local minH = math.min(small and 230 or 340, capH)
 		local curW = tonumber(frame.Size.X.Offset) or 0
 		local curH = tonumber(frame.Size.Y.Offset) or 0
+		local savedW, savedH = getNotepadSavedSize()
 		local initialized = frame.GetAttribute and NAmanage.GetAttr(frame, "NANotepadDefaultSized") == true
 		local targetW = defW
 		local targetH = defH
-		if initialized and curW > 0 and curH > 0 then
-			targetW = math.clamp(math.floor(curW + 0.5), math.min(small and 280 or 460, capW), capW)
-			targetH = math.clamp(math.floor(curH + 0.5), math.min(small and 230 or 340, capH), capH)
+		if savedW and savedH then
+			targetW = math.clamp(math.floor(savedW + 0.5), minW, capW)
+			targetH = math.clamp(math.floor(savedH + 0.5), minH, capH)
+		elseif initialized and curW > 0 and curH > 0 then
+			targetW = math.clamp(math.floor(curW + 0.5), minW, capW)
+			targetH = math.clamp(math.floor(curH + 0.5), minH, capH)
 			if small and (targetW >= capW * 0.96 or targetW / math.max(targetH, 1) > 1.95 or targetH < defH * 0.82) then
 				targetW = defW
 				targetH = defH
@@ -87888,6 +87961,7 @@ NAmanage.Notepad_Init = function()
 		if frame.SetAttribute then
 			NAmanage.SetAttr(frame, "NANotepadDefaultSized", true)
 		end
+		saveNotepadFrameSize()
 		if center == true and NAmanage.centerFrame then
 			NAmanage.centerFrame(frame)
 		end
@@ -89211,6 +89285,7 @@ NAmanage.Notepad_Init = function()
 	updEditorSize()
 	updCount()
 	NAlib.disconnect("NANotepadResponsive")
+	NAlib.connect("NANotepadResponsive", frame:GetPropertyChangedSignal("Size"):Connect(saveNotepadFrameSize))
 	if workspace and workspace.CurrentCamera then
 		NAlib.connect("NANotepadResponsive", workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
 			task.defer(function()
@@ -89258,6 +89333,9 @@ NAmanage.Notepad_Toggle = function(forceState)
 	local nextState = forceState
 	if type(nextState) ~= "boolean" then
 		nextState = not frame.Visible
+	end
+	if frame.Visible and nextState == false and type(NAmanage.Notepad_SaveFrameSize) == "function" then
+		pcall(NAmanage.Notepad_SaveFrameSize)
 	end
 	frame.Visible = nextState
 	if frame.Visible then
