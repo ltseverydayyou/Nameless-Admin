@@ -26936,12 +26936,125 @@ NAmanage.ESP_ClearModel = function(model)
 	espCONS[model] = nil
 end
 
+NAStuff.ESP_ReattachCooldown = NAStuff.ESP_ReattachCooldown or {}
+NAStuff.ESP_ReattachTokens = NAStuff.ESP_ReattachTokens or {}
+
+NAmanage.ESP_PlayerConnKey = function(prefix, player)
+	local id = "unknown"
+	if typeof(player) == "Instance" and player:IsA("Player") then
+		local uid = tonumber(player.UserId)
+		if uid and uid > 0 then
+			id = tostring(uid)
+		else
+			id = tostring(player.Name or id)
+		end
+	end
+	return tostring(prefix).."_"..id
+end
+
+NAmanage.ESP_ShouldTrackPlayer = function(player)
+	return (ESPPlayersEnabled or chamsEnabled) == true
+		and typeof(player) == "Instance"
+		and player:IsA("Player")
+		and player.Parent ~= nil
+		and player ~= Players.LocalPlayer
+end
+
+NAmanage.ESP_BumpReattachToken = function(player)
+	if not (typeof(player) == "Instance" and player:IsA("Player")) then
+		return nil, nil
+	end
+	local uid = tonumber(player.UserId)
+	if not uid or uid <= 0 then
+		return nil, nil
+	end
+	local key = tostring(uid)
+	local token = (tonumber(NAStuff.ESP_ReattachTokens[key]) or 0) + 1
+	NAStuff.ESP_ReattachTokens[key] = token
+	return key, token
+end
+
+NAmanage.ESP_DisconnectPlayerWatch = function(player)
+	if not (typeof(player) == "Instance" and player:IsA("Player")) then
+		return
+	end
+	NAlib.disconnect(NAmanage.ESP_PlayerConnKey("esp_charAdded_plr", player))
+	NAlib.disconnect(NAmanage.ESP_PlayerConnKey("esp_charRemoving_plr", player))
+	NAlib.disconnect(NAmanage.ESP_PlayerConnKey("esp_charChanged_plr", player))
+	NAlib.disconnect(NAmanage.ESP_PlayerConnKey("esp_charParent_plr", player))
+	NAmanage.ESP_BumpReattachToken(player)
+end
+
+NAmanage.ESP_WatchPlayerCharacter = function(player, model)
+	if not (typeof(player) == "Instance" and player:IsA("Player")) then
+		return
+	end
+	local key = NAmanage.ESP_PlayerConnKey("esp_charParent_plr", player)
+	NAlib.disconnect(key)
+	if not (typeof(model) == "Instance" and model:IsA("Model")) then
+		return
+	end
+	local function refresh()
+		if not NAmanage.ESP_ShouldTrackPlayer(player) then
+			return
+		end
+		if player.Character ~= model then
+			NAmanage.ESP_WatchPlayerCharacter(player, player.Character)
+			NAmanage.ESP_RequestReattachPlayer(player)
+			return
+		end
+		if workspace and model.Parent and model:IsDescendantOf(workspace) then
+			if not espCONS[model] then
+				NAmanage.ESP_RequestReattachPlayer(player, true)
+			end
+		else
+			if espCONS[model] then
+				NAmanage.ESP_ClearModel(model)
+			end
+		end
+	end
+	NAlib.connect(key, model.AncestryChanged:Connect(function()
+		refresh()
+	end))
+end
+
+NAmanage.ESP_SetupPlayerWatch = function(player)
+	if not NAmanage.ESP_ShouldTrackPlayer(player) then
+		return
+	end
+	local addKey = NAmanage.ESP_PlayerConnKey("esp_charAdded_plr", player)
+	local remKey = NAmanage.ESP_PlayerConnKey("esp_charRemoving_plr", player)
+	local chKey = NAmanage.ESP_PlayerConnKey("esp_charChanged_plr", player)
+	NAlib.disconnect(addKey)
+	NAlib.disconnect(remKey)
+	NAlib.disconnect(chKey)
+	NAlib.connect(addKey, player.CharacterAdded:Connect(function(model)
+		NAmanage.ESP_WatchPlayerCharacter(player, model)
+		NAmanage.ESP_RequestReattachPlayer(player)
+	end))
+	NAlib.connect(remKey, player.CharacterRemoving:Connect(function(model)
+		if model and espCONS[model] then
+			NAmanage.ESP_ClearModel(model)
+		end
+	end))
+	NAlib.connect(chKey, player:GetPropertyChangedSignal("Character"):Connect(function()
+		local model = player.Character
+		if model then
+			NAmanage.ESP_WatchPlayerCharacter(player, model)
+			NAmanage.ESP_RequestReattachPlayer(player)
+		end
+	end))
+	if player.Character then
+		NAmanage.ESP_WatchPlayerCharacter(player, player.Character)
+	end
+end
+
 NAmanage.ESP_ClearAll = function()
 	for model,_ in pairs(espCONS) do
 		NAmanage.ESP_ClearModel(model)
 	end
 	for _, plr in ipairs(__lt.cm("Players", "GetPlayers")) do
-		NAlib.disconnect("esp_charAdded_plr_"..tostring(plr.UserId))
+		NAmanage.ESP_DisconnectPlayerWatch(plr)
 	end
 	NAStuff.ESP_ModelList = {}
 	NAlib.disconnect("esp_update_global")
@@ -26958,7 +27071,7 @@ NAmanage.ESP_ClearPlayers = function()
 		end
 	end
 	for _, plr in ipairs(__lt.cm("Players", "GetPlayers")) do
-		NAlib.disconnect("esp_charAdded_plr_"..tostring(plr.UserId))
+		NAmanage.ESP_DisconnectPlayerWatch(plr)
 	end
 end
 
@@ -26966,17 +27079,13 @@ NAmanage.ESP_Disconnect = function(target)
 	local model = (target and target:IsA("Player")) and target.Character or target
 	if typeof(target) == "Instance" and target:IsA("Player") then
 		NAmanage.ESP_SetPlayerLabelOverride(target, false)
-		NAlib.disconnect("esp_charAdded_plr_"..tostring(target.UserId))
+		NAmanage.ESP_DisconnectPlayerWatch(target)
 	end
 	NAmanage.ESP_ClearModel(model)
 end
 
-NAStuff.ESP_ReattachCooldown = NAStuff.ESP_ReattachCooldown or {}
-NAmanage.ESP_RequestReattachPlayer = function(player)
-	if not (ESPenabled or chamsEnabled) then
-		return
-	end
-	if not (typeof(player) == "Instance" and player:IsA("Player") and player.Parent) then
+NAmanage.ESP_RequestReattachPlayer = function(player, force)
+	if not NAmanage.ESP_ShouldTrackPlayer(player) then
 		return
 	end
 	local uid = tonumber(player.UserId)
@@ -26985,20 +27094,33 @@ NAmanage.ESP_RequestReattachPlayer = function(player)
 	end
 	local now = tick()
 	local last = tonumber(NAStuff.ESP_ReattachCooldown[uid]) or 0
-	if now - last < 0.15 then
+	if force ~= true and now - last < 0.15 then
 		return
 	end
 	NAStuff.ESP_ReattachCooldown[uid] = now
-	Defer(function()
-		if not (ESPenabled or chamsEnabled) then
-			return
-		end
-		if not (player and player.Parent) then
-			return
-		end
-		local char = player.Character
-		if char and NAmanage.IsValidESPModel(char, false) then
-			NAmanage.ESP_Add(player, true, false)
+	local tokenKey, token = NAmanage.ESP_BumpReattachToken(player)
+	if not tokenKey then
+		return
+	end
+	Spawn(function()
+		for i = 1, 24 do
+			if i > 1 then
+				Wait(0.1)
+			end
+			if NAStuff.ESP_ReattachTokens[tokenKey] ~= token then
+				return
+			end
+			if not NAmanage.ESP_ShouldTrackPlayer(player) then
+				return
+			end
+			local model = player.Character
+			if typeof(model) == "Instance" and model:IsA("Model") then
+				NAmanage.ESP_WatchPlayerCharacter(player, model)
+				if workspace and model.Parent and model:IsDescendantOf(workspace) and NAmanage.IsValidESPModel(model, false) then
+					NAmanage.ESP_Add(player, true, false)
+					return
+				end
+			end
 		end
 	end)
 end
@@ -27255,15 +27377,7 @@ NAmanage.ESP_Add = function(target, persistent, isNPC)
 
 	if target:IsA("Player") then
 		if persistent then
-			NAlib.disconnect("esp_charAdded_plr_"..tostring(target.UserId))
-			NAlib.connect("esp_charAdded_plr_"..tostring(target.UserId), target.CharacterAdded:Connect(function()
-				if (ESPenabled or chamsEnabled) then
-					local ready = NAmanage.ESP_WaitForPlayerCharacter(target, 5)
-					if ready then
-						NAmanage.ESP_Add(target, true, false)
-					end
-				end
-			end))
+			NAmanage.ESP_SetupPlayerWatch(target)
 		end
 		if not target.Character then
 			if persistent then
