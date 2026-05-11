@@ -29428,27 +29428,65 @@ NAmanage.LoadPlugins = function(opts)
 
 	local function UnplugCmd(key)
 		if not key then
-			return
+			return false
 		end
 		local record = NAmanage._pluginCommandRecords[key]
-		if not record then
-			return
+		local aliases = {}
+		if record and type(record.aliases) == "table" then
+			for alias, data in pairs(record.aliases) do
+				aliases[alias] = data
+			end
 		end
-		for alias, data in pairs(record.aliases or {}) do
-			if cmds.Commands[alias] == data then
-				cmds.Commands[alias] = nil
+		if type(NAmanage._pluginCommandSources) == "table" then
+			for alias, src in pairs(NAmanage._pluginCommandSources) do
+				if type(src) == "table" and src.key == key then
+					aliases[alias] = src.data
+				end
 			end
-			if cmds.Aliases[alias] == data then
-				cmds.Aliases[alias] = nil
+		end
+		if cmds.PluginSources then
+			for alias, srcKey in pairs(cmds.PluginSources) do
+				if srcKey == key then
+					aliases[alias] = aliases[alias] or cmds.Commands[alias] or cmds.Aliases[alias]
+				end
 			end
-			if cmds.PluginSources then
+		end
+		local hasAlias = false
+		for _ in pairs(aliases) do
+			hasAlias = true
+			break
+		end
+		if not record and not hasAlias then
+			return false
+		end
+		local changed = false
+		for alias, data in pairs(aliases) do
+			if data == nil or cmds.Commands[alias] == data then
+				if cmds.Commands[alias] ~= nil then
+					cmds.Commands[alias] = nil
+					changed = true
+				end
+			end
+			if data == nil or cmds.Aliases[alias] == data then
+				if cmds.Aliases[alias] ~= nil then
+					cmds.Aliases[alias] = nil
+					changed = true
+				end
+			end
+			if cmds.PluginSources and cmds.PluginSources[alias] ~= nil then
 				cmds.PluginSources[alias] = nil
+				changed = true
 			end
-			if type(NAmanage._pluginCommandSources) == "table" then
+			if type(NAmanage._pluginCommandSources) == "table" and NAmanage._pluginCommandSources[alias] ~= nil then
 				NAmanage._pluginCommandSources[alias] = nil
+				changed = true
 			end
 		end
 		NAmanage._pluginCommandRecords[key] = nil
+		if type(NAmanage.invalidateCommandBuild) == "function" then
+			pcall(NAmanage.invalidateCommandBuild)
+		end
+		return changed
 	end
 
 	local function AddCmdPlug(key, aliases, dataRef)
@@ -30067,7 +30105,7 @@ NAmanage.LoadPlugins = function(opts)
 	end
 
 	if NAgui and NAgui.loadCMDS then
-		pcall(NAgui.loadCMDS)
+		pcall(NAgui.loadCMDS, { force = true })
 	end
 	if NAgui and NAgui.commands and NAUIMANAGER and NAUIMANAGER.commandsFrame and NAUIMANAGER.commandsFrame.Visible then
 		pcall(NAgui.commands)
@@ -30321,7 +30359,7 @@ NAmanage.InitPlugs=function()
 				DoNotif("Failed to reload plugins",3)
 			else
 				if NAgui and NAgui.loadCMDS then
-					pcall(NAgui.loadCMDS)
+					pcall(NAgui.loadCMDS, { force = true })
 				end
 			end
 		end
@@ -30352,6 +30390,11 @@ NAmanage.InitPlugs=function()
 								local okW = pcall(writefile, dst, data)
 								if okW and delfile and pcall(delfile, p) then
 									DoNotif("Moved "..file.." to workspace",3)
+									if NAmanage and NAmanage.LoadPlugins then
+										NAmanage.LoadPlugins({ silent = true })
+									elseif NAgui and NAgui.loadCMDS then
+										pcall(NAgui.loadCMDS, { force = true })
+									end
 								else
 									DoNotif("Failed to move "..file,3)
 								end
@@ -33881,6 +33924,9 @@ NAStuff.NAundergroundState = NAStuff.NAundergroundState or {}
 NAStuff.NA_UNDERGROUND_BIND_NAME = NAStuff.NA_UNDERGROUND_BIND_NAME
 	or NAmanage.GetSessionActionName("UndergroundBind")
 NAStuff.NA_UNDERGROUND_OFFSET = NAStuff.NA_UNDERGROUND_OFFSET or Vector3.new(0, -15, 0)
+NAStuff.NA_OFFSET_VISUALIZER_UPDATE_RATE = NAStuff.NA_OFFSET_VISUALIZER_UPDATE_RATE or (1 / 30)
+NAStuff.NA_OFFSET_VISUALIZER_MESH_RATE = NAStuff.NA_OFFSET_VISUALIZER_MESH_RATE or 0.35
+NAStuff.NA_OFFSET_VISUALIZER_PRUNE_RATE = NAStuff.NA_OFFSET_VISUALIZER_PRUNE_RATE or 0.75
 
 NAStuff.ovOld = NAStuff.ovOld or {
 	NA_OffsetPartBox = true,
@@ -33928,7 +33974,12 @@ NAmanage.ovDsc = function(st)
 	st.ovChr = nil
 	st.ovParts = nil
 	st.ovPartIdx = nil
+	st.ovAccMap = nil
 	st.ovMeshCache = nil
+	st.ovPropCache = nil
+	st.ovMvP = nil
+	st.ovMvC = nil
+	st.ovMvN = nil
 end
 
 NAmanage.ovPartAdd = function(st, src)
@@ -33948,9 +33999,15 @@ NAmanage.ovPartAdd = function(st, src)
 	if idxMap[src] then
 		return
 	end
+	local accMap = st.ovAccMap
+	if type(accMap) ~= "table" then
+		accMap = {}
+		st.ovAccMap = accMap
+	end
 	local n = #parts + 1
 	parts[n] = src
 	idxMap[src] = n
+	accMap[src] = src:FindFirstAncestorOfClass("Accessory") ~= nil
 end
 
 NAmanage.ovPartRem = function(st, src)
@@ -33984,9 +34041,17 @@ NAmanage.ovPartRem = function(st, src)
 		end
 		map[src] = nil
 	end
+	local accMap = st.ovAccMap
+	if type(accMap) == "table" then
+		accMap[src] = nil
+	end
 	local meshCache = st.ovMeshCache
 	if type(meshCache) == "table" then
 		meshCache[src] = nil
+	end
+	local propCache = st.ovPropCache
+	if type(propCache) == "table" then
+		propCache[src] = nil
 	end
 end
 
@@ -34001,7 +34066,9 @@ NAmanage.ovTrack = function(st, chr)
 	st.ovChr = chr
 	st.ovParts = {}
 	st.ovPartIdx = {}
+	st.ovAccMap = {}
 	st.ovMeshCache = {}
+	st.ovPropCache = {}
 	for _, desc in ipairs(NAmanage.qDesc(chr, "Instance")) do
 		if desc:IsA("BasePart") then
 			NAmanage.ovPartAdd(st, desc)
@@ -34081,6 +34148,10 @@ NAmanage.ovClr = function(st)
 	st.ovMdl = nil
 	st.ovMap = nil
 	st.ovHL = nil
+	st.ovPropCache = nil
+	st.ovMvP = nil
+	st.ovMvC = nil
+	st.ovMvN = nil
 end
 
 NAmanage.ovPrg = function()
@@ -34125,20 +34196,26 @@ NAmanage.ovEns = function(st)
 	end
 
 	local hl = st.ovHL
+	local madeHL = false
 	if not (hl and hl.Parent) then
 		hl = InstanceNew("Highlight", fld)
 		hl.Name = NAmanage.GetSessionInstanceName("OffsetHighlight")
 		st.ovHL = hl
+		madeHL = true
 	end
 
 	local _, _, ftr, otr = NAmanage.ovCfg()
-	hl.Adornee = mdl
-	hl.DepthMode = Enum.HighlightDepthMode.Occluded
-	hl.Enabled = true
-	hl.FillColor = Color3.new(1, 1, 1)
-	hl.OutlineColor = Color3.new(1, 1, 1)
-	hl.FillTransparency = ftr
-	hl.OutlineTransparency = otr
+	local sig = tostring(ftr).."|"..tostring(otr)
+	if madeHL or st.ovHLSig ~= sig then
+		hl.Adornee = mdl
+		hl.DepthMode = Enum.HighlightDepthMode.Occluded
+		hl.Enabled = true
+		hl.FillColor = Color3.new(1, 1, 1)
+		hl.OutlineColor = Color3.new(1, 1, 1)
+		hl.FillTransparency = ftr
+		hl.OutlineTransparency = otr
+		st.ovHLSig = sig
+	end
 
 	return mdl
 end
@@ -34210,84 +34287,156 @@ NAmanage.ovUpd = function(st, root, base, offVec)
 	local map = st.ovMap
 	local hl = st.ovHL
 	if hl then
-		hl.FillColor = Color3.new(1, 1, 1)
-		hl.OutlineColor = Color3.new(1, 1, 1)
-		hl.FillTransparency = ftr
-		hl.OutlineTransparency = otr
+		local sig = tostring(ftr).."|"..tostring(otr)
+		if st.ovHLSig ~= sig then
+			hl.FillColor = Color3.new(1, 1, 1)
+			hl.OutlineColor = Color3.new(1, 1, 1)
+			hl.FillTransparency = ftr
+			hl.OutlineTransparency = otr
+			st.ovHLSig = sig
+		end
 	end
 
-	if type(map) == "table" then
-		NAmanage.ovTrack(st, chr)
-		local parts = st.ovParts
-		if type(parts) ~= "table" then
-			return
-		end
-		local i = 1
-		while i <= #parts do
-			local src = parts[i]
-			if not (src and src.Parent and src:IsDescendantOf(chr)) then
-				if src and type(st.ovPartIdx) == "table" and st.ovPartIdx[src] then
-					NAmanage.ovPartRem(st, src)
-				else
-					local idxMap = st.ovPartIdx
-					local lastIdx = #parts
-					local lastSrc = parts[lastIdx]
-					parts[i] = lastSrc
-					parts[lastIdx] = nil
-					if type(idxMap) == "table" then
-						if src then
-							idxMap[src] = nil
-						end
-						if lastSrc then
-							idxMap[lastSrc] = i
-						end
-					end
-				end
-				continue
-			end
-			local inAcc = src:FindFirstAncestorOfClass("Accessory")
-			if src:IsA("BasePart") and src.Transparency < 1 and (acc or not inAcc) then
-				local gp = map[src]
-				if not (gp and gp.Parent and gp:IsA("BasePart")) then
-					if gp then
-						pcall(function() gp:Destroy() end)
-					end
-					gp = NAmanage.ovMk(src, mdl)
-					map[src] = gp
-					if type(st.ovMeshCache) == "table" then
-						st.ovMeshCache[src] = nil
-					end
-				end
+	if type(map) ~= "table" then
+		return
+	end
 
-				if gp then
-					pcall(function()
-						local rel = rootBase:ToObjectSpace(src.CFrame)
-						gp.Size = src.Size
-						gp.CFrame = rootTarget * rel
-						gp.Material = Enum.Material.Glass
-						gp.Color = Color3.new(1, 1, 1)
-						gp.Transparency = 1
-					end)
-					NAmanage.ovSyncMesh(st, src, gp)
+	NAmanage.ovTrack(st, chr)
+	local parts = st.ovParts
+	if type(parts) ~= "table" then
+		return
+	end
+
+	local now = os.clock()
+	local meshEvery = tonumber(NAStuff.NA_OFFSET_VISUALIZER_MESH_RATE) or 0.35
+	local pruneEvery = tonumber(NAStuff.NA_OFFSET_VISUALIZER_PRUNE_RATE) or 0.75
+	local doMesh = now >= (st.ovMeshNext or 0)
+	local doPrune = now >= (st.ovPruneNext or 0)
+	if doMesh then
+		st.ovMeshNext = now + meshEvery
+	end
+	if doPrune then
+		st.ovPruneNext = now + pruneEvery
+	end
+
+	local accMap = st.ovAccMap
+	local propCache = st.ovPropCache
+	if type(propCache) ~= "table" then
+		propCache = {}
+		st.ovPropCache = propCache
+	end
+
+	local moveP = st.ovMvP
+	if type(moveP) ~= "table" then
+		moveP = {}
+		st.ovMvP = moveP
+	end
+	local moveC = st.ovMvC
+	if type(moveC) ~= "table" then
+		moveC = {}
+		st.ovMvC = moveC
+	end
+	local moveN = 0
+	local i = 1
+
+	while i <= #parts do
+		local src = parts[i]
+		if not (src and src.Parent and src:IsDescendantOf(chr)) then
+			if src and type(st.ovPartIdx) == "table" and st.ovPartIdx[src] then
+				NAmanage.ovPartRem(st, src)
+			else
+				local idxMap = st.ovPartIdx
+				local lastIdx = #parts
+				local lastSrc = parts[lastIdx]
+				parts[i] = lastSrc
+				parts[lastIdx] = nil
+				if type(idxMap) == "table" then
+					if src then
+						idxMap[src] = nil
+					end
+					if lastSrc then
+						idxMap[lastSrc] = i
+					end
 				end
-			elseif map[src] then
-				pcall(function()
-					map[src]:Destroy()
-				end)
-				map[src] = nil
+			end
+			continue
+		end
+
+		local visible = src:IsA("BasePart") and src.Transparency < 1 and (acc or not (type(accMap) == "table" and accMap[src] == true))
+		if visible then
+			local gp = map[src]
+			local made = false
+			if not (gp and gp.Parent and gp:IsA("BasePart")) then
+				if gp then
+					pcall(function() gp:Destroy() end)
+				end
+				gp = NAmanage.ovMk(src, mdl)
+				map[src] = gp
+				propCache[src] = nil
 				if type(st.ovMeshCache) == "table" then
 					st.ovMeshCache[src] = nil
 				end
+				made = true
 			end
-			i += 1
-		end
 
+			if gp then
+				local size = src.Size
+				local cache = propCache[src]
+				if cache ~= size then
+					gp.Size = size
+					propCache[src] = size
+				end
+				moveN += 1
+				moveP[moveN] = gp
+				moveC[moveN] = rootTarget * rootBase:ToObjectSpace(src.CFrame)
+				if made or doMesh then
+					NAmanage.ovSyncMesh(st, src, gp)
+				end
+			end
+		elseif map[src] then
+			pcall(function()
+				map[src]:Destroy()
+			end)
+			map[src] = nil
+			propCache[src] = nil
+			if type(st.ovMeshCache) == "table" then
+				st.ovMeshCache[src] = nil
+			end
+		end
+		i += 1
+	end
+
+	local lastN = st.ovMvN or 0
+	for j = moveN + 1, lastN do
+		moveP[j] = nil
+		moveC[j] = nil
+	end
+	st.ovMvN = moveN
+	if moveN > 0 then
+		local ok = false
+		if workspace and workspace.BulkMoveTo then
+			ok = pcall(function()
+				workspace:BulkMoveTo(moveP, moveC, Enum.BulkMoveMode.FireCFrameChanged)
+			end)
+		end
+		if not ok then
+			for j = 1, moveN do
+				local gp = moveP[j]
+				if gp then
+					gp.CFrame = moveC[j]
+				end
+			end
+		end
+	end
+
+	if doPrune then
 		for src, gp in pairs(map) do
 			if not src or not src.Parent or not src:IsDescendantOf(chr) then
 				if gp then
 					pcall(function() gp:Destroy() end)
 				end
 				map[src] = nil
+				propCache[src] = nil
 				if type(st.ovMeshCache) == "table" then
 					st.ovMeshCache[src] = nil
 				end
@@ -34380,10 +34529,15 @@ NAmanage.UG_hasTransform = function(state)
 	return NAmanage.UG_getTransform(state) ~= NAStuff.NA_UNDERGROUND_IDENTITY_CFRAME
 end
 
-NAmanage.UG_updateVisualizer = function(state, root, current)
+NAmanage.UG_updateVisualizer = function(state, root, current, force)
 	local offsetVec = (state and state.UndergroundResolvedOffset) or (state and state.UndergroundOffset) or Vector3.new()
 	if state and root and current and NAmanage.UG_hasOffset(offsetVec) then
-		NAmanage.ovUpd(state, root, current, offsetVec)
+		local now = os.clock()
+		local rate = tonumber(NAStuff.NA_OFFSET_VISUALIZER_UPDATE_RATE) or (1 / 30)
+		if force or now >= (state.ovNextUpd or 0) then
+			state.ovNextUpd = now + rate
+			NAmanage.ovUpd(state, root, current, offsetVec)
+		end
 	else
 		NAmanage.ovClr(state)
 	end
@@ -34488,7 +34642,7 @@ end
 
 NAmanage.UG_enable = function(state, rootPart)
 	if state.Underground then
-		NAmanage.UG_updateVisualizer(state, rootPart, state.UndergroundCurrent or (rootPart and rootPart.CFrame))
+		NAmanage.UG_updateVisualizer(state, rootPart, state.UndergroundCurrent or (rootPart and rootPart.CFrame), true)
 		return
 	end
 
@@ -34544,7 +34698,7 @@ NAmanage.UG_enable = function(state, rootPart)
 		end
 	end)
 
-	NAmanage.UG_updateVisualizer(state, rootPart, state.UndergroundCurrent or rootPart.CFrame)
+	NAmanage.UG_updateVisualizer(state, rootPart, state.UndergroundCurrent or rootPart.CFrame, true)
 end
 
 cmd.add({"offset","offpos","off"},{"offset [x y z|y]","Offsets your character for others (positive Y = up, negative Y = down)"},function(...)
@@ -34591,7 +34745,7 @@ cmd.add({"offset","offpos","off"},{"offset [x y z|y]","Offsets your character fo
 	if Underground then
 		UG_Set("UndergroundOffset", offsetVec)
 		state.UndergroundResolvedOffset = state.UndergroundMirrorGround and NAmanage.UG_getActiveOffset(state, rootPart, humanoid) or offsetVec
-		NAmanage.UG_updateVisualizer(state, rootPart, UG_Get("UndergroundCurrent") or rootPart.CFrame)
+		NAmanage.UG_updateVisualizer(state, rootPart, UG_Get("UndergroundCurrent") or rootPart.CFrame, true)
 		if type(DoNotif) == "function" then
 			DoNotif("Offset updated", 2)
 		end
@@ -34633,7 +34787,7 @@ cmd.add({"upsidedown","flipchar"},{"upsidedown","Flips your character upside dow
 	end
 
 	state.UndergroundResolvedOffset = NAmanage.UG_getActiveOffset(state, rootPart, humanoid)
-	NAmanage.UG_updateVisualizer(state, rootPart, state.UndergroundCurrent or rootPart.CFrame)
+	NAmanage.UG_updateVisualizer(state, rootPart, state.UndergroundCurrent or rootPart.CFrame, true)
 	if type(DoNotif) == "function" then
 		DoNotif("Upsidedown updated", 2)
 	end
@@ -34655,7 +34809,7 @@ cmd.add({"unoffset","unoffpos","unoff"},{"unoffset","Disables offset and restore
 	if NAmanage.UG_hasTransform(state) then
 		local _, root, hum = NAmanage.UG_fetchCharPieces()
 		state.UndergroundResolvedOffset = NAmanage.UG_getActiveOffset(state, root, hum)
-		NAmanage.UG_updateVisualizer(state, root, state.UndergroundCurrent or (root and root.CFrame))
+		NAmanage.UG_updateVisualizer(state, root, state.UndergroundCurrent or (root and root.CFrame), true)
 		if type(DoNotif) == "function" then
 			DoNotif("Offset disabled, upside down is still active", 2)
 		end
@@ -34679,7 +34833,7 @@ cmd.add({"unupsidedown","unflipchar"},{"unupsidedown","Disables the upside down 
 	if NAmanage.UG_hasOffset(state.UndergroundOffset) then
 		state.UndergroundResolvedOffset = state.UndergroundOffset
 		local _, root = NAmanage.UG_fetchCharPieces()
-		NAmanage.UG_updateVisualizer(state, root, state.UndergroundCurrent or (root and root.CFrame))
+		NAmanage.UG_updateVisualizer(state, root, state.UndergroundCurrent or (root and root.CFrame), true)
 		if type(DoNotif) == "function" then
 			DoNotif("Upsidedown disabled, offset is still active", 2)
 		end
@@ -64308,6 +64462,79 @@ NAmanage.God_HookMeta = function()
 	return true
 end
 
+NAmanage.God_GetAltSignal = function(lp)
+	local sig
+	local ok = pcall(function()
+		sig = lp and lp.Kill
+	end)
+	if ok and sig then
+		return sig
+	end
+	return nil
+end
+
+NAmanage.God_CanAltRepSignal = function()
+	return typeof(replicatesignal)=="function" and NAmanage.God_GetAltSignal(Players.LocalPlayer) ~= nil
+end
+
+NAmanage.God_SetAltStates = function(h, enabled)
+	if not h then return end
+	pcall(function() h:SetStateEnabled(15, enabled) end)
+	pcall(function() h:SetStateEnabled(1, enabled) end)
+	pcall(function() h:SetStateEnabled(0, enabled) end)
+	pcall(function() h:SetStateEnabled(Enum.HumanoidStateType.Dead, enabled) end)
+	pcall(function() h:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, enabled) end)
+	pcall(function() h:SetStateEnabled(Enum.HumanoidStateType.FallingDown, enabled) end)
+end
+
+NAmanage.God_SetAltHealth = function(h)
+	if not h then return false end
+	local nan = 0/0
+	local ok = false
+	local hp = sethiddenproperty or set_hidden_property or set_hidden_prop
+	local ss = setscriptable
+	local props = {"maxHealth","MaxHealth","Health_XML","Health"}
+	if typeof(hp)=="function" then
+		for _,p in ipairs(props) do
+			local s = pcall(function() hp(h,p,nan) end)
+			if s then ok = true end
+		end
+	elseif typeof(ss)=="function" then
+		for _,p in ipairs(props) do
+			pcall(function() ss(h,p,true) end)
+		end
+		for _,p in ipairs(props) do
+			local s = pcall(function() h[p] = nan end)
+			if s then ok = true end
+		end
+		Wait()
+		for _,p in ipairs(props) do
+			pcall(function() ss(h,p,false) end)
+		end
+	else
+		local s1 = pcall(function() h.MaxHealth = nan end)
+		local s2 = pcall(function() h.Health = nan end)
+		ok = s1 or s2
+	end
+	return ok
+end
+
+NAmanage.God_AltRepSignal = function(h)
+	if not h or typeof(replicatesignal)~="function" then
+		return false
+	end
+	local sig = NAmanage.God_GetAltSignal(Players.LocalPlayer)
+	if not sig then
+		return false
+	end
+	NAmanage.God_SetAltStates(h, false)
+	local rsOk = pcall(function() replicatesignal(sig) end)
+	if not rsOk then
+		return false
+	end
+	return NAmanage.God_SetAltHealth(h)
+end
+
 NAmanage.God_Enable = function(method)
 	NAmanage.God_ClearSignals()
 	NAmanage.God_UnhookMeta()
@@ -64330,7 +64557,11 @@ NAmanage.God_Enable = function(method)
 	end
 	NAStuff._godEnabled = true
 	NAmanage.God_CommonApply(h)
-	if NAStuff._godMethod == "hook_meta" then
+	if NAStuff._godMethod == "alt_replicatesignal" then
+		if not NAmanage.God_AltRepSignal(h) then
+			return false
+		end
+	elseif NAStuff._godMethod == "hook_meta" then
 		NAmanage.God_WireNoHooks(h, true)
 		NAmanage.God_HookMeta()
 	else
@@ -64341,7 +64572,12 @@ NAmanage.God_Enable = function(method)
 		local nh = getHum()
 		if nh then
 			NAmanage.God_CommonApply(nh)
-			if NAStuff._godMethod=="hook_meta" then
+			if NAStuff._godMethod=="alt_replicatesignal" then
+				if not NAmanage.God_AltRepSignal(nh) then
+					NAStuff._godMethod = "nohooks_strong"
+					NAmanage.God_WireNoHooks(nh, true)
+				end
+			elseif NAStuff._godMethod=="hook_meta" then
 				NAmanage.God_WireNoHooks(nh, true)
 				NAmanage.God_HookMeta()
 			else
@@ -64349,6 +64585,7 @@ NAmanage.God_Enable = function(method)
 			end
 		end
 	end))
+	return true
 end
 
 NAmanage.God_Disable = function()
@@ -64359,8 +64596,9 @@ NAmanage.God_Disable = function()
 	local o = h and NAStuff._godOrig[h]
 	if h and o then
 		NAlib.setProperty(h,"MaxHealth", o.max or 100)
+		NAlib.setProperty(h,"Health", o.max or 100)
 		if o.bjd ~= nil then NAlib.setProperty(h,"BreakJointsOnDeath", o.bjd) end
-		pcall(function() h:SetStateEnabled(Enum.HumanoidStateType.Dead, true) end)
+		NAmanage.God_SetAltStates(h, true)
 	end
 	for k in pairs(NAStuff._godOrig) do NAStuff._godOrig[k] = nil end
 	NAStuff._godHumRef = nil
@@ -64370,6 +64608,7 @@ cmd.add({"godmode","god"},{"godmode (god)","Pick and enable an invincibility met
 	local args = {...}
 	local choice = args[1] and Lower(args[1]) or nil
 	local useHooking = (typeof(hookmetamethod)=="function" and typeof(getnamecallmethod)=="function" and typeof(newcclosure)=="function" and typeof(checkcaller)=="function")
+	local useAlt = NAmanage and NAmanage.God_CanAltRepSignal and NAmanage.God_CanAltRepSignal()
 
 	local function enableStrong()
 		NAStuff._godMethod = "strong"
@@ -64391,6 +64630,20 @@ cmd.add({"godmode","god"},{"godmode (god)","Pick and enable an invincibility met
 		DebugNotif("Godmode ON (hooking)",2)
 	end
 
+	local function enableAlt()
+		NAStuff._godMethod = "alt_replicatesignal"
+		if not (NAmanage and NAmanage.God_Enable and NAmanage.God_CanAltRepSignal and NAmanage.God_CanAltRepSignal()) then
+			DebugNotif("alt unavailable; falling back to strong",2)
+			return enableStrong()
+		end
+		local ok = NAmanage.God_Enable("alt_replicatesignal")
+		if not ok then
+			DebugNotif("alt unavailable; falling back to strong",2)
+			return enableStrong()
+		end
+		DebugNotif("Godmode ON (alt replicatesignal)",2)
+	end
+
 	local function disableGod()
 		if NAmanage and NAmanage.God_Disable then
 			NAmanage.God_Disable()
@@ -64403,13 +64656,17 @@ cmd.add({"godmode","god"},{"godmode (god)","Pick and enable an invincibility met
 
 	if choice == "strong" or choice == "normal" or choice == "nohook" or choice == "nohooks" then return enableStrong() end
 	if choice == "hook" or choice == "hooking" then return enableHooking() end
+	if choice == "alt" or choice == "replicatesignal" or choice == "replicatesignal" or choice == "repsignal" or choice == "rs" then return enableAlt() end
 	if choice == "off" or choice == "disable" then return disableGod() end
-	if not useHooking then
+	if not useHooking and not useAlt then
 		return enableStrong()
 	end
 
 	local buttons = {}
 	Insert(buttons, { Text = "Enable: Strong (no hooks)",   Callback = enableStrong })
+	if useAlt then
+		Insert(buttons, { Text = "alt (replicatesignal)", Callback = enableAlt })
+	end
 	if useHooking then
 		Insert(buttons, { Text = "Enable: Hooking (metamethod)", Callback = enableHooking })
 	end
@@ -64495,6 +64752,148 @@ cmd.add({"autoreport"}, {"autoreport", "Automatically reports players to get the
 	Players.PlayerAdded:Connect(function(player)
 		MonitorPlayerChat(player)
 	end)
+end)
+
+cmd.add({"flashlight","fl"},{"flashlight (fl)","Gives you a flashlight tool"},function()
+	local key = "na_flashlight_tool"
+	NAlib.disconnect(key)
+	NAlib.disconnect(key.."_render")
+
+	local old = NAStuff.FlashlightTool
+	if typeof(old) == "Instance" then
+		pcall(function() old:Destroy() end)
+	end
+	NAStuff.FlashlightTool = nil
+
+	local bp = getBp()
+	if not bp then
+		DoNotif("Backpack not available.", 3)
+		return
+	end
+
+	local tool = InstanceNew("Tool", bp)
+	tool.Name = "Flashlight"
+	tool.TextureId = "rbxassetid://115955232"
+	tool.GripPos = Vector3.new(0.1, -0.4, 0)
+	tool.RequiresHandle = true
+	tool.CanBeDropped = true
+	pcall(function() tool:SetAttribute("NAFlashlight", true) end)
+
+	local handle = InstanceNew("Part", tool)
+	handle.Name = "Handle"
+	handle.BrickColor = BrickColor.new("Bright yellow")
+	handle.Color = Color3.fromRGB(245, 205, 48)
+	handle.Locked = true
+	handle.Size = Vector3.new(0.5, 0.5, 2)
+	handle.CanCollide = true
+	pcall(function() handle.Massless = true end)
+
+	local lp = InstanceNew("Part", tool)
+	lp.Name = "LightPart"
+	lp.BrickColor = BrickColor.new("Mid gray")
+	lp.Color = Color3.fromRGB(205, 205, 205)
+	lp.Transparency = 1
+	lp.CanCollide = false
+	lp.Locked = true
+	lp.Size = Vector3.new(0.2, 0.2, 0.2)
+	pcall(function() lp.Massless = true end)
+	pcall(function() lp.CanTouch = false end)
+	pcall(function() lp.CanQuery = false end)
+
+	local motor = InstanceNew("Motor", tool)
+	motor.Name = "Motor"
+	motor.Part0 = handle
+	motor.Part1 = lp
+
+	local snd = InstanceNew("Sound", handle)
+	snd.Name = "Sound"
+	snd.SoundId = "rbxassetid://115959318"
+	snd.Volume = 1
+
+	local mesh = InstanceNew("SpecialMesh", handle)
+	mesh.Name = "Mesh"
+	mesh.MeshId = "rbxassetid://115955313"
+	mesh.MeshType = Enum.MeshType.FileMesh
+	mesh.Scale = Vector3.new(0.7, 0.7, 0.7)
+	mesh.TextureId = "rbxassetid://115955343"
+
+	local l1 = InstanceNew("SpotLight", lp)
+	l1.Name = "SpotLight"
+	l1.Angle = 70
+	l1.Brightness = 1
+	l1.Color = Color3.fromRGB(244, 255, 233)
+	l1.Enabled = false
+	l1.Face = Enum.NormalId.Front
+	l1.Range = 32
+
+	local l2 = InstanceNew("SpotLight", lp)
+	l2.Name = "SpotLight2"
+	l2.Angle = 70
+	l2.Brightness = 0.75
+	l2.Color = Color3.fromRGB(244, 255, 233)
+	l2.Enabled = false
+	l2.Face = Enum.NormalId.Front
+	l2.Range = 60
+
+	local onTex = "rbxassetid://115984370"
+	local offTex = "rbxassetid://115955343"
+	local equipped = false
+	local mouse = nil
+	local last = 0
+
+	local function toggle(state)
+		l1.Enabled = state
+		l2.Enabled = state
+		mesh.TextureId = state and onTex or offTex
+		pcall(function() snd:Play() end)
+	end
+
+	local function point()
+		if not equipped or not tool.Parent or not l1.Enabled or not mouse then return end
+		if not handle.Parent or not motor.Parent then return end
+		local char = tool.Parent
+		local head = char and char:FindFirstChild("Head",true)
+		local hit = mouse.Hit
+		if not head or typeof(hit) ~= "CFrame" then return end
+		local vec = hit.Position - head.Position
+		if vec.Magnitude <= 0 then return end
+		local pos = (handle.CFrame * CFrame.new(0, 0, -1)).Position
+		local cf = CFrame.new(pos, pos + vec)
+		motor.C0 = handle.CFrame:ToObjectSpace(cf)
+	end
+
+	NAlib.connect(key, tool.Activated:Connect(function()
+		local now = os.clock()
+		if now - last < 0.35 then return end
+		last = now
+		toggle(not l1.Enabled)
+	end))
+
+	NAlib.connect(key, tool.Equipped:Connect(function(m)
+		equipped = true
+		mouse = m
+		motor.Parent = tool
+		NAlib.disconnect(key.."_render")
+		NAlib.connect(key.."_render", RunService.RenderStepped:Connect(point))
+	end))
+
+	NAlib.connect(key, tool.Unequipped:Connect(function()
+		equipped = false
+		mouse = nil
+		motor.Parent = tool
+		NAlib.disconnect(key.."_render")
+	end))
+
+	NAlib.connect(key, tool.Destroying:Connect(function()
+		if NAStuff.FlashlightTool == tool then
+			NAStuff.FlashlightTool = nil
+		end
+		NAlib.disconnect(key.."_render")
+		NAlib.disconnect(key)
+	end))
+
+	NAStuff.FlashlightTool = tool
+	DebugNotif("Flashlight added", 2)
 end)
 
 cmd.add({"light"},{"light <range> <brightness> <hexColor>","Gives your player dynamic light"},function(rangeStr,brightnessStr,colorHex)
@@ -73612,11 +74011,67 @@ do
 	local pinkColor = Color3.fromRGB(255, 100, 150)
 	local ringColor = Color3.fromRGB(225, 80, 120)
 
-	originalIO.bodyModsSpring = originalIO.bodyModsSpring or function(u, v, target, stiffness, damping, dt)
-		local accel = -stiffness * u - damping * v + stiffness * target
+	originalIO.bodyModsSpring = function(u, v, target, stiffness, damping, dt)
+		dt = math.clamp(tonumber(dt) or (1 / 60), 1 / 240, 1 / 30)
+		u = tonumber(u) or 0
+		v = tonumber(v) or 0
+		target = tonumber(target) or 0
+		stiffness = math.max(tonumber(stiffness) or 0, 0)
+		damping = math.max(tonumber(damping) or 0, 0)
+		local accel = (target - u) * stiffness - v * damping
 		v = v + accel * dt
+		v = math.clamp(v, -12, 12)
 		u = u + v * dt
+		if math.abs(u) < 0.00005 and math.abs(v) < 0.00005 then
+			u = 0
+			v = 0
+		end
 		return u, v
+	end
+
+	originalIO.bodyModsCritDamp = function(stiffness, ratio)
+		stiffness = math.max(tonumber(stiffness) or 0, 0)
+		ratio = tonumber(ratio) or 1
+		return 2 * math.sqrt(stiffness) * ratio
+	end
+
+	originalIO.bodyModsClampVec = function(vec, cap)
+		cap = math.max(tonumber(cap) or 0, 0)
+		if typeof(vec) ~= "Vector3" then
+			return Vector3.zero
+		end
+		local mag = vec.Magnitude
+		if cap > 0 and mag > cap then
+			return vec.Unit * cap
+		end
+		return vec
+	end
+
+	originalIO.bodyModsMotion = function(root, humanoid, st, dt)
+		dt = math.clamp(tonumber(dt) or (1 / 60), 1 / 240, 1 / 30)
+		local velocity = (root and (root.AssemblyLinearVelocity or root.Velocity)) or Vector3.zero
+		local localVel = root and root.CFrame:VectorToObjectSpace(velocity) or Vector3.zero
+		local angular = (root and root.AssemblyAngularVelocity) or Vector3.zero
+		local localAng = root and root.CFrame:VectorToObjectSpace(angular) or Vector3.zero
+		local accel = Vector3.zero
+		if st and st.linit and typeof(st.llv) == "Vector3" then
+			accel = (localVel - st.llv) / dt
+		elseif st then
+			st.linit = true
+		end
+		if st then
+			st.llv = localVel
+		end
+		local planarSpeed = Vector3.new(localVel.X, 0, localVel.Z).Magnitude
+		accel = originalIO.bodyModsClampVec(accel, 70 + math.clamp(planarSpeed * 2.5, 0, 55))
+		local moveAlpha = 0
+		local grounded = false
+		if humanoid then
+			moveAlpha = math.clamp(humanoid.MoveDirection.Magnitude, 0, 1)
+			local humState = humanoid:GetState()
+			grounded = humanoid.FloorMaterial ~= Enum.Material.Air and humState ~= Enum.HumanoidStateType.Freefall and humState ~= Enum.HumanoidStateType.Jumping
+		end
+		return dt, localVel, localAng, accel, planarSpeed, moveAlpha, grounded
 	end
 
 	originalIO.bodyModsDisconnectConnection = function(conn)
@@ -73934,6 +74389,7 @@ do
 		state.boobs.llv = state.boobs.llv or Vector3.zero
 		state.boobs.ccf = nil
 		state.boobs.hcf = nil
+		state.boobs.linit = false
 
 		state.boobs.conn = NAlib.reconnect("bodymods_boobs", RunService.RenderStepped:Connect(function(dt)
 			local currentChar = originalIO.bodyModsGetCharacter()
@@ -73945,45 +74401,39 @@ do
 				return
 			end
 			local currentHumanoid = currentChar:FindFirstChildOfClass("Humanoid") or humanoid
+			local localVel, localAng, accel, planarSpeed, moveAlpha, grounded
+			dt, localVel, localAng, accel, planarSpeed, moveAlpha, grounded = originalIO.bodyModsMotion(hrp, currentHumanoid, state.boobs, dt)
 			local camera = workspace.CurrentCamera
-			local velocity = hrp.AssemblyLinearVelocity or hrp.Velocity
-			local localVel = hrp.CFrame:VectorToObjectSpace(velocity)
-			local angular = hrp.AssemblyAngularVelocity or Vector3.zero
-			local localAng = hrp.CFrame:VectorToObjectSpace(angular)
 			local camAng = Vector3.zero
 			if camera and state.boobs.ccf then
 				local rel = state.boobs.ccf:ToObjectSpace(camera.CFrame)
 				local x, y, z = rel:ToEulerAnglesXYZ()
-				camAng = Vector3.new(x, y, z) / math.max(dt, 1/240)
+				camAng = originalIO.bodyModsClampVec(Vector3.new(x, y, z) / dt, 18)
 			end
 			state.boobs.ccf = camera and camera.CFrame or nil
 			local useCam = (Players.LocalPlayer and Players.LocalPlayer.CameraMode == Enum.CameraMode.LockFirstPerson) or (UserInputService.MouseBehavior == Enum.MouseBehavior.LockCenter)
 			local angInput = useCam and camAng or localAng
-			local accel = (localVel - state.boobs.llv) / math.max(dt, 1/240)
-			state.boobs.llv = localVel
-			local planarSpeed = Vector3.new(localVel.X, 0, localVel.Z).Magnitude
 			local sizeScale = math.clamp((state.boobs.size or 1) / 3, 0.4, 2.4)
-			local softness = math.clamp((planarSpeed + math.abs(localVel.Y) * 0.42) / 18, 0, 1)
-			local moveAlpha = math.clamp((currentHumanoid and currentHumanoid.MoveDirection.Magnitude) or 0, 0, 1)
-			local gait = math.sin(os.clock() * (6.2 + planarSpeed * 0.18)) * math.clamp((planarSpeed - 1.5) / 10, 0, 1) * moveAlpha
-			local settleY = -0.018 * sizeScale
-			local settleZ = 0.014 * sizeScale
-			local massScale = 0.82 + sizeScale * 0.28
+			local air = grounded and 0 or 1
+			local softness = math.clamp((planarSpeed + math.abs(localVel.Y) * 0.25) / 24, 0, 1)
+			local gait = math.sin(os.clock() * (5.4 + planarSpeed * 0.12)) * math.clamp((planarSpeed - 0.8) / 13, 0, 1) * moveAlpha * (grounded and 1 or 0.28)
+			local settleY = -0.030 * sizeScale - 0.010 * air
+			local settleZ = 0.010 * sizeScale - 0.006 * air
+			local massScale = 0.92 + sizeScale * 0.38
+			local amp = 0.62 + sizeScale * 0.32
 
-			local targetY = math.clamp(settleY + (((-localVel.Y * 0.014) - accel.Y * 0.008 + gait * 0.030) * (0.68 + sizeScale * 0.48)), -0.19, 0.19)
-			local targetZ = math.clamp(settleZ + (((-localVel.Z * 0.019) - accel.Z * 0.009 + math.abs(gait) * 0.020) * (0.70 + sizeScale * 0.58)), -0.20, 0.24)
-			local targetX = math.clamp((((-localVel.X * 0.016) - accel.X * 0.005) * (0.68 + sizeScale * 0.48)), -0.17, 0.17)
+			local targetY = math.clamp(settleY + ((-localVel.Y * 0.006) - accel.Y * 0.0018 + math.abs(gait) * 0.012) * amp, -0.14, 0.13)
+			local targetZ = math.clamp(settleZ + ((-localVel.Z * 0.008) - accel.Z * 0.0022 + math.abs(gait) * 0.010) * amp, -0.13, 0.16)
+			local targetX = math.clamp(((-localVel.X * 0.006) - accel.X * 0.0015) * amp, -0.11, 0.11)
 
-			local targetPitch = math.clamp((settleY * 0.68) + (((-localVel.Y * 0.013) - accel.Y * 0.006 + gait * 0.085) * (0.38 + sizeScale * 0.35)) + angInput.X * 0.34, -0.39, 0.39)
-			local targetRoll = math.clamp((((-localVel.X * 0.040) - accel.X * 0.005) * (0.48 + sizeScale * 0.25)) + (-angInput.Y * 0.30), -0.36, 0.36)
-			local targetYaw = math.clamp((((localVel.X * 0.036) + accel.X * 0.003) * (0.48 + sizeScale * 0.25)) + (angInput.Z * 0.24), -0.30, 0.30)
+			local targetPitch = math.clamp(settleY * 0.42 + ((-localVel.Y * 0.006) - accel.Y * 0.0014 + gait * 0.026) * (0.55 + sizeScale * 0.18) + angInput.X * 0.12, -0.20, 0.20)
+			local targetRoll = math.clamp(((-localVel.X * 0.012) - accel.X * 0.0011) * (0.54 + sizeScale * 0.12) - angInput.Y * 0.10, -0.17, 0.17)
+			local targetYaw = math.clamp(((localVel.X * 0.008) + accel.X * 0.0009) * (0.48 + sizeScale * 0.10) + angInput.Z * 0.08, -0.13, 0.13)
 
-			local kBase = 54
-			local dBase = 8.2
-			local kTrans = (kBase - 15 * softness) / massScale
-			local dTrans = dBase + sizeScale * 0.42 - 0.75 * softness
-			local kRot = (55 - 11 * softness) / math.max(massScale * 0.94, 0.64)
-			local dRot = 7.1 + sizeScale * 0.32 - 0.55 * softness
+			local kTrans = math.clamp((76 - 16 * softness - 7 * air) / massScale, 24, 86)
+			local dTrans = originalIO.bodyModsCritDamp(kTrans, 0.92 + (grounded and 0.08 or 0.00))
+			local kRot = math.clamp((70 - 14 * softness - 6 * air) / math.max(massScale * 0.94, 0.72), 22, 82)
+			local dRot = originalIO.bodyModsCritDamp(kRot, 0.90 + (grounded and 0.10 or 0.02))
 
 			state.boobs.sy, state.boobs.vy = originalIO.bodyModsSpring(state.boobs.sy, state.boobs.vy, targetY, kTrans, dTrans, dt)
 			state.boobs.sz, state.boobs.vz = originalIO.bodyModsSpring(state.boobs.sz, state.boobs.vz, targetZ, kTrans, dTrans, dt)
@@ -73992,12 +74442,12 @@ do
 			state.boobs.ry, state.boobs.rv = originalIO.bodyModsSpring(state.boobs.ry, state.boobs.rv, targetRoll, kRot, dRot, dt)
 			state.boobs.yw, state.boobs.vyw = originalIO.bodyModsSpring(state.boobs.yw, state.boobs.vyw, targetYaw, kRot, dRot, dt)
 
-			state.boobs.sy = math.clamp(state.boobs.sy, -0.24, 0.26)
-			state.boobs.sz = math.clamp(state.boobs.sz, -0.22, 0.28)
-			state.boobs.sx = math.clamp(state.boobs.sx, -0.18, 0.18)
-			state.boobs.rx = math.clamp(state.boobs.rx, -0.34, 0.34)
-			state.boobs.ry = math.clamp(state.boobs.ry, -0.30, 0.30)
-			state.boobs.yw = math.clamp(state.boobs.yw, -0.24, 0.24)
+			state.boobs.sy = math.clamp(state.boobs.sy, -0.16, 0.15)
+			state.boobs.sz = math.clamp(state.boobs.sz, -0.15, 0.18)
+			state.boobs.sx = math.clamp(state.boobs.sx, -0.12, 0.12)
+			state.boobs.rx = math.clamp(state.boobs.rx, -0.22, 0.22)
+			state.boobs.ry = math.clamp(state.boobs.ry, -0.18, 0.18)
+			state.boobs.yw = math.clamp(state.boobs.yw, -0.14, 0.14)
 
 			local sxCap = math.clamp(state.boobs.sx, -state.boobs.ox * 0.4, state.boobs.ox * 0.4)
 			local forwardZ = state.boobs.oz + state.boobs.sz * 0.18
@@ -74134,6 +74584,7 @@ do
 		state.ass.vyw = state.ass.vyw or 0
 		state.ass.llv = state.ass.llv or Vector3.zero
 		state.ass.hcf = nil
+		state.ass.linit = false
 
 		state.ass.conn = NAlib.reconnect("bodymods_ass", RunService.RenderStepped:Connect(function(dt)
 			local currentChar = originalIO.bodyModsGetCharacter()
@@ -74145,34 +74596,30 @@ do
 				return
 			end
 			local currentHumanoid = currentChar:FindFirstChildOfClass("Humanoid") or humanoid
-			local velocity = hrp.AssemblyLinearVelocity or hrp.Velocity
-			local localVel = hrp.CFrame:VectorToObjectSpace(velocity)
-			local angular = hrp.AssemblyAngularVelocity or Vector3.zero
-			local localAng = hrp.CFrame:VectorToObjectSpace(angular)
-			local accel = (localVel - state.ass.llv) / math.max(dt, 1/240)
-			state.ass.llv = localVel
-			local planarSpeed = Vector3.new(localVel.X, 0, localVel.Z).Magnitude
+			local localVel, localAng, accel, planarSpeed, moveAlpha, grounded
+			dt, localVel, localAng, accel, planarSpeed, moveAlpha, grounded = originalIO.bodyModsMotion(hrp, currentHumanoid, state.ass, dt)
 			local sizeScale = math.clamp((state.ass.size or 1) / 3, 0.4, 2.5)
-			local softness = math.clamp((planarSpeed + math.abs(localVel.Y) * 0.38) / 17, 0, 1)
-			local moveAlpha = math.clamp((currentHumanoid and currentHumanoid.MoveDirection.Magnitude) or 0, 0, 1)
-			local stride = math.sin(os.clock() * (7.0 + planarSpeed * 0.20))
-			local gait = stride * math.clamp((planarSpeed - 1.0) / 9, 0, 1) * moveAlpha
-			local settleY = -0.028 * sizeScale
-			local settleZ = -0.016 * sizeScale
-			local massScale = 0.87 + sizeScale * 0.36
+			local air = grounded and 0 or 1
+			local softness = math.clamp((planarSpeed + math.abs(localVel.Y) * 0.22) / 24, 0, 1)
+			local stride = math.sin(os.clock() * (5.9 + planarSpeed * 0.12))
+			local gait = stride * math.clamp((planarSpeed - 0.8) / 12, 0, 1) * moveAlpha * (grounded and 1 or 0.22)
+			local settleY = -0.040 * sizeScale - 0.012 * air
+			local settleZ = -0.024 * sizeScale - 0.006 * air
+			local massScale = 1.02 + sizeScale * 0.44
+			local amp = 0.58 + sizeScale * 0.28
 
-			local targetY = math.clamp(settleY + (((-localVel.Y * 0.032) - accel.Y * 0.013 + math.abs(gait) * 0.026) * (0.65 + sizeScale * 0.42)), -0.20, 0.20)
-			local targetZ = math.clamp(settleZ + (((localVel.Z * 0.026) + accel.Z * 0.010 + math.abs(gait) * 0.018) * (0.60 + sizeScale * 0.40)), -0.18, 0.16)
-			local targetX = math.clamp((((localVel.X * 0.030) + accel.X * 0.006) * (0.62 + sizeScale * 0.34)), -0.18, 0.18)
+			local targetY = math.clamp(settleY + ((-localVel.Y * 0.008) - accel.Y * 0.0020 + math.abs(gait) * 0.012) * amp, -0.14, 0.13)
+			local targetZ = math.clamp(settleZ + ((localVel.Z * 0.010) + accel.Z * 0.0018 + math.abs(gait) * 0.008) * amp, -0.13, 0.12)
+			local targetX = math.clamp(((localVel.X * 0.008) + accel.X * 0.0014) * amp, -0.12, 0.12)
 
-			local targetPitch = math.clamp((((-localVel.Y * 0.010) + localAng.X * 0.36 + gait * 0.050) * (0.55 + sizeScale * 0.20)), -0.32, 0.32)
-			local targetRoll = math.clamp((((-localVel.X * 0.030) - accel.X * 0.004 - localAng.Y * 0.35) * (0.52 + sizeScale * 0.18)), -0.30, 0.30)
-			local targetYaw = math.clamp((((localVel.X * 0.020) - localAng.Z * 0.28) * (0.46 + sizeScale * 0.16)), -0.24, 0.24)
+			local targetPitch = math.clamp(((-localVel.Y * 0.004) + localAng.X * 0.10 + gait * 0.020) * (0.55 + sizeScale * 0.14), -0.16, 0.16)
+			local targetRoll = math.clamp(((-localVel.X * 0.010) - accel.X * 0.0010 - localAng.Y * 0.10) * (0.52 + sizeScale * 0.12), -0.15, 0.15)
+			local targetYaw = math.clamp(((localVel.X * 0.006) - localAng.Z * 0.08) * (0.46 + sizeScale * 0.10), -0.11, 0.11)
 
-			local kTrans = (38 - 12 * softness) / massScale
-			local dTrans = 6.5 + sizeScale * 0.38 - 0.55 * softness
-			local kRot = (36 - 9 * softness) / math.max(massScale * 0.94, 0.68)
-			local dRot = 6.1 + sizeScale * 0.28 - 0.45 * softness
+			local kTrans = math.clamp((62 - 13 * softness - 6 * air) / massScale, 18, 68)
+			local dTrans = originalIO.bodyModsCritDamp(kTrans, 0.96 + (grounded and 0.10 or 0.00))
+			local kRot = math.clamp((56 - 11 * softness - 5 * air) / math.max(massScale * 0.94, 0.76), 18, 64)
+			local dRot = originalIO.bodyModsCritDamp(kRot, 0.94 + (grounded and 0.12 or 0.04))
 
 			state.ass.sy, state.ass.vy = originalIO.bodyModsSpring(state.ass.sy, state.ass.vy, targetY, kTrans, dTrans, dt)
 			state.ass.sz, state.ass.vz = originalIO.bodyModsSpring(state.ass.sz, state.ass.vz, targetZ, kTrans, dTrans, dt)
@@ -74181,18 +74628,18 @@ do
 			state.ass.ry, state.ass.rv = originalIO.bodyModsSpring(state.ass.ry, state.ass.rv, targetRoll, kRot, dRot, dt)
 			state.ass.yw, state.ass.vyw = originalIO.bodyModsSpring(state.ass.yw, state.ass.vyw, targetYaw, kRot, dRot, dt)
 
-			state.ass.sy = math.clamp(state.ass.sy, -0.18, 0.18)
-			state.ass.sz = math.clamp(state.ass.sz, -0.18, 0.16)
-			state.ass.sx = math.clamp(state.ass.sx, -0.18, 0.18)
-			state.ass.rx = math.clamp(state.ass.rx, -0.24, 0.24)
-			state.ass.ry = math.clamp(state.ass.ry, -0.24, 0.24)
-			state.ass.yw = math.clamp(state.ass.yw, -0.18, 0.18)
+			state.ass.sy = math.clamp(state.ass.sy, -0.15, 0.14)
+			state.ass.sz = math.clamp(state.ass.sz, -0.14, 0.13)
+			state.ass.sx = math.clamp(state.ass.sx, -0.12, 0.12)
+			state.ass.rx = math.clamp(state.ass.rx, -0.17, 0.17)
+			state.ass.ry = math.clamp(state.ass.ry, -0.16, 0.16)
+			state.ass.yw = math.clamp(state.ass.yw, -0.12, 0.12)
 
 			local sxCap = math.clamp(state.ass.sx, -state.ass.ox * 0.55, state.ass.ox * 0.55)
-			local tzCap = math.clamp(state.ass.sz, -0.14, 0.12)
-			local cheekLift = gait * math.clamp(0.012 + sizeScale * 0.008, 0.012, 0.030)
-			local cheekRoll = gait * math.clamp(0.030 + sizeScale * 0.010, 0.030, 0.060)
-			local cheekDepth = math.abs(gait) * math.clamp(0.010 + sizeScale * 0.008, 0.010, 0.028)
+			local tzCap = math.clamp(state.ass.sz, -0.11, 0.10)
+			local cheekLift = gait * math.clamp(0.006 + sizeScale * 0.004, 0.006, 0.018)
+			local cheekRoll = gait * math.clamp(0.014 + sizeScale * 0.006, 0.014, 0.034)
+			local cheekDepth = math.abs(gait) * math.clamp(0.006 + sizeScale * 0.004, 0.006, 0.018)
 			local leftOffset = CFrame.new(-state.ass.ox + (-sxCap), state.ass.oy + state.ass.sy + cheekLift, state.ass.oz + tzCap - cheekDepth) * CFrame.Angles(state.ass.rx, state.ass.yw, state.ass.ry + cheekRoll)
 			local rightOffset = CFrame.new(state.ass.ox + sxCap, state.ass.oy + state.ass.sy - cheekLift, state.ass.oz + tzCap - cheekDepth) * CFrame.Angles(state.ass.rx, -state.ass.yw, -state.ass.ry - cheekRoll)
 
@@ -74361,6 +74808,7 @@ do
 		state.pp.baseBL = leftBallWeld.C0
 		state.pp.baseBR = rightBallWeld.C0
 		state.pp.llv = state.pp.llv or Vector3.zero
+		state.pp.linit = false
 
 		state.pp.animConn = originalIO.bodyModsDisconnectConnection(state.pp.animConn)
 		state.pp.animConn = NAlib.reconnect("bodymods_pp", RunService.RenderStepped:Connect(function(dt)
@@ -74373,29 +74821,27 @@ do
 				return
 			end
 
-			local velocity = hrp.AssemblyLinearVelocity or hrp.Velocity
-			local localVel = hrp.CFrame:VectorToObjectSpace(velocity)
-			local angular = hrp.AssemblyAngularVelocity or Vector3.zero
-			local localAng = hrp.CFrame:VectorToObjectSpace(angular)
-			local accel = (localVel - state.pp.llv) / math.max(dt, 1/240)
-			state.pp.llv = localVel
-			local planarSpeed = Vector3.new(localVel.X, 0, localVel.Z).Magnitude
+			local currentHumanoid = currentChar:FindFirstChildOfClass("Humanoid") or humanoid
+			local localVel, localAng, accel, planarSpeed, moveAlpha, grounded
+			dt, localVel, localAng, accel, planarSpeed, moveAlpha, grounded = originalIO.bodyModsMotion(hrp, currentHumanoid, state.pp, dt)
 			local lengthScale = math.clamp(value / 2, 0.45, 3)
-			local softness = math.clamp((planarSpeed + math.abs(localVel.Y) * 0.45) / 19, 0, 1)
-			local gait = math.sin(os.clock() * (5.4 + planarSpeed * 0.16)) * math.clamp((planarSpeed - 1.5) / 10, 0, 1)
-			local settleY = -0.013 * lengthScale
-			local settleZ = -0.042 * lengthScale
+			local air = grounded and 0 or 1
+			local softness = math.clamp((planarSpeed + math.abs(localVel.Y) * 0.24) / 24, 0, 1)
+			local gait = math.sin(os.clock() * (4.9 + planarSpeed * 0.10)) * math.clamp((planarSpeed - 0.8) / 12, 0, 1) * moveAlpha * (grounded and 1 or 0.20)
+			local settleY = -0.020 * lengthScale - 0.010 * air
+			local settleZ = -0.052 * lengthScale - 0.008 * air
+			local amp = 0.54 + lengthScale * 0.16
 
-			local targetY = math.clamp(settleY + (-localVel.Y * 0.016) - (accel.Y * 0.007) + math.abs(gait) * 0.012, -0.13, 0.11)
-			local targetZ = math.clamp(settleZ + (-localVel.Z * (0.019 + 0.0028 * value)) - (accel.Z * 0.011) - math.abs(gait) * 0.014, -0.27, 0.13)
-			local targetX = math.clamp((-localVel.X * 0.015) - (accel.X * 0.007), -0.15, 0.15)
-			local targetPitch = math.clamp((localAng.Z * 0.020) - (localVel.Y * 0.006) - (accel.Y * 0.0025), -0.18, 0.18)
-			local targetRoll = math.clamp((localAng.X * 0.020) + (localVel.X * 0.010) + (accel.X * 0.003), -0.18, 0.18)
+			local targetY = math.clamp(settleY + ((-localVel.Y * 0.006) - accel.Y * 0.0013 + math.abs(gait) * 0.006) * amp, -0.09, 0.08)
+			local targetZ = math.clamp(settleZ + ((-localVel.Z * (0.007 + 0.0010 * value)) - accel.Z * 0.0019 - math.abs(gait) * 0.006) * amp, -0.18, 0.08)
+			local targetX = math.clamp(((-localVel.X * 0.006) - accel.X * 0.0013) * amp, -0.09, 0.09)
+			local targetPitch = math.clamp((localAng.Z * 0.008) - (localVel.Y * 0.0026) - (accel.Y * 0.0008), -0.10, 0.10)
+			local targetRoll = math.clamp((localAng.X * 0.008) + (localVel.X * 0.004) + (accel.X * 0.0008), -0.10, 0.10)
 
-			local kTrans = (39 - 11 * softness) / math.max(0.65 + lengthScale * 0.35, 0.7)
-			local dTrans = 4.9 + lengthScale * 0.36 - 0.55 * softness
-			local kRot = (34 - 9 * softness) / math.max(0.70 + lengthScale * 0.30, 0.7)
-			local dRot = 4.3 + lengthScale * 0.26 - 0.45 * softness
+			local kTrans = math.clamp((48 - 10 * softness - 5 * air) / math.max(0.78 + lengthScale * 0.40, 0.78), 14, 52)
+			local dTrans = originalIO.bodyModsCritDamp(kTrans, 0.92 + (grounded and 0.08 or 0.00))
+			local kRot = math.clamp((42 - 9 * softness - 4 * air) / math.max(0.82 + lengthScale * 0.34, 0.82), 14, 48)
+			local dRot = originalIO.bodyModsCritDamp(kRot, 0.92 + (grounded and 0.09 or 0.02))
 
 			state.pp.sy, state.pp.vy = originalIO.bodyModsSpring(state.pp.sy, state.pp.vy, targetY, kTrans, dTrans, dt)
 			state.pp.sz, state.pp.vz = originalIO.bodyModsSpring(state.pp.sz, state.pp.vz, targetZ, kTrans, dTrans, dt)
@@ -74403,26 +74849,26 @@ do
 			state.pp.rx, state.pp.vrx = originalIO.bodyModsSpring(state.pp.rx, state.pp.vrx, targetPitch, kRot, dRot, dt)
 			state.pp.ry, state.pp.vry = originalIO.bodyModsSpring(state.pp.ry, state.pp.vry, targetRoll, kRot, dRot, dt)
 
-			state.pp.sy = math.clamp(state.pp.sy, -0.12, 0.10)
-			state.pp.sz = math.clamp(state.pp.sz, -0.26, 0.12)
-			state.pp.sx = math.clamp(state.pp.sx, -0.14, 0.14)
-			state.pp.rx = math.clamp(state.pp.rx, -0.18, 0.18)
-			state.pp.ry = math.clamp(state.pp.ry, -0.18, 0.18)
+			state.pp.sy = math.clamp(state.pp.sy, -0.10, 0.08)
+			state.pp.sz = math.clamp(state.pp.sz, -0.19, 0.09)
+			state.pp.sx = math.clamp(state.pp.sx, -0.09, 0.09)
+			state.pp.rx = math.clamp(state.pp.rx, -0.11, 0.11)
+			state.pp.ry = math.clamp(state.pp.ry, -0.11, 0.11)
 
 			local sway = CFrame.new(state.pp.sx, state.pp.sy, state.pp.sz) * CFrame.Angles(state.pp.rx, 0, state.pp.ry)
 			state.pp.wS.C0 = state.pp.baseC0 * sway
 
 			if state.pp.wBL and state.pp.wBR and state.pp.baseBL and state.pp.baseBR then
-				local ballTargetY = math.clamp((-0.020 * lengthScale) + (-localVel.Y * 0.020) - (accel.Y * 0.010) + math.abs(gait) * 0.024, -0.16, 0.14)
-				local ballTargetZ = math.clamp((-0.028 * lengthScale) + (-localVel.Z * 0.010) - (accel.Z * 0.012) - math.abs(gait) * 0.018, -0.14, 0.08)
-				local ballTargetX = math.clamp((-localVel.X * 0.018) - (accel.X * 0.008), -0.10, 0.10)
-				local ballTargetPitch = math.clamp((-localVel.Y * 0.010) - (accel.Y * 0.004), -0.16, 0.16)
-				local ballTargetRoll = math.clamp((localVel.X * 0.018) + gait * 0.055, -0.18, 0.18)
+				local ballTargetY = math.clamp((-0.026 * lengthScale) + (-localVel.Y * 0.007) - (accel.Y * 0.0016) + math.abs(gait) * 0.010, -0.11, 0.09)
+				local ballTargetZ = math.clamp((-0.030 * lengthScale) + (-localVel.Z * 0.005) - (accel.Z * 0.0016) - math.abs(gait) * 0.007, -0.10, 0.06)
+				local ballTargetX = math.clamp((-localVel.X * 0.006) - (accel.X * 0.0014), -0.07, 0.07)
+				local ballTargetPitch = math.clamp((-localVel.Y * 0.004) - (accel.Y * 0.0009), -0.10, 0.10)
+				local ballTargetRoll = math.clamp((localVel.X * 0.006) + gait * 0.020, -0.10, 0.10)
 
-				local kBallTrans = (28 - 9 * softness) / math.max(0.75 + lengthScale * 0.22, 0.8)
-				local dBallTrans = 4.7 + lengthScale * 0.26 - 0.35 * softness
-				local kBallRot = (23 - 7 * softness) / math.max(0.80 + lengthScale * 0.18, 0.8)
-				local dBallRot = 4.1 + lengthScale * 0.21 - 0.25 * softness
+				local kBallTrans = math.clamp((36 - 8 * softness - 4 * air) / math.max(0.88 + lengthScale * 0.24, 0.88), 12, 40)
+				local dBallTrans = originalIO.bodyModsCritDamp(kBallTrans, 0.96 + (grounded and 0.08 or 0.02))
+				local kBallRot = math.clamp((30 - 7 * softness - 3 * air) / math.max(0.92 + lengthScale * 0.18, 0.92), 10, 34)
+				local dBallRot = originalIO.bodyModsCritDamp(kBallRot, 0.96 + (grounded and 0.08 or 0.02))
 
 				state.pp.bsy, state.pp.bvy = originalIO.bodyModsSpring(state.pp.bsy, state.pp.bvy, ballTargetY, kBallTrans, dBallTrans, dt)
 				state.pp.bsz, state.pp.bvz = originalIO.bodyModsSpring(state.pp.bsz, state.pp.bvz, ballTargetZ, kBallTrans, dBallTrans, dt)
@@ -74430,13 +74876,13 @@ do
 				state.pp.brx, state.pp.bvrx = originalIO.bodyModsSpring(state.pp.brx, state.pp.bvrx, ballTargetPitch, kBallRot, dBallRot, dt)
 				state.pp.bry, state.pp.bvry = originalIO.bodyModsSpring(state.pp.bry, state.pp.bvry, ballTargetRoll, kBallRot, dBallRot, dt)
 
-				state.pp.bsy = math.clamp(state.pp.bsy, -0.16, 0.14)
-				state.pp.bsz = math.clamp(state.pp.bsz, -0.14, 0.08)
-				state.pp.bsx = math.clamp(state.pp.bsx, -0.10, 0.10)
-				state.pp.brx = math.clamp(state.pp.brx, -0.16, 0.16)
-				state.pp.bry = math.clamp(state.pp.bry, -0.18, 0.18)
+				state.pp.bsy = math.clamp(state.pp.bsy, -0.11, 0.09)
+				state.pp.bsz = math.clamp(state.pp.bsz, -0.10, 0.06)
+				state.pp.bsx = math.clamp(state.pp.bsx, -0.07, 0.07)
+				state.pp.brx = math.clamp(state.pp.brx, -0.10, 0.10)
+				state.pp.bry = math.clamp(state.pp.bry, -0.10, 0.10)
 
-				local spreadJiggle = math.abs(gait) * math.clamp(0.010 + ballRadius * 0.015, 0.010, 0.024)
+				local spreadJiggle = math.abs(gait) * math.clamp(0.006 + ballRadius * 0.006, 0.006, 0.014)
 				local leftBallSway = CFrame.new(-spreadJiggle - state.pp.bsx, state.pp.bsy, state.pp.bsz) * CFrame.Angles(state.pp.brx, 0, state.pp.bry)
 				local rightBallSway = CFrame.new(spreadJiggle + state.pp.bsx, state.pp.bsy, state.pp.bsz) * CFrame.Angles(state.pp.brx, 0, -state.pp.bry)
 				state.pp.wBL.C0 = state.pp.baseBL * leftBallSway
