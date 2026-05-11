@@ -58100,6 +58100,31 @@ NAmanage.SetVelocityWalkSpeedClampState = function(root, hum, axes, planarDirect
 	end
 end
 
+NAmanage.ClampVelocityWalkSpeedVector = function(velocity, cap, axes, planarDirection)
+	if typeof(velocity) ~= "Vector3" or not cap or cap < 0 or typeof(axes) ~= "Vector3" then
+		return velocity
+	end
+	local newVelocity = velocity
+	local useX = math.abs(axes.X) > 0.05
+	local useY = math.abs(axes.Y) > 0.05
+	local useZ = math.abs(axes.Z) > 0.05
+	if planarDirection and (useX or useZ) then
+		local flatVelocity = Vector3.new(newVelocity.X, 0, newVelocity.Z)
+		if flatVelocity.Magnitude > 0 then
+			local alignedSpeed = math.clamp(flatVelocity:Dot(planarDirection), -cap, cap)
+			local alignedVelocity = planarDirection * alignedSpeed
+			newVelocity = Vector3.new(alignedVelocity.X, newVelocity.Y, alignedVelocity.Z)
+		end
+	end
+	local cappedPart = Vector3.new(useX and newVelocity.X or 0, useY and newVelocity.Y or 0, useZ and newVelocity.Z or 0)
+	local speed = cappedPart.Magnitude
+	if speed > cap then
+		local capped = speed > 0 and cappedPart.Unit * cap or Vector3.zero
+		newVelocity = Vector3.new(useX and capped.X or newVelocity.X, useY and capped.Y or newVelocity.Y, useZ and capped.Z or newVelocity.Z)
+	end
+	return newVelocity
+end
+
 NAmanage.ClampVelocityWalkSpeedRoot = function()
 	local state = NAmanage.GetVelocityWalkSpeedState()
 	local root = state.clampRoot
@@ -58109,30 +58134,15 @@ NAmanage.ClampVelocityWalkSpeedRoot = function()
 	if not root or not hum or not axes or not root.Parent or not hum.Parent then
 		return
 	end
-	local cap = math.max(tonumber(hum.WalkSpeed) or 0, tonumber(NAmanage.GetVelocityWalkSpeedValue()) or 0)
-	if cap <= 0 then
+	local cap = tonumber(NAlib.isProperty(hum, "WalkSpeed"))
+	if not cap or cap < 0 then
 		return
 	end
 	local velocity = NAlib.isProperty(root, "AssemblyLinearVelocity") or root.Velocity
 	if typeof(velocity) ~= "Vector3" then
 		return
 	end
-	local newVelocity = velocity
-	if planarDirection and (math.abs(axes.X) > 0.05 or math.abs(axes.Z) > 0.05) then
-		local flatVelocity = Vector3.new(newVelocity.X, 0, newVelocity.Z)
-		local alignedSpeed = math.clamp(flatVelocity:Dot(planarDirection), -cap, cap)
-		local alignedVelocity = planarDirection * alignedSpeed
-		newVelocity = Vector3.new(alignedVelocity.X, newVelocity.Y, alignedVelocity.Z)
-	end
-	if math.abs(axes.X) > 0.05 then
-		newVelocity = Vector3.new(math.clamp(newVelocity.X, -cap, cap), newVelocity.Y, newVelocity.Z)
-	end
-	if math.abs(axes.Y) > 0.05 then
-		newVelocity = Vector3.new(newVelocity.X, math.clamp(newVelocity.Y, -cap, cap), newVelocity.Z)
-	end
-	if math.abs(axes.Z) > 0.05 then
-		newVelocity = Vector3.new(newVelocity.X, newVelocity.Y, math.clamp(newVelocity.Z, -cap, cap))
-	end
+	local newVelocity = NAmanage.ClampVelocityWalkSpeedVector(velocity, cap, axes, planarDirection)
 	if newVelocity ~= velocity then
 		if not NAlib.setProperty(root, "AssemblyLinearVelocity", newVelocity) then
 			root.Velocity = newVelocity
@@ -58144,7 +58154,7 @@ NAmanage.EnsureVelocityWalkSpeedClampLoop = function()
 	if NAlib.isConnected("na_velocityws_cap") then
 		return
 	end
-	local clampSignal = RunService.PostSimulation or RunService.Heartbeat
+	local clampSignal = RunService.Heartbeat
 	NAlib.connect("na_velocityws_cap", clampSignal:Connect(function()
 		NAmanage.ClampVelocityWalkSpeedRoot()
 	end))
@@ -58290,18 +58300,19 @@ NAmanage.BrakeVelocityWalkSpeedPlanarDrift = function(root, hum)
 	if flatSpeed <= 0.05 then
 		return
 	end
-	local expectedSpeed = math.max(
-		tonumber(state.lastPlanarDriveSpeed) or 0,
-		tonumber(hum and NAlib.isProperty(hum, "WalkSpeed")) or 0,
-		8
-	)
-	if flatSpeed > expectedSpeed * 1.45 then
+	local expectedSpeed = tonumber(hum and NAlib.isProperty(hum, "WalkSpeed")) or 0
+	if expectedSpeed < 0 then
+		expectedSpeed = 0
+	end
+	local newVelocity = Vector3.new(0, velocity.Y, 0)
+	if flatSpeed > expectedSpeed then
+		local flatVelocity = Vector3.new(velocity.X, 0, velocity.Z)
+		local cappedVelocity = flatVelocity.Magnitude > 0 and flatVelocity.Unit * expectedSpeed or Vector3.zero
+		newVelocity = Vector3.new(cappedVelocity.X, velocity.Y, cappedVelocity.Z)
 		state.planarBrakeRoot = nil
 		state.planarBrakeDriveTime = nil
 		state.planarBrakeUntil = nil
-		return
 	end
-	local newVelocity = Vector3.new(0, velocity.Y, 0)
 	if not NAlib.setProperty(root, "AssemblyLinearVelocity", newVelocity) then
 		root.Velocity = newVelocity
 	end
@@ -58515,6 +58526,7 @@ NAmanage.RefreshVelocityWalkSpeed = function()
 		NAmanage.SetVelocityWalkSpeedClampState(root, hum, Vector3.new(1, 0, 1), adjustedVelocity)
 		NAmanage.SetVelocityWalkSpeedHelperActive(adjustedVelocity, adjustedVelocity.Magnitude > 0.05, root)
 		NAmanage.MarkVelocityWalkSpeedPlanarDrive(root, adjustedVelocity)
+		NAmanage.ClampVelocityWalkSpeedRoot()
 	end))
 end
 
