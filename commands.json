@@ -1170,6 +1170,30 @@
       "desc": "Disables antivoid"
     },
     {
+      "name": "nofall",
+      "aliases": [
+        "nofall",
+        "nofalldamage",
+        "antifall",
+        "nofalldmg"
+      ],
+      "usage": "nofall [limit] [slow]",
+      "args": "[limit] [slow]",
+      "desc": "Prevents fall damage by slowing falls and cancelling landing velocity (STILL IN BETA)"
+    },
+    {
+      "name": "unnofall",
+      "aliases": [
+        "unnofall",
+        "unnofalldamage",
+        "unantifall",
+        "unnofalldmg"
+      ],
+      "usage": "unnofall",
+      "args": "",
+      "desc": "Disables nofall"
+    },
+    {
       "name": "fakeout",
       "aliases": [
         "fakeout"
