@@ -18172,6 +18172,26 @@ NAmanage.NASettingsGetSchema=function()
 				return coerceBoolean(value, false)
 			end;
 		};
+		engineSettings = {
+			default = function()
+				return {}
+			end;
+			coerce = function(value)
+				local out = {}
+				if type(value) ~= "table" then
+					return out
+				end
+				for key, stored in pairs(value) do
+					if type(key) == "string" and key ~= "" then
+						local kind = type(stored)
+						if kind == "boolean" or kind == "number" or kind == "string" then
+							out[key] = stored
+						end
+					end
+				end
+				return out
+			end;
+		};
 	}
 
 	return NAStuff.NASettingsSchema
@@ -37471,11 +37491,11 @@ cmd.add({"accountage","accage"},{"accountage <player> (accage)","Tells the accou
 end,true)
 
 cmd.add({"hitboxes"},{"hitboxes","shows all the hitboxes"},function()
-	settings():GetService("RenderSettings").ShowBoundingBoxes=true
+	NAmanage.EngineSettings.setAndSave("RenderSettings", "ShowBoundingBoxes", true, "Render Bounding Boxes")
 end)
 
 cmd.add({"unhitboxes"},{"unhitboxes","removes the hitboxes outline"},function()
-	settings():GetService("RenderSettings").ShowBoundingBoxes=false
+	NAmanage.EngineSettings.setAndSave("RenderSettings", "ShowBoundingBoxes", false, "Render Bounding Boxes")
 end)
 
 cmd.add({"vfly","vehiclefly"},{"vehiclefly (vfly)","be able to fly vehicles"},function(...)
@@ -40182,6 +40202,30 @@ end)
 
 NAmanage.EngineSettings = NAmanage.EngineSettings or {}
 
+NAmanage.EngineSettings.key = function(serviceName, propertyName)
+	return tostring(serviceName or "").."."..tostring(propertyName or "")
+end
+
+NAmanage.EngineSettings.saved = function()
+	local saved = nil
+	if NAmanage.NASettingsGet then
+		saved = NAmanage.NASettingsGet("engineSettings")
+	end
+	if type(saved) ~= "table" then
+		saved = {}
+	end
+	return saved
+end
+
+NAmanage.EngineSettings.saveValue = function(serviceName, propertyName, value)
+	if not NAmanage.NASettingsSet then
+		return
+	end
+	local saved = NAmanage.EngineSettings.saved()
+	saved[NAmanage.EngineSettings.key(serviceName, propertyName)] = value
+	pcall(NAmanage.NASettingsSet, "engineSettings", saved)
+end
+
 NAmanage.EngineSettings.parseBool = function(value, default)
 	if type(value) == "boolean" then
 		return value
@@ -40247,17 +40291,19 @@ NAmanage.EngineSettings.set = function(serviceName, propertyName, value, label, 
 	return false
 end
 
-NAmanage.EngineSettings.setBool = function(entry, value, silent)
-	if type(entry.setter) == "function" then
-		return entry.setter(value == true, silent)
+NAmanage.EngineSettings.setAndSave = function(serviceName, propertyName, value, label, silent)
+	local ok = NAmanage.EngineSettings.set(serviceName, propertyName, value, label, silent)
+	if ok and not silent then
+		NAmanage.EngineSettings.saveValue(serviceName, propertyName, value)
 	end
-	return NAmanage.EngineSettings.set(entry.service, entry.property, value == true, entry.label, silent)
+	return ok
+end
+
+NAmanage.EngineSettings.setBool = function(entry, value, silent)
+	return NAmanage.EngineSettings.setAndSave(entry.service, entry.property, value == true, entry.label, silent)
 end
 
 NAmanage.EngineSettings.setNumber = function(entry, value, silent)
-	if type(entry.setter) == "function" then
-		return entry.setter(value, silent)
-	end
 	local n = tonumber(value)
 	if not n then
 		if not silent then
@@ -40274,44 +40320,10 @@ NAmanage.EngineSettings.setNumber = function(entry, value, silent)
 	if entry.max ~= nil then
 		n = math.min(entry.max, n)
 	end
-	return NAmanage.EngineSettings.set(entry.service, entry.property, n, entry.label, silent)
-end
-
-NAmanage.EngineSettings.applyNetworkEmulation = function(enabled, minDelay, maxDelay, loss)
-	local ok = NAmanage.EngineSettings.set("NetworkSettings", "NetworkEmulationEnabled", enabled == true, "Network Emulation", true)
-	if enabled == true then
-		minDelay = math.max(0, math.floor((tonumber(minDelay) or 150) + 0.5))
-		maxDelay = math.max(minDelay, math.floor((tonumber(maxDelay) or minDelay) + 0.5))
-		loss = math.clamp(tonumber(loss) or 0, 0, 100)
-		ok = NAmanage.EngineSettings.set("NetworkSettings", "InboundNetworkMinDelayMs", minDelay, "Inbound Network Min Delay", true) and ok
-		ok = NAmanage.EngineSettings.set("NetworkSettings", "InboundNetworkMaxDelayMs", maxDelay, "Inbound Network Max Delay", true) and ok
-		ok = NAmanage.EngineSettings.set("NetworkSettings", "OutboundNetworkMinDelayMs", minDelay, "Outbound Network Min Delay", true) and ok
-		ok = NAmanage.EngineSettings.set("NetworkSettings", "OutboundNetworkMaxDelayMs", maxDelay, "Outbound Network Max Delay", true) and ok
-		ok = NAmanage.EngineSettings.set("NetworkSettings", "InboundNetworkLossPercent", loss, "Inbound Network Loss Percent", true) and ok
-		ok = NAmanage.EngineSettings.set("NetworkSettings", "OutboundNetworkLossPercent", loss, "Outbound Network Loss Percent", true) and ok
-		if ok then
-			DoNotif("Network Emulation enabled: "..tostring(minDelay).."-"..tostring(maxDelay).." ms, "..tostring(loss).."% loss", 3)
-		else
-			DoNotif("Network Emulation could not be fully applied", 3)
-		end
-		return ok
-	end
-	local resetOk = NAmanage.EngineSettings.set("NetworkSettings", "InboundNetworkMinDelayMs", 0, "Inbound Network Min Delay", true)
-	resetOk = NAmanage.EngineSettings.set("NetworkSettings", "InboundNetworkMaxDelayMs", 0, "Inbound Network Max Delay", true) and resetOk
-	resetOk = NAmanage.EngineSettings.set("NetworkSettings", "OutboundNetworkMinDelayMs", 0, "Outbound Network Min Delay", true) and resetOk
-	resetOk = NAmanage.EngineSettings.set("NetworkSettings", "OutboundNetworkMaxDelayMs", 0, "Outbound Network Max Delay", true) and resetOk
-	resetOk = NAmanage.EngineSettings.set("NetworkSettings", "InboundNetworkLossPercent", 0, "Inbound Network Loss Percent", true) and resetOk
-	resetOk = NAmanage.EngineSettings.set("NetworkSettings", "OutboundNetworkLossPercent", 0, "Outbound Network Loss Percent", true) and resetOk
-	if ok and resetOk then
-		DoNotif("Network Emulation disabled", 2)
-	else
-		DoNotif("Network Emulation could not be fully disabled", 3)
-	end
-	return ok and resetOk
+	return NAmanage.EngineSettings.setAndSave(entry.service, entry.property, n, entry.label, silent)
 end
 
 NAmanage.EngineSettings.boolCommands = {
-	{ aliases = {"networkemulation","netemulation","netemu"}, offAliases = {"unnetworkemulation","nonetworkemulation","unnetemu"}, service = "NetworkSettings", property = "NetworkEmulationEnabled", label = "Network Emulation", usage = "networkemulation [minMs] [maxMs] [loss%]", networkEmulation = true, setter = function(state) return NAmanage.EngineSettings.applyNetworkEmulation(state == true) end },
 	{ aliases = {"renderstreamedregions","streamedregions"}, offAliases = {"unrenderstreamedregions","nostreamedregions"}, service = "NetworkSettings", property = "RenderStreamedRegions", label = "Render Streamed Regions" },
 	{ aliases = {"joinbreakdown","printjoinsize"}, offAliases = {"unjoinbreakdown","noprintjoinsize"}, service = "NetworkSettings", property = "PrintJoinSizeBreakdown", label = "Print Join Size Breakdown" },
 	{ aliases = {"streamquota","printstreamquota"}, offAliases = {"unstreamquota","noprintstreamquota"}, service = "NetworkSettings", property = "PrintStreamInstanceQuota", label = "Print Stream Instance Quota" },
@@ -40347,12 +40359,6 @@ NAmanage.EngineSettings.boolCommands = {
 }
 
 NAmanage.EngineSettings.numberCommands = {
-	{ aliases = {"inboundloss","inloss","netinloss"}, service = "NetworkSettings", property = "InboundNetworkLossPercent", label = "Inbound Network Loss Percent", usage = "inboundloss <0-100>", min = 0, max = 100 },
-	{ aliases = {"outboundloss","outloss","netoutloss"}, service = "NetworkSettings", property = "OutboundNetworkLossPercent", label = "Outbound Network Loss Percent", usage = "outboundloss <0-100>", min = 0, max = 100 },
-	{ aliases = {"inboundmindelay","inmindelay","netinmin"}, service = "NetworkSettings", property = "InboundNetworkMinDelayMs", label = "Inbound Network Min Delay", usage = "inboundmindelay <ms>", min = 0, max = 60000, integer = true },
-	{ aliases = {"inboundmaxdelay","inmaxdelay","netinmax"}, service = "NetworkSettings", property = "InboundNetworkMaxDelayMs", label = "Inbound Network Max Delay", usage = "inboundmaxdelay <ms>", min = 0, max = 60000, integer = true },
-	{ aliases = {"outboundmindelay","outmindelay","netoutmin"}, service = "NetworkSettings", property = "OutboundNetworkMinDelayMs", label = "Outbound Network Min Delay", usage = "outboundmindelay <ms>", min = 0, max = 60000, integer = true },
-	{ aliases = {"outboundmaxdelay","outmaxdelay","netoutmax"}, service = "NetworkSettings", property = "OutboundNetworkMaxDelayMs", label = "Outbound Network Max Delay", usage = "outboundmaxdelay <ms>", min = 0, max = 60000, integer = true },
 	{ aliases = {"forcedrawscale","forcevisualscale"}, service = "PhysicsSettings", property = "ForceDrawScale", label = "Force Draw Scale", usage = "forcedrawscale <number>", min = 0, max = 1000 },
 	{ aliases = {"torquedrawscale","torquevisualscale"}, service = "PhysicsSettings", property = "TorqueDrawScale", label = "Torque Draw Scale", usage = "torquedrawscale <number>", min = 0, max = 1000 },
 	{ aliases = {"fluidforcedrawscale","fluidforcescale"}, service = "PhysicsSettings", property = "FluidForceDrawScale", label = "Fluid Force Draw Scale", usage = "fluidforcedrawscale <number>", min = 0, max = 1000 },
@@ -40362,22 +40368,68 @@ NAmanage.EngineSettings.numberCommands = {
 	{ aliases = {"meshcachesize","rendermeshcache"}, service = "RenderSettings", property = "MeshCacheSize", label = "Mesh Cache Size", usage = "meshcachesize <number>", min = 0, integer = true },
 }
 
+NAmanage.EngineSettings.extraSavedSettings = {
+	{ service = "NetworkSettings", property = "IncomingReplicationLag", label = "Incoming Replication Lag", kind = "number" },
+	{ service = "PhysicsSettings", property = "PhysicsEnvironmentalThrottle", label = "Physics Environmental Throttle", kind = "number" },
+}
+
+NAmanage.EngineSettings.retiredKeys = {
+	"NetworkSettings.NetworkEmulationEnabled",
+	"NetworkSettings.InboundNetworkLossPercent",
+	"NetworkSettings.OutboundNetworkLossPercent",
+	"NetworkSettings.InboundNetworkMinDelayMs",
+	"NetworkSettings.InboundNetworkMaxDelayMs",
+	"NetworkSettings.OutboundNetworkMinDelayMs",
+	"NetworkSettings.OutboundNetworkMaxDelayMs",
+}
+
+NAmanage.EngineSettings.cleanupRetired = function()
+	if not NAmanage.NASettingsSet then
+		return
+	end
+	local saved = NAmanage.EngineSettings.saved()
+	local changed = false
+	for _, key in ipairs(NAmanage.EngineSettings.retiredKeys or {}) do
+		if saved[key] ~= nil then
+			saved[key] = nil
+			changed = true
+		end
+	end
+	if changed then
+		pcall(NAmanage.NASettingsSet, "engineSettings", saved)
+	end
+end
+
+NAmanage.EngineSettings.loadSaved = function()
+	NAmanage.EngineSettings.cleanupRetired()
+	local saved = NAmanage.EngineSettings.saved()
+	for _, entry in ipairs(NAmanage.EngineSettings.boolCommands or {}) do
+		local value = saved[NAmanage.EngineSettings.key(entry.service, entry.property)]
+		if type(value) == "boolean" then
+			NAmanage.EngineSettings.setBool(entry, value, true)
+		end
+	end
+	for _, entry in ipairs(NAmanage.EngineSettings.numberCommands or {}) do
+		local value = saved[NAmanage.EngineSettings.key(entry.service, entry.property)]
+		if tonumber(value) then
+			NAmanage.EngineSettings.setNumber(entry, value, true)
+		end
+	end
+	for _, entry in ipairs(NAmanage.EngineSettings.extraSavedSettings or {}) do
+		local value = saved[NAmanage.EngineSettings.key(entry.service, entry.property)]
+		if entry.kind == "number" and tonumber(value) then
+			NAmanage.EngineSettings.set(entry.service, entry.property, tonumber(value), entry.label, true)
+		elseif entry.kind == "boolean" and type(value) == "boolean" then
+			NAmanage.EngineSettings.set(entry.service, entry.property, value, entry.label, true)
+		end
+	end
+end
+
+pcall(NAmanage.EngineSettings.loadSaved)
+
 for _, entry in ipairs(NAmanage.EngineSettings.boolCommands) do
 	cmd.add(entry.aliases, {entry.usage or (entry.aliases[1].." [on/off]"), "Set "..entry.label}, function(...)
 		local args = {...}
-		if entry.networkEmulation then
-			if args[1] ~= nil and tonumber(args[1]) then
-				NAmanage.EngineSettings.applyNetworkEmulation(true, args[1], args[2], args[3])
-				return
-			end
-			local state = NAmanage.EngineSettings.parseBool(args[1], true)
-			if state then
-				NAmanage.EngineSettings.applyNetworkEmulation(true, args[2], args[3], args[4])
-			else
-				NAmanage.EngineSettings.applyNetworkEmulation(false)
-			end
-			return
-		end
 		NAmanage.EngineSettings.setBool(entry, NAmanage.EngineSettings.parseBool(args[1], true))
 	end)
 	if entry.offAliases then
@@ -40423,27 +40475,27 @@ cmd.add({"enginesettingsinfo","enginedebug","rblxsettingsinfo"},{"enginesettings
 end)
 
 cmd.add({"replicationlag", "backtrack"}, {"replicationlag (backtrack)", "Set IncomingReplicationLag"}, function(num)
-	settings():GetService("NetworkSettings").IncomingReplicationLag = tonumber(num) or 0
+	NAmanage.EngineSettings.setAndSave("NetworkSettings", "IncomingReplicationLag", tonumber(num) or 0, "Incoming Replication Lag")
 end, true)
 
 cmd.add({"animdata"}, {"animdata", "Shows you information about your current animations"}, function(num)
-	settings():GetService("NetworkSettings").ShowActiveAnimationAsset = true
+	NAmanage.EngineSettings.setAndSave("NetworkSettings", "ShowActiveAnimationAsset", true, "Show Active Animation Asset")
 end, true)
 
 cmd.add({"unanimdata"}, {"unanimdata", ""}, function(num)
-	settings():GetService("NetworkSettings").ShowActiveAnimationAsset = false
+	NAmanage.EngineSettings.setAndSave("NetworkSettings", "ShowActiveAnimationAsset", false, "Show Active Animation Asset")
 end, true)
 
 cmd.add({"sleepon"}, {"sleepon", "Enable AllowSleep"}, function()
-	settings():GetService("PhysicsSettings").AllowSleep = true
+	NAmanage.EngineSettings.setAndSave("PhysicsSettings", "AllowSleep", true, "Physics Allow Sleep")
 end)
 
 cmd.add({"unsleepon"}, {"unsleepon", "Disable AllowSleep"}, function()
-	settings():GetService("PhysicsSettings").AllowSleep = false
+	NAmanage.EngineSettings.setAndSave("PhysicsSettings", "AllowSleep", false, "Physics Allow Sleep")
 end)
 
 cmd.add({"throttle"}, {"throttle", "Set PhysicsEnvironmentalThrottle (1 = default, 2 = disabled)"}, function(num)
-	settings():GetService("PhysicsSettings").PhysicsEnvironmentalThrottle = tonumber(num) or 1
+	NAmanage.EngineSettings.setAndSave("PhysicsSettings", "PhysicsEnvironmentalThrottle", tonumber(num) or 1, "Physics Environmental Throttle")
 end, true)
 
 cmd.add({"quality","qualitylevel"},{"quality <1-21>","Manage rendering quality settings"},function(...)
@@ -96110,26 +96162,6 @@ for _, entry in ipairs(NAmanage.EngineSettings.boolCommands or {}) do
 	end)
 end
 
-NAgui.addSection("Network Emulation Preset")
-local netEmulationMinDelay = tostring(NAmanage.EngineSettings.get("NetworkSettings", "InboundNetworkMinDelayMs", 150) or 150)
-local netEmulationMaxDelay = tostring(NAmanage.EngineSettings.get("NetworkSettings", "InboundNetworkMaxDelayMs", 150) or 150)
-local netEmulationLoss = tostring(NAmanage.EngineSettings.get("NetworkSettings", "InboundNetworkLossPercent", 0) or 0)
-NAgui.addInput("Preset Min Delay", "milliseconds", netEmulationMinDelay, function(text)
-	netEmulationMinDelay = tostring(text or "")
-end)
-NAgui.addInput("Preset Max Delay", "milliseconds", netEmulationMaxDelay, function(text)
-	netEmulationMaxDelay = tostring(text or "")
-end)
-NAgui.addInput("Preset Packet Loss", "percent", netEmulationLoss, function(text)
-	netEmulationLoss = tostring(text or "")
-end)
-NAgui.addButton("Apply Network Emulation Preset", function()
-	NAmanage.EngineSettings.applyNetworkEmulation(true, netEmulationMinDelay, netEmulationMaxDelay, netEmulationLoss)
-end)
-NAgui.addButton("Disable Network Emulation", function()
-	NAmanage.EngineSettings.applyNetworkEmulation(false)
-end)
-
 NAgui.addSection("Engine Number Settings")
 for _, entry in ipairs(NAmanage.EngineSettings.numberCommands or {}) do
 	NAgui.addInput(entry.label, entry.usage or "number", tostring(NAmanage.EngineSettings.get(entry.service, entry.property, 0) or 0), function(text)
@@ -96143,7 +96175,7 @@ NAgui.addInput("Incoming Replication Lag", "seconds", tostring(NAmanage.EngineSe
 		DoNotif("Incoming Replication Lag must be a number", 2)
 		return
 	end
-	NAmanage.EngineSettings.set("NetworkSettings", "IncomingReplicationLag", math.max(0, n), "Incoming Replication Lag")
+	NAmanage.EngineSettings.setAndSave("NetworkSettings", "IncomingReplicationLag", math.max(0, n), "Incoming Replication Lag")
 end)
 
 NAgui.addInput("Physics Environmental Throttle", "1 default, 2 disabled", tostring(NAmanage.EngineSettings.get("PhysicsSettings", "PhysicsEnvironmentalThrottle", 1) or 1), function(text)
@@ -96152,7 +96184,7 @@ NAgui.addInput("Physics Environmental Throttle", "1 default, 2 disabled", tostri
 		DoNotif("Physics Environmental Throttle must be a number", 2)
 		return
 	end
-	NAmanage.EngineSettings.set("PhysicsSettings", "PhysicsEnvironmentalThrottle", n, "Physics Environmental Throttle")
+	NAmanage.EngineSettings.setAndSave("PhysicsSettings", "PhysicsEnvironmentalThrottle", n, "Physics Environmental Throttle")
 end)
 
 NAgui.addButton("Reload Render Assets", function()
