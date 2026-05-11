@@ -5693,6 +5693,16 @@
       "desc": "Automatically reports players to get them banned"
     },
     {
+      "name": "flashlight",
+      "aliases": [
+        "flashlight",
+        "fl"
+      ],
+      "usage": "flashlight (fl)",
+      "args": "",
+      "desc": "Gives you a flashlight tool"
+    },
+    {
       "name": "light",
       "aliases": [
         "light"
