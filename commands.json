@@ -1657,6 +1657,16 @@
       "desc": "Makes your character less dense"
     },
     {
+      "name": "setmass",
+      "aliases": [
+        "setmass",
+        "mass"
+      ],
+      "usage": "setmass <mass>",
+      "args": "<mass>",
+      "desc": "Sets your character mass as close as Roblox allows"
+    },
+    {
       "name": "seat",
       "aliases": [
         "seat"
@@ -1958,7 +1968,7 @@
       ],
       "usage": "disablehumanoidstate",
       "args": "",
-      "desc": "why..."
+      "desc": "Opens a picker to disable one humanoid state"
     },
     {
       "name": "enablehumanoidstate",
@@ -1968,9 +1978,9 @@
         "restorehumanoidstate",
         "restorehumstates"
       ],
-      "usage": "enablehumanoidstate",
-      "args": "",
-      "desc": "why..."
+      "usage": "enablehumanoidstate [state/all]",
+      "args": "[state/all]",
+      "desc": "Restores one humanoid state or all disabled states"
     },
     {
       "name": "checkrfe",
@@ -2658,6 +2668,38 @@
       "usage": "reset (die)",
       "args": "",
       "desc": "Makes your health be 0"
+    },
+    {
+      "name": "antibreakjoints",
+      "aliases": [
+        "antibreakjoints",
+        "antibjoints",
+        "nobreakjoints"
+      ],
+      "usage": "antibreakjoints",
+      "args": "",
+      "desc": "Prevents local character joints from breaking when possible"
+    },
+    {
+      "name": "unantibreakjoints",
+      "aliases": [
+        "unantibreakjoints",
+        "unantibjoints",
+        "breakjointsallowed"
+      ],
+      "usage": "unantibreakjoints",
+      "args": "",
+      "desc": "Disables AntiBreakJoints"
+    },
+    {
+      "name": "breakjoints",
+      "aliases": [
+        "breakjoints",
+        "bjoints"
+      ],
+      "usage": "breakjoints",
+      "args": "",
+      "desc": "Break your character joints and die"
     },
     {
       "name": "runanim",
