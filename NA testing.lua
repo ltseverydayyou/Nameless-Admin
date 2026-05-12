@@ -41180,6 +41180,92 @@ cmd.add({"weaken"},{"weaken","Makes your character less dense"},function(...)
 	end
 end,true)
 
+NAmanage.GetPhysVals = function(part)
+	local props
+	pcall(function()
+		props = part.CurrentPhysicalProperties
+	end)
+	local d = 0.7
+	local f = 0.3
+	local e = 0.5
+	local fw = 1
+	local ew = 1
+	if props then
+		d = tonumber(props.Density) or d
+		f = tonumber(props.Friction) or f
+		e = tonumber(props.Elasticity) or e
+		fw = tonumber(props.FrictionWeight) or fw
+		ew = tonumber(props.ElasticityWeight) or ew
+	end
+	return d, f, e, fw, ew
+end
+
+NAmanage.GetCharParts = function()
+	local char = getChar()
+	if not char then
+		return {}
+	end
+	return NAmanage.qDesc(char, "BasePart")
+end
+
+NAmanage.SetCharDensity = function(density)
+	local n = 0
+	density = math.clamp(tonumber(density) or 0.7, 0.01, 100)
+	for _, part in ipairs(NAmanage.GetCharParts()) do
+		pcall(function()
+			local _, f, e, fw, ew = NAmanage.GetPhysVals(part)
+			part.CustomPhysicalProperties = PhysicalProperties.new(density, f, e, fw, ew)
+			n += 1
+		end)
+	end
+	if NAmanage.RebuildVelocityWalkSpeedHelper then
+		NAmanage.RebuildVelocityWalkSpeedHelper()
+	end
+	return n, density
+end
+
+NAmanage.GetCharMassInfo = function()
+	local total = 0
+	local vol = 0
+	local n = 0
+	for _, part in ipairs(NAmanage.GetCharParts()) do
+		local ok, mass = pcall(function()
+			return part.Mass
+		end)
+		if ok and type(mass) == "number" then
+			local d = NAmanage.GetPhysVals(part)
+			local v = mass / math.max(d, 0.01)
+			if v > 0 then
+				vol += v
+			else
+				vol += math.max(part.Size.X * part.Size.Y * part.Size.Z, 0.01)
+			end
+			total += mass
+			n += 1
+		end
+	end
+	return total, vol, n
+end
+
+cmd.add({"setmass","mass"},{"setmass <mass>","Sets your character mass as close as Roblox allows"},function(...)
+	local args = {...}
+	local target = tonumber(args[1])
+	if not target then
+		DebugNotif("Usage: setmass <mass>", 3)
+		return
+	end
+	target = math.max(target, 0.01)
+	local _, vol, n = NAmanage.GetCharMassInfo()
+	if n <= 0 or vol <= 0 then
+		DebugNotif("No valid character parts found", 3)
+		return
+	end
+	local density = math.clamp(target / vol, 0.01, 100)
+	NAmanage.SetCharDensity(density)
+	local newMass = select(1, NAmanage.GetCharMassInfo())
+	DebugNotif("Mass approx: "..tostring(math.floor(newMass * 100 + 0.5) / 100).." / "..tostring(target).." (density "..tostring(math.floor(density * 100 + 0.5) / 100)..")", 4)
+end,true)
+
 cmd.add({"seat"}, {"seat", "Finds a seat and automatically sits on it"}, function()
 	local character = getChar()
 	local humanoid = getHum()
@@ -42181,6 +42267,156 @@ NAmanage.getHumState = function()
 	return states
 end
 
+NAmanage.cleanHumStateName = function(name)
+	name = tostring(name or "")
+	name = name:gsub("^Enum%.HumanoidStateType%.", "")
+	name = name:gsub("[%s_%-%./]", "")
+	return Lower(name)
+end
+
+NAmanage.getHumStateMap = function()
+	if NAStuff.HumanoidStateNameMap then
+		return NAStuff.HumanoidStateNameMap
+	end
+	local map = {}
+	for _, state in ipairs(NAmanage.getHumState()) do
+		map[NAmanage.cleanHumStateName(state.Name)] = state
+		map[NAmanage.cleanHumStateName(tostring(state))] = state
+		map[tostring(state.Value)] = state
+	end
+	NAStuff.HumanoidStateNameMap = map
+	return map
+end
+
+NAmanage.parseHumStates = function(args)
+	args = type(args) == "table" and args or {}
+	local map = NAmanage.getHumStateMap()
+	local states = {}
+	local seen = {}
+	local bad = {}
+	local all = #args == 0
+	for _, raw in ipairs(args) do
+		for tok in tostring(raw or ""):gmatch("[^,%s]+") do
+			local key = NAmanage.cleanHumStateName(tok)
+			if key == "" or key == "state" then
+			elseif key == "all" or key == "any" or key == "everything" then
+				all = true
+			else
+				local state = map[key]
+				if state and not seen[state] then
+					seen[state] = true
+					Insert(states, state)
+				elseif not state then
+					Insert(bad, tok)
+				end
+			end
+		end
+	end
+	if all then
+		states = NAmanage.getHumState()
+		bad = {}
+	end
+	return states, bad
+end
+
+NAmanage.HumanoidStateLockHas = function(state)
+	if not state then return false end
+	local states = NAStuff.HumanoidStateLockStates
+	if type(states) ~= "table" then return false end
+	for _, v in ipairs(states) do
+		if v == state then
+			return true
+		end
+	end
+	return false
+end
+
+NAStuff.HumanoidStateLockSignals = NAStuff.HumanoidStateLockSignals or {}
+
+NAmanage.HumanoidStateLockClearSignals = function(hum)
+	local sigs = NAStuff.HumanoidStateLockSignals
+	if type(sigs) ~= "table" then
+		NAStuff.HumanoidStateLockSignals = {}
+		return
+	end
+	local function clearOne(h)
+		local arr = sigs[h]
+		if arr then
+			for _, c in ipairs(arr) do
+				pcall(function()
+					if c and type(c.Disconnect) == "function" then
+						c:Disconnect()
+					end
+				end)
+			end
+			sigs[h] = nil
+		end
+	end
+	if hum then
+		clearOne(hum)
+		return
+	end
+	for h in pairs(sigs) do
+		clearOne(h)
+	end
+end
+
+NAmanage.HumanoidStateLockFallbackState = function()
+	local pref = {
+		Enum.HumanoidStateType.Running,
+		Enum.HumanoidStateType.Freefall,
+		Enum.HumanoidStateType.GettingUp,
+		Enum.HumanoidStateType.Physics,
+	}
+	for _, state in ipairs(pref) do
+		if state and not NAmanage.HumanoidStateLockHas(state) then
+			return state
+		end
+	end
+	return nil
+end
+
+NAmanage.HumanoidStateLockWire = function(hum)
+	if not hum then return end
+	NAStuff.HumanoidStateLockSignals = NAStuff.HumanoidStateLockSignals or {}
+	if NAStuff.HumanoidStateLockSignals[hum] then return end
+	local arr = {}
+	NAStuff.HumanoidStateLockSignals[hum] = arr
+	local function add(sig, fn)
+		if not sig then return end
+		local ok, c = pcall(function()
+			return sig:Connect(fn)
+		end)
+		if ok and c then
+			Insert(arr, c)
+		end
+	end
+	add(hum.StateChanged, function(_, state)
+		if not NAStuff.HumanoidStateLockEnabled then return end
+		if typeof(state) == "EnumItem" and state.EnumType == Enum.HumanoidStateType and NAmanage.HumanoidStateLockHas(state) then
+			pcall(function()
+				hum:SetStateEnabled(state, false)
+			end)
+			local alt = NAmanage.HumanoidStateLockFallbackState()
+			if alt then
+				pcall(function()
+					hum:ChangeState(alt)
+				end)
+			end
+		end
+	end)
+	add(hum.Destroying, function()
+		local store = shared.__disablehumanoidstate
+		if store and store.saved then
+			store.saved[hum] = nil
+		end
+		NAmanage.HumanoidStateLockClearSignals(hum)
+		if NAStuff.HumanoidStateLockHumanoid == hum then
+			NAStuff.HumanoidStateLockHumanoid = nil
+		end
+	end)
+end
+
 NAmanage.HumanoidStateLockApply = function(hum)
 	if not hum then return 0 end
 
@@ -42190,16 +42426,11 @@ NAmanage.HumanoidStateLockApply = function(hum)
 	if not saved then
 		saved = {}
 		store.saved[hum] = saved
-		hum.Destroying:Connect(function()
-			store.saved[hum] = nil
-			if NAStuff.HumanoidStateLockHumanoid == hum then
-				NAStuff.HumanoidStateLockHumanoid = nil
-			end
-		end)
 	end
 
 	local disabled = 0
-	for _, state in ipairs(NAmanage.getHumState()) do
+	local states = NAStuff.HumanoidStateLockStates or NAmanage.getHumState()
+	for _, state in ipairs(states) do
 		if saved[state] == nil then
 			local okEnabled, wasEnabled = pcall(function()
 				return hum:GetStateEnabled(state)
@@ -42213,15 +42444,28 @@ NAmanage.HumanoidStateLockApply = function(hum)
 			hum:SetStateEnabled(state, false)
 		end)
 		if okSet then
-			disabled = disabled + 1
+			disabled += 1
+		end
+	end
+
+	local okState, cur = pcall(function()
+		return hum:GetState()
+	end)
+	if okState and NAmanage.HumanoidStateLockHas(cur) then
+		local alt = NAmanage.HumanoidStateLockFallbackState()
+		if alt then
+			pcall(function()
+				hum:ChangeState(alt)
+			end)
 		end
 	end
 
 	NAStuff.HumanoidStateLockHumanoid = hum
+	NAmanage.HumanoidStateLockWire(hum)
 	return disabled
 end
 
-NAmanage.HumanoidStateLockRestore = function(hum)
+NAmanage.HumanoidStateLockRestore = function(hum, states)
 	if not hum then return 0 end
 
 	local store = shared.__disablehumanoidstate
@@ -42229,38 +42473,76 @@ NAmanage.HumanoidStateLockRestore = function(hum)
 	local restored = 0
 
 	if saved then
-		for state, wasEnabled in pairs(saved) do
-			local okSet = pcall(function()
-				hum:SetStateEnabled(state, wasEnabled)
-			end)
-			if okSet then
-				restored = restored + 1
+		local list = states or {}
+		local restoreAll = #list == 0
+		if restoreAll then
+			for state, wasEnabled in pairs(saved) do
+				local okSet = pcall(function()
+					hum:SetStateEnabled(state, wasEnabled)
+				end)
+				if okSet then
+					restored += 1
+				end
+			end
+			store.saved[hum] = nil
+		else
+			for _, state in ipairs(list) do
+				local wasEnabled = saved[state]
+				if wasEnabled ~= nil then
+					local okSet = pcall(function()
+						hum:SetStateEnabled(state, wasEnabled)
+					end)
+					if okSet then
+						restored += 1
+					end
+					saved[state] = nil
+				else
+					local okSet = pcall(function()
+						hum:SetStateEnabled(state, true)
+					end)
+					if okSet then
+						restored += 1
+					end
+				end
+			end
+			local empty = true
+			for _ in pairs(saved) do
+				empty = false
+				break
+			end
+			if empty then
+				store.saved[hum] = nil
 			end
 		end
-		store.saved[hum] = nil
 	else
-		for _, state in ipairs(NAmanage.getHumState()) do
+		for _, state in ipairs(states or NAmanage.getHumState()) do
 			local okSet = pcall(function()
 				hum:SetStateEnabled(state, true)
 			end)
 			if okSet then
-				restored = restored + 1
+				restored += 1
 			end
 		end
 	end
 
-	if NAStuff.HumanoidStateLockHumanoid == hum then
+	if (not states or #states == 0) and NAStuff.HumanoidStateLockHumanoid == hum then
 		NAStuff.HumanoidStateLockHumanoid = nil
+		NAmanage.HumanoidStateLockClearSignals(hum)
 	end
 	return restored
 end
 
 NAmanage.HumanoidStateLockEnsureHook = function()
-	if NAStuff.HumanoidStateLockHooked or not (typeof(hookmetamethod) == "function" and typeof(getnamecallmethod) == "function" and typeof(newcclosure) == "function" and typeof(checkcaller) == "function") then
+	if NAStuff.HumanoidStateLockHooked then
+		return true
+	end
+	if not (typeof(hookmetamethod) == "function" and typeof(getnamecallmethod) == "function" and typeof(newcclosure) == "function" and typeof(checkcaller) == "function") then
+		NAStuff.HumanoidStateLockNoHook = true
 		return false
 	end
 
 	NAStuff.HumanoidStateLockHooked = true
+	NAStuff.HumanoidStateLockNoHook = false
 	NAStuff.HumanoidStateLockOldNC = NAStuff.HumanoidStateLockOldNC or hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
 		if not checkcaller() and NAStuff.HumanoidStateLockEnabled and typeof(self) == "Instance" then
 			local hum = NAStuff.HumanoidStateLockHumanoid
@@ -42271,7 +42553,12 @@ NAmanage.HumanoidStateLockEnsureHook = function()
 				end
 				if method == "setstateenabled" then
 					local state, enabled = ...
-					if typeof(state) == "EnumItem" and state.EnumType == Enum.HumanoidStateType and enabled == true then
+					if typeof(state) == "EnumItem" and state.EnumType == Enum.HumanoidStateType and enabled == true and NAmanage.HumanoidStateLockHas(state) then
+						return
+					end
+				elseif method == "changestate" then
+					local state = ...
+					if typeof(state) == "EnumItem" and state.EnumType == Enum.HumanoidStateType and NAmanage.HumanoidStateLockHas(state) then
 						return
 					end
 				end
@@ -42283,22 +42570,38 @@ NAmanage.HumanoidStateLockEnsureHook = function()
 	return true
 end
 
-NAmanage.HumanoidStateLockStart = function()
+NAmanage.HumanoidStateLockStartLoops = function()
+	NAlib.disconnect("humstate_lock_step")
+	local function pulse()
+		if not NAStuff.HumanoidStateLockEnabled then return end
+		local activeHum = getHum()
+		if activeHum then
+			NAmanage.HumanoidStateLockApply(activeHum)
+		end
+	end
+	pcall(function()
+		NAlib.connect("humstate_lock_step", RunService.RenderStepped:Connect(pulse))
+	end)
+	pcall(function()
+		NAlib.connect("humstate_lock_step", RunService.PreSimulation:Connect(pulse))
+	end)
+	pcall(function()
+		NAlib.connect("humstate_lock_step", RunService.Heartbeat:Connect(pulse))
+	end)
+end
+
+NAmanage.HumanoidStateLockStart = function(states)
 	NAStuff.HumanoidStateLockEnabled = true
-	NAmanage.HumanoidStateLockEnsureHook()
+	NAStuff.HumanoidStateLockStates = type(states) == "table" and #states > 0 and states or NAmanage.getHumState()
+	local hooked = NAmanage.HumanoidStateLockEnsureHook()
+	NAStuff.HumanoidStateLockFallback = not hooked
 
 	local hum = getHum()
 	if hum then
 		NAmanage.HumanoidStateLockApply(hum)
 	end
 
-	NAlib.disconnect("humstate_lock_step")
-	NAlib.connect("humstate_lock_step", RunService.Heartbeat:Connect(function()
-		if not NAStuff.HumanoidStateLockEnabled then return end
-		local activeHum = getHum()
-		if not activeHum then return end
-		NAmanage.HumanoidStateLockApply(activeHum)
-	end))
+	NAmanage.HumanoidStateLockStartLoops()
 
 	NAlib.disconnect("humstate_lock_char")
 	local lp = Players.LocalPlayer
@@ -42313,27 +42616,113 @@ NAmanage.HumanoidStateLockStart = function()
 	end
 end
 
-NAmanage.HumanoidStateLockStop = function()
-	NAStuff.HumanoidStateLockEnabled = false
-	NAlib.disconnect("humstate_lock_step")
-	NAlib.disconnect("humstate_lock_char")
+NAmanage.HumanoidStateLockStop = function(states)
 	local hum = getHum()
-	return hum and NAmanage.HumanoidStateLockRestore(hum) or 0
+	local restored = hum and NAmanage.HumanoidStateLockRestore(hum, states) or 0
+	if not states or #states == 0 then
+		NAStuff.HumanoidStateLockEnabled = false
+		NAStuff.HumanoidStateLockStates = nil
+		NAlib.disconnect("humstate_lock_step")
+		NAlib.disconnect("humstate_lock_char")
+		NAmanage.HumanoidStateLockClearSignals()
+	else
+		local keep = {}
+		local rem = {}
+		for _, state in ipairs(states) do
+			rem[state] = true
+		end
+		for _, state in ipairs(NAStuff.HumanoidStateLockStates or {}) do
+			if not rem[state] then
+				Insert(keep, state)
+			end
+		end
+		NAStuff.HumanoidStateLockStates = #keep > 0 and keep or nil
+		if #keep == 0 then
+			NAStuff.HumanoidStateLockEnabled = false
+			NAlib.disconnect("humstate_lock_step")
+			NAlib.disconnect("humstate_lock_char")
+			NAmanage.HumanoidStateLockClearSignals()
+		elseif hum then
+			NAmanage.HumanoidStateLockApply(hum)
+		end
+	end
+	return restored
 end
 
-cmd.add({"disablehumanoidstate","disablehumanoidstates","disablehumstates"}, {"disablehumanoidstate", "why..."}, function()
+NAmanage.HumanoidStateLockWindow = function()
 	local hum = getHum()
 	if not hum then
 		DebugNotif("No humanoid found", 2)
 		return
 	end
+	if type(Window) ~= "function" then
+		NAmanage.HumanoidStateLockStart(NAmanage.getHumState())
+		DebugNotif("Window unavailable; disabled all humanoid states", 3)
+		return
+	end
+	local buttons = {}
+	Insert(buttons, {
+		Text = "All States",
+		Callback = function()
+			local states = NAmanage.getHumState()
+			NAmanage.HumanoidStateLockStart(states)
+			DebugNotif("Humanoid state lock enabled ("..tostring(#states).." states)", 2)
+		end
+	})
+	Insert(buttons, {
+		Text = "Restore All",
+		Callback = function()
+			local restored = NAmanage.HumanoidStateLockStop(nil)
+			DebugNotif("Humanoid state lock disabled ("..tostring(restored).." states restored)", 2)
+		end
+	})
+	for _, state in ipairs(NAmanage.getHumState()) do
+		local st = state
+		Insert(buttons, {
+			Text = st.Name,
+			Callback = function()
+				NAmanage.HumanoidStateLockStart({st})
+				DebugNotif("Humanoid state lock enabled ("..st.Name..")", 2)
+			end
+		})
+	end
+	Insert(buttons, {Text = "Cancel", Callback = function() end})
+	Window({
+		Title = "Disable Humanoid State",
+		Description = "Pick which HumanoidStateType to disable.",
+		Buttons = buttons
+	})
+end
 
-	NAmanage.HumanoidStateLockStart()
-	DebugNotif("Humanoid state lock enabled", 2)
+cmd.add({"disablehumanoidstate","disablehumanoidstates","disablehumstates"}, {"disablehumanoidstate", "Opens a picker to disable one humanoid state"}, function(...)
+	local args = {...}
+	if #args == 0 then
+		NAmanage.HumanoidStateLockWindow()
+		return
+	end
+	local hum = getHum()
+	if not hum then
+		DebugNotif("No humanoid found", 2)
+		return
+	end
+	local states, bad = NAmanage.parseHumStates(args)
+	if #bad > 0 then
+		DebugNotif("Unknown humanoid state: "..tostring(bad[1]), 3)
+		return
+	end
+	NAmanage.HumanoidStateLockStart(states)
+	DebugNotif("Humanoid state lock enabled ("..tostring(#states).." states)", 2)
 end)
 
-cmd.add({"enablehumanoidstate","enablehumanoidstates","restorehumanoidstate","restorehumstates"}, {"enablehumanoidstate", "why..."}, function()
-	local restored = NAmanage.HumanoidStateLockStop()
+cmd.add({"enablehumanoidstate","enablehumanoidstates","restorehumanoidstate","restorehumstates"}, {"enablehumanoidstate [state/all]", "Restores one humanoid state or all disabled states"}, function(...)
+	local args = {...}
+	local states, bad = NAmanage.parseHumStates(args)
+	if #bad > 0 then
+		DebugNotif("Unknown humanoid state: "..tostring(bad[1]), 3)
+		return
+	end
+	local use = #args > 0 and states or nil
+	local restored = NAmanage.HumanoidStateLockStop(use)
 	DebugNotif("Humanoid state lock disabled ("..restored.." states restored)", 2)
 end)
 
@@ -45794,6 +46183,257 @@ end)
 cmd.add({"reset","die"},{"reset (die)","Makes your health be 0"},function()
 	getHum():ChangeState(Enum.HumanoidStateType.Dead)
 	getHum().Health=0
+end)
+
+NAStuff.AntiBreakEnabled = NAStuff.AntiBreakEnabled or false
+NAStuff.AntiBreakSignals = NAStuff.AntiBreakSignals or {}
+NAStuff.AntiBreakNoHook = NAStuff.AntiBreakNoHook or false
+
+NAmanage.AntiBreakClearSignals = function(hum)
+	local sigs = NAStuff.AntiBreakSignals
+	if type(sigs) ~= "table" then
+		NAStuff.AntiBreakSignals = {}
+		return
+	end
+	local function clearOne(h)
+		local arr = sigs[h]
+		if arr then
+			for _, c in ipairs(arr) do
+				pcall(function()
+					if c and type(c.Disconnect) == "function" then
+						c:Disconnect()
+					end
+				end)
+			end
+			sigs[h] = nil
+		end
+	end
+	if hum then
+		clearOne(hum)
+		return
+	end
+	for h in pairs(sigs) do
+		clearOne(h)
+	end
+end
+
+NAmanage.AntiBreakPulse = function(hum)
+	if not hum then return false end
+	pcall(function()
+		if NAlib.isProperty(hum, "BreakJointsOnDeath") ~= false then
+			NAlib.setProperty(hum, "BreakJointsOnDeath", false)
+		end
+	end)
+	pcall(function()
+		hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+	end)
+	local ok, st = pcall(function()
+		return hum:GetState()
+	end)
+	if ok and st == Enum.HumanoidStateType.Dead then
+		pcall(function()
+			hum:ChangeState(Enum.HumanoidStateType.Running)
+		end)
+	end
+	return true
+end
+
+NAmanage.AntiBreakWire = function(hum)
+	if not hum then return end
+	NAStuff.AntiBreakSignals = NAStuff.AntiBreakSignals or {}
+	if NAStuff.AntiBreakSignals[hum] then return end
+	local arr = {}
+	NAStuff.AntiBreakSignals[hum] = arr
+	local function add(sig, fn)
+		if not sig then return end
+		local ok, c = pcall(function()
+			return sig:Connect(fn)
+		end)
+		if ok and c then
+			Insert(arr, c)
+		end
+	end
+	add(hum:GetPropertyChangedSignal("BreakJointsOnDeath"), function()
+		if NAStuff.AntiBreakEnabled then
+			NAmanage.AntiBreakPulse(hum)
+		end
+	end)
+	add(hum.StateChanged, function(_, state)
+		if NAStuff.AntiBreakEnabled and state == Enum.HumanoidStateType.Dead then
+			NAmanage.AntiBreakPulse(hum)
+		end
+	end)
+	add(hum.Died, function()
+		if NAStuff.AntiBreakEnabled then
+			NAmanage.AntiBreakPulse(hum)
+		end
+	end)
+	add(hum.Destroying, function()
+		local st = shared.__antibreakjoints
+		if st and st.saved then
+			st.saved[hum] = nil
+		end
+		NAmanage.AntiBreakClearSignals(hum)
+	end)
+end
+
+NAmanage.AntiBreakApply = function(hum)
+	if not hum then return false end
+	shared.__antibreakjoints = shared.__antibreakjoints or {saved = {}}
+	local st = shared.__antibreakjoints
+	if st.saved[hum] == nil then
+		local okB, bjd = pcall(function()
+			return hum.BreakJointsOnDeath
+		end)
+		local okD, dead = pcall(function()
+			return hum:GetStateEnabled(Enum.HumanoidStateType.Dead)
+		end)
+		st.saved[hum] = {bjd = okB and bjd or nil, dead = okD and dead or nil}
+	end
+	NAmanage.AntiBreakWire(hum)
+	return NAmanage.AntiBreakPulse(hum)
+end
+
+NAmanage.AntiBreakRestore = function(hum)
+	if not hum then return 0 end
+	local st = shared.__antibreakjoints
+	local old = st and st.saved and st.saved[hum]
+	NAmanage.AntiBreakClearSignals(hum)
+	if old then
+		if old.bjd ~= nil then pcall(function() hum.BreakJointsOnDeath = old.bjd end) end
+		if old.dead ~= nil then pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.Dead, old.dead) end) end
+		st.saved[hum] = nil
+		return 1
+	end
+	pcall(function() hum.BreakJointsOnDeath = true end)
+	pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.Dead, true) end)
+	return 0
+end
+
+NAmanage.AntiBreakRestoreAll = function()
+	local st = shared.__antibreakjoints
+	local list = {}
+	if st and st.saved then
+		for hum in pairs(st.saved) do
+			Insert(list, hum)
+		end
+	end
+	local n = 0
+	for _, hum in ipairs(list) do
+		n += NAmanage.AntiBreakRestore(hum)
+	end
+	NAmanage.AntiBreakClearSignals()
+	return n
+end
+
+NAmanage.AntiBreakHook = function()
+	if NAStuff.AntiBreakHooked then
+		return true
+	end
+	if not (typeof(hookmetamethod) == "function" and typeof(getnamecallmethod) == "function" and typeof(newcclosure) == "function" and typeof(checkcaller) == "function") then
+		NAStuff.AntiBreakNoHook = true
+		return false
+	end
+	NAStuff.AntiBreakHooked = true
+	NAStuff.AntiBreakNoHook = false
+	NAStuff.AntiBreakOldNC = NAStuff.AntiBreakOldNC or hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+		if not checkcaller() and NAStuff.AntiBreakEnabled and typeof(self) == "Instance" then
+			local m = getnamecallmethod()
+			if type(m) == "string" then
+				m = Lower(m)
+			end
+			local hum = getHum()
+			local char = getChar()
+			if m == "breakjoints" and char and self == char then
+				return
+			elseif hum and self == hum and m == "setstateenabled" then
+				local state, enabled = ...
+				if state == Enum.HumanoidStateType.Dead and enabled == true then
+					return
+				end
+			elseif hum and self == hum and m == "changestate" then
+				local state = ...
+				if state == Enum.HumanoidStateType.Dead then
+					return
+				end
+			elseif hum and self == hum and m == "destroy" then
+				return
+			end
+		end
+		return NAStuff.AntiBreakOldNC(self, ...)
+	end))
+	return true
+end
+
+NAmanage.AntiBreakStartLoops = function()
+	NAlib.disconnect("antibreak_step")
+	NAlib.disconnect("antibreak_loops")
+	local function pulse()
+		if not NAStuff.AntiBreakEnabled then return end
+		local h = getHum()
+		if h then
+			NAmanage.AntiBreakApply(h)
+		end
+	end
+	pcall(function()
+		NAlib.connect("antibreak_loops", RunService.RenderStepped:Connect(pulse))
+	end)
+	pcall(function()
+		NAlib.connect("antibreak_loops", RunService.PreSimulation:Connect(pulse))
+	end)
+	pcall(function()
+		NAlib.connect("antibreak_loops", RunService.Heartbeat:Connect(pulse))
+	end)
+end
+
+cmd.add({"antibreakjoints","antibjoints","nobreakjoints"},{"antibreakjoints","Prevents local character joints from breaking when possible"},function()
+	NAStuff.AntiBreakEnabled = true
+	local hooked = NAmanage.AntiBreakHook()
+	NAStuff.AntiBreakNoHook = not hooked
+	local hum = getHum()
+	if hum then
+		NAmanage.AntiBreakApply(hum)
+	end
+	NAmanage.AntiBreakStartLoops()
+	NAlib.disconnect("antibreak_char")
+	NAlib.connect("antibreak_char", Players.LocalPlayer.CharacterAdded:Connect(function(char)
+		if not NAStuff.AntiBreakEnabled then return end
+		local h = char:FindFirstChildOfClass("Humanoid") or char:WaitForChild("Humanoid", 10)
+		if h then
+			NAmanage.AntiBreakApply(h)
+		end
+	end))
+	DebugNotif("AntiBreakJoints enabled"..(NAStuff.AntiBreakNoHook and " (loop fallback)" or ""), 2)
+end)
+
+cmd.add({"unantibreakjoints","unantibjoints","breakjointsallowed"},{"unantibreakjoints","Disables AntiBreakJoints"},function()
+	NAStuff.AntiBreakEnabled = false
+	NAlib.disconnect("antibreak_step")
+	NAlib.disconnect("antibreak_loops")
+	NAlib.disconnect("antibreak_char")
+	local n = NAmanage.AntiBreakRestoreAll()
+	DebugNotif("AntiBreakJoints disabled ("..tostring(n).." humanoids restored)", 2)
+end)
+
+cmd.add({"breakjoints","bjoints"},{"breakjoints","Break your character joints and die"},function()
+	local char = getChar()
+	local hum = getHum()
+	if not char then
+		DebugNotif("No character found", 2)
+		return
+	end
+	local was = NAStuff.AntiBreakEnabled
+	NAStuff.AntiBreakEnabled = false
+	if hum then
+		pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.Dead, true) end)
+		pcall(function() hum.BreakJointsOnDeath = true end)
+		pcall(function() hum:ChangeState(Enum.HumanoidStateType.Dead) end)
+		pcall(function() hum.Health = 0 end)
+	end
+	pcall(function() char:BreakJoints() end)
+	Delay(0.15, function()
+		NAStuff.AntiBreakEnabled = was
+	end)
 end)
 
 
