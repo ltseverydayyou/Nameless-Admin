@@ -2363,9 +2363,9 @@
         "antiunanchoredfling",
         "afparts"
       ],
-      "usage": "antiflingparts",
-      "args": "",
-      "desc": "Disables collision on nearby high-velocity unanchored non-player parts"
+      "usage": "antiflingparts [linearVelocity] [angularVelocity]",
+      "args": "[linearVelocity] [angularVelocity]",
+      "desc": "Disables collision on nearby unanchored non-player parts above the velocity threshold"
     },
     {
       "name": "unantiflingparts",
@@ -2668,6 +2668,17 @@
       "usage": "reset (die)",
       "args": "",
       "desc": "Makes your health be 0"
+    },
+    {
+      "name": "gethealth",
+      "aliases": [
+        "gethealth",
+        "currenthealth",
+        "hp"
+      ],
+      "usage": "gethealth",
+      "args": "",
+      "desc": "Shows your current health"
     },
     {
       "name": "antibreakjoints",
@@ -5232,6 +5243,46 @@
       "usage": "unshowguis",
       "args": "",
       "desc": "Restores UI states set by showguis"
+    },
+    {
+      "name": "hidetargetgui",
+      "aliases": [
+        "hidetargetgui",
+        "hidegui"
+      ],
+      "usage": "hidetargetgui <name>",
+      "args": "<name>",
+      "desc": "Hides a specific GUI by name"
+    },
+    {
+      "name": "unhidetargetgui",
+      "aliases": [
+        "unhidetargetgui",
+        "unhidegui"
+      ],
+      "usage": "unhidetargetgui",
+      "args": "",
+      "desc": "Restores GUIs hidden by hidetargetgui"
+    },
+    {
+      "name": "showtargetgui",
+      "aliases": [
+        "showtargetgui",
+        "onlygui"
+      ],
+      "usage": "showtargetgui <name>",
+      "args": "<name>",
+      "desc": "Shows only a specific GUI by name"
+    },
+    {
+      "name": "unshowtargetgui",
+      "aliases": [
+        "unshowtargetgui",
+        "restoreguis"
+      ],
+      "usage": "unshowtargetgui",
+      "args": "",
+      "desc": "Restores GUI states changed by showtargetgui"
     },
     {
       "name": "spin",
