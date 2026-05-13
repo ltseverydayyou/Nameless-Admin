@@ -63141,11 +63141,9 @@ function NAmanage.trackPromptGui(inst)
 	if not inst then
 		return nil
 	end
-	if not inst:IsA("ScreenGui") then
-		return nil
-	end
-	if inst.Name and NAmanage.isPromptGuiName(inst.Name) then
-		return inst
+	local gui = inst:IsA("ScreenGui") and inst or inst:FindFirstAncestorWhichIsA("ScreenGui")
+	if gui and gui.Name and NAmanage.isPromptGuiName(gui.Name) then
+		return gui
 	end
 	return nil
 end
@@ -63155,6 +63153,10 @@ function NAmanage.nuhuhprompt(v)
 		if v == false then
 			if promptTBL.blocking then return end
 			promptTBL.blocking = true
+
+			NAmanage.CancelTokenCancel(promptTBL.scanToken)
+			local scanToken = NAmanage.NewCancelToken()
+			promptTBL.scanToken = scanToken
 
 			local visited = {}
 
@@ -63193,37 +63195,37 @@ function NAmanage.nuhuhprompt(v)
 
 				disableGui(gui)
 
-				if gui.Parent and COREGUI and not gui:IsDescendantOf(COREGUI) then
-					local inner = NAmanage.descSub(gui, {
-						added = function(inst2)
-							if inst2:IsA("ScreenGui") and NAmanage.isPromptGuiName(inst2.Name) then
-								disableGui(inst2)
-							end
-						end,
-						filterAdded = function(inst2)
-							return inst2 and inst2:IsA("ScreenGui") and NAmanage.isPromptGuiName(inst2.Name)
-						end,
-					})
-					Insert(promptTBL.conns, inner)
+				for _, x in ipairs(NAmanage.qDesc(gui, "ScreenGui")) do
+					disableGui(x)
 				end
-			end
 
-			local function watchRoot(root)
-				if typeof(root) ~= "Instance" then
-					return
-				end
-				for _, gui in ipairs(NAmanage.qDesc(root, "ScreenGui")) do
-					trackAndDisable(gui)
-				end
-				Insert(promptTBL.conns, NAmanage.descSub(root, {
-					added = trackAndDisable,
-					filterAdded = function(inst)
-						return inst and inst:IsA("ScreenGui") and NAmanage.isPromptGuiName(inst.Name)
+				local inner = NAmanage.descSub(gui, {
+					added = function(inst2)
+						if inst2:IsA("ScreenGui") then
+							disableGui(inst2)
+						end
 					end,
-				}))
+					filterAdded = function(inst2)
+						return inst2 and inst2:IsA("ScreenGui")
+					end,
+				})
+				Insert(promptTBL.conns, inner)
 			end
 
-			watchRoot(COREGUI)
+			local c = NAmanage.cgSub({
+				added = trackAndDisable,
+				filterAdded = function(inst)
+					return NAmanage.trackPromptGui(inst) ~= nil
+				end,
+			})
+			Insert(promptTBL.conns, c)
+
+			SpawnCall(function()
+				NAmanage.ForEachDescendantYield(COREGUI, trackAndDisable, {
+					cancelToken = scanToken,
+					yieldEvery = 400,
+				})
+			end)
 		else
 			if not promptTBL.blocking then return end
 			promptTBL.blocking = false
