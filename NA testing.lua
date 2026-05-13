@@ -2779,9 +2779,9 @@ NAmanage._cgHubGet = NAmanage._cgHubGet or function()
 		hub.qBusy = true
 		Spawn(function()
 			while hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
-				local budget, waitDelay = NAmanage._evtHubBudget(160, {
+				local budget, waitDelay = NAmanage._evtHubBudget(48, {
 					delay = 0,
-					ldSc = 0.4,
+					ldSc = 0.25,
 					ldDel = 0.008,
 				})
 				while budget > 0 and hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
@@ -2882,17 +2882,28 @@ NAmanage._cgHubGet = NAmanage._cgHubGet or function()
 
 	local function connectRootHooks()
 		if not (hub.alive and root and wantsRootEvents()) then
+			disconnectRootHooks()
 			return
 		end
-		if not hub.cAdd then
-			hub.cAdd = NAmanage.safeConnect(root.DescendantAdded, function(inst)
-				qEvt("add", inst)
-			end)
+		if (hub.addCount or 0) > 0 then
+			if not hub.cAdd then
+				hub.cAdd = NAmanage.safeConnect(root.DescendantAdded, function(inst)
+					qEvt("add", inst)
+				end)
+			end
+		elseif hub.cAdd then
+			hub.cAdd:Disconnect()
+			hub.cAdd = nil
 		end
-		if not hub.cRem then
-			hub.cRem = NAmanage.safeConnect(root.DescendantRemoving, function(inst)
-				qEvt("rem", inst)
-			end)
+		if (hub.remCount or 0) > 0 then
+			if not hub.cRem then
+				hub.cRem = NAmanage.safeConnect(root.DescendantRemoving, function(inst)
+					qEvt("rem", inst)
+				end)
+			end
+		elseif hub.cRem then
+			hub.cRem:Disconnect()
+			hub.cRem = nil
 		end
 	end
 	hub.enableRootHooks = connectRootHooks
@@ -2957,6 +2968,8 @@ NAmanage.cgSub = NAmanage.cgSub or function(spec)
 		end
 		if (hub.addCount or 0) <= 0 and (hub.remCount or 0) <= 0 then
 			NAmanage._cgHubDispose(hub)
+		elseif type(hub.enableRootHooks) == "function" then
+			hub.enableRootHooks()
 		end
 	end
 	return conn
@@ -21465,10 +21478,36 @@ if FileSupport then
 		NAStuff.ChatSettingsDirty = not coreChatApplied
 	end
 
+	NAmanage.ScheduleTextChatApply = function(delayTime)
+		if NAStuff.ChatApplyQueued then
+			return
+		end
+		NAStuff.ChatApplyQueued = true
+		Delay(tonumber(delayTime) or 0.1, function()
+			NAStuff.ChatApplyQueued = false
+			NAmanage.ApplyTextChatSettings()
+		end)
+	end
+
 	NAlib.disconnect("TCS_OnDescendantAdded")
-	NAlib.connect("TCS_OnDescendantAdded", NAmanage.descAdd(TextChatService, function()
+	NAlib.connect("TCS_OnDescendantAdded", NAmanage.descAdd(TextChatService, function(inst)
+		if inst and not (inst:IsA("ChatWindowConfiguration")
+			or inst:IsA("ChatInputBarConfiguration")
+			or inst:IsA("BubbleChatConfiguration")
+			or inst:IsA("ChannelTabsConfiguration")
+			or inst:IsA("TextChannel"))
+		then
+			return
+		end
 		markChatSettingsDirty()
-		Defer(NAmanage.ApplyTextChatSettings)
+		NAmanage.ScheduleTextChatApply(0.15)
+	end, function(inst)
+		return inst == nil
+			or inst:IsA("ChatWindowConfiguration")
+			or inst:IsA("ChatInputBarConfiguration")
+			or inst:IsA("BubbleChatConfiguration")
+			or inst:IsA("ChannelTabsConfiguration")
+			or inst:IsA("TextChannel")
 	end))
 
 	NAlib.disconnect("TCS_ApplyLoop")
@@ -21495,9 +21534,10 @@ if FileSupport then
 					NAmanage.ApplyTextChatSettings()
 					didWork = true
 				end
-				local waitTime = didWork and 0.05 or 0.1
+				local customChat = NAStuff.ChatSettings and NAStuff.ChatSettings.customEnabled == true
+				local waitTime = didWork and 0.25 or (customChat and 1.25 or 3)
 				if NAmanage.isLoad and NAmanage.isLoad() then
-					waitTime = math.max(waitTime, 0.15)
+					waitTime = math.max(waitTime, 1)
 				end
 				Wait(waitTime)
 			end
@@ -39851,8 +39891,10 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 	local cons = {};
 	local watchers = {};
 	local function connect(sig, fn)
-		local c = sig:Connect(fn);
-		Insert(cons, c);
+		local c = fn and sig:Connect(fn) or sig;
+		if c then
+			Insert(cons, c);
+		end;
 		return c;
 	end;
 	local function disconnectAll()
@@ -40529,12 +40571,8 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 		active = true;
 		snapshotEnv();
 
-		connect(w.DescendantAdded, function(v)
-			handleAdded(v);
-		end);
-		connect(Lighting.DescendantAdded, function(v)
-			handleAdded(v);
-		end);
+		connect(NAmanage.descAdd(w, handleAdded));
+		connect(NAmanage.descAdd(Lighting, handleAdded));
 
 		local camSeen = {};
 		local function hookCamera(cam)
@@ -44657,10 +44695,11 @@ cmd.add({"unantifling"},{"unantifling","restores collision for other players"},f
 	DebugNotif("Antifling Disabled")
 end)
 
-cmd.add({"antiflingparts","antiunanchoredfling","afparts"},{"antiflingparts","Disables collision on nearby high-velocity unanchored non-player parts"},function()
+cmd.add({"antiflingparts","antiunanchoredfling","afparts"},{"antiflingparts [linearVelocity] [angularVelocity]","Disables collision on nearby unanchored non-player parts above the velocity threshold"},function(...)
 	NAlib.disconnect("antifling_parts")
 	NAlib.disconnect("antifling_parts_scan")
 
+	local args = {...}
 	NAStuff._afpTracked = NAStuff._afpTracked or {}
 	NAStuff._afpOrigCan = NAStuff._afpOrigCan or {}
 	NAStuff._afpSignals = NAStuff._afpSignals or {}
@@ -44669,10 +44708,10 @@ cmd.add({"antiflingparts","antiunanchoredfling","afparts"},{"antiflingparts","Di
 	local orig = NAStuff._afpOrigCan
 	local sigs = NAStuff._afpSignals
 
-	local LINEAR_THREAT = 60
-	local ANGULAR_THREAT = 40
-	local LINEAR_RELEASE = 32
-	local ANGULAR_RELEASE = 22
+	local LINEAR_THREAT = math.max(1, tonumber(args[1]) or 60)
+	local ANGULAR_THREAT = math.max(1, tonumber(args[2]) or 40)
+	local LINEAR_RELEASE = math.max(1, LINEAR_THREAT * 0.55)
+	local ANGULAR_RELEASE = math.max(1, ANGULAR_THREAT * 0.55)
 	local DISTANCE_LIMIT = 80
 	local NEARBY_SCAN_MAX = 96
 	local TRACK_QUOTA = 72
@@ -44881,9 +44920,9 @@ cmd.add({"antiflingparts","antiunanchoredfling","afparts"},{"antiflingparts","Di
 	end))
 
 	if changed > 0 then
-		DoNotif(("AntiFling Parts enabled. Disabled collision on %d high-velocity part(s)."):format(changed), 3, "AntiFling Parts")
+		DoNotif(("AntiFling Parts enabled. Disabled collision on %d part(s). Threshold: %.1f / %.1f."):format(changed, LINEAR_THREAT, ANGULAR_THREAT), 3, "AntiFling Parts")
 	else
-		DoNotif("AntiFling Parts enabled. Watching for nearby high-velocity unanchored parts.", 2, "AntiFling Parts")
+		DoNotif(("AntiFling Parts enabled. Watching unanchored parts above %.1f / %.1f."):format(LINEAR_THREAT, ANGULAR_THREAT), 2, "AntiFling Parts")
 	end
 end)
 
@@ -46185,9 +46224,32 @@ cmd.add({"reset","die"},{"reset (die)","Makes your health be 0"},function()
 	getHum().Health=0
 end)
 
+cmd.add({"gethealth","currenthealth","hp"},{"gethealth","Shows your current health"},function()
+	local char = getChar()
+	local hum = char and char:FindFirstChildOfClass("Humanoid") or nil
+	if not hum or NAlib.isProperty(hum, "Health") == nil then
+		DebugNotif("No humanoid found", 2)
+		return
+	end
+	local health = tonumber(NAlib.isProperty(hum, "Health")) or 0
+	local maxHealth = tonumber(NAlib.isProperty(hum, "MaxHealth"))
+	local function fmt(n)
+		if not n then return "?" end
+		if n % 1 == 0 then return tostring(n) end
+		return ("%.2f"):format(n)
+	end
+	local msg = "Health: "..fmt(health)
+	if maxHealth then
+		msg = msg.." / "..fmt(maxHealth)
+	end
+	DoNotif(msg, 3)
+end)
+
 NAStuff.AntiBreakEnabled = NAStuff.AntiBreakEnabled or false
 NAStuff.AntiBreakSignals = NAStuff.AntiBreakSignals or {}
 NAStuff.AntiBreakNoHook = NAStuff.AntiBreakNoHook or false
+NAStuff.AntiBreakChar = NAStuff.AntiBreakChar or nil
+NAStuff.AntiBreakHum = NAStuff.AntiBreakHum or nil
 
 NAmanage.AntiBreakClearSignals = function(hum)
 	local sigs = NAStuff.AntiBreakSignals
@@ -46217,10 +46279,20 @@ NAmanage.AntiBreakClearSignals = function(hum)
 	end
 end
 
+NAmanage.AntiBreakRefreshCache = function(char, hum)
+	local plr = Players.LocalPlayer
+	local c = char or (plr and plr.Character) or getChar()
+	local h = hum or (c and (c:FindFirstChildOfClass("Humanoid") or c:FindFirstChildOfClass("AnimationController"))) or nil
+	NAStuff.AntiBreakChar = c
+	NAStuff.AntiBreakHum = h
+	return c, h
+end
+
 NAmanage.AntiBreakPulse = function(hum)
 	if not hum then return false end
 	pcall(function()
-		if NAlib.isProperty(hum, "BreakJointsOnDeath") ~= false then
+		local breakOnDeath = NAlib.isProperty(hum, "BreakJointsOnDeath")
+		if breakOnDeath ~= nil and breakOnDeath ~= false then
 			NAlib.setProperty(hum, "BreakJointsOnDeath", false)
 		end
 	end)
@@ -46337,14 +46409,23 @@ NAmanage.AntiBreakHook = function()
 	NAStuff.AntiBreakHooked = true
 	NAStuff.AntiBreakNoHook = false
 	NAStuff.AntiBreakOldNC = NAStuff.AntiBreakOldNC or hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
-		if not checkcaller() and NAStuff.AntiBreakEnabled and typeof(self) == "Instance" then
+		if NAStuff.AntiBreakEnabled then
 			local m = getnamecallmethod()
 			if type(m) == "string" then
 				m = Lower(m)
 			end
-			local hum = getHum()
-			local char = getChar()
-			if m == "breakjoints" and char and self == char then
+			if m ~= "breakjoints" and m ~= "setstateenabled" and m ~= "changestate" and m ~= "destroy" then
+				return NAStuff.AntiBreakOldNC(self, ...)
+			end
+			if checkcaller() or typeof(self) ~= "Instance" then
+				return NAStuff.AntiBreakOldNC(self, ...)
+			end
+			local hum = NAStuff.AntiBreakHum
+			local char = NAStuff.AntiBreakChar
+			if (not char) or (char.Parent == nil) or (hum and hum.Parent == nil) then
+				char, hum = NAmanage.AntiBreakRefreshCache()
+			end
+			if m == "breakjoints" and char and (self == char or self:IsDescendantOf(char)) then
 				return
 			elseif hum and self == hum and m == "setstateenabled" then
 				local state, enabled = ...
@@ -46365,25 +46446,20 @@ NAmanage.AntiBreakHook = function()
 	return true
 end
 
-NAmanage.AntiBreakStartLoops = function()
+NAmanage.AntiBreakStartWatch = function()
 	NAlib.disconnect("antibreak_step")
 	NAlib.disconnect("antibreak_loops")
-	local function pulse()
+	NAlib.connect("antibreak_loops", RunService.PreSimulation:Connect(function()
 		if not NAStuff.AntiBreakEnabled then return end
-		local h = getHum()
+		local h = NAStuff.AntiBreakHum
+		if not h or h.Parent == nil then
+			local _, refreshedHum = NAmanage.AntiBreakRefreshCache()
+			h = refreshedHum
+		end
 		if h then
 			NAmanage.AntiBreakApply(h)
 		end
-	end
-	pcall(function()
-		NAlib.connect("antibreak_loops", RunService.RenderStepped:Connect(pulse))
-	end)
-	pcall(function()
-		NAlib.connect("antibreak_loops", RunService.PreSimulation:Connect(pulse))
-	end)
-	pcall(function()
-		NAlib.connect("antibreak_loops", RunService.Heartbeat:Connect(pulse))
-	end)
+	end))
 end
 
 cmd.add({"antibreakjoints","antibjoints","nobreakjoints"},{"antibreakjoints","Prevents local character joints from breaking when possible"},function()
@@ -46392,14 +46468,16 @@ cmd.add({"antibreakjoints","antibjoints","nobreakjoints"},{"antibreakjoints","Pr
 	NAStuff.AntiBreakNoHook = not hooked
 	local hum = getHum()
 	if hum then
+		NAmanage.AntiBreakRefreshCache(nil, hum)
 		NAmanage.AntiBreakApply(hum)
 	end
-	NAmanage.AntiBreakStartLoops()
+	NAmanage.AntiBreakStartWatch()
 	NAlib.disconnect("antibreak_char")
 	NAlib.connect("antibreak_char", Players.LocalPlayer.CharacterAdded:Connect(function(char)
 		if not NAStuff.AntiBreakEnabled then return end
 		local h = char:FindFirstChildOfClass("Humanoid") or char:WaitForChild("Humanoid", 10)
 		if h then
+			NAmanage.AntiBreakRefreshCache(char, h)
 			NAmanage.AntiBreakApply(h)
 		end
 	end))
@@ -46411,6 +46489,8 @@ cmd.add({"unantibreakjoints","unantibjoints","breakjointsallowed"},{"unantibreak
 	NAlib.disconnect("antibreak_step")
 	NAlib.disconnect("antibreak_loops")
 	NAlib.disconnect("antibreak_char")
+	NAStuff.AntiBreakChar = nil
+	NAStuff.AntiBreakHum = nil
 	local n = NAmanage.AntiBreakRestoreAll()
 	DebugNotif("AntiBreakJoints disabled ("..tostring(n).." humanoids restored)", 2)
 end)
@@ -50943,7 +51023,7 @@ NAmanage.initToolCache=function()
 		NAmanage.scanToolBranch(ch)
 	end
 
-	NAlib.connect("grabtools_cache_add", workspace.DescendantAdded:Connect(function(inst)
+	NAlib.connect("grabtools_cache_add", NAmanage.descAdd(workspace, function(inst)
 		NAmanage.scanToolBranch(inst)
 		if inst:IsA("Folder") or inst:IsA("Model") then
 			Defer(function()
@@ -50952,12 +51032,16 @@ NAmanage.initToolCache=function()
 				end
 			end)
 		end
+	end, function(inst)
+		return inst and (inst:IsA("Tool") or inst:IsA("Folder") or inst:IsA("Model"))
 	end))
 
-	NAlib.connect("grabtools_cache_rem", workspace.DescendantRemoving:Connect(function(inst)
+	NAlib.connect("grabtools_cache_rem", NAmanage.descRem(workspace, function(inst)
 		if inst:IsA("Tool") then
 			NAmanage.dropToolCache(inst)
 		end
+	end, function(inst)
+		return inst and inst:IsA("Tool")
 	end))
 
 	Spawn(function()
@@ -63077,9 +63161,11 @@ function NAmanage.trackPromptGui(inst)
 	if not inst then
 		return nil
 	end
-	local gui = inst:IsA("ScreenGui") and inst or inst:FindFirstAncestorWhichIsA("ScreenGui")
-	if gui and gui.Name and NAmanage.isPromptGuiName(gui.Name) then
-		return gui
+	if not inst:IsA("ScreenGui") then
+		return nil
+	end
+	if inst.Name and NAmanage.isPromptGuiName(inst.Name) then
+		return inst
 	end
 	return nil
 end
@@ -63089,10 +63175,6 @@ function NAmanage.nuhuhprompt(v)
 		if v == false then
 			if promptTBL.blocking then return end
 			promptTBL.blocking = true
-
-			NAmanage.CancelTokenCancel(promptTBL.scanToken)
-			local scanToken = NAmanage.NewCancelToken()
-			promptTBL.scanToken = scanToken
 
 			local visited = {}
 
@@ -63131,37 +63213,37 @@ function NAmanage.nuhuhprompt(v)
 
 				disableGui(gui)
 
-				for _, x in ipairs(NAmanage.qDesc(gui, "ScreenGui")) do
-					disableGui(x)
+				if gui.Parent and COREGUI and not gui:IsDescendantOf(COREGUI) then
+					local inner = NAmanage.descSub(gui, {
+						added = function(inst2)
+							if inst2:IsA("ScreenGui") and NAmanage.isPromptGuiName(inst2.Name) then
+								disableGui(inst2)
+							end
+						end,
+						filterAdded = function(inst2)
+							return inst2 and inst2:IsA("ScreenGui") and NAmanage.isPromptGuiName(inst2.Name)
+						end,
+					})
+					Insert(promptTBL.conns, inner)
 				end
-
-				local inner = NAmanage.descSub(gui, {
-					added = function(inst2)
-						if inst2:IsA("ScreenGui") then
-							disableGui(inst2)
-						end
-					end,
-					filterAdded = function(inst2)
-						return inst2 and inst2:IsA("ScreenGui")
-					end,
-				})
-				Insert(promptTBL.conns, inner)
 			end
 
-			local c = NAmanage.cgSub({
-				added = trackAndDisable,
-				filterAdded = function(inst)
-					return NAmanage.trackPromptGui(inst) ~= nil
-				end,
-			})
-			Insert(promptTBL.conns, c)
+			local function watchRoot(root)
+				if typeof(root) ~= "Instance" then
+					return
+				end
+				for _, gui in ipairs(NAmanage.qDesc(root, "ScreenGui")) do
+					trackAndDisable(gui)
+				end
+				Insert(promptTBL.conns, NAmanage.descSub(root, {
+					added = trackAndDisable,
+					filterAdded = function(inst)
+						return inst and inst:IsA("ScreenGui") and NAmanage.isPromptGuiName(inst.Name)
+					end,
+				}))
+			end
 
-			SpawnCall(function()
-				NAmanage.ForEachDescendantYield(COREGUI, trackAndDisable, {
-					cancelToken = scanToken,
-					yieldEvery = 400,
-				})
-			end)
+			watchRoot(COREGUI)
 		else
 			if not promptTBL.blocking then return end
 			promptTBL.blocking = false
@@ -63399,7 +63481,6 @@ end
 function NAmanage.setNetworkPauseBlocked(disable)
 	NACaller(function()
 		local tbl = networkPauseBlock
-		local scanToken
 		local function destroyNetworkPauseGui(inst)
 			if typeof(inst) ~= "Instance" or not inst:IsA("ScreenGui") then
 				return
@@ -63444,34 +63525,25 @@ function NAmanage.setNetworkPauseBlocked(disable)
 			if tbl.blocking then return end
 			tbl.blocking = true
 
-			NAmanage.CancelTokenCancel(tbl.scanToken)
-			scanToken = NAmanage.NewCancelToken()
-			tbl.scanToken = scanToken
-
-			local c = NAmanage.cgSub({
-				added = trackAndDisable,
-				filterAdded = function(inst)
+			local function watchRoot(root)
+				if typeof(root) ~= "Instance" then
+					return
+				end
+				for _, child in ipairs(root:GetChildren()) do
+					trackAndDisable(child)
+				end
+				Insert(tbl.conns, NAmanage.childAdd(root, trackAndDisable, function(inst)
 					if not inst then
 						return false
 					end
 					local name = Lower(tostring(inst.Name or ""))
-					if name == "" then
-						return false
-					end
-					return name:find("networkpause", 1, true) ~= nil
-				end,
-			})
-			Insert(tbl.conns, c)
+					return name ~= "" and name:find("networkpause", 1, true) ~= nil
+				end))
+			end
 
 			trackAndDisable(nil)
+			watchRoot(COREGUI)
 			startPolling()
-
-			SpawnCall(function()
-				NAmanage.ForEachDescendantYield(COREGUI, trackAndDisable, {
-					cancelToken = scanToken,
-					yieldEvery = 400,
-				})
-			end)
 		else
 			if not tbl.blocking then return end
 			tbl.blocking = false
@@ -63530,6 +63602,113 @@ end)
 
 hiddenGUIS = hiddenGUIS or {}
 showPrev = showPrev or {}
+NAStuff.TargetGuiHidePrev = NAStuff.TargetGuiHidePrev or {}
+NAStuff.TargetGuiShowPrev = NAStuff.TargetGuiShowPrev or {}
+
+NAmanage.TargetGuiRoots = function()
+	local roots = {}
+	local seen = {}
+	local function add(root)
+		if typeof(root) == "Instance" and not seen[root] then
+			seen[root] = true
+			Insert(roots, root)
+		end
+	end
+	local lp = Players.LocalPlayer
+	add(PlrGui)
+	add(lp and (lp:FindFirstChildOfClass("PlayerGui") or lp:FindFirstChild("PlayerGui")))
+	add(HUI)
+	add(COREGUI)
+	return roots
+end
+
+NAmanage.TargetGuiIsUi = function(inst)
+	if typeof(inst) ~= "Instance" then return false end
+	if inst:IsA("GuiObject") then return true end
+	local ok, isLayer = pcall(function()
+		return inst:IsA("LayerCollector")
+	end)
+	return ok and isLayer == true
+end
+
+NAmanage.TargetGuiSetShown = function(inst, shown)
+	if typeof(inst) ~= "Instance" then return false end
+	if inst:IsA("GuiObject") and NAlib.isProperty(inst, "Visible") ~= nil then
+		return NAlib.setProperty(inst, "Visible", shown == true)
+	end
+	if NAlib.isProperty(inst, "Enabled") ~= nil then
+		return NAlib.setProperty(inst, "Enabled", shown == true)
+	end
+	return false
+end
+
+NAmanage.TargetGuiSaveState = function(store, inst)
+	if type(store) ~= "table" or typeof(inst) ~= "Instance" or store[inst] then return end
+	local state = {}
+	local enabled = NAlib.isProperty(inst, "Enabled")
+	local visible = NAlib.isProperty(inst, "Visible")
+	if enabled ~= nil then state.enabled = enabled end
+	if visible ~= nil then state.visible = visible end
+	if state.enabled ~= nil or state.visible ~= nil then
+		store[inst] = state
+	end
+end
+
+NAmanage.TargetGuiRestore = function(store)
+	local n = 0
+	if type(store) ~= "table" then return n end
+	for inst, state in pairs(store) do
+		if typeof(inst) == "Instance" and inst.Parent and type(state) == "table" then
+			if state.enabled ~= nil then NAlib.setProperty(inst, "Enabled", state.enabled) end
+			if state.visible ~= nil then NAlib.setProperty(inst, "Visible", state.visible) end
+			n += 1
+		end
+		store[inst] = nil
+	end
+	return n
+end
+
+NAmanage.TargetGuiFind = function(query)
+	query = type(query) == "string" and Lower(query) or ""
+	if query == "" then return {} end
+	local matches = {}
+	local added = {}
+	local function tryAdd(inst)
+		if not NAmanage.TargetGuiIsUi(inst) or added[inst] then return end
+		local name = Lower(inst.Name or "")
+		local full = ""
+		pcall(function() full = Lower(inst:GetFullName()) end)
+		if name == query or name:find(query, 1, true) or full:find(query, 1, true) then
+			added[inst] = true
+			Insert(matches, inst)
+		end
+	end
+	for _, root in ipairs(NAmanage.TargetGuiRoots()) do
+		tryAdd(root)
+		for _, inst in ipairs(NAmanage.qDesc(root, "Instance")) do
+			tryAdd(inst)
+		end
+	end
+	return matches
+end
+
+NAmanage.TargetGuiCollectUi = function()
+	local list = {}
+	local added = {}
+	local function add(inst)
+		if NAmanage.TargetGuiIsUi(inst) and not added[inst] then
+			added[inst] = true
+			Insert(list, inst)
+		end
+	end
+	for _, root in ipairs(NAmanage.TargetGuiRoots()) do
+		add(root)
+		for _, inst in ipairs(NAmanage.qDesc(root, "Instance")) do
+			add(inst)
+		end
+	end
+	return list
+end
 
 cmd.add({"hideguis"}, {"hideguis","Hides GUIs"}, function()
 	for _, guiElement in pairs(NAmanage.qDesc(PlrGui, "GuiObject")) do
@@ -63571,6 +63750,80 @@ cmd.add({"unshowguis"}, {"unshowguis","Restores UI states set by showguis"}, fun
 		end
 		showPrev[inst] = nil
 	end
+end)
+
+cmd.add({"hidetargetgui","hidegui"},{"hidetargetgui <name>","Hides a specific GUI by name"},function(...)
+	local args = {...}
+	local query = (Concat(args, " "):match("^%s*(.-)%s*$"))
+	if query == "" then
+		DebugNotif("Usage: hidetargetgui <name>", 3)
+		return
+	end
+	local matches = NAmanage.TargetGuiFind(query)
+	if #matches == 0 then
+		DebugNotif("No GUI found matching: "..query, 3)
+		return
+	end
+	local store = NAStuff.TargetGuiHidePrev
+	local changed = 0
+	for _, inst in ipairs(matches) do
+		NAmanage.TargetGuiSaveState(store, inst)
+		if NAmanage.TargetGuiSetShown(inst, false) then
+			changed += 1
+		end
+	end
+	DoNotif(("Hidden %d GUI object(s) matching '%s'."):format(changed, query), 3, "Target GUI")
+end)
+
+cmd.add({"unhidetargetgui","unhidegui"},{"unhidetargetgui","Restores GUIs hidden by hidetargetgui"},function()
+	local n = NAmanage.TargetGuiRestore(NAStuff.TargetGuiHidePrev)
+	DoNotif(("Restored %d hidden GUI object(s)."):format(n), 2, "Target GUI")
+end)
+
+cmd.add({"showtargetgui","onlygui"},{"showtargetgui <name>","Shows only a specific GUI by name"},function(...)
+	local args = {...}
+	local query = (Concat(args, " "):match("^%s*(.-)%s*$"))
+	if query == "" then
+		DebugNotif("Usage: showtargetgui <name>", 3)
+		return
+	end
+	local matches = NAmanage.TargetGuiFind(query)
+	if #matches == 0 then
+		DebugNotif("No GUI found matching: "..query, 3)
+		return
+	end
+
+	local keep = {}
+	for _, inst in ipairs(matches) do
+		keep[inst] = true
+		for _, desc in ipairs(NAmanage.qDesc(inst, "Instance")) do
+			if NAmanage.TargetGuiIsUi(desc) then
+				keep[desc] = true
+			end
+		end
+		local parent = inst.Parent
+		while parent do
+			if NAmanage.TargetGuiIsUi(parent) then
+				keep[parent] = true
+			end
+			parent = parent.Parent
+		end
+	end
+
+	local store = NAStuff.TargetGuiShowPrev
+	local changed = 0
+	for _, inst in ipairs(NAmanage.TargetGuiCollectUi()) do
+		NAmanage.TargetGuiSaveState(store, inst)
+		if NAmanage.TargetGuiSetShown(inst, keep[inst] == true) then
+			changed += 1
+		end
+	end
+	DoNotif(("Showing only '%s' (%d GUI object(s) updated)."):format(query, changed), 3, "Target GUI")
+end)
+
+cmd.add({"unshowtargetgui","restoreguis"},{"unshowtargetgui","Restores GUI states changed by showtargetgui"},function()
+	local n = NAmanage.TargetGuiRestore(NAStuff.TargetGuiShowPrev)
+	DoNotif(("Restored %d GUI object(s)."):format(n), 2, "Target GUI")
 end)
 
 spinThingy = nil
@@ -101790,13 +102043,17 @@ NAmanage.NAInitCoreGuiCustomization=function()
 			if not (o and o.Parent) then
 				return false
 			end
-			if HUI and o:IsDescendantOf(HUI) then
-				return false
-			end
-			return o:IsA("ImageLabel")
+			local relevant = o:IsA("ImageLabel")
 				or o:IsA("ImageButton")
 				or o:IsA("TextLabel")
 				or o:IsA("TextButton")
+			if not relevant then
+				return false
+			end
+			if HUI and o:IsDescendantOf(HUI) then
+				return false
+			end
+			return true
 		end
 
 		local function getImageId(o)
@@ -101820,11 +102077,10 @@ NAmanage.NAInitCoreGuiCustomization=function()
 				return false
 			end
 
-			if HUI and o:IsDescendantOf(HUI) then
-				return false
-			end
-
 			if PT.images[o] then
+				if HUI and o:IsDescendantOf(HUI) then
+					return false
+				end
 				NAmanage.plex_apply(o)
 				return true
 			end
@@ -102206,10 +102462,10 @@ NAmanage.NAInitCoreGuiCustomization=function()
 				if not (o and o.Parent) then
 					return false
 				end
-				if HUI and o:IsDescendantOf(HUI) then
+				if not (o:IsA("TextLabel") or o:IsA("TextButton")) then
 					return false
 				end
-				if not (o:IsA("TextLabel") or o:IsA("TextButton")) then
+				if HUI and o:IsDescendantOf(HUI) then
 					return false
 				end
 				local ff = NAlib.isProperty(o, "FontFace")
@@ -103279,17 +103535,21 @@ NAmanage.NAInitCoreGuiCustomization=function()
 				})
 			end)
 
-			refreshBuilderIconDropdown({
-				syncText = true,
+			local hasSavedBuilderIconOverrides = type(BuilderIconEditor.data.overrides) == "table"
+				and next(BuilderIconEditor.data.overrides) ~= nil
+			if BuilderIconEditor.data.enabled == true or hasSavedBuilderIconOverrides then
+				refreshBuilderIconDropdown({
+					syncText = true,
 					fullScan = true,
-			})
-			fetchBuilderIconCatalog({
-				notify = false,
-			})
-			queueSavedBuilderIconReapply({
-				delay = 0.05,
-				refreshDropdown = false,
-			})
+				})
+				fetchBuilderIconCatalog({
+					notify = false,
+				})
+				queueSavedBuilderIconReapply({
+					delay = 0.05,
+					refreshDropdown = false,
+				})
+			end
 
 			if BuilderIconEditor.data.enabled == true then
 				connectBuilderIconWatchers()
