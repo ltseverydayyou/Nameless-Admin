@@ -91,7 +91,7 @@ if naAlreadyLoaded() then
 end
 
 local naFlagValue = tick()
-local naVerifyKey = "Haryas Admin Is SKIDDED AS FUCK"
+local naVerifyKey = "Arys also known as tim1540 loves skidding and lying like a little bitch he is grow up retard"
 
 _na_boot.syncRuntimeGlobals = function(values)
 	if type(values) ~= "table" then
