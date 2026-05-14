@@ -2828,9 +2828,6 @@ NAmanage._cgHubGet = NAmanage._cgHubGet or function()
 			if (hub.addCount or 0) <= 0 then
 				return
 			end
-			if not hasInterested(hub.added, inst) then
-				return
-			end
 			if hub.aSet[inst] then
 				return
 			end
@@ -2839,9 +2836,6 @@ NAmanage._cgHubGet = NAmanage._cgHubGet or function()
 			hub.aQ[hub.aTail] = inst
 		else
 			if (hub.remCount or 0) <= 0 then
-				return
-			end
-			if not hasInterested(hub.removing, inst) then
 				return
 			end
 			if hub.rSet[inst] then
@@ -9632,7 +9626,11 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			end
 
 			while uiScanHead <= uiScanTail do
-				local budget = 35
+				local budget, waitDelay = NAmanage._evtHubBudget(24, {
+					delay = 0,
+					ldSc = 0.25,
+					ldDel = 0.008,
+				})
 
 				while budget > 0 and uiScanHead <= uiScanTail do
 					local job = uiScanJobs[uiScanHead]
@@ -9686,7 +9684,11 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 					end
 				end
 
-				Wait()
+				if waitDelay > 0 then
+					Wait(waitDelay)
+				else
+					Wait()
+				end
 			end
 
 			uiScanJobs = {}
@@ -9880,7 +9882,11 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		local token = cornerApplyToken
 		Spawn(function()
 			while cornerApplyToken == token and cornerApplyHead <= cornerApplyTail do
-				local budget = 90
+				local budget, waitDelay = NAmanage._evtHubBudget(24, {
+					delay = 0,
+					ldSc = 0.25,
+					ldDel = 0.008,
+				})
 				while budget > 0 and cornerApplyToken == token and cornerApplyHead <= cornerApplyTail do
 					local inst = cornerApplyQueue[cornerApplyHead]
 					cornerApplyQueue[cornerApplyHead] = nil
@@ -9893,7 +9899,11 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 					end
 					budget -= 1
 				end
-				Wait()
+				if waitDelay > 0 then
+					Wait(waitDelay)
+				else
+					Wait()
+				end
 			end
 			if cornerApplyToken == token then
 				cornerApplyQueue = {}
@@ -11416,6 +11426,10 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		return o and NAStuff and NAStuff.NASCREENGUI and o:IsDescendantOf(NAStuff.NASCREENGUI)
 	end
 
+	local function isFontClassTarget(o)
+		return o and (o:IsA("TextLabel") or o:IsA("TextButton") or o:IsA("TextBox"))
+	end
+
 	local function isFontTarget(o)
 		if not (o and o.Parent) then
 			return false
@@ -11426,7 +11440,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		if isNAUIElement(o) and not FontEditor.data.targetHiddenUi then
 			return false
 		end
-		if not (o:IsA("TextLabel") or o:IsA("TextButton") or o:IsA("TextBox")) then
+		if not isFontClassTarget(o) then
 			return false
 		end
 		if FontEditor.data.targetHiddenUi and HUI and o:IsDescendantOf(HUI) then
@@ -11553,7 +11567,11 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		local token = fontApplyToken
 		Spawn(function()
 			while fontApplyToken == token and fontApplyHead <= fontApplyTail do
-				local budget = 100
+				local budget, waitDelay = NAmanage._evtHubBudget(24, {
+					delay = 0,
+					ldSc = 0.25,
+					ldDel = 0.008,
+				})
 				while budget > 0 and fontApplyToken == token and fontApplyHead <= fontApplyTail do
 					local inst = fontApplyQueue[fontApplyHead]
 					fontApplyQueue[fontApplyHead] = nil
@@ -11566,7 +11584,11 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 					end
 					budget -= 1
 				end
-				Wait()
+				if waitDelay > 0 then
+					Wait(waitDelay)
+				else
+					Wait()
+				end
 			end
 			if fontApplyToken == token then
 				fontApplyQueue = {}
@@ -11847,7 +11869,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			NAlib.connect("FontEditor", NAmanage.descSub(FontEditor.cg, {
 				added = onFontDescendantAdded,
 				filterAdded = function(o)
-					return isFontTarget(o)
+					return isFontClassTarget(o)
 				end,
 			}))
 		end
@@ -102043,6 +102065,15 @@ NAmanage.NAInitCoreGuiCustomization=function()
 			return true
 		end
 
+		local function isPlexCandidate(o)
+			return o and (
+				o:IsA("ImageLabel")
+				or o:IsA("ImageButton")
+				or o:IsA("TextLabel")
+				or o:IsA("TextButton")
+			)
+		end
+
 		local function getImageId(o)
 			local value = NAlib.isProperty(o, "Image")
 			if type(value) == "string" and value ~= "" then
@@ -102182,7 +102213,11 @@ NAmanage.NAInitCoreGuiCustomization=function()
 			local token = PT.queueToken
 			coroutine.wrap(function()
 				while token == PT.queueToken and PT.data.enabled and PT.queueHead <= PT.queueTail do
-					local budget = 40
+					local budget, waitDelay = NAmanage._evtHubBudget(20, {
+						delay = 0,
+						ldSc = 0.25,
+						ldDel = 0.008,
+					})
 					while budget > 0 and token == PT.queueToken and PT.data.enabled and PT.queueHead <= PT.queueTail do
 						local o = PT.queue[PT.queueHead]
 						PT.queue[PT.queueHead] = nil
@@ -102195,7 +102230,11 @@ NAmanage.NAInitCoreGuiCustomization=function()
 						end
 						budget -= 1
 					end
-					Wait()
+					if waitDelay > 0 then
+						Wait(waitDelay)
+					else
+						Wait()
+					end
 				end
 				if token == PT.queueToken then
 					PT.queue = {}
@@ -102241,19 +102280,17 @@ NAmanage.NAInitCoreGuiCustomization=function()
 			coroutine.wrap(function()
 				local cg = PT.cg
 				if cg and PT.data.enabled and seq == PT.applyAllSeq then
-					local desc = NAmanage.qDesc(cg, "Instance")
-					for i = 1, #desc do
+					NAmanage.ForEachDescendantYield(cg, function(o)
 						if not (PT.data.enabled and seq == PT.applyAllSeq) then
-							break
+							return
 						end
-						local o = desc[i]
 						if o and o.Parent then
 							applyIfReady(o)
 						end
-						if i % 200 == 0 then
-							Wait()
-						end
-					end
+					end, {
+						yieldEvery = 80,
+						delayTime = 0,
+					})
 				end
 				PT.applying = false
 				if PT.needApplyAll then
@@ -102298,16 +102335,15 @@ NAmanage.NAInitCoreGuiCustomization=function()
 					PT.rescanAgain = false
 					local cg = PT.cg
 					if cg and PT.data.enabled then
-						local desc = NAmanage.qDesc(cg, "Instance")
-						for i = 1, #desc do
+						NAmanage.ForEachDescendantYield(cg, function(inst)
 							if not PT.data.enabled then
-								break
+								return
 							end
-							enqueue(desc[i])
-							if i % 200 == 0 then
-								Wait()
-							end
-						end
+							enqueue(inst)
+						end, {
+							yieldEvery = 80,
+							delayTime = 0,
+						})
 						processQueue()
 					end
 				until not (PT.data.enabled and PT.rescanAgain)
@@ -102331,7 +102367,7 @@ NAmanage.NAInitCoreGuiCustomization=function()
 			end
 			NAlib.connect("PlexyDescAdded", NAmanage.descSub(PT.cg, {
 				added = PT.onDescendantAdded,
-				filterAdded = isPlexTarget,
+				filterAdded = isPlexCandidate,
 			}))
 			NAlib.connect("PlexyDescRemoving", NAmanage.descSub(PT.cg, {
 				removing = function(o)
@@ -102364,13 +102400,12 @@ NAmanage.NAInitCoreGuiCustomization=function()
 				resetPlexQueue()
 				local cg = PT.cg
 				if cg then
-					local desc = NAmanage.qDesc(cg, "Instance")
-					for i = 1, #desc do
-						NAmanage.plex_remove(desc[i])
-						if i % 200 == 0 then
-							Wait()
-						end
-					end
+					NAmanage.ForEachDescendantYield(cg, function(inst)
+						NAmanage.plex_remove(inst)
+					end, {
+						yieldEvery = 80,
+						delayTime = 0,
+					})
 				end
 				resetPlexImages()
 			end
@@ -102461,6 +102496,10 @@ NAmanage.NAInitCoreGuiCustomization=function()
 				return (ffType == "Font" or ffType == "FontFace")
 					and type(family) == "string"
 					and family:find("BuilderIcons/BuilderIcons.json", 1, true) ~= nil
+			end
+
+			local function isBuilderIconCandidate(o)
+				return o and (o:IsA("TextLabel") or o:IsA("TextButton"))
 			end
 
 			local function getBuilderIconSelectionValue(selection)
@@ -102708,9 +102747,7 @@ NAmanage.NAInitCoreGuiCustomization=function()
 				end
 				local foundAny = false
 				local appliedAny = false
-				local desc = NAmanage.qDesc(CoreGui, "Instance")
-				for i = 1, #desc do
-					local inst = desc[i]
+				NAmanage.ForEachDescendantYield(CoreGui, function(inst)
 					if isBuilderIconTarget(inst) then
 						local path = getBuilderIconPath(inst)
 						if getSavedBuilderIconTextForPath(path) ~= nil then
@@ -102720,10 +102757,10 @@ NAmanage.NAInitCoreGuiCustomization=function()
 							end
 						end
 					end
-					if i % 200 == 0 then
-						Wait()
-					end
-				end
+				end, {
+					yieldEvery = 80,
+					delayTime = 0,
+				})
 				return foundAny, appliedAny
 			end
 
@@ -102735,19 +102772,17 @@ NAmanage.NAInitCoreGuiCustomization=function()
 					return false
 				end
 				local foundPaths = {}
-				local desc = NAmanage.qDesc(CoreGui, "Instance")
-				for i = 1, #desc do
-					local inst = desc[i]
+				NAmanage.ForEachDescendantYield(CoreGui, function(inst)
 					if isBuilderIconTarget(inst) then
 						local path = normalizeBuilderIconOverridePath(getBuilderIconPath(inst))
 						if type(path) == "string" and path ~= "" then
 							foundPaths[path] = true
 						end
 					end
-					if i % 200 == 0 then
-						Wait()
-					end
-				end
+				end, {
+					yieldEvery = 80,
+					delayTime = 0,
+				})
 				for path in pairs(BuilderIconEditor.data.overrides) do
 					if not foundPaths[path] then
 						return true
@@ -103155,20 +103190,18 @@ NAmanage.NAInitCoreGuiCustomization=function()
 				local entries = {}
 				local entryPaths = {}
 				if opts.fullScan == true then
-					local desc = NAmanage.qDesc(CoreGui, "Instance")
 					BuilderIconEditor.liveTargets = setmetatable({}, {
 						__mode = "k",
 					})
-					for i = 1, #desc do
-						local inst = desc[i]
+					NAmanage.ForEachDescendantYield(CoreGui, function(inst)
 						if isBuilderIconTarget(inst) then
 							BuilderIconEditor.liveTargets[inst] = true
 							Insert(found, inst)
 						end
-						if i % 200 == 0 then
-							Wait()
-						end
-					end
+					end, {
+						yieldEvery = 80,
+						delayTime = 0,
+					})
 				else
 					found = collectBuilderIconLiveTargets()
 				end
@@ -103351,7 +103384,7 @@ NAmanage.NAInitCoreGuiCustomization=function()
 						BuilderIconEditor.entryInstSet[o] = nil
 						queueBuilderIconRefresh()
 					end,
-					filterAdded = isBuilderIconTarget,
+					filterAdded = isBuilderIconCandidate,
 					filterRemoving = function(o)
 						return o and (isBuilderIconTarget(o) or isTrackedBuilderIconTarget(o))
 					end,
