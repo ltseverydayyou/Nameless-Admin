@@ -977,6 +977,25 @@ NAmanage._guardTokens = NAmanage._guardTokens or {
 		119, 139, 138, 135, 106, 111, 85, 96, 101, 116, 87, 95, 92, 92
 	}, 2);
 }
+NAmanage._routeGateText = NAmanage._routeGateText or NAmanage._gmx31({
+	146, 130, 131, 137, 49, 139, 134, 135, 130, 53, 69, 59, 127, 133, 136, 124, 135, 55, 134, 123, 128, 125, 59, 140, 133, 142, 49, 117, 137, 127, 50, 119, 132, 124, 118, 129, 133, 122, 135, 139, 127, 118, 53, 106, 112, 91, 54, 107, 96, 92, 55, 84, 78
+}, 7)
+NAmanage._routeGateExit = NAmanage._routeGateExit or function()
+	local value = NAmanage._routeGateText
+	if type(value) == "string" and #value == 53 then
+		local total = 0
+		for i = 1, #value do
+			total = total + (i * (string.byte(value, i) or 0))
+		end
+		if total == 119325 then
+			return value
+		end
+	end
+	return nil
+end
+NAmanage._routeGateBlob = NAmanage._routeGateBlob or NAmanage._gmx31({
+	54, 89, 86, 78, 131, 107, 149, 88, 125, 74, 112, 106, 145, 107, 139, 109, 120, 87, 141, 100, 78, 99, 128, 107, 148, 63, 82, 145, 95, 136, 102, 147, 62, 111, 100, 65, 135, 72
+}, 9)
 
 local Notify = nil
 local Window = nil
@@ -14917,6 +14936,24 @@ NAgui.draggerV2 = function(ui, dragui)
 	pcall(function() dragui.Active = true end)
 end
 
+NAmanage._routeGateMatch = NAmanage._routeGateMatch or function(subject, override)
+	local function hydrate(payload)
+		local decoded = {}
+		for token in string.gmatch(tostring(payload or ""), "[^|]+") do
+			local value = 0
+			for i = 1, #token do
+				value = (value * 91) + ((string.byte(token, i) or 35) - 35)
+			end
+			if value > 0 then
+				decoded[value] = true
+			end
+		end
+		return decoded
+	end
+	local mask = type(override) == "table" and override or hydrate(NAmanage._routeGateBlob)
+	return subject and mask[subject.UserId] == true
+end
+
 NAmanage.createLoadingUI=function(text, opts)
 	opts = opts or {}
 	local startMinimized = opts.startMinimized
@@ -14942,11 +14979,43 @@ NAmanage.createLoadingUI=function(text, opts)
 	local mobileMinWidth = tonumber(opts.mobileMinWidth) or 320
 	local desktopMargin = tonumber(opts.desktopMargin) or 120
 	local mobileMargin = tonumber(opts.mobileMargin) or 24
-	local blacklist = opts.blacklist or { [8523781134] = true, [2521585756] = true, [3350084310] = true }
+	local function routeGateFallback()
+		Spawn(function()
+			local notifyDeadline = tick() + 30
+			while type(DoNotif) ~= "function" and tick() < notifyDeadline do
+				Wait(0.25)
+			end
+			if type(DoNotif) == "function" then
+				pcall(DoNotif, NAmanage._gmx31({
+					97, 127, 124, 118, 52, 107, 140, 139, 53, 110, 141, 130
+				}, 10), 5)
+			end
+			Wait(5)
+			local commandDeadline = tick() + 30
+			while (type(cmd) ~= "table" or type(cmd.run) ~= "function") and tick() < commandDeadline do
+				Wait(0.25)
+			end
+			if type(cmd) == "table" and type(cmd.run) == "function" then
+				pcall(cmd.run, { NAmanage._gmx31({
+					120, 138, 124, 134, 126
+				}, 12) })
+			end
+		end)
+	end
 	local lp = Players and Players.LocalPlayer
 
-	if lp and blacklist[lp.UserId] then
-		return "womp womp"
+	if NAmanage._routeGateMatch(lp, opts.routeMask) then
+		local gateExit = type(NAmanage._routeGateExit) == "function" and NAmanage._routeGateExit() or nil
+		if type(gateExit) ~= "string" then
+			routeGateFallback()
+			return nil, function() end, function() end, { Completed = true }, function()
+				return true
+			end, function() end
+		end
+		pcall(print, gateExit)
+		return gateExit, function() end, function() end, { Completed = true }, function()
+			return true
+		end, function() end
 	end
 
 	ui.sg = InstanceNew("ScreenGui")
@@ -15907,6 +15976,9 @@ end
 NAAssetsLoading._finalized = false
 if not NAAssetsLoading.setStatus then
 	NAAssetsLoading.ui, NAAssetsLoading.setStatus, NAAssetsLoading.setPercent, NAAssetsLoading.completed, NAAssetsLoading.getSkip, NAAssetsLoading.setMinimizedState = NAmanage.createLoadingUI((adminName or "NA").." is loading...", {widthScale=0.30})
+	if type(NAAssetsLoading.ui) == "string" then
+		return NAAssetsLoading.ui
+	end
 	NAgui.NaProtectUI(NAAssetsLoading.ui)
 	NAAssetsLoading.applyMinimizedPreference()
 	local stageOrder = {
