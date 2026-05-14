@@ -2571,25 +2571,14 @@ NAmanage.fastDesc = NAmanage.fastDesc or function(root, className, opts)
 	local source = {}
 
 	if root == workspace then
-		local hub = NAmanage._wsHub
-		if type(hub) == "table" and hub.root == workspace and hub.cacheLive and type(hub.cache) == "table" then
-			hub.cacheLastTouch = os.clock()
-			source = hub.cache
-		else
-			local ok, descs = pcall(function()
-				return workspace:GetDescendants()
-			end)
-			if ok and type(descs) == "table" then
-				source = descs
-			end
-		end
+		source = type(NAmanage.wsDescs) == "function" and NAmanage.wsDescs() or {}
 	else
-		local ok, descs = pcall(function()
-			return root:GetDescendants()
-		end)
-		if ok and type(descs) == "table" then
-			source = descs
-		end
+		source = NAmanage.rawDesc(root, "Instance", {
+			budget = opts.budget,
+			delay = opts.delay,
+			native = opts.native,
+			query = opts.query,
+		})
 	end
 
 	local out = {}
@@ -13195,7 +13184,7 @@ flingManager.GetPlayerCharacter = function(plr)
 		return hum ~= nil and root ~= nil
 	end
 
-	for _, inst in next, workspace:GetDescendants() do
+	for _, inst in next, NAmanage.qDesc(workspace, "Model") do
 		if isUsableCharacter(inst) then
 			return inst
 		end
@@ -39200,14 +39189,10 @@ NAmanage.PredictionRootFromPlayer = function(plr)
 		or tchar.PrimaryPart
 		or tchar:FindFirstChildWhichIsA("BasePart")
 	if not root then
-		local okDesc, descendants = pcall(tchar.GetDescendants, tchar)
-		if okDesc and descendants then
-			for i = 1, #descendants do
-				local inst = descendants[i]
-				if inst:IsA("BasePart") then
-					root = inst
-					break
-				end
+		for _, inst in ipairs(NAmanage.qDesc(tchar, "BasePart")) do
+			if inst:IsA("BasePart") then
+				root = inst
+				break
 			end
 		end
 	end
@@ -46822,7 +46807,7 @@ NAmanage.abSetAnim=function(animate, key, raw)
 	local sv = animate:FindFirstChild(tostring(key):lower())
 	if not sv or not sv:IsA("StringValue") then return false end
 	local hit = false
-	for _, obj in ipairs(sv:GetDescendants()) do
+	for _, obj in ipairs(NAmanage.qDesc(sv, "Animation")) do
 		if obj:IsA("Animation") then
 			obj.AnimationId = id
 			hit = true
@@ -50792,7 +50777,7 @@ NAmanage.toolPart = NAmanage.toolPart or function(tool)
 		return handle
 	end
 
-	for _, d in ipairs(tool:GetDescendants()) do
+	for _, d in ipairs(NAmanage.qDesc(tool, "BasePart")) do
 		if d:IsA("BasePart") then
 			return d
 		end
@@ -50812,7 +50797,7 @@ NAmanage.toolParts=function(tool)
 		parts[#parts + 1] = handle
 	end
 
-	for _, d in ipairs(tool:GetDescendants()) do
+	for _, d in ipairs(NAmanage.qDesc(tool, "BasePart")) do
 		if d:IsA("BasePart") and d ~= handle then
 			parts[#parts + 1] = d
 		end
@@ -50827,7 +50812,7 @@ NAmanage.toolPrompts = NAmanage.toolPrompts or function(tool)
 		return prompts
 	end
 
-	for _, inst in ipairs(tool:GetDescendants()) do
+	for _, inst in ipairs(NAmanage.qDesc(tool, "ProximityPrompt")) do
 		if inst:IsA("ProximityPrompt") and inst.Parent then
 			prompts[#prompts + 1] = inst
 		end
@@ -50993,7 +50978,7 @@ NAmanage.scanToolBranch=function(inst)
 	end
 
 	if inst:IsA("Folder") or inst:IsA("Model") then
-		for _, d in ipairs(inst:GetDescendants()) do
+		for _, d in ipairs(NAmanage.qDesc(inst, "Tool")) do
 			if d:IsA("Tool") then
 				NAmanage.addToolCache(d)
 			end
@@ -51046,7 +51031,7 @@ NAmanage.initToolCache=function()
 
 	Spawn(function()
 		local scanned = 0
-		for _, inst in ipairs(workspace:GetDescendants()) do
+		for _, inst in ipairs(NAmanage.qDesc(workspace, "Tool")) do
 			if inst:IsA("Tool") then
 				NAmanage.addToolCache(inst)
 			end
@@ -89708,7 +89693,7 @@ NAmanage.Notepad_Init = function()
 		item.Text = e
 		item.TextSize = 12
 		item.ZIndex = 42
-		for _, d in ipairs(item:GetDescendants()) do
+		for _, d in ipairs(NAmanage.qDesc(item, "GuiObject")) do
 			if d:IsA("GuiObject") then
 				d.ZIndex = 42
 			end
