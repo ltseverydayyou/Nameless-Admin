@@ -37619,7 +37619,7 @@ cmd.add({"adonisbypass","bypassadonis","badonis","adonisb"},{"adonisbypass (bypa
 				DetectedMeth = detected
 
 				local hook
-				hook = hookfunction(DetectedMeth, function(methodName, methodFunc, methodInfo)
+				hook = hookfunction(DetectedMeth, (newcclosure or function(f) return f end)(function(methodName, methodFunc, methodInfo)
 					if methodName ~= "_" then
 						if IsDebug then
 							--DoNotif("Adonis Detected\nMethod: "..tostring(methodName).."\nInfo: "..tostring(methodFunc))
@@ -37627,7 +37627,7 @@ cmd.add({"adonisbypass","bypassadonis","badonis","adonisb"},{"adonisbypass (bypa
 					end
 
 					return true
-				end)
+				end))
 
 				Insert(hooks, DetectedMeth)
 			end
@@ -37635,11 +37635,11 @@ cmd.add({"adonisbypass","bypassadonis","badonis","adonisb"},{"adonisbypass (bypa
 			if rawget(value, "Variables") and rawget(value, "Process") and typeof(kill) == "function" and not KillMeth then
 				KillMeth = kill
 				local hook
-				hook = hookfunction(KillMeth, function(killFunc)
+				hook = hookfunction(KillMeth, (newcclosure or function(f) return f end)(function(killFunc)
 					if IsDebug then
 						--DoNotif("Adonis tried to detect: "..tostring(killFunc))
 					end
-				end)
+				end))
 
 				Insert(hooks, KillMeth)
 			end
@@ -37647,7 +37647,7 @@ cmd.add({"adonisbypass","bypassadonis","badonis","adonisb"},{"adonisbypass (bypa
 	end
 
 	local hook
-	hook = hookfunction(getrenv().debug.info, newcclosure(function(...)
+	hook = hookfunction(getrenv().debug.info, (newcclosure or function(f) return f end)(function(...)
 		local functionName, functionDetails = ...
 
 		if DetectedMeth and functionName == DetectedMeth then
@@ -37665,7 +37665,7 @@ cmd.add({"adonisbypass","bypassadonis","badonis","adonisb"},{"adonisbypass (bypa
 		local hookfunction = hookfunction
 		local getrenv = getrenv
 		local debugInfo = (getrenv and getrenv().debug and getrenv().debug.info) or debug.info
-		local newcclosure = newcclosure or function(f) return f end
+		local nc = newcclosure or function(f) return f end
 
 		if not (getgc and hookfunction and getrenv and debugInfo) then
 			DoNotif("Required exploit functions not available. Skipping Adonis bypass.",3,"Adonis Bypasser")
@@ -37704,12 +37704,12 @@ cmd.add({"adonisbypass","bypassadonis","badonis","adonisb"},{"adonisbypass (bypa
 				if typeof(detected) == "function" and not DetectedMeth then
 					DetectedMeth = detected
 					local hook
-					hook = hookfunction(DetectedMeth, function(methodName, methodFunc)
+					hook = hookfunction(DetectedMeth, nc(function(methodName, methodFunc)
 						if methodName ~= "_" and IsDebug then
 							DoNotif("Adonis Detected\nMethod: "..methodName.."\nInfo: "..methodFunc,3,"Adonis Bypasser")
 						end
 						return true
-					end)
+					end))
 					Insert(hooks, DetectedMeth)
 					DoNotif("Hooked Adonis 'Detected' method.",3,"Adonis Bypasser")
 				end
@@ -37717,11 +37717,11 @@ cmd.add({"adonisbypass","bypassadonis","badonis","adonisb"},{"adonisbypass (bypa
 				if rawget(value, "Variables") and rawget(value, "Process") and typeof(kill) == "function" and not KillMeth then
 					KillMeth = kill
 					local hook
-					hook = hookfunction(KillMeth, function(killFunc)
+					hook = hookfunction(KillMeth, nc(function(killFunc)
 						if IsDebug then
 							DoNotif("Adonis tried to kill function: "..killFunc,3,"Adonis Bypasser")
 						end
-					end)
+					end))
 					Insert(hooks, KillMeth)
 					DoNotif("Hooked Adonis 'Kill' method.",3,"Adonis Bypasser")
 				end
@@ -37730,7 +37730,7 @@ cmd.add({"adonisbypass","bypassadonis","badonis","adonisb"},{"adonisbypass (bypa
 
 		if DetectedMeth and debugInfo then
 			local hook
-			hook = hookfunction(debugInfo, newcclosure(function(...)
+			hook = hookfunction(debugInfo, nc(function(...)
 				local functionName = ...
 				if functionName == DetectedMeth then
 					-- warn("Adonis detection intercepted. Bypassed by the_king.78.",3,"Adonis Bypasser")
@@ -41658,18 +41658,18 @@ NAmanage.AntiKick_EnsureHook = function()
 	if NAStuff.AntiKickHooked then return end
 	local getRawMetatable = (debug and debug.getmetatable) or getrawmetatable
 	local setReadOnly = setreadonly or (make_writeable and function(t, ro) if ro then make_readonly(t) else make_writeable(t) end end)
-	if not getRawMetatable or not setReadOnly or not newcclosure or not hookfunction then return end
+	if not getRawMetatable or not setReadOnly or not hookfunction then return end
+	local nc = newcclosure or function(f) return f end
 	local meta = getRawMetatable(game)
 	if not meta then return end
 	local player = Players.LocalPlayer
 	if not player then return end
-	NAStuff.AntiKickOrig.namecall = meta.__namecall
 	NAStuff.AntiKickOrig.index = meta.__index
 	NAStuff.AntiKickOrig.newindex = meta.__newindex
 	for _, Kick in next, { player.Kick, player.kick } do
 		if Kick and type(Kick)=="function" then
 			local originalKick
-			originalKick = hookfunction(Kick, newcclosure(function(self, ...)
+			originalKick = hookfunction(Kick, nc(function(self, ...)
 				if self==player then
 					local msg = tostring((select(1, ...)) or "No message")
 					Defer(DebugNotif, "Kick blocked (hook)", 2)
@@ -41685,20 +41685,7 @@ NAmanage.AntiKick_EnsureHook = function()
 		end
 	end
 	setReadOnly(meta, false)
-	meta.__namecall = newcclosure(function(self, ...)
-		local method = getnamecallmethod()
-		if self==player and method and method:lower()=="kick" then
-			local msg = tostring((select(1, ...)) or "No message")
-			Defer(DebugNotif, "Kick blocked (__namecall)", 2)
-			if NAStuff.AntiKickMode=="error" then
-				error("Kick blocked: "..msg, 0)
-			else
-				return
-			end
-		end
-		return NAStuff.AntiKickOrig.namecall(self, ...)
-	end)
-	meta.__index = newcclosure(function(self, key)
+	meta.__index = nc(function(self, key)
 		if self==player then
 			local k=tostring(key):lower()
 			if k:find("kick") or k:find("destroy") then
@@ -41712,7 +41699,7 @@ NAmanage.AntiKick_EnsureHook = function()
 		end
 		return NAStuff.AntiKickOrig.index(self, key)
 	end)
-	meta.__newindex = newcclosure(function(self, key, value)
+	meta.__newindex = nc(function(self, key, value)
 		if self==player then
 			local k=tostring(key):lower()
 			if k:find("kick") or k:find("destroy") then
@@ -41731,11 +41718,11 @@ NAmanage.AntiTeleport_EnsureHook = function()
 	if NAStuff.AntiTeleportHooked then return end
 	local getRawMetatable = (debug and debug.getmetatable) or getrawmetatable
 	local setReadOnly = setreadonly or (make_writeable and function(t, ro) if ro then make_readonly(t) else make_writeable(t) end end)
-	if not getRawMetatable or not setReadOnly or not newcclosure or not hookfunction then return end
+	if not getRawMetatable or not setReadOnly or not hookfunction then return end
+	local nc = newcclosure or function(f) return f end
 	local meta = getRawMetatable(game)
 	if not meta then return end
 	if not TeleportService then return end
-	NAStuff.AntiTeleportOrig.namecall = meta.__namecall
 	NAStuff.AntiTeleportOrig.index = meta.__index
 	NAStuff.AntiTeleportOrig.newindex = meta.__newindex
 	local methods = {"Teleport","TeleportToPlaceInstance","TeleportAsync","TeleportPartyAsync","TeleportToPrivateServer"}
@@ -41743,7 +41730,7 @@ NAmanage.AntiTeleport_EnsureHook = function()
 		local fn = TeleportService[m]
 		if typeof(fn)=="function" then
 			local orig
-			orig = hookfunction(fn, newcclosure(function(self, ...)
+			orig = hookfunction(fn, nc(function(self, ...)
 				if self==TeleportService then
 					Defer(DebugNotif, "Teleport blocked (hook)", 2)
 					if NAStuff.AntiTeleportMode=="error" then
@@ -41758,19 +41745,7 @@ NAmanage.AntiTeleport_EnsureHook = function()
 		end
 	end
 	setReadOnly(meta,false)
-	meta.__namecall = newcclosure(function(self, ...)
-		local method = getnamecallmethod()
-		if self==TeleportService and typeof(method)=="string" and Lower(method):find("teleport") then
-			Defer(DebugNotif, "Teleport blocked (__namecall)", 2)
-			if NAStuff.AntiTeleportMode=="error" then
-				error("Teleport blocked",0)
-			else
-				return nil
-			end
-		end
-		return NAStuff.AntiTeleportOrig.namecall(self,...)
-	end)
-	meta.__index = newcclosure(function(self, key)
+	meta.__index = nc(function(self, key)
 		if self==TeleportService then
 			local k = Lower(tostring(key))
 			if k:find("teleport") then
@@ -41784,7 +41759,7 @@ NAmanage.AntiTeleport_EnsureHook = function()
 		end
 		return NAStuff.AntiTeleportOrig.index(self,key)
 	end)
-	meta.__newindex = newcclosure(function(self, key, value)
+	meta.__newindex = nc(function(self, key, value)
 		if self==TeleportService then
 			local k = Lower(tostring(key))
 			if k:find("teleport") then
@@ -41849,7 +41824,7 @@ cmd.add({"unantikick","unnokick","unbypasskick","unbk"},{"unantikick","Disables 
 	local getRawMetatable = (debug and debug.getmetatable) or getrawmetatable
 	local setReadOnly = setreadonly or (make_writeable and function(t, ro) if ro then make_readonly(t) else make_writeable(t) end end)
 	local meta = getRawMetatable(game)
-	if not meta or not NAStuff.AntiKickOrig or not NAStuff.AntiKickOrig.namecall then
+	if not meta or not NAStuff.AntiKickOrig or not NAStuff.AntiKickOrig.index then
 		DoNotif("Anti-Kick not active or missing references",3)
 		return
 	end
@@ -41858,7 +41833,6 @@ cmd.add({"unantikick","unnokick","unbypasskick","unbk"},{"unantikick","Disables 
 		pcall(function() hookfunction(k, orig) end)
 	end
 	setReadOnly(meta,false)
-	meta.__namecall = NAStuff.AntiKickOrig.namecall
 	meta.__index = NAStuff.AntiKickOrig.index
 	meta.__newindex = NAStuff.AntiKickOrig.newindex
 	setReadOnly(meta,true)
@@ -41870,7 +41844,7 @@ cmd.add({"unantiteleport","unnoteleport","unblocktp"},{"unantiteleport","Disable
 	local getRawMetatable = (debug and debug.getmetatable) or getrawmetatable
 	local setReadOnly = setreadonly or (make_writeable and function(t, ro) if ro then make_readonly(t) else make_writeable(t) end end)
 	local meta = getRawMetatable(game)
-	if not meta or not NAStuff.AntiTeleportOrig or not NAStuff.AntiTeleportOrig.namecall then
+	if not meta or not NAStuff.AntiTeleportOrig or not NAStuff.AntiTeleportOrig.index then
 		DoNotif("Anti-Teleport not active or missing references",3)
 		return
 	end
@@ -41881,7 +41855,6 @@ cmd.add({"unantiteleport","unnoteleport","unblocktp"},{"unantiteleport","Disable
 		end
 	end
 	setReadOnly(meta,false)
-	meta.__namecall = NAStuff.AntiTeleportOrig.namecall
 	meta.__index = NAStuff.AntiTeleportOrig.index
 	meta.__newindex = NAStuff.AntiTeleportOrig.newindex
 	setReadOnly(meta,true)
@@ -42559,36 +42532,51 @@ NAmanage.HumanoidStateLockEnsureHook = function()
 	if NAStuff.HumanoidStateLockHooked then
 		return true
 	end
-	if not (typeof(hookmetamethod) == "function" and typeof(getnamecallmethod) == "function" and typeof(newcclosure) == "function" and typeof(checkcaller) == "function") then
+	if not (typeof(hookfunction) == "function" and typeof(checkcaller) == "function") then
+		NAStuff.HumanoidStateLockNoHook = true
+		return false
+	end
+	local nc = newcclosure or function(f) return f end
+
+	local sample = Instance.new("Humanoid")
+	local setStateEnabled = sample.SetStateEnabled
+	local changeState = sample.ChangeState
+	if typeof(setStateEnabled) ~= "function" or typeof(changeState) ~= "function" then
+		sample:Destroy()
+		NAStuff.HumanoidStateLockNoHook = true
+		return false
+	end
+
+	local oldSetStateEnabled
+	local oldChangeState
+	local ok = pcall(function()
+		oldSetStateEnabled = hookfunction(setStateEnabled, nc(function(self, state, enabled, ...)
+			if not checkcaller() and NAStuff.HumanoidStateLockEnabled and self == NAStuff.HumanoidStateLockHumanoid then
+				if typeof(state) == "EnumItem" and state.EnumType == Enum.HumanoidStateType and enabled == true and NAmanage.HumanoidStateLockHas(state) then
+					return
+				end
+			end
+			return oldSetStateEnabled(self, state, enabled, ...)
+		end))
+		oldChangeState = hookfunction(changeState, nc(function(self, state, ...)
+			if not checkcaller() and NAStuff.HumanoidStateLockEnabled and self == NAStuff.HumanoidStateLockHumanoid then
+				if typeof(state) == "EnumItem" and state.EnumType == Enum.HumanoidStateType and NAmanage.HumanoidStateLockHas(state) then
+					return
+				end
+			end
+			return oldChangeState(self, state, ...)
+		end))
+	end)
+	sample:Destroy()
+	if not ok then
 		NAStuff.HumanoidStateLockNoHook = true
 		return false
 	end
 
 	NAStuff.HumanoidStateLockHooked = true
 	NAStuff.HumanoidStateLockNoHook = false
-	NAStuff.HumanoidStateLockOldNC = NAStuff.HumanoidStateLockOldNC or hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
-		if not checkcaller() and NAStuff.HumanoidStateLockEnabled and typeof(self) == "Instance" then
-			local hum = NAStuff.HumanoidStateLockHumanoid
-			if hum and self == hum then
-				local method = getnamecallmethod()
-				if type(method) == "string" then
-					method = Lower(method)
-				end
-				if method == "setstateenabled" then
-					local state, enabled = ...
-					if typeof(state) == "EnumItem" and state.EnumType == Enum.HumanoidStateType and enabled == true and NAmanage.HumanoidStateLockHas(state) then
-						return
-					end
-				elseif method == "changestate" then
-					local state = ...
-					if typeof(state) == "EnumItem" and state.EnumType == Enum.HumanoidStateType and NAmanage.HumanoidStateLockHas(state) then
-						return
-					end
-				end
-			end
-		end
-		return NAStuff.HumanoidStateLockOldNC(self, ...)
-	end))
+	NAStuff.HumanoidStateLockOldSetStateEnabled = oldSetStateEnabled
+	NAStuff.HumanoidStateLockOldChangeState = oldChangeState
 
 	return true
 end
@@ -44329,39 +44317,30 @@ cmd.add({"username","name"},{"username <name>","changes your Username to any nam
 end)
 
 NAmanage.ClientIdSpoofEnsureHook = function()
-	local getRawMetatable = (debug and debug.getmetatable) or getrawmetatable
-	local setReadOnly = setreadonly or (make_writeable and function(t, ro)
-		if ro then
-			make_readonly(t)
-		else
-			make_writeable(t)
-		end
-	end)
-	if type(getRawMetatable) ~= "function" or type(setReadOnly) ~= "function" or type(newcclosure) ~= "function" or type(getnamecallmethod) ~= "function" then
+	if type(hookfunction) ~= "function" then
 		return false, "executor does not support required hook functions"
 	end
-	local mt = getRawMetatable(game)
-	if not mt or type(mt.__namecall) ~= "function" then
-		return false, "unable to access game metatable __namecall"
+	local nc = newcclosure or function(f) return f end
+	local okService, analytics = pcall(function()
+		return game:GetService("RbxAnalyticsService")
+	end)
+	if not okService or not analytics or typeof(analytics.GetClientId) ~= "function" then
+		return false, "unable to access GetClientId"
 	end
 
-	if NAStuff.ClientIdSpoofHooked == true and mt.__namecall == NAStuff.ClientIdSpoofHookRef and NAStuff.ClientIdSpoofOldNamecall then
+	if NAStuff.ClientIdSpoofHooked == true and NAStuff.ClientIdSpoofHookRef == analytics.GetClientId and NAStuff.ClientIdSpoofOldNamecall then
 		return true
 	end
 
-	NAStuff.ClientIdSpoofOldNamecall = mt.__namecall
-	local hookRef
-	hookRef = newcclosure(function(self, ...)
-		local method = getnamecallmethod()
-		if NAStuff.ClientIdSpoofEnabled == true and method == "GetClientId" then
+	local oldGetClientId
+	oldGetClientId = hookfunction(analytics.GetClientId, nc(function(self, ...)
+		if NAStuff.ClientIdSpoofEnabled == true and self == analytics then
 			return NAStuff.ClientIdSpoofValue
 		end
-		return NAStuff.ClientIdSpoofOldNamecall(self, ...)
-	end)
-	setReadOnly(mt, false)
-	mt.__namecall = hookRef
-	setReadOnly(mt, true)
-	NAStuff.ClientIdSpoofHookRef = hookRef
+		return oldGetClientId(self, ...)
+	end))
+	NAStuff.ClientIdSpoofOldNamecall = oldGetClientId
+	NAStuff.ClientIdSpoofHookRef = analytics.GetClientId
 	NAStuff.ClientIdSpoofHooked = true
 	return true
 end
@@ -44370,26 +44349,15 @@ NAmanage.ClientIdSpoofDisable = function()
 	NAStuff.ClientIdSpoofEnabled = false
 	NAStuff.ClientIdSpoofValue = nil
 
-	local getRawMetatable = (debug and debug.getmetatable) or getrawmetatable
-	local setReadOnly = setreadonly or (make_writeable and function(t, ro)
-		if ro then
-			make_readonly(t)
-		else
-			make_writeable(t)
-		end
-	end)
-	if type(getRawMetatable) ~= "function" or type(setReadOnly) ~= "function" then
+	if type(hookfunction) ~= "function" then
 		NAStuff.ClientIdSpoofHooked = false
 		NAStuff.ClientIdSpoofHookRef = nil
 		NAStuff.ClientIdSpoofOldNamecall = nil
-		return false, "unable to restore metatable on this executor"
+		return false, "unable to restore hook on this executor"
 	end
 
-	local mt = getRawMetatable(game)
-	if mt and NAStuff.ClientIdSpoofHookRef and NAStuff.ClientIdSpoofOldNamecall and mt.__namecall == NAStuff.ClientIdSpoofHookRef then
-		setReadOnly(mt, false)
-		mt.__namecall = NAStuff.ClientIdSpoofOldNamecall
-		setReadOnly(mt, true)
+	if NAStuff.ClientIdSpoofHookRef and NAStuff.ClientIdSpoofOldNamecall then
+		pcall(hookfunction, NAStuff.ClientIdSpoofHookRef, NAStuff.ClientIdSpoofOldNamecall)
 	end
 	NAStuff.ClientIdSpoofHooked = false
 	NAStuff.ClientIdSpoofHookRef = nil
@@ -46387,47 +46355,80 @@ NAmanage.AntiBreakHook = function()
 	if NAStuff.AntiBreakHooked then
 		return true
 	end
-	if not (typeof(hookmetamethod) == "function" and typeof(getnamecallmethod) == "function" and typeof(newcclosure) == "function" and typeof(checkcaller) == "function") then
+	if not (typeof(hookfunction) == "function" and typeof(checkcaller) == "function") then
 		NAStuff.AntiBreakNoHook = true
 		return false
 	end
-	NAStuff.AntiBreakHooked = true
-	NAStuff.AntiBreakNoHook = false
-	NAStuff.AntiBreakOldNC = NAStuff.AntiBreakOldNC or hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
-		if NAStuff.AntiBreakEnabled then
-			local m = getnamecallmethod()
-			if type(m) == "string" then
-				m = Lower(m)
-			end
-			if m ~= "breakjoints" and m ~= "setstateenabled" and m ~= "changestate" and m ~= "destroy" then
-				return NAStuff.AntiBreakOldNC(self, ...)
-			end
-			if checkcaller() or typeof(self) ~= "Instance" then
-				return NAStuff.AntiBreakOldNC(self, ...)
-			end
-			local hum = NAStuff.AntiBreakHum
-			local char = NAStuff.AntiBreakChar
-			if (not char) or (char.Parent == nil) or (hum and hum.Parent == nil) then
-				char, hum = NAmanage.AntiBreakRefreshCache()
-			end
-			if m == "breakjoints" and char and (self == char or self:IsDescendantOf(char)) then
-				return
-			elseif hum and self == hum and m == "setstateenabled" then
-				local state, enabled = ...
+	local nc = newcclosure or function(f) return f end
+	local sampleHum = Instance.new("Humanoid")
+	local sampleModel = Instance.new("Model")
+	local setStateEnabled = sampleHum.SetStateEnabled
+	local changeState = sampleHum.ChangeState
+	local destroy = sampleHum.Destroy
+	local breakJoints = sampleModel.BreakJoints
+	if typeof(setStateEnabled) ~= "function" or typeof(changeState) ~= "function" or typeof(destroy) ~= "function" or typeof(breakJoints) ~= "function" then
+		sampleHum:Destroy()
+		sampleModel:Destroy()
+		NAStuff.AntiBreakNoHook = true
+		return false
+	end
+
+	local oldSetStateEnabled
+	local oldChangeState
+	local oldDestroy
+	local oldBreakJoints
+	local ok = pcall(function()
+		oldSetStateEnabled = hookfunction(setStateEnabled, nc(function(self, state, enabled, ...)
+			if NAStuff.AntiBreakEnabled and not checkcaller() and self == NAStuff.AntiBreakHum then
 				if state == Enum.HumanoidStateType.Dead and enabled == true then
 					return
 				end
-			elseif hum and self == hum and m == "changestate" then
-				local state = ...
+			end
+			return oldSetStateEnabled(self, state, enabled, ...)
+		end))
+		oldChangeState = hookfunction(changeState, nc(function(self, state, ...)
+			if NAStuff.AntiBreakEnabled and not checkcaller() and self == NAStuff.AntiBreakHum then
 				if state == Enum.HumanoidStateType.Dead then
 					return
 				end
-			elseif hum and self == hum and m == "destroy" then
+			end
+			return oldChangeState(self, state, ...)
+		end))
+		oldDestroy = hookfunction(destroy, nc(function(self, ...)
+			if NAStuff.AntiBreakEnabled and not checkcaller() and self == NAStuff.AntiBreakHum then
 				return
 			end
-		end
-		return NAStuff.AntiBreakOldNC(self, ...)
-	end))
+			return oldDestroy(self, ...)
+		end))
+		oldBreakJoints = hookfunction(breakJoints, nc(function(self, ...)
+			if NAStuff.AntiBreakEnabled and not checkcaller() and typeof(self) == "Instance" then
+				local char = NAStuff.AntiBreakChar
+				local hum = NAStuff.AntiBreakHum
+				if (not char) or (char.Parent == nil) or (hum and hum.Parent == nil) then
+					char, hum = NAmanage.AntiBreakRefreshCache()
+				end
+				if char and (self == char or self:IsDescendantOf(char)) then
+					return
+				end
+			end
+			return oldBreakJoints(self, ...)
+		end))
+	end)
+	sampleHum:Destroy()
+	sampleModel:Destroy()
+	if not ok then
+		NAStuff.AntiBreakNoHook = true
+		return false
+	end
+
+	NAStuff.AntiBreakHooked = true
+	NAStuff.AntiBreakNoHook = false
+	NAStuff.AntiBreakOldFns = {
+		SetStateEnabled = oldSetStateEnabled,
+		ChangeState = oldChangeState,
+		Destroy = oldDestroy,
+		BreakJoints = oldBreakJoints,
+	}
 	return true
 end
 
@@ -49402,12 +49403,13 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 		end)
 
 		local hooked={}
+		local nc = newcclosure or function(f) return f end
 		local Seralize=loadstring(game:HttpGet('https://api.irisapp.ca/Scripts/SeralizeTable.lua',true))()
 		for i,v in next,toLog do
 			if type(v)=="string" then
 				local suc,err=NACaller(function()
 					local func=loadstring("return "..v)()
-					hooked[i]=hookfunction(func,function(...)
+					hooked[i]=hookfunction(func,nc(function(...)
 						local args={...}
 						if _na_env.functionspy then
 							NACaller(function()
@@ -49435,14 +49437,14 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 							end)
 						end
 						return hooked[i](...)
-					end)
+					end))
 				end)
 				if not suc then
 					warn("Something went wrong while hooking "..v..". Error: "..err)
 				end
 			elseif type(v)=="function" then
 				local suc,err=NACaller(function()
-					hooked[i]=hookfunction(v,function(...)
+					hooked[i]=hookfunction(v,nc(function(...)
 						local args={...}
 						if _na_env.functionspy then
 							NACaller(function()
@@ -49470,7 +49472,7 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 							end)
 						end
 						return hooked[i](...)
-					end)
+					end))
 				end)
 				if not suc then
 					warn("Something went wrong while hooking "..getinfo(v).name..". Error: "..err)
@@ -56466,8 +56468,9 @@ cmd.add({"freegamepass", "freegp"},{"freegamepass (freegp)", "Pretends you own e
 	end
 
 	if hookfunction and not NAStuff._freeGamepassHooked then
+		local nc = newcclosure or function(f) return f end
 		local ok = pcall(function()
-			return hookfunction(market.UserOwnsGamePassAsync, newcclosure(function(...)
+			return hookfunction(market.UserOwnsGamePassAsync, nc(function(...)
 				return true
 			end))
 		end)
@@ -65608,6 +65611,7 @@ NAStuff._godHumRef  = NAStuff._godHumRef  or nil
 NAStuff._godHooked  = NAStuff._godHooked  or false
 NAStuff._godOldNC   = NAStuff._godOldNC   or nil
 NAStuff._godOldNI   = NAStuff._godOldNI   or nil
+NAStuff._godMethodHooked = NAStuff._godMethodHooked or false
 NAStuff._godStrong  = NAStuff._godStrong  or true
 
 NAmanage.God_ClearSignals = function()
@@ -65621,11 +65625,10 @@ NAmanage.God_ClearSignals = function()
 end
 
 NAmanage.God_UnhookMeta = function()
-	if NAStuff._godHooked and NAStuff._godOldNC and NAStuff._godOldNI and typeof(getrawmetatable)=="function" and typeof(setreadonly)=="function" then
+	if NAStuff._godHooked and NAStuff._godOldNI and typeof(getrawmetatable)=="function" and typeof(setreadonly)=="function" then
 		local mt = getrawmetatable(game)
 		local ro = isreadonly and isreadonly(mt)
 		if ro then setreadonly(mt,false) end
-		mt.__namecall = NAStuff._godOldNC
 		mt.__newindex = NAStuff._godOldNI
 		if ro then setreadonly(mt,true) end
 	end
@@ -65708,42 +65711,80 @@ NAmanage.God_WireNoHooks = function(h, strong)
 end
 
 NAmanage.God_HookMeta = function()
-	if NAStuff._godHooked or not (typeof(hookmetamethod)=="function" and typeof(getnamecallmethod)=="function" and typeof(newcclosure)=="function" and typeof(checkcaller)=="function") then
+	if NAStuff._godHooked then
+		return true
+	end
+	if not (typeof(hookfunction)=="function" and typeof(hookmetamethod)=="function" and typeof(checkcaller)=="function") then
 		return false
 	end
-	NAStuff._godHooked = true
-	NAStuff._godOldNC = NAStuff._godOldNC or hookmetamethod(game,"__namecall",newcclosure(function(self,...)
-		if not checkcaller() then
-			local m = getnamecallmethod()
-			if type(m) == "string" then
-				m = Lower(m)
-			end
-			local hum = NAStuff._godHumRef
-			if hum and typeof(self)=="Instance" then
-				if self==hum and m=="changestate" then
-					local st = ...
-					if st == Enum.HumanoidStateType.Dead then
-						return
-					end
-				end
-				if self==hum and m=="setstateenabled" then
-					local st,en = ...
-					if st == Enum.HumanoidStateType.Dead and en == true then
-						return
-					end
-				end
-				if self==hum and m=="destroy" then
-					return
-				end
-				local char = Players.LocalPlayer.Character
-				if char and self==char and m=="breakjoints" then
-					return
-				end
-			end
+	local nc = newcclosure or function(f) return f end
+	if not NAStuff._godMethodHooked then
+		local sampleHum = Instance.new("Humanoid")
+		local sampleModel = Instance.new("Model")
+		local setStateEnabled = sampleHum.SetStateEnabled
+		local changeState = sampleHum.ChangeState
+		local destroy = sampleHum.Destroy
+		local breakJoints = sampleModel.BreakJoints
+		if typeof(setStateEnabled) ~= "function" or typeof(changeState) ~= "function" or typeof(destroy) ~= "function" or typeof(breakJoints) ~= "function" then
+			sampleHum:Destroy()
+			sampleModel:Destroy()
+			return false
 		end
-		return NAStuff._godOldNC(self,...)
-	end))
-	NAStuff._godOldNI = NAStuff._godOldNI or hookmetamethod(game,"__newindex",newcclosure(function(self,k,v)
+		local oldSetStateEnabled
+		local oldChangeState
+		local oldDestroy
+		local oldBreakJoints
+		local ok = pcall(function()
+			oldSetStateEnabled = hookfunction(setStateEnabled, nc(function(self, state, enabled, ...)
+				local hum = NAStuff._godHumRef
+				if NAStuff._godEnabled and not checkcaller() and hum and self == hum then
+					if state == Enum.HumanoidStateType.Dead and enabled == true then
+						return
+					end
+				end
+				return oldSetStateEnabled(self, state, enabled, ...)
+			end))
+			oldChangeState = hookfunction(changeState, nc(function(self, state, ...)
+				local hum = NAStuff._godHumRef
+				if NAStuff._godEnabled and not checkcaller() and hum and self == hum then
+					if state == Enum.HumanoidStateType.Dead then
+						return
+					end
+				end
+				return oldChangeState(self, state, ...)
+			end))
+			oldDestroy = hookfunction(destroy, nc(function(self, ...)
+				local hum = NAStuff._godHumRef
+				if NAStuff._godEnabled and not checkcaller() and hum and self == hum then
+					return
+				end
+				return oldDestroy(self, ...)
+			end))
+			oldBreakJoints = hookfunction(breakJoints, nc(function(self, ...)
+				if NAStuff._godEnabled and not checkcaller() and typeof(self)=="Instance" then
+					local char = Players.LocalPlayer.Character
+					if char and self == char then
+						return
+					end
+				end
+				return oldBreakJoints(self, ...)
+			end))
+		end)
+		sampleHum:Destroy()
+		sampleModel:Destroy()
+		if not ok then
+			return false
+		end
+		NAStuff._godMethodHooked = true
+		NAStuff._godOldMethods = {
+			SetStateEnabled = oldSetStateEnabled,
+			ChangeState = oldChangeState,
+			Destroy = oldDestroy,
+			BreakJoints = oldBreakJoints,
+		}
+	end
+	NAStuff._godHooked = true
+	NAStuff._godOldNI = NAStuff._godOldNI or hookmetamethod(game,"__newindex",nc(function(self,k,v)
 		if not checkcaller() then
 			local hum = NAStuff._godHumRef
 			if hum and self==hum then
@@ -65903,7 +65944,7 @@ end
 cmd.add({"godmode","god"},{"godmode (god)","Pick and enable an invincibility method"},function(...)
 	local args = {...}
 	local choice = args[1] and Lower(args[1]) or nil
-	local useHooking = (typeof(hookmetamethod)=="function" and typeof(getnamecallmethod)=="function" and typeof(newcclosure)=="function" and typeof(checkcaller)=="function")
+	local useHooking = (typeof(hookmetamethod)=="function" and typeof(checkcaller)=="function")
 	local useAlt = NAmanage and NAmanage.God_CanAltRepSignal and NAmanage.God_CanAltRepSignal()
 
 	local function enableStrong()
@@ -74961,48 +75002,100 @@ end
 
 NAmanage.EnsureHook = function()
 	if _na_env.NA_BlockHooked then return end
-	local mt = getrawmetatable(game)
-	local oldNamecall = mt.__namecall
-	setreadonly(mt, false)
-	mt.__namecall = newcclosure(function(self, ...)
-		local method = getnamecallmethod()
-		if (method == "FireServer" or method == "InvokeServer") and Discover(NAStuff.BlockedRemotes, self) then
+	if type(hookfunction) ~= "function" then return end
+	local nc = newcclosure or function(f) return f end
+	local hooks = {}
+	local remoteEvent = Instance.new("RemoteEvent")
+	local remoteFunction = Instance.new("RemoteFunction")
+	local bindableEvent = Instance.new("BindableEvent")
+	local signal = bindableEvent.Event
+
+	local oldFireServer
+	oldFireServer = hookfunction(remoteEvent.FireServer, nc(function(self, ...)
+		if Discover(NAStuff.BlockedRemotes, self) then
+			local method = "FireServer"
 			local m = NAStuff.BlockedRemoteModes[self] or "fakeok"
 			if NAStuff.nuhuhNotifs then Defer(DebugNotif, ("Blocked -> %s (%s) [%s]"):format(self:GetFullName(), method, m == "error" and "ERROR" or "FAKEOK"), 2, "Remote Block") end
 			if m == "error" then error("Blocked remote: "..self:GetFullName().." ["..method.."]", 0) end
-			if method == "InvokeServer" then
-				local ret = NAStuff.BlockedRemoteReturns[self]
-				if ret == nil then ret = NAStuff.RemoteFakeReturn end
-				return ret
-			end
 			return
 		end
-		if NAStuff.BlockedSignals[self] then
-			if method == "Connect" or method == "Once" then
-				local cb = select(1, ...)
-				if type(cb) == "function" and NAmanage.isCoreFunc(cb) then
-					return oldNamecall(self, ...)
+		return oldFireServer(self, ...)
+	end))
+	hooks.FireServer = oldFireServer
+
+	local oldInvokeServer
+	oldInvokeServer = hookfunction(remoteFunction.InvokeServer, nc(function(self, ...)
+		if Discover(NAStuff.BlockedRemotes, self) then
+			local method = "InvokeServer"
+			local m = NAStuff.BlockedRemoteModes[self] or "fakeok"
+			if NAStuff.nuhuhNotifs then Defer(DebugNotif, ("Blocked -> %s (%s) [%s]"):format(self:GetFullName(), method, m == "error" and "ERROR" or "FAKEOK"), 2, "Remote Block") end
+			if m == "error" then error("Blocked remote: "..self:GetFullName().." ["..method.."]", 0) end
+			local ret = NAStuff.BlockedRemoteReturns[self]
+			if ret == nil then ret = NAStuff.RemoteFakeReturn end
+			return ret
+		end
+		return oldInvokeServer(self, ...)
+	end))
+	hooks.InvokeServer = oldInvokeServer
+
+	if type(signal.Connect) == "function" then
+		local oldConnect
+		oldConnect = hookfunction(signal.Connect, nc(function(self, cb, ...)
+			if NAStuff.BlockedSignals[self] and type(cb) == "function" then
+				if NAmanage.isCoreFunc(cb) then
+					return oldConnect(self, cb, ...)
 				end
-				if NAStuff.nuhuhNotifs then Defer(DebugNotif, "Blocked OnClientEvent:"..method.."()", 2, "Remote Block") end
-				local conn = oldNamecall(self, function() end)
+				if NAStuff.nuhuhNotifs then Defer(DebugNotif, "Blocked OnClientEvent connection", 2, "Remote Block") end
+				local conn = oldConnect(self, function() end)
 				pcall(function() conn:Disconnect() end)
 				return conn
-			elseif method == "Wait" then
+			end
+			return oldConnect(self, cb, ...)
+		end))
+		hooks.Connect = oldConnect
+	end
+
+	if type(signal.Once) == "function" then
+		local oldOnce
+		oldOnce = hookfunction(signal.Once, nc(function(self, cb, ...)
+			if NAStuff.BlockedSignals[self] and type(cb) == "function" then
+				if NAmanage.isCoreFunc(cb) then
+					return oldOnce(self, cb, ...)
+				end
+				if NAStuff.nuhuhNotifs then Defer(DebugNotif, "Blocked OnClientEvent once", 2, "Remote Block") end
+				local conn = oldOnce(self, function() end)
+				pcall(function() conn:Disconnect() end)
+				return conn
+			end
+			return oldOnce(self, cb, ...)
+		end))
+		hooks.Once = oldOnce
+	end
+
+	if type(signal.Wait) == "function" then
+		local oldWait
+		oldWait = hookfunction(signal.Wait, nc(function(self, ...)
+			if NAStuff.BlockedSignals[self] then
 				local mode = "fakeok"
-				for r,_ in pairs(NAStuff.BlockedRemotes) do
+				for _, r in pairs(NAStuff.BlockedRemotes) do
 					if typeof(r)=="Instance" and r:IsA("RemoteEvent") and self==r.OnClientEvent then
 						mode = NAStuff.BlockedRemoteModes[r] or "fakeok"
 						break
 					end
 				end
-				if NAStuff.nuhuhNotifs then Defer(DebugNotif, "Blocked OnClientEvent:Wait()", 2, "Remote Block") end
-				if mode == "error" then error("Blocked OnClientEvent:Wait()", 0) end
+				if NAStuff.nuhuhNotifs then Defer(DebugNotif, "Blocked OnClientEvent wait", 2, "Remote Block") end
+				if mode == "error" then error("Blocked OnClientEvent wait", 0) end
 				return nil
 			end
-		end
-		return oldNamecall(self, ...)
-	end)
-	setreadonly(mt, true)
+			return oldWait(self, ...)
+		end))
+		hooks.Wait = oldWait
+	end
+
+	remoteEvent:Destroy()
+	remoteFunction:Destroy()
+	bindableEvent:Destroy()
+	_na_env.NA_BlockHookRefs = hooks
 	_na_env.NA_BlockHooked = true
 end
 
@@ -75146,8 +75239,9 @@ NAmanage.EnsureWalkSpeedBypassHook = function()
 	if _na_env.NA_WSBP_Hooked then return end
 	local mt = getrawmetatable(game)
 	local oldIndex = mt.__index
+	local nc = newcclosure or function(f) return f end
 	setreadonly(mt, false)
-	mt.__index = newcclosure(function(self, key)
+	mt.__index = nc(function(self, key)
 		if key == "WalkSpeed" then
 			return 16
 		end
@@ -78933,7 +79027,7 @@ opt.NAAUTOSCALER = NAUIMANAGER.AUTOSCALER
 		local meta=getrawmetatable(game)
 		local tostr=meta.__tostring
 		setreadonly(meta,false)
-		meta.__tostring=newcclosure(function(t)
+		meta.__tostring=(newcclosure or function(f) return f end)(function(t)
 			if coreGuiProtection[t] and not checkcaller() then
 				return coreGuiProtection[t]
 			end
