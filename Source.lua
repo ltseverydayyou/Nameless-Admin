@@ -1957,7 +1957,7 @@ NAmanage.safeConnect = NAmanage.safeConnect or function(sig, fn)
 end
 
 NAmanage._uiEvtCap = NAmanage._uiEvtCap or function(kind)
-	local base = kind == "core" and 128 or (kind == "playergui" and 192 or 512)
+	local base = kind == "core" and 2048 or (kind == "playergui" and 1024 or 512)
 	local cfg = NAStuff and NAStuff.EventQueueLimit
 	if type(cfg) == "table" then
 		cfg = cfg[kind] or cfg.default
@@ -1989,21 +1989,29 @@ NAmanage._uiEvtPush = NAmanage._uiEvtPush or function(hub, kind, inst, capKind)
 	if not (type(hub) == "table" and hub.alive and inst) then
 		return false
 	end
+	local isAdd = kind == "add"
+	local handlers = isAdd and hub.added or hub.removing
+	if isAdd then
+		if (hub.addCount or 0) <= 0 or hub.aSet[inst] then
+			return false
+		end
+	else
+		if (hub.remCount or 0) <= 0 or hub.rSet[inst] then
+			return false
+		end
+	end
+	if NAmanage._evtHubHasInterested and not NAmanage._evtHubHasInterested(handlers, inst) then
+		return false
+	end
 	local cap = NAmanage._uiEvtCap(capKind or "default")
 	if NAmanage._uiEvtOverflow(hub, cap) then
 		return false
 	end
-	if kind == "add" then
-		if (hub.addCount or 0) <= 0 or hub.aSet[inst] then
-			return false
-		end
+	if isAdd then
 		hub.aSet[inst] = true
 		hub.aTail += 1
 		hub.aQ[hub.aTail] = inst
 		return true
-	end
-	if (hub.remCount or 0) <= 0 or hub.rSet[inst] then
-		return false
 	end
 	hub.rSet[inst] = true
 	hub.rTail += 1
@@ -102067,6 +102075,7 @@ NAmanage.NAInitCoreGuiCustomization=function()
 			default   = { enabled = false, start = { h = 0.8, s = 1, v = 1 }, finish = { h = 0, s = 1, v = 1 } },
 			cg        = CoreGui,
 			images    = setmetatable({}, { __mode = "k" }),
+			watchers  = setmetatable({}, { __mode = "k" }),
 			queue     = {},
 			queueHead = 1,
 			queueTail = 0,
@@ -102172,6 +102181,23 @@ NAmanage.NAInitCoreGuiCustomization=function()
 			PT.images = setmetatable({}, { __mode = "k" })
 		end
 
+		local function resetPlexWatchers()
+			for o, conns in pairs(PT.watchers) do
+				if type(conns) == "table" then
+					for i = 1, #conns do
+						local c = conns[i]
+						if c then
+							pcall(function()
+								c:Disconnect()
+							end)
+						end
+					end
+				end
+				PT.watchers[o] = nil
+			end
+			PT.watchers = setmetatable({}, { __mode = "k" })
+		end
+
 		local function getPlexGradientSequence()
 			local start = PT.data.start or PT.default.start
 			local finish = PT.data.finish or PT.default.finish
@@ -102199,15 +102225,19 @@ NAmanage.NAInitCoreGuiCustomization=function()
 			return PT.gradientSeq
 		end
 
+		local function isPlexImage(o)
+			return o and (o:IsA("ImageLabel") or o:IsA("ImageButton"))
+		end
+
+		local function isPlexText(o)
+			return o and (o:IsA("TextLabel") or o:IsA("TextButton") or o:IsA("TextBox"))
+		end
+
 		local function isPlexTarget(o)
 			if not (o and o.Parent) then
 				return false
 			end
-			local relevant = o:IsA("ImageLabel")
-				or o:IsA("ImageButton")
-				or o:IsA("TextLabel")
-				or o:IsA("TextButton")
-			if not relevant then
+			if not (isPlexImage(o) or isPlexText(o)) then
 				return false
 			end
 			if HUI and o:IsDescendantOf(HUI) then
@@ -102217,12 +102247,7 @@ NAmanage.NAInitCoreGuiCustomization=function()
 		end
 
 		local function isPlexCandidate(o)
-			return o and (
-				o:IsA("ImageLabel")
-				or o:IsA("ImageButton")
-				or o:IsA("TextLabel")
-				or o:IsA("TextButton")
-			)
+			return o and (isPlexImage(o) or isPlexText(o))
 		end
 
 		local function getImageId(o)
@@ -102239,6 +102264,33 @@ NAmanage.NAInitCoreGuiCustomization=function()
 				return value
 			end
 			return nil
+		end
+
+		local function isPlexIconImage(o, imgId)
+			if type(imgId) ~= "string" or imgId == "" then
+				return false
+			end
+			local low = imgId:lower()
+			if low:match("img_set_%dx_%d+%.png$") then
+				return true
+			end
+			if low:find("rbxasset://textures/ui/", 1, true) or low:find("rbxasset://textures/topbar/", 1, true) then
+				return true
+			end
+			local okRect, rect = pcall(function()
+				return o.ImageRectSize
+			end)
+			if okRect and typeof(rect) == "Vector2" and (rect.X > 0 or rect.Y > 0) then
+				return true
+			end
+			local okSize, size = pcall(function()
+				return o.AbsoluteSize
+			end)
+			if okSize and typeof(size) == "Vector2" and size.X <= 120 and size.Y <= 120 then
+				return true
+			end
+			local name = tostring(o.Name or ""):lower()
+			return name:find("icon", 1, true) ~= nil or name:find("glyph", 1, true) ~= nil
 		end
 
 		local function applyIfReady(o)
@@ -102259,13 +102311,13 @@ NAmanage.NAInitCoreGuiCustomization=function()
 			end
 
 			local imgId = getImageId(o)
-			if type(imgId) == "string" and imgId:match("img_set_%dx_%d+%.png$") then
+			if isPlexImage(o) and isPlexIconImage(o, imgId) then
 				PT.images[o] = true
 				NAmanage.plex_apply(o)
 				return true
 			end
 
-			if o:IsA("TextLabel") or o:IsA("TextButton") then
+			if isPlexText(o) then
 				local ff = NAlib.isProperty(o, "FontFace")
 				local ffType = ff and typeof(ff) or nil
 				local fam = ff and ff.Family or nil
@@ -102338,13 +102390,86 @@ NAmanage.NAInitCoreGuiCustomization=function()
 			end
 		end
 
-		local function enqueue(o)
+		local enqueue
+		local scheduleQueueProcess
+
+		local function installPlexWatcher(o)
+			if not (o and o.Parent and isPlexCandidate(o)) then
+				return
+			end
+			if PT.watchers[o] then
+				return
+			end
+			local conns = {}
+			local function bump()
+				if not (PT.data.enabled and o and o.Parent) then
+					return
+				end
+				enqueue(o)
+				scheduleQueueProcess()
+			end
+			local function hook(prop)
+				local ok, sig = pcall(function()
+					return o:GetPropertyChangedSignal(prop)
+				end)
+				if ok and sig then
+					local c = NAmanage.safeConnect(sig, bump)
+					if c then
+						conns[#conns + 1] = c
+					end
+				end
+			end
+			if isPlexImage(o) then
+				hook("Image")
+				hook("ImageRectSize")
+				hook("AbsoluteSize")
+			else
+				hook("FontFace")
+			end
+			local anc = NAmanage.safeConnect(o.AncestryChanged, function(_, parent)
+				if parent then
+					return
+				end
+				local list = PT.watchers[o]
+				if type(list) == "table" then
+					for i = 1, #list do
+						local c = list[i]
+						if c then
+							pcall(function()
+								c:Disconnect()
+							end)
+						end
+					end
+				end
+				PT.watchers[o] = nil
+				PT.images[o] = nil
+				PT.queueSet[o] = nil
+				local list = PT.watchers[o]
+				if type(list) == "table" then
+					for i = 1, #list do
+						local c = list[i]
+						if c then pcall(function() c:Disconnect() end) end
+					end
+				end
+				PT.watchers[o] = nil
+			end)
+			if anc then
+				conns[#conns + 1] = anc
+			end
+			PT.watchers[o] = conns
+		end
+
+		enqueue = function(o)
 			if not (PT.data.enabled and o and o.Parent) then
 				return
 			end
 			if PT.cg and not o:IsDescendantOf(PT.cg) then
 				return
 			end
+			if not isPlexCandidate(o) then
+				return
+			end
+			installPlexWatcher(o)
 			if PT.queueSet[o] then
 				return
 			end
@@ -102398,7 +102523,7 @@ NAmanage.NAInitCoreGuiCustomization=function()
 			end)()
 		end
 
-		local function scheduleQueueProcess()
+		scheduleQueueProcess = function()
 			if PT.queueKickPending then
 				return
 			end
@@ -102490,6 +102615,7 @@ NAmanage.NAInitCoreGuiCustomization=function()
 							if not PT.data.enabled then
 								return
 							end
+							installPlexWatcher(inst)
 							enqueue(inst)
 						end, {
 							yieldEvery = 400,
@@ -102506,8 +102632,21 @@ NAmanage.NAInitCoreGuiCustomization=function()
 			if not PT.data.enabled then
 				return
 			end
+			installPlexWatcher(o)
 			enqueue(o)
 			scheduleQueueProcess()
+			Delay(0.05, function()
+				if PT.data.enabled and o and o.Parent then
+					enqueue(o)
+					scheduleQueueProcess()
+				end
+			end)
+			Delay(0.25, function()
+				if PT.data.enabled and o and o.Parent then
+					enqueue(o)
+					scheduleQueueProcess()
+				end
+			end)
 		end
 
 		PT.setPlexW = function(on)
@@ -102549,6 +102688,7 @@ NAmanage.NAInitCoreGuiCustomization=function()
 				PT.applyAllSeq += 1
 				PT.needApplyAll = false
 				resetPlexQueue()
+				resetPlexWatchers()
 				local cg = PT.cg
 				if cg then
 					NAmanage.ForEachDescendantYield(cg, function(inst)
