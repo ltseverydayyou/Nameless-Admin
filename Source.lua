@@ -1956,6 +1956,61 @@ NAmanage.safeConnect = NAmanage.safeConnect or function(sig, fn)
 	return nil
 end
 
+NAmanage._uiEvtCap = NAmanage._uiEvtCap or function(kind)
+	local base = kind == "core" and 128 or (kind == "playergui" and 192 or 512)
+	local cfg = NAStuff and NAStuff.EventQueueLimit
+	if type(cfg) == "table" then
+		cfg = cfg[kind] or cfg.default
+	end
+	local cap = tonumber(cfg) or base
+	return math.max(64, math.floor(cap))
+end
+
+NAmanage._uiEvtOverflow = NAmanage._uiEvtOverflow or function(hub, cap)
+	if type(hub) ~= "table" then
+		return false
+	end
+	local queued = math.max(0, (hub.aTail or 0) - (hub.aHead or 1) + 1) + math.max(0, (hub.rTail or 0) - (hub.rHead or 1) + 1)
+	if queued <= cap then
+		return false
+	end
+	hub.aQ = {}
+	hub.rQ = {}
+	hub.aSet = NAmanage.ensureWeakTable(nil, "k")
+	hub.rSet = NAmanage.ensureWeakTable(nil, "k")
+	hub.aHead = 1
+	hub.aTail = 0
+	hub.rHead = 1
+	hub.rTail = 0
+	return true
+end
+
+NAmanage._uiEvtPush = NAmanage._uiEvtPush or function(hub, kind, inst, capKind)
+	if not (type(hub) == "table" and hub.alive and inst) then
+		return false
+	end
+	local cap = NAmanage._uiEvtCap(capKind or "default")
+	if NAmanage._uiEvtOverflow(hub, cap) then
+		return false
+	end
+	if kind == "add" then
+		if (hub.addCount or 0) <= 0 or hub.aSet[inst] then
+			return false
+		end
+		hub.aSet[inst] = true
+		hub.aTail += 1
+		hub.aQ[hub.aTail] = inst
+		return true
+	end
+	if (hub.remCount or 0) <= 0 or hub.rSet[inst] then
+		return false
+	end
+	hub.rSet[inst] = true
+	hub.rTail += 1
+	hub.rQ[hub.rTail] = inst
+	return true
+end
+
 NAmanage._evtHubDispatch = NAmanage._evtHubDispatch or function(handlers, inst)
 	for _, rec in pairs(handlers or {}) do
 		local fn = rec
@@ -2027,10 +2082,12 @@ NAmanage.rawDesc = NAmanage.rawDesc or function(root, className, opts)
 	end
 	className = type(className) == "string" and className or "Instance"
 	opts = type(opts) == "table" and opts or {}
+	local coreRoot = (typeof(COREGUI) == "Instance" and COREGUI) or SafeGetService("CoreGui")
+	local isCoreScan = coreRoot and root == coreRoot
 	local out = {}
 	local hard = tonumber(opts.hardLimit) or 0
-	local budget = tonumber(opts.budget) or 1200
-	local delayTime = tonumber(opts.delay) or 0
+	local budget = tonumber(opts.budget) or (isCoreScan and 180 or 1200)
+	local delayTime = tonumber(opts.delay) or (isCoreScan and 0.025 or 0)
 	local function add(inst)
 		if not inst then
 			return false
@@ -2063,7 +2120,7 @@ NAmanage.rawDesc = NAmanage.rawDesc or function(root, className, opts)
 			return out
 		end
 	end
-	if opts.native ~= false and type(root.GetDescendants) == "function" then
+	if not isCoreScan and opts.native ~= false and type(root.GetDescendants) == "function" then
 		local ok, list = pcall(function()
 			return root:GetDescendants()
 		end)
@@ -2767,10 +2824,10 @@ NAmanage._cgHubGet = NAmanage._cgHubGet or function()
 		hub.qBusy = true
 		Spawn(function()
 			while hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
-				local budget, waitDelay = NAmanage._evtHubBudget(48, {
-					delay = 0,
-					ldSc = 0.25,
-					ldDel = 0.008,
+				local budget, waitDelay = NAmanage._evtHubBudget(8, {
+					delay = 0.012,
+					ldSc = 0.2,
+					ldDel = 0.018,
 				})
 				while budget > 0 and hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
 					if hub.rHead <= hub.rTail then
@@ -2820,29 +2877,11 @@ NAmanage._cgHubGet = NAmanage._cgHubGet or function()
 	end
 
 	local function qEvt(kind, inst)
-		if not (hub.alive and inst) then
+		if NAStuff and NAStuff.teleportTransition then
 			return
 		end
-		if kind == "add" then
-			if (hub.addCount or 0) <= 0 then
-				return
-			end
-			if hub.aSet[inst] then
-				return
-			end
-			hub.aSet[inst] = true
-			hub.aTail += 1
-			hub.aQ[hub.aTail] = inst
-		else
-			if (hub.remCount or 0) <= 0 then
-				return
-			end
-			if hub.rSet[inst] then
-				return
-			end
-			hub.rSet[inst] = true
-			hub.rTail += 1
-			hub.rQ[hub.rTail] = inst
+		if not NAmanage._uiEvtPush(hub, kind, inst, "core") then
+			return
 		end
 		kickQ()
 	end
@@ -3099,10 +3138,10 @@ NAmanage._pgHubGet = NAmanage._pgHubGet or function()
 		hub.qBusy = true
 		Spawn(function()
 			while hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
-				local budget, waitDelay = NAmanage._evtHubBudget(120, {
-					delay = 0,
-					ldSc = 0.35,
-					ldDel = 0.008,
+				local budget, waitDelay = NAmanage._evtHubBudget(32, {
+					delay = 0.008,
+					ldSc = 0.25,
+					ldDel = 0.014,
 				})
 				while budget > 0 and hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
 					if hub.rHead <= hub.rTail then
@@ -3152,35 +3191,11 @@ NAmanage._pgHubGet = NAmanage._pgHubGet or function()
 	end
 
 	local function qEvt(kind, inst)
-		if not (hub.alive and inst) then
+		if NAStuff and NAStuff.teleportTransition then
 			return
 		end
-		if kind == "add" then
-			if (hub.addCount or 0) <= 0 then
-				return
-			end
-			if not hasInterested(hub.added, inst) then
-				return
-			end
-			if hub.aSet[inst] then
-				return
-			end
-			hub.aSet[inst] = true
-			hub.aTail += 1
-			hub.aQ[hub.aTail] = inst
-		else
-			if (hub.remCount or 0) <= 0 then
-				return
-			end
-			if not hasInterested(hub.removing, inst) then
-				return
-			end
-			if hub.rSet[inst] then
-				return
-			end
-			hub.rSet[inst] = true
-			hub.rTail += 1
-			hub.rQ[hub.rTail] = inst
+		if not NAmanage._uiEvtPush(hub, kind, inst, "playergui") then
+			return
 		end
 		kickQ()
 	end
@@ -3803,35 +3818,13 @@ NAmanage._descHubGet = NAmanage._descHubGet or function(root)
 	end
 
 	local function qEvt(kind, inst)
-		if not (hub.alive and inst) then
+		if NAStuff and NAStuff.teleportTransition then
 			return
 		end
-		if kind == "add" then
-			if (hub.addCount or 0) <= 0 then
-				return
-			end
-			if not hasInterested(hub.added, inst) then
-				return
-			end
-			if hub.aSet[inst] then
-				return
-			end
-			hub.aSet[inst] = true
-			hub.aTail += 1
-			hub.aQ[hub.aTail] = inst
-		else
-			if (hub.remCount or 0) <= 0 then
-				return
-			end
-			if not hasInterested(hub.removing, inst) then
-				return
-			end
-			if hub.rSet[inst] then
-				return
-			end
-			hub.rSet[inst] = true
-			hub.rTail += 1
-			hub.rQ[hub.rTail] = inst
+		local coreRoot = (typeof(COREGUI) == "Instance" and COREGUI) or SafeGetService("CoreGui")
+		local capKind = (coreRoot and root and root:IsDescendantOf(coreRoot)) and "core" or "default"
+		if not NAmanage._uiEvtPush(hub, kind, inst, capKind) then
+			return
 		end
 		kickQ()
 	end
@@ -4766,18 +4759,26 @@ NAmanage.ForEachDescendantYield = NAmanage.ForEachDescendantYield or function(ro
 		return 0
 	end
 
-	local yieldEvery = tonumber(opts.yieldEvery) or 250
+	local coreRoot = (typeof(COREGUI) == "Instance" and COREGUI) or SafeGetService("CoreGui")
+	local isCoreScan = coreRoot and root == coreRoot
+	local yieldEvery = tonumber(opts.yieldEvery) or (isCoreScan and 160 or 250)
 	if yieldEvery < 1 then
 		yieldEvery = 1
 	end
 
 	local delayTime = opts.delayTime
+	if isCoreScan then
+		if delayTime == nil or delayTime <= 0 then
+			delayTime = 0.035
+		end
+		yieldEvery = math.min(yieldEvery, 180)
+	end
 	local cancelToken = opts.cancelToken
 	local includeRoot = opts.includeRoot == true
 	if NAmanage.isLoad and NAmanage.isLoad() then
-		yieldEvery = math.min(yieldEvery, 96)
+		yieldEvery = isCoreScan and math.min(yieldEvery, 300) or math.min(yieldEvery, 96)
 		if delayTime == nil then
-			delayTime = 0.01
+			delayTime = isCoreScan and 0.035 or 0.01
 		end
 	end
 
@@ -9873,6 +9874,14 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		cornerApplySet[o] = true
 		cornerApplyTail += 1
 		cornerApplyQueue[cornerApplyTail] = o
+		if cornerApplyTail - cornerApplyHead > 2048 then
+			cornerApplyQueue = {}
+			cornerApplySet = weakKeyMap()
+			cornerApplyHead = 1
+			cornerApplyTail = 0
+			cornerApplyBusy = false
+			return
+		end
 		if cornerApplyBusy then
 			return
 		end
@@ -11558,6 +11567,14 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		fontApplySet[o] = true
 		fontApplyTail += 1
 		fontApplyQueue[fontApplyTail] = o
+		if fontApplyTail - fontApplyHead > 2048 then
+			fontApplyQueue = {}
+			fontApplySet = weakKeyMap()
+			fontApplyHead = 1
+			fontApplyTail = 0
+			fontApplyBusy = false
+			return
+		end
 		if fontApplyBusy then
 			return
 		end
@@ -21563,7 +21580,7 @@ if FileSupport then
 			return
 		end
 		markChatSettingsDirty()
-		NAmanage.ScheduleTextChatApply(0.15)
+		NAmanage.ScheduleTextChatApply(0.45)
 	end, function(inst)
 		return inst == nil
 			or inst:IsA("ChatWindowConfiguration")
@@ -21598,9 +21615,9 @@ if FileSupport then
 					didWork = true
 				end
 				local customChat = NAStuff.ChatSettings and NAStuff.ChatSettings.customEnabled == true
-				local waitTime = didWork and 0.25 or (customChat and 1.25 or 3)
+				local waitTime = didWork and 1 or (customChat and 2.5 or 5)
 				if NAmanage.isLoad and NAmanage.isLoad() then
-					waitTime = math.max(waitTime, 1)
+					waitTime = math.max(waitTime, 2)
 				end
 				Wait(waitTime)
 			end
@@ -23153,6 +23170,54 @@ function loadedResults(res)
 	return isNegative and ("-"..result) or result
 end
 
+NAmanage.prepareTeleportCleanup = NAmanage.prepareTeleportCleanup or function()
+	if NAStuff then
+		NAStuff.teleportTransition = true
+		NAStuff.teleportTransitionSince = tick()
+	end
+	pcall(function()
+		if NAmanage._cgHubDispose then
+			NAmanage._cgHubDispose()
+		end
+	end)
+	pcall(function()
+		if NAmanage._pgHubDispose then
+			NAmanage._pgHubDispose()
+		end
+	end)
+	pcall(function()
+		if NAmanage.wsReleaseCache then
+			NAmanage.wsReleaseCache()
+		end
+	end)
+	if NAStuff then
+		NAStuff._mainLoopToken = (tonumber(NAStuff._mainLoopToken) or 0) + 1
+	end
+	if NAlib and NAlib.disconnect then
+		local names = {
+			"CornerEditor",
+			"CornerEditor_PlayerGui",
+			"CornerEditor_HUI",
+			"CornerEditor_PlayerGuiAdded",
+			"CornerEditor_PlayerGuiRemoved",
+			"FontEditor",
+			"FontEditor_PlayerGui",
+			"FontEditor_HUI",
+			"FontEditor_PlayerGuiAdded",
+			"FontEditor_PlayerGuiRemoved",
+			"streamermode_coregui",
+			"streamermode_playergui",
+			"streamermode_hui",
+			"streamermode_workspace",
+			"NA_RenderStepMain",
+			"NA_MouseDesc",
+		}
+		for i = 1, #names do
+			pcall(NAlib.disconnect, names[i])
+		end
+	end
+end
+
 NAStuff.onTP = NAStuff.onTP or LocalPlayer.OnTeleport
 if NAStuff.onTP and typeof(NAStuff.onTP) == "RBXScriptSignal" and not NAStuff.onTPConnected then
 	NAStuff.onTPConnected = true
@@ -23163,18 +23228,25 @@ if NAStuff.onTP and typeof(NAStuff.onTP) == "RBXScriptSignal" and not NAStuff.on
 			if stateName == "Failed" then
 				NAStuff.teleportTransition = false
 				NAStuff.teleportTransitionSince = nil
-			else
-				NAStuff.teleportTransition = true
-				NAStuff.teleportTransitionSince = tick()
+				NAStuff._qotQueued = false
+				return
 			end
-			if NAQoTEnabled and opt.queueteleport then
-				opt.queueteleport(opt.loader)
-			end
-			if isAprilFools() then
-				opt.queueteleport([[
-					local _na_env = (getgenv and getgenv()) or _G or {}
-					_na_env.ActivateAprilMode=true
-				]])
+			if stateName == "RequestedFromServer" or stateName == "Started" or stateName == "WaitingForServer" or stateName == "InProgress" then
+				NAmanage.prepareTeleportCleanup()
+				if not NAStuff._qotQueued then
+					NAStuff._qotQueued = true
+					Defer(function()
+						if NAQoTEnabled and type(opt.queueteleport) == "function" and type(opt.loader) == "string" and opt.loader ~= "" then
+							pcall(opt.queueteleport, opt.loader)
+						end
+						if isAprilFools() and type(opt.queueteleport) == "function" then
+							pcall(opt.queueteleport, [[
+								local _na_env = (getgenv and getgenv()) or _G or {}
+								_na_env.ActivateAprilMode=true
+							]])
+						end
+					end)
+				end
 			end
 		end)
 	end)
@@ -23188,6 +23260,7 @@ if TeleportService and not NAStuff.teleportTransitionFailHook then
 			if lp and player == lp then
 				NAStuff.teleportTransition = false
 				NAStuff.teleportTransitionSince = nil
+				NAStuff._qotQueued = false
 			end
 		end))
 	end)
@@ -63220,9 +63293,15 @@ function NAmanage.trackPromptGui(inst)
 	if not inst then
 		return nil
 	end
-	local gui = inst:IsA("ScreenGui") and inst or inst:FindFirstAncestorWhichIsA("ScreenGui")
-	if gui and gui.Name and NAmanage.isPromptGuiName(gui.Name) then
-		return gui
+	if inst:IsA("ScreenGui") then
+		return NAmanage.isPromptGuiName(inst.Name) and inst or nil
+	end
+	local name = inst.Name
+	if type(name) == "string" and NAmanage.isPromptGuiName(name) then
+		local gui = inst:FindFirstAncestorWhichIsA("ScreenGui")
+		if gui and NAmanage.isPromptGuiName(gui.Name) then
+			return gui
+		end
 	end
 	return nil
 end
@@ -63294,7 +63373,7 @@ function NAmanage.nuhuhprompt(v)
 			local c = NAmanage.cgSub({
 				added = trackAndDisable,
 				filterAdded = function(inst)
-					return NAmanage.trackPromptGui(inst) ~= nil
+					return inst and inst:IsA("ScreenGui") and NAmanage.isPromptGuiName(inst.Name)
 				end,
 			})
 			Insert(promptTBL.conns, c)
@@ -82187,16 +82266,16 @@ NAmanage.StartUIAutoSyncLoop = function()
 				idleStreak = math.min(idleStreak + 1, 12)
 			end
 
-			local sleepTime = hasToggles and 0.35 or math.min(6, 1.5 + idleStreak * 0.35)
+			local sleepTime = hasToggles and 1.25 or math.min(8, 2.5 + idleStreak * 0.5)
 			if hasToggles then
 				if NAmanage.isLoad and NAmanage.isLoad() then
-					sleepTime = 0.6
+					sleepTime = 1.75
 				end
 				if NAStuff and NAStuff.NASCREENGUI and NAStuff.NASCREENGUI.Enabled == false then
-					sleepTime = math.max(sleepTime, 0.8)
+					sleepTime = math.max(sleepTime, 2)
 				end
 				if idleStreak > 0 then
-					sleepTime = sleepTime + math.min(0.5, idleStreak * 0.05)
+					sleepTime = sleepTime + math.min(1, idleStreak * 0.12)
 				end
 			end
 			Wait(sleepTime)
@@ -95082,7 +95161,32 @@ do
 		end
 		return true
 	end
-	local function updateVisibleCanvas(frame, scale)
+	local canvasFrames = {}
+	local canvasIndex = 1
+	local function rebuildCanvasFrames()
+		canvasFrames = {}
+		if NAUIMANAGER then
+			canvasFrames[#canvasFrames + 1] = NAUIMANAGER.chatLogs
+			canvasFrames[#canvasFrames + 1] = NAUIMANAGER.NAconsoleLogs
+			canvasFrames[#canvasFrames + 1] = NAUIMANAGER.commandsList
+			canvasFrames[#canvasFrames + 1] = NAUIMANAGER.SettingsList
+			canvasFrames[#canvasFrames + 1] = NAUIMANAGER.WaypointList
+			canvasFrames[#canvasFrames + 1] = NAUIMANAGER.BindersList
+		end
+	end
+	local function updateNextCanvas(scale)
+		if #canvasFrames == 0 then
+			rebuildCanvasFrames()
+		end
+		local total = #canvasFrames
+		if total == 0 then
+			return
+		end
+		if canvasIndex > total then
+			canvasIndex = 1
+		end
+		local frame = canvasFrames[canvasIndex]
+		canvasIndex += 1
 		if frame and frame.Parent and isFrameVisible(frame) then
 			updateCanvasSize(frame, scale)
 		end
@@ -95110,19 +95214,14 @@ do
 		while watcher.Connected and NAStuff and NAStuff._mainLoopToken == mainLoopToken do
 			local now = os.clock()
 			local uiVisible = NAStuff and NAStuff.NASCREENGUI and NAStuff.NASCREENGUI.Parent and NAStuff.NASCREENGUI.Enabled ~= false
-			local canvasInterval = uiVisible and 0.12 or 0.5
-			local prefixInterval = uiVisible and 0.35 or 0.8
+			local canvasInterval = uiVisible and 0.22 or 1.2
+			local prefixInterval = uiVisible and 0.75 or 1.6
 
 			if now >= nextCanvasAt then
 				nextCanvasAt = now + canvasInterval
 				if NAUIMANAGER then
 					local s = NAUIMANAGER.AUTOSCALER and NAUIMANAGER.AUTOSCALER.Scale or 1
-					updateVisibleCanvas(NAUIMANAGER.chatLogs, s)
-					updateVisibleCanvas(NAUIMANAGER.NAconsoleLogs, s)
-					updateVisibleCanvas(NAUIMANAGER.commandsList, s)
-					updateVisibleCanvas(NAUIMANAGER.SettingsList, s)
-					updateVisibleCanvas(NAUIMANAGER.WaypointList, s)
-					updateVisibleCanvas(NAUIMANAGER.BindersList, s)
+					updateNextCanvas(s)
 				end
 			end
 
@@ -95197,8 +95296,8 @@ do
 
 			local wakeAt = math.min(nextCanvasAt, nextMemAt, nextPrefixAt)
 			local sleepFor = wakeAt - os.clock()
-			local minSleep = uiVisible and 0.05 or 0.15
-			local maxSleep = uiVisible and 0.12 or 0.4
+			local minSleep = uiVisible and 0.08 or 0.25
+			local maxSleep = uiVisible and 0.22 or 0.75
 			if sleepFor < minSleep then
 				sleepFor = minSleep
 			elseif sleepFor > maxSleep then
@@ -102340,8 +102439,8 @@ NAmanage.NAInitCoreGuiCustomization=function()
 							applyIfReady(o)
 						end
 					end, {
-						yieldEvery = 80,
-						delayTime = 0,
+						yieldEvery = 400,
+						delayTime = 0.025,
 					})
 				end
 				PT.applying = false
@@ -102393,8 +102492,8 @@ NAmanage.NAInitCoreGuiCustomization=function()
 							end
 							enqueue(inst)
 						end, {
-							yieldEvery = 80,
-							delayTime = 0,
+							yieldEvery = 400,
+							delayTime = 0.025,
 						})
 						processQueue()
 					end
@@ -102455,8 +102554,8 @@ NAmanage.NAInitCoreGuiCustomization=function()
 					NAmanage.ForEachDescendantYield(cg, function(inst)
 						NAmanage.plex_remove(inst)
 					end, {
-						yieldEvery = 80,
-						delayTime = 0,
+						yieldEvery = 400,
+						delayTime = 0.025,
 					})
 				end
 				resetPlexImages()
@@ -102520,8 +102619,12 @@ NAmanage.NAInitCoreGuiCustomization=function()
 				catalogLoading = false,
 				catalogLoaded = false,
 				catalogError = nil,
-				selectedIconLabel = "Loading BuilderIcons...",
+				selectedIconLabel = "Select BuilderIcon",
 				watchersEnabled = false,
+				refreshToken = 0,
+				reapplyToken = 0,
+				catalogFetchToken = 0,
+				overrideLeafs = {},
 			}
 			BuilderIconEditor.originalText = setmetatable(BuilderIconEditor.originalText, {
 				__mode = "k",
@@ -102623,6 +102726,21 @@ NAmanage.NAInitCoreGuiCustomization=function()
 				return trimmed
 			end
 
+			local function rebuildBuilderIconOverrideLeafs()
+				local leafs = {}
+				local overrides = BuilderIconEditor.data and BuilderIconEditor.data.overrides
+				if type(overrides) == "table" then
+					for path in pairs(overrides) do
+						local normalized = normalizeBuilderIconOverridePath(path)
+						local leaf = type(normalized) == "string" and normalized:match("([^/]+)$") or nil
+						if type(leaf) == "string" and leaf ~= "" then
+							leafs[leaf] = true
+						end
+					end
+				end
+				BuilderIconEditor.overrideLeafs = leafs
+			end
+
 			local function makeBuilderIconLabel(inst)
 				local currentText = getBuilderIconText(inst)
 				local originalText = BuilderIconEditor.originalText[inst]
@@ -102675,6 +102793,7 @@ NAmanage.NAInitCoreGuiCustomization=function()
 
 			local function saveBuilderIconData()
 				if not FileSupport then
+					rebuildBuilderIconOverrideLeafs()
 					return
 				end
 				pcall(function()
@@ -102688,6 +102807,7 @@ NAmanage.NAInitCoreGuiCustomization=function()
 					return
 				end
 				if not isfile(BuilderIconEditor.path) then
+					rebuildBuilderIconOverrideLeafs()
 					saveBuilderIconData()
 					return
 				end
@@ -102699,6 +102819,7 @@ NAmanage.NAInitCoreGuiCustomization=function()
 				local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
 				if okDecode then
 					BuilderIconEditor.data = normalizeBuilderIconData(decoded)
+					rebuildBuilderIconOverrideLeafs()
 				else
 					saveBuilderIconData()
 				end
@@ -102726,6 +102847,7 @@ NAmanage.NAInitCoreGuiCustomization=function()
 					return
 				end
 				BuilderIconEditor.data.overrides[path] = tostring(text or "")
+				rebuildBuilderIconOverrideLeafs()
 				saveBuilderIconData()
 			end
 
@@ -102738,11 +102860,13 @@ NAmanage.NAInitCoreGuiCustomization=function()
 					return
 				end
 				BuilderIconEditor.data.overrides[path] = nil
+				rebuildBuilderIconOverrideLeafs()
 				saveBuilderIconData()
 			end
 
 			local function clearAllSavedBuilderIconOverrides()
 				BuilderIconEditor.data.overrides = {}
+				rebuildBuilderIconOverrideLeafs()
 				saveBuilderIconData()
 			end
 
@@ -102810,8 +102934,8 @@ NAmanage.NAInitCoreGuiCustomization=function()
 						end
 					end
 				end, {
-					yieldEvery = 80,
-					delayTime = 0,
+					yieldEvery = 400,
+					delayTime = 0.025,
 				})
 				return foundAny, appliedAny
 			end
@@ -102832,8 +102956,8 @@ NAmanage.NAInitCoreGuiCustomization=function()
 						end
 					end
 				end, {
-					yieldEvery = 80,
-					delayTime = 0,
+					yieldEvery = 400,
+					delayTime = 0.025,
 				})
 				for path in pairs(BuilderIconEditor.data.overrides) do
 					if not foundPaths[path] then
@@ -102844,6 +102968,7 @@ NAmanage.NAInitCoreGuiCustomization=function()
 			end
 
 			local refreshBuilderIconDropdown
+			local queueBuilderIconRefresh
 
 			local function collectBuilderIconLiveTargets()
 				local found = {}
@@ -102861,24 +102986,25 @@ NAmanage.NAInitCoreGuiCustomization=function()
 
 			local function queueSavedBuilderIconReapply(opts)
 				opts = opts or {}
+				if BuilderIconEditor.data.enabled ~= true or not hasSavedBuilderIconOverrides() then
+					return
+				end
+				BuilderIconEditor.reapplyToken += 1
+				local token = BuilderIconEditor.reapplyToken
 				if BuilderIconEditor.reapplyQueued then
 					return
 				end
 				BuilderIconEditor.reapplyQueued = true
-				Delay(opts.delay or 0.2, function()
+				Delay(opts.delay or 0.35, function()
+					if token ~= BuilderIconEditor.reapplyToken or BuilderIconEditor.data.enabled ~= true then
+						BuilderIconEditor.reapplyQueued = false
+						return
+					end
 					BuilderIconEditor.reapplyQueued = false
 					local _, appliedAny = applySavedBuilderIconOverrides()
 					if appliedAny and opts.refreshDropdown == true and NAgui and NAgui._dropdownRegistry and NAgui._dropdownRegistry[builderIconDropdownLabel] then
-						refreshBuilderIconDropdown({
-							keepInstance = BuilderIconEditor.selectedInst,
-							syncText = false,
-						})
-					end
-					if opts.repeatPending == true and hasPendingSavedBuilderIconPaths() then
-						queueSavedBuilderIconReapply({
-							refreshDropdown = opts.refreshDropdown == true,
-							repeatPending = true,
-							delay = 1,
+						queueBuilderIconRefresh({
+							delay = 1.25,
 						})
 					end
 				end)
@@ -103128,6 +103254,13 @@ NAmanage.NAInitCoreGuiCustomization=function()
 						visible[#visible + 1] = option
 					end
 				end
+				if #visible == 0 then
+					if BuilderIconEditor.catalogLoading then
+						visible[1] = BuilderIconEditor.catalogLoadingLabel
+					else
+						visible[1] = BuilderIconEditor.catalogPlaceholder
+					end
+				end
 				return visible
 			end
 
@@ -103140,15 +103273,31 @@ NAmanage.NAInitCoreGuiCustomization=function()
 				end
 			end
 
+			local function failBuilderIconCatalog(token, msg, opts)
+				if token ~= BuilderIconEditor.catalogFetchToken then
+					return
+				end
+				BuilderIconEditor.catalogLoading = false
+				BuilderIconEditor.catalogLoaded = false
+				BuilderIconEditor.catalogError = msg
+				BuilderIconEditor.catalogOptions = { BuilderIconEditor.catalogPlaceholder }
+				syncBuilderIconCatalogDropdown()
+				if opts and opts.notify ~= false then
+					DoNotif(msg, 3)
+				end
+			end
+
 			local function fetchBuilderIconCatalog(opts)
 				opts = opts or {}
 				if BuilderIconEditor.catalogLoading then
 					return
 				end
+				BuilderIconEditor.catalogFetchToken += 1
+				local token = BuilderIconEditor.catalogFetchToken
 				BuilderIconEditor.catalogLoading = true
 				BuilderIconEditor.catalogError = nil
 				BuilderIconEditor.catalogLoaded = false
-				BuilderIconEditor.catalogOptions = {}
+				BuilderIconEditor.catalogOptions = { BuilderIconEditor.catalogLoadingLabel }
 				BuilderIconEditor.catalogEntries = {}
 				BuilderIconEditor.catalogLookupByText = {}
 				BuilderIconEditor.catalogLookupByStyle = {
@@ -103157,38 +103306,42 @@ NAmanage.NAInitCoreGuiCustomization=function()
 				}
 				syncBuilderIconCatalogDropdown()
 
+				Delay(opts.timeout or 8, function()
+					if token == BuilderIconEditor.catalogFetchToken and BuilderIconEditor.catalogLoading then
+						failBuilderIconCatalog(token, "BuilderIcons catalog timed out.", opts)
+						BuilderIconEditor.catalogFetchToken += 1
+					end
+				end)
+
 				Spawn(function()
 					local okHttp, raw = pcall(function()
 						return game:HttpGet(BuilderIconEditor.catalogUrl)
 					end)
+					if token ~= BuilderIconEditor.catalogFetchToken then
+						return
+					end
 					if not (okHttp and type(raw) == "string" and raw ~= "") then
-						BuilderIconEditor.catalogLoading = false
-						BuilderIconEditor.catalogError = "Unable to fetch BuilderIcons catalog."
-						BuilderIconEditor.catalogOptions = {}
-						syncBuilderIconCatalogDropdown()
-						if opts.notify ~= false then
-							DoNotif(BuilderIconEditor.catalogError, 3)
-						end
+						failBuilderIconCatalog(token, "Unable to fetch BuilderIcons catalog.", opts)
 						return
 					end
 
 					local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+					if token ~= BuilderIconEditor.catalogFetchToken then
+						return
+					end
 					if not (okDecode and type(decoded) == "table") then
-						BuilderIconEditor.catalogLoading = false
-						BuilderIconEditor.catalogError = "Invalid BuilderIcons catalog."
-						BuilderIconEditor.catalogOptions = {}
-						syncBuilderIconCatalogDropdown()
-						if opts.notify ~= false then
-							DoNotif(BuilderIconEditor.catalogError, 3)
-						end
+						failBuilderIconCatalog(token, "Invalid BuilderIcons catalog.", opts)
 						return
 					end
 
 					local entries = normalizeBuilderIconCatalog(decoded)
+					if token ~= BuilderIconEditor.catalogFetchToken then
+						return
+					end
 					BuilderIconEditor.catalogLoading = false
 					rebuildBuilderIconCatalog(entries)
 					if not BuilderIconEditor.catalogLoaded then
-						BuilderIconEditor.catalogOptions = {}
+						BuilderIconEditor.catalogOptions = { BuilderIconEditor.catalogPlaceholder }
 						syncBuilderIconCatalogDropdown()
 						if opts.notify ~= false then
 							DoNotif(BuilderIconEditor.catalogError or "No BuilderIcons available.", 3)
@@ -103251,8 +103404,8 @@ NAmanage.NAInitCoreGuiCustomization=function()
 							Insert(found, inst)
 						end
 					end, {
-						yieldEvery = 80,
-						delayTime = 0,
+						yieldEvery = 400,
+						delayTime = 0.025,
 					})
 				else
 					found = collectBuilderIconLiveTargets()
@@ -103380,14 +103533,21 @@ NAmanage.NAInitCoreGuiCustomization=function()
 
 			loadBuilderIconData()
 
-			local function queueBuilderIconRefresh(opts)
+			queueBuilderIconRefresh = function(opts)
 				opts = opts or {}
 				if BuilderIconEditor.refreshQueued then
+					BuilderIconEditor.refreshNeeded = true
 					return
 				end
 				BuilderIconEditor.refreshQueued = true
-				Delay(opts.delay or 0.15, function()
+				BuilderIconEditor.refreshToken += 1
+				local token = BuilderIconEditor.refreshToken
+				Delay(opts.delay or 2.5, function()
+					if token ~= BuilderIconEditor.refreshToken then
+						return
+					end
 					BuilderIconEditor.refreshQueued = false
+					BuilderIconEditor.refreshNeeded = false
 					refreshBuilderIconDropdown({
 						keepInstance = BuilderIconEditor.selectedInst,
 						syncText = false,
@@ -103396,10 +103556,14 @@ NAmanage.NAInitCoreGuiCustomization=function()
 			end
 
 			local function disconnectBuilderIconWatchers()
-				if not BuilderIconEditor.watchersEnabled then
-					return
-				end
 				BuilderIconEditor.watchersEnabled = false
+				BuilderIconEditor.refreshQueued = false
+				BuilderIconEditor.reapplyQueued = false
+				BuilderIconEditor.refreshToken += 1
+				BuilderIconEditor.reapplyToken += 1
+				BuilderIconEditor.liveTargets = setmetatable({}, {
+					__mode = "k",
+				})
 				NAlib.disconnect("BuilderIconEditorAdded")
 				NAlib.disconnect("BuilderIconEditorRemoving")
 			end
@@ -103413,6 +103577,9 @@ NAmanage.NAInitCoreGuiCustomization=function()
 				NAlib.disconnect("BuilderIconEditorRemoving")
 				NAlib.connect("BuilderIconEditorAdded", NAmanage.descSub(CoreGui, {
 					added = function(o)
+						if not isBuilderIconTarget(o) then
+							return
+						end
 						BuilderIconEditor.liveTargets[o] = true
 						local path = getBuilderIconPath(o)
 						applySavedBuilderIconOverrideToInstance(o)
@@ -103425,7 +103592,7 @@ NAmanage.NAInitCoreGuiCustomization=function()
 					end,
 					removing = function(o)
 						BuilderIconEditor.liveTargets[o] = nil
-						local removedPath = getBuilderIconPath(o)
+						local removedPath = isTrackedBuilderIconTarget(o) and getBuilderIconPath(o) or nil
 						if o == BuilderIconEditor.selectedInst then
 							BuilderIconEditor.selectedInst = nil
 							if type(removedPath) == "string" and removedPath ~= "" then
@@ -103436,9 +103603,11 @@ NAmanage.NAInitCoreGuiCustomization=function()
 						BuilderIconEditor.entryInstSet[o] = nil
 						queueBuilderIconRefresh()
 					end,
-					filterAdded = isBuilderIconCandidate,
+					filterAdded = function(o)
+						return BuilderIconEditor.data.enabled == true and isBuilderIconCandidate(o)
+					end,
 					filterRemoving = function(o)
-						return o and (isBuilderIconTarget(o) or isTrackedBuilderIconTarget(o))
+						return o and (BuilderIconEditor.liveTargets[o] == true or isTrackedBuilderIconTarget(o))
 					end,
 				}))
 			end
@@ -103453,6 +103622,16 @@ NAmanage.NAInitCoreGuiCustomization=function()
 				saveBuilderIconData()
 				if enabled then
 					connectBuilderIconWatchers()
+					refreshBuilderIconDropdown({
+						syncText = true,
+						fullScan = true,
+					})
+					if BuilderIconEditor.catalogLoaded ~= true and BuilderIconEditor.catalogLoading ~= true then
+						fetchBuilderIconCatalog({
+							notify = false,
+							timeout = 8,
+						})
+					end
 					queueSavedBuilderIconReapply({
 						delay = 0.05,
 						refreshDropdown = true,
@@ -103484,7 +103663,7 @@ NAmanage.NAInitCoreGuiCustomization=function()
 					syncText = true,
 				})
 			end)
-			NAgui.addDropdown(builderIconInputLabel, { BuilderIconEditor.catalogLoadingLabel }, BuilderIconEditor.catalogLoadingLabel, function(selection)
+			NAgui.addDropdown(builderIconInputLabel, { BuilderIconEditor.catalogPlaceholder }, BuilderIconEditor.catalogPlaceholder, function(selection)
 				local chosen = getBuilderIconCatalogSelectionValue(selection)
 				if not chosen then
 					return
@@ -103604,23 +103783,25 @@ NAmanage.NAInitCoreGuiCustomization=function()
 				})
 				fetchBuilderIconCatalog({
 					notify = true,
+					timeout = 8,
 				})
 			end)
 
-			local hasSavedBuilderIconOverrides = type(BuilderIconEditor.data.overrides) == "table"
-				and next(BuilderIconEditor.data.overrides) ~= nil
-			if BuilderIconEditor.data.enabled == true or hasSavedBuilderIconOverrides then
+			if BuilderIconEditor.data.enabled == true then
 				refreshBuilderIconDropdown({
 					syncText = true,
 					fullScan = true,
 				})
 				fetchBuilderIconCatalog({
 					notify = false,
+					timeout = 8,
 				})
 				queueSavedBuilderIconReapply({
-					delay = 0.05,
+					delay = 0.35,
 					refreshDropdown = false,
 				})
+			else
+				syncBuilderIconCatalogDropdown()
 			end
 
 			if BuilderIconEditor.data.enabled == true then
