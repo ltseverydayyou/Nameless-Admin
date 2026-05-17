@@ -4165,8 +4165,8 @@
         "firekey",
         "fkey"
       ],
-      "usage": "firekey <key> (fkey)",
-      "args": "<key>",
+      "usage": "firekey [key] (fkey)",
+      "args": "[key]",
       "desc": "makes you fire a keybind using VirtualInputManager"
     },
     {
