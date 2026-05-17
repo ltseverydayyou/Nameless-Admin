@@ -60091,7 +60091,7 @@ cmd.add({"unloopjump","unbhop"},{"unloopjump (unbhop)","Stop continuous jumping.
 	NAlib.disconnect("loopjump")
 end)
 
-cmd.add({"trussjump","tj","tjump","trussj"},{"trussjump","Boost off trusses when you jump"},function() -- totally didn't stole this idea from FE2 lmao
+cmd.add({"trussjump","tj","trussj"},{"trussjump","Boost off trusses when you jump"},function() -- totally didn't stole this idea from FE2 lmao
 	NAlib.disconnect("trussjump_spawn") NAlib.disconnect("trussjump_jump")
 	local function hook()
 		local hm=getHum()
@@ -60129,7 +60129,7 @@ cmd.add({"trussjump","tj","tjump","trussj"},{"trussjump","Boost off trusses when
 	DebugNotif("Trussjump enabled",2)
 end,true)
 
-cmd.add({"untrussjump","untj","untjump","untrussj"},{"untrussjump","Disable trussjump"},function()
+cmd.add({"untrussjump","untj","untrussj"},{"untrussjump","Disable trussjump"},function()
 	NAlib.disconnect("trussjump_spawn") NAlib.disconnect("trussjump_jump")
 end)
 
