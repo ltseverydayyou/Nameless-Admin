@@ -4394,7 +4394,6 @@
       "aliases": [
         "trussjump",
         "tj",
-        "tjump",
         "trussj"
       ],
       "usage": "trussjump",
@@ -4406,7 +4405,6 @@
       "aliases": [
         "untrussjump",
         "untj",
-        "untjump",
         "untrussj"
       ],
       "usage": "untrussjump",
