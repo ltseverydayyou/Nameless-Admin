@@ -575,13 +575,27 @@
       "desc": "Shows your frames per second"
     },
     {
+      "name": "fpsping",
+      "aliases": [
+        "fpsping",
+        "pingfps",
+        "fpsp",
+        "pfps"
+      ],
+      "usage": "fpsping (pingfps)",
+      "args": "",
+      "desc": "Shows the legacy FPS and ping panel"
+    },
+    {
       "name": "stats",
       "aliases": [
-        "stats"
+        "stats",
+        "devstats",
+        "loadstats"
       ],
-      "usage": "stats",
+      "usage": "stats (devstats, loadstats)",
       "args": "",
-      "desc": "Shows both FPS and ping"
+      "desc": "Shows FPS, physics, network and memory stats"
     },
     {
       "name": "speedometer",
@@ -2114,6 +2128,40 @@
       "usage": "flashback (deathpos, deathtp)",
       "args": "",
       "desc": "Teleports you to your last death point"
+    },
+    {
+      "name": "flashbackalt",
+      "aliases": [
+        "flashbackalt",
+        "fba",
+        "safeplace"
+      ],
+      "usage": "flashbackalt (fba)",
+      "args": "",
+      "desc": "Teleports you to the 0 HP flashback point"
+    },
+    {
+      "name": "autoflashbackalt",
+      "aliases": [
+        "autoflashbackalt",
+        "autodeathposalt",
+        "deathbackalt",
+        "afba"
+      ],
+      "usage": "autoflashbackalt (afba)",
+      "args": "",
+      "desc": "Auto-teleports you to the 0 HP flashback point on respawn"
+    },
+    {
+      "name": "unautoflashbackalt",
+      "aliases": [
+        "unautoflashbackalt",
+        "unafba",
+        "undeathbackalt"
+      ],
+      "usage": "unautoflashbackalt",
+      "args": "",
+      "desc": "Disables auto flashback alt"
     },
     {
       "name": "tospawn",
@@ -4265,6 +4313,26 @@
       "desc": "Stop the headsit command."
     },
     {
+      "name": "walltp",
+      "aliases": [
+        "walltp",
+        "wtp"
+      ],
+      "usage": "walltp",
+      "args": "",
+      "desc": "Toggles wall top teleport (BETA)"
+    },
+    {
+      "name": "unwalltp",
+      "aliases": [
+        "unwalltp",
+        "nowalltp"
+      ],
+      "usage": "unwalltp (nowalltp)",
+      "args": "",
+      "desc": "Disables wall top teleport"
+    },
+    {
       "name": "wallhop",
       "aliases": [
         "wallhop"
@@ -5050,6 +5118,26 @@
       "usage": "untpwalk",
       "args": "",
       "desc": "Stops the tpwalk command"
+    },
+    {
+      "name": "tpjump",
+      "aliases": [
+        "tpjump",
+        "tjump"
+      ],
+      "usage": "tpjump <number>",
+      "args": "<number>",
+      "desc": ""
+    },
+    {
+      "name": "untpjump",
+      "aliases": [
+        "untpjump",
+        "untjump"
+      ],
+      "usage": "untpjump",
+      "args": "",
+      "desc": "Stops the tpjump command"
     },
     {
       "name": "loopmute",
