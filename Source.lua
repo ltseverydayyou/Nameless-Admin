@@ -64316,17 +64316,25 @@ promptTBL.tracked = promptTBL.tracked or {}
 promptTBL.conns = promptTBL.conns or {}
 promptTBL.blocking = promptTBL.blocking == true
 promptTBL.polling = promptTBL.polling == true
+promptTBL.guiConns = NAmanage.ensureWeakTable(promptTBL.guiConns, "k")
+promptTBL.objConns = NAmanage.ensureWeakTable(promptTBL.objConns, "k")
+promptTBL.objPrev = NAmanage.ensureWeakTable(promptTBL.objPrev, "k")
+promptTBL.foundation = NAmanage.ensureWeakTable(promptTBL.foundation, "k")
 
 function NAmanage.isPromptGuiName(name)
 	if type(name) ~= "string" then
 		return false
 	end
 	local lowerName = name:lower()
-	return lowerName:find("purchaseprompt") or lowerName:find("foundationoverlay")
+	return lowerName:find("purchaseprompt", 1, true) ~= nil or lowerName:find("foundationoverlay", 1, true) ~= nil
+end
+
+function NAmanage.isFoundationOverlay(inst)
+	return typeof(inst) == "Instance" and inst:IsA("ScreenGui") and Lower(tostring(inst.Name or "")) == "foundationoverlay"
 end
 
 function NAmanage.trackPromptGui(inst)
-	if not inst then
+	if not inst or typeof(inst) ~= "Instance" then
 		return nil
 	end
 	if inst:IsA("ScreenGui") then
@@ -64338,6 +64346,10 @@ function NAmanage.trackPromptGui(inst)
 		if gui and NAmanage.isPromptGuiName(gui.Name) then
 			return gui
 		end
+	end
+	local foundation = inst:FindFirstAncestor("FoundationOverlay")
+	if NAmanage.isFoundationOverlay(foundation) then
+		return foundation
 	end
 	return nil
 end
@@ -64367,14 +64379,103 @@ function NAmanage.nuhuhprompt(v)
 				pcall(function()
 					gui.Enabled = false
 				end)
-				local c = gui:GetPropertyChangedSignal("Enabled"):Connect(function()
-					if promptTBL.blocking then
-						pcall(function()
-							gui.Enabled = false
-						end)
-					end
+				if promptTBL.guiConns[gui] == nil then
+					local c = gui:GetPropertyChangedSignal("Enabled"):Connect(function()
+						if promptTBL.blocking then
+							pcall(function()
+								gui.Enabled = false
+							end)
+						end
+					end)
+					promptTBL.guiConns[gui] = c
+					Insert(promptTBL.conns, c)
+				end
+			end
+
+			local function disableObj(obj)
+				if not promptTBL.blocking then
+					return
+				end
+				if not obj or typeof(obj) ~= "Instance" or not obj:IsA("GuiObject") then
+					return
+				end
+				if promptTBL.objPrev[obj] == nil then
+					promptTBL.objPrev[obj] = {
+						visible = obj.Visible,
+						active = obj.Active,
+					}
+				end
+				pcall(function()
+					obj.Visible = false
 				end)
-				Insert(promptTBL.conns, c)
+				pcall(function()
+					obj.Active = false
+				end)
+				if promptTBL.objConns[obj] == nil then
+					promptTBL.objConns[obj] = true
+					Insert(promptTBL.conns, obj:GetPropertyChangedSignal("Visible"):Connect(function()
+						if promptTBL.blocking then
+							pcall(function()
+								obj.Visible = false
+							end)
+						end
+					end))
+					Insert(promptTBL.conns, obj:GetPropertyChangedSignal("Active"):Connect(function()
+						if promptTBL.blocking then
+							pcall(function()
+								obj.Active = false
+							end)
+						end
+					end))
+				end
+			end
+
+			local function disableObjs(root)
+				if not promptTBL.blocking or not root or typeof(root) ~= "Instance" then
+					return
+				end
+				if root:IsA("GuiObject") then
+					disableObj(root)
+				end
+				for _, obj in ipairs(NAmanage.qDesc(root, "GuiObject")) do
+					disableObj(obj)
+				end
+			end
+
+			local function bindFoundation(gui)
+				if not promptTBL.blocking or not NAmanage.isFoundationOverlay(gui) then
+					return
+				end
+
+				disableGui(gui)
+
+				if promptTBL.foundation[gui] then
+					return
+				end
+				promptTBL.foundation[gui] = true
+				disableObjs(gui)
+
+				local inner = NAmanage.descSub(gui, {
+					added = function(inst2)
+						if not promptTBL.blocking then
+							return
+						end
+						if inst2:IsA("ScreenGui") then
+							disableGui(inst2)
+						end
+						disableObjs(inst2)
+					end,
+					filterAdded = function(inst2)
+						return inst2 and (inst2:IsA("GuiObject") or inst2:IsA("ScreenGui"))
+					end,
+				})
+				Insert(promptTBL.conns, inner)
+
+				Insert(promptTBL.conns, gui:GetPropertyChangedSignal("Parent"):Connect(function()
+					if not gui.Parent then
+						promptTBL.foundation[gui] = nil
+					end
+				end))
 			end
 
 			local function trackAndDisable(inst)
@@ -64382,7 +64483,15 @@ function NAmanage.nuhuhprompt(v)
 					return
 				end
 				local gui = NAmanage.trackPromptGui(inst)
-				if not gui or visited[gui] then
+				if not gui then
+					return
+				end
+
+				if NAmanage.isFoundationOverlay(gui) then
+					bindFoundation(gui)
+				end
+
+				if visited[gui] then
 					return
 				end
 				visited[gui] = true
@@ -64391,12 +64500,18 @@ function NAmanage.nuhuhprompt(v)
 
 				for _, x in ipairs(NAmanage.qDesc(gui, "ScreenGui")) do
 					disableGui(x)
+					if NAmanage.isFoundationOverlay(x) then
+						bindFoundation(x)
+					end
 				end
 
 				local inner = NAmanage.descSub(gui, {
 					added = function(inst2)
 						if inst2:IsA("ScreenGui") then
 							disableGui(inst2)
+							if NAmanage.isFoundationOverlay(inst2) then
+								bindFoundation(inst2)
+							end
 						end
 					end,
 					filterAdded = function(inst2)
@@ -64406,13 +64521,26 @@ function NAmanage.nuhuhprompt(v)
 				Insert(promptTBL.conns, inner)
 			end
 
+			local rootConn = NAmanage.childAdd(COREGUI, trackAndDisable, function(inst)
+				return inst and inst:IsA("ScreenGui") and NAmanage.isPromptGuiName(inst.Name)
+			end)
+			Insert(promptTBL.conns, rootConn)
+
 			local c = NAmanage.cgSub({
 				added = trackAndDisable,
 				filterAdded = function(inst)
-					return inst and inst:IsA("ScreenGui") and NAmanage.isPromptGuiName(inst.Name)
+					if not inst then
+						return false
+					end
+					if inst:IsA("ScreenGui") and NAmanage.isPromptGuiName(inst.Name) then
+						return true
+					end
+					return inst:FindFirstAncestor("FoundationOverlay") ~= nil
 				end,
 			})
 			Insert(promptTBL.conns, c)
+
+			trackAndDisable(COREGUI and COREGUI:FindFirstChild("FoundationOverlay"))
 
 			SpawnCall(function()
 				NAmanage.ForEachDescendantYield(COREGUI, trackAndDisable, {
@@ -64434,6 +64562,22 @@ function NAmanage.nuhuhprompt(v)
 				promptTBL.conns[i] = nil
 			end
 
+			for obj, prev in pairs(promptTBL.objPrev) do
+				if typeof(obj) == "Instance" and obj and obj.Parent ~= nil and type(prev) == "table" then
+					if prev.visible ~= nil then
+						pcall(function()
+							obj.Visible = prev.visible
+						end)
+					end
+					if prev.active ~= nil then
+						pcall(function()
+							obj.Active = prev.active
+						end)
+					end
+				end
+				promptTBL.objPrev[obj] = nil
+			end
+
 			for gui, prev in pairs(promptTBL.tracked) do
 				if typeof(gui) == "Instance" and gui and gui.Parent ~= nil then
 					pcall(function()
@@ -64441,6 +64585,16 @@ function NAmanage.nuhuhprompt(v)
 					end)
 				end
 				promptTBL.tracked[gui] = nil
+			end
+
+			for gui in pairs(promptTBL.guiConns) do
+				promptTBL.guiConns[gui] = nil
+			end
+			for obj in pairs(promptTBL.objConns) do
+				promptTBL.objConns[obj] = nil
+			end
+			for gui in pairs(promptTBL.foundation) do
+				promptTBL.foundation[gui] = nil
 			end
 		end
 	end)
