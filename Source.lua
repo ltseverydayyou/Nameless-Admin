@@ -13186,6 +13186,54 @@ end
 
 local flingManager = { FlingOldPos = nil; lFlingOldPos = nil; cFlingOldPos = nil; }
 
+flingManager.FlingVelocity = Vector3.new(9e7, 9e8, 9e7)
+flingManager.FlingAngularVelocity = Vector3.new(9e8, 9e8, 9e8)
+flingManager.MoverFlingVelocity = Vector3.new(9e8, 9e8, 9e8)
+
+flingManager.IsFiniteNumber = function(value)
+	return type(value) == "number" and value == value and value ~= math.huge and value ~= -math.huge
+end
+
+flingManager.IsFiniteVector = function(value)
+	return typeof(value) == "Vector3"
+		and flingManager.IsFiniteNumber(value.X)
+		and flingManager.IsFiniteNumber(value.Y)
+		and flingManager.IsFiniteNumber(value.Z)
+end
+
+flingManager.SetFlingVelocity = function(part)
+	if not part then
+		return
+	end
+
+	pcall(function() part.AssemblyLinearVelocity = flingManager.FlingVelocity end)
+	pcall(function() part.AssemblyAngularVelocity = flingManager.FlingAngularVelocity end)
+	pcall(function() part.Velocity = flingManager.FlingVelocity end)
+	pcall(function() part.RotVelocity = flingManager.FlingAngularVelocity end)
+end
+
+flingManager.SetMoverFlingVelocity = function(mover)
+	if not mover then
+		return
+	end
+
+	pcall(function()
+		mover.Velocity = flingManager.MoverFlingVelocity
+	end)
+end
+
+flingManager.ClearPartVelocity = function(part)
+	if not part then
+		return
+	end
+
+	local zero = Vector3.new()
+	pcall(function() part.AssemblyLinearVelocity = zero end)
+	pcall(function() part.AssemblyAngularVelocity = zero end)
+	pcall(function() part.Velocity = zero end)
+	pcall(function() part.RotVelocity = zero end)
+end
+
 flingManager.GetPartVelocity = function(part)
 	local best = Vector3.new()
 	local bestSq = 0
@@ -13196,7 +13244,7 @@ flingManager.GetPartVelocity = function(part)
 	local ok, assemblyVel = pcall(function()
 		return part.AssemblyLinearVelocity
 	end)
-	if ok and typeof(assemblyVel) == "Vector3" then
+	if ok and flingManager.IsFiniteVector(assemblyVel) then
 		best = assemblyVel
 		bestSq = assemblyVel:Dot(assemblyVel)
 	end
@@ -13204,7 +13252,7 @@ flingManager.GetPartVelocity = function(part)
 	local legacyOk, legacyVel = pcall(function()
 		return part.Velocity
 	end)
-	if legacyOk and typeof(legacyVel) == "Vector3" then
+	if legacyOk and flingManager.IsFiniteVector(legacyVel) then
 		local legacySq = legacyVel:Dot(legacyVel)
 		if legacySq > bestSq then
 			best = legacyVel
@@ -34210,7 +34258,8 @@ cmd.add({"clickfling","mousefling"},{"clickfling (mousefling)","Fling a player b
 						end
 					end
 
-					if not flingManager.cFlingOldPos or RootPart.Velocity.Magnitude<50 then
+					local _, rootSpeed = flingManager.GetPartVelocity(RootPart)
+					if not flingManager.cFlingOldPos or rootSpeed<50 then
 						flingManager.cFlingOldPos = RootPart.CFrame
 					end
 					if THead then
@@ -34229,31 +34278,36 @@ cmd.add({"clickfling","mousefling"},{"clickfling (mousefling)","Fling a player b
 						local targetCFrame = CFrame.new(BasePart.Position)*Pos*Ang
 						flingPart.CFrame = targetCFrame
 						Character:SetPrimaryPartCFrame(targetCFrame)
-						flingPart.Velocity = Vector3.new(9e7,9e7*10,9e7)
-						flingPart.RotVelocity = Vector3.new(9e8,9e8,9e8)
+						flingManager.SetFlingVelocity(flingPart)
 					end
 
 					local function SFBasePart(BasePart)
 						local TimeToWait = 2
 						local Time = tick()
 						local Angle = 0
+						local function partSpeed(part)
+							local _, speed = flingManager.GetPartVelocity(part)
+							return speed
+						end
 						repeat
 							if RootPart and THumanoid then
-								if BasePart.Velocity.Magnitude<50 then
+								local baseSpeed = partSpeed(BasePart)
+								if baseSpeed<50 then
 									Angle=Angle+100
-									FPos(BasePart,CFrame.new(0,1.5,0)+THumanoid.MoveDirection*BasePart.Velocity.Magnitude/1.25,CFrame.Angles(math.rad(Angle),0,0)) Wait()
-									FPos(BasePart,CFrame.new(0,-1.5,0)+THumanoid.MoveDirection*BasePart.Velocity.Magnitude/1.25,CFrame.Angles(math.rad(Angle),0,0)) Wait()
-									FPos(BasePart,CFrame.new(2.25,1.5,-2.25)+THumanoid.MoveDirection*BasePart.Velocity.Magnitude/1.25,CFrame.Angles(math.rad(Angle),0,0)) Wait()
-									FPos(BasePart,CFrame.new(-2.25,-1.5,2.25)+THumanoid.MoveDirection*BasePart.Velocity.Magnitude/1.25,CFrame.Angles(math.rad(Angle),0,0)) Wait()
+									FPos(BasePart,CFrame.new(0,1.5,0)+THumanoid.MoveDirection*baseSpeed/1.25,CFrame.Angles(math.rad(Angle),0,0)) Wait()
+									FPos(BasePart,CFrame.new(0,-1.5,0)+THumanoid.MoveDirection*baseSpeed/1.25,CFrame.Angles(math.rad(Angle),0,0)) Wait()
+									FPos(BasePart,CFrame.new(2.25,1.5,-2.25)+THumanoid.MoveDirection*baseSpeed/1.25,CFrame.Angles(math.rad(Angle),0,0)) Wait()
+									FPos(BasePart,CFrame.new(-2.25,-1.5,2.25)+THumanoid.MoveDirection*baseSpeed/1.25,CFrame.Angles(math.rad(Angle),0,0)) Wait()
 									FPos(BasePart,CFrame.new(0,1.5,0)+THumanoid.MoveDirection,CFrame.Angles(math.rad(Angle),0,0)) Wait()
 									FPos(BasePart,CFrame.new(0,-1.5,0)+THumanoid.MoveDirection,CFrame.Angles(math.rad(Angle),0,0)) Wait()
 								else
+									local targetRootSpeed = partSpeed(TRootPart)
 									FPos(BasePart,CFrame.new(0,1.5,THumanoid.WalkSpeed),CFrame.Angles(math.rad(90),0,0)) Wait()
 									FPos(BasePart,CFrame.new(0,-1.5,-THumanoid.WalkSpeed),CFrame.Angles(0,0,0)) Wait()
 									FPos(BasePart,CFrame.new(0,1.5,THumanoid.WalkSpeed),CFrame.Angles(math.rad(90),0,0)) Wait()
-									FPos(BasePart,CFrame.new(0,1.5,TRootPart.Velocity.Magnitude/1.25),CFrame.Angles(math.rad(90),0,0)) Wait()
-									FPos(BasePart,CFrame.new(0,-1.5,-TRootPart.Velocity.Magnitude/1.25),CFrame.Angles(0,0,0)) Wait()
-									FPos(BasePart,CFrame.new(0,1.5,TRootPart.Velocity.Magnitude/1.25),CFrame.Angles(math.rad(90),0,0)) Wait()
+									FPos(BasePart,CFrame.new(0,1.5,targetRootSpeed/1.25),CFrame.Angles(math.rad(90),0,0)) Wait()
+									FPos(BasePart,CFrame.new(0,-1.5,-targetRootSpeed/1.25),CFrame.Angles(0,0,0)) Wait()
+									FPos(BasePart,CFrame.new(0,1.5,targetRootSpeed/1.25),CFrame.Angles(math.rad(90),0,0)) Wait()
 									FPos(BasePart,CFrame.new(0,-1.5,0),CFrame.Angles(math.rad(90),0,0)) Wait()
 									FPos(BasePart,CFrame.new(0,-1.5,0),CFrame.Angles(0,0,0)) Wait()
 									FPos(BasePart,CFrame.new(0,-1.5,0),CFrame.Angles(math.rad(-90),0,0)) Wait()
@@ -34262,14 +34316,14 @@ cmd.add({"clickfling","mousefling"},{"clickfling (mousefling)","Fling a player b
 							else
 								break
 							end
-						until BasePart.Velocity.Magnitude>500 or BasePart.Parent~=TargetPlayer.Character or TargetPlayer.Parent~=Players or TargetPlayer.Character~=TCharacter or THumanoid.Sit or Humanoid.Health<=0 or tick()>Time+TimeToWait
+						until partSpeed(BasePart)>500 or BasePart.Parent~=TargetPlayer.Character or TargetPlayer.Parent~=Players or TargetPlayer.Character~=TCharacter or THumanoid.Sit or Humanoid.Health<=0 or tick()>Time+TimeToWait
 					end
 
 					workspace.FallenPartsDestroyHeight = 0/0
 
 					local BV = InstanceNew("BodyVelocity")
 					BV.Parent = flingPart
-					BV.Velocity = Vector3.new(9e8,9e8,9e8)
+					flingManager.SetMoverFlingVelocity(BV)
 					BV.MaxForce = Vector3.new(1/0,1/0,1/0)
 
 					Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated,false)
@@ -34295,7 +34349,7 @@ cmd.add({"clickfling","mousefling"},{"clickfling (mousefling)","Fling a player b
 						Humanoid:ChangeState("GettingUp")
 						for _,x in next,Character:GetChildren() do
 							if x:IsA("BasePart") then
-								x.Velocity, x.RotVelocity = Vector3.new(),Vector3.new()
+								flingManager.ClearPartVelocity(x)
 							end
 						end
 						Wait()
@@ -37826,6 +37880,7 @@ cmd.add({"walkfling","wfling","wf"},{"walkfling (wfling,wf)","probably the best 
 		local m = getChar()
 		local r = m and getRoot(m)
 		if r then
+			local movel = 0.1
 			local v = r.Velocity
 			r.Velocity = v * 10000 + Vector3.new(0,10000,0)
 
@@ -37834,9 +37889,9 @@ cmd.add({"walkfling","wfling","wf"},{"walkfling (wfling,wf)","probably the best 
 				r.Velocity = v
 			end
 
-			RunService.RenderStepped:Wait()
+			RunService.Stepped:Wait()
 			if r then
-				r.Velocity = v + Vector3.new(0,0.1,0)
+				r.Velocity = v + Vector3.new(0,movel,0)
 			end
 		end
 	end))
@@ -53897,8 +53952,7 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(plr)
 				local targetCFrame = CFrame.new(BasePart.Position) * Pos * Ang
 				flingPart.CFrame = targetCFrame
 				Character:SetPrimaryPartCFrame(targetCFrame)
-				flingPart.Velocity    = Vector3.new(9e7, 9e7*10, 9e7)
-				flingPart.RotVelocity = Vector3.new(9e8, 9e8, 9e8)
+				flingManager.SetFlingVelocity(flingPart)
 			end
 
 			local function SFBasePart(BasePart)
@@ -53942,7 +53996,7 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(plr)
 
 			local BV = InstanceNew("BodyVelocity")
 			BV.Parent    = flingPart
-			BV.Velocity  = Vector3.new(9e8,9e8,9e8)
+			flingManager.SetMoverFlingVelocity(BV)
 			BV.MaxForce  = Vector3.new(1/0,1/0,1/0)
 
 			Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
@@ -53972,7 +54026,7 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(plr)
 				Humanoid:ChangeState("GettingUp")
 				for _, x in next, Character:GetChildren() do
 					if x:IsA("BasePart") then
-						x.Velocity, x.RotVelocity = Vector3.new(), Vector3.new()
+						flingManager.ClearPartVelocity(x)
 					end
 				end
 				Wait()
@@ -56625,94 +56679,128 @@ cmd.add({"exit"},{"exit","Close down pedoblox"},function()
 	game:Shutdown()
 end)
 
-cmd.add({"firekey","fkey"},{"firekey <key> (fkey)","makes you fire a keybind using VirtualInputManager"},function(...)
-	local args = {...}
-	local target = args[1]
-	local vim=SafeGetService("VirtualInputManager");
-	local keyMap = {
-		["leftcontrol"] = Enum.KeyCode.LeftControl,
-		["lcontrol"] = Enum.KeyCode.LeftControl,
-		["ctrl"] = Enum.KeyCode.LeftControl,
-		["control"] = Enum.KeyCode.LeftControl,
-		["rightcontrol"] = Enum.KeyCode.RightControl,
-		["rcontrol"] = Enum.KeyCode.RightControl,
-		["rightctrl"] = Enum.KeyCode.RightControl,
-		["leftshift"] = Enum.KeyCode.LeftShift,
-		["lshift"] = Enum.KeyCode.LeftShift,
-		["shift"] = Enum.KeyCode.LeftShift,
-		["rightshift"] = Enum.KeyCode.RightShift,
-		["rshift"] = Enum.KeyCode.RightShift,
-		["leftalt"] = Enum.KeyCode.LeftAlt,
-		["lalt"] = Enum.KeyCode.LeftAlt,
-		["alt"] = Enum.KeyCode.LeftAlt,
-		["rightalt"] = Enum.KeyCode.RightAlt,
-		["ralt"] = Enum.KeyCode.RightAlt,
-		["space"] = Enum.KeyCode.Space,
-		["spacebar"] = Enum.KeyCode.Space,
-		["tab"] = Enum.KeyCode.Tab,
-		["escape"] = Enum.KeyCode.Escape,
-		["esc"] = Enum.KeyCode.Escape,
-		["enter"] = Enum.KeyCode.Return,
-		["return"] = Enum.KeyCode.Return,
-		["backspace"] = Enum.KeyCode.Backspace,
-		["0"] = Enum.KeyCode.Zero,
-		["1"] = Enum.KeyCode.One,
-		["2"] = Enum.KeyCode.Two,
-		["3"] = Enum.KeyCode.Three,
-		["4"] = Enum.KeyCode.Four,
-		["5"] = Enum.KeyCode.Five,
-		["6"] = Enum.KeyCode.Six,
-		["7"] = Enum.KeyCode.Seven,
-		["8"] = Enum.KeyCode.Eight,
-		["9"] = Enum.KeyCode.Nine,
-		["kp0"] = Enum.KeyCode.KeypadZero,
-		["kp1"] = Enum.KeyCode.KeypadOne,
-		["kp2"] = Enum.KeyCode.KeypadTwo,
-		["kp3"] = Enum.KeyCode.KeypadThree,
-		["kp4"] = Enum.KeyCode.KeypadFour,
-		["kp5"] = Enum.KeyCode.KeypadFive,
-		["kp6"] = Enum.KeyCode.KeypadSix,
-		["kp7"] = Enum.KeyCode.KeypadSeven,
-		["kp8"] = Enum.KeyCode.KeypadEight,
-		["kp9"] = Enum.KeyCode.KeypadNine
-	}
+NAmanage.NormalizeFireKeyName = function(name)
+	return Lower(tostring(name or "")):gsub("[%s_%-%+]+", "")
+end
 
-	local function normalizeKeyName(name)
-		return Lower(tostring(name)):gsub("%s+", ""):gsub("_", "")
-	end
-
-	local function findKeyCode(input)
-		if not input or input == "" then
-			return nil
-		end
-
-		local cleaned = normalizeKeyName(input)
-
-		if keyMap[cleaned] then
-			return keyMap[cleaned]
-		end
-
-		for _, keyCode in ipairs(Enum.KeyCode:GetEnumItems()) do
-			local keyName = normalizeKeyName(keyCode.Name)
-			if keyName == cleaned or Match(keyName, cleaned) or Match(cleaned, keyName) then
-				return keyCode
-			end
-		end
-
+NAmanage.ResolveFireKeyCode = function(input)
+	if not input or input == "" then
 		return nil
 	end
 
-	local keyCode = findKeyCode(target)
-
-	if keyCode then
-		__lt.cm("VirtualInputManager", "SendKeyEvent", true, keyCode, 0, game)
-		__lt.cm("VirtualInputManager", "SendKeyEvent", false, keyCode, 0, game)
-	elseif not target or target == "" then
-		DebugNotif("firekey needs a key name (ex: firekey space)", 3)
-	else
-		DebugNotif("No matching keycode for: "..tostring(target), 3)
+	local cleaned = NAmanage.NormalizeFireKeyName(input)
+	for _, keyCode in ipairs(Enum.KeyCode:GetEnumItems()) do
+		local keyName = NAmanage.NormalizeFireKeyName(keyCode.Name)
+		if keyName == cleaned or Match(keyName, cleaned) or Match(cleaned, keyName) then
+			return keyCode
+		end
 	end
-end,true)
+
+	return nil
+end
+
+NAmanage.IsFireKeyBlockedByTextBox = function()
+	if UserInputService and UserInputService.GetFocusedTextBox and __lt.cm("UserInputService", "GetFocusedTextBox") then
+		return true
+	end
+
+	if not (UserInputService and UserInputService.GetMouseLocation) then
+		return false
+	end
+
+	local okMouse, mousePos = pcall(function()
+		return __lt.cm("UserInputService", "GetMouseLocation")
+	end)
+	if not okMouse or typeof(mousePos) ~= "Vector2" then
+		return false
+	end
+
+	local roots = {}
+	local seen = {}
+	local function addRoot(root)
+		if typeof(root) == "Instance" and not seen[root] then
+			seen[root] = true
+			Insert(roots, root)
+		end
+	end
+
+	addRoot(NAStuff.NASCREENGUI)
+	if LocalPlayer and LocalPlayer:FindFirstChildOfClass("PlayerGui") then
+		addRoot(LocalPlayer:FindFirstChildOfClass("PlayerGui"))
+	end
+	pcall(function()
+		addRoot(SafeGetService("CoreGui"))
+	end)
+	if type(gethui) == "function" then
+		pcall(function()
+			addRoot(gethui())
+		end)
+	end
+
+	for _, root in ipairs(roots) do
+		for _, obj in ipairs(root:GetDescendants()) do
+			if obj:IsA("TextBox") and obj.Visible then
+				local pos = obj.AbsolutePosition
+				local size = obj.AbsoluteSize
+				if mousePos.X >= pos.X and mousePos.Y >= pos.Y and mousePos.X <= pos.X + size.X and mousePos.Y <= pos.Y + size.Y then
+					return true
+				end
+			end
+		end
+	end
+
+	return false
+end
+
+NAmanage.WaitForFireKeyTextBoxClear = function()
+	while NAmanage.IsFireKeyBlockedByTextBox() do
+		RunService.RenderStepped:Wait()
+	end
+end
+
+NAmanage.SendFireKey = function(keyCode)
+	if typeof(keyCode) ~= "EnumItem" then
+		return false
+	end
+
+	NAmanage.WaitForFireKeyTextBoxClear()
+	__lt.cm("VirtualInputManager", "SendKeyEvent", true, keyCode, false, game)
+	__lt.cm("VirtualInputManager", "SendKeyEvent", false, keyCode, false, game)
+	return true
+end
+
+NAmanage.FireKeyButtons = function()
+	local buttons = {}
+	for _, keyCode in ipairs(Enum.KeyCode:GetEnumItems()) do
+		Insert(buttons, {
+			Text = keyCode.Name,
+			Callback = function()
+				NAmanage.SendFireKey(keyCode)
+			end
+		})
+	end
+	return buttons
+end
+
+cmd.add({"firekey","fkey"},{"firekey [key] (fkey)","makes you fire a keybind using VirtualInputManager"},function(...)
+	local args = {...}
+	local target = args[1]
+	local buttons = NAmanage.FireKeyButtons()
+
+	if target and target ~= "" then
+		local keyCode = NAmanage.ResolveFireKeyCode(target)
+		if keyCode then
+			NAmanage.SendFireKey(keyCode)
+		else
+			DebugNotif("No matching keycode for: "..tostring(target), 3)
+		end
+	else
+		Window({
+			Title = "Fire Key",
+			Buttons = buttons
+		})
+	end
+end)
 
 LOOPPROTECT = nil
 LOOPFLING_ID = LOOPFLING_ID or 0
@@ -56873,7 +56961,7 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 
 		local BV = InstanceNew("BodyVelocity")
 		BV.Parent = LOOPPROTECT
-		BV.Velocity = Vector3.new(9e8, 9e8, 9e8)
+		flingManager.SetMoverFlingVelocity(BV)
 		BV.MaxForce = Vector3.new(1/0, 1/0, 1/0)
 
 		local oldFdh = workspace.FallenPartsDestroyHeight
@@ -56902,8 +56990,7 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 				Character:PivotTo(cf)
 			end)
 			HRP.CFrame = cf
-			LOOPPROTECT.Velocity = Vector3.new(9e7, 9e8, 9e7)
-			LOOPPROTECT.RotVelocity = Vector3.new(9e8, 9e8, 9e8)
+			flingManager.SetFlingVelocity(LOOPPROTECT)
 			return true
 		end
 
@@ -57015,8 +57102,7 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 				end)
 				Foreach(Character:GetChildren(), function(_, x)
 					if x:IsA("BasePart") then
-						x.Velocity = Vector3.new()
-						x.RotVelocity = Vector3.new()
+						flingManager.ClearPartVelocity(x)
 					end
 				end)
 				Wait()
@@ -87802,6 +87888,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		syntax = true,
 		lineNumbers = true,
 		showHub = true,
+		fontSize = 15,
 	}
 	local colors = {
 		panel = Color3.fromRGB(17, 17, 21),
@@ -88016,6 +88103,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 						if type(decoded.lineNumbers) == "boolean" then cfg.lineNumbers = decoded.lineNumbers end
 						if type(decoded.showHub) == "boolean" then cfg.showHub = decoded.showHub end
 						if type(decoded.scriptHub) == "boolean" then cfg.showHub = decoded.scriptHub end
+						if tonumber(decoded.fontSize) then cfg.fontSize = math.clamp(math.floor(tonumber(decoded.fontSize) + 0.5), 11, 24) end
 					end
 				end
 			end
@@ -88034,6 +88122,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			lineNumbers = cfg.lineNumbers == true,
 			showHub = cfg.showHub ~= false,
 			scriptHub = cfg.showHub ~= false,
+			fontSize = math.clamp(math.floor((tonumber(cfg.fontSize) or 15) + 0.5), 11, 24),
 		}
 		local ok, encoded = pcall(function()
 			return HttpService:JSONEncode(payload)
@@ -88679,7 +88768,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	settingsPanel.BorderSizePixel = 0
 	settingsPanel.AnchorPoint = Vector2.new(1, 0)
 	settingsPanel.Position = UDim2.new(1, -10, 0, 42)
-	settingsPanel.Size = UDim2.new(0, 216, 0, 156)
+	settingsPanel.Size = UDim2.new(0, 216, 0, 198)
 	settingsPanel.Visible = false
 	settingsPanel.ZIndex = 45
 	settingsPanel.Parent = frame
@@ -88762,6 +88851,56 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	local syntaxToggle, syntaxHit = makeSettingToggle("Syntax Highlight")
 	local lineNumbersToggle, lineNumbersHit = makeSettingToggle("Line Numbers")
 	local scriptHubToggle, scriptHubHit = makeSettingToggle("Script Hub")
+
+	local function makeSettingStepper(labelText)
+		local row = InstanceNew("Frame")
+		row.BackgroundTransparency = 1
+		row.BorderSizePixel = 0
+		row.Size = UDim2.new(1, 0, 0, 28)
+		row.ZIndex = 46
+		row.Parent = settingsContent
+
+		local label = InstanceNew("TextLabel")
+		label.BackgroundTransparency = 1
+		label.BorderSizePixel = 0
+		label.Font = Enum.Font.Gotham
+		label.Size = UDim2.new(1, -104, 1, 0)
+		label.Text = labelText
+		label.TextColor3 = colors.text
+		label.TextSize = 12
+		label.TextXAlignment = Enum.TextXAlignment.Left
+		label.ZIndex = 46
+		label.Parent = row
+
+		local minus = makeButton(row, "-", colors.panel3)
+		minus.AnchorPoint = Vector2.new(1, 0.5)
+		minus.Position = UDim2.new(1, -66, 0.5, 0)
+		minus.Size = UDim2.new(0, 28, 0, 24)
+		minus.ZIndex = 48
+
+		local value = InstanceNew("TextLabel")
+		value.BackgroundTransparency = 1
+		value.BorderSizePixel = 0
+		value.Font = Enum.Font.GothamSemibold
+		value.Position = UDim2.new(1, -62, 0, 0)
+		value.Size = UDim2.new(0, 30, 1, 0)
+		value.Text = ""
+		value.TextColor3 = colors.subtle
+		value.TextSize = 12
+		value.TextXAlignment = Enum.TextXAlignment.Center
+		value.ZIndex = 46
+		value.Parent = row
+
+		local plus = makeButton(row, "+", colors.panel3)
+		plus.AnchorPoint = Vector2.new(1, 0.5)
+		plus.Position = UDim2.new(1, 0, 0.5, 0)
+		plus.Size = UDim2.new(0, 28, 0, 24)
+		plus.ZIndex = 48
+
+		return minus, value, plus
+	end
+
+	local fontMinus, fontValue, fontPlus = makeSettingStepper("Font Size")
 
 	local promptOverlay = InstanceNew("Frame")
 	promptOverlay.Name = "Prompt"
@@ -89515,12 +89654,14 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	textBox.InputChanged:Connect(handleEditorWheel)
 
 	local function refreshSettingsButtons()
+		cfg.fontSize = math.clamp(math.floor((tonumber(cfg.fontSize) or 15) + 0.5), 11, 24)
 		syntaxToggle.Text = cfg.syntax and "On" or "Off"
 		syntaxToggle.BackgroundColor3 = cfg.syntax and colors.tabActive or colors.panel3
 		lineNumbersToggle.Text = cfg.lineNumbers and "On" or "Off"
 		lineNumbersToggle.BackgroundColor3 = cfg.lineNumbers and colors.tabActive or colors.panel3
 		scriptHubToggle.Text = cfg.showHub and "On" or "Off"
 		scriptHubToggle.BackgroundColor3 = cfg.showHub and colors.tabActive or colors.panel3
+		fontValue.Text = tostring(cfg.fontSize)
 	end
 
 	local function updateBodyLayout()
@@ -89570,7 +89711,8 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		for _, btn in ipairs(actionButtons) do
 			btn.TextSize = (btn == pasteButton) and (compact and 9 or 10) or (compact and 11 or 13)
 		end
-		textBox.TextSize = compact and 13 or 15
+		cfg.fontSize = math.clamp(math.floor((tonumber(cfg.fontSize) or 15) + 0.5), 11, 24)
+		textBox.TextSize = math.clamp(cfg.fontSize + (compact and -2 or 0), 10, 24)
 		gutterLabel.TextSize = textBox.TextSize
 		for _, layer in ipairs({ keywordLayer, globalLayer, stringLayer, commentLayer, numberLayer, functionLayer, methodLayer, propertyLayer, operatorLayer, bracketLayer }) do
 			layer.TextSize = textBox.TextSize
@@ -89592,6 +89734,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		cfg.syntax = cfg.syntax == true
 		cfg.lineNumbers = cfg.lineNumbers == true
 		cfg.showHub = cfg.showHub ~= false
+		cfg.fontSize = math.clamp(math.floor((tonumber(cfg.fontSize) or 15) + 0.5), 11, 24)
 		for _, layer in ipairs({ keywordLayer, globalLayer, stringLayer, commentLayer, numberLayer, functionLayer, methodLayer, propertyLayer, operatorLayer, bracketLayer }) do
 			layer.Visible = cfg.syntax
 		end
@@ -89993,6 +90136,14 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	NAmanage.ExecutorBindSetting(syntaxToggle, syntaxHit, cfg, "syntax", applySettings)
 	NAmanage.ExecutorBindSetting(lineNumbersToggle, lineNumbersHit, cfg, "lineNumbers", applySettings)
 	NAmanage.ExecutorBindSetting(scriptHubToggle, scriptHubHit, cfg, "showHub", applySettings)
+	fontMinus.MouseButton1Click:Connect(function()
+		cfg.fontSize = math.clamp((tonumber(cfg.fontSize) or 15) - 1, 11, 24)
+		applySettings(false)
+	end)
+	fontPlus.MouseButton1Click:Connect(function()
+		cfg.fontSize = math.clamp((tonumber(cfg.fontSize) or 15) + 1, 11, 24)
+		applySettings(false)
+	end)
 
 	MouseButtonFix(pagePrev, function()
 		turnEditorPage(-1)
@@ -90368,6 +90519,9 @@ NAmanage.Notepad_Init = function()
 	local delOk = type(delfile) == "function"
 	local listOk = type(listfiles) == "function"
 	local sel
+	NAStuff.NotepadSettings = type(NAStuff.NotepadSettings) == "table" and NAStuff.NotepadSettings or {}
+	NAStuff.NotepadSettings.fontSize = math.clamp(math.floor((tonumber(NAStuff.NotepadSettings.fontSize) or 15) + 0.5), 11, 24)
+	NAStuff.NotepadSettings.wrap = NAStuff.NotepadSettings.wrap == true
 
 	local col = {
 		bg = Color3.fromRGB(17, 17, 21),
@@ -90711,6 +90865,7 @@ NAmanage.Notepad_Init = function()
 	local clearBtn = btn(tool, "Clear", 45, 6)
 	local delBtn = btn(tool, "Del", 36, 7)
 	local refBtn = btn(tool, "Refresh", 55, 8)
+	local optBtn = btn(tool, "Options", 62, 9)
 
 	local extDrop = InstanceNew("Frame")
 	extDrop.Visible = false
@@ -91003,6 +91158,105 @@ NAmanage.Notepad_Init = function()
 	box.Position = UDim2.new(0, 8, 0, 8)
 	box.Parent = body
 
+	local optionsDrop = InstanceNew("Frame")
+	optionsDrop.Visible = false
+	optionsDrop.ClipsDescendants = true
+	optionsDrop.BackgroundColor3 = col.bg2
+	optionsDrop.BorderSizePixel = 0
+	optionsDrop.ZIndex = 43
+	optionsDrop.Size = UDim2.new(0, 188, 0, 118)
+	optionsDrop.Parent = main
+	skin(optionsDrop, 8, 1)
+
+	local optionsPad = InstanceNew("UIPadding")
+	optionsPad.PaddingBottom = UDim.new(0, 8)
+	optionsPad.PaddingLeft = UDim.new(0, 8)
+	optionsPad.PaddingRight = UDim.new(0, 8)
+	optionsPad.PaddingTop = UDim.new(0, 8)
+	optionsPad.Parent = optionsDrop
+
+	local optionsLay = InstanceNew("UIListLayout")
+	optionsLay.Padding = UDim.new(0, 6)
+	optionsLay.SortOrder = Enum.SortOrder.LayoutOrder
+	optionsLay.Parent = optionsDrop
+
+	local fontRow = InstanceNew("Frame")
+	fontRow.BackgroundTransparency = 1
+	fontRow.BorderSizePixel = 0
+	fontRow.LayoutOrder = 1
+	fontRow.Size = UDim2.new(1, 0, 0, 25)
+	fontRow.ZIndex = 44
+	fontRow.Parent = optionsDrop
+
+	local fontLabel = InstanceNew("TextLabel")
+	fontLabel.BackgroundTransparency = 1
+	fontLabel.BorderSizePixel = 0
+	fontLabel.Font = Enum.Font.Gotham
+	fontLabel.Size = UDim2.new(1, -96, 1, 0)
+	fontLabel.Text = "Font"
+	fontLabel.TextColor3 = col.tx
+	fontLabel.TextSize = 12
+	fontLabel.TextXAlignment = Enum.TextXAlignment.Left
+	fontLabel.ZIndex = 44
+	fontLabel.Parent = fontRow
+
+	local fontMinus = btn(fontRow, "-", 28, 1)
+	fontMinus.AnchorPoint = Vector2.new(1, 0)
+	fontMinus.Position = UDim2.new(1, -64, 0, 0)
+	fontMinus.Size = UDim2.new(0, 28, 1, 0)
+	fontMinus.ZIndex = 44
+	local fontValue = InstanceNew("TextLabel")
+	fontValue.BackgroundTransparency = 1
+	fontValue.BorderSizePixel = 0
+	fontValue.Font = Enum.Font.GothamSemibold
+	fontValue.Position = UDim2.new(1, -62, 0, 0)
+	fontValue.Size = UDim2.new(0, 30, 1, 0)
+	fontValue.Text = ""
+	fontValue.TextColor3 = col.sub
+	fontValue.TextSize = 12
+	fontValue.TextXAlignment = Enum.TextXAlignment.Center
+	fontValue.ZIndex = 44
+	fontValue.Parent = fontRow
+	local fontPlus = btn(fontRow, "+", 28, 2)
+	fontPlus.AnchorPoint = Vector2.new(1, 0)
+	fontPlus.Position = UDim2.new(1, 0, 0, 0)
+	fontPlus.Size = UDim2.new(0, 28, 1, 0)
+	fontPlus.ZIndex = 44
+
+	local wrapBtn = btn(optionsDrop, "Wrap: Off", 1, 2)
+	wrapBtn.Size = UDim2.new(1, 0, 0, 25)
+	wrapBtn.ZIndex = 44
+	local copyBtn = btn(optionsDrop, "Copy Text", 1, 3)
+	copyBtn.Size = UDim2.new(1, 0, 0, 25)
+	copyBtn.ZIndex = 44
+	local pasteBtn = btn(optionsDrop, "Paste Clipboard", 1, 4)
+	pasteBtn.Size = UDim2.new(1, 0, 0, 25)
+	pasteBtn.ZIndex = 44
+
+	local function applyNotepadOptions()
+		NAStuff.NotepadSettings.fontSize = math.clamp(math.floor((tonumber(NAStuff.NotepadSettings.fontSize) or 15) + 0.5), 11, 24)
+		box.TextSize = NAStuff.NotepadSettings.fontSize
+		box.TextWrapped = NAStuff.NotepadSettings.wrap == true
+		fontValue.Text = tostring(NAStuff.NotepadSettings.fontSize)
+		wrapBtn.Text = "Wrap: "..(NAStuff.NotepadSettings.wrap and "On" or "Off")
+		wrapBtn.BackgroundColor3 = NAStuff.NotepadSettings.wrap and col.on or col.bg3
+	end
+
+	local function posOptionsDrop()
+		local mainPos = main.AbsolutePosition
+		local btnPos = optBtn.AbsolutePosition
+		local btnSize = optBtn.AbsoluteSize
+		local dropW = optionsDrop.AbsoluteSize.X > 0 and optionsDrop.AbsoluteSize.X or 188
+		local dropH = optionsDrop.AbsoluteSize.Y > 0 and optionsDrop.AbsoluteSize.Y or 118
+		local x = btnPos.X - mainPos.X
+		local y = btnPos.Y - mainPos.Y + btnSize.Y + 4
+		x = math.clamp(x, 4, math.max(4, main.AbsoluteSize.X - dropW - 8))
+		if y + dropH + 8 > main.AbsoluteSize.Y then
+			y = btnPos.Y - mainPos.Y - dropH - 4
+		end
+		optionsDrop.Position = UDim2.fromOffset(x, math.max(4, y))
+	end
+
 	local bottom = InstanceNew("Frame")
 	bottom.BackgroundTransparency = 1
 	bottom.Position = UDim2.new(0, 10, 1, -32)
@@ -91107,9 +91361,14 @@ NAmanage.Notepad_Init = function()
 		if micro then
 			refBtn.Visible = false
 			refBtn.Size = UDim2.new(0, 0, 1, 0)
+			optBtn.Visible = false
+			optBtn.Size = UDim2.new(0, 0, 1, 0)
+			optionsDrop.Visible = false
 		else
 			refBtn.Visible = true
 			setBtnSize(refBtn, tiny and 44 or (compact and 50 or 55), txtSize)
+			optBtn.Visible = true
+			setBtnSize(optBtn, tiny and 50 or (compact and 56 or 62), txtSize)
 		end
 		body.Position = UDim2.new(0, inner, 0, inner + toolH + 8)
 		body.Size = UDim2.new(1, -inner * 2, 1, -(inner + toolH + 44))
@@ -91128,9 +91387,12 @@ NAmanage.Notepad_Init = function()
 		pageText.TextSize = compact and 11 or 12
 		setBtnSize(pagePrev, micro and 28 or 34, compact and 11 or 12)
 		setBtnSize(pageNext, micro and 28 or 34, compact and 11 or 12)
-		box.TextSize = compact and 13 or 15
+		applyNotepadOptions()
 		if extDrop.Visible then
 			posExtDrop()
+		end
+		if optionsDrop.Visible then
+			posOptionsDrop()
 		end
 	end
 
@@ -91545,6 +91807,66 @@ NAmanage.Notepad_Init = function()
 	MouseButtonFix(refBtn, function()
 		refreshList()
 		setStatus("Refreshed", col.ok)
+	end)
+
+	MouseButtonFix(optBtn, function()
+		if not optBtn.Visible then
+			return
+		end
+		local nextState = not optionsDrop.Visible
+		if nextState then
+			posOptionsDrop()
+			extDrop.Visible = false
+		end
+		optionsDrop.Visible = nextState
+	end)
+
+	MouseButtonFix(fontMinus, function()
+		NAStuff.NotepadSettings.fontSize = math.clamp((tonumber(NAStuff.NotepadSettings.fontSize) or 15) - 1, 11, 24)
+		applyNotepadOptions()
+		refreshNotepadViewport()
+		setStatus("Font size "..tostring(NAStuff.NotepadSettings.fontSize), col.sub)
+	end)
+
+	MouseButtonFix(fontPlus, function()
+		NAStuff.NotepadSettings.fontSize = math.clamp((tonumber(NAStuff.NotepadSettings.fontSize) or 15) + 1, 11, 24)
+		applyNotepadOptions()
+		refreshNotepadViewport()
+		setStatus("Font size "..tostring(NAStuff.NotepadSettings.fontSize), col.sub)
+	end)
+
+	MouseButtonFix(wrapBtn, function()
+		NAStuff.NotepadSettings.wrap = not NAStuff.NotepadSettings.wrap
+		applyNotepadOptions()
+		refreshNotepadViewport()
+		setStatus("Wrap "..(NAStuff.NotepadSettings.wrap and "enabled" or "disabled"), col.sub)
+	end)
+
+	MouseButtonFix(copyBtn, function()
+		local ok = type(setclipboard) == "function" and pcall(setclipboard, getFullText())
+		setStatus(ok and "Copied notepad text" or "Clipboard unavailable", ok and col.ok or col.err)
+	end)
+
+	MouseButtonFix(pasteBtn, function()
+		if type(getclipboard) ~= "function" then
+			setStatus("Clipboard unavailable", col.err)
+			return
+		end
+		local ok, clip = pcall(getclipboard)
+		if not ok or type(clip) ~= "string" then
+			setStatus("Clipboard unavailable", col.err)
+			return
+		end
+		local pos = tonumber(box.CursorPosition) or -1
+		local tx = tostring(box.Text or "")
+		if pos and pos > 0 then
+			box.Text = tx:sub(1, pos - 1)..clip..tx:sub(pos)
+			box.CursorPosition = pos + #clip
+		else
+			box.Text = tx..clip
+		end
+		commitPage()
+		setStatus("Pasted clipboard", col.ok)
 	end)
 
 	box:GetPropertyChangedSignal("Text"):Connect(function()
