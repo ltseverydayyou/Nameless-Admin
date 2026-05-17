@@ -6800,9 +6800,13 @@ NAmanage.LaunchHumanoid = function(hum, root)
 	if not hum then return false end
 
 	if NAStuff.SafeJumpMethod == false then
-		return pcall(function()
+		local launched = pcall(function()
 			hum:ChangeState(Enum.HumanoidStateType.Jumping)
 		end)
+		if launched and NAmanage.TPJumpPulse then
+			pcall(NAmanage.TPJumpPulse, true)
+		end
+		return launched
 	end
 
 	root = root or getRoot(hum.Parent)
@@ -6819,13 +6823,18 @@ NAmanage.LaunchHumanoid = function(hum, root)
 	end
 
 	local boostedY = math.max(velocity.Y, launchY)
-	if NAlib.setProperty(root, "AssemblyLinearVelocity", Vector3.new(velocity.X, boostedY, velocity.Z)) then
-		return true
+	local launched = NAlib.setProperty(root, "AssemblyLinearVelocity", Vector3.new(velocity.X, boostedY, velocity.Z))
+	if not launched then
+		launched = pcall(function()
+			root.Velocity = Vector3.new(velocity.X, boostedY, velocity.Z)
+		end)
 	end
 
-	return pcall(function()
-		root.Velocity = Vector3.new(velocity.X, boostedY, velocity.Z)
-	end)
+	if launched and NAmanage.TPJumpPulse then
+		pcall(NAmanage.TPJumpPulse, true)
+	end
+
+	return launched
 end
 
 function getPlrHum(plr)
@@ -36109,53 +36118,202 @@ function NAstatsUI.createStatBox(parent, titleText)
 end
 
 NAmanage._fpsTracker = NAmanage._fpsTracker or nil
+NAmanage._hbTracker = NAmanage._hbTracker or nil
+NAmanage._statCache = NAmanage._statCache or {}
+NAmanage._statScan = NAmanage._statScan or {}
+
+NAmanage._makeFpsTracker = NAmanage._makeFpsTracker or function(key, signal)
+	local tr = {
+		times = {},
+		head = 1,
+		tail = 0,
+		value = 0,
+		conn = nil,
+	}
+	tr.conn = NAlib.reconnect(key, signal:Connect(function()
+		local now = os.clock()
+		tr.tail += 1
+		tr.times[tr.tail] = now
+		local cut = now - 1
+		while tr.head <= tr.tail and tr.times[tr.head] < cut do
+			tr.times[tr.head] = nil
+			tr.head += 1
+		end
+		local cnt = tr.tail - tr.head + 1
+		if cnt <= 1 then
+			tr.value = cnt
+		else
+			local first = tr.times[tr.head]
+			local span = now - (tonumber(first) or now)
+			if span > 0 then
+				tr.value = (cnt - 1) / span
+			else
+				tr.value = cnt
+			end
+		end
+		if tr.head > 2048 then
+			local compact = {}
+			local n = 0
+			for i = tr.head, tr.tail do
+				n += 1
+				compact[n] = tr.times[i]
+			end
+			tr.times = compact
+			tr.head = 1
+			tr.tail = n
+		end
+	end))
+	return tr
+end
 
 NAmanage.getRealFPS = NAmanage.getRealFPS or function()
-	local tracker = NAmanage._fpsTracker
-	if not tracker then
-		tracker = {
-			times = {},
-			head = 1,
-			tail = 0,
-			value = 0,
-			conn = nil,
-		}
-		tracker.conn = NAlib.reconnect("UI:FPS_TRACKER", RunService.RenderStepped:Connect(function()
-			local now = os.clock()
-			tracker.tail += 1
-			tracker.times[tracker.tail] = now
-			local cutoff = now - 1
-			while tracker.head <= tracker.tail and tracker.times[tracker.head] < cutoff do
-				tracker.times[tracker.head] = nil
-				tracker.head += 1
-			end
-			local frameCount = tracker.tail - tracker.head + 1
-			if frameCount <= 1 then
-				tracker.value = frameCount
-			else
-				local firstTime = tracker.times[tracker.head]
-				local span = now - (tonumber(firstTime) or now)
-				if span > 0 then
-					tracker.value = (frameCount - 1) / span
-				else
-					tracker.value = frameCount
-				end
-			end
-			if tracker.head > 2048 then
-				local compact = {}
-				local n = 0
-				for i = tracker.head, tracker.tail do
-					n += 1
-					compact[n] = tracker.times[i]
-				end
-				tracker.times = compact
-				tracker.head = 1
-				tracker.tail = n
-			end
-		end))
-		NAmanage._fpsTracker = tracker
+	local tr = NAmanage._fpsTracker
+	if not tr then
+		tr = NAmanage._makeFpsTracker("UI:FPS_TRACKER", RunService.RenderStepped)
+		NAmanage._fpsTracker = tr
 	end
-	return math.max(0, math.floor((tonumber(tracker.value) or 0) + 0.5))
+	return math.max(0, math.floor((tonumber(tr.value) or 0) + 0.5))
+end
+
+NAmanage.getHeartbeatFPS = NAmanage.getHeartbeatFPS or function()
+	local tr = NAmanage._hbTracker
+	if not tr then
+		tr = NAmanage._makeFpsTracker("UI:HB_FPS_TRACKER", RunService.Heartbeat)
+		NAmanage._hbTracker = tr
+	end
+	return math.max(0, math.floor((tonumber(tr.value) or 0) + 0.5))
+end
+
+NAmanage._statNorm = NAmanage._statNorm or function(v)
+	return tostring(v or ""):lower():gsub("[%s_%-/]+", "")
+end
+
+NAmanage.getStatsItem = NAmanage.getStatsItem or function(names)
+	if not StatsService then
+		return nil
+	end
+	if type(names) == "string" then
+		names = { names }
+	end
+	if type(names) ~= "table" then
+		return nil
+	end
+	local key = table.concat(names, "|")
+	local cache = NAmanage._statCache
+	local old = cache[key]
+	if old and old.Parent then
+		return old
+	end
+	local now = os.clock()
+	local scan = NAmanage._statScan
+	if scan[key] and now - scan[key] < 3 then
+		return nil
+	end
+	scan[key] = now
+	local want = {}
+	for _, n in ipairs(names) do
+		want[NAmanage._statNorm(n)] = true
+	end
+	local roots = { StatsService }
+	local net = StatsService:FindFirstChild("Network")
+	if net then
+		roots[#roots + 1] = net
+		local srv = net:FindFirstChild("ServerStatsItem")
+		if srv then
+			roots[#roots + 1] = srv
+		end
+	end
+	for _, root in ipairs(roots) do
+		if root and root.Parent and want[NAmanage._statNorm(root.Name)] then
+			cache[key] = root
+			return root
+		end
+		local ok, desc = pcall(function()
+			return root:GetDescendants()
+		end)
+		if ok then
+			for _, obj in ipairs(desc) do
+				if obj and want[NAmanage._statNorm(obj.Name)] then
+					cache[key] = obj
+					return obj
+				end
+			end
+		end
+	end
+	return nil
+end
+
+NAmanage.getStatsNumber = NAmanage.getStatsNumber or function(names)
+	local item = NAmanage.getStatsItem(names)
+	if not item then
+		return nil
+	end
+	local ok, val = pcall(function()
+		if item.GetValue then
+			return item:GetValue()
+		end
+		return nil
+	end)
+	if ok and type(val) == "number" then
+		return val
+	end
+	ok, val = pcall(function()
+		if item.GetValueString then
+			return item:GetValueString()
+		end
+		return nil
+	end)
+	if ok and type(val) == "string" then
+		local num = tonumber((val:gsub("[^%d%.%-]", "")))
+		if num then
+			return num
+		end
+	end
+	return nil
+end
+
+NAmanage.getStatsText = NAmanage.getStatsText or function(names, suf, digs)
+	local val = NAmanage.getStatsNumber(names)
+	if not val then
+		return "—", nil
+	end
+	digs = tonumber(digs) or 0
+	local fmt = digs > 0 and ("%."..tostring(digs).."f") or "%.0f"
+	local txt = Format(fmt, val)
+	if suf and suf ~= "" then
+		txt = txt.." "..suf
+	end
+	return txt, val
+end
+
+NAmanage.getMemoryMb = NAmanage.getMemoryMb or function()
+	local ok, val = pcall(function()
+		return StatsService and StatsService:GetTotalMemoryUsageMb() or nil
+	end)
+	if ok and type(val) == "number" then
+		return val
+	end
+	return nil
+end
+
+NAmanage.getRealPhysicsFPS = NAmanage.getRealPhysicsFPS or function()
+	local ok, val = pcall(function()
+		return workspace:GetRealPhysicsFPS()
+	end)
+	if ok and type(val) == "number" then
+		return val
+	end
+	return nil
+end
+
+NAmanage.countInstances = NAmanage.countInstances or function()
+	local ok, desc = pcall(function()
+		return game:GetDescendants()
+	end)
+	if ok and desc then
+		return #desc
+	end
+	return nil
 end
 
 cmd.add({ "ping" }, { "ping", "Shows your network latency" }, function()
@@ -36205,20 +36363,20 @@ cmd.add({ "fps" }, { "fps", "Shows your frames per second" }, function()
 	})
 end)
 
-cmd.add({ "stats" }, { "stats", "Shows both FPS and ping" }, function()
-	local existing = windowRegistry["Stats"]
+cmd.add({ "fpsping", "pingfps", "fpsp", "pfps" }, { "fpsping (pingfps)", "Shows the legacy FPS and ping panel" }, function()
+	local existing = windowRegistry["FPSPing"]
 	if existing and existing.screenGui and existing.screenGui.Parent then
-		NAlib.disconnect("UI:Stats")
+		NAlib.disconnect("UI:FPSPing")
 		existing.screenGui:Destroy()
-		windowRegistry["Stats"] = nil
+		windowRegistry["FPSPing"] = nil
 	end
 
 	local T = NAstatsUI.Theme
 	local height = IsOnMobile and 180 or 150
 	local width = IsOnMobile and 300 or 270
-	local ui = NAstatsUI.createWindow(UDim2.new(0.5, 0, 0.32, 0), UDim2.new(0, width, 0, height), "Stats")
+	local ui = NAstatsUI.createWindow(UDim2.new(0.5, 0, 0.32, 0), UDim2.new(0, width, 0, height), "FPS / Ping")
 
-	windowRegistry["Stats"] = ui
+	windowRegistry["FPSPing"] = ui
 
 	local grid = NAstatsUI.createInstance("Frame", {
 		BackgroundTransparency = 1,
@@ -36226,7 +36384,7 @@ cmd.add({ "stats" }, { "stats", "Shows both FPS and ping" }, function()
 		Parent = ui.content
 	})
 
-	local layout = NAstatsUI.createInstance("UIListLayout", {
+	NAstatsUI.createInstance("UIListLayout", {
 		FillDirection = IsOnMobile and Enum.FillDirection.Vertical or Enum.FillDirection.Horizontal,
 		HorizontalAlignment = Enum.HorizontalAlignment.Center,
 		VerticalAlignment = Enum.VerticalAlignment.Top,
@@ -36264,14 +36422,13 @@ cmd.add({ "stats" }, { "stats", "Shows both FPS and ping" }, function()
 		return T.Colors.Bad
 	end
 
-	NAlib.reconnect("UI:Stats", RunService.RenderStepped:Connect(function()
+	NAlib.reconnect("UI:FPSPing", RunService.RenderStepped:Connect(function()
 		local t = os.clock()
 		if t - lastUpdate < updateInterval then
 			return
 		end
 
 		local fps = NAmanage.getRealFPS()
-
 		local p = tonumber(NAmanage.GetDataPingMs and NAmanage.GetDataPingMs()) or 0
 
 		pingValue.Text = "<b>"..tostring(p).." ms</b>"
@@ -36287,15 +36444,133 @@ cmd.add({ "stats" }, { "stats", "Shows both FPS and ping" }, function()
 		fpsBar.Size = UDim2.new(fpsRatio, 0, 1, 0)
 		fpsBar.BackgroundColor3 = fpsColorFn(fps)
 
-		local collapsedTitle = Format(
-			"Stats: <font color='%s'>%d ms</font> | <font color='%s'>%d FPS</font>",
-			NAstatsUI.colorToHex(pingColorFn(p)),
-			p,
+		ui.setCollapsedTitle(Format(
+			"FPS / Ping: <font color='%s'>%d FPS</font> | <font color='%s'>%d ms</font>",
 			NAstatsUI.colorToHex(fpsColorFn(fps)),
-			fps
-		)
-		ui.setCollapsedTitle(collapsedTitle)
+			fps,
+			NAstatsUI.colorToHex(pingColorFn(p)),
+			p
+		))
 		lastUpdate = t
+	end))
+
+	MouseButtonFix(ui.closeButton, function()
+		NAlib.disconnect("UI:FPSPing")
+		if windowRegistry["FPSPing"] == ui then
+			windowRegistry["FPSPing"] = nil
+		end
+		ui.screenGui:Destroy()
+	end)
+end)
+
+cmd.add({ "stats", "devstats", "loadstats" }, { "stats (devstats, loadstats)", "Shows FPS, physics, network and memory stats" }, function()
+	local existing = windowRegistry["Stats"]
+	if existing and existing.screenGui and existing.screenGui.Parent then
+		NAlib.disconnect("UI:Stats")
+		existing.screenGui:Destroy()
+		windowRegistry["Stats"] = nil
+	end
+
+	local T = NAstatsUI.Theme
+	local height = IsOnMobile and 430 or 410
+	local width = IsOnMobile and 330 or 430
+	local ui = NAstatsUI.createWindow(UDim2.new(0.5, 0, 0.38, 0), UDim2.new(0, width, 0, height), "Stats")
+	windowRegistry["Stats"] = ui
+
+	local scroll = NAstatsUI.createInstance("ScrollingFrame", {
+		Name = "StatsScroll",
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Size = UDim2.new(1, 0, 1, 0),
+		CanvasSize = UDim2.new(0, 0, 0, 0),
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		ScrollingDirection = Enum.ScrollingDirection.Y,
+		ScrollBarThickness = IsOnMobile and 4 or 5,
+		Parent = ui.content,
+	})
+
+	local grid = NAstatsUI.createInstance("Frame", {
+		BackgroundTransparency = 1,
+		Size = UDim2.new(1, -(IsOnMobile and 4 or 6), 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		Parent = scroll,
+	})
+
+	NAstatsUI.createInstance("UIGridLayout", {
+		CellSize = IsOnMobile and UDim2.new(1, 0, 0, 62) or UDim2.new(0.5, -6, 0, 62),
+		CellPadding = UDim2.new(0, 8, 0, 8),
+		FillDirection = Enum.FillDirection.Horizontal,
+		HorizontalAlignment = Enum.HorizontalAlignment.Center,
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Parent = grid,
+	})
+
+	local function pingColor(p)
+		if p <= 50 then return T.Colors.Good end
+		if p <= 100 then return T.Colors.Warn end
+		return T.Colors.Bad
+	end
+
+	local function fpsColor(f)
+		if f >= 55 then return T.Colors.Good end
+		if f >= 30 then return T.Colors.Warn end
+		return T.Colors.Bad
+	end
+
+	local function neutralColor()
+		return T.Colors.Accent
+	end
+
+	local instCount = nil
+	local instTime = 0
+	local statList = {
+		{ t = "FPS", fn = function() local v = NAmanage.getHeartbeatFPS() return tostring(v), v end, col = fpsColor, ratio = function(v) return math.clamp((tonumber(v) or 0) / 120, 0, 1) end },
+		{ t = "Render FPS", fn = function() local v = NAmanage.getRealFPS() return tostring(v), v end, col = fpsColor, ratio = function(v) return math.clamp((tonumber(v) or 0) / 120, 0, 1) end },
+		{ t = "Physics FPS", fn = function() local v = NAmanage.getRealPhysicsFPS() return v and tostring(math.floor(v + 0.5)) or "—", v end, col = fpsColor, ratio = function(v) return math.clamp((tonumber(v) or 0) / 240, 0, 1) end },
+		{ t = "Ping", fn = function() local v = tonumber(NAmanage.GetDataPingMs and NAmanage.GetDataPingMs()) or 0 return tostring(v).." ms", v end, col = pingColor, ratio = function(v) return math.clamp(1 - ((tonumber(v) or 0) / 300), 0, 1) end },
+		{ t = "Receive", fn = function() return NAmanage.getStatsText({"Data Receive Kbps", "DataReceiveKbps", "Receive Kbps"}, "Kbps", 1) end, col = neutralColor, ratio = function(v) return math.clamp((tonumber(v) or 0) / 512, 0, 1) end },
+		{ t = "Send", fn = function() return NAmanage.getStatsText({"Data Send Kbps", "DataSendKbps", "Send Kbps"}, "Kbps", 1) end, col = neutralColor, ratio = function(v) return math.clamp((tonumber(v) or 0) / 256, 0, 1) end },
+		{ t = "Memory", fn = function() local v = NAmanage.getMemoryMb() return v and Format("%.1f MB", v) or "—", v end, col = neutralColor, ratio = function(v) return math.clamp((tonumber(v) or 0) / 2500, 0, 1) end },
+		{ t = "Instances", fn = function() local now = os.clock() if not instCount or now - instTime > 2 then instCount = NAmanage.countInstances() instTime = now end return instCount and tostring(instCount) or "—", instCount end, col = neutralColor, ratio = function(v) return math.clamp((tonumber(v) or 0) / 100000, 0, 1) end },
+		{ t = "Speed", fn = function() local c = getChar() local r = c and getRoot(c) local v = r and (r.AssemblyLinearVelocity or r.Velocity) local sp = v and Vector3.new(v.X, 0, v.Z).Magnitude or 0 return Format("%.1f", sp), sp end, col = neutralColor, ratio = function(v) return math.clamp((tonumber(v) or 0) / 120, 0, 1) end },
+		{ t = "Velocity", fn = function() local c = getChar() local r = c and getRoot(c) local v = r and (r.AssemblyLinearVelocity or r.Velocity) local mag = v and v.Magnitude or 0 return Format("%.1f", mag), mag end, col = neutralColor, ratio = function(v) return math.clamp((tonumber(v) or 0) / 200, 0, 1) end },
+		{ t = "Humanoid", fn = function() local h = getHum() local st = h and h:GetState() return st and tostring(st.Name) or "—", 1 end, col = neutralColor, ratio = function() return 1 end },
+	}
+
+	local cells = {}
+	for i, data in ipairs(statList) do
+		local box, val, bar = NAstatsUI.createStatBox(grid, data.t)
+		box.LayoutOrder = i
+		cells[i] = { data = data, val = val, bar = bar }
+	end
+
+	local lastUpdate = 0
+	local updateInterval = 0.5
+
+	NAlib.reconnect("UI:Stats", RunService.RenderStepped:Connect(function()
+		local now = os.clock()
+		if now - lastUpdate < updateInterval then
+			return
+		end
+		lastUpdate = now
+		local mem = NAmanage.getMemoryMb()
+		local ping = tonumber(NAmanage.GetDataPingMs and NAmanage.GetDataPingMs()) or 0
+		local char = getChar()
+		local root = char and getRoot(char)
+		local velocity = root and (NAlib.isProperty(root, "AssemblyLinearVelocity") or root.Velocity)
+		local velocityMag = typeof(velocity) == "Vector3" and velocity.Magnitude or 0
+		local memTxt = mem and Format("%.0f MB", mem) or "— MB"
+		local velocityTxt = Format("%.1f", velocityMag)
+		for _, cell in ipairs(cells) do
+			local data = cell.data
+			local text, raw = data.fn()
+			local color = data.col(raw or 0)
+			cell.val.Text = "<b>"..tostring(text or "—").."</b>"
+			cell.val.TextColor3 = color
+			cell.bar.Size = UDim2.new(data.ratio(raw or 0), 0, 1, 0)
+			cell.bar.BackgroundColor3 = color
+		end
+		ui.setCollapsedTitle(Format("Stats: <font color='%s'>%s</font> | <font color='%s'>%d ms</font> | <font color='%s'>%s vel</font>", NAstatsUI.colorToHex(neutralColor()), memTxt, NAstatsUI.colorToHex(pingColor(ping)), ping, NAstatsUI.colorToHex(neutralColor()), velocityTxt))
 	end))
 
 	MouseButtonFix(ui.closeButton, function()
@@ -43553,6 +43828,112 @@ cmd.add({"flashback", "deathpos", "deathtp"}, {"flashback (deathpos, deathtp)", 
 	else
 		DebugNotif("No available death location to teleport to! You need to die first", 3)
 	end
+end)
+
+NAStuff.fba_on = NAStuff.fba_on or false
+NAStuff.fba_done = NAStuff.fba_done or 0
+NAStuff.fba_cf = NAStuff.fba_cf or nil
+NAStuff.fba_safe = NAStuff.fba_safe or nil
+
+NAmanage.fbaSafe = NAmanage.fbaSafe or function(root, hum, char)
+	if not root or not hum or hum.Health <= 0 then
+		return false
+	end
+	local state = hum:GetState()
+	if state == Enum.HumanoidStateType.Dead or state == Enum.HumanoidStateType.FallingDown or state == Enum.HumanoidStateType.Ragdoll or state == Enum.HumanoidStateType.Seated then
+		return false
+	end
+	local vel = root.AssemblyLinearVelocity or root.Velocity
+	if vel and (vel.Magnitude > 250 or vel.Y < -90) then
+		return false
+	end
+	local fph = tonumber(workspace.FallenPartsDestroyHeight) or -500
+	if root.Position.Y <= fph + 25 then
+		return false
+	end
+	local params = RaycastParams.new()
+	local okType = pcall(function()
+		params.FilterType = Enum.RaycastFilterType.Exclude
+	end)
+	if not okType then
+		pcall(function() params.FilterType = Enum.RaycastFilterType.Blacklist end)
+	end
+	params.FilterDescendantsInstances = char and { char } or {}
+	local ok, hit = pcall(function()
+		return workspace:Raycast(root.Position, Vector3.new(0, -8, 0), params)
+	end)
+	return ok and hit ~= nil
+end
+
+NAmanage.fbaTarget = NAmanage.fbaTarget or function()
+	return NAStuff.fba_cf or NAStuff.fba_safe
+end
+
+originalIO.fba_try = function()
+	local cf = NAmanage.fbaTarget()
+	if not cf then return false end
+	local t0 = tick()
+	local ok0 = 0
+	while NAStuff.fba_on and tick() - t0 < 10 do
+		local ch = getChar()
+		local r = ch and getRoot(ch)
+		local h = ch and getHum(ch)
+		if r and h and h.Health > 0 then
+			r.CFrame = cf
+			local d = (r.Position - cf.Position).Magnitude
+			local now = tick()
+			if d < 6 then
+				if ok0 == 0 then
+					ok0 = now
+				elseif now - ok0 >= 1.25 then
+					return true
+				end
+			else
+				ok0 = 0
+			end
+		end
+		Wait(0.1)
+	end
+	return false
+end
+
+cmd.add({"flashbackalt", "fba", "safeplace"}, {"flashbackalt (fba)", "Teleports you to the 0 HP flashback point"}, function()
+	local cf = NAmanage.fbaTarget()
+	if not cf then
+		return DebugNotif("No alt flashback point saved yet", 3)
+	end
+	local character = getChar()
+	local root = character and getRoot(character)
+	if not root then
+		return DebugNotif("Could not teleport, root is missing", 3)
+	end
+	root.CFrame = cf
+end)
+
+cmd.add({"autoflashbackalt", "autodeathposalt", "deathbackalt", "afba"}, {"autoflashbackalt (afba)", "Auto-teleports you to the 0 HP flashback point on respawn"}, function()
+	if NAlib.isConnected("fba_ca") then
+		return DoNotif("auto flashback alt is already running", 3)
+	end
+	NAStuff.fba_on = true
+	NAlib.connect("fba_ca", LocalPlayer.CharacterAdded:Connect(function()
+		if not NAStuff.fba_on then return end
+		if tick() < (NAStuff.fba_done or 0) then return end
+		if not NAmanage.fbaTarget() then return end
+		Spawn(function()
+			local ok = originalIO.fba_try()
+			if ok then
+				NAStuff.fba_done = tick() + 4
+			end
+		end)
+	end))
+	DebugNotif("Auto flashback alt enabled", 2)
+end)
+
+cmd.add({"unautoflashbackalt", "unafba", "undeathbackalt"}, {"unautoflashbackalt", "Disables auto flashback alt"}, function()
+	DebugNotif("Auto flashback alt disabled", 2)
+	NAlib.disconnect("fba_ca")
+	NAStuff.fba_on = false
+	NAStuff.fba_done = 0
 end)
 
 cmd.add({"tospawn", "ts"}, {"tospawn (ts)", "Teleports you to a SpawnLocation"}, function()
@@ -59293,6 +59674,338 @@ cmd.add({"unheadsit"}, {"unheadsit", "Stop the headsit command."}, function()
 	end
 end)
 
+NAmanage.wallTpFlat = NAmanage.wallTpFlat or function(v)
+	if typeof(v) ~= "Vector3" then
+		return nil
+	end
+	v = Vector3.new(v.X, 0, v.Z)
+	if v.Magnitude <= 0.05 then
+		return nil
+	end
+	return v.Unit
+end
+
+NAmanage.wallTpCollideRay = NAmanage.wallTpCollideRay or function(params, root)
+	if not params then
+		return
+	end
+
+	pcall(function()
+		params.RespectCanCollide = true
+	end)
+
+	local grp = root and NAlib.isProperty(root, "CollisionGroup")
+	if type(grp) == "string" and grp ~= "" then
+		pcall(function()
+			params.CollisionGroup = grp
+		end)
+	end
+end
+
+NAmanage.wallTpHumModel = NAmanage.wallTpHumModel or function(inst)
+	if not (inst and typeof(inst) == "Instance") then
+		return nil
+	end
+
+	local cur = inst
+	while cur and cur ~= workspace do
+		if cur:IsA("Model") and cur:FindFirstChildOfClass("Humanoid") then
+			return cur
+		end
+		cur = cur.Parent
+	end
+
+	return nil
+end
+
+NAmanage.wallTpValidPart = NAmanage.wallTpValidPart or function(part, char)
+	if not (part and part:IsA("BasePart")) then
+		return false
+	end
+
+	if char and part:IsDescendantOf(char) then
+		return false
+	end
+
+	if NAlib.isProperty(part, "CanCollide") ~= true then
+		return false
+	end
+
+	local humModel = NAmanage.wallTpHumModel(part)
+	if humModel then
+		return false
+	end
+
+	return true
+end
+
+NAmanage.wallTpTop = function(part, hit)
+	if not (NAmanage.wallTpValidPart(part) and hit and hit.Position) then
+		return nil
+	end
+
+	local cf = part.CFrame
+	local sz = part.Size
+	local topY = part.Position.Y + (math.abs(cf.RightVector.Y) * sz.X + math.abs(cf.UpVector.Y) * sz.Y + math.abs(cf.LookVector.Y) * sz.Z) * 0.5
+	local params = RaycastParams.new()
+	local ok = pcall(function()
+		params.FilterType = Enum.RaycastFilterType.Include
+	end)
+	if not ok then
+		pcall(function()
+			params.FilterType = Enum.RaycastFilterType.Whitelist
+		end)
+	end
+	NAmanage.wallTpCollideRay(params)
+	params.FilterDescendantsInstances = { part }
+	params.IgnoreWater = true
+
+	local points = {}
+	local used = {}
+	local function addPoint(v)
+		if typeof(v) ~= "Vector3" then
+			return
+		end
+		local key = Format("%.2f:%.2f", v.X, v.Z)
+		if not used[key] then
+			used[key] = true
+			points[#points + 1] = v
+		end
+	end
+
+	local function addAxis(axis, dist)
+		axis = NAmanage.wallTpFlat(axis)
+		if not axis then
+			return
+		end
+		addPoint(hit.Position + axis * dist)
+		addPoint(hit.Position - axis * dist)
+		addPoint(hit.Position + axis * (dist * 2))
+		addPoint(hit.Position - axis * (dist * 2))
+	end
+
+	local n = NAmanage.wallTpFlat(hit.Normal)
+	local step = math.clamp(math.max(sz.X, sz.Z, sz.Y) * 0.04, 0.2, 1.75)
+	addPoint(hit.Position)
+	if n then
+		addPoint(hit.Position - n * step)
+		addPoint(hit.Position + n * step)
+		addPoint(hit.Position - n * (step * 2))
+	end
+	addAxis(cf.RightVector, step)
+	addAxis(cf.LookVector, step)
+	addAxis(cf.UpVector, step)
+
+	local bestPos, bestY
+	local y = math.max(48, sz.Magnitude + 12)
+	for _, point in ipairs(points) do
+		local res = workspace:Raycast(Vector3.new(point.X, topY + y, point.Z), Vector3.new(0, -(y * 2 + 8), 0), params)
+		if res and res.Position and res.Instance == part then
+			local ry = res.Position.Y
+			if not bestY or ry > bestY then
+				bestPos = res.Position
+				bestY = ry
+			end
+		end
+	end
+
+	if bestPos and bestY then
+		return bestPos, bestY
+	end
+
+	local localHit = cf:PointToObjectSpace(hit.Position)
+	local clampX = math.clamp(localHit.X, -sz.X * 0.5, sz.X * 0.5)
+	local clampY = math.clamp(localHit.Y, -sz.Y * 0.5, sz.Y * 0.5)
+	local clampZ = math.clamp(localHit.Z, -sz.Z * 0.5, sz.Z * 0.5)
+	local candidates = {
+		Vector3.new(clampX, sz.Y * 0.5, clampZ),
+		Vector3.new(clampX, clampY, sz.Z * 0.5),
+		Vector3.new(clampX, clampY, -sz.Z * 0.5),
+		Vector3.new(sz.X * 0.5, clampY, clampZ),
+		Vector3.new(-sz.X * 0.5, clampY, clampZ),
+	}
+	for _, v in ipairs(candidates) do
+		local p = cf:PointToWorldSpace(v)
+		if not bestY or p.Y > bestY then
+			bestPos = p
+			bestY = p.Y
+		end
+	end
+
+	if bestPos and bestY then
+		return bestPos, bestY
+	end
+
+	return Vector3.new(hit.Position.X, topY, hit.Position.Z), topY
+end
+
+NAmanage.wallTpHit = function(char, root, hum)
+	if not (workspace and workspace.Raycast and char and root) then
+		return nil
+	end
+
+	local params = RaycastParams.new()
+	NAmanage._raycastFilterType(params)
+	NAmanage.wallTpCollideRay(params, root)
+	params.IgnoreWater = true
+
+	local excludes = NAmanage._raycastFilterList(char)
+	local rs = NAlib.isProperty(root, "Size") or Vector3.new(2, 2, 1)
+	local dist = math.max(2.25, math.max(rs.X, rs.Z) * 0.5 + 0.85)
+	local dirs = {}
+	local mv = hum and NAmanage.wallTpFlat(hum.MoveDirection) or nil
+	local look = NAmanage.wallTpFlat(root.CFrame.LookVector)
+	local right = NAmanage.wallTpFlat(root.CFrame.RightVector)
+	if mv then dirs[#dirs + 1] = mv end
+	if look then
+		dirs[#dirs + 1] = look
+		dirs[#dirs + 1] = -look
+	end
+	if right then
+		dirs[#dirs + 1] = right
+		dirs[#dirs + 1] = -right
+	end
+	if #dirs == 0 then
+		return nil
+	end
+
+	local function cast(org, dir)
+		local mag = dir.Magnitude
+		if mag <= 0.05 then
+			return nil
+		end
+
+		local unit = dir.Unit
+		local from = org
+		local left = mag
+		for _ = 1, 8 do
+			params.FilterDescendantsInstances = excludes
+			local res = workspace:Raycast(from, unit * left, params)
+			if not res then
+				return nil
+			end
+
+			local part = res.Instance
+			if NAmanage.wallTpValidPart(part, char) and math.abs((res.Normal or Vector3.zero).Y) < 0.6 then
+				return res
+			end
+
+			local skip = NAmanage.wallTpHumModel(part) or part
+			if not skip then
+				return nil
+			end
+
+			excludes[#excludes + 1] = skip
+			local used = (res.Position - from).Magnitude + 0.05
+			left -= used
+			if left <= 0.05 then
+				return nil
+			end
+			from = res.Position + unit * 0.05
+		end
+
+		return nil
+	end
+
+	local offs = { -math.min(rs.Y * 0.35, 1), 0, math.min(rs.Y * 0.35, 1.25) }
+	local best, bestD
+	for _, off in ipairs(offs) do
+		local org = root.Position + Vector3.new(0, off, 0)
+		for _, dir in ipairs(dirs) do
+			local res = cast(org, dir * dist)
+			if res then
+				local d = (res.Position - org).Magnitude
+				if not bestD or d < bestD then
+					best = res
+					bestD = d
+				end
+			end
+		end
+	end
+	return best
+end
+NAmanage.wallTpStop = NAmanage.wallTpStop or function(silent)
+	NAlib.disconnect("walltp_loop")
+	NAStuff.wallTpState = nil
+	if not silent then
+		DoNotif("WallTP disabled", 2)
+	end
+end
+
+cmd.add({"walltp","wtp"},{"walltp","Toggles wall top teleport (BETA)"},function()
+	if NAlib.isConnected("walltp_loop") then
+		NAmanage.wallTpStop()
+		return
+	end
+
+	local st = { acc = 0, last = nil, t = 0 }
+	NAStuff.wallTpState = st
+
+	NAlib.reconnect("walltp_loop", RunService.Heartbeat:Connect(function(dt)
+		st.acc += dt
+		if st.acc < 0.06 then
+			return
+		end
+		st.acc = 0
+
+		local char = getChar()
+		local root = char and getRoot(char)
+		local hum = char and getHum(char)
+		if not (char and root and hum and hum.Health > 0) then
+			return
+		end
+
+		local hit = NAmanage.wallTpHit(char, root, hum)
+		if not hit then
+			st.last = nil
+			return
+		end
+
+		local part = hit.Instance
+		if not (part and part:IsA("BasePart")) then
+			return
+		end
+
+		local now = os.clock()
+		if st.last == part and now - st.t < 0.4 then
+			return
+		end
+
+		local top, topY = NAmanage.wallTpTop(part, hit)
+		if not (top and topY) then
+			return
+		end
+		if root.Position.Y > topY + 1.5 then
+			return
+		end
+
+		st.last = part
+		st.t = now
+
+		local rs = NAlib.isProperty(root, "Size") or Vector3.new(2, 2, 1)
+		local hip = tonumber(hum.HipHeight) or 2
+		local pad = math.max(hip + rs.Y * 0.5 + 0.35, rs.Y + 1)
+		local pos = top + Vector3.new(0, pad, 0)
+		local look = NAmanage.wallTpFlat(root.CFrame.LookVector) or Vector3.new(0, 0, -1)
+		local cf = CFrame.new(pos, pos + look)
+
+		pcall(function() root.AssemblyLinearVelocity = Vector3.zero end)
+		pcall(function() root.AssemblyAngularVelocity = Vector3.zero end)
+		pcall(function() root.Velocity = Vector3.zero end)
+		pcall(function() root.RotVelocity = Vector3.zero end)
+
+		if not NAmanage.safePivotModel(char, cf) then
+			root.CFrame = cf
+		end
+	end))
+
+	DoNotif("WallTP enabled", 2)
+end)
+
+cmd.add({"unwalltp","nowalltp"},{"unwalltp (nowalltp)","Disables wall top teleport"},function()
+	NAmanage.wallTpStop()
+end)
+
 cmd.add({"wallhop"},{"wallhop","wallhop helper"},function()
 	local char = getChar()
 	local root = getRoot(char)
@@ -63213,6 +63926,148 @@ end, true)
 cmd.add({"untpwalk"}, {"untpwalk", "Stops the tpwalk command"}, function()
 	TPWalk = false
 	NAlib.disconnect("TPWalkingConnection")
+end)
+
+TPJump = false
+
+NAmanage.TPJumpInputAllowed = function(hum)
+	if not hum then
+		return false
+	end
+	if hum.FloorMaterial ~= Enum.Material.Air then
+		return true
+	end
+	return (NAlib.isConnected("infjump_jump") or NAlib.isConnected("flyjump")) and true or false
+end
+
+NAmanage.TPJumpPulse = function(force)
+	local st = NAStuff and NAStuff.TPJumpState
+	if not (TPJump and st) then
+		return false
+	end
+
+	local char = getChar()
+	local hum = char and getHum(char)
+	local root = char and getRoot(char)
+	if not (char and hum and root and hum.Health > 0) then
+		return false
+	end
+
+	if not force and not NAmanage.TPJumpInputAllowed(hum) then
+		return false
+	end
+
+	local now = os.clock()
+	st.untilTime = math.max(st.untilTime or 0, now + (force and 0.2 or 0.15))
+	st.accumulator = math.max(st.accumulator or 0, st.stepRate or (1 / 60))
+	st.lastPulse = now
+	return true
+end
+
+cmd.add({"tpjump", "tjump"}, {"tpjump <number>",""}, function(...)
+	if TPJump then
+		TPJump = false
+		NAlib.disconnect("TPJumpConnection")
+		NAlib.disconnect("TPJumpRequest")
+		NAlib.disconnect("TPJumpCharacter")
+		NAlib.disconnect("TPJumpHumanoidJump")
+	end
+
+	TPJump = true
+	local Speed = math.clamp(math.abs(tonumber(...) or 1), 0.1, 100)
+	local stepRate = 1 / 60
+	local maxSteps = 3
+	local st = {
+		speed = Speed,
+		stepRate = stepRate,
+		maxSteps = maxSteps,
+		accumulator = 0,
+		untilTime = 0,
+		lastPulse = 0,
+	}
+	NAStuff.TPJumpState = st
+
+	local function bindHumanoidJump()
+		NAlib.disconnect("TPJumpHumanoidJump")
+		local hum = getHum()
+		if hum then
+			NAlib.connect("TPJumpHumanoidJump", hum.Jumping:Connect(function(active)
+				if active then
+					NAmanage.TPJumpPulse()
+				end
+			end))
+		end
+	end
+
+	bindHumanoidJump()
+
+	NAlib.reconnect("TPJumpRequest", UserInputService.JumpRequest:Connect(function()
+		NAmanage.TPJumpPulse()
+	end))
+
+	NAlib.reconnect("TPJumpCharacter", LocalPlayer.CharacterAdded:Connect(function()
+		st.accumulator = 0
+		st.untilTime = 0
+		Defer(function()
+			Wait(0.15)
+			if TPJump then
+				bindHumanoidJump()
+			end
+		end)
+	end))
+
+	NAlib.reconnect("TPJumpConnection", RunService.Heartbeat:Connect(function(deltaTime)
+		if not TPJump then
+			return
+		end
+
+		local humanoid = getHum()
+		local char = getChar()
+		if not humanoid or not char or humanoid.Health <= 0 then
+			return
+		end
+
+		local state = humanoid:GetState()
+		local jumping = humanoid.Jump == true or state == Enum.HumanoidStateType.Jumping
+		if jumping then
+			NAmanage.TPJumpPulse()
+		end
+
+		if os.clock() > (st.untilTime or 0) then
+			st.accumulator = 0
+			return
+		end
+
+		st.accumulator = math.min((st.accumulator or 0) + (tonumber(deltaTime) or 0), stepRate * maxSteps)
+		local root = getRoot(char)
+		local steps = 0
+		while st.accumulator >= stepRate and steps < maxSteps do
+			local stepDelta = Vector3.new(0, st.speed * stepRate * 10, 0)
+			local undergroundState = NAStuff and NAStuff.NAundergroundState
+			if undergroundState and undergroundState.Underground then
+				undergroundState.PendingTranslation = (undergroundState.PendingTranslation or Vector3.new()) + stepDelta
+			else
+				char:TranslateBy(stepDelta)
+			end
+			st.accumulator -= stepRate
+			steps += 1
+		end
+		if root then
+			local vel = NAlib.isProperty(root, "AssemblyLinearVelocity") or root.Velocity
+			if typeof(vel) == "Vector3" and vel.Y > 20 then
+				NAlib.setProperty(root, "AssemblyLinearVelocity", Vector3.new(vel.X, 20, vel.Z))
+			end
+		end
+	end))
+end, true)
+
+cmd.add({"untpjump", "untjump"}, {"untpjump", "Stops the tpjump command"}, function()
+	TPJump = false
+	NAStuff.TPJumpState = nil
+	NAlib.disconnect("TPJumpConnection")
+	NAlib.disconnect("TPJumpRequest")
+	NAlib.disconnect("TPJumpCharacter")
+	NAlib.disconnect("TPJumpHumanoidJump")
 end)
 
 muteLOOP = {}
@@ -95196,13 +96051,25 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 end);
 
 SpawnCall(function()
-	local fbHumCon = nil
+	local fbHumCons = {}
 	local function clrFbHum()
-		if fbHumCon then
-			pcall(function()
-				fbHumCon:Disconnect()
-			end)
-			fbHumCon = nil
+		for i = 1, #fbHumCons do
+			local con = fbHumCons[i]
+			if con then
+				pcall(function()
+					con:Disconnect()
+				end)
+				fbHumCons[i] = nil
+			end
+		end
+	end
+
+	local function saveFb(c, fallback)
+		local root = c and getRoot(c)
+		local cf = root and root.CFrame or fallback
+		if cf then
+			deathCFrame = cf
+			NAStuff.fba_cf = cf
 		end
 	end
 
@@ -95221,11 +96088,28 @@ SpawnCall(function()
 		if not hum then
 			return
 		end
-		fbHumCon = NAmanage.ConnectHumanoidDeath(hum, function()
-			local root=getRoot(c)
-			if root then
-				deathCFrame=root.CFrame
+		local lastSafe = 0
+		fbHumCons[#fbHumCons + 1] = RunService.Heartbeat:Connect(function()
+			local now = os.clock()
+			if now - lastSafe < 0.15 then
+				return
 			end
+			lastSafe = now
+			if not c.Parent or hum.Health <= 0 then
+				return
+			end
+			local root = getRoot(c)
+			if NAmanage.fbaSafe and NAmanage.fbaSafe(root, hum, c) then
+				NAStuff.fba_safe = root.CFrame
+			end
+		end)
+		fbHumCons[#fbHumCons + 1] = hum.HealthChanged:Connect(function(hp)
+			if tonumber(hp) and hp <= 0 then
+				saveFb(c, NAStuff.fba_safe)
+			end
+		end)
+		fbHumCons[#fbHumCons + 1] = NAmanage.ConnectHumanoidDeath(hum, function()
+			saveFb(c, NAStuff.fba_cf or NAStuff.fba_safe)
 			NAmanage._persist.lastMode=NAmanage._state and NAmanage._state.mode or "none"
 			NAmanage._persist.wasFlying=(FLYING==true)
 			if FLYING then
