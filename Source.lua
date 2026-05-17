@@ -19519,10 +19519,84 @@ NAmanage.ESP_SetPlayerLocatorShowText = function(on)
 	NAmanage.SaveESPSettings()
 end
 
+NAmanage.ScheduleBinderHookRefresh = NAmanage.ScheduleBinderHookRefresh or function()
+	if NAmanage._binderHookRefreshQueued then
+		return
+	end
+	NAmanage._binderHookRefreshQueued = true
+	Defer(function()
+		NAmanage._binderHookRefreshQueued = false
+		if type(NAmanage.RefreshBinderHooks) == "function" then
+			NAmanage.RefreshBinderHooks()
+		end
+	end)
+end
+
 NAmanage.SaveBinders=function()
 	if FileSupport then
 		writefile(bindersPath, HttpService:JSONEncode(Bindings))
 	end
+	if type(NAmanage.ScheduleBinderHookRefresh) == "function" then
+		NAmanage.ScheduleBinderHookRefresh()
+	end
+end
+
+NAmanage.BinderEntryText=function(entry)
+	if type(entry) == "string" then
+		return entry
+	end
+	if type(entry) == "table" then
+		local text = entry.cmd or entry.command or entry.text or entry.value or entry[1]
+		if type(text) == "string" then
+			return text
+		end
+	end
+	return ""
+end
+
+NAmanage.BinderEntryDisabled=function(entry)
+	return type(entry) == "table" and (entry.disabled == true or entry.enabled == false)
+end
+
+NAmanage.BinderMakeEntry=function(text, disabled)
+	text = NAmanage.BinderEntryText(text)
+	if disabled == true then
+		return { cmd = text; disabled = true }
+	end
+	return text
+end
+
+NAmanage.BinderSetDisabled=function(evName, index, disabled)
+	local list = Bindings and Bindings[evName]
+	if type(list) ~= "table" then
+		return false
+	end
+	local entry = list[index]
+	local text = NAmanage.BinderEntryText(entry)
+	if text == "" then
+		return false
+	end
+	list[index] = NAmanage.BinderMakeEntry(text, disabled == true)
+	NAmanage.SaveBinders()
+	return true
+end
+
+NAmanage.BinderCounts=function(evName)
+	local list = Bindings and Bindings[evName]
+	local active = 0
+	local total = 0
+	if type(list) ~= "table" then
+		return active, total
+	end
+	for _, entry in ipairs(list) do
+		if NAmanage.BinderEntryText(entry) ~= "" then
+			total += 1
+			if not NAmanage.BinderEntryDisabled(entry) then
+				active += 1
+			end
+		end
+	end
+	return active, total
 end
 
 NAStuff.CKBA = NAStuff.CKBA or {
@@ -20963,10 +21037,10 @@ if FileSupport then
 		if type(src) == "table" and #src > 0 then
 			Bindings["OnSpawn"] = Bindings["OnSpawn"] or {}
 			for _, line in ipairs(src) do
-				if line:match("^%s*[<%[]") then
-					Insert(Bindings["OnSpawn"], line)
-				else
-					Insert(Bindings["OnSpawn"], "<me> "..line)
+				local text = NAmanage.BinderEntryText(line)
+				if text ~= "" then
+					local finalText = text:match("^%s*[<%[]") and text or ("<me> "..text)
+					Insert(Bindings["OnSpawn"], NAmanage.BinderMakeEntry(finalText, NAmanage.BinderEntryDisabled(line)))
 				end
 			end
 			Bindings["OnSpawned"] = nil
@@ -23029,17 +23103,22 @@ NAmanage.ExecuteBindings = function(evName, ...)
 
 	local ctx = NAmanage._makeCtx(evName, ...)
 	for _, raw in ipairs(list) do
-		local sel, cmdText = NAmanage._parseSelectorPrefix(raw)
-		if NAmanage._selectorPasses(sel, ctx) then
-			local expanded = NAmanage._expandTokens(cmdText, ctx)
-			SpawnCall(function()
-				if Find(expanded, ";", 1, true) or Find(expanded, "\n", 1, true) then
-					NAmanage.BinderRunSequence(expanded)
-					return
+		if not NAmanage.BinderEntryDisabled(raw) then
+			local line = NAmanage.BinderEntryText(raw)
+			if line ~= "" then
+				local sel, cmdText = NAmanage._parseSelectorPrefix(line)
+				if NAmanage._selectorPasses(sel, ctx) then
+					local expanded = NAmanage._expandTokens(cmdText, ctx)
+					SpawnCall(function()
+						if Find(expanded, ";", 1, true) or Find(expanded, "\n", 1, true) then
+							NAmanage.BinderRunSequence(expanded)
+							return
+						end
+						local args = ParseArguments(expanded) or { expanded }
+						cmd.run(args)
+					end)
 				end
-				local args = ParseArguments(expanded) or { expanded }
-				cmd.run(args)
-			end)
+			end
 		end
 	end
 end
@@ -23120,7 +23199,15 @@ end
 
 NAmanage.BinderHasEntries = function(evName)
 	local list = Bindings and Bindings[evName]
-	return type(list) == "table" and #list > 0
+	if type(list) ~= "table" then
+		return false
+	end
+	for _, entry in ipairs(list) do
+		if NAmanage.BinderEntryText(entry) ~= "" then
+			return true
+		end
+	end
+	return false
 end
 
 NAmanage.BinderNeedsToolHooks = function()
@@ -94212,20 +94299,49 @@ originalIO.binderAttachHumanoidListeners=function(plr, hum)
 			__mode = "k"
 		})
 	end
-	if NAStuff.bHum[hum] then
-		return
-	end
-	local rec = {
-		lastHP = hum.Health,
-		dead = false,
-		conns = {},
-	}
-	NAStuff.bHum[hum] = rec
-	NAStuff.bHumCons[hum] = rec
+
 	local wantDeath = NAmanage.BinderHasEntries("OnDeath")
 	local wantKill = NAmanage.BinderHasEntries("OnKill")
 	local wantDamage = NAmanage.BinderHasEntries("OnDamage")
 	local wantJump = NAmanage.BinderHasEntries("OnJump")
+
+	if not (wantDeath or wantKill or wantDamage or wantJump) then
+		return
+	end
+
+	local old = NAStuff.bHum[hum]
+	if old then
+		if old.wantDeath == wantDeath
+			and old.wantKill == wantKill
+			and old.wantDamage == wantDamage
+			and old.wantJump == wantJump then
+			return
+		end
+		if type(old.conns) == "table" then
+			for i = 1, #old.conns do
+				old.conns[i] = NAmanage.tryDisconnect(old.conns[i])
+			end
+		end
+		if NAStuff.bHum[hum] == old then
+			NAStuff.bHum[hum] = nil
+		end
+		if NAStuff.bHumCons[hum] == old then
+			NAStuff.bHumCons[hum] = nil
+		end
+	end
+
+	local rec = {
+		lastHP = hum.Health,
+		lastJump = 0,
+		dead = false,
+		conns = {},
+		wantDeath = wantDeath,
+		wantKill = wantKill,
+		wantDamage = wantDamage,
+		wantJump = wantJump,
+	}
+	NAStuff.bHum[hum] = rec
+	NAStuff.bHumCons[hum] = rec
 
 	local function cleanup()
 		if NAStuff.bHum[hum] == rec then
@@ -94237,6 +94353,31 @@ originalIO.binderAttachHumanoidListeners=function(plr, hum)
 		for i = 1, #rec.conns do
 			rec.conns[i] = NAmanage.tryDisconnect(rec.conns[i])
 		end
+	end
+
+	local function alive()
+		if not (plr and plr.Parent and hum and hum.Parent) then
+			return false
+		end
+		local ok, hp = pcall(function()
+			return hum.Health
+		end)
+		if ok and tonumber(hp) and hp <= 0 then
+			return false
+		end
+		return true
+	end
+
+	local function fireJump()
+		if not (wantJump and alive()) then
+			return
+		end
+		local now = tick()
+		if now - (tonumber(rec.lastJump) or 0) < 0.12 then
+			return
+		end
+		rec.lastJump = now
+		NAmanage.ExecuteBindings("OnJump", plr, hum)
 	end
 
 	local function fireDeath()
@@ -94270,10 +94411,22 @@ originalIO.binderAttachHumanoidListeners=function(plr, hum)
 			fireDeath()
 		end)
 	end
+	if wantJump then
+		rec.conns[#rec.conns + 1] = hum.Jumping:Connect(function(active)
+			if active ~= false then
+				fireJump()
+			end
+		end)
+		if plr == LocalPlayer and UserInputService and UserInputService.JumpRequest then
+			rec.conns[#rec.conns + 1] = UserInputService.JumpRequest:Connect(function()
+				fireJump()
+			end)
+		end
+	end
 	if wantJump or wantDeath or wantKill then
 		rec.conns[#rec.conns + 1] = hum.StateChanged:Connect(function(_, newState)
 			if wantJump and newState == Enum.HumanoidStateType.Jumping then
-				NAmanage.ExecuteBindings("OnJump", plr, hum)
+				fireJump()
 			end
 			if (wantDeath or wantKill) and newState == Enum.HumanoidStateType.Dead then
 				fireDeath()
@@ -94315,16 +94468,40 @@ originalIO.binderAttachToolListeners=function(plr, char)
 			__mode = "k"
 		})
 	end
-	if NAStuff.bTool[char] then
+
+	local wantEquip = NAmanage.BinderHasEntries("OnEquipItem")
+	local wantUnequip = NAmanage.BinderHasEntries("OnUnequipItem")
+
+	if not (wantEquip or wantUnequip) then
 		return
 	end
+
+	local old = NAStuff.bTool[char]
+	if old then
+		if old.wantEquip == wantEquip and old.wantUnequip == wantUnequip then
+			return
+		end
+		if type(old.conns) == "table" then
+			for i = 1, #old.conns do
+				old.conns[i] = NAmanage.tryDisconnect(old.conns[i])
+			end
+		end
+		if NAStuff.bTool[char] == old then
+			NAStuff.bTool[char] = nil
+		end
+		if NAStuff.bToolCons[char] == old then
+			NAStuff.bToolCons[char] = nil
+		end
+	end
+
 	local rec = {
 		conns = {},
+		wantEquip = wantEquip,
+		wantUnequip = wantUnequip,
 	}
 	NAStuff.bTool[char] = rec
 	NAStuff.bToolCons[char] = rec
-	local wantEquip = NAmanage.BinderHasEntries("OnEquipItem")
-	local wantUnequip = NAmanage.BinderHasEntries("OnUnequipItem")
+
 	local function cleanup()
 		if NAStuff.bTool[char] == rec then
 			NAStuff.bTool[char] = nil
@@ -94336,20 +94513,25 @@ originalIO.binderAttachToolListeners=function(plr, char)
 			rec.conns[i] = NAmanage.tryDisconnect(rec.conns[i])
 		end
 	end
-	rec.conns[#rec.conns + 1] = NAmanage.childAdd(char, function(child)
-		if wantEquip and child:IsA("Tool") then
-			NAmanage.ExecuteBindings("OnEquipItem", plr, child)
-		end
-	end, function(child)
-		return child and child:IsA("Tool")
-	end)
-	rec.conns[#rec.conns + 1] = NAmanage.childRem(char, function(child)
-		if wantUnequip and child:IsA("Tool") then
-			NAmanage.ExecuteBindings("OnUnequipItem", plr, child)
-		end
-	end, function(child)
-		return child and child:IsA("Tool")
-	end)
+
+	if wantEquip then
+		rec.conns[#rec.conns + 1] = NAmanage.childAdd(char, function(child)
+			if child and child:IsA("Tool") then
+				NAmanage.ExecuteBindings("OnEquipItem", plr, child)
+			end
+		end, function(child)
+			return child and child:IsA("Tool")
+		end)
+	end
+	if wantUnequip then
+		rec.conns[#rec.conns + 1] = NAmanage.childRem(char, function(child)
+			if child and child:IsA("Tool") then
+				NAmanage.ExecuteBindings("OnUnequipItem", plr, child)
+			end
+		end, function(child)
+			return child and child:IsA("Tool")
+		end)
+	end
 	rec.conns[#rec.conns + 1] = char.AncestryChanged:Connect(function(_, parent)
 		if parent == nil then
 			cleanup()
@@ -94383,6 +94565,11 @@ originalIO.binderSetupCharacter=function(plr, char)
 		})
 	end
 	if NAStuff.bSet[char] then
+		originalIO.binderAttachToolListeners(plr, char)
+		local hum = getHum(char)
+		if hum then
+			originalIO.binderAttachHumanoidListeners(plr, hum)
+		end
 		return
 	end
 	NAStuff.bSet[char] = true
@@ -94399,6 +94586,21 @@ originalIO.binderSetupCharacter=function(plr, char)
 	local hum = getHum(char)
 	if hum then
 		originalIO.binderAttachHumanoidListeners(plr, hum)
+	end
+end
+
+NAmanage.RefreshBinderHooks = function()
+	if not Players then
+		return
+	end
+	if not NAmanage.BinderNeedsCharacterHooks() then
+		return
+	end
+	for _, plr in pairs(__lt.cm("Players", "GetPlayers")) do
+		local char = plr and plr.Character
+		if char then
+			originalIO.binderSetupCharacter(plr, char)
+		end
 	end
 end
 
@@ -97341,7 +97543,12 @@ SpawnCall(function()
 				end
 			end
 			local list = Bindings[ev] or {}
-			header.Text = ev.." ("..#list..")"
+			local activeCount, totalCount = NAmanage.BinderCounts(ev)
+			if totalCount > 0 and activeCount ~= totalCount then
+				header.Text = ev.." ("..activeCount.."/"..totalCount..")"
+			else
+				header.Text = ev.." ("..totalCount..")"
+			end
 			if #list > 0 then
 				NAmanage.SetAttr(binderFrame, "Expanded", true)
 				local h = uiLayout.AbsoluteContentSize.Y + 8
@@ -97353,30 +97560,54 @@ SpawnCall(function()
 				binderFrame:TweenSize(UDim2.new(1,0,0, HEADER_H), "Out", "Quint", 0.25, true)
 			end
 			for i, cmdStr in ipairs(list) do
+				local text = NAmanage.BinderEntryText(cmdStr)
+				local disabled = NAmanage.BinderEntryDisabled(cmdStr)
 				local item = InstanceNew("Frame")
 				item.Name               = "BinderItem"
 				item.Parent             = itemsFrame
-				item.Size               = UDim2.new(1,0,0,24)
+				item.Size               = UDim2.new(1,0,0,28)
 				item.LayoutOrder        = i
-				item.BackgroundColor3   = Color3.fromRGB(35,35,35)
+				item.BackgroundColor3   = disabled and Color3.fromRGB(28,28,31) or Color3.fromRGB(35,35,35)
+				item.BackgroundTransparency = disabled and 0.25 or 0
 				local itemCorner = InstanceNew("UICorner", item)
 				itemCorner.CornerRadius  = UDim.new(0,4)
 
 				local lbl = InstanceNew("TextLabel")
 				lbl.Parent               = item
-				lbl.Size                 = UDim2.new(1,-24,1,0)
+				lbl.Size                 = UDim2.new(1,-100,1,0)
 				lbl.Position             = UDim2.new(0,8,0,0)
 				lbl.BackgroundTransparency = 1
-				lbl.Text                 = cmdStr
+				lbl.Text                 = disabled and (text.." (disabled)") or text
 				lbl.Font                 = Enum.Font.SourceSans
 				lbl.TextSize             = 14
-				lbl.TextColor3           = Color3.fromRGB(255,255,255)
+				lbl.TextColor3           = disabled and Color3.fromRGB(170,170,180) or Color3.fromRGB(255,255,255)
 				lbl.TextXAlignment       = Enum.TextXAlignment.Left
+				lbl.TextTruncate         = Enum.TextTruncate.AtEnd
+
+				local dis = InstanceNew("TextButton")
+				dis.Parent               = item
+				dis.Size                 = UDim2.new(0,62,0,22)
+				dis.Position             = UDim2.new(1,-90,0,3)
+				dis.BorderSizePixel      = 0
+				dis.BackgroundTransparency = 0.1
+				dis.BackgroundColor3     = disabled and Color3.fromRGB(80,120,80) or Color3.fromRGB(184,124,54)
+				dis.Text                 = disabled and "Enable" or "Disable"
+				dis.Font                 = Enum.Font.SourceSansBold
+				dis.TextSize             = 13
+				dis.TextColor3           = Color3.fromRGB(244,244,244)
+				local disCorner = InstanceNew("UICorner", dis)
+				disCorner.CornerRadius   = UDim.new(0,6)
+				MouseButtonFix(dis, function()
+					if NAmanage.BinderSetDisabled(ev, i, not disabled) then
+						DoNotif((disabled and "Enabled" or "Disabled").." "..ev.." binding", 2)
+					end
+					refreshItems()
+				end)
 
 				local rem = InstanceNew("TextButton")
 				rem.Parent               = item
 				rem.Size                 = UDim2.new(0,20,0,20)
-				rem.Position             = UDim2.new(1,-24,0,2)
+				rem.Position             = UDim2.new(1,-24,0,4)
 				rem.BackgroundTransparency = 1
 				rem.Text                 = "×"
 				rem.Font                 = Enum.Font.SourceSansBold
@@ -97389,7 +97620,6 @@ SpawnCall(function()
 				end)
 			end
 		end
-
 		MouseButtonFix(addBtn, function()
 			Bindings[ev] = Bindings[ev] or {}
 			local allowMe = (ev ~= "OnJoin" and ev ~= "OnLeave")
