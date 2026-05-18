@@ -7019,9 +7019,6 @@ updateCanvasSize = function(frame, scale)
 		return
 	end
 	if NAmanage.GetAttr and NAmanage.GetAttr(frame, "NAManualCanvasSize") == true then
-		if NAmanage.CustomScroll and NAmanage.CustomScroll.refreshByTarget then
-			NAmanage.CustomScroll.refreshByTarget(frame);
-		end
 		return
 	end
 
@@ -96903,7 +96900,7 @@ do
 		end
 		local frame = canvasFrames[canvasIndex]
 		canvasIndex += 1
-		if frame and frame.Parent and isFrameVisible(frame) then
+		if frame and frame.Parent and isFrameVisible(frame) and not (NAmanage.GetAttr and NAmanage.GetAttr(frame, "NAManualCanvasSize") == true) then
 			updateCanvasSize(frame, scale)
 		end
 	end
