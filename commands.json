@@ -933,6 +933,28 @@
       "desc": "stop the walkfling command"
     },
     {
+      "name": "touchfling",
+      "aliases": [
+        "touchfling",
+        "tfling",
+        "tf"
+      ],
+      "usage": "touchfling (tfling,tf)",
+      "args": "",
+      "desc": "walkfling only when touching a player or NPC"
+    },
+    {
+      "name": "untouchfling",
+      "aliases": [
+        "untouchfling",
+        "untfling",
+        "untf"
+      ],
+      "usage": "untouchfling (untfling,untf)",
+      "args": "",
+      "desc": "stop the touchfling command"
+    },
+    {
       "name": "rjre",
       "aliases": [
         "rjre",
