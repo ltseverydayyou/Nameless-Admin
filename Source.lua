@@ -9170,19 +9170,6 @@ local NAfiles = {
 	NAFFLAGSPATH = "Nameless-Admin/NAFFlags.json";
 }
 
-NAmanage.normalizeAssetDownloadMethod = NAmanage.normalizeAssetDownloadMethod or function(value)
-	return "legacy"
-end
-
-NAmanage.hashAssetString = NAmanage.hashAssetString or function(str)
-	str = type(str) == "string" and str or tostring(str or "")
-	local hash = 0
-	for i = 1, #str do
-		hash = (hash * 31 + string.byte(str, i)) % 4294967296
-	end
-	return string.format("%08x", hash)
-end
-
 NAmanage.getNAImageFileName = NAmanage.getNAImageFileName or function(keyOrFile)
 	if type(keyOrFile) ~= "string" or keyOrFile == "" then
 		return nil
@@ -9201,33 +9188,7 @@ NAmanage.getNAImageAssetSourceUrl = NAmanage.getNAImageAssetSourceUrl or functio
 	return "https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NAimages/"..fileName
 end
 
-NAmanage.getNAImageLegacyTxtFileName = NAmanage.getNAImageLegacyTxtFileName or function(keyOrFile)
-	local fileName = NAmanage.getNAImageFileName(keyOrFile)
-	if type(fileName) ~= "string" or fileName == "" then
-		return nil
-	end
-	local base = fileName:match("(.+)%.") or fileName
-	base = base:gsub("[^%w%._%-]", "_")
-	base = base:gsub("_+", "_")
-	base = base:gsub("^_+", "")
-	base = base:gsub("_+$", "")
-	if base == "" then
-		base = "asset"
-	end
-	local sourceUrl = NAmanage.getNAImageAssetSourceUrl(fileName) or fileName
-	local hashed = NAmanage.hashAssetString(sourceUrl)
-	return string.format("%s_%s.txt", base, hashed)
-end
-
-NAmanage.getNAImageStoredFileName = NAmanage.getNAImageStoredFileName or function(keyOrFile, method)
-	local fileName = NAmanage.getNAImageFileName(keyOrFile)
-	if type(fileName) ~= "string" or fileName == "" then
-		return nil
-	end
-	return fileName
-end
-
-NAmanage.getNAImageAssetCandidatePaths = NAmanage.getNAImageAssetCandidatePaths or function(keyOrFile, method)
+NAmanage.getNAImageAssetCandidatePaths = NAmanage.getNAImageAssetCandidatePaths or function(keyOrFile)
 	local fileName = NAmanage.getNAImageFileName(keyOrFile)
 	if type(fileName) ~= "string" or fileName == "" then
 		return {}
@@ -9235,29 +9196,12 @@ NAmanage.getNAImageAssetCandidatePaths = NAmanage.getNAImageAssetCandidatePaths 
 	if not (NAfiles and type(NAfiles.NAASSETSFILEPATH) == "string" and NAfiles.NAASSETSFILEPATH ~= "") then
 		return {}
 	end
-	local out = {}
-	local seen = {}
-	local function addPath(path)
-		if type(path) ~= "string" or path == "" or seen[path] then
-			return
-		end
-		seen[path] = true
-		out[#out + 1] = path
-	end
-	local preferred = NAmanage.getNAImageStoredFileName(fileName, "legacy")
-	if preferred then
-		addPath(NAfiles.NAASSETSFILEPATH.."/"..preferred)
-	end
-	local alternate = NAmanage.getNAImageLegacyTxtFileName(fileName)
-	if alternate then
-		addPath(NAfiles.NAASSETSFILEPATH.."/"..alternate)
-	end
-	return out
+	return { NAfiles.NAASSETSFILEPATH.."/"..fileName }
 end
 
 NAmanage.getNAImageAssetPath = NAmanage.getNAImageAssetPath or function(keyOrFile, opts)
 	opts = type(opts) == "table" and opts or {}
-	local candidates = NAmanage.getNAImageAssetCandidatePaths(keyOrFile, opts.method)
+	local candidates = NAmanage.getNAImageAssetCandidatePaths(keyOrFile)
 	if #candidates == 0 then
 		return nil
 	end
@@ -9286,270 +9230,6 @@ NAmanage.getNAImageAsset = NAmanage.getNAImageAsset or function(keyOrFile, fallb
 	end
 	return fallback
 end
-
-NAmanage.getAssetDownloadMethod = NAmanage.getAssetDownloadMethod or function()
-	NAStuff.AssetDownloadMethod = NAmanage.normalizeAssetDownloadMethod(NAStuff.AssetDownloadMethod)
-	return NAStuff.AssetDownloadMethod
-end
-
-NAmanage.syncDownloadedImageFiles = NAmanage.syncDownloadedImageFiles or function(method, opts)
-	opts = type(opts) == "table" and opts or {}
-	local result = {
-		method = "legacy",
-		assets = { checked = 0, converted = 0, failed = 0 },
-		icons = { checked = 0, converted = 0, failed = 0 },
-	}
-
-	if not FileSupport then
-		return result
-	end
-	if type(readfile) ~= "function" or type(writefile) ~= "function" or type(isfile) ~= "function" then
-		return result
-	end
-
-	local function fileExists(path)
-		if type(path) ~= "string" or path == "" then
-			return false
-		end
-		local ok, exists = pcall(isfile, path)
-		return ok and exists
-	end
-
-	local function copyFile(sourcePath, targetPath)
-		if type(sourcePath) ~= "string" or sourcePath == "" then
-			return false
-		end
-		if type(targetPath) ~= "string" or targetPath == "" then
-			return false
-		end
-		local okRead, data = pcall(readfile, sourcePath)
-		if not (okRead and type(data) == "string" and data ~= "") then
-			return false
-		end
-		local okWrite = pcall(writefile, targetPath, data)
-		return okWrite == true
-	end
-
-	local function deleteSourceFile(path)
-		if type(path) ~= "string" or path == "" then
-			return false
-		end
-		if type(delfile) ~= "function" then
-			return false
-		end
-		local okDelete = pcall(delfile, path)
-		return okDelete == true
-	end
-
-	local function getName(path)
-		if type(path) ~= "string" then
-			return nil
-		end
-		local normalized = path:gsub("\\", "/")
-		return normalized:match("([^/]+)$")
-	end
-
-	local function sanitizeBase(value)
-		local out = (type(value) == "string" and value or ""):gsub("[^%w%._%-]", "_")
-		out = out:gsub("_+", "_")
-		out = out:gsub("^_+", "")
-		out = out:gsub("_+$", "")
-		return out ~= "" and out or "asset"
-	end
-
-	local function ensureSourceGone(path)
-		if not fileExists(path) then
-			return true
-		end
-		return deleteSourceFile(path)
-	end
-
-	if type(listfiles) == "function"
-		and NAfiles
-		and type(NAfiles.NAASSETSFILEPATH) == "string"
-		and NAfiles.NAASSETSFILEPATH ~= ""
-		and type(isfolder) == "function"
-	then
-		local assetsDir = NAfiles.NAASSETSFILEPATH
-		local txtToLegacy = {}
-		if type(NAImageAssets) == "table" then
-			for _, knownFile in pairs(NAImageAssets) do
-				if type(knownFile) == "string" and knownFile ~= "" then
-					local knownTxt = NAmanage.getNAImageLegacyTxtFileName(knownFile)
-					if type(knownTxt) == "string" and knownTxt ~= "" then
-						txtToLegacy[knownTxt:lower()] = knownFile
-					end
-				end
-			end
-		end
-
-		local okFolder, hasFolder = pcall(isfolder, assetsDir)
-		if okFolder and hasFolder then
-			local okList, files = pcall(listfiles, assetsDir)
-			if okList and type(files) == "table" then
-				for _, fullPath in ipairs(files) do
-					local okFile, isRealFile = pcall(isfile, fullPath)
-					if not (okFile and isRealFile) then
-						continue
-					end
-					local name = getName(fullPath)
-					if type(name) == "string" and name ~= "" then
-						result.assets.checked += 1
-						local lower = name:lower()
-						if lower:match("%.txt$") then
-							local targetName = txtToLegacy[lower]
-							if type(targetName) ~= "string" or targetName == "" then
-								local stem = name:sub(1, -5)
-								stem = stem:gsub("_[0-9a-fA-F]+$", "")
-								stem = sanitizeBase(stem)
-								targetName = stem..".png"
-							end
-							local targetPath = assetsDir.."/"..targetName
-							if fileExists(targetPath) then
-								if ensureSourceGone(fullPath) then
-									result.assets.converted += 1
-								else
-									result.assets.failed += 1
-								end
-							else
-								if copyFile(fullPath, targetPath) and ensureSourceGone(fullPath) then
-									result.assets.converted += 1
-								else
-									result.assets.failed += 1
-								end
-							end
-						end
-					end
-				end
-			end
-		end
-	end
-
-	if type(listfiles) == "function"
-		and NAfiles
-		and type(NAfiles.NACUSTOMICONPATH) == "string"
-		and NAfiles.NACUSTOMICONPATH ~= ""
-		and type(isfolder) == "function"
-	then
-		local okFolder, hasFolder = pcall(isfolder, NAfiles.NACUSTOMICONPATH)
-		if okFolder and hasFolder then
-			local okList, files = pcall(listfiles, NAfiles.NACUSTOMICONPATH)
-			if okList and type(files) == "table" then
-				local movedPath = {}
-				for _, fullPath in ipairs(files) do
-					local okFile, isRealFile = pcall(isfile, fullPath)
-					if not (okFile and isRealFile) then
-						continue
-					end
-					local name = getName(fullPath)
-					if type(name) == "string" and name ~= "" then
-						local lower = name:lower()
-						result.icons.checked += 1
-						if lower:match("%.txt$") then
-							local stem = name:sub(1, -5)
-							stem = stem:gsub("_[0-9a-fA-F]+$", "")
-							stem = sanitizeBase(stem)
-							local targetName = stem..".png"
-							local targetPath = NAfiles.NACUSTOMICONPATH.."/"..targetName
-							if fileExists(targetPath) then
-								if ensureSourceGone(fullPath) then
-									result.icons.converted += 1
-									movedPath[fullPath] = targetPath
-								else
-									result.icons.failed += 1
-								end
-							elseif copyFile(fullPath, targetPath) and ensureSourceGone(fullPath) then
-								result.icons.converted += 1
-								movedPath[fullPath] = targetPath
-							else
-								result.icons.failed += 1
-							end
-						end
-					end
-				end
-				if type(NAStuff.CustomIcon) == "table" and type(NAStuff.CustomIcon.localPath) == "string" then
-					local replacement = movedPath[NAStuff.CustomIcon.localPath]
-					if type(replacement) == "string" and replacement ~= "" then
-						NAStuff.CustomIcon.localPath = replacement
-					end
-				end
-			end
-		end
-	end
-
-	return result
-end
-
-NAmanage.setAssetDownloadMethod = NAmanage.setAssetDownloadMethod or function(method, opts)
-	opts = type(opts) == "table" and opts or {}
-	local normalized = NAmanage.normalizeAssetDownloadMethod(method)
-	local current = NAmanage.getAssetDownloadMethod and NAmanage.getAssetDownloadMethod() or NAmanage.normalizeAssetDownloadMethod(NAStuff.AssetDownloadMethod)
-	if normalized == current and opts.force ~= true then
-		if type(NAmanage.updateAssetDownloadMethodInfo) == "function" then
-			NAmanage.updateAssetDownloadMethodInfo()
-		end
-		return current, nil, "unchanged"
-	end
-	if NAStuff.AssetDownloadSyncBusy == true then
-		return current, nil, "busy"
-	end
-	NAStuff.AssetDownloadSyncBusy = true
-	NAStuff.AssetDownloadMethod = normalized
-	local syncResult = nil
-	local okSync, syncErr = pcall(function()
-		syncResult = NAmanage.syncDownloadedImageFiles(normalized, opts)
-	end)
-	if opts.persist ~= false and type(NAmanage.NASettingsSet) == "function" then
-		pcall(NAmanage.NASettingsSet, "assetDownloadMethod", normalized)
-	end
-	if type(NAmanage.updateAssetDownloadMethodInfo) == "function" then
-		NAmanage.updateAssetDownloadMethodInfo()
-	end
-	NAStuff.AssetDownloadSyncBusy = false
-	if not okSync then
-		return normalized, nil, "sync_error", syncErr
-	end
-	return normalized, syncResult, "ok"
-end
-
-NAmanage.queueAssetMethodResync = NAmanage.queueAssetMethodResync or function(delays, opts)
-	opts = type(opts) == "table" and opts or {}
-	local sequence = type(delays) == "table" and delays or { 0 }
-	local token = (tonumber(NAStuff.AssetMethodResyncToken) or 0) + 1
-	NAStuff.AssetMethodResyncToken = token
-	for i = 1, #sequence do
-		local delaySeconds = tonumber(sequence[i]) or 0
-		if delaySeconds < 0 then
-			delaySeconds = 0
-		end
-		Delay(delaySeconds, function()
-			if NAStuff.AssetMethodResyncToken ~= token then
-				return
-			end
-			pcall(function()
-				local current = NAmanage.getAssetDownloadMethod()
-				NAmanage.setAssetDownloadMethod(current, {
-					persist = false,
-					force = true,
-					silent = opts.silent ~= false,
-				})
-			end)
-		end)
-	end
-end
-
-NAStuff.AssetDownloadMethod = NAStuff.AssetDownloadMethod or "legacy"
-if FileSupport and type(isfile) == "function" and type(readfile) == "function" and isfile(NAfiles.NAMAINSETTINGSPATH) then
-	local okRaw, raw = pcall(readfile, NAfiles.NAMAINSETTINGSPATH)
-	if okRaw and type(raw) == "string" and raw ~= "" then
-		local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
-		if okDecode and type(decoded) == "table" then
-			NAStuff.AssetDownloadMethod = NAmanage.normalizeAssetDownloadMethod(decoded.assetDownloadMethod)
-		end
-	end
-end
-NAStuff.AssetDownloadMethod = NAmanage.normalizeAssetDownloadMethod(NAStuff.AssetDownloadMethod)
-NAmanage.syncDownloadedImageFiles(NAStuff.AssetDownloadMethod, { persist = false, silent = true })
 
 NAmanage.initUIEditors=function(coreGui, HUI)
 	if not (coreGui and NAgui) then
@@ -18099,12 +17779,6 @@ NAmanage.NASettingsGetSchema=function()
 				return mode or "Fast"
 			end;
 		};
-		assetDownloadMethod = {
-			default = "legacy";
-			coerce = function(value)
-				return NAmanage.normalizeAssetDownloadMethod(value)
-			end;
-		};
 		saveInstanceSafeMode = {
 			default = true;
 			coerce = function(value)
@@ -20825,7 +20499,6 @@ NAStuff.CustomMovementSounds.FallInput = tostring(NAmanage.NASettingsGet("custom
 NAStuff.CustomMovementSounds.LandInput = tostring(NAmanage.NASettingsGet("customMovementSoundsLand") or "")
 NAStuff.CustomMovementSounds.Volume = math.clamp(tonumber(NAmanage.NASettingsGet("customMovementSoundsVolume")) or 1, 0, 10)
 NAStuff.AssetLoadMode = NAmanage.NASettingsGet("assetLoadMode") or NAStuff.AssetLoadMode
-NAStuff.AssetDownloadMethod = NAmanage.normalizeAssetDownloadMethod(NAmanage.NASettingsGet("assetDownloadMethod") or NAStuff.AssetDownloadMethod)
 NAStuff.SaveInstanceConfig = {
 	safeMode = NAmanage.NASettingsGet("saveInstanceSafeMode") == true;
 	killAllScripts = NAmanage.NASettingsGet("saveInstanceKillAllScripts") == true;
@@ -20869,7 +20542,6 @@ NAStuff.SaveInstanceConfig = {
 }
 
 pcall(NAmanage.SetAssetLoadMode, NAStuff.AssetLoadMode)
-pcall(NAmanage.setAssetDownloadMethod, NAStuff.AssetDownloadMethod, { persist = false })
 pcall(NAmanage.SetUnsafeFunctionsDisabled, NAStuff.UnsafeFunctionsDisabled == true, {
 	save = false;
 	silent = true;
@@ -78607,9 +78279,6 @@ do
 			if okRun then
 				local loaded = NAmanage.uiObj(result)
 				if loaded and NAmanage.NARegisterUI(loaded) then
-					if type(NAmanage.queueAssetMethodResync) == "function" then
-						NAmanage.queueAssetMethodResync({ 0, 2, 5 }, { silent = true })
-					end
 					break
 				end
 
@@ -84188,8 +83857,13 @@ NAgui.setKeybindValue = function(label, value, opts)
 	entry.set(value, opts or { fire = false })
 end
 
-NAgui.addSlider = function(label, min, max, defaultValue, increment, suffix, callback)
+NAgui.addSlider = function(label, min, max, defaultValue, increment, suffix, callback, opts)
 	if not NAUIMANAGER.SettingsList then return end
+	if type(callback) == "table" and opts == nil then
+		opts = callback
+		callback = nil
+	end
+	opts = type(opts) == "table" and opts or {}
 	callback = type(callback) == "function" and callback or function() end
 	NAgui._sliderConnCounter = (NAgui._sliderConnCounter or 0) + 1
 	local connKey = "NAgui_slider:"..tostring(label)..":"..tostring(NAgui._sliderConnCounter)
@@ -84210,6 +83884,7 @@ NAgui.addSlider = function(label, min, max, defaultValue, increment, suffix, cal
 	local progressStroke = progress and progress:FindFirstChildWhichIsA("UIStroke")
 
 	local dragging = false
+	local dragDirty = false
 	local currentValue = defaultValue
 	local step = tonumber(increment) or 0
 	local range = max - min
@@ -84221,6 +83896,7 @@ NAgui.addSlider = function(label, min, max, defaultValue, increment, suffix, cal
 	local hoverRowColor = baseRowColor:Lerp(Color3.new(1, 1, 1), 0.08)
 	local mainStrokeIdleTransparency = (mainStroke and typeof(mainStroke.Transparency) == "number") and mainStroke.Transparency or 0.4
 	local progressStrokeIdleTransparency = (progressStroke and typeof(progressStroke.Transparency) == "number") and progressStroke.Transparency or 0.3
+	local fireOnRelease = opts.fireOnRelease == true or opts.live == false
 
 	local function tw(obj, info, goal)
 		if not obj then return nil end
@@ -84313,13 +83989,18 @@ NAgui.addSlider = function(label, min, max, defaultValue, increment, suffix, cal
 		if opts.fire ~= false and (changed or opts.forceFire == true) then
 			runCallback(quantized)
 		end
+		return quantized, changed
 	end
 
 	local function updateSliderValueFromPos(x)
 		local relX = math.clamp(x - interact.AbsolutePosition.X, 0, interact.AbsoluteSize.X)
-		local percent = relX / interact.AbsoluteSize.X
+		local width = math.max(interact.AbsoluteSize.X, 1)
+		local percent = relX / width
 		local value = min + range * percent
-		applyValue(value)
+		local _, changed = applyValue(value, { fire = not (fireOnRelease and dragging) })
+		if fireOnRelease and dragging and changed then
+			dragDirty = true
+		end
 	end
 
 	local function disconnectDragListeners()
@@ -84340,7 +84021,10 @@ NAgui.addSlider = function(label, min, max, defaultValue, increment, suffix, cal
 	end
 
 	local function stopDrag()
+		local shouldFire = dragging and fireOnRelease and dragDirty
+		local commitValue = currentValue
 		dragging = false
+		dragDirty = false
 		disconnectDragListeners()
 		if mainStroke then
 			tw(mainStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
@@ -84351,6 +84035,9 @@ NAgui.addSlider = function(label, min, max, defaultValue, increment, suffix, cal
 			tw(progressStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
 				Transparency = progressStrokeIdleTransparency
 			})
+		end
+		if shouldFire then
+			runCallback(commitValue)
 		end
 	end
 
@@ -100699,6 +100386,11 @@ NAStuff.AssetLoadModeDropdown = NAgui.addDropdown(NAStuff.AssetLoadModeDropdownL
 	DoNotif("Asset load mode set to "..modeName, 2)
 end)
 
+NAStuff.loadGameAssetsButton = NAStuff.loadGameAssetsButton or NAgui.addButton("Load Game Assets", function()
+	NAmanage.StartAssetPreload()
+end)
+NAStuff.AssetLoadButton = NAStuff.loadGameAssetsButton
+
 NAmanage.setAssetLoadButtonState = function(isRunning)
 	NAStuff.AssetLoadRunning = isRunning and true or false
 	local button = NAStuff.AssetLoadButton
@@ -100824,13 +100516,8 @@ NAmanage.StartAssetPreload = NAmanage.StartAssetPreload or function(opts)
 	end)
 end
 
-NAStuff.loadGameAssetsButton = NAStuff.loadGameAssetsButton or NAgui.addButton("Load Game Assets", function()
-	NAmanage.StartAssetPreload()
-end)
-NAStuff.AssetLoadButton = NAStuff.loadGameAssetsButton
 NAmanage.setAssetLoadButtonState(false)
 NAmanage.SetAssetLoadMode(NAStuff.AssetLoadMode)
-
 NAgui.addSection("Roblox Input Settings")
 
 NAgui.addToggle("Disable Input Changing", NADisableLastInput, function(v)
@@ -105869,9 +105556,6 @@ NAmanage.NAInitCoreGuiCustomization=function()
 end
 NAmanage.finalizeLoadingState = NAmanage.finalizeLoadingState or function()
 	pcall(function()
-		if type(NAmanage.queueAssetMethodResync) == "function" then
-			NAmanage.queueAssetMethodResync({ 0.25, 3 }, { silent = true })
-		end
 		if type(NAmanage.isCommandDataStale) == "function" and NAmanage.isCommandDataStale() then
 			if NAAssetsLoading and NAAssetsLoading.setStatus then
 				NAAssetsLoading.setStatus("warming command list and autofill")
