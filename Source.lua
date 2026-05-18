@@ -140,10 +140,23 @@ local __lt = (function()
 end)();
 
 local __NAUIProtector = (function()
+	local uiProtectorBuild = "session_name_cursed_null_v1";
 	local cached = rawget(_na_boot.privateRoot, "uiProtector");
-	if type(cached) == "table" then
+	if type(cached) == "table" and rawget(cached, "ready") == true and rawget(cached, "build") == uiProtectorBuild then
 		return cached;
 	end;
+	if type(cached) == "table" then
+		pcall(function()
+			if type(cached.cleanup) == "function" then
+				cached.cleanup();
+			end
+		end)
+		pcall(function()
+			if type(cached.restore) == "function" then
+				cached.restore();
+			end
+		end)
+	end
 	local loader = loadstring or load;
 	if type(loader) ~= "function" then
 		error("UI protector loader unavailable");
@@ -4635,6 +4648,16 @@ end
 NAmanage.GetSessionInstanceName = function(key)
 	return NAmanage.GetSessionOpaqueMappedValue("_sessionInstanceNameMap", key)
 end
+
+pcall(function()
+	if __NAUIProtector and type(__NAUIProtector.setSessionNameProvider) == "function" then
+		__NAUIProtector.setSessionNameProvider(function(key)
+			if type(NAmanage.GetSessionInstanceName) == "function" then
+				return NAmanage.GetSessionInstanceName(key)
+			end
+		end)
+	end
+end)
 
 NAmanage.GetSessionAttrKey = function(key)
 	if key == nil then
@@ -13873,42 +13896,71 @@ NAmanage.setAutoSkipPreference = function(enabled)
 	end
 end
 
-NAgui.rStringgg=function()
-	if __NAUIProtector and type(__NAUIProtector.randomString) == "function" then
-		local ok, result = pcall(__NAUIProtector.randomString)
-		if ok and type(result) == "string" and result ~= "" then
-			return result
-		end
-	end
-	if HttpService and HttpService.GenerateGUID then
-		return HttpService:GenerateGUID(false)
-	end
-	local length = math.random(10, 20)
-	local result = {}
-	local glitchMarks = {"̶", "̷", "̸", "̹", "̺", "̻", "͓", "͔", "͘", "͜", "͞", "͟", "͢"}
-	for i = 1, length do
-		local char = string.char(math.random(32, 126))
-		Insert(result, char)
+NAmanage.RandomCursedInstanceString = NAmanage.RandomCursedInstanceString or function()
+	local len = math.random(10, 20)
+	local out = {}
+	local marks = {"̶", "̷", "̸", "̹", "̺", "̻", "͓", "͔", "͘", "͜", "͞", "͟", "͢"}
+	for i = 1, len do
+		Insert(out, string.char(math.random(32, 126)))
 		if math.random() < 0.5 then
-			local numGlitches = math.random(1, 4)
-			for j = 1, numGlitches do
-				Insert(result, glitchMarks[math.random(#glitchMarks)])
+			for _ = 1, math.random(1, 4) do
+				Insert(out, marks[math.random(#marks)])
 			end
 		end
 	end
-	if math.random() < 0.3 then
-		Insert(result, utf8.char(math.random(0x0300, 0x036F)))
+	if utf8 and type(utf8.char) == "function" and math.random() < 0.3 then
+		Insert(out, utf8.char(math.random(0x0300, 0x036F)))
 	end
 	if math.random() < 0.1 then
-		Insert(result, "\0")
+		Insert(out, string.rep("​", math.random(5, 20)))
 	end
-	if math.random() < 0.1 then
-		Insert(result, string.rep("​", math.random(5, 20)))
+	if utf8 and type(utf8.char) == "function" and math.random() < 0.2 then
+		Insert(out, utf8.char(0x202E))
 	end
-	if math.random() < 0.2 then
-		Insert(result, utf8.char(0x202E))
+	return Concat(out)
+end
+
+NAgui.rStringgg=function(key)
+	local out = {}
+	local guid = nil
+	local hs = HttpService
+
+	if hs then
+		local ok, ret = pcall(function()
+			return hs:GenerateGUID(false)
+		end)
+		if ok and type(ret) == "string" and ret ~= "" then
+			guid = ret
+			Insert(out, ret)
+		end
 	end
-	return Concat(result)
+
+	local mapKey = key or guid or tostring(tick())
+	if type(NAmanage.GetSessionInstanceName) == "function" then
+		local ok, ret = pcall(NAmanage.GetSessionInstanceName, mapKey)
+		if ok and type(ret) == "string" and ret ~= "" then
+			Insert(out, ret)
+		end
+	end
+
+	local cursed = nil
+	if type(NAmanage.RandomCursedInstanceString) == "function" then
+		local ok, ret = pcall(NAmanage.RandomCursedInstanceString)
+		if ok and type(ret) == "string" and ret ~= "" then
+			cursed = ret
+		end
+	end
+	if type(cursed) == "string" and cursed ~= "" then
+		Insert(out, cursed)
+	end
+
+	Insert(out, "\0")
+
+	local result = Concat(out)
+	if result ~= "" then
+		return result
+	end
+	return "\0"
 end
 
 NAgui.NAProtection=function(inst,var)
@@ -85333,16 +85385,52 @@ NAmanage.Topbar_BuildBaseButtons=function()
 	}
 end
 
+NAmanage.GetManagedUIRoot = NAmanage.GetManagedUIRoot or function(key, visible, z)
+	local gui = (NAmanage.waitForScreenGui and NAmanage.waitForScreenGui(5)) or (NAStuff and NAStuff.NASCREENGUI)
+	if not (gui and typeof(gui) == "Instance" and gui:IsA("ScreenGui")) then
+		return nil
+	end
+
+	local name = NAmanage.GetSessionInstanceName(key)
+	local old = COREGUI and COREGUI:FindFirstChild(name)
+	if old and old ~= gui and old:IsA("ScreenGui") then
+		pcall(function()
+			old:Destroy()
+		end)
+	end
+
+	local root = gui:FindFirstChild(name)
+	if root and not root:IsA("Frame") then
+		root:Destroy()
+		root = nil
+	end
+
+	if not root then
+		root = InstanceNew("Frame")
+		root.Name = name
+		root.Parent = gui
+	end
+
+	root.BackgroundTransparency = 1
+	root.BorderSizePixel = 0
+	root.ClipsDescendants = false
+	root.Active = false
+	root.Position = UDim2.fromScale(0, 0)
+	root.Size = UDim2.fromScale(1, 1)
+	root.ZIndex = tonumber(z) or root.ZIndex
+	root.Visible = visible ~= false
+	return root
+end
+
 NAmanage.Topbar_Init=function()
 	if TopBarApp.top and TopBarApp.top.Parent then TopBarApp.top:Destroy() end
 	NATopbarDock = NAmanage.topbar_readDock()
-	TopBarApp.top=InstanceNew("ScreenGui")
-	TopBarApp.top.Name=NAmanage.GetSessionInstanceName("TopbarStyled")
-	TopBarApp.top.ZIndexBehavior=Enum.ZIndexBehavior.Global
-	TopBarApp.top.DisplayOrder=9999
-	TopBarApp.top.IgnoreGuiInset=true
-	NAgui.NaProtectUI(TopBarApp.top)
-	TopBarApp.top.Enabled=NATOPBARVISIBLE
+	TopBarApp.top = NAmanage.GetManagedUIRoot("TopbarStyled", NATOPBARVISIBLE, 900)
+	if not TopBarApp.top then return false end
+	for _, child in ipairs(TopBarApp.top:GetChildren()) do
+		child:Destroy()
+	end
+	TopBarApp.top.Visible = NATOPBARVISIBLE
 	TopBarApp.frame=InstanceNew("Frame")
 	TopBarApp.frame.Size=UDim2.new(1,0,0,36)
 	TopBarApp.frame.Position=UDim2.new(0,0,0,0)
@@ -85777,11 +85865,16 @@ NAmanage.SideSwipe_WireHandle=function(btn, side)
 end
 
 NAmanage.SideSwipe_Init=function()
-	if SideSwipeApp.gui and SideSwipeApp.gui.Parent then return true end
-	SideSwipeApp.gui = InstanceNew("ScreenGui")
-	SideSwipeApp.gui.Name = NAmanage.GetSessionInstanceName("SideSwipe")
-	SideSwipeApp.gui.Enabled = NASideSwipeEnabled
-	NAgui.NaProtectUI(SideSwipeApp.gui)
+	if SideSwipeApp.gui and SideSwipeApp.gui.Parent then
+		SideSwipeApp.gui.Visible = NASideSwipeEnabled
+		return true
+	end
+	SideSwipeApp.gui = NAmanage.GetManagedUIRoot("SideSwipe", NASideSwipeEnabled, 950)
+	if not SideSwipeApp.gui then return false end
+	for _, child in ipairs(SideSwipeApp.gui:GetChildren()) do
+		child:Destroy()
+	end
+	SideSwipeApp.gui.Visible = NASideSwipeEnabled
 	SideSwipeApp.panel = InstanceNew("Frame", SideSwipeApp.gui)
 	SideSwipeApp.panel.BackgroundTransparency = 1
 	SideSwipeApp.panel.ClipsDescendants = true
@@ -98760,6 +98853,7 @@ SpawnCall(function() -- init
 	if NAUIMANAGER.SettingsFrame then NAgui.NAProtection(NAUIMANAGER.SettingsFrame) end
 	if NAUIMANAGER.WaypointFrame then NAgui.NAProtection(NAUIMANAGER.WaypointFrame) end
 	if NAUIMANAGER.BindersFrame then NAgui.NAProtection(NAUIMANAGER.BindersFrame) end
+	if NAUIMANAGER.ExecutorFrame then NAgui.NAProtection(NAUIMANAGER.ExecutorFrame) end
 	if NAUIMANAGER.NotepadFrame then NAgui.NAProtection(NAUIMANAGER.NotepadFrame) end
 	if not PlrGui then PlrGui=Player:WaitForChild("PlayerGui",math.huge) end
 end)
@@ -103561,7 +103655,7 @@ end)
 NAgui.addToggle("TopBar Visibility", NATOPBARVISIBLE, function(v)
 	NATOPBARVISIBLE = v and true or false
 	if TopBarApp and TopBarApp.top then
-		TopBarApp.top.Enabled = NATOPBARVISIBLE
+		TopBarApp.top.Visible = NATOPBARVISIBLE
 	end
 	NAmanage.NASettingsSet("topbarVisible", NATOPBARVISIBLE)
 end)
@@ -103621,7 +103715,7 @@ end)
 NAgui.addToggle("Side Swipe Enabled", NASideSwipeEnabled, function(v)
 	NASideSwipeEnabled = v and true or false
 	if SideSwipeApp and SideSwipeApp.gui then
-		SideSwipeApp.gui.Enabled = NASideSwipeEnabled
+		SideSwipeApp.gui.Visible = NASideSwipeEnabled
 	end
 	NAmanage.NASettingsSet("sideSwipeEnabled", NASideSwipeEnabled)
 end)
