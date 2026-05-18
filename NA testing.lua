@@ -1741,6 +1741,26 @@ SpawnCall=function(pp)
 	})
 end -- idk why but solara just fucked up when executing scripts (this is a sort of a fix ig)
 
+NAmanage.spawnSafe = NAmanage.spawnSafe or function(fn, ...)
+	if type(fn) ~= "function" then
+		return nil
+	end
+	local args = {...}
+	local argCount = select("#", ...)
+	return Spawn(function()
+		local ok, err = pcall(function()
+			return fn(Unpack(args, 1, argCount))
+		end)
+		if not ok then
+			warn(err)
+		end
+	end)
+end
+
+NAmanage.spawnEvent = NAmanage.spawnEvent or function(fn, ...)
+	return NAmanage.spawnSafe(fn, ...)
+end
+
 local mainName = 'Nameless Admin'
 local testingName = 'NA Testing'
 local adminName = 'NA'
@@ -2524,16 +2544,20 @@ NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 
 	if cRoot then
 		hub.cAdd = NAmanage.safeConnect(cRoot.DescendantAdded, function(inst)
-			if hub.cacheLive then
-				addC(inst)
-			end
-			qEvt("add", inst)
+			NAmanage.spawnEvent(function()
+				if hub.cacheLive then
+					addC(inst)
+				end
+				qEvt("add", inst)
+			end)
 		end)
 		hub.cRem = NAmanage.safeConnect(cRoot.DescendantRemoving, function(inst)
-			if hub.cacheLive then
-				remC(inst)
-			end
-			qEvt("rem", inst)
+			NAmanage.spawnEvent(function()
+				if hub.cacheLive then
+					remC(inst)
+				end
+				qEvt("rem", inst)
+			end)
 		end)
 	end
 
@@ -2937,7 +2961,7 @@ NAmanage._cgHubGet = NAmanage._cgHubGet or function()
 		if (hub.addCount or 0) > 0 then
 			if not hub.cAdd then
 				hub.cAdd = NAmanage.safeConnect(root.DescendantAdded, function(inst)
-					qEvt("add", inst)
+					NAmanage.spawnEvent(qEvt, "add", inst)
 				end)
 			end
 		elseif hub.cAdd then
@@ -2947,7 +2971,7 @@ NAmanage._cgHubGet = NAmanage._cgHubGet or function()
 		if (hub.remCount or 0) > 0 then
 			if not hub.cRem then
 				hub.cRem = NAmanage.safeConnect(root.DescendantRemoving, function(inst)
-					qEvt("rem", inst)
+					NAmanage.spawnEvent(qEvt, "rem", inst)
 				end)
 			end
 		elseif hub.cRem then
@@ -3245,12 +3269,12 @@ NAmanage._pgHubGet = NAmanage._pgHubGet or function()
 		end
 		if not hub.cAdd then
 			hub.cAdd = NAmanage.safeConnect(hub.root.DescendantAdded, function(inst)
-				qEvt("add", inst)
+				NAmanage.spawnEvent(qEvt, "add", inst)
 			end)
 		end
 		if not hub.cRem then
 			hub.cRem = NAmanage.safeConnect(hub.root.DescendantRemoving, function(inst)
-				qEvt("rem", inst)
+				NAmanage.spawnEvent(qEvt, "rem", inst)
 			end)
 		end
 	end
@@ -3874,12 +3898,12 @@ NAmanage._descHubGet = NAmanage._descHubGet or function(root)
 		end
 		if not hub.cAdd then
 			hub.cAdd = NAmanage.safeConnect(root.DescendantAdded, function(inst)
-				qEvt("add", inst)
+				NAmanage.spawnEvent(qEvt, "add", inst)
 			end)
 		end
 		if not hub.cRem then
 			hub.cRem = NAmanage.safeConnect(root.DescendantRemoving, function(inst)
-				qEvt("rem", inst)
+				NAmanage.spawnEvent(qEvt, "rem", inst)
 			end)
 		end
 	end
@@ -5019,13 +5043,22 @@ NAmanage.ESP_GetListObjectMap = NAmanage.ESP_GetListObjectMap or function(list)
 end
 
 NAlib.huiGrabber = function()
-	return (__NAUIProtector and __NAUIProtector.huiGrabber and __NAUIProtector.huiGrabber()) or
-		(gethui and gethui()) or
+	if __NAUIProtector and type(__NAUIProtector.huiGrabber) == "function" then
+		local ok, hidden = pcall(__NAUIProtector.huiGrabber)
+		if ok and typeof(hidden) == "Instance" then
+			return hidden
+		end
+	end
+	return (gethui and gethui()) or
 		(gethiddenui and gethiddenui()) or
 		(gethiddengui and gethiddengui()) or
 		(get_hidden_ui and get_hidden_ui()) or
 		(get_hidden_gui and get_hidden_gui()) or
 		nil
+end
+
+NAlib.distinctHuiGrabber = NAlib.distinctHuiGrabber or function(coreRoot)
+	return NAlib.huiGrabber and NAlib.huiGrabber() or nil
 end
 
 local HttpService = SafeGetService('HttpService');
@@ -5872,7 +5905,7 @@ NAmanage.StreamerGetRoots = NAmanage.StreamerGetRoots or function(opts)
 			addRoot(hub.root)
 		end
 	end
-	addRoot(NAlib.huiGrabber and NAlib.huiGrabber() or nil)
+	addRoot(NAlib.distinctHuiGrabber and NAlib.distinctHuiGrabber(COREGUI) or nil)
 	if opts.includeWorkspace == true then
 		addRoot(workspace)
 	end
@@ -6268,7 +6301,7 @@ NAmanage.setStreamerMode = NAmanage.setStreamerMode or function(enable, opts)
 	}))
 	NAlib.disconnect("streamermode_hui")
 	do
-		local hui = NAlib.huiGrabber and NAlib.huiGrabber() or nil
+		local hui = NAlib.distinctHuiGrabber and NAlib.distinctHuiGrabber(COREGUI) or nil
 		if hui then
 			NAlib.connect("streamermode_hui", NAmanage.descSub(hui, {
 				added = NAmanage.StreamerHandleAdded,
@@ -13531,6 +13564,54 @@ NAgui.RegisterStrokesFrom=function(instance)
 	for _, descendant in ipairs(NAmanage.qDesc(instance, "UIStroke")) do
 		NAgui.RegisterColoredStroke(descendant)
 	end
+end
+
+NAgui.deferSettingsWork = NAgui.deferSettingsWork or function(fn)
+	if type(fn) ~= "function" then
+		return nil
+	end
+	NAgui._settingsWorkQueue = NAgui._settingsWorkQueue or {}
+	NAgui._settingsWorkHead = tonumber(NAgui._settingsWorkHead) or 1
+	NAgui._settingsWorkTail = tonumber(NAgui._settingsWorkTail) or 0
+	NAgui._settingsWorkTail += 1
+	NAgui._settingsWorkQueue[NAgui._settingsWorkTail] = fn
+	if NAgui._settingsWorkBusy then
+		return nil
+	end
+	NAgui._settingsWorkBusy = true
+	return Spawn(function()
+		while NAgui._settingsWorkHead <= NAgui._settingsWorkTail do
+			local processed = 0
+			while processed < 24 and NAgui._settingsWorkHead <= NAgui._settingsWorkTail do
+				local work = NAgui._settingsWorkQueue[NAgui._settingsWorkHead]
+				NAgui._settingsWorkQueue[NAgui._settingsWorkHead] = nil
+				NAgui._settingsWorkHead += 1
+				if type(work) == "function" then
+					local ok, err = pcall(work)
+					if not ok then
+						warn(err)
+					end
+				end
+				processed += 1
+			end
+			if NAgui._settingsWorkHead <= NAgui._settingsWorkTail then
+				Wait()
+			end
+		end
+		NAgui._settingsWorkQueue = {}
+		NAgui._settingsWorkHead = 1
+		NAgui._settingsWorkTail = 0
+		NAgui._settingsWorkBusy = false
+	end)
+end
+
+NAgui.RegisterStrokesFromAsync = NAgui.RegisterStrokesFromAsync or function(instance)
+	if typeof(instance) ~= "Instance" then return end
+	return NAgui.deferSettingsWork(function()
+		if instance and instance.Parent and NAgui.RegisterStrokesFrom then
+			NAgui.RegisterStrokesFrom(instance)
+		end
+	end)
 end
 
 NAgui.ComputeTabStrokeColor=function(isActive)
@@ -37924,6 +38005,233 @@ cmd.add({"unwalkfling","unwfling","unwf"},{"unwalkfling (unwfling,unwf)","stop t
 	hiddenfling = false
 
 	NAlib.disconnect("walkflinger")
+end)
+
+touchfling = false
+NAStuff.TouchFling = NAStuff.TouchFling or {
+	busy = false;
+	range = 3.35;
+	dirs = {};
+	origins = {};
+	ignore = {};
+	params = nil;
+}
+
+NAmanage.TouchFlingFilterType = NAmanage.TouchFlingFilterType or function()
+	local ok, item = pcall(function()
+		return Enum.RaycastFilterType.Exclude
+	end)
+	if ok and item then
+		return item
+	end
+	return Enum.RaycastFilterType.Blacklist
+end
+
+NAmanage.TouchFlingPlayer = NAmanage.TouchFlingPlayer or function(model)
+	if not (model and model:IsA("Model")) then
+		return nil
+	end
+	local ok, plr = pcall(function()
+		return __lt.cm("Players", "GetPlayerFromCharacter", model)
+	end)
+	if ok and plr then
+		return plr
+	end
+	return nil
+end
+
+NAmanage.TouchFlingHum = NAmanage.TouchFlingHum or function(model)
+	local plr = NAmanage.TouchFlingPlayer(model)
+	local hum
+	if plr then
+		hum = getPlrHum(plr)
+	else
+		hum = getHum(model)
+	end
+	if not (hum and hum:IsA("Humanoid") and hum.Parent and hum.Health > 0) then
+		return nil, plr
+	end
+	return hum, plr
+end
+
+NAmanage.TouchFlingParts = NAmanage.TouchFlingParts or function(model, hum)
+	if not (model and model:IsA("Model")) then
+		return nil, nil, nil
+	end
+	local root = (hum and hum.RootPart) or getRoot(model)
+	local torso = getTorso(model)
+	local head = getHead(model)
+	return root, torso, head
+end
+
+NAmanage.TouchFlingModel = NAmanage.TouchFlingModel or function(part)
+	local cur = part
+	while cur and cur ~= workspace do
+		if cur:IsA("Model") then
+			local hum = NAmanage.TouchFlingHum(cur)
+			local root, torso, head = NAmanage.TouchFlingParts(cur, hum)
+			if hum and (root or torso or head) then
+				return cur
+			end
+		end
+		cur = cur.Parent
+	end
+	return nil
+end
+
+NAmanage.TouchFlingTarget = NAmanage.TouchFlingTarget or function(model, char)
+	if not (model and model:IsA("Model") and model.Parent) then
+		return false
+	end
+	if char and (model == char or model:IsDescendantOf(char) or char:IsDescendantOf(model)) then
+		return false
+	end
+	local hum, plr = NAmanage.TouchFlingHum(model)
+	if not hum then
+		return false
+	end
+	local root, torso, head = NAmanage.TouchFlingParts(model, hum)
+	if not (root or torso or head) then
+		return false
+	end
+	if plr then
+		return plr ~= Players.LocalPlayer
+	end
+	if CheckIfNPC then
+		local ok, isNpc = pcall(CheckIfNPC, model)
+		if ok and isNpc then
+			return true
+		end
+	end
+	return true
+end
+
+NAmanage.TouchFlingDetect = NAmanage.TouchFlingDetect or function(char, root, hum)
+	if not (char and root and root.Parent and workspace and workspace.Raycast) then
+		return nil
+	end
+
+	local st = NAStuff.TouchFling
+	st.params = st.params or RaycastParams.new()
+	st.params.FilterType = NAmanage.TouchFlingFilterType()
+	st.params.IgnoreWater = true
+	st.ignore[1] = char
+	for i = 2, #st.ignore do
+		st.ignore[i] = nil
+	end
+	st.params.FilterDescendantsInstances = st.ignore
+
+	local cf = root.CFrame
+	local dirs = st.dirs
+	dirs[1] = cf.LookVector
+	dirs[2] = -cf.LookVector
+	dirs[3] = cf.RightVector
+	dirs[4] = -cf.RightVector
+	dirs[5] = Vector3.new(0, 1, 0)
+	dirs[6] = Vector3.new(0, -1, 0)
+	dirs[7] = (cf.LookVector + cf.RightVector).Unit
+	dirs[8] = (cf.LookVector - cf.RightVector).Unit
+	dirs[9] = (-cf.LookVector + cf.RightVector).Unit
+	dirs[10] = (-cf.LookVector - cf.RightVector).Unit
+	local dCount = 10
+	local mv = hum and hum.MoveDirection or Vector3.zero
+	if mv.Magnitude > 0.05 then
+		dCount += 1
+		dirs[dCount] = mv.Unit
+	end
+
+	local origins = st.origins
+	local oCount = 1
+	origins[1] = root.Position
+	local torso = getTorso(char)
+	if torso and torso ~= root then
+		oCount += 1
+		origins[oCount] = torso.Position
+	end
+	local head = getHead(char)
+	if head and head ~= root and head ~= torso then
+		oCount += 1
+		origins[oCount] = head.Position
+	end
+	for i = oCount + 1, #origins do
+		origins[i] = nil
+	end
+
+	local dist = tonumber(st.range) or 3.35
+	for o = 1, oCount do
+		local origin = origins[o]
+		for d = 1, dCount do
+			local dir = dirs[d]
+			if dir and dir.Magnitude > 0 then
+				local ok, result = pcall(function()
+					return workspace:Raycast(origin, dir * dist, st.params)
+				end)
+				local inst = ok and result and result.Instance or nil
+				local model = inst and NAmanage.TouchFlingModel(inst) or nil
+				if NAmanage.TouchFlingTarget(model, char) then
+					st.last = model
+					return model
+				end
+			end
+		end
+	end
+
+	st.last = nil
+	return nil
+end
+
+NAmanage.TouchFlingBurst = NAmanage.TouchFlingBurst or function(root)
+	local st = NAStuff.TouchFling
+	if st.busy or not (root and root.Parent) then
+		return
+	end
+	st.busy = true
+	local movel = 0.1
+	local v = root.Velocity
+	root.Velocity = v * 10000 + Vector3.new(0, 10000, 0)
+	RunService.RenderStepped:Wait()
+	if root and root.Parent then
+		root.Velocity = v
+	end
+	RunService.Stepped:Wait()
+	if root and root.Parent then
+		root.Velocity = v + Vector3.new(0, movel, 0)
+	end
+	st.busy = false
+end
+
+cmd.add({"touchfling","tfling","tf"},{"touchfling (tfling,tf)","walkfling only when touching a player or NPC"},function()
+	if touchfling then return end
+	if hiddenfling then
+		cmd.run({"unwalkfling"})
+	end
+
+	DebugNotif("Touchfling enabled",2)
+	touchfling = true
+
+	NAlib.disconnect("touchflinger")
+	NAlib.connect("touchflinger",RunService.Heartbeat:Connect(function()
+		if not touchfling then return end
+		local ch = getChar()
+		local h = getPlrHum(Players.LocalPlayer) or (ch and getHum(ch))
+		local r = ch and ((h and h.RootPart) or getRoot(ch))
+		if r and h and NAmanage.TouchFlingDetect(ch, r, h) then
+			NAmanage.TouchFlingBurst(r)
+		end
+	end))
+end)
+
+cmd.add({"untouchfling","untfling","untf"},{"untouchfling (untfling,untf)","stop the touchfling command"},function()
+	if not touchfling then return end
+
+	DebugNotif("Touchfling disabled",2)
+	touchfling = false
+	if NAStuff.TouchFling then
+		NAStuff.TouchFling.busy = false
+		NAStuff.TouchFling.last = nil
+	end
+
+	NAlib.disconnect("touchflinger")
 end)
 
 cmd.add({"rjre","rejoinrefresh"},{"rjre (rejoinrefresh)","Rejoins and teleports you to your previous position"},function()
@@ -80168,7 +80476,7 @@ NAgui.addTab=function(name, options)
 		end
 		button.LayoutOrder = layoutOrder
 		button.Parent = TabManager.holder
-		NAgui.RegisterStrokesFrom(button)
+		NAgui.RegisterStrokesFromAsync(button)
 		local interact = button:FindFirstChild("Interact") or button
 		MouseButtonFix(interact, function()
 			NAgui.setTab(name)
@@ -80215,7 +80523,7 @@ NAgui.addTab=function(name, options)
 		if NAmanage.SettingsScroll and NAmanage.SettingsScroll.applyPageDefaults then
 			NAmanage.SettingsScroll.applyPageDefaults(info.page);
 		end
-		NAgui.RegisterStrokesFrom(info.page)
+		NAgui.RegisterStrokesFromAsync(info.page)
 	end
 	if info.button and originalIO.applyTabDisplayText then
 		originalIO.applyTabDisplayText(info, { isActive = info._isActive })
@@ -81842,7 +82150,7 @@ NAgui.addButton = function(label, callback)
 	button.LayoutOrder = NAgui._nextLayoutOrder()
 	NAmanage.registerElementForCurrentTab(button)
 	if NAgui.RegisterStrokesFrom then
-		NAgui.RegisterStrokesFrom(button)
+		NAgui.RegisterStrokesFromAsync(button)
 	end
 	NAgui.atchSettings(button, "button:"..tostring(label)..":"..tostring(button.LayoutOrder), 0.08)
 
@@ -81864,7 +82172,7 @@ NAgui.addSection = function(titleText)
 	section.LayoutOrder = NAgui._nextLayoutOrder()
 	NAmanage.registerElementForCurrentTab(section)
 	if NAgui.RegisterStrokesFrom then
-		NAgui.RegisterStrokesFrom(section)
+		NAgui.RegisterStrokesFromAsync(section)
 	end
 end
 
@@ -81957,7 +82265,7 @@ NAgui.addInfo = function(label, value, opts)
 	info.Parent = NAUIMANAGER.SettingsList
 	NAmanage.registerElementForCurrentTab(info)
 	if NAgui.RegisterStrokesFrom then
-		NAgui.RegisterStrokesFrom(info)
+		NAgui.RegisterStrokesFromAsync(info)
 	end
 	NAgui.atchSettings(info, "info:"..tostring(label)..":"..tostring(info.LayoutOrder), 0.06)
 
@@ -82173,9 +82481,14 @@ NAgui.addToggle = function(lbl, def, cb, opt)
 		cbtn.Parent = chip
 
 		chip.ZIndex = it.ZIndex + 1
-		for _, d in ipairs(NAmanage.qDesc(chip, "GuiObject")) do
-			d.ZIndex = it.ZIndex + 2
-		end
+		NAgui.deferSettingsWork(function()
+			if not chip.Parent then
+				return
+			end
+			for _, d in ipairs(NAmanage.qDesc(chip, "GuiObject")) do
+				d.ZIndex = it.ZIndex + 2
+			end
+		end)
 		cbtn.ZIndex = it.ZIndex + 3
 
 		MouseButtonFix(cbtn, function()
@@ -82191,9 +82504,14 @@ NAgui.addToggle = function(lbl, def, cb, opt)
 	NAmanage.SetSearch.tag(tgl, lbl)
 	tgl.Parent = NAUIMANAGER.SettingsList
 	tgl.ZIndex = 1
-	for _, d in ipairs(NAmanage.qDesc(tgl, "GuiObject")) do
-		d.ZIndex = d == it and 999999 or d.ZIndex
-	end
+	NAgui.deferSettingsWork(function()
+		if not tgl.Parent then
+			return
+		end
+		for _, d in ipairs(NAmanage.qDesc(tgl, "GuiObject")) do
+			d.ZIndex = d == it and 999999 or d.ZIndex
+		end
+	end)
 	tgl.LayoutOrder = NAgui._nextLayoutOrder()
 	NAmanage.registerElementForCurrentTab(tgl)
 
@@ -84350,7 +84668,7 @@ NAgui.addDropdown = function(label, values, defaultValue, callback, opts)
 	NAmanage.registerElementForCurrentTab(dropdown)
 	NAmanage.SetSearch.tag(dropdown, DropdownSettings.Name)
 	if NAgui.RegisterStrokesFrom then
-		NAgui.RegisterStrokesFrom(dropdown)
+		NAgui.RegisterStrokesFromAsync(dropdown)
 	end
 
 	title = dropdown:FindFirstChild("Title")
@@ -96188,7 +96506,7 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 }))
 
 	SpawnCall(function()
-		local HUI = NAlib.huiGrabber();
+		local HUI = NAlib.distinctHuiGrabber and NAlib.distinctHuiGrabber(COREGUI) or nil;
 	local iIdx = {
 		click = NAmanage.ensureWeakTable(nil, "k");
 		proxy = NAmanage.ensureWeakTable(nil, "k");
@@ -103775,7 +104093,7 @@ NAmanage.NAInitCoreGuiCustomization=function()
 			end)
 		end
 
-		local HUI = NAlib.huiGrabber()
+		local HUI = NAlib.distinctHuiGrabber and NAlib.distinctHuiGrabber(CoreGui) or nil
 
 		local function resetPlexQueue()
 			PT.queueToken += 1
@@ -104225,7 +104543,6 @@ NAmanage.NAInitCoreGuiCustomization=function()
 							if not PT.data.enabled then
 								return
 							end
-							installPlexWatcher(inst)
 							enqueue(inst)
 						end, {
 							yieldEvery = 400,
@@ -104242,7 +104559,6 @@ NAmanage.NAInitCoreGuiCustomization=function()
 			if not PT.data.enabled then
 				return
 			end
-			installPlexWatcher(o)
 			enqueue(o)
 			scheduleQueueProcess()
 			Delay(0.05, function()
@@ -105571,6 +105887,55 @@ NAmanage.NAInitCoreGuiCustomization=function()
 		end
 	end
 end
+NAmanage.finalizeLoadingState = NAmanage.finalizeLoadingState or function()
+	pcall(function()
+		if type(NAmanage.queueAssetMethodResync) == "function" then
+			NAmanage.queueAssetMethodResync({ 0.25, 3 }, { silent = true })
+		end
+		if type(NAmanage.isCommandDataStale) == "function" and NAmanage.isCommandDataStale() then
+			if NAAssetsLoading and NAAssetsLoading.setStatus then
+				NAAssetsLoading.setStatus("warming command list and autofill")
+			end
+			if type(NAmanage.queueCommandDataBuild) == "function" then
+				pcall(NAmanage.queueCommandDataBuild, { force = true })
+			elseif type(NAgui.loadCMDS) == "function" then
+				pcall(NAgui.loadCMDS, { force = true })
+			end
+		end
+		if NAAssetsLoading and NAAssetsLoading.setStatus and NAAssetsLoading.setPercent and NAAssetsLoading.completed and not NAAssetsLoading._finalized then
+			NAAssetsLoading.setStatus("ready")
+			NAAssetsLoading.setPercent(1)
+			if typeof(NAAssetsLoading.completed) == "Instance" then
+				NAmanage.SetAttr(NAAssetsLoading.completed, "Completed", true)
+			elseif type(NAAssetsLoading.completed) == "table" then
+				NAAssetsLoading.completed.Completed = true
+			end
+			NAAssetsLoading._finalized = true
+			NAAssetsLoading.ui = nil
+			NAAssetsLoading.setStatus = nil
+			NAAssetsLoading.setPercent = nil
+			NAAssetsLoading.completed = nil
+			NAAssetsLoading.getSkip = nil
+			NAAssetsLoading.setMinimizedState = nil
+			NAAssetsLoading.progress = nil
+			NAAssetsLoading.progressPercent = nil
+		end
+		if NAStuff.AutoPreloadAssets and not NAStuff._assetPreloadQueued then
+			NAStuff._assetPreloadQueued = true
+			Defer(function()
+				Wait(1.5)
+				NAmanage.StartAssetPreload({
+					silent = true,
+					st = true,
+				})
+			end)
+		end
+	end)
+end
+
+NAmanage.finalizeLoadingState()
+
+SpawnCall(function()
 NAmanage.NAInitCoreGuiCustomization()
 NAgui.addTab(NA_TABS.TAB_USER_BUTTONS, { order = 10, textIcon = "circle-plus" })
 NAgui.setTab(NA_TABS.TAB_USER_BUTTONS)
@@ -109004,48 +109369,6 @@ SpawnCall(function()
 		NAgui.setTab(defaultTab)
 	end
 end)
-
-pcall(function()
-	if type(NAmanage.queueAssetMethodResync) == "function" then
-		NAmanage.queueAssetMethodResync({ 0.25, 3 }, { silent = true })
-	end
-	if type(NAmanage.isCommandDataStale) == "function" and NAmanage.isCommandDataStale() then
-		if NAAssetsLoading and NAAssetsLoading.setStatus then
-			NAAssetsLoading.setStatus("warming command list and autofill")
-		end
-		if type(NAmanage.queueCommandDataBuild) == "function" then
-			pcall(NAmanage.queueCommandDataBuild, { force = true })
-		elseif type(NAgui.loadCMDS) == "function" then
-			pcall(NAgui.loadCMDS, { force = true })
-		end
-	end
-	if NAAssetsLoading and NAAssetsLoading.setStatus and NAAssetsLoading.setPercent and NAAssetsLoading.completed then
-		NAAssetsLoading.setStatus("ready")
-		NAAssetsLoading.setPercent(1)
-		if typeof(NAAssetsLoading.completed) == "Instance" then
-			NAmanage.SetAttr(NAAssetsLoading.completed, "Completed", true)
-		elseif type(NAAssetsLoading.completed) == "table" then
-			NAAssetsLoading.completed.Completed = true
-		end
-		NAAssetsLoading._finalized = true
-		NAAssetsLoading.ui = nil
-		NAAssetsLoading.setStatus = nil
-		NAAssetsLoading.setPercent = nil
-		NAAssetsLoading.completed = nil
-		NAAssetsLoading.getSkip = nil
-		NAAssetsLoading.setMinimizedState = nil
-		NAAssetsLoading.progress = nil
-		NAAssetsLoading.progressPercent = nil
-	end
-	if NAStuff.AutoPreloadAssets then
-		Defer(function()
-			Wait(1.5)
-			NAmanage.StartAssetPreload({
-				silent = true,
-				st = true,
-			})
-		end)
-	end
 end)
 
 --[[print(
