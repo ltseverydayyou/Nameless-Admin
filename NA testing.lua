@@ -7018,6 +7018,12 @@ updateCanvasSize = function(frame, scale)
 	if not (frame and frame.Parent) then
 		return
 	end
+	if NAmanage.GetAttr and NAmanage.GetAttr(frame, "NAManualCanvasSize") == true then
+		if NAmanage.CustomScroll and NAmanage.CustomScroll.refreshByTarget then
+			NAmanage.CustomScroll.refreshByTarget(frame);
+		end
+		return
+	end
 
 	NAmanage._canvasLayoutCache = NAmanage.ensureWeakTable(NAmanage._canvasLayoutCache, "kv")
 	NAmanage._canvasHeightCache = NAmanage.ensureWeakTable(NAmanage._canvasHeightCache, "k")
@@ -79508,11 +79514,15 @@ do
 		if not (target and bar and bar.Parent and target.Parent == bar.Parent) then
 			return;
 		end;
+		local scale = NAmanage.GetUIScaleFactor and NAmanage.GetUIScaleFactor(bar.Parent) or 1;
+		if not scale or scale <= 0 then
+			scale = 1;
+		end;
 		local parentY = bar.Parent.AbsolutePosition and bar.Parent.AbsolutePosition.Y or 0;
-		local offsetY = math.floor(((target.AbsolutePosition and target.AbsolutePosition.Y) or parentY) - parentY + 0.5);
-		local height = math.max(0, math.floor(((target.AbsoluteSize and target.AbsoluteSize.Y) or 0) + 0.5));
-		bar.Position = UDim2.new(1, -18, 0, offsetY);
-		bar.Size = UDim2.new(0, 16, 0, height);
+		local offsetY = math.floor(((((target.AbsolutePosition and target.AbsolutePosition.Y) or parentY) - parentY) / scale) + 0.5);
+		local height = math.max(0, math.floor((((target.AbsoluteSize and target.AbsoluteSize.Y) or 0) / scale) + 0.5));
+		bar.Position = UDim2.new(bar.Position.X.Scale, bar.Position.X.Offset, 0, offsetY);
+		bar.Size = UDim2.new(bar.Size.X.Scale, bar.Size.X.Offset, 0, height);
 	end;
 
 	NAmanage.SettingsScroll = registry.create("settings", {
@@ -80924,6 +80934,10 @@ NAmanage.cmdResp = function(center)
 		if scrollBar and scrollBar:IsA("GuiObject") then
 			scrollBar.Position = compact and UDim2.new(1, -17, 0, 27) or UDim2.new(1, -18, 0, 30)
 			scrollBar.Size = compact and UDim2.new(0, 14, 1, -31) or UDim2.new(0, 16, 1, -35)
+			if list and list:IsA("GuiObject") then
+				scrollBar.Position = UDim2.new(scrollBar.Position.X.Scale, scrollBar.Position.X.Offset, list.Position.Y.Scale, list.Position.Y.Offset)
+				scrollBar.Size = UDim2.new(scrollBar.Size.X.Scale, scrollBar.Size.X.Offset, list.Size.Y.Scale, list.Size.Y.Offset)
+			end
 		end
 	end
 
@@ -81127,6 +81141,15 @@ NAmanage.ensureCommandListState=function()
 		return nil
 	end
 	local staticMode = NAmanage.cmdStatic and NAmanage.cmdStatic() or false
+	pcall(function()
+		NAmanage.SetAttr(cList, "NAManualCanvasSize", staticMode ~= true)
+	end)
+	local listLayout = cList:FindFirstChildOfClass("UIListLayout")
+	if listLayout then
+		pcall(function()
+			listLayout.Enabled = staticMode == true
+		end)
+	end
 
 	local state = NAStuff.CommandListState
 	if type(state) == "table" and state.list == cList and state.staticMode == staticMode then
@@ -81162,7 +81185,11 @@ NAmanage.ensureCommandListState=function()
 			virtualCanvas.BorderSizePixel = 0
 			virtualCanvas.Size = UDim2.new(1, 0, 0, 0)
 			virtualCanvas.Position = UDim2.new(0, 0, 0, 0)
+			virtualCanvas.AnchorPoint = Vector2.new(0, 0)
 			virtualCanvas.Parent = cList
+		else
+			virtualCanvas.AnchorPoint = Vector2.new(0, 0)
+			virtualCanvas.Position = UDim2.new(0, 0, 0, 0)
 		end
 	else
 		virtualCanvas = cList:FindFirstChild("VirtualCanvas")
@@ -81202,6 +81229,7 @@ NAmanage.ensureCommandListState=function()
 		syncQueued = false;
 		staticMode = staticMode;
 		staticLabels = {};
+		listLayout = listLayout;
 	}
 	NAStuff.CommandListState = state
 
@@ -81266,9 +81294,6 @@ NAmanage.syncVisibleCommandRows=function(state)
 	local totalHeight = COMMAND_LIST_TOP_PADDING + (count * rowStep)
 	virtualCanvas.Size = UDim2.new(1, 0, 0, totalHeight)
 	cList.CanvasSize = UDim2.new(0, 0, 0, totalHeight)
-	if NAmanage.CustomScroll and NAmanage.CustomScroll.refreshByTarget then
-		NAmanage.CustomScroll.refreshByTarget(cList)
-	end
 
 	local overscanPx = COMMAND_OVERSCAN_ROWS * rowStep
 	local scrollY = cList.CanvasPosition.Y
@@ -81276,6 +81301,9 @@ NAmanage.syncVisibleCommandRows=function(state)
 	local viewHeight = logicalListSize and logicalListSize.Y or cList.AbsoluteSize.Y
 	if NAmanage.virtView then
 		viewHeight, scrollY = NAmanage.virtView(cList, viewHeight, totalHeight, rowStep * 3)
+	end
+	if NAmanage.CustomScroll and NAmanage.CustomScroll.refreshByTarget then
+		NAmanage.CustomScroll.refreshByTarget(cList)
 	end
 	local firstIndex = math.min(count, math.max(1, math.floor((math.max(0, scrollY - COMMAND_LIST_TOP_PADDING - overscanPx)) / rowStep) + 1))
 	local lastIndex = math.min(count, math.ceil((math.max(0, scrollY + viewHeight - COMMAND_LIST_TOP_PADDING + overscanPx)) / rowStep))
