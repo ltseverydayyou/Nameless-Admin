@@ -5985,6 +5985,16 @@
       "desc": "Open block / unblock prompt for target player"
     },
     {
+      "name": "unblock",
+      "aliases": [
+        "unblock",
+        "unblockuser"
+      ],
+      "usage": "unblock <player> (unblockuser)",
+      "args": "<player>",
+      "desc": "Open unblock prompt for target player"
+    },
+    {
       "name": "friendweb",
       "aliases": [
         "friendweb",
