@@ -7088,6 +7088,28 @@ NAmanage.GetLogicalAbsoluteSize = function(inst)
 	return Vector2.new(size.X / scale, size.Y / scale)
 end
 
+NAmanage.GetLogicalWindowSize = function(inst)
+	if not inst then
+		return Vector2.new()
+	end
+
+	local size = nil
+	pcall(function()
+		size = inst.AbsoluteWindowSize
+	end)
+
+	if typeof(size) ~= "Vector2" or size.X <= 0 or size.Y <= 0 then
+		size = inst.AbsoluteSize or Vector2.new()
+	end
+
+	local scale = NAmanage.GetUIScaleFactor and NAmanage.GetUIScaleFactor(inst) or 1
+	if not scale or scale <= 0 then
+		scale = 1
+	end
+
+	return Vector2.new(math.max(1, size.X / scale), math.max(1, size.Y / scale))
+end
+
 NAmanage.CreateNAFreecam=function()
 	local module = {}
 
@@ -78958,7 +78980,12 @@ do
 					return math.max(0, result);
 				end;
 			end;
-			local logicalSize = NAmanage.GetLogicalAbsoluteSize and NAmanage.GetLogicalAbsoluteSize(target) or nil;
+			local logicalSize = nil;
+			if target:IsA("ScrollingFrame") and NAmanage.GetLogicalWindowSize then
+				logicalSize = NAmanage.GetLogicalWindowSize(target);
+			elseif NAmanage.GetLogicalAbsoluteSize then
+				logicalSize = NAmanage.GetLogicalAbsoluteSize(target);
+			end;
 			if logicalSize then
 				return math.max(0, (ctrl.axis == "X" and logicalSize.X or logicalSize.Y) or 0);
 			end;
@@ -80841,6 +80868,7 @@ NAmanage.totalCommandCount=function()
 end
 local COMMAND_LIST_TOP_PADDING = 5
 local COMMAND_OVERSCAN_ROWS = 8
+local COMMAND_MIN_VISIBLE_ROWS = 18
 
 NAmanage.cmdStatic = function()
 	return false
@@ -80870,16 +80898,38 @@ NAmanage.vpSize = function()
 end
 
 NAmanage.virtView = function(sf, viewH, totalH, minH)
-	if not viewH or viewH <= 0 then
-		local vp = NAmanage.vpSize and NAmanage.vpSize() or Vector2.new(1280, 720)
-		viewH = math.max(tonumber(minH) or 1, vp.Y * 0.25)
+	local floorH = math.max(1, tonumber(minH) or 1)
+	local winH = 0
+	if sf and NAmanage.GetLogicalWindowSize then
+		local ok, logicalWindow = pcall(NAmanage.GetLogicalWindowSize, sf)
+		if ok and logicalWindow then
+			winH = tonumber(logicalWindow.Y) or 0
+		end
 	end
 
-	local y = sf and sf.CanvasPosition and sf.CanvasPosition.Y or 0
-	local maxY = math.max(0, (tonumber(totalH) or 0) - viewH)
-	if sf and y > maxY + (tonumber(minH) or 1) then
-		y = maxY
-		sf.CanvasPosition = Vector2.new(sf.CanvasPosition.X, y)
+	if not viewH or viewH <= 0 then
+		local vp = NAmanage.vpSize and NAmanage.vpSize() or Vector2.new(1280, 720)
+		viewH = math.max(floorH, winH, vp.Y * 0.25)
+	else
+		viewH = math.max(floorH, tonumber(viewH) or 0, winH)
+	end
+
+	totalH = math.max(0, tonumber(totalH) or 0)
+	local y = 0
+	local x = 0
+	if sf then
+		local pos = sf.CanvasPosition
+		x = tonumber(pos.X) or 0
+		y = tonumber(pos.Y) or 0
+	end
+
+	local maxY = math.max(0, totalH - viewH)
+	local nextY = math.clamp(y, 0, maxY)
+	if sf and math.abs(nextY - y) > 0.5 then
+		y = nextY
+		sf.CanvasPosition = Vector2.new(x, y)
+	else
+		y = nextY
 	end
 
 	return viewH, y
@@ -80888,6 +80938,14 @@ end
 NAmanage.cmdResp = function(center)
 	local frame = NAUIMANAGER and NAUIMANAGER.commandsFrame
 	if not (frame and frame:IsA("GuiObject")) then
+		return
+	end
+
+	if frame.GetAttribute and NAmanage.GetAttr(frame, "NAMenuMinimized") == true then
+		local container = frame:FindFirstChild("Container")
+		if container and container:IsA("GuiObject") then
+			container.Visible = false
+		end
 		return
 	end
 
@@ -80909,6 +80967,7 @@ NAmanage.cmdResp = function(center)
 	local compact = nextH <= 190 or nextW <= 235
 	local container = frame:FindFirstChild("Container")
 	if container and container:IsA("GuiObject") then
+		container.Visible = true
 		container.Size = compact and UDim2.new(1, -10, 1, -42) or UDim2.new(1, -15, 1, -50)
 		container.Position = compact and UDim2.new(0.5, 0, 1, -6) or UDim2.new(0.5, 0, 1, -10)
 
@@ -81292,20 +81351,30 @@ NAmanage.syncVisibleCommandRows=function(state)
 	virtualCanvas.Size = UDim2.new(1, 0, 0, totalHeight)
 	cList.CanvasSize = UDim2.new(0, 0, 0, totalHeight)
 
-	local overscanPx = COMMAND_OVERSCAN_ROWS * rowStep
-	local scrollY = cList.CanvasPosition.Y
-	local logicalListSize = NAmanage.GetLogicalAbsoluteSize and NAmanage.GetLogicalAbsoluteSize(cList) or nil
+	local logicalListSize = nil
+	if NAmanage.GetLogicalWindowSize then
+		logicalListSize = NAmanage.GetLogicalWindowSize(cList)
+	elseif NAmanage.GetLogicalAbsoluteSize then
+		logicalListSize = NAmanage.GetLogicalAbsoluteSize(cList)
+	end
 	local viewHeight = logicalListSize and logicalListSize.Y or cList.AbsoluteSize.Y
+	local scrollY = cList.CanvasPosition.Y
 	if NAmanage.virtView then
 		viewHeight, scrollY = NAmanage.virtView(cList, viewHeight, totalHeight, rowStep * 3)
 	end
 	if NAmanage.CustomScroll and NAmanage.CustomScroll.refreshByTarget then
 		NAmanage.CustomScroll.refreshByTarget(cList)
 	end
-	local firstIndex = math.min(count, math.max(1, math.floor((math.max(0, scrollY - COMMAND_LIST_TOP_PADDING - overscanPx)) / rowStep) + 1))
-	local lastIndex = math.min(count, math.ceil((math.max(0, scrollY + viewHeight - COMMAND_LIST_TOP_PADDING + overscanPx)) / rowStep))
-	if lastIndex < firstIndex then
-		lastIndex = firstIndex
+	local viewRows = math.max(COMMAND_MIN_VISIBLE_ROWS, math.ceil(math.max(viewHeight, rowStep) / rowStep) + 2)
+	local overscanPx = math.max(COMMAND_OVERSCAN_ROWS * rowStep, viewHeight, rowStep * 10)
+	local firstY = math.max(0, scrollY - COMMAND_LIST_TOP_PADDING - overscanPx)
+	local lastY = math.max(firstY + rowStep, scrollY + viewHeight - COMMAND_LIST_TOP_PADDING + overscanPx)
+	local firstIndex = math.min(count, math.max(1, math.floor(firstY / rowStep) + 1))
+	local lastIndex = math.min(count, math.max(firstIndex, math.ceil(lastY / rowStep) + 1))
+	local minNeeded = math.min(count, viewRows)
+	if (lastIndex - firstIndex + 1) < minNeeded then
+		lastIndex = math.min(count, firstIndex + minNeeded - 1)
+		firstIndex = math.max(1, math.min(firstIndex, lastIndex - minNeeded + 1))
 	end
 
 	local needed = math.max(0, lastIndex - firstIndex + 1)
@@ -86072,6 +86141,11 @@ NAgui.menu = function(menu)
 	if not menu then return end
 	local menuConnName = NAgui._bindMenuCleanup(menu)
 	if menu:IsA("Frame") then menu.AnchorPoint = Vector2.new(0, 0) end
+	pcall(function()
+		if menu:IsA("GuiObject") then
+			menu.ClipsDescendants = true
+		end
+	end)
 	local exitButton = menu:FindFirstChild("Exit", true)
 	local minimizeButton = menu:FindFirstChild("Minimize", true)
 	local minimized = false
@@ -86092,7 +86166,48 @@ NAgui.menu = function(menu)
 		end
 		storedX = storedX or menu.Size.X.Offset
 		storedY = storedY or menu.Size.Y.Offset
-		return storedX, storedY
+		return math.max(1, storedX), math.max(1, storedY)
+	end
+	local function getScale()
+		local s = (NAUIMANAGER and NAUIMANAGER.AUTOSCALER and tonumber(NAUIMANAGER.AUTOSCALER.Scale)) or 1
+		if not s or s <= 0 then
+			s = 1
+		end
+		return s
+	end
+	local function getMenuSize()
+		local x = tonumber(menu.Size.X.Offset) or 0
+		local y = tonumber(menu.Size.Y.Offset) or 0
+		if x <= 0 or y <= 0 then
+			local s = getScale()
+			local abs = menu.AbsoluteSize
+			if x <= 0 then
+				x = math.floor(((abs and abs.X) or 1) / s + 0.5)
+			end
+			if y <= 0 then
+				y = math.floor(((abs and abs.Y) or 1) / s + 0.5)
+			end
+		end
+		return math.max(1, x), math.max(1, y)
+	end
+	local function getMiniHeight()
+		local h = 35
+		local top = menu:FindFirstChild("Topbar")
+		if top and top:IsA("GuiObject") then
+			local y = tonumber(top.Size.Y.Offset) or 0
+			if y > 0 then
+				h = y
+			elseif top.AbsoluteSize and top.AbsoluteSize.Y > 0 then
+				h = math.floor((top.AbsoluteSize.Y / getScale()) + 0.5)
+			end
+		end
+		return math.max(30, h)
+	end
+	local function setBodyVisible(value)
+		local body = menu:FindFirstChild("Container")
+		if body and body:IsA("GuiObject") then
+			body.Visible = value == true
+		end
 	end
 	local function setMinAtt(value)
 		minimized = value
@@ -86101,6 +86216,7 @@ NAgui.menu = function(menu)
 		end
 	end
 	setMinAtt(false)
+	setBodyVisible(true)
 
 	local function toggleMinimize()
 		if isAnimating then return end
@@ -86109,14 +86225,15 @@ NAgui.menu = function(menu)
 		isAnimating = true
 
 		if nextState then
-			local currentX = menu.Size.X.Offset
-			local currentY = menu.Size.Y.Offset
+			local currentX, currentY = getMenuSize()
 			setStoredSize(currentX, currentY)
-			NAgui._menuCompleted(menuConnName, NAgui.tween(menu, "Quart", "Out", 0.5, {Size = UDim2.new(0, currentX, 0, 35)}), function()
+			setBodyVisible(false)
+			NAgui._menuCompleted(menuConnName, NAgui.tween(menu, "Quart", "Out", 0.5, {Size = UDim2.new(0, currentX, 0, getMiniHeight())}), function()
 					isAnimating = false
 				end)
 		else
 			local restoreX, restoreY = getStoredSize()
+			setBodyVisible(true)
 			NAgui._menuCompleted(menuConnName, NAgui.tween(menu, "Quart", "Out", 0.5, {Size = UDim2.new(0, restoreX, 0, restoreY)}), function()
 					isAnimating = false
 				end)
@@ -94942,6 +95059,7 @@ NAmanage.bindToDevConsole = function()
 	local MAX_MESSAGES = math.floor(clampNumber(NAStuff.DevConsoleLogLimit, 200, 5000, 1200) or 1200);
 	local MAX_PENDING = math.floor(clampNumber(NAStuff.DevConsoleQueueLimit, 100, 4000, 600) or 600);
 	local overscanPx = math.floor(clampNumber(NAStuff.DevConsoleOverscan, 60, 2000, 320) or 320);
+	local minConsoleRows = 12;
 	local savedFilters;
 	if NAmanage and NAmanage.NASettingsGet then
 		local ok, result = pcall(function()
@@ -95044,7 +95162,12 @@ NAmanage.bindToDevConsole = function()
 		return record.height;
 	end;
 	local function getVisibleHeight()
-		local logicalSize = NAmanage.GetLogicalAbsoluteSize and NAmanage.GetLogicalAbsoluteSize(logsFrame) or nil;
+		local logicalSize = nil;
+		if NAmanage.GetLogicalWindowSize then
+			logicalSize = NAmanage.GetLogicalWindowSize(logsFrame);
+		elseif NAmanage.GetLogicalAbsoluteSize then
+			logicalSize = NAmanage.GetLogicalAbsoluteSize(logsFrame);
+		end;
 		return math.max(0, logicalSize and logicalSize.Y or (logsFrame.AbsoluteSize.Y or 0));
 	end;
 	local function isNearBottom()
@@ -95283,8 +95406,10 @@ NAmanage.bindToDevConsole = function()
 		if NAmanage.virtView then
 			viewHeight, scrollY = NAmanage.virtView(logsFrame, viewHeight, layoutContentHeight, 54);
 		end;
-		local startY = math.max(0, scrollY - overscanPx);
-		local endY = scrollY + viewHeight + overscanPx;
+		local rowFloor = math.max(18, math.floor(viewHeight / math.max(1, minConsoleRows) + 0.5));
+		local dynOverscan = math.max(overscanPx, viewHeight, rowFloor * minConsoleRows);
+		local startY = math.max(0, scrollY - dynOverscan);
+		local endY = scrollY + viewHeight + dynOverscan;
 		local firstIndex, lastIndex;
 		for i = 1, count do
 			local record = filteredMessages[i];
@@ -95304,6 +95429,7 @@ NAmanage.bindToDevConsole = function()
 			firstIndex = count;
 			lastIndex = count;
 		end;
+		lastIndex = math.max(firstIndex, lastIndex or firstIndex);
 		local needed = math.max(0, lastIndex - firstIndex + 1);
 		while #visibleLabels > needed do
 			releaseLabel(table.remove(visibleLabels));
