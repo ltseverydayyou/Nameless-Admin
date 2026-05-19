@@ -64847,6 +64847,8 @@ end
 networkPauseBlock = networkPauseBlock or {}
 networkPauseBlock.tracked = networkPauseBlock.tracked or {}
 networkPauseBlock.conns = networkPauseBlock.conns or {}
+networkPauseBlock.guiEnabled = NAmanage.ensureWeakTable and NAmanage.ensureWeakTable(networkPauseBlock.guiEnabled, "k") or (networkPauseBlock.guiEnabled or {})
+networkPauseBlock.guiConns = networkPauseBlock.guiConns or {}
 networkPauseBlock.blocking = networkPauseBlock.blocking == true
 networkPauseBlock.polling = networkPauseBlock.polling == true
 
@@ -64872,6 +64874,23 @@ function NAmanage.isNetworkPauseScript(inst)
 	return parent and parent.Name == "CoreScripts" and parent:IsDescendantOf(robloxGui)
 end
 
+function NAmanage.isNetworkPauseGui(inst)
+	if typeof(inst) ~= "Instance" then
+		return false
+	end
+	local ok, isGui = pcall(function()
+		return inst:IsA("ScreenGui")
+	end)
+	if not ok or not isGui then
+		return false
+	end
+	local name = Lower(tostring(inst.Name or ""))
+	if name ~= "robloxnetworkpausenotification" and not name:find("networkpause", 1, true) then
+		return false
+	end
+	return inst:IsDescendantOf(COREGUI)
+end
+
 function NAmanage.getNetworkPauseScript()
 	local robloxGui = __lt.cm("CoreGui", "FindFirstChild", "RobloxGui")
 	if not robloxGui then
@@ -64885,35 +64904,144 @@ function NAmanage.getNetworkPauseScript()
 	return nil
 end
 
+function NAmanage.fireNetworkPauseEnabled(enabled)
+	local fired = false
+	local state = enabled == true
+	if GuiService and type(firesignal) == "function" then
+		pcall(function()
+			firesignal(GuiService.NetworkPausedEnabledChanged, state)
+			fired = true
+		end)
+	end
+	if StarterGui then
+		pcall(function()
+			__lt.cm("StarterGui", "SetCore", "NetworkPausedEnabled", state)
+			fired = true
+		end)
+	end
+	return fired
+end
+
+function NAmanage.setNetworkPauseFocused(focused)
+	pcall(function()
+		RunService:SetRobloxGuiFocused(focused == true)
+	end)
+end
+
+function NAmanage.setNetworkPauseGuiBlocked(gui, blocked)
+	local tbl = networkPauseBlock
+	if not blocked then
+		if tbl.guiConns[gui] then
+			NAmanage.tryDisconnect(tbl.guiConns[gui])
+			tbl.guiConns[gui] = nil
+		end
+		local prev = tbl.guiEnabled[gui]
+		if prev ~= nil and typeof(gui) == "Instance" and gui.Parent ~= nil then
+			pcall(function()
+				gui.Enabled = prev == true
+			end)
+		end
+		tbl.guiEnabled[gui] = nil
+		return true
+	end
+	if not NAmanage.isNetworkPauseGui(gui) then
+		return false
+	end
+	if blocked then
+		if tbl.guiEnabled[gui] == nil then
+			local ok, enabled = pcall(function()
+				return gui.Enabled
+			end)
+			tbl.guiEnabled[gui] = ok and enabled or true
+		end
+		pcall(function()
+			gui.Enabled = false
+		end)
+		if not tbl.guiConns[gui] then
+			local ok, conn = pcall(function()
+				return gui:GetPropertyChangedSignal("Enabled"):Connect(function()
+					if tbl.blocking and NAmanage.isNetworkPauseGui(gui) then
+						local okEnabled, enabled = pcall(function()
+							return gui.Enabled
+						end)
+						if okEnabled and enabled == true then
+							pcall(function()
+								gui.Enabled = false
+							end)
+							NAmanage.setNetworkPauseFocused(false)
+						end
+					end
+				end)
+			end)
+			if ok and conn then
+				tbl.guiConns[gui] = conn
+			end
+		end
+		return true
+	end
+	return true
+end
+
+function NAmanage.scanNetworkPauseItems(callback)
+	if type(callback) ~= "function" then
+		return
+	end
+	local roots = {}
+	local seen = {}
+	local function add(root)
+		if typeof(root) == "Instance" and not seen[root] then
+			seen[root] = true
+			roots[#roots + 1] = root
+		end
+	end
+	add(COREGUI)
+	add(__lt.cm("CoreGui", "FindFirstChild", "RobloxGui"))
+	for i = 1, #roots do
+		local root = roots[i]
+		if NAmanage.isNetworkPauseGui(root) or NAmanage.isNetworkPauseScript(root) then
+			callback(root)
+		end
+		local ok, desc = pcall(function()
+			return root:GetDescendants()
+		end)
+		if ok and type(desc) == "table" then
+			for _, inst in ipairs(desc) do
+				local name = Lower(tostring(inst.Name or ""))
+				if name:find("networkpause", 1, true) then
+					if NAmanage.isNetworkPauseGui(inst) or NAmanage.isNetworkPauseScript(inst) then
+						callback(inst)
+					end
+				end
+			end
+		end
+	end
+end
+
 function NAmanage.setNetworkPauseBlocked(disable)
 	NACaller(function()
 		local tbl = networkPauseBlock
-		local function destroyNetworkPauseGui(inst)
-			if typeof(inst) ~= "Instance" or not inst:IsA("ScreenGui") then
-				return
-			end
-			local name = inst.Name
-			if name and name ~= "" and Lower(name):find("networkpause", 1, true) then
-				pcall(function() inst:Destroy() end)
-			end
-		end
 		local function trackAndDisable(inst)
 			if not tbl.blocking then
 				return
 			end
-			if inst then
-				destroyNetworkPauseGui(inst)
+			if inst ~= nil then
+				if NAmanage.isNetworkPauseGui(inst) then
+					NAmanage.setNetworkPauseGuiBlocked(inst, true)
+				end
+				if NAmanage.isNetworkPauseScript(inst) then
+					if tbl.tracked[inst] ~= nil then
+						pcall(function()
+							inst.Disabled = false
+						end)
+					end
+				end
+				return
 			end
-			local scriptInst
-			if inst and NAmanage.isNetworkPauseScript(inst) then
-				scriptInst = inst
-			elseif inst == nil then
-				scriptInst = NAmanage.getNetworkPauseScript()
-			end
-			if scriptInst then
-				if tbl.tracked[scriptInst] == nil then tbl.tracked[scriptInst] = scriptInst.Disabled end
-				pcall(function() scriptInst.Disabled = true end)
-			end
+			NAmanage.scanNetworkPauseItems(function(item)
+				trackAndDisable(item)
+			end)
+			NAmanage.fireNetworkPauseEnabled(false)
+			NAmanage.setNetworkPauseFocused(false)
 		end
 		local function startPolling()
 			if tbl.polling then
@@ -64929,43 +65057,80 @@ function NAmanage.setNetworkPauseBlocked(disable)
 			end)
 		end
 		if disable then
-			if tbl.blocking then return end
+			local wasBlocking = tbl.blocking == true
 			tbl.blocking = true
-
-			local function watchRoot(root)
-				if typeof(root) ~= "Instance" then
-					return
-				end
-				for _, child in ipairs(root:GetChildren()) do
-					trackAndDisable(child)
-				end
-				Insert(tbl.conns, NAmanage.childAdd(root, trackAndDisable, function(inst)
-					if not inst then
-						return false
-					end
-					local name = Lower(tostring(inst.Name or ""))
-					return name ~= "" and name:find("networkpause", 1, true) ~= nil
-				end))
-			end
-
+			NAmanage.fireNetworkPauseEnabled(false)
 			trackAndDisable(nil)
-			watchRoot(COREGUI)
+			if not wasBlocking then
+				local function watchRoot(root)
+					if typeof(root) ~= "Instance" then
+						return
+					end
+					local ok, conn = pcall(function()
+						return root.DescendantAdded:Connect(function(inst)
+							if not tbl.blocking or typeof(inst) ~= "Instance" then
+								return
+							end
+							local name = Lower(tostring(inst.Name or ""))
+							if name:find("networkpause", 1, true) then
+								trackAndDisable(inst)
+								NAmanage.fireNetworkPauseEnabled(false)
+								NAmanage.setNetworkPauseFocused(false)
+							end
+						end)
+					end)
+					if ok and conn then
+						Insert(tbl.conns, conn)
+					end
+				end
+				watchRoot(COREGUI)
+				local okPause, pauseConn = pcall(function()
+					return LocalPlayer:GetPropertyChangedSignal("GameplayPaused"):Connect(function()
+						if tbl.blocking then
+							NAmanage.fireNetworkPauseEnabled(false)
+							trackAndDisable(nil)
+							NAmanage.setNetworkPauseFocused(false)
+						end
+					end)
+				end)
+				if okPause and pauseConn then
+					Insert(tbl.conns, pauseConn)
+				end
+			end
 			startPolling()
 		else
-			if not tbl.blocking then return end
+			if not tbl.blocking then
+				NAmanage.fireNetworkPauseEnabled(true)
+				return
+			end
 			tbl.blocking = false
 			NAmanage.CancelTokenCancel(tbl.scanToken)
 			tbl.scanToken = nil
 			for i = #tbl.conns, 1, -1 do
-				local c = tbl.conns[i]
-				if c and c.Connected then c:Disconnect() end
+				NAmanage.tryDisconnect(tbl.conns[i])
 				tbl.conns[i] = nil
 			end
+			for gui in pairs(tbl.guiConns) do
+				NAmanage.setNetworkPauseGuiBlocked(gui, false)
+			end
+			for gui in pairs(tbl.guiEnabled) do
+				NAmanage.setNetworkPauseGuiBlocked(gui, false)
+			end
 			for scriptInst, prev in pairs(tbl.tracked) do
-				if typeof(scriptInst) == "Instance" and scriptInst and scriptInst.Parent ~= nil then
-					pcall(function() scriptInst.Disabled = prev end)
+				if typeof(scriptInst) == "Instance" and scriptInst.Parent ~= nil then
+					pcall(function()
+						scriptInst.Disabled = prev == true
+					end)
 				end
 				tbl.tracked[scriptInst] = nil
+			end
+			local fired = NAmanage.fireNetworkPauseEnabled(true)
+			if not fired then
+				local paused = false
+				pcall(function()
+					paused = LocalPlayer.GameplayPaused == true
+				end)
+				NAmanage.setNetworkPauseFocused(paused)
 			end
 		end
 	end)
@@ -67770,12 +67935,154 @@ cmd.add({"unfriend"}, {"unfriend <player>", "Prompts to unfriend your target"}, 
 	end
 end, true)
 
-cmd.add({"block","blockuser"},{"block <player> (blockuser)","Open block / unblock prompt for target player"},function(p)
-	local tg = getPlr(p)
-	for _,t in ipairs(tg) do
-		if t ~= LocalPlayer then
-			__lt.cm("StarterGui", "SetCore", "PromptBlockPlayer",t)
+NAmanage.GetBlockedUserIdsSafe = NAmanage.GetBlockedUserIdsSafe or function()
+	for _ = 1, 25 do
+		local ok, ids = pcall(function()
+			return __lt.cm("StarterGui", "GetCore", "GetBlockedUserIds")
+		end)
+		if ok and type(ids) == "table" then
+			return ids
 		end
+		Wait(0.05)
+	end
+	return nil
+end
+
+NAmanage.IsBlockedUserId = NAmanage.IsBlockedUserId or function(userId, ids)
+	userId = tonumber(userId)
+	if not userId then
+		return false
+	end
+	ids = type(ids) == "table" and ids or NAmanage.GetBlockedUserIdsSafe()
+	if type(ids) ~= "table" then
+		return false
+	end
+	for _, id in ipairs(ids) do
+		if tonumber(id) == userId then
+			return true
+		end
+	end
+	return false
+end
+
+NAmanage.GetCorePromptGui = NAmanage.GetCorePromptGui or function()
+	local ok, rg = pcall(function()
+		return __lt.cm("CoreGui", "FindFirstChild", "RobloxGui")
+	end)
+	if not ok or not rg then
+		return nil
+	end
+	local okFind, gui = pcall(function()
+		return rg:FindFirstChild("PromptDialog", true) or rg:FindFirstChild("RobloxPromptGui", true)
+	end)
+	if okFind then
+		return gui
+	end
+	return nil
+end
+
+NAmanage.WaitCorePromptClosed = NAmanage.WaitCorePromptClosed or function()
+	local t0 = os.clock()
+	while os.clock() - t0 < 2.5 do
+		if NAmanage.GetCorePromptGui() then
+			break
+		end
+		Wait()
+	end
+	t0 = os.clock()
+	while os.clock() - t0 < 60 do
+		local gui = NAmanage.GetCorePromptGui()
+		if not gui then
+			break
+		end
+		if gui:IsA("GuiObject") then
+			local ok, vis = pcall(function()
+				return gui.Visible
+			end)
+			if ok and vis == false then
+				break
+			end
+		elseif gui:IsA("LayerCollector") then
+			local ok, en = pcall(function()
+				return gui.Enabled
+			end)
+			if ok and en == false then
+				break
+			end
+		end
+		Wait(0.05)
+	end
+end
+
+NAmanage.GetFirstBlockTarget = NAmanage.GetFirstBlockTarget or function(list)
+	if type(list) ~= "table" then
+		return nil
+	end
+	for _, plr in ipairs(list) do
+		if typeof(plr) == "Instance" and plr:IsA("Player") and plr ~= LocalPlayer and tonumber(plr.UserId) and plr.UserId >= 0 then
+			return plr
+		end
+	end
+	return nil
+end
+
+NAmanage.PromptBlockState = NAmanage.PromptBlockState or function(plr, unblock)
+	if typeof(plr) ~= "Instance" or not plr:IsA("Player") or plr == LocalPlayer or tonumber(plr.UserId) == nil or plr.UserId < 0 then
+		return false
+	end
+	if NAmanage._blockPromptBusy then
+		return false
+	end
+	if NAmanage.GetCorePromptGui() then
+		return false
+	end
+
+	NAmanage._blockPromptBusy = true
+	local okOpen = false
+	local coreName = unblock and "PromptUnblockPlayer" or "PromptBlockPlayer"
+
+	for _ = 1, 25 do
+		local ok = pcall(function()
+			__lt.cm("StarterGui", "SetCore", coreName, plr)
+		end)
+		if ok then
+			okOpen = true
+			break
+		end
+		Wait(0.05)
+	end
+
+	if okOpen then
+		pcall(NAmanage.WaitCorePromptClosed)
+	end
+
+	NAmanage._blockPromptBusy = false
+	return okOpen
+end
+
+cmd.add({"block","blockuser"},{"block <player> (blockuser)","Open block / unblock prompt for target player"},function(p)
+	local t = NAmanage.GetFirstBlockTarget(getPlr(p))
+	if not t then
+		DoNotif("No valid player found", 2)
+		return
+	end
+
+	local ids = NAmanage.GetBlockedUserIdsSafe()
+	local unblock = NAmanage.IsBlockedUserId(t.UserId, ids)
+	if not NAmanage.PromptBlockState(t, unblock) then
+		DoNotif("Failed to open block prompt for "..tostring(t.Name), 2)
+	end
+end,true)
+
+cmd.add({"unblock","unblockuser"},{"unblock <player> (unblockuser)","Open unblock prompt for target player"},function(p)
+	local t = NAmanage.GetFirstBlockTarget(getPlr(p))
+	if not t then
+		DoNotif("No valid player found", 2)
+		return
+	end
+
+	if not NAmanage.PromptBlockState(t, true) then
+		DoNotif("Failed to open unblock prompt for "..tostring(t.Name), 2)
 	end
 end,true)
 
