@@ -55322,6 +55322,58 @@ NAmanage._fetchUserOutfits=function(userId)
 	return {},nil,"v1-cursor"
 end
 
+NAmanage._openOutfitPagedWindow=function(cfg,page)
+	if type(cfg)~="table" then return end
+	local outfits=type(cfg.outfits)=="table" and cfg.outfits or{}
+	local makeCurrent=cfg.currentAvatarButton
+	local makeOutfit=cfg.makeOutfitButton
+	local uid=tonumber(cfg.uid) or 0
+	local perPage=tonumber(NAStuff and NAStuff.OutfitPageSize) or 30
+	perPage=math.max(5,math.min(45,math.floor(perPage)))
+	local total=#outfits
+	local totalPages=math.max(1,math.ceil(total/perPage))
+	page=math.floor(tonumber(page) or 1)
+	page=math.max(1,math.min(totalPages,page))
+	local buttons={}
+	if type(makeCurrent)=="function" then
+		local button=makeCurrent()
+		if button then Insert(buttons,button) end
+	end
+	if totalPages>1 and page>1 then
+		Insert(buttons,{Text=Format("← Previous Page (%d/%d)",page-1,totalPages),Callback=function()
+			NAmanage._openOutfitPagedWindow(cfg,page-1)
+		end})
+	end
+	local first=total>0 and ((page-1)*perPage)+1 or 0
+	local last=total>0 and math.min(total,first+perPage-1) or 0
+	if type(makeOutfit)=="function" then
+		for i=first,last do
+			local outfit=outfits[i]
+			if outfit then
+				local button=makeOutfit(outfit,i)
+				if button then Insert(buttons,button) end
+			end
+		end
+	end
+	if totalPages>1 and page<totalPages then
+		Insert(buttons,{Text=Format("Next Page → (%d/%d)",page+1,totalPages),Callback=function()
+			NAmanage._openOutfitPagedWindow(cfg,page+1)
+		end})
+	end
+	local title=Format("%s • %s (%d)",tostring(cfg.titlePrefix or "Outfits"),tostring(cfg.arg or uid),uid)
+	if totalPages>1 then
+		title=Format("%s • Page %d/%d",title,page,totalPages)
+	end
+	if cfg.cache==true then
+		title=title.." [cache]"
+	end
+	local desc=nil
+	if totalPages>1 then
+		desc=Format("Showing %d-%d of %d outfits.",first,last,total)
+	end
+	Window({Title=title,Description=desc,Buttons=buttons})
+end
+
 cmd.add({"autooutfit","aoutfit","autooutfitid","aoutfitid","aoid"},{"autooutfit {username/userid|outfit:id}","Auto-apply a selected outfit on respawn"},function(arg)
 	if not arg or arg=="" then return end
 	local explicitOutfitId=NAmanage._resolveExplicitOutfitId(arg)
@@ -55374,14 +55426,52 @@ cmd.add({"autooutfit","aoutfit","autooutfitid","aoutfitid","aoid"},{"autooutfit 
 			DoNotif("Auto outfit set: Current Avatar",2,"AutoOutfit")
 		end}
 	end
+	local function makeOutfitButton(o)
+		return {Text=Format("%s  (#%d)",o.name,o.id),Callback=function()
+			NAlib.disconnect("autooutfit")
+			NAStuff.autoOutfitState={id=o.id,name=o.name,owner=uid}
+			local outfitKey="autooutfit:"..tostring(o.id)
+			local function applyAutoOutfit(desc)
+				local opts={targetKey=outfitKey}
+				if NAStuff._lastDescriptionKey==outfitKey then
+					opts.forceRefresh=true
+				end
+				NAmanage._applyFixedDescription(desc:Clone(),nil,opts)
+			end
+			NAlib.connect("autooutfit",Players.LocalPlayer.CharacterAdded:Connect(function()
+				SpawnCall(function()
+					local okD,desc=pcall(Players.GetHumanoidDescriptionFromOutfitId,Players,o.id)
+					if okD and desc then applyAutoOutfit(desc) end
+				end)
+			end))
+			SpawnCall(function()
+				local okD,desc=pcall(Players.GetHumanoidDescriptionFromOutfitId,Players,o.id)
+				if okD and desc then applyAutoOutfit(desc) end
+			end)
+			DoNotif("Auto outfit set: "..o.name,2,"AutoOutfit")
+		end}
+	end
+	local function showOutfits(list,fromCache)
+		NAmanage._openOutfitPagedWindow({
+			titlePrefix="AutoOutfit",
+			arg=arg,
+			uid=uid,
+			outfits=list,
+			cache=fromCache==true,
+			currentAvatarButton=currentAvatarButton,
+			makeOutfitButton=makeOutfitButton,
+		},1)
+	end
 	local outfits={}
 	local cache=NAStuff._outfitCache[uid]
 	if cache and (time()-cache.t)<120 and cache.list and #cache.list>0 then
 		outfits=cache.list
+		showOutfits(outfits,true)
+		return
 	else
 		local failedReason
 		outfits,failedReason=NAmanage._fetchUserOutfits(uid)
-		if #outfits==0 then
+		if type(outfits)~="table" or #outfits==0 then
 			if not failedReason then
 				DoNotif("No user-created outfits for that user",2,"AutoOutfit")
 				return
@@ -55413,33 +55503,7 @@ cmd.add({"autooutfit","aoutfit","autooutfitid","aoutfitid","aoid"},{"autooutfit 
 		end
 		NAStuff._outfitCache[uid]={t=time(),list=outfits}
 	end
-	local buttons={currentAvatarButton()}
-	for _,o in ipairs(outfits)do
-		Insert(buttons,{Text=Format("%s  (#%d)",o.name,o.id),Callback=function()
-			NAlib.disconnect("autooutfit")
-			NAStuff.autoOutfitState={id=o.id,name=o.name,owner=uid}
-			local outfitKey="autooutfit:"..tostring(o.id)
-			local function applyAutoOutfit(desc)
-				local opts={targetKey=outfitKey}
-				if NAStuff._lastDescriptionKey==outfitKey then
-					opts.forceRefresh=true
-				end
-				NAmanage._applyFixedDescription(desc:Clone(),nil,opts)
-			end
-			NAlib.connect("autooutfit",Players.LocalPlayer.CharacterAdded:Connect(function()
-				SpawnCall(function()
-					local okD,desc=pcall(Players.GetHumanoidDescriptionFromOutfitId,Players,o.id)
-					if okD and desc then applyAutoOutfit(desc) end
-				end)
-			end))
-			SpawnCall(function()
-				local okD,desc=pcall(Players.GetHumanoidDescriptionFromOutfitId,Players,o.id)
-				if okD and desc then applyAutoOutfit(desc) end
-			end)
-			DoNotif("Auto outfit set: "..o.name,2,"AutoOutfit")
-		end})
-	end
-	Window({Title=Format("AutoOutfit • %s (%d)",tostring(arg),uid),Buttons=buttons})
+	showOutfits(outfits,false)
 end,true)
 
 cmd.add({"unautooutfit","unaoutfit"},{"unautooutfit","stop outfit auto-apply"},function()
@@ -55480,35 +55544,45 @@ cmd.add({"outfit","outfitid","oid"},{"outfit {username/userid|outfit:id}","Open 
 			DoNotif("Outfit applied: Current Avatar",2,"Outfits")
 		end}
 	end
+	local function makeOutfitButton(o)
+		return {Text=Format("%s  (#%d)",o.name,o.id),Callback=function()
+			local okD,desc=pcall(Players.GetHumanoidDescriptionFromOutfitId,Players,o.id)
+			if not okD or not desc then DoNotif("Failed to fetch outfit",3,"Outfits") return end
+			NAStuff.lastSelectedOutfitId=o.id
+			if NAmanage._applyFixedDescription then
+				local outfitKey="outfit:"..tostring(o.id)
+				local opts={targetKey=outfitKey}
+				if NAStuff._lastDescriptionKey==outfitKey then
+					opts.forceRefresh=true
+				end
+				NAmanage._applyFixedDescription(desc:Clone(),nil,opts)
+			else
+				local char=getChar() or Players.LocalPlayer.CharacterAdded:Wait()
+				local hum=getHum() or char:WaitForChild("Humanoid",3)
+				if not hum then return end
+				local blank=InstanceNew("HumanoidDescription");hum:ApplyDescriptionClientServer(blank);Wait();hum:ApplyDescriptionClientServer(desc)
+			end
+			DoNotif("Outfit applied: "..o.name,2,"Outfits")
+		end}
+	end
+	local function showOutfits(list,fromCache)
+		NAmanage._openOutfitPagedWindow({
+			titlePrefix="Outfits",
+			arg=arg,
+			uid=uid,
+			outfits=list,
+			cache=fromCache==true,
+			currentAvatarButton=currentAvatarButton,
+			makeOutfitButton=makeOutfitButton,
+		},1)
+	end
 	local cache=NAStuff._outfitCache[uid]
 	if cache and (time()-cache.t)<120 and cache.list and #cache.list>0 then
-		local buttons={currentAvatarButton()}
-		for _,o in ipairs(cache.list) do
-			Insert(buttons,{Text=Format("%s  (#%d)",o.name,o.id),Callback=function()
-				local okD,desc=pcall(Players.GetHumanoidDescriptionFromOutfitId,Players,o.id)
-				if not okD or not desc then DoNotif("Failed to fetch outfit",3,"Outfits") return end
-				NAStuff.lastSelectedOutfitId=o.id
-				if NAmanage._applyFixedDescription then
-					local outfitKey="outfit:"..tostring(o.id)
-					local opts={targetKey=outfitKey}
-					if NAStuff._lastDescriptionKey==outfitKey then
-						opts.forceRefresh=true
-					end
-					NAmanage._applyFixedDescription(desc:Clone(),nil,opts)
-				else
-					local char=getChar() or Players.LocalPlayer.CharacterAdded:Wait()
-					local hum=getHum() or char:WaitForChild("Humanoid",3)
-					if not hum then return end
-					local blank=InstanceNew("HumanoidDescription");hum:ApplyDescriptionClientServer(blank);Wait();hum:ApplyDescriptionClientServer(desc)
-				end
-				DoNotif("Outfit applied: "..o.name,2,"Outfits")
-			end})
-		end
-		Window({Title=Format("Outfits • %s (%d) [cache]",tostring(arg),uid),Buttons=buttons})
+		showOutfits(cache.list,true)
 		return
 	end
 	local outfits,failedReason=NAmanage._fetchUserOutfits(uid)
-	if #outfits==0 then
+	if type(outfits)~="table" or #outfits==0 then
 		if not failedReason then
 			DoNotif("No user-created outfits for that user",2,"Outfits")
 			return
@@ -55532,35 +55606,13 @@ cmd.add({"outfit","outfitid","oid"},{"outfit {username/userid|outfit:id}","Open 
 			DoNotif(Format("Loading outfits… retrying in %.1fs",waitSec),math.max(1.5,waitSec),"Outfits")
 			return
 		elseif failedReason then
-			DoNotif(failedReason,3,"Outfits")
+			DoNotif(tostring(failedReason),3,"Outfits")
 		end
 		Window({Title=Format("Outfits • %s (%d)",tostring(arg),uid),Buttons=buttons})
 		return
 	end
 	NAStuff._outfitCache[uid]={t=time(),list=outfits}
-	local buttons={currentAvatarButton()}
-	for _,o in ipairs(outfits)do
-		Insert(buttons,{Text=Format("%s  (#%d)",o.name,o.id),Callback=function()
-			local okD,desc=pcall(Players.GetHumanoidDescriptionFromOutfitId,Players,o.id)
-			if not okD or not desc then DoNotif("Failed to fetch outfit",3,"Outfits") return end
-			NAStuff.lastSelectedOutfitId=o.id
-			if NAmanage._applyFixedDescription then
-				local outfitKey="outfit:"..tostring(o.id)
-				local opts={targetKey=outfitKey}
-				if NAStuff._lastDescriptionKey==outfitKey then
-					opts.forceRefresh=true
-				end
-				NAmanage._applyFixedDescription(desc:Clone(),nil,opts)
-			else
-				local char=getChar() or Players.LocalPlayer.CharacterAdded:Wait()
-				local hum=getHum() or char:WaitForChild("Humanoid",3)
-				if not hum then return end
-				local blank=InstanceNew("HumanoidDescription");hum:ApplyDescriptionClientServer(blank);Wait();hum:ApplyDescriptionClientServer(desc)
-			end
-			DoNotif("Outfit applied: "..o.name,2,"Outfits")
-		end})
-	end
-	Window({Title=Format("Outfits • %s (%d)",tostring(arg),uid),Buttons=buttons})
+	showOutfits(outfits,false)
 end,true)
 
 cmd.add({"goto","to","tp","teleport"},{"goto <player|X,Y,Z>","Teleport to the given player or X,Y,Z coordinates"},function(...)
