@@ -2326,9 +2326,9 @@
       "aliases": [
         "decompiler"
       ],
-      "usage": "Decompiler",
+      "usage": "decompiler",
       "args": "",
-      "desc": "Allows you to decompile LocalScript/ModuleScript's using konstant"
+      "desc": "Allows you to decompile LocalScript/ModuleScript's using lua.expert"
     },
     {
       "name": "getidfromusername",
