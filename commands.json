@@ -262,6 +262,17 @@
       "desc": "Re-run your previously executed command"
     },
     {
+      "name": "ifundone",
+      "aliases": [
+        "ifundone",
+        "ifnotdone",
+        "ifnew"
+      ],
+      "usage": "ifundone <command> [arguments]",
+      "args": "<command> [arguments]",
+      "desc": "Runs a command only if that exact command has not been done this session"
+    },
+    {
       "name": "commandloop",
       "aliases": [
         "commandloop",
@@ -1109,6 +1120,26 @@
       "usage": "tweenspeed [seconds]",
       "args": "[seconds]",
       "desc": "Set how long tween teleport commands take"
+    },
+    {
+      "name": "tpup",
+      "aliases": [
+        "tpup",
+        "up"
+      ],
+      "usage": "tpup <studs>",
+      "args": "<studs>",
+      "desc": "Teleports you up by the given amount of studs"
+    },
+    {
+      "name": "tpdown",
+      "aliases": [
+        "tpdown",
+        "down"
+      ],
+      "usage": "tpdown <studs>",
+      "args": "<studs>",
+      "desc": "Teleports you down by the given amount of studs"
     },
     {
       "name": "tweento",
