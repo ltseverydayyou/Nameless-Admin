@@ -546,29 +546,6 @@ NAmanage.pruneRuntimeInstanceState = NAmanage.pruneRuntimeInstanceState or funct
 	NAmanage.pruneInstanceKeyMap(state.BlockedInvokeSaved)
 	NAmanage.pruneInstanceKeyMap(NAmanage._canvasLayoutCache)
 	NAmanage.pruneInstanceKeyMap(NAmanage._canvasHeightCache)
-	if type(NAmanage._descScanHubs) == "table" then
-		for root, hub in pairs(NAmanage._descScanHubs) do
-			if not NAmanage.isLiveInstance(root) or type(hub) ~= "table" then
-				NAmanage._descScanHubs[root] = nil
-			else
-				local list = type(hub.list) == "table" and hub.list or {}
-				local write = 1
-				local idx = NAmanage.ensureWeakTable(nil, "k")
-				for i = 1, #list do
-					local inst = list[i]
-					if typeof(inst) == "Instance" and inst.Parent and not idx[inst] then
-						list[write] = inst
-						idx[inst] = write
-						write += 1
-					end
-				end
-				for i = write, #list do
-					list[i] = nil
-				end
-				hub.idx = idx
-			end
-		end
-	end
 	if type(state.airMomentum) == "table" then
 		NAmanage.pruneConnectionValueMap(state.airMomentum.connections)
 		if typeof(state.airMomentum.root) == "Instance" and not NAmanage.isLiveInstance(state.airMomentum.root) then
@@ -2012,57 +1989,11 @@ NAmanage.safeConnect = NAmanage.safeConnect or function(sig, fn)
 	return nil
 end
 
-NAmanage._uiEvtCap = NAmanage._uiEvtCap or function(kind)
-	local base = kind == "core" and 2048 or (kind == "playergui" and 1024 or 512)
-	local cfg = NAStuff and NAStuff.EventQueueLimit
-	if type(cfg) == "table" then
-		cfg = cfg[kind] or cfg.default
-	end
-	local cap = tonumber(cfg) or base
-	return math.max(64, math.floor(cap))
+NAmanage._uiEvtCap = NAmanage._uiEvtCap or function()
+	return math.huge
 end
 
-NAmanage._uiEvtOverflow = NAmanage._uiEvtOverflow or function(hub, cap)
-	if type(hub) ~= "table" then
-		return false
-	end
-
-	cap = math.max(64, math.floor(tonumber(cap) or 512))
-	local aHead = hub.aHead or 1
-	local aTail = hub.aTail or 0
-	local rHead = hub.rHead or 1
-	local rTail = hub.rTail or 0
-	local queued = math.max(0, aTail - aHead + 1) + math.max(0, rTail - rHead + 1)
-	if queued <= cap then
-		return false
-	end
-
-	local now = os.clock()
-	local last = tonumber(hub._compactAt) or 0
-	if now - last < 0.035 and queued <= cap * 4 then
-		hub._overflowPending = true
-		return false
-	end
-	hub._compactAt = now
-	hub._overflowPending = false
-
-	local function pack(q, head, tail, set)
-		local out = {}
-		local n = 0
-		for i = head, tail do
-			local inst = q[i]
-			if inst and (not set or set[inst]) then
-				n += 1
-				out[n] = inst
-			end
-		end
-		return out, 1, n
-	end
-
-	hub.aQ, hub.aHead, hub.aTail = pack(hub.aQ or {}, aHead, aTail, hub.aSet)
-	hub.rQ, hub.rHead, hub.rTail = pack(hub.rQ or {}, rHead, rTail, hub.rSet)
-	hub._overflowCount = (tonumber(hub._overflowCount) or 0) + 1
-	hub._overflowAt = now
+NAmanage._uiEvtOverflow = NAmanage._uiEvtOverflow or function()
 	return false
 end
 
@@ -2070,54 +2001,32 @@ NAmanage._uiEvtPush = NAmanage._uiEvtPush or function(hub, kind, inst, capKind, 
 	if not (type(hub) == "table" and hub.alive and inst) then
 		return false
 	end
+	if hub.skipTeleport and NAStuff and NAStuff.teleportTransition then
+		return false
+	end
 
 	local isAdd = kind == "add"
 	local handlers = isAdd and hub.added or hub.removing
 	if isAdd then
-		if (hub.addCount or 0) <= 0 or hub.aSet[inst] then
+		if (hub.addCount or 0) <= 0 then
 			return false
-		end
-		if hub.rSet and hub.rSet[inst] then
-			hub.rSet[inst] = nil
 		end
 	else
-		if (hub.remCount or 0) <= 0 or hub.rSet[inst] then
-			return false
-		end
-		if hub.aSet and hub.aSet[inst] then
-			hub.aSet[inst] = nil
+		if (hub.remCount or 0) <= 0 then
 			return false
 		end
 	end
 
-	if not deferFilters and NAmanage._evtHubHasInterested and not NAmanage._evtHubHasInterested(handlers, inst) then
+	local allowAny = isAdd and hub.addClassAny or hub.remClassAny
+	local classGate = isAdd and hub.addClassGate or hub.remClassGate
+	if not allowAny and classGate and not NAmanage._evtClassPass(classGate, inst) then
 		return false
 	end
-	if deferFilters then
-		local allowAny = isAdd and hub.addClassAny or hub.remClassAny
-		local classGate = isAdd and hub.addClassGate or hub.remClassGate
-		if not allowAny and classGate and not NAmanage._evtClassPass(classGate, inst) then
-			return false
-		end
-	end
 
-	if NAmanage._descScanTouch then
-		pcall(NAmanage._descScanTouch, hub.root, kind, inst)
+	if type(NAmanage._evtHubDispatch) == "function" then
+		NAmanage._evtHubDispatch(handlers, inst)
 	end
-
-	local cap = NAmanage._uiEvtCap(capKind or "default")
-	NAmanage._uiEvtOverflow(hub, cap)
-
-	if isAdd then
-		hub.aSet[inst] = true
-		hub.aTail += 1
-		hub.aQ[hub.aTail] = inst
-		return true
-	end
-	hub.rSet[inst] = true
-	hub.rTail += 1
-	hub.rQ[hub.rTail] = inst
-	return true
+	return false
 end
 
 NAmanage._evtHubDispatch = NAmanage._evtHubDispatch or function(handlers, inst)
@@ -2263,43 +2172,8 @@ NAmanage._evtHubBudget = NAmanage._evtHubBudget or function(baseBudget, opts)
 	return budget, waitDelay
 end
 
-NAmanage._descScanHubs = NAmanage.ensureWeakTable(NAmanage._descScanHubs, "k")
-
-NAmanage._descScanTouch = NAmanage._descScanTouch or function(root, kind, inst)
-	if typeof(root) ~= "Instance" or typeof(inst) ~= "Instance" then
-		return
-	end
-	local hubs = NAmanage._descScanHubs
-	local hub = type(hubs) == "table" and hubs[root] or nil
-	if type(hub) ~= "table" then
-		return
-	end
-	hub.dirty = true
-	hub.touchAt = os.clock()
-	if kind == "add" then
-		if type(hub.idx) ~= "table" then
-			hub.idx = NAmanage.ensureWeakTable(nil, "k")
-		end
-		if not hub.idx[inst] then
-			local n = #hub.list + 1
-			hub.list[n] = inst
-			hub.idx[inst] = n
-		end
-		return
-	end
-	local idx = type(hub.idx) == "table" and hub.idx[inst] or nil
-	if idx then
-		local last = #hub.list
-		local lastInst = hub.list[last]
-		hub.list[last] = nil
-		if idx ~= last then
-			hub.list[idx] = lastInst
-			if lastInst then
-				hub.idx[lastInst] = idx
-			end
-		end
-		hub.idx[inst] = nil
-	end
+NAmanage._descScanTouch = NAmanage._descScanTouch or function()
+	return nil
 end
 
 NAmanage._descScanFallback = NAmanage._descScanFallback or function(root, limit)
@@ -2351,67 +2225,29 @@ NAmanage._descSnapshot = NAmanage._descSnapshot or function(root, opts)
 	end
 	opts = type(opts) == "table" and opts or {}
 
-	if root == workspace and type(NAmanage.wsDescs) == "function" and opts.workspaceCache ~= false then
-		return NAmanage.wsDescs()
+	local ok, list = pcall(function()
+		return root:GetDescendants()
+	end)
+	if not ok or type(list) ~= "table" then
+		list = NAmanage._descScanFallback(root, opts.hardLimit)
 	end
 
-	local hubs = NAmanage._descScanHubs
-	local hub = hubs[root]
-	if type(hub) ~= "table" then
-		hub = {
-			list = {},
-			idx = NAmanage.ensureWeakTable(nil, "k"),
-			last = 0,
-			dirty = true,
-			building = false,
-			touchAt = 0,
-		}
-		hubs[root] = hub
+	local hardLimit = tonumber(opts.hardLimit) or tonumber(opts.limit) or 0
+	if hardLimit <= 0 then
+		return list
 	end
 
-	local now = os.clock()
-	local maxAge = tonumber(opts.cacheTime)
-	if maxAge == nil then
-		local coreRoot = (typeof(COREGUI) == "Instance" and COREGUI) or SafeGetService("CoreGui")
-		maxAge = (coreRoot and root == coreRoot) and 0.12 or 0.35
-	end
-	local minDirtyAge = tonumber(opts.minDirtyAge) or 0.04
-	local shouldBuild = opts.force == true or #hub.list == 0 or (now - (tonumber(hub.last) or 0)) >= maxAge
-	if hub.dirty and (now - (tonumber(hub.touchAt) or 0)) >= minDirtyAge then
-		shouldBuild = true
-	end
-
-	if shouldBuild and not hub.building then
-		hub.building = true
-		local ok, list = pcall(function()
-			return root:GetDescendants()
-		end)
-		if not ok or type(list) ~= "table" then
-			list = NAmanage._descScanFallback(root, opts.hardLimit)
-		end
-
-		local clean = {}
-		local idx = NAmanage.ensureWeakTable(nil, "k")
-		local hardLimit = tonumber(opts.hardLimit) or 0
-		for i = 1, #list do
-			local inst = list[i]
-			if typeof(inst) == "Instance" and inst.Parent and not idx[inst] then
-				clean[#clean + 1] = inst
-				idx[inst] = #clean
-				if hardLimit > 0 and #clean >= hardLimit then
-					break
-				end
+	local out = {}
+	for i = 1, #list do
+		local inst = list[i]
+		if typeof(inst) == "Instance" then
+			out[#out + 1] = inst
+			if #out >= hardLimit then
+				break
 			end
 		end
-
-		hub.list = clean
-		hub.idx = idx
-		hub.last = now
-		hub.dirty = false
-		hub.building = false
 	end
-
-	return hub.list
+	return out
 end
 
 NAmanage.rawDesc = NAmanage.rawDesc or function(root, className, opts)
@@ -2435,8 +2271,6 @@ NAmanage.rawDesc = NAmanage.rawDesc or function(root, className, opts)
 
 	local out = {}
 	local hard = tonumber(opts.hardLimit) or 0
-	local budget = tonumber(opts.budget) or 0
-	local delayTime = tonumber(opts.delay) or 0
 	local match = type(opts.match) == "function" and opts.match or nil
 
 	for i = 1, #list do
@@ -2456,13 +2290,6 @@ NAmanage.rawDesc = NAmanage.rawDesc or function(root, className, opts)
 				end
 			end
 		end
-		if budget > 0 and i % budget == 0 then
-			if delayTime > 0 then
-				Wait(delayTime)
-			else
-				Wait()
-			end
-		end
 	end
 
 	return out
@@ -2475,509 +2302,74 @@ NAmanage.qDesc = NAmanage.qDesc or function(root, className, opts)
 	return NAmanage.rawDesc(root, className, opts)
 end
 
-NAmanage._wsHub = NAmanage._wsHub or nil
+NAmanage._evtHubInit = NAmanage._evtHubInit or function(hub)
+	hub.nextId = tonumber(hub.nextId) or 0
+	hub.added = type(hub.added) == "table" and hub.added or {}
+	hub.removing = type(hub.removing) == "table" and hub.removing or {}
+	hub.addCount = tonumber(hub.addCount) or 0
+	hub.remCount = tonumber(hub.remCount) or 0
+	hub.alive = hub.alive ~= false
+	return hub
+end
 
-NAmanage._wsHubDispose = NAmanage._wsHubDispose or function(hub)
-	hub = hub or NAmanage._wsHub
+NAmanage._evtHubFire = NAmanage._evtHubFire or function(hub, kind, inst)
+	return NAmanage._uiEvtPush(hub, kind, inst, nil, true)
+end
+
+NAmanage._evtHubDeferFire = NAmanage._evtHubDeferFire or function(hub, kind, inst)
+	if not (type(hub) == "table" and hub.alive and inst ~= nil) then
+		return false
+	end
+	task.defer(function()
+		if type(hub) == "table" and hub.alive and inst ~= nil then
+			NAmanage._evtHubFire(hub, kind, inst)
+		end
+	end)
+	return false
+end
+
+NAmanage._evtHubDisc = NAmanage._evtHubDisc or function(conn)
+	if conn then
+		pcall(function()
+			conn:Disconnect()
+		end)
+	end
+	return nil
+end
+
+NAmanage._evtHubClear = NAmanage._evtHubClear or function(hub)
 	if type(hub) ~= "table" then
 		return
 	end
-	hub.alive = false
-	if hub.cAdd then
-		pcall(function()
-			hub.cAdd:Disconnect()
-		end)
-		hub.cAdd = nil
-	end
-	if hub.cRem then
-		pcall(function()
-			hub.cRem:Disconnect()
-		end)
-		hub.cRem = nil
-	end
+	hub.cAdd = NAmanage._evtHubDisc(hub.cAdd)
+	hub.cRem = NAmanage._evtHubDisc(hub.cRem)
+	hub.rAnc = NAmanage._evtHubDisc(hub.rAnc)
 	hub.added = {}
 	hub.removing = {}
 	hub.addCount = 0
 	hub.remCount = 0
-	hub.cacheLive = false
-	hub.cache = {}
-	hub.idx = NAmanage.ensureWeakTable(nil, "k")
-	hub.aQ = {}
-	hub.rQ = {}
-	hub.aSet = NAmanage.ensureWeakTable(nil, "k")
-	hub.rSet = NAmanage.ensureWeakTable(nil, "k")
-	hub.sQ = {}
-	hub.aHead = 1
-	hub.aTail = 0
-	hub.rHead = 1
-	hub.rTail = 0
-	hub.sHead = 1
-	hub.sTail = 0
-	hub.qBusy = false
-	hub.qKick = false
-	hub.sBusy = false
-	hub.cIdx = 1
-	hub.cacheLastTouch = 0
-	if NAmanage._wsHub == hub then
-		NAmanage._wsHub = nil
-	end
+	hub.addClassAny = nil
+	hub.addClassGate = nil
+	hub.remClassAny = nil
+	hub.remClassGate = nil
 end
 
-NAmanage._wsHubGet = NAmanage._wsHubGet or function()
-	local cRoot = workspace
-	local hub = NAmanage._wsHub
-	if hub and hub.root == cRoot then
-		return hub
-	end
-
-	if hub then
-		NAmanage._wsHubDispose(hub)
-	end
-
-	hub = {
-		root = cRoot,
-		nextId = 0,
-		added = {},
-		removing = {},
-		addCount = 0,
-		remCount = 0,
-		cache = {},
-		idx = NAmanage.ensureWeakTable(nil, "k"),
-		cacheLive = false,
-		aQ = {},
-		rQ = {},
-		aSet = NAmanage.ensureWeakTable(nil, "k"),
-		rSet = NAmanage.ensureWeakTable(nil, "k"),
-		aHead = 1,
-		aTail = 0,
-		rHead = 1,
-		rTail = 0,
-		qBusy = false,
-		qKick = false,
-		sQ = {},
-		sHead = 1,
-		sTail = 0,
-		sBusy = false,
-		cIdx = 1,
-		cacheLastTouch = 0,
-		cAdd = nil,
-		cRem = nil,
-		alive = true,
-	}
-
-	local function addC(inst)
-		if not (inst and inst.Parent) then
-			return
-		end
-		if hub.idx[inst] then
-			return
-		end
-		local n = #hub.cache + 1
-		hub.cache[n] = inst
-		hub.idx[inst] = n
-	end
-
-	local function remC(inst)
-		local i = hub.idx[inst]
-		if not i then
-			return
-		end
-		local last = #hub.cache
-		local lastInst = hub.cache[last]
-		hub.cache[last] = nil
-		if i ~= last then
-			hub.cache[i] = lastInst
-			if lastInst then
-				hub.idx[lastInst] = i
-			end
-		end
-		hub.idx[inst] = nil
-	end
-
-	local function scrub(limit)
-		local n = #hub.cache
-		if n == 0 then
-			hub.cIdx = 1
-			return
-		end
-		local i = hub.cIdx
-		local steps = 0
-		while steps < limit and n > 0 do
-			if i > n then
-				i = 1
-				break
-			end
-			local inst = hub.cache[i]
-			if not (inst and inst.Parent) then
-				local lastInst = hub.cache[n]
-				hub.cache[n] = nil
-				n -= 1
-				if i <= n then
-					hub.cache[i] = lastInst
-					if lastInst then
-						hub.idx[lastInst] = i
-					end
-				end
-				if inst then
-					hub.idx[inst] = nil
-				end
-			else
-				i += 1
-			end
-			steps += 1
-		end
-		hub.cIdx = i
-	end
-
-	local dispatch = NAmanage._evtHubDispatch
-	local hasInterested = NAmanage._evtHubHasInterested
-
-	local function runQ()
-		if hub.qBusy or not hub.alive then
-			return
-		end
-		hub.qBusy = true
-		Spawn(function()
-			while hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
-				local budget, waitDelay = NAmanage._evtHubBudget(220, {
-					delay = 0,
-					ldSc = 0.45,
-					ldDel = 0.006,
-				})
-				while budget > 0 and hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
-					if hub.rHead <= hub.rTail then
-						local inst = hub.rQ[hub.rHead]
-						hub.rQ[hub.rHead] = nil
-						hub.rHead += 1
-						if inst and hub.rSet[inst] then
-							hub.rSet[inst] = nil
-							dispatch(hub.removing, inst)
-						end
-					elseif hub.aHead <= hub.aTail then
-						local inst = hub.aQ[hub.aHead]
-						hub.aQ[hub.aHead] = nil
-						hub.aHead += 1
-						if inst and hub.aSet[inst] then
-							hub.aSet[inst] = nil
-							dispatch(hub.added, inst)
-						end
-					end
-					budget -= 1
-				end
-				if hub.cacheLive then
-					scrub(32)
-				end
-				if waitDelay > 0 then
-					Wait(waitDelay)
-				else
-					Wait()
-				end
-			end
-			hub.aQ = {}
-			hub.rQ = {}
-			hub.aHead = 1
-			hub.aTail = 0
-			hub.rHead = 1
-			hub.rTail = 0
-			hub.qBusy = false
-		end)
-	end
-
-	local function kickQ()
-		if hub.qKick then
-			return
-		end
-		hub.qKick = true
-		Defer(function()
-			hub.qKick = false
-			runQ()
-		end)
-	end
-
-	local function qEvt(kind, inst)
-		if not NAmanage._uiEvtPush(hub, kind, inst, "workspace", true) then
-			return
-		end
-		kickQ()
-	end
-
-	local function runScan()
-		if hub.sBusy or not hub.alive then
-			return
-		end
-		hub.sBusy = true
-		Spawn(function()
-			while hub.alive and hub.sHead <= hub.sTail do
-				local budget, waitDelay = NAmanage._evtHubBudget(220, {
-					delay = 0,
-					ldSc = 0.45,
-					ldDel = 0.004,
-				})
-				while budget > 0 and hub.alive and hub.sHead <= hub.sTail do
-					local inst = hub.sQ[hub.sHead]
-					hub.sQ[hub.sHead] = nil
-					hub.sHead += 1
-					if inst and inst.Parent then
-						addC(inst)
-						local ch = inst:GetChildren()
-						for i = 1, #ch do
-							hub.sTail += 1
-							hub.sQ[hub.sTail] = ch[i]
-						end
-					end
-					budget -= 1
-				end
-				if waitDelay > 0 then
-					Wait(waitDelay)
-				else
-					Wait()
-				end
-			end
-			hub.sQ = {}
-			hub.sHead = 1
-			hub.sTail = 0
-			hub.sBusy = false
-		end)
-	end
-
-	local function wantsRootEvents()
-		return hub.cacheLive == true or (hub.addCount or 0) > 0 or (hub.remCount or 0) > 0
-	end
-
-	local function disconnectRootHooks()
-		if hub.cAdd then
-			pcall(function()
-				hub.cAdd:Disconnect()
-			end)
-			hub.cAdd = nil
-		end
-		if hub.cRem then
-			pcall(function()
-				hub.cRem:Disconnect()
-			end)
-			hub.cRem = nil
-		end
-	end
-
-	local function connectRootHooks()
-		if not (hub.alive and cRoot and wantsRootEvents()) then
-			disconnectRootHooks()
-			return
-		end
-		if hub.cacheLive or (hub.addCount or 0) > 0 then
-			if not hub.cAdd then
-				hub.cAdd = NAmanage.safeConnect(cRoot.DescendantAdded, function(inst)
-					if hub.cacheLive then
-						addC(inst)
-					end
-					qEvt("add", inst)
-				end)
-			end
-		elseif hub.cAdd then
-			pcall(function()
-				hub.cAdd:Disconnect()
-			end)
-			hub.cAdd = nil
-		end
-		if hub.cacheLive or (hub.remCount or 0) > 0 then
-			if not hub.cRem then
-				hub.cRem = NAmanage.safeConnect(cRoot.DescendantRemoving, function(inst)
-					if hub.cacheLive then
-						remC(inst)
-					end
-					qEvt("rem", inst)
-				end)
-			end
-		elseif hub.cRem then
-			pcall(function()
-				hub.cRem:Disconnect()
-			end)
-			hub.cRem = nil
-		end
-	end
-
-	hub.enableRootHooks = connectRootHooks
-	hub.disableRootHooks = disconnectRootHooks
-
-	NAmanage._wsHub = hub
-	return hub
-end
-
-NAmanage.wsReleaseCache = NAmanage.wsReleaseCache or function(hub)
-	hub = hub or NAmanage._wsHub
-	if type(hub) ~= "table" then
-		return false
-	end
-	if not hub.cacheLive then
-		return false
-	end
-	hub.cacheLive = false
-	hub.cache = {}
-	hub.idx = NAmanage.ensureWeakTable(nil, "k")
-	hub.cIdx = 1
-	hub.sQ = {}
-	hub.sHead = 1
-	hub.sTail = 0
-	hub.cacheLastTouch = 0
-	if (hub.addCount or 0) <= 0 and (hub.remCount or 0) <= 0 then
-		NAmanage._wsHubDispose(hub)
-	elseif type(hub.enableRootHooks) == "function" then
-		hub.enableRootHooks()
-	end
-	return true
-end
-
-NAmanage.wsReleaseCacheIfIdle = NAmanage.wsReleaseCacheIfIdle or function(maxIdle)
-	local hub = NAmanage._wsHub
-	if type(hub) ~= "table" or not hub.cacheLive then
-		return false
-	end
-	local idleLimit = tonumber(maxIdle)
-	if idleLimit == nil then
-		idleLimit = tonumber(NAStuff and NAStuff.WSCacheIdleSeconds) or 30
-	end
-	idleLimit = math.max(2, idleLimit)
-	local lastTouch = tonumber(hub.cacheLastTouch) or 0
-	if lastTouch <= 0 then
-		return NAmanage.wsReleaseCache(hub)
-	end
-	if os.clock() - lastTouch < idleLimit then
-		return false
-	end
-	return NAmanage.wsReleaseCache(hub)
-end
-
-NAmanage.wsDescs = NAmanage.wsDescs or function()
-	local hub = NAmanage._wsHubGet()
-	if not hub then
-		return {}
-	end
-	if not hub.cacheLive then
-		hub.cacheLive = true
-		hub.cache = {}
-		hub.idx = NAmanage.ensureWeakTable(nil, "k")
-		if type(hub.enableRootHooks) == "function" then
-			hub.enableRootHooks()
-		end
-		local root = hub.root
-		local ok, descs = pcall(function()
-			if root then
-				return root:GetDescendants()
-			end
-			return {}
-		end)
-		if not ok or type(descs) ~= "table" then
-			descs = NAmanage._descScanFallback(root)
-		end
-		if type(descs) == "table" then
-			local n = #hub.cache
-			for i = 1, #descs do
-				local inst = descs[i]
-				if inst and inst.Parent and not hub.idx[inst] then
-					n += 1
-					hub.cache[n] = inst
-					hub.idx[inst] = n
-				end
-			end
-		end
-		hub.cIdx = 1
-	end
-	hub.cacheLastTouch = os.clock()
-	if hub.alive then
-		local n = #hub.cache
-		if n > 0 then
-			local i = hub.cIdx
-			if i > n then
-				i = 1
-			end
-			local inst = hub.cache[i]
-			if not (inst and inst.Parent) then
-				local lastInst = hub.cache[n]
-				hub.cache[n] = nil
-				n -= 1
-				if i <= n then
-					hub.cache[i] = lastInst
-					if lastInst then
-						hub.idx[lastInst] = i
-					end
-				end
-				if inst then
-					hub.idx[inst] = nil
-				end
-			else
-				hub.cIdx = i + 1
-			end
-		end
-	end
-	return hub.cache
-end
-
-NAmanage.fastDesc = NAmanage.fastDesc or function(root, className, opts)
-	if typeof(root) ~= "Instance" then
-		return {}
-	end
-
-	className = type(className) == "string" and className or "Instance"
-	opts = type(opts) == "table" and opts or {}
-
-	local match = type(opts.match) == "function" and opts.match or nil
-	local hardLimit = tonumber(opts.hardLimit) or tonumber(opts.limit) or 0
-	local source = {}
-
-	if root == workspace then
-		source = type(NAmanage.wsDescs) == "function" and NAmanage.wsDescs() or {}
-	else
-		source = NAmanage.rawDesc(root, "Instance", {
-			budget = opts.budget,
-			delay = opts.delay,
-			native = opts.native,
-			query = opts.query,
-		})
-	end
-
-	local out = {}
-	for i = 1, #source do
-		local inst = source[i]
-		if inst and inst.Parent then
-			local pass = className == "Instance"
-			if not pass then
-				local ok, isA = pcall(function()
-					return inst:IsA(className)
-				end)
-				pass = ok and isA == true
-			end
-
-			if pass and (not match or match(inst)) then
-				out[#out + 1] = inst
-				if hardLimit > 0 and #out >= hardLimit then
-					break
-				end
-			end
-		end
-	end
-
-	return out
-end
-
-NAmanage.wsSub = NAmanage.wsSub or function(spec)
-	spec = spec or {}
+NAmanage._evtHubSub = NAmanage._evtHubSub or function(hub, spec)
+	spec = type(spec) == "table" and spec or {}
 	local onAdd = type(spec.added) == "function" and spec.added or nil
 	local onRem = type(spec.removing) == "function" and spec.removing or nil
-	local addFilter = type(spec.filterAdded) == "function" and spec.filterAdded
-		or (type(spec.filter) == "function" and spec.filter or nil)
-	local remFilter = type(spec.filterRemoving) == "function" and spec.filterRemoving
-		or (type(spec.filter) == "function" and spec.filter or nil)
+	local addFilter = type(spec.filterAdded) == "function" and spec.filterAdded or (type(spec.filter) == "function" and spec.filter or nil)
+	local remFilter = type(spec.filterRemoving) == "function" and spec.filterRemoving or (type(spec.filter) == "function" and spec.filter or nil)
 	local addClassSet = NAmanage._evtClassSet(spec.classAdded or spec.classFilterAdded or spec.classNames or spec.classFilter)
 	local remClassSet = NAmanage._evtClassSet(spec.classRemoving or spec.classFilterRemoving or spec.classNamesRemoving or spec.classNames or spec.classFilter)
 	local noop = {
 		Connected = false,
 		Disconnect = function() end,
 	}
-	if not onAdd and not onRem then
+	if type(hub) ~= "table" or not hub.alive or (not onAdd and not onRem) then
 		return noop
 	end
 
-	local hub = NAmanage._wsHubGet()
 	hub.nextId += 1
 	local id = hub.nextId
 	if onAdd then
@@ -2997,8 +2389,8 @@ NAmanage.wsSub = NAmanage.wsSub or function(spec)
 		hub.remCount = (hub.remCount or 0) + 1
 	end
 	NAmanage._evtHubRebuildClassGates(hub)
-	if type(hub.enableRootHooks) == "function" then
-		hub.enableRootHooks()
+	if type(hub.refresh) == "function" then
+		hub.refresh()
 	end
 
 	local conn = {
@@ -3019,26 +2411,151 @@ NAmanage.wsSub = NAmanage.wsSub or function(spec)
 		end
 		NAmanage._evtHubRebuildClassGates(hub)
 		if (hub.addCount or 0) <= 0 and (hub.remCount or 0) <= 0 then
-			if hub.cacheLive then
-				hub.aQ = {}
-				hub.rQ = {}
-				hub.aSet = NAmanage.ensureWeakTable(nil, "k")
-				hub.rSet = NAmanage.ensureWeakTable(nil, "k")
-				hub.aHead = 1
-				hub.aTail = 0
-				hub.rHead = 1
-				hub.rTail = 0
-				if type(hub.enableRootHooks) == "function" then
-					hub.enableRootHooks()
-				end
-			else
-				NAmanage._wsHubDispose(hub)
+			if type(hub.dispose) == "function" then
+				hub.dispose()
 			end
-		elseif type(hub.enableRootHooks) == "function" then
-			hub.enableRootHooks()
+		elseif type(hub.refresh) == "function" then
+			hub.refresh()
 		end
 	end
 	return conn
+end
+
+NAmanage._descHubBaseDispose = NAmanage._descHubBaseDispose or function(hub)
+	if type(hub) ~= "table" then
+		return
+	end
+	hub.alive = false
+	NAmanage._evtHubClear(hub)
+	local map = hub.map
+	local root = hub.root
+	if type(map) == "table" and root ~= nil and map[root] == hub then
+		map[root] = nil
+	end
+end
+
+NAmanage._descHubBaseGet = NAmanage._descHubBaseGet or function(map, root, opts)
+	if typeof(root) ~= "Instance" then
+		return nil
+	end
+	map = type(map) == "table" and map or NAmanage.ensureWeakTable(nil, "kv")
+	opts = type(opts) == "table" and opts or {}
+	local hub = map[root]
+	if type(hub) == "table" and hub.alive and hub.root == root then
+		return hub
+	end
+	if type(hub) == "table" then
+		NAmanage._descHubBaseDispose(hub)
+	end
+	hub = NAmanage._evtHubInit({
+		root = root,
+		map = map,
+		cAdd = nil,
+		cRem = nil,
+		rAnc = nil,
+		skipTeleport = opts.skipTeleport == true,
+	})
+
+	local function offAdd()
+		hub.cAdd = NAmanage._evtHubDisc(hub.cAdd)
+	end
+	local function offRem()
+		hub.cRem = NAmanage._evtHubDisc(hub.cRem)
+	end
+	function hub.refresh()
+		if not (hub.alive and hub.root) then
+			offAdd()
+			offRem()
+			return
+		end
+		if (hub.addCount or 0) > 0 then
+			if not hub.cAdd then
+				hub.cAdd = hub.root.DescendantAdded:Connect(function(inst)
+					NAmanage._evtHubDeferFire(hub, "add", inst)
+				end)
+			end
+		else
+			offAdd()
+		end
+		if (hub.remCount or 0) > 0 then
+			if not hub.cRem then
+				hub.cRem = hub.root.DescendantRemoving:Connect(function(inst)
+					NAmanage._evtHubDeferFire(hub, "rem", inst)
+				end)
+			end
+		else
+			offRem()
+		end
+	end
+	function hub.dispose()
+		NAmanage._descHubBaseDispose(hub)
+	end
+	if opts.ancestry ~= false then
+		hub.rAnc = NAmanage.safeConnect(root.AncestryChanged, function(_, parent)
+			if not parent then
+				hub.dispose()
+			end
+		end)
+	end
+	map[root] = hub
+	return hub
+end
+
+NAmanage._wsHubMap = NAmanage.ensureWeakTable(NAmanage._wsHubMap, "kv")
+NAmanage._wsHub = NAmanage._wsHub or nil
+
+NAmanage._wsHubDispose = NAmanage._wsHubDispose or function(hub)
+	hub = hub or NAmanage._wsHub
+	NAmanage._descHubBaseDispose(hub)
+	if NAmanage._wsHub == hub then
+		NAmanage._wsHub = nil
+	end
+end
+
+NAmanage._wsHubGet = NAmanage._wsHubGet or function()
+	local hub = NAmanage._descHubBaseGet(NAmanage._wsHubMap, workspace, {
+		ancestry = false,
+		skipTeleport = false,
+	})
+	NAmanage._wsHub = hub
+	return hub
+end
+
+NAmanage.wsReleaseCache = NAmanage.wsReleaseCache or function(hub)
+	hub = hub or NAmanage._wsHub
+	if type(hub) == "table" then
+		hub.cacheLive = false
+		hub.cache = {}
+		hub.idx = NAmanage.ensureWeakTable(nil, "k")
+	end
+	return false
+end
+
+NAmanage.wsReleaseCacheIfIdle = NAmanage.wsReleaseCacheIfIdle or function(maxIdle)
+	return false
+end
+
+NAmanage.wsDescs = NAmanage.wsDescs or function()
+	local root = workspace
+	local ok, descs = pcall(function()
+		return root:GetDescendants()
+	end)
+	if ok and type(descs) == "table" then
+		return descs
+	end
+	return NAmanage._descScanFallback(root)
+end
+
+NAmanage.fastDesc = NAmanage.fastDesc or function(root, className, opts)
+	if typeof(root) ~= "Instance" then
+		return {}
+	end
+	return NAmanage.rawDesc(root, className, opts)
+end
+
+NAmanage.wsSub = NAmanage.wsSub or function(spec)
+	local hub = NAmanage._wsHubGet()
+	return NAmanage._evtHubSub(hub, spec)
 end
 
 NAmanage.wsAdd = NAmanage.wsAdd or function(fn)
@@ -3053,41 +2570,12 @@ NAmanage.wsRem = NAmanage.wsRem or function(fn)
 	})
 end
 
+NAmanage._cgHubMap = NAmanage.ensureWeakTable(NAmanage._cgHubMap, "kv")
 NAmanage._cgHub = NAmanage._cgHub or nil
 
 NAmanage._cgHubDispose = NAmanage._cgHubDispose or function(hub)
 	hub = hub or NAmanage._cgHub
-	if type(hub) ~= "table" then
-		return
-	end
-	hub.alive = false
-	if hub.cAdd then
-		pcall(function()
-			hub.cAdd:Disconnect()
-		end)
-		hub.cAdd = nil
-	end
-	if hub.cRem then
-		pcall(function()
-			hub.cRem:Disconnect()
-		end)
-		hub.cRem = nil
-	end
-	hub.added = {}
-	hub.removing = {}
-	hub.addCount = 0
-	hub.remCount = 0
-	hub.aQ = {}
-	hub.rQ = {}
-	hub.aSet = NAmanage.ensureWeakTable(nil, "k")
-	hub.rSet = NAmanage.ensureWeakTable(nil, "k")
-	hub.aHead = 1
-	hub.aTail = 0
-	hub.rHead = 1
-	hub.rTail = 0
-	hub.qBusy = false
-	hub.qKick = false
-	hub.root = nil
+	NAmanage._descHubBaseDispose(hub)
 	if NAmanage._cgHub == hub then
 		NAmanage._cgHub = nil
 	end
@@ -3095,223 +2583,25 @@ end
 
 NAmanage._cgHubGet = NAmanage._cgHubGet or function()
 	local root = (typeof(COREGUI) == "Instance" and COREGUI) or SafeGetService("CoreGui")
+	if typeof(root) ~= "Instance" then
+		return nil
+	end
 	local hub = NAmanage._cgHub
-	if hub and hub.root == root and hub.alive then
-		return hub
-	end
-
-	if hub then
+	if type(hub) == "table" and hub.root ~= root then
 		NAmanage._cgHubDispose(hub)
+		hub = nil
 	end
-
-	hub = {
-		root = root,
-		nextId = 0,
-		added = {},
-		removing = {},
-		addCount = 0,
-		remCount = 0,
-		aQ = {},
-		rQ = {},
-		aSet = NAmanage.ensureWeakTable(nil, "k"),
-		rSet = NAmanage.ensureWeakTable(nil, "k"),
-		aHead = 1,
-		aTail = 0,
-		rHead = 1,
-		rTail = 0,
-		qBusy = false,
-		qKick = false,
-		cAdd = nil,
-		cRem = nil,
-		alive = true,
-	}
-
-	local dispatch = NAmanage._evtHubDispatch
-	local hasInterested = NAmanage._evtHubHasInterested
-
-	local function runQ()
-		if hub.qBusy or not hub.alive then
-			return
-		end
-		hub.qBusy = true
-		Spawn(function()
-			while hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
-				local budget, waitDelay = NAmanage._evtHubBudget(72, {
-					delay = 0,
-					ldSc = 0.35,
-					ldDel = 0.006,
-				})
-				while budget > 0 and hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
-					if hub.rHead <= hub.rTail then
-						local inst = hub.rQ[hub.rHead]
-						hub.rQ[hub.rHead] = nil
-						hub.rHead += 1
-						if inst and hub.rSet[inst] then
-							hub.rSet[inst] = nil
-							dispatch(hub.removing, inst)
-						end
-					elseif hub.aHead <= hub.aTail then
-						local inst = hub.aQ[hub.aHead]
-						hub.aQ[hub.aHead] = nil
-						hub.aHead += 1
-						if inst and hub.aSet[inst] then
-							hub.aSet[inst] = nil
-							dispatch(hub.added, inst)
-						end
-					end
-					budget -= 1
-				end
-				if waitDelay > 0 then
-					Wait(waitDelay)
-				else
-					Wait()
-				end
-			end
-			hub.aQ = {}
-			hub.rQ = {}
-			hub.aHead = 1
-			hub.aTail = 0
-			hub.rHead = 1
-			hub.rTail = 0
-			hub.qBusy = false
-		end)
-	end
-
-	local function kickQ()
-		if hub.qKick then
-			return
-		end
-		hub.qKick = true
-		Defer(function()
-			hub.qKick = false
-			runQ()
-		end)
-	end
-
-	local function qEvt(kind, inst)
-		if NAStuff and NAStuff.teleportTransition then
-			return
-		end
-		if not NAmanage._uiEvtPush(hub, kind, inst, "core", true) then
-			return
-		end
-		kickQ()
-	end
-
-	local function wantsRootEvents()
-		return (hub.addCount or 0) > 0 or (hub.remCount or 0) > 0
-	end
-
-	local function disconnectRootHooks()
-		if hub.cAdd then
-			hub.cAdd:Disconnect()
-			hub.cAdd = nil
-		end
-		if hub.cRem then
-			hub.cRem:Disconnect()
-			hub.cRem = nil
-		end
-	end
-
-	local function connectRootHooks()
-		if not (hub.alive and root and wantsRootEvents()) then
-			disconnectRootHooks()
-			return
-		end
-		if (hub.addCount or 0) > 0 then
-			if not hub.cAdd then
-				hub.cAdd = NAmanage.safeConnect(root.DescendantAdded, function(inst)
-					qEvt("add", inst)
-				end)
-			end
-		elseif hub.cAdd then
-			hub.cAdd:Disconnect()
-			hub.cAdd = nil
-		end
-		if (hub.remCount or 0) > 0 then
-			if not hub.cRem then
-				hub.cRem = NAmanage.safeConnect(root.DescendantRemoving, function(inst)
-					qEvt("rem", inst)
-				end)
-			end
-		elseif hub.cRem then
-			hub.cRem:Disconnect()
-			hub.cRem = nil
-		end
-	end
-	hub.enableRootHooks = connectRootHooks
-	hub.disableRootHooks = disconnectRootHooks
-
+	hub = hub or NAmanage._descHubBaseGet(NAmanage._cgHubMap, root, {
+		ancestry = false,
+		skipTeleport = true,
+	})
 	NAmanage._cgHub = hub
 	return hub
 end
 
 NAmanage.cgSub = NAmanage.cgSub or function(spec)
-	spec = spec or {}
-	local onAdd = type(spec.added) == "function" and spec.added or nil
-	local onRem = type(spec.removing) == "function" and spec.removing or nil
-	local addFilter = type(spec.filterAdded) == "function" and spec.filterAdded
-		or (type(spec.filter) == "function" and spec.filter or nil)
-	local remFilter = type(spec.filterRemoving) == "function" and spec.filterRemoving
-		or (type(spec.filter) == "function" and spec.filter or nil)
-	local addClassSet = NAmanage._evtClassSet(spec.classAdded or spec.classFilterAdded or spec.classNames or spec.classFilter)
-	local remClassSet = NAmanage._evtClassSet(spec.classRemoving or spec.classFilterRemoving or spec.classNamesRemoving or spec.classNames or spec.classFilter)
-	local noop = {
-		Connected = false,
-		Disconnect = function() end,
-	}
-	if not onAdd and not onRem then
-		return noop
-	end
-
 	local hub = NAmanage._cgHubGet()
-	hub.nextId += 1
-	local id = hub.nextId
-	if onAdd then
-		hub.added[id] = (addFilter or addClassSet) and {
-			fn = onAdd,
-			filter = addFilter,
-			classSet = addClassSet,
-		} or onAdd
-		hub.addCount = (hub.addCount or 0) + 1
-	end
-	if onRem then
-		hub.removing[id] = (remFilter or remClassSet) and {
-			fn = onRem,
-			filter = remFilter,
-			classSet = remClassSet,
-		} or onRem
-		hub.remCount = (hub.remCount or 0) + 1
-	end
-	NAmanage._evtHubRebuildClassGates(hub)
-	if type(hub.enableRootHooks) == "function" then
-		hub.enableRootHooks()
-	end
-
-	local conn = {
-		Connected = true,
-	}
-	function conn:Disconnect()
-		if not self.Connected then
-			return
-		end
-		self.Connected = false
-		if hub.added[id] then
-			hub.added[id] = nil
-			hub.addCount = math.max(0, (hub.addCount or 0) - 1)
-		end
-		if hub.removing[id] then
-			hub.removing[id] = nil
-			hub.remCount = math.max(0, (hub.remCount or 0) - 1)
-		end
-		NAmanage._evtHubRebuildClassGates(hub)
-		if (hub.addCount or 0) <= 0 and (hub.remCount or 0) <= 0 then
-			NAmanage._cgHubDispose(hub)
-		elseif type(hub.enableRootHooks) == "function" then
-			hub.enableRootHooks()
-		end
-	end
-	return conn
+	return NAmanage._evtHubSub(hub, spec)
 end
 
 NAmanage.cgAdd = NAmanage.cgAdd or function(fn, filter)
@@ -3336,56 +2626,10 @@ NAmanage._pgHubDispose = NAmanage._pgHubDispose or function(hub)
 		return
 	end
 	hub.alive = false
-	if hub.cAdd then
-		pcall(function()
-			hub.cAdd:Disconnect()
-		end)
-		hub.cAdd = nil
-	end
-	if hub.cRem then
-		pcall(function()
-			hub.cRem:Disconnect()
-		end)
-		hub.cRem = nil
-	end
-	if hub.rAnc then
-		pcall(function()
-			hub.rAnc:Disconnect()
-		end)
-		hub.rAnc = nil
-	end
-	if hub.lpAdd then
-		pcall(function()
-			hub.lpAdd:Disconnect()
-		end)
-		hub.lpAdd = nil
-	end
-	if hub.lpRem then
-		pcall(function()
-			hub.lpRem:Disconnect()
-		end)
-		hub.lpRem = nil
-	end
-	if hub.lpAnc then
-		pcall(function()
-			hub.lpAnc:Disconnect()
-		end)
-		hub.lpAnc = nil
-	end
-	hub.added = {}
-	hub.removing = {}
-	hub.addCount = 0
-	hub.remCount = 0
-	hub.aQ = {}
-	hub.rQ = {}
-	hub.aSet = NAmanage.ensureWeakTable(nil, "k")
-	hub.rSet = NAmanage.ensureWeakTable(nil, "k")
-	hub.aHead = 1
-	hub.aTail = 0
-	hub.rHead = 1
-	hub.rTail = 0
-	hub.qBusy = false
-	hub.qKick = false
+	NAmanage._evtHubClear(hub)
+	hub.lpAdd = NAmanage._evtHubDisc(hub.lpAdd)
+	hub.lpRem = NAmanage._evtHubDisc(hub.lpRem)
+	hub.lpAnc = NAmanage._evtHubDisc(hub.lpAnc)
 	hub.root = nil
 	hub.player = nil
 	if NAmanage._pgHub == hub then
@@ -3397,306 +2641,125 @@ NAmanage._pgHubGet = NAmanage._pgHubGet or function()
 	local players = SafeGetService("Players")
 	local lp = players and players.LocalPlayer or nil
 	local hub = NAmanage._pgHub
-
-	local function disc(c)
-		if c then
-			pcall(function()
-				c:Disconnect()
-			end)
-		end
-	end
-
-	if hub and (not hub.alive or hub.player ~= lp) then
+	if type(hub) == "table" and (not hub.alive or hub.player ~= lp) then
 		NAmanage._pgHubDispose(hub)
 		hub = nil
-		NAmanage._pgHub = nil
 	end
-
-	if hub and hub.alive then
+	if type(hub) == "table" and hub.alive then
 		if type(hub.syncRoot) == "function" then
 			hub.syncRoot()
 		end
 		return hub
 	end
 
-	hub = {
+	hub = NAmanage._evtHubInit({
 		player = lp,
 		root = nil,
-		nextId = 0,
-		added = {},
-		removing = {},
-		addCount = 0,
-		remCount = 0,
-		aQ = {},
-		rQ = {},
-		aSet = NAmanage.ensureWeakTable(nil, "k"),
-		rSet = NAmanage.ensureWeakTable(nil, "k"),
-		aHead = 1,
-		aTail = 0,
-		rHead = 1,
-		rTail = 0,
-		qBusy = false,
-		qKick = false,
 		cAdd = nil,
 		cRem = nil,
 		rAnc = nil,
 		lpAdd = nil,
 		lpRem = nil,
 		lpAnc = nil,
-		alive = true,
-	}
+		skipTeleport = true,
+	})
 
-	local dispatch = NAmanage._evtHubDispatch
-	local hasInterested = NAmanage._evtHubHasInterested
-
-	local function runQ()
-		if hub.qBusy or not hub.alive then
-			return
-		end
-		hub.qBusy = true
-		Spawn(function()
-			while hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
-				local budget, waitDelay = NAmanage._evtHubBudget(96, {
-					delay = 0,
-					ldSc = 0.35,
-					ldDel = 0.006,
-				})
-				while budget > 0 and hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
-					if hub.rHead <= hub.rTail then
-						local inst = hub.rQ[hub.rHead]
-						hub.rQ[hub.rHead] = nil
-						hub.rHead += 1
-						if inst and hub.rSet[inst] then
-							hub.rSet[inst] = nil
-							dispatch(hub.removing, inst)
-						end
-					elseif hub.aHead <= hub.aTail then
-						local inst = hub.aQ[hub.aHead]
-						hub.aQ[hub.aHead] = nil
-						hub.aHead += 1
-						if inst and hub.aSet[inst] then
-							hub.aSet[inst] = nil
-							dispatch(hub.added, inst)
-						end
-					end
-					budget -= 1
-				end
-				if waitDelay > 0 then
-					Wait(waitDelay)
-				else
-					Wait()
-				end
-			end
-			hub.aQ = {}
-			hub.rQ = {}
-			hub.aHead = 1
-			hub.aTail = 0
-			hub.rHead = 1
-			hub.rTail = 0
-			hub.qBusy = false
-		end)
+	local function offRoot()
+		hub.cAdd = NAmanage._evtHubDisc(hub.cAdd)
+		hub.cRem = NAmanage._evtHubDisc(hub.cRem)
+		hub.rAnc = NAmanage._evtHubDisc(hub.rAnc)
 	end
-
-	local function kickQ()
-		if hub.qKick then
-			return
-		end
-		hub.qKick = true
-		Defer(function()
-			hub.qKick = false
-			runQ()
-		end)
-	end
-
-	local function qEvt(kind, inst)
-		if NAStuff and NAStuff.teleportTransition then
-			return
-		end
-		if not NAmanage._uiEvtPush(hub, kind, inst, "playergui", true) then
-			return
-		end
-		kickQ()
-	end
-
-	local function wantsRootEvents()
-		return (hub.addCount or 0) > 0 or (hub.remCount or 0) > 0
-	end
-
-	local function disconnectRootHooks()
-		disc(hub.cAdd)
-		disc(hub.cRem)
-		hub.cAdd = nil
-		hub.cRem = nil
-	end
-
-	local function connectRootHooks()
-		if not (hub.alive and hub.root and wantsRootEvents()) then
-			disconnectRootHooks()
+	function hub.refresh()
+		if not (hub.alive and hub.root) then
+			offRoot()
 			return
 		end
 		if (hub.addCount or 0) > 0 then
 			if not hub.cAdd then
-				hub.cAdd = NAmanage.safeConnect(hub.root.DescendantAdded, function(inst)
-					qEvt("add", inst)
+				hub.cAdd = hub.root.DescendantAdded:Connect(function(inst)
+					NAmanage._evtHubDeferFire(hub, "add", inst)
 				end)
 			end
-		elseif hub.cAdd then
-			disc(hub.cAdd)
-			hub.cAdd = nil
+		else
+			hub.cAdd = NAmanage._evtHubDisc(hub.cAdd)
 		end
 		if (hub.remCount or 0) > 0 then
 			if not hub.cRem then
-				hub.cRem = NAmanage.safeConnect(hub.root.DescendantRemoving, function(inst)
-					qEvt("rem", inst)
+				hub.cRem = hub.root.DescendantRemoving:Connect(function(inst)
+					NAmanage._evtHubDeferFire(hub, "rem", inst)
 				end)
 			end
-		elseif hub.cRem then
-			disc(hub.cRem)
-			hub.cRem = nil
+		else
+			hub.cRem = NAmanage._evtHubDisc(hub.cRem)
 		end
 	end
-
-	local syncRoot
+	function hub.dispose()
+		NAmanage._pgHubDispose(hub)
+	end
 	local function bindRoot(root)
 		if hub.root == root then
-			if wantsRootEvents() then
-				connectRootHooks()
-			else
-				disconnectRootHooks()
-			end
+			hub.refresh()
 			return
 		end
-		disconnectRootHooks()
-		disc(hub.rAnc)
-		hub.rAnc = nil
+		offRoot()
 		hub.root = root
 		if root then
 			hub.rAnc = NAmanage.safeConnect(root.AncestryChanged, function(_, parent)
 				if not parent then
 					bindRoot(nil)
 					Defer(function()
-						if hub.alive and syncRoot then
-							syncRoot()
+						if hub.alive and type(hub.syncRoot) == "function" then
+							hub.syncRoot()
 						end
 					end)
 				end
 			end)
-			connectRootHooks()
 		end
+		hub.refresh()
 	end
-
-	syncRoot = function()
-		if not hub.alive then
-			return
-		end
-		local player = hub.player
+	function hub.syncRoot()
 		local root = nil
-		if player and player.Parent then
-			root = player:FindFirstChildOfClass("PlayerGui") or player:FindFirstChild("PlayerGui")
+		if hub.player and hub.player.Parent then
+			root = hub.player:FindFirstChildOfClass("PlayerGui") or hub.player:FindFirstChild("PlayerGui")
 		end
 		bindRoot(root)
 	end
-	hub.syncRoot = syncRoot
-	hub.disableRootHooks = disconnectRootHooks
-	hub.enableRootHooks = connectRootHooks
-
 	if lp then
-		hub.lpAdd = lp.ChildAdded:Connect(function(child)
+		hub.lpAdd = NAmanage.safeConnect(lp.ChildAdded, function(child)
 			if child and child:IsA("PlayerGui") then
 				bindRoot(child)
 			end
 		end)
-		hub.lpRem = lp.ChildRemoved:Connect(function(child)
-			if child and child:IsA("PlayerGui") then
-				if child == hub.root then
-					bindRoot(nil)
-				end
-				Defer(syncRoot)
+		hub.lpRem = NAmanage.safeConnect(lp.ChildRemoved, function(child)
+			if child and child == hub.root then
+				bindRoot(nil)
 			end
+			Defer(function()
+				if hub.alive and type(hub.syncRoot) == "function" then
+					hub.syncRoot()
+				end
+			end)
 		end)
-		hub.lpAnc = lp.AncestryChanged:Connect(function(_, parent)
+		hub.lpAnc = NAmanage.safeConnect(lp.AncestryChanged, function(_, parent)
 			if not parent then
 				bindRoot(nil)
 			else
-				Defer(syncRoot)
+				Defer(function()
+					if hub.alive and type(hub.syncRoot) == "function" then
+						hub.syncRoot()
+					end
+				end)
 			end
 		end)
 	end
-
-	syncRoot()
+	hub.syncRoot()
 	NAmanage._pgHub = hub
 	return hub
 end
 
 NAmanage.pgSub = NAmanage.pgSub or function(spec)
-	spec = spec or {}
-	local onAdd = type(spec.added) == "function" and spec.added or nil
-	local onRem = type(spec.removing) == "function" and spec.removing or nil
-	local addFilter = type(spec.filterAdded) == "function" and spec.filterAdded
-		or (type(spec.filter) == "function" and spec.filter or nil)
-	local remFilter = type(spec.filterRemoving) == "function" and spec.filterRemoving
-		or (type(spec.filter) == "function" and spec.filter or nil)
-	local addClassSet = NAmanage._evtClassSet(spec.classAdded or spec.classFilterAdded or spec.classNames or spec.classFilter)
-	local remClassSet = NAmanage._evtClassSet(spec.classRemoving or spec.classFilterRemoving or spec.classNamesRemoving or spec.classNames or spec.classFilter)
-	local noop = {
-		Connected = false,
-		Disconnect = function() end,
-	}
-	if not onAdd and not onRem then
-		return noop
-	end
-
 	local hub = NAmanage._pgHubGet()
-	hub.nextId += 1
-	local id = hub.nextId
-	if onAdd then
-		hub.added[id] = (addFilter or addClassSet) and {
-			fn = onAdd,
-			filter = addFilter,
-			classSet = addClassSet,
-		} or onAdd
-		hub.addCount = (hub.addCount or 0) + 1
-	end
-	if onRem then
-		hub.removing[id] = (remFilter or remClassSet) and {
-			fn = onRem,
-			filter = remFilter,
-			classSet = remClassSet,
-		} or onRem
-		hub.remCount = (hub.remCount or 0) + 1
-	end
-	NAmanage._evtHubRebuildClassGates(hub)
-	if type(hub.syncRoot) == "function" then
-		hub.syncRoot()
-	end
-	if type(hub.enableRootHooks) == "function" then
-		hub.enableRootHooks()
-	end
-
-	local conn = {
-		Connected = true,
-	}
-	function conn:Disconnect()
-		if not self.Connected then
-			return
-		end
-		self.Connected = false
-		if hub.added[id] then
-			hub.added[id] = nil
-			hub.addCount = math.max(0, (hub.addCount or 0) - 1)
-		end
-		if hub.removing[id] then
-			hub.removing[id] = nil
-			hub.remCount = math.max(0, (hub.remCount or 0) - 1)
-		end
-		NAmanage._evtHubRebuildClassGates(hub)
-		if (hub.addCount or 0) <= 0 and (hub.remCount or 0) <= 0 then
-			NAmanage._pgHubDispose(hub)
-		elseif type(hub.enableRootHooks) == "function" then
-			hub.enableRootHooks()
-		end
-	end
-	return conn
+	return NAmanage._evtHubSub(hub, spec)
 end
 
 NAmanage.pgAdd = NAmanage.pgAdd or function(fn, filter)
@@ -3721,32 +2784,7 @@ NAmanage._playersHubDispose = NAmanage._playersHubDispose or function(hub)
 		return
 	end
 	hub.alive = false
-	if hub.cAdd then
-		pcall(function()
-			hub.cAdd:Disconnect()
-		end)
-		hub.cAdd = nil
-	end
-	if hub.cRem then
-		pcall(function()
-			hub.cRem:Disconnect()
-		end)
-		hub.cRem = nil
-	end
-	hub.added = {}
-	hub.removing = {}
-	hub.addCount = 0
-	hub.remCount = 0
-	hub.aQ = {}
-	hub.rQ = {}
-	hub.aSet = NAmanage.ensureWeakTable(nil, "k")
-	hub.rSet = NAmanage.ensureWeakTable(nil, "k")
-	hub.aHead = 1
-	hub.aTail = 0
-	hub.rHead = 1
-	hub.rTail = 0
-	hub.qBusy = false
-	hub.qKick = false
+	NAmanage._evtHubClear(hub)
 	hub.players = nil
 	if NAmanage._playersHub == hub then
 		NAmanage._playersHub = nil
@@ -3756,238 +2794,53 @@ end
 NAmanage._playersHubGet = NAmanage._playersHubGet or function()
 	local players = SafeGetService("Players")
 	local hub = NAmanage._playersHub
-
-	local function disc(c)
-		if c then
-			pcall(function()
-				c:Disconnect()
-			end)
-		end
-	end
-
-	if hub and (not hub.alive or hub.players ~= players) then
+	if type(hub) == "table" and (not hub.alive or hub.players ~= players) then
 		NAmanage._playersHubDispose(hub)
 		hub = nil
-		NAmanage._playersHub = nil
 	end
-	if hub and hub.alive then
+	if type(hub) == "table" and hub.alive then
 		return hub
 	end
-
-	hub = {
+	hub = NAmanage._evtHubInit({
 		players = players,
-		nextId = 0,
-		added = {},
-		removing = {},
-		addCount = 0,
-		remCount = 0,
-		aQ = {},
-		rQ = {},
-		aSet = NAmanage.ensureWeakTable(nil, "k"),
-		rSet = NAmanage.ensureWeakTable(nil, "k"),
-		aHead = 1,
-		aTail = 0,
-		rHead = 1,
-		rTail = 0,
-		qBusy = false,
-		qKick = false,
 		cAdd = nil,
 		cRem = nil,
-		alive = true,
-	}
-
-	local dispatch = NAmanage._evtHubDispatch
-	local hasInterested = NAmanage._evtHubHasInterested
-
-	local function runQ()
-		if hub.qBusy or not hub.alive then
+	})
+	function hub.refresh()
+		if not (hub.alive and hub.players) then
+			hub.cAdd = NAmanage._evtHubDisc(hub.cAdd)
+			hub.cRem = NAmanage._evtHubDisc(hub.cRem)
 			return
 		end
-		hub.qBusy = true
-		Spawn(function()
-			while hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
-				local budget, waitDelay = NAmanage._evtHubBudget(128, {
-					delay = 0,
-					ldSc = 0.4,
-					ldDel = 0.006,
-				})
-				while budget > 0 and hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
-					if hub.rHead <= hub.rTail then
-						local plr = hub.rQ[hub.rHead]
-						hub.rQ[hub.rHead] = nil
-						hub.rHead += 1
-						if plr and hub.rSet[plr] then
-							hub.rSet[plr] = nil
-							dispatch(hub.removing, plr)
-						end
-					elseif hub.aHead <= hub.aTail then
-						local plr = hub.aQ[hub.aHead]
-						hub.aQ[hub.aHead] = nil
-						hub.aHead += 1
-						if plr and hub.aSet[plr] then
-							hub.aSet[plr] = nil
-							dispatch(hub.added, plr)
-						end
-					end
-					budget -= 1
-				end
-				if waitDelay > 0 then
-					Wait(waitDelay)
-				else
-					Wait()
-				end
+		if (hub.addCount or 0) > 0 then
+			if not hub.cAdd then
+				hub.cAdd = NAmanage.safeConnect(hub.players.PlayerAdded, function(plr)
+					NAmanage._evtHubFire(hub, "add", plr)
+				end)
 			end
-			hub.aQ = {}
-			hub.rQ = {}
-			hub.aHead = 1
-			hub.aTail = 0
-			hub.rHead = 1
-			hub.rTail = 0
-			hub.qBusy = false
-		end)
-	end
-
-	local function kickQ()
-		if hub.qKick then
-			return
-		end
-		hub.qKick = true
-		Defer(function()
-			hub.qKick = false
-			runQ()
-		end)
-	end
-
-	local function qEvt(kind, plr)
-		if not (hub.alive and plr) then
-			return
-		end
-		if kind == "add" then
-			if (hub.addCount or 0) <= 0 then
-				return
-			end
-			if not hasInterested(hub.added, plr) then
-				return
-			end
-			if hub.aSet[plr] then
-				return
-			end
-			hub.aSet[plr] = true
-			hub.aTail += 1
-			hub.aQ[hub.aTail] = plr
 		else
-			if (hub.remCount or 0) <= 0 then
-				return
+			hub.cAdd = NAmanage._evtHubDisc(hub.cAdd)
+		end
+		if (hub.remCount or 0) > 0 then
+			if not hub.cRem then
+				hub.cRem = NAmanage.safeConnect(hub.players.PlayerRemoving, function(plr)
+					NAmanage._evtHubFire(hub, "rem", plr)
+				end)
 			end
-			if not hasInterested(hub.removing, plr) then
-				return
-			end
-			if hub.rSet[plr] then
-				return
-			end
-			hub.rSet[plr] = true
-			hub.rTail += 1
-			hub.rQ[hub.rTail] = plr
-		end
-		kickQ()
-	end
-
-	local function wantsEvents()
-		return (hub.addCount or 0) > 0 or (hub.remCount or 0) > 0
-	end
-
-	local function disconnectHooks()
-		disc(hub.cAdd)
-		disc(hub.cRem)
-		hub.cAdd = nil
-		hub.cRem = nil
-	end
-
-	local function connectHooks()
-		if not (hub.alive and players and wantsEvents()) then
-			return
-		end
-		if not hub.cAdd then
-			hub.cAdd = players.PlayerAdded:Connect(function(plr)
-				qEvt("add", plr)
-			end)
-		end
-		if not hub.cRem then
-			hub.cRem = players.PlayerRemoving:Connect(function(plr)
-				qEvt("rem", plr)
-			end)
+		else
+			hub.cRem = NAmanage._evtHubDisc(hub.cRem)
 		end
 	end
-
-	hub.enableHooks = connectHooks
-	hub.disableHooks = disconnectHooks
+	function hub.dispose()
+		NAmanage._playersHubDispose(hub)
+	end
 	NAmanage._playersHub = hub
 	return hub
 end
 
 NAmanage.playersSub = NAmanage.playersSub or function(spec)
-	spec = spec or {}
-	local onAdd = type(spec.added) == "function" and spec.added or nil
-	local onRem = type(spec.removing) == "function" and spec.removing or nil
-	local addFilter = type(spec.filterAdded) == "function" and spec.filterAdded
-		or (type(spec.filter) == "function" and spec.filter or nil)
-	local remFilter = type(spec.filterRemoving) == "function" and spec.filterRemoving
-		or (type(spec.filter) == "function" and spec.filter or nil)
-	local addClassSet = NAmanage._evtClassSet(spec.classAdded or spec.classFilterAdded or spec.classNames or spec.classFilter)
-	local remClassSet = NAmanage._evtClassSet(spec.classRemoving or spec.classFilterRemoving or spec.classNamesRemoving or spec.classNames or spec.classFilter)
-	local noop = {
-		Connected = false,
-		Disconnect = function() end,
-	}
-	if not onAdd and not onRem then
-		return noop
-	end
-
 	local hub = NAmanage._playersHubGet()
-	hub.nextId += 1
-	local id = hub.nextId
-	if onAdd then
-		hub.added[id] = (addFilter or addClassSet) and {
-			fn = onAdd,
-			filter = addFilter,
-			classSet = addClassSet,
-		} or onAdd
-		hub.addCount = (hub.addCount or 0) + 1
-	end
-	if onRem then
-		hub.removing[id] = (remFilter or remClassSet) and {
-			fn = onRem,
-			filter = remFilter,
-			classSet = remClassSet,
-		} or onRem
-		hub.remCount = (hub.remCount or 0) + 1
-	end
-	NAmanage._evtHubRebuildClassGates(hub)
-	if type(hub.enableHooks) == "function" then
-		hub.enableHooks()
-	end
-
-	local conn = {
-		Connected = true,
-	}
-	function conn:Disconnect()
-		if not self.Connected then
-			return
-		end
-		self.Connected = false
-		if hub.added[id] then
-			hub.added[id] = nil
-			hub.addCount = math.max(0, (hub.addCount or 0) - 1)
-		end
-		if hub.removing[id] then
-			hub.removing[id] = nil
-			hub.remCount = math.max(0, (hub.remCount or 0) - 1)
-		end
-		if (hub.addCount or 0) <= 0 and (hub.remCount or 0) <= 0 then
-			NAmanage._playersHubDispose(hub)
-		end
-	end
-	return conn
+	return NAmanage._evtHubSub(hub, spec)
 end
 
 NAmanage.playersAdd = NAmanage.playersAdd or function(fn, filter)
@@ -4007,309 +2860,41 @@ end
 NAmanage._descHubs = NAmanage.ensureWeakTable(NAmanage._descHubs, "kv")
 
 NAmanage._descHubDispose = NAmanage._descHubDispose or function(root, hub)
-	local hubs = NAmanage._descHubs
 	if type(hub) ~= "table" then
-		hub = type(hubs) == "table" and hubs[root] or nil
+		hub = type(NAmanage._descHubs) == "table" and NAmanage._descHubs[root] or nil
 	end
-	if type(hub) ~= "table" then
-		return
-	end
-	hub.alive = false
-	if hub.cAdd then
-		pcall(function()
-			hub.cAdd:Disconnect()
-		end)
-		hub.cAdd = nil
-	end
-	if hub.cRem then
-		pcall(function()
-			hub.cRem:Disconnect()
-		end)
-		hub.cRem = nil
-	end
-	if hub.rAnc then
-		pcall(function()
-			hub.rAnc:Disconnect()
-		end)
-		hub.rAnc = nil
-	end
-	hub.added = {}
-	hub.removing = {}
-	hub.addCount = 0
-	hub.remCount = 0
-	hub.aQ = {}
-	hub.rQ = {}
-	hub.aSet = NAmanage.ensureWeakTable(nil, "k")
-	hub.rSet = NAmanage.ensureWeakTable(nil, "k")
-	hub.aHead = 1
-	hub.aTail = 0
-	hub.rHead = 1
-	hub.rTail = 0
-	hub.qBusy = false
-	hub.qKick = false
-	if type(hubs) == "table" and root ~= nil and hubs[root] == hub then
-		hubs[root] = nil
-	end
+	NAmanage._descHubBaseDispose(hub)
 end
 
 NAmanage._descHubGet = NAmanage._descHubGet or function(root)
-	if typeof(root) ~= "Instance" then
-		return nil
-	end
-	local hubs = NAmanage._descHubs
-	local hub = hubs[root]
-	if hub and hub.alive and hub.root == root then
-		return hub
-	end
-
-	local function disc(c)
-		if c then
-			pcall(function()
-				c:Disconnect()
-			end)
-		end
-	end
-
-	if hub then
-		NAmanage._descHubDispose(root, hub)
-	end
-
-	hub = {
-		root = root,
-		nextId = 0,
-		added = {},
-		removing = {},
-		addCount = 0,
-		remCount = 0,
-		aQ = {},
-		rQ = {},
-		aSet = NAmanage.ensureWeakTable(nil, "k"),
-		rSet = NAmanage.ensureWeakTable(nil, "k"),
-		aHead = 1,
-		aTail = 0,
-		rHead = 1,
-		rTail = 0,
-		qBusy = false,
-		qKick = false,
-		cAdd = nil,
-		cRem = nil,
-		rAnc = nil,
-		alive = true,
-	}
-
-	local dispatch = NAmanage._evtHubDispatch
-	local hasInterested = NAmanage._evtHubHasInterested
-
-	local function runQ()
-		if hub.qBusy or not hub.alive then
-			return
-		end
-		hub.qBusy = true
-		Spawn(function()
-			while hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
-				local budget, waitDelay = NAmanage._evtHubBudget(180, {
-					delay = 0,
-					ldSc = 0.45,
-					ldDel = 0.006,
-				})
-				while budget > 0 and hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
-					if hub.rHead <= hub.rTail then
-						local inst = hub.rQ[hub.rHead]
-						hub.rQ[hub.rHead] = nil
-						hub.rHead += 1
-						if inst and hub.rSet[inst] then
-							hub.rSet[inst] = nil
-							dispatch(hub.removing, inst)
-						end
-					elseif hub.aHead <= hub.aTail then
-						local inst = hub.aQ[hub.aHead]
-						hub.aQ[hub.aHead] = nil
-						hub.aHead += 1
-						if inst and hub.aSet[inst] then
-							hub.aSet[inst] = nil
-							dispatch(hub.added, inst)
-						end
-					end
-					budget -= 1
-				end
-				if waitDelay > 0 then
-					Wait(waitDelay)
-				else
-					Wait()
-				end
-			end
-			hub.aQ = {}
-			hub.rQ = {}
-			hub.aHead = 1
-			hub.aTail = 0
-			hub.rHead = 1
-			hub.rTail = 0
-			hub.qBusy = false
-		end)
-	end
-
-	local function kickQ()
-		if hub.qKick then
-			return
-		end
-		hub.qKick = true
-		Defer(function()
-			hub.qKick = false
-			runQ()
-		end)
-	end
-
-	local function qEvt(kind, inst)
-		if NAStuff and NAStuff.teleportTransition then
-			return
-		end
-		local coreRoot = (typeof(COREGUI) == "Instance" and COREGUI) or SafeGetService("CoreGui")
-		local capKind = (coreRoot and root and root:IsDescendantOf(coreRoot)) and "core" or "default"
-		if not NAmanage._uiEvtPush(hub, kind, inst, capKind, true) then
-			return
-		end
-		kickQ()
-	end
-
-	local function wantsEvents()
-		return (hub.addCount or 0) > 0 or (hub.remCount or 0) > 0
-	end
-
-	local function disconnectHooks()
-		disc(hub.cAdd)
-		disc(hub.cRem)
-		hub.cAdd = nil
-		hub.cRem = nil
-	end
-
-	local function connectHooks()
-		if not (hub.alive and wantsEvents()) then
-			disconnectHooks()
-			return
-		end
-		if (hub.addCount or 0) > 0 then
-			if not hub.cAdd then
-				hub.cAdd = NAmanage.safeConnect(root.DescendantAdded, function(inst)
-					qEvt("add", inst)
-				end)
-			end
-		elseif hub.cAdd then
-			disc(hub.cAdd)
-			hub.cAdd = nil
-		end
-		if (hub.remCount or 0) > 0 then
-			if not hub.cRem then
-				hub.cRem = NAmanage.safeConnect(root.DescendantRemoving, function(inst)
-					qEvt("rem", inst)
-				end)
-			end
-		elseif hub.cRem then
-			disc(hub.cRem)
-			hub.cRem = nil
-		end
-	end
-
-	hub.rAnc = NAmanage.safeConnect(root.AncestryChanged, function(_, parent)
-		if parent then
-			return
-		end
-		NAmanage._descHubDispose(root, hub)
-	end)
-
-	hub.enableHooks = connectHooks
-	hub.disableHooks = disconnectHooks
-	hubs[root] = hub
-	return hub
+	return NAmanage._descHubBaseGet(NAmanage._descHubs, root, {
+		ancestry = true,
+		skipTeleport = true,
+	})
 end
 
 NAmanage.descSub = NAmanage.descSub or function(root, spec)
-	spec = spec or {}
-	local onAdd = type(spec.added) == "function" and spec.added or nil
-	local onRem = type(spec.removing) == "function" and spec.removing or nil
-	local addFilter = type(spec.filterAdded) == "function" and spec.filterAdded
-		or (type(spec.filter) == "function" and spec.filter or nil)
-	local remFilter = type(spec.filterRemoving) == "function" and spec.filterRemoving
-		or (type(spec.filter) == "function" and spec.filter or nil)
-	local addClassSet = NAmanage._evtClassSet(spec.classAdded or spec.classFilterAdded or spec.classNames or spec.classFilter)
-	local remClassSet = NAmanage._evtClassSet(spec.classRemoving or spec.classFilterRemoving or spec.classNamesRemoving or spec.classNames or spec.classFilter)
 	local noop = {
 		Connected = false,
 		Disconnect = function() end,
 	}
-	if not onAdd and not onRem then
-		return noop
-	end
 	if typeof(root) ~= "Instance" then
 		return noop
 	end
-
 	if root == workspace and NAmanage.wsSub then
 		return NAmanage.wsSub(spec)
 	end
-
 	local coreRoot = (typeof(COREGUI) == "Instance" and COREGUI) or SafeGetService("CoreGui")
 	if coreRoot and root == coreRoot and NAmanage.cgSub then
 		return NAmanage.cgSub(spec)
 	end
-
 	if NAmanage.pgSub and NAmanage._pgHubGet then
 		local ok, pgHub = pcall(NAmanage._pgHubGet)
 		if ok and pgHub and pgHub.root and pgHub.root == root then
 			return NAmanage.pgSub(spec)
 		end
 	end
-
-	local hub = NAmanage._descHubGet(root)
-	if not hub then
-		return noop
-	end
-	hub.nextId += 1
-	local id = hub.nextId
-	if onAdd then
-		hub.added[id] = (addFilter or addClassSet) and {
-			fn = onAdd,
-			filter = addFilter,
-			classSet = addClassSet,
-		} or onAdd
-		hub.addCount = (hub.addCount or 0) + 1
-	end
-	if onRem then
-		hub.removing[id] = (remFilter or remClassSet) and {
-			fn = onRem,
-			filter = remFilter,
-			classSet = remClassSet,
-		} or onRem
-		hub.remCount = (hub.remCount or 0) + 1
-	end
-	NAmanage._evtHubRebuildClassGates(hub)
-	if type(hub.enableHooks) == "function" then
-		hub.enableHooks()
-	end
-
-	local conn = {
-		Connected = true,
-	}
-	function conn:Disconnect()
-		if not self.Connected then
-			return
-		end
-		self.Connected = false
-		if hub.added[id] then
-			hub.added[id] = nil
-			hub.addCount = math.max(0, (hub.addCount or 0) - 1)
-		end
-		if hub.removing[id] then
-			hub.removing[id] = nil
-			hub.remCount = math.max(0, (hub.remCount or 0) - 1)
-		end
-		NAmanage._evtHubRebuildClassGates(hub)
-		if (hub.addCount or 0) <= 0 and (hub.remCount or 0) <= 0 then
-			NAmanage._descHubDispose(root, hub)
-		elseif type(hub.enableHooks) == "function" then
-			hub.enableHooks()
-		end
-	end
-	return conn
+	return NAmanage._evtHubSub(NAmanage._descHubGet(root), spec)
 end
 
 NAmanage.descAdd = NAmanage.descAdd or function(root, fn, filter)
@@ -4359,16 +2944,6 @@ NAmanage._childHubDispose = NAmanage._childHubDispose or function(root, hub)
 	hub.removed = {}
 	hub.addCount = 0
 	hub.remCount = 0
-	hub.aQ = {}
-	hub.rQ = {}
-	hub.aSet = NAmanage.ensureWeakTable(nil, "k")
-	hub.rSet = NAmanage.ensureWeakTable(nil, "k")
-	hub.aHead = 1
-	hub.aTail = 0
-	hub.rHead = 1
-	hub.rTail = 0
-	hub.qBusy = false
-	hub.qKick = false
 	if type(hubs) == "table" and root ~= nil and hubs[root] == hub then
 		hubs[root] = nil
 	end
@@ -4403,16 +2978,6 @@ NAmanage._childHubGet = NAmanage._childHubGet or function(root)
 		removed = {},
 		addCount = 0,
 		remCount = 0,
-		aQ = {},
-		rQ = {},
-		aSet = NAmanage.ensureWeakTable(nil, "k"),
-		rSet = NAmanage.ensureWeakTable(nil, "k"),
-		aHead = 1,
-		aTail = 0,
-		rHead = 1,
-		rTail = 0,
-		qBusy = false,
-		qKick = false,
 		cAdd = nil,
 		cRem = nil,
 		rAnc = nil,
@@ -4420,68 +2985,8 @@ NAmanage._childHubGet = NAmanage._childHubGet or function(root)
 	}
 
 	local dispatch = NAmanage._evtHubDispatch
-	local hasInterested = NAmanage._evtHubHasInterested
 
-	local function runQ()
-		if hub.qBusy or not hub.alive then
-			return
-		end
-		hub.qBusy = true
-		Spawn(function()
-			while hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
-				local budget, waitDelay = NAmanage._evtHubBudget(180, {
-					delay = 0,
-					ldSc = 0.45,
-					ldDel = 0.006,
-				})
-				while budget > 0 and hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
-					if hub.rHead <= hub.rTail then
-						local inst = hub.rQ[hub.rHead]
-						hub.rQ[hub.rHead] = nil
-						hub.rHead += 1
-						if inst and hub.rSet[inst] then
-							hub.rSet[inst] = nil
-							dispatch(hub.removed, inst)
-						end
-					elseif hub.aHead <= hub.aTail then
-						local inst = hub.aQ[hub.aHead]
-						hub.aQ[hub.aHead] = nil
-						hub.aHead += 1
-						if inst and hub.aSet[inst] then
-							hub.aSet[inst] = nil
-							dispatch(hub.added, inst)
-						end
-					end
-					budget -= 1
-				end
-				if waitDelay > 0 then
-					Wait(waitDelay)
-				else
-					Wait()
-				end
-			end
-			hub.aQ = {}
-			hub.rQ = {}
-			hub.aHead = 1
-			hub.aTail = 0
-			hub.rHead = 1
-			hub.rTail = 0
-			hub.qBusy = false
-		end)
-	end
-
-	local function kickQ()
-		if hub.qKick then
-			return
-		end
-		hub.qKick = true
-		Defer(function()
-			hub.qKick = false
-			runQ()
-		end)
-	end
-
-	local function qEvt(kind, inst)
+	local function fireChild(kind, inst)
 		if not (hub.alive and inst) then
 			return
 		end
@@ -4489,30 +2994,21 @@ NAmanage._childHubGet = NAmanage._childHubGet or function(root)
 			if (hub.addCount or 0) <= 0 then
 				return
 			end
-			if not hasInterested(hub.added, inst) then
-				return
-			end
-			if hub.aSet[inst] then
-				return
-			end
-			hub.aSet[inst] = true
-			hub.aTail += 1
-			hub.aQ[hub.aTail] = inst
+			task.defer(function()
+				if hub.alive and (hub.addCount or 0) > 0 then
+					dispatch(hub.added, inst)
+				end
+			end)
 		else
 			if (hub.remCount or 0) <= 0 then
 				return
 			end
-			if not hasInterested(hub.removed, inst) then
-				return
-			end
-			if hub.rSet[inst] then
-				return
-			end
-			hub.rSet[inst] = true
-			hub.rTail += 1
-			hub.rQ[hub.rTail] = inst
+			task.defer(function()
+				if hub.alive and (hub.remCount or 0) > 0 then
+					dispatch(hub.removed, inst)
+				end
+			end)
 		end
-		kickQ()
 	end
 
 	local function wantsEvents()
@@ -4532,12 +3028,12 @@ NAmanage._childHubGet = NAmanage._childHubGet or function(root)
 		end
 		if not hub.cAdd then
 			hub.cAdd = root.ChildAdded:Connect(function(inst)
-				qEvt("add", inst)
+				fireChild("add", inst)
 			end)
 		end
 		if not hub.cRem then
 			hub.cRem = root.ChildRemoved:Connect(function(inst)
-				qEvt("rem", inst)
+				fireChild("rem", inst)
 			end)
 		end
 	end
@@ -5130,35 +3626,10 @@ NAmanage.ForEachDescendantYield = NAmanage.ForEachDescendantYield or function(ro
 		return 0
 	end
 
-	local coreRoot = (typeof(COREGUI) == "Instance" and COREGUI) or SafeGetService("CoreGui")
-	local isCoreScan = coreRoot and root == coreRoot
-	local yieldEvery = tonumber(opts.yieldEvery) or (isCoreScan and 220 or 420)
-	if yieldEvery < 1 then
-		yieldEvery = 1
-	end
-
-	local delayTime = opts.delayTime
-	if isCoreScan then
-		if delayTime == nil or delayTime < 0 then
-			delayTime = 0
-		end
-	else
-		if delayTime == nil then
-			delayTime = 0
-		end
-	end
-
 	local cancelToken = opts.cancelToken
 	local includeRoot = opts.includeRoot == true
 	local maxItems = tonumber(opts.maxItems)
 	local stopOnResult = opts.stopOnResult == true
-	if NAmanage.isLoad and NAmanage.isLoad() then
-		yieldEvery = isCoreScan and math.min(yieldEvery, 360) or math.min(yieldEvery, 180)
-		if delayTime <= 0 then
-			delayTime = isCoreScan and 0.004 or 0
-		end
-	end
-
 	local list = NAmanage._descSnapshot(root, opts)
 	local processed = 0
 
@@ -5174,16 +3645,6 @@ NAmanage.ForEachDescendantYield = NAmanage.ForEachDescendantYield or function(ro
 		if maxItems and processed >= maxItems then
 			return true
 		end
-		if processed % yieldEvery == 0 then
-			if cancelToken and cancelToken.cancelled then
-				return true
-			end
-			if delayTime and delayTime > 0 then
-				Wait(delayTime)
-			else
-				Wait()
-			end
-		end
 		return false
 	end
 
@@ -5195,7 +3656,7 @@ NAmanage.ForEachDescendantYield = NAmanage.ForEachDescendantYield or function(ro
 
 	for i = 1, #list do
 		local inst = list[i]
-		if typeof(inst) == "Instance" and inst.Parent then
+		if typeof(inst) == "Instance" then
 			if run(inst) then
 				break
 			end
@@ -5213,40 +3674,15 @@ NAmanage.ForEachWorkspaceYield = NAmanage.ForEachWorkspaceYield or function(hand
 
 	local list = NAmanage.wsDescs and NAmanage.wsDescs() or {}
 	local total = #list
-	if total <= 0 then
-		return 0
-	end
-
-	local yieldEvery = tonumber(opts.yieldEvery) or tonumber(NAStuff.ESP_ScanBatchSize) or 160
-	if yieldEvery < 1 then
-		yieldEvery = 1
-	end
-	local delayTime = opts.delayTime
-	if delayTime == nil then
-		delayTime = tonumber(NAStuff.ESP_ScanDelay) or 0
-	end
 	local cancelToken = opts.cancelToken
-
 	local processed = 0
+
 	for i = 1, total do
 		if cancelToken and cancelToken.cancelled then
 			break
 		end
-
-		local inst = list[i]
 		processed += 1
-		handler(inst, i, total)
-
-		if processed % yieldEvery == 0 then
-			if cancelToken and cancelToken.cancelled then
-				break
-			end
-			if delayTime and delayTime > 0 then
-				Wait(delayTime)
-			else
-				Wait()
-			end
-		end
+		handler(list[i], i, total)
 	end
 
 	return processed
@@ -97373,87 +95809,24 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 		local cn = inst.ClassName
 		return cn == "ClickDetector" or cn == "ProximityPrompt" or cn == "TouchTransmitter"
 	end;
-	local scanJobs = {};
-	local scanHead = 1;
-	local scanTail = 0;
-	local scanning = false;
 	local bulkAddRoots = NAmanage.ensureWeakTable(nil, "k");
-	local function queueScan(root, fn, onDone)
+	local function scanNow(root, fn, onDone)
 		if not root or (not fn) then
 			return;
 		end;
-		scanTail += 1;
-		scanJobs[scanTail] = {
-			fn = fn,
-			done = onDone,
-			q = {
-				root
-			},
-			qi = 1,
-			qn = 1
-		};
-		if scanning then
-			return;
-		end;
-		scanning = true;
-		Spawn(function()
-			while scanHead <= scanTail do
-				local budget, waitDelay
-				if NAmanage and NAmanage.lpProf then
-					budget, waitDelay = NAmanage.lpProf(35, {
-						delay = 0,
-						ldSc = 0.22,
-						ldDel = 0.014,
-					});
-				else
-					budget, waitDelay = 35, 0
-				end
-				while budget > 0 and scanHead <= scanTail do
-					local job = scanJobs[scanHead];
-					local q = job.q;
-					local qi = job.qi;
-					local qn = job.qn;
-					local jobFn = job.fn;
-					if qi > qn then
-						scanJobs[scanHead] = nil;
-						scanHead += 1;
-						if type(job.done) == "function" then
-							pcall(job.done);
-						end;
-					else
-						local inst = q[qi];
-						job.qi = qi + 1;
-						jobFn(inst);
-						local ch = inst:GetChildren();
-						for i = 1, #ch do
-							qn += 1;
-							q[qn] = ch[i];
-						end;
-						job.qn = qn;
-						budget -= 1;
-					end;
-				end;
-				if waitDelay > 0 then
-					Wait(waitDelay);
-				else
-					Wait();
-				end;
-			end;
-			scanJobs = {};
-			scanHead = 1;
-			scanTail = 0;
-			scanning = false;
+		fn(root);
+		local ok, list = pcall(function()
+			return root:GetDescendants();
 		end);
+		if ok and type(list) == "table" then
+			for i = 1, #list do
+				fn(list[i]);
+			end;
+		end;
+		if type(onDone) == "function" then
+			pcall(onDone);
+		end;
 	end;
-	local dQ = {};
-	local dSet = NAmanage.ensureWeakTable(nil, "k");
-	local iPend = NAmanage.ensureWeakTable(nil, "k");
-	local wsAddP = NAmanage.ensureWeakTable(nil, "k");
-	local wsRemP = NAmanage.ensureWeakTable(nil, "k");
-	local dHead = 1;
-	local dTail = 0;
-	local dBusy = false;
-	local dKick = false;
 	local function runWsH(kind, inst)
 		local handlers = (kind == "added") and InstancesTbl.wsAdd or InstancesTbl.wsRem;
 		if type(handlers) ~= "table" then
@@ -97466,99 +95839,23 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 			end;
 		end;
 	end;
-	local function runDQ()
-		if dBusy then
-			return;
-		end;
-		dBusy = true;
-		Spawn(function()
-			while dHead <= dTail do
-				local budget, waitDelay
-				if NAmanage and NAmanage.lpProf then
-					budget, waitDelay = NAmanage.lpProf(120, {
-						delay = 0,
-						ldSc = 0.22,
-						ldDel = 0.014,
-					});
-				else
-					budget, waitDelay = 120, 0
-				end
-				while budget > 0 and dHead <= dTail do
-					local inst = dQ[dHead];
-					dQ[dHead] = nil;
-					dHead += 1;
-					if inst then
-						dSet[inst] = nil;
-						local addInt = iPend[inst];
-						local doWsAdd = wsAddP[inst];
-						local doWsRem = wsRemP[inst];
-						iPend[inst] = nil;
-						wsAddP[inst] = nil;
-						wsRemP[inst] = nil;
-						if addInt ~= nil then
-							if addInt then
-								regI(inst);
-							else
-								unregI(inst);
-							end;
-						end;
-						if doWsAdd then
-							runWsH("added", inst);
-						end;
-						if doWsRem then
-							runWsH("removing", inst);
-						end;
-					end;
-					budget -= 1;
-				end;
-				if waitDelay > 0 then
-					Wait(waitDelay);
-				else
-					Wait();
-				end;
-			end;
-			dQ = {};
-			dHead = 1;
-			dTail = 0;
-			dBusy = false;
-		end);
-	end;
-	local function kickDQ()
-		if dKick then
-			return;
-		end;
-		dKick = true;
-		Defer(function()
-			dKick = false;
-			runDQ();
-		end);
-	end;
 	local function enqueueDesc(inst, interactState, wsAddFlag, wsRemFlag)
 		if not (inst and typeof(inst) == "Instance") then
 			return;
 		end;
-		local hasAny = false;
 		if interactState ~= nil and isITgt(inst) then
-			iPend[inst] = interactState and true or false;
-			hasAny = true;
+			if interactState then
+				regI(inst);
+			else
+				unregI(inst);
+			end;
 		end;
 		if wsAddFlag == true and NAmanage.hasWsH("add") then
-			wsAddP[inst] = true;
-			hasAny = true;
+			runWsH("added", inst);
 		end;
 		if wsRemFlag == true and NAmanage.hasWsH("rem") then
-			wsRemP[inst] = true;
-			hasAny = true;
+			runWsH("removing", inst);
 		end;
-		if not hasAny then
-			return;
-		end;
-		if not dSet[inst] then
-			dSet[inst] = true;
-			dTail += 1;
-			dQ[dTail] = inst;
-		end;
-		kickDQ();
 	end;
 	local function hasBulkAddRoot(inst)
 		local parent = inst and inst.Parent;
@@ -97586,7 +95883,7 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 		local ok, children = pcall(inst.GetChildren, inst);
 		return ok and children and #children > 0;
 	end;
-	local function qDesc(inst, interactState, wsAddFlag, wsRemFlag)
+	local function handleDesc(inst, interactState, wsAddFlag, wsRemFlag)
 		if not (inst and typeof(inst) == "Instance") then
 			return;
 		end;
@@ -97595,7 +95892,7 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 				return;
 			end;
 			bulkAddRoots[inst] = true;
-			queueScan(inst, function(desc)
+			scanNow(inst, function(desc)
 				enqueueDesc(desc, interactState, wsAddFlag, wsRemFlag);
 			end, function()
 				bulkAddRoots[inst] = nil;
@@ -97607,13 +95904,13 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 		end;
 		enqueueDesc(inst, interactState, wsAddFlag, wsRemFlag);
 	end;
-	queueScan(workspace, function(inst)
-		qDesc(inst, true, nil, nil);
+	scanNow(workspace, function(inst)
+		handleDesc(inst, true, nil, nil);
 	end);
 	NAlib.disconnect("NA_InteractAdded");
 	NAlib.connect("NA_InteractAdded", NAmanage.wsSub({
 		added = function(inst)
-			qDesc(inst, true, true, nil);
+			handleDesc(inst, true, true, nil);
 		end,
 		filterAdded = function(inst)
 			if NAmanage.hasWsH("add") then
@@ -97625,7 +95922,7 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 	NAlib.disconnect("NA_InteractRemoved");
 	NAlib.connect("NA_InteractRemoved", NAmanage.wsSub({
 		removing = function(inst)
-			qDesc(inst, false, nil, true);
+			handleDesc(inst, false, nil, true);
 		end,
 		filterRemoving = function(inst)
 			if NAmanage.hasWsH("rem") then
