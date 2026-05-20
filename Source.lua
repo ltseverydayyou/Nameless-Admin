@@ -546,6 +546,29 @@ NAmanage.pruneRuntimeInstanceState = NAmanage.pruneRuntimeInstanceState or funct
 	NAmanage.pruneInstanceKeyMap(state.BlockedInvokeSaved)
 	NAmanage.pruneInstanceKeyMap(NAmanage._canvasLayoutCache)
 	NAmanage.pruneInstanceKeyMap(NAmanage._canvasHeightCache)
+	if type(NAmanage._descScanHubs) == "table" then
+		for root, hub in pairs(NAmanage._descScanHubs) do
+			if not NAmanage.isLiveInstance(root) or type(hub) ~= "table" then
+				NAmanage._descScanHubs[root] = nil
+			else
+				local list = type(hub.list) == "table" and hub.list or {}
+				local write = 1
+				local idx = NAmanage.ensureWeakTable(nil, "k")
+				for i = 1, #list do
+					local inst = list[i]
+					if typeof(inst) == "Instance" and inst.Parent and not idx[inst] then
+						list[write] = inst
+						idx[inst] = write
+						write += 1
+					end
+				end
+				for i = write, #list do
+					list[i] = nil
+				end
+				hub.idx = idx
+			end
+		end
+	end
 	if type(state.airMomentum) == "table" then
 		NAmanage.pruneConnectionValueMap(state.airMomentum.connections)
 		if typeof(state.airMomentum.root) == "Instance" and not NAmanage.isLiveInstance(state.airMomentum.root) then
@@ -2003,43 +2026,88 @@ NAmanage._uiEvtOverflow = NAmanage._uiEvtOverflow or function(hub, cap)
 	if type(hub) ~= "table" then
 		return false
 	end
-	local queued = math.max(0, (hub.aTail or 0) - (hub.aHead or 1) + 1) + math.max(0, (hub.rTail or 0) - (hub.rHead or 1) + 1)
+
+	cap = math.max(64, math.floor(tonumber(cap) or 512))
+	local aHead = hub.aHead or 1
+	local aTail = hub.aTail or 0
+	local rHead = hub.rHead or 1
+	local rTail = hub.rTail or 0
+	local queued = math.max(0, aTail - aHead + 1) + math.max(0, rTail - rHead + 1)
 	if queued <= cap then
 		return false
 	end
-	hub.aQ = {}
-	hub.rQ = {}
-	hub.aSet = NAmanage.ensureWeakTable(nil, "k")
-	hub.rSet = NAmanage.ensureWeakTable(nil, "k")
-	hub.aHead = 1
-	hub.aTail = 0
-	hub.rHead = 1
-	hub.rTail = 0
-	return true
+
+	local now = os.clock()
+	local last = tonumber(hub._compactAt) or 0
+	if now - last < 0.035 and queued <= cap * 4 then
+		hub._overflowPending = true
+		return false
+	end
+	hub._compactAt = now
+	hub._overflowPending = false
+
+	local function pack(q, head, tail, set)
+		local out = {}
+		local n = 0
+		for i = head, tail do
+			local inst = q[i]
+			if inst and (not set or set[inst]) then
+				n += 1
+				out[n] = inst
+			end
+		end
+		return out, 1, n
+	end
+
+	hub.aQ, hub.aHead, hub.aTail = pack(hub.aQ or {}, aHead, aTail, hub.aSet)
+	hub.rQ, hub.rHead, hub.rTail = pack(hub.rQ or {}, rHead, rTail, hub.rSet)
+	hub._overflowCount = (tonumber(hub._overflowCount) or 0) + 1
+	hub._overflowAt = now
+	return false
 end
 
-NAmanage._uiEvtPush = NAmanage._uiEvtPush or function(hub, kind, inst, capKind)
+NAmanage._uiEvtPush = NAmanage._uiEvtPush or function(hub, kind, inst, capKind, deferFilters)
 	if not (type(hub) == "table" and hub.alive and inst) then
 		return false
 	end
+
 	local isAdd = kind == "add"
 	local handlers = isAdd and hub.added or hub.removing
 	if isAdd then
 		if (hub.addCount or 0) <= 0 or hub.aSet[inst] then
 			return false
 		end
+		if hub.rSet and hub.rSet[inst] then
+			hub.rSet[inst] = nil
+		end
 	else
 		if (hub.remCount or 0) <= 0 or hub.rSet[inst] then
 			return false
 		end
+		if hub.aSet and hub.aSet[inst] then
+			hub.aSet[inst] = nil
+			return false
+		end
 	end
-	if NAmanage._evtHubHasInterested and not NAmanage._evtHubHasInterested(handlers, inst) then
+
+	if not deferFilters and NAmanage._evtHubHasInterested and not NAmanage._evtHubHasInterested(handlers, inst) then
 		return false
 	end
+	if deferFilters then
+		local allowAny = isAdd and hub.addClassAny or hub.remClassAny
+		local classGate = isAdd and hub.addClassGate or hub.remClassGate
+		if not allowAny and classGate and not NAmanage._evtClassPass(classGate, inst) then
+			return false
+		end
+	end
+
+	if NAmanage._descScanTouch then
+		pcall(NAmanage._descScanTouch, hub.root, kind, inst)
+	end
+
 	local cap = NAmanage._uiEvtCap(capKind or "default")
-	if NAmanage._uiEvtOverflow(hub, cap) then
-		return false
-	end
+	NAmanage._uiEvtOverflow(hub, cap)
+
 	if isAdd then
 		hub.aSet[inst] = true
 		hub.aTail += 1
@@ -2056,13 +2124,18 @@ NAmanage._evtHubDispatch = NAmanage._evtHubDispatch or function(handlers, inst)
 	for _, rec in pairs(handlers or {}) do
 		local fn = rec
 		local filter = nil
+		local classSet = nil
 		if type(rec) == "table" then
 			fn = rec.fn
 			filter = rec.filter
+			classSet = rec.classSet
 		end
 		if type(fn) == "function" then
 			local pass = true
-			if type(filter) == "function" then
+			if classSet and not NAmanage._evtClassPass(classSet, inst) then
+				pass = false
+			end
+			if pass and type(filter) == "function" then
 				local ok, allowed = pcall(filter, inst)
 				pass = ok and allowed == true
 			end
@@ -2077,11 +2150,16 @@ NAmanage._evtHubHasInterested = NAmanage._evtHubHasInterested or function(handle
 	for _, rec in pairs(handlers or {}) do
 		local fn = rec
 		local filter = nil
+		local classSet = nil
 		if type(rec) == "table" then
 			fn = rec.fn
 			filter = rec.filter
+			classSet = rec.classSet
 		end
 		if type(fn) == "function" then
+			if classSet and not NAmanage._evtClassPass(classSet, inst) then
+				continue
+			end
 			if type(filter) == "function" then
 				local ok, pass = pcall(filter, inst)
 				if ok and pass then
@@ -2093,6 +2171,74 @@ NAmanage._evtHubHasInterested = NAmanage._evtHubHasInterested or function(handle
 		end
 	end
 	return false
+end
+
+NAmanage._evtClassSet = NAmanage._evtClassSet or function(classes)
+	if type(classes) == "string" then
+		return { [classes] = true }
+	end
+	if type(classes) ~= "table" then
+		return nil
+	end
+	local out = {}
+	for _, className in pairs(classes) do
+		if type(className) == "string" and className ~= "" then
+			out[className] = true
+		end
+	end
+	return next(out) and out or nil
+end
+
+NAmanage._evtClassPass = NAmanage._evtClassPass or function(gate, inst)
+	if not gate then
+		return true
+	end
+	if not inst then
+		return false
+	end
+	if gate.Instance then
+		return true
+	end
+	local className = inst.ClassName
+	if type(className) == "string" and gate[className] == true then
+		return true
+	end
+	for wanted in pairs(gate) do
+		if type(wanted) == "string" and wanted ~= className then
+			local ok, pass = pcall(function()
+				return inst:IsA(wanted)
+			end)
+			if ok and pass then
+				return true
+			end
+		end
+	end
+	return false
+end
+
+NAmanage._evtHubRebuildClassGates = NAmanage._evtHubRebuildClassGates or function(hub)
+	if type(hub) ~= "table" then
+		return
+	end
+	local function rebuild(handlers)
+		local gate = {}
+		local any = false
+		local count = 0
+		for _, rec in pairs(handlers or {}) do
+			local classSet = type(rec) == "table" and rec.classSet or nil
+			if classSet then
+				for className in pairs(classSet) do
+					gate[className] = true
+					count += 1
+				end
+			else
+				any = true
+			end
+		end
+		return any, count > 0 and gate or nil
+	end
+	hub.addClassAny, hub.addClassGate = rebuild(hub.added)
+	hub.remClassAny, hub.remClassGate = rebuild(hub.removing)
 end
 
 NAmanage._evtHubBudget = NAmanage._evtHubBudget or function(baseBudget, opts)
@@ -2117,81 +2263,71 @@ NAmanage._evtHubBudget = NAmanage._evtHubBudget or function(baseBudget, opts)
 	return budget, waitDelay
 end
 
-NAmanage.rawDesc = NAmanage.rawDesc or function(root, className, opts)
-	if typeof(root) ~= "Instance" then
-		return {}
+NAmanage._descScanHubs = NAmanage.ensureWeakTable(NAmanage._descScanHubs, "k")
+
+NAmanage._descScanTouch = NAmanage._descScanTouch or function(root, kind, inst)
+	if typeof(root) ~= "Instance" or typeof(inst) ~= "Instance" then
+		return
 	end
-	className = type(className) == "string" and className or "Instance"
-	opts = type(opts) == "table" and opts or {}
-	local coreRoot = (typeof(COREGUI) == "Instance" and COREGUI) or SafeGetService("CoreGui")
-	local isCoreScan = coreRoot and root == coreRoot
+	local hubs = NAmanage._descScanHubs
+	local hub = type(hubs) == "table" and hubs[root] or nil
+	if type(hub) ~= "table" then
+		return
+	end
+	hub.dirty = true
+	hub.touchAt = os.clock()
+	if kind == "add" then
+		if type(hub.idx) ~= "table" then
+			hub.idx = NAmanage.ensureWeakTable(nil, "k")
+		end
+		if not hub.idx[inst] then
+			local n = #hub.list + 1
+			hub.list[n] = inst
+			hub.idx[inst] = n
+		end
+		return
+	end
+	local idx = type(hub.idx) == "table" and hub.idx[inst] or nil
+	if idx then
+		local last = #hub.list
+		local lastInst = hub.list[last]
+		hub.list[last] = nil
+		if idx ~= last then
+			hub.list[idx] = lastInst
+			if lastInst then
+				hub.idx[lastInst] = idx
+			end
+		end
+		hub.idx[inst] = nil
+	end
+end
+
+NAmanage._descScanFallback = NAmanage._descScanFallback or function(root, limit)
 	local out = {}
-	local hard = tonumber(opts.hardLimit) or 0
-	local budget = tonumber(opts.budget) or (isCoreScan and 180 or 1200)
-	local delayTime = tonumber(opts.delay) or (isCoreScan and 0.025 or 0)
-	local function add(inst)
-		if not inst then
-			return false
-		end
-		if className == "Instance" then
-			out[#out + 1] = inst
-		else
-			local ok, pass = pcall(function()
-				return inst:IsA(className)
-			end)
-			if ok and pass then
-				out[#out + 1] = inst
-			end
-		end
-		return hard > 0 and #out >= hard
+	if typeof(root) ~= "Instance" then
+		return out
 	end
-	if opts.query ~= false and type(root.QueryDescendants) == "function" then
-		local ok, list = pcall(function()
-			return root:QueryDescendants(className)
-		end)
-		if ok and type(list) == "table" then
-			for i = 1, #list do
-				if add(list[i]) then
-					break
-				end
-				if budget > 0 and i % budget == 0 then
-					Wait(delayTime)
-				end
-			end
-			return out
-		end
-	end
-	if not isCoreScan and opts.native ~= false and type(root.GetDescendants) == "function" then
-		local ok, list = pcall(function()
-			return root:GetDescendants()
-		end)
-		if ok and type(list) == "table" then
-			for i = 1, #list do
-				if add(list[i]) then
-					break
-				end
-				if budget > 0 and i % budget == 0 then
-					Wait(delayTime)
-				end
-			end
-			return out
-		end
-	end
+
 	local stack = {}
-	local okChildren, children = pcall(function()
+	local n = 0
+	local ok, children = pcall(function()
 		return root:GetChildren()
 	end)
-	if okChildren and type(children) == "table" then
+	if ok and type(children) == "table" then
 		for i = #children, 1, -1 do
-			stack[#stack + 1] = children[i]
+			n += 1
+			stack[n] = children[i]
 		end
 	end
-	local steps = 0
-	while #stack > 0 do
-		local inst = stack[#stack]
-		stack[#stack] = nil
+
+	local hard = tonumber(limit) or 0
+	while n > 0 do
+		local inst = stack[n]
+		stack[n] = nil
+		n -= 1
 		if inst then
-			if add(inst) then
+			out[#out + 1] = inst
+			if hard > 0 and #out >= hard then
 				break
 			end
 			local okCh, ch = pcall(function()
@@ -2199,46 +2335,142 @@ NAmanage.rawDesc = NAmanage.rawDesc or function(root, className, opts)
 			end)
 			if okCh and type(ch) == "table" then
 				for i = #ch, 1, -1 do
-					stack[#stack + 1] = ch[i]
+					n += 1
+					stack[n] = ch[i]
 				end
 			end
 		end
-		steps += 1
-		if budget > 0 and steps % budget == 0 then
-			Wait(delayTime)
+	end
+
+	return out
+end
+
+NAmanage._descSnapshot = NAmanage._descSnapshot or function(root, opts)
+	if typeof(root) ~= "Instance" then
+		return {}
+	end
+	opts = type(opts) == "table" and opts or {}
+
+	if root == workspace and type(NAmanage.wsDescs) == "function" and opts.workspaceCache ~= false then
+		return NAmanage.wsDescs()
+	end
+
+	local hubs = NAmanage._descScanHubs
+	local hub = hubs[root]
+	if type(hub) ~= "table" then
+		hub = {
+			list = {},
+			idx = NAmanage.ensureWeakTable(nil, "k"),
+			last = 0,
+			dirty = true,
+			building = false,
+			touchAt = 0,
+		}
+		hubs[root] = hub
+	end
+
+	local now = os.clock()
+	local maxAge = tonumber(opts.cacheTime)
+	if maxAge == nil then
+		local coreRoot = (typeof(COREGUI) == "Instance" and COREGUI) or SafeGetService("CoreGui")
+		maxAge = (coreRoot and root == coreRoot) and 0.12 or 0.35
+	end
+	local minDirtyAge = tonumber(opts.minDirtyAge) or 0.04
+	local shouldBuild = opts.force == true or #hub.list == 0 or (now - (tonumber(hub.last) or 0)) >= maxAge
+	if hub.dirty and (now - (tonumber(hub.touchAt) or 0)) >= minDirtyAge then
+		shouldBuild = true
+	end
+
+	if shouldBuild and not hub.building then
+		hub.building = true
+		local ok, list = pcall(function()
+			return root:GetDescendants()
+		end)
+		if not ok or type(list) ~= "table" then
+			list = NAmanage._descScanFallback(root, opts.hardLimit)
+		end
+
+		local clean = {}
+		local idx = NAmanage.ensureWeakTable(nil, "k")
+		local hardLimit = tonumber(opts.hardLimit) or 0
+		for i = 1, #list do
+			local inst = list[i]
+			if typeof(inst) == "Instance" and inst.Parent and not idx[inst] then
+				clean[#clean + 1] = inst
+				idx[inst] = #clean
+				if hardLimit > 0 and #clean >= hardLimit then
+					break
+				end
+			end
+		end
+
+		hub.list = clean
+		hub.idx = idx
+		hub.last = now
+		hub.dirty = false
+		hub.building = false
+	end
+
+	return hub.list
+end
+
+NAmanage.rawDesc = NAmanage.rawDesc or function(root, className, opts)
+	if typeof(root) ~= "Instance" then
+		return {}
+	end
+
+	className = type(className) == "string" and className or "Instance"
+	opts = type(opts) == "table" and opts or {}
+
+	local listOpts = opts
+	if opts.noCache == true then
+		listOpts = {}
+		for key, value in pairs(opts) do
+			listOpts[key] = value
+		end
+		listOpts.force = true
+		listOpts.cacheTime = 0
+	end
+	local list = NAmanage._descSnapshot(root, listOpts)
+
+	local out = {}
+	local hard = tonumber(opts.hardLimit) or 0
+	local budget = tonumber(opts.budget) or 0
+	local delayTime = tonumber(opts.delay) or 0
+	local match = type(opts.match) == "function" and opts.match or nil
+
+	for i = 1, #list do
+		local inst = list[i]
+		if typeof(inst) == "Instance" and inst.Parent then
+			local pass = className == "Instance"
+			if not pass then
+				local ok, isA = pcall(function()
+					return inst:IsA(className)
+				end)
+				pass = ok and isA == true
+			end
+			if pass and (not match or match(inst)) then
+				out[#out + 1] = inst
+				if hard > 0 and #out >= hard then
+					break
+				end
+			end
+		end
+		if budget > 0 and i % budget == 0 then
+			if delayTime > 0 then
+				Wait(delayTime)
+			else
+				Wait()
+			end
 		end
 	end
+
 	return out
 end
 
 NAmanage.qDesc = NAmanage.qDesc or function(root, className, opts)
 	if typeof(root) ~= "Instance" then
 		return {}
-	end
-	className = type(className) == "string" and className or "Instance"
-	opts = type(opts) == "table" and opts or {}
-	if root == workspace and type(NAmanage.wsDescs) == "function" and opts.workspaceCache ~= false then
-		local base = NAmanage.wsDescs()
-		if className == "Instance" then
-			return base
-		end
-		local out = {}
-		local budget = tonumber(opts.budget) or 1600
-		for i = 1, #base do
-			local inst = base[i]
-			if inst and inst.Parent then
-				local ok, pass = pcall(function()
-					return inst:IsA(className)
-				end)
-				if ok and pass then
-					out[#out + 1] = inst
-				end
-			end
-			if budget > 0 and i % budget == 0 then
-				Wait(tonumber(opts.delay) or 0)
-			end
-		end
-		return out
 	end
 	return NAmanage.rawDesc(root, className, opts)
 end
@@ -2407,17 +2639,17 @@ NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 		hub.qBusy = true
 		Spawn(function()
 			while hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
-				local budget, waitDelay = NAmanage._evtHubBudget(140, {
+				local budget, waitDelay = NAmanage._evtHubBudget(220, {
 					delay = 0,
-					ldSc = 0.4,
-					ldDel = 0.008,
+					ldSc = 0.45,
+					ldDel = 0.006,
 				})
 				while budget > 0 and hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
 					if hub.rHead <= hub.rTail then
 						local inst = hub.rQ[hub.rHead]
 						hub.rQ[hub.rHead] = nil
 						hub.rHead += 1
-						if inst then
+						if inst and hub.rSet[inst] then
 							hub.rSet[inst] = nil
 							dispatch(hub.removing, inst)
 						end
@@ -2425,7 +2657,7 @@ NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 						local inst = hub.aQ[hub.aHead]
 						hub.aQ[hub.aHead] = nil
 						hub.aHead += 1
-						if inst then
+						if inst and hub.aSet[inst] then
 							hub.aSet[inst] = nil
 							dispatch(hub.added, inst)
 						end
@@ -2463,35 +2695,8 @@ NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 	end
 
 	local function qEvt(kind, inst)
-		if not (hub.alive and inst) then
+		if not NAmanage._uiEvtPush(hub, kind, inst, "workspace", true) then
 			return
-		end
-		if kind == "add" then
-			if (hub.addCount or 0) <= 0 then
-				return
-			end
-			if not hasInterested(hub.added, inst) then
-				return
-			end
-			if hub.aSet[inst] then
-				return
-			end
-			hub.aSet[inst] = true
-			hub.aTail += 1
-			hub.aQ[hub.aTail] = inst
-		else
-			if (hub.remCount or 0) <= 0 then
-				return
-			end
-			if not hasInterested(hub.removing, inst) then
-				return
-			end
-			if hub.rSet[inst] then
-				return
-			end
-			hub.rSet[inst] = true
-			hub.rTail += 1
-			hub.rQ[hub.rTail] = inst
 		end
 		kickQ()
 	end
@@ -2503,10 +2708,10 @@ NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 		hub.sBusy = true
 		Spawn(function()
 			while hub.alive and hub.sHead <= hub.sTail do
-				local budget, waitDelay = NAmanage._evtHubBudget(90, {
+				local budget, waitDelay = NAmanage._evtHubBudget(220, {
 					delay = 0,
-					ldSc = 0.3,
-					ldDel = 0.006,
+					ldSc = 0.45,
+					ldDel = 0.004,
 				})
 				while budget > 0 and hub.alive and hub.sHead <= hub.sTail do
 					local inst = hub.sQ[hub.sHead]
@@ -2535,24 +2740,64 @@ NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 		end)
 	end
 
-	if cRoot then
-		hub.cAdd = NAmanage.safeConnect(cRoot.DescendantAdded, function(inst)
-			NAmanage.spawnEvent(function()
-				if hub.cacheLive then
-					addC(inst)
-				end
-				qEvt("add", inst)
-			end)
-		end)
-		hub.cRem = NAmanage.safeConnect(cRoot.DescendantRemoving, function(inst)
-			NAmanage.spawnEvent(function()
-				if hub.cacheLive then
-					remC(inst)
-				end
-				qEvt("rem", inst)
-			end)
-		end)
+	local function wantsRootEvents()
+		return hub.cacheLive == true or (hub.addCount or 0) > 0 or (hub.remCount or 0) > 0
 	end
+
+	local function disconnectRootHooks()
+		if hub.cAdd then
+			pcall(function()
+				hub.cAdd:Disconnect()
+			end)
+			hub.cAdd = nil
+		end
+		if hub.cRem then
+			pcall(function()
+				hub.cRem:Disconnect()
+			end)
+			hub.cRem = nil
+		end
+	end
+
+	local function connectRootHooks()
+		if not (hub.alive and cRoot and wantsRootEvents()) then
+			disconnectRootHooks()
+			return
+		end
+		if hub.cacheLive or (hub.addCount or 0) > 0 then
+			if not hub.cAdd then
+				hub.cAdd = NAmanage.safeConnect(cRoot.DescendantAdded, function(inst)
+					if hub.cacheLive then
+						addC(inst)
+					end
+					qEvt("add", inst)
+				end)
+			end
+		elseif hub.cAdd then
+			pcall(function()
+				hub.cAdd:Disconnect()
+			end)
+			hub.cAdd = nil
+		end
+		if hub.cacheLive or (hub.remCount or 0) > 0 then
+			if not hub.cRem then
+				hub.cRem = NAmanage.safeConnect(cRoot.DescendantRemoving, function(inst)
+					if hub.cacheLive then
+						remC(inst)
+					end
+					qEvt("rem", inst)
+				end)
+			end
+		elseif hub.cRem then
+			pcall(function()
+				hub.cRem:Disconnect()
+			end)
+			hub.cRem = nil
+		end
+	end
+
+	hub.enableRootHooks = connectRootHooks
+	hub.disableRootHooks = disconnectRootHooks
 
 	NAmanage._wsHub = hub
 	return hub
@@ -2576,6 +2821,8 @@ NAmanage.wsReleaseCache = NAmanage.wsReleaseCache or function(hub)
 	hub.cacheLastTouch = 0
 	if (hub.addCount or 0) <= 0 and (hub.remCount or 0) <= 0 then
 		NAmanage._wsHubDispose(hub)
+	elseif type(hub.enableRootHooks) == "function" then
+		hub.enableRootHooks()
 	end
 	return true
 end
@@ -2609,18 +2856,24 @@ NAmanage.wsDescs = NAmanage.wsDescs or function()
 		hub.cacheLive = true
 		hub.cache = {}
 		hub.idx = NAmanage.ensureWeakTable(nil, "k")
+		if type(hub.enableRootHooks) == "function" then
+			hub.enableRootHooks()
+		end
 		local root = hub.root
 		local ok, descs = pcall(function()
 			if root then
-				return NAmanage.rawDesc(root, "Instance")
+				return root:GetDescendants()
 			end
 			return {}
 		end)
-		if ok and descs then
-			local n = 0
+		if not ok or type(descs) ~= "table" then
+			descs = NAmanage._descScanFallback(root)
+		end
+		if type(descs) == "table" then
+			local n = #hub.cache
 			for i = 1, #descs do
 				local inst = descs[i]
-				if inst and inst.Parent then
+				if inst and inst.Parent and not hub.idx[inst] then
 					n += 1
 					hub.cache[n] = inst
 					hub.idx[inst] = n
@@ -2714,6 +2967,8 @@ NAmanage.wsSub = NAmanage.wsSub or function(spec)
 		or (type(spec.filter) == "function" and spec.filter or nil)
 	local remFilter = type(spec.filterRemoving) == "function" and spec.filterRemoving
 		or (type(spec.filter) == "function" and spec.filter or nil)
+	local addClassSet = NAmanage._evtClassSet(spec.classAdded or spec.classFilterAdded or spec.classNames or spec.classFilter)
+	local remClassSet = NAmanage._evtClassSet(spec.classRemoving or spec.classFilterRemoving or spec.classNamesRemoving or spec.classNames or spec.classFilter)
 	local noop = {
 		Connected = false,
 		Disconnect = function() end,
@@ -2726,18 +2981,24 @@ NAmanage.wsSub = NAmanage.wsSub or function(spec)
 	hub.nextId += 1
 	local id = hub.nextId
 	if onAdd then
-		hub.added[id] = addFilter and {
+		hub.added[id] = (addFilter or addClassSet) and {
 			fn = onAdd,
 			filter = addFilter,
+			classSet = addClassSet,
 		} or onAdd
 		hub.addCount = (hub.addCount or 0) + 1
 	end
 	if onRem then
-		hub.removing[id] = remFilter and {
+		hub.removing[id] = (remFilter or remClassSet) and {
 			fn = onRem,
 			filter = remFilter,
+			classSet = remClassSet,
 		} or onRem
 		hub.remCount = (hub.remCount or 0) + 1
+	end
+	NAmanage._evtHubRebuildClassGates(hub)
+	if type(hub.enableRootHooks) == "function" then
+		hub.enableRootHooks()
 	end
 
 	local conn = {
@@ -2756,6 +3017,7 @@ NAmanage.wsSub = NAmanage.wsSub or function(spec)
 			hub.removing[id] = nil
 			hub.remCount = math.max(0, (hub.remCount or 0) - 1)
 		end
+		NAmanage._evtHubRebuildClassGates(hub)
 		if (hub.addCount or 0) <= 0 and (hub.remCount or 0) <= 0 then
 			if hub.cacheLive then
 				hub.aQ = {}
@@ -2766,9 +3028,14 @@ NAmanage.wsSub = NAmanage.wsSub or function(spec)
 				hub.aTail = 0
 				hub.rHead = 1
 				hub.rTail = 0
+				if type(hub.enableRootHooks) == "function" then
+					hub.enableRootHooks()
+				end
 			else
 				NAmanage._wsHubDispose(hub)
 			end
+		elseif type(hub.enableRootHooks) == "function" then
+			hub.enableRootHooks()
 		end
 	end
 	return conn
@@ -2869,17 +3136,17 @@ NAmanage._cgHubGet = NAmanage._cgHubGet or function()
 		hub.qBusy = true
 		Spawn(function()
 			while hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
-				local budget, waitDelay = NAmanage._evtHubBudget(8, {
-					delay = 0.012,
-					ldSc = 0.2,
-					ldDel = 0.018,
+				local budget, waitDelay = NAmanage._evtHubBudget(72, {
+					delay = 0,
+					ldSc = 0.35,
+					ldDel = 0.006,
 				})
 				while budget > 0 and hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
 					if hub.rHead <= hub.rTail then
 						local inst = hub.rQ[hub.rHead]
 						hub.rQ[hub.rHead] = nil
 						hub.rHead += 1
-						if inst then
+						if inst and hub.rSet[inst] then
 							hub.rSet[inst] = nil
 							dispatch(hub.removing, inst)
 						end
@@ -2887,7 +3154,7 @@ NAmanage._cgHubGet = NAmanage._cgHubGet or function()
 						local inst = hub.aQ[hub.aHead]
 						hub.aQ[hub.aHead] = nil
 						hub.aHead += 1
-						if inst then
+						if inst and hub.aSet[inst] then
 							hub.aSet[inst] = nil
 							dispatch(hub.added, inst)
 						end
@@ -2925,7 +3192,7 @@ NAmanage._cgHubGet = NAmanage._cgHubGet or function()
 		if NAStuff and NAStuff.teleportTransition then
 			return
 		end
-		if not NAmanage._uiEvtPush(hub, kind, inst, "core") then
+		if not NAmanage._uiEvtPush(hub, kind, inst, "core", true) then
 			return
 		end
 		kickQ()
@@ -2954,7 +3221,7 @@ NAmanage._cgHubGet = NAmanage._cgHubGet or function()
 		if (hub.addCount or 0) > 0 then
 			if not hub.cAdd then
 				hub.cAdd = NAmanage.safeConnect(root.DescendantAdded, function(inst)
-					NAmanage.spawnEvent(qEvt, "add", inst)
+					qEvt("add", inst)
 				end)
 			end
 		elseif hub.cAdd then
@@ -2964,7 +3231,7 @@ NAmanage._cgHubGet = NAmanage._cgHubGet or function()
 		if (hub.remCount or 0) > 0 then
 			if not hub.cRem then
 				hub.cRem = NAmanage.safeConnect(root.DescendantRemoving, function(inst)
-					NAmanage.spawnEvent(qEvt, "rem", inst)
+					qEvt("rem", inst)
 				end)
 			end
 		elseif hub.cRem then
@@ -2987,6 +3254,8 @@ NAmanage.cgSub = NAmanage.cgSub or function(spec)
 		or (type(spec.filter) == "function" and spec.filter or nil)
 	local remFilter = type(spec.filterRemoving) == "function" and spec.filterRemoving
 		or (type(spec.filter) == "function" and spec.filter or nil)
+	local addClassSet = NAmanage._evtClassSet(spec.classAdded or spec.classFilterAdded or spec.classNames or spec.classFilter)
+	local remClassSet = NAmanage._evtClassSet(spec.classRemoving or spec.classFilterRemoving or spec.classNamesRemoving or spec.classNames or spec.classFilter)
 	local noop = {
 		Connected = false,
 		Disconnect = function() end,
@@ -2999,19 +3268,22 @@ NAmanage.cgSub = NAmanage.cgSub or function(spec)
 	hub.nextId += 1
 	local id = hub.nextId
 	if onAdd then
-		hub.added[id] = addFilter and {
+		hub.added[id] = (addFilter or addClassSet) and {
 			fn = onAdd,
 			filter = addFilter,
+			classSet = addClassSet,
 		} or onAdd
 		hub.addCount = (hub.addCount or 0) + 1
 	end
 	if onRem then
-		hub.removing[id] = remFilter and {
+		hub.removing[id] = (remFilter or remClassSet) and {
 			fn = onRem,
 			filter = remFilter,
+			classSet = remClassSet,
 		} or onRem
 		hub.remCount = (hub.remCount or 0) + 1
 	end
+	NAmanage._evtHubRebuildClassGates(hub)
 	if type(hub.enableRootHooks) == "function" then
 		hub.enableRootHooks()
 	end
@@ -3032,6 +3304,7 @@ NAmanage.cgSub = NAmanage.cgSub or function(spec)
 			hub.removing[id] = nil
 			hub.remCount = math.max(0, (hub.remCount or 0) - 1)
 		end
+		NAmanage._evtHubRebuildClassGates(hub)
 		if (hub.addCount or 0) <= 0 and (hub.remCount or 0) <= 0 then
 			NAmanage._cgHubDispose(hub)
 		elseif type(hub.enableRootHooks) == "function" then
@@ -3183,17 +3456,17 @@ NAmanage._pgHubGet = NAmanage._pgHubGet or function()
 		hub.qBusy = true
 		Spawn(function()
 			while hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
-				local budget, waitDelay = NAmanage._evtHubBudget(32, {
-					delay = 0.008,
-					ldSc = 0.25,
-					ldDel = 0.014,
+				local budget, waitDelay = NAmanage._evtHubBudget(96, {
+					delay = 0,
+					ldSc = 0.35,
+					ldDel = 0.006,
 				})
 				while budget > 0 and hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
 					if hub.rHead <= hub.rTail then
 						local inst = hub.rQ[hub.rHead]
 						hub.rQ[hub.rHead] = nil
 						hub.rHead += 1
-						if inst then
+						if inst and hub.rSet[inst] then
 							hub.rSet[inst] = nil
 							dispatch(hub.removing, inst)
 						end
@@ -3201,7 +3474,7 @@ NAmanage._pgHubGet = NAmanage._pgHubGet or function()
 						local inst = hub.aQ[hub.aHead]
 						hub.aQ[hub.aHead] = nil
 						hub.aHead += 1
-						if inst then
+						if inst and hub.aSet[inst] then
 							hub.aSet[inst] = nil
 							dispatch(hub.added, inst)
 						end
@@ -3239,7 +3512,7 @@ NAmanage._pgHubGet = NAmanage._pgHubGet or function()
 		if NAStuff and NAStuff.teleportTransition then
 			return
 		end
-		if not NAmanage._uiEvtPush(hub, kind, inst, "playergui") then
+		if not NAmanage._uiEvtPush(hub, kind, inst, "playergui", true) then
 			return
 		end
 		kickQ()
@@ -3258,17 +3531,28 @@ NAmanage._pgHubGet = NAmanage._pgHubGet or function()
 
 	local function connectRootHooks()
 		if not (hub.alive and hub.root and wantsRootEvents()) then
+			disconnectRootHooks()
 			return
 		end
-		if not hub.cAdd then
-			hub.cAdd = NAmanage.safeConnect(hub.root.DescendantAdded, function(inst)
-				NAmanage.spawnEvent(qEvt, "add", inst)
-			end)
+		if (hub.addCount or 0) > 0 then
+			if not hub.cAdd then
+				hub.cAdd = NAmanage.safeConnect(hub.root.DescendantAdded, function(inst)
+					qEvt("add", inst)
+				end)
+			end
+		elseif hub.cAdd then
+			disc(hub.cAdd)
+			hub.cAdd = nil
 		end
-		if not hub.cRem then
-			hub.cRem = NAmanage.safeConnect(hub.root.DescendantRemoving, function(inst)
-				NAmanage.spawnEvent(qEvt, "rem", inst)
-			end)
+		if (hub.remCount or 0) > 0 then
+			if not hub.cRem then
+				hub.cRem = NAmanage.safeConnect(hub.root.DescendantRemoving, function(inst)
+					qEvt("rem", inst)
+				end)
+			end
+		elseif hub.cRem then
+			disc(hub.cRem)
+			hub.cRem = nil
 		end
 	end
 
@@ -3352,6 +3636,8 @@ NAmanage.pgSub = NAmanage.pgSub or function(spec)
 		or (type(spec.filter) == "function" and spec.filter or nil)
 	local remFilter = type(spec.filterRemoving) == "function" and spec.filterRemoving
 		or (type(spec.filter) == "function" and spec.filter or nil)
+	local addClassSet = NAmanage._evtClassSet(spec.classAdded or spec.classFilterAdded or spec.classNames or spec.classFilter)
+	local remClassSet = NAmanage._evtClassSet(spec.classRemoving or spec.classFilterRemoving or spec.classNamesRemoving or spec.classNames or spec.classFilter)
 	local noop = {
 		Connected = false,
 		Disconnect = function() end,
@@ -3364,19 +3650,22 @@ NAmanage.pgSub = NAmanage.pgSub or function(spec)
 	hub.nextId += 1
 	local id = hub.nextId
 	if onAdd then
-		hub.added[id] = addFilter and {
+		hub.added[id] = (addFilter or addClassSet) and {
 			fn = onAdd,
 			filter = addFilter,
+			classSet = addClassSet,
 		} or onAdd
 		hub.addCount = (hub.addCount or 0) + 1
 	end
 	if onRem then
-		hub.removing[id] = remFilter and {
+		hub.removing[id] = (remFilter or remClassSet) and {
 			fn = onRem,
 			filter = remFilter,
+			classSet = remClassSet,
 		} or onRem
 		hub.remCount = (hub.remCount or 0) + 1
 	end
+	NAmanage._evtHubRebuildClassGates(hub)
 	if type(hub.syncRoot) == "function" then
 		hub.syncRoot()
 	end
@@ -3400,8 +3689,11 @@ NAmanage.pgSub = NAmanage.pgSub or function(spec)
 			hub.removing[id] = nil
 			hub.remCount = math.max(0, (hub.remCount or 0) - 1)
 		end
+		NAmanage._evtHubRebuildClassGates(hub)
 		if (hub.addCount or 0) <= 0 and (hub.remCount or 0) <= 0 then
 			NAmanage._pgHubDispose(hub)
+		elseif type(hub.enableRootHooks) == "function" then
+			hub.enableRootHooks()
 		end
 	end
 	return conn
@@ -3514,17 +3806,17 @@ NAmanage._playersHubGet = NAmanage._playersHubGet or function()
 		hub.qBusy = true
 		Spawn(function()
 			while hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
-				local budget, waitDelay = NAmanage._evtHubBudget(90, {
+				local budget, waitDelay = NAmanage._evtHubBudget(128, {
 					delay = 0,
-					ldSc = 0.3,
-					ldDel = 0.008,
+					ldSc = 0.4,
+					ldDel = 0.006,
 				})
 				while budget > 0 and hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
 					if hub.rHead <= hub.rTail then
 						local plr = hub.rQ[hub.rHead]
 						hub.rQ[hub.rHead] = nil
 						hub.rHead += 1
-						if plr then
+						if plr and hub.rSet[plr] then
 							hub.rSet[plr] = nil
 							dispatch(hub.removing, plr)
 						end
@@ -3532,7 +3824,7 @@ NAmanage._playersHubGet = NAmanage._playersHubGet or function()
 						local plr = hub.aQ[hub.aHead]
 						hub.aQ[hub.aHead] = nil
 						hub.aHead += 1
-						if plr then
+						if plr and hub.aSet[plr] then
 							hub.aSet[plr] = nil
 							dispatch(hub.added, plr)
 						end
@@ -3641,6 +3933,8 @@ NAmanage.playersSub = NAmanage.playersSub or function(spec)
 		or (type(spec.filter) == "function" and spec.filter or nil)
 	local remFilter = type(spec.filterRemoving) == "function" and spec.filterRemoving
 		or (type(spec.filter) == "function" and spec.filter or nil)
+	local addClassSet = NAmanage._evtClassSet(spec.classAdded or spec.classFilterAdded or spec.classNames or spec.classFilter)
+	local remClassSet = NAmanage._evtClassSet(spec.classRemoving or spec.classFilterRemoving or spec.classNamesRemoving or spec.classNames or spec.classFilter)
 	local noop = {
 		Connected = false,
 		Disconnect = function() end,
@@ -3653,19 +3947,22 @@ NAmanage.playersSub = NAmanage.playersSub or function(spec)
 	hub.nextId += 1
 	local id = hub.nextId
 	if onAdd then
-		hub.added[id] = addFilter and {
+		hub.added[id] = (addFilter or addClassSet) and {
 			fn = onAdd,
 			filter = addFilter,
+			classSet = addClassSet,
 		} or onAdd
 		hub.addCount = (hub.addCount or 0) + 1
 	end
 	if onRem then
-		hub.removing[id] = remFilter and {
+		hub.removing[id] = (remFilter or remClassSet) and {
 			fn = onRem,
 			filter = remFilter,
+			classSet = remClassSet,
 		} or onRem
 		hub.remCount = (hub.remCount or 0) + 1
 	end
+	NAmanage._evtHubRebuildClassGates(hub)
 	if type(hub.enableHooks) == "function" then
 		hub.enableHooks()
 	end
@@ -3810,17 +4107,17 @@ NAmanage._descHubGet = NAmanage._descHubGet or function(root)
 		hub.qBusy = true
 		Spawn(function()
 			while hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
-				local budget, waitDelay = NAmanage._evtHubBudget(120, {
+				local budget, waitDelay = NAmanage._evtHubBudget(180, {
 					delay = 0,
-					ldSc = 0.35,
-					ldDel = 0.008,
+					ldSc = 0.45,
+					ldDel = 0.006,
 				})
 				while budget > 0 and hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
 					if hub.rHead <= hub.rTail then
 						local inst = hub.rQ[hub.rHead]
 						hub.rQ[hub.rHead] = nil
 						hub.rHead += 1
-						if inst then
+						if inst and hub.rSet[inst] then
 							hub.rSet[inst] = nil
 							dispatch(hub.removing, inst)
 						end
@@ -3828,7 +4125,7 @@ NAmanage._descHubGet = NAmanage._descHubGet or function(root)
 						local inst = hub.aQ[hub.aHead]
 						hub.aQ[hub.aHead] = nil
 						hub.aHead += 1
-						if inst then
+						if inst and hub.aSet[inst] then
 							hub.aSet[inst] = nil
 							dispatch(hub.added, inst)
 						end
@@ -3868,7 +4165,7 @@ NAmanage._descHubGet = NAmanage._descHubGet or function(root)
 		end
 		local coreRoot = (typeof(COREGUI) == "Instance" and COREGUI) or SafeGetService("CoreGui")
 		local capKind = (coreRoot and root and root:IsDescendantOf(coreRoot)) and "core" or "default"
-		if not NAmanage._uiEvtPush(hub, kind, inst, capKind) then
+		if not NAmanage._uiEvtPush(hub, kind, inst, capKind, true) then
 			return
 		end
 		kickQ()
@@ -3887,17 +4184,28 @@ NAmanage._descHubGet = NAmanage._descHubGet or function(root)
 
 	local function connectHooks()
 		if not (hub.alive and wantsEvents()) then
+			disconnectHooks()
 			return
 		end
-		if not hub.cAdd then
-			hub.cAdd = NAmanage.safeConnect(root.DescendantAdded, function(inst)
-				NAmanage.spawnEvent(qEvt, "add", inst)
-			end)
+		if (hub.addCount or 0) > 0 then
+			if not hub.cAdd then
+				hub.cAdd = NAmanage.safeConnect(root.DescendantAdded, function(inst)
+					qEvt("add", inst)
+				end)
+			end
+		elseif hub.cAdd then
+			disc(hub.cAdd)
+			hub.cAdd = nil
 		end
-		if not hub.cRem then
-			hub.cRem = NAmanage.safeConnect(root.DescendantRemoving, function(inst)
-				NAmanage.spawnEvent(qEvt, "rem", inst)
-			end)
+		if (hub.remCount or 0) > 0 then
+			if not hub.cRem then
+				hub.cRem = NAmanage.safeConnect(root.DescendantRemoving, function(inst)
+					qEvt("rem", inst)
+				end)
+			end
+		elseif hub.cRem then
+			disc(hub.cRem)
+			hub.cRem = nil
 		end
 	end
 
@@ -3922,6 +4230,8 @@ NAmanage.descSub = NAmanage.descSub or function(root, spec)
 		or (type(spec.filter) == "function" and spec.filter or nil)
 	local remFilter = type(spec.filterRemoving) == "function" and spec.filterRemoving
 		or (type(spec.filter) == "function" and spec.filter or nil)
+	local addClassSet = NAmanage._evtClassSet(spec.classAdded or spec.classFilterAdded or spec.classNames or spec.classFilter)
+	local remClassSet = NAmanage._evtClassSet(spec.classRemoving or spec.classFilterRemoving or spec.classNamesRemoving or spec.classNames or spec.classFilter)
 	local noop = {
 		Connected = false,
 		Disconnect = function() end,
@@ -3956,19 +4266,22 @@ NAmanage.descSub = NAmanage.descSub or function(root, spec)
 	hub.nextId += 1
 	local id = hub.nextId
 	if onAdd then
-		hub.added[id] = addFilter and {
+		hub.added[id] = (addFilter or addClassSet) and {
 			fn = onAdd,
 			filter = addFilter,
+			classSet = addClassSet,
 		} or onAdd
 		hub.addCount = (hub.addCount or 0) + 1
 	end
 	if onRem then
-		hub.removing[id] = remFilter and {
+		hub.removing[id] = (remFilter or remClassSet) and {
 			fn = onRem,
 			filter = remFilter,
+			classSet = remClassSet,
 		} or onRem
 		hub.remCount = (hub.remCount or 0) + 1
 	end
+	NAmanage._evtHubRebuildClassGates(hub)
 	if type(hub.enableHooks) == "function" then
 		hub.enableHooks()
 	end
@@ -3989,8 +4302,11 @@ NAmanage.descSub = NAmanage.descSub or function(root, spec)
 			hub.removing[id] = nil
 			hub.remCount = math.max(0, (hub.remCount or 0) - 1)
 		end
+		NAmanage._evtHubRebuildClassGates(hub)
 		if (hub.addCount or 0) <= 0 and (hub.remCount or 0) <= 0 then
 			NAmanage._descHubDispose(root, hub)
+		elseif type(hub.enableHooks) == "function" then
+			hub.enableHooks()
 		end
 	end
 	return conn
@@ -4113,17 +4429,17 @@ NAmanage._childHubGet = NAmanage._childHubGet or function(root)
 		hub.qBusy = true
 		Spawn(function()
 			while hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
-				local budget, waitDelay = NAmanage._evtHubBudget(120, {
+				local budget, waitDelay = NAmanage._evtHubBudget(180, {
 					delay = 0,
-					ldSc = 0.35,
-					ldDel = 0.008,
+					ldSc = 0.45,
+					ldDel = 0.006,
 				})
 				while budget > 0 and hub.alive and (hub.aHead <= hub.aTail or hub.rHead <= hub.rTail) do
 					if hub.rHead <= hub.rTail then
 						local inst = hub.rQ[hub.rHead]
 						hub.rQ[hub.rHead] = nil
 						hub.rHead += 1
-						if inst then
+						if inst and hub.rSet[inst] then
 							hub.rSet[inst] = nil
 							dispatch(hub.removed, inst)
 						end
@@ -4131,7 +4447,7 @@ NAmanage._childHubGet = NAmanage._childHubGet or function(root)
 						local inst = hub.aQ[hub.aHead]
 						hub.aQ[hub.aHead] = nil
 						hub.aHead += 1
-						if inst then
+						if inst and hub.aSet[inst] then
 							hub.aSet[inst] = nil
 							dispatch(hub.added, inst)
 						end
@@ -4816,76 +5132,72 @@ NAmanage.ForEachDescendantYield = NAmanage.ForEachDescendantYield or function(ro
 
 	local coreRoot = (typeof(COREGUI) == "Instance" and COREGUI) or SafeGetService("CoreGui")
 	local isCoreScan = coreRoot and root == coreRoot
-	local yieldEvery = tonumber(opts.yieldEvery) or (isCoreScan and 160 or 250)
+	local yieldEvery = tonumber(opts.yieldEvery) or (isCoreScan and 220 or 420)
 	if yieldEvery < 1 then
 		yieldEvery = 1
 	end
 
 	local delayTime = opts.delayTime
 	if isCoreScan then
-		if delayTime == nil or delayTime <= 0 then
-			delayTime = 0.035
+		if delayTime == nil or delayTime < 0 then
+			delayTime = 0
 		end
-		yieldEvery = math.min(yieldEvery, 180)
+	else
+		if delayTime == nil then
+			delayTime = 0
+		end
 	end
+
 	local cancelToken = opts.cancelToken
 	local includeRoot = opts.includeRoot == true
+	local maxItems = tonumber(opts.maxItems)
+	local stopOnResult = opts.stopOnResult == true
 	if NAmanage.isLoad and NAmanage.isLoad() then
-		yieldEvery = isCoreScan and math.min(yieldEvery, 300) or math.min(yieldEvery, 96)
-		if delayTime == nil then
-			delayTime = isCoreScan and 0.035 or 0.01
+		yieldEvery = isCoreScan and math.min(yieldEvery, 360) or math.min(yieldEvery, 180)
+		if delayTime <= 0 then
+			delayTime = isCoreScan and 0.004 or 0
 		end
 	end
 
-	local stack = {}
-	local stackN = 0
-	local function push(inst)
-		stackN += 1
-		stack[stackN] = inst
-	end
-	local function pop()
-		local inst = stack[stackN]
-		stack[stackN] = nil
-		stackN -= 1
-		return inst
-	end
-
-	if includeRoot then
-		push(root)
-	else
-		local okChildren, children = pcall(root.GetChildren, root)
-		if okChildren and children then
-			for i = 1, #children do
-				push(children[i])
-			end
-		end
-	end
-
+	local list = NAmanage._descSnapshot(root, opts)
 	local processed = 0
-	while stackN > 0 do
+
+	local function run(inst)
 		if cancelToken and cancelToken.cancelled then
-			break
+			return true
 		end
-
-		local inst = pop()
 		processed += 1
-		handler(inst)
-
-		local okChildren, children = pcall(inst.GetChildren, inst)
-		if okChildren and children then
-			for i = 1, #children do
-				push(children[i])
-			end
+		local result = handler(inst)
+		if stopOnResult and result then
+			return true
 		end
-
+		if maxItems and processed >= maxItems then
+			return true
+		end
 		if processed % yieldEvery == 0 then
 			if cancelToken and cancelToken.cancelled then
-				break
+				return true
 			end
-			if delayTime ~= nil then
+			if delayTime and delayTime > 0 then
 				Wait(delayTime)
 			else
 				Wait()
+			end
+		end
+		return false
+	end
+
+	if includeRoot then
+		if run(root) then
+			return processed
+		end
+	end
+
+	for i = 1, #list do
+		local inst = list[i]
+		if typeof(inst) == "Instance" and inst.Parent then
+			if run(inst) then
+				break
 			end
 		end
 	end
@@ -6296,6 +6608,7 @@ NAmanage.setStreamerMode = NAmanage.setStreamerMode or function(enable, opts)
 	NAlib.connect("streamermode_coregui", NAmanage.cgSub({
 		added = NAmanage.StreamerHandleAdded,
 		filterAdded = NAmanage.StreamerIsRelevant,
+		classNames = { "TextLabel", "TextButton", "TextBox", "ImageLabel", "ImageButton", "BillboardGui", "SurfaceGui" },
 	}))
 	NAlib.disconnect("streamermode_playergui")
 	NAlib.connect("streamermode_playergui", NAmanage.pgSub({
@@ -7068,6 +7381,52 @@ NAmanage.GetLogicalAbsoluteSize = function(inst)
 	return Vector2.new(size.X / scale, size.Y / scale)
 end
 
+NAmanage.GetCanvasPositionScale = function(sf, axis)
+	local fallback = NAmanage.GetUIScaleFactor and NAmanage.GetUIScaleFactor(sf) or 1
+	if not fallback or fallback <= 0 then
+		fallback = 1
+	end
+	if not (sf and sf:IsA("ScrollingFrame")) then
+		return fallback
+	end
+
+	local axisName = (axis == "X" or axis == "Horizontal") and "X" or "Y"
+	local canvasOffset = 0
+	local absCanvas = nil
+	pcall(function()
+		canvasOffset = axisName == "X" and sf.CanvasSize.X.Offset or sf.CanvasSize.Y.Offset
+		absCanvas = sf.AbsoluteCanvasSize
+	end)
+	local absOffset = absCanvas and (axisName == "X" and absCanvas.X or absCanvas.Y) or 0
+	if canvasOffset and canvasOffset > 0 and absOffset and absOffset > 0 then
+		local ratio = absOffset / canvasOffset
+		if ratio and ratio > 0.01 and ratio < 100 then
+			return ratio
+		end
+	end
+
+	return fallback
+end
+
+NAmanage.GetLogicalCanvasPosition = function(sf)
+	if not sf then
+		return Vector2.new()
+	end
+	local pos = sf.CanvasPosition or Vector2.new()
+	local sx = NAmanage.GetCanvasPositionScale and NAmanage.GetCanvasPositionScale(sf, "X") or 1
+	local sy = NAmanage.GetCanvasPositionScale and NAmanage.GetCanvasPositionScale(sf, "Y") or 1
+	return Vector2.new((tonumber(pos.X) or 0) / math.max(sx, 0.01), (tonumber(pos.Y) or 0) / math.max(sy, 0.01))
+end
+
+NAmanage.SetLogicalCanvasPosition = function(sf, x, y)
+	if not sf then
+		return
+	end
+	local sx = NAmanage.GetCanvasPositionScale and NAmanage.GetCanvasPositionScale(sf, "X") or 1
+	local sy = NAmanage.GetCanvasPositionScale and NAmanage.GetCanvasPositionScale(sf, "Y") or 1
+	sf.CanvasPosition = Vector2.new((tonumber(x) or 0) * math.max(sx, 0.01), (tonumber(y) or 0) * math.max(sy, 0.01))
+end
+
 NAmanage.GetLogicalWindowSize = function(inst)
 	if not inst then
 		return Vector2.new()
@@ -7082,12 +7441,16 @@ NAmanage.GetLogicalWindowSize = function(inst)
 		size = inst.AbsoluteSize or Vector2.new()
 	end
 
-	local scale = NAmanage.GetUIScaleFactor and NAmanage.GetUIScaleFactor(inst) or 1
-	if not scale or scale <= 0 then
-		scale = 1
+	local scaleX = NAmanage.GetUIScaleFactor and NAmanage.GetUIScaleFactor(inst) or 1
+	local scaleY = scaleX
+	if inst:IsA("ScrollingFrame") and NAmanage.GetCanvasPositionScale then
+		scaleX = NAmanage.GetCanvasPositionScale(inst, "X")
+		scaleY = NAmanage.GetCanvasPositionScale(inst, "Y")
 	end
+	if not scaleX or scaleX <= 0 then scaleX = 1 end
+	if not scaleY or scaleY <= 0 then scaleY = 1 end
 
-	return Vector2.new(math.max(1, size.X / scale), math.max(1, size.Y / scale))
+	return Vector2.new(math.max(1, size.X / scaleX), math.max(1, size.Y / scaleY))
 end
 
 NAmanage.CreateNAFreecam=function()
@@ -9903,6 +10266,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 				filterAdded = function(o)
 					return o and o:IsA("UICorner")
 				end,
+				classNames = "UICorner",
 			}))
 		end
 
@@ -11665,6 +12029,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 				filterAdded = function(o)
 					return isFontClassTarget(o)
 				end,
+				classNames = { "TextLabel", "TextButton", "TextBox" },
 			}))
 		end
 
@@ -36112,16 +36477,21 @@ NAmanage.getStatsItem = NAmanage.getStatsItem or function(names)
 			cache[key] = root
 			return root
 		end
-		local ok, desc = pcall(function()
-			return root:GetDescendants()
-		end)
-		if ok then
-			for _, obj in ipairs(desc) do
-				if obj and want[NAmanage._statNorm(obj.Name)] then
-					cache[key] = obj
-					return obj
-				end
+		local found = nil
+		NAmanage.ForEachDescendantYield(root, function(obj)
+			if obj and want[NAmanage._statNorm(obj.Name)] then
+				found = obj
+				return true
 			end
+		end, {
+			maxItems = 500,
+			stopOnResult = true,
+			yieldEvery = 120,
+			delayTime = 0,
+		})
+		if found then
+			cache[key] = found
+			return found
 		end
 	end
 	return nil
@@ -36191,13 +36561,32 @@ NAmanage.getRealPhysicsFPS = NAmanage.getRealPhysicsFPS or function()
 end
 
 NAmanage.countInstances = NAmanage.countInstances or function()
-	local ok, desc = pcall(function()
-		return game:GetDescendants()
-	end)
-	if ok and desc then
-		return #desc
+	local state = NAmanage._instanceCountState
+	if type(state) ~= "table" then
+		state = {
+			count = nil,
+			scanning = false,
+			lastScan = 0,
+		}
+		NAmanage._instanceCountState = state
 	end
-	return nil
+	local now = os.clock()
+	if not state.scanning and (not state.count or now - (tonumber(state.lastScan) or 0) > 10) then
+		state.scanning = true
+		Spawn(function()
+			local scanned = 0
+			NAmanage.ForEachDescendantYield(game, function()
+				scanned += 1
+			end, {
+				yieldEvery = 800,
+				delayTime = 0.02,
+			})
+			state.count = math.max(0, scanned)
+			state.lastScan = os.clock()
+			state.scanning = false
+		end)
+	end
+	return state.count
 end
 
 cmd.add({ "ping" }, { "ping", "Shows your network latency" }, function()
@@ -44916,53 +45305,73 @@ cmd.add({"animationplayer","animplayer", "aplayer","animp"},{"animationplayer","
 	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/AnimPlayer.luau"))();
 end)
 
-cmd.add({"Decompiler"},{"Decompiler","Allows you to decompile LocalScript/ModuleScript's using konstant"},function()
+cmd.add({"decompiler"},{"decompiler","Allows you to decompile LocalScript/ModuleScript's using lua.expert"},function()
 	Spawn(function()
 		assert(getscriptbytecode, "Exploit not supported.")
+		assert(opt and type(opt.NAREQUEST) == "function", "HTTP request not supported.")
 
-		local API: string = "http://api.plusgiant5.com/"
-
+		local API: string = "https://api.lua.expert/decompile"
 		local last_call = 0
-		function call(konstantType: string, scriptPath: Script | ModuleScript | LocalScript): string
+		local function encodeBase64(data: string): string
+			if type(base64_encode) == "function" then
+				return base64_encode(data)
+			end
+			local chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+			return ((data:gsub(".", function(x)
+				local bits, byte = "", x:byte()
+				for i = 8, 1, -1 do
+					bits = bits .. (byte % 2 ^ i - byte % 2 ^ (i - 1) > 0 and "1" or "0")
+				end
+				return bits
+			end) .. "0000"):gsub("%d%d%d?%d?%d?%d?", function(x)
+				if #x < 6 then
+					return ""
+				end
+				local c = 0
+				for i = 1, 6 do
+					c = c + (x:sub(i, i) == "1" and 2 ^ (6 - i) or 0)
+				end
+				return chars:sub(c + 1, c + 1)
+			end) .. ({ "", "==", "=" })[#data % 3 + 1])
+		end
+		function decompile(scriptPath: Script | ModuleScript | LocalScript): string
 			local success: boolean, bytecode: string = NACaller(getscriptbytecode, scriptPath)
 
 			if (not success) then
-				return
+				return "-- failed to read script bytecode\n--[[\n" .. tostring(bytecode) .. "\n--]]"
 			end
 
 			local time_elapsed = os.clock() - last_call
-			if time_elapsed <= .5 then
-				Wait(.5 - time_elapsed)
+			if time_elapsed <= .6 then
+				Wait(.6 - time_elapsed)
 			end
 			local httpResult = opt.NAREQUEST({
-				Url = API..konstantType,
-				Body = bytecode,
+				Url = API,
+				Body = HttpService:JSONEncode({
+					script = encodeBase64(bytecode)
+				}),
 				Method = "POST",
 				Headers = {
-					["Content-Type"] = "text/plain"
+					["content-type"] = "application/json"
 				},
 			})
 			last_call = os.clock()
 
-			if (httpResult.StatusCode ~= 200) then
-				return
+			if (not httpResult or httpResult.StatusCode ~= 200) then
+				return "-- api request error\n--[[\n" .. tostring(httpResult and httpResult.Body or "no response") .. "\n--]]"
 			else
 				return httpResult.Body
 			end
 		end
 
-		function decompile(scriptPath: Script | ModuleScript | LocalScript): string
-			return call("/konstant/decompile", scriptPath)
-		end
-
 		function disassemble(scriptPath: Script | ModuleScript | LocalScript): string
-			return call("/konstant/disassemble", scriptPath)
+			return "-- lua.expert does not provide a disassemble endpoint."
 		end
 
 		_na_env.decompile = decompile
 		_na_env.disassemble = disassemble
 
-		-- by lovrewe
+		-- api docs: https://lua.expert/docs
 	end)
 	--loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/WompWomp.lua"))()
 end)
@@ -49860,30 +50269,38 @@ cmd.add({"autorejoin", "autorj"}, {"autorejoin (autorj)", "Rejoins the server if
 	NAlib.connect("autorejoin", GuiService.ErrorMessageChanged:Connect(function(message)
 		handleRejoin(message)
 	end))
-	NAlib.connect("autorejoin", NAmanage.descAdd(COREGUI, function(descendant)
-		if descendant.Name == "RobloxPromptGui"
-			or descendant.Name == "promptOverlay"
-			or descendant.Name == "ErrorPrompt"
-			or descendant.Name == "ErrorTitle"
-			or descendant.Name == "ErrorMessage"
-		then
-			bindPromptWatchers()
-			if descendant:IsA("TextLabel") then
-				handleRejoin(descendant.Text)
+	NAlib.connect("autorejoin", NAmanage.descSub(COREGUI, {
+		added = function(descendant)
+			if descendant.Name == "RobloxPromptGui"
+				or descendant.Name == "promptOverlay"
+				or descendant.Name == "ErrorPrompt"
+				or descendant.Name == "ErrorTitle"
+				or descendant.Name == "ErrorMessage"
+			then
+				bindPromptWatchers()
+				if descendant:IsA("TextLabel") then
+					handleRejoin(descendant.Text)
+				end
 			end
-		end
-	end, function(descendant)
-		return descendant and (
-			descendant.Name == "RobloxPromptGui"
-			or descendant.Name == "promptOverlay"
-			or descendant.Name == "ErrorPrompt"
-			or descendant.Name == "ErrorTitle"
-			or descendant.Name == "ErrorMessage"
-		)
-	end))
-	NAlib.connect("autorejoin", NAmanage.descRem(COREGUI, function(descendant)
-		watchedPromptLabels[descendant] = nil
-	end))
+		end,
+		removing = function(descendant)
+			watchedPromptLabels[descendant] = nil
+		end,
+		filterAdded = function(descendant)
+			return descendant and (
+				descendant.Name == "RobloxPromptGui"
+				or descendant.Name == "promptOverlay"
+				or descendant.Name == "ErrorPrompt"
+				or descendant.Name == "ErrorTitle"
+				or descendant.Name == "ErrorMessage"
+			)
+		end,
+		filterRemoving = function(descendant)
+			return watchedPromptLabels[descendant] == true
+		end,
+		classAdded = { "ScreenGui", "Frame", "TextLabel" },
+		classRemoving = "TextLabel",
+	}))
 	bindPromptWatchers()
 
 	DebugNotif("Auto Rejoin is now enabled!")
@@ -56846,15 +57263,33 @@ NAmanage.IsFireKeyBlockedByTextBox = function()
 		end)
 	end
 
-	for _, root in ipairs(roots) do
-		for _, obj in ipairs(root:GetDescendants()) do
+	local function scanTextBoxes(root)
+		if typeof(root) ~= "Instance" then
+			return false
+		end
+		local hit = false
+		NAmanage.ForEachDescendantYield(root, function(obj)
 			if obj:IsA("TextBox") and obj.Visible then
 				local pos = obj.AbsolutePosition
 				local size = obj.AbsoluteSize
 				if mousePos.X >= pos.X and mousePos.Y >= pos.Y and mousePos.X <= pos.X + size.X and mousePos.Y <= pos.Y + size.Y then
+					hit = true
 					return true
 				end
 			end
+		end, {
+			includeRoot = true,
+			maxItems = 3500,
+			stopOnResult = true,
+			yieldEvery = 180,
+			delayTime = 0,
+		})
+		return hit
+	end
+
+	for _, root in ipairs(roots) do
+		if scanTextBoxes(root) then
+			return true
 		end
 	end
 
@@ -64546,9 +64981,14 @@ function NAmanage.nuhuhprompt(v)
 				if root:IsA("GuiObject") then
 					disableObj(root)
 				end
-				for _, obj in ipairs(NAmanage.qDesc(root, "GuiObject")) do
-					disableObj(obj)
-				end
+				NAmanage.ForEachDescendantYield(root, function(obj)
+					if obj:IsA("GuiObject") then
+						disableObj(obj)
+					end
+				end, {
+					yieldEvery = 80,
+					delayTime = 0.015,
+				})
 			end
 
 			local function bindFoundation(gui)
@@ -64577,6 +65017,7 @@ function NAmanage.nuhuhprompt(v)
 					filterAdded = function(inst2)
 						return inst2 and (inst2:IsA("GuiObject") or inst2:IsA("ScreenGui"))
 					end,
+					classNames = { "ScreenGui", "Frame", "ScrollingFrame", "TextLabel", "TextButton", "TextBox", "ImageLabel", "ImageButton", "CanvasGroup", "ViewportFrame" },
 				})
 				Insert(promptTBL.conns, inner)
 
@@ -64638,14 +65079,9 @@ function NAmanage.nuhuhprompt(v)
 			local c = NAmanage.cgSub({
 				added = trackAndDisable,
 				filterAdded = function(inst)
-					if not inst then
-						return false
-					end
-					if inst:IsA("ScreenGui") and NAmanage.isPromptGuiName(inst.Name) then
-						return true
-					end
-					return inst:FindFirstAncestor("FoundationOverlay") ~= nil
+					return inst and inst:IsA("ScreenGui") and NAmanage.isPromptGuiName(inst.Name)
 				end,
+				classNames = "ScreenGui",
 			})
 			Insert(promptTBL.conns, c)
 
@@ -65033,19 +65469,17 @@ function NAmanage.scanNetworkPauseItems(callback)
 		if NAmanage.isNetworkPauseGui(root) or NAmanage.isNetworkPauseScript(root) then
 			callback(root)
 		end
-		local ok, desc = pcall(function()
-			return root:GetDescendants()
-		end)
-		if ok and type(desc) == "table" then
-			for _, inst in ipairs(desc) do
-				local name = Lower(tostring(inst.Name or ""))
-				if name:find("networkpause", 1, true) then
-					if NAmanage.isNetworkPauseGui(inst) or NAmanage.isNetworkPauseScript(inst) then
-						callback(inst)
-					end
+		NAmanage.ForEachDescendantYield(root, function(inst)
+			local name = Lower(tostring(inst.Name or ""))
+			if name:find("networkpause", 1, true) then
+				if NAmanage.isNetworkPauseGui(inst) or NAmanage.isNetworkPauseScript(inst) then
+					callback(inst)
 				end
 			end
-		end
+		end, {
+			yieldEvery = 120,
+			delayTime = 0.02,
+		})
 	end
 end
 
@@ -65075,19 +65509,6 @@ function NAmanage.setNetworkPauseBlocked(disable)
 			NAmanage.fireNetworkPauseEnabled(false)
 			NAmanage.setNetworkPauseFocused(false)
 		end
-		local function startPolling()
-			if tbl.polling then
-				return
-			end
-			tbl.polling = true
-			SpawnCall(function()
-				while tbl.blocking do
-					trackAndDisable(nil)
-					Wait(0.5)
-				end
-				tbl.polling = false
-			end)
-		end
 		if disable then
 			local wasBlocking = tbl.blocking == true
 			tbl.blocking = true
@@ -65098,20 +65519,20 @@ function NAmanage.setNetworkPauseBlocked(disable)
 					if typeof(root) ~= "Instance" then
 						return
 					end
-					local ok, conn = pcall(function()
-						return root.DescendantAdded:Connect(function(inst)
-							if not tbl.blocking or typeof(inst) ~= "Instance" then
-								return
-							end
-							local name = Lower(tostring(inst.Name or ""))
-							if name:find("networkpause", 1, true) then
-								trackAndDisable(inst)
-								NAmanage.fireNetworkPauseEnabled(false)
-								NAmanage.setNetworkPauseFocused(false)
-							end
-						end)
+					local conn = NAmanage.descAdd(root, function(inst)
+						if not tbl.blocking or typeof(inst) ~= "Instance" then
+							return
+						end
+						trackAndDisable(inst)
+						NAmanage.fireNetworkPauseEnabled(false)
+						NAmanage.setNetworkPauseFocused(false)
+					end, function(inst)
+						if typeof(inst) ~= "Instance" then
+							return false
+						end
+						return Lower(tostring(inst.Name or "")):find("networkpause", 1, true) ~= nil
 					end)
-					if ok and conn then
+					if conn then
 						Insert(tbl.conns, conn)
 					end
 				end
@@ -65129,7 +65550,6 @@ function NAmanage.setNetworkPauseBlocked(disable)
 					Insert(tbl.conns, pauseConn)
 				end
 			end
-			startPolling()
 		else
 			if not tbl.blocking then
 				NAmanage.fireNetworkPauseEnabled(true)
@@ -79355,6 +79775,10 @@ do
 					return result;
 				end;
 			end;
+			if NAmanage.GetLogicalCanvasPosition then
+				local logicalPos = NAmanage.GetLogicalCanvasPosition(target);
+				return tonumber(ctrl.axis == "X" and logicalPos.X or logicalPos.Y) or 0;
+			end
 			return tonumber(ctrl.axis == "X" and target.CanvasPosition.X or target.CanvasPosition.Y) or 0;
 		end;
 
@@ -79514,9 +79938,20 @@ do
 				ctrl.scheduleRefresh();
 				return;
 			end;
-			local currentX = tonumber(target.CanvasPosition.X) or 0;
-			local currentY = tonumber(target.CanvasPosition.Y) or 0;
-			target.CanvasPosition = ctrl.axis == "X" and Vector2.new(nextPos, currentY) or Vector2.new(currentX, nextPos);
+			if NAmanage.GetLogicalCanvasPosition and NAmanage.SetLogicalCanvasPosition then
+				local logicalPos = NAmanage.GetLogicalCanvasPosition(target);
+				local currentX = tonumber(logicalPos.X) or 0;
+				local currentY = tonumber(logicalPos.Y) or 0;
+				if ctrl.axis == "X" then
+					NAmanage.SetLogicalCanvasPosition(target, nextPos, currentY);
+				else
+					NAmanage.SetLogicalCanvasPosition(target, currentX, nextPos);
+				end
+			else
+				local currentX = tonumber(target.CanvasPosition.X) or 0;
+				local currentY = tonumber(target.CanvasPosition.Y) or 0;
+				target.CanvasPosition = ctrl.axis == "X" and Vector2.new(nextPos, currentY) or Vector2.new(currentX, nextPos);
+			end
 			ctrl.scheduleRefresh();
 		end;
 
@@ -80690,9 +81125,9 @@ opt.NAAUTOSCALER = NAUIMANAGER.AUTOSCALER
 		for i,v in pairs(NAmanage.qDesc(NAStuff.NASCREENGUI, "Instance")) do
 			coreGuiProtection[v]=rPlayer.Name
 		end
-		NAStuff.NASCREENGUI.DescendantAdded:Connect(function(v)
+		NAlib.connect("CoreGuiProtection_Main", NAmanage.descAdd(NAStuff.NASCREENGUI, function(v)
 			coreGuiProtection[v]=rPlayer.Name
-		end)
+		end))
 		coreGuiProtection[NAStuff.NASCREENGUI]=rPlayer.Name
 
 		local meta=getrawmetatable(game)
@@ -80707,9 +81142,9 @@ opt.NAAUTOSCALER = NAUIMANAGER.AUTOSCALER
 	end)
 	if not __lt.cm("RunService", "IsStudio") then
 		local newGui=__lt.cm("CoreGui", "FindFirstChildWhichIsA", "NAStuff.NASCREENGUI")
-		newGui.DescendantAdded:Connect(function(v)
+		NAlib.connect("CoreGuiProtection_New", NAmanage.descAdd(newGui, function(v)
 			coreGuiProtection[v]=rPlayer.Name
-		end)
+		end))
 		for i,v in pairs(NAStuff.NASCREENGUI:GetChildren()) do
 			v.Parent=newGui
 		end
@@ -81257,7 +81692,7 @@ NAmanage.virtView = function(sf, viewH, totalH, minH)
 	local y = 0
 	local x = 0
 	if sf then
-		local pos = sf.CanvasPosition
+		local pos = NAmanage.GetLogicalCanvasPosition and NAmanage.GetLogicalCanvasPosition(sf) or sf.CanvasPosition
 		x = tonumber(pos.X) or 0
 		y = tonumber(pos.Y) or 0
 	end
@@ -81266,7 +81701,11 @@ NAmanage.virtView = function(sf, viewH, totalH, minH)
 	local nextY = math.clamp(y, 0, maxY)
 	if sf and math.abs(nextY - y) > 0.5 then
 		y = nextY
-		sf.CanvasPosition = Vector2.new(x, y)
+		if NAmanage.SetLogicalCanvasPosition then
+			NAmanage.SetLogicalCanvasPosition(sf, x, y)
+		else
+			sf.CanvasPosition = Vector2.new(x, y)
+		end
 	else
 		y = nextY
 	end
@@ -81697,7 +82136,8 @@ NAmanage.syncVisibleCommandRows=function(state)
 		logicalListSize = NAmanage.GetLogicalAbsoluteSize(cList)
 	end
 	local viewHeight = logicalListSize and logicalListSize.Y or cList.AbsoluteSize.Y
-	local scrollY = cList.CanvasPosition.Y
+	local scrollPos = NAmanage.GetLogicalCanvasPosition and NAmanage.GetLogicalCanvasPosition(cList) or cList.CanvasPosition
+	local scrollY = scrollPos.Y
 	if NAmanage.virtView then
 		viewHeight, scrollY = NAmanage.virtView(cList, viewHeight, totalHeight, rowStep * 3)
 	end
@@ -89883,7 +90323,8 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		end
 		viewHeight = math.max(1, viewHeight)
 		local visibleCount = math.max(1, math.floor(viewHeight / math.max(lineHeight, 1)))
-		local firstLine = math.clamp(math.floor(math.max(editorLineScroll.CanvasPosition.Y, 0) / math.max(lineHeight, 1)) + 1, 1, total)
+		local editorLinePos = NAmanage.GetLogicalCanvasPosition and NAmanage.GetLogicalCanvasPosition(editorLineScroll) or editorLineScroll.CanvasPosition
+		local firstLine = math.clamp(math.floor(math.max(editorLinePos.Y, 0) / math.max(lineHeight, 1)) + 1, 1, total)
 		local lastLine = math.clamp(firstLine + visibleCount - 1, firstLine, total)
 		pageLabel.Text = "Lines "..tostring(firstLine).."-"..tostring(lastLine).."/"..tostring(total)
 		pagePrev.Visible = false
@@ -89943,7 +90384,8 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		local visibleText = tostring(textBox.Text or "")
 		local lineHeight = getEditorLineHeight()
 		local function syncViewOnly()
-			tab.viewLine = math.clamp(math.floor(math.max(editorLineScroll.CanvasPosition.Y, 0) / lineHeight) + 1, 1, math.max(#tab.lines, 1))
+			local editorLinePos = NAmanage.GetLogicalCanvasPosition and NAmanage.GetLogicalCanvasPosition(editorLineScroll) or editorLineScroll.CanvasPosition
+			tab.viewLine = math.clamp(math.floor(math.max(editorLinePos.Y, 0) / lineHeight) + 1, 1, math.max(#tab.lines, 1))
 			updatePageInfo()
 		end
 		if visibleText == tostring(editorRenderedText or "") then
@@ -90015,7 +90457,8 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	local function getEditorVisibleLine(totalLines)
 		local lineHeight = getEditorWindowMetrics()
 		local total = math.max(tonumber(totalLines) or 1, 1)
-		return math.clamp(math.floor(math.max(editorLineScroll.CanvasPosition.Y, 0) / math.max(lineHeight, 1)) + 1, 1, total)
+		local editorLinePos = NAmanage.GetLogicalCanvasPosition and NAmanage.GetLogicalCanvasPosition(editorLineScroll) or editorLineScroll.CanvasPosition
+		return math.clamp(math.floor(math.max(editorLinePos.Y, 0) / math.max(lineHeight, 1)) + 1, 1, total)
 	end
 
 	local function getEditorWindowRange(totalLines, firstVisibleLine)
@@ -90279,7 +90722,11 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		editorRenderedText = renderedText
 		beginEditorTextSet()
 		if preserveScroll ~= true then
-			editorLineScroll.CanvasPosition = Vector2.new(0, math.max(0, (firstVisible - 1) * lineHeight))
+			if NAmanage.SetLogicalCanvasPosition then
+				NAmanage.SetLogicalCanvasPosition(editorLineScroll, 0, math.max(0, (firstVisible - 1) * lineHeight))
+			else
+				editorLineScroll.CanvasPosition = Vector2.new(0, math.max(0, (firstVisible - 1) * lineHeight))
+			end
 		end
 		textBox.Text = renderedText
 		finishEditorTextSet()
@@ -90309,7 +90756,11 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		local lineHeight = getEditorWindowMetrics()
 		local nextLine = math.clamp(tonumber(line) or 1, 1, total)
 		tab.viewLine = nextLine
-		editorLineScroll.CanvasPosition = Vector2.new(0, math.max(0, (nextLine - 1) * lineHeight))
+		if NAmanage.SetLogicalCanvasPosition then
+			NAmanage.SetLogicalCanvasPosition(editorLineScroll, 0, math.max(0, (nextLine - 1) * lineHeight))
+		else
+			editorLineScroll.CanvasPosition = Vector2.new(0, math.max(0, (nextLine - 1) * lineHeight))
+		end
 		loadCurrentPage(true)
 	end
 
@@ -90328,7 +90779,11 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			return
 		end
 		tab.viewLine = nextLine
-		editorLineScroll.CanvasPosition = Vector2.new(0, math.max(0, (nextLine - 1) * editorVirtualLineHeight))
+		if NAmanage.SetLogicalCanvasPosition then
+			NAmanage.SetLogicalCanvasPosition(editorLineScroll, 0, math.max(0, (nextLine - 1) * editorVirtualLineHeight))
+		else
+			editorLineScroll.CanvasPosition = Vector2.new(0, math.max(0, (nextLine - 1) * editorVirtualLineHeight))
+		end
 		loadCurrentPage()
 		scheduleTabsSave()
 		setStatus("Scrolled to line "..tostring(nextLine).."/"..tostring(total), colors.subtle)
@@ -90358,7 +90813,8 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		if editorLoading or redirectingEditorScroll then
 			return
 		end
-		local y = tonumber(editorScroll.CanvasPosition.Y) or 0
+		local editorScrollPos = NAmanage.GetLogicalCanvasPosition and NAmanage.GetLogicalCanvasPosition(editorScroll) or editorScroll.CanvasPosition
+		local y = tonumber(editorScrollPos.Y) or 0
 		if math.abs(y) <= 0.5 then
 			return
 		end
@@ -90370,9 +90826,18 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			end
 			executorVerticalScroll.scrollBy(lineDelta)
 		else
-			editorLineScroll.CanvasPosition = Vector2.new(0, math.max(0, editorLineScroll.CanvasPosition.Y + y))
+			if NAmanage.GetLogicalCanvasPosition and NAmanage.SetLogicalCanvasPosition then
+				local editorLinePos = NAmanage.GetLogicalCanvasPosition(editorLineScroll)
+				NAmanage.SetLogicalCanvasPosition(editorLineScroll, 0, math.max(0, editorLinePos.Y + y))
+			else
+				editorLineScroll.CanvasPosition = Vector2.new(0, math.max(0, editorLineScroll.CanvasPosition.Y + y))
+			end
 		end
-		editorScroll.CanvasPosition = Vector2.new(editorScroll.CanvasPosition.X, 0)
+		if NAmanage.SetLogicalCanvasPosition then
+			NAmanage.SetLogicalCanvasPosition(editorScroll, editorScrollPos.X, 0)
+		else
+			editorScroll.CanvasPosition = Vector2.new(editorScroll.CanvasPosition.X, 0)
+		end
 		redirectingEditorScroll = false
 	end)
 	editorScroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
@@ -92303,7 +92768,8 @@ NAmanage.Notepad_Init = function()
 	local function getNotepadVisibleLine(totalLines)
 		local lineHeight = getNotepadWindowMetrics()
 		local total = math.max(tonumber(totalLines) or 1, 1)
-		return math.clamp(math.floor(math.max(notepadLineScroll.CanvasPosition.Y, 0) / math.max(lineHeight, 1)) + 1, 1, total)
+		local notepadLinePos = NAmanage.GetLogicalCanvasPosition and NAmanage.GetLogicalCanvasPosition(notepadLineScroll) or notepadLineScroll.CanvasPosition
+		return math.clamp(math.floor(math.max(notepadLinePos.Y, 0) / math.max(lineHeight, 1)) + 1, 1, total)
 	end
 
 	local function getNotepadWindowRange(totalLines, firstVisibleLine)
@@ -92359,7 +92825,11 @@ NAmanage.Notepad_Init = function()
 		visibleEndLine = lastRender
 		loadingText = true
 		if preserveScroll ~= true then
-			notepadLineScroll.CanvasPosition = Vector2.new(0, math.max(0, (firstVisible - 1) * lineHeight))
+			if NAmanage.SetLogicalCanvasPosition then
+				NAmanage.SetLogicalCanvasPosition(notepadLineScroll, 0, math.max(0, (firstVisible - 1) * lineHeight))
+			else
+				notepadLineScroll.CanvasPosition = Vector2.new(0, math.max(0, (firstVisible - 1) * lineHeight))
+			end
 		end
 		box.Text = sliceText(chunks, page, visibleEndLine)
 		loadingText = false
@@ -92399,7 +92869,11 @@ NAmanage.Notepad_Init = function()
 		local total = math.max(#chunks, 1)
 		local lineHeight = getNotepadWindowMetrics()
 		local nextLine = math.clamp(tonumber(line) or 1, 1, total)
-		notepadLineScroll.CanvasPosition = Vector2.new(0, math.max(0, (nextLine - 1) * lineHeight))
+		if NAmanage.SetLogicalCanvasPosition then
+			NAmanage.SetLogicalCanvasPosition(notepadLineScroll, 0, math.max(0, (nextLine - 1) * lineHeight))
+		else
+			notepadLineScroll.CanvasPosition = Vector2.new(0, math.max(0, (nextLine - 1) * lineHeight))
+		end
 		loadPage(nextLine, true)
 	end
 
@@ -92646,7 +93120,8 @@ NAmanage.Notepad_Init = function()
 		if loadingText or redirectingNotepadScroll then
 			return
 		end
-		local y = tonumber(body.CanvasPosition.Y) or 0
+		local bodyPos = NAmanage.GetLogicalCanvasPosition and NAmanage.GetLogicalCanvasPosition(body) or body.CanvasPosition
+		local y = tonumber(bodyPos.Y) or 0
 		if math.abs(y) <= 0.5 then
 			return
 		end
@@ -92658,9 +93133,18 @@ NAmanage.Notepad_Init = function()
 			end
 			notepadVerticalScroll.scrollBy(lineDelta)
 		else
-			notepadLineScroll.CanvasPosition = Vector2.new(0, math.max(0, notepadLineScroll.CanvasPosition.Y + y))
+			if NAmanage.GetLogicalCanvasPosition and NAmanage.SetLogicalCanvasPosition then
+				local notepadLinePos = NAmanage.GetLogicalCanvasPosition(notepadLineScroll)
+				NAmanage.SetLogicalCanvasPosition(notepadLineScroll, 0, math.max(0, notepadLinePos.Y + y))
+			else
+				notepadLineScroll.CanvasPosition = Vector2.new(0, math.max(0, notepadLineScroll.CanvasPosition.Y + y))
+			end
 		end
-		body.CanvasPosition = Vector2.new(body.CanvasPosition.X, 0)
+		if NAmanage.SetLogicalCanvasPosition then
+			NAmanage.SetLogicalCanvasPosition(body, bodyPos.X, 0)
+		else
+			body.CanvasPosition = Vector2.new(body.CanvasPosition.X, 0)
+		end
 		redirectingNotepadScroll = false
 	end)
 	local function handleNotepadWheel(input)
@@ -95297,7 +95781,9 @@ NAmanage.bindToChat=function(plr, msg)
 		local logsFrame = NAUIMANAGER and NAUIMANAGER.chatLogs;
 		local followBottom = false;
 		if logsFrame and logsFrame.Parent then
-			local bottomY = (tonumber(logsFrame.CanvasPosition.Y) or 0) + (logsFrame.AbsoluteSize.Y or 0);
+			local logPos = NAmanage.GetLogicalCanvasPosition and NAmanage.GetLogicalCanvasPosition(logsFrame) or logsFrame.CanvasPosition;
+			local logView = NAmanage.GetLogicalWindowSize and NAmanage.GetLogicalWindowSize(logsFrame) or logsFrame.AbsoluteSize;
+			local bottomY = (tonumber(logPos.Y) or 0) + (logView and logView.Y or 0);
 			local canvasY = tonumber(logsFrame.CanvasSize.Y.Offset) or 0;
 			followBottom = bottomY >= math.max(0, canvasY - 32);
 		end
@@ -95329,7 +95815,12 @@ NAmanage.bindToChat=function(plr, msg)
 		if logsFrame and logsFrame.Parent then
 			updateCanvasSize(logsFrame, NAUIMANAGER and NAUIMANAGER.AUTOSCALER and NAUIMANAGER.AUTOSCALER.Scale or nil)
 			if followBottom then
-				logsFrame.CanvasPosition = Vector2.new(0, math.max(0, (logsFrame.CanvasSize.Y.Offset or 0) - (logsFrame.AbsoluteSize.Y or 0)))
+				local targetY = math.max(0, (logsFrame.CanvasSize.Y.Offset or 0) - ((NAmanage.GetLogicalWindowSize and NAmanage.GetLogicalWindowSize(logsFrame).Y) or (logsFrame.AbsoluteSize.Y or 0)))
+				if NAmanage.SetLogicalCanvasPosition then
+					NAmanage.SetLogicalCanvasPosition(logsFrame, 0, targetY)
+				else
+					logsFrame.CanvasPosition = Vector2.new(0, targetY)
+				end
 			end
 		end
 		if NAmanage.ChatScroll and NAmanage.ChatScroll.scheduleRefresh then
@@ -95510,7 +96001,8 @@ NAmanage.bindToDevConsole = function()
 		return math.max(0, logicalSize and logicalSize.Y or (logsFrame.AbsoluteSize.Y or 0));
 	end;
 	local function isNearBottom()
-		local bottomY = logsFrame.CanvasPosition.Y + getVisibleHeight();
+		local logPos = NAmanage.GetLogicalCanvasPosition and NAmanage.GetLogicalCanvasPosition(logsFrame) or logsFrame.CanvasPosition;
+		local bottomY = logPos.Y + getVisibleHeight();
 		local canvasY = logsFrame.CanvasSize.Y.Offset;
 		return bottomY >= math.max(0, canvasY - 32);
 	end;
@@ -95719,7 +96211,11 @@ NAmanage.bindToDevConsole = function()
 		layoutWidth = 0;
 		layoutContentHeight = 0;
 		if logsFrame and logsFrame.Parent then
-			logsFrame.CanvasPosition = Vector2.new(0, 0);
+			if NAmanage.SetLogicalCanvasPosition then
+				NAmanage.SetLogicalCanvasPosition(logsFrame, 0, 0);
+			else
+				logsFrame.CanvasPosition = Vector2.new(0, 0);
+			end
 			updateCanvasSize(logsFrame, NAUIMANAGER.AUTOSCALER.Scale);
 		end;
 	end;
@@ -95740,7 +96236,8 @@ NAmanage.bindToDevConsole = function()
 			return;
 		end;
 		rebuildRecordLayout(false);
-		local scrollY = logsFrame.CanvasPosition.Y;
+		local logPos = NAmanage.GetLogicalCanvasPosition and NAmanage.GetLogicalCanvasPosition(logsFrame) or logsFrame.CanvasPosition;
+		local scrollY = logPos.Y;
 		local viewHeight = getVisibleHeight();
 		if NAmanage.virtView then
 			viewHeight, scrollY = NAmanage.virtView(logsFrame, viewHeight, layoutContentHeight, 54);
@@ -95806,7 +96303,12 @@ NAmanage.bindToDevConsole = function()
 			if NAmanage.virtView then
 				followH = NAmanage.virtView(logsFrame, followH, logsFrame.CanvasSize.Y.Offset, 54);
 			end;
-			logsFrame.CanvasPosition = Vector2.new(0, math.max(0, logsFrame.CanvasSize.Y.Offset - followH));
+			local targetY = math.max(0, logsFrame.CanvasSize.Y.Offset - followH);
+			if NAmanage.SetLogicalCanvasPosition then
+				NAmanage.SetLogicalCanvasPosition(logsFrame, 0, targetY);
+			else
+				logsFrame.CanvasPosition = Vector2.new(0, targetY);
+			end
 		end;
 	end;
 	for _, logType in ipairs(buttonTypes) do
@@ -98095,11 +98597,7 @@ end)
 -- ownership trail is generated from _sourceTrail in the Contributors settings tab
 
 -- remove annoying aged group chat messages
-Spawn(function()
-	pcall(function() -- added pcall incase of errors (just to be sure this script doesn't kill itself 💀)
-		loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/FixShitChatSystem.lua"))();
-	end)
-end)
+SpawnCall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/FixShitChatSystem.lua"))(); end)
 
 SpawnCall(function()
 	local NAresult = tick() - NAbegin
@@ -104290,6 +104788,13 @@ NAmanage.NAInitCoreGuiCustomization=function()
 			rescanAgain = false,
 			gradientSeq = nil,
 			gradientSeqKey = nil,
+			recheckQueue = {},
+			recheckSet = setmetatable({}, { __mode = "k" }),
+			recheckHead = 1,
+			recheckTail = 0,
+			recheckShortTail = 0,
+			recheckShortQueued = false,
+			recheckLongQueued = false,
 		}
 
 		local data = PT.default
@@ -104374,6 +104879,13 @@ NAmanage.NAInitCoreGuiCustomization=function()
 			PT.queueSet = setmetatable({}, { __mode = "k" })
 			PT.processing = false
 			PT.queueKickPending = false
+			PT.recheckQueue = {}
+			PT.recheckSet = setmetatable({}, { __mode = "k" })
+			PT.recheckHead = 1
+			PT.recheckTail = 0
+			PT.recheckShortTail = 0
+			PT.recheckShortQueued = false
+			PT.recheckLongQueued = false
 		end
 
 		local function resetPlexImages()
@@ -104492,6 +105004,8 @@ NAmanage.NAInitCoreGuiCustomization=function()
 			return name:find("icon", 1, true) ~= nil or name:find("glyph", 1, true) ~= nil
 		end
 
+		local installPlexWatcher
+
 		local function applyIfReady(o)
 			if not (PT.data.enabled and o and o.Parent) then
 				return false
@@ -104500,6 +105014,9 @@ NAmanage.NAInitCoreGuiCustomization=function()
 			if PT.images[o] then
 				if HUI and o:IsDescendantOf(HUI) then
 					return false
+				end
+				if installPlexWatcher then
+					installPlexWatcher(o)
 				end
 				NAmanage.plex_apply(o)
 				return true
@@ -104512,6 +105029,9 @@ NAmanage.NAInitCoreGuiCustomization=function()
 			local imgId = getImageId(o)
 			if isPlexImage(o) and isPlexIconImage(o, imgId) then
 				PT.images[o] = true
+				if installPlexWatcher then
+					installPlexWatcher(o)
+				end
 				NAmanage.plex_apply(o)
 				return true
 			end
@@ -104526,6 +105046,9 @@ NAmanage.NAInitCoreGuiCustomization=function()
 					and fam:find("BuilderIcons/BuilderIcons.json", 1, true)
 				then
 					PT.images[o] = true
+					if installPlexWatcher then
+						installPlexWatcher(o)
+					end
 					NAmanage.plex_apply(o)
 					return true
 				end
@@ -104592,7 +105115,7 @@ NAmanage.NAInitCoreGuiCustomization=function()
 		local enqueue
 		local scheduleQueueProcess
 
-		local function installPlexWatcher(o)
+		installPlexWatcher = function(o)
 			if not (o and o.Parent and isPlexCandidate(o)) then
 				return
 			end
@@ -104668,7 +105191,6 @@ NAmanage.NAInitCoreGuiCustomization=function()
 			if not isPlexCandidate(o) then
 				return
 			end
-			installPlexWatcher(o)
 			if PT.queueSet[o] then
 				return
 			end
@@ -104826,24 +105348,73 @@ NAmanage.NAInitCoreGuiCustomization=function()
 			end)()
 		end
 
+		local function drainPlexRecheck(clearAfter)
+			local tail = PT.recheckTail
+			local head = clearAfter and PT.recheckHead or ((PT.recheckShortTail or 0) + 1)
+			for i = head, tail do
+				local o = PT.recheckQueue[i]
+				if o and o.Parent and PT.data.enabled then
+					enqueue(o)
+				end
+			end
+			scheduleQueueProcess()
+			if clearAfter then
+				PT.recheckQueue = {}
+				PT.recheckSet = setmetatable({}, { __mode = "k" })
+				PT.recheckHead = 1
+				PT.recheckTail = 0
+				PT.recheckShortTail = 0
+				PT.recheckLongQueued = false
+			else
+				PT.recheckShortTail = math.max(PT.recheckShortTail or 0, tail)
+				PT.recheckShortQueued = false
+			end
+		end
+
+		local function schedulePlexRecheck(o)
+			if not (PT.data.enabled and o and o.Parent) then
+				return
+			end
+			if not PT.recheckSet[o] then
+				PT.recheckSet[o] = true
+				PT.recheckTail += 1
+				PT.recheckQueue[PT.recheckTail] = o
+			end
+			if not PT.recheckShortQueued then
+				PT.recheckShortQueued = true
+				Delay(0.05, function()
+					if PT.data.enabled then
+						drainPlexRecheck(false)
+					else
+						PT.recheckShortQueued = false
+					end
+				end)
+			end
+			if not PT.recheckLongQueued then
+				PT.recheckLongQueued = true
+				Delay(0.25, function()
+					if PT.data.enabled then
+						drainPlexRecheck(true)
+					else
+						PT.recheckQueue = {}
+						PT.recheckSet = setmetatable({}, { __mode = "k" })
+						PT.recheckHead = 1
+						PT.recheckTail = 0
+						PT.recheckShortTail = 0
+						PT.recheckShortQueued = false
+						PT.recheckLongQueued = false
+					end
+				end)
+			end
+		end
+
 		PT.onDescendantAdded = function(o)
 			if not PT.data.enabled then
 				return
 			end
 			enqueue(o)
 			scheduleQueueProcess()
-			Delay(0.05, function()
-				if PT.data.enabled and o and o.Parent then
-					enqueue(o)
-					scheduleQueueProcess()
-				end
-			end)
-			Delay(0.25, function()
-				if PT.data.enabled and o and o.Parent then
-					enqueue(o)
-					scheduleQueueProcess()
-				end
-			end)
+			schedulePlexRecheck(o)
 		end
 
 		PT.setPlexW = function(on)
@@ -104855,6 +105426,7 @@ NAmanage.NAInitCoreGuiCustomization=function()
 			NAlib.connect("PlexyDescAdded", NAmanage.descSub(PT.cg, {
 				added = PT.onDescendantAdded,
 				filterAdded = isPlexCandidate,
+				classNames = { "ImageLabel", "ImageButton", "TextLabel", "TextButton", "TextBox" },
 			}))
 			NAlib.connect("PlexyDescRemoving", NAmanage.descSub(PT.cg, {
 				removing = function(o)
@@ -104864,6 +105436,7 @@ NAmanage.NAInitCoreGuiCustomization=function()
 				filterRemoving = function(o)
 					return PT.images[o] == true or PT.queueSet[o] == true
 				end,
+				classNames = { "ImageLabel", "ImageButton", "TextLabel", "TextButton", "TextBox" },
 			}))
 		end
 
@@ -105946,6 +106519,7 @@ NAmanage.NAInitCoreGuiCustomization=function()
 					filterRemoving = function(o)
 						return o and (BuilderIconEditor.liveTargets[o] == true or isTrackedBuilderIconTarget(o))
 					end,
+					classNames = { "TextLabel", "TextButton" },
 				}))
 			end
 
