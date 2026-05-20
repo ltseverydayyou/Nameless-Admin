@@ -3332,7 +3332,15 @@ NAlib.isProperty = function(inst, prop)
 end
 
 NAlib.setProperty = function(inst, prop, v)
-	local s, _ = pcall(function() inst[prop] = v end)
+	local ok, cur = pcall(function()
+		return inst[prop]
+	end)
+	if ok and cur == v then
+		return true
+	end
+	local s = pcall(function()
+		inst[prop] = v
+	end)
 	return s
 end
 
@@ -6720,6 +6728,10 @@ InstancesTbl.wsAdd = InstancesTbl.wsAdd or {}
 InstancesTbl.wsRem = InstancesTbl.wsRem or {}
 NAmanage._wsHEnabledAdd = NAmanage._wsHEnabledAdd or {}
 NAmanage._wsHEnabledRem = NAmanage._wsHEnabledRem or {}
+NAmanage._wsHFilterAdd = NAmanage._wsHFilterAdd or {}
+NAmanage._wsHFilterRem = NAmanage._wsHFilterRem or {}
+NAmanage._wsHClassAdd = NAmanage._wsHClassAdd or {}
+NAmanage._wsHClassRem = NAmanage._wsHClassRem or {}
 NAmanage._wsHCounts = NAmanage._wsHCounts or { add = 0, rem = 0 }
 do
 	local cAdd, cRem = 0, 0
@@ -6761,14 +6773,38 @@ NAmanage._wsHIsActive = function(kind, key)
 	return NAmanage._wsHEvalGate(gates and gates[key])
 end
 
-NAmanage.hasWsH = function(kind)
+NAmanage._wsHPasses = function(kind, key, inst)
+	if not NAmanage._wsHIsActive(kind, key) then
+		return false
+	end
+	if inst == nil then
+		return true
+	end
+	local addKind = not (kind == "rem" or kind == "remove" or kind == "removing")
+	local classes = addKind and NAmanage._wsHClassAdd or NAmanage._wsHClassRem
+	local classSet = classes and classes[key] or nil
+	if classSet and not NAmanage._evtClassPass(classSet, inst) then
+		return false
+	end
+	local filters = addKind and NAmanage._wsHFilterAdd or NAmanage._wsHFilterRem
+	local filter = filters and filters[key] or nil
+	if type(filter) == "function" then
+		local ok, pass = pcall(filter, inst)
+		if not (ok and pass == true) then
+			return false
+		end
+	end
+	return true
+end
+
+NAmanage.hasWsH = function(kind, inst)
 	local counts = NAmanage._wsHCounts or { add = 0, rem = 0 }
 	if kind == "rem" or kind == "remove" or kind == "removing" then
 		if (tonumber(counts.rem) or 0) <= 0 then
 			return false
 		end
 		for key, fn in pairs(InstancesTbl.wsRem or {}) do
-			if type(fn) == "function" and NAmanage._wsHIsActive("rem", key) then
+			if type(fn) == "function" and NAmanage._wsHPasses("rem", key, inst) then
 				return true
 			end
 		end
@@ -6778,7 +6814,7 @@ NAmanage.hasWsH = function(kind)
 		return false
 	end
 	for key, fn in pairs(InstancesTbl.wsAdd or {}) do
-		if type(fn) == "function" and NAmanage._wsHIsActive("add", key) then
+		if type(fn) == "function" and NAmanage._wsHPasses("add", key, inst) then
 			return true
 		end
 	end
@@ -6792,6 +6828,10 @@ NAmanage.setWsH = function(key, spec)
 	spec = type(spec) == "table" and spec or {}
 	local onAdded = type(spec.added) == "function" and spec.added or nil
 	local onRemoving = type(spec.removing) == "function" and spec.removing or nil
+	local addFilter = type(spec.filterAdded) == "function" and spec.filterAdded or (type(spec.filter) == "function" and spec.filter or nil)
+	local remFilter = type(spec.filterRemoving) == "function" and spec.filterRemoving or (type(spec.filter) == "function" and spec.filter or nil)
+	local addClass = NAmanage._evtClassSet(spec.classAdded or spec.classFilterAdded or spec.classNames or spec.classFilter)
+	local remClass = NAmanage._evtClassSet(spec.classRemoving or spec.classFilterRemoving or spec.classNamesRemoving or spec.classNames or spec.classFilter)
 	local gateShared = spec.enabled
 	local gateAdd = spec.enabledAdded
 	if gateAdd == nil then
@@ -6819,13 +6859,21 @@ NAmanage.setWsH = function(key, spec)
 	InstancesTbl.wsRem[key] = onRemoving
 	if onAdded then
 		NAmanage._wsHEnabledAdd[key] = gateAdd
+		NAmanage._wsHFilterAdd[key] = addFilter
+		NAmanage._wsHClassAdd[key] = addClass
 	else
 		NAmanage._wsHEnabledAdd[key] = nil
+		NAmanage._wsHFilterAdd[key] = nil
+		NAmanage._wsHClassAdd[key] = nil
 	end
 	if onRemoving then
 		NAmanage._wsHEnabledRem[key] = gateRem
+		NAmanage._wsHFilterRem[key] = remFilter
+		NAmanage._wsHClassRem[key] = remClass
 	else
 		NAmanage._wsHEnabledRem[key] = nil
+		NAmanage._wsHFilterRem[key] = nil
+		NAmanage._wsHClassRem[key] = nil
 	end
 end
 
@@ -6845,6 +6893,10 @@ NAmanage.clrWsH = function(key)
 	InstancesTbl.wsRem[key] = nil
 	NAmanage._wsHEnabledAdd[key] = nil
 	NAmanage._wsHEnabledRem[key] = nil
+	NAmanage._wsHFilterAdd[key] = nil
+	NAmanage._wsHFilterRem[key] = nil
+	NAmanage._wsHClassAdd[key] = nil
+	NAmanage._wsHClassRem[key] = nil
 end
 
 opt={
@@ -8203,10 +8255,10 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			end
 
 			while uiScanHead <= uiScanTail do
-				local budget, waitDelay = NAmanage._evtHubBudget(24, {
+				local budget, waitDelay = NAmanage._evtHubBudget(8, {
 					delay = 0,
 					ldSc = 0.25,
-					ldDel = 0.008,
+					ldDel = 0.012,
 				})
 
 				while budget > 0 and uiScanHead <= uiScanTail do
@@ -8430,7 +8482,10 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			info = { original = o.CornerRadius }
 			CE.store[o] = info
 		end
-		o.CornerRadius = getCRad()
+		local radius = getCRad()
+		if o.CornerRadius ~= radius then
+			o.CornerRadius = radius
+		end
 		setCWat(o)
 	end
 
@@ -8467,10 +8522,10 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		local token = cornerApplyToken
 		Spawn(function()
 			while cornerApplyToken == token and cornerApplyHead <= cornerApplyTail do
-				local budget, waitDelay = NAmanage._evtHubBudget(24, {
+				local budget, waitDelay = NAmanage._evtHubBudget(8, {
 					delay = 0,
 					ldSc = 0.25,
-					ldDel = 0.008,
+					ldDel = 0.012,
 				})
 				while budget > 0 and cornerApplyToken == token and cornerApplyHead <= cornerApplyTail do
 					local inst = cornerApplyQueue[cornerApplyHead]
@@ -8538,7 +8593,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		end
 		queueUIScan(container, function(inst)
 			if inst:IsA("UICorner") then
-				setCorner(inst)
+				queueCornerApply(inst)
 			end
 		end, {
 			key = "corner-container:"..tostring(container),
@@ -8687,6 +8742,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		enabled = function()
 			return CE.data.enabled == true
 		end,
+		classNames = { "BillboardGui", "SurfaceGui" },
 		added = function(o)
 			onCBB(o)
 			onCSurf(o)
@@ -10106,7 +10162,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			if not isInPlayerGui(o) then
 				ensureFontWatcher(o)
 			end
-			if info and info.FontFaceSupported then
+			if info and info.FontFaceSupported and NAlib.isProperty(o, "FontFace") ~= FontEditor.currentFont then
 				pcall(function()
 					o.FontFace = FontEditor.currentFont
 				end)
@@ -10114,9 +10170,11 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		else
 			if info and info.FontFaceSupported then
 				ensureFontWatcher(o)
-				pcall(function()
-					o.FontFace = info.FontFace
-				end)
+				if NAlib.isProperty(o, "FontFace") ~= info.FontFace then
+					pcall(function()
+						o.FontFace = info.FontFace
+					end)
+				end
 			end
 			local cur = NAlib.isProperty(o, "Font")
 			if cur == FontEditor.currentFont then
@@ -10161,10 +10219,10 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		local token = fontApplyToken
 		Spawn(function()
 			while fontApplyToken == token and fontApplyHead <= fontApplyTail do
-				local budget, waitDelay = NAmanage._evtHubBudget(24, {
+				local budget, waitDelay = NAmanage._evtHubBudget(8, {
 					delay = 0,
 					ldSc = 0.25,
-					ldDel = 0.008,
+					ldDel = 0.012,
 				})
 				while budget > 0 and fontApplyToken == token and fontApplyHead <= fontApplyTail do
 					local inst = fontApplyQueue[fontApplyHead]
@@ -10450,6 +10508,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		enabled = function()
 			return FontEditor.data.enabled == true
 		end,
+		classNames = { "BillboardGui", "SurfaceGui" },
 		added = function(o)
 			onFontBillboardAdded(o)
 			onFontSurfaceAdded(o)
@@ -12599,8 +12658,8 @@ end
 
 function InstanceNew(c,p)
 	local inst = Instance.new(c)
-	if p then inst.Parent = p end
 	inst.Name = ((NAgui.rStringgg and NAgui.rStringgg()) or "\0")
+	if p then inst.Parent = p end
 	return inst
 end
 
@@ -95814,18 +95873,44 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 		if not root or (not fn) then
 			return;
 		end;
-		fn(root);
-		local ok, list = pcall(function()
-			return root:GetDescendants();
-		end);
-		if ok and type(list) == "table" then
-			for i = 1, #list do
-				fn(list[i]);
+		local q = { root };
+		local qi = 1;
+		local qn = 1;
+		Spawn(function()
+			while qi <= qn do
+				local budget, waitDelay = NAmanage._evtHubBudget(64, {
+					delay = 0,
+					ldSc = 0.25,
+					ldDel = 0.012,
+				});
+				while budget > 0 and qi <= qn do
+					local inst = q[qi];
+					q[qi] = nil;
+					qi += 1;
+					if inst and (inst == root or inst.Parent) then
+						fn(inst);
+						local ok, children = pcall(inst.GetChildren, inst);
+						if ok and type(children) == "table" then
+							for i = 1, #children do
+								qn += 1;
+								q[qn] = children[i];
+							end;
+						end;
+					end;
+					budget -= 1;
+				end;
+				if qi <= qn then
+					if waitDelay > 0 then
+						Wait(waitDelay);
+					else
+						Wait();
+					end;
+				end;
 			end;
-		end;
-		if type(onDone) == "function" then
-			pcall(onDone);
-		end;
+			if type(onDone) == "function" then
+				pcall(onDone);
+			end;
+		end);
 	end;
 	local function runWsH(kind, inst)
 		local handlers = (kind == "added") and InstancesTbl.wsAdd or InstancesTbl.wsRem;
@@ -95834,7 +95919,7 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 		end;
 		local gateKind = (kind == "added") and "add" or "rem"
 		for key, fn in pairs(handlers) do
-			if type(fn) == "function" and (not NAmanage._wsHIsActive or NAmanage._wsHIsActive(gateKind, key)) then
+			if type(fn) == "function" and (not NAmanage._wsHPasses or NAmanage._wsHPasses(gateKind, key, inst)) then
 				pcall(fn, inst);
 			end;
 		end;
@@ -95850,10 +95935,10 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 				unregI(inst);
 			end;
 		end;
-		if wsAddFlag == true and NAmanage.hasWsH("add") then
+		if wsAddFlag == true and NAmanage.hasWsH("add", inst) then
 			runWsH("added", inst);
 		end;
-		if wsRemFlag == true and NAmanage.hasWsH("rem") then
+		if wsRemFlag == true and NAmanage.hasWsH("rem", inst) then
 			runWsH("removing", inst);
 		end;
 	end;
@@ -95913,7 +95998,7 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 			handleDesc(inst, true, true, nil);
 		end,
 		filterAdded = function(inst)
-			if NAmanage.hasWsH("add") then
+			if NAmanage.hasWsH("add", inst) then
 				return true
 			end
 			return isITgt(inst)
@@ -95925,7 +96010,7 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 			handleDesc(inst, false, nil, true);
 		end,
 		filterRemoving = function(inst)
-			if NAmanage.hasWsH("rem") then
+			if NAmanage.hasWsH("rem", inst) then
 				return true
 			end
 			return isITgt(inst)
@@ -103069,6 +103154,7 @@ NAmanage.NAInitCoreGuiCustomization=function()
 			default   = { enabled = false, start = { h = 0.8, s = 1, v = 1 }, finish = { h = 0, s = 1, v = 1 } },
 			cg        = CoreGui,
 			images    = setmetatable({}, { __mode = "k" }),
+			gradients = setmetatable({}, { __mode = "k" }),
 			watchers  = setmetatable({}, { __mode = "k" }),
 			queue     = {},
 			queueHead = 1,
@@ -103085,6 +103171,11 @@ NAmanage.NAInitCoreGuiCustomization=function()
 			rescanAgain = false,
 			gradientSeq = nil,
 			gradientSeqKey = nil,
+			gradientTrans = NumberSequence.new{
+				NumberSequenceKeypoint.new(0, 0, 0),
+				NumberSequenceKeypoint.new(0.5, 0, 0),
+				NumberSequenceKeypoint.new(1, 0, 0),
+			},
 			recheckQueue = {},
 			recheckSet = setmetatable({}, { __mode = "k" }),
 			recheckHead = 1,
@@ -103187,6 +103278,7 @@ NAmanage.NAInitCoreGuiCustomization=function()
 
 		local function resetPlexImages()
 			PT.images = setmetatable({}, { __mode = "k" })
+			PT.gradients = setmetatable({}, { __mode = "k" })
 		end
 
 		local function resetPlexWatchers()
@@ -103359,6 +103451,14 @@ NAmanage.NAInitCoreGuiCustomization=function()
 				return
 			end
 			PT.queueSet[o] = nil
+			local cached = PT.gradients and PT.gradients[o] or nil
+			if cached and cached.Parent == o and cached.Name == "PlexityGradient" and cached:IsA("UIGradient") then
+				pcall(function()
+					cached:Destroy()
+				end)
+				PT.gradients[o] = nil
+				return
+			end
 			local okChildren, children = pcall(function()
 				return o:GetChildren()
 			end)
@@ -103373,6 +103473,9 @@ NAmanage.NAInitCoreGuiCustomization=function()
 					end)
 				end
 			end
+			if PT.gradients then
+				PT.gradients[o] = nil
+			end
 		end
 
 		NAmanage.plex_apply = function(o)
@@ -103386,24 +103489,35 @@ NAmanage.NAInitCoreGuiCustomization=function()
 				PT.images[o] = true
 			end
 			if PT.data.enabled then
-				local ug = o:FindFirstChild("PlexityGradient")
-				if not (ug and ug:IsA("UIGradient")) then
-					if ug then
-						pcall(function()
-							ug:Destroy()
-						end)
+				local seq = getPlexGradientSequence()
+				local trans = PT.gradientTrans
+				local ug = PT.gradients and PT.gradients[o] or nil
+				if not (ug and ug.Parent == o and ug:IsA("UIGradient")) then
+					ug = o:FindFirstChild("PlexityGradient")
+					if not (ug and ug:IsA("UIGradient")) then
+						if ug then
+							pcall(function()
+								ug:Destroy()
+							end)
+						end
+						ug = InstanceNew("UIGradient")
+						ug.Name = "PlexityGradient"
+						NAlib.setProperty(ug, "Color", seq)
+						NAlib.setProperty(ug, "Rotation", 45)
+						NAlib.setProperty(ug, "Transparency", trans)
+						ug.Parent = o
+						if PT.gradients then
+							PT.gradients[o] = ug
+						end
+						return
 					end
-					ug = InstanceNew("UIGradient")
-					ug.Name = "PlexityGradient"
-					ug.Parent = o
+					if PT.gradients then
+						PT.gradients[o] = ug
+					end
 				end
-				ug.Color = getPlexGradientSequence()
-				ug.Rotation = 45
-				ug.Transparency = NumberSequence.new{
-					NumberSequenceKeypoint.new(0,   0, 0),
-					NumberSequenceKeypoint.new(0.5, 0, 0),
-					NumberSequenceKeypoint.new(1,   0, 0),
-				}
+				NAlib.setProperty(ug, "Color", seq)
+				NAlib.setProperty(ug, "Rotation", 45)
+				NAlib.setProperty(ug, "Transparency", trans)
 			else
 				NAmanage.plex_remove(o)
 			end
@@ -103507,10 +103621,10 @@ NAmanage.NAInitCoreGuiCustomization=function()
 			local token = PT.queueToken
 			coroutine.wrap(function()
 				while token == PT.queueToken and PT.data.enabled and PT.queueHead <= PT.queueTail do
-					local budget, waitDelay = NAmanage._evtHubBudget(20, {
+					local budget, waitDelay = NAmanage._evtHubBudget(8, {
 						delay = 0,
 						ldSc = 0.25,
-						ldDel = 0.008,
+						ldDel = 0.012,
 					})
 					while budget > 0 and token == PT.queueToken and PT.data.enabled and PT.queueHead <= PT.queueTail do
 						local o = PT.queue[PT.queueHead]
@@ -103582,8 +103696,8 @@ NAmanage.NAInitCoreGuiCustomization=function()
 							applyIfReady(o)
 						end
 					end, {
-						yieldEvery = 400,
-						delayTime = 0.025,
+						yieldEvery = 120,
+						delayTime = 0.015,
 					})
 				end
 				PT.applying = false
@@ -103608,7 +103722,7 @@ NAmanage.NAInitCoreGuiCustomization=function()
 					if o and o.Parent then
 						NAmanage.plex_apply(o)
 						count += 1
-						if count % 80 == 0 then
+						if count % 24 == 0 then
 							Wait()
 						end
 					else
@@ -103729,6 +103843,9 @@ NAmanage.NAInitCoreGuiCustomization=function()
 				removing = function(o)
 					PT.images[o] = nil
 					PT.queueSet[o] = nil
+					if PT.gradients then
+						PT.gradients[o] = nil
+					end
 				end,
 				filterRemoving = function(o)
 					return PT.images[o] == true or PT.queueSet[o] == true
@@ -103761,8 +103878,8 @@ NAmanage.NAInitCoreGuiCustomization=function()
 					NAmanage.ForEachDescendantYield(cg, function(inst)
 						NAmanage.plex_remove(inst)
 					end, {
-						yieldEvery = 400,
-						delayTime = 0.025,
+						yieldEvery = 120,
+						delayTime = 0.015,
 					})
 				end
 				resetPlexImages()
@@ -104611,8 +104728,8 @@ NAmanage.NAInitCoreGuiCustomization=function()
 							Insert(found, inst)
 						end
 					end, {
-						yieldEvery = 400,
-						delayTime = 0.025,
+						yieldEvery = 120,
+						delayTime = 0.015,
 					})
 				else
 					found = collectBuilderIconLiveTargets()
