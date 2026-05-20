@@ -22138,6 +22138,68 @@ NAmanage.cloneArgsArray=function(source)
 	return out
 end
 
+NAStuff._doneCommands = NAStuff._doneCommands or {}
+
+NAmanage.commandPrimaryName = function(commandData, fallback)
+	if commandData then
+		for name, data in pairs(cmds.Commands or {}) do
+			if data == commandData then
+				return name
+			end
+		end
+	end
+	return Lower(tostring(fallback or ""))
+end
+
+NAmanage.commandDoneKey = function(rawArgs)
+	if type(rawArgs) ~= "table" then
+		return nil, nil, nil
+	end
+	local first = rawArgs[1]
+	if type(first) ~= "string" or first == "" then
+		return nil, nil, nil
+	end
+	local lowerFirst = Lower(first)
+	local commandData = (cmds.Commands and cmds.Commands[lowerFirst]) or (cmds.Aliases and cmds.Aliases[lowerFirst])
+	local primary = NAmanage.commandPrimaryName(commandData, lowerFirst)
+	local args = {}
+	for i = 2, #rawArgs do
+		args[#args + 1] = tostring(rawArgs[i] or "")
+	end
+	return primary.." "..Concat(args, " "), primary, args
+end
+
+NAmanage.markCommandDone = function(rawArgs)
+	local key = NAmanage.commandDoneKey(rawArgs)
+	if key and key ~= "" then
+		NAStuff._doneCommands[key] = true
+	end
+end
+
+NAmanage.markCommandUndone = function(rawArgs)
+	local _, primary = NAmanage.commandDoneKey(rawArgs)
+	if not primary or primary == "" then
+		return
+	end
+	if Sub(primary, 1, 2) ~= "un" then
+		return
+	end
+	local base = Sub(primary, 3)
+	if base == "" then
+		return
+	end
+	for key in pairs(NAStuff._doneCommands) do
+		if key == base or Sub(key, 1, #base + 1) == base.." " then
+			NAStuff._doneCommands[key] = nil
+		end
+	end
+end
+
+NAmanage.commandWasDone = function(rawArgs)
+	local key = NAmanage.commandDoneKey(rawArgs)
+	return key and NAStuff._doneCommands[key] == true
+end
+
 NAmanage.updateLastCommand=function(rawArgs)
 	if type(rawArgs) ~= "table" then return end
 	local first = rawArgs[1]
@@ -22386,6 +22448,8 @@ cmd.run = function(args)
 		local command = callerLower and (cmds.Commands[callerLower] or cmds.Aliases[callerLower]) or nil
 		if command then
 			command[1](unpack(arguments))
+			NAmanage.markCommandDone(rawArgs)
+			NAmanage.markCommandUndone(rawArgs)
 			bumpRichPresenceAsync()
 			if shouldRecord then
 				NAmanage.updateLastCommand(rawArgs)
@@ -32562,6 +32626,33 @@ cmd.add({"lastcommand","lastcmd"},{"lastcommand (lastcmd)","Re-run your previous
 	end)
 end)
 
+cmd.add({"ifundone","ifnotdone","ifnew"},{"ifundone <command> [arguments]","Runs a command only if that exact command has not been done this session"},function(...)
+	local targetArgs = {...}
+	local targetName = targetArgs[1]
+	if type(targetName) ~= "string" or targetName == "" then
+		DoNotif("Usage: ifundone <command> [arguments]", 3)
+		return
+	end
+
+	local lowerTarget = Lower(targetName)
+	if lowerTarget == "ifundone" or lowerTarget == "ifnotdone" or lowerTarget == "ifnew" then
+		DoNotif("ifundone cannot target itself.", 3)
+		return
+	end
+
+	if not (cmds.Commands[lowerTarget] or cmds.Aliases[lowerTarget]) then
+		DoNotif("Command '"..targetName.."' does not exist.", 3)
+		return
+	end
+
+	if NAmanage.commandWasDone(targetArgs) then
+		DebugNotif("Skipped already-done command: "..Concat(targetArgs, " "), 2)
+		return
+	end
+
+	cmd.run(targetArgs)
+end,true)
+
 cmd.add({"commandloop", "cmdloop"}, {"commandloop <command> {arguments} (cmdloop)", "Run a command on loop"}, function(...)
 	local args = {...}
 	local commandName = args[1]
@@ -37419,6 +37510,34 @@ cmd.add({"settweenspeed","tweenspeed"},{"tweenspeed [seconds]","Set how long twe
 	if not FileSupport then
 		DebugNotif("Tween speed will reset when Pedoblox closes (no file support detected)")
 	end
+end)
+
+NAmanage.verticalSelfTeleport=function(amount, direction)
+	local studs = tonumber(amount)
+	if not studs then
+		DoNotif("Please provide a numeric stud amount.")
+		return
+	end
+	studs = math.clamp(studs, 0, 1000000)
+	if studs <= 0 then
+		DoNotif("Stud amount must be greater than zero.")
+		return
+	end
+	local character = getChar()
+	local root = character and getRoot(character)
+	if not (character and character.Parent and root and root.Parent) then
+		DoNotif("Character root not found.")
+		return
+	end
+	character:PivotTo(character:GetPivot() + Vector3.new(0, studs * direction, 0))
+end
+
+cmd.add({"tpup","up"},{"tpup <studs>","Teleports you up by the given amount of studs"},function(amount)
+	NAmanage.verticalSelfTeleport(amount, 1)
+end)
+
+cmd.add({"tpdown","down"},{"tpdown <studs>","Teleports you down by the given amount of studs"},function(amount)
+	NAmanage.verticalSelfTeleport(amount, -1)
 end)
 
 cmd.add({"tweento","tweengoto","tgoto"},{"tweengoto <player>","Teleportation method that bypasses some anticheats"},function(name)
