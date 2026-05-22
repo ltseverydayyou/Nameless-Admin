@@ -15899,17 +15899,19 @@ NAmanage.NASettingsGetSchema=function()
 			end;
 		};
 		loopMethod = {
-			default = "RenderStepped";
+			default = "PostSimulation";
 			coerce = function(value)
 				local v = type(value) == "string" and value or tostring(value or "")
 				v = v:match("^%s*(.-)%s*$") or v
 				local l = v:lower():gsub("[%s_%-]", "")
 				if l == "presimulation" then
 					return "PreSimulation"
+				elseif l == "renderstepped" then
+					return "RenderStepped"
 				elseif l == "heartbeat" then
 					return "Heartbeat"
 				end
-				return "RenderStepped"
+				return "PostSimulation"
 			end;
 		};
 		safeSpeedMethod = {
@@ -19418,8 +19420,8 @@ opt.settingsTranslateTarget = NAmanage.NASettingsGet("settingsTranslateTarget")
 NAStuff.AutoExecEnabled = NAmanage.NASettingsGet("autoExecEnabled")
 NAStuff.UserButtonsAutoLoad = NAmanage.NASettingsGet("userButtonsAutoLoad")
 NAStuff.CmdBar2AutoRun = NAmanage.NASettingsGet("cmdbar2AutoRun")
-NAStuff.LoopMethodOptions = { "RenderStepped", "PreSimulation", "Heartbeat" }
-NAStuff.LoopMethod = NAmanage.NASettingsGet("loopMethod") or "RenderStepped"
+NAStuff.LoopMethodOptions = { "PostSimulation", "PreSimulation", "RenderStepped", "Heartbeat" }
+NAStuff.LoopMethod = NAmanage.NASettingsGet("loopMethod") or "PostSimulation"
 NAStuff.NetworkPauseDisabled = NAmanage.NASettingsGet("networkPauseDisabled")
 NAStuff.UnsafeFunctionsDisabled = NAmanage.NASettingsGet("disableUnsafeFunctions") == true
 NAStuff.ForceRconsoleNAConsole = NAmanage.NASettingsGet("forceRconsoleNAConsole") ~= false
@@ -22524,12 +22526,16 @@ NAmanage.SanitizeLoopMethod = function(method)
 	local value = type(method) == "string" and method or tostring(method or "")
 	value = value:match("^%s*(.-)%s*$") or value
 	local key = value:lower():gsub("[%s_%-]", "")
-	if key == "presimulation" then
+	if key == "postsimulation" then
+		return "PostSimulation"
+	elseif key == "presimulation" then
 		return "PreSimulation"
+	elseif key == "renderstepped" then
+		return "RenderStepped"
 	elseif key == "heartbeat" then
 		return "Heartbeat"
 	end
-	return "RenderStepped"
+	return "PostSimulation"
 end
 
 NAmanage.GetLoopSignal = function(method)
@@ -22538,14 +22544,13 @@ NAmanage.GetLoopSignal = function(method)
 	if sig and type(sig.Connect) == "function" then
 		return sig, picked
 	end
-	if picked == "PreSimulation" then
-		return nil, picked
-	end
-	if RunService and RunService.RenderStepped and type(RunService.RenderStepped.Connect) == "function" then
-		return RunService.RenderStepped, "RenderStepped"
-	end
-	if RunService and RunService.Heartbeat and type(RunService.Heartbeat.Connect) == "function" then
-		return RunService.Heartbeat, "Heartbeat"
+	local fallbacks = { "PostSimulation", "Heartbeat", "PreSimulation", "RenderStepped" }
+	for i = 1, #fallbacks do
+		local name = fallbacks[i]
+		local fallback = RunService and RunService[name]
+		if fallback and type(fallback.Connect) == "function" then
+			return fallback, name
+		end
 	end
 	return nil, picked
 end
@@ -22569,7 +22574,7 @@ NAmanage.ConnectLoop = function(loopKey)
 	local connKey = loopData.key or ("loop::"..loopKey)
 	loopData.key = connKey
 	NAlib.disconnect(connKey)
-	local sig, method = NAmanage.GetLoopSignal(NAStuff.LoopMethod)
+	local sig, method = NAmanage.GetLoopSignal(loopData.method or NAStuff.LoopMethod)
 	if not sig then
 		return false, "Loop signal is unavailable."
 	end
@@ -22612,6 +22617,13 @@ end
 NAmanage.SetLoopMethod = function(method, opts)
 	local picked = NAmanage.SanitizeLoopMethod(method)
 	NAStuff.LoopMethod = picked
+	if type(Loops) == "table" and (not opts or opts.updateRunning ~= false) then
+		for _, loopData in pairs(Loops) do
+			if type(loopData) == "table" then
+				loopData.method = picked
+			end
+		end
+	end
 	if not opts or opts.save ~= false then
 		pcall(NAmanage.NASettingsSet, "loopMethod", picked)
 	end
@@ -22621,8 +22633,8 @@ NAmanage.SetLoopMethod = function(method, opts)
 	return picked
 end
 
-NAStuff.LoopMethodOptions = NAStuff.LoopMethodOptions or { "RenderStepped", "PreSimulation", "Heartbeat" }
-NAStuff.LoopMethod = NAmanage.SanitizeLoopMethod(NAStuff.LoopMethod or "RenderStepped")
+NAStuff.LoopMethodOptions = NAStuff.LoopMethodOptions or { "PostSimulation", "PreSimulation", "RenderStepped", "Heartbeat" }
+NAStuff.LoopMethod = NAmanage.SanitizeLoopMethod(NAStuff.LoopMethod or "PostSimulation")
 
 NAmanage.FmtLoop = function(args)
 	if not args or #args == 0 then
@@ -22636,7 +22648,7 @@ NAmanage.LoopKey = function(name, args)
 	return Lower(tostring(name or "")).." "..Concat(loopArgs, " ")
 end
 
-NAmanage.StartLoop = function(cmdName, args, interval)
+NAmanage.StartLoop = function(cmdName, args, interval, method)
 	if type(cmdName) ~= "string" or cmdName == "" then
 		return false, "Command name is required."
 	end
@@ -22670,7 +22682,7 @@ NAmanage.StartLoop = function(cmdName, args, interval)
 		interval = interval,
 		running = true,
 		key = connKey,
-		method = NAmanage.SanitizeLoopMethod(NAStuff.LoopMethod),
+		method = NAmanage.SanitizeLoopMethod(method or NAStuff.LoopMethod),
 	}
 
 	Loops[loopKey] = loopData
@@ -22724,21 +22736,34 @@ cmd.loop = function(commandName, args)
 		return
 	end
 
+	local selectedMethod = NAmanage.SanitizeLoopMethod(NAStuff.LoopMethod or "PostSimulation")
+
 	Window({
 		Title = "Set Loop Delay",
-		Description = "Enter the delay (in seconds) for the loop of command: "..commandName,
+		Description = "Enter the delay (in seconds) for the loop of command: "..commandName.."\nSpam mode: "..selectedMethod,
 		InputField = true,
+		Dropdowns = {
+			{
+				Name = "Spam Mode",
+				Options = NAStuff.LoopMethodOptions or { "PostSimulation", "PreSimulation", "RenderStepped", "Heartbeat" },
+				CurrentOption = selectedMethod,
+				Callback = function(selection)
+					selectedMethod = NAmanage.SanitizeLoopMethod(NAmanage.getDDTxt and NAmanage.getDDTxt(selection) or selection)
+				end
+			}
+		},
 		Buttons = {
 			{
 				Text = "Submit",
 				Callback = function(input)
 					Spawn(function()
-						local ok, result, loopData = NAmanage.StartLoop(commandName, args, tonumber(input) or 0)
+						local picked = NAmanage.SanitizeLoopMethod(selectedMethod)
+						local ok, result, loopData = NAmanage.StartLoop(commandName, args, tonumber(input) or 0, picked)
 						if not ok then
 							DoNotif(result, 3)
 							return
 						end
-						DoNotif("Loop started for '"..commandName.."' with delay: "..loopData.interval.."s. Method: "..(loopData.method or NAmanage.SanitizeLoopMethod(NAStuff.LoopMethod))..". Args: "..NAmanage.FmtLoop(loopData.args), 3)
+						DoNotif("Loop started for '"..commandName.."' with delay: "..loopData.interval.."s. Method: "..(loopData.method or picked)..". Args: "..NAmanage.FmtLoop(loopData.args), 3)
 					end)
 				end
 			}
@@ -102265,8 +102290,8 @@ end
 
 NAgui.addSection("Command Loop Manager")
 
-NAgui.addDropdown("Command Loop Method", NAStuff.LoopMethodOptions or { "RenderStepped", "PreSimulation", "Heartbeat" }, NAmanage.SanitizeLoopMethod(NAStuff.LoopMethod), function(sel)
-	local txt = NAmanage.getDDTxt(sel) or "RenderStepped"
+NAgui.addDropdown("Command Loop Method", NAStuff.LoopMethodOptions or { "PostSimulation", "PreSimulation", "RenderStepped", "Heartbeat" }, NAmanage.SanitizeLoopMethod(NAStuff.LoopMethod), function(sel)
+	local txt = NAmanage.getDDTxt(sel) or "PostSimulation"
 	local picked = NAmanage.SetLoopMethod(txt, { save = true; rebind = true })
 	if NAgui.setDropdownValue then
 		NAgui.setDropdownValue("Command Loop Method", picked, { fire = false })
