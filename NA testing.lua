@@ -109458,30 +109458,14 @@ elseif _na_env and rawget(_na_env, "GITHUB_AUTH") then
 end
 
 NAStuff.RobloxVersionEndpoints = {
-	"https://weao.xyz/api/versions/current";
-	"http://weao.xyz/api/versions/current";
+	"https://raw.githubusercontent.com/ltseverydayyou/ltseverydayyou.github.io/refs/heads/main/.well-known/weao/versions.json";
+	"https://raw.githubusercontent.com/ltseverydayyou/ltseverydayyou.github.io/main/.well-known/weao/versions.json";
 	"https://ltseverydayyou.github.io/.well-known/weao/versions.json";
 	"https://cdn.jsdelivr.net/gh/ltseverydayyou/ltseverydayyou.github.io@main/.well-known/weao/versions.json";
-	"https://raw.githubusercontent.com/ltseverydayyou/ltseverydayyou.github.io/main/.well-known/weao/versions.json";
-	"https://raw.githubusercontent.com/ltseverydayyou/ltseverydayyou.github.io/refs/heads/main/.well-known/weao/versions.json";
-	"https://r.jina.ai/http://ltseverydayyou.github.io/.well-known/weao/versions.json";
-	"https://r.jina.ai/http://raw.githubusercontent.com/ltseverydayyou/ltseverydayyou.github.io/main/.well-known/weao/versions.json";
 }
 
-if _na_env and rawget(_na_env, "WEAO_PROXY") and _na_env.WEAO_PROXY ~= "" then
-	Insert(NAStuff.RobloxVersionEndpoints, 1, tostring(_na_env.WEAO_PROXY))
-end
+NAStuff.RobloxVersionSource = NAStuff.RobloxVersionEndpoints[1]
 
-NAStuff.RobloxVersionHeaders = {
-	["Accept"] = "application/json";
-	["User-Agent"] = "WEAO-3PService";
-	["Origin"] = "https://weao.xyz";
-	["Referer"] = "https://weao.xyz/";
-}
-
-if _na_env and rawget(_na_env, "WEAO_COOKIE") and _na_env.WEAO_COOKIE ~= "" then
-	NAStuff.RobloxVersionHeaders["Cookie"] = _na_env.WEAO_COOKIE
-end
 
 originalIO.parseRobloxVersionBody=function(body)
 	if type(body) ~= "string" then return nil end
@@ -109513,86 +109497,62 @@ originalIO.normalizeRobloxVersionData=function(decoded)
 		return nil
 	end
 
-	local function normKey(value)
-		if type(value) ~= "string" then
-			return ""
-		end
-		return Lower(value):gsub("[^%w]", "")
+	local root = decoded
+	if type(root.data) == "table" and type(root.data.current) == "table" then
+		root = root.data.current
+	elseif type(root.current) == "table" then
+		root = root.current
+	elseif type(root.versions) == "table" and type(root.versions.current) == "table" then
+		root = root.versions.current
 	end
 
-	local function readValue(tbl, keys)
-		if type(tbl) ~= "table" or type(keys) ~= "table" then
-			return nil
-		end
-		for i = 1, #keys do
-			local key = keys[i]
-			local value = tbl[key]
-			if value ~= nil and tostring(value) ~= "" then
-				return tostring(value)
-			end
-		end
-		local wanted = {}
-		for i = 1, #keys do
-			wanted[normKey(keys[i])] = true
-		end
-		for key, value in pairs(tbl) do
-			if value ~= nil and tostring(value) ~= "" and wanted[normKey(key)] then
-				return tostring(value)
-			end
-		end
+	if type(root) ~= "table" then
 		return nil
 	end
 
-	local function normalizeCandidate(tbl)
-		if type(tbl) ~= "table" then
+	local function txt(value)
+		if value == nil then
 			return nil
 		end
-
-		local out = {
-			Windows = readValue(tbl, {"Windows", "windows", "win", "WindowsVersion", "windowsVersion"});
-			Mac = readValue(tbl, {"Mac", "mac", "MacVersion", "macVersion"});
-			Android = readValue(tbl, {"Android", "android", "AndroidVersion", "androidVersion"});
-			iOS = readValue(tbl, {"iOS", "ios", "IOS", "iOs", "iOSVersion", "iosVersion"});
-			WindowsDate = readValue(tbl, {"WindowsDate", "windowsDate", "WindowsUpdated", "windowsUpdated", "windowsLastUpdated"});
-			MacDate = readValue(tbl, {"MacDate", "macDate", "MacUpdated", "macUpdated", "macLastUpdated"});
-			AndroidDate = readValue(tbl, {"AndroidDate", "androidDate", "AndroidUpdated", "androidUpdated", "androidLastUpdated"});
-			iOSDate = readValue(tbl, {"iOSDate", "iosDate", "IOSDate", "iOSUpdated", "iosUpdated", "iosLastUpdated"});
-		}
-
-		local genericVersion = readValue(tbl, {"version", "Version", "clientVersionUpload", "clientVersion"})
-		local genericDate = readValue(tbl, {"fetchedAt", "updatedAt", "timestamp", "date"})
-		if genericVersion then
-			out.Windows = out.Windows or genericVersion
-			out.Mac = out.Mac or genericVersion
-			out.Android = out.Android or genericVersion
-			out.iOS = out.iOS or genericVersion
+		local out = tostring(value)
+		out = out:match("^%s*(.-)%s*$") or out
+		if out == "" then
+			return nil
 		end
-		if genericDate then
-			out.WindowsDate = out.WindowsDate or genericDate
-			out.MacDate = out.MacDate or genericDate
-			out.AndroidDate = out.AndroidDate or genericDate
-			out.iOSDate = out.iOSDate or genericDate
-		end
-
-		if out.Windows or out.Mac or out.Android or out.iOS then
-			return out
-		end
-		return nil
+		return out
 	end
 
-	local candidates = {
-		decoded;
-		decoded.current;
-		decoded.data;
-		decoded.data and decoded.data.current;
-		decoded.versions;
-		decoded.versions and decoded.versions.current;
+	local function responseVersion(name)
+		local response = root[name.."Response"]
+		local versionText = type(response) == "table" and txt(response.version) or nil
+		local uploadText = txt(root[name]) or (type(response) == "table" and txt(response.clientVersionUpload) or nil)
+		if versionText and uploadText and uploadText ~= versionText then
+			return versionText.." ("..uploadText..")"
+		end
+		return versionText or uploadText
+	end
+
+	local out = {
+		Windows = responseVersion("Windows");
+		Mac = responseVersion("Mac");
+		Android = responseVersion("Android") or txt(root.Android);
+		iOS = responseVersion("iOS") or txt(root.iOS) or txt(root.IOS);
+		WindowsDate = txt(root.WindowsDate);
+		MacDate = txt(root.MacDate);
+		AndroidDate = txt(root.AndroidDate);
+		iOSDate = txt(root.iOSDate) or txt(root.IOSDate);
 	}
-	for _, candidate in ipairs(candidates) do
-		local normalized = normalizeCandidate(candidate)
-		if normalized then
-			return normalized
-		end
+
+	local fetchedAt = txt(decoded.fetchedAt)
+	if fetchedAt then
+		out.WindowsDate = out.WindowsDate or fetchedAt
+		out.MacDate = out.MacDate or fetchedAt
+		out.AndroidDate = out.AndroidDate or fetchedAt
+		out.iOSDate = out.iOSDate or fetchedAt
+	end
+
+	if out.Windows or out.Mac or out.Android or out.iOS then
+		return out
 	end
 
 	return nil
@@ -109822,101 +109782,41 @@ originalIO.fetchRobloxVersionData=function(forceRefresh)
 		return true, cached
 	end
 
-	local function decodeAndCache(body)
+	local function cacheData(data, source, remote)
+		NAStuff.RobloxVersionData = data
+		NAStuff.RobloxVersionLastFetch = tick()
+		NAStuff.RobloxVersionFromRemote = remote == true
+		NAStuff.RobloxVersionSource = source
+		return data
+	end
+
+	local function decodeBody(body, source)
 		if type(body) ~= "string" or body == "" then
 			return nil
 		end
-		local decoded = originalIO.normalizeRobloxVersionData(originalIO.parseRobloxVersionBody(body))
-		if decoded then
-			NAStuff.RobloxVersionData = decoded
-			NAStuff.RobloxVersionLastFetch = tick()
-			NAStuff.RobloxVersionFromRemote = true
-			return decoded
+		local decoded = originalIO.parseRobloxVersionBody(body)
+		local data = originalIO.normalizeRobloxVersionData(decoded)
+		if data then
+			return cacheData(data, source, true)
 		end
 		return nil
 	end
 
-	local function extractResponseBody(response)
-		if type(response) == "string" then
-			return response
-		end
-		if type(response) ~= "table" then
+	local function readUrl(url)
+		if type(url) ~= "string" or url == "" then
 			return nil
 		end
-		local body = response.Body
-			or response.body
-			or response.Data
-			or response.data
-			or response.Text
-			or response.text
-			or response.Content
-			or response.content
-			or response.ResponseBody
-			or response.responseBody
-			or response[1]
-		if type(body) == "table" then
-			body = body.Body
-				or body.body
-				or body.Data
-				or body.data
-				or body.Text
-				or body.text
-				or body.Content
-				or body.content
-				or body.ResponseBody
-				or body.responseBody
-				or body[1]
-		end
-		return type(body) == "string" and body or nil
-	end
 
-	local function statusOk(response)
-		if type(response) ~= "table" then
-			return true
-		end
-		local code = tonumber(response.StatusCode)
-			or tonumber(response.Status)
-			or tonumber(response.statusCode)
-			or tonumber(response.status)
-			or tonumber(response.Code)
-			or tonumber(response.code)
-		if not code then
-			return true
-		end
-		return code >= 200 and code < 300
-	end
-
-	local requestFunc = opt and opt.NAREQUEST
-	local function tryRequest(url, payload)
-		if type(requestFunc) ~= "function" then
-			return nil
-		end
-		local okReq, response = pcall(requestFunc, payload)
-		if not (okReq and response and statusOk(response)) then
-			return nil
-		end
-		local body = extractResponseBody(response)
-		return decodeAndCache(body)
-	end
-
-	local function tryGetAsync(url)
-		if not (HttpService and type(HttpService.GetAsync) == "function") then
-			return nil
-		end
-		local okHttp, body = pcall(HttpService.GetAsync, HttpService, url)
-		if okHttp and type(body) == "string" then
-			return decodeAndCache(body)
-		end
-		return nil
-	end
-
-	local function tryHttpGet(url)
 		local okHttp, body = pcall(function()
-			return game and game.HttpGet and game:HttpGet(url)
+			return game:HttpGet(url)
 		end)
-		if okHttp and type(body) == "string" then
-			return decodeAndCache(body)
+		if okHttp then
+			local data = decodeBody(body, url)
+			if data then
+				return data
+			end
 		end
+
 		return nil
 	end
 
@@ -109932,96 +109832,30 @@ originalIO.fetchRobloxVersionData=function(forceRefresh)
 			end
 		end
 
-		local fallback = {}
 		local nowText = os.date("!%m/%d/%Y, %I:%M:%S %p UTC")
 		local sourceText = "Local Client ("..nowText..")"
-		fallback.Windows = currentVersion
-		fallback.WindowsDate = sourceText
-		fallback.Mac = currentVersion
-		fallback.MacDate = sourceText
-		fallback.Android = currentVersion
-		fallback.AndroidDate = sourceText
-		fallback.iOS = currentVersion
-		fallback.iOSDate = sourceText
-		return fallback
+		return {
+			Windows = currentVersion;
+			WindowsDate = sourceText;
+			Mac = currentVersion;
+			MacDate = sourceText;
+			Android = currentVersion;
+			AndroidDate = sourceText;
+			iOS = currentVersion;
+			iOSDate = sourceText;
+		}
 	end
 
-	local requestPayloads = {
-		function(url)
-			return {
-				Url = url;
-				Method = "GET";
-				Headers = NAStuff.RobloxVersionHeaders;
-				Timeout = 8;
-				FollowRedirects = true;
-				SslVerify = false;
-			}
-		end;
-		function(url)
-			return {
-				Url = url;
-				Method = "GET";
-				Headers = { ["Accept"] = "application/json" };
-				Timeout = 8;
-				FollowRedirects = true;
-				SslVerify = false;
-			}
-		end;
-		function(url)
-			return {
-				Url = url;
-				Method = "GET";
-				Headers = { ["Accept"] = "application/json" };
-			}
-		end;
-		function(url)
-			return {
-				Url = url;
-				Method = "GET";
-			}
-		end;
-		function(url)
-			return {
-				url = url;
-				method = "GET";
-			}
-		end;
-	}
-
-	local attempts = forceRefresh and 1 or 2
-	for attempt = 1, attempts do
-		for _, baseUrl in ipairs(NAStuff.RobloxVersionEndpoints) do
-			if baseUrl and baseUrl ~= "" then
-				local url = baseUrl..((Find(baseUrl, "?", 1, true) and "&" or "?").."_="..tostring(os.time())..tostring(math.random(1,1e6)))
-				if type(requestFunc) == "function" then
-					for i = 1, #requestPayloads do
-						local decoded = tryRequest(url, requestPayloads[i](url))
-						if decoded then
-							return true, decoded
-						end
-					end
-				end
-				local decodedAsync = tryGetAsync(url)
-				if decodedAsync then
-					return true, decodedAsync
-				end
-				local decodedHttpGet = tryHttpGet(url)
-				if decodedHttpGet then
-					return true, decodedHttpGet
-				end
-			end
-		end
-		if attempt < attempts then
-			Wait(0.15)
+	for _, url in ipairs(NAStuff.RobloxVersionEndpoints) do
+		local data = readUrl(url)
+		if data then
+			return true, data
 		end
 	end
 
-	local localFallback = localDeviceFallback()
-	if localFallback then
-		NAStuff.RobloxVersionData = localFallback
-		NAStuff.RobloxVersionLastFetch = tick()
-		NAStuff.RobloxVersionFromRemote = false
-		return true, localFallback
+	local fallback = localDeviceFallback()
+	if fallback then
+		return true, cacheData(fallback, "Local Client", false)
 	end
 
 	if type(cached) == "table" and next(cached) ~= nil then
@@ -110096,38 +109930,43 @@ originalIO.hasRobloxVersionData=function(data)
 	return false
 end
 
-originalIO.renderRobloxVersionSections=function(ok, data)
-	local canRenderRemote = ok and NAStuff.RobloxVersionFromRemote == true and originalIO.hasRobloxVersionData(data)
-	if not canRenderRemote then
-		NAStuff.RobloxVersionRows = {}
-		return false
+originalIO.ensureRobloxVersionRows=function()
+	if type(NAStuff.RobloxVersionRows) == "table" and #NAStuff.RobloxVersionRows > 0 then
+		return true
 	end
 
-	local rendered = false
-	local okRender = originalIO.withRobloxVersionTab(function()
+	local made = false
+	local ok = originalIO.withRobloxVersionTab(function()
 		NAStuff.RobloxVersionRows = {}
 		NAgui.addSection("Powered by weao.xyz API")
 		originalIO.addRobloxVersionSection("Windows", "Windows", "WindowsDate")
 		originalIO.addRobloxVersionSection("Mac", "Mac", "MacDate")
 		originalIO.addRobloxVersionSection("Android", "Android", "AndroidDate")
 		originalIO.addRobloxVersionSection("iOS", "iOS", "iOSDate")
-
-		local fallbackText = ok and NAStuff.RobloxVersionMissingText or NAStuff.RobloxVersionFailureText
-		for _, entry in ipairs(NAStuff.RobloxVersionRows) do
-			if entry.versionField then
-				local v = (type(data) == "table" and data[entry.versionKey]) or fallbackText
-				entry.versionField.Text = v and tostring(v) or fallbackText
-			end
-			if entry.dateField then
-				local d = (type(data) == "table" and data[entry.dateKey]) or fallbackText
-				entry.dateField.Text = d and tostring(d) or fallbackText
-			end
-		end
-
-		rendered = true
+		made = true
 	end)
 
-	return okRender == true and rendered == true
+	return ok == true and made == true
+end
+
+originalIO.renderRobloxVersionSections=function(ok, data)
+	if not originalIO.ensureRobloxVersionRows() then
+		return false
+	end
+
+	local fallbackText = ok and NAStuff.RobloxVersionMissingText or NAStuff.RobloxVersionFailureText
+	for _, entry in ipairs(NAStuff.RobloxVersionRows) do
+		if entry.versionField then
+			local value = type(data) == "table" and data[entry.versionKey] or nil
+			entry.versionField.Text = value and tostring(value) or fallbackText
+		end
+		if entry.dateField then
+			local value = type(data) == "table" and data[entry.dateKey] or nil
+			entry.dateField.Text = value and tostring(value) or fallbackText
+		end
+	end
+
+	return true
 end
 
 SpawnCall(function()
@@ -110151,6 +109990,13 @@ SpawnCall(function()
 		autoShrink = true;
 	})
 end)
+
+NAStuff.RobloxVersionRows = {}
+NAgui.addSection("Powered by weao.xyz API")
+originalIO.addRobloxVersionSection("Windows", "Windows", "WindowsDate")
+originalIO.addRobloxVersionSection("Mac", "Mac", "MacDate")
+originalIO.addRobloxVersionSection("Android", "Android", "AndroidDate")
+originalIO.addRobloxVersionSection("iOS", "iOS", "iOSDate")
 
 NAgui.addTab(NA_TABS.TAB_CONTRIBUTORS, { order = 14, textIcon = "code" })
 NAgui.setTab(NA_TABS.TAB_CONTRIBUTORS)
