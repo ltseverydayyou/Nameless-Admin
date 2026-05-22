@@ -345,6 +345,17 @@
       "desc": "Open the chat logs"
     },
     {
+      "name": "rotector",
+      "aliases": [
+        "rotector",
+        "rocheck",
+        "safetycheck"
+      ],
+      "usage": "rotector <player|all|id:userId|on|off> (rocheck)",
+      "args": "<player|all|id:userId|on|off>",
+      "desc": "Check Rotector API status for Roblox users"
+    },
+    {
       "name": "gotocampos",
       "aliases": [
         "gotocampos",
@@ -2642,6 +2653,27 @@
       "usage": "disablealignmentkeys",
       "args": "",
       "desc": "Disable alignment keys"
+    },
+    {
+      "name": "rotectoresp",
+      "aliases": [
+        "rotectoresp",
+        "resp"
+      ],
+      "usage": "rotectoresp (resp)",
+      "args": "",
+      "desc": "ESP only Rotector API-flagged or recorded users"
+    },
+    {
+      "name": "unrotectoresp",
+      "aliases": [
+        "unrotectoresp",
+        "norotectoresp",
+        "unresp"
+      ],
+      "usage": "unrotectoresp (unresp)",
+      "args": "",
+      "desc": "Disable Rotector-only ESP"
     },
     {
       "name": "esp",
