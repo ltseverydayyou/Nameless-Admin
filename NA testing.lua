@@ -6935,6 +6935,14 @@ opt={
 	chatTranslateEnabled = true;
 	chatTranslateTarget = "en";
 	settingsTranslateTarget = "en";
+	translateProvider = "mymemory";
+	translateApiKey = "";
+	translateUseDeepLFree = true;
+	translateFallbackGoogle = false;
+	translateLibreEndpoint = "";
+	translateLibreApiKey = "";
+	translateMyMemoryEmail = "";
+	translateMyMemoryKey = "";
 	--saveTag = false;
 }
 local cmd={}
@@ -17048,26 +17056,6 @@ NAmanage.NASettingsGetSchema=function()
 				return coerceBoolean(value, false)
 			end;
 		};
-		engineSettings = {
-			default = function()
-				return {}
-			end;
-			coerce = function(value)
-				local out = {}
-				if type(value) ~= "table" then
-					return out
-				end
-				for key, stored in pairs(value) do
-					if type(key) == "string" and key ~= "" then
-						local kind = type(stored)
-						if kind == "boolean" or kind == "number" or kind == "string" then
-							out[key] = stored
-						end
-					end
-				end
-				return out
-			end;
-		};
 	}
 
 	return NAStuff.NASettingsSchema
@@ -17076,6 +17064,10 @@ end
 NAmanage.NASettingsSave=function()
 	if not FileSupport or not NAStuff.NASettingsData then
 		return
+	end
+
+	if type(NAStuff.NASettingsData) == "table" then
+		NAStuff.NASettingsData.engineSettings = nil
 	end
 
 	local ok, encoded = NACaller(function()
@@ -41863,23 +41855,11 @@ NAmanage.EngineSettings.key = function(serviceName, propertyName)
 end
 
 NAmanage.EngineSettings.saved = function()
-	local saved = nil
-	if NAmanage.NASettingsGet then
-		saved = NAmanage.NASettingsGet("engineSettings")
-	end
-	if type(saved) ~= "table" then
-		saved = {}
-	end
-	return saved
+	return {}
 end
 
 NAmanage.EngineSettings.saveValue = function(serviceName, propertyName, value)
-	if not NAmanage.NASettingsSet then
-		return
-	end
-	local saved = NAmanage.EngineSettings.saved()
-	saved[NAmanage.EngineSettings.key(serviceName, propertyName)] = value
-	pcall(NAmanage.NASettingsSet, "engineSettings", saved)
+	return nil
 end
 
 NAmanage.EngineSettings.parseBool = function(value, default)
@@ -41948,11 +41928,7 @@ NAmanage.EngineSettings.set = function(serviceName, propertyName, value, label, 
 end
 
 NAmanage.EngineSettings.setAndSave = function(serviceName, propertyName, value, label, silent)
-	local ok = NAmanage.EngineSettings.set(serviceName, propertyName, value, label, silent)
-	if ok and not silent then
-		NAmanage.EngineSettings.saveValue(serviceName, propertyName, value)
-	end
-	return ok
+	return NAmanage.EngineSettings.set(serviceName, propertyName, value, label, silent)
 end
 
 NAmanage.EngineSettings.setBool = function(entry, value, silent)
@@ -42040,48 +42016,12 @@ NAmanage.EngineSettings.retiredKeys = {
 }
 
 NAmanage.EngineSettings.cleanupRetired = function()
-	if not NAmanage.NASettingsSet then
-		return
-	end
-	local saved = NAmanage.EngineSettings.saved()
-	local changed = false
-	for _, key in ipairs(NAmanage.EngineSettings.retiredKeys or {}) do
-		if saved[key] ~= nil then
-			saved[key] = nil
-			changed = true
-		end
-	end
-	if changed then
-		pcall(NAmanage.NASettingsSet, "engineSettings", saved)
-	end
+	return nil
 end
 
 NAmanage.EngineSettings.loadSaved = function()
-	NAmanage.EngineSettings.cleanupRetired()
-	local saved = NAmanage.EngineSettings.saved()
-	for _, entry in ipairs(NAmanage.EngineSettings.boolCommands or {}) do
-		local value = saved[NAmanage.EngineSettings.key(entry.service, entry.property)]
-		if type(value) == "boolean" then
-			NAmanage.EngineSettings.setBool(entry, value, true)
-		end
-	end
-	for _, entry in ipairs(NAmanage.EngineSettings.numberCommands or {}) do
-		local value = saved[NAmanage.EngineSettings.key(entry.service, entry.property)]
-		if tonumber(value) then
-			NAmanage.EngineSettings.setNumber(entry, value, true)
-		end
-	end
-	for _, entry in ipairs(NAmanage.EngineSettings.extraSavedSettings or {}) do
-		local value = saved[NAmanage.EngineSettings.key(entry.service, entry.property)]
-		if entry.kind == "number" and tonumber(value) then
-			NAmanage.EngineSettings.set(entry.service, entry.property, tonumber(value), entry.label, true)
-		elseif entry.kind == "boolean" and type(value) == "boolean" then
-			NAmanage.EngineSettings.set(entry.service, entry.property, value, entry.label, true)
-		end
-	end
+	return nil
 end
-
-pcall(NAmanage.EngineSettings.loadSaved)
 
 for _, entry in ipairs(NAmanage.EngineSettings.boolCommands) do
 	cmd.add(entry.aliases, {entry.usage or (entry.aliases[1].." [on/off]"), "Set "..entry.label}, function(...)
@@ -93749,12 +93689,24 @@ originalIO.naTransLatooor=function()
 	opt.settingsTranslateTarget = translator.settingsTarget
 	translator.target = translator.chatTarget
 
+	translator.provider = tostring(opt.translateProvider or translator.provider or "mymemory"):lower()
+	opt.translateProvider = translator.provider
+	opt.translateFallbackGoogle = opt.translateFallbackGoogle == true
+	opt.translateUseDeepLFree = opt.translateUseDeepLFree ~= false
+	opt.translateLibreEndpoint = opt.translateLibreEndpoint or ""
+	opt.translateLibreApiKey = opt.translateLibreApiKey or ""
+	opt.translateApiKey = opt.translateApiKey or ""
+	opt.translateMyMemoryEmail = opt.translateMyMemoryEmail or ""
+	opt.translateMyMemoryKey = opt.translateMyMemoryKey or ""
+
 	translator._state = translator._state or {
 		gv = (isfile and isfile("googlev.txt") and readfile("googlev.txt")) or "";
 		fsid = nil;
 		bl = nil;
 		rid = math.random(1000, 9999);
 	}
+	translator._cache = type(translator._cache) == "table" and translator._cache or {}
+	translator._cacheOrder = type(translator._cacheOrder) == "table" and translator._cacheOrder or {}
 
 	local state = translator._state
 	local root = "https://translate.google.com/"
@@ -93776,6 +93728,466 @@ originalIO.naTransLatooor=function()
 			return res2
 		end
 		return nil
+	end
+
+	local jsonEncode = function(x) return Http:JSONEncode(x) end
+	local jsonDecode = function(x) return Http:JSONDecode(x) end
+
+	local function cleanCfg(value)
+		if value == nil then
+			return nil
+		end
+		value = tostring(value)
+		value = value:match("^%s*(.-)%s*$") or ""
+		if value == "" then
+			return nil
+		end
+		return value
+	end
+
+	local function cfgValue(...)
+		local keys = {...}
+		local hosts = { _na_env, _na_shared, _na_boot and _na_boot.hostEnv, translator, opt }
+		for i = 1, #keys do
+			local key = keys[i]
+			for j = 1, #hosts do
+				local host = hosts[j]
+				if type(host) == "table" then
+					local value = cleanCfg(rawget(host, key))
+					if value then
+						return value
+					end
+				end
+			end
+		end
+		return nil
+	end
+
+	local function cfgBool(value, default)
+		if value == nil then
+			return default
+		end
+		if type(value) == "boolean" then
+			return value
+		end
+		value = tostring(value):lower()
+		if value == "true" or value == "1" or value == "yes" or value == "on" then
+			return true
+		end
+		if value == "false" or value == "0" or value == "no" or value == "off" then
+			return false
+		end
+		return default
+	end
+
+	local function readCfgFile(...)
+		if type(isfile) ~= "function" or type(readfile) ~= "function" then
+			return nil
+		end
+		local files = {...}
+		for i = 1, #files do
+			local name = files[i]
+			local ok, exists = pcall(isfile, name)
+			if ok and exists then
+				local okRead, value = pcall(readfile, name)
+				value = okRead and cleanCfg(value) or nil
+				if value then
+					return value
+				end
+			end
+		end
+		return nil
+	end
+
+	local function httpOk(res)
+		if not res then
+			return false
+		end
+		local code = tonumber(res.StatusCode or res.statusCode or res.Status or res.status)
+		return code == nil or (code >= 200 and code < 300)
+	end
+
+	local function httpCode(res)
+		return tonumber(res and (res.StatusCode or res.statusCode or res.Status or res.status)) or 0
+	end
+
+	local function getProvider()
+		local provider = cfgValue("NATranslateProvider", "translateProvider", "translatorProvider") or "mymemory"
+		provider = tostring(provider):lower()
+		if provider == "memory" or provider == "mm" then
+			provider = "mymemory"
+		elseif provider == "libretranslate" then
+			provider = "libre"
+		end
+		if provider == "mymemory" or provider == "deepl" or provider == "libre" or provider == "google" then
+			return provider
+		end
+		return "mymemory"
+	end
+
+	local function getDeepLKey()
+		return cfgValue("NADeepLKey", "DeepLKey", "translateApiKey", "translatorApiKey")
+			or readCfgFile("NA_deepl_key.txt", "deepl_key.txt")
+	end
+
+	local function getLibreEndpoint()
+		local endpoint = cfgValue("NALibreTranslateUrl", "LibreTranslateUrl", "translateLibreEndpoint", "translateLibreUrl")
+			or readCfgFile("NA_libretranslate_url.txt", "libretranslate_url.txt")
+		if not endpoint then
+			return nil
+		end
+		endpoint = endpoint:gsub("/+$", "")
+		if endpoint == "" then
+			return nil
+		end
+		return endpoint
+	end
+
+	local function getLibreKey()
+		return cfgValue("NALibreTranslateKey", "LibreTranslateKey", "translateLibreApiKey", "libreTranslateApiKey")
+			or readCfgFile("NA_libretranslate_key.txt", "libretranslate_key.txt")
+	end
+
+	local function getMyMemoryEmail()
+		return cfgValue("NAMyMemoryEmail", "MyMemoryEmail", "translateMyMemoryEmail", "translatorEmail")
+			or readCfgFile("NA_mymemory_email.txt", "mymemory_email.txt")
+	end
+
+	local function getMyMemoryKey()
+		return cfgValue("NAMyMemoryKey", "MyMemoryKey", "translateMyMemoryKey", "translatorMyMemoryKey")
+			or readCfgFile("NA_mymemory_key.txt", "mymemory_key.txt")
+	end
+
+	local function getDeepLEndpoints(key)
+		local forced = cfgValue("NADeepLEndpoint", "DeepLEndpoint", "translateDeepLEndpoint")
+		if forced then
+			return { forced:gsub("/+$", "") }
+		end
+		local freeDefault = opt.translateUseDeepLFree ~= false
+		if type(key) == "string" and key:sub(-3) == ":fx" then
+			freeDefault = true
+		end
+		local useFree = cfgBool(cfgValue("NADeepLFree", "translateUseDeepLFree", "DeepLFree"), freeDefault)
+		if useFree then
+			return { "https://api-free.deepl.com", "https://api.deepl.com" }
+		end
+		return { "https://api.deepl.com", "https://api-free.deepl.com" }
+	end
+
+	local function deeplLang(code, target)
+		code = NAmanage.iso2(code) or tostring(code or ""):lower()
+		if code == "" or code == "auto" or code == "morse" then
+			return nil
+		end
+		if code == "zh-cn" then return "ZH-HANS" end
+		if code == "zh-tw" then return "ZH-HANT" end
+		if code == "zh" then return target and "ZH-HANS" or "ZH" end
+		if code == "iw" or code == "he" then return "HE" end
+		if code == "no" then return "NB" end
+		if code == "en" then return target and "EN-US" or "EN" end
+		if code == "pt" then return target and "PT-BR" or "PT" end
+		return code:upper()
+	end
+
+	local function fromDeepLLang(code)
+		code = tostring(code or ""):lower()
+		if code == "zh-hans" or code == "zh" then return "zh-cn" end
+		if code == "zh-hant" then return "zh-tw" end
+		if code == "nb" then return "no" end
+		if code == "he" then return "he" end
+		local base = code:match("^([a-z][a-z])[-_]")
+		return base or code
+	end
+
+	local function translateDeepL(text, target, source)
+		local key = getDeepLKey()
+		if not key then
+			return nil
+		end
+
+		local targetLang = deeplLang(target, true)
+		if not targetLang then
+			return nil
+		end
+
+		local sourceLang = deeplLang(source, false)
+		local payload = {
+			text = { text };
+			target_lang = targetLang;
+			model_type = "prefer_quality_optimized";
+		}
+		if sourceLang then
+			payload.source_lang = sourceLang
+		end
+
+		local headers = {
+			["Authorization"] = "DeepL-Auth-Key "..key;
+			["Content-Type"] = "application/json";
+		}
+		local endpoints = getDeepLEndpoints(key)
+
+		for i = 1, #endpoints do
+			local url = endpoints[i].."/v2/translate"
+			local body = jsonEncode(payload)
+			local res = NAmanage.requestAsync({
+				Url = url;
+				Method = "POST";
+				Headers = headers;
+				Body = body;
+			})
+
+			if not httpOk(res) and httpCode(res) == 400 and payload.model_type ~= nil then
+				local retryPayload = {}
+				for k, v in pairs(payload) do
+					if k ~= "model_type" then
+						retryPayload[k] = v
+					end
+				end
+				res = NAmanage.requestAsync({
+					Url = url;
+					Method = "POST";
+					Headers = headers;
+					Body = jsonEncode(retryPayload);
+				})
+			end
+
+			if httpOk(res) then
+				local raw = res.Body or res.body or ""
+				local ok, data = pcall(jsonDecode, raw)
+				if ok and type(data) == "table" and type(data.translations) == "table" then
+					local first = data.translations[1]
+					if type(first) == "table" and type(first.text) == "string" and first.text ~= "" then
+						return first.text, fromDeepLLang(first.detected_source_language or source or "auto")
+					end
+				end
+			elseif httpCode(res) ~= 403 and httpCode(res) ~= 404 then
+				break
+			end
+		end
+
+		return nil
+	end
+
+	local function translateLibre(text, target, source)
+		local endpoint = getLibreEndpoint()
+		if not endpoint then
+			return nil
+		end
+
+		local targetCode = NAmanage.iso2(target) or "en"
+		local sourceCode = NAmanage.iso2(source) or "auto"
+		if targetCode == "morse" then
+			return nil
+		end
+		if targetCode == "zh-cn" then targetCode = "zh" end
+		if targetCode == "zh-tw" then targetCode = "zt" end
+		if sourceCode == "zh-cn" then sourceCode = "zh" end
+		if sourceCode == "zh-tw" then sourceCode = "zt" end
+
+		local payload = {
+			q = text;
+			source = sourceCode;
+			target = targetCode;
+			format = "text";
+		}
+
+		local key = getLibreKey()
+		if key then
+			payload.api_key = key
+		end
+
+		local res = NAmanage.requestAsync({
+			Url = endpoint.."/translate";
+			Method = "POST";
+			Headers = { ["Content-Type"] = "application/json" };
+			Body = jsonEncode(payload);
+		})
+		if not httpOk(res) then
+			return nil
+		end
+
+		local raw = res.Body or res.body or ""
+		local ok, data = pcall(jsonDecode, raw)
+		if not ok or type(data) ~= "table" then
+			return nil
+		end
+
+		local translated = data.translatedText or data.translation
+		if type(translated) ~= "string" or translated == "" then
+			return nil
+		end
+
+		local detected = sourceCode
+		if type(data.detectedLanguage) == "table" then
+			detected = data.detectedLanguage.language or data.detectedLanguage.lang or detected
+		end
+		return translated, detected
+	end
+
+	local function myMemoryLang(code)
+		code = NAmanage.iso2(code) or tostring(code or ""):lower()
+		if code == "" or code == "morse" or code == "auto" then
+			return nil
+		end
+		if code == "zh-cn" then return "zh-CN" end
+		if code == "zh-tw" then return "zh-TW" end
+		if code == "iw" then return "he" end
+		return code
+	end
+
+	local function hasCp(text, ranges)
+		if type(utf8) ~= "table" or type(utf8.codes) ~= "function" then
+			return false
+		end
+		local ok, hit = pcall(function()
+			for _, cp in utf8.codes(text) do
+				for i = 1, #ranges do
+					local r = ranges[i]
+					if cp >= r[1] and cp <= r[2] then
+						return true
+					end
+				end
+			end
+			return false
+		end)
+		return ok and hit == true
+	end
+
+	local function hasAny(text, list)
+		for i = 1, #list do
+			if text:find(list[i], 1, true) then
+				return true
+			end
+		end
+		return false
+	end
+
+	local function hasWord(text, list)
+		local padded = " "..text:gsub("[%p%c]", " ").." "
+		for i = 1, #list do
+			if padded:find(" "..list[i].." ", 1, true) then
+				return true
+			end
+		end
+		return false
+	end
+
+	local function guessMyMemorySource(text, targetCode)
+		text = tostring(text or "")
+		if text == "" then
+			return nil
+		end
+		targetCode = tostring(targetCode or ""):lower()
+		local low = text:lower()
+		if hasCp(text, {{0x3040,0x30ff},{0x31f0,0x31ff}}) then return "ja" end
+		if hasCp(text, {{0xac00,0xd7af},{0x1100,0x11ff},{0x3130,0x318f}}) then return "ko" end
+		if hasCp(text, {{0x4e00,0x9fff},{0x3400,0x4dbf}}) then return "zh-CN" end
+		if hasCp(text, {{0x0370,0x03ff}}) then return "el" end
+		if hasCp(text, {{0x0590,0x05ff}}) then return "he" end
+		if hasCp(text, {{0x0600,0x06ff},{0x0750,0x077f},{0x08a0,0x08ff}}) then return "ar" end
+		if hasCp(text, {{0x0900,0x097f}}) then return "hi" end
+		if hasCp(text, {{0x0e00,0x0e7f}}) then return "th" end
+		if hasCp(text, {{0x0400,0x04ff},{0x0500,0x052f}}) then
+			if hasAny(low, {"ъ", "щ", "ѝ"}) then
+				return "bg"
+			end
+			if hasAny(low, {"і", "ї", "є", "ґ"}) then
+				return "uk"
+			end
+			return "ru"
+		end
+		if hasAny(low, {"¿", "¡", "ñ"}) or hasWord(low, {"que", "los", "las", "una", "para", "pero", "estoy", "eres"}) then return "es" end
+		if hasAny(low, {"ç", "ã", "õ"}) or hasWord(low, {"você", "obrigado", "obrigada", "não", "para"}) then return "pt" end
+		if hasAny(low, {"à", "â", "ê", "ë", "î", "ï", "ô", "ù", "û", "œ", "æ"}) or hasWord(low, {"bonjour", "merci", "avec", "pour", "mais", "être"}) then return "fr" end
+		if hasAny(low, {"ä", "ö", "ü", "ß"}) or hasWord(low, {"und", "ich", "nicht", "danke", "bitte", "mit"}) then return "de" end
+		if hasAny(low, {"ą", "ć", "ę", "ł", "ń", "ś", "ź", "ż"}) then return "pl" end
+		if hasAny(low, {"ğ", "ı", "ş"}) then return "tr" end
+		if hasAny(low, {"ă", "ș", "ţ", "ț"}) then return "ro" end
+		if hasAny(low, {"đ", "č", "ć", "š", "ž"}) then return "hr" end
+		if targetCode ~= "en" then
+			return "en"
+		end
+		if hasWord(low, {"the", "and", "you", "your", "are", "is", "not", "what", "that", "this", "have", "with", "from", "larp"}) or low:find("i'm", 1, true) then
+			return "en"
+		end
+		return nil
+	end
+
+	local function translateMyMemory(text, target, source)
+		local targetCode = myMemoryLang(target) or "en"
+		local sourceCode = myMemoryLang(source) or guessMyMemorySource(text, targetCode)
+		if targetCode == "morse" or not sourceCode then
+			return nil
+		end
+		if tostring(sourceCode):lower() == tostring(targetCode):lower() then
+			return nil
+		end
+
+		local pair = sourceCode.."|"..targetCode
+		local url = "https://api.mymemory.translated.net/get?q="..Http:UrlEncode(text).."&langpair="..Http:UrlEncode(pair).."&mt=1"
+		local email = getMyMemoryEmail()
+		if email then
+			url ..= "&de="..Http:UrlEncode(email)
+		end
+		local key = getMyMemoryKey()
+		if key then
+			url ..= "&key="..Http:UrlEncode(key)
+		end
+
+		local res = NAmanage.requestAsync({
+			Url = url;
+			Method = "GET";
+		})
+		if not httpOk(res) then
+			return nil
+		end
+
+		local raw = res.Body or res.body or ""
+		local ok, data = pcall(jsonDecode, raw)
+		if not ok or type(data) ~= "table" then
+			return nil
+		end
+
+		local status = tonumber(data.responseStatus or data.responseCode or data.status or data.code)
+		local details = tostring(data.responseDetails or data.message or ""):lower()
+		if (status and status >= 400) or details:find("invalid source language", 1, true) then
+			return nil
+		end
+
+		local translated = nil
+		local detected = sourceCode
+		local responseData = data.responseData
+		if type(responseData) == "table" then
+			translated = responseData.translatedText or responseData.translation
+			detected = responseData.detectedLanguage or responseData.detectedSourceLanguage or detected
+		end
+
+		if (type(translated) ~= "string" or translated == "") and type(data.matches) == "table" then
+			local bestText = nil
+			local bestScore = -1
+			for _, item in ipairs(data.matches) do
+				if type(item) == "table" and type(item.translation) == "string" and item.translation ~= "" then
+					local score = tonumber(item.match) or 0
+					if score > bestScore then
+						bestScore = score
+						bestText = item.translation
+						detected = item.source or detected
+					end
+				end
+			end
+			translated = bestText
+		end
+
+		if type(translated) ~= "string" or translated == "" then
+			return nil
+		end
+
+		local bad = translated:lower()
+		if bad:find("invalid source language", 1, true) or bad:find("langpair=", 1, true) then
+			return nil
+		end
+
+		return translated, detected
 	end
 
 	local function handleConsent(body)
@@ -93851,38 +94263,116 @@ originalIO.naTransLatooor=function()
 		return s:sub(2)
 	end
 
-	local jsonEncode = function(x) return Http:JSONEncode(x) end
-	local jsonDecode = function(x) return Http:JSONDecode(x) end
-
-	local function translateSimple(text, target, source)
+	local function translateGoogleLegacy(text, target, source)
 		target = NAmanage.iso2(target) or "en"
 		source = NAmanage.iso2(source) or "auto"
+
 		local url = ("https://translate.googleapis.com/translate_a/single?client=gtx&sl=%s&tl=%s&dt=t&q=%s")
 			:format(Http:UrlEncode(source), Http:UrlEncode(target), Http:UrlEncode(text))
 		local res = NAmanage.requestAsync({Url = url, Method = "GET"})
-		if not res then return nil end
-		local body = res.Body or res.body or ""
-		local ok, data = pcall(function()
-			return Http:JSONDecode(body)
-		end)
-		if not ok or type(data) ~= "table" then
-			return nil
-		end
-		local segments = data[1]
-		local detected = data[3]
-		local parts = {}
-		if type(segments) == "table" then
-			for _, seg in ipairs(segments) do
-				if type(seg) == "table" and type(seg[1]) == "string" then
-					Insert(parts, seg[1])
+		local translated = nil
+		local detected = nil
+
+		if res then
+			local body = res.Body or res.body or ""
+			local ok, data = pcall(jsonDecode, body)
+			if ok and type(data) == "table" then
+				local segments = data[1]
+				detected = data[3]
+				local parts = {}
+				if type(segments) == "table" then
+					for _, seg in ipairs(segments) do
+						if type(seg) == "table" and type(seg[1]) == "string" then
+							Insert(parts, seg[1])
+						end
+					end
+				end
+				translated = Concat(parts, "")
+				if translated == "" then
+					translated = nil
 				end
 			end
 		end
-		local translated = Concat(parts, "")
-		if translated == "" then
-			translated = nil
+
+		if translated and translated ~= "" then
+			return translated, detected
 		end
-		return translated, detected
+
+		if not ensureSession() then
+			return translated, detected
+		end
+
+		state.rid += 10000
+		local data = { { text, source, target, true }, { nil } }
+		local freq = { { { rpc, jsonEncode(data), nil, "generic" } } }
+		local reqUrl = exec.."?"..encodeQuery({
+			rpcids = rpc;
+			["f.sid"] = state.fsid;
+			bl = state.bl;
+			hl = "en";
+			_reqid = state.rid - 10000;
+			rt = "c";
+		})
+		local body = encodeQuery({ ["f.req"] = jsonEncode(freq) })
+		res = fetch(reqUrl, "POST", body)
+		if not res then
+			return translated, detected
+		end
+
+		local raw = res.Body or res.body or ""
+		if type(raw) ~= "string" then
+			raw = tostring(raw)
+		end
+		local ok, parsed = pcall(function()
+			local arr = jsonDecode(raw:match("%[.-%]\n"))
+			return jsonDecode(arr[1][3])
+		end)
+		if not ok or type(parsed) ~= "table" then
+			return translated, detected
+		end
+
+		local fallTranslated = nil
+		pcall(function()
+			fallTranslated = parsed[2][1][1][6][1][1]
+		end)
+		if type(fallTranslated) ~= "string" or fallTranslated == "" then
+			return translated, detected
+		end
+		return fallTranslated, parsed[3] or detected
+	end
+
+	local function cachePut(key, translated, detected)
+		local cache = translator._cache
+		if type(cache) ~= "table" then
+			cache = {}
+			translator._cache = cache
+		end
+		cache[key] = {
+			text = translated;
+			detected = detected;
+		}
+
+		local order = translator._cacheOrder
+		if type(order) ~= "table" then
+			order = {}
+			translator._cacheOrder = order
+		end
+		order[#order + 1] = key
+		if #order > 300 then
+			local old = table.remove(order, 1)
+			if old then
+				cache[old] = nil
+			end
+		end
+	end
+
+	local function cacheGet(key)
+		local cache = translator._cache
+		local item = type(cache) == "table" and cache[key] or nil
+		if type(item) == "table" and type(item.text) == "string" then
+			return item.text, item.detected
+		end
+		return nil
 	end
 
 	local function translatePayload(text, target, source)
@@ -93910,49 +94400,58 @@ originalIO.naTransLatooor=function()
 			sourceCode = "auto"
 		end
 
-		local translated, detected = translateSimple(text, targetCode, sourceCode)
-		if translated and translated ~= "" then
-			return translated, detected
+		local provider = getProvider()
+		local list = {}
+		if provider == "mymemory" then
+			list[#list + 1] = "mymemory"
+			list[#list + 1] = "libre"
+			list[#list + 1] = "deepl"
+		elseif provider == "libre" then
+			list[#list + 1] = "libre"
+			list[#list + 1] = "mymemory"
+			list[#list + 1] = "deepl"
+		elseif provider == "deepl" then
+			list[#list + 1] = "deepl"
+			list[#list + 1] = "mymemory"
+			list[#list + 1] = "libre"
+		elseif provider == "google" then
+			list[#list + 1] = "google"
+		else
+			list[#list + 1] = "mymemory"
+			list[#list + 1] = "libre"
+			list[#list + 1] = "deepl"
 		end
-		if not ensureSession() then
-			return translated, detected
+
+		local googleFallback = cfgBool(cfgValue("NATranslateFallbackGoogle", "translateFallbackGoogle", "translatorFallbackGoogle"), opt.translateFallbackGoogle == true)
+		if googleFallback and provider ~= "google" then
+			list[#list + 1] = "google"
 		end
-		state.rid += 10000
-		local data = { { text, sourceCode, targetCode, true }, { nil } }
-		local freq = { { { rpc, jsonEncode(data), nil, "generic" } } }
-		local url = exec.."?"..encodeQuery({
-			rpcids = rpc;
-			["f.sid"] = state.fsid;
-			bl = state.bl;
-			hl = "en";
-			_reqid = state.rid - 10000;
-			rt = "c";
-		})
-		local body = encodeQuery({ ["f.req"] = jsonEncode(freq) })
-		local res = fetch(url, "POST", body)
-		if not res then
-			return translated, detected
+
+		for i = 1, #list do
+			local name = list[i]
+			local cacheKey = name.."|"..sourceCode.."|"..targetCode.."|"..text
+			local cached, cachedDetected = cacheGet(cacheKey)
+			if cached then
+				return cached, cachedDetected
+			end
+
+			local translated, detected
+			if name == "mymemory" then
+				translated, detected = translateMyMemory(text, targetCode, sourceCode)
+			elseif name == "deepl" then
+				translated, detected = translateDeepL(text, targetCode, sourceCode)
+			elseif name == "libre" then
+				translated, detected = translateLibre(text, targetCode, sourceCode)
+			elseif name == "google" then
+				translated, detected = translateGoogleLegacy(text, targetCode, sourceCode)
+			end
+			if type(translated) == "string" and translated ~= "" then
+				cachePut(cacheKey, translated, detected)
+				return translated, detected
+			end
 		end
-		local raw = res.Body or res.body or ""
-		if type(raw) ~= "string" then
-			raw = tostring(raw)
-		end
-		local ok, parsed = pcall(function()
-			local arr = jsonDecode(raw:match("%[.-%]\n"))
-			return jsonDecode(arr[1][3])
-		end)
-		if not ok or type(parsed) ~= "table" then
-			return translated, detected
-		end
-		local fallTranslated = nil
-		pcall(function()
-			fallTranslated = parsed[2][1][1][6][1][1]
-		end)
-		if type(fallTranslated) ~= "string" or fallTranslated == "" then
-			return translated, detected
-		end
-		local detectedLang = parsed[3]
-		return fallTranslated, detectedLang or detected
+
+		return nil
 	end
 
 	local function resizeLabel(label)
