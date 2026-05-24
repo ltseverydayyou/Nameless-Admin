@@ -2655,27 +2655,6 @@
       "desc": "Disable alignment keys"
     },
     {
-      "name": "rotectoresp",
-      "aliases": [
-        "rotectoresp",
-        "resp"
-      ],
-      "usage": "rotectoresp (resp)",
-      "args": "",
-      "desc": "ESP only Rotector API-flagged or recorded users"
-    },
-    {
-      "name": "unrotectoresp",
-      "aliases": [
-        "unrotectoresp",
-        "norotectoresp",
-        "unresp"
-      ],
-      "usage": "unrotectoresp (unresp)",
-      "args": "",
-      "desc": "Disable Rotector-only ESP"
-    },
-    {
       "name": "esp",
       "aliases": [
         "esp"
