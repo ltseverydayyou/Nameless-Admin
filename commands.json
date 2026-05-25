@@ -2825,6 +2825,30 @@
       "desc": "Break your character joints and die"
     },
     {
+      "name": "raknetdesync",
+      "aliases": [
+        "raknetdesync",
+        "rkdesync",
+        "rkds",
+        "rkd"
+      ],
+      "usage": "raknetdesync (rkdesync,rkds,rkd)",
+      "args": "",
+      "desc": "Enables RakNet desync using raknet.desync(true) or the packet-hook fallback"
+    },
+    {
+      "name": "unraknetdesync",
+      "aliases": [
+        "unraknetdesync",
+        "unrkdesync",
+        "unrkds",
+        "unrkd"
+      ],
+      "usage": "unraknetdesync (unrkdesync,unrkds,unrkd)",
+      "args": "",
+      "desc": "Disables RakNet desync using raknet.desync(false) or removes the packet hook"
+    },
+    {
       "name": "runanim",
       "aliases": [
         "runanim",
