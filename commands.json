@@ -2834,7 +2834,7 @@
       ],
       "usage": "raknetdesync (rkdesync,rkds,rkd)",
       "args": "",
-      "desc": "Enables RakNet desync using raknet.desync(true) or the packet-hook fallback"
+      "desc": "Enables RakNet desync using raknet.desync(true), then a safe packet-hook fallback"
     },
     {
       "name": "unraknetdesync",
@@ -2846,7 +2846,7 @@
       ],
       "usage": "unraknetdesync (unrkdesync,unrkds,unrkd)",
       "args": "",
-      "desc": "Disables RakNet desync using raknet.desync(false) or removes the packet hook"
+      "desc": "Disables RakNet desync using raknet.desync(false), or self-disables the fallback hook"
     },
     {
       "name": "runanim",
