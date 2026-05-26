@@ -89519,39 +89519,15 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	local function setStatus(message, color)
 		NAStuff.ExecutorStatusText = message or "Ready"
 		NAStuff.ExecutorStatusColor = color or colors.subtle
-		local label = NAStuff.ExecutorStatusLabel
-		if not label then
+		if not NAStuff.ExecutorStatusLabel then
 			return
 		end
 		pcall(function()
-			if typeof(label) == "Instance" and label.Parent then
-				label.Text = NAStuff.ExecutorStatusText
-				label.TextColor3 = NAStuff.ExecutorStatusColor
+			if typeof(NAStuff.ExecutorStatusLabel) == "Instance" and NAStuff.ExecutorStatusLabel.Parent then
+				NAStuff.ExecutorStatusLabel.Text = NAStuff.ExecutorStatusText
+				NAStuff.ExecutorStatusLabel.TextColor3 = NAStuff.ExecutorStatusColor
 			end
 		end)
-	end
-
-	local pendingStatusMessage, pendingStatusColor
-	local pendingStatusDirty = false
-	local statusPumpActive = false
-	local function queueStatus(message, color)
-		pendingStatusMessage = message or "Ready"
-		pendingStatusColor = color or colors.subtle
-		pendingStatusDirty = true
-		if not statusPumpActive then
-			setStatus(pendingStatusMessage, pendingStatusColor)
-		end
-	end
-	if RunService and RunService.Heartbeat then
-		statusPumpActive = true
-		NAlib.reconnect("executor_status_flush", RunService.Heartbeat:Connect(function()
-			if not pendingStatusDirty then
-				return
-			end
-			local message, color = pendingStatusMessage, pendingStatusColor
-			pendingStatusDirty = false
-			setStatus(message, color)
-		end))
 	end
 
 	function ensureExecutorFolders()
@@ -91582,7 +91558,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		end
 	end
 
-	local function loadTabsFromDisk()
+	NAmanage.Executor_LoadTabsFromDisk = function()
 		local loaded = false
 		if fsOk and isfile(tabsFile) then
 			local ok, raw = pcall(readfile, tabsFile)
@@ -91689,9 +91665,9 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 				return tostring(err).."\n"..debug.traceback(nil, 2)
 			end)
 			if ok then
-				queueStatus("Execution finished", colors.success)
+				pcall(task.defer, setStatus, "Execution finished", colors.success)
 			else
-				queueStatus(tostring(runErr), colors.error)
+				pcall(task.defer, setStatus, tostring(runErr), colors.error)
 			end
 		end)
 	end)
@@ -91829,7 +91805,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		queueRefreshEditor()
 	end))
 
-	loadTabsFromDisk()
+	NAmanage.Executor_LoadTabsFromDisk()
 	refreshSavedScripts()
 	applySettings(true)
 	selectTab(currentTab)
