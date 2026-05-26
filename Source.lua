@@ -47573,7 +47573,8 @@ end)
 NAStuff.desyncOn = NAStuff.desyncOn or false
 NAStuff.raknetDesyncOn = NAStuff.raknetDesyncOn or false
 NAStuff.raknetDesyncMode = NAStuff.raknetDesyncMode or nil
-NAStuff.raknetDesyncHook = NAStuff.raknetDesyncHook or nil
+NAStuff.raknetDesyncTargetPacket = NAStuff.raknetDesyncTargetPacket or 0x1B
+NAStuff.raknetDesyncPatchOffset = NAStuff.raknetDesyncPatchOffset or 1
 
 cmd.addPatched({"desync", "ngrep"},{"desync (ngrep)","Toggle NextGenReplicator desync / sync (run again to disable)"},function()
 	if type(setfflag) ~= "function" then
@@ -47608,8 +47609,11 @@ cmd.addPatched({"desync", "ngrep"},{"desync (ngrep)","Toggle NextGenReplicator d
 	end
 end)
 
-NAmanage.getRaknet = NAmanage.getRaknet or function()
-	local rk = rawget(_na_boot.hostEnv, "raknet")
+NAmanage.getRaknet = function()
+	local rk
+	if type(_na_boot) == "table" and type(_na_boot.hostEnv) == "table" then
+		rk = rawget(_na_boot.hostEnv, "raknet")
+	end
 	if rk == nil then
 		pcall(function()
 			rk = raknet
@@ -47618,8 +47622,11 @@ NAmanage.getRaknet = NAmanage.getRaknet or function()
 	return rk
 end
 
-NAmanage.getBufferLib = NAmanage.getBufferLib or function()
-	local buf = rawget(_na_boot.hostEnv, "buffer")
+NAmanage.getBufferLib = function()
+	local buf
+	if type(_na_boot) == "table" and type(_na_boot.hostEnv) == "table" then
+		buf = rawget(_na_boot.hostEnv, "buffer")
+	end
 	if buf == nil then
 		pcall(function()
 			buf = buffer
@@ -47628,7 +47635,98 @@ NAmanage.getBufferLib = NAmanage.getBufferLib or function()
 	return buf
 end
 
-NAmanage.enableRaknetHook = NAmanage.enableRaknetHook or function(rk)
+NAmanage.raknetState = function()
+	local env = type(_na_boot) == "table" and type(_na_boot.hostEnv) == "table" and _na_boot.hostEnv or nil
+	local st = env and rawget(env, "__NA_RaknetDesyncState") or nil
+	if type(st) ~= "table" then
+		st = {
+			active = false,
+			installed = false,
+			hook = nil,
+			ret = nil,
+			lastErr = nil,
+			packets = 0,
+			target = 0x1B,
+			offset = 1,
+		}
+		if env then
+			rawset(env, "__NA_RaknetDesyncState", st)
+		end
+	end
+	st.target = tonumber(NAStuff.raknetDesyncTargetPacket) or st.target or 0x1B
+	st.offset = tonumber(NAStuff.raknetDesyncPatchOffset) or st.offset or 1
+	return st
+end
+
+NAmanage.callRaknetDesync = function(rk, enabled)
+	if type(rk) ~= "table" and type(rk) ~= "userdata" then
+		return false, "raknet unavailable"
+	end
+
+	local helper
+	local okGet = pcall(function()
+		helper = rk.desync
+	end)
+	if not okGet or type(helper) ~= "function" then
+		return false, "raknet.desync unavailable"
+	end
+
+	local ok, ret = pcall(helper, enabled)
+	if ok and ret ~= false then
+		return true, ret
+	end
+
+	local dotErr = ret
+	local ok2, ret2 = pcall(function()
+		return helper(rk, enabled)
+	end)
+	if ok2 and ret2 ~= false then
+		return true, ret2
+	end
+
+	return false, dotErr or ret2 or "raknet.desync failed"
+end
+
+NAmanage.raknetWriteDesync = function(buf, data, off)
+	if type(buf) ~= "table" then
+		return false, "buffer library unavailable"
+	end
+	if data == nil then
+		return false, "packet buffer unavailable"
+	end
+
+	local len
+	if type(buf.len) == "function" then
+		pcall(function()
+			len = buf.len(data)
+		end)
+	end
+	if type(len) == "number" and len > 0 and off + 3 >= len then
+		return false, "packet buffer too small"
+	end
+
+	if type(buf.writeu32) == "function" then
+		local ok, err = pcall(buf.writeu32, data, off, 0xFFFFFFFF)
+		if ok then
+			return true
+		end
+		return false, err
+	end
+
+	if type(buf.writeu8) == "function" then
+		for i = 0, 3 do
+			local ok, err = pcall(buf.writeu8, data, off + i, 0xFF)
+			if not ok then
+				return false, err
+			end
+		end
+		return true
+	end
+
+	return false, "buffer.writeu32/writeu8 unavailable"
+end
+
+NAmanage.enableRaknetHook = function(rk)
 	if type(rk) ~= "table" and type(rk) ~= "userdata" then
 		return false, "raknet unavailable"
 	end
@@ -47636,130 +47734,201 @@ NAmanage.enableRaknetHook = NAmanage.enableRaknetHook or function(rk)
 		return false, "raknet.add_send_hook unavailable"
 	end
 
+	local st = NAmanage.raknetState()
 	local buf = NAmanage.getBufferLib()
-	if type(buf) ~= "table" or type(buf.writeu32) ~= "function" then
-		return false, "buffer.writeu32 unavailable"
+	if type(buf) ~= "table" then
+		return false, "buffer unavailable"
+	end
+	if type(buf.writeu32) ~= "function" and type(buf.writeu8) ~= "function" then
+		return false, "buffer.writeu32/writeu8 unavailable"
 	end
 
-	if type(NAStuff.raknetDesyncHook) ~= "function" then
-		NAStuff.raknetDesyncHook = function(packet)
-			local ok2, err2 = pcall(function()
-				if not packet or packet.PacketId ~= 0x1B then
+	if type(st.hook) ~= "function" then
+		st.hook = function(packet)
+			if not st.active then
+				return
+			end
+
+			local ok, err = pcall(function()
+				if not packet then
+					return
+				end
+
+				local id = packet.PacketId
+				if id ~= st.target then
 					return
 				end
 
 				local data = packet.AsBuffer
-				if not data then
+				local patched, why = NAmanage.raknetWriteDesync(buf, data, st.offset)
+				if not patched then
+					st.lastErr = why
 					return
 				end
 
-				buf.writeu32(data, 1, 0xFFFFFFFF)
 				if type(packet.SetData) == "function" then
 					packet:SetData(data)
+				else
+					st.lastErr = "packet:SetData unavailable"
 				end
+
+				st.packets = (tonumber(st.packets) or 0) + 1
 			end)
 
-			if not ok2 then
-				warn("[RakNetDesync] Hook error: "..tostring(err2))
+			if not ok then
+				st.lastErr = err
+				warn("[RakNetDesync] Hook error: "..tostring(err))
 			end
 		end
 	end
 
-	local ok, err = pcall(function()
-		rk.add_send_hook(NAStuff.raknetDesyncHook)
+	st.active = true
+	st.target = tonumber(NAStuff.raknetDesyncTargetPacket) or 0x1B
+	st.offset = tonumber(NAStuff.raknetDesyncPatchOffset) or 1
+	st.lastErr = nil
+
+	if st.installed then
+		return true, "reused existing hook"
+	end
+
+	local ok, ret = pcall(function()
+		return rk.add_send_hook(st.hook)
 	end)
 	if not ok then
-		return false, err
+		st.active = false
+		return false, ret
 	end
 
-	return true
+	st.ret = ret
+	st.installed = true
+	return true, "hook added"
 end
 
-NAmanage.disableRaknetHook = NAmanage.disableRaknetHook or function(rk)
-	if type(NAStuff.raknetDesyncHook) ~= "function" then
-		return true
-	end
-	if type(rk) ~= "table" and type(rk) ~= "userdata" then
-		return false, "raknet unavailable"
-	end
-	if type(rk.remove_send_hook) ~= "function" then
-		return false, "raknet.remove_send_hook unavailable"
+NAmanage.disableRaknetHook = function(rk)
+	local st = NAmanage.raknetState()
+	st.active = false
+
+	if not st.installed then
+		return true, "hook inactive"
 	end
 
-	local ok, err = pcall(function()
-		rk.remove_send_hook(NAStuff.raknetDesyncHook)
-	end)
-	if not ok then
-		return false, err
+	if (type(rk) == "table" or type(rk) == "userdata") and type(rk.remove_send_hook) == "function" and type(st.hook) == "function" then
+		local ok, err = pcall(function()
+			rk.remove_send_hook(st.hook)
+		end)
+		if ok then
+			st.installed = false
+			st.ret = nil
+			return true, "hook removed"
+		end
+		st.lastErr = err
 	end
 
-	return true
+	if type(st.ret) == "function" then
+		local ok = pcall(st.ret)
+		if ok then
+			st.installed = false
+			st.ret = nil
+			return true, "hook cleanup callback used"
+		end
+	elseif type(st.ret) == "table" or typeof(st.ret) == "RBXScriptConnection" or typeof(st.ret) == "userdata" then
+		for _, n in ipairs({"Disconnect", "disconnect", "Destroy", "destroy", "Remove", "remove"}) do
+			local f
+			pcall(function()
+				f = st.ret[n]
+			end)
+			if type(f) == "function" then
+				local ok = pcall(function()
+					f(st.ret)
+				end)
+				if ok then
+					st.installed = false
+					st.ret = nil
+					return true, "hook object cleanup used"
+				end
+			end
+		end
+	end
+
+	return true, "hook self-disabled (remove_send_hook unavailable)"
 end
 
-cmd.add({"raknetdesync", "rkdesync", "rkds", "rkd"},{"raknetdesync (rkdesync,rkds,rkd)","Enables RakNet desync using raknet.desync(true) or the packet-hook fallback"},function()
+NAmanage.setRaknetDesync = function(enabled)
+	local rk = NAmanage.getRaknet()
+
+	if enabled then
+		local okHelper, helperInfo = NAmanage.callRaknetDesync(rk, true)
+		if okHelper then
+			NAmanage.disableRaknetHook(rk)
+			NAStuff.raknetDesyncOn = true
+			NAStuff.raknetDesyncMode = "helper"
+			return true, "RakNet desync enabled [raknet.desync]"
+		end
+
+		local okHook, hookInfo = NAmanage.enableRaknetHook(rk)
+		if okHook then
+			NAStuff.raknetDesyncOn = true
+			NAStuff.raknetDesyncMode = "hook"
+			return true, "RakNet desync enabled [send hook]"
+		end
+
+		return false, tostring(helperInfo).."; fallback failed: "..tostring(hookInfo)
+	else
+		local mode = tostring(NAStuff.raknetDesyncMode or "")
+		local msgs = {}
+
+		if mode == "helper" or mode == "" then
+			local okHelper, helperInfo = NAmanage.callRaknetDesync(rk, false)
+			if okHelper then
+				NAStuff.raknetDesyncOn = false
+				NAStuff.raknetDesyncMode = nil
+				return true, "RakNet desync disabled [raknet.desync]"
+			end
+			msgs[#msgs + 1] = tostring(helperInfo)
+		end
+
+		local okHook, hookInfo = NAmanage.disableRaknetHook(rk)
+		if okHook then
+			NAStuff.raknetDesyncOn = false
+			NAStuff.raknetDesyncMode = nil
+			return true, "RakNet desync disabled ["..tostring(hookInfo).."]"
+		end
+
+		msgs[#msgs + 1] = tostring(hookInfo)
+		return false, table.concat(msgs, "; ")
+	end
+end
+
+cmd.add({"raknetdesync", "rkdesync", "rkds", "rkd"},{"raknetdesync (rkdesync,rkds,rkd)","Enables RakNet desync using raknet.desync(true), then a safe packet-hook fallback"},function()
 	if NAStuff.raknetDesyncOn then
 		DoNotif("RakNet desync is already enabled", 3)
 		return
 	end
 
-	local rk = NAmanage.getRaknet()
-	local helperFn = nil
-	local okFn = pcall(function()
-		helperFn = rk and rk.desync
-	end)
-	if okFn and type(helperFn) == "function" then
-		local ok, err = pcall(helperFn, true)
-		if ok then
-			NAStuff.raknetDesyncOn = true
-			NAStuff.raknetDesyncMode = "helper"
-			DoNotif("RakNet desync enabled [raknet.desync]", 4)
-			return
-		end
+	local ok, msg = NAmanage.setRaknetDesync(true)
+	if ok then
+		DoNotif(msg, 4)
+	else
+		DoNotif("Failed to enable RakNet desync: "..tostring(msg), 4)
 	end
-
-	local okHook, errHook = NAmanage.enableRaknetHook(rk)
-	if not okHook then
-		DoNotif("Failed to enable RakNet desync: "..tostring(errHook), 4)
-		return
-	end
-
-	NAStuff.raknetDesyncOn = true
-	NAStuff.raknetDesyncMode = "hook"
-	DoNotif("RakNet desync enabled [send hook]", 4)
 end)
 
-cmd.add({"unraknetdesync", "unrkdesync", "unrkds", "unrkd"},{"unraknetdesync (unrkdesync,unrkds,unrkd)","Disables RakNet desync using raknet.desync(false) or removes the packet hook"},function()
+cmd.add({"unraknetdesync", "unrkdesync", "unrkds", "unrkd"},{"unraknetdesync (unrkdesync,unrkds,unrkd)","Disables RakNet desync using raknet.desync(false), or self-disables the fallback hook"},function()
 	if not NAStuff.raknetDesyncOn then
+		local st = NAmanage.raknetState()
+		if st.active or st.installed then
+			NAmanage.disableRaknetHook(NAmanage.getRaknet())
+		end
 		DoNotif("RakNet desync is already disabled", 3)
 		return
 	end
 
-	local rk = NAmanage.getRaknet()
-	local mode = tostring(NAStuff.raknetDesyncMode or "")
-	local helperFn = nil
-	pcall(function()
-		helperFn = rk and rk.desync
-	end)
-
-	if mode ~= "hook" and type(helperFn) == "function" then
-		local ok, err = pcall(helperFn, false)
-		if ok then
-			NAStuff.raknetDesyncOn = false
-			NAStuff.raknetDesyncMode = nil
-			DoNotif("RakNet desync disabled [raknet.desync]", 3)
-			return
-		end
+	local ok, msg = NAmanage.setRaknetDesync(false)
+	if ok then
+		DoNotif(msg, 3)
+	else
+		DoNotif("Failed to disable RakNet desync: "..tostring(msg), 4)
 	end
-
-	local okHook, errHook = NAmanage.disableRaknetHook(rk)
-	if not okHook then
-		DoNotif("Failed to disable RakNet desync: "..tostring(errHook), 4)
-		return
-	end
-
-	NAStuff.raknetDesyncOn = false
-	NAStuff.raknetDesyncMode = nil
-	DoNotif("RakNet desync disabled [send hook]", 3)
 end)
 
 cmd.add({"runanim", "playanim", "anim"}, {"runanim <id> [speed] (playanim,anim)", "Plays an animation by ID with optional speed multiplier"}, function(id, speed)
