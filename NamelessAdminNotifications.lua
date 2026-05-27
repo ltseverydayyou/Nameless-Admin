@@ -254,7 +254,7 @@ function NotifFuns.findTaggedChild(parent, className, attr)
 	if typeof(parent) ~= "Instance" then
 		return nil
 	end
-	for _, child in ipairs(parent:GetChildren()) do
+	for _, child in parent:GetChildren() do
 		if child:IsA(className) and hasTag(child, attr) then
 			return child
 		end
@@ -349,7 +349,7 @@ function NotifFuns.findGui()
 	push(cg and cg:FindFirstChild("RobloxGui") or nil)
 	push(cg)
 	push(plrs.LocalPlayer and plrs.LocalPlayer:FindFirstChildWhichIsA("PlayerGui") or nil)
-	for _, p in ipairs(targets) do
+	for _, p in targets do
 		local tagged = findTaggedChild(p, "ScreenGui", UI_ATTR.GUI)
 		if isTrustedGui(tagged) then
 			return tagged, p
@@ -382,7 +382,7 @@ local FONTS = {}
 local walkDescAssigned = false
 local walkDescImpl
 
-for _, e in ipairs(Enum.Font:GetEnumItems()) do
+for _, e in Enum.Font:GetEnumItems() do
 	table.insert(FONTS, { e.Name, e })
 end
 
@@ -453,8 +453,8 @@ if canfs() and isfile(FPATH) then
 		return hs:JSONDecode(readfile(FPATH))
 	end)
 	if ok and type(dat) == "table" then
-		for k, v in pairs(dat) do
-			for _, p in ipairs(FONTS) do
+		for k, v in dat do
+			for _, p in FONTS do
 				if p[1] == v then
 					CURF[k] = p[2]
 				end
@@ -468,8 +468,8 @@ function NotifFuns.saveFonts()
 		return
 	end
 	local out = {}
-	for k, v in pairs(CURF) do
-		for _, p in ipairs(FONTS) do
+	for k, v in CURF do
+		for _, p in FONTS do
 			if p[2] == v then
 				out[k] = p[1]
 			end
@@ -525,7 +525,7 @@ applyFontTree = NotifFuns.applyFontTree
 function NotifFuns.setFontKind(kind, f)
 	CURF[kind] = f
 	saveFonts()
-	for c in pairs(ACT[kind]) do
+	for c in ACT[kind] do
 		if c and c.Parent then
 			applyFontTree(c, f)
 		end
@@ -544,7 +544,7 @@ if canfs() and isfile(DPATH) then
 		return hs:JSONDecode(readfile(DPATH))
 	end)
 	if ok and type(dat) == "table" then
-		for k, v in pairs(dat) do
+		for k, v in dat do
 			CURD[k] = v
 		end
 	end
@@ -682,7 +682,7 @@ getStack = NotifFuns.getStack
 local gSzCon, gDeadCon, gBoundGui
 
 function NotifFuns.onGuiSize()
-	for k, f in pairs(stacks) do
+	for k, f in stacks do
 		if f and f.Parent then
 			f.Size = (k == "top" or k == "bottom") and UDim2.new(0, wW(), 1, 0) or UDim2.new(0, nW(), 1, 0)
 		end
@@ -690,8 +690,8 @@ function NotifFuns.onGuiSize()
 
 	if isMobile and type(ctx) == "function" then
 		local bs = mobScale()
-		for _, t in pairs(ACT) do
-			for card in pairs(t) do
+		for _, t in ACT do
+			for card in t do
 				if card and card.Parent then
 					local s = ctx(card)
 					if s and s.sc then
@@ -890,7 +890,7 @@ function NotifFuns.clrSt(s)
 		return
 	end
 	if s.connections then
-		for conn in pairs(s.connections) do
+		for conn in s.connections do
 			if conn and conn.Connected then
 				conn:Disconnect()
 			end
@@ -898,7 +898,7 @@ function NotifFuns.clrSt(s)
 		s.connections = {}
 	end
 	if s.tweens then
-		for tween in pairs(s.tweens) do
+		for tween in s.tweens do
 			if tween then
 				tween:Cancel()
 			end
@@ -1291,7 +1291,7 @@ function NotifFuns.mkHdr(par, z, kind, onPause)
 		if not rec then
 			return
 		end
-		for _, r in ipairs(rec) do
+		for _, r in rec do
 			local on = r.font == CURF[kind]
 			r.set(on)
 		end
@@ -1356,7 +1356,7 @@ function NotifFuns.mkHdr(par, z, kind, onPause)
 		lay2.Padding = UDim.new(0, 6)
 		lay2.SortOrder = Enum.SortOrder.LayoutOrder
 		rec = {}
-		for _, pair in ipairs(FONTS) do
+		for _, pair in FONTS do
 			local b = mkMenuBtn(sf, pair[1], sf.ZIndex + 1, CURF[kind])
 			local setSel = function(on)
 				b:SetAttribute("sel", on)
@@ -1503,7 +1503,7 @@ function NotifFuns.mkHdr(par, z, kind, onPause)
 			local list = Instance.new("UIListLayout", m)
 			list.Padding = UDim.new(0, 6)
 			list.SortOrder = Enum.SortOrder.LayoutOrder
-			for _, ent in ipairs(POS) do
+			for _, ent in POS do
 				local b = mkMenuBtn(m, ent[1], m.ZIndex + 2, CURF[kind])
 				addConnection(b, b.MouseButton1Click:Connect(function()
 					if dockApplyBusy then
@@ -1735,7 +1735,7 @@ attachTimer = NotifFuns.attachTimer
 
 function NotifFuns.calcCellH(w, list, font)
 	local h = isMobile and 48 or 42
-	for _, info in ipairs(list) do
+	for _, info in list do
 		local t = tostring(info.Text or "")
 		local iconSpace = 0
 		local raw = info.Image
@@ -1866,7 +1866,7 @@ function NotifFuns.mkBtnArea(cntObj, list, owner, z, maxH, font)
 	local s = ctx(owner)
 	s.sel = s.sel or {}
 	s.btns = s.btns or {}
-	for _, info in ipairs(list) do
+	for _, info in list do
 		local b = Instance.new("TextButton")
 		b.AutoButtonColor = false
 		b.Text = ""
@@ -2438,7 +2438,7 @@ function NotifFuns.build(kind, p)
 		task.delay(0.38, function()
 			if card then
 				cleanup(card)
-				for _, t in pairs(ACT) do
+				for _, t in ACT do
 					t[card] = nil
 				end
 				syncOverlayActive()
@@ -2453,7 +2453,7 @@ function NotifFuns.build(kind, p)
 		if s.stackKey and STACKED_NOTIFS[s.stackKey] == card then
 			STACKED_NOTIFS[s.stackKey] = nil
 		end
-		for _, t in pairs(ACT) do
+		for _, t in ACT do
 			t[card] = nil
 		end
 		syncOverlayActive()
@@ -2585,7 +2585,7 @@ function NotifFuns.build(kind, p)
 			if not s.multi then
 				s.sel = {}
 				if s.btns then
-					for _, rec in pairs(s.btns) do
+					for _, rec in s.btns do
 						if rec and rec.set then
 							rec.set(false)
 						end
@@ -2600,7 +2600,7 @@ function NotifFuns.build(kind, p)
 			if s.closing then
 				return
 			end
-			for _, info in ipairs(s.sel or {}) do
+			for _, info in s.sel or {} do
 				if info.Callback then
 					info.Callback(s.inp and s.inp.Text or "")
 				end
@@ -2675,7 +2675,7 @@ local api = {
 		return Popup(p)
 	end,
 	SetFont = function(kind, name)
-		for _, pair in ipairs(FONTS) do
+		for _, pair in FONTS do
 			if pair[1] == name then
 				setFontKind(kind, pair[2])
 				break

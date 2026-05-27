@@ -81,7 +81,7 @@ if "wanna use myworld reanimate" then
 	end);
 	local function gp(parent, name, className)
 		if typeof(parent) == "Instance" then
-			for i, v in pairs(parent:GetChildren()) do
+			for i, v in parent:GetChildren() do
 				if v.Name == name and v:IsA(className) then
 					return v;
 				end;
@@ -209,7 +209,7 @@ if "wanna use myworld reanimate" then
 		end;
 	end;
 	if antiragdoll then
-		for i, v in pairs(c:QueryDescendants("Instance")) do
+		for i, v in c:QueryDescendants("Instance") do
 			antiragdoll(v);
 		end;
 		c.DescendantAdded:Connect(antiragdoll);
@@ -224,7 +224,7 @@ if "wanna use myworld reanimate" then
 		end;
 	end;
 	if discharscripts then
-		for i, v in pairs(c:GetChildren()) do
+		for i, v in c:GetChildren() do
 			if v:IsA("LocalScript") then
 				v.Disabled = true;
 			end;
@@ -238,7 +238,7 @@ if "wanna use myworld reanimate" then
 		end;
 	end;
 	if addtools then
-		for i, v in pairs(addtools:GetChildren()) do
+		for i, v in addtools:GetChildren() do
 			if v:IsA("Tool") then
 				v.Parent = c;
 			end;
@@ -249,19 +249,19 @@ if "wanna use myworld reanimate" then
 		(settings()).Physics.PhysicsEnvironmentalThrottle = Enum.EnviromentalPhysicsThrottle.Disabled;
 	end);
 	local OLDscripts = {};
-	for i, v in pairs(c:QueryDescendants("Instance")) do
+	for i, v in c:QueryDescendants("Instance") do
 		if v.ClassName == "Script" then
 			table.insert(OLDscripts, v);
 		end;
 	end;
 	local scriptNames = {};
-	for i, v in pairs(c:QueryDescendants("Instance")) do
+	for i, v in c:QueryDescendants("Instance") do
 		if v:IsA("BasePart") then
 			local newName = tostring(i);
 			local exists = true;
 			while exists do
 				exists = false;
-				for i, v in pairs(OLDscripts) do
+				for i, v in OLDscripts do
 					if v.Name == newName then
 						exists = true;
 					end;
@@ -277,7 +277,7 @@ if "wanna use myworld reanimate" then
 	c.Archivable = true;
 	local hum = c:FindFirstChildOfClass("Humanoid");
 	if hum then
-		for i, v in pairs(hum:GetPlayingAnimationTracks()) do
+		for i, v in hum:GetPlayingAnimationTracks() do
 			v:Stop();
 		end;
 	end;
@@ -305,7 +305,7 @@ if "wanna use myworld reanimate" then
 		torso:Destroy();
 		root:Destroy();
 		if shp then
-			for i, v in pairs(c:GetChildren()) do
+			for i, v in c:GetChildren() do
 				if v:IsA("Accessory") then
 					shp(v, "BackendAccoutrementState", 0);
 				end;
@@ -320,10 +320,10 @@ if "wanna use myworld reanimate" then
 			model = nil;
 		end;
 	end);
-	for i, v in pairs(c:GetChildren()) do
+	for i, v in c:GetChildren() do
 		if v ~= model then
 			if addtools and v:IsA("Tool") then
-				for i1, v1 in pairs(v:QueryDescendants("Instance")) do
+				for i1, v1 in v:QueryDescendants("Instance") do
 					if v1 and v1.Parent and v1:IsA("BasePart") then
 						local bv = Instance.new("BodyVelocity", v1);
 						bv.Velocity = v3_0;
@@ -340,7 +340,7 @@ if "wanna use myworld reanimate" then
 		model:BreakJoints();
 	else
 		if head and torso then
-			for i, v in pairs(model:QueryDescendants("Instance")) do
+			for i, v in model:QueryDescendants("Instance") do
 				if v:IsA("Weld") or v:IsA("Snap") or v:IsA("Glue") or v:IsA("Motor") or v:IsA("Motor6D") then
 					local save = false;
 					if v.Part0 == torso and v.Part1 == head then
@@ -369,7 +369,7 @@ if "wanna use myworld reanimate" then
 		end;
 	end;
 	cl.Parent = c;
-	for i, v in pairs(cl:GetChildren()) do
+	for i, v in cl:GetChildren() do
 		v.Parent = c;
 	end;
 	cl:Destroy();
@@ -377,7 +377,7 @@ if "wanna use myworld reanimate" then
 	local noclipcon = nil;
 	local function uncollide()
 		if noclipmodel then
-			for i, v in pairs(noclipmodel:QueryDescendants("Instance")) do
+			for i, v in noclipmodel:QueryDescendants("Instance") do
 				if v:IsA("BasePart") then
 					v.CanCollide = false;
 				end;
@@ -388,11 +388,11 @@ if "wanna use myworld reanimate" then
 	end;
 	noclipcon = stepped:Connect(uncollide);
 	uncollide();
-	for i, scr in pairs(model:QueryDescendants("Instance")) do
+	for i, scr in model:QueryDescendants("Instance") do
 		if scr.ClassName == "Script" and table.find(scriptNames, scr.Name) then
 			local Part0 = scr.Parent;
 			if Part0:IsA("BasePart") then
-				for i1, scr1 in pairs(c:QueryDescendants("Instance")) do
+				for i1, scr1 in c:QueryDescendants("Instance") do
 					if scr1.ClassName == "Script" and scr1.Name == scr.Name and (not scr1:IsDescendantOf(model)) then
 						local Part1 = scr1.Parent;
 						if Part1.ClassName == Part0.ClassName and Part1.Name == Part0.Name then
@@ -406,7 +406,7 @@ if "wanna use myworld reanimate" then
 			end;
 		end;
 	end;
-	for i, v in pairs(c:QueryDescendants("Instance")) do
+	for i, v in c:QueryDescendants("Instance") do
 		if v and v.Parent and (not v:IsDescendantOf(model)) then
 			if v:IsA("Decal") then
 				v.Transparency = 1;
@@ -429,7 +429,7 @@ if "wanna use myworld reanimate" then
 		end;
 	end;
 	if addtools then
-		for i, v in pairs(c:GetChildren()) do
+		for i, v in c:GetChildren() do
 			if v:IsA("Tool") then
 				v.Parent = addtools;
 			end;
@@ -560,9 +560,9 @@ if "wanna use myworld reanimate" then
 					}
 				}
 			};
-			for i, v in pairs(c:GetChildren()) do
+			for i, v in c:GetChildren() do
 				if v:IsA("BasePart") then
-					for i1, v1 in pairs(v:GetChildren()) do
+					for i1, v1 in v:GetChildren() do
 						if v1:IsA("Motor6D") then
 							v1.Part0 = nil;
 						end;
@@ -570,7 +570,7 @@ if "wanna use myworld reanimate" then
 				end;
 			end;
 			part.Archivable = true;
-			for i, v in pairs(R6parts) do
+			for i, v in R6parts do
 				local part = part:Clone();
 				part:ClearAllChildren();
 				part.Name = v.Name;
@@ -579,7 +579,7 @@ if "wanna use myworld reanimate" then
 				part.Anchored = false;
 				part.Transparency = 1;
 				part.CanCollide = false;
-				for i1, v1 in pairs(v.R15) do
+				for i1, v1 in v.R15 do
 					local R15part = gp(c, i1, "BasePart");
 					local att = gp(R15part, "att1_" .. i1, "Attachment");
 					if R15part then
@@ -651,9 +651,9 @@ if "wanna use myworld reanimate" then
 					C1 = cf(-0.5, 1, 0, 0, 0, -1, 0, 1, 0, 1, 0, 0)
 				}
 			};
-			for i, v in pairs(R6joints) do
+			for i, v in R6joints do
 				local joint = Instance.new("Motor6D");
-				for prop, val in pairs(v) do
+				for prop, val in v do
 					joint[prop] = val;
 				end;
 				R6joints[i] = joint;
@@ -675,7 +675,7 @@ if "wanna use myworld reanimate" then
 			conNeck:Disconnect();
 			conTorso:Disconnect();
 			conTorso1:Disconnect();
-			for i, v in pairs(aligns) do
+			for i, v in aligns do
 				v.Enabled = true;
 			end;
 		end;
@@ -690,7 +690,7 @@ if "wanna use myworld reanimate" then
 		end);
 		conTorso = (torso:GetPropertyChangedSignal("Parent")):Connect(enableAligns);
 		conTorso1 = (torso1:GetPropertyChangedSignal("Parent")):Connect(enableAligns);
-		for i, v in pairs(head:QueryDescendants("Instance")) do
+		for i, v in head:QueryDescendants("Instance") do
 			if v:IsA("AlignPosition") or v:IsA("AlignOrientation") then
 				i = tostring(i);
 				aligns[i] = v;
@@ -803,7 +803,7 @@ if "wanna use myworld reanimate" then
 					flingpart0.Transparency = 0.5;
 				end;
 				att1.Parent = flingpart;
-				for i, v in pairs(att0:GetChildren()) do
+				for i, v in att0:GetChildren() do
 					if v:IsA("AlignOrientation") then
 						v.Enabled = false;
 					end;
@@ -843,7 +843,7 @@ if "wanna use myworld reanimate" then
 				end;
 				flingpart0.RotVelocity = v3_0;
 				att1.Parent = flingpart1;
-				for i, v in pairs(att0:GetChildren()) do
+				for i, v in att0:GetChildren() do
 					if v:IsA("AlignOrientation") then
 						v.Enabled = true;
 					end;
@@ -869,7 +869,7 @@ local rs = ClonedService("RunService");
 local stepped, renderstepped, heartbeat = rs.PreSimulation, rs.RenderStepped, rs.Heartbeat;
 local function gp(parent, name, classname)
 	if typeof(parent) == "Instance" then
-		for i, v in pairs(parent:GetChildren()) do
+		for i, v in parent:GetChildren() do
 			if v.Name == name and v:IsA(classname) then
 				return v;
 			end;
@@ -980,10 +980,10 @@ local states = {
 	[4] = false,
 	[16] = false
 };
-for i, v in pairs(states) do
+for i, v in states do
 	hum:SetStateEnabled(i, v);
 end;
-for i, v in pairs(hum:GetPlayingAnimationTracks()) do
+for i, v in hum:GetPlayingAnimationTracks() do
 	v:Stop();
 end;
 hum.RigType = Enum.HumanoidRigType.R6;
@@ -1007,7 +1007,7 @@ local modes = {
 	k = "kazotsky",
 	l = "L"
 };
-for i, v in pairs(modes) do
+for i, v in modes do
 	if type(i) == "string" then
 		modes[Enum.KeyCode[i:upper()]] = v;
 	end;

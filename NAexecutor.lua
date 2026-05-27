@@ -258,7 +258,7 @@ local function AttachEditor(cfg)
 		"while",
 	}
 	local keywordSet = {}
-	for _, v in ipairs(lua_keywords) do
+	for _, v in lua_keywords do
 		keywordSet[v] = true
 	end
 	keywordSet.plugin = true
@@ -392,10 +392,10 @@ local function AttachEditor(cfg)
 		"PivotTo",
 	}
 	local builtIns = {}
-	for _, v in ipairs(global_env) do
+	for _, v in global_env do
 		builtIns[v] = true
 	end
-	for _, v in ipairs(roblox_api) do
+	for _, v in roblox_api do
 		builtIns[v] = true
 	end
 	local function mapNewLines(text)
@@ -519,7 +519,7 @@ local function AttachEditor(cfg)
 		local lineStart = (newLines[lineIndex - 1] or 0)
 
 		local preHighlightMap = {}
-		for pos, data in pairs(pre) do
+		for pos, data in pre do
 			local relativePos = pos - lineStart
 			if relativePos < 1 then
 				currentType = data[1]
@@ -656,7 +656,7 @@ local function AttachEditor(cfg)
 			[";"] = true,
 			["~"] = true,
 		}
-		for _, v in ipairs(keywords) do
+		for _, v in keywords do
 			K[v] = true
 		end
 		S = S:gsub(".", function(c)
@@ -1005,7 +1005,7 @@ local function AttachEditor(cfg)
 			for i = 1, #line do
 				local ch = string.sub(line, i, i)
 				local t = hl[i] or 0
-				for name, buf in pairs(layerBuffers) do
+				for name, buf in layerBuffers do
 					if layerTypes[name][t] then
 						buf[#buf + 1] = ch
 					else
@@ -1013,7 +1013,7 @@ local function AttachEditor(cfg)
 					end
 				end
 			end
-			for _, buf in pairs(layerBuffers) do
+			for _, buf in layerBuffers do
 				buf[#buf + 1] = "\n"
 			end
 			lineCount = lineCount + 1
@@ -1298,7 +1298,7 @@ local function saveTabs()
 		cur = cur,
 		tabs = {},
 	}
-	for i, v in ipairs(tabs) do
+	for i, v in tabs do
 		p.tabs[i] = v.text or ""
 	end
 	local ok, enc = pcall(function()
@@ -1782,7 +1782,7 @@ local function mkPick(p, mnv, mxv, curP, onSet, step)
 	end)
 	local btns = {}
 	local function ref()
-		for i, b in ipairs(btns) do
+		for i, b in btns do
 			b.BackgroundColor3 = (i - 1) * step == curP and col.btnA or col.btn
 		end
 	end
@@ -1898,7 +1898,7 @@ local function applyA()
 	s.BackgroundTransparency = a
 	ln.BackgroundTransparency = a
 	sp.BackgroundTransparency = a
-	for _, v in ipairs(tabs) do
+	for _, v in tabs do
 		if v and v.h then
 			v.h.BackgroundTransparency = a
 		end
@@ -2323,7 +2323,7 @@ local function mkTab(tx2)
 	return v
 end
 local function renum()
-	for i, v in ipairs(tabs) do
+	for i, v in tabs do
 		if v and v.h and v.b then
 			v.h.LayoutOrder = i
 			local nm = "Tab " .. i
@@ -2377,7 +2377,7 @@ local function ensureTab()
 	end)
 end
 local function refTabs()
-	for i, v in ipairs(tabs) do
+	for i, v in tabs do
 		if v and v.h and v.b and v.x and v.u then
 			local on = i == cur
 			if cfg.an then
@@ -2794,14 +2794,14 @@ local function hubPath(name)
 end
 local selFile = nil
 local function hubClear()
-	for _, ch in ipairs(hcn:GetChildren()) do
+	for _, ch in hcn:GetChildren() do
 		if not ch:IsA("UIListLayout") then
 			ch:Destroy()
 		end
 	end
 end
 local function hubRefSel()
-	for _, it in ipairs(hcn:GetChildren()) do
+	for _, it in hcn:GetChildren() do
 		if it:IsA("TextButton") then
 			it.BackgroundColor3 = it.Text == selFile and col.btnA or col.hub2
 		end
@@ -2843,7 +2843,7 @@ local function hubRef()
 		end)
 		if ok and type(arr) == "table" then
 			local names = {}
-			for _, p in ipairs(arr) do
+			for _, p in arr do
 				if type(p) == "string" then
 					local n = p:match("([^/\\]+)$")
 					if n then
@@ -2856,7 +2856,7 @@ local function hubRef()
 			table.sort(names, function(a, b)
 				return a:lower() < b:lower()
 			end)
-			for _, n in ipairs(names) do
+			for _, n in names do
 				hubItem(n)
 			end
 		end

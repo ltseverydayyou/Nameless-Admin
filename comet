@@ -569,7 +569,7 @@ function Destroy(part)
 			(SafeGetService("ReplicatedStorage")).DeleteCar:FireServer(part);
 		elseif (SafeGetService("Players")).LocalPlayer.Character:FindFirstChild("HandlessSegway") then
 			SupportedGame = true;
-			for i, slaves in pairs(game:QueryDescendants("Instance")) do
+			for i, slaves in game:QueryDescendants("Instance") do
 				if slaves.Name == "DestroySegway" then
 					slaves:FireServer(part, {
 						Value = part
@@ -627,9 +627,9 @@ end;
 local GetClosestPlayerFromCursor = function()
 	local found = nil;
 	local ClosestDistance = math.huge;
-	for i, v in pairs(Players:GetPlayers()) do
+	for i, v in Players:GetPlayers() do
 		if v ~= Players.LocalPlayer and v.Character and v.Character:FindFirstChildOfClass("Humanoid") then
-			for k, x in pairs(v.Character:GetChildren()) do
+			for k, x in v.Character:GetChildren() do
 				if string.find(x.Name, "Torso") then
 					local Distance = (WTS(x) - MousePositionToVector2()).Magnitude;
 					if Distance < ClosestDistance then
@@ -648,7 +648,7 @@ local SpecialPlayerCases = {
 	end,
 	others = function(speaker)
 		local plrs = {};
-		for i, v in pairs(Players:GetPlayers()) do
+		for i, v in Players:GetPlayers() do
 			if v ~= speaker then
 				table.insert(plrs, v);
 			end;
@@ -687,7 +687,7 @@ local SpecialPlayerCases = {
 	["%%(.+)"] = function(speaker, args)
 		local returns = {};
 		local team = args[1];
-		for _, plr in pairs(Players:GetPlayers()) do
+		for _, plr in Players:GetPlayers() do
 			if plr.Team and string.sub(string.lower(plr.Team.Name), 1, #team) == string.lower(team) then
 				table.insert(returns, plr);
 			end;
@@ -697,7 +697,7 @@ local SpecialPlayerCases = {
 	allies = function(speaker)
 		local returns = {};
 		local team = speaker.Team;
-		for _, plr in pairs(Players:GetPlayers()) do
+		for _, plr in Players:GetPlayers() do
 			if plr.Team == team then
 				table.insert(returns, plr);
 			end;
@@ -707,7 +707,7 @@ local SpecialPlayerCases = {
 	enemies = function(speaker)
 		local returns = {};
 		local team = speaker.Team;
-		for _, plr in pairs(Players:GetPlayers()) do
+		for _, plr in Players:GetPlayers() do
 			if plr.Team ~= team then
 				table.insert(returns, plr);
 			end;
@@ -717,7 +717,7 @@ local SpecialPlayerCases = {
 	team = function(speaker)
 		local returns = {};
 		local team = speaker.Team;
-		for _, plr in pairs(Players:GetPlayers()) do
+		for _, plr in Players:GetPlayers() do
 			if plr.Team == team then
 				table.insert(returns, plr);
 			end;
@@ -727,7 +727,7 @@ local SpecialPlayerCases = {
 	nonteam = function(speaker)
 		local returns = {};
 		local team = speaker.Team;
-		for _, plr in pairs(Players:GetPlayers()) do
+		for _, plr in Players:GetPlayers() do
 			if plr.Team ~= team then
 				table.insert(returns, plr);
 			end;
@@ -736,7 +736,7 @@ local SpecialPlayerCases = {
 	end,
 	friends = function(speaker, args)
 		local returns = {};
-		for _, plr in pairs(Players:GetPlayers()) do
+		for _, plr in Players:GetPlayers() do
 			if plr:IsFriendsWith(speaker.UserId) and plr ~= speaker then
 				table.insert(returns, plr);
 			end;
@@ -745,7 +745,7 @@ local SpecialPlayerCases = {
 	end,
 	nonfriends = function(speaker, args)
 		local returns = {};
-		for _, plr in pairs(Players:GetPlayers()) do
+		for _, plr in Players:GetPlayers() do
 			if not plr:IsFriendsWith(speaker.UserId) and plr ~= speaker then
 				table.insert(returns, plr);
 			end;
@@ -754,7 +754,7 @@ local SpecialPlayerCases = {
 	end,
 	guests = function(speaker, args)
 		local returns = {};
-		for _, plr in pairs(Players:GetPlayers()) do
+		for _, plr in Players:GetPlayers() do
 			if plr.Guest then
 				table.insert(returns, plr);
 			end;
@@ -763,7 +763,7 @@ local SpecialPlayerCases = {
 	end,
 	bacons = function(speaker, args)
 		local returns = {};
-		for _, plr in pairs(Players:GetPlayers()) do
+		for _, plr in Players:GetPlayers() do
 			if plr.Character:FindFirstChild("Pal Hair") or plr.Character:FindFirstChild("Kate Hair") then
 				table.insert(returns, plr);
 			end;
@@ -776,7 +776,7 @@ local SpecialPlayerCases = {
 		if not age == nil then
 			return;
 		end;
-		for _, plr in pairs(Players:GetPlayers()) do
+		for _, plr in Players:GetPlayers() do
 			if plr.AccountAge <= age then
 				table.insert(returns, plr);
 			end;
@@ -790,7 +790,7 @@ local SpecialPlayerCases = {
 		end;
 		local lowest = math.huge;
 		local NearestPlayer = nil;
-		for _, plr in pairs(currentList) do
+		for _, plr in currentList do
 			if plr ~= speaker and plr.Character then
 				local distance = plr:DistanceFromCharacter((getRoot(speakerChar)).Position);
 				if distance < lowest then
@@ -810,7 +810,7 @@ local SpecialPlayerCases = {
 		end;
 		local highest = 0;
 		local Farthest = nil;
-		for _, plr in pairs(currentList) do
+		for _, plr in currentList do
 			if plr ~= speaker and plr.Character then
 				local distance = plr:DistanceFromCharacter((getRoot(speakerChar)).Position);
 				if distance > highest then
@@ -826,7 +826,7 @@ local SpecialPlayerCases = {
 	["group(%d+)"] = function(speaker, args)
 		local returns = {};
 		local groupID = tonumber(args[1]);
-		for _, plr in pairs(Players:GetPlayers()) do
+		for _, plr in Players:GetPlayers() do
 			if plr:IsInGroup(groupID) then
 				table.insert(returns, plr);
 			end;
@@ -835,7 +835,7 @@ local SpecialPlayerCases = {
 	end,
 	alive = function(speaker, args)
 		local returns = {};
-		for _, plr in pairs(Players:GetPlayers()) do
+		for _, plr in Players:GetPlayers() do
 			if plr.Character and plr.Character:FindFirstChildOfClass("Humanoid") and (plr.Character:FindFirstChildOfClass("Humanoid")).Health > 0 then
 				table.insert(returns, plr);
 			end;
@@ -844,7 +844,7 @@ local SpecialPlayerCases = {
 	end,
 	dead = function(speaker, args)
 		local returns = {};
-		for _, plr in pairs(Players:GetPlayers()) do
+		for _, plr in Players:GetPlayers() do
 			if not plr.Character or (not plr.Character:FindFirstChildOfClass("Humanoid")) or (plr.Character:FindFirstChildOfClass("Humanoid")).Health <= 0 then
 				table.insert(returns, plr);
 			end;
@@ -858,7 +858,7 @@ local SpecialPlayerCases = {
 		if not speakerChar or (not getRoot(speakerChar)) then
 			return;
 		end;
-		for _, plr in pairs(Players:GetPlayers()) do
+		for _, plr in Players:GetPlayers() do
 			if plr.Character and getRoot(plr.Character) then
 				local magnitude = ((getRoot(plr.Character)).Position - (getRoot(speakerChar)).Position).magnitude;
 				if magnitude <= radius then
@@ -880,10 +880,10 @@ local SpecialPlayerCases = {
 function onlyIncludeInTable(tab, matches)
 	local matchTable = {};
 	local resultTable = {};
-	for i, v in pairs(matches) do
+	for i, v in matches do
 		matchTable[v.Name] = true;
 	end;
-	for i, v in pairs(tab) do
+	for i, v in tab do
 		if matchTable[v.Name] then
 			table.insert(resultTable, v);
 		end;
@@ -893,10 +893,10 @@ end;
 function removeTableMatches(tab, matches)
 	local matchTable = {};
 	local resultTable = {};
-	for i, v in pairs(matches) do
+	for i, v in matches do
 		matchTable[v.Name] = true;
 	end;
-	for i, v in pairs(tab) do
+	for i, v in tab do
 		if not matchTable[v.Name] then
 			table.insert(resultTable, v);
 		end;
@@ -905,7 +905,7 @@ function removeTableMatches(tab, matches)
 end;
 function getPlayersByName(Name)
 	local Name, Len, Found = string.lower(Name), #Name, {};
-	for _, v in pairs(Players:GetPlayers()) do
+	for _, v in Players:GetPlayers() do
 		if Name:sub(0, 1) == "@" then
 			if string.sub(string.lower(v.Name), 1, Len - 1) == Name:sub(2) then
 				table.insert(Found, v);
@@ -924,17 +924,17 @@ function getPlayer(list, speaker)
 	end;
 	local nameList = splitString(list, ",");
 	local foundList = {};
-	for _, name in pairs(nameList) do
+	for _, name in nameList do
 		if string.sub(name, 1, 1) ~= "+" and string.sub(name, 1, 1) ~= "-" then
 			name = "+" .. name;
 		end;
 		local tokens = toTokens(name);
 		local initialPlayers = Players:GetPlayers();
-		for i, v in pairs(tokens) do
+		for i, v in tokens do
 			if v.Operator == "+" then
 				local tokenContent = v.Name;
 				local foundCase = false;
-				for regex, case in pairs(SpecialPlayerCases) do
+				for regex, case in SpecialPlayerCases do
 					local matches = {
 						string.match(tokenContent, "^" .. regex .. "$")
 					};
@@ -949,7 +949,7 @@ function getPlayer(list, speaker)
 			else
 				local tokenContent = v.Name;
 				local foundCase = false;
-				for regex, case in pairs(SpecialPlayerCases) do
+				for regex, case in SpecialPlayerCases do
 					local matches = {
 						string.match(tokenContent, "^" .. regex .. "$")
 					};
@@ -963,19 +963,19 @@ function getPlayer(list, speaker)
 				end;
 			end;
 		end;
-		for i, v in pairs(initialPlayers) do
+		for i, v in initialPlayers do
 			table.insert(foundList, v);
 		end;
 	end;
 	local foundNames = {};
-	for i, v in pairs(foundList) do
+	for i, v in foundList do
 		table.insert(foundNames, v.Name);
 	end;
 	return foundNames;
 end;
 Kill.MouseButton1Click:Connect(function()
 	local players = getPlayer(Target.Text, Players.LocalPlayer);
-	for i, v in pairs(players) do
+	for i, v in players do
 		if (Players[v].Character:FindFirstChildOfClass("Humanoid")).RigType == Enum.HumanoidRigType.R6 then
 			Destroy(Players[v].Character.Torso.Neck);
 		else
@@ -985,7 +985,7 @@ Kill.MouseButton1Click:Connect(function()
 end);
 Naked.MouseButton1Click:Connect(function()
 	local players = getPlayer(Target.Text, Players.LocalPlayer);
-	for i, v in pairs(players) do
+	for i, v in players do
 		Destroy(Players[v].Character:FindFirstChildOfClass("Pants"));
 		Destroy(Players[v].Character:FindFirstChildOfClass("ShirtGraphic"));
 		Destroy(Players[v].Character:FindFirstChildOfClass("Shirt"));
@@ -993,13 +993,13 @@ Naked.MouseButton1Click:Connect(function()
 end);
 Box.MouseButton1Click:Connect(function()
 	local players = getPlayer(Target.Text, Players.LocalPlayer);
-	for i, v in pairs(players) do
-		for i, v in pairs(Players[v].Character:GetChildren()) do
+	for i, v in players do
+		for i, v in Players[v].Character:GetChildren() do
 			if v:IsA("Accessory") then
 				Destroy(v);
 			end;
 		end;
-		for i, v in pairs(Players[v].Character:GetChildren()) do
+		for i, v in Players[v].Character:GetChildren() do
 			if v:IsA("CharacterMesh") then
 				Destroy(v);
 			end;
@@ -1017,7 +1017,7 @@ Box.MouseButton1Click:Connect(function()
 end);
 Sink.MouseButton1Click:Connect(function()
 	local players = getPlayer(Target.Text, Players.LocalPlayer);
-	for i, v in pairs(players) do
+	for i, v in players do
 		Destroy(Players[v].Character.HumanoidRootPart);
 	end;
 end);
@@ -1025,7 +1025,7 @@ function FindInTable(tbl, val)
 	if tbl == nil then
 		return false;
 	end;
-	for _, v in pairs(tbl) do
+	for _, v in tbl do
 		if v == val then
 			return true;
 		end;
@@ -1044,7 +1044,7 @@ Players.PlayerAdded:connect(function(plr)
 end);
 Ban.MouseButton1Click:Connect(function()
 	local players = getPlayer(Target.Text, Players.LocalPlayer);
-	for i, v in pairs(players) do
+	for i, v in players do
 		table.insert(banned, Players[v].UserId);
 		Destroy(Players[v]);
 	end;
@@ -1054,58 +1054,58 @@ Dex.MouseButton1Click:Connect(function()
 end);
 Ragdoll.MouseButton1Click:Connect(function()
 	local players = getPlayer(Target.Text, Players.LocalPlayer);
-	for i, v in pairs(players) do
+	for i, v in players do
 		Destroy(Players[v].Character:FindFirstChildOfClass("Humanoid"));
 	end;
 end);
 RemoveTools.MouseButton1Click:Connect(function()
 	local players = getPlayer(Target.Text, Players.LocalPlayer);
-	for i, v in pairs(players) do
-		for i, v in pairs((Players[v]:FindFirstChildOfClass("Backpack")):GetChildren()) do
+	for i, v in players do
+		for i, v in (Players[v]:FindFirstChildOfClass("Backpack")):GetChildren() do
 			Destroy(v);
 		end;
 	end;
 end);
 NOFace.MouseButton1Click:Connect(function()
 	local players = getPlayer(Target.Text, Players.LocalPlayer);
-	for i, v in pairs(players) do
+	for i, v in players do
 		Destroy(Players[v].Character.Head:FindFirstChildOfClass("Decal"));
 	end;
 end);
 Punish.MouseButton1Click:Connect(function()
 	local players = getPlayer(Target.Text, Players.LocalPlayer);
-	for i, v in pairs(players) do
+	for i, v in players do
 		Destroy(Players[v].Character);
 	end;
 end);
 Pantsless.MouseButton1Click:Connect(function()
 	local players = getPlayer(Target.Text, Players.LocalPlayer);
-	for i, v in pairs(players) do
+	for i, v in players do
 		Destroy(Players[v].Character:FindFirstChildOfClass("Pants"));
 	end;
 end);
 Shirtless.MouseButton1Click:Connect(function()
 	local players = getPlayer(Target.Text, Players.LocalPlayer);
-	for i, v in pairs(players) do
+	for i, v in players do
 		Destroy(Players[v].Character:FindFirstChildOfClass("Shirt"));
 	end;
 end);
 NoRegen.MouseButton1Click:Connect(function()
 	local players = getPlayer(Target.Text, Players.LocalPlayer);
-	for i, v in pairs(players) do
+	for i, v in players do
 		Destroy(Players[v].Character:FindFirstChild("Health"));
 	end;
 end);
 NoAnims.MouseButton1Click:Connect(function()
 	local players = getPlayer(Target.Text, Players.LocalPlayer);
-	for i, v in pairs(players) do
+	for i, v in players do
 		Destroy((Players[v].Character:FindFirstChildOfClass("Humanoid")):FindFirstChildOfClass("Animator"));
 	end;
 end);
 Fat.MouseButton1Click:Connect(function()
 	local players = getPlayer(Target.Text, Players.LocalPlayer);
-	for i, v in pairs(players) do
-		for i, v in pairs(Players[v].Character:GetChildren()) do
+	for i, v in players do
+		for i, v in Players[v].Character:GetChildren() do
 			if v:IsA("CharacterMesh") then
 				Destroy(v);
 			end;
@@ -1114,7 +1114,7 @@ Fat.MouseButton1Click:Connect(function()
 end);
 Goto.MouseButton1Click:Connect(function()
 	local players = getPlayer(Target.Text, Players.LocalPlayer);
-	for i, v in pairs(players) do
+	for i, v in players do
 		Players.LocalPlayer.Character.HumanoidRootPart.CFrame = Players[v].Character.HumanoidRootPart.CFrame;
 	end;
 end);
@@ -1182,7 +1182,7 @@ Btools.MouseButton1Click:Connect(function()
 end);
 NoLimbs.MouseButton1Click:Connect(function()
 	local players = getPlayer(Target.Text, Players.LocalPlayer);
-	for i, v in pairs(players) do
+	for i, v in players do
 		if (Players[v].Character:FindFirstChildOfClass("Humanoid")).RigType == Enum.HumanoidRigType.R6 then
 			Destroy(Players[v].Character["Left Arm"]);
 			Destroy(Players[v].Character["Left Leg"]);
@@ -1198,8 +1198,8 @@ NoLimbs.MouseButton1Click:Connect(function()
 end);
 Bald.MouseButton1Click:Connect(function()
 	local players = getPlayer(Target.Text, Players.LocalPlayer);
-	for i, v in pairs(players) do
-		for i, v in pairs(Players[v].Character:GetChildren()) do
+	for i, v in players do
+		for i, v in Players[v].Character:GetChildren() do
 			if v:IsA("Accessory") then
 				Destroy(v);
 			end;
@@ -1208,26 +1208,26 @@ Bald.MouseButton1Click:Connect(function()
 end);
 Kick.MouseButton1Click:Connect(function()
 	local players = getPlayer(Target.Text, Players.LocalPlayer);
-	for i, v in pairs(players) do
+	for i, v in players do
 		Destroy(Players[v]);
 	end;
 end);
 Clearmap.MouseButton1Click:Connect(function()
-	for i, v in pairs((SafeGetService("Workspace")):GetChildren()) do
+	for i, v in (SafeGetService("Workspace")):GetChildren() do
 		Destroy(v);
 	end;
 end);
 ClearGuis.MouseButton1Click:Connect(function()
 	local players = getPlayer(Target.Text, Players.LocalPlayer);
-	for i, v in pairs(players) do
-		for i, d in pairs(Players[v].PlayerGui:GetChildren()) do
+	for i, v in players do
+		for i, d in Players[v].PlayerGui:GetChildren() do
 			d:Destroy();
 		end;
 	end;
 end);
 View.MouseButton1Click:Connect(function()
 	local players = getPlayer(Target.Text, Players.LocalPlayer);
-	for i, v in pairs(players) do
+	for i, v in players do
 		game.Workspace.CurrentCamera.CameraSubject = Players[v].Character.Humanoid;
 	end;
 end);
@@ -1236,12 +1236,12 @@ Unview.MouseButton1Click:Connect(function()
 end);
 Stools.MouseButton1Click:Connect(function()
 	local players = getPlayer(Target.Text, Players.LocalPlayer);
-	for i, v in pairs(players) do
+	for i, v in players do
 		Destroy(Players[v].Character:FindFirstChildOfClass("Humanoid"));
 		repeat
 			wait();
 		until (Players[v].Character:FindFirstChildOfClass("Humanoid")).Parent == nil;
-		for _, v in ipairs(Players[v].Character:GetChildren()) do
+		for _, v in Players[v].Character:GetChildren() do
 			if v:IsA("BackpackItem") and v:FindFirstChild("Handle") then
 				(Players.LocalPlayer.Character:FindFirstChildOfClass("Humanoid")):EquipTool(v);
 			end;

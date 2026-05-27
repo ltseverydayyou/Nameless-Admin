@@ -702,7 +702,7 @@ local function clearImageCache()
 	if not okList or type(files) ~= "table" then
 		return false;
 	end;
-	for _, path in ipairs(files) do
+	for _, path in files do
 		if type(path) == "string" and path ~= "" then
 			pcall(delfile, path);
 		end;
@@ -800,7 +800,7 @@ local function httpGetBinary(url, headers)
 		end;
 		local hdr = {};
 		if type(customHeaders) == "table" then
-			for k, v in pairs(customHeaders) do
+			for k, v in customHeaders do
 				hdr[k] = v;
 			end;
 		end;
@@ -822,7 +822,7 @@ local function httpGetBinary(url, headers)
 		end;
 		return nil;
 	end;
-	for _, targetUrl in ipairs(robloxApiUrls(url)) do
+	for _, targetUrl in robloxApiUrls(url) do
 		local data = tryRequest(targetUrl, headers, "rq1");
 		if not (type(data) == "string" and data ~= "") then
 			local okDirect, direct = pcall(function()
@@ -891,7 +891,7 @@ local function resolveScriptBloxImage(data)
 		return nil;
 	end;
 	local function pick(values)
-		for _, value in ipairs(values) do
+		for _, value in values do
 			local normalized = normalizeImageUrl(value, SCRIPTBLOX_BASE);
 			if normalized and isMeaningfulImageUrl(normalized) then
 				return normalized;
@@ -933,7 +933,7 @@ local function resolveRScriptsImage(data)
 		data.banner,
 		data.img
 	};
-	for _, value in ipairs(candidates) do
+	for _, value in candidates do
 		local normalized = normalizeImageUrl(value, RSCRIPTS_BASE);
 		if normalized then
 			return normalized;
@@ -950,7 +950,7 @@ local function resolveRScriptsImage(data)
 			game.banner,
 			game.gameLogo
 		};
-		for _, value in ipairs(gameFields) do
+		for _, value in gameFields do
 			local normalized = normalizeImageUrl(value, RSCRIPTS_BASE);
 			if normalized then
 				return normalized;
@@ -1005,7 +1005,7 @@ if listLayout then
 	(listLayout:GetPropertyChangedSignal("AbsoluteContentSize")):Connect(sizeCanvas);
 end;
 local function clearAll(anim)
-	for _, v in ipairs(sf:GetChildren()) do
+	for _, v in sf:GetChildren() do
 		if v:IsA("Frame") and (v.Name:find("^Card") or v.Name == "Msg" or v.Name == "Skel") then
 			if anim then
 				(__lt.cm("TweenService", "Create", v, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
@@ -1577,7 +1577,7 @@ local function renderCurrentPage(stagger)
 		return;
 	end;
 	local shown = 0;
-	for _, d in ipairs(currentPageScripts) do
+	for _, d in currentPageScripts do
 		if passesFilter(d) then
 			shown += 1;
 			mkCard(shown, d);

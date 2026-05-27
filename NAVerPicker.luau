@@ -114,7 +114,7 @@ if not NAlib.disconnect then
 	function NAlib.disconnect(n)
 		local t = _naConns[n];
 		if t then
-			for _, c in ipairs(t) do
+			for _, c in t do
 				pcall(function()
 					c:Disconnect();
 				end);
@@ -185,7 +185,7 @@ local function NaProtectUI(gui)
 		props.ResetOnSpawn = nil;
 		props.IgnoreGuiInset = nil;
 	end;
-	for prop, val in pairs(props) do
+	for prop, val in props do
 		if val ~= nil then
 			(gui:GetPropertyChangedSignal(prop)):Connect(function()
 				if gui[prop] ~= val then
@@ -205,7 +205,7 @@ local function NaProtectUI(gui)
 	end);
 	local hb;
 	hb = (SafeGetService("RunService")).Heartbeat:Connect(function()
-		for prop, val in pairs(props) do
+		for prop, val in props do
 			if val ~= nil and gui[prop] ~= val then
 				pcall(function()
 					gui[prop] = val;
@@ -344,7 +344,7 @@ local function getCommits(ch, n)
 		return nil, "No commits found";
 	end;
 	local list = {};
-	for _, v in ipairs(res) do
+	for _, v in res do
 		local c = v.commit or {};
 		local a = c.author or {};
 		list[(#list) + 1] = {
@@ -1133,7 +1133,7 @@ local cache = {};
 local cur = nil;
 local items = {};
 local function clrList()
-	for _, v in ipairs(items) do
+	for _, v in items do
 		if v and v.f then
 			pcall(function()
 				v.f:Destroy();
@@ -1263,7 +1263,7 @@ local function setBusy(v, s)
 	chS.Text = s or "";
 end;
 local function applyChBtns()
-	for _, it in pairs(chBtn) do
+	for _, it in chBtn do
 		local on = cur and it.ch and cur.key == it.ch.key;
 		it.a.BackgroundTransparency = on and 0.1 or 0.65;
 		it.p.Text = opt.showPath and it.ch.path or "Open versions";
@@ -1273,13 +1273,13 @@ local function build(ch, list0)
 	clrList();
 	items = {};
 	local tot = #list0;
-	for i, v in ipairs(list0) do
+	for i, v in list0 do
 		items[(#items) + 1] = mkIt(ch, v, i, tot);
 	end;
 end;
 local function filt()
 	local q = (src.Text or ""):lower();
-	for _, it in ipairs(items) do
+	for _, it in items do
 		if it and it.f then
 			if q == "" then
 				it.f.Visible = true;
@@ -1338,7 +1338,7 @@ local function openCh(ch)
 		filt();
 	end);
 end;
-for _, it in pairs(chBtn) do
+for _, it in chBtn do
 	it.b.MouseButton1Click:Connect(function()
 		rip(it.b);
 		openCh(it.ch);
@@ -1393,10 +1393,10 @@ local function applySet()
 	ap9();
 	apA();
 	apB();
-	for _, it in pairs(chBtn) do
+	for _, it in chBtn do
 		it.p.Text = opt.showPath and it.ch.path or "Open versions";
 	end;
-	for _, it in ipairs(items) do
+	for _, it in items do
 		if it and it.f then
 			it.f.Size = UDim2.new(1, 0, 0, rowH());
 		end;

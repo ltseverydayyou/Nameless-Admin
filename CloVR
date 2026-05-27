@@ -174,7 +174,7 @@ end;
 local player1 = Players.LocalPlayer;
 local character1 = player1.Character;
 local hrp = character1.HumanoidRootPart;
-for i, v in pairs(character1:GetChildren()) do
+for i, v in character1:GetChildren() do
 	if v:IsA("LocalScript") then
 		v:Destroy();
 	end;
@@ -219,7 +219,7 @@ cHRP.Size = Vector3.new(2, 2, 1);
 cHRP.Name = "HumanoidRootPart";
 cHRP.Transparency = 1;
 cHRP.CanCollide = false;
-for i, v in pairs(model:GetChildren()) do
+for i, v in model:GetChildren() do
 	if v:IsA("Part") and v.Name ~= "HumanoidRootPart" then
 		v.Transparency = 1;
 	end;
@@ -292,7 +292,7 @@ CreateAttachment(cRArm, Vector3.new(0, -1, 0), Vector3.new(-0, 0, 0), Vector3.ne
 CreateAttachment(cLLeg, Vector3.new(0, -1, 0), Vector3.new(-0, 0, 0), Vector3.new(1, 0, 0), Vector3.new(0, 1, 0), "LeftFootAttachment");
 CreateAttachment(cRLeg, Vector3.new(0, -1, 0), Vector3.new(-0, 0, 0), Vector3.new(1, 0, 0), Vector3.new(0, 1, 0), "RightFootAttachment");
 CreateAttachment(cHRP, Vector3.new(0, 0, 0), Vector3.new(-0, 0, 0), Vector3.new(1, 0, 0), Vector3.new(0, 1, 0), "RootAttachment");
-for i, v in pairs(character1:GetChildren()) do
+for i, v in character1:GetChildren() do
 	if v:IsA("Accessory") then
 		local clone = v:Clone();
 		local weld = v.Handle:FindFirstChildWhichIsA("Weld");
@@ -390,7 +390,7 @@ Script = function()
 			wait(0.5);
 		end;
 		if AnchorCharacter then
-			for _, Part in pairs(Character:GetChildren()) do
+			for _, Part in Character:GetChildren() do
 				if Part:IsA("BasePart") then
 					Part.Anchored = true;
 				end;
@@ -504,7 +504,7 @@ Script = function()
 		UsedAccessories[Accessory] = true;
 		local RightGrip = CreateRightGrip(Handle);
 		wait();
-		for _, Object in pairs(Handle:QueryDescendants("Instance")) do
+		for _, Object in Handle:QueryDescendants("Instance") do
 			if not Object:IsA("BasePart") then
 				pcall(function()
 					Object.Transparency = 1;
@@ -586,7 +586,7 @@ Script = function()
 	VirtualRig:SetPrimaryPartCFrame(CharacterCFrame);
 	(VirtualRig:FindFirstChildOfClass("Humanoid")).Health = 0;
 	VirtualRig:BreakJoints();
-	for i, v in pairs(VirtualRig:GetChildren()) do
+	for i, v in VirtualRig:GetChildren() do
 		if v:IsA("BasePart") then
 			v.CFrame = character1.HumanoidRootPart.CFrame;
 		end;
@@ -634,7 +634,7 @@ Script = function()
 		(VirtualBody:FindFirstChildOfClass("Humanoid")).Jump = true;
 	end);
 	if RagdollEnabled then
-		for _, Part in pairs(Character:QueryDescendants("Instance")) do
+		for _, Part in Character:QueryDescendants("Instance") do
 			if Part:IsA("BasePart") and Part.Name == "Handle" and Part.Parent:IsA("Accessory") then
 				Part.LocalTransparencyModifier = 1;
 			elseif Part:IsA("BasePart") and Part.Transparency < 0.5 and Part.Name ~= "Head" then
@@ -917,20 +917,20 @@ Script = function()
 	end;
 	local CFrameChanged = VRService.UserCFrameChanged:Connect(OnUserCFrameChanged);
 	local OnStepped = RunService.PreSimulation:Connect(function()
-		for _, Part in pairs(VirtualRig:GetChildren()) do
+		for _, Part in VirtualRig:GetChildren() do
 			if Part:IsA("BasePart") then
 				Part.CanCollide = false;
 			end;
 		end;
 		if RagdollEnabled then
-			for _, Part in pairs(Character:GetChildren()) do
+			for _, Part in Character:GetChildren() do
 				if Part:IsA("BasePart") then
 					Part.CanCollide = false;
 				end;
 			end;
 		end;
 		if NoCollision then
-			for _, Player in pairs(__lt.cm("Players", "GetPlayers")) do
+			for _, Player in __lt.cm("Players", "GetPlayers") do
 				if Player ~= Client and Player.Character then
 					local Descendants = Player.Character:QueryDescendants("Instance");
 					for i = 1, #Descendants do
@@ -1223,7 +1223,7 @@ ChatHUDFunc = function()
 		end);
 	end;
 	Players.PlayerAdded:Connect(OnPlayerAdded);
-	for _, Player in pairs(__lt.cm("Players", "GetPlayers")) do
+	for _, Player in __lt.cm("Players", "GetPlayers") do
 		OnPlayerAdded(Player);
 	end;
 	local ChatPart = ChatHUD.Part;
@@ -1350,7 +1350,7 @@ ViewHUDFunc = function()
 		end;
 	end;
 	local PlayerAdded = Players.PlayerAdded:Connect(OnPlayerAdded);
-	for _, Player in pairs(__lt.cm("Players", "GetPlayers")) do
+	for _, Player in __lt.cm("Players", "GetPlayers") do
 		OnPlayerAdded(Player);
 	end;
 	ViewPart.Size = Vector3.new();
@@ -1380,7 +1380,7 @@ ViewHUDFunc = function()
 		ViewHUD:Destroy();
 		ViewHUD = nil;
 	end);
-	for i, v in pairs(character1:QueryDescendants("Instance")) do
+	for i, v in character1:QueryDescendants("Instance") do
 		if v:IsA("Motor6D") then
 			v:Destroy();
 		end;
@@ -1388,13 +1388,13 @@ ViewHUDFunc = function()
 	if (character1:FindFirstChildOfClass("Humanoid")).RigType == Enum.HumanoidRigType.R15 then
 		character1:BreakJoints();
 	end;
-	for i, v in pairs(reanimation:GetChildren()) do
+	for i, v in reanimation:GetChildren() do
 		if v:IsA("BasePart") then
 			v.Anchored = false;
 		end;
 	end;
 	(SafeGetService("RunService")).Heartbeat:Connect(function()
-		for i, v in pairs(character1:GetChildren()) do
+		for i, v in character1:GetChildren() do
 			if v:IsA("BasePart") then
 				v.Velocity = Vector3.new(bodyVelocity[1], bodyVelocity[2], bodyVelocity[3]);
 				if (character1:FindFirstChildOfClass("Humanoid")).RigType == Enum.HumanoidRigType.R6 then
@@ -1457,7 +1457,7 @@ ViewHUDFunc = function()
 		end;
 	end);
 	(SafeGetService("RunService")).PreSimulation:Connect(function()
-		for i, v in pairs(reanimation:GetChildren()) do
+		for i, v in reanimation:GetChildren() do
 			if v:IsA("BasePart") then
 				v.CanCollide = false;
 			end;

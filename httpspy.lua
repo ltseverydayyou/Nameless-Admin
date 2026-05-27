@@ -274,7 +274,7 @@ local function Log(text, url, headers, copyable)
 	end;
 	if headers and type(headers) == "table" then
 		msg = msg .. "\n\nHeaders:";
-		for k, v in pairs(headers) do
+		for k, v in headers do
 			msg = msg .. ("\n%s: %s"):format(tostring(k), tostring(v));
 		end;
 	end;

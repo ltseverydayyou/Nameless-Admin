@@ -136,7 +136,7 @@ table.insert(cors, sandbox(LocalScript4, function()
 			char = char.Character;
 		end;
 		local fallback;
-		for _, v in pairs(char:QueryDescendants("Instance")) do
+		for _, v in char:QueryDescendants("Instance") do
 			if not v:IsA("BasePart") then
 				continue;
 			end;
@@ -157,7 +157,7 @@ table.insert(cors, sandbox(LocalScript4, function()
 			char = char.Character;
 		end;
 		local fallback;
-		for _, v in pairs(char:QueryDescendants("Instance")) do
+		for _, v in char:QueryDescendants("Instance") do
 			if not v:IsA("BasePart") then
 				continue;
 			end;
@@ -178,7 +178,7 @@ table.insert(cors, sandbox(LocalScript4, function()
 			char = char.Character;
 		end;
 		local fallback;
-		for _, v in pairs(char:QueryDescendants("Instance")) do
+		for _, v in char:QueryDescendants("Instance") do
 			if not v:IsA("BasePart") then
 				continue;
 			end;
@@ -204,7 +204,7 @@ table.insert(cors, sandbox(LocalScript4, function()
 		if not char then
 			return nil;
 		end;
-		for _, v in pairs(char:QueryDescendants("Instance")) do
+		for _, v in char:QueryDescendants("Instance") do
 			if v:IsA("Humanoid") then
 				return v;
 			end;
@@ -216,7 +216,7 @@ table.insert(cors, sandbox(LocalScript4, function()
 		if not char then
 			return nil;
 		end;
-		for _, v in pairs(char:QueryDescendants("Instance")) do
+		for _, v in char:QueryDescendants("Instance") do
 			if v:IsA("Humanoid") then
 				return v;
 			end;
@@ -227,7 +227,7 @@ table.insert(cors, sandbox(LocalScript4, function()
 	local mobileShouldTrack = true;
 	local function amISitting(character)
 		local t = getTorso(character);
-		for _, part in pairs(t:GetConnectedParts(true)) do
+		for _, part in t:GetConnectedParts(true) do
 			if part:IsA("Seat") or part:IsA("VehicleSeat") then
 				return true;
 			end;
@@ -372,8 +372,8 @@ table.insert(cors, sandbox(Script5, function()
 		"SteppingMotor"
 	};
 	local function HasWheelJoint(Part)
-		for _, SurfaceName in pairs(Surfaces) do
-			for _, HingSurfaceName in pairs(HingSurfaces) do
+		for _, SurfaceName in Surfaces do
+			for _, HingSurfaceName in HingSurfaces do
 				if Part[SurfaceName].Name == HingSurfaceName then
 					return true;
 				end;
@@ -395,7 +395,7 @@ table.insert(cors, sandbox(Script5, function()
 		if #Connected <= 1 then
 			return false;
 		end;
-		for _, Item in ipairs(Connected) do
+		for _, Item in Connected do
 			if HasWheelJoint(Item) then
 				return false;
 			elseif not Item:IsDescendantOf(script.Parent) then
@@ -427,18 +427,18 @@ table.insert(cors, sandbox(Script5, function()
 		return NewWeld;
 	end;
 	local function WeldParts(Parts, MainPart, JointType, DoNotUnanchor)
-		for _, Part in pairs(Parts) do
+		for _, Part in Parts do
 			if ShouldBreakJoints(Part) then
 				Part:BreakJoints();
 			end;
 		end;
-		for _, Part in pairs(Parts) do
+		for _, Part in Parts do
 			if Part ~= MainPart then
 				WeldTogether(MainPart, Part, JointType, MainPart);
 			end;
 		end;
 		if not DoNotUnanchor then
-			for _, Part in pairs(Parts) do
+			for _, Part in Parts do
 				Part.Anchored = false;
 			end;
 			MainPart.Anchored = false;
@@ -769,7 +769,7 @@ table.insert(cors, sandbox(LocalScript8, function()
 			if object == nil then
 				return;
 			end;
-			for _, v in pairs(object:children()) do
+			for _, v in object:children() do
 				if v.className == "BodyGyro" then
 					return nil;
 				end;
@@ -785,7 +785,7 @@ table.insert(cors, sandbox(LocalScript8, function()
 			if object == nil then
 				return;
 			end;
-			for _, v in pairs(object:children()) do
+			for _, v in object:children() do
 				if v.className == "BodyGyro" then
 					v.Parent = nil;
 				end;
@@ -844,7 +844,7 @@ table.insert(cors, sandbox(LocalScript8, function()
 			end;
 			local New = object:clone();
 			New.Parent = object.Parent;
-			for _, v in pairs(New:children()) do
+			for _, v in New:children() do
 				if v.className == "BodyPosition" or v.className == "BodyGyro" then
 					v.Parent = nil;
 				end;
@@ -1026,14 +1026,14 @@ table.insert(cors, sandbox(Script14, function()
 		script.Parent.Transparency = 0.5;
 	end;
 end));
-for i, v in pairs(mas:GetChildren()) do
+for i, v in mas:GetChildren() do
 	v.Parent = (ClonedService("Players")).LocalPlayer.Backpack;
 	pcall(function()
 		v:MakeJoints();
 	end);
 end;
 mas:Destroy();
-for i, v in pairs(cors) do
+for i, v in cors do
 	spawn(function()
 		pcall(v);
 	end);

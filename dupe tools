@@ -40,7 +40,7 @@ block.Anchored = true;
 local player = (ClonedService("Players")).LocalPlayer;
 local character = player.Character;
 local savepos = (ClonedService("Players")).LocalPlayer.Character.HumanoidRootPart.CFrame;
-for i, v in pairs(player.Backpack:GetChildren()) do
+for i, v in player.Backpack:GetChildren() do
 	(ClonedService("Players")).LocalPlayer.Character.HumanoidRootPart.CFrame = block.CFrame;
 	v.Parent = Character;
 	bp.Parent = v.Handle;
@@ -55,7 +55,7 @@ for i, v in pairs(player.Backpack:GetChildren()) do
 end;
 character:ClearAllChildren();
 wait(7);
-for i, v in pairs((ClonedService("Workspace")):QueryDescendants("Instance")) do
+for i, v in (ClonedService("Workspace")):QueryDescendants("Instance") do
 	if v:IsA("Tool") then
 		v.Handle.CanCollide = false;
 		bp:Destroy();

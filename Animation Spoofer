@@ -779,7 +779,7 @@ local function keyOf(id, uid)
 	return tostring(id) .. ":" .. tostring((uid or 0));
 end;
 local function setCmp()
-	for _, it in pairs(rows) do
+	for _, it in rows do
 		if it and it.r and it.w then
 			it.r.Size = UDim2.new(1, 0, 0, opt.cmp and 58 or 76);
 			it.w.Visible = not opt.cmp;
@@ -972,13 +972,13 @@ local function runInfo()
 			if ok and type(res) == "table" and res.Name then
 				info[id].n = tostring(res.Name);
 			end;
-			for _, it in pairs(rows) do
+			for _, it in rows do
 				if it and it.id == id and it.n then
 					it.n.Text = info[id].n;
 				end;
 			end;
 		else
-			for _, it in pairs(rows) do
+			for _, it in rows do
 				if it and it.id == id and it.n then
 					it.n.Text = info[id].n;
 				end;
@@ -1017,7 +1017,7 @@ local function onTrack(plr, hum, trk)
 end;
 local hCon, cCon, pCon = {}, {}, {};
 local function disCon(t)
-	for _, c in pairs(t) do
+	for _, c in t do
 		if typeof(c) == "RBXScriptConnection" then
 			pcall(function()
 				c:Disconnect();
@@ -1035,7 +1035,7 @@ local function hookHum(plr, hum)
 		onTrack(plr, hum, trk);
 	end);
 	pcall(function()
-		for _, trk in ipairs(hum:GetPlayingAnimationTracks()) do
+		for _, trk in hum:GetPlayingAnimationTracks() do
 			onTrack(plr, hum, trk);
 		end;
 	end);
@@ -1085,7 +1085,7 @@ local function hookPlr(plr)
 	end);
 	pCon[plr] = cons;
 end;
-for _, plr in ipairs(__lt.cm("Players", "GetPlayers")) do
+for _, plr in __lt.cm("Players", "GetPlayers") do
 	hookPlr(plr);
 end;
 Plrs.PlayerAdded:Connect(hookPlr);
@@ -1098,7 +1098,7 @@ Plrs.PlayerRemoving:Connect(function(plr)
 end);
 local function doFilter()
 	local txt = (srch.Text or ""):lower();
-	for _, it in pairs(rows) do
+	for _, it in rows do
 		if it and it.r and it.r.Parent then
 			local n = it.n and it.n.Text or "";
 			local s = it.s and it.s.Text or "";
@@ -1185,7 +1185,7 @@ dim.InputBegan:Connect(function(inp)
 end);
 local function clearAll()
 	table.clear(seen);
-	for _, it in pairs(rows) do
+	for _, it in rows do
 		if it and it.r then
 			pcall(function()
 				it.r:Destroy();
@@ -1197,7 +1197,7 @@ local function clearAll()
 end;
 local function copyVis()
 	local out = {};
-	for _, it in pairs(rows) do
+	for _, it in rows do
 		if it and it.r and it.r.Visible then
 			out[(#out) + 1] = tostring(it.id);
 		end;
@@ -1224,7 +1224,7 @@ act(row(44), "Rescan now", function()
 			return;
 		end;
 		pcall(function()
-			for _, trk in ipairs(hum:GetPlayingAnimationTracks()) do
+			for _, trk in hum:GetPlayingAnimationTracks() do
 				onTrack(plr, hum, trk);
 			end;
 		end);
@@ -1233,7 +1233,7 @@ act(row(44), "Rescan now", function()
 		scanPlr(Plrs.LocalPlayer);
 	end;
 	if opt.plr then
-		for _, plr in ipairs(__lt.cm("Players", "GetPlayers")) do
+		for _, plr in __lt.cm("Players", "GetPlayers") do
 			if plr ~= Plrs.LocalPlayer then
 				scanPlr(plr);
 			end;
@@ -1271,7 +1271,7 @@ task.spawn(function()
 					return;
 				end;
 				pcall(function()
-					for _, trk in ipairs(hum:GetPlayingAnimationTracks()) do
+					for _, trk in hum:GetPlayingAnimationTracks() do
 						onTrack(plr, hum, trk);
 					end;
 				end);
@@ -1280,7 +1280,7 @@ task.spawn(function()
 				scanPlr(Plrs.LocalPlayer);
 			end;
 			if opt.plr then
-				for _, plr in ipairs(__lt.cm("Players", "GetPlayers")) do
+				for _, plr in __lt.cm("Players", "GetPlayers") do
 					if plr ~= Plrs.LocalPlayer then
 						scanPlr(plr);
 					end;

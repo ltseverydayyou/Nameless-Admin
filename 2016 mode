@@ -103,8 +103,8 @@ if config.old_graphics == true then
 		"ColorCorrectionEffect",
 		"Atmosphere"
 	};
-	for i, v in pairs(__lt.cm("Lighting", "GetChildren")) do
-		for index, value in ipairs(ihateu) do
+	for i, v in __lt.cm("Lighting", "GetChildren") do
+		for index, value in ihateu do
 			if v:IsA(value) then
 				v:Destroy();
 			end;
@@ -118,7 +118,7 @@ if config.old_graphics == true then
 	(settings()).Rendering.QualityLevel = 14;
 	devprint("loaded old graphics!");
 end;
-for _, v in ipairs(game:QueryDescendants("Instance")) do
+for _, v in game:QueryDescendants("Instance") do
 	if v:IsA("BasePart") and v.Material == Enum.Material.Plastic and v.TopSurface == Enum.SurfaceType.Studs then
 		if not v:FindFirstChildOfClass("Texture") then
 			local Studs = Instance.new("Texture");
@@ -231,7 +231,7 @@ local function changechatico()
 		ChatIcon.Image = "rbxasset://textures/ui/Chat/ChatDown@2x.png";
 	end;
 end;
-for _, v in pairs(game:QueryDescendants("Instance")) do
+for _, v in game:QueryDescendants("Instance") do
 	if v:IsA("TextLabel") and v.Text == "Chat '/?' or '/help' for a list of chat commands." then
 		v.Text = "Please chat '/?' for a list of commands";
 	end;
@@ -529,7 +529,7 @@ if config.old_console then
 			if self ~= this then
 				error("disconnect must be called with `:`, not `.`", 2);
 			end;
-			for cn, _ in pairs(mAllCns) do
+			for cn, _ in mAllCns do
 				cn:Disconnect();
 				mAllCns[cn] = nil;
 			end;
@@ -872,7 +872,7 @@ if config.old_console then
 			messageTextWrappedChanged = CreateSignal();
 			local optionTypeContainers = {};
 			function setShownOptionTypes(shownOptionTypes)
-				for optionType, container in pairs(optionTypeContainers) do
+				for optionType, container in optionTypeContainers do
 					container.Visible = shownOptionTypes[optionType] or false;
 				end;
 			end;
@@ -1964,7 +1964,7 @@ if config.old_console then
 					return false;
 				end;
 				local found = false;
-				for _, filterString in ipairs(warningsToFilter) do
+				for _, filterString in warningsToFilter do
 					if string.find(message.Message, filterString) ~= nil then
 						found = true;
 						break;
@@ -2219,12 +2219,12 @@ if config.old_plist then
 			if open == false then
 				devprint("was not open");
 				local ScrollDecend = ScrollList:QueryDescendants("Instance");
-				for i, v in pairs(ScrollDecend) do
+				for i, v in ScrollDecend do
 					if v.Name == "PlayerControlsHolder" then
 						v:Destroy();
 					end;
 				end;
-				for i, v in pairs(ScrollDecend) do
+				for i, v in ScrollDecend do
 					devprint("got descends");
 					if v:IsA("TextButton") then
 						v.BackgroundColor3 = Color3.fromRGB(31, 31, 31);
@@ -2293,13 +2293,13 @@ if config.old_plist then
 	end;
 	local function removeplrfromlist(name)
 		local plistchildren = ScrollList:GetChildren();
-		for i, v in pairs(plistchildren) do
+		for i, v in plistchildren do
 			if v.Name == name then
 				v:Destroy();
 			end;
 		end;
 	end;
-	for i, v in pairs((ClonedService("Players")):GetPlayers()) do
+	for i, v in (ClonedService("Players")):GetPlayers() do
 		local function isbc_func()
 			if v.MembershipType == Enum.MembershipType.Premium then
 				return true;

@@ -510,7 +510,7 @@ local Highlight = function(string, keywords)
 		[";"] = true,
 		["~"] = true
 	};
-	for i, v in pairs(keywords) do
+	for i, v in keywords do
 		K[v] = true;
 	end;
 	S = S:gsub(".", function(c)

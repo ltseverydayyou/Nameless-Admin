@@ -70,14 +70,7 @@ if Player.Character.Humanoid.RigType == Enum.HumanoidRigType.R15 then
 		local l = {};
 		function configureAnimationSet(m, n)
 			if l[m] then
-				local o, p, q = pairs(l[m].connections);
-				while true do
-					local r, s = o(p, q);
-					if r then
-					else
-						break;
-					end;
-					q = r;
+				for r, s in l[m].connections do
 					s:disconnect();
 				end;
 			end;
@@ -94,14 +87,7 @@ if Player.Character.Humanoid.RigType == Enum.HumanoidRigType.R15 then
 					configureAnimationSet(m, n);
 				end));
 				local w = 1;
-				local x, y, z = pairs(t:GetChildren());
-				while true do
-					local A, B = x(y, z);
-					if A then
-					else
-						break;
-					end;
-					z = A;
+				for A, B in t:GetChildren() do
 					if B:IsA("Animation") then
 						table.insert(l[m].connections, B.Changed:connect(function(C)
 							configureAnimationSet(m, n);
@@ -121,14 +107,7 @@ if Player.Character.Humanoid.RigType == Enum.HumanoidRigType.R15 then
 				end;
 			end;
 			if l[m].count <= 0 then
-				local E, F, G = pairs(n);
-				while true do
-					local H, I = E(F, G);
-					if H then
-					else
-						break;
-					end;
-					G = H;
+				for H, I in n do
 					l[m][H] = {};
 					l[m][H].anim = Instance.new("Animation");
 					l[m][H].anim.Name = m;
@@ -283,7 +262,7 @@ if Player.Character.Humanoid.RigType == Enum.HumanoidRigType.R15 then
 		end;
 		c.ChildAdded:connect(scriptChildModified);
 		c.ChildRemoved:connect(scriptChildModified);
-		for M, N in pairs(J) do
+		for M, N in J do
 			configureAnimationSet(M, N);
 		end;
 		local O = "";
@@ -464,14 +443,7 @@ if Player.Character.Humanoid.RigType == Enum.HumanoidRigType.R15 then
 			ae = "Standing";
 		end;
 		function getTool()
-			local aj, ak, al = ipairs(j:GetChildren());
-			while true do
-				local am, an = aj(ak, al);
-				if am then
-				else
-					break;
-				end;
-				al = am;
+			for am, an in j:GetChildren() do
 				if an.className == "Tool" then
 					return an;
 				end;
@@ -479,14 +451,7 @@ if Player.Character.Humanoid.RigType == Enum.HumanoidRigType.R15 then
 			return nil;
 		end;
 		function getToolAnim(ao)
-			local ap, aq, ar = ipairs(ao:GetChildren());
-			while true do
-				local as, at = ap(aq, ar);
-				if as then
-				else
-					break;
-				end;
-				ar = as;
+			for as, at in ao:GetChildren() do
 				if at.Name == "toolanim" then
 					if at.className == "StringValue" then
 						return at;

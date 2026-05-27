@@ -684,7 +684,7 @@ local function instPath(o)
 		local siblings = parent:GetChildren()
 		local sameCount = 0
 		local idxMatch
-		for idx, child in ipairs(siblings) do
+		for idx, child in siblings do
 			if child.Name == inst.Name and child.ClassName == inst.ClassName then
 				sameCount = sameCount + 1
 				if child == inst then
@@ -938,7 +938,7 @@ local function softPick()
 	for d = 5, 150, 15 do
 		local point = ray.Origin + ray.Direction * d
 		local parts = workspace:GetPartBoundsInRadius(point, 3, op)
-		for _, pt in ipairs(parts) do
+		for _, pt in parts do
 			if pt:IsA("BasePart") then
 				local dist = (cam.CFrame.Position - pt.Position).Magnitude
 				if not bestDist or dist < bestDist then

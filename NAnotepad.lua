@@ -632,7 +632,7 @@ local function mkExtButton(t)
 		hideExt()
 	end)
 end
-for _, e2 in ipairs(exts) do
+for _, e2 in exts do
 	mkExtButton(e2)
 end
 local minz = false
@@ -823,7 +823,7 @@ local function toDock()
 	(__lt.cm("TweenService", "Create", top, TweenInfo.new(0.18), {
 		BackgroundTransparency = 1,
 	})):Play()
-	for _, g in ipairs(body:QueryDescendants("Instance")) do
+	for _, g in body:QueryDescendants("Instance") do
 		if g:IsA("GuiObject") then
 			g.Visible = false
 		end
@@ -848,7 +848,7 @@ local function fromDock()
 		BackgroundTransparency = 0,
 	})):Play()
 	task.delay(0.02, function()
-		for _, g in ipairs(body:QueryDescendants("Instance")) do
+		for _, g in body:QueryDescendants("Instance") do
 			if g:IsA("GuiObject") then
 				g.Visible = true
 			end
