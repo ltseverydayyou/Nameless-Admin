@@ -90256,7 +90256,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	actionLayout.CellPadding = UDim2.new(0, 6, 0, 0)
 	local hasClipboardPaste = type(getclipboard) == "function"
 	local actionButtonCount = hasClipboardPaste and 9 or 8
-	actionLayout.CellSize = UDim2.new(1 / actionButtonCount, -6, 1, 0)
+	actionLayout.CellSize = UDim2.new(1 / actionButtonCount, 0, 1, 0)
 	actionLayout.FillDirectionMaxCells = actionButtonCount
 	actionLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	actionLayout.Parent = actions
@@ -91202,22 +91202,75 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	end
 
 	local function updateBodyLayout()
-		local w = execResponsive.lastW > 0 and execResponsive.lastW or frame.AbsoluteSize.X
-		local h = execResponsive.lastH > 0 and execResponsive.lastH or frame.AbsoluteSize.Y
+		local function num(v, fallback)
+			v = tonumber(v)
+			if v == nil or v ~= v or v == math.huge or v == -math.huge then
+				return fallback
+			end
+			return v
+		end
+
+		local function clamp(v, min, max)
+			min = num(min, 0)
+			max = num(max, min)
+			if max < min then
+				max = min
+			end
+			return math.clamp(num(v, min), min, max)
+		end
+
+		local abs = frame.AbsoluteSize
+		local size = frame.Size
+		local w = num(execResponsive.lastW, 0)
+		local h = num(execResponsive.lastH, 0)
+		if w <= 0 then
+			w = num(abs.X, 0)
+		end
+		if h <= 0 then
+			h = num(abs.Y, 0)
+		end
+		if w <= 0 then
+			w = num(size.X.Offset, 640)
+		end
+		if h <= 0 then
+			h = num(size.Y.Offset, 420)
+		end
+
 		local compact = execResponsive.compact or h < 430
-		local phone = execResponsive.phone or w < 560
-		local hubW = compact and 196 or 242
-		local gap = compact and 8 or 10
-		local showHub = cfg.showHub
+		local gap = compact and 6 or 8
+		local pad = compact and 6 or 10
+		local showHub = cfg.showHub == true
+
 		hubPane.Visible = showHub
 		if showHub then
-			editorPane.Size = UDim2.new(1, -(hubW + gap), 1, 0)
-			hubPane.Position = UDim2.new(1, -hubW, 0, 0)
-			hubPane.Size = UDim2.new(0, hubW, 1, 0)
+			local paneW = math.max(0, w - (pad * 2) - gap)
+			local minPane = compact and 112 or 150
+			local hubW
+			if paneW >= (minPane * 2) then
+				hubW = clamp(math.floor(paneW * 0.5 + 0.5), minPane, paneW - minPane)
+			else
+				hubW = math.floor(paneW * 0.5 + 0.5)
+			end
+			local editW = math.max(0, paneW - hubW)
+			editorPane.Position = UDim2.new(0, 0, 0, 0)
+			editorPane.Size = UDim2.new(0, editW, 1, 0)
+			hubPane.Position = UDim2.new(0, editW + gap, 0, 0)
+			hubPane.Size = UDim2.new(0, math.max(0, hubW), 1, 0)
+
+			local top = compact and 36 or 42
+			local innerGap = compact and 6 or 8
+			local innerW = math.max(0, hubW - innerGap)
+			local buttonsW = math.floor(innerW * 0.5 + 0.5)
+			local listW = math.max(0, innerW - buttonsW)
+			hubButtons.Position = UDim2.new(0, 0, 0, top)
+			hubButtons.Size = UDim2.new(0, buttonsW, 1, -top)
+			hubList.Position = UDim2.new(0, buttonsW + innerGap, 0, top)
+			hubList.Size = UDim2.new(0, listW, 1, -top)
 		else
+			editorPane.Position = UDim2.new(0, 0, 0, 0)
 			editorPane.Size = UDim2.new(1, 0, 1, 0)
 		end
-		local pad = compact and 6 or 10
+
 		rootPad.PaddingBottom = UDim.new(0, pad)
 		rootPad.PaddingLeft = UDim.new(0, pad)
 		rootPad.PaddingRight = UDim.new(0, pad)
@@ -91228,11 +91281,9 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		statusLabel.Position = UDim2.new(0, 0, 1, compact and -38 or -42)
 		actions.Position = UDim2.new(0, 0, 1, compact and -20 or -22)
 		actions.Size = UDim2.new(1, 0, 0, compact and 24 or 28)
-		actionLayout.CellPadding = UDim2.new(0, compact and 4 or 6, 0, 0)
-		actionLayout.CellSize = UDim2.new(1 / actionButtonCount, compact and -5 or -6, 1, 0)
-		hubList.Size = UDim2.new(1, 0, 1, compact and -174 or -204)
-		hubButtons.Position = UDim2.new(0, 0, 1, compact and -132 or -154)
-		hubButtons.Size = UDim2.new(1, 0, 0, compact and 132 or 154)
+		local actionPad = w < 420 and 2 or (compact and 4 or 6)
+		actionLayout.CellPadding = UDim2.new(0, actionPad, 0, 0)
+		actionLayout.CellSize = UDim2.new(1 / math.max(1, actionButtonCount), 0, 1, 0)
 		for _, btn in { hubOpen, hubOpenNew, hubSave, hubDelete, hubRefresh } do
 			btn.Size = UDim2.new(1, 0, 0, compact and 22 or 26)
 			btn.TextSize = compact and 11 or 13
@@ -91248,8 +91299,8 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		for _, btn in actionButtons do
 			btn.TextSize = (btn == pasteButton) and (compact and 9 or 10) or (compact and 11 or 13)
 		end
-		cfg.fontSize = math.clamp(math.floor((tonumber(cfg.fontSize) or 15) + 0.5), 11, 24)
-		textBox.TextSize = math.clamp(cfg.fontSize + (compact and -2 or 0), 10, 24)
+		cfg.fontSize = clamp(math.floor(num(cfg.fontSize, 15) + 0.5), 11, 24)
+		textBox.TextSize = clamp(cfg.fontSize + (compact and -2 or 0), 10, 24)
 		gutterLabel.TextSize = textBox.TextSize
 		for _, layer in { keywordLayer, globalLayer, stringLayer, commentLayer, numberLayer, functionLayer, methodLayer, propertyLayer, operatorLayer, bracketLayer } do
 			layer.TextSize = textBox.TextSize
