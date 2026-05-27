@@ -90186,11 +90186,18 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	hubListPad.PaddingTop = UDim.new(0, 8)
 	hubListPad.Parent = hubList
 
-	local hubButtons = InstanceNew("Frame")
+	local hubButtons = InstanceNew("ScrollingFrame")
 	hubButtons.Name = "Actions"
+	hubButtons.Active = true
+	hubButtons.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	hubButtons.BackgroundTransparency = 1
 	hubButtons.BorderSizePixel = 0
+	hubButtons.CanvasSize = UDim2.new(0, 0, 0, 0)
+	hubButtons.ElasticBehavior = Enum.ElasticBehavior.Never
 	hubButtons.Position = UDim2.new(0, 0, 1, -154)
+	hubButtons.ScrollingDirection = Enum.ScrollingDirection.Y
+	hubButtons.ScrollBarImageColor3 = colors.subtle
+	hubButtons.ScrollBarThickness = 4
 	hubButtons.Size = UDim2.new(1, 0, 0, 154)
 	hubButtons.Parent = hubPane
 
@@ -90198,6 +90205,10 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	hubButtonsLayout.Padding = UDim.new(0, 6)
 	hubButtonsLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	hubButtonsLayout.Parent = hubButtons
+
+	local hubButtonsPad = InstanceNew("UIPadding")
+	hubButtonsPad.PaddingRight = UDim.new(0, 5)
+	hubButtonsPad.Parent = hubButtons
 
 	local hubOpen = makeButton(hubButtons, "Open In Tab", colors.panel3)
 	hubOpen.Size = UDim2.new(1, 0, 0, 26)
@@ -91182,22 +91193,51 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	end
 
 	local function updateBodyLayout()
-		local w = execResponsive.lastW > 0 and execResponsive.lastW or frame.AbsoluteSize.X
-		local h = execResponsive.lastH > 0 and execResponsive.lastH or frame.AbsoluteSize.Y
-		local compact = execResponsive.compact or h < 430
-		local phone = execResponsive.phone or w < 560
-		local hubW = compact and 196 or 242
-		local gap = compact and 8 or 10
-		local showHub = cfg.showHub and not phone and w >= 650
-		hubPane.Visible = showHub
-		if showHub then
-			editorPane.Size = UDim2.new(1, -(hubW + gap), 1, 0)
-			hubPane.Position = UDim2.new(1, -hubW, 0, 0)
-			hubPane.Size = UDim2.new(0, hubW, 1, 0)
-		else
-			editorPane.Size = UDim2.new(1, 0, 1, 0)
+		local function num(v, fallback)
+			v = tonumber(v)
+			if v == nil or v ~= v or v == math.huge or v == -math.huge then
+				return fallback
+			end
+			return v
 		end
+
+		local function clamp(v, min, max)
+			min = num(min, 0)
+			max = num(max, min)
+			if max < min then
+				max = min
+			end
+			return math.clamp(num(v, min), min, max)
+		end
+
+		local abs = frame.AbsoluteSize
+		local bAbs = body.AbsoluteSize
+		local size = frame.Size
+		local w = num(abs.X, 0)
+		local h = num(abs.Y, 0)
+		if w <= 0 then
+			w = num(execResponsive.lastW, 0)
+		end
+		if h <= 0 then
+			h = num(execResponsive.lastH, 0)
+		end
+		if w <= 0 then
+			w = num(size.X.Offset, 640)
+		end
+		if h <= 0 then
+			h = num(size.Y.Offset, 420)
+		end
+
+		execResponsive.lastW = w
+		execResponsive.lastH = h
+		execResponsive.compact = w < 760 or h < 430
+		execResponsive.phone = w < 560
+
+		local compact = execResponsive.compact
+		local gap = compact and 6 or 8
 		local pad = compact and 6 or 10
+		local showHub = cfg.showHub == true
+
 		rootPad.PaddingBottom = UDim.new(0, pad)
 		rootPad.PaddingLeft = UDim.new(0, pad)
 		rootPad.PaddingRight = UDim.new(0, pad)
@@ -91208,13 +91248,41 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		statusLabel.Position = UDim2.new(0, 0, 1, compact and -38 or -42)
 		actions.Position = UDim2.new(0, 0, 1, compact and -20 or -22)
 		actions.Size = UDim2.new(1, 0, 0, compact and 24 or 28)
-		actionLayout.CellPadding = UDim2.new(0, compact and 4 or 6, 0, 0)
-		actionLayout.CellSize = UDim2.new(1 / actionButtonCount, compact and -5 or -6, 1, 0)
-		hubList.Size = UDim2.new(1, 0, 1, compact and -174 or -204)
-		hubButtons.Position = UDim2.new(0, 0, 1, compact and -132 or -154)
-		hubButtons.Size = UDim2.new(1, 0, 0, compact and 132 or 154)
+
+		hubPane.Visible = showHub
+		editorPane.Visible = true
+		if showHub then
+			local bodyW = num(bAbs.X, 0)
+			local useSplit = bodyW <= 0 or bodyW >= 360
+			if useSplit then
+				editorPane.Position = UDim2.new(0, 0, 0, 0)
+				editorPane.Size = UDim2.new(0.5, -math.ceil(gap / 2), 1, 0)
+				hubPane.Position = UDim2.new(0.5, math.floor(gap / 2), 0, 0)
+				hubPane.Size = UDim2.new(0.5, -math.floor(gap / 2), 1, 0)
+			else
+				editorPane.Position = UDim2.new(0, 0, 0, 0)
+				editorPane.Size = UDim2.new(0.5, -math.ceil(gap / 2), 1, 0)
+				hubPane.Position = UDim2.new(0.5, math.floor(gap / 2), 0, 0)
+				hubPane.Size = UDim2.new(0.5, -math.floor(gap / 2), 1, 0)
+			end
+
+			local top = compact and 36 or 42
+			local innerGap = compact and 6 or 8
+			hubButtons.Position = UDim2.new(0, 0, 0, top)
+			hubButtons.Size = UDim2.new(0.5, -math.ceil(innerGap / 2), 1, -top)
+			hubList.Position = UDim2.new(0.5, math.floor(innerGap / 2), 0, top)
+			hubList.Size = UDim2.new(0.5, -math.floor(innerGap / 2), 1, -top)
+		else
+			editorPane.Position = UDim2.new(0, 0, 0, 0)
+			editorPane.Size = UDim2.new(1, 0, 1, 0)
+		end
+
+		local actionPad = w < 420 and 2 or (compact and 4 or 6)
+		actionLayout.CellPadding = UDim2.new(0, actionPad, 0, 0)
+		actionLayout.CellSize = UDim2.new(1 / math.max(1, actionButtonCount), -actionPad, 1, 0)
+		hubButtons.ScrollBarThickness = compact and 3 or 4
 		for _, btn in { hubOpen, hubOpenNew, hubSave, hubDelete, hubRefresh } do
-			btn.Size = UDim2.new(1, 0, 0, compact and 22 or 26)
+			btn.Size = UDim2.new(1, -2, 0, compact and 22 or 26)
 			btn.TextSize = compact and 11 or 13
 		end
 		local actionButtons = { executeButton, clearButton, copyButton, newLineButton }
@@ -91228,8 +91296,8 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		for _, btn in actionButtons do
 			btn.TextSize = (btn == pasteButton) and (compact and 9 or 10) or (compact and 11 or 13)
 		end
-		cfg.fontSize = math.clamp(math.floor((tonumber(cfg.fontSize) or 15) + 0.5), 11, 24)
-		textBox.TextSize = math.clamp(cfg.fontSize + (compact and -2 or 0), 10, 24)
+		cfg.fontSize = clamp(math.floor(num(cfg.fontSize, 15) + 0.5), 11, 24)
+		textBox.TextSize = clamp(cfg.fontSize + (compact and -2 or 0), 10, 24)
 		gutterLabel.TextSize = textBox.TextSize
 		for _, layer in { keywordLayer, globalLayer, stringLayer, commentLayer, numberLayer, functionLayer, methodLayer, propertyLayer, operatorLayer, bracketLayer } do
 			layer.TextSize = textBox.TextSize
@@ -91241,6 +91309,11 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			applyExecutorFrameSize()
 		end
 		updateBodyLayout()
+		Defer(function()
+			if frame and frame.Parent then
+				updateBodyLayout()
+			end
+		end)
 		if NAmanage.ExecutorNormalizeTab(tabs[currentTab]) then
 			commitCurrentPage(true)
 			loadCurrentPage(true)

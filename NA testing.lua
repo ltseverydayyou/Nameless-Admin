@@ -90206,11 +90206,18 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	hubListPad.PaddingTop = UDim.new(0, 8)
 	hubListPad.Parent = hubList
 
-	local hubButtons = InstanceNew("Frame")
+	local hubButtons = InstanceNew("ScrollingFrame")
 	hubButtons.Name = "Actions"
+	hubButtons.Active = true
+	hubButtons.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	hubButtons.BackgroundTransparency = 1
 	hubButtons.BorderSizePixel = 0
+	hubButtons.CanvasSize = UDim2.new(0, 0, 0, 0)
+	hubButtons.ElasticBehavior = Enum.ElasticBehavior.Never
 	hubButtons.Position = UDim2.new(0, 0, 1, -154)
+	hubButtons.ScrollingDirection = Enum.ScrollingDirection.Y
+	hubButtons.ScrollBarImageColor3 = colors.subtle
+	hubButtons.ScrollBarThickness = 4
 	hubButtons.Size = UDim2.new(1, 0, 0, 154)
 	hubButtons.Parent = hubPane
 
@@ -90218,6 +90225,10 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	hubButtonsLayout.Padding = UDim.new(0, 6)
 	hubButtonsLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	hubButtonsLayout.Parent = hubButtons
+
+	local hubButtonsPad = InstanceNew("UIPadding")
+	hubButtonsPad.PaddingRight = UDim.new(0, 5)
+	hubButtonsPad.Parent = hubButtons
 
 	local hubOpen = makeButton(hubButtons, "Open In Tab", colors.panel3)
 	hubOpen.Size = UDim2.new(1, 0, 0, 26)
@@ -91289,8 +91300,9 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		local actionPad = w < 420 and 2 or (compact and 4 or 6)
 		actionLayout.CellPadding = UDim2.new(0, actionPad, 0, 0)
 		actionLayout.CellSize = UDim2.new(1 / math.max(1, actionButtonCount), -actionPad, 1, 0)
+		hubButtons.ScrollBarThickness = compact and 3 or 4
 		for _, btn in { hubOpen, hubOpenNew, hubSave, hubDelete, hubRefresh } do
-			btn.Size = UDim2.new(1, 0, 0, compact and 22 or 26)
+			btn.Size = UDim2.new(1, -2, 0, compact and 22 or 26)
 			btn.TextSize = compact and 11 or 13
 		end
 		local actionButtons = { executeButton, clearButton, copyButton, newLineButton }
