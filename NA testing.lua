@@ -91214,7 +91214,11 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		editorPane.Position = UDim2.new(0, 0, 0, 0)
 		if showHub then
 			if phone then
-				local hubH = math.max(compact and 142 or 170, math.floor(h * 0.38))
+				local hubH = math.max(compact and 210 or 250, math.floor(h * 0.48))
+				hubH = math.min(h - gap - 120, hubH)
+				if hubH < 180 then
+					hubH = math.max(140, h - gap - 96)
+				end
 				editorPane.Size = UDim2.new(1, 0, 1, -(hubH + gap))
 				hubPane.Position = UDim2.new(0, 0, 1, -hubH)
 				hubPane.Size = UDim2.new(1, 0, 0, hubH)
@@ -91239,12 +91243,22 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		actions.Size = UDim2.new(1, 0, 0, compact and 24 or 28)
 		actionLayout.CellPadding = UDim2.new(0, compact and 4 or 6, 0, 0)
 		actionLayout.CellSize = UDim2.new(1 / actionButtonCount, compact and -5 or -6, 1, 0)
-		hubList.Size = UDim2.new(1, 0, 1, compact and -174 or -204)
-		hubButtons.Position = UDim2.new(0, 0, 1, compact and -132 or -154)
-		hubButtons.Size = UDim2.new(1, 0, 0, compact and 132 or 154)
+		local hubBtnH = compact and 22 or 26
+		local hubBtnPad = compact and 4 or 6
+		local hubBtnsH = (hubBtnH * 5) + (hubBtnPad * 4)
+		if phone then
+			hubBtnH = compact and 19 or 21
+			hubBtnPad = 4
+			hubBtnsH = (hubBtnH * 5) + (hubBtnPad * 4)
+		end
+		hubButtonsLayout.Padding = UDim.new(0, hubBtnPad)
+		hubList.Position = UDim2.new(0, 0, 0, compact and 36 or 42)
+		hubList.Size = UDim2.new(1, 0, 1, -((compact and 36 or 42) + hubBtnsH + gap))
+		hubButtons.Position = UDim2.new(0, 0, 1, -hubBtnsH)
+		hubButtons.Size = UDim2.new(1, 0, 0, hubBtnsH)
 		for _, btn in { hubOpen, hubOpenNew, hubSave, hubDelete, hubRefresh } do
-			btn.Size = UDim2.new(1, 0, 0, compact and 22 or 26)
-			btn.TextSize = compact and 11 or 13
+			btn.Size = UDim2.new(1, 0, 0, hubBtnH)
+			btn.TextSize = phone and 10 or (compact and 11 or 13)
 		end
 		local actionButtons = { executeButton, clearButton, copyButton, newLineButton }
 		if pasteButton then
