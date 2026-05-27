@@ -23940,6 +23940,9 @@ NAmanage.RotectorForgetPlayer = function(plrOrId)
 	if type(rt.joinLogPending) == "table" then
 		rt.joinLogPending[key] = nil
 	end
+	if type(rt.joinRescanTokens) == "table" then
+		rt.joinRescanTokens[key] = nil
+	end
 	NAmanage.RotectorClearMarker(key)
 end
 
@@ -24679,6 +24682,43 @@ NAmanage.RotectorQueueCurrentPlayers = function(force)
 			NAmanage.RotectorQueuePlayer(plr, force == true)
 		end
 	end
+end
+
+NAmanage.RotectorScheduleJoinRescan = function(plr)
+	if not (typeof(plr) == "Instance" and plr:IsA("Player")) then
+		return
+	end
+	if plr == LocalPlayer then
+		return
+	end
+	local id = tonumber(plr.UserId)
+	if not id or id <= 0 then
+		return
+	end
+	local rt = NAmanage.Rotector
+	if type(rt) ~= "table" then
+		return
+	end
+	local key = NAmanage.RotectorIdKey(id)
+	rt.joinRescanTokens = rt.joinRescanTokens or {}
+	local token = (tonumber(rt.joinRescanTokens[key]) or 0) + 1
+	rt.joinRescanTokens[key] = token
+	NAmanage.spawnSafe(function()
+		for _, delaySeconds in { 3, 12 } do
+			Wait(delaySeconds)
+			if not (typeof(plr) == "Instance" and plr.Parent == Players) then
+				break
+			end
+			if not (type(rt.joinRescanTokens) == "table" and rt.joinRescanTokens[key] == token) then
+				break
+			end
+			local record = NAmanage.RotectorGetPlayerRecord and NAmanage.RotectorGetPlayerRecord(plr)
+			if type(record) == "table" and record.flagged == true then
+				break
+			end
+			NAmanage.RotectorQueuePlayer(plr, true)
+		end
+	end)
 end
 
 NAmanage.RotectorScheduleStartupRescan = function()
@@ -33801,8 +33841,8 @@ cmd.add({"clearautoexec", "caexec", "clearauto", "autoexecclear", "aexecclear", 
 	})
 end)
 
-cmd.add({"executor","exec"},{"executor (exec)","Open the integrated executor UI"},function()
-	NAmanage.Executor_Toggle(true)
+cmd.add({"executor","exec"},{"executor (exec)","Toggle the integrated executor UI"},function()
+	NAmanage.Executor_Toggle()
 end)
 
 cmd.add({"lastcommand","lastcmd"},{"lastcommand (lastcmd)","Re-run your previously executed command"},function()
@@ -89643,6 +89683,9 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		if not frame or not frame.Parent then
 			return
 		end
+		if frame.GetAttribute and NAmanage.GetAttr(frame, "NAMenuMinimized") == true then
+			return
+		end
 		local vp = getExecutorViewport()
 		local defW, defH, capW, capH, mobile = getExecutorSize(vp)
 		local initialized = frame.GetAttribute and NAmanage.GetAttr(frame, "NAExecutorDefaultSized") == true
@@ -91193,8 +91236,10 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		end
 	end
 
-	local function queueExecutorResponsive()
-		applyExecutorFrameSize()
+	local function queueExecutorResponsive(resizeFrame)
+		if resizeFrame == true then
+			applyExecutorFrameSize()
+		end
 		updateBodyLayout()
 		if NAmanage.ExecutorNormalizeTab(tabs[currentTab]) then
 			commitCurrentPage(true)
@@ -91771,13 +91816,17 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		setStatus("Refreshed saved scripts", colors.success)
 	end)
 
-	queueExecutorResponsive()
+	queueExecutorResponsive(true)
 	NAlib.disconnect("NAExecutorResponsive")
 	if workspace and workspace.CurrentCamera then
-		NAlib.connect("NAExecutorResponsive", workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(queueExecutorResponsive))
+		NAlib.connect("NAExecutorResponsive", workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+			queueExecutorResponsive(false)
+		end))
 	end
 	if NAStuff and NAStuff.NASCREENGUI then
-		NAlib.connect("NAExecutorResponsive", NAStuff.NASCREENGUI:GetPropertyChangedSignal("AbsoluteSize"):Connect(queueExecutorResponsive))
+		NAlib.connect("NAExecutorResponsive", NAStuff.NASCREENGUI:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+			queueExecutorResponsive(false)
+		end))
 	end
 	NAlib.connect("NAExecutorResponsive", frame:GetPropertyChangedSignal("Size"):Connect(saveExecutorFrameSize))
 	NAlib.connect("NAExecutorResponsive", frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
@@ -91822,10 +91871,8 @@ NAmanage.Executor_Toggle = NAmanage.Executor_Toggle or function(forceState)
 	end
 	execFrame.Visible = nextState
 	if execFrame.Visible then
-		if type(NAmanage.Executor_ApplyResponsive) == "function" then
-			NAmanage.Executor_ApplyResponsive(true)
-		elseif NAmanage.centerFrame then
-			NAmanage.centerFrame(execFrame)
+		if NAmanage.centerFrame then
+			pcall(NAmanage.centerFrame, execFrame)
 		end
 		if type(NAStuff.ExecutorRefresh) == "function" then
 			task.defer(NAStuff.ExecutorRefresh)
@@ -91973,7 +92020,6 @@ NAmanage.Notepad_Init = function()
 
 	NAmanage.Notepad_ApplyResponsive = applyNotepadResponsive
 	if frame.GetAttribute and NAmanage.GetAttr(frame, "NANotepadReady") then
-		applyNotepadResponsive(false)
 		if type(NAStuff.NotepadRefresh) == "function" then
 			task.defer(NAStuff.NotepadRefresh)
 		end
@@ -93431,7 +93477,6 @@ NAmanage.Notepad_Init = function()
 		refreshNotepadViewport()
 	end)
 	NAStuff.NotepadRefresh = function()
-		applyNotepadResponsive(false)
 		updateNotepadLayout()
 		refreshNotepadViewport()
 	end
@@ -93484,7 +93529,6 @@ NAmanage.Notepad_Init = function()
 		NAlib.connect("NANotepadResponsive", workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
 			task.defer(function()
 				if frame and frame.Parent then
-					applyNotepadResponsive(frame.Visible == true)
 					updateNotepadLayout()
 					refreshNotepadViewport()
 				end
@@ -93495,7 +93539,6 @@ NAmanage.Notepad_Init = function()
 		NAlib.connect("NANotepadResponsive", NAStuff.NASCREENGUI:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
 			task.defer(function()
 				if frame and frame.Parent then
-					applyNotepadResponsive(frame.Visible == true)
 					updateNotepadLayout()
 					refreshNotepadViewport()
 				end
@@ -93506,7 +93549,6 @@ NAmanage.Notepad_Init = function()
 		NAlib.connect("NANotepadResponsive", NAUIMANAGER.AUTOSCALER:GetPropertyChangedSignal("Scale"):Connect(function()
 			task.defer(function()
 				if frame and frame.Parent then
-					applyNotepadResponsive(frame.Visible == true)
 					updateNotepadLayout()
 					refreshNotepadViewport()
 				end
@@ -93533,10 +93575,8 @@ NAmanage.Notepad_Toggle = function(forceState)
 	end
 	frame.Visible = nextState
 	if frame.Visible then
-		if type(NAmanage.Notepad_ApplyResponsive) == "function" then
-			NAmanage.Notepad_ApplyResponsive(true)
-		else
-			NAmanage.centerFrame(frame)
+		if NAmanage.centerFrame then
+			pcall(NAmanage.centerFrame, frame)
 		end
 		if type(NAStuff.NotepadRefresh) == "function" then
 			task.defer(NAStuff.NotepadRefresh)
@@ -98028,7 +98068,11 @@ originalIO.setupPlayer=function(plr,bruh)
 	end
 
 	local suppressJoinLeave = NAStuff and NAStuff.StreamerModeEnabled == true
-	NAmanage.RotectorQueuePlayer(plr)
+	local forceRotectorLookup = not bruh
+	NAmanage.RotectorQueuePlayer(plr, forceRotectorLookup)
+	if forceRotectorLookup and NAmanage.RotectorScheduleJoinRescan then
+		NAmanage.RotectorScheduleJoinRescan(plr)
+	end
 
 	if NAmanage.jlCfg.JoinLog and not bruh and not suppressJoinLeave then
 		local rotectorJoinRecord = NAmanage.RotectorGetPlayerRecord and NAmanage.RotectorGetPlayerRecord(plr)
