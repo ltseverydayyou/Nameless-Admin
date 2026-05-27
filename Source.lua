@@ -16740,10 +16740,10 @@ NAmanage.NASettingsGetSchema=function()
 				return coerceBoolean(value, true)
 			end;
 		};
-		saveInstanceKillAllScripts = {
-			default = true;
+		saveInstanceKillClientScripts = {
+			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, true)
+				return coerceBoolean(value, false)
 			end;
 		};
 		saveInstanceBoostFPS = {
@@ -19440,7 +19440,7 @@ NAStuff.CustomMovementSounds.Volume = math.clamp(tonumber(NAmanage.NASettingsGet
 NAStuff.AssetLoadMode = NAmanage.NASettingsGet("assetLoadMode") or NAStuff.AssetLoadMode
 NAStuff.SaveInstanceConfig = {
 	safeMode = NAmanage.NASettingsGet("saveInstanceSafeMode") == true;
-	killAllScripts = NAmanage.NASettingsGet("saveInstanceKillAllScripts") == true;
+	killAllScripts = NAmanage.NASettingsGet("saveInstanceKillClientScripts") == true;
 	boostFPS = NAmanage.NASettingsGet("saveInstanceBoostFPS") == true;
 	shutdownWhenDone = NAmanage.NASettingsGet("saveInstanceShutdownWhenDone") == true;
 	antiIdle = NAmanage.NASettingsGet("saveInstanceAntiIdle") ~= false;
@@ -49760,7 +49760,8 @@ end)
 
 NAmanage.GetUniversalSaveInstance = NAmanage.GetUniversalSaveInstance or function()
 	local cacheHost = _na_env or _G
-	local cached = type(cacheHost) == "table" and rawget(cacheHost, "__na_ussi_saveinstance")
+	local cacheKey = "__na_ussi_saveinstance_v3"
+	local cached = type(cacheHost) == "table" and rawget(cacheHost, cacheKey)
 	if type(cached) == "function" then
 		return cached
 	end
@@ -49771,7 +49772,18 @@ NAmanage.GetUniversalSaveInstance = NAmanage.GetUniversalSaveInstance or functio
 	end
 
 	local repoUrl = "https://raw.githubusercontent.com/luau/UniversalSynSaveInstance/main/saveinstance.luau"
-	local chunk = loader(game:HttpGet(repoUrl, true), "@UniversalSynSaveInstance/saveinstance.luau")
+	local source = game:HttpGet(repoUrl, true)
+	source = source:gsub("StatusGui%.Parent = global_container%.gethui%(%)", [[
+			local huiOk, hui = pcall(global_container.gethui)
+			if huiOk and typeof(hui) == "Instance" then
+				StatusGui.Parent = hui
+			else
+				local CoreGui = game:GetService("CoreGui")
+				local RobloxGui = CoreGui:FindFirstChild("RobloxGui")
+				StatusGui.Parent = RobloxGui or CoreGui
+			end
+			]], 1)
+	local chunk = loader(source, "@UniversalSynSaveInstance/saveinstance.luau")
 	if type(chunk) ~= "function" then
 		error("failed to compile UniversalSynSaveInstance")
 	end
@@ -49781,10 +49793,138 @@ NAmanage.GetUniversalSaveInstance = NAmanage.GetUniversalSaveInstance or functio
 		error("failed to load UniversalSynSaveInstance")
 	end
 
-	if type(cacheHost) == "table" then
-		rawset(cacheHost, "__na_ussi_saveinstance", ussi)
+	local function mergeOptions(target, sourceOptions)
+		if type(sourceOptions) ~= "table" then
+			return
+		end
+
+		for key, value in sourceOptions do
+			target[key] = value
+		end
 	end
-	return ussi
+
+	local function getLocalHumanoid()
+		local player = Players and Players.LocalPlayer
+		local character = player and player.Character
+		if character then
+			return character:FindFirstChildOfClass("Humanoid")
+		end
+	end
+
+	local function captureClientState()
+		local state = {}
+
+		pcall(function()
+			local camera = workspace and workspace.CurrentCamera
+			state.Camera = camera
+			if camera then
+				state.CameraType = camera.CameraType
+				state.CameraSubject = camera.CameraSubject
+			end
+		end)
+
+		pcall(function()
+			local userInput = UserInputService or SafeGetService("UserInputService")
+			state.UserInput = userInput
+			if userInput then
+				state.MouseBehavior = userInput.MouseBehavior
+				state.MouseIconEnabled = userInput.MouseIconEnabled
+			end
+		end)
+
+		return state
+	end
+
+	local function restoreClientState(state)
+		if type(state) ~= "table" then
+			return
+		end
+
+		pcall(function()
+			local userInput = state.UserInput or UserInputService or SafeGetService("UserInputService")
+			if not userInput then
+				return
+			end
+			if state.MouseBehavior then
+				userInput.MouseBehavior = state.MouseBehavior
+			end
+			if state.MouseIconEnabled ~= nil then
+				userInput.MouseIconEnabled = state.MouseIconEnabled
+			end
+		end)
+
+		pcall(function()
+			local runService = RunService or SafeGetService("RunService")
+			if runService and runService.Set3dRenderingEnabled then
+				runService:Set3dRenderingEnabled(true)
+			end
+		end)
+
+		pcall(function()
+			local camera = state.Camera
+			if not camera or camera.Parent == nil then
+				camera = workspace and workspace.CurrentCamera
+			end
+			if not camera then
+				return
+			end
+
+			local subject = state.CameraSubject
+			if not subject or subject.Parent == nil then
+				subject = getLocalHumanoid()
+			end
+
+			if subject then
+				camera.CameraSubject = subject
+			end
+
+			if state.CameraType then
+				camera.CameraType = state.CameraType
+			elseif subject then
+				camera.CameraType = Enum.CameraType.Custom
+			end
+		end)
+	end
+
+	local function wrappedSaveInstance(obj, filepath, options)
+		local finalOptions = {}
+
+		if type(obj) == "table" and filepath == nil and options == nil then
+			options = obj
+			obj = nil
+		elseif type(filepath) == "table" and options == nil then
+			options = filepath
+			filepath = options.FilePath or options.FileName
+		end
+
+		mergeOptions(finalOptions, options)
+
+		if filepath ~= nil then
+			finalOptions.FilePath = filepath
+		end
+
+		if typeof(obj) == "Instance" then
+			finalOptions.Object = obj
+		end
+
+		local clientState = captureClientState()
+		local ok, result = pcall(ussi, finalOptions)
+		restoreClientState(clientState)
+		task.defer(restoreClientState, clientState)
+		task.delay(1, restoreClientState, clientState)
+
+		if not ok then
+			error(result, 0)
+		end
+
+		return result
+	end
+
+	if type(cacheHost) == "table" then
+		rawset(cacheHost, cacheKey, wrappedSaveInstance)
+		rawset(cacheHost, "__na_ussi_saveinstance", wrappedSaveInstance)
+	end
+	return wrappedSaveInstance
 end
 
 NAmanage.GetSaveInstancePlaceName = NAmanage.GetSaveInstancePlaceName or function()
@@ -49988,7 +50128,7 @@ NAmanage.BuildSaveInstanceTab = NAmanage.BuildSaveInstanceTab or function()
 		setValue("safeMode", "saveInstanceSafeMode", v == true)
 	end)
 	NAgui.addToggle("Kill All Scripts", cfg.killAllScripts == true, function(v)
-		setValue("killAllScripts", "saveInstanceKillAllScripts", v == true)
+		setValue("killAllScripts", "saveInstanceKillClientScripts", v == true)
 	end)
 	NAgui.addToggle("Boost FPS", cfg.boostFPS == true, function(v)
 		setValue("boostFPS", "saveInstanceBoostFPS", v == true)
