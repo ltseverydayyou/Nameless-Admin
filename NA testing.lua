@@ -91208,12 +91208,21 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		local phone = execResponsive.phone or w < 560
 		local hubW = compact and 196 or 242
 		local gap = compact and 8 or 10
-		local showHub = cfg.showHub and not phone and w >= 650
+		local showHub = cfg.showHub
 		hubPane.Visible = showHub
+		editorPane.Visible = true
+		editorPane.Position = UDim2.new(0, 0, 0, 0)
 		if showHub then
-			editorPane.Size = UDim2.new(1, -(hubW + gap), 1, 0)
-			hubPane.Position = UDim2.new(1, -hubW, 0, 0)
-			hubPane.Size = UDim2.new(0, hubW, 1, 0)
+			if phone then
+				local hubH = math.max(compact and 142 or 170, math.floor(h * 0.38))
+				editorPane.Size = UDim2.new(1, 0, 1, -(hubH + gap))
+				hubPane.Position = UDim2.new(0, 0, 1, -hubH)
+				hubPane.Size = UDim2.new(1, 0, 0, hubH)
+			else
+				editorPane.Size = UDim2.new(1, -(hubW + gap), 1, 0)
+				hubPane.Position = UDim2.new(1, -hubW, 0, 0)
+				hubPane.Size = UDim2.new(0, hubW, 1, 0)
+			end
 		else
 			editorPane.Size = UDim2.new(1, 0, 1, 0)
 		end
