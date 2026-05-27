@@ -91202,10 +91202,21 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	end
 
 	local function updateBodyLayout()
-		local w = execResponsive.lastW > 0 and execResponsive.lastW or frame.AbsoluteSize.X
-		local h = execResponsive.lastH > 0 and execResponsive.lastH or frame.AbsoluteSize.Y
-		local compact = execResponsive.compact or h < 430
-		local phone = execResponsive.phone or w < 560
+		local abs = frame and frame.AbsoluteSize or Vector2.new(0, 0)
+		local w = abs.X > 0 and abs.X or execResponsive.lastW
+		local h = abs.Y > 0 and abs.Y or execResponsive.lastH
+		if w <= 0 then
+			w = tonumber(frame.Size.X.Offset) or 0
+		end
+		if h <= 0 then
+			h = tonumber(frame.Size.Y.Offset) or 0
+		end
+		local compact = w < 760 or h < 430
+		local phone = w < 560
+		execResponsive.compact = compact
+		execResponsive.phone = phone
+		execResponsive.lastW = w
+		execResponsive.lastH = h
 		local hubW = compact and 196 or 242
 		local gap = compact and 8 or 10
 		local showHub = cfg.showHub
@@ -91214,7 +91225,10 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		editorPane.Position = UDim2.new(0, 0, 0, 0)
 		if showHub then
 			if phone then
-				local hubH = math.max(compact and 142 or 170, math.floor(h * 0.38))
+				local bodyH = body.AbsoluteSize.Y > 0 and body.AbsoluteSize.Y or math.max(180, h - (compact and 82 or 92))
+				local hubH = math.floor(bodyH * 0.5)
+				local maxHubH = math.max(142, bodyH - (compact and 100 or 122))
+				hubH = math.clamp(hubH, compact and 150 or 170, maxHubH)
 				editorPane.Size = UDim2.new(1, 0, 1, -(hubH + gap))
 				hubPane.Position = UDim2.new(0, 0, 1, -hubH)
 				hubPane.Size = UDim2.new(1, 0, 0, hubH)
@@ -91239,23 +91253,28 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		actions.Size = UDim2.new(1, 0, 0, compact and 24 or 28)
 		actionLayout.CellPadding = UDim2.new(0, compact and 4 or 6, 0, 0)
 		actionLayout.CellSize = UDim2.new(1 / actionButtonCount, compact and -5 or -6, 1, 0)
-		if phone then
-			local sideW = compact and 132 or 148
-			hubTitle.Visible = false
-			hubSubtitle.Visible = false
-			hubButtonsLayout.Padding = UDim.new(0, compact and 4 or 5)
+		if showHub and phone then
+			local titleH = compact and 34 or 38
+			local sideGap = compact and 8 or 10
+			hubTitle.Position = UDim2.new(0.5, math.floor(sideGap / 2), 0, 0)
+			hubTitle.Size = UDim2.new(0.5, -math.ceil(sideGap / 2), 0, 18)
+			hubSubtitle.Position = UDim2.new(0.5, math.floor(sideGap / 2), 0, 20)
+			hubSubtitle.Size = UDim2.new(0.5, -math.ceil(sideGap / 2), 0, 14)
 			hubButtons.Position = UDim2.new(0, 0, 0, 0)
-			hubButtons.Size = UDim2.new(0, sideW, 1, 0)
-			hubList.Position = UDim2.new(0, sideW + gap, 0, 0)
-			hubList.Size = UDim2.new(1, -(sideW + gap), 1, 0)
+			hubButtons.Size = UDim2.new(0.5, -math.ceil(sideGap / 2), 1, 0)
+			hubList.Position = UDim2.new(0.5, math.floor(sideGap / 2), 0, titleH)
+			hubList.Size = UDim2.new(0.5, -math.ceil(sideGap / 2), 1, -titleH)
+			hubButtonsLayout.Padding = UDim.new(0, compact and 5 or 6)
 		else
-			hubTitle.Visible = true
-			hubSubtitle.Visible = true
-			hubButtonsLayout.Padding = UDim.new(0, 6)
-			hubList.Position = UDim2.new(0, 0, 0, compact and 36 or 42)
+			hubTitle.Position = UDim2.new(0, 0, 0, 0)
+			hubTitle.Size = UDim2.new(1, 0, 0, 18)
+			hubSubtitle.Position = UDim2.new(0, 0, 0, 20)
+			hubSubtitle.Size = UDim2.new(1, 0, 0, 14)
+			hubList.Position = UDim2.new(0, 0, 0, compact and 38 or 42)
 			hubList.Size = UDim2.new(1, 0, 1, compact and -174 or -204)
 			hubButtons.Position = UDim2.new(0, 0, 1, compact and -132 or -154)
 			hubButtons.Size = UDim2.new(1, 0, 0, compact and 132 or 154)
+			hubButtonsLayout.Padding = UDim.new(0, compact and 5 or 6)
 		end
 		for _, btn in { hubOpen, hubOpenNew, hubSave, hubDelete, hubRefresh } do
 			btn.Size = UDim2.new(1, 0, 0, compact and 22 or 26)
@@ -91279,7 +91298,6 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			layer.TextSize = textBox.TextSize
 		end
 	end
-
 	local function queueExecutorResponsive(resizeFrame)
 		if resizeFrame == true then
 			applyExecutorFrameSize()
@@ -91861,6 +91879,12 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	end)
 
 	queueExecutorResponsive(true)
+	Defer(function()
+		queueExecutorResponsive(false)
+	end)
+	Delay(0.15, function()
+		queueExecutorResponsive(false)
+	end)
 	NAlib.disconnect("NAExecutorResponsive")
 	if workspace and workspace.CurrentCamera then
 		NAlib.connect("NAExecutorResponsive", workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
