@@ -20931,7 +20931,6 @@ function GetCustomMoveVector(useHumanoidFallback)
 end
 
 NAStuff._bgUsers = NAStuff._bgUsers or {
-	[417995559] = true;
 	[3101266219] = true;
 	[1364052120] = true;
 }
