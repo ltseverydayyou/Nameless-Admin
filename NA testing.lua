@@ -455,10 +455,112 @@ NAmanage.pruneConnectionValueMap = NAmanage.pruneConnectionValueMap or function(
 	end
 end
 
+NAmanage.pruneInstanceValueMap = NAmanage.pruneInstanceValueMap or function(map, cb)
+	if type(map) ~= "table" then
+		return
+	end
+	for key, val in map do
+		if typeof(val) == "Instance" and not NAmanage.isLiveInstance(val) then
+			if type(cb) == "function" then
+				pcall(cb, val, key)
+			end
+			map[key] = nil
+		end
+	end
+end
+
+NAmanage.pruneInstancePairMap = NAmanage.pruneInstancePairMap or function(map, cb)
+	if type(map) ~= "table" then
+		return
+	end
+	for key, val in map do
+		local dead = false
+		if typeof(key) == "Instance" and not NAmanage.isLiveInstance(key) then
+			dead = true
+		elseif typeof(val) == "Instance" and not NAmanage.isLiveInstance(val) then
+			dead = true
+		end
+		if dead then
+			if type(cb) == "function" then
+				pcall(cb, val, key)
+			end
+			map[key] = nil
+		end
+	end
+end
+
+NAmanage.pruneRecordMap = NAmanage.pruneRecordMap or function(map, fields, cb)
+	if type(map) ~= "table" then
+		return
+	end
+	fields = type(fields) == "table" and fields or {}
+	for key, rec in map do
+		local dead = false
+		if typeof(key) == "Instance" and not NAmanage.isLiveInstance(key) then
+			dead = true
+		elseif typeof(rec) == "Instance" and not NAmanage.isLiveInstance(rec) then
+			dead = true
+		elseif type(rec) == "table" then
+			for i = 1, #fields do
+				local val = rec[fields[i]]
+				if typeof(val) == "Instance" and not NAmanage.isLiveInstance(val) then
+					dead = true
+					break
+				end
+			end
+			if rec.removed == true then
+				dead = true
+			end
+		end
+		if dead then
+			if type(cb) == "function" then
+				pcall(cb, rec, key)
+			end
+			map[key] = nil
+		end
+	end
+end
+
+NAmanage.pruneSparseInstanceArray = NAmanage.pruneSparseInstanceArray or function(list, fields, cb)
+	if type(list) ~= "table" then
+		return
+	end
+	fields = type(fields) == "table" and fields or {}
+	for key, item in list do
+		if type(key) == "number" then
+			local dead = false
+			if typeof(item) == "Instance" then
+				dead = not NAmanage.isLiveInstance(item)
+			elseif type(item) == "table" then
+				if item.removed == true then
+					dead = true
+				else
+					for i = 1, #fields do
+						local val = item[fields[i]]
+						if typeof(val) == "Instance" and not NAmanage.isLiveInstance(val) then
+							dead = true
+							break
+						end
+					end
+				end
+			end
+			if dead then
+				if type(cb) == "function" then
+					pcall(cb, item, key)
+				end
+				list[key] = nil
+			end
+		end
+	end
+end
+
 NAmanage.pruneRuntimeInstanceState = NAmanage.pruneRuntimeInstanceState or function()
 	local state = NAStuff
 	if type(state) ~= "table" then
 		return
+	end
+	if type(NAmanage.ensureRuntimeWeakTables) == "function" then
+		pcall(NAmanage.ensureRuntimeWeakTables)
 	end
 
 	NAmanage.pruneInstanceKeyMap(state._afTracked)
@@ -564,8 +666,13 @@ NAmanage.pruneRuntimeInstanceState = NAmanage.pruneRuntimeInstanceState or funct
 	NAmanage.pruneInstanceKeyMap(state.BlockedRemoteReturns)
 	NAmanage.pruneInstanceKeyMap(state.BlockedEventSaved)
 	NAmanage.pruneInstanceKeyMap(state.BlockedInvokeSaved)
+	NAmanage.pruneInstanceKeyMap(state.ESP_OcclusionCache)
 	NAmanage.pruneInstanceKeyMap(NAmanage._canvasLayoutCache)
 	NAmanage.pruneInstanceKeyMap(NAmanage._canvasHeightCache)
+	NAmanage.pruneInstanceValueMap(NAmanage._statCache)
+	NAmanage.pruneInstanceKeyMap(NAmanage.toolCache)
+	NAmanage.pruneInstanceKeyMap(NAmanage.grabBusy)
+	NAmanage.pruneInstanceKeyMap(NAmanage.toolGrabCol)
 	if type(state.airMomentum) == "table" then
 		NAmanage.pruneConnectionValueMap(state.airMomentum.connections)
 		if typeof(state.airMomentum.root) == "Instance" and not NAmanage.isLiveInstance(state.airMomentum.root) then
@@ -656,6 +763,39 @@ NAmanage.pruneRuntimeInstanceState = NAmanage.pruneRuntimeInstanceState or funct
 		end
 	end
 
+	local lState = _na_env and _na_env._LState
+	if type(lState) == "table" then
+		for _, key in { "ne", "nf" } do
+			local rec = lState[key]
+			if type(rec) == "table" and type(rec.cache) == "table" then
+				rec.cache = NAmanage.ensureWeakKeyTable(rec.cache)
+				NAmanage.pruneInstanceKeyMap(rec.cache)
+			end
+		end
+	end
+
+	if type(NAmanage.Rotector) == "table" then
+		local rt = NAmanage.Rotector
+		local now = os.time()
+		local maxAge = tonumber(rt.cacheSeconds) or 600
+		if type(rt.cache) == "table" then
+			for key, rec in rt.cache do
+				if type(rec) ~= "table" or now - (tonumber(rec.time) or 0) > maxAge then
+					rt.cache[key] = nil
+				end
+			end
+		end
+		NAmanage.pruneRecordMap(rt.markers, { "player", "billboard", "highlight", "screenFrame", "screenLabel", "label" }, function(marker, key)
+			if type(NAmanage.RotectorClearMarker) == "function" then
+				pcall(NAmanage.RotectorClearMarker, key)
+			end
+		end)
+	end
+
+	if type(NAindex) == "table" and type(NAindex.pruneCaches) == "function" then
+		pcall(NAindex.pruneCaches)
+	end
+
 	if type(state.partESPEntries) == "table" then
 		local staleEntries = {}
 		for _, entry in state.partESPEntries do
@@ -677,18 +817,19 @@ NAmanage.pruneRuntimeInstanceState = NAmanage.pruneRuntimeInstanceState or funct
 	end
 
 	if type(state.partESPQueue) == "table" then
-		for i = 1, #state.partESPQueue do
-			local item = state.partESPQueue[i]
+		NAmanage.pruneSparseInstanceArray(state.partESPQueue, { "part" }, function(item)
 			if type(item) == "table" then
 				local part = item.part
-				if typeof(part) == "Instance" and not NAmanage.isLiveInstance(part) then
-					state.partESPQueue[i] = nil
+				if typeof(part) == "Instance" and type(state.partESPQueueMap) == "table" and state.partESPQueueMap[part] == item then
+					state.partESPQueueMap[part] = nil
 				end
+				item.part = nil
+				item.guard = nil
 			end
-		end
+		end)
 	end
-	NAmanage.pruneInstanceKeyMap(state.partESPQueueMap)
-	NAmanage.pruneInstanceKeyMap(state.partESPVisualMap)
+	NAmanage.pruneRecordMap(state.partESPQueueMap, { "part" })
+	NAmanage.pruneRecordMap(state.partESPVisualMap, { "part", "visual", "billboard" })
 
 	if type(state.partESPPartMap) == "table" then
 		for part, bucket in state.partESPPartMap do
@@ -1420,13 +1561,26 @@ NAmanage.ensureRuntimeWeakTables = NAmanage.ensureRuntimeWeakTables or function(
 		"unanchoredESPSet",
 		"collisiontrueESPSet",
 		"collisionfalseESPSet",
+		"ESP_OcclusionCache",
 		"partESPGlassOriginal",
 		"partESPGlassCount",
 		"partESPLocalTransOriginal",
 		"partESPLocalTransCount",
+		"partESPEntries",
 		"partESPQueueMap",
 		"partESPVisualMap",
 		"partESPPartMap",
+		"folderESPMembers",
+		"folderESPKeys",
+		"folderESPScanTokens",
+		"folderESPModes",
+		"folderESPMemberMaps",
+		"modelESPMembers",
+		"modelESPKeys",
+		"modelESPScanTokens",
+		"modelESPModes",
+		"modelESPMemberMaps",
+		"modelESPMap",
 		"BlockedEventSaved",
 		"BlockedInvokeSaved",
 		"BlockedRemoteModes",
@@ -15823,43 +15977,42 @@ NAmanage.NASettingsCoerce=function(def, value)
 	return value
 end
 
+NAmanage.NASettingsSchemaState = NAmanage.NASettingsSchemaState or {}
+NAmanage.NASettingsSchemaState.defaultStrokeColor = NAmanage.NASettingsSchemaState.defaultStrokeColor or Color3.fromRGB(148, 93, 255)
+NAmanage.NASettingsSchemaState.coerceBoolean = NAmanage.NASettingsSchemaState.coerceBoolean or function(value, fallback)
+	if type(value) == "boolean" then
+		return value
+	end
+	if type(value) == "string" then
+		NAmanage.NASettingsSchemaState.lowered = value:lower()
+		if NAmanage.NASettingsSchemaState.lowered == "true" or NAmanage.NASettingsSchemaState.lowered == "1" then
+			return true
+		end
+		if NAmanage.NASettingsSchemaState.lowered == "false" or NAmanage.NASettingsSchemaState.lowered == "0" then
+			return false
+		end
+	end
+	if type(value) == "number" then
+		return value ~= 0
+	end
+	return fallback
+end
+NAmanage.NASettingsSchemaState.clampChannel = NAmanage.NASettingsSchemaState.clampChannel or function(value)
+	NAmanage.NASettingsSchemaState.numberValue = tonumber(value)
+	if not NAmanage.NASettingsSchemaState.numberValue then
+		return nil
+	end
+	if NAmanage.NASettingsSchemaState.numberValue < 0 then
+		NAmanage.NASettingsSchemaState.numberValue = 0
+	elseif NAmanage.NASettingsSchemaState.numberValue > 1 then
+		NAmanage.NASettingsSchemaState.numberValue = 1
+	end
+	return NAmanage.NASettingsSchemaState.numberValue
+end
+
 NAmanage.NASettingsGetSchema=function()
 	if NAStuff.NASettingsSchema then
 		return NAStuff.NASettingsSchema
-	end
-
-	local defaultStrokeColor = Color3.fromRGB(148, 93, 255)
-
-	local function coerceBoolean(value, fallback)
-		if type(value) == "boolean" then
-			return value
-		end
-		if type(value) == "string" then
-			local lowered = value:lower()
-			if lowered == "true" or lowered == "1" then
-				return true
-			end
-			if lowered == "false" or lowered == "0" then
-				return false
-			end
-		end
-		if type(value) == "number" then
-			return value ~= 0
-		end
-		return fallback
-	end
-
-	local function clampChannel(value)
-		local numberValue = tonumber(value)
-		if not numberValue then
-			return nil
-		end
-		if numberValue < 0 then
-			numberValue = 0
-		elseif numberValue > 1 then
-			numberValue = 1
-		end
-		return numberValue
 	end
 
 	NAStuff.NASettingsSchema = {
@@ -15910,7 +16063,7 @@ NAmanage.NASettingsGetSchema=function()
 		iconBgTransparency = {
 			default = 0;
 			coerce = function(value)
-				local n = clampChannel(value)
+				local n = NAmanage.NASettingsSchemaState.clampChannel(value)
 				if n == nil then return 0 end
 				return n
 			end;
@@ -15918,7 +16071,7 @@ NAmanage.NASettingsGetSchema=function()
 		iconImageTransparency = {
 			default = 0;
 			coerce = function(value)
-				local n = clampChannel(value)
+				local n = NAmanage.NASettingsSchemaState.clampChannel(value)
 				if n == nil then return 0 end
 				return n
 			end;
@@ -15926,7 +16079,7 @@ NAmanage.NASettingsGetSchema=function()
 		iconTextTransparency = {
 			default = 0;
 			coerce = function(value)
-				local n = clampChannel(value)
+				local n = NAmanage.NASettingsSchemaState.clampChannel(value)
 				if n == nil then return 0 end
 				return n
 			end;
@@ -15934,7 +16087,7 @@ NAmanage.NASettingsGetSchema=function()
 		iconStrokeTransparency = {
 			default = 0.7;
 			coerce = function(value)
-				local n = clampChannel(value)
+				local n = NAmanage.NASettingsSchemaState.clampChannel(value)
 				if n == nil then return 0.7 end
 				return n
 			end;
@@ -15982,7 +16135,7 @@ NAmanage.NASettingsGetSchema=function()
 		customMovementSoundsEnabled = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		customMovementSoundsWalk = {
@@ -16040,7 +16193,7 @@ NAmanage.NASettingsGetSchema=function()
 		crosshairEnabled = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		crosshairSize = {
@@ -16074,13 +16227,13 @@ NAmanage.NASettingsGetSchema=function()
 		crosshairShowCenter = {
 			default = true;
 			coerce = function(value)
-				return coerceBoolean(value, true)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
 			end;
 		};
 		lightingStyleAutomation = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		lightingStyleAutomationStyle = {
@@ -16099,7 +16252,7 @@ NAmanage.NASettingsGetSchema=function()
 		mobileCamSensEnabled = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		mobileCamSensitivity = {
@@ -16115,7 +16268,7 @@ NAmanage.NASettingsGetSchema=function()
 		mobileFlyAutoEnableOnRun = {
 			default = true;
 			coerce = function(value)
-				return coerceBoolean(value, true)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
 			end;
 		};
 		crosshairColor = {
@@ -16137,9 +16290,9 @@ NAmanage.NASettingsGetSchema=function()
 					end
 				end
 				if type(parsed) == "table" then
-					local r = clampChannel(parsed.R)
-					local g = clampChannel(parsed.G)
-					local b = clampChannel(parsed.B)
+					local r = NAmanage.NASettingsSchemaState.clampChannel(parsed.R)
+					local g = NAmanage.NASettingsSchemaState.clampChannel(parsed.G)
+					local b = NAmanage.NASettingsSchemaState.clampChannel(parsed.B)
 					if r and g and b then
 						return { R = r; G = g; B = b }
 					end
@@ -16170,13 +16323,13 @@ NAmanage.NASettingsGetSchema=function()
 		offVisOn = {
 			default = true;
 			coerce = function(value)
-				return coerceBoolean(value, true)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
 			end;
 		};
 		offVisAcc = {
 			default = true;
 			coerce = function(value)
-				return coerceBoolean(value, true)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
 			end;
 		};
 		offVisFTr = {
@@ -16202,13 +16355,13 @@ NAmanage.NASettingsGetSchema=function()
 		offsetVisualizerEnabled = {
 			default = nil;
 			coerce = function(value)
-				return coerceBoolean(value, nil)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, nil)
 			end;
 		};
 		offsetVisualizerIncludeAccessories = {
 			default = nil;
 			coerce = function(value)
-				return coerceBoolean(value, nil)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, nil)
 			end;
 		};
 		offsetVisualizerFillTransparency = {
@@ -16246,44 +16399,44 @@ NAmanage.NASettingsGetSchema=function()
 			pathKey = "NAQOTPATH";
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		prediction = {
 			pathKey = "NAPREDICTIONPATH";
 			default = true;
 			coerce = function(value)
-				return coerceBoolean(value, true)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
 			end;
 		};
 		freecamKeybind = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		debugDontRenderKeybind = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		autoExecEnabled = {
 			default = true;
 			coerce = function(value)
-				return coerceBoolean(value, true)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
 			end;
 		};
 		userButtonsAutoLoad = {
 			default = true;
 			coerce = function(value)
-				return coerceBoolean(value, true)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
 			end;
 		};
 		cmdbar2AutoRun = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		loopMethod = {
@@ -16305,13 +16458,13 @@ NAmanage.NASettingsGetSchema=function()
 		safeSpeedMethod = {
 			default = true;
 			coerce = function(value)
-				return coerceBoolean(value, true)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
 			end;
 		};
 		safeJumpMethod = {
 			default = true;
 			coerce = function(value)
-				return coerceBoolean(value, true)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
 			end;
 		};
 		cmdbar2Width = {
@@ -16329,13 +16482,13 @@ NAmanage.NASettingsGetSchema=function()
 		deltaPrompted = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		bloxtrapRPC = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		integrationWebhookUrl = {
@@ -16395,25 +16548,25 @@ NAmanage.NASettingsGetSchema=function()
 		integrationWebhookUseAll = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		integrationWebhookJoinLeave = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		integrationWebhookChat = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		integrationWebhookCommands = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		integrationWebhookInterval = {
@@ -16453,7 +16606,7 @@ NAmanage.NASettingsGetSchema=function()
 		integrationRpcUseCustom = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		integrationRpcDetails = {
@@ -16477,49 +16630,49 @@ NAmanage.NASettingsGetSchema=function()
 		cmdIntegrationAutoRun = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		purchasePromptsDisabled = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		networkPauseDisabled = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		disableUnsafeFunctions = {
 			default = true;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		forceRconsoleNAConsole = {
 			default = true;
 			coerce = function(value)
-				return coerceBoolean(value, true)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
 			end;
 		};
 		friendRequestAutoDismiss = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		devConsoleCopyButtons = {
 			default = true;
 			coerce = function(value)
-				return coerceBoolean(value, true)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
 			end;
 		};
 		devConsoleMasterInput = {
 			default = true;
 			coerce = function(value)
-				return coerceBoolean(value, true)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
 			end;
 		};
 		devConsoleLogLimit = {
@@ -16555,13 +16708,13 @@ NAmanage.NASettingsGetSchema=function()
 		streamerMode = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		chatTranslate = {
 			default = true;
 			coerce = function(value)
-				return coerceBoolean(value, true)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
 			end;
 		};
 		chatTranslateTarget = {
@@ -16594,9 +16747,9 @@ NAmanage.NASettingsGetSchema=function()
 			pathKey = "NASTROKETHINGY";
 			default = function()
 				return {
-					R = defaultStrokeColor.R;
-					G = defaultStrokeColor.G;
-					B = defaultStrokeColor.B;
+					R = NAmanage.NASettingsSchemaState.defaultStrokeColor.R;
+					G = NAmanage.NASettingsSchemaState.defaultStrokeColor.G;
+					B = NAmanage.NASettingsSchemaState.defaultStrokeColor.B;
 				}
 			end;
 			coerce = function(value)
@@ -16619,9 +16772,9 @@ NAmanage.NASettingsGetSchema=function()
 				end
 
 				if type(parsed) == "table" then
-					local r = clampChannel(parsed.R)
-					local g = clampChannel(parsed.G)
-					local b = clampChannel(parsed.B)
+					local r = NAmanage.NASettingsSchemaState.clampChannel(parsed.R)
+					local g = NAmanage.NASettingsSchemaState.clampChannel(parsed.G)
+					local b = NAmanage.NASettingsSchemaState.clampChannel(parsed.B)
 					if r and g and b then
 						return {
 							R = r;
@@ -16632,9 +16785,9 @@ NAmanage.NASettingsGetSchema=function()
 				end
 
 				return {
-					R = defaultStrokeColor.R;
-					G = defaultStrokeColor.G;
-					B = defaultStrokeColor.B;
+					R = NAmanage.NASettingsSchemaState.defaultStrokeColor.R;
+					G = NAmanage.NASettingsSchemaState.defaultStrokeColor.G;
+					B = NAmanage.NASettingsSchemaState.defaultStrokeColor.B;
 				}
 			end;
 		};
@@ -16698,7 +16851,7 @@ NAmanage.NASettingsGetSchema=function()
 		iconInvisible = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		iconLocked = {
@@ -16717,7 +16870,7 @@ NAmanage.NASettingsGetSchema=function()
 		topbarKeepPosition = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		topbarPositionRatio = {
@@ -16747,7 +16900,7 @@ NAmanage.NASettingsGetSchema=function()
 		sideSwipeEnabled = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		sideSwipeWidth = {
@@ -16763,7 +16916,7 @@ NAmanage.NASettingsGetSchema=function()
 		sideSwipeHandleTransparency = {
 			default = 0.72;
 			coerce = function(value)
-				local n = clampChannel(value)
+				local n = NAmanage.NASettingsSchemaState.clampChannel(value)
 				if n == nil then return 0.72 end
 				return n
 			end;
@@ -16771,7 +16924,7 @@ NAmanage.NASettingsGetSchema=function()
 		sideSwipePanelTransparency = {
 			default = 0.35;
 			coerce = function(value)
-				local n = clampChannel(value)
+				local n = NAmanage.NASettingsSchemaState.clampChannel(value)
 				if n == nil then return 0.35 end
 				return n
 			end;
@@ -16779,7 +16932,7 @@ NAmanage.NASettingsGetSchema=function()
 		sideSwipeButtonTransparency = {
 			default = 0.16;
 			coerce = function(value)
-				local n = clampChannel(value)
+				local n = NAmanage.NASettingsSchemaState.clampChannel(value)
 				if n == nil then return 0.16 end
 				return n
 			end;
@@ -16798,13 +16951,13 @@ NAmanage.NASettingsGetSchema=function()
 			pathKey = "NATOPBAR";
 			default = true;
 			coerce = function(value)
-				return coerceBoolean(value, true)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
 			end;
 		};
 		topbarGlassTransparency = {
 			default = 0.12;
 			coerce = function(value)
-				local n = clampChannel(value)
+				local n = NAmanage.NASettingsSchemaState.clampChannel(value)
 				if n == nil then return 0.12 end
 				return n
 			end;
@@ -16812,7 +16965,7 @@ NAmanage.NASettingsGetSchema=function()
 		topbarStrokeTransparency = {
 			default = 0.15;
 			coerce = function(value)
-				local n = clampChannel(value)
+				local n = NAmanage.NASettingsSchemaState.clampChannel(value)
 				if n == nil then return 0.15 end
 				return n
 			end;
@@ -16820,7 +16973,7 @@ NAmanage.NASettingsGetSchema=function()
 		topbarPanelTransparency = {
 			default = 0.1;
 			coerce = function(value)
-				local n = clampChannel(value)
+				local n = NAmanage.NASettingsSchemaState.clampChannel(value)
 				if n == nil then return 0.1 end
 				return n
 			end;
@@ -16828,7 +16981,7 @@ NAmanage.NASettingsGetSchema=function()
 		topbarButtonTransparency = {
 			default = 0.18;
 			coerce = function(value)
-				local n = clampChannel(value)
+				local n = NAmanage.NASettingsSchemaState.clampChannel(value)
 				if n == nil then return 0.18 end
 				return n
 			end;
@@ -16837,7 +16990,7 @@ NAmanage.NASettingsGetSchema=function()
 			pathKey = "NANOTIFSTOGGLE";
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		devConsoleFilters = {
@@ -16857,10 +17010,10 @@ NAmanage.NASettingsGetSchema=function()
 					Error = true;
 				}
 				if typeof(value) == "table" then
-					result.Output = coerceBoolean(value.Output, result.Output)
-					result.Info = coerceBoolean(value.Info, result.Info)
-					result.Warn = coerceBoolean(value.Warn, result.Warn)
-					result.Error = coerceBoolean(value.Error, result.Error)
+					result.Output = NAmanage.NASettingsSchemaState.coerceBoolean(value.Output, result.Output)
+					result.Info = NAmanage.NASettingsSchemaState.coerceBoolean(value.Info, result.Info)
+					result.Warn = NAmanage.NASettingsSchemaState.coerceBoolean(value.Warn, result.Warn)
+					result.Error = NAmanage.NASettingsSchemaState.coerceBoolean(value.Error, result.Error)
 				end
 				return result
 			end;
@@ -16868,13 +17021,13 @@ NAmanage.NASettingsGetSchema=function()
 		autoSkipLoading = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		autoInteractDistanceEnabled = {
 			default = true;
 			coerce = function(value)
-				return coerceBoolean(value, true)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
 			end;
 		};
 		autoInteractExtraRange = {
@@ -16943,7 +17096,7 @@ NAmanage.NASettingsGetSchema=function()
 					value = {}
 				end
 				local function boolField(key, fallback)
-					return coerceBoolean(value[key], fallback)
+					return NAmanage.NASettingsSchemaState.coerceBoolean(value[key], fallback)
 				end
 				local function clampRadius(v)
 					local n = tonumber(v)
@@ -17012,15 +17165,15 @@ NAmanage.NASettingsGetSchema=function()
 				local function coerceColor(v)
 					if typeof(v) == "Color3" then
 						return {
-							R = clampChannel(v.R) or 0;
-							G = clampChannel(v.G) or 0;
-							B = clampChannel(v.B) or 0;
+							R = NAmanage.NASettingsSchemaState.clampChannel(v.R) or 0;
+							G = NAmanage.NASettingsSchemaState.clampChannel(v.G) or 0;
+							B = NAmanage.NASettingsSchemaState.clampChannel(v.B) or 0;
 						}
 					end
 					if type(v) == "table" then
-						local r = clampChannel(v.R or v.r or v[1])
-						local g = clampChannel(v.G or v.g or v[2])
-						local b = clampChannel(v.B or v.b or v[3])
+						local r = NAmanage.NASettingsSchemaState.clampChannel(v.R or v.r or v[1])
+						local g = NAmanage.NASettingsSchemaState.clampChannel(v.G or v.g or v[2])
+						local b = NAmanage.NASettingsSchemaState.clampChannel(v.B or v.b or v[3])
 						if r and g and b then
 							return { R = r; G = g; B = b }
 						end
@@ -17077,15 +17230,15 @@ NAmanage.NASettingsGetSchema=function()
 					mat = defaults.material
 				end
 				out.material = mat
-				out.noCollide = coerceBoolean(value.noCollide, defaults.noCollide)
-				out.massless = coerceBoolean(value.massless, defaults.massless)
+				out.noCollide = NAmanage.NASettingsSchemaState.coerceBoolean(value.noCollide, defaults.noCollide)
+				out.massless = NAmanage.NASettingsSchemaState.coerceBoolean(value.massless, defaults.massless)
 				return out
 			end;
 		};
 		autoPreloadAssets = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		assetLoadMode = {
@@ -17113,55 +17266,55 @@ NAmanage.NASettingsGetSchema=function()
 		saveInstanceSafeMode = {
 			default = true;
 			coerce = function(value)
-				return coerceBoolean(value, true)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
 			end;
 		};
 		saveInstanceKillClientScripts = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		saveInstanceBoostFPS = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		saveInstanceShutdownWhenDone = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		saveInstanceAntiIdle = {
 			default = true;
 			coerce = function(value)
-				return coerceBoolean(value, true)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
 			end;
 		};
 		saveInstanceShowStatus = {
 			default = true;
 			coerce = function(value)
-				return coerceBoolean(value, true)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
 			end;
 		};
 		saveInstanceReadMe = {
 			default = true;
 			coerce = function(value)
-				return coerceBoolean(value, true)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
 			end;
 		};
 		saveInstanceDebugMode = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		saveInstanceAnonymous = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		saveInstanceMode = {
@@ -17179,13 +17332,13 @@ NAmanage.NASettingsGetSchema=function()
 		saveInstanceDecompile = {
 			default = true;
 			coerce = function(value)
-				return coerceBoolean(value, true)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
 			end;
 		};
 		saveInstanceScriptCache = {
 			default = true;
 			coerce = function(value)
-				return coerceBoolean(value, true)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
 			end;
 		};
 		saveInstanceDecompileTimeout = {
@@ -17199,13 +17352,13 @@ NAmanage.NASettingsGetSchema=function()
 		saveInstanceDecompileJobless = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		saveInstanceSaveBytecode = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		saveInstanceSaveCacheInterval = {
@@ -17219,103 +17372,103 @@ NAmanage.NASettingsGetSchema=function()
 		saveInstanceAvoidFileOverwrite = {
 			default = true;
 			coerce = function(value)
-				return coerceBoolean(value, true)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
 			end;
 		};
 		saveInstanceNilInstances = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		saveInstanceIgnoreDefaultProperties = {
 			default = true;
 			coerce = function(value)
-				return coerceBoolean(value, true)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
 			end;
 		};
 		saveInstanceIgnoreNotArchivable = {
 			default = true;
 			coerce = function(value)
-				return coerceBoolean(value, true)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
 			end;
 		};
 		saveInstanceIgnorePropertiesOfNotScriptsOnScriptsMode = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		saveInstanceIgnoreSpecialProperties = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		saveInstanceIsolateStarterPlayer = {
 			default = true;
 			coerce = function(value)
-				return coerceBoolean(value, true)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
 			end;
 		};
 		saveInstanceIsolatePlayers = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		saveInstanceIsolateLocalPlayer = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		saveInstanceIsolateLocalPlayerCharacter = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		saveInstanceSavePlayerCharacters = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		saveInstanceSaveNotCreatable = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		saveInstanceAlternativeWritefile = {
 			default = true;
 			coerce = function(value)
-				return coerceBoolean(value, true)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
 			end;
 		};
 		saveInstanceIgnoreDefaultPlayerScripts = {
 			default = true;
 			coerce = function(value)
-				return coerceBoolean(value, true)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
 			end;
 		};
 		saveInstanceIgnoreSharedStrings = {
 			default = true;
 			coerce = function(value)
-				return coerceBoolean(value, true)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
 			end;
 		};
 		saveInstanceSharedStringOverwrite = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		saveInstanceTreatUnionsAsParts = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		saveInstanceDecompileIgnore = {
@@ -17366,7 +17519,7 @@ NAmanage.NASettingsGetSchema=function()
 		saveInstanceCommandHintShown = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		saveInstanceFileNameFormat = {
@@ -17385,7 +17538,7 @@ NAmanage.NASettingsGetSchema=function()
 		loadingStartMinimized = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		topbarMode = {
@@ -17413,7 +17566,7 @@ NAmanage.NASettingsGetSchema=function()
 		disableLastInput = {
 			default = false;
 			coerce = function(value)
-				return coerceBoolean(value, false)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 	}
@@ -22667,27 +22820,107 @@ NAmanage.wrapPatchedFunc=function(func)
 	end
 end
 
-NAmanage.inferRequiresArguments=function(infoTable)
-	local function hasRequiredPlaceholder(text)
-		if type(text) ~= "string" then
+NAmanage.CmdArgDetect = NAmanage.CmdArgDetect or {}
+NAmanage.CmdArgDetect.trim = NAmanage.CmdArgDetect.trim or function(text)
+	text = tostring(text or "")
+	text = text:gsub("^%s+", "")
+	text = text:gsub("%s+$", "")
+	return text
+end
+
+NAmanage.CmdArgDetect.aliasSet = NAmanage.CmdArgDetect.aliasSet or function(aliases)
+	NAmanage.CmdArgDetect._aliasSet = NAmanage.CmdArgDetect._aliasSet or {}
+	table.clear(NAmanage.CmdArgDetect._aliasSet)
+	if type(aliases) == "table" then
+		for i = 2, #aliases do
+			if type(aliases[i]) == "string" and aliases[i] ~= "" then
+				NAmanage.CmdArgDetect._aliasSet[Lower(aliases[i])] = true
+			end
+		end
+	end
+	return NAmanage.CmdArgDetect._aliasSet
+end
+
+NAmanage.CmdArgDetect.inner = NAmanage.CmdArgDetect.inner or function(block)
+	if type(block) ~= "string" or #block < 2 then
+		return ""
+	end
+	return NAmanage.CmdArgDetect.trim(Sub(block, 2, #block - 1))
+end
+
+NAmanage.CmdArgDetect.isBadgeBlock = NAmanage.CmdArgDetect.isBadgeBlock or function(inner)
+	inner = Lower(NAmanage.CmdArgDetect.trim(inner))
+	return inner == "patched" or inner == "na" or inner == "iy"
+end
+
+NAmanage.CmdArgDetect.isAliasParen = NAmanage.CmdArgDetect.isAliasParen or function(inner, aliasSet)
+	if type(aliasSet) ~= "table" then
+		return false
+	end
+	inner = NAmanage.CmdArgDetect.trim(inner)
+	if inner == "" then
+		return true
+	end
+	if inner:find("[<>%[%]{}|/:=]", 1, false) then
+		return false
+	end
+	NAmanage.CmdArgDetect._aliasParts = NAmanage.CmdArgDetect._aliasParts or {}
+	table.clear(NAmanage.CmdArgDetect._aliasParts)
+	for part in inner:gmatch("[^,%s]+") do
+		NAmanage.CmdArgDetect._aliasParts[#NAmanage.CmdArgDetect._aliasParts + 1] = Lower(part)
+	end
+	if #NAmanage.CmdArgDetect._aliasParts == 0 then
+		return true
+	end
+	for i = 1, #NAmanage.CmdArgDetect._aliasParts do
+		if not aliasSet[NAmanage.CmdArgDetect._aliasParts[i]] then
 			return false
 		end
-
-		local cleaned = text:gsub("%b[]", "")
-		return cleaned:find("%b<>") ~= nil or cleaned:find("%b{}") ~= nil
 	end
+	return true
+end
 
-	if type(infoTable) == "table" then
-		if hasRequiredPlaceholder(infoTable[1]) then
+NAmanage.CmdArgDetect.has = NAmanage.CmdArgDetect.has or function(text, aliasSet)
+	if type(text) ~= "string" then
+		return false
+	end
+	for block in text:gmatch("%b<>") do
+		if NAmanage.CmdArgDetect.inner(block) ~= "" then
 			return true
 		end
-		if (type(infoTable[1]) ~= "string" or infoTable[1] == "") and hasRequiredPlaceholder(infoTable[2]) then
+	end
+	for block in text:gmatch("%b{}") do
+		if NAmanage.CmdArgDetect.inner(block) ~= "" then
+			return true
+		end
+	end
+	for block in text:gmatch("%b[]") do
+		NAmanage.CmdArgDetect._inner = NAmanage.CmdArgDetect.inner(block)
+		if NAmanage.CmdArgDetect._inner ~= "" and not NAmanage.CmdArgDetect.isBadgeBlock(NAmanage.CmdArgDetect._inner) then
+			return true
+		end
+	end
+	for block in text:gmatch("%b()") do
+		NAmanage.CmdArgDetect._inner = NAmanage.CmdArgDetect.inner(block)
+		if NAmanage.CmdArgDetect._inner ~= "" and not NAmanage.CmdArgDetect.isAliasParen(NAmanage.CmdArgDetect._inner, aliasSet) then
+			return true
+		end
+	end
+	return false
+end
+
+NAmanage.inferRequiresArguments=function(infoTable, aliases)
+	NAmanage.CmdArgDetect._set = NAmanage.CmdArgDetect.aliasSet(aliases)
+	if type(infoTable) == "table" then
+		if NAmanage.CmdArgDetect.has(infoTable[1], NAmanage.CmdArgDetect._set) then
+			return true
+		end
+		if (type(infoTable[1]) ~= "string" or infoTable[1] == "") and NAmanage.CmdArgDetect.has(infoTable[2], NAmanage.CmdArgDetect._set) then
 			return true
 		end
 	elseif type(infoTable) == "string" then
-		return hasRequiredPlaceholder(infoTable)
+		return NAmanage.CmdArgDetect.has(infoTable, NAmanage.CmdArgDetect._set)
 	end
-
 	return false
 end
 
@@ -22698,7 +22931,7 @@ cmd.add = function(aliases, info, func, requiresArguments, meta)
 	end
 
 	if requiresArguments == nil then
-		requiresArguments = NAmanage.inferRequiresArguments(info) or false
+		requiresArguments = NAmanage.inferRequiresArguments(info, aliases) or false
 	end
 
 	meta = type(meta) == "table" and meta or {}
@@ -34626,7 +34859,7 @@ cmd.add({"gotocampos","tocampos","tcp"},{"gotocampos (tocampos,tcp)","Teleports 
 		local character=player.Character or player.CharacterAdded:wait(1)
 		local camera=workspace.CurrentCamera
 		local cameraPosition=camera.CFrame.Position
-		character:SetPrimaryPartCFrame(CFrame.new(cameraPosition))
+		NAmanage.UG_pivotModel(character, CFrame.new(cameraPosition))
 	end
 	local camera=workspace.CurrentCamera
 	repeat Wait() until camera.CFrame~=CFrame.new()
@@ -34821,7 +35054,7 @@ cmd.add({"clickfling","mousefling"},{"clickfling (mousefling)","Fling a player b
 
 					local _, rootSpeed = flingManager.GetPartVelocity(RootPart)
 					if not flingManager.cFlingOldPos or rootSpeed<50 then
-						flingManager.cFlingOldPos = RootPart.CFrame
+						flingManager.cFlingOldPos = NAmanage.UG_clientCFrame(RootPart) or RootPart.CFrame
 					end
 					if THead then
 						workspace.CurrentCamera.CameraSubject = THead
@@ -34838,7 +35071,7 @@ cmd.add({"clickfling","mousefling"},{"clickfling (mousefling)","Fling a player b
 					local function FPos(BasePart,Pos,Ang)
 						local targetCFrame = CFrame.new(BasePart.Position)*Pos*Ang
 						flingPart.CFrame = targetCFrame
-						Character:SetPrimaryPartCFrame(targetCFrame)
+						NAmanage.UG_pivotModel(Character, targetCFrame)
 						flingManager.SetFlingVelocity(flingPart)
 					end
 
@@ -34905,8 +35138,8 @@ cmd.add({"clickfling","mousefling"},{"clickfling (mousefling)","Fling a player b
 					workspace.CurrentCamera.CameraSubject = Humanoid
 
 					repeat
-						RootPart.CFrame = flingManager.cFlingOldPos*CFrame.new(0,.5,0)
-						Character:SetPrimaryPartCFrame(flingManager.cFlingOldPos*CFrame.new(0,.5,0))
+						NAmanage.UG_setRootCFrame(RootPart, flingManager.cFlingOldPos*CFrame.new(0,.5,0))
+						NAmanage.UG_pivotModel(Character, flingManager.cFlingOldPos*CFrame.new(0,.5,0))
 						Humanoid:ChangeState("GettingUp")
 						for _,x in next,Character:GetChildren() do
 							if x:IsA("BasePart") then
@@ -35590,6 +35823,146 @@ NAmanage.UG_fetchCharPieces = function()
 	return chr, root, hum
 end
 
+NAmanage.UG_activeState = function()
+	local st = NAStuff and NAStuff.NAundergroundState
+	if type(st) == "table" and st.Underground == true then
+		return st
+	end
+	return nil
+end
+
+NAmanage.UG_clientCFrame = function(root, fallback)
+	local st = NAmanage.UG_activeState and NAmanage.UG_activeState() or nil
+	if st and typeof(st.UndergroundCurrent) == "CFrame" then
+		local chr = getChar and getChar() or nil
+		if not root or (chr and (root == getRoot(chr) or root:IsDescendantOf(chr))) then
+			return st.UndergroundCurrent
+		end
+	end
+	if root then
+		local ok, cf = pcall(function()
+			return root.CFrame
+		end)
+		if ok and typeof(cf) == "CFrame" then
+			return cf
+		end
+	end
+	if typeof(fallback) == "CFrame" then
+		return fallback
+	end
+	return nil
+end
+
+NAmanage.UG_clientPosition = function(root, fallback)
+	local cf = NAmanage.UG_clientCFrame and NAmanage.UG_clientCFrame(root) or nil
+	if typeof(cf) == "CFrame" then
+		return cf.Position
+	end
+	if typeof(fallback) == "Vector3" then
+		return fallback
+	end
+	return root and root.Position or nil
+end
+
+NAmanage.UG_setClientCFrame = function(root, cf)
+	if typeof(cf) ~= "CFrame" then
+		return false
+	end
+	local st = NAmanage.UG_activeState and NAmanage.UG_activeState() or nil
+	if st then
+		st.UndergroundCurrent = cf
+		st.PendingTranslation = nil
+		local _, liveRoot, hum = NAmanage.UG_fetchCharPieces()
+		root = root or liveRoot
+		if root then
+			st.UndergroundResolvedOffset = st.UndergroundMirrorGround and NAmanage.UG_getActiveOffset(st, root, hum) or (st.UndergroundOffset or Vector3.new())
+			if type(NAmanage.UG_updateVisualizer) == "function" then
+				pcall(NAmanage.UG_updateVisualizer, st, root, cf, true)
+			end
+		end
+	end
+	if root then
+		local ok = pcall(function()
+			root.CFrame = cf
+		end)
+		return ok
+	end
+	return st ~= nil
+end
+
+NAmanage.UG_isLocalObject = function(obj)
+	if typeof(obj) ~= "Instance" then
+		return false
+	end
+	local chr = getChar and getChar() or nil
+	if not chr then
+		return false
+	end
+	return obj == chr or obj:IsDescendantOf(chr)
+end
+
+NAmanage.UG_isLocalRoot = function(root)
+	if typeof(root) ~= "Instance" then
+		return false
+	end
+	local chr = getChar and getChar() or nil
+	if not chr then
+		return false
+	end
+	local liveRoot = getRoot and getRoot(chr) or nil
+	return root == liveRoot or root:IsDescendantOf(chr)
+end
+
+NAmanage.UG_rootForModel = function(model)
+	if typeof(model) ~= "Instance" then
+		return nil
+	end
+	local chr = getChar and getChar() or nil
+	if chr and (model == chr or model:IsDescendantOf(chr)) then
+		return getRoot and getRoot(chr) or nil
+	end
+	if model:IsA("BasePart") then
+		return model
+	end
+	return getRoot and getRoot(model) or model:FindFirstChildWhichIsA("BasePart", true)
+end
+
+NAmanage.UG_setRootCFrame = function(root, cf)
+	if typeof(cf) ~= "CFrame" then
+		return false
+	end
+	if NAmanage.UG_activeState and NAmanage.UG_activeState() and NAmanage.UG_isLocalRoot(root) then
+		return NAmanage.UG_setClientCFrame(root, cf)
+	end
+	if root then
+		local ok = pcall(function()
+			root.CFrame = cf
+		end)
+		return ok
+	end
+	return false
+end
+
+NAmanage.UG_pivotModel = function(model, cf)
+	if not (model and typeof(cf) == "CFrame") then
+		return false
+	end
+	if NAmanage.safePivotModel then
+		return NAmanage.safePivotModel(model, cf)
+	end
+	local root = NAmanage.UG_rootForModel and NAmanage.UG_rootForModel(model) or nil
+	if NAmanage.UG_activeState and NAmanage.UG_activeState() and NAmanage.UG_isLocalObject(model) then
+		return NAmanage.UG_setClientCFrame(root, cf)
+	end
+	local ok = pcall(function()
+		model:PivotTo(cf)
+	end)
+	if ok then
+		return true
+	end
+	return NAmanage.UG_setRootCFrame(root, cf)
+end
+
 NAmanage.UG_raycastDown = function(origin)
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
@@ -35916,14 +36289,15 @@ cmd.add({"clickscare","clickspook"},{"clickscare (clickspook)","Teleports next t
 
 		local char = getChar()
 		local root = getRoot(char)
-		local oldCF = root.CFrame
+		local oldCF = NAmanage.UG_clientCFrame(root) or root.CFrame
 		local distancepl = 2
 		local targetRoot = getRoot(clickedPlayer.Character)
 		if targetRoot then
-			root.CFrame = targetRoot.CFrame + targetRoot.CFrame.LookVector * distancepl
-			root.CFrame = CFrame.new(root.Position, targetRoot.Position)
+			local nextCF = targetRoot.CFrame + targetRoot.CFrame.LookVector * distancepl
+			NAmanage.UG_setClientCFrame(root, nextCF)
+			NAmanage.UG_setClientCFrame(root, CFrame.new(nextCF.Position, targetRoot.Position))
 			Wait(0.5)
-			root.CFrame = oldCF
+			NAmanage.UG_setClientCFrame(root, oldCF)
 		end
 	end)
 
@@ -37311,8 +37685,9 @@ cmd.add({"setwaypoint","setwp"},{"setwaypoint <name>", "Store your current posit
 
 	local char = getChar() or LocalPlayer.CharacterAdded:Wait()
 	local cf
+	local root = char and getRoot(char)
 	if char then
-		cf = char:GetPivot()
+		cf = (root and NAmanage.UG_clientCFrame(root)) or char:GetPivot()
 	end
 
 	if not cf then
@@ -37359,7 +37734,7 @@ cmd.add({"gotowaypoint","gotowp"},{"gotowaypoint <name>", "Teleport to a saved w
 		DoNotif("Unable to get your character.")
 		return
 	end
-	char:PivotTo(cf)
+	NAmanage.UG_pivotModel(char, cf)
 	DebugNotif(("Teleported to waypoint '%s'."):format(name))
 end,true)
 
@@ -38724,7 +39099,8 @@ cmd.add({"rjre","rejoinrefresh"},{"rjre (rejoinrefresh)","Rejoins and teleports 
 
 		local ch = getChar()
 		local hrp = ch and getRoot(ch) or getRoot(LocalPlayer)
-		if hrp then
+		local keepCF = hrp and (NAmanage.UG_clientCFrame(hrp) or hrp.CFrame) or nil
+		if keepCF then
 			local tpScript = Format([[
 local s,err = pcall(function()
 	repeat Wait() until game:IsLoaded()
@@ -38810,9 +39186,11 @@ local s,err = pcall(function()
 		repeat
 			root = char:FindFirstChild("HumanoidRootPart")
 			if not root then
-				for _,d in NAmanage.qDesc(char, "BasePart") do
-					root = d
-					break
+				for _,d in char:GetDescendants() do
+					if d:IsA("BasePart") then
+						root = d
+						break
+					end
 				end
 			end
 			if root then break end
@@ -38831,7 +39209,7 @@ local s,err = pcall(function()
 		Wait(0.1)
 	until (root.Position - targetPos).Magnitude < 10 or (tick() - t1 > 5)
 end)
-]], tostring(hrp.Position), tostring(hrp.CFrame))
+]], tostring(keepCF.Position), tostring(keepCF))
 
 			opt.queueteleport(tpScript)
 		end
@@ -39132,7 +39510,7 @@ function respawn()
 	local rootPart = getRoot(oldChar)
 	while not rootPart do Wait(.1) rootPart=getRoot(oldChar) end
 
-	local respawnCFrame = rootPart.CFrame
+	local respawnCFrame = NAmanage.UG_clientCFrame(rootPart) or rootPart.CFrame
 
 	local humanoid = getPlrHum(oldChar)
 	while not humanoid do Wait(.1) humanoid=getPlrHum(oldChar) end
@@ -39148,8 +39526,9 @@ function respawn()
 		local teleportThreshold = 15
 
 		while tick() - startTime < 0.4 do
-			if (newRoot.Position - respawnCFrame.Position).Magnitude > teleportThreshold then
-				newRoot.CFrame = respawnCFrame
+			local newPos = NAmanage.UG_clientPosition(newRoot) or newRoot.Position
+			if (newPos - respawnCFrame.Position).Magnitude > teleportThreshold then
+				NAmanage.UG_setClientCFrame(newRoot, respawnCFrame)
 				startTime = tick()
 			end
 			Wait(0.1)
@@ -39289,7 +39668,8 @@ NAmanage.verticalSelfTeleport=function(amount, direction)
 		DoNotif("Character root not found.")
 		return
 	end
-	character:PivotTo(character:GetPivot() + Vector3.new(0, studs * direction, 0))
+	local baseCF = NAmanage.UG_clientCFrame(root) or character:GetPivot()
+	NAmanage.UG_pivotModel(character, baseCF + Vector3.new(0, studs * direction, 0))
 end
 
 cmd.add({"tpup","up"},{"tpup <studs>","Teleports you up by the given amount of studs"},function(amount)
@@ -39306,7 +39686,8 @@ cmd.add({"tweento","tweengoto","tgoto"},{"tweengoto <player>","Teleportation met
 		if not (char and char.Parent and plr and plr.Character) then
 			continue
 		end
-		local startPivot = char:GetPivot()
+		local root = getRoot(char)
+		local startPivot = (root and NAmanage.UG_clientCFrame(root)) or char:GetPivot()
 		local targetPivot = plr.Character:GetPivot()
 		local duration = math.max(0.01, tonumber(NAmanage.resolveTweenDuration()) or 1)
 		local startTick = os.clock()
@@ -39334,7 +39715,7 @@ cmd.add({"tweento","tweengoto","tgoto"},{"tweengoto <player>","Teleportation met
 			end
 			local currentCF = startPivot:Lerp(targetPivot, eased)
 			NAmanage.SetAttr(char, "NATweenToCurrentCF", currentCF)
-			char:PivotTo(currentCF)
+			NAmanage.UG_pivotModel(char, currentCF)
 			if alpha >= 1 then
 				NAmanage.SetAttr(char, "NATweenToCurrentCF", nil)
 				NAmanage.SetAttr(char, "NATweenToActive", false)
@@ -39912,12 +40293,12 @@ cmd.add({"fakeout"}, {"fakeout", "tp to void and back"}, function()
 		NAlib.disconnect("antivoid")
 	end
 	local originalDestroyHeight = workspace.FallenPartsDestroyHeight
-	local originalCFrame = root.CFrame
+	local originalCFrame = NAmanage.UG_clientCFrame(root) or root.CFrame
 	local dropHeight = OrgDestroyHeight or originalDestroyHeight or 0
 	workspace.FallenPartsDestroyHeight = 0/1/0
-	root.CFrame = CFrame.new(Vector3.new(0, dropHeight - 25, 0))
+	NAmanage.UG_setRootCFrame(root, CFrame.new(Vector3.new(0, dropHeight - 25, 0)))
 	Wait(1)
-	root.CFrame = originalCFrame
+	NAmanage.UG_setRootCFrame(root, originalCFrame)
 	workspace.FallenPartsDestroyHeight = originalDestroyHeight
 	if antivoidWasActive then
 		local antivoidCommand = cmds.Commands["antivoid"]
@@ -42046,7 +42427,7 @@ cmd.add({"annoy"}, {"annoy <player>", "Annoys the given player"}, function(...)
 
 	local myChar = getChar()
 	local myRoot = myChar and getRoot(myChar)
-	local originalCFrame = myRoot and myRoot.CFrame
+	local originalCFrame = myRoot and (NAmanage.UG_clientCFrame(myRoot) or myRoot.CFrame)
 
 	if not myRoot then
 		DoNotif("Your character has no root part.", 3)
@@ -42069,13 +42450,13 @@ cmd.add({"annoy"}, {"annoy <player>", "Annoys the given player"}, function(...)
 		end
 
 		local offset = Vector3.new(math.random(-3,3), math.random(0,2), math.random(-3,3))
-		myRoot.CFrame = targetRoot.CFrame + offset
+		NAmanage.UG_setClientCFrame(myRoot, targetRoot.CFrame + offset)
 
 		RunService.RenderStepped:Wait()
 	until not NAStuff.annoyLoop
 
 	if myRoot and originalCFrame then
-		myRoot.CFrame = originalCFrame
+		NAmanage.UG_setClientCFrame(myRoot, originalCFrame)
 	end
 end, true)
 
@@ -43472,7 +43853,7 @@ cmd.add({"lay"},{"lay","zzzzzzzz"},function()
 	if not Human then return end
 	Human.Sit=true
 	Wait(.1)
-	Human.RootPart.CFrame=Human.RootPart.CFrame*CFrame.Angles(math.pi*.5,0,0)
+	NAmanage.UG_setRootCFrame(Human.RootPart, (NAmanage.UG_clientCFrame(Human.RootPart) or Human.RootPart.CFrame)*CFrame.Angles(math.pi*.5,0,0))
 	for _,v in Human:GetPlayingAnimationTracks() do
 		v:Stop()
 	end
@@ -44523,7 +44904,7 @@ cmd.add({"setspawn","spawnpoint","ss"},{"setspawn (spawnpoint, ss)","Sets your s
 		return DoNotif("failed to get character root",3)
 	end
 
-	NAStuff.spawnPosition = r.CFrame
+	NAStuff.spawnPosition = NAmanage.UG_clientCFrame(r) or r.CFrame
 	NAStuff.hasPosition = true
 	NAStuff.stationaryRespawn = true
 	DebugNotif("Spawn has been set")
@@ -44556,9 +44937,10 @@ cmd.add({"setspawn","spawnpoint","ss"},{"setspawn (spawnpoint, ss)","Sets your s
 
 		if not NAStuff.spawnActive then return end
 
-		r2.CFrame = NAStuff.spawnPosition
+		NAmanage.UG_setClientCFrame(r2, NAStuff.spawnPosition)
 
-		local d = (r2.Position - NAStuff.spawnPosition.Position).Magnitude
+		local r2pos = NAmanage.UG_clientPosition(r2) or r2.Position
+		local d = (r2pos - NAStuff.spawnPosition.Position).Magnitude
 		local now = tick()
 
 		if d < 5 then
@@ -44608,9 +44990,10 @@ originalIO.adb_try=function()
 		local h = ch and getHum(ch)
 
 		if r and h and h.Health > 0 then
-			r.CFrame = deathCFrame
+			NAmanage.UG_setClientCFrame(r, deathCFrame)
 
-			local d = (r.Position - deathCFrame.Position).Magnitude
+			local rpos = NAmanage.UG_clientPosition(r) or r.Position
+			local d = (rpos - deathCFrame.Position).Magnitude
 			local now = tick()
 
 			if d < 6 then
@@ -44664,7 +45047,7 @@ cmd.add({"flashback", "deathpos", "deathtp"}, {"flashback (deathpos, deathtp)", 
 	if deathCFrame then
 		local character = getChar()
 		if character and getRoot(character) then
-			getRoot(character).CFrame = deathCFrame
+			NAmanage.UG_setClientCFrame(getRoot(character), deathCFrame)
 		else
 			DebugNotif("Could not teleport, root is missing", 3)
 		end
@@ -44686,12 +45069,13 @@ NAmanage.fbaSafe = NAmanage.fbaSafe or function(root, hum, char)
 	if state == Enum.HumanoidStateType.Dead or state == Enum.HumanoidStateType.FallingDown or state == Enum.HumanoidStateType.Ragdoll or state == Enum.HumanoidStateType.Seated then
 		return false
 	end
+	local pos = (NAmanage.UG_clientCFrame and NAmanage.UG_clientCFrame(root) or root.CFrame).Position
 	local vel = root.AssemblyLinearVelocity or root.Velocity
 	if vel and (vel.Magnitude > 250 or vel.Y < -90) then
 		return false
 	end
 	local fph = tonumber(workspace.FallenPartsDestroyHeight) or -500
-	if root.Position.Y <= fph + 25 then
+	if pos.Y <= fph + 25 then
 		return false
 	end
 	local params = RaycastParams.new()
@@ -44703,7 +45087,7 @@ NAmanage.fbaSafe = NAmanage.fbaSafe or function(root, hum, char)
 	end
 	params.FilterDescendantsInstances = char and { char } or {}
 	local ok, hit = pcall(function()
-		return workspace:Raycast(root.Position, Vector3.new(0, -8, 0), params)
+		return workspace:Raycast(pos, Vector3.new(0, -8, 0), params)
 	end)
 	return ok and hit ~= nil
 end
@@ -44722,8 +45106,9 @@ originalIO.fba_try = function()
 		local r = ch and getRoot(ch)
 		local h = ch and getHum(ch)
 		if r and h and h.Health > 0 then
-			r.CFrame = cf
-			local d = (r.Position - cf.Position).Magnitude
+			NAmanage.UG_setClientCFrame(r, cf)
+			local rpos = NAmanage.UG_clientPosition(r) or r.Position
+			local d = (rpos - cf.Position).Magnitude
 			local now = tick()
 			if d < 6 then
 				if ok0 == 0 then
@@ -44750,7 +45135,7 @@ cmd.add({"flashbackalt", "fba", "safeplace"}, {"flashbackalt (fba)", "Teleports 
 	if not root then
 		return DebugNotif("Could not teleport, root is missing", 3)
 	end
-	root.CFrame = cf
+	NAmanage.UG_setClientCFrame(root, cf)
 end)
 
 cmd.add({"autoflashbackalt", "autodeathposalt", "deathbackalt", "afba"}, {"autoflashbackalt (afba)", "Auto-teleports you to the 0 HP flashback point on respawn"}, function()
@@ -44790,7 +45175,7 @@ cmd.add({"tospawn", "ts"}, {"tospawn (ts)", "Teleports you to a SpawnLocation"},
 	end
 	local closestSpawn = nil
 	local shortestDistance = math.huge
-	local rootPosition = root.Position
+	local rootPosition = NAmanage.UG_clientPosition(root) or root.Position
 	for _, descendant in NAmanage.qDesc(workspace, "SpawnLocation") do
 		local distance = (descendant.Position - rootPosition).Magnitude
 		if distance < shortestDistance then
@@ -44801,7 +45186,7 @@ cmd.add({"tospawn", "ts"}, {"tospawn (ts)", "Teleports you to a SpawnLocation"},
 	if not closestSpawn then
 		return DebugNotif("No SpawnLocation found in workspace", 3)
 	end
-	root.CFrame = closestSpawn.CFrame * CFrame.new(0, 5, 0)
+	NAmanage.UG_setClientCFrame(root, closestSpawn.CFrame * CFrame.new(0, 5, 0))
 end)
 
 NAStuff.hamsterState = NAStuff.hamsterState or { active = false }
@@ -45295,6 +45680,12 @@ NAmanage.safePivotModel = function(model, cf)
 		return false
 	end
 
+	local st = NAmanage.UG_activeState and NAmanage.UG_activeState() or nil
+	if st and NAmanage.UG_isLocalObject and NAmanage.UG_isLocalObject(model) then
+		local root = NAmanage.UG_rootForModel and NAmanage.UG_rootForModel(model) or nil
+		return NAmanage.UG_setClientCFrame(root, cf)
+	end
+
 	local function updateUndergroundState()
 		local st = NAStuff and NAStuff.NAundergroundState
 		if not (st and st.Underground) then
@@ -45595,7 +45986,7 @@ cmd.add({"thru"},{"thru <distance>","Move forward by distance"},function(distanc
 	if num < 1 then
 		num = 1
 	end
-	local rootCF = root.CFrame
+	local rootCF = NAmanage.UG_clientCFrame(root) or root.CFrame
 	local look = rootCF.LookVector
 	local targetPos = rootCF.Position + (look * num)
 
@@ -45626,10 +46017,10 @@ cmd.add({"thru"},{"thru <distance>","Move forward by distance"},function(distanc
 
 	if char and NAmanage.safePivotModel then
 		if not NAmanage.safePivotModel(char, targetCF) then
-			root.CFrame = targetCF
+			NAmanage.UG_setRootCFrame(root, targetCF)
 		end
 	else
-		root.CFrame = targetCF
+		NAmanage.UG_setRootCFrame(root, targetCF)
 	end
 end)
 
@@ -47639,7 +48030,7 @@ cmd.add({"creep"}, {"creep <player>", "Teleports from a player behind them and u
 		return
 	end
 
-	root.CFrame = getPlrHum(target).RootPart.CFrame * CFrame.new(0, -10, 4)
+	NAmanage.UG_setRootCFrame(root, getPlrHum(target).RootPart.CFrame * CFrame.new(0, -10, 4))
 	Wait()
 
 	if NAlib.isConnected("noclip") then
@@ -51747,7 +52138,7 @@ cmd.add({"antibang"}, {"antibang", "prevents users to bang you (still WORK IN PR
 		platformPart.Transparency = 1
 		platformPart.Position = Vector3.new(0, orgHeight - 30, 0)
 		platformPart.Parent = workspace
-		root.CFrame = CFrame.new(Vector3.new(0, orgHeight - 25, 0))
+		NAmanage.UG_setRootCFrame(root, CFrame.new(Vector3.new(0, orgHeight - 25, 0)))
 
 		if not toldNotif then
 			toldNotif = true
@@ -51853,7 +52244,7 @@ cmd.add({"antibang"}, {"antibang", "prevents users to bang you (still WORK IN PR
 				or (activationTime and tick() - activationTime >= 10) then
 				inVoid = false
 				targetPlayer = nil
-				root.CFrame = originalPos
+				NAmanage.UG_setRootCFrame(root, originalPos)
 				root.Anchored = true
 				Wait()
 				root.Anchored = false
@@ -51917,7 +52308,8 @@ cmd.add({"orbit"}, {"orbit <player> <distance> [speed]", "Orbit around a player"
 		sineX, sineZ = sineX + step, sineZ + step
 		local sinX, sinZ = math.sin(sineX), math.sin(sineZ)
 		hrp.Velocity = Vector3.zero
-		hrp.CFrame = CFrame.new(sinX * dist, 0, sinZ * dist) * (hrp.CFrame - hrp.CFrame.p) + thrp.CFrame.p
+		local baseCF = NAmanage.UG_clientCFrame(hrp) or hrp.CFrame
+		NAmanage.UG_setRootCFrame(hrp, CFrame.new(sinX * dist, 0, sinZ * dist) * (baseCF - baseCF.p) + thrp.CFrame.p)
 	end))
 end, true)
 
@@ -51944,7 +52336,8 @@ cmd.add({"uporbit"}, {"uporbit <player> <distance> [speed]", "Orbit around a pla
 		sineX, sineY = sineX + step, sineY + step
 		local sinX, sinY = math.sin(sineX), math.sin(sineY)
 		hrp.Velocity = Vector3.zero
-		hrp.CFrame = CFrame.new(sinX * dist, sinY * dist, 0) * (hrp.CFrame - hrp.CFrame.p) + thrp.CFrame.p
+		local baseCF = NAmanage.UG_clientCFrame(hrp) or hrp.CFrame
+		NAmanage.UG_setRootCFrame(hrp, CFrame.new(sinX * dist, sinY * dist, 0) * (baseCF - baseCF.p) + thrp.CFrame.p)
 	end))
 end, true)
 
@@ -52216,6 +52609,7 @@ cmd.add({"instantrespawn", "instantr", "irespawn"}, {"instantrespawn (instantr, 
 	replicatesignal(LocalPlayer.ConnectDiedSignalBackend)
 
 	local rootPart = LocalPlayer.Character and getRoot(LocalPlayer.Character)
+	local respawnCF = rootPart and (NAmanage.UG_clientCFrame(rootPart) or rootPart.CFrame) or nil
 	local cam = workspace.CurrentCamera
 
 	Wait(Players.RespawnTime - 0.165)
@@ -52227,8 +52621,11 @@ cmd.add({"instantrespawn", "instantr", "irespawn"}, {"instantrespawn (instantr, 
 
 	Wait(0.5)
 
-	if rootPart then
-		getRoot(LocalPlayer.Character).CFrame = rootPart.CFrame
+	if respawnCF then
+		local newRoot = getRoot(LocalPlayer.Character)
+		if newRoot then
+			NAmanage.UG_setClientCFrame(newRoot, respawnCF)
+		end
 	end
 
 	workspace.CurrentCamera = cam
@@ -52502,7 +52899,7 @@ cmd.add({"seizure"}, {"seizure", "Gives you a seizure"}, function()
 			end
 			_na_env.currentnormal = workspace.Gravity
 			workspace.Gravity = 196.2
-			LocalPlayer.Character:PivotTo(LocalPlayer.Character:GetPivot() * CFrame.Angles(2, 0, 0))
+			NAmanage.UG_pivotModel(LocalPlayer.Character, ((getRoot(LocalPlayer.Character) and NAmanage.UG_clientCFrame(getRoot(LocalPlayer.Character))) or LocalPlayer.Character:GetPivot()) * CFrame.Angles(2, 0, 0))
 			Wait(0.5)
 			if getHum() and getHum().PlatformStand then getHum().PlatformStand = true end
 			LocalPlayer.Character.Animate.Disabled = true
@@ -52864,7 +53261,7 @@ NAmanage.fireToolPromptsFromCharacter = NAmanage.fireToolPromptsFromCharacter or
 		return false, false
 	end
 
-	local oldCF = root.CFrame
+	local oldCF = NAmanage.UG_clientCFrame(root) or root.CFrame
 	local moved = false
 	local firedAny = false
 
@@ -52890,6 +53287,7 @@ NAmanage.fireToolPromptsFromCharacter = NAmanage.fireToolPromptsFromCharacter or
 	end
 
 	if moved and char and char.Parent and root and root.Parent then
+		NAmanage.UG_setClientCFrame(root, oldCF)
 		NAmanage.safePivotModel(char, oldCF)
 	end
 
@@ -55216,7 +55614,7 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(plr)
 
 			local _, rootSpeed = flingManager.GetPartVelocity(RootPart)
 			if not flingManager.cFlingOldPos or rootSpeed < 50 then
-				flingManager.cFlingOldPos = RootPart.CFrame
+				flingManager.cFlingOldPos = NAmanage.UG_clientCFrame(RootPart) or RootPart.CFrame
 			end
 
 			if THead then
@@ -55235,7 +55633,7 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(plr)
 			local function FPos(BasePart, Pos, Ang)
 				local targetCFrame = CFrame.new(BasePart.Position) * Pos * Ang
 				flingPart.CFrame = targetCFrame
-				Character:SetPrimaryPartCFrame(targetCFrame)
+				NAmanage.UG_pivotModel(Character, targetCFrame)
 				flingManager.SetFlingVelocity(flingPart)
 			end
 
@@ -55305,8 +55703,8 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(plr)
 			workspace.CurrentCamera.CameraSubject = Humanoid
 
 			repeat
-				RootPart.CFrame                  = flingManager.cFlingOldPos * CFrame.new(0, .5, 0)
-				Character:SetPrimaryPartCFrame( flingManager.cFlingOldPos * CFrame.new(0, .5, 0) )
+				NAmanage.UG_setRootCFrame(RootPart, flingManager.cFlingOldPos * CFrame.new(0, .5, 0))
+				NAmanage.UG_pivotModel(Character, flingManager.cFlingOldPos * CFrame.new(0, .5, 0))
 				Humanoid:ChangeState("GettingUp")
 				for _, x in next, Character:GetChildren() do
 					if x:IsA("BasePart") then
@@ -56829,14 +57227,14 @@ cmd.add({"goto","to","tp","teleport"},{"goto <player|X,Y,Z>","Teleport to the gi
 	if #targets > 0 then
 		for _,plr in targets do
 			if char and plr.Character then
-				char:PivotTo(plr.Character:GetPivot())
+				NAmanage.UG_pivotModel(char, plr.Character:GetPivot())
 			end
 		end
 	else
 		local x,y,z = input:match("^(%-?%d+%.?%d*)[,%s]+(%-?%d+%.?%d*)[,%s]+(%-?%d+%.?%d*)$")
 		if x and y and z then
 			if char then
-				char:PivotTo(CFrame.new(tonumber(x),tonumber(y),tonumber(z)))
+				NAmanage.UG_pivotModel(char, CFrame.new(tonumber(x),tonumber(y),tonumber(z)))
 			end
 		else
 			DebugNotif("Invalid input: not a valid player or X,Y,Z coordinates",3)
@@ -56850,7 +57248,7 @@ function stareFIXER(char, facePos)
 	local pos = root.Position
 	local flatTarget = Vector3.new(facePos.X, pos.Y, facePos.Z)
 	if (flatTarget - pos).Magnitude < 0.1 then return end
-	root.CFrame = CFrame.new(pos, flatTarget)
+	NAmanage.UG_setRootCFrame(root, CFrame.new(pos, flatTarget))
 end
 
 cmd.add({"lookat", "stare"}, {"lookat <player>", "Stare at a player"}, function(...)
@@ -58341,9 +58739,9 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 
 			LOOPPROTECT.CFrame = cf
 			pcall(function()
-				Character:PivotTo(cf)
+				NAmanage.UG_pivotModel(Character, cf)
 			end)
-			HRP.CFrame = cf
+			NAmanage.UG_setRootCFrame(HRP, cf)
 			flingManager.SetFlingVelocity(LOOPPROTECT)
 			return true
 		end
@@ -58447,9 +58845,9 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 		if Character and Humanoid and HRP and flingManager.lFlingOldPos then
 			local Time = tick()
 			repeat
-				HRP.CFrame = flingManager.lFlingOldPos * CFrame.new(0, 0.5, 0)
+				NAmanage.UG_setRootCFrame(HRP, flingManager.lFlingOldPos * CFrame.new(0, 0.5, 0))
 				pcall(function()
-					Character:PivotTo(flingManager.lFlingOldPos * CFrame.new(0, 0.5, 0))
+					NAmanage.UG_pivotModel(Character, flingManager.lFlingOldPos * CFrame.new(0, 0.5, 0))
 				end)
 				pcall(function()
 					Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
@@ -61435,7 +61833,7 @@ cmd.add({"walltp","wtp"},{"walltp","Toggles wall top teleport (BETA)"},function(
 		pcall(function() root.RotVelocity = Vector3.zero end)
 
 		if not NAmanage.safePivotModel(char, cf) then
-			root.CFrame = cf
+			NAmanage.UG_setRootCFrame(root, cf)
 		end
 	end))
 
@@ -61482,12 +61880,12 @@ cmd.add({"wallhop"},{"wallhop","wallhop helper"},function()
 					local flickAngle = 35 * (math.random(0,1) == 0 and -1 or 1)
 					local newYaw = originalYaw + flickAngle
 
-					root.CFrame = CFrame.new(root.Position) * CFrame.Angles(0, math.rad(newYaw), 0)
+					NAmanage.UG_setRootCFrame(root, CFrame.new((NAmanage.UG_clientPosition(root) or root.Position)) * CFrame.Angles(0, math.rad(newYaw), 0))
 					NAmanage.LaunchHumanoid(hum, root)
 
 					Delay(0.1, function()
 						if root and root.Parent then
-							root.CFrame = CFrame.new(root.Position) * CFrame.Angles(0, math.rad(originalYaw), 0)
+							NAmanage.UG_setRootCFrame(root, CFrame.new((NAmanage.UG_clientPosition(root) or root.Position)) * CFrame.Angles(0, math.rad(originalYaw), 0))
 						end
 					end)
 				end
@@ -62314,7 +62712,7 @@ cmd.add({"loopwaveat", "loopwat"}, {"loopwaveat <player> (loopwat)", "Wave to a 
 	local targets = getPlr(playerName)
 	for _, plr in next, targets do
 		local char = getChar()
-		local oldCFrame = getRoot(char).CFrame
+		local oldCFrame = NAmanage.UG_clientCFrame(getRoot(char)) or getRoot(char).CFrame
 		repeat
 			Wait(0.2)
 			local targetCFrame = getRoot(plr.Character).CFrame
@@ -62324,17 +62722,17 @@ cmd.add({"loopwaveat", "loopwat"}, {"loopwaveat <player> (loopwat)", "Wave to a 
 			else
 				waveAnim.AnimationId = "rbxassetid://128777973"
 			end
-			getRoot(char).CFrame = targetCFrame * CFrame.new(0, 0, -3)
+			NAmanage.UG_setRootCFrame(getRoot(char), targetCFrame * CFrame.new(0, 0, -3))
 			local charPos = char.PrimaryPart.Position
 			local tpos = getRoot(plr.Character).Position
 			local newCFrame = CFrame.new(charPos, Vector3.new(tpos.X, charPos.Y, tpos.Z))
-			Players.LocalPlayer.Character:SetPrimaryPartCFrame(newCFrame)
+			NAmanage.UG_pivotModel(Players.LocalPlayer.Character, newCFrame)
 			local wave = getHum():LoadAnimation(waveAnim)
 			wave:Play(-1, 5, -1)
 			Wait(1.6)
 			wave:Stop()
 		until not loopwave
-		getRoot(char).CFrame = oldCFrame
+		NAmanage.UG_setClientCFrame(getRoot(char), oldCFrame)
 	end
 end, true)
 
@@ -62962,15 +63360,15 @@ cmd.add({"waveat", "wat"}, {"waveat <player> (wat)", "Wave to a player"}, functi
 	local char = getChar()
 	local humanoid = getHum()
 	local localRoot = getRoot(char)
-	local oldCFrame = localRoot.CFrame
+	local oldCFrame = NAmanage.UG_clientCFrame(localRoot) or localRoot.CFrame
 	local targetRoot = getRoot(plr.Character)
 	if targetRoot then
-		localRoot.CFrame = targetRoot.CFrame * CFrame.new(0, 0, -3)
+		NAmanage.UG_setClientCFrame(localRoot, targetRoot.CFrame * CFrame.new(0, 0, -3))
 		local charPos = char.PrimaryPart.Position
 		local targetHRP = getRoot(plr.Character)
 		if targetHRP then
 			local newCFrame = CFrame.new(charPos, Vector3.new(targetHRP.Position.X, charPos.Y, targetHRP.Position.Z))
-			Players.LocalPlayer.Character:SetPrimaryPartCFrame(newCFrame)
+			NAmanage.UG_pivotModel(Players.LocalPlayer.Character, newCFrame)
 		end
 		local waveAnim = InstanceNew("Animation")
 		if IsR15() then
@@ -62982,7 +63380,7 @@ cmd.add({"waveat", "wat"}, {"waveat <player> (wat)", "Wave to a player"}, functi
 		wave:Play(-1, 5, -1)
 		Wait(1.6)
 		wave:Stop()
-		localRoot.CFrame = oldCFrame
+		NAmanage.UG_setClientCFrame(localRoot, oldCFrame)
 	end
 end, true)
 
@@ -63048,7 +63446,7 @@ cmd.add({"headbang", "mouthbang", "headfuck", "mouthfuck", "facebang", "facefuck
 				if targetRoot and localPrimary then
 					local charPos = localPrimary.Position
 					local newCFrame = CFrame.new(charPos, Vector3.new(targetRoot.Position.X, charPos.Y, targetRoot.Position.Z))
-					localCharacter:SetPrimaryPartCFrame(newCFrame)
+					NAmanage.UG_pivotModel(localCharacter, newCFrame)
 				end
 				localRoot.AssemblyLinearVelocity = Vector3.new()
 				localRoot.AssemblyAngularVelocity = Vector3.new()
@@ -63098,7 +63496,7 @@ cmd.add({"jerkuser", "jorkuser", "handjob", "hjob", "handj"}, {"jerkuser <player
 	local root = getRoot(char)
 	if not root then return end
 
-	root.CFrame = root.CFrame * CFrame.Angles(math.pi * 0.5, math.pi, 0)
+	NAmanage.UG_setRootCFrame(root, (NAmanage.UG_clientCFrame(root) or root.CFrame) * CFrame.Angles(math.pi * 0.5, math.pi, 0))
 
 	for _, part in jerkParts do
 		part:Destroy()
@@ -63137,7 +63535,7 @@ cmd.add({"jerkuser", "jorkuser", "handjob", "hjob", "handj"}, {"jerkuser <player
 			local targetChar = plr.Character
 			local targetRoot = targetChar and getRoot(targetChar)
 			if targetRoot then
-				root.CFrame = targetRoot.CFrame * jerkOffset
+				NAmanage.UG_setRootCFrame(root, targetRoot.CFrame * jerkOffset)
 			end
 		end)
 	end))
@@ -63163,7 +63561,7 @@ cmd.add({"unjerkuser", "unjorkuser", "unhandjob", "unhjob", "unhandj"}, {"unjerk
 	local char = getChar()
 	local root = getRoot(char)
 	if root then
-		root.CFrame = root.CFrame * CFrame.Angles(0, math.pi, 0)
+		NAmanage.UG_setRootCFrame(root, (NAmanage.UG_clientCFrame(root) or root.CFrame) * CFrame.Angles(0, math.pi, 0))
 	end
 
 	local humanoid = getHum()
@@ -64542,7 +64940,7 @@ cmd.add({"suslay", "laysus"}, {"suslay (laysus)", "Lay down in a suspicious way"
 
 	hum.Sit = true
 	Wait(0.1)
-	root.CFrame=root.CFrame * CFrame.Angles(math.pi * 0.5, 0, 0)
+	NAmanage.UG_setRootCFrame(root, (NAmanage.UG_clientCFrame(root) or root.CFrame) * CFrame.Angles(math.pi * 0.5, 0, 0))
 
 	for _, a in hum:GetPlayingAnimationTracks() do
 		a:Stop()
@@ -64702,7 +65100,7 @@ cmd.add({"hug", "clickhug"}, {"hug (clickhug)", "huggies time (click on a target
 			if targetHRP and localHRP then
 				local offset = (hugFromFront and (targetHRP.CFrame.LookVector * offsetDistance)) or (-(targetHRP.CFrame.LookVector * offsetDistance))
 				local initialHugPos = targetHRP.Position + offset
-				localHRP.CFrame = CFrame.new(initialHugPos, targetHRP.Position)
+				NAmanage.UG_setRootCFrame(localHRP, CFrame.new(initialHugPos, targetHRP.Position))
 				local humanoid = getPlrHum(localCharacter)
 				if humanoid then
 					local anim1 = InstanceNew("Animation")
@@ -64754,7 +65152,7 @@ cmd.add({"hug", "clickhug"}, {"hug (clickhug)", "huggies time (click on a target
 							offset = (hugFromFront and (targetHRP.CFrame.LookVector * offsetDistance)) or (-(targetHRP.CFrame.LookVector * offsetDistance))
 							local newHugPos = targetHRP.Position + offset
 							if localHRP then
-								localHRP.CFrame = CFrame.new(newHugPos, targetHRP.Position)
+								NAmanage.UG_setRootCFrame(localHRP, CFrame.new(newHugPos, targetHRP.Position))
 							end
 							Wait()
 						end
@@ -64869,15 +65267,16 @@ cmd.add({"spook", "scare"}, {"spook <player> (scare)", "Teleports next to a play
 	for _, plr in next, targets do
 		local char = getChar()
 		local root = getRoot(char)
-		local oldCF = root.CFrame
+		local oldCF = NAmanage.UG_clientCFrame(root) or root.CFrame
 		local distancepl = 2
 		if getPlrHum(plr) then
 			local targetRoot = getRoot(plr.Character)
 			if targetRoot then
-				root.CFrame = targetRoot.CFrame + targetRoot.CFrame.LookVector * distancepl
-				root.CFrame = CFrame.new(root.Position, targetRoot.Position)
+				local nextCF = targetRoot.CFrame + targetRoot.CFrame.LookVector * distancepl
+				NAmanage.UG_setClientCFrame(root, nextCF)
+				NAmanage.UG_setClientCFrame(root, CFrame.new(nextCF.Position, targetRoot.Position))
 				Wait(0.5)
-				root.CFrame = oldCF
+				NAmanage.UG_setClientCFrame(root, oldCF)
 			end
 		end
 	end
@@ -64902,11 +65301,12 @@ cmd.add({"loopspook","loopscare"},{"loopspook <player>","Teleports next to a pla
 					local lr = getRoot(lc)
 					local tr = getRoot(target.Character)
 					if lr and tr then
-						local old = lr.CFrame
-						lr.CFrame = tr.CFrame + tr.CFrame.LookVector * 2
-						lr.CFrame = CFrame.new(lr.Position, tr.Position)
+						local old = NAmanage.UG_clientCFrame(lr) or lr.CFrame
+						local nextCF = tr.CFrame + tr.CFrame.LookVector * 2
+						NAmanage.UG_setClientCFrame(lr, nextCF)
+						NAmanage.UG_setClientCFrame(lr, CFrame.new(nextCF.Position, tr.Position))
 						Wait(0.5)
-						lr.CFrame = old
+						NAmanage.UG_setClientCFrame(lr, old)
 					end
 				end
 			end
@@ -67016,11 +67416,21 @@ NAmanage.getAutoInteractDefaultInterval = function()
 	return math.clamp(tonumber(NAStuff.AutoInteractDefaultInterval) or 0.1, 0, 1)
 end
 
-local promptPartCache = {}
-local carPartCache = {}
-local promptNamesCache = {}
-local clickNamesCache = {}
-local partNamesCache = {}
+local promptPartCache = NAmanage.ensureWeakTable(nil, "k")
+local carPartCache = NAmanage.ensureWeakTable(nil, "k")
+local promptNamesCache = NAmanage.ensureWeakTable(nil, "k")
+local clickNamesCache = NAmanage.ensureWeakTable(nil, "k")
+local partNamesCache = NAmanage.ensureWeakTable(nil, "k")
+
+NAindex.pruneCaches = function()
+	NAmanage.pruneInstanceKeyMap(promptPartCache)
+	NAmanage.pruneInstanceValueMap(promptPartCache)
+	NAmanage.pruneInstanceKeyMap(carPartCache)
+	NAmanage.pruneInstanceValueMap(carPartCache)
+	NAmanage.pruneInstanceKeyMap(promptNamesCache)
+	NAmanage.pruneInstanceKeyMap(clickNamesCache)
+	NAmanage.pruneInstanceKeyMap(partNamesCache)
+end
 
 NAindex.lc = function(s)
 	if s then
@@ -67033,12 +67443,19 @@ NAindex.carPart = function(inst)
 	if not inst then
 		return nil
 	end
+	if not NAmanage.isLiveInstance(inst) then
+		carPartCache[inst] = nil
+		return nil
+	end
 	local c = carPartCache[inst]
 	if c ~= nil then
 		if c == false then
 			return nil
 		end
-		return c
+		if NAmanage.isLiveInstance(c) then
+			return c
+		end
+		carPartCache[inst] = nil
 	end
 	local part
 	if inst:IsA("BasePart") then
@@ -67070,12 +67487,19 @@ NAindex.getPromptPart = function(pp)
 	if not pp then
 		return nil
 	end
+	if not NAmanage.isLiveInstance(pp) then
+		promptPartCache[pp] = nil
+		return nil
+	end
 	local c = promptPartCache[pp]
 	if c ~= nil then
 		if c == false then
 			return nil
 		end
-		return c
+		if NAmanage.isLiveInstance(c) then
+			return c
+		end
+		promptPartCache[pp] = nil
 	end
 	local parent = pp.Parent
 	local part
@@ -67107,6 +67531,10 @@ NAindex.getPromptPart = function(pp)
 end
 
 NAindex.namesForPrompt = function(p)
+	if not NAmanage.isLiveInstance(p) then
+		promptNamesCache[p] = nil
+		return {}
+	end
 	local cached = promptNamesCache[p]
 	if cached then
 		return cached
@@ -67148,6 +67576,10 @@ NAindex.namesForPrompt = function(p)
 end
 
 NAindex.namesForClick = function(d)
+	if not NAmanage.isLiveInstance(d) then
+		clickNamesCache[d] = nil
+		return {}
+	end
 	local cached = clickNamesCache[d]
 	if cached then
 		return cached
@@ -67177,7 +67609,10 @@ NAindex.namesForClick = function(d)
 end
 
 NAindex.namesForPart = function(part)
-	if not part then
+	if not part or not NAmanage.isLiveInstance(part) then
+		if part then
+			partNamesCache[part] = nil
+		end
 		return {}
 	end
 	local cached = partNamesCache[part]
@@ -70339,7 +70774,7 @@ do
 			hum.Sit = false;
 		end;
 		pcall(function()
-			char:PivotTo(targetCFrame + Vector3.new(0, 4, 0));
+			NAmanage.UG_pivotModel(char, targetCFrame + Vector3.new(0, 4, 0));
 		end);
 		return true;
 	end;
@@ -70804,7 +71239,7 @@ cmd.add({"gotopart", "topart", "toprt"}, {"gotopart {partname}", "Teleports you 
 			if not taskState.active then return end
 			if part.Name:lower() == partName then
 				if getHum() then getHum().Sit = false Wait(0.1) end
-				if getChar() then getChar():PivotTo(part:GetPivot()) end
+				if getChar() then NAmanage.UG_pivotModel(getChar(), part:GetPivot()) end
 				Wait(partDelay)
 			end
 		end
@@ -70831,7 +71266,8 @@ cmd.add({"tweengotopart","tgotopart","ttopart","ttoprt"},{"tweengotopart <partNa
 				local char = getChar()
 				if char then
 					local duration = NAmanage.resolveTweenDuration()
-					local startCF = char:GetPivot()
+					local root = getRoot(char)
+					local startCF = (root and NAmanage.UG_clientCFrame(root)) or char:GetPivot()
 					local targetCF = obj:GetPivot()
 					local elapsed = 0
 					local done = false
@@ -70854,7 +71290,7 @@ cmd.add({"tweengotopart","tgotopart","ttopart","ttoprt"},{"tweengotopart <partNa
 						local alpha = duration <= 0 and 1 or math.clamp(elapsed / duration, 0, 1)
 						local currentCF = startCF:Lerp(targetCF, alpha)
 						NAmanage.SetAttr(char, tweenAttrCurrent, currentCF)
-						char:PivotTo(currentCF)
+						NAmanage.UG_pivotModel(char, currentCF)
 						if alpha >= 1 then
 							NAmanage.SetAttr(char, tweenAttrCurrent, nil)
 							NAmanage.SetAttr(char, tweenAttrActive, false)
@@ -70893,7 +71329,7 @@ cmd.add({"gotopartfind", "topartfind", "toprtfind"}, {"gotopartfind {name}", "Te
 			if not taskState.active then return end
 			if part.Name:lower():find(name) then
 				if getHum() then getHum().Sit = false Wait(0.1) end
-				if getChar() then getChar():PivotTo(part:GetPivot()) end
+				if getChar() then NAmanage.UG_pivotModel(getChar(), part:GetPivot()) end
 				Wait(partDelay)
 			end
 		end
@@ -70925,9 +71361,15 @@ cmd.add({"tweengotopartfind", "tgotopartfind", "ttopartfind", "ttoprtfind"}, {"t
 				local root = char and getRoot(char)
 				if root then
 					local duration = NAmanage.resolveTweenDuration()
-					local tween = __lt.cm("TweenService", "Create", root, TweenInfo.new(duration, Enum.EasingStyle.Linear), {CFrame = part.CFrame})
-					tween:Play()
-					Wait(duration + partDelay)
+					local startCF = NAmanage.UG_clientCFrame(root) or root.CFrame
+					local targetCF = part.CFrame
+					local t0 = os.clock()
+					repeat
+						local alpha = duration <= 0 and 1 or math.clamp((os.clock() - t0) / duration, 0, 1)
+						NAmanage.UG_pivotModel(char, startCF:Lerp(targetCF, alpha))
+						Wait()
+					until alpha >= 1 or not taskState.active
+					Wait(partDelay)
 				end
 			end
 		end
@@ -70951,7 +71393,7 @@ cmd.add({"gotopartclass", "gpc", "gotopartc", "gotoprtc"}, {"gotopartclass {clas
 			if not taskState.active then return end
 			if part.ClassName:lower() == className then
 				if getHum() then getHum().Sit = false Wait(0.1) end
-				if getChar() then getChar():PivotTo(part:GetPivot()) end
+				if getChar() then NAmanage.UG_pivotModel(getChar(), part:GetPivot()) end
 				Wait(partDelay)
 			end
 		end
@@ -71097,7 +71539,7 @@ cmd.add({"gotomodel", "tomodel"}, {"gotomodel {modelname}", "Teleports to each m
 			if not taskState.active then return end
 			if model.Name:lower() == modelName then
 				if getHum() then getHum().Sit = false Wait(0.1) end
-				if getChar() then getChar():PivotTo(model:GetPivot()) end
+				if getChar() then NAmanage.UG_pivotModel(getChar(), model:GetPivot()) end
 				Wait(partDelay)
 			end
 		end
@@ -71121,7 +71563,7 @@ cmd.add({"gotomodelfind", "tomodelfind"}, {"gotomodelfind {name}", "Teleports to
 			if not taskState.active then return end
 			if model.Name:lower():find(name) then
 				if getHum() then getHum().Sit = false Wait(0.1) end
-				if getChar() then getChar():PivotTo(model:GetPivot()) end
+				if getChar() then NAmanage.UG_pivotModel(getChar(), model:GetPivot()) end
 				Wait(partDelay)
 			end
 		end
@@ -71139,7 +71581,7 @@ cmd.add({"gotomodelfind", "tomodelfind"}, {"gotomodelfind {name} (tomodelfind)",
 				Wait(0.1)
 			end
 			if getChar() then
-				getChar():PivotTo(model:GetPivot())
+				NAmanage.UG_pivotModel(getChar(), model:GetPivot())
 			end
 			Wait(partDelay)
 		end
@@ -71167,7 +71609,7 @@ cmd.add({"gotofolder","gofldr"},{"gotofolder {folderName}","Teleports you to all
 			local hum = getHum()
 			if hum then hum.Sit = false Wait(0.1) end
 			local char = getChar()
-			if char then char:PivotTo(desc:GetPivot()) end
+			if char then NAmanage.UG_pivotModel(char, desc:GetPivot()) end
 			Wait(partDelay)
 		end
 	end)
@@ -71787,6 +72229,72 @@ NAmanage.DisableEsp = function(objType, list)
 	end
 end
 
+NAmanage.NameESP_SelfMatches = function(obj, mode)
+	if typeof(obj) ~= "Instance" then
+		return false
+	end
+
+	local lists = NAStuff and NAStuff.espNameLists
+	local list = lists and lists[mode]
+	if type(list) ~= "table" or #list == 0 then
+		return false
+	end
+
+	local nm = Lower(obj.Name)
+	local ex = NAStuff.nameESPExclusions and NAStuff.nameESPExclusions[mode]
+	if ex and ex[nm] then
+		return false
+	end
+
+	for _, term in list do
+		if (mode == "exact" and nm == term) or (mode == "partial" and Find(nm, term)) then
+			return true
+		end
+	end
+
+	return false
+end
+
+NAmanage.NameESP_BasePartMatches = function(part, mode)
+	if typeof(part) ~= "Instance" or not part:IsA("BasePart") then
+		return false
+	end
+
+	local obj = part
+	while obj do
+		if NAmanage.NameESP_SelfMatches(obj, mode) then
+			return true
+		end
+		if obj == workspace then
+			break
+		end
+		obj = obj.Parent
+	end
+
+	return false
+end
+
+NAmanage.NameESP_TermMatchesPart = function(term, part, mode)
+	term = Lower(tostring(term or ""))
+	if term == "" or typeof(part) ~= "Instance" then
+		return false
+	end
+
+	local obj = part
+	while obj do
+		local nm = Lower(obj.Name)
+		if (mode == "exact" and nm == term) or (mode == "partial" and Find(nm, term)) then
+			return true
+		end
+		if obj == workspace then
+			break
+		end
+		obj = obj.Parent
+	end
+
+	return false
+end
+
 NAmanage.EnableNameEsp = function(mode, color, ...)
 	local function currentColor()
 		local resolved = (type(color) == "function") and color() or color
@@ -71795,6 +72303,7 @@ NAmanage.EnableNameEsp = function(mode, color, ...)
 		end
 		return NAmanage.GetPartESPColor("ESP_PartColor_Name", Color3.fromRGB(255, 255, 255))
 	end
+
 	NAStuff.nameESPExclusions = NAStuff.nameESPExclusions or { exact = {}, partial = {} }
 	local terms = {...}
 	local list = NAStuff.espNameLists[mode]
@@ -71804,12 +72313,13 @@ NAmanage.EnableNameEsp = function(mode, color, ...)
 		partMap = {}
 		NAStuff.nameESPPartMaps[mode] = partMap
 	end
-	for _,term in terms do
+
+	for _, term in terms do
 		local t = Lower(term)
 		if mode == "exact" then
 			NAStuff.nameESPExclusions.exact[t] = nil
 		else
-			for nm,_ in NAStuff.nameESPExclusions.partial do
+			for nm, _ in NAStuff.nameESPExclusions.partial do
 				if Find(nm, t) then
 					NAStuff.nameESPExclusions.partial[nm] = nil
 				end
@@ -71819,60 +72329,129 @@ NAmanage.EnableNameEsp = function(mode, color, ...)
 			Insert(list, t)
 		end
 	end
-	local function matchFn(obj)
-		if not (obj:IsA("BasePart") or obj:IsA("Model")) then return false end
-		local nm = Lower(obj.Name)
-		local ex = NAStuff.nameESPExclusions and NAStuff.nameESPExclusions[mode]
-		if ex and ex[nm] then
-			return false
+
+	local function removePart(part)
+		if partMap[part] ~= nil then
+			NAmanage.RemoveEspFromPart(part)
+			NAmanage.ESP_ListRemove(parts, partMap, part)
 		end
-		for _,term in list do
-			if (mode=="exact" and nm==term) or (mode=="partial" and Find(nm,term)) then
-				return true
-			end
-		end
-		return false
 	end
-	local function handleNameChange(obj)
-		local matches = matchFn(obj)
-		local tracked = partMap[obj] ~= nil
+
+	local function applyPart(part)
+		if typeof(part) ~= "Instance" or not part:IsA("BasePart") then
+			return
+		end
+
+		local matches = NAmanage.NameESP_BasePartMatches(part, mode)
+		local tracked = partMap[part] ~= nil
+
 		if matches and not tracked then
-			if NAmanage.ESP_ListAdd(parts, partMap, obj) then
-				NAmanage.PartESP_QueueCreate(obj, currentColor(), NAStuff.ESP_PartTransparency or 0.45, function(p)
+			if NAmanage.ESP_ListAdd(parts, partMap, part) then
+				NAmanage.PartESP_QueueCreate(part, currentColor(), NAStuff.ESP_PartTransparency or 0.45, function(p)
 					return partMap[p] ~= nil
 				end)
 			end
 		elseif not matches and tracked then
-			NAmanage.RemoveEspFromPart(obj)
-			NAmanage.ESP_ListRemove(parts, partMap, obj)
+			removePart(part)
 		end
 	end
+
+	local function applyContainer(obj)
+		if typeof(obj) ~= "Instance" or obj:IsA("BasePart") then
+			return
+		end
+
+		if not NAmanage.NameESP_SelfMatches(obj, mode) then
+			local parent = obj.Parent
+			local parentMatched = false
+			while parent do
+				if NAmanage.NameESP_SelfMatches(parent, mode) then
+					parentMatched = true
+					break
+				end
+				if parent == workspace then
+					break
+				end
+				parent = parent.Parent
+			end
+			if not parentMatched then
+				return
+			end
+		end
+
+		for _, part in NAmanage.qDesc(obj, "BasePart") do
+			applyPart(part)
+		end
+	end
+
 	local scanKey = "esp_name_scan_"..mode
 	local scanToken = NAmanage.ESP_StartScanToken(scanKey)
 	SpawnCall(function()
-		NAmanage.ForEachWorkspaceYield(function(obj)
-			if obj and (obj:IsA("BasePart") or obj:IsA("Model")) then
-				handleNameChange(obj)
+		local direct, containers = {}, {}
+
+		for _, obj in NAmanage.wsDescs() do
+			if scanToken and scanToken.cancelled then
+				break
 			end
-		end, {
-			yieldEvery = tonumber(NAStuff.ESP_ScanBatchSize) or 160,
-			delayTime = tonumber(NAStuff.ESP_ScanDelay) or 0,
-			cancelToken = scanToken,
-		})
+
+			if typeof(obj) == "Instance" and obj.Parent and NAmanage.NameESP_SelfMatches(obj, mode) then
+				if obj:IsA("BasePart") then
+					Insert(direct, obj)
+				else
+					Insert(containers, obj)
+				end
+			end
+		end
+
+		for _, part in direct do
+			if scanToken and scanToken.cancelled then
+				break
+			end
+			applyPart(part)
+		end
+
+		for _, obj in containers do
+			if scanToken and scanToken.cancelled then
+				break
+			end
+			applyContainer(obj)
+		end
+
 		if NAStuff.espScanTokens and NAStuff.espScanTokens[scanKey] == scanToken then
 			NAStuff.espScanTokens[scanKey] = nil
 		end
 	end)
+
 	if not NAStuff.espNameTriggers[mode] then
-		NAStuff.espNameTriggers[mode] = NAmanage.wsAdd(function(obj)
-			if obj:IsA("BasePart") or obj:IsA("Model") then
-				handleNameChange(obj)
-			end
-		end)
+		NAStuff.espNameTriggers[mode] = NAmanage.wsSub({
+			added = function(obj)
+				if typeof(obj) ~= "Instance" then
+					return
+				end
+				if obj:IsA("BasePart") then
+					applyPart(obj)
+				else
+					applyContainer(obj)
+				end
+			end,
+			removing = function(obj)
+				if typeof(obj) ~= "Instance" then
+					return
+				end
+				if obj:IsA("BasePart") then
+					removePart(obj)
+				else
+					for _, part in NAmanage.qDesc(obj, "BasePart") do
+						removePart(part)
+					end
+				end
+			end,
+		})
 	end
+
 	NAmanage.PartESP_StartSweep("esp_name_sweep_"..mode, function(obj)
-		if obj:IsA("BasePart") or obj:IsA("Model") then
-			handleNameChange(obj)
+		if typeof(obj) == "Instance" and obj:IsA("BasePart") then
+			applyPart(obj)
 		end
 	end, tonumber(NAStuff.ESP_RescanPerStep) or 90)
 end
@@ -73413,10 +73992,6 @@ cmd.add({"unpesp","unesppart","unpartesp"},{"unpesp [name|All]","Remove exact-na
 		DoNotif("Cleared all exact-name part ESP.", 2)
 	end
 
-	local function termMatchesName(term, name)
-		return Lower(name) == term
-	end
-
 	local function removeByTerm(term)
 		for i = #terms, 1, -1 do
 			if terms[i] == term then
@@ -73426,7 +74001,7 @@ cmd.add({"unpesp","unesppart","unpartesp"},{"unpesp [name|All]","Remove exact-na
 		local i = #parts
 		while i >= 1 do
 			local p = parts[i]
-			if p and p.Parent and termMatchesName(term, p.Name) then
+			if p and p.Parent and NAmanage.NameESP_TermMatchesPart(term, p, mode) then
 				NAmanage.RemoveEspFromPart(p)
 				local removed = NAmanage.ESP_ListRemove(parts, partMap, p)
 				if not removed then
@@ -73500,10 +74075,6 @@ cmd.add({"unpespfind","unpartespfind","unesppartfind"},{"unpespfind [name|All]",
 		DoNotif("Cleared all partial-name part ESP.", 2)
 	end
 
-	local function termMatchesName(term, name)
-		return Find(Lower(name), term) ~= nil
-	end
-
 	local function removeByTerm(term)
 		for i = #terms, 1, -1 do
 			if terms[i] == term then
@@ -73513,7 +74084,7 @@ cmd.add({"unpespfind","unpartespfind","unesppartfind"},{"unpespfind [name|All]",
 		local i = #parts
 		while i >= 1 do
 			local p = parts[i]
-			if p and p.Parent and termMatchesName(term, p.Name) then
+			if p and p.Parent and NAmanage.NameESP_TermMatchesPart(term, p, mode) then
 				NAmanage.RemoveEspFromPart(p)
 				local removed = NAmanage.ESP_ListRemove(parts, partMap, p)
 				if not removed then
@@ -76490,9 +77061,9 @@ cmd.add({"loopnoeffect","lnoeffect","loopne","lne"},{"loopnoeffect","Keeps Light
 	if not Lighting then return end
 	local st = NAmanage._ensureL()
 	local w = workspace
-	st.ne = st.ne or {init=false,enabled=false,cache={},sticky=false}
+	st.ne = st.ne or {init=false,enabled=false,cache=NAmanage.ensureWeakKeyTable(nil),sticky=false}
 	local ne = st.ne
-	ne.cache = ne.cache or {}
+	ne.cache = NAmanage.ensureWeakKeyTable(ne.cache)
 	local function cacheProperty(inst,prop,value)
 		if not inst then return end
 		local saved = ne.cache[inst]
@@ -76637,8 +77208,9 @@ cmd.add({"loopnofog","lnofog","lnf","loopnf"},{"loopnofog","See clearly forever!
 	if not Lighting then return end
 	local st = NAmanage._ensureL()
 	if st.disableNM then st.disableNM() end
-	st.nf = st.nf or {init=false,enabled=false,baselineFogEnd=st.safeGet(Lighting,"FogEnd") or 100000,baselineFogStart=st.safeGet(Lighting,"FogStart") or 0,cache={},sticky=false}
+	st.nf = st.nf or {init=false,enabled=false,baselineFogEnd=st.safeGet(Lighting,"FogEnd") or 100000,baselineFogStart=st.safeGet(Lighting,"FogStart") or 0,cache=NAmanage.ensureWeakKeyTable(nil),sticky=false}
 	local nf = st.nf
+	nf.cache = NAmanage.ensureWeakKeyTable(nf.cache)
 	local function cacheOnce(inst, props)
 		if nf.cache[inst] then return end
 		local saved = {}
@@ -77311,7 +77883,7 @@ cmd.add({"invisible", "invis"},{"invisible (invis)", "Sets invisibility to scare
 		RunService.Heartbeat:Wait()
 		local root = getRoot(Character)
 		if root then
-			root.CFrame = OriginalPosition
+			NAmanage.UG_setRootCFrame(root, OriginalPosition)
 		end
 		DebugNotif("Invisibility turned off.")
 		__lt.cm("StarterGui", "SetCore", "ResetButtonCallback", true)
@@ -77328,7 +77900,7 @@ cmd.add({"invisible", "invis"},{"invisible (invis)", "Sets invisibility to scare
 			local root = getRoot(Character)
 			if root then
 				OriginalPosition = root.CFrame
-				root.CFrame = CFrame.new(0, math.pi * 1000000, 0)
+				NAmanage.UG_setRootCFrame(root, CFrame.new(0, math.pi * 1000000, 0))
 			end
 			Wait(0.1)
 			Character.Parent = ReplicatedStorage
@@ -79509,8 +80081,12 @@ cmd.add({"loopbringnpcs", "lbnpcs", "loopbnpcs", "lbringnpcs", "lbringnpc", "loo
 	end
 
 	NAlib.connect("loopbringnpcs", RunService.RenderStepped:Connect(function()
-		for _, hum in npcCache do
-			if hum.Parent and hum.Health > 0 then
+		local w = 1
+		for i = 1, #npcCache do
+			local hum = npcCache[i]
+			if hum and hum.Parent and hum.Health > 0 then
+				npcCache[w] = hum
+				w += 1
 				local model = hum.Parent
 				local rootPart = getRoot(model)
 				local localRoot = LocalPlayer.Character and getRoot(LocalPlayer.Character)
@@ -79526,11 +80102,17 @@ cmd.add({"loopbringnpcs", "lbnpcs", "loopbnpcs", "lbringnpcs", "lbringnpc", "loo
 				end)
 			end
 		end
+		for i = w, #npcCache do
+			npcCache[i] = nil
+		end
 	end))
 end)
 
 cmd.add({"unloopbringnpcs", "unlbnpcs", "unloopbnpcs", "unlbringnpcs", "unlbringnpc", "unloopbringnpc"}, {"unloopbringnpcs (unlbnpcs, unloopbnpcs, unlbringnpcs)", "Stops NPC bring loop"}, function()
 	NAlib.disconnect("loopbringnpcs")
+	if type(npcCache) == "table" then
+		table.clear(npcCache)
+	end
 end)
 
 cmd.add({"gotonpcs"}, {"gotonpcs", "Teleports to each NPC"}, function()
@@ -82629,6 +83211,9 @@ end
 local function createCommandListLabel(state)
 	local label = NAUIMANAGER.commandExample:Clone()
 	label.MouseEnter:Connect(function()
+		if NAmanage.Commands_SyncHiddenState and not NAmanage.Commands_SyncHiddenState({ responsive = false; syncRows = false }) then
+			return
+		end
 		local desc = NAmanage.GetAttr(label, "CmdDesc")
 		if type(desc) == "string" and desc ~= "" then
 			NAUIMANAGER.description.Visible = true
@@ -83015,9 +83600,19 @@ NAmanage.syncVisibleCommandRows=function(state)
 		end
 	end
 end
-NAgui.commands = function()
+NAgui.commands = function(opts)
+	opts = type(opts) == "table" and opts or {}
 	local cFrame, cList = NAUIMANAGER.commandsFrame, NAUIMANAGER.commandsList
 	if not (cFrame and cList and NAUIMANAGER.commandExample) then
+		return
+	end
+
+	if opts.toggle == true and cFrame.Visible then
+		if NAmanage.Commands_SetVisible then
+			NAmanage.Commands_SetVisible(false, { refresh = false })
+		else
+			cFrame.Visible = false
+		end
 		return
 	end
 
@@ -83025,10 +83620,20 @@ NAgui.commands = function()
 		cFrame.Visible = true
 		cList.CanvasSize = UDim2.new(0, 0, 0, 0)
 	end
-	if NAmanage.cmdResp then
-		NAmanage.cmdResp(false)
+
+	local expanded = true
+	if NAmanage.Commands_SyncHiddenState then
+		expanded = NAmanage.Commands_SyncHiddenState({
+			center = opts.center ~= false;
+			responsive = true;
+			syncRows = false;
+		})
+	else
+		if NAmanage.cmdResp then
+			NAmanage.cmdResp(false)
+		end
+		NAmanage.centerFrame(cFrame)
 	end
-	NAmanage.centerFrame(cFrame)
 
 	local state = NAmanage.ensureCommandListState()
 	if not state then
@@ -83049,6 +83654,10 @@ NAgui.commands = function()
 	state.entries = entries
 	state.filteredEntries = entries
 	NAStuff.CommandFilterEntries = nil
+
+	if not expanded then
+		return
+	end
 
 	Defer(function()
 		if NAgui.filterCommandList then
@@ -83593,7 +84202,7 @@ NAmanage.UpdateWaypointList=function()
 						local cf = CFrame.new(unpack(comps))
 						local char = getChar()
 						if char then
-							char:PivotTo(cf)
+							NAmanage.UG_pivotModel(char, cf)
 						end
 					end)
 				end
@@ -83639,8 +84248,42 @@ NAgui.atchSettings = function(row, hoverKey, strength)
 	end))
 end
 
+NAgui.SettingsBuildState = NAgui.SettingsBuildState or {
+	count = 0;
+	lastYield = 0;
+	batch = 10;
+	budget = 0.012;
+	building = false;
+}
+
+NAgui.SettingsBuildStep = NAgui.SettingsBuildStep or function(kind)
+	if not (NAUIMANAGER and NAUIMANAGER.SettingsList) then
+		return
+	end
+	NAgui.SettingsBuildState = NAgui.SettingsBuildState or {}
+	NAgui.SettingsBuildState.count = (tonumber(NAgui.SettingsBuildState.count) or 0) + 1
+	NAgui.SettingsBuildState.building = true
+	if (tonumber(NAgui.SettingsBuildState.lastYield) or 0) <= 0 then
+		NAgui.SettingsBuildState.lastYield = os.clock()
+	end
+	if (NAgui.SettingsBuildState.count % (tonumber(NAgui.SettingsBuildState.batch) or 10)) ~= 0 and (os.clock() - NAgui.SettingsBuildState.lastYield) < (tonumber(NAgui.SettingsBuildState.budget) or 0.012) then
+		return
+	end
+	Wait()
+	NAgui.SettingsBuildState.lastYield = os.clock()
+end
+
+NAgui.SettingsBuildDone = NAgui.SettingsBuildDone or function()
+	if type(NAgui.SettingsBuildState) ~= "table" then
+		return
+	end
+	NAgui.SettingsBuildState.building = false
+	NAgui.SettingsBuildState.lastYield = 0
+end
+
 NAgui.addButton = function(label, callback)
 	if not NAUIMANAGER.SettingsList then return end
+	if NAgui.SettingsBuildStep then NAgui.SettingsBuildStep("button") end
 	local button = templates.Button:Clone()
 	button.Title.Text = label
 	NAmanage.SetSearch.tag(button, label)
@@ -83660,6 +84303,7 @@ end
 
 NAgui.addSection = function(titleText)
 	if not NAUIMANAGER.SettingsList then return end
+	if NAgui.SettingsBuildStep then NAgui.SettingsBuildStep("section") end
 	local section = templates.SectionTitle:Clone()
 	section.Title.Text = titleText
 	pcall(function()
@@ -83752,6 +84396,7 @@ end
 
 NAgui.addInfo = function(label, value, opts)
 	if not NAUIMANAGER.SettingsList then return nil end
+	if NAgui.SettingsBuildStep then NAgui.SettingsBuildStep("info") end
 	opts = type(opts) == "table" and opts or {}
 
 	local info = templates.Input:Clone()
@@ -83887,6 +84532,7 @@ NAgui._keybindRegistry = NAgui._keybindRegistry or {}
 
 NAgui.addToggle = function(lbl, def, cb, opt)
 	if not NAUIMANAGER.SettingsList then return end
+	if NAgui.SettingsBuildStep then NAgui.SettingsBuildStep("toggle") end
 	opt = opt or {}
 	cb = type(cb) == "function" and cb or function() end
 
@@ -84226,6 +84872,7 @@ end
 
 NAgui.addColorPicker = function(label, defaultColor, callback, opts)
 	if not NAUIMANAGER.SettingsList then return end
+	if NAgui.SettingsBuildStep then NAgui.SettingsBuildStep("color") end
 	callback = type(callback) == "function" and callback or function() end
 
 	local cfg = opts or {}
@@ -84904,6 +85551,7 @@ end
 
 NAgui.addInput = function(label, placeholder, defaultText, callback, opts)
 	if not NAUIMANAGER.SettingsList then return end
+	if NAgui.SettingsBuildStep then NAgui.SettingsBuildStep("input") end
 	opts = opts or {}
 
 	local input = templates.Input:Clone()
@@ -85319,6 +85967,7 @@ NAmanage.StartUIAutoSyncLoop()
 
 NAgui.addKeybind = function(label, defaultKey, callback)
 	if not NAUIMANAGER.SettingsList then return end
+	if NAgui.SettingsBuildStep then NAgui.SettingsBuildStep("keybind") end
 	callback = type(callback) == "function" and callback or function() end
 	local connKey = "NAgui_keybind:"..tostring(label)
 	NAlib.disconnect(connKey)
@@ -85714,6 +86363,7 @@ end
 
 NAgui.addSlider = function(label, min, max, defaultValue, increment, suffix, callback, opts)
 	if not NAUIMANAGER.SettingsList then return end
+	if NAgui.SettingsBuildStep then NAgui.SettingsBuildStep("slider") end
 	if type(callback) == "table" and opts == nil then
 		opts = callback
 		callback = nil
@@ -86008,6 +86658,7 @@ end
 
 NAgui.addDropdown = function(label, values, defaultValue, callback, opts)
 	if not NAUIMANAGER.SettingsList then return end
+	if NAgui.SettingsBuildStep then NAgui.SettingsBuildStep("dropdown") end
 	if not (templates and templates.Dropdown) then return end
 
 	local DropdownSettings
@@ -86462,6 +87113,7 @@ NAgui.addDropdown = function(label, values, defaultValue, callback, opts)
 			templateRow.Visible = false
 		end
 		for index, option in DropdownSettings.Options do
+			if NAgui.SettingsBuildStep and index % 16 == 0 then NAgui.SettingsBuildStep("dropdownOption") end
 			local optionValue = tostring(option.value or "")
 			local optionDisplay = tostring(option.display or optionValue)
 			local optionRichText = option.richText == true or (opts and (opts.RichText == true or opts.richText == true))
@@ -87135,6 +87787,88 @@ NAmanage.Topbar_SetDock=function(dock)
 	NAmanage.Topbar_ApplyDock(dock)
 end
 
+NAmanage.Commands_IsFrame = function(frame)
+	return NAUIMANAGER and frame ~= nil and frame == NAUIMANAGER.commandsFrame
+end
+
+NAmanage.Commands_IsMinimized = function(frame)
+	frame = frame or (NAUIMANAGER and NAUIMANAGER.commandsFrame)
+	return frame ~= nil and NAmanage.GetAttr and NAmanage.GetAttr(frame, "NAMenuMinimized") == true
+end
+
+NAmanage.Commands_SyncHiddenState = function(opts)
+	opts = opts or {}
+	local frame = NAUIMANAGER and NAUIMANAGER.commandsFrame
+	if not frame then
+		return false
+	end
+	local shown = frame.Visible == true
+	local minimized = NAmanage.Commands_IsMinimized(frame)
+	local body = frame:FindFirstChild("Container")
+	if body and body:IsA("GuiObject") then
+		body.Visible = shown and not minimized
+	end
+	if NAUIMANAGER.description and (not shown or minimized) then
+		NAUIMANAGER.description.Visible = false
+		NAUIMANAGER.description.Text = ""
+	end
+	if shown and not minimized then
+		if opts.center == true and NAmanage.centerFrame then
+			NAmanage.centerFrame(frame)
+		end
+		if opts.responsive ~= false and type(NAmanage.cmdResp) == "function" then
+			pcall(NAmanage.cmdResp, opts.center == true)
+		end
+		if opts.syncRows ~= false and type(NAmanage.syncVisibleCommandRows) == "function" then
+			pcall(NAmanage.syncVisibleCommandRows)
+		end
+	end
+	return shown and not minimized
+end
+
+NAmanage.Commands_SetVisible = function(visible, opts)
+	opts = opts or {}
+	local frame = NAUIMANAGER and NAUIMANAGER.commandsFrame
+	if not frame then
+		return false
+	end
+	visible = visible == true
+	frame.Visible = visible
+	if visible then
+		if opts.resetCanvas ~= false and NAUIMANAGER.commandsList then
+			NAUIMANAGER.commandsList.CanvasSize = UDim2.new(0, 0, 0, 0)
+		end
+		if type(NAgui) == "table" and type(NAgui.commands) == "function" and opts.refresh ~= false then
+			pcall(NAgui.commands, {
+				fromToggle = true;
+				center = opts.center ~= false;
+			})
+		else
+			NAmanage.Commands_SyncHiddenState({
+				center = opts.center ~= false;
+				syncRows = opts.syncRows ~= false;
+			})
+		end
+	else
+		NAmanage.Commands_SyncHiddenState({
+			responsive = false;
+			syncRows = false;
+		})
+	end
+	return true
+end
+
+NAmanage.Commands_Toggle = function()
+	local frame = NAUIMANAGER and NAUIMANAGER.commandsFrame
+	if not frame then
+		return false
+	end
+	if frame.Visible then
+		return NAmanage.Commands_SetVisible(false, { refresh = false })
+	end
+	return NAmanage.Commands_SetVisible(true, { refresh = true; center = true; resetCanvas = true })
+end
+
 NAmanage.Topbar_BuildBaseButtons=function()
 	return {
 		{name="settings",icon="gear",func=function()
@@ -87143,7 +87877,13 @@ NAmanage.Topbar_BuildBaseButtons=function()
 				NAmanage.centerFrame(NAUIMANAGER.SettingsFrame)
 			end
 		end},
-		{name="cmds",icon="list-bulleted",func=NAgui.commands},
+		{name="cmds",icon="list-bulleted",func=function()
+			if NAmanage.Commands_Toggle then
+				NAmanage.Commands_Toggle()
+			elseif NAgui and NAgui.commands then
+				NAgui.commands()
+			end
+		end},
 		{name="ckeybinds",icon="xbox-a",func=function()
 			local frame = NAUIMANAGER and NAUIMANAGER.CommandKeybindsFrame
 			if frame then
@@ -87925,6 +88665,9 @@ NAgui.menu = function(menu)
 			setBodyVisible(false)
 			NAgui._menuCompleted(menuConnName, NAgui.tween(menu, "Quart", "Out", 0.5, {Size = UDim2.new(0, currentX, 0, getMiniHeight())}), function()
 					isAnimating = false
+					if NAmanage.Commands_IsFrame and NAmanage.Commands_IsFrame(menu) and NAmanage.Commands_SyncHiddenState then
+						NAmanage.Commands_SyncHiddenState({ responsive = false; syncRows = false })
+					end
 					if NAgui._setHeavyResizeSuspended then
 						NAgui._setHeavyResizeSuspended(menu, false)
 					end
@@ -87935,6 +88678,9 @@ NAgui.menu = function(menu)
 			NAgui._menuCompleted(menuConnName, NAgui.tween(menu, "Quart", "Out", 0.5, {Size = UDim2.new(0, restoreX, 0, restoreY)}), function()
 					isAnimating = false
 					setBodyVisible(true)
+					if NAmanage.Commands_IsFrame and NAmanage.Commands_IsFrame(menu) and NAmanage.Commands_SyncHiddenState then
+						NAmanage.Commands_SyncHiddenState({ center = false; syncRows = true })
+					end
 					if menu == (NAUIMANAGER and NAUIMANAGER.SettingsFrame) and NAUIMANAGER.SettingsList then
 						Defer(function()
 							updateCanvasSize(NAUIMANAGER.SettingsList, NAUIMANAGER.AUTOSCALER and NAUIMANAGER.AUTOSCALER.Scale or nil)
@@ -94312,7 +95058,12 @@ NAUIMANAGER.cmdBar.Visible=true
 
 if NAUIMANAGER.chatLogsFrame then NAgui.menuv3(NAUIMANAGER.chatLogsFrame) end
 if NAUIMANAGER.NAconsoleFrame then NAgui.menuv2(NAUIMANAGER.NAconsoleFrame) end
-if NAUIMANAGER.commandsFrame then NAgui.menu(NAUIMANAGER.commandsFrame) end
+if NAUIMANAGER.commandsFrame then
+	NAgui.menu(NAUIMANAGER.commandsFrame)
+	if NAmanage.Commands_SyncHiddenState then
+		NAmanage.Commands_SyncHiddenState({ responsive = false; syncRows = false })
+	end
+end
 if NAUIMANAGER.CommandKeybindsFrame then NAgui.menu(NAUIMANAGER.CommandKeybindsFrame) end
 if NAUIMANAGER.SettingsFrame then NAgui.menu(NAUIMANAGER.SettingsFrame) end
 if NAUIMANAGER.WaypointFrame then NAgui.menu(NAUIMANAGER.WaypointFrame) end
@@ -94330,6 +95081,9 @@ if NAUIMANAGER.commandsFrame then
 		NAmanage.cmdResp(false)
 		NAmanage.cmdRespRf = function(center)
 			if not (NAUIMANAGER and NAUIMANAGER.commandsFrame and NAUIMANAGER.commandsFrame.Visible) then
+				return
+			end
+			if NAmanage.Commands_SyncHiddenState and not NAmanage.Commands_SyncHiddenState({ center = center == true; responsive = false; syncRows = false }) then
 				return
 			end
 			NAmanage.cmdResp(center == true)
@@ -99143,7 +99897,7 @@ SpawnCall(function()
 
 	local function saveFb(c, fallback)
 		local root = c and getRoot(c)
-		local cf = root and root.CFrame or fallback
+		local cf = root and (NAmanage.UG_clientCFrame(root) or root.CFrame) or fallback
 		if cf then
 			deathCFrame = cf
 			NAStuff.fba_cf = cf
@@ -99178,7 +99932,7 @@ SpawnCall(function()
 			end
 			local root = getRoot(c)
 			if NAmanage.fbaSafe and NAmanage.fbaSafe(root, hum, c) then
-				NAStuff.fba_safe = root.CFrame
+				NAStuff.fba_safe = NAmanage.UG_clientCFrame(root) or root.CFrame
 			end
 		end)
 		fbHumCons[#fbHumCons + 1] = hum.HealthChanged:Connect(function(hp)
