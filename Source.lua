@@ -2220,18 +2220,61 @@ NAmanage._descScanFallback = NAmanage._descScanFallback or function(root, limit)
 	return out
 end
 
-NAmanage._descSnapshot = NAmanage._descSnapshot or function(root, opts)
+NAmanage._descScanBudgeted = function(root, opts)
+	local out = {}
+	if typeof(root) ~= "Instance" then
+		return out
+	end
+	opts = type(opts) == "table" and opts or {}
+	local hard = tonumber(opts.hardLimit) or tonumber(opts.limit) or 0
+	local budget = math.max(1, math.floor(tonumber(opts.budget) or tonumber(opts.yieldEvery) or tonumber(opts.batchSize) or 128))
+	local delayTime = tonumber(opts.delayTime) or tonumber(opts.delay) or 0
+	local q = { root }
+	local qi, qn = 1, 1
+	local processed = 0
+
+	while qi <= qn do
+		local inst = q[qi]
+		q[qi] = nil
+		qi += 1
+		if inst and (inst == root or inst.Parent) then
+			if inst ~= root then
+				out[#out + 1] = inst
+				if hard > 0 and #out >= hard then
+					break
+				end
+			end
+			local okChildren, children = pcall(inst.GetChildren, inst)
+			if okChildren and type(children) == "table" then
+				for i = 1, #children do
+					qn += 1
+					q[qn] = children[i]
+				end
+			end
+		end
+		processed += 1
+		if processed >= budget and qi <= qn then
+			processed = 0
+			if delayTime > 0 then
+				Wait(delayTime)
+			else
+				Wait()
+			end
+		end
+	end
+
+	return out
+end
+
+NAmanage._descSnapshot = function(root, opts)
 	if typeof(root) ~= "Instance" then
 		return {}
 	end
 	opts = type(opts) == "table" and opts or {}
-
-	local ok, list = pcall(function()
-		return root:GetDescendants()
-	end)
-	if not ok or type(list) ~= "table" then
-		list = NAmanage._descScanFallback(root, opts.hardLimit)
+	if root == workspace and opts.force ~= true and NAmanage.wsDescs then
+		return NAmanage.wsDescs(opts)
 	end
+	local list = NAmanage._descScanBudgeted(root, opts)
 
 	local hardLimit = tonumber(opts.hardLimit) or tonumber(opts.limit) or 0
 	if hardLimit <= 0 then
@@ -2338,12 +2381,14 @@ NAmanage._evtHubDisc = NAmanage._evtHubDisc or function(conn)
 	return nil
 end
 
-NAmanage._evtHubClear = NAmanage._evtHubClear or function(hub)
+NAmanage._evtHubClear = function(hub)
 	if type(hub) ~= "table" then
 		return
 	end
 	hub.cAdd = NAmanage._evtHubDisc(hub.cAdd)
 	hub.cRem = NAmanage._evtHubDisc(hub.cRem)
+	hub.cacheAdd = NAmanage._evtHubDisc(hub.cacheAdd)
+	hub.cacheRem = NAmanage._evtHubDisc(hub.cacheRem)
 	hub.rAnc = NAmanage._evtHubDisc(hub.rAnc)
 	hub.added = {}
 	hub.removing = {}
@@ -2522,29 +2567,218 @@ NAmanage._wsHubGet = NAmanage._wsHubGet or function()
 	return hub
 end
 
-NAmanage.wsReleaseCache = NAmanage.wsReleaseCache or function(hub)
+NAmanage.wsReleaseCache = function(hub)
 	hub = hub or NAmanage._wsHub
 	if type(hub) == "table" then
 		hub.cacheLive = false
+		hub.cacheBuilding = false
 		hub.cache = {}
 		hub.idx = NAmanage.ensureWeakTable(nil, "k")
+		hub.cacheAdd = NAmanage._evtHubDisc(hub.cacheAdd)
+		hub.cacheRem = NAmanage._evtHubDisc(hub.cacheRem)
 	end
 	return false
 end
 
-NAmanage.wsReleaseCacheIfIdle = NAmanage.wsReleaseCacheIfIdle or function(maxIdle)
+NAmanage.wsReleaseCacheIfIdle = function(maxIdle)
+	local hub = NAmanage._wsHub
+	if type(hub) ~= "table" or hub.cacheLive ~= true then
+		return false
+	end
+	local idle = tonumber(maxIdle) or 30
+	local last = tonumber(hub.cacheTouched) or 0
+	if idle > 0 and last > 0 and os.clock() - last >= idle and (hub.addCount or 0) <= 0 and (hub.remCount or 0) <= 0 then
+		return NAmanage.wsReleaseCache(hub)
+	end
 	return false
 end
 
-NAmanage.wsDescs = NAmanage.wsDescs or function()
-	local root = workspace
-	local ok, descs = pcall(function()
-		return root:GetDescendants()
+NAmanage._wsCacheRemove = function(hub, inst)
+	if type(hub) ~= "table" or type(hub.idx) ~= "table" or type(hub.cache) ~= "table" or inst == nil then
+		return false
+	end
+	local idx = hub.idx[inst]
+	if not idx then
+		return false
+	end
+	local list = hub.cache
+	local lastIdx = #list
+	local lastInst = list[lastIdx]
+	list[lastIdx] = nil
+	hub.idx[inst] = nil
+	if idx < lastIdx then
+		list[idx] = lastInst
+		if lastInst ~= nil then
+			hub.idx[lastInst] = idx
+		end
+	end
+	return true
+end
+
+NAmanage._wsCacheAdd = function(hub, inst)
+	if type(hub) ~= "table" or typeof(inst) ~= "Instance" or inst == workspace then
+		return false
+	end
+	if type(hub.cache) ~= "table" then
+		hub.cache = {}
+	end
+	if type(hub.idx) ~= "table" then
+		hub.idx = NAmanage.ensureWeakTable(nil, "k")
+	end
+	if hub.idx[inst] then
+		return false
+	end
+	local n = #hub.cache + 1
+	hub.cache[n] = inst
+	hub.idx[inst] = n
+	return true
+end
+
+NAmanage._wsCacheConnect = function(hub)
+	if type(hub) ~= "table" or hub.root ~= workspace then
+		return
+	end
+	if not hub.cacheAdd then
+		hub.cacheAdd = workspace.DescendantAdded:Connect(function(inst)
+			NAmanage._wsCacheAdd(hub, inst)
+		end)
+	end
+	if not hub.cacheRem then
+		hub.cacheRem = workspace.DescendantRemoving:Connect(function(inst)
+			NAmanage._wsCacheRemove(hub, inst)
+		end)
+	end
+end
+
+NAmanage._wsCachePrune = function(hub, budget)
+	if type(hub) ~= "table" or type(hub.cache) ~= "table" or type(hub.idx) ~= "table" then
+		return
+	end
+	local list = hub.cache
+	local total = #list
+	if total <= 0 then
+		hub.cachePruneCursor = 1
+		return
+	end
+	local cursor = tonumber(hub.cachePruneCursor) or 1
+	if cursor < 1 or cursor > total then
+		cursor = 1
+	end
+	local checked = 0
+	local maxCheck = math.clamp(math.floor(tonumber(budget) or 48), 1, 256)
+	while checked < maxCheck and #list > 0 do
+		local inst = list[cursor]
+		if typeof(inst) ~= "Instance" or not inst.Parent or not inst:IsDescendantOf(workspace) then
+			NAmanage._wsCacheRemove(hub, inst)
+			if cursor > #list then
+				cursor = 1
+			end
+		else
+			cursor += 1
+			if cursor > #list then
+				cursor = 1
+			end
+		end
+		checked += 1
+	end
+	hub.cachePruneCursor = cursor
+end
+
+NAmanage._wsCacheBuildSync = function(hub)
+	if type(hub) ~= "table" then
+		return {}
+	end
+	local descs = NAmanage._descScanBudgeted(workspace, {
+		budget = 256,
+		delay = 0,
+	})
+	hub.cache = {}
+	hub.idx = NAmanage.ensureWeakTable(nil, "k")
+	for i = 1, #descs do
+		NAmanage._wsCacheAdd(hub, descs[i])
+	end
+	hub.cacheLive = true
+	hub.cacheBuilding = false
+	hub.cacheBuiltAt = os.clock()
+	hub.cacheTouched = hub.cacheBuiltAt
+	NAmanage._wsCacheConnect(hub)
+	return hub.cache
+end
+
+NAmanage._wsCacheBuildAsync = function(hub, opts)
+	if type(hub) ~= "table" or hub.cacheBuilding == true then
+		return
+	end
+	opts = type(opts) == "table" and opts or {}
+	hub.cacheLive = true
+	hub.cacheBuilding = true
+	hub.cache = {}
+	hub.idx = NAmanage.ensureWeakTable(nil, "k")
+	hub.cacheTouched = os.clock()
+	NAmanage._wsCacheConnect(hub)
+	Spawn(function()
+		local q = { workspace }
+		local qi, qn = 1, 1
+		while qi <= qn and hub.cacheBuilding == true and hub.root == workspace do
+			local budget, waitDelay = NAmanage._evtHubBudget(tonumber(opts.buildBudget) or 192, {
+				delay = tonumber(opts.delayTime) or 0,
+				ldSc = 0.25,
+				ldDel = 0.012,
+			})
+			while budget > 0 and qi <= qn and hub.cacheBuilding == true do
+				local inst = q[qi]
+				q[qi] = nil
+				qi += 1
+				if inst and (inst == workspace or inst.Parent) then
+					if inst ~= workspace then
+						NAmanage._wsCacheAdd(hub, inst)
+					end
+					local ok, children = pcall(inst.GetChildren, inst)
+					if ok and type(children) == "table" then
+						for i = 1, #children do
+							qn += 1
+							q[qn] = children[i]
+						end
+					end
+				end
+				budget -= 1
+			end
+			if qi <= qn then
+				if waitDelay > 0 then
+					Wait(waitDelay)
+				else
+					Wait()
+				end
+			end
+		end
+		if type(hub) == "table" then
+			hub.cacheBuilding = false
+			hub.cacheBuiltAt = os.clock()
+			hub.cacheTouched = hub.cacheBuiltAt
+		end
 	end)
-	if ok and type(descs) == "table" then
-		return descs
+end
+
+NAmanage.wsDescs = function(opts)
+	opts = type(opts) == "table" and opts or {}
+	local hub = NAmanage._wsHubGet()
+	if type(hub) ~= "table" then
+		return {}
 	end
-	return NAmanage._descScanFallback(root)
+	hub.cacheTouched = os.clock()
+	if opts.force == true then
+		NAmanage.wsReleaseCache(hub)
+	end
+	if hub.cacheLive == true and type(hub.cache) == "table" then
+		NAmanage._wsCacheConnect(hub)
+		NAmanage._wsCachePrune(hub, opts.pruneBudget)
+		return hub.cache
+	end
+	if opts.asyncBuild == true then
+		NAmanage._wsCacheBuildAsync(hub, opts)
+		return hub.cache or {}
+	end
+	return NAmanage._wsCacheBuildSync(hub)
 end
 
 NAmanage.fastDesc = NAmanage.fastDesc or function(root, className, opts)
@@ -3629,7 +3863,7 @@ NAmanage.lpProf = NAmanage.lpProf or function(baseBud, opts)
 	return bud, del
 end
 
-NAmanage.ForEachDescendantYield = NAmanage.ForEachDescendantYield or function(root, handler, opts)
+NAmanage.ForEachDescendantYield = function(root, handler, opts)
 	opts = opts or {}
 	if typeof(root) ~= "Instance" or type(handler) ~= "function" then
 		return 0
@@ -3639,7 +3873,8 @@ NAmanage.ForEachDescendantYield = NAmanage.ForEachDescendantYield or function(ro
 	local includeRoot = opts.includeRoot == true
 	local maxItems = tonumber(opts.maxItems)
 	local stopOnResult = opts.stopOnResult == true
-	local list = NAmanage._descSnapshot(root, opts)
+	local yieldEvery = tonumber(opts.yieldEvery) or tonumber(opts.batchSize) or 0
+	local delayTime = tonumber(opts.delayTime) or tonumber(opts.delay) or 0
 	local processed = 0
 
 	local function run(inst)
@@ -3657,17 +3892,59 @@ NAmanage.ForEachDescendantYield = NAmanage.ForEachDescendantYield or function(ro
 		return false
 	end
 
+	if yieldEvery > 0 or opts.streaming == true then
+		local q = { root }
+		local qi, qn = 1, 1
+		while qi <= qn do
+			if cancelToken and cancelToken.cancelled then
+				break
+			end
+			local inst = q[qi]
+			q[qi] = nil
+			qi += 1
+			if inst and (inst == root or inst.Parent) then
+				if includeRoot or inst ~= root then
+					if run(inst) then
+						break
+					end
+					if yieldEvery > 0 and processed % yieldEvery == 0 then
+						if delayTime > 0 then
+							Wait(delayTime)
+						else
+							Wait()
+						end
+					end
+				end
+				local okChildren, children = pcall(inst.GetChildren, inst)
+				if okChildren and type(children) == "table" then
+					for i = 1, #children do
+						qn += 1
+						q[qn] = children[i]
+					end
+				end
+			end
+		end
+		return processed
+	end
+
+	local list = NAmanage._descSnapshot(root, opts)
 	if includeRoot then
 		if run(root) then
 			return processed
 		end
 	end
-
 	for i = 1, #list do
 		local inst = list[i]
 		if typeof(inst) == "Instance" then
 			if run(inst) then
 				break
+			end
+			if yieldEvery > 0 and processed % yieldEvery == 0 then
+				if delayTime > 0 then
+					Wait(delayTime)
+				else
+					Wait()
+				end
 			end
 		end
 	end
@@ -3675,23 +3952,51 @@ NAmanage.ForEachDescendantYield = NAmanage.ForEachDescendantYield or function(ro
 	return processed
 end
 
-NAmanage.ForEachWorkspaceYield = NAmanage.ForEachWorkspaceYield or function(handler, opts)
+NAmanage.ForEachWorkspaceYield = function(handler, opts)
 	opts = opts or {}
 	if type(handler) ~= "function" then
 		return 0
 	end
 
-	local list = NAmanage.wsDescs and NAmanage.wsDescs() or {}
-	local total = #list
 	local cancelToken = opts.cancelToken
+	local includeRoot = opts.includeRoot == true
+	local yieldEvery = tonumber(opts.yieldEvery) or tonumber(opts.batchSize) or 160
+	local delayTime = tonumber(opts.delayTime) or tonumber(opts.delay) or 0
+	local maxItems = tonumber(opts.maxItems) or 0
 	local processed = 0
+	local q = { workspace }
+	local qi, qn = 1, 1
 
-	for i = 1, total do
+	while qi <= qn do
 		if cancelToken and cancelToken.cancelled then
 			break
 		end
-		processed += 1
-		handler(list[i], i, total)
+		local inst = q[qi]
+		q[qi] = nil
+		qi += 1
+		if inst and (inst == workspace or inst.Parent) then
+			if includeRoot or inst ~= workspace then
+				processed += 1
+				handler(inst, processed, nil)
+				if maxItems > 0 and processed >= maxItems then
+					break
+				end
+			end
+			local ok, children = pcall(inst.GetChildren, inst)
+			if ok and type(children) == "table" then
+				for i = 1, #children do
+					qn += 1
+					q[qn] = children[i]
+				end
+			end
+		end
+		if yieldEvery > 0 and processed > 0 and processed % yieldEvery == 0 then
+			if delayTime > 0 then
+				Wait(delayTime)
+			else
+				Wait()
+			end
+		end
 	end
 
 	return processed
@@ -5754,6 +6059,9 @@ end
 
 updateCanvasSize = function(frame, scale)
 	if not (frame and frame.Parent) then
+		return
+	end
+	if NAUIMANAGER and frame == NAUIMANAGER.SettingsList and NAmanage.GetAttr and NAmanage.GetAttr(NAUIMANAGER.SettingsFrame, "NAHeavyResizeSuspended") == true then
 		return
 	end
 	if NAmanage.GetAttr and NAmanage.GetAttr(frame, "NAManualCanvasSize") == true then
@@ -7861,10 +8169,58 @@ NAmanage.ComposeServerNote=function(note)
 	return Concat(parts, " | ")
 end
 
-function NAmanage.scheduleLoader(label, callback, opts)
+NAmanage._loaderQueue = NAmanage._loaderQueue or {}
+NAmanage._loaderQueueHead = tonumber(NAmanage._loaderQueueHead) or 1
+NAmanage._loaderQueueTail = tonumber(NAmanage._loaderQueueTail) or 0
+NAmanage._loaderQueueRunning = tonumber(NAmanage._loaderQueueRunning) or 0
+NAmanage._loaderQueuePumping = NAmanage._loaderQueuePumping == true
+
+function NAmanage.pumpLoaderQueue()
+	if NAmanage._loaderQueuePumping then
+		return
+	end
+	NAmanage._loaderQueuePumping = true
 	Spawn(function()
-		NAmanage.runLoader(label, callback, opts)
+		while NAmanage._loaderQueueHead <= NAmanage._loaderQueueTail do
+			local maxRunning = math.clamp(math.floor(tonumber(NAStuff and NAStuff.LoaderMaxConcurrency) or 2), 1, 4)
+			if (tonumber(NAmanage._loaderQueueRunning) or 0) >= maxRunning then
+				Wait(0.05)
+				continue
+			end
+			local job = NAmanage._loaderQueue[NAmanage._loaderQueueHead]
+			NAmanage._loaderQueue[NAmanage._loaderQueueHead] = nil
+			NAmanage._loaderQueueHead += 1
+			if job and type(job.callback) == "function" then
+				NAmanage._loaderQueueRunning = (tonumber(NAmanage._loaderQueueRunning) or 0) + 1
+				Spawn(function()
+					pcall(NAmanage.runLoader, job.label, job.callback, job.opts)
+					NAmanage._loaderQueueRunning = math.max(0, (tonumber(NAmanage._loaderQueueRunning) or 1) - 1)
+				end)
+				Wait(tonumber(job.spacing) or 0.08)
+			else
+				Wait()
+			end
+		end
+		while (tonumber(NAmanage._loaderQueueRunning) or 0) > 0 do
+			Wait(0.05)
+		end
+		NAmanage._loaderQueue = {}
+		NAmanage._loaderQueueHead = 1
+		NAmanage._loaderQueueTail = 0
+		NAmanage._loaderQueuePumping = false
 	end)
+end
+
+function NAmanage.scheduleLoader(label, callback, opts)
+	opts = opts or {}
+	NAmanage._loaderQueueTail = (tonumber(NAmanage._loaderQueueTail) or 0) + 1
+	NAmanage._loaderQueue[NAmanage._loaderQueueTail] = {
+		label = label,
+		callback = callback,
+		opts = opts,
+		spacing = opts.spacing,
+	}
+	NAmanage.pumpLoaderQueue()
 end
 
 local searchIndex = {}
@@ -20446,7 +20802,7 @@ if FileSupport then
 					didWork = true
 				end
 				local customChat = NAStuff.ChatSettings and NAStuff.ChatSettings.customEnabled == true
-				local waitTime = didWork and 1 or (customChat and 2.5 or 5)
+				local waitTime = didWork and 1 or (customChat and 8 or 20)
 				if NAmanage.isLoad and NAmanage.isLoad() then
 					waitTime = math.max(waitTime, 2)
 				end
@@ -25806,7 +26162,11 @@ NAmanage.PartESP_StartSweep = function(key, predicate, budget)
 	local stepBudget = tonumber(budget) or tonumber(NAStuff.ESP_RescanPerStep) or 90
 	stepBudget = math.clamp(math.floor(stepBudget), 8, 400)
 	NAlib.connect(key, RunService.Heartbeat:Connect(function()
-		local list = NAmanage.wsDescs and NAmanage.wsDescs() or {}
+		local list = NAmanage.wsDescs and NAmanage.wsDescs({
+			asyncBuild = true,
+			buildBudget = math.max(stepBudget * 2, 128),
+			pruneBudget = 32,
+		}) or {}
 		local total = #list
 		if total <= 0 then
 			cursorStore[key] = 1
@@ -44720,10 +45080,12 @@ cmd.add({"antiafk","noafk"},{"antiafk (noafk)","Prevents you from being kicked f
 			end
 		end
 		if changed > 0 then
-			local markConn = RunService and RunService.Heartbeat:Connect(function() end)
-			if markConn then
-				NAlib.connect("antiAFK", markConn)
-			end
+			NAlib.connect("antiAFK", {
+				Connected = true,
+				Disconnect = function(self)
+					self.Connected = false
+				end,
+			})
 			DebugNotif("Anti AFK enabled")
 		else
 			NAStuff.antiAFKStored = {}
@@ -66870,9 +67232,14 @@ NAindex.inRangeClick = function(cd, rootPos, extra)
 	return dist <= maxd, dist, part
 end
 
-NAindex.init = function()
-	if NAindex._init then return end
-	NAindex._init = true
+NAindex.init = function(opts)
+	if NAindex._init and not (opts and opts.force == true) then return end
+	if NAmanage.ensureInteractionIndex then
+		NAindex._init = true
+		NAmanage.ensureInteractionIndex(opts)
+	else
+		NAindex._init = false
+	end
 end
 
 NAsuppress._acquire = function(pp)
@@ -66901,6 +67268,7 @@ NAsuppress._release = function(pp)
 end
 
 NAsuppress.collectAndAcquire = function(centerPos, radius, allowSet)
+	NAindex.init()
 	local list = {}
 	if InstancesTbl and type(InstancesTbl.proxy) == "table" then
 		for _, p in InstancesTbl.proxy do
@@ -66986,11 +67354,29 @@ NAjobs._ensureTracked = function()
 		return
 	end
 	NAjobs._trackedReady = true
-	for _, inst in NAmanage.qDesc(workspace, "Instance") do
-		if inst:IsA("ProximityPrompt") then
-			NAjobs._trackedAdd("prompt", inst)
-		elseif inst:IsA("ClickDetector") then
-			NAjobs._trackedAdd("click", inst)
+	if NAmanage.ensureInteractionIndex then
+		NAmanage.ensureInteractionIndex()
+	end
+	if InstancesTbl and type(InstancesTbl.proxy) == "table" then
+		for _, inst in InstancesTbl.proxy do
+			if inst and inst.Parent then
+				NAjobs._trackedAdd("prompt", inst)
+			end
+		end
+	end
+	if InstancesTbl and type(InstancesTbl.click) == "table" then
+		for _, inst in InstancesTbl.click do
+			if inst and inst.Parent then
+				NAjobs._trackedAdd("click", inst)
+			end
+		end
+	elseif not NAmanage.ensureInteractionIndex then
+		for _, inst in NAmanage.qDesc(workspace, "Instance") do
+			if inst:IsA("ProximityPrompt") then
+				NAjobs._trackedAdd("prompt", inst)
+			elseif inst:IsA("ClickDetector") then
+				NAjobs._trackedAdd("click", inst)
+			end
 		end
 	end
 	NAlib.connect("NAjobs_track_add", NAmanage.descAdd(workspace, function(inst)
@@ -67936,6 +68322,7 @@ end)
 
 cmd.add({"noclickdetectorlimits","nocdlimits","removecdlimits"},{"noclickdetectorlimits <limit> (nocdlimits,removecdlimits)","Sets all click detectors MaxActivationDistance to math.huge"},function(...)
 	local limit = (...) or math.huge
+	NAindex.init()
 	for _,v in InstancesTbl.click do
 		v.MaxActivationDistance = limit
 	end
@@ -67943,6 +68330,7 @@ end,true)
 
 cmd.add({"noproximitypromptlimits","nopplimits","removepplimits"},{"noproximitypromptlimits <limit> (nopplimits,removepplimits)","Sets all proximity prompts MaxActivationDistance to math.huge"},function(...)
 	local limit = (...) or math.huge
+	NAindex.init()
 	for _,v in InstancesTbl.proxy do
 		v.MaxActivationDistance = limit
 	end
@@ -67969,6 +68357,7 @@ end,true)
 
 cmd.add({"enableproximityprompts","enableprox","enprox","enprx","enpp"},{"enableproximityprompts [name]","Enable ProximityPrompts (all or matching)"},function(...)
 	local term = Lower(Concat({...}," "))
+	NAindex.init()
 	for _,obj in InstancesTbl.proxy do
 		if obj and obj.Parent then
 			if term=="" or Find(Lower(obj.Name), term) then
@@ -67980,6 +68369,7 @@ end,true)
 
 cmd.add({"disableproximityprompts","disableprox","disprox","dprx","dpp"},{"disableproximityprompts [name]","Disable ProximityPrompts (all or matching)"},function(...)
 	local term = Lower(Concat({...}," "))
+	NAindex.init()
 	for _,obj in InstancesTbl.proxy do
 		if obj and obj.Parent then
 			if term=="" or Find(Lower(obj.Name), term) then
@@ -67993,6 +68383,7 @@ proxyEnableLoopState = {active=false;}
 
 cmd.add({"loopenableproximityprompts","loopenableprox","lenprox","lenpp"},{"loopenableproximityprompts [name]","Continuously enable ProximityPrompts (all or matching)"},function(...)
 	local term = Lower(Concat({...}," "))
+	NAindex.init()
 	if proxyEnableLoopState then proxyEnableLoopState.active=false end
 	proxyEnableLoopState = {active=true}
 	SpawnCall(function()
@@ -82738,6 +83129,52 @@ NAgui.tween = function(obj, style, direction, duration, goal, callback)
 end
 
 NAgui._resizeCleanup = NAmanage.ensureWeakTable(NAgui._resizeCleanup, "k")
+NAgui.isSettingsLayoutSuspended = NAgui.isSettingsLayoutSuspended or function()
+	return NAUIMANAGER
+		and NAUIMANAGER.SettingsFrame
+		and NAmanage.GetAttr
+		and NAmanage.GetAttr(NAUIMANAGER.SettingsFrame, "NAHeavyResizeSuspended") == true
+end
+
+NAgui._setHeavyResizeSuspended = NAgui._setHeavyResizeSuspended or function(ui, suspended)
+	if not (ui and NAUIMANAGER and ui == NAUIMANAGER.SettingsFrame) then
+		return
+	end
+	local body = ui:FindFirstChild("Container")
+	if not (body and body:IsA("GuiObject")) then
+		return
+	end
+	if suspended then
+		if NAmanage.GetAttr and NAmanage.GetAttr(ui, "NAResizeBodyWasVisible") == nil then
+			NAmanage.SetAttr(ui, "NAResizeBodyWasVisible", body.Visible == true)
+		end
+		NAmanage.SetAttr(ui, "NAHeavyResizeSuspended", true)
+		body.Visible = false
+		return
+	end
+	local wasVisible = true
+	if NAmanage.GetAttr then
+		local stored = NAmanage.GetAttr(ui, "NAResizeBodyWasVisible")
+		if stored ~= nil then
+			wasVisible = stored == true
+		end
+	end
+	NAmanage.SetAttr(ui, "NAResizeBodyWasVisible", nil)
+	NAmanage.SetAttr(ui, "NAHeavyResizeSuspended", nil)
+	if NAmanage.GetAttr and NAmanage.GetAttr(ui, "NAMenuMinimized") == true then
+		body.Visible = false
+	else
+		body.Visible = wasVisible
+	end
+	if wasVisible and NAUIMANAGER.SettingsList then
+		Defer(function()
+			if NAUIMANAGER and NAUIMANAGER.SettingsList then
+				updateCanvasSize(NAUIMANAGER.SettingsList, NAUIMANAGER.AUTOSCALER and NAUIMANAGER.AUTOSCALER.Scale or nil)
+			end
+		end)
+	end
+end
+
 NAgui.resizeable = function(ui, min, max)
 	if not ui or not ui:IsA("GuiObject") then return function() end end
 	local prevCleanup = NAgui._resizeCleanup[ui]
@@ -82851,6 +83288,8 @@ NAgui.resizeable = function(ui, min, max)
 	local cursorSaved
 	local cursorActive = false
 	local touchGestureLocked = false
+	local lastResizeUpdate = 0
+	local updateResize
 
 	local function isMenuMinimized()
 		return ui and ui.GetAttribute and NAmanage.GetAttr(ui, "NAMenuMinimized") == true
@@ -82888,6 +83327,10 @@ NAgui.resizeable = function(ui, min, max)
 	end
 
 	local function endDrag()
+		if dragging and dragInput and dragInput.Position then
+			local p = dragInput.Position
+			updateResize(Vector2.new(p.X, p.Y), true)
+		end
 		if touchGestureLocked then
 			NAgui.releaseTouchGesture(ui, "resize", dragInput)
 			touchGestureLocked = false
@@ -82902,9 +83345,19 @@ NAgui.resizeable = function(ui, min, max)
 		dragInput = nil
 		if dragEndedConn then dragEndedConn:Disconnect() dragEndedConn = nil end
 		restoreCursor()
+		if NAgui._setHeavyResizeSuspended then
+			NAgui._setHeavyResizeSuspended(ui, false)
+		end
 	end
 
-	local function updateResize(currentPos)
+	updateResize = function(currentPos, force)
+		if ui == (NAUIMANAGER and NAUIMANAGER.SettingsFrame) then
+			local now = os.clock()
+			if force ~= true and now - lastResizeUpdate < 0.033 then
+				return
+			end
+			lastResizeUpdate = now
+		end
 		local ok, err = pcall(function()
 			if isMenuMinimized() then return end
 			if not dragging or not mode or not screenGui or not screenGui.AbsoluteSize then return end
@@ -82983,6 +83436,9 @@ NAgui.resizeable = function(ui, min, max)
 									NAmanage.SetAttr(ui, "NAResizeActive", true)
 								end
 							end)
+							if NAgui._setHeavyResizeSuspended then
+								NAgui._setHeavyResizeSuspended(ui, true)
+							end
 							local p = input.Position
 							lastPos = Vector2.new(p.X, p.Y)
 							lastSize = getLogicalSize()
@@ -83331,6 +83787,9 @@ NAgui.addInfo = function(label, value, opts)
 	local lastW
 
 	local function resize()
+		if NAgui.isSettingsLayoutSuspended and NAgui.isSettingsLayoutSuspended() then
+			return
+		end
 		if not (info and frame and box) then
 			return
 		end
@@ -84565,6 +85024,9 @@ NAgui.addInput = function(label, placeholder, defaultText, callback, opts)
 	end
 
 	resize = function()
+		if NAgui.isSettingsLayoutSuspended and NAgui.isSettingsLayoutSuspended() then
+			return
+		end
 		if not (input and frame and box) then
 			return
 		end
@@ -85649,6 +86111,9 @@ NAgui.addDropdown = function(label, values, defaultValue, callback, opts)
 	local collapsedHeight, openHeight
 
 	local function resizeSelectedLabel()
+		if NAgui.isSettingsLayoutSuspended and NAgui.isSettingsLayoutSuspended() then
+			return
+		end
 		if not (dropdown and selected and selected:IsA("TextLabel")) then
 			return
 		end
@@ -87434,15 +87899,27 @@ NAgui.menu = function(menu)
 		if nextState then
 			local currentX, currentY = getMenuSize()
 			setStoredSize(currentX, currentY)
+			if NAgui._setHeavyResizeSuspended then
+				NAgui._setHeavyResizeSuspended(menu, true)
+			end
 			setBodyVisible(false)
 			NAgui._menuCompleted(menuConnName, NAgui.tween(menu, "Quart", "Out", 0.5, {Size = UDim2.new(0, currentX, 0, getMiniHeight())}), function()
 					isAnimating = false
+					if NAgui._setHeavyResizeSuspended then
+						NAgui._setHeavyResizeSuspended(menu, false)
+					end
 				end)
 		else
 			local restoreX, restoreY = getStoredSize()
-			setBodyVisible(true)
+			setBodyVisible(false)
 			NAgui._menuCompleted(menuConnName, NAgui.tween(menu, "Quart", "Out", 0.5, {Size = UDim2.new(0, restoreX, 0, restoreY)}), function()
 					isAnimating = false
+					setBodyVisible(true)
+					if menu == (NAUIMANAGER and NAUIMANAGER.SettingsFrame) and NAUIMANAGER.SettingsList then
+						Defer(function()
+							updateCanvasSize(NAUIMANAGER.SettingsList, NAUIMANAGER.AUTOSCALER and NAUIMANAGER.AUTOSCALER.Scale or nil)
+						end)
+					end
 				end)
 		end
 	end
@@ -98368,6 +98845,8 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 		proxy = NAmanage.ensureWeakTable(nil, "k");
 		touch = NAmanage.ensureWeakTable(nil, "k");
 	};
+	NAmanage._interactionIndexActive = NAmanage._interactionIndexActive == true;
+	NAmanage._interactionIndexReady = NAmanage._interactionIndexReady == true;
 	local function pruneI(kind)
 		local list = InstancesTbl[kind];
 		local idxMap = iIdx[kind];
@@ -98456,6 +98935,30 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 		end
 		local cn = inst.ClassName
 		return cn == "ClickDetector" or cn == "ProximityPrompt" or cn == "TouchTransmitter"
+	end;
+	NAmanage.ensureInteractionIndex = function(opts)
+		opts = type(opts) == "table" and opts or {};
+		if NAmanage._interactionIndexReady == true and opts.force ~= true then
+			return true;
+		end;
+		if opts.force == true then
+			for _, kind in { "click", "proxy", "touch" } do
+				InstancesTbl[kind] = {};
+				iIdx[kind] = NAmanage.ensureWeakTable(nil, "k");
+			end;
+		end;
+		NAmanage._interactionIndexActive = true;
+		NAmanage._interactionIndexReady = true;
+		NAmanage.ForEachWorkspaceYield(function(inst)
+			if isITgt(inst) then
+				regI(inst);
+			end;
+		end, {
+			yieldEvery = tonumber(opts.yieldEvery) or 160;
+			delayTime = tonumber(opts.delayTime) or 0;
+		});
+		NAmanage.pruneInteractionIndex();
+		return true;
 	end;
 	local bulkAddRoots = NAmanage.ensureWeakTable(nil, "k");
 	local function scanNow(root, fn, onDone)
@@ -98578,31 +99081,28 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 		end;
 		enqueueDesc(inst, interactState, wsAddFlag, wsRemFlag);
 	end;
-	scanNow(workspace, function(inst)
-		handleDesc(inst, true, nil, nil);
-	end);
 	NAlib.disconnect("NA_InteractAdded");
 	NAlib.connect("NA_InteractAdded", NAmanage.wsSub({
 		added = function(inst)
-			handleDesc(inst, true, true, nil);
+			handleDesc(inst, NAmanage._interactionIndexActive == true and true or nil, true, nil);
 		end,
 		filterAdded = function(inst)
 			if NAmanage.hasWsH("add", inst) then
 				return true
 			end
-			return isITgt(inst)
+			return NAmanage._interactionIndexActive == true and isITgt(inst)
 		end,
 	}));
 	NAlib.disconnect("NA_InteractRemoved");
 	NAlib.connect("NA_InteractRemoved", NAmanage.wsSub({
 		removing = function(inst)
-			handleDesc(inst, false, nil, true);
+			handleDesc(inst, NAmanage._interactionIndexActive == true and false or nil, nil, true);
 		end,
 		filterRemoving = function(inst)
 			if NAmanage.hasWsH("rem", inst) then
 				return true
 			end
-			return isITgt(inst)
+			return NAmanage._interactionIndexActive == true and isITgt(inst)
 		end,
 	}));
 end);
@@ -98646,9 +99146,10 @@ SpawnCall(function()
 			return
 		end
 		local lastSafe = 0
+		local safeSampleInterval = 0.35
 		fbHumCons[#fbHumCons + 1] = RunService.Heartbeat:Connect(function()
 			local now = os.clock()
-			if now - lastSafe < 0.15 then
+			if now - lastSafe < safeSampleInterval then
 				return
 			end
 			lastSafe = now
@@ -99954,11 +100455,28 @@ NAmanage.getRobloxDevConsoleWindow = function()
 	if not coreGui then
 		return nil
 	end
-	local master = coreGui:FindFirstChild("DevConsoleMaster")
+	local state = NAmanage._rbxDevConsoleLookup
+	if type(state) ~= "table" then
+		state = {}
+		NAmanage._rbxDevConsoleLookup = state
+	end
+	local window = state.window
+	if window and window.Parent and window.Name == "DevConsoleWindow" then
+		return window
+	end
+	state.window = nil
+
+	local master = state.master
+	if not (master and master.Parent and master.Name == "DevConsoleMaster") then
+		master = coreGui:FindFirstChild("DevConsoleMaster")
+		state.master = master
+	end
 	if not master then
 		return nil
 	end
-	return master:FindFirstChild("DevConsoleWindow")
+	window = master:FindFirstChild("DevConsoleWindow")
+	state.window = window
+	return window
 end
 
 NAmanage.getRobloxDevConsoleClientLog = function(window, deep)
@@ -100008,6 +100526,7 @@ NAmanage.bindRobloxDevConsoleCopyButtons = function(window, forceScan)
 	local attachCount = 0
 	local lastScan = 0
 	local scanQueued = false
+	local pendingForceScan = false
 	local maxButtons = math.floor(tonumber(NAStuff and NAStuff.RobloxDevConsoleCopyLimit) or 180)
 	if maxButtons < 40 then
 		maxButtons = 40
@@ -100246,30 +100765,61 @@ NAmanage.bindRobloxDevConsoleCopyButtons = function(window, forceScan)
 		end
 		lastScan = now
 		pruneButtons()
-		local list = NAmanage.qDesc(root, "TextLabel", { budget = 500, delay = 0, hardLimit = math.max(maxButtons * 3, 300) })
-		for i = 1, #list do
-			attach(list[i])
-			if i % 120 == 0 then
+		local maxLabels = math.max(maxButtons * 3, 300)
+		local maxNodes = math.max(maxLabels * 8, 800)
+		local q = { root }
+		local qi, qn = 1, 1
+		local visited, matched = 0, 0
+		while qi <= qn and visited < maxNodes and matched < maxLabels do
+			local inst = q[qi]
+			q[qi] = nil
+			qi += 1
+			if inst and (inst == root or inst.Parent) then
+				visited += 1
+				if inst ~= root and inst:IsA("TextLabel") then
+					matched += 1
+					attach(inst)
+				end
+				local okChildren, children = pcall(inst.GetChildren, inst)
+				if okChildren and type(children) == "table" then
+					for i = 1, #children do
+						qn += 1
+						q[qn] = children[i]
+					end
+				end
+			end
+			if visited > 0 and visited % 90 == 0 then
 				Wait()
 			end
 		end
 		pruneButtons()
 	end
 
-	local function queueScan(force)
+	local function queueScan(force, delayTime)
+		if force == true then
+			pendingForceScan = true
+		end
 		if scanQueued then
 			return
 		end
 		scanQueued = true
-		Defer(function()
+		local function runScan()
 			scanQueued = false
 			if NAStuff and NAStuff._rbxDevConsoleCopyTarget == clientLog then
-				scan(clientLog, force == true)
+				local runForce = pendingForceScan == true or force == true
+				pendingForceScan = false
+				scan(clientLog, runForce)
 			end
-		end)
+		end
+		delayTime = tonumber(delayTime) or 0
+		if delayTime > 0 then
+			Delay(delayTime, runScan)
+		else
+			Defer(runScan)
+		end
 	end
 
-	scan(clientLog, true)
+	queueScan(true, 0.05)
 	Insert(connections, NAmanage.descAdd(clientLog, function(desc)
 		attach(desc)
 	end, function(desc)
@@ -100318,9 +100868,9 @@ NAmanage.bindRobloxDevConsoleCopyButtons = function(window, forceScan)
 	NAStuff._rbxDevConsoleCopyTarget = clientLog
 	NAStuff._rbxDevConsoleCopyRefresh = function(force)
 		if force == true then
-			queueScan(true)
-		elseif tick() - lastScan >= 5 then
-			queueScan(false)
+			queueScan(true, 0)
+		elseif tick() - lastScan >= 20 then
+			queueScan(false, 0.1)
 		elseif #createdButtons > maxButtons then
 			pruneButtons()
 		end
@@ -100355,11 +100905,15 @@ NAmanage.refreshDevConsoleFeatures = function()
 end
 
 NAmanage.ensureRobloxDevConsoleCopyLoop = function()
-	if NAlib.isConnected and NAlib.isConnected("rbx_devconsole_copy_loop") then
-		return
-	end
 	if not (NAStuff and NAStuff.RobloxDevConsoleCopyButtonsEnabled == true) then
 		NAmanage.cleanupRobloxDevConsoleCopyButtons()
+		return
+	end
+	if NAStuff.NAConsoleMasterEnabled ~= false then
+		NAlib.disconnect("rbx_devconsole_copy_loop")
+		return
+	end
+	if NAlib.isConnected and NAlib.isConnected("rbx_devconsole_copy_loop") then
 		return
 	end
 
@@ -100367,7 +100921,7 @@ NAmanage.ensureRobloxDevConsoleCopyLoop = function()
 	local lastVisible = false
 	NAlib.connect("rbx_devconsole_copy_loop", RunService.Heartbeat:Connect(function(dt)
 		elapsed = elapsed + (dt or 0)
-		local interval = lastVisible and 1 or 2
+		local interval = lastVisible and 1.25 or 4
 		if elapsed < interval then
 			return
 		end
@@ -100405,6 +100959,119 @@ NAmanage.injectNAConsole = function()
 
 	local baseMainViewSize = nil
 	local lastWindowSize = nil
+	local cachedCoreGui = nil
+	local cachedConsoleMaster = nil
+	local cachedConsoleWindow = nil
+	local lastCopyBindWindow = nil
+	local ensureQueued = false
+	local consoleVisible = false
+	local ensureInjection
+	local resetCommandLine
+	local commandLine
+
+	local function queueConsoleEnsure(delayTime)
+		if ensureQueued then
+			return
+		end
+		ensureQueued = true
+		local function runEnsure()
+			ensureQueued = false
+			if NAmanage._naConsoleFrame and NAmanage._naConsoleFrame ~= commandLine then
+				return
+			end
+			if not NAmanage._naConsoleFrame and NAmanage._naConsoleInitialized == false and not commandLine.Parent then
+				return
+			end
+			if ensureInjection then
+				consoleVisible = ensureInjection() == true
+			end
+		end
+		delayTime = tonumber(delayTime) or 0
+		if delayTime > 0 then
+			Delay(delayTime, runEnsure)
+		else
+			Defer(runEnsure)
+		end
+	end
+
+	local function watchConsoleWindow(window)
+		if cachedConsoleWindow == window then
+			return
+		end
+		NAlib.disconnect("naconsole_window_visible")
+		NAlib.disconnect("naconsole_window_ancestry")
+		cachedConsoleWindow = window
+		if not window then
+			return
+		end
+		NAlib.connect("naconsole_window_visible", window:GetPropertyChangedSignal("Visible"):Connect(function()
+			queueConsoleEnsure(0.05)
+		end))
+		NAlib.connect("naconsole_window_ancestry", window.AncestryChanged:Connect(function(_, parent)
+			if not parent then
+				cachedConsoleWindow = nil
+				lastCopyBindWindow = nil
+				resetCommandLine()
+				NAmanage.cleanupRobloxDevConsoleCopyButtons()
+				queueConsoleEnsure(1)
+			end
+		end))
+	end
+
+	local function watchConsoleMaster(master)
+		if cachedConsoleMaster == master then
+			return
+		end
+		NAlib.disconnect("naconsole_master_child")
+		NAlib.disconnect("naconsole_master_ancestry")
+		cachedConsoleMaster = master
+		if not master then
+			return
+		end
+		NAlib.connect("naconsole_master_child", master.ChildAdded:Connect(function(child)
+			if child and child.Name == "DevConsoleWindow" then
+				local state = NAmanage._rbxDevConsoleLookup
+				if type(state) == "table" then
+					state.master = master
+					state.window = child
+				end
+				watchConsoleWindow(child)
+				queueConsoleEnsure(0.05)
+			end
+		end))
+		NAlib.connect("naconsole_master_ancestry", master.AncestryChanged:Connect(function(_, parent)
+			if not parent then
+				cachedConsoleMaster = nil
+				cachedConsoleWindow = nil
+				lastCopyBindWindow = nil
+				resetCommandLine()
+				NAmanage.cleanupRobloxDevConsoleCopyButtons()
+				queueConsoleEnsure(1.5)
+			end
+		end))
+	end
+
+	local function watchConsoleRoot(coreGui)
+		if cachedCoreGui == coreGui then
+			return
+		end
+		NAlib.disconnect("naconsole_coregui_child")
+		cachedCoreGui = coreGui
+		if not coreGui then
+			return
+		end
+		NAlib.connect("naconsole_coregui_child", coreGui.ChildAdded:Connect(function(child)
+			if child and child.Name == "DevConsoleMaster" then
+				local state = NAmanage._rbxDevConsoleLookup
+				if type(state) == "table" then
+					state.master = child
+					state.window = nil
+				end
+				watchConsoleMaster(child)
+				queueConsoleEnsure(0.05)
+			end
+		end))
+	end
 
 	local function ensureCommandHelpers()
 		if not NAmanage._naConsoleDispatch then
@@ -100488,7 +101155,7 @@ NAmanage.injectNAConsole = function()
 		_na_env.runCommand = dispatch
 	end
 
-	local commandLine = InstanceNew("Frame")
+	commandLine = InstanceNew("Frame")
 	commandLine.Name = "NAConsole"
 	commandLine.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 	commandLine.BorderColor3 = Color3.fromRGB(184, 184, 184)
@@ -100533,7 +101200,7 @@ NAmanage.injectNAConsole = function()
 	arrow.AutoLocalize = false
 	arrow.ZIndex = 2
 
-	local function resetCommandLine()
+	resetCommandLine = function()
 		if commandLine.Parent then
 			commandLine.Parent = nil
 		end
@@ -100689,37 +101356,73 @@ NAmanage.injectNAConsole = function()
 		end
 	end))
 
-	local function ensureInjection()
+	ensureInjection = function()
 		local coreGui = COREGUI
 		if not coreGui then
+			watchConsoleRoot(nil)
 			resetCommandLine()
 			return false
 		end
+		watchConsoleRoot(coreGui)
 
-		local master = coreGui:FindFirstChild("DevConsoleMaster")
+		local state = NAmanage._rbxDevConsoleLookup
+		if type(state) ~= "table" then
+			state = {}
+			NAmanage._rbxDevConsoleLookup = state
+		end
+
+		local master = cachedConsoleMaster
+		if not (master and master.Parent and master.Name == "DevConsoleMaster") then
+			master = state.master
+		end
+		if not (master and master.Parent and master.Name == "DevConsoleMaster") then
+			master = coreGui:FindFirstChild("DevConsoleMaster")
+		end
 		if not master then
+			watchConsoleMaster(nil)
 			resetCommandLine()
 			return false
 		end
+		state.master = master
+		watchConsoleMaster(master)
 
-		local window = master:FindFirstChild("DevConsoleWindow")
+		local window = cachedConsoleWindow
+		if not (window and window.Parent and window.Name == "DevConsoleWindow") then
+			window = state.window
+		end
+		if not (window and window.Parent and window.Name == "DevConsoleWindow") then
+			window = master:FindFirstChild("DevConsoleWindow")
+		end
 		if not window or window.Visible == false then
+			watchConsoleWindow(window)
 			resetCommandLine()
 			return false
 		end
+		state.window = window
+		watchConsoleWindow(window)
 
 		adjustDevConsoleLayout(window)
-		NAmanage.bindRobloxDevConsoleCopyButtons(window)
+		if NAStuff and NAStuff.RobloxDevConsoleCopyButtonsEnabled == true then
+			local target = NAStuff._rbxDevConsoleCopyTarget
+			if lastCopyBindWindow ~= window or not (target and target.Parent) then
+				NAmanage.bindRobloxDevConsoleCopyButtons(window, true)
+				lastCopyBindWindow = window
+			elseif NAStuff._rbxDevConsoleCopyRefresh then
+				pcall(NAStuff._rbxDevConsoleCopyRefresh, false)
+			end
+		else
+			NAmanage.cleanupRobloxDevConsoleCopyButtons()
+		end
 		return true
 	end
 
 	NAlib.disconnect("naconsole_loop")
 	do
 		local injectTick = 0
-		local consoleVisible = ensureInjection() == true
+		consoleVisible = ensureInjection() == true
 		NAlib.connect("naconsole_loop", RunService.Heartbeat:Connect(function(dt)
 			injectTick = injectTick + (dt or 0)
-			local pollInterval = consoleVisible and 0.35 or 1.25
+			local pollInterval = consoleVisible and 4 or 8
 			if injectTick < pollInterval then
 				return
 			end
@@ -100738,6 +101441,11 @@ end
 NAmanage.destroyNAConsole = function()
 	NAlib.disconnect("naconsole_loop")
 	NAlib.disconnect("naconsole_focus")
+	NAlib.disconnect("naconsole_window_visible")
+	NAlib.disconnect("naconsole_window_ancestry")
+	NAlib.disconnect("naconsole_master_child")
+	NAlib.disconnect("naconsole_master_ancestry")
+	NAlib.disconnect("naconsole_coregui_child")
 	NAlib.disconnect("rbx_devconsole_copy_loop")
 	NAmanage.cleanupRobloxDevConsoleCopyButtons()
 	if NAmanage._naConsoleFrame then
@@ -107705,10 +108413,6 @@ NAmanage.NAInitCoreGuiCustomization=function()
 				refreshBuilderIconDropdown({
 					syncText = true,
 					fullScan = true,
-				})
-				fetchBuilderIconCatalog({
-					notify = false,
-					timeout = 8,
 				})
 				queueSavedBuilderIconReapply({
 					delay = 0.35,
