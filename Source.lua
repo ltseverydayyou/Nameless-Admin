@@ -71717,7 +71717,7 @@ NAmanage.CreateBox = function(part, color, transparency)
 	local darker = Color3.fromHSV(h, s, math.clamp(v - off, 0, 1))
 	local lighter = Color3.fromHSV(h, s, math.clamp(v + off, 0, 1))
 	local mode = NAgui.getESPRenderMode("part")
-	local useHighlight = mode == "Highlight"
+	local useHighlight = mode == "Highlight" and not part:IsA("Model")
 	local useDrawing = mode == "Drawing API"
 	local drawingStyle = NAgui.sanitizeESPDrawingBoxStyle(NAStuff.ESP_DrawingPartBoxStyle)
 	local adornTarget = NAgui.getInstanceAdornee(part)
@@ -72149,14 +72149,41 @@ NAmanage.NameESP_SelfMatches = function(obj, mode)
 	return false
 end
 
+NAmanage.NameESP_MatchedModelForPart = function(part, mode)
+	if typeof(part) ~= "Instance" or not part:IsA("BasePart") then
+		return nil
+	end
+
+	local obj = part.Parent
+	while obj do
+		if obj:IsA("Model") and NAmanage.NameESP_SelfMatches(obj, mode) then
+			return obj
+		end
+		if obj == workspace then
+			break
+		end
+		obj = obj.Parent
+	end
+
+	return nil
+end
+
 NAmanage.NameESP_BasePartMatches = function(part, mode)
 	if typeof(part) ~= "Instance" or not part:IsA("BasePart") then
 		return false
 	end
 
+	if NAmanage.NameESP_MatchedModelForPart(part, mode) then
+		return false
+	end
+
 	local obj = part
 	while obj do
-		if NAmanage.NameESP_SelfMatches(obj, mode) then
+		if obj:IsA("Model") and obj ~= part then
+			if NAmanage.NameESP_SelfMatches(obj, mode) then
+				return false
+			end
+		elseif NAmanage.NameESP_SelfMatches(obj, mode) then
 			return true
 		end
 		if obj == workspace then
@@ -72231,8 +72258,57 @@ NAmanage.EnableNameEsp = function(mode, color, ...)
 		end
 	end
 
+	local function addTarget(target)
+		if typeof(target) ~= "Instance" or not target.Parent then
+			return
+		end
+		if target:IsA("Model") and not target:FindFirstChildWhichIsA("BasePart", true) then
+			return
+		end
+		if not (target:IsA("BasePart") or target:IsA("Model")) then
+			return
+		end
+		if NAmanage.ESP_ListAdd(parts, partMap, target) then
+			NAmanage.PartESP_QueueCreate(target, currentColor(), NAStuff.ESP_PartTransparency or 0.45, function(p)
+				return partMap[p] ~= nil
+			end)
+		end
+	end
+
+	local function clearModelParts(model)
+		if typeof(model) ~= "Instance" or not model:IsA("Model") then
+			return
+		end
+		for _, part in NAmanage.qDesc(model, "BasePart") do
+			if partMap[part] ~= nil then
+				removePart(part)
+			end
+		end
+	end
+
+	local function applyModel(model)
+		if typeof(model) ~= "Instance" or not model:IsA("Model") or not model.Parent then
+			return
+		end
+		if not model:FindFirstChildWhichIsA("BasePart", true) then
+			removePart(model)
+			return
+		end
+		clearModelParts(model)
+		addTarget(model)
+	end
+
 	local function applyPart(part)
 		if typeof(part) ~= "Instance" or not part:IsA("BasePart") then
+			return
+		end
+
+		local modelTarget = NAmanage.NameESP_MatchedModelForPart(part, mode)
+		if modelTarget then
+			applyModel(modelTarget)
+			if partMap[part] ~= nil then
+				removePart(part)
+			end
 			return
 		end
 
@@ -72240,11 +72316,7 @@ NAmanage.EnableNameEsp = function(mode, color, ...)
 		local tracked = partMap[part] ~= nil
 
 		if matches and not tracked then
-			if NAmanage.ESP_ListAdd(parts, partMap, part) then
-				NAmanage.PartESP_QueueCreate(part, currentColor(), NAStuff.ESP_PartTransparency or 0.45, function(p)
-					return partMap[p] ~= nil
-				end)
-			end
+			addTarget(part)
 		elseif not matches and tracked then
 			removePart(part)
 		end
@@ -72252,6 +72324,11 @@ NAmanage.EnableNameEsp = function(mode, color, ...)
 
 	local function applyContainer(obj)
 		if typeof(obj) ~= "Instance" or obj:IsA("BasePart") then
+			return
+		end
+
+		if obj:IsA("Model") and NAmanage.NameESP_SelfMatches(obj, mode) then
+			applyModel(obj)
 			return
 		end
 
@@ -72297,18 +72374,18 @@ NAmanage.EnableNameEsp = function(mode, color, ...)
 			end
 		end
 
-		for _, part in direct do
-			if scanToken and scanToken.cancelled then
-				break
-			end
-			applyPart(part)
-		end
-
 		for _, obj in containers do
 			if scanToken and scanToken.cancelled then
 				break
 			end
 			applyContainer(obj)
+		end
+
+		for _, part in direct do
+			if scanToken and scanToken.cancelled then
+				break
+			end
+			applyPart(part)
 		end
 
 		if NAStuff.espScanTokens and NAStuff.espScanTokens[scanKey] == scanToken then
@@ -72333,8 +72410,19 @@ NAmanage.EnableNameEsp = function(mode, color, ...)
 					return
 				end
 				if obj:IsA("BasePart") then
+					local model = NAmanage.NameESP_MatchedModelForPart(obj, mode)
 					removePart(obj)
+					if model and partMap[model] ~= nil then
+						Defer(function()
+							if model.Parent and not model:FindFirstChildWhichIsA("BasePart", true) then
+								removePart(model)
+							end
+						end)
+					end
 				else
+					if obj:IsA("Model") then
+						removePart(obj)
+					end
 					for _, part in NAmanage.qDesc(obj, "BasePart") do
 						removePart(part)
 					end
