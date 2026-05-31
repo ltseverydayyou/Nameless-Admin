@@ -939,8 +939,8 @@
         "wfling",
         "wf"
       ],
-      "usage": "walkfling (wfling,wf)",
-      "args": "",
+      "usage": "walkfling (wfling,wf) <speed>",
+      "args": "<speed>",
       "desc": "probably the best fling lol"
     },
     {
@@ -961,8 +961,8 @@
         "tfling",
         "tf"
       ],
-      "usage": "touchfling (tfling,tf)",
-      "args": "",
+      "usage": "touchfling (tfling,tf) <speed>",
+      "args": "<speed>",
       "desc": "walkfling only when touching a player or NPC"
     },
     {
@@ -1159,8 +1159,8 @@
         "tweengoto",
         "tgoto"
       ],
-      "usage": "tweengoto <player>",
-      "args": "<player>",
+      "usage": "tweengoto <player|npc:filter>",
+      "args": "<player|npc:filter>",
       "desc": "Teleportation method that bypasses some anticheats"
     },
     {
@@ -4022,9 +4022,9 @@
         "tp",
         "teleport"
       ],
-      "usage": "goto <player|X,Y,Z>",
-      "args": "<player|X,Y,Z>",
-      "desc": "Teleport to the given player or X,Y,Z coordinates"
+      "usage": "goto <player|npc:filter|X,Y,Z>",
+      "args": "<player|npc:filter|X,Y,Z>",
+      "desc": "Teleport to the given player, NPC, or X,Y,Z coordinates"
     },
     {
       "name": "lookat",
@@ -4032,9 +4032,9 @@
         "lookat",
         "stare"
       ],
-      "usage": "lookat <player>",
-      "args": "<player>",
-      "desc": "Stare at a player"
+      "usage": "lookat <player|npc:filter>",
+      "args": "<player|npc:filter>",
+      "desc": "Stare at a player or NPC"
     },
     {
       "name": "unlookat",
