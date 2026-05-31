@@ -23710,6 +23710,282 @@ end
 
 
 --[[ FUNCTION TO GET A PLAYER ]]--
+NAmanage.NPCArgAll = NAmanage.NPCArgAll or function()
+	local out = {}
+	local seen = {}
+	local function add(m)
+		if typeof(m) ~= "Instance" or not m:IsA("Model") then
+			return
+		end
+		if seen[m] then
+			return
+		end
+		if CheckIfNPC(m) then
+			seen[m] = true
+			Insert(out, m)
+		end
+	end
+	if type(NAmanage.wsDescs) == "function" then
+		for _, m in NAmanage.wsDescs() do
+			add(m)
+		end
+	elseif workspace then
+		for _, m in workspace:GetDescendants() do
+			add(m)
+		end
+	end
+	return out
+end
+
+NAmanage.NPCArgRoot = NAmanage.NPCArgRoot or function(speaker)
+	local char = getPlrChar(speaker or LocalPlayer)
+	if not char and typeof(speaker) == "Instance" and speaker:IsA("Model") then
+		char = speaker
+	end
+	char = char or getPlrChar(LocalPlayer) or (LocalPlayer and LocalPlayer.Character)
+	return char and getRoot(char) or nil
+end
+
+NAmanage.NPCArgTrim = NAmanage.NPCArgTrim or function(txt)
+	txt = tostring(txt or "")
+	return txt:match("^%s*(.-)%s*$") or ""
+end
+
+NAmanage.NPCArgSplit = NAmanage.NPCArgSplit or function(txt)
+	local out = {}
+	txt = NAmanage.NPCArgTrim(txt)
+	if txt == "" then
+		return out
+	end
+	for part in txt:gmatch("[^,|]+") do
+		part = NAmanage.NPCArgTrim(part)
+		if part ~= "" then
+			Insert(out, Lower(part))
+		end
+	end
+	if #out == 0 then
+		Insert(out, Lower(txt))
+	end
+	return out
+end
+
+NAmanage.NPCArgName = NAmanage.NPCArgName or function(pool, raw)
+	local out = {}
+	raw = Lower(NAmanage.NPCArgTrim(raw))
+	if raw == "" then
+		return out
+	end
+	local function matches(m, loose)
+		local n = Lower(m.Name or "")
+		local hum = getPlrHum(m)
+		local d = hum and Lower(tostring(hum.DisplayName or "")) or ""
+		if Sub(n, 1, #raw) == raw or Sub(d, 1, #raw) == raw then
+			return true
+		end
+		return loose and ((Find(n, raw, 1, true) ~= nil) or (d ~= "" and Find(d, raw, 1, true) ~= nil))
+	end
+	for _, m in pool do
+		if matches(m, false) then
+			Insert(out, m)
+		end
+	end
+	if #out > 0 then
+		return out
+	end
+	for _, m in pool do
+		if matches(m, true) then
+			Insert(out, m)
+		end
+	end
+	return out
+end
+
+NAmanage.NPCArgOneByDistance = NAmanage.NPCArgOneByDistance or function(pool, speaker, far)
+	local org = NAmanage.NPCArgRoot(speaker)
+	if not org then
+		return {}
+	end
+	local best = nil
+	local bestDist = far and -math.huge or math.huge
+	for _, m in pool do
+		local r = getRoot(m)
+		if r then
+			local dist = (r.Position - org.Position).Magnitude
+			if (far and dist > bestDist) or ((not far) and dist < bestDist) then
+				bestDist = dist
+				best = m
+			end
+		end
+	end
+	return best and { best } or {}
+end
+
+NAmanage.NPCArgWithinRadius = NAmanage.NPCArgWithinRadius or function(pool, speaker, radius)
+	local out = {}
+	local org = NAmanage.NPCArgRoot(speaker)
+	radius = tonumber(radius)
+	if not org or not radius then
+		return out
+	end
+	for _, m in pool do
+		local r = getRoot(m)
+		if r and (r.Position - org.Position).Magnitude <= radius then
+			Insert(out, m)
+		end
+	end
+	return out
+end
+
+NAmanage.NPCArgFilter = NAmanage.NPCArgFilter or function(pool, speaker, tok)
+	if tok == "" or tok == "all" or tok == "others" or tok == "other" or tok == "npcs" or tok == "npc" then
+		return pool
+	end
+	if tok == "random" then
+		if #pool == 0 then
+			return {}
+		end
+		return { pool[math.random(1, #pool)] }
+	end
+	if tok == "nearest" or tok == "closest" then
+		return NAmanage.NPCArgOneByDistance(pool, speaker, false)
+	end
+	if tok == "farthest" or tok == "furthest" then
+		return NAmanage.NPCArgOneByDistance(pool, speaker, true)
+	end
+	if tok == "alive" or tok == "dead" then
+		local out = {}
+		for _, m in pool do
+			local hum = getPlrHum(m)
+			if hum and ((tok == "alive" and hum.Health > 0) or (tok == "dead" and hum.Health <= 0)) then
+				Insert(out, m)
+			end
+		end
+		return out
+	end
+	if tok == "seated" or tok == "sat" or tok == "stood" then
+		local out = {}
+		for _, m in pool do
+			local hum = getPlrHum(m)
+			if hum and ((tok ~= "stood" and hum.Sit) or (tok == "stood" and not hum.Sit)) then
+				Insert(out, m)
+			end
+		end
+		return out
+	end
+	local amount = tok:match("^#(%d+)$")
+	if amount then
+		local out = {}
+		local left = { Unpack(pool) }
+		for _ = 1, math.min(tonumber(amount) or 0, #left) do
+			local i = math.random(1, #left)
+			Insert(out, left[i])
+			table.remove(left, i)
+		end
+		return out
+	end
+	local rad = tok:match("^rad(%d+%.%d+)$") or tok:match("^rad(%d+)$") or tok:match("^radius(%d+%.%d+)$") or tok:match("^radius(%d+)$")
+	if rad then
+		return NAmanage.NPCArgWithinRadius(pool, speaker, rad)
+	end
+	return NAmanage.NPCArgName(pool, tok)
+end
+
+NAmanage.ParseNPCPlayerArg = NAmanage.ParseNPCPlayerArg or function(raw)
+	raw = NAmanage.NPCArgTrim(raw)
+	if raw == "npcs" then
+		return ""
+	end
+	for _, head in { "npc", "npcs" } do
+		local a = head..":"
+		local b = head..":["
+		local c = head.."["
+		if Sub(raw, 1, #b) == b and Sub(raw, -1) == "]" then
+			return Sub(raw, #b + 1, -2)
+		end
+		if Sub(raw, 1, #c) == c and Sub(raw, -1) == "]" then
+			return Sub(raw, #c + 1, -2)
+		end
+		if Sub(raw, 1, #a) == a then
+			return Sub(raw, #a + 1)
+		end
+	end
+	return nil
+end
+
+NAmanage.ResolveNPCPlayerArg = NAmanage.ResolveNPCPlayerArg or function(speaker, raw)
+	local pool = NAmanage.NPCArgAll()
+	local toks = NAmanage.NPCArgSplit(raw)
+	local out = {}
+	local seen = {}
+	local function add(list)
+		for _, m in list do
+			if typeof(m) == "Instance" and not seen[m] then
+				seen[m] = true
+				Insert(out, m)
+			end
+		end
+	end
+	if #toks == 0 then
+		add(pool)
+	else
+		for _, tok in toks do
+			add(NAmanage.NPCArgFilter(pool, speaker, tok))
+		end
+	end
+	return out
+end
+
+NAmanage.PlayerArgChar = NAmanage.PlayerArgChar or function(target)
+	if typeof(target) ~= "Instance" then
+		return nil
+	end
+	if target:IsA("Player") then
+		return target.Character or getPlrChar(target)
+	end
+	if target:IsA("Model") then
+		return target
+	end
+	return getPlrChar(target)
+end
+
+NAmanage.PlayerArgRoot = NAmanage.PlayerArgRoot or function(target)
+	local char = NAmanage.PlayerArgChar(target)
+	return char and getRoot(char) or nil
+end
+
+NAmanage.PlayerArgHum = NAmanage.PlayerArgHum or function(target)
+	local char = NAmanage.PlayerArgChar(target)
+	return char and getPlrHum(char) or nil
+end
+
+NAmanage.PlayerArgPivot = NAmanage.PlayerArgPivot or function(target)
+	local char = NAmanage.PlayerArgChar(target)
+	if not (char and char.Parent) then
+		return nil
+	end
+	local ok, cf = pcall(function()
+		return char:GetPivot()
+	end)
+	if ok and typeof(cf) == "CFrame" then
+		return cf
+	end
+	local root = getRoot(char)
+	if root then
+		return (NAmanage.UG_clientCFrame and NAmanage.UG_clientCFrame(root)) or root.CFrame
+	end
+	return nil
+end
+
+NAmanage.PlayerArgName = NAmanage.PlayerArgName or function(target)
+	if typeof(target) == "Instance" then
+		if target:IsA("Player") then
+			return nameChecker(target)
+		end
+		return target.Name
+	end
+	return tostring(target)
+end
+
 local PlayerArgs = {
 	["all"] = function()
 		return __lt.cm("Players", "GetPlayers")
@@ -23744,13 +24020,11 @@ local PlayerArgs = {
 	end,
 
 	["npc"] = function()
-		local Targets = {}
-		for _, model in NAmanage.wsDescs() do
-			if CheckIfNPC(model) then
-				Insert(Targets, model)
-			end
-		end
-		return Targets
+		return NAmanage.NPCArgAll()
+	end,
+
+	["npcs"] = function()
+		return NAmanage.NPCArgAll()
 	end,
 
 	["seated"] = function()
@@ -24148,6 +24422,11 @@ local function getPlr(a, b)
 	else
 		speaker = a
 		raw = originalIO.normalizePlayerQuery(b)
+	end
+
+	local npcRaw = NAmanage.ParseNPCPlayerArg and NAmanage.ParseNPCPlayerArg(raw)
+	if npcRaw ~= nil then
+		return NAmanage.ResolveNPCPlayerArg(speaker, npcRaw)
 	end
 
 	if PlayerArgs[raw] then
@@ -34971,185 +35250,8 @@ cmd.add({"clickfling","mousefling"},{"clickfling (mousefling)","Fling a player b
 		local Players = game:GetService("Players")
 		local targetCharacter = NAmanage.ResolveHumanoidModelFromPart(Target)
 		local targetPlayer = targetCharacter and Players:GetPlayerFromCharacter(targetCharacter)
-		if targetPlayer then
-			local PlayerName = targetPlayer.Name
-			local playerLocal = Players.LocalPlayer
-			local Targets = {PlayerName}
-			local Player = Players.LocalPlayer
-			local AllBool = false
-
-			local GetPlayer = function(Name)
-				Name = Lower(Name)
-				if Name == "all" or Name == "others" then
-					AllBool = true
-					return
-				elseif Name == "random" then
-					local GetPlayers = Players:GetPlayers()
-					if Discover(GetPlayers,Player) then table.remove(GetPlayers,Discover(GetPlayers,Player)) end
-					return GetPlayers[math.random(#GetPlayers)]
-				end
-				for _,x in next, Players:GetPlayers() do
-					if x~=Player then
-						if Sub(Lower(x.Name),1,#Name)==Name or Sub(Lower(x.DisplayName),1,#Name)==Name then
-							return x
-						end
-					end
-				end
-			end
-
-			local flingManager = flingManager
-			local OrgDestroyHeight = workspace.FallenPartsDestroyHeight
-
-			local SkidFling = function(TargetPlayer)
-				local Character = Player.Character
-				local Humanoid = getPlrHum(Character)
-				local RootPart = Humanoid and Humanoid.RootPart
-				local TCharacter = TargetPlayer.Character
-				local THumanoid = getPlrHum(TCharacter)
-				local TRootPart = THumanoid and THumanoid.RootPart
-				local THead = getHead(TCharacter)
-				local Accessory = TCharacter:FindFirstChildOfClass("Accessory")
-				local Handle = Accessory and Accessory:FindFirstChild("Handle")
-
-				if Character and Humanoid and RootPart then
-					local flingPart = InstanceNew("Part")
-					flingPart.Anchored = false
-					flingPart.CanCollide = false
-					flingPart.Transparency = 1
-					flingPart.Size = Vector3.new(1, 1, 1)
-					flingPart.CFrame = RootPart.CFrame
-					flingPart.Parent = workspace
-
-					local flingWeld = InstanceNew("WeldConstraint")
-					flingWeld.Part0 = flingPart
-					flingWeld.Part1 = RootPart
-					flingWeld.Parent = flingPart
-
-					local function cleanupFlingPart()
-						if flingPart then
-							flingPart:Destroy()
-							flingPart = nil
-						end
-					end
-
-					local _, rootSpeed = flingManager.GetPartVelocity(RootPart)
-					if not flingManager.cFlingOldPos or rootSpeed<50 then
-						flingManager.cFlingOldPos = NAmanage.UG_clientCFrame(RootPart) or RootPart.CFrame
-					end
-					if THead then
-						workspace.CurrentCamera.CameraSubject = THead
-					elseif Handle then
-						workspace.CurrentCamera.CameraSubject = Handle
-					elseif THumanoid and TRootPart then
-						workspace.CurrentCamera.CameraSubject = THumanoid
-					end
-					if not TCharacter:FindFirstChildWhichIsA("BasePart") then
-						cleanupFlingPart()
-						return
-					end
-
-					local function FPos(BasePart,Pos,Ang)
-						local targetCFrame = CFrame.new(BasePart.Position)*Pos*Ang
-						flingPart.CFrame = targetCFrame
-						NAmanage.UG_pivotModel(Character, targetCFrame)
-						flingManager.SetFlingVelocity(flingPart)
-					end
-
-					local function SFBasePart(BasePart)
-						local TimeToWait = 2
-						local Time = tick()
-						local Angle = 0
-						local function partSpeed(part)
-							local _, speed = flingManager.GetPartVelocity(part)
-							return speed
-						end
-						repeat
-							if RootPart and THumanoid then
-								local baseSpeed = partSpeed(BasePart)
-								if baseSpeed<50 then
-									Angle=Angle+100
-									FPos(BasePart,CFrame.new(0,1.5,0)+THumanoid.MoveDirection*baseSpeed/1.25,CFrame.Angles(math.rad(Angle),0,0)) Wait()
-									FPos(BasePart,CFrame.new(0,-1.5,0)+THumanoid.MoveDirection*baseSpeed/1.25,CFrame.Angles(math.rad(Angle),0,0)) Wait()
-									FPos(BasePart,CFrame.new(2.25,1.5,-2.25)+THumanoid.MoveDirection*baseSpeed/1.25,CFrame.Angles(math.rad(Angle),0,0)) Wait()
-									FPos(BasePart,CFrame.new(-2.25,-1.5,2.25)+THumanoid.MoveDirection*baseSpeed/1.25,CFrame.Angles(math.rad(Angle),0,0)) Wait()
-									FPos(BasePart,CFrame.new(0,1.5,0)+THumanoid.MoveDirection,CFrame.Angles(math.rad(Angle),0,0)) Wait()
-									FPos(BasePart,CFrame.new(0,-1.5,0)+THumanoid.MoveDirection,CFrame.Angles(math.rad(Angle),0,0)) Wait()
-								else
-									local targetRootSpeed = partSpeed(TRootPart)
-									FPos(BasePart,CFrame.new(0,1.5,THumanoid.WalkSpeed),CFrame.Angles(math.rad(90),0,0)) Wait()
-									FPos(BasePart,CFrame.new(0,-1.5,-THumanoid.WalkSpeed),CFrame.Angles(0,0,0)) Wait()
-									FPos(BasePart,CFrame.new(0,1.5,THumanoid.WalkSpeed),CFrame.Angles(math.rad(90),0,0)) Wait()
-									FPos(BasePart,CFrame.new(0,1.5,targetRootSpeed/1.25),CFrame.Angles(math.rad(90),0,0)) Wait()
-									FPos(BasePart,CFrame.new(0,-1.5,-targetRootSpeed/1.25),CFrame.Angles(0,0,0)) Wait()
-									FPos(BasePart,CFrame.new(0,1.5,targetRootSpeed/1.25),CFrame.Angles(math.rad(90),0,0)) Wait()
-									FPos(BasePart,CFrame.new(0,-1.5,0),CFrame.Angles(math.rad(90),0,0)) Wait()
-									FPos(BasePart,CFrame.new(0,-1.5,0),CFrame.Angles(0,0,0)) Wait()
-									FPos(BasePart,CFrame.new(0,-1.5,0),CFrame.Angles(math.rad(-90),0,0)) Wait()
-									FPos(BasePart,CFrame.new(0,-1.5,0),CFrame.Angles(0,0,0)) Wait()
-								end
-							else
-								break
-							end
-						until partSpeed(BasePart)>500 or BasePart.Parent~=TargetPlayer.Character or TargetPlayer.Parent~=Players or TargetPlayer.Character~=TCharacter or THumanoid.Sit or Humanoid.Health<=0 or tick()>Time+TimeToWait
-					end
-
-					workspace.FallenPartsDestroyHeight = 0/0
-
-					local BV = InstanceNew("BodyVelocity")
-					BV.Parent = flingPart
-					flingManager.SetMoverFlingVelocity(BV)
-					BV.MaxForce = Vector3.new(1/0,1/0,1/0)
-
-					Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated,false)
-
-					if TRootPart and THead then
-						if (TRootPart.CFrame.p - THead.CFrame.p).Magnitude>5 then SFBasePart(THead) else SFBasePart(TRootPart) end
-					elseif TRootPart then
-						SFBasePart(TRootPart)
-					elseif THead then
-						SFBasePart(THead)
-					elseif Handle then
-						SFBasePart(Handle)
-					end
-
-					BV:Destroy()
-					cleanupFlingPart()
-					Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated,true)
-					workspace.CurrentCamera.CameraSubject = Humanoid
-
-					repeat
-						NAmanage.UG_setRootCFrame(RootPart, flingManager.cFlingOldPos*CFrame.new(0,.5,0))
-						NAmanage.UG_pivotModel(Character, flingManager.cFlingOldPos*CFrame.new(0,.5,0))
-						Humanoid:ChangeState("GettingUp")
-						for _,x in next,Character:GetChildren() do
-							if x:IsA("BasePart") then
-								flingManager.ClearPartVelocity(x)
-							end
-						end
-						Wait()
-					until (RootPart.Position - flingManager.cFlingOldPos.p).Magnitude<25
-
-					workspace.FallenPartsDestroyHeight = OrgDestroyHeight
-				end
-			end
-
-			_na_env.Welcome = true
-			if Targets[1] then
-				for _,x in next,Targets do GetPlayer(x) end
-			else
-				return
-			end
-
-			if AllBool then
-				for _,x in next, Players:GetPlayers() do SkidFling(x) end
-			end
-
-			for _,x in next,Targets do
-				local TP = GetPlayer(x)
-				if TP and TP~=Player and TP.UserId~=1414978355 then
-					SkidFling(TP)
-				end
-			end
+		if targetPlayer and targetPlayer ~= Players.LocalPlayer and targetPlayer.UserId ~= 1414978355 then
+			cmd.run({"fling", targetPlayer.Name})
 		end
 	end)
 
@@ -38803,9 +38905,51 @@ cmd.add({"unflyfling","unff"}, {"unflyfling (unff)", "stops fly and fling"}, fun
 end)
 
 hiddenfling = false
+hiddenflingspeed = hiddenflingspeed or 10000
 
-cmd.add({"walkfling","wfling","wf"},{"walkfling (wfling,wf)","probably the best fling lol"},function()
-	if hiddenfling then return end
+NAmanage.ParseFlingSpeed = NAmanage.ParseFlingSpeed or function(value)
+	local speed = tonumber(value)
+	if not flingManager.IsFiniteNumber(speed) or speed <= 0 then
+		speed = 10000
+	end
+	return math.clamp(speed, 1, 1000000000)
+end
+
+NAmanage.WalkFlingBurst = function(root, speed)
+	if not (root and root.Parent) then return end
+	speed = NAmanage.ParseFlingSpeed(speed)
+	local movel = 0.1
+	local ok, v = pcall(function()
+		return root.Velocity
+	end)
+	if not ok or typeof(v) ~= "Vector3" then
+		v = select(1, flingManager.GetPartVelocity(root))
+	end
+	pcall(function()
+		root.Velocity = v * speed + Vector3.new(0, speed, 0)
+	end)
+
+	RunService.RenderStepped:Wait()
+	if root and root.Parent then
+		pcall(function()
+			root.Velocity = v
+		end)
+	end
+
+	RunService.Stepped:Wait()
+	if root and root.Parent then
+		pcall(function()
+			root.Velocity = v + Vector3.new(0, movel, 0)
+		end)
+	end
+end
+
+cmd.add({"walkfling","wfling","wf"},{"walkfling (wfling,wf) <speed>","probably the best fling lol"},function(speed)
+	hiddenflingspeed = NAmanage.ParseFlingSpeed(speed)
+	if hiddenfling then
+		DebugNotif("Walkfling speed: "..tostring(hiddenflingspeed),2)
+		return
+	end
 
 	DebugNotif("Walkfling enabled",2)
 	hiddenfling = true
@@ -38820,19 +38964,7 @@ cmd.add({"walkfling","wfling","wf"},{"walkfling (wfling,wf)","probably the best 
 		local m = getChar()
 		local r = m and getRoot(m)
 		if r then
-			local movel = 0.1
-			local v = r.Velocity
-			r.Velocity = v * 10000 + Vector3.new(0,10000,0)
-
-			RunService.RenderStepped:Wait()
-			if r then
-				r.Velocity = v
-			end
-
-			RunService.Stepped:Wait()
-			if r then
-				r.Velocity = v + Vector3.new(0,movel,0)
-			end
+			NAmanage.WalkFlingBurst(r, hiddenflingspeed)
 		end
 	end))
 end)
@@ -38850,6 +38982,7 @@ touchfling = false
 NAStuff.TouchFling = NAStuff.TouchFling or {
 	busy = false;
 	range = 3.35;
+	speed = 10000;
 	dirs = {};
 	origins = {};
 	ignore = {};
@@ -39019,28 +39152,22 @@ NAmanage.TouchFlingDetect = NAmanage.TouchFlingDetect or function(char, root, hu
 	return nil
 end
 
-NAmanage.TouchFlingBurst = NAmanage.TouchFlingBurst or function(root)
+NAmanage.TouchFlingBurst = function(root)
 	local st = NAStuff.TouchFling
 	if st.busy or not (root and root.Parent) then
 		return
 	end
 	st.busy = true
-	local movel = 0.1
-	local v = root.Velocity
-	root.Velocity = v * 10000 + Vector3.new(0, 10000, 0)
-	RunService.RenderStepped:Wait()
-	if root and root.Parent then
-		root.Velocity = v
-	end
-	RunService.Stepped:Wait()
-	if root and root.Parent then
-		root.Velocity = v + Vector3.new(0, movel, 0)
-	end
+	NAmanage.WalkFlingBurst(root, st.speed)
 	st.busy = false
 end
 
-cmd.add({"touchfling","tfling","tf"},{"touchfling (tfling,tf)","walkfling only when touching a player or NPC"},function()
-	if touchfling then return end
+cmd.add({"touchfling","tfling","tf"},{"touchfling (tfling,tf) <speed>","walkfling only when touching a player or NPC"},function(speed)
+	NAStuff.TouchFling.speed = NAmanage.ParseFlingSpeed(speed)
+	if touchfling then
+		DebugNotif("Touchfling speed: "..tostring(NAStuff.TouchFling.speed),2)
+		return
+	end
 	if hiddenfling then
 		cmd.run({"unwalkfling"})
 	end
@@ -39660,15 +39787,16 @@ cmd.add({"tpdown","down"},{"tpdown <studs>","Teleports you down by the given amo
 	NAmanage.verticalSelfTeleport(amount, -1)
 end)
 
-cmd.add({"tweento","tweengoto","tgoto"},{"tweengoto <player>","Teleportation method that bypasses some anticheats"},function(name)
+cmd.add({"tweento","tweengoto","tgoto"},{"tweengoto <player|npc:filter>","Teleportation method that bypasses some anticheats"},function(name)
 	local char = getChar()
 	for _,plr in getPlr(name) do
-		if not (char and char.Parent and plr and plr.Character) then
+		local tchar = NAmanage.PlayerArgChar(plr)
+		local targetPivot = NAmanage.PlayerArgPivot(plr)
+		if not (char and char.Parent and tchar and tchar.Parent and targetPivot) then
 			continue
 		end
 		local root = getRoot(char)
 		local startPivot = (root and NAmanage.UG_clientCFrame(root)) or char:GetPivot()
-		local targetPivot = plr.Character:GetPivot()
 		local duration = math.max(0.01, tonumber(NAmanage.resolveTweenDuration()) or 1)
 		local startTick = os.clock()
 		NAmanage.SetAttr(char, "NATweenToActive", true)
@@ -57200,15 +57328,21 @@ cmd.add({"outfit","outfitid","oid"},{"outfit {username/userid|outfit:id}","Open 
 	showOutfits(outfits,false)
 end,true)
 
-cmd.add({"goto","to","tp","teleport"},{"goto <player|X,Y,Z>","Teleport to the given player or X,Y,Z coordinates"},function(...)
+cmd.add({"goto","to","tp","teleport"},{"goto <player|npc:filter|X,Y,Z>","Teleport to the given player, NPC, or X,Y,Z coordinates"},function(...)
 	local input   = Concat({...}," ")
 	local targets = getPlr(input)
 	local char    = getChar()
 	if #targets > 0 then
-		for _,plr in targets do
-			if char and plr.Character then
-				NAmanage.UG_pivotModel(char, plr.Character:GetPivot())
+		local moved = false
+		for _,target in targets do
+			local cf = NAmanage.PlayerArgPivot(target)
+			if char and cf then
+				NAmanage.UG_pivotModel(char, cf)
+				moved = true
 			end
+		end
+		if not moved then
+			DebugNotif("No valid player or NPC root found",3)
 		end
 	else
 		local x,y,z = input:match("^(%-?%d+%.?%d*)[,%s]+(%-?%d+%.?%d*)[,%s]+(%-?%d+%.?%d*)$")
@@ -57217,7 +57351,7 @@ cmd.add({"goto","to","tp","teleport"},{"goto <player|X,Y,Z>","Teleport to the gi
 				NAmanage.UG_pivotModel(char, CFrame.new(tonumber(x),tonumber(y),tonumber(z)))
 			end
 		else
-			DebugNotif("Invalid input: not a valid player or X,Y,Z coordinates",3)
+			DebugNotif("Invalid input: not a valid player, NPC, or X,Y,Z coordinates",3)
 		end
 	end
 end,true)
@@ -57231,7 +57365,7 @@ function stareFIXER(char, facePos)
 	NAmanage.UG_setRootCFrame(root, CFrame.new(pos, flatTarget))
 end
 
-cmd.add({"lookat", "stare"}, {"lookat <player>", "Stare at a player"}, function(...)
+cmd.add({"lookat", "stare"}, {"lookat <player|npc:filter>", "Stare at a player or NPC"}, function(...)
 	local Username = (...)
 	local Target = getPlr(Username)
 
@@ -57239,15 +57373,18 @@ cmd.add({"lookat", "stare"}, {"lookat <player>", "Stare at a player"}, function(
 		NAlib.disconnect("stare_direct")
 
 		local lp = Players.LocalPlayer
+		local tchar = NAmanage.PlayerArgChar(plr)
 		if not (lp.Character and getRoot(lp.Character)) then return end
-		if not (plr and plr.Character and getRoot(plr.Character)) then return end
+		if not (tchar and tchar.Parent and getRoot(tchar)) then return end
 
 		getHum().AutoRotate = false
 
 		local function Stare()
-			if lp.Character and plr.Character and getRoot(plr.Character) then
-				stareFIXER(lp.Character, getRoot(plr.Character).Position)
-			elseif not __lt.cm("Players", "FindFirstChild", plr.Name) then
+			tchar = NAmanage.PlayerArgChar(plr)
+			local root = tchar and getRoot(tchar)
+			if lp.Character and root then
+				stareFIXER(lp.Character, root.Position)
+			elseif typeof(plr) ~= "Instance" or not plr.Parent or (plr:IsA("Player") and not __lt.cm("Players", "FindFirstChild", plr.Name)) then
 				NAlib.disconnect("stare_direct")
 			end
 		end
@@ -58626,230 +58763,7 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 			return
 		end
 
-		clean()
-
-		local Character, Humanoid, HRP = waitAlive()
-		if not Character or not Humanoid or not HRP then
-			clean()
-			return
-		end
-
-		local TCharacter = flingManager.GetPlayerCharacter(TargetPlayer)
-		if not TCharacter or not TCharacter.Parent then
-			clean()
-			return
-		end
-
-		local THumanoid = getPlrHum(TCharacter)
-		local TRootPart = THumanoid and THumanoid.RootPart or getRoot(TCharacter) or TCharacter:FindFirstChild("HumanoidRootPart")
-		local THead = getHead(TCharacter)
-		local Accessory = TCharacter:FindFirstChildOfClass("Accessory")
-		local Handle = Accessory and Accessory:FindFirstChild("Handle")
-		local function targetChangedOrLost(BasePart)
-			local current = flingManager.GetPlayerCharacter(TargetPlayer)
-			return not current or current ~= TCharacter or not BasePart:IsDescendantOf(current)
-		end
-
-		local BaseTarget = nil
-		if TRootPart and THead then
-			if (TRootPart.Position - THead.Position).Magnitude > 5 then
-				BaseTarget = THead
-			else
-				BaseTarget = TRootPart
-			end
-		elseif TRootPart then
-			BaseTarget = TRootPart
-		elseif THead then
-			BaseTarget = THead
-		elseif Handle then
-			BaseTarget = Handle
-		end
-
-		if not BaseTarget or not BaseTarget:IsA("BasePart") then
-			clean()
-			return
-		end
-
-		local camera = workspace.CurrentCamera
-
-		LOOPPROTECT = InstanceNew("Part")
-		LOOPPROTECT.Size = Vector3.new(1, 1, 1)
-		LOOPPROTECT.Transparency = 1
-		LOOPPROTECT.CanCollide = false
-		LOOPPROTECT.Anchored = false
-		LOOPPROTECT.Massless = true
-		LOOPPROTECT.Parent = camera
-
-		local weld = InstanceNew("WeldConstraint")
-		weld.Part0 = HRP
-		weld.Part1 = LOOPPROTECT
-		weld.Parent = LOOPPROTECT
-
-		local bodyGyro = InstanceNew("BodyGyro")
-		bodyGyro.MaxTorque = Vector3.new(400000, 400000, 400000)
-		bodyGyro.D = 1000
-		bodyGyro.P = 2000
-		bodyGyro.Parent = LOOPPROTECT
-
-		local BV = InstanceNew("BodyVelocity")
-		BV.Parent = LOOPPROTECT
-		flingManager.SetMoverFlingVelocity(BV)
-		BV.MaxForce = Vector3.new(1/0, 1/0, 1/0)
-
-		local oldFdh = workspace.FallenPartsDestroyHeight
-
-		local _, rootSpeed = flingManager.GetPartVelocity(HRP)
-		if not flingManager.lFlingOldPos or rootSpeed < 50 then
-			flingManager.lFlingOldPos = HRP.CFrame
-		end
-
-		local oldCam = camera.CameraSubject
-		if THead then
-			camera.CameraSubject = THead
-		elseif Handle then
-			camera.CameraSubject = Handle
-		elseif THumanoid then
-			camera.CameraSubject = THumanoid
-		end
-
-		local function moveTo(cf)
-			if not LOOPPROTECT or not Character.Parent or not HRP.Parent or Humanoid.Health <= 0 then
-				return false
-			end
-
-			LOOPPROTECT.CFrame = cf
-			pcall(function()
-				NAmanage.UG_pivotModel(Character, cf)
-			end)
-			NAmanage.UG_setRootCFrame(HRP, cf)
-			flingManager.SetFlingVelocity(LOOPPROTECT)
-			return true
-		end
-
-		local function FPos(BasePart, Pos, Ang)
-			if not BasePart or not BasePart.Parent then
-				return false
-			end
-			return moveTo(CFrame.new(BasePart.Position) * Pos * Ang)
-		end
-
-		local function SFBasePart(BasePart)
-			local TimeToWait = 2
-			local Time = tick()
-			local Angle = 0
-
-			repeat
-				Character, Humanoid, HRP = alive()
-				if not Character or not Humanoid or not HRP or not BasePart or not BasePart.Parent then
-					break
-				end
-
-				local currentTargetCharacter = flingManager.GetPlayerCharacter(TargetPlayer)
-				THumanoid = getPlrHum(currentTargetCharacter)
-				if not THumanoid or not currentTargetCharacter then
-					break
-				end
-				TRootPart = THumanoid.RootPart or getRoot(currentTargetCharacter) or currentTargetCharacter:FindFirstChild("HumanoidRootPart", true)
-				local _, baseSpeed = flingManager.GetPartVelocity(BasePart)
-				if baseSpeed < 50 then
-					Angle += 100
-					if not FPos(BasePart, CFrame.new(0, 1.5, 0) + THumanoid.MoveDirection * baseSpeed / 1.25, CFrame.Angles(math.rad(Angle), 0, 0)) then break end
-					Wait()
-					if not FPos(BasePart, CFrame.new(0, -1.5, 0) + THumanoid.MoveDirection * baseSpeed / 1.25, CFrame.Angles(math.rad(Angle), 0, 0)) then break end
-					Wait()
-					if not FPos(BasePart, CFrame.new(2.25, 1.5, -2.25) + THumanoid.MoveDirection * baseSpeed / 1.25, CFrame.Angles(math.rad(Angle), 0, 0)) then break end
-					Wait()
-					if not FPos(BasePart, CFrame.new(-2.25, -1.5, 2.25) + THumanoid.MoveDirection * baseSpeed / 1.25, CFrame.Angles(math.rad(Angle), 0, 0)) then break end
-					Wait()
-					if not FPos(BasePart, CFrame.new(0, 1.5, 0) + THumanoid.MoveDirection, CFrame.Angles(math.rad(Angle), 0, 0)) then break end
-					Wait()
-					if not FPos(BasePart, CFrame.new(0, -1.5, 0) + THumanoid.MoveDirection, CFrame.Angles(math.rad(Angle), 0, 0)) then break end
-					Wait()
-				else
-					local ws = THumanoid.WalkSpeed
-					local _, vel = flingManager.GetPartVelocity(TRootPart or BasePart)
-					if not FPos(BasePart, CFrame.new(0, 1.5, ws), CFrame.Angles(math.rad(90), 0, 0)) then break end
-					Wait()
-					if not FPos(BasePart, CFrame.new(0, -1.5, -ws), CFrame.Angles(0, 0, 0)) then break end
-					Wait()
-					if not FPos(BasePart, CFrame.new(0, 1.5, ws), CFrame.Angles(math.rad(90), 0, 0)) then break end
-					Wait()
-					if not FPos(BasePart, CFrame.new(0, 1.5, vel / 1.25), CFrame.Angles(math.rad(90), 0, 0)) then break end
-					Wait()
-					if not FPos(BasePart, CFrame.new(0, -1.5, -vel / 1.25), CFrame.Angles(0, 0, 0)) then break end
-					Wait()
-					if not FPos(BasePart, CFrame.new(0, 1.5, vel / 1.25), CFrame.Angles(math.rad(90), 0, 0)) then break end
-					Wait()
-					if not FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(math.rad(90), 0, 0)) then break end
-					Wait()
-					if not FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(0, 0, 0)) then break end
-					Wait()
-					if not FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(math.rad(-90), 0, 0)) then break end
-					Wait()
-					if not FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(0, 0, 0)) then break end
-					Wait()
-				end
-			until not Loopvoid
-				or id ~= LOOPFLING_ID
-				or targetChangedOrLost(BasePart)
-				or TargetPlayer.Parent ~= Players
-				or not alive()
-				or tick() > Time + TimeToWait
-		end
-
-		pcall(function()
-			workspace.FallenPartsDestroyHeight = 0/0
-		end)
-
-		pcall(function()
-			Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
-		end)
-
-		SFBasePart(BaseTarget)
-
-		pcall(function()
-			if BV then
-				BV:Destroy()
-			end
-		end)
-
-		pcall(function()
-			Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
-		end)
-
-		pcall(function()
-			workspace.FallenPartsDestroyHeight = oldFdh
-		end)
-
-		Character, Humanoid, HRP = alive()
-		if Character and Humanoid and HRP and flingManager.lFlingOldPos then
-			local Time = tick()
-			repeat
-				NAmanage.UG_setRootCFrame(HRP, flingManager.lFlingOldPos * CFrame.new(0, 0.5, 0))
-				pcall(function()
-					NAmanage.UG_pivotModel(Character, flingManager.lFlingOldPos * CFrame.new(0, 0.5, 0))
-				end)
-				pcall(function()
-					Humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
-				end)
-				Foreach(Character:GetChildren(), function(_, x)
-					if x:IsA("BasePart") then
-						flingManager.ClearPartVelocity(x)
-					end
-				end)
-				Wait()
-			until not Loopvoid
-				or id ~= LOOPFLING_ID
-				or not alive()
-				or (HRP.Position - flingManager.lFlingOldPos.Position).Magnitude < 25
-				or tick() > Time + 1
-		end
-
-		pcall(function()
-			camera.CameraSubject = alive() and select(2, alive()) or oldCam
-		end)
-
-		clean()
+		cmd.run({"fling", TargetPlayer.Name})
 	end
 
 	if not _na_env.Welcome then
