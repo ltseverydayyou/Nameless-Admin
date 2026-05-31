@@ -1780,6 +1780,101 @@ NAmanage.getUI = NAmanage.getUI or function()
 	return nil
 end
 
+NAmanage.IsGuiActuallyVisible = NAmanage.IsGuiActuallyVisible or function(inst)
+	if typeof(inst) ~= "Instance" then return false end
+	local current = inst
+	while typeof(current) == "Instance" do
+		local okGui, isGui = pcall(function() return current:IsA("GuiObject") end)
+		if okGui and isGui and current.Visible == false then return false end
+		local okLayer, isLayer = pcall(function() return current:IsA("LayerCollector") end)
+		if okLayer and isLayer and current.Enabled == false then return false end
+		if current == game then break end
+		current = current.Parent
+	end
+	return true
+end
+
+NAmanage.IsUIWindowVisible = NAmanage.IsUIWindowVisible or function(window)
+	local frame = window
+	if type(window) == "string" then frame = NAUIMANAGER and NAUIMANAGER[window] or nil end
+	return NAmanage.IsGuiActuallyVisible(frame)
+end
+
+NAmanage.IsLowEndUI = NAmanage.IsLowEndUI or function()
+	if NAStuff and NAStuff.LowEndMode == true then return true end
+	local uis
+	pcall(function() uis = UserInputService or (SafeGetService and SafeGetService("UserInputService")) end)
+	if uis and uis.TouchEnabled and not (uis.KeyboardEnabled or uis.MouseEnabled) then return true end
+	local ok, size = pcall(function() return workspace and workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize end)
+	return ok and size and (size.X <= 900 or size.Y <= 540) or false
+end
+
+NAmanage.SetSettingsCanvasDormant = NAmanage.SetSettingsCanvasDormant or function(dormant)
+	if not (NAUIMANAGER and NAUIMANAGER.SettingsFrame) then return end
+	local autoSize = dormant and Enum.AutomaticSize.None or Enum.AutomaticSize.Y
+	local targets = {}
+	if NAUIMANAGER.SettingsList then targets[#targets + 1] = NAUIMANAGER.SettingsList end
+	if NAgui and NAgui.TabManager and type(NAgui.TabManager.tabs) == "table" then
+		for _, info in NAgui.TabManager.tabs do
+			if info and info.page then targets[#targets + 1] = info.page end
+		end
+	end
+	for i = 1, #targets do
+		local target = targets[i]
+		if typeof(target) == "Instance" then
+			pcall(function() target.AutomaticCanvasSize = autoSize end)
+		end
+	end
+end
+
+NAmanage.OnUIWindowHidden = NAmanage.OnUIWindowHidden or function(frame)
+	if typeof(frame) ~= "Instance" then return end
+	if NAUIMANAGER and frame == NAUIMANAGER.SettingsFrame then
+		if NAmanage.SettingsScroll then
+			if type(NAmanage.SettingsScroll.stopArrowHold) == "function" then pcall(NAmanage.SettingsScroll.stopArrowHold) end
+			if type(NAmanage.SettingsScroll.stopThumbDrag) == "function" then pcall(NAmanage.SettingsScroll.stopThumbDrag) end
+			if type(NAmanage.SettingsScroll.hide) == "function" then pcall(NAmanage.SettingsScroll.hide) end
+		end
+	end
+end
+
+NAmanage.OnUIWindowShown = NAmanage.OnUIWindowShown or function(frame)
+	if typeof(frame) ~= "Instance" then return end
+	if NAUIMANAGER and frame == NAUIMANAGER.SettingsFrame then
+		pcall(function()
+			NAmanage.SetAttr(frame, "NAResizeBodyWasVisible", nil)
+			NAmanage.SetAttr(frame, "NAHeavyResizeSuspended", nil)
+			local body = frame:FindFirstChild("Container")
+			if body and body:IsA("GuiObject") and NAmanage.GetAttr(frame, "NAMenuMinimized") ~= true then
+				body.Visible = true
+			end
+		end)
+		Defer(function()
+			if NAmanage.SettingsScroll and type(NAmanage.SettingsScroll.setTarget) == "function" then pcall(NAmanage.SettingsScroll.setTarget, NAUIMANAGER and NAUIMANAGER.SettingsList or nil) end
+			if NAmanage.SettingsScroll and type(NAmanage.SettingsScroll.scheduleRefresh) == "function" then pcall(NAmanage.SettingsScroll.scheduleRefresh) end
+			if NAmanage.RunUIAutoSync then pcall(NAmanage.RunUIAutoSync) end
+		end)
+	elseif NAmanage.CustomScroll and type(NAmanage.CustomScroll.refreshAll) == "function" then
+		Defer(function() pcall(NAmanage.CustomScroll.refreshAll) end)
+	end
+end
+
+NAmanage.InstallUIVisibilityOptimizer = NAmanage.InstallUIVisibilityOptimizer or function()
+	if not NAUIMANAGER or NAmanage._uiVisOptInstalled then return end
+	NAmanage._uiVisOptInstalled = true
+	NAmanage._uiVisibilityConns = NAmanage._uiVisibilityConns or {}
+	for _, name in {"SettingsFrame","commandsFrame","chatLogsFrame","NAconsoleFrame","CommandKeybindsFrame","WaypointFrame","BindersFrame","ExecutorFrame","NotepadFrame","PluginsFrame"} do
+		local frame = NAUIMANAGER[name]
+		if typeof(frame) == "Instance" and frame.GetPropertyChangedSignal then
+			local function sync()
+				if frame.Visible then NAmanage.OnUIWindowShown(frame) else NAmanage.OnUIWindowHidden(frame) end
+			end
+			NAmanage._uiVisibilityConns[#NAmanage._uiVisibilityConns + 1] = frame:GetPropertyChangedSignal("Visible"):Connect(sync)
+			pcall(sync)
+		end
+	end
+end
+
 NAmanage.NARegisterUI=function(gui)
 	gui = NAmanage.uiObj(gui)
 	if not gui then
@@ -12668,8 +12763,12 @@ NAgui.deferSettingsWork = NAgui.deferSettingsWork or function(fn)
 	NAgui._settingsWorkBusy = true
 	return Spawn(function()
 		while NAgui._settingsWorkHead <= NAgui._settingsWorkTail do
+			local lowEnd = NAmanage and NAmanage.IsLowEndUI and NAmanage.IsLowEndUI() or false
+			local settingsFrame = NAUIMANAGER and NAUIMANAGER.SettingsFrame
+			local visible = not (typeof(settingsFrame) == "Instance") or settingsFrame.Visible == true
+			local limit = visible and (lowEnd and 10 or 24) or (lowEnd and 2 or 4)
 			local processed = 0
-			while processed < 24 and NAgui._settingsWorkHead <= NAgui._settingsWorkTail do
+			while processed < limit and NAgui._settingsWorkHead <= NAgui._settingsWorkTail do
 				local work = NAgui._settingsWorkQueue[NAgui._settingsWorkHead]
 				NAgui._settingsWorkQueue[NAgui._settingsWorkHead] = nil
 				NAgui._settingsWorkHead += 1
@@ -12682,7 +12781,7 @@ NAgui.deferSettingsWork = NAgui.deferSettingsWork or function(fn)
 				processed += 1
 			end
 			if NAgui._settingsWorkHead <= NAgui._settingsWorkTail then
-				Wait()
+				if not visible then Wait(0.25) elseif lowEnd then Wait(0.035) else Wait() end
 			end
 		end
 		NAgui._settingsWorkQueue = {}
@@ -16168,6 +16267,39 @@ NAmanage.NASettingsGetSchema=function()
 					return 1
 				end
 				return math.clamp(numberValue, NA_UI_SCALE_MIN, NA_UI_SCALE_MAX)
+			end;
+		};
+		lowEndUiMode = {
+			default = function() return IsOnMobile == true end;
+			coerce = function(value) return NAmanage.NASettingsSchemaState.coerceBoolean(value, IsOnMobile == true) end;
+		};
+		pluginAutoLoad = {
+			default = true;
+			coerce = function(value) return NAmanage.NASettingsSchemaState.coerceBoolean(value, true) end;
+		};
+		pluginAllowSettingsUI = {
+			default = true;
+			coerce = function(value) return NAmanage.NASettingsSchemaState.coerceBoolean(value, true) end;
+		};
+		pluginDisabled = {
+			default = function() return {} end;
+			coerce = function(value)
+				local parsed = value
+				if type(value) == "string" then
+					local ok, decoded = NACaller(function()
+						return HttpService:JSONDecode(value)
+					end)
+					parsed = ok and decoded or nil
+				end
+				local out = {}
+				if type(parsed) == "table" then
+					for key, disabled in parsed do
+						if type(key) == "string" and key ~= "" and disabled == true then
+							out[key] = true
+						end
+					end
+				end
+				return out
 			end;
 		};
 		crosshairEnabled = {
@@ -20090,6 +20222,9 @@ if NAFreecam and NAFreecam.SetSpeed then
 	NAFreecam.SetSpeed(math.clamp(NAStuff.FreecamSpeed / 5, 0.01, 4))
 end
 NAStuff.MobileFlyAutoEnableOnRun = NAmanage.NASettingsGet("mobileFlyAutoEnableOnRun") ~= false
+NAStuff.LowEndMode = NAmanage.NASettingsGet("lowEndUiMode") == true
+NAStuff.PluginAutoLoad = NAmanage.NASettingsGet("pluginAutoLoad") ~= false
+NAStuff.PluginSettingsUIEnabled = NAmanage.NASettingsGet("pluginAllowSettingsUI") ~= false
 
 NAStuff.AutoInteractDistanceEnabled = true
 NAStuff.AutoInteractExtraRange = 5
@@ -30531,10 +30666,415 @@ NAmanage.loadAutoExec = function()
 	return true
 end
 
+NAmanage.PluginNormalizePath = NAmanage.PluginNormalizePath or function(path)
+	return Lower(tostring(path or ""):gsub("\\", "/"):gsub("/+", "/"))
+end
+
+NAmanage.PluginBaseName = NAmanage.PluginBaseName or function(path)
+	return (tostring(path or ""):match("[^\\/]+$") or tostring(path or ""))
+end
+
+NAmanage.PluginIsIgnoredFile = NAmanage.PluginIsIgnoredFile or function(path)
+	local base = NAmanage.PluginBaseName(path)
+	return type(base) == "string" and base:lower() == "iy_fe.iy"
+end
+
+NAmanage.PluginDisabledMap = NAmanage.PluginDisabledMap or function()
+	local stored = NAmanage.NASettingsGet and NAmanage.NASettingsGet("pluginDisabled") or {}
+	if type(stored) ~= "table" then
+		stored = {}
+	end
+	return stored
+end
+
+NAmanage.PluginSaveDisabledMap = NAmanage.PluginSaveDisabledMap or function(map)
+	map = type(map) == "table" and map or {}
+	if NAmanage.NASettingsSet then
+		return NAmanage.NASettingsSet("pluginDisabled", map)
+	end
+	return map
+end
+
+NAmanage.PluginIsDisabled = NAmanage.PluginIsDisabled or function(path)
+	local map = NAmanage.PluginDisabledMap()
+	local key = NAmanage.PluginNormalizePath(path)
+	local base = NAmanage.PluginBaseName(path)
+	return map[key] == true or (base ~= "" and map[Lower(base)] == true)
+end
+
+NAmanage.PluginSetEnabled = NAmanage.PluginSetEnabled or function(path, enabled)
+	local map = {}
+	for k, v in NAmanage.PluginDisabledMap() do
+		if v == true then
+			map[k] = true
+		end
+	end
+	local key = NAmanage.PluginNormalizePath(path)
+	if key == "" then
+		return false
+	end
+	if enabled then
+		map[key] = nil
+		local base = Lower(NAmanage.PluginBaseName(path))
+		if base ~= "" then
+			map[base] = nil
+		end
+	else
+		map[key] = true
+	end
+	NAmanage.PluginSaveDisabledMap(map)
+	return true
+end
+
+NAmanage.PluginListFiles = NAmanage.PluginListFiles or function(includeWorkspace)
+	local entries = {}
+	local function addDir(dir, kind, extPat)
+		if type(dir) ~= "string" or dir == "" or not (isfolder and isfolder(dir)) then
+			return
+		end
+		local ok, items = pcall(listfiles, dir)
+		if not ok or type(items) ~= "table" then
+			return
+		end
+		for _, path in items do
+			if type(path) == "string" and Lower(path):match(extPat) and not NAmanage.PluginIsIgnoredFile(path) then
+				local key = NAmanage.PluginNormalizePath(path)
+				local meta = NAmanage._pluginFileMeta and NAmanage._pluginFileMeta[key] or nil
+				Insert(entries, {
+					path = path,
+					key = key,
+					name = NAmanage.PluginBaseName(path),
+					kind = kind,
+					enabled = not NAmanage.PluginIsDisabled(path),
+					loaded = meta and meta.loaded == true or false,
+					commands = meta and type(meta.commands) == "table" and meta.commands or {},
+				})
+			end
+		end
+	end
+	addDir(NAfiles and NAfiles.NAPLUGINFILEPATH, ".na", "%.na$")
+	addDir(NAfiles and NAfiles.NAIYPLUGINFILEPATH, ".iy", "%.iy$")
+	table.sort(entries, function(a, b)
+		if a.enabled ~= b.enabled then
+			return a.enabled == true
+		end
+		if a.kind ~= b.kind then
+			return tostring(a.kind) < tostring(b.kind)
+		end
+		return tostring(a.name):lower() < tostring(b.name):lower()
+	end)
+	return entries
+end
+
+NAmanage.PluginJoinPath = NAmanage.PluginJoinPath or function(dir, name)
+	dir = tostring(dir or "")
+	name = tostring(name or "")
+	return (#dir > 0) and (dir.."/"..name) or name
+end
+
+NAmanage.PluginUniquePath = NAmanage.PluginUniquePath or function(dir, fileName)
+	local name = tostring(fileName or "")
+	local base, ext = name:match("^(.*)(%.[^%.]+)$")
+	base, ext = base or name, ext or ""
+	local path = NAmanage.PluginJoinPath(dir, name)
+	if not (isfile and isfile(path)) then
+		return path
+	end
+	local i = 1
+	repeat
+		path = NAmanage.PluginJoinPath(dir, Format("%s (%d)%s", base, i, ext))
+		i += 1
+	until not (isfile and isfile(path))
+	return path
+end
+
+NAmanage.PluginWorkspaceRoot = NAmanage.PluginWorkspaceRoot or function()
+	if not listfiles then return "" end
+	for _, candidate in {"", ".", "/"} do
+		local ok, items = pcall(listfiles, candidate)
+		if ok and type(items) == "table" then
+			return candidate
+		end
+	end
+	return ""
+end
+
+NAmanage.PluginIsInstalledPath = NAmanage.PluginIsInstalledPath or function(path)
+	local p = NAmanage.PluginNormalizePath(path)
+	for _, dir in {NAfiles and NAfiles.NAPLUGINFILEPATH, NAfiles and NAfiles.NAIYPLUGINFILEPATH} do
+		if type(dir) == "string" and dir ~= "" then
+			local norm = NAmanage.PluginNormalizePath(dir):gsub("/+$", "")
+			local tail = norm:match("([^/]+/[^/]+)$") or norm
+			if p == norm or p:sub(1, #norm + 1) == (norm.."/") or p:find("/"..tail.."/", 1, true) then
+				return true
+			end
+		end
+	end
+	return false
+end
+
+NAmanage.PluginListAvailable = NAmanage.PluginListAvailable or function()
+	local entries = {}
+	if not (listfiles and isfolder) then
+		return entries
+	end
+	local function add(path)
+		if type(path) ~= "string" or NAmanage.PluginIsIgnoredFile(path) or NAmanage.PluginIsInstalledPath(path) then
+			return
+		end
+		local lowerPath = Lower(path)
+		local kind = lowerPath:match("%.iy$") and ".iy" or (lowerPath:match("%.na$") and ".na" or nil)
+		if not kind then return end
+		Insert(entries, {
+			path = path,
+			key = NAmanage.PluginNormalizePath(path),
+			name = NAmanage.PluginBaseName(path),
+			kind = kind,
+		})
+	end
+	local function scan(dir)
+		local ok, items = pcall(listfiles, dir)
+		if not ok or type(items) ~= "table" then return end
+		for _, path in items do
+			local okDir, isDir = pcall(isfolder, path)
+			if okDir and isDir then
+				if not NAmanage.PluginIsInstalledPath(path) then
+					scan(path)
+				end
+			else
+				add(path)
+			end
+		end
+	end
+	scan(NAmanage.PluginWorkspaceRoot())
+	table.sort(entries, function(a, b)
+		if a.kind ~= b.kind then
+			return tostring(a.kind) < tostring(b.kind)
+		end
+		return tostring(a.name):lower() < tostring(b.name):lower()
+	end)
+	return entries
+end
+
+NAmanage.PluginInstallFromWorkspace = NAmanage.PluginInstallFromWorkspace or function(path)
+	if not FileSupport or type(path) ~= "string" or path == "" then
+		return false, "file operations unavailable"
+	end
+	if NAmanage.PluginIsInstalledPath(path) then
+		return false, "already installed"
+	end
+	local lowerPath = Lower(path)
+	local dstDir = lowerPath:match("%.iy$") and (NAfiles and NAfiles.NAIYPLUGINFILEPATH) or (NAfiles and NAfiles.NAPLUGINFILEPATH)
+	if type(dstDir) ~= "string" or dstDir == "" then
+		return false, "plugin folder unavailable"
+	end
+	if not (isfolder and isfolder(dstDir)) and makefolder then
+		pcall(makefolder, dstDir)
+	end
+	local fileName = NAmanage.PluginBaseName(path)
+	if fileName == "" then
+		return false, "invalid plugin path"
+	end
+	local okRead, data = pcall(readfile, path)
+	if not okRead or data == nil then
+		return false, "failed to read plugin"
+	end
+	local dst = NAmanage.PluginUniquePath(dstDir, fileName)
+	local okWrite = pcall(writefile, dst, data)
+	if not okWrite then
+		return false, "failed to write plugin"
+	end
+	if delfile then
+		local okDelete = pcall(delfile, path)
+		if not okDelete then
+			return false, "installed, but failed to delete original"
+		end
+	end
+	NAmanage.PluginSetEnabled(dst, true)
+	return true, dst
+end
+
+NAmanage.PluginNormalizeUrl = NAmanage.PluginNormalizeUrl or function(url)
+	if typeof(url) ~= "string" then
+		return nil
+	end
+	local t = url:match("^%s*(.-)%s*$") or ""
+	if t == "" then
+		return nil
+	end
+	t = t:gsub(" ", "%%20")
+	local q = t:find("%?")
+	local base = q and t:sub(1, q - 1) or t
+	local owner, repo, kind, rest = base:match("^https?://github.com/([^/]+)/([^/]+)/([^/]+)/(.+)$")
+	if owner and repo and kind and rest then
+		local s = rest
+		if s:sub(1, 11) == "refs/heads/" then
+			s = s:sub(12)
+		elseif s:sub(1, 10) == "refs/tags/" then
+			s = s:sub(11)
+		end
+		local branch, path = s:match("^([^/]+)/(.+)$")
+		if branch and path and (kind == "blob" or kind == "raw") then
+			branch = branch:gsub("%%2[Ff]", "/")
+			path = path:gsub("%%2[Ff]", "/")
+			return Format("https://raw.githubusercontent.com/%s/%s/%s/%s", owner, repo, branch, path)
+		end
+	end
+	if base:match("^https?://") then
+		return t
+	end
+	return nil
+end
+
+NAmanage.PluginFileNameFromUrl = NAmanage.PluginFileNameFromUrl or function(url)
+	if type(url) ~= "string" then return nil end
+	local base = (url:match("^([^%?#]+)") or url):gsub("/+$", "")
+	local name = base:match("/([^/]+)$") or ""
+	name = name:gsub("%%20", " ")
+	name = name:match("^%s*(.-)%s*$") or ""
+	name = name:gsub("[^%w%._%-]", "_"):gsub("_+", "_"):gsub("^_+", ""):gsub("_+$", "")
+	if name == "" then return nil end
+	return name
+end
+
+NAmanage.PluginInstallFromUrl = NAmanage.PluginInstallFromUrl or function(url)
+	if not FileSupport then
+		return false, "file operations unavailable"
+	end
+	local norm = NAmanage.PluginNormalizeUrl(url)
+	if not norm then
+		return false, "enter a valid plugin URL"
+	end
+	local fileName = NAmanage.PluginFileNameFromUrl(norm)
+	if not fileName then
+		return false, "unable to determine plugin filename"
+	end
+	local lowerName = Lower(fileName)
+	local kind = lowerName:match("%.iy$") and ".iy" or (lowerName:match("%.na$") and ".na" or nil)
+	if not kind then
+		return false, "plugin URL must end with .na or .iy"
+	end
+	local okFetch, data = pcall(function()
+		return game:HttpGet(norm)
+	end)
+	if not (okFetch and type(data) == "string" and data ~= "") then
+		return false, "unable to download plugin"
+	end
+	local dstDir = kind == ".iy" and (NAfiles and NAfiles.NAIYPLUGINFILEPATH) or (NAfiles and NAfiles.NAPLUGINFILEPATH)
+	if type(dstDir) ~= "string" or dstDir == "" then
+		return false, "plugin folder unavailable"
+	end
+	if not (isfolder and isfolder(dstDir)) and makefolder then
+		pcall(makefolder, dstDir)
+	end
+	local dst = NAmanage.PluginUniquePath(dstDir, fileName)
+	local okWrite, errWrite = pcall(writefile, dst, data)
+	if not okWrite then
+		return false, errWrite or "unable to save plugin"
+	end
+	NAmanage.PluginSetEnabled(dst, true)
+	return true, dst
+end
+
+NAmanage.PluginMoveToWorkspace = NAmanage.PluginMoveToWorkspace or function(path)
+	if not FileSupport or type(path) ~= "string" or path == "" then
+		return false, "file operations unavailable"
+	end
+	local name = NAmanage.PluginBaseName(path)
+	if name == "" then
+		return false, "invalid plugin path"
+	end
+	local okRead, data = pcall(readfile, path)
+	if not okRead or data == nil then
+		return false, "failed to read plugin"
+	end
+	local dst = NAmanage.PluginUniquePath("", name)
+	local okWrite = pcall(writefile, dst, data)
+	if not okWrite then
+		return false, "failed to write workspace copy"
+	end
+	if delfile then
+		local okDelete = pcall(delfile, path)
+		if not okDelete then
+			return false, "copied, but failed to delete original"
+		end
+	end
+	NAmanage.PluginSetEnabled(path, true)
+	return true, dst
+end
+
+NAmanage.PluginUIClear = NAmanage.PluginUIClear or function(pluginKey)
+	if type(pluginKey) ~= "string" or pluginKey == "" then
+		return
+	end
+	NAmanage._pluginControlSpecs = NAmanage._pluginControlSpecs or {}
+	NAmanage._pluginControlSpecs[pluginKey] = nil
+end
+
+NAmanage.PluginUIFor = NAmanage.PluginUIFor or function(pluginKey, fileName, mode)
+	NAmanage._pluginControlSpecs = NAmanage._pluginControlSpecs or {}
+	local key = type(pluginKey) == "string" and pluginKey or tostring(pluginKey or "")
+	local label = tostring(fileName or "Plugin")
+	local function push(kind, tabName, data)
+		if NAStuff and NAStuff.PluginSettingsUIEnabled == false then
+			return false
+		end
+		if key == "" then
+			return false
+		end
+		local bucket = NAmanage._pluginControlSpecs[key]
+		if not bucket then
+			bucket = {
+				name = label,
+				kind = mode == "iy" and ".iy" or ".na",
+				items = {},
+			}
+			NAmanage._pluginControlSpecs[key] = bucket
+		end
+		data = type(data) == "table" and data or {}
+		data.kind = kind
+		data.tabName = tostring(tabName or "Controls")
+		Insert(bucket.items, data)
+		return true
+	end
+	local function makeApi(tabName)
+		local api = {}
+		api.addSection = function(text)
+			return push("section", tabName, { label = tostring(text or "") })
+		end
+		api.addButton = function(text, callback)
+			return push("button", tabName, { label = tostring(text or "Button"), callback = callback })
+		end
+		api.addInput = function(text, placeholder, defaultText, callback)
+			return push("input", tabName, {
+				label = tostring(text or "Input"),
+				placeholder = tostring(placeholder or ""),
+				defaultText = tostring(defaultText or ""),
+				callback = callback,
+			})
+		end
+		api.addToggle = function(text, defaultValue, callback)
+			return push("toggle", tabName, {
+				label = tostring(text or "Toggle"),
+				defaultValue = defaultValue == true,
+				callback = callback,
+			})
+		end
+		api.addTab = function(name)
+			return makeApi(tostring(name or "Controls"))
+		end
+		return api
+	end
+	return makeApi("Controls")
+end
+
 NAmanage.LoadPlugins = function(opts)
 	opts = opts or {}
 	local silent = opts.silent == true
 	local forceNotify = opts.forceNotify == true
+	if opts.startup == true and NAStuff and NAStuff.PluginAutoLoad == false then
+		return true
+	end
 	if not CustomFunctionSupport then
 		return true
 	end
@@ -30933,6 +31473,7 @@ NAmanage.LoadPlugins = function(opts)
 	end
 
 	local loadedSumm = {}
+	local runMeta = {}
 	local seenKeys = {}
 
 	local function enumerate(dir, label, extPat)
@@ -30963,6 +31504,22 @@ NAmanage.LoadPlugins = function(opts)
 		local pluginKey = normKey(file)
 		seenKeys[pluginKey] = true
 		UnplugCmd(pluginKey)
+
+		local disabled = NAmanage.PluginIsDisabled and NAmanage.PluginIsDisabled(file)
+		runMeta[pluginKey] = {
+			path = file,
+			name = baseName,
+			kind = mode == "iy" and ".iy" or ".na",
+			enabled = not disabled,
+			loaded = false,
+			commands = {},
+		}
+		if NAmanage.PluginUIClear then
+			pcall(NAmanage.PluginUIClear, pluginKey)
+		end
+		if disabled then
+			return
+		end
 
 		local success, content = NACaller(readfile, file)
 		if not (success and content) then
@@ -31067,6 +31624,12 @@ NAmanage.LoadPlugins = function(opts)
 		proxyEnv.cmdRun = _runCmd
 		proxyEnv.RunCommand = _runCmd
 		proxyEnv.runCommand = _runCmd
+		if NAmanage.PluginUIFor then
+			local api = NAmanage.PluginUIFor(pluginKey, baseName, mode)
+			proxyEnv.NAPluginUI = api
+			proxyEnv.PluginUI = api
+			proxyEnv.NASettingsUI = api
+		end
 		proxyEnv.request = _pluginRequest
 		proxyEnv.http_request = _pluginRequest
 		proxyEnv.notify = function(msg, detailOrTime, maybeTime)
@@ -31427,6 +31990,10 @@ NAmanage.LoadPlugins = function(opts)
 
 		if #cmdNames > 0 then
 			local fileName = file:match("[^\\/]+$") or file
+			if runMeta[pluginKey] then
+				runMeta[pluginKey].loaded = true
+				runMeta[pluginKey].commands = cmdNames
+			end
 			Insert(loadedSumm, fileName.." ("..Concat(cmdNames, ", ")..")")
 		end
 	end
@@ -31446,7 +32013,11 @@ NAmanage.LoadPlugins = function(opts)
 	end
 	for _, key in staleKeys do
 		UnplugCmd(key)
+		if NAmanage.PluginUIClear then
+			pcall(NAmanage.PluginUIClear, key)
+		end
 	end
+	NAmanage._pluginFileMeta = runMeta
 
 	local allowNotif = (forceNotify == true) or (NAmanage.jlCfg.PluginNotif ~= false)
 	if #loadedSumm > 0 and allowNotif and not silent then
@@ -51153,6 +51724,7 @@ NAmanage.OpenSaveInstanceSettings = NAmanage.OpenSaveInstanceSettings or functio
 			if settingsFrame.Visible ~= true then
 				settingsFrame.Visible = true
 			end
+			if NAmanage.OnUIWindowShown then pcall(NAmanage.OnUIWindowShown, settingsFrame) end
 
 			if settingsFrame.GetAttribute and settingsFrame.Size then
 				local minimized = NAmanage.GetAttr(settingsFrame, "NAMenuMinimized") == true
@@ -80679,8 +81251,27 @@ NAUIMANAGER = {
 	ExecutorFrame = NAStuff.NASCREENGUI:FindFirstChild("Executor"),
 	ExecutorContainer = NAStuff.NASCREENGUI:FindFirstChild("Executor") and (NAStuff.NASCREENGUI:FindFirstChild("Executor")):FindFirstChild("Container"),
 	NotepadFrame = NAStuff.NASCREENGUI:FindFirstChild("Notepad"),
-	NotepadContainer = NAStuff.NASCREENGUI:FindFirstChild("Notepad") and (NAStuff.NASCREENGUI:FindFirstChild("Notepad")):FindFirstChild("Container")
+	NotepadContainer = NAStuff.NASCREENGUI:FindFirstChild("Notepad") and (NAStuff.NASCREENGUI:FindFirstChild("Notepad")):FindFirstChild("Container"),
+	PluginsFrame = NAStuff.NASCREENGUI:FindFirstChild("Plugins"),
+	PluginsContainer = NAStuff.NASCREENGUI:FindFirstChild("Plugins") and (NAStuff.NASCREENGUI:FindFirstChild("Plugins")):FindFirstChild("Container"),
+	PluginsList = NAStuff.NASCREENGUI:FindFirstChild("Plugins") and (NAStuff.NASCREENGUI:FindFirstChild("Plugins")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("Plugins")):FindFirstChild("Container")):FindFirstChild("List"),
+	PluginsFilter = NAStuff.NASCREENGUI:FindFirstChild("Plugins") and (NAStuff.NASCREENGUI:FindFirstChild("Plugins")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("Plugins")):FindFirstChild("Container")):FindFirstChild("Filter")
 };
+
+NAmanage.EnsurePluginsWindow = NAmanage.EnsurePluginsWindow or function()
+	local frame = NAUIMANAGER and NAUIMANAGER.PluginsFrame
+	if not frame then
+		return nil
+	end
+	if NAUIMANAGER then
+		NAUIMANAGER.PluginsContainer = frame:FindFirstChild("Container")
+		NAUIMANAGER.PluginsList = NAUIMANAGER.PluginsContainer and NAUIMANAGER.PluginsContainer:FindFirstChild("List")
+		NAUIMANAGER.PluginsFilter = NAUIMANAGER.PluginsContainer and NAUIMANAGER.PluginsContainer:FindFirstChild("Filter")
+	end
+	return frame
+end
+
+NAmanage.EnsurePluginsWindow()
 
 originalIO.resizeCursors = function(key, fallback)
 	local asset = NAmanage.getNAImageAsset(key, nil)
@@ -81132,6 +81723,17 @@ do
 			return nil;
 		end;
 
+		function ctrl.isActive()
+			local checker = ctrl.config and ctrl.config.isActive
+			if type(checker) == "function" then
+				local ok, active = pcall(checker, ctrl)
+				if ok and active == false then return false end
+			end
+			local target = ctrl.getTarget()
+			if not target then return false end
+			return not NAmanage.IsGuiActuallyVisible or NAmanage.IsGuiActuallyVisible(target)
+		end;
+
 		function ctrl.getVisibleSpace(target)
 			if not target then
 				return 0;
@@ -81220,6 +81822,11 @@ do
 		end;
 
 		function ctrl.scheduleRefresh()
+			if ctrl.isActive and not ctrl.isActive() then
+				ctrl._needsRefresh = true
+				ctrl.hide()
+				return
+			end
 			if ctrl._refreshQueued then
 				return;
 			end;
@@ -81256,6 +81863,12 @@ do
 		end;
 
 		function ctrl.refresh()
+			if ctrl.isActive and not ctrl.isActive() then
+				ctrl._needsRefresh = true
+				ctrl.hide()
+				return
+			end
+			ctrl._needsRefresh = false
 			local widgets = ctrl.getWidgets();
 			if not widgets then
 				return;
@@ -81730,6 +82343,9 @@ do
 		getWidgets = settingsWidgets,
 		getTarget = function()
 			return NAUIMANAGER and NAUIMANAGER.SettingsList or nil;
+		end,
+		isActive = function()
+			return NAmanage.IsUIWindowVisible and NAmanage.IsUIWindowVisible("SettingsFrame")
 		end
 	});
 
@@ -81738,7 +82354,10 @@ do
 		getTarget = function()
 			return NAUIMANAGER and NAUIMANAGER.chatLogs or nil;
 		end,
-		layoutForTarget = alignBarToTarget
+		layoutForTarget = alignBarToTarget,
+		isActive = function()
+			return NAmanage.IsUIWindowVisible and NAmanage.IsUIWindowVisible("chatLogsFrame")
+		end
 	});
 
 	NAmanage.CommandsScroll = registry.create("commands", {
@@ -81746,7 +82365,10 @@ do
 		getTarget = function()
 			return NAUIMANAGER and NAUIMANAGER.commandsList or nil;
 		end,
-		layoutForTarget = alignBarToTarget
+		layoutForTarget = alignBarToTarget,
+		isActive = function()
+			return NAmanage.IsUIWindowVisible and NAmanage.IsUIWindowVisible("commandsFrame")
+		end
 	});
 
 	NAmanage.CommandKeybindsScroll = registry.create("command_keybinds", {
@@ -81754,7 +82376,10 @@ do
 		getTarget = function()
 			return NAUIMANAGER and NAUIMANAGER.CommandKeybindsList or nil;
 		end,
-		layoutForTarget = alignBarToTarget
+		layoutForTarget = alignBarToTarget,
+		isActive = function()
+			return NAmanage.IsUIWindowVisible and NAmanage.IsUIWindowVisible("CommandKeybindsFrame")
+		end
 	});
 
 	NAmanage.WaypointScroll = registry.create("waypoints", {
@@ -81762,7 +82387,10 @@ do
 		getTarget = function()
 			return NAUIMANAGER and NAUIMANAGER.WaypointList or nil;
 		end,
-		layoutForTarget = alignBarToTarget
+		layoutForTarget = alignBarToTarget,
+		isActive = function()
+			return NAmanage.IsUIWindowVisible and NAmanage.IsUIWindowVisible("WaypointFrame")
+		end
 	});
 
 	NAmanage.BindersScroll = registry.create("binders", {
@@ -81770,7 +82398,10 @@ do
 		getTarget = function()
 			return NAUIMANAGER and NAUIMANAGER.BindersList or nil;
 		end,
-		layoutForTarget = alignBarToTarget
+		layoutForTarget = alignBarToTarget,
+		isActive = function()
+			return NAmanage.IsUIWindowVisible and NAmanage.IsUIWindowVisible("BindersFrame")
+		end
 	});
 
 	NAmanage.ConsoleScroll = registry.create("console", {
@@ -81778,7 +82409,10 @@ do
 		getTarget = function()
 			return NAUIMANAGER and NAUIMANAGER.NAconsoleLogs or nil;
 		end,
-		layoutForTarget = alignBarToTarget
+		layoutForTarget = alignBarToTarget,
+		isActive = function()
+			return NAmanage.IsUIWindowVisible and NAmanage.IsUIWindowVisible("NAconsoleFrame")
+		end
 	});
 end;
 if NAmanage.SettingsScroll and NAmanage.SettingsScroll.install then
@@ -82072,6 +82706,8 @@ NAgui.setTab = function(name)
 			pcall(NAgui.RefreshBasicInfo);
 		end;
 		if info.page then
+			if TabManager.container and info.page.Parent ~= TabManager.container then info.page.Parent = TabManager.container end;
+			info.page.Visible = true;
 			NAUIMANAGER.SettingsList = info.page;
 			if NAmanage.SettingsScroll and NAmanage.SettingsScroll.setTarget then
 				NAmanage.SettingsScroll.setTarget(info.page);
@@ -82101,7 +82737,13 @@ NAgui.setTab = function(name)
 	for tabName, tabInfo in TabManager.tabs do
 		local isActive = tabName == name;
 		if tabInfo.page then
+			if TabManager.container and tabInfo.page.Parent ~= TabManager.container then
+				tabInfo.page.Parent = TabManager.container;
+			end;
 			tabInfo.page.Visible = isActive;
+			if isActive then
+				pcall(function() tabInfo.page.AutomaticCanvasSize = Enum.AutomaticSize.Y end);
+			end;
 		end;
 		NAmanage.updateTabVisual(tabInfo, isActive);
 	end;
@@ -82487,6 +83129,9 @@ NAgui.addTab=function(name, options)
 		NAgui.setTab(name)
 	else
 		if info.page then
+			if TabManager.container and info.page.Parent ~= TabManager.container then
+				info.page.Parent = TabManager.container
+			end
 			info.page.Visible = false
 		end
 		NAmanage.updateTabVisual(info, false)
@@ -83672,9 +84317,11 @@ NAgui.consoleeee = function()
 end
 NAgui.settingss = function()
 	if NAUIMANAGER.SettingsFrame then
+		if NAmanage.InstallUIVisibilityOptimizer then pcall(NAmanage.InstallUIVisibilityOptimizer) end
 		if not NAUIMANAGER.SettingsFrame.Visible then
 			NAUIMANAGER.SettingsFrame.Visible = true
 		end
+		if NAmanage.OnUIWindowShown then pcall(NAmanage.OnUIWindowShown, NAUIMANAGER.SettingsFrame) end
 		--NAUIMANAGER.SettingsFrame.Position = UDim2.new(0.43, 0, 0.4, 0)
 		NAmanage.centerFrame(NAUIMANAGER.SettingsFrame)
 	end
@@ -83737,6 +84384,639 @@ NAgui.tween = function(obj, style, direction, duration, goal, callback)
 	end
 	tween:Play()
 	return tween
+end
+
+NAmanage.PluginsWindow_Clear = NAmanage.PluginsWindow_Clear or function()
+	local list = NAUIMANAGER and NAUIMANAGER.PluginsList
+	if not list then
+		return
+	end
+	for _, child in list:GetChildren() do
+		if child:IsA("GuiObject") then
+			child:Destroy()
+		end
+	end
+	if not list:FindFirstChildWhichIsA("UIListLayout") then
+		local layout = InstanceNew("UIListLayout", list)
+		layout.SortOrder = Enum.SortOrder.LayoutOrder
+		layout.Padding = UDim.new(0, 6)
+	end
+end
+
+NAmanage.PluginsWindow_Row = NAmanage.PluginsWindow_Row or function(height)
+	local list = NAUIMANAGER and NAUIMANAGER.PluginsList
+	if not list then
+		return nil
+	end
+	local row = InstanceNew("Frame")
+	row.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+	row.BackgroundTransparency = 0.08
+	row.BorderSizePixel = 0
+	row.Size = UDim2.new(1, -6, 0, height or 42)
+	row.Parent = list
+	InstanceNew("UICorner", row).CornerRadius = UDim.new(0, 7)
+	return row
+end
+
+NAmanage.PluginsWindow_AddSection = NAmanage.PluginsWindow_AddSection or function(text)
+	local row = NAmanage.PluginsWindow_Row(28)
+	if not row then return end
+	row.BackgroundTransparency = 1
+	local label = InstanceNew("TextLabel", row)
+	label.BackgroundTransparency = 1
+	label.Position = UDim2.new(0, 8, 0, 0)
+	label.Size = UDim2.new(1, -16, 1, 0)
+	label.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal)
+	label.Text = tostring(text or "")
+	label.TextColor3 = Color3.fromRGB(220, 220, 235)
+	label.TextSize = 15
+	label.TextXAlignment = Enum.TextXAlignment.Left
+	NAmanage.SetAttr(row, "NAPluginSearch", tostring(text or ""))
+	return row
+end
+
+NAmanage.PluginsWindow_AddButton = NAmanage.PluginsWindow_AddButton or function(text, callback)
+	local row = NAmanage.PluginsWindow_Row(38)
+	if not row then return end
+	local label = InstanceNew("TextLabel", row)
+	label.BackgroundTransparency = 1
+	label.Position = UDim2.new(0, 12, 0, 0)
+	label.Size = UDim2.new(1, -130, 1, 0)
+	label.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+	label.Text = tostring(text or "")
+	label.TextColor3 = Color3.fromRGB(245, 245, 250)
+	label.TextSize = 14
+	label.TextXAlignment = Enum.TextXAlignment.Left
+
+	local button = InstanceNew("TextButton", row)
+	button.AnchorPoint = Vector2.new(1, 0.5)
+	button.Position = UDim2.new(1, -10, 0.5, 0)
+	button.Size = UDim2.new(0, 96, 0, 26)
+	button.BackgroundColor3 = Color3.fromRGB(55, 55, 65)
+	button.BackgroundTransparency = 0.15
+	button.BorderSizePixel = 0
+	button.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal)
+	button.Text = "Run"
+	button.TextColor3 = Color3.fromRGB(245, 245, 250)
+	button.TextSize = 13
+	InstanceNew("UICorner", button).CornerRadius = UDim.new(0, 6)
+	local stroke = InstanceNew("UIStroke", button)
+	stroke.Name = "UIStroker"
+	stroke.Thickness = 1.4
+	stroke.Color = NAUISTROKER or Color3.fromRGB(155, 100, 255)
+	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	MouseButtonFix(button, function()
+		if type(callback) == "function" then
+			pcall(callback)
+		end
+	end)
+	NAmanage.SetAttr(row, "NAPluginSearch", tostring(text or ""))
+	return row
+end
+
+NAmanage.PluginsWindow_AddToggle = NAmanage.PluginsWindow_AddToggle or function(text, enabled, callback)
+	local row = NAmanage.PluginsWindow_Row(42)
+	if not row then return end
+	local label = InstanceNew("TextLabel", row)
+	label.BackgroundTransparency = 1
+	label.Position = UDim2.new(0, 12, 0, 0)
+	label.Size = UDim2.new(1, -78, 1, 0)
+	label.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+	label.Text = tostring(text or "")
+	label.TextColor3 = Color3.fromRGB(245, 245, 250)
+	label.TextSize = 14
+	label.TextXAlignment = Enum.TextXAlignment.Left
+
+	local switch = InstanceNew("Frame", row)
+	switch.Name = "Switch"
+	switch.AnchorPoint = Vector2.new(1, 0.5)
+	switch.Position = UDim2.new(1, -12, 0.5, 0)
+	switch.Size = UDim2.new(0, 45, 0, 22)
+	switch.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+	switch.BorderSizePixel = 0
+	InstanceNew("UICorner", switch).CornerRadius = UDim.new(1, 0)
+	local stroke = InstanceNew("UIStroke", switch)
+	stroke.Thickness = 1
+	stroke.Color = Color3.fromRGB(72, 72, 72)
+
+	local knob = InstanceNew("Frame", switch)
+	knob.Name = "Indicator"
+	knob.AnchorPoint = Vector2.new(0, 0.5)
+	knob.Size = UDim2.new(0, 18, 0, 18)
+	knob.BorderSizePixel = 0
+	InstanceNew("UICorner", knob).CornerRadius = UDim.new(1, 0)
+	local state = enabled == true
+	local function paint()
+		stroke.Color = state and (NAUISTROKER or Color3.fromRGB(155, 100, 255)) or Color3.fromRGB(72, 72, 72)
+		knob.BackgroundColor3 = state and (NAUISTROKER or Color3.fromRGB(155, 100, 255)) or Color3.fromRGB(115, 115, 125)
+		knob.Position = UDim2.new(0, state and 24 or 3, 0.5, 0)
+	end
+	paint()
+
+	local hit = InstanceNew("TextButton", row)
+	hit.BackgroundTransparency = 1
+	hit.Text = ""
+	hit.Size = UDim2.new(1, 0, 1, 0)
+	hit.ZIndex = 10
+	MouseButtonFix(hit, function()
+		state = not state
+		paint()
+		if type(callback) == "function" then
+			pcall(callback, state)
+		end
+	end)
+	NAmanage.SetAttr(row, "NAPluginSearch", tostring(text or ""))
+	return row
+end
+
+NAmanage.PluginsWindow_AddInput = NAmanage.PluginsWindow_AddInput or function(text, placeholder, defaultText, callback)
+	local row = NAmanage.PluginsWindow_Row(42)
+	if not row then return end
+	local label = InstanceNew("TextLabel", row)
+	label.BackgroundTransparency = 1
+	label.Position = UDim2.new(0, 12, 0, 0)
+	label.Size = UDim2.new(0.45, -20, 1, 0)
+	label.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+	label.Text = tostring(text or "")
+	label.TextColor3 = Color3.fromRGB(245, 245, 250)
+	label.TextSize = 14
+	label.TextXAlignment = Enum.TextXAlignment.Left
+	label.TextTruncate = Enum.TextTruncate.AtEnd
+
+	local box = InstanceNew("TextBox", row)
+	box.AnchorPoint = Vector2.new(1, 0.5)
+	box.Position = UDim2.new(1, -10, 0.5, 0)
+	box.Size = UDim2.new(0.48, 0, 0, 28)
+	box.BackgroundColor3 = Color3.fromRGB(55, 55, 65)
+	box.BackgroundTransparency = 0.15
+	box.BorderSizePixel = 0
+	box.ClearTextOnFocus = false
+	box.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+	box.Text = tostring(defaultText or "")
+	box.PlaceholderText = tostring(placeholder or "")
+	box.PlaceholderColor3 = Color3.fromRGB(130, 130, 140)
+	box.TextColor3 = Color3.fromRGB(245, 245, 250)
+	box.TextSize = 13
+	box.TextXAlignment = Enum.TextXAlignment.Left
+	InstanceNew("UICorner", box).CornerRadius = UDim.new(0, 6)
+	local stroke = InstanceNew("UIStroke", box)
+	stroke.Name = "UIStroker"
+	stroke.Thickness = 1.2
+	stroke.Color = NAUISTROKER or Color3.fromRGB(155, 100, 255)
+	local pad = InstanceNew("UIPadding", box)
+	pad.PaddingLeft = UDim.new(0, 8)
+	pad.PaddingRight = UDim.new(0, 8)
+	box.FocusLost:Connect(function()
+		if type(callback) == "function" then
+			pcall(callback, box.Text)
+		end
+	end)
+	NAmanage.SetAttr(row, "NAPluginSearch", tostring(text or ""))
+	return row
+end
+
+NAmanage.PluginsWindow_AddPlugin = NAmanage.PluginsWindow_AddPlugin or function(entry)
+	local row = NAmanage.PluginsWindow_Row(108)
+	if not row or type(entry) ~= "table" then return end
+	row.BackgroundTransparency = 0.03
+	row.ClipsDescendants = true
+	local rowStroke = InstanceNew("UIStroke", row)
+	rowStroke.Thickness = 1
+	rowStroke.Transparency = 0.75
+	rowStroke.Color = Color3.fromRGB(95, 95, 110)
+	local name = tostring(entry.name or "Plugin")
+	local kind = tostring(entry.kind or "")
+	local commands = type(entry.commands) == "table" and entry.commands or {}
+	local displayName = name:gsub("%.[nN][aA]$", ""):gsub("%.[iI][yY]$", "")
+	if displayName == "" then displayName = name end
+	if kind == "" then kind = name:match("(%.%w+)$") or "" end
+	local statusText = entry.enabled and (entry.loaded and "Loaded" or "Enabled") or "Disabled"
+	local statusColor = entry.enabled and (entry.loaded and Color3.fromRGB(130, 220, 150) or Color3.fromRGB(210, 190, 135)) or Color3.fromRGB(220, 120, 120)
+	local preview = {}
+	for i = 1, math.min(#commands, 5) do
+		preview[#preview + 1] = tostring(commands[i])
+	end
+	local commandText
+	if #commands > 0 then
+		commandText = tostring(#commands).." command"..(#commands == 1 and "" or "s")..": "..Concat(preview, ", ")
+		if #commands > #preview then
+			commandText = commandText.." +"..tostring(#commands - #preview)
+		end
+	elseif entry.enabled then
+		commandText = entry.loaded and "Loaded without commands" or "Not loaded yet"
+	else
+		commandText = "Plugin is disabled"
+	end
+
+	local stripe = InstanceNew("Frame", row)
+	stripe.BackgroundColor3 = statusColor
+	stripe.BorderSizePixel = 0
+	stripe.Size = UDim2.new(0, 3, 1, -14)
+	stripe.Position = UDim2.new(0, 0, 0, 7)
+	InstanceNew("UICorner", stripe).CornerRadius = UDim.new(1, 0)
+
+	local title = InstanceNew("TextLabel", row)
+	title.BackgroundTransparency = 1
+	title.Position = UDim2.new(0, 14, 0, 8)
+	title.Size = UDim2.new(1, -245, 0, 20)
+	title.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal)
+	title.Text = displayName
+	title.TextColor3 = Color3.fromRGB(250, 250, 255)
+	title.TextSize = 15
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.TextTruncate = Enum.TextTruncate.AtEnd
+
+	local ext = InstanceNew("TextLabel", row)
+	ext.BackgroundColor3 = Color3.fromRGB(55, 55, 65)
+	ext.BackgroundTransparency = 0.08
+	ext.BorderSizePixel = 0
+	ext.Position = UDim2.new(0, 14, 0, 32)
+	ext.Size = UDim2.new(0, 42, 0, 18)
+	ext.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal)
+	ext.Text = kind ~= "" and kind or "file"
+	ext.TextColor3 = Color3.fromRGB(210, 200, 245)
+	ext.TextSize = 11
+	InstanceNew("UICorner", ext).CornerRadius = UDim.new(0, 5)
+
+	local status = InstanceNew("TextLabel", row)
+	status.BackgroundTransparency = 1
+	status.Position = UDim2.new(0, 62, 0, 32)
+	status.Size = UDim2.new(0, 92, 0, 18)
+	status.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal)
+	status.Text = statusText
+	status.TextColor3 = statusColor
+	status.TextSize = 12
+	status.TextXAlignment = Enum.TextXAlignment.Left
+
+	local detail = InstanceNew("TextLabel", row)
+	detail.BackgroundTransparency = 1
+	detail.Position = UDim2.new(0, 14, 0, 56)
+	detail.Size = UDim2.new(1, -170, 0, 18)
+	detail.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+	detail.Text = commandText
+	detail.TextColor3 = Color3.fromRGB(180, 180, 195)
+	detail.TextSize = 12
+	detail.TextXAlignment = Enum.TextXAlignment.Left
+	detail.TextTruncate = Enum.TextTruncate.AtEnd
+
+	local function actionButton(text, x, width, callback)
+		local button = InstanceNew("TextButton", row)
+		button.Position = UDim2.new(0, x, 0, 79)
+		button.Size = UDim2.new(0, width, 0, 22)
+		button.BackgroundColor3 = Color3.fromRGB(55, 55, 65)
+		button.BackgroundTransparency = 0.12
+		button.BorderSizePixel = 0
+		button.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal)
+		button.Text = text
+		button.TextColor3 = Color3.fromRGB(245, 245, 250)
+		button.TextSize = 12
+		InstanceNew("UICorner", button).CornerRadius = UDim.new(0, 5)
+		MouseButtonFix(button, callback)
+		return button
+	end
+
+	actionButton("Reload", 14, 72, function()
+		if NAmanage.LoadPlugins then
+			NAmanage.LoadPlugins({ forceNotify = true })
+		end
+		NAmanage.PluginsWindow_Rebuild()
+	end)
+
+	actionButton("Uninstall", 92, 72, function()
+		local ok, msg = NAmanage.PluginMoveToWorkspace(entry.path)
+		DoNotif(ok and ("Uninstalled "..name) or ("Uninstall failed: "..tostring(msg)), 3)
+		if NAmanage.LoadPlugins then
+			NAmanage.LoadPlugins({ silent = true })
+		end
+		NAmanage.PluginsWindow_Rebuild()
+	end)
+
+	local switch = InstanceNew("Frame", row)
+	switch.Name = "Switch"
+	switch.AnchorPoint = Vector2.new(1, 0)
+	switch.Position = UDim2.new(1, -14, 0, 18)
+	switch.Size = UDim2.new(0, 45, 0, 22)
+	switch.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+	switch.BorderSizePixel = 0
+	InstanceNew("UICorner", switch).CornerRadius = UDim.new(1, 0)
+	local switchStroke = InstanceNew("UIStroke", switch)
+	switchStroke.Thickness = 1
+	local knob = InstanceNew("Frame", switch)
+	knob.Name = "Indicator"
+	knob.AnchorPoint = Vector2.new(0, 0.5)
+	knob.Size = UDim2.new(0, 18, 0, 18)
+	knob.BorderSizePixel = 0
+	InstanceNew("UICorner", knob).CornerRadius = UDim.new(1, 0)
+	local on = entry.enabled == true
+	local function paint()
+		switchStroke.Color = on and (NAUISTROKER or Color3.fromRGB(155, 100, 255)) or Color3.fromRGB(72, 72, 72)
+		knob.BackgroundColor3 = on and (NAUISTROKER or Color3.fromRGB(155, 100, 255)) or Color3.fromRGB(115, 115, 125)
+		knob.Position = UDim2.new(0, on and 24 or 3, 0.5, 0)
+	end
+	paint()
+	local toggleHit = InstanceNew("TextButton", row)
+	toggleHit.AnchorPoint = Vector2.new(1, 0)
+	toggleHit.Position = UDim2.new(1, -8, 0, 11)
+	toggleHit.Size = UDim2.new(0, 56, 0, 36)
+	toggleHit.BackgroundTransparency = 1
+	toggleHit.Text = ""
+	toggleHit.ZIndex = 10
+	MouseButtonFix(toggleHit, function()
+		on = not on
+		paint()
+		NAmanage.PluginSetEnabled(entry.path, on == true)
+		if NAmanage.LoadPlugins then
+			NAmanage.LoadPlugins({ silent = true })
+		end
+		DoNotif(name.." "..(on and "enabled" or "disabled"), 2)
+		NAmanage.PluginsWindow_Rebuild()
+	end)
+	NAmanage.SetAttr(row, "NAPluginSearch", (name.." "..displayName.." "..kind.." "..commandText):lower())
+	return row
+end
+
+NAmanage.PluginsWindow_AddAvailablePlugin = NAmanage.PluginsWindow_AddAvailablePlugin or function(entry)
+	local row = NAmanage.PluginsWindow_Row(70)
+	if not row or type(entry) ~= "table" then return end
+	row.BackgroundTransparency = 0.08
+	row.ClipsDescendants = true
+	local name = tostring(entry.name or "Plugin")
+	local kind = tostring(entry.kind or "")
+	local displayName = name:gsub("%.[nN][aA]$", ""):gsub("%.[iI][yY]$", "")
+	if displayName == "" then displayName = name end
+	local path = tostring(entry.path or "")
+
+	local title = InstanceNew("TextLabel", row)
+	title.BackgroundTransparency = 1
+	title.Position = UDim2.new(0, 12, 0, 7)
+	title.Size = UDim2.new(1, -150, 0, 20)
+	title.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal)
+	title.Text = displayName
+	title.TextColor3 = Color3.fromRGB(245, 245, 250)
+	title.TextSize = 14
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.TextTruncate = Enum.TextTruncate.AtEnd
+
+	local ext = InstanceNew("TextLabel", row)
+	ext.BackgroundColor3 = Color3.fromRGB(55, 55, 65)
+	ext.BackgroundTransparency = 0.08
+	ext.BorderSizePixel = 0
+	ext.Position = UDim2.new(0, 12, 0, 33)
+	ext.Size = UDim2.new(0, 42, 0, 18)
+	ext.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal)
+	ext.Text = kind ~= "" and kind or "file"
+	ext.TextColor3 = Color3.fromRGB(210, 200, 245)
+	ext.TextSize = 11
+	InstanceNew("UICorner", ext).CornerRadius = UDim.new(0, 5)
+
+	local detail = InstanceNew("TextLabel", row)
+	detail.BackgroundTransparency = 1
+	detail.Position = UDim2.new(0, 62, 0, 33)
+	detail.Size = UDim2.new(1, -210, 0, 18)
+	detail.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+	detail.Text = path
+	detail.TextColor3 = Color3.fromRGB(170, 170, 185)
+	detail.TextSize = 12
+	detail.TextXAlignment = Enum.TextXAlignment.Left
+	detail.TextTruncate = Enum.TextTruncate.AtEnd
+
+	local install = InstanceNew("TextButton", row)
+	install.AnchorPoint = Vector2.new(1, 0.5)
+	install.Position = UDim2.new(1, -12, 0.5, 0)
+	install.Size = UDim2.new(0, 92, 0, 26)
+	install.BackgroundColor3 = Color3.fromRGB(55, 55, 65)
+	install.BackgroundTransparency = 0.12
+	install.BorderSizePixel = 0
+	install.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal)
+	install.Text = "Install"
+	install.TextColor3 = Color3.fromRGB(245, 245, 250)
+	install.TextSize = 12
+	InstanceNew("UICorner", install).CornerRadius = UDim.new(0, 6)
+	local stroke = InstanceNew("UIStroke", install)
+	stroke.Name = "UIStroker"
+	stroke.Thickness = 1.2
+	stroke.Color = NAUISTROKER or Color3.fromRGB(155, 100, 255)
+	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	MouseButtonFix(install, function()
+		local ok, msg = NAmanage.PluginInstallFromWorkspace(entry.path)
+		DoNotif(ok and ("Installed "..name) or ("Install failed: "..tostring(msg)), 3)
+		if ok and NAmanage.LoadPlugins then
+			NAmanage.LoadPlugins({ silent = true })
+		end
+		NAmanage.PluginsWindow_Rebuild()
+	end)
+	NAmanage.SetAttr(row, "NAPluginSearch", (name.." "..displayName.." "..kind.." "..path.." available install"):lower())
+	return row
+end
+
+NAmanage.PluginsWindow_Filter = NAmanage.PluginsWindow_Filter or function()
+	local list = NAUIMANAGER and NAUIMANAGER.PluginsList
+	local filter = NAUIMANAGER and NAUIMANAGER.PluginsFilter
+	if not list then return end
+	local query = Lower(tostring(filter and filter.Text or ""))
+	for _, child in list:GetChildren() do
+		if child:IsA("GuiObject") then
+			if query == "" then
+				child.Visible = true
+			else
+				local hay = tostring(NAmanage.GetAttr(child, "NAPluginSearch") or child.Name or ""):lower()
+				child.Visible = hay:find(query, 1, true) ~= nil
+			end
+		end
+	end
+end
+
+NAmanage.PluginsWindow_Rebuild = NAmanage.PluginsWindow_Rebuild or function()
+	NAmanage.EnsurePluginsWindow()
+	NAmanage.PluginsWindow_Clear()
+	local entries = NAmanage.PluginListFiles and NAmanage.PluginListFiles() or {}
+	NAmanage.PluginsWindow_AddSection("Manager")
+	NAmanage.PluginsWindow_AddToggle("Load plugins on startup", NAStuff.PluginAutoLoad ~= false, function(on)
+		NAStuff.PluginAutoLoad = on == true
+		pcall(NAmanage.NASettingsSet, "pluginAutoLoad", NAStuff.PluginAutoLoad)
+		DoNotif("Plugin startup loading "..(on and "enabled" or "disabled"), 2)
+	end)
+	NAmanage.PluginsWindow_AddToggle("Allow plugin UI controls", NAStuff.PluginSettingsUIEnabled ~= false, function(on)
+		NAStuff.PluginSettingsUIEnabled = on == true
+		pcall(NAmanage.NASettingsSet, "pluginAllowSettingsUI", NAStuff.PluginSettingsUIEnabled)
+		DoNotif("Plugin UI controls "..(on and "enabled" or "disabled"), 2)
+	end)
+	NAmanage.PluginsWindow_AddButton("Reload enabled plugins", function()
+		if NAmanage.LoadPlugins then
+			NAmanage.LoadPlugins({ forceNotify = true })
+		end
+		NAmanage.PluginsWindow_Rebuild()
+	end)
+	NAmanage.PluginsWindow_AddInput("Install plugin from URL", "https://.../plugin.na", "", function(text)
+		local url = tostring(text or ""):match("^%s*(.-)%s*$") or ""
+		if url == "" then return end
+		local ok, msg = NAmanage.PluginInstallFromUrl(url)
+		DoNotif(ok and ("Installed "..NAmanage.PluginBaseName(msg)) or ("Install failed: "..tostring(msg)), 3)
+		if ok and NAmanage.LoadPlugins then
+			NAmanage.LoadPlugins({ silent = true })
+		end
+		NAmanage.PluginsWindow_Rebuild()
+	end)
+	NAmanage.PluginsWindow_AddButton("Move all workspace plugins into plugin folders", function()
+		if cmd and cmd.run then
+			cmd.run({"addallplugins"})
+		end
+		if NAmanage.LoadPlugins then
+			NAmanage.LoadPlugins({ silent = true })
+		end
+		NAmanage.PluginsWindow_Rebuild()
+	end)
+	NAmanage.PluginsWindow_AddButton("Enable all installed plugins", function()
+		for _, entry in entries do
+			NAmanage.PluginSetEnabled(entry.path, true)
+		end
+		if NAmanage.LoadPlugins then
+			NAmanage.LoadPlugins({ silent = true })
+		end
+		DoNotif("Enabled all installed plugins", 2)
+		NAmanage.PluginsWindow_Rebuild()
+	end)
+	NAmanage.PluginsWindow_AddButton("Disable all installed plugins", function()
+		for _, entry in entries do
+			NAmanage.PluginSetEnabled(entry.path, false)
+		end
+		if NAmanage.LoadPlugins then
+			NAmanage.LoadPlugins({ silent = true })
+		end
+		DoNotif("Disabled all installed plugins", 2)
+		NAmanage.PluginsWindow_Rebuild()
+	end)
+	NAmanage.PluginsWindow_AddSection("Installed Plugins")
+	if #entries == 0 then
+		NAmanage.PluginsWindow_AddButton("No plugins found in Plugins or PluginsIY", function()
+			if cmd and cmd.run then
+				cmd.run({"addplugin"})
+			end
+		end)
+	else
+		for _, entry in entries do
+			NAmanage.PluginsWindow_AddPlugin(entry)
+		end
+	end
+	local available = NAmanage.PluginListAvailable and NAmanage.PluginListAvailable() or {}
+	NAmanage.PluginsWindow_AddSection("Available Plugins")
+	if #available == 0 then
+		NAmanage.PluginsWindow_AddButton("No workspace plugins outside Plugins or PluginsIY", function()
+			if cmd and cmd.run then
+				cmd.run({"addplugin"})
+			end
+		end)
+	else
+		for _, entry in available do
+			NAmanage.PluginsWindow_AddAvailablePlugin(entry)
+		end
+	end
+	if NAStuff.PluginSettingsUIEnabled ~= false and type(NAmanage._pluginControlSpecs) == "table" then
+		local controlGroups = {}
+		for _, group in NAmanage._pluginControlSpecs do
+			if type(group) == "table" and type(group.items) == "table" and #group.items > 0 then
+				Insert(controlGroups, group)
+			end
+		end
+		table.sort(controlGroups, function(a, b)
+			return tostring(a.name or "") < tostring(b.name or "")
+		end)
+		if #controlGroups > 0 then
+			NAmanage.PluginsWindow_AddSection("Plugin UI")
+			for _, group in controlGroups do
+				local lastTab
+				for _, item in group.items do
+					local tabName = tostring(item.tabName or "Controls")
+					if tabName ~= lastTab then
+						lastTab = tabName
+						NAmanage.PluginsWindow_AddSection(tostring(group.name or "Plugin").." / "..tabName)
+					end
+					if item.kind == "section" then
+						NAmanage.PluginsWindow_AddSection(item.label)
+					elseif item.kind == "button" then
+						NAmanage.PluginsWindow_AddButton(item.label, item.callback)
+					elseif item.kind == "input" then
+						NAmanage.PluginsWindow_AddInput(item.label, item.placeholder, item.defaultText, item.callback)
+					elseif item.kind == "toggle" then
+						NAmanage.PluginsWindow_AddToggle(item.label, item.defaultValue == true, item.callback)
+					end
+				end
+			end
+		end
+	end
+	NAmanage.PluginsWindow_Filter()
+	local filter = NAUIMANAGER and NAUIMANAGER.PluginsFilter
+	if filter and not NAStuff.PluginsFilterConnected then
+		NAStuff.PluginsFilterConnected = true
+		filter:GetPropertyChangedSignal("Text"):Connect(NAmanage.PluginsWindow_Filter)
+	end
+end
+
+NAgui.plugins = function()
+	if NAmanage.PluginsWindow_Toggle then
+		return NAmanage.PluginsWindow_Toggle()
+	end
+	local frame = NAmanage.EnsurePluginsWindow and NAmanage.EnsurePluginsWindow()
+	if not frame then
+		DoNotif("Plugins UI unavailable.", 3)
+		return false
+	end
+	frame.Visible = not frame.Visible
+	return true
+end
+
+NAmanage.PluginsWindow_Bind = NAmanage.PluginsWindow_Bind or function()
+	local frame = NAmanage.EnsurePluginsWindow and NAmanage.EnsurePluginsWindow()
+	if not frame then
+		return false
+	end
+	local wasVisible = frame.Visible == true
+	if NAgui and type(NAgui.menu) == "function" and NAStuff.PluginsWindowMenuBound ~= frame then
+		NAgui.menu(frame)
+		NAStuff.PluginsWindowMenuBound = frame
+		frame.Visible = wasVisible
+	end
+	if NAgui and type(NAgui.resizeable) == "function" and NAStuff.PluginsWindowResizeBound ~= frame then
+		NAgui.resizeable(frame, Vector2.new(340, 260), Vector2.new(5000, 5000))
+		NAStuff.PluginsWindowResizeBound = frame
+	end
+	return true
+end
+
+NAmanage.PluginsWindow_SetVisible = NAmanage.PluginsWindow_SetVisible or function(visible, opts)
+	opts = opts or {}
+	local frame = NAmanage.EnsurePluginsWindow and NAmanage.EnsurePluginsWindow()
+	if not frame then
+		DoNotif("Plugins UI unavailable.", 3)
+		return false
+	end
+	if NAmanage.PluginsWindow_Bind then
+		NAmanage.PluginsWindow_Bind()
+	end
+	visible = visible == true
+	frame.Visible = visible
+	if visible then
+		if opts.refresh ~= false and NAmanage.PluginsWindow_Rebuild then
+			NAmanage.PluginsWindow_Rebuild()
+		end
+		if opts.center ~= false and NAmanage.centerFrame then
+			NAmanage.centerFrame(frame)
+		end
+	end
+	return true
+end
+
+NAmanage.PluginsWindow_Toggle = NAmanage.PluginsWindow_Toggle or function(forceState, opts)
+	local frame = NAmanage.EnsurePluginsWindow and NAmanage.EnsurePluginsWindow()
+	if not frame then
+		DoNotif("Plugins UI unavailable.", 3)
+		return false
+	end
+	local nextState = forceState
+	if type(nextState) ~= "boolean" then
+		nextState = not frame.Visible
+	end
+	return NAmanage.PluginsWindow_SetVisible(nextState, opts)
 end
 
 NAgui._resizeCleanup = NAmanage.ensureWeakTable(NAgui._resizeCleanup, "k")
@@ -84239,20 +85519,22 @@ NAgui.SettingsBuildState = NAgui.SettingsBuildState or {
 }
 
 NAgui.SettingsBuildStep = NAgui.SettingsBuildStep or function(kind)
-	if not (NAUIMANAGER and NAUIMANAGER.SettingsList) then
-		return
-	end
+	if not (NAUIMANAGER and NAUIMANAGER.SettingsList) then return end
 	NAgui.SettingsBuildState = NAgui.SettingsBuildState or {}
-	NAgui.SettingsBuildState.count = (tonumber(NAgui.SettingsBuildState.count) or 0) + 1
-	NAgui.SettingsBuildState.building = true
-	if (tonumber(NAgui.SettingsBuildState.lastYield) or 0) <= 0 then
-		NAgui.SettingsBuildState.lastYield = os.clock()
-	end
-	if (NAgui.SettingsBuildState.count % (tonumber(NAgui.SettingsBuildState.batch) or 10)) ~= 0 and (os.clock() - NAgui.SettingsBuildState.lastYield) < (tonumber(NAgui.SettingsBuildState.budget) or 0.012) then
-		return
-	end
-	Wait()
-	NAgui.SettingsBuildState.lastYield = os.clock()
+	local state = NAgui.SettingsBuildState
+	state.count = (tonumber(state.count) or 0) + 1
+	state.building = true
+	if (tonumber(state.lastYield) or 0) <= 0 then state.lastYield = os.clock() end
+	local lowEnd = NAmanage and NAmanage.IsLowEndUI and NAmanage.IsLowEndUI() or false
+	local settingsFrame = NAUIMANAGER and NAUIMANAGER.SettingsFrame
+	local visible = not (typeof(settingsFrame) == "Instance") or settingsFrame.Visible == true
+	local batch = tonumber(state.batch) or 10
+	local budget = tonumber(state.budget) or 0.012
+	if lowEnd then batch = math.max(3, math.floor(batch * 0.6)); budget = math.min(budget, 0.007) end
+	if not visible then batch = math.max(2, math.floor(batch * 0.5)); budget = math.min(budget, 0.004) end
+	if (state.count % batch) ~= 0 and (os.clock() - state.lastYield) < budget then return end
+	if not visible then Wait(0.05) elseif lowEnd then Wait(0.02) else Wait() end
+	state.lastYield = os.clock()
 end
 
 NAgui.SettingsBuildDone = NAgui.SettingsBuildDone or function()
@@ -85340,7 +86622,10 @@ NAgui.addColorPicker = function(label, defaultColor, callback, opts)
 			if pickerDestroyed then
 				return
 			end
-			if rgbOn and not dM and not dS then
+			local visible = opened
+			if visible and NAmanage and NAmanage.IsUIWindowVisible then visible = NAmanage.IsUIWindowVisible("SettingsFrame") end
+			if visible and picker and NAmanage and NAmanage.IsGuiActuallyVisible then visible = NAmanage.IsGuiActuallyVisible(picker) end
+			if rgbOn and visible and not dM and not dS then
 				local step = math.clamp(dt or 0.016, 0.001, 0.1)
 				h = (h + step * rgbSpd) % 1
 				updUI(true)
@@ -85874,6 +87159,8 @@ end
 NAmanage.RunUIAutoSync = function()
 	local store = NAmanage._uiAutoSync
 	if not store then return end
+	local settingsFrame = NAUIMANAGER and NAUIMANAGER.SettingsFrame
+	if typeof(settingsFrame) == "Instance" and settingsFrame.Visible ~= true then return end
 	local toggleStore = store.toggles
 	if toggleStore and NAgui and NAgui.setToggleState then
 		for label, watcher in toggleStore do
@@ -85928,17 +87215,15 @@ NAmanage.StartUIAutoSyncLoop = function()
 				idleStreak = math.min(idleStreak + 1, 12)
 			end
 
+			local settingsFrame = NAUIMANAGER and NAUIMANAGER.SettingsFrame
+			local settingsVisible = not (typeof(settingsFrame) == "Instance") or settingsFrame.Visible == true
+			local lowEnd = NAmanage.IsLowEndUI and NAmanage.IsLowEndUI() or false
 			local sleepTime = hasToggles and 1.25 or math.min(8, 2.5 + idleStreak * 0.5)
 			if hasToggles then
-				if NAmanage.isLoad and NAmanage.isLoad() then
-					sleepTime = 1.75
-				end
-				if NAStuff and NAStuff.NASCREENGUI and NAStuff.NASCREENGUI.Enabled == false then
-					sleepTime = math.max(sleepTime, 2)
-				end
-				if idleStreak > 0 then
-					sleepTime = sleepTime + math.min(1, idleStreak * 0.12)
-				end
+				if not settingsVisible then sleepTime = lowEnd and 10 or 6
+				elseif NAmanage.isLoad and NAmanage.isLoad() then sleepTime = lowEnd and 2.75 or 1.75
+				elseif idleStreak > 0 then sleepTime = math.min(lowEnd and 8 or 5, 1.25 + idleStreak * 0.35)
+				elseif lowEnd then sleepTime = 2.5 end
 			end
 			Wait(sleepTime)
 		end
@@ -85946,6 +87231,7 @@ NAmanage.StartUIAutoSyncLoop = function()
 end
 
 NAmanage.StartUIAutoSyncLoop()
+if NAmanage.InstallUIVisibilityOptimizer then pcall(NAmanage.InstallUIVisibilityOptimizer) end
 
 NAgui.addKeybind = function(label, defaultKey, callback)
 	if not NAUIMANAGER.SettingsList then return end
@@ -87898,6 +89184,13 @@ NAmanage.Topbar_BuildBaseButtons=function()
 			if NAUIMANAGER.BindersFrame then
 				NAUIMANAGER.BindersFrame.Visible=not NAUIMANAGER.BindersFrame.Visible
 				NAmanage.centerFrame(NAUIMANAGER.BindersFrame)
+			end
+		end},
+		{name="plugins",icon="cube-vertexes",func=function()
+			if NAmanage and NAmanage.PluginsWindow_Toggle then
+				NAmanage.PluginsWindow_Toggle()
+			elseif NAgui and NAgui.plugins then
+				NAgui.plugins()
 			end
 		end},
 		{name="executor",icon="code",func=function()
@@ -95050,6 +96343,7 @@ if NAUIMANAGER.CommandKeybindsFrame then NAgui.menu(NAUIMANAGER.CommandKeybindsF
 if NAUIMANAGER.SettingsFrame then NAgui.menu(NAUIMANAGER.SettingsFrame) end
 if NAUIMANAGER.WaypointFrame then NAgui.menu(NAUIMANAGER.WaypointFrame) end
 if NAUIMANAGER.BindersFrame then NAgui.menu(NAUIMANAGER.BindersFrame) end
+if NAmanage.PluginsWindow_Bind then NAmanage.PluginsWindow_Bind() end
 if NAUIMANAGER.ExecutorFrame then NAgui.menu(NAUIMANAGER.ExecutorFrame) end
 if NAUIMANAGER.NotepadFrame then NAgui.menu(NAUIMANAGER.NotepadFrame) end
 
@@ -100080,6 +101374,7 @@ do
 			canvasFrames[#canvasFrames + 1] = NAUIMANAGER.SettingsList
 			canvasFrames[#canvasFrames + 1] = NAUIMANAGER.WaypointList
 			canvasFrames[#canvasFrames + 1] = NAUIMANAGER.BindersList
+			canvasFrames[#canvasFrames + 1] = NAUIMANAGER.PluginsList
 		end
 	end
 	local function updateNextCanvas(scale)
@@ -102296,6 +103591,7 @@ SpawnCall(function() -- init
 	if NAUIMANAGER.SettingsFrame then NAgui.NAProtection(NAUIMANAGER.SettingsFrame) end
 	if NAUIMANAGER.WaypointFrame then NAgui.NAProtection(NAUIMANAGER.WaypointFrame) end
 	if NAUIMANAGER.BindersFrame then NAgui.NAProtection(NAUIMANAGER.BindersFrame) end
+	if NAUIMANAGER.PluginsFrame then NAgui.NAProtection(NAUIMANAGER.PluginsFrame) end
 	if NAUIMANAGER.ExecutorFrame then NAgui.NAProtection(NAUIMANAGER.ExecutorFrame) end
 	if NAUIMANAGER.NotepadFrame then NAgui.NAProtection(NAUIMANAGER.NotepadFrame) end
 	if not PlrGui then PlrGui=Player:WaitForChild("PlayerGui",math.huge) end
@@ -102343,7 +103639,7 @@ end, { requiresGui = true, retries = 3, delay = 0.4 })
 NAmanage.scheduleLoader('Plugins', function()
 	NAmanage.InitPlugs()
 	local silent = (NAmanage.jlCfg and NAmanage.jlCfg.PluginNotif == false) or false
-	return NAmanage.LoadPlugins({ silent = silent })
+	return NAmanage.LoadPlugins({ silent = silent, startup = true })
 end, { retries = 4, delay = 0.5, retryOnFalse = true })
 NAmanage.scheduleLoader('Waypoints', NAmanage.UpdateWaypointList)
 NAmanage.LoadESPSettings()
@@ -103338,6 +104634,13 @@ NAgui.addInput("UI Scale", "0.5 - 2.5", Format("%.2f", NAmanage.ClampUIScale(NAU
 		NAmanage.SyncUIScaleUI({ value = clamped, force = true })
 	end
 end)
+NAgui.addToggle("Low-End UI Mode", NAStuff.LowEndMode == true, function(v)
+	NAStuff.LowEndMode = v == true
+	pcall(NAmanage.NASettingsSet, "lowEndUiMode", NAStuff.LowEndMode)
+	if NAmanage.InstallUIVisibilityOptimizer then pcall(NAmanage.InstallUIVisibilityOptimizer) end
+	DoNotif("Low-End UI Mode "..(NAStuff.LowEndMode and "enabled" or "disabled"), 2)
+end)
+NAmanage.RegisterToggleAutoSync("Low-End UI Mode", function() return NAStuff.LowEndMode == true end)
 
 NAgui.addSection("Admin Utility")
 
