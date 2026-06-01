@@ -1055,6 +1055,58 @@
       "desc": "bypasses adonis admin detection"
     },
     {
+      "name": "antinil",
+      "aliases": [
+        "antinil",
+        "anticharnil",
+        "antinilchar",
+        "charantinil",
+        "keepchar"
+      ],
+      "usage": "antinil (anticharnil, antinilchar, charantinil, keepchar)",
+      "args": "",
+      "desc": "Prevents your character from being parented to nil"
+    },
+    {
+      "name": "unantinil",
+      "aliases": [
+        "unantinil",
+        "unanticharnil",
+        "unantinilchar",
+        "allowcharnil",
+        "unkeepchar"
+      ],
+      "usage": "unantinil (unanticharnil, unantinilchar, allowcharnil, unkeepchar)",
+      "args": "",
+      "desc": "Stops preventing your character from being parented to nil"
+    },
+    {
+      "name": "nilchar",
+      "aliases": [
+        "nilchar",
+        "nilcharacter",
+        "charnil",
+        "nchar"
+      ],
+      "usage": "nilchar (nilcharacter, charnil, nchar)",
+      "args": "",
+      "desc": "Parents your character to nil"
+    },
+    {
+      "name": "unnilchar",
+      "aliases": [
+        "unnilchar",
+        "unnilcharacter",
+        "uncharnil",
+        "nonilchar",
+        "restorechar",
+        "bringchar"
+      ],
+      "usage": "unnilchar (unnilcharacter, uncharnil, nonilchar, restorechar, bringchar)",
+      "args": "",
+      "desc": "Restores your nil-parented character"
+    },
+    {
       "name": "accountage",
       "aliases": [
         "accountage",
@@ -3025,6 +3077,26 @@
       "desc": "Shows the NA icon"
     },
     {
+      "name": "topbar",
+      "aliases": [
+        "topbar",
+        "showtopbar"
+      ],
+      "usage": "topbar (showtopbar)",
+      "args": "",
+      "desc": "Shows the NA topbar"
+    },
+    {
+      "name": "untopbar",
+      "aliases": [
+        "untopbar",
+        "hidetopbar"
+      ],
+      "usage": "untopbar (hidetopbar)",
+      "args": "",
+      "desc": "Hides the NA topbar"
+    },
+    {
       "name": "lockiconposition",
       "aliases": [
         "lockiconposition",
@@ -3908,25 +3980,6 @@
       "usage": "team <team name>",
       "args": "<team name>",
       "desc": "Changes your team (for the client)"
-    },
-    {
-      "name": "nilchar",
-      "aliases": [
-        "nilchar"
-      ],
-      "usage": "nilchar",
-      "args": "",
-      "desc": "Temporarily parent your character to nil"
-    },
-    {
-      "name": "unnilchar",
-      "aliases": [
-        "unnilchar",
-        "nonilchar"
-      ],
-      "usage": "unnilchar (nonilchar)",
-      "args": "",
-      "desc": "Move your character back to workspace"
     },
     {
       "name": "char",
