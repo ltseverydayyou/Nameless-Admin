@@ -6557,11 +6557,53 @@ NAmanage.CreateNAFreecam=function()
 		[Enum.KeyCode.A] = 0,
 		[Enum.KeyCode.S] = 0,
 		[Enum.KeyCode.D] = 0,
-		[Enum.KeyCode.Q] = 0,
-		[Enum.KeyCode.E] = 0,
 		[Enum.KeyCode.Up] = 0,
 		[Enum.KeyCode.Down] = 0,
 	}
+
+	local function normalizeKeyName(value, fallback)
+		local key = value
+		if type(key) ~= "string" then
+			key = tostring(key or "")
+		end
+		key = key:match("^%s*(.-)%s*$") or ""
+		if key == "" then
+			key = tostring(fallback or "")
+		end
+		key = key:gsub("^Enum%.KeyCode%.", "")
+		return key
+	end
+
+	local function keyCodeFromName(value, fallback)
+		local name = normalizeKeyName(value, fallback)
+		local ok, code = pcall(function()
+			return Enum.KeyCode[name]
+		end)
+		if ok and code and code ~= Enum.KeyCode.Unknown then
+			return code
+		end
+		local lowerName = Lower(name)
+		for _, enumKey in Enum.KeyCode:GetEnumItems() do
+			if Lower(enumKey.Name) == lowerName then
+				return enumKey
+			end
+		end
+		return nil
+	end
+
+	local function getVerticalKeys()
+		local upKey = keyCodeFromName(NAStuff.FreecamUpKey, "E") or Enum.KeyCode.E
+		local downKey = keyCodeFromName(NAStuff.FreecamDownKey, "Q") or Enum.KeyCode.Q
+		return upKey, downKey
+	end
+
+	local function isFreecamKeyboardKey(keyCode)
+		if keyboard[keyCode] ~= nil then
+			return true
+		end
+		local upKey, downKey = getVerticalKeys()
+		return keyCode == upKey or keyCode == downKey
+	end
 
 	local mouse = {
 		Delta = Vector2.new(),
@@ -6582,7 +6624,7 @@ NAmanage.CreateNAFreecam=function()
 	local touchConnection = nil
 
 	local function onKeypress(_, inputState, input)
-		if input.KeyCode and keyboard[input.KeyCode] ~= nil then
+		if input.KeyCode and isFreecamKeyboardKey(input.KeyCode) then
 			if inputState == Enum.UserInputState.Begin then
 				keyboard[input.KeyCode] = 1
 			elseif inputState == Enum.UserInputState.End then
@@ -6629,9 +6671,10 @@ NAmanage.CreateNAFreecam=function()
 				move = vec
 			end
 		else
+			local freecamUpKey, freecamDownKey = getVerticalKeys()
 			move = Vector3.new(
 				(keyboard[Enum.KeyCode.D] - keyboard[Enum.KeyCode.A]),
-				(keyboard[Enum.KeyCode.E] - keyboard[Enum.KeyCode.Q]),
+				(keyboard[freecamUpKey] or 0) - (keyboard[freecamDownKey] or 0),
 				-(keyboard[Enum.KeyCode.W] - keyboard[Enum.KeyCode.S])
 			)
 		end
@@ -6718,10 +6761,11 @@ NAmanage.CreateNAFreecam=function()
 			local freecamKeyboardAction = NAmanage.GetSessionActionName("FreecamKeyboard")
 			local freecamMousePanAction = NAmanage.GetSessionActionName("FreecamMousePan")
 			local freecamMouseWheelAction = NAmanage.GetSessionActionName("FreecamMouseWheel")
+			local freecamUpKey, freecamDownKey = getVerticalKeys()
 			capturing = true
 			__lt.cm("ContextActionService", "BindActionAtPriority", freecamKeyboardAction, onKeypress, false, Enum.ContextActionPriority.High.Value,
 				Enum.KeyCode.W, Enum.KeyCode.A, Enum.KeyCode.S, Enum.KeyCode.D,
-				Enum.KeyCode.Q, Enum.KeyCode.E,
+				freecamUpKey, freecamDownKey,
 				Enum.KeyCode.Up, Enum.KeyCode.Down
 			)
 			__lt.cm("ContextActionService", "BindActionAtPriority", freecamMousePanAction, onMousePan, false, Enum.ContextActionPriority.High.Value, Enum.UserInputType.MouseMovement)
@@ -13486,6 +13530,86 @@ NAgui.rStringgg=function(key)
 	return "\0"
 end
 
+NAmanage.ProtectedInstances = NAmanage.ProtectedInstances or setmetatable({}, { __mode = "k" })
+
+NAmanage.RandomizeInstanceName = NAmanage.RandomizeInstanceName or function(inst, key)
+	if typeof(inst) ~= "Instance" then
+		return nil
+	end
+	local name = (NAgui.rStringgg and NAgui.rStringgg(key)) or "\0"
+	pcall(function()
+		inst.Name = name
+	end)
+	return name
+end
+
+NAmanage.StartProtectedInstanceWatcher = NAmanage.StartProtectedInstanceWatcher or function()
+	if NAStuff.ProtectedInstanceWatcherRunning then
+		return
+	end
+	NAStuff.ProtectedInstanceWatcherRunning = true
+	Spawn(function()
+		while NAStuff and NAStuff.ProtectedInstanceWatcherRunning do
+			local any = false
+			for inst, info in NAmanage.ProtectedInstances do
+				any = true
+				if typeof(inst) ~= "Instance" then
+					NAmanage.ProtectedInstances[inst] = nil
+				elseif type(info) == "table" then
+					if info.enforceName == true and type(info.name) == "string" then
+						pcall(function()
+							if inst.Name ~= info.name then
+								inst.Name = info.name
+							end
+						end)
+					end
+					if info.enforceParent == true then
+						local wantedParent = info.parent
+						pcall(function()
+							if inst.Parent ~= wantedParent then
+								inst.Parent = wantedParent
+							end
+						end)
+					end
+				end
+			end
+			Wait(any and 1.25 or 4)
+		end
+	end)
+end
+
+NAmanage.ProtectInstance = NAmanage.ProtectInstance or function(inst, opts)
+	if typeof(inst) ~= "Instance" then
+		return nil
+	end
+	opts = opts or {}
+	if __NAUIProtector and type(__NAUIProtector.protectInstance) == "function" then
+		local ok, protected = pcall(__NAUIProtector.protectInstance, inst, opts)
+		if ok and protected then
+			return protected
+		end
+	end
+	local protectedName = nil
+	if opts.renameRoot == true then
+		protectedName = NAmanage.RandomizeInstanceName(inst, opts.nameKey)
+	end
+	if opts.renameDescendants == true then
+		for _, desc in NAmanage.qDesc(inst) do
+			NAmanage.RandomizeInstanceName(desc)
+		end
+	end
+	if opts.register ~= false and (opts.enforceName == true or opts.enforceParent == true) then
+		NAmanage.ProtectedInstances[inst] = {
+			enforceName = opts.enforceName == true and type(protectedName) == "string",
+			name = protectedName,
+			enforceParent = opts.enforceParent == true,
+			parent = opts.parent,
+		}
+		NAmanage.StartProtectedInstanceWatcher()
+	end
+	return inst
+end
+
 NAgui.NAProtection=function(inst,var)
 	if __NAUIProtector and type(__NAUIProtector.protectName) == "function" then
 		local ok, result = pcall(__NAUIProtector.protectName, inst, var)
@@ -13499,7 +13623,11 @@ NAgui.NAProtection=function(inst,var)
 	else
 		inst.Name   = ((NAgui.rStringgg and NAgui.rStringgg()) or "\0")
 	end
-	inst.Archivable = false
+	if NAmanage.ProtectInstance then
+		NAmanage.ProtectInstance(inst, {
+			register = true,
+		})
+	end
 end
 
 NAgui.NaProtectUI=function(gui)
@@ -13522,9 +13650,15 @@ NAgui.NaProtectUI=function(gui)
 	local MAX_DO = 0x7FFFFFFF
 	local target = NAmanage.guiCHECKINGAHHHHH()
 	if not target then return end
-	pcall(function() gui.Archivable = false end)
 	gui.Name   = INV
 	gui.Parent = target
+	if NAmanage.ProtectInstance then
+		NAmanage.ProtectInstance(gui, {
+			register = true,
+			enforceParent = true,
+			parent = target,
+		})
+	end
 	if gui:IsA("ScreenGui") then
 		gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
 		gui.DisplayOrder   = MAX_DO
@@ -13533,7 +13667,6 @@ NAgui.NaProtectUI=function(gui)
 	end
 	local props = {
 		Parent         = target,
-		Archivable     = false,
 		ZIndexBehavior = Enum.ZIndexBehavior.Global,
 		DisplayOrder   = MAX_DO,
 		ResetOnSpawn   = false,
@@ -15646,6 +15779,33 @@ pcall(function()
 end)
 
 NAAssetsLoading.setStatus("finishing startup (building command data, autofill, and UI hooks)")
+
+NAmanage.finishLoadingUI = NAmanage.finishLoadingUI or function(statusText)
+	pcall(function()
+		if not (NAAssetsLoading and NAAssetsLoading.setStatus and NAAssetsLoading.setPercent and NAAssetsLoading.completed) then
+			return
+		end
+		if NAAssetsLoading._finalized then
+			return
+		end
+		NAAssetsLoading.setStatus(statusText or "ready")
+		NAAssetsLoading.setPercent(1)
+		if typeof(NAAssetsLoading.completed) == "Instance" then
+			NAmanage.SetAttr(NAAssetsLoading.completed, "Completed", true)
+		elseif type(NAAssetsLoading.completed) == "table" then
+			NAAssetsLoading.completed.Completed = true
+		end
+		NAAssetsLoading._finalized = true
+		NAAssetsLoading.ui = nil
+		NAAssetsLoading.setStatus = nil
+		NAAssetsLoading.setPercent = nil
+		NAAssetsLoading.completed = nil
+		NAAssetsLoading.getSkip = nil
+		NAAssetsLoading.setMinimizedState = nil
+		NAAssetsLoading.progress = nil
+		NAAssetsLoading.progressPercent = nil
+	end)
+end
 
 Notify = NAStuff.Notification.Notify
 Window = NAStuff.Notification.Window
@@ -29105,6 +29265,10 @@ local flyVariables = {
 	TFlyEnabled = false;
 	tflyCORE = nil;
 	tflyToggleKey = "t";
+	flyUpKey = "e";
+	flyDownKey = "q";
+	freecamUpKey = "e";
+	freecamDownKey = "q";
 	tflyButtonUI = nil;
 	TFLYBTN = nil;
 	tflyKeyConn = nil;
@@ -29135,7 +29299,13 @@ NAmanage.SaveFlyKeybinds = function()
 		vfly = NAmanage.normalizeFlyBindKey(flyVariables.vToggleKey, "v");
 		cfly = NAmanage.normalizeFlyBindKey(flyVariables.cToggleKey, "c");
 		tfly = NAmanage.normalizeFlyBindKey(flyVariables.tflyToggleKey, "t");
+		flyUp = NAmanage.normalizeFlyBindKey(flyVariables.flyUpKey, "e");
+		flyDown = NAmanage.normalizeFlyBindKey(flyVariables.flyDownKey, "q");
+		freecamUp = NAmanage.normalizeFlyBindKey(flyVariables.freecamUpKey, "e");
+		freecamDown = NAmanage.normalizeFlyBindKey(flyVariables.freecamDownKey, "q");
 	}
+	NAStuff.FreecamUpKey = payload.freecamUp
+	NAStuff.FreecamDownKey = payload.freecamDown
 	local ok, err = pcall(function()
 		writefile(NAfiles.NAFLYBINDSPATH, HttpService:JSONEncode(payload))
 	end)
@@ -29149,6 +29319,12 @@ NAmanage.LoadFlyKeybinds = function()
 	flyVariables.vToggleKey = NAmanage.normalizeFlyBindKey(flyVariables.vToggleKey, "v")
 	flyVariables.cToggleKey = NAmanage.normalizeFlyBindKey(flyVariables.cToggleKey, "c")
 	flyVariables.tflyToggleKey = NAmanage.normalizeFlyBindKey(flyVariables.tflyToggleKey, "t")
+	flyVariables.flyUpKey = NAmanage.normalizeFlyBindKey(flyVariables.flyUpKey, "e")
+	flyVariables.flyDownKey = NAmanage.normalizeFlyBindKey(flyVariables.flyDownKey, "q")
+	flyVariables.freecamUpKey = NAmanage.normalizeFlyBindKey(flyVariables.freecamUpKey, "e")
+	flyVariables.freecamDownKey = NAmanage.normalizeFlyBindKey(flyVariables.freecamDownKey, "q")
+	NAStuff.FreecamUpKey = flyVariables.freecamUpKey
+	NAStuff.FreecamDownKey = flyVariables.freecamDownKey
 
 	if not (FileSupport and isfile and isfile(NAfiles.NAFLYBINDSPATH)) then
 		return
@@ -29170,6 +29346,12 @@ NAmanage.LoadFlyKeybinds = function()
 	flyVariables.vToggleKey = NAmanage.normalizeFlyBindKey(decoded.vfly, flyVariables.vToggleKey or "v")
 	flyVariables.cToggleKey = NAmanage.normalizeFlyBindKey(decoded.cfly, flyVariables.cToggleKey or "c")
 	flyVariables.tflyToggleKey = NAmanage.normalizeFlyBindKey(decoded.tfly, flyVariables.tflyToggleKey or "t")
+	flyVariables.flyUpKey = NAmanage.normalizeFlyBindKey(decoded.flyUp, flyVariables.flyUpKey or "e")
+	flyVariables.flyDownKey = NAmanage.normalizeFlyBindKey(decoded.flyDown, flyVariables.flyDownKey or "q")
+	flyVariables.freecamUpKey = NAmanage.normalizeFlyBindKey(decoded.freecamUp, flyVariables.freecamUpKey or "e")
+	flyVariables.freecamDownKey = NAmanage.normalizeFlyBindKey(decoded.freecamDown, flyVariables.freecamDownKey or "q")
+	NAStuff.FreecamUpKey = flyVariables.freecamUpKey
+	NAStuff.FreecamDownKey = flyVariables.freecamDownKey
 end
 
 NAmanage.LoadFlyKeybinds()
@@ -29211,21 +29393,30 @@ NAmanage._releaseQE=function()
 	flyVariables.qeUpConn=nil
 end
 
+NAmanage._handleFlyVerticalKey=function(keyName, isDown)
+	keyName=Lower(tostring(keyName or ""))
+	local downKey=NAmanage.normalizeFlyBindKey(flyVariables.flyDownKey, "q")
+	local upKey=NAmanage.normalizeFlyBindKey(flyVariables.flyUpKey, "e")
+	if keyName == "" then
+		return false
+	end
+	if keyName == downKey then
+		CONTROL.Q=isDown and -((NAmanage._state.mode=="vfly" and tonumber(flyVariables.vFlySpeed) or tonumber(flyVariables.flySpeed) or 1)*2) or 0
+		return true
+	elseif keyName == upKey then
+		CONTROL.E=isDown and ((NAmanage._state.mode=="vfly" and tonumber(flyVariables.vFlySpeed) or tonumber(flyVariables.flySpeed) or 1)*2) or 0
+		return true
+	end
+	return false
+end
+
 NAmanage._bindQE=function()
 	NAmanage._releaseQE()
 	flyVariables.qeDownConn=mouse.KeyDown:Connect(function(k)
-		k=Lower(k or "")
-		if k=="q" then
-			local sp=(NAmanage._state.mode=="vfly" and tonumber(flyVariables.vFlySpeed) or tonumber(flyVariables.flySpeed) or 1)
-			CONTROL.Q=-sp*2
-		elseif k=="e" then
-			local sp=(NAmanage._state.mode=="vfly" and tonumber(flyVariables.vFlySpeed) or tonumber(flyVariables.flySpeed) or 1)
-			CONTROL.E=sp*2
-		end
+		NAmanage._handleFlyVerticalKey(k, true)
 	end)
 	flyVariables.qeUpConn=mouse.KeyUp:Connect(function(k)
-		k=Lower(k or "")
-		if k=="q" then CONTROL.Q=0 elseif k=="e" then CONTROL.E=0 end
+		NAmanage._handleFlyVerticalKey(k, false)
 	end)
 end
 
@@ -29238,18 +29429,9 @@ NAmanage._clearPhysics = function(full)
 		return
 	end
 
-	if goofyFLY then pcall(function() goofyFLY:Destroy() end) end
-	goofyFLY = nil
-
-	if flyVariables.TFpos then pcall(function() flyVariables.TFpos:Destroy() end) end
-	if flyVariables.TFgyro then pcall(function() flyVariables.TFgyro:Destroy() end) end
-	flyVariables.TFpos = nil
-	flyVariables.TFgyro = nil
-
-	if flyVariables.BG then pcall(function() flyVariables.BG:Destroy() end) end
-	if flyVariables.BV then pcall(function() flyVariables.BV:Destroy() end) end
-	flyVariables.BG = nil
-	flyVariables.BV = nil
+	if NAmanage._destroyFlyHelper then
+		NAmanage._destroyFlyHelper()
+	end
 
 	Spawn(function()
 		local root = workspace
@@ -29287,33 +29469,84 @@ NAmanage._clearPhysics = function(full)
 	end)
 end
 
-NAmanage._isSeated=function()
-	local hum=getHum()
+NAmanage._destroyFlyHelper = function()
+	if flyVariables._goofyAC then
+		pcall(function() flyVariables._goofyAC:Disconnect() end)
+		flyVariables._goofyAC = nil
+	end
+	if flyVariables.TFpos then pcall(function() flyVariables.TFpos:Destroy() end) flyVariables.TFpos = nil end
+	if flyVariables.TFgyro then pcall(function() flyVariables.TFgyro:Destroy() end) flyVariables.TFgyro = nil end
+	if flyVariables.BG then pcall(function() flyVariables.BG:Destroy() end) flyVariables.BG = nil end
+	if flyVariables.BV then pcall(function() flyVariables.BV:Destroy() end) flyVariables.BV = nil end
+	if goofyFLY then pcall(function() goofyFLY:Destroy() end) goofyFLY = nil end
+end
+
+NAmanage._isSeated=function(hum)
+	hum=hum or getHum()
 	if not hum then return false end
 	if hum.Sit then return true end
 	local seat=hum.SeatPart
 	return seat and (seat:IsA("Seat") or seat:IsA("VehicleSeat")) or false
 end
 
+NAmanage._restoreFlyHumanoidState=function(hum)
+	hum = hum or getHum()
+	if not hum then return end
+	pcall(function() hum.PlatformStand=false end)
+	pcall(function() hum.AutoRotate=true end)
+	if not NAmanage._isSeated(hum) then
+		local floorMaterial = NAlib.isProperty(hum, "FloorMaterial")
+		if floorMaterial == Enum.Material.Air then
+			pcall(function() hum:ChangeState(Enum.HumanoidStateType.Freefall) end)
+		else
+			pcall(function() hum:ChangeState(Enum.HumanoidStateType.Running) end)
+		end
+	end
+end
+
+NAmanage._settleFlyDisabled=function(skipDeferred)
+	CONTROL={Q=0,E=0}; lCONTROL={Q=0,E=0}; SPEED=0
+	NAmanage.ClearVelocityWalkSpeedClampState()
+	local char=getChar()
+	local root=char and getRoot(char)
+	local hum=getHum(char)
+	local floorMaterial = hum and NAlib.isProperty(hum, "FloorMaterial")
+	if root and floorMaterial == Enum.Material.Air then
+		pcall(function()
+			local vel = root.AssemblyLinearVelocity
+			root.AssemblyLinearVelocity = Vector3.new(vel.X, math.min(vel.Y, 0), vel.Z)
+		end)
+	end
+	NAmanage._restoreFlyHumanoidState(hum)
+	NAmanage._destroyFlyHelper()
+	if skipDeferred or floorMaterial ~= Enum.Material.Air then
+		return
+	end
+	flyVariables._disableSettleToken = (tonumber(flyVariables._disableSettleToken) or 0) + 1
+	local token = flyVariables._disableSettleToken
+	Spawn(function()
+		Wait()
+		if token == flyVariables._disableSettleToken and not FLYING then
+			NAmanage._settleFlyDisabled(true)
+		end
+		Wait(0.08)
+		if token == flyVariables._disableSettleToken and not FLYING then
+			NAmanage._settleFlyDisabled(true)
+		end
+	end)
+end
+
 NAmanage.FLY_Cleanup = function(char)
 	local c = char or getChar()
 	local hum = getHum(c)
 	local head = getHead(c)
-	NAmanage.ClearVelocityWalkSpeedClampState()
 	if head then pcall(function() head.Anchored = false end) end
 	if hum then
 		pcall(function() hum.PlatformStand = false end)
 		pcall(function() hum.Sit = false end)
-		pcall(function() hum.AutoRotate = true end)
-		pcall(function() hum:ChangeState(Enum.HumanoidStateType.Running) end)
 	end
-	if flyVariables.TFpos then pcall(function() flyVariables.TFpos:Destroy() end) flyVariables.TFpos=nil end
-	if flyVariables.TFgyro then pcall(function() flyVariables.TFgyro:Destroy() end) flyVariables.TFgyro=nil end
-	if flyVariables.BG then pcall(function() flyVariables.BG:Destroy() end) flyVariables.BG=nil end
-	if flyVariables.BV then pcall(function() flyVariables.BV:Destroy() end) flyVariables.BV=nil end
-	if goofyFLY then pcall(function() goofyFLY:Destroy() end) goofyFLY=nil end
-	CONTROL={Q=0,E=0}; lCONTROL={Q=0,E=0}; SPEED=0
 	FLYING=false
+	NAmanage._settleFlyDisabled()
 end
 
 NAmanage.FLY_OnRespawnGround = function()
@@ -29322,7 +29555,10 @@ NAmanage.FLY_OnRespawnGround = function()
 end
 
 NAmanage.pauseCurrent = function()
-	if not FLYING then return end
+	if not FLYING then
+		NAmanage._settleFlyDisabled()
+		return
+	end
 	FLYING=false
 	local hum=getHum()
 	local head=getHead(getChar())
@@ -29334,12 +29570,8 @@ NAmanage.pauseCurrent = function()
 	elseif NAmanage._state.mode=="fly" or NAmanage._state.mode=="vfly" then
 		if flyVariables.BV then flyVariables.BV.velocity=Vector3.zero flyVariables.BV.maxForce=Vector3.new(0,0,0) end
 		if flyVariables.BG then flyVariables.BG.maxTorque=Vector3.new(0,0,0) end
-		if hum and not NAmanage._isSeated() then
-			hum.PlatformStand=false
-			hum.AutoRotate=true
-			hum:ChangeState(Enum.HumanoidStateType.Running)
-		end
 	end
+	NAmanage._settleFlyDisabled()
 end
 
 NAmanage._camera=function()
@@ -29355,6 +29587,8 @@ end
 
 NAmanage.resumeCurrent=function()
 	if FLYING then return end
+	FLYING=true
+	NAmanage._ensureForces()
 	local hum=getHum()
 	local head=getHead(getChar())
 	if NAmanage._state.mode=="cfly" then
@@ -29374,7 +29608,6 @@ NAmanage.resumeCurrent=function()
 		if flyVariables.BG then flyVariables.BG.maxTorque=Vector3.new(9e9,9e9,9e9) end
 		if hum then hum.PlatformStand=false end
 	end
-	FLYING=true
 end
 
 NAmanage._destroyMobileFlyUI=function()
@@ -29648,6 +29881,10 @@ end
 
 NAmanage._ensureForces=function()
 	if NAmanage._state.mode=="none" then return end
+	if not FLYING then
+		NAmanage._destroyFlyHelper()
+		return
+	end
 	local char=getChar(); if not char then return end
 	local hum=getHum(); if not hum then return end
 	local root=getRoot(char); if not root then return end
@@ -29699,21 +29936,13 @@ NAmanage._ensureForces=function()
 	if not flyVariables.qeDownConn or flyVariables.qeDownConn.Connected==false then
 		if flyVariables.qeDownConn then pcall(function() flyVariables.qeDownConn:Disconnect() end) end
 		flyVariables.qeDownConn=mouse.KeyDown:Connect(function(k)
-			k=Lower(k or "")
-			if k=="q" then
-				local sp=(NAmanage._state.mode=="vfly" and tonumber(flyVariables.vFlySpeed) or tonumber(flyVariables.flySpeed) or 1)
-				CONTROL.Q=-sp*2
-			elseif k=="e" then
-				local sp=(NAmanage._state.mode=="vfly" and tonumber(flyVariables.vFlySpeed) or tonumber(flyVariables.flySpeed) or 1)
-				CONTROL.E=sp*2
-			end
+			NAmanage._handleFlyVerticalKey(k, true)
 		end)
 	end
 	if not flyVariables.qeUpConn or flyVariables.qeUpConn.Connected==false then
 		if flyVariables.qeUpConn then pcall(function() flyVariables.qeUpConn:Disconnect() end) end
 		flyVariables.qeUpConn=mouse.KeyUp:Connect(function(k)
-			k=Lower(k or "")
-			if k=="q" then CONTROL.Q=0 elseif k=="e" then CONTROL.E=0 end
+			NAmanage._handleFlyVerticalKey(k, false)
 		end)
 	end
 end
@@ -29724,7 +29953,10 @@ NAmanage._ensureLoops=function()
 			flyVariables._tflyLoop=true
 			Spawn(function()
 				while NAmanage._state.mode=="tfly" do
-					if not goofyFLY or not flyVariables.TFpos or not flyVariables.TFgyro or goofyFLY.Parent==nil or flyVariables.TFpos.Parent~=goofyFLY or flyVariables.TFgyro.Parent~=goofyFLY then
+					if not FLYING then
+						NAmanage.ClearVelocityWalkSpeedClampState()
+						Wait()
+					elseif not goofyFLY or not flyVariables.TFpos or not flyVariables.TFgyro or goofyFLY.Parent==nil or flyVariables.TFpos.Parent~=goofyFLY or flyVariables.TFgyro.Parent~=goofyFLY then
 						NAmanage._ensureForces()
 						Wait()
 					else
@@ -29763,7 +29995,11 @@ NAmanage._ensureLoops=function()
 			flyVariables._stdLoop=true
 			SpawnCall(function()
 				while NAmanage._state.mode=="fly" or NAmanage._state.mode=="vfly" do
-					if not goofyFLY or not flyVariables.BG or not flyVariables.BV or goofyFLY.Parent==nil or flyVariables.BG.Parent~=goofyFLY or flyVariables.BV.Parent~=goofyFLY then
+					if not FLYING then
+						if flyVariables.BV then pcall(function() flyVariables.BV.velocity=Vector3.zero end) end
+						NAmanage.ClearVelocityWalkSpeedClampState()
+						Wait()
+					elseif not goofyFLY or not flyVariables.BG or not flyVariables.BV or goofyFLY.Parent==nil or flyVariables.BG.Parent~=goofyFLY or flyVariables.BV.Parent~=goofyFLY then
 						NAmanage._ensureForces()
 						Wait()
 					else
@@ -29841,7 +30077,7 @@ end
 NAmanage._ensureWeldTarget=function()
 	if flyVariables._weldLoopConn then return end
 	flyVariables._weldLoopConn=NAlib.reconnect("fly_weld_target", RunService.Heartbeat:Connect(function()
-		if NAmanage._state.mode=="none" or NAmanage._state.mode=="cfly" then return end
+		if NAmanage._state.mode=="none" or NAmanage._state.mode=="cfly" or not FLYING then return end
 		local char=getChar(); if not char then return end
 		local root=getRoot(char); if not root then return end
 		if not goofyFLY or goofyFLY.Parent==nil then
@@ -29869,6 +30105,7 @@ NAmanage.startWatcher=function()
 			flyVariables._watchConn = nil
 			NAlib.disconnect("fly_watch")
 		end
+		NAmanage._destroyFlyHelper()
 		NAmanage._bindCameraWatch()
 		return
 	end
@@ -29884,6 +30121,7 @@ NAmanage.startWatcher=function()
 				flyVariables._watchConn = nil
 				NAlib.disconnect("fly_watch")
 			end
+			NAmanage._destroyFlyHelper()
 			return
 		end
 		local desired="none"
@@ -29893,6 +30131,10 @@ NAmanage.startWatcher=function()
 		elseif flyVariables.flyEnabled then desired="fly" end
 		if NAmanage._state.mode=="none" and desired~="none" then
 			NAmanage._state.mode=desired
+		end
+		if not FLYING then
+			NAmanage._destroyFlyHelper()
+			return
 		end
 		NAmanage._ensureWeldTarget()
 		NAmanage._ensureForces()
@@ -30874,6 +31116,103 @@ NAmanage.PluginListAvailable = NAmanage.PluginListAvailable or function()
 		return tostring(a.name):lower() < tostring(b.name):lower()
 	end)
 	return entries
+end
+
+NAmanage.PluginAvailableCacheGet = NAmanage.PluginAvailableCacheGet or function(maxAge)
+	local cache = NAStuff and NAStuff.PluginAvailableCache
+	if type(cache) ~= "table" or type(cache.entries) ~= "table" then
+		return nil
+	end
+	maxAge = tonumber(maxAge) or 30
+	if maxAge > 0 and (tick() - (tonumber(cache.time) or 0)) > maxAge then
+		return nil
+	end
+	return cache.entries
+end
+
+NAmanage.PluginScanAvailableAsync = NAmanage.PluginScanAvailableAsync or function(force, callback)
+	if type(callback) == "function" then
+		NAStuff.PluginAvailableCallbacks = NAStuff.PluginAvailableCallbacks or {}
+		Insert(NAStuff.PluginAvailableCallbacks, callback)
+	end
+	if not force then
+		local cached = NAmanage.PluginAvailableCacheGet and NAmanage.PluginAvailableCacheGet(30)
+		if cached then
+			local callbacks = NAStuff.PluginAvailableCallbacks or {}
+			NAStuff.PluginAvailableCallbacks = {}
+			for _, cb in callbacks do
+				pcall(cb, cached)
+			end
+			return cached
+		end
+	end
+	if NAStuff.PluginAvailableScanRunning then
+		return nil
+	end
+	NAStuff.PluginAvailableScanRunning = true
+	SpawnCall(function()
+		local entries = {}
+		local seen = {}
+		local function add(path)
+			if type(path) ~= "string" or seen[path] or NAmanage.PluginIsIgnoredFile(path) or NAmanage.PluginIsInstalledPath(path) then
+				return
+			end
+			local lowerPath = Lower(path)
+			local kind = lowerPath:match("%.iy$") and ".iy" or (lowerPath:match("%.na$") and ".na" or nil)
+			if not kind then return end
+			seen[path] = true
+			Insert(entries, {
+				path = path,
+				key = NAmanage.PluginNormalizePath(path),
+				name = NAmanage.PluginBaseName(path),
+				kind = kind,
+			})
+		end
+		local queue = {}
+		if listfiles and isfolder then
+			queue[1] = NAmanage.PluginWorkspaceRoot()
+		end
+		local head = 1
+		local lastYield = os.clock()
+		while head <= #queue do
+			local dir = queue[head]
+			head += 1
+			local ok, items = pcall(listfiles, dir)
+			if ok and type(items) == "table" then
+				for _, path in items do
+					local okDir, isDir = pcall(isfolder, path)
+					if okDir and isDir then
+						if not NAmanage.PluginIsInstalledPath(path) then
+							Insert(queue, path)
+						end
+					else
+						add(path)
+					end
+				end
+			end
+			if os.clock() - lastYield > 0.008 then
+				Wait()
+				lastYield = os.clock()
+			end
+		end
+		table.sort(entries, function(a, b)
+			if a.kind ~= b.kind then
+				return tostring(a.kind) < tostring(b.kind)
+			end
+			return tostring(a.name):lower() < tostring(b.name):lower()
+		end)
+		NAStuff.PluginAvailableCache = {
+			entries = entries,
+			time = tick(),
+		}
+		NAStuff.PluginAvailableScanRunning = false
+		local callbacks = NAStuff.PluginAvailableCallbacks or {}
+		NAStuff.PluginAvailableCallbacks = {}
+		for _, cb in callbacks do
+			pcall(cb, entries)
+		end
+	end)
+	return nil
 end
 
 NAmanage.PluginInstallFromWorkspace = NAmanage.PluginInstallFromWorkspace or function(path)
@@ -40203,6 +40542,164 @@ cmd.add({"adonisbypass","bypassadonis","badonis","adonisb"},{"adonisbypass (bypa
 end)
 
 --[ LOCALPLAYER ]--
+NAmanage.AntiNilCharState = NAmanage.AntiNilCharState or {
+	enabled = false;
+	char = nil;
+	lastParent = nil;
+	lastCheck = 0;
+	restoreWarned = false;
+}
+
+NAmanage.AntiNilChar_GetRestoreParent = function()
+	local state = NAmanage.AntiNilCharState
+	if state and typeof(state.lastParent) == "Instance" then
+		return state.lastParent
+	end
+	return workspace
+end
+
+NAmanage.AntiNilChar_Restore = function(char)
+	local state = NAmanage.AntiNilCharState
+	if not (state and state.enabled) or NAStuff.NilCharActive == true then
+		return false
+	end
+	if typeof(char) ~= "Instance" then
+		return false
+	end
+	if char.Parent ~= nil then
+		state.lastParent = char.Parent
+		state.restoreWarned = false
+		return true
+	end
+	local parent = NAmanage.AntiNilChar_GetRestoreParent()
+	local ok = pcall(function()
+		char.Parent = parent
+	end)
+	if ok and char.Parent ~= nil then
+		state.lastParent = char.Parent
+		state.restoreWarned = false
+		return true
+	end
+	if not state.restoreWarned then
+		state.restoreWarned = true
+		DebugNotif("Character was destroyed; anti nil cannot restore it.", 3)
+	end
+	return false
+end
+
+NAmanage.AntiNilChar_Attach = function(char)
+	local state = NAmanage.AntiNilCharState
+	if not state or typeof(char) ~= "Instance" then
+		return false
+	end
+	state.char = char
+	if char.Parent ~= nil then
+		state.lastParent = char.Parent
+		state.restoreWarned = false
+	end
+	NAlib.disconnect("AntiNilChar_Character")
+	NAlib.connect("AntiNilChar_Character", char.AncestryChanged:Connect(function(_, parent)
+		if parent ~= nil then
+			state.lastParent = parent
+			state.restoreWarned = false
+			return
+		end
+		task.defer(function()
+			NAmanage.AntiNilChar_Restore(char)
+		end)
+	end))
+	return true
+end
+
+NAmanage.AntiNilChar_SetEnabled = function(enabled)
+	local state = NAmanage.AntiNilCharState
+	state.enabled = enabled == true
+	NAStuff.AntiNilCharEnabled = state.enabled
+	if not state.enabled then
+		NAlib.disconnect("AntiNilChar")
+		NAlib.disconnect("AntiNilChar_Character")
+		DebugNotif("Anti nil character disabled.", 2)
+		return false
+	end
+
+	local lp = Players.LocalPlayer
+	local char = lp and (lp.Character or getChar()) or nil
+	if char then
+		NAmanage.AntiNilChar_Attach(char)
+	end
+
+	NAlib.disconnect("AntiNilChar")
+	if lp then
+		NAlib.connect("AntiNilChar", lp.CharacterAdded:Connect(function(newChar)
+			NAmanage.AntiNilChar_Attach(newChar)
+		end))
+	end
+	NAlib.connect("AntiNilChar", RunService.Heartbeat:Connect(function()
+		if not state.enabled then return end
+		local now = os.clock()
+		if now - (state.lastCheck or 0) < 0.25 then
+			return
+		end
+		state.lastCheck = now
+		local current = lp and lp.Character or nil
+		if current and current ~= state.char then
+			NAmanage.AntiNilChar_Attach(current)
+		end
+		NAmanage.AntiNilChar_Restore(current or state.char)
+	end))
+	DebugNotif("Anti nil character enabled.", 2)
+	return true
+end
+
+NAmanage.NilChar_SetEnabled = function(enabled)
+	local lp = Players.LocalPlayer
+	local char = (lp and lp.Character) or getChar() or NAStuff.NilCharCharacter
+	if enabled == true then
+		if typeof(char) ~= "Instance" then
+			DebugNotif("No character found to nil.", 2)
+			return false
+		end
+		NAStuff.NilCharActive = true
+		NAStuff.NilCharCharacter = char
+		NAStuff.NilCharParent = char.Parent or NAStuff.NilCharParent or workspace
+		local ok = pcall(function()
+			char.Parent = nil
+		end)
+		if ok and char.Parent == nil then
+			DebugNotif("Character parented to nil.", 2)
+			return true
+		end
+		NAStuff.NilCharActive = false
+		DebugNotif("Failed to parent character to nil.", 3)
+		return false
+	end
+
+	NAStuff.NilCharActive = false
+	if typeof(char) ~= "Instance" then
+		NAStuff.NilCharCharacter = nil
+		DebugNotif("No nil character found to restore.", 2)
+		return false
+	end
+	if char.Parent ~= nil then
+		NAStuff.NilCharParent = char.Parent
+		NAStuff.NilCharCharacter = nil
+		DebugNotif("Character is already restored.", 2)
+		return true
+	end
+	local parent = typeof(NAStuff.NilCharParent) == "Instance" and NAStuff.NilCharParent or workspace
+	local ok = pcall(function()
+		char.Parent = parent
+	end)
+	if ok and char.Parent ~= nil then
+		NAStuff.NilCharParent = char.Parent
+		NAStuff.NilCharCharacter = nil
+		DebugNotif("Character restored from nil.", 2)
+		return true
+	end
+	DebugNotif("Character was destroyed; cannot restore it.", 3)
+	return false
+end
+
 function respawn()
 	local oldChar = getChar()
 	local rootPart = getRoot(oldChar)
@@ -40233,6 +40730,22 @@ function respawn()
 		end
 	end
 end
+
+cmd.add({"antinil","anticharnil","antinilchar","charantinil","keepchar"},{"antinil (anticharnil, antinilchar, charantinil, keepchar)","Prevents your character from being parented to nil"},function()
+	NAmanage.AntiNilChar_SetEnabled(true)
+end)
+
+cmd.add({"unantinil","unanticharnil","unantinilchar","allowcharnil","unkeepchar"},{"unantinil (unanticharnil, unantinilchar, allowcharnil, unkeepchar)","Stops preventing your character from being parented to nil"},function()
+	NAmanage.AntiNilChar_SetEnabled(false)
+end)
+
+cmd.add({"nilchar","nilcharacter","charnil","nchar"},{"nilchar (nilcharacter, charnil, nchar)","Parents your character to nil"},function()
+	NAmanage.NilChar_SetEnabled(true)
+end)
+
+cmd.add({"unnilchar","unnilcharacter","uncharnil","nonilchar","restorechar","bringchar"},{"unnilchar (unnilcharacter, uncharnil, nonilchar, restorechar, bringchar)","Restores your nil-parented character"},function()
+	NAmanage.NilChar_SetEnabled(false)
+end)
 
 cmd.add({"accountage","accage"},{"accountage <player> (accage)","Tells the account age of a player in the server"},function(...)
 	Username=(...)
@@ -51217,6 +51730,32 @@ cmd.add({"showicon","iconshow"},{"showicon","Shows the NA icon"},function()
 	end
 end)
 
+cmd.add({"topbar","showtopbar"},{"topbar (showtopbar)","Shows the NA topbar"},function()
+	if NAmanage.Topbar_SetVisible then
+		NAmanage.Topbar_SetVisible(true)
+	else
+		NATOPBARVISIBLE = true
+		if TopBarApp and TopBarApp.top then
+			TopBarApp.top.Visible = true
+		end
+		NAmanage.NASettingsSet("topbarVisible", true)
+		DebugNotif("Topbar shown", 2)
+	end
+end)
+
+cmd.add({"untopbar","hidetopbar"},{"untopbar (hidetopbar)","Hides the NA topbar"},function()
+	if NAmanage.Topbar_SetVisible then
+		NAmanage.Topbar_SetVisible(false)
+	else
+		NATOPBARVISIBLE = false
+		if TopBarApp and TopBarApp.top then
+			TopBarApp.top.Visible = false
+		end
+		NAmanage.NASettingsSet("topbarVisible", false)
+		DebugNotif("Topbar hidden", 2)
+	end
+end)
+
 cmd.add({"lockiconposition","lockicon"},{"lockiconposition","Locks the NA icon's position (can't be dragged)"},function()
 	if NAgui.setIconLocked then
 		NAgui.setIconLocked(true)
@@ -53251,7 +53790,7 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 			return DebugNotif("Freecam is only available on PC and mobile", 3)
 		end
 
-		DebugNotif("Roblox-style freecam enabled (WASD + mouse, Q/E up/down, arrows change speed)", 3)
+		DebugNotif("Roblox-style freecam enabled (WASD + mouse, "..string.upper(tostring(NAStuff.FreecamDownKey or "Q")).."/"..string.upper(tostring(NAStuff.FreecamUpKey or "E")).." down/up, arrows change speed)", 3)
 		if NAFreecam then
 			NAFreecam.Start(navSpeed)
 		else
@@ -57334,24 +57873,6 @@ cmd.add({"team"},{"team <team name>","Changes your team (for the client)"},funct
 	end
 	assignTeam()
 end,true)
-
-cmd.add({"nilchar"},{"nilchar","Temporarily parent your character to nil"},function()
-	local char=getChar()
-	if not char then
-		DoNotif("Character unavailable",2)
-		return
-	end
-	char.Parent=nil
-end)
-
-cmd.add({"unnilchar","nonilchar"},{"unnilchar (nonilchar)","Move your character back to workspace"},function()
-	local char=getChar()
-	if not char then
-		DoNotif("Character unavailable",2)
-		return
-	end
-	char.Parent=workspace
-end)
 
 cmd.add({"char","character","morph"},{"char <username/userid>","change your character's appearance to someone else's"},function(arg)
 	local desc,userId=NAmanage._resolveHumanoidDescription(arg)
@@ -84699,7 +85220,7 @@ NAmanage.PluginsWindow_AddPlugin = NAmanage.PluginsWindow_AddPlugin or function(
 		if NAmanage.LoadPlugins then
 			NAmanage.LoadPlugins({ forceNotify = true })
 		end
-		NAmanage.PluginsWindow_Rebuild()
+		NAmanage.PluginsWindow_RequestRebuild()
 	end)
 
 	actionButton("Uninstall", 92, 72, function()
@@ -84708,7 +85229,7 @@ NAmanage.PluginsWindow_AddPlugin = NAmanage.PluginsWindow_AddPlugin or function(
 		if NAmanage.LoadPlugins then
 			NAmanage.LoadPlugins({ silent = true })
 		end
-		NAmanage.PluginsWindow_Rebuild()
+		NAmanage.PluginsWindow_RequestRebuild()
 	end)
 
 	local switch = InstanceNew("Frame", row)
@@ -84749,7 +85270,7 @@ NAmanage.PluginsWindow_AddPlugin = NAmanage.PluginsWindow_AddPlugin or function(
 			NAmanage.LoadPlugins({ silent = true })
 		end
 		DoNotif(name.." "..(on and "enabled" or "disabled"), 2)
-		NAmanage.PluginsWindow_Rebuild()
+		NAmanage.PluginsWindow_RequestRebuild()
 	end)
 	NAmanage.SetAttr(row, "NAPluginSearch", (name.." "..displayName.." "..kind.." "..commandText):lower())
 	return row
@@ -84823,7 +85344,7 @@ NAmanage.PluginsWindow_AddAvailablePlugin = NAmanage.PluginsWindow_AddAvailableP
 		if ok and NAmanage.LoadPlugins then
 			NAmanage.LoadPlugins({ silent = true })
 		end
-		NAmanage.PluginsWindow_Rebuild()
+		NAmanage.PluginsWindow_RequestRebuild()
 	end)
 	NAmanage.SetAttr(row, "NAPluginSearch", (name.." "..displayName.." "..kind.." "..path.." available install"):lower())
 	return row
@@ -84846,10 +85367,18 @@ NAmanage.PluginsWindow_Filter = NAmanage.PluginsWindow_Filter or function()
 	end
 end
 
-NAmanage.PluginsWindow_Rebuild = NAmanage.PluginsWindow_Rebuild or function()
-	NAmanage.EnsurePluginsWindow()
+NAmanage.PluginsWindow_Rebuild = NAmanage.PluginsWindow_Rebuild or function(opts)
+	opts = opts or {}
+	local frame = NAmanage.EnsurePluginsWindow()
 	NAmanage.PluginsWindow_Clear()
 	local entries = NAmanage.PluginListFiles and NAmanage.PluginListFiles() or {}
+	local builtRows = 0
+	local function pulse()
+		builtRows += 1
+		if builtRows % 8 == 0 then
+			Wait()
+		end
+	end
 	NAmanage.PluginsWindow_AddSection("Manager")
 	NAmanage.PluginsWindow_AddToggle("Load plugins on startup", NAStuff.PluginAutoLoad ~= false, function(on)
 		NAStuff.PluginAutoLoad = on == true
@@ -84865,7 +85394,7 @@ NAmanage.PluginsWindow_Rebuild = NAmanage.PluginsWindow_Rebuild or function()
 		if NAmanage.LoadPlugins then
 			NAmanage.LoadPlugins({ forceNotify = true })
 		end
-		NAmanage.PluginsWindow_Rebuild()
+		NAmanage.PluginsWindow_RequestRebuild()
 	end)
 	NAmanage.PluginsWindow_AddInput("Install plugin from URL", "https://.../plugin.na", "", function(text)
 		local url = tostring(text or ""):match("^%s*(.-)%s*$") or ""
@@ -84875,7 +85404,7 @@ NAmanage.PluginsWindow_Rebuild = NAmanage.PluginsWindow_Rebuild or function()
 		if ok and NAmanage.LoadPlugins then
 			NAmanage.LoadPlugins({ silent = true })
 		end
-		NAmanage.PluginsWindow_Rebuild()
+		NAmanage.PluginsWindow_RequestRebuild()
 	end)
 	NAmanage.PluginsWindow_AddButton("Move all workspace plugins into plugin folders", function()
 		if cmd and cmd.run then
@@ -84884,7 +85413,7 @@ NAmanage.PluginsWindow_Rebuild = NAmanage.PluginsWindow_Rebuild or function()
 		if NAmanage.LoadPlugins then
 			NAmanage.LoadPlugins({ silent = true })
 		end
-		NAmanage.PluginsWindow_Rebuild()
+		NAmanage.PluginsWindow_RequestRebuild()
 	end)
 	NAmanage.PluginsWindow_AddButton("Enable all installed plugins", function()
 		for _, entry in entries do
@@ -84894,7 +85423,7 @@ NAmanage.PluginsWindow_Rebuild = NAmanage.PluginsWindow_Rebuild or function()
 			NAmanage.LoadPlugins({ silent = true })
 		end
 		DoNotif("Enabled all installed plugins", 2)
-		NAmanage.PluginsWindow_Rebuild()
+		NAmanage.PluginsWindow_RequestRebuild()
 	end)
 	NAmanage.PluginsWindow_AddButton("Disable all installed plugins", function()
 		for _, entry in entries do
@@ -84904,7 +85433,7 @@ NAmanage.PluginsWindow_Rebuild = NAmanage.PluginsWindow_Rebuild or function()
 			NAmanage.LoadPlugins({ silent = true })
 		end
 		DoNotif("Disabled all installed plugins", 2)
-		NAmanage.PluginsWindow_Rebuild()
+		NAmanage.PluginsWindow_RequestRebuild()
 	end)
 	NAmanage.PluginsWindow_AddSection("Installed Plugins")
 	if #entries == 0 then
@@ -84916,12 +85445,31 @@ NAmanage.PluginsWindow_Rebuild = NAmanage.PluginsWindow_Rebuild or function()
 	else
 		for _, entry in entries do
 			NAmanage.PluginsWindow_AddPlugin(entry)
+			pulse()
 		end
 	end
-	local available = NAmanage.PluginListAvailable and NAmanage.PluginListAvailable() or {}
+	local available = type(opts.availableEntries) == "table" and opts.availableEntries or nil
+	local availablePending = false
+	if not available then
+		local cachedAvailable = NAmanage.PluginAvailableCacheGet and NAmanage.PluginAvailableCacheGet(30) or nil
+		available = cachedAvailable or {}
+		availablePending = cachedAvailable == nil
+		if availablePending and opts.scanAvailable ~= false and NAmanage.PluginScanAvailableAsync then
+			local token = NAStuff.PluginsWindowRebuildRequestToken
+			NAmanage.PluginScanAvailableAsync(opts.forceScan == true, function(fresh)
+				if frame and frame.Visible == true and token == NAStuff.PluginsWindowRebuildRequestToken and NAmanage.PluginsWindow_RequestRebuild then
+					NAmanage.PluginsWindow_RequestRebuild({
+						availableEntries = fresh,
+						scanAvailable = false,
+						placeholder = false,
+					})
+				end
+			end)
+		end
+	end
 	NAmanage.PluginsWindow_AddSection("Available Plugins")
 	if #available == 0 then
-		NAmanage.PluginsWindow_AddButton("No workspace plugins outside Plugins or PluginsIY", function()
+		NAmanage.PluginsWindow_AddButton(availablePending and "Scanning workspace plugins..." or "No workspace plugins outside Plugins or PluginsIY", function()
 			if cmd and cmd.run then
 				cmd.run({"addplugin"})
 			end
@@ -84929,6 +85477,7 @@ NAmanage.PluginsWindow_Rebuild = NAmanage.PluginsWindow_Rebuild or function()
 	else
 		for _, entry in available do
 			NAmanage.PluginsWindow_AddAvailablePlugin(entry)
+			pulse()
 		end
 	end
 	if NAStuff.PluginSettingsUIEnabled ~= false and type(NAmanage._pluginControlSpecs) == "table" then
@@ -84960,6 +85509,7 @@ NAmanage.PluginsWindow_Rebuild = NAmanage.PluginsWindow_Rebuild or function()
 					elseif item.kind == "toggle" then
 						NAmanage.PluginsWindow_AddToggle(item.label, item.defaultValue == true, item.callback)
 					end
+					pulse()
 				end
 			end
 		end
@@ -84970,6 +85520,31 @@ NAmanage.PluginsWindow_Rebuild = NAmanage.PluginsWindow_Rebuild or function()
 		NAStuff.PluginsFilterConnected = true
 		filter:GetPropertyChangedSignal("Text"):Connect(NAmanage.PluginsWindow_Filter)
 	end
+	NAStuff.PluginsWindowHasContent = true
+end
+
+NAmanage.PluginsWindow_RequestRebuild = NAmanage.PluginsWindow_RequestRebuild or function(opts)
+	opts = opts or {}
+	local frame = NAmanage.EnsurePluginsWindow and NAmanage.EnsurePluginsWindow()
+	if not frame then
+		return false
+	end
+	NAStuff.PluginsWindowRebuildRequestToken = (tonumber(NAStuff.PluginsWindowRebuildRequestToken) or 0) + 1
+	local token = NAStuff.PluginsWindowRebuildRequestToken
+	if opts.placeholder ~= false and not NAStuff.PluginsWindowHasContent then
+		NAmanage.PluginsWindow_Clear()
+		NAmanage.PluginsWindow_AddSection("Loading plugins...")
+	end
+	SpawnCall(function()
+		Wait()
+		if token ~= NAStuff.PluginsWindowRebuildRequestToken or frame.Visible ~= true then
+			return
+		end
+		if NAmanage.PluginsWindow_Rebuild then
+			NAmanage.PluginsWindow_Rebuild(opts)
+		end
+	end)
+	return true
 end
 
 NAgui.plugins = function()
@@ -85016,8 +85591,8 @@ NAmanage.PluginsWindow_SetVisible = NAmanage.PluginsWindow_SetVisible or functio
 	visible = visible == true
 	frame.Visible = visible
 	if visible then
-		if opts.refresh ~= false and NAmanage.PluginsWindow_Rebuild then
-			NAmanage.PluginsWindow_Rebuild()
+		if opts.refresh ~= false and NAmanage.PluginsWindow_RequestRebuild then
+			NAmanage.PluginsWindow_RequestRebuild(opts)
 		end
 		if opts.center ~= false and NAmanage.centerFrame then
 			NAmanage.centerFrame(frame)
@@ -85536,6 +86111,7 @@ NAgui.SettingsBuildState = NAgui.SettingsBuildState or {
 	batch = 10;
 	budget = 0.012;
 	building = false;
+	background = false;
 }
 
 NAgui.SettingsBuildStep = NAgui.SettingsBuildStep or function(kind)
@@ -85552,8 +86128,12 @@ NAgui.SettingsBuildStep = NAgui.SettingsBuildStep or function(kind)
 	local budget = tonumber(state.budget) or 0.012
 	if lowEnd then batch = math.max(3, math.floor(batch * 0.6)); budget = math.min(budget, 0.007) end
 	if not visible then batch = math.max(2, math.floor(batch * 0.5)); budget = math.min(budget, 0.004) end
+	if state.background == true and not visible then
+		batch = lowEnd and 8 or 24
+		budget = lowEnd and 0.004 or 0.008
+	end
 	if (state.count % batch) ~= 0 and (os.clock() - state.lastYield) < budget then return end
-	if not visible then Wait(0.05) elseif lowEnd then Wait(0.02) else Wait() end
+	if not visible then Wait(state.background == true and (lowEnd and 0.012 or 0.004) or 0.05) elseif lowEnd then Wait(0.02) else Wait() end
 	state.lastYield = os.clock()
 end
 
@@ -85562,6 +86142,7 @@ NAgui.SettingsBuildDone = NAgui.SettingsBuildDone or function()
 		return
 	end
 	NAgui.SettingsBuildState.building = false
+	NAgui.SettingsBuildState.background = false
 	NAgui.SettingsBuildState.lastYield = 0
 end
 
@@ -89073,6 +89654,27 @@ NAmanage.Topbar_SetDock=function(dock)
 	TopBarApp.dock = dock
 	NAmanage.topbar_writeDock(dock)
 	NAmanage.Topbar_ApplyDock(dock)
+end
+
+NAmanage.Topbar_SetVisible=function(visible, opts)
+	opts = opts or {}
+	NATOPBARVISIBLE = visible == true
+	if TopBarApp and TopBarApp.top then
+		TopBarApp.top.Visible = NATOPBARVISIBLE
+		if not NATOPBARVISIBLE and TopBarApp.isOpen and NAmanage.Topbar_SetOpen then
+			NAmanage.Topbar_SetOpen(false)
+		end
+	elseif NATOPBARVISIBLE and NAmanage.Topbar_Init then
+		pcall(NAmanage.Topbar_Init)
+	end
+	NAmanage.NASettingsSet("topbarVisible", NATOPBARVISIBLE)
+	if NAmanage.RunUIAutoSync then
+		pcall(NAmanage.RunUIAutoSync)
+	end
+	if opts.notify ~= false then
+		DebugNotif("Topbar "..(NATOPBARVISIBLE and "shown" or "hidden"), 2)
+	end
+	return NATOPBARVISIBLE
 end
 
 NAmanage.Commands_IsFrame = function(frame)
@@ -96426,6 +97028,9 @@ if NAStuff.uiBootHidden and NAStuff.NASCREENGUI and NAStuff.NASCREENGUI:IsA("Scr
 		NAStuff.NASCREENGUI.Enabled = true
 	end)
 	NAStuff.uiBootHidden = false
+end
+if NAmanage.finishLoadingUI then
+	NAmanage.finishLoadingUI("ready")
 end
 
 --[[ CMDS COMMANDS SEARCH FUNCTION ]]--
@@ -104604,7 +105209,13 @@ end
 NAmanage.finalizeLoadingState()
 NAStuff.SettingsBuildRunning = true
 NAStuff.SettingsBuildReady = false
+NAgui.SettingsBuildState = NAgui.SettingsBuildState or {}
+NAgui.SettingsBuildState.background = true
+if NAmanage.pumpLoaderQueue then
+	pcall(NAmanage.pumpLoaderQueue)
+end
 SpawnCall(function()
+	Wait()
 	local okBuild, errBuild = pcall(function()
 NAgui.addTab(NA_TABS.TAB_ALL, { default = true, order = 0, textIcon = "grid" })
 NAgui.addTab(NA_TABS.TAB_GENERAL, { order = 1, textIcon = "gear" })
@@ -108477,11 +109088,7 @@ NAmanage.RegisterToggleAutoSync("Topbar on Bottom", function()
 end)
 
 NAgui.addToggle("TopBar Visibility", NATOPBARVISIBLE, function(v)
-	NATOPBARVISIBLE = v and true or false
-	if TopBarApp and TopBarApp.top then
-		TopBarApp.top.Visible = NATOPBARVISIBLE
-	end
-	NAmanage.NASettingsSet("topbarVisible", NATOPBARVISIBLE)
+	NAmanage.Topbar_SetVisible(v, { notify = false })
 end)
 NAmanage.RegisterToggleAutoSync("TopBar Visibility", function()
 	return NATOPBARVISIBLE == true
@@ -112683,6 +113290,57 @@ if not IsOnMobile or NAmanage.CanUseCommandKeybinds() then
 			"Please provide a key."
 			))
 
+		NAgui.addSection("Fly / Freecam Vertical")
+		local function createStoredFlyKeyHandler(varField, successTemplate, afterSave)
+			return function(keyName)
+				if keyName == nil then
+					return
+				end
+				local newKey = NAmanage.normalizeFlyBindKey(keyName)
+				if newKey == "" then
+					DoNotif("Please provide a key.")
+					return
+				end
+				flyVariables[varField] = newKey
+				if type(afterSave) == "function" then
+					afterSave(newKey)
+				end
+				NAmanage.SaveFlyKeybinds()
+				DebugNotif(Format(successTemplate, newKey:upper()))
+			end
+		end
+		local function restartFreecamIfRunning()
+			if NAFreecam and NAFreecam.IsEnabled and NAFreecam.IsEnabled() then
+				local speed = math.clamp((tonumber(NAStuff.FreecamSpeed) or 5) / 5, 0.01, 4)
+				NAFreecam.Stop()
+				NAFreecam.Start(speed)
+			end
+		end
+		NAgui.addKeybind("Fly Up Key", string.upper(flyVariables.flyUpKey or "E"), createStoredFlyKeyHandler(
+			"flyUpKey",
+			"Fly up key set to '%s'"
+			))
+		NAgui.addKeybind("Fly Down Key", string.upper(flyVariables.flyDownKey or "Q"), createStoredFlyKeyHandler(
+			"flyDownKey",
+			"Fly down key set to '%s'"
+			))
+		NAgui.addKeybind("Freecam Up Key", string.upper(flyVariables.freecamUpKey or "E"), createStoredFlyKeyHandler(
+			"freecamUpKey",
+			"Freecam up key set to '%s'",
+			function(newKey)
+				NAStuff.FreecamUpKey = newKey
+				restartFreecamIfRunning()
+			end
+			))
+		NAgui.addKeybind("Freecam Down Key", string.upper(flyVariables.freecamDownKey or "Q"), createStoredFlyKeyHandler(
+			"freecamDownKey",
+			"Freecam down key set to '%s'",
+			function(newKey)
+				NAStuff.FreecamDownKey = newKey
+				restartFreecamIfRunning()
+			end
+			))
+
 	end
 
 	if NAmanage.CanUseCommandKeybinds() then
@@ -113995,6 +114653,9 @@ SpawnCall(function()
 end)
 end)
 	end)
+	if NAgui.SettingsBuildDone then
+		pcall(NAgui.SettingsBuildDone)
+	end
 	NAStuff.SettingsBuildRunning = false
 	NAStuff.SettingsBuildReady = okBuild == true
 	if not okBuild then
