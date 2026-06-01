@@ -3640,6 +3640,36 @@
       "desc": "Stops transparency loop"
     },
     {
+      "name": "material",
+      "aliases": [
+        "material",
+        "mat",
+        "charmaterial",
+        "cmat",
+        "bodymaterial",
+        "bmat"
+      ],
+      "usage": "material <material> (mat, charmaterial, cmat, bodymaterial, bmat)",
+      "args": "<material>",
+      "desc": "Sets every BasePart in your character to a selected material"
+    },
+    {
+      "name": "unmaterial",
+      "aliases": [
+        "unmaterial",
+        "unmat",
+        "uncharmaterial",
+        "uncmat",
+        "unbodymaterial",
+        "unbmat",
+        "resetmaterial",
+        "restorematerial"
+      ],
+      "usage": "unmaterial (unmat, uncharmaterial, uncmat, unbodymaterial, unbmat)",
+      "args": "",
+      "desc": "Restores character materials changed by material"
+    },
+    {
       "name": "animationspeed",
       "aliases": [
         "animationspeed",
