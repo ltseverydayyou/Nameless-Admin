@@ -56267,6 +56267,195 @@ cmd.add({"unbodytransparency","unbtransparency","unbodyt"}, {"unbodytransparency
 	end
 end)
 
+NAStuff.charMaterialState = NAStuff.charMaterialState or {
+	enabled = false;
+	mat = nil;
+	ch = nil;
+	orig = setmetatable({}, { __mode = "k" });
+}
+
+originalIO.charMaterialState=function()
+	local st = NAStuff.charMaterialState
+	if type(st) ~= "table" then
+		st = {
+			enabled = false;
+			mat = nil;
+			ch = nil;
+			orig = setmetatable({}, { __mode = "k" });
+		}
+		NAStuff.charMaterialState = st
+	end
+	if type(st.orig) ~= "table" then
+		st.orig = setmetatable({}, { __mode = "k" })
+	end
+	return st
+end
+
+originalIO.resolveCharMaterial=function(v)
+	if typeof(v) == "EnumItem" and v.EnumType == Enum.Material then
+		return v
+	end
+	if v == nil then
+		return nil
+	end
+	local q = tostring(v)
+	if q == "" then
+		return nil
+	end
+	local n = tonumber(q)
+	local low = Lower(q)
+	local key = GSub(low, "[%s_%-%./]", "")
+	local fb = nil
+	for _, mt in Enum.Material:GetEnumItems() do
+		if n and tonumber(mt.Value) == n then
+			return mt
+		end
+		local name = Lower(mt.Name)
+		local nkey = GSub(name, "[%s_%-%./]", "")
+		if name == low or nkey == key then
+			return mt
+		end
+		if not fb and ((low ~= "" and Find(name, low, 1, true)) or (key ~= "" and Find(nkey, key, 1, true))) then
+			fb = mt
+		end
+	end
+	return fb
+end
+
+originalIO.applyCharMaterialPart=function(p, mat)
+	if typeof(p) ~= "Instance" or not p:IsA("BasePart") or not mat then
+		return false
+	end
+	local st = originalIO.charMaterialState()
+	if st.orig[p] == nil then
+		local ok, old = pcall(function()
+			return p.Material
+		end)
+		if ok then
+			st.orig[p] = old
+		end
+	end
+	local ok = pcall(function()
+		p.Material = mat
+	end)
+	return ok
+end
+
+originalIO.applyCharMaterial=function(ch, mat)
+	if typeof(ch) ~= "Instance" or not mat then
+		return 0
+	end
+	local c = 0
+	for _, p in NAmanage.qDesc(ch, "BasePart") do
+		if originalIO.applyCharMaterialPart(p, mat) then
+			c += 1
+		end
+	end
+	return c
+end
+
+originalIO.bindCharMaterial=function(ch)
+	local st = originalIO.charMaterialState()
+	NAlib.disconnect("char_material_add")
+	st.ch = ch
+	if typeof(ch) ~= "Instance" then
+		return 0
+	end
+	local c = originalIO.applyCharMaterial(ch, st.mat)
+	NAlib.connect("char_material_add", ch.DescendantAdded:Connect(function(v)
+		if st.enabled and st.mat then
+			Defer(function()
+				originalIO.applyCharMaterialPart(v, st.mat)
+			end)
+		end
+	end))
+	return c
+end
+
+originalIO.startCharMaterial=function(mat)
+	local st = originalIO.charMaterialState()
+	if not mat then
+		return
+	end
+	st.enabled = true
+	st.mat = mat
+	NAlib.disconnect("char_material_char")
+	local lp = Players.LocalPlayer
+	if lp then
+		NAlib.connect("char_material_char", lp.CharacterAdded:Connect(function(ch)
+			Defer(function()
+				local cur = originalIO.charMaterialState()
+				if cur.enabled and cur.mat then
+					originalIO.bindCharMaterial(ch)
+				end
+			end)
+		end))
+	end
+	local ch = getChar() or (lp and lp.Character)
+	local c = originalIO.bindCharMaterial(ch)
+	DoNotif("Character material set to "..tostring(mat.Name or mat).." ("..tostring(c).." parts)", 2)
+end
+
+originalIO.stopCharMaterial=function()
+	local st = originalIO.charMaterialState()
+	NAlib.disconnect("char_material_char")
+	NAlib.disconnect("char_material_add")
+	local c = 0
+	if type(st.orig) == "table" then
+		for p, mat in st.orig do
+			if typeof(p) == "Instance" and p.Parent and mat then
+				local ok = pcall(function()
+					p.Material = mat
+				end)
+				if ok then
+					c += 1
+				end
+			end
+		end
+	end
+	st.enabled = false
+	st.mat = nil
+	st.ch = nil
+	st.orig = setmetatable({}, { __mode = "k" })
+	DoNotif("Character material restored ("..tostring(c).." parts)", 2)
+end
+
+cmd.add({"material","mat","charmaterial","cmat","bodymaterial","bmat"}, {"material <material> (mat, charmaterial, cmat, bodymaterial, bmat)", "Sets every BasePart in your character to a selected material"}, function(...)
+	local a = {...}
+	local target = a[1]
+	local btns = {}
+	for _, mt in Enum.Material:GetEnumItems() do
+		Insert(btns, {
+			Text = mt.Name,
+			Callback = function()
+				originalIO.startCharMaterial(mt)
+			end
+		})
+	end
+	if target and target ~= "" then
+		local mt = originalIO.resolveCharMaterial(target)
+		if mt then
+			originalIO.startCharMaterial(mt)
+		else
+			DebugNotif("No matching material for: "..tostring(target), 3)
+		end
+		return
+	end
+	Window({
+		Title = "Character Materials",
+		Buttons = btns
+	})
+end)
+
+cmd.add({"unmaterial","unmat","uncharmaterial","uncmat","unbodymaterial","unbmat","resetmaterial","restorematerial"}, {"unmaterial (unmat, uncharmaterial, uncmat, unbodymaterial, unbmat)", "Restores character materials changed by material"}, function()
+	local st = originalIO.charMaterialState()
+	if not st.enabled and (type(st.orig) ~= "table" or not next(st.orig)) then
+		DebugNotif("No character material override running", 2)
+		return
+	end
+	originalIO.stopCharMaterial()
+end)
+
 cmd.add({"animationspeed", "animspeed", "aspeed"}, {"animationspeed <speed> (animspeed,aspeed)", "Adjusts the speed of currently playing animations"}, function(speed)
 	local targetSpeed = tonumber(speed) or 1
 
@@ -79960,17 +80149,27 @@ end)
 -- [[ Body Mods Section ]] --
 do
 	originalIO.bodyModsState = originalIO.bodyModsState or {
-		boobs = { active = false, size = 1, conn = nil, ox = 0.5, oy = -0.4, oz = nil, sy = 0, vy = 0, sz = 0, vz = 0, sx = 0, vx = 0, rx = 0, vrx = 0, ry = 0, rv = 0, yw = 0, vyw = 0, llv = Vector3.zero, hcf = nil, ccf = nil },
-		ass = { active = false, size = 1, conn = nil, ox = 0.48, oy = nil, oz = nil, sy = 0, vy = 0, sz = 0, vz = 0, sx = 0, vx = 0, rx = 0, vrx = 0, ry = 0, rv = 0, yw = 0, vyw = 0, llv = Vector3.zero, hcf = nil },
-		pp = { active = false, len = 1, animConn = nil, wS = nil, wTip = nil, wBL = nil, wBR = nil, sh = nil, dr = nil, sy = 0, vy = 0, sz = 0, vz = 0, sx = 0, vx = 0, rx = 0, vrx = 0, ry = 0, vry = 0, bsy = 0, bvy = 0, bsz = 0, bvz = 0, bsx = 0, bvx = 0, brx = 0, bvrx = 0, bry = 0, bvry = 0, baseC0 = nil, baseBL = nil, baseBR = nil, llv = Vector3.zero },
+		boobs = { active = false, size = 1, conn = nil, ox = 0.5, oy = -0.4, oz = nil, sy = 0, vy = 0, sz = 0, vz = 0, sx = 0, vx = 0, rx = 0, vrx = 0, ry = 0, rv = 0, yw = 0, vyw = 0, llv = Vector3.zero, rigs = {}, objs = {} },
+		ass = { active = false, size = 1, conn = nil, ox = 0.48, oy = nil, oz = nil, sy = 0, vy = 0, sz = 0, vz = 0, sx = 0, vx = 0, rx = 0, vrx = 0, ry = 0, rv = 0, yw = 0, vyw = 0, llv = Vector3.zero, rigs = {}, objs = {} },
+		pp = { active = false, len = 1, animConn = nil, sy = 0, vy = 0, sz = 0, vz = 0, sx = 0, vx = 0, rx = 0, vrx = 0, ry = 0, vry = 0, bsy = 0, bvy = 0, bsz = 0, bvz = 0, bsx = 0, bvx = 0, brx = 0, bvrx = 0, bry = 0, bvry = 0, baseS = nil, baseBL = nil, baseBR = nil, llv = Vector3.zero, rigs = {}, objs = {} },
 		colorConn = nil,
 		spawnConn = nil,
 		apConn = nil
 	}
 
 	local state = originalIO.bodyModsState
+	state.boobs.rigs = type(state.boobs.rigs) == "table" and state.boobs.rigs or {}
+	state.boobs.objs = type(state.boobs.objs) == "table" and state.boobs.objs or {}
+	state.ass.rigs = type(state.ass.rigs) == "table" and state.ass.rigs or {}
+	state.ass.objs = type(state.ass.objs) == "table" and state.ass.objs or {}
+	state.pp.rigs = type(state.pp.rigs) == "table" and state.pp.rigs or {}
+	state.pp.objs = type(state.pp.objs) == "table" and state.pp.objs or {}
+	state.folder = (typeof(state.folder) == "Instance" and state.folder.Parent and state.folder) or nil
+
 	local pinkColor = Color3.fromRGB(255, 100, 150)
 	local ringColor = Color3.fromRGB(225, 80, 120)
+	local softPhys = PhysicalProperties.new(0.48, 0.34, 0.10, 0.65, 0.28)
+	local decoPhys = PhysicalProperties.new(0.18, 0.30, 0.05, 0.55, 0.18)
 
 	originalIO.bodyModsSpring = function(u, v, target, stiffness, damping, dt)
 		dt = math.clamp(tonumber(dt) or (1 / 60), 1 / 240, 1 / 30)
@@ -79980,9 +80179,9 @@ do
 		stiffness = math.max(tonumber(stiffness) or 0, 0)
 		damping = math.max(tonumber(damping) or 0, 0)
 		local accel = (target - u) * stiffness - v * damping
-		v = v + accel * dt
-		v = math.clamp(v, -12, 12)
-		u = u + v * dt
+		v += accel * dt
+		v = math.clamp(v, -14, 14)
+		u += v * dt
 		if math.abs(u) < 0.00005 and math.abs(v) < 0.00005 then
 			u = 0
 			v = 0
@@ -80054,6 +80253,226 @@ do
 		end
 		Defer(callback)
 		return nil
+	end
+
+	originalIO.bodyModsLive = function(inst)
+		if typeof(inst) ~= "Instance" then
+			return false
+		end
+		local ok, parent = pcall(function()
+			return inst.Parent
+		end)
+		return ok and parent ~= nil
+	end
+
+	originalIO.bodyModsTrack = function(bucket, inst)
+		if type(bucket) == "table" and typeof(inst) == "Instance" then
+			bucket[#bucket + 1] = inst
+		end
+		return inst
+	end
+
+	originalIO.bodyModsDestroyList = function(list)
+		if type(list) ~= "table" then
+			return
+		end
+		for i = #list, 1, -1 do
+			local inst = list[i]
+			if originalIO.bodyModsLive(inst) then
+				pcall(function()
+					inst:Destroy()
+				end)
+			end
+			list[i] = nil
+		end
+	end
+
+	originalIO.bodyModsGetFolder = function()
+		local host
+		if NAmanage.Helper_EnsureSecureContainer then
+			local ok, res = pcall(NAmanage.Helper_EnsureSecureContainer)
+			if ok and typeof(res) == "Instance" then
+				host = res
+			end
+		end
+		host = host or workspace
+		local folder = state.folder
+		if typeof(folder) == "Instance" and folder.Parent then
+			if folder.Parent ~= host then
+				pcall(function()
+					folder.Parent = host
+				end)
+			end
+			return folder
+		end
+		local found = host:FindFirstChild("NA_BodyMods")
+		if found and found:IsA("Folder") then
+			state.folder = found
+			return found
+		end
+		folder = InstanceNew("Folder")
+		folder.Name = "NA_BodyMods"
+		state.folder = folder
+		if NAmanage.ESP_HardenVisual then
+			pcall(NAmanage.ESP_HardenVisual, folder)
+		end
+		folder.Parent = host
+		return folder
+	end
+
+	originalIO.bodyModsIsNamedPart = function(inst, names)
+		if typeof(inst) ~= "Instance" or type(names) ~= "table" then
+			return false
+		end
+		local mark
+		pcall(function()
+			mark = inst:GetAttribute("NA_BodyModPart")
+		end)
+		return inst:IsA("BasePart") and (names[inst.Name] or (type(mark) == "string" and names[mark]))
+	end
+
+	originalIO.bodyModsDestroyOld = function(character, names)
+		if type(names) ~= "table" then
+			return
+		end
+		local roots = { character, originalIO.bodyModsGetFolder() }
+		for _, root in roots do
+			if typeof(root) == "Instance" and root.Parent then
+				for _, inst in root:GetDescendants() do
+					if originalIO.bodyModsIsNamedPart(inst, names) then
+						pcall(function()
+							inst:Destroy()
+						end)
+					end
+				end
+			end
+		end
+	end
+
+	originalIO.bodyModsCollectParts = function(names, objs)
+		local out = {}
+		local seen = {}
+		local function add(inst)
+			if originalIO.bodyModsIsNamedPart(inst, names) and not seen[inst] then
+				seen[inst] = true
+				out[#out + 1] = inst
+			end
+		end
+		if type(objs) == "table" then
+			for _, inst in objs do
+				add(inst)
+			end
+		end
+		local character = originalIO.bodyModsGetCharacter()
+		local roots = { character, originalIO.bodyModsGetFolder() }
+		for _, root in roots do
+			if typeof(root) == "Instance" and root.Parent then
+				for _, inst in root:GetDescendants() do
+					add(inst)
+				end
+			end
+		end
+		return out
+	end
+
+	originalIO.bodyModsSetPart = function(part, shape, size, color, name, parent, massless)
+		part.Shape = shape
+		part.Size = size
+		part.Color = color
+		part.Material = Enum.Material.SmoothPlastic
+		part.Anchored = false
+		part.CanCollide = false
+		part.CanTouch = false
+		part.CanQuery = false
+		part.Massless = true
+		part.CustomPhysicalProperties = massless and decoPhys or softPhys
+		part.Name = name
+		pcall(function()
+			part:SetAttribute("NA_BodyMod", true)
+			part:SetAttribute("NA_BodyModPart", name)
+		end)
+		part.Parent = parent or originalIO.bodyModsGetFolder()
+		pcall(function()
+			part.RootPriority = -127
+		end)
+		return part
+	end
+
+	originalIO.bodyModsPart = function(shape, size, color, name, parent, massless)
+		return originalIO.bodyModsSetPart(InstanceNew("Part"), shape, size, color, name, parent, massless)
+	end
+
+	originalIO.bodyModsAttachment = function(parent, name, cf, objs)
+		local att = InstanceNew("Attachment")
+		att.Name = name
+		att.CFrame = cf or CFrame.new()
+		att.Parent = parent
+		return originalIO.bodyModsTrack(objs, att)
+	end
+
+	originalIO.bodyModsNoCollide = function(part, root, objs)
+		if not part or not root then
+			return nil
+		end
+		local nc = InstanceNew("NoCollisionConstraint")
+		nc.Part0 = part
+		nc.Part1 = root
+		nc.Parent = part
+		return originalIO.bodyModsTrack(objs, nc)
+	end
+
+	originalIO.bodyModsRig = function(part, root, localCf, opts, objs)
+		opts = type(opts) == "table" and opts or {}
+		localCf = localCf or CFrame.new()
+		if not part or not root then
+			return nil
+		end
+		local folder = originalIO.bodyModsGetFolder()
+		if folder and part.Parent ~= folder then
+			pcall(function()
+				part.Parent = folder
+			end)
+		end
+		part.CFrame = root.CFrame * localCf
+		part.AssemblyLinearVelocity = root.AssemblyLinearVelocity
+		part.AssemblyAngularVelocity = root.AssemblyAngularVelocity
+
+		local pa = originalIO.bodyModsAttachment(part, "NA_BodyModsFollow", CFrame.new(), objs)
+		local ta = originalIO.bodyModsAttachment(root, "NA_BodyModsTarget", localCf, objs)
+		local ap = InstanceNew("AlignPosition")
+		ap.Attachment0 = pa
+		ap.Attachment1 = ta
+		ap.ApplyAtCenterOfMass = true
+		ap.RigidityEnabled = false
+		ap.ReactionForceEnabled = false
+		ap.Responsiveness = opts.pr or 18
+		ap.MaxForce = opts.force or 9000
+		ap.MaxVelocity = opts.vel or 55
+		ap.Parent = part
+
+		local ao = InstanceNew("AlignOrientation")
+		ao.Attachment0 = pa
+		ao.Attachment1 = ta
+		ao.RigidityEnabled = false
+		ao.ReactionTorqueEnabled = false
+		ao.Responsiveness = opts.rr or 16
+		ao.MaxTorque = opts.torque or 9000
+		ao.MaxAngularVelocity = opts.angVel or 26
+		ao.Parent = part
+
+		originalIO.bodyModsTrack(objs, ap)
+		originalIO.bodyModsTrack(objs, ao)
+		originalIO.bodyModsNoCollide(part, root, objs)
+
+		return { part = part, target = ta, base = localCf, ap = ap, ao = ao }
+	end
+
+	originalIO.bodyModsWeld = function(part0, part1, objs)
+		local weld = InstanceNew("WeldConstraint")
+		weld.Part0 = part0
+		weld.Part1 = part1
+		weld.Parent = part0
+		return originalIO.bodyModsTrack(objs, weld)
 	end
 
 	originalIO.bodyModsGetCharacter = function(waitFor)
@@ -80160,19 +80579,22 @@ do
 				return
 			end
 			local skin = originalIO.bodyModsGetSkinColor()
-			for _, part in character:GetChildren() do
-				if part:IsA("BasePart") then
-					if part.Name == "Boob" or part.Name == "Cheek" or part.Name == "Balls" or (part.Name == "penis" and part.Shape == Enum.PartType.Cylinder) then
-						if part.Color ~= skin then
-							part.Color = skin
-						end
-					elseif part.Name == "Nipple" or (part.Name == "penis" and part.Shape == Enum.PartType.Ball) then
-						if part.Color ~= pinkColor then
-							part.Color = pinkColor
-						end
-					elseif part.Name == "Areola" then
-						if part.Color ~= ringColor then
-							part.Color = ringColor
+			local roots = { character, state.folder }
+			for _, root in roots do
+				if typeof(root) == "Instance" and root.Parent then
+					for _, inst in root:GetDescendants() do
+						if inst:IsA("BasePart") then
+							if inst.Name == "Boob" or inst.Name == "Cheek" or inst.Name == "Balls" or (inst.Name == "penis" and inst.Shape == Enum.PartType.Cylinder) then
+								if inst.Color ~= skin then
+									inst.Color = skin
+								end
+							elseif inst.Name == "Nipple" or (inst.Name == "penis" and inst.Shape == Enum.PartType.Ball) then
+								if inst.Color ~= pinkColor then
+									inst.Color = pinkColor
+								end
+							end
+						elseif inst:IsA("Frame") and inst.Name == "Disk" and inst.BackgroundColor3 ~= ringColor then
+							inst.BackgroundColor3 = ringColor
 						end
 					end
 				end
@@ -80187,10 +80609,13 @@ do
 				return
 			end
 			local skin = originalIO.bodyModsGetSkinColor()
-			for _, part in character:GetChildren() do
-				if part:IsA("BasePart") then
-					if part.Name == "Boob" or part.Name == "Cheek" or part.Name == "Balls" or (part.Name == "penis" and part.Shape == Enum.PartType.Cylinder) then
-						part.Color = skin
+			local roots = { character, state.folder }
+			for _, root in roots do
+				if typeof(root) == "Instance" and root.Parent then
+					for _, inst in root:GetDescendants() do
+						if inst:IsA("BasePart") and (inst.Name == "Boob" or inst.Name == "Cheek" or inst.Name == "Balls" or (inst.Name == "penis" and inst.Shape == Enum.PartType.Cylinder)) then
+							inst.Color = skin
+						end
 					end
 				end
 			end
@@ -80209,6 +80634,16 @@ do
 		end
 	end
 
+	originalIO.bodyModsRigCfg = function(sizeScale, kind)
+		local mass = 1 + math.clamp(tonumber(sizeScale) or 1, 0.3, 3) * 0.55
+		if kind == "heavy" then
+			return { pr = math.clamp(17 / mass, 7, 16), rr = math.clamp(13 / mass, 6, 13), force = 11000 * mass, torque = 10000 * mass, vel = 50, angVel = 22 }
+		elseif kind == "loose" then
+			return { pr = math.clamp(14 / mass, 6, 14), rr = math.clamp(11 / mass, 5, 12), force = 8500 * mass, torque = 8000 * mass, vel = 42, angVel = 18 }
+		end
+		return { pr = math.clamp(19 / mass, 8, 18), rr = math.clamp(16 / mass, 7, 16), force = 10000 * mass, torque = 9500 * mass, vel = 55, angVel = 24 }
+	end
+
 	originalIO.bodyModsApplyBoobs = function(size)
 		local character = originalIO.bodyModsGetCharacter(true)
 		local humanoid = originalIO.bodyModsGetHumanoid(true)
@@ -80220,74 +80655,48 @@ do
 			return
 		end
 
-		for _, part in character:GetChildren() do
-			if part:IsA("BasePart") and (part.Name == "Boob" or part.Name == "Nipple" or part.Name == "Areola") then
-				part:Destroy()
-			end
-		end
+		state.boobs.conn = originalIO.bodyModsDisconnectConnection(state.boobs.conn)
+		NAlib.disconnect("bodymods_boobs")
+		originalIO.bodyModsDestroyList(state.boobs.objs)
+		state.boobs.rigs = {}
+		state.boobs.objs = {}
+		originalIO.bodyModsDestroyOld(character, { Boob = true, Nipple = true })
 
+		local folder = originalIO.bodyModsGetFolder()
 		local skin = originalIO.bodyModsGetSkinColor()
 		local sizeScale = math.clamp(size / 4, 0.3, 2)
-		local baseSize = Vector3.new(1.28, 1.22, 1.10)
-		local baseNipple = Vector3.new(0.17, 0.17, 0.17)
+		local baseSize = Vector3.new(1.72, 1.54, 1.42)
+		local baseNipple = Vector3.new(0.19, 0.19, 0.19)
 		local boobSize = Vector3.new(
-			baseSize.X * size * (0.98 + sizeScale * 0.09),
-			baseSize.Y * size * (0.96 + sizeScale * 0.08),
-			baseSize.Z * size * (0.93 + sizeScale * 0.11)
+			baseSize.X * size * (1.08 + sizeScale * 0.13),
+			baseSize.Y * size * (1.05 + sizeScale * 0.11),
+			baseSize.Z * size * (1.04 + sizeScale * 0.15)
 		)
 		local nippleSize = Vector3.new(
 			baseNipple.X * size * (1.05 + sizeScale * 0.10),
 			baseNipple.Y * size * (1.05 + sizeScale * 0.10),
 			baseNipple.Z * size * (0.98 + sizeScale * 0.09)
 		)
-		local areolaThickness = math.clamp(nippleSize.Z * 0.62, 0.08, 0.26)
-		local areolaSize = Vector3.new(
-			areolaThickness,
-			nippleSize.Y * 2.55,
-			nippleSize.Z * 2.55
-		)
 		local popForward = 0.035
 		local torsoFront = torso.Size.Z * 0.5
-		state.boobs.ox = math.clamp(torso.Size.X * 0.23 + boobSize.X * 0.15, 0.43, math.max(0.66, torso.Size.X * 0.54))
-		state.boobs.oy = -(torso.Size.Y * 0.14 + boobSize.Y * 0.09)
-		state.boobs.oz = torsoFront + math.max(0.13, (boobSize.Z * 0.5) * 0.67) - 0.025
+		state.boobs.ox = math.clamp(torso.Size.X * 0.24 + boobSize.X * 0.145, 0.46, math.max(0.72, torso.Size.X * 0.56))
+		state.boobs.oy = torso.Size.Y * 0.14 + boobSize.Y * 0.055
+		state.boobs.oz = -(torsoFront + math.max(0.14, (boobSize.Z * 0.5) * 0.66) - 0.025)
 
 		local function offsetToFront(sphereSize, attachSize)
 			local sphereRadius = (sphereSize and sphereSize.Z or baseSize.Z) * 0.5
 			local attachRadius = (attachSize and attachSize.Z or baseNipple.Z) * 0.5
-			local offset = sphereRadius - (attachRadius * 0.5) - 0.005
-			if offset < 0 then
-				offset = 0
-			end
-			return offset
+			return math.max(sphereRadius - attachRadius * 0.5 - 0.005, 0)
 		end
 
 		local function createHalf(side)
-			local boob = InstanceNew("Part")
-			boob.Shape = Enum.PartType.Ball
-			boob.Size = boobSize
-			boob.Color = skin
-			boob.Material = Enum.Material.SmoothPlastic
-			boob.Anchored = false
-			boob.CanCollide = false
-			boob.CanTouch = false
-			boob.CanQuery = false
-			boob.Massless = true
-			boob.Name = "Boob"
-			boob.Parent = character
+			local boob = originalIO.bodyModsTrack(state.boobs.objs, originalIO.bodyModsPart(Enum.PartType.Ball, boobSize, skin, "Boob", folder, false))
+			local base = CFrame.new(side * state.boobs.ox, state.boobs.oy, state.boobs.oz)
+			local rig = originalIO.bodyModsRig(boob, torso, base, originalIO.bodyModsRigCfg(sizeScale, "heavy"), state.boobs.objs)
 
-			local nipple = InstanceNew("Part")
-			nipple.Shape = Enum.PartType.Ball
-			nipple.Size = nippleSize
-			nipple.Color = pinkColor
-			nipple.Material = Enum.Material.SmoothPlastic
-			nipple.Anchored = false
-			nipple.CanCollide = false
-			nipple.CanTouch = false
-			nipple.CanQuery = false
-			nipple.Massless = true
-			nipple.Name = "Nipple"
-			nipple.Parent = boob
+			local nipple = originalIO.bodyModsTrack(state.boobs.objs, originalIO.bodyModsPart(Enum.PartType.Ball, nippleSize, pinkColor, "Nipple", folder, true))
+			nipple.CFrame = boob.CFrame * CFrame.new(0, 0, -(offsetToFront(boob.Size, nipple.Size) + popForward))
+			originalIO.bodyModsWeld(nipple, boob, state.boobs.objs)
 
 			local areola = InstanceNew("SurfaceGui")
 			areola.Name = "Areola"
@@ -80299,57 +80708,44 @@ do
 			areola.PixelsPerStud = 120
 			areola.ZOffset = 0.01
 			areola.Parent = boob
+			originalIO.bodyModsTrack(state.boobs.objs, areola)
 
-			local areolaScale = math.clamp(math.max(areolaSize.Y, areolaSize.Z) / math.max(boob.Size.Y, boob.Size.Z), 0.22, 0.48)
-			local areolaFrame = InstanceNew("Frame")
-			areolaFrame.Name = "Disk"
-			areolaFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-			areolaFrame.Position = UDim2.fromScale(0.5, 0.5)
-			areolaFrame.Size = UDim2.fromScale(areolaScale, areolaScale)
-			areolaFrame.BackgroundColor3 = ringColor
-			areolaFrame.BorderSizePixel = 0
-			areolaFrame.Parent = areola
+			local areolaScale = math.clamp(math.max(nippleSize.Y * 2.55, nippleSize.Z * 2.55) / math.max(boob.Size.Y, boob.Size.Z), 0.22, 0.48)
+			local disk = InstanceNew("Frame")
+			disk.Name = "Disk"
+			disk.AnchorPoint = Vector2.new(0.5, 0.5)
+			disk.Position = UDim2.fromScale(0.5, 0.5)
+			disk.Size = UDim2.fromScale(areolaScale, areolaScale)
+			disk.BackgroundColor3 = ringColor
+			disk.BorderSizePixel = 0
+			disk.Parent = areola
 
-			local areolaCorner = InstanceNew("UICorner")
-			areolaCorner.CornerRadius = UDim.new(1, 0)
-			areolaCorner.Parent = areolaFrame
+			local corner = InstanceNew("UICorner")
+			corner.CornerRadius = UDim.new(1, 0)
+			corner.Parent = disk
 
-			local nippleWeld = InstanceNew("Weld")
-			nippleWeld.Part0 = nipple
-			nippleWeld.Part1 = boob
-			nippleWeld.C0 = CFrame.new(0, 0, offsetToFront(boob.Size, nipple.Size) + popForward)
-			nippleWeld.Parent = nipple
-
-			local weld = InstanceNew("Weld")
-			weld.Part0 = boob
-			weld.Part1 = torso
-			weld.C0 = CFrame.new(side * state.boobs.ox, state.boobs.oy, state.boobs.oz)
-			weld.Parent = boob
-
-			return boob, nipple, areola, weld, nippleWeld, nil
+			return rig, boob, nipple
 		end
 
-		local left, leftNipple, leftAreola, leftWeld, leftNippleWeld, leftAreolaWeld = createHalf(-1)
-		local right, rightNipple, rightAreola, rightWeld, rightNippleWeld, rightAreolaWeld = createHalf(1)
-
+		local leftRig, left, leftNipple = createHalf(-1)
+		local rightRig, right, rightNipple = createHalf(1)
+		state.boobs.rigs = { leftRig, rightRig }
 		state.boobs.size = size
 		state.boobs.active = true
-		state.boobs.conn = originalIO.bodyModsDisconnectConnection(state.boobs.conn)
-		state.boobs.sy = state.boobs.sy or 0
-		state.boobs.vy = state.boobs.vy or 0
-		state.boobs.sz = state.boobs.sz or 0
-		state.boobs.vz = state.boobs.vz or 0
-		state.boobs.sx = state.boobs.sx or 0
-		state.boobs.vx = state.boobs.vx or 0
-		state.boobs.rx = state.boobs.rx or 0
-		state.boobs.vrx = state.boobs.vrx or 0
-		state.boobs.ry = state.boobs.ry or 0
-		state.boobs.rv = state.boobs.rv or 0
-		state.boobs.yw = state.boobs.yw or 0
-		state.boobs.vyw = state.boobs.vyw or 0
-		state.boobs.llv = state.boobs.llv or Vector3.zero
+		state.boobs.sy = 0
+		state.boobs.vy = 0
+		state.boobs.sz = 0
+		state.boobs.vz = 0
+		state.boobs.sx = 0
+		state.boobs.vx = 0
+		state.boobs.rx = 0
+		state.boobs.vrx = 0
+		state.boobs.ry = 0
+		state.boobs.rv = 0
+		state.boobs.yw = 0
+		state.boobs.vyw = 0
+		state.boobs.llv = Vector3.zero
 		state.boobs.ccf = nil
-		state.boobs.hcf = nil
 		state.boobs.linit = false
 
 		state.boobs.conn = NAlib.reconnect("bodymods_boobs", RunService.RenderStepped:Connect(function(dt)
@@ -80374,27 +80770,25 @@ do
 			state.boobs.ccf = camera and camera.CFrame or nil
 			local useCam = (Players.LocalPlayer and Players.LocalPlayer.CameraMode == Enum.CameraMode.LockFirstPerson) or (UserInputService.MouseBehavior == Enum.MouseBehavior.LockCenter)
 			local angInput = useCam and camAng or localAng
-			local sizeScale = math.clamp((state.boobs.size or 1) / 3, 0.4, 2.4)
+			local sc = math.clamp((state.boobs.size or 1) / 3, 0.4, 2.4)
 			local air = grounded and 0 or 1
 			local softness = math.clamp((planarSpeed + math.abs(localVel.Y) * 0.25) / 24, 0, 1)
 			local gait = math.sin(os.clock() * (5.4 + planarSpeed * 0.12)) * math.clamp((planarSpeed - 0.8) / 13, 0, 1) * moveAlpha * (grounded and 1 or 0.28)
-			local settleY = -0.030 * sizeScale - 0.010 * air
-			local settleZ = 0.010 * sizeScale - 0.006 * air
-			local massScale = 0.92 + sizeScale * 0.38
-			local amp = 0.62 + sizeScale * 0.32
+			local settleY = -0.018 * sc - 0.008 * air
+			local settleZ = 0.006 * sc + 0.004 * air
+			local mass = 1.04 + sc * 0.46
+			local amp = 0.50 + sc * 0.22
 
 			local targetY = math.clamp(settleY + ((-localVel.Y * 0.006) - accel.Y * 0.0018 + math.abs(gait) * 0.012) * amp, -0.14, 0.13)
 			local targetZ = math.clamp(settleZ + ((-localVel.Z * 0.008) - accel.Z * 0.0022 + math.abs(gait) * 0.010) * amp, -0.13, 0.16)
 			local targetX = math.clamp(((-localVel.X * 0.006) - accel.X * 0.0015) * amp, -0.11, 0.11)
-
-			local targetPitch = math.clamp(settleY * 0.42 + ((-localVel.Y * 0.006) - accel.Y * 0.0014 + gait * 0.026) * (0.55 + sizeScale * 0.18) + angInput.X * 0.12, -0.20, 0.20)
-			local targetRoll = math.clamp(((-localVel.X * 0.012) - accel.X * 0.0011) * (0.54 + sizeScale * 0.12) - angInput.Y * 0.10, -0.17, 0.17)
-			local targetYaw = math.clamp(((localVel.X * 0.008) + accel.X * 0.0009) * (0.48 + sizeScale * 0.10) + angInput.Z * 0.08, -0.13, 0.13)
-
-			local kTrans = math.clamp((76 - 16 * softness - 7 * air) / massScale, 24, 86)
-			local dTrans = originalIO.bodyModsCritDamp(kTrans, 0.92 + (grounded and 0.08 or 0.00))
-			local kRot = math.clamp((70 - 14 * softness - 6 * air) / math.max(massScale * 0.94, 0.72), 22, 82)
-			local dRot = originalIO.bodyModsCritDamp(kRot, 0.90 + (grounded and 0.10 or 0.02))
+			local targetPitch = math.clamp(settleY * 0.42 + ((-localVel.Y * 0.006) - accel.Y * 0.0014 + gait * 0.026) * (0.50 + sc * 0.16) + angInput.X * 0.10, -0.20, 0.20)
+			local targetRoll = math.clamp(((-localVel.X * 0.012) - accel.X * 0.0011) * (0.48 + sc * 0.11) - angInput.Y * 0.09, -0.17, 0.17)
+			local targetYaw = math.clamp(((localVel.X * 0.008) + accel.X * 0.0009) * (0.42 + sc * 0.09) + angInput.Z * 0.07, -0.13, 0.13)
+			local kTrans = math.clamp((54 - 12 * softness - 7 * air) / mass, 18, 66)
+			local dTrans = originalIO.bodyModsCritDamp(kTrans, 1.04)
+			local kRot = math.clamp((50 - 11 * softness - 6 * air) / math.max(mass * 0.94, 0.72), 16, 62)
+			local dRot = originalIO.bodyModsCritDamp(kRot, 1.02)
 
 			state.boobs.sy, state.boobs.vy = originalIO.bodyModsSpring(state.boobs.sy, state.boobs.vy, targetY, kTrans, dTrans, dt)
 			state.boobs.sz, state.boobs.vz = originalIO.bodyModsSpring(state.boobs.sz, state.boobs.vz, targetZ, kTrans, dTrans, dt)
@@ -80403,70 +80797,44 @@ do
 			state.boobs.ry, state.boobs.rv = originalIO.bodyModsSpring(state.boobs.ry, state.boobs.rv, targetRoll, kRot, dRot, dt)
 			state.boobs.yw, state.boobs.vyw = originalIO.bodyModsSpring(state.boobs.yw, state.boobs.vyw, targetYaw, kRot, dRot, dt)
 
-			state.boobs.sy = math.clamp(state.boobs.sy, -0.16, 0.15)
-			state.boobs.sz = math.clamp(state.boobs.sz, -0.15, 0.18)
-			state.boobs.sx = math.clamp(state.boobs.sx, -0.12, 0.12)
-			state.boobs.rx = math.clamp(state.boobs.rx, -0.22, 0.22)
-			state.boobs.ry = math.clamp(state.boobs.ry, -0.18, 0.18)
-			state.boobs.yw = math.clamp(state.boobs.yw, -0.14, 0.14)
-
 			local sxCap = math.clamp(state.boobs.sx, -state.boobs.ox * 0.4, state.boobs.ox * 0.4)
-			local forwardZ = state.boobs.oz + state.boobs.sz * 0.18
-			local leftOffset = CFrame.new(-state.boobs.ox + (-sxCap), state.boobs.oy + state.boobs.sy, forwardZ) * CFrame.Angles(state.boobs.rx, state.boobs.yw, state.boobs.ry)
-			local rightOffset = CFrame.new(state.boobs.ox + sxCap, state.boobs.oy + state.boobs.sy, forwardZ) * CFrame.Angles(state.boobs.rx, -state.boobs.yw, -state.boobs.ry)
-
-			if leftWeld then leftWeld.C0 = leftOffset end
-			if rightWeld then rightWeld.C0 = rightOffset end
-			if leftNippleWeld and left then leftNippleWeld.C0 = CFrame.new(0, 0, offsetToFront(left.Size, leftNipple.Size) + popForward) end
-			if rightNippleWeld and right then rightNippleWeld.C0 = CFrame.new(0, 0, offsetToFront(right.Size, rightNipple.Size) + popForward) end
+			local z = state.boobs.oz - math.clamp(state.boobs.sz, -0.15, 0.18) * 0.18
+			if leftRig and leftRig.target then
+				leftRig.target.CFrame = CFrame.new(-state.boobs.ox - sxCap, state.boobs.oy + math.clamp(state.boobs.sy, -0.16, 0.15), z) * CFrame.Angles(math.clamp(state.boobs.rx, -0.22, 0.22), math.clamp(state.boobs.yw, -0.14, 0.14), math.clamp(state.boobs.ry, -0.18, 0.18))
+			end
+			if rightRig and rightRig.target then
+				rightRig.target.CFrame = CFrame.new(state.boobs.ox + sxCap, state.boobs.oy + math.clamp(state.boobs.sy, -0.16, 0.15), z) * CFrame.Angles(math.clamp(state.boobs.rx, -0.22, 0.22), -math.clamp(state.boobs.yw, -0.14, 0.14), -math.clamp(state.boobs.ry, -0.18, 0.18))
+			end
 		end))
 
+		originalIO.bodyModsAppear({ left, right, leftNipple, rightNipple }, 0.35, 0.22)
 		originalIO.bodyModsEnsureColorWatcher()
-		originalIO.bodyModsConnectAppearanceLoaded(Players.LocalPlayer, function()
-			Defer(function()
-				local refreshed = originalIO.bodyModsGetSkinColor()
-				for _, part in { left, right } do
-					if part and part.Parent then
-						part.Color = refreshed
-					end
-				end
-			end)
-		end)
-
+		originalIO.bodyModsConnectAppearanceLoaded(Players.LocalPlayer, originalIO.bodyModsOnAppearanceLoaded)
 		originalIO.bodyModsEnsureSpawnConnection()
 		DebugNotif("Boobs "..tostring(size),1.5)
 	end
 
 	originalIO.bodyModsRemoveBoobs = function()
 		local character = originalIO.bodyModsGetCharacter()
-		if not character then
-			return
-		end
-
 		state.boobs.conn = originalIO.bodyModsDisconnectConnection(state.boobs.conn)
 		NAlib.disconnect("bodymods_boobs")
 		state.boobs.active = false
-
-		local toRemove = {}
-		for _, part in character:GetChildren() do
-			if part:IsA("BasePart") and (part.Name == "Boob" or part.Name == "Nipple" or part.Name == "Areola") then
-				Insert(toRemove, part)
-			end
-		end
-		for _, part in toRemove do
+		state.boobs.rigs = {}
+		local oldObjs = state.boobs.objs
+		state.boobs.objs = {}
+		local toFade = originalIO.bodyModsCollectParts({ Boob = true, Nipple = true }, oldObjs)
+		for _, part in toFade do
 			part.CanCollide = false
 			part.CanTouch = false
 			part.CanQuery = false
-			__lt.cm("TweenService", "Create", part, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Transparency = 1 }):Play()
+			__lt.cm("TweenService", "Create", part, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Transparency = 1 }):Play()
 		end
-		Delay(0.30, function()
-			for _, part in toRemove do
-				if part and part.Parent then
-					part:Destroy()
-				end
+		Delay(0.24, function()
+			originalIO.bodyModsDestroyList(oldObjs)
+			if character then
+				originalIO.bodyModsDestroyOld(character, { Boob = true, Nipple = true })
 			end
 		end)
-
 		originalIO.bodyModsEnsureColorWatcher()
 		DebugNotif("Boobs Removed",1.5)
 	end
@@ -80482,69 +80850,53 @@ do
 			return
 		end
 
-		for _, part in character:GetChildren() do
-			if part:IsA("BasePart") and part.Name == "Cheek" then
-				part:Destroy()
-			end
-		end
+		state.ass.conn = originalIO.bodyModsDisconnectConnection(state.ass.conn)
+		NAlib.disconnect("bodymods_ass")
+		originalIO.bodyModsDestroyList(state.ass.objs)
+		state.ass.rigs = {}
+		state.ass.objs = {}
+		originalIO.bodyModsDestroyOld(character, { Cheek = true, Hip = true })
 
+		local folder = originalIO.bodyModsGetFolder()
 		local skin = originalIO.bodyModsGetSkinColor()
 		local sizeScale = math.clamp(size / 4, 0.3, 2)
-		local baseSize = Vector3.new(1.20, 1.28, 1.08)
+		local baseSize = Vector3.new(1.58, 1.48, 1.36)
 		local cheekSize = Vector3.new(
-			baseSize.X * size * (0.97 + sizeScale * 0.07),
-			baseSize.Y * size * (1.02 + sizeScale * 0.06),
-			baseSize.Z * size * (0.89 + sizeScale * 0.10)
+			baseSize.X * size * (1.06 + sizeScale * 0.10),
+			baseSize.Y * size * (1.04 + sizeScale * 0.07),
+			baseSize.Z * size * (1.05 + sizeScale * 0.13)
 		)
 		local radius = cheekSize.Y * 0.5
-
-		state.ass.ox = math.clamp(torso.Size.X * 0.24 + cheekSize.X * 0.14, 0.43, math.max(0.64, torso.Size.X * 0.52))
-		state.ass.oy = (humanoid.RigType == Enum.HumanoidRigType.R15) and (-(torso.Size.Y * 0.29 + cheekSize.Y * 0.06)) or (0.66 + cheekSize.Y * 0.06)
-		state.ass.oz = -(torso.Size.Z * 0.42 + radius * 0.39)
+		state.ass.ox = math.clamp(torso.Size.X * 0.25 + cheekSize.X * 0.135, 0.46, math.max(0.70, torso.Size.X * 0.55))
+		state.ass.oy = (humanoid.RigType == Enum.HumanoidRigType.R15) and (torso.Size.Y * 0.30 + cheekSize.Y * 0.035) or (-(0.66 + cheekSize.Y * 0.05))
+		state.ass.oz = torso.Size.Z * 0.42 + radius * 0.41
 
 		local function createCheek(side)
-			local cheek = InstanceNew("Part")
-			cheek.Shape = Enum.PartType.Ball
-			cheek.Size = cheekSize
-			cheek.Color = skin
-			cheek.Material = Enum.Material.SmoothPlastic
-			cheek.Anchored = false
-			cheek.CanCollide = false
-			cheek.CanTouch = false
-			cheek.CanQuery = false
-			cheek.Massless = true
-			cheek.Name = "Cheek"
-			cheek.Parent = character
-
-			local weld = InstanceNew("Weld")
-			weld.Part0 = cheek
-			weld.Part1 = torso
-			weld.C0 = CFrame.new(side * state.ass.ox, state.ass.oy, state.ass.oz)
-			weld.Parent = cheek
-
-			return cheek, weld
+			local cheek = originalIO.bodyModsTrack(state.ass.objs, originalIO.bodyModsPart(Enum.PartType.Ball, cheekSize, skin, "Cheek", folder, false))
+			local base = CFrame.new(side * state.ass.ox, state.ass.oy, state.ass.oz)
+			local rig = originalIO.bodyModsRig(cheek, torso, base, originalIO.bodyModsRigCfg(sizeScale, "loose"), state.ass.objs)
+			return rig, cheek
 		end
 
-		local left, leftWeld = createCheek(-1)
-		local right, rightWeld = createCheek(1)
 
+		local leftRig, left = createCheek(-1)
+		local rightRig, right = createCheek(1)
+		state.ass.rigs = { leftRig, rightRig }
 		state.ass.size = size
 		state.ass.active = true
-		state.ass.conn = originalIO.bodyModsDisconnectConnection(state.ass.conn)
-		state.ass.sy = state.ass.sy or 0
-		state.ass.vy = state.ass.vy or 0
-		state.ass.sz = state.ass.sz or 0
-		state.ass.vz = state.ass.vz or 0
-		state.ass.sx = state.ass.sx or 0
-		state.ass.vx = state.ass.vx or 0
-		state.ass.rx = state.ass.rx or 0
-		state.ass.vrx = state.ass.vrx or 0
-		state.ass.ry = state.ass.ry or 0
-		state.ass.rv = state.ass.rv or 0
-		state.ass.yw = state.ass.yw or 0
-		state.ass.vyw = state.ass.vyw or 0
-		state.ass.llv = state.ass.llv or Vector3.zero
-		state.ass.hcf = nil
+		state.ass.sy = 0
+		state.ass.vy = 0
+		state.ass.sz = 0
+		state.ass.vz = 0
+		state.ass.sx = 0
+		state.ass.vx = 0
+		state.ass.rx = 0
+		state.ass.vrx = 0
+		state.ass.ry = 0
+		state.ass.rv = 0
+		state.ass.yw = 0
+		state.ass.vyw = 0
+		state.ass.llv = Vector3.zero
 		state.ass.linit = false
 
 		state.ass.conn = NAlib.reconnect("bodymods_ass", RunService.RenderStepped:Connect(function(dt)
@@ -80559,28 +80911,25 @@ do
 			local currentHumanoid = currentChar:FindFirstChildOfClass("Humanoid") or humanoid
 			local localVel, localAng, accel, planarSpeed, moveAlpha, grounded
 			dt, localVel, localAng, accel, planarSpeed, moveAlpha, grounded = originalIO.bodyModsMotion(hrp, currentHumanoid, state.ass, dt)
-			local sizeScale = math.clamp((state.ass.size or 1) / 3, 0.4, 2.5)
+			local sc = math.clamp((state.ass.size or 1) / 3, 0.4, 2.5)
 			local air = grounded and 0 or 1
 			local softness = math.clamp((planarSpeed + math.abs(localVel.Y) * 0.22) / 24, 0, 1)
 			local stride = math.sin(os.clock() * (5.9 + planarSpeed * 0.12))
 			local gait = stride * math.clamp((planarSpeed - 0.8) / 12, 0, 1) * moveAlpha * (grounded and 1 or 0.22)
-			local settleY = -0.040 * sizeScale - 0.012 * air
-			local settleZ = -0.024 * sizeScale - 0.006 * air
-			local massScale = 1.02 + sizeScale * 0.44
-			local amp = 0.58 + sizeScale * 0.28
-
-			local targetY = math.clamp(settleY + ((-localVel.Y * 0.008) - accel.Y * 0.0020 + math.abs(gait) * 0.012) * amp, -0.14, 0.13)
-			local targetZ = math.clamp(settleZ + ((localVel.Z * 0.010) + accel.Z * 0.0018 + math.abs(gait) * 0.008) * amp, -0.13, 0.12)
+			local settleY = -0.052 * sc - 0.014 * air
+			local settleZ = 0.034 * sc + 0.008 * air
+			local mass = 1.18 + sc * 0.54
+			local amp = 0.50 + sc * 0.22
+			local targetY = math.clamp(settleY + ((-localVel.Y * 0.008) - accel.Y * 0.0020 + math.abs(gait) * 0.012) * amp, -0.16, 0.13)
+			local targetZ = math.clamp(settleZ + ((-localVel.Z * 0.010) - accel.Z * 0.0018 + math.abs(gait) * 0.008) * amp, -0.10, 0.16)
 			local targetX = math.clamp(((localVel.X * 0.008) + accel.X * 0.0014) * amp, -0.12, 0.12)
-
-			local targetPitch = math.clamp(((-localVel.Y * 0.004) + localAng.X * 0.10 + gait * 0.020) * (0.55 + sizeScale * 0.14), -0.16, 0.16)
-			local targetRoll = math.clamp(((-localVel.X * 0.010) - accel.X * 0.0010 - localAng.Y * 0.10) * (0.52 + sizeScale * 0.12), -0.15, 0.15)
-			local targetYaw = math.clamp(((localVel.X * 0.006) - localAng.Z * 0.08) * (0.46 + sizeScale * 0.10), -0.11, 0.11)
-
-			local kTrans = math.clamp((62 - 13 * softness - 6 * air) / massScale, 18, 68)
-			local dTrans = originalIO.bodyModsCritDamp(kTrans, 0.96 + (grounded and 0.10 or 0.00))
-			local kRot = math.clamp((56 - 11 * softness - 5 * air) / math.max(massScale * 0.94, 0.76), 18, 64)
-			local dRot = originalIO.bodyModsCritDamp(kRot, 0.94 + (grounded and 0.12 or 0.04))
+			local targetPitch = math.clamp(((-localVel.Y * 0.004) + localAng.X * 0.10 + gait * 0.020) * (0.50 + sc * 0.12), -0.16, 0.16)
+			local targetRoll = math.clamp(((-localVel.X * 0.010) - accel.X * 0.0010 - localAng.Y * 0.10) * (0.46 + sc * 0.10), -0.15, 0.15)
+			local targetYaw = math.clamp(((localVel.X * 0.006) - localAng.Z * 0.08) * (0.40 + sc * 0.08), -0.11, 0.11)
+			local kTrans = math.clamp((50 - 10 * softness - 6 * air) / mass, 16, 58)
+			local dTrans = originalIO.bodyModsCritDamp(kTrans, 1.06)
+			local kRot = math.clamp((44 - 9 * softness - 5 * air) / math.max(mass * 0.94, 0.76), 16, 52)
+			local dRot = originalIO.bodyModsCritDamp(kRot, 1.05)
 
 			state.ass.sy, state.ass.vy = originalIO.bodyModsSpring(state.ass.sy, state.ass.vy, targetY, kTrans, dTrans, dt)
 			state.ass.sz, state.ass.vz = originalIO.bodyModsSpring(state.ass.sz, state.ass.vz, targetZ, kTrans, dTrans, dt)
@@ -80589,25 +80938,19 @@ do
 			state.ass.ry, state.ass.rv = originalIO.bodyModsSpring(state.ass.ry, state.ass.rv, targetRoll, kRot, dRot, dt)
 			state.ass.yw, state.ass.vyw = originalIO.bodyModsSpring(state.ass.yw, state.ass.vyw, targetYaw, kRot, dRot, dt)
 
-			state.ass.sy = math.clamp(state.ass.sy, -0.15, 0.14)
-			state.ass.sz = math.clamp(state.ass.sz, -0.14, 0.13)
-			state.ass.sx = math.clamp(state.ass.sx, -0.12, 0.12)
-			state.ass.rx = math.clamp(state.ass.rx, -0.17, 0.17)
-			state.ass.ry = math.clamp(state.ass.ry, -0.16, 0.16)
-			state.ass.yw = math.clamp(state.ass.yw, -0.12, 0.12)
-
 			local sxCap = math.clamp(state.ass.sx, -state.ass.ox * 0.55, state.ass.ox * 0.55)
-			local tzCap = math.clamp(state.ass.sz, -0.11, 0.10)
-			local cheekLift = gait * math.clamp(0.006 + sizeScale * 0.004, 0.006, 0.018)
-			local cheekRoll = gait * math.clamp(0.014 + sizeScale * 0.006, 0.014, 0.034)
-			local cheekDepth = math.abs(gait) * math.clamp(0.006 + sizeScale * 0.004, 0.006, 0.018)
-			local leftOffset = CFrame.new(-state.ass.ox + (-sxCap), state.ass.oy + state.ass.sy + cheekLift, state.ass.oz + tzCap - cheekDepth) * CFrame.Angles(state.ass.rx, state.ass.yw, state.ass.ry + cheekRoll)
-			local rightOffset = CFrame.new(state.ass.ox + sxCap, state.ass.oy + state.ass.sy - cheekLift, state.ass.oz + tzCap - cheekDepth) * CFrame.Angles(state.ass.rx, -state.ass.yw, -state.ass.ry - cheekRoll)
-
-			if leftWeld then leftWeld.C0 = leftOffset end
-			if rightWeld then rightWeld.C0 = rightOffset end
+			local z = state.ass.oz + math.clamp(state.ass.sz, -0.10, 0.16) + math.abs(gait) * math.clamp(0.006 + sc * 0.004, 0.006, 0.018)
+			local cheekLift = gait * math.clamp(0.006 + sc * 0.004, 0.006, 0.018)
+			local cheekRoll = gait * math.clamp(0.014 + sc * 0.006, 0.014, 0.034)
+			if leftRig and leftRig.target then
+				leftRig.target.CFrame = CFrame.new(-state.ass.ox - sxCap, state.ass.oy + math.clamp(state.ass.sy, -0.15, 0.14) + cheekLift, z) * CFrame.Angles(math.clamp(state.ass.rx, -0.17, 0.17), math.clamp(state.ass.yw, -0.12, 0.12), math.clamp(state.ass.ry, -0.16, 0.16) + cheekRoll)
+			end
+			if rightRig and rightRig.target then
+				rightRig.target.CFrame = CFrame.new(state.ass.ox + sxCap, state.ass.oy + math.clamp(state.ass.sy, -0.15, 0.14) - cheekLift, z) * CFrame.Angles(math.clamp(state.ass.rx, -0.17, 0.17), -math.clamp(state.ass.yw, -0.12, 0.12), -math.clamp(state.ass.ry, -0.16, 0.16) - cheekRoll)
+			end
 		end))
 
+		originalIO.bodyModsAppear({ left, right }, 0.35, 0.22)
 		originalIO.bodyModsEnsureColorWatcher()
 		originalIO.bodyModsConnectAppearanceLoaded(Players.LocalPlayer, originalIO.bodyModsOnAppearanceLoaded)
 		originalIO.bodyModsEnsureSpawnConnection()
@@ -80616,34 +80959,25 @@ do
 
 	originalIO.bodyModsRemoveAss = function()
 		local character = originalIO.bodyModsGetCharacter()
-		if not character then
-			return
-		end
-
 		state.ass.conn = originalIO.bodyModsDisconnectConnection(state.ass.conn)
 		NAlib.disconnect("bodymods_ass")
 		state.ass.active = false
-
-		local toRemove = {}
-		for _, part in character:GetChildren() do
-			if part:IsA("BasePart") and part.Name == "Cheek" then
-				Insert(toRemove, part)
-			end
-		end
-		for _, part in toRemove do
+		state.ass.rigs = {}
+		local oldObjs = state.ass.objs
+		state.ass.objs = {}
+		local toFade = originalIO.bodyModsCollectParts({ Cheek = true, Hip = true }, oldObjs)
+		for _, part in toFade do
 			part.CanCollide = false
 			part.CanTouch = false
 			part.CanQuery = false
-			__lt.cm("TweenService", "Create", part, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Transparency = 1 }):Play()
+			__lt.cm("TweenService", "Create", part, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Transparency = 1 }):Play()
 		end
-		Delay(0.30, function()
-			for _, part in toRemove do
-				if part and part.Parent then
-					part:Destroy()
-				end
+		Delay(0.24, function()
+			originalIO.bodyModsDestroyList(oldObjs)
+			if character then
+				originalIO.bodyModsDestroyOld(character, { Cheek = true, Hip = true })
 			end
 		end)
-
 		originalIO.bodyModsEnsureColorWatcher()
 		DebugNotif("Ass Removed",1.5)
 	end
@@ -80659,92 +80993,49 @@ do
 			return
 		end
 
-		for _, part in character:GetChildren() do
-			if part:IsA("BasePart") and (part.Name == "Balls" or part.Name == "penis") then
-				part:Destroy()
-			end
-		end
+		state.pp.animConn = originalIO.bodyModsDisconnectConnection(state.pp.animConn)
+		NAlib.disconnect("bodymods_pp")
+		originalIO.bodyModsDestroyList(state.pp.objs)
+		state.pp.rigs = {}
+		state.pp.objs = {}
+		originalIO.bodyModsDestroyOld(character, { Balls = true, penis = true })
 
 		local value = tonumber(length) or state.pp.len or 1
 		value = math.clamp(value, 0.5, 6)
 		state.pp.len = value
 
+		local folder = originalIO.bodyModsGetFolder()
 		local skin = originalIO.bodyModsGetSkinColor()
 		local shaftLength = 1.42 + value * 0.85
 		local shaftRadius = math.clamp(0.34 + value * 0.042, 0.35, 0.58)
 		local ballRadius = math.clamp(0.49 + value * 0.042, 0.50, 0.78)
 		local tipRadius = math.clamp(shaftRadius * 1.24, 0.39, 0.65)
-
-		local function createPart(shape, size, color, name)
-			local part = InstanceNew("Part")
-			part.Shape = shape
-			part.Size = size
-			part.Color = color
-			part.Material = Enum.Material.SmoothPlastic
-			part.Anchored = false
-			part.CanCollide = false
-			part.CanTouch = false
-			part.CanQuery = false
-			part.Massless = true
-			part.Name = name
-			part.Parent = character
-			return part
-		end
-
-		local function weldConstraint(part0, part1)
-			local weld = InstanceNew("WeldConstraint")
-			weld.Part0 = part0
-			weld.Part1 = part1
-			weld.Parent = part0
-		end
-
+		local lenScale = math.clamp(value / 2, 0.45, 3)
 		local offsetY = (humanoid.RigType == Enum.HumanoidRigType.R15) and -0.98 or -1.40
 		local scrotumSpread = math.clamp(ballRadius * 0.44, 0.21, 0.36)
-		local leftBall = createPart(Enum.PartType.Ball, Vector3.new(ballRadius * 2, ballRadius * 2.08, ballRadius * 1.98), skin, "Balls")
-		local rightBall = createPart(Enum.PartType.Ball, Vector3.new(ballRadius * 2, ballRadius * 2.08, ballRadius * 1.98), skin, "Balls")
-		local shaft = createPart(Enum.PartType.Cylinder, Vector3.new(shaftLength, shaftRadius * 2, shaftRadius * 2), skin, "penis")
-		local tip = createPart(Enum.PartType.Ball, Vector3.new(tipRadius * 2.15, tipRadius * 2.05, tipRadius * 2.05), pinkColor, "penis")
-
-		leftBall.CFrame = torso.CFrame * CFrame.new(-scrotumSpread, offsetY, -0.74 - shaftRadius * 0.46)
-		rightBall.CFrame = torso.CFrame * CFrame.new(scrotumSpread, offsetY, -0.74 - shaftRadius * 0.46)
 		local shaftBaseOffset = (humanoid.RigType == Enum.HumanoidRigType.R15) and 0.46 or 0.62
 		local shaftBaseZ = -(torso.Size.Z * 0.5 + shaftRadius * 0.11)
 		local shaftForwardBias = math.max(0, shaftLength * 0.5 - shaftRadius * 0.88)
-		shaft.CFrame = torso.CFrame
-			* CFrame.new(0.00, offsetY + shaftBaseOffset, shaftBaseZ)
-			* CFrame.Angles(0, math.rad(270), 0)
-			* CFrame.new(-shaftForwardBias, 0, 0)
+
+		local leftBall = originalIO.bodyModsTrack(state.pp.objs, originalIO.bodyModsPart(Enum.PartType.Ball, Vector3.new(ballRadius * 2, ballRadius * 2.08, ballRadius * 1.98), skin, "Balls", folder, false))
+		local rightBall = originalIO.bodyModsTrack(state.pp.objs, originalIO.bodyModsPart(Enum.PartType.Ball, Vector3.new(ballRadius * 2, ballRadius * 2.08, ballRadius * 1.98), skin, "Balls", folder, false))
+		local shaft = originalIO.bodyModsTrack(state.pp.objs, originalIO.bodyModsPart(Enum.PartType.Cylinder, Vector3.new(shaftLength, shaftRadius * 2, shaftRadius * 2), skin, "penis", folder, false))
+		local tip = originalIO.bodyModsTrack(state.pp.objs, originalIO.bodyModsPart(Enum.PartType.Ball, Vector3.new(tipRadius * 2.15, tipRadius * 2.05, tipRadius * 2.05), pinkColor, "penis", folder, true))
+
+		state.pp.baseBL = CFrame.new(-scrotumSpread, offsetY, -0.74 - shaftRadius * 0.46)
+		state.pp.baseBR = CFrame.new(scrotumSpread, offsetY, -0.74 - shaftRadius * 0.46)
+		state.pp.baseS = CFrame.new(0, offsetY + shaftBaseOffset, shaftBaseZ) * CFrame.Angles(0, math.rad(270), 0) * CFrame.new(-shaftForwardBias, 0, 0)
+
+		local ballCfg = originalIO.bodyModsRigCfg(lenScale, "loose")
+		local shaftCfg = originalIO.bodyModsRigCfg(lenScale, "heavy")
+		local leftRig = originalIO.bodyModsRig(leftBall, torso, state.pp.baseBL, ballCfg, state.pp.objs)
+		local rightRig = originalIO.bodyModsRig(rightBall, torso, state.pp.baseBR, ballCfg, state.pp.objs)
+		local shaftRig = originalIO.bodyModsRig(shaft, torso, state.pp.baseS, shaftCfg, state.pp.objs)
 		tip.CFrame = shaft.CFrame * CFrame.new(-shaftLength * 0.5, 0, 0)
+		originalIO.bodyModsWeld(tip, shaft, state.pp.objs)
 
-		weldConstraint(tip, shaft)
-
-		local leftBallWeld = InstanceNew("Weld")
-		leftBallWeld.Part0 = torso
-		leftBallWeld.Part1 = leftBall
-		leftBallWeld.C0 = torso.CFrame:ToObjectSpace(leftBall.CFrame)
-		leftBallWeld.C1 = CFrame.new()
-		leftBallWeld.Parent = leftBall
-
-		local rightBallWeld = InstanceNew("Weld")
-		rightBallWeld.Part0 = torso
-		rightBallWeld.Part1 = rightBall
-		rightBallWeld.C0 = torso.CFrame:ToObjectSpace(rightBall.CFrame)
-		rightBallWeld.C1 = CFrame.new()
-		rightBallWeld.Parent = rightBall
-
-		local shaftWeld = InstanceNew("Weld")
-		shaftWeld.Part0 = torso
-		shaftWeld.Part1 = shaft
-		shaftWeld.C0 = torso.CFrame:ToObjectSpace(shaft.CFrame)
-		shaftWeld.C1 = CFrame.new()
-		shaftWeld.Parent = shaft
-
+		state.pp.rigs = { shaft = shaftRig, left = leftRig, right = rightRig }
 		state.pp.active = true
-		state.pp.sh = shaft
-		state.pp.dr = tip
-		state.pp.wS = shaftWeld
-		state.pp.wBL = leftBallWeld
-		state.pp.wBR = rightBallWeld
 		state.pp.sy = 0
 		state.pp.vy = 0
 		state.pp.sz = 0
@@ -80765,44 +81056,34 @@ do
 		state.pp.bvrx = 0
 		state.pp.bry = 0
 		state.pp.bvry = 0
-		state.pp.baseC0 = shaftWeld.C0
-		state.pp.baseBL = leftBallWeld.C0
-		state.pp.baseBR = rightBallWeld.C0
-		state.pp.llv = state.pp.llv or Vector3.zero
+		state.pp.llv = Vector3.zero
 		state.pp.linit = false
 
-		state.pp.animConn = originalIO.bodyModsDisconnectConnection(state.pp.animConn)
 		state.pp.animConn = NAlib.reconnect("bodymods_pp", RunService.RenderStepped:Connect(function(dt)
 			local currentChar = originalIO.bodyModsGetCharacter()
 			if not currentChar or not currentChar.Parent then
 				return
 			end
 			local hrp = currentChar:FindFirstChild("HumanoidRootPart")
-			if not hrp or not state.pp.wS or not state.pp.baseC0 then
+			if not hrp then
 				return
 			end
-
 			local currentHumanoid = currentChar:FindFirstChildOfClass("Humanoid") or humanoid
 			local localVel, localAng, accel, planarSpeed, moveAlpha, grounded
 			dt, localVel, localAng, accel, planarSpeed, moveAlpha, grounded = originalIO.bodyModsMotion(hrp, currentHumanoid, state.pp, dt)
-			local lengthScale = math.clamp(value / 2, 0.45, 3)
 			local air = grounded and 0 or 1
-			local softness = math.clamp((planarSpeed + math.abs(localVel.Y) * 0.24) / 24, 0, 1)
-			local gait = math.sin(os.clock() * (4.9 + planarSpeed * 0.10)) * math.clamp((planarSpeed - 0.8) / 12, 0, 1) * moveAlpha * (grounded and 1 or 0.20)
-			local settleY = -0.020 * lengthScale - 0.010 * air
-			local settleZ = -0.052 * lengthScale - 0.008 * air
-			local amp = 0.54 + lengthScale * 0.16
-
-			local targetY = math.clamp(settleY + ((-localVel.Y * 0.006) - accel.Y * 0.0013 + math.abs(gait) * 0.006) * amp, -0.09, 0.08)
-			local targetZ = math.clamp(settleZ + ((-localVel.Z * (0.007 + 0.0010 * value)) - accel.Z * 0.0019 - math.abs(gait) * 0.006) * amp, -0.18, 0.08)
-			local targetX = math.clamp(((-localVel.X * 0.006) - accel.X * 0.0013) * amp, -0.09, 0.09)
-			local targetPitch = math.clamp((localAng.Z * 0.008) - (localVel.Y * 0.0026) - (accel.Y * 0.0008), -0.10, 0.10)
-			local targetRoll = math.clamp((localAng.X * 0.008) + (localVel.X * 0.004) + (accel.X * 0.0008), -0.10, 0.10)
-
-			local kTrans = math.clamp((48 - 10 * softness - 5 * air) / math.max(0.78 + lengthScale * 0.40, 0.78), 14, 52)
-			local dTrans = originalIO.bodyModsCritDamp(kTrans, 0.92 + (grounded and 0.08 or 0.00))
-			local kRot = math.clamp((42 - 9 * softness - 4 * air) / math.max(0.82 + lengthScale * 0.34, 0.82), 14, 48)
-			local dRot = originalIO.bodyModsCritDamp(kRot, 0.92 + (grounded and 0.09 or 0.02))
+			local softness = math.clamp((planarSpeed + math.abs(localVel.Y) * 0.20) / 24, 0, 1)
+			local gait = math.sin(os.clock() * (5.6 + planarSpeed * 0.12)) * math.clamp((planarSpeed - 0.8) / 12, 0, 1) * moveAlpha * (grounded and 1 or 0.25)
+			local amp = 0.44 + lenScale * 0.12
+			local targetY = math.clamp((-0.026 * lenScale - 0.010 * air) + ((-localVel.Y * 0.006) - accel.Y * 0.0014 + math.abs(gait) * 0.008) * amp, -0.12, 0.08)
+			local targetZ = math.clamp((-localVel.Z * 0.006) - accel.Z * 0.0014 - math.abs(gait) * 0.006, -0.18, 0.08)
+			local targetX = math.clamp(((-localVel.X * 0.006) - accel.X * 0.0012) * amp, -0.09, 0.09)
+			local targetPitch = math.clamp((localAng.Z * 0.008) - (localVel.Y * 0.0024) - (accel.Y * 0.0007), -0.10, 0.10)
+			local targetRoll = math.clamp((localAng.X * 0.008) + (localVel.X * 0.0038) + (accel.X * 0.0007), -0.10, 0.10)
+			local kTrans = math.clamp((40 - 8 * softness - 5 * air) / math.max(0.78 + lenScale * 0.40, 0.78), 12, 44)
+			local dTrans = originalIO.bodyModsCritDamp(kTrans, 1.02)
+			local kRot = math.clamp((34 - 7 * softness - 4 * air) / math.max(0.82 + lenScale * 0.34, 0.82), 12, 38)
+			local dRot = originalIO.bodyModsCritDamp(kRot, 1.02)
 
 			state.pp.sy, state.pp.vy = originalIO.bodyModsSpring(state.pp.sy, state.pp.vy, targetY, kTrans, dTrans, dt)
 			state.pp.sz, state.pp.vz = originalIO.bodyModsSpring(state.pp.sz, state.pp.vz, targetZ, kTrans, dTrans, dt)
@@ -80810,47 +81091,40 @@ do
 			state.pp.rx, state.pp.vrx = originalIO.bodyModsSpring(state.pp.rx, state.pp.vrx, targetPitch, kRot, dRot, dt)
 			state.pp.ry, state.pp.vry = originalIO.bodyModsSpring(state.pp.ry, state.pp.vry, targetRoll, kRot, dRot, dt)
 
-			state.pp.sy = math.clamp(state.pp.sy, -0.10, 0.08)
-			state.pp.sz = math.clamp(state.pp.sz, -0.19, 0.09)
-			state.pp.sx = math.clamp(state.pp.sx, -0.09, 0.09)
-			state.pp.rx = math.clamp(state.pp.rx, -0.11, 0.11)
-			state.pp.ry = math.clamp(state.pp.ry, -0.11, 0.11)
+			if state.pp.rigs and state.pp.rigs.shaft and state.pp.rigs.shaft.target and state.pp.baseS then
+				local sway = CFrame.new(math.clamp(state.pp.sx, -0.09, 0.09), math.clamp(state.pp.sy, -0.10, 0.08), math.clamp(state.pp.sz, -0.19, 0.09)) * CFrame.Angles(math.clamp(state.pp.rx, -0.11, 0.11), 0, math.clamp(state.pp.ry, -0.11, 0.11))
+				state.pp.rigs.shaft.target.CFrame = state.pp.baseS * sway
+			end
 
-			local sway = CFrame.new(state.pp.sx, state.pp.sy, state.pp.sz) * CFrame.Angles(state.pp.rx, 0, state.pp.ry)
-			state.pp.wS.C0 = state.pp.baseC0 * sway
-
-			if state.pp.wBL and state.pp.wBR and state.pp.baseBL and state.pp.baseBR then
-				local ballTargetY = math.clamp((-0.026 * lengthScale) + (-localVel.Y * 0.007) - (accel.Y * 0.0016) + math.abs(gait) * 0.010, -0.11, 0.09)
-				local ballTargetZ = math.clamp((-0.030 * lengthScale) + (-localVel.Z * 0.005) - (accel.Z * 0.0016) - math.abs(gait) * 0.007, -0.10, 0.06)
-				local ballTargetX = math.clamp((-localVel.X * 0.006) - (accel.X * 0.0014), -0.07, 0.07)
-				local ballTargetPitch = math.clamp((-localVel.Y * 0.004) - (accel.Y * 0.0009), -0.10, 0.10)
+			if state.pp.rigs and state.pp.rigs.left and state.pp.rigs.right and state.pp.baseBL and state.pp.baseBR then
+				local ballTargetY = math.clamp((-0.026 * lenScale) + (-localVel.Y * 0.007) - (accel.Y * 0.0016) + math.abs(gait) * 0.010, -0.11, 0.09)
+				local ballTargetZ = math.clamp((-0.030 * lenScale) + (-localVel.Z * 0.005) - (accel.Z * 0.0015) - math.abs(gait) * 0.007, -0.10, 0.06)
+				local ballTargetX = math.clamp((-localVel.X * 0.006) - (accel.X * 0.0013), -0.07, 0.07)
+				local ballTargetPitch = math.clamp((-localVel.Y * 0.004) - (accel.Y * 0.0008), -0.10, 0.10)
 				local ballTargetRoll = math.clamp((localVel.X * 0.006) + gait * 0.020, -0.10, 0.10)
-
-				local kBallTrans = math.clamp((36 - 8 * softness - 4 * air) / math.max(0.88 + lengthScale * 0.24, 0.88), 12, 40)
-				local dBallTrans = originalIO.bodyModsCritDamp(kBallTrans, 0.96 + (grounded and 0.08 or 0.02))
-				local kBallRot = math.clamp((30 - 7 * softness - 3 * air) / math.max(0.92 + lengthScale * 0.18, 0.92), 10, 34)
-				local dBallRot = originalIO.bodyModsCritDamp(kBallRot, 0.96 + (grounded and 0.08 or 0.02))
+				local kBallTrans = math.clamp((32 - 7 * softness - 4 * air) / math.max(0.88 + lenScale * 0.24, 0.88), 10, 34)
+				local dBallTrans = originalIO.bodyModsCritDamp(kBallTrans, 1.06)
+				local kBallRot = math.clamp((26 - 6 * softness - 3 * air) / math.max(0.92 + lenScale * 0.18, 0.92), 8, 28)
+				local dBallRot = originalIO.bodyModsCritDamp(kBallRot, 1.06)
 
 				state.pp.bsy, state.pp.bvy = originalIO.bodyModsSpring(state.pp.bsy, state.pp.bvy, ballTargetY, kBallTrans, dBallTrans, dt)
 				state.pp.bsz, state.pp.bvz = originalIO.bodyModsSpring(state.pp.bsz, state.pp.bvz, ballTargetZ, kBallTrans, dBallTrans, dt)
 				state.pp.bsx, state.pp.bvx = originalIO.bodyModsSpring(state.pp.bsx, state.pp.bvx, ballTargetX, kBallTrans, dBallTrans, dt)
 				state.pp.brx, state.pp.bvrx = originalIO.bodyModsSpring(state.pp.brx, state.pp.bvrx, ballTargetPitch, kBallRot, dBallRot, dt)
 				state.pp.bry, state.pp.bvry = originalIO.bodyModsSpring(state.pp.bry, state.pp.bvry, ballTargetRoll, kBallRot, dBallRot, dt)
-
-				state.pp.bsy = math.clamp(state.pp.bsy, -0.11, 0.09)
-				state.pp.bsz = math.clamp(state.pp.bsz, -0.10, 0.06)
-				state.pp.bsx = math.clamp(state.pp.bsx, -0.07, 0.07)
-				state.pp.brx = math.clamp(state.pp.brx, -0.10, 0.10)
-				state.pp.bry = math.clamp(state.pp.bry, -0.10, 0.10)
-
 				local spreadJiggle = math.abs(gait) * math.clamp(0.006 + ballRadius * 0.006, 0.006, 0.014)
-				local leftBallSway = CFrame.new(-spreadJiggle - state.pp.bsx, state.pp.bsy, state.pp.bsz) * CFrame.Angles(state.pp.brx, 0, state.pp.bry)
-				local rightBallSway = CFrame.new(spreadJiggle + state.pp.bsx, state.pp.bsy, state.pp.bsz) * CFrame.Angles(state.pp.brx, 0, -state.pp.bry)
-				state.pp.wBL.C0 = state.pp.baseBL * leftBallSway
-				state.pp.wBR.C0 = state.pp.baseBR * rightBallSway
+				local leftSway = CFrame.new(-spreadJiggle - math.clamp(state.pp.bsx, -0.07, 0.07), math.clamp(state.pp.bsy, -0.11, 0.09), math.clamp(state.pp.bsz, -0.10, 0.06)) * CFrame.Angles(math.clamp(state.pp.brx, -0.10, 0.10), 0, math.clamp(state.pp.bry, -0.10, 0.10))
+				local rightSway = CFrame.new(spreadJiggle + math.clamp(state.pp.bsx, -0.07, 0.07), math.clamp(state.pp.bsy, -0.11, 0.09), math.clamp(state.pp.bsz, -0.10, 0.06)) * CFrame.Angles(math.clamp(state.pp.brx, -0.10, 0.10), 0, -math.clamp(state.pp.bry, -0.10, 0.10))
+				if state.pp.rigs.left.target then
+					state.pp.rigs.left.target.CFrame = state.pp.baseBL * leftSway
+				end
+				if state.pp.rigs.right.target then
+					state.pp.rigs.right.target.CFrame = state.pp.baseBR * rightSway
+				end
 			end
 		end))
 
+		originalIO.bodyModsAppear({ leftBall, rightBall, shaft, tip }, 0.35, 0.22)
 		originalIO.bodyModsEnsureColorWatcher()
 		originalIO.bodyModsConnectAppearanceLoaded(Players.LocalPlayer, originalIO.bodyModsOnAppearanceLoaded)
 		originalIO.bodyModsEnsureSpawnConnection()
@@ -80859,40 +81133,26 @@ do
 
 	originalIO.bodyModsRemovePP = function()
 		local character = originalIO.bodyModsGetCharacter()
-		if not character then
-			return
-		end
-
-		local toRemove = {}
-		for _, part in character:GetChildren() do
-			if part:IsA("BasePart") and (part.Name == "Balls" or part.Name == "penis") then
-				Insert(toRemove, part)
-			end
-		end
-		for _, part in toRemove do
-			part.CanCollide = false
-			part.CanTouch = false
-			part.CanQuery = false
-			__lt.cm("TweenService", "Create", part, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Transparency = 1 }):Play()
-		end
-		Delay(0.27, function()
-			for _, part in toRemove do
-				if part and part.Parent then
-					part:Destroy()
-				end
-			end
-		end)
-
 		state.pp.animConn = originalIO.bodyModsDisconnectConnection(state.pp.animConn)
 		NAlib.disconnect("bodymods_pp")
 		state.pp.active = false
-		state.pp.wS = nil
-		state.pp.wTip = nil
-		state.pp.wBL = nil
-		state.pp.wBR = nil
-		state.pp.sh = nil
-		state.pp.dr = nil
-		state.pp.baseC0 = nil
+		state.pp.rigs = {}
+		local oldObjs = state.pp.objs
+		state.pp.objs = {}
+		local toFade = originalIO.bodyModsCollectParts({ Balls = true, penis = true }, oldObjs)
+		for _, part in toFade do
+			part.CanCollide = false
+			part.CanTouch = false
+			part.CanQuery = false
+			__lt.cm("TweenService", "Create", part, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Transparency = 1 }):Play()
+		end
+		Delay(0.24, function()
+			originalIO.bodyModsDestroyList(oldObjs)
+			if character then
+				originalIO.bodyModsDestroyOld(character, { Balls = true, penis = true })
+			end
+		end)
+		state.pp.baseS = nil
 		state.pp.baseBL = nil
 		state.pp.baseBR = nil
 		state.pp.llv = Vector3.zero
@@ -80906,7 +81166,6 @@ do
 		state.pp.bsx = 0
 		state.pp.brx = 0
 		state.pp.bry = 0
-
 		originalIO.bodyModsEnsureColorWatcher()
 		DebugNotif("PP Removed",1.5)
 	end
