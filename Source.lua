@@ -104528,6 +104528,64 @@ end)
 
 ]]
 
+NAmanage.finalizeLoadingState = NAmanage.finalizeLoadingState or function()
+	if NAStuff._loadingFinalizedOnce == true then
+		return
+	end
+	NAStuff._loadingFinalizedOnce = true
+	pcall(function()
+		if type(NAmanage.isCommandDataStale) == "function" and NAmanage.isCommandDataStale() then
+			if NAAssetsLoading and NAAssetsLoading.setStatus then
+				NAAssetsLoading.setStatus("warming command list and autofill")
+			end
+			if type(NAmanage.queueCommandDataBuild) == "function" then
+				pcall(NAmanage.queueCommandDataBuild, { force = true })
+			elseif type(NAgui.loadCMDS) == "function" then
+				pcall(NAgui.loadCMDS, { force = true })
+			end
+		end
+		if NAAssetsLoading and NAAssetsLoading.setStatus and NAAssetsLoading.setPercent and NAAssetsLoading.completed and not NAAssetsLoading._finalized then
+			NAAssetsLoading.setStatus("ready")
+			NAAssetsLoading.setPercent(1)
+			if typeof(NAAssetsLoading.completed) == "Instance" then
+				NAmanage.SetAttr(NAAssetsLoading.completed, "Completed", true)
+			elseif type(NAAssetsLoading.completed) == "table" then
+				NAAssetsLoading.completed.Completed = true
+			end
+			NAAssetsLoading._finalized = true
+			NAAssetsLoading.ui = nil
+			NAAssetsLoading.setStatus = nil
+			NAAssetsLoading.setPercent = nil
+			NAAssetsLoading.completed = nil
+			NAAssetsLoading.getSkip = nil
+			NAAssetsLoading.setMinimizedState = nil
+			NAAssetsLoading.progress = nil
+			NAAssetsLoading.progressPercent = nil
+		end
+		if NAStuff.AutoPreloadAssets and not NAStuff._assetPreloadQueued then
+			NAStuff._assetPreloadQueued = true
+			Defer(function()
+				Wait(1.5)
+				local limit = tick() + 8
+				while type(NAmanage.StartAssetPreload) ~= "function" and tick() < limit do
+					Wait(0.25)
+				end
+				if type(NAmanage.StartAssetPreload) == "function" then
+					NAmanage.StartAssetPreload({
+						silent = true,
+						st = true,
+					})
+				end
+			end)
+		end
+	end)
+end
+
+NAmanage.finalizeLoadingState()
+NAStuff.SettingsBuildRunning = true
+NAStuff.SettingsBuildReady = false
+SpawnCall(function()
+	local okBuild, errBuild = pcall(function()
 NAgui.addTab(NA_TABS.TAB_ALL, { default = true, order = 0, textIcon = "grid" })
 NAgui.addTab(NA_TABS.TAB_GENERAL, { order = 1, textIcon = "gear" })
 NAgui.addTab(NA_TABS.TAB_AUTOMATION, { order = 2, textIcon = "cube-vertexes" })
@@ -113915,6 +113973,13 @@ SpawnCall(function()
 		NAgui.setTab(defaultTab)
 	end
 end)
+end)
+	end)
+	NAStuff.SettingsBuildRunning = false
+	NAStuff.SettingsBuildReady = okBuild == true
+	if not okBuild then
+		warn(errBuild)
+	end
 end)
 
 --[[print(
