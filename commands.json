@@ -351,8 +351,8 @@
         "rocheck",
         "safetycheck"
       ],
-      "usage": "rotector <player|all|id:userId|on|off> (rocheck)",
-      "args": "<player|all|id:userId|on|off>",
+      "usage": "rotector <player|username|userid|all|id:userId|on|off> (rocheck)",
+      "args": "<player|username|userid|all|id:userId|on|off>",
       "desc": "Check Rotector API status for Roblox users"
     },
     {
