@@ -8728,6 +8728,138 @@ local NAfiles = {
 	NAFFLAGSPATH = "Nameless-Admin/NAFFlags.json";
 }
 
+NAmanage.isFileAccessErr=NAmanage.isFileAccessErr or function(err)
+	local msg = Lower(tostring(err or ""))
+	return msg:find("access is denied", 1, true) ~= nil
+		or msg:find("permission denied", 1, true) ~= nil
+		or msg:find("unauthorized", 1, true) ~= nil
+		or msg:find("operation not permitted", 1, true) ~= nil
+		or msg:find("create_directories", 1, true) ~= nil
+end
+
+NAmanage.noteFileWriteIssue=NAmanage.noteFileWriteIssue or function(op, path, err)
+	NAStuff.FileWriteBlocked = true
+	if not NAStuff.FileWriteIssue then
+		NAStuff.FileWriteIssue = {
+			op = tostring(op or "write");
+			path = tostring(path or "");
+			err = tostring(err or "unknown error");
+		}
+		warn(Format("[NA] File storage unavailable during %s for %s: %s", NAStuff.FileWriteIssue.op, NAStuff.FileWriteIssue.path, NAStuff.FileWriteIssue.err))
+	end
+	if type(NAmanage.NotifyFileWriteIssue) == "function" then
+		NAmanage.NotifyFileWriteIssue()
+	end
+	return false, err
+end
+
+NAmanage.NotifyFileWriteIssue=NAmanage.NotifyFileWriteIssue or function()
+	if NAStuff.FileWriteIssueNotified or not NAStuff.FileWriteIssue then
+		return
+	end
+	if type(DoNotif) ~= "function" then
+		return
+	end
+	NAStuff.FileWriteIssueNotified = true
+	local issue = NAStuff.FileWriteIssue
+	local pathText = issue.path ~= "" and issue.path or "Nameless-Admin"
+	DoNotif("Couldn't write to executor workspace ("..pathText.."). NA will keep loading, but settings/saved data won't persist until the folder is writable or the executor is run as admin.", 9, "File Access")
+end
+
+NAmanage.safeIsFolder=NAmanage.safeIsFolder or function(path)
+	if type(isfolder) ~= "function" or type(path) ~= "string" then
+		return false
+	end
+	local ok, res = pcall(isfolder, path)
+	if ok then
+		return res == true
+	end
+	if NAmanage.isFileAccessErr(res) then
+		NAmanage.noteFileWriteIssue("check folder", path, res)
+	end
+	return false
+end
+
+NAmanage.safeIsFile=NAmanage.safeIsFile or function(path)
+	if type(isfile) ~= "function" or type(path) ~= "string" then
+		return false
+	end
+	local ok, res = pcall(isfile, path)
+	if ok then
+		return res == true
+	end
+	if NAmanage.isFileAccessErr(res) then
+		NAmanage.noteFileWriteIssue("check file", path, res)
+	end
+	return false
+end
+
+NAmanage.safeMakeFolder=NAmanage.safeMakeFolder or function(path)
+	if not (FileSupport and type(path) == "string" and path ~= "") then
+		return false, "no file support or invalid path"
+	end
+	if NAmanage.safeIsFolder(path) then
+		return true
+	end
+	if type(makefolder) ~= "function" then
+		return false, "makefolder missing"
+	end
+	local ok, err = pcall(makefolder, path)
+	if ok then
+		return true
+	end
+	if NAmanage.stripExt then
+		local alt = NAmanage.stripExt(path)
+		if alt ~= path then
+			local okAlt, errAlt = pcall(makefolder, alt)
+			if okAlt then
+				return true
+			end
+			err = errAlt or err
+		end
+	end
+	if NAmanage.isFileAccessErr(err) then
+		return NAmanage.noteFileWriteIssue("create folder", path, err)
+	end
+	return false, err
+end
+
+NAmanage.safeWriteFile=NAmanage.safeWriteFile or function(path, data)
+	if not (FileSupport and type(writefile) == "function" and type(path) == "string") then
+		return false, "no file support or invalid path"
+	end
+	if NAStuff.FileWriteBlocked then
+		local issue = NAStuff.FileWriteIssue
+		return false, issue and issue.err or "file writes blocked"
+	end
+	local ok, err = pcall(writefile, path, data)
+	if ok then
+		return true
+	end
+	if NAmanage.isFileAccessErr(err) then
+		return NAmanage.noteFileWriteIssue("write file", path, err)
+	end
+	return false, err
+end
+
+NAmanage.safeDeleteFile=NAmanage.safeDeleteFile or function(path)
+	if not (FileSupport and type(delfile) == "function" and type(path) == "string") then
+		return false, "no file support or invalid path"
+	end
+	if NAStuff.FileWriteBlocked then
+		local issue = NAStuff.FileWriteIssue
+		return false, issue and issue.err or "file writes blocked"
+	end
+	local ok, err = pcall(delfile, path)
+	if ok then
+		return true
+	end
+	if NAmanage.isFileAccessErr(err) then
+		return NAmanage.noteFileWriteIssue("delete file", path, err)
+	end
+	return false, err
+end
+
 NAmanage.getNAImageFileName = NAmanage.getNAImageFileName or function(keyOrFile)
 	if type(keyOrFile) ~= "string" or keyOrFile == "" then
 		return nil
@@ -8829,8 +8961,8 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		targetHiddenUi = CE.default.targetHiddenUi,
 	}
 	if FileSupport then
-		if not isfile(CE.path) then
-			writefile(CE.path, HttpService:JSONEncode(CE.default))
+		if not NAmanage.safeIsFile(CE.path) then
+			NAmanage.safeWriteFile(CE.path, HttpService:JSONEncode(CE.default))
 		end
 		local okRead, raw = pcall(readfile, CE.path)
 		if okRead and type(raw) == "string" then
@@ -9307,7 +9439,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		local seq = cornerSaveSeq
 		local function writeCornerData()
 			pcall(function()
-				writefile(CE.path, HttpService:JSONEncode(CE.data))
+				NAmanage.safeWriteFile(CE.path, HttpService:JSONEncode(CE.data))
 			end)
 		end
 		if opts.immediate == true then
@@ -10649,15 +10781,15 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			targetHiddenUi = FontEditor.data.targetHiddenUi,
 			useCustomCycle = FontEditor.data.useCustomCycle,
 		}
-		pcall(writefile, FontEditor.path, HttpService:JSONEncode(payload))
+		NAmanage.safeWriteFile(FontEditor.path, HttpService:JSONEncode(payload))
 	end
 
 	local function loadFontData()
 		local stored = FontEditor.default
 
 		if FileSupport then
-			if not isfile(FontEditor.path) then
-				writefile(FontEditor.path, HttpService:JSONEncode(FontEditor.default))
+			if not NAmanage.safeIsFile(FontEditor.path) then
+				NAmanage.safeWriteFile(FontEditor.path, HttpService:JSONEncode(FontEditor.default))
 			end
 			local ok, raw = pcall(readfile, FontEditor.path)
 			if ok and type(raw) == "string" then
@@ -11574,8 +11706,8 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 	local function loadIcfg()
 		local d = Icfg.def
 		if FileSupport then
-			if not isfile(Icfg.path) then
-				writefile(Icfg.path, HttpService:JSONEncode(Icfg.def))
+			if not NAmanage.safeIsFile(Icfg.path) then
+				NAmanage.safeWriteFile(Icfg.path, HttpService:JSONEncode(Icfg.def))
 			end
 			local ok, raw = pcall(readfile, Icfg.path)
 			if ok and type(raw) == "string" then
@@ -13253,15 +13385,9 @@ NADisableLastInput = false
 
 do
 	if FileSupport then
-		pcall(function()
-			if typeof(isfolder) == "function" and not isfolder(NAfiles.NAFILEPATH) then
-				if typeof(makefolder) == "function" then
-					makefolder(NAfiles.NAFILEPATH)
-				end
-			end
-		end)
+		NAmanage.safeMakeFolder(NAfiles.NAFILEPATH)
 		local ok, raw = pcall(function()
-			if typeof(isfile) == "function" and isfile(NAfiles.NAMAINSETTINGSPATH) then
+			if typeof(isfile) == "function" and NAmanage.safeIsFile(NAfiles.NAMAINSETTINGSPATH) then
 				return readfile(NAfiles.NAMAINSETTINGSPATH)
 			end
 			return nil
@@ -13399,7 +13525,7 @@ NAmanage.getAutoSkipPreference = function()
 		state.autoSkip = false
 		return state.autoSkip
 	end
-	if type(isfile) == "function" and isfile(state.settingsPath) then
+	if type(isfile) == "function" and NAmanage.safeIsFile(state.settingsPath) then
 		local ok, raw = NACaller(readfile, state.settingsPath)
 		if ok and type(raw) == "string" and raw ~= "" then
 			local decodeOk, decoded = NACaller(function()
@@ -13424,7 +13550,7 @@ NAmanage.setAutoSkipPreference = function(enabled)
 		return
 	end
 	local data = {}
-	if type(isfile) == "function" and isfile(state.settingsPath) then
+	if type(isfile) == "function" and NAmanage.safeIsFile(state.settingsPath) then
 		local ok, raw = NACaller(readfile, state.settingsPath)
 		if ok and type(raw) == "string" and raw ~= "" then
 			local decodeOk, decoded = NACaller(function()
@@ -13440,7 +13566,7 @@ NAmanage.setAutoSkipPreference = function(enabled)
 		return HttpService:JSONEncode(data)
 	end)
 	if encodeOk and type(encoded) == "string" then
-		NACaller(writefile, state.settingsPath, encoded)
+		NAmanage.safeWriteFile(state.settingsPath, encoded)
 	end
 end
 
@@ -15594,9 +15720,9 @@ repeat
 		if type(NAImageAssets) ~= "table" then
 			return true
 		end
-		if type(isfolder) == "function" and not isfolder(NAfiles.NAASSETSFILEPATH) then
-			if type(makefolder) == "function" then
-				makefolder(NAfiles.NAASSETSFILEPATH)
+		if type(isfolder) == "function" and not NAmanage.safeIsFolder(NAfiles.NAASSETSFILEPATH) then
+			if not NAmanage.safeMakeFolder(NAfiles.NAASSETSFILEPATH) then
+				return true
 			end
 		end
 		if type(isfile) ~= "function" then
@@ -15608,7 +15734,7 @@ repeat
 				if type(fullPath) ~= "string" or fullPath == "" then
 					return false
 				end
-				if not isfile(fullPath) then
+				if not NAmanage.safeIsFile(fullPath) then
 					local sourceUrl = NAmanage.getNAImageAssetSourceUrl(fileName)
 					if type(sourceUrl) ~= "string" or sourceUrl == "" then
 						return false
@@ -15620,7 +15746,9 @@ repeat
 					if type(writefile) ~= "function" then
 						return false
 					end
-					writefile(fullPath, data)
+					if not NAmanage.safeWriteFile(fullPath, data) then
+						return true
+					end
 				end
 			end
 		end
@@ -15835,6 +15963,8 @@ end
 function DoNotif(text, duration, title)
 	Notify(buildNotifArgs(text, duration, title, true))
 end
+
+NAmanage.NotifyFileWriteIssue()
 
 function DebugNotif(text, duration, title)
 	if not NAStuff.nuhuhNotifs then return end
@@ -16182,7 +16312,7 @@ function NamelessMigrate:Waypoints()
 				NAfiles.NAWAYPOINTFILEPATH,
 				tostring(i)
 			)
-			writefile(Load, HttpService:JSONEncode(v))
+			NAmanage.safeWriteFile(Load, HttpService:JSONEncode(v))
 		end
 	end
 
@@ -17867,7 +17997,7 @@ NAmanage.NASettingsSave=function()
 	end)
 
 	if ok and encoded then
-		NACaller(writefile, NAfiles.NAMAINSETTINGSPATH, encoded)
+		NAmanage.safeWriteFile(NAfiles.NAMAINSETTINGSPATH, encoded)
 	end
 end
 
@@ -17879,7 +18009,7 @@ NAmanage.NASettingsEnsure=function()
 	local schema = NAmanage.NASettingsGetSchema()
 	NAStuff.NASettingsData = {}
 
-	if FileSupport and type(isfile) == "function" and isfile(NAfiles.NAMAINSETTINGSPATH) then
+	if FileSupport and type(isfile) == "function" and NAmanage.safeIsFile(NAfiles.NAMAINSETTINGSPATH) then
 		local ok, raw = NACaller(readfile, NAfiles.NAMAINSETTINGSPATH)
 		if ok and raw and raw ~= "" then
 			local success, decoded = NACaller(function()
@@ -17909,7 +18039,7 @@ NAmanage.NASettingsEnsure=function()
 	end
 
 	local legacyIconPath = "Nameless-Admin/IconPosition.json"
-	if FileSupport and type(isfile) == "function" and isfile(legacyIconPath) then
+	if FileSupport and type(isfile) == "function" and NAmanage.safeIsFile(legacyIconPath) then
 		local okRaw, legacyRaw = NACaller(readfile, legacyIconPath)
 		if okRaw and type(legacyRaw) == "string" and legacyRaw ~= "" then
 			local okDecoded, legacyDecoded = NACaller(function()
@@ -17927,7 +18057,7 @@ NAmanage.NASettingsEnsure=function()
 			end
 		end
 		if delfile then
-			NACaller(delfile, legacyIconPath)
+			NAmanage.safeDeleteFile(legacyIconPath)
 		end
 	end
 
@@ -17941,13 +18071,13 @@ NAmanage.NASettingsEnsure=function()
 
 		if value == nil and FileSupport and type(isfile) == "function" then
 			local legacyPath = legacyPaths[key]
-			if legacyPath and isfile(legacyPath) then
+			if legacyPath and NAmanage.safeIsFile(legacyPath) then
 				local ok, legacyRaw = NACaller(readfile, legacyPath)
 				if ok and legacyRaw ~= nil then
 					value = legacyRaw
 				end
 				if delfile then
-					NACaller(delfile, legacyPath)
+					NAmanage.safeDeleteFile(legacyPath)
 				end
 			end
 		end
@@ -18393,34 +18523,18 @@ local function NAensureFolder(path)
 	if not (FileSupport and type(path) == "string") then
 		return false, "no file support or invalid path"
 	end
-	if type(isfolder) == "function" and isfolder(path) then
+	if NAmanage.safeIsFolder(path) then
 		return true
 	end
-	if type(isfile) == "function" and isfile(path) and type(delfile) == "function" then
-		pcall(delfile, path)
+	if type(isfile) == "function" and NAmanage.safeIsFile(path) and type(delfile) == "function" then
+		NAmanage.safeDeleteFile(path)
 	end
 
-	local ok, err = NACaller(function()
-		if type(makefolder) == "function" then
-			return makefolder(path)
-		else
-			error("makefolder missing")
-		end
-	end)
-
+	local ok, err = NAmanage.safeMakeFolder(path)
 	if ok then
 		return true
 	end
 
-	if NAmanage.stripExt then
-		local alt = NAmanage.stripExt(path)
-		if alt ~= path then
-			local ok2 = NACaller(makefolder, alt)
-			if ok2 then
-				return true
-			end
-		end
-	end
 	return false, err
 end
 
@@ -18428,13 +18542,13 @@ NAmanage.ensureNoMediaFile = NAmanage.ensureNoMediaFile or function()
 	if not (FileSupport and NAfiles and type(NAfiles.NANOMEDIAPATH) == "string") then
 		return false
 	end
-	if type(isfile) == "function" and isfile(NAfiles.NANOMEDIAPATH) then
+	if type(isfile) == "function" and NAmanage.safeIsFile(NAfiles.NANOMEDIAPATH) then
 		return true
 	end
 	if type(writefile) ~= "function" then
 		return false
 	end
-	local ok = pcall(writefile, NAfiles.NANOMEDIAPATH, "")
+	local ok = NAmanage.safeWriteFile(NAfiles.NANOMEDIAPATH, "")
 	return ok == true
 end
 
@@ -18444,59 +18558,41 @@ if FileSupport then
 	if not baseOk then
 		FileSupport = false
 	else
+		local function ensureDefaultFile(path, data)
+			if not NAmanage.safeIsFile(path) then
+				NAmanage.safeWriteFile(path, data)
+			end
+		end
 		NAmanage.ensureNoMediaFile()
-		if not isfolder(NAfiles.NAWAYPOINTFILEPATH) then
+		if not NAmanage.safeIsFolder(NAfiles.NAWAYPOINTFILEPATH) then
 			if NAensureFolder(NAfiles.NAWAYPOINTFILEPATH) then
 				-- imagine if it didn't make the folder
-				if isfolder(NAfiles.NAWAYPOINTFILEPATH) then
+				if NAmanage.safeIsFolder(NAfiles.NAWAYPOINTFILEPATH) then
 					NamelessMigrate:Waypoints()
 				end
 			end
 		end
 
-		if not isfolder(NAfiles.NAPLUGINFILEPATH) then
+		if not NAmanage.safeIsFolder(NAfiles.NAPLUGINFILEPATH) then
 			NAensureFolder(NAfiles.NAPLUGINFILEPATH)
 		end
 
-		if not isfolder(NAfiles.NAIYPLUGINFILEPATH) then
+		if not NAmanage.safeIsFolder(NAfiles.NAIYPLUGINFILEPATH) then
 			NAensureFolder(NAfiles.NAIYPLUGINFILEPATH)
 		end
 
-		if not isfolder(NAfiles.NAASSETSFILEPATH) then
+		if not NAmanage.safeIsFolder(NAfiles.NAASSETSFILEPATH) then
 			NAensureFolder(NAfiles.NAASSETSFILEPATH)
 		end
 
-		if not isfile(NAfiles.NAALIASPATH) then
-			writefile(NAfiles.NAALIASPATH, "{}")
-		end
-
-		if not isfile(NAfiles.NAUSERBUTTONSPATH) then
-			writefile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode({}))
-		end
-
-		if not isfile(NAfiles.NACOMMANDKEYBINDS) then
-			writefile(NAfiles.NACOMMANDKEYBINDS, HttpService:JSONEncode({}))
-		end
-
-		if not isfile(NAfiles.NAFLYBINDSPATH) then
-			writefile(NAfiles.NAFLYBINDSPATH, HttpService:JSONEncode({}))
-		end
-
-		if not isfile(NAfiles.NAAUTOEXECPATH) then
-			writefile(NAfiles.NAAUTOEXECPATH, HttpService:JSONEncode({ commands = {}, args = {} }))
-		end
-
-		if not isfile(NAfiles.NAJOINLEAVE) then
-			writefile(NAfiles.NAJOINLEAVE, HttpService:JSONEncode(NAmanage.jlDef))
-		end
-
-		if not isfile(NAfiles.NABINDERS) then
-			writefile(NAfiles.NABINDERS, "{}")
-		end
-
-		if not isfile(NAfiles.NATEXTCHATSETTINGSPATH) then
-			writefile(NAfiles.NATEXTCHATSETTINGSPATH, HttpService:JSONEncode(NAStuff.ChatSettings))
-		end
+		ensureDefaultFile(NAfiles.NAALIASPATH, "{}")
+		ensureDefaultFile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode({}))
+		ensureDefaultFile(NAfiles.NACOMMANDKEYBINDS, HttpService:JSONEncode({}))
+		ensureDefaultFile(NAfiles.NAFLYBINDSPATH, HttpService:JSONEncode({}))
+		ensureDefaultFile(NAfiles.NAAUTOEXECPATH, HttpService:JSONEncode({ commands = {}, args = {} }))
+		ensureDefaultFile(NAfiles.NAJOINLEAVE, HttpService:JSONEncode(NAmanage.jlDef))
+		ensureDefaultFile(NAfiles.NABINDERS, "{}")
+		ensureDefaultFile(NAfiles.NATEXTCHATSETTINGSPATH, HttpService:JSONEncode(NAStuff.ChatSettings))
 	end
 
 	NAmanage.NASettingsEnsure()
@@ -18669,8 +18765,8 @@ NAmanage.LoadESPSettings = function()
 		NPC_ESP_RenderMode = "Highlight";
 	}
 	if FileSupport then
-		if not isfile(NAfiles.NAESPSETTINGSPATH) then
-			writefile(NAfiles.NAESPSETTINGSPATH, HttpService:JSONEncode(d))
+		if not NAmanage.safeIsFile(NAfiles.NAESPSETTINGSPATH) then
+			NAmanage.safeWriteFile(NAfiles.NAESPSETTINGSPATH, HttpService:JSONEncode(d))
 		end
 		local ok, raw = pcall(readfile, NAfiles.NAESPSETTINGSPATH)
 		if ok and raw then
@@ -18914,7 +19010,7 @@ NAmanage.SaveESPSettings = function()
 		ESP_ModelMode = (Lower(tostring(NAStuff.ESP_ModelMode)) == "models") and "models" or "parts";
 		NPC_ESP_RenderMode = npcMode;
 	}
-	writefile(NAfiles.NAESPSETTINGSPATH, HttpService:JSONEncode(d))
+	NAmanage.safeWriteFile(NAfiles.NAESPSETTINGSPATH, HttpService:JSONEncode(d))
 end
 
 NAmanage.ESP_LocatorRegisterArrow = function(key, frame, label)
@@ -19093,7 +19189,7 @@ end
 
 NAmanage.SaveBinders=function()
 	if FileSupport then
-		writefile(bindersPath, HttpService:JSONEncode(Bindings))
+		NAmanage.safeWriteFile(bindersPath, HttpService:JSONEncode(Bindings))
 	end
 	if type(NAmanage.ScheduleBinderHookRefresh) == "function" then
 		NAmanage.ScheduleBinderHookRefresh()
@@ -19440,7 +19536,7 @@ NAmanage.SaveCommandKeybinds=function()
 	end
 
 	local ok, err = pcall(function()
-		writefile(NAfiles.NACOMMANDKEYBINDS, HttpService:JSONEncode(payload))
+		return NAmanage.safeWriteFile(NAfiles.NACOMMANDKEYBINDS, HttpService:JSONEncode(payload))
 	end)
 	if not ok then
 		warn("[NA] Command keybind save failed: "..tostring(err))
