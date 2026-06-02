@@ -16564,6 +16564,12 @@ NAmanage.NASettingsGetSchema=function()
 				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
 			end;
 		};
+		flyNoVelocityClamp = {
+			default = false;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
+			end;
+		};
 		crosshairColor = {
 			default = function()
 				return { R = 1; G = 1; B = 1 }
@@ -20403,6 +20409,7 @@ if NAFreecam and NAFreecam.SetSpeed then
 	NAFreecam.SetSpeed(math.clamp(NAStuff.FreecamSpeed / 5, 0.01, 4))
 end
 NAStuff.MobileFlyAutoEnableOnRun = NAmanage.NASettingsGet("mobileFlyAutoEnableOnRun") ~= false
+NAStuff.FlyNoVelocityClamp = NAmanage.NASettingsGet("flyNoVelocityClamp") == true
 NAStuff.LowEndMode = NAmanage.NASettingsGet("lowEndUiMode") == true
 NAStuff.PluginAutoLoad = NAmanage.NASettingsGet("pluginAutoLoad") ~= false
 NAStuff.PluginSettingsUIEnabled = NAmanage.NASettingsGet("pluginAllowSettingsUI") ~= false
@@ -29490,6 +29497,22 @@ NAmanage._bindQE=function()
 	end)
 end
 
+NAmanage.IsFlyVelocityClampDisabled=function()
+	return NAStuff.FlyNoVelocityClamp == true
+end
+
+NAmanage.SetFlyVelocityClampState=function(root, hum, axes, planarDirection)
+	if NAmanage.IsFlyVelocityClampDisabled() then
+		if type(NAmanage.ClearVelocityWalkSpeedClampState) == "function" then
+			NAmanage.ClearVelocityWalkSpeedClampState()
+		end
+		return
+	end
+	if type(NAmanage.SetVelocityWalkSpeedClampState) == "function" then
+		return NAmanage.SetVelocityWalkSpeedClampState(root, hum, axes, planarDirection)
+	end
+end
+
 NAmanage._clearPhysics = function(full)
 	if CFloop then pcall(function() CFloop:Disconnect() end) end
 	CFloop = nil
@@ -29581,7 +29604,7 @@ NAmanage._settleFlyDisabled=function(skipDeferred)
 	local root=char and getRoot(char)
 	local hum=getHum(char)
 	local floorMaterial = hum and NAlib.isProperty(hum, "FloorMaterial")
-	if root and floorMaterial == Enum.Material.Air then
+	if root and floorMaterial == Enum.Material.Air and not NAmanage.IsFlyVelocityClampDisabled() then
 		pcall(function()
 			local vel = root.AssemblyLinearVelocity
 			root.AssemblyLinearVelocity = Vector3.new(vel.X, math.min(vel.Y, 0), vel.Z)
@@ -29814,7 +29837,13 @@ NAmanage.sFLY=function(vfly,cfly,tfly)
 	while not getChar() or not getRoot(getChar()) or not getHum() do Wait() end
 	CONTROL={Q=0,E=0}; lCONTROL={Q=0,E=0}; SPEED=0
 	local hum=getHum(); local head=getHead(getChar()); local root=getRoot(getChar())
-	NAmanage.EnsureVelocityWalkSpeedClampLoop()
+	if NAmanage.IsFlyVelocityClampDisabled() then
+		if type(NAmanage.ClearVelocityWalkSpeedClampState) == "function" then
+			NAmanage.ClearVelocityWalkSpeedClampState()
+		end
+	elseif type(NAmanage.EnsureVelocityWalkSpeedClampLoop) == "function" then
+		NAmanage.EnsureVelocityWalkSpeedClampLoop()
+	end
 	NAmanage._bindQE()
 	if tfly then
 		goofyFLY=goofyFLY or InstanceNew("Part",workspace)
@@ -29853,7 +29882,7 @@ NAmanage.sFLY=function(vfly,cfly,tfly)
 							flyVariables.TFgyro.cframe=cam.CFrame
 						end)
 						if currentRoot and currentHum then
-							NAmanage.SetVelocityWalkSpeedClampState(currentRoot, currentHum, Vector3.new(1,1,1))
+							NAmanage.SetFlyVelocityClampState(currentRoot, currentHum, Vector3.new(1,1,1))
 						end
 					else
 						NAmanage.ClearVelocityWalkSpeedClampState()
@@ -29919,12 +29948,12 @@ NAmanage.sFLY=function(vfly,cfly,tfly)
 							flyVariables.BV.velocity=((cam.CFrame.LookVector*mv.Z)+((cam.CFrame*CFrame.new(mv.X,(mv.Z+CONTROL.Q+CONTROL.E)*0.2,0).p)-cam.CFrame.p))*SPEED
 							lCONTROL={Q=CONTROL.Q,E=CONTROL.E}
 							if currentRoot and currentHum then
-								NAmanage.SetVelocityWalkSpeedClampState(currentRoot, currentHum, Vector3.new(1,1,1))
+								NAmanage.SetFlyVelocityClampState(currentRoot, currentHum, Vector3.new(1,1,1))
 							end
 						elseif SPEED~=0 then
 							flyVariables.BV.velocity=((cam.CFrame.LookVector*mv.Z)+((cam.CFrame*CFrame.new(mv.X,(mv.Z+lCONTROL.Q+lCONTROL.E)*0.2,0).p)-cam.CFrame.p))*SPEED
 							if currentRoot and currentHum then
-								NAmanage.SetVelocityWalkSpeedClampState(currentRoot, currentHum, Vector3.new(1,1,1))
+								NAmanage.SetFlyVelocityClampState(currentRoot, currentHum, Vector3.new(1,1,1))
 							end
 						else
 							flyVariables.BV.velocity=Vector3.zero
@@ -30048,7 +30077,7 @@ NAmanage._ensureLoops=function()
 								flyVariables.TFgyro.cframe=cam.CFrame
 							end)
 							if currentRoot and currentHum then
-								NAmanage.SetVelocityWalkSpeedClampState(currentRoot, currentHum, Vector3.new(1,1,1))
+								NAmanage.SetFlyVelocityClampState(currentRoot, currentHum, Vector3.new(1,1,1))
 							end
 						else
 							NAmanage.ClearVelocityWalkSpeedClampState()
@@ -30092,7 +30121,7 @@ NAmanage._ensureLoops=function()
 								end)
 								lCONTROL={Q=CONTROL.Q,E=CONTROL.E}
 								if currentRoot and currentHum then
-									NAmanage.SetVelocityWalkSpeedClampState(currentRoot, currentHum, Vector3.new(1,1,1))
+									NAmanage.SetFlyVelocityClampState(currentRoot, currentHum, Vector3.new(1,1,1))
 								end
 							elseif SPEED~=0 then
 								pcall(function()
@@ -30100,7 +30129,7 @@ NAmanage._ensureLoops=function()
 									flyVariables.BG.cframe=cam.CFrame
 								end)
 								if currentRoot and currentHum then
-									NAmanage.SetVelocityWalkSpeedClampState(currentRoot, currentHum, Vector3.new(1,1,1))
+									NAmanage.SetFlyVelocityClampState(currentRoot, currentHum, Vector3.new(1,1,1))
 								end
 							else
 								pcall(function()
@@ -106703,6 +106732,19 @@ NAgui.addSlider("AutoFire Extra Distance", 0, 250, autoInteractExtraDefault, 1, 
 	n = math.clamp(n, 0, 250)
 	NAStuff.AutoInteractExtraRange = n
 	pcall(NAmanage.NASettingsSet, "autoInteractExtraRange", n)
+end)
+
+NAgui.addSection("Flight Options")
+NAgui.addToggle("Disable Fly Velocity Clamp", NAStuff.FlyNoVelocityClamp == true, function(v)
+	NAStuff.FlyNoVelocityClamp = v == true
+	pcall(NAmanage.NASettingsSet, "flyNoVelocityClamp", NAStuff.FlyNoVelocityClamp)
+	if NAStuff.FlyNoVelocityClamp and type(NAmanage.ClearVelocityWalkSpeedClampState) == "function" then
+		NAmanage.ClearVelocityWalkSpeedClampState()
+	end
+	DoNotif("Fly velocity clamp "..(NAStuff.FlyNoVelocityClamp and "disabled" or "enabled"), 2)
+end)
+NAmanage.RegisterToggleAutoSync("Disable Fly Velocity Clamp", function()
+	return NAStuff.FlyNoVelocityClamp == true
 end)
 
 if IsOnMobile then
