@@ -4397,6 +4397,7 @@ end
 
 local HttpService = SafeGetService('HttpService');
 local Players = SafeGetService("Players");
+local UserService = SafeGetService("UserService");
 local UserInputService = SafeGetService("UserInputService");
 local TweenService = SafeGetService("TweenService");
 local RunService = SafeGetService("RunService");
@@ -24907,6 +24908,75 @@ NAmanage.RotectorPlayerLabel = function(plr, fallbackId)
 	return "UserId "..tostring(fallbackId or "?")
 end
 
+NAmanage.RotectorUserLabel = function(id, fallback)
+	local n = tonumber(id)
+	local key = n and NAmanage.RotectorIdKey(n) or tostring(id or "")
+	local rt = NAmanage.Rotector
+	rt.userInfo = type(rt.userInfo) == "table" and rt.userInfo or {}
+	local cached = rt.userInfo[key]
+	if type(cached) == "table" then
+		local name = cached.Username or cached.Name or cached.username or cached.name
+		local display = cached.DisplayName or cached.displayName
+		if type(name) == "string" and name ~= "" then
+			if type(display) == "string" and display ~= "" and display ~= name then
+				return display.." (@"..name..")"
+			end
+			return "@"..name
+		end
+	end
+	if n and UserService and type(UserService.GetUserInfosByUserIdsAsync) == "function" then
+		local ok, infos = pcall(function()
+			return UserService:GetUserInfosByUserIdsAsync({ n })
+		end)
+		if ok and type(infos) == "table" then
+			for _, info in infos do
+				local infoId = tonumber(info.Id or info.id or info.UserId or info.userId)
+				if infoId == n then
+					rt.userInfo[key] = info
+					return NAmanage.RotectorUserLabel(n, fallback)
+				end
+			end
+		end
+	end
+	if n then
+		local ok, name = pcall(function()
+			return Players:GetNameFromUserIdAsync(n)
+		end)
+		if ok and type(name) == "string" and name ~= "" then
+			rt.userInfo[key] = { Id = n; Username = name; }
+			return "@"..name
+		end
+	end
+	return tostring(fallback or ("UserId "..tostring(id or "?")))
+end
+
+NAmanage.RotectorResolveOfflineUser = function(query)
+	local raw = tostring(query or ""):gsub("^%s+", ""):gsub("%s+$", "")
+	if raw == "" then
+		return nil, nil, "empty query"
+	end
+	local id = raw:match("^[Uu]ser[Ii]d:(%d+)$") or raw:match("^[Ii][Dd]:(%d+)$") or raw:match("^%d+$")
+	if id then
+		id = tonumber(id)
+		if id and id > 0 then
+			return id, NAmanage.RotectorUserLabel(id, "UserId "..tostring(id)), nil
+		end
+		return nil, nil, "invalid user id"
+	end
+	local name = raw:gsub("^@", "")
+	if name == "" then
+		return nil, nil, "empty username"
+	end
+	local ok, uid = pcall(function()
+		return Players:GetUserIdFromNameAsync(name)
+	end)
+	uid = ok and tonumber(uid) or nil
+	if uid and uid > 0 then
+		return uid, NAmanage.RotectorUserLabel(uid, "@"..name), nil
+	end
+	return nil, nil, "unknown username"
+end
+
 NAmanage.RotectorExtractBody = function(response)
 	if type(response) == "table" then
 		local status = tonumber(response.StatusCode or response.statusCode or response.Status or response.status)
@@ -35903,7 +35973,7 @@ cmd.add({"chatlogs","clogs"},{"chatlogs (clogs)","Open the chat logs"},function(
 	NAgui.chatlogs()
 end)
 
-cmd.add({"rotector","rocheck","safetycheck"},{"rotector <player|all|id:userId|on|off> (rocheck)","Check Rotector API status for Roblox users"},function(...)
+cmd.add({"rotector","rocheck","safetycheck"},{"rotector <player|username|userid|all|id:userId|on|off> (rocheck)","Check Rotector API status for Roblox users"},function(...)
 	local args = {...}
 	local query = Concat(args, " ")
 	query = type(query) == "string" and query:gsub("^%s+", ""):gsub("%s+$", "") or ""
@@ -35951,32 +36021,45 @@ cmd.add({"rotector","rocheck","safetycheck"},{"rotector <player|all|id:userId|on
 	end
 
 	local ids, labels, playersById = {}, {}, {}
-	local idArg = query:match("^[Uu]ser[Ii]d:(%d+)$") or query:match("^[Ii][Dd]:(%d+)$")
-	if idArg then
-		local id = tonumber(idArg)
-		if id and id > 0 then
-			Insert(ids, id)
-			labels[NAmanage.RotectorIdKey(id)] = "UserId "..tostring(id)
+	local seen = {}
+	local function addId(id, label, plr)
+		id = tonumber(id)
+		if not id or id <= 0 then
+			return false
 		end
-	else
-		local targetQuery = query ~= "" and query or "others"
+		local key = NAmanage.RotectorIdKey(id)
+		if seen[key] then
+			return false
+		end
+		seen[key] = true
+		Insert(ids, id)
+		labels[key] = label or NAmanage.RotectorUserLabel(id, "UserId "..tostring(id))
+		if typeof(plr) == "Instance" and plr:IsA("Player") then
+			playersById[key] = plr
+		end
+		return true
+	end
+
+	local targetQuery = query ~= "" and query or "others"
+	local forceOffline = targetQuery:match("^[Uu]ser[Ii]d:%d+$") or targetQuery:match("^[Ii][Dd]:%d+$") or targetQuery:match("^%d+$")
+	if not forceOffline then
 		local targets = getPlr(targetQuery)
-		if type(targets) ~= "table" or #targets == 0 then
-			DoNotif("No matching players. Use rotector id:<userId> for an offline user.", 4, "Rotector")
-			return
-		end
-		local seen = {}
-		for _, target in targets do
-			if typeof(target) == "Instance" and target:IsA("Player") then
-				local id = tonumber(target.UserId)
-				local key = id and NAmanage.RotectorIdKey(id)
-				if id and id > 0 and not seen[key] then
-					seen[key] = true
-					Insert(ids, id)
-					labels[key] = nameChecker(target)
-					playersById[key] = target
+		if type(targets) == "table" and #targets > 0 then
+			for _, target in targets do
+				if typeof(target) == "Instance" and target:IsA("Player") then
+					addId(target.UserId, nameChecker(target), target)
 				end
 			end
+		end
+	end
+
+	if #ids == 0 and targetQuery ~= "" and Lower(targetQuery) ~= "all" and Lower(targetQuery) ~= "others" then
+		local id, label, resolveErr = NAmanage.RotectorResolveOfflineUser(targetQuery)
+		if id then
+			addId(id, label, nil)
+		else
+			DoNotif("No matching Roblox user found: "..tostring(resolveErr or targetQuery), 4, "Rotector")
+			return
 		end
 	end
 
@@ -80400,21 +80483,23 @@ do
 		part.Size = size
 		part.Color = color
 		part.Material = Enum.Material.SmoothPlastic
-		part.Anchored = false
+		part.Anchored = true
 		part.CanCollide = false
 		part.CanTouch = false
 		part.CanQuery = false
 		part.Massless = true
-		part.CustomPhysicalProperties = massless and decoPhys or softPhys
+		pcall(function()
+			part.CustomPhysicalProperties = nil
+		end)
 		part.Name = name
 		pcall(function()
 			part:SetAttribute("NA_BodyMod", true)
 			part:SetAttribute("NA_BodyModPart", name)
+			part:SetAttribute("NA_BodyModVisual", true)
+			part:SetAttribute("NA_BodyModDeco", massless == true)
 		end)
-		part.Parent = parent or originalIO.bodyModsGetFolder()
-		pcall(function()
-			part.RootPriority = -127
-		end)
+		local character = originalIO.bodyModsGetCharacter()
+		part.Parent = parent or character or originalIO.bodyModsGetFolder()
 		return part
 	end
 
@@ -80447,17 +80532,59 @@ do
 		if not part or not root then
 			return nil
 		end
-		local folder = originalIO.bodyModsGetFolder()
-		if folder and part.Parent ~= folder then
+
+		local character = originalIO.bodyModsGetCharacter()
+		if character and part.Parent ~= character then
 			pcall(function()
-				part.Parent = folder
+				part.Parent = character
 			end)
 		end
-		part.CFrame = root.CFrame * localCf
-		part.AssemblyLinearVelocity = root.AssemblyLinearVelocity
-		part.AssemblyAngularVelocity = root.AssemblyAngularVelocity
 
-		local pa = originalIO.bodyModsAttachment(part, "NA_BodyModsFollow", CFrame.new(), objs)
+		part.Anchored = true
+		part.CanCollide = false
+		part.CanTouch = false
+		part.CanQuery = false
+		part.Massless = true
+		pcall(function()
+			part.CustomPhysicalProperties = nil
+		end)
+
+		local folder = originalIO.bodyModsGetFolder()
+		local helper = InstanceNew("Part")
+		helper.Name = "NA_BodyModsPhysics"
+		helper.Shape = part.Shape
+		helper.Size = part.Size
+		helper.Color = part.Color
+		helper.Material = part.Material
+		helper.Transparency = 1
+		helper.Anchored = false
+		helper.CanCollide = false
+		pcall(function() helper.CanTouch = false end)
+		pcall(function() helper.CanQuery = false end)
+		pcall(function() helper.Massless = true end)
+		pcall(function() helper.RootPriority = -127 end)
+		local deco = false
+		pcall(function()
+			deco = part:GetAttribute("NA_BodyModDeco") == true
+		end)
+		helper.CustomPhysicalProperties = deco and decoPhys or softPhys
+		pcall(function()
+			helper:SetAttribute("NA_BodyMod", true)
+			helper:SetAttribute("NA_BodyModPart", part.Name)
+			helper:SetAttribute("NA_BodyModHelper", true)
+		end)
+		if NAmanage.configureFlyHelper then
+			pcall(NAmanage.configureFlyHelper, helper)
+		end
+		helper.CFrame = root.CFrame * localCf
+		pcall(function()
+			helper.AssemblyLinearVelocity = root.AssemblyLinearVelocity
+			helper.AssemblyAngularVelocity = root.AssemblyAngularVelocity
+		end)
+		helper.Parent = folder or workspace
+		originalIO.bodyModsTrack(objs, helper)
+
+		local pa = originalIO.bodyModsAttachment(helper, "NA_BodyModsFollow", CFrame.new(), objs)
 		local ta = originalIO.bodyModsAttachment(root, "NA_BodyModsTarget", localCf, objs)
 		local ap = InstanceNew("AlignPosition")
 		ap.Attachment0 = pa
@@ -80468,7 +80595,7 @@ do
 		ap.Responsiveness = opts.pr or 18
 		ap.MaxForce = opts.force or 9000
 		ap.MaxVelocity = opts.vel or 55
-		ap.Parent = part
+		ap.Parent = helper
 
 		local ao = InstanceNew("AlignOrientation")
 		ao.Attachment0 = pa
@@ -80478,21 +80605,72 @@ do
 		ao.Responsiveness = opts.rr or 16
 		ao.MaxTorque = opts.torque or 9000
 		ao.MaxAngularVelocity = opts.angVel or 26
-		ao.Parent = part
+		ao.Parent = helper
 
 		originalIO.bodyModsTrack(objs, ap)
 		originalIO.bodyModsTrack(objs, ao)
-		originalIO.bodyModsNoCollide(part, root, objs)
+		originalIO.bodyModsNoCollide(helper, root, objs)
 
-		return { part = part, target = ta, base = localCf, ap = ap, ao = ao }
+		local rig = { part = part, helper = helper, target = ta, base = localCf, ap = ap, ao = ao, kids = {}, snapDist = opts.snap or 8 }
+		originalIO.bodyModsSyncRig(rig, true)
+		return rig
+	end
+
+	originalIO.bodyModsSyncRig = function(rig, forceSnap)
+		if type(rig) ~= "table" then
+			return
+		end
+		local root = rig.target and rig.target.Parent
+		local cf = rig.target and rig.target.CFrame or rig.base or CFrame.new()
+		local worldCf = nil
+		if root then
+			worldCf = root.CFrame * cf
+		end
+		local helper = rig.helper
+		if helper and helper.Parent and worldCf then
+			local dist = (helper.Position - worldCf.Position).Magnitude
+			if forceSnap or dist > (rig.snapDist or 8) then
+				helper.CFrame = worldCf
+				pcall(function()
+					helper.AssemblyLinearVelocity = root.AssemblyLinearVelocity
+					helper.AssemblyAngularVelocity = root.AssemblyAngularVelocity
+				end)
+			end
+		end
+		local visualCf = (helper and helper.Parent and helper.CFrame) or worldCf
+		if rig.part and rig.part.Parent and visualCf then
+			rig.part.CFrame = visualCf
+		end
+		if type(rig.kids) == "table" and visualCf then
+			for _, link in rig.kids do
+				if type(link) == "table" and link.part and link.part.Parent then
+					link.part.CFrame = visualCf * (link.cf or CFrame.new())
+				end
+			end
+		end
+	end
+
+	originalIO.bodyModsLinkVisual = function(rig, part, cf)
+		if type(rig) ~= "table" or not part then
+			return nil
+		end
+		rig.kids = rig.kids or {}
+		part.Anchored = true
+		part.CanCollide = false
+		part.CanTouch = false
+		part.CanQuery = false
+		part.Massless = true
+		pcall(function()
+			part.CustomPhysicalProperties = nil
+		end)
+		local link = { part = part, cf = cf or CFrame.new() }
+		rig.kids[#rig.kids + 1] = link
+		originalIO.bodyModsSyncRig(rig, true)
+		return link
 	end
 
 	originalIO.bodyModsWeld = function(part0, part1, objs)
-		local weld = InstanceNew("WeldConstraint")
-		weld.Part0 = part0
-		weld.Part1 = part1
-		weld.Parent = part0
-		return originalIO.bodyModsTrack(objs, weld)
+		return nil
 	end
 
 	originalIO.bodyModsGetCharacter = function(waitFor)
@@ -80682,7 +80860,7 @@ do
 		state.boobs.objs = {}
 		originalIO.bodyModsDestroyOld(character, { Boob = true, Nipple = true })
 
-		local folder = originalIO.bodyModsGetFolder()
+		local bodyParent = character
 		local skin = originalIO.bodyModsGetSkinColor()
 		local sizeScale = math.clamp(size / 4, 0.3, 2)
 		local baseSize = Vector3.new(1.72, 1.54, 1.42)
@@ -80710,13 +80888,14 @@ do
 		end
 
 		local function createHalf(side)
-			local boob = originalIO.bodyModsTrack(state.boobs.objs, originalIO.bodyModsPart(Enum.PartType.Ball, boobSize, skin, "Boob", folder, false))
+			local boob = originalIO.bodyModsTrack(state.boobs.objs, originalIO.bodyModsPart(Enum.PartType.Ball, boobSize, skin, "Boob", bodyParent, false))
 			local base = CFrame.new(side * state.boobs.ox, state.boobs.oy, state.boobs.oz)
 			local rig = originalIO.bodyModsRig(boob, torso, base, originalIO.bodyModsRigCfg(sizeScale, "heavy"), state.boobs.objs)
 
-			local nipple = originalIO.bodyModsTrack(state.boobs.objs, originalIO.bodyModsPart(Enum.PartType.Ball, nippleSize, pinkColor, "Nipple", folder, true))
-			nipple.CFrame = boob.CFrame * CFrame.new(0, 0, -(offsetToFront(boob.Size, nipple.Size) + popForward))
-			originalIO.bodyModsWeld(nipple, boob, state.boobs.objs)
+			local nipple = originalIO.bodyModsTrack(state.boobs.objs, originalIO.bodyModsPart(Enum.PartType.Ball, nippleSize, pinkColor, "Nipple", bodyParent, true))
+			local nippleCf = CFrame.new(0, 0, -(offsetToFront(boob.Size, nipple.Size) + popForward))
+			nipple.CFrame = boob.CFrame * nippleCf
+			originalIO.bodyModsLinkVisual(rig, nipple, nippleCf)
 
 			local areola = InstanceNew("SurfaceGui")
 			areola.Name = "Areola"
@@ -80825,6 +81004,8 @@ do
 			if rightRig and rightRig.target then
 				rightRig.target.CFrame = CFrame.new(state.boobs.ox + sxCap, state.boobs.oy + math.clamp(state.boobs.sy, -0.16, 0.15), z) * CFrame.Angles(math.clamp(state.boobs.rx, -0.22, 0.22), -math.clamp(state.boobs.yw, -0.14, 0.14), -math.clamp(state.boobs.ry, -0.18, 0.18))
 			end
+			originalIO.bodyModsSyncRig(leftRig)
+			originalIO.bodyModsSyncRig(rightRig)
 		end))
 
 		originalIO.bodyModsAppear({ left, right, leftNipple, rightNipple }, 0.35, 0.22)
@@ -80877,7 +81058,7 @@ do
 		state.ass.objs = {}
 		originalIO.bodyModsDestroyOld(character, { Cheek = true, Hip = true })
 
-		local folder = originalIO.bodyModsGetFolder()
+		local bodyParent = character
 		local skin = originalIO.bodyModsGetSkinColor()
 		local sizeScale = math.clamp(size / 4, 0.3, 2)
 		local baseSize = Vector3.new(1.58, 1.48, 1.36)
@@ -80892,7 +81073,7 @@ do
 		state.ass.oz = torso.Size.Z * 0.42 + radius * 0.41
 
 		local function createCheek(side)
-			local cheek = originalIO.bodyModsTrack(state.ass.objs, originalIO.bodyModsPart(Enum.PartType.Ball, cheekSize, skin, "Cheek", folder, false))
+			local cheek = originalIO.bodyModsTrack(state.ass.objs, originalIO.bodyModsPart(Enum.PartType.Ball, cheekSize, skin, "Cheek", bodyParent, false))
 			local base = CFrame.new(side * state.ass.ox, state.ass.oy, state.ass.oz)
 			local rig = originalIO.bodyModsRig(cheek, torso, base, originalIO.bodyModsRigCfg(sizeScale, "loose"), state.ass.objs)
 			return rig, cheek
@@ -80968,6 +81149,8 @@ do
 			if rightRig and rightRig.target then
 				rightRig.target.CFrame = CFrame.new(state.ass.ox + sxCap, state.ass.oy + math.clamp(state.ass.sy, -0.15, 0.14) - cheekLift, z) * CFrame.Angles(math.clamp(state.ass.rx, -0.17, 0.17), -math.clamp(state.ass.yw, -0.12, 0.12), -math.clamp(state.ass.ry, -0.16, 0.16) - cheekRoll)
 			end
+			originalIO.bodyModsSyncRig(leftRig)
+			originalIO.bodyModsSyncRig(rightRig)
 		end))
 
 		originalIO.bodyModsAppear({ left, right }, 0.35, 0.22)
@@ -81024,7 +81207,7 @@ do
 		value = math.clamp(value, 0.5, 6)
 		state.pp.len = value
 
-		local folder = originalIO.bodyModsGetFolder()
+		local bodyParent = character
 		local skin = originalIO.bodyModsGetSkinColor()
 		local shaftLength = 1.42 + value * 0.85
 		local shaftRadius = math.clamp(0.34 + value * 0.042, 0.35, 0.58)
@@ -81037,10 +81220,10 @@ do
 		local shaftBaseZ = -(torso.Size.Z * 0.5 + shaftRadius * 0.11)
 		local shaftForwardBias = math.max(0, shaftLength * 0.5 - shaftRadius * 0.88)
 
-		local leftBall = originalIO.bodyModsTrack(state.pp.objs, originalIO.bodyModsPart(Enum.PartType.Ball, Vector3.new(ballRadius * 2, ballRadius * 2.08, ballRadius * 1.98), skin, "Balls", folder, false))
-		local rightBall = originalIO.bodyModsTrack(state.pp.objs, originalIO.bodyModsPart(Enum.PartType.Ball, Vector3.new(ballRadius * 2, ballRadius * 2.08, ballRadius * 1.98), skin, "Balls", folder, false))
-		local shaft = originalIO.bodyModsTrack(state.pp.objs, originalIO.bodyModsPart(Enum.PartType.Cylinder, Vector3.new(shaftLength, shaftRadius * 2, shaftRadius * 2), skin, "penis", folder, false))
-		local tip = originalIO.bodyModsTrack(state.pp.objs, originalIO.bodyModsPart(Enum.PartType.Ball, Vector3.new(tipRadius * 2.15, tipRadius * 2.05, tipRadius * 2.05), pinkColor, "penis", folder, true))
+		local leftBall = originalIO.bodyModsTrack(state.pp.objs, originalIO.bodyModsPart(Enum.PartType.Ball, Vector3.new(ballRadius * 2, ballRadius * 2.08, ballRadius * 1.98), skin, "Balls", bodyParent, false))
+		local rightBall = originalIO.bodyModsTrack(state.pp.objs, originalIO.bodyModsPart(Enum.PartType.Ball, Vector3.new(ballRadius * 2, ballRadius * 2.08, ballRadius * 1.98), skin, "Balls", bodyParent, false))
+		local shaft = originalIO.bodyModsTrack(state.pp.objs, originalIO.bodyModsPart(Enum.PartType.Cylinder, Vector3.new(shaftLength, shaftRadius * 2, shaftRadius * 2), skin, "penis", bodyParent, false))
+		local tip = originalIO.bodyModsTrack(state.pp.objs, originalIO.bodyModsPart(Enum.PartType.Ball, Vector3.new(tipRadius * 2.15, tipRadius * 2.05, tipRadius * 2.05), pinkColor, "penis", bodyParent, true))
 
 		state.pp.baseBL = CFrame.new(-scrotumSpread, offsetY, -0.74 - shaftRadius * 0.46)
 		state.pp.baseBR = CFrame.new(scrotumSpread, offsetY, -0.74 - shaftRadius * 0.46)
@@ -81051,8 +81234,9 @@ do
 		local leftRig = originalIO.bodyModsRig(leftBall, torso, state.pp.baseBL, ballCfg, state.pp.objs)
 		local rightRig = originalIO.bodyModsRig(rightBall, torso, state.pp.baseBR, ballCfg, state.pp.objs)
 		local shaftRig = originalIO.bodyModsRig(shaft, torso, state.pp.baseS, shaftCfg, state.pp.objs)
-		tip.CFrame = shaft.CFrame * CFrame.new(-shaftLength * 0.5, 0, 0)
-		originalIO.bodyModsWeld(tip, shaft, state.pp.objs)
+		local tipCf = CFrame.new(-shaftLength * 0.5, 0, 0)
+		tip.CFrame = shaft.CFrame * tipCf
+		originalIO.bodyModsLinkVisual(shaftRig, tip, tipCf)
 
 		state.pp.rigs = { shaft = shaftRig, left = leftRig, right = rightRig }
 		state.pp.active = true
@@ -81141,6 +81325,11 @@ do
 				if state.pp.rigs.right.target then
 					state.pp.rigs.right.target.CFrame = state.pp.baseBR * rightSway
 				end
+			end
+			if state.pp.rigs then
+				originalIO.bodyModsSyncRig(state.pp.rigs.shaft)
+				originalIO.bodyModsSyncRig(state.pp.rigs.left)
+				originalIO.bodyModsSyncRig(state.pp.rigs.right)
 			end
 		end))
 
