@@ -3874,6 +3874,76 @@
       "desc": "Chats for you, useful if you're muted"
     },
     {
+      "name": "uwuify",
+      "aliases": [
+        "uwuify",
+        "cutechat"
+      ],
+      "usage": "uwuify <text> (cutechat)",
+      "args": "<text>",
+      "desc": "Stylizes and sends chat text"
+    },
+    {
+      "name": "autouwuify",
+      "aliases": [
+        "autouwuify",
+        "autocutechat"
+      ],
+      "usage": "autouwuify (autocutechat)",
+      "args": "",
+      "desc": "Stylizes chat input before sending"
+    },
+    {
+      "name": "unautouwuify",
+      "aliases": [
+        "unautouwuify",
+        "unautocutechat"
+      ],
+      "usage": "unautouwuify (unautocutechat)",
+      "args": "",
+      "desc": "Stops chat input styling"
+    },
+    {
+      "name": "uwustutter",
+      "aliases": [
+        "uwustutter",
+        "chatstutter"
+      ],
+      "usage": "uwustutter (chatstutter)",
+      "args": "",
+      "desc": "Enables stutter styling"
+    },
+    {
+      "name": "unuwustutter",
+      "aliases": [
+        "unuwustutter",
+        "unchatstutter"
+      ],
+      "usage": "unuwustutter (unchatstutter)",
+      "args": "",
+      "desc": "Disables stutter styling"
+    },
+    {
+      "name": "uwuaffix",
+      "aliases": [
+        "uwuaffix",
+        "chataffix"
+      ],
+      "usage": "uwuaffix (chataffix)",
+      "args": "",
+      "desc": "Enables suffix styling"
+    },
+    {
+      "name": "unuwuaffix",
+      "aliases": [
+        "unuwuaffix",
+        "unchataffix"
+      ],
+      "usage": "unuwuaffix (unchataffix)",
+      "args": "",
+      "desc": "Disables suffix styling"
+    },
+    {
       "name": "privatemessage",
       "aliases": [
         "privatemessage",
