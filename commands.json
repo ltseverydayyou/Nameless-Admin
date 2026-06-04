@@ -345,6 +345,17 @@
       "desc": "Open the chat logs"
     },
     {
+      "name": "music",
+      "aliases": [
+        "music",
+        "musicplayer",
+        "songplayer"
+      ],
+      "usage": "music (musicplayer)",
+      "args": "",
+      "desc": "Open the NA music player"
+    },
+    {
       "name": "rotector",
       "aliases": [
         "rotector",
