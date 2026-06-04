@@ -6218,7 +6218,7 @@ NAmanage.LaunchHumanoid = function(hum, root)
 
 	local velocity = NAlib.isProperty(root, "AssemblyLinearVelocity") or root.Velocity
 	if typeof(velocity) ~= "Vector3" then
-		velocity = Vector3.new()
+		velocity = Vector3.new(0, 0, 0)
 	end
 
 	local boostedY = math.max(velocity.Y, launchY)
@@ -6542,11 +6542,11 @@ NAmanage.CreateNAFreecam=function()
 		end
 	end
 
-	local cameraPos = Vector3.new()
+	local cameraPos = Vector3.new(0, 0, 0)
 	local cameraRot = Vector2.new()
 	local cameraFov = 70
 
-	local velSpring = Spring.new(1.5, Vector3.new())
+	local velSpring = Spring.new(1.5, Vector3.new(0, 0, 0))
 	local panSpring = Spring.new(1.0, Vector2.new())
 	local fovSpring = Spring.new(4.0, 0)
 
@@ -6674,7 +6674,7 @@ NAmanage.CreateNAFreecam=function()
 			navSpeed = clamp(navSpeed + dt*(keyboard[Enum.KeyCode.Up] - keyboard[Enum.KeyCode.Down])*NAV_ADJ_SPEED, NAV_MIN_SPEED, NAV_MAX_SPEED)
 		end
 
-		local move = Vector3.new()
+		local move = Vector3.new(0, 0, 0)
 
 		if IsOnMobile and typeof(GetCustomMoveVector) == "function" then
 			local ok, vec = pcall(GetCustomMoveVector)
@@ -6956,11 +6956,11 @@ do
 		end
 	end
 
-	local cameraPos = Vector3.new()
+	local cameraPos = Vector3.new(0, 0, 0)
 	local cameraRot = Vector2.new()
 	local cameraFov = 70
 
-	local velSpring = Spring.new(1.5, Vector3.new())
+	local velSpring = Spring.new(1.5, Vector3.new(0, 0, 0))
 	local panSpring = Spring.new(1.0, Vector2.new())
 	local fovSpring = Spring.new(4.0, 0)
 
@@ -7121,7 +7121,7 @@ do
 		cameraRot = Vector2.new(x, y)
 		cameraFov = Camera.FieldOfView
 
-		velSpring:Reset(Vector3.new())
+		velSpring:Reset(Vector3.new(0, 0, 0))
 		panSpring:Reset(Vector2.new())
 		fovSpring:Reset(0)
 
@@ -12669,7 +12669,7 @@ flingManager.ClearPartVelocity = function(part)
 		return
 	end
 
-	local zero = Vector3.new()
+	local zero = Vector3.new(0, 0, 0)
 	pcall(function() part.AssemblyLinearVelocity = zero end)
 	pcall(function() part.AssemblyAngularVelocity = zero end)
 	pcall(function() part.Velocity = zero end)
@@ -12677,7 +12677,7 @@ flingManager.ClearPartVelocity = function(part)
 end
 
 flingManager.GetPartVelocity = function(part)
-	local best = Vector3.new()
+	local best = Vector3.new(0, 0, 0)
 	local bestSq = 0
 	if not part then
 		return best, 0
@@ -29370,7 +29370,7 @@ function mobilefly(speed, vfly)
 
 			bg.CFrame = camera.CFrame
 			local direction = GetCustomMoveVector()
-			local newVelocity = Vector3.new()
+			local newVelocity = Vector3.new(0, 0, 0)
 
 			if direction.X ~= 0 then
 				newVelocity = newVelocity + camera.CFrame.RightVector * (direction.X * speed)
@@ -36871,7 +36871,7 @@ NAmanage.ovUpd = function(st, root, base, offVec)
 		return
 	end
 
-	local off = (typeof(offVec) == "Vector3") and offVec or Vector3.new()
+	local off = (typeof(offVec) == "Vector3") and offVec or Vector3.new(0, 0, 0)
 	local rootBase = base
 	local rootTarget = (rootBase * NAmanage.UG_getTransform(st)) + off
 	local mdl = NAmanage.ovEns(st)
@@ -37073,7 +37073,7 @@ NAmanage.ovLive = function(reb)
 		return
 	end
 	local base = st.UndergroundCurrent or root.CFrame
-	local off = st.UndergroundResolvedOffset or st.UndergroundOffset or Vector3.new()
+	local off = st.UndergroundResolvedOffset or st.UndergroundOffset or Vector3.new(0, 0, 0)
 	if off.Magnitude <= 0.0001 then
 		NAmanage.ovClr(st)
 		return
@@ -37125,7 +37125,7 @@ NAmanage.UG_hasTransform = function(state)
 end
 
 NAmanage.UG_updateVisualizer = function(state, root, current, force)
-	local offsetVec = (state and state.UndergroundResolvedOffset) or (state and state.UndergroundOffset) or Vector3.new()
+	local offsetVec = (state and state.UndergroundResolvedOffset) or (state and state.UndergroundOffset) or Vector3.new(0, 0, 0)
 	if state and root and current and NAmanage.UG_hasOffset(offsetVec) then
 		local now = os.clock()
 		local rate = tonumber(NAStuff.NA_OFFSET_VISUALIZER_UPDATE_RATE) or (1 / 30)
@@ -37208,7 +37208,7 @@ NAmanage.UG_setClientCFrame = function(root, cf)
 		local _, liveRoot, hum = NAmanage.UG_fetchCharPieces()
 		root = root or liveRoot
 		if root then
-			st.UndergroundResolvedOffset = st.UndergroundMirrorGround and NAmanage.UG_getActiveOffset(st, root, hum) or (st.UndergroundOffset or Vector3.new())
+			st.UndergroundResolvedOffset = st.UndergroundMirrorGround and NAmanage.UG_getActiveOffset(st, root, hum) or (st.UndergroundOffset or Vector3.new(0, 0, 0))
 			if type(NAmanage.UG_updateVisualizer) == "function" then
 				pcall(NAmanage.UG_updateVisualizer, st, root, cf, true)
 			end
@@ -37309,7 +37309,7 @@ NAmanage.UG_raycastDown = function(origin)
 end
 
 NAmanage.UG_getActiveOffset = function(state, root, hum)
-	local extraOffset = (state and state.UndergroundOffset) or Vector3.new()
+	local extraOffset = (state and state.UndergroundOffset) or Vector3.new(0, 0, 0)
 	if not (state and state.UndergroundMirrorGround and root) then
 		return extraOffset
 	end
@@ -37512,7 +37512,7 @@ cmd.add({"upsidedown","flipchar"},{"upsidedown","Flips your character upside dow
 	state.UndergroundTransform = NAStuff.NA_UNDERGROUND_UPSIDEDOWN_CFRAME
 	state.UndergroundMirrorGround = true
 	if not state.Underground then
-		state.UndergroundOffset = state.UndergroundOffset or Vector3.new()
+		state.UndergroundOffset = state.UndergroundOffset or Vector3.new(0, 0, 0)
 		state.PendingTranslation = nil
 		NAmanage.UG_enable(state, rootPart)
 		if type(DoNotif) == "function" then
@@ -42605,7 +42605,7 @@ NAmanage.PredictionHeartbeatImpl = function()
 			local refreshed = NAmanage.PredictionEnsureEntry(userId, plr, entry.lead)
 			local troot = NAmanage.PredictionRootFromPlayer(plr)
 			if refreshed and troot and refreshed.part and refreshed.part.Parent then
-				local velocity = troot.AssemblyLinearVelocity or troot.Velocity or Vector3.new()
+				local velocity = troot.AssemblyLinearVelocity or troot.Velocity or Vector3.new(0, 0, 0)
 				local lead = tonumber(refreshed.lead) or cfg.defaultLead
 				local offset = velocity * lead
 				local maxOffset = tonumber(cfg.maxOffset) or 40
@@ -43105,7 +43105,7 @@ cmd.addPatched({"breaklayeredclothing","blc"},{"breaklayeredclothing (blc)","Str
 	Humanoid:ChangeState(Enum.HumanoidStateType.Swimming)
 	swimbeat=NAlib.reconnect("breaklayeredclothing_swimbeat", RunService.Heartbeat:Connect(function()
 		pcall(function()
-			getRoot(char).Velocity=((Humanoid.MoveDirection~=Vector3.new() or __lt.cm("UserInputService", "IsKeyDown", Enum.KeyCode.Space)) and getRoot(char).Velocity or Vector3.new())
+			getRoot(char).Velocity=((Humanoid.MoveDirection~=Vector3.new(0, 0, 0) or __lt.cm("UserInputService", "IsKeyDown", Enum.KeyCode.Space)) and getRoot(char).Velocity or Vector3.new(0, 0, 0))
 		end)
 	end))
 	swimming=true
@@ -49921,6 +49921,7 @@ NAStuff.raknetDesyncMode = NAStuff.raknetDesyncMode or nil
 NAStuff.raknetDesyncTargetPacket = NAStuff.raknetDesyncTargetPacket or 0x1B
 NAStuff.raknetDesyncPatchOffset = NAStuff.raknetDesyncPatchOffset or 1
 
+--[[
 cmd.addPatched({"desync", "ngrep"},{"desync (ngrep)","Toggle NextGenReplicator desync / sync (run again to disable)"},function()
 	if type(setfflag) ~= "function" then
 		DoNotif("Your executor does not support setfflag. Cannot toggle desync", 3)
@@ -49952,6 +49953,199 @@ cmd.addPatched({"desync", "ngrep"},{"desync (ngrep)","Toggle NextGenReplicator d
 			DoNotif("Failed to restore NextGenReplicator flags: "..tostring(err), 4)
 		end
 	end
+end)
+]]
+
+NAStuff.desyncOffsetAnchor = typeof(NAStuff.desyncOffsetAnchor) == "CFrame" and NAStuff.desyncOffsetAnchor or nil
+NAStuff.desyncOffsetChar = nil
+NAStuff.desyncOffsetCurrent = nil
+NAStuff.desyncOffsetKey = "na_desync_offset_loop"
+NAStuff.desyncOffsetPostKey = "na_desync_offset_post"
+NAStuff.desyncOffsetRenderKey = "na_desync_offset_render"
+NAStuff.desyncOffsetBindName = (NAmanage.GetSessionActionName and NAmanage.GetSessionActionName("DesyncOffsetBind")) or "NA_DesyncOffsetBind"
+NAStuff.desyncOffsetEps = 0.05
+
+NAmanage.DesyncGetRoot = function()
+	local char = getChar and getChar() or nil
+	if not char and LocalPlayer then
+		char = LocalPlayer.Character
+	end
+	local root = char and getRoot(char) or nil
+	return char, root
+end
+
+NAmanage.DesyncReadRootCFrame = function(root)
+	if not (root and root.Parent) then
+		return nil
+	end
+	local ok, cf = pcall(function()
+		return root.CFrame
+	end)
+	if ok and typeof(cf) == "CFrame" then
+		return cf
+	end
+	return nil
+end
+
+NAmanage.DesyncNearAnchor = function(cf)
+	local anchor = NAStuff.desyncOffsetAnchor
+	if typeof(cf) ~= "CFrame" or typeof(anchor) ~= "CFrame" then
+		return false
+	end
+	return (cf.Position - anchor.Position).Magnitude <= (tonumber(NAStuff.desyncOffsetEps) or 0.05)
+end
+
+NAmanage.DesyncSetRootCFrame = function(root, cf)
+	if not (root and root.Parent and typeof(cf) == "CFrame") then
+		return false
+	end
+	return pcall(function()
+		root.CFrame = cf
+	end)
+end
+
+NAmanage.DesyncOffsetStep = function()
+	if not NAStuff.desyncOn then
+		return
+	end
+
+	local char, root = NAmanage.DesyncGetRoot()
+	if not (char and root and root.Parent) then
+		return
+	end
+
+	local cf = NAmanage.DesyncReadRootCFrame(root)
+	if typeof(cf) ~= "CFrame" then
+		return
+	end
+
+	if NAStuff.desyncOffsetChar ~= char then
+		NAStuff.desyncOffsetChar = char
+		NAStuff.desyncOffsetAnchor = cf
+		NAStuff.desyncOffsetCurrent = cf
+	end
+
+	local anchor = NAStuff.desyncOffsetAnchor
+	if typeof(anchor) ~= "CFrame" then
+		anchor = cf
+		NAStuff.desyncOffsetAnchor = anchor
+	end
+
+	if not NAmanage.DesyncNearAnchor(cf) or typeof(NAStuff.desyncOffsetCurrent) ~= "CFrame" then
+		NAStuff.desyncOffsetCurrent = cf
+	end
+
+	NAmanage.DesyncSetRootCFrame(root, anchor)
+end
+
+NAmanage.DesyncOffsetRender = function()
+	if not NAStuff.desyncOn then
+		return
+	end
+
+	local _, root = NAmanage.DesyncGetRoot()
+	local cf = NAStuff.desyncOffsetCurrent
+	if root and root.Parent and typeof(cf) == "CFrame" then
+		NAmanage.DesyncSetRootCFrame(root, cf)
+	end
+end
+
+NAmanage.DesyncBindRender = function()
+	if RunService and RunService.UnbindFromRenderStep then
+		pcall(RunService.UnbindFromRenderStep, RunService, NAStuff.desyncOffsetBindName)
+	end
+	NAlib.disconnect(NAStuff.desyncOffsetRenderKey)
+
+	if RunService and RunService.BindToRenderStep then
+		local ok = pcall(function()
+			__lt.cm("RunService", "BindToRenderStep", NAStuff.desyncOffsetBindName, Enum.RenderPriority.First.Value, function()
+				NAmanage.DesyncOffsetRender()
+			end)
+		end)
+		if ok then
+			return
+		end
+	end
+
+	NAlib.reconnect(NAStuff.desyncOffsetRenderKey, RunService.RenderStepped:Connect(function()
+		NACaller(function()
+			NAmanage.DesyncOffsetRender()
+		end)
+	end))
+end
+
+NAmanage.DesyncUnbindRender = function()
+	NAlib.disconnect(NAStuff.desyncOffsetRenderKey)
+	if RunService and RunService.UnbindFromRenderStep then
+		pcall(RunService.UnbindFromRenderStep, RunService, NAStuff.desyncOffsetBindName)
+	end
+end
+
+NAmanage.SetOffsetDesync = function(enabled)
+	if enabled then
+		local char, root = NAmanage.DesyncGetRoot()
+		if not (char and root) then
+			DoNotif("Unable to get your character root. Cannot enable offset desync", 3)
+			return false
+		end
+
+		local cf = NAmanage.DesyncReadRootCFrame(root)
+		if typeof(cf) ~= "CFrame" then
+			DoNotif("Unable to read your character position. Cannot enable offset desync", 3)
+			return false
+		end
+
+		NAlib.disconnect(NAStuff.desyncOffsetKey)
+		NAlib.disconnect(NAStuff.desyncOffsetPostKey)
+		NAmanage.DesyncUnbindRender()
+
+		NAStuff.desyncOn = true
+		NAStuff.desyncOffsetChar = char
+		NAStuff.desyncOffsetAnchor = cf
+		NAStuff.desyncOffsetCurrent = cf
+
+		if RunService and RunService.PostSimulation then
+			NAlib.reconnect(NAStuff.desyncOffsetPostKey, RunService.PostSimulation:Connect(function()
+				NACaller(function()
+					NAmanage.DesyncOffsetStep()
+				end)
+			end))
+		end
+
+		NAlib.reconnect(NAStuff.desyncOffsetKey, RunService.Heartbeat:Connect(function()
+			NACaller(function()
+				NAmanage.DesyncOffsetStep()
+			end)
+		end))
+
+		NAmanage.DesyncBindRender()
+		DoNotif("Offset desync enabled. Server position locked with normal offset restore timing", 4)
+		return true
+	end
+
+	NAStuff.desyncOn = false
+	NAlib.disconnect(NAStuff.desyncOffsetKey)
+	NAlib.disconnect(NAStuff.desyncOffsetPostKey)
+	NAmanage.DesyncUnbindRender()
+
+	local _, root = NAmanage.DesyncGetRoot()
+	if root and typeof(NAStuff.desyncOffsetCurrent) == "CFrame" then
+		NAmanage.DesyncSetRootCFrame(root, NAStuff.desyncOffsetCurrent)
+	end
+
+	NAStuff.desyncOffsetChar = nil
+	NAStuff.desyncOffsetAnchor = nil
+	NAStuff.desyncOffsetCurrent = nil
+	DoNotif("Offset desync disabled", 3)
+	return true
+end
+
+cmd.add({"desync", "ngrep"},{"desync (ngrep)","Toggle offset desync / sync (run again to disable)"},function()
+	NAmanage.SetOffsetDesync(not NAStuff.desyncOn)
+end)
+
+cmd.add({"undesync", "undg", "syncdesync"},{"undesync (undg,syncdesync)","Disable offset desync"},function()
+	NAmanage.SetOffsetDesync(false)
 end)
 
 NAmanage.getRaknet = function()
@@ -60273,7 +60467,7 @@ cmd.add({"pathfind"},{"pathfind <player>","Follow a player using the pathfinder 
 		if plr then
 			NAlib.disconnect("follow")
 			local ps=SafeGetService("PathfindingService")
-			local lastSrc, lastDst = Vector3.new(), Vector3.new()
+			local lastSrc, lastDst = Vector3.new(0, 0, 0), Vector3.new(0, 0, 0)
 			NAlib.connect("follow",RunService.Heartbeat:Connect(function()
 				local hum=getHum() local char=getChar() local tgt=plr.Character
 				if not(hum and char and tgt and hum.RootPart) then return end
@@ -65337,8 +65531,8 @@ cmd.add({"headbang", "mouthbang", "headfuck", "mouthfuck", "facebang", "facefuck
 					local newCFrame = CFrame.new(charPos, Vector3.new(targetRoot.Position.X, charPos.Y, targetRoot.Position.Z))
 					NAmanage.UG_pivotModel(localCharacter, newCFrame)
 				end
-				localRoot.AssemblyLinearVelocity = Vector3.new()
-				localRoot.AssemblyAngularVelocity = Vector3.new()
+				localRoot.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+				localRoot.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
 			end)
 		end))
 	end
@@ -66519,8 +66713,8 @@ cmd.add({"bang", "fuck"}, {"bang <player> <number> (fuck)", "fucks the player by
 				local localRoot = localChar and getRoot(localChar)
 				if not (targetRoot and localRoot) then return end
 				localRoot.CFrame = targetRoot.CFrame * bangOffset
-				localRoot.AssemblyLinearVelocity = Vector3.new()
-				localRoot.AssemblyAngularVelocity = Vector3.new()
+				localRoot.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+				localRoot.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
 			end)
 		end))
 	end
@@ -66576,8 +66770,8 @@ originalIO.stopCarpet=function()
 	local char = getChar()
 	local root = char and getRoot(char)
 	if root then
-		root.AssemblyLinearVelocity = Vector3.new()
-		root.AssemblyAngularVelocity = Vector3.new()
+		root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+		root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
 	end
 	local hum = getHum(char)
 	if hum then
@@ -66634,8 +66828,8 @@ cmd.add({"carpet"}, {"carpet <player>", "Be someone's carpet"}, function(usernam
 				local localRoot = localChar and getRoot(localChar)
 				if tgtRoot and localRoot then
 					localRoot.CFrame = tgtRoot.CFrame
-					localRoot.AssemblyLinearVelocity = Vector3.new()
-					localRoot.AssemblyAngularVelocity = Vector3.new()
+					localRoot.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+					localRoot.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
 				end
 			end)
 		end))
@@ -66797,8 +66991,8 @@ cmd.add({"inversebang","ibang","inverseb"},{"inversebang <player> <number>","you
 				local tweenBackward = __lt.cm("TweenService", "Create", localHRP,TweenInfo.new(0.15,Enum.EasingStyle.Linear,Enum.EasingDirection.Out),{CFrame=backwardCFrame})
 				tweenBackward:Play()
 				tweenBackward.Completed:Wait()
-				localHRP.AssemblyLinearVelocity = Vector3.new()
-				localHRP.AssemblyAngularVelocity = Vector3.new()
+				localHRP.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+				localHRP.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
 			end)
 		end))
 	end
@@ -67642,7 +67836,7 @@ cmd.add({"tpwalk", "tpwalk"}, {"tpwalk <number>", "More undetectable walkspeed s
 			local stepDelta = moveDirection * Speed * stepRate * 10
 			local undergroundState = NAStuff and NAStuff.NAundergroundState
 			if undergroundState and undergroundState.Underground then
-				undergroundState.PendingTranslation = (undergroundState.PendingTranslation or Vector3.new()) + stepDelta
+				undergroundState.PendingTranslation = (undergroundState.PendingTranslation or Vector3.new(0, 0, 0)) + stepDelta
 			else
 				char:TranslateBy(stepDelta)
 			end
@@ -67774,7 +67968,7 @@ cmd.add({"tpjump", "tjump"}, {"tpjump <number>",""}, function(...)
 			local stepDelta = Vector3.new(0, st.speed * stepRate * 10, 0)
 			local undergroundState = NAStuff and NAStuff.NAundergroundState
 			if undergroundState and undergroundState.Underground then
-				undergroundState.PendingTranslation = (undergroundState.PendingTranslation or Vector3.new()) + stepDelta
+				undergroundState.PendingTranslation = (undergroundState.PendingTranslation or Vector3.new(0, 0, 0)) + stepDelta
 			else
 				char:TranslateBy(stepDelta)
 			end
@@ -73850,7 +74044,7 @@ NAmanage.CreateBox = function(part, color, transparency)
 					local offsetWorld = labelWorld - adornTarget.Position
 					local offsetLocal = adornTarget.CFrame:PointToObjectSpace(labelWorld)
 					local usedWorldOffset = pcall(function()
-						bb.StudsOffset = Vector3.new()
+						bb.StudsOffset = Vector3.new(0, 0, 0)
 						bb.StudsOffsetWorldSpace = offsetWorld
 					end)
 					if not usedWorldOffset then
@@ -73878,7 +74072,7 @@ NAmanage.CreateBox = function(part, color, transparency)
 		end
 		if bb and not part:IsA("Model") then
 			pcall(function()
-				bb.StudsOffsetWorldSpace = Vector3.new()
+				bb.StudsOffsetWorldSpace = Vector3.new(0, 0, 0)
 			end)
 			bb.StudsOffset = Vector3.new(0, (sizeY / 2) + 0.2, 0)
 		end
@@ -80348,7 +80542,7 @@ cmd.add({"unkeepna"}, {"unkeepna", "Stop executing "..adminName.." every time yo
 end)
 
 do
-	local FOVhandler = {mem={parent=nil,o=0,r=Vector3.new(),u=Vector3.new(),base={}}, loop=false, cam=nil, refreshConn=nil, loopHoldConn=nil, watchConn=nil}
+	local FOVhandler = {mem={parent=nil,o=0,r=Vector3.new(0, 0, 0),u=Vector3.new(0, 0, 0),base={}}, loop=false, cam=nil, refreshConn=nil, loopHoldConn=nil, watchConn=nil}
 	local FOV_ATTR = {
 		o = "NA_FOV_O",
 		base1 = "NA_FOV_BASE_1",
@@ -80359,7 +80553,7 @@ do
 		uy = "NA_FOV_U_Y",
 		uz = "NA_FOV_U_Z"
 	}
-	local ZERO_VECTOR = Vector3.new()
+	local ZERO_VECTOR = Vector3.new(0, 0, 0)
 	local UNIT_VECTOR = Vector3.new(1,1,1)
 
 	local function getFovNumberAttr(parent, key, default)
