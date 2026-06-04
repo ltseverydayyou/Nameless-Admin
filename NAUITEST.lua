@@ -2936,4 +2936,439 @@ G2L["plugins_frame_stroke"].Thickness = 2;
 G2L["plugins_frame_stroke"].Color = Color3.fromRGB(155, 100, 255);
 G2L["plugins_frame_stroke"].ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
 G2L["plugins_frame_stroke"].Name = "UIStroker";
+
+G2L["music_frame"] = Instance.new("Frame", G2L["1"]);
+G2L["music_frame"].BorderSizePixel = 0;
+G2L["music_frame"].BackgroundColor3 = Color3.fromRGB(30, 30, 35);
+G2L["music_frame"].Size = UDim2.new(0, 500, 0, 360);
+G2L["music_frame"].Position = UDim2.new(0.5, -250, 0.5, -180);
+G2L["music_frame"].Name = "MusicPlayer";
+G2L["music_frame"].Visible = false;
+G2L["music_frame"].BackgroundTransparency = 0.1;
+G2L["music_frame"].ClipsDescendants = true;
+G2L["music_frame_size"] = Instance.new("UISizeConstraint", G2L["music_frame"]);
+G2L["music_frame_size"].MinSize = Vector2.new(380, 35);
+G2L["music_container"] = Instance.new("Frame", G2L["music_frame"]);
+G2L["music_container"].BorderSizePixel = 0;
+G2L["music_container"].BackgroundColor3 = Color3.fromRGB(40, 40, 45);
+G2L["music_container"].AnchorPoint = Vector2.new(0.5, 1);
+G2L["music_container"].ClipsDescendants = true;
+G2L["music_container"].Size = UDim2.new(1, -15, 1, -50);
+G2L["music_container"].Position = UDim2.new(0.5, 0, 1, -10);
+G2L["music_container"].Name = "Container";
+G2L["music_container"].BackgroundTransparency = 0.3;
+G2L["music_container_corner"] = Instance.new("UICorner", G2L["music_container"]);
+G2L["music_container_corner"].CornerRadius = UDim.new(0, 10);
+G2L["music_container_gradient"] = Instance.new("UIGradient", G2L["music_container"]);
+G2L["music_container_gradient"].Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(45, 45, 50)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(35, 35, 40))
+});
+G2L["music_input"] = Instance.new("TextBox", G2L["music_container"]);
+G2L["music_input"].Name = "TrackInput";
+G2L["music_input"].TextXAlignment = Enum.TextXAlignment.Left;
+G2L["music_input"].PlaceholderColor3 = Color3.fromRGB(130, 130, 140);
+G2L["music_input"].BorderSizePixel = 0;
+G2L["music_input"].TextSize = 15;
+G2L["music_input"].TextColor3 = Color3.fromRGB(235, 235, 245);
+G2L["music_input"].BackgroundColor3 = Color3.fromRGB(55, 55, 65);
+G2L["music_input"].FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L["music_input"].ClearTextOnFocus = false;
+G2L["music_input"].PlaceholderText = "Asset id, URL, or local file";
+G2L["music_input"].Size = UDim2.new(1, -118, 0, 30);
+G2L["music_input"].Position = UDim2.new(0, 8, 0, 8);
+G2L["music_input"].Text = "";
+G2L["music_input"].BackgroundTransparency = 0.2;
+G2L["music_input_corner"] = Instance.new("UICorner", G2L["music_input"]);
+G2L["music_input_corner"].CornerRadius = UDim.new(0, 6);
+G2L["music_input_stroke"] = Instance.new("UIStroke", G2L["music_input"]);
+G2L["music_input_stroke"].Thickness = 1.5;
+G2L["music_input_stroke"].Color = Color3.fromRGB(155, 100, 255);
+G2L["music_input_stroke"].ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
+G2L["music_input_stroke"].Name = "UIStroker";
+G2L["music_input_padding"] = Instance.new("UIPadding", G2L["music_input"]);
+G2L["music_input_padding"].PaddingLeft = UDim.new(0, 10);
+G2L["music_input_padding"].PaddingRight = UDim.new(0, 8);
+G2L["music_load"] = Instance.new("TextButton", G2L["music_container"]);
+G2L["music_load"].Name = "Load";
+G2L["music_load"].BorderSizePixel = 0;
+G2L["music_load"].TextSize = 14;
+G2L["music_load"].TextColor3 = Color3.fromRGB(245, 245, 245);
+G2L["music_load"].BackgroundColor3 = Color3.fromRGB(55, 55, 65);
+G2L["music_load"].FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L["music_load"].BackgroundTransparency = 0.2;
+G2L["music_load"].Size = UDim2.new(0, 96, 0, 30);
+G2L["music_load"].Position = UDim2.new(1, -104, 0, 8);
+G2L["music_load"].Text = "Load";
+G2L["music_load_corner"] = Instance.new("UICorner", G2L["music_load"]);
+G2L["music_load_corner"].CornerRadius = UDim.new(0, 6);
+G2L["music_load_stroke"] = Instance.new("UIStroke", G2L["music_load"]);
+G2L["music_load_stroke"].Thickness = 1.5;
+G2L["music_load_stroke"].Color = Color3.fromRGB(155, 100, 255);
+G2L["music_load_stroke"].ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
+G2L["music_load_stroke"].Name = "UIStroker";
+G2L["music_now"] = Instance.new("TextLabel", G2L["music_container"]);
+G2L["music_now"].Name = "NowPlaying";
+G2L["music_now"].BorderSizePixel = 0;
+G2L["music_now"].BackgroundTransparency = 1;
+G2L["music_now"].TextXAlignment = Enum.TextXAlignment.Left;
+G2L["music_now"].TextTruncate = Enum.TextTruncate.AtEnd;
+G2L["music_now"].TextSize = 14;
+G2L["music_now"].TextColor3 = Color3.fromRGB(235, 235, 245);
+G2L["music_now"].FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L["music_now"].Text = "No track loaded";
+G2L["music_now"].Size = UDim2.new(1, -118, 0, 22);
+G2L["music_now"].Position = UDim2.new(0, 10, 0, 44);
+G2L["music_status"] = Instance.new("TextLabel", G2L["music_container"]);
+G2L["music_status"].Name = "Status";
+G2L["music_status"].BorderSizePixel = 0;
+G2L["music_status"].BackgroundColor3 = Color3.fromRGB(55, 55, 65);
+G2L["music_status"].BackgroundTransparency = 0.2;
+G2L["music_status"].TextSize = 13;
+G2L["music_status"].TextColor3 = Color3.fromRGB(235, 235, 245);
+G2L["music_status"].FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L["music_status"].Text = "Stopped";
+G2L["music_status"].Size = UDim2.new(0, 96, 0, 22);
+G2L["music_status"].Position = UDim2.new(1, -104, 0, 44);
+G2L["music_status_corner"] = Instance.new("UICorner", G2L["music_status"]);
+G2L["music_status_corner"].CornerRadius = UDim.new(0, 6);
+G2L["music_progress"] = Instance.new("Frame", G2L["music_container"]);
+G2L["music_progress"].Name = "Progress";
+G2L["music_progress"].Active = true;
+G2L["music_progress"].BorderSizePixel = 0;
+G2L["music_progress"].BackgroundColor3 = Color3.fromRGB(50, 50, 56);
+G2L["music_progress"].BackgroundTransparency = 0.15;
+G2L["music_progress"].Position = UDim2.new(0, 10, 0, 76);
+G2L["music_progress"].Size = UDim2.new(1, -116, 0, 12);
+G2L["music_progress_corner"] = Instance.new("UICorner", G2L["music_progress"]);
+G2L["music_progress_corner"].CornerRadius = UDim.new(0, 6);
+G2L["music_progress_fill"] = Instance.new("Frame", G2L["music_progress"]);
+G2L["music_progress_fill"].Name = "Fill";
+G2L["music_progress_fill"].BorderSizePixel = 0;
+G2L["music_progress_fill"].BackgroundColor3 = Color3.fromRGB(155, 100, 255);
+G2L["music_progress_fill"].Size = UDim2.new(0, 0, 1, 0);
+G2L["music_progress_fill_corner"] = Instance.new("UICorner", G2L["music_progress_fill"]);
+G2L["music_progress_fill_corner"].CornerRadius = UDim.new(0, 6);
+G2L["music_time"] = Instance.new("TextLabel", G2L["music_container"]);
+G2L["music_time"].Name = "Time";
+G2L["music_time"].BorderSizePixel = 0;
+G2L["music_time"].BackgroundTransparency = 1;
+G2L["music_time"].TextSize = 12;
+G2L["music_time"].TextColor3 = Color3.fromRGB(190, 190, 205);
+G2L["music_time"].FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L["music_time"].Text = "00:00 / 00:00";
+G2L["music_time"].Size = UDim2.new(0, 96, 0, 18);
+G2L["music_time"].Position = UDim2.new(1, -104, 0, 72);
+G2L["music_controls"] = Instance.new("Frame", G2L["music_container"]);
+G2L["music_controls"].Name = "Controls";
+G2L["music_controls"].BackgroundTransparency = 1;
+G2L["music_controls"].Position = UDim2.new(0, 10, 0, 102);
+G2L["music_controls"].Size = UDim2.new(1, -20, 0, 34);
+G2L["music_controls_layout"] = Instance.new("UIGridLayout", G2L["music_controls"]);
+G2L["music_controls_layout"].SortOrder = Enum.SortOrder.LayoutOrder;
+G2L["music_controls_layout"].FillDirection = Enum.FillDirection.Horizontal;
+G2L["music_controls_layout"].HorizontalAlignment = Enum.HorizontalAlignment.Left;
+G2L["music_controls_layout"].VerticalAlignment = Enum.VerticalAlignment.Top;
+G2L["music_controls_layout"].CellPadding = UDim2.new(0, 6, 0, 6);
+G2L["music_controls_layout"].CellSize = UDim2.new(0, 72, 0, 32);
+G2L["music_controls_layout"].FillDirectionMaxCells = 4;
+local function makeMusicButton(key, text, width)
+	G2L[key] = Instance.new("TextButton", G2L["music_controls"]);
+	G2L[key].Name = text;
+	G2L[key].BorderSizePixel = 0;
+	G2L[key].TextSize = 13;
+	G2L[key].TextColor3 = Color3.fromRGB(245, 245, 245);
+	G2L[key].BackgroundColor3 = Color3.fromRGB(55, 55, 65);
+	G2L[key].FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+	G2L[key].BackgroundTransparency = 0.22;
+	G2L[key].Size = UDim2.new(0, width, 1, 0);
+	G2L[key].Text = text;
+	G2L[key.."_corner"] = Instance.new("UICorner", G2L[key]);
+	G2L[key.."_corner"].CornerRadius = UDim.new(0, 6);
+	G2L[key.."_stroke"] = Instance.new("UIStroke", G2L[key]);
+	G2L[key.."_stroke"].Thickness = 1.5;
+	G2L[key.."_stroke"].Color = Color3.fromRGB(155, 100, 255);
+	G2L[key.."_stroke"].ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
+	G2L[key.."_stroke"].Name = "UIStroker";
+end;
+makeMusicButton("music_play", "Play", 50);
+makeMusicButton("music_pause", "Pause", 58);
+makeMusicButton("music_resume", "Resume", 66);
+makeMusicButton("music_stop", "Stop", 52);
+makeMusicButton("music_loop", "Loop", 56);
+makeMusicButton("music_next", "Next", 54);
+makeMusicButton("music_mode", "Mode", 60);
+makeMusicButton("music_refresh", "Refresh", 70);
+G2L["music_mix"] = Instance.new("Frame", G2L["music_container"]);
+G2L["music_mix"].Name = "Mix";
+G2L["music_mix"].BackgroundTransparency = 1;
+G2L["music_mix"].Position = UDim2.new(0, 10, 0, 148);
+G2L["music_mix"].Size = UDim2.new(1, -20, 0, 32);
+G2L["music_vol_label"] = Instance.new("TextLabel", G2L["music_mix"]);
+G2L["music_vol_label"].BackgroundTransparency = 1;
+G2L["music_vol_label"].TextXAlignment = Enum.TextXAlignment.Left;
+G2L["music_vol_label"].TextSize = 13;
+G2L["music_vol_label"].TextColor3 = Color3.fromRGB(190, 190, 205);
+G2L["music_vol_label"].FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L["music_vol_label"].Text = "Volume";
+G2L["music_vol_label"].Size = UDim2.new(0, 60, 1, 0);
+G2L["music_vol_box"] = Instance.new("TextBox", G2L["music_mix"]);
+G2L["music_vol_box"].Name = "VolumeBox";
+G2L["music_vol_box"].BorderSizePixel = 0;
+G2L["music_vol_box"].BackgroundColor3 = Color3.fromRGB(55, 55, 65);
+G2L["music_vol_box"].BackgroundTransparency = 0.2;
+G2L["music_vol_box"].TextColor3 = Color3.fromRGB(235, 235, 245);
+G2L["music_vol_box"].FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L["music_vol_box"].TextSize = 13;
+G2L["music_vol_box"].Text = "1";
+G2L["music_vol_box"].ClearTextOnFocus = false;
+G2L["music_vol_box"].Size = UDim2.new(0, 72, 1, 0);
+G2L["music_vol_box"].Position = UDim2.new(0, 62, 0, 0);
+G2L["music_vol_corner"] = Instance.new("UICorner", G2L["music_vol_box"]);
+G2L["music_vol_corner"].CornerRadius = UDim.new(0, 6);
+G2L["music_speed_label"] = Instance.new("TextLabel", G2L["music_mix"]);
+G2L["music_speed_label"].BackgroundTransparency = 1;
+G2L["music_speed_label"].TextXAlignment = Enum.TextXAlignment.Left;
+G2L["music_speed_label"].TextSize = 13;
+G2L["music_speed_label"].TextColor3 = Color3.fromRGB(190, 190, 205);
+G2L["music_speed_label"].FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L["music_speed_label"].Text = "Speed";
+G2L["music_speed_label"].Size = UDim2.new(0, 52, 1, 0);
+G2L["music_speed_label"].Position = UDim2.new(0, 150, 0, 0);
+G2L["music_speed_box"] = Instance.new("TextBox", G2L["music_mix"]);
+G2L["music_speed_box"].Name = "SpeedBox";
+G2L["music_speed_box"].BorderSizePixel = 0;
+G2L["music_speed_box"].BackgroundColor3 = Color3.fromRGB(55, 55, 65);
+G2L["music_speed_box"].BackgroundTransparency = 0.2;
+G2L["music_speed_box"].TextColor3 = Color3.fromRGB(235, 235, 245);
+G2L["music_speed_box"].FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L["music_speed_box"].TextSize = 13;
+G2L["music_speed_box"].Text = "1";
+G2L["music_speed_box"].ClearTextOnFocus = false;
+G2L["music_speed_box"].Size = UDim2.new(0, 72, 1, 0);
+G2L["music_speed_box"].Position = UDim2.new(0, 204, 0, 0);
+G2L["music_speed_corner"] = Instance.new("UICorner", G2L["music_speed_box"]);
+G2L["music_speed_corner"].CornerRadius = UDim.new(0, 6);
+G2L["music_folder"] = Instance.new("TextLabel", G2L["music_mix"]);
+G2L["music_folder"].Name = "FolderHint";
+G2L["music_folder"].BackgroundTransparency = 1;
+G2L["music_folder"].TextXAlignment = Enum.TextXAlignment.Right;
+G2L["music_folder"].TextSize = 12;
+G2L["music_folder"].TextColor3 = Color3.fromRGB(170, 170, 185);
+G2L["music_folder"].FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L["music_folder"].Text = "Nameless-Admin/Music";
+G2L["music_folder"].Size = UDim2.new(1, -292, 1, 0);
+G2L["music_folder"].Position = UDim2.new(0, 292, 0, 0);
+G2L["music_list"] = Instance.new("ScrollingFrame", G2L["music_container"]);
+G2L["music_list"].Name = "LocalList";
+G2L["music_list"].BorderSizePixel = 0;
+G2L["music_list"].BackgroundTransparency = 1;
+G2L["music_list"].Position = UDim2.new(0, 8, 0, 190);
+G2L["music_list"].Size = UDim2.new(1, -16, 1, -198);
+G2L["music_list"].ScrollBarThickness = 4;
+G2L["music_list"].ScrollBarImageColor3 = Color3.fromRGB(105, 105, 115);
+G2L["music_list"].AutomaticCanvasSize = Enum.AutomaticSize.Y;
+G2L["music_list"].CanvasSize = UDim2.new(0, 0, 0, 0);
+G2L["music_list_layout"] = Instance.new("UIListLayout", G2L["music_list"]);
+G2L["music_list_layout"].Padding = UDim.new(0, 6);
+G2L["music_list_layout"].SortOrder = Enum.SortOrder.LayoutOrder;
+G2L["music_topbar"] = Instance.new("Frame", G2L["music_frame"]);
+G2L["music_topbar"].BackgroundColor3 = Color3.fromRGB(40, 40, 45);
+G2L["music_topbar"].Size = UDim2.new(1, 0, 0, 35);
+G2L["music_topbar"].Name = "Topbar";
+G2L["music_topbar"].BackgroundTransparency = 0.2;
+G2L["music_exit"] = Instance.new("TextButton", G2L["music_topbar"]);
+G2L["music_exit"].BorderSizePixel = 0;
+G2L["music_exit"].TextSize = 16;
+G2L["music_exit"].TextColor3 = Color3.fromRGB(245, 245, 245);
+G2L["music_exit"].BackgroundColor3 = Color3.fromRGB(185, 55, 55);
+G2L["music_exit"].FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L["music_exit"].AnchorPoint = Vector2.new(1, 0.5);
+G2L["music_exit"].BackgroundTransparency = 0.3;
+G2L["music_exit"].Size = UDim2.new(0, 24, 0, 24);
+G2L["music_exit"].Text = "x";
+G2L["music_exit"].Name = "Exit";
+G2L["music_exit"].Position = UDim2.new(1, -10, 0.5, 0);
+G2L["music_exit_corner"] = Instance.new("UICorner", G2L["music_exit"]);
+G2L["music_exit_corner"].CornerRadius = UDim.new(0, 6);
+G2L["music_exit_stroke"] = Instance.new("UIStroke", G2L["music_exit"]);
+G2L["music_exit_stroke"].Thickness = 2;
+G2L["music_exit_stroke"].Color = Color3.fromRGB(155, 100, 255);
+G2L["music_exit_stroke"].ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
+G2L["music_exit_stroke"].Name = "UIStroker";
+G2L["music_minimize"] = Instance.new("TextButton", G2L["music_topbar"]);
+G2L["music_minimize"].BorderSizePixel = 0;
+G2L["music_minimize"].TextSize = 16;
+G2L["music_minimize"].TextColor3 = Color3.fromRGB(245, 245, 245);
+G2L["music_minimize"].BackgroundColor3 = Color3.fromRGB(55, 55, 65);
+G2L["music_minimize"].FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L["music_minimize"].AnchorPoint = Vector2.new(1, 0.5);
+G2L["music_minimize"].BackgroundTransparency = 0.3;
+G2L["music_minimize"].Size = UDim2.new(0, 24, 0, 24);
+G2L["music_minimize"].Text = "-";
+G2L["music_minimize"].Name = "Minimize";
+G2L["music_minimize"].Position = UDim2.new(1, -40, 0.5, 0);
+G2L["music_minimize_corner"] = Instance.new("UICorner", G2L["music_minimize"]);
+G2L["music_minimize_corner"].CornerRadius = UDim.new(0, 6);
+G2L["music_minimize_stroke"] = Instance.new("UIStroke", G2L["music_minimize"]);
+G2L["music_minimize_stroke"].Thickness = 2;
+G2L["music_minimize_stroke"].Color = Color3.fromRGB(155, 100, 255);
+G2L["music_minimize_stroke"].ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
+G2L["music_minimize_stroke"].Name = "UIStroker";
+G2L["music_title"] = Instance.new("TextLabel", G2L["music_topbar"]);
+G2L["music_title"].TextWrapped = true;
+G2L["music_title"].BorderSizePixel = 0;
+G2L["music_title"].TextSize = 18;
+G2L["music_title"].BackgroundColor3 = Color3.fromRGB(255, 255, 255);
+G2L["music_title"].FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L["music_title"].TextColor3 = Color3.fromRGB(235, 235, 245);
+G2L["music_title"].BackgroundTransparency = 1;
+G2L["music_title"].AnchorPoint = Vector2.new(0.5, 0.5);
+G2L["music_title"].Size = UDim2.new(0.5, 0, 1, 0);
+G2L["music_title"].Text = "Music Player";
+G2L["music_title"].Name = "Title";
+G2L["music_title"].Position = UDim2.new(0.5, 0, 0.5, 0);
+G2L["music_topbar_corner"] = Instance.new("UICorner", G2L["music_topbar"]);
+G2L["music_topbar_corner"].CornerRadius = UDim.new(0, 10);
+G2L["music_topbar_stroke"] = Instance.new("UIStroke", G2L["music_topbar"]);
+G2L["music_topbar_stroke"].Thickness = 2;
+G2L["music_topbar_stroke"].Color = Color3.fromRGB(155, 100, 255);
+G2L["music_topbar_stroke"].ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
+G2L["music_topbar_stroke"].Name = "UIStroker";
+G2L["music_frame_corner"] = Instance.new("UICorner", G2L["music_frame"]);
+G2L["music_frame_corner"].CornerRadius = UDim.new(0, 10);
+G2L["music_frame_gradient"] = Instance.new("UIGradient", G2L["music_frame"]);
+G2L["music_frame_gradient"].Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(35, 35, 40)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(30, 30, 35))
+});
+G2L["music_frame_stroke"] = Instance.new("UIStroke", G2L["music_frame"]);
+G2L["music_frame_stroke"].Thickness = 2;
+G2L["music_frame_stroke"].Color = Color3.fromRGB(155, 100, 255);
+G2L["music_frame_stroke"].ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
+G2L["music_frame_stroke"].Name = "UIStroker";
+
+
+do
+	local c = G2L["music_container"]
+	local ctrls = G2L["music_controls"]
+	local grid = G2L["music_controls_layout"]
+	local mix = G2L["music_mix"]
+	local list = G2L["music_list"]
+	local input = G2L["music_input"]
+	local load = G2L["music_load"]
+	local now = G2L["music_now"]
+	local status = G2L["music_status"]
+	local progress = G2L["music_progress"]
+	local time = G2L["music_time"]
+	local vlab = G2L["music_vol_label"]
+	local vbox = G2L["music_vol_box"]
+	local slab = G2L["music_speed_label"]
+	local sbox = G2L["music_speed_box"]
+	local folder = G2L["music_folder"]
+	local buttons = {G2L["music_play"], G2L["music_pause"], G2L["music_resume"], G2L["music_stop"], G2L["music_loop"], G2L["music_next"], G2L["music_mode"], G2L["music_refresh"]}
+	local function addTextLimit(obj, minv, maxv)
+		if not obj or obj:FindFirstChild("MusicTextLimit") then return end
+		local t = Instance.new("UITextSizeConstraint", obj)
+		t.Name = "MusicTextLimit"
+		t.MinTextSize = minv
+		t.MaxTextSize = maxv
+	end
+	addTextLimit(G2L["music_title"], 12, 18)
+	addTextLimit(input, 11, 15)
+	addTextLimit(load, 11, 14)
+	addTextLimit(now, 11, 14)
+	addTextLimit(status, 10, 13)
+	addTextLimit(time, 10, 12)
+	addTextLimit(vlab, 10, 13)
+	addTextLimit(vbox, 10, 13)
+	addTextLimit(slab, 10, 13)
+	addTextLimit(sbox, 10, 13)
+	addTextLimit(folder, 9, 12)
+	for _, b in buttons do
+		if b then
+			b.TextScaled = true
+			addTextLimit(b, 10, 13)
+		end
+	end
+	local function lay()
+		if not (c and c.Parent) then return end
+		local w = math.max(0, c.AbsoluteSize.X)
+		local h = math.max(0, c.AbsoluteSize.Y)
+		if w <= 0 or h <= 0 then return end
+		local pad = 8
+		local rightW = w < 430 and 78 or 96
+		if input then
+			input.Position = UDim2.new(0, pad, 0, 8)
+			input.Size = UDim2.new(1, -(rightW + (pad * 3)), 0, 30)
+		end
+		if load then
+			load.Position = UDim2.new(1, -(rightW + pad), 0, 8)
+			load.Size = UDim2.new(0, rightW, 0, 30)
+		end
+		if now then
+			now.Position = UDim2.new(0, pad + 2, 0, 44)
+			now.Size = UDim2.new(1, -(rightW + (pad * 3) + 2), 0, 22)
+		end
+		if status then
+			status.Position = UDim2.new(1, -(rightW + pad), 0, 44)
+			status.Size = UDim2.new(0, rightW, 0, 22)
+		end
+		if progress then
+			progress.Position = UDim2.new(0, pad + 2, 0, 76)
+			progress.Size = UDim2.new(1, -(rightW + (pad * 3) + 2), 0, 12)
+		end
+		if time then
+			time.Position = UDim2.new(1, -(rightW + pad), 0, 72)
+			time.Size = UDim2.new(0, rightW, 0, 18)
+		end
+		local avail = math.max(1, w - 20)
+		local minBtn = w < 410 and 66 or 72
+		local cols = math.clamp(math.floor((avail + 6) / (minBtn + 6)), 2, 8)
+		if w < 430 then cols = math.min(cols, 4) end
+		local cellW = math.floor((avail - ((cols - 1) * 6)) / cols)
+		local rows = math.ceil(#buttons / cols)
+		local ch = (rows * 32) + ((rows - 1) * 6)
+		if grid then
+			grid.FillDirectionMaxCells = cols
+			grid.CellPadding = UDim2.new(0, 6, 0, 6)
+			grid.CellSize = UDim2.new(0, cellW, 0, 32)
+		end
+		if ctrls then
+			ctrls.Position = UDim2.new(0, 10, 0, 102)
+			ctrls.Size = UDim2.new(1, -20, 0, ch)
+		end
+		local mixY = 102 + ch + 12
+		local mixH = w < 430 and 58 or 32
+		if mix then
+			mix.Position = UDim2.new(0, 10, 0, mixY)
+			mix.Size = UDim2.new(1, -20, 0, mixH)
+		end
+		local boxW = w < 390 and 58 or 72
+		if vlab then vlab.Position = UDim2.new(0, 0, 0, 0); vlab.Size = UDim2.new(0, 56, 0, 32) end
+		if vbox then vbox.Position = UDim2.new(0, 62, 0, 0); vbox.Size = UDim2.new(0, boxW, 0, 32) end
+		local sx = 74 + boxW
+		if slab then slab.Position = UDim2.new(0, sx, 0, 0); slab.Size = UDim2.new(0, 48, 0, 32) end
+		if sbox then sbox.Position = UDim2.new(0, sx + 54, 0, 0); sbox.Size = UDim2.new(0, boxW, 0, 32) end
+		if folder then
+			if w < 430 then
+				folder.TextXAlignment = Enum.TextXAlignment.Left
+				folder.Position = UDim2.new(0, 0, 0, 34)
+				folder.Size = UDim2.new(1, 0, 0, 20)
+			else
+				folder.TextXAlignment = Enum.TextXAlignment.Right
+				folder.Position = UDim2.new(0, sx + 60 + boxW, 0, 0)
+				folder.Size = UDim2.new(1, -(sx + 60 + boxW), 0, 32)
+			end
+		end
+		local ly = mixY + mixH + 10
+		if list then
+			list.Position = UDim2.new(0, 8, 0, ly)
+			list.Size = UDim2.new(1, -16, 1, -(ly + 8))
+		end
+	end
+	c:GetPropertyChangedSignal("AbsoluteSize"):Connect(lay)
+	task.defer(lay)
+end
+
 return G2L["1"];

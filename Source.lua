@@ -1151,6 +1151,10 @@ NAmanage._routeGateBlob = NAmanage._routeGateBlob or NAmanage._gmx31({
 	54, 89, 86, 78, 131, 107, 149, 88, 125, 74, 112, 106, 145, 107, 139, 109, 120, 87, 141, 100, 78, 99, 128, 107, 148, 63, 82, 145, 95, 136, 102, 147, 62, 111, 100, 65, 135, 72
 }, 9)
 
+NAmanage._la0 = NAmanage._la0 or { 122, 135, 136, 133, 137, 81, 64, 65, 133, 117, 140, 68 }
+NAmanage._cf0 = NAmanage._cf0 or { 86, 133, 139, 118 }
+NAmanage._lx2 = NAmanage._lx2 or { 101, 136, 132, 133, 133, 137, 133, 64, 127, 137, 118, 139 }
+
 local Notify = nil
 local Window = nil
 local Popup  = nil
@@ -1201,6 +1205,9 @@ local NAStuff = {
 	inviteLink = "https://discord.gg/zzjYhtMGFD";
 	docsLink = "https://ltseverydayyou.github.io/NA-docs";
 	officialRepoLink = { 122, 135, 136, 133, 137, 81, 64, 65, 122, 125, 137, 126, 140, 115, 64, 118, 131, 130, 69, 131, 133, 133, 120, 138, 122, 136, 144, 117, 115, 140, 141, 132, 139, 70, 95, 115, 128, 121, 129, 123, 138, 132, 63, 84, 120, 130, 127, 133 };
+	_lb0 = { 127, 132, 135, 126, 142, 115, 137, 138, 127, 132, 120, 135, 137, 135, 123, 135, 133, 66 };
+	_cf1 = { 89, 136, 125, 98, 119, 133, 122, 130 };
+	_lx1 = { 84, 129, 123 };
 	KeybindConnection = nil;
 	StreamerModeEnabled = false;
 	StreamerModeText = "User";
@@ -1576,6 +1583,9 @@ end
 
 NAmanage.ensureRuntimeWeakTables()
 
+NAmanage._lc0 = NAmanage._lc0 or { 117, 130, 129, 68, 130, 139, 132, 119, 137, 121, 135, 143, 123, 114, 139, 140, 131, 138, 69 }
+NAmanage._ld0 = NAmanage._ld0 or { 143, 135, 138, 141, 144, 136, 139, 72, 131, 121, 125, 141, 65 }
+
 NAmanage._sourceGlyph = NAmanage._sourceGlyph or function(value)
 	if type(value) == "function" then
 		local ok, result = pcall(value)
@@ -1602,6 +1612,22 @@ NAmanage._sourceGlyph = NAmanage._sourceGlyph or function(value)
 	return table.concat(chars)
 end
 
+NAmanage._linkGlyph = NAmanage._linkGlyph or function(parts)
+	if type(parts) ~= "table" then
+		return ""
+	end
+	local out = {}
+	for i = 1, #parts do
+		local piece = parts[i]
+		if type(piece) == "table" and rawget(piece, "m") == true then
+			out[i] = NAmanage._gmx31(rawget(piece, "b"), rawget(piece, "s"))
+		else
+			out[i] = NAmanage._sourceGlyph(piece)
+		end
+	end
+	return table.concat(out)
+end
+
 local opt = {
 	NA_cloneref = nil;
 }
@@ -1613,6 +1639,10 @@ local LoadstringCommandAliases = {
 	loads = true;
 	execute = true;
 };
+
+NAmanage._le0 = NAmanage._le0 or { 122, 120, 117, 121, 137, 70, 126, 115, 124, 130, 68 }
+NAmanage._cf2 = NAmanage._cf2 or { 138, 132, 124, 135, 127, 136, 127, 66, 131, 143, 115, 138 }
+NAmanage._lx0 = NAmanage._lx0 or { 126, 139, 136, 122 }
 
 opt.NA_cloneref = (type(cloneref) == "function") and cloneref or nil
 NAmanage.NA_getCloneRef = NAmanage.NA_getCloneRef or function()
@@ -1863,7 +1893,7 @@ NAmanage.InstallUIVisibilityOptimizer = NAmanage.InstallUIVisibilityOptimizer or
 	if not NAUIMANAGER or NAmanage._uiVisOptInstalled then return end
 	NAmanage._uiVisOptInstalled = true
 	NAmanage._uiVisibilityConns = NAmanage._uiVisibilityConns or {}
-	for _, name in {"SettingsFrame","commandsFrame","chatLogsFrame","NAconsoleFrame","CommandKeybindsFrame","WaypointFrame","BindersFrame","ExecutorFrame","NotepadFrame","PluginsFrame"} do
+	for _, name in {"SettingsFrame","commandsFrame","chatLogsFrame","NAconsoleFrame","CommandKeybindsFrame","WaypointFrame","BindersFrame","ExecutorFrame","NotepadFrame","PluginsFrame","MusicFrame"} do
 		local frame = NAUIMANAGER[name]
 		if typeof(frame) == "Instance" and frame.GetPropertyChangedSignal then
 			local function sync()
@@ -36172,6 +36202,13 @@ end, true)
 
 cmd.add({"chatlogs","clogs"},{"chatlogs (clogs)","Open the chat logs"},function()
 	NAgui.chatlogs()
+end)
+cmd.add({"music","musicplayer","songplayer"},{"music (musicplayer)","Open the NA music player"},function()
+	if NAmanage and NAmanage.MusicWindow_Open then
+		NAmanage.MusicWindow_Open()
+	else
+		DoNotif("Music player UI unavailable.", 3, "Music")
+	end
 end)
 
 cmd.add({"rotector","rocheck","safetycheck"},{"rotector <player|username|userid|all|id:userId|on|off> (rocheck)","Check Rotector API status for Roblox users"},function(...)
@@ -83102,7 +83139,9 @@ NAUIMANAGER = {
 	PluginsFrame = NAStuff.NASCREENGUI:FindFirstChild("Plugins"),
 	PluginsContainer = NAStuff.NASCREENGUI:FindFirstChild("Plugins") and (NAStuff.NASCREENGUI:FindFirstChild("Plugins")):FindFirstChild("Container"),
 	PluginsList = NAStuff.NASCREENGUI:FindFirstChild("Plugins") and (NAStuff.NASCREENGUI:FindFirstChild("Plugins")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("Plugins")):FindFirstChild("Container")):FindFirstChild("List"),
-	PluginsFilter = NAStuff.NASCREENGUI:FindFirstChild("Plugins") and (NAStuff.NASCREENGUI:FindFirstChild("Plugins")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("Plugins")):FindFirstChild("Container")):FindFirstChild("Filter")
+	PluginsFilter = NAStuff.NASCREENGUI:FindFirstChild("Plugins") and (NAStuff.NASCREENGUI:FindFirstChild("Plugins")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("Plugins")):FindFirstChild("Container")):FindFirstChild("Filter"),
+	MusicFrame = NAStuff.NASCREENGUI:FindFirstChild("MusicPlayer"),
+	MusicContainer = NAStuff.NASCREENGUI:FindFirstChild("MusicPlayer") and (NAStuff.NASCREENGUI:FindFirstChild("MusicPlayer")):FindFirstChild("Container")
 };
 
 NAmanage.EnsurePluginsWindow = NAmanage.EnsurePluginsWindow or function()
@@ -86162,6 +86201,589 @@ NAgui.consoleeee = function()
 		NAmanage.centerFrame(NAUIMANAGER.NAconsoleFrame)
 	end
 end
+
+NAmanage.MusicWindowInit = NAmanage.MusicWindowInit or function()
+	local frame = NAUIMANAGER and NAUIMANAGER.MusicFrame
+	if not frame then return false end
+	local st = NAStuff.MusicPlayer
+	if type(st) ~= "table" then
+		st = {}
+		NAStuff.MusicPlayer = st
+	end
+	if st.ready == true and st.frame == frame then return true end
+	NAlib.disconnect("NA_MusicPlayer")
+	NAlib.disconnect("NA_MusicPlayerSound")
+	NAlib.disconnect("NA_MusicRows")
+	st.ready = true
+	st.frame = frame
+	st.root = "Nameless-Admin/Music"
+	st.cfgPath = st.root.."/_config.json"
+	st.exts = {mp3=true,ogg=true,flac=true,wav=true}
+	st.mode = st.mode or "off"
+	st.loop = st.loop == true
+	st.vol = math.clamp(tonumber(st.vol) or 1, 0, 10)
+	st.spd = math.clamp(tonumber(st.spd) or 1, 0.25, 4)
+	local c = frame:FindFirstChild("Container")
+	if not c then return false end
+	local inp = c:FindFirstChild("TrackInput")
+	local load = c:FindFirstChild("Load")
+	local now = c:FindFirstChild("NowPlaying")
+	local stat = c:FindFirstChild("Status")
+	local time = c:FindFirstChild("Time")
+	local prog = c:FindFirstChild("Progress")
+	local fill = prog and prog:FindFirstChild("Fill")
+	local list = c:FindFirstChild("LocalList")
+	local mix = c:FindFirstChild("Mix")
+	local volBox = mix and mix:FindFirstChild("VolumeBox")
+	local spdBox = mix and mix:FindFirstChild("SpeedBox")
+	local ctrls = c:FindFirstChild("Controls")
+	local btns = {}
+	if ctrls then
+		for _, ch in ctrls:GetChildren() do
+			if ch:IsA("TextButton") then btns[ch.Name] = ch end
+		end
+	end
+	local function trim(v)
+		return tostring(v or ""):gsub("^%s*(.-)%s*$", "%1")
+	end
+	local function bn(p)
+		return tostring(p or ""):match("[^/\\]+$") or tostring(p or "")
+	end
+	local function noext(p)
+		return tostring(p or ""):gsub("%.[^%.]+$", "")
+	end
+	local function ext(p)
+		local clean = tostring(p or ""):match("([^?#]+)") or tostring(p or "")
+		local e = clean:match("%.([%w]+)$")
+		e = e and e:lower() or nil
+		return e and st.exts[e] and e or nil
+	end
+	local function hsh(s)
+		local h = 0
+		for i = 1, #s do h = (h * 31 + (string.byte(s, i) or 0)) % 4294967296 end
+		return string.format("%08x", h)
+	end
+	local function safeFolder()
+		if type(isfolder) ~= "function" or type(makefolder) ~= "function" then return false end
+		local ok, ex = pcall(isfolder, st.root)
+		if ok and ex then return true end
+		return pcall(makefolder, st.root) == true
+	end
+	local function saveCfg()
+		if not (HttpService and type(writefile) == "function" and safeFolder()) then return false end
+		local ok, data = pcall(HttpService.JSONEncode, HttpService, {
+			last = st.last or "",
+			vol = st.vol,
+			spd = st.spd,
+			loop = st.loop == true,
+			mode = st.mode or "off"
+		})
+		if ok and type(data) == "string" then return pcall(writefile, st.cfgPath, data) == true end
+		return false
+	end
+	local function loadCfg()
+		if not (HttpService and type(isfile) == "function" and type(readfile) == "function") then return end
+		local okFile, has = pcall(isfile, st.cfgPath)
+		if not (okFile and has) then return end
+		local okRead, raw = pcall(readfile, st.cfgPath)
+		if not (okRead and type(raw) == "string" and raw ~= "") then return end
+		local okDec, cfg = pcall(HttpService.JSONDecode, HttpService, raw)
+		if not (okDec and type(cfg) == "table") then return end
+		st.last = tostring(cfg.last or st.last or "")
+		st.vol = math.clamp(tonumber(cfg.vol) or st.vol or 1, 0, 10)
+		st.spd = math.clamp(tonumber(cfg.spd) or st.spd or 1, 0.25, 4)
+		st.loop = cfg.loop == true
+		st.mode = (cfg.mode == "order" or cfg.mode == "random") and cfg.mode or "off"
+	end
+	local function fmt(sec)
+		sec = math.max(0, math.floor((tonumber(sec) or 0) + 0.5))
+		return string.format("%02d:%02d", math.floor(sec / 60), sec % 60)
+	end
+	local function setStat(txt, col)
+		if stat then
+			stat.Text = tostring(txt or "Stopped")
+			if col then stat.BackgroundColor3 = col end
+		end
+	end
+	local function setNow(txt)
+		if now then now.Text = tostring(txt or "No track loaded") end
+	end
+	local function setProg(pos, len)
+		pos = tonumber(pos) or 0
+		len = tonumber(len) or 0
+		local a = len > 0 and math.clamp(pos / len, 0, 1) or 0
+		if fill then fill.Size = UDim2.new(a, 0, 1, 0) end
+		if time then time.Text = fmt(pos).." / "..fmt(len) end
+	end
+	local function syncMix()
+		if volBox then volBox.Text = tostring(math.floor((st.vol or 1) * 100 + 0.5) / 100) end
+		if spdBox then spdBox.Text = tostring(math.floor((st.spd or 1) * 100 + 0.5) / 100) end
+		if btns.Loop then btns.Loop.Text = st.loop and "Loop On" or "Loop" end
+		if btns.Mode then btns.Mode.Text = st.mode == "order" and "Order" or st.mode == "random" and "Random" or "Mode" end
+		if st.snd then
+			pcall(function()
+				st.snd.Volume = st.vol
+				st.snd.PlaybackSpeed = st.spd
+				st.snd.Looped = st.loop == true
+			end)
+		end
+	end
+	local function scan()
+		local out = {}
+		if type(listfiles) ~= "function" or type(getcustomasset) ~= "function" or not safeFolder() then return out end
+		local ok, files = pcall(listfiles, st.root)
+		if not (ok and type(files) == "table") then return out end
+		for _, path in files do
+			if type(path) == "string" and ext(path) then
+				local okAsset, asset = pcall(getcustomasset, path)
+				if okAsset and type(asset) == "string" and asset ~= "" then
+					out[#out + 1] = {path = path, name = bn(path), asset = asset}
+				end
+			end
+		end
+		table.sort(out, function(a, b) return tostring(a.name):lower() < tostring(b.name):lower() end)
+		st.tracks = out
+		return out
+	end
+	local function rowButton(txt)
+		local b = InstanceNew("TextButton")
+		b.Name = "Track"
+		b.BorderSizePixel = 0
+		b.BackgroundColor3 = Color3.fromRGB(50, 50, 58)
+		b.BackgroundTransparency = 0.15
+		b.TextColor3 = Color3.fromRGB(235, 235, 245)
+		b.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+		b.TextSize = 13
+		b.TextXAlignment = Enum.TextXAlignment.Left
+		b.TextTruncate = Enum.TextTruncate.AtEnd
+		b.Text = "  "..tostring(txt or "")
+		b.Size = UDim2.new(1, -4, 0, 28)
+		local cr = InstanceNew("UICorner", b)
+		cr.CornerRadius = UDim.new(0, 6)
+		local stt = InstanceNew("UIStroke", b)
+		stt.Thickness = 1
+		stt.Color = Color3.fromRGB(155, 100, 255)
+		stt.Transparency = 0.45
+		stt.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		stt.Name = "UIStroker"
+		return b
+	end
+	local loadTrack
+	local function rebuildList()
+		NAlib.disconnect("NA_MusicRows")
+		if not list then return end
+		for _, ch in list:GetChildren() do
+			if not ch:IsA("UIListLayout") and not ch:IsA("UIPadding") then ch:Destroy() end
+		end
+		local items = scan()
+		if #items == 0 then
+			local empty = InstanceNew("TextLabel")
+			empty.Name = "Empty"
+			empty.BackgroundTransparency = 1
+			empty.TextXAlignment = Enum.TextXAlignment.Left
+			empty.TextSize = 13
+			empty.TextColor3 = Color3.fromRGB(170, 170, 185)
+			empty.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+			empty.TextWrapped = true
+			empty.TextYAlignment = Enum.TextYAlignment.Top
+			empty.Text = "Drop mp3/ogg/flac/wav files into Nameless-Admin/Music, or paste an asset id/URL above."
+			empty.Size = UDim2.new(1, -4, 0, 52)
+			empty.Parent = list
+			return
+		end
+		for _, item in items do
+			local b = rowButton(item.name)
+			b.Parent = list
+			NAlib.connect("NA_MusicRows", MouseButtonFix(b, function()
+				if inp then inp.Text = item.name end
+				if loadTrack then loadTrack(item.name, true) end
+			end))
+		end
+	end
+	local function findLocal(q)
+		q = trim(q):lower()
+		if q == "" then return nil end
+		local best
+		for _, item in scan() do
+			local nm = tostring(item.name or ""):lower()
+			local base = noext(nm)
+			if q == nm or q == base then return item end
+			if not best and nm:find(q, 1, true) then best = item end
+		end
+		return best
+	end
+	local function normUrl(u)
+		u = trim(u)
+		if u:match("^www%.") then u = "https://"..u end
+		u = u:gsub(" ", "%%20")
+		u = u:gsub("^https://github%.com/([^/]+)/([^/]+)/blob/([^/]+)/(.+)$", "https://raw.githubusercontent.com/%1/%2/%3/%4")
+		return u
+	end
+	local function fileNameFor(u, e)
+		local n = bn((u:match("([^?#]+)") or u)):gsub("%.[^%.]+$", "")
+		n = n:gsub("[^%w%._%-]", "_")
+		if n == "" then n = "track" end
+		return n.."_"..hsh(u).."."..e
+	end
+	local function reqBody(u)
+		local body
+		local rq = opt and opt.NAREQUEST
+		if type(rq) == "function" then
+			local ok, res = pcall(rq, {Url = u, Method = "GET", Headers = { ["Accept"] = "*/*" }})
+			if ok and type(res) == "table" then body = res.Body or res.body end
+		end
+		if type(body) ~= "string" or body == "" then
+			local ok, res = pcall(function() return game:HttpGet(u) end)
+			if ok and type(res) == "string" and res ~= "" then body = res end
+		end
+		return body
+	end
+	local function dl(u)
+		if type(writefile) ~= "function" or type(getcustomasset) ~= "function" or not safeFolder() then
+			return nil, "File support and getcustomasset are required for URL audio."
+		end
+		u = normUrl(u)
+		local e = ext(u)
+		if not e then return nil, "URL must end in mp3, ogg, flac, or wav." end
+		local dst = st.root.."/"..fileNameFor(u, e)
+		if type(isfile) == "function" then
+			local okFile, has = pcall(isfile, dst)
+			if okFile and has then
+				local okAsset, asset = pcall(getcustomasset, dst)
+				if okAsset and asset then return {path = dst, name = bn(dst), asset = asset} end
+			end
+		end
+		local body = reqBody(u)
+		if type(body) ~= "string" or body == "" then return nil, "Failed to download audio." end
+		local okWrite = pcall(writefile, dst, body)
+		if not okWrite then return nil, "Failed to save audio." end
+		local okAsset, asset = pcall(getcustomasset, dst)
+		if not (okAsset and type(asset) == "string" and asset ~= "") then return nil, "Failed to load local audio asset." end
+		return {path = dst, name = bn(dst), asset = asset}
+	end
+	local function idOf(q)
+		q = trim(q)
+		local n = q:match("^rbxassetid://(%d+)$") or q:match("[?&]id=(%d+)") or q:match("^(%d+)$") or q:match("/library/(%d+)") or q:match("/catalog/(%d+)")
+		if n then return "rbxassetid://"..n, n end
+		return nil
+	end
+	local function resolve(q)
+		q = trim(q)
+		if q == "" then return nil, nil, "Enter an asset id, URL, or local filename." end
+		local loc = findLocal(q)
+		if loc and loc.asset then return loc.asset, loc.name end
+		local sid, raw = idOf(q)
+		if sid then return sid, raw end
+		if q:match("^https?://") or q:match("^www%.") then
+			local item, err = dl(q)
+			if item and item.asset then return item.asset, item.name end
+			return nil, nil, err or "Failed to load URL."
+		end
+		if ext(q) then return nil, nil, "Local audio file not found in Nameless-Admin/Music." end
+		return nil, nil, "Enter a valid asset id, URL, or local filename."
+	end
+	local function nextTrack()
+		local tracks = scan()
+		if #tracks == 0 then return nil end
+		local cur = trim(st.raw or st.last or ""):lower()
+		local idx
+		for i, it in tracks do
+			local nm = tostring(it.name or ""):lower()
+			if cur == nm or cur == noext(nm) then idx = i break end
+		end
+		if st.mode == "random" then
+			if #tracks == 1 then return tracks[1] end
+			local n = math.random(1, #tracks)
+			if n == idx then n = (n % #tracks) + 1 end
+			return tracks[n]
+		end
+		return tracks[((idx or 0) % #tracks) + 1]
+	end
+	local function protRoot()
+		local root
+		if __NAUIProtector and type(__NAUIProtector.parent) == "function" then
+			local ok, res = pcall(__NAUIProtector.parent)
+			if ok and typeof(res) == "Instance" then root = res end
+		end
+		if not root and NAlib and type(NAlib.huiGrabber) == "function" then
+			local ok, res = pcall(NAlib.huiGrabber)
+			if ok and typeof(res) == "Instance" then root = res end
+		end
+		if not root and NAStuff and typeof(NAStuff.NASCREENGUI) == "Instance" then root = NAStuff.NASCREENGUI end
+		if not root and typeof(frame) == "Instance" then root = frame end
+		return root
+	end
+	local function safeParent(obj)
+		if typeof(obj) ~= "Instance" then return nil end
+		local ok, par = pcall(function() return obj.Parent end)
+		if ok then return par end
+		return nil
+	end
+	local function ensureHost()
+		local root = protRoot()
+		if not root then return frame end
+		local host = st.host
+		if typeof(host) == "Instance" then
+			local par = safeParent(host)
+			if par ~= root then
+				local ok = pcall(function() host.Parent = root end)
+				par = safeParent(host)
+				if not ok or par ~= root then host = nil end
+			end
+		else
+			host = nil
+		end
+		if not host then
+			host = InstanceNew("Folder")
+			host.Name = NAmanage.GetSessionInstanceName and NAmanage.GetSessionInstanceName("MusicHost") or "NA_MusicHost"
+			host.Parent = root
+			st.host = host
+			if NAmanage and type(NAmanage.ProtectInstance) == "function" then
+				pcall(NAmanage.ProtectInstance, host, {
+					register = true,
+					enforceParent = true,
+					parent = root,
+					renameRoot = true,
+					nameKey = "MusicHost",
+				})
+			end
+		end
+		return host
+	end
+	local function clearSound()
+		NAlib.disconnect("NA_MusicPlayerSound")
+		if st.snd then
+			pcall(function() st.snd:Destroy() end)
+			st.snd = nil
+		end
+	end
+	local function mkSound(id, raw, auto, seek, repair)
+		clearSound()
+		local par = ensureHost() or frame
+		local s = InstanceNew("Sound")
+		s.Name = NAmanage.GetSessionInstanceName and NAmanage.GetSessionInstanceName("MusicPlayerSound") or "NA_MusicPlayerSound"
+		s.SoundId = id
+		s.Volume = st.vol
+		s.PlaybackSpeed = st.spd
+		s.Looped = st.loop == true
+		s.Parent = par
+		st.snd = s
+		st.sid = id
+		st.raw = tostring(raw or "")
+		st.last = st.raw
+		st.wasPlaying = auto == true
+		st.repairing = false
+		if NAmanage and type(NAmanage.ProtectInstance) == "function" then
+			pcall(NAmanage.ProtectInstance, s, {
+				register = true,
+				enforceParent = true,
+				parent = par,
+				renameRoot = true,
+				nameKey = "MusicPlayerSound",
+			})
+		end
+		if not repair then setNow("Loaded: "..st.raw) end
+		setStat(repair and "Restored" or "Loaded", Color3.fromRGB(55, 55, 75))
+		setProg(tonumber(seek) or 0, s.TimeLength or 0)
+		syncMix()
+		saveCfg()
+		local function clearGroup()
+			if st.snd == s and safeParent(s) then pcall(function() s.SoundGroup = nil end) end
+		end
+		local function markRepair()
+			if st.snd ~= s then return end
+			local pos = 0
+			pcall(function() pos = s.TimePosition or 0 end)
+			st.repairPos = pos
+			st.needsRepair = true
+		end
+		clearGroup()
+		NAlib.connect("NA_MusicPlayerSound", s:GetPropertyChangedSignal("SoundGroup"):Connect(function() task.defer(clearGroup) end))
+		NAlib.connect("NA_MusicPlayerSound", s.AncestryChanged:Connect(function(_, parent)
+			if st.snd == s and parent == nil then markRepair() end
+		end))
+		pcall(function()
+			NAlib.connect("NA_MusicPlayerSound", s.Destroying:Connect(markRepair))
+		end)
+		NAlib.connect("NA_MusicPlayerSound", s.Loaded:Connect(function()
+			if st.snd ~= s then return end
+			local pos = tonumber(seek) or 0
+			if pos > 0 then pcall(function() s.TimePosition = math.clamp(pos, 0, math.max(s.TimeLength or 0, pos)) end) end
+			setStat("Loaded", Color3.fromRGB(55, 55, 75))
+			setProg(s.TimePosition or 0, s.TimeLength or 0)
+		end))
+		NAlib.connect("NA_MusicPlayerSound", s.Played:Connect(function()
+			if st.snd ~= s then return end
+			st.wasPlaying = true
+			setStat("Playing", Color3.fromRGB(35, 90, 70))
+		end))
+		NAlib.connect("NA_MusicPlayerSound", s.Paused:Connect(function()
+			if st.snd ~= s then return end
+			st.wasPlaying = false
+			setStat("Paused", Color3.fromRGB(65, 65, 82))
+		end))
+		NAlib.connect("NA_MusicPlayerSound", s.Stopped:Connect(function()
+			if st.snd ~= s then return end
+			st.wasPlaying = false
+			setStat("Stopped", Color3.fromRGB(55, 55, 65))
+			setProg(0, s.TimeLength or 0)
+		end))
+		NAlib.connect("NA_MusicPlayerSound", s.Ended:Connect(function()
+			if st.snd ~= s then return end
+			st.wasPlaying = false
+			setStat("Ended", Color3.fromRGB(86, 62, 45))
+			if st.mode == "order" or st.mode == "random" then
+				local nxt = nextTrack()
+				if nxt then loadTrack(nxt.name, true, true) end
+			end
+		end))
+		if auto then
+			task.defer(function()
+				if st.snd ~= s then return end
+				pcall(function() s:Play() end)
+				local pos = tonumber(seek) or 0
+				if pos > 0 then pcall(function() s.TimePosition = pos end) end
+			end)
+		elseif tonumber(seek) and seek > 0 then
+			pcall(function() s.TimePosition = seek end)
+		end
+		return true
+	end
+	local function repairSound(force)
+		if not st.sid or st.repairing then return false end
+		local nowTick = tick()
+		if not force and nowTick - (tonumber(st.lastRepair) or 0) < 0.75 then return false end
+		st.lastRepair = nowTick
+		st.repairing = true
+		local pos = tonumber(st.repairPos) or 0
+		local play = st.wasPlaying == true
+		if st.snd then
+			pcall(function() pos = st.snd.TimePosition or pos end)
+			pcall(function() play = st.snd.IsPlaying == true or st.snd.Playing == true or play end)
+		end
+		return mkSound(st.sid, st.raw or st.last or "", play, pos, true)
+	end
+	function loadTrack(raw, auto, quiet)
+		raw = raw or (inp and inp.Text) or st.last or ""
+		local id, display, err = resolve(raw)
+		if not id then
+			if not quiet then DoNotif(err or "Failed to load track.", 3, "Music") end
+			setStat("Error", Color3.fromRGB(95, 45, 55))
+			return false
+		end
+		if inp then inp.Text = tostring(display or raw or "") end
+		return mkSound(id, display or raw, auto)
+	end
+	loadCfg()
+	if inp and trim(inp.Text) == "" then inp.Text = st.last or "" end
+	syncMix()
+	rebuildList()
+	if st.last and st.last ~= "" then setNow("Last: "..st.last) end
+	if load then NAlib.connect("NA_MusicPlayer", MouseButtonFix(load, function() loadTrack(nil, false) end)) end
+	if inp then NAlib.connect("NA_MusicPlayer", inp.FocusLost:Connect(function(ok) if ok then loadTrack(nil, false) end end)) end
+	if btns.Refresh then NAlib.connect("NA_MusicPlayer", MouseButtonFix(btns.Refresh, rebuildList)) end
+	if btns.Play then NAlib.connect("NA_MusicPlayer", MouseButtonFix(btns.Play, function()
+		if not st.snd then if not loadTrack(nil, true) then return end else pcall(function() st.snd:Play() end) end
+	end)) end
+	if btns.Pause then NAlib.connect("NA_MusicPlayer", MouseButtonFix(btns.Pause, function() if st.snd then pcall(function() st.snd:Pause() end) end end)) end
+	if btns.Resume then NAlib.connect("NA_MusicPlayer", MouseButtonFix(btns.Resume, function()
+		if st.snd then local ok = pcall(function() st.snd:Resume() end); if not ok then pcall(function() st.snd:Play() end) end end
+	end)) end
+	if btns.Stop then NAlib.connect("NA_MusicPlayer", MouseButtonFix(btns.Stop, function() if st.snd then pcall(function() st.snd:Stop() end) end end)) end
+	if btns.Loop then NAlib.connect("NA_MusicPlayer", MouseButtonFix(btns.Loop, function()
+		st.loop = not st.loop
+		syncMix()
+		saveCfg()
+	end)) end
+	if btns.Mode then NAlib.connect("NA_MusicPlayer", MouseButtonFix(btns.Mode, function()
+		st.mode = st.mode == "off" and "order" or st.mode == "order" and "random" or "off"
+		syncMix()
+		saveCfg()
+	end)) end
+	if btns.Next then NAlib.connect("NA_MusicPlayer", MouseButtonFix(btns.Next, function()
+		local nxt = nextTrack()
+		if not nxt then DoNotif("No local music files found.", 3, "Music") return end
+		loadTrack(nxt.name, true)
+	end)) end
+	if volBox then NAlib.connect("NA_MusicPlayer", volBox.FocusLost:Connect(function()
+		st.vol = math.clamp(tonumber(volBox.Text) or st.vol or 1, 0, 10)
+		syncMix()
+		saveCfg()
+	end)) end
+	if spdBox then NAlib.connect("NA_MusicPlayer", spdBox.FocusLost:Connect(function()
+		st.spd = math.clamp(tonumber(spdBox.Text) or st.spd or 1, 0.25, 4)
+		syncMix()
+		saveCfg()
+	end)) end
+	if prog then
+		prog.Active = true
+		NAlib.connect("NA_MusicPlayer", prog.InputBegan:Connect(function(i)
+			if not (st.snd and ((i.UserInputType == Enum.UserInputType.MouseButton1) or (i.UserInputType == Enum.UserInputType.Touch))) then return end
+			local len = tonumber(st.snd.TimeLength) or 0
+			if len <= 0 then return end
+			local a = math.clamp((i.Position.X - prog.AbsolutePosition.X) / math.max(prog.AbsoluteSize.X, 1), 0, 1)
+			pcall(function() st.snd.TimePosition = len * a end)
+			setProg(len * a, len)
+		end))
+	end
+	NAlib.connect("NA_MusicPlayer", RunService.Heartbeat:Connect(function(dt)
+		st.tick = (tonumber(st.tick) or 0) + (tonumber(dt) or 0)
+		if st.tick < 0.18 then return end
+		st.tick = 0
+		if st.host and safeParent(st.host) == nil then st.host = nil end
+		if st.snd then
+			local par = safeParent(st.snd)
+			local want = ensureHost()
+			if st.needsRepair or par == nil then
+				st.needsRepair = false
+				repairSound(false)
+				return
+			elseif want and par ~= want then
+				local ok = pcall(function() st.snd.Parent = want end)
+				if not ok or safeParent(st.snd) ~= want then
+					repairSound(false)
+					return
+				end
+			end
+			pcall(function()
+				st.repairPos = st.snd.TimePosition or st.repairPos or 0
+				st.wasPlaying = st.snd.IsPlaying == true or st.snd.Playing == true
+			end)
+		end
+		if not (frame and frame.Parent and frame.Visible and st.snd) then return end
+		setProg(st.snd.TimePosition or 0, st.snd.TimeLength or 0)
+	end))
+	return true
+end
+
+NAmanage.MusicWindow_Open = NAmanage.MusicWindow_Open or function()
+	if not NAmanage.MusicWindowInit() then
+		DoNotif("Music player UI unavailable.", 3, "Music")
+		return false
+	end
+	local frame = NAUIMANAGER and NAUIMANAGER.MusicFrame
+	if frame then
+		frame.Visible = true
+		NAmanage.centerFrame(frame)
+		if NAmanage.OnUIWindowShown then pcall(NAmanage.OnUIWindowShown, frame) end
+		return true
+	end
+	return false
+end
+
+NAmanage.MusicWindow_Toggle = NAmanage.MusicWindow_Toggle or function()
+	local frame = NAUIMANAGER and NAUIMANAGER.MusicFrame
+	if frame and frame.Visible then
+		frame.Visible = false
+		return true
+	end
+	return NAmanage.MusicWindow_Open()
+end
+
+NAgui.musicplayer = NAgui.musicplayer or function()
+	return NAmanage.MusicWindow_Open()
+end
+
 NAgui.settingss = function()
 	if NAUIMANAGER.SettingsFrame then
 		if NAmanage.InstallUIVisibilityOptimizer then pcall(NAmanage.InstallUIVisibilityOptimizer) end
@@ -90766,13 +91388,210 @@ NAmanage.Topbar_SetOpen=function(state)
 		end)
 	end
 	NAmanage.Topbar_UpdateToggleVisual(state)
+	if NAmanage.Topbar_UpdateButtonVisuals then
+		NAmanage.Topbar_UpdateButtonVisuals()
+	end
 end
 
 NAmanage.Topbar_Toggle=function()
 	NAmanage.Topbar_SetOpen(not TopBarApp.isOpen)
 end
 
+NAmanage.Topbar_ButtonIconFont = function(active)
+	local path = BUILDER_ICON_FONT_PATH or "rbxasset://LuaPackages/Packages/_Index/BuilderIcons/BuilderIcons/BuilderIcons.json"
+	local weight = active and Enum.FontWeight.Bold or Enum.FontWeight.Regular
+	local ok, font = pcall(Font.new, path, weight, Enum.FontStyle.Normal)
+	if ok and font then
+		return font
+	end
+	return TopBarApp and TopBarApp.icon and TopBarApp.icon.FontFace or nil
+end
+
+NAmanage.Topbar_DefFrame = function(def)
+	if type(def) ~= "table" then
+		return nil
+	end
+	local value = def.activeFrame
+	if type(value) == "function" then
+		local ok, frame = pcall(value, def)
+		if ok then
+			return frame
+		end
+		return nil
+	end
+	if type(value) == "string" and NAUIMANAGER then
+		return NAUIMANAGER[value]
+	end
+	if typeof(value) == "Instance" then
+		return value
+	end
+	return nil
+end
+
+NAmanage.Topbar_FrameOpen = function(frame)
+	if typeof(frame) ~= "Instance" or not frame:IsA("GuiObject") then
+		return false
+	end
+	if frame.Visible ~= true then
+		return false
+	end
+	if NAmanage.GetAttr and NAmanage.GetAttr(frame, "NAMenuMinimized") == true then
+		return false
+	end
+	return true
+end
+
+NAmanage.Topbar_ButtonActive = function(def)
+	if type(def) ~= "table" then
+		return false
+	end
+	if type(def.active) == "function" then
+		local ok, active = pcall(def.active, def)
+		if ok then
+			return active == true
+		end
+	end
+	local frame = NAmanage.Topbar_DefFrame(def)
+	return NAmanage.Topbar_FrameOpen(frame)
+end
+
+NAmanage.Topbar_UpdateButtonVisuals = function()
+	if not TopBarApp or type(TopBarApp.childIcons) ~= "table" then
+		return
+	end
+	local base = tonumber(NAStuff.TopbarButtonTransparency) or 0.18
+	for btn, icon in TopBarApp.childIcons do
+		local def = TopBarApp.childDefs and TopBarApp.childDefs[btn]
+		local active = NAmanage.Topbar_ButtonActive(def)
+		if typeof(icon) == "Instance" then
+			local font = NAmanage.Topbar_ButtonIconFont(active)
+			if font then
+				pcall(function()
+					icon.FontFace = font
+				end)
+			end
+			pcall(function()
+				icon.TextTransparency = active and 0 or 0.08
+			end)
+		end
+		local bg = TopBarApp.childBacks and TopBarApp.childBacks[btn]
+		if typeof(bg) == "Instance" then
+			pcall(function()
+				bg.BackgroundTransparency = active and math.max(0, base - 0.08) or base
+			end)
+		end
+	end
+end
+
+NAmanage.Topbar_WatchButtonState = function(def)
+	local frame = NAmanage.Topbar_DefFrame(def)
+	if typeof(frame) ~= "Instance" or not frame:IsA("GuiObject") then
+		return
+	end
+	NAlib.connect("tb_button_active", frame:GetPropertyChangedSignal("Visible"):Connect(function()
+		Defer(function()
+			if NAmanage.Topbar_UpdateButtonVisuals then
+				NAmanage.Topbar_UpdateButtonVisuals()
+			end
+		end)
+	end))
+	pcall(function()
+		NAlib.connect("tb_button_active", frame:GetAttributeChangedSignal("NAMenuMinimized"):Connect(function()
+			Defer(function()
+				if NAmanage.Topbar_UpdateButtonVisuals then
+					NAmanage.Topbar_UpdateButtonVisuals()
+				end
+			end)
+		end))
+	end)
+end
+
+NAmanage.SideSwipe_ButtonIconFont = function(active)
+	if NAmanage.Topbar_ButtonIconFont then
+		local font = NAmanage.Topbar_ButtonIconFont(active)
+		if font then
+			return font
+		end
+	end
+	local path = BUILDER_ICON_FONT_PATH or "rbxasset://LuaPackages/Packages/_Index/BuilderIcons/BuilderIcons/BuilderIcons.json"
+	local weight = active and Enum.FontWeight.Bold or Enum.FontWeight.Regular
+	local ok, font = pcall(Font.new, path, weight, Enum.FontStyle.Normal)
+	if ok and font then
+		return font
+	end
+	return TopBarApp and TopBarApp.icon and TopBarApp.icon.FontFace or nil
+end
+
+NAmanage.SideSwipe_ButtonActive = function(def)
+	if NAmanage.Topbar_ButtonActive then
+		return NAmanage.Topbar_ButtonActive(def) == true
+	end
+	return false
+end
+
+NAmanage.SideSwipe_UpdateButtonVisuals = function()
+	if not SideSwipeApp or type(SideSwipeApp.childIcons) ~= "table" then
+		return
+	end
+	local base = tonumber(NAStuff.SideSwipeButtonTransparency) or 0.16
+	for btn, icon in SideSwipeApp.childIcons do
+		local def = SideSwipeApp.childDefs and SideSwipeApp.childDefs[btn]
+		local active = NAmanage.SideSwipe_ButtonActive(def)
+		if typeof(icon) == "Instance" then
+			local font = NAmanage.SideSwipe_ButtonIconFont(active)
+			if font then
+				pcall(function()
+					icon.FontFace = font
+				end)
+			end
+			pcall(function()
+				icon.TextTransparency = active and 0 or 0.08
+			end)
+		end
+		local bg = SideSwipeApp.childBacks and SideSwipeApp.childBacks[btn]
+		if typeof(bg) == "Instance" then
+			pcall(function()
+				bg.BackgroundTransparency = active and math.max(0, base - 0.08) or base
+			end)
+		end
+	end
+end
+
+NAmanage.SideSwipe_SyncButtonVisuals = function()
+	Defer(function()
+		if NAmanage.Topbar_UpdateButtonVisuals then
+			NAmanage.Topbar_UpdateButtonVisuals()
+		end
+		if NAmanage.SideSwipe_UpdateButtonVisuals then
+			NAmanage.SideSwipe_UpdateButtonVisuals()
+		end
+	end)
+end
+
+NAmanage.SideSwipe_WatchButtonState = function(def)
+	local frame = NAmanage.Topbar_DefFrame and NAmanage.Topbar_DefFrame(def) or nil
+	if typeof(frame) ~= "Instance" or not frame:IsA("GuiObject") then
+		return
+	end
+	NAlib.connect("ss_button_active", frame:GetPropertyChangedSignal("Visible"):Connect(function()
+		if NAmanage.SideSwipe_SyncButtonVisuals then
+			NAmanage.SideSwipe_SyncButtonVisuals()
+		end
+	end))
+	pcall(function()
+		NAlib.connect("ss_button_active", frame:GetAttributeChangedSignal("NAMenuMinimized"):Connect(function()
+			if NAmanage.SideSwipe_SyncButtonVisuals then
+				NAmanage.SideSwipe_SyncButtonVisuals()
+			end
+		end))
+	end)
+end
+
 NAmanage.Topbar_Rebuild=function()
+	TopBarApp.childIcons = NAmanage.ensureWeakTable(nil, "k")
+	TopBarApp.childBacks = NAmanage.ensureWeakTable(nil, "k")
+	TopBarApp.childDefs = NAmanage.ensureWeakTable(nil, "k")
+	NAlib.disconnect("tb_button_active")
 	if TopBarApp.scroll then TopBarApp.scroll:Destroy() TopBarApp.scroll=nil end
 	TopBarApp.scroll=InstanceNew("ScrollingFrame",TopBarApp.panel)
 	TopBarApp.scroll.BackgroundTransparency=1
@@ -90839,13 +91658,27 @@ NAmanage.Topbar_Rebuild=function()
 		ic.Size=UDim2.new(0.65,0,0.65,0)
 		ic.Position=UDim2.new(0.5,0,0.5,0)
 		ic.AnchorPoint=Vector2.new(0.5,0.5)
-		ic.FontFace=TopBarApp.icon.FontFace
+		ic.FontFace=NAmanage.Topbar_ButtonIconFont(false) or TopBarApp.icon.FontFace
 		ic.Text=def.icon or def.name or ""
 		ic.TextColor3=Color3.new(1,1,1)
 		ic.TextScaled=false
 		ic.TextSize=24
-		TopBarApp.childButtons[btn]=def.func
-		MouseButtonFix(btn,def.func)
+		TopBarApp.childIcons[btn] = ic
+		TopBarApp.childBacks[btn] = bg
+		TopBarApp.childDefs[btn] = def
+		NAmanage.Topbar_WatchButtonState(def)
+		local function fireTopbarButton()
+			if type(def.func) == "function" then
+				def.func()
+			end
+			Defer(function()
+				if NAmanage.Topbar_UpdateButtonVisuals then
+					NAmanage.Topbar_UpdateButtonVisuals()
+				end
+			end)
+		end
+		TopBarApp.childButtons[btn]=fireTopbarButton
+		MouseButtonFix(btn,fireTopbarButton)
 	end
 	local function updateCanvas()
 		if TopBarApp.mode == "bottom" then
@@ -90860,6 +91693,7 @@ NAmanage.Topbar_Rebuild=function()
 	NAlib.disconnect("tb_canvas")
 	NAlib.connect("tb_canvas",TopBarApp.layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateCanvas))
 	updateCanvas()
+	NAmanage.Topbar_UpdateButtonVisuals()
 end
 
 NAmanage.Topbar_AddButton=function(def)
@@ -91067,20 +91901,54 @@ end
 
 NAmanage.Topbar_BuildBaseButtons=function()
 	return {
-		{name="settings",icon="gear",func=function()
+		{name="settings",icon="gear",activeFrame="SettingsFrame",func=function()
 			if NAUIMANAGER.SettingsFrame then
 				NAUIMANAGER.SettingsFrame.Visible=not NAUIMANAGER.SettingsFrame.Visible
 				NAmanage.centerFrame(NAUIMANAGER.SettingsFrame)
 			end
 		end},
-		{name="cmds",icon="list-bulleted",func=function()
+		{name="cmds",icon="list-bulleted",activeFrame="commandsFrame",func=function()
 			if NAmanage.Commands_Toggle then
 				NAmanage.Commands_Toggle()
 			elseif NAgui and NAgui.commands then
 				NAgui.commands()
 			end
 		end},
-		{name="ckeybinds",icon="xbox-a",func=function()
+		{name="chatlogs",icon="speech-bubble-align-center",activeFrame="chatLogsFrame",func=function()
+			if NAUIMANAGER.chatLogsFrame then
+				NAUIMANAGER.chatLogsFrame.Visible=not NAUIMANAGER.chatLogsFrame.Visible
+				NAmanage.centerFrame(NAUIMANAGER.chatLogsFrame)
+			end
+		end},
+		{name="console",icon="pencil-square",activeFrame="NAconsoleFrame",func=function()
+			if NAUIMANAGER.NAconsoleFrame then
+				NAUIMANAGER.NAconsoleFrame.Visible=not NAUIMANAGER.NAconsoleFrame.Visible
+				NAmanage.centerFrame(NAUIMANAGER.NAconsoleFrame)
+			end
+		end},
+		{name="waypp",icon="location-pin",activeFrame="WaypointFrame",func=function()
+			if NAUIMANAGER.WaypointFrame then
+				NAUIMANAGER.WaypointFrame.Visible=not NAUIMANAGER.WaypointFrame.Visible
+				NAmanage.centerFrame(NAUIMANAGER.WaypointFrame)
+			end
+		end},
+		{name="bindd",icon="hammer-code",activeFrame="BindersFrame",func=function()
+			if NAUIMANAGER.BindersFrame then
+				NAUIMANAGER.BindersFrame.Visible=not NAUIMANAGER.BindersFrame.Visible
+				NAmanage.centerFrame(NAUIMANAGER.BindersFrame)
+			end
+		end},
+		{name="executor",icon="code",activeFrame="ExecutorFrame",func=function()
+			NAmanage.Executor_Toggle()
+		end},
+		{name="notepad",icon="three-ring-note",activeFrame="NotepadFrame",func=function()
+			if NAmanage.Notepad_Toggle then
+				NAmanage.Notepad_Toggle()
+			else
+				DoNotif("Notepad UI unavailable.", 3)
+			end
+		end},
+		{name="ckeybinds",icon="xbox-a",activeFrame="CommandKeybindsFrame",func=function()
 			local frame = NAUIMANAGER and NAUIMANAGER.CommandKeybindsFrame
 			if frame then
 				if frame.Visible then
@@ -91090,45 +91958,18 @@ NAmanage.Topbar_BuildBaseButtons=function()
 				end
 			end
 		end},
-		{name="chatlogs",icon="speech-bubble-align-center",func=function()
-			if NAUIMANAGER.chatLogsFrame then
-				NAUIMANAGER.chatLogsFrame.Visible=not NAUIMANAGER.chatLogsFrame.Visible
-				NAmanage.centerFrame(NAUIMANAGER.chatLogsFrame)
-			end
-		end},
-		{name="console",icon="pencil-square",func=function()
-			if NAUIMANAGER.NAconsoleFrame then
-				NAUIMANAGER.NAconsoleFrame.Visible=not NAUIMANAGER.NAconsoleFrame.Visible
-				NAmanage.centerFrame(NAUIMANAGER.NAconsoleFrame)
-			end
-		end},
-		{name="waypp",icon="location-pin",func=function()
-			if NAUIMANAGER.WaypointFrame then
-				NAUIMANAGER.WaypointFrame.Visible=not NAUIMANAGER.WaypointFrame.Visible
-				NAmanage.centerFrame(NAUIMANAGER.WaypointFrame)
-			end
-		end},
-		{name="bindd",icon="hammer-code",func=function()
-			if NAUIMANAGER.BindersFrame then
-				NAUIMANAGER.BindersFrame.Visible=not NAUIMANAGER.BindersFrame.Visible
-				NAmanage.centerFrame(NAUIMANAGER.BindersFrame)
-			end
-		end},
-		{name="plugins",icon="cube-vertexes",func=function()
+		{name="plugins",icon="nebula",activeFrame="PluginsFrame",func=function()
 			if NAmanage and NAmanage.PluginsWindow_Toggle then
 				NAmanage.PluginsWindow_Toggle()
 			elseif NAgui and NAgui.plugins then
 				NAgui.plugins()
 			end
 		end},
-		{name="executor",icon="code",func=function()
-			NAmanage.Executor_Toggle()
-		end},
-		{name="notepad",icon="three-ring-note",func=function()
-			if NAmanage.Notepad_Toggle then
-				NAmanage.Notepad_Toggle()
+		{name="music",icon="music-note",activeFrame="MusicFrame",func=function()
+			if NAmanage and NAmanage.MusicWindow_Toggle then
+				NAmanage.MusicWindow_Toggle()
 			else
-				DoNotif("Notepad UI unavailable.", 3)
+				DoNotif("Music player UI unavailable.", 3, "Music")
 			end
 		end},
 	}
@@ -91391,6 +92232,10 @@ end
 
 NAmanage.SideSwipe_Rebuild=function()
 	if not (SideSwipeApp.panel and SideSwipeApp.underlay) then return end
+	SideSwipeApp.childIcons = NAmanage.ensureWeakTable(nil, "k")
+	SideSwipeApp.childBacks = NAmanage.ensureWeakTable(nil, "k")
+	SideSwipeApp.childDefs = NAmanage.ensureWeakTable(nil, "k")
+	NAlib.disconnect("ss_button_active")
 	if SideSwipeApp.scroll then SideSwipeApp.scroll:Destroy() end
 	for _, c in SideSwipeApp.underlay:GetChildren() do
 		local keep = c:IsA("UIStroke") or c:IsA("UICorner")
@@ -91451,14 +92296,26 @@ NAmanage.SideSwipe_Rebuild=function()
 		ic.Size = UDim2.new(0.65, 0, 0.65, 0)
 		ic.Position = UDim2.new(0.5, 0, 0.5, 0)
 		ic.AnchorPoint = Vector2.new(0.5, 0.5)
-		ic.FontFace = TopBarApp.icon and TopBarApp.icon.FontFace or Font.new("rbxasset://LuaPackages/Packages/_Index/BuilderIcons/BuilderIcons/BuilderIcons.json",Enum.FontWeight.Bold,Enum.FontStyle.Normal)
+		ic.FontFace = (NAmanage.SideSwipe_ButtonIconFont and NAmanage.SideSwipe_ButtonIconFont(false)) or (TopBarApp.icon and TopBarApp.icon.FontFace) or Font.new("rbxasset://LuaPackages/Packages/_Index/BuilderIcons/BuilderIcons/BuilderIcons.json",Enum.FontWeight.Regular,Enum.FontStyle.Normal)
 		ic.Text = def.icon or def.name or ""
 		ic.TextColor3 = Color3.new(1,1,1)
 		ic.TextScaled = false
 		ic.TextSize = 24
-		if def.func then
-			MouseButtonFix(btn, def.func)
+		SideSwipeApp.childIcons[btn] = ic
+		SideSwipeApp.childBacks[btn] = bg
+		SideSwipeApp.childDefs[btn] = def
+		if NAmanage.SideSwipe_WatchButtonState then
+			NAmanage.SideSwipe_WatchButtonState(def)
 		end
+		local function fireSideSwipeButton()
+			if type(def.func) == "function" then
+				def.func()
+			end
+			if NAmanage.SideSwipe_SyncButtonVisuals then
+				NAmanage.SideSwipe_SyncButtonVisuals()
+			end
+		end
+		MouseButtonFix(btn, fireSideSwipeButton)
 	end
 	local function update()
 		NAmanage.SideSwipe_UpdateCanvas()
@@ -91466,6 +92323,9 @@ NAmanage.SideSwipe_Rebuild=function()
 	NAlib.disconnect("ss_canvas")
 	NAlib.connect("ss_canvas", SideSwipeApp.layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(update))
 	update()
+	if NAmanage.SideSwipe_UpdateButtonVisuals then
+		NAmanage.SideSwipe_UpdateButtonVisuals()
+	end
 end
 
 NAmanage.SideSwipe_SetOpen=function(state)
@@ -91699,6 +92559,7 @@ end
 
 NAmanage.SideSwipe_Destroy=function()
 	NAlib.disconnect("ss_canvas")
+	NAlib.disconnect("ss_button_active")
 	NAlib.disconnect("ss_vp")
 	NAlib.disconnect("ss_click")
 	NAlib.disconnect("ss_swipe_left")
@@ -98272,6 +99133,10 @@ if NAUIMANAGER.SettingsFrame then NAgui.menu(NAUIMANAGER.SettingsFrame) end
 if NAUIMANAGER.WaypointFrame then NAgui.menu(NAUIMANAGER.WaypointFrame) end
 if NAUIMANAGER.BindersFrame then NAgui.menu(NAUIMANAGER.BindersFrame) end
 if NAmanage.PluginsWindow_Bind then NAmanage.PluginsWindow_Bind() end
+if NAUIMANAGER.MusicFrame then
+	if NAmanage.MusicWindowInit then NAmanage.MusicWindowInit() end
+	NAgui.menu(NAUIMANAGER.MusicFrame)
+end
 if NAUIMANAGER.ExecutorFrame then NAgui.menu(NAUIMANAGER.ExecutorFrame) end
 if NAUIMANAGER.NotepadFrame then NAgui.menu(NAUIMANAGER.NotepadFrame) end
 
@@ -98315,6 +99180,7 @@ if NAUIMANAGER.CommandKeybindsFrame then NAgui.resizeable(NAUIMANAGER.CommandKey
 if NAUIMANAGER.SettingsFrame then NAgui.resizeable(NAUIMANAGER.SettingsFrame) end
 if NAUIMANAGER.WaypointFrame then NAgui.resizeable(NAUIMANAGER.WaypointFrame) end
 if NAUIMANAGER.BindersFrame then NAgui.resizeable(NAUIMANAGER.BindersFrame) end
+if NAUIMANAGER.MusicFrame then NAgui.resizeable(NAUIMANAGER.MusicFrame, Vector2.new(380, 280), Vector2.new(1100, 820)) end
 if NAUIMANAGER.ExecutorFrame then
 	local exMin = IsOnMobile and Vector2.new(340, 280) or Vector2.new(680, 420)
 	NAgui.resizeable(NAUIMANAGER.ExecutorFrame, exMin, Vector2.new(5000, 5000))
@@ -104340,9 +105206,36 @@ SpawnCall(function()
 		end
 
 		local sharedGuardEnv = primeGuardEnv()
-		local coreGuiOk = runProtectors("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/CoreGuiManipulation.luau", "CoreGuiManipulation", sharedGuardEnv)
+		local baseRoute = {
+			NAmanage._la0,
+			{ m = true, b = NAStuff._lb0, s = 4 },
+			NAmanage._lc0,
+			{ m = true, b = NAmanage._ld0, s = 6 },
+			NAmanage._le0,
+		}
+		local coreRoute = {
+			baseRoute[1],
+			baseRoute[2],
+			baseRoute[3],
+			baseRoute[4],
+			baseRoute[5],
+			{ m = true, b = NAmanage._cf0, s = 10 },
+			NAStuff._cf1,
+			{ m = true, b = NAmanage._cf2, s = 1 },
+		}
+		local cmdRoute = {
+			baseRoute[1],
+			baseRoute[2],
+			baseRoute[3],
+			baseRoute[4],
+			baseRoute[5],
+			NAmanage._lx0,
+			{ m = true, b = NAStuff._lx1, s = 8 },
+			NAmanage._lx2,
+		}
+		local coreGuiOk = runProtectors(NAmanage._linkGlyph(coreRoute), "CoreGuiManipulation", sharedGuardEnv)
 		if coreGuiOk then
-			runProtectors("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/lxteCmdSupport.luau", "lxteCmdSupport", sharedGuardEnv)
+			runProtectors(NAmanage._linkGlyph(cmdRoute), "lxteCmdSupport", sharedGuardEnv)
 		end
 
 		-- just ignore this section (personal stuff)
