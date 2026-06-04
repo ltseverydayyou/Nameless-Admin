@@ -2888,6 +2888,27 @@
       "desc": "Break your character joints and die"
     },
     {
+      "name": "desync",
+      "aliases": [
+        "desync",
+        "ngrep"
+      ],
+      "usage": "desync (ngrep)",
+      "args": "",
+      "desc": "Toggle offset desync / sync (run again to disable)"
+    },
+    {
+      "name": "undesync",
+      "aliases": [
+        "undesync",
+        "undg",
+        "syncdesync"
+      ],
+      "usage": "undesync (undg,syncdesync)",
+      "args": "",
+      "desc": "Disable offset desync"
+    },
+    {
       "name": "raknetdesync",
       "aliases": [
         "raknetdesync",
@@ -8141,16 +8162,6 @@
       "usage": "gravitygun",
       "args": "",
       "desc": "Probably the best gravity gun script thats fe"
-    },
-    {
-      "name": "desync",
-      "aliases": [
-        "desync",
-        "ngrep"
-      ],
-      "usage": "desync (ngrep)",
-      "args": "",
-      "desc": "Toggle NextGenReplicator desync / sync (run again to disable)"
     },
     {
       "name": "reserveserver",
