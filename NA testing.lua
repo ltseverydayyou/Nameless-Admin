@@ -57116,6 +57116,378 @@ cmd.add({"chat", "message"}, {"chat <text> (message)", "Chats for you, useful if
 	NAlib.LocalPlayerChat(chatMessage, chatTarget)
 end, true)
 
+local NA_CHAT_AFFIXES = {
+	" :3",
+	" >:3",
+	" :333",
+	" :3c",
+	"!11!!",
+	"!!!!",
+	"!!!",
+	"~~",
+	"!!??!",
+	"?!?!??",
+	" >w<",
+	" >.<",
+	" owo",
+	" OwO",
+	" UwU",
+	" nyaa~",
+	" ^w^",
+	" <3",
+	" x3",
+	" muah~",
+	" :D",
+	" hehe",
+	" rawr",
+	" mmm~",
+	" ✧w✧",
+	" hehehehe",
+	" chu~",
+	" ~nya",
+	" kawaii~",
+	" yay!!",
+	" :DD",
+	" *excited*",
+	" wheee~~",
+	" eheheheheheheh!",
+	" heheheheh!!",
+	" uheheheheheh!!",
+	" uehh",
+}
+
+NAmanage.ChatCuteState = function()
+	local st = NAStuff.ChatCute
+	if type(st) ~= "table" then
+		st = {}
+		NAStuff.ChatCute = st
+	end
+	if type(st.opts) ~= "table" then
+		st.opts = {}
+	end
+	if st.opts.split == nil then
+		st.opts.split = true
+	end
+	if st.opts.suffix == nil then
+		st.opts.suffix = true
+	end
+	if type(st.hold) ~= "table" then
+		st.hold = {}
+	end
+	return st
+end
+
+NAmanage.ChatCuteText = function(input)
+	local st = NAmanage.ChatCuteState()
+	local result = tostring(input or "")
+	result = GSub(result, "r", "w")
+	result = GSub(result, "R", "W")
+	result = GSub(result, "l", "w")
+	result = GSub(result, "L", "W")
+	result = GSub(result, "n", "ny")
+	result = GSub(result, "N", "Ny")
+	result = GSub(result, "ove", "uv")
+	result = GSub(result, "OVE", "UV")
+	result = GSub(result, "th", "d")
+	result = GSub(result, "Th", "D")
+	result = GSub(result, "TH", "D")
+	result = GSub(result, "v", "w")
+	result = GSub(result, "V", "W")
+	result = GSub(result, "ou", "ouw")
+
+	if st.opts.split then
+		local chars = {}
+		for i = 1, #result do
+			local ch = Sub(result, i, i)
+			Insert(chars, ch)
+			if math.random() > 0.7 and ch:match("[a-zA-Z]") then
+				Insert(chars, ch.."-")
+			end
+		end
+		result = Concat(chars)
+	end
+
+	if st.opts.suffix then
+		result = result..NA_CHAT_AFFIXES[math.random(#NA_CHAT_AFFIXES)]
+	end
+
+	return result
+end
+
+NAmanage.ChatCutePath = function(root, ...)
+	local cur = root
+	for i = 1, select("#", ...) do
+		if not cur then
+			return nil
+		end
+		cur = cur:FindFirstChild(select(i, ...))
+	end
+	return cur
+end
+
+NAmanage.ChatCuteChannels = function()
+	local tcs = TextChatService
+	if not tcs and SafeGetService then
+		tcs = SafeGetService("TextChatService")
+	end
+	local chs = tcs and tcs:FindFirstChild("TextChannels")
+	if chs then
+		return chs
+	end
+	return nil
+end
+
+NAmanage.ChatCuteDefaultChannel = function()
+	local chs = NAmanage.ChatCuteChannels()
+	if not chs then
+		return nil
+	end
+	return chs:FindFirstChild("RBXGeneral") or chs:FindFirstChild("General") or chs:FindFirstChild("RBXSystem") or chs:FindFirstChildWhichIsA("TextChannel")
+end
+
+NAmanage.ChatCuteWhisper = function(recipient)
+	if not recipient or recipient == "All" then
+		return nil
+	end
+	local chs = NAmanage.ChatCuteChannels()
+	if not chs then
+		return nil
+	end
+	for _, ch in chs:GetChildren() do
+		if ch:IsA("TextChannel") and ch.Name:match("^RBXWhisper:") and ch:FindFirstChild(recipient) then
+			return ch
+		end
+	end
+	return nil
+end
+
+NAmanage.ChatCuteRecipient = function(chip)
+	if chip and chip:IsA("TextButton") then
+		local txt = tostring(chip.Text or "")
+		local who = txt:match("^%[To%s+(.+)%]$")
+		if who and who ~= "" then
+			local low = who:lower()
+			for _, plr in Players:GetPlayers() do
+				if tostring(plr.DisplayName or ""):lower() == low or tostring(plr.Name or ""):lower() == low then
+					return plr.Name
+				end
+			end
+			return who
+		end
+	end
+	return "All"
+end
+
+NAmanage.ChatCuteSend = function(message, recipient)
+	local msg = tostring(message or "")
+	if msg == "" then
+		return false
+	end
+	recipient = recipient or "All"
+	local ok, res = pcall(function()
+		local ch = NAmanage.ChatCuteWhisper(recipient) or NAmanage.ChatCuteDefaultChannel()
+		if ch then
+			return ch:SendAsync(msg)
+		end
+		if NAlib and type(NAlib.LocalPlayerChat) == "function" then
+			return NAlib.LocalPlayerChat(msg, recipient)
+		end
+	end)
+	if not ok then
+		DoNotif("Failed to send styled chat", 2)
+		return false
+	end
+	return res ~= nil or true
+end
+
+NAmanage.ChatCuteInput = function()
+	local cg = COREGUI
+	if not cg and SafeGetService then
+		cg = SafeGetService("CoreGui")
+	end
+	local exp = cg and cg:FindFirstChild("ExperienceChat")
+	if not exp then
+		return nil, nil, nil
+	end
+	local al = exp:FindFirstChild("appLayout")
+	local cb = al and al:FindFirstChild("chatInputBar")
+	local bg = cb and cb:FindFirstChild("Background")
+	local ct = bg and bg:FindFirstChild("Container")
+	local tc = ct and ct:FindFirstChild("TextContainer")
+	local bc = tc and tc:FindFirstChild("TextBoxContainer")
+	local tb = bc and bc:FindFirstChild("TextBox")
+	local btn = ct and ct:FindFirstChild("SendButton")
+	local chip = tc and tc:FindFirstChild("TargetChannelChip")
+	if not (tb and tb:IsA("TextBox")) then
+		tb = nil
+	end
+	if not (btn and btn:IsA("GuiButton")) then
+		btn = nil
+	end
+	return tb, btn, chip
+end
+
+NAmanage.ChatCuteRestore = function()
+	local st = NAmanage.ChatCuteState()
+	for _, id in {"chatcute_focus", "chatcute_send", "chatcute_send_alt", "chatcute_watch", "uwuify_focus", "uwuify_send", "uwuify_watch"} do
+		NAlib.disconnect(id)
+	end
+	if type(st.hold) == "table" then
+		for _, bucket in st.hold do
+			if type(bucket) == "table" then
+				for _, con in bucket do
+					pcall(function()
+						if con and con.Enable then
+							con:Enable()
+						end
+					end)
+				end
+			end
+		end
+	end
+	st.hold = {}
+	st.bound = false
+	st.tb = nil
+	st.btn = nil
+	st.chip = nil
+end
+
+NAmanage.ChatCuteSubmit = function(tb)
+	local st = NAmanage.ChatCuteState()
+	if not st.auto or not tb then
+		return
+	end
+	local msg = tostring(tb.Text or "")
+	if msg == "" then
+		return
+	end
+	tb.Text = ""
+	local _, _, chip = NAmanage.ChatCuteInput()
+	local rec = NAmanage.ChatCuteRecipient(chip or st.chip)
+	if msg:sub(1, 1) ~= "/" then
+		msg = NAmanage.ChatCuteText(msg)
+	end
+	NAmanage.ChatCuteSend(msg, rec)
+end
+
+NAmanage.ChatCuteBind = function()
+	local st = NAmanage.ChatCuteState()
+	if not st.auto then
+		return false
+	end
+	local tb, btn, chip = NAmanage.ChatCuteInput()
+	if not tb or not btn then
+		return nil
+	end
+	if st.bound and st.tb == tb and st.btn == btn and st.tb.Parent and st.btn.Parent then
+		st.chip = chip
+		return true
+	end
+	NAmanage.ChatCuteRestore()
+	NAlib.connect("chatcute_focus", tb.FocusLost:Connect(function(enter)
+		if enter then
+			NAmanage.ChatCuteSubmit(tb)
+		end
+	end))
+	if btn.MouseButton1Click then
+		NAlib.connect("chatcute_send", btn.MouseButton1Click:Connect(function()
+			NAmanage.ChatCuteSubmit(tb)
+		end))
+	else
+		NAlib.connect("chatcute_send", btn.Activated:Connect(function()
+			NAmanage.ChatCuteSubmit(tb)
+		end))
+	end
+	st.bound = true
+	st.tb = tb
+	st.btn = btn
+	st.chip = chip
+	return true
+end
+
+NAmanage.ChatCuteAuto = function(state)
+	local st = NAmanage.ChatCuteState()
+	if state then
+		st.auto = true
+		local ok = NAmanage.ChatCuteBind()
+		if ok == false then
+			return false
+		end
+		NAlib.disconnect("chatcute_watch")
+		local cg = COREGUI
+		if not cg and SafeGetService then
+			cg = SafeGetService("CoreGui")
+		end
+		if cg then
+			st.watch = true
+			NAlib.connect("chatcute_watch", cg.DescendantAdded:Connect(function()
+				local now = tick()
+				if st.nextTry and st.nextTry > now then
+					return
+				end
+				st.nextTry = now + 0.35
+				Delay(0.12, function()
+					if NAmanage.ChatCuteState().auto then
+						NAmanage.ChatCuteBind()
+					end
+				end)
+			end))
+		end
+		return true
+	end
+	st.auto = false
+	st.watch = false
+	NAlib.disconnect("chatcute_watch")
+	NAmanage.ChatCuteRestore()
+	return true
+end
+
+cmd.add({"uwuify", "cutechat"}, {"uwuify <text> (cutechat)", "Stylizes and sends chat text"}, function(...)
+	local msg = Concat({...}, " ")
+	if msg == "" then
+		DoNotif("Missing text", 2)
+		return
+	end
+	NAmanage.ChatCuteSend(NAmanage.ChatCuteText(msg))
+end, true)
+
+cmd.add({"autouwuify", "autocutechat"}, {"autouwuify (autocutechat)", "Stylizes chat input before sending"}, function()
+	local ok = NAmanage.ChatCuteAuto(true)
+	if ok then
+		local st = NAmanage.ChatCuteState()
+		if not st.bound then
+			DoNotif("Chat styling enabled, waiting for chat UI", 3)
+		else
+			DoNotif("Chat styling enabled", 2)
+		end
+	end
+end)
+
+cmd.add({"unautouwuify", "unautocutechat"}, {"unautouwuify (unautocutechat)", "Stops chat input styling"}, function()
+	NAmanage.ChatCuteAuto(false)
+	DoNotif("Chat styling disabled", 2)
+end)
+
+cmd.add({"uwustutter", "chatstutter"}, {"uwustutter (chatstutter)", "Enables stutter styling"}, function()
+	NAmanage.ChatCuteState().opts.split = true
+	DoNotif("Stutter styling enabled", 2)
+end)
+
+cmd.add({"unuwustutter", "unchatstutter"}, {"unuwustutter (unchatstutter)", "Disables stutter styling"}, function()
+	NAmanage.ChatCuteState().opts.split = false
+	DoNotif("Stutter styling disabled", 2)
+end)
+
+cmd.add({"uwuaffix", "chataffix"}, {"uwuaffix (chataffix)", "Enables suffix styling"}, function()
+	NAmanage.ChatCuteState().opts.suffix = true
+	DoNotif("Suffix styling enabled", 2)
+end)
+
+cmd.add({"unuwuaffix", "unchataffix"}, {"unuwuaffix (unchataffix)", "Disables suffix styling"}, function()
+	NAmanage.ChatCuteState().opts.suffix = false
+	DoNotif("Suffix styling disabled", 2)
+end)
+
 cmd.add({"privatemessage", "pm"}, {"privatemessage <player> <text> (pm)", "Sends a private message to a player"}, function(...)
 	local args = {...}
 	local Player = getPlr(args[1])
