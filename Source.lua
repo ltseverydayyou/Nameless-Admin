@@ -17644,6 +17644,102 @@ NAmanage.NASettingsGetSchema=function()
 				return out
 			end;
 		};
+		partSizeOptions = {
+			default = function()
+				return {
+					transparency = 0.5;
+					color = { R = 0; G = 0; B = 0 };
+					material = "Neon";
+					noCollide = true;
+					massless = false;
+					changeColor = false;
+					changeMaterial = false;
+				}
+			end;
+			coerce = function(value)
+				local function coerceNumber(v, min, max, fallback)
+					local n = tonumber(v)
+					if not n then return fallback end
+					if n < min then n = min end
+					if n > max then n = max end
+					return n
+				end
+
+				local function coerceColor(v)
+					if typeof(v) == "Color3" then
+						return {
+							R = NAmanage.NASettingsSchemaState.clampChannel(v.R) or 0;
+							G = NAmanage.NASettingsSchemaState.clampChannel(v.G) or 0;
+							B = NAmanage.NASettingsSchemaState.clampChannel(v.B) or 0;
+						}
+					end
+					if type(v) == "table" then
+						local r = NAmanage.NASettingsSchemaState.clampChannel(v.R or v.r or v[1])
+						local g = NAmanage.NASettingsSchemaState.clampChannel(v.G or v.g or v[2])
+						local b = NAmanage.NASettingsSchemaState.clampChannel(v.B or v.b or v[3])
+						if r and g and b then
+							return { R = r; G = g; B = b }
+						end
+					end
+					if type(v) == "string" then
+						local ok, decoded = NACaller(function()
+							return HttpService:JSONDecode(v)
+						end)
+						if ok and type(decoded) == "table" then
+							return coerceColor(decoded)
+						end
+					end
+					return { R = 0; G = 0; B = 0 }
+				end
+
+				local defaults = {
+					transparency = 0.5;
+					color = { R = 0; G = 0; B = 0 };
+					material = "Neon";
+					noCollide = true;
+					massless = false;
+					changeColor = false;
+					changeMaterial = false;
+				}
+
+				if type(value) ~= "table" then
+					return defaults
+				end
+
+				local out = {}
+				out.transparency = coerceNumber(value.transparency, 0, 1, defaults.transparency)
+				out.color = coerceColor(value.color)
+
+				local mat = "Neon"
+				if type(value.material) == "string" then
+					mat = value.material
+				elseif value.material ~= nil then
+					mat = tostring(value.material)
+				end
+				if type(mat) == "string" then
+					local trimmed = mat:match("^%s*(.-)%s*$") or mat
+					if Enum.Material[trimmed] then
+						mat = trimmed
+					else
+						local lower = trimmed:lower()
+						for _, item in Enum.Material:GetEnumItems() do
+							if item.Name:lower() == lower then
+								mat = item.Name
+								break
+							end
+						end
+					end
+				else
+					mat = defaults.material
+				end
+				out.material = mat
+				out.noCollide = NAmanage.NASettingsSchemaState.coerceBoolean(value.noCollide, defaults.noCollide)
+				out.massless = NAmanage.NASettingsSchemaState.coerceBoolean(value.massless, defaults.massless)
+				out.changeColor = NAmanage.NASettingsSchemaState.coerceBoolean(value.changeColor, defaults.changeColor)
+				out.changeMaterial = NAmanage.NASettingsSchemaState.coerceBoolean(value.changeMaterial, defaults.changeMaterial)
+				return out
+			end;
+		};
 		autoPreloadAssets = {
 			default = false;
 			coerce = function(value)
@@ -77940,124 +78036,407 @@ cmd.add({"unhitbox","unhbox"}, {"unhitbox <player>",""}, function(pArg)
 	cleanupPlayers(D)
 end, true)
 
+if type(NAStuff.PST) == "table" and type(NAStuff.PST.conn) == "table" then
+	for _, cs in NAStuff.PST.conn do
+		if type(cs) == "table" then
+			for _, c in cs do
+				if c then pcall(function() c:Disconnect() end) end
+			end
+		elseif cs then
+			pcall(function() cs:Disconnect() end)
+		end
+	end
+end
+
+NAlib.disconnect("partsizeExact")
+NAlib.disconnect("partsizeFind")
+NAlib.disconnect("partsizeWatch")
+NAlib.disconnect("partsizeClean")
+
 NAStuff.PST = {
-	orig   = {},
-	exact  = {},
-	partial= {},
-	sizeE  = {},
-	sizeP  = {},
+	orig = {},
+	exact = {},
+	partial = {},
+	exactSet = {},
+	partialSet = {},
+	sizeE = {},
+	sizeP = {},
+	conn = {},
+	busy = {},
+	pend = {},
 }
 PST = NAStuff.PST
 
-NAmanage.cachePart = function(p)
-	NAStuff.PST.orig[p] = {
-		Size         = p.Size,
-		Transparency = p.Transparency,
-		CanCollide   = p.CanCollide,
+NAmanage.PST_Defaults = function()
+	return {
+		transparency = 0.5,
+		color = { R = 0, G = 0, B = 0 },
+		material = "Neon",
+		noCollide = true,
+		massless = false,
+		changeColor = false,
+		changeMaterial = false,
 	}
 end
 
-NAmanage.resizePart = function(p, sizeVec, store)
-	if not NAStuff.PST.orig[p] then NAmanage.cachePart(p) end
-	p.Size         = sizeVec
-	p.Transparency = 0.5
-	p.CanCollide   = false
-	Insert(store, p)
+NAmanage.PST_ColorFromOpt = function(opt)
+	if typeof(opt) == "Color3" then
+		return opt
+	end
+	if type(opt) == "table" then
+		local r = tonumber(opt.R or opt.r or opt[1])
+		local g = tonumber(opt.G or opt.g or opt[2])
+		local b = tonumber(opt.B or opt.b or opt[3])
+		if r and g and b then
+			return Color3.new(math.clamp(r, 0, 1), math.clamp(g, 0, 1), math.clamp(b, 0, 1))
+		end
+	end
+	return BrickColor.new("Really black").Color
+end
+
+NAmanage.PST_ResolveMaterial = function(matName)
+	if NAmanage.HB_ResolveMaterial then
+		return NAmanage.HB_ResolveMaterial(matName)
+	end
+	local defaultMat = "Neon"
+	if matName == nil then return defaultMat end
+	local input = tostring(matName)
+	if input == "" then return defaultMat end
+	local lowerInput = input:lower()
+	local bestName = nil
+	local bestScore = math.huge
+	local function score(name)
+		local lname = name:lower()
+		if lname == lowerInput then return 0 end
+		if lname:sub(1, #lowerInput) == lowerInput then return 1 end
+		if lname:find(lowerInput, 1, true) then return 2 end
+		return 3
+	end
+	for _, item in Enum.Material:GetEnumItems() do
+		local s = score(item.Name)
+		if s < bestScore or (s == bestScore and #item.Name < #(bestName or item.Name)) then
+			bestScore = s
+			bestName = item.Name
+			if s == 0 then
+				break
+			end
+		end
+	end
+	return bestName or defaultMat
+end
+
+NAmanage.PST_Coerce = function(opts)
+	local base = NAmanage.PST_Defaults()
+	if type(opts) ~= "table" then
+		return base
+	end
+	base.transparency = math.clamp(tonumber(opts.transparency) or base.transparency, 0, 1)
+	if typeof(opts.color) == "Color3" then
+		base.color = { R = opts.color.R, G = opts.color.G, B = opts.color.B }
+	elseif type(opts.color) == "table" then
+		base.color = {
+			R = math.clamp(tonumber(opts.color.R or opts.color.r or opts.color[1]) or base.color.R, 0, 1),
+			G = math.clamp(tonumber(opts.color.G or opts.color.g or opts.color[2]) or base.color.G, 0, 1),
+			B = math.clamp(tonumber(opts.color.B or opts.color.b or opts.color[3]) or base.color.B, 0, 1),
+		}
+	end
+	if opts.material ~= nil then
+		base.material = NAmanage.PST_ResolveMaterial(opts.material)
+	end
+	base.noCollide = opts.noCollide ~= false
+	base.massless = opts.massless == true
+	base.changeColor = opts.changeColor == true
+	base.changeMaterial = opts.changeMaterial == true
+	return base
+end
+
+NAStuff.PartSizeOptions = NAmanage.PST_Coerce(NAStuff.PartSizeOptions or (NAmanage.NASettingsGet and NAmanage.NASettingsGet("partSizeOptions")))
+
+NAmanage.GetPartSizeOpts = function()
+	NAStuff.PartSizeOptions = NAmanage.PST_Coerce(NAStuff.PartSizeOptions)
+	return NAStuff.PartSizeOptions
+end
+
+NAmanage.SetPartSizeOpt = function(key, value)
+	local opts = NAmanage.PST_Coerce(NAStuff.PartSizeOptions)
+	opts[key] = value
+	opts = NAmanage.PST_Coerce(opts)
+	NAStuff.PartSizeOptions = opts
+	if NAmanage.NASettingsSet then
+		pcall(NAmanage.NASettingsSet, "partSizeOptions", opts)
+	end
+	if NAmanage.PST_UpdateActive then
+		NAmanage.PST_UpdateActive(opts)
+	end
+	return opts
+end
+
+NAmanage.PST_AddStore = function(store, set, p)
+	if not (store and set and p) then return end
+	if not set[p] then
+		set[p] = true
+		Insert(store, p)
+	end
+end
+
+NAmanage.PST_RemoveStore = function(store, set, p)
+	if not (store and set and p) then return end
+	set[p] = nil
+	for i = #store, 1, -1 do
+		if store[i] == p then
+			table.remove(store, i)
+		end
+	end
+end
+
+NAmanage.cachePart = function(p)
+	if not (p and p.Parent) then return end
+	if not PST.orig[p] then
+		PST.orig[p] = {
+			Size = p.Size,
+			Transparency = p.Transparency,
+			CanCollide = p.CanCollide,
+			BrickColor = p.BrickColor,
+			Material = p.Material,
+			Massless = p.Massless,
+		}
+	end
+end
+
+NAmanage.PST_RestoreRaw = function(p)
+	local pr = PST.orig[p]
+	if pr and p and p.Parent then
+		PST.busy[p] = true
+		NACaller(function()
+			if pr.Size then p.Size = pr.Size end
+			if pr.Transparency ~= nil then p.Transparency = pr.Transparency end
+			if pr.CanCollide ~= nil then p.CanCollide = pr.CanCollide end
+			if pr.BrickColor then p.BrickColor = pr.BrickColor end
+			if pr.Material then p.Material = pr.Material end
+			if pr.Massless ~= nil then p.Massless = pr.Massless end
+		end)
+		PST.busy[p] = nil
+	end
+	PST.orig[p] = nil
+end
+
+NAmanage.PST_Unwatch = function(p)
+	local cs = PST.conn[p]
+	if type(cs) == "table" then
+		for _, c in cs do
+			if c then pcall(function() c:Disconnect() end) end
+		end
+	elseif cs then
+		pcall(function() cs:Disconnect() end)
+	end
+	PST.conn[p] = nil
+	PST.busy[p] = nil
+	PST.pend[p] = nil
+end
+
+NAmanage.PST_RemovePart = function(p, restore)
+	NAmanage.PST_RemoveStore(PST.exact, PST.exactSet, p)
+	NAmanage.PST_RemoveStore(PST.partial, PST.partialSet, p)
+	if restore then
+		NAmanage.PST_RestoreRaw(p)
+	end
+	NAmanage.PST_Unwatch(p)
+end
+
+NAmanage.PST_MatchExact = function(p)
+	local obj = p
+	while obj do
+		local sz = PST.sizeE[Lower(obj.Name)]
+		if sz then
+			return sz
+		end
+		obj = obj.Parent
+	end
+end
+
+NAmanage.PST_MatchPartial = function(p)
+	local obj = p
+	while obj do
+		local nm = Lower(obj.Name)
+		for term, sz in PST.sizeP do
+			if Find(nm, term, 1, true) then
+				return sz
+			end
+		end
+		obj = obj.Parent
+	end
+end
+
+NAmanage.PST_Target = function(p)
+	local sz = NAmanage.PST_MatchExact(p)
+	if sz then
+		return sz, "exact"
+	end
+	sz = NAmanage.PST_MatchPartial(p)
+	if sz then
+		return sz, "partial"
+	end
+end
+
+NAmanage.PST_Apply = function(p, sizeVec)
+	if not (p and p.Parent and p:IsA("BasePart")) then return end
+	NAmanage.cachePart(p)
+	local opts = NAmanage.GetPartSizeOpts()
+	local pr = PST.orig[p]
+	local bc = BrickColor.new(NAmanage.PST_ColorFromOpt(opts.color))
+	local mat = Enum.Material[NAmanage.PST_ResolveMaterial(opts.material or "Neon")] or Enum.Material.Neon
+	PST.busy[p] = true
+	NACaller(function()
+		if p.Size ~= sizeVec then p.Size = sizeVec end
+		if p.Transparency ~= opts.transparency then p.Transparency = opts.transparency end
+		if opts.noCollide then
+			if p.CanCollide then p.CanCollide = false end
+		elseif pr and p.CanCollide ~= pr.CanCollide then
+			p.CanCollide = pr.CanCollide
+		end
+		if opts.massless then
+			if not p.Massless then p.Massless = true end
+		elseif pr and p.Massless ~= pr.Massless then
+			p.Massless = pr.Massless
+		end
+		if opts.changeColor then
+			if p.BrickColor ~= bc then p.BrickColor = bc end
+		elseif pr and p.BrickColor ~= pr.BrickColor then
+			p.BrickColor = pr.BrickColor
+		end
+		if opts.changeMaterial then
+			if p.Material ~= mat then p.Material = mat end
+		elseif pr and p.Material ~= pr.Material then
+			p.Material = pr.Material
+		end
+	end)
+	PST.busy[p] = nil
+end
+
+NAmanage.PST_Refresh = function(p)
+	if not (p and p.Parent and p:IsA("BasePart")) then
+		NAmanage.PST_RemovePart(p, false)
+		return
+	end
+	local sz, kind = NAmanage.PST_Target(p)
+	if not sz then
+		NAmanage.PST_RemovePart(p, true)
+		return
+	end
+	if kind == "exact" then
+		NAmanage.PST_AddStore(PST.exact, PST.exactSet, p)
+	elseif kind == "partial" then
+		NAmanage.PST_AddStore(PST.partial, PST.partialSet, p)
+	end
+	NAmanage.PST_Apply(p, sz)
+	NAmanage.PST_Watch(p)
+end
+
+NAmanage.PST_Watch = function(p)
+	if not (p and p.Parent and p:IsA("BasePart")) then return end
+	if PST.conn[p] then return end
+	local cs = {}
+	cs[1] = p:GetPropertyChangedSignal("Size"):Connect(function()
+		if PST.busy[p] or PST.pend[p] then return end
+		PST.pend[p] = true
+		Defer(function()
+			PST.pend[p] = nil
+			if not (p and p.Parent) then
+				NAmanage.PST_RemovePart(p, false)
+				return
+			end
+			NAmanage.PST_Refresh(p)
+		end)
+	end)
+	cs[2] = p.AncestryChanged:Connect(function(_, parent)
+		if parent then return end
+		Defer(function()
+			if not (p and p.Parent) then
+				NAmanage.PST_RemovePart(p, false)
+			end
+		end)
+	end)
+	PST.conn[p] = cs
+end
+
+NAmanage.resizePart = function(p, sizeVec, store, set)
+	if not (p and p.Parent and p:IsA("BasePart")) then return end
+	NAmanage.PST_AddStore(store, set, p)
+	NAmanage.PST_Apply(p, sizeVec)
+	NAmanage.PST_Watch(p)
+end
+
+NAmanage.PST_EnsureWatch = function()
+	if NAlib.isConnected("partsizeWatch") then return end
+	NAlib.connect("partsizeWatch", NAmanage.wsAdd(function(obj)
+		if obj:IsA("BasePart") then
+			NAmanage.PST_Refresh(obj)
+			return
+		end
+		Defer(function()
+			if not (obj and obj.Parent) then return end
+			local active = next(PST.sizeE) ~= nil or next(PST.sizeP) ~= nil
+			if not active then return end
+			for _, d in NAmanage.qDesc(obj, "BasePart") do
+				NAmanage.PST_Refresh(d)
+			end
+		end)
+	end))
+end
+
+NAmanage.PST_UpdateWatch = function()
+	if next(PST.sizeE) ~= nil or next(PST.sizeP) ~= nil then
+		NAmanage.PST_EnsureWatch()
+	else
+		NAlib.disconnect("partsizeWatch")
+	end
+end
+
+NAmanage.PST_UpdateActive = function(newOpts)
+	NAStuff.PartSizeOptions = NAmanage.PST_Coerce(newOpts or NAmanage.GetPartSizeOpts())
+	local seen = {}
+	for _, p in PST.exact do
+		if p and not seen[p] then
+			seen[p] = true
+			NAmanage.PST_Refresh(p)
+		end
+	end
+	for _, p in PST.partial do
+		if p and not seen[p] then
+			seen[p] = true
+			NAmanage.PST_Refresh(p)
+		end
+	end
+end
+
+NAmanage.PST_ScanAll = function()
+	for _, obj in NAmanage.wsDescs() do
+		if obj:IsA("BasePart") then
+			NAmanage.PST_Refresh(obj)
+		end
+	end
 end
 
 cmd.add({"partsize","psize","sizepart"},{"partsize {name} {size}", "Grow a part or model named exactly <name> to the cube size you choose."},function(nameArg, sizeArg)
-	local term, n = Lower(nameArg), tonumber(sizeArg)
-	if not n then DoNotif("Invalid size",2) return end
-	local sizeVec = Vector3.new(n,n,n)
-	NAStuff.PST.sizeE[term] = sizeVec
-
-	local parts, elser = {}, {}
-	for _, obj in NAmanage.wsDescs() do
-		local nm = Lower(obj.Name)
-		if obj:IsA("BasePart") and nm == term then
-			Insert(parts, obj)
-		elseif nm == term then
-			Insert(elser, obj)
-		end
-	end
-
-	for _, p in parts do
-		NAmanage.resizePart(p, sizeVec, NAStuff.PST.exact)
-	end
-	for _, m in elser do
-		for _, d in NAmanage.qDesc(m, "BasePart") do
-			NAmanage.resizePart(d, sizeVec, NAStuff.PST.exact)
-		end
-	end
-
-	if not NAlib.isConnected("partsizeExact") then
-		NAlib.connect("partsizeExact", NAmanage.wsAdd(function(obj)
-			if obj:IsA("BasePart") then
-				local nm = Lower(obj.Name)
-				local sz = NAStuff.PST.sizeE[nm]
-				if sz then
-					NAmanage.resizePart(obj, sz, NAStuff.PST.exact)
-					return
-				end
-			else
-				local sz = NAStuff.PST.sizeE[Lower(obj.Name)]
-				if sz then
-					for _, d in NAmanage.qDesc(obj, "BasePart") do
-						NAmanage.resizePart(d, sz, NAStuff.PST.exact)
-					end
-				end
-			end
-		end))
-	end
+	local term = Lower(tostring(nameArg or "")):match("^%s*(.-)%s*$") or ""
+	local n = tonumber(sizeArg)
+	if term == "" then DoNotif("Invalid name", 2) return end
+	if not n then DoNotif("Invalid size", 2) return end
+	n = math.clamp(n, 0.1, 10000)
+	PST.sizeE[term] = Vector3.new(n, n, n)
+	NAmanage.PST_ScanAll()
+	NAmanage.PST_UpdateWatch()
 end, true)
 
 cmd.add({"partsizefind","psizefind","sizefind","partsizef"},{"partsizefind {term} {size}", "Grow every part or model whose name contains <term> to the cube size you choose."},function(termArg, sizeArg)
-	local term, n = Lower(termArg), tonumber(sizeArg)
-	if not n then DoNotif("Invalid size",2) return end
-	local sizeVec = Vector3.new(n,n,n)
-	PST.sizeP[term] = sizeVec
-
-	local parts, elser = {}, {}
-	for _, obj in NAmanage.wsDescs() do
-		local nm = Lower(obj.Name)
-		if obj:IsA("BasePart") and nm:find(term) then
-			Insert(parts, obj)
-		elseif nm:find(term) then
-			Insert(elser, obj)
-		end
-	end
-
-	for _, p in parts do
-		NAmanage.resizePart(p, sizeVec, PST.partial)
-	end
-	for _, m in elser do
-		for _, d in NAmanage.qDesc(m, "BasePart") do
-			NAmanage.resizePart(d, sizeVec, PST.partial)
-		end
-	end
-
-	if not NAlib.isConnected("partsizeFind") then
-		NAlib.connect("partsizeFind", NAmanage.wsAdd(function(obj)
-			if obj:IsA("BasePart") then
-				local nm = Lower(obj.Name)
-				for t, sz in PST.sizeP do
-					if nm:find(t) then
-						NAmanage.resizePart(obj, sz, PST.partial)
-						return
-					end
-				end
-			else
-				for t, sz in PST.sizeP do
-					if Lower(obj.Name):find(t) then
-						for _, d in NAmanage.qDesc(obj, "BasePart") do
-							NAmanage.resizePart(d, sz, PST.partial)
-						end
-						return
-					end
-				end
-			end
-		end))
-	end
+	local term = Lower(tostring(termArg or "")):match("^%s*(.-)%s*$") or ""
+	local n = tonumber(sizeArg)
+	if term == "" then DoNotif("Invalid term", 2) return end
+	if not n then DoNotif("Invalid size", 2) return end
+	n = math.clamp(n, 0.1, 10000)
+	PST.sizeP[term] = Vector3.new(n, n, n)
+	NAmanage.PST_ScanAll()
+	NAmanage.PST_UpdateWatch()
 end, true)
 
 cmd.add({"unpartsize","unsizepart","unpsize"},{"unpartsize", "Undo partsize—return those parts back to their original size and collision."},function()
@@ -78067,16 +78446,6 @@ cmd.add({"unpartsize","unsizepart","unpsize"},{"unpartsize", "Undo partsize—re
 	local terms = {}
 	for term, _ in sizeMap do
 		Insert(terms, term)
-	end
-
-	local function restorePart(p)
-		local pr = PST.orig[p]
-		if pr then
-			p.Size         = pr.Size
-			p.Transparency = pr.Transparency
-			p.CanCollide   = pr.CanCollide
-			PST.orig[p] = nil
-		end
 	end
 
 	local function termMatchesPart(term, part)
@@ -78090,13 +78459,24 @@ cmd.add({"unpartsize","unsizepart","unpsize"},{"unpartsize", "Undo partsize—re
 		return false
 	end
 
+	local function refreshList(list)
+		for _, p in list do
+			if p then
+				NAmanage.PST_Refresh(p)
+			end
+		end
+		NAmanage.PST_UpdateWatch()
+	end
+
 	local function removeAll()
+		local list = {}
 		for _, p in parts do
-			restorePart(p)
+			if p then Insert(list, p) end
 		end
 		table.clear(parts)
+		table.clear(PST.exactSet)
 		table.clear(sizeMap)
-		NAlib.disconnect("partsizeExact")
+		refreshList(list)
 		DoNotif("Cleared all exact-name partsize changes.", 2)
 	end
 
@@ -78110,17 +78490,17 @@ cmd.add({"unpartsize","unsizepart","unpsize"},{"unpartsize", "Undo partsize—re
 	end
 
 	local function removeByTerm(term)
+		local list = {}
+		sizeMap[term] = nil
 		for i = #parts, 1, -1 do
 			local p = parts[i]
-			if p and p.Parent and termMatchesPart(term, p) then
-				restorePart(p)
+			if p and termMatchesPart(term, p) then
+				Insert(list, p)
+				PST.exactSet[p] = nil
 				table.remove(parts, i)
 			end
 		end
-		sizeMap[term] = nil
-		if not next(sizeMap) then
-			NAlib.disconnect("partsizeExact")
-		end
+		refreshList(list)
 		DoNotif("Reverted partsize for exact name '"..term.."'.", 2)
 	end
 
@@ -78146,20 +78526,10 @@ cmd.add({"unpartsizefind","unsizefind","unpsizefind"},{"unpartsizefind", "Undo p
 		Insert(terms, term)
 	end
 
-	local function restorePart(p)
-		local pr = PST.orig[p]
-		if pr then
-			p.Size         = pr.Size
-			p.Transparency = pr.Transparency
-			p.CanCollide   = pr.CanCollide
-			PST.orig[p] = nil
-		end
-	end
-
 	local function termMatchesPart(term, part)
 		local obj = part
 		while obj do
-			if Find(Lower(obj.Name), term) ~= nil then
+			if Find(Lower(obj.Name), term, 1, true) ~= nil then
 				return true
 			end
 			obj = obj.Parent
@@ -78167,13 +78537,24 @@ cmd.add({"unpartsizefind","unsizefind","unpsizefind"},{"unpartsizefind", "Undo p
 		return false
 	end
 
+	local function refreshList(list)
+		for _, p in list do
+			if p then
+				NAmanage.PST_Refresh(p)
+			end
+		end
+		NAmanage.PST_UpdateWatch()
+	end
+
 	local function removeAll()
+		local list = {}
 		for _, p in parts do
-			restorePart(p)
+			if p then Insert(list, p) end
 		end
 		table.clear(parts)
+		table.clear(PST.partialSet)
 		table.clear(sizeMap)
-		NAlib.disconnect("partsizeFind")
+		refreshList(list)
 		DoNotif("Cleared all partial-name partsize changes.", 2)
 	end
 
@@ -78187,17 +78568,17 @@ cmd.add({"unpartsizefind","unsizefind","unpsizefind"},{"unpartsizefind", "Undo p
 	end
 
 	local function removeByTerm(term)
+		local list = {}
+		sizeMap[term] = nil
 		for i = #parts, 1, -1 do
 			local p = parts[i]
-			if p and p.Parent and termMatchesPart(term, p) then
-				restorePart(p)
+			if p and termMatchesPart(term, p) then
+				Insert(list, p)
+				PST.partialSet[p] = nil
 				table.remove(parts, i)
 			end
 		end
-		sizeMap[term] = nil
-		if not next(sizeMap) then
-			NAlib.disconnect("partsizeFind")
-		end
+		refreshList(list)
 		DoNotif("Reverted partsizefind for term '"..term.."'.", 2)
 	end
 
@@ -107454,6 +107835,47 @@ end)
 
 NAgui.addToggle("Hitbox Massless", NAStuff.hbOptsUi.massless ~= false, function(v)
 	NAmanage.saveHitboxOpt("massless", v ~= false)
+end)
+
+NAgui.addSection("Partsize Defaults")
+NAStuff.psOptsUi = NAStuff.psOptsUi or NAmanage.GetPartSizeOpts()
+NAmanage.savePartSizeOpt=function(key, value)
+	NAStuff.psOptsUi = NAmanage.SetPartSizeOpt(key, value)
+end
+
+NAgui.addSlider("Partsize Transparency", 0, 1, NAStuff.psOptsUi.transparency or 0.5, 0.05, "", function(val)
+	local n = math.clamp(tonumber(val) or (NAStuff.psOptsUi.transparency or 0.5), 0, 1)
+	NAmanage.savePartSizeOpt("transparency", n)
+end)
+
+NAgui.addColorPicker("Partsize Color", NAmanage.PST_ColorFromOpt(NAStuff.psOptsUi.color), function(color)
+	NAmanage.savePartSizeOpt("color", color)
+end)
+
+NAgui.addToggle("Partsize Change Color", NAStuff.psOptsUi.changeColor == true, function(v)
+	NAmanage.savePartSizeOpt("changeColor", v == true)
+end)
+
+NAgui.addInput("Partsize Material", "Neon / ForceField / Plastic", tostring(NAStuff.psOptsUi.material or "Neon"), function(text)
+	local matName = tostring(text or ""):match("^%s*(.-)%s*$") or "Neon"
+	matName = NAmanage.PST_ResolveMaterial(matName)
+	NAmanage.savePartSizeOpt("material", matName)
+	DoNotif("Partsize material set to "..matName, 2)
+	if NAgui.setInputValue then
+		NAgui.setInputValue("Partsize Material", matName)
+	end
+end)
+
+NAgui.addToggle("Partsize Change Material", NAStuff.psOptsUi.changeMaterial == true, function(v)
+	NAmanage.savePartSizeOpt("changeMaterial", v == true)
+end)
+
+NAgui.addToggle("Partsize No-Collide", NAStuff.psOptsUi.noCollide ~= false, function(v)
+	NAmanage.savePartSizeOpt("noCollide", v ~= false)
+end)
+
+NAgui.addToggle("Partsize Massless", NAStuff.psOptsUi.massless == true, function(v)
+	NAmanage.savePartSizeOpt("massless", v == true)
 end)
 
 if IsOnPC then
