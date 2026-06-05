@@ -2439,7 +2439,7 @@ function NotifFuns.mkCard(w, baseZ, kind, onPause)
 	card.ZIndex = z
 	card.BorderSizePixel = 0
 	card.Active = kind == "Popup"
-	card.ClipsDescendants = true
+	card.ClipsDescendants = false
 	local shell = Instance.new("Frame")
 	protectUiInst(shell)
 	shell.Name = "NAStyleShell"
