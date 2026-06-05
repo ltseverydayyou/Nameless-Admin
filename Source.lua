@@ -49987,12 +49987,70 @@ NAmanage.DesyncReadRootCFrame = function(root)
 	return nil
 end
 
+NAmanage.DesyncIsLocalObject = function(obj)
+	if typeof(obj) ~= "Instance" then
+		return false
+	end
+	local char = getChar and getChar() or nil
+	if not char and LocalPlayer then
+		char = LocalPlayer.Character
+	end
+	return char ~= nil and (obj == char or obj:IsDescendantOf(char))
+end
+
+NAmanage.DesyncIsLocalRoot = function(root)
+	if typeof(root) ~= "Instance" then
+		return false
+	end
+	local char, liveRoot = NAmanage.DesyncGetRoot()
+	if not char then
+		return false
+	end
+	return root == liveRoot or root:IsDescendantOf(char)
+end
+
 NAmanage.DesyncNearAnchor = function(cf)
 	local anchor = NAStuff.desyncOffsetAnchor
 	if typeof(cf) ~= "CFrame" or typeof(anchor) ~= "CFrame" then
 		return false
 	end
 	return (cf.Position - anchor.Position).Magnitude <= (tonumber(NAStuff.desyncOffsetEps) or 0.05)
+end
+
+NAmanage.DesyncGetClientCFrame = function(root, fallback)
+	if NAStuff.desyncOn and NAmanage.DesyncIsLocalRoot(root) then
+		local cf = NAStuff.desyncOffsetCurrent
+		if typeof(cf) == "CFrame" then
+			return cf
+		end
+	end
+	local cf = NAmanage.DesyncReadRootCFrame(root)
+	if typeof(cf) == "CFrame" then
+		return cf
+	end
+	if typeof(fallback) == "CFrame" then
+		return fallback
+	end
+	return nil
+end
+
+NAmanage.DesyncSetClientCFrame = function(root, cf)
+	if typeof(cf) ~= "CFrame" then
+		return false
+	end
+	local char, liveRoot = NAmanage.DesyncGetRoot()
+	root = root or liveRoot
+	if not (char and root and root.Parent) then
+		return false
+	end
+	if NAStuff.desyncOffsetChar ~= char then
+		NAStuff.desyncOffsetChar = char
+		NAStuff.desyncOffsetAnchor = NAmanage.DesyncReadRootCFrame(root) or cf
+	end
+	NAStuff.desyncOffsetCurrent = cf
+	return pcall(function()
+		root.CFrame = cf
+	end)
 end
 
 NAmanage.DesyncSetRootCFrame = function(root, cf)
@@ -50031,7 +50089,7 @@ NAmanage.DesyncOffsetStep = function()
 		NAStuff.desyncOffsetAnchor = anchor
 	end
 
-	if not NAmanage.DesyncNearAnchor(cf) or typeof(NAStuff.desyncOffsetCurrent) ~= "CFrame" then
+	if typeof(NAStuff.desyncOffsetCurrent) ~= "CFrame" or not NAmanage.DesyncNearAnchor(cf) then
 		NAStuff.desyncOffsetCurrent = cf
 	end
 
@@ -50078,6 +50136,59 @@ NAmanage.DesyncUnbindRender = function()
 	NAlib.disconnect(NAStuff.desyncOffsetRenderKey)
 	if RunService and RunService.UnbindFromRenderStep then
 		pcall(RunService.UnbindFromRenderStep, RunService, NAStuff.desyncOffsetBindName)
+	end
+end
+
+do
+	local oldClientCf = NAmanage.UG_clientCFrame
+	if type(oldClientCf) == "function" then
+		NAmanage.UG_clientCFrame = function(root, fallback)
+			if NAStuff.desyncOn and NAmanage.DesyncIsLocalRoot(root) then
+				local cf = NAmanage.DesyncGetClientCFrame(root, fallback)
+				if typeof(cf) == "CFrame" then
+					return cf
+				end
+			end
+			return oldClientCf(root, fallback)
+		end
+	end
+
+	local oldSetClient = NAmanage.UG_setClientCFrame
+	if type(oldSetClient) == "function" then
+		NAmanage.UG_setClientCFrame = function(root, cf)
+			if NAStuff.desyncOn and NAmanage.DesyncIsLocalRoot(root) then
+				return NAmanage.DesyncSetClientCFrame(root, cf)
+			end
+			return oldSetClient(root, cf)
+		end
+	end
+
+	local oldSetRoot = NAmanage.UG_setRootCFrame
+	if type(oldSetRoot) == "function" then
+		NAmanage.UG_setRootCFrame = function(root, cf)
+			if NAStuff.desyncOn and NAmanage.DesyncIsLocalRoot(root) then
+				return NAmanage.DesyncSetClientCFrame(root, cf)
+			end
+			return oldSetRoot(root, cf)
+		end
+	end
+
+	local oldPivot = NAmanage.safePivotModel
+	if type(oldPivot) == "function" then
+		NAmanage.safePivotModel = function(model, cf)
+			if NAStuff.desyncOn and NAmanage.DesyncIsLocalObject(model) and typeof(cf) == "CFrame" then
+				local root = (NAmanage.UG_rootForModel and NAmanage.UG_rootForModel(model)) or nil
+				if not root and model:IsA("BasePart") then
+					root = model
+			elseif not root and model:IsA("Model") then
+					root = model.PrimaryPart or getRoot(model)
+			end
+				if root then
+					return NAmanage.DesyncSetClientCFrame(root, cf)
+				end
+			end
+			return oldPivot(model, cf)
+		end
 	end
 end
 
