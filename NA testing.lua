@@ -80590,6 +80590,198 @@ cmd.add({"invisbind", "invisiblebind","bindinvis"}, {"invisbind (invisiblebind, 
 	end
 end,true)
 
+cmd.add({"fireremote", "fremote", "frmt"}, {"fireremote [select|remote name/full name] (fremote, frmt)", "Fire one remote by selection, name, or full path"}, function(...)
+	local args = {...}
+	local q = Concat(args, " ")
+	q = (tostring(q or ""):gsub("^%s+", ""):gsub("%s+$", ""))
+
+	local function isRem(r)
+		return typeof(r) == "Instance" and (r:IsA("RemoteEvent") or r:IsA("UnreliableRemoteEvent") or r:IsA("RemoteFunction"))
+	end
+
+	local function full(r)
+		local ok, res = pcall(function()
+			return r:GetFullName()
+		end)
+		return ok and tostring(res or r.Name) or tostring(r and r.Name or "Remote")
+	end
+
+	local function norm(v)
+		v = tostring(v or ""):gsub("^%s+", ""):gsub("%s+$", "")
+		v = Lower(v)
+		v = v:gsub("^game%.", "")
+		return v
+	end
+
+	local function scan()
+		local list, seen = {}, {}
+		local qlist = {game}
+		local qi, qn = 1, 1
+		local hit = 0
+
+		while qi <= qn do
+			local inst = qlist[qi]
+			qlist[qi] = nil
+			qi += 1
+
+			if typeof(inst) == "Instance" and inst ~= COREGUI then
+				if isRem(inst) and not seen[inst] then
+					seen[inst] = true
+					list[#list + 1] = inst
+				end
+
+				local ok, ch = pcall(function()
+					return inst:GetChildren()
+				end)
+				if ok and type(ch) == "table" then
+					for i = 1, #ch do
+						local c = ch[i]
+						if c ~= COREGUI then
+							qn += 1
+							qlist[qn] = c
+						end
+					end
+				end
+			end
+
+			hit += 1
+			if hit >= 180 then
+				hit = 0
+				Wait()
+			end
+		end
+
+		table.sort(list, function(a, b)
+			return full(a) < full(b)
+		end)
+
+		return list
+	end
+
+	local function fire(r)
+		if not isRem(r) or not NAmanage.isLiveInstance(r) then
+			DebugNotif("Remote is no longer available.", 3, "Fire Remote")
+			return
+		end
+
+		local name = full(r)
+		if r:IsA("RemoteEvent") or r:IsA("UnreliableRemoteEvent") then
+			local ok, err = pcall(function()
+				r:FireServer()
+			end)
+			if ok then
+				DebugNotif("Fired: "..name, 3, "Fire Remote")
+			else
+				DebugNotif("Failed: "..tostring(err), 3, "Fire Remote")
+			end
+			return
+		end
+
+		Spawn(function()
+			local ok, err = pcall(function()
+				r:InvokeServer()
+			end)
+			if ok then
+				DebugNotif("Invoked: "..name, 3, "Fire Remote")
+			else
+				DebugNotif("Failed: "..tostring(err), 3, "Fire Remote")
+			end
+		end)
+	end
+
+	local findOne
+
+	local function open(list, titleText)
+		if #list == 0 then
+			DebugNotif("No remotes found.", 3, "Fire Remote")
+			return
+		end
+
+		local buttons = {
+			{
+				Text = "Fire typed remote",
+				Callback = function(input)
+					local text = tostring(input or ""):gsub("^%s+", ""):gsub("%s+$", "")
+					if text == "" then
+						DebugNotif("Enter a remote name or full path.", 3, "Fire Remote")
+						return
+					end
+					findOne(text)
+				end
+			}
+		}
+
+		for _, r in list do
+			local rem = r
+			buttons[#buttons + 1] = {
+				Text = ("%s | %s"):format(rem.Name, full(rem)),
+				Callback = function()
+					fire(rem)
+				end
+			}
+		end
+
+		Window({
+			Title = titleText or "Fire Remote Select",
+			Description = "Select one remote, or enter a remote name/full path.",
+			InputField = true,
+			Buttons = buttons
+		})
+	end
+
+	findOne = function(text)
+		local list = scan()
+		local n = norm(text)
+		local fullHits, nameHits, fuzzy = {}, {}, {}
+
+		for _, r in list do
+			local fn = norm(full(r))
+			local rn = norm(r.Name)
+
+			if fn == n then
+				fullHits[#fullHits + 1] = r
+			elseif rn == n then
+				nameHits[#nameHits + 1] = r
+			elseif Find(fn, n, 1, true) or Find(rn, n, 1, true) then
+				fuzzy[#fuzzy + 1] = r
+			end
+		end
+
+		if #fullHits == 1 then
+			fire(fullHits[1])
+			return
+		elseif #fullHits > 1 then
+			open(fullHits, ("Select remote for full path '%s'"):format(text))
+			return
+		end
+
+		if #nameHits == 1 then
+			fire(nameHits[1])
+			return
+		elseif #nameHits > 1 then
+			open(nameHits, ("Select remote named '%s'"):format(text))
+			return
+		end
+
+		if #fuzzy == 1 then
+			fire(fuzzy[1])
+			return
+		elseif #fuzzy > 1 then
+			open(fuzzy, ("Select remote matching '%s'"):format(text))
+			return
+		end
+
+		DebugNotif(("No remote matches '%s'"):format(text), 3, "Fire Remote")
+	end
+
+	if q == "" or norm(q) == "select" then
+		open(scan(), "Fire Remote Select")
+		return
+	end
+
+	findOne(q)
+end,true)
+
 cmd.add({"fireremotes", "fremotes", "frem"}, {"fireremotes (fremotes, frem)", "Fires every remote with arguments"}, function()
 	local remoteList = {}
 	local remoteCount = 0
@@ -80605,7 +80797,7 @@ cmd.add({"fireremotes", "fremotes", "frem"}, {"fireremotes (fremotes, frem)", "F
 		qi += 1
 
 		if inst ~= COREGUI then
-			if inst:IsA("RemoteEvent") or inst:IsA("RemoteFunction") then
+			if inst:IsA("RemoteEvent") or inst:IsA("UnreliableRemoteEvent") or inst:IsA("RemoteFunction") then
 				remoteList[#remoteList + 1] = inst
 			end
 
@@ -80628,7 +80820,7 @@ cmd.add({"fireremotes", "fremotes", "frem"}, {"fireremotes (fremotes, frem)", "F
 
 	for i = 1, #remoteList do
 		local obj = remoteList[i]
-		if obj:IsA("RemoteEvent") then
+		if obj:IsA("RemoteEvent") or obj:IsA("UnreliableRemoteEvent") then
 			local ok = pcall(function()
 				obj:FireServer()
 			end)
@@ -81044,7 +81236,7 @@ NAmanage.pruneBlockedRemoteState = NAmanage.pruneBlockedRemoteState or function(
 		else
 			if remote ~= nil then
 				pcall(function()
-					if typeof(remote) == "Instance" and remote:IsA("RemoteEvent") then
+					if typeof(remote) == "Instance" and (remote:IsA("RemoteEvent") or remote:IsA("UnreliableRemoteEvent")) then
 						NAStuff.BlockedSignals[remote.OnClientEvent] = nil
 					end
 				end)
@@ -81070,7 +81262,7 @@ NAmanage.BlockRemote = function(remote, mode)
 		Insert(NAStuff.BlockedRemotes, remote)
 	end
 	NAStuff.BlockedRemoteModes[remote] = mode
-	if remote:IsA("RemoteEvent") then
+	if remote:IsA("RemoteEvent") or remote:IsA("UnreliableRemoteEvent") then
 		NAStuff.BlockedSignals[remote.OnClientEvent] = true
 		if typeof(getconnections) == "function" then
 			local saved = {funcs = {}}
@@ -81112,7 +81304,7 @@ NAmanage.UnblockRemote = function(remote)
 		table.remove(NAStuff.BlockedRemotes, idx)
 		NAStuff.BlockedRemoteModes[remote] = nil
 		NAStuff.BlockedRemoteReturns[remote] = nil
-		if remote:IsA("RemoteEvent") then
+		if remote:IsA("RemoteEvent") or remote:IsA("UnreliableRemoteEvent") then
 			NAStuff.BlockedSignals[remote.OnClientEvent] = nil
 			local saved = NAStuff.BlockedEventSaved[remote]
 			if saved and saved.funcs then
@@ -81167,7 +81359,7 @@ NAmanage.EnsureHook = function()
 			elseif method == "Wait" then
 				local mode = "fakeok"
 				for r,_ in NAStuff.BlockedRemotes do
-					if typeof(r)=="Instance" and r:IsA("RemoteEvent") and self==r.OnClientEvent then
+					if typeof(r)=="Instance" and (r:IsA("RemoteEvent") or r:IsA("UnreliableRemoteEvent")) and self==r.OnClientEvent then
 						mode = NAStuff.BlockedRemoteModes[r] or "fakeok"
 						break
 					end
@@ -81188,7 +81380,7 @@ cmd.add({"blockremote","br"},{"blockremote [name]","Block a remote event/functio
 		local list, seen = {}, {}
 		local function scan(parent)
 			for _, obj in NAmanage.qDesc(parent, "Instance") do
-				if (obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction")) and not seen[obj] then
+				if (obj:IsA("RemoteEvent") or obj:IsA("UnreliableRemoteEvent") or obj:IsA("RemoteFunction")) and not seen[obj] then
 					seen[obj] = true
 					Insert(list, obj)
 				end
