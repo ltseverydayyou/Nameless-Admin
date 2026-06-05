@@ -7563,6 +7563,17 @@
       "desc": "set a custom keybind for the 'Invisible' command"
     },
     {
+      "name": "fireremote",
+      "aliases": [
+        "fireremote",
+        "fremote",
+        "frmt"
+      ],
+      "usage": "fireremote [select|remote name/full name] (fremote, frmt)",
+      "args": "[select|remote name/full name]",
+      "desc": "Fire one remote by selection, name, or full path"
+    },
+    {
       "name": "fireremotes",
       "aliases": [
         "fireremotes",
