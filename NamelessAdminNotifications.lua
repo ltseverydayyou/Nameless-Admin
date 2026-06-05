@@ -2369,9 +2369,30 @@ end
 appear = NotifFuns.appear
 
 function NotifFuns.disappear(card, sc, st)
-	local bs = (ctx(card).baseScale) or (isMobile and mobScale() or 1)
-	local shell = (ctx(card).shell) or card
+	local s = ctx(card)
+	local bs = (s.baseScale) or (isMobile and mobScale() or 1)
+	local shell = (s.shell) or card
+	local dock = s.dock or "bottomRight"
 	local exitX = isMobile and 260 or 420
+	local exitY = isMobile and 90 or 120
+	local xDir = 0
+	local yDir = 0
+	if dock == "topLeft" or dock == "bottomLeft" then
+		xDir = -1
+	elseif dock == "topRight" or dock == "bottomRight" then
+		xDir = 1
+	end
+	if dock == "top" or dock == "topLeft" or dock == "topRight" then
+		yDir = -1
+	elseif dock == "bottom" or dock == "bottomLeft" or dock == "bottomRight" then
+		yDir = 1
+	end
+	local outPos = UDim2.fromOffset(xDir * exitX, yDir * exitY)
+	if xDir == 0 then
+		outPos = UDim2.fromOffset(0, yDir * exitY)
+	elseif yDir == 0 then
+		outPos = UDim2.fromOffset(xDir * exitX, 0)
+	end
 	local outInfo = TweenInfo.new(0.65, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
 	task.delay(0.09, function()
 		if shell and shell.Parent then
@@ -2379,7 +2400,7 @@ function NotifFuns.disappear(card, sc, st)
 		end
 	end)
 	local t1 = tw:Create(shell, outInfo, {
-		Position = UDim2.new(0, exitX, 0, 0),
+		Position = outPos,
 		BackgroundTransparency = 1
 	})
 	local t2 = tw:Create(st, TweenInfo.new(0.36, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
@@ -2664,6 +2685,7 @@ function NotifFuns.build(kind, p)
 	s.trk = trk
 	s.fil = fil
 	s.dock = dock
+	s.fromDir = from
 	s.multi = false
 	s.sel = {}
 	s.btns = nil
