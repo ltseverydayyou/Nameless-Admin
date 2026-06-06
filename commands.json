@@ -5894,6 +5894,26 @@
       "desc": "Automatically fires TouchInterests on parts matching [target] using substring matching every <interval> seconds"
     },
     {
+      "name": "autofireremote",
+      "aliases": [
+        "autofireremote",
+        "afr"
+      ],
+      "usage": "autofireremote <interval> [target]",
+      "args": "<interval> [target]",
+      "desc": "Automatically fires remotes matching [target] every <interval> seconds"
+    },
+    {
+      "name": "autofireremotefind",
+      "aliases": [
+        "autofireremotefind",
+        "afrfind"
+      ],
+      "usage": "autofireremotefind <interval> [target]",
+      "args": "<interval> [target]",
+      "desc": "Automatically fires remotes matching [target] using substring matching every <interval> seconds"
+    },
+    {
       "name": "unautofireproxi",
       "aliases": [
         "unautofireproxi",
@@ -5924,6 +5944,16 @@
       "desc": "Stops all AutoTouch loops"
     },
     {
+      "name": "unautofireremote",
+      "aliases": [
+        "unautofireremote",
+        "uafr"
+      ],
+      "usage": "unautofireremote (uafr)",
+      "args": "",
+      "desc": "Stops all AutoFireRemote loops"
+    },
+    {
       "name": "unautotouchfind",
       "aliases": [
         "unautotouchfind",
@@ -5952,6 +5982,16 @@
       "usage": "unautofireclickfind (uafcfind)",
       "args": "",
       "desc": "Stops substring-matching AutoFireClick loops"
+    },
+    {
+      "name": "unautofireremotefind",
+      "aliases": [
+        "unautofireremotefind",
+        "uafrfind"
+      ],
+      "usage": "unautofireremotefind (uafrfind)",
+      "args": "",
+      "desc": "Stops substring-matching AutoFireRemote loops"
     },
     {
       "name": "noclickdetectorlimits",
