@@ -32790,6 +32790,148 @@ NAmanage.LoadPlugins = function(opts)
 		proxyEnv.Command = proxyEnv.command
 		proxyEnv.cmdPlugin = proxyEnv.command
 
+		local pluginServiceNames = {
+			Workspace = true,
+			Players = true,
+			UserService = true,
+			UserInputService = true,
+			TweenService = true,
+			RunService = true,
+			ContextActionService = true,
+			TeleportService = true,
+			Lighting = true,
+			ReplicatedStorage = true,
+			CoreGui = true,
+			SoundService = true,
+			TextChatService = true,
+			TextService = true,
+			StarterGui = true,
+			StarterPack = true,
+			StarterPlayer = true,
+			ContentProvider = true,
+			LocalizationService = true,
+			MarketplaceService = true,
+			GuiService = true,
+			Stats = true,
+			Debris = true,
+			Teams = true,
+			CollectionService = true,
+			ProximityPromptService = true,
+			VirtualInputManager = true,
+			VirtualUser = true,
+			HttpService = true,
+			BadgeService = true,
+			Chat = true,
+			VRService = true,
+			PolicyService = true,
+			GroupService = true,
+			AvatarEditorService = true,
+			InsertService = true,
+		}
+
+		local pluginServiceAliases = {
+			workspace = "Workspace",
+			COREGUI = "CoreGui",
+			CoreGui = "CoreGui",
+			UIS = "UserInputService",
+		}
+
+		local pluginServiceCache = {}
+
+		local function _plugServiceName(name)
+			if type(name) ~= "string" then
+				return nil
+			end
+			return pluginServiceAliases[name] or name
+		end
+
+		local function _plugGetService(name)
+			name = _plugServiceName(name)
+			if type(name) ~= "string" or not pluginServiceNames[name] then
+				return nil
+			end
+			if pluginServiceCache[name] ~= nil then
+				return pluginServiceCache[name]
+			end
+			local svc
+			if SafeGetService then
+				pcall(function()
+					svc = SafeGetService(name)
+				end)
+			end
+			if not svc and __lt and type(__lt.gs) == "function" then
+				pcall(function()
+					svc = __lt.gs(name)
+				end)
+			end
+			if svc then
+				pluginServiceCache[name] = svc
+			end
+			return svc
+		end
+
+		local pluginServices = setmetatable({}, {
+			__index = function(self, key)
+				local svc = _plugGetService(key)
+				if svc then
+					rawset(self, key, svc)
+				end
+				return svc
+			end
+		})
+
+		local function _plugSetService(globalName, serviceName, fallback)
+			local svc = proxyEnv[globalName] or fallback or _plugGetService(serviceName or globalName)
+			if svc then
+				proxyEnv[globalName] = svc
+			end
+			return svc
+		end
+
+		local function _plugApplyServiceGlobals()
+			proxyEnv.Services = proxyEnv.Services or pluginServices
+			proxyEnv.services = proxyEnv.services or pluginServices
+			local pls = _plugSetService("Players", "Players", Players)
+			local lp = pls and pls.LocalPlayer or nil
+			proxyEnv.LocalPlayer = proxyEnv.LocalPlayer or lp
+			proxyEnv.Player = proxyEnv.Player or lp
+			proxyEnv.lplr = proxyEnv.lplr or lp
+			proxyEnv.Speaker = proxyEnv.Speaker or lp
+			proxyEnv.speaker = proxyEnv.speaker or lp
+			proxyEnv.Char = proxyEnv.Char or (lp and lp.Character or nil)
+			proxyEnv.Character = proxyEnv.Character or (lp and lp.Character or nil)
+			proxyEnv.PlayerGui = proxyEnv.PlayerGui or (lp and lp:FindFirstChildWhichIsA("PlayerGui") or nil)
+			proxyEnv.PlaceId = proxyEnv.PlaceId or tonumber(game and game.PlaceId) or 0
+			proxyEnv.JobId = proxyEnv.JobId or tostring((game and game.JobId) or "")
+			proxyEnv.Workspace = _plugSetService("Workspace", "Workspace", workspace)
+			proxyEnv.workspace = proxyEnv.workspace or proxyEnv.Workspace
+			proxyEnv.UserService = _plugSetService("UserService", "UserService", UserService)
+			proxyEnv.UserInputService = _plugSetService("UserInputService", "UserInputService", UserInputService)
+			proxyEnv.UIS = proxyEnv.UIS or proxyEnv.UserInputService
+			proxyEnv.TweenService = _plugSetService("TweenService", "TweenService", TweenService)
+			proxyEnv.RunService = _plugSetService("RunService", "RunService", RunService)
+			proxyEnv.ContextActionService = _plugSetService("ContextActionService", "ContextActionService", ContextActionService)
+			proxyEnv.TeleportService = _plugSetService("TeleportService", "TeleportService", TeleportService)
+			proxyEnv.Lighting = _plugSetService("Lighting", "Lighting", Lighting)
+			proxyEnv.ReplicatedStorage = _plugSetService("ReplicatedStorage", "ReplicatedStorage", ReplicatedStorage)
+			proxyEnv.CoreGui = _plugSetService("CoreGui", "CoreGui", COREGUI)
+			proxyEnv.COREGUI = proxyEnv.COREGUI or proxyEnv.CoreGui
+			proxyEnv.SoundService = _plugSetService("SoundService", "SoundService", SoundService)
+			proxyEnv.TextChatService = _plugSetService("TextChatService", "TextChatService", TextChatService)
+			proxyEnv.TextService = _plugSetService("TextService", "TextService", TextService)
+			proxyEnv.StarterGui = _plugSetService("StarterGui", "StarterGui", StarterGui)
+			proxyEnv.ContentProvider = _plugSetService("ContentProvider", "ContentProvider", ContentProvider)
+			proxyEnv.LocalizationService = _plugSetService("LocalizationService", "LocalizationService", LocalizationService)
+			proxyEnv.MarketplaceService = _plugSetService("MarketplaceService", "MarketplaceService", MarketplaceService)
+			proxyEnv.GuiService = _plugSetService("GuiService", "GuiService", GuiService)
+			proxyEnv.Stats = _plugSetService("Stats", "Stats", StatsService)
+			for _, name in { "StarterPack", "StarterPlayer", "Debris", "Teams", "CollectionService", "ProximityPromptService", "VirtualInputManager", "VirtualUser", "HttpService", "BadgeService", "Chat", "VRService", "PolicyService", "GroupService", "AvatarEditorService", "InsertService" } do
+				_plugSetService(name, name)
+			end
+		end
+
+		_plugApplyServiceGlobals()
+
 		if mode == "iy" then
 			local servicesCache = {}
 			local function fetchService(name)
@@ -33080,7 +33222,15 @@ NAmanage.LoadPlugins = function(opts)
 				if localValue ~= nil then
 					return localValue
 				end
-				return baseEnv[k]
+				local baseValue = baseEnv[k]
+				if baseValue ~= nil then
+					return baseValue
+				end
+				local serviceValue = pluginServices[k]
+				if serviceValue ~= nil then
+					return serviceValue
+				end
+				return nil
 			end,
 			__newindex = function(_, k, v)
 				if k == "cmdPluginAdd" then
