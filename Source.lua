@@ -31867,12 +31867,83 @@ NAmanage.LoadPlugins = function(opts)
 		return nil
 	end
 
+	local function stripPluginScanText(content)
+		content = tostring(content or "")
+		local out = {}
+		local i = 1
+		local len = #content
+		while i <= len do
+			local ch = Sub(content, i, i)
+			local two = Sub(content, i, i + 1)
+			if two == "--" then
+				if Sub(content, i + 2, i + 3) == "[[" then
+					local closeAt = Find(content, "]]", i + 4, true)
+					i = closeAt and (closeAt + 2) or (len + 1)
+				else
+					local nl = Find(content, "\n", i + 2, true)
+					i = nl and (nl + 1) or (len + 1)
+				end
+			out[#out + 1] = " "
+		elseif two == "[[" then
+				local closeAt = Find(content, "]]", i + 2, true)
+				i = closeAt and (closeAt + 2) or (len + 1)
+			out[#out + 1] = " "
+		elseif ch == "'" or ch == '"' then
+				local q = ch
+			i += 1
+				while i <= len do
+					local c = Sub(content, i, i)
+					if c == "\\" then
+						i += 2
+					elseif c == q then
+						i += 1
+						break
+					else
+						i += 1
+					end
+				end
+			out[#out + 1] = " "
+		else
+			out[#out + 1] = ch
+			i += 1
+		end
+		end
+		return Concat(out)
+	end
+
+	local function hasNAPluginCommandAPI(content)
+		if type(content) ~= "string" then
+			return false
+		end
+		local scan = stripPluginScanText(content)
+		local lowerTxt = Lower(scan)
+		if lowerTxt:find("cmdpluginadd", 1, true) then
+			return true
+		end
+		local hasBuilderRoot = lowerTxt:find("naplugin%s*%(")
+			or lowerTxt:find("plugin%s*%.%s*new%s*%(")
+			or lowerTxt:find("plugin%s*%.%s*create%s*%(")
+			or lowerTxt:find("plugin%s*%(")
+		local hasBuilderCmd = lowerTxt:find(":%s*cmd%s*%(")
+			or lowerTxt:find(":%s*command%s*%(")
+			or lowerTxt:find(":%s*addcommand%s*%(")
+		if hasBuilderRoot and hasBuilderCmd then
+			return true
+		end
+		if lowerTxt:find("command%s*%(") or lowerTxt:find("cmdplugin%s*%(") then
+			return true
+		end
+		if lowerTxt:find("return%s*{") and lowerTxt:find("commands%s*=") then
+			return true
+		end
+		return false
+	end
+
 	local function isNAPlugin(content)
 		if type(content) ~= "string" then
 			return false
 		end
-		local lowerTxt = Lower(content)
-		if lowerTxt:find("cmdpluginadd", 1, true) then
+		if hasNAPluginCommandAPI(content) then
 			return true
 		end
 		local seenRemote = {}
@@ -31883,7 +31954,7 @@ NAmanage.LoadPlugins = function(opts)
 				if methodLow == "httpget" or methodLow == "httpgetasync" then
 					seenRemote[url] = true
 					local remote = fetchRem(url, method)
-					if remote and type(remote) == "string" and Lower(remote):find("cmdpluginadd", 1, true) then
+					if remote and hasNAPluginCommandAPI(remote) then
 						return true
 					end
 				end
@@ -31896,7 +31967,7 @@ NAmanage.LoadPlugins = function(opts)
 		if type(content) ~= "string" then
 			return false
 		end
-		local lowerTxt = Lower(content)
+		local lowerTxt = Lower(stripPluginScanText(content))
 		if lowerTxt:find("pluginname", 1, true) and lowerTxt:find("commands", 1, true) then
 			return true
 		end
@@ -32234,7 +32305,7 @@ NAmanage.LoadPlugins = function(opts)
 		end
 
 		if mode == "na" and not isNAPlugin(content) then
-			DoWindow("skipped '"..file.."' (no cmdPluginAdd)")
+			DoWindow("skipped '"..file.."' (no plugin command API found)")
 			return
 		end
 
@@ -32248,6 +32319,7 @@ NAmanage.LoadPlugins = function(opts)
 		local proxyEnv = {}
 		local pluginGlobals = {}
 		local baseEnv = getfenv()
+		local pluginApi = nil
 
 		local function _runCmd(...)
 			local runner = cmd and (cmd.run or cmd.Run)
@@ -32354,6 +32426,349 @@ NAmanage.LoadPlugins = function(opts)
 				warn(text)
 			end
 		end
+
+
+		local function _plugTrim(v)
+			return tostring(v or ""):match("^%s*(.-)%s*$") or ""
+		end
+
+		local function _plugAddAlias(list, seen, value)
+			if type(list) ~= "table" or type(seen) ~= "table" then
+				return
+			end
+			if type(value) == "table" then
+				for _, sub in value do
+					_plugAddAlias(list, seen, sub)
+				end
+				return
+			end
+			if type(value) ~= "string" and type(value) ~= "number" then
+				return
+			end
+			local raw = _plugTrim(value)
+			if raw == "" then
+				return
+			end
+			for part in raw:gmatch("[^,|/]+") do
+				local name = _plugTrim(part)
+				if name ~= "" then
+					local low = name:lower()
+					if not seen[low] then
+						seen[low] = true
+						list[#list + 1] = name
+					end
+				end
+			end
+		end
+
+		local function _plugAliases(...)
+			local list, seen = {}, {}
+			for i = 1, select("#", ...) do
+				_plugAddAlias(list, seen, select(i, ...))
+			end
+			return list
+		end
+
+		local function _plugCopy(src)
+			local out = {}
+			if type(src) == "table" then
+				for k, v in src do
+					out[k] = v
+				end
+			end
+			return out
+		end
+
+		local function _plugReq(v)
+			if v == nil then
+				return false
+			end
+			if type(v) == "string" then
+				local low = v:lower()
+				return low == "true" or low == "yes" or low == "required" or low == "1"
+			end
+			return v == true
+		end
+
+		local function _plugCtx()
+			local ctx = {
+				Name = baseName,
+				File = baseName,
+				Path = file,
+				Key = pluginKey,
+				Mode = mode,
+				UI = proxyEnv.NAPluginUI or proxyEnv.PluginUI or proxyEnv.NASettingsUI,
+				Plugin = pluginApi,
+				Player = Players and Players.LocalPlayer or nil,
+				LocalPlayer = Players and Players.LocalPlayer or nil,
+				Services = {},
+			}
+			setmetatable(ctx.Services, {
+				__index = function(self, name)
+					local svc = SafeGetService and SafeGetService(name) or nil
+					if not svc and __lt and __lt.gs then
+						svc = __lt.gs(name)
+					end
+					if svc then
+						rawset(self, name, svc)
+					end
+					return svc
+				end
+			})
+			local function notifyFn(self, msg, duration)
+				if self ~= ctx then
+					duration = msg
+					msg = self
+				end
+				return proxyEnv.notify(msg, duration)
+			end
+			local function runFn(self, ...)
+				if self == ctx then
+					return _runCmd(...)
+				end
+				return _runCmd(self, ...)
+			end
+			ctx.Notify = notifyFn
+			ctx.notify = notifyFn
+			ctx.Run = runFn
+			ctx.run = runFn
+			ctx.RunCommand = runFn
+			ctx.runCommand = runFn
+			ctx.Command = runFn
+			ctx.command = runFn
+			return ctx
+		end
+
+		local function _plugPush(def, useCtx, sourceInfo)
+			if type(def) ~= "table" then
+				return false
+			end
+			if def._na_loaded == true then
+				return true
+			end
+			if def[1] and type(def[1]) == "table" and def.Aliases == nil and def.aliases == nil and def.Function == nil and def.Callback == nil and def.Run == nil and def.run == nil and def.Commands == nil and def.commands == nil then
+				local any = false
+				for _, sub in def do
+					if _plugPush(sub, useCtx, sourceInfo) then
+						any = true
+					end
+				end
+				return any
+			end
+			if type(def.Commands or def.commands) == "table" then
+				return false
+			end
+			local aliases = _plugAliases(def.Aliases or def.aliases or def.Alias or def.alias or def.Names or def.names or def.Name or def.name or def.Command or def.command or def.Cmd or def.cmd or def.ListName or def[1])
+			local fn = def.Function or def.Callback or def.callback or def.Run or def.run or def.Handler or def.handler or def.Execute or def.execute or def[2]
+			if #aliases == 0 or type(fn) ~= "function" then
+				return false
+			end
+			local ctxMode = useCtx == true or def.Context == true or def.WithContext == true or def.UsesContext == true or def._na_ctx == true
+			local handler = fn
+			if ctxMode then
+				handler = function(...)
+					return fn(_plugCtx(), ...)
+				end
+			end
+			local argsHint = def.ArgsHint or def.argsHint or def.Args or def.args or def.Arguments or def.arguments or ""
+			if type(argsHint) ~= "string" then
+				argsHint = tostring(argsHint or "")
+			end
+			local info = def.Info or def.info or def.Description or def.description or def.Desc or def.desc or sourceInfo or "No description"
+			if type(info) ~= "string" then
+				info = tostring(info)
+			end
+			local req = def.RequiresArguments
+			if req == nil then req = def.RequiresArgs end
+			if req == nil then req = def.requiresArgs end
+			if req == nil then req = def.NeedArgs end
+			if req == nil then req = def.needArgs end
+			if req == nil then req = def.Required end
+			colPlugins[#colPlugins + 1] = {
+				Aliases = aliases,
+				ArgsHint = argsHint,
+				Info = info,
+				Function = handler,
+				RequiresArguments = _plugReq(req),
+			}
+			pcall(function()
+				def._na_loaded = true
+			end)
+			return true
+		end
+
+		local function _plugAppend(export, useCtx)
+			if type(export) ~= "table" then
+				return false
+			end
+			if export._na_builder == true then
+				local any = false
+				for _, cmdDef in export._cmds or {} do
+					if _plugPush(cmdDef, true, export.Description or export.Info or export.desc) then
+						any = true
+					end
+				end
+				return any
+			end
+			if export[1] and type(export[1]) == "table" and export.Commands == nil and export.commands == nil and export.Aliases == nil and export.aliases == nil then
+				local any = false
+				for _, cmdDef in export do
+					if _plugPush(cmdDef, useCtx, export.Description or export.Info or export.desc) then
+						any = true
+					end
+				end
+				return any
+			end
+			local commands = export.Commands or export.commands
+			if type(commands) == "table" then
+				local any = false
+				for key, cmdDef in commands do
+					local normalized
+					if type(cmdDef) == "function" then
+						normalized = {
+							Aliases = _plugAliases(type(key) == "string" and key or nil),
+							Function = cmdDef,
+							Info = export.Description or export.Info or export.desc or "No description",
+							_na_ctx = true,
+						}
+					elseif type(cmdDef) == "table" then
+						normalized = _plugCopy(cmdDef)
+						local aliases = _plugAliases(type(key) == "string" and key or nil, normalized.Aliases or normalized.aliases or normalized.Alias or normalized.alias or normalized.Names or normalized.names or normalized.Name or normalized.name)
+						normalized.Aliases = aliases
+						if normalized.Info == nil and normalized.info == nil and normalized.Description == nil and normalized.description == nil and normalized.Desc == nil and normalized.desc == nil then
+							normalized.Info = export.Description or export.Info or export.desc
+						end
+						normalized._na_ctx = normalized.Context ~= false
+					end
+					if normalized and _plugPush(normalized, useCtx == nil and true or useCtx, export.Description or export.Info or export.desc) then
+						any = true
+					end
+				end
+				return any
+			end
+			return _plugPush(export, useCtx, export.Description or export.Info or export.desc)
+		end
+
+		local _plugMethods = {}
+		function _plugMethods:Command(...)
+			local cmdDef = {
+				Aliases = _plugAliases(...),
+				Info = self.Description or self.Info or "No description",
+				_na_ctx = true,
+			}
+			self._cmds[#self._cmds + 1] = cmdDef
+			self._active = cmdDef
+			return self
+		end
+		_plugMethods.command = _plugMethods.Command
+		_plugMethods.Cmd = _plugMethods.Command
+		_plugMethods.cmd = _plugMethods.Command
+		_plugMethods.AddCommand = _plugMethods.Command
+		_plugMethods.addCommand = _plugMethods.Command
+		function _plugMethods:Aliases(...)
+			if self._active then
+				local seen = {}
+				for _, alias in self._active.Aliases or {} do
+					seen[tostring(alias):lower()] = true
+				end
+				for _, alias in _plugAliases(...) do
+					_plugAddAlias(self._active.Aliases, seen, alias)
+				end
+			end
+			return self
+		end
+		_plugMethods.aliases = _plugMethods.Aliases
+		_plugMethods.Alias = _plugMethods.Aliases
+		_plugMethods.alias = _plugMethods.Aliases
+		function _plugMethods:Args(value)
+			if self._active then
+				self._active.ArgsHint = tostring(value or "")
+			end
+			return self
+		end
+		_plugMethods.args = _plugMethods.Args
+		_plugMethods.Arguments = _plugMethods.Args
+		_plugMethods.arguments = _plugMethods.Args
+		function _plugMethods:Info(value)
+			if self._active then
+				self._active.Info = tostring(value or "")
+			else
+				self.Info = tostring(value or "")
+			end
+			return self
+		end
+		_plugMethods.info = _plugMethods.Info
+		_plugMethods.Desc = _plugMethods.Info
+		_plugMethods.desc = _plugMethods.Info
+		_plugMethods.Description = _plugMethods.Info
+		_plugMethods.description = _plugMethods.Info
+		function _plugMethods:RequiresArgs(value)
+			if self._active then
+				self._active.RequiresArguments = value ~= false
+			end
+			return self
+		end
+		_plugMethods.requiresArgs = _plugMethods.RequiresArgs
+		_plugMethods.RequiresArguments = _plugMethods.RequiresArgs
+		_plugMethods.requiresArguments = _plugMethods.RequiresArgs
+		_plugMethods.NeedArgs = _plugMethods.RequiresArgs
+		_plugMethods.needArgs = _plugMethods.RequiresArgs
+		function _plugMethods:NoArgs()
+			if self._active then
+				self._active.RequiresArguments = false
+			end
+			return self
+		end
+		_plugMethods.noArgs = _plugMethods.NoArgs
+		function _plugMethods:Run(fn)
+			if self._active and type(fn) == "function" then
+				self._active.Function = fn
+				_plugPush(self._active, true, self.Description or self.Info)
+			end
+			return self
+		end
+		_plugMethods.run = _plugMethods.Run
+		_plugMethods.Callback = _plugMethods.Run
+		_plugMethods.callback = _plugMethods.Run
+		_plugMethods.Function = _plugMethods.Run
+		_plugMethods.func = _plugMethods.Run
+		function _plugMethods:End()
+			self._active = nil
+			return self
+		end
+		_plugMethods.done = _plugMethods.End
+		_plugMethods.Done = _plugMethods.End
+
+		local function _plugNew(name, desc)
+			local builder = {
+				_na_builder = true,
+				Name = tostring(name or baseName or "Plugin"),
+				Description = type(desc) == "string" and desc or nil,
+				_cmds = {},
+				_active = nil,
+			}
+			return setmetatable(builder, { __index = _plugMethods })
+		end
+
+		pluginApi = setmetatable({
+			new = _plugNew,
+			New = _plugNew,
+			create = _plugNew,
+			Create = _plugNew,
+		}, {
+			__call = function(_, ...)
+				return _plugNew(...)
+			end
+		})
+
+		proxyEnv.NAPlugin = _plugNew
+		proxyEnv.plugin = _plugNew
+		proxyEnv.Plugin = pluginApi
+		proxyEnv.command = function(...)
+			return _plugNew(baseName):Command(...)
+		end
+		proxyEnv.Command = proxyEnv.command
+		proxyEnv.cmdPlugin = proxyEnv.command
 
 		if mode == "iy" then
 			local servicesCache = {}
@@ -32607,8 +33022,24 @@ NAmanage.LoadPlugins = function(opts)
 					local baseLoader = baseEnv.loadstring or loadstring
 					return function(code, chunkname)
 						local f, e = baseLoader(code, chunkname)
-						if f then setfenv(f, proxyEnv) end
-						return f, e
+						if not f then
+							return nil, e
+						end
+						setfenv(f, proxyEnv)
+						local function collectRemoteReturn(...)
+							local first = select(1, ...)
+							if type(first) == "table" then
+								if mode == "iy" then
+									appendIYCommands(colPlugins, first)
+								else
+									_plugAppend(first, true)
+								end
+							end
+							return ...
+						end
+						return function(...)
+							return collectRemoteReturn(f(...))
+						end
 					end
 				elseif k == "load" then
 					local baseLoad = baseEnv.load
@@ -32620,6 +33051,10 @@ NAmanage.LoadPlugins = function(opts)
 					return gameProxy
 				elseif k == "httprequest" or k == "request" or k == "http_request" then
 					return _pluginRequest
+				elseif k == "cmdPluginAdd" then
+					return function(v)
+						return _plugAppend(v, false)
+					end
 				end
 				local localValue = pluginGlobals[k]
 				if localValue ~= nil then
@@ -32629,15 +33064,7 @@ NAmanage.LoadPlugins = function(opts)
 			end,
 			__newindex = function(_, k, v)
 				if k == "cmdPluginAdd" then
-					if type(v) == "table" then
-						if v[1] and type(v[1]) == "table" then
-							for _, sub in v do
-								Insert(colPlugins, sub)
-							end
-						else
-							Insert(colPlugins, v)
-						end
-					end
+					_plugAppend(v, false)
 				else
 					rawset(pluginGlobals, k, v)
 				end
@@ -32657,6 +33084,8 @@ NAmanage.LoadPlugins = function(opts)
 
 		if mode == "iy" and type(execRes) == "table" then
 			appendIYCommands(colPlugins, execRes)
+		elseif mode == "na" and type(execRes) == "table" then
+			_plugAppend(execRes, true)
 		end
 
 		local cmdNames = {}
@@ -70621,10 +71050,12 @@ NAjobs._runRemoteBatch = function(dueJobs)
 		lastMap = {}
 		NAjobs._lastRemoteFire = lastMap
 	end
+	local scanned = 0
 	for step = 1, scanBudget do
 		if fired >= maxFires then
 			break
 		end
+		scanned = step
 		local idx = ((cursor + step - 1) % trackedCount) + 1
 		local inst = tracked[idx]
 		if not (inst and inst.Parent) then
@@ -70646,7 +71077,10 @@ NAjobs._runRemoteBatch = function(dueJobs)
 			end
 		end
 	end
-	NAjobs._remoteCursor = (cursor + scanBudget) % trackedCount
+	if scanned <= 0 then
+		scanned = scanBudget
+	end
+	NAjobs._remoteCursor = (cursor + scanned) % trackedCount
 	for i = 1, #stale do
 		NAjobs._trackedRemove("remote", stale[i])
 	end

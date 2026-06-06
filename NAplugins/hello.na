@@ -1,9 +1,60 @@
-cmdPluginAdd = {
-    Aliases = {"hello", "hi"},
-    ArgsHint = "<name>",
-    Info = "Say hi",
-    Function = function(name)
-        DoNotif("Hello " .. tostring(name))
-    end,
-    RequiresArguments = true
-}
+local plugin = Plugin.new("Hello")
+
+-- Plugin.new("Name") creates a plugin group for your commands.
+-- The first name in :cmd(...) is the main command.
+-- The other names are aliases.
+plugin:cmd("hello", "hi")
+    -- :args("<name>") shows the usage hint in command lists/autofill.
+    :args("<name>")
+    -- :info("text") is the command description.
+    :info("Say hi")
+    -- :requiresArgs() makes the command require text after it.
+    :requiresArgs()
+    -- :run(function(ctx, ...)) is the command code.
+    -- ctx is the plugin context.
+    -- Values after ctx are the command arguments.
+    :run(function(ctx, name)
+        -- ctx:notify(text, time) sends a NA notification.
+        ctx:notify("Hello " .. tostring(name))
+    end)
+
+plugin:cmd("fastfly")
+    :info("Starts fly at speed 50")
+    :run(function(ctx)
+        -- ctx:run("command args") runs a NA command.
+        ctx:run("fly 50")
+    end)
+
+plugin:cmd("torandom")
+    :info("Teleports to a random player")
+    :run(function(ctx)
+        -- You can also pass the command and args separately.
+        ctx:run("to", "random")
+    end)
+
+plugin:cmd("clipagain")
+    :info("Runs noclip from a table")
+    :run(function(ctx)
+        -- Table form is also supported.
+        ctx:run({"noclip"})
+    end)
+
+-- Other useful calls:
+-- plugin:cmd("main", "alias1", "alias2")
+--     :args("<text>")
+--     :info("Description shown in command help")
+--     :requiresArgs()
+--     :run(function(ctx, text)
+--         ctx:notify(text, 3)
+--     end)
+
+-- ctx values you can use inside :run(...):
+-- ctx:notify("message", 3)
+-- ctx:run("fly 50")
+-- ctx:run("to", "random")
+-- ctx:run({"noclip"})
+-- ctx.Services.Players
+-- ctx.LocalPlayer
+-- ctx.UI
+-- ctx.File
+-- ctx.Path
