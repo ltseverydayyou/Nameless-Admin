@@ -1241,6 +1241,9 @@ local NAStuff = {
 	tweenSpeed = 1;
 	tpDelay = 0.2;
 	AutoInteractDefaultInterval = 0.1;
+	AutoFireRemoteDefaultInterval = 0.1;
+	AutoInteractMethod = "PostSimulation";
+	AutoFireRemoteMethod = "PostSimulation";
 	FreecamSpeed = 5;
 	MobileFlyAutoEnableOnRun = true;
 	MobileCamSensitivity = 1;
@@ -12838,7 +12841,8 @@ NAgui={}
 NAindex = { _init = false }
 NAjobs  = {
 	jobs = {},
-	hb = nil,
+	hb = {},
+	sig = {},
 	seq = 0,
 	_frame = 0,
 	_claimed = {},
@@ -12852,9 +12856,11 @@ NAjobs  = {
 	_stepInterval = (1 / 240),
 	_maxCatchUpSteps = 12,
 	_staggerCap = 0.003,
-	_accum = 0,
+	_accum = {},
+	_batchNext = { prompt = {}, click = {}, remote = {} },
 	_promptBatchNext = 0,
 	_clickBatchNext = 0,
+	_remoteBatchNext = 0,
 	_promptBatchFloor = 0.05,
 	_clickBatchFloor = 0.05,
 	_promptMaxFiresPerBatch = 18,
@@ -20448,6 +20454,8 @@ NAStuff.UserButtonsAutoLoad = NAmanage.NASettingsGet("userButtonsAutoLoad")
 NAStuff.CmdBar2AutoRun = NAmanage.NASettingsGet("cmdbar2AutoRun")
 NAStuff.LoopMethodOptions = { "PostSimulation", "PreSimulation", "RenderStepped", "Heartbeat" }
 NAStuff.LoopMethod = NAmanage.NASettingsGet("loopMethod") or "PostSimulation"
+NAStuff.AutoInteractMethod = NAmanage.NASettingsGet("autoInteractMethod") or NAStuff.AutoInteractMethod or "PostSimulation"
+NAStuff.AutoFireRemoteMethod = NAmanage.NASettingsGet("autoFireRemoteMethod") or NAStuff.AutoFireRemoteMethod or "PostSimulation"
 NAStuff.NetworkPauseDisabled = NAmanage.NASettingsGet("networkPauseDisabled")
 NAStuff.UnsafeFunctionsDisabled = NAmanage.NASettingsGet("disableUnsafeFunctions") == true
 NAStuff.ForceRconsoleNAConsole = NAmanage.NASettingsGet("forceRconsoleNAConsole") ~= false
@@ -20619,6 +20627,7 @@ NAStuff.PluginSettingsUIEnabled = NAmanage.NASettingsGet("pluginAllowSettingsUI"
 NAStuff.AutoInteractDistanceEnabled = true
 NAStuff.AutoInteractExtraRange = 5
 NAStuff.AutoInteractDefaultInterval = math.clamp(tonumber(NAStuff.AutoInteractDefaultInterval) or 0.1, 0, 1)
+NAStuff.AutoFireRemoteDefaultInterval = math.clamp(tonumber(NAStuff.AutoFireRemoteDefaultInterval) or NAStuff.AutoInteractDefaultInterval or 0.1, 0, 1)
 NAStuff.RobloxDevConsoleCopyButtonsEnabled = NAStuff.RobloxDevConsoleCopyButtonsEnabled ~= false
 NAStuff.NAConsoleMasterEnabled = NAStuff.NAConsoleMasterEnabled ~= false
 NAStuff.CrosshairColor = NAStuff.CrosshairColor or Color3.new(1, 1, 1)
@@ -20651,6 +20660,9 @@ if FileSupport then
 	NAStuff.AutoInteractDistanceEnabled = NAmanage.NASettingsGet("autoInteractDistanceEnabled") ~= false
 	NAStuff.AutoInteractExtraRange = tonumber(NAmanage.NASettingsGet("autoInteractExtraRange")) or 5
 	NAStuff.AutoInteractDefaultInterval = math.clamp(tonumber(NAmanage.NASettingsGet("autoInteractDefaultInterval")) or NAStuff.AutoInteractDefaultInterval or 0.1, 0, 1)
+	NAStuff.AutoFireRemoteDefaultInterval = math.clamp(tonumber(NAmanage.NASettingsGet("autoFireRemoteDefaultInterval")) or NAStuff.AutoFireRemoteDefaultInterval or NAStuff.AutoInteractDefaultInterval or 0.1, 0, 1)
+	NAStuff.AutoInteractMethod = NAmanage.NASettingsGet("autoInteractMethod") or NAStuff.AutoInteractMethod or "PostSimulation"
+	NAStuff.AutoFireRemoteMethod = NAmanage.NASettingsGet("autoFireRemoteMethod") or NAStuff.AutoFireRemoteMethod or "PostSimulation"
 	NAStuff.RobloxDevConsoleCopyButtonsEnabled = NAmanage.NASettingsGet("devConsoleCopyButtons") ~= false
 	NAStuff.NAConsoleMasterEnabled = NAmanage.NASettingsGet("devConsoleMasterInput") ~= false
 	NAStuff.DevConsoleLogLimit = math.clamp(math.floor((tonumber(NAmanage.NASettingsGet("devConsoleLogLimit")) or NAStuff.DevConsoleLogLimit or 1200) + 0.5), 200, 5000)
@@ -23742,8 +23754,42 @@ NAmanage.SetLoopMethod = function(method, opts)
 	return picked
 end
 
+NAmanage.GetAutoFireDefaultMethod = function(kind)
+	if kind == "remote" then
+		return NAmanage.SanitizeLoopMethod(NAStuff.AutoFireRemoteMethod or NAStuff.AutoInteractMethod or NAStuff.LoopMethod or "PostSimulation")
+	end
+	return NAmanage.SanitizeLoopMethod(NAStuff.AutoInteractMethod or NAStuff.LoopMethod or "PostSimulation")
+end
+
+NAmanage.SetAutoFireDefaultMethod = function(kind, method, opts)
+	local picked = NAmanage.SanitizeLoopMethod(method)
+	local isRemote = kind == "remote"
+	if isRemote then
+		NAStuff.AutoFireRemoteMethod = picked
+	else
+		NAStuff.AutoInteractMethod = picked
+	end
+	if type(NAjobs) == "table" and type(NAjobs.jobs) == "table" and (not opts or opts.updateRunning ~= false) then
+		for _, job in NAjobs.jobs do
+			if job and ((isRemote and job.kind == "remote") or ((not isRemote) and (job.kind == "prompt" or job.kind == "click" or job.kind == "touch"))) then
+				job.method = picked
+				job.next = time()
+			end
+		end
+	end
+	if not opts or opts.save ~= false then
+		pcall(NAmanage.NASettingsSet, isRemote and "autoFireRemoteMethod" or "autoInteractMethod", picked)
+	end
+	if type(NAjobs) == "table" and type(NAjobs._reschedule) == "function" and (not opts or opts.rebind ~= false) then
+		NAjobs._reschedule()
+	end
+	return picked
+end
+
 NAStuff.LoopMethodOptions = NAStuff.LoopMethodOptions or { "PostSimulation", "PreSimulation", "RenderStepped", "Heartbeat" }
 NAStuff.LoopMethod = NAmanage.SanitizeLoopMethod(NAStuff.LoopMethod or "PostSimulation")
+NAStuff.AutoInteractMethod = NAmanage.GetAutoFireDefaultMethod("prompt")
+NAStuff.AutoFireRemoteMethod = NAmanage.GetAutoFireDefaultMethod("remote")
 
 NAmanage.FmtLoop = function(args)
 	if not args or #args == 0 then
@@ -69610,6 +69656,10 @@ NAmanage.getAutoInteractDefaultInterval = function()
 	return math.clamp(tonumber(NAStuff.AutoInteractDefaultInterval) or 0.1, 0, 1)
 end
 
+NAmanage.getAutoFireRemoteDefaultInterval = function()
+	return math.clamp(tonumber(NAStuff.AutoFireRemoteDefaultInterval) or NAmanage.getAutoInteractDefaultInterval(), 0, 1)
+end
+
 local promptPartCache = NAmanage.ensureWeakTable(nil, "k")
 local carPartCache = NAmanage.ensureWeakTable(nil, "k")
 local promptNamesCache = NAmanage.ensureWeakTable(nil, "k")
@@ -69939,10 +69989,10 @@ NAsuppress.releaseList = function(list)
 	end
 end
 
-NAjobs._tracked = NAjobs._tracked or {
-	prompt = { list = {}, idx = {} },
-	click = { list = {}, idx = {} }
-}
+NAjobs._tracked = NAjobs._tracked or {}
+NAjobs._tracked.prompt = NAjobs._tracked.prompt or { list = {}, idx = {} }
+NAjobs._tracked.click = NAjobs._tracked.click or { list = {}, idx = {} }
+NAjobs._tracked.remote = NAjobs._tracked.remote or { list = {}, idx = {} }
 
 NAjobs._trackedAdd = function(kind, inst)
 	if not inst then
@@ -69988,12 +70038,16 @@ NAjobs._trackedRemove = function(kind, inst)
 		NAjobs._lastPromptFire[inst] = nil
 	elseif kind == "click" and type(NAjobs._lastClickFire) == "table" then
 		NAjobs._lastClickFire[inst] = nil
+	elseif kind == "remote" and type(NAjobs._lastRemoteFire) == "table" then
+		NAjobs._lastRemoteFire[inst] = nil
 	end
 	if #list <= 0 then
 		if kind == "prompt" then
 			NAjobs._promptCursor = 0
 		elseif kind == "click" then
 			NAjobs._clickCursor = 0
+		elseif kind == "remote" then
+			NAjobs._remoteCursor = 0
 		end
 	end
 end
@@ -70044,6 +70098,111 @@ NAjobs._ensureTracked = function()
 			NAjobs._trackedRemove("click", inst)
 		end
 	end))
+end
+
+NAjobs._isRemote = function(inst)
+	return typeof(inst) == "Instance" and (inst:IsA("RemoteEvent") or inst:IsA("UnreliableRemoteEvent") or inst:IsA("RemoteFunction"))
+end
+
+NAjobs._skipRemoteRoot = function(inst)
+	local cg = COREGUI
+	if typeof(inst) ~= "Instance" or typeof(cg) ~= "Instance" then
+		return false
+	end
+	if inst == cg then
+		return true
+	end
+	local ok, res = pcall(function()
+		return inst:IsDescendantOf(cg)
+	end)
+	return ok and res == true
+end
+
+NAjobs._ensureRemoteTracked = function()
+	NAjobs._tracked.remote = NAjobs._tracked.remote or { list = {}, idx = {} }
+	if NAjobs._remoteTrackedReady then
+		return
+	end
+	NAjobs._remoteTrackedReady = true
+
+	local q = { game }
+	local qi, qn = 1, 1
+	local step = 0
+	while qi <= qn do
+		local inst = q[qi]
+		q[qi] = nil
+		qi += 1
+
+		if typeof(inst) == "Instance" and not NAjobs._skipRemoteRoot(inst) then
+			if NAjobs._isRemote(inst) then
+				NAjobs._trackedAdd("remote", inst)
+			end
+
+			local ok, ch = pcall(function()
+				return inst:GetChildren()
+			end)
+			if ok and type(ch) == "table" then
+				for i = 1, #ch do
+					local c = ch[i]
+					if not NAjobs._skipRemoteRoot(c) then
+						qn += 1
+						q[qn] = c
+					end
+				end
+			end
+		end
+
+		step += 1
+		if step >= 180 then
+			step = 0
+			Wait()
+		end
+	end
+
+	NAlib.connect("NAjobs_remote_add", NAmanage.descAdd(game, function(inst)
+		if NAjobs._isRemote(inst) and not NAjobs._skipRemoteRoot(inst) then
+			NAjobs._trackedAdd("remote", inst)
+		end
+	end, function(inst)
+		return NAjobs._isRemote(inst) and not NAjobs._skipRemoteRoot(inst)
+	end))
+	NAlib.connect("NAjobs_remote_rem", NAmanage.descRem(game, function(inst)
+		if NAjobs._isRemote(inst) then
+			NAjobs._trackedRemove("remote", inst)
+		end
+	end))
+end
+
+NAjobs._remoteFullName = function(r)
+	local ok, res = pcall(function()
+		return r:GetFullName()
+	end)
+	return ok and tostring(res or r.Name) or tostring(r and r.Name or "Remote")
+end
+
+NAjobs._fireRemote = function(r)
+	if not NAjobs._isRemote(r) or not (r and r.Parent) then
+		return false
+	end
+	if r:IsA("RemoteEvent") or r:IsA("UnreliableRemoteEvent") then
+		return pcall(function()
+			r:FireServer()
+		end)
+	end
+	NAjobs._remoteInvokeBusy = NAjobs._remoteInvokeBusy or NAmanage.ensureWeakTable(nil, "k")
+	if NAjobs._remoteInvokeBusy[r] then
+		return false
+	end
+	NAjobs._remoteInvokeBusy[r] = true
+	SpawnCall(function()
+		pcall(function()
+			r:InvokeServer()
+		end)
+		if NAjobs._remoteInvokeBusy then
+			NAjobs._remoteInvokeBusy[r] = nil
+		end
+	end)
+	return true
 end
 
 NAjobs._resolvePromptPart = function(pp)
@@ -70102,6 +70261,18 @@ NAjobs._collectNames = function(kind, inst, part)
 		local parent = inst.Parent
 		if parent then
 			add(parent.Name)
+		end
+	elseif kind == "remote" then
+		add(inst.Name)
+		local fn = NAjobs._remoteFullName(inst)
+		add(fn)
+		if fn ~= "" then
+			add("game."..fn)
+		end
+		local parent = inst.Parent
+		while parent and parent ~= game do
+			add(parent.Name)
+			parent = parent.Parent
 		end
 	else
 		add(inst.Name)
@@ -70417,15 +70588,97 @@ NAjobs._runClickBatch = function(dueJobs)
 	end
 end
 
-NAjobs._runStep = function()
+
+NAjobs._runRemoteBatch = function(dueJobs)
+	NAjobs._ensureRemoteTracked()
+	local tracked = (NAjobs._tracked.remote and NAjobs._tracked.remote.list) or {}
+	local trackedCount = #tracked
+	if trackedCount <= 0 then
+		NAjobs._remoteCursor = 0
+		return
+	end
+	local plan = NAjobs._buildTargetPlan(dueJobs)
+	local needsNames = not plan.all and (next(plan.exact) ~= nil or #plan.findList > 0)
+	local maxFires = math.max(1, math.floor(tonumber(NAjobs._remoteMaxFiresPerBatch) or 12))
+	local scanBudget = math.max(1, math.floor(tonumber(NAjobs._remoteScanPerBatch) or trackedCount))
+	if scanBudget < maxFires then
+		scanBudget = maxFires
+	end
+	if scanBudget > trackedCount then
+		scanBudget = trackedCount
+	end
+	local cursor = tonumber(NAjobs._remoteCursor) or 0
+	local cooldown = tonumber(NAjobs._remoteRefireFloor) or 0
+	local dynamicFloor = NAjobs._batchInterval(dueJobs, 0, 0)
+	if dynamicFloor > cooldown then
+		cooldown = dynamicFloor
+	end
+	local now = time()
+	local stale = {}
+	local fired = 0
+	local lastMap = NAjobs._lastRemoteFire
+	if type(lastMap) ~= "table" then
+		lastMap = {}
+		NAjobs._lastRemoteFire = lastMap
+	end
+	for step = 1, scanBudget do
+		if fired >= maxFires then
+			break
+		end
+		local idx = ((cursor + step - 1) % trackedCount) + 1
+		local inst = tracked[idx]
+		if not (inst and inst.Parent) then
+			if inst then
+				Insert(stale, inst)
+			end
+		else
+			local ok = true
+			if needsNames then
+				local names = NAjobs._collectNames("remote", inst)
+				ok = NAjobs._matchesTargetPlan(names, plan)
+			end
+			if ok and NAjobs._claim(inst) and NAjobs._canRefire(lastMap, inst, now, cooldown) then
+				local okFire = NAjobs._fireRemote(inst)
+				if okFire then
+					lastMap[inst] = now
+					fired += 1
+				end
+			end
+		end
+	end
+	NAjobs._remoteCursor = (cursor + scanBudget) % trackedCount
+	for i = 1, #stale do
+		NAjobs._trackedRemove("remote", stale[i])
+	end
+end
+
+NAjobs._jobMethod = function(job)
+	if not job then
+		return NAmanage.GetAutoFireDefaultMethod("prompt")
+	end
+	return NAmanage.SanitizeLoopMethod(job.method or NAmanage.GetAutoFireDefaultMethod(job.kind))
+end
+
+NAjobs._batchNextFor = function(kind, method)
+	NAjobs._batchNext = type(NAjobs._batchNext) == "table" and NAjobs._batchNext or {}
+	NAjobs._batchNext[kind] = type(NAjobs._batchNext[kind]) == "table" and NAjobs._batchNext[kind] or {}
+	return NAjobs._batchNext[kind], NAmanage.SanitizeLoopMethod(method or "PostSimulation")
+end
+
+NAjobs._runStep = function(method)
+	method = method and NAmanage.SanitizeLoopMethod(method) or nil
 	NAjobs._frame = (NAjobs._frame or 0) + 1
 	NAjobs._claimed = {}
 	local now = time()
 	local zeroCount = 0
 	local duePrompt = {}
 	local dueClick = {}
+	local dueRemote = {}
 	local dueOther = {}
 	for _, job in NAjobs.jobs do
+		if method and NAjobs._jobMethod(job) ~= method then
+			continue
+		end
 		if job.interval <= 0 then
 			zeroCount += 1
 		end
@@ -70434,6 +70687,8 @@ NAjobs._runStep = function()
 				Insert(duePrompt, job)
 			elseif job.kind == "click" then
 				Insert(dueClick, job)
+			elseif job.kind == "remote" then
+				Insert(dueRemote, job)
 			else
 				Insert(dueOther, job)
 			end
@@ -70442,20 +70697,32 @@ NAjobs._runStep = function()
 
 	local ranPromptBatch = false
 	local ranClickBatch = false
+	local ranRemoteBatch = false
 	if #duePrompt > 0 then
-		local nextAt = tonumber(NAjobs._promptBatchNext) or 0
+		NAjobs._promptBatchBucket, NAjobs._promptBatchKey = NAjobs._batchNextFor("prompt", method)
+		local nextAt = tonumber(NAjobs._promptBatchBucket[NAjobs._promptBatchKey]) or 0
 		if now >= nextAt then
 			NAjobs._runPromptBatch(duePrompt)
 			ranPromptBatch = true
-			NAjobs._promptBatchNext = now + NAjobs._batchInterval(duePrompt, zeroCount, NAjobs._promptBatchFloor)
+			NAjobs._promptBatchBucket[NAjobs._promptBatchKey] = now + NAjobs._batchInterval(duePrompt, zeroCount, NAjobs._promptBatchFloor)
 		end
 	end
 	if #dueClick > 0 then
-		local nextAt = tonumber(NAjobs._clickBatchNext) or 0
+		NAjobs._clickBatchBucket, NAjobs._clickBatchKey = NAjobs._batchNextFor("click", method)
+		local nextAt = tonumber(NAjobs._clickBatchBucket[NAjobs._clickBatchKey]) or 0
 		if now >= nextAt then
 			NAjobs._runClickBatch(dueClick)
 			ranClickBatch = true
-			NAjobs._clickBatchNext = now + NAjobs._batchInterval(dueClick, zeroCount, NAjobs._clickBatchFloor)
+			NAjobs._clickBatchBucket[NAjobs._clickBatchKey] = now + NAjobs._batchInterval(dueClick, zeroCount, NAjobs._clickBatchFloor)
+		end
+	end
+	if #dueRemote > 0 then
+		NAjobs._remoteBatchBucket, NAjobs._remoteBatchKey = NAjobs._batchNextFor("remote", method)
+		local nextAt = tonumber(NAjobs._remoteBatchBucket[NAjobs._remoteBatchKey]) or 0
+		if now >= nextAt then
+			NAjobs._runRemoteBatch(dueRemote)
+			ranRemoteBatch = true
+			NAjobs._remoteBatchBucket[NAjobs._remoteBatchKey] = now + NAjobs._batchInterval(dueRemote, zeroCount, NAjobs._remoteBatchFloor)
 		end
 	end
 	if ranPromptBatch then
@@ -70469,6 +70736,14 @@ NAjobs._runStep = function()
 	if ranClickBatch then
 		for i = 1, #dueClick do
 			local job = dueClick[i]
+			if NAjobs.jobs[job.id] == job then
+				job.next = now + NAjobs._effectiveInterval(job, zeroCount)
+			end
+		end
+	end
+	if ranRemoteBatch then
+		for i = 1, #dueRemote do
+			local job = dueRemote[i]
 			if NAjobs.jobs[job.id] == job then
 				job.next = now + NAjobs._effectiveInterval(job, zeroCount)
 			end
@@ -70491,52 +70766,120 @@ NAjobs._runStep = function()
 	NAjobs._restoreTouchDue()
 end
 
-NAjobs._schedule = function()
-	if NAjobs.hb then return end
-	NAjobs._accum = 0
-	NAjobs.hb = NAlib.connect("NAjobs_stp", RunService.Heartbeat:Connect(function(dt)
+NAjobs._sigKey = function(method)
+	return "NAjobs_stp_"..NAmanage.SanitizeLoopMethod(method or "PostSimulation")
+end
+
+NAjobs._activeMethods = function()
+	local methods = {}
+	for _, job in NAjobs.jobs do
+		if job then
+			methods[NAjobs._jobMethod(job)] = true
+		end
+	end
+	return methods
+end
+
+NAjobs._connectMethod = function(method)
+	local picked = NAmanage.SanitizeLoopMethod(method or "PostSimulation")
+	NAjobs.hb = type(NAjobs.hb) == "table" and NAjobs.hb or {}
+	NAjobs._accum = type(NAjobs._accum) == "table" and NAjobs._accum or {}
+	if NAjobs.hb[picked] then
+		return
+	end
+	local sig = NAmanage.GetLoopSignal(picked)
+	if not sig then
+		return
+	end
+	local key = NAjobs._sigKey(picked)
+	NAlib.disconnect(key)
+	NAjobs._accum[picked] = 0
+	NAjobs.hb[picked] = true
+	NAlib.connect(key, sig:Connect(function(...)
+		if not (NAjobs.hb and NAjobs.hb[picked]) then
+			NAlib.disconnect(key)
+			return
+		end
 		local step = tonumber(NAjobs._stepInterval) or (1 / 120)
 		if step <= 0 then
 			step = 1 / 120
 		end
 		local maxCatch = math.max(1, math.floor(tonumber(NAjobs._maxCatchUpSteps) or 6))
-		local delta = tonumber(dt) or 0
+		local delta = NAmanage.GetLoopDt(...)
 		if delta < 0 then
 			delta = 0
 		end
-		NAjobs._accum = (tonumber(NAjobs._accum) or 0) + delta
+		NAjobs._accum[picked] = (tonumber(NAjobs._accum[picked]) or 0) + delta
 
 		local loops = 0
-		while NAjobs._accum >= step and loops < maxCatch do
-			NAjobs._accum -= step
+		while NAjobs._accum[picked] >= step and loops < maxCatch do
+			NAjobs._accum[picked] -= step
 			loops += 1
-			NAjobs._runStep()
+			NAjobs._runStep(picked)
 		end
 
 		local maxAccum = step * maxCatch
-		if NAjobs._accum > maxAccum then
-			NAjobs._accum = maxAccum
+		if NAjobs._accum[picked] > maxAccum then
+			NAjobs._accum[picked] = maxAccum
 		end
 	end))
 end
 
+NAjobs._schedule = function()
+	NAjobs.hb = type(NAjobs.hb) == "table" and NAjobs.hb or {}
+	local active = NAjobs._activeMethods()
+	for method in NAjobs.hb do
+		if not active[method] then
+			NAlib.disconnect(NAjobs._sigKey(method))
+			NAjobs.hb[method] = nil
+			if type(NAjobs._accum) == "table" then
+				NAjobs._accum[method] = nil
+			end
+		end
+	end
+	for method in active do
+		NAjobs._connectMethod(method)
+	end
+end
+
+NAjobs._reschedule = function()
+	if type(NAjobs.hb) == "table" then
+		for method in NAjobs.hb do
+			NAlib.disconnect(NAjobs._sigKey(method))
+		end
+	end
+	NAjobs.hb = {}
+	NAjobs._accum = {}
+	NAjobs._batchNext = { prompt = {}, click = {}, remote = {} }
+	NAjobs._schedule()
+end
+
 NAjobs._maybeStop = function()
 	if not next(NAjobs.jobs) then
-		if NAjobs.hb then
-			NAlib.disconnect("NAjobs_stp")
-			NAjobs.hb = nil
+		if type(NAjobs.hb) == "table" then
+			for method in NAjobs.hb do
+				NAlib.disconnect(NAjobs._sigKey(method))
+			end
 		end
+		NAjobs.hb = {}
 		NAjobs._q = {}
 		NAjobs._qHead = 1
 		NAjobs._qTail = 0
-		NAjobs._accum = 0
+		NAjobs._accum = {}
+		NAjobs._batchNext = { prompt = {}, click = {}, remote = {} }
 		NAjobs._promptBatchNext = 0
 		NAjobs._clickBatchNext = 0
+		NAjobs._remoteBatchNext = 0
 		NAjobs._promptCursor = 0
 		NAjobs._clickCursor = 0
+		NAjobs._remoteCursor = 0
 		NAjobs._lastPromptFire = {}
 		NAjobs._lastClickFire = {}
+		NAjobs._lastRemoteFire = {}
+		NAjobs._remoteInvokeBusy = NAmanage.ensureWeakTable(nil, "k")
 		NAjobs._claimed = {}
+	else
+		NAjobs._schedule()
 	end
 end
 
@@ -70563,10 +70906,12 @@ NAjobs._nextIdForKind = function(kind)
 	return kind.."#"..tostring(i)
 end
 
-NAjobs.start = function(kind, interval, target, useFind)
+NAjobs.start = function(kind, interval, target, useFind, method)
 	NAindex.init()
 	if kind == "prompt" or kind == "click" then
 		NAjobs._ensureTracked()
+	elseif kind == "remote" then
+		NAjobs._ensureRemoteTracked()
 	end
 	local tgt = target and Lower(target) or nil
 	local ivl = interval or 0.1
@@ -70574,6 +70919,7 @@ NAjobs.start = function(kind, interval, target, useFind)
 	local staggerCap = math.max(0, tonumber(NAjobs._staggerCap) or 0.003)
 	local stagger = ivlClamped > 0 and math.min(staggerCap, ivlClamped / 48) or 0
 	local matcher = useFind and NAindex.matchAnyFind or NAindex.matchAny
+	local pickedMethod = NAmanage.SanitizeLoopMethod(method or NAmanage.GetAutoFireDefaultMethod(kind))
 	local existingId, existingJob = NAjobs._findExisting(kind, tgt, useFind)
 	if existingJob then
 		existingJob.interval = ivlClamped
@@ -70581,6 +70927,7 @@ NAjobs.start = function(kind, interval, target, useFind)
 		existingJob.m = matcher
 		existingJob.useFind = useFind and true or false
 		existingJob.stagger = stagger
+		existingJob.method = pickedMethod
 		existingJob.next = time()
 		return existingId, true
 	end
@@ -70592,6 +70939,7 @@ NAjobs.start = function(kind, interval, target, useFind)
 		target = tgt,
 		next = time(),
 		stagger = stagger,
+		method = pickedMethod,
 		m = matcher,
 		useFind = useFind and true or false
 	}
@@ -70667,6 +71015,8 @@ NAjobs.start = function(kind, interval, target, useFind)
 				end
 			end
 		end
+	elseif kind == "remote" then
+		job.tick = function() end
 	elseif kind == "touch" then
 		job.tick = function(self)
 			if not InstancesTbl or type(InstancesTbl.touch) ~= "table" then
@@ -70792,6 +71142,23 @@ NAjobs.applyLinkedAutoInteractInterval = function(interval)
 	local changed = 0
 	for _, job in NAjobs.jobs do
 		if job and (job.kind == "prompt" or job.kind == "click" or job.kind == "touch") and job.autoIntervalLinked == true then
+			job.interval = ivl
+			job.next = time()
+			changed += 1
+		end
+	end
+	return changed
+end
+
+NAjobs.applyLinkedAutoFireRemoteInterval = function(interval)
+	local n = tonumber(interval)
+	if not n then
+		return 0
+	end
+	local ivl = math.max(0, n)
+	local changed = 0
+	for _, job in NAjobs.jobs do
+		if job and job.kind == "remote" and job.autoIntervalLinked == true then
 			job.interval = ivl
 			job.next = time()
 			changed += 1
@@ -70945,6 +71312,40 @@ cmd.add({"autotouchfind","atfind"},{"autotouchfind <interval> [target]","Automat
 	DebugNotif(target and ("atfind %s (%s) → %s"):format(action, target, id) or ("atfind %s → %s"):format(action, id), 2)
 end, true)
 
+cmd.add({"autofireremote","afr"},{"autofireremote <interval> [target]","Automatically fires remotes matching [target] every <interval> seconds"}, function(...)
+	local args = {...}
+	local interval, target
+	local defaultInterval = NAmanage.getAutoFireRemoteDefaultInterval()
+	local useDefaultInterval = args[1] == nil or not tonumber(args[1])
+	if args[1] and not tonumber(args[1]) then
+		interval = defaultInterval
+		target = Lower(Concat(args, " ", 1))
+	else
+		interval, target = NAutil.parseInterval(defaultInterval, ...)
+	end
+	local id, reused = NAjobs.start("remote", interval, target)
+	NAjobs.setAutoIntervalLink(id, useDefaultInterval)
+	local action = reused and "updated" or "started"
+	DebugNotif(target and ("afr %s (%s) → %s"):format(action, target, id) or ("afr %s → %s"):format(action, id), 2)
+end, true)
+
+cmd.add({"autofireremotefind","afrfind"},{"autofireremotefind <interval> [target]","Automatically fires remotes matching [target] using substring matching every <interval> seconds"}, function(...)
+	local args = {...}
+	local interval, target
+	local defaultInterval = NAmanage.getAutoFireRemoteDefaultInterval()
+	local useDefaultInterval = args[1] == nil or not tonumber(args[1])
+	if args[1] and not tonumber(args[1]) then
+		interval = defaultInterval
+		target = Lower(Concat(args, " ", 1))
+	else
+		interval, target = NAutil.parseInterval(defaultInterval, ...)
+	end
+	local id, reused = NAjobs.start("remote", interval, target, true)
+	NAjobs.setAutoIntervalLink(id, useDefaultInterval)
+	local action = reused and "updated" or "started"
+	DebugNotif(target and ("afrfind %s (%s) → %s"):format(action, target, id) or ("afrfind %s → %s"):format(action, id), 2)
+end, true)
+
 cmd.add({"unautofireproxi","uafp"},{"unautofireproxi (uafp)","Stops all AutoFireProxi loops"}, function()
 	NAmanage._windowStopKind("prompt","AutoFireProxi Jobs")
 end)
@@ -70957,6 +71358,10 @@ cmd.add({"unautotouch","uat"},{"unautotouch (uat)","Stops all AutoTouch loops"},
 	NAmanage._windowStopKind("touch","AutoTouch Jobs")
 end)
 
+cmd.add({"unautofireremote","uafr"},{"unautofireremote (uafr)","Stops all AutoFireRemote loops"}, function()
+	NAmanage._windowStopKind("remote","AutoFireRemote Jobs")
+end)
+
 cmd.add({"unautotouchfind","uatfind"},{"unautotouchfind (uatfind)","Stops substring-matching AutoTouch loops"}, function()
 	NAmanage._windowStopKindFind("touch","AutoTouchFind Jobs")
 end)
@@ -70967,6 +71372,10 @@ end)
 
 cmd.add({"unautofireclickfind","uafcfind"},{"unautofireclickfind (uafcfind)","Stops substring-matching AutoFireClick loops"}, function()
 	NAmanage._windowStopKindFind("click","AutoFireClickFind Jobs")
+end)
+
+cmd.add({"unautofireremotefind","uafrfind"},{"unautofireremotefind (uafrfind)","Stops substring-matching AutoFireRemote loops"}, function()
+	NAmanage._windowStopKindFind("remote","AutoFireRemoteFind Jobs")
 end)
 
 cmd.add({"noclickdetectorlimits","nocdlimits","removecdlimits"},{"noclickdetectorlimits <limit> (nocdlimits,removecdlimits)","Sets all click detectors MaxActivationDistance to math.huge"},function(...)
@@ -108937,6 +109346,15 @@ NAgui.addSlider("AutoFire Default Delay", 0, 1, autoInteractIntervalDefault, 0.0
 	NAjobs.applyLinkedAutoInteractInterval(n)
 end)
 
+NAStuff.AutoInteractMethodDropdownLabel = "AutoFire Spam Mode"
+NAgui.addDropdown(NAStuff.AutoInteractMethodDropdownLabel, NAStuff.LoopMethodOptions or { "PostSimulation", "PreSimulation", "RenderStepped", "Heartbeat" }, NAmanage.GetAutoFireDefaultMethod("prompt"), function(sel)
+	local picked = NAmanage.SetAutoFireDefaultMethod("prompt", NAmanage.getDDTxt(sel) or sel, { save = true; updateRunning = true; rebind = true })
+	if NAgui.setDropdownValue then
+		NAgui.setDropdownValue(NAStuff.AutoInteractMethodDropdownLabel, picked, { fire = false })
+	end
+	DoNotif("AutoFire spam mode set to "..picked, 2)
+end)
+
 NAgui.addToggle("Use Distance Check for AutoFire", NAStuff.AutoInteractDistanceEnabled ~= false, function(v)
 	NAStuff.AutoInteractDistanceEnabled = v ~= false
 	pcall(NAmanage.NASettingsSet, "autoInteractDistanceEnabled", NAStuff.AutoInteractDistanceEnabled)
@@ -108951,6 +109369,26 @@ NAgui.addSlider("AutoFire Extra Distance", 0, 250, autoInteractExtraDefault, 1, 
 	n = math.clamp(n, 0, 250)
 	NAStuff.AutoInteractExtraRange = n
 	pcall(NAmanage.NASettingsSet, "autoInteractExtraRange", n)
+end)
+
+NAgui.addSection("Remote AutoFire")
+
+local autoFireRemoteIntervalDefault = math.clamp(tonumber(NAStuff.AutoFireRemoteDefaultInterval) or NAmanage.getAutoInteractDefaultInterval(), 0, 1)
+NAgui.addSlider("AutoFireRemote Default Delay", 0, 1, autoFireRemoteIntervalDefault, 0.01, "", function(val)
+	local n = tonumber(val) or autoFireRemoteIntervalDefault
+	n = math.floor((math.clamp(n, 0, 1) * 100) + 0.5) / 100
+	NAStuff.AutoFireRemoteDefaultInterval = n
+	pcall(NAmanage.NASettingsSet, "autoFireRemoteDefaultInterval", n)
+	NAjobs.applyLinkedAutoFireRemoteInterval(n)
+end)
+
+NAStuff.AutoFireRemoteMethodDropdownLabel = "AutoFireRemote Spam Mode"
+NAgui.addDropdown(NAStuff.AutoFireRemoteMethodDropdownLabel, NAStuff.LoopMethodOptions or { "PostSimulation", "PreSimulation", "RenderStepped", "Heartbeat" }, NAmanage.GetAutoFireDefaultMethod("remote"), function(sel)
+	local picked = NAmanage.SetAutoFireDefaultMethod("remote", NAmanage.getDDTxt(sel) or sel, { save = true; updateRunning = true; rebind = true })
+	if NAgui.setDropdownValue then
+		NAgui.setDropdownValue(NAStuff.AutoFireRemoteMethodDropdownLabel, picked, { fire = false })
+	end
+	DoNotif("AutoFireRemote spam mode set to "..picked, 2)
 end)
 
 NAgui.addSection("Flight Options")
