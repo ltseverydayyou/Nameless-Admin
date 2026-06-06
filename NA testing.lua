@@ -6787,7 +6787,7 @@ NAmanage.CreateNAFreecam=function()
 		cameraRot = Vector2.new(x, y)
 		cameraFov = Camera.FieldOfView
 
-		Camera.CameraType = Enum.CameraType.Scriptable
+		Camera.CameraType = Enum.CameraType.Fixed
 		UserInputService.MouseIconEnabled = false
 		UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
 
@@ -7148,7 +7148,7 @@ do
 		panSpring:Reset(Vector2.new())
 		fovSpring:Reset(0)
 
-		Camera.CameraType = Enum.CameraType.Scriptable
+		Camera.CameraType = Enum.CameraType.Fixed
 		UserInputService.MouseIconEnabled = false
 		UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
 
