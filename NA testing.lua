@@ -18621,7 +18621,7 @@ end
 
 function NAmanage.deltaRun()
 	local ok, err = pcall(function()
-		loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/DeltaCustomizationModule.luau"))()
+		NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/DeltaCustomizationModule.luau")
 	end)
 	if ok then
 		DoNotif("Loaded the Delta customization helper.", 3)
@@ -23574,7 +23574,13 @@ cmd.run = function(args)
 	local success, msg = pcall(function()
 		local command = callerLower and (cmds.Commands[callerLower] or cmds.Aliases[callerLower]) or nil
 		if command then
-			command[1](unpack(arguments))
+			local depth = tonumber(NAmanage._cmdRunDepth) or 0
+			NAmanage._cmdRunDepth = depth + 1
+			local okCmd, errCmd = pcall(command[1], unpack(arguments))
+			NAmanage._cmdRunDepth = depth
+			if not okCmd then
+				error(errCmd, 0)
+			end
 			NAmanage.markCommandDone(rawArgs)
 			NAmanage.markCommandUndone(rawArgs)
 			bumpRichPresenceAsync()
@@ -23663,6 +23669,109 @@ cmd.run = function(args)
 	if not success then warn(adminName.." script error:\n"..msg) end
 end
 
+NAmanage._safeLoadQ = {}
+NAmanage._safeLoadBusy = false
+NAmanage._safeLoadGap = 0.35
+
+NAmanage._safeLoadStart = function()
+	if NAmanage._safeLoadBusy then
+		return
+	end
+	NAmanage._safeLoadBusy = true
+	Spawn(function()
+		while true do
+			local job = table.remove(NAmanage._safeLoadQ, 1)
+			if not job then
+				break
+			end
+
+			Wait(job.delay or NAmanage._safeLoadGap)
+
+			local okBody = true
+			local body = job.src
+			local name = job.chunkName
+
+			if type(job.url) == "string" then
+				name = type(name) == "string" and name or ("@"..job.url)
+				if type(job.noCache) == "boolean" then
+					okBody, body = pcall(game.HttpGet, game, job.url, job.noCache)
+				else
+					okBody, body = pcall(game.HttpGet, game, job.url)
+				end
+			else
+				name = type(name) == "string" and name or "@NAExternal"
+			end
+
+			if not okBody then
+				warn(body)
+			elseif type(body) ~= "string" or body == "" then
+				warn("empty source")
+			else
+				local loader = loadstring or load
+				if type(loader) ~= "function" then
+					warn("loadstring unavailable")
+				else
+					Wait()
+					local fn, lerr = loader(body, name)
+					body = nil
+					job.src = nil
+					if type(fn) ~= "function" then
+						warn(tostring(lerr or "compile error"))
+					else
+						Wait()
+						local args = job.args or {}
+						local n = job.n or 0
+						local okRun, errRun = pcall(fn, Unpack(args, 1, n))
+						if not okRun then
+							warn(errRun)
+						end
+					end
+				end
+			end
+
+			Wait(NAmanage._safeLoadGap)
+		end
+		NAmanage._safeLoadBusy = false
+		if #NAmanage._safeLoadQ > 0 then
+			NAmanage._safeLoadStart()
+		end
+	end)
+end
+
+NAmanage.RunSource = function(src, chunkName, ...)
+	if type(src) ~= "string" or src == "" then
+		return false, "empty source"
+	end
+	local delayTime = ((tonumber(NAmanage._cmdRunDepth) or 0) > 0) and 0.85 or 0.35
+	Insert(NAmanage._safeLoadQ, {
+		src = src,
+		chunkName = chunkName,
+		args = {...},
+		n = select("#", ...),
+		delay = delayTime,
+	})
+	NAmanage._safeLoadStart()
+	return true
+end
+
+NAmanage.RunURL = function(url, noCache, chunkName)
+	if type(url) ~= "string" or url == "" then
+		return false, "empty url"
+	end
+	if type(noCache) ~= "boolean" then
+		chunkName = noCache
+		noCache = nil
+	end
+	local delayTime = ((tonumber(NAmanage._cmdRunDepth) or 0) > 0) and 0.85 or 0.35
+	Insert(NAmanage._safeLoadQ, {
+		url = url,
+		noCache = noCache,
+		chunkName = chunkName,
+		delay = delayTime,
+	})
+	NAmanage._safeLoadStart()
+	return true
+end
 NAmanage.SanitizeLoopMethod = function(method)
 	local value = type(method) == "string" and method or tostring(method or "")
 	value = value:match("^%s*(.-)%s*$") or value
@@ -33183,6 +33292,12 @@ NAmanage.LoadPlugins = function(opts)
 				if k == "loadstring" then
 					local baseLoader = baseEnv.loadstring or loadstring
 					return function(code, chunkname)
+						if (tonumber(NAmanage._cmdRunDepth) or 0) > 0 then
+							local src = tostring(code or "")
+							return function(...)
+								return NAmanage.RunSource(src, chunkname or "@NAPluginRuntime", ...)
+							end
+						end
 						local f, e = baseLoader(code, chunkname)
 						if not f then
 							return nil, e
@@ -35290,16 +35405,10 @@ cmd.add({"url"}, {"url <link>", "Run the script using URL"}, function(...)
 		return DoNotif("no link provided", 2)
 	end
 
-	local success, result = NACaller(function()
-		return game:HttpGet(link)
-	end)
-
-	if not success then return end
-
-	local func = loadstring(result)
-	if not func then return end
-
-	Spawn(func)
+	local okRun, errRun = NAmanage.RunURL(link, "@NAUrlCommand")
+	if not okRun then
+		warn(errRun)
+	end
 end, true)
 
 cmd.add({"loadstring", "ls", "lstring", "loads", "execute"}, {"loadstring <code> (ls, lstring, loads, execute)", "Run code using loadstring"}, function(...)
@@ -35310,10 +35419,10 @@ cmd.add({"loadstring", "ls", "lstring", "loads", "execute"}, {"loadstring <code>
 		return DoNotif("no code provided", 2)
 	end
 
-	local func = loadstring(code)
-	if not func then return end
-
-	Spawn(func)
+	local okRun, errRun = NAmanage.RunSource(code, "@NALoadstringCommand")
+	if not okRun then
+		warn(errRun)
+	end
 end, true)
 
 NA_SHADER_EFFECT_NAMES = {
@@ -36660,7 +36769,7 @@ cmd.add({"stoploop", "uncmdloop", "sloop", "stopl"}, {"stoploop", "Stop a runnin
 end)
 
 cmd.add({"scripthub","hub"},{"scripthub (hub)","Thanks to scriptblox/rscripts API"},function()
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/ScriptHubNA.lua"))()
+	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/ScriptHubNA.lua")
 end)
 
 local scaleFrame = nil
@@ -37023,15 +37132,15 @@ cmd.add({"gotocampos","tocampos","tcp"},{"gotocampos (tocampos,tcp)","Teleports 
 end)
 
 cmd.add({"teleportgui","tpui","universeviewer","uviewer"},{"teleportgui","Gives an UI that grabs all places and teleports you by clicking a simple button"},function()
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/main/Universe%20Viewer"))();
+	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/main/Universe%20Viewer");
 end)
 
 cmd.add({"imagescanner","imgscanner","imgscan","imgs","images"},{"imagescanner","Gives an UI that grabs all images on the game"},function()
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/ImageScanner.lua"))();
+	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/ImageScanner.lua");
 end)
 
 cmd.add({"serverremotespy","srs","sremotespy"},{"serverremotespy (srs,sremotespy)","Gives an UI that logs all the remotes being called from the server (thanks SolSpy lol)"},function()
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/Server%20Spy.lua"))()
+	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/Server%20Spy.lua")
 end)
 
 NAmanage.RunSmokeRepo = NAmanage.RunSmokeRepo or function(fileName)
@@ -37061,7 +37170,7 @@ NAmanage.RunSmokeRepo = NAmanage.RunSmokeRepo or function(fileName)
 	end
 	local url = "https://raw.githubusercontent.com/ltseverydayyou/NA-Plugins/main/"..clean
 	local ok, err = pcall(function()
-		loadstring(game:HttpGet(url))()
+		NAmanage.RunURL(url)
 	end)
 	if not ok then
 		DoNotif("Failed to load smoke script: "..tostring(err), 3)
@@ -43766,7 +43875,7 @@ cmd.addPatched({"breaklayeredclothing","blc"},{"breaklayeredclothing (blc)","Str
 		end
 	end
 	Noclipping=NAlib.reconnect("breaklayeredclothing_noclip", RunService.PreSimulation:Connect(NoclipLoop))
-	loadstring(game:HttpGet('https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/leg%20resize'))()
+	NAmanage.RunURL('https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/leg%20resize')
 end)
 
 cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"fpsbooster","Enables maximum-performance low graphics mode, run again to restore"}, function()
@@ -45533,11 +45642,11 @@ cmd.add({"unspam","unlag","unchatspam","unanimlag","unremotespam"},{"unspam","St
 end)
 
 cmd.add({"UNCTest","UNC"},{"UNCTest (UNC)","Test how many functions your executor supports"},function()
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/main/UNC%20test"))()
+	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/main/UNC%20test")
 end)
 
 cmd.add({"vulnerabilitytest","vulntest"},{"vulnerabilitytest (vulntest)","Test if your executor is Vulnerable"},function()
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/main/VulnTest.lua"))()
+	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/main/VulnTest.lua")
 end)
 
 cmd.add({"respawn", "re"}, {"respawn (re)", "Respawn your character"}, function()
@@ -46913,7 +47022,7 @@ cmd.add({"2016"},{"2016","Makes your Pedoblox CoreGui look like the 2016 CoreGui
 	}
 
 	local ok, err = pcall(function()
-		loadstring(game:HttpGet("https://raw.githubusercontent.com/lxte/projects/refs/heads/main/UI/Core2016/Source.luau"))();
+		NAmanage.RunURL("https://raw.githubusercontent.com/lxte/projects/refs/heads/main/UI/Core2016/Source.luau");
 	end)
 
 	if not ok then
@@ -46922,11 +47031,11 @@ cmd.add({"2016"},{"2016","Makes your Pedoblox CoreGui look like the 2016 CoreGui
 end)
 
 cmd.add({"f3x","fex"},{"f3x (fex)","F3X for client"},function()
-	loadstring(game:GetObjects("rbxassetid://6695644299")[1].Source)()
+	NAmanage.RunSource(game:GetObjects("rbxassetid://6695644299")[1].Source, "@rbxassetid://6695644299")
 end)
 
 cmd.add({"harked","comet"},{"harked (comet)","Executes Comet which is like harked"},function()
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/comet"))();
+	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/comet");
 end)
 
 cmd.add({"triggerbot", "tbot"}, {"triggerbot (tbot)", "Executes a script that automatically clicks the mouse when the mouse is on a player"}, function()
@@ -48203,19 +48312,19 @@ cmd.add({"thru"},{"thru <distance>","Move forward by distance"},function(distanc
 end)
 
 cmd.add({"olddex"},{"olddex","Using this you can see the parts / guis / scripts etc with this. A really good and helpful script."},function()
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/DexByMoonMobile"))()
+	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/DexByMoonMobile")
 end)
 
 cmd.add({"dex"},{"dex","Better version of dex"},function()
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/DexPlusBackup.luau"))()
+	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/DexPlusBackup.luau")
 end)
 
 cmd.add({"minimap"},{"minimap","just a minimap lol"},function()
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/minimap.luau"))()
+	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/minimap.luau")
 end)
 
 cmd.add({"animationplayer","animplayer", "aplayer","animp"},{"animationplayer","dropdown menu with all the animations the game has to be played"},function()
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/AnimPlayer.luau"))();
+	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/AnimPlayer.luau");
 end)
 
 cmd.add({"decompiler"},{"decompiler","Allows you to decompile LocalScript/ModuleScript's using lua.expert"},function()
@@ -48286,7 +48395,7 @@ cmd.add({"decompiler"},{"decompiler","Allows you to decompile LocalScript/Module
 
 		-- api docs: https://lua.expert/docs
 	end)
-	--loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/WompWomp.lua"))()
+	--NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/WompWomp.lua")
 end)
 
 cmd.add({"getidfromusername","gidu"},{"getidfromusername (gidu)","Copy a user's UserId by Username"}, function(thingy)
@@ -49011,7 +49120,7 @@ end)
 cmd.addPatched({"gravitygun"},{"gravitygun","Probably the best gravity gun script thats fe"},function()
 	Wait();
 	DoNotif("Wait a few seconds for it to load",2.5)
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/gravity%20gun"))()
+	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/gravity%20gun")
 end)
 
 originalIO.setWorkspaceLocked=function(flag)
@@ -49367,7 +49476,7 @@ end
 
 cmd.add({"shiftlock","sl"}, {"shiftlock (sl)", "Toggles shiftlock"}, function()
 	if IsOnMobile then
-		loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/shiftlock"))()
+		NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/shiftlock")
 	else
 		EnableShiftLock()
 	end
@@ -53653,7 +53762,7 @@ cmd.add({"unadmin"},{"unadmin <player>","removes someone from being admin"},func
 end,true)
 
 cmd.add({"partname","partpath","partgrabber"},{"partname (partpath,partgrabber)","gives a ui and allows you click on a part to grab it's path"},function()
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/PartGrabber.lua"))()
+	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/PartGrabber.lua")
 end)
 
 cmd.add({"jobid"},{"jobid","Copies your job id"},function()
@@ -55573,8 +55682,8 @@ cmd.add({"unhide", "show"}, {"show <player> (unhide)", "places the selected play
 end, true)
 
 cmd.add({"aimbot","aimbotui","aimbotgui"},{"aimbot (aimbotui,aimbotgui)","aimbot and yeah"},function()
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/NewAimbot.lua"))()
-	--loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/Aimbot.lua",true))()
+	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/NewAimbot.lua")
+	--NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/Aimbot.lua",true)
 end)
 
 NAmanage.toolCache = NAmanage.ensureWeakKeyTable(NAmanage.toolCache or {})
@@ -56256,7 +56365,7 @@ cmd.add({"undance"},{"undance","Stops the dance command"},function()
 end)
 
 cmd.add({"animspoofer","animationspoofer","spoofanim","animspoof"},{"animspoofer (animationspoofer, spoofanim, animspoof)","Loads up an animation spoofer,spoofs animations that use rbxassetid"},function()
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/Animation%20Spoofer"))()
+	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/Animation%20Spoofer")
 end)
 
 cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (badgeview, bviewer, badgev, bv)","loads up a badge viewer UI that views all badges in the game you're in"},function()
@@ -57861,11 +57970,11 @@ cmd.add({"placename","pname"},{"placename (pname)","Copies the game's place name
 end)
 
 cmd.add({"gameinfo","ginfo"},{"gameinfo (ginfo)","shows info about the game you're playing"},function()
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/GameInfo.lua"))()
+	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/GameInfo.lua")
 end)
 
 cmd.add({"userpreview","userp","upreview"},{"userpreview","show info about a user you name"},function()
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/UserInfo.luau"))()
+	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/UserInfo.luau")
 end)
 
 cmd.add({"copyname", "cname"}, {"copyname <player> (cname)", "Copies the username of the target"}, function(...)
@@ -61468,7 +61577,7 @@ cmd.add({"hatresize"},{"hatresize","Makes your hats very big r15 only"},function
 
 	DebugNotif("Hat resize loaded, rthro needed")
 
-	loadstring(game:HttpGet('https://raw.githubusercontent.com/DigitalityScripts/roblox-scripts/refs/heads/main/Patched/hat%20resize'))()
+	NAmanage.RunURL('https://raw.githubusercontent.com/DigitalityScripts/roblox-scripts/refs/heads/main/Patched/hat%20resize')
 end)
 
 cmd.add({"exit"},{"exit","Close down pedoblox"},function()
@@ -64811,7 +64920,7 @@ cmd.add({"untrussjump","untj","untrussj"},{"untrussjump","Disable trussjump"},fu
 end)
 
 cmd.add({"chattranslate","ctranslate","chatt"},{"chattranslate","the very old chat translator came back after years"},function()
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/translatoooor"))();
+	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/translatoooor");
 end)
 
 standParts = {}
@@ -66519,19 +66628,19 @@ cmd.add({"undotextures"},{"undotextures","Switches Textures"},function()
 end)
 
 cmd.add({"serverlist","serverlister","slist"},{"serverlist (serverlister,slist)","list of servers to join in"},function()
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/ServerLister.lua"))();
+	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/ServerLister.lua");
 end)
 
 cmd.add({"keyboard"},{"keyboard","provides a keyboard gui for mobile users"},function()
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/VirtualKeyboard.lua"))();
+	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/VirtualKeyboard.lua");
 end)
 
 cmd.add({"autoclicker"},{"autoclicker","provides a autoclicker gui"},function()
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/AutoClicker.luau"))();
+	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/AutoClicker.luau");
 end)
 
 cmd.add({"backpack"},{"backpack","provides a custom backpack gui"},function()
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/mobileBACKPACK.lua"))();
+	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/mobileBACKPACK.lua");
 end)
 
 -- patched
@@ -69670,7 +69779,7 @@ cmd.add({"networkpause","enablenetworkpause","nw","npause"},{"networkpause (enab
 end)
 
 cmd.add({"wallwalk"},{"wallwalk","Makes you walk on walls"},function()
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/main/WallWalk.lua"))() -- backup cause i don't trust pastebin
+	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/main/WallWalk.lua") -- backup cause i don't trust pastebin
 end)
 
 hiddenGUIS = hiddenGUIS or {}
@@ -69964,46 +70073,49 @@ cmd.add({"notepad","npad"},{"notepad","integrated notepad"},function()
 end)
 
 cmd.add({"rc7"},{"rc7","RC7 Internal UI"},function()
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/rc%20sexy%207"))()
+	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/rc%20sexy%207")
 end)
 
 cmd.add({"scriptviewer","viewscripts"},{"scriptviewer (viewscripts)","Can view scripts made by 0866"},function()
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/main/scriptviewer",true))()
+	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/main/scriptviewer",true)
 end)
 
 cmd.add({"moduleeditor","moduletable","modulartable","mtable","mt"},{"moduleeditor","loads the module editor UI"},function()
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/ModuleEditor.lua"))()
+	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/ModuleEditor.lua")
 end)
 
 cmd.add({"upvalueeditor","upvaleditor","uveditor","upeditor","uve"},{"upvalueeditor","loads the upvalue editor UI"},function()
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/UpvalueEditor.lua"))()
+	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/UpvalueEditor.lua")
 end)
 
 cmd.add({"hydroxide","hydro"},{"hydroxide (hydro)","executes hydroxide"},function()
-	local user = "ltseverydayyou"
-	local repo = "uuuuuuu"
-	local branch = "main"
-	local repoPath = "Hydroxide"
+	Spawn(function()
+		Wait(0.85)
+		local user = "ltseverydayyou"
+		local repo = "uuuuuuu"
+		local branch = "main"
+		local repoPath = "Hydroxide"
 
-	local function webImport(file)
-		local url = ("https://raw.githubusercontent.com/%s/%s/%s/%s/%s.lua"):format(user, repo, branch, repoPath, file)
-		return loadstring(game:HttpGet(url), file..".lua")()
-	end
+		local function webImport(file)
+			local url = ("https://raw.githubusercontent.com/%s/%s/%s/%s/%s.lua"):format(user, repo, branch, repoPath, file)
+			return loadstring(game:HttpGet(url), file..".lua")()
+		end
 
-	webImport("init")
-	webImport("ui/main")
+		webImport("init")
+		webImport("ui/main")
+	end)
 end)
 
 cmd.add({"remotespy","simplespy","rspy"},{"remotespy (simplespy,rspy)","executes simplespy that supports both pc and mobile"},function()
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/SimpleSpyRework.luau"))()
+	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/SimpleSpyRework.luau")
 end)
 
 cmd.add({"cobaltspy","cobalt","cspy"},{"cobaltspy (cobalt,cspy)"},function()
-	loadstring(game:HttpGet("https://github.com/notpoiu/cobalt/releases/latest/download/Cobalt.luau"))()
+	NAmanage.RunURL("https://github.com/notpoiu/cobalt/releases/latest/download/Cobalt.luau")
 end)
 
 cmd.add({"turtlespy","tspy"},{"turtlespy (tspy)","executes Turtle Spy that supports both pc and mobile"},function()
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/main/Turtle%20Spy.lua"))()
+	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/main/Turtle%20Spy.lua")
 end)
 
 cmd.add({"gravity","grav"},{"gravity <amount> (grav)","sets game gravity to whatever u want"},function(...)
@@ -74907,7 +75019,7 @@ cmd.add({"unswim"}, {"unswim","Stops the swim script"}, function()
 end);
 
 cmd.add({"punch"},{"punch","punch tool that flings"},function()
-	loadstring(game:HttpGet('https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/refs/heads/main/puncher.luau'))()
+	NAmanage.RunURL('https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/refs/heads/main/puncher.luau')
 end)
 
 cmd.add({"tpua","bringua"},{"tpua <player>","Brings every unanchored part on the map to the player"},function(...)
@@ -75017,7 +75129,7 @@ cmd.add({"noblackholefollow","nobhf","nobhpull","stopbhf"},{"noblackholefollow",
 end,true)
 
 cmd.add({"swordfighter", "sfighter", "swordf", "swordbot", "sf"},{"swordfighter (sfighter, swordf, swordbot, sf)", "Activates a sword fighting bot that engages in automated PvP combat"},function()
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/Sword%20Fight%20Bot"))()
+	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/Sword%20Fight%20Bot")
 end)
 
 NAmanage.CreateBox = function(part, color, transparency)
@@ -78439,7 +78551,7 @@ cmd.add({"console", "debug"}, {"console (debug)", "Opens developer console"}, fu
 end)
 
 cmd.add({"oldconsole", "olddebug"}, {"oldconsole", "opens old version of the developer console"}, function()
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/OldConsole.lua"))()
+	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/OldConsole.lua")
 end)
 
 NAmanage.HB_Defaults=function()
@@ -81274,11 +81386,11 @@ end)
 cmd.add({"oganims"},{"oganims","Old animations from 2007"},function()
 	Wait();
 	DebugNotif("OG animations set")
-	loadstring(game:HttpGet(('https://pastebin.com/raw/6GNkQUu6'),true))()
+	NAmanage.RunURL(('https://pastebin.com/raw/6GNkQUu6'),true)
 end)
 
 cmd.add({"fakechat"},{"fakechat","Fake a chat gui"},function()
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/fake%20chatte"))()
+	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/fake%20chatte")
 end)
 
 cmd.add({"fpscap"},{"fpscap <number>","Sets the fps cap to whatever you want"},function(arg)
@@ -82102,11 +82214,11 @@ end
 
 cmd.add({"homebrew"},{"homebrew","Executes homebrew admin"},function()
 	_na_env.CustomUI=false
-	loadstring(game:HttpGet(('https://raw.githubusercontent.com/mgamingpro/HomebrewAdmin/master/Main'),true))()
+	NAmanage.RunURL(('https://raw.githubusercontent.com/mgamingpro/HomebrewAdmin/master/Main'),true)
 end)
 
 cmd.add({"fatesadmin"},{"fatesadmin","Executes fates admin"},function()
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/fatesc/fates-admin/main/main.lua"))();
+	NAmanage.RunURL("https://raw.githubusercontent.com/fatesc/fates-admin/main/main.lua");
 end)
 
 storedTools = {}
@@ -82624,11 +82736,11 @@ cmd.add({"oofspam"},{"oofspam","Spams oof"},function()
 end)
 
 cmd.add({"httpspy"},{"httpspy","HTTP Spy"},function()
-	loadstring(game:HttpGet('https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/httpspy.lua'))()
+	NAmanage.RunURL('https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/httpspy.lua')
 end)
 
 cmd.add({"keystroke"},{"keystroke","Executes a keystroke ui script"},function()
-	loadstring(game:HttpGet("https://system-exodus.com/scripts/misc-releases/Keystrokes.lua",true))()
+	NAmanage.RunURL("https://system-exodus.com/scripts/misc-releases/Keystrokes.lua",true)
 end)
 
 cmd.add({"errorchat"},{"errorchat","Makes the chat error appear when roblox chat is slow"},function()
@@ -98877,7 +98989,7 @@ end
 NAmanage.Executor_Toggle = NAmanage.Executor_Toggle or function(forceState)
 	if not (NAUIMANAGER and NAUIMANAGER.ExecutorFrame) then
 		local ok, err = pcall(function()
-			loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NAexecutor.lua"))()
+			NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NAexecutor.lua")
 		end)
 		if not ok then
 			DoNotif("Executor UI unavailable: "..tostring(err), 3)
@@ -106427,7 +106539,7 @@ end)
 -- ownership trail is generated from _sourceTrail in the Contributors settings tab
 
 -- remove annoying aged group chat messages
-SpawnCall(function() loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/FixShitChatSystem.lua"))(); end)
+SpawnCall(function() NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/FixShitChatSystem.lua"); end)
 
 SpawnCall(function()
 	local NAresult = tick() - NAbegin
