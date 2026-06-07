@@ -1449,6 +1449,7 @@ local NAStuff = {
 	ChatSettings = {
 		customEnabled = false;
 		coreGuiChat = true;
+		coreGuiChatLoop = false;
 		window = {
 			enabled = true;
 			font = "rbxasset://fonts/families/BuilderSans.json";
@@ -20952,6 +20953,9 @@ if FileSupport then
 			local ok3, d = pcall(function() return HttpService:JSONDecode(readfile(ChatConfigPath)) end)
 			if ok3 and type(d)=="table" then deepMerge(cfg, d) end
 		end
+		if type(cfg.coreGuiChatLoop) ~= "boolean" then
+			cfg.coreGuiChatLoop = false
+		end
 		if cfg and cfg.bubbles then
 			local mb = tonumber(cfg.bubbles.maxBubbles)
 			if mb then
@@ -21012,11 +21016,11 @@ if FileSupport then
 		return true
 	end
 
-	local function markChatSettingsDirty()
+	originalIO.markChatSettingsDirty = function()
 		NAStuff.ChatSettingsDirty = true
 	end
 
-	local function isCoreChatStateSynced()
+	originalIO.isCoreChatStateSynced = function()
 		local desired = (NAStuff and NAStuff.ChatSettings and NAStuff.ChatSettings.coreGuiChat == true)
 		local okRead, current = pcall(function()
 			return __lt.cm("StarterGui", "GetCoreGuiEnabled", Enum.CoreGuiType.Chat)
@@ -21026,11 +21030,10 @@ if FileSupport then
 		end
 		return nil
 	end
-	originalIO.markChatSettingsDirty = markChatSettingsDirty
 	NAStuff.ChatSettingsDirty = true
 
 	NAmanage.SaveTextChatSettings = function()
-		markChatSettingsDirty()
+		originalIO.markChatSettingsDirty()
 		local ok4, json = pcall(function() return HttpService:JSONEncode(NAStuff.ChatSettings) end)
 		if ok4 then pcall(writefile, ChatConfigPath, json) end
 		if NAmanage.SyncChatSettingsUI then
@@ -21081,6 +21084,7 @@ if FileSupport then
 
 		setToggle("Enable Custom Chat Styling", chat.customEnabled)
 		setToggle("Enable Chat (CoreGui)", chat.coreGuiChat)
+		setToggle("Loop Chat CoreGui Apply", chat.coreGuiChatLoop)
 		setToggle("Window Enabled", window.enabled)
 		setToggle("Tabs Enabled", tabs.enabled)
 		setToggle("Input Enabled", input.enabled)
@@ -21262,6 +21266,7 @@ if FileSupport then
 		if forceApply ~= true and not NAStuff.ChatSettingsDirty then
 			return
 		end
+		local loopCoreChat = (NAStuff.ChatSettings.coreGuiChatLoop == true)
 		local desiredCoreChat = (NAStuff.ChatSettings.coreGuiChat == true)
 		local coreChatApplied = false
 		local okCore = pcall(function()
@@ -21277,8 +21282,8 @@ if FileSupport then
 				coreChatApplied = true
 			end
 		end
-		if not coreChatApplied then
-			markChatSettingsDirty()
+		if not coreChatApplied and loopCoreChat then
+			originalIO.markChatSettingsDirty()
 		end
 		local TCS = TextChatService
 
@@ -21294,7 +21299,7 @@ if FileSupport then
 				originalIO.restoreChatDefaults(Window, Tabs, InputBar, Bubbles)
 			end
 			NAStuff.ChatCustomizationActive = false
-			NAStuff.ChatSettingsDirty = not coreChatApplied
+			NAStuff.ChatSettingsDirty = loopCoreChat and not coreChatApplied
 			return
 		end
 		NAStuff.ChatCustomizationActive = true
@@ -21452,7 +21457,7 @@ if FileSupport then
 			safeSet(Bubbles, "TailVisible", NAStuff.ChatSettings.bubbles.tailVisible)
 			safeSet(Bubbles, "VerticalStudsOffset", tonumber(NAStuff.ChatSettings.bubbles.verticalStudsOffset) or 0)
 		end
-		NAStuff.ChatSettingsDirty = not coreChatApplied
+		NAStuff.ChatSettingsDirty = loopCoreChat and not coreChatApplied
 	end
 
 	NAmanage.ScheduleTextChatApply = function(delayTime)
@@ -21476,7 +21481,7 @@ if FileSupport then
 		then
 			return
 		end
-		markChatSettingsDirty()
+		originalIO.markChatSettingsDirty()
 		NAmanage.ScheduleTextChatApply(0.45)
 	end, function(inst)
 		return inst == nil
@@ -21494,24 +21499,28 @@ if FileSupport then
 		Spawn(function()
 			while NAStuff and NAStuff._tcsApplyLoopToken == loopToken do
 				local didWork = false
-				local desiredCoreChat = (NAStuff and NAStuff.ChatSettings and NAStuff.ChatSettings.coreGuiChat == true)
-				local synced = isCoreChatStateSynced()
-				if synced == false then
-					pcall(function()
-						__lt.cm("StarterGui", "SetCoreGuiEnabled", Enum.CoreGuiType.Chat, desiredCoreChat)
-					end)
-					markChatSettingsDirty()
-					didWork = true
-				elseif synced == nil and desiredCoreChat then
-					pcall(function()
-						__lt.cm("StarterGui", "SetCoreGuiEnabled", Enum.CoreGuiType.Chat, true)
-					end)
+				local chatSettings = NAStuff and NAStuff.ChatSettings
+				local loopCoreChat = chatSettings and chatSettings.coreGuiChatLoop == true
+				if loopCoreChat then
+					local desiredCoreChat = chatSettings.coreGuiChat == true
+					local synced = originalIO.isCoreChatStateSynced()
+					if synced == false then
+						pcall(function()
+							__lt.cm("StarterGui", "SetCoreGuiEnabled", Enum.CoreGuiType.Chat, desiredCoreChat)
+						end)
+						originalIO.markChatSettingsDirty()
+						didWork = true
+					elseif synced == nil and desiredCoreChat then
+						pcall(function()
+							__lt.cm("StarterGui", "SetCoreGuiEnabled", Enum.CoreGuiType.Chat, true)
+						end)
+					end
 				end
 				if NAStuff.ChatSettingsDirty then
 					NAmanage.ApplyTextChatSettings()
 					didWork = true
 				end
-				local customChat = NAStuff.ChatSettings and NAStuff.ChatSettings.customEnabled == true
+				local customChat = chatSettings and chatSettings.customEnabled == true
 				local waitTime = didWork and 1 or (customChat and 8 or 20)
 				if NAmanage.isLoad and NAmanage.isLoad() then
 					waitTime = math.max(waitTime, 2)
@@ -49504,8 +49513,9 @@ cmd.add({"enable"}, {"enable", "Enables a specific CoreGui"}, function(...)
 				__lt.cm("StarterGui", "SetCoreGuiEnabled", coreGuiType, true)
 				if coreGuiType == Enum.CoreGuiType.Chat or coreGuiType == Enum.CoreGuiType.All then
 					NAStuff.ChatSettings.coreGuiChat = true
+					NAStuff.ChatSettingsDirty = true
 					NAmanage.SaveTextChatSettings()
-					NAmanage.ApplyTextChatSettings()
+					NAmanage.ApplyTextChatSettings(true)
 				end
 			end
 		})
@@ -49559,6 +49569,12 @@ cmd.add({"disable"}, {"disable", "Disables a specific CoreGui"}, function(...)
 			Text = coreGuiType.Name,
 			Callback = function()
 				__lt.cm("StarterGui", "SetCoreGuiEnabled", coreGuiType, false)
+				if coreGuiType == Enum.CoreGuiType.Chat or coreGuiType == Enum.CoreGuiType.All then
+					NAStuff.ChatSettings.coreGuiChat = false
+					NAStuff.ChatSettingsDirty = true
+					NAmanage.SaveTextChatSettings()
+					NAmanage.ApplyTextChatSettings(true)
+				end
 			end
 		})
 	end
@@ -72181,21 +72197,103 @@ cmd.add({"unloopenableproximityprompts","unloopenableprox","unlenprox","unlenpp"
 	end
 end)
 
+NAmanage.rigPromptErr = function(n, er)
+	er=tostring(er or "unknown error"):gsub("[\r\n]", " ")
+	if #er > 240 then
+		er=er:sub(1, 240).."..."
+	end
+	DoNotif(n.." failed: "..er, 8, "Rig Type")
+end
+
+NAmanage.runRigPrompt = function(n, rig)
+	task.spawn(function()
+		local con
+		local done=false
+		local ok, er=xpcall(function()
+			local aes=SafeGetService("AvatarEditorService")
+			if not aes then
+				error("AvatarEditorService unavailable", 0)
+			end
+
+			local hum=getPlrHum(LocalPlayer) or getHum()
+			if not hum then
+				error("Humanoid unavailable", 0)
+			end
+
+			local desc
+			local okDesc, res=pcall(function()
+				return hum:GetAppliedDescription()
+			end)
+			if okDesc and res then
+				desc=res
+			else
+				desc=hum.HumanoidDescription
+			end
+			if not desc then
+				error("HumanoidDescription unavailable"..(okDesc and "" or ": "..tostring(res)), 0)
+			end
+
+			con=aes.PromptSaveAvatarCompleted:Connect(function(res)
+				if done then return end
+				done=true
+				if con then
+					con:Disconnect()
+					con=nil
+				end
+				if res == Enum.AvatarPromptResult.Success then
+					local h=getHum()
+					if h then
+						pcall(function() h:ChangeState(Enum.HumanoidStateType.Dead) end)
+						pcall(function() h.Health=0 end)
+					end
+				else
+					NAmanage.rigPromptErr(n, res and res.Name or tostring(res or "Unknown"))
+				end
+			end)
+
+			local okRun, runEr=pcall(function()
+				return __lt.cm("AvatarEditorService", "PromptSaveAvatar", desc, rig)
+			end)
+			if not okRun then
+				okRun, runEr=pcall(function()
+					return aes:PromptSaveAvatar(desc, rig)
+				end)
+			end
+			if not okRun then
+				error(runEr, 0)
+			end
+
+			task.delay(120, function()
+				if done then return end
+				done=true
+				if con then
+					con:Disconnect()
+					con=nil
+				end
+				NAmanage.rigPromptErr(n, "PromptSaveAvatarCompleted timed out")
+			end)
+		end, function(e)
+			return e
+		end)
+
+		if not ok then
+			if con then
+				pcall(function() con:Disconnect() end)
+			end
+			NAmanage.rigPromptErr(n, er)
+		end
+	end)
+end
+
 cmd.add({"r6"},{"r6","Shows a prompt that will switch your character rig type into R6"},function()
-	__lt.cm("AvatarEditorService", "PromptSaveAvatar", getPlrHum(LocalPlayer).HumanoidDescription,Enum.HumanoidRigType.R6)
-	SafeGetService("AvatarEditorService").PromptSaveAvatarCompleted:Wait()
-	getHum():ChangeState(Enum.HumanoidStateType.Dead)
-	getHum().Health=0
+	NAmanage.runRigPrompt("R6", Enum.HumanoidRigType.R6)
 end)
 
 cmd.add({"r15"},{"r15","Shows a prompt that will switch your character rig type into R15"},function()
-	__lt.cm("AvatarEditorService", "PromptSaveAvatar", getPlrHum(LocalPlayer).HumanoidDescription,Enum.HumanoidRigType.R15)
-	SafeGetService("AvatarEditorService").PromptSaveAvatarCompleted:Wait()
-	getHum():ChangeState(Enum.HumanoidStateType.Dead)
-	getHum().Health=0
+	NAmanage.runRigPrompt("R15", Enum.HumanoidRigType.R15)
 end)
 
-cmd.add({"breakvelocity"},{"breakvelocity","Sets your character's velocity to zero momentarily"},function()
+cmd.add({"breakvelocity","breakv","bvel","zvel","zerovel","stopvel","brkvel"},{"breakvelocity (breakv,bvel,zvel,zerovel,stopvel,brkvel)","Sets your character's velocity to zero momentarily"},function()
 	local char=getChar()
 	if not char then
 		DoNotif("Character unavailable",2)
@@ -79518,6 +79616,7 @@ end
 NAlib.disconnect("partsizeExact")
 NAlib.disconnect("partsizeFind")
 NAlib.disconnect("partsizeWatch")
+NAlib.disconnect("partsizeFlush")
 NAlib.disconnect("partsizeClean")
 
 NAStuff.PST = {
@@ -79531,8 +79630,10 @@ NAStuff.PST = {
 	conn = {},
 	busy = {},
 	pend = {},
+	queue = {},
+	qSet = {},
+	qHead = 1,
 }
-PST = NAStuff.PST
 
 NAmanage.PST_Defaults = function()
 	return {
@@ -79658,8 +79759,8 @@ end
 
 NAmanage.cachePart = function(p)
 	if not (p and p.Parent) then return end
-	if not PST.orig[p] then
-		PST.orig[p] = {
+	if not NAStuff.PST.orig[p] then
+		NAStuff.PST.orig[p] = {
 			Size = p.Size,
 			Transparency = p.Transparency,
 			CanCollide = p.CanCollide,
@@ -79671,9 +79772,9 @@ NAmanage.cachePart = function(p)
 end
 
 NAmanage.PST_RestoreRaw = function(p)
-	local pr = PST.orig[p]
+	local pr = NAStuff.PST.orig[p]
 	if pr and p and p.Parent then
-		PST.busy[p] = true
+		NAStuff.PST.busy[p] = true
 		NACaller(function()
 			if pr.Size then p.Size = pr.Size end
 			if pr.Transparency ~= nil then p.Transparency = pr.Transparency end
@@ -79682,13 +79783,13 @@ NAmanage.PST_RestoreRaw = function(p)
 			if pr.Material then p.Material = pr.Material end
 			if pr.Massless ~= nil then p.Massless = pr.Massless end
 		end)
-		PST.busy[p] = nil
+		NAStuff.PST.busy[p] = nil
 	end
-	PST.orig[p] = nil
+	NAStuff.PST.orig[p] = nil
 end
 
 NAmanage.PST_Unwatch = function(p)
-	local cs = PST.conn[p]
+	local cs = NAStuff.PST.conn[p]
 	if type(cs) == "table" then
 		for _, c in cs do
 			if c then pcall(function() c:Disconnect() end) end
@@ -79696,14 +79797,14 @@ NAmanage.PST_Unwatch = function(p)
 	elseif cs then
 		pcall(function() cs:Disconnect() end)
 	end
-	PST.conn[p] = nil
-	PST.busy[p] = nil
-	PST.pend[p] = nil
+	NAStuff.PST.conn[p] = nil
+	NAStuff.PST.busy[p] = nil
+	NAStuff.PST.pend[p] = nil
 end
 
 NAmanage.PST_RemovePart = function(p, restore)
-	NAmanage.PST_RemoveStore(PST.exact, PST.exactSet, p)
-	NAmanage.PST_RemoveStore(PST.partial, PST.partialSet, p)
+	NAmanage.PST_RemoveStore(NAStuff.PST.exact, NAStuff.PST.exactSet, p)
+	NAmanage.PST_RemoveStore(NAStuff.PST.partial, NAStuff.PST.partialSet, p)
 	if restore then
 		NAmanage.PST_RestoreRaw(p)
 	end
@@ -79713,7 +79814,7 @@ end
 NAmanage.PST_MatchExact = function(p)
 	local obj = p
 	while obj do
-		local sz = PST.sizeE[Lower(obj.Name)]
+		local sz = NAStuff.PST.sizeE[Lower(obj.Name)]
 		if sz then
 			return sz
 		end
@@ -79725,7 +79826,7 @@ NAmanage.PST_MatchPartial = function(p)
 	local obj = p
 	while obj do
 		local nm = Lower(obj.Name)
-		for term, sz in PST.sizeP do
+		for term, sz in NAStuff.PST.sizeP do
 			if Find(nm, term, 1, true) then
 				return sz
 			end
@@ -79749,10 +79850,10 @@ NAmanage.PST_Apply = function(p, sizeVec)
 	if not (p and p.Parent and p:IsA("BasePart")) then return end
 	NAmanage.cachePart(p)
 	local opts = NAmanage.GetPartSizeOpts()
-	local pr = PST.orig[p]
+	local pr = NAStuff.PST.orig[p]
 	local bc = BrickColor.new(NAmanage.PST_ColorFromOpt(opts.color))
 	local mat = Enum.Material[NAmanage.PST_ResolveMaterial(opts.material or "Neon")] or Enum.Material.Neon
-	PST.busy[p] = true
+	NAStuff.PST.busy[p] = true
 	NACaller(function()
 		if p.Size ~= sizeVec then p.Size = sizeVec end
 		if p.Transparency ~= opts.transparency then p.Transparency = opts.transparency end
@@ -79777,7 +79878,7 @@ NAmanage.PST_Apply = function(p, sizeVec)
 			p.Material = pr.Material
 		end
 	end)
-	PST.busy[p] = nil
+	NAStuff.PST.busy[p] = nil
 end
 
 NAmanage.PST_Refresh = function(p)
@@ -79791,9 +79892,9 @@ NAmanage.PST_Refresh = function(p)
 		return
 	end
 	if kind == "exact" then
-		NAmanage.PST_AddStore(PST.exact, PST.exactSet, p)
+		NAmanage.PST_AddStore(NAStuff.PST.exact, NAStuff.PST.exactSet, p)
 	elseif kind == "partial" then
-		NAmanage.PST_AddStore(PST.partial, PST.partialSet, p)
+		NAmanage.PST_AddStore(NAStuff.PST.partial, NAStuff.PST.partialSet, p)
 	end
 	NAmanage.PST_Apply(p, sz)
 	NAmanage.PST_Watch(p)
@@ -79801,13 +79902,13 @@ end
 
 NAmanage.PST_Watch = function(p)
 	if not (p and p.Parent and p:IsA("BasePart")) then return end
-	if PST.conn[p] then return end
+	if NAStuff.PST.conn[p] then return end
 	local cs = {}
 	cs[1] = p:GetPropertyChangedSignal("Size"):Connect(function()
-		if PST.busy[p] or PST.pend[p] then return end
-		PST.pend[p] = true
+		if NAStuff.PST.busy[p] or NAStuff.PST.pend[p] then return end
+		NAStuff.PST.pend[p] = true
 		Defer(function()
-			PST.pend[p] = nil
+			NAStuff.PST.pend[p] = nil
 			if not (p and p.Parent) then
 				NAmanage.PST_RemovePart(p, false)
 				return
@@ -79823,7 +79924,7 @@ NAmanage.PST_Watch = function(p)
 			end
 		end)
 	end)
-	PST.conn[p] = cs
+	NAStuff.PST.conn[p] = cs
 end
 
 NAmanage.resizePart = function(p, sizeVec, store, set)
@@ -79833,42 +79934,104 @@ NAmanage.resizePart = function(p, sizeVec, store, set)
 	NAmanage.PST_Watch(p)
 end
 
-NAmanage.PST_EnsureWatch = function()
-	if NAlib.isConnected("partsizeWatch") then return end
-	NAlib.connect("partsizeWatch", NAmanage.wsAdd(function(obj)
-		if obj:IsA("BasePart") then
-			NAmanage.PST_Refresh(obj)
+NAmanage.PST_Active = function()
+	return next(NAStuff.PST.sizeE) ~= nil or next(NAStuff.PST.sizeP) ~= nil
+end
+
+NAmanage.PST_ClearQueue = function()
+	if type(NAStuff.PST.queue) == "table" then table.clear(NAStuff.PST.queue) end
+	if type(NAStuff.PST.qSet) == "table" then table.clear(NAStuff.PST.qSet) end
+	NAStuff.PST.qHead = 1
+end
+
+NAmanage.PST_StartFlush = function()
+	if NAlib.isConnected("partsizeFlush") then return end
+	NAlib.connect("partsizeFlush", RunService.Heartbeat:Connect(function()
+		if not NAmanage.PST_Active() then
+			NAmanage.PST_ClearQueue()
+			NAlib.disconnect("partsizeFlush")
 			return
 		end
-		Defer(function()
-			if not (obj and obj.Parent) then return end
-			local active = next(PST.sizeE) ~= nil or next(PST.sizeP) ~= nil
-			if not active then return end
-			for _, d in NAmanage.qDesc(obj, "BasePart") do
-				NAmanage.PST_Refresh(d)
+		local q = NAStuff.PST.queue
+		if type(q) ~= "table" then
+			NAStuff.PST.queue = {}
+			NAStuff.PST.qSet = {}
+			NAStuff.PST.qHead = 1
+			NAlib.disconnect("partsizeFlush")
+			return
+		end
+		local i = tonumber(NAStuff.PST.qHead) or 1
+		local total = #q
+		if i > total then
+			NAmanage.PST_ClearQueue()
+			NAlib.disconnect("partsizeFlush")
+			return
+		end
+		local budget = 48
+		if NAmanage._evtHubBudget then
+			local ok, b = pcall(function()
+				return NAmanage._evtHubBudget(48, { ldSc = 0.45, ldDel = 0 })
+			end)
+			if ok and tonumber(b) then
+				budget = math.clamp(math.floor(b), 8, 128)
 			end
-		end)
+		end
+		local done = 0
+		while i <= total and done < budget do
+			local p = q[i]
+			q[i] = nil
+			if type(NAStuff.PST.qSet) == "table" then NAStuff.PST.qSet[p] = nil end
+			if p and p.Parent and p:IsA("BasePart") then
+				NAmanage.PST_Refresh(p)
+			end
+			i += 1
+			done += 1
+		end
+		NAStuff.PST.qHead = i
 	end))
 end
 
+NAmanage.PST_Queue = function(p)
+	if not (p and p.Parent and p:IsA("BasePart")) then return end
+	if not NAmanage.PST_Active() then return end
+	if type(NAStuff.PST.queue) ~= "table" then NAStuff.PST.queue = {} end
+	if type(NAStuff.PST.qSet) ~= "table" then NAStuff.PST.qSet = {} end
+	if NAStuff.PST.qSet[p] then return end
+	NAStuff.PST.qSet[p] = true
+	Insert(NAStuff.PST.queue, p)
+	NAmanage.PST_StartFlush()
+end
+
+NAmanage.PST_EnsureWatch = function()
+	if NAlib.isConnected("partsizeWatch") then return end
+	NAlib.connect("partsizeWatch", NAmanage.wsSub({
+		classAdded = "BasePart",
+		added = function(obj)
+			NAmanage.PST_Queue(obj)
+		end,
+	}))
+end
+
 NAmanage.PST_UpdateWatch = function()
-	if next(PST.sizeE) ~= nil or next(PST.sizeP) ~= nil then
+	if NAmanage.PST_Active() then
 		NAmanage.PST_EnsureWatch()
 	else
 		NAlib.disconnect("partsizeWatch")
+		NAlib.disconnect("partsizeFlush")
+		NAmanage.PST_ClearQueue()
 	end
 end
 
 NAmanage.PST_UpdateActive = function(newOpts)
 	NAStuff.PartSizeOptions = NAmanage.PST_Coerce(newOpts or NAmanage.GetPartSizeOpts())
 	local seen = {}
-	for _, p in PST.exact do
+	for _, p in NAStuff.PST.exact do
 		if p and not seen[p] then
 			seen[p] = true
 			NAmanage.PST_Refresh(p)
 		end
 	end
-	for _, p in PST.partial do
+	for _, p in NAStuff.PST.partial do
 		if p and not seen[p] then
 			seen[p] = true
 			NAmanage.PST_Refresh(p)
@@ -79877,9 +80040,9 @@ NAmanage.PST_UpdateActive = function(newOpts)
 end
 
 NAmanage.PST_ScanAll = function()
-	for _, obj in NAmanage.wsDescs() do
+	for _, obj in NAmanage.wsDescs({ pruneBudget = 96 }) do
 		if obj:IsA("BasePart") then
-			NAmanage.PST_Refresh(obj)
+			NAmanage.PST_Queue(obj)
 		end
 	end
 end
@@ -79890,7 +80053,7 @@ cmd.add({"partsize","psize","sizepart"},{"partsize {name} {size}", "Grow a part 
 	if term == "" then DoNotif("Invalid name", 2) return end
 	if not n then DoNotif("Invalid size", 2) return end
 	n = math.clamp(n, 0.1, 10000)
-	PST.sizeE[term] = Vector3.new(n, n, n)
+	NAStuff.PST.sizeE[term] = Vector3.new(n, n, n)
 	NAmanage.PST_ScanAll()
 	NAmanage.PST_UpdateWatch()
 end, true)
@@ -79901,14 +80064,14 @@ cmd.add({"partsizefind","psizefind","sizefind","partsizef"},{"partsizefind {term
 	if term == "" then DoNotif("Invalid term", 2) return end
 	if not n then DoNotif("Invalid size", 2) return end
 	n = math.clamp(n, 0.1, 10000)
-	PST.sizeP[term] = Vector3.new(n, n, n)
+	NAStuff.PST.sizeP[term] = Vector3.new(n, n, n)
 	NAmanage.PST_ScanAll()
 	NAmanage.PST_UpdateWatch()
 end, true)
 
 cmd.add({"unpartsize","unsizepart","unpsize"},{"unpartsize", "Undo partsize—return those parts back to their original size and collision."},function()
-	local parts = PST.exact
-	local sizeMap = PST.sizeE
+	local parts = NAStuff.PST.exact
+	local sizeMap = NAStuff.PST.sizeE
 
 	local terms = {}
 	for term, _ in sizeMap do
@@ -79941,7 +80104,7 @@ cmd.add({"unpartsize","unsizepart","unpsize"},{"unpartsize", "Undo partsize—re
 			if p then Insert(list, p) end
 		end
 		table.clear(parts)
-		table.clear(PST.exactSet)
+		table.clear(NAStuff.PST.exactSet)
 		table.clear(sizeMap)
 		refreshList(list)
 		DoNotif("Cleared all exact-name partsize changes.", 2)
@@ -79963,7 +80126,7 @@ cmd.add({"unpartsize","unsizepart","unpsize"},{"unpartsize", "Undo partsize—re
 			local p = parts[i]
 			if p and termMatchesPart(term, p) then
 				Insert(list, p)
-				PST.exactSet[p] = nil
+				NAStuff.PST.exactSet[p] = nil
 				table.remove(parts, i)
 			end
 		end
@@ -79985,8 +80148,8 @@ cmd.add({"unpartsize","unsizepart","unpsize"},{"unpartsize", "Undo partsize—re
 end, true)
 
 cmd.add({"unpartsizefind","unsizefind","unpsizefind"},{"unpartsizefind", "Undo partsizefind—return those resized parts back to their original size and collision."},function()
-	local parts = PST.partial
-	local sizeMap = PST.sizeP
+	local parts = NAStuff.PST.partial
+	local sizeMap = NAStuff.PST.sizeP
 
 	local terms = {}
 	for term, _ in sizeMap do
@@ -80019,7 +80182,7 @@ cmd.add({"unpartsizefind","unsizefind","unpsizefind"},{"unpartsizefind", "Undo p
 			if p then Insert(list, p) end
 		end
 		table.clear(parts)
-		table.clear(PST.partialSet)
+		table.clear(NAStuff.PST.partialSet)
 		table.clear(sizeMap)
 		refreshList(list)
 		DoNotif("Cleared all partial-name partsize changes.", 2)
@@ -80041,7 +80204,7 @@ cmd.add({"unpartsizefind","unsizefind","unpsizefind"},{"unpartsizefind", "Undo p
 			local p = parts[i]
 			if p and termMatchesPart(term, p) then
 				Insert(list, p)
-				PST.partialSet[p] = nil
+				NAStuff.PST.partialSet[p] = nil
 				table.remove(parts, i)
 			end
 		end
@@ -81234,6 +81397,136 @@ cmd.add({"thirdp","3rdp","thirdperson"},{"thirdperson (3rdp,thirdp)","Makes you 
 	Player.CameraMode="Classic"
 end)
 
+NAStuff.loopZoomState = NAStuff.loopZoomState or {}
+NAStuff.loopZoomState.maxDirty = false
+NAStuff.loopZoomState.minDirty = false
+NAStuff.loopZoomState.maxApply = false
+NAStuff.loopZoomState.minApply = false
+
+originalIO.stopLoopZoomWorkerIfIdle=function()
+	local z = NAStuff.loopZoomState
+	if not z or (z.max == nil and z.min == nil) then
+		NAlib.disconnect("loopzoomworker")
+	end
+end
+
+originalIO.ensureLoopZoomWorker=function()
+	if NAlib.isConnected("loopzoomworker") then return end
+	NAlib.connect("loopzoomworker", RunService.Heartbeat:Connect(function()
+		local z = NAStuff.loopZoomState
+		if not z or (z.max == nil and z.min == nil) then
+			NAlib.disconnect("loopzoomworker")
+			return
+		end
+		local p = Players.LocalPlayer
+		if not p then return end
+		if z.max ~= nil and z.maxDirty and not z.maxApply then
+			z.maxDirty = false
+			if p.CameraMaxZoomDistance ~= z.max then
+				z.maxApply = true
+				local ok, err = pcall(function()
+					p.CameraMaxZoomDistance = z.max
+				end)
+				z.maxApply = false
+				if not ok then
+					z.max = nil
+					z.maxDirty = false
+					NAlib.disconnect("loopmaxzoom")
+					DoNotif("Max zoom loop failed: "..tostring(err),3)
+				end
+			end
+		end
+		if z.min ~= nil and z.minDirty and not z.minApply then
+			z.minDirty = false
+			if p.CameraMinZoomDistance ~= z.min then
+				z.minApply = true
+				local ok, err = pcall(function()
+					p.CameraMinZoomDistance = z.min
+				end)
+				z.minApply = false
+				if not ok then
+					z.min = nil
+					z.minDirty = false
+					NAlib.disconnect("loopminzoom")
+					DoNotif("Min zoom loop failed: "..tostring(err),3)
+				end
+			end
+		end
+	end))
+end
+
+originalIO.markLoopMaxZoom=function()
+	local z = NAStuff.loopZoomState
+	if z and z.max ~= nil and not z.maxApply then
+		z.maxDirty = true
+		originalIO.ensureLoopZoomWorker()
+	end
+end
+
+originalIO.markLoopMinZoom=function()
+	local z = NAStuff.loopZoomState
+	if z and z.min ~= nil and not z.minApply then
+		z.minDirty = true
+		originalIO.ensureLoopZoomWorker()
+	end
+end
+
+originalIO.applyLoopMaxZoom=function()
+	originalIO.markLoopMaxZoom()
+end
+
+originalIO.applyLoopMinZoom=function()
+	originalIO.markLoopMinZoom()
+end
+
+originalIO.startLoopMaxZoom=function(num)
+	NAStuff.loopZoomState = NAStuff.loopZoomState or {}
+	NAStuff.loopZoomState.max = num
+	NAStuff.loopZoomState.maxDirty = true
+	NAStuff.loopZoomState.maxApply = false
+	NAlib.disconnect("loopmaxzoom")
+	local p = Players.LocalPlayer
+	if p then
+		NAlib.connect("loopmaxzoom", p:GetPropertyChangedSignal("CameraMaxZoomDistance"):Connect(originalIO.markLoopMaxZoom))
+	end
+	originalIO.ensureLoopZoomWorker()
+	DoNotif("Max zoom loop set to "..tostring(num),2)
+end
+
+originalIO.startLoopMinZoom=function(num)
+	NAStuff.loopZoomState = NAStuff.loopZoomState or {}
+	NAStuff.loopZoomState.min = num
+	NAStuff.loopZoomState.minDirty = true
+	NAStuff.loopZoomState.minApply = false
+	NAlib.disconnect("loopminzoom")
+	local p = Players.LocalPlayer
+	if p then
+		NAlib.connect("loopminzoom", p:GetPropertyChangedSignal("CameraMinZoomDistance"):Connect(originalIO.markLoopMinZoom))
+	end
+	originalIO.ensureLoopZoomWorker()
+	DoNotif("Min zoom loop set to "..tostring(num),2)
+end
+
+originalIO.stopLoopMaxZoom=function()
+	if NAStuff.loopZoomState then
+		NAStuff.loopZoomState.max = nil
+		NAStuff.loopZoomState.maxDirty = false
+		NAStuff.loopZoomState.maxApply = false
+	end
+	NAlib.disconnect("loopmaxzoom")
+	originalIO.stopLoopZoomWorkerIfIdle()
+end
+
+originalIO.stopLoopMinZoom=function()
+	if NAStuff.loopZoomState then
+		NAStuff.loopZoomState.min = nil
+		NAStuff.loopZoomState.minDirty = false
+		NAStuff.loopZoomState.minApply = false
+	end
+	NAlib.disconnect("loopminzoom")
+	originalIO.stopLoopZoomWorkerIfIdle()
+end
+
 cmd.add({"maxzoom"},{"maxzoom <amount>","Set your maximum camera distance"},function(num)
 	local num=tonumber(num) or 128
 	Players.LocalPlayer.CameraMaxZoomDistance=num
@@ -81250,6 +81543,41 @@ cmd.add({"minzoom"},{"minzoom <amount>","Set your minimum camera distance"},func
 	end
 	Players.LocalPlayer.CameraMinZoomDistance=num
 end,true)
+
+cmd.add({"loopmaxzoom","lmaxzoom","lmzoom","lmz","forcemaxzoom","fmaxzoom"},{"loopmaxzoom <amount> (lmaxzoom,lmzoom,lmz,forcemaxzoom,fmaxzoom)","Loop your maximum camera distance and restore it when changed"},function(num)
+	local num=tonumber(num) or 128
+	originalIO.startLoopMaxZoom(num)
+end,true)
+
+cmd.add({"unloopmaxzoom","unlmaxzoom","unlmzoom","unlmz","unforcemaxzoom","unfmaxzoom"},{"unloopmaxzoom (unlmaxzoom,unlmzoom,unlmz,unforcemaxzoom,unfmaxzoom)","Stop looping your maximum camera distance"},function()
+	if NAStuff.loopZoomState and NAStuff.loopZoomState.max ~= nil then
+		originalIO.stopLoopMaxZoom()
+		DoNotif("Max zoom loop disabled",2)
+	else
+		DoNotif("Max zoom loop is already off",2)
+	end
+end)
+
+cmd.add({"loopminzoom","lminzoom","lnzoom","lnz","forceminzoom","fminzoom"},{"loopminzoom <amount> (lminzoom,lnzoom,lnz,forceminzoom,fminzoom)","Loop your minimum camera distance and restore it when changed"},function(...)
+	local args={...}
+	local num=args[1]
+
+	if num==nil then
+		num=0
+	else
+		num=tonumber(num) or 0
+	end
+	originalIO.startLoopMinZoom(num)
+end,true)
+
+cmd.add({"unloopminzoom","unlminzoom","unlnzoom","unlnz","unforceminzoom","unfminzoom"},{"unloopminzoom (unlminzoom,unlnzoom,unlnz,unforceminzoom,unfminzoom)","Stop looping your minimum camera distance"},function()
+	if NAStuff.loopZoomState and NAStuff.loopZoomState.min ~= nil then
+		originalIO.stopLoopMinZoom()
+		DoNotif("Min zoom loop disabled",2)
+	else
+		DoNotif("Min zoom loop is already off",2)
+	end
+end)
 
 cmd.add({"cameranoclip","camnoclip","cnoclip","nccam"},{"cameranoclip (camnoclip,cnoclip,nccam)","Makes your camera clip through walls"}, function()
 	local player = Players.LocalPlayer
@@ -116887,6 +117215,7 @@ do
 			local current = NAStuff.ChatSettings
 			local preserveCustom = (current and current.customEnabled) or false
 			local preserveCoreChat = (current and current.coreGuiChat ~= nil) and current.coreGuiChat or true
+			local preserveCoreChatLoop = (current and current.coreGuiChatLoop == true)
 			local templateCopy = originalIO.deepCopyTable(template)
 
 			if type(current) ~= "table" then
@@ -116904,6 +117233,7 @@ do
 			NAStuff.ChatSettingsCustomBackup = nil
 			current.customEnabled = preserveCustom
 			current.coreGuiChat = preserveCoreChat
+			current.coreGuiChatLoop = preserveCoreChatLoop
 
 			NAStuff.ChatCustomizationActive = nil
 			NAmanage.SaveTextChatSettings()
@@ -116920,6 +117250,13 @@ do
 
 	NAgui.addToggle("Enable Chat (CoreGui)", NAStuff.ChatSettings.coreGuiChat, function(v)
 		NAStuff.ChatSettings.coreGuiChat = v
+		NAStuff.ChatSettingsDirty = true
+		NAmanage.SaveTextChatSettings()
+		NAmanage.ApplyTextChatSettings(true)
+	end)
+
+	NAgui.addToggle("Loop Chat CoreGui Apply", NAStuff.ChatSettings.coreGuiChatLoop == true, function(v)
+		NAStuff.ChatSettings.coreGuiChatLoop = v == true
 		NAStuff.ChatSettingsDirty = true
 		NAmanage.SaveTextChatSettings()
 		NAmanage.ApplyTextChatSettings(true)
