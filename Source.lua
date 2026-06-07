@@ -16199,8 +16199,6 @@ NAmanage.jlDef = {
 	ChatLogLocalPlayer = true;
 	LogIncludeGameInfo = true;
 	StructuredLog = true;
-	StructuredLogJoinLeave = true;
-	StructuredLogChat = false;
 	DynamicLoadCrashReport = true;
 	DynamicLoadSecondLoadQueue = true;
 }
@@ -26291,23 +26289,6 @@ NAmanage.RotectorNotifyJoinLeave = function(plr, kind, action, record)
 	local msg = NAmanage.RotectorFormatJoinLeaveMessage(plr, action, record)
 	DoNotif(msg, flagged and 6 or 1, NAmanage.RotectorJoinLeaveTitle(kind, flagged))
 	NAmanage.LogJoinLeave(msg)
-	if NAmanage.jlCfg and NAmanage.jlCfg.StructuredLogJoinLeave ~= false then
-		NAmanage.StructLog(flagged and "warn" or "info", "Player {action}: {player}", {
-			event = "player_"..Lower(tostring(kind or action or "event"));
-			action = tostring(action or kind or "unknown");
-			player = nameChecker(plr);
-			username = plr and plr.Name or nil;
-			displayName = plr and plr.DisplayName or nil;
-			userId = plr and plr.UserId or nil;
-			flagged = flagged;
-			flagType = type(record) == "table" and record.flagType or nil;
-			category = type(record) == "table" and record.category or nil;
-			confidence = type(record) == "table" and record.confidence or nil;
-			placeId = PlaceId;
-			gameId = GameId;
-			jobId = JobId;
-		})
-	end
 end
 
 NAmanage.RotectorFormatStatus = function(entry)
@@ -104679,20 +104660,6 @@ NAmanage.bindToChat=function(plr, msg)
 	local displayText = baseText
 	if NAmanage.jlCfg.ChatShowTimestamps ~= false then
 		displayText = ("[%s] %s"):format(os.date("%H:%M:%S"), baseText)
-	end
-
-	if NAmanage.jlCfg.StructuredLogChat == true then
-		NAmanage.StructLog("info", "Chat from {player}: {message}", {
-			event = "chat";
-			player = chatName;
-			username = plr and plr.Name or nil;
-			displayName = plr and plr.DisplayName or nil;
-			userId = plr and plr.UserId or nil;
-			message = tostring(msg or "");
-			placeId = PlaceId;
-			gameId = GameId;
-			jobId = JobId;
-		})
 	end
 
 	local chatMsg = nil
