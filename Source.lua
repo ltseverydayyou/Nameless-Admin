@@ -8760,6 +8760,7 @@ local NAfiles = {
 	NANOTEPADPATH = "Nameless-Admin/NA-Notepad";
 	NAFLYBINDSPATH = "Nameless-Admin/FlyBinds.json";
 	NAFFLAGSPATH = "Nameless-Admin/NAFFlags.json";
+	NADYNLOADCRASHPATH = "Nameless-Admin/DynamicLoadCrash.json";
 }
 
 NAmanage.isFileAccessErr=NAmanage.isFileAccessErr or function(err)
@@ -13499,7 +13500,7 @@ function NACaller(fn, ...)
 	end))
 	if not t[1] then
 		local err = t[2]
-		warn(adminName.." script error:\n"..err)
+		NAmanage.DebugReportError(err, { phase = "NACaller" })
 		if type(Popup) == "function" then
 			Popup({
 				Title       = adminName or "Oops!",
@@ -16197,6 +16198,11 @@ NAmanage.jlDef = {
 	ChatShowUserIds = false;
 	ChatLogLocalPlayer = true;
 	LogIncludeGameInfo = true;
+	StructuredLog = true;
+	StructuredLogJoinLeave = true;
+	StructuredLogChat = false;
+	DynamicLoadCrashReport = true;
+	DynamicLoadSecondLoadQueue = true;
 }
 
 NAmanage.jlNumDef = {
@@ -16243,6 +16249,353 @@ NAmanage.logApply = function()
 		end)
 	end
 end
+
+NAmanage.StructLogValue = function(value, depth)
+	depth = tonumber(depth) or 0
+	if depth > 4 then
+		return "..."
+	end
+	local vt = typeof(value)
+	if vt == "Instance" then
+		local ok, full = pcall(function()
+			return value:GetFullName()
+		end)
+		return ok and full or tostring(value)
+	end
+	if vt == "Vector2" or vt == "Vector3" or vt == "CFrame" or vt == "Color3" or vt == "UDim" or vt == "UDim2" or vt == "Rect" or vt == "Ray" or vt == "EnumItem" then
+		return tostring(value)
+	end
+	local kind = type(value)
+	if kind == "string" or kind == "number" or kind == "boolean" then
+		return value
+	end
+	if kind == "nil" then
+		return nil
+	end
+	if kind == "table" then
+		local out = {}
+		local n = 0
+		for key, val in value do
+			n += 1
+			if n > 80 then
+				out.__truncated = true
+				break
+			end
+			local clean = NAmanage.StructLogValue(val, depth + 1)
+			if clean ~= nil then
+				out[tostring(key)] = clean
+			end
+		end
+		return out
+	end
+	return tostring(value)
+end
+
+NAmanage.StructLogContext = function(ctx, extra)
+	local out = {}
+	if type(ctx) == "table" then
+		for key, value in ctx do
+			local clean = NAmanage.StructLogValue(value, 0)
+			if clean ~= nil then
+				out[tostring(key)] = clean
+			end
+		end
+	end
+	if type(extra) == "table" then
+		for key, value in extra do
+			local clean = NAmanage.StructLogValue(value, 0)
+			if clean ~= nil then
+				out[tostring(key)] = clean
+			end
+		end
+	end
+	if next(out) == nil then
+		return nil
+	end
+	return out
+end
+
+NAmanage.StructLogContextText = function(ctx)
+	local clean = NAmanage.StructLogContext(ctx)
+	if type(clean) ~= "table" then
+		return ""
+	end
+	local ok, text = pcall(function()
+		return HttpService:JSONEncode(clean)
+	end)
+	if ok and type(text) == "string" and text ~= "{}" then
+		return text
+	end
+	local out = {}
+	for key, value in clean do
+		out[#out + 1] = tostring(key).."="..tostring(value)
+	end
+	return (#out > 0) and ("{"..Concat(out, ", ").."}") or ""
+end
+
+NAmanage.StructLogRender = function(message, ctx)
+	message = tostring(message or "")
+	local clean = NAmanage.StructLogContext(ctx)
+	if type(clean) ~= "table" then
+		return message
+	end
+	return (message:gsub("{([%w_%.%-]+)}", function(key)
+		local value = clean[key]
+		if value == nil then
+			return "{"..key.."}"
+		end
+		if type(value) == "table" then
+			local txt = NAmanage.StructLogContextText({ value = value })
+			return txt ~= "" and txt or tostring(value)
+		end
+		return tostring(value)
+	end))
+end
+
+NAmanage.StructLogLine = function(message, ctx)
+	local text = NAmanage.StructLogRender(message, ctx)
+	local ctxText = NAmanage.StructLogContextText(ctx)
+	if ctxText ~= "" then
+		return text.." "..ctxText
+	end
+	return text
+end
+
+NAmanage.StructLogMap = function(level)
+	local key = Lower(tostring(level or "info"))
+	if key == "out" or key == "output" or key == "print" then
+		return "Output", Enum.MessageType.MessageOutput, "output"
+	elseif key == "warn" or key == "warning" then
+		return "Warn", Enum.MessageType.MessageWarning, "warn"
+	elseif key == "err" or key == "error" then
+		return "Error", Enum.MessageType.MessageError, "error"
+	end
+	return "Info", Enum.MessageType.MessageInfo, "info"
+end
+
+NAmanage.StructLogEnabled = function(opts)
+	if type(opts) == "table" and opts.force == true then
+		return true
+	end
+	return not (NAmanage.jlCfg and NAmanage.jlCfg.StructuredLog == false)
+end
+
+NAmanage.StructLogAvailable = function()
+	local logService = SafeGetService("LogService")
+	if not logService then
+		return false
+	end
+	local ok = pcall(function()
+		return logService.Output or logService.Info or logService.Warn or logService.Error or logService.Log
+	end)
+	return ok == true
+end
+
+NAmanage.StructLog = function(level, message, ctx, opts)
+	opts = type(opts) == "table" and opts or {}
+	local method, msgType, norm = NAmanage.StructLogMap(level)
+	local clean = NAmanage.StructLogContext(ctx, {
+		naSource = "Nameless Admin";
+		naBuild = NATestingVer and "testing" or "main";
+	})
+	local sent = false
+	if NAmanage.StructLogEnabled(opts) then
+		local logService = SafeGetService("LogService")
+		if logService then
+			local fn
+			pcall(function()
+				fn = logService[method]
+			end)
+			if type(fn) == "function" then
+				local ok = pcall(function()
+					fn(logService, tostring(message or ""), clean)
+				end)
+				if ok or norm == "error" then
+					sent = true
+				end
+			end
+			if not sent then
+				local logFn
+				pcall(function()
+					logFn = logService.Log
+				end)
+				if type(logFn) == "function" then
+					local ok = pcall(function()
+						logFn(logService, msgType, tostring(message or ""), clean)
+					end)
+					if ok or norm == "error" then
+						sent = true
+					end
+				end
+			end
+		end
+	end
+	if not sent and opts.silent ~= true then
+		local text = NAmanage.StructLogLine(message, clean)
+		local rawWarn = (type(NAmanage) == "table" and NAmanage._rawWarn) or warn
+		local rawPrint = (type(NAmanage) == "table" and NAmanage._rawPrint) or print
+		if norm == "warn" or norm == "error" then
+			rawWarn(text)
+		else
+			rawPrint(text)
+		end
+	end
+	return sent
+end
+
+NAmanage.StructLogDecode = function(raw)
+	if type(raw) ~= "string" or raw == "" then
+		return nil, nil
+	end
+	local ok, data = pcall(function()
+		return HttpService:JSONDecode(raw)
+	end)
+	if ok and type(data) == "table" then
+		return data, nil
+	end
+	return nil, data
+end
+
+NAmanage.StructLogParse = function(raw)
+	raw = tostring(raw or "")
+	local level, rest = raw:match("^(%S+)%s+(.+)$")
+	if not level then
+		return nil
+	end
+	local msg = rest
+	local ctx = nil
+	local left, json = rest:match("^(.-)%s+|%s*(%b{})%s*$")
+	if not json then
+		local a, b = rest:match("^(.-)%s+(%b{})%s*$")
+		if b and b:find(":", 1, true) then
+			left, json = a, b
+		end
+	end
+	if json then
+		local decoded = NAmanage.StructLogDecode(json)
+		if decoded then
+			msg = left
+			ctx = decoded
+		end
+	end
+	return level, msg, ctx
+end
+
+do
+	NAmanage._rawPrint = NAmanage._rawPrint or print
+	NAmanage._rawWarn = NAmanage._rawWarn or warn
+	NAmanage._rawError = NAmanage._rawError or error
+	NAmanage._rawAssert = NAmanage._rawAssert or assert
+
+	local function joinArgs(...)
+		local n = select("#", ...)
+		if n <= 0 then
+			return ""
+		end
+		local out = {}
+		for i = 1, n do
+			out[i] = tostring(select(i, ...))
+		end
+		return Concat(out, "	")
+	end
+
+	local function stack(skip)
+		local tb
+		pcall(function()
+			tb = debug and debug.traceback and debug.traceback(nil, skip or 4)
+		end)
+		if type(tb) == "string" and tb ~= "" then
+			return tb
+		end
+		return nil
+	end
+
+	NAmanage.DebugLog = function(level, ctx, ...)
+		local _, _, norm = NAmanage.StructLogMap(level)
+		local text = joinArgs(...)
+		if text == "" then
+			text = " "
+		end
+		local extra = {
+			event = "na_debug_"..norm;
+			placeId = PlaceId;
+			gameId = GameId;
+			jobId = JobId;
+		}
+		if norm == "warn" or norm == "error" then
+			extra.stack = stack(4)
+		end
+		local clean = NAmanage.StructLogContext(ctx, extra)
+		if NAmanage._debugLogBusy then
+			if norm == "warn" or norm == "error" then
+				NAmanage._rawWarn(text)
+			else
+				NAmanage._rawPrint(text)
+			end
+			return false
+		end
+		NAmanage._debugLogBusy = true
+		local ok, sent = pcall(function()
+			return NAmanage.StructLog(level, text, clean, { force = true })
+		end)
+		NAmanage._debugLogBusy = false
+		if not ok then
+			if norm == "warn" or norm == "error" then
+				NAmanage._rawWarn(text)
+			else
+				NAmanage._rawPrint(text)
+			end
+			return false
+		end
+		return sent == true
+	end
+
+	NAmanage.DebugReportError = function(err, ctx)
+		local text = tostring(err or "unknown error")
+		local first = text:match("([^\r\n]+)") or text
+		local clean = NAmanage.StructLogContext(ctx, {
+			event = "na_script_error";
+			error = text;
+			summary = first;
+			stack = stack(4);
+			placeId = PlaceId;
+			gameId = GameId;
+			jobId = JobId;
+		})
+		return NAmanage.StructLog("error", "NA script error: {summary}", clean, { force = true, silent = false })
+	end
+
+	NAmanage.DebugPrint = function(...)
+		return NAmanage.DebugLog("output", nil, ...)
+	end
+
+	NAmanage.DebugWarn = function(...)
+		return NAmanage.DebugLog("warn", nil, ...)
+	end
+
+	NAmanage.DebugError = function(message, level, ctx)
+		NAmanage.DebugReportError(message, ctx)
+		return NAmanage._rawError(message, tonumber(level) or 2)
+	end
+
+	NAmanage.DebugAssert = function(value, message, ...)
+		if value then
+			return value, message, ...
+		end
+		local msg = message
+		if msg == nil then
+			msg = "assertion failed!"
+		end
+		NAmanage.DebugReportError(msg, { event = "na_assertion_failed" })
+		return NAmanage._rawError(msg, 2)
+	end
+
+	print = NAmanage.DebugPrint
+	warn = NAmanage.DebugWarn
+	error = NAmanage.DebugError
+	assert = NAmanage.DebugAssert
+end
+
 
 opt.loader = Format('loadstring(game:HttpGet("%s"))();', opt.loaderUrl or "")
 
@@ -23655,12 +24008,286 @@ cmd.run = function(args)
 		end
 	end)
 
-	if not success then warn(adminName.." script error:\n"..msg) end
+	if not success then NAmanage.DebugReportError(msg, { phase = "command_runner", command = tostring(caller or "") }) end
 end
 
-NAmanage._safeLoadQ = {}
+NAmanage._safeLoadQ = type(NAmanage._safeLoadQ) == "table" and NAmanage._safeLoadQ or {}
 NAmanage._safeLoadBusy = false
-NAmanage._safeLoadGap = 0.35
+NAmanage._safeLoadGap = 0.45
+NAmanage._dynLoadSeq = tonumber(NAmanage._dynLoadSeq) or 0
+NAmanage._dynLoadDepth = tonumber(NAmanage._dynLoadDepth) or 0
+NAmanage._baseLoadstring = NAmanage._baseLoadstring or loadstring
+NAmanage._baseLoad = NAmanage._baseLoad or load
+
+NAmanage.DynamicLoadPath = function()
+	return (NAfiles and type(NAfiles.NADYNLOADCRASHPATH) == "string" and NAfiles.NADYNLOADCRASHPATH) or "Nameless-Admin/DynamicLoadCrash.json"
+end
+
+NAmanage.DynamicLoadToken = function()
+	NAmanage._dynLoadSeq = (tonumber(NAmanage._dynLoadSeq) or 0) + 1
+	return tostring(os.time()).."-"..tostring(math.floor((tick() % 1000000) * 1000)).."-"..tostring(NAmanage._dynLoadSeq)
+end
+
+NAmanage.DynamicLoadHash = function(src)
+	if type(src) ~= "string" then
+		return nil
+	end
+	local h = 0
+	for i = 1, #src do
+		h = (h + (i * (string.byte(src, i) or 0))) % 2147483647
+	end
+	return h
+end
+
+NAmanage.DynamicLoadPreview = function(src)
+	if type(src) ~= "string" then
+		return nil
+	end
+	local text = src:gsub("[%z\1-\8\11\12\14-\31]", " "):gsub("[\r\n\t]+", " ")
+	if #text > 220 then
+		text = Sub(text, 1, 220).."..."
+	end
+	return text
+end
+
+NAmanage.DynamicLoadExecutor = function()
+	if type(identifyexecutor) ~= "function" then
+		return nil
+	end
+	local ok, name, ver = pcall(identifyexecutor)
+	if not ok then
+		return nil
+	end
+	if ver ~= nil and tostring(ver) ~= "" then
+		return tostring(name).." "..tostring(ver)
+	end
+	return tostring(name)
+end
+
+NAmanage.DynamicLoadCtx = function(job, phase, extra)
+	job = type(job) == "table" and job or {}
+	local src = type(job.src) == "string" and job.src or nil
+	local ctx = {
+		event = "na_dynamic_load";
+		phase = tostring(phase or "unknown");
+		token = tostring(job.token or "");
+		chunkName = tostring(job.chunkName or job.url or "@NAExternal");
+		url = type(job.url) == "string" and job.url or nil;
+		nested = job.nested == true;
+		parentToken = job.parentToken;
+		sourceLength = src and #src or tonumber(job.sourceLength) or nil;
+		sourceHash = src and NAmanage.DynamicLoadHash(src) or job.sourceHash;
+		sourcePreview = src and NAmanage.DynamicLoadPreview(src) or job.sourcePreview;
+		commandDepth = tonumber(job.commandDepth) or tonumber(NAmanage._cmdRunDepth) or 0;
+		executor = NAmanage.DynamicLoadExecutor();
+		placeId = PlaceId;
+		gameId = GameId;
+		jobId = JobId;
+	}
+	if type(extra) == "table" then
+		for k, v in extra do
+			ctx[k] = v
+		end
+	end
+	return ctx
+end
+
+NAmanage.DynamicLoadWrite = function(job, phase, extra)
+	if not (NAmanage.jlCfg and NAmanage.jlCfg.DynamicLoadCrashReport ~= false) then
+		return false
+	end
+	if not (FileSupport and type(readfile) == "function" and type(writefile) == "function") then
+		return false
+	end
+	if NAfiles and type(NAfiles.NAFILEPATH) == "string" then
+		pcall(function()
+			NAmanage.safeMakeFolder(NAfiles.NAFILEPATH)
+		end)
+	end
+	local path = NAmanage.DynamicLoadPath()
+	local data = NAmanage.DynamicLoadCtx(job, phase, extra)
+	data.pending = true
+	data.time = os.time()
+	data.clock = tick()
+	local ok, raw = pcall(function()
+		return HttpService:JSONEncode(data)
+	end)
+	if ok and type(raw) == "string" then
+		pcall(function()
+			NAmanage.safeWriteFile(path, raw)
+		end)
+		return true
+	end
+	return false
+end
+
+NAmanage.DynamicLoadClear = function(job, status, err)
+	if not (FileSupport and type(delfile) == "function") then
+		return false
+	end
+	local path = NAmanage.DynamicLoadPath()
+	if type(isfile) == "function" and not NAmanage.safeIsFile(path) then
+		return false
+	end
+	local ok = pcall(function()
+		NAmanage.safeDeleteFile(path)
+	end)
+	return ok == true
+end
+
+NAmanage.DynamicLoadCheckPrevious = function()
+	if NAmanage._dynLoadChecked then
+		return
+	end
+	NAmanage._dynLoadChecked = true
+	if not (FileSupport and type(readfile) == "function" and type(isfile) == "function") then
+		return
+	end
+	local path = NAmanage.DynamicLoadPath()
+	if not NAmanage.safeIsFile(path) then
+		return
+	end
+	local okRead, raw = pcall(readfile, path)
+	if not okRead or type(raw) ~= "string" or raw == "" then
+		return
+	end
+	local okJson, data = pcall(function()
+		return HttpService:JSONDecode(raw)
+	end)
+	if not okJson or type(data) ~= "table" or data.pending ~= true then
+		return
+	end
+	data.event = "na_previous_native_crash_suspect"
+	data.note = "The last NA session stopped while a dynamic load was pending. If Roblox closed with 0xC0000005, this is the best Lua-side breadcrumb because native access violations bypass pcall/xpcall."
+	NAmanage.StructLog("warn", "NA may have crashed during dynamic load: {chunkName}", data, { force = true })
+	if type(writefile) == "function" then
+		data.pending = false
+		data.reported = true
+		data.reportedAt = os.time()
+		local okEnc, enc = pcall(function()
+			return HttpService:JSONEncode(data)
+		end)
+		if okEnc and type(enc) == "string" then
+			pcall(function()
+				NAmanage.safeWriteFile(path, enc)
+			end)
+		end
+	end
+end
+
+NAmanage.DynamicBaseCompile = function(src, chunkName)
+	local ls = NAmanage._baseLoadstring
+	if type(ls) == "function" then
+		return ls(src, chunkName)
+	end
+	local ld = NAmanage._baseLoad
+	if type(ld) == "function" then
+		return ld(src, chunkName)
+	end
+	return nil, "loadstring unavailable"
+end
+
+NAmanage.DynamicShouldQueueNested = function(src, chunkName)
+	if NAmanage.jlCfg and NAmanage.jlCfg.DynamicLoadSecondLoadQueue == false then
+		return false
+	end
+	if (tonumber(NAmanage._dynLoadDepth) or 0) <= 0 then
+		return false
+	end
+	if type(src) ~= "string" then
+		return false
+	end
+	if #src >= 160 then
+		return true
+	end
+	if src:find("\n", 1, true) or src:find("\r", 1, true) then
+		return true
+	end
+	local lowerSrc = Lower(src)
+	return lowerSrc:find("httpget", 1, true) ~= nil
+		or lowerSrc:find("loadstring", 1, true) ~= nil
+		or lowerSrc:find("game:getservice", 1, true) ~= nil
+		or lowerSrc:find("game.", 1, true) ~= nil
+end
+
+NAmanage.DynamicQueueNested = function(src, chunkName, ...)
+	local parent = NAmanage._dynCurrentJob
+	local ok, err = NAmanage.RunSource(src, type(chunkName) == "string" and chunkName or "@NANestedLoadstring", ...)
+	if not ok then
+		NAmanage.DebugReportError(err, {
+			event = "na_nested_load_queue_failed";
+			parentToken = type(parent) == "table" and parent.token or nil;
+			chunkName = tostring(chunkName or "@NANestedLoadstring");
+		})
+		return nil, err
+	end
+	return true
+end
+
+NAmanage.DynamicGuardLoadstring = function(src, chunkName)
+	if NAmanage.DynamicShouldQueueNested(src, chunkName) then
+		return function(...)
+			return NAmanage.DynamicQueueNested(src, chunkName, ...)
+		end
+	end
+	return NAmanage.DynamicBaseCompile(src, chunkName)
+end
+
+NAmanage.DynamicGuardLoad = function(src, chunkName, mode, env)
+	if NAmanage.DynamicShouldQueueNested(src, chunkName) then
+		return function(...)
+			return NAmanage.DynamicQueueNested(src, chunkName, ...)
+		end
+	end
+	local ld = NAmanage._baseLoad
+	if type(ld) == "function" then
+		return ld(src, chunkName, mode, env)
+	end
+	return NAmanage.DynamicBaseCompile(src, chunkName)
+end
+
+NAmanage.DynamicInstallGuard = function()
+	pcall(function()
+		_na_boot.runtimeEnv.loadstring = NAmanage.DynamicGuardLoadstring
+	end)
+	pcall(function()
+		_na_boot.runtimeEnv.load = NAmanage.DynamicGuardLoad
+	end)
+end
+
+NAmanage.DynamicApplyEnv = function(fn, job)
+	if type(fn) ~= "function" then
+		return fn
+	end
+	local sf = _na_boot.hostSetfenv or setfenv
+	if type(sf) ~= "function" then
+		return fn
+	end
+	local gf = _na_boot.hostGetfenv or getfenv
+	local baseEnv = nil
+	if type(gf) == "function" then
+		pcall(function()
+			baseEnv = gf(fn)
+		end)
+	end
+	if type(baseEnv) ~= "table" then
+		baseEnv = _na_boot.runtimeEnv
+	end
+	local env = setmetatable({
+		loadstring = NAmanage.DynamicGuardLoadstring;
+		load = NAmanage.DynamicGuardLoad;
+	}, {
+		__index = baseEnv;
+		__newindex = function(_, k, v)
+			baseEnv[k] = v
+		end;
+	})
+	pcall(sf, fn, env)
+	return fn
+end
+
+NAmanage.DynamicInstallGuard()
+NAmanage.DynamicLoadCheckPrevious()
 
 NAmanage._safeLoadStart = function()
 	if NAmanage._safeLoadBusy then
@@ -23674,14 +24301,20 @@ NAmanage._safeLoadStart = function()
 				break
 			end
 
+			job.token = job.token or NAmanage.DynamicLoadToken()
+			job.commandDepth = job.commandDepth or tonumber(NAmanage._cmdRunDepth) or 0
 			Wait(job.delay or NAmanage._safeLoadGap)
 
 			local okBody = true
 			local body = job.src
 			local name = job.chunkName
 
+			NAmanage.DynamicLoadWrite(job, "start")
+
 			if type(job.url) == "string" then
 				name = type(name) == "string" and name or ("@"..job.url)
+				job.chunkName = name
+				NAmanage.DynamicLoadWrite(job, "httpget")
 				if type(job.noCache) == "boolean" then
 					okBody, body = pcall(game.HttpGet, game, job.url, job.noCache)
 				else
@@ -23689,31 +24322,54 @@ NAmanage._safeLoadStart = function()
 				end
 			else
 				name = type(name) == "string" and name or "@NAExternal"
+				job.chunkName = name
 			end
 
 			if not okBody then
-				warn(body)
+				NAmanage.DynamicLoadClear(job, "httpget_error", body)
+				NAmanage.DebugReportError(body, NAmanage.DynamicLoadCtx(job, "httpget_error"))
 			elseif type(body) ~= "string" or body == "" then
-				warn("empty source")
+				NAmanage.DynamicLoadClear(job, "empty")
+				NAmanage.DebugReportError("empty source", NAmanage.DynamicLoadCtx(job, "empty"))
 			else
-				local loader = loadstring or load
-				if type(loader) ~= "function" then
-					warn("loadstring unavailable")
+				job.src = body
+				job.sourceLength = #body
+				job.sourceHash = NAmanage.DynamicLoadHash(body)
+				job.sourcePreview = NAmanage.DynamicLoadPreview(body)
+				NAmanage.DynamicLoadWrite(job, "compile")
+				Wait()
+				local fn, lerr = NAmanage.DynamicBaseCompile(body, name)
+				body = nil
+				job.src = nil
+				if type(fn) ~= "function" then
+					NAmanage.DynamicLoadClear(job, "compile_error", lerr)
+					NAmanage.DebugReportError(tostring(lerr or "compile error"), NAmanage.DynamicLoadCtx(job, "compile_error"))
 				else
+					NAmanage.DynamicApplyEnv(fn, job)
 					Wait()
-					local fn, lerr = loader(body, name)
-					body = nil
-					job.src = nil
-					if type(fn) ~= "function" then
-						warn(tostring(lerr or "compile error"))
+					local args = job.args or {}
+					local n = job.n or 0
+					NAmanage.DynamicLoadWrite(job, "run")
+					local prevJob = NAmanage._dynCurrentJob
+					local prevDepth = tonumber(NAmanage._dynLoadDepth) or 0
+					NAmanage._dynCurrentJob = job
+					NAmanage._dynLoadDepth = prevDepth + 1
+					local okRun, errRun = xpcall(function()
+						return fn(Unpack(args, 1, n))
+					end, function(err)
+						local tb = nil
+						pcall(function()
+							tb = debug and debug.traceback and debug.traceback(tostring(err), 2)
+						end)
+						return tb or err
+					end)
+					NAmanage._dynLoadDepth = prevDepth
+					NAmanage._dynCurrentJob = prevJob
+					if not okRun then
+						NAmanage.DynamicLoadClear(job, "runtime_error", errRun)
+						NAmanage.DebugReportError(errRun, NAmanage.DynamicLoadCtx(job, "runtime_error"))
 					else
-						Wait()
-						local args = job.args or {}
-						local n = job.n or 0
-						local okRun, errRun = pcall(fn, Unpack(args, 1, n))
-						if not okRun then
-							warn(errRun)
-						end
+						NAmanage.DynamicLoadClear(job, "ok")
 					end
 				end
 			end
@@ -23731,13 +24387,17 @@ NAmanage.RunSource = function(src, chunkName, ...)
 	if type(src) ~= "string" or src == "" then
 		return false, "empty source"
 	end
-	local delayTime = ((tonumber(NAmanage._cmdRunDepth) or 0) > 0) and 0.85 or 0.35
+	local parent = NAmanage._dynCurrentJob
+	local delayTime = ((tonumber(NAmanage._cmdRunDepth) or 0) > 0 or (tonumber(NAmanage._dynLoadDepth) or 0) > 0) and 0.9 or 0.35
 	Insert(NAmanage._safeLoadQ, {
-		src = src,
-		chunkName = chunkName,
-		args = {...},
-		n = select("#", ...),
-		delay = delayTime,
+		src = src;
+		chunkName = chunkName;
+		args = {...};
+		n = select("#", ...);
+		delay = delayTime;
+		nested = (tonumber(NAmanage._dynLoadDepth) or 0) > 0;
+		parentToken = type(parent) == "table" and parent.token or nil;
+		commandDepth = tonumber(NAmanage._cmdRunDepth) or 0;
 	})
 	NAmanage._safeLoadStart()
 	return true
@@ -23751,12 +24411,16 @@ NAmanage.RunURL = function(url, noCache, chunkName)
 		chunkName = noCache
 		noCache = nil
 	end
-	local delayTime = ((tonumber(NAmanage._cmdRunDepth) or 0) > 0) and 0.85 or 0.35
+	local parent = NAmanage._dynCurrentJob
+	local delayTime = ((tonumber(NAmanage._cmdRunDepth) or 0) > 0 or (tonumber(NAmanage._dynLoadDepth) or 0) > 0) and 0.9 or 0.35
 	Insert(NAmanage._safeLoadQ, {
-		url = url,
-		noCache = noCache,
-		chunkName = chunkName,
-		delay = delayTime,
+		url = url;
+		noCache = noCache;
+		chunkName = chunkName;
+		delay = delayTime;
+		nested = (tonumber(NAmanage._dynLoadDepth) or 0) > 0;
+		parentToken = type(parent) == "table" and parent.token or nil;
+		commandDepth = tonumber(NAmanage._cmdRunDepth) or 0;
 	})
 	NAmanage._safeLoadStart()
 	return true
@@ -25627,6 +26291,23 @@ NAmanage.RotectorNotifyJoinLeave = function(plr, kind, action, record)
 	local msg = NAmanage.RotectorFormatJoinLeaveMessage(plr, action, record)
 	DoNotif(msg, flagged and 6 or 1, NAmanage.RotectorJoinLeaveTitle(kind, flagged))
 	NAmanage.LogJoinLeave(msg)
+	if NAmanage.jlCfg and NAmanage.jlCfg.StructuredLogJoinLeave ~= false then
+		NAmanage.StructLog(flagged and "warn" or "info", "Player {action}: {player}", {
+			event = "player_"..Lower(tostring(kind or action or "event"));
+			action = tostring(action or kind or "unknown");
+			player = nameChecker(plr);
+			username = plr and plr.Name or nil;
+			displayName = plr and plr.DisplayName or nil;
+			userId = plr and plr.UserId or nil;
+			flagged = flagged;
+			flagType = type(record) == "table" and record.flagType or nil;
+			category = type(record) == "table" and record.category or nil;
+			confidence = type(record) == "table" and record.confidence or nil;
+			placeId = PlaceId;
+			gameId = GameId;
+			jobId = JobId;
+		})
+	end
 end
 
 NAmanage.RotectorFormatStatus = function(entry)
@@ -40146,8 +40827,8 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 		if gp then return end
 		if input.UserInputType == Enum.UserInputType.Keyboard then pressed[input.KeyCode.Name] = nil end
 	end))
-	NAlib.connect(CONN_KEY, LogService.MessageOut:Connect(function(m,t)
-		pushLog(m,t)
+	NAlib.connect(CONN_KEY, LogService.MessageOut:Connect(function(m,t,ctx)
+		pushLog(NAmanage.StructLogLine(m,ctx),t)
 		if activeTab=="Logs" then
 			counts.Text = Format("Info:%d  Warn:%d  Error:%d", infoCount, warnCount, errCount)
 			logText.Text = (#logs>0) and Concat(logs,"\n") or ""
@@ -104000,6 +104681,20 @@ NAmanage.bindToChat=function(plr, msg)
 		displayText = ("[%s] %s"):format(os.date("%H:%M:%S"), baseText)
 	end
 
+	if NAmanage.jlCfg.StructuredLogChat == true then
+		NAmanage.StructLog("info", "Chat from {player}: {message}", {
+			event = "chat";
+			player = chatName;
+			username = plr and plr.Name or nil;
+			displayName = plr and plr.DisplayName or nil;
+			userId = plr and plr.UserId or nil;
+			message = tostring(msg or "");
+			placeId = PlaceId;
+			gameId = GameId;
+			jobId = JobId;
+		})
+	end
+
 	local chatMsg = nil
 	if shouldDisplay then
 		chatMsg = NAUIMANAGER.chatExample:Clone()
@@ -104181,6 +104876,7 @@ NAmanage.bindToDevConsole = function()
 	end;
 	local pool, visibleLabels = {}, {};
 	local allMessages, filteredMessages = {}, {};
+	local recordsById = {};
 	local pending = {};
 	local pendingHead = 1;
 	local pendingTail = 0;
@@ -104291,6 +104987,70 @@ NAmanage.bindToDevConsole = function()
 	local function escape(s)
 		return ((s:gsub("&", "&amp;")):gsub("<", "&lt;")):gsub(">", "&gt;");
 	end;
+	local function getCtxData(ctx)
+		local clean = NAmanage.StructLogContext(ctx)
+		if type(clean) ~= "table" or next(clean) == nil then
+			return nil, nil
+		end
+		local keys = {}
+		for key in clean do
+			keys[#keys + 1] = tostring(key)
+		end
+		table.sort(keys, function(a, b)
+			return a < b
+		end)
+		return clean, keys
+	end
+	local function ctxValueText(value)
+		if type(value) == "table" then
+			local ok, text = pcall(function()
+				return HttpService:JSONEncode(value)
+			end)
+			if ok and type(text) == "string" then
+				return text
+			end
+		end
+		return tostring(value)
+	end
+	local function ctxCopyText(ctx, keys)
+		if type(ctx) ~= "table" or type(keys) ~= "table" then
+			return ""
+		end
+		local out = { "Context: {...}" }
+		for i = 1, #keys do
+			local key = keys[i]
+			out[#out + 1] = "  " .. key .. ": " .. ctxValueText(ctx[key])
+		end
+		return Concat(out, "\n")
+	end
+	local function refreshRecordText(record)
+		if not record then
+			return
+		end
+		local line = "[" .. record.tag .. "]: " .. record.messageText
+		local rich = "<font color=\"" .. record.color .. "\">[" .. record.tag .. "]</font>: <font color=\"#ffffff\">" .. escape(record.messageText) .. "</font>"
+		local copyText = record.messageText
+		local plainText = line
+		if record.hasContext == true then
+			local icon = record.contextOpen and "v" or ">"
+			plainText = plainText .. "\n  " .. icon .. " Context: {...}"
+			rich = rich .. "\n<font color=\"#5cc8ff\">  " .. icon .. " Context: {...}</font>"
+			local ctxText = ctxCopyText(record.context, record.contextKeys)
+			copyText = copyText .. "\n" .. ctxText
+			if record.contextOpen == true then
+				for i = 1, #record.contextKeys do
+					local key = record.contextKeys[i]
+					local value = ctxValueText(record.context[key])
+					plainText = plainText .. "\n    " .. key .. ": " .. value
+					rich = rich .. "\n<font color=\"#00aaff\">    " .. escape(key) .. "</font><font color=\"#ffffff\">: " .. escape(value) .. "</font>"
+				end
+			end
+		end
+		record.copyText = copyText
+		record.plainText = plainText
+		record.searchText = (plainText .. "\n" .. copyText):lower()
+		record.richText = rich
+	end
 	local function measureHeightFromText(plain, width)
 		local baseSize = NAUIMANAGER.NAconsoleExample.TextSize or 14;
 		local vec = __lt.cm("TextService", "GetTextSize", plain, baseSize, NAUIMANAGER.NAconsoleExample.Font, Vector2.new(width, 1000000));
@@ -104327,6 +105087,12 @@ NAmanage.bindToDevConsole = function()
 		local canvasY = logsFrame.CanvasSize.Y.Offset;
 		return bottomY >= math.max(0, canvasY - 32);
 	end;
+	local layoutDirty = true;
+	local layoutWidth = 0;
+	local layoutContentHeight = 0;
+	local syncQueued = false;
+	local syncQueuedFollowBottom = false;
+	local requestSync;
 	local function releaseLabel(lbl)
 		if not lbl then
 			return;
@@ -104366,6 +105132,28 @@ NAmanage.bindToDevConsole = function()
 			end);
 			NAmanage.SetAttr(lbl, "NA_CopyHooked", true);
 		end;
+		if NAmanage.GetAttr(lbl, "NA_ContextHooked") ~= true then
+			NAlib.connect(CONN_KEY, lbl.InputBegan:Connect(function(input)
+				local kind = input and input.UserInputType
+				if kind ~= Enum.UserInputType.MouseButton1 and kind ~= Enum.UserInputType.Touch then
+					return
+				end
+				local id = NAmanage.GetAttr and NAmanage.GetAttr(lbl, "NA_RecordId") or nil
+				local record = recordsById[id] or recordsById[tonumber(id)]
+				if not record or record.hasContext ~= true then
+					return
+				end
+				record.contextOpen = not record.contextOpen
+				refreshRecordText(record)
+				record.height = nil
+				record.measureWidth = nil
+				layoutDirty = true
+				requestSync({
+					followBottom = isNearBottom()
+				})
+			end))
+			NAmanage.SetAttr(lbl, "NA_ContextHooked", true)
+		end;
 		if not attachLabel(lbl) then
 			return nil;
 		end;
@@ -104376,7 +105164,7 @@ NAmanage.bindToDevConsole = function()
 			return;
 		end;
 		local currentId = NAmanage.GetAttr and NAmanage.GetAttr(lbl, "NA_RecordId");
-		if currentId ~= record.id then
+		if currentId ~= record.id or lbl.Text ~= record.richText then
 			lbl.Name = "Log_" .. tostring(record.id);
 			lbl.Text = record.richText;
 			NAmanage.SetAttr(lbl, "Tag", record.tag);
@@ -104396,11 +105184,6 @@ NAmanage.bindToDevConsole = function()
 		end;
 		return false;
 	end;
-	local layoutDirty = true;
-	local layoutWidth = 0;
-	local layoutContentHeight = 0;
-	local syncQueued = false;
-	local syncQueuedFollowBottom = false;
 	local function rebuildRecordLayout(force)
 		if (not isBindActive()) or not logsFrame or (not logsFrame.Parent) then
 			return;
@@ -104429,7 +105212,7 @@ NAmanage.bindToDevConsole = function()
 		end;
 	end;
 	local syncVisibleMessages;
-	local function requestSync(opts)
+	requestSync = function(opts)
 		opts = opts or {};
 		if opts.followBottom == true then
 			syncQueuedFollowBottom = true;
@@ -104467,22 +105250,27 @@ NAmanage.bindToDevConsole = function()
 			followBottom = isNearBottom()
 		});
 	end;
-	local function appendRecord(rawText, tagText, tagColor, forceVisible)
+	local function appendRecord(rawText, tagText, tagColor, forceVisible, ctx)
 		messageCounter += 1;
-		local labelText = "[" .. tagText .. "]: " .. rawText;
+		local cleanCtx, ctxKeys = getCtxData(ctx);
+		local hasContext = type(cleanCtx) == "table" and type(ctxKeys) == "table" and #ctxKeys > 0;
+		local messageText = hasContext and NAmanage.StructLogRender(rawText, cleanCtx) or tostring(rawText or "");
 		local record = {
 			id = messageCounter,
 			raw = rawText,
 			tag = tagText,
 			color = tagColor,
 			forceVisible = forceVisible == true,
-			copyText = rawText,
-			plainText = labelText,
-			searchText = labelText:lower(),
-			richText = "<font color=\"" .. tagColor .. "\">[" .. tagText .. "]</font>: <font color=\"#ffffff\">" .. escape(rawText) .. "</font>",
+			messageText = messageText,
+			context = cleanCtx,
+			contextKeys = ctxKeys or {},
+			hasContext = hasContext,
+			contextOpen = false,
 			height = nil,
 			measureWidth = nil
 		};
+		refreshRecordText(record);
+		recordsById[record.id] = record;
 		allMessages[#allMessages + 1] = record;
 		local query = getQuery();
 		if (record.forceVisible == true or toggles[tagText]) and matchesQuery(record.searchText, query) then
@@ -104492,6 +105280,7 @@ NAmanage.bindToDevConsole = function()
 		while #allMessages > MAX_MESSAGES do
 			local oldest = table.remove(allMessages, 1);
 			if oldest then
+				recordsById[oldest.id] = nil;
 				removeFilteredRecord(oldest);
 			end;
 		end;
@@ -104517,6 +105306,7 @@ NAmanage.bindToDevConsole = function()
 	local function clearConsoleState()
 		allMessages = {};
 		filteredMessages = {};
+		recordsById = {};
 		pending = {};
 		pendingHead = 1;
 		pendingTail = 0;
@@ -104730,7 +105520,7 @@ NAmanage.bindToDevConsole = function()
 			NAmanage.ConsoleScroll.scheduleRefresh();
 		end;
 	end;
-	local function enqueueMessage(msg, msgTYPE, forceVisible)
+	local function enqueueMessage(msg, msgTYPE, forceVisible, ctx)
 		local rawText = tostring(msg or "");
 		local tagText, tagColor = getTagInfo(msgTYPE);
 		if forceVisible ~= true and not shouldCaptureTag(tagText) then
@@ -104747,7 +105537,8 @@ NAmanage.bindToDevConsole = function()
 			raw = rawText,
 			t = tagText,
 			c = tagColor,
-			f = forceVisible == true
+			f = forceVisible == true,
+			x = ctx
 		};
 	end;
 	local function processPendingQueue()
@@ -104769,7 +105560,7 @@ NAmanage.bindToDevConsole = function()
 					pending[pendingHead] = nil;
 					pendingHead += 1;
 					if item then
-						appendRecord(item.raw, item.t, item.c, item.f);
+						appendRecord(item.raw, item.t, item.c, item.f, item.x);
 						processed += 1;
 					end;
 				end;
@@ -104842,10 +105633,11 @@ NAmanage.bindToDevConsole = function()
 				if entry then
 					local text = entry.message or entry.Message or entry[1];
 					local msgType = entry.messageType or entry.MessageType or entry.type;
+					local ctx = entry.context or entry.Context or entry[3];
 					if text ~= nil then
 						local tagText = getTagInfo(msgType);
 						if shouldCaptureTag(tagText) then
-							enqueueMessage(text, msgType);
+							enqueueMessage(text, msgType, nil, ctx);
 						end;
 					end;
 				end;
@@ -104854,12 +105646,12 @@ NAmanage.bindToDevConsole = function()
 	end;
 	processPendingQueue();
 	if logService then
-		NAlib.connect(CONN_KEY, logService.MessageOut:Connect(function(msg, msgTYPE)
+		NAlib.connect(CONN_KEY, logService.MessageOut:Connect(function(msg, msgTYPE, ctx)
 			local tagText = getTagInfo(msgTYPE);
 			if not shouldCaptureTag(tagText) then
 				return;
 			end;
-			enqueueMessage(msg, msgTYPE);
+			enqueueMessage(msg, msgTYPE, nil, ctx);
 			processPendingQueue();
 		end));
 	end;
