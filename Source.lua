@@ -16390,6 +16390,9 @@ NAmanage.StructLogAvailable = function()
 end
 
 NAmanage.StructLog = function(level, message, ctx, opts)
+	if NAmanage.ShouldSuppressProtectedLog and NAmanage.ShouldSuppressProtectedLog(message, ctx) then
+		return false
+	end
 	opts = type(opts) == "table" and opts or {}
 	local method, msgType, norm = NAmanage.StructLogMap(level)
 	local clean = NAmanage.StructLogContext(ctx, {
@@ -16479,6 +16482,49 @@ NAmanage.StructLogParse = function(raw)
 	return level, msg, ctx
 end
 
+NAmanage.ProtectedLogSilentChunks = NAmanage.ProtectedLogSilentChunks or {
+	CoreGuiManipulation = true;
+	lxteCmdSupport = true;
+}
+
+NAmanage.ShouldSuppressProtectedLog = function(message, ctx)
+	local seen = {}
+	local function check(value, depth)
+		if depth > 4 then
+			return false
+		end
+		local kind = type(value)
+		if kind == "string" then
+			for name in NAmanage.ProtectedLogSilentChunks do
+				if value:find(name, 1, true) then
+					return true
+				end
+			end
+		elseif kind == "table" and seen[value] ~= true then
+			seen[value] = true
+			for key, val in value do
+				if check(key, depth + 1) or check(val, depth + 1) then
+					return true
+				end
+			end
+		else
+			local ok, str = pcall(tostring, value)
+			if ok and type(str) == "string" then
+				for name in NAmanage.ProtectedLogSilentChunks do
+					if str:find(name, 1, true) then
+						return true
+					end
+				end
+			end
+		end
+		return false
+	end
+	if type(rawget(NAmanage, "_protectedSilentChunk")) == "string" then
+		return true
+	end
+	return check(message, 0) or check(ctx, 0)
+end
+
 do
 	NAmanage._rawPrint = NAmanage._rawPrint or print
 	NAmanage._rawWarn = NAmanage._rawWarn or warn
@@ -16511,6 +16557,9 @@ do
 	NAmanage.DebugLog = function(level, ctx, ...)
 		local _, _, norm = NAmanage.StructLogMap(level)
 		local text = joinArgs(...)
+		if NAmanage.ShouldSuppressProtectedLog and NAmanage.ShouldSuppressProtectedLog(text, ctx) then
+			return false
+		end
 		if text == "" then
 			text = " "
 		end
@@ -16549,7 +16598,13 @@ do
 	end
 
 	NAmanage.DebugReportError = function(err, ctx)
+		if NAmanage.ShouldSuppressProtectedLog and NAmanage.ShouldSuppressProtectedLog(err, ctx) then
+			return false
+		end
 		local text = tostring(err or "unknown error")
+		if NAmanage.ShouldSuppressProtectedLog and NAmanage.ShouldSuppressProtectedLog(text, ctx) then
+			return false
+		end
 		local first = text:match("([^\r\n]+)") or text
 		local clean = NAmanage.StructLogContext(ctx, {
 			event = "na_script_error";
@@ -40809,6 +40864,7 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 		if input.UserInputType == Enum.UserInputType.Keyboard then pressed[input.KeyCode.Name] = nil end
 	end))
 	NAlib.connect(CONN_KEY, LogService.MessageOut:Connect(function(m,t,ctx)
+		if NAmanage.ShouldSuppressProtectedLog and NAmanage.ShouldSuppressProtectedLog(m, ctx) then return end
 		pushLog(NAmanage.StructLogLine(m,ctx),t)
 		if activeTab=="Logs" then
 			counts.Text = Format("Info:%d  Warn:%d  Error:%d", infoCount, warnCount, errCount)
@@ -105489,6 +105545,9 @@ NAmanage.bindToDevConsole = function()
 	end;
 	local function enqueueMessage(msg, msgTYPE, forceVisible, ctx)
 		local rawText = tostring(msg or "");
+		if NAmanage.ShouldSuppressProtectedLog and NAmanage.ShouldSuppressProtectedLog(rawText, ctx) then
+			return;
+		end;
 		local tagText, tagColor = getTagInfo(msgTYPE);
 		if forceVisible ~= true and not shouldCaptureTag(tagText) then
 			return;
@@ -107817,6 +107876,17 @@ SpawnCall(function()
 			sandbox.getfenv = function()
 				return sandbox
 			end
+			sandbox.print = function() end
+			sandbox.warn = function() end
+			sandbox.error = function(message, level)
+				return (NAmanage._rawError or error)(message, tonumber(level) or 2)
+			end
+			sandbox.assert = function(value, message, ...)
+				if value then
+					return value, message, ...
+				end
+				return (NAmanage._rawError or error)(message or "assertion failed!", 2)
+			end
 
 			setmetatable(sandbox, {
 				__index = function(_, key)
@@ -107879,7 +107949,10 @@ SpawnCall(function()
 				pcall(setfenv, chunk, execEnv)
 			end
 
+			local oldSilent = NAmanage._protectedSilentChunk
+			NAmanage._protectedSilentChunk = chunkName
 			local okRun, runErr = pcall(chunk)
+			NAmanage._protectedSilentChunk = oldSilent
 			if not okRun then end
 
 			if type(env) == "table" then
