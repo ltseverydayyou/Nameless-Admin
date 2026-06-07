@@ -6134,9 +6134,15 @@
     {
       "name": "breakvelocity",
       "aliases": [
-        "breakvelocity"
+        "breakvelocity",
+        "breakv",
+        "bvel",
+        "zvel",
+        "zerovel",
+        "stopvel",
+        "brkvel"
       ],
-      "usage": "breakvelocity",
+      "usage": "breakvelocity (breakv,bvel,zvel,zerovel,stopvel,brkvel)",
       "args": "",
       "desc": "Sets your character's velocity to zero momentarily"
     },
@@ -7509,6 +7515,62 @@
       "usage": "minzoom <amount>",
       "args": "<amount>",
       "desc": "Set your minimum camera distance"
+    },
+    {
+      "name": "loopmaxzoom",
+      "aliases": [
+        "loopmaxzoom",
+        "lmaxzoom",
+        "lmzoom",
+        "lmz",
+        "forcemaxzoom",
+        "fmaxzoom"
+      ],
+      "usage": "loopmaxzoom <amount> (lmaxzoom,lmzoom,lmz,forcemaxzoom,fmaxzoom)",
+      "args": "<amount>",
+      "desc": "Loop your maximum camera distance and restore it when changed"
+    },
+    {
+      "name": "unloopmaxzoom",
+      "aliases": [
+        "unloopmaxzoom",
+        "unlmaxzoom",
+        "unlmzoom",
+        "unlmz",
+        "unforcemaxzoom",
+        "unfmaxzoom"
+      ],
+      "usage": "unloopmaxzoom (unlmaxzoom,unlmzoom,unlmz,unforcemaxzoom,unfmaxzoom)",
+      "args": "",
+      "desc": "Stop looping your maximum camera distance"
+    },
+    {
+      "name": "loopminzoom",
+      "aliases": [
+        "loopminzoom",
+        "lminzoom",
+        "lnzoom",
+        "lnz",
+        "forceminzoom",
+        "fminzoom"
+      ],
+      "usage": "loopminzoom <amount> (lminzoom,lnzoom,lnz,forceminzoom,fminzoom)",
+      "args": "<amount>",
+      "desc": "Loop your minimum camera distance and restore it when changed"
+    },
+    {
+      "name": "unloopminzoom",
+      "aliases": [
+        "unloopminzoom",
+        "unlminzoom",
+        "unlnzoom",
+        "unlnz",
+        "unforceminzoom",
+        "unfminzoom"
+      ],
+      "usage": "unloopminzoom (unlminzoom,unlnzoom,unlnz,unforceminzoom,unfminzoom)",
+      "args": "",
+      "desc": "Stop looping your minimum camera distance"
     },
     {
       "name": "cameranoclip",
