@@ -108604,6 +108604,7 @@ SpawnCall(function() -- init
 	if NAUIMANAGER.PluginsFrame then NAgui.NAProtection(NAUIMANAGER.PluginsFrame) end
 	if NAUIMANAGER.ExecutorFrame then NAgui.NAProtection(NAUIMANAGER.ExecutorFrame) end
 	if NAUIMANAGER.NotepadFrame then NAgui.NAProtection(NAUIMANAGER.NotepadFrame) end
+	if NAUIMANAGER.MusicFrame then NAgui.NAProtection(NAUIMANAGER.MusicFrame) end
 	if not PlrGui then PlrGui=Player:WaitForChild("PlayerGui",math.huge) end
 end)
 
