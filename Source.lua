@@ -15821,7 +15821,7 @@ if not NAAssetsLoading.setStatus then
 		changelog = 1,
 		uiloader = 1,
 		queue = 0.5,
-		prefetch = 4,
+		prefetch = 0.25,
 		final = 0.5,
 	}
 	local totalWeight = 0
@@ -15985,7 +15985,7 @@ else
 end
 if NAAssetsLoading.progressPercent then NAAssetsLoading.progressPercent("queue") end
 
-NAAssetsLoading.setStatus("prefetching remote resources")
+NAAssetsLoading.setStatus("prefetching remote resources in background")
 NAAssetsLoading.applyPrefetchPercent=function(done, total)
 	if not NAAssetsLoading.progressPercent then return end
 	if total and total > 0 then
@@ -15995,12 +15995,15 @@ NAAssetsLoading.applyPrefetchPercent=function(done, total)
 		NAAssetsLoading.progressPercent("prefetch", 1)
 	end
 end
-NAAssetsLoading.prefetchRemotes(function(done, total, url, success)
-	NAAssetsLoading.applyPrefetchPercent(done, total)
-	if total > 0 and (done == total or done % 5 == 0) then
-		NAAssetsLoading.setStatus(Format("prefetching %d/%d", done, total))
-	end
-end, NAAssetsLoading.getSkip)
+SpawnCall(function()
+	NAAssetsLoading.prefetchRemotes(function(done, total, url, success)
+		NAAssetsLoading.applyPrefetchPercent(done, total)
+		if total > 0 and (done == total or done % 5 == 0) and type(NAAssetsLoading.setStatus) == "function" then
+			NAAssetsLoading.setStatus(Format("prefetching %d/%d", done, total))
+		end
+	end, NAAssetsLoading.getSkip)
+end)
+if NAAssetsLoading.progressPercent then NAAssetsLoading.progressPercent("prefetch", 1) end
 
 NAAssetsLoading.setStatus("Fetching Roblox API")
 pcall(function()
@@ -16042,10 +16045,20 @@ NAmanage.finishLoadingUI = NAmanage.finishLoadingUI or function(statusText)
 		if type(NAAssetsLoading.setPercent) == "function" then
 			pcall(NAAssetsLoading.setPercent, 1)
 		end
+		local loadingGui = NAAssetsLoading.ui
 		if typeof(NAAssetsLoading.completed) == "Instance" then
 			pcall(NAmanage.SetAttr, NAAssetsLoading.completed, "Completed", true)
 		elseif type(NAAssetsLoading.completed) == "table" then
 			NAAssetsLoading.completed.Completed = true
+		end
+		if typeof(loadingGui) == "Instance" then
+			Delay(0.35, function()
+				if loadingGui.Parent then
+					pcall(function()
+						loadingGui:Destroy()
+					end)
+				end
+			end)
 		end
 		NAAssetsLoading.ui = nil
 		NAAssetsLoading.setStatus = nil
@@ -113175,6 +113188,9 @@ NAmanage.applyIconAppearance = function()
 		if NAStuff.iconAppearance and NAStuff.iconAppearance.stroke ~= nil then
 			label.TextStrokeTransparency = clamp01(NAStuff.iconAppearance.stroke, 0.7)
 		end
+	end
+	if NAStuff.IconInvisible == true and NAgui.applyIconVisibility then
+		NAgui.applyIconVisibility(true)
 	end
 end
 
