@@ -13561,59 +13561,135 @@ NAmanage.loaderState = NAmanage.loaderState or {
 	settingsPath = "Nameless-Admin/Settings.json";
 }
 
+local function getAutoSkipSettingsPath()
+	local state = NAmanage.loaderState or {}
+	local path = state.settingsPath
+	if type(path) == "string" and path ~= "" then
+		return path
+	end
+	if type(NAfiles) == "table" and type(NAfiles.NAMAINSETTINGSPATH) == "string" then
+		return NAfiles.NAMAINSETTINGSPATH
+	end
+	return "Nameless-Admin/Settings.json"
+end
+
+local function getAutoSkipFromSettingsCache(state)
+	if type(NAmanage.NASettingsGet) == "function" then
+		local ok, value = NACaller(NAmanage.NASettingsGet, "autoSkipLoading")
+		if ok and type(value) == "boolean" then
+			state.autoSkip = value
+			state.loaded = true
+			return true, value
+		end
+	end
+
+	if type(NAStuff.NASettingsData) == "table" then
+		local value = NAStuff.NASettingsData.autoSkipLoading
+		if type(value) == "boolean" then
+			state.autoSkip = value
+			state.loaded = true
+			return true, value
+		end
+	end
+
+	return false, nil
+end
+
+local function readAutoSkipSettingsFile(path)
+	if not (FileSupport and type(isfile) == "function" and NAmanage.safeIsFile(path)) then
+		return nil
+	end
+
+	local ok, raw = NACaller(readfile, path)
+	if not (ok and type(raw) == "string" and raw ~= "") then
+		return nil
+	end
+
+	local decodeOk, decoded = NACaller(function()
+		return HttpService:JSONDecode(raw)
+	end)
+
+	if decodeOk and typeof(decoded) == "table" then
+		return decoded
+	end
+
+	return nil
+end
+
+local function writeAutoSkipSettingsFile(path, enabled)
+	if not FileSupport then
+		return false
+	end
+
+	if type(NAmanage.safeMakeFolder) == "function" then
+		NAmanage.safeMakeFolder("Nameless-Admin")
+	elseif type(makefolder) == "function" and type(isfolder) == "function" then
+		local okFolder, exists = pcall(isfolder, "Nameless-Admin")
+		if not (okFolder and exists == true) then
+			pcall(makefolder, "Nameless-Admin")
+		end
+	end
+
+	local data = readAutoSkipSettingsFile(path)
+	if typeof(data) ~= "table" then
+		data = {}
+	end
+
+	data.autoSkipLoading = enabled == true
+
+	local encodeOk, encoded = NACaller(function()
+		return HttpService:JSONEncode(data)
+	end)
+
+	if encodeOk and type(encoded) == "string" then
+		local ok = NAmanage.safeWriteFile(path, encoded)
+		return ok == true
+	end
+
+	return false
+end
+
 NAmanage.getAutoSkipPreference = function()
 	local state = NAmanage.loaderState
+	local cached, value = getAutoSkipFromSettingsCache(state)
+	if cached then
+		return value
+	end
+
 	if state.loaded then
 		return state.autoSkip
 	end
+
 	state.loaded = true
-	if not FileSupport then
-		state.autoSkip = false
-		return state.autoSkip
+	local data = readAutoSkipSettingsFile(getAutoSkipSettingsPath())
+	if typeof(data) == "table" and type(data.autoSkipLoading) == "boolean" then
+		state.autoSkip = data.autoSkipLoading
 	end
-	if type(isfile) == "function" and NAmanage.safeIsFile(state.settingsPath) then
-		local ok, raw = NACaller(readfile, state.settingsPath)
-		if ok and type(raw) == "string" and raw ~= "" then
-			local decodeOk, decoded = NACaller(function()
-				return HttpService:JSONDecode(raw)
-			end)
-			if decodeOk and typeof(decoded) == "table" then
-				local value = decoded.autoSkipLoading
-				if type(value) == "boolean" then
-					state.autoSkip = value
-				end
-			end
-		end
-	end
+
 	return state.autoSkip
 end
 
 NAmanage.setAutoSkipPreference = function(enabled)
 	local state = NAmanage.loaderState
-	state.autoSkip = enabled and true or false
+	local value = enabled and true or false
+	state.autoSkip = value
 	state.loaded = true
-	if not FileSupport then
-		return
+
+	if type(NAStuff.NASettingsData) == "table" then
+		NAStuff.NASettingsData.autoSkipLoading = value
 	end
-	local data = {}
-	if type(isfile) == "function" and NAmanage.safeIsFile(state.settingsPath) then
-		local ok, raw = NACaller(readfile, state.settingsPath)
-		if ok and type(raw) == "string" and raw ~= "" then
-			local decodeOk, decoded = NACaller(function()
-				return HttpService:JSONDecode(raw)
-			end)
-			if decodeOk and typeof(decoded) == "table" then
-				data = decoded
-			end
+
+	if type(NAmanage.NASettingsEnsure) == "function" and type(NAmanage.NASettingsSave) == "function" then
+		local ok, settings = NACaller(NAmanage.NASettingsEnsure)
+		if ok and typeof(settings) == "table" then
+			settings.autoSkipLoading = value
+			NAStuff.NASettingsData = settings
+			NACaller(NAmanage.NASettingsSave)
+			return
 		end
 	end
-	data.autoSkipLoading = state.autoSkip
-	local encodeOk, encoded = NACaller(function()
-		return HttpService:JSONEncode(data)
-	end)
-	if encodeOk and type(encoded) == "string" then
-		NAmanage.safeWriteFile(state.settingsPath, encoded)
-	end
+
+	writeAutoSkipSettingsFile(getAutoSkipSettingsPath(), value)
 end
 
 NAmanage.RandomCursedInstanceString = NAmanage.RandomCursedInstanceString or function()
