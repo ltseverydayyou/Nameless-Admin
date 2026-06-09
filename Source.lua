@@ -4112,6 +4112,12 @@ NAmanage.isLoad = NAmanage.isLoad or function()
 	if type(load) ~= "table" then
 		return false
 	end
+	if load._finalized == true then
+		return false
+	end
+	if load._visualClosed == true then
+		return true
+	end
 	local done = load.completed
 	if typeof(done) == "Instance" then
 		local completedAttr = NAmanage.GetAttr(done, "Completed")
@@ -12977,6 +12983,9 @@ NAgui.deferSettingsWork = NAgui.deferSettingsWork or function(fn)
 	NAgui._settingsWorkBusy = true
 	return Spawn(function()
 		while NAgui._settingsWorkHead <= NAgui._settingsWorkTail do
+			while NAmanage and type(NAmanage.IsSettingsBuildTeleportPaused) == "function" and NAmanage.IsSettingsBuildTeleportPaused() do
+				Wait(0.1)
+			end
 			local lowEnd = NAmanage and NAmanage.IsLowEndUI and NAmanage.IsLowEndUI() or false
 			local settingsFrame = NAUIMANAGER and NAUIMANAGER.SettingsFrame
 			local visible = not (typeof(settingsFrame) == "Instance") or settingsFrame.Visible == true
@@ -15442,6 +15451,45 @@ NAAssetsLoading.applyMinimizedPreference=function()
 	end
 end
 
+NAAssetsLoading.queueImageAssets=function()
+	if NAAssetsLoading._imageAssetsQueued then
+		return
+	end
+	NAAssetsLoading._imageAssetsQueued = true
+	SpawnCall(function()
+		if not FileSupport then
+			return
+		end
+		if type(NAImageAssets) ~= "table" or type(NAfiles) ~= "table" then
+			return
+		end
+		if type(isfile) ~= "function" or type(writefile) ~= "function" then
+			return
+		end
+		if type(NAfiles.NAASSETSFILEPATH) ~= "string" or NAfiles.NAASSETSFILEPATH == "" then
+			return
+		end
+		if type(isfolder) == "function" and not NAmanage.safeIsFolder(NAfiles.NAASSETSFILEPATH) then
+			NAmanage.safeMakeFolder(NAfiles.NAASSETSFILEPATH)
+		end
+		for _, fileName in NAImageAssets do
+			if type(fileName) == "string" and fileName ~= "" then
+				local fullPath = NAmanage.getNAImageAssetPath(fileName, { preferredOnly = true })
+				if type(fullPath) == "string" and fullPath ~= "" and not NAmanage.safeIsFile(fullPath) then
+					local sourceUrl = NAmanage.getNAImageAssetSourceUrl(fileName)
+					if type(sourceUrl) == "string" and sourceUrl ~= "" then
+						local ok, data = pcall(game.HttpGet, game, sourceUrl)
+						if ok and type(data) == "string" and data ~= "" then
+							NAmanage.safeWriteFile(fullPath, data)
+						end
+					end
+				end
+			end
+			Wait(0.03)
+		end
+	end)
+end
+
 NAAssetsLoading.getRemoteTargets=function()
 	if type(NAAssetsLoading._trimKnownRemotes) == "function" then
 		NAAssetsLoading._trimKnownRemotes()
@@ -15731,77 +15779,40 @@ if not game:IsLoaded() then game.Loaded:Wait() end
 if NAAssetsLoading.progressPercent then NAAssetsLoading.progressPercent("engine") end
 
 NAAssetsLoading.setStatus("loading notifications")
+local notifAttempts = 0
 repeat
+	notifAttempts += 1
 	NAAssetsLoading.ok, NAAssetsLoading.res = pcall(function()
 		return loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NamelessAdminNotifications.lua"))()
 	end)
-	if NAAssetsLoading.ok then
+	if NAAssetsLoading.ok and type(NAAssetsLoading.res) == "table" then
 		NAStuff.Notification = NAAssetsLoading.res
 	else
-		Wait(0.25)
+		Wait(0.15)
 	end
-until NAStuff.Notification or NAAssetsLoading.getSkip()
+until NAStuff.Notification or NAAssetsLoading.getSkip() or notifAttempts >= 3
 if not NAStuff.Notification then
 	NAStuff.Notification = {Notify=function() end, Window=function() end, Popup=function() end}
 end
 
 if NAAssetsLoading.progressPercent then NAAssetsLoading.progressPercent("notifications") end
 
-NAAssetsLoading.setStatus("Loading Assets")
-local assetsReady = false
-repeat
-	local ok, res = pcall(function()
-		if not FileSupport then
-			return true
+NAAssetsLoading.setStatus("queueing assets")
+pcall(function()
+	if FileSupport and type(NAImageAssets) == "table" and type(NAAssetsLoading.queueImageAssets) == "function" then
+		if type(isfolder) == "function" and type(NAfiles) == "table" and type(NAfiles.NAASSETSFILEPATH) == "string" and not NAmanage.safeIsFolder(NAfiles.NAASSETSFILEPATH) then
+			NAmanage.safeMakeFolder(NAfiles.NAASSETSFILEPATH)
 		end
-		if type(NAImageAssets) ~= "table" then
-			return true
-		end
-		if type(isfolder) == "function" and not NAmanage.safeIsFolder(NAfiles.NAASSETSFILEPATH) then
-			if not NAmanage.safeMakeFolder(NAfiles.NAASSETSFILEPATH) then
-				return true
-			end
-		end
-		if type(isfile) ~= "function" then
-			return true
-		end
-		for _, fileName in NAImageAssets do
-			if type(fileName) == "string" and fileName ~= "" then
-				local fullPath = NAmanage.getNAImageAssetPath(fileName, { preferredOnly = true })
-				if type(fullPath) ~= "string" or fullPath == "" then
-					return false
-				end
-				if not NAmanage.safeIsFile(fullPath) then
-					local sourceUrl = NAmanage.getNAImageAssetSourceUrl(fileName)
-					if type(sourceUrl) ~= "string" or sourceUrl == "" then
-						return false
-					end
-					local data = game:HttpGet(sourceUrl)
-					if type(data) ~= "string" or data == "" then
-						return false
-					end
-					if type(writefile) ~= "function" then
-						return false
-					end
-					if not NAmanage.safeWriteFile(fullPath, data) then
-						return true
-					end
-				end
-			end
-		end
-		return true
-	end)
-	if ok and res then
-		assetsReady = true
-	else
-		Wait(0.25)
+		NAAssetsLoading.queueImageAssets()
 	end
-until assetsReady or NAAssetsLoading.getSkip()
+end)
 if NAAssetsLoading.progressPercent then NAAssetsLoading.progressPercent("assets") end
 
 NAAssetsLoading.setStatus("Loading "..(adminName or "NA").." Data")
 local naStuffReady = false
+local naStuffAttempts = 0
 repeat
+	naStuffAttempts += 1
 	local ok, res = pcall(function()
 		local raw = game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/NA%20stuff.json")
 		local decoded = HttpService:JSONDecode(raw)
@@ -15809,12 +15820,15 @@ repeat
 	end)
 	if ok and type(res) == "table" then
 		NAStuff.NAjson = res
-		NAmanage.btUpdate()
+		pcall(NAmanage.btUpdate)
 		naStuffReady = true
 	else
-		Wait(0.25)
+		Wait(0.15)
 	end
-until naStuffReady or NAAssetsLoading.getSkip()
+until naStuffReady or NAAssetsLoading.getSkip() or naStuffAttempts >= 2
+if not naStuffReady then
+	NAStuff.NAjson = type(NAStuff.NAjson) == "table" and NAStuff.NAjson or {}
+end
 if NAAssetsLoading.progressPercent then NAAssetsLoading.progressPercent("nastuff") end
 
 NAAssetsLoading.runLoadingCheck("Setting Up Loader", function()
@@ -15869,7 +15883,7 @@ end, function(body)
 			end
 		end
 	end
-end, {maxAttempts=10})
+end, {maxAttempts=1})
 if NAAssetsLoading.progressPercent then NAAssetsLoading.progressPercent("changelog") end
 
 NAAssetsLoading.runLoadingCheck("Loading UI", function()
@@ -15926,22 +15940,37 @@ end)
 
 NAAssetsLoading.setStatus("finishing startup (building command data, autofill, and UI hooks)")
 
+NAmanage.pulseLoadingUI = NAmanage.pulseLoadingUI or function(statusText, pct)
+	pcall(function()
+		if not NAAssetsLoading or NAAssetsLoading._finalized then
+			return
+		end
+		if statusText and type(NAAssetsLoading.setStatus) == "function" then
+			NAAssetsLoading.setStatus(statusText)
+		end
+		if pct and type(NAAssetsLoading.setPercent) == "function" then
+			NAAssetsLoading.setPercent(pct)
+		end
+	end)
+end
+
 NAmanage.finishLoadingUI = NAmanage.finishLoadingUI or function(statusText)
 	pcall(function()
-		if not (NAAssetsLoading and NAAssetsLoading.setStatus and NAAssetsLoading.setPercent and NAAssetsLoading.completed) then
+		if not NAAssetsLoading or NAAssetsLoading._finalized then
 			return
 		end
-		if NAAssetsLoading._finalized then
-			return
+		NAAssetsLoading._finalized = true
+		if type(NAAssetsLoading.setStatus) == "function" then
+			pcall(NAAssetsLoading.setStatus, statusText or "ready")
 		end
-		NAAssetsLoading.setStatus(statusText or "ready")
-		NAAssetsLoading.setPercent(1)
+		if type(NAAssetsLoading.setPercent) == "function" then
+			pcall(NAAssetsLoading.setPercent, 1)
+		end
 		if typeof(NAAssetsLoading.completed) == "Instance" then
-			NAmanage.SetAttr(NAAssetsLoading.completed, "Completed", true)
+			pcall(NAmanage.SetAttr, NAAssetsLoading.completed, "Completed", true)
 		elseif type(NAAssetsLoading.completed) == "table" then
 			NAAssetsLoading.completed.Completed = true
 		end
-		NAAssetsLoading._finalized = true
 		NAAssetsLoading.ui = nil
 		NAAssetsLoading.setStatus = nil
 		NAAssetsLoading.setPercent = nil
@@ -15951,6 +15980,10 @@ NAmanage.finishLoadingUI = NAmanage.finishLoadingUI or function(statusText)
 		NAAssetsLoading.progress = nil
 		NAAssetsLoading.progressPercent = nil
 	end)
+end
+
+if NAmanage.pulseLoadingUI then
+	NAmanage.pulseLoadingUI("building interface", 0.965)
 end
 
 Notify = NAStuff.Notification.Notify
@@ -41194,6 +41227,20 @@ cmd.add({"untouchfling","untfling","untf"},{"untouchfling (untfling,untf)","stop
 	NAlib.disconnect("touchflinger")
 end)
 
+NAmanage.IsStartupTeleportUnsafe = NAmanage.IsStartupTeleportUnsafe or function()
+	local st = NAgui and NAgui.SettingsBuildState
+	if NAStuff.SettingsBuildRunning == true or NAStuff._loadingFinalizePending == true then
+		return true
+	end
+	if type(st) == "table" and st.building == true then
+		return true
+	end
+	if NAAssetsLoading and NAAssetsLoading._finalized ~= true then
+		return true
+	end
+	return false
+end
+
 cmd.add({"rjre","rejoinrefresh"},{"rjre (rejoinrefresh)","Rejoins and teleports you to your previous position"},function()
 	if not DONE then
 		DONE = true
@@ -41315,6 +41362,7 @@ end)
 			opt.queueteleport(tpScript)
 		end
 
+		NAStuff.RjreWaitingForTeleport = true
 		cmd.run({"rj"})
 	end
 end)
@@ -41368,6 +41416,10 @@ cmd.add({"rejoin","rj"},{"rejoin (rj)","Rejoin the game"},function()
 	local lp=plrs and plrs.LocalPlayer
 	local nowTick = tick()
 	if not (plrs and tp and lp) then
+		if NAStuff.RjreWaitingForTeleport == true then
+			NAStuff.RjreWaitingForTeleport = false
+			DONE = false
+		end
 		DoNotif("Teleport service is unavailable.")
 		return
 	end
@@ -41377,6 +41429,10 @@ cmd.add({"rejoin","rj"},{"rejoin (rj)","Rejoin the game"},function()
 			NAStuff.teleportTransition = false
 			NAStuff.teleportTransitionSince = nil
 		else
+			if NAStuff.RjreWaitingForTeleport == true then
+				NAStuff.RjreWaitingForTeleport = false
+				DONE = false
+			end
 			DoNotif("Teleport already in progress.",2)
 			return
 		end
@@ -41395,9 +41451,16 @@ cmd.add({"rejoin","rj"},{"rejoin (rj)","Rejoin the game"},function()
 	end
 
 	local transitionToken = tostring(os.clock())..":"..tostring(math.random(1, 1e6))
+	local pauseToken
+	if NAmanage.PauseSettingsBuildForTeleport then
+		pauseToken = NAmanage.PauseSettingsBuildForTeleport("rejoin")
+	end
 	NAStuff.teleportTransition = true
 	NAStuff.teleportTransitionSince = nowTick
 	NAStuff.teleportTransitionToken = transitionToken
+	if NAStuff.RjreWaitingForTeleport == true then
+		NAStuff.RjreWaitingForTeleport = transitionToken
+	end
 
 	NAlib.disconnect("rejoin_tperr")
 	NAlib.connect("rejoin_tperr",tp.TeleportInitFailed:Connect(function(player,result,errMsg)
@@ -41406,6 +41469,13 @@ cmd.add({"rejoin","rj"},{"rejoin (rj)","Rejoin the game"},function()
 			NAStuff.teleportTransition = false
 			NAStuff.teleportTransitionSince = nil
 			NAStuff.teleportTransitionToken = nil
+			if pauseToken and NAmanage.ResumeSettingsBuildAfterTeleport then
+				pcall(NAmanage.ResumeSettingsBuildAfterTeleport, pauseToken, "failed")
+			end
+			if NAStuff.RjreWaitingForTeleport == transitionToken then
+				NAStuff.RjreWaitingForTeleport = false
+				DONE = false
+			end
 		end
 		DoNotif(("Teleport failed [%s]: %s"):format(tostring(result),tostring(errMsg)))
 	end))
@@ -41416,9 +41486,36 @@ cmd.add({"rejoin","rj"},{"rejoin (rj)","Rejoin the game"},function()
 			NAStuff.teleportTransitionSince = nil
 			NAStuff.teleportTransitionToken = nil
 		end
+		if pauseToken and NAmanage.ResumeSettingsBuildAfterTeleport then
+			pcall(NAmanage.ResumeSettingsBuildAfterTeleport, pauseToken, "failed")
+		end
+		if NAStuff.RjreWaitingForTeleport == transitionToken then
+			NAStuff.RjreWaitingForTeleport = false
+			DONE = false
+		end
 		if msg then
 			DoNotif(msg)
 		end
+	end
+
+	local function watchTeleportTimeout()
+		local watchToken = transitionToken
+		Spawn(function()
+			Wait(30)
+			if NAStuff.teleportTransitionToken == watchToken then
+				NAStuff.teleportTransition = false
+				NAStuff.teleportTransitionSince = nil
+				NAStuff.teleportTransitionToken = nil
+				if pauseToken and NAmanage.ResumeSettingsBuildAfterTeleport then
+					pcall(NAmanage.ResumeSettingsBuildAfterTeleport, pauseToken, "timeout")
+				end
+				if NAStuff.RjreWaitingForTeleport == watchToken then
+					NAStuff.RjreWaitingForTeleport = false
+					DONE = false
+				end
+				DoNotif("Teleport timed out. Resumed settings build.",4)
+			end
+		end)
 	end
 
 	if #__lt.cm("Players", "GetPlayers")<=1 then
@@ -41456,6 +41553,7 @@ cmd.add({"rejoin","rj"},{"rejoin (rj)","Rejoin the game"},function()
 		end
 	end
 
+	watchTeleportTimeout()
 	DoNotif("Rejoining...")
 end)
 
@@ -84958,6 +85056,10 @@ else
 end
 --repeat Wait() until ScreenGui~=nil -- if it loads late then I'll just add this here
 
+if NAmanage.pulseLoadingUI then
+	NAmanage.pulseLoadingUI("waiting for interface", 0.975)
+end
+
 do
 	local ready = NAmanage.waitForScreenGui(8)
 	if not ready then
@@ -89978,6 +90080,9 @@ NAgui.SettingsBuildStep = NAgui.SettingsBuildStep or function(kind)
 	local state = NAgui.SettingsBuildState
 	state.count = (tonumber(state.count) or 0) + 1
 	state.building = true
+	while NAmanage and type(NAmanage.IsSettingsBuildTeleportPaused) == "function" and NAmanage.IsSettingsBuildTeleportPaused() do
+		Wait(0.1)
+	end
 	if (tonumber(state.lastYield) or 0) <= 0 then state.lastYield = os.clock() end
 	local lowEnd = NAmanage and NAmanage.IsLowEndUI and NAmanage.IsLowEndUI() or false
 	local settingsFrame = NAUIMANAGER and NAUIMANAGER.SettingsFrame
@@ -90002,6 +90107,65 @@ NAgui.SettingsBuildDone = NAgui.SettingsBuildDone or function()
 	NAgui.SettingsBuildState.building = false
 	NAgui.SettingsBuildState.background = false
 	NAgui.SettingsBuildState.lastYield = 0
+end
+
+NAmanage.SettingsBuildTeleportPause = NAmanage.SettingsBuildTeleportPause or {
+	active = false;
+	token = nil;
+	started = 0;
+	timeout = 30;
+	reason = nil;
+}
+
+NAmanage.PauseSettingsBuildForTeleport = function(reason)
+	local token = tostring(os.clock())..":"..tostring(math.random(1, 1000000))
+	local st = NAmanage.SettingsBuildTeleportPause or {}
+	st.active = true
+	st.token = token
+	st.started = tick()
+	st.timeout = 30
+	st.reason = tostring(reason or "teleport")
+	NAmanage.SettingsBuildTeleportPause = st
+	NAStuff.SettingsBuildPausedForTeleport = true
+	NAStuff.SettingsBuildPauseToken = token
+	if NAAssetsLoading and type(NAAssetsLoading.setStatus) == "function" then
+		pcall(NAAssetsLoading.setStatus, "rejoining")
+	end
+	return token
+end
+
+NAmanage.ResumeSettingsBuildAfterTeleport = function(token, reason)
+	local st = NAmanage.SettingsBuildTeleportPause
+	if type(st) ~= "table" then
+		return false
+	end
+	if token and st.token and token ~= st.token then
+		return false
+	end
+	st.active = false
+	st.token = nil
+	st.started = 0
+	st.reason = nil
+	NAStuff.SettingsBuildPausedForTeleport = false
+	NAStuff.SettingsBuildPauseToken = nil
+	if NAStuff.SettingsBuildRunning == true and NAAssetsLoading and type(NAAssetsLoading.setStatus) == "function" then
+		pcall(NAAssetsLoading.setStatus, "building settings")
+	end
+	return true
+end
+
+NAmanage.IsSettingsBuildTeleportPaused = function()
+	local st = NAmanage.SettingsBuildTeleportPause
+	if type(st) ~= "table" or st.active ~= true then
+		return false
+	end
+	local started = tonumber(st.started) or 0
+	local timeout = tonumber(st.timeout) or 30
+	if started > 0 and timeout > 0 and tick() - started > timeout then
+		NAmanage.ResumeSettingsBuildAfterTeleport(st.token, "timeout")
+		return false
+	end
+	return true
 end
 
 NAgui.addButton = function(label, callback)
@@ -95283,6 +95447,10 @@ SpawnCall(function() -- plugin tester
 		end
 	end
 end)
+
+if NAmanage.pulseLoadingUI then
+	NAmanage.pulseLoadingUI("initializing topbar and side swipe", 0.985)
+end
 
 SpawnCall(function()
 	NAmanage.Topbar_Init()
@@ -101124,6 +101292,12 @@ end
 
 NAmanage.Executor_Init()
 NAmanage.Notepad_Init()
+if NAmanage.Topbar_Init then
+	pcall(NAmanage.Topbar_Init)
+end
+if NAmanage.SideSwipe_Init then
+	pcall(NAmanage.SideSwipe_Init)
+end
 
 if NAStuff.uiBootHidden and NAStuff.NASCREENGUI and NAStuff.NASCREENGUI:IsA("ScreenGui") then
 	pcall(function()
@@ -101131,8 +101305,8 @@ if NAStuff.uiBootHidden and NAStuff.NASCREENGUI and NAStuff.NASCREENGUI:IsA("Scr
 	end)
 	NAStuff.uiBootHidden = false
 end
-if NAmanage.finishLoadingUI then
-	NAmanage.finishLoadingUI("ready")
+if NAmanage.pulseLoadingUI then
+	NAmanage.pulseLoadingUI("starting icon and quick controls", 0.99)
 end
 
 --[[ CMDS COMMANDS SEARCH FUNCTION ]]--
@@ -106834,6 +107008,15 @@ function mainNameless()
 end
 
 coroutine.wrap(mainNameless)()
+if NAmanage.Topbar_Init then
+	pcall(NAmanage.Topbar_Init)
+end
+if NAmanage.SideSwipe_Init then
+	pcall(NAmanage.SideSwipe_Init)
+end
+if NAmanage.finishLoadingUI then
+	NAStuff._mainNamelessReady = true
+end
 
 NAgui.setIconLocked(NAStuff.IconLocked, { force = true, skipToggle = true })
 
@@ -106845,9 +107028,6 @@ MouseButtonFix(TextButton,function()
 end)
 
 -- ownership trail is generated from _sourceTrail in the Contributors settings tab
-
--- remove annoying aged group chat messages
-SpawnCall(function() NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/FixShitChatSystem.lua"); end)
 
 SpawnCall(function()
 	local NAresult = tick() - NAbegin
@@ -109286,6 +109466,15 @@ NAmanage.finalizeLoadingState = NAmanage.finalizeLoadingState or function()
 	if NAStuff._loadingFinalizedOnce == true then
 		return
 	end
+	local st = NAgui and NAgui.SettingsBuildState
+	if NAStuff.SettingsBuildRunning == true or (type(st) == "table" and st.building == true) then
+		NAStuff._loadingFinalizePending = true
+		if NAAssetsLoading and NAAssetsLoading.setStatus then
+			pcall(NAAssetsLoading.setStatus, "building settings")
+		end
+		return
+	end
+	NAStuff._loadingFinalizePending = false
 	NAStuff._loadingFinalizedOnce = true
 	pcall(function()
 		if type(NAmanage.isCommandDataStale) == "function" and NAmanage.isCommandDataStale() then
@@ -109298,23 +109487,8 @@ NAmanage.finalizeLoadingState = NAmanage.finalizeLoadingState or function()
 				pcall(NAgui.loadCMDS, { force = true })
 			end
 		end
-		if NAAssetsLoading and NAAssetsLoading.setStatus and NAAssetsLoading.setPercent and NAAssetsLoading.completed and not NAAssetsLoading._finalized then
-			NAAssetsLoading.setStatus("ready")
-			NAAssetsLoading.setPercent(1)
-			if typeof(NAAssetsLoading.completed) == "Instance" then
-				NAmanage.SetAttr(NAAssetsLoading.completed, "Completed", true)
-			elseif type(NAAssetsLoading.completed) == "table" then
-				NAAssetsLoading.completed.Completed = true
-			end
-			NAAssetsLoading._finalized = true
-			NAAssetsLoading.ui = nil
-			NAAssetsLoading.setStatus = nil
-			NAAssetsLoading.setPercent = nil
-			NAAssetsLoading.completed = nil
-			NAAssetsLoading.getSkip = nil
-			NAAssetsLoading.setMinimizedState = nil
-			NAAssetsLoading.progress = nil
-			NAAssetsLoading.progressPercent = nil
+		if NAmanage.finishLoadingUI then
+			NAmanage.finishLoadingUI("ready")
 		end
 		if NAStuff.AutoPreloadAssets and not NAStuff._assetPreloadQueued then
 			NAStuff._assetPreloadQueued = true
@@ -109335,7 +109509,7 @@ NAmanage.finalizeLoadingState = NAmanage.finalizeLoadingState or function()
 	end)
 end
 
-NAmanage.finalizeLoadingState()
+NAStuff._loadingFinalizePending = true
 NAStuff.SettingsBuildRunning = true
 NAStuff.SettingsBuildReady = false
 NAgui.SettingsBuildState = NAgui.SettingsBuildState or {}
@@ -115407,23 +115581,8 @@ NAmanage.finalizeLoadingState = NAmanage.finalizeLoadingState or function()
 				pcall(NAgui.loadCMDS, { force = true })
 			end
 		end
-		if NAAssetsLoading and NAAssetsLoading.setStatus and NAAssetsLoading.setPercent and NAAssetsLoading.completed and not NAAssetsLoading._finalized then
-			NAAssetsLoading.setStatus("ready")
-			NAAssetsLoading.setPercent(1)
-			if typeof(NAAssetsLoading.completed) == "Instance" then
-				NAmanage.SetAttr(NAAssetsLoading.completed, "Completed", true)
-			elseif type(NAAssetsLoading.completed) == "table" then
-				NAAssetsLoading.completed.Completed = true
-			end
-			NAAssetsLoading._finalized = true
-			NAAssetsLoading.ui = nil
-			NAAssetsLoading.setStatus = nil
-			NAAssetsLoading.setPercent = nil
-			NAAssetsLoading.completed = nil
-			NAAssetsLoading.getSkip = nil
-			NAAssetsLoading.setMinimizedState = nil
-			NAAssetsLoading.progress = nil
-			NAAssetsLoading.progressPercent = nil
+		if NAmanage.finishLoadingUI then
+			NAmanage.finishLoadingUI("ready")
 		end
 		if NAStuff.AutoPreloadAssets and not NAStuff._assetPreloadQueued then
 			NAStuff._assetPreloadQueued = true
@@ -118879,6 +119038,9 @@ end)
 	end
 	NAStuff.SettingsBuildRunning = false
 	NAStuff.SettingsBuildReady = okBuild == true
+	if NAmanage.finalizeLoadingState then
+		pcall(NAmanage.finalizeLoadingState)
+	end
 	if not okBuild then
 		warn(errBuild)
 	end
