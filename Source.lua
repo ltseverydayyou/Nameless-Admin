@@ -39867,6 +39867,309 @@ cmd.add({"commandkeybinds", "cmdkeybinds", "ckeybinds"}, {"commandkeybinds (cmdk
 	NAgui.commandkeybinds()
 end)
 
+NAStuff.NAClientPreviewRig = NAStuff.NAClientPreviewRig or nil
+
+NAmanage.NAClientResolveUserId = NAmanage.NAClientResolveUserId or function(value)
+	local text = tostring(value or "")
+	if text == "" or Lower(text) == "me" or Lower(text) == "local" then
+		return LocalPlayer and LocalPlayer.UserId or nil, LocalPlayer and LocalPlayer.Name or "LocalPlayer"
+	end
+	local num = tonumber(text)
+	if num then
+		return math.floor(num), tostring(math.floor(num))
+	end
+	local targets = getPlr(text)
+	local plr = type(targets) == "table" and targets[1] or nil
+	if plr then
+		return plr.UserId, plr.Name
+	end
+	local ok, uid = pcall(function()
+		return Players:GetUserIdFromNameAsync(text)
+	end)
+	if ok and uid then
+		return uid, text
+	end
+	return nil, text
+end
+
+NAmanage.NAClientGetDescription = NAmanage.NAClientGetDescription or function(kind, value)
+	kind = Lower(tostring(kind or "user"))
+	if kind == "outfit" or kind == "fit" or kind == "o" then
+		local id = tonumber(value)
+		if not id then
+			return nil, "Missing outfit id"
+		end
+		local ok, desc = pcall(function()
+			return Players:GetHumanoidDescriptionFromOutfitIdAsync(math.floor(id))
+		end)
+		if ok and desc then
+			return desc, "Outfit "..math.floor(id)
+		end
+		return nil, tostring(desc)
+	end
+	local uid, label = NAmanage.NAClientResolveUserId(value)
+	if not uid then
+		return nil, "Unable to resolve user"
+	end
+	local ok, desc = pcall(function()
+		return Players:GetHumanoidDescriptionFromUserIdAsync(uid)
+	end)
+	if ok and desc then
+		return desc, label or tostring(uid)
+	end
+	return nil, tostring(desc)
+end
+
+NAmanage.NAClientClearPreview = NAmanage.NAClientClearPreview or function()
+	local rig = NAStuff.NAClientPreviewRig
+	NAStuff.NAClientPreviewRig = nil
+	if typeof(rig) == "Instance" then
+		pcall(function()
+			rig:Destroy()
+		end)
+	end
+end
+
+NAmanage.NAClientPlacePreview = NAmanage.NAClientPlacePreview or function(rig)
+	if typeof(rig) ~= "Instance" then
+		return false
+	end
+	NAmanage.NAClientClearPreview()
+	rig.Name = "NA_LocalAvatarPreview"
+	local cf = CFrame.new(0, 5, 0)
+	local char = getChar()
+	local root = char and getRoot(char)
+	if root then
+		cf = root.CFrame * CFrame.new(0, 0, -7)
+	elseif workspace.CurrentCamera then
+		cf = workspace.CurrentCamera.CFrame * CFrame.new(0, 0, -10)
+	end
+	rig:PivotTo(cf)
+	rig.Parent = workspace
+	NAStuff.NAClientPreviewRig = rig
+	return true
+end
+
+cmd.add({"inspectoutfit", "outfitinspect"}, {"inspectoutfit <user/player/userid|outfit:id>", "Open a user's saved outfits and inspect a selected outfit"}, function(arg)
+	if not arg or arg == "" then
+		DoNotif("Usage: inspectoutfit <user/player/userid|outfit:id>", 3, "InspectOutfit")
+		return
+	end
+
+	local raw = tostring(arg):gsub("^%s+", ""):gsub("%s+$", "")
+
+	local function getDesc(id)
+		id = tonumber(id)
+		if not id or id <= 0 then
+			return nil, "Invalid outfit id"
+		end
+		local ok, res = pcall(function()
+			if type(Players.GetHumanoidDescriptionFromOutfitIdAsync) == "function" then
+				return Players:GetHumanoidDescriptionFromOutfitIdAsync(math.floor(id))
+			end
+			return Players:GetHumanoidDescriptionFromOutfitId(math.floor(id))
+		end)
+		if ok and res then
+			return res, math.floor(id)
+		end
+		return nil, tostring(res)
+	end
+
+	local function inspectDesc(desc, label)
+		if not desc then
+			DoNotif("Missing description", 3, "InspectOutfit")
+			return false
+		end
+		local gui = SafeGetService("GuiService")
+		if not gui then
+			DoNotif("GuiService unavailable", 3, "InspectOutfit")
+			return false
+		end
+		local ok, res = pcall(function()
+			gui:InspectPlayerFromHumanoidDescription(desc, tostring(label or "Outfit"))
+			return true
+		end)
+		if ok then
+			DebugNotif("Inspect outfit: "..tostring(label or "Outfit"))
+			return true
+		end
+		DoNotif("Inspect outfit failed: "..tostring(res), 3, "InspectOutfit")
+		return false
+	end
+
+	local function inspectId(id, name, quiet)
+		local desc, err = getDesc(id)
+		if not desc then
+			if not quiet then
+				DoNotif("Failed to fetch outfit: "..tostring(err), 3, "InspectOutfit")
+			end
+			return false
+		end
+		return inspectDesc(desc, name or ("Outfit #"..tostring(id)))
+	end
+
+	local id = nil
+	if type(NAmanage._resolveExplicitOutfitId) == "function" then
+		id = NAmanage._resolveExplicitOutfitId(raw)
+	end
+	if not id and raw:match("^%d+$") then
+		id = tonumber(raw)
+	end
+	if id and inspectId(id, "Outfit #"..tostring(id), raw:match("^%d+$") ~= nil) then
+		return
+	end
+	if id and not raw:match("^%d+$") then
+		return
+	end
+
+	NAStuff = NAStuff or {}
+	NAStuff._outfitCache = NAStuff._outfitCache or {}
+	NAStuff._httpBackoff = NAStuff._httpBackoff or {}
+	NAStuff._httpCooldown = NAStuff._httpCooldown or {}
+
+	local uid = NAmanage._resolveHumanoidUserId and NAmanage._resolveHumanoidUserId(raw) or nil
+	if not uid then
+		DoNotif("Couldn't resolve user", 3, "InspectOutfit")
+		return
+	end
+
+	local function curBtn()
+		return {Text = Format("Current Avatar  (#%d)", uid), Callback = function()
+			local desc = nil
+			local userId = uid
+			if type(NAmanage._resolveHumanoidDescription) == "function" then
+				desc, userId = NAmanage._resolveHumanoidDescription(tostring(uid))
+			else
+				local ok, res = pcall(function()
+					return Players:GetHumanoidDescriptionFromUserIdAsync(uid)
+				end)
+				if ok then
+					desc = res
+				end
+			end
+			if not desc then
+				DoNotif("Failed to fetch current avatar", 3, "InspectOutfit")
+				return
+			end
+			inspectDesc(desc, Format("Current Avatar #%d", tonumber(userId) or uid))
+		end}
+	end
+
+	local function makeBtn(o)
+		return {Text = Format("%s  (#%d)", tostring(o.name or "Outfit"), tonumber(o.id) or 0), Callback = function()
+			inspectId(o.id, tostring(o.name or ("Outfit #"..tostring(o.id))))
+		end}
+	end
+
+	local function show(list, cache)
+		NAmanage._openOutfitPagedWindow({
+			titlePrefix = "InspectOutfit",
+			arg = raw,
+			uid = uid,
+			outfits = list,
+			cache = cache == true,
+			currentAvatarButton = curBtn,
+			makeOutfitButton = makeBtn,
+		}, 1)
+	end
+
+	local cache = NAStuff._outfitCache[uid]
+	if cache and (time() - cache.t) < 120 and cache.list and #cache.list > 0 then
+		show(cache.list, true)
+		return
+	end
+
+	local list, fail = NAmanage._fetchUserOutfits(uid)
+	if type(list) ~= "table" or #list == 0 then
+		if not fail then
+			DoNotif("No user-created outfits for that user", 2, "InspectOutfit")
+			return
+		end
+		local buttons = {curBtn()}
+		if fail == "cooldown" then
+			local retryAt = math.huge
+			for _, stamp in NAStuff._httpCooldown or {} do
+				if type(stamp) == "number" then
+					retryAt = math.min(retryAt, stamp)
+				end
+			end
+			local left = retryAt < math.huge and math.max(0, retryAt - time()) or 0
+			if left > 0 then
+				DoNotif(Format("Loading outfits… retrying in %.1fs", left), math.max(1.2, left), "InspectOutfit")
+			end
+		elseif fail == "429" or fail == "5xx" then
+			local waitSec = 0
+			for _, stamp in NAStuff._httpCooldown or {} do
+				if type(stamp) == "number" then
+					waitSec = math.max(waitSec, stamp - time())
+				end
+			end
+			waitSec = math.max(waitSec, 1.5)
+			DoNotif(Format("Loading outfits… retrying in %.1fs", waitSec), math.max(1.5, waitSec), "InspectOutfit")
+			return
+		elseif fail then
+			DoNotif(tostring(fail), 3, "InspectOutfit")
+		end
+		Window({Title = Format("InspectOutfit • %s (%d)", raw, uid), Buttons = buttons})
+		return
+	end
+
+	NAStuff._outfitCache[uid] = {t = time(), list = list}
+	show(list, false)
+end, true)
+
+cmd.add({"avatarpreview", "apreview", "clientavatar"}, {"avatarpreview <me/player/userId/outfitId>", "Creates a client-only avatar preview rig"}, function(kind, value)
+	local text = Lower(tostring(kind or "me"))
+	local rig, label
+	if text == "outfit" or text == "fit" or text == "o" then
+		local desc
+		desc, label = NAmanage.NAClientGetDescription("outfit", value)
+		if not desc then
+			DoNotif("Preview failed: "..tostring(label))
+			return
+		end
+		local ok, res = pcall(function()
+			return Players:CreateHumanoidModelFromDescriptionAsync(desc, Enum.HumanoidRigType.R15)
+		end)
+		if ok then
+			rig = res
+		else
+			DoNotif("Preview failed: "..tostring(res))
+			return
+		end
+	else
+		local uid
+		uid, label = NAmanage.NAClientResolveUserId(kind)
+		if not uid then
+			DoNotif("Unable to resolve user.")
+			return
+		end
+		local ok, res = pcall(function()
+			if type(Players.CreateHumanoidModelFromUserIdAsync) == "function" then
+				return Players:CreateHumanoidModelFromUserIdAsync(uid)
+			end
+			local desc = Players:GetHumanoidDescriptionFromUserIdAsync(uid)
+			return Players:CreateHumanoidModelFromDescriptionAsync(desc, Enum.HumanoidRigType.R15)
+		end)
+		if ok then
+			rig = res
+		else
+			DoNotif("Preview failed: "..tostring(res))
+			return
+		end
+	end
+	if NAmanage.NAClientPlacePreview(rig) then
+		DebugNotif("Client avatar preview: "..tostring(label))
+	else
+		DoNotif("Preview rig placement failed.")
+	end
+end, true)
+
+cmd.add({"clearavatarpreview", "unavatarpreview", "capreview"}, {"clearavatarpreview", "Removes the client-only avatar preview rig"}, function()
+	NAmanage.NAClientClearPreview()
+	DebugNotif("Client avatar preview cleared.")
+end)
+
 cmd.add({"waypoints", "wp"},{"waypoints","Open the waypoints menu"},function()
 	NAgui.waypointers()
 end)
@@ -59998,7 +60301,7 @@ cmd.add({"team"},{"team <team name>","Changes your team (for the client)"},funct
 	assignTeam()
 end,true)
 
-cmd.add({"char","character","morph"},{"char <username/userid>","change your character's appearance to someone else's"},function(arg)
+cmd.addPatched({"char","character","morph"},{"char <username/userid>","change your character's appearance to someone else's"},function(arg)
 	local desc,userId=NAmanage._resolveHumanoidDescription(arg)
 	if not desc or not userId then
 		DoNotif("Unable to load that avatar.",3,"Char")
@@ -60014,7 +60317,7 @@ cmd.add({"char","character","morph"},{"char <username/userid>","change your char
 	end)
 end,true)
 
-cmd.add({"unchar"},{"unchar","revert to your character"},function()
+cmd.addPatched({"unchar"},{"unchar","revert to your character"},function()
 	local plr=Players.LocalPlayer
 	if not plr then return end
 	local desc=NAmanage._resolveHumanoidDescription(tostring(plr.UserId))
@@ -60029,7 +60332,7 @@ cmd.add({"unchar"},{"unchar","revert to your character"},function()
 	end)
 end)
 
-cmd.add({"autochar","achar"},{"autochar","auto-change your character on respawn"},function(target)
+cmd.addPatched({"autochar","achar"},{"autochar","auto-change your character on respawn"},function(target)
 	local desc,userId=NAmanage._resolveHumanoidDescription(target)
 	if not desc or not userId then
 		DoNotif("Unable to load that avatar.",3,"Autochar")
@@ -60060,7 +60363,7 @@ cmd.add({"autochar","achar"},{"autochar","auto-change your character on respawn"
 	end)
 end,true)
 
-cmd.add({"unautochar","unachar"},{"unautochar","stop auto-change on respawn"},function()
+cmd.addPatched({"unautochar","unachar"},{"unautochar","stop auto-change on respawn"},function()
 	NAlib.disconnect("autochar")
 	NAStuff.AutoChar=nil
 end)
@@ -60324,7 +60627,7 @@ NAmanage._openOutfitPagedWindow=function(cfg,page)
 	Window({Title=title,Description=desc,Buttons=buttons})
 end
 
-cmd.add({"autooutfit","aoutfit","autooutfitid","aoutfitid","aoid"},{"autooutfit {username/userid|outfit:id}","Auto-apply a selected outfit on respawn"},function(arg)
+cmd.addPatched({"autooutfit","aoutfit","autooutfitid","aoutfitid","aoid"},{"autooutfit {username/userid|outfit:id}","Auto-apply a selected outfit on respawn"},function(arg)
 	if not arg or arg=="" then return end
 	local explicitOutfitId=NAmanage._resolveExplicitOutfitId(arg)
 	if explicitOutfitId then
@@ -60460,7 +60763,7 @@ cmd.add({"unautooutfit","unaoutfit"},{"unautooutfit","stop outfit auto-apply"},f
 	NAlib.disconnect("autooutfit");NAStuff.autoOutfitState=nil;DoNotif("Auto outfit disabled",2,"AutoOutfit")
 end)
 
-cmd.add({"outfit","outfitid","oid"},{"outfit {username/userid|outfit:id}","Open a list of a user's saved outfits or load a specific outfit id"},function(arg)
+cmd.addPatched({"outfit","outfitid","oid"},{"outfit {username/userid|outfit:id}","Open a list of a user's saved outfits or load a specific outfit id"},function(arg)
 	if not arg or arg=="" then return end
 	local explicitOutfitId=NAmanage._resolveExplicitOutfitId(arg)
 	if explicitOutfitId then
