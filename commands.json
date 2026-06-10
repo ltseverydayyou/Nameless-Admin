@@ -684,6 +684,38 @@
       "desc": "Open the command keybinds window"
     },
     {
+      "name": "inspectoutfit",
+      "aliases": [
+        "inspectoutfit",
+        "outfitinspect"
+      ],
+      "usage": "inspectoutfit <user/player/userid|outfit:id>",
+      "args": "<user/player/userid|outfit:id>",
+      "desc": "Open a user's saved outfits and inspect a selected outfit"
+    },
+    {
+      "name": "avatarpreview",
+      "aliases": [
+        "avatarpreview",
+        "apreview",
+        "clientavatar"
+      ],
+      "usage": "avatarpreview <me/player/userId/outfitId>",
+      "args": "<me/player/userId/outfitId>",
+      "desc": "Creates a client-only avatar preview rig"
+    },
+    {
+      "name": "clearavatarpreview",
+      "aliases": [
+        "clearavatarpreview",
+        "unavatarpreview",
+        "capreview"
+      ],
+      "usage": "clearavatarpreview",
+      "args": "",
+      "desc": "Removes the client-only avatar preview rig"
+    },
+    {
       "name": "waypoints",
       "aliases": [
         "waypoints",
@@ -4114,46 +4146,6 @@
       "desc": "Changes your team (for the client)"
     },
     {
-      "name": "char",
-      "aliases": [
-        "char",
-        "character",
-        "morph"
-      ],
-      "usage": "char <username/userid>",
-      "args": "<username/userid>",
-      "desc": "change your character's appearance to someone else's"
-    },
-    {
-      "name": "unchar",
-      "aliases": [
-        "unchar"
-      ],
-      "usage": "unchar",
-      "args": "",
-      "desc": "revert to your character"
-    },
-    {
-      "name": "autochar",
-      "aliases": [
-        "autochar",
-        "achar"
-      ],
-      "usage": "autochar",
-      "args": "",
-      "desc": "auto-change your character on respawn"
-    },
-    {
-      "name": "unautochar",
-      "aliases": [
-        "unautochar",
-        "unachar"
-      ],
-      "usage": "unautochar",
-      "args": "",
-      "desc": "stop auto-change on respawn"
-    },
-    {
       "name": "reselectchar",
       "aliases": [
         "reselectchar",
@@ -4166,19 +4158,6 @@
       "desc": "Re-open the character picker"
     },
     {
-      "name": "autooutfit",
-      "aliases": [
-        "autooutfit",
-        "aoutfit",
-        "autooutfitid",
-        "aoutfitid",
-        "aoid"
-      ],
-      "usage": "",
-      "args": "",
-      "desc": ""
-    },
-    {
       "name": "unautooutfit",
       "aliases": [
         "unautooutfit",
@@ -4187,17 +4166,6 @@
       "usage": "unautooutfit",
       "args": "",
       "desc": "stop outfit auto-apply"
-    },
-    {
-      "name": "outfit",
-      "aliases": [
-        "outfit",
-        "outfitid",
-        "oid"
-      ],
-      "usage": "",
-      "args": "",
-      "desc": ""
     },
     {
       "name": "goto",
@@ -8275,6 +8243,70 @@
       "usage": "gravitygun",
       "args": "",
       "desc": "Probably the best gravity gun script thats fe"
+    },
+    {
+      "name": "char",
+      "aliases": [
+        "char",
+        "character",
+        "morph"
+      ],
+      "usage": "char <username/userid>",
+      "args": "<username/userid>",
+      "desc": "change your character's appearance to someone else's"
+    },
+    {
+      "name": "unchar",
+      "aliases": [
+        "unchar"
+      ],
+      "usage": "unchar",
+      "args": "",
+      "desc": "revert to your character"
+    },
+    {
+      "name": "autochar",
+      "aliases": [
+        "autochar",
+        "achar"
+      ],
+      "usage": "autochar",
+      "args": "",
+      "desc": "auto-change your character on respawn"
+    },
+    {
+      "name": "unautochar",
+      "aliases": [
+        "unautochar",
+        "unachar"
+      ],
+      "usage": "unautochar",
+      "args": "",
+      "desc": "stop auto-change on respawn"
+    },
+    {
+      "name": "autooutfit",
+      "aliases": [
+        "autooutfit",
+        "aoutfit",
+        "autooutfitid",
+        "aoutfitid",
+        "aoid"
+      ],
+      "usage": "",
+      "args": "",
+      "desc": ""
+    },
+    {
+      "name": "outfit",
+      "aliases": [
+        "outfit",
+        "outfitid",
+        "oid"
+      ],
+      "usage": "",
+      "args": "",
+      "desc": ""
     },
     {
       "name": "reserveserver",
