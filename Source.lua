@@ -82264,133 +82264,95 @@ cmd.add({"thirdp","3rdp","thirdperson"},{"thirdperson (3rdp,thirdp)","Makes you 
 end)
 
 NAStuff.loopZoomState = NAStuff.loopZoomState or {}
-NAStuff.loopZoomState.maxDirty = false
-NAStuff.loopZoomState.minDirty = false
 NAStuff.loopZoomState.maxApply = false
 NAStuff.loopZoomState.minApply = false
 
-originalIO.stopLoopZoomWorkerIfIdle=function()
-	local z = NAStuff.loopZoomState
-	if not z or (z.max == nil and z.min == nil) then
-		NAlib.disconnect("loopzoomworker")
-	end
-end
-
-originalIO.ensureLoopZoomWorker=function()
-	if NAlib.isConnected("loopzoomworker") then return end
-	NAlib.connect("loopzoomworker", RunService.Heartbeat:Connect(function()
-		local z = NAStuff.loopZoomState
-		if not z or (z.max == nil and z.min == nil) then
-			NAlib.disconnect("loopzoomworker")
-			return
-		end
-		local p = Players.LocalPlayer
-		if not p then return end
-		if z.max ~= nil and z.maxDirty and not z.maxApply then
-			z.maxDirty = false
-			if p.CameraMaxZoomDistance ~= z.max then
-				z.maxApply = true
-				local ok, err = pcall(function()
-					p.CameraMaxZoomDistance = z.max
-				end)
-				z.maxApply = false
-				if not ok then
-					z.max = nil
-					z.maxDirty = false
-					NAlib.disconnect("loopmaxzoom")
-					DoNotif("Max zoom loop failed: "..tostring(err),3)
-				end
-			end
-		end
-		if z.min ~= nil and z.minDirty and not z.minApply then
-			z.minDirty = false
-			if p.CameraMinZoomDistance ~= z.min then
-				z.minApply = true
-				local ok, err = pcall(function()
-					p.CameraMinZoomDistance = z.min
-				end)
-				z.minApply = false
-				if not ok then
-					z.min = nil
-					z.minDirty = false
-					NAlib.disconnect("loopminzoom")
-					DoNotif("Min zoom loop failed: "..tostring(err),3)
-				end
-			end
-		end
-	end))
-end
-
-originalIO.markLoopMaxZoom=function()
-	local z = NAStuff.loopZoomState
-	if z and z.max ~= nil and not z.maxApply then
-		z.maxDirty = true
-		originalIO.ensureLoopZoomWorker()
-	end
-end
-
-originalIO.markLoopMinZoom=function()
-	local z = NAStuff.loopZoomState
-	if z and z.min ~= nil and not z.minApply then
-		z.minDirty = true
-		originalIO.ensureLoopZoomWorker()
-	end
-end
-
 originalIO.applyLoopMaxZoom=function()
-	originalIO.markLoopMaxZoom()
+	local z = NAStuff.loopZoomState
+	if not z or z.max == nil or z.maxApply then return true end
+	local p = Players.LocalPlayer
+	if not p then return false end
+	if p.CameraMaxZoomDistance ~= z.max then
+		z.maxApply = true
+		local ok, err = pcall(function()
+			p.CameraMaxZoomDistance = z.max
+		end)
+		z.maxApply = false
+		if not ok then
+			z.max = nil
+			NAlib.disconnect("loopmaxzoom")
+			DoNotif("Max zoom loop failed: "..tostring(err),3)
+			return false
+		end
+	end
+	return true
 end
 
 originalIO.applyLoopMinZoom=function()
-	originalIO.markLoopMinZoom()
+	local z = NAStuff.loopZoomState
+	if not z or z.min == nil or z.minApply then return true end
+	local p = Players.LocalPlayer
+	if not p then return false end
+	if p.CameraMinZoomDistance ~= z.min then
+		z.minApply = true
+		local ok, err = pcall(function()
+			p.CameraMinZoomDistance = z.min
+		end)
+		z.minApply = false
+		if not ok then
+			z.min = nil
+			NAlib.disconnect("loopminzoom")
+			DoNotif("Min zoom loop failed: "..tostring(err),3)
+			return false
+		end
+	end
+	return true
 end
 
 originalIO.startLoopMaxZoom=function(num)
 	NAStuff.loopZoomState = NAStuff.loopZoomState or {}
 	NAStuff.loopZoomState.max = num
-	NAStuff.loopZoomState.maxDirty = true
 	NAStuff.loopZoomState.maxApply = false
 	NAlib.disconnect("loopmaxzoom")
 	local p = Players.LocalPlayer
 	if p then
-		NAlib.connect("loopmaxzoom", p:GetPropertyChangedSignal("CameraMaxZoomDistance"):Connect(originalIO.markLoopMaxZoom))
+		if not originalIO.applyLoopMaxZoom() then return end
+		if NAStuff.loopZoomState.max ~= nil then
+			NAlib.connect("loopmaxzoom", p:GetPropertyChangedSignal("CameraMaxZoomDistance"):Connect(originalIO.applyLoopMaxZoom))
+		end
 	end
-	originalIO.ensureLoopZoomWorker()
 	DoNotif("Max zoom loop set to "..tostring(num),2)
 end
 
 originalIO.startLoopMinZoom=function(num)
 	NAStuff.loopZoomState = NAStuff.loopZoomState or {}
 	NAStuff.loopZoomState.min = num
-	NAStuff.loopZoomState.minDirty = true
 	NAStuff.loopZoomState.minApply = false
 	NAlib.disconnect("loopminzoom")
 	local p = Players.LocalPlayer
 	if p then
-		NAlib.connect("loopminzoom", p:GetPropertyChangedSignal("CameraMinZoomDistance"):Connect(originalIO.markLoopMinZoom))
+		if not originalIO.applyLoopMinZoom() then return end
+		if NAStuff.loopZoomState.min ~= nil then
+			NAlib.connect("loopminzoom", p:GetPropertyChangedSignal("CameraMinZoomDistance"):Connect(originalIO.applyLoopMinZoom))
+		end
 	end
-	originalIO.ensureLoopZoomWorker()
 	DoNotif("Min zoom loop set to "..tostring(num),2)
 end
 
 originalIO.stopLoopMaxZoom=function()
 	if NAStuff.loopZoomState then
 		NAStuff.loopZoomState.max = nil
-		NAStuff.loopZoomState.maxDirty = false
 		NAStuff.loopZoomState.maxApply = false
 	end
 	NAlib.disconnect("loopmaxzoom")
-	originalIO.stopLoopZoomWorkerIfIdle()
 end
 
 originalIO.stopLoopMinZoom=function()
 	if NAStuff.loopZoomState then
 		NAStuff.loopZoomState.min = nil
-		NAStuff.loopZoomState.minDirty = false
 		NAStuff.loopZoomState.minApply = false
 	end
 	NAlib.disconnect("loopminzoom")
-	originalIO.stopLoopZoomWorkerIfIdle()
 end
 
 cmd.add({"maxzoom"},{"maxzoom <amount>","Set your maximum camera distance"},function(num)
