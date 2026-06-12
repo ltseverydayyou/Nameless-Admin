@@ -6178,6 +6178,18 @@ NAmanage.GetJumpLaunchVelocity = function(hum)
 	return jumpPower
 end
 
+NAmanage.GetJumpHeightFromJumpPower = function(jumpPower)
+	local power = tonumber(jumpPower)
+	if not power then return nil end
+
+	local gravity = tonumber(workspace.Gravity) or 196.2
+	if gravity <= 0 then
+		gravity = 196.2
+	end
+
+	return (power * power) / (2 * gravity)
+end
+
 NAmanage.PrepareHumanoidForLaunch = function(hum)
 	if not hum then return end
 
@@ -39952,7 +39964,7 @@ end)
 
 NAStuff.NAClientPreviewRig = NAStuff.NAClientPreviewRig or nil
 
-NAmanage.NAClientResolveUserId = NAmanage.NAClientResolveUserId or function(value)
+NAmanage.NAClientResolveUserId = function(value)
 	local text = tostring(value or "")
 	if text == "" or Lower(text) == "me" or Lower(text) == "local" then
 		return LocalPlayer and LocalPlayer.UserId or nil, LocalPlayer and LocalPlayer.Name or "LocalPlayer"
@@ -39972,10 +39984,16 @@ NAmanage.NAClientResolveUserId = NAmanage.NAClientResolveUserId or function(valu
 	if ok and uid then
 		return uid, text
 	end
+	if type(NAmanage._resolveHumanoidUserId) == "function" then
+		uid = NAmanage._resolveHumanoidUserId(text)
+		if uid then
+			return uid, text
+		end
+	end
 	return nil, text
 end
 
-NAmanage.NAClientGetDescription = NAmanage.NAClientGetDescription or function(kind, value)
+NAmanage.NAClientGetDescription = function(kind, value)
 	kind = Lower(tostring(kind or "user"))
 	if kind == "outfit" or kind == "fit" or kind == "o" then
 		local id = tonumber(value)
@@ -39994,6 +40012,12 @@ NAmanage.NAClientGetDescription = NAmanage.NAClientGetDescription or function(ki
 	if not uid then
 		return nil, "Unable to resolve user"
 	end
+	if type(NAmanage._resolveHumanoidDescription) == "function" then
+		local desc, resolvedUserId = NAmanage._resolveHumanoidDescription(tostring(uid))
+		if desc then
+			return desc, label or tostring(resolvedUserId or uid)
+		end
+	end
 	local ok, desc = pcall(function()
 		return Players:GetHumanoidDescriptionFromUserIdAsync(uid)
 	end)
@@ -40001,6 +40025,22 @@ NAmanage.NAClientGetDescription = NAmanage.NAClientGetDescription or function(ki
 		return desc, label or tostring(uid)
 	end
 	return nil, tostring(desc)
+end
+
+NAmanage.NAClientCreateRigFromDescription = function(desc)
+	if not desc then
+		return nil, "Missing description"
+	end
+	local ok, rig = pcall(function()
+		if type(Players.CreateHumanoidModelFromDescriptionAsync) == "function" then
+			return Players:CreateHumanoidModelFromDescriptionAsync(desc, Enum.HumanoidRigType.R15)
+		end
+		return Players:CreateHumanoidModelFromDescription(desc, Enum.HumanoidRigType.R15)
+	end)
+	if ok and rig then
+		return rig
+	end
+	return nil, rig
 end
 
 NAmanage.NAClientClearPreview = NAmanage.NAClientClearPreview or function()
@@ -40018,7 +40058,7 @@ NAmanage.NAClientPlacePreview = NAmanage.NAClientPlacePreview or function(rig)
 		return false
 	end
 	NAmanage.NAClientClearPreview()
-	rig.Name = "NA_LocalAvatarPreview"
+	rig.Name = "\0"
 	local cf = CFrame.new(0, 5, 0)
 	local char = getChar()
 	local root = char and getRoot(char)
@@ -40211,32 +40251,22 @@ cmd.add({"avatarpreview", "apreview", "clientavatar"}, {"avatarpreview <me/playe
 			DoNotif("Preview failed: "..tostring(label))
 			return
 		end
-		local ok, res = pcall(function()
-			return Players:CreateHumanoidModelFromDescriptionAsync(desc, Enum.HumanoidRigType.R15)
-		end)
-		if ok then
-			rig = res
-		else
+		local res
+		rig, res = NAmanage.NAClientCreateRigFromDescription(desc)
+		if not rig then
 			DoNotif("Preview failed: "..tostring(res))
 			return
 		end
 	else
-		local uid
-		uid, label = NAmanage.NAClientResolveUserId(kind)
-		if not uid then
-			DoNotif("Unable to resolve user.")
+		local desc
+		desc, label = NAmanage.NAClientGetDescription("user", kind)
+		if not desc then
+			DoNotif("Preview failed: "..tostring(label))
 			return
 		end
-		local ok, res = pcall(function()
-			if type(Players.CreateHumanoidModelFromUserIdAsync) == "function" then
-				return Players:CreateHumanoidModelFromUserIdAsync(uid)
-			end
-			local desc = Players:GetHumanoidDescriptionFromUserIdAsync(uid)
-			return Players:CreateHumanoidModelFromDescriptionAsync(desc, Enum.HumanoidRigType.R15)
-		end)
-		if ok then
-			rig = res
-		else
+		local res
+		rig, res = NAmanage.NAClientCreateRigFromDescription(desc)
+		if not rig then
 			DoNotif("Preview failed: "..tostring(res))
 			return
 		end
@@ -66378,27 +66408,36 @@ cmd.add({"loopjumppower", "loopjp", "ljp"}, {"loopjumppower <number> (loopjp,ljp
 	NAStuff.loopjp = true
 
 	NAlib.disconnect("loopjp_apply")
+	NAlib.disconnect("loopjp_mode")
 	NAlib.disconnect("loopjp_char")
 
 	local function applyJP()
 		local hum = getHum()
 		if not hum then return end
 
-		if hum.UseJumpPower then
-			hum.JumpPower = val
-			NAlib.connect("loopjp_apply", hum:GetPropertyChangedSignal("JumpPower"):Connect(function()
-				if NAStuff.loopjp and hum.JumpPower ~= val then
+		NAlib.disconnect("loopjp_apply")
+		NAlib.disconnect("loopjp_mode")
+
+		local function syncJumpValue()
+			if not NAStuff.loopjp or not hum.Parent then return end
+
+			if hum.UseJumpPower then
+				if hum.JumpPower ~= val then
 					hum.JumpPower = val
 				end
-			end))
-		else
-			hum.JumpHeight = val
-			NAlib.connect("loopjp_apply", hum:GetPropertyChangedSignal("JumpHeight"):Connect(function()
-				if NAStuff.loopjp and hum.JumpHeight ~= val then
-					hum.JumpHeight = val
+			else
+				local jumpHeight = NAmanage.GetJumpHeightFromJumpPower(val) or val
+				if hum.JumpHeight ~= jumpHeight then
+					hum.JumpHeight = jumpHeight
 				end
-			end))
+			end
 		end
+
+		syncJumpValue()
+
+		NAlib.connect("loopjp_apply", hum:GetPropertyChangedSignal("JumpPower"):Connect(syncJumpValue))
+		NAlib.connect("loopjp_apply", hum:GetPropertyChangedSignal("JumpHeight"):Connect(syncJumpValue))
+		NAlib.connect("loopjp_mode", hum:GetPropertyChangedSignal("UseJumpPower"):Connect(syncJumpValue))
 	end
 
 	applyJP()
@@ -66412,6 +66451,7 @@ end, true)
 cmd.add({"unloopjumppower", "unloopjp", "unljp"}, {"unloopjumppower (unloopjp,unljp)", "Disable loop jump power"}, function()
 	NAStuff.loopjp = false
 	NAlib.disconnect("loopjp_apply")
+	NAlib.disconnect("loopjp_mode")
 	NAlib.disconnect("loopjp_char")
 end)
 
@@ -73091,18 +73131,65 @@ cmd.add({"breakvelocity","breakv","bvel","zvel","zerovel","stopvel","brkvel"},{"
 	until time()>=stopAt or not char.Parent
 end)
 
-cmd.add({"maxslopeangle", "msa"}, {"maxslopeangle (msa)", "Changes your character's MaxSlopeAngle"}, function(...)
-	local args = {...}
-	local amount = tonumber(args[1]) or 89
+_na_env.NamelessMaxSlopeAngle = nil
+NAStuff.loopmsa = false
 
+local function applyMaxSlopeAngle(amount, notify)
 	local humanoid = getHum()
 	if humanoid then
 		humanoid.MaxSlopeAngle = amount
-		DebugNotif(Format("Set MaxSlopeAngle to %s", tostring(amount)), 2)
-	else
+		if notify then
+			DebugNotif(Format("Set MaxSlopeAngle to %s", tostring(amount)), 2)
+		end
+		return humanoid
+	end
+	if notify then
 		DebugNotif("Humanoid not found or invalid.", 2)
 	end
+	return nil
+end
+
+cmd.add({"maxslopeangle", "msa"}, {"maxslopeangle <number> (msa)", "Changes your character's MaxSlopeAngle"}, function(...)
+	local args = {...}
+	local amount = tonumber(args[1]) or 89
+	applyMaxSlopeAngle(amount, true)
 end,true)
+
+cmd.add({"loopmaxslopeangle", "loopmsa", "lmsa"}, {"loopmaxslopeangle <number> (loopmsa,lmsa)", "Loop MaxSlopeAngle"}, function(...)
+	local args = {...}
+	local amount = tonumber(args[1]) or 89
+	_na_env.NamelessMaxSlopeAngle = amount
+	NAStuff.loopmsa = true
+
+	NAlib.disconnect("loopmsa_apply")
+	NAlib.disconnect("loopmsa_char")
+
+	local function applyMSA()
+		local humanoid = applyMaxSlopeAngle(amount)
+		if not humanoid then return end
+
+		NAlib.disconnect("loopmsa_apply")
+		NAlib.connect("loopmsa_apply", humanoid:GetPropertyChangedSignal("MaxSlopeAngle"):Connect(function()
+			if NAStuff.loopmsa and humanoid.Parent and humanoid.MaxSlopeAngle ~= amount then
+				humanoid.MaxSlopeAngle = amount
+			end
+		end))
+	end
+
+	applyMSA()
+
+	NAlib.connect("loopmsa_char", LocalPlayer.CharacterAdded:Connect(function()
+		while not getHum() do Wait(.1) end
+		if NAStuff.loopmsa then applyMSA() end
+	end))
+end,true)
+
+cmd.add({"unloopmaxslopeangle", "unloopmsa", "unlmsa"}, {"unloopmaxslopeangle (unloopmsa,unlmsa)", "Disable loop MaxSlopeAngle"}, function()
+	NAStuff.loopmsa = false
+	_na_env.NamelessMaxSlopeAngle = nil
+	NAlib.disconnect("loopmsa_apply")
+	NAlib.disconnect("loopmsa_char")
+end)
 
 -- garbage that needs to be changed to something else
 
@@ -83422,7 +83509,7 @@ cmd.add({"jp", "jumppower"}, {"jumppower <number> (jp)", "Sets your JumpPower"},
 		if h.UseJumpPower then
 			h.JumpPower = j
 		else
-			h.JumpHeight = j
+			h.JumpHeight = NAmanage.GetJumpHeightFromJumpPower(j) or j
 		end
 	end
 end, true)
