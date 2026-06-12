@@ -65446,6 +65446,232 @@ cmd.add({"unloopjump","unbhop"},{"unloopjump (unbhop)","Stop continuous jumping.
 	NAlib.disconnect("loopjump")
 end)
 
+NAStuff.jb = NAStuff.jb or {}
+NAStuff.jb.on = NAStuff.jb.on == true
+NAStuff.jb.amt = tonumber(NAStuff.jb.amt) or 0
+NAStuff.jb.req = 0
+NAStuff.jb.ground = false
+NAStuff.jb.ready = false
+NAStuff.jb.busy = false
+NAStuff.jb.seq = tonumber(NAStuff.jb.seq) or 0
+
+NAmanage.JBVel = function(rt)
+	if not rt then return nil end
+	local ok, v = pcall(function()
+		return rt.AssemblyLinearVelocity
+	end)
+	if ok and typeof(v) == "Vector3" then
+		return v
+	end
+	ok, v = pcall(function()
+		return rt.Velocity
+	end)
+	if ok and typeof(v) == "Vector3" then
+		return v
+	end
+	return nil
+end
+
+NAmanage.JBSet = function(rt, v)
+	if not rt or typeof(v) ~= "Vector3" then return false end
+	local ok = NAlib.setProperty and NAlib.setProperty(rt, "AssemblyLinearVelocity", v)
+	if ok then return true end
+	ok = pcall(function()
+		rt.AssemblyLinearVelocity = v
+	end)
+	if ok then return true end
+	return pcall(function()
+		rt.Velocity = v
+	end)
+end
+
+NAmanage.JBAlive = function()
+	local c = getChar()
+	local h = c and getHum(c) or getHum()
+	local r = c and getRoot(c)
+	if not h or not r or h.Health <= 0 then return nil end
+	return c, h, r
+end
+
+NAmanage.JBGround = function(h)
+	if not h then return false end
+	local ok, st = pcall(function()
+		return h:GetState()
+	end)
+	if not ok or st == Enum.HumanoidStateType.Freefall then
+		return false
+	end
+	local ok2, fl = pcall(function()
+		return h.FloorMaterial
+	end)
+	return ok2 and fl ~= Enum.Material.Air
+end
+
+NAmanage.JBApply = function(h, r)
+	local st = NAStuff.jb
+	if type(st) ~= "table" or not st.on or not st.ready or st.busy then return end
+
+	local n = tonumber(st.amt) or 0
+	if n == 0 then return end
+
+	if not h or not r then
+		local _, h2, r2 = NAmanage.JBAlive()
+		h = h or h2
+		r = r or r2
+	end
+	if not h or not r or h.Health <= 0 then return end
+
+	st.ready = false
+	st.busy = true
+	st.seq = (tonumber(st.seq) or 0) + 1
+
+	local seq = st.seq
+	local base = 0
+	pcall(function()
+		base = tonumber(NAmanage.GetJumpLaunchVelocity(h)) or 0
+	end)
+
+	NAmanage.LaunchHumanoid(h, r)
+
+	local target = base + n
+	local function set()
+		local _, h2, r2 = NAmanage.JBAlive()
+		if not h2 or not r2 or h2.Health <= 0 then return false end
+		local v = NAmanage.JBVel(r2)
+		if not v then return false end
+		if v.Y < target then
+			NAmanage.JBSet(r2, Vector3.new(v.X, target, v.Z))
+		end
+		return true
+	end
+
+	set()
+
+	Spawn(function()
+		for i = 1, 3 do
+			RunService.RenderStepped:Wait()
+			local st2 = NAStuff.jb
+			if type(st2) ~= "table" or not st2.on or st2.seq ~= seq then return end
+			set()
+		end
+	end)
+end
+
+NAmanage.JBStep = function()
+	local st = NAStuff.jb
+	if type(st) ~= "table" or not st.on then return end
+
+	local _, h, r = NAmanage.JBAlive()
+	if not h or not r then return end
+
+	local g = NAmanage.JBGround(h)
+	if g then
+		if not st.ground then
+			st.ready = true
+			st.busy = false
+		end
+		st.ground = true
+
+		local now = tick()
+		local want = h.Jump == true or now - (tonumber(st.req) or 0) <= 0.18
+		if want and st.ready then
+			NAmanage.JBApply(h, r)
+		end
+	else
+		st.ground = false
+	end
+end
+
+NAmanage.JBHook = function()
+	NAlib.disconnect("jumpboost")
+	NAlib.disconnect("jumpboost_input")
+	NAlib.disconnect("jumpboost_char")
+
+	local st = NAStuff.jb
+	if type(st) ~= "table" or not st.on then return end
+
+	st.ground = false
+	st.ready = false
+	st.busy = false
+	st.seq = (tonumber(st.seq) or 0) + 1
+
+	if UserInputService and UserInputService.JumpRequest then
+		NAlib.connect("jumpboost_input", UserInputService.JumpRequest:Connect(function()
+			local st2 = NAStuff.jb
+			if type(st2) == "table" and st2.on then
+				st2.req = tick()
+			end
+		end))
+	end
+
+	NAlib.connect("jumpboost", RunService.RenderStepped:Connect(function()
+		NACaller(NAmanage.JBStep)
+	end))
+
+	local lp = Players.LocalPlayer
+	if lp then
+		NAlib.connect("jumpboost_char", lp.CharacterAdded:Connect(function()
+			local st2 = NAStuff.jb
+			if type(st2) == "table" then
+				st2.ground = false
+				st2.ready = false
+				st2.busy = false
+				st2.seq = (tonumber(st2.seq) or 0) + 1
+			end
+		end))
+	end
+end
+
+cmd.add({"jumpboost","jboost"},{"jumpboost <number> (jboost)","Adds extra jump velocity without changing JumpPower"},function(...)
+	local a = {...}
+	local n = math.clamp(tonumber(a[1]) or 1, -500, 500)
+
+	NAStuff.jb = NAStuff.jb or {}
+	NAStuff.jb.on = n ~= 0
+	NAStuff.jb.amt = n
+	NAStuff.jb.req = 0
+	NAStuff.jb.ground = false
+	NAStuff.jb.ready = false
+	NAStuff.jb.busy = false
+	NAStuff.jb.seq = (tonumber(NAStuff.jb.seq) or 0) + 1
+
+	NAlib.disconnect("jumpboost")
+	NAlib.disconnect("jumpboost_input")
+	NAlib.disconnect("jumpboost_char")
+	NAlib.disconnect("jumpboost_jump")
+	NAlib.disconnect("jumpboost_state")
+	NAlib.disconnect("jumpboost_step")
+
+	if n == 0 then
+		DoNotif("JumpBoost off", 2)
+		return
+	end
+
+	NAmanage.JBHook()
+	DoNotif("JumpBoost +"..tostring(n), 2)
+end, true)
+
+cmd.add({"unjumpboost","unjboost"},{"unjumpboost (unjboost)","Disables extra jump boost"},function()
+	if type(NAStuff.jb) == "table" then
+		NAStuff.jb.on = false
+		NAStuff.jb.amt = 0
+		NAStuff.jb.req = 0
+		NAStuff.jb.ground = false
+		NAStuff.jb.ready = false
+		NAStuff.jb.busy = false
+		NAStuff.jb.seq = (tonumber(NAStuff.jb.seq) or 0) + 1
+	end
+
+	NAlib.disconnect("jumpboost")
+	NAlib.disconnect("jumpboost_input")
+	NAlib.disconnect("jumpboost_char")
+	NAlib.disconnect("jumpboost_jump")
+	NAlib.disconnect("jumpboost_state")
+	NAlib.disconnect("jumpboost_step")
+
+	DoNotif("JumpBoost off", 2)
+end)
+
 cmd.add({"trussjump","tj","trussj"},{"trussjump","Boost off trusses when you jump"},function() -- totally didn't stole this idea from FE2 lmao
 	NAlib.disconnect("trussjump_spawn") NAlib.disconnect("trussjump_jump")
 	local function hook()
@@ -87605,6 +87831,545 @@ cmd.add({"unname"}, {"unname", "Resets the admin UI placeholder name to default"
 	if NAUIMANAGER.cmdInput and NAUIMANAGER.cmdInput.PlaceholderText then
 		NAUIMANAGER.cmdInput.PlaceholderText = isAprilFools() and '🤡 '..adminName..curVer..' 🤡' or NAmanage.getSeasonEmoji()..' '..adminName..curVer..' '..NAmanage.getSeasonEmoji()
 	end
+end)
+
+NAStuff._selectedCommandAddons = NAStuff._selectedCommandAddons or {}
+NAStuff._selectedCommandAddons.specificTools = NAStuff._selectedCommandAddons.specificTools or {}
+NAStuff._selectedCommandAddons.frozenParts = NAStuff._selectedCommandAddons.frozenParts or {}
+NAStuff._selectedCommandAddons.propChanged = NAStuff._selectedCommandAddons.propChanged or {}
+
+NAmanage.ResolveInstPath = NAmanage.ResolveInstPath or function(path)
+	if typeof(path) == "Instance" then
+		return path
+	end
+	local text = tostring(path or "")
+	text = text:gsub("^%s+", ""):gsub("%s+$", "")
+	if text == "" then
+		return nil
+	end
+	local tokens = {}
+	for part in text:gmatch("[^%.]+") do
+		part = part:gsub("^%s+", ""):gsub("%s+$", "")
+		if part ~= "" then
+			tokens[#tokens + 1] = part
+		end
+	end
+	if #tokens == 0 then
+		return nil
+	end
+	local first = tokens[1]
+	local current
+	local startIndex = 2
+	local lowFirst = Lower(first)
+	if lowFirst == "game" then
+		current = game
+	elseif lowFirst == "workspace" then
+		current = workspace
+	elseif lowFirst == "player" or lowFirst == "localplayer" or lowFirst == "me" then
+		current = Players and Players.LocalPlayer or nil
+	elseif lowFirst == "character" or lowFirst == "char" then
+		local lp = Players and Players.LocalPlayer
+		current = lp and lp.Character or nil
+	elseif lowFirst == "playergui" then
+		local lp = Players and Players.LocalPlayer
+		current = lp and lp:FindFirstChildOfClass("PlayerGui") or nil
+	elseif lowFirst == "backpack" then
+		local lp = Players and Players.LocalPlayer
+		current = lp and lp:FindFirstChildOfClass("Backpack") or nil
+	else
+		current = game:FindFirstChild(first) or workspace:FindFirstChild(first)
+		startIndex = 2
+	end
+	if not current then
+		return nil
+	end
+	for i = startIndex, #tokens do
+		local name = tokens[i]
+		local nextObj
+		pcall(function()
+			nextObj = current:FindFirstChild(name)
+		end)
+		if not nextObj then
+			local ok, val = pcall(function()
+				return current[name]
+			end)
+			if ok then
+				nextObj = val
+			end
+		end
+		current = nextObj
+		if not current then
+			return nil
+		end
+	end
+	return current
+end
+
+
+NAmanage.DeleteGuiAtPosition = NAmanage.DeleteGuiAtPosition or function(x, y)
+	x = tonumber(x)
+	y = tonumber(y)
+	if not x or not y then
+		return 0
+	end
+	local lp = Players and Players.LocalPlayer
+	local roots = {}
+	local pg = lp and lp:FindFirstChildOfClass("PlayerGui")
+	if pg then roots[#roots + 1] = pg end
+	if COREGUI then roots[#roots + 1] = COREGUI end
+	local hui
+	pcall(function()
+		hui = NAlib.huiGrabber and NAlib.huiGrabber()
+	end)
+	if hui and hui ~= pg and hui ~= COREGUI then
+		roots[#roots + 1] = hui
+	end
+	local seen = {}
+	local list = {}
+	for _, root in roots do
+		local ok, guis = pcall(function()
+			return root:GetGuiObjectsAtPosition(x, y)
+		end)
+		if ok and type(guis) == "table" then
+			for _, gui in guis do
+				if typeof(gui) == "Instance" and not seen[gui] then
+					seen[gui] = true
+					list[#list + 1] = gui
+				end
+			end
+		end
+	end
+	table.sort(list, function(a, b)
+		local za, zb = 0, 0
+		pcall(function() za = a.AbsoluteSize.X * a.AbsoluteSize.Y end)
+		pcall(function() zb = b.AbsoluteSize.X * b.AbsoluteSize.Y end)
+		return za < zb
+	end)
+	for _, gui in list do
+		if gui and gui.Parent and gui:IsA("GuiObject") then
+			local target = gui
+			while target.Parent and target.Parent:IsA("GuiObject") and target.Parent:IsA("GuiButton") == false do
+				target = target.Parent
+			end
+			pcall(function()
+				target:Destroy()
+			end)
+			return 1
+		end
+	end
+	return 0
+end
+
+NAmanage.RemoveToolInst = NAmanage.RemoveToolInst or function(tool)
+	if typeof(tool) ~= "Instance" then
+		return false
+	end
+	if tool:IsA("Tool") or tool:IsA("HopperBin") then
+		pcall(function()
+			tool:Destroy()
+		end)
+		return true
+	end
+	return false
+end
+
+NAmanage.RemoveHeldTools = NAmanage.RemoveHeldTools or function()
+	local char = getChar()
+	local count = 0
+	if not char then
+		return 0
+	end
+	for _, item in char:GetChildren() do
+		if NAmanage.RemoveToolInst(item) then
+			count += 1
+		end
+	end
+	return count
+end
+
+NAmanage.RemoveSpecificToolNow = NAmanage.RemoveSpecificToolNow or function(toolName)
+	local wanted = Lower(tostring(toolName or ""))
+	if wanted == "" then
+		return 0
+	end
+	local char = getChar()
+	local bp = getBp()
+	local roots = { bp, char }
+	local count = 0
+	for _, root in roots do
+		if root then
+			for _, item in root:GetChildren() do
+				if (item:IsA("Tool") or item:IsA("HopperBin")) and Lower(item.Name) == wanted then
+					if NAmanage.RemoveToolInst(item) then
+						count += 1
+					end
+				end
+			end
+		end
+	end
+	return count
+end
+
+NAmanage.StartSpecificToolRemoval = NAmanage.StartSpecificToolRemoval or function(toolName)
+	local wanted = Lower(tostring(toolName or ""))
+	if wanted == "" then
+		return false, "Tool name is required."
+	end
+	local st = NAStuff._selectedCommandAddons
+	local old = st.specificTools[wanted]
+	if old and old.conn then
+		NAmanage.tryDisconnect(old.conn)
+	end
+	local function sweep()
+		NAmanage.RemoveSpecificToolNow(wanted)
+	end
+	sweep()
+	local conn = RunService.Heartbeat:Connect(sweep)
+	st.specificTools[wanted] = { conn = conn, name = wanted }
+	return true, wanted
+end
+
+NAmanage.StopSpecificToolRemoval = NAmanage.StopSpecificToolRemoval or function(toolName)
+	local wanted = Lower(tostring(toolName or ""))
+	local st = NAStuff._selectedCommandAddons
+	if wanted == "" then
+		return false, "Tool name is required."
+	end
+	local rec = st.specificTools[wanted]
+	if not rec then
+		return false, "No removal loop for "..wanted
+	end
+	NAmanage.tryDisconnect(rec.conn)
+	st.specificTools[wanted] = nil
+	return true, wanted
+end
+
+NAmanage.ClearSpecificToolRemoval = NAmanage.ClearSpecificToolRemoval or function()
+	local st = NAStuff._selectedCommandAddons
+	local count = 0
+	for key, rec in st.specificTools do
+		if rec and rec.conn then
+			NAmanage.tryDisconnect(rec.conn)
+		end
+		st.specificTools[key] = nil
+		count += 1
+	end
+	return count
+end
+
+NAmanage.ShouldFreezePart = NAmanage.ShouldFreezePart or function(part)
+	if typeof(part) ~= "Instance" or not part:IsA("BasePart") or part.Anchored then
+		return false
+	end
+	local char = getChar()
+	if char and part:IsDescendantOf(char) then
+		return false
+	end
+	local n = part.Name
+	if n == "HumanoidRootPart" or n == "Head" or n == "Torso" or n == "UpperTorso" or n == "LowerTorso" or n == "Right Arm" or n == "Left Arm" or n == "Right Leg" or n == "Left Leg" or n:find("Upper") or n:find("Lower") or n:find("Hand") or n:find("Foot") then
+		local model = part:FindFirstAncestorOfClass("Model")
+		if model and model:FindFirstChildOfClass("Humanoid") then
+			return false
+		end
+	end
+	return true
+end
+
+NAmanage.FreezeUnanchoredPart = NAmanage.FreezeUnanchoredPart or function(part)
+	if not NAmanage.ShouldFreezePart(part) then
+		return false
+	end
+	local st = NAStuff._selectedCommandAddons
+	if st.frozenParts[part] then
+		return false
+	end
+	local rec = {}
+	rec.bp = InstanceNew("BodyPosition")
+	rec.bg = InstanceNew("BodyGyro")
+	rec.bp.Position = part.Position
+	rec.bp.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+	rec.bp.P = 50000
+	rec.bg.CFrame = part.CFrame
+	rec.bg.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+	rec.bg.P = 50000
+	rec.bp.Parent = part
+	rec.bg.Parent = part
+	st.frozenParts[part] = rec
+	return true
+end
+
+NAmanage.ThawUnanchored = NAmanage.ThawUnanchored or function()
+	local st = NAStuff._selectedCommandAddons
+	NAlib.disconnect("freeze_unanchored_added")
+	local count = 0
+	for part, rec in st.frozenParts do
+		if rec then
+			NAmanage.tryDisconnect(rec.conn)
+			if rec.bp then pcall(function() rec.bp:Destroy() end) end
+			if rec.bg then pcall(function() rec.bg:Destroy() end) end
+		end
+		st.frozenParts[part] = nil
+		count += 1
+	end
+	return count
+end
+
+NAmanage.FreezeUnanchored = NAmanage.FreezeUnanchored or function()
+	local count = 0
+	for _, inst in workspace:GetDescendants() do
+		if NAmanage.FreezeUnanchoredPart(inst) then
+			count += 1
+		end
+	end
+	NAlib.disconnect("freeze_unanchored_added")
+	NAlib.connect("freeze_unanchored_added", workspace.DescendantAdded:Connect(function(inst)
+		if NAmanage.FreezeUnanchoredPart(inst) then
+			DebugNotif("Froze new unanchored part: "..inst.Name, 1)
+		end
+	end))
+	return count
+end
+
+cmd.add({"autorespawn", "autore", "arespawn"}, {"autorespawn (autore,arespawn)", "Teleports you back to your death position after respawn"}, function()
+	NAlib.disconnect("auto_respawn")
+	local st = NAStuff._selectedCommandAddons
+	st.autoRespawn = true
+	local function bind(char)
+		if not st.autoRespawn or not char then return end
+		local hum = getHum(char, 5)
+		local root = getRoot(char) or char:WaitForChild("HumanoidRootPart", 5)
+		if not hum or not root then return end
+		NAlib.connect("auto_respawn", hum.Died:Connect(function()
+			local ch = getChar()
+			local r = ch and getRoot(ch)
+			st.autoRespawnCFrame = r and r.CFrame or root.CFrame
+		end))
+	end
+	local lp = Players and Players.LocalPlayer
+	if lp then
+		bind(lp.Character)
+		NAlib.connect("auto_respawn", lp.CharacterAdded:Connect(function(char)
+			local cf = st.autoRespawnCFrame
+			bind(char)
+			if cf then
+				local root = getRoot(char) or char:WaitForChild("HumanoidRootPart", 8)
+				if root then
+					for _ = 1, 8 do
+						root.CFrame = cf
+						Wait(0.08)
+					end
+				end
+			end
+		end))
+	end
+	DebugNotif("AutoRespawn enabled", 2)
+end)
+
+cmd.add({"unautorespawn", "unautore", "unarespawn"}, {"unautorespawn (unautore,unarespawn)", "Stops AutoRespawn"}, function()
+	NAStuff._selectedCommandAddons.autoRespawn = false
+	NAStuff._selectedCommandAddons.autoRespawnCFrame = nil
+	NAlib.disconnect("auto_respawn")
+	DebugNotif("AutoRespawn disabled", 2)
+end)
+
+cmd.add({"guidelete", "gdel", "guidel"}, {"guidelete (gdel,guidel)", "Deletes GUI under mouse with Backspace/Delete, or under tap on mobile"}, function()
+	NAlib.disconnect("gui_delete")
+	NAlib.connect("gui_delete", UserInputService.InputBegan:Connect(function(input, gp)
+		if gp or not input then return end
+		if input.KeyCode == Enum.KeyCode.Backspace or input.KeyCode == Enum.KeyCode.Delete then
+			local pos
+			pcall(function()
+				pos = UserInputService:GetMouseLocation()
+			end)
+			if not pos then
+				local mouse = Players.LocalPlayer and Players.LocalPlayer:GetMouse()
+				pos = mouse and Vector2.new(mouse.X, mouse.Y) or nil
+			end
+			if pos then
+				local count = NAmanage.DeleteGuiAtPosition(pos.X, pos.Y)
+				DebugNotif(count > 0 and "Deleted GUI under cursor" or "No GUI under cursor", 2)
+			end
+		end
+	end))
+	NAlib.connect("gui_delete", UserInputService.TouchTap:Connect(function(positions, gp)
+		if gp then return end
+		local pos = type(positions) == "table" and positions[1] or positions
+		if typeof(pos) == "Vector2" then
+			local count = NAmanage.DeleteGuiAtPosition(pos.X, pos.Y)
+			DebugNotif(count > 0 and "Deleted GUI under tap" or "No GUI under tap", 2)
+		end
+	end))
+	DebugNotif("GUI delete enabled. PC: Backspace/Delete. Mobile: tap GUI.", 3)
+end)
+
+cmd.add({"unguidelete", "noguidelete", "ungdel", "unguidel"}, {"unguidelete (noguidelete,ungdel,unguidel)", "Disables GUI delete"}, function()
+	NAlib.disconnect("gui_delete")
+	DebugNotif("GUI delete disabled", 2)
+end)
+
+cmd.add({"deleteselectedtool", "dst", "dstool", "delstool"}, {"deleteselectedtool (dst,dstool,delstool)", "Deletes currently equipped tools"}, function()
+	local count = NAmanage.RemoveHeldTools()
+	DebugNotif(count > 0 and ("Deleted "..count.." selected tool(s)") or "No selected tool found", 2)
+end)
+
+cmd.add({"removespecifictool", "rstool", "rsptool", "rmsptool"}, {"removespecifictool <name> (rstool,rsptool,rmsptool)", "Automatically removes a specific tool from backpack/character"}, function(...)
+	local name = Concat({...}, " ")
+	local ok, msg = NAmanage.StartSpecificToolRemoval(name)
+	DebugNotif(ok and ("Removing tool: "..msg) or msg, ok and 2 or 3)
+end, true)
+
+cmd.add({"unremovespecifictool", "unrstool", "unrsptool", "unrmsptool"}, {"unremovespecifictool <name> (unrstool,unrsptool,unrmsptool)", "Stops removing a specific tool"}, function(...)
+	local name = Concat({...}, " ")
+	local ok, msg = NAmanage.StopSpecificToolRemoval(name)
+	DebugNotif(ok and ("Stopped removing tool: "..msg) or msg, ok and 2 or 3)
+end, true)
+
+cmd.add({"clearremovespecifictool", "clrrstool", "clearrstool", "crstool"}, {"clearremovespecifictool (clrrstool,clearrstool,crstool)", "Stops all specific tool removal loops"}, function()
+	local count = NAmanage.ClearSpecificToolRemoval()
+	DebugNotif("Cleared "..count.." specific tool removal loop(s)", 2)
+end)
+
+cmd.add({"propertychanged", "changed", "pchanged", "propchanged"}, {"propertychanged <path> <property> <command> [args]", "Runs a command when an instance property changes"}, function(path, prop, name, ...)
+	if not path or not prop or not name then
+		DebugNotif("Usage: propertychanged <path> <property> <command> [args]", 3)
+		return
+	end
+	local obj = NAmanage.ResolveInstPath(path)
+	if typeof(obj) ~= "Instance" then
+		DebugNotif("Object not found: "..tostring(path), 3)
+		return
+	end
+	local args = {...}
+	local okProp, signal = pcall(function()
+		return obj:GetPropertyChangedSignal(tostring(prop))
+	end)
+	if not okProp or not signal then
+		DebugNotif("Invalid property: "..tostring(prop), 3)
+		return
+	end
+	local st = NAStuff._selectedCommandAddons
+	local key = tostring(obj:GetFullName()).."."..tostring(prop).." -> "..tostring(name).." "..Concat(args, " ")
+	if st.propChanged[key] and st.propChanged[key].conn then
+		NAmanage.tryDisconnect(st.propChanged[key].conn)
+	end
+	local conn = signal:Connect(function()
+		local runArgs = { name }
+		for i = 1, #args do
+			runArgs[#runArgs + 1] = args[i]
+		end
+		cmd.run(runArgs)
+	end)
+	st.propChanged[key] = { conn = conn, obj = obj, prop = tostring(prop), name = tostring(name), args = args }
+	DebugNotif("Listening for "..obj:GetFullName().."."..tostring(prop), 3)
+end, true)
+
+cmd.add({"unpropertychanged", "unchanged", "unpchanged", "unpropchanged"}, {"unpropertychanged [path] [property]", "Stops propertychanged listeners"}, function(path, prop)
+	local st = NAStuff._selectedCommandAddons
+	local count = 0
+	local obj = path and NAmanage.ResolveInstPath(path) or nil
+	for key, rec in st.propChanged do
+		local remove = false
+		if not path then
+			remove = true
+		elseif obj and rec and rec.obj == obj and (not prop or tostring(rec.prop) == tostring(prop)) then
+			remove = true
+		end
+		if remove then
+			NAmanage.tryDisconnect(rec.conn)
+			st.propChanged[key] = nil
+			count += 1
+		end
+	end
+	DebugNotif("Stopped "..count.." propertychanged listener(s)", 2)
+end, true)
+
+cmd.add({"loop"}, {"loop [delay] <command> [args]", "Directly starts a command loop without opening the loop popup"}, function(...)
+	local args = {...}
+	local idx = 1
+	local delay = tonumber(args[idx])
+	if delay then
+		idx += 1
+	else
+		delay = 0.05
+	end
+	local name = args[idx]
+	if not name then
+		DebugNotif("Usage: loop [delay] <command> [args]", 3)
+		return
+	end
+	local cmdArgs = {}
+	for i = idx + 1, #args do
+		cmdArgs[#cmdArgs + 1] = args[i]
+	end
+	delay = math.clamp(tonumber(delay) or 0.05, 0, 60)
+	local ok, result, loopData = NAmanage.StartLoop(tostring(name), cmdArgs, delay, NAStuff.LoopMethod)
+	DebugNotif(ok and ("Loop started: "..loopData.commandName.." every "..loopData.interval.."s") or result, ok and 3 or 3)
+end, true)
+
+cmd.add({"unloop"}, {"unloop", "Stops all active command loops"}, function()
+	local count = 0
+	for _, entry in NAmanage.GetLoops() do
+		if entry and entry.key then
+			local ok = NAmanage.StopLoop(entry.key)
+			if ok then
+				count += 1
+			end
+		end
+	end
+	DebugNotif("Stopped "..count.." loop(s)", 2)
+end)
+
+cmd.add({"repeat"}, {"repeat [amount] [delay] <command> [args]", "Runs a command a repeated amount of times"}, function(...)
+	local args = {...}
+	local amount = tonumber(args[1])
+	local idx = 1
+	if amount then
+		idx = 2
+	else
+		amount = 1
+	end
+	local delay = tonumber(args[idx])
+	if delay then
+		idx += 1
+	else
+		delay = 0
+	end
+	local name = args[idx]
+	if not name then
+		DebugNotif("Usage: repeat [amount] [delay] <command> [args]", 3)
+		return
+	end
+	local cmdArgs = {}
+	for i = idx + 1, #args do
+		cmdArgs[#cmdArgs + 1] = args[i]
+	end
+	amount = math.clamp(math.floor(amount), 1, 1000)
+	delay = math.clamp(delay, 0, 60)
+	SpawnCall(function()
+		for _ = 1, amount do
+			local runArgs = { tostring(name) }
+			for i = 1, #cmdArgs do
+				runArgs[#runArgs + 1] = cmdArgs[i]
+			end
+			cmd.run(runArgs)
+			if delay > 0 then
+				Wait(delay)
+			else
+				Wait()
+			end
+		end
+		DebugNotif("Repeated "..tostring(name).." "..amount.." time(s)", 2)
+	end)
+end, true)
+
+cmd.add({"freezeunanchored", "freezeua", "fua"}, {"freezeunanchored (freezeua,fua)", "Freezes unanchored non-character parts"}, function()
+	local count = NAmanage.FreezeUnanchored()
+	DebugNotif("Froze "..count.." unanchored part(s)", 2)
+end)
+
+cmd.add({"thawunanchored", "thawua", "unfreezeunanchored", "unfreezeua", "tua"}, {"thawunanchored (thawua,unfreezeua,tua)", "Thaws parts frozen by freezeunanchored"}, function()
+	local count = NAmanage.ThawUnanchored()
+	DebugNotif("Thawed "..count.." frozen part(s)", 2)
 end)
 
 NAStuff.LastInputConns = NAStuff.LastInputConns or {}
