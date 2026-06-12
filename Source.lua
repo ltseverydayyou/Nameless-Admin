@@ -1288,7 +1288,9 @@ local NAStuff = {
 	ESP_DrawingPartBoxStyle = "Square";
 	ESP_DrawingPartTextOutline = true;
 	ESP_DrawingPartBoxThickness = 1;
-	ESP_DrawingPartQueuePerStep = 128;
+	ESP_DrawingPartQueuePerStep = 64;
+	ESP_DrawingMaxPerStep = 64;
+	ESP_PartUpdatePerStep = 48;
 	ESP_DrawingTracerEnabled = false;
 	ESP_DrawingTracerOrigin = "Bottom";
 	ESP_DrawingTracerThickness = 1;
@@ -1305,10 +1307,10 @@ local NAStuff = {
 	ESP_OcclusionTransparentThreshold = 0.85;
 	ESP_OcclusionIgnoreNonCollidable = false;
 	ESP_OcclusionIgnoreSameModel = false;
-	ESP_OcclusionHitProbeLimit = 6;
+	ESP_OcclusionHitProbeLimit = 4;
 	ESP_OcclusionDimAmount = 0.55;
-	ESP_OcclusionUpdateInterval = 0.18;
-	ESP_OcclusionMaxPerStep = 24;
+	ESP_OcclusionUpdateInterval = 0.25;
+	ESP_OcclusionMaxPerStep = 12;
 	ESP_OcclusionMaxDistance = 1500;
 	ESP_OcclusionColor = Color3.fromRGB(130, 130, 130);
 	ESP_OcclusionCache = setmetatable({}, { __mode = "k" });
@@ -1346,7 +1348,7 @@ local NAStuff = {
 	ESP_PlayerLocatorArrows = {};
 	ESP_ModelList = {};
 	ESP_ModelIndex = 1;
-	ESP_MaxPerStep = 32;
+	ESP_MaxPerStep = 24;
 	ESP_ScanBatchSize = 160;
 	ESP_ScanDelay = 0;
 	ESP_RescanPerStep = 90;
@@ -1361,6 +1363,7 @@ local NAStuff = {
 	partESPGlassOriginal = {};
 	partESPGlassCount = {};
 	partESPEntries = {};
+	partESPUpdateCursor = nil;
 	partESPVisualMap = {};
 	partESPQueueMap = {};
 	partESPQueue = {};
@@ -18947,6 +18950,7 @@ local bindersPath = NAfiles.NABINDERS
 
 NAmanage.LoadESPSettings = function()
 	local d = {
+		ESP_PerfProfileVersion = 2;
 		ESP_Transparency = 0.7;
 		ESP_PartTransparency = 0.45;
 		ESP_BoxMaxDistance = 120;
@@ -18967,7 +18971,9 @@ NAmanage.LoadESPSettings = function()
 		ESP_DrawingPartBoxStyle = "Square";
 		ESP_DrawingPartTextOutline = true;
 		ESP_DrawingPartBoxThickness = 1;
-		ESP_DrawingPartQueuePerStep = 128;
+		ESP_DrawingPartQueuePerStep = 64;
+		ESP_DrawingMaxPerStep = 64;
+		ESP_PartUpdatePerStep = 48;
 		ESP_DrawingTracerEnabled = false;
 		ESP_DrawingTracerOrigin = "Bottom";
 		ESP_DrawingTracerThickness = 1;
@@ -18984,10 +18990,10 @@ NAmanage.LoadESPSettings = function()
 		ESP_OcclusionTransparentThreshold = 0.85;
 		ESP_OcclusionIgnoreNonCollidable = false;
 		ESP_OcclusionIgnoreSameModel = false;
-		ESP_OcclusionHitProbeLimit = 6;
+		ESP_OcclusionHitProbeLimit = 4;
 		ESP_OcclusionDimAmount = 0.55;
-		ESP_OcclusionUpdateInterval = 0.18;
-		ESP_OcclusionMaxPerStep = 24;
+		ESP_OcclusionUpdateInterval = 0.25;
+		ESP_OcclusionMaxPerStep = 12;
 		ESP_OcclusionMaxDistance = 1500;
 		ESP_OcclusionColor = {130, 130, 130};
 		ESP_UseCustomColor = false;
@@ -19014,7 +19020,7 @@ NAmanage.LoadESPSettings = function()
 		ESP_PlayerLocatorSize = 26;
 		ESP_PlayerLocatorShowText = false;
 		ESP_PlayerLocatorTextSize = 14;
-		ESP_MaxPerStep = 32;
+		ESP_MaxPerStep = 24;
 		ESP_FolderMode = "parts";
 		ESP_ModelMode = "parts";
 		NPC_ESP_RenderMode = "Highlight";
@@ -19049,6 +19055,15 @@ NAmanage.LoadESPSettings = function()
 						end
 					end
 				end
+				local perfVersion = tonumber(cfg.ESP_PerfProfileVersion) or 0
+				if perfVersion < 2 then
+					if tonumber(cfg.ESP_DrawingPartQueuePerStep) == 128 then d.ESP_DrawingPartQueuePerStep = 64 end
+					if tonumber(cfg.ESP_MaxPerStep) == 32 then d.ESP_MaxPerStep = 24 end
+					if tonumber(cfg.ESP_OcclusionHitProbeLimit) == 6 then d.ESP_OcclusionHitProbeLimit = 4 end
+					if tonumber(cfg.ESP_OcclusionUpdateInterval) == 0.18 then d.ESP_OcclusionUpdateInterval = 0.25 end
+					if tonumber(cfg.ESP_OcclusionMaxPerStep) == 24 then d.ESP_OcclusionMaxPerStep = 12 end
+				end
+				d.ESP_PerfProfileVersion = 2
 			end
 		end
 	end
@@ -19077,16 +19092,18 @@ NAmanage.LoadESPSettings = function()
 	local drawingBoxThickness = math.clamp(tonumber(d.ESP_DrawingBoxThickness) or 1, 1, 6)
 	local drawingPartBoxStyle = NAgui.sanitizeESPDrawingBoxStyle(d.ESP_DrawingPartBoxStyle)
 	local drawingPartBoxThickness = math.clamp(tonumber(d.ESP_DrawingPartBoxThickness) or 1, 1, 6)
-	local drawingPartQueuePerStep = math.clamp(math.floor(tonumber(d.ESP_DrawingPartQueuePerStep) or 128), 1, 512)
+	local drawingPartQueuePerStep = math.clamp(math.floor(tonumber(d.ESP_DrawingPartQueuePerStep) or 64), 1, 512)
+	local drawingMaxPerStep = math.clamp(math.floor(tonumber(d.ESP_DrawingMaxPerStep) or 64), 16, 512)
+	local partUpdatePerStep = math.clamp(math.floor(tonumber(d.ESP_PartUpdatePerStep) or 48), 1, 512)
 	local drawingTracerThickness = math.clamp(tonumber(d.ESP_DrawingTracerThickness) or 1, 1, 6)
 	local occlusionDimAmount = math.clamp(tonumber(d.ESP_OcclusionDimAmount) or 0.55, 0, 1)
-	local occlusionUpdateInterval = math.clamp(tonumber(d.ESP_OcclusionUpdateInterval) or 0.18, 0.05, 1)
-	local occlusionMaxPerStep = math.clamp(math.floor(tonumber(d.ESP_OcclusionMaxPerStep) or 24), 1, 128)
+	local occlusionUpdateInterval = math.clamp(tonumber(d.ESP_OcclusionUpdateInterval) or 0.25, 0.05, 1)
+	local occlusionMaxPerStep = math.clamp(math.floor(tonumber(d.ESP_OcclusionMaxPerStep) or 12), 1, 128)
 	local occlusionMaxDistance = math.clamp(tonumber(d.ESP_OcclusionMaxDistance) or 1500, 0, 10000)
 	local occlusionTransparentThreshold = math.clamp(tonumber(d.ESP_OcclusionTransparentThreshold) or 0.85, 0, 1)
-	local occlusionHitProbeLimit = math.clamp(math.floor(tonumber(d.ESP_OcclusionHitProbeLimit) or 6), 1, 20)
+	local occlusionHitProbeLimit = math.clamp(math.floor(tonumber(d.ESP_OcclusionHitProbeLimit) or 4), 1, 20)
 	local outline = NAgui.sanitizeTransparency(d.ESP_OutlineTransparency)
-	local maxPerStep = math.clamp(math.floor(tonumber(d.ESP_MaxPerStep) or 32), 1, 256)
+	local maxPerStep = math.clamp(math.floor(tonumber(d.ESP_MaxPerStep) or 24), 1, 256)
 	local customColor = sanitizeColor(d.ESP_CustomColor, Color3.new(1, 1, 1))
 	local occlusionColor = sanitizeColor(d.ESP_OcclusionColor, Color3.fromRGB(130, 130, 130))
 
@@ -19112,6 +19129,8 @@ NAmanage.LoadESPSettings = function()
 	NAStuff.ESP_DrawingPartTextOutline = d.ESP_DrawingPartTextOutline ~= false
 	NAStuff.ESP_DrawingPartBoxThickness = drawingPartBoxThickness
 	NAStuff.ESP_DrawingPartQueuePerStep = drawingPartQueuePerStep
+	NAStuff.ESP_DrawingMaxPerStep = drawingMaxPerStep
+	NAStuff.ESP_PartUpdatePerStep = partUpdatePerStep
 	NAStuff.ESP_DrawingTracerEnabled = d.ESP_DrawingTracerEnabled == true
 	NAStuff.ESP_DrawingTracerOrigin = NAgui.sanitizeESPDrawingTracerOrigin(d.ESP_DrawingTracerOrigin)
 	NAStuff.ESP_DrawingTracerThickness = drawingTracerThickness
@@ -19193,6 +19212,7 @@ NAmanage.SaveESPSettings = function()
 	local sz = tonumber(NAStuff.ESP_LabelTextSize) or 12
 	if sz < 8 then sz = 8 elseif sz > 72 then sz = 72 end
 	local d = {
+		ESP_PerfProfileVersion = 2;
 		ESP_Transparency = NAStuff.ESP_Transparency or 0.7;
 		ESP_PartTransparency = NAgui.sanitizeTransparency(NAStuff.ESP_PartTransparency ~= nil and NAStuff.ESP_PartTransparency or 0.45);
 		ESP_BoxMaxDistance = NAStuff.ESP_BoxMaxDistance or 120;
@@ -19214,7 +19234,9 @@ NAmanage.SaveESPSettings = function()
 		ESP_DrawingPartBoxStyle = NAgui.sanitizeESPDrawingBoxStyle(NAStuff.ESP_DrawingPartBoxStyle);
 		ESP_DrawingPartTextOutline = NAStuff.ESP_DrawingPartTextOutline ~= false;
 		ESP_DrawingPartBoxThickness = math.clamp(tonumber(NAStuff.ESP_DrawingPartBoxThickness) or 1, 1, 6);
-		ESP_DrawingPartQueuePerStep = math.clamp(math.floor(tonumber(NAStuff.ESP_DrawingPartQueuePerStep) or 128), 1, 512);
+		ESP_DrawingPartQueuePerStep = math.clamp(math.floor(tonumber(NAStuff.ESP_DrawingPartQueuePerStep) or 64), 1, 512);
+		ESP_DrawingMaxPerStep = math.clamp(math.floor(tonumber(NAStuff.ESP_DrawingMaxPerStep) or 64), 16, 512);
+		ESP_PartUpdatePerStep = math.clamp(math.floor(tonumber(NAStuff.ESP_PartUpdatePerStep) or 48), 1, 512);
 		ESP_DrawingTracerEnabled = NAStuff.ESP_DrawingTracerEnabled == true;
 		ESP_DrawingTracerOrigin = NAgui.sanitizeESPDrawingTracerOrigin(NAStuff.ESP_DrawingTracerOrigin);
 		ESP_DrawingTracerThickness = math.clamp(tonumber(NAStuff.ESP_DrawingTracerThickness) or 1, 1, 6);
@@ -19231,10 +19253,10 @@ NAmanage.SaveESPSettings = function()
 		ESP_OcclusionTransparentThreshold = math.clamp(tonumber(NAStuff.ESP_OcclusionTransparentThreshold) or 0.85, 0, 1);
 		ESP_OcclusionIgnoreNonCollidable = NAStuff.ESP_OcclusionIgnoreNonCollidable == true;
 		ESP_OcclusionIgnoreSameModel = NAStuff.ESP_OcclusionIgnoreSameModel == true;
-		ESP_OcclusionHitProbeLimit = math.clamp(math.floor(tonumber(NAStuff.ESP_OcclusionHitProbeLimit) or 6), 1, 20);
+		ESP_OcclusionHitProbeLimit = math.clamp(math.floor(tonumber(NAStuff.ESP_OcclusionHitProbeLimit) or 4), 1, 20);
 		ESP_OcclusionDimAmount = math.clamp(tonumber(NAStuff.ESP_OcclusionDimAmount) or 0.55, 0, 1);
-		ESP_OcclusionUpdateInterval = math.clamp(tonumber(NAStuff.ESP_OcclusionUpdateInterval) or 0.18, 0.05, 1);
-		ESP_OcclusionMaxPerStep = math.clamp(math.floor(tonumber(NAStuff.ESP_OcclusionMaxPerStep) or 24), 1, 128);
+		ESP_OcclusionUpdateInterval = math.clamp(tonumber(NAStuff.ESP_OcclusionUpdateInterval) or 0.25, 0.05, 1);
+		ESP_OcclusionMaxPerStep = math.clamp(math.floor(tonumber(NAStuff.ESP_OcclusionMaxPerStep) or 12), 1, 128);
 		ESP_OcclusionMaxDistance = math.clamp(tonumber(NAStuff.ESP_OcclusionMaxDistance) or 1500, 0, 10000);
 		ESP_OcclusionColor = NAmanage.UserButtonColorToTable(NAStuff.ESP_OcclusionColor or Color3.fromRGB(130, 130, 130));
 		ESP_UseCustomColor = NAStuff.ESP_UseCustomColor == true;
@@ -19260,7 +19282,7 @@ NAmanage.SaveESPSettings = function()
 		ESP_PlayerLocatorSize = math.clamp(tonumber(NAStuff.ESP_PlayerLocatorSize) or 26, 12, 128);
 		ESP_PlayerLocatorShowText = NAStuff.ESP_PlayerLocatorShowText == true;
 		ESP_PlayerLocatorTextSize = math.clamp(tonumber(NAStuff.ESP_PlayerLocatorTextSize) or 14, 10, 48);
-		ESP_MaxPerStep = math.clamp(math.floor(tonumber(NAStuff.ESP_MaxPerStep) or 32), 1, 256);
+		ESP_MaxPerStep = math.clamp(math.floor(tonumber(NAStuff.ESP_MaxPerStep) or 24), 1, 256);
 		ESP_FolderMode = (Lower(tostring(NAStuff.ESP_FolderMode)) == "models") and "models" or "parts";
 		ESP_ModelMode = (Lower(tostring(NAStuff.ESP_ModelMode)) == "models") and "models" or "parts";
 		NPC_ESP_RenderMode = npcMode;
@@ -27454,9 +27476,9 @@ NAmanage.PartESP_QueueRun = function()
 			return
 		end
 
-		local maxPerStep = tonumber(NAStuff.ESP_MaxPerStep) or 32
+		local maxPerStep = tonumber(NAStuff.ESP_MaxPerStep) or 24
 		if NAgui.espUsesDrawing("part") then
-			maxPerStep = math.max(maxPerStep, tonumber(NAStuff.ESP_DrawingPartQueuePerStep) or 128)
+			maxPerStep = math.max(maxPerStep, tonumber(NAStuff.ESP_DrawingPartQueuePerStep) or 64)
 		end
 		maxPerStep = math.clamp(math.floor(maxPerStep), 1, 512)
 		local processed = 0
@@ -27589,6 +27611,7 @@ NAmanage.ESP_ClearOcclusionCache = function()
 	NAStuff.ESP_OcclusionCache = setmetatable({}, { __mode = "k" })
 	NAStuff.ESP_OcclusionFrame = nil
 	NAStuff.ESP_OcclusionUsed = 0
+	NAStuff.ESP_OcclusionRaycastParams = nil
 	NAStuff.partESPLastUpdate = 0
 	if type(espCONS) == "table" then
 		for _, data in espCONS do
@@ -27624,7 +27647,7 @@ NAmanage.ESP_CanSpendOcclusionRay = function(now)
 		NAStuff.ESP_OcclusionFrame = frame
 		NAStuff.ESP_OcclusionUsed = 0
 	end
-	local maxPerStep = math.clamp(math.floor(tonumber(NAStuff.ESP_OcclusionMaxPerStep) or 24), 1, 128)
+	local maxPerStep = math.clamp(math.floor(tonumber(NAStuff.ESP_OcclusionMaxPerStep) or 12), 1, 128)
 	local used = tonumber(NAStuff.ESP_OcclusionUsed) or 0
 	if used >= maxPerStep then
 		return false
@@ -27695,18 +27718,23 @@ NAmanage.ESP_RaycastOccluded = function(inst, targetPos, localChar, opts)
 	if maxDistance > 0 and distance > maxDistance then
 		return false
 	end
-	local params = RaycastParams.new()
-	local okFilter = pcall(function()
-		params.FilterType = Enum.RaycastFilterType.Exclude
-	end)
-	if not okFilter then
-		pcall(function()
-			params.FilterType = Enum.RaycastFilterType.Blacklist
+	local params = NAStuff.ESP_OcclusionRaycastParams
+	if not params then
+		params = RaycastParams.new()
+		local okFilter = pcall(function()
+			params.FilterType = Enum.RaycastFilterType.Exclude
 		end)
+		if not okFilter then
+			pcall(function()
+				params.FilterType = Enum.RaycastFilterType.Blacklist
+			end)
+		end
+		params.IgnoreWater = true
+		NAStuff.ESP_OcclusionRaycastParams = params
 	end
 	params.IgnoreWater = true
 	local filter = NAmanage.ESP_GetOcclusionFilterList(inst, localChar, opts)
-	local probeLimit = math.clamp(math.floor(tonumber(NAStuff.ESP_OcclusionHitProbeLimit) or 6), 1, 20)
+	local probeLimit = math.clamp(math.floor(tonumber(NAStuff.ESP_OcclusionHitProbeLimit) or 4), 1, 20)
 	for _ = 1, probeLimit do
 		params.FilterDescendantsInstances = filter
 		local result = workspace:Raycast(origin, direction, params)
@@ -27741,7 +27769,7 @@ NAmanage.ESP_GetOcclusionState = function(key, inst, targetPos, localChar, now, 
 	end
 	now = tonumber(now) or tick()
 	local entry = cache[key]
-	local interval = math.clamp(tonumber(NAStuff.ESP_OcclusionUpdateInterval) or 0.18, 0.05, 1)
+	local interval = math.clamp(tonumber(NAStuff.ESP_OcclusionUpdateInterval) or 0.25, 0.05, 1)
 	if entry and not force and now < (entry.next or 0) then
 		return entry.blocked == true
 	end
@@ -27954,7 +27982,7 @@ NAmanage.PartESP_UpdateTexts = function(force)
 	if not entries then
 		return
 	end
-	local interval = NAgui.espUsesDrawing("part") and 0.03 or 0.2
+	local interval = NAgui.espUsesDrawing("part") and 0.05 or 0.25
 	if not force then
 		local now = tick()
 		local nextUpdate = NAStuff.partESPLastUpdate or 0
@@ -27971,14 +27999,55 @@ NAmanage.PartESP_UpdateTexts = function(force)
 		local char = plr and plr.Character
 		rootPart = char and getRoot(char)
 	end
-	local hasEntry = false
-	for _, entry in entries do
-		if entry and not entry.removed then
-			hasEntry = true
-			NAmanage.PartESP_UpdateEntry(entry, force, rootPart)
-		end
+	if next(entries) == nil then
+		NAStuff.partESPUpdateCursor = nil
+		NAmanage.PartESP_StopHeartbeat()
+		return
 	end
-	if not hasEntry then
+	local hasEntry = false
+	if force then
+		for _, entry in entries do
+			if entry and not entry.removed then
+				hasEntry = true
+				NAmanage.PartESP_UpdateEntry(entry, force, rootPart)
+			end
+		end
+	else
+		local perStep = math.clamp(math.floor(tonumber(NAStuff.ESP_PartUpdatePerStep) or 48), 1, 512)
+		local cursor = NAStuff.partESPUpdateCursor
+		local startCursor = cursor
+		local wrapped = false
+		local processed = 0
+		while processed < perStep do
+			if cursor ~= nil and entries[cursor] == nil then
+				cursor = nil
+				startCursor = nil
+			end
+			local key, entry = next(entries, cursor)
+			if key == nil then
+				if processed > 0 and (startCursor == nil or wrapped) then
+					break
+				end
+				wrapped = true
+				key, entry = next(entries, nil)
+				if key == nil then
+					cursor = nil
+					break
+				end
+				if startCursor ~= nil and key == startCursor then
+					break
+				end
+			end
+			cursor = key
+			processed += 1
+			if entry and not entry.removed then
+				hasEntry = true
+				NAmanage.PartESP_UpdateEntry(entry, false, rootPart)
+			end
+		end
+		NAStuff.partESPUpdateCursor = cursor
+	end
+	if not hasEntry and next(entries) == nil then
 		NAmanage.PartESP_StopHeartbeat()
 	end
 end
@@ -28653,6 +28722,14 @@ NAmanage.ESP_RemoveDrawing = function(data)
 	end
 end
 
+NAmanage.ESP_DestroyInstance = function(inst)
+	if inst and typeof(inst) == "Instance" then
+		pcall(function()
+			inst:Destroy()
+		end)
+	end
+end
+
 NAmanage.ESP_HideDrawingElements = function(data)
 	if not data then return end
 	local function hide(obj)
@@ -29002,14 +29079,20 @@ NAmanage.ESP_RemoveBoxes = function(model)
 	if not data then return end
 	NAmanage.ESP_RemoveDrawing(data)
 	for part, box in data.boxTable do
-		if box then box:Destroy() end
+		if box and typeof(box) == "Instance" then
+			pcall(function()
+				box:Destroy()
+			end)
+		end
 		data.boxTable[part] = nil
 	end
-	if data.highlight then
+	if data.highlight and typeof(data.highlight) == "Instance" then
 		NAmanage.ESP_AdjustHighlightMaterial(model, false)
-		data.highlight:Destroy()
-		data.highlight = nil
+		pcall(function()
+			data.highlight:Destroy()
+		end)
 	end
+	data.highlight = nil
 	data.boxEnabled = false
 end
 
@@ -29245,12 +29328,12 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 	local drawingPlayers = NAgui.espUsesDrawing(renderTarget)
 	local budget
 	if drawingPlayers then
-		budget = dist and ((dist <= 50 and 0.015) or (dist <= 150 and 0.035) or (dist <= 400 and 0.08) or 0.16) or 0.03
+		budget = dist and ((dist <= 50 and 0.03) or (dist <= 150 and 0.06) or (dist <= 400 and 0.12) or 0.25) or 0.06
 		if data.isNPC then
 			budget = budget * (NAStuff.NPC_ESP_DrawingThrottle or 1.25)
 		end
 	else
-		budget = dist and ((dist <= 50 and 0.05) or (dist <= 150 and 0.15) or (dist <= 400 and 0.3) or 0.6) or 0.2
+		budget = dist and ((dist <= 50 and 0.08) or (dist <= 150 and 0.2) or (dist <= 400 and 0.45) or 0.85) or 0.25
 		if data.isNPC then
 			budget = budget * (NAStuff.NPC_ESP_Throttle or 2)
 		end
@@ -29563,9 +29646,9 @@ NAmanage.ESP_StartGlobal = function()
 		local now = tick()
 
 		local idx = NAStuff.ESP_ModelIndex or 1
-		local maxStep = math.clamp(math.floor(tonumber(NAStuff.ESP_MaxPerStep) or 32), 1, 256)
+		local maxStep = math.clamp(math.floor(tonumber(NAStuff.ESP_MaxPerStep) or 24), 1, 256)
 		if NAgui.espUsesDrawing("players") or NAgui.espUsesDrawing("npcs") then
-			local drawingStep = tonumber(NAStuff.ESP_DrawingMaxPerStep) or 192
+			local drawingStep = tonumber(NAStuff.ESP_DrawingMaxPerStep) or 64
 			drawingStep = math.clamp(math.floor(drawingStep), 16, 512)
 			maxStep = math.max(maxStep, drawingStep)
 		end
@@ -76839,7 +76922,7 @@ NAmanage.ESP_LocatorEnableGui = function(force)
 	NAlib.connect("esp_locator_loop", RunService.RenderStepped:Connect(function(dt)
 		if not NAStuff.ESP_LocatorEnabled then return end
 		accum += tonumber(dt) or 0
-		local updateRate = math.clamp(tonumber(NAStuff.ESP_LocatorUpdateRate) or 25, 8, 60)
+		local updateRate = math.clamp(tonumber(NAStuff.ESP_LocatorUpdateRate) or 18, 8, 60)
 		local stepInterval = 1 / updateRate
 		if accum < stepInterval then
 			return
@@ -76854,7 +76937,7 @@ NAmanage.ESP_LocatorEnableGui = function(force)
 		local size = math.clamp(tonumber(NAStuff.ESP_LocatorSize) or 26, 12, 128)
 		local textOn = (NAStuff.ESP_LocatorShowText == true)
 		local textSize = math.clamp(tonumber(NAStuff.ESP_LocatorTextSize) or 14, 10, 48)
-		local perStep = math.clamp(math.floor(tonumber(NAStuff.ESP_LocatorPerStep) or 72), 12, 400)
+		local perStep = math.clamp(math.floor(tonumber(NAStuff.ESP_LocatorPerStep) or 48), 12, 400)
 		local staleSeconds = math.clamp(tonumber(NAStuff.ESP_LocatorHoldSeconds) or 0.5, 0.15, 3)
 		local now = os.clock()
 
@@ -77110,7 +77193,7 @@ NAmanage.ESP_LocatorEnableDrawing = function(force)
 			return
 		end
 		accum += tonumber(dt) or 0
-		local updateRate = math.clamp(tonumber(NAStuff.ESP_LocatorUpdateRate) or 25, 8, 60)
+		local updateRate = math.clamp(tonumber(NAStuff.ESP_LocatorUpdateRate) or 18, 8, 60)
 		local stepInterval = 1 / updateRate
 		if accum < stepInterval then
 			return
@@ -77125,7 +77208,7 @@ NAmanage.ESP_LocatorEnableDrawing = function(force)
 		local size = math.clamp(tonumber(NAStuff.ESP_LocatorSize) or 26, 12, 128)
 		local textOn = (NAStuff.ESP_LocatorShowText == true)
 		local textSize = math.clamp(tonumber(NAStuff.ESP_LocatorTextSize) or 14, 10, 48)
-		local perStep = math.clamp(math.floor(tonumber(NAStuff.ESP_LocatorPerStep) or 72), 12, 400)
+		local perStep = math.clamp(math.floor(tonumber(NAStuff.ESP_LocatorPerStep) or 48), 12, 400)
 		local staleSeconds = math.clamp(tonumber(NAStuff.ESP_LocatorHoldSeconds) or 0.5, 0.15, 3)
 		local now = os.clock()
 
@@ -77456,7 +77539,7 @@ NAmanage.ESP_PlayerLocatorEnableGui = function(force)
 	NAlib.connect("esp_player_locator_loop", RunService.RenderStepped:Connect(function(dt)
 		if not NAStuff.ESP_PlayerLocatorEnabled then return end
 		accum += tonumber(dt) or 0
-		local updateRate = math.clamp(tonumber(NAStuff.ESP_PlayerLocatorUpdateRate) or 25, 8, 60)
+		local updateRate = math.clamp(tonumber(NAStuff.ESP_PlayerLocatorUpdateRate) or 18, 8, 60)
 		local stepInterval = 1 / updateRate
 		if accum < stepInterval then
 			return
@@ -77471,7 +77554,7 @@ NAmanage.ESP_PlayerLocatorEnableGui = function(force)
 		local size = math.clamp(tonumber(NAStuff.ESP_PlayerLocatorSize) or 26, 12, 128)
 		local textOn = (NAStuff.ESP_PlayerLocatorShowText == true)
 		local textSize = math.clamp(tonumber(NAStuff.ESP_PlayerLocatorTextSize) or 14, 10, 48)
-		local perStep = math.clamp(math.floor(tonumber(NAStuff.ESP_PlayerLocatorPerStep) or 96), 12, 400)
+		local perStep = math.clamp(math.floor(tonumber(NAStuff.ESP_PlayerLocatorPerStep) or 64), 12, 400)
 		local staleSeconds = math.clamp(tonumber(NAStuff.ESP_PlayerLocatorHoldSeconds) or 0.5, 0.15, 3)
 		local now = os.clock()
 
@@ -77719,7 +77802,7 @@ NAmanage.ESP_PlayerLocatorEnableDrawing = function(force)
 	NAlib.connect("esp_player_locator_loop", RunService.RenderStepped:Connect(function(dt)
 		if not NAStuff.ESP_PlayerLocatorEnabled then return end
 		accum += tonumber(dt) or 0
-		local updateRate = math.clamp(tonumber(NAStuff.ESP_PlayerLocatorUpdateRate) or 25, 8, 60)
+		local updateRate = math.clamp(tonumber(NAStuff.ESP_PlayerLocatorUpdateRate) or 18, 8, 60)
 		local stepInterval = 1 / updateRate
 		if accum < stepInterval then
 			return
@@ -77734,7 +77817,7 @@ NAmanage.ESP_PlayerLocatorEnableDrawing = function(force)
 		local size = math.clamp(tonumber(NAStuff.ESP_PlayerLocatorSize) or 26, 12, 128)
 		local textOn = (NAStuff.ESP_PlayerLocatorShowText == true)
 		local textSize = math.clamp(tonumber(NAStuff.ESP_PlayerLocatorTextSize) or 14, 10, 48)
-		local perStep = math.clamp(math.floor(tonumber(NAStuff.ESP_PlayerLocatorPerStep) or 96), 12, 400)
+		local perStep = math.clamp(math.floor(tonumber(NAStuff.ESP_PlayerLocatorPerStep) or 64), 12, 400)
 		local staleSeconds = math.clamp(tonumber(NAStuff.ESP_PlayerLocatorHoldSeconds) or 0.5, 0.15, 3)
 		local now = os.clock()
 
@@ -117194,8 +117277,8 @@ NAgui.addToggle("Part Drawing Text Outline", NAStuff.ESP_DrawingPartTextOutline 
 	NAmanage.PartESP_UpdateTexts(true)
 end)
 
-NAgui.addSlider("Part Drawing Queue Batch", 1, 512, math.clamp(math.floor(tonumber(NAStuff.ESP_DrawingPartQueuePerStep) or 128), 1, 512), 1, " items", function(v)
-	NAStuff.ESP_DrawingPartQueuePerStep = math.clamp(math.floor(tonumber(v) or 128), 1, 512)
+NAgui.addSlider("Part Drawing Queue Batch", 1, 512, math.clamp(math.floor(tonumber(NAStuff.ESP_DrawingPartQueuePerStep) or 64), 1, 512), 1, " items", function(v)
+	NAStuff.ESP_DrawingPartQueuePerStep = math.clamp(math.floor(tonumber(v) or 64), 1, 512)
 	NAmanage.SaveESPSettings()
 end)
 
@@ -117212,8 +117295,18 @@ NAgui.addSlider("ESP Label Distance", 0, 5000, NAStuff.ESP_LabelMaxDistance or 1
 	NAmanage.SaveESPSettings()
 end)
 
-NAgui.addSlider("ESP Update Batch Size", 1, 256, math.clamp(math.floor(tonumber(NAStuff.ESP_MaxPerStep) or 32), 1, 256), 1, " models", function(v)
-	NAStuff.ESP_MaxPerStep = math.clamp(math.floor(tonumber(v) or 32), 1, 256)
+NAgui.addSlider("ESP Update Batch Size", 1, 256, math.clamp(math.floor(tonumber(NAStuff.ESP_MaxPerStep) or 24), 1, 256), 1, " models", function(v)
+	NAStuff.ESP_MaxPerStep = math.clamp(math.floor(tonumber(v) or 24), 1, 256)
+	NAmanage.SaveESPSettings()
+end)
+
+NAgui.addSlider("Drawing ESP Update Batch", 16, 512, math.clamp(math.floor(tonumber(NAStuff.ESP_DrawingMaxPerStep) or 64), 16, 512), 1, " models", function(v)
+	NAStuff.ESP_DrawingMaxPerStep = math.clamp(math.floor(tonumber(v) or 64), 16, 512)
+	NAmanage.SaveESPSettings()
+end)
+
+NAgui.addSlider("Part ESP Update Batch", 1, 512, math.clamp(math.floor(tonumber(NAStuff.ESP_PartUpdatePerStep) or 48), 1, 512), 1, " parts", function(v)
+	NAStuff.ESP_PartUpdatePerStep = math.clamp(math.floor(tonumber(v) or 48), 1, 512)
 	NAmanage.SaveESPSettings()
 end)
 
@@ -117322,20 +117415,20 @@ NAgui.addSlider("Occlusion Dim Amount", 0, 1, math.clamp(tonumber(NAStuff.ESP_Oc
 	NAmanage.PartESP_UpdateTexts(true)
 end)
 
-NAgui.addSlider("Occlusion Update Interval", 0.05, 1, math.clamp(tonumber(NAStuff.ESP_OcclusionUpdateInterval) or 0.18, 0.05, 1), 0.05, " s", function(v)
-	NAStuff.ESP_OcclusionUpdateInterval = math.clamp(tonumber(v) or 0.18, 0.05, 1)
+NAgui.addSlider("Occlusion Update Interval", 0.05, 1, math.clamp(tonumber(NAStuff.ESP_OcclusionUpdateInterval) or 0.25, 0.05, 1), 0.05, " s", function(v)
+	NAStuff.ESP_OcclusionUpdateInterval = math.clamp(tonumber(v) or 0.25, 0.05, 1)
 	NAmanage.SaveESPSettings()
 	NAmanage.ESP_ClearOcclusionCache()
 end)
 
-NAgui.addSlider("Occlusion Ray Batch", 1, 128, math.clamp(math.floor(tonumber(NAStuff.ESP_OcclusionMaxPerStep) or 24), 1, 128), 1, " rays", function(v)
-	NAStuff.ESP_OcclusionMaxPerStep = math.clamp(math.floor(tonumber(v) or 24), 1, 128)
+NAgui.addSlider("Occlusion Ray Batch", 1, 128, math.clamp(math.floor(tonumber(NAStuff.ESP_OcclusionMaxPerStep) or 12), 1, 128), 1, " rays", function(v)
+	NAStuff.ESP_OcclusionMaxPerStep = math.clamp(math.floor(tonumber(v) or 12), 1, 128)
 	NAmanage.SaveESPSettings()
 	NAmanage.ESP_ClearOcclusionCache()
 end)
 
-NAgui.addSlider("Occlusion Hit Probe Limit", 1, 20, math.clamp(math.floor(tonumber(NAStuff.ESP_OcclusionHitProbeLimit) or 6), 1, 20), 1, " hits", function(v)
-	NAStuff.ESP_OcclusionHitProbeLimit = math.clamp(math.floor(tonumber(v) or 6), 1, 20)
+NAgui.addSlider("Occlusion Hit Probe Limit", 1, 20, math.clamp(math.floor(tonumber(NAStuff.ESP_OcclusionHitProbeLimit) or 4), 1, 20), 1, " hits", function(v)
+	NAStuff.ESP_OcclusionHitProbeLimit = math.clamp(math.floor(tonumber(v) or 4), 1, 20)
 	NAmanage.SaveESPSettings()
 	NAmanage.ESP_ClearOcclusionCache()
 	NAmanage.PartESP_UpdateTexts(true)
