@@ -4631,6 +4631,26 @@
       "desc": "Stop continuous jumping."
     },
     {
+      "name": "jumpboost",
+      "aliases": [
+        "jumpboost",
+        "jboost"
+      ],
+      "usage": "jumpboost <number> (jboost)",
+      "args": "<number>",
+      "desc": "Adds extra jump velocity without changing JumpPower"
+    },
+    {
+      "name": "unjumpboost",
+      "aliases": [
+        "unjumpboost",
+        "unjboost"
+      ],
+      "usage": "unjumpboost (unjboost)",
+      "args": "",
+      "desc": "Disables extra jump boost"
+    },
+    {
       "name": "trussjump",
       "aliases": [
         "trussjump",
@@ -8222,6 +8242,174 @@
       "usage": "unname",
       "args": "",
       "desc": "Resets the admin UI placeholder name to default"
+    },
+    {
+      "name": "autorespawn",
+      "aliases": [
+        "autorespawn",
+        "autore",
+        "arespawn"
+      ],
+      "usage": "autorespawn (autore,arespawn)",
+      "args": "",
+      "desc": "Teleports you back to your death position after respawn"
+    },
+    {
+      "name": "unautorespawn",
+      "aliases": [
+        "unautorespawn",
+        "unautore",
+        "unarespawn"
+      ],
+      "usage": "unautorespawn (unautore,unarespawn)",
+      "args": "",
+      "desc": "Stops AutoRespawn"
+    },
+    {
+      "name": "guidelete",
+      "aliases": [
+        "guidelete",
+        "gdel",
+        "guidel"
+      ],
+      "usage": "guidelete (gdel,guidel)",
+      "args": "",
+      "desc": "Deletes GUI under mouse with Backspace/Delete, or under tap on mobile"
+    },
+    {
+      "name": "unguidelete",
+      "aliases": [
+        "unguidelete",
+        "noguidelete",
+        "ungdel",
+        "unguidel"
+      ],
+      "usage": "unguidelete (noguidelete,ungdel,unguidel)",
+      "args": "",
+      "desc": "Disables GUI delete"
+    },
+    {
+      "name": "deleteselectedtool",
+      "aliases": [
+        "deleteselectedtool",
+        "dst",
+        "dstool",
+        "delstool"
+      ],
+      "usage": "deleteselectedtool (dst,dstool,delstool)",
+      "args": "",
+      "desc": "Deletes currently equipped tools"
+    },
+    {
+      "name": "removespecifictool",
+      "aliases": [
+        "removespecifictool",
+        "rstool",
+        "rsptool",
+        "rmsptool"
+      ],
+      "usage": "removespecifictool <name> (rstool,rsptool,rmsptool)",
+      "args": "<name>",
+      "desc": "Automatically removes a specific tool from backpack/character"
+    },
+    {
+      "name": "unremovespecifictool",
+      "aliases": [
+        "unremovespecifictool",
+        "unrstool",
+        "unrsptool",
+        "unrmsptool"
+      ],
+      "usage": "unremovespecifictool <name> (unrstool,unrsptool,unrmsptool)",
+      "args": "<name>",
+      "desc": "Stops removing a specific tool"
+    },
+    {
+      "name": "clearremovespecifictool",
+      "aliases": [
+        "clearremovespecifictool",
+        "clrrstool",
+        "clearrstool",
+        "crstool"
+      ],
+      "usage": "clearremovespecifictool (clrrstool,clearrstool,crstool)",
+      "args": "",
+      "desc": "Stops all specific tool removal loops"
+    },
+    {
+      "name": "propertychanged",
+      "aliases": [
+        "propertychanged",
+        "changed",
+        "pchanged",
+        "propchanged"
+      ],
+      "usage": "propertychanged <path> <property> <command> [args]",
+      "args": "<path> <property> <command> [args]",
+      "desc": "Runs a command when an instance property changes"
+    },
+    {
+      "name": "unpropertychanged",
+      "aliases": [
+        "unpropertychanged",
+        "unchanged",
+        "unpchanged",
+        "unpropchanged"
+      ],
+      "usage": "unpropertychanged [path] [property]",
+      "args": "[path] [property]",
+      "desc": "Stops propertychanged listeners"
+    },
+    {
+      "name": "loop",
+      "aliases": [
+        "loop"
+      ],
+      "usage": "loop [delay] <command> [args]",
+      "args": "[delay] <command> [args]",
+      "desc": "Directly starts a command loop without opening the loop popup"
+    },
+    {
+      "name": "unloop",
+      "aliases": [
+        "unloop"
+      ],
+      "usage": "unloop",
+      "args": "",
+      "desc": "Stops all active command loops"
+    },
+    {
+      "name": "repeat",
+      "aliases": [
+        "repeat"
+      ],
+      "usage": "repeat [amount] [delay] <command> [args]",
+      "args": "[amount] [delay] <command> [args]",
+      "desc": "Runs a command a repeated amount of times"
+    },
+    {
+      "name": "freezeunanchored",
+      "aliases": [
+        "freezeunanchored",
+        "freezeua",
+        "fua"
+      ],
+      "usage": "freezeunanchored (freezeua,fua)",
+      "args": "",
+      "desc": "Freezes unanchored non-character parts"
+    },
+    {
+      "name": "thawunanchored",
+      "aliases": [
+        "thawunanchored",
+        "thawua",
+        "unfreezeunanchored",
+        "unfreezeua",
+        "tua"
+      ],
+      "usage": "thawunanchored (thawua,unfreezeua,tua)",
+      "args": "",
+      "desc": "Thaws parts frozen by freezeunanchored"
     }
   ],
   "patched_commands": [
