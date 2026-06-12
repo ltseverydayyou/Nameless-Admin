@@ -6140,9 +6140,31 @@
         "maxslopeangle",
         "msa"
       ],
-      "usage": "maxslopeangle (msa)",
-      "args": "",
+      "usage": "maxslopeangle <number> (msa)",
+      "args": "<number>",
       "desc": "Changes your character's MaxSlopeAngle"
+    },
+    {
+      "name": "loopmaxslopeangle",
+      "aliases": [
+        "loopmaxslopeangle",
+        "loopmsa",
+        "lmsa"
+      ],
+      "usage": "loopmaxslopeangle <number> (loopmsa,lmsa)",
+      "args": "<number>",
+      "desc": "Loop MaxSlopeAngle"
+    },
+    {
+      "name": "unloopmaxslopeangle",
+      "aliases": [
+        "unloopmaxslopeangle",
+        "unloopmsa",
+        "unlmsa"
+      ],
+      "usage": "unloopmaxslopeangle (unloopmsa,unlmsa)",
+      "args": "",
+      "desc": "Disable loop MaxSlopeAngle"
     },
     {
       "name": "godmode",
