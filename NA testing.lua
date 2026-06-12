@@ -47613,7 +47613,7 @@ cmd.add({"2016"},{"2016","Makes your Pedoblox CoreGui look like the 2016 CoreGui
 end)
 
 cmd.add({"f3x","fex"},{"f3x (fex)","F3X for client"},function()
-	NAmanage.RunSource(game:GetObjects("rbxassetid://6695644299")[1].Source, "@rbxassetid://6695644299")
+	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/F3X.luau", true, "@F3X.luau")
 end)
 
 cmd.add({"harked","comet"},{"harked (comet)","Executes Comet which is like harked"},function()
