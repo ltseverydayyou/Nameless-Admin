@@ -4971,17 +4971,6 @@
       "desc": "provides a custom backpack gui"
     },
     {
-      "name": "experiencedebug",
-      "aliases": [
-        "experiencedebug",
-        "expdebug",
-        "esdebug"
-      ],
-      "usage": "experiencedebug",
-      "args": "",
-      "desc": "Enables ExperienceService launch diagnostics"
-    },
-    {
       "name": "edgejump",
       "aliases": [
         "edgejump",
