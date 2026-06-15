@@ -33373,7 +33373,6 @@ NAmanage.LoadPlugins = function(opts)
 			RunService = true,
 			ContextActionService = true,
 			TeleportService = true,
-			ExperienceService = true,
 			Lighting = true,
 			ReplicatedStorage = true,
 			CoreGui = true,
@@ -33487,7 +33486,6 @@ NAmanage.LoadPlugins = function(opts)
 			proxyEnv.RunService = _plugSetService("RunService", "RunService", RunService)
 			proxyEnv.ContextActionService = _plugSetService("ContextActionService", "ContextActionService", ContextActionService)
 			proxyEnv.TeleportService = _plugSetService("TeleportService", "TeleportService", TeleportService)
-			proxyEnv.ExperienceService = _plugSetService("ExperienceService", "ExperienceService", ExperienceService)
 			proxyEnv.Lighting = _plugSetService("Lighting", "Lighting", Lighting)
 			proxyEnv.ReplicatedStorage = _plugSetService("ReplicatedStorage", "ReplicatedStorage", ReplicatedStorage)
 			proxyEnv.CoreGui = _plugSetService("CoreGui", "CoreGui", COREGUI)
@@ -42202,12 +42200,12 @@ cmd.add({"rejoin","rj"},{"rejoin (rj)","Rejoin the game"},function()
 	local tp=TeleportService
 	local lp=plrs and plrs.LocalPlayer
 	local nowTick = tick()
-	if not (plrs and lp and NAmanage.LaunchExperience) then
+	if not (plrs and tp and lp) then
 		if NAStuff.RjreWaitingForTeleport == true then
 			NAStuff.RjreWaitingForTeleport = false
 			DONE = false
 		end
-		DoNotif("Experience service is unavailable.")
+		DoNotif("Teleport service is unavailable.")
 		return
 	end
 	if NAStuff.teleportTransition == true then
@@ -42309,10 +42307,7 @@ cmd.add({"rejoin","rj"},{"rejoin (rj)","Rejoin the game"},function()
 
 	if #__lt.cm("Players", "GetPlayers")<=1 then
 		local ok,err=pcall(function()
-			local launched, launchErr = NAmanage.LaunchExperience({ placeId = PlaceId })
-			if not launched then
-				error(launchErr)
-			end
+			tp:Teleport(PlaceId,lp)
 		end)
 		if not ok then
 			markTeleportFailed("Teleport error: "..tostring(err))
@@ -42322,18 +42317,12 @@ cmd.add({"rejoin","rj"},{"rejoin (rj)","Rejoin the game"},function()
 		local targetJobId = resolveRejoinJobId()
 		if targetJobId then
 			local ok,err=pcall(function()
-				local launched, launchErr = NAmanage.LaunchExperience({ placeId = PlaceId, gameInstanceId = targetJobId })
-				if not launched then
-					error(launchErr)
-				end
+				tp:TeleportToPlaceInstance(PlaceId,targetJobId,lp)
 			end)
 			if not ok then
-				DoNotif("LaunchExperience instance error: "..tostring(err))
+				DoNotif("TeleportToPlaceInstance error: "..tostring(err))
 				local ok2, err2 = pcall(function()
-					local launched, launchErr = NAmanage.LaunchExperience({ placeId = PlaceId })
-					if not launched then
-						error(launchErr)
-					end
+					tp:Teleport(PlaceId,lp)
 				end)
 				if not ok2 then
 					markTeleportFailed("Teleport fallback error: "..tostring(err2))
@@ -42342,10 +42331,7 @@ cmd.add({"rejoin","rj"},{"rejoin (rj)","Rejoin the game"},function()
 			end
 		else
 			local ok, err = pcall(function()
-				local launched, launchErr = NAmanage.LaunchExperience({ placeId = PlaceId })
-				if not launched then
-					error(launchErr)
-				end
+				tp:Teleport(PlaceId,lp)
 			end)
 			if not ok then
 				markTeleportFailed("Teleport error: "..tostring(err))
@@ -54677,10 +54663,7 @@ end)
 cmd.add({"joinjobid","joinjid","jjobid","jjid"},{"joinjobid <jobid>","Joins the job id you put in"},function(...)
 	zeId={...}
 	id=zeId[1]
-	local ok, err = NAmanage.LaunchExperience({ placeId = PlaceId, gameInstanceId = id })
-	if not ok then
-		DoNotif("LaunchExperience error: "..tostring(err))
-	end
+	__lt.cm("TeleportService", "TeleportToPlaceInstance", PlaceId,id)
 end,true)
 
 NAStuff.srv = NAStuff.srv or {}
@@ -54829,10 +54812,7 @@ cmd.add({"serverhop","shop"},{"serverhop (shop)","serverhop"},function()
 	local function defaultHop()
 		DebugNotif("Teleporting (default)")
 		local ok, err = pcall(function()
-			local launched, launchErr = NAmanage.LaunchExperience({ placeId = PlaceId })
-			if not launched then
-				error(launchErr)
-			end
+			__lt.cm("TeleportService", "Teleport", PlaceId)
 		end)
 		if not ok then
 			DebugNotif("Teleport failed: "..tostring(err or "?"))
@@ -54844,10 +54824,7 @@ cmd.add({"serverhop","shop"},{"serverhop (shop)","serverhop"},function()
 		local id, pl = NAStuff.srv:scan("high")
 		if id then
 			DebugNotif("serverhopping | Player Count: "..tostring(pl or "?"))
-			local ok, err = NAmanage.LaunchExperience({ placeId = PlaceId, gameInstanceId = id })
-			if not ok then
-				DebugNotif("Teleport failed: "..tostring(err or "?"))
-			end
+			__lt.cm("TeleportService", "TeleportToPlaceInstance", PlaceId, id)
 		else
 			DebugNotif("No server found")
 		end
@@ -54875,10 +54852,7 @@ cmd.add({"smallserverhop","sshop"},{"smallserverhop (sshop)","serverhop to a sma
 	local id, pl = NAStuff.srv:scan("low")
 	if id then
 		DebugNotif("serverhopping | Player Count: "..tostring(pl or "?"))
-		local ok, err = NAmanage.LaunchExperience({ placeId = PlaceId, gameInstanceId = id })
-		if not ok then
-			DebugNotif("Teleport failed: "..tostring(err or "?"))
-		end
+		__lt.cm("TeleportService", "TeleportToPlaceInstance", PlaceId, id)
 	else
 		DebugNotif("No server found")
 	end
@@ -54891,10 +54865,7 @@ cmd.add({"pingserverhop","pshop"},{"pingserverhop (pshop)","serverhop to a serve
 	local id, pl, pn = NAStuff.srv:scan("ping")
 	if id and pn then
 		DebugNotif(Format("Serverhopping | Ping: %s ms | Players: %s", tostring(pn), tostring(pl or "?")))
-		local ok, err = NAmanage.LaunchExperience({ placeId = PlaceId, gameInstanceId = id })
-		if not ok then
-			DebugNotif("Teleport failed: "..tostring(err or "?"))
-		end
+		__lt.cm("TeleportService", "TeleportToPlaceInstance", PlaceId, id)
 	else
 		DebugNotif("No server with ping found")
 	end
@@ -54966,7 +54937,7 @@ cmd.add({"autorejoin", "autorj"}, {"autorejoin (autorj)", "Rejoins the server if
 			end)
 			if not ok then
 				pcall(function()
-					NAmanage.LaunchExperience({ placeId = PlaceId })
+					__lt.cm("TeleportService", "Teleport", PlaceId, Players.LocalPlayer)
 				end)
 			end
 			Wait(1.5)
@@ -67790,11 +67761,6 @@ end)
 
 cmd.add({"backpack"},{"backpack","provides a custom backpack gui"},function()
 	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/mobileBACKPACK.lua");
-end)
-
-cmd.add({"experiencedebug","expdebug","esdebug"},{"experiencedebug","Enables ExperienceService launch diagnostics"},function()
-	NAmanage.ExperienceDebugConnect()
-	NAmanage.ExperienceDebugSnapshot("ExperienceDebug manual")
 end)
 
 -- patched
@@ -114633,7 +114599,7 @@ local function getIntegrationTeleportScript()
 		return ""
 	end
 	return Format(
-		'local p=%s; local j=%q; local ok=pcall(function() game:GetService("ExperienceService"):LaunchExperience({placeId = p, gameInstanceId = j}) end); if not ok then game:GetService("TeleportService"):TeleportToPlaceInstance(p, j, game:GetService("Players").LocalPlayer) end',
+		'game:GetService("TeleportService"):TeleportToPlaceInstance(%s, "%s", game:GetService("Players").LocalPlayer)',
 		placeId,
 		jobId
 	)
