@@ -4445,6 +4445,44 @@ local LogService = SafeGetService("LogService");
 NAmanage.LaunchExperience = NAmanage.LaunchExperience or function(params, opts)
 	params = type(params) == "table" and params or { placeId = params }
 	opts = type(opts) == "table" and opts or {}
+	local launchParams = {}
+	for key, value in params do
+		if value ~= nil then
+			launchParams[key] = value
+		end
+	end
+	local function fallbackTeleport(expErr)
+		local tp = TeleportService
+		if not tp then
+			local okTp, resolvedTp = pcall(function()
+				return game.TeleportService or game:GetService("TeleportService")
+			end)
+			if okTp and resolvedTp then
+				TeleportService = resolvedTp
+				tp = resolvedTp
+			end
+		end
+		if not tp then
+			return false, expErr or "TeleportService fallback unavailable"
+		end
+		local lp = Players and Players.LocalPlayer
+		local placeId = launchParams.placeId or launchParams.PlaceId
+		local gameInstanceId = launchParams.gameInstanceId or launchParams.jobId
+		local reservedCode = launchParams.reservedServerAccessCode or launchParams.accessCode
+		if launchParams.linkCode then
+			return false, expErr or "TeleportService has no linkCode fallback"
+		end
+		return pcall(function()
+			if gameInstanceId and placeId then
+				return tp:TeleportToPlaceInstance(placeId, gameInstanceId, lp)
+			elseif reservedCode and placeId and tp.TeleportToPrivateServer then
+				return tp:TeleportToPrivateServer(placeId, reservedCode, lp and { lp } or {})
+			elseif placeId then
+				return tp:Teleport(placeId, lp)
+			end
+			error("TeleportService fallback needs placeId")
+		end)
+	end
 	local service = ExperienceService
 	if not service then
 		local ok, resolved = pcall(function()
@@ -4456,15 +4494,9 @@ NAmanage.LaunchExperience = NAmanage.LaunchExperience or function(params, opts)
 		end
 	end
 	if not service then
-		return false, "ExperienceService unavailable"
+		return fallbackTeleport("ExperienceService unavailable")
 	end
-	local launchParams = {}
-	for key, value in params do
-		if value ~= nil then
-			launchParams[key] = value
-		end
-	end
-	return pcall(function()
+	local ok, result = pcall(function()
 		if opts.callback and service.LaunchExperienceFromSourceWithCallback then
 			return service:LaunchExperienceFromSourceWithCallback(launchParams, opts.source or "NamelessAdmin", opts.callback)
 		end
@@ -4473,6 +4505,10 @@ NAmanage.LaunchExperience = NAmanage.LaunchExperience or function(params, opts)
 		end
 		return service:LaunchExperience(launchParams)
 	end)
+	if ok then
+		return true, result
+	end
+	return fallbackTeleport(result)
 end
 
 NAmanage.ExperienceDebugValue = NAmanage.ExperienceDebugValue or function(value, depth, seen)
@@ -114577,7 +114613,7 @@ local function getIntegrationTeleportScript()
 		return ""
 	end
 	return Format(
-		'game.ExperienceService:LaunchExperience({placeId = %s, gameInstanceId = %q})',
+		'local p=%s; local j=%q; local ok=pcall(function() game:GetService("ExperienceService"):LaunchExperience({placeId = p, gameInstanceId = j}) end); if not ok then game:GetService("TeleportService"):TeleportToPlaceInstance(p, j, game:GetService("Players").LocalPlayer) end',
 		placeId,
 		jobId
 	)
