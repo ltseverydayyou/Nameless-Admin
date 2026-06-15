@@ -4426,6 +4426,7 @@ local TweenService = SafeGetService("TweenService");
 local RunService = SafeGetService("RunService");
 local ContextActionService = SafeGetService("ContextActionService");
 local TeleportService = SafeGetService("TeleportService");
+local ExperienceService = SafeGetService("ExperienceService");
 local Lighting = SafeGetService("Lighting");
 local ReplicatedStorage = SafeGetService("ReplicatedStorage");
 local COREGUI = SafeGetService("CoreGui");
@@ -4439,6 +4440,182 @@ local MarketplaceService = SafeGetService("MarketplaceService");
 local GuiService = SafeGetService("GuiService");
 local ContextActionService = SafeGetService("ContextActionService");
 local StatsService = SafeGetService("Stats");
+local LogService = SafeGetService("LogService");
+
+NAmanage.LaunchExperience = NAmanage.LaunchExperience or function(params, opts)
+	params = type(params) == "table" and params or { placeId = params }
+	opts = type(opts) == "table" and opts or {}
+	local service = ExperienceService
+	if not service then
+		local ok, resolved = pcall(function()
+			return game.ExperienceService or game:GetService("ExperienceService")
+		end)
+		if ok and resolved then
+			ExperienceService = resolved
+			service = resolved
+		end
+	end
+	if not service then
+		return false, "ExperienceService unavailable"
+	end
+	local launchParams = {}
+	for key, value in params do
+		if value ~= nil then
+			launchParams[key] = value
+		end
+	end
+	return pcall(function()
+		if opts.callback and service.LaunchExperienceFromSourceWithCallback then
+			return service:LaunchExperienceFromSourceWithCallback(launchParams, opts.source or "NamelessAdmin", opts.callback)
+		end
+		if opts.source and service.LaunchExperienceFromSource then
+			return service:LaunchExperienceFromSource(launchParams, opts.source)
+		end
+		return service:LaunchExperience(launchParams)
+	end)
+end
+
+NAmanage.ExperienceDebugValue = NAmanage.ExperienceDebugValue or function(value, depth, seen)
+	depth = depth or 0
+	if depth > 2 then return "..." end
+	local valueType = typeof(value)
+	if valueType ~= "table" then
+		return tostring(value)
+	end
+	seen = seen or {}
+	if seen[value] then return "<cycle>" end
+	seen[value] = true
+	local parts = {}
+	local count = 0
+	for key, inner in value do
+		count += 1
+		if count > 10 then
+			parts[#parts + 1] = "..."
+			break
+		end
+		parts[#parts + 1] = tostring(key).."="..NAmanage.ExperienceDebugValue(inner, depth + 1, seen)
+	end
+	seen[value] = nil
+	return "{"..Concat(parts, ", ").."}"
+end
+
+NAmanage.ExperienceDebugSnapshot = NAmanage.ExperienceDebugSnapshot or function(label)
+	local service = ExperienceService
+	if not service then
+		local ok, resolved = pcall(function()
+			return game.ExperienceService or game:GetService("ExperienceService")
+		end)
+		if ok and resolved then
+			ExperienceService = resolved
+			service = resolved
+		end
+	end
+	if not service then
+		DoNotif((label or "ExperienceService")..": unavailable", 4)
+		return false
+	end
+	local parts = {}
+	local probes = {
+		{"state", "GetPlaceJoinState"},
+		{"queue", "GetQueuePosition"},
+		{"pending", "GetPendingJoinAttempt"},
+		{"followUserId", "GetFollowUserId"},
+	}
+	for _, probe in probes do
+		local key, method = probe[1], probe[2]
+		local fn = service[method]
+		if type(fn) == "function" then
+			local ok, value = pcall(function()
+				return fn(service)
+			end)
+			parts[#parts + 1] = key.."="..(ok and NAmanage.ExperienceDebugValue(value) or ("ERR:"..tostring(value)))
+		end
+	end
+	local text = (label or "ExperienceService")..": "..(#parts > 0 and Concat(parts, " | ") or "no readable state")
+	if text:find("queue=-1", 1, true) then
+		text = text.." | queue=-1 means no queue position reported"
+	end
+	DoNotif(text, 6)
+	return true, text
+end
+
+NAmanage.ExperienceDebugRecord = NAmanage.ExperienceDebugRecord or function(name, valuesText)
+	NAStuff.ExperienceDebugEvents = NAStuff.ExperienceDebugEvents or {}
+	local events = NAStuff.ExperienceDebugEvents
+	events[#events + 1] = {
+		t = os.clock(),
+		name = tostring(name or ""),
+		values = tostring(valuesText or ""),
+	}
+	while #events > 20 do
+		table.remove(events, 1)
+	end
+end
+
+NAmanage.ExperienceDebugConnect = NAmanage.ExperienceDebugConnect or function()
+	if NAStuff.ExperienceDebugConnected then
+		return true
+	end
+	local service = ExperienceService
+	if not service then
+		pcall(function()
+			service = game.ExperienceService or game:GetService("ExperienceService")
+		end)
+		if service then ExperienceService = service end
+	end
+	if not service then
+		DoNotif("ExperienceService debug unavailable", 4)
+		return false
+	end
+	NAStuff.ExperienceDebugConnected = true
+	local function dbg(name, ...)
+		local values = {}
+		for i = 1, select("#", ...) do
+			values[#values + 1] = NAmanage.ExperienceDebugValue(select(i, ...))
+		end
+		local valuesText = Concat(values, " | ")
+		NAmanage.ExperienceDebugRecord(name, valuesText)
+		DoNotif("[ExperienceDebug] "..name..": "..valuesText, 6)
+	end
+	local eventNames = {"OnNewJoinAttempt", "PlaceJoinStateChanged", "QueuePositionChanged", "OnCrossExperienceStarted", "OnCrossExperienceStopped"}
+	for _, eventName in eventNames do
+		local event = service[eventName]
+		if event and event.Connect then
+			pcall(function()
+				NAlib.connect("experience_debug_"..eventName, event:Connect(function(...)
+					dbg(eventName, ...)
+				end))
+			end)
+		end
+	end
+	local registerNames = {"RegisterForExperienceJoin", "RegisterForExperienceLeave"}
+	for _, methodName in registerNames do
+		local fn = service[methodName]
+		if type(fn) == "function" then
+			pcall(function()
+				local conn = fn(service, function(...)
+					dbg(methodName, ...)
+				end)
+				if conn and conn.Disconnect then
+					NAlib.connect("experience_debug_"..methodName, conn)
+				end
+			end)
+		end
+	end
+	if LogService and LogService.MessageOut then
+		pcall(function()
+			NAlib.connect("experience_debug_log", LogService.MessageOut:Connect(function(message, messageType)
+				local lowerMessage = Lower(tostring(message or ""))
+				if lowerMessage:find("experience") or lowerMessage:find("launch") or lowerMessage:find("queue") or lowerMessage:find("notificationtype") then
+					dbg("LogService", tostring(message), tostring(messageType))
+				end
+			end))
+		end)
+	end
+	DoNotif("ExperienceService debug hooks enabled.", 4)
+	NAmanage.ExperienceDebugSnapshot("ExperienceDebug connected")
+	return true
+end
 
 NAmanage.GetDataPingStat = NAmanage.GetDataPingStat or function()
 	local ok, pingStat = pcall(function()
@@ -23863,12 +24040,20 @@ NAmanage._safeLoadStart = function()
 					if type(fn) ~= "function" then
 						warn(tostring(lerr or "compile error"))
 					else
+						if type(job.env) == "table" then
+							pcall(setfenv, fn, job.env)
+						end
 						Wait()
 						local args = job.args or {}
 						local n = job.n or 0
-						local okRun, errRun = pcall(fn, Unpack(args, 1, n))
-						if not okRun then
-							warn(errRun)
+						local results = table.pack(pcall(fn, Unpack(args, 1, n)))
+						if not results[1] then
+							warn(results[2])
+						elseif type(job.onReturn) == "function" then
+							local okAfter, errAfter = pcall(job.onReturn, Unpack(results, 2, results.n))
+							if not okAfter then
+								warn(errAfter)
+							end
 						end
 					end
 				end
@@ -23894,6 +24079,24 @@ NAmanage.RunSource = function(src, chunkName, ...)
 		args = {...},
 		n = select("#", ...),
 		delay = delayTime,
+	})
+	NAmanage._safeLoadStart()
+	return true
+end
+
+NAmanage.RunSourceInEnv = function(src, chunkName, env, onReturn, ...)
+	if type(src) ~= "string" or src == "" then
+		return false, "empty source"
+	end
+	local delayTime = ((tonumber(NAmanage._cmdRunDepth) or 0) > 0) and 0.85 or 0.35
+	Insert(NAmanage._safeLoadQ, {
+		src = src,
+		chunkName = chunkName,
+		args = {...},
+		n = select("#", ...),
+		delay = delayTime,
+		env = type(env) == "table" and env or nil,
+		onReturn = type(onReturn) == "function" and onReturn or nil,
 	})
 	NAmanage._safeLoadStart()
 	return true
@@ -33114,6 +33317,7 @@ NAmanage.LoadPlugins = function(opts)
 			RunService = true,
 			ContextActionService = true,
 			TeleportService = true,
+			ExperienceService = true,
 			Lighting = true,
 			ReplicatedStorage = true,
 			CoreGui = true,
@@ -33227,6 +33431,7 @@ NAmanage.LoadPlugins = function(opts)
 			proxyEnv.RunService = _plugSetService("RunService", "RunService", RunService)
 			proxyEnv.ContextActionService = _plugSetService("ContextActionService", "ContextActionService", ContextActionService)
 			proxyEnv.TeleportService = _plugSetService("TeleportService", "TeleportService", TeleportService)
+			proxyEnv.ExperienceService = _plugSetService("ExperienceService", "ExperienceService", ExperienceService)
 			proxyEnv.Lighting = _plugSetService("Lighting", "Lighting", Lighting)
 			proxyEnv.ReplicatedStorage = _plugSetService("ReplicatedStorage", "ReplicatedStorage", ReplicatedStorage)
 			proxyEnv.CoreGui = _plugSetService("CoreGui", "CoreGui", COREGUI)
@@ -33497,11 +33702,22 @@ NAmanage.LoadPlugins = function(opts)
 			__index = function(_, k)
 				if k == "loadstring" then
 					local baseLoader = baseEnv.loadstring or loadstring
+					local function collectRemoteReturn(...)
+						local first = select(1, ...)
+						if type(first) == "table" then
+							if mode == "iy" then
+								appendIYCommands(colPlugins, first)
+							else
+								_plugAppend(first, true)
+							end
+						end
+						return ...
+					end
 					return function(code, chunkname)
 						if (tonumber(NAmanage._cmdRunDepth) or 0) > 0 then
 							local src = tostring(code or "")
 							return function(...)
-								return NAmanage.RunSource(src, chunkname or "@NAPluginRuntime", ...)
+								return NAmanage.RunSourceInEnv(src, chunkname or "@NAPluginRuntime", proxyEnv, collectRemoteReturn, ...)
 							end
 						end
 						local f, e = baseLoader(code, chunkname)
@@ -33509,17 +33725,6 @@ NAmanage.LoadPlugins = function(opts)
 							return nil, e
 						end
 						setfenv(f, proxyEnv)
-						local function collectRemoteReturn(...)
-							local first = select(1, ...)
-							if type(first) == "table" then
-								if mode == "iy" then
-									appendIYCommands(colPlugins, first)
-								else
-									_plugAppend(first, true)
-								end
-							end
-							return ...
-						end
 						return function(...)
 							return collectRemoteReturn(f(...))
 						end
@@ -33529,6 +33734,14 @@ NAmanage.LoadPlugins = function(opts)
 					if not baseLoad then return nil end
 					return function(chunk, chunkname, mode2, _na_env)
 						return baseLoad(chunk, chunkname, mode2, _na_env or proxyEnv)
+					end
+				elseif k == "Plugin" then
+					return pluginApi
+				elseif k == "NAPlugin" or k == "plugin" then
+					return _plugNew
+				elseif k == "command" or k == "Command" or k == "cmdPlugin" then
+					return function(...)
+						return _plugNew(baseName):Command(...)
 					end
 				elseif k == "game" then
 					return gameProxy
@@ -33773,6 +33986,19 @@ NAmanage.InitPlugs=function()
 		rec(startDir)
 		return out
 	end
+	local deferPluginReload = function(loadOpts, onDone)
+		if not (NAmanage and NAmanage.LoadPlugins) then
+			return false
+		end
+		Spawn(function()
+			Wait()
+			local ok = NAmanage.LoadPlugins(loadOpts)
+			if type(onDone) == "function" then
+				pcall(onDone, ok)
+			end
+		end)
+		return true
+	end
 
 	cmd.add(
 		{"addallplugins","addplugins","aap","aaplugs"},
@@ -33804,7 +34030,7 @@ NAmanage.InitPlugs=function()
 			end
 			if #moved > 0 then
 				DoNotif("Moved "..#moved.." plugin file(s):\n\n"..Concat(moved, "\n"), 4.5)
-				if NAmanage and NAmanage.LoadPlugins then NAmanage.LoadPlugins() end
+				deferPluginReload()
 			else
 				DoNotif((errs>0) and ("No plugins moved ("..errs.." error(s))") or "No .na/.iy files found outside Plugins/PluginsIY", 3)
 			end
@@ -33837,7 +34063,7 @@ NAmanage.InitPlugs=function()
 				if not okW then DoNotif("Failed to write "..file,3); return end
 				if not (delfile and pcall(delfile, path)) then DoNotif("Wrote but couldn't delete source "..file,3); return end
 				DoNotif("Moved plugin "..file,3)
-				if NAmanage and NAmanage.LoadPlugins then NAmanage.LoadPlugins() end
+				deferPluginReload()
 			end
 
 			if #query > 0 then
@@ -33901,13 +34127,13 @@ NAmanage.InitPlugs=function()
 					return
 				end
 			end
-			if not NAmanage.LoadPlugins({ forceNotify = true }) then
-				DoNotif("Failed to reload plugins",3)
-			else
-				if NAgui and NAgui.loadCMDS then
+			deferPluginReload({ forceNotify = true }, function(ok)
+				if not ok then
+					DoNotif("Failed to reload plugins",3)
+				elseif NAgui and NAgui.loadCMDS then
 					pcall(NAgui.loadCMDS, { force = true })
 				end
-			end
+			end)
 		end
 	)
 
@@ -33937,7 +34163,7 @@ NAmanage.InitPlugs=function()
 								if okW and delfile and pcall(delfile, p) then
 									DoNotif("Moved "..file.." to workspace",3)
 									if NAmanage and NAmanage.LoadPlugins then
-										NAmanage.LoadPlugins({ silent = true })
+										deferPluginReload({ silent = true })
 									elseif NAgui and NAgui.loadCMDS then
 										pcall(NAgui.loadCMDS, { force = true })
 									end
@@ -33995,7 +34221,7 @@ NAmanage.InitPlugs=function()
 			else
 				DoNotif((errs>0) and ("No plugin files moved ("..errs.." error(s))") or "No plugins found",3)
 			end
-			if NAmanage and NAmanage.LoadPlugins then NAmanage.LoadPlugins() end
+			deferPluginReload()
 		end
 	)
 end
@@ -41920,12 +42146,12 @@ cmd.add({"rejoin","rj"},{"rejoin (rj)","Rejoin the game"},function()
 	local tp=TeleportService
 	local lp=plrs and plrs.LocalPlayer
 	local nowTick = tick()
-	if not (plrs and tp and lp) then
+	if not (plrs and lp and NAmanage.LaunchExperience) then
 		if NAStuff.RjreWaitingForTeleport == true then
 			NAStuff.RjreWaitingForTeleport = false
 			DONE = false
 		end
-		DoNotif("Teleport service is unavailable.")
+		DoNotif("Experience service is unavailable.")
 		return
 	end
 	if NAStuff.teleportTransition == true then
@@ -41967,23 +42193,25 @@ cmd.add({"rejoin","rj"},{"rejoin (rj)","Rejoin the game"},function()
 		NAStuff.RjreWaitingForTeleport = transitionToken
 	end
 
-	NAlib.disconnect("rejoin_tperr")
-	NAlib.connect("rejoin_tperr",tp.TeleportInitFailed:Connect(function(player,result,errMsg)
-		local currentLp = Players and Players.LocalPlayer
-		if currentLp and player == currentLp and NAStuff.teleportTransitionToken == transitionToken then
-			NAStuff.teleportTransition = false
-			NAStuff.teleportTransitionSince = nil
-			NAStuff.teleportTransitionToken = nil
-			if pauseToken and NAmanage.ResumeSettingsBuildAfterTeleport then
-				pcall(NAmanage.ResumeSettingsBuildAfterTeleport, pauseToken, "failed")
+	if tp and tp.TeleportInitFailed then
+		NAlib.disconnect("rejoin_tperr")
+		NAlib.connect("rejoin_tperr",tp.TeleportInitFailed:Connect(function(player,result,errMsg)
+			local currentLp = Players and Players.LocalPlayer
+			if currentLp and player == currentLp and NAStuff.teleportTransitionToken == transitionToken then
+				NAStuff.teleportTransition = false
+				NAStuff.teleportTransitionSince = nil
+				NAStuff.teleportTransitionToken = nil
+				if pauseToken and NAmanage.ResumeSettingsBuildAfterTeleport then
+					pcall(NAmanage.ResumeSettingsBuildAfterTeleport, pauseToken, "failed")
+				end
+				if NAStuff.RjreWaitingForTeleport == transitionToken then
+					NAStuff.RjreWaitingForTeleport = false
+					DONE = false
+				end
 			end
-			if NAStuff.RjreWaitingForTeleport == transitionToken then
-				NAStuff.RjreWaitingForTeleport = false
-				DONE = false
-			end
-		end
-		DoNotif(("Teleport failed [%s]: %s"):format(tostring(result),tostring(errMsg)))
-	end))
+			DoNotif(("Teleport failed [%s]: %s"):format(tostring(result),tostring(errMsg)))
+		end))
+	end
 
 	local function markTeleportFailed(msg)
 		if NAStuff.teleportTransitionToken == transitionToken then
@@ -42025,7 +42253,10 @@ cmd.add({"rejoin","rj"},{"rejoin (rj)","Rejoin the game"},function()
 
 	if #__lt.cm("Players", "GetPlayers")<=1 then
 		local ok,err=pcall(function()
-			tp:Teleport(PlaceId,lp)
+			local launched, launchErr = NAmanage.LaunchExperience({ placeId = PlaceId })
+			if not launched then
+				error(launchErr)
+			end
 		end)
 		if not ok then
 			markTeleportFailed("Teleport error: "..tostring(err))
@@ -42035,12 +42266,18 @@ cmd.add({"rejoin","rj"},{"rejoin (rj)","Rejoin the game"},function()
 		local targetJobId = resolveRejoinJobId()
 		if targetJobId then
 			local ok,err=pcall(function()
-				tp:TeleportToPlaceInstance(PlaceId,targetJobId,lp)
+				local launched, launchErr = NAmanage.LaunchExperience({ placeId = PlaceId, gameInstanceId = targetJobId })
+				if not launched then
+					error(launchErr)
+				end
 			end)
 			if not ok then
-				DoNotif("TeleportToPlaceInstance error: "..tostring(err))
+				DoNotif("LaunchExperience instance error: "..tostring(err))
 				local ok2, err2 = pcall(function()
-					tp:Teleport(PlaceId,lp)
+					local launched, launchErr = NAmanage.LaunchExperience({ placeId = PlaceId })
+					if not launched then
+						error(launchErr)
+					end
 				end)
 				if not ok2 then
 					markTeleportFailed("Teleport fallback error: "..tostring(err2))
@@ -42049,7 +42286,10 @@ cmd.add({"rejoin","rj"},{"rejoin (rj)","Rejoin the game"},function()
 			end
 		else
 			local ok, err = pcall(function()
-				tp:Teleport(PlaceId,lp)
+				local launched, launchErr = NAmanage.LaunchExperience({ placeId = PlaceId })
+				if not launched then
+					error(launchErr)
+				end
 			end)
 			if not ok then
 				markTeleportFailed("Teleport error: "..tostring(err))
@@ -42065,7 +42305,10 @@ end)
 cmd.add({"teleporttoplace","toplace","ttp", "gametp"},{"teleporttoplace <id>","Teleports you using PlaceId"},function(...)
 	args={...}
 	pId=tonumber(args[1])
-	__lt.cm("TeleportService", "Teleport", pId)
+	local ok, err = NAmanage.LaunchExperience({ placeId = pId })
+	if not ok then
+		DoNotif("LaunchExperience error: "..tostring(err))
+	end
 end,true)
 
 --made by the_king.78
@@ -54378,7 +54621,10 @@ end)
 cmd.add({"joinjobid","joinjid","jjobid","jjid"},{"joinjobid <jobid>","Joins the job id you put in"},function(...)
 	zeId={...}
 	id=zeId[1]
-	__lt.cm("TeleportService", "TeleportToPlaceInstance", PlaceId,id)
+	local ok, err = NAmanage.LaunchExperience({ placeId = PlaceId, gameInstanceId = id })
+	if not ok then
+		DoNotif("LaunchExperience error: "..tostring(err))
+	end
 end,true)
 
 NAStuff.srv = NAStuff.srv or {}
@@ -54527,7 +54773,10 @@ cmd.add({"serverhop","shop"},{"serverhop (shop)","serverhop"},function()
 	local function defaultHop()
 		DebugNotif("Teleporting (default)")
 		local ok, err = pcall(function()
-			__lt.cm("TeleportService", "Teleport", PlaceId)
+			local launched, launchErr = NAmanage.LaunchExperience({ placeId = PlaceId })
+			if not launched then
+				error(launchErr)
+			end
 		end)
 		if not ok then
 			DebugNotif("Teleport failed: "..tostring(err or "?"))
@@ -54539,7 +54788,10 @@ cmd.add({"serverhop","shop"},{"serverhop (shop)","serverhop"},function()
 		local id, pl = NAStuff.srv:scan("high")
 		if id then
 			DebugNotif("serverhopping | Player Count: "..tostring(pl or "?"))
-			__lt.cm("TeleportService", "TeleportToPlaceInstance", PlaceId, id)
+			local ok, err = NAmanage.LaunchExperience({ placeId = PlaceId, gameInstanceId = id })
+			if not ok then
+				DebugNotif("Teleport failed: "..tostring(err or "?"))
+			end
 		else
 			DebugNotif("No server found")
 		end
@@ -54567,7 +54819,10 @@ cmd.add({"smallserverhop","sshop"},{"smallserverhop (sshop)","serverhop to a sma
 	local id, pl = NAStuff.srv:scan("low")
 	if id then
 		DebugNotif("serverhopping | Player Count: "..tostring(pl or "?"))
-		__lt.cm("TeleportService", "TeleportToPlaceInstance", PlaceId, id)
+		local ok, err = NAmanage.LaunchExperience({ placeId = PlaceId, gameInstanceId = id })
+		if not ok then
+			DebugNotif("Teleport failed: "..tostring(err or "?"))
+		end
 	else
 		DebugNotif("No server found")
 	end
@@ -54580,7 +54835,10 @@ cmd.add({"pingserverhop","pshop"},{"pingserverhop (pshop)","serverhop to a serve
 	local id, pl, pn = NAStuff.srv:scan("ping")
 	if id and pn then
 		DebugNotif(Format("Serverhopping | Ping: %s ms | Players: %s", tostring(pn), tostring(pl or "?")))
-		__lt.cm("TeleportService", "TeleportToPlaceInstance", PlaceId, id)
+		local ok, err = NAmanage.LaunchExperience({ placeId = PlaceId, gameInstanceId = id })
+		if not ok then
+			DebugNotif("Teleport failed: "..tostring(err or "?"))
+		end
 	else
 		DebugNotif("No server with ping found")
 	end
@@ -54652,7 +54910,7 @@ cmd.add({"autorejoin", "autorj"}, {"autorejoin (autorj)", "Rejoins the server if
 			end)
 			if not ok then
 				pcall(function()
-					__lt.cm("TeleportService", "Teleport", PlaceId, Players.LocalPlayer)
+					NAmanage.LaunchExperience({ placeId = PlaceId })
 				end)
 			end
 			Wait(1.5)
@@ -67478,8 +67736,13 @@ cmd.add({"backpack"},{"backpack","provides a custom backpack gui"},function()
 	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/mobileBACKPACK.lua");
 end)
 
+cmd.add({"experiencedebug","expdebug","esdebug"},{"experiencedebug","Enables ExperienceService launch diagnostics"},function()
+	NAmanage.ExperienceDebugConnect()
+	NAmanage.ExperienceDebugSnapshot("ExperienceDebug manual")
+end)
+
 -- patched
-cmd.addPatched({"reserveserver","privateserver","ps","rs"},{"reserveserver [code]","Teleports to a reserved server or creates one if code is missing"},function(code)
+cmd.addPatched({"reserveserver","privateserver","ps","rs"},{"reserveserver [code/link] [instanceId] | reserveserver debug [placeId] [seed]","Teleports to a reserved server or creates one if code is missing"},function(code,instanceArg,debugInput)
 	local md5={}
 	local hmac={}
 	local base64={}
@@ -67581,6 +67844,36 @@ cmd.addPatched({"reserveserver","privateserver","ps","rs"},{"reserveserver [code
 		if s:find("[_%-]") then return true end
 		return s:find("[A-Za-z]")~=nil
 	end
+	local function normalizePrivateServerInput(raw)
+		raw=tostring(raw or ""):match("^%s*(.-)%s*$")
+		if raw=="" then return nil,nil end
+		local accessPart, instancePart = raw:match("^(%S+)%s+([%w%-]+)$")
+		if accessPart and instancePart and isLikelyAccessCode(accessPart) then
+			return accessPart,"accessCode",instancePart
+		end
+		local linkCode=raw:match("[?&]privateServerLinkCode=([^&%s]+)") or raw:match("[?&]linkCode=([^&%s]+)")
+		if linkCode and HttpService and HttpService.UrlDecode then
+			local ok,decoded=pcall(function() return HttpService:UrlDecode(linkCode) end)
+			if ok and decoded and decoded~="" then linkCode=decoded end
+		end
+		if linkCode and linkCode~="" then
+			return linkCode,"linkCode"
+		end
+		if isLikelyAccessCode(raw) then
+			local explicitInstance=instanceArg and tostring(instanceArg):match("^%s*(.-)%s*$") or nil
+			if explicitInstance=="" then explicitInstance=nil end
+			return raw,"accessCode",explicitInstance
+		end
+		return raw,"seed"
+	end
+	local function uuidFromBytes(bytes)
+		local hex={}
+		for i=1,16 do
+			hex[i]=Format("%02x",string.byte(bytes,i) or 0)
+		end
+		local s=Concat(hex,"")
+		return s:sub(1,8).."-"..s:sub(9,12).."-"..s:sub(13,16).."-"..s:sub(17,20).."-"..s:sub(21,32)
+	end
 	local function GenerateAccessCode(placeId,seed)
 		local firstBytes
 		if seed and seed~="" then
@@ -67608,25 +67901,110 @@ cmd.addPatched({"reserveserver","privateserver","ps","rs"},{"reserveserver [code
 		final=final:gsub("%+","-"):gsub("/","_")
 		local pad=0
 		final=final:gsub("=",function() pad=pad+1 return "" end)
-		return final..tostring(pad)
+		return final..tostring(pad),uuidFromBytes(firstBytes)
 	end
-	local function getTeleportRemote()
-		local RRS=SafeGetService("RobloxReplicatedStorage") or __lt.cm("ReplicatedStorage", "FindFirstChild", "RobloxReplicatedStorage")
-		if not RRS then DoNotif("Missing RRS") return nil end
-		local remote=RRS:FindFirstChild("ContactListIrisInviteTeleport")
-		if not remote then DoNotif("Missing Teleport Remote") return nil end
-		return remote
+	local function buildLaunchParams(placeInfo,accessCode,variant)
+		local pid=placeInfo and placeInfo.PlaceId or game.PlaceId
+		local instanceId=placeInfo and placeInfo.GeneratedInstanceId
+		if variant=="linkOnly" then
+			return {linkCode=accessCode}
+		elseif variant=="accessPlace" then
+			return {placeId=pid,accessCode=accessCode}
+		elseif variant=="accessOnly" then
+			return {accessCode=accessCode}
+		elseif variant=="reservedPlace" then
+			return {placeId=pid,reservedServerAccessCode=accessCode}
+		elseif variant=="reservedOnly" then
+			return {reservedServerAccessCode=accessCode}
+		elseif variant=="instancePlace" then
+			return {placeId=pid,gameInstanceId=instanceId}
+		elseif variant=="instanceOnly" then
+			return {gameInstanceId=instanceId}
+		elseif variant=="instanceAccess" then
+			return {placeId=pid,gameInstanceId=instanceId,accessCode=accessCode}
+		elseif variant=="instanceReserved" then
+			return {placeId=pid,gameInstanceId=instanceId,reservedServerAccessCode=accessCode}
+		elseif variant=="instanceLink" then
+			return {placeId=pid,gameInstanceId=instanceId,linkCode=accessCode}
+		end
+		return {placeId=pid,linkCode=accessCode}
 	end
-	local function attemptTeleport(placeInfo,accessCode)
-		local remote=getTeleportRemote()
-		if not remote then return end
-		local ok,err=pcall(function()
-			remote:FireServer(placeInfo.PlaceId,"",accessCode)
+	local function encodeDebugPayload(placeInfo,accessCode,codeKind,variant)
+		local launchParams=buildLaunchParams(placeInfo,accessCode,variant)
+		local events={}
+		for _,event in (NAStuff.ExperienceDebugEvents or {}) do
+			events[#events+1]={t=event.t,name=event.name,values=event.values}
+		end
+		local payload={
+			mode="reserveserver",
+			variant=variant,
+			codeKind=codeKind,
+			placeId=placeInfo and placeInfo.PlaceId or game.PlaceId,
+			gameInstanceId=placeInfo and placeInfo.GeneratedInstanceId or nil,
+			accessCode=accessCode,
+			launchParams=launchParams,
+			jobId=tostring(game.JobId or ""),
+			currentPlaceId=game.PlaceId,
+			gameId=game.GameId,
+			events=events,
+		}
+		local okSnapshot,snapshotText=NAmanage.ExperienceDebugSnapshot("Reserved server copy debug")
+		if okSnapshot then
+			payload.snapshot=snapshotText
+		end
+		local okJson,json=pcall(function()
+			return HttpService:JSONEncode(payload)
 		end)
-		if ok then
-			DoNotif(Format("Joining reserved server using code: %s",accessCode))
+		if okJson then
+			return json
+		end
+		return NAmanage.ExperienceDebugValue(payload)
+	end
+	local function copyDebugPayload(placeInfo,accessCode,codeKind,variant)
+		local payload=encodeDebugPayload(placeInfo,accessCode,codeKind,variant)
+		if type(setclipboard)=="function" then
+			local ok,err=pcall(setclipboard,payload)
+			if ok then
+				DoNotif("Reserved server debug payload copied.",4)
+				return true
+			end
+			DoNotif("Clipboard failed: "..tostring(err),4)
 		else
-			DoNotif("Teleport failed: "..tostring(err))
+			DoNotif(payload,8)
+		end
+		return false
+	end
+	local function attemptTeleport(placeInfo,accessCode,codeKind,variant,opts)
+		variant=variant or "linkPlace"
+		opts=type(opts)=="table" and opts or {}
+		if variant:find("instance") and not (placeInfo and placeInfo.GeneratedInstanceId) then
+			DoNotif("No generated instance id is available for this code. Generate a new code without pasting one first.",5)
+			return
+		end
+		local launchParams=buildLaunchParams(placeInfo,accessCode,variant)
+		NAmanage.ExperienceDebugConnect()
+		NAmanage.ExperienceDebugSnapshot("Before "..variant)
+		local launchOpts={}
+		if opts.source then launchOpts.source=opts.source end
+		if opts.callback then launchOpts.callback=opts.callback end
+		local ok,err=NAmanage.LaunchExperience(launchParams,launchOpts)
+		if ok then
+			DoNotif(Format("LaunchExperience %s using %s: %s",variant,codeKind=="linkCode" and "link code" or "access code",accessCode),4)
+			Spawn(function()
+				Wait(1)
+				NAmanage.ExperienceDebugSnapshot("After "..variant.." +1s")
+				if opts.copyAfter then
+					copyDebugPayload(placeInfo,accessCode,codeKind,variant)
+				end
+				Wait(4)
+				NAmanage.ExperienceDebugSnapshot("After "..variant.." +5s")
+				if opts.copyAfter5 then
+					copyDebugPayload(placeInfo,accessCode,codeKind,variant)
+				end
+			end)
+		else
+			DoNotif("LaunchExperience "..variant.." failed: "..tostring(err),5)
+			NAmanage.ExperienceDebugSnapshot("Failed "..variant)
 		end
 	end
 	local function copyCode(accessCode)
@@ -67634,12 +68012,24 @@ cmd.addPatched({"reserveserver","privateserver","ps","rs"},{"reserveserver [code
 		DoNotif("Clipboard unavailable")
 		return false
 	end
-	local providedRaw=code and tostring(code) or nil
+	local codeMode=Lower(tostring(code or ""))
+	local debugMode=codeMode=="debug" or codeMode=="debugrun"
+	local debugRun=codeMode=="debugrun"
+	local debugPlaceId=debugMode and (tonumber(instanceArg) or PlaceId) or nil
+	local providedRaw
+	if debugMode then
+		providedRaw=debugInput and tostring(debugInput) or nil
+		instanceArg=nil
+	else
+		providedRaw=code and tostring(code) or nil
+	end
 	if providedRaw and #providedRaw<1 then providedRaw=nil end
 	local assetService=SafeGetService("AssetService")
 	local places={}
 	local fetchErr
-	if assetService then
+	if debugMode then
+		places[#places+1]={Name=Format("Debug Place %d",debugPlaceId),PlaceId=debugPlaceId}
+	elseif assetService then
 		local ok,pages=pcall(function() return __lt.cm("AssetService", "GetGamePlacesAsync") end)
 		if ok and pages then
 			while true do
@@ -67671,7 +68061,9 @@ cmd.addPatched({"reserveserver","privateserver","ps","rs"},{"reserveserver [code
 		end
 	end
 	places=processed
-	if not seen[game.PlaceId] then
+	if debugMode then
+		-- Keep debug mode focused on the requested place id.
+	elseif not seen[game.PlaceId] then
 		Insert(places,1,{Name=currentPlaceName,PlaceId=game.PlaceId})
 	else
 		for _,info in places do if info.PlaceId==game.PlaceId then info.Name=currentPlaceName break end end
@@ -67680,23 +68072,77 @@ cmd.addPatched({"reserveserver","privateserver","ps","rs"},{"reserveserver [code
 	local function resolveName(info) return (info and info.Name and info.Name~="") and info.Name or Format("Place %d",info and info.PlaceId or game.PlaceId) end
 	local function showOptions(selectedInfo)
 		if not selectedInfo then DoNotif("Invalid place selection") return end
-		local codeToUse
-		if providedRaw then
-			if isLikelyAccessCode(providedRaw) then
-				codeToUse=providedRaw
-			else
-				codeToUse=GenerateAccessCode(selectedInfo.PlaceId,providedRaw)
-			end
-		else
-			codeToUse=GenerateAccessCode(selectedInfo.PlaceId,nil)
+		local codeToUse,codeKind,providedInstanceId=normalizePrivateServerInput(providedRaw)
+		local generatedInstanceId
+		if codeKind=="seed" then
+			codeToUse,generatedInstanceId=GenerateAccessCode(selectedInfo.PlaceId,codeToUse)
+			codeKind="accessCode"
+		elseif not codeToUse then
+			codeToUse,generatedInstanceId=GenerateAccessCode(selectedInfo.PlaceId,nil)
+			codeKind="accessCode"
 		end
+		selectedInfo.GeneratedInstanceId=generatedInstanceId or providedInstanceId
+		local instanceIdToUse=selectedInfo.GeneratedInstanceId
+		local defaultVariant=instanceIdToUse and "instanceAccess" or "linkPlace"
 		local placeLabel=resolveName(selectedInfo)
-		local description=Format("Place: %s\nPlaceId: %d\nCode: %s",placeLabel,selectedInfo.PlaceId,codeToUse)
+		local description=Format("Place: %s\nPlaceId: %d\n%s: %s%s",placeLabel,selectedInfo.PlaceId,codeKind=="linkCode" and "LinkCode" or "AccessCode",codeToUse,instanceIdToUse and ("\nGameInstanceId: "..instanceIdToUse) or "")
 		local buttons={}
-		buttons[#buttons+1]={Text="Copy & Join",Callback=function() copyCode(codeToUse) attemptTeleport(selectedInfo,codeToUse) end}
-		buttons[#buttons+1]={Text="Join (no copy)",Callback=function() attemptTeleport(selectedInfo,codeToUse) end}
+		local function defaultJoin(opts)
+			if codeKind=="accessCode" and not instanceIdToUse then
+				DoNotif("Pasted access codes need a gameInstanceId. Use: reserveserver <accessCode> <gameInstanceId>",6)
+				return
+			end
+			attemptTeleport(selectedInfo,codeToUse,codeKind,defaultVariant,opts)
+		end
+		local function copyCurrentDebug()
+			copyDebugPayload(selectedInfo,codeToUse,codeKind,defaultVariant)
+		end
+		local function addVariantButton(text,variant,opts)
+			opts=type(opts)=="table" and opts or {}
+			if variant:find("instance",1,true) and not instanceIdToUse then
+				return
+			end
+			buttons[#buttons+1]={Text=text,Callback=function()
+				attemptTeleport(selectedInfo,codeToUse,codeKind,variant,opts)
+			end}
+		end
+		buttons[#buttons+1]={Text="Copy & Join",Callback=function() copyCode(codeToUse) defaultJoin() end}
+		buttons[#buttons+1]={Text=instanceIdToUse and "Join instance + access" or "Join linkCode",Callback=defaultJoin}
+		buttons[#buttons+1]={Text="Copy debug payload",Callback=copyCurrentDebug}
+		addVariantButton("Join linkCode","linkPlace")
+		addVariantButton("Join link FromSource","linkPlace",{source="NamelessAdminReserveServer"})
+		addVariantButton("Join link Callback","linkPlace",{source="NamelessAdminReserveServer",callback=function(...)
+			NAmanage.ExperienceDebugRecord("Launch callback",NAmanage.ExperienceDebugValue({...}))
+			NAmanage.ExperienceDebugSnapshot("Launch callback")
+		end})
+		addVariantButton("Try link only","linkOnly")
+		addVariantButton("Try access + place","accessPlace")
+		addVariantButton("Try access only","accessOnly")
+		addVariantButton("Try reserved + place","reservedPlace")
+		addVariantButton("Try reserved only","reservedOnly")
+		addVariantButton("Try instance + place","instancePlace")
+		addVariantButton("Try instance only","instanceOnly")
+		addVariantButton("Try instance + access","instanceAccess")
+		addVariantButton("Try instance + reserved","instanceReserved")
+		addVariantButton("Try instance + link","instanceLink")
+		buttons[#buttons+1]={Text="Debug snapshot",Callback=function() NAmanage.ExperienceDebugConnect() NAmanage.ExperienceDebugSnapshot("Reserved server debug") end}
+		if debugMode then
+			buttons[#buttons+1]={Text="Copy code + id",Callback=function()
+				local text=Format("%s %s",tostring(codeToUse),tostring(instanceIdToUse or ""))
+				if type(setclipboard)=="function" then
+					pcall(setclipboard,text)
+					DoNotif("Reserved server code/id copied.",4)
+				else
+					DoNotif(text,8)
+				end
+			end}
+		end
 		buttons[#buttons+1]={Text="Cancel",Callback=function() DoNotif("Cancelled reserved server request") end}
 		Popup({Title="Reserved Server Ready",Description=description,Buttons=buttons})
+		if debugRun then
+			copyCurrentDebug()
+			defaultJoin({copyAfter=true,copyAfter5=true})
+		end
 	end
 	local buttons={}
 	for _,info in places do
@@ -67704,7 +68150,7 @@ cmd.addPatched({"reserveserver","privateserver","ps","rs"},{"reserveserver [code
 		buttons[#buttons+1]={Text=label,Callback=function() showOptions(info) end}
 	end
 	buttons[#buttons+1]={Text="Cancel",Callback=function() DoNotif("Cancelled reserved server request") end}
-	Popup({Title="Select Place",Description=providedRaw and "Choose the place for the reserved server code." or "Choose a place to create a reserved server.",Buttons=buttons})
+	Popup({Title="Select Place",Description=debugMode and "Debug mode: choose the generated test target." or (providedRaw and "Choose the place for the reserved server code." or "Choose a place to create a reserved server."),Buttons=buttons})
 end)
 
 HumanModCons = {}
@@ -114131,7 +114577,7 @@ local function getIntegrationTeleportScript()
 		return ""
 	end
 	return Format(
-		'game:GetService("TeleportService"):TeleportToPlaceInstance(%s, "%s", game:GetService("Players").LocalPlayer)',
+		'game.ExperienceService:LaunchExperience({placeId = %s, gameInstanceId = %q})',
 		placeId,
 		jobId
 	)
