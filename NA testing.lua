@@ -48586,14 +48586,11 @@ cmd.add({"antiafk","noafk"},{"antiafk (noafk)","Prevents you from being kicked f
 		return DebugNotif("Anti AFK is already enabled")
 	end
 
-	local GETCONS = getconnections or get_signal_cons or (syn and syn.getconnections)
+	-- local GETCONS = getconnections or get_signal_cons or (syn and syn.getconnections)
 	local rng = Random.new()
 	local KEY = Enum.KeyCode.F15
 
 	local function antiAFKHandler()
-		if GETCONS then
-			return
-		end
 		local VIM = SafeGetService("VirtualInputManager")
 		if not VIM then
 			return
@@ -48609,6 +48606,7 @@ cmd.add({"antiafk","noafk"},{"antiafk (noafk)","Prevents you from being kicked f
 		return DebugNotif("Anti AFK failed: LocalPlayer missing")
 	end
 
+	--[[
 	if GETCONS then
 		NAStuff.antiAFKStored = {}
 		local ok, conns = pcall(GETCONS, lp.Idled)
@@ -48661,11 +48659,12 @@ cmd.add({"antiafk","noafk"},{"antiafk (noafk)","Prevents you from being kicked f
 			DebugNotif("Anti AFK failed: no Idled connections modified")
 		end
 	else
+	]]
 		local myConn = lp.Idled:Connect(antiAFKHandler)
 		NAlib.connect("antiAFK", myConn)
 		SpawnCall(antiAFKHandler)
 		DebugNotif("Anti AFK enabled")
-	end
+	-- end
 end)
 
 cmd.add({"unantiafk","unnoafk"},{"unantiafk (unnoafk)","Allows you to be kicked for being AFK"},function()
