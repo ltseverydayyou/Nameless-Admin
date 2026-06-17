@@ -84378,14 +84378,41 @@ end)
 
 cmd.add({"antierror"}, {"antierror", "Continuously blocks and clears any future error or disconnected UI"}, function()
 	NAlib.disconnect("antierror")
-	NAlib.connect("antierror", GuiService.ErrorMessageChanged:Connect(function()
-		__lt.cm("GuiService", "ClearError")
+	NAStuff.AntiErrorState = type(NAStuff.AntiErrorState) == "table" and NAStuff.AntiErrorState or {}
+	NAStuff.AntiErrorState.clearing = false
+	NAlib.connect("antierror", GuiService.ErrorMessageChanged:Connect(function(message)
+		local st = NAStuff.AntiErrorState
+		if type(st) ~= "table" then
+			return
+		end
+		if st.clearing then
+			return
+		end
+		local msg = tostring(message or "")
+		if msg == "" then
+			local ok, current = pcall(function()
+				return GuiService.ErrorMessage
+			end)
+			if not ok or tostring(current or "") == "" then
+				return
+			end
+		end
+		st.clearing = true
+		task.spawn(function()
+			pcall(function()
+				__lt.cm("GuiService", "ClearError")
+			end)
+			st.clearing = false
+		end)
 	end))
 	DebugNotif("Anti Error is now enabled!", 2)
 end)
 
 cmd.add({"unantierror", "noantierror"}, {"unantierror", "Disables Anti Error"}, function()
 	NAlib.disconnect("antierror")
+	if type(NAStuff.AntiErrorState) == "table" then
+		NAStuff.AntiErrorState.clearing = false
+	end
 	DebugNotif("Anti Error is now disabled!",2)
 end)
 
@@ -113372,9 +113399,12 @@ for _, entry in NAFFlags.whitelist do
 end
 
 NAFFlags.filePath = NAfiles.NAFFLAGSPATH or (NAfiles.NAFILEPATH.."/NAFFlags.json")
-NAFFlags.config = NAFFlags.config or { useFFlags = false, autoApply = false, autoApplyLoop = true, autoApplyInterval = 3, flags = {}, custom = {}, enabledFlags = {} }
+NAFFlags.metaPath = NAfiles.NAFFLAGSCONFIGPATH or (NAfiles.NAFILEPATH.."/NAFFlagsConfig.json")
+NAFFlags.config = NAFFlags.config or { useFFlags = false, autoApply = false, autoApplyLoop = true, autoApplyInterval = 3, flags = {}, custom = {}, enabledFlags = {}, clientKeyAliases = {} }
 NAFFlags.config.custom = NAFFlags.config.custom or {}
+NAFFlags.config.clientKeyAliases = NAFFlags.config.clientKeyAliases or {}
 NAFFlags.values = NAFFlags.values or {}
+NAFFlags.clientPrefixes = NAFFlags.clientPrefixes or { "DFFlag", "DFInt", "DFString", "FFlag", "FInt", "FString", "SFFlag", "SFInt", "SFString" }
 NAFFlags.renderingPreferFlags = NAFFlags.renderingPreferFlags or {
 	"FFlagDebugGraphicsPreferD3D11",
 	"FFlagDebugGraphicsPreferD3D11FL10",
@@ -113447,6 +113477,236 @@ NAFFlags.getDefault = function(entry)
 		return false
 	end
 	return entry.default
+end
+
+NAFFlags.hasClientPrefix = function(name)
+	name = tostring(name or "")
+	for _, prefix in NAFFlags.clientPrefixes or {} do
+		if Sub(name, 1, #prefix) == prefix then
+			return true, prefix
+		end
+	end
+	return false, nil
+end
+
+NAFFlags.stripClientPrefix = function(name)
+	name = tostring(name or "")
+	for _, prefix in NAFFlags.clientPrefixes or {} do
+		if Sub(name, 1, #prefix) == prefix then
+			return Sub(name, #prefix + 1)
+		end
+	end
+	return name
+end
+
+NAFFlags.getEntryByAnyName = function(name)
+	local rawName = tostring(name or "")
+	local baseName = NAFFlags.stripClientPrefix(rawName)
+	for _, entry in NAFFlags.whitelist do
+		if entry.name == rawName or entry.name == baseName then
+			return entry, entry.name
+		end
+	end
+	return nil, baseName
+end
+
+NAFFlags.inferClientPrefix = function(value)
+	if type(value) == "boolean" then
+		return "FFlag"
+	elseif type(value) == "number" then
+		return "FInt"
+	end
+	return "FString"
+end
+
+NAFFlags.clientKeyFor = function(entry, fallbackName)
+	local name = tostring(fallbackName or (entry and entry.name) or "")
+	if name == "" then
+		return name
+	end
+	local aliases = NAFFlags.config and NAFFlags.config.clientKeyAliases or nil
+	local alias = aliases and aliases[name] or nil
+	if type(alias) == "string" and alias ~= "" then
+		return alias
+	end
+	if NAFFlags.hasClientPrefix(name) then
+		return name
+	end
+	local value = entry and NAFFlags.values and NAFFlags.values[entry.name] or nil
+	if value == nil and entry then
+		value = NAFFlags.getDefault(entry)
+	end
+	if entry then
+		return NAFFlags.inferClientPrefix(value)..name
+	end
+	return name
+end
+
+NAFFlags.clientValueText = function(value)
+	if type(value) == "boolean" then
+		return value and "True" or "False"
+	end
+	return tostring(value)
+end
+
+NAFFlags.escapeJsonString = function(value)
+	local ok, encoded = pcall(HttpService.JSONEncode, HttpService, tostring(value))
+	if ok and type(encoded) == "string" then
+		return encoded
+	end
+	return Format("%q", tostring(value))
+end
+
+NAFFlags.encodeClientAppSettings = function(data)
+	local keys = {}
+	for key, value in data or {} do
+		if type(key) == "string" and value ~= nil then
+			keys[#keys + 1] = key
+		end
+	end
+	table.sort(keys, function(a, b)
+		return Lower(a) < Lower(b)
+	end)
+	local lines = { "{" }
+	for i, key in keys do
+		local comma = i < #keys and "," or ""
+		lines[#lines + 1] = "  "..NAFFlags.escapeJsonString(key)..": "..NAFFlags.escapeJsonString(data[key])..comma
+	end
+	lines[#lines + 1] = "}"
+	return Concat(lines, "\n")
+end
+
+NAFFlags.buildClientSettingsTable = function()
+	local out = {}
+	local seen = {}
+	for _, entry in NAFFlags.whitelist do
+		local name = entry.name
+		if NAFFlags.config.enabledFlags and NAFFlags.config.enabledFlags[name] == true then
+			local value = NAFFlags.values[name]
+			if value == nil then
+				value = NAFFlags.config.flags and NAFFlags.config.flags[name] or nil
+			end
+			if value == nil then
+				value = NAFFlags.getDefault(entry)
+			end
+			local key = NAFFlags.clientKeyFor(entry, name)
+			if key ~= "" then
+				out[key] = NAFFlags.clientValueText(value)
+				seen[name] = true
+				seen[key] = true
+			end
+		end
+	end
+	if not NAFFlags.config.applyWhitelistOnly then
+		for name, value in NAFFlags.config.custom or {} do
+			if value ~= nil and not seen[name] then
+				local key = NAFFlags.clientKeyFor(nil, name)
+				if key ~= "" then
+					out[key] = NAFFlags.clientValueText(value)
+				end
+			end
+		end
+	end
+	return out
+end
+
+NAFFlags.buildClientAppSettingsJson = function()
+	return NAFFlags.encodeClientAppSettings(NAFFlags.buildClientSettingsTable())
+end
+
+NAFFlags.loadMeta = function()
+	if not FileSupport then
+		return false
+	end
+	local okRead, raw = pcall(readfile, NAFFlags.metaPath)
+	if not okRead or type(raw) ~= "string" or raw == "" then
+		return false
+	end
+	local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+	if not okDecode or type(decoded) ~= "table" then
+		return false
+	end
+	if type(decoded.useFFlags) == "boolean" then
+		NAFFlags.config.useFFlags = decoded.useFFlags
+	end
+	if type(decoded.autoApply) == "boolean" then
+		NAFFlags.config.autoApply = decoded.autoApply
+	end
+	if type(decoded.autoApplyLoop) == "boolean" then
+		NAFFlags.config.autoApplyLoop = decoded.autoApplyLoop
+	end
+	if decoded.autoApplyInterval ~= nil then
+		local n = tonumber(decoded.autoApplyInterval)
+		if n and n > 0 then
+			NAFFlags.config.autoApplyInterval = n
+		end
+	end
+	if type(decoded.applyWhitelistOnly) == "boolean" then
+		NAFFlags.config.applyWhitelistOnly = decoded.applyWhitelistOnly
+	end
+	if type(decoded.enabledFlags) == "table" then
+		NAFFlags.config.enabledFlags = {}
+		for _, entry in NAFFlags.whitelist do
+			NAFFlags.config.enabledFlags[entry.name] = decoded.enabledFlags[entry.name] == true
+		end
+	end
+	if type(decoded.clientKeyAliases) == "table" then
+		NAFFlags.config.clientKeyAliases = {}
+		for name, alias in decoded.clientKeyAliases do
+			if type(name) == "string" and type(alias) == "string" and alias ~= "" then
+				NAFFlags.config.clientKeyAliases[name] = alias
+			end
+		end
+	end
+	return true
+end
+
+NAFFlags.saveMeta = function()
+	if not FileSupport then
+		return
+	end
+	local meta = {
+		useFFlags = NAFFlags.config.useFFlags == true;
+		autoApply = NAFFlags.config.autoApply == true;
+		autoApplyLoop = NAFFlags.config.autoApplyLoop ~= false;
+		autoApplyInterval = NAFFlags.config.autoApplyInterval;
+		applyWhitelistOnly = NAFFlags.config.applyWhitelistOnly == true;
+		enabledFlags = NAFFlags.config.enabledFlags or {};
+		clientKeyAliases = NAFFlags.config.clientKeyAliases or {};
+	}
+	local okEncode, encoded = pcall(HttpService.JSONEncode, HttpService, meta)
+	if okEncode and encoded then
+		pcall(writefile, NAFFlags.metaPath, encoded)
+	end
+end
+
+NAFFlags.importClientSettingsTable = function(decoded)
+	NAFFlags.config.custom = {}
+	NAFFlags.config.enabledFlags = NAFFlags.config.enabledFlags or {}
+	NAFFlags.config.clientKeyAliases = NAFFlags.config.clientKeyAliases or {}
+
+	local imported = 0
+	for savedName, rawValue in decoded or {} do
+		if type(savedName) == "string" then
+			local entry = NAFFlags.getEntryByAnyName(savedName)
+			local parsed = NAFFlags.parseCustomValue(rawValue)
+			if entry then
+				local normalized = NAFFlags.normalizeValue(entry, parsed, { silent = true })
+				if normalized ~= nil then
+					NAFFlags.config.flags[entry.name] = normalized
+					NAFFlags.config.enabledFlags[entry.name] = true
+					if NAFFlags.hasClientPrefix(savedName) then
+						NAFFlags.config.clientKeyAliases[entry.name] = savedName
+					end
+					imported += 1
+				end
+			elseif savedName ~= "" then
+				NAFFlags.config.custom[savedName] = parsed
+				imported += 1
+			end
+		end
+	end
+	return imported
 end
 
 NAFFlags.existsCache = NAFFlags.existsCache or {}
@@ -113537,8 +113797,12 @@ NAFFlags.save = function()
 	if not FileSupport then
 		return
 	end
-	local okEncode, encoded = pcall(HttpService.JSONEncode, HttpService, NAFFlags.config)
-	if okEncode and encoded then
+	NAFFlags.config.custom = NAFFlags.config.custom or {}
+	NAFFlags.config.enabledFlags = NAFFlags.config.enabledFlags or {}
+	NAFFlags.config.clientKeyAliases = NAFFlags.config.clientKeyAliases or {}
+	NAFFlags.saveMeta()
+	local encoded = NAFFlags.buildClientAppSettingsJson()
+	if type(encoded) == "string" then
 		pcall(writefile, NAFFlags.filePath, encoded)
 	end
 end
@@ -113548,62 +113812,88 @@ NAFFlags.load = function()
 	if not FileSupport then
 		return
 	end
+
+	local hasMeta = NAFFlags.loadMeta()
 	local needsSave = false
 	local okRead, raw = pcall(readfile, NAFFlags.filePath)
+
 	if okRead and type(raw) == "string" and raw ~= "" then
 		local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
 		if okDecode and type(decoded) == "table" then
-			if type(decoded.useFFlags) == "boolean" then
-				NAFFlags.config.useFFlags = decoded.useFFlags
-			else
-				needsSave = true
-			end
-			if type(decoded.autoApply) == "boolean" then
-				NAFFlags.config.autoApply = decoded.autoApply
-			else
-				needsSave = true
-			end
-			if type(decoded.autoApplyLoop) == "boolean" then
-				NAFFlags.config.autoApplyLoop = decoded.autoApplyLoop
-			else
-				needsSave = true
-			end
-			if decoded.autoApplyInterval ~= nil then
-				local n = tonumber(decoded.autoApplyInterval)
-				if n and n > 0 then
-					NAFFlags.config.autoApplyInterval = n
+			local legacyConfig = type(decoded.flags) == "table"
+				or type(decoded.custom) == "table"
+				or type(decoded.enabledFlags) == "table"
+				or type(decoded.useFFlags) == "boolean"
+				or type(decoded.autoApply) == "boolean"
+
+			if legacyConfig then
+				if type(decoded.useFFlags) == "boolean" then
+					NAFFlags.config.useFFlags = decoded.useFFlags
 				else
 					needsSave = true
 				end
-			end
-			if type(decoded.flags) == "table" then
-				for _, entry in NAFFlags.whitelist do
-					local normalized = NAFFlags.normalizeValue(entry, decoded.flags[entry.name], { silent = true })
-					if normalized ~= nil then
-						NAFFlags.config.flags[entry.name] = normalized
+				if type(decoded.autoApply) == "boolean" then
+					NAFFlags.config.autoApply = decoded.autoApply
+				else
+					needsSave = true
+				end
+				if type(decoded.autoApplyLoop) == "boolean" then
+					NAFFlags.config.autoApplyLoop = decoded.autoApplyLoop
+				else
+					needsSave = true
+				end
+				if decoded.autoApplyInterval ~= nil then
+					local n = tonumber(decoded.autoApplyInterval)
+					if n and n > 0 then
+						NAFFlags.config.autoApplyInterval = n
 					else
 						needsSave = true
 					end
 				end
-			end
-			if type(decoded.custom) == "table" then
-				NAFFlags.config.custom = {}
-				for customName, customValue in decoded.custom do
-					if type(customName) == "string" then
-						NAFFlags.config.custom[customName] = customValue
+				if type(decoded.applyWhitelistOnly) == "boolean" then
+					NAFFlags.config.applyWhitelistOnly = decoded.applyWhitelistOnly
+				end
+				if type(decoded.flags) == "table" then
+					for _, entry in NAFFlags.whitelist do
+						local normalized = NAFFlags.normalizeValue(entry, decoded.flags[entry.name], { silent = true })
+						if normalized ~= nil then
+							NAFFlags.config.flags[entry.name] = normalized
+						else
+							needsSave = true
+						end
 					end
 				end
-			else
-				needsSave = true
-			end
-			if type(decoded.enabledFlags) == "table" then
-				NAFFlags.config.enabledFlags = {}
-				for _, e in NAFFlags.whitelist do
-					local n = e.name
-					NAFFlags.config.enabledFlags[n] = decoded.enabledFlags[n] == true
+				if type(decoded.custom) == "table" then
+					NAFFlags.config.custom = {}
+					for customName, customValue in decoded.custom do
+						if type(customName) == "string" then
+							NAFFlags.config.custom[customName] = customValue
+						end
+					end
+				else
+					needsSave = true
 				end
-			else
+				if type(decoded.enabledFlags) == "table" then
+					NAFFlags.config.enabledFlags = {}
+					for _, e in NAFFlags.whitelist do
+						local n = e.name
+						NAFFlags.config.enabledFlags[n] = decoded.enabledFlags[n] == true
+					end
+				else
+					needsSave = true
+				end
+				if type(decoded.clientKeyAliases) == "table" then
+					NAFFlags.config.clientKeyAliases = decoded.clientKeyAliases
+				end
 				needsSave = true
+			else
+				local imported = NAFFlags.importClientSettingsTable(decoded)
+				if imported > 0 and not hasMeta then
+					NAFFlags.config.useFFlags = true
+				end
+				if not hasMeta then
+					NAFFlags.saveMeta()
+				end
 			end
 		else
 			needsSave = true
@@ -113612,7 +113902,9 @@ NAFFlags.load = function()
 		needsSave = true
 	end
 
+	NAFFlags.config.custom = NAFFlags.config.custom or {}
 	NAFFlags.config.enabledFlags = NAFFlags.config.enabledFlags or {}
+	NAFFlags.config.clientKeyAliases = NAFFlags.config.clientKeyAliases or {}
 
 	if needsSave then
 		NAFFlags.save()
@@ -114191,6 +114483,20 @@ NAgui.addButton("Copy enabled setfflag script", function()
 		return
 	end
 	DoNotif("Enabled setfflag script copied to clipboard.", 2)
+end)
+
+NAgui.addButton("Copy ClientAppSettings JSON", function()
+	if not setclipboard then
+		DoNotif("Your executor does not support setclipboard", 3)
+		return
+	end
+	local txt = NAFFlags.buildClientAppSettingsJson()
+	local ok, err = pcall(setclipboard, txt)
+	if not ok then
+		DoNotif("Failed to copy ClientAppSettings JSON: "..tostring(err), 3)
+		return
+	end
+	DoNotif("ClientAppSettings JSON copied to clipboard.", 2)
 end)
 
 NAgui.addSection("Custom FastFlags")
