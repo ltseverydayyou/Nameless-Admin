@@ -56203,7 +56203,7 @@ cmd.add({"nohats","drophats"},{"nohats (drophats)","Drop all of your hats"},func
 	end
 end)
 
-cmd.add({"permadeath", "pdeath"}, {"permadeath (pdeath)", "be death permanently"}, function()
+cmd.addPatched({"permadeath", "pdeath"}, {"permadeath (pdeath)", "be death permanently"}, function()
 	if not replicatesignal then
 		return DoNotif("Your executor does not support 'replicatesignal'")
 	end
@@ -56217,7 +56217,7 @@ cmd.add({"permadeath", "pdeath"}, {"permadeath (pdeath)", "be death permanently"
 	end
 end)
 
-cmd.add({"unpermadeath", "unpdeath"}, {"unpermadeath (unpdeath)", "no perma death"}, function()
+cmd.addPatched({"unpermadeath", "unpdeath"}, {"unpermadeath (unpdeath)", "no perma death"}, function()
 	if not replicatesignal then
 		return DoNotif("Your executor does not support 'replicatesignal'")
 	end
