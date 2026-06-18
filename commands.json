@@ -93,6 +93,18 @@
       "desc": "Run code using loadstring"
     },
     {
+      "name": "scriptload",
+      "aliases": [
+        "scriptload",
+        "sload",
+        "loadscript",
+        "runsavedscript"
+      ],
+      "usage": "scriptload <name> (sload, loadscript)",
+      "args": "<name>",
+      "desc": "Run a saved script from the NA executor saved scripts folder"
+    },
+    {
       "name": "shaders",
       "aliases": [
         "shaders",
