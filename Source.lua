@@ -8994,6 +8994,7 @@ local NAfiles = {
 	NANOTEPADPATH = "Nameless-Admin/NA-Notepad";
 	NAFLYBINDSPATH = "Nameless-Admin/FlyBinds.json";
 	NAFFLAGSPATH = "Nameless-Admin/NAFFlags.json";
+	NAFFLAGSCONFIGPATH = "Nameless-Admin/NAFFlagsConfig.json";
 }
 
 NAmanage.isFileAccessErr=NAmanage.isFileAccessErr or function(err)
@@ -24156,6 +24157,132 @@ NAmanage.RunURL = function(url, noCache, chunkName)
 	NAmanage._safeLoadStart()
 	return true
 end
+NAmanage.ExecutorScriptsSanitizeName = function(name)
+	name = tostring(name or "")
+	name = name:gsub('[\\/:*?"<>|]', "")
+	name = name:gsub("%s+", " ")
+	name = name:gsub("^%s+", ""):gsub("%s+$", "")
+	if name == "" then
+		return ""
+	end
+	if not name:lower():match("%.lua$") and not name:lower():match("%.luau$") and not name:lower():match("%.txt$") then
+		name ..= ".lua"
+	end
+	return name
+end
+
+NAmanage.ExecutorScriptsStripExt = function(name)
+	return tostring(name or ""):gsub("%.luau$", ""):gsub("%.lua$", ""):gsub("%.txt$", "")
+end
+
+NAmanage.ExecutorScriptsBase = function()
+	local base = "Nameless-Admin/NA-Exec"
+	return base, base.."/Scripts", base.."/scripts.json"
+end
+
+NAmanage.ExecutorScriptsReadIndex = function()
+	local out = {}
+	local _, _, idx = NAmanage.ExecutorScriptsBase()
+	if not (type(isfile) == "function" and type(readfile) == "function" and isfile(idx)) then
+		return out
+	end
+	local ok, raw = pcall(readfile, idx)
+	if not ok or type(raw) ~= "string" or raw == "" then
+		return out
+	end
+	local okDec, dec = pcall(HttpService.JSONDecode, HttpService, raw)
+	if okDec and type(dec) == "table" then
+		for _, name in dec do
+			if type(name) == "string" and name ~= "" then
+				out[#out + 1] = NAmanage.ExecutorScriptsSanitizeName(name)
+			end
+		end
+	end
+	return out
+end
+
+NAmanage.ExecutorScriptsList = function()
+	local _, dir = NAmanage.ExecutorScriptsBase()
+	local out = {}
+	local seen = {}
+	local function push(name, fromDisk)
+		if type(name) ~= "string" then
+			return
+		end
+		name = NAmanage.ExecutorScriptsSanitizeName(name:match("([^/\\]+)$") or name)
+		if name == "" then
+			return
+		end
+		if fromDisk ~= true and type(isfile) == "function" and not isfile(dir.."/"..name) then
+			return
+		end
+		local low = name:lower()
+		if seen[low] then
+			return
+		end
+		seen[low] = true
+		out[#out + 1] = name
+	end
+	if type(listfiles) == "function" then
+		local ok, files = pcall(listfiles, dir)
+		if ok and type(files) == "table" then
+			for _, file in files do
+				push(file, true)
+			end
+		end
+	end
+	for _, name in NAmanage.ExecutorScriptsReadIndex() do
+		push(name, false)
+	end
+	table.sort(out, function(a, b)
+		return a:lower() < b:lower()
+	end)
+	return out
+end
+
+NAmanage.ExecutorScriptsResolve = function(name)
+	name = tostring(name or ""):gsub("^%s+", ""):gsub("%s+$", "")
+	if name == "" then
+		return nil
+	end
+	local want = NAmanage.ExecutorScriptsSanitizeName(name)
+	local low = want:lower()
+	local bare = NAmanage.ExecutorScriptsStripExt(want):lower()
+	local _, dir = NAmanage.ExecutorScriptsBase()
+	local direct = dir.."/"..want
+	if type(isfile) == "function" and isfile(direct) then
+		return want, direct
+	end
+	for _, file in NAmanage.ExecutorScriptsList() do
+		local fLow = file:lower()
+		local fBare = NAmanage.ExecutorScriptsStripExt(file):lower()
+		if fLow == low or fBare == bare then
+			return file, dir.."/"..file
+		end
+	end
+	return nil
+end
+
+NAmanage.RunExecutorSavedScript = function(name)
+	if type(readfile) ~= "function" or type(isfile) ~= "function" then
+		return false, "filesystem unavailable"
+	end
+	local file, path = NAmanage.ExecutorScriptsResolve(name)
+	if not file or not path then
+		return false, "saved script not found: "..tostring(name)
+	end
+	local ok, src = pcall(readfile, path)
+	if not ok or type(src) ~= "string" or src == "" then
+		return false, "could not read saved script: "..tostring(file)
+	end
+	local okRun, errRun = NAmanage.RunSource(src, "@NA-Exec/Scripts/"..file)
+	if okRun then
+		DoNotif("Running saved script: "..file, 2)
+		return true, file
+	end
+	return false, errRun or "failed to run saved script"
+end
+
 NAmanage.SanitizeLoopMethod = function(method)
 	local value = type(method) == "string" and method or tostring(method or "")
 	value = value:match("^%s*(.-)%s*$") or value
@@ -35888,6 +36015,21 @@ cmd.add({"loadstring", "ls", "lstring", "loads", "execute"}, {"loadstring <code>
 	local okRun, errRun = NAmanage.RunSource(code, "@NALoadstringCommand")
 	if not okRun then
 		warn(errRun)
+	end
+end, true)
+
+
+cmd.add({"scriptload", "sload", "loadscript", "runsavedscript"}, {"scriptload <name> (sload, loadscript)", "Run a saved script from the NA executor saved scripts folder"}, function(...)
+	local args = {...}
+	local name = Concat(args, " ")
+	name = tostring(name or ""):gsub("^%s+", ""):gsub("%s+$", "")
+	if name == "" then
+		return DoNotif("usage: scriptload <name>", 3)
+	end
+	local ok, err = NAmanage.RunExecutorSavedScript(name)
+	if not ok then
+		DoNotif(tostring(err), 3)
+		warn(err)
 	end
 end, true)
 
@@ -98746,6 +98888,11 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		return button
 	end
 
+	local function isScriptFileName(name)
+		local low = tostring(name or ""):lower()
+		return low:match("%.lua$") ~= nil or low:match("%.luau$") ~= nil or low:match("%.txt$") ~= nil
+	end
+
 	local function sanitizeScriptName(name)
 		name = tostring(name or "")
 		name = name:gsub('[\\/:*?"<>|]', "")
@@ -98754,14 +98901,14 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		if name == "" then
 			name = "script"
 		end
-		if not name:lower():match("%.lua$") then
+		if not isScriptFileName(name) then
 			name ..= ".lua"
 		end
 		return name
 	end
 
 	local function stripLuaExt(name)
-		return tostring(name or ""):gsub("%.lua$", ""):gsub("%.txt$", "")
+		return tostring(name or ""):gsub("%.luau$", ""):gsub("%.lua$", ""):gsub("%.txt$", "")
 	end
 
 	local function scriptPath(name)
@@ -99523,6 +99670,10 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	hubOpenNew.Size = UDim2.new(1, 0, 0, 26)
 	local hubSave = makeButton(hubButtons, "Save Current Script", colors.panel3)
 	hubSave.Size = UDim2.new(1, 0, 0, 26)
+	local hubClear = makeButton(hubButtons, "Clear Selection", colors.panel3)
+	hubClear.Size = UDim2.new(1, 0, 0, 26)
+	local hubNew = makeButton(hubButtons, "New Script Tab", colors.panel3)
+	hubNew.Size = UDim2.new(1, 0, 0, 26)
 	local hubDelete = makeButton(hubButtons, "Delete Selected", colors.panel3)
 	hubDelete.Size = UDim2.new(1, 0, 0, 26)
 	local hubRefresh = makeButton(hubButtons, "Refresh List", colors.panel3)
@@ -100588,7 +100739,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		actionLayout.CellPadding = UDim2.new(0, actionPad, 0, 0)
 		actionLayout.CellSize = UDim2.new(1 / math.max(1, actionButtonCount), -actionPad, 1, 0)
 		hubButtons.ScrollBarThickness = compact and 3 or 4
-		for _, btn in { hubOpen, hubOpenNew, hubSave, hubDelete, hubRefresh } do
+		for _, btn in { hubOpen, hubOpenNew, hubSave, hubClear, hubNew, hubDelete, hubRefresh } do
 			btn.Size = UDim2.new(1, -2, 0, compact and 22 or 26)
 			btn.TextSize = compact and 11 or 13
 		end
@@ -100820,7 +100971,11 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		return nil
 	end
 
-	local function selectSavedScript(name)
+	local function selectSavedScript(name, opts)
+		opts = type(opts) == "table" and opts or {}
+		if opts.toggle == true and selectedScript == name then
+			name = nil
+		end
 		selectedScript = name
 		hubSubtitle.Text = name and ("Selected: "..name) or "No script selected"
 		for _, child in hubList:GetChildren() do
@@ -100841,12 +100996,16 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		end
 		local names = {}
 		local seen = {}
-		local function pushName(name)
+		local function pushName(name, fromDisk)
 			if type(name) ~= "string" then
 				return
 			end
+			name = name:match("([^/\\]+)$") or name
 			name = sanitizeScriptName(name)
-			if not (name:lower():match("%.lua$") or name:lower():match("%.txt$")) then
+			if not isScriptFileName(name) then
+				return
+			end
+			if fromDisk ~= true and fsOk and type(isfile) == "function" and not isfile(scriptPath(name)) then
 				return
 			end
 			local key = name:lower()
@@ -100861,33 +101020,36 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			local ok, files = pcall(listfiles, scriptsDir)
 			if ok and type(files) == "table" then
 				for _, file in files do
-					if type(file) == "string" then
-						pushName(file:match("([^/\\]+)$"))
-					end
+					pushName(file, true)
 				end
 			end
 		end
 		for _, name in readScriptIndex() do
-			pushName(name)
+			pushName(name, false)
 		end
 		table.sort(names, function(a, b)
 			return a:lower() < b:lower()
 		end)
 		saveScriptIndex(names)
+		local selectedAlive = selectedScript == nil
 		for _, name in names do
+			if selectedScript and name:lower() == tostring(selectedScript):lower() then
+				selectedAlive = true
+			end
 			local item = makeButton(hubList, name, colors.panel3)
 			item.Name = name
 			item.Size = UDim2.new(1, 0, 0, 28)
 			item.TextSize = 12
 			item.TextXAlignment = Enum.TextXAlignment.Left
 			item.MouseButton1Click:Connect(function()
-				selectSavedScript(name)
+				selectSavedScript(name, { toggle = true })
 			end)
 		end
-		hubList.CanvasSize = UDim2.new(0, 0, 0, hubListLayout.AbsoluteContentSize.Y + 14)
-		if selectedScript then
-			selectSavedScript(selectedScript)
+		if not selectedAlive then
+			selectedScript = nil
 		end
+		hubList.CanvasSize = UDim2.new(0, 0, 0, hubListLayout.AbsoluteContentSize.Y + 14)
+		selectSavedScript(selectedScript)
 	end
 
 	hubListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
@@ -101169,6 +101331,17 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		local target = selectedScript or getCurrentScriptName()
 		saveCurrentScriptAs(target)
 	end)
+	hubClear.MouseButton1Click:Connect(function()
+		selectSavedScript(nil)
+		setStatus("Cleared saved script selection", colors.subtle)
+	end)
+	hubNew.MouseButton1Click:Connect(function()
+		selectSavedScript(nil)
+		local tabIndex = createTab("", "Script_"..os.date("%Y%m%d_%H%M%S"))
+		selectTab(tabIndex)
+		scheduleTabsSave()
+		setStatus("Created a new script tab", colors.success)
+	end)
 	hubDelete.MouseButton1Click:Connect(function()
 		if not selectedScript then
 			setStatus("Select a saved script first", colors.warn)
@@ -101234,6 +101407,11 @@ NAmanage.Executor_Toggle = NAmanage.Executor_Toggle or function(forceState)
 			DoNotif("Executor UI unavailable: "..tostring(err), 3)
 		end
 		return false
+	end
+	if NAUIMANAGER.ExecutorFrame.GetAttribute and NAmanage.GetAttr(NAUIMANAGER.ExecutorFrame, "NAExecutorReady") ~= true then
+		if NAmanage.pulseLoadingUI then
+			NAmanage.pulseLoadingUI("building executor on demand", 0.99)
+		end
 	end
 	NAmanage.Executor_Init()
 	local execFrame = NAUIMANAGER.ExecutorFrame
@@ -103053,8 +103231,27 @@ if NAUIMANAGER.NotepadFrame then
 	NAgui.resizeable(NAUIMANAGER.NotepadFrame, npMin, Vector2.new(5000, 5000))
 end
 
-NAmanage.Executor_Init()
-NAmanage.Notepad_Init()
+NAStuff.ExecutorStartupDeferred = true
+NAStuff.NotepadStartupDeferred = true
+if NAmanage.pulseLoadingUI then
+	NAmanage.pulseLoadingUI("deferring heavy panels", 0.985)
+end
+if NAStuff.ExecutorPrewarmAfterLoad == true then
+	Defer(function()
+		Wait(1.25)
+		if NAmanage.Executor_Init then
+			pcall(NAmanage.Executor_Init)
+		end
+	end)
+end
+if NAStuff.NotepadPrewarmAfterLoad == true then
+	Defer(function()
+		Wait(1.5)
+		if NAmanage.Notepad_Init then
+			pcall(NAmanage.Notepad_Init)
+		end
+	end)
+end
 if NAmanage.Topbar_Init then
 	pcall(NAmanage.Topbar_Init)
 end
@@ -113689,6 +113886,92 @@ NAFFlags.importClientSettingsTable = function(decoded)
 	return imported
 end
 
+NAFFlags.syncRuntimeValues = function()
+	for _, entry in NAFFlags.whitelist do
+		local n = entry.name
+		NAFFlags.values[n] = NAFFlags.config.flags and NAFFlags.config.flags[n] or NAFFlags.getDefault(entry)
+	end
+	for n, v in NAFFlags.config.custom or {} do
+		NAFFlags.values[n] = v
+	end
+end
+
+NAFFlags.resetImportState = function()
+	NAFFlags.config.flags = NAFFlags.config.flags or {}
+	NAFFlags.config.custom = {}
+	NAFFlags.config.enabledFlags = {}
+	NAFFlags.config.clientKeyAliases = {}
+	for _, entry in NAFFlags.whitelist do
+		local n = entry.name
+		NAFFlags.config.flags[n] = NAFFlags.getDefault(entry)
+		NAFFlags.config.enabledFlags[n] = false
+	end
+end
+
+NAFFlags.importClientAppSettingsJson = function(raw, opts)
+	opts = type(opts) == "table" and opts or {}
+	raw = tostring(raw or "")
+	if raw:match("^%s*$") then
+		return false, 0, 0, 0, "Empty JSON"
+	end
+
+	local ok, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+	if not ok or type(decoded) ~= "table" then
+		return false, 0, 0, 0, "Invalid JSON"
+	end
+
+	if opts.replace ~= false then
+		NAFFlags.resetImportState()
+	end
+
+	local imported = NAFFlags.importClientSettingsTable(decoded)
+	if imported <= 0 then
+		return false, 0, 0, 0, "No valid fast flags found"
+	end
+
+	local built = 0
+	for _, entry in NAFFlags.whitelist do
+		if NAFFlags.config.enabledFlags and NAFFlags.config.enabledFlags[entry.name] == true then
+			built += 1
+		end
+	end
+
+	local custom = 0
+	for _, v in NAFFlags.config.custom or {} do
+		if v ~= nil then
+			custom += 1
+		end
+	end
+
+	if opts.enable ~= false then
+		NAFFlags.config.useFFlags = true
+	end
+
+	NAFFlags.syncRuntimeValues()
+	NAFFlags.normalizeRenderingPrefs()
+	NAFFlags.save()
+
+	if type(NAFFlags.refreshCustomListDisplay) == "function" then
+		NAFFlags.refreshCustomListDisplay()
+	end
+
+	if NAFFlags.config.autoApply == true then
+		NAFFlags.autoApplyWithRetry()
+	end
+
+	return true, imported, built, custom, nil
+end
+
+NAFFlags.importClientAppSettingsFromText = function(raw)
+	local ok, imported, built, custom, err = NAFFlags.importClientAppSettingsJson(raw, { replace = true, enable = true })
+	if ok then
+		DoNotif(Format("Imported %d fast flags (%d built-in, %d custom).", imported, built, custom), 4)
+	else
+		DoNotif("ClientAppSettings import failed: "..tostring(err), 4)
+	end
+	return ok, imported, built, custom, err
+end
+
 NAFFlags.existsCache = NAFFlags.existsCache or {}
 
 NAFFlags.flagExists = function(name)
@@ -114477,6 +114760,57 @@ NAgui.addButton("Copy ClientAppSettings JSON", function()
 		return
 	end
 	DoNotif("ClientAppSettings JSON copied to clipboard.", 2)
+end)
+
+NAgui.addButton("Import ClientAppSettings JSON from Clipboard", function()
+	if type(getclipboard) ~= "function" then
+		DoNotif("Your executor does not support getclipboard", 3)
+		return
+	end
+	local ok, raw = pcall(getclipboard)
+	if not ok or type(raw) ~= "string" or raw == "" then
+		DoNotif("Clipboard is empty or unreadable.", 3)
+		return
+	end
+	NAFFlags.importClientAppSettingsFromText(raw)
+end)
+
+NAgui.addButton("Paste ClientAppSettings JSON", function()
+	if type(Window) ~= "function" then
+		DoNotif("Paste window is unavailable.", 3)
+		return
+	end
+	Window({
+		Title = "Import ClientAppSettings JSON";
+		Description = "Paste ClientAppSettings JSON. This replaces the current NA FastFlags list and saves NAFFlags.json + NAFFlagsConfig.json.";
+		InputField = true;
+		Buttons = {{
+			Text = "Import";
+			Callback = function(raw)
+				NAFFlags.importClientAppSettingsFromText(raw)
+			end;
+		}};
+	})
+end)
+
+NAgui.addButton("Copy NAFFlagsConfig JSON", function()
+	if not setclipboard then
+		DoNotif("Your executor does not support setclipboard", 3)
+		return
+	end
+	local txt = "{}"
+	if FileSupport and isfile and readfile and isfile(NAFFlags.metaPath) then
+		local ok, raw = pcall(readfile, NAFFlags.metaPath)
+		if ok and type(raw) == "string" and raw ~= "" then
+			txt = raw
+		end
+	end
+	local ok, err = pcall(setclipboard, txt)
+	if not ok then
+		DoNotif("Failed to copy NAFFlagsConfig JSON: "..tostring(err), 3)
+		return
+	end
+	DoNotif("NAFFlagsConfig JSON copied to clipboard.", 2)
 end)
 
 NAgui.addSection("Custom FastFlags")
