@@ -3492,26 +3492,6 @@
       "desc": "Drop all of your hats"
     },
     {
-      "name": "permadeath",
-      "aliases": [
-        "permadeath",
-        "pdeath"
-      ],
-      "usage": "permadeath (pdeath)",
-      "args": "",
-      "desc": "be death permanently"
-    },
-    {
-      "name": "unpermadeath",
-      "aliases": [
-        "unpermadeath",
-        "unpdeath"
-      ],
-      "usage": "unpermadeath (unpdeath)",
-      "args": "",
-      "desc": "no perma death"
-    },
-    {
       "name": "instantrespawn",
       "aliases": [
         "instantrespawn",
@@ -8465,6 +8445,26 @@
       "usage": "gravitygun",
       "args": "",
       "desc": "Probably the best gravity gun script thats fe"
+    },
+    {
+      "name": "permadeath",
+      "aliases": [
+        "permadeath",
+        "pdeath"
+      ],
+      "usage": "permadeath (pdeath)",
+      "args": "",
+      "desc": "be death permanently"
+    },
+    {
+      "name": "unpermadeath",
+      "aliases": [
+        "unpermadeath",
+        "unpdeath"
+      ],
+      "usage": "unpermadeath (unpdeath)",
+      "args": "",
+      "desc": "no perma death"
     },
     {
       "name": "char",
