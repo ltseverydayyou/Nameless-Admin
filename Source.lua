@@ -37209,9 +37209,9 @@ cmd.add({"uiscale", "uscale", "guiscale", "gscale"}, {"uiscale (uscale)", "Adjus
 	scaleFrame = InstanceNew("ScreenGui")
 	local frame = InstanceNew("Frame")
 	local frameCorner = InstanceNew("UICorner")
-	local slider = InstanceNew("Frame")
+	local slider = InstanceNew("CanvasGroup")
 	local sliderCorner = InstanceNew("UICorner")
-	local progress = InstanceNew("Frame")
+	local progress = InstanceNew("CanvasGroup")
 	local progressCorner = InstanceNew("UICorner")
 	local knob = InstanceNew("TextButton")
 	local knobCorner = InstanceNew("UICorner")
@@ -37286,7 +37286,7 @@ cmd.add({"uiscale", "uscale", "guiscale", "gscale"}, {"uiscale (uscale)", "Adjus
 
 	local function update(scale)
 		local clamped = NAmanage.ApplyUIScale(scale, { save = false, syncUI = false })
-		progress.Size = UDim2.new((clamped - minSize) / (maxSize - minSize) + 0.05, 0, 1, 0)
+		progress.Size = UDim2.new(math.clamp((clamped - minSize) / (maxSize - minSize), 0, 1), 0, 1, 0)
 		knob.Position = UDim2.new((clamped - minSize) / (maxSize - minSize), 0, -0.25, 0)
 		label.Text = "Scale: "..Format("%.2f", clamped)
 	end
@@ -93984,12 +93984,43 @@ NAgui.addSlider = function(label, min, max, defaultValue, increment, suffix, cal
 	slider.Parent = NAUIMANAGER.SettingsList
 	NAmanage.registerElementForCurrentTab(slider)
 
-	local interact = slider.Main.Interact
-	local progress = slider.Main.Progress
-	local infoText = slider.Main.Information
+	local function toCg(o)
+		if not o or o:IsA("CanvasGroup") or not o:IsA("GuiObject") then
+			if o then pcall(function() o.ClipsDescendants = true end) end
+			return o
+		end
+		local p = o.Parent
+		local n = InstanceNew("CanvasGroup")
+		n.Name = o.Name
+		n.Active = o.Active
+		n.AnchorPoint = o.AnchorPoint
+		n.AutomaticSize = o.AutomaticSize
+		n.BackgroundColor3 = o.BackgroundColor3
+		n.BackgroundTransparency = o.BackgroundTransparency
+		n.BorderColor3 = o.BorderColor3
+		n.BorderSizePixel = o.BorderSizePixel
+		n.LayoutOrder = o.LayoutOrder
+		n.Position = o.Position
+		n.Rotation = o.Rotation
+		n.Size = o.Size
+		n.Visible = o.Visible
+		n.ZIndex = o.ZIndex
+		n.ClipsDescendants = true
+		for _, v in o:GetChildren() do
+			v.Parent = n
+		end
+		n.Parent = p
+		o:Destroy()
+		return n
+	end
+
+	local main = toCg(slider:FindFirstChild("Main"))
+	local interact = main.Interact
+	local progress = toCg(main.Progress)
+	local infoText = main.Information
 	local rowStroke = slider:FindFirstChild("UIStroke")
 	local title = slider:FindFirstChild("Title")
-	local mainStroke = slider.Main and slider.Main:FindFirstChildWhichIsA("UIStroke")
+	local mainStroke = main and main:FindFirstChildWhichIsA("UIStroke")
 	local progressStroke = progress and progress:FindFirstChildWhichIsA("UIStroke")
 
 	local dragging = false
@@ -94074,7 +94105,7 @@ NAgui.addSlider = function(label, min, max, defaultValue, increment, suffix, cal
 		percent = math.clamp(percent or 0, 0, 1)
 		local width = interact and interact.AbsoluteSize.X or 0
 		if width > 0 then
-			local pixel = math.max(5, width * percent)
+			local pixel = math.clamp(width * percent, 0, width)
 			return UDim2.new(0, pixel, 1, 0)
 		end
 		return UDim2.new(percent, 0, 1, 0)
