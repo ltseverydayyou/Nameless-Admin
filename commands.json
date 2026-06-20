@@ -753,8 +753,8 @@
         "setwaypoint",
         "setwp"
       ],
-      "usage": "setwaypoint <name>",
-      "args": "<name>",
+      "usage": "setwaypoint <name...>",
+      "args": "<name...>",
       "desc": "Store your current position under that name"
     },
     {
@@ -763,8 +763,8 @@
         "gotowaypoint",
         "gotowp"
       ],
-      "usage": "gotowaypoint <name>",
-      "args": "<name>",
+      "usage": "gotowaypoint <name...>",
+      "args": "<name...>",
       "desc": "Teleport to a saved waypoint"
     },
     {
@@ -774,8 +774,8 @@
         "removewp",
         "rwp"
       ],
-      "usage": "removewaypoint <name>",
-      "args": "<name>",
+      "usage": "removewaypoint <name...>",
+      "args": "<name...>",
       "desc": "Remove a saved waypoint"
     },
     {
