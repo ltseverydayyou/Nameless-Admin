@@ -19140,6 +19140,7 @@ NAmanage.LoadESPSettings = function()
 	local legacyMode = tostring(d.ESP_RenderMode or "Highlight")
 	local mode = NAgui.sanitizeESPRenderMode(legacyMode, "Highlight")
 	local partMode = NAgui.sanitizeESPRenderMode(d.ESP_PartRenderMode or "BoxHandleAdornment", "BoxHandleAdornment")
+	if partMode == "Character Box" then partMode = "BoxHandleAdornment" end
 	local npcMode = NAgui.sanitizeNPCESPRenderMode(d.NPC_ESP_RenderMode)
 	local partTransparency = NAgui.sanitizeTransparency(d.ESP_PartTransparency ~= nil and d.ESP_PartTransparency or d.ESP_Transparency)
 	local sz = tonumber(d.ESP_LabelTextSize) or 12
@@ -19264,6 +19265,7 @@ NAmanage.SaveESPSettings = function()
 	if not FileSupport then return end
 	local mode = NAgui.sanitizeESPRenderMode(NAStuff.ESP_RenderMode, "Highlight")
 	local partMode = NAgui.sanitizeESPRenderMode(NAStuff.ESP_PartRenderMode, "BoxHandleAdornment")
+	if partMode == "Character Box" then partMode = "BoxHandleAdornment" end
 	local npcMode = NAgui.sanitizeNPCESPRenderMode(NAStuff.NPC_ESP_RenderMode)
 	local sz = tonumber(NAStuff.ESP_LabelTextSize) or 12
 	if sz < 8 then sz = 8 elseif sz > 72 then sz = 72 end
@@ -26925,8 +26927,12 @@ NAgui.hasDrawingAPI = function()
 	return NAmanage.DrawingObjectSupported("Square")
 end
 
-NAgui.getESPRenderModeOptions = function()
-	local options = { "BoxHandleAdornment", "Highlight" }
+NAgui.getESPRenderModeOptions = function(includeCharacterBox)
+	local options = { "BoxHandleAdornment" }
+	if includeCharacterBox ~= false then
+		options[#options + 1] = "Character Box"
+	end
+	options[#options + 1] = "Highlight"
 	if NAgui.hasDrawingAPI() then
 		options[#options + 1] = "Drawing API"
 	end
@@ -26976,14 +26982,19 @@ NAgui.sanitizeESPRenderMode = function(mode, fallback)
 	if desired == "boxhandleadornment" or desired == "box" then
 		return "BoxHandleAdornment"
 	end
+	if desired == "character box" or desired == "characterbox" or desired == "bounding box" or desired == "boundingbox" or desired == "bbox" or desired == "charbox" then
+		return "Character Box"
+	end
 	if desired == "drawing api" or desired == "drawingapi" or desired == "drawing" then
 		if NAgui.hasDrawingAPI() then
 			return "Drawing API"
 		end
 	end
 	local defaultMode = tostring(fallback or "BoxHandleAdornment")
-	defaultMode = (Lower(defaultMode) == "highlight") and "Highlight"
-		or ((Lower(defaultMode) == "drawing api" and NAgui.hasDrawingAPI()) and "Drawing API")
+	local normalizedDefault = Lower(defaultMode)
+	defaultMode = (normalizedDefault == "highlight") and "Highlight"
+		or ((normalizedDefault == "character box" or normalizedDefault == "characterbox" or normalizedDefault == "bounding box" or normalizedDefault == "boundingbox" or normalizedDefault == "bbox" or normalizedDefault == "charbox") and "Character Box")
+		or ((normalizedDefault == "drawing api" and NAgui.hasDrawingAPI()) and "Drawing API")
 		or "BoxHandleAdornment"
 	return defaultMode
 end
@@ -27003,11 +27014,14 @@ NAgui.getESPRenderMode = function(target)
 	if key == "npc" or key == "npcs" or key == "npcesp" then
 		return NAgui.sanitizeNPCESPRenderMode(NAStuff.NPC_ESP_RenderMode)
 	end
-	local rawMode = (key == "part" or key == "parts" or key == "partesp")
-		and NAStuff.ESP_PartRenderMode
-		or NAStuff.ESP_RenderMode
-	local fallback = (key == "part" or key == "parts" or key == "partesp") and "BoxHandleAdornment" or "Highlight"
-	return NAgui.sanitizeESPRenderMode(rawMode, fallback)
+	local isPart = key == "part" or key == "parts" or key == "partesp"
+	local rawMode = isPart and NAStuff.ESP_PartRenderMode or NAStuff.ESP_RenderMode
+	local fallback = isPart and "BoxHandleAdornment" or "Highlight"
+	local mode = NAgui.sanitizeESPRenderMode(rawMode, fallback)
+	if isPart and mode == "Character Box" then
+		return "BoxHandleAdornment"
+	end
+	return mode
 end
 
 NAgui.espUsesHighlight=function(target)
@@ -27016,6 +27030,10 @@ end
 
 NAgui.espUsesDrawing = function(target)
 	return NAgui.getESPRenderMode(target) == "Drawing API"
+end
+
+NAgui.espUsesCharacterBox = function(target)
+	return NAgui.getESPRenderMode(target) == "Character Box"
 end
 
 NAgui.sanitizeTransparency=function(value)
@@ -29194,7 +29212,7 @@ NAmanage.ESP_AddBoxForPart = function(model, part)
 	local data = espCONS[model]
 	if not data or data.isNPC or not part or not part:IsA("BasePart") then return end
 	if data.boxTable[part] then return end
-	if NAgui.espUsesHighlight("players") or NAgui.espUsesDrawing("players") then return end
+	if NAgui.espUsesHighlight("players") or NAgui.espUsesDrawing("players") or NAgui.espUsesCharacterBox("players") then return end
 	local box = InstanceNew("BoxHandleAdornment")
 	box.Adornee = part
 	box.AlwaysOnTop = true
@@ -29206,12 +29224,85 @@ NAmanage.ESP_AddBoxForPart = function(model, part)
 	data.boxTable[part] = box
 end
 
+NAmanage.ESP_RemoveCharacterBox = function(data)
+	if not data then return end
+	local box = data.charBox
+	if typeof(box) == "Instance" then
+		pcall(function()
+			box:Destroy()
+		end)
+	end
+	data.charBox = nil
+end
+
+NAmanage.ESP_GetCharacterBoxAdornee = function(model)
+	if not (model and model.Parent) then return nil end
+	local root = getRoot(model)
+	if root and root:IsA("BasePart") then
+		return root
+	end
+	local primary = model.PrimaryPart
+	if primary and primary:IsA("BasePart") and primary.Parent then
+		return primary
+	end
+	return NAmanage.ESP_FirstBasePart(model)
+end
+
+NAmanage.ESP_EnsureCharacterBox = function(data)
+	if not data then return nil end
+	local box = data.charBox
+	if typeof(box) == "Instance" and box.Parent and box:IsA("BoxHandleAdornment") then
+		NAmanage.ESP_StoreVisual(box)
+		return box
+	end
+	if typeof(box) == "Instance" then
+		pcall(function()
+			box:Destroy()
+		end)
+	end
+	box = InstanceNew("BoxHandleAdornment")
+	box.AlwaysOnTop = true
+	box.ZIndex = 1
+	box.Transparency = NAgui.sanitizeTransparency(NAStuff.ESP_Transparency or 0.7)
+	box.Color3 = Color3.new(1, 1, 1)
+	box.Size = Vector3.new(1, 1, 1)
+	NAmanage.ESP_StoreVisual(box)
+	data.charBox = box
+	return box
+end
+
+NAmanage.ESP_UpdateCharacterBox = function(model, data, color, transparency)
+	data = data or espCONS[model]
+	if not data then return false end
+	local root = NAmanage.ESP_GetCharacterBoxAdornee(model)
+	if not root then
+		NAmanage.ESP_RemoveCharacterBox(data)
+		return false
+	end
+	local ok, cf, size = pcall(model.GetBoundingBox, model)
+	if not (ok and typeof(cf) == "CFrame" and typeof(size) == "Vector3") then
+		return false
+	end
+	local box = NAmanage.ESP_EnsureCharacterBox(data)
+	if not box then return false end
+	local rel = root.CFrame:ToObjectSpace(cf)
+	if box.Adornee ~= root then box.Adornee = root end
+	if box.CFrame ~= rel then box.CFrame = rel end
+	if box.Size ~= size then box.Size = size end
+	if box.Color3 ~= color then box.Color3 = color end
+	local tr = NAgui.sanitizeTransparency(transparency or NAStuff.ESP_Transparency or 0.7)
+	if box.Transparency ~= tr then box.Transparency = tr end
+	NAmanage.ESP_StoreVisual(box)
+	return true
+end
+
 NAmanage.ESP_AddBoxes = function(model)
 	local data = espCONS[model]
 	if not data then return end
 	local renderMode = data.isNPC and NAgui.getESPRenderMode("npcs") or NAgui.getESPRenderMode("players")
 
 	if renderMode == "Drawing API" then
+		NAmanage.ESP_RemoveCharacterBox(data)
 		for part, box in data.boxTable do
 			if box then box:Destroy() end
 			data.boxTable[part] = nil
@@ -29229,6 +29320,7 @@ NAmanage.ESP_AddBoxes = function(model)
 	NAmanage.ESP_RemoveDrawing(data)
 
 	if renderMode == "Highlight" then
+		NAmanage.ESP_RemoveCharacterBox(data)
 		local highlight = data.highlight
 		if highlight and not highlight.Parent then
 			highlight = nil
@@ -29267,6 +29359,23 @@ NAmanage.ESP_AddBoxes = function(model)
 		return
 	end
 
+	if renderMode == "Character Box" then
+		NAmanage.ESP_RemoveDrawing(data)
+		for part, box in data.boxTable do
+			if box then box:Destroy() end
+			data.boxTable[part] = nil
+		end
+		if data.highlight then
+			NAmanage.ESP_AdjustHighlightMaterial(model, false)
+			data.highlight:Destroy()
+			data.highlight = nil
+		end
+		NAmanage.ESP_UpdateCharacterBox(model, data, Color3.new(1, 1, 1), NAStuff.ESP_Transparency or 0.7)
+		data.boxEnabled = true
+		return
+	end
+
+	NAmanage.ESP_RemoveCharacterBox(data)
 	for _, part in NAmanage.QueryDescendants(model, "BasePart") do
 		NAmanage.ESP_AddBoxForPart(model, part)
 	end
@@ -29278,6 +29387,7 @@ NAmanage.ESP_RemoveBoxes = function(model)
 	local data = espCONS[model]
 	if not data then return end
 	NAmanage.ESP_RemoveDrawing(data)
+	NAmanage.ESP_RemoveCharacterBox(data)
 	for part, box in data.boxTable do
 		if box and typeof(box) == "Instance" then
 			pcall(function()
@@ -29591,6 +29701,7 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 
 	if data.boxEnabled then
 		if NAgui.espUsesDrawing(renderTarget) then
+			NAmanage.ESP_RemoveCharacterBox(data)
 			if next(data.boxTable) ~= nil then
 				for part, box in data.boxTable do
 					if box then box:Destroy() end
@@ -29619,6 +29730,7 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 				NAmanage.ESP_RecoverFromDrawingFailure(model, data)
 			end
 		elseif NAgui.espUsesHighlight(renderTarget) then
+			NAmanage.ESP_RemoveCharacterBox(data)
 			NAmanage.ESP_RemoveDrawing(data)
 			if next(data.boxTable) ~= nil then
 				for part, box in data.boxTable do
@@ -29642,7 +29754,24 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 				if highlight.FillColor ~= boxColor then highlight.FillColor = boxColor end
 				if highlight.OutlineColor ~= boxColor then highlight.OutlineColor = boxColor end
 			end
+		elseif NAgui.espUsesCharacterBox(renderTarget) then
+			NAmanage.ESP_RemoveDrawing(data)
+			if next(data.boxTable) ~= nil then
+				for part, box in data.boxTable do
+					if box then box:Destroy() end
+					data.boxTable[part] = nil
+				end
+			end
+			if data.highlight then
+				NAmanage.ESP_AdjustHighlightMaterial(model, false)
+				data.highlight:Destroy()
+				data.highlight = nil
+			end
+			if not NAmanage.ESP_UpdateCharacterBox(model, data, boxColor, displayTransparency) then
+				NAmanage.ESP_RemoveCharacterBox(data)
+			end
 		else
+			NAmanage.ESP_RemoveCharacterBox(data)
 			NAmanage.ESP_RemoveDrawing(data)
 			for part, box in data.boxTable do
 				if not part or not part.Parent or not box or not box.Parent then
@@ -29781,6 +29910,7 @@ NAmanage.ESP_Add = function(target, persistent, isNPC)
 		boxEnabled = false,
 		highlight = nil,
 		drawingBox = nil,
+		charBox = nil,
 		isNPC = npcFlag,
 		ownerPlayer = ownerPlayer
 	}
@@ -92720,6 +92850,7 @@ NAgui.addColorPicker = function(label, defaultColor, callback, opts)
 	local hexOpenPos = hex.Position
 	local mainOpenTr = main.ImageTransparency
 	local pointOpenTr = main.MainPoint.ImageTransparency
+	local sliderPointOpenTr = sl.SliderPoint.ImageTransparency
 
 	local pickerClosedSize = UDim2.new(pickerOpenSize.X.Scale, pickerOpenSize.X.Offset, pickerOpenSize.Y.Scale, 45)
 	local bgClosedSize = UDim2.new(0, 39, 0, 22)
@@ -92731,6 +92862,7 @@ NAgui.addColorPicker = function(label, defaultColor, callback, opts)
 	local hexClosedPos = UDim2.new(hexOpenPos.X.Scale, hexOpenPos.X.Offset, hexOpenPos.Y.Scale, hexOpenPos.Y.Offset + 17)
 	local mainClosedTr = 1
 	local pointClosedTr = 1
+	local sliderPointClosedTr = 1
 
 	bg.Position = bgOpenPos
 	sl.Position = slOpenPos
@@ -92757,7 +92889,12 @@ NAgui.addColorPicker = function(label, defaultColor, callback, opts)
 		local hexPos = opened and hexOpenPos or hexClosedPos
 		local mainTr = opened and mainOpenTr or mainClosedTr
 		local pointTr = opened and pointOpenTr or pointClosedTr
+		local sliderPointTr = opened and sliderPointOpenTr or sliderPointClosedTr
 		local bgTr = opened and bgOpenTr or bgClosedTr
+
+		pcall(function() sl.Visible = opened end)
+		pcall(function() main.MainPoint.Visible = opened end)
+		pcall(function() sl.SliderPoint.Visible = opened end)
 
 		if useAnim then
 			tw(picker, mid, { Size = pickerSize })
@@ -92768,6 +92905,9 @@ NAgui.addColorPicker = function(label, defaultColor, callback, opts)
 			tw(hex, TweenInfo.new(0.5, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), { Position = hexPos })
 			pcall(function()
 				tw(main.MainPoint, fast, { ImageTransparency = pointTr })
+			end)
+			pcall(function()
+				tw(sl.SliderPoint, fast, { ImageTransparency = sliderPointTr })
 			end)
 			pcall(function()
 				tw(main, fast, { ImageTransparency = mainTr })
@@ -92784,6 +92924,7 @@ NAgui.addColorPicker = function(label, defaultColor, callback, opts)
 			rgb.Position = rgbPos
 			hex.Position = hexPos
 			pcall(function() main.MainPoint.ImageTransparency = pointTr end)
+			pcall(function() sl.SliderPoint.ImageTransparency = sliderPointTr end)
 			pcall(function() main.ImageTransparency = mainTr end)
 		end
 	end
@@ -118844,10 +118985,12 @@ end
 NAgui.addSection("Visuals & Color")
 NAgui.addInfo("Drawing API Warning", "Drawing library may break with DisableDirect3D11 or PreferVulkan if a bootstrapper manages them (aka: voidstrap)")
 
-local espRenderOptions = NAgui.getESPRenderModeOptions()
+local espRenderOptions = NAgui.getESPRenderModeOptions(true)
+local partEspRenderOptions = NAgui.getESPRenderModeOptions(false)
 local npcEspRenderOptions = NAgui.getNPCESPRenderModeOptions()
 NAStuff.ESP_RenderMode = NAgui.sanitizeESPRenderMode(NAStuff.ESP_RenderMode, "Highlight")
 NAStuff.ESP_PartRenderMode = NAgui.sanitizeESPRenderMode(NAStuff.ESP_PartRenderMode, "BoxHandleAdornment")
+if NAStuff.ESP_PartRenderMode == "Character Box" then NAStuff.ESP_PartRenderMode = "BoxHandleAdornment" end
 NAStuff.NPC_ESP_RenderMode = NAgui.sanitizeNPCESPRenderMode(NAStuff.NPC_ESP_RenderMode)
 NAStuff.ESP_DrawingBoxStyle = NAgui.sanitizeESPDrawingBoxStyle(NAStuff.ESP_DrawingBoxStyle)
 NAStuff.ESP_DrawingTracerOrigin = NAgui.sanitizeESPDrawingTracerOrigin(NAStuff.ESP_DrawingTracerOrigin)
@@ -118863,7 +119006,7 @@ NAgui.addDropdown("ESP Render Mode", espRenderOptions, NAStuff.ESP_RenderMode, f
 	NAmanage.ESP_RebuildVisuals()
 end)
 
-NAgui.addDropdown("Part ESP Render Mode", espRenderOptions, NAStuff.ESP_PartRenderMode, function(selection)
+NAgui.addDropdown("Part ESP Render Mode", partEspRenderOptions, NAStuff.ESP_PartRenderMode, function(selection)
 	local picked = type(selection) == "table" and selection[1] or selection
 	local mode = NAgui.sanitizeESPRenderMode(picked, NAStuff.ESP_PartRenderMode)
 	if mode == NAStuff.ESP_PartRenderMode then
