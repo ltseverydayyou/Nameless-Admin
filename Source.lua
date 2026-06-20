@@ -41098,9 +41098,22 @@ cmd.add({"binders", "binds"},{"binders","Open the event binder menu"},function()
 	NAgui.eventbinders()
 end)
 
-cmd.add({"setwaypoint","setwp"},{"setwaypoint <name>", "Store your current position under that name"},function(name)
+NAmanage.waypointNameFromArgs=function(...)
+	local args = {...}
+	local parts = {}
+	for i = 1, #args do
+		local part = tostring(args[i] or "")
+		if part ~= "" then
+			Insert(parts, part)
+		end
+	end
+	return (Concat(parts, " "):match("^%s*(.-)%s*$"))
+end
+
+cmd.add({"setwaypoint","setwp"},{"setwaypoint <name...>", "Store your current position under that name"},function(...)
+	local name = NAmanage.waypointNameFromArgs(...)
 	if not name or name == "" then
-		DoNotif("Usage: setwaypoint <name>")
+		DoNotif("Usage: setwaypoint <name...>")
 		return
 	end
 
@@ -41122,9 +41135,10 @@ cmd.add({"setwaypoint","setwp"},{"setwaypoint <name>", "Store your current posit
 	DebugNotif(("Waypoint '%s' set."):format(name))
 end,true)
 
-cmd.add({"gotowaypoint","gotowp"},{"gotowaypoint <name>", "Teleport to a saved waypoint"},function(name)
+cmd.add({"gotowaypoint","gotowp"},{"gotowaypoint <name...>", "Teleport to a saved waypoint"},function(...)
+	local name = NAmanage.waypointNameFromArgs(...)
 	if not name or name == "" then
-		DoNotif("Usage: gotowaypoint <name>")
+		DoNotif("Usage: gotowaypoint <name...>")
 		return
 	end
 	local entry = Waypoints[name]
@@ -41159,9 +41173,10 @@ cmd.add({"gotowaypoint","gotowp"},{"gotowaypoint <name>", "Teleport to a saved w
 	DebugNotif(("Teleported to waypoint '%s'."):format(name))
 end,true)
 
-cmd.add({"removewaypoint","removewp","rwp"},{"removewaypoint <name>", "Remove a saved waypoint"},function(name)
+cmd.add({"removewaypoint","removewp","rwp"},{"removewaypoint <name...>", "Remove a saved waypoint"},function(...)
+	local name = NAmanage.waypointNameFromArgs(...)
 	if not name or name == "" then
-		DoNotif("Usage: removewaypoint <name>")
+		DoNotif("Usage: removewaypoint <name...>")
 		return
 	end
 
@@ -92288,12 +92303,51 @@ NAmanage.UpdateWaypointList=function()
 			row.Name = name
 			row.Parent = list
 			local nameBtn = row:FindFirstChildWhichIsA("TextButton")
-			if nameBtn then nameBtn.Text = name end
+			if nameBtn then
+				nameBtn.Text = name
+				nameBtn.Size = UDim2.new(1, -212, 1, 0)
+			end
 			local actionFrame = row:FindFirstChildWhichIsA("Frame")
 			if actionFrame then
+				actionFrame.Size = UDim2.new(0, 190, 0, 24)
 				local copyBtn = actionFrame:FindFirstChild("CopyBtn")
 				local delBtn = actionFrame:FindFirstChild("DelBtn")
 				local tpBtn = actionFrame:FindFirstChild("TPBtn")
+				local renameBtn = actionFrame:FindFirstChild("RenameBtn")
+				if renameBtn then
+					MouseButtonFix(renameBtn, function()
+						Window({
+							Title = "Rename Waypoint",
+							Description = "Enter a new name for '"..name.."'.",
+							InputField = true,
+							Buttons = {
+								{
+									Text = "Rename",
+									Callback = function(input)
+										local newName = NAmanage.waypointNameFromArgs(input)
+										if not newName or newName == "" then
+											return DoNotif("Waypoint name cannot be empty.", 3)
+										end
+										if newName == name then
+											return DebugNotif("Waypoint name unchanged.", 2)
+										end
+										if Waypoints[newName] then
+											return DoNotif(("Waypoint '%s' already exists."):format(newName), 3)
+										end
+										if not Waypoints[name] then
+											return DoNotif(("Waypoint '%s' no longer exists."):format(name), 3)
+										end
+										Waypoints[newName] = Waypoints[name]
+										Waypoints[name] = nil
+										NAmanage.SaveWaypoints()
+										NAmanage.UpdateWaypointList()
+										DebugNotif(("Renamed waypoint '%s' to '%s'."):format(name, newName))
+									end
+								}
+							}
+						})
+					end)
+				end
 				if copyBtn then
 					MouseButtonFix(copyBtn, function()
 						local comps = entry.Components
