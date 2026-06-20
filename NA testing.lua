@@ -16450,6 +16450,7 @@ opt.loader = Format('loadstring(game:HttpGet("%s"))();', opt.loaderUrl or "")
 --Custom file functions checker checker
 NAmanage.loaderState.settingsPath = NAfiles.NAMAINSETTINGSPATH
 NAUserButtons = {}
+NAPluginUserButtons = {}
 UserButtonGuiList = {}
 UserButtonGuiMap = {}
 UserButtonDropdowns = {}
@@ -32382,12 +32383,185 @@ NAmanage.PluginMoveToWorkspace = NAmanage.PluginMoveToWorkspace or function(path
 	return true, dst
 end
 
+NAmanage.PluginUserButtonRequestRender = NAmanage.PluginUserButtonRequestRender or function()
+	if NAStuff and NAStuff.PluginUserButtonRenderPaused then
+		NAStuff.PluginUserButtonsDirty = true
+		return true
+	end
+	if NAmanage and type(NAmanage.RenderUserButtons) == "function" then
+		return pcall(NAmanage.RenderUserButtons)
+	end
+	return false
+end
+
+NAmanage.PluginUserButtonClear = NAmanage.PluginUserButtonClear or function(pluginKey)
+	if type(pluginKey) ~= "string" or pluginKey == "" then
+		return false
+	end
+	NAPluginUserButtons = NAPluginUserButtons or {}
+	local hadButtons = NAPluginUserButtons[pluginKey] ~= nil
+	NAPluginUserButtons[pluginKey] = nil
+	NAmanage._pluginUserButtonSpecs = NAPluginUserButtons
+	if hadButtons then
+		NAStuff.PluginUserButtonsDirty = true
+	end
+	return hadButtons
+end
+
+NAmanage.PluginUserButtonNormalize = NAmanage.PluginUserButtonNormalize or function(spec, label, command, command2)
+	local data = {}
+	if type(spec) == "table" then
+		for k, v in spec do
+			data[k] = v
+		end
+	else
+		data.Label = label or spec
+		data.Cmd1 = command
+		data.Cmd2 = command2
+	end
+
+	local cmd1 = data.Cmd1 or data.Command or data.command or data.Cmd or data.cmd or data.Run or data.run or data[2]
+	local cmd2 = data.Cmd2 or data.Command2 or data.command2 or data.OffCommand or data.offCommand or data.DisableCommand or data.disableCommand or data.ToggleOff or data.toggleOff or data[3]
+	local buttonLabel = data.Label or data.label or data.Text or data.text or data.Name or data.name or data.Title or data.title or data[1] or cmd1
+
+	if type(cmd1) == "table" then
+		cmd1 = cmd1[1]
+	end
+	if type(cmd2) == "table" then
+		cmd2 = cmd2[1]
+	end
+	if type(cmd1) ~= "string" or cmd1 == "" then
+		return nil, "missing command"
+	end
+
+	local args = data.Args or data.args or data.Arguments or data.arguments
+	if type(args) ~= "table" then
+		args = nil
+	end
+
+	local out = {
+		Id = data.Id or data.id or data.ButtonId or data.buttonId,
+		Label = tostring(buttonLabel or cmd1),
+		Cmd1 = tostring(cmd1),
+		Cmd2 = (type(cmd2) == "string" and cmd2 ~= "") and tostring(cmd2) or nil,
+		Args = args,
+		ArgsSaved = data.ArgsSaved == true or data.argsSaved == true or args ~= nil,
+		RunMode = (data.RunMode == "S" or data.SaveArgs == true or data.saveArgs == true) and "S" or "N",
+		BgColor = data.BgColor or data.bgColor or data.BackgroundColor or data.backgroundColor,
+		TextColor = data.TextColor or data.textColor,
+		Width = data.Width or data.width,
+		Height = data.Height or data.height,
+		CornerRadius = data.CornerRadius or data.cornerRadius,
+		Hidden = data.Hidden == true or data.hidden == true,
+		Interactable = not (data.Interactable == false or data.interactable == false),
+		Locked = data.Locked == true or data.locked == true,
+		Pos = data.Pos or data.Position or data.position,
+		MobileOnly = data.MobileOnly == true or data.mobileOnly == true,
+		PCOnly = data.PCOnly == true or data.pcOnly == true or data.DesktopOnly == true or data.desktopOnly == true,
+		PluginButton = true,
+	}
+	if out.Id ~= nil then
+		out.Id = tostring(out.Id)
+	end
+
+	local mode = tostring(data.Mode or data.mode or data.Type or data.type or ""):lower()
+	if mode == "toggle" and not out.Cmd2 then
+		out.Cmd2 = data.Off or data.off or data.Disable or data.disable
+	end
+
+	return out
+end
+
+NAmanage.PluginUserButtonAdd = NAmanage.PluginUserButtonAdd or function(pluginKey, fileName, spec, command, command2)
+	if NAStuff and NAStuff.PluginSettingsUIEnabled == false then
+		return false, "plugin UI controls disabled"
+	end
+	if type(pluginKey) ~= "string" or pluginKey == "" then
+		return false, "invalid plugin"
+	end
+	local button, err = NAmanage.PluginUserButtonNormalize(spec, spec, command, command2)
+	if not button then
+		return false, err or "invalid button"
+	end
+	if (button.MobileOnly == true or button.mobileOnly == true) and not IsOnMobile then
+		return false, "mobile only"
+	end
+	if (button.PCOnly == true or button.pcOnly == true or button.DesktopOnly == true or button.desktopOnly == true) and not IsOnPC then
+		return false, "pc only"
+	end
+
+	NAPluginUserButtons = NAPluginUserButtons or {}
+	local bucket = NAPluginUserButtons[pluginKey]
+	if not bucket then
+		bucket = {
+			name = tostring(fileName or "Plugin"),
+			items = {},
+		}
+		NAPluginUserButtons[pluginKey] = bucket
+	end
+	bucket.items = bucket.items or {}
+	local id = button.Id
+	if type(id) ~= "string" or id == "" then
+		id = (button.Label or "").."|"..(button.Cmd1 or "").."|"..(button.Cmd2 or "")
+		button.Id = id
+	end
+	for i = #bucket.items, 1, -1 do
+		local existing = bucket.items[i]
+		if type(existing) == "table" and existing.Id == id then
+			table.remove(bucket.items, i)
+		end
+	end
+	Insert(bucket.items, button)
+	NAmanage._pluginUserButtonSpecs = NAPluginUserButtons
+	NAStuff.PluginUserButtonsDirty = true
+	NAmanage.PluginUserButtonRequestRender()
+	return true, button
+end
+
+NAmanage.PluginUserButtonRemove = NAmanage.PluginUserButtonRemove or function(pluginKey, query)
+	if type(pluginKey) ~= "string" or pluginKey == "" then
+		return false, "invalid plugin"
+	end
+	NAPluginUserButtons = NAPluginUserButtons or {}
+	local bucket = NAPluginUserButtons[pluginKey]
+	local items = type(bucket) == "table" and bucket.items or nil
+	if type(items) ~= "table" then
+		return false, "no buttons"
+	end
+	local raw = query
+	if type(raw) == "table" then
+		raw = raw.Id or raw.id or raw.ButtonId or raw.buttonId or raw.Label or raw.label or raw.Command or raw.command or raw.Cmd1 or raw.cmd1
+	end
+	local needle = raw ~= nil and tostring(raw):lower() or nil
+	local removed = 0
+	for i = #items, 1, -1 do
+		local item = items[i]
+		if needle == nil
+			or tostring(item.Id or ""):lower() == needle
+			or tostring(item.Label or ""):lower() == needle
+			or tostring(item.Cmd1 or ""):lower() == needle then
+			table.remove(items, i)
+			removed += 1
+		end
+	end
+	if removed > 0 then
+		NAmanage._pluginUserButtonSpecs = NAPluginUserButtons
+		NAStuff.PluginUserButtonsDirty = true
+		NAmanage.PluginUserButtonRequestRender()
+		return true, removed
+	end
+	return false, "button not found"
+end
+
 NAmanage.PluginUIClear = NAmanage.PluginUIClear or function(pluginKey)
 	if type(pluginKey) ~= "string" or pluginKey == "" then
 		return
 	end
 	NAmanage._pluginControlSpecs = NAmanage._pluginControlSpecs or {}
 	NAmanage._pluginControlSpecs[pluginKey] = nil
+	if NAmanage.PluginUserButtonClear then
+		pcall(NAmanage.PluginUserButtonClear, pluginKey)
+	end
 end
 
 NAmanage.PluginUIFor = NAmanage.PluginUIFor or function(pluginKey, fileName, mode)
@@ -32438,6 +32612,25 @@ NAmanage.PluginUIFor = NAmanage.PluginUIFor or function(pluginKey, fileName, mod
 				defaultValue = defaultValue == true,
 				callback = callback,
 			})
+		end
+		api.addUserButton = function(spec, command, command2)
+			return NAmanage.PluginUserButtonAdd(key, label, spec, command, command2)
+		end
+		api.removeUserButton = function(query)
+			return NAmanage.PluginUserButtonRemove(key, query)
+		end
+		api.clearUserButtons = function()
+			return NAmanage.PluginUserButtonRemove(key)
+		end
+		api.addCommandButton = api.addUserButton
+		api.addMobileButton = api.addUserButton
+		api.addToggleButton = function(text, onCommand, offCommand, opts)
+			opts = type(opts) == "table" and opts or {}
+			opts.Label = opts.Label or text
+			opts.Cmd1 = opts.Cmd1 or opts.Command or onCommand
+			opts.Cmd2 = opts.Cmd2 or opts.Command2 or offCommand
+			opts.Mode = opts.Mode or "toggle"
+			return NAmanage.PluginUserButtonAdd(key, label, opts)
 		end
 		api.addTab = function(name)
 			return makeApi(tostring(name or "Controls"))
@@ -32591,6 +32784,19 @@ NAmanage.LoadPlugins = function(opts)
 		local scan = stripPluginScanText(content)
 		local lowerTxt = Lower(scan)
 		if lowerTxt:find("cmdpluginadd", 1, true) then
+			return true
+		end
+		if lowerTxt:find("adduserbutton", 1, true)
+			or lowerTxt:find("addcommandbutton", 1, true)
+			or lowerTxt:find("addmobilebutton", 1, true)
+			or lowerTxt:find("addtogglebutton", 1, true)
+			or lowerTxt:find("removeuserbutton", 1, true)
+			or lowerTxt:find("clearuserbuttons", 1, true)
+			or lowerTxt:find("buttononrun", 1, true)
+			or lowerTxt:find("userbuttononrun", 1, true)
+			or lowerTxt:find(":%s*userbutton%s*%(")
+			or lowerTxt:find(":%s*buttononrun%s*%(")
+			or lowerTxt:find(":%s*togglebutton%s*%(") then
 			return true
 		end
 		local hasBuilderRoot = lowerTxt:find("naplugin%s*%(")
@@ -33209,6 +33415,49 @@ NAmanage.LoadPlugins = function(opts)
 			ctx.runCommand = runFn
 			ctx.Command = runFn
 			ctx.command = runFn
+			local function buttonFn(self, ...)
+				if self == ctx then
+					return NAmanage.PluginUserButtonAdd(pluginKey, baseName, ...)
+				end
+				return NAmanage.PluginUserButtonAdd(pluginKey, baseName, self, ...)
+			end
+			ctx.AddUserButton = buttonFn
+			ctx.addUserButton = buttonFn
+			ctx.AddButton = buttonFn
+			ctx.addButton = buttonFn
+			ctx.UserButton = buttonFn
+			ctx.userButton = buttonFn
+			ctx.MobileButton = buttonFn
+			ctx.mobileButton = buttonFn
+			local function removeButtonFn(self, query)
+				if self == ctx then
+					return NAmanage.PluginUserButtonRemove(pluginKey, query)
+				end
+				return NAmanage.PluginUserButtonRemove(pluginKey, self)
+			end
+			ctx.RemoveUserButton = removeButtonFn
+			ctx.removeUserButton = removeButtonFn
+			ctx.RemoveButton = removeButtonFn
+			ctx.removeButton = removeButtonFn
+			ctx.ClearUserButtons = function()
+				return NAmanage.PluginUserButtonRemove(pluginKey)
+			end
+			ctx.clearUserButtons = ctx.ClearUserButtons
+			ctx.IsOnMobile = IsOnMobile == true
+			ctx.IsOnPC = IsOnPC == true
+			ctx.IsMobile = ctx.IsOnMobile
+			ctx.IsPC = ctx.IsOnPC
+			ctx.NA_GRAB_BODY = NA_GRAB_BODY
+			ctx.GetRoot = getRoot
+			ctx.getRoot = getRoot
+			ctx.GetChar = getChar
+			ctx.getChar = getChar
+			ctx.GetHum = getHum
+			ctx.getHum = getHum
+			ctx.GetTorso = getTorso
+			ctx.getTorso = getTorso
+			ctx.GetHead = getHead
+			ctx.getHead = getHead
 			return ctx
 		end
 
@@ -33241,6 +33490,24 @@ NAmanage.LoadPlugins = function(opts)
 			if ctxMode then
 				handler = function(...)
 					return fn(_plugCtx(), ...)
+				end
+			end
+			local buttonOnRun = def.ButtonOnRun or def.buttonOnRun or def.UserButtonOnRun or def.userButtonOnRun or def.CreateButtonOnRun or def.createButtonOnRun
+			local removeButtonOnRun = def.RemoveButtonOnRun or def.removeButtonOnRun or def.RemoveUserButtonOnRun or def.removeUserButtonOnRun
+			if buttonOnRun ~= nil or removeButtonOnRun ~= nil then
+				local inner = handler
+				handler = function(...)
+					if removeButtonOnRun ~= nil then
+						NAmanage.PluginUserButtonRemove(pluginKey, removeButtonOnRun)
+					end
+					if buttonOnRun ~= nil then
+						local opts = type(buttonOnRun) == "table" and _plugCopy(buttonOnRun) or { Label = buttonOnRun }
+						opts.Cmd1 = opts.Cmd1 or opts.Command or opts.command or (aliases and aliases[1])
+						opts.Label = opts.Label or opts.label or opts.Text or opts.text or opts.Cmd1
+						opts.Id = opts.Id or opts.id or opts.Label
+						NAmanage.PluginUserButtonAdd(pluginKey, baseName, opts)
+					end
+					return inner(...)
 				end
 			end
 			local argsHint = def.ArgsHint or def.argsHint or def.Args or def.args or def.Arguments or def.arguments or ""
@@ -33393,6 +33660,60 @@ NAmanage.LoadPlugins = function(opts)
 			return self
 		end
 		_plugMethods.noArgs = _plugMethods.NoArgs
+		function _plugMethods:UserButton(spec, command, command2)
+			if self._active then
+				local opts = type(spec) == "table" and _plugCopy(spec) or { Label = spec }
+				opts.Label = opts.Label or opts.label or opts.Text or opts.text or (self._active.Aliases and self._active.Aliases[1])
+				opts.Cmd1 = opts.Cmd1 or opts.Command or opts.command or (self._active.Aliases and self._active.Aliases[1])
+				opts.Cmd2 = opts.Cmd2 or opts.Command2 or opts.command2 or command
+				NAmanage.PluginUserButtonAdd(pluginKey, baseName, opts)
+				return self
+			end
+			NAmanage.PluginUserButtonAdd(pluginKey, baseName, spec, command, command2)
+			return self
+		end
+		_plugMethods.userButton = _plugMethods.UserButton
+		_plugMethods.Button = _plugMethods.UserButton
+		_plugMethods.button = _plugMethods.UserButton
+		_plugMethods.MobileButton = _plugMethods.UserButton
+		_plugMethods.mobileButton = _plugMethods.UserButton
+		function _plugMethods:ButtonOnRun(spec)
+			if self._active then
+				local opts = type(spec) == "table" and _plugCopy(spec) or { Label = spec }
+				opts.Label = opts.Label or opts.label or opts.Text or opts.text or (self._active.Aliases and self._active.Aliases[1])
+				opts.Cmd1 = opts.Cmd1 or opts.Command or opts.command or (self._active.Aliases and self._active.Aliases[1])
+				opts.Id = opts.Id or opts.id or opts.Label
+				self._active.ButtonOnRun = opts
+			end
+			return self
+		end
+		_plugMethods.buttonOnRun = _plugMethods.ButtonOnRun
+		_plugMethods.UserButtonOnRun = _plugMethods.ButtonOnRun
+		_plugMethods.userButtonOnRun = _plugMethods.ButtonOnRun
+		_plugMethods.CreateButtonOnRun = _plugMethods.ButtonOnRun
+		_plugMethods.createButtonOnRun = _plugMethods.ButtonOnRun
+		function _plugMethods:RemoveButtonOnRun(query)
+			if self._active then
+				self._active.RemoveButtonOnRun = query or (self._active.Aliases and self._active.Aliases[1])
+			end
+			return self
+		end
+		_plugMethods.removeButtonOnRun = _plugMethods.RemoveButtonOnRun
+		_plugMethods.RemoveUserButtonOnRun = _plugMethods.RemoveButtonOnRun
+		_plugMethods.removeUserButtonOnRun = _plugMethods.RemoveButtonOnRun
+		function _plugMethods:ToggleButton(spec, offCommand)
+			local opts = type(spec) == "table" and _plugCopy(spec) or { Label = spec }
+			opts.Mode = opts.Mode or opts.mode or "toggle"
+			if self._active then
+				opts.Cmd1 = opts.Cmd1 or opts.Command or opts.command or (self._active.Aliases and self._active.Aliases[1])
+				opts.Cmd2 = opts.Cmd2 or opts.Command2 or opts.command2 or offCommand
+				NAmanage.PluginUserButtonAdd(pluginKey, baseName, opts)
+			else
+				NAmanage.PluginUserButtonAdd(pluginKey, baseName, opts)
+			end
+			return self
+		end
+		_plugMethods.toggleButton = _plugMethods.ToggleButton
 		function _plugMethods:Run(fn)
 			if self._active and type(fn) == "function" then
 				self._active.Function = fn
@@ -33428,6 +33749,21 @@ NAmanage.LoadPlugins = function(opts)
 			New = _plugNew,
 			create = _plugNew,
 			Create = _plugNew,
+			addUserButton = function(...)
+				return NAmanage.PluginUserButtonAdd(pluginKey, baseName, ...)
+			end,
+			AddUserButton = function(...)
+				return NAmanage.PluginUserButtonAdd(pluginKey, baseName, ...)
+			end,
+			removeUserButton = function(...)
+				return NAmanage.PluginUserButtonRemove(pluginKey, ...)
+			end,
+			RemoveUserButton = function(...)
+				return NAmanage.PluginUserButtonRemove(pluginKey, ...)
+			end,
+			clearUserButtons = function()
+				return NAmanage.PluginUserButtonRemove(pluginKey)
+			end,
 		}, {
 			__call = function(_, ...)
 				return _plugNew(...)
@@ -33437,6 +33773,16 @@ NAmanage.LoadPlugins = function(opts)
 		proxyEnv.NAPlugin = _plugNew
 		proxyEnv.plugin = _plugNew
 		proxyEnv.Plugin = pluginApi
+		proxyEnv.addUserButton = function(...)
+			return NAmanage.PluginUserButtonAdd(pluginKey, baseName, ...)
+		end
+		proxyEnv.removeUserButton = function(...)
+			return NAmanage.PluginUserButtonRemove(pluginKey, ...)
+		end
+		proxyEnv.clearUserButtons = function()
+			return NAmanage.PluginUserButtonRemove(pluginKey)
+		end
+		proxyEnv.createUserButton = proxyEnv.addUserButton
 		proxyEnv.command = function(...)
 			return _plugNew(baseName):Command(...)
 		end
@@ -33554,6 +33900,21 @@ NAmanage.LoadPlugins = function(opts)
 			proxyEnv.Char = proxyEnv.Char or (lp and lp.Character or nil)
 			proxyEnv.Character = proxyEnv.Character or (lp and lp.Character or nil)
 			proxyEnv.PlayerGui = proxyEnv.PlayerGui or (lp and lp:FindFirstChildWhichIsA("PlayerGui") or nil)
+			proxyEnv.IsOnMobile = IsOnMobile == true
+			proxyEnv.IsOnPC = IsOnPC == true
+			proxyEnv.IsMobile = proxyEnv.IsOnMobile
+			proxyEnv.IsPC = proxyEnv.IsOnPC
+			proxyEnv.NA_GRAB_BODY = NA_GRAB_BODY
+			proxyEnv.getRoot = proxyEnv.getRoot or getRoot
+			proxyEnv.GetRoot = proxyEnv.GetRoot or getRoot
+			proxyEnv.getChar = proxyEnv.getChar or getChar
+			proxyEnv.GetChar = proxyEnv.GetChar or getChar
+			proxyEnv.getHum = proxyEnv.getHum or getHum
+			proxyEnv.GetHum = proxyEnv.GetHum or getHum
+			proxyEnv.getTorso = proxyEnv.getTorso or getTorso
+			proxyEnv.GetTorso = proxyEnv.GetTorso or getTorso
+			proxyEnv.getHead = proxyEnv.getHead or getHead
+			proxyEnv.GetHead = proxyEnv.GetHead or getHead
 			proxyEnv.PlaceId = proxyEnv.PlaceId or tonumber(game and game.PlaceId) or 0
 			proxyEnv.JobId = proxyEnv.JobId or tostring((game and game.JobId) or "")
 			proxyEnv.Workspace = _plugSetService("Workspace", "Workspace", workspace)
@@ -33780,6 +34141,10 @@ NAmanage.LoadPlugins = function(opts)
 				return UserInputService and UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 			end
 			proxyEnv.IsOnMobile = iyIsOnMobile()
+			proxyEnv.IsOnPC = IsOnPC == true
+			proxyEnv.IsMobile = proxyEnv.IsOnMobile
+			proxyEnv.IsPC = proxyEnv.IsOnPC
+			proxyEnv.NA_GRAB_BODY = NA_GRAB_BODY
 
 			local function iyLegacyChat()
 				if TextChatService and TextChatService.ChatVersion then
@@ -33967,9 +34332,24 @@ NAmanage.LoadPlugins = function(opts)
 				runMeta[pluginKey].commands = cmdNames
 			end
 			Insert(loadedSumm, fileName.." ("..Concat(cmdNames, ", ")..")")
+		else
+			local buttonBucket = type(NAPluginUserButtons) == "table" and NAPluginUserButtons[pluginKey] or nil
+			local buttonCount = type(buttonBucket) == "table" and type(buttonBucket.items) == "table" and #buttonBucket.items or 0
+			if buttonCount > 0 then
+				local fileName = file:match("[^\\/]+$") or file
+				if runMeta[pluginKey] then
+					runMeta[pluginKey].loaded = true
+					runMeta[pluginKey].commands = {}
+				end
+				Insert(loadedSumm, fileName.." ("..tostring(buttonCount).." button"..(buttonCount == 1 and "" or "s")..")")
+			end
 		end
 	end
 
+	local prevPluginButtonPause = NAStuff and NAStuff.PluginUserButtonRenderPaused
+	if NAStuff then
+		NAStuff.PluginUserButtonRenderPaused = true
+	end
 	for _, file in filesNA do
 		loadPluginFile(file, "na")
 	end
@@ -33990,6 +34370,13 @@ NAmanage.LoadPlugins = function(opts)
 		end
 	end
 	NAmanage._pluginFileMeta = runMeta
+	if NAStuff then
+		NAStuff.PluginUserButtonRenderPaused = prevPluginButtonPause
+	end
+	if NAStuff and NAStuff.PluginUserButtonsDirty and NAmanage.RenderUserButtons then
+		NAStuff.PluginUserButtonsDirty = false
+		pcall(NAmanage.RenderUserButtons)
+	end
 
 	local allowNotif = (forceNotify == true) or (NAmanage.jlCfg.PluginNotif ~= false)
 	if #loadedSumm > 0 and allowNotif and not silent then
@@ -34455,6 +34842,15 @@ NAmanage.RenderUserButtons = function()
 			upOffset = -60,
 			sideYOffset = 6,
 		}
+		local function sessionInstanceName(key)
+			if NAmanage and type(NAmanage.GetSessionInstanceName) == "function" then
+				local ok, name = pcall(NAmanage.GetSessionInstanceName, tostring(key or "UserButtonGui"))
+				if ok and type(name) == "string" and name ~= "" then
+					return name
+				end
+			end
+			return tostring(key or "UserButtonGui")
+		end
 
 		local function placeGroupContainer(mode, btn, dropSize)
 			dropSize = dropSize or Vector2.new(0, 0)
@@ -34581,11 +34977,13 @@ NAmanage.RenderUserButtons = function()
 
 		function ButtonInputPrompt(cmdName, cb)
 			local gui = InstanceNew("ScreenGui")
+			gui.Name = sessionInstanceName("UserButtonArgPromptGui_"..tostring(cmdName or "Command"))
 			gui.IgnoreGuiInset = true
 			gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 			gui.Parent = screenGui
 
 			local f = InstanceNew("Frame")
+			f.Name = sessionInstanceName("UserButtonArgPromptFrame")
 			f.Size = UDim2.new(0,260,0,140)
 			f.Position = UDim2.new(0.5,-130,0.5,-70)
 			f.BackgroundColor3 = Color3.fromRGB(30,30,30)
@@ -34597,6 +34995,7 @@ NAmanage.RenderUserButtons = function()
 			u.Parent = f
 
 			local t = InstanceNew("TextLabel")
+			t.Name = sessionInstanceName("UserButtonArgPromptTitle")
 			t.Size = UDim2.new(1,-20,0,30)
 			t.Position = UDim2.new(0,10,0,10)
 			t.BackgroundTransparency = 1
@@ -34608,6 +35007,7 @@ NAmanage.RenderUserButtons = function()
 			t.Parent = f
 
 			local tb = InstanceNew("TextBox")
+			tb.Name = sessionInstanceName("UserButtonArgPromptInput")
 			tb.Size = UDim2.new(1,-20,0,30)
 			tb.Position = UDim2.new(0,10,0,50)
 			tb.BackgroundColor3 = Color3.fromRGB(50,50,50)
@@ -34620,6 +35020,7 @@ NAmanage.RenderUserButtons = function()
 			tb.Parent = f
 
 			local s = InstanceNew("TextButton")
+			s.Name = sessionInstanceName("UserButtonArgPromptSubmit")
 			s.Size = UDim2.new(0.5,-15,0,30)
 			s.Position = UDim2.new(0,10,1,-40)
 			s.BackgroundColor3 = Color3.fromRGB(0,170,255)
@@ -34630,6 +35031,7 @@ NAmanage.RenderUserButtons = function()
 			s.Parent = f
 
 			local c = InstanceNew("TextButton")
+			c.Name = sessionInstanceName("UserButtonArgPromptCancel")
 			c.Size = UDim2.new(0.5,-15,0,30)
 			c.Position = UDim2.new(0.5,5,1,-40)
 			c.BackgroundColor3 = Color3.fromRGB(255,0,0)
@@ -34651,7 +35053,35 @@ NAmanage.RenderUserButtons = function()
 			NAgui.draggerV2(f)
 		end
 
-		local total   = #NAUserButtons
+		local renderButtons = {}
+		local total = 0
+		for id, data in NAUserButtons do
+			if type(id) == "number" and type(data) == "table" then
+				renderButtons[id] = data
+				total += 1
+			end
+		end
+		if type(NAPluginUserButtons) == "table" then
+			local pluginKeys = {}
+			for key in NAPluginUserButtons do
+				Insert(pluginKeys, key)
+			end
+			table.sort(pluginKeys)
+			local pluginId = -1
+			for _, key in pluginKeys do
+				local bucket = NAPluginUserButtons[key]
+				local items = type(bucket) == "table" and bucket.items or nil
+				if type(items) == "table" then
+					for _, data in items do
+						if type(data) == "table" then
+							renderButtons[pluginId] = data
+							total += 1
+							pluginId -= 1
+						end
+					end
+				end
+			end
+		end
 		local totalW  = total * 110
 		local screenWidth = math.max(screenGui.AbsoluteSize.X, 1)
 		local startX  = 0.5 - (totalW/2)/screenWidth
@@ -34666,11 +35096,14 @@ NAmanage.RenderUserButtons = function()
 		end
 
 		local idx = 0
-		for id, data in NAUserButtons do
+		for id, data in renderButtons do
 			if type(id) == "number" and type(data) == "table" then
 
 				local btn = InstanceNew("TextButton")
-				btn.Name                 = "NAUserButton_"..id
+				btn.Name                 = sessionInstanceName("UserButton_"..tostring(id))
+				if NAmanage and type(NAmanage.SetAttr) == "function" then
+					pcall(NAmanage.SetAttr, btn, "UserButtonId", id)
+				end
 				btn.Text                 = data.Label or ("Button "..id)
 				btn.Size                 = UDim2.new(0,60, 0,60)
 				btn.AnchorPoint          = Vector2.new(0.5,1)
@@ -34712,8 +35145,10 @@ NAmanage.RenderUserButtons = function()
 						local newPos = {p.X.Scale, p.X.Offset, p.Y.Scale, p.Y.Offset}
 						local moved = positionsChanged(dragStart or newPos, newPos)
 						data.Pos = newPos
-						NAmanage.UserButtonsSave("update position")
-						if moved and not data.Locked then
+						if data.PluginButton ~= true then
+							NAmanage.UserButtonsSave("update position")
+						end
+						if moved and not data.Locked and data.PluginButton ~= true then
 							NAmanage.UserButtons_CheckCombine(id, btn)
 						end
 					end
@@ -34742,7 +35177,7 @@ NAmanage.RenderUserButtons = function()
 
 						closeAllDropdowns()
 						local container = InstanceNew("ScrollingFrame")
-						container.Name = ("NAUserButtonDropdown_%d"):format(id)
+						container.Name = sessionInstanceName("UserButtonDropdown_"..tostring(id))
 						container.BackgroundColor3 = Color3.fromRGB(18,18,22)
 						container.BackgroundTransparency = 0.1
 						container.BorderSizePixel = 0
@@ -34806,7 +35241,11 @@ NAmanage.RenderUserButtons = function()
 
 						for childIndex, child in children do
 							local cBtn = InstanceNew("TextButton")
-							cBtn.Name = ("NAUserButtonChild_%d_%d"):format(id, childIndex)
+							cBtn.Name = sessionInstanceName("UserButtonChild_"..tostring(id).."_"..tostring(childIndex))
+							if NAmanage and type(NAmanage.SetAttr) == "function" then
+								pcall(NAmanage.SetAttr, cBtn, "UserButtonId", id)
+								pcall(NAmanage.SetAttr, cBtn, "UserButtonChildIndex", childIndex)
+							end
 							cBtn.Size = UDim2.new(1, 0, 0, childHeight)
 							local childBaseBg = NAmanage.UserButtonColorFromTable(child.BgColor, Color3.fromRGB(0,0,0))
 							cBtn.BackgroundColor3 = childBaseBg
@@ -34845,6 +35284,7 @@ NAmanage.RenderUserButtons = function()
 							if childNeedsArgs then
 								local childToggleSize = math.max(14, math.min(tSize, childHeight - 6))
 								local saveToggle = InstanceNew("TextButton")
+								saveToggle.Name                   = sessionInstanceName("UserButtonChildSaveToggle_"..tostring(id).."_"..tostring(childIndex))
 								saveToggle.Size                   = UDim2.new(0, childToggleSize, 0, childToggleSize)
 								saveToggle.AnchorPoint            = Vector2.new(1, 0)
 								saveToggle.Position               = UDim2.new(1, -4, 0, 4)
@@ -35004,6 +35444,7 @@ NAmanage.RenderUserButtons = function()
 
 					if needsArgs then
 						local saveToggle = InstanceNew("TextButton")
+						saveToggle.Name                   = sessionInstanceName("UserButtonSaveToggle_"..tostring(id))
 						saveToggle.Size                   = UDim2.new(0,tSize,0,tSize)
 						saveToggle.AnchorPoint            = Vector2.new(1,1)
 						saveToggle.Position               = UDim2.new(1,0,0,0)
@@ -35025,7 +35466,9 @@ NAmanage.RenderUserButtons = function()
 							saveEnabled = not saveEnabled
 							saveToggle.Text = saveEnabled and "S" or "N"
 							data.RunMode = saveEnabled and "S" or "N"
-							NAmanage.UserButtonsSave("button save toggle")
+							if data.PluginButton ~= true then
+								NAmanage.UserButtonsSave("button save toggle")
+							end
 						end)
 					end
 
@@ -35062,13 +35505,17 @@ NAmanage.RenderUserButtons = function()
 										SavedArgs[id] = parsed
 										data.Args     = parsed
 										data.ArgsSaved = true
-										NAmanage.UserButtonsSave("button args")
+										if data.PluginButton ~= true then
+											NAmanage.UserButtonsSave("button args")
+										end
 										runCmd(parsed)
 									elseif saveEnabled and type(input) == "string" then
 										SavedArgs[id] = {}
 										data.Args = {}
 										data.ArgsSaved = true
-										NAmanage.UserButtonsSave("button args empty")
+										if data.PluginButton ~= true then
+											NAmanage.UserButtonsSave("button args empty")
+										end
 										runCmd(nil)
 									else
 										runCmd(nil)
@@ -35145,8 +35592,14 @@ NAmanage.ApplyUserButtonStyles = function()
 	local ok, err = pcall(function()
 		for _, btn in UserButtonGuiList do
 			if typeof(btn) == "Instance" and btn:IsA("TextButton") then
-				local idStr = btn.Name:match("^NAUserButton_(%d+)$")
-				local id = idStr and tonumber(idStr) or nil
+				local id = nil
+				if NAmanage and type(NAmanage.GetAttr) == "function" then
+					id = tonumber(NAmanage.GetAttr(btn, "UserButtonId"))
+				end
+				if not id then
+					local idStr = btn.Name:match("^NAUserButton_(%d+)$")
+					id = idStr and tonumber(idStr) or nil
+				end
 				if id then
 					local data = NAUserButtons[id]
 					if type(data) == "table" then
@@ -70906,6 +71359,15 @@ function NAmanage.getNetworkPauseScript()
 	return nil
 end
 
+function NAmanage.forceGameplayPausedOff()
+	pcall(function()
+		local plr = LocalPlayer
+		if plr and plr.GameplayPaused == true then
+			plr.GameplayPaused = false
+		end
+	end)
+end
+
 function NAmanage.fireNetworkPauseEnabled(enabled)
 	local fired = false
 	local state = enabled == true
@@ -70920,6 +71382,9 @@ function NAmanage.fireNetworkPauseEnabled(enabled)
 			__lt.cm("StarterGui", "SetCore", "NetworkPausedEnabled", state)
 			fired = true
 		end)
+	end
+	if not state then
+		NAmanage.forceGameplayPausedOff()
 	end
 	return fired
 end
