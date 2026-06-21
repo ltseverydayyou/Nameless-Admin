@@ -99,14 +99,14 @@ Full docs: **https://ltseverydayyou.github.io/NA-docs/**
 <a href="https://github.com/ltseverydayyou">
 <img src="https://avatars.githubusercontent.com/u/117316014?v=4" width="96"><br>
 <b>Vyperia</b><br>
-<sub>@ltseverydayyou</sub>
+<sub>@ltseverydayyou · active maintainer</sub>
 </a>
 </td>
 <td align="center" width="50%">
 <a href="https://github.com/Cosmella-v">
 <img src="https://avatars.githubusercontent.com/Cosmella-v" width="96"><br>
 <b>Viper</b><br>
-<sub>@Cosmella-v</sub>
+<sub>@Cosmella-v · retired maintainer</sub>
 </a>
 </td>
 </tr>
