@@ -97,14 +97,14 @@ Full docs: **https://ltseverydayyou.github.io/NA-docs/**
 <tr>
 <td align="center" width="50%">
 <a href="https://github.com/ltseverydayyou">
-<img src="https://avatars.githubusercontent.com/u/117316014?v=4" width="96" style="border-radius:50%"><br>
+<img src="https://avatars.githubusercontent.com/u/117316014?v=4" width="96"><br>
 <b>Vyperia</b><br>
 <sub>@ltseverydayyou</sub>
 </a>
 </td>
 <td align="center" width="50%">
 <a href="https://github.com/Cosmella-v">
-<img src="https://avatars.githubusercontent.com/Cosmella-v" width="96" style="border-radius:50%"><br>
+<img src="https://avatars.githubusercontent.com/Cosmella-v" width="96"><br>
 <b>Viper</b><br>
 <sub>@Cosmella-v</sub>
 </a>
@@ -116,7 +116,24 @@ Full docs: **https://ltseverydayyou.github.io/NA-docs/**
 
 ## Original Owner
 
-[FilteringEnabled](https://github.com/FilteringEnabled) / [lxte](https://github.com/lxte)
+<table>
+<tr>
+<td align="center" width="50%">
+<a href="https://github.com/FilteringEnabled">
+<img src="https://github.com/FilteringEnabled.png?size=96" width="96"><br>
+<b>FilteringEnabled</b><br>
+<sub>original account</sub>
+</a>
+</td>
+<td align="center" width="50%">
+<a href="https://github.com/lxte">
+<img src="https://github.com/lxte.png?size=96" width="96"><br>
+<b>lxte</b><br>
+<sub>same owner / later account</sub>
+</a>
+</td>
+</tr>
+</table>
 
 ---
 
