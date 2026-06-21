@@ -1,0 +1,39 @@
+name: Make NA testing CRLF copy
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/make-na-testing-crlf.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  make-crlf:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Write CRLF copy
+        shell: python
+        run: |
+          from pathlib import Path
+          src = Path("NA testing.lua")
+          dst = Path("NA testing CRLF.lua")
+          data = src.read_bytes().decode("utf-8")
+          data = data.replace("\r\n", "\n").replace("\r", "\n")
+          dst.write_bytes(data.replace("\n", "\r\n").encode("utf-8"))
+      - name: Commit CRLF copy
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- "NA testing CRLF.lua"
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git commit -m "Add CRLF copy of NA testing.lua"
+          git push
