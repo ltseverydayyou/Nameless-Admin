@@ -1202,8 +1202,9 @@ local NAStuff = {
 	NAjson = nil;
 	nuhuhNotifs = true;
 	dmNotificationsEnabled = true;
-	inviteLink = "https://discord.gg/zzjYhtMGFD";
-	docsLink = "https://ltseverydayyou.github.io/NA-docs";
+	inviteLink = { 122, 135, 136, 133, 137, 81, 64, 65, 119, 125, 136, 121, 134, 131, 118, 65, 123, 124, 69, 145, 139, 124, 108, 124, 137, 99, 94, 87, 86 };
+	docsLink = { 122, 135, 136, 133, 137, 81, 64, 65, 127, 136, 136, 123, 141, 118, 132, 140, 120, 118, 143, 144, 128, 135, 65, 123, 126, 138, 127, 134, 116, 65, 125, 132, 69, 101, 82, 63, 119, 131, 120, 137 };
+	supportLink = { 122, 135, 136, 133, 137, 81, 64, 65, 126, 131, 66, 124, 128, 63, 117, 130, 129, 68, 130, 139, 132, 119, 137, 121, 135, 143, 123, 114, 139, 140, 131, 138 };
 	officialRepoLink = { 122, 135, 136, 133, 137, 81, 64, 65, 122, 125, 137, 126, 140, 115, 64, 118, 131, 130, 69, 131, 133, 133, 120, 138, 122, 136, 144, 117, 115, 140, 141, 132, 139, 70, 95, 115, 128, 121, 129, 123, 138, 132, 63, 84, 120, 130, 127, 133 };
 	_lb0 = { 127, 132, 135, 126, 142, 115, 137, 138, 127, 132, 120, 135, 137, 135, 123, 135, 133, 66 };
 	_cf1 = { 89, 136, 125, 98, 119, 133, 122, 130 };
@@ -13572,16 +13573,17 @@ function NACaller(fn, ...)
 					{
 						Text = "Discord Server",
 						Callback = function()
+							local inviteLink = NAmanage._sourceGlyph(NAStuff.inviteLink)
 							if setclipboard then
-								setclipboard(NAStuff.inviteLink)
+								setclipboard(inviteLink)
 								if type(DoNotif) == "function" then
 									DoNotif("Discord link copied to clipboard!")
 								end
 							else
 								if type(DoWindow) == "function" then
-									DoWindow("Server Invite: "..NAStuff.inviteLink)
+									DoWindow("Server Invite: "..inviteLink)
 								else
-									warn("Server Invite: "..NAStuff.inviteLink)
+									warn("Server Invite: "..inviteLink)
 								end
 							end
 						end
@@ -38203,19 +38205,20 @@ cmd.add({"pipe", "givepipe"}, {"pipe (givepipe)", "Gives a smoking pipe (client 
 end)
 
 cmd.add({"discord", "invite", "support", "help"}, {"discord", "Copy an invite link"}, function()
+	local inviteLink = NAmanage._sourceGlyph(NAStuff.inviteLink)
 	if setclipboard then
 		Window({
 			Title = "Discord",
-			Description = NAStuff.inviteLink,
+			Description = inviteLink,
 			Buttons = {
-				{Text = "Copy Link", Callback = function() setclipboard(NAStuff.inviteLink) end},
+				{Text = "Copy Link", Callback = function() setclipboard(inviteLink) end},
 				{Text = "Close", Callback = function() end}
 			}
 		})
 	else
 		Window({
 			Title = "Discord",
-			Description = "Your exploit does not support setclipboard.\nPlease manually type the invite link: "..NAStuff.inviteLink,
+			Description = "Your exploit does not support setclipboard.\nPlease manually type the invite link: "..inviteLink,
 			Buttons = {
 				{Text = "Close", Callback = function() end}
 			}
@@ -112835,19 +112838,30 @@ end
 
 NAgui.addSection("Links")
 NAgui.addButton("Discord Server", function()
+	local inviteLink = NAmanage._sourceGlyph(NAStuff.inviteLink)
 	if setclipboard then
-		setclipboard(NAStuff.inviteLink)
+		setclipboard(inviteLink)
 		DoNotif("Discord link copied to clipboard!")
 	else
-		DoNotif("Unable to copy automatically. Invite: "..NAStuff.inviteLink, 3)
+		DoNotif("Unable to copy automatically. Invite: "..inviteLink, 3)
 	end
 end)
 NAgui.addButton(adminName.." Documents", function()
+	local docsLink = NAmanage._sourceGlyph(NAStuff.docsLink)
 	if setclipboard then
-		setclipboard(NAStuff.docsLink)
+		setclipboard(docsLink)
 		DoNotif("Documents link copied to clipboard!")
 	else
-		DoNotif("Unable to copy automatically. Documents: "..NAStuff.docsLink, 3)
+		DoNotif("Unable to copy automatically. Documents: "..docsLink, 3)
+	end
+end)
+NAgui.addButton("Support Ko-fi", function()
+	local supportLink = NAmanage._sourceGlyph(NAStuff.supportLink)
+	if setclipboard then
+		setclipboard(supportLink)
+		DoNotif("Support Ko-fi link copied to clipboard!")
+	else
+		DoNotif("Unable to copy automatically. Support Ko-fi: "..supportLink, 3)
 	end
 end)
 

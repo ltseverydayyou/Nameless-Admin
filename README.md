@@ -9,6 +9,7 @@ A Roblox admin script with commands, plugins, UI tools, settings, and fixes kept
 <p>
   <a href="https://github.com/ltseverydayyou/Nameless-Admin/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow?style=flat-square" alt="License"></a>
   <a href="https://discord.gg/zzjYhtMGFD"><img src="https://img.shields.io/badge/Discord-Join-5865F2?style=flat-square&logo=discord&logoColor=white" alt="Discord"></a>
+  <a href="https://ko-fi.com/ltseverydayyou"><img src="https://img.shields.io/badge/Ko--fi-Support-FF5E5B?style=flat-square&logo=kofi&logoColor=white" alt="Ko-fi"></a>
   <img src="https://img.shields.io/badge/Luau-Nameless%20Admin-00A2FF?style=flat-square&logo=lua&logoColor=white" alt="Luau">
 </p>
 
@@ -88,6 +89,7 @@ Full docs: **https://ltseverydayyou.github.io/NA-docs/**
 - Testing file: [`NA testing.lua`](NA%20testing.lua)
 - Commands data: [`commands.json`](commands.json)
 - Discord: https://discord.gg/zzjYhtMGFD
+- Support Ko-fi: https://ko-fi.com/ltseverydayyou
 
 ---
 
