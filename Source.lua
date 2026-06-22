@@ -16111,6 +16111,56 @@ NAmanage.finishLoadingUI = NAmanage.finishLoadingUI or function(statusText)
 	end)
 end
 
+NAmanage.queueStartupAssetPreload = NAmanage.queueStartupAssetPreload or function()
+	if not (NAStuff and NAStuff.AutoPreloadAssets) or NAStuff._assetPreloadQueued then
+		return
+	end
+	NAStuff._assetPreloadQueued = true
+	Defer(function()
+		Wait(1.5)
+		local limit = tick() + 60
+		while type(NAmanage.StartAssetPreload) ~= "function" and tick() < limit do
+			Wait(0.25)
+		end
+		if type(NAmanage.StartAssetPreload) == "function" then
+			NAmanage.StartAssetPreload({
+				silent = true,
+				st = true,
+			})
+		end
+	end)
+end
+
+NAmanage.completeStartupLoading = NAmanage.completeStartupLoading or function(statusText)
+	if NAStuff._loadingFinalizedOnce == true then
+		return
+	end
+	NAStuff._loadingFinalizePending = false
+	NAStuff._loadingFinalizedOnce = true
+	pcall(function()
+		if type(NAmanage.isCommandDataStale) == "function" and NAmanage.isCommandDataStale() then
+			if NAAssetsLoading and NAAssetsLoading.setStatus then
+				NAAssetsLoading.setStatus("warming command list and autofill")
+			end
+			if type(NAmanage.queueCommandDataBuild) == "function" then
+				pcall(NAmanage.queueCommandDataBuild, { force = true })
+			elseif type(NAgui.loadCMDS) == "function" then
+				pcall(NAgui.loadCMDS, { force = true })
+			end
+		end
+	end)
+	pcall(function()
+		if NAmanage.finishLoadingUI then
+			NAmanage.finishLoadingUI(statusText or "ready")
+		end
+	end)
+	pcall(function()
+		if type(NAmanage.queueStartupAssetPreload) == "function" then
+			NAmanage.queueStartupAssetPreload()
+		end
+	end)
+end
+
 if NAmanage.pulseLoadingUI then
 	NAmanage.pulseLoadingUI("building interface", 0.965)
 end
@@ -39805,15 +39855,15 @@ windowRegistry = windowRegistry or {}
 
 NAstatsUI.Theme = {
 	Colors = {
-		Background = Color3.fromRGB(10, 12, 20),
-		Primary = Color3.fromRGB(20, 23, 34),
-		Secondary = Color3.fromRGB(30, 33, 46),
-		Border = Color3.fromRGB(70, 75, 95),
-		Accent = Color3.fromRGB(90, 190, 255),
-		Text = Color3.fromRGB(235, 238, 250),
-		TextMuted = Color3.fromRGB(150, 154, 174),
-		TextSubtle = Color3.fromRGB(205, 208, 222),
-		Close = Color3.fromRGB(230, 80, 90),
+		Background = Color3.fromRGB(8, 8, 9),
+		Primary = Color3.fromRGB(18, 18, 20),
+		Secondary = Color3.fromRGB(35, 35, 39),
+		Border = Color3.fromRGB(222, 222, 224),
+		Accent = Color3.fromRGB(245, 245, 245),
+		Text = Color3.fromRGB(255, 255, 255),
+		TextMuted = Color3.fromRGB(205, 205, 210),
+		TextSubtle = Color3.fromRGB(238, 238, 242),
+		Close = Color3.fromRGB(190, 45, 42),
 		Minimize = Color3.fromRGB(110, 130, 255),
 		Good = Color3.fromRGB(0, 255, 140),
 		Warn = Color3.fromRGB(255, 210, 0),
@@ -39826,13 +39876,13 @@ NAstatsUI.Theme = {
 		BodyBold = Enum.Font.GothamBold,
 	},
 	Radius = {
-		Window = UDim.new(0, 14),
-		Container = UDim.new(0, 12),
+		Window = UDim.new(0, 16),
+		Container = UDim.new(0, 8),
 		Button = UDim.new(1, 0),
 	},
 	Sizes = {
-		TopBarHeight = IsOnMobile and 42 or 30,
-		ActionButton = IsOnMobile and 24 or 20,
+		TopBarHeight = IsOnMobile and 42 or 36,
+		ActionButton = IsOnMobile and 30 or 28,
 	}
 }
 
@@ -39897,6 +39947,7 @@ function NAstatsUI.createWindow(position, baseSize, titleText)
 	local window = NAstatsUI.createInstance("Frame", {
 		Name = "Window",
 		BackgroundColor3 = T.Colors.Primary,
+		BackgroundTransparency = 0.46,
 		BorderSizePixel = 0,
 		Size = UDim2.new(1, 0, 1, 0),
 		Parent = holder
@@ -39904,12 +39955,13 @@ function NAstatsUI.createWindow(position, baseSize, titleText)
 	NAstatsUI.createInstance("UICorner", { CornerRadius = T.Radius.Window }, window)
 	NAstatsUI.createInstance("UIStroke", {
 		Color = T.Colors.Border,
-		Thickness = 1.2,
+		Thickness = 4,
+		Transparency = 0.05,
 		ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	}, window)
 	NAstatsUI.createInstance("UIGradient", {
 		Color = ColorSequence.new({
-			ColorSequenceKeypoint.new(0, Color3.fromRGB(7, 9, 16)),
+			ColorSequenceKeypoint.new(0, Color3.fromRGB(10, 10, 11)),
 			ColorSequenceKeypoint.new(1, T.Colors.Primary),
 		}),
 		Rotation = 90,
@@ -39917,7 +39969,8 @@ function NAstatsUI.createWindow(position, baseSize, titleText)
 
 	local topBar = NAstatsUI.createInstance("Frame", {
 		Name = "TopBar",
-		BackgroundColor3 = Color3.fromRGB(16, 18, 27),
+		BackgroundColor3 = T.Colors.Primary,
+		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		Size = UDim2.new(1, 0, 0, T.Sizes.TopBarHeight),
 		ZIndex = 2,
@@ -39928,19 +39981,22 @@ function NAstatsUI.createWindow(position, baseSize, titleText)
 	}, topBar)
 
 	NAstatsUI.createInstance("UIPadding", {
-		PaddingLeft = UDim.new(0, 10),
-		PaddingRight = UDim.new(0, 8),
+		PaddingLeft = UDim.new(0, 9),
+		PaddingRight = UDim.new(0, 7),
 	}, topBar)
 
 	local title = NAstatsUI.createInstance("TextLabel", {
 		Name = "Title",
 		BackgroundTransparency = 1,
-		Size = UDim2.new(1, -80, 1, 0),
-		Font = T.Fonts.Title,
+		Position = UDim2.new(0, 0, 0, 0),
+		Size = UDim2.new(1, -(T.Sizes.ActionButton * 2 + 28), 1, 0),
+		Font = T.Fonts.BodyBold,
 		Text = titleText,
 		TextColor3 = T.Colors.Text,
-		TextSize = IsOnMobile and 16 or 14,
+		TextSize = IsOnMobile and 20 or 18,
 		TextXAlignment = Enum.TextXAlignment.Left,
+		TextYAlignment = Enum.TextYAlignment.Center,
+		TextTruncate = Enum.TextTruncate.AtEnd,
 		RichText = true,
 		ZIndex = 3,
 		Parent = topBar,
@@ -39950,37 +40006,46 @@ function NAstatsUI.createWindow(position, baseSize, titleText)
 		local btn = NAstatsUI.createInstance("TextButton", {
 			Name = name,
 			BackgroundColor3 = color,
+			BackgroundTransparency = 0.08,
+			AutoButtonColor = true,
 			Size = UDim2.fromOffset(T.Sizes.ActionButton, T.Sizes.ActionButton),
 			AnchorPoint = Vector2.new(1, 0.5),
-			Position = UDim2.new(1, -(4 + (order - 1) * (T.Sizes.ActionButton + 4)), 0.5, 0),
+			Position = UDim2.new(1, -(2 + (order - 1) * (T.Sizes.ActionButton + 6)), 0.5, 0),
 			Font = T.Fonts.BodyBold,
 			Text = text,
-			TextScaled = true,
+			TextScaled = false,
+			TextSize = IsOnMobile and 20 or 17,
 			TextColor3 = Color3.new(1, 1, 1),
 			ZIndex = 3,
 			RichText = true,
 			Parent = topBar,
 		})
 		NAstatsUI.createInstance("UICorner", { CornerRadius = UDim.new(1, 0) }, btn)
+		NAstatsUI.createInstance("UIStroke", {
+			Color = T.Colors.Border,
+			Thickness = 2,
+			Transparency = 0.18,
+			ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		}, btn)
 		return btn
 	end
 
-	local minimizeButton = createActionButton("Minimize", "–", T.Colors.Minimize, 2)
+	local minimizeButton = createActionButton("Minimize", "-", T.Colors.Minimize, 2)
 	local closeButton = createActionButton("Close", "X", T.Colors.Close, 1)
 
 	local content = NAstatsUI.createInstance("Frame", {
 		Name = "Content",
 		BackgroundTransparency = 1,
-		Position = UDim2.new(0, 10, 0, T.Sizes.TopBarHeight + 6),
-		Size = UDim2.new(1, -20, 1, -(T.Sizes.TopBarHeight + 14)),
+		Position = UDim2.new(0, 8, 0, T.Sizes.TopBarHeight),
+		Size = UDim2.new(1, -16, 1, -(T.Sizes.TopBarHeight + 8)),
 		ZIndex = 2,
 		Parent = window
 	})
 	NAstatsUI.createInstance("UIPadding", {
-		PaddingLeft = UDim.new(0, 8),
-		PaddingRight = UDim.new(0, 8),
-		PaddingTop = UDim.new(0, 6),
-		PaddingBottom = UDim.new(0, 6),
+		PaddingLeft = UDim.new(0, 6),
+		PaddingRight = UDim.new(0, 6),
+		PaddingTop = UDim.new(0, 2),
+		PaddingBottom = UDim.new(0, 4),
 	}, content)
 
 	NAgui.draggerV2(holder, topBar)
@@ -39994,7 +40059,7 @@ function NAstatsUI.createWindow(position, baseSize, titleText)
 		content.Visible = not collapsed
 		if collapsed then
 			storedSize = holder.Size
-			holder.Size = UDim2.fromOffset(holder.AbsoluteSize.X, T.Sizes.TopBarHeight + 8)
+			holder.Size = UDim2.fromOffset(holder.AbsoluteSize.X, T.Sizes.TopBarHeight + 6)
 			title.Text = collapsedTitleText
 		else
 			holder.Size = storedSize
@@ -40096,8 +40161,8 @@ end
 
 function NAstatsUI.createStatCommand(config)
 	return NAstatsUI.ensureSingle(config.key, function()
-		local baseHeight = IsOnMobile and 120 or 110
-		local baseWidth = IsOnMobile and 230 or 210
+		local baseHeight = IsOnMobile and 112 or 98
+		local baseWidth = IsOnMobile and 270 or 220
 		local ui = NAstatsUI.createWindow(config.position, UDim2.new(0, baseWidth, 0, baseHeight), config.title)
 		local statDisplay = NAstatsUI.createStatDisplay(ui.content, config.title, config.subtitle)
 		local lastUpdate = 0
@@ -40115,7 +40180,8 @@ function NAstatsUI.createStatCommand(config)
 			statDisplay.value.Text = "<b>"..value.."</b>"
 			statDisplay.value.TextColor3 = color
 
-			local collapsedText = Format("%s: <font color='%s'>%s</font>", config.title, NAstatsUI.colorToHex(color), value)
+			local collapsedText = Format("<b>%s:</b> <font color='%s'>%s</font>", config.title, NAstatsUI.colorToHex(color), value)
+			ui.setBaseTitle(collapsedText)
 			ui.setCollapsedTitle(collapsedText)
 
 			lastUpdate = now
@@ -40136,6 +40202,7 @@ function NAstatsUI.createStatBox(parent, titleText)
 
 	local box = NAstatsUI.createInstance("Frame", {
 		BackgroundColor3 = T.Colors.Secondary,
+		BackgroundTransparency = 0.48,
 		Size = UDim2.new(boxWidthScale, boxWidthOffset, 0, boxHeight),
 		Parent = parent,
 	})
@@ -40189,6 +40256,7 @@ function NAstatsUI.createStatBox(parent, titleText)
 	local barBg = NAstatsUI.createInstance("Frame", {
 		Name = "BarBg",
 		BackgroundColor3 = Color3.fromRGB(18, 20, 30),
+		BackgroundTransparency = 0.35,
 		BorderSizePixel = 0,
 		AnchorPoint = Vector2.new(0, 1),
 		Position = UDim2.new(0, 0, 1, 0),
@@ -40488,32 +40556,26 @@ cmd.add({ "fpsping", "pingfps", "fpsp", "pfps" }, { "fpsping (pingfps)", "Shows 
 	end
 
 	local T = NAstatsUI.Theme
-	local height = IsOnMobile and 180 or 150
-	local width = IsOnMobile and 300 or 270
+	local height = IsOnMobile and 86 or 74
+	local width = IsOnMobile and 310 or 330
 	local ui = NAstatsUI.createWindow(UDim2.new(0.5, 0, 0.32, 0), UDim2.new(0, width, 0, height), "FPS / Ping")
 
 	windowRegistry["FPSPing"] = ui
 
-	local grid = NAstatsUI.createInstance("Frame", {
+	local detail = NAstatsUI.createInstance("TextLabel", {
+		Name = "Detail",
 		BackgroundTransparency = 1,
 		Size = UDim2.new(1, 0, 1, 0),
+		Font = T.Fonts.BodyBold,
+		Text = "",
+		TextColor3 = T.Colors.TextMuted,
+		TextSize = IsOnMobile and 13 or 12,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextYAlignment = Enum.TextYAlignment.Top,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		RichText = true,
 		Parent = ui.content
 	})
-
-	NAstatsUI.createInstance("UIListLayout", {
-		FillDirection = IsOnMobile and Enum.FillDirection.Vertical or Enum.FillDirection.Horizontal,
-		HorizontalAlignment = Enum.HorizontalAlignment.Center,
-		VerticalAlignment = Enum.VerticalAlignment.Top,
-		SortOrder = Enum.SortOrder.LayoutOrder,
-		Padding = UDim.new(0, IsOnMobile and 8 or 10),
-		Parent = grid,
-	})
-
-	local pingBox, pingValue, pingBar = NAstatsUI.createStatBox(grid, "Ping")
-	local fpsBox, fpsValue, fpsBar = NAstatsUI.createStatBox(grid, "FPS")
-
-	pingBox.LayoutOrder = 1
-	fpsBox.LayoutOrder = 2
 
 	local lastUpdate = 0
 	local updateInterval = 0.5
@@ -40547,26 +40609,16 @@ cmd.add({ "fpsping", "pingfps", "fpsp", "pfps" }, { "fpsping (pingfps)", "Shows 
 		local fps = NAmanage.getRealFPS()
 		local p = tonumber(NAmanage.GetDataPingMs and NAmanage.GetDataPingMs()) or 0
 
-		pingValue.Text = "<b>"..tostring(p).." ms</b>"
-		pingValue.TextColor3 = pingColorFn(p)
-		fpsValue.Text = "<b>"..tostring(fps).."</b>"
-		fpsValue.TextColor3 = fpsColorFn(fps)
-
-		local pingRatio = math.clamp(p == 0 and 0 or 1 - (p / 300), 0, 1)
-		local fpsRatio = math.clamp(fps / 120, 0, 1)
-
-		pingBar.Size = UDim2.new(pingRatio, 0, 1, 0)
-		pingBar.BackgroundColor3 = pingColorFn(p)
-		fpsBar.Size = UDim2.new(fpsRatio, 0, 1, 0)
-		fpsBar.BackgroundColor3 = fpsColorFn(fps)
-
-		ui.setCollapsedTitle(Format(
-			"FPS / Ping: <font color='%s'>%d FPS</font> | <font color='%s'>%d ms</font>",
-			NAstatsUI.colorToHex(fpsColorFn(fps)),
-			fps,
+		local titleText = Format(
+			"<b>Ping:</b> <font color='%s'>%d ms</font> | <b>FPS:</b> <font color='%s'>%d</font>",
 			NAstatsUI.colorToHex(pingColorFn(p)),
-			p
-		))
+			p,
+			NAstatsUI.colorToHex(fpsColorFn(fps)),
+			fps
+		)
+		ui.setBaseTitle(titleText)
+		ui.setCollapsedTitle(titleText)
+		detail.Text = Format("latency %s  |  render %s fps", p <= 100 and "stable" or "high", fps >= 55 and "smooth" or "low")
 		lastUpdate = t
 	end))
 
@@ -48748,7 +48800,7 @@ cmd.add({"unautoflashback","undeathback","unadeath","undb"},{"unautoflashback","
 	NAStuff.adb_done = 0
 end)
 
-cmd.add({"flashback", "deathpos", "deathtp"}, {"flashback (deathpos, deathtp)", "Teleports you to your last death point"}, function()
+cmd.add({"flashback", "deathpos", "deathtp", "diedtp"}, {"flashback", "Teleports you to your last death point"}, function()
 	if deathCFrame then
 		local character = getChar()
 		if character and getRoot(character) then
@@ -56399,16 +56451,42 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 	pcall(NAmanage.NASettingsSet, "freecamSpeed", legacySpeed)
 
 	if NAFreecam and NAFreecam.IsEnabled() then
-		NAFreecam.Stop()
-		camera.CameraSubject = getChar()
-		SpawnCall(function() cmd.run({"unfr"}) end)
+		if NAFreecam.SetSpeed then
+			NAFreecam.SetSpeed(navSpeed)
+		end
+		flyVariables.mOn = true
+		if IsOnMobile and fcBTNTOGGLE then
+			local btn = fcBTNTOGGLE:FindFirstChild("FreecamMainButton", true)
+			local speedBox = fcBTNTOGGLE:FindFirstChild("FreecamSpeedBox", true)
+			if speedBox then
+				speedBox.Text = tostring(speed)
+			end
+			if btn then
+				btn.Text = "UNFC"
+				btn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+			end
+		end
+		DebugNotif("Freecam speed updated to "..tostring(legacySpeed), 2)
+		return
 	end
 
 	if NAlib.isConnected("freecam") then
-		NAlib.disconnect("freecam")
-		camera.CameraSubject = getChar()
-		SpawnCall(function() cmd.run({"unfr"}) end)
+		flyVariables.mOn = true
+		if IsOnMobile and fcBTNTOGGLE then
+			local btn = fcBTNTOGGLE:FindFirstChild("FreecamMainButton", true)
+			local speedBox = fcBTNTOGGLE:FindFirstChild("FreecamSpeedBox", true)
+			if speedBox then
+				speedBox.Text = tostring(speed)
+			end
+			if btn then
+				btn.Text = "UNFC"
+				btn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+			end
+		end
+		DebugNotif("Freecam speed updated to "..tostring(legacySpeed), 2)
+		return
 	end
+	flyVariables.mOn = false
 
 	if fcBTNTOGGLE then
 		fcBTNTOGGLE:Destroy()
@@ -56433,10 +56511,11 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 			camera.CameraSubject = primaryPart
 
 			local moveVec = GetCustomMoveVector()
+			local currentSpeed = normalizeLegacySpeed(NAStuff.FreecamSpeed) or speed
 
-			local x = moveVec.X * speed
-			local y = moveVec.Y * speed
-			local z = moveVec.Z * speed
+			local x = moveVec.X * currentSpeed
+			local y = moveVec.Y * currentSpeed
+			local z = moveVec.Z * currentSpeed
 
 			primaryPart.CFrame = CFrame.new(
 				primaryPart.CFrame.p,
@@ -56468,6 +56547,7 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 		NAgui.NaProtectUI(fcBTNTOGGLE)
 		fcBTNTOGGLE.ResetOnSpawn = false
 
+		btn.Name = "FreecamMainButton"
 		btn.Parent = fcBTNTOGGLE
 		btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 		btn.BackgroundTransparency = 0.1
@@ -56487,6 +56567,7 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 		aspect.Parent = btn
 		aspect.AspectRatio = 1.0
 
+		speedBox.Name = "FreecamSpeedBox"
 		speedBox.Parent = fcBTNTOGGLE
 		speedBox.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 		speedBox.BackgroundTransparency = 0.1
@@ -56505,6 +56586,7 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 		corner2.CornerRadius = UDim.new(0.2, 0)
 		corner2.Parent = speedBox
 
+		toggleBtn.Name = "FreecamSpeedToggle"
 		toggleBtn.Parent = btn
 		toggleBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 		toggleBtn.BackgroundTransparency = 0.1
@@ -56602,6 +56684,7 @@ cmd.add({"unfreecam","unfc","unfcam"},{"unfreecam (unfc,unfcam)","Disable free c
 	NAlib.disconnect("freecam")
 	camera.CameraSubject = getChar()
 	SpawnCall(function() cmd.run({"unfr"}) end)
+	flyVariables.mOn = false
 	if fcBTNTOGGLE then fcBTNTOGGLE:Destroy() fcBTNTOGGLE = nil end
 	DebugNotif("Freecam disabled", 2)
 end)
@@ -86972,6 +87055,142 @@ NAmanage.EnsurePluginsWindow = NAmanage.EnsurePluginsWindow or function()
 		NAUIMANAGER.PluginsContainer = frame:FindFirstChild("Container")
 		NAUIMANAGER.PluginsList = NAUIMANAGER.PluginsContainer and NAUIMANAGER.PluginsContainer:FindFirstChild("List")
 		NAUIMANAGER.PluginsFilter = NAUIMANAGER.PluginsContainer and NAUIMANAGER.PluginsContainer:FindFirstChild("Filter")
+		local container = NAUIMANAGER.PluginsContainer
+		local list = NAUIMANAGER.PluginsList
+		if container and list and container:IsA("GuiObject") and list:IsA("ScrollingFrame") then
+			local function skin(obj, radius, strokeColor)
+				if not obj then return end
+				if not obj:FindFirstChildWhichIsA("UICorner") then
+					local corner = InstanceNew("UICorner", obj)
+					corner.CornerRadius = UDim.new(0, radius or 5)
+				end
+				if strokeColor and not obj:FindFirstChildWhichIsA("UIStroke") then
+					local stroke = InstanceNew("UIStroke", obj)
+					stroke.Thickness = 1
+					stroke.Transparency = 0.75
+					stroke.Color = strokeColor
+				end
+			end
+
+			local function ensureScrollBar(name, axis)
+				local horizontal = axis == "X"
+				local bar = container:FindFirstChild(name)
+				if not (bar and bar:IsA("GuiObject")) then
+					bar = InstanceNew("Frame", container)
+					bar.Name = name
+					bar.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+					bar.BackgroundTransparency = 0.08
+					bar.BorderSizePixel = 0
+					bar.Visible = false
+					bar.ZIndex = 35
+					skin(bar, 7, NAUISTROKER or Color3.fromRGB(155, 100, 255))
+				end
+				bar.AnchorPoint = Vector2.new(0, 0)
+				if horizontal then
+					bar.Position = UDim2.new(list.Position.X.Scale, list.Position.X.Offset, 1, -18)
+					bar.Size = UDim2.new(list.Size.X.Scale, list.Size.X.Offset, 0, 16)
+				else
+					bar.Position = UDim2.new(1, -18, list.Position.Y.Scale, list.Position.Y.Offset)
+					bar.Size = UDim2.new(0, 16, list.Size.Y.Scale, list.Size.Y.Offset)
+				end
+
+				local upName = horizontal and "Left" or "Up"
+				local downName = horizontal and "Right" or "Down"
+				local upButton = bar:FindFirstChild(upName)
+				if not (upButton and upButton:IsA("TextButton")) then
+					upButton = InstanceNew("TextButton", bar)
+					upButton.Name = upName
+					upButton.AutoButtonColor = false
+					upButton.BackgroundColor3 = Color3.fromRGB(55, 55, 65)
+					upButton.BackgroundTransparency = 0.15
+					upButton.BorderSizePixel = 0
+					upButton.Font = Enum.Font.GothamBold
+					upButton.Text = horizontal and "<" or "^"
+					upButton.TextColor3 = Color3.fromRGB(245, 245, 250)
+					upButton.TextSize = 10
+					upButton.ZIndex = 36
+					skin(upButton, 5)
+				end
+
+				local downButton = bar:FindFirstChild(downName)
+				if not (downButton and downButton:IsA("TextButton")) then
+					downButton = InstanceNew("TextButton", bar)
+					downButton.Name = downName
+					downButton.AutoButtonColor = false
+					downButton.BackgroundColor3 = Color3.fromRGB(55, 55, 65)
+					downButton.BackgroundTransparency = 0.15
+					downButton.BorderSizePixel = 0
+					downButton.Font = Enum.Font.GothamBold
+					downButton.Text = horizontal and ">" or "v"
+					downButton.TextColor3 = Color3.fromRGB(245, 245, 250)
+					downButton.TextSize = 10
+					downButton.ZIndex = 36
+					skin(downButton, 5)
+				end
+
+				local track = bar:FindFirstChild("Track")
+				if not (track and track:IsA("GuiObject")) then
+					track = InstanceNew("Frame", bar)
+					track.Name = "Track"
+					track.BackgroundColor3 = Color3.fromRGB(24, 24, 28)
+					track.BackgroundTransparency = 0.2
+					track.BorderSizePixel = 0
+					track.ZIndex = 36
+					skin(track, 5)
+				end
+
+				local thumb = track:FindFirstChild("Thumb")
+				if not (thumb and thumb:IsA("GuiObject")) then
+					thumb = InstanceNew("Frame", track)
+					thumb.Name = "Thumb"
+					thumb.BackgroundColor3 = NAUISTROKER or Color3.fromRGB(155, 100, 255)
+					thumb.BackgroundTransparency = 0.12
+					thumb.BorderSizePixel = 0
+					thumb.ZIndex = 37
+					skin(thumb, 5)
+				end
+
+				if horizontal then
+					upButton.Position = UDim2.new(0, 0, 0, 0)
+					upButton.Size = UDim2.new(0, 16, 1, 0)
+					downButton.AnchorPoint = Vector2.new(1, 0)
+					downButton.Position = UDim2.new(1, 0, 0, 0)
+					downButton.Size = UDim2.new(0, 16, 1, 0)
+					track.Position = UDim2.new(0, 18, 0, 0)
+					track.Size = UDim2.new(1, -36, 1, 0)
+				else
+					upButton.Position = UDim2.new(0, 0, 0, 0)
+					upButton.Size = UDim2.new(1, 0, 0, 16)
+					downButton.AnchorPoint = Vector2.new(0, 1)
+					downButton.Position = UDim2.new(0, 0, 1, 0)
+					downButton.Size = UDim2.new(1, 0, 0, 16)
+					track.Position = UDim2.new(0, 0, 0, 18)
+					track.Size = UDim2.new(1, 0, 1, -36)
+				end
+				return bar, upButton, downButton, track, thumb
+			end
+
+			local vBar, vUp, vDown, vTrack, vThumb = ensureScrollBar("CustomScrollBar", "Y")
+			local hBar, hLeft, hRight, hTrack, hThumb = ensureScrollBar("CustomHorizontalScrollBar", "X")
+			NAUIMANAGER.PluginsCustomScrollBar = vBar
+			NAUIMANAGER.PluginsCustomScrollUp = vUp
+			NAUIMANAGER.PluginsCustomScrollDown = vDown
+			NAUIMANAGER.PluginsCustomScrollTrack = vTrack
+			NAUIMANAGER.PluginsCustomScrollThumb = vThumb
+			NAUIMANAGER.PluginsCustomHorizontalScrollBar = hBar
+			NAUIMANAGER.PluginsCustomScrollLeft = hLeft
+			NAUIMANAGER.PluginsCustomScrollRight = hRight
+			NAUIMANAGER.PluginsCustomHorizontalScrollTrack = hTrack
+			NAUIMANAGER.PluginsCustomHorizontalScrollThumb = hThumb
+			pcall(function()
+				list.Active = true
+				list.ScrollingDirection = Enum.ScrollingDirection.XY
+				list.ScrollBarThickness = 0
+				list.ScrollBarImageTransparency = 1
+				list.VerticalScrollBarInset = Enum.ScrollBarInset.None
+				list.HorizontalScrollBarInset = Enum.ScrollBarInset.None
+			end)
+		end
 	end
 	return frame
 end
@@ -87287,6 +87506,9 @@ do
 	registry._byTarget = registry._byTarget or setmetatable({}, {
 		__mode = "k"
 	});
+	registry._targetFitBase = registry._targetFitBase or setmetatable({}, {
+		__mode = "k"
+	});
 	registry.step = registry.step or 54;
 	registry.repeatDelay = registry.repeatDelay or 0.28;
 	registry.repeatRate = registry.repeatRate or 0.05;
@@ -87519,7 +87741,51 @@ do
 
 		ctrl.applyPageDefaults = ctrl.applyTargetDefaults;
 
+		function ctrl.fitTargetToBar(target, widgets, reserveSpace)
+			if ctrl.axis == "X" or not (ctrl.config and ctrl.config.fitTargetToBar == true) then
+				return false;
+			end;
+			local bar = widgets and widgets.bar;
+			if not (target and target.Parent and bar and bar.Parent) then
+				return false;
+			end;
+			if target.AnchorPoint and math.abs((target.AnchorPoint.X or 0)) > 0.001 then
+				return false;
+			end;
+			local base = registry._targetFitBase[target];
+			local scale = NAmanage.GetUIScaleFactor and NAmanage.GetUIScaleFactor(target.Parent) or 1;
+			if not scale or scale <= 0 then
+				scale = 1;
+			end;
+			if not base then
+				local parentWidth = ((target.Parent.AbsoluteSize and target.Parent.AbsoluteSize.X) or 0) / scale;
+				local targetX = (((target.AbsolutePosition and target.AbsolutePosition.X) or 0) - (((target.Parent.AbsolutePosition and target.Parent.AbsolutePosition.X) or 0))) / scale;
+				local targetWidth = ((target.AbsoluteSize and target.AbsoluteSize.X) or 0) / scale;
+				base = {
+					size = target.Size,
+					position = target.Position,
+					rightReserve = math.max(0, parentWidth - targetX - targetWidth),
+				};
+				registry._targetFitBase[target] = base;
+			end;
+			local barWidth = math.max(0, (((bar.AbsoluteSize and bar.AbsoluteSize.X) or 0) / scale));
+			local remove = math.floor(math.min(tonumber(base.rightReserve) or 0, barWidth + 2) + 0.5);
+			local nextSize = base.size;
+			if not reserveSpace and remove > 0 then
+				nextSize = UDim2.new(base.size.X.Scale, base.size.X.Offset + remove, base.size.Y.Scale, base.size.Y.Offset);
+			end;
+			if target.Position ~= base.position then
+				target.Position = base.position;
+			end;
+			if target.Size ~= nextSize then
+				target.Size = nextSize;
+				return true;
+			end;
+			return false;
+		end;
+
 		function ctrl.hide()
+			ctrl._lastScrollMetrics = nil;
 			local widgets = ctrl.getWidgets();
 			if widgets and widgets.bar then
 				widgets.bar.Visible = false;
@@ -87564,6 +87830,7 @@ do
 			untrackTarget(ctrl);
 			disconnectAll(ctrl._targetConns);
 			ctrl._layout = nil;
+			ctrl._lastScrollMetrics = nil;
 			ctrl.target = nil;
 		end;
 
@@ -87614,11 +87881,73 @@ do
 			local maxPos = math.max(0, total - visible);
 			local trackSize = math.max(0, ctrl.axis == "X" and (track.AbsoluteSize.X or 0) or (track.AbsoluteSize.Y or 0));
 			local canScroll = maxPos > 1 and visible > 0 and trackSize > 0;
+			if canScroll and ctrl.fitTargetToBar(target, widgets, true) then
+				if updateCanvasSize then
+					pcall(updateCanvasSize, target, NAUIMANAGER and NAUIMANAGER.AUTOSCALER and NAUIMANAGER.AUTOSCALER.Scale or nil);
+				end;
+				if ctrl.config and ctrl.config.layoutForTarget then
+					pcall(ctrl.config.layoutForTarget, ctrl, target, widgets);
+				end;
+				visible = ctrl.getVisibleSpace(target);
+				total = math.max(visible, ctrl.getTotalSpace(target));
+				maxPos = math.max(0, total - visible);
+				trackSize = math.max(0, ctrl.axis == "X" and (track.AbsoluteSize.X or 0) or (track.AbsoluteSize.Y or 0));
+				canScroll = maxPos > 1 and visible > 0 and trackSize > 0;
+			end;
+			if not canScroll and ctrl.fitTargetToBar(target, widgets, false) then
+				if updateCanvasSize then
+					pcall(updateCanvasSize, target, NAUIMANAGER and NAUIMANAGER.AUTOSCALER and NAUIMANAGER.AUTOSCALER.Scale or nil);
+				end;
+				visible = ctrl.getVisibleSpace(target);
+				total = math.max(visible, ctrl.getTotalSpace(target));
+				maxPos = math.max(0, total - visible);
+				trackSize = math.max(0, ctrl.axis == "X" and (track.AbsoluteSize.X or 0) or (track.AbsoluteSize.Y or 0));
+				canScroll = maxPos > 1 and visible > 0 and trackSize > 0;
+				if canScroll and ctrl.fitTargetToBar(target, widgets, true) then
+					if updateCanvasSize then
+						pcall(updateCanvasSize, target, NAUIMANAGER and NAUIMANAGER.AUTOSCALER and NAUIMANAGER.AUTOSCALER.Scale or nil);
+					end;
+					visible = ctrl.getVisibleSpace(target);
+					total = math.max(visible, ctrl.getTotalSpace(target));
+					maxPos = math.max(0, total - visible);
+					trackSize = math.max(0, ctrl.axis == "X" and (track.AbsoluteSize.X or 0) or (track.AbsoluteSize.Y or 0));
+					canScroll = maxPos > 1 and visible > 0 and trackSize > 0;
+				end;
+			end;
 			bar.Visible = canScroll;
 			if not canScroll then
 				return;
 			end;
 
+			ctrl._lastScrollMetrics = {
+				visible = visible,
+				total = total,
+				maxPos = maxPos,
+				trackSize = trackSize
+			};
+			ctrl.updateThumb(widgets, target, visible, total, maxPos, trackSize);
+		end;
+
+		function ctrl.updateThumb(widgets, target, visible, total, maxPos, trackSize)
+			widgets = widgets or ctrl.getWidgets();
+			target = target or ctrl.getTarget();
+			if not widgets or not target then
+				return false;
+			end;
+			local upButton = widgets.upButton;
+			local downButton = widgets.downButton;
+			local track = widgets.track;
+			local thumb = widgets.thumb;
+			if not (upButton and downButton and track and thumb) then
+				return false;
+			end;
+			visible = tonumber(visible) or ctrl.getVisibleSpace(target);
+			total = tonumber(total) or math.max(visible, ctrl.getTotalSpace(target));
+			maxPos = tonumber(maxPos) or math.max(0, total - visible);
+			trackSize = tonumber(trackSize) or math.max(0, ctrl.axis == "X" and (track.AbsoluteSize.X or 0) or (track.AbsoluteSize.Y or 0));
+			if maxPos <= 1 or visible <= 0 or trackSize <= 0 then
+				return false;
+			end;
 			local currentPos = math.clamp(tonumber(ctrl.getPosition(target)) or 0, 0, maxPos);
 			local upEnabled = currentPos > 0.5;
 			local downEnabled = currentPos < (maxPos - 0.5);
@@ -87644,6 +87973,24 @@ do
 				thumb.Size = UDim2.new(1, 0, 0, thumbMainSize);
 				thumb.Position = UDim2.new(0, 0, 0, math.floor(travel * percent + 0.5));
 			end;
+			return true;
+		end;
+
+		function ctrl.refreshPosition()
+			if ctrl.isActive and not ctrl.isActive() then
+				ctrl.hide();
+				return;
+			end;
+			local widgets = ctrl.getWidgets();
+			local target = ctrl.getTarget();
+			if not (widgets and target and widgets.bar and widgets.bar.Visible == true) then
+				return;
+			end;
+			local metrics = ctrl._lastScrollMetrics;
+			if metrics and ctrl.updateThumb(widgets, target, metrics.visible, metrics.total, metrics.maxPos, metrics.trackSize) then
+				return;
+			end;
+			ctrl.updateThumb(widgets, target);
 		end;
 
 		function ctrl.scrollTo(pos)
@@ -87656,7 +88003,7 @@ do
 			local nextPos = math.clamp(tonumber(pos) or 0, 0, maxPos);
 			if ctrl.config and type(ctrl.config.setPosition) == "function" then
 				pcall(ctrl.config.setPosition, ctrl, target, nextPos);
-				ctrl.scheduleRefresh();
+				ctrl.refreshPosition();
 				return;
 			end;
 			if NAmanage.GetLogicalCanvasPosition and NAmanage.SetLogicalCanvasPosition then
@@ -87673,7 +88020,7 @@ do
 				local currentY = tonumber(target.CanvasPosition.Y) or 0;
 				target.CanvasPosition = ctrl.axis == "X" and Vector2.new(nextPos, currentY) or Vector2.new(currentX, nextPos);
 			end
-			ctrl.scheduleRefresh();
+			ctrl.refreshPosition();
 		end;
 
 		function ctrl.scrollBy(delta)
@@ -87715,7 +88062,7 @@ do
 			trackTarget(ctrl, target);
 			ctrl.applyTargetDefaults(target);
 			ctrl._targetConns.canvasPos = target:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
-				ctrl.scheduleRefresh();
+				ctrl.refreshPosition();
 			end);
 			ctrl._targetConns.canvasSize = target:GetPropertyChangedSignal("CanvasSize"):Connect(function()
 				ctrl.scheduleRefresh();
@@ -88028,6 +88375,29 @@ do
 		};
 	end;
 
+	local function pluginsWidgets(axis)
+		local mgr = NAUIMANAGER;
+		if not mgr then
+			return nil;
+		end;
+		if axis == "X" then
+			return {
+				bar = mgr.PluginsCustomHorizontalScrollBar,
+				upButton = mgr.PluginsCustomScrollLeft,
+				downButton = mgr.PluginsCustomScrollRight,
+				track = mgr.PluginsCustomHorizontalScrollTrack,
+				thumb = mgr.PluginsCustomHorizontalScrollThumb
+			};
+		end;
+		return {
+			bar = mgr.PluginsCustomScrollBar,
+			upButton = mgr.PluginsCustomScrollUp,
+			downButton = mgr.PluginsCustomScrollDown,
+			track = mgr.PluginsCustomScrollTrack,
+			thumb = mgr.PluginsCustomScrollThumb
+		};
+	end;
+
 	local function alignBarToTarget(_, target, widgets)
 		local bar = widgets and widgets.bar;
 		if not (target and bar and bar.Parent and target.Parent == bar.Parent) then
@@ -88044,11 +88414,21 @@ do
 		bar.Size = UDim2.new(bar.Size.X.Scale, bar.Size.X.Offset, 0, height);
 	end;
 
+	local function alignHorizontalBarToTarget(_, target, widgets)
+		local bar = widgets and widgets.bar;
+		if not (target and bar and bar.Parent and target.Parent == bar.Parent) then
+			return;
+		end;
+		bar.Position = UDim2.new(target.Position.X.Scale, target.Position.X.Offset, bar.Position.Y.Scale, bar.Position.Y.Offset);
+		bar.Size = UDim2.new(target.Size.X.Scale, target.Size.X.Offset, bar.Size.Y.Scale, bar.Size.Y.Offset);
+	end;
+
 	NAmanage.SettingsScroll = registry.create("settings", {
 		getWidgets = settingsWidgets,
 		getTarget = function()
 			return NAUIMANAGER and NAUIMANAGER.SettingsList or nil;
 		end,
+		fitTargetToBar = true,
 		isActive = function()
 			return NAmanage.IsUIWindowVisible and NAmanage.IsUIWindowVisible("SettingsFrame")
 		end
@@ -88071,6 +88451,7 @@ do
 			return NAUIMANAGER and NAUIMANAGER.commandsList or nil;
 		end,
 		layoutForTarget = alignBarToTarget,
+		fitTargetToBar = true,
 		isActive = function()
 			return NAmanage.IsUIWindowVisible and NAmanage.IsUIWindowVisible("commandsFrame")
 		end
@@ -88082,6 +88463,7 @@ do
 			return NAUIMANAGER and NAUIMANAGER.CommandKeybindsList or nil;
 		end,
 		layoutForTarget = alignBarToTarget,
+		fitTargetToBar = true,
 		isActive = function()
 			return NAmanage.IsUIWindowVisible and NAmanage.IsUIWindowVisible("CommandKeybindsFrame")
 		end
@@ -88093,6 +88475,7 @@ do
 			return NAUIMANAGER and NAUIMANAGER.WaypointList or nil;
 		end,
 		layoutForTarget = alignBarToTarget,
+		fitTargetToBar = true,
 		isActive = function()
 			return NAmanage.IsUIWindowVisible and NAmanage.IsUIWindowVisible("WaypointFrame")
 		end
@@ -88104,6 +88487,7 @@ do
 			return NAUIMANAGER and NAUIMANAGER.BindersList or nil;
 		end,
 		layoutForTarget = alignBarToTarget,
+		fitTargetToBar = true,
 		isActive = function()
 			return NAmanage.IsUIWindowVisible and NAmanage.IsUIWindowVisible("BindersFrame")
 		end
@@ -88115,9 +88499,39 @@ do
 			return NAUIMANAGER and NAUIMANAGER.NAconsoleLogs or nil;
 		end,
 		layoutForTarget = alignBarToTarget,
+		fitTargetToBar = true,
 		isActive = function()
 			return NAmanage.IsUIWindowVisible and NAmanage.IsUIWindowVisible("NAconsoleFrame")
 		end
+	});
+
+	NAmanage.PluginsScroll = registry.create("plugins_v", {
+		getWidgets = function()
+			return pluginsWidgets("Y");
+		end,
+		getTarget = function()
+			return NAUIMANAGER and NAUIMANAGER.PluginsList or nil;
+		end,
+		layoutForTarget = alignBarToTarget,
+		fitTargetToBar = true,
+		isActive = function()
+			return NAmanage.IsUIWindowVisible and NAmanage.IsUIWindowVisible("PluginsFrame")
+		end
+	});
+
+	NAmanage.PluginsHorizontalScroll = registry.create("plugins_h", {
+		axis = "X",
+		getWidgets = function()
+			return pluginsWidgets("X");
+		end,
+		getTarget = function()
+			return NAUIMANAGER and NAUIMANAGER.PluginsList or nil;
+		end,
+		layoutForTarget = alignHorizontalBarToTarget,
+		isActive = function()
+			return NAmanage.IsUIWindowVisible and NAmanage.IsUIWindowVisible("PluginsFrame")
+		end,
+		step = 96
 	});
 end;
 if NAmanage.SettingsScroll and NAmanage.SettingsScroll.install then
@@ -88140,6 +88554,12 @@ if NAmanage.BindersScroll and NAmanage.BindersScroll.install then
 end;
 if NAmanage.ConsoleScroll and NAmanage.ConsoleScroll.install then
 	NAmanage.ConsoleScroll.install();
+end;
+if NAmanage.PluginsScroll and NAmanage.PluginsScroll.install then
+	NAmanage.PluginsScroll.install();
+end;
+if NAmanage.PluginsHorizontalScroll and NAmanage.PluginsHorizontalScroll.install then
+	NAmanage.PluginsHorizontalScroll.install();
 end;
 NAStuff.settingsAllDirty = true;
 NAmanage.markAllTabDirty = function(tabName)
@@ -91651,6 +92071,9 @@ NAmanage.PluginsWindow_Filter = NAmanage.PluginsWindow_Filter or function()
 			end
 		end
 	end
+	if NAmanage.CustomScroll and NAmanage.CustomScroll.refreshByTarget then
+		NAmanage.CustomScroll.refreshByTarget(list)
+	end
 end
 
 NAmanage.PluginsWindow_Rebuild = NAmanage.PluginsWindow_Rebuild or function(opts)
@@ -91807,6 +92230,9 @@ NAmanage.PluginsWindow_Rebuild = NAmanage.PluginsWindow_Rebuild or function(opts
 		filter:GetPropertyChangedSignal("Text"):Connect(NAmanage.PluginsWindow_Filter)
 	end
 	NAStuff.PluginsWindowHasContent = true
+	if NAmanage.CustomScroll and NAmanage.CustomScroll.refreshByTarget then
+		NAmanage.CustomScroll.refreshByTarget(NAUIMANAGER and NAUIMANAGER.PluginsList)
+	end
 end
 
 NAmanage.PluginsWindow_RequestRebuild = NAmanage.PluginsWindow_RequestRebuild or function(opts)
@@ -91861,6 +92287,12 @@ NAmanage.PluginsWindow_Bind = NAmanage.PluginsWindow_Bind or function()
 		NAgui.resizeable(frame, Vector2.new(340, 260), Vector2.new(5000, 5000))
 		NAStuff.PluginsWindowResizeBound = frame
 	end
+	if NAmanage.PluginsScroll and NAmanage.PluginsScroll.install then
+		NAmanage.PluginsScroll.install()
+	end
+	if NAmanage.PluginsHorizontalScroll and NAmanage.PluginsHorizontalScroll.install then
+		NAmanage.PluginsHorizontalScroll.install()
+	end
 	return true
 end
 
@@ -91877,6 +92309,12 @@ NAmanage.PluginsWindow_SetVisible = NAmanage.PluginsWindow_SetVisible or functio
 	visible = visible == true
 	frame.Visible = visible
 	if visible then
+		if NAmanage.PluginsScroll and NAmanage.PluginsScroll.scheduleRefresh then
+			NAmanage.PluginsScroll.scheduleRefresh()
+		end
+		if NAmanage.PluginsHorizontalScroll and NAmanage.PluginsHorizontalScroll.scheduleRefresh then
+			NAmanage.PluginsHorizontalScroll.scheduleRefresh()
+		end
 		if opts.refresh ~= false and NAmanage.PluginsWindow_RequestRebuild then
 			NAmanage.PluginsWindow_RequestRebuild(opts)
 		end
@@ -106029,6 +106467,9 @@ NAmanage.CommandKeybindsUIInit=function()
 				updateCanvasSize(listFrame)
 			end)
 			pcall(function()
+				if NAmanage.CommandKeybindsScroll and NAmanage.CommandKeybindsScroll.setTarget then
+					NAmanage.CommandKeybindsScroll.setTarget(listFrame)
+				end
 				if NAmanage.CommandKeybindsScroll and NAmanage.CommandKeybindsScroll.scheduleRefresh then
 					NAmanage.CommandKeybindsScroll.scheduleRefresh()
 				elseif NAmanage.CustomScroll and NAmanage.CustomScroll.refreshByTarget then
@@ -106048,6 +106489,34 @@ NAmanage.CommandKeybindsUIInit=function()
 	end
 
 	return true
+end
+
+NAmanage.CommandKeybindsRefreshScroll=function()
+	local ui = NAStuff._commandKeybindUI
+	local list = ui and ui.listFrame or (NAUIMANAGER and NAUIMANAGER.CommandKeybindsList)
+	if not (list and list.Parent) then
+		return
+	end
+	local function refresh()
+		if not (list and list.Parent) then
+			return
+		end
+		pcall(function()
+			updateCanvasSize(list, NAUIMANAGER and NAUIMANAGER.AUTOSCALER and NAUIMANAGER.AUTOSCALER.Scale or nil)
+		end)
+		pcall(function()
+			if NAmanage.CommandKeybindsScroll and NAmanage.CommandKeybindsScroll.setTarget then
+				NAmanage.CommandKeybindsScroll.setTarget(list)
+			end
+			if NAmanage.CommandKeybindsScroll and NAmanage.CommandKeybindsScroll.scheduleRefresh then
+				NAmanage.CommandKeybindsScroll.scheduleRefresh()
+			elseif NAmanage.CustomScroll and NAmanage.CustomScroll.refreshByTarget then
+				NAmanage.CustomScroll.refreshByTarget(list)
+			end
+		end)
+	end
+	refresh()
+	Defer(refresh)
 end
 
 NAmanage.CommandKeybindsUpdateToggleLayout=function(ui)
@@ -106351,6 +106820,9 @@ NAmanage.CommandKeybindsUIRefresh=function()
 			end
 			NAmanage.CommandKeybindsUIRefresh()
 		end)
+	end
+	if NAmanage.CommandKeybindsRefreshScroll then
+		NAmanage.CommandKeybindsRefreshScroll()
 	end
 end
 
@@ -109476,6 +109948,9 @@ if NAmanage.SideSwipe_Init then
 end
 if NAmanage.finishLoadingUI then
 	NAStuff._mainNamelessReady = true
+	if NAmanage.completeStartupLoading then
+		NAmanage.completeStartupLoading("ready")
+	end
 end
 
 NAgui.setIconLocked(NAStuff.IconLocked, { force = true, skipToggle = true })
@@ -111925,52 +112400,24 @@ end)
 
 NAmanage.finalizeLoadingState = NAmanage.finalizeLoadingState or function()
 	if NAStuff._loadingFinalizedOnce == true then
+		NAStuff._loadingFinalizePending = false
+		if type(NAmanage.queueStartupAssetPreload) == "function" then
+			NAmanage.queueStartupAssetPreload()
+		end
 		return
 	end
 	local st = NAgui and NAgui.SettingsBuildState
 	if NAStuff.SettingsBuildRunning == true or (type(st) == "table" and st.building == true) then
-		NAStuff._loadingFinalizePending = true
 		if NAAssetsLoading and NAAssetsLoading.setStatus then
-			pcall(NAAssetsLoading.setStatus, "building settings")
+			pcall(NAAssetsLoading.setStatus, "building settings in background")
 		end
-		return
 	end
-	NAStuff._loadingFinalizePending = false
-	NAStuff._loadingFinalizedOnce = true
-	pcall(function()
-		if type(NAmanage.isCommandDataStale) == "function" and NAmanage.isCommandDataStale() then
-			if NAAssetsLoading and NAAssetsLoading.setStatus then
-				NAAssetsLoading.setStatus("warming command list and autofill")
-			end
-			if type(NAmanage.queueCommandDataBuild) == "function" then
-				pcall(NAmanage.queueCommandDataBuild, { force = true })
-			elseif type(NAgui.loadCMDS) == "function" then
-				pcall(NAgui.loadCMDS, { force = true })
-			end
-		end
-		if NAmanage.finishLoadingUI then
-			NAmanage.finishLoadingUI("ready")
-		end
-		if NAStuff.AutoPreloadAssets and not NAStuff._assetPreloadQueued then
-			NAStuff._assetPreloadQueued = true
-			Defer(function()
-				Wait(1.5)
-				local limit = tick() + 8
-				while type(NAmanage.StartAssetPreload) ~= "function" and tick() < limit do
-					Wait(0.25)
-				end
-				if type(NAmanage.StartAssetPreload) == "function" then
-					NAmanage.StartAssetPreload({
-						silent = true,
-						st = true,
-					})
-				end
-			end)
-		end
-	end)
+	if type(NAmanage.completeStartupLoading) == "function" then
+		NAmanage.completeStartupLoading("ready")
+	end
 end
 
-NAStuff._loadingFinalizePending = true
+NAStuff._loadingFinalizePending = NAStuff._loadingFinalizedOnce ~= true
 NAStuff.SettingsBuildRunning = true
 NAStuff.SettingsBuildReady = false
 NAgui.SettingsBuildState = NAgui.SettingsBuildState or {}
@@ -121940,6 +122387,7 @@ end)
 		pcall(NAgui.SettingsBuildDone)
 	end
 	NAStuff.SettingsBuildRunning = false
+	NAStuff._loadingFinalizePending = false
 	NAStuff.SettingsBuildReady = okBuild == true
 	if NAmanage.finalizeLoadingState then
 		pcall(NAmanage.finalizeLoadingState)
