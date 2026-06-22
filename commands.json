@@ -2294,9 +2294,10 @@
       "aliases": [
         "flashback",
         "deathpos",
-        "deathtp"
+        "deathtp",
+        "diedtp"
       ],
-      "usage": "flashback (deathpos, deathtp)",
+      "usage": "flashback",
       "args": "",
       "desc": "Teleports you to your last death point"
     },
