@@ -8552,9 +8552,9 @@ function NAmanage.pumpLoaderQueue()
 		return
 	end
 	NAmanage._loaderQueuePumping = true
-	Spawn(function()
+	task.spawn(function()
 		while NAmanage._loaderQueueHead <= NAmanage._loaderQueueTail do
-			local maxRunning = math.clamp(math.floor(tonumber(NAStuff and NAStuff.LoaderMaxConcurrency) or 2), 1, 4)
+			local maxRunning = math.clamp(math.floor(tonumber(NAStuff and NAStuff.LoaderMaxConcurrency) or 1), 1, 4)
 			if (tonumber(NAmanage._loaderQueueRunning) or 0) >= maxRunning then
 				Wait(0.05)
 				continue
@@ -8564,7 +8564,7 @@ function NAmanage.pumpLoaderQueue()
 			NAmanage._loaderQueueHead += 1
 			if job and type(job.callback) == "function" then
 				NAmanage._loaderQueueRunning = (tonumber(NAmanage._loaderQueueRunning) or 0) + 1
-				Spawn(function()
+				task.spawn(function()
 					pcall(NAmanage.runLoader, job.label, job.callback, job.opts)
 					NAmanage._loaderQueueRunning = math.max(0, (tonumber(NAmanage._loaderQueueRunning) or 1) - 1)
 				end)
@@ -8593,6 +8593,36 @@ function NAmanage.scheduleLoader(label, callback, opts)
 		spacing = opts.spacing,
 	}
 	NAmanage.pumpLoaderQueue()
+end
+
+NAmanage.spawnStartupLoader = NAmanage.spawnStartupLoader or function(label, callback, opts)
+	if type(callback) ~= "function" then
+		return nil
+	end
+	opts = opts or {}
+	local name = tostring(label or callback)
+	NAmanage._startupLoaderThreads = NAmanage._startupLoaderThreads or {}
+	if NAmanage._startupLoaderThreads[name] == true and opts.allowDuplicate ~= true then
+		return nil
+	end
+	NAmanage._startupLoaderThreads[name] = true
+	return task.spawn(function()
+		local delayTime = tonumber(opts.wait or opts.delay or 0) or 0
+		if delayTime > 0 then
+			Wait(delayTime)
+		else
+			Wait()
+		end
+		local ok, err = pcall(callback)
+		if not ok then
+			if NAmanage.loaderWarn then
+				NAmanage.loaderWarn(name, tostring(err))
+			else
+				warn(err)
+			end
+		end
+		NAmanage._startupLoaderThreads[name] = nil
+	end)
 end
 
 local searchIndex = {}
@@ -92731,8 +92761,14 @@ NAgui.resizeable = function(ui, min, max)
 end
 NAmanage.UpdateWaypointList=function()
 	local list = NAUIMANAGER.WaypointList
+	if not list then
+		return
+	end
 	local rawFilter = NAUIMANAGER.filterBox and NAUIMANAGER.filterBox.Text or ""
 	local filterText = rawFilter:lower()
+	NAmanage._waypointBuildGen = (tonumber(NAmanage._waypointBuildGen) or 0) + 1
+	local buildGen = NAmanage._waypointBuildGen
+	local built = 0
 	for _, child in list:GetChildren() do
 		if not child:IsA("UIListLayout") then
 			child:Destroy()
@@ -92826,6 +92862,13 @@ NAmanage.UpdateWaypointList=function()
 						end
 					end)
 				end
+			end
+		end
+		built += 1
+		if built % 12 == 0 then
+			Wait()
+			if buildGen ~= NAmanage._waypointBuildGen then
+				return
 			end
 		end
 	end
@@ -104097,77 +104140,98 @@ else
 end
 NAUIMANAGER.cmdBar.Visible=true
 
-if NAUIMANAGER.chatLogsFrame then NAgui.menuv3(NAUIMANAGER.chatLogsFrame) end
-if NAUIMANAGER.NAconsoleFrame then NAgui.menuv2(NAUIMANAGER.NAconsoleFrame) end
-if NAUIMANAGER.commandsFrame then
-	NAgui.menu(NAUIMANAGER.commandsFrame)
-	if NAmanage.Commands_SyncHiddenState then
-		NAmanage.Commands_SyncHiddenState({ responsive = false; syncRows = false })
+local function NAStartupUI(label, delayTime, callback)
+	if NAmanage.spawnStartupLoader then
+		return NAmanage.spawnStartupLoader(label, callback, { wait = delayTime or 0 })
 	end
+	return task.spawn(function()
+		Wait(delayTime or 0)
+		local ok, err = pcall(callback)
+		if not ok then warn(err) end
+	end)
 end
-if NAUIMANAGER.CommandKeybindsFrame then NAgui.menu(NAUIMANAGER.CommandKeybindsFrame) end
-if NAUIMANAGER.SettingsFrame then NAgui.menu(NAUIMANAGER.SettingsFrame) end
-if NAUIMANAGER.WaypointFrame then NAgui.menu(NAUIMANAGER.WaypointFrame) end
-if NAUIMANAGER.BindersFrame then NAgui.menu(NAUIMANAGER.BindersFrame) end
-if NAmanage.PluginsWindow_Bind then NAmanage.PluginsWindow_Bind() end
-if NAUIMANAGER.MusicFrame then
-	if NAmanage.MusicWindowInit then NAmanage.MusicWindowInit() end
-	NAgui.menu(NAUIMANAGER.MusicFrame)
-end
-if NAUIMANAGER.ExecutorFrame then NAgui.menu(NAUIMANAGER.ExecutorFrame) end
-if NAUIMANAGER.NotepadFrame then NAgui.menu(NAUIMANAGER.NotepadFrame) end
+
+NAStartupUI("Menu:ChatLogs", 0, function() if NAUIMANAGER.chatLogsFrame then NAgui.menuv3(NAUIMANAGER.chatLogsFrame) end end)
+NAStartupUI("Menu:Console", 0.01, function() if NAUIMANAGER.NAconsoleFrame then NAgui.menuv2(NAUIMANAGER.NAconsoleFrame) end end)
+NAStartupUI("Menu:Commands", 0.02, function()
+	if NAUIMANAGER.commandsFrame then
+		NAgui.menu(NAUIMANAGER.commandsFrame)
+		if NAmanage.Commands_SyncHiddenState then
+			NAmanage.Commands_SyncHiddenState({ responsive = false; syncRows = false })
+		end
+	end
+end)
+NAStartupUI("Menu:CommandKeybinds", 0.03, function() if NAUIMANAGER.CommandKeybindsFrame then NAgui.menu(NAUIMANAGER.CommandKeybindsFrame) end end)
+NAStartupUI("Menu:Settings", 0.04, function() if NAUIMANAGER.SettingsFrame then NAgui.menu(NAUIMANAGER.SettingsFrame) end end)
+NAStartupUI("Menu:Waypoints", 0.05, function() if NAUIMANAGER.WaypointFrame then NAgui.menu(NAUIMANAGER.WaypointFrame) end end)
+NAStartupUI("Menu:Binders", 0.06, function() if NAUIMANAGER.BindersFrame then NAgui.menu(NAUIMANAGER.BindersFrame) end end)
+NAStartupUI("Menu:PluginsBind", 0.07, function() if NAmanage.PluginsWindow_Bind then NAmanage.PluginsWindow_Bind() end end)
+NAStartupUI("Menu:Music", 0.25, function()
+	if NAUIMANAGER.MusicFrame then
+		if NAmanage.MusicWindowInit then NAmanage.MusicWindowInit() end
+		NAgui.menu(NAUIMANAGER.MusicFrame)
+	end
+end)
+NAStartupUI("Menu:Executor", 0.08, function() if NAUIMANAGER.ExecutorFrame then NAgui.menu(NAUIMANAGER.ExecutorFrame) end end)
+NAStartupUI("Menu:Notepad", 0.09, function() if NAUIMANAGER.NotepadFrame then NAgui.menu(NAUIMANAGER.NotepadFrame) end end)
 
 --[[ GUI RESIZE FUNCTION ]]--
 
-if NAUIMANAGER.chatLogsFrame then NAgui.resizeable(NAUIMANAGER.chatLogsFrame) end
-if NAUIMANAGER.NAconsoleFrame then NAgui.resizeable(NAUIMANAGER.NAconsoleFrame) end
-if NAUIMANAGER.commandsFrame then
-	NAgui.resizeable(NAUIMANAGER.commandsFrame, Vector2.new(180, 118), Vector2.new(5000, 5000))
-	if NAmanage.cmdResp then
-		NAmanage.cmdResp(false)
-		NAmanage.cmdRespRf = function(center)
-			if not (NAUIMANAGER and NAUIMANAGER.commandsFrame and NAUIMANAGER.commandsFrame.Visible) then
-				return
+NAStartupUI("Resize:ChatLogs", 0.1, function() if NAUIMANAGER.chatLogsFrame then NAgui.resizeable(NAUIMANAGER.chatLogsFrame) end end)
+NAStartupUI("Resize:Console", 0.11, function() if NAUIMANAGER.NAconsoleFrame then NAgui.resizeable(NAUIMANAGER.NAconsoleFrame) end end)
+NAStartupUI("Resize:Commands", 0.12, function()
+	if NAUIMANAGER.commandsFrame then
+		NAgui.resizeable(NAUIMANAGER.commandsFrame, Vector2.new(180, 118), Vector2.new(5000, 5000))
+		if NAmanage.cmdResp then
+			NAmanage.cmdResp(false)
+			NAmanage.cmdRespRf = function(center)
+				if not (NAUIMANAGER and NAUIMANAGER.commandsFrame and NAUIMANAGER.commandsFrame.Visible) then
+					return
+				end
+				if NAmanage.Commands_SyncHiddenState and not NAmanage.Commands_SyncHiddenState({ center = center == true; responsive = false; syncRows = false }) then
+					return
+				end
+				NAmanage.cmdResp(center == true)
+				if NAmanage["syncVisibleCommandRows"] then
+					NAmanage["syncVisibleCommandRows"]()
+				end
 			end
-			if NAmanage.Commands_SyncHiddenState and not NAmanage.Commands_SyncHiddenState({ center = center == true; responsive = false; syncRows = false }) then
-				return
+			NAlib.disconnect("NA_CommandsResponsive")
+			if NAStuff.NASCREENGUI then
+				NAlib.connect("NA_CommandsResponsive", NAStuff.NASCREENGUI:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+					NAmanage.cmdRespRf(true)
+				end))
 			end
-			NAmanage.cmdResp(center == true)
-			if NAmanage["syncVisibleCommandRows"] then
-				NAmanage["syncVisibleCommandRows"]()
+			if NAUIMANAGER.AUTOSCALER then
+				NAlib.connect("NA_CommandsResponsive", NAUIMANAGER.AUTOSCALER:GetPropertyChangedSignal("Scale"):Connect(function()
+					NAmanage.cmdRespRf(true)
+				end))
 			end
-		end
-		NAlib.disconnect("NA_CommandsResponsive")
-		if NAStuff.NASCREENGUI then
-			NAlib.connect("NA_CommandsResponsive", NAStuff.NASCREENGUI:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-				NAmanage.cmdRespRf(true)
+			NAlib.connect("NA_CommandsResponsive", NAUIMANAGER.commandsFrame:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+				NAmanage.cmdRespRf(false)
 			end))
 		end
-		if NAUIMANAGER.AUTOSCALER then
-			NAlib.connect("NA_CommandsResponsive", NAUIMANAGER.AUTOSCALER:GetPropertyChangedSignal("Scale"):Connect(function()
-				NAmanage.cmdRespRf(true)
-			end))
-		end
-		NAlib.connect("NA_CommandsResponsive", NAUIMANAGER.commandsFrame:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-			NAmanage.cmdRespRf(false)
-		end))
 	end
-end
-if NAUIMANAGER.CommandKeybindsFrame then NAgui.resizeable(NAUIMANAGER.CommandKeybindsFrame, Vector2.new(520, 360), Vector2.new(1400, 920)) end
-if NAUIMANAGER.SettingsFrame then NAgui.resizeable(NAUIMANAGER.SettingsFrame) end
-if NAUIMANAGER.WaypointFrame then NAgui.resizeable(NAUIMANAGER.WaypointFrame) end
-if NAUIMANAGER.BindersFrame then NAgui.resizeable(NAUIMANAGER.BindersFrame) end
-if NAUIMANAGER.MusicFrame then NAgui.resizeable(NAUIMANAGER.MusicFrame, Vector2.new(380, 280), Vector2.new(1100, 820)) end
-if NAUIMANAGER.ExecutorFrame then
-	local exMin = IsOnMobile and Vector2.new(340, 280) or Vector2.new(680, 420)
-	NAgui.resizeable(NAUIMANAGER.ExecutorFrame, exMin, Vector2.new(5000, 5000))
-end
-if NAUIMANAGER.NotepadFrame then
-	local npVp = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
-	local npSmall = IsOnMobile or npVp.X < 720 or npVp.Y < 520
-	local npMin = npSmall and Vector2.new(280, 230) or Vector2.new(460, 340)
-	NAgui.resizeable(NAUIMANAGER.NotepadFrame, npMin, Vector2.new(5000, 5000))
-end
+end)
+NAStartupUI("Resize:CommandKeybinds", 0.13, function() if NAUIMANAGER.CommandKeybindsFrame then NAgui.resizeable(NAUIMANAGER.CommandKeybindsFrame, Vector2.new(520, 360), Vector2.new(1400, 920)) end end)
+NAStartupUI("Resize:Settings", 0.14, function() if NAUIMANAGER.SettingsFrame then NAgui.resizeable(NAUIMANAGER.SettingsFrame) end end)
+NAStartupUI("Resize:Waypoints", 0.15, function() if NAUIMANAGER.WaypointFrame then NAgui.resizeable(NAUIMANAGER.WaypointFrame) end end)
+NAStartupUI("Resize:Binders", 0.16, function() if NAUIMANAGER.BindersFrame then NAgui.resizeable(NAUIMANAGER.BindersFrame) end end)
+NAStartupUI("Resize:Music", 0.3, function() if NAUIMANAGER.MusicFrame then NAgui.resizeable(NAUIMANAGER.MusicFrame, Vector2.new(380, 280), Vector2.new(1100, 820)) end end)
+NAStartupUI("Resize:Executor", 0.17, function()
+	if NAUIMANAGER.ExecutorFrame then
+		local exMin = IsOnMobile and Vector2.new(340, 280) or Vector2.new(680, 420)
+		NAgui.resizeable(NAUIMANAGER.ExecutorFrame, exMin, Vector2.new(5000, 5000))
+	end
+end)
+NAStartupUI("Resize:Notepad", 0.18, function()
+	if NAUIMANAGER.NotepadFrame then
+		local npVp = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
+		local npSmall = IsOnMobile or npVp.X < 720 or npVp.Y < 520
+		local npMin = npSmall and Vector2.new(280, 230) or Vector2.new(460, 340)
+		NAgui.resizeable(NAUIMANAGER.NotepadFrame, npMin, Vector2.new(5000, 5000))
+	end
+end)
 
 NAStuff.ExecutorStartupDeferred = true
 NAStuff.NotepadStartupDeferred = true
@@ -104190,12 +104254,16 @@ if NAStuff.NotepadPrewarmAfterLoad == true then
 		end
 	end)
 end
-if NAmanage.Topbar_Init then
-	pcall(NAmanage.Topbar_Init)
-end
-if NAmanage.SideSwipe_Init then
-	pcall(NAmanage.SideSwipe_Init)
-end
+NAStartupUI("TopbarInit", 0.2, function()
+	if NAmanage.Topbar_Init then
+		pcall(NAmanage.Topbar_Init)
+	end
+end)
+NAStartupUI("SideSwipeInit", 0.22, function()
+	if NAmanage.SideSwipe_Init then
+		pcall(NAmanage.SideSwipe_Init)
+	end
+end)
 
 if NAStuff.uiBootHidden and NAStuff.NASCREENGUI and NAStuff.NASCREENGUI:IsA("ScreenGui") then
 	pcall(function()
@@ -111511,14 +111579,17 @@ NAmanage.scheduleLoader('Plugins', function()
 	local silent = (NAmanage.jlCfg and NAmanage.jlCfg.PluginNotif == false) or false
 	return NAmanage.LoadPlugins({ silent = silent, startup = true })
 end, { retries = 4, delay = 0.5, retryOnFalse = true })
-NAmanage.scheduleLoader('Waypoints', NAmanage.UpdateWaypointList)
-NAmanage.LoadESPSettings()
-NAmanage.scheduleLoader('ESPSettings', NAmanage.LoadESPSettings)
+NAmanage.scheduleLoader('Waypoints', NAmanage.UpdateWaypointList, { spacing = 0.12 })
+NAmanage.scheduleLoader('ESPSettings', NAmanage.LoadESPSettings, { spacing = 0.12 })
 
 OrgDestroyHeight=NAlib.isProperty(workspace, "FallenPartsDestroyHeight") or math.huge
 
 NAStuff.bindersList      = NAUIMANAGER.BindersList
 SpawnCall(function()
+	Wait(0.15)
+	if not NAStuff.bindersList then
+		return
+	end
 	local layoutOrder = 1
 	for _, evName in events do
 		local ev = evName
@@ -112363,6 +112434,7 @@ SpawnCall(function()
 
 		refreshItems()
 		layoutOrder = layoutOrder + 1
+		Wait()
 	end
 end)
 
