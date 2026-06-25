@@ -194,10 +194,14 @@ local __NAUIProtector = (function()
 end)();
 
 pcall(function()
-	_na_boot.syncRuntimeGlobals({
-		__NAServiceResolver = __lt,
-		__NAUIProtector = __NAUIProtector,
-	})
+	for _, target in { _na_env, _na_shared, _na_boot.runtimeEnv } do
+		if type(target) == "table" then
+			target.__NAServiceResolver = __lt
+			target.__NAUIProtector = __NAUIProtector
+		end
+	end
+	_na_boot.privateRoot.serviceResolver = __lt
+	_na_boot.privateRoot.uiProtector = __NAUIProtector
 end)
 
 NAbegin=tick()
@@ -1141,7 +1145,7 @@ NAmanage._gmx31 = NAmanage._gmx31 or function(bytes, seed)
 		local key = ((seed + (i * 3)) % 11) + 17
 		out[i] = string.char((tonumber(bytes[i]) or 0) - key)
 	end
-	return table.concat(out)
+	return Concat(out)
 end
 NAmanage._guardTokens = NAmanage._guardTokens or {
 	name = NAmanage._gmx31({
@@ -1304,17 +1308,32 @@ local NAStuff = {
 	ESP_LabelTextScaled = false;
 	ESP_LabelStrokeTransparency = 0.5;
 	ESP_DrawingTextOutline = true;
+	ESP_DrawingTextCentered = true;
+	ESP_DrawingTextTransparency = 0;
+	ESP_DrawingTextFont = "UI";
 	ESP_DrawingBoxStyle = "Square";
 	ESP_DrawingBoxThickness = 1;
+	ESP_DrawingBoxOutline = true;
+	ESP_DrawingBoxOutlineThickness = 3;
+	ESP_DrawingFilledBoxes = false;
+	ESP_DrawingCornerScale = 0.25;
 	ESP_DrawingPartBoxStyle = "Square";
 	ESP_DrawingPartTextOutline = true;
+	ESP_DrawingPartTextCentered = true;
+	ESP_DrawingPartTextTransparency = 0;
 	ESP_DrawingPartBoxThickness = 1;
+	ESP_DrawingPartBoxOutline = true;
+	ESP_DrawingPartBoxOutlineThickness = 3;
+	ESP_DrawingPartFilledBoxes = false;
+	ESP_DrawingPartCornerScale = 0.25;
 	ESP_DrawingPartQueuePerStep = 64;
 	ESP_DrawingMaxPerStep = 64;
 	ESP_PartUpdatePerStep = 48;
 	ESP_DrawingTracerEnabled = false;
 	ESP_DrawingTracerOrigin = "Bottom";
+	ESP_DrawingTracerTarget = "Bottom";
 	ESP_DrawingTracerThickness = 1;
+	ESP_DrawingTracerOutline = true;
 	ESP_OcclusionEnabled = false;
 	ESP_OcclusionIncludePlayers = false;
 	ESP_OcclusionIncludeNPCs = false;
@@ -1637,7 +1656,7 @@ NAmanage._sourceGlyph = NAmanage._sourceGlyph or function(value)
 		end
 		chars[i] = string.char(num - ((i % 7) + 17))
 	end
-	return table.concat(chars)
+	return Concat(chars)
 end
 
 NAmanage._linkGlyph = NAmanage._linkGlyph or function(parts)
@@ -1653,7 +1672,7 @@ NAmanage._linkGlyph = NAmanage._linkGlyph or function(parts)
 			out[i] = NAmanage._sourceGlyph(piece)
 		end
 	end
-	return table.concat(out)
+	return Concat(out)
 end
 
 local opt = {
@@ -2132,7 +2151,7 @@ NAlib.connect = function(name, conn)
 		bucket = {}
 		conns[name] = bucket
 	end
-	table.insert(bucket, conn)
+	Insert(bucket, conn)
 	NAStuff.prCnt = (tonumber(NAStuff.prCnt) or 0) + 1
 	if NAStuff.prCnt % 128 == 0 then
 		for key in conns do
@@ -2512,7 +2531,7 @@ NAmanage._evtHubDeferFire = NAmanage._evtHubDeferFire or function(hub, kind, ins
 	if not (type(hub) == "table" and hub.alive and inst ~= nil) then
 		return false
 	end
-	task.defer(function()
+	Defer(function()
 		if type(hub) == "table" and hub.alive and inst ~= nil then
 			NAmanage._evtHubFire(hub, kind, inst)
 		end
@@ -3345,7 +3364,7 @@ NAmanage._childHubGet = NAmanage._childHubGet or function(root)
 			if (hub.addCount or 0) <= 0 then
 				return
 			end
-			task.defer(function()
+			Defer(function()
 				if hub.alive and (hub.addCount or 0) > 0 then
 					dispatch(hub.added, inst)
 				end
@@ -3354,7 +3373,7 @@ NAmanage._childHubGet = NAmanage._childHubGet or function(root)
 			if (hub.remCount or 0) <= 0 then
 				return
 			end
-			task.defer(function()
+			Defer(function()
 				if hub.alive and (hub.remCount or 0) > 0 then
 					dispatch(hub.removed, inst)
 				end
@@ -3750,7 +3769,7 @@ NAmanage.GenerateOpaqueSessionKey = function()
 				out[pos] = digits:sub(idx, idx)
 			end
 		end
-		local candidate = table.concat(out)
+		local candidate = Concat(out)
 		if candidate ~= "" and not used[candidate] then
 			used[candidate] = true
 			key = candidate
@@ -8572,7 +8591,7 @@ function NAmanage.pumpLoaderQueue()
 		return
 	end
 	NAmanage._loaderQueuePumping = true
-	task.spawn(function()
+	Spawn(function()
 		while NAmanage._loaderQueueHead <= NAmanage._loaderQueueTail do
 			local maxRunning = math.clamp(math.floor(tonumber(NAStuff and NAStuff.LoaderMaxConcurrency) or 1), 1, 4)
 			if (tonumber(NAmanage._loaderQueueRunning) or 0) >= maxRunning then
@@ -8584,7 +8603,7 @@ function NAmanage.pumpLoaderQueue()
 			NAmanage._loaderQueueHead += 1
 			if job and type(job.callback) == "function" then
 				NAmanage._loaderQueueRunning = (tonumber(NAmanage._loaderQueueRunning) or 0) + 1
-				task.spawn(function()
+				Spawn(function()
 					pcall(NAmanage.runLoader, job.label, job.callback, job.opts)
 					NAmanage._loaderQueueRunning = math.max(0, (tonumber(NAmanage._loaderQueueRunning) or 1) - 1)
 				end)
@@ -8626,7 +8645,7 @@ NAmanage.spawnStartupLoader = NAmanage.spawnStartupLoader or function(label, cal
 		return nil
 	end
 	NAmanage._startupLoaderThreads[name] = true
-	return task.spawn(function()
+	return Spawn(function()
 		local delayTime = tonumber(opts.wait or opts.delay or 0) or 0
 		if delayTime > 0 then
 			Wait(delayTime)
@@ -19125,17 +19144,32 @@ NAmanage.LoadESPSettings = function()
 		ESP_LabelTextScaled = false;
 		ESP_LabelStrokeTransparency = 0.5;
 		ESP_DrawingTextOutline = true;
+		ESP_DrawingTextCentered = true;
+		ESP_DrawingTextTransparency = 0;
+		ESP_DrawingTextFont = "UI";
 		ESP_DrawingBoxStyle = "Square";
 		ESP_DrawingBoxThickness = 1;
+		ESP_DrawingBoxOutline = true;
+		ESP_DrawingBoxOutlineThickness = 3;
+		ESP_DrawingFilledBoxes = false;
+		ESP_DrawingCornerScale = 0.25;
 		ESP_DrawingPartBoxStyle = "Square";
 		ESP_DrawingPartTextOutline = true;
+		ESP_DrawingPartTextCentered = true;
+		ESP_DrawingPartTextTransparency = 0;
 		ESP_DrawingPartBoxThickness = 1;
+		ESP_DrawingPartBoxOutline = true;
+		ESP_DrawingPartBoxOutlineThickness = 3;
+		ESP_DrawingPartFilledBoxes = false;
+		ESP_DrawingPartCornerScale = 0.25;
 		ESP_DrawingPartQueuePerStep = 64;
 		ESP_DrawingMaxPerStep = 64;
 		ESP_PartUpdatePerStep = 48;
 		ESP_DrawingTracerEnabled = false;
 		ESP_DrawingTracerOrigin = "Bottom";
+		ESP_DrawingTracerTarget = "Bottom";
 		ESP_DrawingTracerThickness = 1;
+		ESP_DrawingTracerOutline = true;
 		ESP_OcclusionEnabled = false;
 		ESP_OcclusionIncludePlayers = false;
 		ESP_OcclusionIncludeNPCs = false;
@@ -19250,8 +19284,14 @@ NAmanage.LoadESPSettings = function()
 	if sz < 8 then sz = 8 elseif sz > 72 then sz = 72 end
 	local stroke = math.clamp(tonumber(d.ESP_LabelStrokeTransparency) or 0.5, 0, 1)
 	local drawingBoxThickness = math.clamp(tonumber(d.ESP_DrawingBoxThickness) or 1, 1, 6)
+	local drawingBoxOutlineThickness = math.clamp(tonumber(d.ESP_DrawingBoxOutlineThickness) or 3, 1, 10)
+	local drawingCornerScale = math.clamp(tonumber(d.ESP_DrawingCornerScale) or 0.25, 0.05, 0.5)
+	local drawingTextTransparency = math.clamp(tonumber(d.ESP_DrawingTextTransparency) or 0, 0, 1)
 	local drawingPartBoxStyle = NAgui.sanitizeESPDrawingBoxStyle(d.ESP_DrawingPartBoxStyle)
 	local drawingPartBoxThickness = math.clamp(tonumber(d.ESP_DrawingPartBoxThickness) or 1, 1, 6)
+	local drawingPartBoxOutlineThickness = math.clamp(tonumber(d.ESP_DrawingPartBoxOutlineThickness) or 3, 1, 10)
+	local drawingPartCornerScale = math.clamp(tonumber(d.ESP_DrawingPartCornerScale) or 0.25, 0.05, 0.5)
+	local drawingPartTextTransparency = math.clamp(tonumber(d.ESP_DrawingPartTextTransparency) or 0, 0, 1)
 	local drawingPartQueuePerStep = math.clamp(math.floor(tonumber(d.ESP_DrawingPartQueuePerStep) or 64), 1, 512)
 	local drawingMaxPerStep = math.clamp(math.floor(tonumber(d.ESP_DrawingMaxPerStep) or 64), 16, 512)
 	local partUpdatePerStep = math.clamp(math.floor(tonumber(d.ESP_PartUpdatePerStep) or 48), 1, 512)
@@ -19283,17 +19323,32 @@ NAmanage.LoadESPSettings = function()
 	NAStuff.ESP_LabelTextScaled  = d.ESP_LabelTextScaled == true
 	NAStuff.ESP_LabelStrokeTransparency = stroke
 	NAStuff.ESP_DrawingTextOutline = d.ESP_DrawingTextOutline ~= false
+	NAStuff.ESP_DrawingTextCentered = d.ESP_DrawingTextCentered ~= false
+	NAStuff.ESP_DrawingTextTransparency = drawingTextTransparency
+	NAStuff.ESP_DrawingTextFont = NAgui.sanitizeDrawingTextFont(d.ESP_DrawingTextFont)
 	NAStuff.ESP_DrawingBoxStyle = NAgui.sanitizeESPDrawingBoxStyle(d.ESP_DrawingBoxStyle)
 	NAStuff.ESP_DrawingBoxThickness = drawingBoxThickness
+	NAStuff.ESP_DrawingBoxOutline = d.ESP_DrawingBoxOutline ~= false
+	NAStuff.ESP_DrawingBoxOutlineThickness = drawingBoxOutlineThickness
+	NAStuff.ESP_DrawingFilledBoxes = d.ESP_DrawingFilledBoxes == true
+	NAStuff.ESP_DrawingCornerScale = drawingCornerScale
 	NAStuff.ESP_DrawingPartBoxStyle = drawingPartBoxStyle
 	NAStuff.ESP_DrawingPartTextOutline = d.ESP_DrawingPartTextOutline ~= false
+	NAStuff.ESP_DrawingPartTextCentered = d.ESP_DrawingPartTextCentered ~= false
+	NAStuff.ESP_DrawingPartTextTransparency = drawingPartTextTransparency
 	NAStuff.ESP_DrawingPartBoxThickness = drawingPartBoxThickness
+	NAStuff.ESP_DrawingPartBoxOutline = d.ESP_DrawingPartBoxOutline ~= false
+	NAStuff.ESP_DrawingPartBoxOutlineThickness = drawingPartBoxOutlineThickness
+	NAStuff.ESP_DrawingPartFilledBoxes = d.ESP_DrawingPartFilledBoxes == true
+	NAStuff.ESP_DrawingPartCornerScale = drawingPartCornerScale
 	NAStuff.ESP_DrawingPartQueuePerStep = drawingPartQueuePerStep
 	NAStuff.ESP_DrawingMaxPerStep = drawingMaxPerStep
 	NAStuff.ESP_PartUpdatePerStep = partUpdatePerStep
 	NAStuff.ESP_DrawingTracerEnabled = d.ESP_DrawingTracerEnabled == true
 	NAStuff.ESP_DrawingTracerOrigin = NAgui.sanitizeESPDrawingTracerOrigin(d.ESP_DrawingTracerOrigin)
+	NAStuff.ESP_DrawingTracerTarget = NAgui.sanitizeESPDrawingTracerTarget(d.ESP_DrawingTracerTarget)
 	NAStuff.ESP_DrawingTracerThickness = drawingTracerThickness
+	NAStuff.ESP_DrawingTracerOutline = d.ESP_DrawingTracerOutline ~= false
 	NAStuff.ESP_OcclusionEnabled = d.ESP_OcclusionEnabled == true
 	NAStuff.ESP_OcclusionIncludePlayers = d.ESP_OcclusionIncludePlayers == true
 	NAStuff.ESP_OcclusionIncludeNPCs = d.ESP_OcclusionIncludeNPCs == true
@@ -19390,17 +19445,32 @@ NAmanage.SaveESPSettings = function()
 		ESP_LabelTextScaled = NAStuff.ESP_LabelTextScaled == true;
 		ESP_LabelStrokeTransparency = math.clamp(tonumber(NAStuff.ESP_LabelStrokeTransparency) or 0.5, 0, 1);
 		ESP_DrawingTextOutline = NAStuff.ESP_DrawingTextOutline ~= false;
+		ESP_DrawingTextCentered = NAStuff.ESP_DrawingTextCentered ~= false;
+		ESP_DrawingTextTransparency = math.clamp(tonumber(NAStuff.ESP_DrawingTextTransparency) or 0, 0, 1);
+		ESP_DrawingTextFont = NAgui.sanitizeDrawingTextFont(NAStuff.ESP_DrawingTextFont);
 		ESP_DrawingBoxStyle = NAgui.sanitizeESPDrawingBoxStyle(NAStuff.ESP_DrawingBoxStyle);
 		ESP_DrawingBoxThickness = math.clamp(tonumber(NAStuff.ESP_DrawingBoxThickness) or 1, 1, 6);
+		ESP_DrawingBoxOutline = NAStuff.ESP_DrawingBoxOutline ~= false;
+		ESP_DrawingBoxOutlineThickness = math.clamp(tonumber(NAStuff.ESP_DrawingBoxOutlineThickness) or 3, 1, 10);
+		ESP_DrawingFilledBoxes = NAStuff.ESP_DrawingFilledBoxes == true;
+		ESP_DrawingCornerScale = math.clamp(tonumber(NAStuff.ESP_DrawingCornerScale) or 0.25, 0.05, 0.5);
 		ESP_DrawingPartBoxStyle = NAgui.sanitizeESPDrawingBoxStyle(NAStuff.ESP_DrawingPartBoxStyle);
 		ESP_DrawingPartTextOutline = NAStuff.ESP_DrawingPartTextOutline ~= false;
+		ESP_DrawingPartTextCentered = NAStuff.ESP_DrawingPartTextCentered ~= false;
+		ESP_DrawingPartTextTransparency = math.clamp(tonumber(NAStuff.ESP_DrawingPartTextTransparency) or 0, 0, 1);
 		ESP_DrawingPartBoxThickness = math.clamp(tonumber(NAStuff.ESP_DrawingPartBoxThickness) or 1, 1, 6);
+		ESP_DrawingPartBoxOutline = NAStuff.ESP_DrawingPartBoxOutline ~= false;
+		ESP_DrawingPartBoxOutlineThickness = math.clamp(tonumber(NAStuff.ESP_DrawingPartBoxOutlineThickness) or 3, 1, 10);
+		ESP_DrawingPartFilledBoxes = NAStuff.ESP_DrawingPartFilledBoxes == true;
+		ESP_DrawingPartCornerScale = math.clamp(tonumber(NAStuff.ESP_DrawingPartCornerScale) or 0.25, 0.05, 0.5);
 		ESP_DrawingPartQueuePerStep = math.clamp(math.floor(tonumber(NAStuff.ESP_DrawingPartQueuePerStep) or 64), 1, 512);
 		ESP_DrawingMaxPerStep = math.clamp(math.floor(tonumber(NAStuff.ESP_DrawingMaxPerStep) or 64), 16, 512);
 		ESP_PartUpdatePerStep = math.clamp(math.floor(tonumber(NAStuff.ESP_PartUpdatePerStep) or 48), 1, 512);
 		ESP_DrawingTracerEnabled = NAStuff.ESP_DrawingTracerEnabled == true;
 		ESP_DrawingTracerOrigin = NAgui.sanitizeESPDrawingTracerOrigin(NAStuff.ESP_DrawingTracerOrigin);
+		ESP_DrawingTracerTarget = NAgui.sanitizeESPDrawingTracerTarget(NAStuff.ESP_DrawingTracerTarget);
 		ESP_DrawingTracerThickness = math.clamp(tonumber(NAStuff.ESP_DrawingTracerThickness) or 1, 1, 6);
+		ESP_DrawingTracerOutline = NAStuff.ESP_DrawingTracerOutline ~= false;
 		ESP_OcclusionEnabled = NAStuff.ESP_OcclusionEnabled == true;
 		ESP_OcclusionIncludePlayers = NAStuff.ESP_OcclusionIncludePlayers == true;
 		ESP_OcclusionIncludeNPCs = NAStuff.ESP_OcclusionIncludeNPCs == true;
@@ -23631,9 +23701,9 @@ NAmanage.ensurePatchedInfo=function(info)
 	end
 
 	if desc == "" then
-		desc = "Patched / may not work"
+		desc = "Patched / may not work; might work again later or be removed if it stays patched"
 	elseif not lowerDesc:find("patched", 1, true) then
-		desc = desc.." (patched)"
+		desc = desc.." (patched; might work again later or be removed if it stays patched)"
 	end
 
 	return {title, desc}
@@ -23642,11 +23712,11 @@ end
 NAmanage.wrapPatchedFunc=function(func)
 	if type(func) ~= "function" then
 		return function()
-			DoNotif("This command is patched and may not work", 3)
+			DoNotif("This command is patched and may not work. It could work again later or never be fixed; patched commands may be removed from NA if they stay patched.", 5)
 		end
 	end
 	return function(...)
-		DoNotif("This command is patched and may not work", 3)
+		DoNotif("This command is patched and may not work. It could work again later or never be fixed; patched commands may be removed from NA if they stay patched.", 5)
 		return func(...)
 	end
 end
@@ -23845,7 +23915,7 @@ cmd.run = function(args)
 
 	local function bumpRichPresenceAsync()
 		if type(NAmanage.btBump) == "function" then
-			task.defer(function()
+			Defer(function()
 				pcall(NAmanage.btBump)
 			end)
 		end
@@ -23853,7 +23923,7 @@ cmd.run = function(args)
 
 	local function sendWebhookAsync(payloadArgs)
 		if type(NAmanage.WebhookCommand) == "function" then
-			task.defer(function()
+			Defer(function()
 				pcall(NAmanage.WebhookCommand, payloadArgs)
 			end)
 		end
@@ -27077,6 +27147,57 @@ NAgui.sanitizeESPDrawingTracerOrigin = function(value)
 	return "Bottom"
 end
 
+NAgui.getESPDrawingTracerTargetOptions = function()
+	return { "Bottom", "Center", "Top" }
+end
+
+NAgui.sanitizeESPDrawingTracerTarget = function(value)
+	local normalized = Lower(tostring(value or "bottom"))
+	if normalized == "top" then
+		return "Top"
+	end
+	if normalized == "center" or normalized == "middle" then
+		return "Center"
+	end
+	return "Bottom"
+end
+
+NAgui.getDrawingTextFontOptions = function()
+	return { "UI", "System", "Plex", "Monospace" }
+end
+
+NAgui.sanitizeDrawingTextFont = function(value)
+	local normalized = Lower(tostring(value or "ui"))
+	if normalized == "system" or normalized == "1" then
+		return "System"
+	end
+	if normalized == "plex" or normalized == "2" then
+		return "Plex"
+	end
+	if normalized == "monospace" or normalized == "mono" or normalized == "3" then
+		return "Monospace"
+	end
+	return "UI"
+end
+
+NAgui.getDrawingTextFontValue = function(value)
+	local font = NAgui.sanitizeDrawingTextFont(value)
+	if font == "System" then
+		return 1
+	end
+	if font == "Plex" then
+		return 2
+	end
+	if font == "Monospace" then
+		return 3
+	end
+	return 0
+end
+
+NAgui.sanitizeDrawingAlpha = function(value)
+	return math.clamp(1 - NAgui.sanitizeTransparency(value), 0, 1)
+end
+
 NAgui.sanitizeESPRenderMode = function(mode, fallback)
 	local desired = Lower(tostring(mode or ""))
 	if desired == "highlight" then
@@ -27338,9 +27459,10 @@ NAmanage.DrawingCreateSquare = function(color, fillTransparency, options)
 	end
 	local alpha = NAgui.toDrawingTransparency(fillTransparency or 0.7)
 	local thickness = math.max(1, tonumber(options and options.thickness) or 1)
+	local filled = options and options.filled == true
 	pcall(function()
 		square.Visible = false
-		square.Filled = false
+		square.Filled = filled
 		square.Thickness = thickness
 		square.Color = color or Color3.new(1, 1, 1)
 		square.Transparency = alpha
@@ -27359,10 +27481,11 @@ NAmanage.DrawingUpdateSquare = function(square, inst, color, fillTransparency, o
 	end
 	local alpha = NAgui.toDrawingTransparency(fillTransparency or 0.7)
 	local thickness = math.max(1, tonumber(options and options.thickness) or 1)
+	local filled = options and options.filled == true
 	local ok = pcall(function()
 		square.Color = color or Color3.new(1, 1, 1)
 		square.Transparency = alpha
-		square.Filled = false
+		square.Filled = filled
 		square.Thickness = thickness
 		square.Position = Vector2.new(minX, minY)
 		square.Size = Vector2.new(width, height)
@@ -27397,15 +27520,24 @@ NAmanage.DrawingCreateText = function(text, color, textSize, options)
 	else
 		outlineEnabled = NAStuff.ESP_DrawingTextOutline ~= false
 	end
+	local centered = options and options.centered
+	if centered == nil then
+		centered = NAStuff.ESP_DrawingTextCentered ~= false
+	end
+	local alpha = NAgui.sanitizeDrawingAlpha(options and options.textTransparency or NAStuff.ESP_DrawingTextTransparency or 0)
+	local fontValue = NAgui.getDrawingTextFontValue(options and options.font or NAStuff.ESP_DrawingTextFont)
 	pcall(function()
 		txt.Visible = false
-		txt.Center = true
+		txt.Center = centered ~= false
 		txt.Outline = outlineEnabled
 		txt.Color = color or Color3.new(1, 1, 1)
 		txt.Size = NAgui.sanitizeLabelSize(textSize or 12)
 		txt.Text = tostring(text or "")
-		txt.Transparency = 1
+		txt.Transparency = alpha
 		txt.OutlineColor = Color3.new(0.05, 0.05, 0.05)
+	end)
+	pcall(function()
+		txt.Font = fontValue
 	end)
 	return txt
 end
@@ -27432,14 +27564,25 @@ NAmanage.DrawingUpdateText = function(txt, worldPos, text, color, textSize, opti
 	else
 		outlineEnabled = NAStuff.ESP_DrawingTextOutline ~= false
 	end
+	local centered = options and options.centered
+	if centered == nil then
+		centered = NAStuff.ESP_DrawingTextCentered ~= false
+	end
+	local alpha = NAgui.sanitizeDrawingAlpha(options and options.textTransparency or NAStuff.ESP_DrawingTextTransparency or 0)
+	local fontValue = NAgui.getDrawingTextFontValue(options and options.font or NAStuff.ESP_DrawingTextFont)
 	local ok = pcall(function()
 		txt.Text = tostring(text or "")
 		txt.Color = color or Color3.new(1, 1, 1)
 		txt.Size = NAgui.sanitizeLabelSize(textSize or 12)
 		txt.Outline = outlineEnabled
+		txt.Center = centered ~= false
+		txt.Transparency = alpha
 		txt.OutlineColor = Color3.new(0.05, 0.05, 0.05)
 		txt.Position = Vector2.new(viewportPoint.X, viewportPoint.Y)
 		txt.Visible = true
+	end)
+	pcall(function()
+		txt.Font = fontValue
 	end)
 	if not ok and type(NAmanage._drawingObjectSupport) == "table" then
 		NAmanage._drawingObjectSupport.Text = false
@@ -27627,6 +27770,9 @@ NAmanage.ESP_ApplyLabelStyles = function()
 					pcall(function()
 						entry.drawingLabel.Size = size
 						entry.drawingLabel.Outline = NAStuff.ESP_DrawingPartTextOutline ~= false
+						entry.drawingLabel.Center = NAStuff.ESP_DrawingPartTextCentered ~= false
+						entry.drawingLabel.Transparency = NAgui.sanitizeDrawingAlpha(NAStuff.ESP_DrawingPartTextTransparency or 0)
+						entry.drawingLabel.Font = NAgui.getDrawingTextFontValue(NAStuff.ESP_DrawingTextFont)
 						entry.drawingLabel.OutlineColor = Color3.new(0.05, 0.05, 0.05)
 					end)
 				end
@@ -27647,6 +27793,9 @@ NAmanage.ESP_ApplyLabelStyles = function()
 					pcall(function()
 						entry.drawingLabel.Size = size
 						entry.drawingLabel.Outline = NAStuff.ESP_DrawingPartTextOutline ~= false
+						entry.drawingLabel.Center = NAStuff.ESP_DrawingPartTextCentered ~= false
+						entry.drawingLabel.Transparency = NAgui.sanitizeDrawingAlpha(NAStuff.ESP_DrawingPartTextTransparency or 0)
+						entry.drawingLabel.Font = NAgui.getDrawingTextFontValue(NAStuff.ESP_DrawingTextFont)
 						entry.drawingLabel.OutlineColor = Color3.new(0.05, 0.05, 0.05)
 					end)
 				end
@@ -27666,6 +27815,9 @@ NAmanage.ESP_ApplyLabelStyles = function()
 					pcall(function()
 						data.drawingLabel.Size = size
 						data.drawingLabel.Outline = NAStuff.ESP_DrawingTextOutline ~= false
+						data.drawingLabel.Center = NAStuff.ESP_DrawingTextCentered ~= false
+						data.drawingLabel.Transparency = NAgui.sanitizeDrawingAlpha(NAStuff.ESP_DrawingTextTransparency or 0)
+						data.drawingLabel.Font = NAgui.getDrawingTextFontValue(NAStuff.ESP_DrawingTextFont)
 						data.drawingLabel.OutlineColor = Color3.new(0.05, 0.05, 0.05)
 					end)
 				end
@@ -28199,7 +28351,10 @@ NAmanage.PartESP_UpdateEntry = function(entry, force, rootPart)
 		if showPartText then
 			local textPos = NAgui.getInstanceLabelWorldPosition(part, 0.2)
 			if not NAmanage.DrawingUpdateText(drawingLabel, textPos, display, labelColor, NAStuff.ESP_LabelTextSize, {
-				outlineEnabled = NAStuff.ESP_DrawingPartTextOutline ~= false
+				outlineEnabled = NAStuff.ESP_DrawingPartTextOutline ~= false;
+				centered = NAStuff.ESP_DrawingPartTextCentered ~= false;
+				font = NAStuff.ESP_DrawingTextFont;
+				textTransparency = NAStuff.ESP_DrawingPartTextTransparency;
 			}) then
 				NAmanage.ESP_RequestVisualRebuild()
 				return
@@ -28217,20 +28372,23 @@ NAmanage.PartESP_UpdateEntry = function(entry, force, rootPart)
 				drawingSquare.Visible = false
 			end)
 		elseif not NAmanage.DrawingUpdateSquare(drawingSquare, part, visualLight, transparency, {
-			thickness = NAStuff.ESP_DrawingPartBoxThickness
+			filled = NAStuff.ESP_DrawingPartFilledBoxes == true;
+			thickness = NAStuff.ESP_DrawingPartBoxThickness;
 		}) then
 			NAmanage.ESP_RequestVisualRebuild()
 			return
 		end
 	end
-	if partDrawingStyle == "Corners" and type(drawingCornerLines) == "table" and type(drawingCornerOutlineLines) == "table" then
+	if partDrawingStyle == "Corners" and type(drawingCornerLines) == "table" then
 		local minX, minY, width, height = NAgui.getInstanceViewportBounds(part)
 		if minX then
 			local alpha = NAgui.toDrawingTransparency(transparency)
 			local mainThickness = math.max(1, tonumber(NAStuff.ESP_DrawingPartBoxThickness) or 1)
-			local outlineThickness = mainThickness + 2
-			local segX = math.max(6, width * 0.25)
-			local segY = math.max(6, height * 0.25)
+			local outlineEnabled = NAStuff.ESP_DrawingPartBoxOutline ~= false
+			local outlineThickness = math.max(1, tonumber(NAStuff.ESP_DrawingPartBoxOutlineThickness) or (mainThickness + 2))
+			local scale = math.clamp(tonumber(NAStuff.ESP_DrawingPartCornerScale) or 0.25, 0.05, 0.5)
+			local segX = math.max(4, width * scale)
+			local segY = math.max(4, height * scale)
 			local points = {
 				{ Vector2.new(minX, minY), Vector2.new(minX + segX, minY) },
 				{ Vector2.new(minX + width, minY), Vector2.new(minX + width - segX, minY) },
@@ -28241,11 +28399,21 @@ NAmanage.PartESP_UpdateEntry = function(entry, force, rootPart)
 				{ Vector2.new(minX, minY + height), Vector2.new(minX, minY + height - segY) },
 				{ Vector2.new(minX + width, minY + height), Vector2.new(minX + width, minY + height - segY) },
 			}
+			if outlineEnabled and type(drawingCornerOutlineLines) ~= "table" then
+				drawingCornerOutlineLines = {}
+			end
 			for i = 1, 8 do
 				local seg = points[i]
-				if not NAmanage.DrawingUpdateLine(drawingCornerOutlineLines[i], seg[1], seg[2], Color3.new(0.1, 0.1, 0.1), math.min(1, alpha + 0.15), outlineThickness) then
-					NAmanage.ESP_RequestVisualRebuild()
-					return
+				if outlineEnabled then
+					if not drawingCornerOutlineLines[i] then
+						drawingCornerOutlineLines[i] = NAmanage.DrawingCreateLine(Color3.new(0.1, 0.1, 0.1), math.min(1, alpha + 0.15), outlineThickness)
+					end
+					if not NAmanage.DrawingUpdateLine(drawingCornerOutlineLines[i], seg[1], seg[2], Color3.new(0.1, 0.1, 0.1), math.min(1, alpha + 0.15), outlineThickness) then
+						NAmanage.ESP_RequestVisualRebuild()
+						return
+					end
+				elseif type(drawingCornerOutlineLines) == "table" and drawingCornerOutlineLines[i] then
+					pcall(function() drawingCornerOutlineLines[i].Visible = false end)
 				end
 				if not NAmanage.DrawingUpdateLine(drawingCornerLines[i], seg[1], seg[2], visualLight, alpha, mainThickness) then
 					NAmanage.ESP_RequestVisualRebuild()
@@ -28898,7 +29066,11 @@ NAmanage.ESP_EnsureDrawingLabel = function(model)
 	if label then
 		return label
 	end
-	label = NAmanage.DrawingCreateText("", Color3.new(1, 1, 1), NAStuff.ESP_LabelTextSize)
+	label = NAmanage.DrawingCreateText("", Color3.new(1, 1, 1), NAStuff.ESP_LabelTextSize, {
+		centered = NAStuff.ESP_DrawingTextCentered ~= false;
+		font = NAStuff.ESP_DrawingTextFont;
+		textTransparency = NAStuff.ESP_DrawingTextTransparency;
+	})
 	data.drawingLabel = label
 	return label
 end
@@ -28909,7 +29081,11 @@ NAmanage.ESP_UpdateDrawingLabel = function(model, text, color)
 	local label = data.drawingLabel or NAmanage.ESP_EnsureDrawingLabel(model)
 	if not label then return false end
 	local worldPos = NAmanage.ESP_GetLabelWorldPosition(model)
-	return NAmanage.DrawingUpdateText(label, worldPos, text, color, NAStuff.ESP_LabelTextSize)
+	return NAmanage.DrawingUpdateText(label, worldPos, text, color, NAStuff.ESP_LabelTextSize, {
+		centered = NAStuff.ESP_DrawingTextCentered ~= false;
+		font = NAStuff.ESP_DrawingTextFont;
+		textTransparency = NAStuff.ESP_DrawingTextTransparency;
+	})
 end
 
 NAmanage.ESP_EnsureLabel = function(model)
@@ -29099,7 +29275,9 @@ NAmanage.ESP_EnsureDrawingObjects = function(data)
 	if not data then return nil end
 	local style = NAmanage.ESP_GetDrawingBoxStyle()
 	local wantCorners = style == "Corners" and NAmanage.DrawingLineSupported()
+	local outlineEnabled = NAStuff.ESP_DrawingBoxOutline ~= false
 	local tracerEnabled = NAStuff.ESP_DrawingTracerEnabled == true and NAmanage.DrawingLineSupported()
+	local tracerOutlineEnabled = NAStuff.ESP_DrawingTracerOutline ~= false
 
 	if wantCorners then
 		if data.drawingBox then
@@ -29113,15 +29291,22 @@ NAmanage.ESP_EnsureDrawingObjects = function(data)
 		if type(data.drawingCornerLines) ~= "table" then
 			data.drawingCornerLines = {}
 		end
-		if type(data.drawingCornerOutlineLines) ~= "table" then
-			data.drawingCornerOutlineLines = {}
+		if outlineEnabled then
+			if type(data.drawingCornerOutlineLines) ~= "table" then
+				data.drawingCornerOutlineLines = {}
+			end
+		elseif type(data.drawingCornerOutlineLines) == "table" then
+			for i = 1, #data.drawingCornerOutlineLines do
+				NAmanage.DrawingRemoveObject(data.drawingCornerOutlineLines[i])
+			end
+			data.drawingCornerOutlineLines = nil
 		end
 		for i = 1, 8 do
 			if not data.drawingCornerLines[i] then
 				data.drawingCornerLines[i] = NAmanage.DrawingCreateLine(Color3.new(1, 1, 1), 1, 1)
 			end
-			if not data.drawingCornerOutlineLines[i] then
-				data.drawingCornerOutlineLines[i] = NAmanage.DrawingCreateLine(Color3.new(0.1, 0.1, 0.1), 0.9, 3)
+			if outlineEnabled and not data.drawingCornerOutlineLines[i] then
+				data.drawingCornerOutlineLines[i] = NAmanage.DrawingCreateLine(Color3.new(0.1, 0.1, 0.1), 0.9, math.clamp(tonumber(NAStuff.ESP_DrawingBoxOutlineThickness) or 3, 1, 10))
 			end
 		end
 	else
@@ -29138,10 +29323,20 @@ NAmanage.ESP_EnsureDrawingObjects = function(data)
 			data.drawingCornerOutlineLines = nil
 		end
 		if not data.drawingBox then
-			data.drawingBox = NAmanage.DrawingCreateSquare(Color3.new(1, 1, 1), NAStuff.ESP_Transparency or 0.7)
+			data.drawingBox = NAmanage.DrawingCreateSquare(Color3.new(1, 1, 1), NAStuff.ESP_Transparency or 0.7, {
+				filled = NAStuff.ESP_DrawingFilledBoxes == true;
+				thickness = NAStuff.ESP_DrawingBoxThickness;
+			})
 		end
-		if not data.drawingBoxOutline then
-			data.drawingBoxOutline = NAmanage.DrawingCreateSquare(Color3.new(0.1, 0.1, 0.1), 0.2)
+		if outlineEnabled then
+			if not data.drawingBoxOutline then
+				data.drawingBoxOutline = NAmanage.DrawingCreateSquare(Color3.new(0.1, 0.1, 0.1), 0.15, {
+					thickness = NAStuff.ESP_DrawingBoxOutlineThickness;
+				})
+			end
+		elseif data.drawingBoxOutline then
+			NAmanage.DrawingRemoveObject(data.drawingBoxOutline)
+			data.drawingBoxOutline = nil
 		end
 	end
 
@@ -29149,8 +29344,13 @@ NAmanage.ESP_EnsureDrawingObjects = function(data)
 		if not data.drawingTracer then
 			data.drawingTracer = NAmanage.DrawingCreateLine(Color3.new(1, 1, 1), 0.7, tonumber(NAStuff.ESP_DrawingTracerThickness) or 1)
 		end
-		if not data.drawingTracerOutline then
-			data.drawingTracerOutline = NAmanage.DrawingCreateLine(Color3.new(0.1, 0.1, 0.1), 0.55, (tonumber(NAStuff.ESP_DrawingTracerThickness) or 1) + 2)
+		if tracerOutlineEnabled then
+			if not data.drawingTracerOutline then
+				data.drawingTracerOutline = NAmanage.DrawingCreateLine(Color3.new(0.1, 0.1, 0.1), 0.55, (tonumber(NAStuff.ESP_DrawingTracerThickness) or 1) + 2)
+			end
+		elseif data.drawingTracerOutline then
+			NAmanage.DrawingRemoveObject(data.drawingTracerOutline)
+			data.drawingTracerOutline = nil
 		end
 	else
 		if data.drawingTracer then
@@ -29178,14 +29378,16 @@ NAmanage.ESP_UpdateDrawingBox = function(data, inst, color, fillTransparency)
 
 	local alpha = NAgui.toDrawingTransparency(fillTransparency or 0.7)
 	local mainThickness = math.max(1, tonumber(NAStuff.ESP_DrawingBoxThickness) or 1)
-	local outlineThickness = mainThickness + 2
+	local outlineEnabled = NAStuff.ESP_DrawingBoxOutline ~= false
+	local outlineThickness = math.max(1, tonumber(NAStuff.ESP_DrawingBoxOutlineThickness) or (mainThickness + 2))
 	local style = NAmanage.ESP_GetDrawingBoxStyle()
 
-	if style == "Corners" and type(data.drawingCornerLines) == "table" and type(data.drawingCornerOutlineLines) == "table" then
+	if style == "Corners" and type(data.drawingCornerLines) == "table" then
 		if data.drawingBox then pcall(function() data.drawingBox.Visible = false end) end
 		if data.drawingBoxOutline then pcall(function() data.drawingBoxOutline.Visible = false end) end
-		local segX = math.max(6, width * 0.25)
-		local segY = math.max(6, height * 0.25)
+		local scale = math.clamp(tonumber(NAStuff.ESP_DrawingCornerScale) or 0.25, 0.05, 0.5)
+		local segX = math.max(4, width * scale)
+		local segY = math.max(4, height * scale)
 		local points = {
 			{ Vector2.new(minX, minY), Vector2.new(minX + segX, minY) },
 			{ Vector2.new(minX + width, minY), Vector2.new(minX + width - segX, minY) },
@@ -29201,15 +29403,26 @@ NAmanage.ESP_UpdateDrawingBox = function(data, inst, color, fillTransparency)
 				data.drawingCornerLines[i] = NAmanage.DrawingCreateLine(Color3.new(1, 1, 1), alpha, mainThickness)
 			end
 		end
-		if #data.drawingCornerOutlineLines < 8 then
-			for i = #data.drawingCornerOutlineLines + 1, 8 do
-				data.drawingCornerOutlineLines[i] = NAmanage.DrawingCreateLine(Color3.new(0.1, 0.1, 0.1), math.min(1, alpha + 0.15), outlineThickness)
+		if outlineEnabled then
+			if type(data.drawingCornerOutlineLines) ~= "table" then
+				data.drawingCornerOutlineLines = {}
+			end
+			if #data.drawingCornerOutlineLines < 8 then
+				for i = #data.drawingCornerOutlineLines + 1, 8 do
+					data.drawingCornerOutlineLines[i] = NAmanage.DrawingCreateLine(Color3.new(0.1, 0.1, 0.1), math.min(1, alpha + 0.15), outlineThickness)
+				end
+			end
+		elseif type(data.drawingCornerOutlineLines) == "table" then
+			for i = 1, #data.drawingCornerOutlineLines do
+				pcall(function() data.drawingCornerOutlineLines[i].Visible = false end)
 			end
 		end
 		for i = 1, 8 do
 			local seg = points[i]
-			if not NAmanage.DrawingUpdateLine(data.drawingCornerOutlineLines[i], seg[1], seg[2], Color3.new(0.1, 0.1, 0.1), math.min(1, alpha + 0.15), outlineThickness) then
-				return false
+			if outlineEnabled and data.drawingCornerOutlineLines and data.drawingCornerOutlineLines[i] then
+				if not NAmanage.DrawingUpdateLine(data.drawingCornerOutlineLines[i], seg[1], seg[2], Color3.new(0.1, 0.1, 0.1), math.min(1, alpha + 0.15), outlineThickness) then
+					return false
+				end
 			end
 			if not NAmanage.DrawingUpdateLine(data.drawingCornerLines[i], seg[1], seg[2], color, alpha, mainThickness) then
 				return false
@@ -29234,16 +29447,20 @@ NAmanage.ESP_UpdateDrawingBox = function(data, inst, color, fillTransparency)
 	end
 	local ok = true
 	if data.drawingBoxOutline then
-		ok = NAmanage.DrawingUpdateSquare(data.drawingBoxOutline, inst, Color3.new(0.1, 0.1, 0.1), 0.15) and ok
-		pcall(function()
-			data.drawingBoxOutline.Thickness = outlineThickness
-		end)
+		if outlineEnabled then
+			ok = NAmanage.DrawingUpdateSquare(data.drawingBoxOutline, inst, Color3.new(0.1, 0.1, 0.1), 0.15, {
+				filled = false;
+				thickness = outlineThickness;
+			}) and ok
+		else
+			pcall(function() data.drawingBoxOutline.Visible = false end)
+		end
 	end
 	if data.drawingBox then
-		ok = NAmanage.DrawingUpdateSquare(data.drawingBox, inst, color, fillTransparency) and ok
-		pcall(function()
-			data.drawingBox.Thickness = mainThickness
-		end)
+		ok = NAmanage.DrawingUpdateSquare(data.drawingBox, inst, color, fillTransparency, {
+			filled = NAStuff.ESP_DrawingFilledBoxes == true;
+			thickness = mainThickness;
+		}) and ok
 	end
 	return ok
 end
@@ -29268,12 +29485,23 @@ NAmanage.ESP_UpdateDrawingTracer = function(data, inst, color)
 		return true
 	end
 	local fromPos = NAmanage.ESP_GetDrawingTracerOrigin(cam.ViewportSize)
-	local toPos = Vector2.new(minX + width * 0.5, minY + height)
+	local target = NAgui.sanitizeESPDrawingTracerTarget(NAStuff.ESP_DrawingTracerTarget)
+	local targetY = minY + height
+	if target == "Top" then
+		targetY = minY
+	elseif target == "Center" then
+		targetY = minY + height * 0.5
+	end
+	local toPos = Vector2.new(minX + width * 0.5, targetY)
 	local thickness = math.max(1, tonumber(NAStuff.ESP_DrawingTracerThickness) or 1)
 	local alpha = math.clamp(0.75, 0, 1)
 	local ok = true
 	if data.drawingTracerOutline then
-		ok = NAmanage.DrawingUpdateLine(data.drawingTracerOutline, fromPos, toPos, Color3.new(0.1, 0.1, 0.1), math.max(0, alpha - 0.15), thickness + 2) and ok
+		if NAStuff.ESP_DrawingTracerOutline ~= false then
+			ok = NAmanage.DrawingUpdateLine(data.drawingTracerOutline, fromPos, toPos, Color3.new(0.1, 0.1, 0.1), math.max(0, alpha - 0.15), thickness + 2) and ok
+		else
+			pcall(function() data.drawingTracerOutline.Visible = false end)
+		end
 	end
 	if data.drawingTracer then
 		ok = NAmanage.DrawingUpdateLine(data.drawingTracer, fromPos, toPos, color, alpha, thickness) and ok
@@ -29305,7 +29533,7 @@ NAmanage.ESP_RequestVisualRebuild = function()
 		return
 	end
 	NAStuff._espVisualRebuildPending = true
-	task.defer(function()
+	Defer(function()
 		NAStuff._espVisualRebuildPending = false
 		NAmanage.ESP_RebuildVisuals()
 	end)
@@ -33233,6 +33461,44 @@ NAmanage.LoadPlugins = function(opts)
 	local filesNA = enumerate(pluginDirNA, "Plugins", "%.na$") or {}
 	local filesIY = enumerate(pluginDirIY, "PluginsIY", "%.iy$") or {}
 
+	NAmanage.PluginCleanupEnv = NAmanage.PluginCleanupEnv or function(key)
+		local states = NAmanage and NAmanage._pluginEnvState
+		local store = type(states) == "table" and states[key] or nil
+		if type(store) ~= "table" then
+			return
+		end
+		local seen = {}
+		local function try(fn, owner)
+			if type(fn) == "function" and not seen[fn] then
+				seen[fn] = true
+				pcall(fn, owner)
+			end
+		end
+		local function scan(bucket)
+			if type(bucket) ~= "table" then
+				return
+			end
+			try(rawget(bucket, "cleanup"), bucket)
+			try(rawget(bucket, "Cleanup"), bucket)
+			try(rawget(bucket, "destroy"), bucket)
+			try(rawget(bucket, "Destroy"), bucket)
+			try(rawget(bucket, "unload"), bucket)
+			try(rawget(bucket, "Unload"), bucket)
+			for _, value in bucket do
+				if type(value) == "table" then
+					try(rawget(value, "cleanup"), value)
+					try(rawget(value, "Cleanup"), value)
+					try(rawget(value, "destroy"), value)
+					try(rawget(value, "Destroy"), value)
+					try(rawget(value, "unload"), value)
+					try(rawget(value, "Unload"), value)
+				end
+			end
+		end
+		scan(store.globals)
+		scan(store.shared)
+	end
+
 	local function loadPluginFile(file, mode)
 		local baseName = file and (file:match("[^\\/]+$") or file) or ""
 		if mode == "iy" and type(baseName) == "string" and baseName:lower() == "iy_fe.iy" then
@@ -33242,6 +33508,9 @@ NAmanage.LoadPlugins = function(opts)
 		local pluginKey = normKey(file)
 		seenKeys[pluginKey] = true
 		UnplugCmd(pluginKey)
+		if NAmanage.PluginCleanupEnv then
+			pcall(NAmanage.PluginCleanupEnv, pluginKey)
+		end
 
 		local disabled = NAmanage.PluginIsDisabled and NAmanage.PluginIsDisabled(file)
 		runMeta[pluginKey] = {
@@ -33276,11 +33545,114 @@ NAmanage.LoadPlugins = function(opts)
 			return
 		end
 
+		NAmanage._pluginEnvState = NAmanage._pluginEnvState or {}
+		local pluginStore = NAmanage._pluginEnvState[pluginKey]
+		if type(pluginStore) ~= "table" then
+			pluginStore = {}
+			NAmanage._pluginEnvState[pluginKey] = pluginStore
+		end
 		local colPlugins = {}
 		local proxyEnv = {}
-		local pluginGlobals = {}
+		local pluginShared = type(pluginStore.shared) == "table" and pluginStore.shared or {}
+		local pluginGlobals = type(pluginStore.globals) == "table" and pluginStore.globals or {}
+		pluginStore.shared = pluginShared
+		pluginStore.globals = pluginGlobals
+		pluginStore.env = proxyEnv
 		local baseEnv = getfenv()
 		local pluginApi = nil
+		local pluginNil = {}
+		local pluginEnvShims = {}
+		local pluginPrivateEnv = {}
+		local pluginBaseGlobals = {}
+		local pluginBlockedGlobals = {
+			_G = true;
+			shared = true;
+			getgenv = true;
+			getfenv = true;
+			setfenv = true;
+			game = true;
+			workspace = true;
+			SafeGetService = true;
+			ServiceResolver = true;
+			__NAServiceResolver = true;
+			__NAUIProtector = true;
+			__lt = true;
+			NAmanage = true;
+			NAStuff = true;
+			NAindex = true;
+			NAjobs = true;
+			NAfiles = true;
+			NAlib = true;
+			cmds = true;
+			cmd = true;
+		}
+		local function _plugMarkPrivate(env)
+			if type(env) == "table" then
+				pluginPrivateEnv[env] = true
+			end
+		end
+		_plugMarkPrivate(baseEnv)
+		_plugMarkPrivate(_na_env)
+		_plugMarkPrivate(_na_shared)
+		_plugMarkPrivate(_na_boot and _na_boot.runtimeEnv)
+		_plugMarkPrivate(_na_boot and _na_boot.hostEnv)
+		_plugMarkPrivate(_na_boot and _na_boot.privateRoot)
+		local function _plugBase(name, value)
+			if type(name) == "string" and value ~= nil then
+				pluginBaseGlobals[name] = value
+			end
+		end
+		for _, name in {
+			"assert", "error", "ipairs", "next", "pairs", "pcall", "xpcall", "select", "tonumber", "tostring", "type", "typeof",
+			"unpack", "rawequal", "rawget", "rawset", "setmetatable", "getmetatable", "print", "warn", "require",
+			"wait", "spawn", "delay", "tick", "time", "elapsedTime", "gcinfo", "collectgarbage", "settings", "UserSettings", "version",
+			"cloneref", "compareinstances", "hookfunction", "hookmetamethod", "getnamecallmethod", "setnamecallmethod", "newcclosure", "checkcaller",
+			"iscclosure", "islclosure", "isexecutorclosure", "isourclosure", "restorefunction", "clonefunction", "getconnections", "firesignal", "replicatesignal",
+			"firetouchinterest", "fireproximityprompt", "fireclickdetector", "getnilinstances", "getinstances", "gethui", "getcustomasset", "getgc", "filtergc",
+			"setclipboard", "toclipboard", "queue_on_teleport", "queueonteleport", "identifyexecutor", "isfile", "isfolder", "readfile", "writefile", "appendfile", "listfiles", "makefolder", "delfile", "delfolder",
+			"isrbxactive", "keypress", "keyrelease", "keytap", "mouse1click", "mouse1press", "mouse1release", "mouse2click", "mouse2press", "mouse2release", "mousemoveabs", "mousemoverel", "mousescroll",
+		} do
+			_plugBase(name, baseEnv and baseEnv[name])
+		end
+		for _, name in {
+			"math", "string", "table", "task", "coroutine", "os", "utf8", "bit32", "debug", "Enum", "Instance", "Color3", "BrickColor",
+			"Vector2", "Vector3", "Vector2int16", "Vector3int16", "CFrame", "UDim", "UDim2", "Rect", "Ray", "Region3", "Region3int16",
+			"NumberRange", "NumberSequence", "NumberSequenceKeypoint", "ColorSequence", "ColorSequenceKeypoint", "TweenInfo", "PhysicalProperties",
+			"RaycastParams", "OverlapParams", "Random", "DateTime", "Faces", "Axes", "Font", "PathWaypoint", "DockWidgetPluginGuiInfo", "buffer", "Drawing", "DrawingImmediate", "WebSocket", "crypt",
+		} do
+			_plugBase(name, baseEnv and baseEnv[name])
+		end
+		local function _plugCleanEnv(env)
+			if type(env) ~= "table" or pluginPrivateEnv[env] then
+				return proxyEnv
+			end
+			return env
+		end
+		pluginEnvShims._G = proxyEnv
+		pluginEnvShims.shared = pluginShared
+		pluginEnvShims.getgenv = function()
+			return proxyEnv
+		end
+		pluginEnvShims.getfenv = function(target)
+			if target == nil or type(target) == "number" then
+				return proxyEnv
+			end
+			local hostGetfenv = baseEnv and baseEnv.getfenv or getfenv
+			if type(hostGetfenv) == "function" then
+				local ok, env = pcall(hostGetfenv, target)
+				if ok then
+					return _plugCleanEnv(env)
+				end
+			end
+			return proxyEnv
+		end
+		pluginEnvShims.setfenv = function(fn, env)
+			local hostSetfenv = baseEnv and baseEnv.setfenv or setfenv
+			if type(hostSetfenv) == "function" and type(fn) == "function" then
+				return hostSetfenv(fn, _plugCleanEnv(env))
+			end
+			return fn
+		end
 
 		local function _runCmd(...)
 			local runner = cmd and (cmd.run or cmd.Run)
@@ -33331,10 +33703,110 @@ NAmanage.LoadPlugins = function(opts)
 			return { StatusCode = 0, Body = tostring(res) }
 		end
 
+		local pluginServiceNames = {
+			Workspace = true;
+			Players = true;
+			UserService = true;
+			UserInputService = true;
+			TweenService = true;
+			RunService = true;
+			ContextActionService = true;
+			TeleportService = true;
+			Lighting = true;
+			ReplicatedStorage = true;
+			CoreGui = true;
+			SoundService = true;
+			TextChatService = true;
+			TextService = true;
+			StarterGui = true;
+			StarterPack = true;
+			StarterPlayer = true;
+			ContentProvider = true;
+			LocalizationService = true;
+			MarketplaceService = true;
+			GuiService = true;
+			Stats = true;
+			Debris = true;
+			Teams = true;
+			CollectionService = true;
+			ProximityPromptService = true;
+			VirtualInputManager = true;
+			VirtualUser = true;
+			HttpService = true;
+			BadgeService = true;
+			Chat = true;
+			VRService = true;
+			PolicyService = true;
+			GroupService = true;
+			AvatarEditorService = true;
+			InsertService = true;
+		}
+		local pluginServiceAliases = {
+			workspace = "Workspace";
+			COREGUI = "CoreGui";
+			CoreGui = "CoreGui";
+			UIS = "UserInputService";
+		}
 		local rawGame = game
+		local pluginServiceCache = {}
+		local function _plugServiceName(name)
+			if type(name) ~= "string" then
+				return nil
+			end
+			return pluginServiceAliases[name] or name
+		end
+		local function _plugGetService(name)
+			name = _plugServiceName(name)
+			if type(name) ~= "string" or not pluginServiceNames[name] then
+				return nil
+			end
+			if pluginServiceCache[name] ~= nil then
+				return pluginServiceCache[name]
+			end
+			local svc
+			local rawSvc
+			if rawGame and type(rawGame.GetService) == "function" then
+				pcall(function()
+					rawSvc = rawGame:GetService(name)
+				end)
+			end
+			if typeof(rawSvc) == "Instance" then
+				local ref = (type(cloneref) == "function" and cloneref) or (NAmanage and type(NAmanage.NA_getCloneRef) == "function" and NAmanage.NA_getCloneRef()) or nil
+				if type(ref) == "function" then
+					local okRef, cloned = pcall(ref, rawSvc)
+					if okRef and typeof(cloned) == "Instance" then
+						svc = cloned
+					end
+				end
+				svc = svc or rawSvc
+			end
+			if typeof(svc) ~= "Instance" then
+				svc = nil
+			end
+			if svc then
+				pluginServiceCache[name] = svc
+			end
+			return svc
+		end
 		local gameProxy = {}
 		function gameProxy:GetService(serviceName)
-			return rawGame:GetService(serviceName)
+			return _plugGetService(serviceName)
+		end
+		function gameProxy:FindService(serviceName)
+			return _plugGetService(serviceName)
+		end
+		function gameProxy:FindFirstChild(name, recursive)
+			return _plugGetService(name)
+		end
+		function gameProxy:WaitForChild(name, timeout)
+			local service = _plugGetService(name)
+			if service then
+				return service
+			end
+			if timeout ~= nil then
+				Wait(math.min(tonumber(timeout) or 0, 0.1))
+			end
+			return nil
 		end
 		function gameProxy:HttpGet(url, second)
 			if type(second) == "boolean" then
@@ -33348,8 +33820,42 @@ NAmanage.LoadPlugins = function(opts)
 			end
 			return rawGame:HttpGetAsync(url, second)
 		end
+		local pluginGameAllowedMembers = {
+			PlaceId = true;
+			JobId = true;
+			GameId = true;
+			CreatorId = true;
+			CreatorType = true;
+			Name = true;
+			IsLoaded = true;
+			Loaded = true;
+		}
 		setmetatable(gameProxy, {
 			__index = function(_, k)
+				if k == "GetService" then
+					return gameProxy.GetService
+				end
+				if k == "FindService" then
+					return gameProxy.FindService
+				end
+				if k == "FindFirstChild" then
+					return gameProxy.FindFirstChild
+				end
+				if k == "WaitForChild" then
+					return gameProxy.WaitForChild
+				end
+				if k == "HttpGet" then
+					return gameProxy.HttpGet
+				end
+				if k == "HttpGetAsync" then
+					return gameProxy.HttpGetAsync
+				end
+				if type(k) == "string" and pluginServiceNames[k] then
+					return gameProxy:GetService(k)
+				end
+				if not pluginGameAllowedMembers[k] then
+					return nil
+				end
 				local v = rawGame[k]
 				if type(v) == "function" then
 					return function(_, ...)
@@ -33371,6 +33877,10 @@ NAmanage.LoadPlugins = function(opts)
 		end
 		proxyEnv.request = _pluginRequest
 		proxyEnv.http_request = _pluginRequest
+		proxyEnv.httprequest = _pluginRequest
+		proxyEnv.syn = {
+			request = _pluginRequest;
+		}
 		proxyEnv.notify = function(msg, detailOrTime, maybeTime)
 			local duration = 3
 			local text
@@ -33452,6 +33962,8 @@ NAmanage.LoadPlugins = function(opts)
 		end
 
 		local function _plugCtx()
+			local ctxPlayers = _plugGetService("Players")
+			local ctxLocalPlayer = ctxPlayers and ctxPlayers.LocalPlayer or nil
 			local ctx = {
 				Name = baseName,
 				File = baseName,
@@ -33460,16 +33972,13 @@ NAmanage.LoadPlugins = function(opts)
 				Mode = mode,
 				UI = proxyEnv.NAPluginUI or proxyEnv.PluginUI or proxyEnv.NASettingsUI,
 				Plugin = pluginApi,
-				Player = Players and Players.LocalPlayer or nil,
-				LocalPlayer = Players and Players.LocalPlayer or nil,
+				Player = ctxLocalPlayer,
+				LocalPlayer = ctxLocalPlayer,
 				Services = {},
 			}
 			setmetatable(ctx.Services, {
 				__index = function(self, name)
-					local svc = SafeGetService and SafeGetService(name) or nil
-					if not svc and __lt and __lt.gs then
-						svc = __lt.gs(name)
-					end
+					local svc = _plugGetService(name)
 					if svc then
 						rawset(self, name, svc)
 					end
@@ -33871,86 +34380,6 @@ NAmanage.LoadPlugins = function(opts)
 		proxyEnv.Command = proxyEnv.command
 		proxyEnv.cmdPlugin = proxyEnv.command
 
-		local pluginServiceNames = {
-			Workspace = true,
-			Players = true,
-			UserService = true,
-			UserInputService = true,
-			TweenService = true,
-			RunService = true,
-			ContextActionService = true,
-			TeleportService = true,
-			Lighting = true,
-			ReplicatedStorage = true,
-			CoreGui = true,
-			SoundService = true,
-			TextChatService = true,
-			TextService = true,
-			StarterGui = true,
-			StarterPack = true,
-			StarterPlayer = true,
-			ContentProvider = true,
-			LocalizationService = true,
-			MarketplaceService = true,
-			GuiService = true,
-			Stats = true,
-			Debris = true,
-			Teams = true,
-			CollectionService = true,
-			ProximityPromptService = true,
-			VirtualInputManager = true,
-			VirtualUser = true,
-			HttpService = true,
-			BadgeService = true,
-			Chat = true,
-			VRService = true,
-			PolicyService = true,
-			GroupService = true,
-			AvatarEditorService = true,
-			InsertService = true,
-		}
-
-		local pluginServiceAliases = {
-			workspace = "Workspace",
-			COREGUI = "CoreGui",
-			CoreGui = "CoreGui",
-			UIS = "UserInputService",
-		}
-
-		local pluginServiceCache = {}
-
-		local function _plugServiceName(name)
-			if type(name) ~= "string" then
-				return nil
-			end
-			return pluginServiceAliases[name] or name
-		end
-
-		local function _plugGetService(name)
-			name = _plugServiceName(name)
-			if type(name) ~= "string" or not pluginServiceNames[name] then
-				return nil
-			end
-			if pluginServiceCache[name] ~= nil then
-				return pluginServiceCache[name]
-			end
-			local svc
-			if SafeGetService then
-				pcall(function()
-					svc = SafeGetService(name)
-				end)
-			end
-			if not svc and __lt and type(__lt.gs) == "function" then
-				pcall(function()
-					svc = __lt.gs(name)
-				end)
-			end
-			if svc then
-				pluginServiceCache[name] = svc
-			end
-			return svc
-		end
-
 		local pluginServices = setmetatable({}, {
 			__index = function(self, key)
 				local svc = _plugGetService(key)
@@ -33961,8 +34390,8 @@ NAmanage.LoadPlugins = function(opts)
 			end
 		})
 
-		local function _plugSetService(globalName, serviceName, fallback)
-			local svc = proxyEnv[globalName] or fallback or _plugGetService(serviceName or globalName)
+		local function _plugSetService(globalName, serviceName)
+			local svc = proxyEnv[globalName] or _plugGetService(serviceName or globalName)
 			if svc then
 				proxyEnv[globalName] = svc
 			end
@@ -33972,16 +34401,6 @@ NAmanage.LoadPlugins = function(opts)
 		local function _plugApplyServiceGlobals()
 			proxyEnv.Services = proxyEnv.Services or pluginServices
 			proxyEnv.services = proxyEnv.services or pluginServices
-			local pls = _plugSetService("Players", "Players", Players)
-			local lp = pls and pls.LocalPlayer or nil
-			proxyEnv.LocalPlayer = proxyEnv.LocalPlayer or lp
-			proxyEnv.Player = proxyEnv.Player or lp
-			proxyEnv.lplr = proxyEnv.lplr or lp
-			proxyEnv.Speaker = proxyEnv.Speaker or lp
-			proxyEnv.speaker = proxyEnv.speaker or lp
-			proxyEnv.Char = proxyEnv.Char or (lp and lp.Character or nil)
-			proxyEnv.Character = proxyEnv.Character or (lp and lp.Character or nil)
-			proxyEnv.PlayerGui = proxyEnv.PlayerGui or (lp and lp:FindFirstChildWhichIsA("PlayerGui") or nil)
 			proxyEnv.IsOnMobile = IsOnMobile == true
 			proxyEnv.IsOnPC = IsOnPC == true
 			proxyEnv.IsMobile = proxyEnv.IsOnMobile
@@ -33997,52 +34416,15 @@ NAmanage.LoadPlugins = function(opts)
 			proxyEnv.GetTorso = proxyEnv.GetTorso or getTorso
 			proxyEnv.getHead = proxyEnv.getHead or getHead
 			proxyEnv.GetHead = proxyEnv.GetHead or getHead
-			proxyEnv.PlaceId = proxyEnv.PlaceId or tonumber(game and game.PlaceId) or 0
-			proxyEnv.JobId = proxyEnv.JobId or tostring((game and game.JobId) or "")
-			proxyEnv.Workspace = _plugSetService("Workspace", "Workspace", workspace)
-			proxyEnv.workspace = proxyEnv.workspace or proxyEnv.Workspace
-			proxyEnv.UserService = _plugSetService("UserService", "UserService", UserService)
-			proxyEnv.UserInputService = _plugSetService("UserInputService", "UserInputService", UserInputService)
-			proxyEnv.UIS = proxyEnv.UIS or proxyEnv.UserInputService
-			proxyEnv.TweenService = _plugSetService("TweenService", "TweenService", TweenService)
-			proxyEnv.RunService = _plugSetService("RunService", "RunService", RunService)
-			proxyEnv.ContextActionService = _plugSetService("ContextActionService", "ContextActionService", ContextActionService)
-			proxyEnv.TeleportService = _plugSetService("TeleportService", "TeleportService", TeleportService)
-			proxyEnv.Lighting = _plugSetService("Lighting", "Lighting", Lighting)
-			proxyEnv.ReplicatedStorage = _plugSetService("ReplicatedStorage", "ReplicatedStorage", ReplicatedStorage)
-			proxyEnv.CoreGui = _plugSetService("CoreGui", "CoreGui", COREGUI)
-			proxyEnv.COREGUI = proxyEnv.COREGUI or proxyEnv.CoreGui
-			proxyEnv.SoundService = _plugSetService("SoundService", "SoundService", SoundService)
-			proxyEnv.TextChatService = _plugSetService("TextChatService", "TextChatService", TextChatService)
-			proxyEnv.TextService = _plugSetService("TextService", "TextService", TextService)
-			proxyEnv.StarterGui = _plugSetService("StarterGui", "StarterGui", StarterGui)
-			proxyEnv.ContentProvider = _plugSetService("ContentProvider", "ContentProvider", ContentProvider)
-			proxyEnv.LocalizationService = _plugSetService("LocalizationService", "LocalizationService", LocalizationService)
-			proxyEnv.MarketplaceService = _plugSetService("MarketplaceService", "MarketplaceService", MarketplaceService)
-			proxyEnv.GuiService = _plugSetService("GuiService", "GuiService", GuiService)
-			proxyEnv.Stats = _plugSetService("Stats", "Stats", StatsService)
-			for _, name in { "StarterPack", "StarterPlayer", "Debris", "Teams", "CollectionService", "ProximityPromptService", "VirtualInputManager", "VirtualUser", "HttpService", "BadgeService", "Chat", "VRService", "PolicyService", "GroupService", "AvatarEditorService", "InsertService" } do
-				_plugSetService(name, name)
-			end
+			proxyEnv.PlaceId = proxyEnv.PlaceId or tonumber(rawGame and rawGame.PlaceId) or 0
+			proxyEnv.JobId = proxyEnv.JobId or tostring((rawGame and rawGame.JobId) or "")
 		end
 
 		_plugApplyServiceGlobals()
 
 		if mode == "iy" then
-			local servicesCache = {}
 			local function fetchService(name)
-				if servicesCache[name] ~= nil then
-					return servicesCache[name]
-				end
-				local svc = nil
-				if SafeGetService then
-					svc = SafeGetService(name)
-				end
-				if not svc then
-					svc = __lt.gs(name)
-				end
-				servicesCache[name] = svc
-				return svc
+				return _plugGetService(name)
 			end
 			local iyServices = setmetatable({}, {
 				__index = function(_, k)
@@ -34051,12 +34433,15 @@ NAmanage.LoadPlugins = function(opts)
 			})
 			proxyEnv.Services = iyServices
 			proxyEnv.services = iyServices
+			local iyPlayers = _plugGetService("Players")
+			local iyUserInputService = _plugGetService("UserInputService")
+			local iyTextChatService = _plugGetService("TextChatService")
 
 			local iySplitString
 
 			local function iyGetPlayers(query, speaker)
 				local results = {}
-				if not Players then
+				if not iyPlayers then
 					return results
 				end
 				local function add(plr)
@@ -34069,7 +34454,10 @@ NAmanage.LoadPlugins = function(opts)
 					return results
 				end
 
-				local everyone = __lt.cm("Players", "GetPlayers")
+				local everyone = {}
+				pcall(function()
+					everyone = iyPlayers:GetPlayers()
+				end)
 
 				for _, tokenRaw in tokens do
 					local token = tokenRaw:lower()
@@ -34135,8 +34523,8 @@ NAmanage.LoadPlugins = function(opts)
 			proxyEnv.GetPlayer = iyGetPlayers
 			proxyEnv.r15 = function(plr)
 				local target = plr
-				if not target and Players then
-					target = Players.LocalPlayer
+				if not target and iyPlayers then
+					target = iyPlayers.LocalPlayer
 				end
 				local hum = target and target.Character and getPlrHum(target.Character)
 				return hum and hum.RigType == Enum.HumanoidRigType.R15
@@ -34188,8 +34576,8 @@ NAmanage.LoadPlugins = function(opts)
 			proxyEnv.toClipboard = iyToClipboard
 			proxyEnv.toclipboard = iyToClipboard
 
-			local lp = Players and Players.LocalPlayer or nil
-			proxyEnv.Players = proxyEnv.Players or Players
+			local lp = iyPlayers and iyPlayers.LocalPlayer or nil
+			proxyEnv.Players = proxyEnv.Players or iyPlayers
 			proxyEnv.LocalPlayer = lp
 			proxyEnv.Player = lp
 			proxyEnv.lplr = lp
@@ -34198,17 +34586,17 @@ NAmanage.LoadPlugins = function(opts)
 			proxyEnv.PlayerGui = lp and lp:FindFirstChildWhichIsA("PlayerGui") or nil
 			proxyEnv.PlaceId = tonumber(game and game.PlaceId) or 0
 			proxyEnv.JobId = tostring((game and game.JobId) or "")
-			proxyEnv.COREGUI = SafeGetService("CoreGui") or nil
-			proxyEnv.UserInputService = proxyEnv.UserInputService or UserInputService
-			proxyEnv.RunService = proxyEnv.RunService or RunService
-			proxyEnv.TweenService = proxyEnv.TweenService or TweenService
-			proxyEnv.HttpService = proxyEnv.HttpService or HttpService
-			proxyEnv.TextChatService = proxyEnv.TextChatService or SafeGetService("TextChatService")
-			proxyEnv.TextService = proxyEnv.TextService or SafeGetService("TextService")
-			proxyEnv.StarterGui = proxyEnv.StarterGui or SafeGetService("StarterGui")
-			proxyEnv.ReplicatedStorage = proxyEnv.ReplicatedStorage or SafeGetService("ReplicatedStorage")
-			proxyEnv.Lighting = proxyEnv.Lighting or SafeGetService("Lighting")
-			proxyEnv.ContextActionService = proxyEnv.ContextActionService or SafeGetService("ContextActionService")
+			proxyEnv.COREGUI = _plugGetService("CoreGui")
+			proxyEnv.UserInputService = proxyEnv.UserInputService or iyUserInputService
+			proxyEnv.RunService = proxyEnv.RunService or _plugGetService("RunService")
+			proxyEnv.TweenService = proxyEnv.TweenService or _plugGetService("TweenService")
+			proxyEnv.HttpService = proxyEnv.HttpService or _plugGetService("HttpService")
+			proxyEnv.TextChatService = proxyEnv.TextChatService or iyTextChatService
+			proxyEnv.TextService = proxyEnv.TextService or _plugGetService("TextService")
+			proxyEnv.StarterGui = proxyEnv.StarterGui or _plugGetService("StarterGui")
+			proxyEnv.ReplicatedStorage = proxyEnv.ReplicatedStorage or _plugGetService("ReplicatedStorage")
+			proxyEnv.Lighting = proxyEnv.Lighting or _plugGetService("Lighting")
+			proxyEnv.ContextActionService = proxyEnv.ContextActionService or _plugGetService("ContextActionService")
 
 			local function iyMouse()
 				return NAmanage.GetMouse(lp)
@@ -34216,11 +34604,11 @@ NAmanage.LoadPlugins = function(opts)
 			proxyEnv.IYMouse = iyMouse()
 
 			local function iyIsOnMobile()
-				if UserInputService and typeof(UserInputService.GetPlatform) == "function" then
-					local platform = __lt.cm("UserInputService", "GetPlatform")
+				if iyUserInputService and typeof(iyUserInputService.GetPlatform) == "function" then
+					local platform = iyUserInputService:GetPlatform()
 					return platform == Enum.Platform.Android or platform == Enum.Platform.IOS
 				end
-				return UserInputService and UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+				return iyUserInputService and iyUserInputService.TouchEnabled and not iyUserInputService.KeyboardEnabled
 			end
 			proxyEnv.IsOnMobile = iyIsOnMobile()
 			proxyEnv.IsOnPC = IsOnPC == true
@@ -34229,8 +34617,8 @@ NAmanage.LoadPlugins = function(opts)
 			proxyEnv.NA_GRAB_BODY = NA_GRAB_BODY
 
 			local function iyLegacyChat()
-				if TextChatService and TextChatService.ChatVersion then
-					return TextChatService.ChatVersion == Enum.ChatVersion.LegacyChatService
+				if iyTextChatService and iyTextChatService.ChatVersion then
+					return iyTextChatService.ChatVersion == Enum.ChatVersion.LegacyChatService
 				end
 				return false
 			end
@@ -34279,6 +34667,7 @@ NAmanage.LoadPlugins = function(opts)
 		end
 
 		setmetatable(proxyEnv, {
+			__metatable = "NAPluginEnvironment",
 			__index = function(_, k)
 				if k == "loadstring" then
 					local baseLoader = baseEnv.loadstring or loadstring
@@ -34312,8 +34701,8 @@ NAmanage.LoadPlugins = function(opts)
 				elseif k == "load" then
 					local baseLoad = baseEnv.load
 					if not baseLoad then return nil end
-					return function(chunk, chunkname, mode2, _na_env)
-						return baseLoad(chunk, chunkname, mode2, _na_env or proxyEnv)
+					return function(chunk, chunkname, mode2)
+						return baseLoad(chunk, chunkname, mode2, proxyEnv)
 					end
 				elseif k == "Plugin" then
 					return pluginApi
@@ -34332,25 +34721,49 @@ NAmanage.LoadPlugins = function(opts)
 						return _plugAppend(v, false)
 					end
 				end
+				local shimValue = pluginEnvShims[k]
+				if shimValue ~= nil then
+					return shimValue
+				end
 				local localValue = pluginGlobals[k]
+				if localValue == pluginNil then
+					return nil
+				end
 				if localValue ~= nil then
 					return localValue
 				end
-				local baseValue = baseEnv[k]
-				if baseValue ~= nil then
-					return baseValue
+				if k == "LocalPlayer" or k == "Player" or k == "lplr" or k == "Speaker" or k == "speaker" then
+					local pls = _plugGetService("Players")
+					return pls and pls.LocalPlayer or nil
+				elseif k == "Char" or k == "Character" then
+					local pls = _plugGetService("Players")
+					local lp = pls and pls.LocalPlayer or nil
+					return lp and lp.Character or nil
+				elseif k == "PlayerGui" then
+					local pls = _plugGetService("Players")
+					local lp = pls and pls.LocalPlayer or nil
+					return lp and lp:FindFirstChildWhichIsA("PlayerGui") or nil
+				elseif k == "workspace" then
+					return _plugGetService("Workspace")
 				end
 				local serviceValue = pluginServices[k]
 				if serviceValue ~= nil then
 					return serviceValue
 				end
-				return nil
+				local serviceName = _plugServiceName(k)
+				if type(serviceName) == "string" and pluginServiceNames[serviceName] then
+					return _plugGetService(serviceName)
+				end
+				if pluginBlockedGlobals[k] then
+					return nil
+				end
+				return pluginBaseGlobals[k]
 			end,
 			__newindex = function(_, k, v)
 				if k == "cmdPluginAdd" then
 					_plugAppend(v, false)
 				else
-					rawset(pluginGlobals, k, v)
+					pluginGlobals[k] = (v == nil) and pluginNil or v
 				end
 			end
 		})
@@ -38276,7 +38689,7 @@ NAmanage.RunSmokeRepo = NAmanage.RunSmokeRepo or function(fileName)
 		end)
 		local deadline = os.clock() + 1.5
 		repeat
-			task.wait()
+			Wait()
 		until (torso:FindFirstChild("Left Shoulder",true) and torso:FindFirstChild("Right Shoulder",true)) or os.clock() >= deadline
 	end
 	if torso and (not torso:FindFirstChild("Left Shoulder",true) or not torso:FindFirstChild("Right Shoulder",true)) then
@@ -40408,7 +40821,7 @@ NAmanage.getStatsItem = NAmanage.getStatsItem or function(names)
 	if type(names) ~= "table" then
 		return nil
 	end
-	local key = table.concat(names, "|")
+	local key = Concat(names, "|")
 	local cache = NAmanage._statCache
 	local old = cache[key]
 	if old and old.Parent then
@@ -43201,7 +43614,7 @@ NAmanage.AntiNilChar_Attach = function(char)
 			state.restoreWarned = false
 			return
 		end
-		task.defer(function()
+		Defer(function()
 			NAmanage.AntiNilChar_Restore(char)
 		end)
 	end))
@@ -43935,7 +44348,7 @@ cmd.add({"nofall","nofalldamage","antifall","nofalldmg"},{"nofall [limit] [slow]
 			hum:ChangeState(Enum.HumanoidStateType.Climbing)
 		end)
 
-		task.defer(function()
+		Defer(function()
 			if NAStuff._noFall ~= st or st.dead then return end
 			if not hum or not hum.Parent or hum.Health <= 0 then return end
 
@@ -43957,7 +44370,7 @@ cmd.add({"nofall","nofalldamage","antifall","nofalldmg"},{"nofall [limit] [slow]
 
 		setv(root, nv)
 
-		task.delay(0.04, function()
+		Delay(0.04, function()
 			if NAStuff._noFall ~= st or st.dead then return end
 			if not hum or not root then return end
 			if not hum.Parent or not root.Parent or hum.Health <= 0 then return end
@@ -43981,17 +44394,17 @@ cmd.add({"nofall","nofalldamage","antifall","nofalldmg"},{"nofall [limit] [slow]
 
 		reset(char)
 
-		task.defer(function()
+		Defer(function()
 			if NAStuff._noFall ~= st or st.dead then return end
 			refresh(char)
 		end)
 
-		task.delay(0.25, function()
+		Delay(0.25, function()
 			if NAStuff._noFall ~= st or st.dead then return end
 			refresh(char)
 		end)
 
-		task.delay(1, function()
+		Delay(1, function()
 			if NAStuff._noFall ~= st or st.dead then return end
 			refresh(char)
 		end)
@@ -44413,7 +44826,7 @@ NAmanage.antiKBQueueObj=function(state, obj)
 		return
 	end
 	state.deferQ[obj] = true
-	task.defer(function()
+	Defer(function()
 		if state.deferQ then
 			state.deferQ[obj] = nil
 		end
@@ -44501,7 +44914,7 @@ NAmanage.AntiKnockBack=function(char, state)
 			return
 		end
 		state.rootSyncPend = true
-		task.defer(function()
+		Defer(function()
 			state.rootSyncPend = nil
 			if state ~= NAStuff._antiKnockbackState then
 				return
@@ -44537,7 +44950,7 @@ NAmanage.AntiKnockBack=function(char, state)
 					return
 				end
 				if hum.PlatformStand then
-					task.defer(function()
+					Defer(function()
 						if state == NAStuff._antiKnockbackState and hum and hum.Parent and hum.PlatformStand then
 							NAlib.setProperty(hum, "PlatformStand", false)
 						end
@@ -52825,7 +53238,7 @@ NAmanage.setRaknetDesync = function(enabled)
 		end
 
 		msgs[#msgs + 1] = tostring(hookInfo)
-		return false, table.concat(msgs, "; ")
+		return false, Concat(msgs, "; ")
 	end
 end
 
@@ -53609,7 +54022,7 @@ cmd.add({"animbuilder","abuilder"},{"animbuilder (abuilder)","Opens animation bu
 		end))
 	end
 	NAmanage.abTrack(workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
-		task.defer(NAmanage.abFit)
+		Defer(NAmanage.abFit)
 	end))
 
 	NAmanage.setBoxes=function(src, fallback)
@@ -54824,8 +55237,8 @@ NAmanage.GetUniversalSaveInstance = NAmanage.GetUniversalSaveInstance or functio
 		local clientState = captureClientState()
 		local ok, result = pcall(ussi, finalOptions)
 		restoreClientState(clientState)
-		task.defer(restoreClientState, clientState)
-		task.delay(1, restoreClientState, clientState)
+		Defer(restoreClientState, clientState)
+		Delay(1, restoreClientState, clientState)
 
 		if not ok then
 			error(result, 0)
@@ -55306,6 +55719,186 @@ cmd.add({"joinjobid","joinjid","jjobid","jjid"},{"joinjobid <jobid>","Joins the 
 	__lt.cm("TeleportService", "TeleportToPlaceInstance", PlaceId,id)
 end,true)
 
+NAmanage.CopyScriptsPlugin = NAmanage.CopyScriptsPlugin or {}
+(function(csp)
+	csp.num = function(n)
+		n = tonumber(n) or 0
+		if n ~= n or n == math.huge or n == -math.huge then
+			return "0"
+		end
+		local text = Format("%.17g", n)
+		if text == "-0" then
+			text = "0"
+		end
+		return text
+	end
+
+	csp.cf = function(cf)
+		local vals = { cf:GetComponents() }
+		for i = 1, #vals do
+			vals[i] = csp.num(vals[i])
+		end
+		return "CFrame.new("..Concat(vals, ", ")..")"
+	end
+
+	csp.vec = function(vec)
+		return "Vector3.new("..csp.num(vec.X)..", "..csp.num(vec.Y)..", "..csp.num(vec.Z)..")"
+	end
+
+	csp.get = function()
+		local lp = Players and Players.LocalPlayer
+		local ch = lp and lp.Character
+		if not ch then
+			return nil, "No character found"
+		end
+		local root = ch:FindFirstChild("HumanoidRootPart") or ch.PrimaryPart
+		local ok, piv = pcall(function()
+			return ch:GetPivot()
+		end)
+		if not ok or typeof(piv) ~= "CFrame" then
+			if not root then
+				return nil, "No character pivot found"
+			end
+			piv = root.CFrame
+		end
+		return {
+			ch = ch;
+			root = root;
+			piv = piv;
+			rcf = root and root.CFrame or piv;
+			pos = root and root.Position or piv.Position;
+		}
+	end
+
+	csp.clip = function(text, msg)
+		if type(setclipboard) ~= "function" then
+			DoNotif("Your executor does not support setclipboard", 3)
+			return
+		end
+		local ok, err = pcall(setclipboard, tostring(text or ""))
+		if ok then
+			DoNotif(msg or "Copied script to clipboard.", 3)
+		else
+			DoNotif("Clipboard failed: "..tostring(err), 4)
+		end
+	end
+
+	csp.lines = function(list)
+		return Concat(list, "\n")
+	end
+
+	csp.mkTeleport = function()
+		local dat, err = csp.get()
+		if not dat then return nil, err end
+		return csp.lines({
+			"local Players = game:GetService(\"Players\")",
+			"local lp = Players.LocalPlayer",
+			"local ch = lp.Character or lp.CharacterAdded:Wait()",
+			"ch:PivotTo("..csp.cf(dat.piv)..")",
+		})
+	end
+
+	csp.mkTween = function()
+		local dat, err = csp.get()
+		if not dat then return nil, err end
+		return csp.lines({
+			"local Players = game:GetService(\"Players\")",
+			"local TweenService = game:GetService(\"TweenService\")",
+			"local lp = Players.LocalPlayer",
+			"local ch = lp.Character or lp.CharacterAdded:Wait()",
+			"local root = ch:WaitForChild(\"HumanoidRootPart\")",
+			"local info = TweenInfo.new(1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)",
+			"local tw = TweenService:Create(root, info, { CFrame = "..csp.cf(dat.rcf).." })",
+			"tw:Play()",
+			"tw.Completed:Wait()",
+		})
+	end
+
+	csp.mkMoveTo = function()
+		local dat, err = csp.get()
+		if not dat then return nil, err end
+		return csp.lines({
+			"local Players = game:GetService(\"Players\")",
+			"local lp = Players.LocalPlayer",
+			"local ch = lp.Character or lp.CharacterAdded:Wait()",
+			"local hum = ch:FindFirstChildOfClass(\"Humanoid\") or ch:WaitForChild(\"Humanoid\")",
+			"hum:MoveTo("..csp.vec(dat.pos)..")",
+			"hum.MoveToFinished:Wait()",
+		})
+	end
+
+	csp.mkLerp = function()
+		local dat, err = csp.get()
+		if not dat then return nil, err end
+		return csp.lines({
+			"local Players = game:GetService(\"Players\")",
+			"local RunService = game:GetService(\"RunService\")",
+			"local lp = Players.LocalPlayer",
+			"local ch = lp.Character or lp.CharacterAdded:Wait()",
+			"local root = ch:WaitForChild(\"HumanoidRootPart\")",
+			"local goal = "..csp.cf(dat.rcf),
+			"local con",
+			"con = RunService.Heartbeat:Connect(function(dt)",
+			"\tif not root.Parent then con:Disconnect() return end",
+			"\troot.CFrame = root.CFrame:Lerp(goal, math.clamp(dt * 8, 0, 1))",
+			"\tif (root.Position - goal.Position).Magnitude <= 0.5 then",
+			"\t\troot.CFrame = goal",
+			"\t\tcon:Disconnect()",
+			"\tend",
+			"end)",
+		})
+	end
+
+	csp.mkGame = function()
+		return csp.lines({
+			"local Players = game:GetService(\"Players\")",
+			"local TeleportService = game:GetService(\"TeleportService\")",
+			"TeleportService:Teleport("..tostring(PlaceId)..", Players.LocalPlayer)",
+		})
+	end
+
+	csp.mkServer = function()
+		return csp.lines({
+			"local Players = game:GetService(\"Players\")",
+			"local TeleportService = game:GetService(\"TeleportService\")",
+			"TeleportService:TeleportToPlaceInstance("..tostring(PlaceId)..", "..Format("%q", tostring(JobId or ""))..", Players.LocalPlayer)",
+		})
+	end
+
+	csp.run = function(maker, msg)
+		local text, err = maker()
+		if not text then
+			DoNotif(tostring(err or "Failed to create script"), 3)
+			return
+		end
+		csp.clip(text, msg)
+	end
+end)(NAmanage.CopyScriptsPlugin)
+
+cmd.add({"copyteleport","ct"},{"copyteleport (ct)","Copies a script that teleports you to your coordinates"},function()
+	NAmanage.CopyScriptsPlugin.run(NAmanage.CopyScriptsPlugin.mkTeleport, "Copied teleport script to clipboard.")
+end)
+
+cmd.add({"copytween","ctw"},{"copytween (ctw)","Copies a TweenService script that moves you to your coordinates"},function()
+	NAmanage.CopyScriptsPlugin.run(NAmanage.CopyScriptsPlugin.mkTween, "Copied tween script to clipboard.")
+end)
+
+cmd.add({"copymoveto","cmt"},{"copymoveto (cmt)","Copies a Humanoid:MoveTo script that moves you to your coordinates"},function()
+	NAmanage.CopyScriptsPlugin.run(NAmanage.CopyScriptsPlugin.mkMoveTo, "Copied MoveTo script to clipboard.")
+end)
+
+cmd.add({"copylerp","cl"},{"copylerp (cl)","Copies a CFrame:Lerp script that moves you to your coordinates"},function()
+	NAmanage.CopyScriptsPlugin.run(NAmanage.CopyScriptsPlugin.mkLerp, "Copied Lerp script to clipboard.")
+end)
+
+cmd.add({"copytptogame","cttg"},{"copytptogame (cttg)","Copies a script for teleporting to the game you are currently in"},function()
+	NAmanage.CopyScriptsPlugin.run(NAmanage.CopyScriptsPlugin.mkGame, "Copied game teleport script to clipboard.")
+end)
+
+cmd.add({"copytptoserver","ctts"},{"copytptoserver (ctts)","Copies a script for teleporting to your current game server"},function()
+	NAmanage.CopyScriptsPlugin.run(NAmanage.CopyScriptsPlugin.mkServer, "Copied server teleport script to clipboard.")
+end)
+
 NAStuff.srv = NAStuff.srv or {}
 
 NAStuff.srvWorker = NAStuff.srvWorker or "https://solaraserverhop.ltseverydayyou.workers.dev"
@@ -55544,7 +56137,7 @@ cmd.add({"autorejoin", "autorj"}, {"autorejoin (autorj)", "Rejoins the server if
 			["277"] = true,
 			["279"] = true,
 		}
-		local text = table.concat({messageText, titleText, descriptionText}, "\n")
+		local text = Concat({messageText, titleText, descriptionText}, "\n")
 		if text:gsub("%s+", "") == "" then
 			return false
 		end
@@ -55603,7 +56196,7 @@ cmd.add({"autorejoin", "autorj"}, {"autorejoin (autorj)", "Rejoins the server if
 		watchPromptLabel(titleLabel)
 		watchPromptLabel(descriptionLabel)
 		if titleLabel or descriptionLabel then
-			handleRejoin(table.concat({
+			handleRejoin(Concat({
 				titleLabel and tostring(titleLabel.Text or "") or "",
 				descriptionLabel and tostring(descriptionLabel.Text or "") or ""
 			}, "\n"))
@@ -57968,7 +58561,7 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 
 		local url = ("https://badges.roblox.com/v1/users/%d/badges/awarded-dates?badgeIds=%s"):format(
 			tonumber(userId) or 0,
-			HttpService:UrlEncode(table.concat(queryIds, ","))
+			HttpService:UrlEncode(Concat(queryIds, ","))
 		)
 		local data = NAmanage.FetchRobloxApiJSON(url, { Timeout = 6 })
 		if type(data) ~= "table" or type(data.data) ~= "table" then
@@ -60763,7 +61356,7 @@ NAmanage._buildHumanoidDescriptionFromAvatar=function(av)
 	end
 	for prop,ids in accessoryLists do
 		if #ids>0 then
-			setProp(prop,table.concat(ids,","))
+			setProp(prop,Concat(ids,","))
 		end
 	end
 	local scales=av.scales
@@ -70506,7 +71099,7 @@ NAmanage.EnableAirMomentum = function()
 	state.enabled = true
 	NAmanage.AirMomentumDisconnect("charAdded")
 	state.connections.charAdded = LocalPlayer.CharacterAdded:Connect(function(char)
-		task.defer(NAmanage.AirMomentumBindCharacter, char)
+		Defer(NAmanage.AirMomentumBindCharacter, char)
 	end)
 	NAmanage.AirMomentumBindCharacter(getChar())
 	DebugNotif("Air momentum: ON")
@@ -74162,7 +74755,7 @@ NAmanage.rigPromptErr = function(n, er)
 end
 
 NAmanage.runRigPrompt = function(n, rig)
-	task.spawn(function()
+	Spawn(function()
 		local con
 		local done=false
 		local ok, er=xpcall(function()
@@ -74219,7 +74812,7 @@ NAmanage.runRigPrompt = function(n, rig)
 				error(runEr, 0)
 			end
 
-			task.delay(120, function()
+			Delay(120, function()
 				if done then return end
 				done=true
 				if con then
@@ -75370,7 +75963,7 @@ cmd.add({"massfollowedinto"}, {"massfollowedinto", "Shows everyone in the server
 		return a:lower() < b:lower()
 	end)
 	DoNotif("Showing all followed-into players.", 3, "Followed Into")
-	DoWindow(table.concat(lines, "\n"), "Followed Into")
+	DoWindow(Concat(lines, "\n"), "Followed Into")
 end)
 
 cmd.add({"tweengotocampos","tweentocampos","tweentcp"}, {"tweengotocampos (tweentcp)","Another version of goto camera position but bypassing more anti-cheats"}, function()
@@ -77260,18 +77853,23 @@ NAmanage.CreateBox = function(part, color, transparency)
 	if useDrawing then
 		if drawingStyle == "Corners" and NAmanage.DrawingLineSupported() then
 			drawingCornerLines = {}
-			drawingCornerOutlineLines = {}
+			if NAStuff.ESP_DrawingPartBoxOutline ~= false then
+				drawingCornerOutlineLines = {}
+			end
 			for i = 1, 8 do
 				drawingCornerLines[i] = NAmanage.DrawingCreateLine(lighter, 1, NAStuff.ESP_DrawingPartBoxThickness)
-				drawingCornerOutlineLines[i] = NAmanage.DrawingCreateLine(darker, 1, (tonumber(NAStuff.ESP_DrawingPartBoxThickness) or 1) + 2)
-				if not drawingCornerLines[i] or not drawingCornerOutlineLines[i] then
+				if drawingCornerOutlineLines then
+					drawingCornerOutlineLines[i] = NAmanage.DrawingCreateLine(darker, 1, math.clamp(tonumber(NAStuff.ESP_DrawingPartBoxOutlineThickness) or 3, 1, 10))
+				end
+				if not drawingCornerLines[i] or (drawingCornerOutlineLines and not drawingCornerOutlineLines[i]) then
 					useDrawing = false
 					break
 				end
 			end
 		else
 			drawingSquare = NAmanage.DrawingCreateSquare(lighter, entryTransparency, {
-				thickness = NAStuff.ESP_DrawingPartBoxThickness
+				filled = NAStuff.ESP_DrawingPartFilledBoxes == true;
+				thickness = NAStuff.ESP_DrawingPartBoxThickness;
 			})
 			if not drawingSquare then
 				useDrawing = false
@@ -77326,7 +77924,10 @@ NAmanage.CreateBox = function(part, color, transparency)
 	local bb, tl, gr, drawingLabel = nil, nil, nil, nil
 	if useDrawing then
 		drawingLabel = NAmanage.DrawingCreateText(part.Name, lighter, NAStuff.ESP_LabelTextSize, {
-			outlineEnabled = NAStuff.ESP_DrawingPartTextOutline ~= false
+			outlineEnabled = NAStuff.ESP_DrawingPartTextOutline ~= false;
+			centered = NAStuff.ESP_DrawingPartTextCentered ~= false;
+			font = NAStuff.ESP_DrawingTextFont;
+			textTransparency = NAStuff.ESP_DrawingPartTextTransparency;
 		})
 	end
 	if (not useDrawing) or (not drawingLabel) then
@@ -78231,7 +78832,7 @@ NAmanage.ESP_LocatorUseGuiFallback = function()
 	end
 	NAStuff.ESP_LocatorArrows = {}
 	NAStuff.ESP_LocatorBackend = nil
-	task.defer(function()
+	Defer(function()
 		if NAStuff.ESP_LocatorEnabled then
 			NAmanage.ESP_LocatorEnableGui(true)
 			NAmanage.ESP_LocatorApplyFlags()
@@ -78848,7 +79449,7 @@ NAmanage.ESP_PlayerLocatorUseGuiFallback = function()
 	end
 	NAStuff.ESP_PlayerLocatorArrows = {}
 	NAStuff.ESP_PlayerLocatorBackend = nil
-	task.defer(function()
+	Defer(function()
 		if NAStuff.ESP_PlayerLocatorEnabled then
 			NAmanage.ESP_PlayerLocatorEnableGui(true)
 			NAmanage.ESP_PlayerLocatorApplyFlags()
@@ -85073,7 +85674,7 @@ cmd.add({"antierror"}, {"antierror", "Continuously blocks and clears any future 
 			end
 		end
 		st.clearing = true
-		task.spawn(function()
+		Spawn(function()
 			pcall(function()
 				__lt.cm("GuiService", "ClearError")
 			end)
@@ -88197,14 +88798,14 @@ do
 						end;
 					end);
 
-					task.spawn(function()
+					Spawn(function()
 						local startedAt = tick();
 						while active do
 							if tick() - startedAt >= ctrl.repeatDelay then
 								ctrl.scrollBy(delta);
-								task.wait(ctrl.repeatRate);
+								Wait(ctrl.repeatRate);
 							else
-								task.wait(0.03);
+								Wait(0.03);
 							end;
 						end
 					end);
@@ -89942,7 +90543,7 @@ originalIO.ApplyLastInputPatch = function()
 		table.clear(NAStuff.PreferredInputConns)
 
 		for _, c in getconnections(UserInputService.LastInputTypeChanged) do
-			table.insert(NAStuff.LastInputConns, c)
+			Insert(NAStuff.LastInputConns, c)
 			pcall(function()
 				if c.Disable then
 					c:Disable()
@@ -89957,7 +90558,7 @@ originalIO.ApplyLastInputPatch = function()
 
 		if prefSignal then
 			for _, c in getconnections(prefSignal) do
-				table.insert(NAStuff.PreferredInputConns, c)
+				Insert(NAStuff.PreferredInputConns, c)
 				pcall(function()
 					if c.Disable then
 						c:Disable()
@@ -90079,7 +90680,7 @@ NAmanage.getCommandBuildSignature = NAmanage.getCommandBuildSignature or functio
 	local savedAliasCount = countDictNA(cmds.NASAVEDALIASES)
 	local integrationCount = type(NAStuff.CmdIntegrationCommands) == "table" and #NAStuff.CmdIntegrationCommands or 0
 	local revision = tonumber(NAStuff.CommandBuildRevision) or 0
-	return table.concat({
+	return Concat({
 		tostring(revision),
 		tostring(cmdCount),
 		tostring(aliasCount),
@@ -90211,9 +90812,9 @@ NAmanage.buildCommandDataPackage = function()
 		end
 		if isPatched then
 			if desc == "" then
-				desc = "Patched / may not work"
+				desc = "Patched / may not work; might work again later or be removed if it stays patched"
 			elseif not Lower(desc):find("patched", 1, true) then
-				desc = desc.." (patched)"
+				desc = desc.." (patched; might work again later or be removed if it stays patched)"
 			end
 		end
 		used[Lower(name)] = true
@@ -91089,7 +91690,7 @@ NAmanage.MusicWindowInit = NAmanage.MusicWindowInit or function()
 	local function hsh(s)
 		local h = 0
 		for i = 1, #s do h = (h * 31 + (string.byte(s, i) or 0)) % 4294967296 end
-		return string.format("%08x", h)
+		return Format("%08x", h)
 	end
 	local function safeFolder()
 		if type(isfolder) ~= "function" or type(makefolder) ~= "function" then return false end
@@ -91125,7 +91726,7 @@ NAmanage.MusicWindowInit = NAmanage.MusicWindowInit or function()
 	end
 	local function fmt(sec)
 		sec = math.max(0, math.floor((tonumber(sec) or 0) + 0.5))
-		return string.format("%02d:%02d", math.floor(sec / 60), sec % 60)
+		return Format("%02d:%02d", math.floor(sec / 60), sec % 60)
 	end
 	local function setStat(txt, col)
 		if stat then
@@ -91426,7 +92027,7 @@ NAmanage.MusicWindowInit = NAmanage.MusicWindowInit or function()
 			st.needsRepair = true
 		end
 		clearGroup()
-		NAlib.connect("NA_MusicPlayerSound", s:GetPropertyChangedSignal("SoundGroup"):Connect(function() task.defer(clearGroup) end))
+		NAlib.connect("NA_MusicPlayerSound", s:GetPropertyChangedSignal("SoundGroup"):Connect(function() Defer(clearGroup) end))
 		NAlib.connect("NA_MusicPlayerSound", s.AncestryChanged:Connect(function(_, parent)
 			if st.snd == s and parent == nil then markRepair() end
 		end))
@@ -91466,7 +92067,7 @@ NAmanage.MusicWindowInit = NAmanage.MusicWindowInit or function()
 			end
 		end))
 		if auto then
-			task.defer(function()
+			Defer(function()
 				if st.snd ~= s then return end
 				pcall(function() s:Play() end)
 				local pos = tonumber(seek) or 0
@@ -91728,6 +92329,26 @@ NAmanage.PluginsWindow_AddSection = NAmanage.PluginsWindow_AddSection or functio
 	label.TextColor3 = Color3.fromRGB(220, 220, 235)
 	label.TextSize = 15
 	label.TextXAlignment = Enum.TextXAlignment.Left
+	NAmanage.SetAttr(row, "NAPluginSearch", tostring(text or ""))
+	return row
+end
+
+NAmanage.PluginsWindow_AddInfo = NAmanage.PluginsWindow_AddInfo or function(text)
+	local row = NAmanage.PluginsWindow_Row(46)
+	if not row then return end
+	row.BackgroundColor3 = Color3.fromRGB(38, 38, 45)
+	row.BackgroundTransparency = 0.18
+	local label = InstanceNew("TextLabel", row)
+	label.BackgroundTransparency = 1
+	label.Position = UDim2.new(0, 12, 0, 4)
+	label.Size = UDim2.new(1, -24, 1, -8)
+	label.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+	label.Text = tostring(text or "")
+	label.TextColor3 = Color3.fromRGB(205, 205, 220)
+	label.TextSize = 12
+	label.TextWrapped = true
+	label.TextXAlignment = Enum.TextXAlignment.Left
+	label.TextYAlignment = Enum.TextYAlignment.Center
 	NAmanage.SetAttr(row, "NAPluginSearch", tostring(text or ""))
 	return row
 end
@@ -95631,7 +96252,7 @@ NAgui.addDropdown = function(label, values, defaultValue, callback, opts)
 	end
 
 	dropdown = templates.Dropdown:Clone()
-	if string.find(DropdownSettings.Name, "closed") then
+	if Find(DropdownSettings.Name, "closed") then
 		dropdown.Name = "Dropdown"
 	else
 		dropdown.Name = DropdownSettings.Name
@@ -95747,7 +96368,7 @@ NAgui.addDropdown = function(label, values, defaultValue, callback, opts)
 	local function applySelectionColors()
 		eachOptionRow(function(row)
 			local optionValue = row:GetAttribute("DropdownValue") or row.Name
-			local on = table.find(DropdownSettings.CurrentOption, optionValue) ~= nil
+			local on = Discover(DropdownSettings.CurrentOption, optionValue) ~= nil
 			row.BackgroundColor3 = on and selectedColor or unselectedColor
 			local rowStroke = row:FindFirstChild("UIStroke")
 			if rowStroke and rowStroke:IsA("UIStroke") then
@@ -95761,7 +96382,7 @@ NAgui.addDropdown = function(label, values, defaultValue, callback, opts)
 			local rowStroke = row:FindFirstChild("UIStroke")
 			local rowTitle = row:FindFirstChild("Title")
 			local optionValue = row:GetAttribute("DropdownValue") or row.Name
-			local isSelected = table.find(DropdownSettings.CurrentOption, optionValue) ~= nil
+			local isSelected = Discover(DropdownSettings.CurrentOption, optionValue) ~= nil
 			row.BackgroundTransparency = isOpen and 0 or 1
 			if rowTitle and rowTitle:IsA("TextLabel") then
 				rowTitle.TextTransparency = isOpen and 0 or 1
@@ -95790,7 +96411,7 @@ NAgui.addDropdown = function(label, values, defaultValue, callback, opts)
 			local rowTitle = row:FindFirstChild("Title")
 			local optionValue = row:GetAttribute("DropdownValue") or row.Name
 			if rowStroke and rowStroke:IsA("UIStroke") then
-				if not table.find(DropdownSettings.CurrentOption, optionValue) then
+				if not Discover(DropdownSettings.CurrentOption, optionValue) then
 					__lt.cm("TweenService", "Create", rowStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
 				end
 			end
@@ -95799,7 +96420,7 @@ NAgui.addDropdown = function(label, values, defaultValue, callback, opts)
 				__lt.cm("TweenService", "Create", rowTitle, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
 			end
 		end)
-		task.wait(0.05)
+		Wait(0.05)
 		busy = false
 	end
 
@@ -95822,7 +96443,7 @@ NAgui.addDropdown = function(label, values, defaultValue, callback, opts)
 		if toggle then
 			__lt.cm("TweenService", "Create", toggle, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Rotation = 180}):Play()
 		end
-		task.wait(0.35)
+		Wait(0.35)
 		list.Visible = false
 		busy = false
 	end
@@ -95832,7 +96453,7 @@ NAgui.addDropdown = function(label, values, defaultValue, callback, opts)
 		if uiStroke and uiStroke:IsA("UIStroke") then
 			__lt.cm("TweenService", "Create", uiStroke, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
 		end
-		task.wait(0.08)
+		Wait(0.08)
 		__lt.cm("TweenService", "Create", dropdown, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), {BackgroundColor3 = baseColor}):Play()
 		if uiStroke and uiStroke:IsA("UIStroke") then
 			__lt.cm("TweenService", "Create", uiStroke, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
@@ -95894,7 +96515,7 @@ NAgui.addDropdown = function(label, values, defaultValue, callback, opts)
 				title.Text = "Callback Error"
 			end
 			warn("[NA] Dropdown callback error:", err)
-			task.wait(0.4)
+			Wait(0.4)
 			if title and title:IsA("TextLabel") then
 				title.Text = DropdownSettings.Name
 			end
@@ -95945,18 +96566,18 @@ NAgui.addDropdown = function(label, values, defaultValue, callback, opts)
 			rowInteract.ZIndex = 50
 
 			MouseButtonFix(rowInteract, function()
-				if not DropdownSettings.MultipleOptions and table.find(DropdownSettings.CurrentOption, optionValue) then
+				if not DropdownSettings.MultipleOptions and Discover(DropdownSettings.CurrentOption, optionValue) then
 					return
 				end
 
-				local idx = table.find(DropdownSettings.CurrentOption, optionValue)
+				local idx = Discover(DropdownSettings.CurrentOption, optionValue)
 				if idx then
 					table.remove(DropdownSettings.CurrentOption, idx)
 				else
 					if not DropdownSettings.MultipleOptions then
 						table.clear(DropdownSettings.CurrentOption)
 					end
-					table.insert(DropdownSettings.CurrentOption, optionValue)
+					Insert(DropdownSettings.CurrentOption, optionValue)
 				end
 
 				updateSelectedText()
@@ -95964,7 +96585,7 @@ NAgui.addDropdown = function(label, values, defaultValue, callback, opts)
 				fireCallback(DropdownSettings.CurrentOption)
 
 				if not DropdownSettings.MultipleOptions and list.Visible then
-					task.wait(0.1)
+					Wait(0.1)
 					closeDropdown()
 				end
 			end)
@@ -97877,9 +98498,10 @@ NAgui.menuv2 = function(menu)
 		end)
 	end
 
-	if translateButton and NAStuff.ChatTranslator then
+	local chatTranslator = NAStuff.ChatTranslator
+	if translateButton and chatTranslator and type(chatTranslator.registerButton) == "function" then
 		NACaller(function()
-			NAStuff.ChatTranslator:registerButton(translateButton)
+			chatTranslator:registerButton(translateButton)
 		end)
 	end
 
@@ -97899,7 +98521,7 @@ NAgui.menuv3 = function(menu)
 	local translateButton = menu:FindFirstChild("Translate", true)
 	local translateInput = menu:FindFirstChild("TranslateInput", true)
 
-	if translator then
+	if translator and type(translator.attachControls) == "function" then
 		translator:attachControls(translateButton, translateInput)
 		local menuConnName = NAgui._getMenuCleanupKey(menu)
 		NAlib.connect(menuConnName, {
@@ -97916,6 +98538,12 @@ NAgui.menuv3 = function(menu)
 				end
 			end
 		})
+	elseif translator and type(translator.tryAttach) == "function" then
+		Defer(function()
+			if type(translator.tryAttach) == "function" then
+				translator:tryAttach()
+			end
+		end)
 	end
 end
 
@@ -98029,7 +98657,7 @@ NAmanage.applyCmdAutofillFill = function(frame)
 	end
 	sanitizedText = NAmanage.stripChar(sanitizedText)
 	NAStuff.lastCmdAutofillCompletion = sanitizedText
-	task.defer(function()
+	Defer(function()
 		if IsOnMobile then
 			NAStuff.cmdFocusGuardUntil = os.clock() + 0.45
 			NAStuff.autofillRefocusGuard = os.clock() + 0.25
@@ -98058,7 +98686,7 @@ NAmanage.applyCmdAutofillFill = function(frame)
 		else
 			NAStuff.autofillSelecting = true
 			NAUIMANAGER.cmdInput:ReleaseFocus()
-			task.delay(0.2, function()
+			Delay(0.2, function()
 				if NAUIMANAGER and NAUIMANAGER.cmdInput then
 					NAUIMANAGER.cmdInput:CaptureFocus()
 					NAUIMANAGER.cmdInput.ClearTextOnFocus = NAStuff.defaultCmdClear or false
@@ -98068,7 +98696,7 @@ NAmanage.applyCmdAutofillFill = function(frame)
 			end)
 		end
 		if IsOnMobile then
-			task.delay(0.5, function()
+			Delay(0.5, function()
 				NAStuff.cmdFocusGuardUntil = 0
 				NAStuff.autofillRefocusGuard = 0
 			end)
@@ -98252,14 +98880,14 @@ NAgui.loadCMDS = function(opts)
 	NAgui.hideFill()
 	NAStuff.cmdAutofillLoading = false
 	if NAUIMANAGER and NAUIMANAGER.commandsFrame and NAUIMANAGER.commandsFrame.Visible and type(NAgui.filterCommandList) == "function" then
-		task.defer(function()
+		Defer(function()
 			if NAUIMANAGER and NAUIMANAGER.commandsFilter then
 				NAgui.filterCommandList(NAUIMANAGER.commandsFilter.Text)
 			end
 		end)
 	end
 	if type(NAgui.autoFILLLL) == "function" then
-		task.defer(function()
+		Defer(function()
 			local box = NAUIMANAGER and NAUIMANAGER.cmdInput
 			if not box then
 				return
@@ -98277,7 +98905,7 @@ NAgui.loadCMDS = function(opts)
 	end
 	if NAStuff.cmdAutofillLoadRequested == true then
 		NAStuff.cmdAutofillLoadRequested = false
-		task.defer(function()
+		Defer(function()
 			if type(NAgui.loadCMDS) == "function" then
 				local ok, err = pcall(NAgui.loadCMDS, { force = true })
 				if not ok then
@@ -98306,7 +98934,7 @@ NAmanage.queueCommandDataBuild = NAmanage.queueCommandDataBuild or function(opts
 		return false
 	end
 	NAStuff.CommandBuildWorkerQueued = true
-	task.defer(function()
+	Defer(function()
 		NAStuff.CommandBuildWorkerQueued = false
 		if type(NAgui.loadCMDS) == "function" then
 			local ok, err = pcall(NAgui.loadCMDS, {
@@ -98379,10 +99007,10 @@ NAgui.ensureCmdFocus = function()
 	box.ClearTextOnFocus = false
 	box:CaptureFocus()
 	local deadline = os.clock() + 0.35
-	task.spawn(function()
+	Spawn(function()
 		while box and box.Parent and not box:IsFocused() and os.clock() < deadline do
 			box:CaptureFocus()
-			task.wait(0.03)
+			Wait(0.03)
 		end
 		if box then
 			box.ClearTextOnFocus = cmdDefaultClear
@@ -98423,7 +99051,7 @@ NAgui.barSelect = function(speed)
 		Size = fillSizes.right
 	})
 	if not IsOnMobile then
-		task.delay(speed * 0.4, NAgui.ensureCmdFocus)
+		Delay(speed * 0.4, NAgui.ensureCmdFocus)
 	end
 end
 
@@ -98509,7 +99137,7 @@ NAgui.barDeselect = function(speed)
 		end
 	end
 	table.clear(prevVisible)
-	task.delay(0.14, function()
+	Delay(0.14, function()
 		for i = 1, #toHide do
 			local frame = toHide[i]
 			if frame and frame.Parent and frame:IsA("GuiObject") then
@@ -99093,7 +99721,7 @@ NAlib.connect("cmdbar_input_focuslost", NAUIMANAGER.cmdInput.FocusLost:Connect(f
 				txt = txt:gsub("^%s*"..escapedPrefix.."+%s*", "")
 			end
 			if txt ~= "" then
-				task.defer(function()
+				Defer(function()
 					NAlib.parseCommand(prefix..txt)
 				end)
 			end
@@ -99180,7 +99808,7 @@ NAmanage.ExecutorJoinEditorLines = NAmanage.ExecutorJoinEditorLines or function(
 	if type(lines) ~= "table" or #lines == 0 then
 		return ""
 	end
-	return table.concat(lines, "\n")
+	return Concat(lines, "\n")
 end
 
 NAmanage.ExecutorRepairTabText = NAmanage.ExecutorRepairTabText or function(source)
@@ -99204,7 +99832,7 @@ NAmanage.ExecutorRepairTabText = NAmanage.ExecutorRepairTabText or function(sour
 		end
 		lastKeyLine = keyLine
 	end
-	source = table.concat(fixed, "\n")
+	source = Concat(fixed, "\n")
 	if source:match("^%s*local%s+"..var.."%s*=%s*{") or source:match("^%s*"..var.."%s*=%s*{") then
 		return source
 	end
@@ -99224,7 +99852,7 @@ NAmanage.ExecutorSliceEditorLines = NAmanage.ExecutorSliceEditorLines or functio
 	if #out == 0 then
 		out[1] = ""
 	end
-	return table.concat(out, "\n")
+	return Concat(out, "\n")
 end
 
 NAmanage.ExecutorReplaceEditorLineRange = NAmanage.ExecutorReplaceEditorLineRange or function(lines, firstLine, lastLine, text)
@@ -99327,7 +99955,7 @@ NAmanage.ExecutorStripLuaLineForIndent = NAmanage.ExecutorStripLuaLineForIndent 
 			end
 		end
 	end
-	return table.concat(out)
+	return Concat(out)
 end
 
 NAmanage.ExecutorSplitLuaStatementLine = NAmanage.ExecutorSplitLuaStatementLine or function(line, state)
@@ -99409,7 +100037,7 @@ NAmanage.ExecutorFormatLuaLineSpacing = NAmanage.ExecutorFormatLuaLineSpacing or
 	local i = 1
 	local len = #line
 	local function currentText()
-		return table.concat(out)
+		return Concat(out)
 	end
 	local function trimRight()
 		if #out > 0 then
@@ -99529,7 +100157,7 @@ NAmanage.ExecutorFormatLuaLineSpacing = NAmanage.ExecutorFormatLuaLineSpacing or
 			end
 		end
 	end
-	return table.concat(out):gsub("%s+$", "")
+	return Concat(out):gsub("%s+$", "")
 end
 
 NAmanage.ExecutorLuaParenBalance = NAmanage.ExecutorLuaParenBalance or function(line)
@@ -99631,7 +100259,7 @@ NAmanage.ExecutorCollapseLuaShortCalls = NAmanage.ExecutorCollapseLuaShortCalls 
 			i += 1
 		end
 	end
-	return table.concat(out, "\n")
+	return Concat(out, "\n")
 end
 
 NAmanage.ExecutorFormatLuaSource = NAmanage.ExecutorFormatLuaSource or function(source)
@@ -99692,14 +100320,14 @@ NAmanage.ExecutorFormatLuaSource = NAmanage.ExecutorFormatLuaSource or function(
 		indent = math.max(indent + opens - math.max(closes - closeOutdent, 0), 0)
 	end
 
-	return NAmanage.ExecutorCollapseLuaShortCalls(table.concat(formatted, "\n")):gsub("%s+$", "")
+	return NAmanage.ExecutorCollapseLuaShortCalls(Concat(formatted, "\n")):gsub("%s+$", "")
 end
 
 NAmanage.ExecutorMergeEditorChunks = NAmanage.ExecutorMergeEditorChunks or function(chunks)
 	if type(chunks) ~= "table" or #chunks == 0 then
 		return ""
 	end
-	return table.concat(chunks, "")
+	return Concat(chunks, "")
 end
 
 NAmanage.ExecutorNormalizeTab = NAmanage.ExecutorNormalizeTab or function(tab)
@@ -100951,7 +101579,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		promptInput.Text = initialText or ""
 		promptCallback = callback
 		promptOverlay.Visible = true
-		task.defer(function()
+		Defer(function()
 			pcall(function()
 				promptInput:CaptureFocus()
 				promptInput.CursorPosition = #promptInput.Text + 1
@@ -101062,7 +101690,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			return
 		end
 		tabSaveScheduled = true
-		task.delay(0.8, function()
+		Delay(0.8, function()
 			if tabSaveDirty then
 				tabSaveDirty = false
 				if not saveTabsNow() then
@@ -101110,7 +101738,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 
 	local function finishEditorTextSet()
 		editorLoading = false
-		task.defer(function()
+		Defer(function()
 			editorTextLock = math.max(editorTextLock - 1, 0)
 		end)
 	end
@@ -101395,7 +102023,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 				i += 1
 			end
 		end
-		return table.concat(buffers.keywords), table.concat(buffers.globals), table.concat(buffers.strings), table.concat(buffers.comments), table.concat(buffers.numbers), table.concat(buffers.functions), table.concat(buffers.methods), table.concat(buffers.properties), table.concat(buffers.operators), table.concat(buffers.brackets)
+		return Concat(buffers.keywords), Concat(buffers.globals), Concat(buffers.strings), Concat(buffers.comments), Concat(buffers.numbers), Concat(buffers.functions), Concat(buffers.methods), Concat(buffers.properties), Concat(buffers.operators), Concat(buffers.brackets)
 	end
 
 	local function syncCurrentTabText()
@@ -101442,7 +102070,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		for index = editorVirtualStart, editorVirtualEnd do
 			numbers[#numbers + 1] = tostring(index)
 		end
-		gutterLabel.Text = table.concat(numbers, "\n")
+		gutterLabel.Text = Concat(numbers, "\n")
 		gutterLabel.Size = UDim2.new(1, -10, 0, math.max(renderedLineCount, 1) * lineHeight + 8)
 		local keywordText, globalText, stringText, commentText, numberText, functionText, methodText, propertyText, operatorText, bracketText = buildHighlightLayers(source)
 		keywordLayer.Text = keywordText
@@ -101463,7 +102091,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			return
 		end
 		refreshQueued = true
-		task.defer(function()
+		Defer(function()
 			refreshQueued = false
 			refreshEditorNow()
 		end)
@@ -101936,7 +102564,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		holder.Size = UDim2.new(0, math.clamp(width, 96, 230), 0, 28)
 
 		openButton.MouseButton1Click:Connect(function()
-			local tabIndex = table.find(tabs, tab)
+			local tabIndex = Discover(tabs, tab)
 			if not tabIndex then
 				return
 			end
@@ -101950,7 +102578,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			lastTabClickTime = now
 		end)
 		closeButton.MouseButton1Click:Connect(function()
-			local tabIndex = table.find(tabs, tab)
+			local tabIndex = Discover(tabs, tab)
 			if tabIndex then
 				closeTab(tabIndex)
 			end
@@ -102230,14 +102858,14 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			setStatus(tostring(loadErr), colors.error)
 			return
 		end
-		task.spawn(function()
+		Spawn(function()
 			local ok, runErr = xpcall(fn, function(err)
 				return tostring(err).."\n"..debug.traceback(nil, 2)
 			end)
 			if ok then
-				pcall(task.defer, setStatus, "Execution finished", colors.success)
+				pcall(Defer, setStatus, "Execution finished", colors.success)
 			else
-				pcall(task.defer, setStatus, tostring(runErr), colors.error)
+				pcall(Defer, setStatus, tostring(runErr), colors.error)
 			end
 		end)
 	end)
@@ -102436,7 +103064,7 @@ NAmanage.Executor_Toggle = NAmanage.Executor_Toggle or function(forceState)
 			pcall(NAmanage.centerFrame, execFrame)
 		end
 		if type(NAStuff.ExecutorRefresh) == "function" then
-			task.defer(NAStuff.ExecutorRefresh)
+			Defer(NAStuff.ExecutorRefresh)
 		end
 	end
 	return true
@@ -102582,7 +103210,7 @@ NAmanage.Notepad_Init = function()
 	NAmanage.Notepad_ApplyResponsive = applyNotepadResponsive
 	if frame.GetAttribute and NAmanage.GetAttr(frame, "NANotepadReady") then
 		if type(NAStuff.NotepadRefresh) == "function" then
-			task.defer(NAStuff.NotepadRefresh)
+			Defer(NAStuff.NotepadRefresh)
 		end
 		return true
 	end
@@ -103507,7 +104135,7 @@ NAmanage.Notepad_Init = function()
 		if type(lines) ~= "table" or #lines == 0 then
 			return ""
 		end
-		return table.concat(lines, "\n")
+		return Concat(lines, "\n")
 	end
 
 	local function sliceText(lines, firstLine, lastLine)
@@ -103520,7 +104148,7 @@ NAmanage.Notepad_Init = function()
 		if #out == 0 then
 			out[1] = ""
 		end
-		return table.concat(out, "\n")
+		return Concat(out, "\n")
 	end
 
 	local function replaceTextRange(lines, firstLine, lastLine, text)
@@ -104086,7 +104714,7 @@ NAmanage.Notepad_Init = function()
 	NAlib.connect("NANotepadResponsive", frame:GetPropertyChangedSignal("Size"):Connect(saveNotepadFrameSize))
 	if workspace and workspace.CurrentCamera then
 		NAlib.connect("NANotepadResponsive", workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
-			task.defer(function()
+			Defer(function()
 				if frame and frame.Parent then
 					updateNotepadLayout()
 					refreshNotepadViewport()
@@ -104096,7 +104724,7 @@ NAmanage.Notepad_Init = function()
 	end
 	if NAStuff and NAStuff.NASCREENGUI then
 		NAlib.connect("NANotepadResponsive", NAStuff.NASCREENGUI:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-			task.defer(function()
+			Defer(function()
 				if frame and frame.Parent then
 					updateNotepadLayout()
 					refreshNotepadViewport()
@@ -104106,7 +104734,7 @@ NAmanage.Notepad_Init = function()
 	end
 	if NAUIMANAGER and NAUIMANAGER.AUTOSCALER then
 		NAlib.connect("NANotepadResponsive", NAUIMANAGER.AUTOSCALER:GetPropertyChangedSignal("Scale"):Connect(function()
-			task.defer(function()
+			Defer(function()
 				if frame and frame.Parent then
 					updateNotepadLayout()
 					refreshNotepadViewport()
@@ -104138,7 +104766,7 @@ NAmanage.Notepad_Toggle = function(forceState)
 			pcall(NAmanage.centerFrame, frame)
 		end
 		if type(NAStuff.NotepadRefresh) == "function" then
-			task.defer(NAStuff.NotepadRefresh)
+			Defer(NAStuff.NotepadRefresh)
 		end
 	end
 	return true
@@ -104164,7 +104792,7 @@ local function NAStartupUI(label, delayTime, callback)
 	if NAmanage.spawnStartupLoader then
 		return NAmanage.spawnStartupLoader(label, callback, { wait = delayTime or 0 })
 	end
-	return task.spawn(function()
+	return Spawn(function()
 		Wait(delayTime or 0)
 		local ok, err = pcall(callback)
 		if not ok then warn(err) end
@@ -105591,7 +106219,7 @@ originalIO.naTransLatooor=function()
 		local builderDepth = 0
 
 		while i <= length do
-			local lt = string.find(text, "<", i, true)
+			local lt = Find(text, "<", i, true)
 			if not lt then
 				Insert(tokens, {
 					kind = "text";
@@ -105609,7 +106237,7 @@ originalIO.naTransLatooor=function()
 				})
 			end
 
-			local gt = string.find(text, ">", lt + 1, true)
+			local gt = Find(text, ">", lt + 1, true)
 			if not gt then
 				Insert(tokens, {
 					kind = "text";
@@ -105706,7 +106334,7 @@ originalIO.naTransLatooor=function()
 					end
 					if type(entryName) == "string" and entryName ~= "" then
 						fflagNameMap[entryName] = true
-						fflagNameMap[string.lower(entryName)] = true
+						fflagNameMap[Lower(entryName)] = true
 					end
 				end
 			end
@@ -105770,7 +106398,7 @@ originalIO.naTransLatooor=function()
 						local normalizedOriginal = sanitizeUiText(originalText)
 						if normalizedOriginal ~= "" then
 							skipWhitelistedFflag = fflagNameMap[normalizedOriginal] == true
-								or fflagNameMap[string.lower(normalizedOriginal)] == true
+								or fflagNameMap[Lower(normalizedOriginal)] == true
 						end
 					end
 					local hasRichTags = type(originalText) == "string"
@@ -105819,7 +106447,7 @@ originalIO.naTransLatooor=function()
 						local normalizedPlaceholder = sanitizeUiText(originalPlaceholder)
 						if normalizedPlaceholder ~= "" then
 							skipWhitelistedFflagPlaceholder = fflagNameMap[normalizedPlaceholder] == true
-								or fflagNameMap[string.lower(normalizedPlaceholder)] == true
+								or fflagNameMap[Lower(normalizedPlaceholder)] == true
 						end
 					end
 					if skipWhitelistedFflagPlaceholder then
@@ -107451,7 +108079,7 @@ NAmanage.bindToDevConsole = function()
 		return tostring((filterBox and filterBox.Text) or ""):lower();
 	end;
 	local function matchesQuery(haystack, needle)
-		return needle == "" or string.find(haystack, needle, 1, true) ~= nil;
+		return needle == "" or Find(haystack, needle, 1, true) ~= nil;
 	end;
 	local function getTagInfo(msgTYPE)
 		local tagColor = "#cccccc";
@@ -107702,7 +108330,7 @@ NAmanage.bindToDevConsole = function()
 				parts[#parts + 1] = tostring(count) .. " " .. logType;
 			end;
 		end;
-		local suffix = (#parts > 0) and (" (" .. table.concat(parts, ", ") .. ")") or "";
+		local suffix = (#parts > 0) and (" (" .. Concat(parts, ", ") .. ")") or "";
 		appendRecord("[NA] Skipped " .. tostring(overflowTotal) .. " console messages while rate-limiting spam." .. suffix, "Warn", "#ffcc00");
 		overflowCounts = {};
 		overflowTotal = 0;
@@ -111557,7 +112185,7 @@ end)
 
 SpawnCall(function()
 	if NADisableLastInput then
-		task.spawn(originalIO.ApplyLastInputPatch)
+		Spawn(originalIO.ApplyLastInputPatch)
 	end
 end)
 
@@ -118640,7 +119268,7 @@ NAmanage.NAInitCoreGuiCustomization=function()
 					and previousDisplay ~= ""
 
 				if keepMissingSelection then
-					table.insert(labels, 1, {
+					Insert(labels, 1, {
 						value = previousLabel,
 						display = previousDisplay,
 						selectedDisplay = previousDisplay,
@@ -120055,7 +120683,50 @@ local function addPartESPColorPicker(label, key, defaultColor, refreshFn)
 end
 
 NAgui.addSection("Visuals & Color")
-NAgui.addInfo("Drawing API Warning", "Drawing library may break with DisableDirect3D11 or PreferVulkan if a bootstrapper manages them (aka: voidstrap)")
+NAgui.addInfo("Drawing API Warning", "Drawing library may break with DisableDirect3D11 or PreferVulkan if a bootstrapper manages them (aka: voidstrap)");
+
+(function()
+	local supportInfo
+	local function drawingSupportText(refresh)
+		local hasLib = NAgui.getDrawingLibrary() ~= nil
+		local sq = NAmanage.DrawingObjectSupported("Square", refresh)
+		local ln = NAmanage.DrawingObjectSupported("Line", refresh)
+		local tx = NAmanage.DrawingObjectSupported("Text", refresh)
+		local tr = NAmanage.DrawingObjectSupported("Triangle", refresh)
+		return Format("Lib:%s | Square:%s | Line:%s | Text:%s | Triangle:%s", hasLib and "yes" or "no", sq and "yes" or "no", ln and "yes" or "no", tx and "yes" or "no", tr and "yes" or "no")
+	end
+	supportInfo = NAgui.addInfo("Drawing API Support", drawingSupportText(false), {
+		minTextSize = 8;
+		autoShrink = true;
+	})
+	NAgui.addButton("Refresh Drawing API Support", function()
+		if type(NAmanage._drawingObjectSupport) == "table" then
+			for key in NAmanage._drawingObjectSupport do
+				NAmanage._drawingObjectSupport[key] = nil
+			end
+		end
+		if supportInfo then
+			supportInfo.Text = drawingSupportText(true)
+		end
+		DoNotif("Drawing API support refreshed.", 2)
+	end)
+	NAgui.addButton("Clear Drawing Cache + Rebuild ESP", function()
+		if type(cleardrawcache) == "function" then
+			pcall(cleardrawcache)
+		end
+		if type(NAmanage._drawingObjectSupport) == "table" then
+			for key in NAmanage._drawingObjectSupport do
+				NAmanage._drawingObjectSupport[key] = nil
+			end
+		end
+		NAmanage.ESP_RebuildVisuals()
+		NAmanage.PartESP_RebuildVisuals()
+		if supportInfo then
+			supportInfo.Text = drawingSupportText(true)
+		end
+		DoNotif("Drawing ESP rebuilt.", 2)
+	end)
+end)()
 
 local espRenderOptions = NAgui.getESPRenderModeOptions(true)
 local partEspRenderOptions = NAgui.getESPRenderModeOptions(false)
@@ -120065,7 +120736,10 @@ NAStuff.ESP_PartRenderMode = NAgui.sanitizeESPRenderMode(NAStuff.ESP_PartRenderM
 if NAStuff.ESP_PartRenderMode == "Character Box" then NAStuff.ESP_PartRenderMode = "BoxHandleAdornment" end
 NAStuff.NPC_ESP_RenderMode = NAgui.sanitizeNPCESPRenderMode(NAStuff.NPC_ESP_RenderMode)
 NAStuff.ESP_DrawingBoxStyle = NAgui.sanitizeESPDrawingBoxStyle(NAStuff.ESP_DrawingBoxStyle)
+NAStuff.ESP_DrawingPartBoxStyle = NAgui.sanitizeESPDrawingBoxStyle(NAStuff.ESP_DrawingPartBoxStyle)
 NAStuff.ESP_DrawingTracerOrigin = NAgui.sanitizeESPDrawingTracerOrigin(NAStuff.ESP_DrawingTracerOrigin)
+NAStuff.ESP_DrawingTracerTarget = NAgui.sanitizeESPDrawingTracerTarget(NAStuff.ESP_DrawingTracerTarget)
+NAStuff.ESP_DrawingTextFont = NAgui.sanitizeDrawingTextFont(NAStuff.ESP_DrawingTextFont)
 
 NAgui.addDropdown("ESP Render Mode", espRenderOptions, NAStuff.ESP_RenderMode, function(selection)
 	local picked = type(selection) == "table" and selection[1] or selection
@@ -120174,12 +120848,56 @@ end)
 NAgui.addSlider("Drawing Box Thickness", 1, 6, math.clamp(tonumber(NAStuff.ESP_DrawingBoxThickness) or 1, 1, 6), 1, " px", function(v)
 	NAStuff.ESP_DrawingBoxThickness = math.clamp(tonumber(v) or 1, 1, 6)
 	NAmanage.SaveESPSettings()
+	NAmanage.ESP_RebuildVisuals()
+end)
+
+NAgui.addToggle("Drawing Filled Boxes", NAStuff.ESP_DrawingFilledBoxes == true, function(state)
+	NAStuff.ESP_DrawingFilledBoxes = state == true
+	NAmanage.SaveESPSettings()
+	NAmanage.ESP_RebuildVisuals()
+end)
+
+NAgui.addToggle("Drawing Box Outline", NAStuff.ESP_DrawingBoxOutline ~= false, function(state)
+	NAStuff.ESP_DrawingBoxOutline = state ~= false
+	NAmanage.SaveESPSettings()
+	NAmanage.ESP_RebuildVisuals()
+end)
+
+NAgui.addSlider("Drawing Outline Thickness", 1, 10, math.clamp(tonumber(NAStuff.ESP_DrawingBoxOutlineThickness) or 3, 1, 10), 1, " px", function(v)
+	NAStuff.ESP_DrawingBoxOutlineThickness = math.clamp(tonumber(v) or 3, 1, 10)
+	NAmanage.SaveESPSettings()
+	NAmanage.ESP_RebuildVisuals()
+end)
+
+NAgui.addSlider("Drawing Corner Length", 0.05, 0.5, math.clamp(tonumber(NAStuff.ESP_DrawingCornerScale) or 0.25, 0.05, 0.5), 0.01, " scale", function(v)
+	NAStuff.ESP_DrawingCornerScale = math.clamp(tonumber(v) or 0.25, 0.05, 0.5)
+	NAmanage.SaveESPSettings()
 end)
 
 NAgui.addToggle("Drawing Text Outline", NAStuff.ESP_DrawingTextOutline ~= false, function(state)
 	NAStuff.ESP_DrawingTextOutline = state ~= false
 	NAmanage.SaveESPSettings()
 	NAmanage.ESP_ApplyLabelStyles()
+end)
+
+NAgui.addToggle("Drawing Text Centered", NAStuff.ESP_DrawingTextCentered ~= false, function(state)
+	NAStuff.ESP_DrawingTextCentered = state ~= false
+	NAmanage.SaveESPSettings()
+	NAmanage.ESP_ApplyLabelStyles()
+end)
+
+NAgui.addSlider("Drawing Text Transparency", 0, 1, math.clamp(tonumber(NAStuff.ESP_DrawingTextTransparency) or 0, 0, 1), 0.05, "", function(v)
+	NAStuff.ESP_DrawingTextTransparency = math.clamp(tonumber(v) or 0, 0, 1)
+	NAmanage.SaveESPSettings()
+	NAmanage.ESP_ApplyLabelStyles()
+end)
+
+NAgui.addDropdown("Drawing Text Font", NAgui.getDrawingTextFontOptions(), NAgui.sanitizeDrawingTextFont(NAStuff.ESP_DrawingTextFont), function(selection)
+	local picked = type(selection) == "table" and selection[1] or selection
+	NAStuff.ESP_DrawingTextFont = NAgui.sanitizeDrawingTextFont(picked)
+	NAmanage.SaveESPSettings()
+	NAmanage.ESP_ApplyLabelStyles()
+	NAmanage.PartESP_UpdateTexts(true)
 end)
 
 NAgui.addToggle("Drawing Tracers", NAStuff.ESP_DrawingTracerEnabled == true, function(state)
@@ -120196,6 +120914,22 @@ NAgui.addDropdown("Tracer Origin", NAgui.getESPDrawingTracerOriginOptions(), NAS
 	end
 	NAStuff.ESP_DrawingTracerOrigin = origin
 	NAmanage.SaveESPSettings()
+end)
+
+NAgui.addDropdown("Tracer Target", NAgui.getESPDrawingTracerTargetOptions(), NAgui.sanitizeESPDrawingTracerTarget(NAStuff.ESP_DrawingTracerTarget), function(selection)
+	local picked = type(selection) == "table" and selection[1] or selection
+	local target = NAgui.sanitizeESPDrawingTracerTarget(picked)
+	if target == NAStuff.ESP_DrawingTracerTarget then
+		return
+	end
+	NAStuff.ESP_DrawingTracerTarget = target
+	NAmanage.SaveESPSettings()
+end)
+
+NAgui.addToggle("Tracer Outline", NAStuff.ESP_DrawingTracerOutline ~= false, function(state)
+	NAStuff.ESP_DrawingTracerOutline = state ~= false
+	NAmanage.SaveESPSettings()
+	NAmanage.ESP_RebuildVisuals()
 end)
 
 NAgui.addSlider("Tracer Thickness", 1, 6, math.clamp(tonumber(NAStuff.ESP_DrawingTracerThickness) or 1, 1, 6), 1, " px", function(v)
@@ -120223,10 +120957,45 @@ NAgui.addSlider("Part Drawing Box Thickness", 1, 6, math.clamp(tonumber(NAStuff.
 	NAmanage.PartESP_RebuildVisuals()
 end)
 
+NAgui.addToggle("Part Drawing Filled Boxes", NAStuff.ESP_DrawingPartFilledBoxes == true, function(state)
+	NAStuff.ESP_DrawingPartFilledBoxes = state == true
+	NAmanage.SaveESPSettings()
+	NAmanage.PartESP_RebuildVisuals()
+end)
+
+NAgui.addToggle("Part Drawing Box Outline", NAStuff.ESP_DrawingPartBoxOutline ~= false, function(state)
+	NAStuff.ESP_DrawingPartBoxOutline = state ~= false
+	NAmanage.SaveESPSettings()
+	NAmanage.PartESP_RebuildVisuals()
+end)
+
+NAgui.addSlider("Part Drawing Outline Thickness", 1, 10, math.clamp(tonumber(NAStuff.ESP_DrawingPartBoxOutlineThickness) or 3, 1, 10), 1, " px", function(v)
+	NAStuff.ESP_DrawingPartBoxOutlineThickness = math.clamp(tonumber(v) or 3, 1, 10)
+	NAmanage.SaveESPSettings()
+	NAmanage.PartESP_RebuildVisuals()
+end)
+
+NAgui.addSlider("Part Drawing Corner Length", 0.05, 0.5, math.clamp(tonumber(NAStuff.ESP_DrawingPartCornerScale) or 0.25, 0.05, 0.5), 0.01, " scale", function(v)
+	NAStuff.ESP_DrawingPartCornerScale = math.clamp(tonumber(v) or 0.25, 0.05, 0.5)
+	NAmanage.SaveESPSettings()
+end)
+
 NAgui.addToggle("Part Drawing Text Outline", NAStuff.ESP_DrawingPartTextOutline ~= false, function(state)
 	NAStuff.ESP_DrawingPartTextOutline = state ~= false
 	NAmanage.SaveESPSettings()
 	NAmanage.ESP_ApplyLabelStyles()
+	NAmanage.PartESP_UpdateTexts(true)
+end)
+
+NAgui.addToggle("Part Drawing Text Centered", NAStuff.ESP_DrawingPartTextCentered ~= false, function(state)
+	NAStuff.ESP_DrawingPartTextCentered = state ~= false
+	NAmanage.SaveESPSettings()
+	NAmanage.PartESP_UpdateTexts(true)
+end)
+
+NAgui.addSlider("Part Drawing Text Transparency", 0, 1, math.clamp(tonumber(NAStuff.ESP_DrawingPartTextTransparency) or 0, 0, 1), 0.05, "", function(v)
+	NAStuff.ESP_DrawingPartTextTransparency = math.clamp(tonumber(v) or 0, 0, 1)
+	NAmanage.SaveESPSettings()
 	NAmanage.PartESP_UpdateTexts(true)
 end)
 
@@ -122346,7 +123115,7 @@ if not NAStuff.ContributorsTabInitialized then
 			for i = 1, #nums do
 				chars[i] = string.char(nums[i] - ((i % 7) + 17))
 			end
-			return table.concat(chars)
+			return Concat(chars)
 		end
 
 		local decoded = {}
