@@ -3255,6 +3255,66 @@
       "desc": "Joins the job id you put in"
     },
     {
+      "name": "copyteleport",
+      "aliases": [
+        "copyteleport",
+        "ct"
+      ],
+      "usage": "copyteleport (ct)",
+      "args": "",
+      "desc": "Copies a script that teleports you to your coordinates"
+    },
+    {
+      "name": "copytween",
+      "aliases": [
+        "copytween",
+        "ctw"
+      ],
+      "usage": "copytween (ctw)",
+      "args": "",
+      "desc": "Copies a TweenService script that moves you to your coordinates"
+    },
+    {
+      "name": "copymoveto",
+      "aliases": [
+        "copymoveto",
+        "cmt"
+      ],
+      "usage": "copymoveto (cmt)",
+      "args": "",
+      "desc": "Copies a Humanoid:MoveTo script that moves you to your coordinates"
+    },
+    {
+      "name": "copylerp",
+      "aliases": [
+        "copylerp",
+        "cl"
+      ],
+      "usage": "copylerp (cl)",
+      "args": "",
+      "desc": "Copies a CFrame:Lerp script that moves you to your coordinates"
+    },
+    {
+      "name": "copytptogame",
+      "aliases": [
+        "copytptogame",
+        "cttg"
+      ],
+      "usage": "copytptogame (cttg)",
+      "args": "",
+      "desc": "Copies a script for teleporting to the game you are currently in"
+    },
+    {
+      "name": "copytptoserver",
+      "aliases": [
+        "copytptoserver",
+        "ctts"
+      ],
+      "usage": "copytptoserver (ctts)",
+      "args": "",
+      "desc": "Copies a script for teleporting to your current game server"
+    },
+    {
       "name": "serverhop",
       "aliases": [
         "serverhop",
