@@ -15842,6 +15842,39 @@ NAAssetsLoading.httpGetWithTimeout = function(url, timeoutSeconds)
 	end)
 end
 
+NAAssetsLoading.runWithTimeoutNoSkip = function(timeoutSeconds, callback)
+	timeoutSeconds = math.clamp(tonumber(timeoutSeconds) or 5, 0.25, 30)
+	if type(callback) ~= "function" then
+		return false, nil, "missing callback"
+	end
+	local finished = false
+	local ok, a, b, c
+	Spawn(function()
+		ok, a, b, c = pcall(callback)
+		finished = true
+	end)
+	local deadline = os.clock() + timeoutSeconds
+	while not finished and os.clock() < deadline do
+		Wait(0.05)
+	end
+	if not finished then
+		return false, nil, Format("timeout after %.1fs", timeoutSeconds)
+	end
+	if not ok then
+		return false, nil, a
+	end
+	return true, a, b, c
+end
+
+NAAssetsLoading.httpGetNoSkipWithTimeout = function(url, timeoutSeconds)
+	if type(url) ~= "string" or url == "" then
+		return false, nil, "missing url"
+	end
+	return NAAssetsLoading.runWithTimeoutNoSkip(timeoutSeconds or NAAssetsLoading.githubTimeoutSeconds or 5, function()
+		return game:HttpGet(url)
+	end)
+end
+
 NAAssetsLoading.httpGetImportant = function(url)
 	if type(url) ~= "string" or url == "" then
 		return false, nil, "missing url"
@@ -15853,6 +15886,40 @@ NAAssetsLoading.httpGetImportant = function(url)
 		return false, nil, body
 	end
 	return true, body
+end
+
+NAAssetsLoading.fetchNAStuffJson = function(timeoutSeconds)
+	timeoutSeconds = math.clamp(tonumber(timeoutSeconds) or NAAssetsLoading.githubTimeoutSeconds or 5, 0.5, 30)
+	local deadline = os.clock() + timeoutSeconds
+	local urls = {
+		"https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/NA%20stuff.json";
+		"https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/main/NA%20stuff.json";
+	}
+	local lastErr = nil
+	for _, url in urls do
+		local left = deadline - os.clock()
+		if left <= 0 then
+			break
+		end
+		local okFetch, rawOrErr
+		if NAAssetsLoading.httpGetNoSkipWithTimeout then
+			okFetch, rawOrErr = NAAssetsLoading.httpGetNoSkipWithTimeout(url, math.max(0.25, left))
+		else
+			okFetch, rawOrErr = NAAssetsLoading.httpGetImportant(url)
+		end
+		if okFetch and type(rawOrErr) == "string" and rawOrErr ~= "" then
+			local decodeOk, decoded = pcall(function()
+				return HttpService:JSONDecode(rawOrErr)
+			end)
+			if decodeOk and type(decoded) == "table" then
+				return true, decoded, url
+			end
+			lastErr = decoded or "JSON decode failed"
+		else
+			lastErr = rawOrErr or "empty response"
+		end
+	end
+	return false, nil, lastErr or Format("timeout after %.1fs", timeoutSeconds)
 end
 
 NAAssetsLoading.requestWithTimeout = function(requestFn, requestData, timeoutSeconds)
@@ -16099,25 +16166,17 @@ if NAAssetsLoading.progressPercent then NAAssetsLoading.progressPercent("assets"
 
 NAAssetsLoading.setStatus("Loading "..(adminName or "NA").." Data")
 local naStuffReady = false
-local naStuffAttempts = 0
-repeat
-	naStuffAttempts += 1
-	local ok, res = pcall(function()
-		local okFetch, rawOrErr = NAAssetsLoading.httpGetWithTimeout("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/NA%20stuff.json", NAAssetsLoading.githubTimeoutSeconds or 5)
-		if not okFetch then
-			error(rawOrErr or "NA data fetch timed out")
-		end
-		local decoded = HttpService:JSONDecode(rawOrErr)
-		return decoded
-	end)
-	if ok and type(res) == "table" then
-		NAStuff.NAjson = res
-		pcall(NAmanage.btUpdate)
-		naStuffReady = true
-	else
-		Wait(0.15)
+local okFetch, dataOrNil, sourceOrErr = NAAssetsLoading.fetchNAStuffJson(NAAssetsLoading.githubTimeoutSeconds or 5)
+if okFetch and type(dataOrNil) == "table" then
+	NAStuff.NAjson = dataOrNil
+	pcall(NAmanage.btUpdate)
+	naStuffReady = true
+else
+	if type(NAAssetsLoading.setStatus) == "function" then
+		NAAssetsLoading.setStatus("NA Data fallback: "..NAAssetsLoading.normalizeStatusError(sourceOrErr or dataOrNil or "unknown"))
 	end
-until naStuffReady or NAAssetsLoading.getSkip() or naStuffAttempts >= 2
+	Wait(0.15)
+end
 if not naStuffReady then
 	NAStuff.NAjson = type(NAStuff.NAjson) == "table" and NAStuff.NAjson or {}
 end
@@ -20944,7 +21003,14 @@ opt.settingsTranslateTarget = NAmanage.NASettingsGet("settingsTranslateTarget")
 NAStuff.AutoExecEnabled = NAmanage.NASettingsGet("autoExecEnabled")
 NAStuff.UserButtonsAutoLoad = NAmanage.NASettingsGet("userButtonsAutoLoad")
 NAStuff.CmdBar2AutoRun = NAmanage.NASettingsGet("cmdbar2AutoRun")
-NAStuff.CmdInputSafeMode = NAmanage.NASettingsGet("cmdInputSafeMode") ~= false
+do
+	local savedCmdInputSafeMode = NAmanage.NASettingsGet("cmdInputSafeMode")
+	if savedCmdInputSafeMode ~= nil then
+		NAStuff.CmdInputSafeMode = savedCmdInputSafeMode ~= false
+	else
+		NAStuff.CmdInputSafeMode = IsOnPC == true and IsOnMobile ~= true
+	end
+end
 NAStuff.LoopMethodOptions = { "PostSimulation", "PreSimulation", "RenderStepped", "Heartbeat" }
 NAStuff.LoopMethod = NAmanage.NASettingsGet("loopMethod") or "PostSimulation"
 NAStuff.AutoInteractMethod = NAmanage.NASettingsGet("autoInteractMethod") or NAStuff.AutoInteractMethod or "PostSimulation"
@@ -99134,7 +99200,9 @@ NAmanage.CmdInputUseSoftFocus = function()
 	return type(NAStuff) == "table" and NAStuff.CmdInputSafeMode ~= false
 end
 
-NAStuff.CmdInputSafeMode = NAStuff.CmdInputSafeMode ~= false
+if type(NAStuff.CmdInputSafeMode) ~= "boolean" then
+	NAStuff.CmdInputSafeMode = IsOnPC == true and IsOnMobile ~= true
+end
 NAStuff.MobileCmdSafeInput = NAStuff.CmdInputSafeMode ~= false
 NAStuff.cmdMobileKeyboardShift = NAStuff.cmdMobileKeyboardShift == true
 
@@ -99333,18 +99401,73 @@ NAgui.CmdMobileKeyboardHide = function()
 	NAStuff.cmdMobileKeyboardVisible = false
 end
 
+NAgui.CmdMobileKeyboardGetRows = function()
+	local mode = (NAStuff and NAStuff.cmdMobileKeyboardMode) or "abc"
+	local shift = NAStuff and NAStuff.cmdMobileKeyboardShift == true
+	local function key(label, action, value, weight)
+		return { label = label, action = action or "char", value = value or label, weight = tonumber(weight) or 1 }
+	end
+	local function charRow(str)
+		local out = {}
+		for c in str:gmatch(".") do
+			local label = c
+			if shift and c:match("%a") then
+				label = c:upper()
+			end
+			out[#out + 1] = key(label, "char", c, 1)
+		end
+		return out
+	end
+	local function spacer(weight)
+		return { label = "", action = "spacer", value = nil, weight = tonumber(weight) or 1 }
+	end
+
+	if mode == "sym" then
+		return {
+			{ h = 48, keys = charRow("1234567890") },
+			{ h = 48, keys = { key("@"), key("#"), key("$"), key("_"), key("&"), key("-"), key("+"), key("("), key(")"), key("/") } },
+			{ h = 48, keys = { key("=<", "mode", "num", 1.45), key("*"), key("\""), key("'"), key(":"), key(";"), key("!"), key("?"), key("⌫", "back", nil, 1.55) } },
+			{ h = 54, keys = { key("ABC", "mode", "abc", 1.55), key(",", "char", ",", 1), key("12\n34", "mode", "num", 1.35), key("English", "space", nil, 5.7), key(".", "char", ".", 1), key("➤", "enter", nil, 1.55) } },
+		}
+	elseif mode == "num" then
+		return {
+			{ h = 48, keys = { key("+", "char", "+", 1), key("1", "char", "1", 2.1), key("2", "char", "2", 2.1), key("3", "char", "3", 2.1), key("%", "char", "%", 1.35) } },
+			{ h = 48, keys = { key("-", "char", "-", 1), key("4", "char", "4", 2.1), key("5", "char", "5", 2.1), key("6", "char", "6", 2.1), key("⌞", "char", "_", 1.35) } },
+			{ h = 48, keys = { key("*", "char", "*", 1), key("7", "char", "7", 2.1), key("8", "char", "8", 2.1), key("9", "char", "9", 2.1), key("⌫", "back", nil, 1.35) } },
+			{ h = 54, keys = { key("ABC", "mode", "abc", 1.35), key(",", "char", ",", 0.9), key("!?#", "mode", "sym", 1.35), key("0", "char", "0", 2.1), key("=", "char", "=", 1.15), key(".", "char", ".", 0.9), key("➤", "enter", nil, 1.35) } },
+		}
+	end
+
+	return {
+		{ h = 48, keys = charRow("1234567890") },
+		{ h = 48, keys = charRow("qwertyuiop") },
+		{ h = 48, keys = (function()
+			local r = { spacer(0.52) }
+			for _, item in ipairs(charRow("asdfghjkl")) do
+				r[#r + 1] = item
+			end
+			r[#r + 1] = spacer(0.52)
+			return r
+		end)() },
+		{ h = 54, keys = (function()
+			local r = { key("⇧", "shift", nil, 1.55) }
+			for _, item in ipairs(charRow("zxcvbnm")) do
+				r[#r + 1] = item
+			end
+			r[#r + 1] = key("⌫", "back", nil, 1.55)
+			return r
+		end)() },
+		{ h = 54, keys = { key("?123", "mode", "sym", 1.55), key(",", "char", ",", 1), key("English", "space", nil, 5.7), key(".", "char", ".", 1), key("➤", "enter", nil, 1.55) } },
+	}
+end
+
 NAgui.CmdMobileKeyboardRefresh = function()
 	local root = NAStuff and NAStuff.cmdMobileKeyboardFrame
 	if not root then
 		return
 	end
-	for _, child in root:GetDescendants() do
-		if child:IsA("TextButton") then
-			local raw = child:GetAttribute("NA_RawChar")
-			if type(raw) == "string" and #raw == 1 and raw:match("%a") then
-				child.Text = NAStuff.cmdMobileKeyboardShift and raw:upper() or raw:lower()
-			end
-		end
+	if NAgui.CmdMobileKeyboardBuild then
+		NAgui.CmdMobileKeyboardBuild(root)
 	end
 end
 
@@ -99357,108 +99480,85 @@ NAgui.CmdMobileKeyboardShow = function()
 		return false
 	end
 
-	local gui = NAStuff.cmdMobileKeyboardGui
-	if not (gui and gui.Parent) then
-		gui = InstanceNew("ScreenGui")
-		pcall(function()
-			gui.ResetOnSpawn = false
-			gui.IgnoreGuiInset = true
-			gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
-			gui.DisplayOrder = 2147483647
-		end)
-		NAgui.NaProtectUI(gui)
-		NAStuff.cmdMobileKeyboardGui = gui
-
-		local root = InstanceNew("Frame")
-		root.Name = "\0"
-		root.AnchorPoint = Vector2.new(0.5, 1)
-		root.Position = UDim2.new(0.5, 0, 1, -18)
-		root.Size = UDim2.new(0.96, 0, 0, 220)
-		root.BackgroundColor3 = Color3.fromRGB(16, 16, 20)
-		root.BackgroundTransparency = 0.08
-		root.BorderSizePixel = 0
-		root.ZIndex = 2147483600
-		root.Parent = gui
-		NAStuff.cmdMobileKeyboardFrame = root
-
-		local corner = InstanceNew("UICorner")
-		corner.CornerRadius = UDim.new(0, 12)
-		corner.Parent = root
-
-		local stroke = InstanceNew("UIStroke")
-		stroke.Thickness = 1
-		stroke.Transparency = 0.55
-		stroke.Color = NAUISTROKER or Color3.fromRGB(155, 100, 255)
-		stroke.Parent = root
-
-		local padding = InstanceNew("UIPadding")
-		padding.PaddingTop = UDim.new(0, 8)
-		padding.PaddingBottom = UDim.new(0, 8)
-		padding.PaddingLeft = UDim.new(0, 8)
-		padding.PaddingRight = UDim.new(0, 8)
-		padding.Parent = root
-
-		local list = InstanceNew("UIListLayout")
-		list.FillDirection = Enum.FillDirection.Vertical
-		list.HorizontalAlignment = Enum.HorizontalAlignment.Center
-		list.VerticalAlignment = Enum.VerticalAlignment.Center
-		list.SortOrder = Enum.SortOrder.LayoutOrder
-		list.Padding = UDim.new(0, 5)
-		list.Parent = root
-
-		local function press(action, value)
-			if action == "char" then
-				local ch = tostring(value or "")
-				if #ch == 1 and ch:match("%a") and NAStuff.cmdMobileKeyboardShift then
-					ch = ch:upper()
-				end
-				NAmanage.CmdInputInsertText(ch)
-			elseif action == "space" then
-				NAmanage.CmdInputInsertText(" ")
-			elseif action == "back" then
-				NAmanage.CmdInputDeleteBack()
-			elseif action == "clear" then
-				box.Text = ""
-				NAmanage.CmdInputClearSoftSelection(false)
-				NAmanage.CmdInputSetCursor(box, 1)
-			elseif action == "tab" then
-				NAmanage.CmdInputApplyPrediction()
-			elseif action == "enter" then
-				NAmanage.CmdInputSubmit()
-			elseif action == "close" then
-				NAgui.barDeselect(0.18)
-			elseif action == "shift" then
-				NAStuff.cmdMobileKeyboardShift = not NAStuff.cmdMobileKeyboardShift
+	local function press(action, value)
+		action = tostring(action or "")
+		if action == "char" then
+			local ch = tostring(value or "")
+			if #ch == 1 and ch:match("%a") and NAStuff.cmdMobileKeyboardShift then
+				ch = ch:upper()
+			end
+			NAmanage.CmdInputInsertText(ch)
+		elseif action == "space" then
+			NAmanage.CmdInputInsertText(" ")
+		elseif action == "back" then
+			NAmanage.CmdInputDeleteBack()
+		elseif action == "clear" then
+			box.Text = ""
+			NAmanage.CmdInputClearSoftSelection(false)
+			NAmanage.CmdInputSetCursor(box, 1)
+		elseif action == "tab" then
+			NAmanage.CmdInputApplyPrediction()
+		elseif action == "enter" then
+			NAmanage.CmdInputSubmit()
+		elseif action == "close" then
+			NAgui.barDeselect(0.18)
+		elseif action == "shift" then
+			NAStuff.cmdMobileKeyboardShift = not NAStuff.cmdMobileKeyboardShift
+			if NAgui.CmdMobileKeyboardRefresh then
 				NAgui.CmdMobileKeyboardRefresh()
 			end
-			if type(NAgui.autoFILLLL) == "function" and action ~= "enter" and action ~= "close" then
-				Delay(0, NAgui.autoFILLLL)
+		elseif action == "mode" then
+			NAStuff.cmdMobileKeyboardMode = tostring(value or "abc")
+			if NAStuff.cmdMobileKeyboardMode ~= "sym" and NAStuff.cmdMobileKeyboardMode ~= "num" then
+				NAStuff.cmdMobileKeyboardMode = "abc"
+			end
+			if NAgui.CmdMobileKeyboardRefresh then
+				NAgui.CmdMobileKeyboardRefresh()
 			end
 		end
+		if type(NAgui.autoFILLLL) == "function" and action ~= "enter" and action ~= "close" and action ~= "mode" and action ~= "shift" then
+			Delay(0, NAgui.autoFILLLL)
+		end
+	end
 
-		local function button(parent, label, action, value, weight)
-			local b = InstanceNew("TextButton")
-			b.Name = "\0"
-			b.AutoButtonColor = true
-			b.Text = label
-			b.TextScaled = true
-			b.TextColor3 = Color3.fromRGB(245, 245, 250)
-			b.Font = Enum.Font.GothamBold
-			b.BackgroundColor3 = Color3.fromRGB(38, 38, 46)
-			b.BackgroundTransparency = 0.08
-			b.BorderSizePixel = 0
-			b.ZIndex = root.ZIndex + 1
-			b.LayoutOrder = #parent:GetChildren() + 1
-			b:SetAttribute("NA_Weight", tonumber(weight) or 1)
-			if action == "char" and type(value) == "string" then
-				b:SetAttribute("NA_RawChar", value)
-			end
-			b.Parent = parent
-			local bc = InstanceNew("UICorner")
-			bc.CornerRadius = UDim.new(0, 8)
-			bc.Parent = b
+	local function makeButton(parent, spec, rootZ)
+		local action = tostring(spec.action or "char")
+		local b = InstanceNew("TextButton")
+		b.Name = "\0"
+		b.AutoButtonColor = action ~= "spacer"
+		b.Text = tostring(spec.label or "")
+		b.TextScaled = true
+		b.TextColor3 = Color3.fromRGB(248, 248, 252)
+		b.Font = Enum.Font.GothamMedium
+		b.BackgroundColor3 = Color3.fromRGB(74, 74, 80)
+		b.BackgroundTransparency = 0.12
+		b.BorderSizePixel = 0
+		b.ZIndex = rootZ + 2
+		b.LayoutOrder = #parent:GetChildren() + 1
+		b:SetAttribute("NA_Weight", tonumber(spec.weight) or 1)
+		if action == "spacer" then
+			b.Text = ""
+			b.Active = false
+			b.Selectable = false
+			b.AutoButtonColor = false
+			b.BackgroundTransparency = 1
+		elseif action == "shift" or action == "mode" or action == "back" then
+			b.BackgroundColor3 = Color3.fromRGB(22, 22, 28)
+			b.BackgroundTransparency = 0.05
+		elseif action == "enter" then
+			b.BackgroundColor3 = Color3.fromRGB(84, 148, 255)
+			b.BackgroundTransparency = 0
+		elseif action == "space" then
+			b.BackgroundColor3 = Color3.fromRGB(88, 88, 92)
+			b.TextSize = 14
+		end
+		b.Parent = parent
+		local bc = InstanceNew("UICorner")
+		bc.CornerRadius = UDim.new(0, 9)
+		bc.Parent = b
+		if action ~= "spacer" then
 			local function cb()
-				press(action, value)
+				press(action, spec.value)
 			end
 			if action == "back" then
 				local down = false
@@ -99490,71 +99590,87 @@ NAgui.CmdMobileKeyboardShow = function()
 			else
 				b.MouseButton1Click:Connect(cb)
 			end
-			return b
 		end
+		return b
+	end
 
-		local function row(order, items)
+	NAgui.CmdMobileKeyboardBuild = function(root)
+		if not root then
+			return
+		end
+		for _, child in ipairs(root:GetChildren()) do
+			if not child:IsA("UIPadding") then
+				child:Destroy()
+			end
+		end
+		local rootZ = root.ZIndex or 1
+		local rows = (NAgui.CmdMobileKeyboardGetRows and NAgui.CmdMobileKeyboardGetRows()) or {}
+		local y = 0
+		for rowIndex, rowData in ipairs(rows) do
+			local h = tonumber(rowData.h) or 48
 			local r = InstanceNew("Frame")
 			r.Name = "\0"
 			r.BackgroundTransparency = 1
 			r.BorderSizePixel = 0
-			r.Size = UDim2.new(1, 0, 0, 32)
-			r.LayoutOrder = order
-			r.ZIndex = root.ZIndex + 1
+			r.Position = UDim2.new(0, 0, 0, y)
+			r.Size = UDim2.new(1, 0, 0, h)
+			r.LayoutOrder = rowIndex
+			r.ZIndex = rootZ + 1
 			r.Parent = root
 			local layout = InstanceNew("UIListLayout")
 			layout.FillDirection = Enum.FillDirection.Horizontal
 			layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 			layout.VerticalAlignment = Enum.VerticalAlignment.Center
 			layout.SortOrder = Enum.SortOrder.LayoutOrder
-			layout.Padding = UDim.new(0, 4)
+			layout.Padding = UDim.new(0, 7)
 			layout.Parent = r
 			local total = 0
-			for _, item in items do
-				total += tonumber(item[4]) or 1
+			for _, spec in ipairs(rowData.keys or {}) do
+				total += tonumber(spec.weight) or 1
 			end
-			for _, item in items do
-				local weight = tonumber(item[4]) or 1
-				local b = button(r, item[1], item[2], item[3], weight)
-				b.Size = UDim2.new(weight / total, -4, 1, 0)
+			for _, spec in ipairs(rowData.keys or {}) do
+				local weight = tonumber(spec.weight) or 1
+				local b = makeButton(r, spec, rootZ)
+				b.Size = UDim2.new(weight / math.max(total, 1), -7, 1, -4)
 			end
-			return r
+			y += h + 7
 		end
-
-		local function chars(str)
-			local out = {}
-			for c in str:gmatch(".") do
-				out[#out + 1] = { c, "char", c, 1 }
-			end
-			return out
-		end
-
-		row(1, chars("qwertyuiop"))
-		row(2, chars("asdfghjkl"))
-		row(3, chars("zxcvbnm"))
-		row(4, chars("0123456789"))
-		row(5, {
-			{ ";", "char", ";", 1 },
-			{ ":", "char", ":", 1 },
-			{ "/", "char", "/", 1 },
-			{ "-", "char", "-", 1 },
-			{ "_", "char", "_", 1 },
-			{ ".", "char", ".", 1 },
-			{ ",", "char", ",", 1 },
-			{ "'", "char", "'", 1 },
-			{ "\"", "char", "\"", 1 },
-		})
-		row(6, {
-			{ "Shift", "shift", nil, 1.4 },
-			{ "Space", "space", nil, 3.2 },
-			{ "Tab", "tab", nil, 1.2 },
-			{ "Back", "back", nil, 1.5 },
-			{ "Clear", "clear", nil, 1.3 },
-			{ "Enter", "enter", nil, 1.6 },
-			{ "X", "close", nil, 1 },
-		})
 	end
 
+	local gui = NAStuff.cmdMobileKeyboardGui
+	if not (gui and gui.Parent) then
+		gui = InstanceNew("ScreenGui")
+		pcall(function()
+			gui.ResetOnSpawn = false
+			gui.IgnoreGuiInset = true
+			gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+			gui.DisplayOrder = 2147483647
+		end)
+		NAgui.NaProtectUI(gui)
+		NAStuff.cmdMobileKeyboardGui = gui
+
+		local root = InstanceNew("Frame")
+		root.Name = "\0"
+		root.AnchorPoint = Vector2.new(0.5, 1)
+		root.Position = UDim2.new(0.5, 0, 1, -8)
+		root.Size = UDim2.new(0.995, 0, 0, 284)
+		root.BackgroundTransparency = 1
+		root.BorderSizePixel = 0
+		root.ZIndex = 2147483600
+		root.Parent = gui
+		NAStuff.cmdMobileKeyboardFrame = root
+
+		local padding = InstanceNew("UIPadding")
+		padding.PaddingTop = UDim.new(0, 4)
+		padding.PaddingBottom = UDim.new(0, 4)
+		padding.PaddingLeft = UDim.new(0, 4)
+		padding.PaddingRight = UDim.new(0, 4)
+		padding.Parent = root
+	end
+
+	if NAStuff.cmdMobileKeyboardMode == nil then
+		NAStuff.cmdMobileKeyboardMode = "abc"
+	end
 	gui.Enabled = true
 	NAStuff.cmdMobileKeyboardVisible = true
 	NAgui.CmdMobileKeyboardRefresh()
