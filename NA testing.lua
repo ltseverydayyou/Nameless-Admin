@@ -99205,6 +99205,7 @@ if type(NAStuff.CmdInputSafeMode) ~= "boolean" then
 end
 NAStuff.MobileCmdSafeInput = NAStuff.CmdInputSafeMode ~= false
 NAStuff.cmdMobileKeyboardShift = NAStuff.cmdMobileKeyboardShift == true
+NAStuff.cmdMobileSelectMode = NAStuff.cmdMobileSelectMode == true
 
 NAmanage.CmdInputActualFocused = function()
 	local box = NAUIMANAGER and NAUIMANAGER.cmdInput
@@ -99429,8 +99430,8 @@ NAgui.CmdMobileKeyboardGetRows = function()
 				viewY = cam.ViewportSize.Y
 			end
 		end)
-		local rowH = math.clamp(math.floor(viewY * 0.048), 32, 40)
-		local bottomH = math.clamp(math.floor(viewY * 0.052), 36, 44)
+		local rowH = math.clamp(math.floor(viewY * 0.041), 28, 34)
+		local bottomH = math.clamp(math.floor(viewY * 0.045), 30, 38)
 		return rowH, bottomH
 	end
 	local rowH, bottomH = dims()
@@ -99439,15 +99440,22 @@ NAgui.CmdMobileKeyboardGetRows = function()
 		return {
 			{ h = rowH, keys = { key("1"), key("2"), key("3"), key("4"), key("5"), key("6"), key("7"), key("8"), key("9"), key("0") } },
 			{ h = rowH, keys = { key("@"), key("#"), key("$"), key("_"), key("&"), key("-"), key("+"), key("("), key(")"), key("/") } },
-			{ h = rowH, keys = { key("ABC", "mode", "abc", 1.35), key("*"), key('"'), key("'"), key(":"), key(";"), key("!"), key("?"), key("Back", "back", nil, 1.6) } },
-			{ h = bottomH, keys = { key("ABC", "mode", "abc", 1.45), key(",", "char", ",", 0.9), key("123", "mode", "num", 1.1), key("English", "space", nil, 5.2), key(".", "char", ".", 0.9), key("Enter", "enter", nil, 1.55) } },
+			{ h = rowH, keys = { key("=<", "mode", "more", 1.15), key("*"), key('"'), key("'"), key(":"), key(";"), key("!"), key("?"), key("Back", "back", nil, 1.3) } },
+			{ h = bottomH, keys = { key("ABC", "mode", "abc", 1.2), key(",", "char", ",", 0.8), key("12/34", "mode", "more", 1.05), key("Space", "space", nil, 4.35), key(".", "char", ".", 0.8), key("Enter", "enter", nil, 1.25) } },
+		}
+	elseif mode == "more" then
+		return {
+			{ h = rowH, keys = { key("~"), key("`"), key("|"), key("\\"), key("<"), key(">"), key("="), key("["), key("]") } },
+			{ h = rowH, keys = { key("{") , key("}"), key("^") , key("%"), key("&"), key("-"), key("+"), key("("), key(")") } },
+			{ h = rowH, keys = { key("?123", "mode", "sym", 1.15), key("*"), key('"'), key("'"), key(":"), key(";"), key("!"), key("?"), key("Back", "back", nil, 1.3) } },
+			{ h = bottomH, keys = { key("ABC", "mode", "abc", 1.2), key(",", "char", ",", 0.8), key("123", "mode", "num", 1.0), key("Space", "space", nil, 4.45), key(".", "char", ".", 0.8), key("Enter", "enter", nil, 1.25) } },
 		}
 	elseif mode == "num" then
 		return {
-			{ h = rowH, keys = { key("+", "char", "+", 0.85), key("1", "char", "1", 2), key("2", "char", "2", 2), key("3", "char", "3", 2), key("%", "char", "%", 1.05) } },
-			{ h = rowH, keys = { key("-", "char", "-", 0.85), key("4", "char", "4", 2), key("5", "char", "5", 2), key("6", "char", "6", 2), key("_", "char", "_", 1.05) } },
-			{ h = rowH, keys = { key("*", "char", "*", 0.85), key("7", "char", "7", 2), key("8", "char", "8", 2), key("9", "char", "9", 2), key("Back", "back", nil, 1.05) } },
-			{ h = bottomH, keys = { key("ABC", "mode", "abc", 1.25), key(",", "char", ",", 0.85), key("?123", "mode", "sym", 1.25), key("0", "char", "0", 2), key("=", "char", "=", 1), key(".", "char", ".", 0.85), key("Enter", "enter", nil, 1.35) } },
+			{ h = rowH, keys = { key("1", "char", "1", 1.5), key("2", "char", "2", 1.5), key("3", "char", "3", 1.5), key("+", "char", "+", 0.9), key("-", "char", "-", 0.9) } },
+			{ h = rowH, keys = { key("4", "char", "4", 1.5), key("5", "char", "5", 1.5), key("6", "char", "6", 1.5), key("*", "char", "*", 0.9), key("/", "char", "/", 0.9) } },
+			{ h = rowH, keys = { key("7", "char", "7", 1.5), key("8", "char", "8", 1.5), key("9", "char", "9", 1.5), key("=", "char", "=", 0.9), key("Back", "back", nil, 1.15) } },
+			{ h = bottomH, keys = { key("ABC", "mode", "abc", 1.15), key(",", "char", ",", 0.75), key("?123", "mode", "sym", 1.05), key("0", "char", "0", 1.5), key(".", "char", ".", 0.75), key("Enter", "enter", nil, 1.2) } },
 		}
 	end
 
@@ -99463,14 +99471,14 @@ NAgui.CmdMobileKeyboardGetRows = function()
 			return r
 		end)() },
 		{ h = rowH, keys = (function()
-			local r = { key("Shift", "shift", nil, 1.45) }
+			local r = { key("Shift", "shift", nil, 1.25) }
 			for _, item in ipairs(charRow("zxcvbnm")) do
 				r[#r + 1] = item
 			end
-			r[#r + 1] = key("Back", "back", nil, 1.55)
+			r[#r + 1] = key("Back", "back", nil, 1.35)
 			return r
 		end)() },
-		{ h = bottomH, keys = { key("?123", "mode", "sym", 1.45), key(",", "char", ",", 0.85), key("English", "space", nil, 5.2), key(".", "char", ".", 0.85), key("Enter", "enter", nil, 1.55) } },
+		{ h = bottomH, keys = { key("?123", "mode", "sym", 1.25), key(",", "char", ",", 0.75), key("Space", "space", nil, 4.4), key(".", "char", ".", 0.75), key("Enter", "enter", nil, 1.25) } },
 	}
 end
 NAgui.CmdMobileKeyboardRefresh = function()
@@ -99490,6 +99498,21 @@ NAgui.CmdMobileKeyboardShow = function()
 	local box = NAUIMANAGER and NAUIMANAGER.cmdInput
 	if not box then
 		return false
+	end
+
+	local function moveMobileCursor(delta, selecting)
+		local text = tostring(box.Text or "")
+		local current = math.clamp(tonumber(box.CursorPosition) or (#text + 1), 1, #text + 1)
+		local newPos = math.clamp(current + (tonumber(delta) or 0), 1, #text + 1)
+		if selecting then
+			if tonumber(NAStuff.cmdInputSoftSelectionAnchor) == nil then
+				NAStuff.cmdInputSoftSelectionAnchor = current
+			end
+			NAStuff.cmdInputSoftSelectAll = false
+			NAmanage.CmdInputSetCursor(box, newPos, true)
+		else
+			NAmanage.CmdInputSetCursor(box, newPos, false)
+		end
 	end
 
 	local function press(action, value)
@@ -99514,6 +99537,36 @@ NAgui.CmdMobileKeyboardShow = function()
 			NAmanage.CmdInputSubmit()
 		elseif action == "close" then
 			NAgui.barDeselect(0.18)
+		elseif action == "left" then
+			moveMobileCursor(-1, NAStuff.cmdMobileSelectMode == true)
+		elseif action == "right" then
+			moveMobileCursor(1, NAStuff.cmdMobileSelectMode == true)
+		elseif action == "select" then
+			NAStuff.cmdMobileSelectMode = not NAStuff.cmdMobileSelectMode
+			if NAStuff.cmdMobileSelectMode then
+				NAStuff.cmdInputSoftSelectionAnchor = math.clamp(tonumber(box.CursorPosition) or (#(box.Text or "") + 1), 1, #(box.Text or "") + 1)
+				NAStuff.cmdInputSoftSelectAll = false
+			else
+				NAmanage.CmdInputClearSoftSelection(false)
+			end
+			if NAmanage.CmdInputUpdateSoftVisual then
+				NAmanage.CmdInputUpdateSoftVisual()
+			end
+		elseif action == "selectall" then
+			NAStuff.cmdMobileSelectMode = false
+			NAStuff.cmdInputSoftSelectAll = true
+			NAStuff.cmdInputSoftSelectionAnchor = 1
+			NAmanage.CmdInputSetCursor(box, #(box.Text or "") + 1, true)
+		elseif action == "copy" then
+			NAmanage.CmdInputCopySelection()
+		elseif action == "paste" then
+			NAmanage.CmdInputPasteClipboard()
+		elseif action == "cut" then
+			NAmanage.CmdInputCutSelection()
+		elseif action == "undo" then
+			if NAmanage.CmdInputUndo then NAmanage.CmdInputUndo() end
+		elseif action == "redo" then
+			if NAmanage.CmdInputRedo then NAmanage.CmdInputRedo() end
 		elseif action == "shift" then
 			NAStuff.cmdMobileKeyboardShift = not NAStuff.cmdMobileKeyboardShift
 			if NAgui.CmdMobileKeyboardRefresh then
@@ -99521,14 +99574,14 @@ NAgui.CmdMobileKeyboardShow = function()
 			end
 		elseif action == "mode" then
 			NAStuff.cmdMobileKeyboardMode = tostring(value or "abc")
-			if NAStuff.cmdMobileKeyboardMode ~= "sym" and NAStuff.cmdMobileKeyboardMode ~= "num" then
+			if NAStuff.cmdMobileKeyboardMode ~= "sym" and NAStuff.cmdMobileKeyboardMode ~= "num" and NAStuff.cmdMobileKeyboardMode ~= "more" then
 				NAStuff.cmdMobileKeyboardMode = "abc"
 			end
 			if NAgui.CmdMobileKeyboardRefresh then
 				NAgui.CmdMobileKeyboardRefresh()
 			end
 		end
-		if type(NAgui.autoFILLLL) == "function" and action ~= "enter" and action ~= "close" and action ~= "mode" and action ~= "shift" then
+		if type(NAgui.autoFILLLL) == "function" and action ~= "enter" and action ~= "close" and action ~= "mode" and action ~= "shift" and action ~= "left" and action ~= "right" and action ~= "select" and action ~= "selectall" and action ~= "copy" and action ~= "paste" and action ~= "cut" and action ~= "undo" and action ~= "redo" then
 			Delay(0, NAgui.autoFILLLL)
 		end
 	end
@@ -99549,7 +99602,7 @@ NAgui.CmdMobileKeyboardShow = function()
 				viewY = cam.ViewportSize.Y
 			end
 		end)
-		b.TextSize = math.clamp(math.floor(viewY * 0.035), 22, 28)
+		b.TextSize = math.clamp(math.floor(viewY * 0.029), 17, 23)
 		b.BackgroundColor3 = Color3.fromRGB(64, 64, 70)
 		b.BackgroundTransparency = 0.18
 		b.BorderSizePixel = 0
@@ -99562,17 +99615,21 @@ NAgui.CmdMobileKeyboardShow = function()
 			b.Selectable = false
 			b.AutoButtonColor = false
 			b.BackgroundTransparency = 1
+		elseif action == "left" or action == "right" or action == "select" or action == "selectall" or action == "copy" or action == "paste" or action == "cut" or action == "undo" or action == "redo" then
+			b.BackgroundColor3 = Color3.fromRGB(34, 34, 40)
+			b.BackgroundTransparency = 0.08
+			b.TextSize = math.clamp(math.floor(viewY * 0.019), 12, 16)
 		elseif action == "shift" or action == "mode" or action == "back" then
 			b.BackgroundColor3 = Color3.fromRGB(22, 22, 28)
 			b.BackgroundTransparency = 0.08
-			b.TextSize = math.clamp(math.floor(viewY * 0.026), 16, 22)
+			b.TextSize = math.clamp(math.floor(viewY * 0.022), 13, 18)
 		elseif action == "enter" then
 			b.BackgroundColor3 = Color3.fromRGB(84, 148, 255)
 			b.BackgroundTransparency = 0
-			b.TextSize = math.clamp(math.floor(viewY * 0.024), 15, 20)
+			b.TextSize = math.clamp(math.floor(viewY * 0.022), 13, 18)
 		elseif action == "space" then
 			b.BackgroundColor3 = Color3.fromRGB(88, 88, 92)
-			b.TextSize = math.clamp(math.floor(viewY * 0.02), 12, 16)
+			b.TextSize = math.clamp(math.floor(viewY * 0.018), 11, 15)
 		end
 		b.Parent = parent
 		local bc = InstanceNew("UICorner")
@@ -99616,6 +99673,34 @@ NAgui.CmdMobileKeyboardShow = function()
 		return b
 	end
 
+
+	local function getMobileToolbarRows()
+		local function toolkey(label, action, value, weight)
+			return { label = label, action = action or "char", value = value or label, weight = tonumber(weight) or 1 }
+		end
+		local viewY = 720
+		pcall(function()
+			local cam = workspace and workspace.CurrentCamera
+			if cam then
+				viewY = cam.ViewportSize.Y
+			end
+		end)
+		local toolbarH = math.clamp(math.floor(viewY * 0.04), 28, 34)
+		return {
+			{ h = toolbarH, toolbar = true, keys = {
+				toolkey("Undo", "undo", nil, 0.8),
+				toolkey("Redo", "redo", nil, 0.8),
+				toolkey("Left", "left", nil, 0.75),
+				toolkey("Right", "right", nil, 0.75),
+				toolkey("Select", "select", nil, 0.95),
+				toolkey("All", "selectall", nil, 0.7),
+				toolkey("Copy", "copy", nil, 0.8),
+				toolkey("Paste", "paste", nil, 0.9),
+				toolkey("Cut", "cut", nil, 0.7),
+			} }
+		}
+	end
+
 	NAgui.CmdMobileKeyboardBuild = function(root)
 		if not root then
 			return
@@ -99626,7 +99711,14 @@ NAgui.CmdMobileKeyboardShow = function()
 			end
 		end
 		local rootZ = root.ZIndex or 1
-		local rows = (NAgui.CmdMobileKeyboardGetRows and NAgui.CmdMobileKeyboardGetRows()) or {}
+		local rows = {}
+		local toolbarRows = getMobileToolbarRows()
+		for _, row in ipairs(toolbarRows or {}) do
+			rows[#rows + 1] = row
+		end
+		for _, row in ipairs((NAgui.CmdMobileKeyboardGetRows and NAgui.CmdMobileKeyboardGetRows()) or {}) do
+			rows[#rows + 1] = row
+		end
 		local y = 0
 		for rowIndex, rowData in ipairs(rows) do
 			local h = tonumber(rowData.h) or 48
@@ -99644,7 +99736,7 @@ NAgui.CmdMobileKeyboardShow = function()
 			layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 			layout.VerticalAlignment = Enum.VerticalAlignment.Center
 			layout.SortOrder = Enum.SortOrder.LayoutOrder
-			layout.Padding = UDim.new(0, 5)
+			layout.Padding = UDim.new(0, 2)
 			layout.Parent = r
 			local total = 0
 			for _, spec in ipairs(rowData.keys or {}) do
@@ -99653,13 +99745,13 @@ NAgui.CmdMobileKeyboardShow = function()
 			for _, spec in ipairs(rowData.keys or {}) do
 				local weight = tonumber(spec.weight) or 1
 				local b = makeButton(r, spec, rootZ)
-				b.Size = UDim2.new(weight / math.max(total, 1), -5, 1, -3)
+				b.Size = UDim2.new(weight / math.max(total, 1), -2, 1, -2)
 			end
-			y += h + 5
+			y += h + 2
 		end
-		local finalHeight = math.max(0, y - 5) + 8
+		local finalHeight = math.max(0, y - 2) + 5
 		pcall(function()
-			root.Size = UDim2.new(0.965, 0, 0, finalHeight)
+			root.Size = UDim2.new(0.94, 0, 0, finalHeight)
 		end)
 	end
 
@@ -99679,7 +99771,7 @@ NAgui.CmdMobileKeyboardShow = function()
 		root.Name = "\0"
 		root.AnchorPoint = Vector2.new(0.5, 1)
 		root.Position = UDim2.new(0.5, 0, 1, -4)
-		root.Size = UDim2.new(0.965, 0, 0, 220)
+		root.Size = UDim2.new(0.94, 0, 0, 210)
 		root.BackgroundTransparency = 1
 		root.BorderSizePixel = 0
 		root.ZIndex = 2147483600
@@ -99687,10 +99779,10 @@ NAgui.CmdMobileKeyboardShow = function()
 		NAStuff.cmdMobileKeyboardFrame = root
 
 		local padding = InstanceNew("UIPadding")
-		padding.PaddingTop = UDim.new(0, 3)
-		padding.PaddingBottom = UDim.new(0, 3)
-		padding.PaddingLeft = UDim.new(0, 3)
-		padding.PaddingRight = UDim.new(0, 3)
+		padding.PaddingTop = UDim.new(0, 2)
+		padding.PaddingBottom = UDim.new(0, 2)
+		padding.PaddingLeft = UDim.new(0, 2)
+		padding.PaddingRight = UDim.new(0, 2)
 		padding.Parent = root
 	end
 

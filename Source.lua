@@ -1235,6 +1235,7 @@ local NAStuff = {
 		originals = {};
 	};
 	CmdBar2AutoRun = false;
+	CmdInputSafeMode = true;
 	CmdIntegrationAutoRun = false;
 	CmdIntegrationLoaded = false;
 	CmdIntegrationLastSource = nil;
@@ -12867,17 +12868,36 @@ NAmanage.FetchRobloxApiBody = function(url, opts)
 	local timeout = opts.Timeout or opts.timeout or 5
 	local req = opt and opt.NAREQUEST
 
+	local function runLimited(callback)
+		local finished = false
+		local okRun, result
+		Spawn(function()
+			okRun, result = pcall(callback)
+			finished = true
+		end)
+		local deadline = os.clock() + math.clamp(tonumber(timeout) or 5, 1, 30)
+		while not finished and os.clock() < deadline do
+			Wait(0.05)
+		end
+		if not finished then
+			return false, nil
+		end
+		return okRun, result
+	end
+
 	for _, apiUrl in NAmanage.GetRobloxApiUrls(url) do
 		if type(req) == "function" then
-			local okReq, resp = pcall(req, {
-				Url = apiUrl,
-				Method = method,
-				Headers = headers,
-				Body = body,
-				Timeout = timeout,
-				FollowRedirects = true,
-				SslVerify = false,
-			})
+			local okReq, resp = runLimited(function()
+				return req({
+					Url = apiUrl,
+					Method = method,
+					Headers = headers,
+					Body = body,
+					Timeout = timeout,
+					FollowRedirects = true,
+					SslVerify = false,
+				})
+			end)
 			if okReq and resp then
 				if type(resp) == "string" and resp ~= "" then
 					return resp, apiUrl
@@ -12891,7 +12911,7 @@ NAmanage.FetchRobloxApiBody = function(url, opts)
 		end
 
 		if method == "GET" then
-			local okGet, text = pcall(function()
+			local okGet, text = runLimited(function()
 				return game:HttpGet(apiUrl)
 			end)
 			if okGet and type(text) == "string" and text ~= "" then
@@ -15511,6 +15531,8 @@ NAAssetsLoading._prefetchOrderSet = {}
 NAAssetsLoading._maxKnownRemotes = math.max(32, math.floor(tonumber(NAAssetsLoading._maxKnownRemotes) or 384))
 NAAssetsLoading._maxRemoteStatus = math.max(64, math.floor(tonumber(NAAssetsLoading._maxRemoteStatus) or 512))
 NAAssetsLoading._maxPrefetchedRemotes = math.max(16, math.floor(tonumber(NAAssetsLoading._maxPrefetchedRemotes) or 96))
+NAAssetsLoading.httpTimeoutSeconds = math.clamp(tonumber(NAAssetsLoading.httpTimeoutSeconds) or 5, 1, 30)
+NAAssetsLoading.githubTimeoutSeconds = math.clamp(tonumber(NAAssetsLoading.githubTimeoutSeconds) or 5, 1, 30)
 NAAssetsLoading.knownRemotes = {
 	{url="https://api.github.com/repos/ltseverydayyou/Nameless-Admin/commits?path=NA%20testing.lua"; skip=true};
 	{url="https://api.github.com/repos/ltseverydayyou/Nameless-Admin/commits?path=Source.lua"; skip=true};
@@ -15643,7 +15665,12 @@ NAAssetsLoading.queueImageAssets=function()
 				if type(fullPath) == "string" and fullPath ~= "" and not NAmanage.safeIsFile(fullPath) then
 					local sourceUrl = NAmanage.getNAImageAssetSourceUrl(fileName)
 					if type(sourceUrl) == "string" and sourceUrl ~= "" then
-						local ok, data = pcall(game.HttpGet, game, sourceUrl)
+						local ok, data
+						if NAAssetsLoading and NAAssetsLoading.httpGetWithTimeout then
+							ok, data = NAAssetsLoading.httpGetWithTimeout(sourceUrl, NAAssetsLoading.githubTimeoutSeconds or 5)
+						else
+							ok, data = pcall(game.HttpGet, game, sourceUrl)
+						end
 						if ok and type(data) == "string" and data ~= "" then
 							NAmanage.safeWriteFile(fullPath, data)
 						end
@@ -15718,7 +15745,12 @@ NAAssetsLoading.prefetchRemotes=function(onStep, shouldSkip)
 			return
 		end
 		local url = targets[index]
-		local ok, body = NACaller(game.HttpGet, game, url)
+		local ok, body
+		if NAAssetsLoading.httpGetWithTimeout then
+			ok, body = NAAssetsLoading.httpGetWithTimeout(url, NAAssetsLoading.githubTimeoutSeconds or 5)
+		else
+			ok, body = NACaller(game.HttpGet, game, url)
+		end
 		if ok and type(body) == "string" and body ~= "" then
 			NAStuff._prefetchedRemotes[url] = body
 			if type(NAAssetsLoading._trackOrderedKey) == "function" then
@@ -15752,6 +15784,131 @@ NAAssetsLoading.normalizeStatusError = function(text)
 		err = err:sub(1, 177).."..."
 	end
 	return err
+end
+
+NAAssetsLoading.runWithTimeout = function(timeoutSeconds, callback)
+	timeoutSeconds = math.clamp(tonumber(timeoutSeconds) or 5, 0.25, 30)
+	if type(callback) ~= "function" then
+		return false, nil, "missing callback"
+	end
+	local finished = false
+	local ok, a, b, c
+	Spawn(function()
+		ok, a, b, c = pcall(callback)
+		finished = true
+	end)
+	local deadline = os.clock() + timeoutSeconds
+	while not finished and os.clock() < deadline do
+		if NAAssetsLoading.getSkip and NAAssetsLoading.getSkip() then
+			return false, nil, "skipped"
+		end
+		Wait(0.05)
+	end
+	if not finished then
+		return false, nil, Format("timeout after %.1fs", timeoutSeconds)
+	end
+	if not ok then
+		return false, nil, a
+	end
+	return true, a, b, c
+end
+
+NAAssetsLoading.httpGetWithTimeout = function(url, timeoutSeconds)
+	if type(url) ~= "string" or url == "" then
+		return false, nil, "missing url"
+	end
+	return NAAssetsLoading.runWithTimeout(timeoutSeconds or NAAssetsLoading.githubTimeoutSeconds or 5, function()
+		return game:HttpGet(url)
+	end)
+end
+
+NAAssetsLoading.runWithTimeoutNoSkip = function(timeoutSeconds, callback)
+	timeoutSeconds = math.clamp(tonumber(timeoutSeconds) or 5, 0.25, 30)
+	if type(callback) ~= "function" then
+		return false, nil, "missing callback"
+	end
+	local finished = false
+	local ok, a, b, c
+	Spawn(function()
+		ok, a, b, c = pcall(callback)
+		finished = true
+	end)
+	local deadline = os.clock() + timeoutSeconds
+	while not finished and os.clock() < deadline do
+		Wait(0.05)
+	end
+	if not finished then
+		return false, nil, Format("timeout after %.1fs", timeoutSeconds)
+	end
+	if not ok then
+		return false, nil, a
+	end
+	return true, a, b, c
+end
+
+NAAssetsLoading.httpGetNoSkipWithTimeout = function(url, timeoutSeconds)
+	if type(url) ~= "string" or url == "" then
+		return false, nil, "missing url"
+	end
+	return NAAssetsLoading.runWithTimeoutNoSkip(timeoutSeconds or NAAssetsLoading.githubTimeoutSeconds or 5, function()
+		return game:HttpGet(url)
+	end)
+end
+
+NAAssetsLoading.httpGetImportant = function(url)
+	if type(url) ~= "string" or url == "" then
+		return false, nil, "missing url"
+	end
+	local ok, body = pcall(function()
+		return game:HttpGet(url)
+	end)
+	if not ok then
+		return false, nil, body
+	end
+	return true, body
+end
+
+NAAssetsLoading.fetchNAStuffJson = function(timeoutSeconds)
+	timeoutSeconds = math.clamp(tonumber(timeoutSeconds) or NAAssetsLoading.githubTimeoutSeconds or 5, 0.5, 30)
+	local deadline = os.clock() + timeoutSeconds
+	local urls = {
+		"https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/NA%20stuff.json";
+		"https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/main/NA%20stuff.json";
+	}
+	local lastErr = nil
+	for _, url in urls do
+		local left = deadline - os.clock()
+		if left <= 0 then
+			break
+		end
+		local okFetch, rawOrErr
+		if NAAssetsLoading.httpGetNoSkipWithTimeout then
+			okFetch, rawOrErr = NAAssetsLoading.httpGetNoSkipWithTimeout(url, math.max(0.25, left))
+		else
+			okFetch, rawOrErr = NAAssetsLoading.httpGetImportant(url)
+		end
+		if okFetch and type(rawOrErr) == "string" and rawOrErr ~= "" then
+			local decodeOk, decoded = pcall(function()
+				return HttpService:JSONDecode(rawOrErr)
+			end)
+			if decodeOk and type(decoded) == "table" then
+				return true, decoded, url
+			end
+			lastErr = decoded or "JSON decode failed"
+		else
+			lastErr = rawOrErr or "empty response"
+		end
+	end
+	return false, nil, lastErr or Format("timeout after %.1fs", timeoutSeconds)
+end
+
+NAAssetsLoading.requestWithTimeout = function(requestFn, requestData, timeoutSeconds)
+	if type(requestFn) ~= "function" then
+		return false, nil, "missing request function"
+	end
+	return NAAssetsLoading.runWithTimeout(timeoutSeconds or NAAssetsLoading.githubTimeoutSeconds or 5, function()
+		return requestFn(requestData)
+	end)
 end
 
 NAAssetsLoading.runLoadingCheck = function(statusLabel, attemptFn, onSuccess, opts)
@@ -15831,7 +15988,12 @@ NAmanage.uiSrcGet = NAmanage.uiSrcGet or function(force)
 	end
 
 	if type(src) ~= "string" or src == "" then
-		local ok, body = pcall(game.HttpGet, game, url)
+		local ok, body
+		if NAAssetsLoading and NAAssetsLoading.httpGetImportant then
+			ok, body = NAAssetsLoading.httpGetImportant(url)
+		else
+			ok, body = pcall(game.HttpGet, game, url)
+		end
 		if not ok then
 			return nil, body
 		end
@@ -15948,7 +16110,16 @@ local notifAttempts = 0
 repeat
 	notifAttempts += 1
 	NAAssetsLoading.ok, NAAssetsLoading.res = pcall(function()
-		return loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NamelessAdminNotifications.lua"))()
+		local okFetch, sourceOrErr
+		if NAAssetsLoading and NAAssetsLoading.httpGetImportant then
+			okFetch, sourceOrErr = NAAssetsLoading.httpGetImportant("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NamelessAdminNotifications.lua")
+		else
+			okFetch, sourceOrErr = pcall(game.HttpGet, game, "https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NamelessAdminNotifications.lua")
+		end
+		if not okFetch then
+			error(sourceOrErr or "notification fetch failed")
+		end
+		return loadstring(sourceOrErr)()
 	end)
 	if NAAssetsLoading.ok and type(NAAssetsLoading.res) == "table" then
 		NAStuff.Notification = NAAssetsLoading.res
@@ -15975,22 +16146,17 @@ if NAAssetsLoading.progressPercent then NAAssetsLoading.progressPercent("assets"
 
 NAAssetsLoading.setStatus("Loading "..(adminName or "NA").." Data")
 local naStuffReady = false
-local naStuffAttempts = 0
-repeat
-	naStuffAttempts += 1
-	local ok, res = pcall(function()
-		local raw = game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/NA%20stuff.json")
-		local decoded = HttpService:JSONDecode(raw)
-		return decoded
-	end)
-	if ok and type(res) == "table" then
-		NAStuff.NAjson = res
-		pcall(NAmanage.btUpdate)
-		naStuffReady = true
-	else
-		Wait(0.15)
+local okFetch, dataOrNil, sourceOrErr = NAAssetsLoading.fetchNAStuffJson(NAAssetsLoading.githubTimeoutSeconds or 5)
+if okFetch and type(dataOrNil) == "table" then
+	NAStuff.NAjson = dataOrNil
+	pcall(NAmanage.btUpdate)
+	naStuffReady = true
+else
+	if type(NAAssetsLoading.setStatus) == "function" then
+		NAAssetsLoading.setStatus("NA Data fallback: "..NAAssetsLoading.normalizeStatusError(sourceOrErr or dataOrNil or "unknown"))
 	end
-until naStuffReady or NAAssetsLoading.getSkip() or naStuffAttempts >= 2
+	Wait(0.15)
+end
 if not naStuffReady then
 	NAStuff.NAjson = type(NAStuff.NAjson) == "table" and NAStuff.NAjson or {}
 end
@@ -16009,12 +16175,13 @@ NAAssetsLoading.runLoadingCheck("Loading Update Log", function()
 		return false, nil, "missing github url"
 	end
 	if type(opt.NAREQUEST) == "function" then
-		local ok, response = pcall(opt.NAREQUEST, {
+		local ok, response, requestErr = NAAssetsLoading.requestWithTimeout(opt.NAREQUEST, {
 			Url = opt.githubUrl,
-			Method = "GET"
-		})
+			Method = "GET",
+			Timeout = NAAssetsLoading.githubTimeoutSeconds or 5
+		}, NAAssetsLoading.githubTimeoutSeconds or 5)
 		if not ok then
-			return false, nil, response
+			return false, nil, requestErr or response
 		end
 		if typeof(response) ~= "table" then
 			return false, nil, "invalid response"
@@ -16028,9 +16195,9 @@ NAAssetsLoading.runLoadingCheck("Loading Update Log", function()
 		end
 		return true, response.Body
 	end
-	local ok, body = pcall(game.HttpGet, game, opt.githubUrl)
+	local ok, body, fetchErr = NAAssetsLoading.httpGetWithTimeout(opt.githubUrl, NAAssetsLoading.githubTimeoutSeconds or 5)
 	if not ok then
-		return false, nil, body
+		return false, nil, fetchErr or body
 	end
 	if type(body) ~= "string" or body == "" then
 		return false, nil, "empty response"
@@ -16094,7 +16261,7 @@ SpawnCall(function()
 end)
 if NAAssetsLoading.progressPercent then NAAssetsLoading.progressPercent("prefetch", 1) end
 
-NAAssetsLoading.setStatus("Fetching Roblox API")
+NAAssetsLoading.setStatus("queueing Roblox API fetch in background")
 pcall(function()
 	if NAmanage and NAmanage.prefetchRobloxGameInfo then
 		SpawnCall(function()
@@ -16415,9 +16582,13 @@ SpawnCall(function()
 	end
 	_na_env.__NA_FUNCTION_FIXER_LOADED = true
 
-	_na_env.__NA_FUNCTION_FIXER_OK, _na_env.__NA_FUNCTION_FIXER_SOURCE = pcall(function()
-		return game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/functionFixer.lua")
-	end)
+	if NAAssetsLoading and NAAssetsLoading.httpGetImportant then
+		_na_env.__NA_FUNCTION_FIXER_OK, _na_env.__NA_FUNCTION_FIXER_SOURCE = NAAssetsLoading.httpGetImportant("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/functionFixer.lua")
+	else
+		_na_env.__NA_FUNCTION_FIXER_OK, _na_env.__NA_FUNCTION_FIXER_SOURCE = pcall(function()
+			return game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/functionFixer.lua")
+		end)
+	end
 	if not _na_env.__NA_FUNCTION_FIXER_OK or type(_na_env.__NA_FUNCTION_FIXER_SOURCE) ~= "string" or _na_env.__NA_FUNCTION_FIXER_SOURCE == "" then
 		_na_env.__NA_FUNCTION_FIXER_LOADED = false
 		return
@@ -16883,6 +17054,10 @@ NAmanage.NASettingsGetSchema=function()
 		lowEndUiMode = {
 			default = function() return IsOnMobile == true end;
 			coerce = function(value) return NAmanage.NASettingsSchemaState.coerceBoolean(value, IsOnMobile == true) end;
+		};
+		cmdInputSafeMode = {
+			default = function() return IsOnPC == true and IsOnMobile ~= true end;
+			coerce = function(value) return NAmanage.NASettingsSchemaState.coerceBoolean(value, IsOnPC == true and IsOnMobile ~= true) end;
 		};
 		pluginAutoLoad = {
 			default = true;
@@ -20072,7 +20247,7 @@ NAmanage.ApplyCommandKeybinds=function()
 		if gameProcessed and not isStrongKeybindInput(input) then return true end
 		if not NAmanage.CanUseCommandKeybinds() then return true end
 		if NAStuff._capturingCommandKeybind then return true end
-		if UIS.GetFocusedTextBox and __lt.cm("UserInputService", "GetFocusedTextBox") then return true end
+		if NAmanage.isAnyNAInputActive and NAmanage.isAnyNAInputActive() then return true end
 		return false
 	end
 
@@ -20471,7 +20646,7 @@ NAmanage.ApplyCommandKeybinds=function()
 			if NAStuff._capturingCommandKeybind then
 				return
 			end
-			if UIS.GetFocusedTextBox and __lt.cm("UserInputService", "GetFocusedTextBox") then
+			if NAmanage.isAnyNAInputActive and NAmanage.isAnyNAInputActive() then
 				return
 			end
 
@@ -20808,6 +20983,14 @@ opt.settingsTranslateTarget = NAmanage.NASettingsGet("settingsTranslateTarget")
 NAStuff.AutoExecEnabled = NAmanage.NASettingsGet("autoExecEnabled")
 NAStuff.UserButtonsAutoLoad = NAmanage.NASettingsGet("userButtonsAutoLoad")
 NAStuff.CmdBar2AutoRun = NAmanage.NASettingsGet("cmdbar2AutoRun")
+do
+	local savedCmdInputSafeMode = NAmanage.NASettingsGet("cmdInputSafeMode")
+	if savedCmdInputSafeMode ~= nil then
+		NAStuff.CmdInputSafeMode = savedCmdInputSafeMode ~= false
+	else
+		NAStuff.CmdInputSafeMode = IsOnPC == true and IsOnMobile ~= true
+	end
+end
 NAStuff.LoopMethodOptions = { "PostSimulation", "PreSimulation", "RenderStepped", "Heartbeat" }
 NAStuff.LoopMethod = NAmanage.NASettingsGet("loopMethod") or "PostSimulation"
 NAStuff.AutoInteractMethod = NAmanage.NASettingsGet("autoInteractMethod") or NAStuff.AutoInteractMethod or "PostSimulation"
@@ -22228,7 +22411,7 @@ if NAStuff._moveInputEnded then
 end
 
 NAStuff._moveInputBegan = UserInputService.InputBegan:Connect(function(input, gameProcessed)
-	if gameProcessed then return end
+	if gameProcessed or (NAmanage.isAnyNAInputActive and NAmanage.isAnyNAInputActive()) then return end
 	if not input or input.UserInputType ~= Enum.UserInputType.Keyboard then
 		return
 	end
@@ -22238,6 +22421,7 @@ NAStuff._moveInputBegan = UserInputService.InputBegan:Connect(function(input, ga
 end)
 
 NAStuff._moveInputEnded = UserInputService.InputEnded:Connect(function(input)
+	if NAmanage.isAnyNAInputActive and NAmanage.isAnyNAInputActive() then return end
 	if not input or input.UserInputType ~= Enum.UserInputType.Keyboard then
 		return
 	end
@@ -31601,7 +31785,7 @@ NAmanage._shouldIgnoreFlyKeyInput = function(input, gameProcessed)
 	if not input or input.UserInputType ~= Enum.UserInputType.Keyboard then
 		return true
 	end
-	if UserInputService.GetFocusedTextBox and __lt.cm("UserInputService", "GetFocusedTextBox") then
+	if NAmanage.isAnyNAInputActive and NAmanage.isAnyNAInputActive() then
 		return true
 	end
 	return false
@@ -49564,7 +49748,7 @@ cmd.add({"hamster"}, {"hamster <number>", "Hamster ball"}, function(...)
 		end
 		ball.CanCollide = true
 		humanoid.PlatformStand = true
-		if __lt.cm("UserInputService", "GetFocusedTextBox") then
+		if NAmanage.isAnyNAInputActive and NAmanage.isAnyNAInputActive() then
 			return
 		end
 
@@ -63719,7 +63903,7 @@ NAmanage.ResolveFireKeyCode = function(input)
 end
 
 NAmanage.IsFireKeyBlockedByTextBox = function()
-	if UserInputService and UserInputService.GetFocusedTextBox and __lt.cm("UserInputService", "GetFocusedTextBox") then
+	if NAmanage.isAnyNAInputActive and NAmanage.isAnyNAInputActive() then
 		return true
 	end
 
@@ -98660,7 +98844,10 @@ NAmanage.applyCmdAutofillFill = function(frame)
 		if predictionInput then
 			predictionInput.Text = ""
 		end
-		if not IsOnMobile then
+		if NAmanage.CmdInputUseSoftFocus and NAmanage.CmdInputUseSoftFocus() then
+			NAmanage.CmdSoftInputStart()
+			NAStuff.autofillSelecting = false
+		elseif not IsOnMobile then
 			NAgui.ensureCmdFocus(true)
 			NAStuff.autofillSelecting = false
 		else
@@ -98978,8 +99165,1738 @@ SpawnCall(function()
 end)
 
 local cmdDefaultClear = nil
+NAStuff.cmdInputSoftFocus = false
+NAStuff.cmdInputSoftSelectAll = false
+NAStuff.cmdInputSoftPrevTextEditable = nil
+NAStuff.cmdInputSoftSinkBound = false
+NAStuff.cmdInputSoftSelectionAnchor = nil
+NAStuff.cmdInputSoftVisualBound = false
+NAStuff.cmdInputSoftOutsideBound = false
+NAStuff.cmdInputSoftCaretBlinkToken = 0
+NAStuff.cmdInputSoftRepeatToken = 0
+NAStuff.cmdInputSoftRepeatKey = nil
+
+NAmanage.CmdInputUseSoftFocus = function()
+	return type(NAStuff) == "table" and NAStuff.CmdInputSafeMode ~= false
+end
+
+if type(NAStuff.CmdInputSafeMode) ~= "boolean" then
+	NAStuff.CmdInputSafeMode = IsOnPC == true and IsOnMobile ~= true
+end
+NAStuff.MobileCmdSafeInput = NAStuff.CmdInputSafeMode ~= false
+NAStuff.cmdMobileKeyboardShift = NAStuff.cmdMobileKeyboardShift == true
+NAStuff.cmdMobileSelectMode = NAStuff.cmdMobileSelectMode == true
+
+NAmanage.CmdInputActualFocused = function()
+	local box = NAUIMANAGER and NAUIMANAGER.cmdInput
+	if not box then
+		return false
+	end
+	local ok, focused = pcall(function()
+		return box:IsFocused()
+	end)
+	return ok and focused == true
+end
+
+NAmanage.isCmdSoftInputActive = function()
+	return NAStuff and NAStuff.cmdInputSoftFocus == true and NAStuff.cmdBarSelected == true
+end
+
+NAmanage.isAnyNAInputActive = function()
+	if NAmanage.isCmdSoftInputActive and NAmanage.isCmdSoftInputActive() then
+		return true
+	end
+	if NAmanage.CmdInputActualFocused and NAmanage.CmdInputActualFocused() then
+		return true
+	end
+	if UserInputService and UserInputService.GetFocusedTextBox then
+		local ok, focusedBox = pcall(function()
+			return __lt.cm("UserInputService", "GetFocusedTextBox")
+		end)
+		if ok and focusedBox then
+			return true
+		end
+	end
+	return false
+end
+
+
+NAmanage.CmdInputStopKeyRepeat = function()
+	if type(NAStuff) ~= "table" then
+		return
+	end
+	NAStuff.cmdInputSoftRepeatToken = (tonumber(NAStuff.cmdInputSoftRepeatToken) or 0) + 1
+	NAStuff.cmdInputSoftRepeatKey = nil
+	NAStuff.cmdInputSoftRepeatInput = nil
+end
+
+NAmanage.CmdInputStartKeyRepeat = function(keyCode, callback, opts)
+	if type(NAStuff) ~= "table" or type(callback) ~= "function" then
+		return false
+	end
+	opts = type(opts) == "table" and opts or {}
+	NAmanage.CmdInputStopKeyRepeat()
+	NAStuff.cmdInputSoftRepeatToken = (tonumber(NAStuff.cmdInputSoftRepeatToken) or 0) + 1
+	local token = NAStuff.cmdInputSoftRepeatToken
+	NAStuff.cmdInputSoftRepeatKey = keyCode
+	NAStuff.cmdInputSoftRepeatInput = opts.input
+	local delayTime = tonumber(opts.delay) or 0.34
+	local interval = tonumber(opts.interval) or 0.045
+	Spawn(function()
+		Wait(delayTime)
+		while type(NAStuff) == "table"
+			and NAStuff.cmdInputSoftRepeatToken == token
+			and NAmanage.isCmdSoftInputActive
+			and NAmanage.isCmdSoftInputActive() do
+			local keepGoing = true
+			if keyCode ~= nil then
+				local ok, isDown = pcall(function()
+					return UserInputService:IsKeyDown(keyCode)
+				end)
+				keepGoing = ok and isDown == true
+			end
+			if not keepGoing then
+				break
+			end
+			local ok = pcall(callback)
+			if not ok then
+				break
+			end
+			if type(NAgui) == "table" and type(NAgui.autoFILLLL) == "function" then
+				Delay(0, NAgui.autoFILLLL)
+			end
+			Wait(interval)
+		end
+		if type(NAStuff) == "table" and NAStuff.cmdInputSoftRepeatToken == token then
+			NAmanage.CmdInputStopKeyRepeat()
+		end
+	end)
+	return true
+end
+
+NAmanage.CmdInputGetSoftSinkInputs = function()
+	if type(NAStuff.cmdInputSoftSinkInputs) == "table" then
+		return NAStuff.cmdInputSoftSinkInputs
+	end
+	local inputs = {}
+	local seen = {}
+	local function add(value)
+		if value == nil or seen[value] then
+			return
+		end
+		seen[value] = true
+		inputs[#inputs + 1] = value
+	end
+	pcall(function()
+		for _, keyCode in Enum.KeyCode:GetEnumItems() do
+			if keyCode ~= Enum.KeyCode.Unknown then
+				add(keyCode)
+			end
+		end
+	end)
+	add(Enum.UserInputType.Keyboard)
+	NAStuff.cmdInputSoftSinkInputs = inputs
+	return inputs
+end
+
+NAmanage.CmdInputBindSoftSink = function(enabled)
+	if not ContextActionService then
+		return
+	end
+	local priority = 2147483647
+	local chunkSize = 45
+	local actions = NAStuff.cmdInputSoftSinkActions
+	local function sinkInput(_, state, input)
+		if NAmanage.isCmdSoftInputActive and NAmanage.isCmdSoftInputActive() then
+			return Enum.ContextActionResult.Sink
+		end
+		return Enum.ContextActionResult.Pass
+	end
+	local function unbindAll()
+		if type(actions) == "table" then
+			for _, rec in actions do
+				if type(rec) == "table" and type(rec.name) == "string" then
+					if rec.core == true and type(ContextActionService.UnbindCoreAction) == "function" then
+						pcall(function()
+							ContextActionService:UnbindCoreAction(rec.name)
+						end)
+					else
+						pcall(function()
+							ContextActionService:UnbindAction(rec.name)
+						end)
+					end
+				end
+			end
+		end
+		pcall(function() ContextActionService:UnbindAction("NA_CMD_SOFT_INPUT_SINK") end)
+		if type(ContextActionService.UnbindCoreAction) == "function" then
+			pcall(function() ContextActionService:UnbindCoreAction("NA_CMD_SOFT_INPUT_CORE_SINK") end)
+		end
+		NAStuff.cmdInputSoftSinkActions = {}
+		NAStuff.cmdInputSoftSinkBound = false
+	end
+	if not enabled then
+		unbindAll()
+		return
+	end
+	if NAStuff.cmdInputSoftSinkBound then
+		return
+	end
+	unbindAll()
+	actions = {}
+	local inputs = (NAmanage.CmdInputGetSoftSinkInputs and NAmanage.CmdInputGetSoftSinkInputs()) or { Enum.UserInputType.Keyboard }
+	local function bindChunks(methodName, prefix, isCore)
+		local fn = ContextActionService[methodName]
+		if type(fn) ~= "function" then
+			return
+		end
+		local idx = 1
+		for startIndex = 1, #inputs, chunkSize do
+			local actionName = prefix..tostring(idx)
+			local args = { actionName, sinkInput, false, priority }
+			for j = startIndex, math.min(#inputs, startIndex + chunkSize - 1) do
+				args[#args + 1] = inputs[j]
+			end
+			local ok = pcall(function()
+				fn(ContextActionService, table.unpack(args))
+			end)
+			if ok then
+				actions[#actions + 1] = { name = actionName, core = isCore == true }
+			end
+			idx += 1
+		end
+	end
+	bindChunks("BindActionAtPriority", "NA_CMD_SOFT_INPUT_SINK_", false)
+	bindChunks("BindCoreActionAtPriority", "NA_CMD_SOFT_INPUT_CORE_SINK_", true)
+	NAStuff.cmdInputSoftSinkActions = actions
+	NAStuff.cmdInputSoftSinkBound = #actions > 0
+end
+
+NAgui.CmdMobileKeyboardHide = function()
+	local gui = NAStuff and NAStuff.cmdMobileKeyboardGui
+	if gui and gui.Parent then
+		pcall(function()
+			gui.Enabled = false
+		end)
+	end
+	NAStuff.cmdMobileKeyboardVisible = false
+end
+
+NAgui.CmdMobileKeyboardGetRows = function()
+	local mode = (NAStuff and NAStuff.cmdMobileKeyboardMode) or "abc"
+	local shift = NAStuff and NAStuff.cmdMobileKeyboardShift == true
+	local function key(label, action, value, weight)
+		return { label = label, action = action or "char", value = value or label, weight = tonumber(weight) or 1 }
+	end
+	local function charRow(str)
+		local out = {}
+		for c in str:gmatch(".") do
+			local label = c
+			if shift and c:match("%a") then
+				label = c:upper()
+			end
+			out[#out + 1] = key(label, "char", c, 1)
+		end
+		return out
+	end
+	local function spacer(weight)
+		return { label = "", action = "spacer", value = nil, weight = tonumber(weight) or 1 }
+	end
+	local function dims()
+		local viewY = 720
+		pcall(function()
+			local cam = workspace and workspace.CurrentCamera
+			if cam then
+				viewY = cam.ViewportSize.Y
+			end
+		end)
+		local rowH = math.clamp(math.floor(viewY * 0.041), 28, 34)
+		local bottomH = math.clamp(math.floor(viewY * 0.045), 30, 38)
+		return rowH, bottomH
+	end
+	local rowH, bottomH = dims()
+
+	if mode == "sym" then
+		return {
+			{ h = rowH, keys = { key("1"), key("2"), key("3"), key("4"), key("5"), key("6"), key("7"), key("8"), key("9"), key("0") } },
+			{ h = rowH, keys = { key("@"), key("#"), key("$"), key("_"), key("&"), key("-"), key("+"), key("("), key(")"), key("/") } },
+			{ h = rowH, keys = { key("=<", "mode", "more", 1.15), key("*"), key('"'), key("'"), key(":"), key(";"), key("!"), key("?"), key("Back", "back", nil, 1.3) } },
+			{ h = bottomH, keys = { key("ABC", "mode", "abc", 1.2), key(",", "char", ",", 0.8), key("12/34", "mode", "more", 1.05), key("Space", "space", nil, 4.35), key(".", "char", ".", 0.8), key("Enter", "enter", nil, 1.25) } },
+		}
+	elseif mode == "more" then
+		return {
+			{ h = rowH, keys = { key("~"), key("`"), key("|"), key("\\"), key("<"), key(">"), key("="), key("["), key("]") } },
+			{ h = rowH, keys = { key("{") , key("}"), key("^") , key("%"), key("&"), key("-"), key("+"), key("("), key(")") } },
+			{ h = rowH, keys = { key("?123", "mode", "sym", 1.15), key("*"), key('"'), key("'"), key(":"), key(";"), key("!"), key("?"), key("Back", "back", nil, 1.3) } },
+			{ h = bottomH, keys = { key("ABC", "mode", "abc", 1.2), key(",", "char", ",", 0.8), key("123", "mode", "num", 1.0), key("Space", "space", nil, 4.45), key(".", "char", ".", 0.8), key("Enter", "enter", nil, 1.25) } },
+		}
+	elseif mode == "num" then
+		return {
+			{ h = rowH, keys = { key("1", "char", "1", 1.5), key("2", "char", "2", 1.5), key("3", "char", "3", 1.5), key("+", "char", "+", 0.9), key("-", "char", "-", 0.9) } },
+			{ h = rowH, keys = { key("4", "char", "4", 1.5), key("5", "char", "5", 1.5), key("6", "char", "6", 1.5), key("*", "char", "*", 0.9), key("/", "char", "/", 0.9) } },
+			{ h = rowH, keys = { key("7", "char", "7", 1.5), key("8", "char", "8", 1.5), key("9", "char", "9", 1.5), key("=", "char", "=", 0.9), key("Back", "back", nil, 1.15) } },
+			{ h = bottomH, keys = { key("ABC", "mode", "abc", 1.15), key(",", "char", ",", 0.75), key("?123", "mode", "sym", 1.05), key("0", "char", "0", 1.5), key(".", "char", ".", 0.75), key("Enter", "enter", nil, 1.2) } },
+		}
+	end
+
+	return {
+		{ h = rowH, keys = charRow("1234567890") },
+		{ h = rowH, keys = charRow("qwertyuiop") },
+		{ h = rowH, keys = (function()
+			local r = { spacer(0.52) }
+			for _, item in ipairs(charRow("asdfghjkl")) do
+				r[#r + 1] = item
+			end
+			r[#r + 1] = spacer(0.52)
+			return r
+		end)() },
+		{ h = rowH, keys = (function()
+			local r = { key("Shift", "shift", nil, 1.25) }
+			for _, item in ipairs(charRow("zxcvbnm")) do
+				r[#r + 1] = item
+			end
+			r[#r + 1] = key("Back", "back", nil, 1.35)
+			return r
+		end)() },
+		{ h = bottomH, keys = { key("?123", "mode", "sym", 1.25), key(",", "char", ",", 0.75), key("Space", "space", nil, 4.4), key(".", "char", ".", 0.75), key("Enter", "enter", nil, 1.25) } },
+	}
+end
+NAgui.CmdMobileKeyboardRefresh = function()
+	local root = NAStuff and NAStuff.cmdMobileKeyboardFrame
+	if not root then
+		return
+	end
+	if NAgui.CmdMobileKeyboardBuild then
+		NAgui.CmdMobileKeyboardBuild(root)
+	end
+end
+
+NAgui.CmdMobileKeyboardShow = function()
+	if not IsOnMobile or NAStuff.MobileCmdSafeInput == false then
+		return false
+	end
+	local box = NAUIMANAGER and NAUIMANAGER.cmdInput
+	if not box then
+		return false
+	end
+
+	local function moveMobileCursor(delta, selecting)
+		local text = tostring(box.Text or "")
+		local current = math.clamp(tonumber(box.CursorPosition) or (#text + 1), 1, #text + 1)
+		local newPos = math.clamp(current + (tonumber(delta) or 0), 1, #text + 1)
+		if selecting then
+			if tonumber(NAStuff.cmdInputSoftSelectionAnchor) == nil then
+				NAStuff.cmdInputSoftSelectionAnchor = current
+			end
+			NAStuff.cmdInputSoftSelectAll = false
+			NAmanage.CmdInputSetCursor(box, newPos, true)
+		else
+			NAmanage.CmdInputSetCursor(box, newPos, false)
+		end
+	end
+
+	local function press(action, value)
+		action = tostring(action or "")
+		if action == "char" then
+			local ch = tostring(value or "")
+			if #ch == 1 and ch:match("%a") and NAStuff.cmdMobileKeyboardShift then
+				ch = ch:upper()
+			end
+			NAmanage.CmdInputInsertText(ch)
+		elseif action == "space" then
+			NAmanage.CmdInputInsertText(" ")
+		elseif action == "back" then
+			NAmanage.CmdInputDeleteBack()
+		elseif action == "clear" then
+			box.Text = ""
+			NAmanage.CmdInputClearSoftSelection(false)
+			NAmanage.CmdInputSetCursor(box, 1)
+		elseif action == "tab" then
+			NAmanage.CmdInputApplyPrediction()
+		elseif action == "enter" then
+			NAmanage.CmdInputSubmit()
+		elseif action == "close" then
+			NAgui.barDeselect(0.18)
+		elseif action == "left" then
+			moveMobileCursor(-1, NAStuff.cmdMobileSelectMode == true)
+		elseif action == "right" then
+			moveMobileCursor(1, NAStuff.cmdMobileSelectMode == true)
+		elseif action == "select" then
+			NAStuff.cmdMobileSelectMode = not NAStuff.cmdMobileSelectMode
+			if NAStuff.cmdMobileSelectMode then
+				NAStuff.cmdInputSoftSelectionAnchor = math.clamp(tonumber(box.CursorPosition) or (#(box.Text or "") + 1), 1, #(box.Text or "") + 1)
+				NAStuff.cmdInputSoftSelectAll = false
+			else
+				NAmanage.CmdInputClearSoftSelection(false)
+			end
+			if NAmanage.CmdInputUpdateSoftVisual then
+				NAmanage.CmdInputUpdateSoftVisual()
+			end
+		elseif action == "selectall" then
+			NAStuff.cmdMobileSelectMode = false
+			NAStuff.cmdInputSoftSelectAll = true
+			NAStuff.cmdInputSoftSelectionAnchor = 1
+			NAmanage.CmdInputSetCursor(box, #(box.Text or "") + 1, true)
+		elseif action == "copy" then
+			NAmanage.CmdInputCopySelection()
+		elseif action == "paste" then
+			NAmanage.CmdInputPasteClipboard()
+		elseif action == "cut" then
+			NAmanage.CmdInputCutSelection()
+		elseif action == "undo" then
+			if NAmanage.CmdInputUndo then NAmanage.CmdInputUndo() end
+		elseif action == "redo" then
+			if NAmanage.CmdInputRedo then NAmanage.CmdInputRedo() end
+		elseif action == "shift" then
+			NAStuff.cmdMobileKeyboardShift = not NAStuff.cmdMobileKeyboardShift
+			if NAgui.CmdMobileKeyboardRefresh then
+				NAgui.CmdMobileKeyboardRefresh()
+			end
+		elseif action == "mode" then
+			NAStuff.cmdMobileKeyboardMode = tostring(value or "abc")
+			if NAStuff.cmdMobileKeyboardMode ~= "sym" and NAStuff.cmdMobileKeyboardMode ~= "num" and NAStuff.cmdMobileKeyboardMode ~= "more" then
+				NAStuff.cmdMobileKeyboardMode = "abc"
+			end
+			if NAgui.CmdMobileKeyboardRefresh then
+				NAgui.CmdMobileKeyboardRefresh()
+			end
+		end
+		if type(NAgui.autoFILLLL) == "function" and action ~= "enter" and action ~= "close" and action ~= "mode" and action ~= "shift" and action ~= "left" and action ~= "right" and action ~= "select" and action ~= "selectall" and action ~= "copy" and action ~= "paste" and action ~= "cut" and action ~= "undo" and action ~= "redo" then
+			Delay(0, NAgui.autoFILLLL)
+		end
+	end
+
+	local function makeButton(parent, spec, rootZ)
+		local action = tostring(spec.action or "char")
+		local b = InstanceNew("TextButton")
+		b.Name = "\0"
+		b.AutoButtonColor = action ~= "spacer"
+		b.Text = tostring(spec.label or "")
+		b.TextScaled = false
+		b.TextColor3 = Color3.fromRGB(248, 248, 252)
+		b.Font = Enum.Font.GothamMedium
+		local viewY = 720
+		pcall(function()
+			local cam = workspace and workspace.CurrentCamera
+			if cam then
+				viewY = cam.ViewportSize.Y
+			end
+		end)
+		b.TextSize = math.clamp(math.floor(viewY * 0.029), 17, 23)
+		b.BackgroundColor3 = Color3.fromRGB(64, 64, 70)
+		b.BackgroundTransparency = 0.18
+		b.BorderSizePixel = 0
+		b.ZIndex = rootZ + 2
+		b.LayoutOrder = #parent:GetChildren() + 1
+		b:SetAttribute("NA_Weight", tonumber(spec.weight) or 1)
+		if action == "spacer" then
+			b.Text = ""
+			b.Active = false
+			b.Selectable = false
+			b.AutoButtonColor = false
+			b.BackgroundTransparency = 1
+		elseif action == "left" or action == "right" or action == "select" or action == "selectall" or action == "copy" or action == "paste" or action == "cut" or action == "undo" or action == "redo" then
+			b.BackgroundColor3 = Color3.fromRGB(34, 34, 40)
+			b.BackgroundTransparency = 0.08
+			b.TextSize = math.clamp(math.floor(viewY * 0.019), 12, 16)
+		elseif action == "shift" or action == "mode" or action == "back" then
+			b.BackgroundColor3 = Color3.fromRGB(22, 22, 28)
+			b.BackgroundTransparency = 0.08
+			b.TextSize = math.clamp(math.floor(viewY * 0.022), 13, 18)
+		elseif action == "enter" then
+			b.BackgroundColor3 = Color3.fromRGB(84, 148, 255)
+			b.BackgroundTransparency = 0
+			b.TextSize = math.clamp(math.floor(viewY * 0.022), 13, 18)
+		elseif action == "space" then
+			b.BackgroundColor3 = Color3.fromRGB(88, 88, 92)
+			b.TextSize = math.clamp(math.floor(viewY * 0.018), 11, 15)
+		end
+		b.Parent = parent
+		local bc = InstanceNew("UICorner")
+		bc.CornerRadius = UDim.new(0, 8)
+		bc.Parent = b
+		if action ~= "spacer" then
+			local function cb()
+				press(action, spec.value)
+			end
+			if action == "back" then
+				local down = false
+				b.InputBegan:Connect(function(input)
+					if input.UserInputType ~= Enum.UserInputType.Touch and input.UserInputType ~= Enum.UserInputType.MouseButton1 then
+						return
+					end
+					down = true
+					cb()
+					if NAmanage.CmdInputStartKeyRepeat then
+						NAmanage.CmdInputStartKeyRepeat(nil, function()
+							if down then
+								cb()
+							end
+						end, { delay = 0.34, interval = 0.045 })
+					end
+				end)
+				b.InputEnded:Connect(function(input)
+					if input.UserInputType ~= Enum.UserInputType.Touch and input.UserInputType ~= Enum.UserInputType.MouseButton1 then
+						return
+					end
+					down = false
+					if NAmanage.CmdInputStopKeyRepeat then
+						NAmanage.CmdInputStopKeyRepeat()
+					end
+				end)
+			elseif type(MouseButtonFix) == "function" then
+				MouseButtonFix(b, cb)
+			else
+				b.MouseButton1Click:Connect(cb)
+			end
+		end
+		return b
+	end
+
+
+	local function getMobileToolbarRows()
+		local function toolkey(label, action, value, weight)
+			return { label = label, action = action or "char", value = value or label, weight = tonumber(weight) or 1 }
+		end
+		local viewY = 720
+		pcall(function()
+			local cam = workspace and workspace.CurrentCamera
+			if cam then
+				viewY = cam.ViewportSize.Y
+			end
+		end)
+		local toolbarH = math.clamp(math.floor(viewY * 0.04), 28, 34)
+		return {
+			{ h = toolbarH, toolbar = true, keys = {
+				toolkey("Undo", "undo", nil, 0.8),
+				toolkey("Redo", "redo", nil, 0.8),
+				toolkey("Left", "left", nil, 0.75),
+				toolkey("Right", "right", nil, 0.75),
+				toolkey("Select", "select", nil, 0.95),
+				toolkey("All", "selectall", nil, 0.7),
+				toolkey("Copy", "copy", nil, 0.8),
+				toolkey("Paste", "paste", nil, 0.9),
+				toolkey("Cut", "cut", nil, 0.7),
+			} }
+		}
+	end
+
+	NAgui.CmdMobileKeyboardBuild = function(root)
+		if not root then
+			return
+		end
+		for _, child in ipairs(root:GetChildren()) do
+			if not child:IsA("UIPadding") then
+				child:Destroy()
+			end
+		end
+		local rootZ = root.ZIndex or 1
+		local rows = {}
+		local toolbarRows = getMobileToolbarRows()
+		for _, row in ipairs(toolbarRows or {}) do
+			rows[#rows + 1] = row
+		end
+		for _, row in ipairs((NAgui.CmdMobileKeyboardGetRows and NAgui.CmdMobileKeyboardGetRows()) or {}) do
+			rows[#rows + 1] = row
+		end
+		local y = 0
+		for rowIndex, rowData in ipairs(rows) do
+			local h = tonumber(rowData.h) or 48
+			local r = InstanceNew("Frame")
+			r.Name = "\0"
+			r.BackgroundTransparency = 1
+			r.BorderSizePixel = 0
+			r.Position = UDim2.new(0, 0, 0, y)
+			r.Size = UDim2.new(1, 0, 0, h)
+			r.LayoutOrder = rowIndex
+			r.ZIndex = rootZ + 1
+			r.Parent = root
+			local layout = InstanceNew("UIListLayout")
+			layout.FillDirection = Enum.FillDirection.Horizontal
+			layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+			layout.VerticalAlignment = Enum.VerticalAlignment.Center
+			layout.SortOrder = Enum.SortOrder.LayoutOrder
+			layout.Padding = UDim.new(0, 2)
+			layout.Parent = r
+			local total = 0
+			for _, spec in ipairs(rowData.keys or {}) do
+				total += tonumber(spec.weight) or 1
+			end
+			for _, spec in ipairs(rowData.keys or {}) do
+				local weight = tonumber(spec.weight) or 1
+				local b = makeButton(r, spec, rootZ)
+				b.Size = UDim2.new(weight / math.max(total, 1), -2, 1, -2)
+			end
+			y += h + 2
+		end
+		local finalHeight = math.max(0, y - 2) + 5
+		pcall(function()
+			root.Size = UDim2.new(0.94, 0, 0, finalHeight)
+		end)
+	end
+
+	local gui = NAStuff.cmdMobileKeyboardGui
+	if not (gui and gui.Parent) then
+		gui = InstanceNew("ScreenGui")
+		pcall(function()
+			gui.ResetOnSpawn = false
+			gui.IgnoreGuiInset = true
+			gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+			gui.DisplayOrder = 2147483647
+		end)
+		NAgui.NaProtectUI(gui)
+		NAStuff.cmdMobileKeyboardGui = gui
+
+		local root = InstanceNew("Frame")
+		root.Name = "\0"
+		root.AnchorPoint = Vector2.new(0.5, 1)
+		root.Position = UDim2.new(0.5, 0, 1, -4)
+		root.Size = UDim2.new(0.94, 0, 0, 210)
+		root.BackgroundTransparency = 1
+		root.BorderSizePixel = 0
+		root.ZIndex = 2147483600
+		root.Parent = gui
+		NAStuff.cmdMobileKeyboardFrame = root
+
+		local padding = InstanceNew("UIPadding")
+		padding.PaddingTop = UDim.new(0, 2)
+		padding.PaddingBottom = UDim.new(0, 2)
+		padding.PaddingLeft = UDim.new(0, 2)
+		padding.PaddingRight = UDim.new(0, 2)
+		padding.Parent = root
+	end
+
+	if NAStuff.cmdMobileKeyboardMode == nil then
+		NAStuff.cmdMobileKeyboardMode = "abc"
+	end
+	gui.Enabled = true
+	NAStuff.cmdMobileKeyboardVisible = true
+	NAgui.CmdMobileKeyboardRefresh()
+	return true
+end
+
+NAmanage.GuiPointInside = NAmanage.GuiPointInside or function(obj, pos)
+	if not (obj and obj.Parent and obj:IsA("GuiObject") and pos) then
+		return false
+	end
+	local x = tonumber(pos.X) or 0
+	local y = tonumber(pos.Y) or 0
+	local p = obj.AbsolutePosition
+	local s = obj.AbsoluteSize
+	return x >= p.X and y >= p.Y and x <= (p.X + s.X) and y <= (p.Y + s.Y)
+end
+
+NAmanage.CmdInputPointInsideSafeArea = function(pos)
+	local box = NAUIMANAGER and NAUIMANAGER.cmdInput
+	if NAmanage.GuiPointInside(box, pos) then
+		return true
+	end
+	local overlay = NAStuff and NAStuff.cmdInputSoftOverlay
+	if NAmanage.GuiPointInside(overlay, pos) then
+		return true
+	end
+	local keyboard = NAStuff and NAStuff.cmdMobileKeyboardFrame
+	if NAmanage.GuiPointInside(keyboard, pos) then
+		return true
+	end
+	local autofill = NAUIMANAGER and NAUIMANAGER.cmdAutofill
+	if autofill and autofill.Visible and NAmanage.GuiPointInside(autofill, pos) then
+		return true
+	end
+	local centerBar = NAUIMANAGER and NAUIMANAGER.centerBar
+	if centerBar and centerBar.Visible and NAmanage.GuiPointInside(centerBar, pos) then
+		return true
+	end
+	return false
+end
+
+NAmanage.CmdInputClearSoftSelection = function(updateVisual)
+	NAStuff.cmdInputSoftSelectAll = false
+	NAStuff.cmdInputSoftSelectionAnchor = nil
+	local box = NAUIMANAGER and NAUIMANAGER.cmdInput
+	if box then
+		pcall(function()
+			box.SelectionStart = -1
+		end)
+	end
+	if updateVisual ~= false and NAmanage.CmdInputUpdateSoftVisual then
+		NAmanage.CmdInputUpdateSoftVisual()
+	end
+end
+
+NAmanage.CmdInputGetSelectionRange = function(box)
+	box = box or (NAUIMANAGER and NAUIMANAGER.cmdInput)
+	if not box then
+		return nil, nil
+	end
+	local text = tostring(box.Text or "")
+	local len = #text
+	local cursor = math.clamp(tonumber(box.CursorPosition) or (len + 1), 1, len + 1)
+	if NAStuff.cmdInputSoftSelectAll == true then
+		return 1, len + 1
+	end
+	local anchor = tonumber(NAStuff.cmdInputSoftSelectionAnchor)
+	if not anchor then
+		return nil, nil
+	end
+	anchor = math.clamp(anchor, 1, len + 1)
+	if anchor == cursor then
+		return nil, nil
+	end
+	return math.min(anchor, cursor), math.max(anchor, cursor)
+end
+
+NAmanage.CmdInputDeleteSelection = function(box, recordUndo)
+	box = box or (NAUIMANAGER and NAUIMANAGER.cmdInput)
+	if not box then
+		return false
+	end
+	local s, e = NAmanage.CmdInputGetSelectionRange(box)
+	if not s then
+		return false
+	end
+	local text = tostring(box.Text or "")
+	if recordUndo ~= false and NAmanage.CmdInputPushUndo then
+		NAmanage.CmdInputPushUndo(box)
+	end
+	box.Text = text:sub(1, s - 1)..text:sub(e)
+	NAmanage.CmdInputClearSoftSelection(false)
+	NAmanage.CmdInputSetCursor(box, s, false)
+	return true
+end
+
+NAmanage.CmdInputMeasureTextWidth = function(box, value)
+	if not box then
+		return 0
+	end
+	value = tostring(value or "")
+	if value == "" then
+		return 0
+	end
+	local service = nil
+	pcall(function()
+		service = __lt.cloneref and __lt.cloneref(game:GetService("TextService")) or game:GetService("TextService")
+	end)
+	if service and service.GetTextSize then
+		local ok, size = pcall(function()
+			return service:GetTextSize(value, math.max(1, tonumber(box.TextSize) or 14), box.Font, Vector2.new(100000, math.max(1, box.AbsoluteSize.Y)))
+		end)
+		if ok and size then
+			return tonumber(size.X) or 0
+		end
+	end
+	return #value * math.max(7, (tonumber(box.TextSize) or 14) * 0.55)
+end
+
+NAmanage.CmdInputEnsureSoftVisual = function()
+	local box = NAUIMANAGER and NAUIMANAGER.cmdInput
+	local overlay = NAStuff and NAStuff.cmdInputSoftOverlay
+	if not (box and box.Parent and overlay and overlay.Parent) then
+		return nil
+	end
+	local visual = NAStuff.cmdInputSoftVisual
+	if not (visual and visual.Parent == overlay) then
+		visual = InstanceNew("Frame")
+		visual.Name = "\0"
+		visual.BackgroundTransparency = 1
+		visual.BorderSizePixel = 0
+		visual.ClipsDescendants = true
+		visual.Size = UDim2.new(1, 0, 1, 0)
+		visual.ZIndex = (overlay.ZIndex or 1) + 1
+		visual.Parent = overlay
+		NAStuff.cmdInputSoftVisual = visual
+
+		local selection = InstanceNew("Frame")
+		selection.Name = "\0"
+		selection.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+		selection.BackgroundTransparency = 0.45
+		selection.BorderSizePixel = 0
+		selection.Visible = false
+		selection.ZIndex = visual.ZIndex + 1
+		selection.Parent = visual
+		NAStuff.cmdInputSoftSelectionFrame = selection
+
+		local textLabel = InstanceNew("TextLabel")
+		textLabel.Name = "\0"
+		textLabel.BackgroundTransparency = 1
+		textLabel.BorderSizePixel = 0
+		textLabel.ClipsDescendants = true
+		textLabel.RichText = false
+		textLabel.Text = ""
+		textLabel.Visible = false
+		textLabel.Size = UDim2.new(1, 0, 1, 0)
+		textLabel.ZIndex = visual.ZIndex + 2
+		textLabel.Parent = visual
+		NAStuff.cmdInputSoftTextLabel = textLabel
+
+		local caret = InstanceNew("Frame")
+		caret.Name = "\0"
+		caret.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+		caret.BackgroundTransparency = 0
+		caret.BorderSizePixel = 0
+		caret.Visible = false
+		caret.ZIndex = visual.ZIndex + 3
+		caret.Parent = visual
+		NAStuff.cmdInputSoftCaretFrame = caret
+	end
+	return visual
+end
+
+NAmanage.CmdInputUpdateSoftVisual = function()
+	local box = NAUIMANAGER and NAUIMANAGER.cmdInput
+	local overlay = NAStuff and NAStuff.cmdInputSoftOverlay
+	if not (box and overlay) then
+		return
+	end
+	local caret = NAStuff.cmdInputSoftCaretFrame
+	local selection = NAStuff.cmdInputSoftSelectionFrame
+	local textLabel = NAStuff.cmdInputSoftTextLabel
+	if not (NAmanage.isCmdSoftInputActive and NAmanage.isCmdSoftInputActive()) then
+		if caret then caret.Visible = false end
+		if selection then selection.Visible = false end
+		if textLabel then textLabel.Visible = false end
+		return
+	end
+	NAmanage.CmdInputEnsureSoftVisual()
+	caret = NAStuff.cmdInputSoftCaretFrame
+	selection = NAStuff.cmdInputSoftSelectionFrame
+	textLabel = NAStuff.cmdInputSoftTextLabel
+	if not caret then
+		return
+	end
+	local text = tostring(box.Text or "")
+	local len = #text
+	local cursor = math.clamp(tonumber(box.CursorPosition) or (len + 1), 1, len + 1)
+	local displayText = text
+	local showingPlaceholder = false
+	if displayText == "" then
+		local placeholder = tostring(box.PlaceholderText or "")
+		if placeholder ~= "" then
+			displayText = placeholder
+			showingPlaceholder = true
+		end
+	end
+	local textWidth = NAmanage.CmdInputMeasureTextWidth(box, text)
+	local displayWidth = NAmanage.CmdInputMeasureTextWidth(box, displayText)
+	local pad = 8
+	local boxWidth = math.max(1, box.AbsoluteSize.X)
+	local align = box.TextXAlignment
+	local alignWidth = showingPlaceholder and displayWidth or textWidth
+	local baseX = pad
+	if align == Enum.TextXAlignment.Center then
+		baseX = math.max(pad, (boxWidth - alignWidth) * 0.5)
+	elseif align == Enum.TextXAlignment.Right then
+		baseX = math.max(pad, boxWidth - alignWidth - pad)
+	end
+	baseX = math.floor(baseX + 0.5)
+	if textLabel then
+		pcall(function()
+			textLabel.Font = box.Font
+			textLabel.FontFace = box.FontFace
+			textLabel.TextSize = box.TextSize
+			textLabel.TextScaled = false
+			textLabel.TextWrapped = false
+			textLabel.TextColor3 = showingPlaceholder and (box.PlaceholderColor3 or Color3.fromRGB(178, 178, 178)) or box.TextColor3
+			textLabel.TextTransparency = showingPlaceholder and 0.15 or (box.TextTransparency ~= nil and math.min(0.98, tonumber(NAStuff.cmdInputSoftPrevTextTransparency) or 0) or 0)
+			textLabel.TextStrokeColor3 = box.TextStrokeColor3
+			textLabel.TextStrokeTransparency = showingPlaceholder and 1 or box.TextStrokeTransparency
+			textLabel.TextXAlignment = Enum.TextXAlignment.Left
+			textLabel.TextYAlignment = box.TextYAlignment
+			textLabel.Position = UDim2.new(0, baseX, 0, 0)
+			textLabel.Size = UDim2.new(1, -(baseX + pad), 1, 0)
+			textLabel.Text = displayText
+			textLabel.Visible = displayText ~= ""
+		end)
+	end
+	local before = text:sub(1, math.max(0, cursor - 1))
+	local caretOffset = before ~= "" and 1 or 0
+	local caretX = math.clamp(math.floor(baseX + NAmanage.CmdInputMeasureTextWidth(box, before) + caretOffset + 0.5), 1, boxWidth - 2)
+	local caretHeight = math.clamp((tonumber(box.TextSize) or 14) + 6, 12, math.max(12, box.AbsoluteSize.Y - 2))
+	caret.Position = UDim2.new(0, caretX, 0.5, 0)
+	caret.AnchorPoint = Vector2.new(0, 0.5)
+	caret.Size = UDim2.new(0, 2, 0, caretHeight)
+	caret.Visible = true
+
+	local s, e = NAmanage.CmdInputGetSelectionRange(box)
+	if selection and s and e and e > s then
+		local leftText = text:sub(1, s - 1)
+		local selectedText = text:sub(1, e - 1)
+		local x1 = math.clamp(baseX + NAmanage.CmdInputMeasureTextWidth(box, leftText), 0, boxWidth)
+		local x2 = math.clamp(baseX + NAmanage.CmdInputMeasureTextWidth(box, selectedText), 0, boxWidth)
+		selection.Position = UDim2.new(0, math.min(x1, x2), 0.5, 0)
+		selection.AnchorPoint = Vector2.new(0, 0.5)
+		selection.Size = UDim2.new(0, math.max(2, math.abs(x2 - x1)), 0, caretHeight)
+		selection.Visible = true
+	elseif selection then
+		selection.Visible = false
+	end
+end
+
+NAmanage.CmdInputStartCaretBlink = function()
+	NAStuff.cmdInputSoftCaretBlinkToken = (tonumber(NAStuff.cmdInputSoftCaretBlinkToken) or 0) + 1
+	local token = NAStuff.cmdInputSoftCaretBlinkToken
+	Spawn(function()
+		while NAStuff and NAStuff.cmdInputSoftCaretBlinkToken == token and NAmanage.isCmdSoftInputActive and NAmanage.isCmdSoftInputActive() do
+			local caret = NAStuff.cmdInputSoftCaretFrame
+			if caret then
+				caret.Visible = not caret.Visible
+			end
+			Wait(0.5)
+			if NAmanage.CmdInputUpdateSoftVisual then
+				NAmanage.CmdInputUpdateSoftVisual()
+			end
+		end
+	end)
+end
+
+NAmanage.CmdInputBindOutsideSoftBlur = function(enabled)
+	local key = "cmdbar_soft_outside_blur"
+	if enabled then
+		if NAStuff.cmdInputSoftOutsideBound then
+			return
+		end
+		NAlib.disconnect(key)
+		local function outsideBlurAt(pos)
+			if not (NAmanage.isCmdSoftInputActive and NAmanage.isCmdSoftInputActive()) then
+				return
+			end
+			if pos and not NAmanage.CmdInputPointInsideSafeArea(pos) then
+				NAStuff.cmdInputForceDeselect = true
+				NAgui.barDeselect(0.18)
+			end
+		end
+		NAlib.connect(key, UserInputService.InputBegan:Connect(function(input, gameProcessed)
+			if not input or not (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+				return
+			end
+			outsideBlurAt(input.Position)
+		end))
+		NAlib.connect(key .. "_tap", UserInputService.TouchTap:Connect(function(positions, gameProcessed)
+			local pos = type(positions) == "table" and positions[1] or nil
+			outsideBlurAt(pos)
+		end))
+		NAStuff.cmdInputSoftOutsideBound = true
+	else
+		NAlib.disconnect(key)
+		NAlib.disconnect(key .. "_tap")
+		NAStuff.cmdInputSoftOutsideBound = false
+	end
+end
+
+NAgui.CmdInputSoftOverlaySet = function(enabled)
+	local box = NAUIMANAGER and NAUIMANAGER.cmdInput
+	local overlay = NAStuff and NAStuff.cmdInputSoftOverlay
+	if not enabled then
+		if NAStuff then
+			local caret = NAStuff.cmdInputSoftCaretFrame
+			local selection = NAStuff.cmdInputSoftSelectionFrame
+			local textLabel = NAStuff.cmdInputSoftTextLabel
+			if caret then caret.Visible = false end
+			if selection then selection.Visible = false end
+			if textLabel then textLabel.Visible = false end
+		end
+		if overlay and overlay.Parent then
+			overlay.Visible = false
+		end
+		return
+	end
+	if not (box and box.Parent) then
+		return
+	end
+	if not (overlay and overlay.Parent == box.Parent) then
+		overlay = InstanceNew("TextButton")
+		overlay.Name = "\0"
+		overlay.Text = ""
+		overlay.AutoButtonColor = false
+		overlay.BackgroundTransparency = 1
+		overlay.BorderSizePixel = 0
+		overlay.Parent = box.Parent
+		NAStuff.cmdInputSoftOverlay = overlay
+		local function activate()
+			if NAmanage.CmdInputUseSoftFocus and NAmanage.CmdInputUseSoftFocus() then
+				NAgui.barSelect(0.12)
+				NAmanage.CmdSoftInputStart()
+			end
+		end
+		overlay.MouseButton1Click:Connect(activate)
+		overlay.InputBegan:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+				activate()
+			end
+		end)
+	end
+	pcall(function()
+		overlay.AnchorPoint = box.AnchorPoint
+		overlay.Position = box.Position
+		overlay.Size = box.Size
+		overlay.Rotation = box.Rotation
+		overlay.ZIndex = (box.ZIndex or 1) + 5
+		overlay.Visible = true
+		overlay.Active = true
+		overlay.Selectable = false
+	end)
+	if NAmanage.CmdInputEnsureSoftVisual then
+		NAmanage.CmdInputEnsureSoftVisual()
+	end
+	if NAmanage.CmdInputUpdateSoftVisual then
+		NAmanage.CmdInputUpdateSoftVisual()
+	end
+end
+
+NAmanage.CmdInputSetRealTextHidden = function(enabled)
+	local box = NAUIMANAGER and NAUIMANAGER.cmdInput
+	if not box then
+		return
+	end
+	if enabled then
+		if NAStuff.cmdInputSoftPrevTextTransparency == nil then
+			pcall(function()
+				NAStuff.cmdInputSoftPrevTextTransparency = box.TextTransparency
+			end)
+		end
+		if NAStuff.cmdInputSoftPrevTextStrokeTransparency == nil then
+			pcall(function()
+				NAStuff.cmdInputSoftPrevTextStrokeTransparency = box.TextStrokeTransparency
+			end)
+		end
+		pcall(function()
+			box.TextTransparency = 1
+			box.TextStrokeTransparency = 1
+		end)
+	else
+		pcall(function()
+			if NAStuff.cmdInputSoftPrevTextTransparency ~= nil then
+				box.TextTransparency = NAStuff.cmdInputSoftPrevTextTransparency
+			end
+			if NAStuff.cmdInputSoftPrevTextStrokeTransparency ~= nil then
+				box.TextStrokeTransparency = NAStuff.cmdInputSoftPrevTextStrokeTransparency
+			end
+		end)
+		NAStuff.cmdInputSoftPrevTextTransparency = nil
+		NAStuff.cmdInputSoftPrevTextStrokeTransparency = nil
+	end
+end
+
+NAmanage.CmdSoftInputStart = function()
+	if not (NAmanage.CmdInputUseSoftFocus and NAmanage.CmdInputUseSoftFocus()) then
+		return false
+	end
+	local box = NAUIMANAGER and NAUIMANAGER.cmdInput
+	if not box then
+		return false
+	end
+	NAStuff.cmdInputSoftFocus = true
+	NAStuff.cmdBarSelected = true
+	NAStuff.cmdSearchSuspendUntil = 0
+	if NAStuff.cmdInputSoftPrevTextEditable == nil then
+		NAStuff.cmdInputSoftPrevTextEditable = box.TextEditable
+	end
+	pcall(function()
+		box.TextEditable = false
+		box.ClearTextOnFocus = false
+		box.CursorPosition = math.clamp(tonumber(box.CursorPosition) or (#(box.Text or "") + 1), 1, #(box.Text or "") + 1)
+	end)
+	if NAmanage.CmdInputResetHistory and type(NAStuff.cmdInputUndoStack) ~= "table" then
+		NAmanage.CmdInputResetHistory(box)
+	end
+	if NAmanage.CmdInputSetRealTextHidden then
+		NAmanage.CmdInputSetRealTextHidden(true)
+	end
+	if NAgui.CmdInputSoftOverlaySet then
+		NAgui.CmdInputSoftOverlaySet(true)
+	end
+	if NAmanage.CmdInputActualFocused and NAmanage.CmdInputActualFocused() then
+		pcall(function()
+			box:ReleaseFocus()
+		end)
+	end
+	NAmanage.CmdInputBindSoftSink(true)
+	if NAmanage.CmdInputBindOutsideSoftBlur then
+		NAmanage.CmdInputBindOutsideSoftBlur(true)
+	end
+	if NAmanage.CmdInputStartCaretBlink then
+		NAmanage.CmdInputStartCaretBlink()
+	end
+	if NAmanage.CmdInputUpdateSoftVisual then
+		NAmanage.CmdInputUpdateSoftVisual()
+	end
+	if IsOnMobile and NAgui.CmdMobileKeyboardShow then
+		NAgui.CmdMobileKeyboardShow()
+	end
+	if type(NAgui.autoFILLLL) == "function" then
+		Delay(0, NAgui.autoFILLLL)
+	end
+	return true
+end
+
+NAmanage.CmdSoftInputStop = function()
+	local box = NAUIMANAGER and NAUIMANAGER.cmdInput
+	NAStuff.cmdInputSoftFocus = false
+	NAStuff.cmdInputSoftSelectAll = false
+	NAStuff.cmdInputSoftSelectionAnchor = nil
+	NAStuff.cmdInputSoftCaretBlinkToken = (tonumber(NAStuff.cmdInputSoftCaretBlinkToken) or 0) + 1
+	if NAmanage.CmdInputStopKeyRepeat then
+		NAmanage.CmdInputStopKeyRepeat()
+	end
+	NAmanage.CmdInputBindSoftSink(false)
+	if NAmanage.CmdInputBindOutsideSoftBlur then
+		NAmanage.CmdInputBindOutsideSoftBlur(false)
+	end
+	if NAmanage.CmdInputSetRealTextHidden then
+		NAmanage.CmdInputSetRealTextHidden(false)
+	end
+	if NAmanage.CmdInputUpdateSoftVisual then
+		NAmanage.CmdInputUpdateSoftVisual()
+	end
+	if NAgui.CmdInputSoftOverlaySet then
+		NAgui.CmdInputSoftOverlaySet(false)
+	end
+	if NAgui.CmdMobileKeyboardHide then
+		NAgui.CmdMobileKeyboardHide()
+	end
+	if box and NAStuff.cmdInputSoftPrevTextEditable ~= nil then
+		pcall(function()
+			box.TextEditable = NAStuff.cmdInputSoftPrevTextEditable
+		end)
+	end
+	NAStuff.cmdInputSoftPrevTextEditable = nil
+end
+
+NAmanage.SetCmdInputSafeMode = function(enabled, opts)
+	enabled = enabled ~= false
+	opts = type(opts) == "table" and opts or {}
+	NAStuff.CmdInputSafeMode = enabled
+	NAStuff.MobileCmdSafeInput = enabled
+	if opts.save ~= false then
+		pcall(NAmanage.NASettingsSet, "cmdInputSafeMode", enabled)
+	end
+	if not enabled then
+		if NAmanage.CmdSoftInputStop then
+			pcall(NAmanage.CmdSoftInputStop)
+		end
+		if NAgui and NAgui.CmdInputSoftOverlaySet then
+			pcall(NAgui.CmdInputSoftOverlaySet, false)
+		end
+		if NAgui and NAgui.CmdMobileKeyboardHide then
+			pcall(NAgui.CmdMobileKeyboardHide)
+		end
+		local box = NAUIMANAGER and NAUIMANAGER.cmdInput
+		if box then
+			pcall(function()
+				box.TextEditable = true
+				if NAStuff.cmdInputSoftPrevTextTransparency ~= nil then
+					box.TextTransparency = NAStuff.cmdInputSoftPrevTextTransparency
+				end
+				if NAStuff.cmdInputSoftPrevTextStrokeTransparency ~= nil then
+					box.TextStrokeTransparency = NAStuff.cmdInputSoftPrevTextStrokeTransparency
+				end
+			end)
+		end
+	else
+		local box = NAUIMANAGER and NAUIMANAGER.cmdInput
+		if box and NAStuff.cmdBarSelected == true and NAmanage.CmdSoftInputStart then
+			pcall(NAmanage.CmdSoftInputStart)
+			Defer(function()
+				if NAStuff and NAStuff.CmdInputSafeMode ~= false and NAStuff.cmdBarSelected == true and NAmanage.CmdSoftInputStart then
+					pcall(NAmanage.CmdSoftInputStart)
+				end
+			end)
+		end
+	end
+	if opts.notify ~= false and type(DoNotif) == "function" then
+		DoNotif("Command input method: "..(enabled and "Safe" or "Default"), 2)
+	end
+	return enabled
+end
+
+NAmanage.CmdInputSetCursor = function(box, pos, keepSelection)
+	if not box then
+		return 1
+	end
+	local len = #(box.Text or "")
+	local cursor = math.clamp(tonumber(pos) or (len + 1), 1, len + 1)
+	pcall(function()
+		box.CursorPosition = cursor
+	end)
+	if keepSelection == true then
+		local anchor = tonumber(NAStuff.cmdInputSoftSelectionAnchor)
+		if anchor then
+			anchor = math.clamp(anchor, 1, len + 1)
+			pcall(function()
+				box.SelectionStart = anchor
+			end)
+		end
+	else
+		NAmanage.CmdInputClearSoftSelection(false)
+	end
+	if NAmanage.CmdInputUpdateSoftVisual then
+		NAmanage.CmdInputUpdateSoftVisual()
+	end
+	return cursor
+end
+
+NAmanage.CmdInputCaptureState = function(box)
+	box = box or (NAUIMANAGER and NAUIMANAGER.cmdInput)
+	if not box then
+		return nil
+	end
+	local text = tostring(box.Text or "")
+	local len = #text
+	local cursor = math.clamp(tonumber(box.CursorPosition) or (len + 1), 1, len + 1)
+	local anchor = tonumber(NAStuff and NAStuff.cmdInputSoftSelectionAnchor)
+	if anchor then
+		anchor = math.clamp(anchor, 1, len + 1)
+	end
+	return {
+		text = text;
+		cursor = cursor;
+		anchor = anchor;
+		selectAll = NAStuff and NAStuff.cmdInputSoftSelectAll == true or false;
+	}
+end
+
+NAmanage.CmdInputStatesEqual = function(a, b)
+	return type(a) == "table"
+		and type(b) == "table"
+		and tostring(a.text or "") == tostring(b.text or "")
+		and tonumber(a.cursor) == tonumber(b.cursor)
+		and tonumber(a.anchor) == tonumber(b.anchor)
+		and (a.selectAll == true) == (b.selectAll == true)
+end
+
+NAmanage.CmdInputResetHistory = function(box)
+	local state = NAmanage.CmdInputCaptureState(box)
+	NAStuff.cmdInputUndoStack = state and { state } or {}
+	NAStuff.cmdInputRedoStack = {}
+end
+
+NAmanage.CmdInputPushUndo = function(box)
+	box = box or (NAUIMANAGER and NAUIMANAGER.cmdInput)
+	if not box then
+		return
+	end
+	local state = NAmanage.CmdInputCaptureState(box)
+	if not state then
+		return
+	end
+	local stack = type(NAStuff.cmdInputUndoStack) == "table" and NAStuff.cmdInputUndoStack or {}
+	local last = stack[#stack]
+	if not NAmanage.CmdInputStatesEqual(last, state) then
+		stack[#stack + 1] = state
+		local max = 100
+		while #stack > max do
+			table.remove(stack, 1)
+		end
+	end
+	NAStuff.cmdInputUndoStack = stack
+	NAStuff.cmdInputRedoStack = {}
+end
+
+NAmanage.CmdInputApplyState = function(state)
+	local box = NAUIMANAGER and NAUIMANAGER.cmdInput
+	if not box or type(state) ~= "table" then
+		return false
+	end
+	local text = tostring(state.text or "")
+	box.Text = text
+	NAStuff.cmdInputSoftSelectAll = state.selectAll == true
+	NAStuff.cmdInputSoftSelectionAnchor = tonumber(state.anchor)
+	local cursor = math.clamp(tonumber(state.cursor) or (#text + 1), 1, #text + 1)
+	pcall(function()
+		box.CursorPosition = cursor
+		box.SelectionStart = tonumber(NAStuff.cmdInputSoftSelectionAnchor) or -1
+	end)
+	if NAmanage.CmdInputUpdateSoftVisual then
+		NAmanage.CmdInputUpdateSoftVisual()
+	end
+	return true
+end
+
+NAmanage.CmdInputUndo = function()
+	local stack = type(NAStuff.cmdInputUndoStack) == "table" and NAStuff.cmdInputUndoStack or {}
+	if #stack <= 1 then
+		return true
+	end
+	local current = NAmanage.CmdInputCaptureState()
+	local redo = type(NAStuff.cmdInputRedoStack) == "table" and NAStuff.cmdInputRedoStack or {}
+	if current then
+		redo[#redo + 1] = current
+	end
+	local prev = stack[#stack - 1]
+	stack[#stack] = nil
+	NAStuff.cmdInputUndoStack = stack
+	NAStuff.cmdInputRedoStack = redo
+	NAmanage.CmdInputApplyState(prev)
+	return true
+end
+
+NAmanage.CmdInputRedo = function()
+	local redo = type(NAStuff.cmdInputRedoStack) == "table" and NAStuff.cmdInputRedoStack or {}
+	local state = redo[#redo]
+	if not state then
+		return true
+	end
+	redo[#redo] = nil
+	local stack = type(NAStuff.cmdInputUndoStack) == "table" and NAStuff.cmdInputUndoStack or {}
+	local current = NAmanage.CmdInputCaptureState()
+	if current then
+		stack[#stack + 1] = current
+	end
+	NAStuff.cmdInputUndoStack = stack
+	NAStuff.cmdInputRedoStack = redo
+	NAmanage.CmdInputApplyState(state)
+	return true
+end
+
+NAmanage.CmdInputIsWordChar = function(ch)
+	return type(ch) == "string" and ch:match("[%w_]") ~= nil
+end
+
+NAmanage.CmdInputFindWordLeft = function(text, cursor)
+	text = tostring(text or "")
+	cursor = math.clamp(tonumber(cursor) or (#text + 1), 1, #text + 1)
+	local i = cursor - 1
+	while i > 1 and text:sub(i - 1, i - 1):match("%s") do
+		i -= 1
+	end
+	while i > 1 and NAmanage.CmdInputIsWordChar(text:sub(i - 1, i - 1)) do
+		i -= 1
+	end
+	return math.clamp(i, 1, #text + 1)
+end
+
+NAmanage.CmdInputFindWordRight = function(text, cursor)
+	text = tostring(text or "")
+	cursor = math.clamp(tonumber(cursor) or (#text + 1), 1, #text + 1)
+	local i = cursor
+	local len = #text
+	while i <= len and text:sub(i, i):match("%s") do
+		i += 1
+	end
+	while i <= len and NAmanage.CmdInputIsWordChar(text:sub(i, i)) do
+		i += 1
+	end
+	return math.clamp(i, 1, len + 1)
+end
+
+NAmanage.CmdInputDeleteWordBack = function()
+	local box = NAUIMANAGER and NAUIMANAGER.cmdInput
+	if not box then
+		return false
+	end
+	if NAmanage.CmdInputDeleteSelection and NAmanage.CmdInputDeleteSelection(box) then
+		return true
+	end
+	local text = tostring(box.Text or "")
+	local cursor = math.clamp(tonumber(box.CursorPosition) or (#text + 1), 1, #text + 1)
+	if cursor <= 1 then
+		return true
+	end
+	local startPos = NAmanage.CmdInputFindWordLeft(text, cursor)
+	if startPos == cursor then
+		startPos = math.max(1, cursor - 1)
+	end
+	NAmanage.CmdInputPushUndo(box)
+	box.Text = text:sub(1, startPos - 1)..text:sub(cursor)
+	NAmanage.CmdInputSetCursor(box, startPos)
+	return true
+end
+
+NAmanage.CmdInputDeleteWordForward = function()
+	local box = NAUIMANAGER and NAUIMANAGER.cmdInput
+	if not box then
+		return false
+	end
+	if NAmanage.CmdInputDeleteSelection and NAmanage.CmdInputDeleteSelection(box) then
+		return true
+	end
+	local text = tostring(box.Text or "")
+	local cursor = math.clamp(tonumber(box.CursorPosition) or (#text + 1), 1, #text + 1)
+	if cursor > #text then
+		return true
+	end
+	local endPos = NAmanage.CmdInputFindWordRight(text, cursor)
+	if endPos == cursor then
+		endPos = math.min(#text + 1, cursor + 1)
+	end
+	NAmanage.CmdInputPushUndo(box)
+	box.Text = text:sub(1, cursor - 1)..text:sub(endPos)
+	NAmanage.CmdInputSetCursor(box, cursor)
+	return true
+end
+
+NAmanage.CmdInputInsertText = function(value)
+	local box = NAUIMANAGER and NAUIMANAGER.cmdInput
+	if not box then
+		return false
+	end
+	local insert = tostring(value or "")
+	if insert == "" then
+		return true
+	end
+	insert = insert:gsub("\r\n", " "):gsub("[\r\n]", " ")
+	local text = tostring(box.Text or "")
+	if NAmanage.CmdInputPushUndo then
+		NAmanage.CmdInputPushUndo(box)
+	end
+	if NAmanage.CmdInputDeleteSelection and NAmanage.CmdInputDeleteSelection(box, false) then
+		text = tostring(box.Text or "")
+	end
+	local cursor = NAmanage.CmdInputSetCursor(box, box.CursorPosition)
+	box.Text = text:sub(1, cursor - 1)..insert..text:sub(cursor)
+	NAmanage.CmdInputSetCursor(box, cursor + #insert)
+	return true
+end
+
+NAmanage.CmdInputDeleteBack = function()
+	local box = NAUIMANAGER and NAUIMANAGER.cmdInput
+	if not box then
+		return false
+	end
+	local text = tostring(box.Text or "")
+	if NAmanage.CmdInputDeleteSelection and NAmanage.CmdInputDeleteSelection(box) then
+		return true
+	end
+	local cursor = NAmanage.CmdInputSetCursor(box, box.CursorPosition)
+	if cursor <= 1 then
+		return true
+	end
+	if NAmanage.CmdInputPushUndo then
+		NAmanage.CmdInputPushUndo(box)
+	end
+	box.Text = text:sub(1, cursor - 2)..text:sub(cursor)
+	NAmanage.CmdInputSetCursor(box, cursor - 1)
+	return true
+end
+
+NAmanage.CmdInputDeleteForward = function()
+	local box = NAUIMANAGER and NAUIMANAGER.cmdInput
+	if not box then
+		return false
+	end
+	local text = tostring(box.Text or "")
+	if NAmanage.CmdInputDeleteSelection and NAmanage.CmdInputDeleteSelection(box) then
+		return true
+	end
+	local cursor = NAmanage.CmdInputSetCursor(box, box.CursorPosition)
+	if cursor > #text then
+		return true
+	end
+	if NAmanage.CmdInputPushUndo then
+		NAmanage.CmdInputPushUndo(box)
+	end
+	box.Text = text:sub(1, cursor - 1)..text:sub(cursor + 1)
+	NAmanage.CmdInputSetCursor(box, cursor)
+	return true
+end
+
+NAmanage.CmdInputKeyToChar = function(input)
+	if not input or input.UserInputType ~= Enum.UserInputType.Keyboard then
+		return nil
+	end
+	local key = input.KeyCode
+	local name = key and key.Name or ""
+	local shift = false
+	pcall(function()
+		shift = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.RightShift)
+	end)
+	if #name == 1 and name:match("%a") then
+		return shift and name:upper() or name:lower()
+	end
+	local normal = {
+		[Enum.KeyCode.Zero] = "0", [Enum.KeyCode.One] = "1", [Enum.KeyCode.Two] = "2", [Enum.KeyCode.Three] = "3", [Enum.KeyCode.Four] = "4",
+		[Enum.KeyCode.Five] = "5", [Enum.KeyCode.Six] = "6", [Enum.KeyCode.Seven] = "7", [Enum.KeyCode.Eight] = "8", [Enum.KeyCode.Nine] = "9",
+		[Enum.KeyCode.KeypadZero] = "0", [Enum.KeyCode.KeypadOne] = "1", [Enum.KeyCode.KeypadTwo] = "2", [Enum.KeyCode.KeypadThree] = "3", [Enum.KeyCode.KeypadFour] = "4",
+		[Enum.KeyCode.KeypadFive] = "5", [Enum.KeyCode.KeypadSix] = "6", [Enum.KeyCode.KeypadSeven] = "7", [Enum.KeyCode.KeypadEight] = "8", [Enum.KeyCode.KeypadNine] = "9",
+		[Enum.KeyCode.Space] = " ", [Enum.KeyCode.Semicolon] = ";", [Enum.KeyCode.Comma] = ",", [Enum.KeyCode.Period] = ".", [Enum.KeyCode.Slash] = "/",
+		[Enum.KeyCode.BackSlash] = "\\", [Enum.KeyCode.Quote] = "'", [Enum.KeyCode.Minus] = "-", [Enum.KeyCode.Equals] = "=", [Enum.KeyCode.LeftBracket] = "[",
+		[Enum.KeyCode.RightBracket] = "]", [Enum.KeyCode.Backquote] = "`", [Enum.KeyCode.KeypadPlus] = "+", [Enum.KeyCode.KeypadMinus] = "-", [Enum.KeyCode.KeypadMultiply] = "*",
+		[Enum.KeyCode.KeypadDivide] = "/", [Enum.KeyCode.KeypadPeriod] = ".",
+	}
+	local shifted = {
+		[Enum.KeyCode.Zero] = ")", [Enum.KeyCode.One] = "!", [Enum.KeyCode.Two] = "@", [Enum.KeyCode.Three] = "#", [Enum.KeyCode.Four] = "$",
+		[Enum.KeyCode.Five] = "%", [Enum.KeyCode.Six] = "^", [Enum.KeyCode.Seven] = "&", [Enum.KeyCode.Eight] = "*", [Enum.KeyCode.Nine] = "(",
+		[Enum.KeyCode.Semicolon] = ":", [Enum.KeyCode.Comma] = "<", [Enum.KeyCode.Period] = ">", [Enum.KeyCode.Slash] = "?", [Enum.KeyCode.BackSlash] = "|",
+		[Enum.KeyCode.Quote] = "\"", [Enum.KeyCode.Minus] = "_", [Enum.KeyCode.Equals] = "+", [Enum.KeyCode.LeftBracket] = "{", [Enum.KeyCode.RightBracket] = "}",
+		[Enum.KeyCode.Backquote] = "~",
+	}
+	return (shift and shifted[key]) or normal[key]
+end
+
+
+NAmanage.CmdInputGetSelectedText = function(box)
+	box = box or (NAUIMANAGER and NAUIMANAGER.cmdInput)
+	if not box then
+		return ""
+	end
+	local s, e = NAmanage.CmdInputGetSelectionRange(box)
+	if not s or not e or e <= s then
+		return ""
+	end
+	local text = tostring(box.Text or "")
+	return text:sub(s, e - 1)
+end
+
+NAmanage.CmdInputGetClipboardSet = function()
+	for _, fn in { "setclipboard", "toclipboard", "set_clipboard" } do
+		local value = rawget(_na_boot.hostEnv, fn)
+		if type(value) == "function" then
+			return value
+		end
+		if type(_G) == "table" then
+			value = rawget(_G, fn)
+			if type(value) == "function" then
+				return value
+			end
+		end
+	end
+	if type(setclipboard) == "function" then
+		return setclipboard
+	end
+	if type(toclipboard) == "function" then
+		return toclipboard
+	end
+	return nil
+end
+
+NAmanage.CmdInputGetClipboardGet = function()
+	for _, fn in { "getclipboard", "get_clipboard", "readclipboard" } do
+		local value = rawget(_na_boot.hostEnv, fn)
+		if type(value) == "function" then
+			return value
+		end
+		if type(_G) == "table" then
+			value = rawget(_G, fn)
+			if type(value) == "function" then
+				return value
+			end
+		end
+	end
+	if type(getclipboard) == "function" then
+		return getclipboard
+	end
+	if type(readclipboard) == "function" then
+		return readclipboard
+	end
+	return nil
+end
+
+NAmanage.CmdInputCopySelection = function()
+	local selected = NAmanage.CmdInputGetSelectedText()
+	if selected == "" then
+		return true
+	end
+	local setter = NAmanage.CmdInputGetClipboardSet and NAmanage.CmdInputGetClipboardSet()
+	if type(setter) == "function" then
+		pcall(setter, selected)
+	end
+	return true
+end
+
+NAmanage.CmdInputCutSelection = function()
+	local selected = NAmanage.CmdInputGetSelectedText()
+	if selected ~= "" then
+		local setter = NAmanage.CmdInputGetClipboardSet and NAmanage.CmdInputGetClipboardSet()
+		if type(setter) == "function" then
+			pcall(setter, selected)
+		end
+		NAmanage.CmdInputDeleteSelection()
+	end
+	return true
+end
+
+NAmanage.CmdInputNotifyMissingClipboardGet = function()
+	local now = os.clock()
+	if tonumber(NAStuff.cmdInputClipboardGetWarnAt) and now - NAStuff.cmdInputClipboardGetWarnAt < 1.25 then
+		return
+	end
+	NAStuff.cmdInputClipboardGetWarnAt = now
+	if type(DoNotif) == "function" then
+		DoNotif("Your executor does not support getclipboard, so Ctrl+V cannot paste in Safe Command Input.", 2)
+	end
+end
+
+NAmanage.CmdInputPasteClipboard = function()
+	local getter = NAmanage.CmdInputGetClipboardGet and NAmanage.CmdInputGetClipboardGet()
+	if type(getter) ~= "function" then
+		if NAmanage.CmdInputNotifyMissingClipboardGet then
+			NAmanage.CmdInputNotifyMissingClipboardGet()
+		end
+		return true
+	end
+	local ok, value = pcall(getter)
+	if not ok or value == nil then
+		return true
+	end
+	value = tostring(value):gsub("\r\n", " "):gsub("[\r\n]", " ")
+	if value ~= "" then
+		NAmanage.CmdInputInsertText(value)
+	end
+	return true
+end
+
+NAmanage.CmdInputApplyPrediction = function()
+	local predictionText = (NAStuff and NAStuff.lastCmdAutofillCompletion) or (predictionInput and predictionInput.Text) or ""
+	if predictionText == "" then
+		return true
+	end
+	local box = NAUIMANAGER and NAUIMANAGER.cmdInput
+	if not box then
+		return true
+	end
+	local sanitizedText = NAmanage.stripChar(predictionText)
+	box.Text = sanitizedText
+	NAmanage.CmdInputClearSoftSelection(false)
+	NAmanage.CmdInputSetCursor(box, #sanitizedText + 1)
+	NAStuff.lastCmdAutofillCompletion = ""
+	if predictionInput then
+		predictionInput.Text = ""
+	end
+	return true
+end
+
+NAmanage.CmdInputSubmit = function()
+	local box = NAUIMANAGER and NAUIMANAGER.cmdInput
+	if not box then
+		return false
+	end
+	NAStuff.cmdSearchSuspendUntil = os.clock() + 0.35
+	gen += 1
+	local txt = NAmanage.stripChar(box.Text or "")
+	if txt and #txt > 0 then
+		local prefix = tostring(opt.prefix or "")
+		if prefix ~= "" then
+			local escapedPrefix = (NAmanage.StreamerEscapePattern and NAmanage.StreamerEscapePattern(prefix)) or prefix:gsub("([%%%^%$%(%)%.%[%]%*%+%-%?])", "%%%1")
+			txt = txt:gsub("^%s*"..escapedPrefix.."+%s*", "")
+		end
+		if txt ~= "" then
+			Defer(function()
+				NAlib.parseCommand(prefix..txt)
+			end)
+		end
+	end
+	if predictionInput then
+		predictionInput.Text = ""
+	end
+	NAgui.barDeselect(0.18)
+	return true
+end
+
+NAmanage.HandleCmdSoftInput = function(input, gameProcessed)
+	if not (NAmanage.isCmdSoftInputActive and NAmanage.isCmdSoftInputActive()) then
+		return false
+	end
+	if not input or input.UserInputType ~= Enum.UserInputType.Keyboard then
+		return true
+	end
+	local key = input.KeyCode
+	local ctrl = false
+	local shift = false
+	pcall(function()
+		ctrl = UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) or UserInputService:IsKeyDown(Enum.KeyCode.RightControl)
+		shift = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.RightShift)
+	end)
+	local box = NAUIMANAGER and NAUIMANAGER.cmdInput
+	if not box then
+		return true
+	end
+	local function moveCursor(newPos)
+		local current = math.clamp(tonumber(box.CursorPosition) or (#(box.Text or "") + 1), 1, #(box.Text or "") + 1)
+		if shift then
+			if tonumber(NAStuff.cmdInputSoftSelectionAnchor) == nil then
+				NAStuff.cmdInputSoftSelectionAnchor = current
+			end
+			NAStuff.cmdInputSoftSelectAll = false
+			NAmanage.CmdInputSetCursor(box, newPos, true)
+		else
+			NAmanage.CmdInputSetCursor(box, newPos, false)
+		end
+	end
+	if key == Enum.KeyCode.Escape then
+		NAgui.barDeselect(0.18)
+		return true
+	elseif key == Enum.KeyCode.Return or key == Enum.KeyCode.KeypadEnter then
+		return NAmanage.CmdInputSubmit()
+	elseif key == Enum.KeyCode.Tab then
+		return NAmanage.CmdInputApplyPrediction()
+	elseif ctrl and key == Enum.KeyCode.A then
+		NAStuff.cmdInputSoftSelectAll = true
+		NAStuff.cmdInputSoftSelectionAnchor = 1
+		NAmanage.CmdInputSetCursor(box, #(box.Text or "") + 1, true)
+		return true
+	elseif ctrl and key == Enum.KeyCode.C then
+		return NAmanage.CmdInputCopySelection()
+	elseif ctrl and key == Enum.KeyCode.X then
+		return NAmanage.CmdInputCutSelection()
+	elseif ctrl and key == Enum.KeyCode.V then
+		return NAmanage.CmdInputPasteClipboard()
+	elseif ctrl and key == Enum.KeyCode.Z then
+		if shift and NAmanage.CmdInputRedo then
+			return NAmanage.CmdInputRedo()
+		end
+		return NAmanage.CmdInputUndo and NAmanage.CmdInputUndo() or true
+	elseif ctrl and key == Enum.KeyCode.Y then
+		return NAmanage.CmdInputRedo and NAmanage.CmdInputRedo() or true
+	elseif (shift and key == Enum.KeyCode.Delete) then
+		return NAmanage.CmdInputCutSelection()
+	elseif (ctrl and key == Enum.KeyCode.Insert) then
+		return NAmanage.CmdInputCopySelection()
+	elseif (shift and key == Enum.KeyCode.Insert) then
+		return NAmanage.CmdInputPasteClipboard()
+	elseif key == Enum.KeyCode.Backspace then
+		local fn = ctrl and NAmanage.CmdInputDeleteWordBack or NAmanage.CmdInputDeleteBack
+		fn()
+		if NAmanage.CmdInputStartKeyRepeat then
+			NAmanage.CmdInputStartKeyRepeat(Enum.KeyCode.Backspace, fn, { delay = 0.34, interval = 0.045 })
+		end
+		return true
+	elseif key == Enum.KeyCode.Delete then
+		local fn = ctrl and NAmanage.CmdInputDeleteWordForward or NAmanage.CmdInputDeleteForward
+		fn()
+		if NAmanage.CmdInputStartKeyRepeat then
+			NAmanage.CmdInputStartKeyRepeat(Enum.KeyCode.Delete, fn, { delay = 0.34, interval = 0.045 })
+		end
+		return true
+	elseif key == Enum.KeyCode.Left then
+		local text = tostring(box.Text or "")
+		local current = tonumber(box.CursorPosition) or (#text + 1)
+		moveCursor(ctrl and NAmanage.CmdInputFindWordLeft(text, current) or (current - 1))
+		return true
+	elseif key == Enum.KeyCode.Right then
+		local text = tostring(box.Text or "")
+		local current = tonumber(box.CursorPosition) or (#text + 1)
+		moveCursor(ctrl and NAmanage.CmdInputFindWordRight(text, current) or (current + 1))
+		return true
+	elseif key == Enum.KeyCode.Home then
+		moveCursor(1)
+		return true
+	elseif key == Enum.KeyCode.End then
+		moveCursor(#(box.Text or "") + 1)
+		return true
+	elseif ctrl then
+		return true
+	end
+	local char = NAmanage.CmdInputKeyToChar(input)
+	if char then
+		local inserted = NAmanage.CmdInputInsertText(char)
+		if inserted and NAmanage.CmdInputStartKeyRepeat then
+			NAmanage.CmdInputStartKeyRepeat(key, function()
+				local repeatChar = NAmanage.CmdInputKeyToChar(input)
+				if repeatChar then
+					NAmanage.CmdInputInsertText(repeatChar)
+				end
+			end, { delay = 0.34, interval = 0.045, input = input })
+		end
+		return inserted
+	end
+	return true
+end
+
 NAgui.ensureCmdFocus = function()
 	if not (NAUIMANAGER and NAUIMANAGER.cmdInput) then return end
+	if NAmanage.CmdSoftInputStart and NAmanage.CmdSoftInputStart() then
+		return
+	end
 	local box = NAUIMANAGER.cmdInput
 	if cmdDefaultClear == nil then
 		cmdDefaultClear = box.ClearTextOnFocus
@@ -99030,7 +100947,13 @@ NAgui.barSelect = function(speed)
 		Position = UDim2.new(1, 0, 0.5, 0),
 		Size = fillSizes.right
 	})
-	if not IsOnMobile then
+	if NAmanage.CmdInputUseSoftFocus and NAmanage.CmdInputUseSoftFocus() then
+		Delay(speed * 0.4, function()
+			if NAStuff.cmdBarSelected and NAmanage.CmdSoftInputStart then
+				NAmanage.CmdSoftInputStart()
+			end
+		end)
+	elseif not IsOnMobile then
 		Delay(speed * 0.4, NAgui.ensureCmdFocus)
 	end
 end
@@ -99042,6 +100965,18 @@ NAgui.activateCmdInput = function(opts)
 		return false
 	end
 	local prefixChar = tostring(opts.prefixChar or (opt and opt.prefix) or ""):sub(1, 1)
+	if NAmanage.CmdInputUseSoftFocus and NAmanage.CmdInputUseSoftFocus() then
+		NAgui.barSelect(opts.speed)
+		if opts.clear ~= false then
+			box.Text = ""
+			NAmanage.CmdInputSetCursor(box, 1)
+			if predictionInput then
+				predictionInput.Text = ""
+			end
+		end
+		NAmanage.CmdSoftInputStart()
+		return true
+	end
 	local alreadyFocused = false
 	if UserInputService.GetFocusedTextBox then
 		alreadyFocused = __lt.cm("UserInputService", "GetFocusedTextBox") == box
@@ -99080,7 +101015,11 @@ NAgui.activateCmdInput = function(opts)
 end
 
 NAgui.barDeselect = function(speed)
-	if IsOnMobile and NAStuff.autofillRefocusGuard > 0 and os.clock() < NAStuff.autofillRefocusGuard then
+	local forceDeselect = NAStuff and NAStuff.cmdInputForceDeselect == true
+	if forceDeselect and NAStuff then
+		NAStuff.cmdInputForceDeselect = false
+	end
+	if IsOnMobile and not forceDeselect and NAStuff.autofillRefocusGuard > 0 and os.clock() < NAStuff.autofillRefocusGuard then
 		return
 	end
 	speed = speed or 0.4
@@ -99131,8 +101070,13 @@ NAgui.barDeselect = function(speed)
 	if not hadVisible then
 		NAgui.hideFill()
 	end
+	if NAmanage.CmdSoftInputStop then
+		NAmanage.CmdSoftInputStop()
+	end
 	if NAUIMANAGER and NAUIMANAGER.cmdInput then
-		NAUIMANAGER.cmdInput:ReleaseFocus()
+		pcall(function()
+			NAUIMANAGER.cmdInput:ReleaseFocus()
+		end)
 		if cmdDefaultClear ~= nil then
 			NAUIMANAGER.cmdInput.ClearTextOnFocus = cmdDefaultClear
 		end
@@ -99502,6 +101446,14 @@ if NAUIMANAGER.cmdInput then
 		NAStuff.cmdSearchSuspendUntil = 0
 		Delay(0, NAgui.autoFILLLL)
 	end))
+	NAlib.disconnect("cmdbar_input_soft_click")
+	NAlib.connect("cmdbar_input_soft_click", NAUIMANAGER.cmdInput.InputBegan:Connect(function(input)
+		if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch)
+			and NAmanage.CmdInputUseSoftFocus and NAmanage.CmdInputUseSoftFocus() then
+			NAgui.barSelect(0.12)
+			NAmanage.CmdSoftInputStart()
+		end
+	end))
 end
 
 --[[ OPEN THE COMMAND BAR ]]--
@@ -99614,26 +101566,32 @@ originalIO.resolvePrefixKey=function()
 	end
 	return nil
 end
+NAlib.connect("cmdbar_soft_repeat_end", UserInputService.InputEnded:Connect(function(i, g)
+	if not (NAmanage.isCmdSoftInputActive and NAmanage.isCmdSoftInputActive()) then
+		return
+	end
+	if not i or i.UserInputType ~= Enum.UserInputType.Keyboard then
+		return
+	end
+	local repeatKey = NAStuff and NAStuff.cmdInputSoftRepeatKey or nil
+	if i.KeyCode == Enum.KeyCode.Backspace
+		or i.KeyCode == Enum.KeyCode.Delete
+		or (repeatKey ~= nil and i.KeyCode == repeatKey) then
+		if NAmanage.CmdInputStopKeyRepeat then
+			NAmanage.CmdInputStopKeyRepeat()
+		end
+	end
+end))
 NAlib.connect("cmdbar_hotkeys", UserInputService.InputBegan:Connect(function(i, g)
+	if NAmanage.HandleCmdSoftInput and NAmanage.HandleCmdSoftInput(i, g) then
+		return
+	end
 	if not i or i.UserInputType ~= Enum.UserInputType.Keyboard then
 		return
 	end
 	if i.KeyCode == Enum.KeyCode.Tab
-		and __lt.cm("UserInputService", "GetFocusedTextBox") == (NAUIMANAGER and NAUIMANAGER.cmdInput) then
-		local predictionText = (NAStuff and NAStuff.lastCmdAutofillCompletion) or (predictionInput and predictionInput.Text) or ""
-		if predictionText ~= "" then
-			Defer(function()
-				local box = NAUIMANAGER and NAUIMANAGER.cmdInput
-				if not box then
-					return
-				end
-				local sanitizedText = NAmanage.stripChar(predictionText)
-				box.Text = sanitizedText
-				box.CursorPosition = #sanitizedText + 1
-				NAStuff.lastCmdAutofillCompletion = ""
-				predictionInput.Text = ""
-			end)
-		end
+		and (__lt.cm("UserInputService", "GetFocusedTextBox") == (NAUIMANAGER and NAUIMANAGER.cmdInput)) then
+		NAmanage.CmdInputApplyPrediction()
 		return
 	end
 	if g then return end
@@ -99675,6 +101633,9 @@ end))
 --[[ CLOSE THE COMMAND BAR ]]--
 NAlib.disconnect("cmdbar_input_focuslost")
 NAlib.connect("cmdbar_input_focuslost", NAUIMANAGER.cmdInput.FocusLost:Connect(function(enter)
+	if NAmanage.isCmdSoftInputActive and NAmanage.isCmdSoftInputActive() then
+		return
+	end
 	if IsOnMobile and NAStuff.cmdFocusGuardUntil and os.clock() < NAStuff.cmdFocusGuardUntil then
 		return
 	end
@@ -99715,6 +101676,9 @@ NAlib.connect("cmdbar_input_focuslost", NAUIMANAGER.cmdInput.FocusLost:Connect(f
 		checkDelay = math.max(0.22, NAStuff.autofillRefocusGuard - os.clock())
 	end
 	Wait(checkDelay)
+	if NAmanage.isCmdSoftInputActive and NAmanage.isCmdSoftInputActive() then
+		return
+	end
 	if not NAUIMANAGER.cmdInput:IsFocused() then NAgui.barDeselect() end
 end))
 
@@ -99737,6 +101701,9 @@ NAlib.connect("cmdbar_input_text", NAUIMANAGER.cmdInput:GetPropertyChangedSignal
 		box.CursorPosition = #c + 1
 	end
 	NAgui.searchCommands()
+	if NAmanage.CmdInputUpdateSoftVisual then
+		NAmanage.CmdInputUpdateSoftVisual()
+	end
 end))
 
 if NAUIMANAGER.filterBox then
@@ -113280,6 +115247,16 @@ NAgui.addToggle("Command Predictions Prompt", doPREDICTION, function(v)
 end)
 NAmanage.RegisterToggleAutoSync("Command Predictions Prompt", function()
 	return doPREDICTION == true
+end)
+
+NAgui.addToggle("Safe Command Input", NAStuff.CmdInputSafeMode ~= false, function(v)
+	NAmanage.SetCmdInputSafeMode(v ~= false, {
+		save = true;
+		notify = true;
+	})
+end)
+NAmanage.RegisterToggleAutoSync("Safe Command Input", function()
+	return NAStuff.CmdInputSafeMode ~= false
 end)
 
 NAgui.addToggle("Disable Purchase Prompts", NAStuff.PurchasePromptsDisabled == true, function(v)
