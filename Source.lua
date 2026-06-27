@@ -1310,6 +1310,10 @@ local NAStuff = {
 	ESP_DrawingPartQueuePerStep = 64;
 	ESP_DrawingMaxPerStep = 64;
 	ESP_PartUpdatePerStep = 48;
+	ESP_PartMaxActive = 450;
+	ESP_PartSweepInterval = 4;
+	ESP_PartNameSweepInterval = 18;
+	ESP_NameWatchPerStep = 96;
 	ESP_DrawingTracerEnabled = false;
 	ESP_DrawingTracerOrigin = "Bottom";
 	ESP_DrawingTracerTarget = "Bottom";
@@ -19320,6 +19324,8 @@ NAmanage.LoadESPSettings = function()
 		ESP_DrawingPartQueuePerStep = 64;
 		ESP_DrawingMaxPerStep = 64;
 		ESP_PartUpdatePerStep = 48;
+		ESP_PartMaxActive = 450;
+		ESP_PartSweepInterval = 4;
 		ESP_DrawingTracerEnabled = false;
 		ESP_DrawingTracerOrigin = "Bottom";
 		ESP_DrawingTracerTarget = "Bottom";
@@ -19450,6 +19456,8 @@ NAmanage.LoadESPSettings = function()
 	local drawingPartQueuePerStep = math.clamp(math.floor(tonumber(d.ESP_DrawingPartQueuePerStep) or 64), 1, 512)
 	local drawingMaxPerStep = math.clamp(math.floor(tonumber(d.ESP_DrawingMaxPerStep) or 64), 16, 512)
 	local partUpdatePerStep = math.clamp(math.floor(tonumber(d.ESP_PartUpdatePerStep) or 48), 1, 512)
+	local partMaxActive = math.clamp(math.floor(tonumber(d.ESP_PartMaxActive) or 450), 50, 5000)
+	local partSweepInterval = math.clamp(tonumber(d.ESP_PartSweepInterval) or 4, 0.75, 30)
 	local drawingTracerThickness = math.clamp(tonumber(d.ESP_DrawingTracerThickness) or 1, 1, 6)
 	local occlusionDimAmount = math.clamp(tonumber(d.ESP_OcclusionDimAmount) or 0.55, 0, 1)
 	local occlusionUpdateInterval = math.clamp(tonumber(d.ESP_OcclusionUpdateInterval) or 0.25, 0.05, 1)
@@ -19499,6 +19507,8 @@ NAmanage.LoadESPSettings = function()
 	NAStuff.ESP_DrawingPartQueuePerStep = drawingPartQueuePerStep
 	NAStuff.ESP_DrawingMaxPerStep = drawingMaxPerStep
 	NAStuff.ESP_PartUpdatePerStep = partUpdatePerStep
+	NAStuff.ESP_PartMaxActive = partMaxActive
+	NAStuff.ESP_PartSweepInterval = partSweepInterval
 	NAStuff.ESP_DrawingTracerEnabled = d.ESP_DrawingTracerEnabled == true
 	NAStuff.ESP_DrawingTracerOrigin = NAgui.sanitizeESPDrawingTracerOrigin(d.ESP_DrawingTracerOrigin)
 	NAStuff.ESP_DrawingTracerTarget = NAgui.sanitizeESPDrawingTracerTarget(d.ESP_DrawingTracerTarget)
@@ -19621,6 +19631,8 @@ NAmanage.SaveESPSettings = function()
 		ESP_DrawingPartQueuePerStep = math.clamp(math.floor(tonumber(NAStuff.ESP_DrawingPartQueuePerStep) or 64), 1, 512);
 		ESP_DrawingMaxPerStep = math.clamp(math.floor(tonumber(NAStuff.ESP_DrawingMaxPerStep) or 64), 16, 512);
 		ESP_PartUpdatePerStep = math.clamp(math.floor(tonumber(NAStuff.ESP_PartUpdatePerStep) or 48), 1, 512);
+		ESP_PartMaxActive = math.clamp(math.floor(tonumber(NAStuff.ESP_PartMaxActive) or 450), 50, 5000);
+		ESP_PartSweepInterval = math.clamp(tonumber(NAStuff.ESP_PartSweepInterval) or 4, 0.75, 30);
 		ESP_DrawingTracerEnabled = NAStuff.ESP_DrawingTracerEnabled == true;
 		ESP_DrawingTracerOrigin = NAgui.sanitizeESPDrawingTracerOrigin(NAStuff.ESP_DrawingTracerOrigin);
 		ESP_DrawingTracerTarget = NAgui.sanitizeESPDrawingTracerTarget(NAStuff.ESP_DrawingTracerTarget);
@@ -28092,8 +28104,16 @@ NAStuff.partESPQueueMap = NAmanage.ensureWeakTable(NAStuff.partESPQueueMap, "k")
 NAStuff.partESPQueue = NAStuff.partESPQueue or {}
 NAStuff.partESPQueueHead = tonumber(NAStuff.partESPQueueHead) or 1
 NAStuff.partESPQueueTail = tonumber(NAStuff.partESPQueueTail) or 0
+NAStuff.partESPActiveCount = tonumber(NAStuff.partESPActiveCount) or 0
+NAStuff.partESPSweeps = NAStuff.partESPSweeps or {}
 NAStuff.espScanTokens = NAStuff.espScanTokens or {}
 NAStuff.espSweepCursor = NAStuff.espSweepCursor or {}
+NAStuff.espNameApplicators = NAStuff.espNameApplicators or {}
+NAStuff.espNameWatchers = NAmanage.ensureWeakTable(NAStuff.espNameWatchers, "k")
+NAStuff.espNameWatchQueue = NAStuff.espNameWatchQueue or {}
+NAStuff.espNameWatchQueueMap = NAmanage.ensureWeakTable(NAStuff.espNameWatchQueueMap, "k")
+NAStuff.espNameWatchHead = tonumber(NAStuff.espNameWatchHead) or 1
+NAStuff.espNameWatchTail = tonumber(NAStuff.espNameWatchTail) or 0
 
 NAmanage.PartESP_QueueClear = function()
 	NAStuff.partESPQueue = {}
@@ -28161,6 +28181,10 @@ NAmanage.PartESP_QueueCreate = function(part, color, transparency, guard)
 	if not (part:IsA("BasePart") or part:IsA("Model")) then
 		return
 	end
+	if type(NAmanage.PartESP_CanCreateFor) == "function" and not NAmanage.PartESP_CanCreateFor(part) then
+		NAStuff.partESPSkippedLimit = (tonumber(NAStuff.partESPSkippedLimit) or 0) + 1
+		return
+	end
 	local qMap = NAStuff.partESPQueueMap
 	local existing = qMap[part]
 	if existing then
@@ -28201,47 +28225,122 @@ NAmanage.PartESP_QueueRemove = function(part)
 	return true
 end
 
-NAmanage.PartESP_StartSweep = function(key, predicate, budget)
+NAmanage.PartESP_MaxActive = function()
+	local cap = math.clamp(math.floor(tonumber(NAStuff.ESP_PartMaxActive) or 450), 50, 5000)
+	local mode = nil
+	pcall(function()
+		mode = NAgui.getESPRenderMode("part")
+	end)
+	if mode == "Highlight" then
+		cap = math.min(cap, 255)
+	end
+	return cap
+end
+
+NAmanage.PartESP_CanCreateFor = function(part)
+	if not part then
+		return false
+	end
+	local partMap = NAStuff.partESPPartMap
+	if type(partMap) == "table" and partMap[part] ~= nil then
+		return true
+	end
+	local qMap = NAStuff.partESPQueueMap
+	if type(qMap) == "table" and qMap[part] ~= nil then
+		return true
+	end
+	return (tonumber(NAStuff.partESPActiveCount) or 0) < NAmanage.PartESP_MaxActive()
+end
+
+NAmanage.PartESP_StartSweep = function(key, predicate, budget, intervalOverride)
 	if type(key) ~= "string" or key == "" or type(predicate) ~= "function" then
 		return
 	end
-	if NAlib.isConnected(key) then
-		return
+	local sweeps = NAStuff.partESPSweeps
+	if type(sweeps) ~= "table" then
+		sweeps = {}
+		NAStuff.partESPSweeps = sweeps
 	end
-	local cursorStore = NAStuff.espSweepCursor
-	if type(cursorStore) ~= "table" then
-		cursorStore = {}
-		NAStuff.espSweepCursor = cursorStore
+	local state = sweeps[key]
+	if type(state) ~= "table" then
+		state = {}
+		sweeps[key] = state
 	end
-	cursorStore[key] = tonumber(cursorStore[key]) or 1
-	local stepBudget = tonumber(budget) or tonumber(NAStuff.ESP_RescanPerStep) or 90
-	stepBudget = math.clamp(math.floor(stepBudget), 8, 400)
-	NAlib.connect(key, RunService.Heartbeat:Connect(function()
-		local list = workspace and workspace:QueryDescendants("Instance") or {}
-		local total = #list
-		if total <= 0 then
-			cursorStore[key] = 1
+	state.predicate = predicate
+	state.budget = math.clamp(math.floor(tonumber(budget) or tonumber(NAStuff.ESP_RescanPerStep) or 90), 8, 400)
+	state.intervalOverride = tonumber(intervalOverride)
+	state.interval = math.clamp(state.intervalOverride or tonumber(NAStuff.ESP_PartSweepInterval) or 4, 0.75, 60)
+
+	local function resolveInterval()
+		return math.clamp(tonumber(state.intervalOverride) or tonumber(NAStuff.ESP_PartSweepInterval) or tonumber(state.interval) or 4, 0.75, 60)
+	end
+
+	local function runSweep()
+		if state.running then
 			return
 		end
-		local idx = tonumber(cursorStore[key]) or 1
-		if idx < 1 or idx > total then
-			idx = 1
-		end
-		local scanned = 0
-		local start = idx
-		repeat
-			local obj = list[idx]
-			if obj then
-				predicate(obj)
+		state.running = true
+		local token = NAmanage.NewCancelToken()
+		state.token = token
+		SpawnCall(function()
+			NAmanage.ForEachWorkspaceYield(function(obj)
+				if token.cancelled or not NAlib.isConnected(key) then
+					NAmanage.CancelTokenCancel(token)
+					return
+				end
+				local fn = state.predicate
+				if type(fn) == "function" then
+					pcall(fn, obj)
+				end
+			end, {
+				yieldEvery = state.budget,
+				delayTime = tonumber(NAStuff.ESP_ScanDelay) or 0,
+				cancelToken = token,
+			})
+			if state.token == token then
+				state.running = false
+				state.nextRun = tick() + resolveInterval()
 			end
-			scanned += 1
-			idx += 1
-			if idx > total then
-				idx = 1
+		end)
+	end
+
+	if not NAlib.isConnected(key) then
+		state.nextRun = 0
+		NAlib.connect(key, RunService.Heartbeat:Connect(function()
+			local active = NAStuff.partESPSweeps and NAStuff.partESPSweeps[key]
+			if active ~= state then
+				NAlib.disconnect(key)
+				return
 			end
-		until scanned >= stepBudget or idx == start
-		cursorStore[key] = idx
-	end))
+			local now = tick()
+			if not state.running and now >= (tonumber(state.nextRun) or 0) then
+				state.interval = resolveInterval()
+				state.nextRun = now + state.interval
+				runSweep()
+			end
+		end))
+	else
+		state.nextRun = 0
+	end
+	runSweep()
+end
+
+NAmanage.PartESP_StopSweep = function(key)
+	if type(key) ~= "string" or key == "" then
+		return
+	end
+	local sweeps = NAStuff.partESPSweeps
+	local state = type(sweeps) == "table" and sweeps[key] or nil
+	if state and state.token then
+		NAmanage.CancelTokenCancel(state.token)
+	end
+	if type(sweeps) == "table" then
+		sweeps[key] = nil
+	end
+	NAlib.disconnect(key)
+	if NAStuff.espSweepCursor then
+		NAStuff.espSweepCursor[key] = nil
+	end
 end
 
 NAmanage.ESP_ClearOcclusionCache = function()
@@ -28734,6 +28833,10 @@ NAmanage.PartESP_RegisterEntry = function(entry)
 	entry.entryKey = entry.entryKey or entry.billboard or entry.visual or entry.drawingSquare or entry.drawingLabel or entry.part
 	if not entry.entryKey then return end
 	NAStuff.partESPEntries[entry.entryKey] = entry
+	if not entry._partESPCounted then
+		entry._partESPCounted = true
+		NAStuff.partESPActiveCount = (tonumber(NAStuff.partESPActiveCount) or 0) + 1
+	end
 	if entry.visual and typeof(entry.visual) == "Instance" then
 		NAStuff.partESPVisualMap[entry.visual] = entry
 	end
@@ -28823,6 +28926,10 @@ NAmanage.PartESP_UnregisterEntry = function(entry)
 	end
 	if entry.entryKey and NAStuff.partESPEntries then
 		NAStuff.partESPEntries[entry.entryKey] = nil
+	end
+	if entry._partESPCounted then
+		entry._partESPCounted = nil
+		NAStuff.partESPActiveCount = math.max(0, (tonumber(NAStuff.partESPActiveCount) or 1) - 1)
 	end
 	if entry.visual and typeof(entry.visual) == "Instance" and NAStuff.partESPVisualMap then
 		NAStuff.partESPVisualMap[entry.visual] = nil
@@ -77997,6 +78104,14 @@ end)
 
 NAmanage.CreateBox = function(part, color, transparency)
 	if not part or not part.Parent then return end
+	local canCreate = true
+	if type(NAmanage.PartESP_CanCreateFor) == "function" then
+		canCreate = NAmanage.PartESP_CanCreateFor(part)
+	end
+	if not canCreate then
+		NAStuff.partESPSkippedLimit = (tonumber(NAStuff.partESPSkippedLimit) or 0) + 1
+		return
+	end
 	NAmanage.RemoveEspFromPart(part)
 	local c = (typeof(color) == "Color3" and color) or Color3.new(1,1,1)
 	local entryTransparency = NAgui.sanitizeTransparency(transparency or (NAStuff.ESP_PartTransparency or 0.45))
@@ -78225,7 +78340,8 @@ NAmanage.RemoveEspFromPart = function(part)
 	NAmanage.PartESP_QueueRemove(part)
 	local partMap = NAStuff.partESPPartMap
 	local bucket = type(partMap) == "table" and partMap[part] or nil
-	if type(bucket) == "table" then
+	local hadBucket = type(bucket) == "table"
+	if hadBucket then
 		local removeList = {}
 		for _, entry in bucket do
 			removeList[#removeList + 1] = entry
@@ -78253,7 +78369,7 @@ NAmanage.RemoveEspFromPart = function(part)
 			child:Destroy()
 		end
 	end
-	if NAStuff.partESPEntries then
+	if (not hadBucket) and NAStuff.partESPEntries then
 		local removeList = {}
 		for _, entry in NAStuff.partESPEntries do
 			if entry and entry.part == part then
@@ -78512,6 +78628,242 @@ NAmanage.NameESP_TermMatchesPart = function(term, part, mode)
 	return false
 end
 
+NAmanage.NameESP_HasActiveMode = function(mode)
+	local lists = NAStuff and NAStuff.espNameLists
+	local list = type(lists) == "table" and lists[mode]
+	return type(list) == "table" and #list > 0
+end
+
+NAmanage.NameESP_HasAnyActive = function()
+	return NAmanage.NameESP_HasActiveMode("exact") or NAmanage.NameESP_HasActiveMode("partial")
+end
+
+NAmanage.NameESP_IsWatchable = function(obj)
+	if typeof(obj) ~= "Instance" then
+		return false
+	end
+	if obj:IsA("BasePart") or obj:IsA("Model") or obj:IsA("Folder") or obj:IsA("Tool") then
+		return true
+	end
+	for _, className in { "Accessory", "WorldModel", "Actor" } do
+		local ok, result = pcall(function()
+			return obj:IsA(className)
+		end)
+		if ok and result then
+			return true
+		end
+	end
+	return false
+end
+
+NAmanage.NameESP_DisconnectWatcher = function(obj)
+	local watchers = NAStuff and NAStuff.espNameWatchers
+	if type(watchers) ~= "table" or obj == nil then
+		return
+	end
+	local rec = watchers[obj]
+	watchers[obj] = nil
+	if type(rec) == "table" then
+		for _, conn in rec do
+			pcall(function()
+				conn:Disconnect()
+			end)
+		end
+	else
+		pcall(function()
+			rec:Disconnect()
+		end)
+	end
+	local qMap = NAStuff and NAStuff.espNameWatchQueueMap
+	if type(qMap) == "table" then
+		qMap[obj] = nil
+	end
+end
+
+NAmanage.NameESP_QueueCheck = function(obj, reason)
+	if typeof(obj) ~= "Instance" or obj == workspace then
+		return
+	end
+	if not obj.Parent then
+		return
+	end
+	if not NAmanage.NameESP_HasAnyActive() then
+		return
+	end
+	local qMap = NAStuff.espNameWatchQueueMap
+	if type(qMap) ~= "table" then
+		qMap = NAmanage.ensureWeakTable(nil, "k")
+		NAStuff.espNameWatchQueueMap = qMap
+	end
+	local item = qMap[obj]
+	if item then
+		item.reason = reason or item.reason
+		return
+	end
+	local queue = NAStuff.espNameWatchQueue
+	if type(queue) ~= "table" then
+		queue = {}
+		NAStuff.espNameWatchQueue = queue
+		NAStuff.espNameWatchHead = 1
+		NAStuff.espNameWatchTail = 0
+	end
+	local tail = (tonumber(NAStuff.espNameWatchTail) or 0) + 1
+	item = {
+		obj = obj,
+		reason = reason,
+	}
+	queue[tail] = item
+	qMap[obj] = item
+	NAStuff.espNameWatchTail = tail
+
+	if NAlib.isConnected("esp_name_watch_queue") then
+		return
+	end
+	NAlib.connect("esp_name_watch_queue", RunService.Heartbeat:Connect(function()
+		local active = NAmanage.NameESP_HasAnyActive()
+		local queueNow = NAStuff.espNameWatchQueue
+		local mapNow = NAStuff.espNameWatchQueueMap
+		local head = tonumber(NAStuff.espNameWatchHead) or 1
+		local tailNow = tonumber(NAStuff.espNameWatchTail) or 0
+		if not active or type(queueNow) ~= "table" or head > tailNow then
+			NAStuff.espNameWatchQueue = {}
+			NAStuff.espNameWatchQueueMap = NAmanage.ensureWeakTable(nil, "k")
+			NAStuff.espNameWatchHead = 1
+			NAStuff.espNameWatchTail = 0
+			NAlib.disconnect("esp_name_watch_queue")
+			return
+		end
+
+		local maxPerStep = math.clamp(math.floor(tonumber(NAStuff.ESP_NameWatchPerStep) or 96), 8, 512)
+		local processed = 0
+		while processed < maxPerStep and head <= tailNow do
+			local itemNow = queueNow[head]
+			queueNow[head] = nil
+			head += 1
+			processed += 1
+			if itemNow then
+				local inst = itemNow.obj
+				if type(mapNow) == "table" and inst ~= nil and mapNow[inst] == itemNow then
+					mapNow[inst] = nil
+				end
+				if typeof(inst) == "Instance" and inst.Parent and inst:IsDescendantOf(workspace) then
+					local applicators = NAStuff.espNameApplicators
+					if type(applicators) == "table" then
+						if NAmanage.NameESP_HasActiveMode("exact") and type(applicators.exact) == "function" then
+							pcall(applicators.exact, inst, itemNow.reason)
+						end
+						if NAmanage.NameESP_HasActiveMode("partial") and type(applicators.partial) == "function" then
+							pcall(applicators.partial, inst, itemNow.reason)
+						end
+					end
+				end
+			end
+		end
+		NAStuff.espNameWatchHead = head
+		if head > tailNow then
+			NAStuff.espNameWatchQueue = {}
+			NAStuff.espNameWatchQueueMap = NAmanage.ensureWeakTable(nil, "k")
+			NAStuff.espNameWatchHead = 1
+			NAStuff.espNameWatchTail = 0
+			NAlib.disconnect("esp_name_watch_queue")
+		end
+	end))
+end
+
+NAmanage.NameESP_AttachWatcher = function(obj)
+	if typeof(obj) ~= "Instance" or obj == workspace then
+		return
+	end
+	if not obj.Parent then
+		return
+	end
+	if not NAmanage.NameESP_IsWatchable(obj) then
+		return
+	end
+	if not NAmanage.NameESP_HasAnyActive() then
+		return
+	end
+	local watchers = NAStuff.espNameWatchers
+	if type(watchers) ~= "table" then
+		watchers = NAmanage.ensureWeakTable(nil, "k")
+		NAStuff.espNameWatchers = watchers
+	end
+	if watchers[obj] ~= nil then
+		return
+	end
+	local ok, signal = pcall(function()
+		return obj:GetPropertyChangedSignal("Name")
+	end)
+	if not ok or not signal then
+		return
+	end
+	local conn = signal:Connect(function()
+		NAmanage.NameESP_QueueCheck(obj, "Name")
+	end)
+	watchers[obj] = { conn }
+end
+
+NAmanage.NameESP_StartNameWatch = function()
+	if not NAmanage.NameESP_HasAnyActive() then
+		return
+	end
+	if not NAlib.isConnected("esp_name_watch_hub") then
+		NAlib.connect("esp_name_watch_hub", NAmanage.wsSub({
+			added = function(obj)
+				NAmanage.NameESP_AttachWatcher(obj)
+				if NAmanage.NameESP_IsWatchable(obj) then
+					NAmanage.NameESP_QueueCheck(obj, "Added")
+				end
+			end,
+			removing = function(obj)
+				NAmanage.NameESP_DisconnectWatcher(obj)
+			end,
+		}))
+	end
+
+	local scanKey = "esp_name_watch_scan"
+	local scanToken = NAmanage.ESP_StartScanToken(scanKey)
+	SpawnCall(function()
+		NAmanage.ForEachWorkspaceYield(function(obj)
+			if scanToken and scanToken.cancelled then
+				return
+			end
+			NAmanage.NameESP_AttachWatcher(obj)
+		end, {
+			yieldEvery = tonumber(NAStuff.ESP_ScanBatchSize) or 160,
+			delayTime = tonumber(NAStuff.ESP_ScanDelay) or 0,
+			cancelToken = scanToken,
+		})
+		if NAStuff.espScanTokens and NAStuff.espScanTokens[scanKey] == scanToken then
+			NAStuff.espScanTokens[scanKey] = nil
+		end
+	end)
+end
+
+NAmanage.NameESP_StopNameWatchIfIdle = function(force)
+	if force ~= true and NAmanage.NameESP_HasAnyActive() then
+		return
+	end
+	NAlib.disconnect("esp_name_watch_hub")
+	NAlib.disconnect("esp_name_watch_queue")
+	NAmanage.ESP_CancelScanToken("esp_name_watch_scan")
+	local watchers = NAStuff.espNameWatchers
+	if type(watchers) == "table" then
+		local watched = {}
+		for obj, _ in watchers do
+			watched[#watched + 1] = obj
+		end
+		for i = 1, #watched do
+			NAmanage.NameESP_DisconnectWatcher(watched[i])
+		end
+	end
+	NAStuff.espNameWatchers = NAmanage.ensureWeakTable(nil, "k")
+	NAStuff.espNameWatchQueue = {}
+	NAStuff.espNameWatchQueueMap = NAmanage.ensureWeakTable(nil, "k")
+	NAStuff.espNameWatchHead = 1
+	NAStuff.espNameWatchTail = 0
+end
+
 NAmanage.EnableNameEsp = function(mode, color, ...)
 	local function currentColor()
 		local resolved = (type(color) == "function") and color() or color
@@ -78651,16 +79003,55 @@ NAmanage.EnableNameEsp = function(mode, color, ...)
 		end
 	end
 
+	local function applyChangedObject(obj)
+		if typeof(obj) ~= "Instance" or not obj.Parent then
+			return
+		end
+		if obj:IsA("BasePart") then
+			applyPart(obj)
+			return
+		end
+		SpawnCall(function()
+			if typeof(obj) ~= "Instance" or not obj.Parent then
+				return
+			end
+			if obj:IsA("Model") and NAmanage.NameESP_SelfMatches(obj, mode) then
+				applyModel(obj)
+				return
+			end
+			if obj:IsA("Model") and partMap[obj] ~= nil then
+				removePart(obj)
+			end
+			NAmanage.ForEachDescendantYield(obj, function(desc)
+				if typeof(desc) ~= "Instance" then
+					return
+				end
+				if desc:IsA("Model") and partMap[desc] ~= nil and not NAmanage.NameESP_SelfMatches(desc, mode) then
+					removePart(desc)
+				elseif desc:IsA("BasePart") then
+					applyPart(desc)
+				end
+			end, {
+				yieldEvery = tonumber(NAStuff.ESP_ScanBatchSize) or 160,
+				delayTime = tonumber(NAStuff.ESP_ScanDelay) or 0,
+				streaming = true,
+			})
+		end)
+	end
+
+	NAStuff.espNameApplicators = NAStuff.espNameApplicators or {}
+	NAStuff.espNameApplicators[mode] = applyChangedObject
+	NAmanage.NameESP_StartNameWatch()
+
 	local scanKey = "esp_name_scan_"..mode
 	local scanToken = NAmanage.ESP_StartScanToken(scanKey)
 	SpawnCall(function()
 		local direct, containers = {}, {}
 
-		for _, obj in workspace:QueryDescendants("Instance") do
+		NAmanage.ForEachWorkspaceYield(function(obj)
 			if scanToken and scanToken.cancelled then
-				break
+				return
 			end
-
 			if typeof(obj) == "Instance" and obj.Parent and NAmanage.NameESP_SelfMatches(obj, mode) then
 				if obj:IsA("BasePart") then
 					Insert(direct, obj)
@@ -78668,7 +79059,11 @@ NAmanage.EnableNameEsp = function(mode, color, ...)
 					Insert(containers, obj)
 				end
 			end
-		end
+		end, {
+			yieldEvery = tonumber(NAStuff.ESP_ScanBatchSize) or 160,
+			delayTime = tonumber(NAStuff.ESP_ScanDelay) or 0,
+			cancelToken = scanToken,
+		})
 
 		for _, obj in containers do
 			if scanToken and scanToken.cancelled then
@@ -78731,7 +79126,7 @@ NAmanage.EnableNameEsp = function(mode, color, ...)
 		if typeof(obj) == "Instance" and obj:IsA("BasePart") then
 			applyPart(obj)
 		end
-	end, tonumber(NAStuff.ESP_RescanPerStep) or 90)
+	end, tonumber(NAStuff.ESP_RescanPerStep) or 90, tonumber(NAStuff.ESP_PartNameSweepInterval) or 18)
 end
 
 NAmanage.DisableNameEsp = function(mode)
@@ -78740,7 +79135,10 @@ NAmanage.DisableNameEsp = function(mode)
 		NAStuff.espNameTriggers[mode] = nil
 	end
 	NAlib.disconnect("esp_namechange_"..mode)
-	NAlib.disconnect("esp_name_sweep_"..mode)
+	if type(NAStuff.espNameApplicators) == "table" then
+		NAStuff.espNameApplicators[mode] = nil
+	end
+	NAmanage.PartESP_StopSweep("esp_name_sweep_"..mode)
 	NAmanage.ESP_CancelScanToken("esp_name_scan_"..mode)
 	if NAStuff.espSweepCursor then
 		NAStuff.espSweepCursor["esp_name_sweep_"..mode] = nil
@@ -78755,6 +79153,7 @@ NAmanage.DisableNameEsp = function(mode)
 		table.clear(partMap)
 	end
 	table.clear(NAStuff.espNameLists[mode])
+	NAmanage.NameESP_StopNameWatchIfIdle()
 end
 
 NAmanage.EnableUnanchoredEsp = function(color)
@@ -78821,7 +79220,7 @@ NAmanage.DisableUnanchoredEsp = function()
 		NAStuff.espTriggers["__unanchored"] = nil
 	end
 	NAlib.disconnect("esp_unanchored_prop")
-	NAlib.disconnect("__unanchored_sweep")
+	NAmanage.PartESP_StopSweep("__unanchored_sweep")
 	NAmanage.ESP_CancelScanToken("__unanchored_scan")
 	if NAStuff.espSweepCursor then
 		NAStuff.espSweepCursor["__unanchored_sweep"] = nil
@@ -78913,7 +79312,7 @@ NAmanage.DisableCollisionEsp = function(targetState)
 		NAStuff.espTriggers[trigKey] = nil
 	end
 	NAlib.disconnect(propKey)
-	NAlib.disconnect(targetState and "__cancollide_true_sweep" or "__cancollide_false_sweep")
+	NAmanage.PartESP_StopSweep(targetState and "__cancollide_true_sweep" or "__cancollide_false_sweep")
 	NAmanage.ESP_CancelScanToken(targetState and "__cancollide_true_scan" or "__cancollide_false_scan")
 	if NAStuff.espSweepCursor then
 		NAStuff.espSweepCursor[targetState and "__cancollide_true_sweep" or "__cancollide_false_sweep"] = nil
@@ -122986,6 +123385,21 @@ end)
 
 NAgui.addSlider("Part ESP Update Batch", 1, 512, math.clamp(math.floor(tonumber(NAStuff.ESP_PartUpdatePerStep) or 48), 1, 512), 1, " parts", function(v)
 	NAStuff.ESP_PartUpdatePerStep = math.clamp(math.floor(tonumber(v) or 48), 1, 512)
+	NAmanage.SaveESPSettings()
+end)
+
+NAgui.addSlider("Part ESP Max Active", 50, 5000, math.clamp(math.floor(tonumber(NAStuff.ESP_PartMaxActive) or 450), 50, 5000), 10, " visuals", function(v)
+	NAStuff.ESP_PartMaxActive = math.clamp(math.floor(tonumber(v) or 450), 50, 5000)
+	NAmanage.SaveESPSettings()
+end)
+
+NAgui.addSlider("Part ESP Sweep Interval", 1, 30, math.clamp(tonumber(NAStuff.ESP_PartSweepInterval) or 4, 1, 30), 0.25, "s", function(v)
+	NAStuff.ESP_PartSweepInterval = math.clamp(tonumber(v) or 4, 0.75, 30)
+	NAmanage.SaveESPSettings()
+end)
+
+NAgui.addSlider("Part ESP Name Safety Sweep", 5, 60, math.clamp(tonumber(NAStuff.ESP_PartNameSweepInterval) or 18, 5, 60), 1, "s", function(v)
+	NAStuff.ESP_PartNameSweepInterval = math.clamp(tonumber(v) or 18, 5, 60)
 	NAmanage.SaveESPSettings()
 end)
 
