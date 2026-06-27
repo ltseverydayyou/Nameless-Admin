@@ -2277,7 +2277,7 @@ function NotifFuns.fadeNACardContent(rootObj, hidden, duration)
 	end
 	local style = NotifFuns.NAStyle
 	local tweenInfo = duration and TweenInfo.new(duration, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out) or nil
-	for _, inst in rootObj:GetDescendants() do
+	for _, inst in rootObj:QueryDescendants("Instance") do
 		if inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox") then
 			local stored = style.rememberTransparency(inst, style.fadeTextAttr, "TextTransparency")
 			local target = hidden and 1 or stored
