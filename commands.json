@@ -8589,6 +8589,716 @@
       "usage": "thawunanchored (thawua,unfreezeua,tua)",
       "args": "",
       "desc": "Thaws parts frozen by freezeunanchored"
+    },
+    {
+      "name": "renderstreamedregions",
+      "aliases": [
+        "renderstreamedregions",
+        "streamedregions"
+      ],
+      "usage": "renderstreamedregions [on/off]",
+      "args": "[on/off]",
+      "desc": "Set Render Streamed Regions"
+    },
+    {
+      "name": "unrenderstreamedregions",
+      "aliases": [
+        "unrenderstreamedregions",
+        "nostreamedregions"
+      ],
+      "usage": "unrenderstreamedregions",
+      "args": "",
+      "desc": "Disable Render Streamed Regions"
+    },
+    {
+      "name": "joinbreakdown",
+      "aliases": [
+        "joinbreakdown",
+        "printjoinsize"
+      ],
+      "usage": "joinbreakdown [on/off]",
+      "args": "[on/off]",
+      "desc": "Set Print Join Size Breakdown"
+    },
+    {
+      "name": "unjoinbreakdown",
+      "aliases": [
+        "unjoinbreakdown",
+        "noprintjoinsize"
+      ],
+      "usage": "unjoinbreakdown",
+      "args": "",
+      "desc": "Disable Print Join Size Breakdown"
+    },
+    {
+      "name": "streamquota",
+      "aliases": [
+        "streamquota",
+        "printstreamquota"
+      ],
+      "usage": "streamquota [on/off]",
+      "args": "[on/off]",
+      "desc": "Set Print Stream Instance Quota"
+    },
+    {
+      "name": "unstreamquota",
+      "aliases": [
+        "unstreamquota",
+        "noprintstreamquota"
+      ],
+      "usage": "unstreamquota",
+      "args": "",
+      "desc": "Disable Print Stream Instance Quota"
+    },
+    {
+      "name": "animationassetdata",
+      "aliases": [
+        "animationassetdata",
+        "showanimationasset"
+      ],
+      "usage": "animationassetdata [on/off]",
+      "args": "[on/off]",
+      "desc": "Set Show Active Animation Asset"
+    },
+    {
+      "name": "unanimationassetdata",
+      "aliases": [
+        "unanimationassetdata",
+        "noanimationasset"
+      ],
+      "usage": "unanimationassetdata",
+      "args": "",
+      "desc": "Disable Show Active Animation Asset"
+    },
+    {
+      "name": "randomizejoinorder",
+      "aliases": [
+        "randomizejoinorder",
+        "randomjoinorder"
+      ],
+      "usage": "randomizejoinorder [on/off]",
+      "args": "[on/off]",
+      "desc": "Set Randomize Join Instance Order"
+    },
+    {
+      "name": "unrandomizejoinorder",
+      "aliases": [
+        "unrandomizejoinorder",
+        "norandomjoinorder"
+      ],
+      "usage": "unrandomizejoinorder",
+      "args": "",
+      "desc": "Disable Randomize Join Instance Order"
+    },
+    {
+      "name": "physallowsleep",
+      "aliases": [
+        "physallowsleep",
+        "allowsleep"
+      ],
+      "usage": "physallowsleep [on/off]",
+      "args": "[on/off]",
+      "desc": "Set Physics Allow Sleep"
+    },
+    {
+      "name": "unphysallowsleep",
+      "aliases": [
+        "unphysallowsleep",
+        "noallowsleep"
+      ],
+      "usage": "unphysallowsleep",
+      "args": "",
+      "desc": "Disable Physics Allow Sleep"
+    },
+    {
+      "name": "physanchors",
+      "aliases": [
+        "physanchors",
+        "anchorsshown"
+      ],
+      "usage": "physanchors [on/off]",
+      "args": "[on/off]",
+      "desc": "Set Physics Anchors Shown"
+    },
+    {
+      "name": "unphysanchors",
+      "aliases": [
+        "unphysanchors",
+        "noanchorsshown"
+      ],
+      "usage": "unphysanchors",
+      "args": "",
+      "desc": "Disable Physics Anchors Shown"
+    },
+    {
+      "name": "physassemblies",
+      "aliases": [
+        "physassemblies",
+        "assembliesshown"
+      ],
+      "usage": "physassemblies [on/off]",
+      "args": "[on/off]",
+      "desc": "Set Physics Assemblies Shown"
+    },
+    {
+      "name": "unphysassemblies",
+      "aliases": [
+        "unphysassemblies",
+        "noassembliesshown"
+      ],
+      "usage": "unphysassemblies",
+      "args": "",
+      "desc": "Disable Physics Assemblies Shown"
+    },
+    {
+      "name": "physbodytypes",
+      "aliases": [
+        "physbodytypes",
+        "bodytypesshown"
+      ],
+      "usage": "physbodytypes [on/off]",
+      "args": "[on/off]",
+      "desc": "Set Physics Body Types Shown"
+    },
+    {
+      "name": "unphysbodytypes",
+      "aliases": [
+        "unphysbodytypes",
+        "nobodytypesshown"
+      ],
+      "usage": "unphysbodytypes",
+      "args": "",
+      "desc": "Disable Physics Body Types Shown"
+    },
+    {
+      "name": "collisioncosts",
+      "aliases": [
+        "collisioncosts",
+        "physcollisioncosts"
+      ],
+      "usage": "collisioncosts [on/off]",
+      "args": "[on/off]",
+      "desc": "Set Collision Costs Shown"
+    },
+    {
+      "name": "uncollisioncosts",
+      "aliases": [
+        "uncollisioncosts",
+        "nophyscollisioncosts"
+      ],
+      "usage": "uncollisioncosts",
+      "args": "",
+      "desc": "Disable Collision Costs Shown"
+    },
+    {
+      "name": "jointcoords",
+      "aliases": [
+        "jointcoords",
+        "physjointcoords"
+      ],
+      "usage": "jointcoords [on/off]",
+      "args": "[on/off]",
+      "desc": "Set Joint Coordinates Shown"
+    },
+    {
+      "name": "unjointcoords",
+      "aliases": [
+        "unjointcoords",
+        "nophysjointcoords"
+      ],
+      "usage": "unjointcoords",
+      "args": "",
+      "desc": "Disable Joint Coordinates Shown"
+    },
+    {
+      "name": "physowners",
+      "aliases": [
+        "physowners",
+        "ownersshown"
+      ],
+      "usage": "physowners [on/off]",
+      "args": "[on/off]",
+      "desc": "Set Physics Owners Shown"
+    },
+    {
+      "name": "unphysowners",
+      "aliases": [
+        "unphysowners",
+        "noownersshown"
+      ],
+      "usage": "unphysowners",
+      "args": "",
+      "desc": "Disable Physics Owners Shown"
+    },
+    {
+      "name": "physregions",
+      "aliases": [
+        "physregions",
+        "regionsshown"
+      ],
+      "usage": "physregions [on/off]",
+      "args": "[on/off]",
+      "desc": "Set Physics Regions Shown"
+    },
+    {
+      "name": "unphysregions",
+      "aliases": [
+        "unphysregions",
+        "noregionsshown"
+      ],
+      "usage": "unphysregions",
+      "args": "",
+      "desc": "Disable Physics Regions Shown"
+    },
+    {
+      "name": "awakeparts",
+      "aliases": [
+        "awakeparts",
+        "awakehighlight"
+      ],
+      "usage": "awakeparts [on/off]",
+      "args": "[on/off]",
+      "desc": "Set Awake Parts Highlighted"
+    },
+    {
+      "name": "unawakeparts",
+      "aliases": [
+        "unawakeparts",
+        "noawakehighlight"
+      ],
+      "usage": "unawakeparts",
+      "args": "",
+      "desc": "Disable Awake Parts Highlighted"
+    },
+    {
+      "name": "contactpoints",
+      "aliases": [
+        "contactpoints",
+        "physcontactpoints"
+      ],
+      "usage": "contactpoints [on/off]",
+      "args": "[on/off]",
+      "desc": "Set Contact Points Shown"
+    },
+    {
+      "name": "uncontactpoints",
+      "aliases": [
+        "uncontactpoints",
+        "nophyscontactpoints"
+      ],
+      "usage": "uncontactpoints",
+      "args": "",
+      "desc": "Disable Contact Points Shown"
+    },
+    {
+      "name": "mechanismsshown",
+      "aliases": [
+        "mechanismsshown",
+        "physmechanisms"
+      ],
+      "usage": "mechanismsshown [on/off]",
+      "args": "[on/off]",
+      "desc": "Set Mechanisms Shown"
+    },
+    {
+      "name": "unmechanismsshown",
+      "aliases": [
+        "unmechanismsshown",
+        "nophysmechanisms"
+      ],
+      "usage": "unmechanismsshown",
+      "args": "",
+      "desc": "Disable Mechanisms Shown"
+    },
+    {
+      "name": "unalignedparts",
+      "aliases": [
+        "unalignedparts",
+        "showunaligned"
+      ],
+      "usage": "unalignedparts [on/off]",
+      "args": "[on/off]",
+      "desc": "Set Unaligned Parts Shown"
+    },
+    {
+      "name": "ununalignedparts",
+      "aliases": [
+        "ununalignedparts",
+        "nounalignedparts"
+      ],
+      "usage": "ununalignedparts",
+      "args": "",
+      "desc": "Disable Unaligned Parts Shown"
+    },
+    {
+      "name": "receiveage",
+      "aliases": [
+        "receiveage",
+        "showreceiveage"
+      ],
+      "usage": "receiveage [on/off]",
+      "args": "[on/off]",
+      "desc": "Set Receive Age Shown"
+    },
+    {
+      "name": "unreceiveage",
+      "aliases": [
+        "unreceiveage",
+        "noreceiveage"
+      ],
+      "usage": "unreceiveage",
+      "args": "",
+      "desc": "Disable Receive Age Shown"
+    },
+    {
+      "name": "interpolationthrottle",
+      "aliases": [
+        "interpolationthrottle",
+        "showinterpolationthrottle"
+      ],
+      "usage": "interpolationthrottle [on/off]",
+      "args": "[on/off]",
+      "desc": "Set Interpolation Throttle Shown"
+    },
+    {
+      "name": "uninterpolationthrottle",
+      "aliases": [
+        "uninterpolationthrottle",
+        "nointerpolationthrottle"
+      ],
+      "usage": "uninterpolationthrottle",
+      "args": "",
+      "desc": "Disable Interpolation Throttle Shown"
+    },
+    {
+      "name": "phystree",
+      "aliases": [
+        "phystree",
+        "physicstree"
+      ],
+      "usage": "phystree [on/off]",
+      "args": "[on/off]",
+      "desc": "Set Physics Tree Shown"
+    },
+    {
+      "name": "unphystree",
+      "aliases": [
+        "unphystree",
+        "nophysicstree"
+      ],
+      "usage": "unphystree",
+      "args": "",
+      "desc": "Disable Physics Tree Shown"
+    },
+    {
+      "name": "decompositiongeometry",
+      "aliases": [
+        "decompositiongeometry",
+        "showdecomposition"
+      ],
+      "usage": "decompositiongeometry [on/off]",
+      "args": "[on/off]",
+      "desc": "Set Decomposition Geometry"
+    },
+    {
+      "name": "undecompositiongeometry",
+      "aliases": [
+        "undecompositiongeometry",
+        "nodecomposition"
+      ],
+      "usage": "undecompositiongeometry",
+      "args": "",
+      "desc": "Disable Decomposition Geometry"
+    },
+    {
+      "name": "drawcontactsforce",
+      "aliases": [
+        "drawcontactsforce",
+        "contactsnetforce"
+      ],
+      "usage": "drawcontactsforce [on/off]",
+      "args": "[on/off]",
+      "desc": "Set Draw Contacts Net Force"
+    },
+    {
+      "name": "undrawcontactsforce",
+      "aliases": [
+        "undrawcontactsforce",
+        "nocontactsnetforce"
+      ],
+      "usage": "undrawcontactsforce",
+      "args": "",
+      "desc": "Disable Draw Contacts Net Force"
+    },
+    {
+      "name": "drawconstraintsforce",
+      "aliases": [
+        "drawconstraintsforce",
+        "constraintsnetforce"
+      ],
+      "usage": "drawconstraintsforce [on/off]",
+      "args": "[on/off]",
+      "desc": "Set Draw Constraints Net Force"
+    },
+    {
+      "name": "undrawconstraintsforce",
+      "aliases": [
+        "undrawconstraintsforce",
+        "noconstraintsnetforce"
+      ],
+      "usage": "undrawconstraintsforce",
+      "args": "",
+      "desc": "Disable Draw Constraints Net Force"
+    },
+    {
+      "name": "drawtotalforce",
+      "aliases": [
+        "drawtotalforce",
+        "totalnetforce"
+      ],
+      "usage": "drawtotalforce [on/off]",
+      "args": "[on/off]",
+      "desc": "Set Draw Total Net Force"
+    },
+    {
+      "name": "undrawtotalforce",
+      "aliases": [
+        "undrawtotalforce",
+        "nototalnetforce"
+      ],
+      "usage": "undrawtotalforce",
+      "args": "",
+      "desc": "Disable Draw Total Net Force"
+    },
+    {
+      "name": "forceinstancenames",
+      "aliases": [
+        "forceinstancenames",
+        "drawforcenames"
+      ],
+      "usage": "forceinstancenames [on/off]",
+      "args": "[on/off]",
+      "desc": "Set Force Instance Names"
+    },
+    {
+      "name": "unforceinstancenames",
+      "aliases": [
+        "unforceinstancenames",
+        "noforcenames"
+      ],
+      "usage": "unforceinstancenames",
+      "args": "",
+      "desc": "Disable Force Instance Names"
+    },
+    {
+      "name": "renderboundingboxes",
+      "aliases": [
+        "renderboundingboxes",
+        "showboundingboxes"
+      ],
+      "usage": "renderboundingboxes [on/off]",
+      "args": "[on/off]",
+      "desc": "Set Render Bounding Boxes"
+    },
+    {
+      "name": "unrenderboundingboxes",
+      "aliases": [
+        "unrenderboundingboxes",
+        "noboundingboxes"
+      ],
+      "usage": "unrenderboundingboxes",
+      "args": "",
+      "desc": "Disable Render Bounding Boxes"
+    },
+    {
+      "name": "rendercsgtriangles",
+      "aliases": [
+        "rendercsgtriangles",
+        "rendercsgdebug"
+      ],
+      "usage": "rendercsgtriangles [on/off]",
+      "args": "[on/off]",
+      "desc": "Set Render CSG Triangles Debug"
+    },
+    {
+      "name": "unrendercsgtriangles",
+      "aliases": [
+        "unrendercsgtriangles",
+        "norendercsgdebug"
+      ],
+      "usage": "unrendercsgtriangles",
+      "args": "",
+      "desc": "Disable Render CSG Triangles Debug"
+    },
+    {
+      "name": "renderfrm",
+      "aliases": [
+        "renderfrm",
+        "enablefrm"
+      ],
+      "usage": "renderfrm [on/off]",
+      "args": "[on/off]",
+      "desc": "Set Frame Rate Manager"
+    },
+    {
+      "name": "unrenderfrm",
+      "aliases": [
+        "unrenderfrm",
+        "disablefrm"
+      ],
+      "usage": "unrenderfrm",
+      "args": "",
+      "desc": "Disable Frame Rate Manager"
+    },
+    {
+      "name": "eagerbulkexecution",
+      "aliases": [
+        "eagerbulkexecution",
+        "renderbulk"
+      ],
+      "usage": "eagerbulkexecution [on/off]",
+      "args": "[on/off]",
+      "desc": "Set Eager Bulk Execution"
+    },
+    {
+      "name": "uneagerbulkexecution",
+      "aliases": [
+        "uneagerbulkexecution",
+        "norenderbulk"
+      ],
+      "usage": "uneagerbulkexecution",
+      "args": "",
+      "desc": "Disable Eager Bulk Execution"
+    },
+    {
+      "name": "exportmergebymaterial",
+      "aliases": [
+        "exportmergebymaterial",
+        "mergebymaterial"
+      ],
+      "usage": "exportmergebymaterial [on/off]",
+      "args": "[on/off]",
+      "desc": "Set Export Merge By Material"
+    },
+    {
+      "name": "unexportmergebymaterial",
+      "aliases": [
+        "unexportmergebymaterial",
+        "nomergebymaterial"
+      ],
+      "usage": "unexportmergebymaterial",
+      "args": "",
+      "desc": "Disable Export Merge By Material"
+    },
+    {
+      "name": "soundwarnings",
+      "aliases": [
+        "soundwarnings",
+        "reportsoundwarnings"
+      ],
+      "usage": "soundwarnings [on/off]",
+      "args": "[on/off]",
+      "desc": "Set Report Sound Warnings"
+    },
+    {
+      "name": "unsoundwarnings",
+      "aliases": [
+        "unsoundwarnings",
+        "noreportsoundwarnings"
+      ],
+      "usage": "unsoundwarnings",
+      "args": "",
+      "desc": "Disable Report Sound Warnings"
+    },
+    {
+      "name": "videocapture",
+      "aliases": [
+        "videocapture",
+        "videocaptureenabled"
+      ],
+      "usage": "videocapture [on/off]",
+      "args": "[on/off]",
+      "desc": "Set Video Capture Enabled"
+    },
+    {
+      "name": "unvideocapture",
+      "aliases": [
+        "unvideocapture",
+        "novideocapture"
+      ],
+      "usage": "unvideocapture",
+      "args": "",
+      "desc": "Disable Video Capture Enabled"
+    },
+    {
+      "name": "forcedrawscale",
+      "aliases": [
+        "forcedrawscale",
+        "forcevisualscale"
+      ],
+      "usage": "forcedrawscale <number>",
+      "args": "<number>",
+      "desc": "Set Force Draw Scale"
+    },
+    {
+      "name": "torquedrawscale",
+      "aliases": [
+        "torquedrawscale",
+        "torquevisualscale"
+      ],
+      "usage": "torquedrawscale <number>",
+      "args": "<number>",
+      "desc": "Set Torque Draw Scale"
+    },
+    {
+      "name": "fluidforcedrawscale",
+      "aliases": [
+        "fluidforcedrawscale",
+        "fluidforcescale"
+      ],
+      "usage": "fluidforcedrawscale <number>",
+      "args": "<number>",
+      "desc": "Set Fluid Force Draw Scale"
+    },
+    {
+      "name": "forcesmoothingsteps",
+      "aliases": [
+        "forcesmoothingsteps",
+        "forcevisualsteps"
+      ],
+      "usage": "forcesmoothingsteps <0-100>",
+      "args": "<0-100>",
+      "desc": "Set Force Smoothing Steps"
+    },
+    {
+      "name": "throttleadjusttime",
+      "aliases": [
+        "throttleadjusttime",
+        "physadjusttime"
+      ],
+      "usage": "throttleadjusttime <seconds>",
+      "args": "<seconds>",
+      "desc": "Set Throttle Adjust Time"
+    },
+    {
+      "name": "renderautofrm",
+      "aliases": [
+        "renderautofrm",
+        "autofrmlevel"
+      ],
+      "usage": "renderautofrm <number>",
+      "args": "<number>",
+      "desc": "Set Auto FRM Level"
+    },
+    {
+      "name": "meshcachesize",
+      "aliases": [
+        "meshcachesize",
+        "rendermeshcache"
+      ],
+      "usage": "meshcachesize <number>",
+      "args": "<number>",
+      "desc": "Set Mesh Cache Size"
     }
   ],
   "patched_commands": [
