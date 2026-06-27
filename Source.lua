@@ -1343,6 +1343,9 @@ local NAStuff = {
 	ESP_UseCustomColor = false;
 	ESP_CustomColor = Color3.new(1, 1, 1);
 	ESP_OutlineTransparency = 0;
+	ESP_IgnoreTeam = false;
+	ESP_TargetTeam = "";
+	ESP_PlayerTargetMode = "all";
 	ESP_ShowPartText = true;
 	ESP_ShowPartDistance = false;
 	ESP_PartColor_Name = Color3.fromRGB(255, 255, 255);
@@ -19621,6 +19624,9 @@ NAmanage.LoadESPSettings = function()
 		ESP_LabelMaxDistance = 1000;
 		ESP_ColorByTeam = true;
 		ESP_ShowTeamText = true;
+		ESP_IgnoreTeam = false;
+		ESP_TargetTeam = "";
+		ESP_PlayerTargetMode = "all";
 		ESP_ShowName = true;
 		ESP_ShowHealth = true;
 		ESP_ShowDistance = true;
@@ -19803,6 +19809,9 @@ NAmanage.LoadESPSettings = function()
 	NAStuff.ESP_LabelMaxDistance = d.ESP_LabelMaxDistance
 	NAStuff.ESP_ColorByTeam      = d.ESP_ColorByTeam
 	NAStuff.ESP_ShowTeamText     = d.ESP_ShowTeamText
+	NAStuff.ESP_IgnoreTeam      = d.ESP_IgnoreTeam == true
+	NAStuff.ESP_TargetTeam      = tostring(d.ESP_TargetTeam or "")
+	NAStuff.ESP_PlayerTargetMode = tostring(d.ESP_PlayerTargetMode or "all")
 	NAStuff.ESP_ShowName         = d.ESP_ShowName
 	NAStuff.ESP_ShowHealth       = d.ESP_ShowHealth
 	NAStuff.ESP_ShowDistance     = d.ESP_ShowDistance
@@ -19955,6 +19964,9 @@ NAmanage.SaveESPSettings = function(opts)
 		ESP_LabelMaxDistance = NAStuff.ESP_LabelMaxDistance or 1000;
 		ESP_ColorByTeam = (NAStuff.ESP_ColorByTeam ~= false);
 		ESP_ShowTeamText = (NAStuff.ESP_ShowTeamText ~= false);
+		ESP_IgnoreTeam = NAStuff.ESP_IgnoreTeam == true;
+		ESP_TargetTeam = tostring(NAStuff.ESP_TargetTeam or "");
+		ESP_PlayerTargetMode = tostring(NAStuff.ESP_PlayerTargetMode or "all");
 		ESP_ShowName = (NAStuff.ESP_ShowName ~= false);
 		ESP_ShowHealth = (NAStuff.ESP_ShowHealth ~= false);
 		ESP_ShowDistance = (NAStuff.ESP_ShowDistance ~= false);
@@ -25749,6 +25761,32 @@ NAmanage.PlayerArgName = NAmanage.PlayerArgName or function(target)
 	return tostring(target)
 end
 
+NAmanage.PlayerArgSameTeam = NAmanage.PlayerArgSameTeam or function(target)
+	local lp = Players.LocalPlayer
+	if not (typeof(target) == "Instance" and target:IsA("Player")) then
+		return false
+	end
+	if not (lp and lp.Team) then
+		return false
+	end
+	return target ~= lp and target.Team == lp.Team
+end
+
+NAmanage.PlayerArgNonTeam = NAmanage.PlayerArgNonTeam or function(target)
+	local lp = Players.LocalPlayer
+	if not (typeof(target) == "Instance" and target:IsA("Player")) then
+		return false
+	end
+	if target == lp then
+		return false
+	end
+	local myTeam = lp and lp.Team or nil
+	if myTeam == nil then
+		return true
+	end
+	return target.Team ~= myTeam
+end
+
 local PlayerArgs = {
 	["all"] = function()
 		return __lt.cm("Players", "GetPlayers")
@@ -25902,7 +25940,7 @@ local PlayerArgs = {
 		local Targets = {}
 
 		Foreach(__lt.cm("Players", "GetPlayers"), function(_, Player)
-			if Player.Team == LocalPlayer.Team and Player ~= LocalPlayer then
+			if NAmanage.PlayerArgSameTeam(Player) then
 				Insert(Targets, Player)
 			end
 		end)
@@ -25914,7 +25952,7 @@ local PlayerArgs = {
 		local Targets = {}
 
 		Foreach(__lt.cm("Players", "GetPlayers"), function(_, Player)
-			if Player.Team ~= LocalPlayer.Team and Player ~= LocalPlayer then
+			if NAmanage.PlayerArgNonTeam(Player) then
 				Insert(Targets, Player)
 			end
 		end)
@@ -26103,7 +26141,7 @@ local PlayerArgs = {
 		local Targets = {}
 
 		Foreach(__lt.cm("Players", "GetPlayers"), function(_, Player)
-			if Player.Team == LocalPlayer.Team and Player ~= LocalPlayer then
+			if NAmanage.PlayerArgSameTeam(Player) then
 				Insert(Targets, Player)
 			end
 		end)
@@ -26115,7 +26153,7 @@ local PlayerArgs = {
 		local Targets = {}
 
 		Foreach(__lt.cm("Players", "GetPlayers"), function(_, Player)
-			if Player.Team ~= LocalPlayer.Team and Player ~= LocalPlayer then
+			if NAmanage.PlayerArgNonTeam(Player) then
 				Insert(Targets, Player)
 			end
 		end)
@@ -26166,6 +26204,13 @@ local PlayerArgs = {
 		return returns
 	end,
 }
+
+PlayerArgs["noteam"] = PlayerArgs["nonteam"]
+PlayerArgs["noteams"] = PlayerArgs["nonteam"]
+PlayerArgs["nonteams"] = PlayerArgs["nonteam"]
+PlayerArgs["notteam"] = PlayerArgs["nonteam"]
+PlayerArgs["enemy"] = PlayerArgs["enemies"]
+PlayerArgs["ally"] = PlayerArgs["allies"]
 
 originalIO.normalizePlayerQuery=function(query)
 	if type(query) == "string" then
@@ -27464,6 +27509,9 @@ local chamsEnabled=false
 local ESPAutoTrackAll=false
 local ESPPlayersEnabled=false
 local NPCESPenabled=false
+NAStuff.ESP_IgnoreTeam = NAStuff.ESP_IgnoreTeam == true
+NAStuff.ESP_TargetTeam = tostring(NAStuff.ESP_TargetTeam or "")
+NAStuff.ESP_PlayerTargetMode = tostring(NAStuff.ESP_PlayerTargetMode or "all")
 if type(espCONS) ~= "table" then
 	espCONS = {}
 end
@@ -30413,12 +30461,97 @@ NAmanage.ESP_PlayerConnKey = function(prefix, player)
 	return tostring(prefix).."_"..id
 end
 
+NAmanage.ESP_NormalizePlayerTargetMode = function(mode)
+	mode = Lower(tostring(mode or "all"))
+	if mode == "enemy" or mode == "enemies" or mode == "nonteam" or mode == "nonteams" or mode == "noteam" or mode == "noteams" or mode == "notteam" then
+		return "enemies"
+	end
+	if mode == "ally" or mode == "allies" or mode == "team" or mode == "teammates" or mode == "mates" then
+		return "allies"
+	end
+	if mode == "teamname" or mode == "specificteam" or mode == "teamfilter" then
+		return "teamname"
+	end
+	return "all"
+end
+
+NAmanage.ESP_SetPlayerTargetMode = function(mode, teamPrefix, opts)
+	mode = NAmanage.ESP_NormalizePlayerTargetMode(mode)
+	NAStuff.ESP_PlayerTargetMode = mode
+	if teamPrefix ~= nil then
+		NAStuff.ESP_TargetTeam = tostring(teamPrefix or ""):match("^%s*(.-)%s*$") or ""
+	elseif mode ~= "teamname" then
+		NAStuff.ESP_TargetTeam = ""
+	end
+	if opts and opts.forceAll == true then
+		NAStuff.ESP_IgnoreTeam = false
+	elseif mode == "enemies" then
+		NAStuff.ESP_IgnoreTeam = true
+	end
+	if type(NAmanage.SaveESPSettings) == "function" and opts and opts.save == true then
+		pcall(NAmanage.SaveESPSettings)
+	end
+end
+
+NAmanage.ESP_PlayerPassesTeamFilter = function(player)
+	if not (typeof(player) == "Instance" and player:IsA("Player")) then
+		return false
+	end
+	if player == Players.LocalPlayer then
+		return false
+	end
+
+	local targetPrefix = Lower(tostring(NAStuff.ESP_TargetTeam or ""))
+	if targetPrefix ~= "" then
+		local team = player.Team
+		local teamName = team and Lower(tostring(team.Name or "")) or ""
+		return teamName:sub(1, #targetPrefix) == targetPrefix
+	end
+
+	local mode = NAmanage.ESP_NormalizePlayerTargetMode(NAStuff.ESP_PlayerTargetMode)
+	if mode == "enemies" then
+		return NAmanage.PlayerArgNonTeam(player)
+	elseif mode == "allies" then
+		return NAmanage.PlayerArgSameTeam(player)
+	end
+
+	if NAStuff.ESP_IgnoreTeam == true then
+		local lp = Players.LocalPlayer
+		local myTeam = lp and lp.Team or nil
+		if myTeam ~= nil and player.Team == myTeam then
+			return false
+		end
+	end
+	return true
+end
+
 NAmanage.ESP_ShouldTrackPlayer = function(player)
 	return (ESPPlayersEnabled or chamsEnabled) == true
 		and typeof(player) == "Instance"
 		and player:IsA("Player")
 		and player.Parent ~= nil
 		and player ~= Players.LocalPlayer
+		and ((NAmanage.ESP_HasPlayerLabelOverride and NAmanage.ESP_HasPlayerLabelOverride(player) == true) or NAmanage.ESP_PlayerPassesTeamFilter(player))
+end
+
+NAmanage.ESP_RefreshPlayerTeamFilters = NAmanage.ESP_RefreshPlayerTeamFilters or function()
+	if not (ESPPlayersEnabled or chamsEnabled) then
+		return
+	end
+	for _, plr in __lt.cm("Players", "GetPlayers") do
+		if plr ~= Players.LocalPlayer then
+			if NAmanage.ESP_ShouldTrackPlayer(plr) then
+				if ESPAutoTrackAll or NAmanage.ESP_HasPlayerLabelOverride(plr) == true then
+					NAmanage.ESP_Add(plr, true)
+				end
+			else
+				local model = plr.Character
+				if model and espCONS[model] then
+					NAmanage.ESP_ClearModel(model)
+				end
+			end
+		end
+	end
 end
 
 NAmanage.ESP_BumpReattachToken = function(player)
@@ -30443,6 +30576,7 @@ NAmanage.ESP_DisconnectPlayerWatch = function(player)
 	NAlib.disconnect(NAmanage.ESP_PlayerConnKey("esp_charRemoving_plr", player))
 	NAlib.disconnect(NAmanage.ESP_PlayerConnKey("esp_charChanged_plr", player))
 	NAlib.disconnect(NAmanage.ESP_PlayerConnKey("esp_charParent_plr", player))
+	NAlib.disconnect(NAmanage.ESP_PlayerConnKey("esp_teamChanged_plr", player))
 	NAmanage.ESP_BumpReattachToken(player)
 end
 
@@ -30486,9 +30620,11 @@ NAmanage.ESP_SetupPlayerWatch = function(player)
 	local addKey = NAmanage.ESP_PlayerConnKey("esp_charAdded_plr", player)
 	local remKey = NAmanage.ESP_PlayerConnKey("esp_charRemoving_plr", player)
 	local chKey = NAmanage.ESP_PlayerConnKey("esp_charChanged_plr", player)
+	local teamKey = NAmanage.ESP_PlayerConnKey("esp_teamChanged_plr", player)
 	NAlib.disconnect(addKey)
 	NAlib.disconnect(remKey)
 	NAlib.disconnect(chKey)
+	NAlib.disconnect(teamKey)
 	NAlib.connect(addKey, player.CharacterAdded:Connect(function(model)
 		NAmanage.ESP_WatchPlayerCharacter(player, model)
 		NAmanage.ESP_RequestReattachPlayer(player)
@@ -30503,6 +30639,16 @@ NAmanage.ESP_SetupPlayerWatch = function(player)
 		if model then
 			NAmanage.ESP_WatchPlayerCharacter(player, model)
 			NAmanage.ESP_RequestReattachPlayer(player)
+		end
+	end))
+	NAlib.connect(teamKey, player:GetPropertyChangedSignal("Team"):Connect(function()
+		if NAmanage.ESP_ShouldTrackPlayer(player) then
+			NAmanage.ESP_RequestReattachPlayer(player, true)
+		else
+			local model = player.Character
+			if model and espCONS[model] then
+				NAmanage.ESP_ClearModel(model)
+			end
 		end
 	end))
 	if player.Character then
@@ -30858,6 +31004,10 @@ NAmanage.ESP_Add = function(target, persistent, isNPC)
 
 	if not (ESPenabled or chamsEnabled) then return end
 	if typeof(target) ~= "Instance" then return end
+
+	if target:IsA("Player") and not NAmanage.ESP_ShouldTrackPlayer(target) then
+		return
+	end
 
 	if target:IsA("Player") then
 		if persistent then
@@ -44729,6 +44879,23 @@ cmd.add({"resetreach", "normalreach", "unreach"}, {"resetreach (normalreach, unr
 	end
 end)
 
+NAmanage.MakeAuraVisualizer = NAmanage.MakeAuraVisualizer or function(name, color, radius)
+	local root = getRoot(getChar())
+	if not root then
+		return nil
+	end
+	local viz = InstanceNew("SphereHandleAdornment")
+	viz.Name = name
+	viz.Adornee = root
+	viz.Radius = math.max(1, tonumber(radius) or 1)
+	viz.AlwaysOnTop = true
+	viz.Transparency = 0.55
+	viz.Color3 = color
+	viz.ZIndex = 1
+	viz.Parent = root
+	return viz
+end
+
 NAStuff.auraConn = NAStuff.auraConn or nil
 NAStuff.auraViz = NAStuff.auraViz or nil
 
@@ -44738,15 +44905,7 @@ cmd.add({"aura"},{"aura [distance]","Continuously damages nearby players with eq
 	if NAStuff.auraConn then NAStuff.auraConn:Disconnect() NAStuff.auraConn=nil end
 	NAlib.disconnect("aura_loop")
 	if NAStuff.auraViz then NAStuff.auraViz:Destroy() NAStuff.auraViz=nil end
-	NAStuff.auraViz=InstanceNew("Part")
-	NAStuff.auraViz.Shape=Enum.PartType.Ball
-	NAStuff.auraViz.Size=Vector3.new(dist*2,dist*2,dist*2)
-	NAStuff.auraViz.Transparency=0.8
-	NAStuff.auraViz.Color=Color3.fromRGB(255,0,0)
-	NAStuff.auraViz.Material=Enum.Material.Neon
-	NAStuff.auraViz.Anchored=true
-	NAStuff.auraViz.CanCollide=false
-	NAStuff.auraViz.Parent=workspace
+	NAStuff.auraViz = NAmanage.MakeAuraVisualizer("NA_AuraRadius", Color3.fromRGB(255,0,0), dist)
 	local function getDamagePart()
 		local c=getChar() if not c then return end
 		local t=c:FindFirstChildWhichIsA("Tool") if not t then return end
@@ -44758,11 +44917,18 @@ cmd.add({"aura"},{"aura [distance]","Continuously damages nearby players with eq
 		end
 		return t:FindFirstChild("Handle") or t:FindFirstChildWhichIsA("BasePart")
 	end
-	NAStuff.auraConn=NAlib.reconnect("aura_loop", RunService.RenderStepped:Connect(function()
-		local damagePart=getDamagePart()
+	local auraAcc = 0
+	NAStuff.auraConn=NAlib.reconnect("aura_loop", RunService.Heartbeat:Connect(function(dt)
+		auraAcc += tonumber(dt) or 0
 		local root=getRoot(getChar())
+		if root and ((not NAStuff.auraViz) or (not NAStuff.auraViz.Parent) or NAStuff.auraViz.Adornee ~= root) then
+			if NAStuff.auraViz then NAStuff.auraViz:Destroy() end
+			NAStuff.auraViz = NAmanage.MakeAuraVisualizer("NA_AuraRadius", Color3.fromRGB(255,0,0), dist)
+		end
+		if auraAcc < 0.12 then return end
+		auraAcc = 0
+		local damagePart=getDamagePart()
 		if not damagePart or not root then return end
-		NAStuff.auraViz.CFrame=root.CFrame
 		for _,plr in getPlr("others") do
 			if plr.Character then
 				local hum=getPlrHum(plr)
@@ -44770,8 +44936,12 @@ cmd.add({"aura"},{"aura [distance]","Continuously damages nearby players with eq
 					for _,part in plr.Character:GetChildren() do
 						if part:IsA("BasePart") and (part.Position-damagePart.Position).Magnitude<=dist then
 							firetouchinterest(damagePart,part,0)
-							Wait();
-							firetouchinterest(damagePart,part,1)
+							Defer(function()
+								Wait()
+								if damagePart and damagePart.Parent and part and part.Parent then
+									firetouchinterest(damagePart,part,1)
+								end
+							end)
 							break
 						end
 					end
@@ -44798,15 +44968,7 @@ cmd.add({"npcaura"},{"npcaura [distance]","Continuously damages nearby NPCs with
 	if NAStuff.npcauraConn then NAStuff.npcauraConn:Disconnect() NAStuff.npcauraConn=nil end
 	NAlib.disconnect("npcaura_loop")
 	if NAStuff.npcauraViz then NAStuff.npcauraViz:Destroy() NAStuff.npcauraViz=nil end
-	NAStuff.npcauraViz=InstanceNew("Part")
-	NAStuff.npcauraViz.Shape=Enum.PartType.Ball
-	NAStuff.npcauraViz.Size=Vector3.new(dist*2,dist*2,dist*2)
-	NAStuff.npcauraViz.Transparency=0.8
-	NAStuff.npcauraViz.Color=Color3.fromRGB(255,85,0)
-	NAStuff.npcauraViz.Material=Enum.Material.Neon
-	NAStuff.npcauraViz.Anchored=true
-	NAStuff.npcauraViz.CanCollide=false
-	NAStuff.npcauraViz.Parent=workspace
+	NAStuff.npcauraViz = NAmanage.MakeAuraVisualizer("NA_NPCAuraRadius", Color3.fromRGB(255,85,0), dist)
 	local function getDamagePart()
 		local c=getChar() if not c then return end
 		local t=c:FindFirstChildWhichIsA("Tool") if not t then return end
@@ -44818,11 +44980,18 @@ cmd.add({"npcaura"},{"npcaura [distance]","Continuously damages nearby NPCs with
 		end
 		return t:FindFirstChild("Handle") or t:FindFirstChildWhichIsA("BasePart")
 	end
-	NAStuff.npcauraConn=NAlib.reconnect("npcaura_loop", RunService.RenderStepped:Connect(function()
-		local damagePart=getDamagePart()
+	local npcAuraAcc = 0
+	NAStuff.npcauraConn=NAlib.reconnect("npcaura_loop", RunService.Heartbeat:Connect(function(dt)
+		npcAuraAcc += tonumber(dt) or 0
 		local root=getRoot(getChar())
+		if root and ((not NAStuff.npcauraViz) or (not NAStuff.npcauraViz.Parent) or NAStuff.npcauraViz.Adornee ~= root) then
+			if NAStuff.npcauraViz then NAStuff.npcauraViz:Destroy() end
+			NAStuff.npcauraViz = NAmanage.MakeAuraVisualizer("NA_NPCAuraRadius", Color3.fromRGB(255,85,0), dist)
+		end
+		if npcAuraAcc < 0.12 then return end
+		npcAuraAcc = 0
+		local damagePart=getDamagePart()
 		if not damagePart or not root then return end
-		NAStuff.npcauraViz.CFrame=root.CFrame
 		for _,npc in getPlr("npc") do
 			if npc and npc.Parent then
 				local hum=getPlrHum(npc)
@@ -44830,8 +44999,12 @@ cmd.add({"npcaura"},{"npcaura [distance]","Continuously damages nearby NPCs with
 					for _,part in npc:GetChildren() do
 						if part:IsA("BasePart") and (part.Position-damagePart.Position).Magnitude<=dist then
 							firetouchinterest(damagePart,part,0)
-							Wait();
-							firetouchinterest(damagePart,part,1)
+							Defer(function()
+								Wait()
+								if damagePart and damagePart.Parent and part and part.Parent then
+									firetouchinterest(damagePart,part,1)
+								end
+							end)
 							break
 						end
 					end
@@ -52504,31 +52677,79 @@ cmd.add({"disablealignmentkeys","disablealignkeys","dak"},{"disablealignmentkeys
 	end
 end)
 
-cmd.add({"esp"}, {"esp","locate where the players are"}, function()
+NAmanage.ESP_EnablePlayerMode = function(mode, teamPrefix, useChams, label)
 	ESPPlayersEnabled = true
+	chamsEnabled = useChams == true
 	NAmanage.ESP_RecomputeEnabled()
-	chamsEnabled = false
 	NAmanage.ESP_ClearPlayerLabelOverrides()
 	ESPAutoTrackAll = true
+	if type(NAmanage.ESP_SetPlayerTargetMode) == "function" then
+		NAmanage.ESP_SetPlayerTargetMode(mode, teamPrefix, {
+			forceAll = NAmanage.ESP_NormalizePlayerTargetMode(mode) == "all" and tostring(teamPrefix or "") == "";
+			save = false;
+		})
+	end
+	NAmanage.ESP_ClearPlayers()
+	local count = 0
 	for _, player in __lt.cm("Players", "GetPlayers") do
-		if player ~= Players.LocalPlayer then
+		if NAmanage.ESP_ShouldTrackPlayer(player) then
+			count += 1
 			NAmanage.ESP_Add(player, true)
 		end
 	end
+	NAmanage.ESP_StartGlobal()
+	if label then
+		DoNotif((useChams and "Chams" or "ESP").." "..label.." enabled ("..tostring(count)..")", 2, "ESP")
+	end
+end
+
+cmd.add({"esp", "espplayers", "playeresp"}, {"esp (espplayers, playeresp)","locate where the players are"}, function()
+	NAmanage.ESP_EnablePlayerMode("all", "", false, "players")
 end)
 
-cmd.add({"chams"}, {"chams","ESP but without the text :shock:"}, function()
-	ESPPlayersEnabled = true
-	NAmanage.ESP_RecomputeEnabled()
-	chamsEnabled = true
-	NAmanage.ESP_ClearPlayerLabelOverrides()
-	ESPAutoTrackAll = true
-	for _, player in __lt.cm("Players", "GetPlayers") do
-		if player ~= Players.LocalPlayer then
-			NAmanage.ESP_Add(player, true)
-		end
-	end
+cmd.add({"espall", "allesp", "espallplayers"}, {"espall (allesp)","ESP all players and clear team filtering"}, function()
+	NAmanage.ESP_EnablePlayerMode("all", "", false, "all players")
 end)
+
+cmd.add({"espenemies", "espenemy", "espnonteam", "espnonteams", "espnoteam", "espnoteams", "enemyesp", "enemiesesp", "nonteamesp", "noteamesp"}, {"espenemies (espnonteam, espnoteam)","ESP players outside your team; no-team games fall back to all others"}, function()
+	NAmanage.ESP_EnablePlayerMode("enemies", "", false, "enemies")
+end)
+
+cmd.add({"espallies", "espally", "espteammates", "espteamates", "allyesp", "alliesesp", "teammateesp"}, {"espallies (espteammates)","ESP players on your current team"}, function()
+	NAmanage.ESP_EnablePlayerMode("allies", "", false, "allies")
+end)
+
+cmd.add({"espteam", "teamesp", "espteamname", "espbyteam", "locateteam"}, {"espteam <team prefix>","ESP players in a specific team; no args = current team/allies"}, function(...)
+	local args = {...}
+	local teamPrefix = NAgui.trimText and NAgui.trimText(Concat(args, " ")) or (Concat(args, " "):match("^%s*(.-)%s*$") or "")
+	if teamPrefix == "" then
+		NAmanage.ESP_EnablePlayerMode("allies", "", false, "current team")
+	else
+		NAmanage.ESP_EnablePlayerMode("teamname", teamPrefix, false, "team "..teamPrefix)
+	end
+end, true)
+
+cmd.add({"chams"}, {"chams","ESP but without the text :shock:"}, function()
+	NAmanage.ESP_EnablePlayerMode("all", "", true, "players")
+end)
+
+cmd.add({"chamsenemies", "chamsenemy", "chamsnonteam", "enemychams", "nonteamchams"}, {"chamsenemies (chamsnonteam)","Chams players outside your team"}, function()
+	NAmanage.ESP_EnablePlayerMode("enemies", "", true, "enemies")
+end)
+
+cmd.add({"chamsallies", "chamsally", "chamsteammates", "allychams", "teammatechams"}, {"chamsallies (chamsteammates)","Chams players on your current team"}, function()
+	NAmanage.ESP_EnablePlayerMode("allies", "", true, "allies")
+end)
+
+cmd.add({"chamsteam", "teamchams", "chamsteamname", "chamsbyteam"}, {"chamsteam <team prefix>","Chams players in a specific team; no args = current team/allies"}, function(...)
+	local args = {...}
+	local teamPrefix = NAgui.trimText and NAgui.trimText(Concat(args, " ")) or (Concat(args, " "):match("^%s*(.-)%s*$") or "")
+	if teamPrefix == "" then
+		NAmanage.ESP_EnablePlayerMode("allies", "", true, "current team")
+	else
+		NAmanage.ESP_EnablePlayerMode("teamname", teamPrefix, true, "team "..teamPrefix)
+	end
+end, true)
 
 cmd.add({"locate"}, {"locate <username1> <username2> etc (optional)", "locate where the specified player(s) are"}, function(...)
 	ESPPlayersEnabled = true
@@ -52732,7 +52953,9 @@ cmd.add({"unnpcesp","unespnpc"},{"unnpcesp (unespnpc)","stop locating npcs"},fun
 	end
 end)
 
-cmd.add({"unesp","unchams"},{"unesp (unchams)","Disables esp/chams"},function()
+cmd.add({"unesp","unchams","unespteam","unespenemies","unespallies","unespplayers","unchamsteam","unchamsenemies","unchamsallies"},{"unesp (unchams)","Disables esp/chams"},function()
+	NAStuff.ESP_PlayerTargetMode = "all"
+	NAStuff.ESP_TargetTeam = ""
 	ESPPlayersEnabled = false
 	NAmanage.ESP_RecomputeEnabled()
 	chamsEnabled = false
@@ -82385,6 +82608,7 @@ cmd.add({"hitbox","hbox"}, {"hitbox <player> {size}",""}, function(pArg, sArg)
 		ca = {},
 		da = {},
 		ac = {},
+		tc = {},
 		addConn = nil,
 		remConn = nil,
 		run = nil,
@@ -82402,10 +82626,24 @@ cmd.add({"hitbox","hbox"}, {"hitbox <player> {size}",""}, function(pArg, sArg)
 	local targets = getPlr(pArg);
 	local hbOpts = NAmanage.GetHitboxOpts();
 	local n = tonumber(sArg) or hbOpts.size or 10;
-	local argL = Lower(pArg);
+	local argL = Lower(pArg or "");
 	local npc = argL == "npc";
-	local glb = argL == "all" or argL == "others";
-	local allowEmpty = npc or glb;
+	local selectorMode = ({
+		all = true,
+		others = true,
+		nonteam = true,
+		noteam = true,
+		noteams = true,
+		nonteams = true,
+		notteam = true,
+		enemies = true,
+		enemy = true,
+		team = true,
+		allies = true,
+		ally = true,
+	})[argL] and argL or nil;
+	local glb = selectorMode == "all" or selectorMode == "others";
+	local allowEmpty = npc or selectorMode ~= nil;
 	if #targets == 0 and (not allowEmpty) then
 		DoNotif("No targets found", 2);
 		return;
@@ -82732,6 +82970,13 @@ cmd.add({"hitbox","hbox"}, {"hitbox <player> {size}",""}, function(pArg, sArg)
 						end;
 						D.ac[k] = nil;
 					end;
+					D.tc = D.tc or {};
+					for k, c in D.tc do
+						if c then
+							c:Disconnect();
+						end;
+						D.tc[k] = nil;
+					end;
 					for k, _ in D.ps do
 						D.ps[k] = nil;
 					end;
@@ -82745,6 +82990,24 @@ cmd.add({"hitbox","hbox"}, {"hitbox <player> {size}",""}, function(pArg, sArg)
 						noCollide = defaultNoCollide,
 						massless = defaultMassless
 					};
+					D.tc = D.tc or {};
+					D.selectorMode = selectorMode;
+					D.targetSet = {};
+					local function ModeAllows(plr)
+						if not (typeof(plr) == "Instance" and plr:IsA("Player")) then
+							return false;
+						end;
+						if selectorMode == "all" then
+							return true;
+						elseif selectorMode == "others" then
+							return plr ~= Players.LocalPlayer;
+						elseif selectorMode == "nonteam" or selectorMode == "noteam" or selectorMode == "noteams" or selectorMode == "nonteams" or selectorMode == "notteam" or selectorMode == "enemies" or selectorMode == "enemy" then
+							return NAmanage.PlayerArgNonTeam(plr);
+						elseif selectorMode == "team" or selectorMode == "allies" or selectorMode == "ally" then
+							return NAmanage.PlayerArgSameTeam(plr);
+						end;
+						return D.targetSet[plr] == true;
+					end;
 					local function Track(k, bp)
 						if not (bp and bp.Parent) then
 							return;
@@ -82799,6 +83062,10 @@ cmd.add({"hitbox","hbox"}, {"hitbox <player> {size}",""}, function(pArg, sArg)
 						Scan(k, ch);
 					end;
 					local function SetupKey(k)
+						if not (k and typeof(k) == "Instance") then
+							return;
+						end;
+						D.targetSet[k] = true;
 						local ch = GetChar(k);
 						if ch then
 							SetupChar(k, ch);
@@ -82809,25 +83076,47 @@ cmd.add({"hitbox","hbox"}, {"hitbox <player> {size}",""}, function(pArg, sArg)
 							end;
 							D.ca[k] = k.CharacterAdded:Connect(function(c)
 								Defer(function()
-									if c then
+									if c and ModeAllows(k) then
 										SetupChar(k, c);
 									end;
 								end);
 							end);
+							if D.tc[k] then
+								D.tc[k]:Disconnect();
+							end;
+							D.tc[k] = k:GetPropertyChangedSignal("Team"):Connect(function()
+								if ModeAllows(k) then
+									local cc = GetChar(k);
+									if cc then
+										SetupChar(k, cc);
+									end;
+								end;
+							end);
 						end;
 						Defer(function()
 							local cc = GetChar(k);
-							if cc then
+							if cc and ModeAllows(k) then
 								Scan(k, cc);
 							end;
 						end);
 					end;
 					for _, t in targets do
-						SetupKey(t);
+						if selectorMode == nil or ModeAllows(t) then
+							SetupKey(t);
+						end;
 					end;
-					if glb then
+					if selectorMode then
+						for _, plr in __lt.cm("Players", "GetPlayers") do
+							if ModeAllows(plr) and not D.ca[plr] then
+								SetupKey(plr);
+							end;
+						end;
+					end;
+					if selectorMode then
 						D.addConn = Players.PlayerAdded:Connect(function(plr)
-							SetupKey(plr);
+							if ModeAllows(plr) then
+								SetupKey(plr);
+							end;
 						end);
 						D.remConn = Players.PlayerRemoving:Connect(function(plr)
 							if D.ca[plr] then
@@ -82841,6 +83130,10 @@ cmd.add({"hitbox","hbox"}, {"hitbox <player> {size}",""}, function(pArg, sArg)
 							if D.ac[plr] then
 								D.ac[plr]:Disconnect();
 								D.ac[plr] = nil;
+							end;
+							if D.tc and D.tc[plr] then
+								D.tc[plr]:Disconnect();
+								D.tc[plr] = nil;
 							end;
 							D.ps[plr] = nil;
 							D.og[plr] = nil;
@@ -82867,6 +83160,13 @@ cmd.add({"hitbox","hbox"}, {"hitbox <player> {size}",""}, function(pArg, sArg)
 								end;
 							end;
 						end;
+						if selectorMode then
+							for _, plr in __lt.cm("Players", "GetPlayers") do
+								if ModeAllows(plr) and not D.ca[plr] then
+									SetupKey(plr);
+								end;
+							end;
+						end;
 					end));
 				end;
 			end
@@ -82887,6 +83187,7 @@ cmd.add({"unhitbox","unhbox"}, {"unhitbox <player>",""}, function(pArg)
 		ca = {},
 		da = {},
 		ac = {},
+		tc = {},
 		addConn = nil,
 		remConn = nil,
 		run = nil,
@@ -83019,6 +83320,10 @@ cmd.add({"unhitbox","unhbox"}, {"unhitbox <player>",""}, function(pArg)
 			D.ac[k]:Disconnect()
 			D.ac[k] = nil
 		end
+		if type(D.tc) == "table" and D.tc[k] then
+			D.tc[k]:Disconnect()
+			D.tc[k] = nil
+		end
 	end
 
 	local function restoreEntryNPC(D, k)
@@ -83060,9 +83365,17 @@ cmd.add({"unhitbox","unhbox"}, {"unhitbox <player>",""}, function(pArg)
 				c:Disconnect()
 			end
 		end
+		if type(D.tc) == "table" then
+			for _, c in D.tc do
+				if c then
+					c:Disconnect()
+				end
+			end
+		end
 		D.ca = {}
 		D.da = {}
 		D.ac = {}
+		D.tc = {}
 		if D.addConn then
 			D.addConn:Disconnect()
 			D.addConn = nil
@@ -112102,10 +112415,10 @@ originalIO.setupPlayer=function(plr,bruh)
 		SpawnCall(function() CheckPermissions(plr) end)
 	end
 
-	if ESPPlayersEnabled and ESPAutoTrackAll then
+	if ESPPlayersEnabled and ESPAutoTrackAll and (not NAmanage.ESP_ShouldTrackPlayer or NAmanage.ESP_ShouldTrackPlayer(plr)) then
 		SpawnCall(function()
 			local char = originalIO.waitForCharacterReady(plr)
-			if char then
+			if char and (not NAmanage.ESP_ShouldTrackPlayer or NAmanage.ESP_ShouldTrackPlayer(plr)) then
 				NAmanage.ESP_Add(plr,true)
 			end
 		end)
@@ -123577,6 +123890,22 @@ end)
 NAgui.addToggle("ESP Color By Team", (NAStuff.ESP_ColorByTeam ~= false), function(state)
 	NAStuff.ESP_ColorByTeam = state
 	NAmanage.SaveESPSettings()
+end)
+
+NAgui.addToggle("ESP Ignore Team", NAStuff.ESP_IgnoreTeam == true, function(state)
+	NAStuff.ESP_IgnoreTeam = state == true
+	NAmanage.SaveESPSettings()
+	if NAmanage.ESP_RefreshPlayerTeamFilters then
+		NAmanage.ESP_RefreshPlayerTeamFilters()
+	end
+end)
+
+NAgui.addInput("ESP Team Prefix", "empty = any team", tostring(NAStuff.ESP_TargetTeam or ""), function(text)
+	NAStuff.ESP_TargetTeam = tostring(text or ""):match("^%s*(.-)%s*$") or ""
+	NAmanage.SaveESPSettings()
+	if NAmanage.ESP_RefreshPlayerTeamFilters then
+		NAmanage.ESP_RefreshPlayerTeamFilters()
+	end
 end)
 
 NAgui.addSlider("Player ESP Transparency", 0, 1, NAgui.sanitizeTransparency(NAStuff.ESP_Transparency or 0.7), 0.05, "", function(v)
