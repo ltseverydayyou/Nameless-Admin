@@ -1262,6 +1262,7 @@ local NAStuff = {
 	cmdAutofillLoading = false;
 	cmdAutofillLoadRequested = false;
 	uiBootHidden = false;
+	HideStartup = false;
 	keepCmdFocus = false;
 	cmdInputAtInit = nil;
 	tweenSpeed = 1;
@@ -9013,6 +9014,129 @@ NAmanage.safeDeleteFile=NAmanage.safeDeleteFile or function(path)
 	return false, err
 end
 
+NAmanage._jsonSafeState = type(NAmanage._jsonSafeState) == "table" and NAmanage._jsonSafeState or {
+	read = {};
+	decode = {};
+	candidates = {};
+}
+
+NAmanage.safeReadFile=NAmanage.safeReadFile or function(path)
+	if not (FileSupport and type(readfile) == "function" and type(path) == "string") then
+		return false, nil, "no file support or invalid path"
+	end
+	NAmanage._jsonSafeState.read.ok, NAmanage._jsonSafeState.read.data = pcall(readfile, path)
+	if NAmanage._jsonSafeState.read.ok and type(NAmanage._jsonSafeState.read.data) == "string" then
+		return true, NAmanage._jsonSafeState.read.data
+	end
+	if NAmanage.isFileAccessErr(NAmanage._jsonSafeState.read.data) then
+		NAmanage.noteFileWriteIssue("read file", path, NAmanage._jsonSafeState.read.data)
+	end
+	return false, nil, NAmanage._jsonSafeState.read.data
+end
+
+NAmanage.safeJsonDecode=NAmanage.safeJsonDecode or function(raw)
+	if type(raw) ~= "string" or raw == "" then
+		return false, nil, "empty json"
+	end
+	NAmanage._jsonSafeState.decode.ok, NAmanage._jsonSafeState.decode.value = pcall(HttpService.JSONDecode, HttpService, raw)
+	if NAmanage._jsonSafeState.decode.ok and type(NAmanage._jsonSafeState.decode.value) == "table" then
+		return true, NAmanage._jsonSafeState.decode.value
+	end
+	return false, nil, NAmanage._jsonSafeState.decode.value or "invalid json"
+end
+
+NAmanage.safeReadJsonFileWithRecovery=NAmanage.safeReadJsonFileWithRecovery or function(path, opts)
+	opts = type(opts) == "table" and opts or {}
+	if not (FileSupport and type(path) == "string" and path ~= "") then
+		return false, nil, "no file support or invalid path"
+	end
+
+	NAmanage._jsonSafeState.candidates[1] = path
+	for i = 2, #NAmanage._jsonSafeState.candidates do
+		NAmanage._jsonSafeState.candidates[i] = nil
+	end
+	if opts.tempPath ~= false then
+		NAmanage._jsonSafeState.candidates[#NAmanage._jsonSafeState.candidates + 1] = type(opts.tempPath) == "string" and opts.tempPath or (path..".tmp")
+	end
+	if opts.backupPath ~= false then
+		NAmanage._jsonSafeState.candidates[#NAmanage._jsonSafeState.candidates + 1] = type(opts.backupPath) == "string" and opts.backupPath or (path..".bak")
+	end
+
+	NAmanage._jsonSafeState.firstErr = "file missing"
+	for _, candidate in NAmanage._jsonSafeState.candidates do
+		if type(candidate) == "string" and candidate ~= "" and NAmanage.safeIsFile(candidate) then
+			NAmanage._jsonSafeState.okRead, NAmanage._jsonSafeState.raw, NAmanage._jsonSafeState.readErr = NAmanage.safeReadFile(candidate)
+			if NAmanage._jsonSafeState.okRead then
+				NAmanage._jsonSafeState.okDecode, NAmanage._jsonSafeState.decoded, NAmanage._jsonSafeState.decodeErr = NAmanage.safeJsonDecode(NAmanage._jsonSafeState.raw)
+				if NAmanage._jsonSafeState.okDecode then
+					if candidate ~= path then
+						NAmanage.safeWriteFile(path, NAmanage._jsonSafeState.raw)
+					end
+					return true, NAmanage._jsonSafeState.decoded, candidate
+				end
+				NAmanage._jsonSafeState.firstErr = NAmanage._jsonSafeState.decodeErr
+			else
+				NAmanage._jsonSafeState.firstErr = NAmanage._jsonSafeState.readErr
+			end
+		end
+	end
+
+	return false, nil, NAmanage._jsonSafeState.firstErr
+end
+
+NAmanage.safeWriteJsonFileWithRecovery=NAmanage.safeWriteJsonFileWithRecovery or function(path, data, opts)
+	opts = type(opts) == "table" and opts or {}
+	if not (FileSupport and type(path) == "string" and path ~= "" and type(data) == "string") then
+		return false, "no file support or invalid path"
+	end
+
+	NAmanage._jsonSafeState.okNew, NAmanage._jsonSafeState.decodedNew, NAmanage._jsonSafeState.newErr = NAmanage.safeJsonDecode(data)
+	if not NAmanage._jsonSafeState.okNew then
+		return false, "refusing to write invalid json: "..tostring(NAmanage._jsonSafeState.newErr)
+	end
+
+	NAmanage._jsonSafeState.tempPath = type(opts.tempPath) == "string" and opts.tempPath or (path..".tmp")
+	NAmanage._jsonSafeState.backupPath = type(opts.backupPath) == "string" and opts.backupPath or (path..".bak")
+
+	if NAmanage.safeIsFile(path) then
+		NAmanage._jsonSafeState.okOldRead, NAmanage._jsonSafeState.oldRaw = NAmanage.safeReadFile(path)
+		if NAmanage._jsonSafeState.okOldRead then
+			NAmanage._jsonSafeState.okOldJson = NAmanage.safeJsonDecode(NAmanage._jsonSafeState.oldRaw)
+			if NAmanage._jsonSafeState.okOldJson then
+				NAmanage.safeWriteFile(NAmanage._jsonSafeState.backupPath, NAmanage._jsonSafeState.oldRaw)
+			end
+		end
+	end
+
+	NAmanage._jsonSafeState.okTemp, NAmanage._jsonSafeState.tempErr = NAmanage.safeWriteFile(NAmanage._jsonSafeState.tempPath, data)
+	if not NAmanage._jsonSafeState.okTemp then
+		return false, NAmanage._jsonSafeState.tempErr
+	end
+
+	NAmanage._jsonSafeState.okTempRead, NAmanage._jsonSafeState.tempRaw, NAmanage._jsonSafeState.tempReadErr = NAmanage.safeReadFile(NAmanage._jsonSafeState.tempPath)
+	if not NAmanage._jsonSafeState.okTempRead or NAmanage._jsonSafeState.tempRaw ~= data then
+		NAmanage.safeDeleteFile(NAmanage._jsonSafeState.tempPath)
+		return false, NAmanage._jsonSafeState.tempReadErr or "temp write verification failed"
+	end
+
+	NAmanage._jsonSafeState.okMain, NAmanage._jsonSafeState.mainErr = NAmanage.safeWriteFile(path, NAmanage._jsonSafeState.tempRaw)
+	if not NAmanage._jsonSafeState.okMain then
+		return false, NAmanage._jsonSafeState.mainErr
+	end
+
+	NAmanage._jsonSafeState.okVerify, NAmanage._jsonSafeState.verifyRaw, NAmanage._jsonSafeState.verifyErr = NAmanage.safeReadFile(path)
+	if not NAmanage._jsonSafeState.okVerify or NAmanage._jsonSafeState.verifyRaw ~= NAmanage._jsonSafeState.tempRaw then
+		NAmanage._jsonSafeState.okBackup, NAmanage._jsonSafeState.backupRaw = NAmanage.safeReadFile(NAmanage._jsonSafeState.backupPath)
+		if NAmanage._jsonSafeState.okBackup then
+			NAmanage.safeWriteFile(path, NAmanage._jsonSafeState.backupRaw)
+		end
+		return false, NAmanage._jsonSafeState.verifyErr or "main write verification failed"
+	end
+
+	NAmanage.safeDeleteFile(NAmanage._jsonSafeState.tempPath)
+	return true
+end
+
 NAmanage.getNAImageFileName = NAmanage.getNAImageFileName or function(keyOrFile)
 	if type(keyOrFile) ~= "string" or keyOrFile == "" then
 		return nil
@@ -13557,6 +13681,7 @@ NATopbarKeepPosition = false
 NATopbarPositionRatio = 0
 NATopbarDock = "top"
 NALoadingStartMinimized = false
+NAHideStartup = false
 NASideSwipeSide = "left"
 NASideSwipeEnabled = false
 NADisableLastInput = false
@@ -13589,6 +13714,10 @@ do
 				local parsed = parseBool(val)
 				if parsed ~= nil then
 					NALoadingStartMinimized = parsed
+				end
+				local hideParsed = parseBool(decoded.hideStartup)
+				if hideParsed ~= nil then
+					NAHideStartup = hideParsed
 				end
 			end
 		end
@@ -13691,6 +13820,8 @@ end
 NAmanage.loaderState = NAmanage.loaderState or {
 	autoSkip = false;
 	loaded = false;
+	hideStartup = NAHideStartup == true;
+	hideStartupLoaded = false;
 	settingsPath = "Nameless-Admin/Settings.json";
 }
 
@@ -13823,6 +13954,123 @@ NAmanage.setAutoSkipPreference = function(enabled)
 	end
 
 	writeAutoSkipSettingsFile(getAutoSkipSettingsPath(), value)
+end
+
+NAmanage.getHideStartupFromSettingsCache=function(state)
+	if type(NAmanage.NASettingsGet) == "function" then
+		local ok, value = NACaller(NAmanage.NASettingsGet, "hideStartup")
+		if ok and type(value) == "boolean" then
+			state.hideStartup = value
+			state.hideStartupLoaded = true
+			return true, value
+		end
+	end
+
+	if type(NAStuff.NASettingsData) == "table" then
+		local value = NAStuff.NASettingsData.hideStartup
+		if type(value) == "boolean" then
+			state.hideStartup = value
+			state.hideStartupLoaded = true
+			return true, value
+		end
+	end
+
+	return false, nil
+end
+
+NAmanage.writeHideStartupSettingsFile=function(path, enabled)
+	if not FileSupport then
+		return false
+	end
+
+	if type(NAmanage.safeMakeFolder) == "function" then
+		NAmanage.safeMakeFolder("Nameless-Admin")
+	elseif type(makefolder) == "function" and type(isfolder) == "function" then
+		local okFolder, exists = pcall(isfolder, "Nameless-Admin")
+		if not (okFolder and exists == true) then
+			pcall(makefolder, "Nameless-Admin")
+		end
+	end
+
+	local data = readAutoSkipSettingsFile(path)
+	if typeof(data) ~= "table" then
+		data = {}
+	end
+
+	data.hideStartup = enabled == true
+
+	local encodeOk, encoded = NACaller(function()
+		return HttpService:JSONEncode(data)
+	end)
+
+	if encodeOk and type(encoded) == "string" then
+		local ok = NAmanage.safeWriteFile(path, encoded)
+		return ok == true
+	end
+
+	return false
+end
+
+NAmanage.getHideStartupPreference = function()
+	local state = NAmanage.loaderState
+	local cached, value = NAmanage.getHideStartupFromSettingsCache(state)
+	if cached then
+		NAHideStartup = value == true
+		if type(NAStuff) == "table" then
+			NAStuff.HideStartup = NAHideStartup
+		end
+		return value
+	end
+
+	if state.hideStartupLoaded then
+		return state.hideStartup == true
+	end
+
+	state.hideStartupLoaded = true
+	local data = readAutoSkipSettingsFile(getAutoSkipSettingsPath())
+	if typeof(data) == "table" and type(data.hideStartup) == "boolean" then
+		state.hideStartup = data.hideStartup
+	end
+
+	NAHideStartup = state.hideStartup == true
+	if type(NAStuff) == "table" then
+		NAStuff.HideStartup = NAHideStartup
+	end
+	return state.hideStartup == true
+end
+
+NAmanage.setHideStartupPreference = function(enabled)
+	local state = NAmanage.loaderState
+	local value = enabled and true or false
+	state.hideStartup = value
+	state.hideStartupLoaded = true
+	NAHideStartup = value
+	if type(NAStuff) == "table" then
+		NAStuff.HideStartup = value
+	end
+
+	if type(NAStuff.NASettingsData) == "table" then
+		NAStuff.NASettingsData.hideStartup = value
+	end
+
+	if type(NAmanage.NASettingsEnsure) == "function" and type(NAmanage.NASettingsSave) == "function" then
+		local ok, settings = NACaller(NAmanage.NASettingsEnsure)
+		if ok and typeof(settings) == "table" then
+			settings.hideStartup = value
+			NAStuff.NASettingsData = settings
+			NACaller(NAmanage.NASettingsSave)
+			return
+		end
+	end
+
+	NAmanage.writeHideStartupSettingsFile(getAutoSkipSettingsPath(), value)
+end
+
+NAmanage.isStartupHidden = function()
+	if type(NAmanage.getHideStartupPreference) == "function" then
+		return NAmanage.getHideStartupPreference() == true
+	end
+	return NAHideStartup == true or (type(NAStuff) == "table" and NAStuff.HideStartup == true)
 end
 
 NAmanage.RandomCursedInstanceString = NAmanage.RandomCursedInstanceString or function()
@@ -14931,6 +15179,62 @@ NAmanage.createLoadingUI=function(text, opts)
 		end, function() end
 	end
 
+	local startupHidden = opts.hideStartup
+	if startupHidden == nil then
+		startupHidden = (type(NAmanage.isStartupHidden) == "function" and NAmanage.isStartupHidden() == true) or NAHideStartup == true or (type(NAStuff) == "table" and NAStuff.HideStartup == true)
+	else
+		startupHidden = startupHidden == true
+	end
+
+	if startupHidden then
+		local hiddenState = {
+			status = tostring(text or "");
+			percent = 0;
+			skip = (type(NAmanage.getAutoSkipPreference) == "function" and NAmanage.getAutoSkipPreference() == true) or false;
+			minimized = true;
+		}
+		ui.sg = InstanceNew("ScreenGui")
+		ui.sg.IgnoreGuiInset = true
+		ui.sg.ResetOnSpawn = false
+		ui.sg.DisplayOrder = 999999
+		ui.sg.ZIndexBehavior = Enum.ZIndexBehavior.Global
+		ui.sg.Enabled = false
+		local okProtect = pcall(function() NAgui.NaProtectUI(ui.sg) end)
+		if not okProtect then
+			ui.sg.Parent = COREGUI
+		end
+		pcall(function()
+			NAmanage.SetAttr(ui.sg, "SkipAssets", hiddenState.skip == true)
+			NAmanage.SetAttr(ui.sg, "Completed", false)
+		end)
+		local function setStatus(st)
+			hiddenState.status = tostring(st or "")
+		end
+		local function setPercent(pct)
+			local p = tonumber(pct) or 0
+			if p > 1 then
+				if p <= 10 then
+					p = p / 10
+				elseif p <= 100 then
+					p = p / 100
+				else
+					p = p / 100
+				end
+			end
+			hiddenState.percent = math.clamp(p, 0, 1)
+		end
+		local function getSkipFlag()
+			return hiddenState.skip == true
+		end
+		local function setMinimizedState()
+			hiddenState.minimized = true
+			if ui.sg then
+				ui.sg.Enabled = false
+			end
+		end
+		return ui.sg, setStatus, setPercent, ui.sg, getSkipFlag, setMinimizedState
+	end
+
 	ui.sg = InstanceNew("ScreenGui")
 	ui.sg.IgnoreGuiInset = true
 	ui.sg.ResetOnSpawn = false
@@ -15657,6 +15961,9 @@ NAAssetsLoading._trimPrefetchedRemoteCache()
 NAAssetsLoading._trimKnownRemotes()
 
 NAAssetsLoading.applyMinimizedPreference=function()
+	if type(NAmanage.isStartupHidden) == "function" and NAmanage.isStartupHidden() == true then
+		return
+	end
 	if type(NAAssetsLoading.setMinimizedState) == "function" then
 		pcall(NAAssetsLoading.setMinimizedState, NALoadingStartMinimized == true)
 	end
@@ -17952,6 +18259,12 @@ NAmanage.NASettingsGetSchema=function()
 				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
+		hideStartup = {
+			default = false;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
+			end;
+		};
 		autoInteractDistanceEnabled = {
 			default = true;
 			coerce = function(value)
@@ -19305,7 +19618,21 @@ end
 local WPPath = NAmanage.GetWPPath()
 local bindersPath = NAfiles.NABINDERS
 
+NAmanage.ESPSettingsState = type(NAmanage.ESPSettingsState) == "table" and NAmanage.ESPSettingsState or {
+	loaded = false;
+	loading = false;
+	saving = false;
+	skippedBeforeLoad = false;
+}
+NAmanage.ESPSettingsLoaded = NAmanage.ESPSettingsState.loaded == true
+
 NAmanage.LoadESPSettings = function()
+	NAmanage.ESPSettingsState.loading = true
+	NAmanage.ESPSettingsState.loaded = false
+	NAmanage.ESPSettingsState.missingOnLoad = false
+	NAmanage.ESPSettingsState.lastReadError = nil
+	NAmanage.ESPSettingsLoaded = false
+
 	local d = {
 		ESP_PerfProfileVersion = 2;
 		ESP_Transparency = 0.7;
@@ -19400,45 +19727,46 @@ NAmanage.LoadESPSettings = function()
 		NPC_ESP_RenderMode = "Highlight";
 	}
 	if FileSupport then
-		if not NAmanage.safeIsFile(NAfiles.NAESPSETTINGSPATH) then
-			NAmanage.safeWriteFile(NAfiles.NAESPSETTINGSPATH, HttpService:JSONEncode(d))
-		end
-		local ok, raw = pcall(readfile, NAfiles.NAESPSETTINGSPATH)
-		if ok and raw then
-			local ok2, cfg = pcall(HttpService.JSONDecode, HttpService, raw)
-			if ok2 and type(cfg)=="table" then
+		NAmanage.ESPSettingsState.okRead, NAmanage.ESPSettingsState.cfg, NAmanage.ESPSettingsState.sourcePath = NAmanage.safeReadJsonFileWithRecovery(NAfiles.NAESPSETTINGSPATH, {
+			tempPath = NAfiles.NAESPSETTINGSPATH..".tmp";
+			backupPath = NAfiles.NAESPSETTINGSPATH..".bak";
+		})
+		if NAmanage.ESPSettingsState.okRead and type(NAmanage.ESPSettingsState.cfg)=="table" then
+			NAmanage.ESPSettingsState.loadedFrom = NAmanage.ESPSettingsState.sourcePath
 				for key, defaultValue in d do
-					local stored = cfg[key]
-					if stored ~= nil then
+					NAmanage.ESPSettingsState.stored = NAmanage.ESPSettingsState.cfg[key]
+					if NAmanage.ESPSettingsState.stored ~= nil then
 						local kind = typeof(defaultValue)
 						if kind == "number" then
-							local numeric = tonumber(stored)
-							if numeric then d[key] = numeric end
+							NAmanage.ESPSettingsState.numeric = tonumber(NAmanage.ESPSettingsState.stored)
+							if NAmanage.ESPSettingsState.numeric then d[key] = NAmanage.ESPSettingsState.numeric end
 						elseif kind == "boolean" then
-							if typeof(stored)=="boolean" then
-								d[key] = stored
-							elseif typeof(stored)=="number" then
-								d[key] = stored ~= 0
-							elseif typeof(stored)=="string" then
-								local s = stored:lower()
-								if s=="true" or s=="1" then d[key]=true
-								elseif s=="false" or s=="0" then d[key]=false end
+							if typeof(NAmanage.ESPSettingsState.stored)=="boolean" then
+								d[key] = NAmanage.ESPSettingsState.stored
+							elseif typeof(NAmanage.ESPSettingsState.stored)=="number" then
+								d[key] = NAmanage.ESPSettingsState.stored ~= 0
+							elseif typeof(NAmanage.ESPSettingsState.stored)=="string" then
+								NAmanage.ESPSettingsState.stringValue = NAmanage.ESPSettingsState.stored:lower()
+								if NAmanage.ESPSettingsState.stringValue=="true" or NAmanage.ESPSettingsState.stringValue=="1" then d[key]=true
+								elseif NAmanage.ESPSettingsState.stringValue=="false" or NAmanage.ESPSettingsState.stringValue=="0" then d[key]=false end
 							end
 						else
-							d[key] = stored
+							d[key] = NAmanage.ESPSettingsState.stored
 						end
 					end
 				end
-				local perfVersion = tonumber(cfg.ESP_PerfProfileVersion) or 0
-				if perfVersion < 2 then
-					if tonumber(cfg.ESP_DrawingPartQueuePerStep) == 128 then d.ESP_DrawingPartQueuePerStep = 64 end
-					if tonumber(cfg.ESP_MaxPerStep) == 32 then d.ESP_MaxPerStep = 24 end
-					if tonumber(cfg.ESP_OcclusionHitProbeLimit) == 6 then d.ESP_OcclusionHitProbeLimit = 4 end
-					if tonumber(cfg.ESP_OcclusionUpdateInterval) == 0.18 then d.ESP_OcclusionUpdateInterval = 0.25 end
-					if tonumber(cfg.ESP_OcclusionMaxPerStep) == 24 then d.ESP_OcclusionMaxPerStep = 12 end
+				NAmanage.ESPSettingsState.perfVersion = tonumber(NAmanage.ESPSettingsState.cfg.ESP_PerfProfileVersion) or 0
+				if NAmanage.ESPSettingsState.perfVersion < 2 then
+					if tonumber(NAmanage.ESPSettingsState.cfg.ESP_DrawingPartQueuePerStep) == 128 then d.ESP_DrawingPartQueuePerStep = 64 end
+					if tonumber(NAmanage.ESPSettingsState.cfg.ESP_MaxPerStep) == 32 then d.ESP_MaxPerStep = 24 end
+					if tonumber(NAmanage.ESPSettingsState.cfg.ESP_OcclusionHitProbeLimit) == 6 then d.ESP_OcclusionHitProbeLimit = 4 end
+					if tonumber(NAmanage.ESPSettingsState.cfg.ESP_OcclusionUpdateInterval) == 0.18 then d.ESP_OcclusionUpdateInterval = 0.25 end
+					if tonumber(NAmanage.ESPSettingsState.cfg.ESP_OcclusionMaxPerStep) == 24 then d.ESP_OcclusionMaxPerStep = 12 end
 				end
 				d.ESP_PerfProfileVersion = 2
-			end
+		else
+			NAmanage.ESPSettingsState.lastReadError = tostring(NAmanage.ESPSettingsState.cfg or "file missing")
+			NAmanage.ESPSettingsState.missingOnLoad = not NAmanage.safeIsFile(NAfiles.NAESPSETTINGSPATH)
 		end
 	end
 	local function sanitizeColor(value, defaultColor)
@@ -19602,10 +19930,37 @@ NAmanage.LoadESPSettings = function()
 		NAmanage.ESP_PlayerLocatorDisable()
 	end
 	NAmanage.ESP_PlayerLocatorApplyFlags()
+
+	NAmanage.ESPSettingsState.loading = false
+	NAmanage.ESPSettingsState.loaded = true
+	NAmanage.ESPSettingsState.skippedBeforeLoad = false
+	NAmanage.ESPSettingsLoaded = true
+
+	if FileSupport and NAmanage.ESPSettingsState.missingOnLoad == true then
+		NAmanage.ESPSettingsState.missingOnLoad = false
+		Defer(function()
+			if NAmanage.ESPSettingsState and NAmanage.ESPSettingsState.loaded == true and type(NAmanage.SaveESPSettings) == "function" then
+				NAmanage.SaveESPSettings({ force = true; reason = "create missing ESPSettings after load" })
+			end
+		end)
+	end
 end
 
-NAmanage.SaveESPSettings = function()
-	if not FileSupport then return end
+NAmanage.SaveESPSettings = function(opts)
+	opts = type(opts) == "table" and opts or {}
+	if not FileSupport then return false, "no file support" end
+	if type(NAmanage.ESPSettingsState) ~= "table" then
+		NAmanage.ESPSettingsState = { loaded = false; loading = false; saving = false }
+	end
+	if opts.force ~= true and NAmanage.ESPSettingsState.loaded ~= true then
+		NAmanage.ESPSettingsState.skippedBeforeLoad = true
+		return false, "ESP settings have not finished loading"
+	end
+	if NAmanage.ESPSettingsState.saving == true then
+		NAmanage.ESPSettingsState.queuedAfterSave = true
+		return false, "ESP settings save already running"
+	end
+	NAmanage.ESPSettingsState.saving = true
 	local mode = NAgui.sanitizeESPRenderMode(NAStuff.ESP_RenderMode, "Highlight")
 	local partMode = NAgui.sanitizeESPRenderMode(NAStuff.ESP_PartRenderMode, "BoxHandleAdornment")
 	if partMode == "Character Box" then partMode = "BoxHandleAdornment" end
@@ -19705,7 +20060,23 @@ NAmanage.SaveESPSettings = function()
 		ESP_ModelMode = (Lower(tostring(NAStuff.ESP_ModelMode)) == "models") and "models" or "parts";
 		NPC_ESP_RenderMode = npcMode;
 	}
-	NAmanage.safeWriteFile(NAfiles.NAESPSETTINGSPATH, HttpService:JSONEncode(d))
+	NAmanage.ESPSettingsState.encoded = HttpService:JSONEncode(d)
+	NAmanage.ESPSettingsState.okWrite, NAmanage.ESPSettingsState.writeErr = NAmanage.safeWriteJsonFileWithRecovery(NAfiles.NAESPSETTINGSPATH, NAmanage.ESPSettingsState.encoded, {
+		tempPath = NAfiles.NAESPSETTINGSPATH..".tmp";
+		backupPath = NAfiles.NAESPSETTINGSPATH..".bak";
+	})
+	NAmanage.ESPSettingsState.saving = false
+	NAmanage.ESPSettingsState.lastSaveOk = NAmanage.ESPSettingsState.okWrite == true
+	NAmanage.ESPSettingsState.lastSaveError = NAmanage.ESPSettingsState.okWrite and nil or tostring(NAmanage.ESPSettingsState.writeErr)
+	if NAmanage.ESPSettingsState.queuedAfterSave == true and NAmanage.ESPSettingsState.loaded == true then
+		NAmanage.ESPSettingsState.queuedAfterSave = false
+		Defer(function()
+			if NAmanage.ESPSettingsState and NAmanage.ESPSettingsState.loaded == true then
+				NAmanage.SaveESPSettings({ force = true; reason = "queued ESPSettings save" })
+			end
+		end)
+	end
+	return NAmanage.ESPSettingsState.okWrite, NAmanage.ESPSettingsState.writeErr
 end
 
 NAmanage.ESP_LocatorRegisterArrow = function(key, frame, label)
@@ -21194,6 +21565,8 @@ NAStuff.FlyNoVelocityClamp = NAmanage.NASettingsGet("flyNoVelocityClamp") == tru
 NAStuff.LowEndMode = NAmanage.NASettingsGet("lowEndUiMode") == true
 NAStuff.PluginAutoLoad = NAmanage.NASettingsGet("pluginAutoLoad") ~= false
 NAStuff.PluginSettingsUIEnabled = NAmanage.NASettingsGet("pluginAllowSettingsUI") ~= false
+NAHideStartup = NAmanage.NASettingsGet("hideStartup") == true
+NAStuff.HideStartup = NAHideStartup
 
 NAStuff.AutoInteractDistanceEnabled = true
 NAStuff.AutoInteractExtraRange = 5
@@ -22090,6 +22463,8 @@ else
 	NATopbarPositionRatio = 0
 	NATopbarDock = "top"
 	NALoadingStartMinimized = false
+	NAHideStartup = false
+	NAStuff.HideStartup = false
 	NAUISTROKER = Color3.fromRGB(148, 93, 255)
 	DoPopup("Your exploit does not support read/write file")
 	--opt.saveTag = fals
@@ -35164,7 +35539,8 @@ NAmanage.LoadPlugins = function(opts)
 		pcall(NAmanage.RenderUserButtons)
 	end
 
-	local allowNotif = (forceNotify == true) or (NAmanage.jlCfg.PluginNotif ~= false)
+	local hideStartupNotif = opts.startup == true and type(NAmanage.isStartupHidden) == "function" and NAmanage.isStartupHidden() == true
+	local allowNotif = (forceNotify == true) or ((NAmanage.jlCfg.PluginNotif ~= false) and not hideStartupNotif)
 	if #loadedSumm > 0 and allowNotif and not silent then
 		DoNotif("Loaded plugins:\n\n"..Concat(loadedSumm, "\n\n"), 5.7)
 	end
@@ -99594,6 +99970,8 @@ NAStuff.cmdInputSoftOutsideBound = false
 NAStuff.cmdInputSoftCaretBlinkToken = 0
 NAStuff.cmdInputSoftRepeatToken = 0
 NAStuff.cmdInputSoftRepeatKey = nil
+NAStuff.cmdInputSoftRepeatInput = nil
+NAStuff.cmdInputSoftCursor = nil
 
 NAmanage.CmdInputUseSoftFocus = function()
 	return type(NAStuff) == "table" and NAStuff.CmdInputSafeMode ~= false
@@ -99605,6 +99983,31 @@ end
 NAStuff.MobileCmdSafeInput = NAStuff.CmdInputSafeMode ~= false
 NAStuff.cmdMobileKeyboardShift = NAStuff.cmdMobileKeyboardShift == true
 NAStuff.cmdMobileSelectMode = NAStuff.cmdMobileSelectMode == true
+
+NAmanage.CmdInputGetCursor = function(box, fallback)
+	box = box or (NAUIMANAGER and NAUIMANAGER.cmdInput)
+	if not box then
+		return 1
+	end
+	local text = tostring(box.Text or "")
+	local len = #text
+	local active = NAmanage.isCmdSoftInputActive and NAmanage.isCmdSoftInputActive()
+	local cursor = nil
+	if active then
+		cursor = tonumber(NAStuff.cmdInputSoftCursor)
+	end
+	cursor = cursor or tonumber(fallback)
+	if not cursor then
+		pcall(function()
+			cursor = tonumber(box.CursorPosition)
+		end)
+	end
+	cursor = math.clamp(tonumber(cursor) or (len + 1), 1, len + 1)
+	if active then
+		NAStuff.cmdInputSoftCursor = cursor
+	end
+	return cursor
+end
 
 NAmanage.CmdInputActualFocused = function()
 	local box = NAUIMANAGER and NAUIMANAGER.cmdInput
@@ -99901,7 +100304,7 @@ NAgui.CmdMobileKeyboardShow = function()
 
 	local function moveMobileCursor(delta, selecting)
 		local text = tostring(box.Text or "")
-		local current = math.clamp(tonumber(box.CursorPosition) or (#text + 1), 1, #text + 1)
+		local current = (NAmanage.CmdInputGetCursor and NAmanage.CmdInputGetCursor(box)) or math.clamp(tonumber(box.CursorPosition) or (#text + 1), 1, #text + 1)
 		local newPos = math.clamp(current + (tonumber(delta) or 0), 1, #text + 1)
 		if selecting then
 			if tonumber(NAStuff.cmdInputSoftSelectionAnchor) == nil then
@@ -99943,7 +100346,7 @@ NAgui.CmdMobileKeyboardShow = function()
 		elseif action == "select" then
 			NAStuff.cmdMobileSelectMode = not NAStuff.cmdMobileSelectMode
 			if NAStuff.cmdMobileSelectMode then
-				NAStuff.cmdInputSoftSelectionAnchor = math.clamp(tonumber(box.CursorPosition) or (#(box.Text or "") + 1), 1, #(box.Text or "") + 1)
+				NAStuff.cmdInputSoftSelectionAnchor = (NAmanage.CmdInputGetCursor and NAmanage.CmdInputGetCursor(box)) or math.clamp(tonumber(box.CursorPosition) or (#(box.Text or "") + 1), 1, #(box.Text or "") + 1)
 				NAStuff.cmdInputSoftSelectAll = false
 			else
 				NAmanage.CmdInputClearSoftSelection(false)
@@ -100038,7 +100441,7 @@ NAgui.CmdMobileKeyboardShow = function()
 			local function cb()
 				press(action, spec.value)
 			end
-			if action == "back" then
+			if action == "back" or action == "left" or action == "right" then
 				local down = false
 				b.InputBegan:Connect(function(input)
 					if input.UserInputType ~= Enum.UserInputType.Touch and input.UserInputType ~= Enum.UserInputType.MouseButton1 then
@@ -100063,6 +100466,8 @@ NAgui.CmdMobileKeyboardShow = function()
 						NAmanage.CmdInputStopKeyRepeat()
 					end
 				end)
+			elseif b.Activated then
+				b.Activated:Connect(cb)
 			elseif type(MouseButtonFix) == "function" then
 				MouseButtonFix(b, cb)
 			else
@@ -100250,7 +100655,7 @@ NAmanage.CmdInputGetSelectionRange = function(box)
 	end
 	local text = tostring(box.Text or "")
 	local len = #text
-	local cursor = math.clamp(tonumber(box.CursorPosition) or (len + 1), 1, len + 1)
+	local cursor = (NAmanage.CmdInputGetCursor and NAmanage.CmdInputGetCursor(box)) or math.clamp(tonumber(box.CursorPosition) or (len + 1), 1, len + 1)
 	if NAStuff.cmdInputSoftSelectAll == true then
 		return 1, len + 1
 	end
@@ -100385,7 +100790,7 @@ NAmanage.CmdInputUpdateSoftVisual = function()
 	end
 	local text = tostring(box.Text or "")
 	local len = #text
-	local cursor = math.clamp(tonumber(box.CursorPosition) or (len + 1), 1, len + 1)
+	local cursor = (NAmanage.CmdInputGetCursor and NAmanage.CmdInputGetCursor(box)) or math.clamp(tonumber(box.CursorPosition) or (len + 1), 1, len + 1)
 	local displayText = text
 	local showingPlaceholder = false
 	if displayText == "" then
@@ -100610,10 +101015,12 @@ NAmanage.CmdSoftInputStart = function()
 	if NAStuff.cmdInputSoftPrevTextEditable == nil then
 		NAStuff.cmdInputSoftPrevTextEditable = box.TextEditable
 	end
+	NAStuff.cmdInputSoftCursor = (NAmanage.CmdInputGetCursor and NAmanage.CmdInputGetCursor(box, #(box.Text or "") + 1)) or (#(box.Text or "") + 1)
 	pcall(function()
 		box.TextEditable = false
 		box.ClearTextOnFocus = false
-		box.CursorPosition = math.clamp(tonumber(box.CursorPosition) or (#(box.Text or "") + 1), 1, #(box.Text or "") + 1)
+		box.CursorPosition = NAStuff.cmdInputSoftCursor
+		box.SelectionStart = -1
 	end)
 	if NAmanage.CmdInputResetHistory and type(NAStuff.cmdInputUndoStack) ~= "table" then
 		NAmanage.CmdInputResetHistory(box)
@@ -100653,6 +101060,7 @@ NAmanage.CmdSoftInputStop = function()
 	NAStuff.cmdInputSoftFocus = false
 	NAStuff.cmdInputSoftSelectAll = false
 	NAStuff.cmdInputSoftSelectionAnchor = nil
+	NAStuff.cmdInputSoftCursor = nil
 	NAStuff.cmdInputSoftCaretBlinkToken = (tonumber(NAStuff.cmdInputSoftCaretBlinkToken) or 0) + 1
 	if NAmanage.CmdInputStopKeyRepeat then
 		NAmanage.CmdInputStopKeyRepeat()
@@ -100729,11 +101137,19 @@ NAmanage.SetCmdInputSafeMode = function(enabled, opts)
 end
 
 NAmanage.CmdInputSetCursor = function(box, pos, keepSelection)
+	box = box or (NAUIMANAGER and NAUIMANAGER.cmdInput)
 	if not box then
 		return 1
 	end
 	local len = #(box.Text or "")
-	local cursor = math.clamp(tonumber(pos) or (len + 1), 1, len + 1)
+	local fallback = nil
+	if NAmanage.isCmdSoftInputActive and NAmanage.isCmdSoftInputActive() then
+		fallback = tonumber(NAStuff.cmdInputSoftCursor)
+	end
+	local cursor = math.clamp(tonumber(pos) or fallback or (len + 1), 1, len + 1)
+	if NAmanage.isCmdSoftInputActive and NAmanage.isCmdSoftInputActive() then
+		NAStuff.cmdInputSoftCursor = cursor
+	end
 	pcall(function()
 		box.CursorPosition = cursor
 	end)
@@ -100753,7 +101169,6 @@ NAmanage.CmdInputSetCursor = function(box, pos, keepSelection)
 	end
 	return cursor
 end
-
 NAmanage.CmdInputCaptureState = function(box)
 	box = box or (NAUIMANAGER and NAUIMANAGER.cmdInput)
 	if not box then
@@ -100761,7 +101176,7 @@ NAmanage.CmdInputCaptureState = function(box)
 	end
 	local text = tostring(box.Text or "")
 	local len = #text
-	local cursor = math.clamp(tonumber(box.CursorPosition) or (len + 1), 1, len + 1)
+	local cursor = (NAmanage.CmdInputGetCursor and NAmanage.CmdInputGetCursor(box)) or math.clamp(tonumber(box.CursorPosition) or (len + 1), 1, len + 1)
 	local anchor = tonumber(NAStuff and NAStuff.cmdInputSoftSelectionAnchor)
 	if anchor then
 		anchor = math.clamp(anchor, 1, len + 1)
@@ -100821,6 +101236,7 @@ NAmanage.CmdInputApplyState = function(state)
 	NAStuff.cmdInputSoftSelectAll = state.selectAll == true
 	NAStuff.cmdInputSoftSelectionAnchor = tonumber(state.anchor)
 	local cursor = math.clamp(tonumber(state.cursor) or (#text + 1), 1, #text + 1)
+	NAStuff.cmdInputSoftCursor = cursor
 	pcall(function()
 		box.CursorPosition = cursor
 		box.SelectionStart = tonumber(NAStuff.cmdInputSoftSelectionAnchor) or -1
@@ -100907,7 +101323,7 @@ NAmanage.CmdInputDeleteWordBack = function()
 		return true
 	end
 	local text = tostring(box.Text or "")
-	local cursor = math.clamp(tonumber(box.CursorPosition) or (#text + 1), 1, #text + 1)
+	local cursor = (NAmanage.CmdInputGetCursor and NAmanage.CmdInputGetCursor(box)) or math.clamp(tonumber(box.CursorPosition) or (#text + 1), 1, #text + 1)
 	if cursor <= 1 then
 		return true
 	end
@@ -100930,7 +101346,7 @@ NAmanage.CmdInputDeleteWordForward = function()
 		return true
 	end
 	local text = tostring(box.Text or "")
-	local cursor = math.clamp(tonumber(box.CursorPosition) or (#text + 1), 1, #text + 1)
+	local cursor = (NAmanage.CmdInputGetCursor and NAmanage.CmdInputGetCursor(box)) or math.clamp(tonumber(box.CursorPosition) or (#text + 1), 1, #text + 1)
 	if cursor > #text then
 		return true
 	end
@@ -100961,7 +101377,7 @@ NAmanage.CmdInputInsertText = function(value)
 	if NAmanage.CmdInputDeleteSelection and NAmanage.CmdInputDeleteSelection(box, false) then
 		text = tostring(box.Text or "")
 	end
-	local cursor = NAmanage.CmdInputSetCursor(box, box.CursorPosition)
+	local cursor = (NAmanage.CmdInputGetCursor and NAmanage.CmdInputGetCursor(box)) or NAmanage.CmdInputSetCursor(box, box.CursorPosition)
 	box.Text = text:sub(1, cursor - 1)..insert..text:sub(cursor)
 	NAmanage.CmdInputSetCursor(box, cursor + #insert)
 	return true
@@ -100976,7 +101392,7 @@ NAmanage.CmdInputDeleteBack = function()
 	if NAmanage.CmdInputDeleteSelection and NAmanage.CmdInputDeleteSelection(box) then
 		return true
 	end
-	local cursor = NAmanage.CmdInputSetCursor(box, box.CursorPosition)
+	local cursor = (NAmanage.CmdInputGetCursor and NAmanage.CmdInputGetCursor(box)) or NAmanage.CmdInputSetCursor(box, box.CursorPosition)
 	if cursor <= 1 then
 		return true
 	end
@@ -100997,7 +101413,7 @@ NAmanage.CmdInputDeleteForward = function()
 	if NAmanage.CmdInputDeleteSelection and NAmanage.CmdInputDeleteSelection(box) then
 		return true
 	end
-	local cursor = NAmanage.CmdInputSetCursor(box, box.CursorPosition)
+	local cursor = (NAmanage.CmdInputGetCursor and NAmanage.CmdInputGetCursor(box)) or NAmanage.CmdInputSetCursor(box, box.CursorPosition)
 	if cursor > #text then
 		return true
 	end
@@ -101220,7 +101636,7 @@ NAmanage.HandleCmdSoftInput = function(input, gameProcessed)
 		return true
 	end
 	local function moveCursor(newPos)
-		local current = math.clamp(tonumber(box.CursorPosition) or (#(box.Text or "") + 1), 1, #(box.Text or "") + 1)
+		local current = (NAmanage.CmdInputGetCursor and NAmanage.CmdInputGetCursor(box)) or math.clamp(tonumber(box.CursorPosition) or (#(box.Text or "") + 1), 1, #(box.Text or "") + 1)
 		if shift then
 			if tonumber(NAStuff.cmdInputSoftSelectionAnchor) == nil then
 				NAStuff.cmdInputSoftSelectionAnchor = current
@@ -101278,12 +101694,12 @@ NAmanage.HandleCmdSoftInput = function(input, gameProcessed)
 		return true
 	elseif key == Enum.KeyCode.Left then
 		local text = tostring(box.Text or "")
-		local current = tonumber(box.CursorPosition) or (#text + 1)
+		local current = (NAmanage.CmdInputGetCursor and NAmanage.CmdInputGetCursor(box)) or tonumber(box.CursorPosition) or (#text + 1)
 		moveCursor(ctrl and NAmanage.CmdInputFindWordLeft(text, current) or (current - 1))
 		return true
 	elseif key == Enum.KeyCode.Right then
 		local text = tostring(box.Text or "")
-		local current = tonumber(box.CursorPosition) or (#text + 1)
+		local current = (NAmanage.CmdInputGetCursor and NAmanage.CmdInputGetCursor(box)) or tonumber(box.CursorPosition) or (#text + 1)
 		moveCursor(ctrl and NAmanage.CmdInputFindWordRight(text, current) or (current + 1))
 		return true
 	elseif key == Enum.KeyCode.Home then
@@ -102117,7 +102533,11 @@ NAlib.connect("cmdbar_input_text", NAUIMANAGER.cmdInput:GetPropertyChangedSignal
 	local c = NAmanage.stripChar(t, false)
 	if c ~= t then
 		box.Text = c
-		box.CursorPosition = #c + 1
+		if NAmanage.CmdInputSetCursor then
+			NAmanage.CmdInputSetCursor(box, #c + 1)
+		else
+			box.CursorPosition = #c + 1
+		end
 	end
 	NAgui.searchCommands()
 	if NAmanage.CmdInputUpdateSoftVisual then
@@ -112929,7 +113349,8 @@ end
 
 function mainNameless()
 	local txtLabel = TextLabel
-	local showIntroLabel = not (NAmanage.jlCfg and NAmanage.jlCfg.IconLabel == false)
+	local hideStartup = type(NAmanage.isStartupHidden) == "function" and NAmanage.isStartupHidden() == true
+	local showIntroLabel = not hideStartup and not (NAmanage.jlCfg and NAmanage.jlCfg.IconLabel == false)
 	if txtLabel and not showIntroLabel then
 		txtLabel.Visible = false
 	end
@@ -113062,7 +113483,7 @@ SpawnCall(function()
 			"\nUpdated on: "..opt.NAupdDate..
 			"\nTime Taken To Load: "..loadedResults(NAresult)
 
-		if NAmanage.jlCfg.WelcomeNotif ~= false then
+		if NAmanage.jlCfg.WelcomeNotif ~= false and not (type(NAmanage.isStartupHidden) == "function" and NAmanage.isStartupHidden() == true) then
 			DoNotif(notifBody, 6, rngMsg().." "..nameCheck)
 		end
 
@@ -113084,7 +113505,7 @@ SpawnCall(function()
 
 		Wait(1)
 
-		if IsOnPC and NAmanage.jlCfg.KeybindNotif ~= false then
+		if IsOnPC and NAmanage.jlCfg.KeybindNotif ~= false and not (type(NAmanage.isStartupHidden) == "function" and NAmanage.isStartupHidden() == true) then
 			local keybindMessage = maybeMock("Your Keybind Prefix: "..opt.prefix)
 			DoNotif(keybindMessage, 10, adminName.." Keybind Prefix")
 		end
@@ -115818,6 +116239,14 @@ NAgui.addToggle("Auto Skip Loading Screen", NAmanage.getAutoSkipPreference(), fu
 end)
 NAmanage.RegisterToggleAutoSync("Auto Skip Loading Screen", function()
 	return NAmanage.getAutoSkipPreference() == true
+end)
+
+NAgui.addToggle("Hide Startup", type(NAmanage.getHideStartupPreference) == "function" and NAmanage.getHideStartupPreference() == true, function(v)
+	NAmanage.setHideStartupPreference(v)
+	DoNotif("Startup UI "..(v and "will be hidden on next run" or "will show on next run"), 2)
+end)
+NAmanage.RegisterToggleAutoSync("Hide Startup", function()
+	return type(NAmanage.getHideStartupPreference) == "function" and NAmanage.getHideStartupPreference() == true
 end)
 
 if type(NAmanage.isDeltaExecutor) == "function" and NAmanage.isDeltaExecutor(true) then
