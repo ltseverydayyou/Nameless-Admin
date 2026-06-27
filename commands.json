@@ -2765,11 +2765,70 @@
     {
       "name": "esp",
       "aliases": [
-        "esp"
+        "esp",
+        "espplayers",
+        "playeresp"
       ],
-      "usage": "esp",
+      "usage": "esp (espplayers, playeresp)",
       "args": "",
       "desc": "locate where the players are"
+    },
+    {
+      "name": "espall",
+      "aliases": [
+        "espall",
+        "allesp",
+        "espallplayers"
+      ],
+      "usage": "espall (allesp)",
+      "args": "",
+      "desc": "ESP all players and clear team filtering"
+    },
+    {
+      "name": "espenemies",
+      "aliases": [
+        "espenemies",
+        "espenemy",
+        "espnonteam",
+        "espnonteams",
+        "espnoteam",
+        "espnoteams",
+        "enemyesp",
+        "enemiesesp",
+        "nonteamesp",
+        "noteamesp"
+      ],
+      "usage": "espenemies (espnonteam, espnoteam)",
+      "args": "",
+      "desc": "ESP players outside your team; no-team games fall back to all others"
+    },
+    {
+      "name": "espallies",
+      "aliases": [
+        "espallies",
+        "espally",
+        "espteammates",
+        "espteamates",
+        "allyesp",
+        "alliesesp",
+        "teammateesp"
+      ],
+      "usage": "espallies (espteammates)",
+      "args": "",
+      "desc": "ESP players on your current team"
+    },
+    {
+      "name": "espteam",
+      "aliases": [
+        "espteam",
+        "teamesp",
+        "espteamname",
+        "espbyteam",
+        "locateteam"
+      ],
+      "usage": "espteam <team prefix>",
+      "args": "<team prefix>",
+      "desc": "ESP players in a specific team; no args = current team/allies"
     },
     {
       "name": "chams",
@@ -2779,6 +2838,44 @@
       "usage": "chams",
       "args": "",
       "desc": "ESP but without the text :shock:"
+    },
+    {
+      "name": "chamsenemies",
+      "aliases": [
+        "chamsenemies",
+        "chamsenemy",
+        "chamsnonteam",
+        "enemychams",
+        "nonteamchams"
+      ],
+      "usage": "chamsenemies (chamsnonteam)",
+      "args": "",
+      "desc": "Chams players outside your team"
+    },
+    {
+      "name": "chamsallies",
+      "aliases": [
+        "chamsallies",
+        "chamsally",
+        "chamsteammates",
+        "allychams",
+        "teammatechams"
+      ],
+      "usage": "chamsallies (chamsteammates)",
+      "args": "",
+      "desc": "Chams players on your current team"
+    },
+    {
+      "name": "chamsteam",
+      "aliases": [
+        "chamsteam",
+        "teamchams",
+        "chamsteamname",
+        "chamsbyteam"
+      ],
+      "usage": "chamsteam <team prefix>",
+      "args": "<team prefix>",
+      "desc": "Chams players in a specific team; no args = current team/allies"
     },
     {
       "name": "locate",
@@ -2813,7 +2910,14 @@
       "name": "unesp",
       "aliases": [
         "unesp",
-        "unchams"
+        "unchams",
+        "unespteam",
+        "unespenemies",
+        "unespallies",
+        "unespplayers",
+        "unchamsteam",
+        "unchamsenemies",
+        "unchamsallies"
       ],
       "usage": "unesp (unchams)",
       "args": "",
