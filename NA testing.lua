@@ -99067,6 +99067,19 @@ NAmanage.SideSwipe_PointInside=function(gui, point)
 	return point.X >= pos.X and point.X <= pos.X + size.X and point.Y >= pos.Y and point.Y <= pos.Y + size.Y
 end
 
+NAmanage.SideSwipe_GetPanelY=function(vp, size, margin)
+	vp = vp or Vector2.new(1280, 720)
+	size = size or Vector2.new(0, 0)
+	margin = tonumber(margin) or 10
+	local centerY = vp.Y * 0.5
+	local minY = size.Y * 0.5 + margin
+	local maxY = vp.Y - size.Y * 0.5 - margin
+	if maxY < minY then
+		return centerY
+	end
+	return math.clamp(centerY, minY, maxY)
+end
+
 NAmanage.SideSwipe_ShouldCloseFrom=function(point)
 	if NAmanage.SideSwipe_PointInside(SideSwipeApp.panel, point)
 		or NAmanage.SideSwipe_PointInside(SideSwipeApp.underlay, point)
@@ -99097,8 +99110,7 @@ NAmanage.SideSwipe_PositionPanel=function(opts)
 		xOn = margin
 		xOff = -size.X - margin
 	end
-	local hClamp = math.clamp(vp.Y * 0.5, size.Y * 0.5 + margin, vp.Y - size.Y * 0.5 - margin)
-	local targetY = hClamp
+	local targetY = NAmanage.SideSwipe_GetPanelY(vp, size, margin)
 	if opts.state == false then
 		SideSwipeApp.panel.AnchorPoint = anchor
 		SideSwipeApp.panel.Position = UDim2.new(0, xOff, 0, targetY)
@@ -99245,7 +99257,7 @@ NAmanage.SideSwipe_SetOpen=function(state)
 	local anchor = side == "right" and Vector2.new(1, 0.5) or Vector2.new(0, 0.5)
 	local xOn = side == "right" and (vp.X - margin) or margin
 	local xOff = side == "right" and (vp.X + size.X + margin) or (-size.X - margin)
-	local y = math.clamp(vp.Y * 0.5, size.Y * 0.5 + margin, vp.Y - size.Y * 0.5 - margin)
+	local y = NAmanage.SideSwipe_GetPanelY(vp, size, margin)
 	local startX = SideSwipeApp.isOpen and xOff or xOn
 	if wasOpen == SideSwipeApp.isOpen then
 		startX = SideSwipeApp.panel.Position.X.Offset
