@@ -3067,7 +3067,7 @@
       ],
       "usage": "raknetdesync (rkdesync,rkds,rkd)",
       "args": "",
-      "desc": "Enables RakNet desync using raknet.desync(true), then a safe packet-hook fallback"
+      "desc": "Enables RakNet desync using raknet.desync(true)"
     },
     {
       "name": "unraknetdesync",
@@ -3079,7 +3079,7 @@
       ],
       "usage": "unraknetdesync (unrkdesync,unrkds,unrkd)",
       "args": "",
-      "desc": "Disables RakNet desync using raknet.desync(false), or self-disables the fallback hook"
+      "desc": "Disables RakNet desync using raknet.desync(false)"
     },
     {
       "name": "runanim",
@@ -3503,7 +3503,7 @@
       ],
       "usage": "cframefly [speed] (cfly)",
       "args": "[speed]",
-      "desc": "Enable CFrame-based flight"
+      "desc": "Enable CFrame-based flight with respawn-safe cleanup"
     },
     {
       "name": "uncframefly",
