@@ -31602,6 +31602,63 @@ NAmanage._destroyFlyHelper = function()
 	if goofyFLY then pcall(function() goofyFLY:Destroy() end) goofyFLY = nil end
 end
 
+NAmanage._getCFlyTarget = function(char)
+	char = char or getChar()
+	if not char then
+		return nil
+	end
+	return getRoot(char) or getHead(char)
+end
+
+NAmanage._unanchorFlyCharacter = function(char)
+	char = char or getChar()
+	if not char then
+		return
+	end
+	local root = getRoot(char)
+	local head = getHead(char)
+	if root then
+		pcall(function() root.Anchored = false end)
+	end
+	if head then
+		pcall(function() head.Anchored = false end)
+	end
+	for _, inst in ipairs(char:GetDescendants()) do
+		if inst:IsA("BasePart") then
+			pcall(function() inst.Anchored = false end)
+		end
+	end
+end
+
+NAmanage._hardStopCFly = function(char)
+	local wasCFly = flyVariables.cFlyEnabled == true or NAmanage._state.mode == "cfly"
+	if not wasCFly then
+		return false
+	end
+	if CFloop then
+		pcall(function() CFloop:Disconnect() end)
+	end
+	CFloop = nil
+	NAlib.disconnect("fly_cfly_loop")
+	FLYING = false
+	flyVariables.cFlyEnabled = false
+	if NAmanage._state.mode == "cfly" then
+		NAmanage._state.mode = "none"
+	end
+	CONTROL = { Q = 0, E = 0 }
+	lCONTROL = { Q = 0, E = 0 }
+	SPEED = 0
+	NAmanage.ClearVelocityWalkSpeedClampState()
+	NAmanage._unanchorFlyCharacter(char)
+	NAmanage._restoreFlyHumanoidState(getHum(char))
+	NAmanage._destroyFlyHelper()
+	NAmanage._releaseQE()
+	NAmanage._persist.lastMode = "none"
+	NAmanage._persist.wasFlying = false
+	NAmanage._persist.resumeAfterSpawn = false
+	return true
+end
+
 NAmanage._isSeated=function(hum)
 	hum=hum or getHum()
 	if not hum then return false end
@@ -31638,6 +31695,7 @@ NAmanage._settleFlyDisabled=function(skipDeferred)
 			root.AssemblyLinearVelocity = Vector3.new(vel.X, math.min(vel.Y, 0), vel.Z)
 		end)
 	end
+	NAmanage._unanchorFlyCharacter(char)
 	NAmanage._restoreFlyHumanoidState(hum)
 	NAmanage._destroyFlyHelper()
 	if skipDeferred or floorMaterial ~= Enum.Material.Air then
@@ -31660,8 +31718,7 @@ end
 NAmanage.FLY_Cleanup = function(char)
 	local c = char or getChar()
 	local hum = getHum(c)
-	local head = getHead(c)
-	if head then pcall(function() head.Anchored = false end) end
+	NAmanage._unanchorFlyCharacter(c)
 	if hum then
 		pcall(function() hum.PlatformStand = false end)
 		pcall(function() hum.Sit = false end)
@@ -31682,9 +31739,8 @@ NAmanage.pauseCurrent = function()
 	end
 	FLYING=false
 	local hum=getHum()
-	local head=getHead(getChar())
 	if NAmanage._state.mode=="cfly" then
-		if head then head.Anchored=false end
+		NAmanage._unanchorFlyCharacter(getChar())
 	elseif NAmanage._state.mode=="tfly" then
 		if flyVariables.TFpos then flyVariables.TFpos.maxForce=Vector3.new(0,0,0) end
 		if flyVariables.TFgyro then flyVariables.TFgyro.maxTorque=Vector3.new(0,0,0) end
@@ -31710,10 +31766,11 @@ NAmanage.resumeCurrent=function()
 	if FLYING then return end
 	FLYING=true
 	NAmanage._ensureForces()
-	local hum=getHum()
-	local head=getHead(getChar())
+	local char=getChar()
+	local hum=getHum(char)
+	local cflyTarget=NAmanage._getCFlyTarget(char)
 	if NAmanage._state.mode=="cfly" then
-		if head then head.Anchored=true end
+		if cflyTarget then cflyTarget.Anchored=true end
 	elseif NAmanage._state.mode=="tfly" then
 		if goofyFLY and flyVariables.TFpos then flyVariables.TFpos.position=goofyFLY.Position end
 		local cam=NAmanage._camera()
@@ -31847,11 +31904,14 @@ end
 
 NAmanage.deactivateMode=function(m)
 	local wasCurrent=(NAmanage._state.mode==m)
+	local wasCFlyActive=(m=="cfly" and (wasCurrent or flyVariables.cFlyEnabled == true))
 	if wasCurrent then
 		NAmanage.pauseCurrent()
 		NAmanage._clearPhysics(true)
 		NAmanage._state.mode="none"
 		NAmanage._releaseQE()
+	elseif wasCFlyActive then
+		NAmanage._hardStopCFly(getChar())
 	end
 	if m=="fly" then flyVariables.flyEnabled=false end
 	if m=="vfly" then flyVariables.vFlyEnabled=false end
@@ -31925,21 +31985,25 @@ NAmanage.sFLY=function(vfly,cfly,tfly)
 		goofyFLY=goofyFLY or InstanceNew("Part",workspace)
 		NAmanage.configureFlyHelper(goofyFLY)
 		goofyFLY.Anchored=true
-		if head then head.Anchored=true end
+		local cflyTarget=NAmanage._getCFlyTarget(getChar())
+		if cflyTarget then cflyTarget.Anchored=true end
 		if CFloop then pcall(function() CFloop:Disconnect() end) end
 		NAlib.disconnect("fly_cfly_loop")
 		CFloop=NAlib.reconnect("fly_cfly_loop", RunService.RenderStepped:Connect(function()
 			if NAmanage._state.mode~="cfly" or not FLYING then return end
+			local currentChar=getChar()
+			local currentTarget=NAmanage._getCFlyTarget(currentChar)
+			if not currentTarget then return end
 			local cam=NAmanage._camera(); if not cam then return end
 			local mv=GetCustomMoveVector()
 			local vertical=(CONTROL.E+CONTROL.Q)
 			local full=Vector3.new(mv.X,vertical,-mv.Z)
 			local md=(cam.CFrame.RightVector*full.X)+(cam.CFrame.UpVector*full.Y)+(cam.CFrame.LookVector*full.Z)
-			if head and md.Magnitude>0 then
-				local ns=head.Position+md.Unit*(tonumber(flyVariables.cFlySpeed) or 1)
+			if md.Magnitude>0 then
+				local ns=currentTarget.Position+md.Unit*(tonumber(flyVariables.cFlySpeed) or 1)
 				local lk=ns+cam.CFrame.LookVector
-				head.CFrame=CFrame.new(ns,lk)
-				goofyFLY.CFrame=head.CFrame
+				currentTarget.CFrame=CFrame.new(ns,lk)
+				goofyFLY.CFrame=currentTarget.CFrame
 			end
 		end))
 	else
@@ -32043,8 +32107,8 @@ NAmanage._ensureForces=function()
 		end
 	elseif NAmanage._state.mode=="cfly" then
 		goofyFLY.Anchored=true
-		local head=getHead(char)
-		if head and FLYING and not head.Anchored then head.Anchored=true end
+		local cflyTarget=NAmanage._getCFlyTarget(char)
+		if cflyTarget and FLYING and not cflyTarget.Anchored then cflyTarget.Anchored=true end
 	else
 		NAmanage._ensureWeldTarget()
 		if not flyVariables.BG or flyVariables.BG.Parent~=goofyFLY then
@@ -32183,18 +32247,20 @@ NAmanage._ensureLoops=function()
 			CFloop=NAlib.reconnect("fly_cfly_loop", RunService.RenderStepped:Connect(function()
 				if NAmanage._state.mode~="cfly" or not FLYING then return end
 				NAmanage._ensureForces()
-				local head=getHead(getChar())
-				if not head then return end
+				local char=getChar()
+				local cflyTarget=NAmanage._getCFlyTarget(char)
+				if not cflyTarget then return end
 				local cam=workspace.CurrentCamera
+				if not cam then return end
 				local mv=GetCustomMoveVector()
 				local vertical=(CONTROL.E+CONTROL.Q)
 				local full=Vector3.new(mv.X,vertical,-mv.Z)
 				local md=(cam.CFrame.RightVector*full.X)+(cam.CFrame.UpVector*full.Y)+(cam.CFrame.LookVector*full.Z)
 				if md.Magnitude>0 then
-					local ns=head.Position+md.Unit*(tonumber(flyVariables.cFlySpeed) or 1)
+					local ns=cflyTarget.Position+md.Unit*(tonumber(flyVariables.cFlySpeed) or 1)
 					local lk=ns+cam.CFrame.LookVector
-					head.CFrame=CFrame.new(ns,lk)
-					if goofyFLY then goofyFLY.CFrame=head.CFrame end
+					cflyTarget.CFrame=CFrame.new(ns,lk)
+					if goofyFLY then goofyFLY.CFrame=cflyTarget.CFrame end
 				end
 			end))
 		end
@@ -32269,6 +32335,114 @@ NAmanage.startWatcher=function()
 	end))
 	NAmanage._bindCameraWatch()
 end
+
+NAmanage._waitForFlyCharacter = function(char, timeout)
+	timeout = tonumber(timeout) or 6
+	local started = os.clock()
+	while os.clock() - started < timeout do
+		local current = char or getChar()
+		local root = current and getRoot(current)
+		local hum = current and getHum(current)
+		if current and current.Parent and root and hum then
+			return current, root, hum
+		end
+		Wait()
+	end
+	local current = char or getChar()
+	return current, current and getRoot(current) or nil, current and getHum(current) or nil
+end
+
+NAmanage._parkCFlyForRespawn = function(char)
+	local wasCFly = flyVariables.cFlyEnabled == true or NAmanage._state.mode == "cfly"
+	if not wasCFly then
+		return false
+	end
+	flyVariables._cflyRespawnToken = (tonumber(flyVariables._cflyRespawnToken) or 0) + 1
+	flyVariables._cflyRespawnPending = true
+	flyVariables._cflyRespawnResume = FLYING == true
+	if CFloop then
+		pcall(function()
+			CFloop:Disconnect()
+		end)
+	end
+	CFloop = nil
+	NAlib.disconnect("fly_cfly_loop")
+	CONTROL = { Q = 0, E = 0 }
+	lCONTROL = { Q = 0, E = 0 }
+	SPEED = 0
+	NAmanage.ClearVelocityWalkSpeedClampState()
+	NAmanage._unanchorFlyCharacter(char)
+	NAmanage._restoreFlyHumanoidState(getHum(char))
+	NAmanage._destroyFlyHelper()
+	NAmanage._releaseQE()
+	FLYING = false
+	flyVariables.cFlyEnabled = true
+	NAmanage._state.mode = "cfly"
+	NAmanage._persist.lastMode = "cfly"
+	NAmanage._persist.wasFlying = true
+	NAmanage._persist.resumeAfterSpawn = true
+	NAmanage.startWatcher()
+	return true
+end
+
+NAmanage._resumeCFlyAfterRespawn = function(char, token)
+	Spawn(function()
+		local current, root, hum = NAmanage._waitForFlyCharacter(char, 6)
+		if token ~= flyVariables._cflyRespawnToken then
+			return
+		end
+		if not current or not root or not hum then
+			return
+		end
+		if flyVariables.cFlyEnabled ~= true and NAmanage._state.mode ~= "cfly" then
+			return
+		end
+		NAmanage._unanchorFlyCharacter(current)
+		Wait()
+		if token ~= flyVariables._cflyRespawnToken then
+			return
+		end
+		if flyVariables.cFlyEnabled ~= true and NAmanage._state.mode ~= "cfly" then
+			return
+		end
+		flyVariables.cFlyEnabled = true
+		NAmanage._state.mode = "cfly"
+		NAmanage._persist.lastMode = "cfly"
+		NAmanage._applyMode("cfly", flyVariables._cflyRespawnResume ~= false)
+		flyVariables._cflyRespawnPending = false
+		flyVariables._cflyRespawnResume = nil
+		NAmanage._persist.resumeAfterSpawn = false
+	end)
+end
+
+NAmanage._bindFlyCharacterCleanup = function()
+	local lp = Players and Players.LocalPlayer
+	if not lp then
+		return
+	end
+	if lp.CharacterRemoving then
+		NAlib.reconnect("fly_char_removing_cleanup", lp.CharacterRemoving:Connect(function(char)
+			if NAmanage._parkCFlyForRespawn(char) then
+				return
+			end
+			NAmanage._unanchorFlyCharacter(char)
+		end))
+	end
+	NAlib.reconnect("fly_char_added_cleanup", lp.CharacterAdded:Connect(function(char)
+		local shouldResume = flyVariables._cflyRespawnPending == true or flyVariables.cFlyEnabled == true or NAmanage._state.mode == "cfly"
+		if shouldResume then
+			local token = tonumber(flyVariables._cflyRespawnToken) or 0
+			NAmanage._resumeCFlyAfterRespawn(char, token)
+		else
+			Spawn(function()
+				NAmanage._waitForFlyCharacter(char, 6)
+				NAmanage._unanchorFlyCharacter(char)
+			end)
+		end
+	end))
+end
+
+NAmanage._bindFlyCharacterCleanup()
 
 NAmanage._forceEnableFlags = function(mode)
 	flyVariables.flyEnabled=(mode=="fly")
@@ -53480,9 +53654,6 @@ end)
 -- ts got patched gg
 NAStuff.desyncOn = NAStuff.desyncOn or false
 NAStuff.raknetDesyncOn = NAStuff.raknetDesyncOn or false
-NAStuff.raknetDesyncMode = NAStuff.raknetDesyncMode or nil
-NAStuff.raknetDesyncTargetPacket = NAStuff.raknetDesyncTargetPacket or 0x1B
-NAStuff.raknetDesyncPatchOffset = NAStuff.raknetDesyncPatchOffset or 1
 
 --[[
 cmd.addPatched({"desync", "ngrep"},{"desync (ngrep)","Toggle NextGenReplicator desync / sync (run again to disable)"},function()
@@ -53835,42 +54006,6 @@ NAmanage.getRaknet = function()
 	return rk
 end
 
-NAmanage.getBufferLib = function()
-	local buf
-	if type(_na_boot) == "table" and type(_na_boot.hostEnv) == "table" then
-		buf = rawget(_na_boot.hostEnv, "buffer")
-	end
-	if buf == nil then
-		pcall(function()
-			buf = buffer
-		end)
-	end
-	return buf
-end
-
-NAmanage.raknetState = function()
-	local env = type(_na_boot) == "table" and type(_na_boot.hostEnv) == "table" and _na_boot.hostEnv or nil
-	local st = env and rawget(env, "__NA_RaknetDesyncState") or nil
-	if type(st) ~= "table" then
-		st = {
-			active = false,
-			installed = false,
-			hook = nil,
-			ret = nil,
-			lastErr = nil,
-			packets = 0,
-			target = 0x1B,
-			offset = 1,
-		}
-		if env then
-			rawset(env, "__NA_RaknetDesyncState", st)
-		end
-	end
-	st.target = tonumber(NAStuff.raknetDesyncTargetPacket) or st.target or 0x1B
-	st.offset = tonumber(NAStuff.raknetDesyncPatchOffset) or st.offset or 1
-	return st
-end
-
 NAmanage.callRaknetDesync = function(rk, enabled)
 	if type(rk) ~= "table" and type(rk) ~= "userdata" then
 		return false, "raknet unavailable"
@@ -53884,235 +54019,28 @@ NAmanage.callRaknetDesync = function(rk, enabled)
 		return false, "raknet.desync unavailable"
 	end
 
-	local ok, ret = pcall(helper, enabled)
+	local ok, ret = pcall(helper, enabled == true)
 	if ok and ret ~= false then
 		return true, ret
 	end
 
-	local dotErr = ret
-	local ok2, ret2 = pcall(function()
-		return helper(rk, enabled)
-	end)
-	if ok2 and ret2 ~= false then
-		return true, ret2
-	end
-
-	return false, dotErr or ret2 or "raknet.desync failed"
-end
-
-NAmanage.raknetWriteDesync = function(buf, data, off)
-	if type(buf) ~= "table" then
-		return false, "buffer library unavailable"
-	end
-	if data == nil then
-		return false, "packet buffer unavailable"
-	end
-
-	local len
-	if type(buf.len) == "function" then
-		pcall(function()
-			len = buf.len(data)
-		end)
-	end
-	if type(len) == "number" and len > 0 and off + 3 >= len then
-		return false, "packet buffer too small"
-	end
-
-	if type(buf.writeu32) == "function" then
-		local ok, err = pcall(buf.writeu32, data, off, 0xFFFFFFFF)
-		if ok then
-			return true
-		end
-		return false, err
-	end
-
-	if type(buf.writeu8) == "function" then
-		for i = 0, 3 do
-			local ok, err = pcall(buf.writeu8, data, off + i, 0xFF)
-			if not ok then
-				return false, err
-			end
-		end
-		return true
-	end
-
-	return false, "buffer.writeu32/writeu8 unavailable"
-end
-
-NAmanage.enableRaknetHook = function(rk)
-	if type(rk) ~= "table" and type(rk) ~= "userdata" then
-		return false, "raknet unavailable"
-	end
-	if type(rk.add_send_hook) ~= "function" then
-		return false, "raknet.add_send_hook unavailable"
-	end
-
-	local st = NAmanage.raknetState()
-	local buf = NAmanage.getBufferLib()
-	if type(buf) ~= "table" then
-		return false, "buffer unavailable"
-	end
-	if type(buf.writeu32) ~= "function" and type(buf.writeu8) ~= "function" then
-		return false, "buffer.writeu32/writeu8 unavailable"
-	end
-
-	if type(st.hook) ~= "function" then
-		st.hook = function(packet)
-			if not st.active then
-				return
-			end
-
-			local ok, err = pcall(function()
-				if not packet then
-					return
-				end
-
-				local id = packet.PacketId
-				if id ~= st.target then
-					return
-				end
-
-				local data = packet.AsBuffer
-				local patched, why = NAmanage.raknetWriteDesync(buf, data, st.offset)
-				if not patched then
-					st.lastErr = why
-					return
-				end
-
-				if type(packet.SetData) == "function" then
-					packet:SetData(data)
-				else
-					st.lastErr = "packet:SetData unavailable"
-				end
-
-				st.packets = (tonumber(st.packets) or 0) + 1
-			end)
-
-			if not ok then
-				st.lastErr = err
-				warn("[RakNetDesync] Hook error: "..tostring(err))
-			end
-		end
-	end
-
-	st.active = true
-	st.target = tonumber(NAStuff.raknetDesyncTargetPacket) or 0x1B
-	st.offset = tonumber(NAStuff.raknetDesyncPatchOffset) or 1
-	st.lastErr = nil
-
-	if st.installed then
-		return true, "reused existing hook"
-	end
-
-	local ok, ret = pcall(function()
-		return rk.add_send_hook(st.hook)
-	end)
-	if not ok then
-		st.active = false
-		return false, ret
-	end
-
-	st.ret = ret
-	st.installed = true
-	return true, "hook added"
-end
-
-NAmanage.disableRaknetHook = function(rk)
-	local st = NAmanage.raknetState()
-	st.active = false
-
-	if not st.installed then
-		return true, "hook inactive"
-	end
-
-	if (type(rk) == "table" or type(rk) == "userdata") and type(rk.remove_send_hook) == "function" and type(st.hook) == "function" then
-		local ok, err = pcall(function()
-			rk.remove_send_hook(st.hook)
-		end)
-		if ok then
-			st.installed = false
-			st.ret = nil
-			return true, "hook removed"
-		end
-		st.lastErr = err
-	end
-
-	if type(st.ret) == "function" then
-		local ok = pcall(st.ret)
-		if ok then
-			st.installed = false
-			st.ret = nil
-			return true, "hook cleanup callback used"
-		end
-	elseif type(st.ret) == "table" or typeof(st.ret) == "RBXScriptConnection" or typeof(st.ret) == "userdata" then
-		for _, n in {"Disconnect", "disconnect", "Destroy", "destroy", "Remove", "remove"} do
-			local f
-			pcall(function()
-				f = st.ret[n]
-			end)
-			if type(f) == "function" then
-				local ok = pcall(function()
-					f(st.ret)
-				end)
-				if ok then
-					st.installed = false
-					st.ret = nil
-					return true, "hook object cleanup used"
-				end
-			end
-		end
-	end
-
-	return true, "hook self-disabled (remove_send_hook unavailable)"
+	return false, ret or "raknet.desync failed"
 end
 
 NAmanage.setRaknetDesync = function(enabled)
-	local rk = NAmanage.getRaknet()
-
-	if enabled then
-		local okHelper, helperInfo = NAmanage.callRaknetDesync(rk, true)
-		if okHelper then
-			NAmanage.disableRaknetHook(rk)
-			NAStuff.raknetDesyncOn = true
-			NAStuff.raknetDesyncMode = "helper"
-			return true, "RakNet desync enabled [raknet.desync]"
-		end
-
-		local okHook, hookInfo = NAmanage.enableRaknetHook(rk)
-		if okHook then
-			NAStuff.raknetDesyncOn = true
-			NAStuff.raknetDesyncMode = "hook"
-			return true, "RakNet desync enabled [send hook]"
-		end
-
-		return false, tostring(helperInfo).."; fallback failed: "..tostring(hookInfo)
-	else
-		local mode = tostring(NAStuff.raknetDesyncMode or "")
-		local msgs = {}
-
-		if mode == "helper" or mode == "" then
-			local okHelper, helperInfo = NAmanage.callRaknetDesync(rk, false)
-			if okHelper then
-				NAStuff.raknetDesyncOn = false
-				NAStuff.raknetDesyncMode = nil
-				return true, "RakNet desync disabled [raknet.desync]"
-			end
-			msgs[#msgs + 1] = tostring(helperInfo)
-		end
-
-		local okHook, hookInfo = NAmanage.disableRaknetHook(rk)
-		if okHook then
-			NAStuff.raknetDesyncOn = false
-			NAStuff.raknetDesyncMode = nil
-			return true, "RakNet desync disabled ["..tostring(hookInfo).."]"
-		end
-
-		msgs[#msgs + 1] = tostring(hookInfo)
-		return false, Concat(msgs, "; ")
+	local ok, msg = NAmanage.callRaknetDesync(NAmanage.getRaknet(), enabled == true)
+	if not ok then
+		return false, msg
 	end
+
+	NAStuff.raknetDesyncOn = enabled == true
+	if enabled then
+		return true, "RakNet desync enabled [raknet.desync(true)]"
+	end
+	return true, "RakNet desync disabled [raknet.desync(false)]"
 end
 
-cmd.add({"raknetdesync", "rkdesync", "rkds", "rkd"},{"raknetdesync (rkdesync,rkds,rkd)","Enables RakNet desync using raknet.desync(true), then a safe packet-hook fallback"},function()
+cmd.add({"raknetdesync", "rkdesync", "rkds", "rkd"},{"raknetdesync (rkdesync,rkds,rkd)","Enables RakNet desync using raknet.desync(true)"},function()
 	if NAStuff.raknetDesyncOn then
 		DoNotif("RakNet desync is already enabled", 3)
 		return
@@ -54126,12 +54054,8 @@ cmd.add({"raknetdesync", "rkdesync", "rkds", "rkd"},{"raknetdesync (rkdesync,rkd
 	end
 end)
 
-cmd.add({"unraknetdesync", "unrkdesync", "unrkds", "unrkd"},{"unraknetdesync (unrkdesync,unrkds,unrkd)","Disables RakNet desync using raknet.desync(false), or self-disables the fallback hook"},function()
+cmd.add({"unraknetdesync", "unrkdesync", "unrkds", "unrkd"},{"unraknetdesync (unrkdesync,unrkds,unrkd)","Disables RakNet desync using raknet.desync(false)"},function()
 	if not NAStuff.raknetDesyncOn then
-		local st = NAmanage.raknetState()
-		if st.active or st.installed then
-			NAmanage.disableRaknetHook(NAmanage.getRaknet())
-		end
 		DoNotif("RakNet desync is already disabled", 3)
 		return
 	end
@@ -57533,7 +57457,7 @@ cmd.add({"unfly"},{"unfly","Disable flight"},function()
 	NAmanage.deactivateMode("fly")
 end)
 
-cmd.add({"cframefly","cfly"},{"cframefly [speed] (cfly)","Enable CFrame-based flight"},function(...)
+cmd.add({"cframefly","cfly"},{"cframefly [speed] (cfly)","Enable CFrame-based flight with respawn-safe cleanup"},function(...)
 	local arg=(...) or nil
 	flyVariables.cFlySpeed=tonumber(arg) or flyVariables.cFlySpeed or 1
 	flyVariables.flySpeed=flyVariables.cFlySpeed
