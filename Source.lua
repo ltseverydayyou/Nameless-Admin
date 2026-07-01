@@ -95844,6 +95844,93 @@ NAgui.addInfo = function(label, value, opts)
 	box.Active = false
 	box.Selectable = false
 
+	local sideChip, sideBtn
+	local sideChipWidth = 0
+	if opts.sideChip then
+		local tgl = templates.Toggle:Clone()
+		local sw = tgl:FindFirstChild("Switch")
+		if sw then
+			sideChip = sw:Clone()
+			sideChip.Name = "SideButton"
+			sideChip.Parent = info
+			tgl:Destroy()
+
+			sideChipWidth = sideChip.Size.X.Offset
+			if sideChipWidth <= 0 then
+				sideChipWidth = 45
+			end
+
+			local sideChipHeight = sideChip.Size.Y.Offset
+			if sideChipHeight <= 0 then
+				sideChipHeight = 22
+			end
+
+			sideChip.AnchorPoint = Vector2.new(1, 0.5)
+			sideChip.Position = UDim2.new(1, -15, 0.5, 0)
+			sideChip.Size = UDim2.new(0, sideChipWidth, 0, sideChipHeight)
+
+			frame.AnchorPoint = Vector2.new(1, 0.5)
+			frame.Position = UDim2.new(1, -15 - sideChipWidth - 6, 0.5, 0)
+
+			local chipInd = sideChip:FindFirstChild("Indicator")
+			if chipInd then
+				chipInd.Visible = false
+			end
+
+			sideBtn = InstanceNew("TextButton")
+			sideBtn.Name = "ChipInteract"
+			sideBtn.BackgroundTransparency = 1
+			sideBtn.Text = tostring(opts.sideText or "Copy")
+			sideBtn.TextColor3 = Color3.new(1, 1, 1)
+			sideBtn.TextSize = 12
+			sideBtn.Font = Enum.Font.GothamSemibold
+			sideBtn.AutoButtonColor = false
+			sideBtn.Size = UDim2.new(1, 0, 1, 0)
+			sideBtn.ZIndex = (sideChip.ZIndex or 1) + 1
+			sideBtn.Parent = sideChip
+
+			NAgui.deferSettingsWork(function()
+				if not sideChip.Parent then
+					return
+				end
+				for _, d in NAmanage.QueryDescendants(sideChip, "GuiObject") do
+					d.ZIndex = math.max(d.ZIndex or 1, sideBtn.ZIndex or 1)
+				end
+			end)
+
+			local sideBusy = false
+			MouseButtonFix(sideBtn, function()
+				if sideBusy then
+					return
+				end
+				sideBusy = true
+
+				local oldText = sideBtn.Text
+				local ok, result = true, true
+
+				if type(opts.sideClick) == "function" then
+					ok, result = pcall(opts.sideClick, box, info, sideBtn)
+				elseif type(opts.sideSet) == "function" then
+					ok, result = pcall(opts.sideSet, box.Text, box, info, sideBtn)
+				end
+
+				if ok and result ~= false then
+					sideBtn.Text = tostring(opts.sideDoneText or "Copied")
+					Delay(0.7, function()
+						if sideBtn and sideBtn.Parent then
+							sideBtn.Text = oldText
+						end
+						sideBusy = false
+					end)
+				else
+					sideBusy = false
+				end
+			end)
+		else
+			tgl:Destroy()
+		end
+	end
+
 	box.TextXAlignment = Enum.TextXAlignment.Center
 	box.TextWrapped = false
 	box.TextTruncate = Enum.TextTruncate.None
@@ -95883,6 +95970,13 @@ NAgui.addInfo = function(label, value, opts)
 		if cw and cw > 0 then
 			local tw = (info.Title and info.Title.TextBounds.X or 0)
 			local gap = 32
+			if sideChip then
+				local extra = sideChipWidth
+				if extra <= 0 then
+					extra = 45
+				end
+				gap = gap + extra + 6
+			end
 			maxW = cw - tw - gap
 		end
 
@@ -95917,6 +96011,10 @@ NAgui.addInfo = function(label, value, opts)
 		if not lastW or math.abs(lastW - w) > 0.5 then
 			lastW = w
 			frame.Size = UDim2.new(0, w, 0, 30)
+			if sideChip then
+				sideChip.Position = UDim2.new(1, -15, 0.5, 0)
+				frame.Position = UDim2.new(1, -15 - sideChipWidth - 6, 0.5, 0)
+			end
 		end
 	end
 
@@ -126372,13 +126470,51 @@ NAmanage.SetupBasicInfoTab = function()
 		return tostring(current)
 	end
 
+	local function copyBasicInfoField(field)
+		if type(field) ~= "table" then
+			return false
+		end
+
+		local clip = type(NAmanage.CmdInputGetClipboardSet) == "function" and NAmanage.CmdInputGetClipboardSet() or nil
+		if type(clip) ~= "function" and type(setclipboard) == "function" then
+			clip = setclipboard
+		end
+		if type(clip) ~= "function" then
+			DoNotif("Your executor does not support setclipboard.", 3)
+			return false
+		end
+
+		local snapshot = NAmanage.GetBasicInfoSnapshot()
+		local value = resolveValue(snapshot, field.path)
+		if value == "" or value == "Unknown" then
+			DoNotif("No "..tostring(field.label or "info").." value to copy.", 2)
+			return false
+		end
+
+		local ok, err = pcall(clip, value)
+		if ok then
+			DoNotif(tostring(field.label or "Info").." copied to clipboard.", 1.5)
+			return true
+		end
+
+		DoNotif("Clipboard failed: "..tostring(err), 3)
+		return false
+	end
+
 	for _, section in basicInfoConfig do
 		if NAgui.addSection then
 			NAgui.addSection(section.title)
 		end
 		for _, field in section.fields do
-			local box = NAgui.addInfo(field.label, "", {
+			local currentField = field
+			local box = NAgui.addInfo(currentField.label, "", {
 				textScaled = true;
+				sideChip = true;
+				sideText = "Copy";
+				sideDoneText = "Copied";
+				sideClick = function()
+					return copyBasicInfoField(currentField)
+				end;
 			})
 			if box then
 				box.Selectable = true
