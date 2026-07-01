@@ -25761,18 +25761,47 @@ NAmanage.PlayerArgName = NAmanage.PlayerArgName or function(target)
 	return tostring(target)
 end
 
-NAmanage.PlayerArgSameTeam = NAmanage.PlayerArgSameTeam or function(target)
+NAmanage.PlayerArgIsNeutral = NAmanage.PlayerArgIsNeutral or function(player)
+	if not (typeof(player) == "Instance" and player:IsA("Player")) then
+		return true
+	end
+	local ok, neutral = pcall(function()
+		return player.Neutral
+	end)
+	return ok and neutral == true
+end
+
+NAmanage.PlayerArgSameTeam = function(target)
 	local lp = Players.LocalPlayer
 	if not (typeof(target) == "Instance" and target:IsA("Player")) then
 		return false
 	end
-	if not (lp and lp.Team) then
+	if not (typeof(lp) == "Instance" and lp:IsA("Player")) then
 		return false
 	end
-	return target ~= lp and target.Team == lp.Team
+	if target == lp then
+		return false
+	end
+	if NAmanage.PlayerArgIsNeutral(lp) or NAmanage.PlayerArgIsNeutral(target) then
+		return false
+	end
+
+	local myTeam = lp.Team
+	local theirTeam = target.Team
+	if myTeam ~= nil and theirTeam ~= nil then
+		return theirTeam == myTeam
+	end
+
+	local okMyColor, myColor = pcall(function()
+		return lp.TeamColor
+	end)
+	local okTheirColor, theirColor = pcall(function()
+		return target.TeamColor
+	end)
+	return okMyColor and okTheirColor and myColor ~= nil and theirColor ~= nil and myColor == theirColor
 end
 
-NAmanage.PlayerArgNonTeam = NAmanage.PlayerArgNonTeam or function(target)
+NAmanage.PlayerArgNonTeam = function(target)
 	local lp = Players.LocalPlayer
 	if not (typeof(target) == "Instance" and target:IsA("Player")) then
 		return false
@@ -25780,11 +25809,7 @@ NAmanage.PlayerArgNonTeam = NAmanage.PlayerArgNonTeam or function(target)
 	if target == lp then
 		return false
 	end
-	local myTeam = lp and lp.Team or nil
-	if myTeam == nil then
-		return true
-	end
-	return target.Team ~= myTeam
+	return not NAmanage.PlayerArgSameTeam(target)
 end
 
 local PlayerArgs = {
@@ -30493,6 +30518,19 @@ NAmanage.ESP_SetPlayerTargetMode = function(mode, teamPrefix, opts)
 	end
 end
 
+NAmanage.ESP_PlayerTeamNameMatchesPrefix = NAmanage.ESP_PlayerTeamNameMatchesPrefix or function(player, targetPrefix)
+	targetPrefix = Lower(tostring(targetPrefix or ""))
+	if targetPrefix == "" then
+		return true
+	end
+	if not (typeof(player) == "Instance" and player:IsA("Player")) then
+		return false
+	end
+	local team = player.Team
+	local teamName = team and Lower(tostring(team.Name or "")) or ""
+	return teamName:sub(1, #targetPrefix) == targetPrefix
+end
+
 NAmanage.ESP_PlayerPassesTeamFilter = function(player)
 	if not (typeof(player) == "Instance" and player:IsA("Player")) then
 		return false
@@ -30503,9 +30541,13 @@ NAmanage.ESP_PlayerPassesTeamFilter = function(player)
 
 	local targetPrefix = Lower(tostring(NAStuff.ESP_TargetTeam or ""))
 	if targetPrefix ~= "" then
-		local team = player.Team
-		local teamName = team and Lower(tostring(team.Name or "")) or ""
-		return teamName:sub(1, #targetPrefix) == targetPrefix
+		if not NAmanage.ESP_PlayerTeamNameMatchesPrefix(player, targetPrefix) then
+			return false
+		end
+		if NAStuff.ESP_IgnoreTeam == true and NAmanage.PlayerArgSameTeam(player) then
+			return false
+		end
+		return true
 	end
 
 	local mode = NAmanage.ESP_NormalizePlayerTargetMode(NAStuff.ESP_PlayerTargetMode)
@@ -30515,12 +30557,8 @@ NAmanage.ESP_PlayerPassesTeamFilter = function(player)
 		return NAmanage.PlayerArgSameTeam(player)
 	end
 
-	if NAStuff.ESP_IgnoreTeam == true then
-		local lp = Players.LocalPlayer
-		local myTeam = lp and lp.Team or nil
-		if myTeam ~= nil and player.Team == myTeam then
-			return false
-		end
+	if NAStuff.ESP_IgnoreTeam == true and NAmanage.PlayerArgSameTeam(player) then
+		return false
 	end
 	return true
 end
@@ -30577,6 +30615,8 @@ NAmanage.ESP_DisconnectPlayerWatch = function(player)
 	NAlib.disconnect(NAmanage.ESP_PlayerConnKey("esp_charChanged_plr", player))
 	NAlib.disconnect(NAmanage.ESP_PlayerConnKey("esp_charParent_plr", player))
 	NAlib.disconnect(NAmanage.ESP_PlayerConnKey("esp_teamChanged_plr", player))
+	NAlib.disconnect(NAmanage.ESP_PlayerConnKey("esp_teamColorChanged_plr", player))
+	NAlib.disconnect(NAmanage.ESP_PlayerConnKey("esp_neutralChanged_plr", player))
 	NAmanage.ESP_BumpReattachToken(player)
 end
 
@@ -30614,20 +30654,49 @@ NAmanage.ESP_WatchPlayerCharacter = function(player, model)
 end
 
 NAmanage.ESP_SetupPlayerWatch = function(player)
-	if not NAmanage.ESP_ShouldTrackPlayer(player) then
+	if not (typeof(player) == "Instance" and player:IsA("Player")) then
+		return
+	end
+	if player == Players.LocalPlayer then
 		return
 	end
 	local addKey = NAmanage.ESP_PlayerConnKey("esp_charAdded_plr", player)
 	local remKey = NAmanage.ESP_PlayerConnKey("esp_charRemoving_plr", player)
 	local chKey = NAmanage.ESP_PlayerConnKey("esp_charChanged_plr", player)
 	local teamKey = NAmanage.ESP_PlayerConnKey("esp_teamChanged_plr", player)
+	local teamColorKey = NAmanage.ESP_PlayerConnKey("esp_teamColorChanged_plr", player)
+	local neutralKey = NAmanage.ESP_PlayerConnKey("esp_neutralChanged_plr", player)
 	NAlib.disconnect(addKey)
 	NAlib.disconnect(remKey)
 	NAlib.disconnect(chKey)
 	NAlib.disconnect(teamKey)
-	NAlib.connect(addKey, player.CharacterAdded:Connect(function(model)
-		NAmanage.ESP_WatchPlayerCharacter(player, model)
-		NAmanage.ESP_RequestReattachPlayer(player)
+	NAlib.disconnect(teamColorKey)
+	NAlib.disconnect(neutralKey)
+
+	local function refresh(force)
+		if not (ESPPlayersEnabled or chamsEnabled) then
+			return
+		end
+		if not (player and player.Parent) then
+			NAmanage.ESP_DisconnectPlayerWatch(player)
+			return
+		end
+		if NAmanage.ESP_ShouldTrackPlayer(player) then
+			local model = player.Character
+			if typeof(model) == "Instance" and model:IsA("Model") then
+				NAmanage.ESP_WatchPlayerCharacter(player, model)
+			end
+			NAmanage.ESP_RequestReattachPlayer(player, force == true)
+		else
+			local model = player.Character
+			if model and espCONS[model] then
+				NAmanage.ESP_ClearModel(model)
+			end
+		end
+	end
+
+	NAlib.connect(addKey, player.CharacterAdded:Connect(function()
+		refresh(true)
 	end))
 	NAlib.connect(remKey, player.CharacterRemoving:Connect(function(model)
 		if model and espCONS[model] then
@@ -30635,24 +30704,70 @@ NAmanage.ESP_SetupPlayerWatch = function(player)
 		end
 	end))
 	NAlib.connect(chKey, player:GetPropertyChangedSignal("Character"):Connect(function()
-		local model = player.Character
-		if model then
-			NAmanage.ESP_WatchPlayerCharacter(player, model)
-			NAmanage.ESP_RequestReattachPlayer(player)
-		end
+		refresh(true)
 	end))
 	NAlib.connect(teamKey, player:GetPropertyChangedSignal("Team"):Connect(function()
-		if NAmanage.ESP_ShouldTrackPlayer(player) then
-			NAmanage.ESP_RequestReattachPlayer(player, true)
-		else
-			local model = player.Character
-			if model and espCONS[model] then
-				NAmanage.ESP_ClearModel(model)
+		refresh(true)
+	end))
+	NAlib.connect(teamColorKey, player:GetPropertyChangedSignal("TeamColor"):Connect(function()
+		refresh(true)
+	end))
+	NAlib.connect(neutralKey, player:GetPropertyChangedSignal("Neutral"):Connect(function()
+		refresh(true)
+	end))
+
+	if player.Character and NAmanage.ESP_ShouldTrackPlayer(player) then
+		NAmanage.ESP_WatchPlayerCharacter(player, player.Character)
+	end
+end
+
+NAmanage.ESP_StopPlayerRosterWatch = NAmanage.ESP_StopPlayerRosterWatch or function()
+	NAlib.disconnect("esp_roster_player_added")
+	NAlib.disconnect("esp_roster_player_removing")
+	NAlib.disconnect("esp_local_team_changed")
+	NAlib.disconnect("esp_local_teamcolor_changed")
+	NAlib.disconnect("esp_local_neutral_changed")
+end
+
+NAmanage.ESP_StartPlayerRosterWatch = NAmanage.ESP_StartPlayerRosterWatch or function()
+	NAmanage.ESP_StopPlayerRosterWatch()
+
+	local function refreshAll()
+		if not (ESPPlayersEnabled or chamsEnabled) then
+			return
+		end
+		if NAmanage.ESP_RefreshPlayerTeamFilters then
+			NAmanage.ESP_RefreshPlayerTeamFilters()
+		end
+	end
+
+	NAlib.connect("esp_roster_player_added", Players.PlayerAdded:Connect(function(player)
+		Defer(function()
+			if not (ESPPlayersEnabled or chamsEnabled) then
+				return
 			end
+			NAmanage.ESP_SetupPlayerWatch(player)
+			if NAmanage.ESP_ShouldTrackPlayer(player) then
+				NAmanage.ESP_RequestReattachPlayer(player, true)
+			end
+		end)
+	end))
+
+	NAlib.connect("esp_roster_player_removing", Players.PlayerRemoving:Connect(function(player)
+		local model = player and player.Character
+		if model and espCONS[model] then
+			NAmanage.ESP_ClearModel(model)
+		end
+		if player then
+			NAmanage.ESP_DisconnectPlayerWatch(player)
 		end
 	end))
-	if player.Character then
-		NAmanage.ESP_WatchPlayerCharacter(player, player.Character)
+
+	local lp = Players.LocalPlayer
+	if typeof(lp) == "Instance" and lp:IsA("Player") then
+		NAlib.connect("esp_local_team_changed", lp:GetPropertyChangedSignal("Team"):Connect(refreshAll))
+		NAlib.connect("esp_local_teamcolor_changed", lp:GetPropertyChangedSignal("TeamColor"):Connect(refreshAll))
+		NAlib.connect("esp_local_neutral_changed", lp:GetPropertyChangedSignal("Neutral"):Connect(refreshAll))
 	end
 end
 
@@ -30662,6 +30777,9 @@ NAmanage.ESP_ClearAll = function()
 	end
 	for _, plr in __lt.cm("Players", "GetPlayers") do
 		NAmanage.ESP_DisconnectPlayerWatch(plr)
+	end
+	if NAmanage.ESP_StopPlayerRosterWatch then
+		NAmanage.ESP_StopPlayerRosterWatch()
 	end
 	NAStuff.ESP_ModelList = {}
 	NAlib.disconnect("esp_update_global")
@@ -30679,6 +30797,9 @@ NAmanage.ESP_ClearPlayers = function()
 	end
 	for _, plr in __lt.cm("Players", "GetPlayers") do
 		NAmanage.ESP_DisconnectPlayerWatch(plr)
+	end
+	if NAmanage.ESP_StopPlayerRosterWatch then
+		NAmanage.ESP_StopPlayerRosterWatch()
 	end
 end
 
@@ -53711,7 +53832,8 @@ cmd.add({"disablealignmentkeys","disablealignkeys","dak"},{"disablealignmentkeys
 	end
 end)
 
-NAmanage.ESP_EnablePlayerMode = function(mode, teamPrefix, useChams, label)
+NAmanage.ESP_EnablePlayerMode = function(mode, teamPrefix, useChams, label, opts)
+	opts = type(opts) == "table" and opts or {}
 	ESPPlayersEnabled = true
 	chamsEnabled = useChams == true
 	NAmanage.ESP_RecomputeEnabled()
@@ -53719,13 +53841,19 @@ NAmanage.ESP_EnablePlayerMode = function(mode, teamPrefix, useChams, label)
 	ESPAutoTrackAll = true
 	if type(NAmanage.ESP_SetPlayerTargetMode) == "function" then
 		NAmanage.ESP_SetPlayerTargetMode(mode, teamPrefix, {
-			forceAll = NAmanage.ESP_NormalizePlayerTargetMode(mode) == "all" and tostring(teamPrefix or "") == "";
+			forceAll = opts.forceAll == true;
 			save = false;
 		})
 	end
 	NAmanage.ESP_ClearPlayers()
+	if NAmanage.ESP_StartPlayerRosterWatch then
+		NAmanage.ESP_StartPlayerRosterWatch()
+	end
 	local count = 0
 	for _, player in __lt.cm("Players", "GetPlayers") do
+		if player ~= Players.LocalPlayer then
+			NAmanage.ESP_SetupPlayerWatch(player)
+		end
 		if NAmanage.ESP_ShouldTrackPlayer(player) then
 			count += 1
 			NAmanage.ESP_Add(player, true)
@@ -53742,7 +53870,7 @@ cmd.add({"esp", "espplayers", "playeresp"}, {"esp (espplayers, playeresp)","loca
 end)
 
 cmd.add({"espall", "allesp", "espallplayers"}, {"espall (allesp)","ESP all players and clear team filtering"}, function()
-	NAmanage.ESP_EnablePlayerMode("all", "", false, "all players")
+	NAmanage.ESP_EnablePlayerMode("all", "", false, "all players", { forceAll = true })
 end)
 
 cmd.add({"espenemies", "espenemy", "espnonteam", "espnonteams", "espnoteam", "espnoteams", "enemyesp", "enemiesesp", "nonteamesp", "noteamesp"}, {"espenemies (espnonteam, espnoteam)","ESP players outside your team; no-team games fall back to all others"}, function()
