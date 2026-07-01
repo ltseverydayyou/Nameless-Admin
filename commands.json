@@ -2692,6 +2692,15 @@
       "desc": "Restores collision for unanchored parts changed by antiflingparts"
     },
     {
+      "name": "gravitygun",
+      "aliases": [
+        "gravitygun"
+      ],
+      "usage": "gravitygun",
+      "args": "",
+      "desc": "Probably the best gravity gun script thats fe"
+    },
+    {
       "name": "lockws",
       "aliases": [
         "lockws",
@@ -4406,16 +4415,6 @@
       "usage": "reselectchar",
       "args": "",
       "desc": "Re-open the character picker"
-    },
-    {
-      "name": "unautooutfit",
-      "aliases": [
-        "unautooutfit",
-        "unaoutfit"
-      ],
-      "usage": "unautooutfit",
-      "args": "",
-      "desc": "stop outfit auto-apply"
     },
     {
       "name": "goto",
@@ -9404,99 +9403,6 @@
       "usage": "breaklayeredclothing (blc)",
       "args": "",
       "desc": "Streches your layered clothing"
-    },
-    {
-      "name": "gravitygun",
-      "aliases": [
-        "gravitygun"
-      ],
-      "usage": "gravitygun",
-      "args": "",
-      "desc": "Probably the best gravity gun script thats fe"
-    },
-    {
-      "name": "permadeath",
-      "aliases": [
-        "permadeath",
-        "pdeath"
-      ],
-      "usage": "permadeath (pdeath)",
-      "args": "",
-      "desc": "be death permanently"
-    },
-    {
-      "name": "unpermadeath",
-      "aliases": [
-        "unpermadeath",
-        "unpdeath"
-      ],
-      "usage": "unpermadeath (unpdeath)",
-      "args": "",
-      "desc": "no perma death"
-    },
-    {
-      "name": "char",
-      "aliases": [
-        "char",
-        "character",
-        "morph"
-      ],
-      "usage": "char <username/userid>",
-      "args": "<username/userid>",
-      "desc": "change your character's appearance to someone else's"
-    },
-    {
-      "name": "unchar",
-      "aliases": [
-        "unchar"
-      ],
-      "usage": "unchar",
-      "args": "",
-      "desc": "revert to your character"
-    },
-    {
-      "name": "autochar",
-      "aliases": [
-        "autochar",
-        "achar"
-      ],
-      "usage": "autochar",
-      "args": "",
-      "desc": "auto-change your character on respawn"
-    },
-    {
-      "name": "unautochar",
-      "aliases": [
-        "unautochar",
-        "unachar"
-      ],
-      "usage": "unautochar",
-      "args": "",
-      "desc": "stop auto-change on respawn"
-    },
-    {
-      "name": "autooutfit",
-      "aliases": [
-        "autooutfit",
-        "aoutfit",
-        "autooutfitid",
-        "aoutfitid",
-        "aoid"
-      ],
-      "usage": "",
-      "args": "",
-      "desc": ""
-    },
-    {
-      "name": "outfit",
-      "aliases": [
-        "outfit",
-        "outfitid",
-        "oid"
-      ],
-      "usage": "",
-      "args": "",
-      "desc": ""
     },
     {
       "name": "reserveserver",
