@@ -43578,6 +43578,866 @@ cmd.add({"stoptrackstaff", "untrackstaff"}, {"stoptrackstaff (untrackstaff)", "S
 	DebugNotif("Tracking disabled")
 end)
 
+NAStuff.Rewind = NAStuff.Rewind or {
+	Enabled = false;
+	Key = Enum.KeyCode.R;
+	Seconds = 120;
+	Speed = 1;
+	History = {};
+	IsRewinding = false;
+	LastCharacter = nil;
+	AnimateOriginalDisabled = nil;
+}
+
+NAmanage.RewindState = function()
+	local state = NAStuff.Rewind
+	if type(state) ~= "table" then
+		state = {}
+		NAStuff.Rewind = state
+	end
+	state.Key = typeof(state.Key) == "EnumItem" and state.Key or Enum.KeyCode.R
+	state.Seconds = math.max(1, math.min(600, math.floor(tonumber(state.Seconds) or 120)))
+	state.Speed = math.max(1, math.min(60, math.floor(tonumber(state.Speed) or 1)))
+	if type(state.History) ~= "table" then
+		state.History = {}
+	end
+	return state
+end
+
+NAmanage.RewindClearHistory = function()
+	local state = NAmanage.RewindState()
+	if type(state.History) == "table" then
+		table.clear(state.History)
+	else
+		state.History = {}
+	end
+end
+
+NAmanage.RewindSetAnimate = function(char, disabled)
+	local state = NAmanage.RewindState()
+	local animate = char and char:FindFirstChild("Animate")
+	if not animate then
+		return
+	end
+	if disabled then
+		if state.AnimateOriginalDisabled == nil then
+			local ok, value = pcall(function()
+				return animate.Disabled
+			end)
+			state.AnimateOriginalDisabled = ok and value or false
+		end
+		pcall(function()
+			if animate.Disabled ~= true then
+				animate.Disabled = true
+			end
+		end)
+		return
+	end
+	local restoreValue = state.AnimateOriginalDisabled
+	state.AnimateOriginalDisabled = nil
+	if restoreValue == nil then
+		restoreValue = false
+	end
+	pcall(function()
+		if animate.Disabled ~= restoreValue then
+			animate.Disabled = restoreValue
+		end
+	end)
+end
+
+NAmanage.RewindStopPlayback = function(char, hum)
+	local state = NAmanage.RewindState()
+	state.IsRewinding = false
+	NAmanage.RewindSetAnimate(char or getChar(), false)
+	if hum then
+		local ok, tracks = pcall(function()
+			return hum:GetPlayingAnimationTracks()
+		end)
+		if ok and type(tracks) == "table" then
+			for _, track in tracks do
+				pcall(function()
+					track:AdjustSpeed(1)
+				end)
+				pcall(function()
+					track:Stop(0.1)
+				end)
+			end
+		end
+	end
+end
+
+NAmanage.RewindCaptureAnimations = function(hum)
+	local currentAnims = {}
+	if not hum then
+		return currentAnims
+	end
+	local ok, tracks = pcall(function()
+		return hum:GetPlayingAnimationTracks()
+	end)
+	if not (ok and type(tracks) == "table") then
+		return currentAnims
+	end
+	for _, track in tracks do
+		local weight = 0
+		pcall(function()
+			weight = tonumber(track.WeightCurrent) or 0
+		end)
+		if weight > 0 then
+			Insert(currentAnims, {
+				Track = track;
+				Position = track.TimePosition;
+				Weight = weight;
+			})
+		end
+	end
+	return currentAnims
+end
+
+NAmanage.RewindApplySnapshot = function(state, char, root, snapshot)
+	if type(snapshot) ~= "table" or typeof(snapshot.CFrame) ~= "CFrame" then
+		return
+	end
+	local currentCF
+	local okPivot, pivot = pcall(function()
+		return char:GetPivot()
+	end)
+	if okPivot and typeof(pivot) == "CFrame" then
+		currentCF = pivot
+	else
+		currentCF = root and root.CFrame or snapshot.CFrame
+	end
+	local targetCF = currentCF:Lerp(snapshot.CFrame, 0.5)
+	if NAmanage.UG_pivotModel then
+		NAmanage.UG_pivotModel(char, targetCF)
+	elseif root then
+		pcall(function()
+			root.CFrame = targetCF
+		end)
+	end
+	if root then
+		pcall(function()
+			if root.AssemblyLinearVelocity ~= Vector3.zero then
+				root.AssemblyLinearVelocity = Vector3.zero
+			end
+		end)
+		pcall(function()
+			if root.AssemblyAngularVelocity ~= Vector3.zero then
+				root.AssemblyAngularVelocity = Vector3.zero
+			end
+		end)
+	end
+	if type(snapshot.Anims) == "table" then
+		for _, animData in snapshot.Anims do
+			local track = type(animData) == "table" and animData.Track or nil
+			if track then
+				pcall(function()
+					if not track.IsPlaying then
+						track:Play(0)
+					end
+				end)
+				pcall(function()
+					track.TimePosition = animData.Position or 0
+				end)
+				pcall(function()
+					track:AdjustSpeed(0)
+				end)
+				pcall(function()
+					track:AdjustWeight(animData.Weight or 1)
+				end)
+			end
+		end
+	end
+end
+
+NAmanage.RewindStep = function()
+	local state = NAmanage.RewindState()
+	if state.Enabled ~= true then
+		NAlib.disconnect("NARewind")
+		return
+	end
+
+	local char = getChar()
+	local root = char and getRoot(char)
+	local hum = char and getHum(char)
+
+	if char ~= state.LastCharacter then
+		NAmanage.RewindStopPlayback(state.LastCharacter, nil)
+		state.LastCharacter = char
+		state.IsRewinding = false
+		state.AnimateOriginalDisabled = nil
+		NAmanage.RewindClearHistory()
+	end
+
+	local dead = false
+	if hum and hum:IsA("Humanoid") then
+		local okHealth, health = pcall(function()
+			return hum.Health
+		end)
+		dead = okHealth and tonumber(health) and health <= 0
+	end
+
+	if not (char and root and hum) or dead then
+		if state.IsRewinding then
+			NAmanage.RewindStopPlayback(char, hum)
+		end
+		NAmanage.RewindClearHistory()
+		return
+	end
+
+	local inputActive = NAmanage.isAnyNAInputActive and NAmanage.isAnyNAInputActive()
+	local keyDown = false
+	if not inputActive then
+		local okKey, down = pcall(function()
+			return __lt.cm("UserInputService", "IsKeyDown", state.Key)
+		end)
+		keyDown = okKey and down == true
+	end
+
+	if keyDown then
+		state.IsRewinding = true
+		NAmanage.RewindSetAnimate(char, true)
+		for i = 1, state.Speed do
+			local snapshot = table.remove(state.History, #state.History)
+			if not snapshot then
+				break
+			end
+			if i == state.Speed or #state.History == 0 then
+				NAmanage.RewindApplySnapshot(state, char, root, snapshot)
+			end
+		end
+		return
+	end
+
+	if state.IsRewinding then
+		NAmanage.RewindStopPlayback(char, hum)
+	end
+
+	local cf
+	local okPivot, pivot = pcall(function()
+		return char:GetPivot()
+	end)
+	if okPivot and typeof(pivot) == "CFrame" then
+		cf = pivot
+	else
+		cf = root.CFrame
+	end
+
+	Insert(state.History, {
+		CFrame = cf;
+		Anims = NAmanage.RewindCaptureAnimations(hum);
+	})
+
+	local maxStored = math.max(1, state.Seconds * 60)
+	while #state.History > maxStored do
+		table.remove(state.History, 1)
+	end
+end
+
+NAmanage.RewindStart = function(secondsArg)
+	local state = NAmanage.RewindState()
+	local seconds = tonumber(secondsArg)
+	if seconds then
+		state.Seconds = math.max(1, math.min(600, math.floor(seconds)))
+	end
+	state.Enabled = true
+	state.IsRewinding = false
+	state.AnimateOriginalDisabled = nil
+	NAmanage.RewindClearHistory()
+	NAlib.reconnect("NARewind", RunService.Heartbeat:Connect(NAmanage.RewindStep))
+	DebugNotif(("Rewind enabled. Hold %s to rewind. Capture: %ds. Speed: %dx."):format(state.Key.Name, state.Seconds, state.Speed), 4, "Rewind")
+end
+
+NAmanage.RewindStop = function(showNotif)
+	local state = NAmanage.RewindState()
+	state.Enabled = false
+	NAmanage.RewindStopPlayback(getChar(), getHum())
+	NAmanage.RewindClearHistory()
+	NAlib.disconnect("NARewind")
+	if showNotif ~= false then
+		DebugNotif("Rewind disabled.", 3, "Rewind")
+	end
+end
+
+cmd.add({"rewind"}, {"rewind [seconds]", "Enable hold-R rewind using NA's runtime state"}, function(secondsArg)
+	NAmanage.RewindStart(secondsArg)
+end)
+
+cmd.add({"unrewind", "stoprewind"}, {"unrewind (stoprewind)", "Disable rewind and clear its saved frames"}, function()
+	NAmanage.RewindStop(true)
+end)
+
+cmd.add({"rewindspeed"}, {"rewindspeed <frames>", "Set rewind frames skipped per heartbeat"}, function(speedArg)
+	local speed = tonumber(speedArg)
+	if not speed then
+		DoNotif("Usage: rewindspeed <1-60>", 3, "Rewind")
+		return
+	end
+	local state = NAmanage.RewindState()
+	state.Speed = math.max(1, math.min(60, math.floor(speed)))
+	DebugNotif(("Rewind speed set to %dx."):format(state.Speed), 3, "Rewind")
+end, true)
+
+cmd.add({"rewindtime", "rewindseconds"}, {"rewindtime <seconds>", "Set how many seconds rewind stores"}, function(secondsArg)
+	local seconds = tonumber(secondsArg)
+	if not seconds then
+		DoNotif("Usage: rewindtime <1-600>", 3, "Rewind")
+		return
+	end
+	local state = NAmanage.RewindState()
+	state.Seconds = math.max(1, math.min(600, math.floor(seconds)))
+	NAmanage.RewindClearHistory()
+	DebugNotif(("Rewind capture set to %d seconds."):format(state.Seconds), 3, "Rewind")
+end, true)
+
+NAStuff.WFCP = NAStuff.WFCP or {
+	MouseUnlocked = false;
+	AccessoriesHidden = false;
+	AccessoryOriginals = {};
+	RearViewActive = false;
+	PrevMouseLock = nil;
+	PrevMinZoom = nil;
+	PrevMovementMode = nil;
+	WMActive = false;
+	WMYaw = 0;
+	WMPitch = 0;
+	WMCurrentZ = -0.1;
+	PrevCameraType = nil;
+	PrevMouseBehavior = nil;
+	PrevMouseIconEnabled = nil;
+	LastHead = nil;
+	HeadOriginalLTM = nil;
+}
+
+NAmanage.WFCPState = function()
+	local state = NAStuff.WFCP
+	if type(state) ~= "table" then
+		state = {}
+		NAStuff.WFCP = state
+	end
+	state.MouseUnlocked = state.MouseUnlocked == true
+	state.AccessoriesHidden = state.AccessoriesHidden == true
+	state.RearViewActive = state.RearViewActive == true
+	state.WMActive = state.WMActive == true
+	state.WMYaw = tonumber(state.WMYaw) or 0
+	state.WMPitch = tonumber(state.WMPitch) or 0
+	state.WMCurrentZ = tonumber(state.WMCurrentZ) or -0.1
+	if type(state.AccessoryOriginals) ~= "table" then
+		state.AccessoryOriginals = {}
+	end
+	if NAmanage.ensureWeakKeyTable then
+		state.AccessoryOriginals = NAmanage.ensureWeakKeyTable(state.AccessoryOriginals)
+	end
+	return state
+end
+
+NAmanage.WFCPLocalPlayer = function()
+	return LocalPlayer or Player or (Players and Players.LocalPlayer) or nil
+end
+
+NAmanage.WFCPGetCamera = function()
+	return workspace and workspace.CurrentCamera or camera
+end
+
+NAmanage.WFCPSafeSet = function(inst, prop, value)
+	if typeof(inst) ~= "Instance" then
+		return false
+	end
+	local okCurrent, current = pcall(function()
+		return inst[prop]
+	end)
+	if okCurrent and current == value then
+		return true
+	end
+	local ok = pcall(function()
+		inst[prop] = value
+	end)
+	return ok == true
+end
+
+NAmanage.WFCPSetMouseBehavior = function(value)
+	if not UserInputService then
+		return false
+	end
+	local okCurrent, current = pcall(function()
+		return UserInputService.MouseBehavior
+	end)
+	if okCurrent and current == value then
+		return true
+	end
+	local ok = pcall(function()
+		UserInputService.MouseBehavior = value
+	end)
+	return ok == true
+end
+
+NAmanage.WFCPForEachAccessoryPart = function(char, callback)
+	if typeof(char) ~= "Instance" or type(callback) ~= "function" then
+		return
+	end
+	for _, item in char:GetChildren() do
+		if item:IsA("Accessory") then
+			local handle = item:FindFirstChild("Handle")
+			if handle and handle:IsA("BasePart") then
+				callback(handle)
+			end
+			for _, desc in item:GetDescendants() do
+				if desc:IsA("BasePart") and desc ~= handle then
+					callback(desc)
+				end
+			end
+		end
+	end
+end
+
+NAmanage.WFCPSetAccessoryPartHidden = function(part, hidden)
+	if typeof(part) ~= "Instance" or not part:IsA("BasePart") then
+		return
+	end
+
+	local state = NAmanage.WFCPState()
+	local originals = state.AccessoryOriginals
+
+	if hidden then
+		if originals[part] == nil then
+			local okLTM, ltm = pcall(function()
+				return part.LocalTransparencyModifier
+			end)
+			local okTransparency, transparency = pcall(function()
+				return part.Transparency
+			end)
+			originals[part] = {
+				LocalTransparencyModifier = okLTM and ltm or 0;
+				Transparency = okTransparency and transparency or 0;
+			}
+		end
+		NAmanage.WFCPSafeSet(part, "LocalTransparencyModifier", 1)
+		NAmanage.WFCPSafeSet(part, "Transparency", 1)
+		return
+	end
+
+	local rec = originals[part]
+	if type(rec) == "table" then
+		NAmanage.WFCPSafeSet(part, "LocalTransparencyModifier", rec.LocalTransparencyModifier or 0)
+		NAmanage.WFCPSafeSet(part, "Transparency", rec.Transparency or 0)
+		originals[part] = nil
+	else
+		NAmanage.WFCPSafeSet(part, "LocalTransparencyModifier", 0)
+	end
+end
+
+NAmanage.WFCPAccessoriesStep = function()
+	local state = NAmanage.WFCPState()
+	if state.AccessoriesHidden ~= true then
+		NAlib.disconnect("NAWFCPAccessories")
+		return
+	end
+	local char = getChar()
+	if not char then
+		return
+	end
+	NAmanage.WFCPForEachAccessoryPart(char, function(part)
+		NAmanage.WFCPSetAccessoryPartHidden(part, true)
+	end)
+end
+
+NAmanage.WFCPRestoreAccessories = function()
+	local state = NAmanage.WFCPState()
+	local originals = state.AccessoryOriginals
+	if type(originals) ~= "table" then
+		return
+	end
+	for part in originals do
+		NAmanage.WFCPSetAccessoryPartHidden(part, false)
+	end
+end
+
+NAmanage.WFCPSetAccessoriesHidden = function(value, showNotif)
+	local state = NAmanage.WFCPState()
+	if value == nil then
+		value = not state.AccessoriesHidden
+	end
+	state.AccessoriesHidden = value == true
+
+	if state.AccessoriesHidden then
+		NAlib.reconnect("NAWFCPAccessories", RunService.RenderStepped:Connect(NAmanage.WFCPAccessoriesStep))
+		NAmanage.WFCPAccessoriesStep()
+		if showNotif ~= false then
+			DebugNotif("Accessory hiding enabled.", 3, "WFCP")
+		end
+	else
+		NAlib.disconnect("NAWFCPAccessories")
+		NAmanage.WFCPRestoreAccessories()
+		if showNotif ~= false then
+			DebugNotif("Accessory hiding disabled.", 3, "WFCP")
+		end
+	end
+end
+
+NAmanage.WFCPCameraFlip180 = function()
+	local cam = NAmanage.WFCPGetCamera()
+	if not cam then
+		return false
+	end
+
+	local ok = pcall(function()
+		local focusCF = cam.Focus
+		local focus = focusCF and focusCF.Position or (cam.CFrame.Position + cam.CFrame.LookVector)
+		local offset = cam.CFrame.Position - focus
+		if offset.Magnitude < 0.01 then
+			offset = -cam.CFrame.LookVector * 12
+		end
+		local rotatedOffset = CFrame.Angles(0, math.pi, 0) * offset
+		cam.CFrame = CFrame.lookAt(focus + rotatedOffset, focus)
+	end)
+
+	return ok == true
+end
+
+NAmanage.WFCPStopRearView = function(showNotif, flipCameraBack)
+	local state = NAmanage.WFCPState()
+	local wasActive = state.RearViewActive == true
+	state.RearViewActive = false
+	NAlib.disconnect("NAWFCPRearView")
+
+	local playerObj = NAmanage.WFCPLocalPlayer()
+	if playerObj then
+		if state.PrevMouseLock ~= nil then
+			pcall(function()
+				playerObj.DevEnableMouseLock = state.PrevMouseLock
+			end)
+		end
+		if state.PrevMinZoom ~= nil then
+			pcall(function()
+				playerObj.CameraMinZoomDistance = state.PrevMinZoom
+			end)
+		end
+		pcall(function()
+			playerObj.DevComputerMovementMode = state.PrevMovementMode or Enum.DevComputerMovementMode.UserChoice
+		end)
+	end
+
+	state.PrevMouseLock = nil
+	state.PrevMinZoom = nil
+	state.PrevMovementMode = nil
+
+	if wasActive and flipCameraBack ~= false then
+		NAmanage.WFCPCameraFlip180()
+	end
+
+	if showNotif ~= false and wasActive then
+		DebugNotif("Rear view disabled.", 3, "WFCP")
+	end
+end
+
+NAmanage.WFCPRearViewStep = function()
+	local state = NAmanage.WFCPState()
+	if state.RearViewActive ~= true then
+		NAmanage.WFCPStopRearView(false, false)
+		return
+	end
+
+	local playerObj = NAmanage.WFCPLocalPlayer()
+	local char = getChar()
+	local hum = char and getHum(char)
+	local root = char and getRoot(char)
+
+	if not (playerObj and char and hum and root) then
+		NAmanage.WFCPStopRearView(false, false)
+		return
+	end
+
+	if hum:IsA("Humanoid") then
+		local okHealth, health = pcall(function()
+			return hum.Health
+		end)
+		if okHealth and tonumber(health) and health <= 0 then
+			NAmanage.WFCPStopRearView(false, false)
+			return
+		end
+	end
+
+	pcall(function()
+		playerObj.DevComputerMovementMode = Enum.DevComputerMovementMode.Scriptable
+	end)
+
+	local moveVec = Vector3.zero
+	local inputActive = NAmanage.isAnyNAInputActive and NAmanage.isAnyNAInputActive()
+	if not inputActive and UserInputService then
+		if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveVec += Vector3.new(0, 0, -1) end
+		if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveVec += Vector3.new(0, 0, 1) end
+		if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveVec += Vector3.new(-1, 0, 0) end
+		if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveVec += Vector3.new(1, 0, 0) end
+	end
+
+	pcall(function()
+		hum:Move(moveVec, true)
+	end)
+end
+
+NAmanage.WFCPStartRearView = function()
+	local state = NAmanage.WFCPState()
+	if state.WMActive then
+		NAmanage.WFCPStopWorldModelFP(false)
+	end
+
+	local playerObj = NAmanage.WFCPLocalPlayer()
+	if not playerObj then
+		DoNotif("Unable to get local player.", 3, "WFCP")
+		return
+	end
+
+	state.PrevMouseLock = playerObj.DevEnableMouseLock
+	state.PrevMinZoom = playerObj.CameraMinZoomDistance
+	state.PrevMovementMode = playerObj.DevComputerMovementMode
+	state.RearViewActive = true
+
+	pcall(function()
+		playerObj.DevEnableMouseLock = false
+	end)
+	pcall(function()
+		playerObj.CameraMinZoomDistance = 5
+	end)
+
+	NAmanage.WFCPCameraFlip180()
+	NAlib.reconnect("NAWFCPRearView", RunService.RenderStepped:Connect(NAmanage.WFCPRearViewStep))
+	DebugNotif("Rear view enabled. Run backview again to disable.", 4, "WFCP")
+end
+
+NAmanage.WFCPRestoreWorldModelHead = function()
+	local state = NAmanage.WFCPState()
+	local head = state.LastHead
+	if typeof(head) == "Instance" and head:IsA("BasePart") then
+		local restore = state.HeadOriginalLTM
+		if restore == nil then
+			restore = 0
+		end
+		NAmanage.WFCPSafeSet(head, "LocalTransparencyModifier", restore)
+	end
+	state.LastHead = nil
+	state.HeadOriginalLTM = nil
+end
+
+NAmanage.WFCPStopWorldModelFP = function(showNotif)
+	local state = NAmanage.WFCPState()
+	local wasActive = state.WMActive == true
+	state.WMActive = false
+	state.MouseUnlocked = false
+	NAlib.disconnect("NAWFCPWorldModelFP")
+
+	local cam = NAmanage.WFCPGetCamera()
+	if cam then
+		NAmanage.WFCPSafeSet(cam, "CameraType", state.PrevCameraType or Enum.CameraType.Custom)
+	end
+	if UserInputService then
+		NAmanage.WFCPSetMouseBehavior(state.PrevMouseBehavior or Enum.MouseBehavior.Default)
+		if state.PrevMouseIconEnabled ~= nil then
+			local okIcon, currentIcon = pcall(function()
+				return UserInputService.MouseIconEnabled
+			end)
+			if (not okIcon) or currentIcon ~= state.PrevMouseIconEnabled then
+				pcall(function()
+					UserInputService.MouseIconEnabled = state.PrevMouseIconEnabled
+				end)
+			end
+		end
+	end
+
+	NAmanage.WFCPRestoreWorldModelHead()
+
+	state.PrevCameraType = nil
+	state.PrevMouseBehavior = nil
+	state.PrevMouseIconEnabled = nil
+	state.WMCurrentZ = -0.1
+
+	if showNotif ~= false and wasActive then
+		DebugNotif("World model first person disabled.", 3, "WFCP")
+	end
+end
+
+NAmanage.WFCPWorldModelFPStep = function()
+	local state = NAmanage.WFCPState()
+	local cam = NAmanage.WFCPGetCamera()
+
+	if state.WMActive ~= true then
+		NAmanage.WFCPStopWorldModelFP(false)
+		return
+	end
+
+	local char = getChar()
+	local root = char and getRoot(char)
+	local head = char and getHead(char)
+
+	if not (cam and char and root and head) then
+		if cam then
+			NAmanage.WFCPSafeSet(cam, "CameraType", Enum.CameraType.Custom)
+		end
+		NAmanage.WFCPSetMouseBehavior(Enum.MouseBehavior.Default)
+		return
+	end
+
+	if cam.CameraType ~= Enum.CameraType.Scriptable then
+		NAmanage.WFCPSafeSet(cam, "CameraType", Enum.CameraType.Scriptable)
+	end
+
+	local inputActive = NAmanage.isAnyNAInputActive and NAmanage.isAnyNAInputActive()
+	local allowLook = not inputActive
+
+	if UserInputService then
+		local rightMouseDown = false
+		pcall(function()
+			rightMouseDown = UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
+		end)
+
+		if state.MouseUnlocked and not rightMouseDown then
+			NAmanage.WFCPSetMouseBehavior(Enum.MouseBehavior.Default)
+		else
+			NAmanage.WFCPSetMouseBehavior(Enum.MouseBehavior.LockCenter)
+			if allowLook then
+				local delta = UserInputService:GetMouseDelta()
+				state.WMYaw -= delta.X * 0.008
+				state.WMPitch = math.clamp(state.WMPitch - (delta.Y * 0.008), -1.48, 1.48)
+			end
+		end
+	end
+
+	local targetRootCF = CFrame.new(root.Position) * CFrame.Angles(0, state.WMYaw, 0)
+	if NAmanage.UG_setRootCFrame then
+		NAmanage.UG_setRootCFrame(root, targetRootCF)
+	else
+		NAmanage.WFCPSafeSet(root, "CFrame", targetRootCF)
+	end
+
+	local _, _, roll = (head.CFrame - head.Position):ToEulerAnglesYXZ()
+	if math.abs(state.WMPitch) > 1.4 then
+		roll *= (1.5 - math.abs(state.WMPitch)) * 10
+	end
+
+	local pitchFactor = math.clamp(-state.WMPitch, 0, 1.48) / 1.48
+	local targetZ = -0.1 - (pitchFactor * 0.25)
+	state.WMCurrentZ += (targetZ - state.WMCurrentZ) * 0.1
+
+	local finalRot = CFrame.Angles(0, state.WMYaw, 0) * CFrame.Angles(state.WMPitch, 0, roll)
+	NAmanage.WFCPSafeSet(cam, "CFrame", CFrame.new(head.Position) * finalRot * CFrame.new(0, 0.25, state.WMCurrentZ))
+
+	if state.LastHead ~= head then
+		NAmanage.WFCPRestoreWorldModelHead()
+		state.LastHead = head
+		local okLTM, ltm = pcall(function()
+			return head.LocalTransparencyModifier
+		end)
+		state.HeadOriginalLTM = okLTM and ltm or 0
+	end
+	NAmanage.WFCPSafeSet(head, "LocalTransparencyModifier", 1)
+end
+
+NAmanage.WFCPStartWorldModelFP = function()
+	local state = NAmanage.WFCPState()
+	if state.RearViewActive then
+		NAmanage.WFCPStopRearView(false, false)
+	end
+
+	local cam = NAmanage.WFCPGetCamera()
+	if not cam then
+		DoNotif("Unable to get current camera.", 3, "WFCP")
+		return
+	end
+
+	local char = getChar()
+	local root = char and getRoot(char)
+	if root then
+		local _, yaw = root.CFrame:ToOrientation()
+		state.WMYaw = yaw or 0
+	else
+		state.WMYaw = 0
+	end
+	state.WMPitch = 0
+	state.WMCurrentZ = -0.1
+	state.WMActive = true
+	state.MouseUnlocked = false
+
+	state.PrevCameraType = cam.CameraType
+	if UserInputService then
+		state.PrevMouseBehavior = UserInputService.MouseBehavior
+		state.PrevMouseIconEnabled = UserInputService.MouseIconEnabled
+	end
+
+	NAlib.reconnect("NAWFCPWorldModelFP", RunService.RenderStepped:Connect(NAmanage.WFCPWorldModelFPStep))
+	NAmanage.WFCPWorldModelFPStep()
+	DebugNotif("World model first person enabled. Use freemouse to toggle cursor unlock.", 4, "WFCP")
+end
+
+NAmanage.WFCPFrontViewReset = function()
+	local state = NAmanage.WFCPState()
+	state.MouseUnlocked = false
+	NAmanage.WFCPStopWorldModelFP(false)
+	NAmanage.WFCPStopRearView(false, false)
+
+	local playerObj = NAmanage.WFCPLocalPlayer()
+	if playerObj then
+		pcall(function()
+			playerObj.DevComputerMovementMode = Enum.DevComputerMovementMode.UserChoice
+		end)
+		pcall(function()
+			playerObj.DevEnableMouseLock = true
+		end)
+		pcall(function()
+			playerObj.CameraMinZoomDistance = 0.5
+		end)
+	end
+
+	local cam = NAmanage.WFCPGetCamera()
+	if cam then
+		NAmanage.WFCPSafeSet(cam, "CameraType", Enum.CameraType.Custom)
+	end
+	NAmanage.WFCPSetMouseBehavior(Enum.MouseBehavior.Default)
+
+	local char = getChar()
+	local root = char and getRoot(char)
+	if cam and root then
+		local lookPos = root.CFrame:PointToWorldSpace(Vector3.new(0, 2, -15))
+		local camPos = root.CFrame:PointToWorldSpace(Vector3.new(0, 2, 12))
+		NAmanage.WFCPSafeSet(cam, "CFrame", CFrame.new(camPos, lookPos))
+	end
+
+	DebugNotif("Camera reset.", 3, "WFCP")
+end
+
+cmd.add({"freemouse", "togglefreemouse", "wfcpfreemouse"}, {"freemouse", "Toggle cursor unlock while world model first person is active"}, function()
+	local state = NAmanage.WFCPState()
+	state.MouseUnlocked = not state.MouseUnlocked
+	if state.MouseUnlocked then
+		NAmanage.WFCPSetMouseBehavior(Enum.MouseBehavior.Default)
+	end
+	DebugNotif("WFCP free mouse "..(state.MouseUnlocked and "enabled." or "disabled."), 3, "WFCP")
+end)
+
+cmd.add({"hideacc", "accessories"}, {"hideacc (accessories)", "Hide or restore local accessory parts"}, function()
+	local state = NAmanage.WFCPState()
+	NAmanage.WFCPSetAccessoriesHidden(not state.AccessoriesHidden, true)
+end)
+
+cmd.add({"backview", "rearview", "rear", "f5"}, {"backview (rearview, rear, f5)", "Flip the camera behind you and invert movement controls"}, function()
+	local state = NAmanage.WFCPState()
+	if state.RearViewActive then
+		NAmanage.WFCPStopRearView(true, true)
+	else
+		NAmanage.WFCPStartRearView()
+	end
+end)
+
+cmd.add({"worldmodelfp", "wfcpfp", "realfirstperson", "fpmodel"}, {"worldmodelfp (wfcpfp, realfirstperson, fpmodel)", "WFCP world-model first person camera"}, function()
+	local state = NAmanage.WFCPState()
+	if state.WMActive then
+		NAmanage.WFCPStopWorldModelFP(true)
+	else
+		NAmanage.WFCPStartWorldModelFP()
+	end
+end)
+
+cmd.add({"frontview", "resetcam"}, {"frontview (resetcam)", "Reset WFCP camera state and return to a normal front view"}, function()
+	NAmanage.WFCPFrontViewReset()
+end)
+
 cmd.add({"deletevelocity", "dv", "removevelocity", "removeforces"}, {"deletevelocity (dv, removevelocity, removeforces)", "removes any velocity/force instanceson your character"}, function()
 	for _,vel in NAmanage.QueryDescendants(LocalPlayer.Character, "Instance") do
 		if vel:IsA("BodyVelocity") or vel:IsA("BodyGyro") or vel:IsA("RocketPropulsion") or vel:IsA("BodyThrust") or vel:IsA("BodyAngularVelocity") or vel:IsA("AngularVelocity") or vel:IsA("BodyForce") or vel:IsA("VectorForce") or vel:IsA("LineForce") then
