@@ -46145,8 +46145,117 @@ cmd.add({"npcaura"},{"npcaura [distance]","Continuously damages nearby NPCs with
 				return parent
 			end
 		end
-		return t:FindFirstChild("Handle") or t:FindFirstChildWhichIsA("BasePart")
+		local handle=t:FindFirstChild("Handle")
+		if handle and handle:IsA("BasePart") then
+			return handle
+		end
+		return t:FindFirstChildWhichIsA("BasePart")
 	end
+
+	local function isPlayerCharacterModel(model)
+		if typeof(model) ~= "Instance" or not model:IsA("Model") then
+			return false
+		end
+		local okPlr, plr = pcall(function()
+			return __lt.cm("Players", "GetPlayerFromCharacter", model)
+		end)
+		if okPlr and plr then
+			return true
+		end
+		for _, p in __lt.cm("Players", "GetPlayers") do
+			local ch = getPlrChar(p) or p.Character
+			if ch and (model == ch or model:IsDescendantOf(ch) or ch:IsDescendantOf(model)) then
+				return true
+			end
+		end
+		return false
+	end
+
+	local function getFirstModelBasePart(model)
+		local rootPart = getRoot(model)
+		if rootPart then
+			return rootPart
+		end
+		local hum = getPlrHum(model)
+		if hum and hum.RootPart then
+			return hum.RootPart
+		end
+		return model:FindFirstChildWhichIsA("BasePart", true)
+	end
+
+	local function canTouchPart(part)
+		if not (part and part:IsA("BasePart") and part.Parent) then
+			return false
+		end
+		local ok, canTouch = pcall(function()
+			return part.CanTouch
+		end)
+		return (not ok) or canTouch ~= false
+	end
+
+	local function addNPCTarget(out, seen, model, root, radius)
+		if typeof(model) ~= "Instance" or not model:IsA("Model") or seen[model] then
+			return
+		end
+		if isPlayerCharacterModel(model) then
+			return
+		end
+		local hum = getPlrHum(model)
+		if not hum or hum.Health <= 0 then
+			return
+		end
+		local npcPart = getFirstModelBasePart(model)
+		if not npcPart then
+			return
+		end
+		if root and (npcPart.Position-root.Position).Magnitude > radius then
+			return
+		end
+		seen[model] = true
+		Insert(out, model)
+	end
+
+	local function getNearbyNPCs(root, radius)
+		local out = {}
+		local seen = {}
+
+		for _, npc in getPlr("npc") do
+			addNPCTarget(out, seen, npc, root, radius)
+		end
+
+		-- Game-specific fallback: some games use unusual enemy containers, so do not rely only on getPlr("npc")/CheckIfNPC.
+		for _, hum in NAmanage.QueryDescendants(workspace, "Humanoid") do
+			local model = hum.Parent
+			if model and model:IsA("Model") then
+				addNPCTarget(out, seen, model, root, radius)
+			end
+		end
+
+		return out
+	end
+
+	local function fireDamageTouch(damagePart, targetPart)
+		if not (damagePart and damagePart.Parent and canTouchPart(targetPart)) then
+			return false
+		end
+		pcall(function()
+			if damagePart.CanTouch == false then
+				damagePart.CanTouch = true
+			end
+		end)
+		local ok = pcall(firetouchinterest, damagePart, targetPart, 0)
+		if not ok then
+			return false
+		end
+		Defer(function()
+			Wait()
+			if damagePart and damagePart.Parent and targetPart and targetPart.Parent then
+				pcall(firetouchinterest, damagePart, targetPart, 1)
+			end
+		end)
+		return true
+	end
+
 	local npcAuraAcc = 0
 	NAStuff.npcauraConn=NAlib.reconnect("npcaura_loop", RunService.Heartbeat:Connect(function(dt)
 		npcAuraAcc += tonumber(dt) or 0
@@ -46157,23 +46266,20 @@ cmd.add({"npcaura"},{"npcaura [distance]","Continuously damages nearby NPCs with
 		end
 		if npcAuraAcc < 0.12 then return end
 		npcAuraAcc = 0
+		if not root then return end
 		local damagePart=getDamagePart()
-		if not damagePart or not root then return end
-		for _,npc in getPlr("npc") do
-			if npc and npc.Parent then
-				local hum=getPlrHum(npc)
-				if hum and hum.Health>0 then
-					for _,part in npc:GetChildren() do
-						if part:IsA("BasePart") and (part.Position-damagePart.Position).Magnitude<=dist then
-							firetouchinterest(damagePart,part,0)
-							Defer(function()
-								Wait()
-								if damagePart and damagePart.Parent and part and part.Parent then
-									firetouchinterest(damagePart,part,1)
-								end
-							end)
-							break
-						end
+		if not damagePart then return end
+
+		for _,npc in getNearbyNPCs(root, dist) do
+			local char = getPlrChar(npc) or npc
+			if char and char.Parent then
+				local preferred = getFirstModelBasePart(char)
+				if preferred then
+					fireDamageTouch(damagePart, preferred)
+				end
+				for _,part in NAmanage.QueryDescendants(char, "BasePart") do
+					if part ~= preferred then
+						fireDamageTouch(damagePart, part)
 					end
 				end
 			end
@@ -46181,7 +46287,6 @@ cmd.add({"npcaura"},{"npcaura [distance]","Continuously damages nearby NPCs with
 	end))
 	DebugNotif("NPCAura enabled at "..dist,1.2)
 end,true)
-
 cmd.add({"unnpcaura"},{"unnpcaura","Stops NPC aura loop and removes visualizer"},function()
 	if NAStuff.npcauraConn then NAStuff.npcauraConn:Disconnect() NAStuff.npcauraConn=nil end
 	NAlib.disconnect("npcaura_loop")
