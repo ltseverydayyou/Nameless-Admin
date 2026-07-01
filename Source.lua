@@ -1259,9 +1259,6 @@ local NAStuff = {
 	OffVisAcc = true;
 	OffVisFTr = 0.82;
 	OffVisOTr = 0.15;
-	originalDesc = nil;
-	currentDesc = nil;
-	AutoChar = nil;
 	BlockedRemotes = {};
 	touchESPList = {};
 	proximityESPList = {};
@@ -10573,7 +10570,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		local validMap = {}
 		for _, entry in items do
 			if type(entry) == "table" and type(entry.file) == "string" then
-				entry.id = entry.id or sanitizeId(entry.name or entry.file) or HttpService:GenerateGUID(false)
+				entry.id = entry.id or sanitizeId(entry.name or entry.file) or sanitizeId(NAmanage.GetSessionInstanceName("CustomFontEntry_"..tostring(entry.name or entry.file or #validFonts + 1))) or tostring(os.time())
 				entry.name = entry.name or entry.id
 				entry.displayName = entry.displayName or entry.name
 				entry.url = normalizeCustomFontUrl(entry.url) or entry.url
@@ -10753,7 +10750,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		end
 		local ext = sanitizedRemote:match("%.[^%.]+$") or ".otf"
 		local idSource = rawName ~= "" and rawName or sanitizedRemote:gsub("%.[^%.]+$", "")
-		local id = sanitizeId(idSource) or sanitizeId(HttpService:GenerateGUID(false)) or tostring(os.time())
+		local id = sanitizeId(idSource) or sanitizeId(NAmanage.GetSessionInstanceName("CustomFontInstall_"..tostring(idSource or sanitizedRemote or os.time()))) or tostring(os.time())
 		local fileName = id..ext
 		local fullPath = FontEditor.customDir.."/"..fileName
 		local okWrite, errWrite = pcall(writefile, fullPath, data)
@@ -14082,20 +14079,12 @@ end
 
 NAgui.rStringgg=function(key)
 	local out = {}
-	local guid = nil
-	local hs = HttpService
-
-	if hs then
-		local ok, ret = pcall(function()
-			return hs:GenerateGUID(false)
-		end)
-		if ok and type(ret) == "string" and ret ~= "" then
-			guid = ret
-			Insert(out, ret)
-		end
+	local mapKey = key
+	if type(mapKey) ~= "string" or mapKey == "" then
+		NAmanage._rStringSessionNameSeq = (tonumber(NAmanage._rStringSessionNameSeq) or 0) + 1
+		mapKey = "RandomInstanceName_"..tostring(NAmanage._rStringSessionNameSeq)
 	end
 
-	local mapKey = key or guid or tostring(tick())
 	if type(NAmanage.GetSessionInstanceName) == "function" then
 		local ok, ret = pcall(NAmanage.GetSessionInstanceName, mapKey)
 		if ok and type(ret) == "string" and ret ~= "" then
@@ -29829,7 +29818,8 @@ NAmanage.ESP_EnsureLabel = function(model)
 	NAmanage.ESP_RemoveDrawingLabel(data)
 
 	if not data.uid then
-		data.uid = HttpService:GenerateGUID(false)
+		NAmanage._espLabelUidSeq = (tonumber(NAmanage._espLabelUidSeq) or 0) + 1
+		data.uid = NAmanage.GetSessionInstanceName("ESPLabel_"..tostring(NAmanage._espLabelUidSeq))
 	end
 	local uid = data.uid
 
@@ -40124,14 +40114,36 @@ NAmanage.ovClr = function(st)
 	st.ovMvN = nil
 end
 
-NAmanage.ovPrg = function()
+NAmanage.ovNamePrefix = function(st)
+	if type(st) == "table" and type(st.ovPrefix) == "string" and st.ovPrefix ~= "" then
+		return st.ovPrefix
+	end
+	return "Offset"
+end
+
+local function ovScopedName(st, suffix)
+	return NAmanage.GetSessionInstanceName(NAmanage.ovNamePrefix(st)..tostring(suffix or ""))
+end
+
+NAmanage.ovPrg = function(st)
+	local scoped = type(st) == "table" and type(st.ovPrefix) == "string" and st.ovPrefix ~= "" and st.ovPrefix ~= "Offset"
+	if scoped then
+		local folderName = ovScopedName(st, "Folder")
+		for _, inst in workspace:GetChildren() do
+			if inst:IsA("Folder") and inst.Name == folderName then
+				pcall(function() inst:Destroy() end)
+			end
+		end
+		return
+	end
+
 	local old = NAStuff.ovOld or {}
 	for _, inst in NAmanage.QueryDescendants(workspace, "Instance") do
 		if old[inst.Name] then
 			pcall(function() inst:Destroy() end)
 		end
 	end
-	local currentOffsetFolderName = NAmanage.GetSessionInstanceName("OffsetFolder")
+	local currentOffsetFolderName = ovScopedName(nil, "Folder")
 	for _, inst in workspace:GetChildren() do
 		if inst:IsA("Folder") and (inst.Name == "NA_OffsetCharacterVisualizer" or inst.Name == "NA_OffVis" or inst.Name == currentOffsetFolderName) then
 			pcall(function() inst:Destroy() end)
@@ -40147,11 +40159,11 @@ NAmanage.ovEns = function(st)
 	local fld = st.ovFld
 	if not (fld and fld.Parent) then
 		if st.ovPruned ~= true then
-			NAmanage.ovPrg()
+			NAmanage.ovPrg(st)
 			st.ovPruned = true
 		end
 		fld = InstanceNew("Folder", workspace)
-		fld.Name = NAmanage.GetSessionInstanceName("OffsetFolder")
+		fld.Name = ovScopedName(st, "Folder")
 		st.ovFld = fld
 	end
 	if type(st.ovMap) ~= "table" then
@@ -40161,7 +40173,7 @@ NAmanage.ovEns = function(st)
 	local mdl = st.ovMdl
 	if not (mdl and mdl.Parent) then
 		mdl = InstanceNew("Model", fld)
-		mdl.Name = NAmanage.GetSessionInstanceName("OffsetModel")
+		mdl.Name = ovScopedName(st, "Model")
 		st.ovMdl = mdl
 	end
 
@@ -40169,7 +40181,7 @@ NAmanage.ovEns = function(st)
 	local madeHL = false
 	if not (hl and hl.Parent) then
 		hl = InstanceNew("Highlight", fld)
-		hl.Name = NAmanage.GetSessionInstanceName("OffsetHighlight")
+		hl.Name = ovScopedName(st, "Highlight")
 		st.ovHL = hl
 		madeHL = true
 	end
@@ -40190,7 +40202,7 @@ NAmanage.ovEns = function(st)
 	return mdl
 end
 
-NAmanage.ovMk = function(src, parent)
+NAmanage.ovMk = function(src, parent, st)
 	if not (src and parent) then
 		return nil
 	end
@@ -40207,7 +40219,7 @@ NAmanage.ovMk = function(src, parent)
 		gp.Size = src.Size
 	end
 
-	gp.Name = NAmanage.GetSessionInstanceName("OffsetPart")
+	gp.Name = ovScopedName(st, "Part")
 
 	for _, d in NAmanage.QueryDescendants(gp, "Instance") do
 		if not d:IsA("SpecialMesh") then
@@ -40340,7 +40352,7 @@ NAmanage.ovUpd = function(st, root, base, offVec)
 				if gp then
 					pcall(function() gp:Destroy() end)
 				end
-				gp = NAmanage.ovMk(src, mdl)
+				gp = NAmanage.ovMk(src, mdl, st)
 				map[src] = gp
 				propCache[src] = nil
 				if type(st.ovMeshCache) == "table" then
@@ -53024,7 +53036,7 @@ cmd.add({"unantiflingparts","unantiunanchoredfling","unafparts"},{"unantiflingpa
 	DoNotif("AntiFling Parts disabled.", 2, "AntiFling Parts")
 end)
 
-cmd.addPatched({"gravitygun"},{"gravitygun","Probably the best gravity gun script thats fe"},function()
+cmd.add({"gravitygun"},{"gravitygun","Probably the best gravity gun script thats fe"},function()
 	Wait();
 	DoNotif("Wait a few seconds for it to load",2.5)
 	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/gravity%20gun")
@@ -54686,6 +54698,8 @@ NAStuff.desyncOffsetPostKey = "na_desync_offset_post"
 NAStuff.desyncOffsetRenderKey = "na_desync_offset_render"
 NAStuff.desyncOffsetBindName = (NAmanage.GetSessionActionName and NAmanage.GetSessionActionName("DesyncOffsetBind")) or "NA_DesyncOffsetBind"
 NAStuff.desyncOffsetEps = 0.05
+NAStuff.desyncOffsetVisualState = type(NAStuff.desyncOffsetVisualState) == "table" and NAStuff.desyncOffsetVisualState or {}
+NAStuff.desyncOffsetVisualState.ovPrefix = "DesyncOffset"
 
 NAmanage.DesyncGetRoot = function()
 	local char = getChar and getChar() or nil
@@ -54739,6 +54753,56 @@ NAmanage.DesyncNearAnchor = function(cf)
 	return (cf.Position - anchor.Position).Magnitude <= (tonumber(NAStuff.desyncOffsetEps) or 0.05)
 end
 
+NAmanage.DesyncVisualState = function()
+	local st = NAStuff.desyncOffsetVisualState
+	if type(st) ~= "table" then
+		st = {}
+		NAStuff.desyncOffsetVisualState = st
+	end
+	st.ovPrefix = "DesyncOffset"
+	return st
+end
+
+NAmanage.DesyncClearVisualizer = function()
+	local st = NAmanage.DesyncVisualState and NAmanage.DesyncVisualState() or nil
+	if type(st) == "table" and type(NAmanage.ovClr) == "function" then
+		pcall(NAmanage.ovClr, st)
+		st.UndergroundTransform = nil
+		st.ovNextUpd = nil
+	end
+end
+
+NAmanage.DesyncUpdateVisualizer = function(force)
+	local st = NAmanage.DesyncVisualState and NAmanage.DesyncVisualState() or nil
+	if type(st) ~= "table" or type(NAmanage.ovUpd) ~= "function" then
+		return
+	end
+
+	local char, root = NAmanage.DesyncGetRoot()
+	local current = NAStuff.desyncOffsetCurrent
+	local anchor = NAStuff.desyncOffsetAnchor
+	if not (NAStuff.desyncOn and char and root and root.Parent and typeof(current) == "CFrame" and typeof(anchor) == "CFrame") then
+		NAmanage.DesyncClearVisualizer()
+		return
+	end
+
+	local off = anchor.Position - current.Position
+	if off.Magnitude <= 0.0001 then
+		NAmanage.DesyncClearVisualizer()
+		return
+	end
+
+	local now = os.clock()
+	local rate = tonumber(NAStuff.NA_OFFSET_VISUALIZER_UPDATE_RATE) or (1 / 30)
+	if force or now >= (st.ovNextUpd or 0) then
+		st.ovNextUpd = now + rate
+		local currentRot = current - current.Position
+		local anchorRot = anchor - anchor.Position
+		st.UndergroundTransform = currentRot:ToObjectSpace(anchorRot)
+		NAmanage.ovUpd(st, root, current, off)
+	end
+end
+
 NAmanage.DesyncGetClientCFrame = function(root, fallback)
 	if NAStuff.desyncOn and NAmanage.DesyncIsLocalRoot(root) then
 		local cf = NAStuff.desyncOffsetCurrent
@@ -54770,9 +54834,13 @@ NAmanage.DesyncSetClientCFrame = function(root, cf)
 		NAStuff.desyncOffsetAnchor = NAmanage.DesyncReadRootCFrame(root) or cf
 	end
 	NAStuff.desyncOffsetCurrent = cf
-	return pcall(function()
+	local ok = pcall(function()
 		root.CFrame = cf
 	end)
+	if ok and type(NAmanage.DesyncUpdateVisualizer) == "function" then
+		pcall(NAmanage.DesyncUpdateVisualizer, true)
+	end
+	return ok
 end
 
 NAmanage.DesyncSetRootCFrame = function(root, cf)
@@ -54827,6 +54895,9 @@ NAmanage.DesyncOffsetRender = function()
 	local cf = NAStuff.desyncOffsetCurrent
 	if root and root.Parent and typeof(cf) == "CFrame" then
 		NAmanage.DesyncSetRootCFrame(root, cf)
+		NAmanage.DesyncUpdateVisualizer(false)
+	else
+		NAmanage.DesyncClearVisualizer()
 	end
 end
 
@@ -54952,6 +55023,9 @@ NAmanage.SetOffsetDesync = function(enabled)
 		end))
 
 		NAmanage.DesyncBindRender()
+		if type(NAmanage.DesyncUpdateVisualizer) == "function" then
+			pcall(NAmanage.DesyncUpdateVisualizer, true)
+		end
 		DoNotif("Offset desync enabled. Server position locked with normal offset restore timing", 4)
 		return true
 	end
@@ -54969,6 +55043,7 @@ NAmanage.SetOffsetDesync = function(enabled)
 	NAStuff.desyncOffsetChar = nil
 	NAStuff.desyncOffsetAnchor = nil
 	NAStuff.desyncOffsetCurrent = nil
+	NAmanage.DesyncClearVisualizer()
 	DoNotif("Offset desync disabled", 3)
 	return true
 end
@@ -59122,28 +59197,6 @@ cmd.add({"nohats","drophats"},{"nohats (drophats)","Drop all of your hats"},func
 	end
 end)
 
-cmd.addPatched({"permadeath", "pdeath"}, {"permadeath (pdeath)", "be death permanently"}, function()
-	if not replicatesignal then
-		return DoNotif("Your executor does not support 'replicatesignal'")
-	end
-
-	replicatesignal(LocalPlayer.ConnectDiedSignalBackend)
-	Wait(Players.RespawnTime + 0.1)
-
-	local humanoid = getHum()
-	if humanoid then
-		humanoid:ChangeState(Enum.HumanoidStateType.Dead)
-	end
-end)
-
-cmd.addPatched({"unpermadeath", "unpdeath"}, {"unpermadeath (unpdeath)", "no perma death"}, function()
-	if not replicatesignal then
-		return DoNotif("Your executor does not support 'replicatesignal'")
-	end
-
-	replicatesignal(LocalPlayer.ConnectDiedSignalBackend)
-end)
-
 cmd.add({"instantrespawn", "instantr", "irespawn"}, {"instantrespawn (instantr, irespawn)", "respawn instantly"}, function()
 	if not replicatesignal then
 		return DoNotif("Your executor does not support 'replicatesignal'")
@@ -62954,65 +63007,7 @@ cmd.add({"untimestop", "untstop"}, {"untimestop (untstop)", "unfreeze all player
 end)
 
 NAStuff._outfitCache=NAStuff._outfitCache or{};NAStuff._httpBackoff=NAStuff._httpBackoff or{};NAStuff._httpCooldown=NAStuff._httpCooldown or{}
-NAStuff._faceTextureCache=NAStuff._faceTextureCache or{}
-NAmanage._normalizeAssetUrl=function(value)
-	local raw=type(value)=="string" and value or tostring(value or"")
-	local digits=raw:match("^rbxassetid://(%d+)$") or raw:match("id=(%d+)") or raw:match("(%d+)$")
-	if digits then
-		return "http://www.roblox.com/asset/?id="..digits
-	end
-	return raw~="" and raw or nil
-end
-NAmanage._resolveFaceTextureFromAsset=function(faceId)
-	local id=tonumber(faceId)
-	if not id or id<=0 then return nil end
-	local cache=NAStuff._faceTextureCache
-	if cache[id] then
-		return cache[id]
-	end
-	local ok,objects=pcall(function()
-		return game:GetObjects("rbxassetid://"..tostring(id))
-	end)
-	if ok and type(objects)=="table" then
-		for _,obj in objects do
-			local candidates={obj}
-			local okDesc,descendants=pcall(function()
-				return NAmanage.QueryDescendants(obj, "Instance")
-			end)
-			if okDesc and type(descendants)=="table" then
-				for _,inst in descendants do
-					Insert(candidates,inst)
-				end
-			end
-			for _,inst in candidates do
-				if typeof(inst)=="Instance" and inst:IsA("Decal") then
-					local normalized=NAmanage._normalizeAssetUrl(inst.Texture)
-					if normalized then
-						cache[id]=normalized
-						for _,cleanup in objects do
-							if typeof(cleanup)=="Instance" and cleanup.Parent==nil then
-								pcall(function()
-									cleanup:Destroy()
-								end)
-							end
-						end
-						return normalized
-					end
-				end
-			end
-		end
-		for _,cleanup in objects do
-			if typeof(cleanup)=="Instance" and cleanup.Parent==nil then
-				pcall(function()
-					cleanup:Destroy()
-				end)
-			end
-		end
-	end
-	local fallback="http://www.roblox.com/asset/?id="..tostring(id)
-	cache[id]=fallback
-	return fallback
-end
+
 NAmanage._avatarHttpJSON=function(method,url,body)
 	local payload=nil
 	if body~=nil then
@@ -63234,445 +63229,6 @@ NAmanage._humanoidDescriptionHasAppearance=function(desc)
 	end
 	return false
 end
-NAmanage._waitCharReady=function(timeout)
-	local t=timeout or 5
-	local plr=Players.LocalPlayer
-	local t0=time()
-	while time()-t0<t do
-		local char=getChar()
-		if char and char.Parent==workspace then
-			local hum=getHum() or char:FindFirstChildOfClass("Humanoid")
-			local root=getRoot(char) or char:FindFirstChild("HumanoidRootPart") or char:FindFirstChildWhichIsA("BasePart")
-			local head=getHead(char) or char:FindFirstChild("Head")
-			if hum and root and head then
-				if plr and plr.CanLoadCharacterAppearance then
-					if not plr:HasAppearanceLoaded() then
-						plr.CharacterAppearanceLoaded:Wait()
-					end
-					Wait(0.15)
-				end
-				return char,hum,root,head
-			end
-		end
-		Wait(0.1)
-	end
-	local c=getChar();return c,(c and (getHum() or c:FindFirstChildOfClass("Humanoid"))),(c and (getRoot(c) or c:FindFirstChild("HumanoidRootPart") or c:FindFirstChildWhichIsA("BasePart"))),(c and (getHead(c) or c:FindFirstChild("Head")))
-end
-NAmanage._applyFixedDescription=function(desc,uidFallback,opts)
-	if not desc then return end
-	opts = opts or {}
-	local plr=Players.LocalPlayer
-	local char,hum=NAmanage._waitCharReady(5)
-	if not char or not hum then return end
-	if not NAStuff.originalDesc then
-		local okA,ap=pcall(function()return hum:GetAppliedDescription() end)
-		if okA and ap then
-			NAStuff.originalDesc=ap:Clone()
-		end
-	end
-	local targetAppearanceModel = nil
-	local targetAccessoryCount = nil
-	local targetAppearanceOwned = false
-
-	local function clearAppearance()
-		for _,inst in char:GetChildren() do
-			if inst:IsA("Accessory") or inst:IsA("Shirt") or inst:IsA("Pants") or inst:IsA("ShirtGraphic") or inst:IsA("CharacterMesh") or inst:IsA("BodyColors") then
-				inst:Destroy()
-			end
-		end
-		local hd=getHead(char)
-		if hd then
-			for _,d in hd:GetChildren() do
-				if d:IsA("Decal") then
-					d:Destroy()
-				end
-			end
-		end
-	end
-
-	local function isHeadVisual(inst)
-		if not inst then return false end
-		return inst:IsA("Decal")
-			or inst:IsA("SurfaceAppearance")
-			or inst:IsA("SpecialMesh")
-		end
-
-	local function hasHeadFaceVisual(headInst)
-		if not headInst then return false end
-		for _,inst in headInst:GetChildren() do
-			if inst:IsA("Decal") then
-				local okTexture,texture=pcall(function() return inst.Texture end)
-				if okTexture and type(texture)=="string" and texture~="" then
-					return true
-				end
-			end
-		end
-		return false
-	end
-
-	local function copyHeadVisualsFromSource(sourceHead, targetHead)
-		if not sourceHead or not targetHead then return false end
-		local copied=false
-		for _,inst in sourceHead:GetChildren() do
-			if isHeadVisual(inst) then
-				local clone=inst:Clone()
-				clone.Parent=targetHead
-				copied=true
-			end
-		end
-		return copied
-	end
-
-	local function ensureDefaultFace(headInst)
-		if not headInst or hasHeadFaceVisual(headInst) then return end
-		local dec=InstanceNew("Decal")
-		dec.Name="face"
-		dec.Texture="rbxasset://textures/face.png"
-		dec.Face=Enum.NormalId.Front
-		dec.Parent=headInst
-	end
-
-	local function getTargetAppearance()
-		if targetAppearanceModel ~= nil then
-			return targetAppearanceModel or nil
-		end
-		if uidFallback then
-			local ok, appearance = pcall(Players.GetCharacterAppearanceAsync, Players, uidFallback)
-			targetAppearanceModel = ok and appearance or false
-		else
-			targetAppearanceModel = false
-		end
-		if not targetAppearanceModel and desc then
-			local okPreview,preview=pcall(Players.CreateHumanoidModelFromDescription,Players,desc,hum.RigType)
-			targetAppearanceModel=okPreview and preview or false
-			targetAppearanceOwned=targetAppearanceModel and true or false
-		end
-		return targetAppearanceModel or nil
-	end
-
-	local function getTargetAccessoryCount()
-		if targetAccessoryCount ~= nil then
-			return targetAccessoryCount
-		end
-		local appearance = getTargetAppearance()
-		local count = 0
-		if appearance then
-			for _, inst in NAmanage.QueryDescendants(appearance, "Accessory") do
-				count += 1
-			end
-		end
-		if count == 0 then
-			for _, key in {
-				"HatAccessory",
-				"HairAccessory",
-				"FaceAccessory",
-				"NeckAccessory",
-				"ShoulderAccessory",
-				"ShouldersAccessory",
-				"FrontAccessory",
-				"BackAccessory",
-				"WaistAccessory",
-				"AccessoryBlob",
-			} do
-				local okValue, value = pcall(function()
-					return desc[key]
-				end)
-				if okValue and value ~= nil and value ~= "" then
-					for _ in tostring(value):gmatch("%d+") do
-						count += 1
-					end
-				end
-			end
-		end
-		targetAccessoryCount = count
-		return count
-	end
-
-	local function getCurrentAccessoryCount()
-		local count = 0
-		for _, inst in NAmanage.QueryDescendants(char, "Accessory") do
-			count += 1
-		end
-		return count
-	end
-
-	local function ensureFace()
-		local headNow=getHead(char)
-		if not headNow then return end
-		if hasHeadFaceVisual(headNow) then return end
-		local copiedFromAppearance=false
-		local ap = getTargetAppearance()
-		if ap then
-			local headSrc=ap:FindFirstChild("Head",true)
-			if headSrc then
-				copiedFromAppearance=copyHeadVisualsFromSource(headSrc,headNow)
-			end
-		end
-		if not copiedFromAppearance and not hasHeadFaceVisual(headNow) then
-			local faceId=0
-			pcall(function() faceId=desc.Face or 0 end)
-			if faceId and faceId>0 then
-				local dec=InstanceNew("Decal")
-				dec.Name="face"
-				dec.Texture=NAmanage._resolveFaceTextureFromAsset(faceId)
-				dec.Face=Enum.NormalId.Front
-				dec.Parent=headNow
-			end
-		end
-		ensureDefaultFace(headNow)
-	end
-
-	local function ensureClothes()
-		local sid=desc.Shirt
-		local pid=desc.Pants
-		local gid=desc.GraphicTShirt or desc.TShirt
-		if not char:FindFirstChildOfClass("Shirt") and sid and sid>0 then
-			local s=InstanceNew("Shirt")
-			s.ShirtTemplate="rbxassetid://"..sid
-			s.Parent=char
-		end
-		if not char:FindFirstChildOfClass("Pants") and pid and pid>0 then
-			local p=InstanceNew("Pants")
-			p.PantsTemplate="rbxassetid://"..pid
-			p.Parent=char
-		end
-		if not char:FindFirstChildOfClass("ShirtGraphic") and gid and gid>0 then
-			local g=InstanceNew("ShirtGraphic")
-			g.Graphic="rbxassetid://"..gid
-			g.Parent=char
-		end
-	end
-
-	local function sourceHasClass(source,className)
-		if not source then return false end
-		for _,inst in NAmanage.QueryDescendants(source, "Instance") do
-			if inst.ClassName==className then
-				return true
-			end
-		end
-		return false
-	end
-
-	local function charHasFace()
-		local headNow=getHead(char)
-		return hasHeadFaceVisual(headNow)
-	end
-
-	local function sourceHasFace(source)
-		if not source then return false end
-		local headSrc=source:FindFirstChild("Head",true)
-		return hasHeadFaceVisual(headSrc)
-	end
-
-	local function needsAppearanceFill(source)
-		if not source then return false end
-		if getCurrentAccessoryCount()<getTargetAccessoryCount() then
-			return true
-		end
-		for _,className in {"Shirt","Pants","ShirtGraphic","BodyColors"} do
-			if sourceHasClass(source,className) and not char:FindFirstChildOfClass(className) then
-				return true
-			end
-		end
-		if sourceHasFace(source) and not charHasFace() then
-			return true
-		end
-		return false
-	end
-
-	local function fillAppearanceFromSource(source)
-		if not source then return end
-		local existingAccessories={}
-		for _,inst in char:GetChildren() do
-			if inst:IsA("Accessory") then
-				existingAccessories[inst.Name]=true
-			end
-		end
-		for _,inst in source:GetChildren() do
-			if inst:IsA("Accessory") then
-				if not existingAccessories[inst.Name] then
-					inst:Clone().Parent=char
-					existingAccessories[inst.Name]=true
-				end
-			elseif inst:IsA("Shirt") or inst:IsA("Pants") or inst:IsA("ShirtGraphic") or inst:IsA("BodyColors") then
-				if not char:FindFirstChildOfClass(inst.ClassName) then
-					inst:Clone().Parent=char
-				end
-			end
-		end
-		for _,inst in NAmanage.QueryDescendants(source, "Instance") do
-			if inst:IsA("CharacterMesh") then
-				inst:Clone().Parent=char
-			end
-		end
-		if not charHasFace() then
-			local headNow=getHead(char)
-			local headSrc=source:FindFirstChild("Head",true)
-			if headNow and headSrc then
-				copyHeadVisualsFromSource(headSrc,headNow)
-			end
-		end
-	end
-
-	local function collectAccessoryIds(descObj)
-		local ids = {}
-		if not descObj then
-			return ids
-		end
-		for _, key in {
-			"HatAccessory",
-			"HairAccessory",
-			"FaceAccessory",
-			"NeckAccessory",
-			"ShoulderAccessory",
-			"ShouldersAccessory",
-			"FrontAccessory",
-			"BackAccessory",
-			"WaistAccessory",
-			"AccessoryBlob",
-		} do
-			local ok, value = pcall(function()
-				return descObj[key]
-			end)
-			if ok and value ~= nil and value ~= "" then
-				for id in tostring(value):gmatch("%d+") do
-					if tonumber(id) and tonumber(id) > 0 then
-						ids[id] = true
-					end
-				end
-			end
-		end
-		return ids
-	end
-
-	local function descriptionsShareAccessories(currentDesc, targetDesc)
-		local currentIds = collectAccessoryIds(currentDesc)
-		local targetIds = collectAccessoryIds(targetDesc)
-		for id in currentIds do
-			if targetIds[id] then
-				return true
-			end
-		end
-		return false
-	end
-
-	local function stashEquippedTools()
-		local backpack = plr and (plr:FindFirstChildOfClass("Backpack") or plr:FindFirstChild("Backpack"))
-		local equippedTools = {}
-		for _, inst in char:GetChildren() do
-			if inst:IsA("Tool") then
-				Insert(equippedTools, inst)
-			end
-		end
-		if #equippedTools == 0 then
-			return equippedTools, backpack
-		end
-		pcall(function()
-			hum:UnequipTools()
-		end)
-		Wait()
-		if backpack then
-			for _, tool in equippedTools do
-				if tool and tool.Parent == char then
-					pcall(function()
-						tool.Parent = backpack
-					end)
-				end
-			end
-		end
-		return equippedTools, backpack
-	end
-
-	local function restoreEquippedTools(equippedTools, backpack)
-		if not equippedTools or #equippedTools == 0 then
-			return
-		end
-		local currentChar = getChar() or plr.Character or char
-		local currentBackpack = plr and (plr:FindFirstChildOfClass("Backpack") or plr:FindFirstChild("Backpack")) or backpack
-		if not currentChar then
-			return
-		end
-		for _, tool in equippedTools do
-			local toolRef = tool
-			if typeof(toolRef) == "Instance" and toolRef:IsA("Tool") and toolRef.Parent == nil and currentBackpack then
-				local found = currentBackpack:FindFirstChild(toolRef.Name)
-				if found and found:IsA("Tool") then
-					toolRef = found
-				end
-			end
-			if typeof(toolRef) == "Instance" and toolRef:IsA("Tool") and toolRef.Parent and toolRef.Parent ~= currentChar then
-				pcall(function()
-					toolRef.Parent = currentChar
-				end)
-			end
-		end
-	end
-
-	local equippedTools, backpack = stashEquippedTools()
-	local currentDesc
-	pcall(function()
-		currentDesc = hum:GetAppliedDescription()
-	end)
-
-	local function applyBlankDescription()
-		NAStuff._blankCharDesc = NAStuff._blankCharDesc or InstanceNew("HumanoidDescription")
-		pcall(function() hum:ApplyDescriptionClientServer(NAStuff._blankCharDesc) end)
-		for _ = 1, 20 do
-			Wait(0.05)
-			clearAppearance()
-			local appliedDesc
-			pcall(function()
-				appliedDesc = hum:GetAppliedDescription()
-			end)
-			if next(collectAccessoryIds(appliedDesc)) == nil then
-				break
-			end
-		end
-		clearAppearance()
-	end
-
-	local function applyTargetDescription()
-		clearAppearance()
-		hum:ApplyDescriptionClientServer(desc)
-		Wait(0.35)
-		ensureFace()
-		ensureClothes()
-	end
-
-	if opts.forceRefresh or descriptionsShareAccessories(currentDesc, desc) or getTargetAccessoryCount() > 0 then
-		applyBlankDescription()
-	end
-
-	applyTargetDescription()
-	if uidFallback and getTargetAccessoryCount() > 0 and getCurrentAccessoryCount() < getTargetAccessoryCount() then
-		applyBlankDescription()
-		applyTargetDescription()
-	end
-	local appearanceSource=getTargetAppearance()
-	if needsAppearanceFill(appearanceSource) then
-		fillAppearanceFromSource(appearanceSource)
-	end
-	if not charHasFace() then
-		ensureFace()
-	end
-	if hum.RigType==Enum.HumanoidRigType.R6 and uidFallback then
-		local ap = getTargetAppearance()
-		if ap then
-			for _,v in NAmanage.QueryDescendants(ap, "CharacterMesh") do
-				v:Clone().Parent=char
-			end
-		end
-	end
-	restoreEquippedTools(equippedTools, backpack)
-	if targetAppearanceOwned and targetAppearanceModel and targetAppearanceModel.Parent==nil then
-		pcall(function()
-			targetAppearanceModel:Destroy()
-		end)
-	end
-
-	local targetKey = opts.targetKey or (uidFallback and ("uid:"..tostring(uidFallback))) or nil
-	NAStuff._lastDescriptionKey = targetKey
-end
 
 NAmanage._resolveHumanoidDescription=function(target)
 	if not target or target=="" then
@@ -63731,73 +63287,6 @@ cmd.add({"team"},{"team <team name>","Changes your team (for the client)"},funct
 	assignTeam()
 end,true)
 
-cmd.addPatched({"char","character","morph"},{"char <username/userid>","change your character's appearance to someone else's"},function(arg)
-	local desc,userId=NAmanage._resolveHumanoidDescription(arg)
-	if not desc or not userId then
-		DoNotif("Unable to load that avatar.",3,"Char")
-		return
-	end
-	local targetKey="char:"..tostring(userId)
-	local opts={targetKey=targetKey}
-	if NAStuff._lastDescriptionKey==targetKey then
-		opts.forceRefresh=true
-	end
-	SpawnCall(function()
-		NAmanage._applyFixedDescription(desc:Clone(),userId,opts)
-	end)
-end,true)
-
-cmd.addPatched({"unchar"},{"unchar","revert to your character"},function()
-	local plr=Players.LocalPlayer
-	if not plr then return end
-	local desc=NAmanage._resolveHumanoidDescription(tostring(plr.UserId))
-	if not desc then return end
-	local targetKey="char:"..tostring(plr.UserId)
-	local opts={targetKey=targetKey}
-	if NAStuff._lastDescriptionKey==targetKey then
-		opts.forceRefresh=true
-	end
-	SpawnCall(function()
-		NAmanage._applyFixedDescription(desc:Clone(),plr.UserId,opts)
-	end)
-end)
-
-cmd.addPatched({"autochar","achar"},{"autochar","auto-change your character on respawn"},function(target)
-	local desc,userId=NAmanage._resolveHumanoidDescription(target)
-	if not desc or not userId then
-		DoNotif("Unable to load that avatar.",3,"Autochar")
-		return
-	end
-	local targetKey="char:"..tostring(userId)
-	NAStuff.AutoChar={UserId=userId,Description=desc}
-	NAlib.disconnect("autochar")
-	NAlib.connect("autochar",Players.LocalPlayer.CharacterAdded:Connect(function()
-		SpawnCall(function()
-			Wait(0.3)
-			if NAStuff.AutoChar and NAStuff.AutoChar.Description and NAStuff.AutoChar.UserId then
-				local evKey="char:"..tostring(NAStuff.AutoChar.UserId)
-				local opts={targetKey=evKey}
-				if NAStuff._lastDescriptionKey==evKey then
-					opts.forceRefresh=true
-				end
-				NAmanage._applyFixedDescription(NAStuff.AutoChar.Description:Clone(),NAStuff.AutoChar.UserId,opts)
-			end
-		end)
-	end))
-	SpawnCall(function()
-		local opts={targetKey=targetKey}
-		if NAStuff._lastDescriptionKey==targetKey then
-			opts.forceRefresh=true
-		end
-		NAmanage._applyFixedDescription(desc:Clone(),userId,opts)
-	end)
-end,true)
-
-cmd.addPatched({"unautochar","unachar"},{"unautochar","stop auto-change on respawn"},function()
-	NAlib.disconnect("autochar")
-	NAStuff.AutoChar=nil
-end)
-
 cmd.add({"reselectchar","reselectcharacter","pickchar","charpicker"},{"reselectchar","Re-open the character picker"},function()
 	if not (NA_GRAB_BODY and type(NA_GRAB_BODY.pickOverride) == "function") then
 		DoNotif("Character picker is unavailable.", 3)
@@ -63817,34 +63306,7 @@ NAmanage._resolveExplicitOutfitId=function(target)
 		or text:match("^#(%d+)$")
 	return tonumber(matched)
 end
-NAmanage._fetchOutfitDescriptionById=function(outfitId)
-	local id=tonumber(outfitId)
-	if not id or id<=0 then return nil end
-	local okD,desc=pcall(Players.GetHumanoidDescriptionFromOutfitId,Players,id)
-	if not okD or not desc then return nil end
-	return desc,id
-end
-NAmanage._applyOutfitDescriptionById=function(outfitId,keyPrefix)
-	local desc,id=NAmanage._fetchOutfitDescriptionById(outfitId)
-	if not desc or not id then return false end
-	if NAmanage._applyFixedDescription then
-		local outfitKey=(keyPrefix or "outfit")..":"..tostring(id)
-		local opts={targetKey=outfitKey}
-		if NAStuff._lastDescriptionKey==outfitKey then
-			opts.forceRefresh=true
-		end
-		NAmanage._applyFixedDescription(desc:Clone(),nil,opts)
-	else
-		local char=getChar() or Players.LocalPlayer.CharacterAdded:Wait()
-		local hum=getHum() or char:WaitForChild("Humanoid",3)
-		if not hum then return false end
-		local blank=InstanceNew("HumanoidDescription")
-		hum:ApplyDescriptionClientServer(blank)
-		Wait()
-		hum:ApplyDescriptionClientServer(desc)
-	end
-	return true,id,desc
-end
+
 NAmanage._outfitHttpJSON=function(url)
 	local req=opt and opt.NAREQUEST
 	local function lowerKeys(t)local r={};for k,v in t or{} do r[Lower(k)]=v end;return r end
@@ -64056,247 +63518,6 @@ NAmanage._openOutfitPagedWindow=function(cfg,page)
 	end
 	Window({Title=title,Description=desc,Buttons=buttons})
 end
-
-cmd.addPatched({"autooutfit","aoutfit","autooutfitid","aoutfitid","aoid"},{"autooutfit {username/userid|outfit:id}","Auto-apply a selected outfit on respawn"},function(arg)
-	if not arg or arg=="" then return end
-	local explicitOutfitId=NAmanage._resolveExplicitOutfitId(arg)
-	if explicitOutfitId then
-		local desc,outfitId=NAmanage._fetchOutfitDescriptionById(explicitOutfitId)
-		if not desc or not outfitId then DoNotif("Failed to fetch outfit",3,"AutoOutfit") return end
-		NAlib.disconnect("autooutfit")
-		NAStuff.autoOutfitState={id=outfitId,name="Outfit #"..tostring(outfitId),owner=nil,kind="outfit"}
-		local outfitKey="autooutfit:"..tostring(outfitId)
-		local function applyAutoOutfitId()
-			local opts={targetKey=outfitKey}
-			if NAStuff._lastDescriptionKey==outfitKey then
-				opts.forceRefresh=true
-			end
-			NAmanage._applyFixedDescription(desc:Clone(),nil,opts)
-		end
-		NAlib.connect("autooutfit",Players.LocalPlayer.CharacterAdded:Connect(function()
-			SpawnCall(function()
-				Wait(0.3)
-				applyAutoOutfitId()
-			end)
-		end))
-		SpawnCall(applyAutoOutfitId)
-		DoNotif("Auto outfit set: #"..tostring(outfitId),2,"AutoOutfit")
-		return
-	end
-	local uid=NAmanage._resolveHumanoidUserId(arg);if not uid then DoNotif("Couldn't resolve user",3,"AutoOutfit") return end
-	local function currentAvatarButton()
-		return {Text=Format("Current Avatar  (#%d)",uid),Callback=function()
-			local desc,userId=NAmanage._resolveHumanoidDescription(tostring(uid))
-			if not desc or not userId then DoNotif("Failed to fetch current avatar",3,"AutoOutfit") return end
-			NAlib.disconnect("autooutfit")
-			NAStuff.autoOutfitState={id=userId,name="Current Avatar",owner=uid,kind="avatar"}
-			NAStuff.AutoChar={UserId=userId,Description=desc:Clone()}
-			local outfitKey="autooutfit:avatar:"..tostring(userId)
-			local function applyAutoAvatar()
-				local opts={targetKey=outfitKey}
-				if NAStuff._lastDescriptionKey==outfitKey then
-					opts.forceRefresh=true
-				end
-				NAmanage._applyFixedDescription(desc:Clone(),userId,opts)
-			end
-			NAlib.connect("autooutfit",Players.LocalPlayer.CharacterAdded:Connect(function()
-				SpawnCall(function()
-					Wait(0.3)
-					applyAutoAvatar()
-				end)
-			end))
-			SpawnCall(applyAutoAvatar)
-			DoNotif("Auto outfit set: Current Avatar",2,"AutoOutfit")
-		end}
-	end
-	local function makeOutfitButton(o)
-		return {Text=Format("%s  (#%d)",o.name,o.id),Callback=function()
-			NAlib.disconnect("autooutfit")
-			NAStuff.autoOutfitState={id=o.id,name=o.name,owner=uid}
-			local outfitKey="autooutfit:"..tostring(o.id)
-			local function applyAutoOutfit(desc)
-				local opts={targetKey=outfitKey}
-				if NAStuff._lastDescriptionKey==outfitKey then
-					opts.forceRefresh=true
-				end
-				NAmanage._applyFixedDescription(desc:Clone(),nil,opts)
-			end
-			NAlib.connect("autooutfit",Players.LocalPlayer.CharacterAdded:Connect(function()
-				SpawnCall(function()
-					local okD,desc=pcall(Players.GetHumanoidDescriptionFromOutfitId,Players,o.id)
-					if okD and desc then applyAutoOutfit(desc) end
-				end)
-			end))
-			SpawnCall(function()
-				local okD,desc=pcall(Players.GetHumanoidDescriptionFromOutfitId,Players,o.id)
-				if okD and desc then applyAutoOutfit(desc) end
-			end)
-			DoNotif("Auto outfit set: "..o.name,2,"AutoOutfit")
-		end}
-	end
-	local function showOutfits(list,fromCache)
-		NAmanage._openOutfitPagedWindow({
-			titlePrefix="AutoOutfit",
-			arg=arg,
-			uid=uid,
-			outfits=list,
-			cache=fromCache==true,
-			currentAvatarButton=currentAvatarButton,
-			makeOutfitButton=makeOutfitButton,
-		},1)
-	end
-	local outfits={}
-	local cache=NAStuff._outfitCache[uid]
-	if cache and (time()-cache.t)<120 and cache.list and #cache.list>0 then
-		outfits=cache.list
-		showOutfits(outfits,true)
-		return
-	else
-		local failedReason
-		outfits,failedReason=NAmanage._fetchUserOutfits(uid)
-		if type(outfits)~="table" or #outfits==0 then
-			if not failedReason then
-				DoNotif("No user-created outfits for that user",2,"AutoOutfit")
-				return
-			end
-			local buttons={currentAvatarButton()}
-			if failedReason=="cooldown" then
-				local retryAt=math.huge
-				for _,stamp in NAStuff._httpCooldown or{} do
-					if type(stamp)=="number" then retryAt=math.min(retryAt,stamp) end
-				end
-				local left=retryAt<math.huge and math.max(0,retryAt-time()) or 0
-				if left>0 then
-					DoNotif(Format("Loading outfits… retrying in %.1fs",left),math.max(1.2,left),"AutoOutfit")
-				end
-			elseif failedReason=="429" or failedReason=="5xx" then
-				local waitSec=0
-				for _,stamp in NAStuff._httpCooldown or{} do
-					if type(stamp)=="number" then waitSec=math.max(waitSec,stamp-time()) end
-				end
-				waitSec=math.max(waitSec,1.5)
-				DoNotif(Format("Loading outfits… retrying in %.1fs",waitSec),math.max(1.5,waitSec),"AutoOutfit")
-				return
-			end
-			if failedReason then
-				DoNotif(tostring(failedReason),3,"AutoOutfit")
-			end
-			Window({Title=Format("AutoOutfit • %s (%d)",tostring(arg),uid),Buttons=buttons})
-			return
-		end
-		NAStuff._outfitCache[uid]={t=time(),list=outfits}
-	end
-	showOutfits(outfits,false)
-end,true)
-
-cmd.add({"unautooutfit","unaoutfit"},{"unautooutfit","stop outfit auto-apply"},function()
-	NAlib.disconnect("autooutfit");NAStuff.autoOutfitState=nil;DoNotif("Auto outfit disabled",2,"AutoOutfit")
-end)
-
-cmd.addPatched({"outfit","outfitid","oid"},{"outfit {username/userid|outfit:id}","Open a list of a user's saved outfits or load a specific outfit id"},function(arg)
-	if not arg or arg=="" then return end
-	local explicitOutfitId=NAmanage._resolveExplicitOutfitId(arg)
-	if explicitOutfitId then
-		local okApplied,outfitId=NAmanage._applyOutfitDescriptionById(explicitOutfitId,"outfit")
-		if not okApplied then DoNotif("Failed to fetch outfit",3,"Outfits") return end
-		NAStuff.lastSelectedOutfitId=outfitId
-		DoNotif("Outfit applied: #"..tostring(outfitId),2,"Outfits")
-		return
-	end
-	NAStuff=NAStuff or{};NAStuff._outfitCache=NAStuff._outfitCache or{};NAStuff._httpBackoff=NAStuff._httpBackoff or{};NAStuff._httpCooldown=NAStuff._httpCooldown or{}
-	local uid=NAmanage._resolveHumanoidUserId(arg)
-	if not uid then DoNotif("Couldn't resolve user",3,"Outfits") return end
-	local function currentAvatarButton()
-		return {Text=Format("Current Avatar  (#%d)",uid),Callback=function()
-			local desc,userId=NAmanage._resolveHumanoidDescription(tostring(uid))
-			if not desc or not userId then DoNotif("Failed to fetch current avatar",3,"Outfits") return end
-			NAStuff.lastSelectedOutfitId=nil
-			if NAmanage._applyFixedDescription then
-				local outfitKey="outfit:avatar:"..tostring(userId)
-				local opts={targetKey=outfitKey}
-				if NAStuff._lastDescriptionKey==outfitKey then
-					opts.forceRefresh=true
-				end
-				NAmanage._applyFixedDescription(desc:Clone(),userId,opts)
-			else
-				local char=getChar() or Players.LocalPlayer.CharacterAdded:Wait()
-				local hum=getHum() or char:WaitForChild("Humanoid",3)
-				if not hum then return end
-				local blank=InstanceNew("HumanoidDescription");hum:ApplyDescriptionClientServer(blank);Wait();hum:ApplyDescriptionClientServer(desc)
-			end
-			DoNotif("Outfit applied: Current Avatar",2,"Outfits")
-		end}
-	end
-	local function makeOutfitButton(o)
-		return {Text=Format("%s  (#%d)",o.name,o.id),Callback=function()
-			local okD,desc=pcall(Players.GetHumanoidDescriptionFromOutfitId,Players,o.id)
-			if not okD or not desc then DoNotif("Failed to fetch outfit",3,"Outfits") return end
-			NAStuff.lastSelectedOutfitId=o.id
-			if NAmanage._applyFixedDescription then
-				local outfitKey="outfit:"..tostring(o.id)
-				local opts={targetKey=outfitKey}
-				if NAStuff._lastDescriptionKey==outfitKey then
-					opts.forceRefresh=true
-				end
-				NAmanage._applyFixedDescription(desc:Clone(),nil,opts)
-			else
-				local char=getChar() or Players.LocalPlayer.CharacterAdded:Wait()
-				local hum=getHum() or char:WaitForChild("Humanoid",3)
-				if not hum then return end
-				local blank=InstanceNew("HumanoidDescription");hum:ApplyDescriptionClientServer(blank);Wait();hum:ApplyDescriptionClientServer(desc)
-			end
-			DoNotif("Outfit applied: "..o.name,2,"Outfits")
-		end}
-	end
-	local function showOutfits(list,fromCache)
-		NAmanage._openOutfitPagedWindow({
-			titlePrefix="Outfits",
-			arg=arg,
-			uid=uid,
-			outfits=list,
-			cache=fromCache==true,
-			currentAvatarButton=currentAvatarButton,
-			makeOutfitButton=makeOutfitButton,
-		},1)
-	end
-	local cache=NAStuff._outfitCache[uid]
-	if cache and (time()-cache.t)<120 and cache.list and #cache.list>0 then
-		showOutfits(cache.list,true)
-		return
-	end
-	local outfits,failedReason=NAmanage._fetchUserOutfits(uid)
-	if type(outfits)~="table" or #outfits==0 then
-		if not failedReason then
-			DoNotif("No user-created outfits for that user",2,"Outfits")
-			return
-		end
-		local buttons={currentAvatarButton()}
-		if failedReason=="cooldown" then
-			local retryAt=math.huge
-			for _,stamp in NAStuff._httpCooldown or{} do
-				if type(stamp)=="number" then retryAt=math.min(retryAt,stamp) end
-			end
-			local left=retryAt<math.huge and math.max(0,retryAt-time()) or 0
-			if left>0 then
-				DoNotif(Format("Loading outfits… retrying in %.1fs",left),math.max(1.2,left),"Outfits")
-			end
-		elseif failedReason=="429" or failedReason=="5xx" then
-			local waitSec=0
-			for _,stamp in NAStuff._httpCooldown or{} do
-				if type(stamp)=="number" then waitSec=math.max(waitSec,stamp-time()) end
-			end
-			waitSec=math.max(waitSec,1.5)
-			DoNotif(Format("Loading outfits… retrying in %.1fs",waitSec),math.max(1.5,waitSec),"Outfits")
-			return
-		elseif failedReason then
-			DoNotif(tostring(failedReason),3,"Outfits")
-		end
-		Window({Title=Format("Outfits • %s (%d)",tostring(arg),uid),Buttons=buttons})
-		return
-	end
-	NAStuff._outfitCache[uid]={t=time(),list=outfits}
-	showOutfits(outfits,false)
-end,true)
 
 cmd.add({"goto","to","tp","teleport"},{"goto <player|npc:filter|X,Y,Z>","Teleport to the given player, NPC, or X,Y,Z coordinates"},function(...)
 	local input   = Concat({...}," ")
@@ -79812,7 +79033,8 @@ NAmanage.CreateBox = function(part, color, transparency)
 	end
 	update()
 	Defer(update)
-	local key = "esp_update_"..HttpService:GenerateGUID(false)
+	NAmanage._partESPUpdateKeySeq = (tonumber(NAmanage._partESPUpdateKeySeq) or 0) + 1
+	local key = "esp_update_"..NAmanage.GetSessionActionName("PartESPUpdate_"..tostring(NAmanage._partESPUpdateKeySeq))
 	if part:IsA("Model") then
 		NAlib.connect(key, NAmanage.descAdd(part, update))
 		NAlib.connect(key, NAmanage.descRem(part, update))
