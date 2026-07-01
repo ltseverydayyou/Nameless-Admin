@@ -885,6 +885,99 @@
       "desc": "Stop tracking staff members"
     },
     {
+      "name": "rewind",
+      "aliases": [
+        "rewind"
+      ],
+      "usage": "rewind [seconds]",
+      "args": "[seconds]",
+      "desc": "Enable hold-R rewind using NA's runtime state"
+    },
+    {
+      "name": "unrewind",
+      "aliases": [
+        "unrewind",
+        "stoprewind"
+      ],
+      "usage": "unrewind (stoprewind)",
+      "args": "",
+      "desc": "Disable rewind and clear its saved frames"
+    },
+    {
+      "name": "rewindspeed",
+      "aliases": [
+        "rewindspeed"
+      ],
+      "usage": "rewindspeed <frames>",
+      "args": "<frames>",
+      "desc": "Set rewind frames skipped per heartbeat"
+    },
+    {
+      "name": "rewindtime",
+      "aliases": [
+        "rewindtime",
+        "rewindseconds"
+      ],
+      "usage": "rewindtime <seconds>",
+      "args": "<seconds>",
+      "desc": "Set how many seconds rewind stores"
+    },
+    {
+      "name": "freemouse",
+      "aliases": [
+        "freemouse",
+        "togglefreemouse",
+        "wfcpfreemouse"
+      ],
+      "usage": "freemouse",
+      "args": "",
+      "desc": "Toggle cursor unlock while world model first person is active"
+    },
+    {
+      "name": "hideacc",
+      "aliases": [
+        "hideacc",
+        "accessories"
+      ],
+      "usage": "hideacc (accessories)",
+      "args": "",
+      "desc": "Hide or restore local accessory parts"
+    },
+    {
+      "name": "backview",
+      "aliases": [
+        "backview",
+        "rearview",
+        "rear",
+        "f5"
+      ],
+      "usage": "backview (rearview, rear, f5)",
+      "args": "",
+      "desc": "Flip the camera behind you and invert movement controls"
+    },
+    {
+      "name": "worldmodelfp",
+      "aliases": [
+        "worldmodelfp",
+        "wfcpfp",
+        "realfirstperson",
+        "fpmodel"
+      ],
+      "usage": "worldmodelfp (wfcpfp, realfirstperson, fpmodel)",
+      "args": "",
+      "desc": "WFCP world-model first person camera"
+    },
+    {
+      "name": "frontview",
+      "aliases": [
+        "frontview",
+        "resetcam"
+      ],
+      "usage": "frontview (resetcam)",
+      "args": "",
+      "desc": "Reset WFCP camera state and return to a normal front view"
+    },
+    {
       "name": "deletevelocity",
       "aliases": [
         "deletevelocity",
