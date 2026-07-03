@@ -753,9 +753,23 @@
         "setwaypoint",
         "setwp"
       ],
-      "usage": "setwaypoint <name...>",
-      "args": "<name...>",
-      "desc": "Store your current position under that name"
+      "usage": "setwaypoint <name...> [x y z]",
+      "args": "<name...> [x y z]",
+      "desc": "Store your current position, or create/update with custom coordinates"
+    },
+    {
+      "name": "setwaypointpos",
+      "aliases": [
+        "setwaypointpos",
+        "setwppos",
+        "waypointpos",
+        "wppos",
+        "editwaypoint",
+        "editwp"
+      ],
+      "usage": "setwaypointpos <name...> <x> <y> <z>",
+      "args": "<name...> <x> <y> <z>",
+      "desc": "Create or edit a waypoint using custom coordinates"
     },
     {
       "name": "gotowaypoint",
