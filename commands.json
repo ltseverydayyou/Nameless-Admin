@@ -748,6 +748,32 @@
       "desc": "Open the event binder menu"
     },
     {
+      "name": "showwaypoints",
+      "aliases": [
+        "showwaypoints",
+        "showwp",
+        "showwps",
+        "waypointesp",
+        "wpesp"
+      ],
+      "usage": "showwaypoints",
+      "args": "",
+      "desc": "Show saved waypoint ESP markers for this place"
+    },
+    {
+      "name": "hidewaypoints",
+      "aliases": [
+        "hidewaypoints",
+        "hidewp",
+        "hidewps",
+        "unshowwaypoints",
+        "unwpesp"
+      ],
+      "usage": "hidewaypoints",
+      "args": "",
+      "desc": "Hide saved waypoint ESP markers"
+    },
+    {
       "name": "setwaypoint",
       "aliases": [
         "setwaypoint",
