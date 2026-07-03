@@ -42732,29 +42732,278 @@ NAmanage.waypointNameFromArgs=function(...)
 	return (Concat(parts, " "):match("^%s*(.-)%s*$"))
 end
 
-cmd.add({"setwaypoint","setwp"},{"setwaypoint <name...>", "Store your current position under that name"},function(...)
-	local name = NAmanage.waypointNameFromArgs(...)
-	if not name or name == "" then
-		DoNotif("Usage: setwaypoint <name...>")
-		return
-	end
+NAmanage.WaypointTrim = NAmanage.WaypointTrim or function(text)
+	return tostring(text or ""):match("^%s*(.-)%s*$") or ""
+end
 
-	local char = getChar() or LocalPlayer.CharacterAdded:Wait()
-	local cf
+NAmanage.WaypointParseCoordinates = NAmanage.WaypointParseCoordinates or function(...)
+	local raw = NAmanage.WaypointTrim(Concat({...}, " "))
+	if raw == "" then
+		return nil
+	end
+	raw = raw:gsub("Vector3%.new", " "):gsub("CFrame%.new", " ")
+	raw = raw:gsub("[,%(%){%}%[%]]", " ")
+	local nums = {}
+	for numText in raw:gmatch("[-+]?%d*%.?%d+") do
+		local num = tonumber(numText)
+		if num then
+			nums[#nums + 1] = num
+			if #nums >= 3 then
+				break
+			end
+		end
+	end
+	if #nums < 3 then
+		return nil
+	end
+	return nums[1], nums[2], nums[3]
+end
+
+NAmanage.WaypointFormatNumber = NAmanage.WaypointFormatNumber or function(value)
+	local text = Format("%.3f", tonumber(value) or 0)
+	text = text:gsub("0+$", ""):gsub("%.$", "")
+	if text == "-0" then
+		text = "0"
+	end
+	return text
+end
+
+NAmanage.WaypointFormatCFramePosition = NAmanage.WaypointFormatCFramePosition or function(cf)
+	if typeof(cf) ~= "CFrame" then
+		return ""
+	end
+	local pos = cf.Position
+	return NAmanage.WaypointFormatNumber(pos.X)..", "..NAmanage.WaypointFormatNumber(pos.Y)..", "..NAmanage.WaypointFormatNumber(pos.Z)
+end
+
+NAmanage.WaypointEntryToCFrame = NAmanage.WaypointEntryToCFrame or function(entry)
+	if typeof(entry) == "CFrame" then
+		return entry
+	end
+	if type(entry) ~= "table" then
+		return nil
+	end
+	local comps = entry.Components
+	if type(comps) == "table" then
+		local ok, cf = pcall(function()
+			return CFrame.new(unpack(comps))
+		end)
+		if ok and typeof(cf) == "CFrame" then
+			return cf
+		end
+	end
+	local pos = entry.Position or entry.position or entry.Pos or entry.pos
+	if typeof(pos) == "Vector3" then
+		return CFrame.new(pos)
+	elseif type(pos) == "table" then
+		local x = tonumber(pos.X or pos.x or pos[1])
+		local y = tonumber(pos.Y or pos.y or pos[2])
+		local z = tonumber(pos.Z or pos.z or pos[3])
+		if x and y and z then
+			return CFrame.new(x, y, z)
+		end
+	end
+	local x = tonumber(entry.X or entry.x or entry[1])
+	local y = tonumber(entry.Y or entry.y or entry[2])
+	local z = tonumber(entry.Z or entry.z or entry[3])
+	if x and y and z then
+		return CFrame.new(x, y, z)
+	end
+	return nil
+end
+
+NAmanage.WaypointCFrameWithPosition = NAmanage.WaypointCFrameWithPosition or function(x, y, z, baseCf)
+	x, y, z = tonumber(x), tonumber(y), tonumber(z)
+	if not (x and y and z) then
+		return nil
+	end
+	if typeof(baseCf) == "CFrame" then
+		local comps = { baseCf:GetComponents() }
+		return CFrame.new(x, y, z, comps[4], comps[5], comps[6], comps[7], comps[8], comps[9], comps[10], comps[11], comps[12])
+	end
+	return CFrame.new(x, y, z)
+end
+
+NAmanage.WaypointMakeEntry = NAmanage.WaypointMakeEntry or function(cf)
+	if typeof(cf) ~= "CFrame" then
+		return nil
+	end
+	local pos = cf.Position
+	return {
+		Components = { cf:GetComponents() };
+		Position = {
+			X = pos.X;
+			Y = pos.Y;
+			Z = pos.Z;
+		};
+	}
+end
+
+NAmanage.WaypointGetCurrentCFrame = NAmanage.WaypointGetCurrentCFrame or function()
+	local char = getChar() or (LocalPlayer and LocalPlayer.Character)
+	if not char and LocalPlayer then
+		char = LocalPlayer.CharacterAdded:Wait()
+	end
 	local root = char and getRoot(char)
 	if char then
-		cf = (root and NAmanage.UG_clientCFrame(root)) or char:GetPivot()
+		return (root and NAmanage.UG_clientCFrame(root)) or char:GetPivot()
 	end
+	return nil
+end
 
-	if not cf then
-		DoNotif("Unable to get your character's position.")
-		return
+NAmanage.WaypointNameAndCoordinatesFromArgs = NAmanage.WaypointNameAndCoordinatesFromArgs or function(...)
+	local args = {...}
+	if #args >= 4 then
+		local x = tonumber(args[#args - 2])
+		local y = tonumber(args[#args - 1])
+		local z = tonumber(args[#args])
+		if x and y and z then
+			local nameParts = {}
+			for i = 1, #args - 3 do
+				nameParts[#nameParts + 1] = tostring(args[i] or "")
+			end
+			return NAmanage.waypointNameFromArgs(unpack(nameParts)), x, y, z
+		end
 	end
+	local joined = NAmanage.WaypointTrim(Concat(args, " "))
+	local nameText, coordText = joined:match("^(.-)%s*|%s*(.+)$")
+	if nameText and coordText then
+		local x, y, z = NAmanage.WaypointParseCoordinates(coordText)
+		if x and y and z then
+			return NAmanage.WaypointTrim(nameText), x, y, z
+		end
+	end
+	local ranges = {}
+	local scanAt = 1
+	while true do
+		local s, e = joined:find("[-+]?%d*%.?%d+", scanAt)
+		if not s then
+			break
+		end
+		ranges[#ranges + 1] = { s = s; e = e; text = joined:sub(s, e) }
+		scanAt = e + 1
+	end
+	if #ranges >= 3 then
+		local a = ranges[#ranges - 2]
+		local b = ranges[#ranges - 1]
+		local c = ranges[#ranges]
+		local tailName = NAmanage.WaypointTrim((joined:sub(1, a.s - 1):gsub("[%s,;|]+$", "")))
+		local x, y, z = tonumber(a.text), tonumber(b.text), tonumber(c.text)
+		if tailName ~= "" and x and y and z then
+			return tailName, x, y, z
+		end
+	end
+	return joined, nil, nil, nil
+end
 
-	Waypoints[name] = { Components = { cf:GetComponents() } }
+NAmanage.WaypointSet = NAmanage.WaypointSet or function(name, cf, sourceText)
+	name = NAmanage.waypointNameFromArgs(name)
+	if not name or name == "" then
+		DoNotif("Waypoint name cannot be empty.", 3)
+		return false
+	end
+	if typeof(cf) ~= "CFrame" then
+		DoNotif("Waypoint coordinates are invalid.", 3)
+		return false
+	end
+	Waypoints[name] = NAmanage.WaypointMakeEntry(cf)
 	NAmanage.SaveWaypoints()
 	NAmanage.UpdateWaypointList()
-	DebugNotif(("Waypoint '%s' set."):format(name))
+	DebugNotif(("Waypoint '%s' set%s."):format(name, sourceText and (" "..sourceText) or ""))
+	return true
+end
+
+NAmanage.WaypointSetFromUI = NAmanage.WaypointSetFromUI or function()
+	local nameBox = NAUIMANAGER and NAUIMANAGER.WaypointNameBox
+	local coordBox = NAUIMANAGER and NAUIMANAGER.WaypointCoordBox
+	local name = nameBox and nameBox.Text or ""
+	local coordText = coordBox and coordBox.Text or ""
+	name = NAmanage.waypointNameFromArgs(name)
+	if not name or name == "" then
+		return DoNotif("Enter a waypoint name first.", 3)
+	end
+	local x, y, z = NAmanage.WaypointParseCoordinates(coordText)
+	if not (x and y and z) then
+		return DoNotif("Enter coordinates as X, Y, Z.", 3)
+	end
+	local oldCf = NAmanage.WaypointEntryToCFrame(Waypoints[name])
+	local cf = NAmanage.WaypointCFrameWithPosition(x, y, z, oldCf)
+	if NAmanage.WaypointSet(name, cf, "from custom coordinates") and coordBox then
+		coordBox.Text = NAmanage.WaypointFormatCFramePosition(cf)
+	end
+end
+
+NAmanage.WaypointFillCurrentUI = NAmanage.WaypointFillCurrentUI or function()
+	local coordBox = NAUIMANAGER and NAUIMANAGER.WaypointCoordBox
+	local cf = NAmanage.WaypointGetCurrentCFrame()
+	if not cf then
+		return DoNotif("Unable to get your character's position.", 3)
+	end
+	if coordBox then
+		coordBox.Text = NAmanage.WaypointFormatCFramePosition(cf)
+	end
+	DebugNotif("Current coordinates filled.", 2)
+end
+
+NAmanage.WaypointOpenCoordinateEditor = NAmanage.WaypointOpenCoordinateEditor or function(name)
+	name = NAmanage.waypointNameFromArgs(name)
+	local entry = name and Waypoints[name]
+	local cf = NAmanage.WaypointEntryToCFrame(entry)
+	if not cf then
+		return DoNotif(("Waypoint '%s' is invalid."):format(tostring(name)), 3)
+	end
+	local currentText = NAmanage.WaypointFormatCFramePosition(cf)
+	Window({
+		Title = "Edit Waypoint Coordinates",
+		Description = "Waypoint: "..name.."\nCurrent: "..currentText.."\nEnter new coordinates as X, Y, Z.",
+		InputField = true,
+		Buttons = {
+			{
+				Text = "Save",
+				Callback = function(input)
+					local x, y, z = NAmanage.WaypointParseCoordinates(input)
+					if not (x and y and z) then
+						return DoNotif("Enter coordinates as X, Y, Z.", 3)
+					end
+					local latestCf = NAmanage.WaypointEntryToCFrame(Waypoints[name]) or cf
+					local newCf = NAmanage.WaypointCFrameWithPosition(x, y, z, latestCf)
+					if NAmanage.WaypointSet(name, newCf, "from edited coordinates") then
+						DebugNotif(("Updated '%s' to %s."):format(name, NAmanage.WaypointFormatCFramePosition(newCf)), 3)
+					end
+				end
+			}
+		}
+	})
+end
+
+cmd.add({"setwaypoint","setwp"},{"setwaypoint <name...> [x y z]", "Store your current position, or create/update with custom coordinates"},function(...)
+	local name, x, y, z = NAmanage.WaypointNameAndCoordinatesFromArgs(...)
+	if not name or name == "" then
+		DoNotif("Usage: setwaypoint <name...> [x y z]")
+		return
+	end
+	local cf
+	local usedCustomCoords = x and y and z
+	if usedCustomCoords then
+		cf = NAmanage.WaypointCFrameWithPosition(x, y, z, NAmanage.WaypointEntryToCFrame(Waypoints[name]))
+	else
+		cf = NAmanage.WaypointGetCurrentCFrame()
+	end
+	if not cf then
+		DoNotif(usedCustomCoords and "Waypoint coordinates are invalid." or "Unable to get your character's position.")
+		return
+	end
+	NAmanage.WaypointSet(name, cf, usedCustomCoords and "from custom coordinates" or nil)
+end,true)
+
+cmd.add({"setwaypointpos","setwppos","waypointpos","wppos","editwaypoint","editwp"},{"setwaypointpos <name...> <x> <y> <z>", "Create or edit a waypoint using custom coordinates"},function(...)
+	local name, x, y, z = NAmanage.WaypointNameAndCoordinatesFromArgs(...)
+	if not name or name == "" or not (x and y and z) then
+		DoNotif("Usage: setwaypointpos <name...> <x> <y> <z>")
+		return
+	end
+	local cf = NAmanage.WaypointCFrameWithPosition(x, y, z, NAmanage.WaypointEntryToCFrame(Waypoints[name]))
+	NAmanage.WaypointSet(name, cf, "from custom coordinates")
 end,true)
 
 cmd.add({"gotowaypoint","gotowp"},{"gotowaypoint <name...>", "Teleport to a saved waypoint"},function(...)
@@ -42768,16 +43017,9 @@ cmd.add({"gotowaypoint","gotowp"},{"gotowaypoint <name...>", "Teleport to a save
 		DoNotif(("No such waypoint '%s'."):format(name))
 		return
 	end
-	local comps = entry.Components
-	if type(comps) ~= "table" then
+	local cf = NAmanage.WaypointEntryToCFrame(entry)
+	if typeof(cf) ~= "CFrame" then
 		DoNotif(("Waypoint '%s' is invalid."):format(name))
-		return
-	end
-	local ok, cf = pcall(function()
-		return CFrame.new(unpack(comps))
-	end)
-	if not ok or typeof(cf) ~= "CFrame" then
-		DoNotif(("Failed to load waypoint '%s'."):format(name))
 		return
 	end
 	local char = getChar()
@@ -89161,7 +89403,11 @@ NAUIMANAGER = {
 	WaypointFrame = NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint"),
 	WaypointContainer = NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint") and (NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container"),
 	WaypointList = NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint") and (NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container")):FindFirstChild("List"),
-	filterBox = NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint") and (NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container")):FindFirstChildWhichIsA("TextBox"),
+	filterBox = NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint") and (NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container")):FindFirstChild("Filter"),
+	WaypointNameBox = NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint") and (NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container")):FindFirstChild("NameInput"),
+	WaypointCoordBox = NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint") and (NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container")):FindFirstChild("CoordInput"),
+	WaypointSetBtn = NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint") and (NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container")):FindFirstChild("SetBtn"),
+	WaypointCurrentBtn = NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint") and (NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container")):FindFirstChild("CurrentBtn"),
 	WPFrame = NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint") and (NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container")):FindFirstChild("List") and (((NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container")):FindFirstChild("List")):FindFirstChild("WP"),
 	WaypointCustomScrollBar = NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint") and (NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar"),
 	WaypointCustomScrollUp = NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint") and (NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar") and (((NAStuff.NASCREENGUI:FindFirstChild("SuchWaypoint")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Up"),
@@ -94914,14 +95160,15 @@ NAmanage.UpdateWaypointList=function()
 			local nameBtn = row:FindFirstChildWhichIsA("TextButton")
 			if nameBtn then
 				nameBtn.Text = name
-				nameBtn.Size = UDim2.new(1, -212, 1, 0)
+				nameBtn.Size = UDim2.new(1, -258, 1, 0)
 			end
 			local actionFrame = row:FindFirstChildWhichIsA("Frame")
 			if actionFrame then
-				actionFrame.Size = UDim2.new(0, 190, 0, 24)
+				actionFrame.Size = UDim2.new(0, 238, 0, 24)
 				local copyBtn = actionFrame:FindFirstChild("CopyBtn")
 				local delBtn = actionFrame:FindFirstChild("DelBtn")
 				local tpBtn = actionFrame:FindFirstChild("TPBtn")
+				local editBtn = actionFrame:FindFirstChild("EditBtn")
 				local renameBtn = actionFrame:FindFirstChild("RenameBtn")
 				if renameBtn then
 					MouseButtonFix(renameBtn, function()
@@ -94957,17 +95204,18 @@ NAmanage.UpdateWaypointList=function()
 						})
 					end)
 				end
+				if editBtn then
+					MouseButtonFix(editBtn, function()
+						NAmanage.WaypointOpenCoordinateEditor(name)
+					end)
+				end
 				if copyBtn then
 					MouseButtonFix(copyBtn, function()
-						local comps = entry.Components
-						if type(comps) ~= "table" then
-							return DebugNotif("Waypoint data missing", 3)
-						end
-						local posX, posY, posZ = comps[1], comps[2], comps[3]
-						if type(posX) ~= "number" or type(posY) ~= "number" or type(posZ) ~= "number" then
+						local cf = NAmanage.WaypointEntryToCFrame(entry)
+						if typeof(cf) ~= "CFrame" then
 							return DebugNotif("Waypoint position is invalid", 3)
 						end
-						local copyText = Format("%f, %f, %f", posX, posY, posZ)
+						local copyText = NAmanage.WaypointFormatCFramePosition(cf)
 						if setclipboard then
 							pcall(setclipboard, copyText)
 							DebugNotif("Copied "..name)
@@ -94986,8 +95234,10 @@ NAmanage.UpdateWaypointList=function()
 				end
 				if tpBtn then
 					MouseButtonFix(tpBtn, function()
-						local comps = entry.Components
-						local cf = CFrame.new(unpack(comps))
+						local cf = NAmanage.WaypointEntryToCFrame(entry)
+						if typeof(cf) ~= "CFrame" then
+							return DoNotif(("Waypoint '%s' is invalid."):format(name), 3)
+						end
 						local char = getChar()
 						if char then
 							NAmanage.UG_pivotModel(char, cf)
@@ -103190,6 +103440,26 @@ end))
 if NAUIMANAGER.filterBox then
 	NAlib.disconnect("waypoint_filter_text")
 	NAlib.connect("waypoint_filter_text", NAUIMANAGER.filterBox:GetPropertyChangedSignal("Text"):Connect(NAmanage.UpdateWaypointList))
+end
+if NAUIMANAGER.WaypointSetBtn then
+	NAlib.disconnect("waypoint_set_custom_btn")
+	MouseButtonFix(NAUIMANAGER.WaypointSetBtn, function()
+		NAmanage.WaypointSetFromUI()
+	end)
+end
+if NAUIMANAGER.WaypointCurrentBtn then
+	NAlib.disconnect("waypoint_current_fill_btn")
+	MouseButtonFix(NAUIMANAGER.WaypointCurrentBtn, function()
+		NAmanage.WaypointFillCurrentUI()
+	end)
+end
+if NAUIMANAGER.WaypointCoordBox then
+	NAlib.disconnect("waypoint_coord_enter")
+	NAlib.connect("waypoint_coord_enter", NAUIMANAGER.WaypointCoordBox.FocusLost:Connect(function(enterPressed)
+		if enterPressed and NAUIMANAGER.WaypointNameBox and NAUIMANAGER.WaypointNameBox.Text ~= "" then
+			NAmanage.WaypointSetFromUI()
+		end
+	end))
 end
 
 NAStuff.ExecutorKeywordSet = NAStuff.ExecutorKeywordSet or {
