@@ -1364,6 +1364,14 @@ local NAStuff = {
 	ESP_PlayerLocatorSize = 26;
 	ESP_PlayerLocatorShowText = false;
 	ESP_PlayerLocatorTextSize = 14;
+	WaypointESP_ShowBox = false;
+	WaypointESP_ShowName = true;
+	WaypointESP_ShowIcon = true;
+	WaypointESP_ShowHighlight = true;
+	WaypointESP_MaxDistance = 100000;
+	WaypointESP_IconSize = 42;
+	WaypointESP_TextSize = 18;
+	WaypointESP_Color = Color3.fromRGB(75, 155, 255);
 	ESP_LastExactPart = "";
 	ESP_LastPartialPart = "";
 	ESP_LastFolderName = "";
@@ -19696,6 +19704,14 @@ NAmanage.LoadESPSettings = function()
 		ESP_PlayerLocatorSize = 26;
 		ESP_PlayerLocatorShowText = false;
 		ESP_PlayerLocatorTextSize = 14;
+		WaypointESP_ShowBox = false;
+		WaypointESP_ShowName = true;
+		WaypointESP_ShowIcon = true;
+		WaypointESP_ShowHighlight = true;
+		WaypointESP_MaxDistance = 100000;
+		WaypointESP_IconSize = 42;
+		WaypointESP_TextSize = 18;
+		WaypointESP_Color = {75, 155, 255};
 		ESP_MaxPerStep = 24;
 		ESP_FolderMode = "parts";
 		ESP_ModelMode = "parts";
@@ -19895,6 +19911,14 @@ NAmanage.LoadESPSettings = function()
 	NAStuff.ESP_PlayerLocatorSize     = math.clamp(tonumber(d.ESP_PlayerLocatorSize) or 26, 12, 128)
 	NAStuff.ESP_PlayerLocatorShowText = d.ESP_PlayerLocatorShowText == true
 	NAStuff.ESP_PlayerLocatorTextSize = math.clamp(tonumber(d.ESP_PlayerLocatorTextSize) or 14, 10, 48)
+	NAStuff.WaypointESP_ShowBox = d.WaypointESP_ShowBox == true
+	NAStuff.WaypointESP_ShowName = d.WaypointESP_ShowName ~= false
+	NAStuff.WaypointESP_ShowIcon = d.WaypointESP_ShowIcon ~= false
+	NAStuff.WaypointESP_ShowHighlight = d.WaypointESP_ShowHighlight ~= false
+	NAStuff.WaypointESP_MaxDistance = math.clamp(tonumber(d.WaypointESP_MaxDistance) or 100000, 50, 100000)
+	NAStuff.WaypointESP_IconSize = math.clamp(math.floor((tonumber(d.WaypointESP_IconSize) or 42) + 0.5), 16, 96)
+	NAStuff.WaypointESP_TextSize = math.clamp(math.floor((tonumber(d.WaypointESP_TextSize) or 18) + 0.5), 10, 48)
+	NAStuff.WaypointESP_Color = sanitizeColor(d.WaypointESP_Color, Color3.fromRGB(75, 155, 255))
 
 	if NAStuff.ESP_LocatorEnabled then
 		NAmanage.ESP_LocatorEnable(true)
@@ -20036,6 +20060,14 @@ NAmanage.SaveESPSettings = function(opts)
 		ESP_PlayerLocatorSize = math.clamp(tonumber(NAStuff.ESP_PlayerLocatorSize) or 26, 12, 128);
 		ESP_PlayerLocatorShowText = NAStuff.ESP_PlayerLocatorShowText == true;
 		ESP_PlayerLocatorTextSize = math.clamp(tonumber(NAStuff.ESP_PlayerLocatorTextSize) or 14, 10, 48);
+		WaypointESP_ShowBox = NAStuff.WaypointESP_ShowBox == true;
+		WaypointESP_ShowName = NAStuff.WaypointESP_ShowName ~= false;
+		WaypointESP_ShowIcon = NAStuff.WaypointESP_ShowIcon ~= false;
+		WaypointESP_ShowHighlight = NAStuff.WaypointESP_ShowHighlight ~= false;
+		WaypointESP_MaxDistance = math.clamp(tonumber(NAStuff.WaypointESP_MaxDistance) or 100000, 50, 100000);
+		WaypointESP_IconSize = math.clamp(math.floor((tonumber(NAStuff.WaypointESP_IconSize) or 42) + 0.5), 16, 96);
+		WaypointESP_TextSize = math.clamp(math.floor((tonumber(NAStuff.WaypointESP_TextSize) or 18) + 0.5), 10, 48);
+		WaypointESP_Color = NAmanage.UserButtonColorToTable(NAStuff.WaypointESP_Color or Color3.fromRGB(75, 155, 255));
 		ESP_MaxPerStep = math.clamp(math.floor(tonumber(NAStuff.ESP_MaxPerStep) or 24), 1, 256);
 		ESP_FolderMode = (Lower(tostring(NAStuff.ESP_FolderMode)) == "models") and "models" or "parts";
 		ESP_ModelMode = (Lower(tostring(NAStuff.ESP_ModelMode)) == "models") and "models" or "parts";
@@ -26925,6 +26957,45 @@ NAmanage.RotectorEnsureRenderLoop = function()
 	end)
 end
 
+NAmanage.RotectorDestroyScreenMarker = function(marker)
+	if type(marker) ~= "table" then
+		return
+	end
+	for _, field in { "screenLabel", "frame" } do
+		local inst = marker[field]
+		if typeof(inst) == "Instance" then
+			pcall(function()
+				inst:Destroy()
+			end)
+		end
+		marker[field] = nil
+	end
+end
+
+NAmanage.RotectorDisableScreenOverlay = function()
+	local rt = NAmanage.Rotector
+	if type(rt) ~= "table" then
+		return
+	end
+	if rt.renderConn then
+		pcall(function()
+			rt.renderConn:Disconnect()
+		end)
+		rt.renderConn = nil
+	end
+	if type(rt.markers) == "table" then
+		for _, marker in rt.markers do
+			NAmanage.RotectorDestroyScreenMarker(marker)
+		end
+	end
+	if typeof(rt.overlay) == "Instance" then
+		pcall(function()
+			rt.overlay:Destroy()
+		end)
+	end
+	rt.overlay = nil
+end
+
 NAmanage.RotectorClearMarker = function(plrOrId)
 	local rt = NAmanage.Rotector
 	if type(rt) ~= "table" then
@@ -26953,28 +27024,31 @@ NAmanage.RotectorClearMarker = function(plrOrId)
 			end)
 		end
 	end
-	for _, field in { "billboard", "highlight", "frame" } do
+	for _, field in { "billboard", "highlight", "frame", "screenLabel", "label" } do
 		local inst = marker[field]
 		if typeof(inst) == "Instance" then
 			pcall(function()
 				inst:Destroy()
 			end)
 		end
+		marker[field] = nil
 	end
 end
 
 NAmanage.RotectorClearAllMarkers = function()
 	local rt = NAmanage.Rotector
 	local markers = rt and rt.markers
-	if type(markers) ~= "table" then
-		return
+	if type(markers) == "table" then
+		local ids = {}
+		for key in markers do
+			Insert(ids, key)
+		end
+		for _, key in ids do
+			NAmanage.RotectorClearMarker(key)
+		end
 	end
-	local ids = {}
-	for key in markers do
-		Insert(ids, key)
-	end
-	for _, key in ids do
-		NAmanage.RotectorClearMarker(key)
+	if type(NAmanage.RotectorDisableScreenOverlay) == "function" then
+		NAmanage.RotectorDisableScreenOverlay()
 	end
 end
 
@@ -27094,9 +27168,7 @@ NAmanage.RotectorEnsureMarker = function(plr, entry)
 		end)
 	end
 
-	NAmanage.RotectorEnsureScreenMarker(marker, entry)
-	NAmanage.RotectorEnsureRenderLoop()
-	NAmanage.RotectorUpdateMarkerFrame(marker)
+	NAmanage.RotectorDisableScreenOverlay()
 
 	local char, anchor = NAmanage.RotectorFindAnchor(plr)
 	if not char then
@@ -36337,6 +36409,17 @@ NAmanage.SaveWaypoints = function()
 			writefile(path, "{}")
 		end
 	end
+	if NAStuff and type(NAStuff.WaypointESPState) == "table"
+		and NAStuff.WaypointESPState.enabled == true
+		and type(NAmanage.WaypointESPRefresh) == "function" then
+		Defer(function()
+			if NAStuff and type(NAStuff.WaypointESPState) == "table"
+				and NAStuff.WaypointESPState.enabled == true
+				and type(NAmanage.WaypointESPRefresh) == "function" then
+				NAmanage.WaypointESPRefresh(true)
+			end
+		end)
+	end
 end
 
 NAmanage.LogJoinLeave = function(message)
@@ -42975,6 +43058,425 @@ NAmanage.WaypointOpenCoordinateEditor = NAmanage.WaypointOpenCoordinateEditor or
 		}
 	})
 end
+
+NAmanage.WaypointESPGetState = NAmanage.WaypointESPGetState or function()
+	if type(NAStuff.WaypointESPState) ~= "table" then
+		NAStuff.WaypointESPState = {
+			enabled = false;
+			markerFolder = nil;
+			visualFolder = nil;
+			visuals = {};
+		}
+	end
+	local state = NAStuff.WaypointESPState
+	if type(state.visuals) ~= "table" then
+		state.visuals = {}
+	end
+	return state
+end
+
+NAmanage.WaypointESPGetColor = NAmanage.WaypointESPGetColor or function()
+	local color = NAStuff.WaypointESP_Color
+	if typeof(color) == "Color3" then
+		return color
+	end
+	return Color3.fromRGB(75, 155, 255)
+end
+
+NAmanage.WaypointESPGetMaxDistance = NAmanage.WaypointESPGetMaxDistance or function()
+	local dist = tonumber(NAStuff.WaypointESP_MaxDistance) or 100000
+	if dist <= 0 then
+		return 100000
+	end
+	return math.clamp(dist, 50, 100000)
+end
+
+NAmanage.WaypointESPGetIconSize = NAmanage.WaypointESPGetIconSize or function()
+	return math.clamp(math.floor((tonumber(NAStuff.WaypointESP_IconSize) or 42) + 0.5), 16, 96)
+end
+
+NAmanage.WaypointESPGetTextSize = NAmanage.WaypointESPGetTextSize or function()
+	return math.clamp(math.floor((tonumber(NAStuff.WaypointESP_TextSize) or 18) + 0.5), 10, 48)
+end
+
+NAmanage.WaypointESPGetIconFont = NAmanage.WaypointESPGetIconFont or function()
+	local path = BUILDER_ICON_FONT_PATH or "rbxasset://LuaPackages/Packages/_Index/BuilderIcons/BuilderIcons/BuilderIcons.json"
+	if Font and type(Font.new) == "function" then
+		local ok, font = pcall(Font.new, path, Enum.FontWeight.Bold, Enum.FontStyle.Normal)
+		if ok and font then
+			return font
+		end
+	end
+	return nil
+end
+
+NAmanage.WaypointESPApplyLabelFont = NAmanage.WaypointESPApplyLabelFont or function(label, bold)
+	if typeof(label) ~= "Instance" then
+		return
+	end
+	if Font and type(Font.new) == "function" then
+		local ok, font = pcall(Font.new, "rbxasset://fonts/families/BuilderSans.json", bold and Enum.FontWeight.Bold or Enum.FontWeight.Medium, Enum.FontStyle.Normal)
+		if ok and font then
+			pcall(function()
+				label.FontFace = font
+			end)
+			return
+		end
+	end
+	pcall(function()
+		label.Font = bold and Enum.Font.GothamBold or Enum.Font.Gotham
+	end)
+end
+
+NAmanage.WaypointESPSessionName = NAmanage.WaypointESPSessionName or function(key)
+	local logicalKey = "WaypointESP_"..tostring(key or "Instance")
+	if type(NAmanage.GetSessionInstanceName) == "function" then
+		local ok, value = pcall(NAmanage.GetSessionInstanceName, logicalKey)
+		if ok and type(value) == "string" and value ~= "" then
+			return value
+		end
+	end
+	if type(NAmanage.GenerateOpaqueSessionKey) == "function" then
+		local ok, value = pcall(NAmanage.GenerateOpaqueSessionKey)
+		if ok and type(value) == "string" and value ~= "" then
+			return value
+		end
+	end
+	return "a"..tostring(math.random(100000, 999999)).."_-"..tostring(math.random(100000, 999999))
+end
+
+NAmanage.WaypointESPSetSessionName = NAmanage.WaypointESPSetSessionName or function(inst, key)
+	if typeof(inst) ~= "Instance" then
+		return nil
+	end
+	local name = NAmanage.WaypointESPSessionName(key)
+	if type(name) == "string" and name ~= "" then
+		pcall(function()
+			inst.Name = name
+		end)
+	end
+	return name
+end
+
+NAmanage.WaypointESPDestroy = NAmanage.WaypointESPDestroy or function(disable)
+	local state = NAmanage.WaypointESPGetState()
+	if disable == true then
+		state.enabled = false
+	end
+	if type(state.visuals) == "table" then
+		for _, visual in state.visuals do
+			if type(visual) == "table" then
+				for _, key in { "box", "highlight", "nameBillboard", "iconBillboard", "marker" } do
+					local inst = visual[key]
+					if typeof(inst) == "Instance" then
+						pcall(function()
+							inst:Destroy()
+						end)
+					end
+				end
+			elseif typeof(visual) == "Instance" then
+				pcall(function()
+					visual:Destroy()
+				end)
+			end
+		end
+	end
+	state.visuals = {}
+	if typeof(state.visualFolder) == "Instance" then
+		pcall(function()
+			state.visualFolder:Destroy()
+		end)
+	end
+	state.visualFolder = nil
+	if typeof(state.markerFolder) == "Instance" then
+		pcall(function()
+			state.markerFolder:Destroy()
+		end)
+	end
+	state.markerFolder = nil
+end
+
+NAmanage.WaypointESPGetMarkerFolder = NAmanage.WaypointESPGetMarkerFolder or function()
+	local state = NAmanage.WaypointESPGetState()
+	if typeof(state.markerFolder) == "Instance" and state.markerFolder.Parent then
+		return state.markerFolder
+	end
+	local folder = Instance.new("Folder")
+	NAmanage.WaypointESPSetSessionName(folder, "MarkerFolder")
+	folder.Parent = workspace
+	state.markerFolder = folder
+	return folder
+end
+
+NAmanage.WaypointESPGetVisualFolder = NAmanage.WaypointESPGetVisualFolder or function()
+	local state = NAmanage.WaypointESPGetState()
+	local secureContainer = nil
+	if type(NAmanage.ESP_EnsureSecureContainer) == "function" then
+		secureContainer = NAmanage.ESP_EnsureSecureContainer()
+	end
+	if not secureContainer and type(NAmanage.ESP_GetSecureHost) == "function" then
+		secureContainer = NAmanage.ESP_GetSecureHost()
+	end
+	if typeof(secureContainer) ~= "Instance" then
+		return nil
+	end
+	if typeof(state.visualFolder) == "Instance" and state.visualFolder.Parent == secureContainer then
+		return state.visualFolder
+	end
+	if typeof(state.visualFolder) == "Instance" then
+		pcall(function()
+			state.visualFolder:Destroy()
+		end)
+	end
+	local folder = InstanceNew and InstanceNew("Folder") or Instance.new("Folder")
+	if NAmanage.ESP_HardenVisual then
+		pcall(NAmanage.ESP_HardenVisual, folder)
+	end
+	NAmanage.WaypointESPSetSessionName(folder, "VisualFolder")
+	folder.Parent = secureContainer
+	state.visualFolder = folder
+	return folder
+end
+
+NAmanage.WaypointESPStoreVisual = NAmanage.WaypointESPStoreVisual or function(inst, key)
+	if typeof(inst) ~= "Instance" then
+		return nil
+	end
+	local folder = NAmanage.WaypointESPGetVisualFolder()
+	if typeof(folder) ~= "Instance" then
+		local stored = NAmanage.ESP_StoreVisual and NAmanage.ESP_StoreVisual(inst) or nil
+		NAmanage.WaypointESPSetSessionName(inst, key or inst.ClassName)
+		return stored
+	end
+	if NAmanage.ESP_HardenVisual then
+		pcall(NAmanage.ESP_HardenVisual, inst)
+	end
+	NAmanage.WaypointESPSetSessionName(inst, key or inst.ClassName)
+	if inst.Parent ~= folder then
+		pcall(function()
+			inst.Parent = folder
+		end)
+	end
+	return folder
+end
+
+NAmanage.WaypointESPCreateVisual = NAmanage.WaypointESPCreateVisual or function(name, cf)
+	if typeof(cf) ~= "CFrame" then
+		return nil
+	end
+	local markerFolder = NAmanage.WaypointESPGetMarkerFolder()
+	if typeof(markerFolder) ~= "Instance" then
+		return nil
+	end
+
+	local color = NAmanage.WaypointESPGetColor()
+	local marker = Instance.new("Part")
+	NAmanage.WaypointESPSetSessionName(marker, "Marker_"..tostring(name))
+	marker.Anchored = true
+	marker.CanCollide = false
+	marker.CanTouch = false
+	marker.CanQuery = false
+	marker.CastShadow = false
+	pcall(function()
+		marker.Material = Enum.Material.Glass
+	end)
+	marker.Size = Vector3.new(4, 4, 4)
+	marker.Transparency = 1
+	marker.CFrame = cf
+	marker.Parent = markerFolder
+
+	local box = nil
+	if NAStuff.WaypointESP_ShowBox == true then
+		box = InstanceNew and InstanceNew("BoxHandleAdornment") or Instance.new("BoxHandleAdornment")
+		NAmanage.WaypointESPSetSessionName(box, "Box_"..tostring(name))
+		box.Adornee = marker
+		box.AlwaysOnTop = true
+		box.Color3 = color
+		box.Size = marker.Size
+		box.Transparency = NAgui and NAgui.sanitizeTransparency and NAgui.sanitizeTransparency(NAStuff.ESP_PartTransparency or 0.45) or 0.35
+		box.ZIndex = 10
+		NAmanage.WaypointESPStoreVisual(box, "Box_"..tostring(name))
+	end
+
+	local highlight = nil
+	if NAStuff.WaypointESP_ShowHighlight ~= false then
+		local okHighlight, hl = pcall(Instance.new, "Highlight")
+		if okHighlight and hl then
+			highlight = hl
+			NAmanage.WaypointESPSetSessionName(highlight, "Highlight_"..tostring(name))
+			highlight.Adornee = marker
+			highlight.FillColor = color
+			highlight.OutlineColor = color
+			highlight.FillTransparency = 0.88
+			highlight.OutlineTransparency = 0
+			pcall(function()
+				highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+			end)
+			NAmanage.WaypointESPStoreVisual(highlight, "Highlight_"..tostring(name))
+		end
+	end
+
+	local nameBillboard = nil
+	local nameLabel = nil
+	if NAStuff.WaypointESP_ShowName ~= false then
+		local nameTextSize = NAmanage.WaypointESPGetTextSize()
+		nameBillboard = InstanceNew and InstanceNew("BillboardGui") or Instance.new("BillboardGui")
+		NAmanage.WaypointESPSetSessionName(nameBillboard, "NameBillboard_"..tostring(name))
+		nameBillboard.Adornee = marker
+		nameBillboard.AlwaysOnTop = true
+		nameBillboard.MaxDistance = NAmanage.WaypointESPGetMaxDistance()
+		nameBillboard.Size = UDim2.fromOffset(math.max(260, nameTextSize * 12), math.max(34, nameTextSize + 14))
+		nameBillboard.StudsOffsetWorldSpace = Vector3.new(0, 3.65, 0)
+		pcall(function()
+			nameBillboard.LightInfluence = 0
+		end)
+		nameBillboard.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+		NAmanage.WaypointESPStoreVisual(nameBillboard, "NameBillboard_"..tostring(name))
+
+		nameLabel = InstanceNew and InstanceNew("TextLabel", nameBillboard) or Instance.new("TextLabel")
+		NAmanage.WaypointESPSetSessionName(nameLabel, "NameLabel_"..tostring(name))
+		nameLabel.BackgroundTransparency = 1
+		nameLabel.Size = UDim2.fromScale(1, 1)
+		nameLabel.Text = tostring(name)
+		nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+		nameLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+		nameLabel.TextStrokeTransparency = 0
+		nameLabel.TextScaled = false
+		nameLabel.TextSize = nameTextSize
+		nameLabel.TextWrapped = false
+		nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+		nameLabel.ZIndex = 2
+		NAmanage.WaypointESPApplyLabelFont(nameLabel, true)
+		if nameLabel.Parent ~= nameBillboard then
+			nameLabel.Parent = nameBillboard
+		end
+	end
+
+	local iconBillboard = nil
+	local iconLabel = nil
+	if NAStuff.WaypointESP_ShowIcon ~= false then
+		local iconSize = NAmanage.WaypointESPGetIconSize()
+		iconBillboard = InstanceNew and InstanceNew("BillboardGui") or Instance.new("BillboardGui")
+		NAmanage.WaypointESPSetSessionName(iconBillboard, "IconBillboard_"..tostring(name))
+		iconBillboard.Adornee = marker
+		iconBillboard.AlwaysOnTop = true
+		iconBillboard.MaxDistance = NAmanage.WaypointESPGetMaxDistance()
+		iconBillboard.Size = UDim2.fromOffset(math.max(58, iconSize + 16), math.max(58, iconSize + 16))
+		iconBillboard.StudsOffsetWorldSpace = Vector3.new(0, 0, 0)
+		pcall(function()
+			iconBillboard.LightInfluence = 0
+		end)
+		iconBillboard.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+		NAmanage.WaypointESPStoreVisual(iconBillboard, "IconBillboard_"..tostring(name))
+
+		iconLabel = InstanceNew and InstanceNew("TextLabel", iconBillboard) or Instance.new("TextLabel")
+		NAmanage.WaypointESPSetSessionName(iconLabel, "IconLabel_"..tostring(name))
+		iconLabel.BackgroundTransparency = 1
+		iconLabel.Size = UDim2.fromScale(1, 1)
+		iconLabel.Text = "location-pin"
+		iconLabel.TextColor3 = color
+		iconLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+		iconLabel.TextStrokeTransparency = 0.12
+		iconLabel.TextSize = iconSize
+		iconLabel.TextXAlignment = Enum.TextXAlignment.Center
+		iconLabel.TextYAlignment = Enum.TextYAlignment.Center
+		iconLabel.ZIndex = 3
+		local iconFont = NAmanage.WaypointESPGetIconFont()
+		if iconFont then
+			pcall(function()
+				iconLabel.FontFace = iconFont
+			end)
+		else
+			pcall(function()
+				iconLabel.Font = Enum.Font.GothamBold
+			end)
+		end
+		if iconLabel.Parent ~= iconBillboard then
+			iconLabel.Parent = iconBillboard
+		end
+	end
+
+	return {
+		marker = marker;
+		box = box;
+		highlight = highlight;
+		nameBillboard = nameBillboard;
+		nameLabel = nameLabel;
+		iconBillboard = iconBillboard;
+		iconLabel = iconLabel;
+	}
+end
+
+NAmanage.WaypointESPRefresh = NAmanage.WaypointESPRefresh or function(silent)
+	local state = NAmanage.WaypointESPGetState()
+	if state.enabled ~= true then
+		return 0
+	end
+	NAmanage.WaypointESPDestroy(false)
+	state.enabled = true
+	local count = 0
+	local invalid = 0
+	for name, entry in Waypoints do
+		local cf = NAmanage.WaypointEntryToCFrame(entry)
+		if typeof(cf) == "CFrame" then
+			local visual = NAmanage.WaypointESPCreateVisual(name, cf)
+			if visual then
+				state.visuals[name] = visual
+				count += 1
+			end
+		else
+			invalid += 1
+		end
+		if (count + invalid) % 24 == 0 then
+			Wait()
+		end
+	end
+	if silent ~= true then
+		if count > 0 then
+			DebugNotif(("Waypoint ESP showing %d waypoint%s."):format(count, count == 1 and "" or "s"), 3)
+		elseif invalid > 0 then
+			DoNotif("Waypoint ESP enabled, but saved waypoint coordinates are invalid.", 3)
+		else
+			DoNotif("Waypoint ESP enabled. No saved waypoints for this place yet.", 3)
+		end
+	end
+	return count
+end
+
+NAmanage.WaypointESPApplyOptions = NAmanage.WaypointESPApplyOptions or function()
+	local state = NAmanage.WaypointESPGetState()
+	if state.enabled == true then
+		NAmanage.WaypointESPRefresh(true)
+	end
+end
+
+NAmanage.WaypointESPSetEnabled = NAmanage.WaypointESPSetEnabled or function(enabled, silent)
+	local state = NAmanage.WaypointESPGetState()
+	state.enabled = enabled == true
+	if state.enabled then
+		local count = NAmanage.WaypointESPRefresh(silent)
+		if NAgui and NAgui.setToggleState then
+			pcall(NAgui.setToggleState, "Waypoint ESP", true, { force = true; fire = false; animate = true })
+		end
+		return count
+	end
+	NAmanage.WaypointESPDestroy(true)
+	if NAgui and NAgui.setToggleState then
+		pcall(NAgui.setToggleState, "Waypoint ESP", false, { force = true; fire = false; animate = true })
+	end
+	if silent ~= true then
+		DebugNotif("Waypoint ESP hidden.", 2)
+	end
+	return 0
+end
+
+cmd.add({"showwaypoints", "showwp", "showwps", "waypointesp", "wpesp"}, {"showwaypoints", "Show saved waypoint ESP markers for this place"}, function()
+	NAmanage.WaypointESPSetEnabled(true)
+end, true)
+
+cmd.add({"hidewaypoints", "hidewp", "hidewps", "unshowwaypoints", "unwpesp"}, {"hidewaypoints", "Hide saved waypoint ESP markers"}, function()
+	NAmanage.WaypointESPSetEnabled(false)
+end)
 
 cmd.add({"setwaypoint","setwp"},{"setwaypoint <name...> [x y z]", "Store your current position, or create/update with custom coordinates"},function(...)
 	local name, x, y, z = NAmanage.WaypointNameAndCoordinatesFromArgs(...)
@@ -124974,6 +125476,70 @@ NAgui.addSlider("Player Locator Text Size", 10, 48, math.clamp(tonumber(NAStuff.
 	NAStuff.ESP_PlayerLocatorTextSize = math.clamp(tonumber(v) or 14, 10, 48)
 	NAmanage.ESP_PlayerLocatorApplyFlags()
 	NAmanage.SaveESPSettings()
+end)
+
+NAgui.addSection("Waypoint ESP")
+
+NAgui.addToggle("Waypoint ESP", (NAmanage.WaypointESPGetState and NAmanage.WaypointESPGetState().enabled == true) or false, function(state)
+	if state then
+		NAmanage.WaypointESPSetEnabled(true)
+	else
+		NAmanage.WaypointESPSetEnabled(false)
+	end
+end)
+NAmanage.RegisterToggleAutoSync("Waypoint ESP", function()
+	return NAmanage.WaypointESPGetState and NAmanage.WaypointESPGetState().enabled == true
+end)
+
+NAgui.addToggle("Waypoint ESP Box", NAStuff.WaypointESP_ShowBox == true, function(state)
+	NAStuff.WaypointESP_ShowBox = state == true
+	NAmanage.SaveESPSettings()
+	NAmanage.WaypointESPApplyOptions()
+end)
+
+NAgui.addToggle("Waypoint ESP Name Text", NAStuff.WaypointESP_ShowName ~= false, function(state)
+	NAStuff.WaypointESP_ShowName = state ~= false
+	NAmanage.SaveESPSettings()
+	NAmanage.WaypointESPApplyOptions()
+end)
+
+NAgui.addToggle("Waypoint ESP BuilderIcon", NAStuff.WaypointESP_ShowIcon ~= false, function(state)
+	NAStuff.WaypointESP_ShowIcon = state ~= false
+	NAmanage.SaveESPSettings()
+	NAmanage.WaypointESPApplyOptions()
+end)
+
+NAgui.addToggle("Waypoint ESP Highlight", NAStuff.WaypointESP_ShowHighlight ~= false, function(state)
+	NAStuff.WaypointESP_ShowHighlight = state ~= false
+	NAmanage.SaveESPSettings()
+	NAmanage.WaypointESPApplyOptions()
+end)
+
+NAgui.addColorPicker("Waypoint ESP Color", NAStuff.WaypointESP_Color or Color3.fromRGB(75, 155, 255), function(color)
+	if typeof(color) ~= "Color3" then
+		return
+	end
+	NAStuff.WaypointESP_Color = color
+	NAmanage.SaveESPSettings()
+	NAmanage.WaypointESPApplyOptions()
+end)
+
+NAgui.addSlider("Waypoint Icon Size", 16, 96, math.clamp(tonumber(NAStuff.WaypointESP_IconSize) or 42, 16, 96), 1, " px", function(v)
+	NAStuff.WaypointESP_IconSize = math.clamp(math.floor((tonumber(v) or 42) + 0.5), 16, 96)
+	NAmanage.SaveESPSettings()
+	NAmanage.WaypointESPApplyOptions()
+end)
+
+NAgui.addSlider("Waypoint Text Size", 10, 48, math.clamp(tonumber(NAStuff.WaypointESP_TextSize) or 18, 10, 48), 1, " px", function(v)
+	NAStuff.WaypointESP_TextSize = math.clamp(math.floor((tonumber(v) or 18) + 0.5), 10, 48)
+	NAmanage.SaveESPSettings()
+	NAmanage.WaypointESPApplyOptions()
+end)
+
+NAgui.addSlider("Waypoint ESP Distance", 50, 100000, math.clamp(tonumber(NAStuff.WaypointESP_MaxDistance) or 100000, 50, 100000), 50, " studs", function(v)
+	NAStuff.WaypointESP_MaxDistance = math.clamp(tonumber(v) or 100000, 50, 100000)
+	NAmanage.SaveESPSettings()
+	NAmanage.WaypointESPApplyOptions()
 end)
 
 NAgui.addSection("Part ESP")
