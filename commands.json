@@ -774,6 +774,45 @@
       "desc": "Hide saved waypoint ESP markers"
     },
     {
+      "name": "showpathwaypoint",
+      "aliases": [
+        "showpathwaypoint",
+        "showpathwp",
+        "pathwaypoint",
+        "pathwp",
+        "showwppath"
+      ],
+      "usage": "showpathwaypoint <name...>",
+      "args": "<name...>",
+      "desc": "Show PathfindingService route nodes to a saved waypoint"
+    },
+    {
+      "name": "hidepathwaypoint",
+      "aliases": [
+        "hidepathwaypoint",
+        "hidepathwp",
+        "unpathwaypoint",
+        "unpathwp",
+        "stoppathwaypoint",
+        "stoppathwp"
+      ],
+      "usage": "hidepathwaypoint",
+      "args": "",
+      "desc": "Hide waypoint path route nodes and stop waypoint pathfinding"
+    },
+    {
+      "name": "pathfindwaypoint",
+      "aliases": [
+        "pathfindwaypoint",
+        "pathfindwp",
+        "pfwaypoint",
+        "pfwp"
+      ],
+      "usage": "pathfindwaypoint <name...>",
+      "args": "<name...>",
+      "desc": "Pathfind to a saved waypoint and show the route nodes"
+    },
+    {
       "name": "setwaypoint",
       "aliases": [
         "setwaypoint",
