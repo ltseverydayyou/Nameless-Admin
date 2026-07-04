@@ -1394,6 +1394,7 @@ local NAStuff = {
 	WaypointESP_TextSize = 18;
 	WaypointESP_Color = Color3.fromRGB(75, 155, 255);
 	WaypointPath_ShowNodes = true;
+	WaypointPath_ShowText = false;
 	ESP_LastExactPart = "";
 	ESP_LastPartialPart = "";
 	ESP_LastFolderName = "";
@@ -19736,6 +19737,7 @@ NAmanage.LoadESPSettings = function()
 		WaypointESP_TextSize = 18;
 		WaypointESP_Color = {75, 155, 255};
 		WaypointPath_ShowNodes = true;
+		WaypointPath_ShowText = false;
 		ESP_MaxPerStep = 24;
 		ESP_FolderMode = "parts";
 		ESP_ModelMode = "parts";
@@ -19945,6 +19947,7 @@ NAmanage.LoadESPSettings = function()
 	NAStuff.WaypointESP_TextSize = math.clamp(math.floor((tonumber(d.WaypointESP_TextSize) or 18) + 0.5), 10, 48)
 	NAStuff.WaypointESP_Color = sanitizeColor(d.WaypointESP_Color, Color3.fromRGB(75, 155, 255))
 	NAStuff.WaypointPath_ShowNodes = d.WaypointPath_ShowNodes ~= false
+	NAStuff.WaypointPath_ShowText = d.WaypointPath_ShowText == true
 
 	if NAStuff.ESP_LocatorEnabled then
 		NAmanage.ESP_LocatorEnable(true)
@@ -20096,6 +20099,7 @@ NAmanage.SaveESPSettings = function(opts)
 		WaypointESP_TextSize = math.clamp(math.floor((tonumber(NAStuff.WaypointESP_TextSize) or 18) + 0.5), 10, 48);
 		WaypointESP_Color = NAmanage.UserButtonColorToTable(NAStuff.WaypointESP_Color or Color3.fromRGB(75, 155, 255));
 		WaypointPath_ShowNodes = NAStuff.WaypointPath_ShowNodes ~= false;
+		WaypointPath_ShowText = NAStuff.WaypointPath_ShowText == true;
 		ESP_MaxPerStep = math.clamp(math.floor(tonumber(NAStuff.ESP_MaxPerStep) or 24), 1, 256);
 		ESP_FolderMode = (Lower(tostring(NAStuff.ESP_FolderMode)) == "models") and "models" or "parts";
 		ESP_ModelMode = (Lower(tostring(NAStuff.ESP_ModelMode)) == "models") and "models" or "parts";
@@ -31834,10 +31838,8 @@ NAmanage._unanchorFlyCharacter = function(char)
 	if head then
 		pcall(function() head.Anchored = false end)
 	end
-	for _, inst in char:GetDescendants() do
-		if inst:IsA("BasePart") then
-			pcall(function() inst.Anchored = false end)
-		end
+	for _, inst in NAmanage.QueryDescendants(char, "BasePart") do
+		pcall(function() inst.Anchored = false end)
 	end
 end
 
@@ -40140,10 +40142,8 @@ NAmanage.ovTrack = function(st, chr)
 	st.ovAccMap = {}
 	st.ovMeshCache = {}
 	st.ovPropCache = {}
-	for _, desc in NAmanage.QueryDescendants(chr, "Instance") do
-		if desc:IsA("BasePart") then
-			NAmanage.ovPartAdd(st, desc)
-		end
+	for _, desc in NAmanage.QueryDescendants(chr, "BasePart") do
+		NAmanage.ovPartAdd(st, desc)
 	end
 	st.ovConns = {}
 	local conns = st.ovConns
@@ -43631,6 +43631,7 @@ NAmanage.WaypointPathGetState = NAmanage.WaypointPathGetState or function()
 		NAStuff.WaypointPathState = {
 			enabled = false;
 			following = false;
+			followTarget = nil;
 			token = 0;
 			markerFolder = nil;
 			visualFolder = nil;
@@ -43681,6 +43682,7 @@ NAmanage.WaypointPathDestroy = NAmanage.WaypointPathDestroy or function(disable)
 	if disable == true then
 		state.enabled = false
 		state.following = false
+		state.followTarget = nil
 		state.lastWaypoints = nil
 		state.lastName = nil
 	end
@@ -43717,6 +43719,17 @@ NAmanage.WaypointPathDestroy = NAmanage.WaypointPathDestroy or function(disable)
 	state.markerFolder = nil
 end
 
+NAmanage.WaypointPathSyncUI = NAmanage.WaypointPathSyncUI or function()
+	if type(NAmanage.UpdateWaypointList) ~= "function" then
+		return
+	end
+	Defer(function()
+		if type(NAmanage.UpdateWaypointList) == "function" then
+			pcall(NAmanage.UpdateWaypointList)
+		end
+	end)
+end
+
 NAmanage.WaypointPathStop = NAmanage.WaypointPathStop or function(silent)
 	local state = NAmanage.WaypointPathGetState()
 	state.token = (tonumber(state.token) or 0) + 1
@@ -43725,6 +43738,7 @@ NAmanage.WaypointPathStop = NAmanage.WaypointPathStop or function(silent)
 	if silent ~= true then
 		DebugNotif("Waypoint pathfinding stopped.", 2)
 	end
+	NAmanage.WaypointPathSyncUI()
 end
 
 NAmanage.WaypointPathGetMarkerFolder = NAmanage.WaypointPathGetMarkerFolder or function()
@@ -43911,6 +43925,7 @@ NAmanage.WaypointPathCreateVisual = NAmanage.WaypointPathCreateVisual or functio
 	NAmanage.WaypointPathSetSessionName(billboard, "Billboard_"..tostring(index))
 	billboard.Adornee = marker
 	billboard.AlwaysOnTop = true
+	billboard.Enabled = NAStuff.WaypointPath_ShowText == true
 	billboard.MaxDistance = NAmanage.WaypointESPGetMaxDistance()
 	billboard.Size = UDim2.fromOffset(96, 30)
 	billboard.StudsOffsetWorldSpace = Vector3.new(0, 2.25, 0)
@@ -43946,6 +43961,21 @@ NAmanage.WaypointPathCreateVisual = NAmanage.WaypointPathCreateVisual or functio
 	}
 end
 
+NAmanage.WaypointPathApplyTextVisibility = NAmanage.WaypointPathApplyTextVisibility or function()
+	local state = NAmanage.WaypointPathGetState()
+	local showText = NAStuff.WaypointPath_ShowText == true
+	if type(state.visuals) ~= "table" then
+		return
+	end
+	for _, visual in state.visuals do
+		if type(visual) == "table" and typeof(visual.billboard) == "Instance" then
+			pcall(function()
+				visual.billboard.Enabled = showText
+			end)
+		end
+	end
+end
+
 NAmanage.WaypointPathDraw = NAmanage.WaypointPathDraw or function(name, waypoints)
 	local state = NAmanage.WaypointPathGetState()
 	state.lastName = name
@@ -43970,6 +44000,7 @@ NAmanage.WaypointPathDraw = NAmanage.WaypointPathDraw or function(name, waypoint
 			Wait()
 		end
 	end
+	NAmanage.WaypointPathApplyTextVisibility()
 	return made
 end
 
@@ -44013,7 +44044,9 @@ NAmanage.WaypointPathFollow = NAmanage.WaypointPathFollow or function(rawName)
 	state.token = (tonumber(state.token) or 0) + 1
 	local token = state.token
 	state.following = true
+	state.followTarget = name
 	state.enabled = true
+	NAmanage.WaypointPathSyncUI()
 	DebugNotif(("Pathfinding to waypoint '%s'."):format(name), 2)
 	Spawn(function()
 		local attempts = 0
@@ -44025,6 +44058,8 @@ NAmanage.WaypointPathFollow = NAmanage.WaypointPathFollow or function(rawName)
 			local waypoints, computeErr = NAmanage.WaypointPathCompute(cf)
 			if not waypoints then
 				state.following = false
+				state.followTarget = nil
+				NAmanage.WaypointPathSyncUI()
 				DoNotif(computeErr or "Pathfinding failed.", 3)
 				return
 			end
@@ -44064,6 +44099,8 @@ NAmanage.WaypointPathFollow = NAmanage.WaypointPathFollow or function(rawName)
 			end
 			if completedRoute and root and (root.Position - cf.Position).Magnitude <= 8 then
 				state.following = false
+				state.followTarget = nil
+				NAmanage.WaypointPathSyncUI()
 				DebugNotif(("Reached waypoint '%s'."):format(name), 2)
 				return
 			end
@@ -44071,9 +44108,25 @@ NAmanage.WaypointPathFollow = NAmanage.WaypointPathFollow or function(rawName)
 		end
 		if state.token == token then
 			state.following = false
+			state.followTarget = nil
+			NAmanage.WaypointPathSyncUI()
 			DoNotif(("Pathfind to waypoint '%s' stopped; route may be blocked."):format(name), 3)
 		end
 	end)
+end
+
+NAmanage.WaypointPathToggle = NAmanage.WaypointPathToggle or function(rawName)
+	local name = NAmanage.waypointNameFromArgs(rawName)
+	if not name or name == "" then
+		DoNotif("Usage: pathfindwaypoint <name...>", 3)
+		return
+	end
+	local state = NAmanage.WaypointPathGetState()
+	if state.following == true and state.followTarget == name then
+		NAmanage.WaypointPathStop(false)
+		return
+	end
+	NAmanage.WaypointPathFollow(name)
 end
 
 cmd.add({"showpathwaypoint", "showpathwp", "pathwaypoint", "pathwp", "showwppath"}, {"showpathwaypoint <name...>", "Show PathfindingService route nodes to a saved waypoint"}, function(...)
@@ -44167,6 +44220,10 @@ cmd.add({"removewaypoint","removewp","rwp"},{"removewaypoint <name...>", "Remove
 	end
 
 	if Waypoints[name] then
+		local pathState = NAmanage.WaypointPathGetState and NAmanage.WaypointPathGetState()
+		if pathState and (pathState.followTarget == name or pathState.lastName == name) and type(NAmanage.WaypointPathStop) == "function" then
+			NAmanage.WaypointPathStop(true)
+		end
 		Waypoints[name] = nil
 		NAmanage.SaveWaypoints()
 		NAmanage.UpdateWaypointList()
@@ -45477,8 +45534,8 @@ NAmanage.WFCPForEachAccessoryPart = function(char, callback)
 			if handle and handle:IsA("BasePart") then
 				callback(handle)
 			end
-			for _, desc in item:GetDescendants() do
-				if desc:IsA("BasePart") and desc ~= handle then
+			for _, desc in NAmanage.QueryDescendants(item, "BasePart") do
+				if desc ~= handle then
 					callback(desc)
 				end
 			end
@@ -45936,8 +45993,8 @@ cmd.add({"frontview", "resetcam"}, {"frontview (resetcam)", "Reset WFCP camera s
 end)
 
 cmd.add({"deletevelocity", "dv", "removevelocity", "removeforces"}, {"deletevelocity (dv, removevelocity, removeforces)", "removes any velocity/force instanceson your character"}, function()
-	for _,vel in NAmanage.QueryDescendants(LocalPlayer.Character, "Instance") do
-		if vel:IsA("BodyVelocity") or vel:IsA("BodyGyro") or vel:IsA("RocketPropulsion") or vel:IsA("BodyThrust") or vel:IsA("BodyAngularVelocity") or vel:IsA("AngularVelocity") or vel:IsA("BodyForce") or vel:IsA("VectorForce") or vel:IsA("LineForce") then
+	for _, className in { "BodyVelocity", "BodyGyro", "RocketPropulsion", "BodyThrust", "BodyAngularVelocity", "AngularVelocity", "BodyForce", "VectorForce", "LineForce" } do
+		for _, vel in NAmanage.QueryDescendants(LocalPlayer.Character, className) do
 			vel:Destroy()
 		end
 	end
@@ -54386,12 +54443,12 @@ cmd.add({"antiflingparts","antiunanchoredfling","afparts"},{"antiflingparts [lin
 		end
 
 		if type(parts) ~= "table" then
-			local wsList = workspace:QueryDescendants("Instance")
+			local wsList = NAmanage.QueryDescendants(workspace, "BasePart")
 			parts = {}
 			local count = 0
 			for i = 1, #wsList do
 				local obj = wsList[i]
-				if obj and obj:IsA("BasePart") and not obj:IsDescendantOf(character) then
+				if obj and not obj:IsDescendantOf(character) then
 					local offset = obj.Position - root.Position
 					if offset:Dot(offset) <= DISTANCE_LIMIT_SQ then
 						count += 1
@@ -54731,11 +54788,9 @@ cmd.add({"vehiclespeed", "vspeed"}, {"vehiclespeed <amount> (vspeed)", "Change t
 			if root then
 				local model = root:FindFirstAncestorOfClass("Model")
 				if model then
-					for _, part in NAmanage.QueryDescendants(model, "Instance") do
-						if part:IsA("BasePart") then
-							part.AssemblyLinearVelocity = Vector3.zero
-							part.AssemblyAngularVelocity = Vector3.zero
-						end
+					for _, part in NAmanage.QueryDescendants(model, "BasePart") do
+						part.AssemblyLinearVelocity = Vector3.zero
+						part.AssemblyAngularVelocity = Vector3.zero
 						if part:IsA("VehicleSeat") then
 							part.Throttle = 0
 							part.Steer = 0
@@ -54792,11 +54847,9 @@ cmd.add({"unvehiclespeed", "unvspeed"}, {"unvehiclespeed (unvspeed)", "Stops the
 		if root then
 			local model = root:FindFirstAncestorOfClass("Model")
 			if model then
-				for _, part in NAmanage.QueryDescendants(model, "Instance") do
-					if part:IsA("BasePart") then
-						part.AssemblyLinearVelocity = Vector3.zero
-						part.AssemblyAngularVelocity = Vector3.zero
-					end
+				for _, part in NAmanage.QueryDescendants(model, "BasePart") do
+					part.AssemblyLinearVelocity = Vector3.zero
+					part.AssemblyAngularVelocity = Vector3.zero
 					if part:IsA("VehicleSeat") then
 						part.Throttle = 0
 						part.Steer = 0
@@ -55493,7 +55546,7 @@ end
 
 NAmanage.SeedNpcCandidates = function()
 	NAStuff.npcCandidates = {}
-	for _, inst in workspace:QueryDescendants("Instance") do
+	for _, inst in NAmanage.QueryDescendants(workspace, "Model") do
 		NAmanage.AddNpcCandidate(inst)
 	end
 end
@@ -63531,7 +63584,7 @@ NAmanage.AntiTouchEnableRemoveParts = function()
 	end))
 
 	local changed = 0
-	for _, inst in workspace:QueryDescendants("Instance") do
+	for _, inst in NAmanage.QueryDescendants(workspace, "TouchTransmitter") do
 		if moveTouchPart(inst) then
 			changed += 1
 		end
@@ -63584,7 +63637,7 @@ NAmanage.AntiTouchEnableCanTouch = function()
 	end))
 
 	local changed = 0
-	for _, inst in workspace:QueryDescendants("Instance") do
+	for _, inst in NAmanage.QueryDescendants(workspace, "TouchTransmitter") do
 		if disableTouchPart(inst) then
 			changed += 1
 		end
@@ -66106,7 +66159,7 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 		end
 	end
 
-	for _,v in next,workspace:QueryDescendants("Instance") do ForcePart(v) end
+	for _, v in NAmanage.QueryDescendants(workspace, "BasePart") do ForcePart(v) end
 	NAlib.connect("blackhole_force",NAmanage.wsAdd(ForcePart))
 
 	UIS.InputBegan:Connect(function(k,chat)
@@ -66143,7 +66196,7 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 			end
 			DebugNotif("Blackhole force disabled",2)
 		else
-			for _,v in next,workspace:QueryDescendants("Instance") do ForcePart(v) end
+			for _, v in NAmanage.QueryDescendants(workspace, "BasePart") do ForcePart(v) end
 			DebugNotif("Blackhole force enabled",2)
 		end
 	end)
@@ -70532,8 +70585,8 @@ end)
 
 cmd.add({"tools", "gears"}, {"tools (gears)", "Copies tools from ReplicatedStorage and Lighting"}, function()
 	function copyTools(source)
-		for _, item in NAmanage.QueryDescendants(source, "Instance") do
-			if item:IsA('Tool') or item:IsA('HopperBin') then
+		for _, className in { "Tool", "HopperBin" } do
+			for _, item in NAmanage.QueryDescendants(source, className) do
 				item:Clone().Parent = getBp()
 			end
 		end
@@ -74950,14 +75003,13 @@ cmd.add({"unhideguis"}, {"unhideguis","Restores GUIs hidden by hideguis"}, funct
 end)
 
 cmd.add({"showguis"}, {"showguis","Enables every UI"}, function()
-	for _, inst in NAmanage.QueryDescendants(PlrGui, "Instance") do
-		if inst:IsA("ScreenGui") then
-			if not showPrev[inst] then showPrev[inst] = {enabled = inst.Enabled} end
-			inst.Enabled = true
-		elseif inst:IsA("GuiObject") then
-			if not showPrev[inst] then showPrev[inst] = {visible = inst.Visible} else if showPrev[inst].visible == nil then showPrev[inst].visible = inst.Visible end end
-			inst.Visible = true
-		end
+	for _, inst in NAmanage.QueryDescendants(PlrGui, "ScreenGui") do
+		if not showPrev[inst] then showPrev[inst] = {enabled = inst.Enabled} end
+		inst.Enabled = true
+	end
+	for _, inst in NAmanage.QueryDescendants(PlrGui, "GuiObject") do
+		if not showPrev[inst] then showPrev[inst] = {visible = inst.Visible} else if showPrev[inst].visible == nil then showPrev[inst].visible = inst.Visible end end
+		inst.Visible = true
 	end
 end)
 
@@ -75822,12 +75874,11 @@ NAjobs._ensureTracked = function()
 			end
 		end
 	elseif not NAmanage.ensureInteractionIndex then
-		for _, inst in NAmanage.QueryDescendants(workspace, "Instance") do
-			if inst:IsA("ProximityPrompt") then
-				NAjobs._trackedAdd("prompt", inst)
-			elseif inst:IsA("ClickDetector") then
-				NAjobs._trackedAdd("click", inst)
-			end
+		for _, inst in NAmanage.QueryDescendants(workspace, "ProximityPrompt") do
+			NAjobs._trackedAdd("prompt", inst)
+		end
+		for _, inst in NAmanage.QueryDescendants(workspace, "ClickDetector") do
+			NAjobs._trackedAdd("click", inst)
 		end
 	end
 	NAlib.connect("NAjobs_track_add", NAmanage.descAdd(workspace, function(inst)
@@ -80229,7 +80280,7 @@ cmd.add({"tpua","bringua"},{"tpua <player>","Brings every unanchored part on the
 		v.CFrame=targetCF*CFrame.new(math.random(-10,10),0,math.random(-10,10))
 	end
 
-	for _,part in workspace:QueryDescendants("Instance") do
+	for _, part in NAmanage.QueryDescendants(workspace, "BasePart") do
 		ForcePart(part)
 	end
 end,true)
@@ -80268,7 +80319,7 @@ cmd.add({"blackholefollow","bhf","bhpull","bhfollow"},{"blackholefollow","Pulls 
 		torque.Torque=Vector3.new(100000,100000,100000)
 	end
 
-	for _,part in workspace:QueryDescendants("Instance") do Defer(function() ForcePart(part) end) end
+	for _, part in NAmanage.QueryDescendants(workspace, "BasePart") do Defer(function() ForcePart(part) end) end
 
 	NAlib.connect("bhf",NAmanage.wsAdd(ForcePart))
 	NAlib.connect("bhf_sim",RunService.Heartbeat:Connect(function()
@@ -80288,8 +80339,8 @@ cmd.add({"noblackholefollow","nobhf","nobhpull","stopbhf"},{"noblackholefollow",
 	local root=getRoot(getPlrChar(LocalPlayer))
 	if root then local att=root:FindFirstChild("BHF_Attach") if att then att:Destroy() end end
 
-	for _,part in workspace:QueryDescendants("Instance") do
-		if part:IsA("BasePart") and not part.Anchored then
+	for _,part in NAmanage.QueryDescendants(workspace, "BasePart") do
+		if not part.Anchored then
 			for _,obj in part:GetChildren() do
 				if obj:IsA("AlignPosition") or obj:IsA("Torque") or obj:IsA("Attachment") then obj:Destroy() end
 			end
@@ -85504,10 +85555,8 @@ NAmanage.PST_UpdateActive = function(newOpts)
 end
 
 NAmanage.PST_ScanAll = function()
-	for _, obj in workspace:QueryDescendants("Instance") do
-		if obj:IsA("BasePart") then
-			NAmanage.PST_Queue(obj)
-		end
+	for _, obj in NAmanage.QueryDescendants(workspace, "BasePart") do
+		NAmanage.PST_Queue(obj)
 	end
 end
 
@@ -85797,7 +85846,7 @@ cmd.add({"breakcars", "bcars"}, {"breakcars (bcars)", "Breaks any car"}, functio
 		alignPosition.Attachment1 = Attachment1
 	end
 
-	for _, descendant in workspace:QueryDescendants("Instance") do
+	for _, descendant in NAmanage.QueryDescendants(workspace, "BasePart") do
 		applyForceToPart(descendant)
 	end
 
@@ -88238,10 +88287,12 @@ cmd.add({"blockremote","br"},{"blockremote [name]","Block a remote event/functio
 	local function scanAll()
 		local list, seen = {}, {}
 		local function scan(parent)
-			for _, obj in NAmanage.QueryDescendants(parent, "Instance") do
-				if (obj:IsA("RemoteEvent") or obj:IsA("UnreliableRemoteEvent") or obj:IsA("RemoteFunction")) and not seen[obj] then
-					seen[obj] = true
-					Insert(list, obj)
+			for _, className in { "RemoteEvent", "UnreliableRemoteEvent", "RemoteFunction" } do
+				for _, obj in NAmanage.QueryDescendants(parent, className) do
+					if not seen[obj] then
+						seen[obj] = true
+						Insert(list, obj)
+					end
 				end
 			end
 		end
@@ -89768,12 +89819,12 @@ cmd.add({"flingnpcs"}, {"flingnpcs", "Flings NPCs"}, function()
 	local npcs = {}
 
 	local function disappear(hum)
-		if hum:IsA("Humanoid") and CheckIfNPC(hum.Parent) then
+		if CheckIfNPC(hum.Parent) then
 			Insert(npcs,{hum,hum.HipHeight})
 			hum.HipHeight = 1024
 		end
 	end
-	for _,hum in workspace:QueryDescendants("Instance") do
+	for _, hum in NAmanage.QueryDescendants(workspace, "Humanoid") do
 		disappear(hum)
 	end
 end)
@@ -89782,14 +89833,14 @@ cmd.add({"npcfollow"}, {"npcfollow", "Makes NPCS follow you"}, function()
 	local npcs = {}
 
 	local function disappear(hum)
-		if hum:IsA("Humanoid") and CheckIfNPC(hum.Parent) then
+		if CheckIfNPC(hum.Parent) then
 			Insert(npcs,{hum,hum.HipHeight})
 			local rootPart = getRoot(hum.Parent)
 			local targetPos = getRoot(LocalPlayer.Character).Position
 			hum:MoveTo(targetPos)
 		end
 	end
-	for _,hum in workspace:QueryDescendants("Instance") do
+	for _, hum in NAmanage.QueryDescendants(workspace, "Humanoid") do
 		disappear(hum)
 	end
 end)
@@ -89802,14 +89853,14 @@ cmd.add({"loopnpcfollow"}, {"loopnpcfollow", "Makes NPCS follow you in a loop"},
 		local npcs = {}
 
 		local function disappear(hum)
-			if hum:IsA("Humanoid") and CheckIfNPC(hum.Parent) then
+			if CheckIfNPC(hum.Parent) then
 				Insert(npcs,{hum,hum.HipHeight})
 				local rootPart = getRoot(hum.Parent)
 				local targetPos = getRoot(LocalPlayer.Character).Position
 				hum:MoveTo(targetPos)
 			end
 		end
-		for _,hum in workspace:QueryDescendants("Instance") do
+		for _, hum in NAmanage.QueryDescendants(workspace, "Humanoid") do
 			disappear(hum)
 		end
 	until npcfollowloop == false
@@ -89823,7 +89874,7 @@ cmd.add({"sitnpcs"}, {"sitnpcs", "Makes NPCS sit"}, function()
 	local npcs = {}
 
 	local function disappear(hum)
-		if hum:IsA("Humanoid") and CheckIfNPC(hum.Parent) then
+		if CheckIfNPC(hum.Parent) then
 			Insert(npcs,{hum,hum.HipHeight})
 			local rootPart = getRoot(hum.Parent)
 			if rootPart then
@@ -89831,7 +89882,7 @@ cmd.add({"sitnpcs"}, {"sitnpcs", "Makes NPCS sit"}, function()
 			end
 		end
 	end
-	for _,hum in workspace:QueryDescendants("Instance") do
+	for _, hum in NAmanage.QueryDescendants(workspace, "Humanoid") do
 		disappear(hum)
 	end
 end)
@@ -89840,7 +89891,7 @@ cmd.add({"unsitnpcs"}, {"unsitnpcs", "Makes NPCS unsit"}, function()
 	local npcs = {}
 
 	local function disappear(hum)
-		if hum:IsA("Humanoid") and CheckIfNPC(hum.Parent) then
+		if CheckIfNPC(hum.Parent) then
 			Insert(npcs,{hum,hum.HipHeight})
 			local rootPart = getRoot(hum.Parent)
 			if rootPart then
@@ -89848,7 +89899,7 @@ cmd.add({"unsitnpcs"}, {"unsitnpcs", "Makes NPCS unsit"}, function()
 			end
 		end
 	end
-	for _,hum in workspace:QueryDescendants("Instance") do
+	for _, hum in NAmanage.QueryDescendants(workspace, "Humanoid") do
 		disappear(hum)
 	end
 end)
@@ -89857,7 +89908,7 @@ cmd.add({"killnpcs"}, {"killnpcs", "Kills NPCs"}, function()
 	local npcs = {}
 
 	local function disappear(hum)
-		if hum:IsA("Humanoid") and CheckIfNPC(hum.Parent) then
+		if CheckIfNPC(hum.Parent) then
 			Insert(npcs,{hum,hum.HipHeight})
 			local rootPart = getRoot(hum.Parent)
 			if rootPart then
@@ -89865,7 +89916,7 @@ cmd.add({"killnpcs"}, {"killnpcs", "Kills NPCs"}, function()
 			end
 		end
 	end
-	for _,hum in workspace:QueryDescendants("Instance") do
+	for _, hum in NAmanage.QueryDescendants(workspace, "Humanoid") do
 		disappear(hum)
 	end
 end)
@@ -89896,7 +89947,7 @@ cmd.add({"bringnpcs"}, {"bringnpcs [distance]", "Brings NPCs"}, function(...)
 	local npcs = {}
 
 	local function disappear(hum)
-		if hum:IsA("Humanoid") and CheckIfNPC(hum.Parent) then
+		if CheckIfNPC(hum.Parent) then
 			Insert(npcs,{hum,hum.HipHeight})
 			local rootPart = getRoot(hum.Parent)
 			local localRoot = LocalPlayer.Character and getRoot(LocalPlayer.Character)
@@ -89905,7 +89956,7 @@ cmd.add({"bringnpcs"}, {"bringnpcs [distance]", "Brings NPCs"}, function(...)
 			end
 		end
 	end
-	for _,hum in workspace:QueryDescendants("Instance") do
+	for _, hum in NAmanage.QueryDescendants(workspace, "Humanoid") do
 		disappear(hum)
 	end
 end)
@@ -96282,16 +96333,17 @@ NAmanage.UpdateWaypointList=function()
 			local nameBtn = row:FindFirstChildWhichIsA("TextButton")
 			if nameBtn then
 				nameBtn.Text = name
-				nameBtn.Size = UDim2.new(1, -258, 1, 0)
+				nameBtn.Size = UDim2.new(1, -307, 1, 0)
 			end
 			local actionFrame = row:FindFirstChildWhichIsA("Frame")
 			if actionFrame then
-				actionFrame.Size = UDim2.new(0, 238, 0, 24)
+				actionFrame.Size = UDim2.new(0, 287, 0, 24)
 				local copyBtn = actionFrame:FindFirstChild("CopyBtn")
 				local delBtn = actionFrame:FindFirstChild("DelBtn")
 				local tpBtn = actionFrame:FindFirstChild("TPBtn")
 				local editBtn = actionFrame:FindFirstChild("EditBtn")
 				local renameBtn = actionFrame:FindFirstChild("RenameBtn")
+				local pathBtn = actionFrame:FindFirstChild("PathBtn")
 				if renameBtn then
 					MouseButtonFix(renameBtn, function()
 						Window({
@@ -96317,6 +96369,15 @@ NAmanage.UpdateWaypointList=function()
 										end
 										Waypoints[newName] = Waypoints[name]
 										Waypoints[name] = nil
+										local pathState = NAmanage.WaypointPathGetState and NAmanage.WaypointPathGetState()
+										if pathState then
+											if pathState.followTarget == name then
+												pathState.followTarget = newName
+											end
+											if pathState.lastName == name then
+												pathState.lastName = newName
+											end
+										end
 										NAmanage.SaveWaypoints()
 										NAmanage.UpdateWaypointList()
 										DebugNotif(("Renamed waypoint '%s' to '%s'."):format(name, newName))
@@ -96329,6 +96390,19 @@ NAmanage.UpdateWaypointList=function()
 				if editBtn then
 					MouseButtonFix(editBtn, function()
 						NAmanage.WaypointOpenCoordinateEditor(name)
+					end)
+				end
+				if pathBtn then
+					local pathState = NAmanage.WaypointPathGetState and NAmanage.WaypointPathGetState()
+					local followingThis = pathState and pathState.following == true and pathState.followTarget == name
+					pathBtn.Text = followingThis and "Stop" or "Path"
+					pathBtn.BackgroundColor3 = followingThis and Color3.fromRGB(185, 55, 55) or Color3.fromRGB(55, 125, 215)
+					MouseButtonFix(pathBtn, function()
+						if type(NAmanage.WaypointPathToggle) == "function" then
+							NAmanage.WaypointPathToggle(name)
+						elseif type(NAmanage.WaypointPathFollow) == "function" then
+							NAmanage.WaypointPathFollow(name)
+						end
 					end)
 				end
 				if copyBtn then
@@ -96348,6 +96422,10 @@ NAmanage.UpdateWaypointList=function()
 				end
 				if delBtn then
 					MouseButtonFix(delBtn, function()
+						local pathState = NAmanage.WaypointPathGetState and NAmanage.WaypointPathGetState()
+						if pathState and (pathState.followTarget == name or pathState.lastName == name) and type(NAmanage.WaypointPathStop) == "function" then
+							NAmanage.WaypointPathStop(true)
+						end
 						Waypoints[name] = nil
 						NAmanage.SaveWaypoints()
 						NAmanage.UpdateWaypointList()
@@ -126148,6 +126226,14 @@ NAgui.addToggle("Waypoint Path Nodes", NAStuff.WaypointPath_ShowNodes ~= false, 
 		NAmanage.WaypointPathRedraw()
 	else
 		NAmanage.WaypointPathDestroy(false)
+	end
+end)
+
+NAgui.addToggle("Waypoint Path Node Text", NAStuff.WaypointPath_ShowText == true, function(state)
+	NAStuff.WaypointPath_ShowText = state == true
+	NAmanage.SaveESPSettings()
+	if type(NAmanage.WaypointPathApplyTextVisibility) == "function" then
+		NAmanage.WaypointPathApplyTextVisibility()
 	end
 end)
 
