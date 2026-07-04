@@ -1366,12 +1366,14 @@ local NAStuff = {
 	ESP_PlayerLocatorTextSize = 14;
 	WaypointESP_ShowBox = false;
 	WaypointESP_ShowName = true;
+	WaypointESP_ShowDistance = true;
 	WaypointESP_ShowIcon = true;
 	WaypointESP_ShowHighlight = true;
 	WaypointESP_MaxDistance = 100000;
 	WaypointESP_IconSize = 42;
 	WaypointESP_TextSize = 18;
 	WaypointESP_Color = Color3.fromRGB(75, 155, 255);
+	WaypointPath_ShowNodes = true;
 	ESP_LastExactPart = "";
 	ESP_LastPartialPart = "";
 	ESP_LastFolderName = "";
@@ -19706,12 +19708,14 @@ NAmanage.LoadESPSettings = function()
 		ESP_PlayerLocatorTextSize = 14;
 		WaypointESP_ShowBox = false;
 		WaypointESP_ShowName = true;
+		WaypointESP_ShowDistance = true;
 		WaypointESP_ShowIcon = true;
 		WaypointESP_ShowHighlight = true;
 		WaypointESP_MaxDistance = 100000;
 		WaypointESP_IconSize = 42;
 		WaypointESP_TextSize = 18;
 		WaypointESP_Color = {75, 155, 255};
+		WaypointPath_ShowNodes = true;
 		ESP_MaxPerStep = 24;
 		ESP_FolderMode = "parts";
 		ESP_ModelMode = "parts";
@@ -19913,12 +19917,14 @@ NAmanage.LoadESPSettings = function()
 	NAStuff.ESP_PlayerLocatorTextSize = math.clamp(tonumber(d.ESP_PlayerLocatorTextSize) or 14, 10, 48)
 	NAStuff.WaypointESP_ShowBox = d.WaypointESP_ShowBox == true
 	NAStuff.WaypointESP_ShowName = d.WaypointESP_ShowName ~= false
+	NAStuff.WaypointESP_ShowDistance = d.WaypointESP_ShowDistance ~= false
 	NAStuff.WaypointESP_ShowIcon = d.WaypointESP_ShowIcon ~= false
 	NAStuff.WaypointESP_ShowHighlight = d.WaypointESP_ShowHighlight ~= false
 	NAStuff.WaypointESP_MaxDistance = math.clamp(tonumber(d.WaypointESP_MaxDistance) or 100000, 50, 100000)
 	NAStuff.WaypointESP_IconSize = math.clamp(math.floor((tonumber(d.WaypointESP_IconSize) or 42) + 0.5), 16, 96)
 	NAStuff.WaypointESP_TextSize = math.clamp(math.floor((tonumber(d.WaypointESP_TextSize) or 18) + 0.5), 10, 48)
 	NAStuff.WaypointESP_Color = sanitizeColor(d.WaypointESP_Color, Color3.fromRGB(75, 155, 255))
+	NAStuff.WaypointPath_ShowNodes = d.WaypointPath_ShowNodes ~= false
 
 	if NAStuff.ESP_LocatorEnabled then
 		NAmanage.ESP_LocatorEnable(true)
@@ -20062,12 +20068,14 @@ NAmanage.SaveESPSettings = function(opts)
 		ESP_PlayerLocatorTextSize = math.clamp(tonumber(NAStuff.ESP_PlayerLocatorTextSize) or 14, 10, 48);
 		WaypointESP_ShowBox = NAStuff.WaypointESP_ShowBox == true;
 		WaypointESP_ShowName = NAStuff.WaypointESP_ShowName ~= false;
+		WaypointESP_ShowDistance = NAStuff.WaypointESP_ShowDistance ~= false;
 		WaypointESP_ShowIcon = NAStuff.WaypointESP_ShowIcon ~= false;
 		WaypointESP_ShowHighlight = NAStuff.WaypointESP_ShowHighlight ~= false;
 		WaypointESP_MaxDistance = math.clamp(tonumber(NAStuff.WaypointESP_MaxDistance) or 100000, 50, 100000);
 		WaypointESP_IconSize = math.clamp(math.floor((tonumber(NAStuff.WaypointESP_IconSize) or 42) + 0.5), 16, 96);
 		WaypointESP_TextSize = math.clamp(math.floor((tonumber(NAStuff.WaypointESP_TextSize) or 18) + 0.5), 10, 48);
 		WaypointESP_Color = NAmanage.UserButtonColorToTable(NAStuff.WaypointESP_Color or Color3.fromRGB(75, 155, 255));
+		WaypointPath_ShowNodes = NAStuff.WaypointPath_ShowNodes ~= false;
 		ESP_MaxPerStep = math.clamp(math.floor(tonumber(NAStuff.ESP_MaxPerStep) or 24), 1, 256);
 		ESP_FolderMode = (Lower(tostring(NAStuff.ESP_FolderMode)) == "models") and "models" or "parts";
 		ESP_ModelMode = (Lower(tostring(NAStuff.ESP_ModelMode)) == "models") and "models" or "parts";
@@ -31806,7 +31814,7 @@ NAmanage._unanchorFlyCharacter = function(char)
 	if head then
 		pcall(function() head.Anchored = false end)
 	end
-	for _, inst in ipairs(char:GetDescendants()) do
+	for _, inst in char:GetDescendants() do
 		if inst:IsA("BasePart") then
 			pcall(function() inst.Anchored = false end)
 		end
@@ -43065,6 +43073,7 @@ NAmanage.WaypointESPGetState = NAmanage.WaypointESPGetState or function()
 			enabled = false;
 			markerFolder = nil;
 			visualFolder = nil;
+			distanceConn = nil;
 			visuals = {};
 		}
 	end
@@ -43097,6 +43106,113 @@ end
 
 NAmanage.WaypointESPGetTextSize = NAmanage.WaypointESPGetTextSize or function()
 	return math.clamp(math.floor((tonumber(NAStuff.WaypointESP_TextSize) or 18) + 0.5), 10, 48)
+end
+
+NAmanage.WaypointESPGetRootPosition = NAmanage.WaypointESPGetRootPosition or function()
+	local hum = nil
+	if type(getHum) == "function" then
+		hum = getHum()
+	end
+	local root = hum and hum.RootPart or nil
+	if typeof(root) == "Instance" and root:IsA("BasePart") then
+		return root.Position
+	end
+	local char = nil
+	if type(getChar) == "function" then
+		char = getChar()
+	end
+	if not char and LocalPlayer then
+		char = LocalPlayer.Character
+	end
+	if char then
+		if type(getRoot) == "function" then
+			local ok, found = pcall(getRoot, char)
+			if ok and typeof(found) == "Instance" and found:IsA("BasePart") then
+				return found.Position
+			end
+		end
+		local found = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso") or char:FindFirstChild("Head")
+		if typeof(found) == "Instance" and found:IsA("BasePart") then
+			return found.Position
+		end
+	end
+	local cam = workspace and workspace.CurrentCamera or nil
+	if cam then
+		return cam.CFrame.Position
+	end
+	return nil
+end
+
+NAmanage.WaypointESPBuildLabelText = NAmanage.WaypointESPBuildLabelText or function(name, position, rootPosition)
+	local pieces = {}
+	if NAStuff.WaypointESP_ShowName ~= false then
+		pieces[#pieces + 1] = tostring(name or "Waypoint")
+	end
+	if NAStuff.WaypointESP_ShowDistance ~= false and typeof(position) == "Vector3" then
+		local origin = rootPosition
+		if typeof(origin) ~= "Vector3" then
+			origin = NAmanage.WaypointESPGetRootPosition()
+		end
+		if typeof(origin) == "Vector3" then
+			pieces[#pieces + 1] = tostring(math.floor((origin - position).Magnitude + 0.5)).." studs"
+		end
+	end
+	return Concat(pieces, " | ")
+end
+
+NAmanage.WaypointESPUpdateDistanceLabels = NAmanage.WaypointESPUpdateDistanceLabels or function(force)
+	if NAStuff.WaypointESP_ShowDistance == false then
+		return
+	end
+	local state = NAmanage.WaypointESPGetState()
+	if state.enabled ~= true or type(state.visuals) ~= "table" then
+		return
+	end
+	local rootPosition = NAmanage.WaypointESPGetRootPosition()
+	for name, visual in state.visuals do
+		if type(visual) == "table" then
+			local label = visual.nameLabel
+			local billboard = visual.nameBillboard
+			if typeof(label) == "Instance" then
+				local position = visual.position
+				if typeof(position) ~= "Vector3" and typeof(visual.marker) == "Instance" then
+					position = visual.marker.Position
+				end
+				local text = NAmanage.WaypointESPBuildLabelText(visual.name or name, position, rootPosition)
+				if text ~= "" and label.Text ~= text then
+					label.Text = text
+				end
+				if typeof(billboard) == "Instance" and billboard.Enabled ~= (text ~= "") then
+					billboard.Enabled = text ~= ""
+				end
+			end
+		end
+	end
+end
+
+NAmanage.WaypointESPStartDistanceLoop = NAmanage.WaypointESPStartDistanceLoop or function()
+	local state = NAmanage.WaypointESPGetState()
+	if typeof(state.distanceConn) == "RBXScriptConnection" then
+		pcall(function()
+			state.distanceConn:Disconnect()
+		end)
+	end
+	state.distanceConn = nil
+	if state.enabled ~= true or NAStuff.WaypointESP_ShowDistance == false then
+		return
+	end
+	state.distanceConn = RunService.Heartbeat:Connect(function()
+		if NAStuff.WaypointESP_ShowDistance == false or state.enabled ~= true then
+			if typeof(state.distanceConn) == "RBXScriptConnection" then
+				pcall(function()
+					state.distanceConn:Disconnect()
+				end)
+			end
+			state.distanceConn = nil
+			return
+		end
+		NAmanage.WaypointESPUpdateDistanceLabels(false)
+	end)
 end
 
 NAmanage.WaypointESPGetIconFont = NAmanage.WaypointESPGetIconFont or function()
@@ -43163,6 +43279,12 @@ NAmanage.WaypointESPDestroy = NAmanage.WaypointESPDestroy or function(disable)
 	if disable == true then
 		state.enabled = false
 	end
+	if typeof(state.distanceConn) == "RBXScriptConnection" then
+		pcall(function()
+			state.distanceConn:Disconnect()
+		end)
+	end
+	state.distanceConn = nil
 	if type(state.visuals) == "table" then
 		for _, visual in state.visuals do
 			if type(visual) == "table" then
@@ -43318,14 +43440,16 @@ NAmanage.WaypointESPCreateVisual = NAmanage.WaypointESPCreateVisual or function(
 
 	local nameBillboard = nil
 	local nameLabel = nil
-	if NAStuff.WaypointESP_ShowName ~= false then
+	local showNameText = NAStuff.WaypointESP_ShowName ~= false
+	local showDistanceText = NAStuff.WaypointESP_ShowDistance ~= false
+	if showNameText or showDistanceText then
 		local nameTextSize = NAmanage.WaypointESPGetTextSize()
 		nameBillboard = InstanceNew and InstanceNew("BillboardGui") or Instance.new("BillboardGui")
 		NAmanage.WaypointESPSetSessionName(nameBillboard, "NameBillboard_"..tostring(name))
 		nameBillboard.Adornee = marker
 		nameBillboard.AlwaysOnTop = true
 		nameBillboard.MaxDistance = NAmanage.WaypointESPGetMaxDistance()
-		nameBillboard.Size = UDim2.fromOffset(math.max(260, nameTextSize * 12), math.max(34, nameTextSize + 14))
+		nameBillboard.Size = UDim2.fromOffset(math.max(showDistanceText and 320 or 260, nameTextSize * (showDistanceText and 16 or 12)), math.max(34, nameTextSize + 14))
 		nameBillboard.StudsOffsetWorldSpace = Vector3.new(0, 3.65, 0)
 		pcall(function()
 			nameBillboard.LightInfluence = 0
@@ -43337,7 +43461,7 @@ NAmanage.WaypointESPCreateVisual = NAmanage.WaypointESPCreateVisual or function(
 		NAmanage.WaypointESPSetSessionName(nameLabel, "NameLabel_"..tostring(name))
 		nameLabel.BackgroundTransparency = 1
 		nameLabel.Size = UDim2.fromScale(1, 1)
-		nameLabel.Text = tostring(name)
+		nameLabel.Text = NAmanage.WaypointESPBuildLabelText(name, marker.Position)
 		nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 		nameLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
 		nameLabel.TextStrokeTransparency = 0
@@ -43404,6 +43528,8 @@ NAmanage.WaypointESPCreateVisual = NAmanage.WaypointESPCreateVisual or function(
 		nameLabel = nameLabel;
 		iconBillboard = iconBillboard;
 		iconLabel = iconLabel;
+		name = name;
+		position = marker.Position;
 	}
 end
 
@@ -43431,6 +43557,8 @@ NAmanage.WaypointESPRefresh = NAmanage.WaypointESPRefresh or function(silent)
 			Wait()
 		end
 	end
+	NAmanage.WaypointESPUpdateDistanceLabels(true)
+	NAmanage.WaypointESPStartDistanceLoop()
 	if silent ~= true then
 		if count > 0 then
 			DebugNotif(("Waypoint ESP showing %d waypoint%s."):format(count, count == 1 and "" or "s"), 3)
@@ -43477,6 +43605,478 @@ end, true)
 cmd.add({"hidewaypoints", "hidewp", "hidewps", "unshowwaypoints", "unwpesp"}, {"hidewaypoints", "Hide saved waypoint ESP markers"}, function()
 	NAmanage.WaypointESPSetEnabled(false)
 end)
+
+NAmanage.WaypointPathGetState = NAmanage.WaypointPathGetState or function()
+	if type(NAStuff.WaypointPathState) ~= "table" then
+		NAStuff.WaypointPathState = {
+			enabled = false;
+			following = false;
+			token = 0;
+			markerFolder = nil;
+			visualFolder = nil;
+			visuals = {};
+			lastName = nil;
+			lastWaypoints = nil;
+		}
+	end
+	local state = NAStuff.WaypointPathState
+	if type(state.visuals) ~= "table" then
+		state.visuals = {}
+	end
+	return state
+end
+
+NAmanage.WaypointPathSessionName = NAmanage.WaypointPathSessionName or function(key)
+	local logicalKey = "WaypointPath_"..tostring(key or "Instance")
+	if type(NAmanage.GetSessionInstanceName) == "function" then
+		local ok, value = pcall(NAmanage.GetSessionInstanceName, logicalKey)
+		if ok and type(value) == "string" and value ~= "" then
+			return value
+		end
+	end
+	if type(NAmanage.GenerateOpaqueSessionKey) == "function" then
+		local ok, value = pcall(NAmanage.GenerateOpaqueSessionKey)
+		if ok and type(value) == "string" and value ~= "" then
+			return value
+		end
+	end
+	return "p"..tostring(math.random(100000, 999999)).."_-"..tostring(math.random(100000, 999999))
+end
+
+NAmanage.WaypointPathSetSessionName = NAmanage.WaypointPathSetSessionName or function(inst, key)
+	if typeof(inst) ~= "Instance" then
+		return nil
+	end
+	local name = NAmanage.WaypointPathSessionName(key)
+	if type(name) == "string" and name ~= "" then
+		pcall(function()
+			inst.Name = name
+		end)
+	end
+	return name
+end
+
+NAmanage.WaypointPathDestroy = NAmanage.WaypointPathDestroy or function(disable)
+	local state = NAmanage.WaypointPathGetState()
+	if disable == true then
+		state.enabled = false
+		state.following = false
+		state.lastWaypoints = nil
+		state.lastName = nil
+	end
+	if type(state.visuals) == "table" then
+		for _, visual in state.visuals do
+			if type(visual) == "table" then
+				for _, key in { "marker", "highlight", "billboard" } do
+					local inst = visual[key]
+					if typeof(inst) == "Instance" then
+						pcall(function()
+							inst:Destroy()
+						end)
+					end
+				end
+			elseif typeof(visual) == "Instance" then
+				pcall(function()
+					visual:Destroy()
+				end)
+			end
+		end
+	end
+	state.visuals = {}
+	if typeof(state.visualFolder) == "Instance" then
+		pcall(function()
+			state.visualFolder:Destroy()
+		end)
+	end
+	state.visualFolder = nil
+	if typeof(state.markerFolder) == "Instance" then
+		pcall(function()
+			state.markerFolder:Destroy()
+		end)
+	end
+	state.markerFolder = nil
+end
+
+NAmanage.WaypointPathStop = NAmanage.WaypointPathStop or function(silent)
+	local state = NAmanage.WaypointPathGetState()
+	state.token = (tonumber(state.token) or 0) + 1
+	state.following = false
+	NAmanage.WaypointPathDestroy(true)
+	if silent ~= true then
+		DebugNotif("Waypoint pathfinding stopped.", 2)
+	end
+end
+
+NAmanage.WaypointPathGetMarkerFolder = NAmanage.WaypointPathGetMarkerFolder or function()
+	local state = NAmanage.WaypointPathGetState()
+	if typeof(state.markerFolder) == "Instance" and state.markerFolder.Parent then
+		return state.markerFolder
+	end
+	local folder = Instance.new("Folder")
+	NAmanage.WaypointPathSetSessionName(folder, "MarkerFolder")
+	folder.Parent = workspace
+	state.markerFolder = folder
+	return folder
+end
+
+NAmanage.WaypointPathGetVisualFolder = NAmanage.WaypointPathGetVisualFolder or function()
+	local state = NAmanage.WaypointPathGetState()
+	local secureContainer = nil
+	if type(NAmanage.ESP_EnsureSecureContainer) == "function" then
+		secureContainer = NAmanage.ESP_EnsureSecureContainer()
+	end
+	if not secureContainer and type(NAmanage.ESP_GetSecureHost) == "function" then
+		secureContainer = NAmanage.ESP_GetSecureHost()
+	end
+	if typeof(secureContainer) ~= "Instance" then
+		return nil
+	end
+	if typeof(state.visualFolder) == "Instance" and state.visualFolder.Parent == secureContainer then
+		return state.visualFolder
+	end
+	if typeof(state.visualFolder) == "Instance" then
+		pcall(function()
+			state.visualFolder:Destroy()
+		end)
+	end
+	local folder = InstanceNew and InstanceNew("Folder") or Instance.new("Folder")
+	if NAmanage.ESP_HardenVisual then
+		pcall(NAmanage.ESP_HardenVisual, folder)
+	end
+	NAmanage.WaypointPathSetSessionName(folder, "VisualFolder")
+	folder.Parent = secureContainer
+	state.visualFolder = folder
+	return folder
+end
+
+NAmanage.WaypointPathStoreVisual = NAmanage.WaypointPathStoreVisual or function(inst, key)
+	if typeof(inst) ~= "Instance" then
+		return nil
+	end
+	local folder = NAmanage.WaypointPathGetVisualFolder()
+	if typeof(folder) ~= "Instance" then
+		local stored = NAmanage.ESP_StoreVisual and NAmanage.ESP_StoreVisual(inst) or nil
+		NAmanage.WaypointPathSetSessionName(inst, key or inst.ClassName)
+		return stored
+	end
+	if NAmanage.ESP_HardenVisual then
+		pcall(NAmanage.ESP_HardenVisual, inst)
+	end
+	NAmanage.WaypointPathSetSessionName(inst, key or inst.ClassName)
+	if inst.Parent ~= folder then
+		pcall(function()
+			inst.Parent = folder
+		end)
+	end
+	return folder
+end
+
+NAmanage.WaypointPathGetRoot = NAmanage.WaypointPathGetRoot or function()
+	local hum = nil
+	if type(getHum) == "function" then
+		hum = getHum()
+	end
+	local root = hum and hum.RootPart or nil
+	if typeof(root) == "Instance" and root:IsA("BasePart") then
+		return hum, root
+	end
+	local char = nil
+	if type(getChar) == "function" then
+		char = getChar()
+	end
+	if not char and LocalPlayer then
+		char = LocalPlayer.Character
+	end
+	if char and type(getRoot) == "function" then
+		local ok, found = pcall(getRoot, char)
+		if ok and typeof(found) == "Instance" and found:IsA("BasePart") then
+			return hum, found
+		end
+	end
+	return hum, nil
+end
+
+NAmanage.WaypointPathResolve = NAmanage.WaypointPathResolve or function(rawName)
+	local name = NAmanage.waypointNameFromArgs(rawName)
+	if not name or name == "" then
+		return nil, nil, "Usage: pathfindwaypoint <name...>"
+	end
+	local entry = Waypoints[name]
+	if not entry then
+		return name, nil, ("No such waypoint '%s'."):format(name)
+	end
+	local cf = NAmanage.WaypointEntryToCFrame(entry)
+	if typeof(cf) ~= "CFrame" then
+		return name, nil, ("Waypoint '%s' is invalid."):format(name)
+	end
+	return name, cf, nil
+end
+
+NAmanage.WaypointPathCompute = NAmanage.WaypointPathCompute or function(cf)
+	if typeof(cf) ~= "CFrame" then
+		return nil, "Waypoint coordinates are invalid."
+	end
+	local hum, root = NAmanage.WaypointPathGetRoot()
+	if not (hum and root) then
+		return nil, "Unable to get your character root."
+	end
+	local ps = SafeGetService("PathfindingService")
+	if typeof(ps) ~= "Instance" then
+		return nil, "PathfindingService is unavailable."
+	end
+	local path = ps:CreatePath({ AgentRadius = 2, AgentHeight = 5, AgentCanJump = true })
+	local ok, err = pcall(function()
+		path:ComputeAsync(root.Position, cf.Position)
+	end)
+	if not ok then
+		return nil, "Pathfinding failed: "..tostring(err)
+	end
+	if path.Status == Enum.PathStatus.NoPath then
+		return nil, "No path found to that waypoint."
+	end
+	local okWaypoints, waypoints = pcall(function()
+		return path:GetWaypoints()
+	end)
+	if not okWaypoints or type(waypoints) ~= "table" or #waypoints <= 0 then
+		return nil, "Pathfinding returned no route nodes."
+	end
+	return waypoints, nil, path
+end
+
+NAmanage.WaypointPathCreateVisual = NAmanage.WaypointPathCreateVisual or function(index, waypoint, total)
+	if type(waypoint) ~= "table" and typeof(waypoint) ~= "PathWaypoint" then
+		return nil
+	end
+	local pos = waypoint.Position
+	if typeof(pos) ~= "Vector3" then
+		return nil
+	end
+	local folder = NAmanage.WaypointPathGetMarkerFolder()
+	if typeof(folder) ~= "Instance" then
+		return nil
+	end
+	local color = NAmanage.WaypointESPGetColor()
+	local marker = Instance.new("Part")
+	NAmanage.WaypointPathSetSessionName(marker, "Node_"..tostring(index))
+	marker.Anchored = true
+	marker.CanCollide = false
+	marker.CanTouch = false
+	marker.CanQuery = false
+	marker.CastShadow = false
+	pcall(function()
+		marker.Material = Enum.Material.Glass
+	end)
+	marker.Size = Vector3.new(2, 2, 2)
+	marker.Transparency = 1
+	marker.CFrame = CFrame.new(pos)
+	marker.Parent = folder
+
+	local highlight = nil
+	local okHighlight, hl = pcall(Instance.new, "Highlight")
+	if okHighlight and hl then
+		highlight = hl
+		NAmanage.WaypointPathSetSessionName(highlight, "Highlight_"..tostring(index))
+		highlight.Adornee = marker
+		highlight.FillColor = color
+		highlight.OutlineColor = color
+		highlight.FillTransparency = 0.72
+		highlight.OutlineTransparency = 0
+		pcall(function()
+			highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+		end)
+		NAmanage.WaypointPathStoreVisual(highlight, "Highlight_"..tostring(index))
+	end
+
+	local billboard = InstanceNew and InstanceNew("BillboardGui") or Instance.new("BillboardGui")
+	NAmanage.WaypointPathSetSessionName(billboard, "Billboard_"..tostring(index))
+	billboard.Adornee = marker
+	billboard.AlwaysOnTop = true
+	billboard.MaxDistance = NAmanage.WaypointESPGetMaxDistance()
+	billboard.Size = UDim2.fromOffset(96, 30)
+	billboard.StudsOffsetWorldSpace = Vector3.new(0, 2.25, 0)
+	pcall(function()
+		billboard.LightInfluence = 0
+	end)
+	billboard.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	NAmanage.WaypointPathStoreVisual(billboard, "Billboard_"..tostring(index))
+
+	local label = InstanceNew and InstanceNew("TextLabel", billboard) or Instance.new("TextLabel")
+	NAmanage.WaypointPathSetSessionName(label, "Label_"..tostring(index))
+	label.BackgroundTransparency = 1
+	label.Size = UDim2.fromScale(1, 1)
+	label.Text = (waypoint.Action == Enum.PathWaypointAction.Jump and "JUMP " or "")..tostring(index).."/"..tostring(total or index)
+	label.TextColor3 = Color3.fromRGB(255, 255, 255)
+	label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+	label.TextStrokeTransparency = 0
+	label.TextScaled = false
+	label.TextSize = 14
+	label.TextWrapped = false
+	label.ZIndex = 2
+	NAmanage.WaypointESPApplyLabelFont(label, true)
+	if label.Parent ~= billboard then
+		label.Parent = billboard
+	end
+
+	return {
+		marker = marker;
+		highlight = highlight;
+		billboard = billboard;
+		label = label;
+		position = pos;
+	}
+end
+
+NAmanage.WaypointPathDraw = NAmanage.WaypointPathDraw or function(name, waypoints)
+	local state = NAmanage.WaypointPathGetState()
+	state.lastName = name
+	state.lastWaypoints = waypoints
+	NAmanage.WaypointPathDestroy(false)
+	state.enabled = true
+	if NAStuff.WaypointPath_ShowNodes == false then
+		return 0
+	end
+	local total = type(waypoints) == "table" and #waypoints or 0
+	local made = 0
+	if total <= 0 then
+		return 0
+	end
+	for i, waypoint in waypoints do
+		local visual = NAmanage.WaypointPathCreateVisual(i, waypoint, total)
+		if visual then
+			state.visuals[i] = visual
+			made += 1
+		end
+		if i % 24 == 0 then
+			Wait()
+		end
+	end
+	return made
+end
+
+NAmanage.WaypointPathRedraw = NAmanage.WaypointPathRedraw or function()
+	local state = NAmanage.WaypointPathGetState()
+	if state.enabled == true and type(state.lastWaypoints) == "table" then
+		return NAmanage.WaypointPathDraw(state.lastName or "Waypoint", state.lastWaypoints)
+	end
+	return 0
+end
+
+NAmanage.WaypointPathShow = NAmanage.WaypointPathShow or function(rawName, silent)
+	local name, cf, err = NAmanage.WaypointPathResolve(rawName)
+	if err then
+		DoNotif(err, 3)
+		return nil
+	end
+	local waypoints, computeErr = NAmanage.WaypointPathCompute(cf)
+	if not waypoints then
+		DoNotif(computeErr or "Pathfinding failed.", 3)
+		return nil
+	end
+	local count = NAmanage.WaypointPathDraw(name, waypoints)
+	if silent ~= true then
+		if NAStuff.WaypointPath_ShowNodes == false then
+			DebugNotif(("Computed %d path node%s to '%s'. Path node drawing is disabled."):format(#waypoints, #waypoints == 1 and "" or "s", name), 3)
+		else
+			DebugNotif(("Showing %d path node%s to waypoint '%s'."):format(count, count == 1 and "" or "s", name), 3)
+		end
+	end
+	return waypoints, cf, name
+end
+
+NAmanage.WaypointPathFollow = NAmanage.WaypointPathFollow or function(rawName)
+	local name, cf, err = NAmanage.WaypointPathResolve(rawName)
+	if err then
+		DoNotif(err, 3)
+		return
+	end
+	local state = NAmanage.WaypointPathGetState()
+	state.token = (tonumber(state.token) or 0) + 1
+	local token = state.token
+	state.following = true
+	state.enabled = true
+	DebugNotif(("Pathfinding to waypoint '%s'."):format(name), 2)
+	Spawn(function()
+		local attempts = 0
+		while attempts < 4 do
+			attempts += 1
+			if state.token ~= token then
+				return
+			end
+			local waypoints, computeErr = NAmanage.WaypointPathCompute(cf)
+			if not waypoints then
+				state.following = false
+				DoNotif(computeErr or "Pathfinding failed.", 3)
+				return
+			end
+			NAmanage.WaypointPathDraw(name, waypoints)
+			local completedRoute = true
+			for _, waypoint in waypoints do
+				if state.token ~= token then
+					return
+				end
+				local hum = nil
+				if type(getHum) == "function" then
+					hum = getHum()
+				end
+				if not hum then
+					completedRoute = false
+					break
+				end
+				if waypoint.Action == Enum.PathWaypointAction.Jump then
+					if hum:GetState() ~= Enum.HumanoidStateType.Freefall and hum.FloorMaterial ~= Enum.Material.Air then
+						if type(NAmanage.LaunchHumanoid) == "function" then
+							NAmanage.LaunchHumanoid(hum)
+						else
+							hum.Jump = true
+						end
+					end
+				end
+				hum:MoveTo(waypoint.Position)
+				local reached = hum.MoveToFinished:Wait(2)
+				if reached == false then
+					completedRoute = false
+					break
+				end
+			end
+			local _, root = NAmanage.WaypointPathGetRoot()
+			if state.token ~= token then
+				return
+			end
+			if completedRoute and root and (root.Position - cf.Position).Magnitude <= 8 then
+				state.following = false
+				DebugNotif(("Reached waypoint '%s'."):format(name), 2)
+				return
+			end
+			Wait()
+		end
+		if state.token == token then
+			state.following = false
+			DoNotif(("Pathfind to waypoint '%s' stopped; route may be blocked."):format(name), 3)
+		end
+	end)
+end
+
+cmd.add({"showpathwaypoint", "showpathwp", "pathwaypoint", "pathwp", "showwppath"}, {"showpathwaypoint <name...>", "Show PathfindingService route nodes to a saved waypoint"}, function(...)
+	local name = NAmanage.waypointNameFromArgs(...)
+	if not name or name == "" then
+		DoNotif("Usage: showpathwaypoint <name...>", 3)
+		return
+	end
+	NAmanage.WaypointPathShow(name)
+end, true)
+
+cmd.add({"hidepathwaypoint", "hidepathwp", "unpathwaypoint", "unpathwp", "stoppathwaypoint", "stoppathwp"}, {"hidepathwaypoint", "Hide waypoint path route nodes and stop waypoint pathfinding"}, function()
+	NAmanage.WaypointPathStop(false)
+end)
+
+cmd.add({"pathfindwaypoint", "pathfindwp", "pfwaypoint", "pfwp"}, {"pathfindwaypoint <name...>", "Pathfind to a saved waypoint and show the route nodes"}, function(...)
+	local name = NAmanage.waypointNameFromArgs(...)
+	if not name or name == "" then
+		DoNotif("Usage: pathfindwaypoint <name...>", 3)
+		return
+	end
+	NAmanage.WaypointPathFollow(name)
+end, true)
 
 cmd.add({"setwaypoint","setwp"},{"setwaypoint <name...> [x y z]", "Store your current position, or create/update with custom coordinates"},function(...)
 	local name, x, y, z = NAmanage.WaypointNameAndCoordinatesFromArgs(...)
@@ -101660,7 +102260,7 @@ NAgui.CmdMobileKeyboardGetRows = function()
 		{ h = rowH, keys = charRow("qwertyuiop") },
 		{ h = rowH, keys = (function()
 			local r = { spacer(0.52) }
-			for _, item in ipairs(charRow("asdfghjkl")) do
+			for _, item in charRow("asdfghjkl") do
 				r[#r + 1] = item
 			end
 			r[#r + 1] = spacer(0.52)
@@ -101668,7 +102268,7 @@ NAgui.CmdMobileKeyboardGetRows = function()
 		end)() },
 		{ h = rowH, keys = (function()
 			local r = { key("Shift", "shift", nil, 1.25) }
-			for _, item in ipairs(charRow("zxcvbnm")) do
+			for _, item in charRow("zxcvbnm") do
 				r[#r + 1] = item
 			end
 			r[#r + 1] = key("Back", "back", nil, 1.35)
@@ -101903,7 +102503,7 @@ NAgui.CmdMobileKeyboardShow = function()
 		if not root then
 			return
 		end
-		for _, child in ipairs(root:GetChildren()) do
+		for _, child in root:GetChildren() do
 			if not child:IsA("UIPadding") then
 				child:Destroy()
 			end
@@ -101911,14 +102511,14 @@ NAgui.CmdMobileKeyboardShow = function()
 		local rootZ = root.ZIndex or 1
 		local rows = {}
 		local toolbarRows = getMobileToolbarRows()
-		for _, row in ipairs(toolbarRows or {}) do
+		for _, row in toolbarRows or {} do
 			rows[#rows + 1] = row
 		end
-		for _, row in ipairs((NAgui.CmdMobileKeyboardGetRows and NAgui.CmdMobileKeyboardGetRows()) or {}) do
+		for _, row in (NAgui.CmdMobileKeyboardGetRows and NAgui.CmdMobileKeyboardGetRows()) or {} do
 			rows[#rows + 1] = row
 		end
 		local y = 0
-		for rowIndex, rowData in ipairs(rows) do
+		for rowIndex, rowData in rows do
 			local h = tonumber(rowData.h) or 48
 			local r = InstanceNew("Frame")
 			r.Name = "\0"
@@ -101937,10 +102537,10 @@ NAgui.CmdMobileKeyboardShow = function()
 			layout.Padding = UDim.new(0, 2)
 			layout.Parent = r
 			local total = 0
-			for _, spec in ipairs(rowData.keys or {}) do
+			for _, spec in rowData.keys or {} do
 				total += tonumber(spec.weight) or 1
 			end
-			for _, spec in ipairs(rowData.keys or {}) do
+			for _, spec in rowData.keys or {} do
 				local weight = tonumber(spec.weight) or 1
 				local b = makeButton(r, spec, rootZ)
 				b.Size = UDim2.new(weight / math.max(total, 1), -2, 1, -2)
@@ -125503,6 +126103,12 @@ NAgui.addToggle("Waypoint ESP Name Text", NAStuff.WaypointESP_ShowName ~= false,
 	NAmanage.WaypointESPApplyOptions()
 end)
 
+NAgui.addToggle("Waypoint ESP Distance Text", NAStuff.WaypointESP_ShowDistance ~= false, function(state)
+	NAStuff.WaypointESP_ShowDistance = state ~= false
+	NAmanage.SaveESPSettings()
+	NAmanage.WaypointESPApplyOptions()
+end)
+
 NAgui.addToggle("Waypoint ESP BuilderIcon", NAStuff.WaypointESP_ShowIcon ~= false, function(state)
 	NAStuff.WaypointESP_ShowIcon = state ~= false
 	NAmanage.SaveESPSettings()
@@ -125513,6 +126119,16 @@ NAgui.addToggle("Waypoint ESP Highlight", NAStuff.WaypointESP_ShowHighlight ~= f
 	NAStuff.WaypointESP_ShowHighlight = state ~= false
 	NAmanage.SaveESPSettings()
 	NAmanage.WaypointESPApplyOptions()
+end)
+
+NAgui.addToggle("Waypoint Path Nodes", NAStuff.WaypointPath_ShowNodes ~= false, function(state)
+	NAStuff.WaypointPath_ShowNodes = state ~= false
+	NAmanage.SaveESPSettings()
+	if NAStuff.WaypointPath_ShowNodes ~= false then
+		NAmanage.WaypointPathRedraw()
+	else
+		NAmanage.WaypointPathDestroy(false)
+	end
 end)
 
 NAgui.addColorPicker("Waypoint ESP Color", NAStuff.WaypointESP_Color or Color3.fromRGB(75, 155, 255), function(color)
