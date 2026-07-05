@@ -5903,6 +5903,37 @@
       "desc": "Restores GUIs hidden by hideguis"
     },
     {
+      "name": "hidecurrentguis",
+      "aliases": [
+        "hidecurrentguis",
+        "hidecurrentgui",
+        "hidecguis",
+        "hcguis",
+        "hcgui",
+        "cguis",
+        "currentguis"
+      ],
+      "usage": "hidecurrentguis",
+      "args": "",
+      "desc": "Hides only currently visible GUIs"
+    },
+    {
+      "name": "unhidecurrentguis",
+      "aliases": [
+        "unhidecurrentguis",
+        "unhidecurrentgui",
+        "unhidecguis",
+        "unhcguis",
+        "unhcgui",
+        "uncguis",
+        "restorecurrentguis",
+        "restorecguis"
+      ],
+      "usage": "unhidecurrentguis",
+      "args": "",
+      "desc": "Restores GUIs hidden by hidecurrentguis"
+    },
+    {
       "name": "showguis",
       "aliases": [
         "showguis"
