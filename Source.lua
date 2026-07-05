@@ -627,6 +627,7 @@ NAmanage.pruneRuntimeInstanceState = NAmanage.pruneRuntimeInstanceState or funct
 	NAmanage.pruneInstanceArray(state.unanchoredESPList)
 	NAmanage.pruneInstanceArray(state.collisiontrueESPList)
 	NAmanage.pruneInstanceArray(state.collisionfalseESPList)
+	NAmanage.pruneInstanceArray(state.propertyESPList)
 	NAmanage.pruneInstanceArray(state.ESP_ModelList)
 	NAmanage.pruneInstanceArray(state.BlockedRemotes)
 	NAmanage.pruneInstanceArray(state.RobloxVersionRows)
@@ -636,6 +637,13 @@ NAmanage.pruneRuntimeInstanceState = NAmanage.pruneRuntimeInstanceState or funct
 	NAmanage.pruneInstanceKeyMap(state.unanchoredESPSet)
 	NAmanage.pruneInstanceKeyMap(state.collisiontrueESPSet)
 	NAmanage.pruneInstanceKeyMap(state.collisionfalseESPSet)
+	NAmanage.pruneInstanceKeyMap(state.propertyESPSet)
+	NAmanage.pruneInstanceKeyMap(state.propertyESPMatchCounts)
+	if type(state.propertyESPObjectMaps) == "table" then
+		for _, objectMap in state.propertyESPObjectMaps do
+			NAmanage.pruneInstanceKeyMap(objectMap)
+		end
+	end
 	NAmanage.pruneInstanceKeyMap(state._ncColl)
 	if type(state.ChatTranslator) == "table" and type(state.ChatTranslator.messages) == "table" then
 		state.ChatTranslator.messages = NAmanage.ensureWeakKeyTable(state.ChatTranslator.messages)
@@ -1271,6 +1279,11 @@ local NAStuff = {
 	collisiontrueESPSet = {};
 	collisionfalseESPList = {};
 	collisionfalseESPSet = {};
+	propertyESPList = {};
+	propertyESPSet = {};
+	propertyESPMatchCounts = {};
+	propertyESPObjectMaps = {};
+	propertyESPQueries = {};
 	espTriggers = {};
 	espNameLists = { exact = {}, partial = {} };
 	espNameTriggers = {};
@@ -1356,6 +1369,7 @@ local NAStuff = {
 	ESP_PartColor_Unanchored = Color3.fromRGB(255, 220, 0);
 	ESP_PartColor_CollisionTrue = Color3.fromRGB(0, 200, 255);
 	ESP_PartColor_CollisionFalse = Color3.fromRGB(255, 120, 120);
+	ESP_PartColor_Property = Color3.fromRGB(190, 120, 255);
 	ESP_LocatorEnabled = false;
 	ESP_LocatorSize = 26;
 	ESP_LocatorShowText = false;
@@ -1377,6 +1391,8 @@ local NAStuff = {
 	WaypointPath_ShowText = false;
 	ESP_LastExactPart = "";
 	ESP_LastPartialPart = "";
+	ESP_LastShapeESP = "Block";
+	ESP_LastPropertyESP = "";
 	ESP_LastFolderName = "";
 	ESP_LastModelName = "";
 	ESP_LocatorGui = nil;
@@ -1592,6 +1608,8 @@ NAmanage.ensureRuntimeWeakTables = NAmanage.ensureRuntimeWeakTables or function(
 		"unanchoredESPSet",
 		"collisiontrueESPSet",
 		"collisionfalseESPSet",
+		"propertyESPSet",
+		"propertyESPMatchCounts",
 		"ESP_OcclusionCache",
 		"partESPGlassOriginal",
 		"partESPGlassCount",
@@ -19699,6 +19717,7 @@ NAmanage.LoadESPSettings = function()
 		ESP_PartColor_Unanchored = {255, 220, 0};
 		ESP_PartColor_CollisionTrue = {0, 200, 255};
 		ESP_PartColor_CollisionFalse = {255, 120, 120};
+		ESP_PartColor_Property = {190, 120, 255};
 		ESP_LocatorEnabled = false;
 		ESP_LocatorSize = 26;
 		ESP_LocatorShowText = false;
@@ -19896,6 +19915,7 @@ NAmanage.LoadESPSettings = function()
 	NAStuff.ESP_PartColor_Unanchored = sanitizeColor(d.ESP_PartColor_Unanchored, Color3.fromRGB(255, 220, 0))
 	NAStuff.ESP_PartColor_CollisionTrue = sanitizeColor(d.ESP_PartColor_CollisionTrue, Color3.fromRGB(0, 200, 255))
 	NAStuff.ESP_PartColor_CollisionFalse = sanitizeColor(d.ESP_PartColor_CollisionFalse, Color3.fromRGB(255, 120, 120))
+	NAStuff.ESP_PartColor_Property = sanitizeColor(d.ESP_PartColor_Property, Color3.fromRGB(190, 120, 255))
 	NAStuff.ESP_MaxPerStep       = maxPerStep
 	local folderMode = Lower(tostring(d.ESP_FolderMode or "parts"))
 	if folderMode ~= "models" then
@@ -20061,6 +20081,7 @@ NAmanage.SaveESPSettings = function(opts)
 		ESP_PartColor_Unanchored = NAmanage.UserButtonColorToTable(NAStuff.ESP_PartColor_Unanchored or Color3.fromRGB(255, 220, 0));
 		ESP_PartColor_CollisionTrue = NAmanage.UserButtonColorToTable(NAStuff.ESP_PartColor_CollisionTrue or Color3.fromRGB(0, 200, 255));
 		ESP_PartColor_CollisionFalse = NAmanage.UserButtonColorToTable(NAStuff.ESP_PartColor_CollisionFalse or Color3.fromRGB(255, 120, 120));
+		ESP_PartColor_Property = NAmanage.UserButtonColorToTable(NAStuff.ESP_PartColor_Property or Color3.fromRGB(190, 120, 255));
 		ESP_LocatorEnabled = NAStuff.ESP_LocatorEnabled == true;
 		ESP_LocatorSize = math.clamp(tonumber(NAStuff.ESP_LocatorSize) or 26, 12, 128);
 		ESP_LocatorShowText = NAStuff.ESP_LocatorShowText == true;
@@ -51648,7 +51669,7 @@ cmd.add({"unpermtrip","unptrip"},{"unpermtrip (unptrip)","Disable permanent trip
 	end
 end)
 
-cmd.add({"antitrip"}, {"antitrip", "no tripping today bruh"}, function()
+cmd.add({"antitrip", "antiragdoll"}, {"antitrip", "no tripping today bruh"}, function()
 	local LocalPlayer=Players.LocalPlayer
 	local states={Enum.HumanoidStateType.FallingDown,Enum.HumanoidStateType.Ragdoll,Enum.HumanoidStateType.PlatformStanding}
 	shared.__antitrip=shared.__antitrip or {saved={}}
@@ -83072,6 +83093,589 @@ cmd.add({"unnocollisionesp","unncolesp"},{"unnocollisionesp"},function()
 	NAmanage.DisableCollisionEsp(false)
 end)
 
+NAmanage.PropertyESP_EnsureState = function()
+	NAStuff.propertyESPList = type(NAStuff.propertyESPList) == "table" and NAStuff.propertyESPList or {}
+	NAStuff.propertyESPSet = NAmanage.ensureWeakTable(NAStuff.propertyESPSet, "k")
+	NAStuff.propertyESPMatchCounts = NAmanage.ensureWeakTable(NAStuff.propertyESPMatchCounts, "k")
+	NAStuff.propertyESPObjectMaps = type(NAStuff.propertyESPObjectMaps) == "table" and NAStuff.propertyESPObjectMaps or {}
+	NAStuff.propertyESPQueries = type(NAStuff.propertyESPQueries) == "table" and NAStuff.propertyESPQueries or {}
+	return NAStuff.propertyESPList, NAStuff.propertyESPSet, NAStuff.propertyESPMatchCounts, NAStuff.propertyESPObjectMaps, NAStuff.propertyESPQueries
+end
+
+NAmanage.PropertyESP_NormalizeText = function(value)
+	local textValue = tostring(value or "")
+	textValue = GSub(textValue, "^%s+", "")
+	textValue = GSub(textValue, "%s+$", "")
+	return Lower(textValue)
+end
+
+NAmanage.PropertyESP_ClassMatches = function(obj, className)
+	if typeof(obj) ~= "Instance" then
+		return false
+	end
+	className = tostring(className or "")
+	if className == "" then
+		return true
+	end
+	local ok, result = pcall(function()
+		return obj:IsA(className)
+	end)
+	return ok and result == true
+end
+
+NAmanage.PropertyESP_ValueMatches = function(value, expected)
+	local expectedText = NAmanage.PropertyESP_NormalizeText(expected)
+	if expectedText == "" then
+		return false
+	end
+	local kind = typeof(value)
+	if kind == "EnumItem" then
+		local candidates = { tostring(value) }
+		pcall(function()
+			candidates[#candidates + 1] = value.Name
+			candidates[#candidates + 1] = value.EnumType.Name.."."..value.Name
+			candidates[#candidates + 1] = "Enum."..value.EnumType.Name.."."..value.Name
+		end)
+		for _, candidate in candidates do
+			if NAmanage.PropertyESP_NormalizeText(candidate) == expectedText then
+				return true
+			end
+		end
+		return false
+	elseif kind == "boolean" then
+		return (value == true and (expectedText == "true" or expectedText == "1" or expectedText == "yes" or expectedText == "on"))
+			or (value == false and (expectedText == "false" or expectedText == "0" or expectedText == "no" or expectedText == "off"))
+	elseif kind == "number" then
+		local n = tonumber(expectedText)
+		if n then
+			return math.abs(value - n) <= 0.000001
+		end
+		return NAmanage.PropertyESP_NormalizeText(value) == expectedText
+	end
+	return NAmanage.PropertyESP_NormalizeText(value) == expectedText
+end
+
+NAmanage.PropertyESP_ResolveTarget = function(obj)
+	if typeof(obj) ~= "Instance" then
+		return nil
+	end
+	if obj:IsA("BasePart") or obj:IsA("Model") then
+		return obj
+	end
+	return obj:FindFirstAncestorWhichIsA("BasePart") or obj:FindFirstAncestorWhichIsA("Model")
+end
+
+NAmanage.PropertyESP_CurrentColor = function(record)
+	local colorValue = record and record.color
+	local resolved = (type(colorValue) == "function") and colorValue() or colorValue
+	if typeof(resolved) == "Color3" then
+		return resolved
+	end
+	return NAmanage.GetPartESPColor("ESP_PartColor_Property", Color3.fromRGB(190, 120, 255))
+end
+
+NAmanage.PropertyESP_RemoveTarget = function(record, obj)
+	if type(record) ~= "table" then
+		return false
+	end
+	local matches = record.matches
+	local target = type(matches) == "table" and matches[obj] or nil
+	if target == nil then
+		return false
+	end
+	matches[obj] = nil
+	local list, setMap, counts = NAStuff.propertyESPList, NAStuff.propertyESPSet, NAStuff.propertyESPMatchCounts
+	local count = tonumber(counts and counts[target]) or 0
+	if count <= 1 then
+		if counts then
+			counts[target] = nil
+		end
+		if NAmanage.ESP_ListRemove(list, setMap, target) then
+			NAmanage.PartESP_QueueRemove(target)
+			NAmanage.RemoveEspFromPart(target)
+		end
+	else
+		counts[target] = count - 1
+	end
+	return true
+end
+
+NAmanage.PropertyESP_AddTarget = function(record, obj, target)
+	if type(record) ~= "table" or typeof(obj) ~= "Instance" or typeof(target) ~= "Instance" then
+		return false
+	end
+	local list, setMap, counts, objectMaps = NAmanage.PropertyESP_EnsureState()
+	local matches = record.matches
+	if type(matches) ~= "table" then
+		matches = NAmanage.ensureWeakTable(nil, "k")
+		record.matches = matches
+		objectMaps[record.key] = matches
+	end
+	local current = matches[obj]
+	if current == target then
+		return false
+	end
+	if current ~= nil then
+		NAmanage.PropertyESP_RemoveTarget(record, obj)
+	end
+	matches[obj] = target
+	local count = tonumber(counts[target]) or 0
+	counts[target] = count + 1
+	if count <= 0 and NAmanage.ESP_ListAdd(list, setMap, target) then
+		NAmanage.PartESP_QueueCreate(target, NAmanage.PropertyESP_CurrentColor(record), NAStuff.ESP_PartTransparency or 0.45, function(p)
+			return setMap[p] ~= nil
+		end)
+	end
+	return true
+end
+
+NAmanage.PropertyESP_UpdateObject = function(obj, record)
+	if typeof(obj) ~= "Instance" or type(record) ~= "table" then
+		return
+	end
+	if not obj.Parent then
+		NAmanage.PropertyESP_RemoveTarget(record, obj)
+		return
+	end
+	if not NAmanage.PropertyESP_ClassMatches(obj, record.className) then
+		NAmanage.PropertyESP_RemoveTarget(record, obj)
+		return
+	end
+	local value = NAlib.isProperty(obj, record.propertyName)
+	if value == nil then
+		NAmanage.PropertyESP_RemoveTarget(record, obj)
+		return
+	end
+	record.propertyFound = true
+	if NAmanage.PropertyESP_ValueMatches(value, record.valueText) then
+		record.foundMatches = (tonumber(record.foundMatches) or 0) + 1
+		local target = NAmanage.PropertyESP_ResolveTarget(obj)
+		if target and target.Parent then
+			NAmanage.PropertyESP_AddTarget(record, obj, target)
+		else
+			NAmanage.PropertyESP_RemoveTarget(record, obj)
+		end
+	else
+		NAmanage.PropertyESP_RemoveTarget(record, obj)
+	end
+end
+
+NAmanage.PropertyESP_UpdateAllRecords = function(obj)
+	local queries = NAStuff and NAStuff.propertyESPQueries
+	if type(queries) ~= "table" then
+		return
+	end
+	for _, record in queries do
+		NAmanage.PropertyESP_UpdateObject(obj, record)
+	end
+end
+
+NAmanage.PropertyESP_RemoveObjectFromAll = function(obj)
+	local queries = NAStuff and NAStuff.propertyESPQueries
+	if type(queries) ~= "table" then
+		return
+	end
+	for _, record in queries do
+		NAmanage.PropertyESP_RemoveTarget(record, obj)
+	end
+end
+
+NAmanage.PropertyESP_HasQueries = function()
+	local queries = NAStuff and NAStuff.propertyESPQueries
+	return type(queries) == "table" and next(queries) ~= nil
+end
+
+NAmanage.PropertyESP_StartWatchers = function()
+	NAmanage.PropertyESP_EnsureState()
+	if not NAStuff.espTriggers["__propertyesp"] then
+		NAStuff.espTriggers["__propertyesp"] = NAmanage.wsSub({
+			added = function(obj)
+				NAmanage.PropertyESP_UpdateAllRecords(obj)
+			end,
+			removing = function(obj)
+				NAmanage.PropertyESP_RemoveObjectFromAll(obj)
+			end,
+		})
+	end
+	NAmanage.PartESP_StartSweep("__propertyesp_sweep", function(obj)
+		NAmanage.PropertyESP_UpdateAllRecords(obj)
+	end, tonumber(NAStuff.ESP_RescanPerStep) or 90, tonumber(NAStuff.ESP_PartSweepInterval) or 4)
+end
+
+NAmanage.PropertyESP_StopWatchersIfIdle = function()
+	if NAmanage.PropertyESP_HasQueries() then
+		return
+	end
+	if NAStuff.espTriggers["__propertyesp"] then
+		NAStuff.espTriggers["__propertyesp"]:Disconnect()
+		NAStuff.espTriggers["__propertyesp"] = nil
+	end
+	NAmanage.PartESP_StopSweep("__propertyesp_sweep")
+	NAmanage.ESP_CancelScanToken("__propertyesp_scan")
+end
+
+NAmanage.PropertyESP_MakeKey = function(propertyName, valueText, className)
+	return NAmanage.PropertyESP_NormalizeText(propertyName).."="..NAmanage.PropertyESP_NormalizeText(valueText).."@"..NAmanage.PropertyESP_NormalizeText(className)
+end
+
+NAmanage.PropertyESP_Enable = function(propertyName, valueText, className, label, color, silent)
+	propertyName = tostring(propertyName or "")
+	valueText = tostring(valueText or "")
+	className = tostring(className or "")
+	propertyName = GSub(GSub(propertyName, "^%s+", ""), "%s+$", "")
+	valueText = GSub(GSub(valueText, "^%s+", ""), "%s+$", "")
+	className = GSub(GSub(className, "^%s+", ""), "%s+$", "")
+	if propertyName == "" or valueText == "" then
+		DoNotif("Usage: propertyesp <Property> <Value> [class:ClassName]", 3)
+		return false
+	end
+
+	local _, _, _, objectMaps, queries = NAmanage.PropertyESP_EnsureState()
+	local key = NAmanage.PropertyESP_MakeKey(propertyName, valueText, className)
+	local record = queries[key]
+	if type(record) ~= "table" then
+		record = {
+			key = key;
+			matches = NAmanage.ensureWeakTable(nil, "k");
+		}
+		queries[key] = record
+		objectMaps[key] = record.matches
+	end
+	record.propertyName = propertyName
+	record.valueText = valueText
+	record.className = className
+	record.label = tostring(label or (propertyName.." = "..valueText))
+	record.color = color
+	record.propertyFound = false
+	record.foundMatches = 0
+
+	NAmanage.PropertyESP_StartWatchers()
+	local scanKey = "__propertyesp_scan_"..key
+	local scanToken = NAmanage.ESP_StartScanToken(scanKey)
+	record.scanToken = scanToken
+	SpawnCall(function()
+		NAmanage.ForEachWorkspaceYield(function(obj)
+			if scanToken and scanToken.cancelled then
+				return
+			end
+			NAmanage.PropertyESP_UpdateObject(obj, record)
+		end, {
+			yieldEvery = tonumber(NAStuff.ESP_ScanBatchSize) or 160,
+			delayTime = tonumber(NAStuff.ESP_ScanDelay) or 0,
+			cancelToken = scanToken,
+		})
+		if record.scanToken == scanToken then
+			record.scanToken = nil
+		end
+		if NAStuff.espScanTokens and NAStuff.espScanTokens[scanKey] == scanToken then
+			NAStuff.espScanTokens[scanKey] = nil
+		end
+		if silent ~= true and not (scanToken and scanToken.cancelled) then
+			if record.propertyFound ~= true then
+				DoNotif("Property not found: "..propertyName, 3)
+			elseif (tonumber(record.foundMatches) or 0) <= 0 then
+				DoNotif("No property ESP matches for "..record.label..".", 2)
+			else
+				DoNotif("Property ESP enabled: "..record.label, 2)
+			end
+		end
+	end)
+	return true
+end
+
+NAmanage.PropertyESP_Disable = function(propertyName, valueText)
+	NAmanage.PropertyESP_EnsureState()
+	local queries = NAStuff.propertyESPQueries
+	local removed = 0
+	local propFilter = NAmanage.PropertyESP_NormalizeText(propertyName)
+	local valueFilter = NAmanage.PropertyESP_NormalizeText(valueText)
+	local keys = {}
+	for key, record in queries do
+		local propOk = propFilter == "" or NAmanage.PropertyESP_NormalizeText(record.propertyName) == propFilter
+		local valueOk = valueFilter == "" or valueFilter == "all" or NAmanage.PropertyESP_NormalizeText(record.valueText) == valueFilter
+		if propOk and valueOk then
+			keys[#keys + 1] = key
+		end
+	end
+	for i = 1, #keys do
+		local key = keys[i]
+		local record = queries[key]
+		if type(record) == "table" then
+			if record.scanToken then
+				NAmanage.CancelTokenCancel(record.scanToken)
+				record.scanToken = nil
+			end
+			NAmanage.ESP_CancelScanToken("__propertyesp_scan_"..key)
+			local objects = {}
+			if type(record.matches) == "table" then
+				for obj, _ in record.matches do
+					objects[#objects + 1] = obj
+				end
+			end
+			for n = 1, #objects do
+				NAmanage.PropertyESP_RemoveTarget(record, objects[n])
+			end
+			if type(NAStuff.propertyESPObjectMaps) == "table" then
+				NAStuff.propertyESPObjectMaps[key] = nil
+			end
+			queries[key] = nil
+			removed += 1
+		end
+	end
+	NAmanage.PropertyESP_StopWatchersIfIdle()
+	return removed
+end
+
+NAmanage.PropertyESP_ParseArgs = function(...)
+	local rawInput = Concat({...}, " ")
+	rawInput = GSub(GSub(rawInput, "^%s+", ""), "%s+$", "")
+	if rawInput == "" then
+		return nil, nil, nil
+	end
+	local propertyName, valueText, className
+	local eq = Find(rawInput, "=", 1, true)
+	if eq then
+		propertyName = Sub(rawInput, 1, eq - 1)
+		valueText = Sub(rawInput, eq + 1)
+	else
+		local firstWord, restText = Match(rawInput, "^(%S+)%s+(.+)$")
+		if firstWord and restText then
+			propertyName = firstWord
+			valueText = restText
+		else
+			local args = {...}
+			propertyName = tostring(args[1] or "")
+			local values = {}
+			for i = 2, #args do
+				values[#values + 1] = tostring(args[i] or "")
+			end
+			valueText = Concat(values, " ")
+		end
+	end
+	local classFromValue = Match(valueText, "%s+[Cc][Ll][Aa][Ss][Ss]:([%w_]+)%s*$") or Match(valueText, "%s+[Ii][Ss][Aa]:([%w_]+)%s*$")
+	if classFromValue then
+		className = classFromValue
+		valueText = GSub(valueText, "%s+[Cc][Ll][Aa][Ss][Ss]:[%w_]+%s*$", "")
+		valueText = GSub(valueText, "%s+[Ii][Ss][Aa]:[%w_]+%s*$", "")
+	else
+		className = ""
+	end
+	propertyName = GSub(GSub(tostring(propertyName or ""), "^%s+", ""), "%s+$", "")
+	valueText = GSub(GSub(tostring(valueText or ""), "^%s+", ""), "%s+$", "")
+	return propertyName, valueText, className
+end
+
+NAmanage.PropertyESP_CompactPartShapeText = function(value)
+	return GSub(GSub(NAmanage.PropertyESP_NormalizeText(value), "[%s_%-]+", ""), "part$", "")
+end
+
+NAmanage.PropertyESP_GetPartShapeItems = function()
+	local items = {}
+	local ok, enumItems = pcall(function()
+		return Enum.PartType:GetEnumItems()
+	end)
+	if ok and type(enumItems) == "table" then
+		for _, enumItem in enumItems do
+			if typeof(enumItem) == "EnumItem" then
+				Insert(items, enumItem)
+			end
+		end
+	end
+	return items
+end
+
+NAmanage.PropertyESP_PartShapeAlias = function(compact)
+	local map = {
+		sphere = "Ball";
+		spherical = "Ball";
+		cube = "Block";
+		brick = "Block";
+		box = "Block";
+		block = "Block";
+		ball = "Ball";
+		cylinder = "Cylinder";
+		wedge = "Wedge";
+		corner = "CornerWedge";
+		cornerwedge = "CornerWedge";
+	}
+	return map[compact]
+end
+
+NAmanage.PropertyESP_TextDistance = function(a, b)
+	a = tostring(a or "")
+	b = tostring(b or "")
+	local la, lb = #a, #b
+	if la == 0 then return lb end
+	if lb == 0 then return la end
+	local prev = {}
+	local curr = {}
+	for j = 0, lb do
+		prev[j] = j
+	end
+	for i = 1, la do
+		curr[0] = i
+		local ca = Sub(a, i, i)
+		for j = 1, lb do
+			local cost = ca == Sub(b, j, j) and 0 or 1
+			local deletion = prev[j] + 1
+			local insertion = curr[j - 1] + 1
+			local substitution = prev[j - 1] + cost
+			curr[j] = math.min(deletion, insertion, substitution)
+		end
+		prev, curr = curr, prev
+	end
+	return prev[lb]
+end
+
+NAmanage.PropertyESP_ResolvePartShape = function(value)
+	local compact = NAmanage.PropertyESP_CompactPartShapeText(value)
+	if compact == "" then
+		return nil
+	end
+	local aliased = NAmanage.PropertyESP_PartShapeAlias(compact)
+	if aliased then
+		return aliased
+	end
+	local items = NAmanage.PropertyESP_GetPartShapeItems()
+	for _, enumItem in items do
+		local name = tostring(enumItem.Name or "")
+		if NAmanage.PropertyESP_CompactPartShapeText(name) == compact then
+			return name
+		end
+		if tostring(enumItem.Value or "") == compact then
+			return name
+		end
+	end
+	for _, enumItem in items do
+		local name = tostring(enumItem.Name or "")
+		local lowerName = NAmanage.PropertyESP_CompactPartShapeText(name)
+		if Sub(lowerName, 1, #compact) == compact then
+			return name
+		end
+	end
+	for _, enumItem in items do
+		local name = tostring(enumItem.Name or "")
+		local lowerName = NAmanage.PropertyESP_CompactPartShapeText(name)
+		if Find(lowerName, compact, 1, true) then
+			return name
+		end
+	end
+	local bestName, bestScore = nil, math.huge
+	for _, enumItem in items do
+		local name = tostring(enumItem.Name or "")
+		local lowerName = NAmanage.PropertyESP_CompactPartShapeText(name)
+		local score = NAmanage.PropertyESP_TextDistance(compact, lowerName)
+		if score < bestScore then
+			bestName, bestScore = name, score
+		end
+	end
+	if bestName and bestScore <= math.max(2, math.floor(#compact * 0.45)) then
+		return bestName
+	end
+	return nil
+end
+
+NAmanage.PropertyESP_NormalizePartShape = NAmanage.PropertyESP_ResolvePartShape
+
+NAmanage.PropertyESP_EnableShape = function(shapeName)
+	shapeName = NAmanage.PropertyESP_ResolvePartShape(shapeName)
+	if not shapeName then
+		return false
+	end
+	NAStuff.ESP_LastShapeESP = shapeName
+	return NAmanage.PropertyESP_Enable("Shape", shapeName, "Part", "Shape = "..shapeName, function()
+		return NAmanage.GetPartESPColor("ESP_PartColor_Property", Color3.fromRGB(190, 120, 255))
+	end)
+end
+
+NAmanage.PropertyESP_OpenPartShapePicker = function()
+	local buttons = {}
+	for _, partType in NAmanage.PropertyESP_GetPartShapeItems() do
+		local shapeName = tostring(partType.Name or "")
+		if shapeName ~= "" then
+			Insert(buttons, {
+				Text = shapeName,
+				Callback = function()
+					NAmanage.PropertyESP_EnableShape(shapeName)
+				end
+			})
+		end
+	end
+	if #buttons <= 0 then
+		DoNotif("PartType enum list is unavailable.", 3)
+		return
+	end
+	Window({
+		Title = "Shape ESP Options",
+		Buttons = buttons
+	})
+end
+
+cmd.add({"propertyesp", "propesp", "espproperty", "propertyfinder", "findproperty"}, {"propertyesp <Property> <Value> [class:ClassName]", "ESP instances with a matching readable property value"}, function(...)
+	local propertyName, valueText, className = NAmanage.PropertyESP_ParseArgs(...)
+	if not propertyName or propertyName == "" or not valueText or valueText == "" then
+		DoNotif("Usage: propertyesp Shape Block or propertyesp Shape=Block", 3)
+		return
+	end
+	NAStuff.ESP_LastPropertyESP = propertyName.." "..valueText
+	if className and className ~= "" then
+		NAStuff.ESP_LastPropertyESP = NAStuff.ESP_LastPropertyESP.." class:"..className
+	end
+	NAmanage.PropertyESP_Enable(propertyName, valueText, className, propertyName.." = "..valueText, function()
+		return NAmanage.GetPartESPColor("ESP_PartColor_Property", Color3.fromRGB(190, 120, 255))
+	end)
+end, true)
+
+cmd.add({"unpropertyesp", "unpropesp", "unespproperty", "unpropertyfinder", "unfindproperty"}, {"unpropertyesp [Property] [Value|All]", "Disable property ESP entries"}, function(...)
+	local rawInput = GSub(GSub(Concat({...}, " "), "^%s+", ""), "%s+$", "")
+	local removed = 0
+	if rawInput == "" or NAmanage.PropertyESP_NormalizeText(rawInput) == "all" then
+		removed = NAmanage.PropertyESP_Disable()
+	else
+		local propertyName, valueText = NAmanage.PropertyESP_ParseArgs(...)
+		removed = NAmanage.PropertyESP_Disable(propertyName, valueText)
+	end
+	if removed > 0 then
+		DoNotif("Disabled "..tostring(removed).." property ESP entr"..(removed == 1 and "y" or "ies")..".", 2)
+	else
+		DoNotif("No matching property ESP entries are active.", 2)
+	end
+end, true)
+
+cmd.add({"shapeesp", "shapesp", "partshapeesp", "shapefinder", "shapefinderesp"}, {"shapeesp [Block|Ball|Cylinder|Wedge|CornerWedge]", "ESP Part instances with the selected Shape"}, function(...)
+	local rawShape = GSub(GSub(Concat({...}, " "), "^%s+", ""), "%s+$", "")
+	if rawShape == "" then
+		NAmanage.PropertyESP_OpenPartShapePicker()
+		return
+	end
+	local shapeName = NAmanage.PropertyESP_ResolvePartShape(rawShape)
+	if not shapeName then
+		DoNotif("No matching part shape for: "..rawShape, 3)
+		return
+	end
+	NAmanage.PropertyESP_EnableShape(shapeName)
+end, true)
+
+cmd.add({"unshapeesp", "unshapesp", "unpartshapeesp", "unshapefinder", "unshapefinderesp"}, {"unshapeesp [shape|All]", "Disable Shape ESP entries"}, function(...)
+	local rawShape = GSub(GSub(Concat({...}, " "), "^%s+", ""), "%s+$", "")
+	local removed
+	if rawShape == "" or NAmanage.PropertyESP_NormalizeText(rawShape) == "all" then
+		removed = NAmanage.PropertyESP_Disable("Shape")
+	else
+		local shapeName = NAmanage.PropertyESP_NormalizePartShape(rawShape)
+		if not shapeName then
+			DoNotif("Usage: unshapeesp [Block|Ball|Cylinder|Wedge|CornerWedge|All]", 3)
+			return
+		end
+		removed = NAmanage.PropertyESP_Disable("Shape", shapeName)
+	end
+	if removed and removed > 0 then
+		DoNotif("Disabled Shape ESP.", 2)
+	else
+		DoNotif("Shape ESP is not active.", 2)
+	end
+end, true)
+
 cmd.add({"esplocator","locator","trackesp"},{"esplocator",""},function()
 	NAmanage.ESP_SetLocatorEnabled(true)
 end)
@@ -105328,6 +105932,10 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		syntax = true,
 		lineNumbers = true,
 		showHub = true,
+		runInCurrentThread = false,
+		threadIdentity = false,
+		identityLevel = 2,
+		profileExecution = true,
 		fontSize = 15,
 	}
 	local colors = {
@@ -105555,6 +106163,10 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 						if type(decoded.lineNumbers) == "boolean" then cfg.lineNumbers = decoded.lineNumbers end
 						if type(decoded.showHub) == "boolean" then cfg.showHub = decoded.showHub end
 						if type(decoded.scriptHub) == "boolean" then cfg.showHub = decoded.scriptHub end
+						if type(decoded.runInCurrentThread) == "boolean" then cfg.runInCurrentThread = decoded.runInCurrentThread end
+						if type(decoded.threadIdentity) == "boolean" then cfg.threadIdentity = decoded.threadIdentity end
+						if type(decoded.profileExecution) == "boolean" then cfg.profileExecution = decoded.profileExecution end
+						if tonumber(decoded.identityLevel) then cfg.identityLevel = math.clamp(math.floor(tonumber(decoded.identityLevel) + 0.5), 0, 8) end
 						if tonumber(decoded.fontSize) then cfg.fontSize = math.clamp(math.floor(tonumber(decoded.fontSize) + 0.5), 11, 24) end
 					end
 				end
@@ -105574,6 +106186,10 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			lineNumbers = cfg.lineNumbers == true,
 			showHub = cfg.showHub ~= false,
 			scriptHub = cfg.showHub ~= false,
+			runInCurrentThread = cfg.runInCurrentThread == true,
+			threadIdentity = cfg.threadIdentity == true,
+			identityLevel = math.clamp(math.floor((tonumber(cfg.identityLevel) or 2) + 0.5), 0, 8),
+			profileExecution = cfg.profileExecution ~= false,
 			fontSize = math.clamp(math.floor((tonumber(cfg.fontSize) or 15) + 0.5), 11, 24),
 		}
 		local ok, encoded = pcall(function()
@@ -106187,6 +106803,9 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	hubDelete.Size = UDim2.new(1, 0, 0, 26)
 	local hubRefresh = makeButton(hubButtons, "Refresh List", colors.panel3)
 	hubRefresh.Size = UDim2.new(1, 0, 0, 26)
+	NAStuff.ExecutorTools = NAStuff.ExecutorTools or {}
+	NAStuff.ExecutorTools.HubStopLast = makeButton(hubButtons, "Stop Last Task", colors.panel3)
+	NAStuff.ExecutorTools.HubStopLast.Size = UDim2.new(1, 0, 0, 26)
 
 	local statusLabel = InstanceNew("TextLabel")
 	statusLabel.Name = "Status"
@@ -106238,7 +106857,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	settingsPanel.BorderSizePixel = 0
 	settingsPanel.AnchorPoint = Vector2.new(1, 0)
 	settingsPanel.Position = UDim2.new(1, -10, 0, 42)
-	settingsPanel.Size = UDim2.new(0, 216, 0, 198)
+	settingsPanel.Size = UDim2.new(0, 236, 0, 328)
 	settingsPanel.Visible = false
 	settingsPanel.ZIndex = 45
 	settingsPanel.Parent = frame
@@ -106321,6 +106940,9 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	local syntaxToggle, syntaxHit = makeSettingToggle("Syntax Highlight")
 	local lineNumbersToggle, lineNumbersHit = makeSettingToggle("Line Numbers")
 	local scriptHubToggle, scriptHubHit = makeSettingToggle("Script Hub")
+	NAStuff.ExecutorTools.CurrentThreadToggle, NAStuff.ExecutorTools.CurrentThreadHit = makeSettingToggle("Current Thread Run")
+	NAStuff.ExecutorTools.ThreadIdentityToggle, NAStuff.ExecutorTools.ThreadIdentityHit = makeSettingToggle("Thread Identity")
+	NAStuff.ExecutorTools.ProfileExecutionToggle, NAStuff.ExecutorTools.ProfileExecutionHit = makeSettingToggle("Profile Execution")
 
 	local function makeSettingStepper(labelText)
 		local row = InstanceNew("Frame")
@@ -106371,6 +106993,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	end
 
 	local fontMinus, fontValue, fontPlus = makeSettingStepper("Font Size")
+	NAStuff.ExecutorTools.IdentityMinus, NAStuff.ExecutorTools.IdentityValue, NAStuff.ExecutorTools.IdentityPlus = makeSettingStepper("Identity Level")
 
 	local promptOverlay = InstanceNew("Frame")
 	promptOverlay.Name = "Prompt"
@@ -107150,13 +107773,22 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 
 	local function refreshSettingsButtons()
 		cfg.fontSize = math.clamp(math.floor((tonumber(cfg.fontSize) or 15) + 0.5), 11, 24)
+		cfg.identityLevel = math.clamp(math.floor((tonumber(cfg.identityLevel) or 2) + 0.5), 0, 8)
+		local identitySetterAvailable = type(setthreadidentity) == "function" or type(setidentity) == "function" or type(set_thread_identity) == "function" or type(setthreadcontext) == "function"
 		syntaxToggle.Text = cfg.syntax and "On" or "Off"
 		syntaxToggle.BackgroundColor3 = cfg.syntax and colors.tabActive or colors.panel3
 		lineNumbersToggle.Text = cfg.lineNumbers and "On" or "Off"
 		lineNumbersToggle.BackgroundColor3 = cfg.lineNumbers and colors.tabActive or colors.panel3
 		scriptHubToggle.Text = cfg.showHub and "On" or "Off"
 		scriptHubToggle.BackgroundColor3 = cfg.showHub and colors.tabActive or colors.panel3
+		NAStuff.ExecutorTools.CurrentThreadToggle.Text = cfg.runInCurrentThread and "On" or "Off"
+		NAStuff.ExecutorTools.CurrentThreadToggle.BackgroundColor3 = cfg.runInCurrentThread and colors.tabActive or colors.panel3
+		NAStuff.ExecutorTools.ThreadIdentityToggle.Text = identitySetterAvailable and (cfg.threadIdentity and "On" or "Off") or "N/A"
+		NAStuff.ExecutorTools.ThreadIdentityToggle.BackgroundColor3 = (identitySetterAvailable and cfg.threadIdentity) and colors.tabActive or colors.panel3
+		NAStuff.ExecutorTools.ProfileExecutionToggle.Text = cfg.profileExecution and "On" or "Off"
+		NAStuff.ExecutorTools.ProfileExecutionToggle.BackgroundColor3 = cfg.profileExecution and colors.tabActive or colors.panel3
 		fontValue.Text = tostring(cfg.fontSize)
+		NAStuff.ExecutorTools.IdentityValue.Text = tostring(cfg.identityLevel)
 	end
 
 	local function updateBodyLayout()
@@ -107248,7 +107880,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		actionLayout.CellPadding = UDim2.new(0, actionPad, 0, 0)
 		actionLayout.CellSize = UDim2.new(1 / math.max(1, actionButtonCount), -actionPad, 1, 0)
 		hubButtons.ScrollBarThickness = compact and 3 or 4
-		for _, btn in { hubOpen, hubOpenNew, hubSave, hubClear, hubNew, hubDelete, hubRefresh } do
+		for _, btn in { hubOpen, hubOpenNew, hubSave, hubClear, hubNew, hubDelete, hubRefresh, NAStuff.ExecutorTools.HubStopLast } do
 			btn.Size = UDim2.new(1, -2, 0, compact and 22 or 26)
 			btn.TextSize = compact and 11 or 13
 		end
@@ -107293,6 +107925,10 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		cfg.syntax = cfg.syntax == true
 		cfg.lineNumbers = cfg.lineNumbers == true
 		cfg.showHub = cfg.showHub ~= false
+		cfg.runInCurrentThread = cfg.runInCurrentThread == true
+		cfg.threadIdentity = cfg.threadIdentity == true
+		cfg.profileExecution = cfg.profileExecution ~= false
+		cfg.identityLevel = math.clamp(math.floor((tonumber(cfg.identityLevel) or 2) + 0.5), 0, 8)
 		cfg.fontSize = math.clamp(math.floor((tonumber(cfg.fontSize) or 15) + 0.5), 11, 24)
 		for _, layer in { keywordLayer, globalLayer, stringLayer, commentLayer, numberLayer, functionLayer, methodLayer, propertyLayer, operatorLayer, bracketLayer } do
 			layer.Visible = cfg.syntax
@@ -107706,12 +108342,23 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	NAmanage.ExecutorBindSetting(syntaxToggle, syntaxHit, cfg, "syntax", applySettings)
 	NAmanage.ExecutorBindSetting(lineNumbersToggle, lineNumbersHit, cfg, "lineNumbers", applySettings)
 	NAmanage.ExecutorBindSetting(scriptHubToggle, scriptHubHit, cfg, "showHub", applySettings)
+	NAmanage.ExecutorBindSetting(NAStuff.ExecutorTools.CurrentThreadToggle, NAStuff.ExecutorTools.CurrentThreadHit, cfg, "runInCurrentThread", applySettings)
+	NAmanage.ExecutorBindSetting(NAStuff.ExecutorTools.ThreadIdentityToggle, NAStuff.ExecutorTools.ThreadIdentityHit, cfg, "threadIdentity", applySettings)
+	NAmanage.ExecutorBindSetting(NAStuff.ExecutorTools.ProfileExecutionToggle, NAStuff.ExecutorTools.ProfileExecutionHit, cfg, "profileExecution", applySettings)
 	fontMinus.MouseButton1Click:Connect(function()
 		cfg.fontSize = math.clamp((tonumber(cfg.fontSize) or 15) - 1, 11, 24)
 		applySettings(false)
 	end)
 	fontPlus.MouseButton1Click:Connect(function()
 		cfg.fontSize = math.clamp((tonumber(cfg.fontSize) or 15) + 1, 11, 24)
+		applySettings(false)
+	end)
+	NAStuff.ExecutorTools.IdentityMinus.MouseButton1Click:Connect(function()
+		cfg.identityLevel = math.clamp((tonumber(cfg.identityLevel) or 2) - 1, 0, 8)
+		applySettings(false)
+	end)
+	NAStuff.ExecutorTools.IdentityPlus.MouseButton1Click:Connect(function()
+		cfg.identityLevel = math.clamp((tonumber(cfg.identityLevel) or 2) + 1, 0, 8)
 		applySettings(false)
 	end)
 
@@ -107721,6 +108368,105 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	MouseButtonFix(pageNext, function()
 		turnEditorPage(1)
 	end)
+
+	NAStuff.ExecutorTools.LastThread = nil
+	NAStuff.ExecutorTools.LastStartedAt = 0
+
+	NAStuff.ExecutorTools.ThreadStatus = function(thread)
+		if type(thread) ~= "thread" then
+			return "none"
+		end
+		NAStuff.ExecutorTools.Ok, NAStuff.ExecutorTools.Status = pcall(coroutine.status, thread)
+		return NAStuff.ExecutorTools.Ok and tostring(NAStuff.ExecutorTools.Status) or "unknown"
+	end
+
+	NAStuff.ExecutorTools.MemoryKb = function()
+		if type(collectgarbage) ~= "function" then
+			return nil
+		end
+		NAStuff.ExecutorTools.Ok, NAStuff.ExecutorTools.Value = pcall(collectgarbage, "count")
+		if NAStuff.ExecutorTools.Ok and type(NAStuff.ExecutorTools.Value) == "number" then
+			return NAStuff.ExecutorTools.Value
+		end
+		return nil
+	end
+
+	NAStuff.ExecutorTools.GetIdentity = function()
+		NAStuff.ExecutorTools.IdentityGetter = type(getthreadidentity) == "function" and getthreadidentity
+			or type(getidentity) == "function" and getidentity
+			or type(get_thread_identity) == "function" and get_thread_identity
+			or type(getthreadcontext) == "function" and getthreadcontext
+		if type(NAStuff.ExecutorTools.IdentityGetter) ~= "function" then
+			return nil
+		end
+		NAStuff.ExecutorTools.Ok, NAStuff.ExecutorTools.Value = pcall(NAStuff.ExecutorTools.IdentityGetter)
+		if NAStuff.ExecutorTools.Ok then
+			return NAStuff.ExecutorTools.Value
+		end
+		return nil
+	end
+
+	NAStuff.ExecutorTools.SetIdentity = function(level)
+		NAStuff.ExecutorTools.IdentitySetter = type(setthreadidentity) == "function" and setthreadidentity
+			or type(setidentity) == "function" and setidentity
+			or type(set_thread_identity) == "function" and set_thread_identity
+			or type(setthreadcontext) == "function" and setthreadcontext
+		if type(NAStuff.ExecutorTools.IdentitySetter) ~= "function" then
+			return false, "setthreadidentity unavailable"
+		end
+		NAStuff.ExecutorTools.Ok, NAStuff.ExecutorTools.Err = pcall(NAStuff.ExecutorTools.IdentitySetter, level)
+		if not NAStuff.ExecutorTools.Ok then
+			return false, NAStuff.ExecutorTools.Err
+		end
+		return true
+	end
+
+	NAStuff.ExecutorTools.RunFunction = function(fn)
+		NAStuff.ExecutorTools.OldIdentity = nil
+		NAStuff.ExecutorTools.IdentityChanged = false
+		if cfg.threadIdentity == true then
+			cfg.identityLevel = math.clamp(math.floor((tonumber(cfg.identityLevel) or 2) + 0.5), 0, 8)
+			NAStuff.ExecutorTools.OldIdentity = NAStuff.ExecutorTools.GetIdentity() or 2
+			NAStuff.ExecutorTools.OkSet, NAStuff.ExecutorTools.SetErr = NAStuff.ExecutorTools.SetIdentity(cfg.identityLevel)
+			if not NAStuff.ExecutorTools.OkSet then
+				return false, tostring(NAStuff.ExecutorTools.SetErr or "setthreadidentity unavailable")
+			end
+			NAStuff.ExecutorTools.IdentityChanged = true
+		end
+
+		NAStuff.ExecutorTools.StartClock = os.clock()
+		NAStuff.ExecutorTools.StartMem = NAStuff.ExecutorTools.MemoryKb()
+		NAStuff.ExecutorTools.RunOk, NAStuff.ExecutorTools.RunErr = xpcall(fn, function(err)
+			NAStuff.ExecutorTools.Traceback = "debug.traceback unavailable"
+			if type(debug) == "table" and type(debug.traceback) == "function" then
+				NAStuff.ExecutorTools.OkTb, NAStuff.ExecutorTools.TbResult = pcall(debug.traceback, nil, 2)
+				if NAStuff.ExecutorTools.OkTb and NAStuff.ExecutorTools.TbResult then
+					NAStuff.ExecutorTools.Traceback = tostring(NAStuff.ExecutorTools.TbResult)
+				end
+			end
+			return tostring(err).."\n"..NAStuff.ExecutorTools.Traceback
+		end)
+
+		if NAStuff.ExecutorTools.IdentityChanged and NAStuff.ExecutorTools.OldIdentity ~= nil then
+			pcall(NAStuff.ExecutorTools.SetIdentity, NAStuff.ExecutorTools.OldIdentity)
+		end
+
+		if NAStuff.ExecutorTools.RunOk then
+			if cfg.profileExecution ~= false then
+				NAStuff.ExecutorTools.Duration = math.max(os.clock() - NAStuff.ExecutorTools.StartClock, 0)
+				NAStuff.ExecutorTools.EndMem = NAStuff.ExecutorTools.MemoryKb()
+				NAStuff.ExecutorTools.Suffix = Format(" (%.3fs", NAStuff.ExecutorTools.Duration)
+				if NAStuff.ExecutorTools.StartMem and NAStuff.ExecutorTools.EndMem then
+					NAStuff.ExecutorTools.Suffix ..= Format(", %.1f KB", NAStuff.ExecutorTools.EndMem - NAStuff.ExecutorTools.StartMem)
+				end
+				NAStuff.ExecutorTools.Suffix ..= ")"
+				return true, "Execution finished"..NAStuff.ExecutorTools.Suffix
+			end
+			return true, "Execution finished"
+		end
+		return false, tostring(NAStuff.ExecutorTools.RunErr)
+	end
+
 
 	executeButton.MouseButton1Click:Connect(function()
 		commitCurrentPage(true)
@@ -107736,15 +108482,16 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			setStatus(tostring(loadErr), colors.error)
 			return
 		end
-		Spawn(function()
-			local ok, runErr = xpcall(fn, function(err)
-				return tostring(err).."\n"..debug.traceback(nil, 2)
-			end)
-			if ok then
-				pcall(Defer, setStatus, "Execution finished", colors.success)
-			else
-				pcall(Defer, setStatus, tostring(runErr), colors.error)
-			end
+		NAStuff.ExecutorTools.LastStartedAt = os.clock()
+		if cfg.runInCurrentThread == true then
+			NAStuff.ExecutorTools.LastThread = nil
+			local okRun, result = NAStuff.ExecutorTools.RunFunction(fn)
+			setStatus(result, okRun and colors.success or colors.error)
+			return
+		end
+		NAStuff.ExecutorTools.LastThread = Spawn(function()
+			local okRun, result = NAStuff.ExecutorTools.RunFunction(fn)
+			pcall(Defer, setStatus, result, okRun and colors.success or colors.error)
 		end)
 	end)
 	clearButton.MouseButton1Click:Connect(function()
@@ -107876,6 +108623,22 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	hubRefresh.MouseButton1Click:Connect(function()
 		refreshSavedScripts()
 		setStatus("Refreshed saved scripts", colors.success)
+	end)
+	NAStuff.ExecutorTools.HubStopLast.MouseButton1Click:Connect(function()
+		if type(task) ~= "table" or type(task.cancel) ~= "function" then
+			setStatus("task.cancel unavailable", colors.error)
+			return
+		end
+		if NAStuff.ExecutorTools.ThreadStatus(NAStuff.ExecutorTools.LastThread) ~= "suspended" then
+			setStatus("No cancellable executor task", colors.warn)
+			return
+		end
+		local okCancel, cancelErr = pcall(task.cancel, NAStuff.ExecutorTools.LastThread)
+		if okCancel then
+			setStatus("Cancel requested for last executor task", colors.warn)
+		else
+			setStatus(tostring(cancelErr), colors.error)
+		end
 	end)
 
 	queueExecutorResponsive(true)
@@ -126291,6 +127054,9 @@ end)
 addPartESPColorPicker("Non-Collidable ESP Color", "ESP_PartColor_CollisionFalse", Color3.fromRGB(255, 120, 120), function(color)
 	NAmanage.RecolorPartESPList(NAStuff.collisionfalseESPList, color)
 end)
+addPartESPColorPicker("Property ESP Color", "ESP_PartColor_Property", Color3.fromRGB(190, 120, 255), function(color)
+	NAmanage.RecolorPartESPList(NAStuff.propertyESPList, color)
+end)
 
 NAgui.addSection("Part ESP Locator Arrows")
 
@@ -126401,6 +127167,46 @@ NAgui.addToggle("Non-Collidable Parts ESP", NAgui.isListActive(NAStuff.collision
 end)
 
 NAgui.addSection("Part ESP")
+
+NAgui.addInput("Shape", "Block/Ball/Cylinder/Wedge/CornerWedge", NAStuff.ESP_LastShapeESP, function(text)
+	NAStuff.ESP_LastShapeESP = text
+end)
+
+NAgui.addButton("Apply Shape ESP", function()
+	local rawShape = NAgui.trimText(NAStuff.ESP_LastShapeESP)
+	if rawShape == "" then
+		SpawnCall(function() cmd.run({"shapeesp"}) end)
+		return
+	end
+	local shapeName = NAmanage.PropertyESP_ResolvePartShape(rawShape)
+	if not shapeName then
+		DoNotif("No matching shape for: "..rawShape, 3)
+		return
+	end
+	NAStuff.ESP_LastShapeESP = shapeName
+	SpawnCall(function() cmd.run({"shapeesp", shapeName}) end)
+end)
+
+NAgui.addButton("Clear Shape ESP", function()
+	SpawnCall(function() cmd.run({"unshapeesp"}) end)
+end)
+
+NAgui.addInput("Property Finder", "Shape Block / Shape=Block", NAStuff.ESP_LastPropertyESP, function(text)
+	NAStuff.ESP_LastPropertyESP = text
+end)
+
+NAgui.addButton("Apply Property ESP", function()
+	local rawInput = NAgui.trimText(NAStuff.ESP_LastPropertyESP)
+	if rawInput == "" then
+		DoNotif("Enter a property and value before using propertyesp.", 2)
+		return
+	end
+	SpawnCall(function() cmd.run({"propertyesp", rawInput}) end)
+end)
+
+NAgui.addButton("Clear Property ESP", function()
+	SpawnCall(function() cmd.run({"unpropertyesp"}) end)
+end)
 
 NAgui.addInput("Exact Part Name", "Exact part name (partesp)", NAStuff.ESP_LastExactPart, function(text)
 	NAStuff.ESP_LastExactPart = text
