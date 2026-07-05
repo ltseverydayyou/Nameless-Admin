@@ -2301,7 +2301,8 @@
     {
       "name": "antitrip",
       "aliases": [
-        "antitrip"
+        "antitrip",
+        "antiragdoll"
       ],
       "usage": "antitrip",
       "args": "",
@@ -7294,6 +7295,58 @@
       "usage": "unnocollisionesp",
       "args": "",
       "desc": ""
+    },
+    {
+      "name": "propertyesp",
+      "aliases": [
+        "propertyesp",
+        "propesp",
+        "espproperty",
+        "propertyfinder",
+        "findproperty"
+      ],
+      "usage": "propertyesp <Property> <Value> [class:ClassName]",
+      "args": "<Property> <Value> [class:ClassName]",
+      "desc": "ESP instances with a matching readable property value"
+    },
+    {
+      "name": "unpropertyesp",
+      "aliases": [
+        "unpropertyesp",
+        "unpropesp",
+        "unespproperty",
+        "unpropertyfinder",
+        "unfindproperty"
+      ],
+      "usage": "unpropertyesp [Property] [Value|All]",
+      "args": "[Property] [Value|All]",
+      "desc": "Disable property ESP entries"
+    },
+    {
+      "name": "shapeesp",
+      "aliases": [
+        "shapeesp",
+        "shapesp",
+        "partshapeesp",
+        "shapefinder",
+        "shapefinderesp"
+      ],
+      "usage": "shapeesp [Block|Ball|Cylinder|Wedge|CornerWedge]",
+      "args": "[Block|Ball|Cylinder|Wedge|CornerWedge]",
+      "desc": "ESP Part instances with the selected Shape"
+    },
+    {
+      "name": "unshapeesp",
+      "aliases": [
+        "unshapeesp",
+        "unshapesp",
+        "unpartshapeesp",
+        "unshapefinder",
+        "unshapefinderesp"
+      ],
+      "usage": "unshapeesp [shape|All]",
+      "args": "[shape|All]",
+      "desc": "Disable Shape ESP entries"
     },
     {
       "name": "esplocator",
