@@ -74877,6 +74877,7 @@ hiddenGUIS = hiddenGUIS or {}
 showPrev = showPrev or {}
 NAStuff.TargetGuiHidePrev = NAStuff.TargetGuiHidePrev or {}
 NAStuff.TargetGuiShowPrev = NAStuff.TargetGuiShowPrev or {}
+NAStuff.HideCurrentGuiPrev = NAStuff.HideCurrentGuiPrev or {}
 
 NAmanage.TargetGuiRoots = function()
 	local roots = {}
@@ -74983,6 +74984,96 @@ NAmanage.TargetGuiCollectUi = function()
 	return list
 end
 
+NAmanage.HideCurrentGuiRoots = function()
+	local roots = {}
+	local seen = {}
+	local function add(root)
+		if typeof(root) == "Instance" and not seen[root] then
+			seen[root] = true
+			Insert(roots, root)
+		end
+	end
+	local lp = Players.LocalPlayer
+	add(PlrGui)
+	add(lp and (lp:FindFirstChildOfClass("PlayerGui") or lp:FindFirstChild("PlayerGui")))
+	return roots
+end
+
+NAmanage.HideCurrentGuiIsShown = function(inst)
+	if typeof(inst) ~= "Instance" or not inst:IsA("GuiObject") then
+		return false
+	end
+
+	local okVisible, visible = pcall(function()
+		return inst.Visible
+	end)
+	if not okVisible or visible ~= true then
+		return false
+	end
+
+	local okSize, absSize = pcall(function()
+		return inst.AbsoluteSize
+	end)
+	if okSize and absSize and (absSize.X <= 0 or absSize.Y <= 0) then
+		return false
+	end
+
+	local parent = inst.Parent
+	while parent do
+		if parent:IsA("GuiObject") then
+			local okParentVisible, parentVisible = pcall(function()
+				return parent.Visible
+			end)
+			if not okParentVisible or parentVisible ~= true then
+				return false
+			end
+		end
+
+		local enabled = NAlib.isProperty(parent, "Enabled")
+		if enabled == false then
+			return false
+		end
+
+		parent = parent.Parent
+	end
+
+	return true
+end
+
+NAmanage.HideCurrentGuiCollect = function()
+	local all = {}
+	local added = {}
+	local top = {}
+
+	for _, root in NAmanage.HideCurrentGuiRoots() do
+		for _, inst in NAmanage.QueryDescendants(root, "GuiObject") do
+			if NAmanage.HideCurrentGuiIsShown(inst) and not added[inst] then
+				added[inst] = true
+				Insert(all, inst)
+			end
+		end
+	end
+
+	for _, inst in all do
+		local parent = inst.Parent
+		local skip = false
+
+		while parent do
+			if added[parent] then
+				skip = true
+				break
+			end
+			parent = parent.Parent
+		end
+
+		if not skip then
+			Insert(top, inst)
+		end
+	end
+
+	return top
+end
+
 cmd.add({"hideguis"}, {"hideguis","Hides GUIs"}, function()
 	for _, guiElement in NAmanage.QueryDescendants(PlrGui, "GuiObject") do
 		if guiElement.Visible then
@@ -75001,6 +75092,25 @@ cmd.add({"unhideguis"}, {"unhideguis","Restores GUIs hidden by hideguis"}, funct
 		end
 	end
 	hiddenGUIS = {}
+end)
+
+cmd.add({"hidecurrentguis","hidecurrentgui","hidecguis","hcguis","hcgui","cguis","currentguis"}, {"hidecurrentguis","Hides only currently visible GUIs"}, function()
+	local store = NAStuff.HideCurrentGuiPrev
+	local changed = 0
+
+	for _, inst in NAmanage.HideCurrentGuiCollect() do
+		NAmanage.TargetGuiSaveState(store, inst)
+		if NAmanage.TargetGuiSetShown(inst, false) then
+			changed += 1
+		end
+	end
+
+	DoNotif(("Hidden %d current GUI object(s)."):format(changed), 3, "Current GUIs")
+end)
+
+cmd.add({"unhidecurrentguis","unhidecurrentgui","unhidecguis","unhcguis","unhcgui","uncguis","restorecurrentguis","restorecguis"}, {"unhidecurrentguis","Restores GUIs hidden by hidecurrentguis"}, function()
+	local n = NAmanage.TargetGuiRestore(NAStuff.HideCurrentGuiPrev)
+	DoNotif(("Restored %d current GUI object(s)."):format(n), 2, "Current GUIs")
 end)
 
 cmd.add({"showguis"}, {"showguis","Enables every UI"}, function()
