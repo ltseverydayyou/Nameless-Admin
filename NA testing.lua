@@ -1,3 +1,4 @@
+--!nonstrict
 --[[
 
 
@@ -135,8 +136,165 @@ _na_boot.syncRuntimeGlobals({
 	NATestingVer = true,
 	NAverify = naVerifyKey,
 	NAKey = naVerifyKey,
-	__NAKeySource = "NA testing.lua",
+	__NAKeySource = "NA testing.luau",
 })
+
+_na_boot.lowerHeaders = function(headers)
+	local out = {}
+	if type(headers) == "table" then
+		for key, value in headers do
+			out[string.lower(tostring(key))] = value
+		end
+	end
+	return out
+end
+
+_na_boot.getResponseStatus = function(response)
+	if type(response) ~= "table" then
+		return nil
+	end
+	return tonumber(response.StatusCode or response.statusCode or response.Status or response.status or response.Code or response.code)
+end
+
+_na_boot.getResponseBody = function(response)
+	if type(response) == "string" then
+		return response
+	end
+	if type(response) ~= "table" then
+		return nil
+	end
+	local body = response.Body or response.body or response.Data or response.data or response.Text or response.text or response.Content or response.content or response.ResponseBody or response.responseBody
+	return type(body) == "string" and body or nil
+end
+
+_na_boot.getRetryAfter = function(response)
+	if type(response) ~= "table" then
+		return nil
+	end
+	local headers = _na_boot.lowerHeaders(response.Headers or response.headers)
+	local retryAfter = tonumber(headers["retry-after"]) or tonumber(headers["x-ratelimit-retryafter"]) or tonumber(headers["x-rate-limit-retry-after"])
+	return retryAfter
+end
+
+_na_boot.isRetryableHttp = function(response, err)
+	local status = _na_boot.getResponseStatus(response)
+	if status == 408 or status == 425 or status == 429 or (status and status >= 500 and status < 600) then
+		return true
+	end
+	local text = string.lower(tostring(err or _na_boot.getResponseBody(response) or ""))
+	return text:find("429", 1, true) ~= nil
+		or text:find("too many requests", 1, true) ~= nil
+		or text:find("rate limit", 1, true) ~= nil
+		or text:find("timed out", 1, true) ~= nil
+		or text:find("timeout", 1, true) ~= nil
+end
+
+_na_boot.sleepHttp = function(seconds)
+	seconds = math.clamp(tonumber(seconds) or 0, 0, 20)
+	if type(task) == "table" and type(task.wait) == "function" then
+		task.wait(seconds)
+	elseif type(wait) == "function" then
+		wait(seconds)
+	end
+end
+
+_na_boot.getExecutorRequest = function()
+	local host = _na_boot.hostEnv
+	local candidates = {
+		type(request) == "function" and request or nil,
+		type(http_request) == "function" and http_request or nil,
+		type(syn) == "table" and type(syn.request) == "function" and syn.request or nil,
+		type(http) == "table" and type(http.request) == "function" and http.request or nil,
+		type(fluxus) == "table" and type(fluxus.request) == "function" and fluxus.request or nil,
+		type(host) == "table" and type(rawget(host, "request")) == "function" and rawget(host, "request") or nil,
+		type(host) == "table" and type(rawget(host, "http_request")) == "function" and rawget(host, "http_request") or nil,
+	}
+	for _, fn in candidates do
+		if type(fn) == "function" then
+			return fn
+		end
+	end
+	return nil
+end
+
+_na_boot.makeHttpPayload = function(url, opts)
+	opts = type(opts) == "table" and opts or {}
+	local payload = {
+		Url = url,
+		url = url,
+		Method = opts.Method or opts.method or "GET",
+		method = opts.method or opts.Method or "GET",
+		Headers = opts.Headers or opts.headers or {
+			Accept = "*/*",
+		},
+		Timeout = tonumber(opts.Timeout or opts.timeout) or 10,
+		FollowRedirects = opts.FollowRedirects ~= false,
+		SslVerify = opts.SslVerify == true,
+	}
+	if opts.Body ~= nil or opts.body ~= nil then
+		payload.Body = opts.Body or opts.body
+		payload.body = opts.body or opts.Body
+	end
+	return payload
+end
+
+_na_boot.requestUrl = function(url, opts)
+	local requestFn = _na_boot.getExecutorRequest()
+	if type(requestFn) ~= "function" then
+		return false, nil, "executor request unavailable"
+	end
+	return pcall(requestFn, _na_boot.makeHttpPayload(url, opts))
+end
+
+_na_boot.httpGet = function(url, opts)
+	opts = type(opts) == "table" and opts or {}
+	if type(url) ~= "string" or url == "" then
+		error("missing url", 2)
+	end
+	local maxAttempts = math.clamp(math.floor(tonumber(opts.maxAttempts or opts.retries) or 5), 1, 10)
+	local timeout = tonumber(opts.timeout or opts.Timeout) or 10
+	local lastErr
+	for attempt = 1, maxAttempts do
+		local okReq, response = _na_boot.requestUrl(url, { Method = "GET", Timeout = timeout, Headers = opts.Headers or opts.headers })
+		if okReq and response then
+			local status = _na_boot.getResponseStatus(response)
+			local body = _na_boot.getResponseBody(response)
+			if type(response) == "string" and response ~= "" then
+				return response
+			end
+			if (status == nil or (status >= 200 and status < 300) or status == 304) and type(body) == "string" and body ~= "" then
+				return body
+			end
+			lastErr = "HTTP "..tostring(status or "unknown")
+			if not _na_boot.isRetryableHttp(response, lastErr) then
+				break
+			end
+		else
+			lastErr = tostring(response or "request failed")
+		end
+
+		local okGet, body = pcall(function()
+			if opts.noCache ~= nil then
+				return game:HttpGet(url, opts.noCache)
+			end
+			return game:HttpGet(url)
+		end)
+		if okGet and type(body) == "string" and body ~= "" then
+			return body
+		end
+		if not _na_boot.isRetryableHttp(nil, body) and not _na_boot.isRetryableHttp(nil, lastErr) then
+			lastErr = tostring(body or lastErr or "request failed")
+			break
+		end
+		lastErr = tostring(body or lastErr or "request failed")
+		if attempt < maxAttempts then
+			local retryAfter = _na_boot.getRetryAfter(response)
+			local delay = retryAfter or math.min(8, (0.65 * (2 ^ (attempt - 1))) + (math.random() * 0.35))
+			_na_boot.sleepHttp(delay)
+		end
+	end
+	error(lastErr or "HTTP request failed", 2)
+end
 
 local __lt = (function()
 	local cached = rawget(_na_boot.privateRoot, "serviceResolver");
@@ -147,7 +305,7 @@ local __lt = (function()
 	if type(loader) ~= "function" then
 		error("Service resolver loader unavailable");
 	end;
-	local resolver = loader(game:HttpGet("https://ltseverydayyou.github.io/ServiceResolver.luau"), "@ServiceResolver.luau");
+	local resolver = loader(_na_boot.httpGet("https://ltseverydayyou.github.io/ServiceResolver.luau"), "@ServiceResolver.luau");
 	if type(resolver) ~= "function" then
 		error("Service resolver failed to compile");
 	end;
@@ -181,7 +339,7 @@ local __NAUIProtector = (function()
 	if type(loader) ~= "function" then
 		error("UI protector loader unavailable");
 	end;
-	local protector = loader(game:HttpGet("https://ltseverydayyou.github.io/UIprotector.luau"), "@UIprotector.luau");
+	local protector = loader(_na_boot.httpGet("https://ltseverydayyou.github.io/UIprotector.luau"), "@UIprotector.luau");
 	if type(protector) ~= "function" then
 		error("UI protector failed to compile");
 	end;
@@ -7663,7 +7821,7 @@ opt={
 	NAAUTOSCALER=nil;
 	cmdIntegrationUrl = "https://raw.githubusercontent.com/lxte/cmd/main/main.lua";
 	cmdIntegrationFallbackUrl = "https://raw.githubusercontent.com/lxte/cmd/main/testing-main.lua";
-	NAREQUEST = request or http_request or (syn and syn.request) or (http and http.request) or (fluxus and fluxus.request) or function() end;
+	NAREQUEST = nil;
 	queueteleport=(syn and syn.queue_on_teleport) or queue_on_teleport or (fluxus and fluxus.queue_on_teleport) or function() end;
 	hiddenprop=(sethiddenproperty or set_hidden_property or set_hidden_prop) or function() end;
 	ctrlModule = nil;
@@ -7680,6 +7838,310 @@ opt={
 	translateMyMemoryKey = "";
 	--saveTag = false;
 }
+
+NAmanage.HttpDefaults = NAmanage.HttpDefaults or {
+	maxAttempts = 5,
+	timeout = 10,
+	baseDelay = 0.65,
+	maxDelay = 8,
+}
+
+NAmanage.HttpLowerHeaders = NAmanage.HttpLowerHeaders or function(headers)
+	local out = {}
+	if type(headers) == "table" then
+		for key, value in headers do
+			out[Lower(tostring(key))] = value
+		end
+	end
+	return out
+end
+
+NAmanage.HttpResponseStatus = NAmanage.HttpResponseStatus or function(response)
+	if type(response) ~= "table" then
+		return nil
+	end
+	return tonumber(response.StatusCode or response.statusCode or response.Status or response.status or response.Code or response.code)
+end
+
+NAmanage.HttpResponseBody = NAmanage.HttpResponseBody or function(response)
+	if type(response) == "string" then
+		return response
+	end
+	if type(response) ~= "table" then
+		return nil
+	end
+	local body = response.Body or response.body or response.Data or response.data or response.Text or response.text or response.Content or response.content or response.ResponseBody or response.responseBody or response.Response or response.response
+	return type(body) == "string" and body or nil
+end
+
+NAmanage.HttpRetryAfter = NAmanage.HttpRetryAfter or function(response)
+	if type(response) ~= "table" then
+		return nil
+	end
+	local headers = NAmanage.HttpLowerHeaders(response.Headers or response.headers)
+	return tonumber(headers["retry-after"])
+		or tonumber(headers["x-ratelimit-retryafter"])
+		or tonumber(headers["x-rate-limit-retry-after"])
+end
+
+NAmanage.HttpShouldRetry = NAmanage.HttpShouldRetry or function(response, err)
+	local status = NAmanage.HttpResponseStatus(response)
+	if status == 408 or status == 425 or status == 429 or (status and status >= 500 and status < 600) then
+		return true
+	end
+	local text = Lower(tostring(err or NAmanage.HttpResponseBody(response) or ""))
+	return text:find("429", 1, true) ~= nil
+		or text:find("too many requests", 1, true) ~= nil
+		or text:find("rate limit", 1, true) ~= nil
+		or text:find("timed out", 1, true) ~= nil
+		or text:find("timeout", 1, true) ~= nil
+		or text:find("temporarily unavailable", 1, true) ~= nil
+end
+
+NAmanage.HttpDelayForAttempt = NAmanage.HttpDelayForAttempt or function(attempt, response, opts)
+	opts = type(opts) == "table" and opts or {}
+	local retryAfter = NAmanage.HttpRetryAfter(response)
+	if retryAfter then
+		return math.clamp(retryAfter, 0.1, tonumber(opts.maxDelay) or NAmanage.HttpDefaults.maxDelay)
+	end
+	local baseDelay = tonumber(opts.baseDelay) or NAmanage.HttpDefaults.baseDelay
+	local maxDelay = tonumber(opts.maxDelay) or NAmanage.HttpDefaults.maxDelay
+	return math.clamp((baseDelay * (2 ^ math.max(attempt - 1, 0))) + (math.random() * 0.35), 0.1, maxDelay)
+end
+
+NAmanage.GetExecutorRequest = NAmanage.GetExecutorRequest or function()
+	local host = (getgenv and getgenv()) or _G or {}
+	local candidates = {
+		type(request) == "function" and request or nil,
+		type(http_request) == "function" and http_request or nil,
+		type(httprequest) == "function" and httprequest or nil,
+		type(syn) == "table" and type(syn.request) == "function" and syn.request or nil,
+		type(http) == "table" and type(http.request) == "function" and http.request or nil,
+		type(fluxus) == "table" and type(fluxus.request) == "function" and fluxus.request or nil,
+		type(host) == "table" and type(rawget(host, "request")) == "function" and rawget(host, "request") or nil,
+		type(host) == "table" and type(rawget(host, "http_request")) == "function" and rawget(host, "http_request") or nil,
+		type(host) == "table" and type(rawget(host, "httprequest")) == "function" and rawget(host, "httprequest") or nil,
+	}
+	for _, fn in candidates do
+		if type(fn) == "function" then
+			return fn
+		end
+	end
+	return nil
+end
+
+NAmanage.HttpCloneRequest = NAmanage.HttpCloneRequest or function(requestData)
+	local out = {}
+	if type(requestData) == "table" then
+		for key, value in requestData do
+			out[key] = value
+		end
+	end
+	if out.Url == nil and out.url ~= nil then
+		out.Url = out.url
+	end
+	if out.url == nil and out.Url ~= nil then
+		out.url = out.Url
+	end
+	if out.Method == nil and out.method ~= nil then
+		out.Method = out.method
+	end
+	if out.method == nil and out.Method ~= nil then
+		out.method = out.Method
+	end
+	if out.Method == nil then
+		out.Method = "GET"
+		out.method = "GET"
+	end
+	if out.Headers == nil and out.headers ~= nil then
+		out.Headers = out.headers
+	end
+	if out.headers == nil and out.Headers ~= nil then
+		out.headers = out.Headers
+	end
+	if out.Timeout == nil and out.timeout ~= nil then
+		out.Timeout = out.timeout
+	end
+	if out.timeout == nil and out.Timeout ~= nil then
+		out.timeout = out.Timeout
+	end
+	out.Timeout = tonumber(out.Timeout) or tonumber(out.timeout) or NAmanage.HttpDefaults.timeout
+	out.timeout = out.Timeout
+	if out.FollowRedirects == nil then
+		out.FollowRedirects = true
+	end
+	if out.SslVerify == nil then
+		out.SslVerify = false
+	end
+	return out
+end
+
+NAmanage.HttpRequestRaw = NAmanage.HttpRequestRaw or function(requestData)
+	local requestFn = opt and opt.NARAWREQUEST
+	if type(requestFn) ~= "function" then
+		requestFn = NAmanage.GetExecutorRequest()
+		if opt then
+			opt.NARAWREQUEST = requestFn
+		end
+	end
+	if type(requestFn) == "function" then
+		local ok, response = pcall(requestFn, requestData)
+		if ok and response ~= nil then
+			return true, response
+		end
+		return false, response
+	end
+	if HttpService and type(HttpService.RequestAsync) == "function" then
+		local requestAsyncData = {}
+		for key, value in requestData do
+			if key ~= "url"
+				and key ~= "method"
+				and key ~= "headers"
+				and key ~= "body"
+				and key ~= "timeout"
+				and key ~= "Timeout"
+				and key ~= "FollowRedirects"
+				and key ~= "SslVerify" then
+				requestAsyncData[key] = value
+			end
+		end
+		return pcall(HttpService.RequestAsync, HttpService, requestAsyncData)
+	end
+	return false, "HTTP request unavailable"
+end
+
+NAmanage.HttpRequest = NAmanage.HttpRequest or function(requestData, opts)
+	opts = type(opts) == "table" and opts or {}
+	if type(requestData) ~= "table" then
+		return false, nil, "missing request data"
+	end
+	local data = NAmanage.HttpCloneRequest(requestData)
+	if type(data.Url) ~= "string" or data.Url == "" then
+		return false, nil, "missing url"
+	end
+	local maxAttempts = math.clamp(math.floor(tonumber(opts.maxAttempts or opts.retries) or NAmanage.HttpDefaults.maxAttempts), 1, 10)
+	local lastResponse, lastErr
+	for attempt = 1, maxAttempts do
+		local ok, response = NAmanage.HttpRequestRaw(data)
+		lastResponse = response
+		if ok and response ~= nil then
+			local status = NAmanage.HttpResponseStatus(response)
+			if type(response) == "string" then
+				return true, response
+			end
+			if status == nil or (status >= 200 and status < 300) or status == 304 then
+				return true, response
+			end
+			lastErr = Format("HTTP %s", tostring(status))
+			if not NAmanage.HttpShouldRetry(response, lastErr) then
+				return false, response, lastErr
+			end
+		else
+			lastErr = tostring(response or "request failed")
+			if not NAmanage.HttpShouldRetry(nil, lastErr) then
+				return false, response, lastErr
+			end
+		end
+		if attempt < maxAttempts then
+			Wait(NAmanage.HttpDelayForAttempt(attempt, lastResponse, opts))
+		end
+	end
+	return false, lastResponse, lastErr or "request failed"
+end
+
+NAmanage.HttpGet = NAmanage.HttpGet or function(url, opts)
+	opts = type(opts) == "table" and opts or {}
+	if type(url) ~= "string" or url == "" then
+		return false, nil, "missing url"
+	end
+	local headers = opts.Headers or opts.headers or {
+		Accept = "*/*",
+	}
+	local okReq, response, requestErr = NAmanage.HttpRequest({
+		Url = url,
+		Method = "GET",
+		Headers = headers,
+		Timeout = opts.Timeout or opts.timeout or NAmanage.HttpDefaults.timeout,
+		FollowRedirects = opts.FollowRedirects ~= false,
+		SslVerify = opts.SslVerify == true,
+	}, opts)
+	if okReq then
+		local body = NAmanage.HttpResponseBody(response)
+		if type(body) == "string" and body ~= "" then
+			return true, body, nil, response
+		end
+		if type(response) == "string" and response ~= "" then
+			return true, response, nil, response
+		end
+	end
+
+	local maxAttempts = math.clamp(math.floor(tonumber(opts.maxAttempts or opts.retries) or NAmanage.HttpDefaults.maxAttempts), 1, 10)
+	local lastErr = requestErr
+	for attempt = 1, maxAttempts do
+		local okGet, body = pcall(function()
+			if opts.noCache ~= nil then
+				return game:HttpGet(url, opts.noCache)
+			end
+			return game:HttpGet(url)
+		end)
+		if okGet and type(body) == "string" and body ~= "" then
+			return true, body, nil, body
+		end
+		lastErr = tostring(body or lastErr or "request failed")
+		if not NAmanage.HttpShouldRetry(nil, lastErr) then
+			break
+		end
+		if attempt < maxAttempts then
+			Wait(NAmanage.HttpDelayForAttempt(attempt, nil, opts))
+		end
+	end
+	return false, nil, lastErr or "request failed", response
+end
+
+NAmanage.HttpGetOrError = NAmanage.HttpGetOrError or function(url, opts)
+	local ok, body, err = NAmanage.HttpGet(url, opts)
+	if ok and type(body) == "string" then
+		return body
+	end
+	error(tostring(err or "HTTP request failed"), 2)
+end
+
+NAmanage.HttpPost = NAmanage.HttpPost or function(url, body, opts)
+	opts = type(opts) == "table" and opts or {}
+	local headers = opts.Headers or opts.headers or {
+		["Content-Type"] = opts.contentType or "application/json",
+		["Accept"] = "*/*",
+	}
+	return NAmanage.HttpRequest({
+		Url = url,
+		Method = "POST",
+		Headers = headers,
+		Body = body,
+		Timeout = opts.Timeout or opts.timeout or NAmanage.HttpDefaults.timeout,
+		FollowRedirects = opts.FollowRedirects ~= false,
+		SslVerify = opts.SslVerify == true,
+	}, opts)
+end
+
+if opt then
+	opt.NARAWREQUEST = NAmanage.GetExecutorRequest()
+	opt.NAREQUEST = function(requestData)
+		local ok, response, err = NAmanage.HttpRequest(requestData)
+		if ok then
+			return response
+		end
+		if response ~= nil then
+			return response
+		end
+		return {
+			StatusCode = 0,
+			Status = 0,
+			Body = tostring(err or "request failed"),
+			Error = tostring(err or "request failed"),
+		}
+	end
+end
+
 local cmd={}
 NAmanage.btCount = 0
 
@@ -7984,9 +8446,7 @@ NAmanage.loadCmdIntegration=function(opts)
 			end
 		end
 
-		local ok, body = pcall(function()
-			return game:HttpGet(url)
-		end)
+		local ok, body = NAmanage.HttpGet(url, { timeout = 10 })
 		if ok and type(body) == "string" and body ~= "" then
 			return body, url
 		end
@@ -8013,6 +8473,8 @@ NAmanage.loadCmdIntegration=function(opts)
 	end
 
 	pushFile(opts.path)
+	pushFile("cmd/main.luau")
+	pushFile("Cmd/main.luau")
 	pushFile("cmd/main.lua")
 	pushFile("Cmd/main.lua")
 
@@ -8464,22 +8926,16 @@ NAmanage.SendIntegrationWebhook=function(kind, content)
 	local sentCount = 0
 	local lastErr = nil
 	for _, url in targets do
-		local ok, res = pcall(function()
-			if opt and type(opt.NAREQUEST) == "function" then
-				return opt.NAREQUEST({
-					Url = url;
-					Method = "POST";
-					Headers = { ["Content-Type"] = "application/json" };
-					Body = payload;
-				})
-			else
-				return HttpService:PostAsync(url, payload, Enum.HttpContentType.ApplicationJson, false)
-			end
-		end)
-		if ok then
+		local ok, res, err = NAmanage.HttpPost(url, payload, {
+			Headers = { ["Content-Type"] = "application/json" },
+			timeout = 10,
+			maxAttempts = 5,
+		})
+		local status = NAmanage.HttpResponseStatus(res)
+		if ok and (status == nil or status < 400) then
 			sentCount = sentCount + 1
 		else
-			lastErr = res
+			lastErr = err or (status and Format("HTTP %s", tostring(status))) or "request failed"
 		end
 	end
 	if sentCount > 0 then
@@ -8565,18 +9021,12 @@ NAmanage.HealthPing=function(url)
 		return false, "missing url"
 	end
 	local start = os.clock()
-	local ok, res = pcall(function()
-		if opt and type(opt.NAREQUEST) == "function" then
-			return opt.NAREQUEST({ Url = url, Method = "GET", Timeout = 5, FollowRedirects = true })
-		else
-			return HttpService:GetAsync(url)
-		end
-	end)
+	local ok, _, err = NAmanage.HttpGet(url, { timeout = 5, maxAttempts = 3 })
 	local elapsed = os.clock() - start
 	if ok then
 		return true, elapsed
 	end
-	return false, res or "error", elapsed
+	return false, err or "error", elapsed
 end
 
 NAmanage.HealthPingAll=function()
@@ -10139,7 +10589,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		end
 		baseUrl = baseUrl.."?ref="..HttpService:UrlEncode(branch)
 		local ok, raw = pcall(function()
-			return game:HttpGet(baseUrl)
+			return NAmanage.HttpGetOrError(baseUrl)
 		end)
 		if not (ok and type(raw) == "string" and raw ~= "") then
 			return false, raw or "Unable to fetch GitHub folder contents."
@@ -10786,9 +11236,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 	local function installFontFromUrl(name, url, opts)
 		opts = opts or {}
 		local rawName = type(name) == "string" and (name:match("^%s*(.-)%s*$") or "") or ""
-		local httpOk, data = pcall(function()
-			return game:HttpGet(url)
-		end)
+		local httpOk, data = NAmanage.HttpGet(url, { timeout = 10 })
 		if not (httpOk and type(data) == "string" and data ~= "") then
 			return false, "Unable to download font file."
 		end
@@ -10909,9 +11357,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 	end
 
 	local function getNAList()
-		local ok, raw = pcall(function()
-			return game:HttpGet(NAFontSrc.list)
-		end)
+		local ok, raw = NAmanage.HttpGet(NAFontSrc.list, { timeout = 10, Headers = { Accept = "application/json" } })
 		if not (ok and type(raw) == "string" and raw ~= "") then
 			return false, "Unable to fetch NA font catalog."
 		end
@@ -12091,7 +12537,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			return false, "NA icon catalog URL not configured."
 		end
 		local ok, raw = pcall(function()
-			return game:HttpGet(src.list)
+			return NAmanage.HttpGetOrError(src.list, { Headers = { Accept = "application/json" } })
 		end)
 		if not (ok and typeof(raw) == "string" and raw ~= "") then
 			return false, "Unable to fetch NA icon catalog."
@@ -12331,9 +12777,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		if not norm then
 			return false, "Enter a valid image URL or asset id."
 		end
-		local ok, data = pcall(function()
-			return game:HttpGet(norm)
-		end)
+		local ok, data = NAmanage.HttpGet(norm, { timeout = 10 })
 		if not (ok and typeof(data) == "string" and data ~= "") then
 			return false, "Unable to download custom icon image."
 		end
@@ -13089,7 +13533,7 @@ NAmanage.FetchRobloxApiBody = function(url, opts)
 
 		if method == "GET" then
 			local okGet, text = runLimited(function()
-				return game:HttpGet(apiUrl)
+				return NAmanage.HttpGetOrError(apiUrl, { timeout = timeout })
 			end)
 			if okGet and type(text) == "string" and text ~= "" then
 				return text, apiUrl
@@ -16021,7 +16465,7 @@ NAAssetsLoading.queueImageAssets=function()
 						if NAAssetsLoading and NAAssetsLoading.httpGetWithTimeout then
 							ok, data = NAAssetsLoading.httpGetWithTimeout(sourceUrl, NAAssetsLoading.githubTimeoutSeconds or 5)
 						else
-							ok, data = pcall(game.HttpGet, game, sourceUrl)
+							ok, data = NAmanage.HttpGet(sourceUrl, { timeout = NAAssetsLoading.githubTimeoutSeconds or 5 })
 						end
 						if ok and type(data) == "string" and data ~= "" then
 							NAmanage.safeWriteFile(fullPath, data)
@@ -16101,7 +16545,7 @@ NAAssetsLoading.prefetchRemotes=function(onStep, shouldSkip)
 		if NAAssetsLoading.httpGetWithTimeout then
 			ok, body = NAAssetsLoading.httpGetWithTimeout(url, NAAssetsLoading.githubTimeoutSeconds or 5)
 		else
-			ok, body = NACaller(game.HttpGet, game, url)
+			ok, body = NAmanage.HttpGet(url, { timeout = NAAssetsLoading.githubTimeoutSeconds or 5 })
 		end
 		if ok and type(body) == "string" and body ~= "" then
 			NAStuff._prefetchedRemotes[url] = body
@@ -16170,7 +16614,7 @@ NAAssetsLoading.httpGetWithTimeout = function(url, timeoutSeconds)
 		return false, nil, "missing url"
 	end
 	return NAAssetsLoading.runWithTimeout(timeoutSeconds or NAAssetsLoading.githubTimeoutSeconds or 5, function()
-		return game:HttpGet(url)
+		return NAmanage.HttpGetOrError(url)
 	end)
 end
 
@@ -16203,7 +16647,7 @@ NAAssetsLoading.httpGetNoSkipWithTimeout = function(url, timeoutSeconds)
 		return false, nil, "missing url"
 	end
 	return NAAssetsLoading.runWithTimeoutNoSkip(timeoutSeconds or NAAssetsLoading.githubTimeoutSeconds or 5, function()
-		return game:HttpGet(url)
+		return NAmanage.HttpGetOrError(url)
 	end)
 end
 
@@ -16212,7 +16656,7 @@ NAAssetsLoading.httpGetImportant = function(url)
 		return false, nil, "missing url"
 	end
 	local ok, body = pcall(function()
-		return game:HttpGet(url)
+		return NAmanage.HttpGetOrError(url)
 	end)
 	if not ok then
 		return false, nil, body
@@ -16344,7 +16788,7 @@ NAmanage.uiSrcGet = NAmanage.uiSrcGet or function(force)
 		if NAAssetsLoading and NAAssetsLoading.httpGetImportant then
 			ok, body = NAAssetsLoading.httpGetImportant(url)
 		else
-			ok, body = pcall(game.HttpGet, game, url)
+			ok, body = NAmanage.HttpGet(url, { timeout = NAAssetsLoading.githubTimeoutSeconds or 5 })
 		end
 		if not ok then
 			return nil, body
@@ -16466,7 +16910,7 @@ repeat
 		if NAAssetsLoading and NAAssetsLoading.httpGetImportant then
 			okFetch, sourceOrErr = NAAssetsLoading.httpGetImportant("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NamelessAdminNotifications.lua")
 		else
-			okFetch, sourceOrErr = pcall(game.HttpGet, game, "https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NamelessAdminNotifications.lua")
+			okFetch, sourceOrErr = NAmanage.HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NamelessAdminNotifications.lua", { timeout = NAAssetsLoading.githubTimeoutSeconds or 5 })
 		end
 		if not okFetch then
 			error(sourceOrErr or "notification fetch failed")
@@ -16938,7 +17382,7 @@ SpawnCall(function()
 		_na_env.__NA_FUNCTION_FIXER_OK, _na_env.__NA_FUNCTION_FIXER_SOURCE = NAAssetsLoading.httpGetImportant("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/functionFixer.lua")
 	else
 		_na_env.__NA_FUNCTION_FIXER_OK, _na_env.__NA_FUNCTION_FIXER_SOURCE = pcall(function()
-			return game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/functionFixer.lua")
+			return NAmanage.HttpGetOrError("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/functionFixer.lua", { timeout = NAAssetsLoading.githubTimeoutSeconds or 5 })
 		end)
 	end
 	if not _na_env.__NA_FUNCTION_FIXER_OK or type(_na_env.__NA_FUNCTION_FIXER_SOURCE) ~= "string" or _na_env.__NA_FUNCTION_FIXER_SOURCE == "" then
@@ -21310,7 +21754,7 @@ end
 NAStuff.clnExtMap = NAStuff.clnExtMap or {
 	json = "JSON Source File",
 	txt = "Text Source File",
-	lua = "Lua Script",
+	lua = "Luau Script",
 	luau = "Luau Script",
 	log = "Log File",
 	cfg = "Config File",
@@ -24695,9 +25139,9 @@ NAmanage._safeLoadStart = function()
 			if type(job.url) == "string" then
 				name = type(name) == "string" and name or ("@"..job.url)
 				if type(job.noCache) == "boolean" then
-					okBody, body = pcall(game.HttpGet, game, job.url, job.noCache)
+					okBody, body = NAmanage.HttpGet(job.url, { noCache = job.noCache, timeout = 10 })
 				else
-					okBody, body = pcall(game.HttpGet, game, job.url)
+					okBody, body = NAmanage.HttpGet(job.url, { timeout = 10 })
 				end
 			else
 				name = type(name) == "string" and name or "@NAExternal"
@@ -24808,7 +25252,7 @@ NAmanage.ExecutorScriptsSanitizeName = function(name)
 		return ""
 	end
 	if not name:lower():match("%.lua$") and not name:lower():match("%.luau$") and not name:lower():match("%.txt$") then
-		name ..= ".lua"
+		name ..= ".luau"
 	end
 	return name
 end
@@ -26594,30 +27038,22 @@ NAmanage.RotectorHttpPost = function(payload)
 		["Content-Type"] = "application/json";
 		["Accept"] = "application/json";
 	}
-	local requestFn = opt and opt.NAREQUEST
-	if type(requestFn) == "function" then
-		local okRequest, response = pcall(requestFn, {
-			Url = url;
-			Method = "POST";
-			Headers = headers;
-			Body = body;
-		})
-		local responseBody, status = NAmanage.RotectorExtractBody(response)
-		if okRequest and responseBody then
-			if status and status >= 400 then
-				return nil, Format("HTTP %d", status)
-			end
-			return responseBody, nil
+	local okRequest, response, requestErr = NAmanage.HttpPost(url, body, {
+		Headers = headers,
+		timeout = 10,
+		maxAttempts = 5,
+	})
+	local responseBody, status = NAmanage.RotectorExtractBody(response)
+	if okRequest and responseBody then
+		if status and status >= 400 then
+			return nil, Format("HTTP %d", status)
 		end
+		return responseBody, nil
+	elseif requestErr then
+		return nil, requestErr
 	end
 
-	local okPost, response = pcall(function()
-		return HttpService:PostAsync(url, body, Enum.HttpContentType.ApplicationJson, false)
-	end)
-	if okPost and response then
-		return response, nil
-	end
-	return nil, response or "request failed"
+	return nil, requestErr or "request failed"
 end
 
 NAmanage.RotectorLookupIds = function(ids, opts)
@@ -33849,7 +34285,7 @@ NAmanage.PluginInstallFromUrl = NAmanage.PluginInstallFromUrl or function(url)
 		return false, "plugin URL must end with .na or .iy"
 	end
 	local okFetch, data = pcall(function()
-		return game:HttpGet(norm)
+		return NAmanage.HttpGetOrError(norm)
 	end)
 	if not (okFetch and type(data) == "string" and data ~= "") then
 		return false, "unable to download plugin"
@@ -34227,22 +34663,15 @@ NAmanage.LoadPlugins = function(opts)
 		return out
 	end
 	local function fetchRem(url, method)
-		if type(url) ~= "string" or url == "" or not game then
+		if type(url) ~= "string" or url == "" then
 			return nil
 		end
-		local httpFn = method and game[method] or game.HttpGet
-		if type(httpFn) ~= "function" then
-			return nil
-		end
-		local callers = {
-			function() return httpFn(game, url) end,
-			function() return httpFn(game, url, true) end,
-		}
-		for _, caller in callers do
-			local ok, result = pcall(caller)
-			if ok and type(result) == "string" and result ~= "" then
-				return result
-			end
+		local ok, result = NAmanage.HttpGet(url, {
+			noCache = method == "HttpGetAsync" and nil or true,
+			timeout = 10,
+		})
+		if ok and type(result) == "string" and result ~= "" then
+			return result
 		end
 		return nil
 	end
@@ -35013,16 +35442,10 @@ NAmanage.LoadPlugins = function(opts)
 			return nil
 		end
 		function gameProxy:HttpGet(url, second)
-			if type(second) == "boolean" then
-				return rawGame:HttpGet(url)
-			end
-			return rawGame:HttpGet(url, second)
+			return NAmanage.HttpGetOrError(url, { noCache = type(second) == "boolean" and second or nil, timeout = 10 })
 		end
 		function gameProxy:HttpGetAsync(url, second)
-			if type(second) == "boolean" then
-				return rawGame:HttpGetAsync(url)
-			end
-			return rawGame:HttpGetAsync(url, second)
+			return NAmanage.HttpGetOrError(url, { noCache = type(second) == "boolean" and second or nil, timeout = 10 })
 		end
 		local pluginGameAllowedMembers = {
 			PlaceId = true;
@@ -53793,7 +54216,7 @@ cmd.add({"animationplayer","animplayer", "aplayer","animp"},{"animationplayer","
 	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/AnimPlayer.luau");
 end)
 
-cmd.add({"decompiler"},{"decompiler","Allows you to decompile LocalScript/ModuleScript's using lua.expert"},function()
+cmd.add({"decompiler"},{"decompiler","Allows you to decompile LocalScript/ModuleScript bytecode through lua.expert"},function()
 	Spawn(function()
 		assert(getscriptbytecode, "Exploit not supported.")
 		assert(opt and type(opt.NAREQUEST) == "function", "HTTP request not supported.")
@@ -53853,13 +54276,13 @@ cmd.add({"decompiler"},{"decompiler","Allows you to decompile LocalScript/Module
 		end
 
 		function disassemble(scriptPath: Script | ModuleScript | LocalScript): string
-			return "-- lua.expert does not provide a disassemble endpoint."
+			return "-- lua.expert does not provide a Luau disassemble endpoint."
 		end
 
 		_na_env.decompile = decompile
 		_na_env.disassemble = disassemble
 
-		-- api docs: https://lua.expert/docs
+		-- decompiler API docs: https://lua.expert/docs
 	end)
 	--NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/WompWomp.lua")
 end)
@@ -58499,7 +58922,7 @@ NAmanage.GetUniversalSaveInstance = NAmanage.GetUniversalSaveInstance or functio
 	end
 
 	local repoUrl = "https://raw.githubusercontent.com/luau/UniversalSynSaveInstance/main/saveinstance.luau"
-	local source = game:HttpGet(repoUrl, true)
+	local source = NAmanage.HttpGetOrError(repoUrl, { noCache = true, timeout = 12 })
 	source = source:gsub("StatusGui%.Parent = global_container%.gethui%(%)", [[
 			local huiOk, hui = pcall(global_container.gethui)
 			if huiOk and typeof(hui) == "Instance" then
@@ -59323,30 +59746,11 @@ NAStuff.srv.j = function(self, s)
 end
 
 NAStuff.srv.get = function(self, url)
-	local req = opt and opt.NAREQUEST
-	if type(req) == "function" then
-		local ok, res = pcall(req, {
-			Url = url,
-			Method = "GET",
-			Headers = { Accept = "application/json" },
-			Timeout = 4,
-			FollowRedirects = true,
-			SslVerify = false,
-		})
-		if ok and res then
-			if type(res) == "string" then
-				return res
-			end
-			local body = res.Body or res.body or res.Data or res.data or res.Text or res.text or res.Content or res.content
-			if type(body) == "string" and #body > 0 then
-				return body
-			end
-		end
-	end
-
-	local ok, body = pcall(function()
-		return game:HttpGet(url)
-	end)
+	local ok, body = NAmanage.HttpGet(url, {
+		timeout = 6,
+		maxAttempts = 5,
+		Headers = { Accept = "application/json" },
+	})
 	if ok and type(body) == "string" and #body > 0 then
 		return body
 	end
@@ -59891,7 +60295,7 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 		end)
 
 		local hooked={}
-		local Seralize=loadstring(game:HttpGet('https://api.irisapp.ca/Scripts/SeralizeTable.lua',true))()
+		local Seralize=loadstring(NAmanage.HttpGetOrError('https://api.irisapp.ca/Scripts/SeralizeTable.lua',{noCache=true,timeout=10}))()
 		for i,v in next,toLog do
 			if type(v)=="string" then
 				local suc,err=NACaller(function()
@@ -64939,17 +65343,7 @@ NAmanage._outfitHttpJSON=function(url)
 			end
 		end
 	end
-	if HttpService and type(HttpService.GetAsync)=="function" then
-		local okHttp,text=pcall(HttpService.GetAsync,HttpService,url)
-		local data=okHttp and decodeBody(text) or nil
-		if data then
-			clearRetry()
-			return true,data
-		end
-	end
-	local okHttpGet,textHttpGet=pcall(function()
-		return game and game.HttpGet and game:HttpGet(url)
-	end)
+	local okHttpGet,textHttpGet=NAmanage.HttpGet(url, { timeout = 6, Headers = { Accept = "application/json" } })
 	local dataHttpGet=okHttpGet and decodeBody(textHttpGet) or nil
 	if dataHttpGet then
 		clearRetry()
@@ -75318,7 +75712,7 @@ cmd.add({"hydroxide","hydro"},{"hydroxide (hydro)","executes hydroxide"},functio
 
 		local function webImport(file)
 			local url = ("https://raw.githubusercontent.com/%s/%s/%s/%s/%s.lua"):format(user, repo, branch, repoPath, file)
-			return loadstring(game:HttpGet(url), file..".lua")()
+			return loadstring(NAmanage.HttpGetOrError(url, { timeout = 10 }), file..".luau")()
 		end
 
 		webImport("init")
@@ -95486,7 +95880,7 @@ NAmanage.MusicWindowInit = NAmanage.MusicWindowInit or function()
 			if ok and type(res) == "table" then body = res.Body or res.body end
 		end
 		if type(body) ~= "string" or body == "" then
-			local ok, res = pcall(function() return game:HttpGet(u) end)
+			local ok, res = NAmanage.HttpGet(u, { timeout = 10, Headers = { ["Accept"] = "*/*" } })
 			if ok and type(res) == "string" and res ~= "" then body = res end
 		end
 		return body
@@ -105488,7 +105882,7 @@ NAmanage.ExecutorReplaceEditorLineRange = NAmanage.ExecutorReplaceEditorLineRang
 	return rebuilt
 end
 
-NAmanage.ExecutorStripLuaLineForIndent = NAmanage.ExecutorStripLuaLineForIndent or function(line, state)
+NAmanage.ExecutorStripLuauLineForIndent = NAmanage.ExecutorStripLuauLineForIndent or function(line, state)
 	line = tostring(line or "")
 	state = state or {}
 	local out = {}
@@ -105570,7 +105964,7 @@ NAmanage.ExecutorStripLuaLineForIndent = NAmanage.ExecutorStripLuaLineForIndent 
 	return Concat(out)
 end
 
-NAmanage.ExecutorSplitLuaStatementLine = NAmanage.ExecutorSplitLuaStatementLine or function(line, state)
+NAmanage.ExecutorSplitLuauStatementLine = NAmanage.ExecutorSplitLuauStatementLine or function(line, state)
 	line = tostring(line or "")
 	state = state or {}
 	local parts = {}
@@ -105643,7 +106037,7 @@ NAmanage.ExecutorSplitLuaStatementLine = NAmanage.ExecutorSplitLuaStatementLine 
 	return parts
 end
 
-NAmanage.ExecutorFormatLuaLineSpacing = NAmanage.ExecutorFormatLuaLineSpacing or function(line)
+NAmanage.ExecutorFormatLuauLineSpacing = NAmanage.ExecutorFormatLuauLineSpacing or function(line)
 	line = tostring(line or "")
 	local out = {}
 	local i = 1
@@ -105772,7 +106166,7 @@ NAmanage.ExecutorFormatLuaLineSpacing = NAmanage.ExecutorFormatLuaLineSpacing or
 	return Concat(out):gsub("%s+$", "")
 end
 
-NAmanage.ExecutorLuaParenBalance = NAmanage.ExecutorLuaParenBalance or function(line)
+NAmanage.ExecutorLuauParenBalance = NAmanage.ExecutorLuauParenBalance or function(line)
 	line = tostring(line or "")
 	local balance = 0
 	local i = 1
@@ -105807,7 +106201,7 @@ NAmanage.ExecutorLuaParenBalance = NAmanage.ExecutorLuaParenBalance or function(
 	return balance
 end
 
-NAmanage.ExecutorCollapseLuaShortCalls = NAmanage.ExecutorCollapseLuaShortCalls or function(source)
+NAmanage.ExecutorCollapseLuauShortCalls = NAmanage.ExecutorCollapseLuauShortCalls or function(source)
 	local lines = {}
 	for line in (tostring(source or "").."\n"):gmatch("(.-)\n") do
 		lines[#lines + 1] = line
@@ -105830,7 +106224,7 @@ NAmanage.ExecutorCollapseLuaShortCalls = NAmanage.ExecutorCollapseLuaShortCalls 
 		local line = lines[i]
 		local indent, content = line:match("^(%s*)(.-)%s*$")
 		if content and content:match("%(%s*$") then
-			local balance = NAmanage.ExecutorLuaParenBalance(content)
+			local balance = NAmanage.ExecutorLuauParenBalance(content)
 			local pieces = { content }
 			local j = i + 1
 			local canCollapse = balance > 0
@@ -105841,7 +106235,7 @@ NAmanage.ExecutorCollapseLuaShortCalls = NAmanage.ExecutorCollapseLuaShortCalls 
 					break
 				end
 				pieces[#pieces + 1] = nextContent
-				balance += NAmanage.ExecutorLuaParenBalance(nextContent)
+				balance += NAmanage.ExecutorLuauParenBalance(nextContent)
 				j += 1
 			end
 			if canCollapse and balance <= 0 and #pieces > 1 then
@@ -105854,7 +106248,7 @@ NAmanage.ExecutorCollapseLuaShortCalls = NAmanage.ExecutorCollapseLuaShortCalls 
 						joined = joined:gsub("%s+$", "")..(joined:match("%(%s*$") and "" or " ")..piece
 					end
 				end
-				joined = NAmanage.ExecutorFormatLuaLineSpacing(joined)
+				joined = NAmanage.ExecutorFormatLuauLineSpacing(joined)
 				if #joined <= 160 then
 					out[#out + 1] = indent..joined
 					i = j
@@ -105874,12 +106268,12 @@ NAmanage.ExecutorCollapseLuaShortCalls = NAmanage.ExecutorCollapseLuaShortCalls 
 	return Concat(out, "\n")
 end
 
-NAmanage.ExecutorFormatLuaSource = NAmanage.ExecutorFormatLuaSource or function(source)
+NAmanage.ExecutorFormatLuauSource = NAmanage.ExecutorFormatLuauSource or function(source)
 	source = tostring(source or ""):gsub("\r\n", "\n"):gsub("\r", "\n")
 	local lines = {}
 	local splitState = {}
 	for line in (source.."\n"):gmatch("(.-)\n") do
-		for _, part in NAmanage.ExecutorSplitLuaStatementLine(line, splitState) do
+		for _, part in NAmanage.ExecutorSplitLuauStatementLine(line, splitState) do
 			lines[#lines + 1] = part
 		end
 	end
@@ -105895,8 +106289,8 @@ NAmanage.ExecutorFormatLuaSource = NAmanage.ExecutorFormatLuaSource or function(
 	for _, rawLine in lines do
 		local line = tostring(rawLine or ""):gsub("%s+$", "")
 		local trimmed = line:gsub("^%s+", "")
-		local code = NAmanage.ExecutorStripLuaLineForIndent(trimmed, state)
-		local spaced = NAmanage.ExecutorFormatLuaLineSpacing(trimmed)
+		local code = NAmanage.ExecutorStripLuauLineForIndent(trimmed, state)
+		local spaced = NAmanage.ExecutorFormatLuauLineSpacing(trimmed)
 		local compact = code:gsub("^%s+", "")
 		local closeOutdent = 0
 		local branchOutdent = 0
@@ -105932,7 +106326,7 @@ NAmanage.ExecutorFormatLuaSource = NAmanage.ExecutorFormatLuaSource or function(
 		indent = math.max(indent + opens - math.max(closes - closeOutdent, 0), 0)
 	end
 
-	return NAmanage.ExecutorCollapseLuaShortCalls(Concat(formatted, "\n")):gsub("%s+$", "")
+	return NAmanage.ExecutorCollapseLuauShortCalls(Concat(formatted, "\n")):gsub("%s+$", "")
 end
 
 NAmanage.ExecutorMergeEditorChunks = NAmanage.ExecutorMergeEditorChunks or function(chunks)
@@ -106149,12 +106543,12 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			name = "script"
 		end
 		if not isScriptFileName(name) then
-			name ..= ".lua"
+			name ..= ".luau"
 		end
 		return name
 	end
 
-	local function stripLuaExt(name)
+	local function stripLuauExt(name)
 		return tostring(name or ""):gsub("%.luau$", ""):gsub("%.lua$", ""):gsub("%.txt$", "")
 	end
 
@@ -108334,7 +108728,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	local function getCurrentScriptName()
 		local tab = tabs[currentTab]
 		local title = tab and tab.title or selectedScript or "script"
-		title = stripLuaExt(title)
+		title = stripLuauExt(title)
 		if title == "" or title:match("^Tab%s*%d+$") then
 			title = "Script_"..os.date("%Y%m%d_%H%M%S")
 		end
@@ -108380,14 +108774,14 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			return
 		end
 		if newTab then
-			local tabIndex = createTab(source, stripLuaExt(selectedScript))
+			local tabIndex = createTab(source, stripLuauExt(selectedScript))
 			selectTab(tabIndex)
 			setStatus("Opened "..selectedScript.." in a new tab", colors.success)
 		else
 			if tabs[currentTab] then
 				setTabFullText(tabs[currentTab], source)
 				if (tabs[currentTab].title or "") == "" or tabs[currentTab].title:match("^Tab %d+$") then
-					tabs[currentTab].title = stripLuaExt(selectedScript)
+					tabs[currentTab].title = stripLuauExt(selectedScript)
 					tabs[currentTab].label.Text = tabs[currentTab].title
 					local width = TextServiceRef:GetTextSize(tabs[currentTab].title, 13, Enum.Font.GothamSemibold, Vector2.new(1000, 1000)).X + 46
 					tabs[currentTab].holder.Size = UDim2.new(0, math.clamp(width, 96, 230), 0, 28)
@@ -108681,7 +109075,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			setStatus("Nothing to format", colors.warn)
 			return
 		end
-		local formatted = NAmanage.ExecutorFormatLuaSource(source)
+		local formatted = NAmanage.ExecutorFormatLuauSource(source)
 		if formatted == source then
 			setStatus("Already formatted", colors.subtle)
 			return
@@ -108689,7 +109083,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		setTabFullText(tab, formatted)
 		loadCurrentPage()
 		scheduleTabsSave()
-		setStatus("Formatted Lua/Luau script", colors.success)
+		setStatus("Formatted Luau script", colors.success)
 	end)
 	renameButton.MouseButton1Click:Connect(function()
 		renameTab(currentTab)
@@ -110939,18 +111333,9 @@ originalIO.naTransLatooor=function()
 	local rpc = "MkEWBc"
 
 	NAmanage.requestAsync=function(optArgs)
-		local fn = opt.NAREQUEST
-		if fn then
-			local ok, res = pcall(fn, optArgs)
-			if ok and res then
-				return res
-			end
-		end
-		local ok2, res2 = pcall(function()
-			return Http:RequestAsync(optArgs)
-		end)
-		if ok2 and res2 then
-			return res2
+		local ok, res = NAmanage.HttpRequest(optArgs, { maxAttempts = 5, timeout = 10 })
+		if ok and res then
+			return res
 		end
 		return nil
 	end
@@ -116587,7 +116972,7 @@ SpawnCall(function()
 			if key ~= "" then
 				writeGuardValue("NAverify", key, env)
 				writeGuardValue("NAKey", key, env)
-				writeGuardValue("__NAKeySource", "NA testing.lua", env)
+				writeGuardValue("__NAKeySource", "NA testing.luau", env)
 			end
 
 			local flag = readGuardValue(guardFlagName, env)
@@ -116703,7 +117088,7 @@ SpawnCall(function()
 
 		local function runProtectors(url, chunkName, env)
 			local okFetch, source = pcall(function()
-				return game:HttpGet(url)
+				return NAmanage.HttpGetOrError(url)
 			end)
 			if not okFetch or type(source) ~= "string" or source == "" then
 				return false
@@ -124913,9 +125298,7 @@ NAmanage.NAInitCoreGuiCustomization=function()
 				end)
 
 				Spawn(function()
-					local okHttp, raw = pcall(function()
-						return game:HttpGet(BuilderIconEditor.catalogUrl)
-					end)
+					local okHttp, raw = NAmanage.HttpGet(BuilderIconEditor.catalogUrl, { timeout = opts.timeout or 8, Headers = { Accept = "application/json" } })
 					if token ~= BuilderIconEditor.catalogFetchToken then
 						return
 					end
@@ -128637,10 +129020,7 @@ originalIO.fetchGitHubCommits = function(forceRefresh)
 		return true, cached
 	end
 
-	local requestFunc = opt and opt.NAREQUEST
-	if type(requestFunc) ~= "function" then
-		return false, "HTTP request function is unavailable"
-	end
+	local requestFunc = NAmanage.HttpRequest
 
 	local baseUrl = opt and opt.githubUrl
 	if type(baseUrl) ~= "string" or baseUrl == "" then
@@ -128677,14 +129057,14 @@ originalIO.fetchGitHubCommits = function(forceRefresh)
 		local sep = endpoint:find("?", 1, true) and "&" or "?"
 		local cacheBuster = "_="..tostring(os.time())..tostring(math.random(1, 1e6))
 		local url = endpoint..sep..cacheBuster
-		local okRequest, response = pcall(requestFunc, {
+		local okRequest, response = requestFunc({
 			Url = url;
 			Method = "GET";
 			Headers = headers;
 			Timeout = 8;
 			FollowRedirects = true;
 			SslVerify = false;
-		})
+		}, { maxAttempts = 5, timeout = 8 })
 		if okRequest and response then
 			local status = tonumber(response.StatusCode) or tonumber(response.Status)
 			local body = response.Body or response.body
@@ -128714,9 +129094,7 @@ originalIO.fetchGitHubCommits = function(forceRefresh)
 		local sep = baseUrl:find("?", 1, true) and "&" or "?"
 		local cacheBuster = "_="..tostring(os.time())..tostring(math.random(1, 1e6))
 		local directUrl = baseUrl..sep..cacheBuster
-		local okDirect, bodyDirect = pcall(function()
-			return HttpService:GetAsync(directUrl)
-		end)
+		local okDirect, bodyDirect = NAmanage.HttpGet(directUrl, { timeout = 8, Headers = headers })
 		if okDirect and type(bodyDirect) == "string" then
 			local decodeOk, decoded = pcall(HttpService.JSONDecode, HttpService, bodyDirect)
 			if decodeOk and type(decoded) == "table" then
@@ -128880,7 +129258,7 @@ originalIO.fetchRobloxVersionData=function(forceRefresh)
 		end
 
 		local okHttp, body = pcall(function()
-			return game:HttpGet(url)
+			return NAmanage.HttpGetOrError(url)
 		end)
 		if okHttp then
 			local data = decodeBody(body, url)
