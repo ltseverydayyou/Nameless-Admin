@@ -116,7 +116,7 @@ _na_boot.syncRuntimeGlobals({
 	NATestingVer = false,
 	NAverify = naVerifyKey,
 	NAKey = naVerifyKey,
-	__NAKeySource = "Source.luau",
+	__NAKeySource = "Source.lua",
 })
 
 _na_boot.lowerHeaders = function(headers)
