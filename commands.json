@@ -1771,7 +1771,7 @@
         "deleteinvisibleparts",
         "dip"
       ],
-      "usage": "deleteinvisparts (deleteinvisibleparts,dip)",
+      "usage": "deleteinvisparts",
       "args": "",
       "desc": "Deletes invisible parts"
     },
@@ -1781,7 +1781,7 @@
         "invisibleparts",
         "invisparts"
       ],
-      "usage": "invisibleparts (invisparts)",
+      "usage": "invisibleparts",
       "args": "",
       "desc": "Shows invisible parts"
     },
@@ -1791,7 +1791,7 @@
         "uninvisibleparts",
         "uninvisparts"
       ],
-      "usage": "uninvisibleparts (uninvisparts)",
+      "usage": "uninvisibleparts",
       "args": "",
       "desc": "Makes parts affected by invisparts return to normal"
     },
