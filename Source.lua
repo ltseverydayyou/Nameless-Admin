@@ -50621,17 +50621,85 @@ cmd.add({"unannoy"}, {"unannoy", "Stops the annoy command"}, function()
 	NAStuff.annoyLoop = false
 end)
 
-cmd.add({"deleteinvisparts","deleteinvisibleparts","dip"},{"deleteinvisparts (deleteinvisibleparts,dip)","Deletes invisible parts"},function()
-	for i,v in NAmanage.QueryDescendants(workspace, "BasePart") do
-		if v.Transparency==1 and v.CanCollide then
-			v:Destroy()
+NAmanage.IsPlayerOrNPCPart = NAmanage.IsPlayerOrNPCPart or function(inst)
+	if typeof(inst) ~= "Instance" then
+		return false, nil, nil
+	end
+
+	local model, humanoid
+	if type(NAmanage.ResolveHumanoidModelFromPart) == "function" then
+		model, humanoid = NAmanage.ResolveHumanoidModelFromPart(inst)
+	else
+		local current = inst
+		while current and current ~= workspace do
+			if current:IsA("Model") then
+				local hum = current:FindFirstChildOfClass("Humanoid")
+				if hum then
+					model, humanoid = current, hum
+					break
+				end
+			end
+			current = current.Parent
 		end
 	end
+
+	if not (model and model:IsA("Model") and humanoid) then
+		return false, nil, nil
+	end
+
+	local okPlayer, plr = pcall(function()
+		return __lt.cm("Players", "GetPlayerFromCharacter", model)
+	end)
+	if okPlayer and plr then
+		return true, "player", model
+	end
+
+	if type(CheckIfNPC) == "function" then
+		local okNPC, isNPC = pcall(CheckIfNPC, model)
+		if okNPC and isNPC then
+			return true, "npc", model
+		end
+	end
+
+	return true, "humanoid", model
+end
+
+cmd.add({"deleteinvisparts","deleteinvisibleparts","dip"},{"deleteinvisparts","Deletes invisible parts"},function()
+	local deleted = 0
+	local skippedPlayers = 0
+	local skippedNPCs = 0
+	local skippedHumanoids = 0
+
+	for _, v in NAmanage.QueryDescendants(workspace, "BasePart") do
+		if v.Transparency == 1 and v.CanCollide then
+			local skip, kind = NAmanage.IsPlayerOrNPCPart(v)
+			if skip then
+				if kind == "player" then
+					skippedPlayers += 1
+				elseif kind == "npc" then
+					skippedNPCs += 1
+				else
+					skippedHumanoids += 1
+				end
+			else
+				v:Destroy()
+				deleted += 1
+			end
+		end
+	end
+
+	DoNotif(
+		"Deleted "..tostring(deleted).." invisible part(s). Skipped "..
+		tostring(skippedPlayers).." player, "..
+		tostring(skippedNPCs).." NPC, "..
+		tostring(skippedHumanoids).." humanoid part(s).",
+		4
+	)
 end)
 
 NAStuff.shownParts = {}
 
-cmd.add({"invisibleparts","invisparts"},{"invisibleparts (invisparts)","Shows invisible parts"},function()
+cmd.add({"invisibleparts","invisparts"},{"invisibleparts","Shows invisible parts"},function()
 	for _, v in NAmanage.QueryDescendants(workspace, "BasePart") do
 		if v.Transparency == 1 then
 			local alreadyShown = false
@@ -50649,7 +50717,7 @@ cmd.add({"invisibleparts","invisparts"},{"invisibleparts (invisparts)","Shows in
 	end
 end)
 
-cmd.add({"uninvisibleparts","uninvisparts"},{"uninvisibleparts (uninvisparts)","Makes parts affected by invisparts return to normal"},function()
+cmd.add({"uninvisibleparts","uninvisparts"},{"uninvisibleparts","Makes parts affected by invisparts return to normal"},function()
 	for _, v in NAStuff.shownParts do
 		if v and v:IsA("BasePart") then
 			v.Transparency = 1
