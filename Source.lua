@@ -1417,6 +1417,12 @@ local NAStuff = {
 	AutoFireRemoteDefaultInterval = 0.1;
 	AutoInteractMethod = "PostSimulation";
 	AutoFireRemoteMethod = "PostSimulation";
+	ClickTouchMaxDistance = 1024;
+	ClickTouchScreenRadius = 18;
+	ClickTouchBlockedByCollide = false;
+	ClickTouchIgnoreNonCollideBlockers = true;
+	ClickTouchInvisibleFallback = true;
+	ClickTouchAlwaysOnTop = false;
 	FreecamSpeed = 5;
 	MobileFlyAutoEnableOnRun = true;
 	MobileCamSensitivity = 1;
@@ -18736,6 +18742,48 @@ NAmanage.NASettingsGetSchema=function()
 				return math.floor((n * 100) + 0.5) / 100
 			end;
 		};
+		clickTouchMaxDistance = {
+			default = 1024;
+			coerce = function(value)
+				local n = tonumber(value)
+				if not n then return 1024 end
+				n = math.floor(n + 0.5)
+				if n <= 0 then return 0 end
+				return math.clamp(n, 50, 5000)
+			end;
+		};
+		clickTouchScreenRadius = {
+			default = 18;
+			coerce = function(value)
+				local n = tonumber(value)
+				if not n then return 18 end
+				return math.clamp(math.floor(n + 0.5), 2, 80)
+			end;
+		};
+		clickTouchBlockedByCollide = {
+			default = false;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
+			end;
+		};
+		clickTouchIgnoreNonCollideBlockers = {
+			default = true;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
+			end;
+		};
+		clickTouchInvisibleFallback = {
+			default = true;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
+			end;
+		};
+		clickTouchAlwaysOnTop = {
+			default = false;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
+			end;
+		};
 		fpsBoostOptions = {
 			default = function()
 				return {
@@ -22062,6 +22110,19 @@ NAStuff.AutoInteractDistanceEnabled = true
 NAStuff.AutoInteractExtraRange = 5
 NAStuff.AutoInteractDefaultInterval = math.clamp(tonumber(NAStuff.AutoInteractDefaultInterval) or 0.1, 0, 1)
 NAStuff.AutoFireRemoteDefaultInterval = math.clamp(tonumber(NAStuff.AutoFireRemoteDefaultInterval) or NAStuff.AutoInteractDefaultInterval or 0.1, 0, 1)
+do
+	local n = tonumber(NAmanage.NASettingsGet("clickTouchMaxDistance"))
+	if n == nil then
+		n = tonumber(NAStuff.ClickTouchMaxDistance) or 1024
+	end
+	n = math.floor(n + 0.5)
+	NAStuff.ClickTouchMaxDistance = (n <= 0) and 0 or math.clamp(n, 50, 5000)
+end
+NAStuff.ClickTouchScreenRadius = math.clamp(math.floor((tonumber(NAmanage.NASettingsGet("clickTouchScreenRadius")) or NAStuff.ClickTouchScreenRadius or 18) + 0.5), 2, 80)
+NAStuff.ClickTouchBlockedByCollide = NAmanage.NASettingsGet("clickTouchBlockedByCollide") == true
+NAStuff.ClickTouchIgnoreNonCollideBlockers = NAmanage.NASettingsGet("clickTouchIgnoreNonCollideBlockers") ~= false
+NAStuff.ClickTouchInvisibleFallback = NAmanage.NASettingsGet("clickTouchInvisibleFallback") ~= false
+NAStuff.ClickTouchAlwaysOnTop = NAmanage.NASettingsGet("clickTouchAlwaysOnTop") == true
 NAStuff.RobloxDevConsoleCopyButtonsEnabled = NAStuff.RobloxDevConsoleCopyButtonsEnabled ~= false
 NAStuff.NAConsoleMasterEnabled = NAStuff.NAConsoleMasterEnabled ~= false
 NAStuff.CrosshairColor = NAStuff.CrosshairColor or Color3.new(1, 1, 1)
@@ -76284,6 +76345,255 @@ NAindex.clickTarget = function(cd)
 	return part, part and part.Position or nil
 end
 
+NAmanage.ClickTouchGetConfig = function()
+	local maxDistance = math.floor((tonumber(NAStuff.ClickTouchMaxDistance) or 1024) + 0.5)
+	if maxDistance > 0 then
+		maxDistance = math.clamp(maxDistance, 50, 5000)
+	else
+		maxDistance = 0
+	end
+	return {
+		maxDistance = maxDistance;
+		screenRadius = math.clamp(math.floor((tonumber(NAStuff.ClickTouchScreenRadius) or 18) + 0.5), 2, 80);
+		blockedByCollide = NAStuff.ClickTouchBlockedByCollide ~= false;
+		ignoreNonCollideBlockers = NAStuff.ClickTouchIgnoreNonCollideBlockers ~= false;
+		invisibleFallback = NAStuff.ClickTouchInvisibleFallback ~= false;
+		alwaysOnTop = NAStuff.ClickTouchAlwaysOnTop == true;
+	}
+end
+
+NAmanage.ClickTouchFindTouchForPart = function(part)
+	if not (part and part:IsA("BasePart")) then
+		return nil
+	end
+	if not (InstancesTbl and type(InstancesTbl.touch) == "table") then
+		return nil
+	end
+	for _, ti in InstancesTbl.touch do
+		if ti and ti.Parent then
+			local touchPart = NAindex.carPart(ti.Parent)
+			if touchPart == part then
+				return ti, touchPart
+			end
+		end
+	end
+	return nil
+end
+
+NAmanage.ClickTouchName = function(ti, part)
+	local names = {}
+	if part and part.Name and part.Name ~= "" then
+		Insert(names, part.Name)
+	end
+	local parent = part and part.Parent
+	if parent and parent:IsA("Model") and parent.Name and parent.Name ~= "" then
+		Insert(names, 1, parent.Name)
+	end
+	if ti and ti.Name and ti.Name ~= "" and ti.Name ~= "TouchInterest" then
+		Insert(names, ti.Name)
+	end
+	if #names > 0 then
+		return table.concat(names, " / ")
+	end
+	return "TouchTransmitter"
+end
+
+NAmanage.ClickTouchMouseRay = function(mouse)
+	if not mouse then
+		return nil
+	end
+	local ok, unitRay = pcall(function()
+		return mouse.UnitRay
+	end)
+	if ok and unitRay then
+		return unitRay.Origin, unitRay.Direction.Unit
+	end
+	local camera = workspace and workspace.CurrentCamera
+	if camera and camera.ViewportPointToRay then
+		local x = tonumber(mouse.X) or 0
+		local y = tonumber(mouse.Y) or 0
+		local okRay, ray = pcall(function()
+			return camera:ViewportPointToRay(x, y)
+		end)
+		if okRay and ray then
+			return ray.Origin, ray.Direction.Unit
+		end
+	end
+	return nil
+end
+
+NAmanage.ClickTouchOccludedByCollide = function(origin, targetPart, cfg, excludeList)
+	if not (origin and targetPart and targetPart:IsA("BasePart") and workspace and workspace.Raycast) then
+		return false
+	end
+	cfg = cfg or NAmanage.ClickTouchGetConfig()
+	if cfg.blockedByCollide ~= true then
+		return false
+	end
+	local targetPos = targetPart.Position
+	local delta = targetPos - origin
+	local distance = delta.Magnitude
+	if distance <= 0 then
+		return false
+	end
+	local params = RaycastParams.new()
+	NAmanage._raycastFilterType(params)
+	params.IgnoreWater = true
+	local filter = NAmanage._raycastFilterList(excludeList)
+	local direction = delta.Unit
+	for _ = 1, 32 do
+		params.FilterDescendantsInstances = filter
+		local result = workspace:Raycast(origin, direction * distance, params)
+		local hit = result and result.Instance
+		if not hit then
+			return false
+		end
+		if hit == targetPart or hit:IsDescendantOf(targetPart) then
+			return false
+		end
+		if hit:IsA("BasePart") and hit.CanCollide then
+			return true
+		end
+		if cfg.ignoreNonCollideBlockers ~= true then
+			return true
+		end
+		Insert(filter, hit)
+	end
+	return false
+end
+
+NAmanage.ClickTouchPickRaycast = function(mouse, excludeList, cfg)
+	if not (mouse and workspace and workspace.Raycast) then
+		return nil
+	end
+	cfg = cfg or NAmanage.ClickTouchGetConfig()
+	local origin, direction = NAmanage.ClickTouchMouseRay(mouse)
+	if not origin then
+		return nil
+	end
+	local params = RaycastParams.new()
+	NAmanage._raycastFilterType(params)
+	params.IgnoreWater = true
+	local filter = NAmanage._raycastFilterList(excludeList)
+	local maxDistance = tonumber(cfg.maxDistance) or 1024
+	if maxDistance <= 0 then
+		maxDistance = 1000000
+	end
+	for _ = 1, 80 do
+		params.FilterDescendantsInstances = filter
+		local result = workspace:Raycast(origin, direction * maxDistance, params)
+		local part = result and result.Instance
+		if not (part and part:IsA("BasePart")) then
+			return nil
+		end
+		local ti, touchPart = NAmanage.ClickTouchFindTouchForPart(part)
+		if ti and touchPart then
+			return touchPart, ti, result, "raycast"
+		end
+		if cfg.blockedByCollide == true and part.CanCollide then
+			return nil, nil, result, "blocked"
+		end
+		if cfg.blockedByCollide == true and cfg.ignoreNonCollideBlockers ~= true then
+			return nil, nil, result, "blocked"
+		end
+		Insert(filter, part)
+	end
+	return nil
+end
+
+NAmanage.ClickTouchPickInvisible = function(mouse, excludeList, cfg)
+	if not (mouse and workspace and workspace.CurrentCamera and InstancesTbl and type(InstancesTbl.touch) == "table") then
+		return nil
+	end
+	cfg = cfg or NAmanage.ClickTouchGetConfig()
+	if cfg.invisibleFallback ~= true then
+		return nil
+	end
+	local origin, direction = NAmanage.ClickTouchMouseRay(mouse)
+	if not origin then
+		return nil
+	end
+	local camera = workspace.CurrentCamera
+	local mousePos = Vector2.new(tonumber(mouse.X) or 0, tonumber(mouse.Y) or 0)
+	local bestPart, bestTi, bestScore
+	local maxDistance = tonumber(cfg.maxDistance) or 1024
+	local unlimitedDistance = maxDistance <= 0
+	for _, ti in InstancesTbl.touch do
+		if ti and ti.Parent then
+			local part = NAindex.carPart(ti.Parent)
+			if part and part.Parent and part:IsA("BasePart") then
+				local toPart = part.Position - origin
+				local rayDistance = toPart:Dot(direction)
+				if rayDistance > 0 and (unlimitedDistance or rayDistance <= maxDistance) then
+					local closest = origin + direction * rayDistance
+					local worldMiss = (closest - part.Position).Magnitude
+					local radius = math.max(part.Size.Magnitude * 0.5, 0.5)
+					if worldMiss <= radius then
+						local screenPos, onScreen = camera:WorldToViewportPoint(part.Position)
+						if onScreen then
+							local screenMiss = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+							if screenMiss <= (cfg.screenRadius or 18) + math.min(60, radius * 8) then
+								if not NAmanage.ClickTouchOccludedByCollide(origin, part, cfg, excludeList) then
+									local score = screenMiss + (rayDistance * 0.001)
+									if not bestScore or score < bestScore then
+										bestPart, bestTi, bestScore = part, ti, score
+									end
+								end
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+	if bestPart and bestTi then
+		return bestPart, bestTi, nil, "invisible"
+	end
+	return nil
+end
+
+NAmanage.ClickTouchPickTarget = function(mouse, excludeList)
+	NAindex.init()
+	local cfg = NAmanage.ClickTouchGetConfig()
+	local part, ti, result, mode = NAmanage.ClickTouchPickRaycast(mouse, excludeList, cfg)
+	if part and ti then
+		return part, ti, result, mode
+	end
+	if mode == "blocked" then
+		return nil, nil, result, mode
+	end
+	return NAmanage.ClickTouchPickInvisible(mouse, excludeList, cfg)
+end
+
+NAmanage.ClickTouchFire = function(part)
+	if typeof(firetouchinterest) ~= "function" then
+		return false, "firetouchinterest not available"
+	end
+	if not (part and part.Parent and part:IsA("BasePart")) then
+		return false, "No touch part selected"
+	end
+	local char = getChar()
+	local root = char and (getRoot(char) or char:FindFirstChildWhichIsA("BasePart"))
+	if not root then
+		return false, "Character root not found"
+	end
+	local orig = part.CFrame
+	pcall(function()
+		part.CFrame = root.CFrame
+	end)
+	pcall(firetouchinterest, part, root, 1)
+	Wait()
+	pcall(firetouchinterest, part, root, 0)
+	Delay(0.1, function()
+		if part and part.Parent then
+			pcall(function()
+				part.CFrame = orig
+			end)
+		end
+	end)
+	return true
+end
+
 NAindex.inRangePrompt = function(pp, rootPos, extra)
 	local part, pos = NAindex.promptTarget(pp)
 	if not pos then
@@ -91278,6 +91588,178 @@ cmd.add({"unactnpc", "stopnpc"}, {"unactnpc (stopnpc)", "Stop acting like an NPC
 		NPCControl.Connection = nil
 	end
 	NAlib.disconnect("actnpc_loop")
+end)
+
+NAStuff.clicktouchUI = nil
+NAStuff.clicktouchEnabled = false
+NAStuff.clicktouchTargetPart = nil
+NAStuff.clicktouchTargetTouch = nil
+
+NAmanage.ClickTouchClearVisuals = function()
+	NAStuff.clicktouchTargetPart = nil
+	NAStuff.clicktouchTargetTouch = nil
+	local ui = NAStuff.clicktouchUI
+	if not ui then
+		return
+	end
+	local box = ui:FindFirstChild("TargetBox")
+	if box then
+		box.Adornee = nil
+	end
+	local label = ui:FindFirstChild("TargetLabel")
+	if label then
+		label.Text = "No touch target"
+	end
+end
+
+NAmanage.ClickTouchSetVisualTarget = function(part, ti)
+	local ui = NAStuff.clicktouchUI
+	if not ui then
+		return
+	end
+	NAStuff.clicktouchTargetPart = part
+	NAStuff.clicktouchTargetTouch = ti
+	local name = (part and ti) and NAmanage.ClickTouchName(ti, part) or "No touch target"
+	local label = ui:FindFirstChild("TargetLabel")
+	if label then
+		label.Text = name
+	end
+	local cfg = NAmanage.ClickTouchGetConfig()
+	local box = ui:FindFirstChild("TargetBox")
+	if box then
+		box.Adornee = part
+		box.AlwaysOnTop = cfg.alwaysOnTop == true
+		if part then
+			box.Size = part.Size
+		end
+	end
+end
+
+NAmanage.ClickTouchMouseOverPanel = function(mouse)
+	local ui = NAStuff.clicktouchUI
+	local panel = ui and ui:FindFirstChild("ToggleButton")
+	if not (panel and mouse) then
+		return false
+	end
+	local x = tonumber(mouse.X) or 0
+	local y = tonumber(mouse.Y) or 0
+	local pos, size = panel.AbsolutePosition, panel.AbsoluteSize
+	return x >= pos.X and x <= pos.X + size.X and y >= pos.Y and y <= pos.Y + size.Y
+end
+
+NAmanage.ClickTouchStop = function()
+	NAStuff.clicktouchEnabled = false
+	NAlib.disconnect("clicktouch_mouse")
+	NAlib.disconnect("clicktouch_track")
+	if NAStuff.clicktouchUI then
+		NAStuff.clicktouchUI:Destroy()
+		NAStuff.clicktouchUI = nil
+	end
+	NAStuff.clicktouchTargetPart = nil
+	NAStuff.clicktouchTargetTouch = nil
+end
+
+cmd.add({"clicktouch", "ctouch"}, {"clicktouch (ctouch)", "Click a TouchTransmitter part to fire a touch"}, function()
+	if typeof(firetouchinterest) ~= "function" then
+		return DoNotif("firetouchinterest not available", 3)
+	end
+	NAStuff.clicktouchEnabled = true
+	NAindex.init()
+
+	if NAStuff.clicktouchUI then NAStuff.clicktouchUI:Destroy() end
+	NAlib.disconnect("clicktouch_mouse")
+	NAlib.disconnect("clicktouch_track")
+
+	local Mouse = NAmanage.GetMouse(player)
+	NAStuff.clicktouchUI = InstanceNew("ScreenGui")
+	NAStuff.clicktouchUI.Name = "NAClickTouch"
+	pcall(function()
+		NAStuff.clicktouchUI.ResetOnSpawn = false
+	end)
+	NAgui.NaProtectUI(NAStuff.clicktouchUI)
+
+	local toggleButton = InstanceNew("TextButton")
+	toggleButton.Name = "ToggleButton"
+	toggleButton.Size = UDim2.new(0, 142, 0, 40)
+	toggleButton.Text = "ClickTouch: ON"
+	toggleButton.Position = UDim2.new(0.5, -71, 0, 54)
+	toggleButton.TextScaled = true
+	toggleButton.TextColor3 = Color3.new(1, 1, 1)
+	toggleButton.Font = Enum.Font.GothamBold
+	toggleButton.BackgroundColor3 = Color3.fromRGB(38, 38, 38)
+	toggleButton.BackgroundTransparency = 0.18
+	toggleButton.Parent = NAStuff.clicktouchUI
+
+	local uiCorner = InstanceNew("UICorner")
+	uiCorner.CornerRadius = UDim.new(0, 8)
+	uiCorner.Parent = toggleButton
+
+	local targetLabel = InstanceNew("TextLabel")
+	targetLabel.Name = "TargetLabel"
+	targetLabel.Size = UDim2.new(0, 300, 0, 26)
+	targetLabel.Position = UDim2.new(0.5, -150, 0, 98)
+	targetLabel.BackgroundTransparency = 1
+	targetLabel.Text = "No touch target"
+	targetLabel.TextScaled = true
+	targetLabel.TextColor3 = Color3.fromRGB(255, 235, 120)
+	targetLabel.TextStrokeTransparency = 0.25
+	targetLabel.Font = Enum.Font.GothamBold
+	targetLabel.Parent = NAStuff.clicktouchUI
+
+	local okBox, box = pcall(InstanceNew, "BoxHandleAdornment")
+	if okBox and box then
+		box.Name = "TargetBox"
+		box.Color3 = Color3.fromRGB(255, 214, 64)
+		box.Transparency = 0.35
+		box.ZIndex = 10
+		box.AlwaysOnTop = NAStuff.ClickTouchAlwaysOnTop == true
+		box.Parent = NAStuff.clicktouchUI
+	end
+
+	NAgui.draggerV2(toggleButton)
+
+	MouseButtonFix(toggleButton, function()
+		NAStuff.clicktouchEnabled = not NAStuff.clicktouchEnabled
+		toggleButton.Text = NAStuff.clicktouchEnabled and "ClickTouch: ON" or "ClickTouch: OFF"
+		if not NAStuff.clicktouchEnabled then
+			NAmanage.ClickTouchClearVisuals()
+		end
+	end)
+
+	local lastScan = 0
+	NAlib.connect("clicktouch_track", RunService.RenderStepped:Connect(function()
+		if not NAStuff.clicktouchEnabled then
+			return
+		end
+		local now = tick()
+		if now - lastScan < 0.04 then
+			return
+		end
+		lastScan = now
+		local part, ti = NAmanage.ClickTouchPickTarget(Mouse, { player and player.Character })
+		if part ~= NAStuff.clicktouchTargetPart or ti ~= NAStuff.clicktouchTargetTouch then
+			NAmanage.ClickTouchSetVisualTarget(part, ti)
+		end
+	end))
+
+	NAlib.connect("clicktouch_mouse", Mouse.Button1Down:Connect(function()
+		if not NAStuff.clicktouchEnabled then return end
+		if NAmanage.ClickTouchMouseOverPanel(Mouse) then return end
+		local part, ti = NAmanage.ClickTouchPickTarget(Mouse, { player and player.Character })
+		if part and ti then
+			NAmanage.ClickTouchSetVisualTarget(part, ti)
+			local ok, err = NAmanage.ClickTouchFire(part)
+			if ok then
+				DebugNotif("Touched "..NAmanage.ClickTouchName(ti, part), 2)
+			else
+				DoNotif(tostring(err or "Failed to fire touch"), 3)
+			end
+		end
+	end))
+end)
+
+cmd.add({"unclicktouch", "unctouch"}, {"unclicktouch (unctouch)", "Disable clicktouch"}, function()
+	NAmanage.ClickTouchStop()
 end)
 
 NAStuff.clickkillUI = nil
@@ -120429,6 +120911,56 @@ NAgui.addSlider("AutoFire Extra Distance", 0, 250, autoInteractExtraDefault, 1, 
 	n = math.clamp(n, 0, 250)
 	NAStuff.AutoInteractExtraRange = n
 	pcall(NAmanage.NASettingsSet, "autoInteractExtraRange", n)
+end)
+
+NAgui.addSection("ClickTouch Options")
+
+NAgui.addSlider("ClickTouch Max Distance", 0, 5000, math.clamp(tonumber(NAStuff.ClickTouchMaxDistance) or 1024, 0, 5000), 25, " studs", function(val)
+	local n = math.floor((tonumber(val) or 1024) + 0.5)
+	n = (n <= 0) and 0 or math.clamp(n, 50, 5000)
+	NAStuff.ClickTouchMaxDistance = n
+	pcall(NAmanage.NASettingsSet, "clickTouchMaxDistance", n)
+end)
+
+NAgui.addSlider("ClickTouch Cursor Radius", 2, 80, math.clamp(tonumber(NAStuff.ClickTouchScreenRadius) or 18, 2, 80), 1, " px", function(val)
+	local n = math.clamp(math.floor((tonumber(val) or 18) + 0.5), 2, 80)
+	NAStuff.ClickTouchScreenRadius = n
+	pcall(NAmanage.NASettingsSet, "clickTouchScreenRadius", n)
+end)
+
+NAgui.addToggle("ClickTouch Blocked By Walls", NAStuff.ClickTouchBlockedByCollide ~= false, function(v)
+	NAStuff.ClickTouchBlockedByCollide = v ~= false
+	pcall(NAmanage.NASettingsSet, "clickTouchBlockedByCollide", NAStuff.ClickTouchBlockedByCollide)
+end)
+NAmanage.RegisterToggleAutoSync("ClickTouch Blocked By Walls", function()
+	return NAStuff.ClickTouchBlockedByCollide ~= false
+end)
+
+NAgui.addToggle("ClickTouch Ignore Non-Collide Blockers", NAStuff.ClickTouchIgnoreNonCollideBlockers ~= false, function(v)
+	NAStuff.ClickTouchIgnoreNonCollideBlockers = v ~= false
+	pcall(NAmanage.NASettingsSet, "clickTouchIgnoreNonCollideBlockers", NAStuff.ClickTouchIgnoreNonCollideBlockers)
+end)
+NAmanage.RegisterToggleAutoSync("ClickTouch Ignore Non-Collide Blockers", function()
+	return NAStuff.ClickTouchIgnoreNonCollideBlockers ~= false
+end)
+
+NAgui.addToggle("ClickTouch Invisible Part Fallback", NAStuff.ClickTouchInvisibleFallback ~= false, function(v)
+	NAStuff.ClickTouchInvisibleFallback = v ~= false
+	pcall(NAmanage.NASettingsSet, "clickTouchInvisibleFallback", NAStuff.ClickTouchInvisibleFallback)
+end)
+NAmanage.RegisterToggleAutoSync("ClickTouch Invisible Part Fallback", function()
+	return NAStuff.ClickTouchInvisibleFallback ~= false
+end)
+
+NAgui.addToggle("ClickTouch Always-On-Top Box", NAStuff.ClickTouchAlwaysOnTop == true, function(v)
+	NAStuff.ClickTouchAlwaysOnTop = v == true
+	pcall(NAmanage.NASettingsSet, "clickTouchAlwaysOnTop", NAStuff.ClickTouchAlwaysOnTop)
+	if NAStuff.clicktouchTargetPart and NAStuff.clicktouchTargetTouch then
+		NAmanage.ClickTouchSetVisualTarget(NAStuff.clicktouchTargetPart, NAStuff.clicktouchTargetTouch)
+	end
+end)
+NAmanage.RegisterToggleAutoSync("ClickTouch Always-On-Top Box", function()
+	return NAStuff.ClickTouchAlwaysOnTop == true
 end)
 
 NAgui.addSection("Remote AutoFire")
