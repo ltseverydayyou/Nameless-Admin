@@ -8570,6 +8570,26 @@
       "desc": "Stop acting like an NPC"
     },
     {
+      "name": "clicktouch",
+      "aliases": [
+        "clicktouch",
+        "ctouch"
+      ],
+      "usage": "clicktouch (ctouch)",
+      "args": "",
+      "desc": "Click a TouchTransmitter part to fire a touch"
+    },
+    {
+      "name": "unclicktouch",
+      "aliases": [
+        "unclicktouch",
+        "unctouch"
+      ],
+      "usage": "unclicktouch (unctouch)",
+      "args": "",
+      "desc": "Disable clicktouch"
+    },
+    {
       "name": "clickkillnpc",
       "aliases": [
         "clickkillnpc",
