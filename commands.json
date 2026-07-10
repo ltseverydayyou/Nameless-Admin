@@ -813,6 +813,30 @@
       "desc": "Pathfind to a saved waypoint and show the route nodes"
     },
     {
+      "name": "looppath",
+      "aliases": [
+        "looppath",
+        "looppathwaypoint",
+        "loopwaypoint",
+        "loopwp"
+      ],
+      "usage": "looppath <waypoint name...>",
+      "args": "<waypoint name...>",
+      "desc": "Continuously restore pathfinding to a saved waypoint after death or respawn"
+    },
+    {
+      "name": "unlooppath",
+      "aliases": [
+        "unlooppath",
+        "stoplooppath",
+        "nolooppath",
+        "unloopwp"
+      ],
+      "usage": "unlooppath",
+      "args": "",
+      "desc": "Stop persistent waypoint pathfinding"
+    },
+    {
       "name": "setwaypoint",
       "aliases": [
         "setwaypoint",
