@@ -1422,6 +1422,7 @@ local NAStuff = {
 	};
 	CmdBar2AutoRun = false;
 	CmdInputSafeMode = true;
+	HideCmdAutofill = false;
 	CmdIntegrationAutoRun = false;
 	CmdIntegrationLoaded = false;
 	CmdIntegrationLastSource = nil;
@@ -17861,6 +17862,10 @@ NAmanage.NASettingsGetSchema=function()
 			default = function() return IsOnPC == true and IsOnMobile ~= true end;
 			coerce = function(value) return NAmanage.NASettingsSchemaState.coerceBoolean(value, IsOnPC == true and IsOnMobile ~= true) end;
 		};
+		hideCmdAutofill = {
+			default = false;
+			coerce = function(value) return NAmanage.NASettingsSchemaState.coerceBoolean(value, false) end;
+		};
 		pluginAutoLoad = {
 			default = true;
 			coerce = function(value) return NAmanage.NASettingsSchemaState.coerceBoolean(value, true) end;
@@ -21952,6 +21957,7 @@ do
 		NAStuff.CmdInputSafeMode = IsOnPC == true and IsOnMobile ~= true
 	end
 end
+NAStuff.HideCmdAutofill = NAmanage.NASettingsGet("hideCmdAutofill") == true
 NAStuff.LoopMethodOptions = { "PostSimulation", "PreSimulation", "RenderStepped", "Heartbeat" }
 NAStuff.LoopMethod = NAmanage.NASettingsGet("loopMethod") or "PostSimulation"
 NAStuff.AutoInteractMethod = NAmanage.NASettingsGet("autoInteractMethod") or NAStuff.AutoInteractMethod or "PostSimulation"
@@ -44131,13 +44137,22 @@ cmd.add({"hidewaypoints", "hidewp", "hidewps", "unshowwaypoints", "unwpesp"}, {"
 	NAmanage.WaypointESPSetEnabled(false)
 end)
 
-NAmanage.WaypointPathGetState = NAmanage.WaypointPathGetState or function()
+NAmanage.WaypointPathGetState = function()
 	if type(NAStuff.WaypointPathState) ~= "table" then
 		NAStuff.WaypointPathState = {
 			enabled = false;
 			following = false;
 			followTarget = nil;
+			followCharacter = nil;
+			lastFollowOutcome = nil;
+			looping = false;
+			loopTarget = nil;
+			loopToken = 0;
 			token = 0;
+			pathHeightOffset = 0;
+			moveAccumulator = 0;
+			moveTarget = nil;
+			moveExactTarget = nil;
 			markerFolder = nil;
 			visualFolder = nil;
 			visuals = {};
@@ -44182,14 +44197,22 @@ NAmanage.WaypointPathSetSessionName = NAmanage.WaypointPathSetSessionName or fun
 	return name
 end
 
-NAmanage.WaypointPathDestroy = NAmanage.WaypointPathDestroy or function(disable)
+NAmanage.WaypointPathDestroy = function(disable)
 	local state = NAmanage.WaypointPathGetState()
 	if disable == true then
 		state.enabled = false
 		state.following = false
 		state.followTarget = nil
+		state.followCharacter = nil
+		state.lastFollowOutcome = "stopped"
+		state.looping = false
+		state.loopTarget = nil
 		state.lastWaypoints = nil
 		state.lastName = nil
+		state.pathHeightOffset = 0
+		state.moveAccumulator = 0
+		state.moveTarget = nil
+		state.moveExactTarget = nil
 	end
 	if type(state.visuals) == "table" then
 		for _, visual in state.visuals do
@@ -44235,11 +44258,19 @@ NAmanage.WaypointPathSyncUI = NAmanage.WaypointPathSyncUI or function()
 	end)
 end
 
-NAmanage.WaypointPathStop = NAmanage.WaypointPathStop or function(silent)
+NAmanage.WaypointPathStop = function(silent)
 	local state = NAmanage.WaypointPathGetState()
 	state.token = (tonumber(state.token) or 0) + 1
+	state.loopToken = (tonumber(state.loopToken) or 0) + 1
 	state.following = false
+	state.looping = false
 	NAmanage.WaypointPathDestroy(true)
+
+	local _, root = NAmanage.WaypointPathGetRoot()
+	if root and root.Parent and type(NAmanage.WaypointPathBrakePlanarVelocity) == "function" then
+		pcall(NAmanage.WaypointPathBrakePlanarVelocity, root)
+	end
+
 	if silent ~= true then
 		DebugNotif("Waypoint pathfinding stopped.", 2)
 	end
@@ -44335,6 +44366,99 @@ NAmanage.WaypointPathGetRoot = NAmanage.WaypointPathGetRoot or function()
 	return hum, nil
 end
 
+NAStuff.WaypointPathRevision = "cframe-walk-v4"
+NAStuff.WaypointPathMoveStepRate = 1 / 60
+NAStuff.WaypointPathMoveMaxSteps = 4
+NAStuff.WaypointPathReachRadius = 1.25
+
+NAmanage.WaypointPathGetClientCFrame = function(root)
+	if type(NAmanage.UG_clientCFrame) == "function" then
+		local ok, cf = pcall(NAmanage.UG_clientCFrame, root)
+		if ok and typeof(cf) == "CFrame" then
+			return cf
+		end
+	end
+	if root and root:IsA("BasePart") then
+		local ok, cf = pcall(function()
+			return root.CFrame
+		end)
+		if ok and typeof(cf) == "CFrame" then
+			return cf
+		end
+	end
+	return nil
+end
+
+NAmanage.WaypointPathGetClientPosition = function(root)
+	local cf = NAmanage.WaypointPathGetClientCFrame(root)
+	return typeof(cf) == "CFrame" and cf.Position or nil
+end
+
+NAmanage.WaypointPathGetSpeed = function(hum)
+	if NAStuff.SafeSpeedMethod ~= false and type(NAmanage.GetVelocityWalkSpeedValue) == "function" then
+		local ok, value = pcall(NAmanage.GetVelocityWalkSpeedValue)
+		if ok and tonumber(value) ~= nil then
+			return math.max(tonumber(value), 0)
+		end
+	end
+
+	local speed = nil
+	if hum then
+		speed = tonumber(NAlib.isProperty(hum, "WalkSpeed"))
+		if speed == nil then
+			pcall(function()
+				speed = tonumber(hum.WalkSpeed)
+			end)
+		end
+	end
+	return math.max(speed or 16, 0)
+end
+
+NAmanage.WaypointPathGetMoveTarget = function(_, logicalTarget, exactTarget)
+	if typeof(exactTarget) == "Vector3" then
+		return exactTarget
+	end
+	if typeof(logicalTarget) ~= "Vector3" then
+		return nil
+	end
+	local state = NAmanage.WaypointPathGetState()
+	return logicalTarget + Vector3.new(0, tonumber(state.pathHeightOffset) or 0, 0)
+end
+
+NAmanage.WaypointPathBuildStepCFrame = function(currentCF, targetPosition, maxDistance)
+	if typeof(currentCF) ~= "CFrame" or typeof(targetPosition) ~= "Vector3" then
+		return nil
+	end
+	local delta = targetPosition - currentCF.Position
+	local distance = delta.Magnitude
+	if distance <= 0.0001 then
+		return CFrame.new(targetPosition) * (currentCF - currentCF.Position)
+	end
+	local stepDistance = math.min(distance, math.max(tonumber(maxDistance) or 0, 0))
+	local nextPosition = currentCF.Position + delta.Unit * stepDistance
+	local flatDirection = Vector3.new(delta.X, 0, delta.Z)
+	if flatDirection.Magnitude > 0.05 then
+		return CFrame.new(nextPosition, nextPosition + flatDirection)
+	end
+	return CFrame.new(nextPosition) * (currentCF - currentCF.Position)
+end
+
+NAmanage.WaypointPathBrakePlanarVelocity = function(root)
+	if not (root and root.Parent and root:IsA("BasePart")) then
+		return
+	end
+	local velocity = NAlib.isProperty(root, "AssemblyLinearVelocity") or root.Velocity
+	if typeof(velocity) ~= "Vector3" then
+		return
+	end
+	local stopped = Vector3.new(0, velocity.Y, 0)
+	if stopped ~= velocity then
+		if not NAlib.setProperty(root, "AssemblyLinearVelocity", stopped) then
+			root.Velocity = stopped
+		end
+	end
+end
+
 NAmanage.WaypointPathResolve = NAmanage.WaypointPathResolve or function(rawName)
 	local name = NAmanage.waypointNameFromArgs(rawName)
 	if not name or name == "" then
@@ -44351,7 +44475,7 @@ NAmanage.WaypointPathResolve = NAmanage.WaypointPathResolve or function(rawName)
 	return name, cf, nil
 end
 
-NAmanage.WaypointPathCompute = NAmanage.WaypointPathCompute or function(cf)
+NAmanage.WaypointPathCompute = function(cf)
 	if typeof(cf) ~= "CFrame" then
 		return nil, "Waypoint coordinates are invalid."
 	end
@@ -44363,15 +44487,19 @@ NAmanage.WaypointPathCompute = NAmanage.WaypointPathCompute or function(cf)
 	if typeof(ps) ~= "Instance" then
 		return nil, "PathfindingService is unavailable."
 	end
+	local startPosition = NAmanage.WaypointPathGetClientPosition(root)
+	if typeof(startPosition) ~= "Vector3" then
+		return nil, "Unable to resolve your client character position."
+	end
 	local path = ps:CreatePath({ AgentRadius = 2, AgentHeight = 5, AgentCanJump = true })
 	local ok, err = pcall(function()
-		path:ComputeAsync(root.Position, cf.Position)
+		path:ComputeAsync(startPosition, cf.Position)
 	end)
 	if not ok then
 		return nil, "Pathfinding failed: "..tostring(err)
 	end
-	if path.Status == Enum.PathStatus.NoPath then
-		return nil, "No path found to that waypoint."
+	if path.Status ~= Enum.PathStatus.Success then
+		return nil, "No path found to that waypoint ("..tostring(path.Status)..")."
 	end
 	local okWaypoints, waypoints = pcall(function()
 		return path:GetWaypoints()
@@ -44539,20 +44667,149 @@ NAmanage.WaypointPathShow = NAmanage.WaypointPathShow or function(rawName, silen
 	return waypoints, cf, name
 end
 
-NAmanage.WaypointPathFollow = NAmanage.WaypointPathFollow or function(rawName)
+NAmanage.WaypointPathCFrameMoveTo = function(hum, position, token, timeoutSeconds, exactTarget)
+	if not (hum and hum.Parent and typeof(position) == "Vector3") then
+		return false
+	end
+
+	local state = NAmanage.WaypointPathGetState()
+	local _, firstRoot = NAmanage.WaypointPathGetRoot()
+	local firstCF = NAmanage.WaypointPathGetClientCFrame(firstRoot)
+	local firstTarget = NAmanage.WaypointPathGetMoveTarget(firstRoot, position, exactTarget)
+	local speed = NAmanage.WaypointPathGetSpeed(hum)
+	local requestedTimeout = math.max(0.25, tonumber(timeoutSeconds) or 8)
+	if typeof(firstCF) == "CFrame" and typeof(firstTarget) == "Vector3" and speed > 0 then
+		requestedTimeout = math.max(requestedTimeout, ((firstTarget - firstCF.Position).Magnitude / speed) * 2 + 1)
+	end
+	local timeoutAt = os.clock() + requestedTimeout
+	local reached = false
+	local stepRate = tonumber(NAStuff.WaypointPathMoveStepRate) or (1 / 60)
+	local maxSteps = math.max(1, math.floor(tonumber(NAStuff.WaypointPathMoveMaxSteps) or 4))
+	state.moveAccumulator = 0
+	state.moveTarget = position
+	state.moveExactTarget = exactTarget
+
+	while os.clock() < timeoutAt do
+		if state.token ~= token or not hum.Parent or hum.Health <= 0 then
+			break
+		end
+
+		local root = hum.RootPart
+		if not (root and root.Parent and root:IsA("BasePart")) then
+			local _, fallbackRoot = NAmanage.WaypointPathGetRoot()
+			root = fallbackRoot
+		end
+		if not (root and root.Parent and root:IsA("BasePart")) then
+			break
+		end
+
+		local currentCF = NAmanage.WaypointPathGetClientCFrame(root)
+		local moveTarget = NAmanage.WaypointPathGetMoveTarget(root, position, exactTarget)
+		if typeof(currentCF) ~= "CFrame" or typeof(moveTarget) ~= "Vector3" then
+			break
+		end
+		if (moveTarget - currentCF.Position).Magnitude <= (tonumber(NAStuff.WaypointPathReachRadius) or 1.25) then
+			reached = true
+			break
+		end
+
+		local deltaTime = 1 / 60
+		if RunService and RunService.Heartbeat then
+			deltaTime = tonumber(RunService.Heartbeat:Wait()) or deltaTime
+		else
+			Wait()
+		end
+		state.moveAccumulator = math.min((tonumber(state.moveAccumulator) or 0) + math.max(deltaTime, 0), stepRate * maxSteps)
+
+		local steps = 0
+		local failed = false
+		while state.moveAccumulator >= stepRate and steps < maxSteps do
+			if state.token ~= token or not hum.Parent or hum.Health <= 0 then
+				failed = true
+				break
+			end
+
+			currentCF = NAmanage.WaypointPathGetClientCFrame(root)
+			moveTarget = NAmanage.WaypointPathGetMoveTarget(root, position, exactTarget)
+			if typeof(currentCF) ~= "CFrame" or typeof(moveTarget) ~= "Vector3" then
+				failed = true
+				break
+			end
+
+			local remaining = (moveTarget - currentCF.Position).Magnitude
+			if remaining <= (tonumber(NAStuff.WaypointPathReachRadius) or 1.25) then
+				reached = true
+				break
+			end
+
+			speed = NAmanage.WaypointPathGetSpeed(hum)
+			if speed <= 0 then
+				break
+			end
+			local nextCF = NAmanage.WaypointPathBuildStepCFrame(currentCF, moveTarget, speed * stepRate)
+			if typeof(nextCF) ~= "CFrame" then
+				failed = true
+				break
+			end
+
+			local moved = false
+			if type(NAmanage.UG_setRootCFrame) == "function" then
+				local ok, result = pcall(NAmanage.UG_setRootCFrame, root, nextCF)
+				moved = ok and result ~= false
+			else
+				moved = pcall(function()
+					root.CFrame = nextCF
+				end)
+			end
+			if not moved then
+				failed = true
+				break
+			end
+
+			NAmanage.WaypointPathBrakePlanarVelocity(root)
+			state.moveAccumulator -= stepRate
+			steps += 1
+		end
+
+		if reached or failed then
+			break
+		end
+	end
+
+	state.moveAccumulator = 0
+	state.moveTarget = nil
+	state.moveExactTarget = nil
+	return reached
+end
+
+NAmanage.WaypointPathMoveTo = NAmanage.WaypointPathCFrameMoveTo
+
+NAmanage.WaypointPathFollow = function(rawName, opts)
+	opts = type(opts) == "table" and opts or {}
 	local name, cf, err = NAmanage.WaypointPathResolve(rawName)
 	if err then
-		DoNotif(err, 3)
-		return
+		if opts.silent ~= true then
+			DoNotif(err, 3)
+		end
+		return false
 	end
 	local state = NAmanage.WaypointPathGetState()
+	if opts.loopOwned ~= true and state.looping == true then
+		state.loopToken = (tonumber(state.loopToken) or 0) + 1
+		state.looping = false
+		state.loopTarget = nil
+	end
 	state.token = (tonumber(state.token) or 0) + 1
 	local token = state.token
 	state.following = true
 	state.followTarget = name
+	state.followCharacter = LocalPlayer and LocalPlayer.Character or nil
+	state.lastFollowOutcome = "running"
 	state.enabled = true
 	NAmanage.WaypointPathSyncUI()
-	DebugNotif(("Pathfinding to waypoint '%s'."):format(name), 2)
+	if opts.silent ~= true then
+		DebugNotif(("Pathfinding to waypoint '%s'."):format(name), 2)
+	end
 	Spawn(function()
 		local attempts = 0
 		while attempts < 4 do
@@ -44564,13 +44821,24 @@ NAmanage.WaypointPathFollow = NAmanage.WaypointPathFollow or function(rawName)
 			if not waypoints then
 				state.following = false
 				state.followTarget = nil
+				state.lastFollowOutcome = "failed"
 				NAmanage.WaypointPathSyncUI()
-				DoNotif(computeErr or "Pathfinding failed.", 3)
+				if opts.silent ~= true then
+					DoNotif(computeErr or "Pathfinding failed.", 3)
+				end
 				return
 			end
 			NAmanage.WaypointPathDraw(name, waypoints)
+			local _, routeRoot = NAmanage.WaypointPathGetRoot()
+			local routePosition = NAmanage.WaypointPathGetClientPosition(routeRoot)
+			local firstWaypoint = waypoints[1]
+			if typeof(routePosition) == "Vector3" and firstWaypoint and typeof(firstWaypoint.Position) == "Vector3" then
+				state.pathHeightOffset = routePosition.Y - firstWaypoint.Position.Y
+			else
+				state.pathHeightOffset = 0
+			end
 			local completedRoute = true
-			for _, waypoint in waypoints do
+			for waypointIndex, waypoint in waypoints do
 				if state.token ~= token then
 					return
 				end
@@ -44578,7 +44846,8 @@ NAmanage.WaypointPathFollow = NAmanage.WaypointPathFollow or function(rawName)
 				if type(getHum) == "function" then
 					hum = getHum()
 				end
-				if not hum then
+				if not hum or not hum.Parent or hum.Health <= 0 then
+					state.lastFollowOutcome = "interrupted"
 					completedRoute = false
 					break
 				end
@@ -44591,8 +44860,8 @@ NAmanage.WaypointPathFollow = NAmanage.WaypointPathFollow or function(rawName)
 						end
 					end
 				end
-				hum:MoveTo(waypoint.Position)
-				local reached = hum.MoveToFinished:Wait(2)
+				local exactTarget = waypointIndex == #waypoints and cf.Position or nil
+				local reached = NAmanage.WaypointPathCFrameMoveTo(hum, waypoint.Position, token, 8, exactTarget)
 				if reached == false then
 					completedRoute = false
 					break
@@ -44602,11 +44871,15 @@ NAmanage.WaypointPathFollow = NAmanage.WaypointPathFollow or function(rawName)
 			if state.token ~= token then
 				return
 			end
-			if completedRoute and root and (root.Position - cf.Position).Magnitude <= 8 then
+			local clientPosition = NAmanage.WaypointPathGetClientPosition(root)
+			if completedRoute and typeof(clientPosition) == "Vector3" and (clientPosition - cf.Position).Magnitude <= 8 then
 				state.following = false
 				state.followTarget = nil
+				state.lastFollowOutcome = "reached"
 				NAmanage.WaypointPathSyncUI()
-				DebugNotif(("Reached waypoint '%s'."):format(name), 2)
+				if opts.silent ~= true then
+					DebugNotif(("Reached waypoint '%s'."):format(name), 2)
+				end
 				return
 			end
 			Wait()
@@ -44614,10 +44887,95 @@ NAmanage.WaypointPathFollow = NAmanage.WaypointPathFollow or function(rawName)
 		if state.token == token then
 			state.following = false
 			state.followTarget = nil
+			if state.lastFollowOutcome ~= "interrupted" then
+				state.lastFollowOutcome = "failed"
+			end
 			NAmanage.WaypointPathSyncUI()
-			DoNotif(("Pathfind to waypoint '%s' stopped; route may be blocked."):format(name), 3)
+			if opts.silent ~= true then
+				DoNotif(("Pathfind to waypoint '%s' stopped; route may be blocked."):format(name), 3)
+			end
 		end
 	end)
+	return true
+end
+
+NAmanage.WaypointPathLoopStart = NAmanage.WaypointPathLoopStart or function(rawName)
+	local name, _, err = NAmanage.WaypointPathResolve(rawName)
+	if err then
+		DoNotif(err:gsub("pathfindwaypoint", "looppath"), 3)
+		return false
+	end
+	NAmanage.WaypointPathStop(true)
+	local state = NAmanage.WaypointPathGetState()
+	state.loopToken = (tonumber(state.loopToken) or 0) + 1
+	local loopToken = state.loopToken
+	state.looping = true
+	state.loopTarget = name
+	state.lastFollowOutcome = "waiting"
+	state.enabled = true
+	NAmanage.WaypointPathSyncUI()
+	DebugNotif(("Loop-pathing to waypoint '%s'. It will resume after respawn."):format(name), 3)
+	Spawn(function()
+		local observedCharacter = nil
+		local retryAt = 0
+		while state.looping == true and state.loopToken == loopToken and state.loopTarget == name do
+			if Waypoints[name] == nil then
+				state.looping = false
+				state.loopTarget = nil
+				state.lastFollowOutcome = "stopped"
+				NAmanage.WaypointPathSyncUI()
+				DoNotif(("Loop path stopped because waypoint '%s' was removed."):format(name), 3)
+				break
+			end
+			local character = LocalPlayer and LocalPlayer.Character or nil
+			local hum, root = NAmanage.WaypointPathGetRoot()
+			if character ~= observedCharacter then
+				observedCharacter = character
+				if state.following == true then
+					state.token = (tonumber(state.token) or 0) + 1
+					state.following = false
+					state.followTarget = nil
+				end
+				state.lastFollowOutcome = "waiting"
+				retryAt = 0
+			end
+			local alive = character ~= nil
+				and hum ~= nil
+				and hum.Parent ~= nil
+				and hum.Health > 0
+				and root ~= nil
+				and root.Parent ~= nil
+			if alive then
+				local outcome = state.lastFollowOutcome
+				local retryable = outcome == "waiting" or outcome == "failed" or outcome == "interrupted"
+				if state.following ~= true and retryable and os.clock() >= retryAt then
+					retryAt = os.clock() + 0.75
+					NAmanage.WaypointPathFollow(name, { loopOwned = true; silent = true })
+				end
+			else
+				if state.following == true then
+					state.token = (tonumber(state.token) or 0) + 1
+					state.following = false
+					state.followTarget = nil
+				end
+				state.lastFollowOutcome = "waiting"
+			end
+			Wait(0.15)
+		end
+	end)
+	return true
+end
+
+NAmanage.WaypointPathLoopStop = NAmanage.WaypointPathLoopStop or function(silent)
+	local state = NAmanage.WaypointPathGetState()
+	local wasLooping = state.looping == true
+	if wasLooping then
+		NAmanage.WaypointPathStop(true)
+	end
+	if silent ~= true then
+		DebugNotif(wasLooping and "Loop path stopped." or "No loop path is active.", 2)
+	end
+	return wasLooping
 end
 
 NAmanage.WaypointPathToggle = NAmanage.WaypointPathToggle or function(rawName)
@@ -44627,7 +44985,8 @@ NAmanage.WaypointPathToggle = NAmanage.WaypointPathToggle or function(rawName)
 		return
 	end
 	local state = NAmanage.WaypointPathGetState()
-	if state.following == true and state.followTarget == name then
+	if (state.following == true and state.followTarget == name)
+		or (state.looping == true and state.loopTarget == name) then
 		NAmanage.WaypointPathStop(false)
 		return
 	end
@@ -44655,6 +45014,19 @@ cmd.add({"pathfindwaypoint", "pathfindwp", "pfwaypoint", "pfwp"}, {"pathfindwayp
 	end
 	NAmanage.WaypointPathFollow(name)
 end, true)
+
+cmd.add({"looppath", "looppathwaypoint", "loopwaypoint", "loopwp"}, {"looppath <waypoint name...>", "Continuously restore pathfinding to a saved waypoint after death or respawn"}, function(...)
+	local name = NAmanage.waypointNameFromArgs(...)
+	if not name or name == "" then
+		DoNotif("Usage: looppath <waypoint name...>", 3)
+		return
+	end
+	NAmanage.WaypointPathLoopStart(name)
+end, true)
+
+cmd.add({"unlooppath", "stoplooppath", "nolooppath", "unloopwp"}, {"unlooppath", "Stop persistent waypoint pathfinding"}, function()
+	NAmanage.WaypointPathLoopStop(false)
+end)
 
 cmd.add({"setwaypoint","setwp"},{"setwaypoint <name...> [x y z]", "Store your current position, or create/update with custom coordinates"},function(...)
 	local name, x, y, z = NAmanage.WaypointNameAndCoordinatesFromArgs(...)
@@ -98028,8 +98400,12 @@ NAmanage.UpdateWaypointList=function()
 										Waypoints[newName] = Waypoints[name]
 										Waypoints[name] = nil
 										local pathState = NAmanage.WaypointPathGetState and NAmanage.WaypointPathGetState()
+										local restartLoopPath = false
 										if pathState then
-											if pathState.followTarget == name then
+											restartLoopPath = pathState.looping == true and pathState.loopTarget == name
+											if restartLoopPath and type(NAmanage.WaypointPathStop) == "function" then
+												NAmanage.WaypointPathStop(true)
+											elseif pathState.followTarget == name then
 												pathState.followTarget = newName
 											end
 											if pathState.lastName == name then
@@ -98038,6 +98414,11 @@ NAmanage.UpdateWaypointList=function()
 										end
 										NAmanage.SaveWaypoints()
 										NAmanage.UpdateWaypointList()
+										if restartLoopPath and type(NAmanage.WaypointPathLoopStart) == "function" then
+											Delay(0, function()
+												NAmanage.WaypointPathLoopStart(newName)
+											end)
+										end
 										DebugNotif(("Renamed waypoint '%s' to '%s'."):format(name, newName))
 									end
 								}
@@ -98053,8 +98434,9 @@ NAmanage.UpdateWaypointList=function()
 				if pathBtn then
 					local pathState = NAmanage.WaypointPathGetState and NAmanage.WaypointPathGetState()
 					local followingThis = pathState and pathState.following == true and pathState.followTarget == name
-					pathBtn.Text = followingThis and "Stop" or "Path"
-					pathBtn.BackgroundColor3 = followingThis and Color3.fromRGB(185, 55, 55) or Color3.fromRGB(55, 125, 215)
+					local loopingThis = pathState and pathState.looping == true and pathState.loopTarget == name
+					pathBtn.Text = (followingThis or loopingThis) and "Stop" or "Path"
+					pathBtn.BackgroundColor3 = (followingThis or loopingThis) and Color3.fromRGB(185, 55, 55) or Color3.fromRGB(55, 125, 215)
 					MouseButtonFix(pathBtn, function()
 						if type(NAmanage.WaypointPathToggle) == "function" then
 							NAmanage.WaypointPathToggle(name)
@@ -98081,7 +98463,7 @@ NAmanage.UpdateWaypointList=function()
 				if delBtn then
 					MouseButtonFix(delBtn, function()
 						local pathState = NAmanage.WaypointPathGetState and NAmanage.WaypointPathGetState()
-						if pathState and (pathState.followTarget == name or pathState.lastName == name) and type(NAmanage.WaypointPathStop) == "function" then
+						if pathState and (pathState.followTarget == name or pathState.loopTarget == name or pathState.lastName == name) and type(NAmanage.WaypointPathStop) == "function" then
 							NAmanage.WaypointPathStop(true)
 						end
 						Waypoints[name] = nil
@@ -103318,6 +103700,46 @@ NAgui.hideFill = function()
 	end
 end
 
+NAmanage.IsCmdAutofillHidden = function()
+	return type(NAStuff) == "table" and NAStuff.HideCmdAutofill == true
+end
+
+NAmanage.ApplyCmdAutofillVisibility = function(opts)
+	opts = type(opts) == "table" and opts or {}
+	local hidden = NAmanage.IsCmdAutofillHidden()
+	local host = NAUIMANAGER and NAUIMANAGER.cmdAutofill
+	if host and host:IsA("GuiObject") then
+		host.Visible = not hidden
+	end
+	if hidden then
+		NAgui.hideFill()
+		NAmanage.setCmdAutofillClickable(false)
+	elseif NAmanage.isCmdBarActive and NAmanage.isCmdBarActive() then
+		NAmanage.setCmdAutofillClickable(true)
+		if opts.refresh == false then
+			return
+		end
+		Delay(0, function()
+			if type(NAgui.autoFILLLL) == "function" then
+				NAgui.autoFILLLL()
+			end
+		end)
+	end
+end
+
+NAmanage.SetCmdAutofillHidden = function(hidden, opts)
+	opts = type(opts) == "table" and opts or {}
+	NAStuff.HideCmdAutofill = hidden == true
+	if opts.save ~= false and type(NAmanage.NASettingsSet) == "function" then
+		pcall(NAmanage.NASettingsSet, "hideCmdAutofill", NAStuff.HideCmdAutofill)
+	end
+	NAmanage.ApplyCmdAutofillVisibility({ refresh = opts.refresh ~= false })
+	if opts.notify == true then
+		DoNotif("Command autofill list "..(NAStuff.HideCmdAutofill and "hidden" or "shown"), 2)
+	end
+	return NAStuff.HideCmdAutofill
+end
+
 NAmanage.isCmdBarActive = function()
 	if NAStuff and NAStuff.cmdBarSelected == true then
 		return true
@@ -103333,7 +103755,7 @@ NAmanage.isCmdBarActive = function()
 end
 
 NAmanage.setCmdAutofillClickable = function(enabled)
-	local isEnabled = enabled == true
+	local isEnabled = enabled == true and not (NAmanage.IsCmdAutofillHidden and NAmanage.IsCmdAutofillHidden())
 	NAStuff.cmdAutofillClickable = isEnabled
 
 	for i = 1, #prevVisible do
@@ -103342,6 +103764,9 @@ NAmanage.setCmdAutofillClickable = function(enabled)
 end
 
 NAmanage.applyCmdAutofillFill = function(frame)
+	if NAmanage.IsCmdAutofillHidden and NAmanage.IsCmdAutofillHidden() then
+		return
+	end
 	if not NAStuff.cmdAutofillClickable or not NAStuff.cmdBarSelected then
 		return
 	end
@@ -105783,6 +106208,14 @@ NAmanage.performSearch = function(term, ctx)
 		NAgui.hideFill()
 		return
 	end
+	local listHidden = NAmanage.IsCmdAutofillHidden and NAmanage.IsCmdAutofillHidden() or false
+	local autofillHost = NAUIMANAGER and NAUIMANAGER.cmdAutofill
+	if autofillHost and autofillHost:IsA("GuiObject") then
+		autofillHost.Visible = not listHidden
+	end
+	if listHidden then
+		NAgui.hideFill()
+	end
 	for _, f in prevVisible do f.Visible = false end
 	table.clear(prevVisible)
 	table.clear(results)
@@ -105806,6 +106239,9 @@ NAmanage.performSearch = function(term, ctx)
 	end
 
 	local function revealEntry(entry, index)
+		if listHidden then
+			return
+		end
 		local frame = suggestionPool[index]
 		if not frame then return end
 		NAmanage.applyCmdAutofillEntryToFrame(frame, entry)
@@ -106007,6 +106443,11 @@ else
 	NAgui.loadCMDS({ force = true })
 end
 NAgui.searchCommands()
+Defer(function()
+	if type(NAmanage.ApplyCmdAutofillVisibility) == "function" then
+		NAmanage.ApplyCmdAutofillVisibility({ refresh = false })
+	end
+end)
 
 NAgui.autoFILLLL=function()
 	if not NAUIMANAGER.cmdInput then return end
@@ -120007,6 +120448,16 @@ NAgui.addToggle("Command Predictions Prompt", doPREDICTION, function(v)
 end)
 NAmanage.RegisterToggleAutoSync("Command Predictions Prompt", function()
 	return doPREDICTION == true
+end)
+
+NAgui.addToggle("Hide Command Autofill List", NAStuff.HideCmdAutofill == true, function(v)
+	NAmanage.SetCmdAutofillHidden(v == true, {
+		save = true;
+		notify = true;
+	})
+end)
+NAmanage.RegisterToggleAutoSync("Hide Command Autofill List", function()
+	return NAStuff.HideCmdAutofill == true
 end)
 
 NAgui.addToggle("Safe Command Input", NAStuff.CmdInputSafeMode ~= false, function(v)
