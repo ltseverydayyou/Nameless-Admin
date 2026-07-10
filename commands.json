@@ -1644,6 +1644,32 @@
       "desc": "Disables the antivelocity limiter"
     },
     {
+      "name": "antivelocityinstances",
+      "aliases": [
+        "antivelocityinstances",
+        "antivelocityobjects",
+        "antimovers",
+        "avinstances",
+        "avi"
+      ],
+      "usage": "antivelocityinstances (antimovers)",
+      "args": "",
+      "desc": "Continuously destroys force, torque, position, orientation, and velocity mover instances inside your character"
+    },
+    {
+      "name": "unantivelocityinstances",
+      "aliases": [
+        "unantivelocityinstances",
+        "unantivelocityobjects",
+        "unantimovers",
+        "unavinstances",
+        "unavi"
+      ],
+      "usage": "unantivelocityinstances (unantimovers)",
+      "args": "",
+      "desc": "Stops removing force and velocity mover instances from your character"
+    },
+    {
       "name": "antiknockback",
       "aliases": [
         "antiknockback",
