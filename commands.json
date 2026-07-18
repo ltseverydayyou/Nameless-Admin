@@ -820,9 +820,43 @@
         "loopwaypoint",
         "loopwp"
       ],
-      "usage": "looppath <waypoint name...>",
+      "usage": "looppath [tween|teleport|walk] <waypoint name...>",
+      "args": "[tween|teleport|walk] <waypoint name...>",
+      "desc": "Continuously path to a saved waypoint after death or respawn"
+    },
+    {
+      "name": "looptweenpath",
+      "aliases": [
+        "looptweenpath",
+        "looptweenwp",
+        "tweenlooppath"
+      ],
+      "usage": "looptweenpath <waypoint name...>",
       "args": "<waypoint name...>",
-      "desc": "Continuously restore pathfinding to a saved waypoint after death or respawn"
+      "desc": "Loop path to a waypoint using tween movement"
+    },
+    {
+      "name": "loopteleportpath",
+      "aliases": [
+        "loopteleportpath",
+        "looptppath",
+        "looptpwp",
+        "tplooppath"
+      ],
+      "usage": "loopteleportpath <waypoint name...>",
+      "args": "<waypoint name...>",
+      "desc": "Loop path to a waypoint by teleporting between route nodes"
+    },
+    {
+      "name": "loopwalkpath",
+      "aliases": [
+        "loopwalkpath",
+        "loopwalkwp",
+        "walklooppath"
+      ],
+      "usage": "loopwalkpath <waypoint name...>",
+      "args": "<waypoint name...>",
+      "desc": "Loop path to a waypoint using walking movement"
     },
     {
       "name": "unlooppath",
@@ -835,6 +869,28 @@
       "usage": "unlooppath",
       "args": "",
       "desc": "Stop persistent waypoint pathfinding"
+    },
+    {
+      "name": "looppathtweenspeed",
+      "aliases": [
+        "looppathtweenspeed",
+        "looppathspeed",
+        "pathloopspeed"
+      ],
+      "usage": "looppathtweenspeed <speed>",
+      "args": "<speed>",
+      "desc": "Set loop path tween speed in studs per second"
+    },
+    {
+      "name": "looppathteleportdelay",
+      "aliases": [
+        "looppathteleportdelay",
+        "looppathtpdelay",
+        "pathloopdelay"
+      ],
+      "usage": "looppathteleportdelay <seconds>",
+      "args": "<seconds>",
+      "desc": "Set loop path teleport delay between route nodes"
     },
     {
       "name": "setwaypoint",
@@ -7228,6 +7284,28 @@
       "usage": "unclickesp",
       "args": "",
       "desc": ""
+    },
+    {
+      "name": "itemesp",
+      "aliases": [
+        "itemesp",
+        "toolesp",
+        "iesp"
+      ],
+      "usage": "itemesp",
+      "args": "",
+      "desc": "Highlight dropped in-game tools/items"
+    },
+    {
+      "name": "unitemesp",
+      "aliases": [
+        "unitemesp",
+        "untoolesp",
+        "uniesp"
+      ],
+      "usage": "unitemesp",
+      "args": "",
+      "desc": "Disable dropped item ESP"
     },
     {
       "name": "sitesp",
