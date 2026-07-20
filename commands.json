@@ -1,6 +1,17 @@
 {
   "commands": [
     {
+      "name": "unload",
+      "aliases": [
+        "unload",
+        "unloadna",
+        "exitna"
+      ],
+      "usage": "unload",
+      "args": "",
+      "desc": "Unload Nameless Admin and clean up its active runtime"
+    },
+    {
       "name": "addallplugins",
       "aliases": [
         "addallplugins",
