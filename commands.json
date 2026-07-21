@@ -1038,19 +1038,21 @@
     {
       "name": "trackstaff",
       "aliases": [
-        "trackstaff"
+        "trackstaff",
+        "staffwatch"
       ],
-      "usage": "trackstaff",
+      "usage": "trackstaff (staffwatch)",
       "args": "",
-      "desc": "Track and notify when a staff member joins the server"
+      "desc": "Track, highlight, and notify when a staff member joins the server"
     },
     {
       "name": "stoptrackstaff",
       "aliases": [
         "stoptrackstaff",
-        "untrackstaff"
+        "untrackstaff",
+        "unstaffwatch"
       ],
-      "usage": "stoptrackstaff (untrackstaff)",
+      "usage": "stoptrackstaff (untrackstaff, unstaffwatch)",
       "args": "",
       "desc": "Stop tracking staff members"
     },
