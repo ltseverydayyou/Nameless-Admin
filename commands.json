@@ -1931,7 +1931,7 @@
       ],
       "usage": "removeads (adblock)",
       "args": "",
-      "desc": "Continuously removes billboard advertisements"
+      "desc": "Removes billboard advertisements as they appear"
     },
     {
       "name": "unremoveads",
