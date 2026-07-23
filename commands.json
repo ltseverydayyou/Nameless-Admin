@@ -6491,7 +6491,7 @@
       ],
       "usage": "instantproximityprompts (instantpp,ipp)",
       "args": "",
-      "desc": "Sets proximity prompt HoldDuration values to 0 and keeps them instant"
+      "desc": "Sets proximity prompt HoldDuration values to 0.01 and keeps them near-instant"
     },
     {
       "name": "uninstantproximityprompts",
