@@ -6491,7 +6491,7 @@
       ],
       "usage": "instantproximityprompts (instantpp,ipp)",
       "args": "",
-      "desc": "Disable the cooldown for proximity prompts"
+      "desc": "Sets proximity prompt HoldDuration values to 0 and keeps them instant"
     },
     {
       "name": "uninstantproximityprompts",
@@ -6502,7 +6502,7 @@
       ],
       "usage": "uninstantproximityprompts (uninstantpp,unipp)",
       "args": "",
-      "desc": "Undo the cooldown removal"
+      "desc": "Restores tracked proximity prompt HoldDuration values"
     },
     {
       "name": "enableproximitypromptservice",
