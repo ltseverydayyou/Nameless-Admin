@@ -3937,6 +3937,35 @@
       "desc": "Enable free camera"
     },
     {
+      "name": "freecamgoto",
+      "aliases": [
+        "freecamgoto",
+        "fcgoto",
+        "fcgo",
+        "fcg",
+        "freecamto",
+        "fcto"
+      ],
+      "usage": "freecamgoto <player> (fcgoto,fcgo,fcg,freecamto,fcto)",
+      "args": "<player>",
+      "desc": "Start or move freecam to a player"
+    },
+    {
+      "name": "freecamgotopart",
+      "aliases": [
+        "freecamgotopart",
+        "fcgotopart",
+        "fcgpart",
+        "fcgp",
+        "freecamtopart",
+        "fctopart",
+        "fctp"
+      ],
+      "usage": "freecamgotopart <partname> (fcgotopart,fcgpart,fcgp,freecamtopart,fctopart,fctp)",
+      "args": "<partname>",
+      "desc": "Start or move freecam to an exact part name"
+    },
+    {
       "name": "unfreecam",
       "aliases": [
         "unfreecam",
@@ -4982,6 +5011,46 @@
       "usage": "unlockmouse2 (unlockm2)",
       "args": "",
       "desc": "Unlocks your mouse"
+    },
+    {
+      "name": "cursorvisible",
+      "aliases": [
+        "cursorvisible",
+        "mousevisible"
+      ],
+      "usage": "cursorvisible (mousevisible)",
+      "args": "",
+      "desc": "Forces the mouse cursor to remain visible without changing its lock mode"
+    },
+    {
+      "name": "cursorfree",
+      "aliases": [
+        "cursorfree",
+        "mousefree"
+      ],
+      "usage": "cursorfree (mousefree)",
+      "args": "",
+      "desc": "Forces the mouse cursor to remain visible and unlocked"
+    },
+    {
+      "name": "cursorreset",
+      "aliases": [
+        "cursorreset",
+        "mousereset"
+      ],
+      "usage": "cursorreset (mousereset)",
+      "args": "",
+      "desc": "Forces Roblox's default visible and unlocked cursor"
+    },
+    {
+      "name": "cursorrestore",
+      "aliases": [
+        "cursorrestore",
+        "mouserestore"
+      ],
+      "usage": "cursorrestore (mouserestore)",
+      "args": "",
+      "desc": "Stops cursor enforcement and restores the saved game cursor state"
     },
     {
       "name": "headsit",
