@@ -3606,7 +3606,7 @@
       ],
       "usage": "saveinstance (savegame)",
       "args": "",
-      "desc": "if it bugs out try removing stuff from your AutoExec folder"
+      "desc": "Saves the game with SaveInstance 420 Edition using your saved options"
     },
     {
       "name": "admin",
