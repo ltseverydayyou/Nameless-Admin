@@ -5038,7 +5038,7 @@ NAmanage.ExperienceDebugSnapshot = NAmanage.ExperienceDebugSnapshot or function(
 		end
 	end
 	if not service then
-		DoNotif((label or "ExperienceService")..": unavailable", 4)
+		DebugNotif((label or "ExperienceService")..": unavailable", 4)
 		return false
 	end
 	local parts = {}
@@ -5062,7 +5062,7 @@ NAmanage.ExperienceDebugSnapshot = NAmanage.ExperienceDebugSnapshot or function(
 	if text:find("queue=-1", 1, true) then
 		text = text.." | queue=-1 means no queue position reported"
 	end
-	DoNotif(text, 6)
+	DebugNotif(text, 6)
 	return true, text
 end
 
@@ -5091,7 +5091,7 @@ NAmanage.ExperienceDebugConnect = NAmanage.ExperienceDebugConnect or function()
 		if service then ExperienceService = service end
 	end
 	if not service then
-		DoNotif("ExperienceService debug unavailable", 4)
+		DebugNotif("ExperienceService debug unavailable", 4)
 		return false
 	end
 	NAStuff.ExperienceDebugConnected = true
@@ -5102,7 +5102,7 @@ NAmanage.ExperienceDebugConnect = NAmanage.ExperienceDebugConnect or function()
 		end
 		local valuesText = Concat(values, " | ")
 		NAmanage.ExperienceDebugRecord(name, valuesText)
-		DoNotif("[ExperienceDebug] "..name..": "..valuesText, 6)
+		DebugNotif("[ExperienceDebug] "..name..": "..valuesText, 6)
 	end
 	local eventNames = {"OnNewJoinAttempt", "PlaceJoinStateChanged", "QueuePositionChanged", "OnCrossExperienceStarted", "OnCrossExperienceStopped"}
 	for _, eventName in eventNames do
@@ -5139,7 +5139,7 @@ NAmanage.ExperienceDebugConnect = NAmanage.ExperienceDebugConnect or function()
 			end))
 		end)
 	end
-	DoNotif("ExperienceService debug hooks enabled.", 4)
+	DebugNotif("ExperienceService debug hooks enabled.", 4)
 	NAmanage.ExperienceDebugSnapshot("ExperienceDebug connected")
 	return true
 end
@@ -36819,21 +36819,73 @@ NAmanage.CFlyStopVisualizer = function(restoreIfNear)
 	return restored
 end
 
-NAmanage._unanchorFlyCharacter = function(char)
-	char = char or getChar()
-	if not char then
+NAmanage._captureFlyHumanoidState = function(hum)
+	hum = hum or getHum()
+	if not hum then
 		return
 	end
-	local root = getRoot(char)
-	local head = getHead(char)
-	if root then
-		pcall(function() root.Anchored = false end)
+	local saved = flyVariables._humanoidState
+	if type(saved) == "table" and saved.hum == hum then
+		return
 	end
-	if head then
-		pcall(function() head.Anchored = false end)
+	local state
+	local platformStand
+	pcall(function()
+		state = hum:GetState()
+	end)
+	pcall(function()
+		platformStand = hum.PlatformStand
+	end)
+	flyVariables._humanoidState = {
+		hum = hum;
+		mode = NAmanage._state.mode;
+		state = state;
+		platformStand = platformStand;
+	}
+end
+
+NAmanage._trackFlyAnchor = function(part)
+	if typeof(part) ~= "Instance" or not part:IsA("BasePart") then
+		return
 	end
-	for _, inst in NAmanage.QueryDescendants(char, "BasePart") do
-		pcall(function() inst.Anchored = false end)
+	local tracked = flyVariables._anchoredParts
+	if type(tracked) ~= "table" then
+		tracked = setmetatable({}, { __mode = "k" })
+		flyVariables._anchoredParts = tracked
+	end
+	if tracked[part] ~= nil then
+		return
+	end
+	local anchored = false
+	pcall(function()
+		anchored = part.Anchored == true
+	end)
+	tracked[part] = {
+		anchored = anchored;
+		frozen = isFrozennn == true;
+	}
+end
+
+NAmanage._unanchorFlyCharacter = function(char)
+	char = char or getChar()
+	local tracked = flyVariables._anchoredParts
+	if type(tracked) ~= "table" then
+		return
+	end
+	for part, saved in tracked do
+		if typeof(part) == "Instance" and part.Parent and part:IsA("BasePart") then
+			local anchored = type(saved) == "table" and saved.anchored == true or saved == true
+			if type(saved) == "table" and saved.frozen == true and isFrozennn ~= true then
+				anchored = false
+			end
+			if isFrozennn == true and char and part:IsDescendantOf(char) then
+				anchored = true
+			end
+			pcall(function()
+				part.Anchored = anchored
+			end)
+		end
+		tracked[part] = nil
 	end
 end
 
@@ -36880,15 +36932,35 @@ end
 NAmanage._restoreFlyHumanoidState=function(hum)
 	hum = hum or getHum()
 	if not hum then return end
-	pcall(function() hum.PlatformStand=false end)
-	pcall(function() hum.AutoRotate=true end)
-	if not NAmanage._isSeated(hum) then
-		local floorMaterial = NAlib.isProperty(hum, "FloorMaterial")
-		if floorMaterial == Enum.Material.Air then
-			pcall(function() hum:ChangeState(Enum.HumanoidStateType.Freefall) end)
-		else
-			pcall(function() hum:ChangeState(Enum.HumanoidStateType.Running) end)
-		end
+	local saved = flyVariables._humanoidState
+	if type(saved) ~= "table" or saved.hum ~= hum then
+		return
+	end
+	flyVariables._humanoidState = nil
+	local currentState
+	pcall(function()
+		currentState = hum:GetState()
+	end)
+	local changedPlatformStand = saved.mode == "fly" or saved.mode == "vfly"
+	if changedPlatformStand and saved.platformStand ~= nil then
+		pcall(function()
+			hum.PlatformStand = saved.platformStand == true
+		end)
+	end
+	local restoreState
+	if SWIMMERRRR == true then
+		restoreState = Enum.HumanoidStateType.Swimming
+	elseif changedPlatformStand and (
+		currentState == Enum.HumanoidStateType.PlatformStanding
+		or currentState == Enum.HumanoidStateType.Flying
+		or currentState == Enum.HumanoidStateType.Physics
+	) then
+		restoreState = saved.state
+	end
+	if restoreState and restoreState ~= Enum.HumanoidStateType.Dead and currentState ~= restoreState then
+		pcall(function()
+			hum:ChangeState(restoreState)
+		end)
 	end
 end
 
@@ -36899,16 +36971,25 @@ NAmanage._settleFlyDisabled=function(skipDeferred)
 	local root=char and getRoot(char)
 	local hum=getHum(char)
 	local floorMaterial = hum and NAlib.isProperty(hum, "FloorMaterial")
-	if root and floorMaterial == Enum.Material.Air and not NAmanage.IsFlyVelocityClampDisabled() then
+	NAmanage._unanchorFlyCharacter(char)
+	NAmanage._restoreFlyHumanoidState(hum)
+	local currentState
+	if hum then
+		pcall(function()
+			currentState = hum:GetState()
+		end)
+	end
+	local preserveMotion = SWIMMERRRR == true
+		or isFrozennn == true
+		or currentState == Enum.HumanoidStateType.Swimming
+	if root and floorMaterial == Enum.Material.Air and not preserveMotion and not NAmanage.IsFlyVelocityClampDisabled() then
 		pcall(function()
 			local vel = root.AssemblyLinearVelocity
 			root.AssemblyLinearVelocity = Vector3.new(vel.X, math.min(vel.Y, 0), vel.Z)
 		end)
 	end
-	NAmanage._unanchorFlyCharacter(char)
-	NAmanage._restoreFlyHumanoidState(hum)
 	NAmanage._destroyFlyHelper()
-	if skipDeferred or floorMaterial ~= Enum.Material.Air then
+	if skipDeferred or floorMaterial ~= Enum.Material.Air or preserveMotion then
 		return
 	end
 	flyVariables._disableSettleToken = (tonumber(flyVariables._disableSettleToken) or 0) + 1
@@ -36927,12 +37008,7 @@ end
 
 NAmanage.FLY_Cleanup = function(char)
 	local c = char or getChar()
-	local hum = getHum(c)
 	NAmanage._unanchorFlyCharacter(c)
-	if hum then
-		pcall(function() hum.PlatformStand = false end)
-		pcall(function() hum.Sit = false end)
-	end
 	FLYING=false
 	NAmanage._settleFlyDisabled()
 end
@@ -36980,13 +37056,17 @@ end
 
 NAmanage.resumeCurrent=function()
 	if FLYING then return end
-	FLYING=true
-	NAmanage._ensureForces()
 	local char=getChar()
 	local hum=getHum(char)
+	NAmanage._captureFlyHumanoidState(hum)
+	FLYING=true
+	NAmanage._ensureForces()
 	local cflyTarget=NAmanage._getCFlyTarget(char)
 	if NAmanage._state.mode=="cfly" then
-		if cflyTarget then cflyTarget.Anchored=true end
+		if cflyTarget then
+			NAmanage._trackFlyAnchor(cflyTarget)
+			cflyTarget.Anchored=true
+		end
 		if type(NAmanage.CFlyStartVisualizer) == "function" then
 			NAmanage.CFlyStartVisualizer(cflyTarget, true)
 		end
@@ -37147,6 +37227,7 @@ NAmanage.sFLY=function(vfly,cfly,tfly)
 	while not getChar() or not getRoot(getChar()) or not getHum() do Wait() end
 	CONTROL={Q=0,E=0}; lCONTROL={Q=0,E=0}; SPEED=0
 	local hum=getHum(); local head=getHead(getChar()); local root=getRoot(getChar())
+	NAmanage._captureFlyHumanoidState(hum)
 	if NAmanage.IsFlyVelocityClampDisabled() then
 		if type(NAmanage.ClearVelocityWalkSpeedClampState) == "function" then
 			NAmanage.ClearVelocityWalkSpeedClampState()
@@ -37206,7 +37287,10 @@ NAmanage.sFLY=function(vfly,cfly,tfly)
 		NAmanage.configureFlyHelper(goofyFLY)
 		goofyFLY.Anchored=true
 		local cflyTarget=NAmanage._getCFlyTarget(getChar())
-		if cflyTarget then cflyTarget.Anchored=true end
+		if cflyTarget then
+			NAmanage._trackFlyAnchor(cflyTarget)
+			cflyTarget.Anchored=true
+		end
 		if type(NAmanage.CFlyStartVisualizer) == "function" then
 			NAmanage.CFlyStartVisualizer(cflyTarget, false)
 		end
@@ -37287,7 +37371,6 @@ NAmanage.sFLY=function(vfly,cfly,tfly)
 				if flyVariables.BG then pcall(function() flyVariables.BG:Destroy() end) end
 				if flyVariables.BV then pcall(function() flyVariables.BV:Destroy() end) end
 				flyVariables.BG=nil; flyVariables.BV=nil
-				if hum then hum.PlatformStand=false end
 				flyVariables._stdLoop=false
 			end)
 		end
@@ -37333,7 +37416,10 @@ NAmanage._ensureForces=function()
 	elseif NAmanage._state.mode=="cfly" then
 		goofyFLY.Anchored=true
 		local cflyTarget=NAmanage._getCFlyTarget(char)
-		if cflyTarget and FLYING and not cflyTarget.Anchored then cflyTarget.Anchored=true end
+		if cflyTarget and FLYING and not cflyTarget.Anchored then
+			NAmanage._trackFlyAnchor(cflyTarget)
+			cflyTarget.Anchored=true
+		end
 	else
 		NAmanage._ensureWeldTarget()
 		if not flyVariables.BG or flyVariables.BG.Parent~=goofyFLY then
@@ -50868,6 +50954,7 @@ NAmanage.IsStaff = IsStaff
 NAStuff.StaffwatchState = NAStuff.StaffwatchState or {
 	markers = {};
 	charConnections = {};
+	notified = {};
 }
 if NAStuff.StaffwatchIgnoreLocal == nil then
 	NAStuff.StaffwatchIgnoreLocal = true
@@ -50953,6 +51040,9 @@ NAmanage.StaffwatchClearPlayer = function(playerOrKey)
 	if state.charConnections then
 		state.charConnections[key] = nil
 	end
+	if state.notified then
+		state.notified[key] = nil
+	end
 end
 
 NAmanage.StaffwatchClearAll = function()
@@ -50960,7 +51050,7 @@ NAmanage.StaffwatchClearAll = function()
 	NAlib.disconnect("staffNotifierRemoving")
 	local state = NAStuff.StaffwatchState
 	if type(state) ~= "table" then
-		NAStuff.StaffwatchState = { markers = {}, charConnections = {} }
+		NAStuff.StaffwatchState = { markers = {}, charConnections = {}, notified = {} }
 		return
 	end
 	state.active = false
@@ -50970,6 +51060,7 @@ NAmanage.StaffwatchClearAll = function()
 	for key in state.charConnections or {} do
 		NAmanage.StaffwatchClearPlayer(key)
 	end
+	state.notified = {}
 end
 
 NAmanage.StaffwatchClearHighlights = function()
@@ -51007,6 +51098,7 @@ NAmanage.StaffwatchEnsureMarker = function(player, info)
 	end
 	state.markers = type(state.markers) == "table" and state.markers or {}
 	state.charConnections = type(state.charConnections) == "table" and state.charConnections or {}
+	state.notified = type(state.notified) == "table" and state.notified or {}
 
 	local key = NAmanage.StaffwatchKey(player)
 	if not key then
@@ -51129,6 +51221,26 @@ NAmanage.StaffwatchEnsureMarker = function(player, info)
 	end
 end
 
+NAmanage.StaffwatchNotify = function(player, info)
+	local state = NAStuff.StaffwatchState
+	if type(state) ~= "table" then
+		state = { markers = {}, charConnections = {}, notified = {} }
+		NAStuff.StaffwatchState = state
+	end
+	state.notified = type(state.notified) == "table" and state.notified or {}
+	local key = NAmanage.StaffwatchKey(player)
+	if not key or state.notified[key] then
+		return false
+	end
+	state.notified[key] = true
+	local role = type(info) == "table" and tostring(info.Role or "Staff") or "Staff"
+	if role == "" or role == "Guest" then
+		role = "Staff"
+	end
+	DoNotif("Staff detected: "..nameChecker(player).." ("..role..")", 6, "Staffwatch")
+	return true
+end
+
 NAmanage.StaffwatchHandlePlayer = function(player, shouldNotify)
 	if player == LocalPlayer and NAStuff.StaffwatchIgnoreLocal ~= false then
 		NAmanage.StaffwatchClearPlayer(player)
@@ -51138,7 +51250,7 @@ NAmanage.StaffwatchHandlePlayer = function(player, shouldNotify)
 	if info.IsStaff then
 		NAmanage.StaffwatchEnsureMarker(player, info)
 		if shouldNotify then
-			DoNotif(nameChecker(player).." is a "..info.Role, 5, "Staffwatch")
+			NAmanage.StaffwatchNotify(player, info)
 		end
 	else
 		NAmanage.StaffwatchClearPlayer(player)
@@ -51289,16 +51401,16 @@ cmd.add({"trackstaff", "staffwatch"}, {"trackstaff (staffwatch)", "Track, highli
 			NAmanage.StaffwatchClearPlayer(player)
 		end))
 		Spawn(function()
-			local staffList = {}
+			local staffCount = 0
 			local scanStart = os.clock()
 			local players = Players:GetPlayers()
 			for i, player in players do
 				if not (NAStuff.StaffwatchState and NAStuff.StaffwatchState.active) then
 					return
 				end
-				local okInfo, info = pcall(NAmanage.StaffwatchHandlePlayer, player, false)
+				local okInfo, info = pcall(NAmanage.StaffwatchHandlePlayer, player, true)
 				if okInfo and type(info) == "table" and info.IsStaff then
-					table.insert(staffList, nameChecker(player).." is a "..info.Role)
+					staffCount += 1
 				end
 				if i % 2 == 0 or IsOnMobile == true then
 					Wait()
@@ -51310,7 +51422,8 @@ cmd.add({"trackstaff", "staffwatch"}, {"trackstaff (staffwatch)", "Track, highli
 				perf.staffwatchScanPlayers = #players
 			end
 			if NAStuff.StaffwatchState and NAStuff.StaffwatchState.active then
-				DoNotif(#staffList > 0 and table.concat(staffList, ",\n") or "Tracking enabled", 5, "Staffwatch")
+				local status = staffCount == 0 and "Tracking enabled - no staff detected" or ("Tracking enabled - "..staffCount.." staff detected")
+				DoNotif(status, 4, "Staffwatch")
 			end
 		end)
 	else
