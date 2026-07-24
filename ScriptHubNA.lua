@@ -157,6 +157,11 @@ local hs = Svc("HttpService");
 local rs = Svc("RunService");
 local MarketplaceService = Svc("MarketplaceService");
 local eng = "ScriptBlox";
+local engines = {
+	"ScriptBlox",
+	"RScripts",
+	"RobloxScripts"
+};
 local col = {
 	bg = Color3.fromRGB(20, 22, 26),
 	ac = Color3.fromRGB(30, 144, 255),
@@ -560,7 +565,15 @@ local function getFilterButtonText()
 	return "Filter: All";
 end;
 local function scriptRequiresKey(d)
-	local value = eng == "ScriptBlox" and d.key or d.keySystem;
+	local value;
+	if eng == "RScripts" then
+		value = d.keySystem;
+	else
+		value = d.key;
+	end;
+	if value == nil and type(d.accessType) == "string" then
+		value = d.accessType:lower() == "key";
+	end;
 	if type(value) == "boolean" then
 		return value;
 	end;
@@ -603,7 +616,7 @@ local function setNavButtonEnabled(btn, enabled)
 	end;
 end;
 local function updatePageControls()
-	local supports = eng == "ScriptBlox" or eng == "RScripts";
+	local supports = table.find(engines, eng) ~= nil;
 	pageBar.Visible = supports;
 	if not supports then
 		return;
@@ -679,6 +692,7 @@ tnl.Padding = UDim.new(0, 8);
 tnl.Parent = tn;
 local SCRIPTBLOX_BASE = "https://scriptblox.com";
 local RSCRIPTS_BASE = "https://rscripts.net";
+local ROBLOXSCRIPTS_BASE = "https://robloxscripts.com";
 local IMAGE_CACHE_DIR = "ScriptHubImages";
 local function sanitizeFileName(str)
 	return str:gsub("[^%w%._%-]", "_");
@@ -866,6 +880,10 @@ local function downloadImageAsset(url)
 			headers = {
 				Referer = RSCRIPTS_BASE
 			};
+		elseif host:find("robloxscripts%.com") then
+			headers = {
+				Referer = ROBLOXSCRIPTS_BASE
+			};
 		elseif host:find("rbxcdn%.com") then
 			headers = {
 				Referer = "https://www.roblox.com/"
@@ -955,6 +973,25 @@ local function resolveRScriptsImage(data)
 			if normalized then
 				return normalized;
 			end;
+		end;
+	end;
+	return nil;
+end;
+local function resolveRobloxScriptsImage(data)
+	if not data then
+		return nil;
+	end;
+	local candidates = {
+		data.image,
+		data.imageUrl,
+		data.thumbnail,
+		data.game and data.game.iconUrl,
+		data.game and data.game.image
+	};
+	for _, value in candidates do
+		local normalized = normalizeImageUrl(value, ROBLOXSCRIPTS_BASE);
+		if normalized and isMeaningfulImageUrl(normalized) then
+			return normalized;
 		end;
 	end;
 	return nil;
@@ -1248,13 +1285,28 @@ sbox.FocusLost:Connect(function()
 end);
 local function mkCard(i, d)
 	local t = d.title or d.name or "Untitled Script";
-	local rw = eng == "ScriptBlox" and d.script or d.rawScript or d.scriptLink or d.raw or "";
+	local rw;
+	local rwIsUrl = false;
+	if eng == "RScripts" then
+		rw = d.rawScript or d.scriptLink or d.raw or "";
+		rwIsUrl = true;
+	else
+		rw = d.script or "";
+		if rw == "" then
+			rw = d.rawScriptUrl or d.scriptLink or d.raw or "";
+			rwIsUrl = rw ~= "";
+		end;
+	end;
 	local v = tostring(d.views or d.viewCount or 0);
-	local likes = tostring(d.likeCount or 0);
+	local likes = tostring(d.likes or d.likeCount or 0);
 	local keyFlag = scriptRequiresKey(d);
-	local scriptType = d.scriptType or "Free";
-	local verified = d.verified and "Verified" or "Unverified";
-	local status = d.isPatched and "Patched" or "Working";
+	local scriptType = d.scriptType or d.accessType or "Free";
+	if type(scriptType) == "string" and scriptType ~= "" then
+		scriptType = scriptType:sub(1, 1):upper() .. scriptType:sub(2):lower();
+	end;
+	local verifiedFlag = d.verified == true or d.author and d.author.verified == true;
+	local verified = verifiedFlag and "Verified" or "Unverified";
+	local status = eng == "RobloxScripts" and "Published" or d.isPatched and "Patched" or "Working";
 	local isUniversal = d.isUniversal == true or d.universal == true;
 	local mobileStatus;
 	if eng == "RScripts" then
@@ -1268,7 +1320,7 @@ local function mkCard(i, d)
 	if not isUniversal then
 		if eng == "ScriptBlox" then
 			placeSourceId = d.game and d.game.gameId;
-		else
+		elseif eng == "RScripts" then
 			placeSourceId = d.game and (d.game.placeId or d.game.gameLink and d.game.gameLink:match("/games/(%d+)"));
 		end;
 	end;
@@ -1276,7 +1328,8 @@ local function mkCard(i, d)
 	local hasPlaceId = placeId and placeId > 0;
 	local gameName;
 	if not isUniversal then
-		gameName = hasPlaceId and (eng == "ScriptBlox" and (d.game and d.game.name) or d.game and d.game.title) or t;
+		local gameData = d.game;
+		gameName = gameData and (gameData.name or gameData.title) or t;
 		if not gameName or gameName == "" then
 			gameName = t;
 		end;
@@ -1316,8 +1369,10 @@ local function mkCard(i, d)
 	local remoteImageUrl;
 	if eng == "ScriptBlox" then
 		remoteImageUrl = resolveScriptBloxImage(d);
-	else
+	elseif eng == "RScripts" then
 		remoteImageUrl = resolveRScriptsImage(d);
+	else
+		remoteImageUrl = resolveRobloxScriptsImage(d);
 	end;
 	local coverHeight = 108;
 	local coverImage;
@@ -1439,24 +1494,28 @@ local function mkCard(i, d)
 	inf.ZIndex = 2;
 	inf.LayoutOrder = 2;
 	local infoLines = {};
-	if not isUniversal and displayGameId and gameName and gameName ~= "" then
-		table.insert(infoLines, ("Game: %s (ID %s)"):format(gameName, displayGameId));
+	if not isUniversal and gameName and gameName ~= "" then
+		if displayGameId then
+			table.insert(infoLines, ("Game: %s (ID %s)"):format(gameName, displayGameId));
+		else
+			table.insert(infoLines, ("Game: %s"):format(gameName));
+		end;
 	elseif isUniversal then
 		table.insert(infoLines, "Scope: Universal");
 	end;
 	table.insert(infoLines, ("Type: %s | %s | Key: %s"):format(scriptType, verified, keyFlag and "Key" or "No Key"));
-	if eng == "ScriptBlox" then
-		table.insert(infoLines, ("Status: %s | Views: %s | Likes: %s"):format(status, v, likes));
-	else
+	if eng == "RScripts" then
 		table.insert(infoLines, ("Status: %s | %s | Views: %s | Likes: %s"):format(status, mobileStatus or "Platform Unknown", v, likes));
 		table.insert(infoLines, ("Paid: %s"):format(d.paid and "Paid" or "Free"));
-		if d.description and d.description ~= "" then
-			local desc = d.description:gsub("%c", " ");
-			if #desc > 90 then
-				desc = desc:sub(1, 87) .. "...";
-			end;
-			table.insert(infoLines, ("Desc: %s"):format(desc));
+	else
+		table.insert(infoLines, ("Status: %s | Views: %s | Likes: %s"):format(status, v, likes));
+	end;
+	if eng ~= "ScriptBlox" and d.description and d.description ~= "" then
+		local desc = d.description:gsub("%c", " ");
+		if #desc > 90 then
+			desc = desc:sub(1, 87) .. "...";
 		end;
+		table.insert(infoLines, ("Desc: %s"):format(desc));
 	end;
 	if lastUpdated ~= "" then
 		table.insert(infoLines, ("Updated: %s"):format(lastUpdated));
@@ -1510,22 +1569,16 @@ local function mkCard(i, d)
 	local dc = hasDiscord and mkB("Discord", Color3.fromRGB(28, 116, 224)) or nil;
 	ex.MouseButton1Click:Connect(function()
 		pcall(function()
-			if eng == "ScriptBlox" then
-				(loadstring(rw))();
-			else
-				(loadstring(game:HttpGet(rw)))();
-			end;
+			local source = rwIsUrl and game:HttpGet(rw) or rw;
+			(loadstring(source))();
 		end);
 		toast("Executed script", col.tx);
 	end);
 	if cp then
 		cp.MouseButton1Click:Connect(function()
 			pcall(function()
-				if eng == "ScriptBlox" then
-					setclipboard(rw);
-				else
-					setclipboard(game:HttpGet(rw));
-				end;
+				local source = rwIsUrl and game:HttpGet(rw) or rw;
+				setclipboard(source);
 			end);
 			cp.Text = "Copied";
 			(__lt.cm("TweenService", "Create", cp, TweenInfo.new(0.12), {
@@ -1617,7 +1670,7 @@ local function runSearchFromInput(forceTrending)
 	elseif eng == "ScriptBlox" then
 		fetch("", forceTrending == false and false or true, 1);
 		return true;
-	elseif eng == "RScripts" then
+	elseif eng == "RScripts" or eng == "RobloxScripts" then
 		fetch("", false, 1);
 		return true;
 	end;
@@ -1645,10 +1698,19 @@ function fetch(searchText, trending, page)
 	spin(true);
 	go.Text = "Searching...";
 	go.Active = false;
-	local encoded = __lt.cm("HttpService", "UrlEncode", searchText);
+	local requestSearchText = searchText;
+	if eng == "RobloxScripts" and #requestSearchText > 100 then
+		requestSearchText = requestSearchText:sub(1, 100);
+	end;
+	local encoded = __lt.cm("HttpService", "UrlEncode", requestSearchText);
 	local url;
 	if eng == "RScripts" then
 		url = string.format("https://rscripts.net/api/v2/scripts?page=%d&orderBy=date&sort=desc", page);
+		if searchText ~= "" then
+			url = url .. "&q=" .. encoded;
+		end;
+	elseif eng == "RobloxScripts" then
+		url = string.format("%s/api/v1/scripts?page=%d&limit=24&sort=newest", ROBLOXSCRIPTS_BASE, page);
 		if searchText ~= "" then
 			url = url .. "&q=" .. encoded;
 		end;
@@ -1664,14 +1726,32 @@ function fetch(searchText, trending, page)
 		});
 	end);
 	clearAll(false);
-	if not ok or (not res) or (not res.Body) then
+	local responseBody = res and (res.Body or res.body);
+	local responseStatus = res and (res.StatusCode or res.Status or res.status_code) or 0;
+	if not ok or (not res) or type(responseBody) ~= "string" or responseBody == "" then
 		mkMsg("Request failed", col.er);
 		finishSearch();
 		sizeCanvas();
 		return;
 	end;
+	if responseStatus == 429 then
+		mkMsg("Rate limit reached. Try again shortly", col.wa);
+		finishSearch();
+		sizeCanvas();
+		return;
+	elseif responseStatus == 503 then
+		mkMsg("API temporarily unavailable", col.wa);
+		finishSearch();
+		sizeCanvas();
+		return;
+	elseif responseStatus ~= 0 and (responseStatus < 200 or responseStatus >= 300) then
+		mkMsg(("Request failed (%s)"):format(tostring(responseStatus)), col.er);
+		finishSearch();
+		sizeCanvas();
+		return;
+	end;
 	local ok2, dec = pcall(function()
-		return __lt.cm("HttpService", "JSONDecode", res.Body);
+		return __lt.cm("HttpService", "JSONDecode", responseBody);
 	end);
 	if not ok2 or (not dec) then
 		mkMsg("Invalid response", col.er);
@@ -1684,6 +1764,17 @@ function fetch(searchText, trending, page)
 	if eng == "RScripts" then
 		data = dec.scripts;
 		totalPages = dec.info and dec.info.maxPages or 1;
+	elseif eng == "RobloxScripts" then
+		data = dec.data;
+		local pageData = dec.pagination or {};
+		local totalItems = tonumber(pageData.total or pageData.totalItems);
+		local pageLimit = tonumber(pageData.limit or pageData.perPage) or 24;
+		totalPages = tonumber(pageData.totalPages or pageData.pages or pageData.lastPage);
+		if not totalPages and totalItems then
+			totalPages = math.ceil(totalItems / math.max(pageLimit, 1));
+		end;
+		totalPages = math.min(totalPages or 1, 200);
+		pagination.current = tonumber(pageData.page or pageData.currentPage) or page;
 	else
 		local result = dec.result or {};
 		data = result.scripts;
@@ -1703,23 +1794,23 @@ function fetch(searchText, trending, page)
 	sizeCanvas();
 end;
 engb.MouseButton1Click:Connect(function()
-	if eng == "ScriptBlox" then
-		eng = "RScripts";
-		engb.Text = "Engine: RScripts";
+	local currentIndex = table.find(engines, eng) or 1;
+	eng = engines[currentIndex % #engines + 1];
+	engb.Text = "Engine: " .. eng;
+	local backgroundColor = col.bg;
+	if eng == "RScripts" then
 		sbox.PlaceholderText = "Search for scripts (rscripts.net)";
-		(__lt.cm("TweenService", "Create", engb, TweenInfo.new(0.18), {
-			BackgroundColor3 = Color3.fromRGB(45, 49, 58)
-		})):Play();
-		toast("Switched to RScripts", col.tx);
+		backgroundColor = Color3.fromRGB(45, 49, 58);
+	elseif eng == "RobloxScripts" then
+		sbox.PlaceholderText = "Search for scripts (robloxscripts.com)";
+		backgroundColor = Color3.fromRGB(38, 52, 68);
 	else
-		eng = "ScriptBlox";
-		engb.Text = "Engine: ScriptBlox";
 		sbox.PlaceholderText = "Search for scripts (scriptblox.com)";
-		(__lt.cm("TweenService", "Create", engb, TweenInfo.new(0.18), {
-			BackgroundColor3 = col.bg
-		})):Play();
-		toast("Switched to ScriptBlox", col.tx);
 	end;
+	(__lt.cm("TweenService", "Create", engb, TweenInfo.new(0.18), {
+		BackgroundColor3 = backgroundColor
+	})):Play();
+	toast("Switched to " .. eng, col.tx);
 	resetPagination(true);
 end);
 go.MouseButton1Click:Connect(function()
@@ -1734,7 +1825,7 @@ local function requestPage(targetPage)
 	if searching then
 		return;
 	end;
-	if eng ~= "ScriptBlox" and eng ~= "RScripts" then
+	if not table.find(engines, eng) then
 		return;
 	end;
 	if not pagination.hasResults then
