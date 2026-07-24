@@ -21051,18 +21051,6 @@ NAmanage.NASettingsGetSchema=function()
 			end;
 		};
 		saveInstanceSafeMode = {
-			default = true;
-			coerce = function(value)
-				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
-			end;
-		};
-		saveInstanceKillClientScripts = {
-			default = false;
-			coerce = function(value)
-				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
-			end;
-		};
-		saveInstanceBoostFPS = {
 			default = false;
 			coerce = function(value)
 				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
@@ -21093,6 +21081,12 @@ NAmanage.NASettingsGetSchema=function()
 			end;
 		};
 		saveInstanceDebugMode = {
+			default = false;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
+			end;
+		};
+		saveInstanceDebugLog = {
 			default = false;
 			coerce = function(value)
 				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
@@ -21148,18 +21142,47 @@ NAmanage.NASettingsGetSchema=function()
 				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
+		saveInstanceDecompilePrepass = {
+			default = false;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
+			end;
+		};
+		saveInstancePrepassConcurrency = {
+			default = 24;
+			coerce = function(value)
+				local n = tonumber(value)
+				return math.clamp(math.floor((n or 24) + 0.5), 1, 128)
+			end;
+		};
+		saveInstancePrepassRateGap = {
+			default = 0.12;
+			coerce = function(value)
+				return math.max(0, tonumber(value) or 0.12)
+			end;
+		};
+		saveInstancePrepassApiUrl = {
+			default = "https://api.lua.expert/decompile";
+			coerce = function(value)
+				if type(value) ~= "string" then
+					value = tostring(value or "")
+				end
+				value = value:match("^%s*(.-)%s*$") or value
+				return value ~= "" and value or "https://api.lua.expert/decompile"
+			end;
+		};
+		saveInstancePrepassMaxScripts = {
+			default = 6000;
+			coerce = function(value)
+				return math.max(1, math.floor((tonumber(value) or 6000) + 0.5))
+			end;
+		};
 		saveInstanceSaveCacheInterval = {
 			default = 56320;
 			coerce = function(value)
 				local n = tonumber(value)
 				if not n then return 56320 end
 				return math.max(0, math.floor(n + 0.5))
-			end;
-		};
-		saveInstanceAvoidFileOverwrite = {
-			default = true;
-			coerce = function(value)
-				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
 			end;
 		};
 		saveInstanceNilInstances = {
@@ -21192,10 +21215,16 @@ NAmanage.NASettingsGetSchema=function()
 				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
-		saveInstanceIsolateStarterPlayer = {
+		saveInstanceUseUGCValidationService = {
 			default = true;
 			coerce = function(value)
 				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
+			end;
+		};
+		saveInstanceIsolateStarterPlayer = {
+			default = false;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
 		saveInstanceIsolatePlayers = {
@@ -21253,6 +21282,72 @@ NAmanage.NASettingsGetSchema=function()
 			end;
 		};
 		saveInstanceTreatUnionsAsParts = {
+			default = false;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
+			end;
+		};
+		saveInstanceSetStreaming = {
+			default = false;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
+			end;
+		};
+		saveInstanceStreamingAreaSize = {
+			default = 10000;
+			coerce = function(value)
+				return math.max(1, tonumber(value) or 10000)
+			end;
+		};
+		saveInstanceStreamingRadius = {
+			default = 1024;
+			coerce = function(value)
+				return math.max(1, tonumber(value) or 1024)
+			end;
+		};
+		saveInstanceStreamingTimeout = {
+			default = 20;
+			coerce = function(value)
+				return math.max(1, tonumber(value) or 20)
+			end;
+		};
+		saveInstanceStreamingConcurrency = {
+			default = 0;
+			coerce = function(value)
+				return math.max(0, math.floor((tonumber(value) or 0) + 0.5))
+			end;
+		};
+		saveInstanceStreamingSlices = {
+			default = 2;
+			coerce = function(value)
+				return math.max(1, math.floor((tonumber(value) or 2) + 0.5))
+			end;
+		};
+		saveInstanceStreamingMaxTime = {
+			default = 0;
+			coerce = function(value)
+				return math.max(0, tonumber(value) or 0)
+			end;
+		};
+		saveInstanceStreamingChunkWait = {
+			default = 12;
+			coerce = function(value)
+				return math.max(1, tonumber(value) or 12)
+			end;
+		};
+		saveInstanceStreamingSettleTime = {
+			default = 5;
+			coerce = function(value)
+				return math.max(0, tonumber(value) or 5)
+			end;
+		};
+		saveInstanceNeutralizeLighting = {
+			default = false;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
+			end;
+		};
+		saveInstanceExportObj = {
 			default = false;
 			coerce = function(value)
 				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
@@ -24154,13 +24249,12 @@ NAStuff.CustomMovementSounds.Volume = math.clamp(tonumber(NAmanage.NASettingsGet
 NAStuff.AssetLoadMode = NAmanage.NASettingsGet("assetLoadMode") or NAStuff.AssetLoadMode
 NAStuff.SaveInstanceConfig = {
 	safeMode = NAmanage.NASettingsGet("saveInstanceSafeMode") == true;
-	killAllScripts = NAmanage.NASettingsGet("saveInstanceKillClientScripts") == true;
-	boostFPS = NAmanage.NASettingsGet("saveInstanceBoostFPS") == true;
 	shutdownWhenDone = NAmanage.NASettingsGet("saveInstanceShutdownWhenDone") == true;
 	antiIdle = NAmanage.NASettingsGet("saveInstanceAntiIdle") ~= false;
 	showStatus = NAmanage.NASettingsGet("saveInstanceShowStatus") ~= false;
 	readMe = NAmanage.NASettingsGet("saveInstanceReadMe") ~= false;
 	debugMode = NAmanage.NASettingsGet("saveInstanceDebugMode") == true;
+	debugLog = NAmanage.NASettingsGet("saveInstanceDebugLog") == true;
 	anonymous = NAmanage.NASettingsGet("saveInstanceAnonymous") == true;
 	mode = tostring(NAmanage.NASettingsGet("saveInstanceMode") or "optimized");
 	decompile = NAmanage.NASettingsGet("saveInstanceDecompile") ~= false;
@@ -24168,14 +24262,19 @@ NAStuff.SaveInstanceConfig = {
 	decompileTimeout = math.clamp(tonumber(NAmanage.NASettingsGet("saveInstanceDecompileTimeout")) or 10, 1, 120);
 	decompileJobless = NAmanage.NASettingsGet("saveInstanceDecompileJobless") == true;
 	saveBytecode = NAmanage.NASettingsGet("saveInstanceSaveBytecode") == true;
+	decompilePrepass = NAmanage.NASettingsGet("saveInstanceDecompilePrepass") == true;
+	prepassConcurrency = math.clamp(math.floor((tonumber(NAmanage.NASettingsGet("saveInstancePrepassConcurrency")) or 24) + 0.5), 1, 128);
+	prepassRateGap = math.max(0, tonumber(NAmanage.NASettingsGet("saveInstancePrepassRateGap")) or 0.12);
+	prepassApiUrl = tostring(NAmanage.NASettingsGet("saveInstancePrepassApiUrl") or "https://api.lua.expert/decompile");
+	prepassMaxScripts = math.max(1, math.floor((tonumber(NAmanage.NASettingsGet("saveInstancePrepassMaxScripts")) or 6000) + 0.5));
 	saveCacheInterval = math.max(0, math.floor((tonumber(NAmanage.NASettingsGet("saveInstanceSaveCacheInterval")) or 56320) + 0.5));
-	avoidFileOverwrite = NAmanage.NASettingsGet("saveInstanceAvoidFileOverwrite") ~= false;
 	nilInstances = NAmanage.NASettingsGet("saveInstanceNilInstances") == true;
 	ignoreDefaultProperties = NAmanage.NASettingsGet("saveInstanceIgnoreDefaultProperties") ~= false;
 	ignoreNotArchivable = NAmanage.NASettingsGet("saveInstanceIgnoreNotArchivable") ~= false;
 	ignorePropertiesOfNotScriptsOnScriptsMode = NAmanage.NASettingsGet("saveInstanceIgnorePropertiesOfNotScriptsOnScriptsMode") == true;
 	ignoreSpecialProperties = NAmanage.NASettingsGet("saveInstanceIgnoreSpecialProperties") == true;
-	isolateStarterPlayer = NAmanage.NASettingsGet("saveInstanceIsolateStarterPlayer") ~= false;
+	useUGCValidationService = NAmanage.NASettingsGet("saveInstanceUseUGCValidationService") ~= false;
+	isolateStarterPlayer = NAmanage.NASettingsGet("saveInstanceIsolateStarterPlayer") == true;
 	isolatePlayers = NAmanage.NASettingsGet("saveInstanceIsolatePlayers") == true;
 	isolateLocalPlayer = NAmanage.NASettingsGet("saveInstanceIsolateLocalPlayer") == true;
 	isolateLocalPlayerCharacter = NAmanage.NASettingsGet("saveInstanceIsolateLocalPlayerCharacter") == true;
@@ -24186,6 +24285,17 @@ NAStuff.SaveInstanceConfig = {
 	ignoreSharedStrings = NAmanage.NASettingsGet("saveInstanceIgnoreSharedStrings") ~= false;
 	sharedStringOverwrite = NAmanage.NASettingsGet("saveInstanceSharedStringOverwrite") == true;
 	treatUnionsAsParts = NAmanage.NASettingsGet("saveInstanceTreatUnionsAsParts") == true;
+	setStreaming = NAmanage.NASettingsGet("saveInstanceSetStreaming") == true;
+	streamingAreaSize = math.max(1, tonumber(NAmanage.NASettingsGet("saveInstanceStreamingAreaSize")) or 10000);
+	streamingRadius = math.max(1, tonumber(NAmanage.NASettingsGet("saveInstanceStreamingRadius")) or 1024);
+	streamingTimeout = math.max(1, tonumber(NAmanage.NASettingsGet("saveInstanceStreamingTimeout")) or 20);
+	streamingConcurrency = math.max(0, math.floor((tonumber(NAmanage.NASettingsGet("saveInstanceStreamingConcurrency")) or 0) + 0.5));
+	streamingSlices = math.max(1, math.floor((tonumber(NAmanage.NASettingsGet("saveInstanceStreamingSlices")) or 2) + 0.5));
+	streamingMaxTime = math.max(0, tonumber(NAmanage.NASettingsGet("saveInstanceStreamingMaxTime")) or 0);
+	streamingChunkWait = math.max(1, tonumber(NAmanage.NASettingsGet("saveInstanceStreamingChunkWait")) or 12);
+	streamingSettleTime = math.max(0, tonumber(NAmanage.NASettingsGet("saveInstanceStreamingSettleTime")) or 5);
+	neutralizeLighting = NAmanage.NASettingsGet("saveInstanceNeutralizeLighting") == true;
+	exportObj = NAmanage.NASettingsGet("saveInstanceExportObj") == true;
 	decompileIgnore = tostring(NAmanage.NASettingsGet("saveInstanceDecompileIgnore") or "Chat,CoreGui,CorePackages");
 	ignoreList = tostring(NAmanage.NASettingsGet("saveInstanceIgnoreList") or "CoreGui,CorePackages");
 	ignoreProperties = tostring(NAmanage.NASettingsGet("saveInstanceIgnoreProperties") or "");
@@ -65020,9 +65130,9 @@ cmd.add({"unlockiconposition","unlockicon"},{"unlockiconposition","Unlocks the N
 	end
 end)
 
-NAmanage.GetUniversalSaveInstance = NAmanage.GetUniversalSaveInstance or function()
+NAmanage.GetSaveInstance420 = NAmanage.GetSaveInstance420 or function()
 	local cacheHost = _na_env or _G
-	local cacheKey = "__na_ussi_saveinstance_v3"
+	local cacheKey = "__na_saveinstance420_sirmeme_v3"
 	local cached = type(cacheHost) == "table" and rawget(cacheHost, cacheKey)
 	if type(cached) == "function" then
 		return cached
@@ -65030,12 +65140,13 @@ NAmanage.GetUniversalSaveInstance = NAmanage.GetUniversalSaveInstance or functio
 
 	local loader = loadstring or load
 	if type(loader) ~= "function" then
-		error("saveinstance loader unavailable")
+		error("SaveInstance 420 Edition loader unavailable")
 	end
 
-	local repoUrl = "https://raw.githubusercontent.com/luau/UniversalSynSaveInstance/main/saveinstance.luau"
-	local source = NAmanage.HttpGetOrError(repoUrl, { noCache = true, timeout = 12 })
-	source = source:gsub("StatusGui%.Parent = global_container%.gethui%(%)", [[
+	local repoUrl = "https://sirmemegithub.com/RealSlimShady2000/SaveInstance420Edition/raw/branch/main/"
+	local scriptName = "saveinstance"
+	local source = NAmanage.HttpGetOrError(repoUrl..scriptName..".luau", { noCache = true, timeout = 20 })
+	source = source:gsub("StatusGui%.Parent%s*=%s*global_container%.gethui%(%s*%)", [[
 			local huiOk, hui = pcall(global_container.gethui)
 			if huiOk and typeof(hui) == "Instance" then
 				StatusGui.Parent = hui
@@ -65045,14 +65156,14 @@ NAmanage.GetUniversalSaveInstance = NAmanage.GetUniversalSaveInstance or functio
 				StatusGui.Parent = RobloxGui or CoreGui
 			end
 			]], 1)
-	local chunk = loader(source, "@UniversalSynSaveInstance/saveinstance.luau")
+	local chunk = loader(source, "@SaveInstance420Edition/"..scriptName..".luau")
 	if type(chunk) ~= "function" then
-		error("failed to compile UniversalSynSaveInstance")
+		error("failed to compile SaveInstance 420 Edition")
 	end
 
-	local ussi = chunk()
-	if type(ussi) ~= "function" then
-		error("failed to load UniversalSynSaveInstance")
+	local saveInstance420 = chunk()
+	if type(saveInstance420) ~= "function" then
+		error("failed to load SaveInstance 420 Edition")
 	end
 
 	local function mergeOptions(target, sourceOptions)
@@ -65148,29 +65259,60 @@ NAmanage.GetUniversalSaveInstance = NAmanage.GetUniversalSaveInstance or functio
 		end)
 	end
 
-	local function wrappedSaveInstance(obj, filepath, options)
-		local finalOptions = {}
-
-		if type(obj) == "table" and filepath == nil and options == nil then
-			options = obj
-			obj = nil
-		elseif type(filepath) == "table" and options == nil then
-			options = filepath
-			filepath = options.FilePath or options.FileName
+	local function isInstanceArray(value)
+		if type(value) ~= "table" then
+			return false
 		end
-
-		mergeOptions(finalOptions, options)
-
-		if filepath ~= nil then
-			finalOptions.FilePath = filepath
+		for _, item in value do
+			if typeof(item) ~= "Instance" then
+				return false
+			end
 		end
+		return true
+	end
 
-		if typeof(obj) == "Instance" then
-			finalOptions.Object = obj
+	local function wrappedSaveInstance(parameter1, parameter2, parameter3)
+		local firstArgument
+		local secondArgument
+
+		if type(parameter1) == "table" and parameter2 == nil and parameter3 == nil then
+			firstArgument = parameter1
+		elseif isInstanceArray(parameter1) and type(parameter2) == "table" and parameter3 == nil then
+			firstArgument = parameter1
+			secondArgument = parameter2
+		elseif typeof(parameter1) == "Instance" then
+			local options = {}
+			if type(parameter2) == "table" and parameter3 == nil then
+				mergeOptions(options, parameter2)
+			elseif type(parameter3) == "table" then
+				mergeOptions(options, parameter3)
+			end
+			if type(parameter2) == "string" and parameter2 ~= "" then
+				options.FilePath = parameter2
+			end
+			firstArgument = parameter1
+			secondArgument = options
+		else
+			local options = {}
+			if type(parameter2) == "table" then
+				mergeOptions(options, parameter2)
+			end
+			if type(parameter3) == "table" then
+				mergeOptions(options, parameter3)
+			end
+			if type(parameter1) == "string" and parameter1 ~= "" then
+				options.FilePath = parameter1
+			end
+			firstArgument = options
 		end
 
 		local clientState = captureClientState()
-		local ok, result = pcall(ussi, finalOptions)
+		local ok, result
+		if secondArgument ~= nil then
+			ok, result = pcall(saveInstance420, firstArgument, secondArgument)
+		else
+			ok, result = pcall(saveInstance420, firstArgument)
+		end
 		restoreClientState(clientState)
 		Defer(restoreClientState, clientState)
 		Delay(1, restoreClientState, clientState)
@@ -65184,7 +65326,7 @@ NAmanage.GetUniversalSaveInstance = NAmanage.GetUniversalSaveInstance or functio
 
 	if type(cacheHost) == "table" then
 		rawset(cacheHost, cacheKey, wrappedSaveInstance)
-		rawset(cacheHost, "__na_ussi_saveinstance", wrappedSaveInstance)
+		rawset(cacheHost, "__na_saveinstance420", wrappedSaveInstance)
 	end
 	return wrappedSaveInstance
 end
@@ -65291,47 +65433,67 @@ end
 
 NAmanage.BuildSaveInstanceOptions = NAmanage.BuildSaveInstanceOptions or function(extra)
 	local cfg = NAStuff.SaveInstanceConfig or {}
+	local streamingConcurrency = math.max(0, math.floor((tonumber(cfg.streamingConcurrency) or 0) + 0.5))
+	local streamingMaxTime = math.max(0, tonumber(cfg.streamingMaxTime) or 0)
 	local options = {
 		SafeMode = cfg.safeMode == true;
-		KillAllScripts = cfg.killAllScripts == true;
-		BoostFPS = cfg.boostFPS == true;
 		ShutdownWhenDone = cfg.shutdownWhenDone == true;
 		AntiIdle = cfg.antiIdle ~= false;
 		ShowStatus = cfg.showStatus ~= false;
 		ReadMe = cfg.readMe ~= false;
 		__DEBUG_MODE = cfg.debugMode == true;
+		Debug = cfg.debugLog == true;
 		Anonymous = cfg.anonymous == true;
 		mode = (cfg.mode == "full" or cfg.mode == "scripts") and cfg.mode or "optimized";
-		Decompile = cfg.decompile ~= false;
+		noscripts = cfg.decompile == false;
 		scriptcache = cfg.scriptCache ~= false;
-		DecompileTimeout = math.clamp(tonumber(cfg.decompileTimeout) or 10, 1, 120);
+		timeout = math.clamp(tonumber(cfg.decompileTimeout) or 10, 1, 120);
 		DecompileJobless = cfg.decompileJobless == true;
 		SaveBytecode = cfg.saveBytecode == true;
+		DecompilePrepass = cfg.decompilePrepass == true;
+		PrepassConcurrency = math.clamp(math.floor((tonumber(cfg.prepassConcurrency) or 24) + 0.5), 1, 128);
+		PrepassRateGap = math.max(0, tonumber(cfg.prepassRateGap) or 0.12);
+		PrepassMaxScripts = math.max(1, math.floor((tonumber(cfg.prepassMaxScripts) or 6000) + 0.5));
 		DecompileIgnore = NAmanage.ParseSaveInstanceList(cfg.decompileIgnore);
 		IgnoreList = NAmanage.ParseSaveInstanceList(cfg.ignoreList);
 		IgnoreProperties = NAmanage.ParseSaveInstanceList(cfg.ignoreProperties);
 		SaveCacheInterval = math.max(0, math.floor((tonumber(cfg.saveCacheInterval) or 56320) + 0.5));
-		AvoidFileOverwrite = cfg.avoidFileOverwrite ~= false;
 		NilInstances = cfg.nilInstances == true;
 		IgnoreDefaultProperties = cfg.ignoreDefaultProperties ~= false;
 		IgnoreNotArchivable = cfg.ignoreNotArchivable ~= false;
 		IgnorePropertiesOfNotScriptsOnScriptsMode = cfg.ignorePropertiesOfNotScriptsOnScriptsMode == true;
 		IgnoreSpecialProperties = cfg.ignoreSpecialProperties == true;
-		IsolateStarterPlayer = cfg.isolateStarterPlayer ~= false;
+		UseUGCValidationService = cfg.useUGCValidationService ~= false;
+		IsolateStarterPlayer = cfg.isolateStarterPlayer == true;
 		IsolatePlayers = cfg.isolatePlayers == true;
 		IsolateLocalPlayer = cfg.isolateLocalPlayer == true;
 		IsolateLocalPlayerCharacter = cfg.isolateLocalPlayerCharacter == true;
-		SavePlayerCharacters = cfg.savePlayerCharacters == true;
+		RemovePlayerCharacters = cfg.savePlayerCharacters ~= true;
 		SaveNotCreatable = cfg.saveNotCreatable == true;
 		AlternativeWritefile = cfg.alternativeWritefile ~= false;
 		IgnoreDefaultPlayerScripts = cfg.ignoreDefaultPlayerScripts ~= false;
 		IgnoreSharedStrings = cfg.ignoreSharedStrings ~= false;
 		SharedStringOverwrite = cfg.sharedStringOverwrite == true;
 		TreatUnionsAsParts = cfg.treatUnionsAsParts == true;
+		SetStreaming = cfg.setStreaming == true;
+		StreamingAreaSize = math.max(1, tonumber(cfg.streamingAreaSize) or 10000);
+		StreamingRadius = math.max(1, tonumber(cfg.streamingRadius) or 1024);
+		StreamingTimeout = math.max(1, tonumber(cfg.streamingTimeout) or 20);
+		StreamingConcurrency = streamingConcurrency > 0 and streamingConcurrency or false;
+		StreamingSlices = math.max(1, math.floor((tonumber(cfg.streamingSlices) or 2) + 0.5));
+		StreamingMaxTime = streamingMaxTime > 0 and streamingMaxTime or false;
+		StreamingChunkWait = math.max(1, tonumber(cfg.streamingChunkWait) or 12);
+		StreamingSettleTime = math.max(0, tonumber(cfg.streamingSettleTime) or 5);
+		NeutralizeLighting = cfg.neutralizeLighting == true;
+		ExportObj = cfg.exportObj == true;
 		NotCreatableFixes = NAmanage.ParseSaveInstanceList(cfg.notCreatableFixes);
 		FilePath = NAmanage.FormatSaveInstanceFileName(cfg.fileNameFormat);
-		Object = game;
 	}
+
+	local prepassApiUrl = NAmanage.TrimSaveInstanceText(cfg.prepassApiUrl, "")
+	if prepassApiUrl ~= "" then
+		options.PrepassApiUrl = prepassApiUrl
+	end
 
 	local executorName = ""
 	pcall(function()
@@ -65358,9 +65520,9 @@ NAmanage.BuildSaveInstanceOptions = NAmanage.BuildSaveInstanceOptions or functio
 end
 
 NAmanage.RunSaveInstance = NAmanage.RunSaveInstance or function(extra)
-	local ussi = NAmanage.GetUniversalSaveInstance()
+	local saveInstance420 = NAmanage.GetSaveInstance420()
 	local options = NAmanage.BuildSaveInstanceOptions(extra)
-	local ok, result = pcall(ussi, options)
+	local ok, result = pcall(saveInstance420, options)
 	if not ok then
 		error(result)
 	end
@@ -65389,12 +65551,6 @@ NAmanage.BuildSaveInstanceTab = NAmanage.BuildSaveInstanceTab or function()
 	NAgui.addToggle("Safe Mode", cfg.safeMode == true, function(v)
 		setValue("safeMode", "saveInstanceSafeMode", v == true)
 	end)
-	NAgui.addToggle("Kill All Scripts", cfg.killAllScripts == true, function(v)
-		setValue("killAllScripts", "saveInstanceKillClientScripts", v == true)
-	end)
-	NAgui.addToggle("Boost FPS", cfg.boostFPS == true, function(v)
-		setValue("boostFPS", "saveInstanceBoostFPS", v == true)
-	end)
 	NAgui.addToggle("Shutdown When Done", cfg.shutdownWhenDone == true, function(v)
 		setValue("shutdownWhenDone", "saveInstanceShutdownWhenDone", v == true)
 	end)
@@ -65409,6 +65565,9 @@ NAmanage.BuildSaveInstanceTab = NAmanage.BuildSaveInstanceTab or function()
 	end)
 	NAgui.addToggle("Debug Mode", cfg.debugMode == true, function(v)
 		setValue("debugMode", "saveInstanceDebugMode", v == true)
+	end)
+	NAgui.addToggle("Write Debug Log", cfg.debugLog == true, function(v)
+		setValue("debugLog", "saveInstanceDebugLog", v == true)
 	end)
 	NAgui.addToggle("Anonymous", cfg.anonymous == true, function(v)
 		setValue("anonymous", "saveInstanceAnonymous", v == true)
@@ -65437,6 +65596,21 @@ NAmanage.BuildSaveInstanceTab = NAmanage.BuildSaveInstanceTab or function()
 	NAgui.addToggle("Save Bytecode", cfg.saveBytecode == true, function(v)
 		setValue("saveBytecode", "saveInstanceSaveBytecode", v == true)
 	end)
+	NAgui.addToggle("Decompile Prepass", cfg.decompilePrepass == true, function(v)
+		setValue("decompilePrepass", "saveInstanceDecompilePrepass", v == true)
+	end)
+	NAgui.addSlider("Prepass Concurrency", 1, 128, tonumber(cfg.prepassConcurrency) or 24, 1, "", function(v)
+		setValue("prepassConcurrency", "saveInstancePrepassConcurrency", math.clamp(math.floor((tonumber(v) or 24) + 0.5), 1, 128))
+	end)
+	NAgui.addInput("Prepass Rate Gap", "0.12", tostring(cfg.prepassRateGap or 0.12), function(text)
+		setValue("prepassRateGap", "saveInstancePrepassRateGap", math.max(0, tonumber(text) or 0.12))
+	end)
+	NAgui.addInput("Prepass API URL", "https://api.lua.expert/decompile", tostring(cfg.prepassApiUrl or ""), function(text)
+		setValue("prepassApiUrl", "saveInstancePrepassApiUrl", NAmanage.TrimSaveInstanceText(text, "https://api.lua.expert/decompile"))
+	end)
+	NAgui.addInput("Prepass Max Scripts", "6000", tostring(cfg.prepassMaxScripts or 6000), function(text)
+		setValue("prepassMaxScripts", "saveInstancePrepassMaxScripts", math.max(1, math.floor((tonumber(text) or 6000) + 0.5)))
+	end)
 	NAgui.addInput("Decompile Ignore", "Chat,CoreGui,CorePackages", tostring(cfg.decompileIgnore or ""), function(text)
 		setValue("decompileIgnore", "saveInstanceDecompileIgnore", NAmanage.TrimSaveInstanceText(text, ""))
 	end)
@@ -65455,9 +65629,6 @@ NAmanage.BuildSaveInstanceTab = NAmanage.BuildSaveInstanceTab or function()
 		local value = math.max(0, math.floor((tonumber(text) or 56320) + 0.5))
 		setValue("saveCacheInterval", "saveInstanceSaveCacheInterval", value)
 	end)
-	NAgui.addToggle("Avoid File Overwrite", cfg.avoidFileOverwrite ~= false, function(v)
-		setValue("avoidFileOverwrite", "saveInstanceAvoidFileOverwrite", v ~= false)
-	end)
 	NAgui.addToggle("Save Nil Instances", cfg.nilInstances == true, function(v)
 		setValue("nilInstances", "saveInstanceNilInstances", v == true)
 	end)
@@ -65473,8 +65644,11 @@ NAmanage.BuildSaveInstanceTab = NAmanage.BuildSaveInstanceTab or function()
 	NAgui.addToggle("Ignore Special Properties", cfg.ignoreSpecialProperties == true, function(v)
 		setValue("ignoreSpecialProperties", "saveInstanceIgnoreSpecialProperties", v == true)
 	end)
-	NAgui.addToggle("Isolate StarterPlayer", cfg.isolateStarterPlayer ~= false, function(v)
-		setValue("isolateStarterPlayer", "saveInstanceIsolateStarterPlayer", v ~= false)
+	NAgui.addToggle("Use UGC Validation Service", cfg.useUGCValidationService ~= false, function(v)
+		setValue("useUGCValidationService", "saveInstanceUseUGCValidationService", v ~= false)
+	end)
+	NAgui.addToggle("Isolate StarterPlayer", cfg.isolateStarterPlayer == true, function(v)
+		setValue("isolateStarterPlayer", "saveInstanceIsolateStarterPlayer", v == true)
 	end)
 	NAgui.addToggle("Isolate Players", cfg.isolatePlayers == true, function(v)
 		setValue("isolatePlayers", "saveInstanceIsolatePlayers", v == true)
@@ -65507,6 +65681,41 @@ NAmanage.BuildSaveInstanceTab = NAmanage.BuildSaveInstanceTab or function()
 		setValue("treatUnionsAsParts", "saveInstanceTreatUnionsAsParts", v == true)
 	end)
 
+	NAgui.addSection("Streaming and Export")
+	NAgui.addToggle("Capture Full Streaming Map", cfg.setStreaming == true, function(v)
+		setValue("setStreaming", "saveInstanceSetStreaming", v == true)
+	end)
+	NAgui.addInput("Streaming Area Size", "10000", tostring(cfg.streamingAreaSize or 10000), function(text)
+		setValue("streamingAreaSize", "saveInstanceStreamingAreaSize", math.max(1, tonumber(text) or 10000))
+	end)
+	NAgui.addInput("Streaming Radius", "1024", tostring(cfg.streamingRadius or 1024), function(text)
+		setValue("streamingRadius", "saveInstanceStreamingRadius", math.max(1, tonumber(text) or 1024))
+	end)
+	NAgui.addInput("Streaming Timeout", "20", tostring(cfg.streamingTimeout or 20), function(text)
+		setValue("streamingTimeout", "saveInstanceStreamingTimeout", math.max(1, tonumber(text) or 20))
+	end)
+	NAgui.addInput("Streaming Concurrency", "0 = Auto", tostring(cfg.streamingConcurrency or 0), function(text)
+		setValue("streamingConcurrency", "saveInstanceStreamingConcurrency", math.max(0, math.floor((tonumber(text) or 0) + 0.5)))
+	end)
+	NAgui.addSlider("Streaming Slices", 1, 16, tonumber(cfg.streamingSlices) or 2, 1, "", function(v)
+		setValue("streamingSlices", "saveInstanceStreamingSlices", math.clamp(math.floor((tonumber(v) or 2) + 0.5), 1, 16))
+	end)
+	NAgui.addInput("Streaming Max Time", "0 = Auto", tostring(cfg.streamingMaxTime or 0), function(text)
+		setValue("streamingMaxTime", "saveInstanceStreamingMaxTime", math.max(0, tonumber(text) or 0))
+	end)
+	NAgui.addInput("Streaming Chunk Wait", "12", tostring(cfg.streamingChunkWait or 12), function(text)
+		setValue("streamingChunkWait", "saveInstanceStreamingChunkWait", math.max(1, tonumber(text) or 12))
+	end)
+	NAgui.addInput("Streaming Settle Time", "5", tostring(cfg.streamingSettleTime or 5), function(text)
+		setValue("streamingSettleTime", "saveInstanceStreamingSettleTime", math.max(0, tonumber(text) or 5))
+	end)
+	NAgui.addToggle("Neutralize Lighting", cfg.neutralizeLighting == true, function(v)
+		setValue("neutralizeLighting", "saveInstanceNeutralizeLighting", v == true)
+	end)
+	NAgui.addToggle("Export Meshes As OBJ", cfg.exportObj == true, function(v)
+		setValue("exportObj", "saveInstanceExportObj", v == true)
+	end)
+
 	NAgui.addSection("File")
 	NAgui.addInput("File Name Format", "{placeName}_{timestamp}", tostring(cfg.fileNameFormat or "{placeName}_{timestamp}"), function(text)
 		setValue("fileNameFormat", "saveInstanceFileNameFormat", NAmanage.TrimSaveInstanceText(text, "{placeName}_{timestamp}"))
@@ -65517,9 +65726,9 @@ NAmanage.BuildSaveInstanceTab = NAmanage.BuildSaveInstanceTab or function()
 	NAgui.addButton("Save Current Game", function()
 		local ok, err = pcall(NAmanage.RunSaveInstance)
 		if ok then
-			DoNotif("Started Save Instance with your saved NA settings.", 3)
+			DoNotif("SaveInstance 420 Edition finished with your saved NA settings.", 3)
 		else
-			DoNotif("Save Instance failed: "..tostring(err), 4)
+			DoNotif("SaveInstance 420 Edition failed: "..tostring(err), 4)
 		end
 	end)
 end
@@ -65563,19 +65772,19 @@ end
 NAmanage.RunSaveInstanceCommand = NAmanage.RunSaveInstanceCommand or function()
 	local ok, err = pcall(NAmanage.RunSaveInstance)
 	if ok then
-		DoNotif("Started Save Instance with your saved NA settings.", 3)
+		DoNotif("SaveInstance 420 Edition finished with your saved NA settings.", 3)
 	else
-		DoNotif("Save Instance failed: "..tostring(err), 4)
+		DoNotif("SaveInstance 420 Edition failed: "..tostring(err), 4)
 	end
 end
 
-cmd.add({"saveinstance","savegame"},{"saveinstance (savegame)","if it bugs out try removing stuff from your AutoExec folder"},function()
+cmd.add({"saveinstance","savegame"},{"saveinstance (savegame)","Saves the game with SaveInstance 420 Edition using your saved options"},function()
 	if NAmanage.NASettingsGet("saveInstanceCommandHintShown") ~= true then
 		pcall(NAmanage.NASettingsSet, "saveInstanceCommandHintShown", true)
 		if type(Popup) == "function" then
 			Popup({
-				Title = "Save Instance Setup",
-				Description = "Do you want to configure your Save Instance options first? Confirm will open the settings menu on the Save Instance tab. Ignore will keep the current saved defaults.",
+				Title = "SaveInstance 420 Setup",
+				Description = "Do you want to configure SaveInstance 420 Edition first? Confirm opens the Save Instance settings tab. Ignore uses the current saved defaults.",
 				Duration = 0,
 				Buttons = {
 					{
