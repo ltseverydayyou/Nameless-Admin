@@ -141195,7 +141195,7 @@ __NA_ENTRY.results = __NA_ENTRY.pack(__NA_ENTRY.xpcall(__NA_Main, function(value
 			return trace
 		end
 	end
-	return "\n[Nameless Admin Runtime Error]\n" .. message
+	return warn("\n[Nameless Admin Runtime Error]\n" .. message)
 end))
 
 if not __NA_ENTRY.results[1] then
