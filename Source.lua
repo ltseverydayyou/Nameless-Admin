@@ -115984,11 +115984,11 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	local editorRenderedStart = 1
 	local editorRenderedEnd = 1
 	local editorLastCursorPosition = 1
-	local executorTabsLoaded = false
+	NAStuff.ExecutorTools.TabsLoaded = false
 	local commitCurrentPage
 	local queueRefreshEditor
 
-	local function yieldExecutorWork(state)
+	NAmanage.ExecutorYieldWork = function(state)
 		local now = os.clock()
 		if now - (state.lastYield or now) < 0.006 then
 			return
@@ -116001,7 +116001,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		state.lastYield = os.clock()
 	end
 
-	local function hydrateExecutorTab(tab)
+	NAmanage.ExecutorHydrateTab = function(tab)
 		if not tab then
 			return nil
 		end
@@ -116023,7 +116023,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			lines[#lines + 1] = source:sub(cursor, newline - 1)
 			cursor = newline + 1
 			if #lines % 128 == 0 then
-				yieldExecutorWork(workState)
+				NAmanage.ExecutorYieldWork(workState)
 			end
 		end
 		if #lines == 0 then
@@ -116038,7 +116038,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		return tab
 	end
 
-	local function getExecutorCurrentTab()
+	NAStuff.ExecutorTools.GetCurrentTab = function()
 		local tab = tabs[currentTab]
 		if tab and tab.linesDeferred == true then
 			return nil
@@ -116089,7 +116089,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	tabScroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateTabCanvas)
 
 	local function saveTabsNow()
-		if not executorTabsLoaded then
+		if not NAStuff.ExecutorTools.TabsLoaded then
 			return false
 		end
 		if not fsOk then
@@ -116123,7 +116123,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 				title = tab.title or ("Tab "..i),
 				text = tabText,
 			}
-			yieldExecutorWork(workState)
+			NAmanage.ExecutorYieldWork(workState)
 		end
 		local ok, encoded = pcall(function()
 			return HttpService:JSONEncode(payload)
@@ -116195,7 +116195,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	end
 
 	local function updatePageInfo()
-		local tab = getExecutorCurrentTab()
+		local tab = NAStuff.ExecutorTools.GetCurrentTab()
 		local total = tab and math.max(#tab.lines, 1) or 1
 		local lineHeight = getEditorLineHeight()
 		local viewHeight = (editorScroll.AbsoluteSize.Y or 0) - 22
@@ -116258,7 +116258,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		if editorLoading then
 			return
 		end
-		local tab = getExecutorCurrentTab()
+		local tab = NAStuff.ExecutorTools.GetCurrentTab()
 		if not tab then
 			return
 		end
@@ -116593,7 +116593,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		local targetIndex = currentTab
 		local tab = tabs[targetIndex]
 		if tab and tab.linesDeferred == true then
-			tab = hydrateExecutorTab(tab)
+			tab = NAmanage.ExecutorHydrateTab(tab)
 		else
 			tab = NAmanage.ExecutorNormalizeTab(tab)
 		end
@@ -116640,15 +116640,15 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		return math.max(1, visibleLines)
 	end
 	editorGetTotalLines = function()
-		local tab = getExecutorCurrentTab()
+		local tab = NAStuff.ExecutorTools.GetCurrentTab()
 		return tab and math.max(#tab.lines + 1, editorGetVisibleLines()) or 1
 	end
 	editorGetViewLine = function()
-		local tab = getExecutorCurrentTab()
+		local tab = NAStuff.ExecutorTools.GetCurrentTab()
 		return tab and getEditorVisibleLine(math.max(#tab.lines, 1)) or 1
 	end
 	editorSetViewLine = function(line)
-		local tab = getExecutorCurrentTab()
+		local tab = NAStuff.ExecutorTools.GetCurrentTab()
 		if not tab then
 			return
 		end
@@ -116666,7 +116666,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	end
 
 	local function turnEditorPage(delta)
-		local tab = getExecutorCurrentTab()
+		local tab = NAStuff.ExecutorTools.GetCurrentTab()
 		if not tab then
 			return
 		end
@@ -116694,13 +116694,13 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		if editorLoading then
 			return
 		end
-		local tab = getExecutorCurrentTab()
+		local tab = NAStuff.ExecutorTools.GetCurrentTab()
 		local total = tab and math.max(#tab.lines, 1) or 1
 		local _, _, firstVisible, lastVisible = getEditorWindowRange(total)
 		local edgeBuffer = math.max(1, math.floor(editorLineBuffer / 3))
 		if firstVisible < editorVirtualStart or lastVisible > editorVirtualEnd or (firstVisible - editorVirtualStart) < edgeBuffer or (editorVirtualEnd - lastVisible) < edgeBuffer then
 			commitCurrentPage(true)
-			tab = getExecutorCurrentTab()
+			tab = NAStuff.ExecutorTools.GetCurrentTab()
 			if tab then
 				tab.viewLine = firstVisible
 			end
@@ -117164,7 +117164,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		for _, child in hubList:GetChildren() do
 			if child:IsA("TextButton") then
 				child:Destroy()
-				yieldExecutorWork(workState)
+				NAmanage.ExecutorYieldWork(workState)
 			end
 		end
 		local names = {}
@@ -117217,7 +117217,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			item.MouseButton1Click:Connect(function()
 				selectSavedScript(name, { toggle = true })
 			end)
-			yieldExecutorWork(workState)
+			NAmanage.ExecutorYieldWork(workState)
 		end
 		if not selectedAlive then
 			selectedScript = nil
@@ -117316,14 +117316,14 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 								createTab(entry, "Tab "..index, true)
 								loaded = true
 							end
-							yieldExecutorWork(workState)
+							NAmanage.ExecutorYieldWork(workState)
 						end
 						currentTab = math.clamp(tonumber(decoded.cur) or 1, 1, math.max(#tabs, 1))
 					elseif type(decoded[1]) == "string" then
 						for index, entry in decoded do
 							createTab(entry, "Tab "..index, true)
 							loaded = true
-							yieldExecutorWork(workState)
+							NAmanage.ExecutorYieldWork(workState)
 						end
 						currentTab = 1
 					end
@@ -117334,7 +117334,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			createTab("", "Tab 1")
 			currentTab = 1
 		end
-		executorTabsLoaded = true
+		NAStuff.ExecutorTools.TabsLoaded = true
 	end
 
 	textBox:GetPropertyChangedSignal("Text"):Connect(function()
