@@ -21,6 +21,19 @@
 
 -- © 2026 Nameless Admin. All rights reserved. Do not copy, paste, redistribute, or claim as your own.
 
+local __NA_ENTRY = {
+	xpcall = xpcall;
+	pcall = pcall;
+	error = error;
+	tostring = tostring;
+	type = type;
+	debug = debug;
+	pack = table.pack;
+	unpack = table.unpack or unpack;
+}
+
+local function __NA_Main()
+
 local _na_boot = {
 	hostEnv = (getgenv and getgenv()) or _G or {},
 }
@@ -26410,20 +26423,30 @@ NAmanage.applyCommandDataPackage = NAmanage.applyCommandDataPackage or function(
 	if type(package) ~= "table" then
 		return false
 	end
+	if type(NAmanage.resetCommandWorkBudget) == "function" then
+		NAmanage.resetCommandWorkBudget()
+	end
 	NAStuff.AutofillEntries = package.entries or {}
 	NAStuff.AutofillMetaByName = package.metaByName or {}
 	NAStuff.DefaultBarAutofillEntries = package.defaultEntryMap or {}
 	table.clear(searchIndex)
 	for i = 1, #(package.searchEntries or {}) do
 		searchIndex[i] = package.searchEntries[i]
+		NAmanage.cmdYield(i, 48)
 	end
 	table.clear(aliasOwnerByAlias)
+	local aliasStep = 0
 	for alias, owner in package.aliasOwnerMap or {} do
+		aliasStep += 1
 		aliasOwnerByAlias[alias] = owner
+		NAmanage.cmdYield(aliasStep, 48)
 	end
 	table.clear(savedOwnerByAlias)
+	local savedStep = 0
 	for alias, owner in package.savedOwnerMap or {} do
+		savedStep += 1
 		savedOwnerByAlias[alias] = owner
+		NAmanage.cmdYield(savedStep, 48)
 	end
 	NAStuff.CommandBuildSignatureApplied = package.signature or (NAmanage.getCommandBuildSignature and NAmanage.getCommandBuildSignature()) or nil
 	cmdNAnum = tonumber(package.totalCount) or #(package.entries or {})
@@ -27424,6 +27447,14 @@ NAmanage.inferRequiresArguments=function(infoTable, aliases)
 	return false
 end
 
+NAStuff.CommandBuildRevision = tonumber(NAStuff.CommandBuildRevision) or 0
+NAmanage.invalidateCommandBuild = NAmanage.invalidateCommandBuild or function()
+	NAStuff.CommandBuildRevision = (tonumber(NAStuff.CommandBuildRevision) or 0) + 1
+	NAStuff.CommandBuildSignatureCache = nil
+	NAStuff.CommandBuildSignatureCacheRevision = nil
+	return NAStuff.CommandBuildRevision
+end
+
 NAmanage.StartupCommandBudgetStep = NAmanage.StartupCommandBudgetStep or function()
 	if NAStuff._loadingFinalizedOnce == true or (NAAssetsLoading and NAAssetsLoading._finalized == true) then
 		return
@@ -27435,12 +27466,12 @@ NAmanage.StartupCommandBudgetStep = NAmanage.StartupCommandBudgetStep or functio
 	end
 	state.count += 1
 	local now = os.clock()
-	local mobile = IsOnMobile == true
+	local lowImpact = IsOnMobile == true or (type(NAmanage.IsLowEndUI) == "function" and NAmanage.IsLowEndUI() == true)
 	local perf = NAStuff.StartupPerformance
 	local lastFrameDt = type(perf) == "table" and tonumber(perf.lastFrameDt) or nil
 	local highFps = lastFrameDt and lastFrameDt > 0 and lastFrameDt < (1 / 240)
-	local batch = highFps and (mobile and 3 or 5) or (mobile and 10 or 18)
-	local budget = highFps and 0.0009 or (mobile and 0.004 or 0.006)
+	local batch = highFps and (lowImpact and 2 or 5) or (lowImpact and 6 or 14)
+	local budget = highFps and 0.00075 or (lowImpact and 0.0015 or 0.003)
 	if state.count % batch ~= 0 and now - (tonumber(state.lastYield) or now) < budget then
 		return
 	end
@@ -27453,7 +27484,6 @@ NAmanage.StartupCommandBudgetStep = NAmanage.StartupCommandBudgetStep or functio
 	end
 	if canYield then
 		Wait()
-		local perf = NAStuff.StartupPerformance
 		if type(perf) == "table" then
 			perf.commandYields = (tonumber(perf.commandYields) or 0) + 1
 		end
@@ -31607,6 +31637,36 @@ NAmanage.RotectorFindAnchor = function(plr)
 	end
 	return char, nil
 end
+
+local a = nil
+local a = nil
+local a = nil
+local a = nil
+local a = nil
+local a = nil
+local a = nil
+local a = nil
+local a = nil
+local a = nil
+local a = nil
+local a = nil
+local a = nil
+local a = nil
+local a = nil
+local a = nil
+local a = nil
+local a = nil
+local a = nil
+local a = nil
+local a = nil
+local a = nil
+local a = nil
+local a = nil
+local a = nil
+local a = nil
+local a = nil
+local a = nil
+
 
 NAmanage.RotectorUpdateMarkerFrame = function(marker)
 	if type(marker) ~= "table" then
@@ -102466,11 +102526,111 @@ NAgui.txtSize=function(ui,x,y)
 
 	return Vector2.new(0, 0)
 end
-NAmanage.cmdYield=function(i, budget)
-	budget = tonumber(budget) or 120
-	if budget > 0 and i > 0 and i % budget == 0 then
-		Wait()
+NAmanage._commandWorkStates = NAmanage.ensureWeakKeyTable and NAmanage.ensureWeakKeyTable(NAmanage._commandWorkStates) or setmetatable({}, { __mode = "k" })
+NAmanage.resetCommandWorkBudget = function()
+	local thread = coroutine.running()
+	if type(thread) == "thread" then
+		local now = os.clock()
+		NAmanage._commandWorkStates[thread] = {
+			started = now;
+			last = now;
+			count = 0;
+			lowImpact = IsOnMobile == true or (type(NAmanage.IsLowEndUI) == "function" and NAmanage.IsLowEndUI() == true);
+		}
 	end
+end
+
+NAmanage.cmdYield=function(_, budget)
+	local thread = coroutine.running()
+	if type(thread) ~= "thread" then
+		return
+	end
+	local states = NAmanage._commandWorkStates
+	local state = states[thread]
+	local now = os.clock()
+	if type(state) ~= "table" then
+		NAmanage.resetCommandWorkBudget()
+		state = states[thread]
+	elseif now - (tonumber(state.last) or now) > 0.08 then
+		state.started = now
+		state.count = 0
+	end
+	state.last = now
+	state.count = (tonumber(state.count) or 0) + 1
+	local requested = math.max(1, math.floor(tonumber(budget) or 96))
+	local maxOps = state.lowImpact and math.min(requested, 28) or math.min(requested, 90)
+	local maxTime = state.lowImpact and 0.00125 or 0.00275
+	if state.count < maxOps and now - (tonumber(state.started) or now) < maxTime then
+		return
+	end
+	local canYield = true
+	if coroutine and type(coroutine.isyieldable) == "function" then
+		canYield = coroutine.isyieldable()
+	end
+	if canYield then
+		Wait()
+		local perf = NAStuff.StartupPerformance
+		if type(perf) == "table" then
+			perf.commandDataYields = (tonumber(perf.commandDataYields) or 0) + 1
+		end
+	end
+	state.started = os.clock()
+	state.last = state.started
+	state.count = 0
+end
+
+NAmanage.sortCommandEntries = function(entries)
+	if type(entries) ~= "table" or #entries < 2 then
+		return entries
+	end
+	local work = {}
+	local count = #entries
+	local width = 1
+	while width < count do
+		local left = 1
+		while left <= count do
+			local middle = math.min(left + width - 1, count)
+			local right = math.min(left + width * 2 - 1, count)
+			local a = left
+			local b = middle + 1
+			local write = left
+			while a <= middle and b <= right do
+				local aEntry = entries[a]
+				local bEntry = entries[b]
+				local aKey = tostring(aEntry and (aEntry.sortKey or aEntry.display or aEntry.name) or "")
+				local bKey = tostring(bEntry and (bEntry.sortKey or bEntry.display or bEntry.name) or "")
+				if aKey <= bKey then
+					work[write] = aEntry
+					a += 1
+				else
+					work[write] = bEntry
+					b += 1
+				end
+				write += 1
+				NAmanage.cmdYield(write, 24)
+			end
+			while a <= middle do
+				work[write] = entries[a]
+				a += 1
+				write += 1
+				NAmanage.cmdYield(write, 24)
+			end
+			while b <= right do
+				work[write] = entries[b]
+				b += 1
+				write += 1
+				NAmanage.cmdYield(write, 24)
+			end
+			left += width * 2
+		end
+		for index = 1, count do
+			entries[index] = work[index]
+			work[index] = nil
+			NAmanage.cmdYield(index, 36)
+		end
+		width *= 2
+	end
+	return entries
 end
 
 NAStuff.CommandBuildRevision = tonumber(NAStuff.CommandBuildRevision) or 0
@@ -102478,22 +102638,26 @@ NAStuff.CommandBuildSignatureApplied = NAStuff.CommandBuildSignatureApplied or n
 
 NAmanage.invalidateCommandBuild = NAmanage.invalidateCommandBuild or function()
 	NAStuff.CommandBuildRevision = (tonumber(NAStuff.CommandBuildRevision) or 0) + 1
+	NAStuff.CommandBuildSignatureCache = nil
+	NAStuff.CommandBuildSignatureCacheRevision = nil
 	return NAStuff.CommandBuildRevision
 end
 
 NAmanage.getCommandBuildSignature = NAmanage.getCommandBuildSignature or function()
-	local cmdCount = countDictNA(cmds.Commands)
-	local aliasCount = countDictNA(cmds.Aliases)
-	local savedAliasCount = countDictNA(cmds.NASAVEDALIASES)
-	local integrationCount = type(NAStuff.CmdIntegrationCommands) == "table" and #NAStuff.CmdIntegrationCommands or 0
 	local revision = tonumber(NAStuff.CommandBuildRevision) or 0
-	return Concat({
+	if NAStuff.CommandBuildSignatureCacheRevision == revision and type(NAStuff.CommandBuildSignatureCache) == "string" then
+		return NAStuff.CommandBuildSignatureCache
+	end
+	local signature = Concat({
 		tostring(revision),
-		tostring(cmdCount),
-		tostring(aliasCount),
-		tostring(savedAliasCount),
-		tostring(integrationCount),
+		tostring(countDictNA(cmds.Commands)),
+		tostring(countDictNA(cmds.Aliases)),
+		tostring(countDictNA(cmds.NASAVEDALIASES)),
+		tostring(type(NAStuff.CmdIntegrationCommands) == "table" and #NAStuff.CmdIntegrationCommands or 0),
 	}, ":")
+	NAStuff.CommandBuildSignatureCache = signature
+	NAStuff.CommandBuildSignatureCacheRevision = revision
+	return signature
 end
 
 NAmanage.isCommandDataStale = NAmanage.isCommandDataStale or function()
@@ -102502,6 +102666,9 @@ NAmanage.isCommandDataStale = NAmanage.isCommandDataStale or function()
 end
 
 NAmanage.buildCommandDataPackage = function()
+	if type(NAmanage.resetCommandWorkBudget) == "function" then
+		NAmanage.resetCommandWorkBudget()
+	end
 	local signature = NAmanage.getCommandBuildSignature and NAmanage.getCommandBuildSignature() or nil
 	local entries = {}
 	local metaByName = {}
@@ -102749,9 +102916,13 @@ NAmanage.buildCommandDataPackage = function()
 		end
 	end
 
-	table.sort(entries, function(a, b)
-		return tostring(a.sortKey or a.display or a.name) < tostring(b.sortKey or b.display or b.name)
-	end)
+	if type(NAmanage.sortCommandEntries) == "function" then
+		NAmanage.sortCommandEntries(entries)
+	else
+		table.sort(entries, function(a, b)
+			return tostring(a.sortKey or a.display or a.name) < tostring(b.sortKey or b.display or b.name)
+		end)
+	end
 
 	local searchEntries = {}
 	local defaultEntryMap = {}
@@ -102957,13 +103128,6 @@ NAmanage.cmdResp = function(center)
 
 	if center and NAmanage.centerFrame then
 		NAmanage.centerFrame(frame)
-	end
-end
-
-function NAmanage.cmdYield(i, budget)
-	budget = tonumber(budget) or 120
-	if budget > 0 and i > 0 and i % budget == 0 then
-		Wait()
 	end
 end
 
@@ -111438,6 +111602,18 @@ NAmanage.queueCommandDataBuild = NAmanage.queueCommandDataBuild or function(opts
 	end
 	NAStuff.CommandBuildWorkerQueued = true
 	Defer(function()
+		if opts.startup == true then
+			local frames = 0
+			while NAStuff._loadingFinalizedOnce ~= true and not (NAAssetsLoading and NAAssetsLoading._finalized == true) do
+				local commandBarActive = type(NAmanage.isCmdBarActive) == "function" and NAmanage.isCmdBarActive() == true
+				local commandListActive = NAUIMANAGER and NAUIMANAGER.commandsFrame and NAUIMANAGER.commandsFrame.Visible == true
+				if commandBarActive or commandListActive or frames >= 180 then
+					break
+				end
+				frames += 1
+				Wait()
+			end
+		end
 		NAStuff.CommandBuildWorkerQueued = false
 		if type(NAgui.loadCMDS) == "function" then
 			local ok, err = pcall(NAgui.loadCMDS, {
@@ -113854,7 +114030,7 @@ NAgui.searchCommands = function()
 end
 
 if type(NAmanage.queueCommandDataBuild) == "function" then
-	NAmanage.queueCommandDataBuild({ force = true })
+	NAmanage.queueCommandDataBuild({ force = true; startup = true; })
 else
 	NAgui.loadCMDS({ force = true })
 end
@@ -119666,9 +119842,18 @@ NAgui.filterCommandList = function(rawText)
 		return
 	end
 
-	local filtered = {}
 	local lowImpact = (NAmanage.IsLowEndUI and NAmanage.IsLowEndUI()) or IsOnMobile == true
 	local yieldEvery = lowImpact and 60 or 180
+	if searchText == "" and state.staticMode ~= true then
+		state.filteredEntries = entries
+		NAUIMANAGER.commandsList.CanvasPosition = Vector2.new(0, 0)
+		NAmanage.syncVisibleCommandRows(state)
+		return
+	end
+	local filtered = {}
+	if type(NAmanage.resetCommandWorkBudget) == "function" then
+		NAmanage.resetCommandWorkBudget()
+	end
 	for i = 1, #entries do
 		NAmanage.cmdYield(i, yieldEvery)
 		local entry = entries[i]
@@ -140998,3 +141183,23 @@ end)
 )]]
 
 -- © 2026 Nameless Admin. All rights reserved. Do not copy, paste, redistribute, or claim as your own.
+
+end
+
+__NA_ENTRY.results = __NA_ENTRY.pack(__NA_ENTRY.xpcall(__NA_Main, function(value)
+	local message = __NA_ENTRY.tostring(value)
+	local dbg = __NA_ENTRY.debug
+	if __NA_ENTRY.type(dbg) == "table" and __NA_ENTRY.type(dbg.traceback) == "function" then
+		local ok, trace = __NA_ENTRY.pcall(dbg.traceback, "\n[Nameless Admin Runtime Error]\n" .. message, 2)
+		if ok and __NA_ENTRY.type(trace) == "string" and trace ~= "" then
+			return trace
+		end
+	end
+	return "\n[Nameless Admin Runtime Error]\n" .. message
+end))
+
+if not __NA_ENTRY.results[1] then
+	__NA_ENTRY.error(__NA_ENTRY.results[2], 0)
+end
+
+return __NA_ENTRY.unpack(__NA_ENTRY.results, 2, __NA_ENTRY.results.n)
