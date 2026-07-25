@@ -114737,6 +114737,7 @@ NAmanage.ExecutorNormalizeTab = NAmanage.ExecutorNormalizeTab or function(tab)
 	if type(tab.lines) ~= "table" or #tab.lines == 0 then
 		tab.lines = NAmanage.ExecutorSplitEditorLines(tab.text)
 	end
+	tab.linesDeferred = false
 	tab.viewLine = math.clamp(tonumber(tab.viewLine or tab.page) or 1, 1, math.max(#tab.lines, 1))
 	tab.page = 1
 	tab.chunks = { tab.text }
@@ -114845,8 +114846,8 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		showHub = true,
 		runInCurrentThread = false,
 		threadIdentity = false,
-		identityLevel = 2,
-		profileExecution = true,
+		identityLevel = 8,
+		profileExecution = false,
 		fontSize = 15,
 	}
 	local colors = {
@@ -115099,8 +115100,8 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			scriptHub = cfg.showHub ~= false,
 			runInCurrentThread = cfg.runInCurrentThread == true,
 			threadIdentity = cfg.threadIdentity == true,
-			identityLevel = math.clamp(math.floor((tonumber(cfg.identityLevel) or 2) + 0.5), 0, 8),
-			profileExecution = cfg.profileExecution ~= false,
+			identityLevel = math.clamp(math.floor((tonumber(cfg.identityLevel) or 8) + 0.5), 0, 8),
+			profileExecution = cfg.profileExecution == true,
 			fontSize = math.clamp(math.floor((tonumber(cfg.fontSize) or 15) + 0.5), 11, 24),
 		}
 		local ok, encoded = pcall(function()
@@ -115983,8 +115984,67 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	local editorRenderedStart = 1
 	local editorRenderedEnd = 1
 	local editorLastCursorPosition = 1
+	local executorTabsLoaded = false
 	local commitCurrentPage
 	local queueRefreshEditor
+
+	local function yieldExecutorWork(state)
+		local now = os.clock()
+		if now - (state.lastYield or now) < 0.006 then
+			return
+		end
+		if type(task) == "table" and type(task.wait) == "function" then
+			task.wait()
+		elseif type(wait) == "function" then
+			wait()
+		end
+		state.lastYield = os.clock()
+	end
+
+	local function hydrateExecutorTab(tab)
+		if not tab then
+			return nil
+		end
+		if type(tab.lines) == "table" and #tab.lines > 0 then
+			tab.linesDeferred = false
+			return tab
+		end
+		local source = NAmanage.ExecutorRepairTabText(tab.text or "")
+		tab.text = source
+		local lines = {}
+		local cursor = 1
+		local workState = { lastYield = os.clock() }
+		while true do
+			local newline = source:find("\n", cursor, true)
+			if not newline then
+				lines[#lines + 1] = source:sub(cursor)
+				break
+			end
+			lines[#lines + 1] = source:sub(cursor, newline - 1)
+			cursor = newline + 1
+			if #lines % 128 == 0 then
+				yieldExecutorWork(workState)
+			end
+		end
+		if #lines == 0 then
+			lines[1] = ""
+		end
+		tab.lines = lines
+		tab.viewLine = math.clamp(tonumber(tab.viewLine or tab.page) or 1, 1, math.max(#lines, 1))
+		tab.page = 1
+		tab.chunks = { tab.text }
+		tab.textDirty = false
+		tab.linesDeferred = false
+		return tab
+	end
+
+	local function getExecutorCurrentTab()
+		local tab = tabs[currentTab]
+		if tab and tab.linesDeferred == true then
+			return nil
+		end
+		return NAmanage.ExecutorNormalizeTab(tab)
+	end
 
 	local function showPrompt(title, initialText, callback)
 		promptTitle.Text = title or "Name"
@@ -116029,6 +116089,9 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	tabScroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateTabCanvas)
 
 	local function saveTabsNow()
+		if not executorTabsLoaded then
+			return false
+		end
 		if not fsOk then
 			setStatus("Executor tabs cannot save: filesystem unavailable", colors.error)
 			return false
@@ -116041,19 +116104,26 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			commitCurrentPage(true)
 		end
 		local payload = { cur = currentTab, tabs = {} }
+		local workState = { lastYield = os.clock() }
 		for i, tab in tabs do
-			NAmanage.ExecutorNormalizeTab(tab)
-			local tabText = NAmanage.ExecutorRepairTabText(NAmanage.ExecutorGetTabText(tab))
-			if tabText ~= tab.text then
-				tab.text = tabText
-				tab.lines = NAmanage.ExecutorSplitEditorLines(tabText)
-				tab.chunks = { tabText }
-				tab.textDirty = false
+			local tabText
+			if tab.linesDeferred == true and tab.textDirty ~= true then
+				tabText = tostring(tab.text or "")
+			else
+				NAmanage.ExecutorNormalizeTab(tab)
+				tabText = NAmanage.ExecutorRepairTabText(NAmanage.ExecutorGetTabText(tab))
+				if tabText ~= tab.text then
+					tab.text = tabText
+					tab.lines = NAmanage.ExecutorSplitEditorLines(tabText)
+					tab.chunks = { tabText }
+					tab.textDirty = false
+				end
 			end
 			payload.tabs[i] = {
 				title = tab.title or ("Tab "..i),
 				text = tabText,
 			}
+			yieldExecutorWork(workState)
 		end
 		local ok, encoded = pcall(function()
 			return HttpService:JSONEncode(payload)
@@ -116125,7 +116195,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	end
 
 	local function updatePageInfo()
-		local tab = NAmanage.ExecutorNormalizeTab(tabs[currentTab])
+		local tab = getExecutorCurrentTab()
 		local total = tab and math.max(#tab.lines, 1) or 1
 		local lineHeight = getEditorLineHeight()
 		local viewHeight = (editorScroll.AbsoluteSize.Y or 0) - 22
@@ -116188,7 +116258,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		if editorLoading then
 			return
 		end
-		local tab = NAmanage.ExecutorNormalizeTab(tabs[currentTab])
+		local tab = getExecutorCurrentTab()
 		if not tab then
 			return
 		end
@@ -116219,12 +116289,18 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		end
 	end
 
-	local function setTabFullText(tab, source)
+	local function setTabFullText(tab, source, deferLines)
 		if not tab then
 			return
 		end
 		tab.text = tostring(source or "")
-		tab.lines = NAmanage.ExecutorSplitEditorLines(tab.text)
+		if deferLines == true then
+			tab.lines = nil
+			tab.linesDeferred = true
+		else
+			tab.lines = NAmanage.ExecutorSplitEditorLines(tab.text)
+			tab.linesDeferred = false
+		end
 		tab.chunks = { tab.text }
 		tab.textDirty = false
 		tab.page = 1
@@ -116443,9 +116519,13 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	end
 
 	local function refreshEditorNow()
+		local current = tabs[currentTab]
+		if current and current.linesDeferred == true then
+			return
+		end
 		local source = textBox.Text or ""
 		updatePageInfo()
-		local tab = NAmanage.ExecutorNormalizeTab(tabs[currentTab])
+		local tab = NAmanage.ExecutorNormalizeTab(current)
 		local totalLineCount = tab and math.max(#tab.lines, 1) or 1
 		local width, visibleHeight, renderedLineCount, lineHeight = measureSource(source)
 		editorVirtualLineHeight = lineHeight
@@ -116510,7 +116590,16 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	end
 
 	local function loadCurrentPage(preserveScroll)
-		local tab = NAmanage.ExecutorNormalizeTab(tabs[currentTab])
+		local targetIndex = currentTab
+		local tab = tabs[targetIndex]
+		if tab and tab.linesDeferred == true then
+			tab = hydrateExecutorTab(tab)
+		else
+			tab = NAmanage.ExecutorNormalizeTab(tab)
+		end
+		if currentTab ~= targetIndex or tabs[targetIndex] ~= tab then
+			return false
+		end
 		if not tab then
 			editorRenderedStart = 1
 			editorRenderedEnd = 1
@@ -116518,7 +116607,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			setEditorBoxText("")
 			updatePageInfo()
 			queueRefreshEditor()
-			return
+			return true
 		end
 		local total = math.max(#tab.lines, 1)
 		local lineHeight = getEditorWindowMetrics()
@@ -116543,6 +116632,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		finishEditorTextSet()
 		updatePageInfo()
 		queueRefreshEditor()
+		return true
 	end
 
 	editorGetVisibleLines = function()
@@ -116550,15 +116640,15 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		return math.max(1, visibleLines)
 	end
 	editorGetTotalLines = function()
-		local tab = NAmanage.ExecutorNormalizeTab(tabs[currentTab])
+		local tab = getExecutorCurrentTab()
 		return tab and math.max(#tab.lines + 1, editorGetVisibleLines()) or 1
 	end
 	editorGetViewLine = function()
-		local tab = NAmanage.ExecutorNormalizeTab(tabs[currentTab])
+		local tab = getExecutorCurrentTab()
 		return tab and getEditorVisibleLine(math.max(#tab.lines, 1)) or 1
 	end
 	editorSetViewLine = function(line)
-		local tab = NAmanage.ExecutorNormalizeTab(tabs[currentTab])
+		local tab = getExecutorCurrentTab()
 		if not tab then
 			return
 		end
@@ -116576,7 +116666,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	end
 
 	local function turnEditorPage(delta)
-		local tab = NAmanage.ExecutorNormalizeTab(tabs[currentTab])
+		local tab = getExecutorCurrentTab()
 		if not tab then
 			return
 		end
@@ -116604,13 +116694,13 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		if editorLoading then
 			return
 		end
-		local tab = NAmanage.ExecutorNormalizeTab(tabs[currentTab])
+		local tab = getExecutorCurrentTab()
 		local total = tab and math.max(#tab.lines, 1) or 1
 		local _, _, firstVisible, lastVisible = getEditorWindowRange(total)
 		local edgeBuffer = math.max(1, math.floor(editorLineBuffer / 3))
 		if firstVisible < editorVirtualStart or lastVisible > editorVirtualEnd or (firstVisible - editorVirtualStart) < edgeBuffer or (editorVirtualEnd - lastVisible) < edgeBuffer then
 			commitCurrentPage(true)
-			tab = NAmanage.ExecutorNormalizeTab(tabs[currentTab])
+			tab = getExecutorCurrentTab()
 			if tab then
 				tab.viewLine = firstVisible
 			end
@@ -116655,7 +116745,10 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		if editorLoading then
 			return
 		end
-		if NAmanage.ExecutorNormalizeTab(tabs[currentTab]) then
+		local tab = tabs[currentTab]
+		if tab and tab.linesDeferred == true then
+			queueRefreshEditor()
+		elseif NAmanage.ExecutorNormalizeTab(tab) then
 			commitCurrentPage(true)
 			loadCurrentPage(true)
 		else
@@ -116684,7 +116777,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 
 	local function refreshSettingsButtons()
 		cfg.fontSize = math.clamp(math.floor((tonumber(cfg.fontSize) or 15) + 0.5), 11, 24)
-		cfg.identityLevel = math.clamp(math.floor((tonumber(cfg.identityLevel) or 2) + 0.5), 0, 8)
+		cfg.identityLevel = math.clamp(math.floor((tonumber(cfg.identityLevel) or 8) + 0.5), 0, 8)
 		local identitySetterAvailable = type(setthreadidentity) == "function" or type(setidentity) == "function" or type(set_thread_identity) == "function" or type(setthreadcontext) == "function"
 		syntaxToggle.Text = cfg.syntax and "On" or "Off"
 		syntaxToggle.BackgroundColor3 = cfg.syntax and colors.tabActive or colors.panel3
@@ -116824,7 +116917,10 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 				updateBodyLayout()
 			end
 		end)
-		if NAmanage.ExecutorNormalizeTab(tabs[currentTab]) then
+		local tab = tabs[currentTab]
+		if tab and tab.linesDeferred == true then
+			queueRefreshEditor()
+		elseif NAmanage.ExecutorNormalizeTab(tab) then
 			commitCurrentPage(true)
 			loadCurrentPage(true)
 		else
@@ -116838,8 +116934,8 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		cfg.showHub = cfg.showHub ~= false
 		cfg.runInCurrentThread = cfg.runInCurrentThread == true
 		cfg.threadIdentity = cfg.threadIdentity == true
-		cfg.profileExecution = cfg.profileExecution ~= false
-		cfg.identityLevel = math.clamp(math.floor((tonumber(cfg.identityLevel) or 2) + 0.5), 0, 8)
+		cfg.profileExecution = cfg.profileExecution == true
+		cfg.identityLevel = math.clamp(math.floor((tonumber(cfg.identityLevel) or 8) + 0.5), 0, 8)
 		cfg.fontSize = math.clamp(math.floor((tonumber(cfg.fontSize) or 15) + 0.5), 11, 24)
 		for _, layer in { keywordLayer, globalLayer, stringLayer, commentLayer, numberLayer, functionLayer, methodLayer, propertyLayer, operatorLayer, bracketLayer } do
 			layer.Visible = cfg.syntax
@@ -116893,7 +116989,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		end)
 	end
 
-	local function selectTab(index, skipCommit)
+	local function selectTab(index, skipCommit, skipSave)
 		local tab = tabs[index]
 		if not tab then
 			return
@@ -116902,11 +116998,22 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			commitCurrentPage(true)
 		end
 		currentTab = index
-		NAmanage.ExecutorNormalizeTab(tab)
-		loadCurrentPage()
+		local wasDeferred = tab.linesDeferred == true
+		if wasDeferred then
+			setStatus("Loading "..tostring(tab.title or ("Tab "..index)).."...", colors.warn)
+		end
+		local loaded = loadCurrentPage()
+		if loaded == false or currentTab ~= index then
+			return
+		end
 		editorLoaded = true
 		updateTabButtonVisuals()
-		scheduleTabsSave()
+		if skipSave ~= true then
+			scheduleTabsSave()
+		end
+		if wasDeferred then
+			setStatus("Loaded "..tostring(tab.title or ("Tab "..index)), colors.success)
+		end
 	end
 
 	local function closeTab(index)
@@ -116942,12 +117049,20 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		setStatus("Deleted tab", colors.warn)
 	end
 
-	local function createTab(initialText, initialTitle)
+	local function createTab(initialText, initialTitle, deferLines)
 		local tab = {
 			title = initialTitle and tostring(initialTitle) or ("Tab "..(#tabs + 1)),
 			text = tostring(initialText or ""),
 		}
-		NAmanage.ExecutorNormalizeTab(tab)
+		if deferLines == true then
+			tab.linesDeferred = true
+			tab.viewLine = 1
+			tab.page = 1
+			tab.chunks = { tab.text }
+			tab.textDirty = false
+		else
+			NAmanage.ExecutorNormalizeTab(tab)
+		end
 		local holder = InstanceNew("Frame")
 		holder.BackgroundColor3 = colors.tabIdle
 		holder.BorderSizePixel = 0
@@ -117045,9 +117160,11 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	end
 
 	local function refreshSavedScripts()
+		local workState = { lastYield = os.clock() }
 		for _, child in hubList:GetChildren() do
 			if child:IsA("TextButton") then
 				child:Destroy()
+				yieldExecutorWork(workState)
 			end
 		end
 		local names = {}
@@ -117100,6 +117217,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			item.MouseButton1Click:Connect(function()
 				selectSavedScript(name, { toggle = true })
 			end)
+			yieldExecutorWork(workState)
 		end
 		if not selectedAlive then
 			selectedScript = nil
@@ -117161,12 +117279,12 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			return
 		end
 		if newTab then
-			local tabIndex = createTab(source, stripLuauExt(selectedScript))
+			local tabIndex = createTab(source, stripLuauExt(selectedScript), true)
 			selectTab(tabIndex)
 			setStatus("Opened "..selectedScript.." in a new tab", colors.success)
 		else
 			if tabs[currentTab] then
-				setTabFullText(tabs[currentTab], source)
+				setTabFullText(tabs[currentTab], source, true)
 				if (tabs[currentTab].title or "") == "" or tabs[currentTab].title:match("^Tab %d+$") then
 					tabs[currentTab].title = stripLuauExt(selectedScript)
 					tabs[currentTab].label.Text = tabs[currentTab].title
@@ -117183,6 +117301,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 
 	NAmanage.Executor_LoadTabsFromDisk = function()
 		local loaded = false
+		local workState = { lastYield = os.clock() }
 		if fsOk and isfile(tabsFile) then
 			local ok, raw = pcall(readfile, tabsFile)
 			if ok and raw and raw ~= "" then
@@ -117191,18 +117310,20 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 					if type(decoded.tabs) == "table" then
 						for index, entry in decoded.tabs do
 							if type(entry) == "table" then
-								createTab(NAmanage.ExecutorRepairTabText(entry.text or ""), entry.title or ("Tab "..index))
+								createTab(entry.text or "", entry.title or ("Tab "..index), true)
 								loaded = true
 							elseif type(entry) == "string" then
-								createTab(NAmanage.ExecutorRepairTabText(entry), "Tab "..index)
+								createTab(entry, "Tab "..index, true)
 								loaded = true
 							end
+							yieldExecutorWork(workState)
 						end
 						currentTab = math.clamp(tonumber(decoded.cur) or 1, 1, math.max(#tabs, 1))
 					elseif type(decoded[1]) == "string" then
 						for index, entry in decoded do
-							createTab(NAmanage.ExecutorRepairTabText(entry), "Tab "..index)
+							createTab(entry, "Tab "..index, true)
 							loaded = true
+							yieldExecutorWork(workState)
 						end
 						currentTab = 1
 					end
@@ -117213,6 +117334,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			createTab("", "Tab 1")
 			currentTab = 1
 		end
+		executorTabsLoaded = true
 	end
 
 	textBox:GetPropertyChangedSignal("Text"):Connect(function()
@@ -117265,11 +117387,11 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		applySettings(false)
 	end)
 	NAStuff.ExecutorTools.IdentityMinus.MouseButton1Click:Connect(function()
-		cfg.identityLevel = math.clamp((tonumber(cfg.identityLevel) or 2) - 1, 0, 8)
+		cfg.identityLevel = math.clamp((tonumber(cfg.identityLevel) or 8) - 1, 0, 8)
 		applySettings(false)
 	end)
 	NAStuff.ExecutorTools.IdentityPlus.MouseButton1Click:Connect(function()
-		cfg.identityLevel = math.clamp((tonumber(cfg.identityLevel) or 2) + 1, 0, 8)
+		cfg.identityLevel = math.clamp((tonumber(cfg.identityLevel) or 8) + 1, 0, 8)
 		applySettings(false)
 	end)
 
@@ -117336,7 +117458,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		NAStuff.ExecutorTools.OldIdentity = nil
 		NAStuff.ExecutorTools.IdentityChanged = false
 		if cfg.threadIdentity == true then
-			cfg.identityLevel = math.clamp(math.floor((tonumber(cfg.identityLevel) or 2) + 0.5), 0, 8)
+			cfg.identityLevel = math.clamp(math.floor((tonumber(cfg.identityLevel) or 8) + 0.5), 0, 8)
 			NAStuff.ExecutorTools.OldIdentity = NAStuff.ExecutorTools.GetIdentity() or 2
 			NAStuff.ExecutorTools.OkSet, NAStuff.ExecutorTools.SetErr = NAStuff.ExecutorTools.SetIdentity(cfg.identityLevel)
 			if not NAStuff.ExecutorTools.OkSet then
@@ -117363,7 +117485,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		end
 
 		if NAStuff.ExecutorTools.RunOk then
-			if cfg.profileExecution ~= false then
+			if cfg.profileExecution == true then
 				NAStuff.ExecutorTools.Duration = math.max(os.clock() - NAStuff.ExecutorTools.StartClock, 0)
 				NAStuff.ExecutorTools.EndMem = NAStuff.ExecutorTools.MemoryKb()
 				NAStuff.ExecutorTools.Suffix = Format(" (%.3fs", NAStuff.ExecutorTools.Duration)
@@ -117467,7 +117589,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			setStatus("Already formatted", colors.subtle)
 			return
 		end
-		setTabFullText(tab, formatted)
+		setTabFullText(tab, formatted, true)
 		loadCurrentPage()
 		scheduleTabsSave()
 		setStatus("Formatted Luau script", colors.success)
@@ -117478,7 +117600,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	duplicateButton.MouseButton1Click:Connect(function()
 		commitCurrentPage(true)
 		local tab = tabs[currentTab]
-		local tabIndex = createTab(tab and NAmanage.ExecutorGetTabText(tab) or "", tab and ((tab.title or "Tab").." Copy") or "Copy")
+		local tabIndex = createTab(tab and NAmanage.ExecutorGetTabText(tab) or "", tab and ((tab.title or "Tab").." Copy") or "Copy", true)
 		selectTab(tabIndex)
 		scheduleTabsSave()
 		setStatus("Duplicated tab", colors.success)
@@ -117570,14 +117692,20 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		queueRefreshEditor()
 	end))
 
-	NAmanage.Executor_LoadTabsFromDisk()
-	refreshSavedScripts()
 	applySettings(true)
-	selectTab(currentTab)
-	queueRefreshEditor()
 	NAStuff.ExecutorRefresh = queueRefreshEditor
 	NAStuff.ExecutorSaveTabs = saveTabsNow
-	setStatus("Executor ready", colors.success)
+	setStatus("Loading executor data...", colors.warn)
+	Defer(function()
+		if not (frame and frame.Parent) then
+			return
+		end
+		NAmanage.Executor_LoadTabsFromDisk()
+		selectTab(currentTab, true, true)
+		refreshSavedScripts()
+		queueRefreshEditor()
+		setStatus("Executor ready", colors.success)
+	end)
 	return true
 end
 
