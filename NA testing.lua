@@ -21,19 +21,6 @@
 
 -- © 2026 Nameless Admin. All rights reserved. Do not copy, paste, redistribute, or claim as your own.
 
-local __NA_ENTRY = {
-	xpcall = xpcall;
-	pcall = pcall;
-	error = error;
-	tostring = tostring;
-	type = type;
-	debug = debug;
-	pack = table.pack;
-	unpack = table.unpack or unpack;
-}
-
-local function __NA_Main()
-
 local _na_boot = {
 	hostEnv = (getgenv and getgenv()) or _G or {},
 }
@@ -31637,36 +31624,6 @@ NAmanage.RotectorFindAnchor = function(plr)
 	end
 	return char, nil
 end
-
-local a = nil
-local a = nil
-local a = nil
-local a = nil
-local a = nil
-local a = nil
-local a = nil
-local a = nil
-local a = nil
-local a = nil
-local a = nil
-local a = nil
-local a = nil
-local a = nil
-local a = nil
-local a = nil
-local a = nil
-local a = nil
-local a = nil
-local a = nil
-local a = nil
-local a = nil
-local a = nil
-local a = nil
-local a = nil
-local a = nil
-local a = nil
-local a = nil
-
 
 NAmanage.RotectorUpdateMarkerFrame = function(marker)
 	if type(marker) ~= "table" then
@@ -141183,23 +141140,3 @@ end)
 )]]
 
 -- © 2026 Nameless Admin. All rights reserved. Do not copy, paste, redistribute, or claim as your own.
-
-end
-
-__NA_ENTRY.results = __NA_ENTRY.pack(__NA_ENTRY.xpcall(__NA_Main, function(value)
-	local message = __NA_ENTRY.tostring(value)
-	local dbg = __NA_ENTRY.debug
-	if __NA_ENTRY.type(dbg) == "table" and __NA_ENTRY.type(dbg.traceback) == "function" then
-		local ok, trace = __NA_ENTRY.pcall(dbg.traceback, "\n[Nameless Admin Runtime Error]\n" .. message, 2)
-		if ok and __NA_ENTRY.type(trace) == "string" and trace ~= "" then
-			return trace
-		end
-	end
-	return warn("\n[Nameless Admin Runtime Error]\n" .. message)
-end))
-
-if not __NA_ENTRY.results[1] then
-	__NA_ENTRY.error(__NA_ENTRY.results[2], 0)
-end
-
-return __NA_ENTRY.unpack(__NA_ENTRY.results, 2, __NA_ENTRY.results.n)
