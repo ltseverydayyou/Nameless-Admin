@@ -6764,15 +6764,6 @@
       "desc": "Resets your Shiftlock keybinds to default (LeftShift)"
     },
     {
-      "name": "autoreport",
-      "aliases": [
-        "autoreport"
-      ],
-      "usage": "autoreport",
-      "args": "",
-      "desc": "Automatically reports players to get them banned"
-    },
-    {
       "name": "flashlight",
       "aliases": [
         "flashlight",
