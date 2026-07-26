@@ -36079,9 +36079,10 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 					if box.Transparency ~= displayTransparency then box.Transparency = displayTransparency end
 				end
 			end
-			if now % 0.5 < 0.05 then
+			if now >= (tonumber(data.nextPartRescan) or 0) then
+				data.nextPartRescan = now + 0.5
 				for _, part in NAmanage.QueryDescendants(model, "BasePart") do
-					if not data.boxTable[part] then
+					if part.Parent and not data.boxTable[part] then
 						NAmanage.ESP_AddBoxForPart(model, part)
 					end
 				end
@@ -39625,6 +39626,13 @@ NAmanage.LoadPlugins = function(opts)
 			local argsHint = cmdDef.ArgsHint or cmdDef.Args or cmdDef.Arguments or ""
 			local info = cmdDef.Description or cmdDef.Info or iyPlugin.PluginDescription or iyPlugin.Description or "No description"
 			local requires = cmdDef.RequiresArguments or cmdDef.RequiresArgs or false
+			local overrideAliases = cmdDef.OverrideAliases
+			if overrideAliases == nil then overrideAliases = cmdDef.Override end
+			if overrideAliases == nil then overrideAliases = cmdDef.ReplaceExisting end
+			if overrideAliases == nil then overrideAliases = iyPlugin.OverrideAliases end
+			if overrideAliases == nil then overrideAliases = iyPlugin.Override end
+			local overrideText = tostring(overrideAliases or ""):lower()
+			local overrideState = overrideAliases == true or overrideText == "true" or overrideText == "yes" or overrideText == "1"
 
 			Insert(out, {
 				Aliases = aliases,
@@ -39642,7 +39650,8 @@ NAmanage.LoadPlugins = function(opts)
 					end
 					return res
 				end,
-				RequiresArguments = requires and true or false
+				RequiresArguments = requires and true or false,
+				OverrideAliases = overrideState,
 			})
 		end
 
@@ -39674,6 +39683,45 @@ NAmanage.LoadPlugins = function(opts)
 		end
 		local normalized = path:gsub("\\","/")
 		return Lower(normalized)
+	end
+
+	local function restoreDisplacedAliases(key, subset)
+		local record = NAmanage._pluginCommandRecords[key]
+		local displaced = subset or (record and record.displaced)
+		if type(displaced) ~= "table" then
+			return false
+		end
+		local changed = false
+		local sourceMap = NAmanage._pluginCommandSources or {}
+		for alias, saved in displaced do
+			if type(saved) == "table" then
+				local source = sourceMap[alias]
+				local sourceKey = cmds.PluginSources and cmds.PluginSources[alias] or nil
+				local occupiedByOtherPlugin = (type(source) == "table" and source.key and source.key ~= key)
+					or (sourceKey ~= nil and sourceKey ~= key)
+				if not occupiedByOtherPlugin then
+					if cmds.Commands[alias] == nil and saved.command ~= nil then
+						cmds.Commands[alias] = saved.command
+						changed = true
+					end
+					if cmds.Aliases[alias] == nil and saved.alias ~= nil then
+						cmds.Aliases[alias] = saved.alias
+						changed = true
+					end
+				end
+			end
+			if subset and record and type(record.displaced) == "table" then
+				record.displaced[alias] = nil
+			end
+		end
+		if subset and record then
+			local hasAliases = type(record.aliases) == "table" and next(record.aliases) ~= nil
+			local hasDisplaced = type(record.displaced) == "table" and next(record.displaced) ~= nil
+			if not hasAliases and not hasDisplaced then
+				NAmanage._pluginCommandRecords[key] = nil
+			end
+		end
+		return changed
 	end
 
 	local function UnplugCmd(key)
@@ -39732,6 +39780,9 @@ NAmanage.LoadPlugins = function(opts)
 				changed = true
 			end
 		end
+		if restoreDisplacedAliases(key) then
+			changed = true
+		end
 		NAmanage._pluginCommandRecords[key] = nil
 		if type(NAmanage.invalidateCommandBuild) == "function" then
 			pcall(NAmanage.invalidateCommandBuild)
@@ -39745,10 +39796,11 @@ NAmanage.LoadPlugins = function(opts)
 		end
 		local record = NAmanage._pluginCommandRecords[key]
 		if not record then
-			record = { aliases = {} }
+			record = { aliases = {}, displaced = {} }
 			NAmanage._pluginCommandRecords[key] = record
 		else
 			record.aliases = record.aliases or {}
+			record.displaced = record.displaced or {}
 		end
 		cmds.PluginSources = cmds.PluginSources or {}
 		local sourceMap = NAmanage._pluginCommandSources
@@ -39779,32 +39831,57 @@ NAmanage.LoadPlugins = function(opts)
 		return "Conflicting aliases remapped: "..Concat(parts, ", ")
 	end
 
-	local function makeUniqueAliases(key, aliases)
+	local function formatAliasOverrideNote(overrides)
+		if type(overrides) ~= "table" then
+			return nil
+		end
+		local parts = {}
+		for _, displayName in overrides do
+			parts[#parts + 1] = tostring(displayName)
+		end
+		if #parts == 0 then
+			return nil
+		end
+		table.sort(parts)
+		return "Overridden base aliases: "..Concat(parts, ", ")
+	end
+
+	local function makeUniqueAliases(key, aliases, allowCoreOverride)
 		local out = {}
 		local replaced = {}
+		local overridden = {}
 		local seenLocal = {}
 		local sourceMap = NAmanage._pluginCommandSources or {}
 
-		local function aliasTaken(lowerAlias, thisKey)
+		local function aliasConflict(lowerAlias, thisKey)
 			local src = sourceMap[lowerAlias]
-			if src and src.key and src.key ~= thisKey then
-				return true
+			local sourceKey = cmds.PluginSources and cmds.PluginSources[lowerAlias] or nil
+			if (type(src) == "table" and src.key and src.key ~= thisKey)
+				or (sourceKey ~= nil and sourceKey ~= thisKey) then
+				return "plugin"
 			end
-			-- also consider core/other commands
-			if cmds and cmds.Commands and cmds.Commands[lowerAlias] then
-				local srcRec = sourceMap[lowerAlias]
-				if not srcRec or (srcRec.key ~= thisKey) then
-					return true
+			local commandData = cmds.Commands and cmds.Commands[lowerAlias] or nil
+			local aliasData = cmds.Aliases and cmds.Aliases[lowerAlias] or nil
+			if commandData ~= nil or aliasData ~= nil then
+				if cmds.NASAVEDALIASES and cmds.NASAVEDALIASES[lowerAlias] ~= nil then
+					return "saved"
 				end
+				if type(src) == "table" and src.key == thisKey then
+					return nil
+				end
+				if sourceKey == thisKey then
+					return nil
+				end
+				return "core"
 			end
-			return false
+			return nil
 		end
 
 		local function reserveAlias(baseAlias)
 			local counter = 1
 			local attempt = "plugin:"..baseAlias
 			local lower = attempt:lower()
-			while aliasTaken(lower, key) do
+			while aliasConflict(lower, key) ~= nil do
 				counter += 1
 				attempt = "plugin"..tostring(counter)..":"..baseAlias
 				lower = attempt:lower()
@@ -39818,7 +39895,11 @@ NAmanage.LoadPlugins = function(opts)
 				local lower = name:lower()
 				if not seenLocal[lower] then
 					seenLocal[lower] = true
-					if aliasTaken(lower, key) then
+					local conflict = aliasConflict(lower, key)
+					if conflict == "core" and allowCoreOverride == true then
+						overridden[lower] = name
+						out[#out + 1] = name
+					elseif conflict ~= nil then
 						local newAlias, newLower = reserveAlias(name)
 						replaced[name] = newAlias
 						out[#out + 1] = newAlias
@@ -39830,7 +39911,45 @@ NAmanage.LoadPlugins = function(opts)
 			end
 		end
 
-		return out, replaced
+		return out, replaced, overridden
+	end
+
+	local function displaceCoreAliases(key, aliases)
+		if type(aliases) ~= "table" or next(aliases) == nil then
+			return nil
+		end
+		local record = NAmanage._pluginCommandRecords[key]
+		if not record then
+			record = { aliases = {}, displaced = {} }
+			NAmanage._pluginCommandRecords[key] = record
+		else
+			record.aliases = record.aliases or {}
+			record.displaced = record.displaced or {}
+		end
+		local taken = {}
+		local sourceMap = NAmanage._pluginCommandSources or {}
+		for lowerAlias in aliases do
+			local source = sourceMap[lowerAlias]
+			local sourceKey = cmds.PluginSources and cmds.PluginSources[lowerAlias] or nil
+			local savedAlias = cmds.NASAVEDALIASES and cmds.NASAVEDALIASES[lowerAlias] or nil
+			if not (type(source) == "table" and source.key and source.key ~= key)
+				and not (sourceKey ~= nil and sourceKey ~= key)
+				and savedAlias == nil then
+				local commandData = cmds.Commands[lowerAlias]
+				local aliasData = cmds.Aliases[lowerAlias]
+				if commandData ~= nil or aliasData ~= nil then
+					local displaced = {
+						command = commandData,
+						alias = aliasData,
+					}
+					record.displaced[lowerAlias] = displaced
+					taken[lowerAlias] = displaced
+					cmds.Commands[lowerAlias] = nil
+					cmds.Aliases[lowerAlias] = nil
+				end
+			end
+		end
+		return taken
 	end
 
 	local loadedSumm = {}
@@ -40557,12 +40676,21 @@ NAmanage.LoadPlugins = function(opts)
 			if req == nil then req = def.NeedArgs end
 			if req == nil then req = def.needArgs end
 			if req == nil then req = def.Required end
+			local overrideAliases = def.OverrideAliases
+			if overrideAliases == nil then overrideAliases = def.overrideAliases end
+			if overrideAliases == nil then overrideAliases = def.Override end
+			if overrideAliases == nil then overrideAliases = def.override end
+			if overrideAliases == nil then overrideAliases = def.ReplaceExisting end
+			if overrideAliases == nil then overrideAliases = def.replaceExisting end
+			if overrideAliases == nil then overrideAliases = def.TakePriority end
+			if overrideAliases == nil then overrideAliases = def.takePriority end
 			colPlugins[#colPlugins + 1] = {
 				Aliases = aliases,
 				ArgsHint = argsHint,
 				Info = info,
 				Function = handler,
 				RequiresArguments = _plugReq(req),
+				OverrideAliases = _plugReq(overrideAliases),
 			}
 			pcall(function()
 				def._na_loaded = true
@@ -40693,6 +40821,19 @@ NAmanage.LoadPlugins = function(opts)
 			return self
 		end
 		_plugMethods.noArgs = _plugMethods.NoArgs
+		function _plugMethods:OverrideAliases(value)
+			if self._active then
+				self._active.OverrideAliases = value ~= false
+			end
+			return self
+		end
+		_plugMethods.overrideAliases = _plugMethods.OverrideAliases
+		_plugMethods.Override = _plugMethods.OverrideAliases
+		_plugMethods.override = _plugMethods.OverrideAliases
+		_plugMethods.ReplaceExisting = _plugMethods.OverrideAliases
+		_plugMethods.replaceExisting = _plugMethods.OverrideAliases
+		_plugMethods.TakePriority = _plugMethods.OverrideAliases
+		_plugMethods.takePriority = _plugMethods.OverrideAliases
 		function _plugMethods:UserButton(spec, command, command2)
 			if self._active then
 				local opts = type(spec) == "table" and _plugCopy(spec) or { Label = spec }
@@ -41232,29 +41373,39 @@ NAmanage.LoadPlugins = function(opts)
 			local aliases = plugin.Aliases
 			local handler = plugin.Function
 			if type(aliases) == "table" and type(handler) == "function" then
-				local uniqueAliases, replacedAliases = makeUniqueAliases(pluginKey, aliases)
+				local uniqueAliases, replacedAliases, overriddenAliases = makeUniqueAliases(pluginKey, aliases, plugin.OverrideAliases == true)
 				if #uniqueAliases == 0 then
 					DoWindow("[Plugin Invalid] '"..file.."' has no usable aliases (conflicts removed)")
 				else
 					local argsHint = plugin.ArgsHint or ""
 					local formattedDisplay = formatInfo(uniqueAliases, argsHint)
 					local desc = plugin.Info or "No description"
-					local note = formatAliasSwapNote(replacedAliases)
-					if note then
-						desc = desc.." | "..note
+					local notes = {}
+					local swapNote = formatAliasSwapNote(replacedAliases)
+					local overrideNote = formatAliasOverrideNote(overriddenAliases)
+					if swapNote then
+						notes[#notes + 1] = swapNote
+					end
+					if overrideNote then
+						notes[#notes + 1] = overrideNote
+					end
+					if #notes > 0 then
+						desc = desc.." | "..Concat(notes, " | ")
 					end
 					local info = { formattedDisplay, desc }
+					local displaced = displaceCoreAliases(pluginKey, overriddenAliases)
 					local prevSkip = cmds._skipAutoSuffix
 					cmds._skipAutoSuffix = true
 					local okAdd, errAdd = pcall(cmd.add, uniqueAliases, info, handler, plugin.RequiresArguments or false)
 					cmds._skipAutoSuffix = prevSkip
-					if okAdd then
-						local primaryLow = uniqueAliases[1] and type(uniqueAliases[1]) == "string" and uniqueAliases[1]:lower() or nil
-						local dataRef = primaryLow and cmds.Commands[primaryLow] or nil
+					local primaryLow = uniqueAliases[1] and type(uniqueAliases[1]) == "string" and uniqueAliases[1]:lower() or nil
+					local dataRef = primaryLow and cmds.Commands[primaryLow] or nil
+					if okAdd and dataRef then
 						AddCmdPlug(pluginKey, uniqueAliases, dataRef)
 						Insert(cmdNames, uniqueAliases[1])
 					else
-						DoWindow("[Plugin Error] Failed to register command: "..tostring(errAdd))
+						restoreDisplacedAliases(pluginKey, displaced)
+						DoWindow("[Plugin Error] Failed to register command: "..tostring(errAdd or "command data unavailable"))
 					end
 				end
 			else
@@ -68338,7 +68489,7 @@ NAmanage.initToolCache=function()
 	end)
 end
 
-NAmanage.toolList=function()
+NAmanage.toolList=function(forceScan)
 	NAmanage.initToolCache()
 
 	local list = {}
@@ -68356,11 +68507,11 @@ NAmanage.toolList=function()
 		end
 	end
 
-	if #list > 0 or NAmanage.toolCacheReady then
+	if forceScan ~= true and (#list > 0 or NAmanage.toolCacheReady) then
 		return list
 	end
 
-	for _, tool in Workspace:QueryDescendants("Tool") do
+	for _, tool in NAmanage.QueryDescendants(Workspace, "Tool") do
 		NAmanage.addToolCache(tool)
 		if NAmanage.isDroppedTool(tool) and not seen[tool] then
 			seen[tool] = true
@@ -85427,6 +85578,7 @@ cmd.add({"resetlock"}, {"resetlock", "Resets your Shiftlock keybinds to default 
 	DebugNotif("Reset your Shiftlock keybinds to Shift")
 end)
 
+--[[
 cmd.add({"autoreport"}, {"autoreport", "Automatically reports players to get them banned"}, function()
 	local ReportKeywords = {
 		kid = "Bullying",
@@ -85477,6 +85629,7 @@ cmd.add({"autoreport"}, {"autoreport", "Automatically reports players to get the
 	end)
 end)
 
+]]
 cmd.add({"flashlight","fl"},{"flashlight (fl)","Gives you a flashlight tool"},function()
 	local key = "na_flashlight_tool"
 	NAlib.disconnect(key)
@@ -90494,14 +90647,14 @@ NAmanage.ItemESPTrackTool = NAmanage.ItemESPTrackTool or function(tool, force)
 	return true
 end
 
-NAmanage.ItemESPRefresh = NAmanage.ItemESPRefresh or function(force)
+NAmanage.ItemESPRefresh = NAmanage.ItemESPRefresh or function(force, fullScan)
 	NAmanage.ItemESPEnsureState()
 	if NAStuff.itemESPEnabled ~= true then
 		return 0
 	end
 	local seenParts = {}
 	local count = 0
-	for _, tool in NAmanage.toolList() do
+	for _, tool in NAmanage.toolList(fullScan == true) do
 		if NAmanage.ItemESPTrackTool(tool, force) then
 			local part = NAStuff.itemESPToolMap and NAStuff.itemESPToolMap[tool] or nil
 			if part then
@@ -90540,9 +90693,10 @@ NAmanage.ItemESPEnable = NAmanage.ItemESPEnable or function()
 	NAmanage.ItemESPEnsureState()
 	NAStuff.itemESPEnabled = true
 	NAmanage.initToolCache()
-	local count = NAmanage.ItemESPRefresh()
+	local count = NAmanage.ItemESPRefresh(false, true)
 	NAlib.disconnect("itemesp_loop")
 	local nextRefresh = 0
+	local nextFullRefresh = 0
 	NAlib.connect("itemesp_loop", RunService.Heartbeat:Connect(function()
 		if NAStuff.itemESPEnabled ~= true then
 			NAlib.disconnect("itemesp_loop")
@@ -90551,7 +90705,11 @@ NAmanage.ItemESPEnable = NAmanage.ItemESPEnable or function()
 		local now = tick()
 		if now >= nextRefresh then
 			nextRefresh = now + 1
-			NAmanage.ItemESPRefresh()
+			local fullScan = now >= nextFullRefresh
+			if fullScan then
+				nextFullRefresh = now + 2
+			end
+			NAmanage.ItemESPRefresh(false, fullScan)
 		end
 	end))
 	NAlib.disconnect("itemesp_workspace_add")

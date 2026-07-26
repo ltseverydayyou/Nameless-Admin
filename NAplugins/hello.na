@@ -3,6 +3,10 @@ local plugin = Plugin.new("Hello")
 -- Plugin.new("Name") creates a plugin group for your commands.
 -- The first name in :cmd(...) is the main command.
 -- The other names are aliases.
+-- :OverrideAliases() lets a command intentionally claim a conflicting base NA alias.
+-- Without it, a conflict is remapped to plugin:<alias>.
+-- It does not replace another plugin alias or a saved user alias.
+-- The original base alias is restored when the plugin is disabled, unloaded, or reloaded.
 plugin:cmd("hello", "hi")
     -- :args("<name>") shows the usage hint in command lists/autofill.
     :args("<name>")
@@ -17,6 +21,17 @@ plugin:cmd("hello", "hi")
         -- ctx:notify(text, time) sends a NA notification.
         ctx:notify("Hello " .. tostring(name))
     end)
+
+-- Alias override example:
+-- plugin:cmd("fly", "hellofly")
+--     :OverrideAliases()
+--     :info("Replaces NA's base fly alias while this plugin is loaded")
+--     :run(function(ctx, speed)
+--         ctx:notify("Custom fly speed: " .. tostring(speed or "default"), 3)
+--     end)
+--
+-- Native aliases also accept :overrideAliases() and :Override().
+-- Table and Infinite Yield-style command definitions use OverrideAliases = true.
 
 plugin:cmd("fastfly")
     :info("Starts fly at speed 50")
