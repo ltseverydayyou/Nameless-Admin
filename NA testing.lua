@@ -26697,7 +26697,10 @@ end
 
 NAmanage._normPlayer = function(p)
 	if typeof(p) == "Instance" and p:IsA("Player") then return p end
-	if type(p) == "string" then return __lt.cm("Players", "FindFirstChild", p) end
+	if type(p) == "string" then
+		local targets = NAmanage.getPlr and NAmanage.getPlr("exactuser:"..p) or {}
+		return targets[1]
+	end
 	return nil
 end
 
@@ -26800,16 +26803,16 @@ NAmanage._selectorPasses = function(sel, ctx)
 	if sel.id and plr.UserId ~= sel.id then return false end
 	if sel.friend and not lp:IsFriendsWith(plr.UserId) then return false end
 
+	local resolver = NAmanage.getPlr
 	if sel.namePrefix and sel.namePrefix ~= "" then
-		local n = plr.Name:lower()
-		local d = (plr.DisplayName or ""):lower()
-		if not (n:sub(1, #sel.namePrefix) == sel.namePrefix or d:sub(1, #sel.namePrefix) == sel.namePrefix) then
+		local ok, list = pcall(function() return resolver and resolver(lp, sel.namePrefix) or {} end)
+		if not ok or type(list) ~= "table" or not Discover(list, plr) then
 			return false
 		end
 	end
 	if sel.displayPrefix and sel.displayPrefix ~= "" then
-		local d = (plr.DisplayName or ""):lower()
-		if not (d:sub(1, #sel.displayPrefix) == sel.displayPrefix) then
+		local ok, list = pcall(function() return resolver and resolver(lp, "display:"..sel.displayPrefix) or {} end)
+		if not ok or type(list) ~= "table" or not Discover(list, plr) then
 			return false
 		end
 	end
@@ -26819,7 +26822,6 @@ NAmanage._selectorPasses = function(sel, ctx)
 	end
 
 	if sel.terms and #sel.terms > 0 then
-		local resolver = NAmanage.getPlr
 		for _, term in sel.terms do
 			local ok, list = pcall(function() return resolver and resolver(lp, term) or {} end)
 			list = (ok and type(list) == "table") and list or {}
@@ -30514,8 +30516,8 @@ NAmanage.PlayerArgIsNeutral = NAmanage.PlayerArgIsNeutral or function(player)
 	return ok and neutral == true
 end
 
-NAmanage.PlayerArgSameTeam = function(target)
-	local lp = Players.LocalPlayer
+NAmanage.PlayerArgSameTeam = function(target, speaker)
+	local lp = speaker or Players.LocalPlayer
 	if not (typeof(target) == "Instance" and target:IsA("Player")) then
 		return false
 	end
@@ -30544,15 +30546,15 @@ NAmanage.PlayerArgSameTeam = function(target)
 	return okMyColor and okTheirColor and myColor ~= nil and theirColor ~= nil and myColor == theirColor
 end
 
-NAmanage.PlayerArgNonTeam = function(target)
-	local lp = Players.LocalPlayer
+NAmanage.PlayerArgNonTeam = function(target, speaker)
+	local lp = speaker or Players.LocalPlayer
 	if not (typeof(target) == "Instance" and target:IsA("Player")) then
 		return false
 	end
 	if target == lp then
 		return false
 	end
-	return not NAmanage.PlayerArgSameTeam(target)
+	return not NAmanage.PlayerArgSameTeam(target, lp)
 end
 
 local PlayerArgs = {
@@ -30560,11 +30562,12 @@ local PlayerArgs = {
 		return __lt.cm("Players", "GetPlayers")
 	end,
 
-	["others"] = function()
+	["others"] = function(speaker)
 		local Targets = {}
+		speaker = speaker or LocalPlayer
 
-		Foreach(__lt.cm("Players", "GetPlayers"), function(Index, Player)
-			if Player ~= LocalPlayer then
+		Foreach(__lt.cm("Players", "GetPlayers"), function(_, Player)
+			if Player ~= speaker then
 				Insert(Targets, Player)
 			end
 		end)
@@ -30572,14 +30575,16 @@ local PlayerArgs = {
 		return Targets
 	end,
 
-	["me"] = function()
-		return { LocalPlayer }
+	["me"] = function(speaker)
+		speaker = speaker or LocalPlayer
+		return speaker and { speaker } or {}
 	end,
 
-	["random"] = function()
-		local list = __lt.cm("Players", "GetPlayers")
-		if LocalPlayer then
-			local i = Discover(list, LocalPlayer)
+	["random"] = function(speaker, _, currentList)
+		local list = { Unpack(currentList or __lt.cm("Players", "GetPlayers")) }
+		speaker = speaker or LocalPlayer
+		if speaker then
+			local i = Discover(list, speaker)
 			if i then table.remove(list, i) end
 		end
 		if #list == 0 then
@@ -30596,11 +30601,12 @@ local PlayerArgs = {
 		return NAmanage.NPCArgAll()
 	end,
 
-	["seated"] = function()
+	["seated"] = function(_, _, currentList)
 		local Targets = {}
 
-		Foreach(__lt.cm("Players", "GetPlayers"), function(Index, Player)
-			if getPlrHum(Player.Character).Sit then
+		Foreach(currentList or __lt.cm("Players", "GetPlayers"), function(_, Player)
+			local Hum = NAmanage.PlayerArgHum(Player)
+			if Hum and Hum.Sit then
 				Insert(Targets, Player)
 			end
 		end)
@@ -30608,11 +30614,12 @@ local PlayerArgs = {
 		return Targets
 	end,
 
-	["stood"] = function()
+	["stood"] = function(_, _, currentList)
 		local Targets = {}
 
-		Foreach(__lt.cm("Players", "GetPlayers"), function(Index, Player)
-			if not getPlrHum(Player.Character).Sit then
+		Foreach(currentList or __lt.cm("Players", "GetPlayers"), function(_, Player)
+			local Hum = NAmanage.PlayerArgHum(Player)
+			if Hum and not Hum.Sit then
 				Insert(Targets, Player)
 			end
 		end)
@@ -30620,47 +30627,58 @@ local PlayerArgs = {
 		return Targets
 	end,
 
-	["nearest"] = function()
-		if not LocalPlayer.Character or not getRoot(LocalPlayer.Character) then return {} end
+	["nearest"] = function(speaker, _, currentList)
+		speaker = speaker or LocalPlayer
+		local origin = NAmanage.PlayerArgRoot(speaker)
+		if not origin then return {} end
 		local lowest = math.huge
-		local Targets = nil
+		local Target = nil
 
-		Foreach(__lt.cm("Players", "GetPlayers"), function(_, plr)
-			if plr ~= LocalPlayer and plr.Character and getRoot(plr.Character) then
-				local distance = (getRoot(plr.Character).Position - getRoot(LocalPlayer.Character).Position).Magnitude
-				if distance < lowest then
-					lowest = distance
-					Targets = plr
+		Foreach(currentList or __lt.cm("Players", "GetPlayers"), function(_, Player)
+			if Player ~= speaker then
+				local root = NAmanage.PlayerArgRoot(Player)
+				if root then
+					local distance = (root.Position - origin.Position).Magnitude
+					if distance < lowest then
+						lowest = distance
+						Target = Player
+					end
 				end
 			end
 		end)
 
-		return Targets and {Targets} or {}
+		return Target and { Target } or {}
 	end,
 
-	["farthest"] = function()
-		if not LocalPlayer.Character or not getRoot(LocalPlayer.Character) then return {} end
-		local highest = 0
-		local Targets = nil
+	["farthest"] = function(speaker, _, currentList)
+		speaker = speaker or LocalPlayer
+		local origin = NAmanage.PlayerArgRoot(speaker)
+		if not origin then return {} end
+		local highest = -math.huge
+		local Target = nil
 
-		Foreach(__lt.cm("Players", "GetPlayers"), function(_, plr)
-			if plr ~= LocalPlayer and plr.Character and getRoot(plr.Character) then
-				local distance = (getRoot(plr.Character).Position - getRoot(LocalPlayer.Character).Position).Magnitude
-				if distance > highest then
-					highest = distance
-					Targets = plr
+		Foreach(currentList or __lt.cm("Players", "GetPlayers"), function(_, Player)
+			if Player ~= speaker then
+				local root = NAmanage.PlayerArgRoot(Player)
+				if root then
+					local distance = (root.Position - origin.Position).Magnitude
+					if distance > highest then
+						highest = distance
+						Target = Player
+					end
 				end
 			end
 		end)
 
-		return Targets and {Targets} or {}
+		return Target and { Target } or {}
 	end,
 
-	["dead"] = function()
+	["dead"] = function(_, _, currentList)
 		local Targets = {}
 
-		Foreach(__lt.cm("Players", "GetPlayers"), function(Index, Player)
-			if getPlrHum(Player.Character).Health == 0 then
+		Foreach(currentList or __lt.cm("Players", "GetPlayers"), function(_, Player)
+			local Hum = NAmanage.PlayerArgHum(Player)
+			if not Hum or Hum.Health <= 0 then
 				Insert(Targets, Player)
 			end
 		end)
@@ -30668,11 +30686,12 @@ local PlayerArgs = {
 		return Targets
 	end,
 
-	["alive"] = function()
+	["alive"] = function(_, _, currentList)
 		local Targets = {}
 
-		Foreach(__lt.cm("Players", "GetPlayers"), function(Index, Player)
-			if getPlrHum(Player.Character).Health > 0 then
+		Foreach(currentList or __lt.cm("Players", "GetPlayers"), function(_, Player)
+			local Hum = NAmanage.PlayerArgHum(Player)
+			if Hum and Hum.Health > 0 then
 				Insert(Targets, Player)
 			end
 		end)
@@ -30680,11 +30699,14 @@ local PlayerArgs = {
 		return Targets
 	end,
 
-	["friends"] = function()
+	["friends"] = function(speaker, _, currentList)
 		local Targets = {}
+		speaker = speaker or LocalPlayer
+		if not speaker then return Targets end
 
-		Foreach(__lt.cm("Players", "GetPlayers"), function(Index, Player)
-			if Player:IsFriendsWith(LocalPlayer.UserId) and LocalPlayer ~= Player then
+		Foreach(currentList or __lt.cm("Players", "GetPlayers"), function(_, Player)
+			local ok, isFriend = pcall(Player.IsFriendsWith, Player, speaker.UserId)
+			if Player ~= speaker and ok and isFriend then
 				Insert(Targets, Player)
 			end
 		end)
@@ -30692,11 +30714,14 @@ local PlayerArgs = {
 		return Targets
 	end,
 
-	["nonfriends"] = function()
+	["nonfriends"] = function(speaker, _, currentList)
 		local Targets = {}
+		speaker = speaker or LocalPlayer
+		if not speaker then return Targets end
 
-		Foreach(__lt.cm("Players", "GetPlayers"), function(Index, Player)
-			if not Player:IsFriendsWith(LocalPlayer.UserId) and LocalPlayer ~= Player then
+		Foreach(currentList or __lt.cm("Players", "GetPlayers"), function(_, Player)
+			local ok, isFriend = pcall(Player.IsFriendsWith, Player, speaker.UserId)
+			if Player ~= speaker and ok and not isFriend then
 				Insert(Targets, Player)
 			end
 		end)
@@ -30704,11 +30729,11 @@ local PlayerArgs = {
 		return Targets
 	end,
 
-	["team"] = function()
+	["team"] = function(speaker, _, currentList)
 		local Targets = {}
 
-		Foreach(__lt.cm("Players", "GetPlayers"), function(_, Player)
-			if NAmanage.PlayerArgSameTeam(Player) then
+		Foreach(currentList or __lt.cm("Players", "GetPlayers"), function(_, Player)
+			if NAmanage.PlayerArgSameTeam(Player, speaker) then
 				Insert(Targets, Player)
 			end
 		end)
@@ -30716,11 +30741,11 @@ local PlayerArgs = {
 		return Targets
 	end,
 
-	["nonteam"] = function()
+	["nonteam"] = function(speaker, _, currentList)
 		local Targets = {}
 
-		Foreach(__lt.cm("Players", "GetPlayers"), function(_, Player)
-			if NAmanage.PlayerArgNonTeam(Player) then
+		Foreach(currentList or __lt.cm("Players", "GetPlayers"), function(_, Player)
+			if NAmanage.PlayerArgNonTeam(Player, speaker) then
 				Insert(Targets, Player)
 			end
 		end)
@@ -30905,11 +30930,11 @@ local PlayerArgs = {
 		return returns
 	end,
 
-	["allies"] = function()
+	["allies"] = function(speaker, _, currentList)
 		local Targets = {}
 
-		Foreach(__lt.cm("Players", "GetPlayers"), function(_, Player)
-			if NAmanage.PlayerArgSameTeam(Player) then
+		Foreach(currentList or __lt.cm("Players", "GetPlayers"), function(_, Player)
+			if NAmanage.PlayerArgSameTeam(Player, speaker) then
 				Insert(Targets, Player)
 			end
 		end)
@@ -30917,11 +30942,11 @@ local PlayerArgs = {
 		return Targets
 	end,
 
-	["enemies"] = function()
+	["enemies"] = function(speaker, _, currentList)
 		local Targets = {}
 
-		Foreach(__lt.cm("Players", "GetPlayers"), function(_, Player)
-			if NAmanage.PlayerArgNonTeam(Player) then
+		Foreach(currentList or __lt.cm("Players", "GetPlayers"), function(_, Player)
+			if NAmanage.PlayerArgNonTeam(Player, speaker) then
 				Insert(Targets, Player)
 			end
 		end)
@@ -30965,6 +30990,50 @@ local PlayerArgs = {
 		return returns
 	end,
 
+	["userid:(%d+)"] = function(_, args, currentList)
+		local returns = {}
+		local userId = tonumber(args[1])
+		for _, plr in currentList or __lt.cm("Players", "GetPlayers") do
+			if plr.UserId == userId then
+				Insert(returns, plr)
+			end
+		end
+		return returns
+	end,
+
+	["username:(.+)"] = function(_, args, currentList)
+		local returns = {}
+		local search = Lower(tostring(args[1] or ""))
+		for _, plr in currentList or __lt.cm("Players", "GetPlayers") do
+			if Sub(Lower(plr.Name), 1, #search) == search then
+				Insert(returns, plr)
+			end
+		end
+		return returns
+	end,
+
+	["display:(.+)"] = function(_, args, currentList)
+		local returns = {}
+		local search = Lower(tostring(args[1] or ""))
+		for _, plr in currentList or __lt.cm("Players", "GetPlayers") do
+			if Sub(Lower(plr.DisplayName), 1, #search) == search then
+				Insert(returns, plr)
+			end
+		end
+		return returns
+	end,
+
+	["exactuser:(.+)"] = function(_, args, currentList)
+		local returns = {}
+		local search = Lower(tostring(args[1] or ""))
+		for _, plr in currentList or __lt.cm("Players", "GetPlayers") do
+			if Lower(plr.Name) == search then
+				Insert(returns, plr)
+			end
+		end
+		return returns
+	end,
+
 	["cursor"] = function(speaker)
 		local returns = {}
 		local v = NAmanage.getPlrCursor()
@@ -30979,15 +31048,101 @@ PlayerArgs["nonteams"] = PlayerArgs["nonteam"]
 PlayerArgs["notteam"] = PlayerArgs["nonteam"]
 PlayerArgs["enemy"] = PlayerArgs["enemies"]
 PlayerArgs["ally"] = PlayerArgs["allies"]
+PlayerArgs["everyone"] = PlayerArgs["all"]
+PlayerArgs["other"] = PlayerArgs["others"]
+PlayerArgs["self"] = PlayerArgs["me"]
+PlayerArgs["closest"] = PlayerArgs["nearest"]
+PlayerArgs["furthest"] = PlayerArgs["farthest"]
+PlayerArgs["sat"] = PlayerArgs["seated"]
+PlayerArgs["standing"] = PlayerArgs["stood"]
+PlayerArgs["friend"] = PlayerArgs["friends"]
+PlayerArgs["nonfriend"] = PlayerArgs["nonfriends"]
+PlayerArgs["teammate"] = PlayerArgs["team"]
+PlayerArgs["teammates"] = PlayerArgs["team"]
+PlayerArgs["id:(%d+)"] = PlayerArgs["userid:(%d+)"]
+PlayerArgs["name:(.+)"] = PlayerArgs["username:(.+)"]
 
 originalIO.normalizePlayerQuery=function(query)
 	if type(query) == "string" then
-		return query:lower()
+		return Lower(query:match("^%s*(.-)%s*$") or "")
+	end
+	if typeof(query) == "Instance" and query:IsA("Player") then
+		return Lower(query.Name)
 	end
 	if type(query) == "table" and type(query.Name) == "string" then
-		return query.Name:lower()
+		return Lower(query.Name)
 	end
 	return ""
+end
+
+NAmanage.PlayerArgIntersect = function(source, matches)
+	local allowed = {}
+	local out = {}
+	for _, target in matches or {} do
+		allowed[target] = true
+	end
+	for _, target in source or {} do
+		if allowed[target] then
+			Insert(out, target)
+		end
+	end
+	return out
+end
+
+NAmanage.PlayerArgRemove = function(source, matches)
+	local blocked = {}
+	local out = {}
+	for _, target in matches or {} do
+		blocked[target] = true
+	end
+	for _, target in source or {} do
+		if not blocked[target] then
+			Insert(out, target)
+		end
+	end
+	return out
+end
+
+NAmanage.PlayerArgResolveSimple = function(speaker, raw, currentList)
+	raw = originalIO.normalizePlayerQuery(raw)
+	currentList = currentList or PlayerArgs["all"](speaker)
+	if raw == "" then
+		return {}
+	end
+
+	if raw == "*" then
+		return PlayerArgs["all"](speaker, {}, currentList) or {}
+	end
+	if PlayerArgs[raw] then
+		return PlayerArgs[raw](speaker, {}, currentList) or {}
+	end
+
+	local onlyDigits = raw:match("^%d+$")
+	if onlyDigits then
+		return PlayerArgs["#(%d+)"](speaker, { onlyDigits }, currentList) or {}
+	end
+
+	for pat, fn in PlayerArgs do
+		local captures = { raw:match("^"..pat.."$") }
+		if #captures > 0 then
+			return fn(speaker, captures, currentList) or {}
+		end
+	end
+
+	local out = {}
+	local usernameOnly = Sub(raw, 1, 1) == "@"
+	local search = usernameOnly and Sub(raw, 2) or raw
+	if search == "" then
+		return out
+	end
+	for _, plr in __lt.cm("Players", "GetPlayers") do
+		local n = Lower(plr.Name)
+		local d = Lower(plr.DisplayName)
+		if Sub(n, 1, #search) == search or (not usernameOnly and Sub(d, 1, #search) == search) then
+			Insert(out, plr)
+		end
+	end
+	return out
 end
 
 local function getPlr(a, b)
@@ -30996,7 +31151,7 @@ local function getPlr(a, b)
 		speaker = Players.LocalPlayer
 		raw = originalIO.normalizePlayerQuery(a)
 	else
-		speaker = a
+		speaker = a or Players.LocalPlayer
 		raw = originalIO.normalizePlayerQuery(b)
 	end
 
@@ -31004,32 +31159,91 @@ local function getPlr(a, b)
 	if npcRaw ~= nil then
 		return NAmanage.ResolveNPCPlayerArg(speaker, npcRaw)
 	end
-
-	if PlayerArgs[raw] then
-		return PlayerArgs[raw](speaker)
+	if raw == "" then
+		return {}
 	end
 
-	local onlyDigits = raw:match("^%d+$")
-	if onlyDigits then
-		return PlayerArgs["#(%d+)"](speaker, {onlyDigits}, PlayerArgs["all"]())
-	end
-
-	for pat, fn in PlayerArgs do
-		local captures = { raw:match("^"..pat.."$") }
-		if #captures > 0 then
-			return fn(speaker, captures, PlayerArgs["all"]())
+	local found = {}
+	local seen = {}
+	for segment in raw:gmatch("[^,|]+") do
+		segment = segment:match("^%s*(.-)%s*$") or ""
+		if segment ~= "" then
+			if Sub(segment, 1, 1) ~= "+" and Sub(segment, 1, 1) ~= "-" then
+				segment = "+"..segment
+			end
+			local current = PlayerArgs["all"](speaker)
+			local hadToken = false
+			for operator, token in segment:gmatch("([+-])([^+-]+)") do
+				token = token:match("^%s*(.-)%s*$") or ""
+				if token ~= "" then
+					hadToken = true
+					local matches = NAmanage.PlayerArgResolveSimple(speaker, token, current)
+					if operator == "+" then
+						current = NAmanage.PlayerArgIntersect(current, matches)
+					else
+						current = NAmanage.PlayerArgRemove(current, matches)
+					end
+				end
+			end
+			if hadToken then
+				for _, target in current do
+					if not seen[target] then
+						seen[target] = true
+						Insert(found, target)
+					end
+				end
+			end
 		end
 	end
+	return found
+end
 
-	local out = {}
-	for _, plr in __lt.cm("Players", "GetPlayers") do
-		local n = plr.Name:lower()
-		local d = plr.DisplayName:lower()
-		if n:sub(1,#raw) == raw or d:sub(1,#raw) == raw then
-			Insert(out, plr)
+NAmanage.getPlr = getPlr
+NAmanage.PlayerQueryFromArgs = function(...)
+	local args = { ... }
+	for i = 1, #args do
+		args[i] = tostring(args[i] or "")
+	end
+	return Concat(args, " "):match("^%s*(.-)%s*$") or ""
+end
+
+NAmanage.NewPersistentPlayerRef = function(player)
+	if not (typeof(player) == "Instance" and player:IsA("Player")) then
+		return nil
+	end
+	local userId = tonumber(player.UserId)
+	return {
+		UserId = userId,
+		Name = player.Name,
+		Selector = userId and userId > 0 and ("userid:"..userId) or ("exactuser:"..player.Name),
+		Player = player,
+	}
+end
+
+NAmanage.ResolvePersistentPlayer = function(ref)
+	if type(ref) ~= "table" then
+		return nil
+	end
+	local player = ref.Player
+	if typeof(player) == "Instance" and player:IsA("Player") and player.Parent == Players then
+		return player
+	end
+	local targets = getPlr(ref.Selector or (ref.Name and ("exactuser:"..ref.Name)) or "")
+	player = targets[1]
+	ref.Player = player
+	return player
+end
+
+NAmanage.PersistentPlayerRefs = function(query, speaker)
+	local refs = {}
+	local seen = {}
+	for _, player in getPlr(speaker or Players.LocalPlayer, query) do
+		if typeof(player) == "Instance" and player:IsA("Player") and not seen[player.UserId] then
+			seen[player.UserId] = true
+			Insert(refs, NAmanage.NewPersistentPlayerRef(player))
 		end
 	end
-	return out
+	return refs
 end
 
 NAmanage.Rotector = NAmanage.Rotector or {
@@ -41044,79 +41258,18 @@ NAmanage.LoadPlugins = function(opts)
 
 			local function iyGetPlayers(query, speaker)
 				local results = {}
-				if not iyPlayers then
+				if type(getPlr) ~= "function" then
 					return results
 				end
-				local function add(plr)
-					if plr and plr.Name then
-						results[#results+1] = plr.Name
-					end
-				end
-				local tokens = iySplitString(query or "", ",")
-				if #tokens == 0 then
-					return results
-				end
-
-				local everyone = {}
-				pcall(function()
-					everyone = iyPlayers:GetPlayers()
+				local ok, targets = pcall(function()
+					return getPlr(speaker, query or "")
 				end)
-
-				for _, tokenRaw in tokens do
-					local token = tokenRaw:lower()
-					local resolved = false
-					if type(getPlr) == "function" then
-						local ok, list = pcall(function()
-							return getPlr(speaker, tokenRaw)
-						end)
-						if ok and type(list) == "table" then
-							for _, plr in list do
-								add(plr)
-							end
-							resolved = true
-						end
-					end
-					if resolved then
-						continue
-					end
-					if token == "all" or token == "*" or token == "everyone" then
-						for _, plr in everyone do
-							add(plr)
-						end
-					elseif token == "others" then
-						for _, plr in everyone do
-							if not speaker or plr ~= speaker then
-								add(plr)
-							end
-						end
-					elseif token == "me" or token == "self" then
-						if speaker then
-							add(speaker)
-						end
-					elseif token == "random" then
-						if #everyone > 0 then
-							add(everyone[math.random(1, #everyone)])
-						end
-					else
-						local search = token
-						local atName = false
-						if search:sub(1,1) == "@" then
-							search = search:sub(2)
-							atName = true
-						end
-						for _, plr in everyone do
-							local nm = plr.Name:lower()
-							local dn = (plr.DisplayName or ""):lower()
-							if atName then
-								if nm:sub(1, #search) == search then
-									add(plr)
-								end
-							else
-								if nm:sub(1, #search) == search or dn:sub(1, #search) == search then
-									add(plr)
-								end
-							end
-						end
+				if not ok or type(targets) ~= "table" then
+					return results
+				end
+				for _, plr in targets do
+					if plr and plr.Name then
+						results[#results + 1] = plr.Name
 					end
 				end
 				return results
@@ -48319,7 +48472,7 @@ cmd.add({"inspectoutfit", "outfitinspect"}, {"inspectoutfit <user/player/userid|
 	NAStuff._httpBackoff = NAStuff._httpBackoff or {}
 	NAStuff._httpCooldown = NAStuff._httpCooldown or {}
 
-	local uid = NAmanage._resolveHumanoidUserId and NAmanage._resolveHumanoidUserId(raw) or nil
+	local uid = NAmanage.NAClientResolveUserId(raw)
 	if not uid then
 		DoNotif("Couldn't resolve user", 3, "InspectOutfit")
 		return
@@ -54131,158 +54284,192 @@ end,true)
 
 NAStuff.npcauraConn = NAStuff.npcauraConn or nil
 NAStuff.npcauraViz = NAStuff.npcauraViz or nil
+NAStuff.npcauraState = NAStuff.npcauraState or nil
+
+NAmanage.StopNPCAura = function()
+	local state = NAStuff.npcauraState
+	if state and state.pending then
+		for _, pair in state.pending do
+			if pair[1] and pair[1].Parent and pair[2] and pair[2].Parent then
+				pcall(firetouchinterest, pair[1], pair[2], 1)
+			end
+		end
+	end
+	NAStuff.npcauraState = nil
+	if NAStuff.npcauraConn then
+		NAStuff.npcauraConn:Disconnect()
+		NAStuff.npcauraConn = nil
+	end
+	NAlib.disconnect("npcaura_loop")
+	if NAStuff.npcauraViz then
+		NAStuff.npcauraViz:Destroy()
+		NAStuff.npcauraViz = nil
+	end
+end
 
 cmd.add({"npcaura"},{"npcaura [distance]","Continuously damages nearby NPCs with equipped tool"},function(dist)
-	dist=tonumber(dist) or 20
+	dist = tonumber(dist) or 20
 	if not firetouchinterest then return DoNotif("firetouchinterest unsupported",2) end
-	if NAStuff.npcauraConn then NAStuff.npcauraConn:Disconnect() NAStuff.npcauraConn=nil end
-	NAlib.disconnect("npcaura_loop")
-	if NAStuff.npcauraViz then NAStuff.npcauraViz:Destroy() NAStuff.npcauraViz=nil end
+	NAmanage.StopNPCAura()
 	NAStuff.npcauraViz = NAmanage.MakeAuraVisualizer("NA_NPCAuraRadius", Color3.fromRGB(255,85,0), dist)
+
+	local state = {
+		targets = {},
+		pending = {},
+		cursor = 1,
+		scanAcc = 1,
+		hitAcc = 0,
+		scanInterval = 0.35,
+		hitInterval = 0.08,
+		maxTargetsPerHit = 3,
+	}
+	NAStuff.npcauraState = state
+
+	local overlap = OverlapParams.new()
+	overlap.FilterType = Enum.RaycastFilterType.Exclude
+	overlap.MaxParts = 384
+
 	local function getDamagePart()
-		local c=getChar() if not c then return end
-		local t=c:FindFirstChildWhichIsA("Tool") if not t then return end
-		for _,desc in NAmanage.QueryDescendants(t, "TouchTransmitter") do
-			local parent=desc.Parent
+		local character = getChar()
+		if not character then return end
+		local tool = character:FindFirstChildWhichIsA("Tool")
+		if not tool then return end
+		for _, transmitter in NAmanage.QueryDescendants(tool, "TouchTransmitter") do
+			local parent = transmitter.Parent
 			if parent and parent:IsA("BasePart") then
 				return parent
 			end
 		end
-		local handle=t:FindFirstChild("Handle")
+		local handle = tool:FindFirstChild("Handle")
 		if handle and handle:IsA("BasePart") then
 			return handle
 		end
-		return t:FindFirstChildWhichIsA("BasePart")
+		return tool:FindFirstChildWhichIsA("BasePart")
 	end
 
-	local function isPlayerCharacterModel(model)
-		if typeof(model) ~= "Instance" or not model:IsA("Model") then
-			return false
+	local function getTargetPart(model)
+		local part = getRoot(model)
+		if not part then
+			local humanoid = getPlrHum(model)
+			part = humanoid and humanoid.RootPart or nil
 		end
-		local okPlr, plr = pcall(function()
-			return __lt.cm("Players", "GetPlayerFromCharacter", model)
-		end)
-		if okPlr and plr then
-			return true
+		if not part then
+			part = model:FindFirstChildWhichIsA("BasePart", true)
 		end
-		for _, p in __lt.cm("Players", "GetPlayers") do
-			local ch = getPlrChar(p) or p.Character
-			if ch and (model == ch or model:IsDescendantOf(ch) or ch:IsDescendantOf(model)) then
-				return true
-			end
-		end
-		return false
+		return part
 	end
 
-	local function getFirstModelBasePart(model)
-		local rootPart = getRoot(model)
-		if rootPart then
-			return rootPart
-		end
-		local hum = getPlrHum(model)
-		if hum and hum.RootPart then
-			return hum.RootPart
-		end
-		return model:FindFirstChildWhichIsA("BasePart", true)
-	end
-
-	local function canTouchPart(part)
-		if not (part and part:IsA("BasePart") and part.Parent) then
-			return false
-		end
-		local ok, canTouch = pcall(function()
-			return part.CanTouch
-		end)
-		return (not ok) or canTouch ~= false
-	end
-
-	local function addNPCTarget(out, seen, model, root, radius)
-		if typeof(model) ~= "Instance" or not model:IsA("Model") or seen[model] then
-			return
-		end
-		if isPlayerCharacterModel(model) then
-			return
-		end
-		local hum = getPlrHum(model)
-		if not hum or hum.Health <= 0 then
-			return
-		end
-		local npcPart = getFirstModelBasePart(model)
-		if not npcPart then
-			return
-		end
-		if root and (npcPart.Position-root.Position).Magnitude > radius then
+	local function addTarget(out, seen, model, root)
+		if not (model and model:IsA("Model") and model.Parent and not seen[model]) then
 			return
 		end
 		seen[model] = true
+		if not CheckIfNPC(model) then
+			return
+		end
+		local humanoid = getPlrHum(model)
+		local part = getTargetPart(model)
+		if not (humanoid and humanoid.Health > 0 and part and part.Parent) then
+			return
+		end
+		if (part.Position - root.Position).Magnitude > dist then
+			return
+		end
 		Insert(out, model)
 	end
 
-	local function getNearbyNPCs(root, radius)
+	local function refreshTargets(root)
 		local out = {}
 		local seen = {}
-
-		for _, npc in getPlr("npc") do
-			addNPCTarget(out, seen, npc, root, radius)
-		end
-
-		-- Game-specific fallback: some games use unusual enemy containers, so do not rely only on getPlr("npc")/CheckIfNPC.
-		for _, hum in NAmanage.QueryDescendants(Workspace, "Humanoid") do
-			local model = hum.Parent
-			if model and model:IsA("Model") then
-				addNPCTarget(out, seen, model, root, radius)
+		overlap.FilterDescendantsInstances = { getChar() }
+		local ok, parts = pcall(function()
+			return Workspace:GetPartBoundsInRadius(root.Position, dist, overlap)
+		end)
+		if ok and type(parts) == "table" then
+			for _, part in parts do
+				local current = part.Parent
+				while current and current ~= Workspace do
+					if current:IsA("Model") and current:FindFirstChildOfClass("Humanoid") then
+						addTarget(out, seen, current, root)
+						break
+					end
+					current = current.Parent
+				end
+			end
+		else
+			for _, npc in getPlr("npc") do
+				addTarget(out, seen, npc, root)
 			end
 		end
-
-		return out
+		state.targets = out
+		if state.cursor > #out then
+			state.cursor = 1
+		end
 	end
 
-	local function fireDamageTouch(damagePart, targetPart)
-		if not (damagePart and damagePart.Parent and canTouchPart(targetPart)) then
+	local function releaseTouches()
+		for _, pair in state.pending do
+			if pair[1] and pair[1].Parent and pair[2] and pair[2].Parent then
+				pcall(firetouchinterest, pair[1], pair[2], 1)
+			end
+		end
+		table.clear(state.pending)
+	end
+
+	local function beginTouch(damagePart, targetPart)
+		if not (damagePart and damagePart.Parent and targetPart and targetPart.Parent) then
 			return false
 		end
+		local touchOk, canTouch = pcall(function()
+			return targetPart.CanTouch
+		end)
+		if touchOk and canTouch == false then return false end
 		pcall(function()
-			if damagePart.CanTouch == false then
-				damagePart.CanTouch = true
-			end
+			if damagePart.CanTouch == false then damagePart.CanTouch = true end
 		end)
 		local ok = pcall(firetouchinterest, damagePart, targetPart, 0)
-		if not ok then
-			return false
+		if ok then
+			Insert(state.pending, { damagePart, targetPart })
 		end
-		Defer(function()
-			Wait()
-			if damagePart and damagePart.Parent and targetPart and targetPart.Parent then
-				pcall(firetouchinterest, damagePart, targetPart, 1)
-			end
-		end)
-		return true
+		return ok
 	end
 
-	local npcAuraAcc = 0
-	NAStuff.npcauraConn=NAlib.reconnect("npcaura_loop", RunService.Heartbeat:Connect(function(dt)
-		npcAuraAcc += tonumber(dt) or 0
-		local root=getRoot(getChar())
+	NAStuff.npcauraConn = NAlib.reconnect("npcaura_loop", RunService.Heartbeat:Connect(function(dt)
+		if NAStuff.npcauraState ~= state then return end
+		releaseTouches()
+		state.scanAcc += tonumber(dt) or 0
+		state.hitAcc += tonumber(dt) or 0
+
+		local root = getRoot(getChar())
 		if root and ((not NAStuff.npcauraViz) or (not NAStuff.npcauraViz.Parent) or NAStuff.npcauraViz.Adornee ~= root) then
 			if NAStuff.npcauraViz then NAStuff.npcauraViz:Destroy() end
 			NAStuff.npcauraViz = NAmanage.MakeAuraVisualizer("NA_NPCAuraRadius", Color3.fromRGB(255,85,0), dist)
 		end
-		if npcAuraAcc < 0.12 then return end
-		npcAuraAcc = 0
 		if not root then return end
-		local damagePart=getDamagePart()
-		if not damagePart then return end
 
-		for _,npc in getNearbyNPCs(root, dist) do
-			local char = getPlrChar(npc) or npc
-			if char and char.Parent then
-				local preferred = getFirstModelBasePart(char)
-				if preferred then
-					fireDamageTouch(damagePart, preferred)
-				end
-				for _,part in NAmanage.QueryDescendants(char, "BasePart") do
-					if part ~= preferred then
-						fireDamageTouch(damagePart, part)
+		if state.scanAcc >= state.scanInterval then
+			state.scanAcc = 0
+			refreshTargets(root)
+		end
+		if state.hitAcc < state.hitInterval then return end
+		state.hitAcc = 0
+
+		local damagePart = getDamagePart()
+		if not damagePart or #state.targets == 0 then return end
+
+		local processed = 0
+		local checked = 0
+		while processed < state.maxTargetsPerHit and checked < #state.targets do
+			if state.cursor > #state.targets then state.cursor = 1 end
+			local npc = state.targets[state.cursor]
+			state.cursor += 1
+			checked += 1
+			if npc and npc.Parent then
+				local humanoid = getPlrHum(npc)
+				local targetPart = getTargetPart(npc)
+				if humanoid and humanoid.Health > 0 and targetPart and targetPart.Parent and (targetPart.Position - root.Position).Magnitude <= dist then
+					if beginTouch(damagePart, targetPart) then
+						processed += 1
 					end
 				end
 			end
@@ -54290,10 +54477,9 @@ cmd.add({"npcaura"},{"npcaura [distance]","Continuously damages nearby NPCs with
 	end))
 	DebugNotif("NPCAura enabled at "..dist,1.2)
 end,true)
+
 cmd.add({"unnpcaura"},{"unnpcaura","Stops NPC aura loop and removes visualizer"},function()
-	if NAStuff.npcauraConn then NAStuff.npcauraConn:Disconnect() NAStuff.npcauraConn=nil end
-	NAlib.disconnect("npcaura_loop")
-	if NAStuff.npcauraViz then NAStuff.npcauraViz:Destroy() NAStuff.npcauraViz=nil end
+	NAmanage.StopNPCAura()
 	DebugNotif("NPCAura disabled",1.2)
 end,true)
 
@@ -57623,7 +57809,7 @@ cmd.add({"vehicleseat", "vseat"}, {"vehicleseat (vseat)", "Sits you in a vehicle
 	end
 end)
 cmd.add({"copytools","ctools"},{"copytools <player> (ctools)","Copies the tools the given player has"},function(...)
-	local targets = getPlr(...)
+	local targets = getPlr(NAmanage.PlayerQueryFromArgs(...))
 	local lp = Players.LocalPlayer
 	if not lp then return end
 	local backpack = lp:FindFirstChildOfClass("Backpack")
@@ -60634,16 +60820,11 @@ cmd.add({"decompiler"},{"decompiler","Allows you to decompile LocalScript/Module
 end)
 
 cmd.add({"getidfromusername","gidu"},{"getidfromusername (gidu)","Copy a user's UserId by Username"}, function(thingy)
-	local s,idd=NACaller(function()
-		return __lt.cm("Players", "GetUserIdFromNameAsync", tostring(thingy))
-	end)
-
-	if not s then return DoNotif("err: "..tostring(idd)) end
-
+	local idd, label = NAmanage.NAClientResolveUserId(thingy)
+	if not idd then return DoNotif("err: unable to resolve user") end
 	if not setclipboard then return DoNotif("no setclipboard") end
 	setclipboard(tostring(idd))
-
-	DebugNotif("Copied "..tostring(thingy).."'s UserId: "..tostring(idd))
+	DebugNotif("Copied "..tostring(label or thingy).."'s UserId: "..tostring(idd))
 end,true)
 
 cmd.add({"getuserfromid","guid"},{"getuserfromid (guid)","Copy a user's Username by ID"}, function(thingy)
@@ -60699,10 +60880,9 @@ cmd.add({"userid"},{"userid <id>","changes your UserId to any ID you enter"},fun
 		end
 		resolvedId = asNum
 	else
-		local uname = text:gsub("^@","")
-		local ok, uid = pcall(function() return __lt.cm("Players", "GetUserIdFromNameAsync", uname) end)
-		if not ok or not uid then
-			DebugNotif("invalid username",3)
+		local uid = NAmanage.NAClientResolveUserId(text)
+		if not uid then
+			DebugNotif("invalid username or player selector",3)
 			return nil
 		end
 		local ok2, _ = pcall(function() return __lt.cm("Players", "GetNameFromUserIdAsync", uid) end)
@@ -65981,7 +66161,7 @@ cmd.add({"admin","whitelist"},{"admin <player>","Whitelist the user to have acce
 	function ChatMessage(Message,Whisper)
 		NAlib.LocalPlayerChat(Message,Whisper or "All")
 	end
-	local Player=getPlr(...)
+	local Player=getPlr(NAmanage.PlayerQueryFromArgs(...))
 	for _, plr in next, Player do
 		if plr~=nil and not Admin[plr.UserId] then
 			Admin[plr.UserId]={plr=plr}
@@ -65998,7 +66178,7 @@ cmd.add({"unadmin"},{"unadmin <player>","removes someone from being admin"},func
 	function ChatMessage(Message,Whisper)
 		NAlib.LocalPlayerChat(Message,Whisper or "All")
 	end
-	local Player=getPlr(...)
+	local Player=getPlr(NAmanage.PlayerQueryFromArgs(...))
 	for _, plr in next, Player do
 		if plr~=nil and Admin[plr.UserId] then
 			Admin[plr.UserId]=nil
@@ -71206,34 +71386,21 @@ cmd.add({"fixcam", "fix"}, {"fixcam", "Fix your camera"}, function()
 	getHead(plr.Character).Anchored = false
 end)
 
-cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(plr)
+cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(...)
 	local Players = game:GetService("Players")
-	local LocalPlayer    = Players.LocalPlayer
-	local Character      = flingManager.GetPlayerCharacter(LocalPlayer) or LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-	local Humanoid       = getPlrHum(Character)
-	local RootPart       = Humanoid and Humanoid.RootPart or getRoot(Character)
+	local LocalPlayer = Players.LocalPlayer
+	local query = Concat({ ... }, " ")
+	if query == "" then
+		return DebugNotif("Player name or selector required", 3)
+	end
+	local Character = flingManager.GetPlayerCharacter(LocalPlayer) or LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+	local Humanoid = getPlrHum(Character)
+	local RootPart = Humanoid and Humanoid.RootPart or getRoot(Character)
 	if not RootPart then return end
 
-	local AllBool = false
-	local function GetPlayer(Name)
-		Name = Lower(Name)
-		if Name == "all" or Name == "others" then
-			AllBool = true
-			return
-		elseif Name == "random" then
-			local list = Players:GetPlayers()
-			if Discover(list, LocalPlayer) then
-				table.remove(list, Discover(list, LocalPlayer))
-			end
-			return list[math.random(#list)]
-		end
-		for _, x in next, Players:GetPlayers() do
-			if x ~= LocalPlayer then
-				if Sub(Lower(x.Name), 1, #Name) == Name or Sub(Lower(x.DisplayName), 1, #Name) == Name then
-					return x
-				end
-			end
-		end
+	local targets = getPlr(query)
+	if #targets == 0 then
+		return DebugNotif("No players matched: "..query, 3)
 	end
 
 	local flingManager       = flingManager
@@ -71382,19 +71549,9 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(plr)
 		end
 	end
 
-	local targets = {}
-	for _, name in next, {plr} do
-		local p = GetPlayer(name)
-		if p then Insert(targets, p) end
-	end
-
-	if AllBool then
-		for _, p in next, Players:GetPlayers() do
-			if p ~= LocalPlayer then SkidFling(p) end
-		end
-	else
-		for _, p in next, targets do
-			SkidFling(p)
+	for _, TargetPlayer in targets do
+		if typeof(TargetPlayer) == "Instance" and TargetPlayer:IsA("Player") and TargetPlayer ~= LocalPlayer then
+			SkidFling(TargetPlayer)
 		end
 	end
 end)
@@ -71553,6 +71710,8 @@ NAmanage._resolveHumanoidUserId=function(target)
 	if userId then return userId end
 	local name=tostring(target)
 	if name=="" then return nil end
+	local targets=getPlr(name)
+	if targets[1] then return targets[1].UserId end
 	local ok,id=pcall(Players.GetUserIdFromNameAsync,Players,name)
 	if ok and id then return id end
 	local data=NAmanage._avatarHttpJSON("POST","https://users.roblox.com/v1/usernames/users",{usernames={name},excludeBannedUsers=false})
@@ -72080,7 +72239,7 @@ cmd.add({"lookat", "stare"}, {"lookat <player|npc:filter>", "Stare at a player o
 			local root = tchar and getRoot(tchar)
 			if lp.Character and root then
 				stareFIXER(lp.Character, root.Position)
-			elseif typeof(plr) ~= "Instance" or not plr.Parent or (plr:IsA("Player") and not __lt.cm("Players", "FindFirstChild", plr.Name)) then
+			elseif typeof(plr) ~= "Instance" or not plr.Parent or (plr:IsA("Player") and plr.Parent ~= Players) then
 				NAlib.disconnect("stare_direct")
 			end
 		end
@@ -72100,23 +72259,8 @@ cmd.add({"starenear", "stareclosest"}, {"starenear (stareclosest)", "Stare at th
 	NAlib.disconnect("stare_nearest")
 
 	local function getClosest()
-		local lp = Players.LocalPlayer
-		local char = lp.Character
-		if not (char and getRoot(char)) then return nil end
-
-		local closest, dist = nil, math.huge
-		local pos = getRoot(char).Position
-		for _, p in __lt.cm("Players", "GetPlayers") do
-			if p ~= lp and p.Character and getRoot(p.Character) then
-				local pPos = getRoot(p.Character).Position
-				local d = (pPos - pos).Magnitude
-				if d < dist then
-					dist = d
-					closest = p
-				end
-			end
-		end
-		return closest
+		local targets = getPlr("nearest")
+		return targets[1]
 	end
 
 	local lp = Players.LocalPlayer
@@ -73401,10 +73545,10 @@ end)
 LOOPPROTECT = nil
 LOOPFLING_ID = LOOPFLING_ID or 0
 
-cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(plr)
-	local Targets = {plr}
-	if not Targets[1] then
-		return
+cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(...)
+	local query = Concat({ ... }, " ")
+	if query == "" then
+		return DebugNotif("Player name or selector required", 3)
 	end
 
 	local Players = game:GetService("Players")
@@ -73416,74 +73560,6 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 	LOOPFLING_ID += 1
 
 	local id = LOOPFLING_ID
-	local AllBool = false
-
-	local function clean()
-		if LOOPPROTECT then
-			pcall(function()
-				LOOPPROTECT:Destroy()
-			end)
-			LOOPPROTECT = nil
-		end
-	end
-
-	local function alive()
-		local ch = flingManager.GetPlayerCharacter(Player) or Player.Character
-		if not ch or not ch.Parent then
-			return
-		end
-
-		local hum = getPlrHum(ch)
-		local root = hum and hum.RootPart or getRoot(ch) or ch:FindFirstChild("HumanoidRootPart", true)
-
-		if not hum or not root or hum.Health <= 0 then
-			return
-		end
-
-		return ch, hum, root
-	end
-
-	local function waitAlive()
-		local ch, hum, root = alive()
-
-		while Loopvoid and id == LOOPFLING_ID and not ch do
-			Wait(0.1)
-			ch, hum, root = alive()
-		end
-
-		return ch, hum, root
-	end
-
-	local function startsWith(a, b)
-		a = Lower(tostring(a or ""))
-		b = Lower(tostring(b or ""))
-		return b ~= "" and Sub(a, 1, #b) == b
-	end
-
-	local function GetPlayer(Name)
-		Name = Lower(tostring(Name or ""))
-
-		if Name == "all" or Name == "others" then
-			AllBool = true
-			return
-		elseif Name == "random" then
-			local list = Players:GetPlayers()
-			local i = Discover(list, Player)
-			if i then
-				table.remove(list, i)
-			end
-			if #list > 0 then
-				return list[math.random(#list)]
-			end
-			return
-		end
-
-		for _, x in next, Players:GetPlayers() do
-			if x ~= Player and (startsWith(x.Name, Name) or startsWith(x.DisplayName, Name)) then
-				return x
-			end
-		end
-	end
 
 	local function SkidFling(TargetPlayer)
 		if not Loopvoid or id ~= LOOPFLING_ID or TargetPlayer == Player or TargetPlayer.Parent ~= Players then
@@ -73498,34 +73574,29 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(p
 	end
 	_na_env.Welcome = true
 
+	local targets = NAmanage.PersistentPlayerRefs(query)
+	if #targets == 0 then
+		Loopvoid = false
+		return DebugNotif("No targets found", 3)
+	end
+
 	while Loopvoid and id == LOOPFLING_ID do
-		AllBool = false
-
-		for _, x in next, Targets do
-			GetPlayer(x)
-		end
-
-		if AllBool then
-			for _, x in next, Players:GetPlayers() do
-				if x ~= Player then
-					pcall(SkidFling, x)
-				end
-			end
-		else
-			for _, x in next, Targets do
-				local TPlayer = GetPlayer(x)
-				if TPlayer and TPlayer ~= Player and TPlayer.UserId ~= 1414978355 then
-					pcall(SkidFling, TPlayer)
-				end
+		for _, ref in targets do
+			local TargetPlayer = NAmanage.ResolvePersistentPlayer(ref)
+			if typeof(TargetPlayer) == "Instance" and TargetPlayer:IsA("Player") and TargetPlayer ~= Player and TargetPlayer.UserId ~= 1414978355 then
+				pcall(SkidFling, TargetPlayer)
 			end
 		end
-
 		Wait(0.05)
 	end
 
-	clean()
+	if LOOPPROTECT then
+		pcall(function()
+			LOOPPROTECT:Destroy()
+		end)
+		LOOPPROTECT = nil
+	end
 end, true)
-
 cmd.add({"unloopfling"}, {"unloopfling", "Stops loop flinging a player"}, function()
 	Loopvoid = false
 	LOOPFLING_ID += 1
@@ -76282,7 +76353,7 @@ cmd.add({"headsit"}, {"headsit <player>", "sit on someone's head"}, function(p)
 		end
 
 		NAlib.connect("headsit_follow", RunService.PreSimulation:Connect(function()
-			if not __lt.cm("Players", "FindFirstChild", plr.Name)
+			if plr.Parent ~= Players
 				or not plr.Character
 				or not getHead(plr.Character)
 				or hum.Sit == false then
@@ -77066,7 +77137,7 @@ cmd.add({"headstand"}, {"headstand <player>", "Stand on someone's head."}, funct
 
 	NAlib.connect("headstand_follow", RunService.PreSimulation:Connect(function()
 		local plrCharacter = plr.Character
-		if __lt.cm("Players", "FindFirstChild", plr.Name) and plrCharacter and getRoot(plrCharacter) and getRoot(char) then
+		if plr.Parent == Players and plrCharacter and getRoot(plrCharacter) and getRoot(char) then
 			local charRoot = getRoot(char)
 			charRoot.CFrame = getRoot(plrCharacter).CFrame * CFrame.new(0, 4.6, 0.4)
 			for i, wall in walls do
@@ -77782,7 +77853,7 @@ cmd.add({"loopwaveat", "loopwat"}, {"loopwaveat <player> (loopwat)", "Wave to a 
 	end
 end, true)
 
-cmd.add({"unloopwaveat", "unloopwat"}, {"unloopwaveat <player> (unloopwat)", "Stops the loopwaveat command"}, function()
+cmd.add({"unloopwaveat", "unloopwat"}, {"unloopwaveat (unloopwat)", "Stops the loopwaveat command"}, function()
 	loopwave = false
 end)
 
@@ -78010,7 +78081,7 @@ cmd.add({"toolview", "tview"}, {"toolview <player> (tview)", "3D tool viewer abo
 	local firstArg = args[1]
 	local lowerFirst = type(firstArg) == "string" and Lower(firstArg)
 	local isGlobal = lowerFirst == "all" or lowerFirst == "others"
-	local targets = getPlr(Unpack(args))
+	local targets = getPlr(NAmanage.PlayerQueryFromArgs(Unpack(args)))
 	if #targets == 0 and not isGlobal then
 		DoNotif("No players found", 2)
 		return
@@ -78040,7 +78111,7 @@ cmd.add({"untoolview", "untview"}, {"untview <player> (untview)", "Removes the t
 	local args = {...}
 	local firstArg = args[1]
 	local lowerFirst = type(firstArg) == "string" and Lower(firstArg)
-	local targets = getPlr(Unpack(args))
+	local targets = getPlr(NAmanage.PlayerQueryFromArgs(Unpack(args)))
 	if #targets == 0 and not (lowerFirst == "all" or lowerFirst == "others") then
 		DoNotif("No players found", 2)
 		return
@@ -78452,7 +78523,7 @@ cmd.add({"headbang", "mouthbang", "headfuck", "mouthfuck", "facebang", "facefuck
 	bang = humanoid:LoadAnimation(bangAnim)
 	bang:Play(0.1, 1, 1)
 	bang:AdjustSpeed(speed)
-	local bangplr = plr and plr.Name or nil
+	local bangplr = NAmanage.NewPersistentPlayerRef(plr)
 	bangDied = NAmanage.ConnectHumanoidDeath(humanoid, function()
 		if bangLoop then
 			bangLoop:Disconnect()
@@ -78474,11 +78545,8 @@ cmd.add({"headbang", "mouthbang", "headfuck", "mouthfuck", "facebang", "facefuck
 	if bangplr then
 		bangLoop = NAlib.reconnect("headbang_loop", RunService.RenderStepped:Connect(function()
 			NACaller(function()
-				local targetPlayer = __lt.cm("Players", "FindFirstChild", bangplr)
-				if not targetPlayer or not targetPlayer.Character then
-					if bangLoop then bangLoop:Disconnect() NAlib.disconnect("headbang_loop") bangLoop = nil end
-					return
-				end
+				local targetPlayer = NAmanage.ResolvePersistentPlayer(bangplr)
+				if not targetPlayer or not targetPlayer.Character then return end
 				local targetCharacter = targetPlayer.Character
 				local localCharacter = getChar()
 				local localRoot = localCharacter and getRoot(localCharacter)
@@ -78523,6 +78591,7 @@ cmd.add({"jerkuser", "jorkuser", "handjob", "hjob", "handj"}, {"jerkuser <player
 	local players = getPlr(username)
 	if #players == 0 then return end
 	local plr = players[1]
+	local targetRef = NAmanage.NewPersistentPlayerRef(plr)
 
 	local char = getChar()
 	if not char then return end
@@ -78578,7 +78647,8 @@ cmd.add({"jerkuser", "jorkuser", "handjob", "hjob", "handj"}, {"jerkuser <player
 			for i, wall in walls do
 				jerkParts[i].CFrame = root.CFrame * wall.offset
 			end
-			local targetChar = plr.Character
+			local target = NAmanage.ResolvePersistentPlayer(targetRef)
+			local targetChar = target and target.Character
 			local targetRoot = targetChar and getRoot(targetChar)
 			if targetRoot then
 				NAmanage.UG_setRootCFrame(root, targetRoot.CFrame * jerkOffset)
@@ -78641,7 +78711,7 @@ cmd.add({"suck","dicksuck"},{"suck <player> <number>","suck it"},function(h,d)
 	local targets = getPlr(h)
 	if #targets == 0 then return end
 	local plr = targets[1]
-	local targetName = plr.Name
+	local targetRef = NAmanage.NewPersistentPlayerRef(plr)
 
 	suckANIM = InstanceNew("Animation")
 	if not IsR15(Players.LocalPlayer) then
@@ -78684,7 +78754,7 @@ cmd.add({"suck","dicksuck"},{"suck <player> <number>","suck it"},function(h,d)
 
 	suckLOOP = NAmanage.Wrap(function()
 		while true do
-			local targetPlayer = __lt.cm("Players", "FindFirstChild", targetName)
+			local targetPlayer = NAmanage.ResolvePersistentPlayer(targetRef)
 			local targetCharacter = targetPlayer and targetPlayer.Character
 			local localCharacter = getChar()
 			if targetCharacter and getRoot(targetCharacter) and localCharacter and getRoot(localCharacter) then
@@ -79829,7 +79899,7 @@ cmd.add({"bang", "fuck"}, {"bang <player> <number> (fuck)", "fucks the player by
 	doBang:Play(0.1, 1, 1)
 	doBang:AdjustSpeed(speed)
 
-	local bangplr = plr and plr.Name or nil
+	local bangplr = NAmanage.NewPersistentPlayerRef(plr)
 	bangDied = NAmanage.ConnectHumanoidDeath(hum, function()
 		if bangLoop then
 			bangLoop:Disconnect()
@@ -79849,11 +79919,8 @@ cmd.add({"bang", "fuck"}, {"bang <player> <number> (fuck)", "fucks the player by
 	if bangplr then
 		bangLoop = NAlib.reconnect("bang_loop", RunService.RenderStepped:Connect(function()
 			NACaller(function()
-				local targetPlayer = __lt.cm("Players", "FindFirstChild", bangplr)
-				if not targetPlayer or not targetPlayer.Character then
-					if bangLoop then bangLoop:Disconnect() NAlib.disconnect("bang_loop") bangLoop = nil end
-					return
-				end
+				local targetPlayer = NAmanage.ResolvePersistentPlayer(bangplr)
+				if not targetPlayer or not targetPlayer.Character then return end
 				local targetRoot = getRoot(targetPlayer.Character)
 				local localChar = getChar()
 				local localRoot = localChar and getRoot(localChar)
@@ -79948,6 +80015,7 @@ cmd.add({"carpet"}, {"carpet <player>", "Be someone's carpet"}, function(usernam
 	end
 
 	local targetPlayer = targets[1]
+	local targetRef = NAmanage.NewPersistentPlayerRef(targetPlayer)
 	local targetRoot = targetPlayer and targetPlayer.Character and getRoot(targetPlayer.Character)
 	if hasQuery and targetPlayer and not targetRoot then
 		return DoNotif("Target has no character or root.", 3)
@@ -79960,15 +80028,11 @@ cmd.add({"carpet"}, {"carpet <player>", "Be someone's carpet"}, function(usernam
 
 	carpetDied = NAmanage.ConnectHumanoidDeath(humanoid, originalIO.stopCarpet)
 	if targetPlayer and targetRoot then
-		local targetName = targetPlayer.Name
 		carpetLoop = NAlib.reconnect("carpet_loop", RunService.Heartbeat:Connect(function()
 			NACaller(function()
-				local tgt = __lt.cm("Players", "FindFirstChild", targetName)
-				local tgtChar = tgt and tgt.Character
-				if not tgtChar then
-					originalIO.stopCarpet()
-					return
-				end
+				local target = NAmanage.ResolvePersistentPlayer(targetRef)
+				local tgtChar = target and target.Character
+				if not tgtChar then return end
 				local tgtRoot = getRoot(tgtChar)
 				local localChar = getChar()
 				local localRoot = localChar and getRoot(localChar)
@@ -80086,7 +80150,7 @@ cmd.add({"inversebang","ibang","inverseb"},{"inversebang <player> <number>","you
 	if hasQuery and not plr then
 		DoNotif("No targets found", 2)
 	end
-	local bangplr = plr and plr.Name or nil
+	local bangplr = NAmanage.NewPersistentPlayerRef(plr)
 
 	inversebangAnim = InstanceNew("Animation")
 	local isR15 = IsR15(Players.LocalPlayer)
@@ -80117,13 +80181,10 @@ cmd.add({"inversebang","ibang","inverseb"},{"inversebang <player> <number>","you
 			if tick() - lastStep < 0.1 then return end
 			lastStep = tick()
 			NACaller(function()
-				local targetPlayer = __lt.cm("Players", "FindFirstChild", bangplr)
+				local targetPlayer = NAmanage.ResolvePersistentPlayer(bangplr)
 				local targetCharacter = targetPlayer and targetPlayer.Character
 				local localCharacter = getChar()
-				if not targetCharacter or not localCharacter then
-					stopInversebang()
-					return
-				end
+				if not targetCharacter or not localCharacter then return end
 
 				local targetHRP = getRoot(targetCharacter)
 				local localHRP = getRoot(localCharacter)
@@ -80449,12 +80510,15 @@ cmd.add({"glue","loopgoto","lgoto"},{"glue <player>","Loop teleport to a player"
 	local players = getPlr(input)
 	for _, p in next, players do
 		local name = p.Name
+		local ref = NAmanage.NewPersistentPlayerRef(p)
 		if glueloop[name] then glueloop[name]:Disconnect() end
 		NAlib.disconnect("glue_loop_"..name)
 		glueloop[name] = NAlib.reconnect("glue_loop_"..name, RunService.RenderStepped:Connect(function()
-			local target = __lt.cm("Players", "FindFirstChild", name)
-			if target and target.Character then
-				getRoot(getChar()).CFrame=getRoot(target.Character).CFrame
+			local target = NAmanage.ResolvePersistentPlayer(ref)
+			local localRoot = getRoot(getChar())
+			local targetRoot = target and target.Character and getRoot(target.Character)
+			if localRoot and targetRoot then
+				localRoot.CFrame = targetRoot.CFrame
 			end
 		end))
 	end
@@ -80472,15 +80536,19 @@ cmd.add({"glueback","loopbehind","lbehind"},{"glueback <player>","Loop teleport 
 	local targets = getPlr(input)
 	for _,target in next,targets do
 		local name = target.Name
+		local ref = NAmanage.NewPersistentPlayerRef(target)
 		if glueBACKER[name] then
 			glueBACKER[name]:Disconnect()
 			glueBACKER[name] = nil
 		end
 		NAlib.disconnect("glueback_loop_"..name)
 		glueBACKER[name] = NAlib.reconnect("glueback_loop_"..name, RunService.RenderStepped:Connect(function()
-			local tp = __lt.cm("Players", "FindFirstChild", name)
-			if not tp or not tp.Character then return end
-			getRoot(getChar()).CFrame=getRoot(tp.Character).CFrame*CFrame.new(0,0,3)
+			local player = NAmanage.ResolvePersistentPlayer(ref)
+			local localRoot = getRoot(getChar())
+			local targetRoot = player and player.Character and getRoot(player.Character)
+			if localRoot and targetRoot then
+				localRoot.CFrame = targetRoot.CFrame * CFrame.new(0,0,3)
+			end
 		end))
 	end
 end,true)
@@ -80515,16 +80583,13 @@ loopspook = false
 
 cmd.add({"loopspook","loopscare"},{"loopspook <player>","Teleports next to a player repeatedly"},function(...)
 	local input = (...)
-	local names = {}
-	for _, p in getPlr(input) do
-		names[#names+1] = p.Name
-	end
+	local targets = NAmanage.PersistentPlayerRefs(input)
 	loopspook = true
 
 	SpawnCall(function()
 		while loopspook do
-			for _, name in names do
-				local target = __lt.cm("Players", "FindFirstChild", name)
+			for _, ref in targets do
+				local target = NAmanage.ResolvePersistentPlayer(ref)
 				if target and getPlrHum(target) then
 					local lc = getChar()
 					local lr = getRoot(lc)
@@ -81213,7 +81278,7 @@ cmd.add({"unloopmute", "unloopmuteboombox"}, {"unloopmute <player> (unloopmutebo
 end, true)
 
 cmd.add({"getmass"}, {"getmass <player>", "Get your mass"}, function(...)
-	local target = getPlr(...)
+	local target = getPlr(NAmanage.PlayerQueryFromArgs(...))
 	for _, plr in next, target do
 		local char = plr.Character or getPlrChar(plr)
 		if char then
@@ -81234,7 +81299,7 @@ cmd.add({"copyposition", "copypos", "cpos"}, {"copyposition <player>", "Get the 
 	if #args == 0 then
 		targetList = {Players and Players.LocalPlayer}
 	else
-		targetList = getPlr(...)
+		targetList = getPlr(NAmanage.PlayerQueryFromArgs(...))
 	end
 
 	local plr = targetList and targetList[1]
@@ -81295,7 +81360,8 @@ cmd.add({"clearnilinstances", "nonilinstances", "cni"},{"clearnilinstances (noni
 end)
 
 cmd.add({"inspect"}, {"inspect", "checks a user's items"}, function(args)
-	local targetPlayers = getPlr(args)
+	local query = type(args) == "table" and NAmanage.PlayerQueryFromArgs(Unpack(args)) or tostring(args or "")
+	local targetPlayers = getPlr(query)
 
 	if targetPlayers and #targetPlayers > 0 then
 		for _, plr in next, targetPlayers do
@@ -81303,7 +81369,12 @@ cmd.add({"inspect"}, {"inspect", "checks a user's items"}, function(args)
 			__lt.cm("GuiService", "InspectPlayerFromUserId", plr.UserId)
 		end
 	else
-		__lt.cm("GuiService", "InspectPlayerFromUserId", __lt.cm("Players", "GetUserIdFromNameAsync", args))
+		local userId = NAmanage.NAClientResolveUserId(query)
+		if userId then
+			__lt.cm("GuiService", "InspectPlayerFromUserId", userId)
+		else
+			DebugNotif("No matching player or user found", 3)
+		end
 	end
 end, true)
 
@@ -87998,7 +88069,7 @@ cmd.add({"punch"},{"punch","punch tool that flings"},function()
 end)
 
 cmd.add({"tpua","bringua"},{"tpua <player>","Brings every unanchored part on the map to the player"},function(...)
-	local targets=getPlr(...)
+	local targets=getPlr(NAmanage.PlayerQueryFromArgs(...))
 	local targetPlayer=targets[1]
 	if not targetPlayer then targetPlayer=LocalPlayer end
 
@@ -123805,7 +123876,8 @@ originalIO.binderResolvePlayerFromValue=function(value)
 			return plr
 		end
 	elseif type(value) == "string" then
-		return __lt.cm("Players", "FindFirstChild", value)
+		local targets = NAmanage.getPlr and NAmanage.getPlr("exactuser:"..value) or {}
+		return targets[1]
 	end
 	return nil
 end
@@ -123818,7 +123890,8 @@ originalIO.binderFindPlayerInTag=function(tag)
 		return originalIO.binderResolvePlayerFromValue(tag.Value)
 	end
 	if tag:IsA("StringValue") then
-		return __lt.cm("Players", "FindFirstChild", tag.Value)
+		local targets = NAmanage.getPlr and NAmanage.getPlr("exactuser:"..tag.Value) or {}
+		return targets[1]
 	end
 	if tag:IsA("IntValue") or tag:IsA("NumberValue") then
 		local ok, plr = pcall(function()
