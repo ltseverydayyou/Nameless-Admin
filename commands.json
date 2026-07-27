@@ -5303,8 +5303,8 @@
         "unloopwaveat",
         "unloopwat"
       ],
-      "usage": "unloopwaveat <player> (unloopwat)",
-      "args": "<player>",
+      "usage": "unloopwaveat (unloopwat)",
+      "args": "",
       "desc": "Stops the loopwaveat command"
     },
     {
