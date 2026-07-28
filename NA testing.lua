@@ -71305,12 +71305,27 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(...)
 	if query == "" then
 		return DebugNotif("Player name or selector required", 3)
 	end
+	const LocalUserId = tonumber(LocalPlayer.UserId)
+	const function IsLocalTarget(TargetPlayer)
+		if TargetPlayer == LocalPlayer then
+			return true
+		end
+		return typeof(TargetPlayer) == "Instance"
+			and TargetPlayer:IsA("Player")
+			and tonumber(TargetPlayer.UserId) == LocalUserId
+	end
+
 	const Character = flingManager.GetPlayerCharacter(LocalPlayer) or LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 	const Humanoid = getPlrHum(Character)
 	const RootPart = Humanoid and Humanoid.RootPart or getRoot(Character)
 	if not RootPart then return end
 
-	const targets = getPlr(query)
+	const targets = {}
+	for _, TargetPlayer in getPlr(query) do
+		if typeof(TargetPlayer) == "Instance" and TargetPlayer:IsA("Player") and not IsLocalTarget(TargetPlayer) then
+			Insert(targets, TargetPlayer)
+		end
+	end
 	if #targets == 0 then
 		return DebugNotif("No players matched: "..query, 3)
 	end
@@ -71319,6 +71334,10 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(...)
 	const OrgDestroyHeight   = Workspace.FallenPartsDestroyHeight
 
 	const function SkidFling(TargetPlayer)
+		if IsLocalTarget(TargetPlayer) then
+			return
+		end
+
 		const Character = flingManager.GetPlayerCharacter(LocalPlayer) or LocalPlayer.Character
 		const Humanoid  = getPlrHum(Character)
 		const RootPart  = Humanoid and Humanoid.RootPart or getRoot(Character)
@@ -71462,7 +71481,7 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(...)
 	end
 
 	for _, TargetPlayer in targets do
-		if typeof(TargetPlayer) == "Instance" and TargetPlayer:IsA("Player") and TargetPlayer ~= LocalPlayer then
+		if typeof(TargetPlayer) == "Instance" and TargetPlayer:IsA("Player") and not IsLocalTarget(TargetPlayer) then
 			SkidFling(TargetPlayer)
 		end
 	end
@@ -73465,6 +73484,15 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(.
 
 	const Players = game:GetService("Players")
 	const Player = Players.LocalPlayer
+	const LocalUserId = tonumber(Player.UserId)
+	const function IsLocalTarget(TargetPlayer)
+		if TargetPlayer == Player then
+			return true
+		end
+		return typeof(TargetPlayer) == "Instance"
+			and TargetPlayer:IsA("Player")
+			and tonumber(TargetPlayer.UserId) == LocalUserId
+	end
 
 	Loopvoid = false
 	Wait()
@@ -73474,7 +73502,7 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(.
 	const id = LOOPFLING_ID
 
 	const function SkidFling(TargetPlayer)
-		if not Loopvoid or id ~= LOOPFLING_ID or TargetPlayer == Player or TargetPlayer.Parent ~= Players then
+		if not Loopvoid or id ~= LOOPFLING_ID or IsLocalTarget(TargetPlayer) or TargetPlayer.Parent ~= Players then
 			return
 		end
 
@@ -73486,7 +73514,12 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(.
 	end
 	_na_env.Welcome = true
 
-	const targets = NAmanage.PersistentPlayerRefs(query)
+	const targets = {}
+	for _, ref in NAmanage.PersistentPlayerRefs(query) do
+		if tonumber(ref.UserId) ~= LocalUserId then
+			Insert(targets, ref)
+		end
+	end
 	if #targets == 0 then
 		Loopvoid = false
 		return DebugNotif("No targets found", 3)
@@ -73495,7 +73528,7 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(.
 	while Loopvoid and id == LOOPFLING_ID do
 		for _, ref in targets do
 			const TargetPlayer = NAmanage.ResolvePersistentPlayer(ref)
-			if typeof(TargetPlayer) == "Instance" and TargetPlayer:IsA("Player") and TargetPlayer ~= Player and TargetPlayer.UserId ~= 1414978355 then
+			if typeof(TargetPlayer) == "Instance" and TargetPlayer:IsA("Player") and not IsLocalTarget(TargetPlayer) and TargetPlayer.UserId ~= 1414978355 then
 				pcall(SkidFling, TargetPlayer)
 			end
 		end
