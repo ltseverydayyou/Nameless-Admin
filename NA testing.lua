@@ -60125,91 +60125,43 @@ cmd.add({"unhamster"}, {"unhamster", "Disable hamster ball"}, function()
 end, true)
 
 NAStuff.antiAFKStored = NAStuff.antiAFKStored or {}
+NAStuff.antiAFKVIM = NAStuff.antiAFKVIM or nil
 
 cmd.add({"antiafk","noafk"},{"antiafk (noafk)","Prevents you from being kicked for being AFK"},function()
 	if NAlib.isConnected("antiAFK") or NAlib.isConnected("antiAFK_scan") then
 		return DebugNotif("Anti AFK is already enabled")
 	end
 
-	-- local GETCONS = getconnections or get_signal_cons or (syn and syn.getconnections)
+	local antiAFKPlayers = game:GetService("Players")
+	local created, antiAFKVIM = pcall(function()
+		return Instance.new("VirtualInputManager")
+	end)
+	if not created or not antiAFKVIM then
+		return DebugNotif("Anti AFK failed: VirtualInputManager unavailable")
+	end
+
 	local rng = Random.new()
 	local KEY = Enum.KeyCode.F15
 
 	local function antiAFKHandler()
-		local VIM = SafeGetService("VirtualInputManager")
-		if not VIM then
-			return
-		end
-		__lt.cm("VirtualInputManager", "SendKeyEvent", true, KEY, false, game)
-		Wait(rng:NextNumber(0.04, 0.08))
-		__lt.cm("VirtualInputManager", "SendKeyEvent", false, KEY, false, game)
-		Wait(rng:NextNumber(55, 75))
+		pcall(function()
+			antiAFKVIM:SendKeyEvent(true, KEY, false, game)
+			Wait(rng:NextNumber(0.04, 0.08))
+			antiAFKVIM:SendKeyEvent(false, KEY, false, game)
+		end)
 	end
 
-	local lp = Players and Players.LocalPlayer
+	local lp = antiAFKPlayers.LocalPlayer
 	if not lp then
+		pcall(function()
+			antiAFKVIM:Destroy()
+		end)
 		return DebugNotif("Anti AFK failed: LocalPlayer missing")
 	end
 
-	--[[
-	if GETCONS then
-		NAStuff.antiAFKStored = {}
-		local ok, conns = pcall(GETCONS, lp.Idled)
-		local changed = 0
-		if ok and type(conns) == "table" then
-			for _, c in conns do
-				if c then
-					local hasDisable = false
-					local wasEnabled = true
-					local s, enabled = pcall(function()
-						return c.Enabled
-					end)
-					if s then
-						wasEnabled = enabled
-					end
-					if c.Disable then
-						Insert(NAStuff.antiAFKStored, {
-							conn = c,
-							enabled = wasEnabled
-						})
-						local dOk = pcall(function()
-							c:Disable()
-						end)
-						if dOk then
-							changed += 1
-						end
-						hasDisable = true
-					end
-					if not hasDisable and c.Disconnect then
-						local dcOk = pcall(function()
-							c:Disconnect()
-						end)
-						if dcOk then
-							changed += 1
-						end
-					end
-				end
-			end
-		end
-		if changed > 0 then
-			NAlib.connect("antiAFK", {
-				Connected = true,
-				Disconnect = function(self)
-					self.Connected = false
-				end,
-			})
-			DebugNotif("Anti AFK enabled")
-		else
-			NAStuff.antiAFKStored = {}
-			DebugNotif("Anti AFK failed: no Idled connections modified")
-		end
-	else
-	]]
-		local myConn = lp.Idled:Connect(antiAFKHandler)
-		NAlib.connect("antiAFK", myConn)
-		SpawnCall(antiAFKHandler)
-		DebugNotif("Anti AFK enabled")
-	-- end
+	NAStuff.antiAFKVIM = antiAFKVIM
+	NAlib.connect("antiAFK", lp.Idled:Connect(antiAFKHandler))
+	DebugNotif("Anti AFK enabled")
 end)
 
 cmd.add({"unantiafk","unnoafk"},{"unantiafk (unnoafk)","Allows you to be kicked for being AFK"},function()
@@ -60220,6 +60172,14 @@ cmd.add({"unantiafk","unnoafk"},{"unantiafk (unnoafk)","Allows you to be kicked 
 	end
 	if NAlib.isConnected("antiAFK_scan") then
 		NAlib.disconnect("antiAFK_scan")
+		was = true
+	end
+
+	if NAStuff.antiAFKVIM then
+		pcall(function()
+			NAStuff.antiAFKVIM:Destroy()
+		end)
+		NAStuff.antiAFKVIM = nil
 		was = true
 	end
 
