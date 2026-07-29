@@ -82542,7 +82542,7 @@ cmd.add({"remotespy","simplespy","rspy"},{"remotespy (simplespy,rspy)","executes
 end)
 
 cmd.add({"cobaltspy","cobalt","cspy"},{"cobaltspy (cobalt,cspy)"},function()
-	NAmanage.RunURL("https://github.com/notpoiu/cobalt/releases/latest/download/Cobalt.luau")
+	NAmanage.RunURL("https://gitlab.com/upio/cobalt/-/releases/permalink/latest/downloads/Cobalt.luau")
 end)
 
 cmd.add({"turtlespy","tspy"},{"turtlespy (tspy)","executes Turtle Spy that supports both pc and mobile"},function()
