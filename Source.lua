@@ -1,40 +1,28 @@
 --!nonstrict
 -- © 2026 Nameless Admin. All rights reserved. Do not copy, paste, redistribute, or claim as your own.
 
-const _na_boot = {}
-_na_boot.hostEnv = _G or {}
-if type(getgenv) == "function" then
-	pcall(function()
-		const env = getgenv()
-		if type(env) == "table" then
-			_na_boot.hostEnv = env
-		end
-	end)
-end
-_na_boot.loadLuau = function(source, chunkName)
-	if type(loadstring) ~= "function" then
-		return nil, "loadstring unavailable; this Luau executor cannot compile dynamic chunks"
-	end
-	return loadstring(source, chunkName)
-end
-_na_boot.applyEnv = function(fn, env)
-	if type(fn) ~= "function" or type(env) ~= "table" then
-		return true
-	end
-	if type(setfenv) ~= "function" then
-		return false, "setfenv unavailable"
-	end
-	return pcall(setfenv, fn, env)
-end
-_na_boot.getFunctionEnv = function(target)
-	if type(getfenv) ~= "function" then
-		return nil
-	end
-	local ok, env = pcall(getfenv, target)
-	return (ok and type(env) == "table") and env or nil
-end
+const _na_boot = {
+	hostEnv = (getgenv and getgenv()) or _G or {},
+}
+_na_boot.hostGetfenv = type(_na_boot.hostEnv.getfenv) == "function" and _na_boot.hostEnv.getfenv or getfenv
+_na_boot.hostSetfenv = type(_na_boot.hostEnv.setfenv) == "function" and _na_boot.hostEnv.setfenv or setfenv
+_na_boot.debug = rawget(_na_boot.hostEnv, "debug") or debug
 _na_boot.getPrivateRegistry = function()
-	return _na_boot.hostEnv
+	local registry
+	if type(getreg) == "function" then
+		pcall(function()
+			registry = getreg()
+		end)
+	end
+	if type(registry) ~= "table" and type(_na_boot.debug) == "table" and type(_na_boot.debug.getregistry) == "function" then
+		pcall(function()
+			registry = _na_boot.debug.getregistry()
+		end)
+	end
+	if type(registry) ~= "table" then
+		registry = _na_boot.hostEnv
+	end
+	return registry
 end
 _na_boot.ensureTable = function(host, key)
 	local value = type(host) == "table" and rawget(host, key) or nil
@@ -55,173 +43,6 @@ const _na_env = _na_boot.ensureTable(_na_boot.privateRoot, "testing")
 const _na_shared = _na_boot.ensureTable(_na_env, "shared")
 _na_boot.runtimeEnv = _na_boot.ensureTable(_na_env, "runtime")
 
-_na_boot.uiMarkerNames = {
-	"CmdBar",
-	"Commands",
-	"setsettings",
-	"ChatLogs",
-	"soRealConsole",
-	"SuchWaypoint",
-	"binders",
-	"Executor",
-	"Notepad",
-	"Plugins",
-	"MusicPlayer",
-	"NA InfoTab",
-}
-
-_na_boot.isLiveInstance = function(value, className)
-	if typeof(value) ~= "Instance" then
-		return false
-	end
-	local ok, live = pcall(function()
-		if className and not value:IsA(className) then
-			return false
-		end
-		return value.Parent ~= nil
-	end)
-	return ok and live == true
-end
-
-_na_boot.setUIAttr = function(gui, key, value)
-	if typeof(gui) == "Instance" and gui.SetAttribute then
-		pcall(function()
-			gui:SetAttribute(key, value)
-		end)
-	end
-end
-
-_na_boot.markOwnedUI = function(gui)
-	if not _na_boot.isLiveInstance(gui, "ScreenGui") then
-		return false
-	end
-	_na_boot.setUIAttr(gui, "NamelessAdminOwnedUI", true)
-	return true
-end
-
-_na_boot.rememberMainUIRoot = function(gui)
-	if not _na_boot.markOwnedUI(gui) then
-		return false
-	end
-	_na_boot.setUIAttr(gui, "NamelessAdminUI", true)
-	_na_boot.setUIAttr(gui, "NamelessAdminUIRoot", true)
-	_na_boot.setUIAttr(gui, "NA_UI_ROOT", true)
-	for _, target in { _na_env, _na_shared, _na_boot.runtimeEnv, _na_boot.hostEnv } do
-		if type(target) == "table" then
-			pcall(function()
-				target.NA_UI_INSTANCE = gui
-				target.NA_RAW_UI = gui
-			end)
-		end
-	end
-	return true
-end
-
-_na_boot.uiRootScore = function(root, includeOwned)
-	if not _na_boot.isLiveInstance(root, "ScreenGui") then
-		return 0
-	end
-	local tagged = false
-	pcall(function()
-		tagged = root:GetAttribute("NamelessAdminUI") == true
-			or root:GetAttribute("NamelessAdminUIRoot") == true
-			or root:GetAttribute("NA_UI_ROOT") == true
-			or (includeOwned == true and root:GetAttribute("NamelessAdminOwnedUI") == true)
-	end)
-	if tagged then
-		return 100
-	end
-	local score = 0
-	for i = 1, #_na_boot.uiMarkerNames do
-		local found
-		pcall(function()
-			found = root:FindFirstChild(_na_boot.uiMarkerNames[i], true)
-		end)
-		if found then
-			if _na_boot.uiMarkerNames[i] == "NA InfoTab" then
-				return 2
-			end
-			score += 1
-			if score >= 2 then
-				return score
-			end
-		end
-	end
-	return score
-end
-
-_na_boot.collectUIRoots = function(includeOwned)
-	const roots = {}
-	const seen = setmetatable({}, { __mode = "k" })
-	const function add(root)
-		if _na_boot.isLiveInstance(root, "ScreenGui") and not seen[root] then
-			seen[root] = true
-			roots[#roots + 1] = root
-		end
-	end
-	for _, target in { _na_env, _na_shared, _na_boot.runtimeEnv, _na_boot.hostEnv } do
-		if type(target) == "table" then
-			add(rawget(target, "NA_UI_INSTANCE"))
-			add(rawget(target, "NA_RAW_UI"))
-			add(rawget(target, "NASCREENGUI"))
-		end
-	end
-	local parents = {}
-	pcall(function()
-		parents[#parents + 1] = game:GetService("CoreGui")
-	end)
-	pcall(function()
-		const player = game:GetService("Players").LocalPlayer
-		if player then
-			parents[#parents + 1] = player:FindFirstChildOfClass("PlayerGui")
-		end
-	end)
-	for i = 1, #parents do
-		const parent = parents[i]
-		if typeof(parent) == "Instance" then
-			local children = {}
-			pcall(function()
-				children = parent:GetChildren()
-			end)
-			for j = 1, #children do
-				const child = children[j]
-				if _na_boot.uiRootScore(child, includeOwned) >= 2 then
-					add(child)
-				end
-			end
-			local descendants = {}
-			pcall(function()
-				descendants = parent:GetDescendants()
-			end)
-			for j = 1, #descendants do
-				const child = descendants[j]
-				if _na_boot.uiRootScore(child, includeOwned) >= 2 then
-					add(child)
-				end
-			end
-		end
-	end
-	return roots
-end
-
-_na_boot.destroyUIRootsExcept = function(keep, includeOwned)
-	local destroyed = 0
-	const roots = _na_boot.collectUIRoots(includeOwned)
-	for i = 1, #roots do
-		const root = roots[i]
-		if root ~= keep then
-			local ok = pcall(function()
-				root.Enabled = false
-				root:Destroy()
-			end)
-			if ok then
-				destroyed += 1
-			end
-		end
-	end
-	return destroyed
-end
-
 _na_boot.runtimeEnv.shared = _na_shared
 _na_boot.runtimeEnv._G = _na_boot.runtimeEnv
 _na_boot.runtimeEnv.getgenv = function()
@@ -231,7 +52,10 @@ _na_boot.runtimeEnv.getfenv = function(target)
 	if target == nil or target == 0 then
 		return _na_boot.runtimeEnv
 	end
-	return _na_boot.getFunctionEnv(target) or _na_boot.runtimeEnv
+	if type(_na_boot.hostGetfenv) == "function" then
+		return _na_boot.hostGetfenv(target)
+	end
+	return _na_boot.runtimeEnv
 end
 
 setmetatable(_na_boot.runtimeEnv, {
@@ -249,47 +73,17 @@ setmetatable(_na_boot.runtimeEnv, {
 	end
 })
 
+if type(_na_boot.hostSetfenv) == "function" then
+	pcall(_na_boot.hostSetfenv, 1, _na_boot.runtimeEnv)
+end
+
 const function naAlreadyLoaded()
-	const function hasRuntimeFlag(target)
-		return type(target) == "table"
-			and (rawget(target, "ltseverydayyou_NA") ~= nil or rawget(target, "NA_LOADED") ~= nil)
-	end
-	local rememberedRoot
-	for _, target in { _na_env, _na_shared, _na_boot.runtimeEnv, _na_boot.hostEnv } do
-		if type(target) == "table" then
-			rememberedRoot = rememberedRoot
-				or rawget(target, "NA_UI_INSTANCE")
-				or rawget(target, "NA_RAW_UI")
-				or rawget(target, "NASCREENGUI")
-		end
-	end
-	if not _na_boot.isLiveInstance(rememberedRoot, "ScreenGui") then
-		rememberedRoot = nil
-		const roots = _na_boot.collectUIRoots(false)
-		if #roots > 0 then
-			rememberedRoot = roots[1]
-		end
-	end
-	if rememberedRoot then
-		_na_boot.rememberMainUIRoot(rememberedRoot)
-	end
-	if hasRuntimeFlag(_na_env) then
-		_na_boot.destroyUIRootsExcept(rememberedRoot, false)
+	if _na_env and (_na_env.ltseverydayyou_NA or _na_env.NA_LOADED) then
 		return true
 	end
-	if hasRuntimeFlag(_na_shared) then
-		_na_boot.destroyUIRootsExcept(rememberedRoot, false)
+	if _na_shared and (_na_shared.ltseverydayyou_NA or _na_shared.NA_LOADED) then
 		return true
 	end
-	if hasRuntimeFlag(_na_boot.runtimeEnv) then
-		_na_boot.destroyUIRootsExcept(rememberedRoot, false)
-		return true
-	end
-	if hasRuntimeFlag(_na_boot.hostEnv) then
-		_na_boot.destroyUIRootsExcept(rememberedRoot, false)
-		return true
-	end
-	_na_boot.destroyUIRootsExcept(nil, false)
 	return false
 end
 
@@ -484,7 +278,6 @@ _na_boot.syncRuntimeGlobals = function(values)
 	for _, target in { _na_env, _na_shared, _na_boot.runtimeEnv, _na_boot.hostEnv } do
 		if type(target) == "table" then
 			for key, value in values do
-				pcall(rawset, target, key, value)
 				pcall(function()
 					target[key] = value
 				end)
@@ -664,9 +457,13 @@ const __lt = (function()
 	if type(cached) == "table" then
 		return cached;
 	end;
-	local resolver, resolverErr = _na_boot.loadLuau(_na_boot.httpGet("https://ltseverydayyou.github.io/ServiceResolver.luau"), "@ServiceResolver.luau");
+	const loader = loadstring or load;
+	if type(loader) ~= "function" then
+		error("Service resolver loader unavailable");
+	end;
+	const resolver = loader(_na_boot.httpGet("https://ltseverydayyou.github.io/ServiceResolver.luau"), "@ServiceResolver.luau");
 	if type(resolver) ~= "function" then
-		error("Service resolver failed to compile: "..tostring(resolverErr));
+		error("Service resolver failed to compile");
 	end;
 	const loaded = resolver();
 	if type(loaded) ~= "table" then
@@ -694,9 +491,13 @@ const __NAUIProtector = (function()
 			end
 		end)
 	end
-	local protector, protectorErr = _na_boot.loadLuau(_na_boot.httpGet("https://ltseverydayyou.github.io/UIprotector.luau"), "@UIprotector.luau");
+	const loader = loadstring or load;
+	if type(loader) ~= "function" then
+		error("UI protector loader unavailable");
+	end;
+	const protector = loader(_na_boot.httpGet("https://ltseverydayyou.github.io/UIprotector.luau"), "@UIprotector.luau");
 	if type(protector) ~= "function" then
-		error("UI protector failed to compile: "..tostring(protectorErr));
+		error("UI protector failed to compile");
 	end;
 	const loaded = protector();
 	if type(loaded) ~= "table" then
@@ -1893,14 +1694,13 @@ local NAStuff = {
 	CmdBar2AutoRun = false;
 	CmdInputSafeMode = true;
 	HideCmdAutofill = false;
-	CmdIntegrationDisabled = true;
-	CmdIntegrationAutoRun = false;
-	CmdIntegrationLoaded = false;
-	CmdIntegrationLastSource = nil;
-	CmdIntegrationRoutingMode = "NA First";
-	CmdIntegrationExposeGateway = false;
-	CmdIntegrationUseNotifications = false;
-	CmdIntegrationMirrorNotifications = false;
+--	CmdIntegrationAutoRun = false;
+--	CmdIntegrationLoaded = false;
+--	CmdIntegrationLastSource = nil;
+--	CmdIntegrationRoutingMode = "NA First";
+--	CmdIntegrationExposeGateway = true;
+--	CmdIntegrationUseNotifications = true;
+--	CmdIntegrationMirrorNotifications = false;
 	cmdAutofillLoading = false;
 	cmdAutofillLoadRequested = false;
 	uiBootHidden = false;
@@ -2757,7 +2557,6 @@ NAmanage.NARegisterUI=function(gui)
 
 	NAStuff.NASCREENGUI = gui
 	NAStuff.uiBootHidden = true
-	pcall(_na_boot.rememberMainUIRoot, gui)
 
 	pcall(function()
 		gui.Enabled = false
@@ -8472,8 +8271,8 @@ opt={
 	loader='';
 	NAUILOADER='';
 	NAAUTOSCALER=nil;
-	cmdIntegrationUrl = nil;
-	cmdIntegrationFallbackUrl = nil;
+--	cmdIntegrationUrl = "https://raw.githubusercontent.com/lxte/cmd/main/main.lua";
+--	cmdIntegrationFallbackUrl = "https://raw.githubusercontent.com/lxte/cmd/main/testing-main.lua";
 	NAREQUEST = nil;
 	queueteleport=(syn and syn.queue_on_teleport) or queue_on_teleport or (fluxus and fluxus.queue_on_teleport) or function() end;
 	hiddenprop=(sethiddenproperty or set_hidden_property or set_hidden_prop) or function() end;
@@ -9209,829 +9008,810 @@ Defer(function()
 	NAmanage.btUpdate()
 end)
 
-NAmanage.CmdIntegrationModes = NAmanage.CmdIntegrationModes or { "NA First", "Cmd First", "Explicit Only" }
-
-NAmanage.CmdIntegrationNormalizeMode = function(value)
-	value = tostring(value or "NA First")
-	for _, mode in NAmanage.CmdIntegrationModes do
-		if Lower(mode) == Lower(value) then
-			return mode
-		end
-	end
-	return "NA First"
-end
-
-NAmanage.CmdIntegrationGetMethod = function(bridge, names)
-	if type(bridge) ~= "table" then
-		return nil
-	end
-	for _, name in names do
-		const callback = bridge[name]
-		if type(callback) == "function" then
-			return callback
-		end
-	end
-	return nil
-end
-
-NAmanage.CmdIntegrationFindExistingBridge = function()
-	if NAStuff.CmdIntegrationDisabled == true then
-		return nil
-	end
-	for _, target in { _na_env, _na_shared, _na_boot.runtimeEnv, _na_boot.hostEnv } do
-		if type(target) == "table" then
-			const bridge = rawget(target, "CmdIntegration") or rawget(target, "CmdBridge") or rawget(target, "CmdIntegrationBridge")
-			if type(bridge) == "table" then
-				return bridge
-			end
-		end
-	end
-	return nil
-end
-
-NAmanage.CmdIntegrationDisconnectSubscriptions = function()
-	const subscriptions = NAStuff.CmdIntegrationSubscriptions
-	if type(subscriptions) == "table" then
-		for key, subscription in subscriptions do
-			if type(subscription) == "function" then
-				pcall(subscription)
-			elseif type(subscription) == "table" and type(subscription.Disconnect) == "function" then
-				pcall(subscription.Disconnect, subscription)
-			elseif typeof(subscription) == "RBXScriptConnection" then
-				pcall(function()
-					subscription:Disconnect()
-				end)
-			end
-			subscriptions[key] = nil
-		end
-	end
-	NAStuff.CmdIntegrationSubscriptions = {}
-end
-
-NAmanage.CmdIntegrationRefresh = function(opts)
-	opts = opts or {}
-	if NAStuff.CmdIntegrationDisabled == true then
-		NAStuff.CmdIntegrationCommands = nil
-		NAStuff.CmdIntegrationCommandSet = nil
-		return false, "cmd-integration-disabled"
-	end
-	const bridge = opts.bridge or NAStuff.CmdIntegrationBridge
-	if type(bridge) ~= "table" then
-		NAStuff.CmdIntegrationCommands = nil
-		NAStuff.CmdIntegrationCommandSet = nil
-		if type(NAmanage.invalidateCommandBuild) == "function" then
-			NAmanage.invalidateCommandBuild()
-		end
-		return false, "bridge-unavailable"
-	end
-
-	const listMethod = NAmanage.CmdIntegrationGetMethod(bridge, { "ListCommands", "listCommands", "list" })
-	if type(listMethod) ~= "function" then
-		return false, "command-list-unavailable"
-	end
-
-	local okList, rawList = pcall(listMethod)
-	if not okList or type(rawList) ~= "table" then
-		return false, tostring(rawList or "command-list-failed")
-	end
-
-	const normalized = {}
-	const commandSet = {}
-	for _, info in rawList do
-		if type(info) == "table" then
-			const name = tostring(info.name or info.Name or info.command or info.Command or "")
-			if name ~= "" then
-				const aliases = {}
-				const seen = {}
-				const rawAliases = info.aliases or info.Aliases or {}
-				if type(rawAliases) == "table" then
-					for _, alias in rawAliases do
-						const value = tostring(alias or "")
-						const lowerValue = Lower(value)
-						if value ~= "" and not seen[lowerValue] then
-							seen[lowerValue] = true
-							Insert(aliases, value)
-							commandSet[lowerValue] = name
-						end
-					end
-				end
-				commandSet[Lower(name)] = name
-				const arguments = {}
-				const rawArguments = info.arguments or info.Arguments or {}
-				if type(rawArguments) == "table" then
-					for _, argument in rawArguments do
-						if type(argument) == "table" then
-							Insert(arguments, {
-								name = tostring(argument.name or argument.Name or "");
-								type = tostring(argument.type or argument.Type or "String");
-							})
-						end
-					end
-				end
-				Insert(normalized, {
-					name = name;
-					aliases = aliases;
-					desc = tostring(info.desc or info.description or info.Description or "");
-					arguments = arguments;
-					plugin = info.plugin == true or info.Plugin == true;
-				})
-			end
-		end
-	end
-
-	table.sort(normalized, function(a, b)
-		return Lower(a.name) < Lower(b.name)
-	end)
-	NAStuff.CmdIntegrationCommands = normalized
-	NAStuff.CmdIntegrationCommandSet = commandSet
-	if type(NAmanage.invalidateCommandBuild) == "function" then
-		NAmanage.invalidateCommandBuild()
-	end
-	if opts.refreshUI ~= false and NAgui and type(NAgui.loadCMDS) == "function" then
-		pcall(NAgui.loadCMDS)
-	end
-	return true, normalized
-end
-
-NAmanage.CmdIntegrationHasCommand = function(name)
-	if NAStuff.CmdIntegrationDisabled == true then
-		return false
-	end
-	name = Lower(tostring(name or ""))
-	if name == "" then
-		return false
-	end
-	const bridge = NAStuff.CmdIntegrationBridge
-	const hasMethod = NAmanage.CmdIntegrationGetMethod(bridge, { "HasCommand", "hasCommand" })
-	if type(hasMethod) == "function" then
-		local ok, result = pcall(hasMethod, name)
-		if ok then
-			return result == true
-		end
-	end
-	const findMethod = NAmanage.CmdIntegrationGetMethod(bridge, { "FindCommand", "findCommand", "find" })
-	if type(findMethod) == "function" then
-		local ok, result = pcall(findMethod, name)
-		if ok then
-			return result ~= nil and result ~= false
-		end
-	end
-	const commandSet = NAStuff.CmdIntegrationCommandSet
-	return type(commandSet) == "table" and commandSet[name] ~= nil
-end
-
-NAmanage.CmdIntegrationBuildHost = function()
-	const host = {
-		name = "Nameless Admin";
-		protocol = 2;
-		version = tostring(adminName or "NA");
-	}
-
-	host.list = function()
-		const out = {}
-		if type(cmds) ~= "table" or type(cmds.Commands) ~= "table" then
-			return out
-		end
-		const aliasesByData = {}
-		if type(cmds.Aliases) == "table" then
-			for alias, data in cmds.Aliases do
-				aliasesByData[data] = aliasesByData[data] or {}
-				Insert(aliasesByData[data], tostring(alias))
-			end
-		end
-		for name, data in cmds.Commands do
-			const info = type(data[2]) == "table" and data[2] or {}
-			const aliases = aliasesByData[data] or {}
-			table.sort(aliases)
-			Insert(out, {
-				name = tostring(name);
-				aliases = aliases;
-				desc = tostring(info[2] or info[1] or "");
-				requiresArguments = data[3] == true;
-				meta = type(data[4]) == "table" and data[4] or {};
-			})
-		end
-		table.sort(out, function(a, b)
-			return Lower(a.name) < Lower(b.name)
-		end)
-		return out
-	end
-
-	host.find = function(name)
-		const lowerName = Lower(tostring(name or ""))
-		const data = type(cmds) == "table" and ((cmds.Commands and cmds.Commands[lowerName]) or (cmds.Aliases and cmds.Aliases[lowerName])) or nil
-		if not data then
-			return nil
-		end
-		return {
-			name = type(NAmanage.resolveCommandName) == "function" and NAmanage.resolveCommandName(lowerName) or lowerName;
-			requiresArguments = data[3] == true;
-			meta = type(data[4]) == "table" and data[4] or {};
-		}
-	end
-
-	host.run = function(input)
-		const args = {}
-		if type(input) == "table" then
-			for _, value in input do
-				Insert(args, tostring(value or ""))
-			end
-		else
-			local line = tostring(input or "")
-			const prefix = tostring(NAStuff.prefixCheck or prefixCheck or ";")
-			if prefix ~= "" and Sub(line, 1, #prefix) == prefix then
-				line = Sub(line, #prefix + 1)
-			end
-			if type(ParseArguments) == "function" then
-				local okParse, parsed = pcall(ParseArguments, line)
-				if okParse and type(parsed) == "table" then
-					for _, value in parsed do
-						Insert(args, tostring(value or ""))
-					end
-				end
-			end
-			if #args == 0 then
-				for value in line:gmatch("%S+") do
-					Insert(args, value)
-				end
-			end
-		end
-		if #args == 0 or type(cmd) ~= "table" or type(cmd.run) ~= "function" then
-			return false, "invalid-command"
-		end
-		const runArgs = {}
-		for i, value in args do
-			runArgs[i] = value
-		end
-		local okRun, result = pcall(cmd.run, runArgs)
-		if not okRun then
-			return false, tostring(result)
-		end
-		return true, result
-	end
-
-	host.parse = host.run
-	host.notify = function(title, description, duration)
-		if type(title) == "table" then
-			const config = title
-			title = config.Title or config.title or "Cmd"
-			description = config.Description or config.description or ""
-			duration = config.Duration or config.duration
-		end
-		if type(DoNotif) == "function" then
-			DoNotif(tostring(title or "Cmd")..(description and description ~= "" and (": "..tostring(description)) or ""), tonumber(duration) or 3)
-			return true
-		end
-		return false
-	end
-	host.getUI = function()
-		if type(NAmanage.getUI) == "function" then
-			return NAmanage.getUI()
-		end
-		return NAStuff.NASCREENGUI
-	end
-	host.getState = function()
-		return {
-			name = tostring(adminName or "Nameless Admin");
-			testing = _na_env and _na_env.NATestingVer == true or false;
-			prefix = tostring(NAStuff.prefixCheck or prefixCheck or ";");
-			commandCount = type(cmds) == "table" and type(cmds.Commands) == "table" and (function()
-				local count = 0
-				for _ in cmds.Commands do
-					count += 1
-				end
-				return count
-			end)() or 0;
-		}
-	end
-	return host
-end
-
-NAmanage.CmdIntegrationRemoveGateway = function(bridge)
-	bridge = bridge or NAStuff.CmdIntegrationBridge
-	const gateway = NAStuff.CmdIntegrationGatewayName
-	if not gateway then
-		return false
-	end
-	const removeMethod = NAmanage.CmdIntegrationGetMethod(bridge, { "RemoveCommand", "removeCommand" })
-	if type(removeMethod) == "function" then
-		pcall(removeMethod, gateway)
-	end
-	NAStuff.CmdIntegrationGatewayName = nil
-	return true
-end
-
-NAmanage.CmdIntegrationInstallGateway = function(bridge, host)
-	bridge = bridge or NAStuff.CmdIntegrationBridge
-	host = host or NAStuff.CmdIntegrationHost
-	NAmanage.CmdIntegrationRemoveGateway(bridge)
-	if NAStuff.CmdIntegrationExposeGateway == false or type(host) ~= "table" then
-		return false, "gateway-disabled"
-	end
-	const addMethod = NAmanage.CmdIntegrationGetMethod(bridge, { "AddCommand", "addCommand" })
-	if type(addMethod) ~= "function" then
-		return false, "dynamic-commands-unavailable"
-	end
-	const gateway = NAmanage.CmdIntegrationHasCommand("na") and "namelessadmin" or "na"
-	const aliases = gateway == "na" and { "na", "namelessadmin" } or { "namelessadmin", "naadmin" }
-	const info = {
-		Aliases = aliases;
-		Description = "Run a Nameless Admin command through Cmd";
-		Arguments = {
-			{ Name = "command"; Type = "String"; };
-		};
-		Plugin = true;
-		Task = function(...)
-			const parts = {}
-			for i = 1, select("#", ...) do
-				Insert(parts, tostring(select(i, ...) or ""))
-			end
-			const line = Concat(parts, " ")
-			local ok, result = host.run(line)
-			if ok then
-				return "Nameless Admin", line ~= "" and ("Ran "..line) or "Command completed"
-			end
-			return "Nameless Admin", "Failed: "..tostring(result or "unknown error")
-		end;
-	}
-	local okAdd, result, primary = pcall(addMethod, info)
-	if not okAdd or result == false then
-		return false, tostring(primary or result or "gateway-add-failed")
-	end
-	NAStuff.CmdIntegrationGatewayName = tostring(primary or gateway)
-	return true, NAStuff.CmdIntegrationGatewayName
-end
-
-NAmanage.CmdIntegrationAttach = function(bridge)
-	if NAStuff.CmdIntegrationDisabled == true then
-		return false, "cmd-integration-disabled"
-	end
-	if type(bridge) ~= "table" then
-		return false, "bridge-unavailable"
-	end
-	NAmanage.CmdIntegrationDisconnectSubscriptions()
-	const host = NAmanage.CmdIntegrationBuildHost()
-	NAStuff.CmdIntegrationHost = host
-	const attachMethod = NAmanage.CmdIntegrationGetMethod(bridge, { "AttachHost", "attachHost" })
-	if type(attachMethod) == "function" then
-		pcall(attachMethod, "nameless-admin", host)
-	end
-	NAmanage.CmdIntegrationInstallGateway(bridge, host)
-	const subscribeMethod = NAmanage.CmdIntegrationGetMethod(bridge, { "Subscribe", "subscribe", "on" })
-	if type(subscribeMethod) == "function" then
-		NAStuff.CmdIntegrationSubscriptions = NAStuff.CmdIntegrationSubscriptions or {}
-		local okCommands, commandSubscription = pcall(subscribeMethod, "commandsChanged", function()
-			const token = {}
-			NAStuff.CmdIntegrationRefreshToken = token
-			Delay(0.1, function()
-				if NAStuff.CmdIntegrationRefreshToken == token then
-					NAmanage.CmdIntegrationRefresh({ refreshUI = true })
-				end
-			end)
-		end)
-		if okCommands and commandSubscription then
-			NAStuff.CmdIntegrationSubscriptions.commands = commandSubscription
-		end
-		local okNotifications, notificationSubscription = pcall(subscribeMethod, "notification", function(config)
-			if NAStuff.CmdIntegrationMirrorNotifications ~= true or type(DoNotif) ~= "function" then
-				return
-			end
-			config = type(config) == "table" and config or {}
-			const title = tostring(config.Title or config.title or "Cmd")
-			const description = tostring(config.Description or config.description or "")
-			DoNotif(title..(description ~= "" and (": "..description) or ""), tonumber(config.Duration or config.duration) or 3)
-		end)
-		if okNotifications and notificationSubscription then
-			NAStuff.CmdIntegrationSubscriptions.notifications = notificationSubscription
-		end
-	end
-	NAmanage.CmdIntegrationRefresh({ bridge = bridge; refreshUI = true; })
-	if type(NAmanage.RegisterUnloadCleanup) == "function" then
-		NAmanage.RegisterUnloadCleanup("CmdIntegration", function()
-			NAmanage.disconnectCmdIntegration({ silent = true })
-		end, 80)
-	end
-	return true
-end
-
-NAmanage.CmdIntegrationApplyBridge = function(bridge, sourceLabel, opts)
-	opts = opts or {}
-	if NAStuff.CmdIntegrationDisabled == true then
-		return false, "cmd-integration-disabled"
-	end
-	if type(bridge) ~= "table" then
-		return false, "invalid-bridge"
-	end
-	const listMethod = NAmanage.CmdIntegrationGetMethod(bridge, { "ListCommands", "listCommands", "list" })
-	const parseMethod = NAmanage.CmdIntegrationGetMethod(bridge, { "Parse", "parse" })
-	const runMethod = NAmanage.CmdIntegrationGetMethod(bridge, { "RunCommand", "runCommand" })
-	if type(listMethod) ~= "function" or (type(parseMethod) ~= "function" and type(runMethod) ~= "function") then
-		return false, "unsupported-bridge"
-	end
-	NAStuff.CmdIntegrationBridge = bridge
-	NAStuff.CmdIntegrationLoaded = true
-	NAStuff.CmdIntegrationLastSource = sourceLabel or "Cmd"
-	NAStuff.CmdIntegrationProtocol = tonumber(bridge.Protocol or bridge.protocol) or 1
-	const stateMethod = NAmanage.CmdIntegrationGetMethod(bridge, { "GetState", "getState" })
-	if type(stateMethod) == "function" then
-		local okState, state = pcall(stateMethod)
-		if okState and type(state) == "table" then
-			NAStuff.CmdIntegrationState = state
-			NAStuff.CmdIntegrationPrefix = tostring(state.prefix or bridge.prefix or ";")
-			NAStuff.CmdIntegrationSeparator = tostring(state.separator or bridge.separator or ",")
-		end
-	end
-	if not NAStuff.CmdIntegrationPrefix then
-		NAStuff.CmdIntegrationPrefix = tostring(bridge.prefix or ";")
-	end
-	if not NAStuff.CmdIntegrationSeparator then
-		NAStuff.CmdIntegrationSeparator = tostring(bridge.separator or ",")
-	end
-	local okRefresh, refreshResult = NAmanage.CmdIntegrationRefresh({ bridge = bridge; refreshUI = opts.refreshUI ~= false; })
-	if not okRefresh then
-		NAStuff.CmdIntegrationLoaded = false
-		NAStuff.CmdIntegrationBridge = nil
-		return false, refreshResult
-	end
-	NAmanage.CmdIntegrationAttach(bridge)
-	return true, sourceLabel
-end
-
-NAmanage.disconnectCmdIntegration = function(opts)
-	opts = opts or {}
-	const bridge = NAStuff.CmdIntegrationBridge
-	NAmanage.CmdIntegrationDisconnectSubscriptions()
-	NAmanage.CmdIntegrationRemoveGateway(bridge)
-	const detachMethod = NAmanage.CmdIntegrationGetMethod(bridge, { "DetachHost", "detachHost" })
-	if type(detachMethod) == "function" then
-		pcall(detachMethod, "nameless-admin")
-	end
-	NAStuff.CmdIntegrationBridge = nil
-	NAStuff.CmdIntegrationHost = nil
-	NAStuff.CmdIntegrationLoaded = false
-	NAStuff.CmdIntegrationLastSource = nil
-	NAStuff.CmdIntegrationProtocol = nil
-	NAStuff.CmdIntegrationCommands = nil
-	NAStuff.CmdIntegrationCommandSet = nil
-	NAStuff.CmdIntegrationState = nil
-	NAStuff.CmdIntegrationGatewayName = nil
-	if type(NAmanage.invalidateCommandBuild) == "function" then
-		NAmanage.invalidateCommandBuild()
-	end
-	if NAgui and type(NAgui.loadCMDS) == "function" then
-		pcall(NAgui.loadCMDS)
-	end
-	if not opts.silent and type(DoNotif) == "function" then
-		DoNotif("Cmd integration disconnected", 3)
-	end
-	return true
-end
-
-NAmanage.loadCmdIntegration=function(opts)
-	opts = opts or {}
-	if NAStuff.CmdIntegrationDisabled == true then
-		return false, "cmd-integration-disabled"
-	end
-
-	const function fetchFile(path)
-		if not (FileSupport and type(isfile) == "function" and isfile(path)) then
-			return nil, nil, "file not found"
-		end
-		local ok, raw = pcall(readfile, path)
-		if ok and type(raw) == "string" and raw ~= "" then
-			return raw, "file:"..path
-		end
-		return nil, nil, Format("unable to read %s", tostring(path))
-	end
-
-	const function fetchUrl(url)
-		if type(url) ~= "string" or url == "" then
-			return nil, nil, "invalid url"
-		end
-		const request = opt and opt.NAREQUEST
-		if type(request) == "function" then
-			local ok, response = pcall(request, {
-				Url = url;
-				Method = "GET";
-				Timeout = 10;
-				FollowRedirects = true;
-				SslVerify = false;
-			})
-			if ok and response then
-				const body = response.Body or response.body or response.Data or response.data or response.Text or response.text or response.Content or response.content or response[1]
-				if type(body) == "string" and body ~= "" then
-					return body, url
-				end
-			end
-		end
-		local ok, body = NAmanage.HttpGet(url, { timeout = 10 })
-		if ok and type(body) == "string" and body ~= "" then
-			return body, url
-		end
-		return nil, nil, "request failed"
-	end
-
-	if NAStuff.CmdIntegrationLoading then
-		return false, "Cmd is already loading"
-	end
-	if NAStuff.CmdIntegrationLoaded and type(NAStuff.CmdIntegrationBridge) == "table" then
-		NAmanage.CmdIntegrationRefresh({ refreshUI = true })
-		if not opts.silent and type(DebugNotif) == "function" then
-			DebugNotif("Cmd integration refreshed.", 2)
-		end
-		return true, NAStuff.CmdIntegrationLastSource
-	end
-
-	const existing = NAmanage.CmdIntegrationFindExistingBridge()
-	if type(existing) == "table" then
-		local okExisting, existingResult = NAmanage.CmdIntegrationApplyBridge(existing, "existing-bridge", opts)
-		if okExisting then
-			return true, existingResult
-		end
-	end
-
-	const sources = {}
-	const function pushFile(path)
-		if FileSupport and type(isfile) == "function" and path and path ~= "" and isfile(path) then
-			Insert(sources, { kind = "file", value = path })
-		end
-	end
-	pushFile(opts.path)
-	pushFile("cmd/main.luau")
-	pushFile("Cmd/main.luau")
-	pushFile("cmd/main.lua")
-	pushFile("Cmd/main.lua")
-	const function pushUrl(url)
-		if url and url ~= "" then
-			Insert(sources, { kind = "url", value = url })
-		end
-	end
-	pushUrl(opts.url)
-	pushUrl(opt.cmdIntegrationUrl)
-	pushUrl(opt.cmdIntegrationFallbackUrl)
-
-	local raw, sourceLabel
-	local lastError
-	for _, src in sources do
-		if src.kind == "file" then
-			raw, sourceLabel, lastError = fetchFile(src.value)
-		else
-			raw, sourceLabel, lastError = fetchUrl(src.value)
-		end
-		if raw and raw ~= "" then
-			break
-		end
-	end
-	if not raw or raw == "" then
-		return false, lastError or "unable to fetch Cmd script"
-	end
-
-	const bridgeSuffix = [=[
-;local _g=(getgenv and getgenv()) or _G
-;local _native=_g and (_g.CmdIntegration or _g.CmdBridge or _g.CmdIntegrationBridge)
-;if type(_native)=="table" and (type(_native.ListCommands)=="function" or type(_native.list)=="function") then return _native end
-;local _listeners={}
-;local _hosts={}
-;local _nextListener=0
-;local function _emit(event,...)
-	local packed=table.pack(...)
-	for _,bucket in {_listeners[event],_listeners["*"]} do
-		if type(bucket)=="table" then
-			for _,callback in bucket do
-				task.spawn(function() pcall(callback,table.unpack(packed,1,packed.n)) end)
-			end
-		end
-	end
-end
-;local function _cmdList()
-	local out={}
-	if type(Commands)=="table" then
-		for n,d in Commands do
-			local aliases={}
-			local arguments={}
-			if type(d)=="table" and type(d[1])=="table" then
-				for _,a in d[1] do aliases[#aliases+1]=tostring(a) end
-			end
-			if type(d)=="table" and type(d[3])=="table" then
-				for _,a in d[3] do
-					if type(a)=="table" then arguments[#arguments+1]={name=tostring(a.Name or a.name or ""),type=tostring(a.Type or a.type or "String")} end
-				end
-			end
-			local desc=""
-			if type(d)=="table" then desc=tostring(d[2] or "") end
-			out[#out+1]={name=tostring(n),aliases=aliases,desc=desc,arguments=arguments,plugin=type(d)=="table" and d[4]==true}
-		end
-	end
-	table.sort(out,function(a,b) return string.lower(a.name)<string.lower(b.name) end)
-	return out
-end
-;local function _find(name)
-	name=string.lower(tostring(name or ""))
-	if type(Command)=="table" and type(Command.Find)=="function" then return Command.Find(name) end
-	if type(Commands)=="table" then
-		for _,entry in Commands do
-			if type(entry)=="table" and type(entry[1])=="table" then
-				for _,alias in entry[1] do if string.lower(tostring(alias))==name then return entry end end
-			end
-		end
-	end
-end
-;local _b={Name="Cmd",Version=Settings and Settings.Version or "unknown",Protocol=1,protocol=1,Capabilities={Commands=true,DynamicCommands=type(Command)=="table" and type(Command.Add)=="function",Events=true,Hosts=true,Notifications=type(API)=="table",Settings=type(Settings)=="table",UI=typeof(UI)=="Instance"}}
-;_b.ListCommands=_cmdList
-;_b.list=_cmdList
-;_b.FindCommand=function(name) return _find(name) end
-;_b.HasCommand=function(name) return _find(name)~=nil end
-;_b.RunCommand=function(name,args,options)
-	if not _find(name) then return false,"command-not-found" end
-	if type(Command)=="table" and type(Command.Run)=="function" then Command.Run(type(options)=="table" and options.ignoreNotifications==true,string.lower(tostring(name)),type(args)=="table" and args or {}) return true end
-	return false,"runner-unavailable"
-end
-;_b.Parse=function(input,options)
-	if type(Command)=="table" and type(Command.Parse)=="function" then Command.Parse(type(options)=="table" and options.ignoreNotifications==true,tostring(input or "")) return true end
-	return false,"parser-unavailable"
-end
-;_b.parse=function(ignore,input) return _b.Parse(input,{ignoreNotifications=ignore==true}) end
-;_b.GetSettings=function() return Settings end
-;_b.SetSetting=function(section,key,value)
-	if key==nil then key=section section=nil end
-	local target=section and Settings and Settings[section] or Settings
-	if type(target)~="table" then return false,"setting-section-unavailable" end
-	target[key]=value
-	if type(UpdateSettings)=="function" then pcall(UpdateSettings) end
-	_emit("settingsChanged",{Section=section,Key=key,Value=value})
-	return true
-end
-;_b.GetState=function() return {name="Cmd",version=Settings and Settings.Version or "unknown",protocol=1,prefix=Settings and Settings.Prefix or ";",chatPrefix=Settings and Settings.ChatPrefix or "!",separator=Settings and Settings.Seperator or ",",commandCount=#_cmdList(),uiEnabled=typeof(UI)=="Instance" and UI.Enabled~=false} end
-;_b.Notify=function(config) if type(API)=="table" and type(API.Notify)=="function" then API:Notify(type(config)=="table" and config or {}) return true end return false end
-;_b.OpenCommandBar=function() if type(OpenCommandBar)=="function" then OpenCommandBar() return true end return false end
-;_b.GetUI=function() return UI end
-;_b.AddCommand=function(info)
-	if type(Command)~="table" or type(Command.Add)~="function" then return false,"dynamic-commands-unavailable" end
-	local aliases=type(info)=="table" and (info.Aliases or info.aliases) or nil
-	Command.Add(info)
-	local primary=type(aliases)=="table" and aliases[1] and string.lower(tostring(aliases[1])) or nil
-	local entry=primary and _find(primary) or nil
-	if entry and type(Fill)=="table" and type(Fill.Add)=="function" then pcall(Fill.Add,entry) end
-	_emit("commandsChanged",{Action="add",Name=primary,Command=entry})
-	return entry~=nil,primary
-end
-;_b.RemoveCommand=function(name)
-	local entry=_find(name)
-	if not entry then return false,"command-not-found" end
-	local primary
-	for commandName,value in Commands do if value==entry then primary=commandName Commands[commandName]=nil break end end
-	_emit("commandsChanged",{Action="remove",Name=primary or name,Command=entry})
-	return true,primary
-end
-;_b.AttachHost=function(name,host) name=string.lower(tostring(name or "")) if name=="" or type(host)~="table" then return false end _hosts[name]=host _emit("hostChanged",{Action="attach",Name=name,Host=host}) return true end
-;_b.DetachHost=function(name) name=string.lower(tostring(name or "")) local host=_hosts[name] _hosts[name]=nil _emit("hostChanged",{Action="detach",Name=name,Host=host}) return host~=nil end
-;_b.GetHost=function(name) return _hosts[string.lower(tostring(name or ""))] end
-;_b.Subscribe=function(event,callback)
-	if type(event)~="string" or type(callback)~="function" then return nil end
-	_nextListener+=1
-	local id=_nextListener
-	_listeners[event]=_listeners[event] or {}
-	_listeners[event][id]=callback
-	return {Id=id,Disconnect=function() if _listeners[event] then _listeners[event][id]=nil end end}
-end
-;if type(API)=="table" and type(API.Notify)=="function" then
-	local originalNotify=API.Notify
-	API.Notify=function(self,config) _emit("notification",config or {}) return originalNotify(self,config) end
-end
-;if _g then _g.CmdIntegration=_b _g.CmdBridge=_b _g.CmdIntegrationBridge=_b end
-;return _b]=]
-	raw = raw..bridgeSuffix
-
-	local chunk, compileErr = _na_boot.loadLuau(raw, "CmdIntegration")
-	if not chunk then
-		return false, compileErr or "compile error"
-	end
-	NAStuff.CmdIntegrationLoading = true
-	local ok, result = pcall(chunk)
-	NAStuff.CmdIntegrationLoading = false
-	if not ok then
-		return false, result
-	end
-	const bridge = type(result) == "table" and result or NAmanage.CmdIntegrationFindExistingBridge()
-	local okApply, applyResult = NAmanage.CmdIntegrationApplyBridge(bridge, sourceLabel, opts)
-	if not okApply then
-		return false, applyResult
-	end
-	if not opts.silent and type(DoNotif) == "function" then
-		const state = NAStuff.CmdIntegrationState
-		const version = type(state) == "table" and state.version or bridge.Version or bridge.version
-		DoNotif("Cmd integrated"..(version and (" (v"..tostring(version)..")") or ""), 3)
-	end
-	return true, sourceLabel
-end
-
-NAmanage._naIsCmdCommandEntry=function(data)
-	return type(data) == "table"
-		and type(data[1]) == "table"
-		and type(data[5]) == "function"
-end
-
-NAmanage._naIsCmdCommandsTable=function(tbl)
-	if type(tbl) ~= "table" then
-		return false
-	end
-	local seen = 0
-	for key, value in tbl do
-		if type(key) ~= "string" then
-			return false
-		end
-		if NAmanage._naIsCmdCommandEntry(value) then
-			seen += 1
-			if seen >= 3 then
-				return true
-			end
-		end
-	end
-	return seen > 0
-end
-
-NAmanage.detectCmdManualLoad=function(opts)
-	opts = opts or {}
-	if NAStuff.CmdIntegrationDisabled == true then
-		return false, "cmd-integration-disabled"
-	end
-	const existingBridge = NAmanage.CmdIntegrationFindExistingBridge()
-	if type(existingBridge) == "table" then
-		return NAmanage.CmdIntegrationApplyBridge(existingBridge, "manual-bridge", opts)
-	end
-	local commandsTable
-	local commandModule
-	local settingsTable
-	if type(getgc) == "function" then
-		for _, object in getgc(true) do
-			if type(object) == "table" then
-				if not commandsTable and NAmanage._naIsCmdCommandsTable(object) then
-					commandsTable = object
-				end
-				if not commandModule and type(rawget(object, "Parse")) == "function" and type(rawget(object, "Run")) == "function" then
-					commandModule = object
-				end
-				if not settingsTable and type(rawget(object, "Prefix")) == "string" and type(rawget(object, "ChatPrefix")) == "string" then
-					settingsTable = object
-				end
-			end
-			if commandsTable and commandModule and settingsTable then
-				break
-			end
-		end
-	end
-	if not commandsTable or not commandModule then
-		return false, "cmd-not-found"
-	end
-	const function listCommands()
-		const out = {}
-		for name, data in commandsTable do
-			const aliases = {}
-			for _, alias in type(data[1]) == "table" and data[1] or {} do
-				Insert(aliases, tostring(alias))
-			end
-			const arguments = {}
-			for _, argument in type(data[3]) == "table" and data[3] or {} do
-				if type(argument) == "table" then
-					Insert(arguments, { name = tostring(argument.Name or argument.name or ""); type = tostring(argument.Type or argument.type or "String"); })
-				end
-			end
-			Insert(out, { name = tostring(name); aliases = aliases; desc = tostring(data[2] or ""); arguments = arguments; plugin = data[4] == true; })
-		end
-		return out
-	end
-	const function findCommand(name)
-		name = Lower(tostring(name or ""))
-		for _, data in commandsTable do
-			for _, alias in type(data[1]) == "table" and data[1] or {} do
-				if Lower(tostring(alias)) == name then
-					return data
-				end
-			end
-		end
-	end
-	const bridge = {
-		Protocol = 1;
-		protocol = 1;
-		ListCommands = listCommands;
-		list = listCommands;
-		FindCommand = findCommand;
-		HasCommand = function(name) return findCommand(name) ~= nil end;
-		RunCommand = function(name, args, options)
-			if not findCommand(name) then return false, "command-not-found" end
-			commandModule.Run(type(options) == "table" and options.ignoreNotifications == true, Lower(tostring(name)), type(args) == "table" and args or {})
-			return true
-		end;
-		Parse = function(input, options)
-			commandModule.Parse(type(options) == "table" and options.ignoreNotifications == true, tostring(input or ""))
-			return true
-		end;
-		GetState = function()
-			return { name = "Cmd"; version = settingsTable and settingsTable.Version; protocol = 1; prefix = settingsTable and settingsTable.Prefix or ";"; chatPrefix = settingsTable and settingsTable.ChatPrefix or "!"; separator = settingsTable and settingsTable.Seperator or ","; commandCount = #listCommands(); }
-		end;
-	}
-	return NAmanage.CmdIntegrationApplyBridge(bridge, "manual-detect", opts)
-end
+--NAmanage.CmdIntegrationModes = NAmanage.CmdIntegrationModes or { "NA First", "Cmd First", "Explicit Only" }
+--
+--NAmanage.CmdIntegrationNormalizeMode = function(value)
+--	value = tostring(value or "NA First")
+--	for _, mode in NAmanage.CmdIntegrationModes do
+--		if Lower(mode) == Lower(value) then
+--			return mode
+--		end
+--	end
+--	return "NA First"
+--end
+--
+--NAmanage.CmdIntegrationGetMethod = function(bridge, names)
+--	if type(bridge) ~= "table" then
+--		return nil
+--	end
+--	for _, name in names do
+--		const callback = bridge[name]
+--		if type(callback) == "function" then
+--			return callback
+--		end
+--	end
+--	return nil
+--end
+--
+--NAmanage.CmdIntegrationFindExistingBridge = function()
+--	for _, target in { _na_env, _na_shared, _na_boot.runtimeEnv, _na_boot.hostEnv } do
+--		if type(target) == "table" then
+--			const bridge = rawget(target, "CmdIntegration") or rawget(target, "CmdBridge") or rawget(target, "CmdIntegrationBridge")
+--			if type(bridge) == "table" then
+--				return bridge
+--			end
+--		end
+--	end
+--	return nil
+--end
+--
+--NAmanage.CmdIntegrationDisconnectSubscriptions = function()
+--	const subscriptions = NAStuff.CmdIntegrationSubscriptions
+--	if type(subscriptions) == "table" then
+--		for key, subscription in subscriptions do
+--			if type(subscription) == "function" then
+--				pcall(subscription)
+--			elseif type(subscription) == "table" and type(subscription.Disconnect) == "function" then
+--				pcall(subscription.Disconnect, subscription)
+--			elseif typeof(subscription) == "RBXScriptConnection" then
+--				pcall(function()
+--					subscription:Disconnect()
+--				end)
+--			end
+--			subscriptions[key] = nil
+--		end
+--	end
+--	NAStuff.CmdIntegrationSubscriptions = {}
+--end
+--
+--NAmanage.CmdIntegrationRefresh = function(opts)
+--	opts = opts or {}
+--	const bridge = opts.bridge or NAStuff.CmdIntegrationBridge
+--	if type(bridge) ~= "table" then
+--		NAStuff.CmdIntegrationCommands = nil
+--		NAStuff.CmdIntegrationCommandSet = nil
+--		if type(NAmanage.invalidateCommandBuild) == "function" then
+--			NAmanage.invalidateCommandBuild()
+--		end
+--		return false, "bridge-unavailable"
+--	end
+--
+--	const listMethod = NAmanage.CmdIntegrationGetMethod(bridge, { "ListCommands", "listCommands", "list" })
+--	if type(listMethod) ~= "function" then
+--		return false, "command-list-unavailable"
+--	end
+--
+--	local okList, rawList = pcall(listMethod)
+--	if not okList or type(rawList) ~= "table" then
+--		return false, tostring(rawList or "command-list-failed")
+--	end
+--
+--	const normalized = {}
+--	const commandSet = {}
+--	for _, info in rawList do
+--		if type(info) == "table" then
+--			const name = tostring(info.name or info.Name or info.command or info.Command or "")
+--			if name ~= "" then
+--				const aliases = {}
+--				const seen = {}
+--				const rawAliases = info.aliases or info.Aliases or {}
+--				if type(rawAliases) == "table" then
+--					for _, alias in rawAliases do
+--						const value = tostring(alias or "")
+--						const lowerValue = Lower(value)
+--						if value ~= "" and not seen[lowerValue] then
+--							seen[lowerValue] = true
+--							Insert(aliases, value)
+--							commandSet[lowerValue] = name
+--						end
+--					end
+--				end
+--				commandSet[Lower(name)] = name
+--				const arguments = {}
+--				const rawArguments = info.arguments or info.Arguments or {}
+--				if type(rawArguments) == "table" then
+--					for _, argument in rawArguments do
+--						if type(argument) == "table" then
+--							Insert(arguments, {
+--								name = tostring(argument.name or argument.Name or "");
+--								type = tostring(argument.type or argument.Type or "String");
+--							})
+--						end
+--					end
+--				end
+--				Insert(normalized, {
+--					name = name;
+--					aliases = aliases;
+--					desc = tostring(info.desc or info.description or info.Description or "");
+--					arguments = arguments;
+--					plugin = info.plugin == true or info.Plugin == true;
+--				})
+--			end
+--		end
+--	end
+--
+--	table.sort(normalized, function(a, b)
+--		return Lower(a.name) < Lower(b.name)
+--	end)
+--	NAStuff.CmdIntegrationCommands = normalized
+--	NAStuff.CmdIntegrationCommandSet = commandSet
+--	if type(NAmanage.invalidateCommandBuild) == "function" then
+--		NAmanage.invalidateCommandBuild()
+--	end
+--	if opts.refreshUI ~= false and NAgui and type(NAgui.loadCMDS) == "function" then
+--		pcall(NAgui.loadCMDS)
+--	end
+--	return true, normalized
+--end
+--
+--NAmanage.CmdIntegrationHasCommand = function(name)
+--	name = Lower(tostring(name or ""))
+--	if name == "" then
+--		return false
+--	end
+--	const bridge = NAStuff.CmdIntegrationBridge
+--	const hasMethod = NAmanage.CmdIntegrationGetMethod(bridge, { "HasCommand", "hasCommand" })
+--	if type(hasMethod) == "function" then
+--		local ok, result = pcall(hasMethod, name)
+--		if ok then
+--			return result == true
+--		end
+--	end
+--	const findMethod = NAmanage.CmdIntegrationGetMethod(bridge, { "FindCommand", "findCommand", "find" })
+--	if type(findMethod) == "function" then
+--		local ok, result = pcall(findMethod, name)
+--		if ok then
+--			return result ~= nil and result ~= false
+--		end
+--	end
+--	const commandSet = NAStuff.CmdIntegrationCommandSet
+--	return type(commandSet) == "table" and commandSet[name] ~= nil
+--end
+--
+--NAmanage.CmdIntegrationBuildHost = function()
+--	const host = {
+--		name = "Nameless Admin";
+--		protocol = 2;
+--		version = tostring(adminName or "NA");
+--	}
+--
+--	host.list = function()
+--		const out = {}
+--		if type(cmds) ~= "table" or type(cmds.Commands) ~= "table" then
+--			return out
+--		end
+--		const aliasesByData = {}
+--		if type(cmds.Aliases) == "table" then
+--			for alias, data in cmds.Aliases do
+--				aliasesByData[data] = aliasesByData[data] or {}
+--				Insert(aliasesByData[data], tostring(alias))
+--			end
+--		end
+--		for name, data in cmds.Commands do
+--			const info = type(data[2]) == "table" and data[2] or {}
+--			const aliases = aliasesByData[data] or {}
+--			table.sort(aliases)
+--			Insert(out, {
+--				name = tostring(name);
+--				aliases = aliases;
+--				desc = tostring(info[2] or info[1] or "");
+--				requiresArguments = data[3] == true;
+--				meta = type(data[4]) == "table" and data[4] or {};
+--			})
+--		end
+--		table.sort(out, function(a, b)
+--			return Lower(a.name) < Lower(b.name)
+--		end)
+--		return out
+--	end
+--
+--	host.find = function(name)
+--		const lowerName = Lower(tostring(name or ""))
+--		const data = type(cmds) == "table" and ((cmds.Commands and cmds.Commands[lowerName]) or (cmds.Aliases and cmds.Aliases[lowerName])) or nil
+--		if not data then
+--			return nil
+--		end
+--		return {
+--			name = type(NAmanage.resolveCommandName) == "function" and NAmanage.resolveCommandName(lowerName) or lowerName;
+--			requiresArguments = data[3] == true;
+--			meta = type(data[4]) == "table" and data[4] or {};
+--		}
+--	end
+--
+--	host.run = function(input)
+--		const args = {}
+--		if type(input) == "table" then
+--			for _, value in input do
+--				Insert(args, tostring(value or ""))
+--			end
+--		else
+--			local line = tostring(input or "")
+--			const prefix = tostring(NAStuff.prefixCheck or prefixCheck or ";")
+--			if prefix ~= "" and Sub(line, 1, #prefix) == prefix then
+--				line = Sub(line, #prefix + 1)
+--			end
+--			if type(ParseArguments) == "function" then
+--				local okParse, parsed = pcall(ParseArguments, line)
+--				if okParse and type(parsed) == "table" then
+--					for _, value in parsed do
+--						Insert(args, tostring(value or ""))
+--					end
+--				end
+--			end
+--			if #args == 0 then
+--				for value in line:gmatch("%S+") do
+--					Insert(args, value)
+--				end
+--			end
+--		end
+--		if #args == 0 or type(cmd) ~= "table" or type(cmd.run) ~= "function" then
+--			return false, "invalid-command"
+--		end
+--		const runArgs = {}
+--		for i, value in args do
+--			runArgs[i] = value
+--		end
+--		local okRun, result = pcall(cmd.run, runArgs)
+--		if not okRun then
+--			return false, tostring(result)
+--		end
+--		return true, result
+--	end
+--
+--	host.parse = host.run
+--	host.notify = function(title, description, duration)
+--		if type(title) == "table" then
+--			const config = title
+--			title = config.Title or config.title or "Cmd"
+--			description = config.Description or config.description or ""
+--			duration = config.Duration or config.duration
+--		end
+--		if type(DoNotif) == "function" then
+--			DoNotif(tostring(title or "Cmd")..(description and description ~= "" and (": "..tostring(description)) or ""), tonumber(duration) or 3)
+--			return true
+--		end
+--		return false
+--	end
+--	host.getUI = function()
+--		if type(NAmanage.getUI) == "function" then
+--			return NAmanage.getUI()
+--		end
+--		return NAStuff.NASCREENGUI
+--	end
+--	host.getState = function()
+--		return {
+--			name = tostring(adminName or "Nameless Admin");
+--			testing = _na_env and _na_env.NATestingVer == true or false;
+--			prefix = tostring(NAStuff.prefixCheck or prefixCheck or ";");
+--			commandCount = type(cmds) == "table" and type(cmds.Commands) == "table" and (function()
+--				local count = 0
+--				for _ in cmds.Commands do
+--					count += 1
+--				end
+--				return count
+--			end)() or 0;
+--		}
+--	end
+--	return host
+--end
+--
+--NAmanage.CmdIntegrationRemoveGateway = function(bridge)
+--	bridge = bridge or NAStuff.CmdIntegrationBridge
+--	const gateway = NAStuff.CmdIntegrationGatewayName
+--	if not gateway then
+--		return false
+--	end
+--	const removeMethod = NAmanage.CmdIntegrationGetMethod(bridge, { "RemoveCommand", "removeCommand" })
+--	if type(removeMethod) == "function" then
+--		pcall(removeMethod, gateway)
+--	end
+--	NAStuff.CmdIntegrationGatewayName = nil
+--	return true
+--end
+--
+--NAmanage.CmdIntegrationInstallGateway = function(bridge, host)
+--	bridge = bridge or NAStuff.CmdIntegrationBridge
+--	host = host or NAStuff.CmdIntegrationHost
+--	NAmanage.CmdIntegrationRemoveGateway(bridge)
+--	if NAStuff.CmdIntegrationExposeGateway == false or type(host) ~= "table" then
+--		return false, "gateway-disabled"
+--	end
+--	const addMethod = NAmanage.CmdIntegrationGetMethod(bridge, { "AddCommand", "addCommand" })
+--	if type(addMethod) ~= "function" then
+--		return false, "dynamic-commands-unavailable"
+--	end
+--	const gateway = NAmanage.CmdIntegrationHasCommand("na") and "namelessadmin" or "na"
+--	const aliases = gateway == "na" and { "na", "namelessadmin" } or { "namelessadmin", "naadmin" }
+--	const info = {
+--		Aliases = aliases;
+--		Description = "Run a Nameless Admin command through Cmd";
+--		Arguments = {
+--			{ Name = "command"; Type = "String"; };
+--		};
+--		Plugin = true;
+--		Task = function(...)
+--			const parts = {}
+--			for i = 1, select("#", ...) do
+--				Insert(parts, tostring(select(i, ...) or ""))
+--			end
+--			const line = Concat(parts, " ")
+--			local ok, result = host.run(line)
+--			if ok then
+--				return "Nameless Admin", line ~= "" and ("Ran "..line) or "Command completed"
+--			end
+--			return "Nameless Admin", "Failed: "..tostring(result or "unknown error")
+--		end;
+--	}
+--	local okAdd, result, primary = pcall(addMethod, info)
+--	if not okAdd or result == false then
+--		return false, tostring(primary or result or "gateway-add-failed")
+--	end
+--	NAStuff.CmdIntegrationGatewayName = tostring(primary or gateway)
+--	return true, NAStuff.CmdIntegrationGatewayName
+--end
+--
+--NAmanage.CmdIntegrationAttach = function(bridge)
+--	if type(bridge) ~= "table" then
+--		return false, "bridge-unavailable"
+--	end
+--	NAmanage.CmdIntegrationDisconnectSubscriptions()
+--	const host = NAmanage.CmdIntegrationBuildHost()
+--	NAStuff.CmdIntegrationHost = host
+--	const attachMethod = NAmanage.CmdIntegrationGetMethod(bridge, { "AttachHost", "attachHost" })
+--	if type(attachMethod) == "function" then
+--		pcall(attachMethod, "nameless-admin", host)
+--	end
+--	NAmanage.CmdIntegrationInstallGateway(bridge, host)
+--	const subscribeMethod = NAmanage.CmdIntegrationGetMethod(bridge, { "Subscribe", "subscribe", "on" })
+--	if type(subscribeMethod) == "function" then
+--		NAStuff.CmdIntegrationSubscriptions = NAStuff.CmdIntegrationSubscriptions or {}
+--		local okCommands, commandSubscription = pcall(subscribeMethod, "commandsChanged", function()
+--			const token = {}
+--			NAStuff.CmdIntegrationRefreshToken = token
+--			Delay(0.1, function()
+--				if NAStuff.CmdIntegrationRefreshToken == token then
+--					NAmanage.CmdIntegrationRefresh({ refreshUI = true })
+--				end
+--			end)
+--		end)
+--		if okCommands and commandSubscription then
+--			NAStuff.CmdIntegrationSubscriptions.commands = commandSubscription
+--		end
+--		local okNotifications, notificationSubscription = pcall(subscribeMethod, "notification", function(config)
+--			if NAStuff.CmdIntegrationMirrorNotifications ~= true or type(DoNotif) ~= "function" then
+--				return
+--			end
+--			config = type(config) == "table" and config or {}
+--			const title = tostring(config.Title or config.title or "Cmd")
+--			const description = tostring(config.Description or config.description or "")
+--			DoNotif(title..(description ~= "" and (": "..description) or ""), tonumber(config.Duration or config.duration) or 3)
+--		end)
+--		if okNotifications and notificationSubscription then
+--			NAStuff.CmdIntegrationSubscriptions.notifications = notificationSubscription
+--		end
+--	end
+--	NAmanage.CmdIntegrationRefresh({ bridge = bridge; refreshUI = true; })
+--	if type(NAmanage.RegisterUnloadCleanup) == "function" then
+--		NAmanage.RegisterUnloadCleanup("CmdIntegration", function()
+--			NAmanage.disconnectCmdIntegration({ silent = true })
+--		end, 80)
+--	end
+--	return true
+--end
+--
+--NAmanage.CmdIntegrationApplyBridge = function(bridge, sourceLabel, opts)
+--	opts = opts or {}
+--	if type(bridge) ~= "table" then
+--		return false, "invalid-bridge"
+--	end
+--	const listMethod = NAmanage.CmdIntegrationGetMethod(bridge, { "ListCommands", "listCommands", "list" })
+--	const parseMethod = NAmanage.CmdIntegrationGetMethod(bridge, { "Parse", "parse" })
+--	const runMethod = NAmanage.CmdIntegrationGetMethod(bridge, { "RunCommand", "runCommand" })
+--	if type(listMethod) ~= "function" or (type(parseMethod) ~= "function" and type(runMethod) ~= "function") then
+--		return false, "unsupported-bridge"
+--	end
+--	NAStuff.CmdIntegrationBridge = bridge
+--	NAStuff.CmdIntegrationLoaded = true
+--	NAStuff.CmdIntegrationLastSource = sourceLabel or "Cmd"
+--	NAStuff.CmdIntegrationProtocol = tonumber(bridge.Protocol or bridge.protocol) or 1
+--	const stateMethod = NAmanage.CmdIntegrationGetMethod(bridge, { "GetState", "getState" })
+--	if type(stateMethod) == "function" then
+--		local okState, state = pcall(stateMethod)
+--		if okState and type(state) == "table" then
+--			NAStuff.CmdIntegrationState = state
+--			NAStuff.CmdIntegrationPrefix = tostring(state.prefix or bridge.prefix or ";")
+--			NAStuff.CmdIntegrationSeparator = tostring(state.separator or bridge.separator or ",")
+--		end
+--	end
+--	if not NAStuff.CmdIntegrationPrefix then
+--		NAStuff.CmdIntegrationPrefix = tostring(bridge.prefix or ";")
+--	end
+--	if not NAStuff.CmdIntegrationSeparator then
+--		NAStuff.CmdIntegrationSeparator = tostring(bridge.separator or ",")
+--	end
+--	local okRefresh, refreshResult = NAmanage.CmdIntegrationRefresh({ bridge = bridge; refreshUI = opts.refreshUI ~= false; })
+--	if not okRefresh then
+--		NAStuff.CmdIntegrationLoaded = false
+--		NAStuff.CmdIntegrationBridge = nil
+--		return false, refreshResult
+--	end
+--	NAmanage.CmdIntegrationAttach(bridge)
+--	return true, sourceLabel
+--end
+--
+--NAmanage.disconnectCmdIntegration = function(opts)
+--	opts = opts or {}
+--	const bridge = NAStuff.CmdIntegrationBridge
+--	NAmanage.CmdIntegrationDisconnectSubscriptions()
+--	NAmanage.CmdIntegrationRemoveGateway(bridge)
+--	const detachMethod = NAmanage.CmdIntegrationGetMethod(bridge, { "DetachHost", "detachHost" })
+--	if type(detachMethod) == "function" then
+--		pcall(detachMethod, "nameless-admin")
+--	end
+--	NAStuff.CmdIntegrationBridge = nil
+--	NAStuff.CmdIntegrationHost = nil
+--	NAStuff.CmdIntegrationLoaded = false
+--	NAStuff.CmdIntegrationLastSource = nil
+--	NAStuff.CmdIntegrationProtocol = nil
+--	NAStuff.CmdIntegrationCommands = nil
+--	NAStuff.CmdIntegrationCommandSet = nil
+--	NAStuff.CmdIntegrationState = nil
+--	NAStuff.CmdIntegrationGatewayName = nil
+--	if type(NAmanage.invalidateCommandBuild) == "function" then
+--		NAmanage.invalidateCommandBuild()
+--	end
+--	if NAgui and type(NAgui.loadCMDS) == "function" then
+--		pcall(NAgui.loadCMDS)
+--	end
+--	if not opts.silent and type(DoNotif) == "function" then
+--		DoNotif("Cmd integration disconnected", 3)
+--	end
+--	return true
+--end
+--
+--NAmanage.loadCmdIntegration=function(opts)
+--	opts = opts or {}
+--
+--	const function fetchFile(path)
+--		if not (FileSupport and type(isfile) == "function" and isfile(path)) then
+--			return nil, nil, "file not found"
+--		end
+--		local ok, raw = pcall(readfile, path)
+--		if ok and type(raw) == "string" and raw ~= "" then
+--			return raw, "file:"..path
+--		end
+--		return nil, nil, Format("unable to read %s", tostring(path))
+--	end
+--
+--	const function fetchUrl(url)
+--		if type(url) ~= "string" or url == "" then
+--			return nil, nil, "invalid url"
+--		end
+--		const request = opt and opt.NAREQUEST
+--		if type(request) == "function" then
+--			local ok, response = pcall(request, {
+--				Url = url;
+--				Method = "GET";
+--				Timeout = 10;
+--				FollowRedirects = true;
+--				SslVerify = false;
+--			})
+--			if ok and response then
+--				const body = response.Body or response.body or response.Data or response.data or response.Text or response.text or response.Content or response.content or response[1]
+--				if type(body) == "string" and body ~= "" then
+--					return body, url
+--				end
+--			end
+--		end
+--		local ok, body = NAmanage.HttpGet(url, { timeout = 10 })
+--		if ok and type(body) == "string" and body ~= "" then
+--			return body, url
+--		end
+--		return nil, nil, "request failed"
+--	end
+--
+--	if NAStuff.CmdIntegrationLoading then
+--		return false, "Cmd is already loading"
+--	end
+--	if NAStuff.CmdIntegrationLoaded and type(NAStuff.CmdIntegrationBridge) == "table" then
+--		NAmanage.CmdIntegrationRefresh({ refreshUI = true })
+--		if not opts.silent and type(DebugNotif) == "function" then
+--			DebugNotif("Cmd integration refreshed.", 2)
+--		end
+--		return true, NAStuff.CmdIntegrationLastSource
+--	end
+--
+--	const existing = NAmanage.CmdIntegrationFindExistingBridge()
+--	if type(existing) == "table" then
+--		local okExisting, existingResult = NAmanage.CmdIntegrationApplyBridge(existing, "existing-bridge", opts)
+--		if okExisting then
+--			return true, existingResult
+--		end
+--	end
+--
+--	const sources = {}
+--	const function pushFile(path)
+--		if FileSupport and type(isfile) == "function" and path and path ~= "" and isfile(path) then
+--			Insert(sources, { kind = "file", value = path })
+--		end
+--	end
+--	pushFile(opts.path)
+--	pushFile("cmd/main.luau")
+--	pushFile("Cmd/main.luau")
+--	pushFile("cmd/main.lua")
+--	pushFile("Cmd/main.lua")
+--	const function pushUrl(url)
+--		if url and url ~= "" then
+--			Insert(sources, { kind = "url", value = url })
+--		end
+--	end
+--	pushUrl(opts.url)
+--	pushUrl(opt.cmdIntegrationUrl)
+--	pushUrl(opt.cmdIntegrationFallbackUrl)
+--
+--	local raw, sourceLabel
+--	local lastError
+--	for _, src in sources do
+--		if src.kind == "file" then
+--			raw, sourceLabel, lastError = fetchFile(src.value)
+--		else
+--			raw, sourceLabel, lastError = fetchUrl(src.value)
+--		end
+--		if raw and raw ~= "" then
+--			break
+--		end
+--	end
+--	if not raw or raw == "" then
+--		return false, lastError or "unable to fetch Cmd script"
+--	end
+--
+--	const bridgeSuffix = [=[
+--;local _g=(getgenv and getgenv()) or _G
+--;local _native=_g and (_g.CmdIntegration or _g.CmdBridge or _g.CmdIntegrationBridge)
+--;if type(_native)=="table" and (type(_native.ListCommands)=="function" or type(_native.list)=="function") then return _native end
+--;local _listeners={}
+--;local _hosts={}
+--;local _nextListener=0
+--;local function _emit(event,...)
+--	local packed=table.pack(...)
+--	for _,bucket in {_listeners[event],_listeners["*"]} do
+--		if type(bucket)=="table" then
+--			for _,callback in bucket do
+--				task.spawn(function() pcall(callback,table.unpack(packed,1,packed.n)) end)
+--			end
+--		end
+--	end
+--end
+--;local function _cmdList()
+--	local out={}
+--	if type(Commands)=="table" then
+--		for n,d in Commands do
+--			local aliases={}
+--			local arguments={}
+--			if type(d)=="table" and type(d[1])=="table" then
+--				for _,a in d[1] do aliases[#aliases+1]=tostring(a) end
+--			end
+--			if type(d)=="table" and type(d[3])=="table" then
+--				for _,a in d[3] do
+--					if type(a)=="table" then arguments[#arguments+1]={name=tostring(a.Name or a.name or ""),type=tostring(a.Type or a.type or "String")} end
+--				end
+--			end
+--			local desc=""
+--			if type(d)=="table" then desc=tostring(d[2] or "") end
+--			out[#out+1]={name=tostring(n),aliases=aliases,desc=desc,arguments=arguments,plugin=type(d)=="table" and d[4]==true}
+--		end
+--	end
+--	table.sort(out,function(a,b) return string.lower(a.name)<string.lower(b.name) end)
+--	return out
+--end
+--;local function _find(name)
+--	name=string.lower(tostring(name or ""))
+--	if type(Command)=="table" and type(Command.Find)=="function" then return Command.Find(name) end
+--	if type(Commands)=="table" then
+--		for _,entry in Commands do
+--			if type(entry)=="table" and type(entry[1])=="table" then
+--				for _,alias in entry[1] do if string.lower(tostring(alias))==name then return entry end end
+--			end
+--		end
+--	end
+--end
+--;local _b={Name="Cmd",Version=Settings and Settings.Version or "unknown",Protocol=1,protocol=1,Capabilities={Commands=true,DynamicCommands=type(Command)=="table" and type(Command.Add)=="function",Events=true,Hosts=true,Notifications=type(API)=="table",Settings=type(Settings)=="table",UI=typeof(UI)=="Instance"}}
+--;_b.ListCommands=_cmdList
+--;_b.list=_cmdList
+--;_b.FindCommand=function(name) return _find(name) end
+--;_b.HasCommand=function(name) return _find(name)~=nil end
+--;_b.RunCommand=function(name,args,options)
+--	if not _find(name) then return false,"command-not-found" end
+--	if type(Command)=="table" and type(Command.Run)=="function" then Command.Run(type(options)=="table" and options.ignoreNotifications==true,string.lower(tostring(name)),type(args)=="table" and args or {}) return true end
+--	return false,"runner-unavailable"
+--end
+--;_b.Parse=function(input,options)
+--	if type(Command)=="table" and type(Command.Parse)=="function" then Command.Parse(type(options)=="table" and options.ignoreNotifications==true,tostring(input or "")) return true end
+--	return false,"parser-unavailable"
+--end
+--;_b.parse=function(ignore,input) return _b.Parse(input,{ignoreNotifications=ignore==true}) end
+--;_b.GetSettings=function() return Settings end
+--;_b.SetSetting=function(section,key,value)
+--	if key==nil then key=section section=nil end
+--	local target=section and Settings and Settings[section] or Settings
+--	if type(target)~="table" then return false,"setting-section-unavailable" end
+--	target[key]=value
+--	if type(UpdateSettings)=="function" then pcall(UpdateSettings) end
+--	_emit("settingsChanged",{Section=section,Key=key,Value=value})
+--	return true
+--end
+--;_b.GetState=function() return {name="Cmd",version=Settings and Settings.Version or "unknown",protocol=1,prefix=Settings and Settings.Prefix or ";",chatPrefix=Settings and Settings.ChatPrefix or "!",separator=Settings and Settings.Seperator or ",",commandCount=#_cmdList(),uiEnabled=typeof(UI)=="Instance" and UI.Enabled~=false} end
+--;_b.Notify=function(config) if type(API)=="table" and type(API.Notify)=="function" then API:Notify(type(config)=="table" and config or {}) return true end return false end
+--;_b.OpenCommandBar=function() if type(OpenCommandBar)=="function" then OpenCommandBar() return true end return false end
+--;_b.GetUI=function() return UI end
+--;_b.AddCommand=function(info)
+--	if type(Command)~="table" or type(Command.Add)~="function" then return false,"dynamic-commands-unavailable" end
+--	local aliases=type(info)=="table" and (info.Aliases or info.aliases) or nil
+--	Command.Add(info)
+--	local primary=type(aliases)=="table" and aliases[1] and string.lower(tostring(aliases[1])) or nil
+--	local entry=primary and _find(primary) or nil
+--	if entry and type(Fill)=="table" and type(Fill.Add)=="function" then pcall(Fill.Add,entry) end
+--	_emit("commandsChanged",{Action="add",Name=primary,Command=entry})
+--	return entry~=nil,primary
+--end
+--;_b.RemoveCommand=function(name)
+--	local entry=_find(name)
+--	if not entry then return false,"command-not-found" end
+--	local primary
+--	for commandName,value in Commands do if value==entry then primary=commandName Commands[commandName]=nil break end end
+--	_emit("commandsChanged",{Action="remove",Name=primary or name,Command=entry})
+--	return true,primary
+--end
+--;_b.AttachHost=function(name,host) name=string.lower(tostring(name or "")) if name=="" or type(host)~="table" then return false end _hosts[name]=host _emit("hostChanged",{Action="attach",Name=name,Host=host}) return true end
+--;_b.DetachHost=function(name) name=string.lower(tostring(name or "")) local host=_hosts[name] _hosts[name]=nil _emit("hostChanged",{Action="detach",Name=name,Host=host}) return host~=nil end
+--;_b.GetHost=function(name) return _hosts[string.lower(tostring(name or ""))] end
+--;_b.Subscribe=function(event,callback)
+--	if type(event)~="string" or type(callback)~="function" then return nil end
+--	_nextListener+=1
+--	local id=_nextListener
+--	_listeners[event]=_listeners[event] or {}
+--	_listeners[event][id]=callback
+--	return {Id=id,Disconnect=function() if _listeners[event] then _listeners[event][id]=nil end end}
+--end
+--;if type(API)=="table" and type(API.Notify)=="function" then
+--	local originalNotify=API.Notify
+--	API.Notify=function(self,config) _emit("notification",config or {}) return originalNotify(self,config) end
+--end
+--;if _g then _g.CmdIntegration=_b _g.CmdBridge=_b _g.CmdIntegrationBridge=_b end
+--;return _b]=]
+--	raw = raw..bridgeSuffix
+--
+--	const loader = loadstring or load
+--	if type(loader) ~= "function" then
+--		return false, "compiler unavailable"
+--	end
+--	local chunk, compileErr = loader(raw, "CmdIntegration")
+--	if not chunk then
+--		return false, compileErr or "compile error"
+--	end
+--	NAStuff.CmdIntegrationLoading = true
+--	local ok, result = pcall(chunk)
+--	NAStuff.CmdIntegrationLoading = false
+--	if not ok then
+--		return false, result
+--	end
+--	const bridge = type(result) == "table" and result or NAmanage.CmdIntegrationFindExistingBridge()
+--	local okApply, applyResult = NAmanage.CmdIntegrationApplyBridge(bridge, sourceLabel, opts)
+--	if not okApply then
+--		return false, applyResult
+--	end
+--	if not opts.silent and type(DoNotif) == "function" then
+--		const state = NAStuff.CmdIntegrationState
+--		const version = type(state) == "table" and state.version or bridge.Version or bridge.version
+--		DoNotif("Cmd integrated"..(version and (" (v"..tostring(version)..")") or ""), 3)
+--	end
+--	return true, sourceLabel
+--end
+--
+--NAmanage._naIsCmdCommandEntry=function(data)
+--	return type(data) == "table"
+--		and type(data[1]) == "table"
+--		and type(data[5]) == "function"
+--end
+--
+--NAmanage._naIsCmdCommandsTable=function(tbl)
+--	if type(tbl) ~= "table" then
+--		return false
+--	end
+--	local seen = 0
+--	for key, value in tbl do
+--		if type(key) ~= "string" then
+--			return false
+--		end
+--		if NAmanage._naIsCmdCommandEntry(value) then
+--			seen += 1
+--			if seen >= 3 then
+--				return true
+--			end
+--		end
+--	end
+--	return seen > 0
+--end
+--
+--NAmanage.detectCmdManualLoad=function(opts)
+--	opts = opts or {}
+--	const existingBridge = NAmanage.CmdIntegrationFindExistingBridge()
+--	if type(existingBridge) == "table" then
+--		return NAmanage.CmdIntegrationApplyBridge(existingBridge, "manual-bridge", opts)
+--	end
+--	local commandsTable
+--	local commandModule
+--	local settingsTable
+--	if type(getgc) == "function" then
+--		for _, object in getgc(true) do
+--			if type(object) == "table" then
+--				if not commandsTable and NAmanage._naIsCmdCommandsTable(object) then
+--					commandsTable = object
+--				end
+--				if not commandModule and type(rawget(object, "Parse")) == "function" and type(rawget(object, "Run")) == "function" then
+--					commandModule = object
+--				end
+--				if not settingsTable and type(rawget(object, "Prefix")) == "string" and type(rawget(object, "ChatPrefix")) == "string" then
+--					settingsTable = object
+--				end
+--			end
+--			if commandsTable and commandModule and settingsTable then
+--				break
+--			end
+--		end
+--	end
+--	if not commandsTable or not commandModule then
+--		return false, "cmd-not-found"
+--	end
+--	const function listCommands()
+--		const out = {}
+--		for name, data in commandsTable do
+--			const aliases = {}
+--			for _, alias in type(data[1]) == "table" and data[1] or {} do
+--				Insert(aliases, tostring(alias))
+--			end
+--			const arguments = {}
+--			for _, argument in type(data[3]) == "table" and data[3] or {} do
+--				if type(argument) == "table" then
+--					Insert(arguments, { name = tostring(argument.Name or argument.name or ""); type = tostring(argument.Type or argument.type or "String"); })
+--				end
+--			end
+--			Insert(out, { name = tostring(name); aliases = aliases; desc = tostring(data[2] or ""); arguments = arguments; plugin = data[4] == true; })
+--		end
+--		return out
+--	end
+--	const function findCommand(name)
+--		name = Lower(tostring(name or ""))
+--		for _, data in commandsTable do
+--			for _, alias in type(data[1]) == "table" and data[1] or {} do
+--				if Lower(tostring(alias)) == name then
+--					return data
+--				end
+--			end
+--		end
+--	end
+--	const bridge = {
+--		Protocol = 1;
+--		protocol = 1;
+--		ListCommands = listCommands;
+--		list = listCommands;
+--		FindCommand = findCommand;
+--		HasCommand = function(name) return findCommand(name) ~= nil end;
+--		RunCommand = function(name, args, options)
+--			if not findCommand(name) then return false, "command-not-found" end
+--			commandModule.Run(type(options) == "table" and options.ignoreNotifications == true, Lower(tostring(name)), type(args) == "table" and args or {})
+--			return true
+--		end;
+--		Parse = function(input, options)
+--			commandModule.Parse(type(options) == "table" and options.ignoreNotifications == true, tostring(input or ""))
+--			return true
+--		end;
+--		GetState = function()
+--			return { name = "Cmd"; version = settingsTable and settingsTable.Version; protocol = 1; prefix = settingsTable and settingsTable.Prefix or ";"; chatPrefix = settingsTable and settingsTable.ChatPrefix or "!"; separator = settingsTable and settingsTable.Seperator or ","; commandCount = #listCommands(); }
+--		end;
+--	}
+--	return NAmanage.CmdIntegrationApplyBridge(bridge, "manual-detect", opts)
+--end
 
 NAmanage.resolveTweenDuration=function(scale)
 	local base = tonumber(NAStuff.tweenSpeed) or 1
@@ -15901,34 +15681,6 @@ NAmanage.MarkStartupStage = NAmanage.MarkStartupStage or function(stage, status)
 	end)
 end
 
-NAmanage.RecordStartupTrace = NAmanage.RecordStartupTrace or function(name, data)
-	const perf = NAStuff and NAStuff.StartupPerformance
-	if type(perf) ~= "table" or perf.finished == true then
-		return
-	end
-	local trace = perf.trace
-	if type(trace) ~= "table" then
-		trace = {}
-		perf.trace = trace
-	end
-	if #trace >= 160 then
-		return
-	end
-	const started = tonumber(perf.started) or os.clock()
-	const entry = {
-		name = tostring(name or "trace");
-		at = os.clock() - started;
-	}
-	if type(data) == "table" then
-		for key, value in data do
-			if type(value) == "string" or type(value) == "number" or type(value) == "boolean" then
-				entry[key] = value
-			end
-		end
-	end
-	trace[#trace + 1] = entry
-end
-
 NAlib.disconnect("NA_startup_performance")
 NAlib.connect("NA_startup_performance", RunService.Heartbeat:Connect(function(dt)
 	const perf = NAStuff.StartupPerformance
@@ -16003,29 +15755,6 @@ end
 
 NAmanage.IsStartupBuilding = NAmanage.IsStartupBuilding or function()
 	return not (NAStuff and (NAStuff._loadingFinalizedOnce == true or (NAAssetsLoading and NAAssetsLoading._finalized == true)))
-end
-
-NAmanage.StartupYield = NAmanage.StartupYield or function(label)
-	if not (NAStuff and type(NAStuff.StartupPerformance) == "table") then
-		return
-	end
-	if NAStuff._loadingFinalizedOnce == true or (NAAssetsLoading and NAAssetsLoading._finalized == true) then
-		return
-	end
-	if type(NAmanage.RecordStartupTrace) == "function" then
-		NAmanage.RecordStartupTrace(label or "yield")
-	end
-	local canYield = true
-	if coroutine and type(coroutine.isyieldable) == "function" then
-		canYield = coroutine.isyieldable()
-	end
-	if canYield then
-		Wait()
-		const perf = NAStuff.StartupPerformance
-		if type(perf) == "table" then
-			perf.manualYields = (tonumber(perf.manualYields) or 0) + 1
-		end
-	end
 end
 
 NAmanage.GetFastStartupInstanceName = NAmanage.GetFastStartupInstanceName or function()
@@ -16558,7 +16287,6 @@ NAgui.NaProtectUI=function(gui)
 		})
 	end
 	if gui:IsA("ScreenGui") then
-		pcall(_na_boot.markOwnedUI, gui)
 		gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
 		gui.DisplayOrder   = MAX_DO
 		gui.ResetOnSpawn   = false
@@ -19402,12 +19130,12 @@ SpawnCall(function()
 		return
 	end
 
-	if type(loadstring) ~= "function" then
+	if type(loadstring or load) ~= "function" then
 		_na_env.__NA_FUNCTION_FIXER_LOADED = false
 		return
 	end
 
-	_na_env.__NA_FUNCTION_FIXER_CHUNK = _na_boot.loadLuau(_na_env.__NA_FUNCTION_FIXER_SOURCE, "@functionFixer.lua")
+	_na_env.__NA_FUNCTION_FIXER_CHUNK = (loadstring or load)(_na_env.__NA_FUNCTION_FIXER_SOURCE, "@functionFixer.lua")
 	if type(_na_env.__NA_FUNCTION_FIXER_CHUNK) ~= "function" then
 		_na_env.__NA_FUNCTION_FIXER_LOADED = false
 		return
@@ -20468,12 +20196,12 @@ NAmanage.NASettingsGetSchema=function()
 				return value
 			end;
 		};
-		cmdIntegrationAutoRun = {
-			default = false;
-			coerce = function(value)
-				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
-			end;
-		};
+--		cmdIntegrationAutoRun = {
+--			default = false;
+--			coerce = function(value)
+--				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
+--			end;
+--		};
 		purchasePromptsDisabled = {
 			default = false;
 			coerce = function(value)
@@ -22028,6 +21756,12 @@ NAmanage.GetUnsafeFunctionStores = NAmanage.GetUnsafeFunctionStores or function(
 	addStore(_na_shared)
 	if type(getgenv) == "function" then
 		local ok, env = pcall(getgenv)
+		if ok then
+			addStore(env)
+		end
+	end
+	if type(getfenv) == "function" then
+		local ok, env = pcall(getfenv)
 		if ok then
 			addStore(env)
 		end
@@ -24425,12 +24159,11 @@ NAStuff.ForceRconsoleNAConsole = NAmanage.NASettingsGet("forceRconsoleNAConsole"
 NAStuff.FriendRequestAutoDismiss = NAmanage.NASettingsGet("friendRequestAutoDismiss")
 NAStuff.StreamerModeEnabled = NAmanage.NASettingsGet("streamerMode") == true
 NAStuff.PurchasePromptsDisabled = NAmanage.NASettingsGet("purchasePromptsDisabled")
-NAStuff.CmdIntegrationDisabled = true
-NAStuff.CmdIntegrationAutoRun = false
-NAStuff.CmdIntegrationRoutingMode = "NA First"
-NAStuff.CmdIntegrationExposeGateway = false
-NAStuff.CmdIntegrationUseNotifications = false
-NAStuff.CmdIntegrationMirrorNotifications = false
+--NAStuff.CmdIntegrationAutoRun = NAmanage.NASettingsGet("cmdIntegrationAutoRun")
+--NAStuff.CmdIntegrationRoutingMode = NAmanage.CmdIntegrationNormalizeMode(NAmanage.NASettingsGet("cmdIntegrationRoutingMode") or NAStuff.CmdIntegrationRoutingMode)
+--NAStuff.CmdIntegrationExposeGateway = NAmanage.NASettingsGet("cmdIntegrationExposeGateway") ~= false
+--NAStuff.CmdIntegrationUseNotifications = NAmanage.NASettingsGet("cmdIntegrationUseNotifications") ~= false
+--NAStuff.CmdIntegrationMirrorNotifications = NAmanage.NASettingsGet("cmdIntegrationMirrorNotifications") == true
 NAStuff.AutoPreloadAssets = NAmanage.NASettingsGet("autoPreloadAssets")
 NAStuff.LightingStyleAutomation = NAmanage.NASettingsGet("lightingStyleAutomation") == true
 NAStuff.LightingStyleAutomationStyle = NAmanage.NASettingsGet("lightingStyleAutomationStyle") or "Soft"
@@ -27409,68 +27142,65 @@ NAmanage.updateLastCommand=function(rawArgs)
 	NAStuff._lastCommand = rawArgs
 end
 
-NAmanage.tryCmdIntegration=function(rawArgs, opts)
-	if NAStuff.CmdIntegrationDisabled == true then
-		return false, "cmd-integration-disabled"
-	end
-	opts = opts or {}
-	local bridge = NAStuff.CmdIntegrationBridge
-	if type(bridge) ~= "table" then
-		bridge = NAmanage.CmdIntegrationFindExistingBridge()
-		if type(bridge) == "table" then
-			NAStuff.CmdIntegrationBridge = bridge
-		end
-	end
-	if type(bridge) ~= "table" or type(rawArgs) ~= "table" or type(rawArgs[1]) ~= "string" then
-		return false, "bridge-unavailable"
-	end
-
-	const first = tostring(rawArgs[1])
-	const forced = Sub(first, 1, 4):lower() == "cmd:"
-	local commandName = forced and Sub(first, 5) or first
-	commandName = Lower(tostring(commandName or ""))
-	if commandName == "" or not NAmanage.CmdIntegrationHasCommand(commandName) then
-		return false, "command-not-found"
-	end
-
-	const arguments = {}
-	for index = 2, #rawArgs do
-		Insert(arguments, tostring(rawArgs[index] or ""))
-	end
-	const ignoreNotifications = NAStuff.CmdIntegrationUseNotifications ~= true
-	const runMethod = NAmanage.CmdIntegrationGetMethod(bridge, { "RunCommand", "runCommand" })
-	if type(runMethod) == "function" then
-		local okRun, accepted, result = pcall(runMethod, commandName, arguments, { ignoreNotifications = ignoreNotifications; source = "nameless-admin"; })
-		if okRun and accepted ~= false then
-			return true, result
-		end
-		return false, tostring(result or accepted or "command-run-failed")
-	end
-
-	const parseMethod = NAmanage.CmdIntegrationGetMethod(bridge, { "Parse", "parse" })
-	if type(parseMethod) ~= "function" then
-		return false, "parser-unavailable"
-	end
-	local prefix = tostring(NAStuff.CmdIntegrationPrefix or bridge.prefix or ";")
-	local separator = tostring(NAStuff.CmdIntegrationSeparator or bridge.separator or ",")
-	if prefix == "" then prefix = ";" end
-	if separator == "" then separator = "," end
-	local line = prefix..commandName
-	if #arguments > 0 then
-		line = line.." "..Concat(arguments, separator)
-	end
-	const protocol = tonumber(bridge.Protocol or bridge.protocol) or 1
-	local okParse, accepted, result
-	if protocol >= 2 or bridge.Parse == parseMethod then
-		okParse, accepted, result = pcall(parseMethod, line, { ignoreNotifications = ignoreNotifications; source = "nameless-admin"; })
-	else
-		okParse, accepted, result = pcall(parseMethod, ignoreNotifications, line)
-	end
-	if okParse and accepted ~= false then
-		return true, result
-	end
-	return false, tostring(result or accepted or "command-parse-failed")
-end
+--NAmanage.tryCmdIntegration=function(rawArgs, opts)
+--	opts = opts or {}
+--	local bridge = NAStuff.CmdIntegrationBridge
+--	if type(bridge) ~= "table" then
+--		bridge = NAmanage.CmdIntegrationFindExistingBridge()
+--		if type(bridge) == "table" then
+--			NAStuff.CmdIntegrationBridge = bridge
+--		end
+--	end
+--	if type(bridge) ~= "table" or type(rawArgs) ~= "table" or type(rawArgs[1]) ~= "string" then
+--		return false, "bridge-unavailable"
+--	end
+--
+--	const first = tostring(rawArgs[1])
+--	const forced = Sub(first, 1, 4):lower() == "cmd:"
+--	local commandName = forced and Sub(first, 5) or first
+--	commandName = Lower(tostring(commandName or ""))
+--	if commandName == "" or not NAmanage.CmdIntegrationHasCommand(commandName) then
+--		return false, "command-not-found"
+--	end
+--
+--	const arguments = {}
+--	for index = 2, #rawArgs do
+--		Insert(arguments, tostring(rawArgs[index] or ""))
+--	end
+--	const ignoreNotifications = NAStuff.CmdIntegrationUseNotifications ~= true
+--	const runMethod = NAmanage.CmdIntegrationGetMethod(bridge, { "RunCommand", "runCommand" })
+--	if type(runMethod) == "function" then
+--		local okRun, accepted, result = pcall(runMethod, commandName, arguments, { ignoreNotifications = ignoreNotifications; source = "nameless-admin"; })
+--		if okRun and accepted ~= false then
+--			return true, result
+--		end
+--		return false, tostring(result or accepted or "command-run-failed")
+--	end
+--
+--	const parseMethod = NAmanage.CmdIntegrationGetMethod(bridge, { "Parse", "parse" })
+--	if type(parseMethod) ~= "function" then
+--		return false, "parser-unavailable"
+--	end
+--	local prefix = tostring(NAStuff.CmdIntegrationPrefix or bridge.prefix or ";")
+--	local separator = tostring(NAStuff.CmdIntegrationSeparator or bridge.separator or ",")
+--	if prefix == "" then prefix = ";" end
+--	if separator == "" then separator = "," end
+--	local line = prefix..commandName
+--	if #arguments > 0 then
+--		line = line.." "..Concat(arguments, separator)
+--	end
+--	const protocol = tonumber(bridge.Protocol or bridge.protocol) or 1
+--	local okParse, accepted, result
+--	if protocol >= 2 or bridge.Parse == parseMethod then
+--		okParse, accepted, result = pcall(parseMethod, line, { ignoreNotifications = ignoreNotifications; source = "nameless-admin"; })
+--	else
+--		okParse, accepted, result = pcall(parseMethod, ignoreNotifications, line)
+--	end
+--	if okParse and accepted ~= false then
+--		return true, result
+--	end
+--	return false, tostring(result or accepted or "command-parse-failed")
+--end
 
 --[[ COMMAND FUNCTIONS ]]--
 local commandcount=0
@@ -27646,7 +27376,7 @@ NAmanage.invalidateCommandBuild = NAmanage.invalidateCommandBuild or function()
 	return NAStuff.CommandBuildRevision
 end
 
-NAmanage.StartupCommandBudgetStep = NAmanage.StartupCommandBudgetStep or function(commandName)
+NAmanage.StartupCommandBudgetStep = NAmanage.StartupCommandBudgetStep or function()
 	if NAStuff._loadingFinalizedOnce == true or (NAAssetsLoading and NAAssetsLoading._finalized == true) then
 		return
 	end
@@ -27661,21 +27391,12 @@ NAmanage.StartupCommandBudgetStep = NAmanage.StartupCommandBudgetStep or functio
 	const perf = NAStuff.StartupPerformance
 	const lastFrameDt = type(perf) == "table" and tonumber(perf.lastFrameDt) or nil
 	const highFps = lastFrameDt and lastFrameDt > 0 and lastFrameDt < (1 / 240)
-	const mobile = IsOnMobile == true
-	const batch = highFps and (mobile and 2 or (lowImpact and 2 or 5)) or (mobile and 6 or (lowImpact and 5 or 14))
-	const budget = highFps and (mobile and 0.0006 or 0.00075) or (mobile and 0.0015 or (lowImpact and 0.0012 or 0.003))
+	const batch = highFps and (lowImpact and 2 or 5) or (lowImpact and 6 or 14)
+	const budget = highFps and 0.00075 or (lowImpact and 0.0015 or 0.003)
 	if state.count % batch ~= 0 and now - (tonumber(state.lastYield) or now) < budget then
 		return
 	end
-	if type(NAmanage.RecordStartupTrace) == "function" and state.count % (mobile and 25 or 75) == 0 then
-		NAmanage.RecordStartupTrace("commands", {
-			count = state.count;
-			mobile = mobile;
-			lastFrameDt = lastFrameDt or 0;
-			command = tostring(commandName or "");
-		})
-	end
-	if type(NAmanage.pulseLoadingUI) == "function" and state.count % (mobile and 120 or 40) == 0 then
+	if type(NAmanage.pulseLoadingUI) == "function" and state.count % 40 == 0 then
 		pcall(NAmanage.pulseLoadingUI, "registering commands ("..tostring(state.count)..")", math.min(0.989, 0.965 + state.count / 40000))
 	end
 	local canYield = true
@@ -27686,7 +27407,6 @@ NAmanage.StartupCommandBudgetStep = NAmanage.StartupCommandBudgetStep or functio
 		Wait()
 		if type(perf) == "table" then
 			perf.commandYields = (tonumber(perf.commandYields) or 0) + 1
-			perf.commandBudgetCount = state.count
 		end
 	end
 	state.lastYield = os.clock()
@@ -27769,7 +27489,7 @@ cmd.add = function(aliases, info, func, requiresArguments, meta)
 		NAmanage.invalidateCommandBuild()
 	end
 	if type(NAmanage.StartupCommandBudgetStep) == "function" then
-		NAmanage.StartupCommandBudgetStep(type(aliases) == "table" and aliases[1] or nil)
+		NAmanage.StartupCommandBudgetStep()
 	end
 end
 
@@ -28739,12 +28459,6 @@ NAmanage.Unload = function(opts)
 			end
 		end
 	end
-	pcall(function()
-		const orphanRoots = _na_boot.collectUIRoots(true)
-		for i = 1, #orphanRoots do
-			addRoot(orphanRoots[i])
-		end
-	end)
 	const protector = rawget(_na_env, "__NAUIProtector") or rawget(_na_shared, "__NAUIProtector")
 	for i = 1, #roots do
 		const instance = roots[i]
@@ -29031,20 +28745,19 @@ cmd.run = function(args)
 
 	const callerLower = (type(caller) == "string") and caller:lower() or nil
 	const shouldRecord = callerLower ~= "lastcommand" and callerLower ~= "lastcmd"
-	const cmdIntegrationEnabled = NAStuff.CmdIntegrationDisabled ~= true
-	const routingMode = cmdIntegrationEnabled and NAmanage.CmdIntegrationNormalizeMode(NAStuff.CmdIntegrationRoutingMode) or "NA First"
-	const forcedCmd = cmdIntegrationEnabled and callerLower and Sub(callerLower, 1, 4) == "cmd:" or false
+--	const routingMode = NAmanage.CmdIntegrationNormalizeMode(NAStuff.CmdIntegrationRoutingMode)
+--	const forcedCmd = callerLower and Sub(callerLower, 1, 4) == "cmd:" or false
 
 	local success, msg = pcall(function()
-		if forcedCmd or (routingMode == "Cmd First" and NAmanage.CmdIntegrationHasCommand(callerLower)) then
-			if NAmanage.tryCmdIntegration(rawArgs, { forced = forcedCmd }) then
-				if shouldRecord then
-					NAmanage.updateLastCommand(rawArgs)
-				end
-				sendWebhookAsync(rawArgs)
-				return
-			end
-		end
+--		if forcedCmd or (routingMode == "Cmd First" and NAmanage.CmdIntegrationHasCommand(callerLower)) then
+--			if NAmanage.tryCmdIntegration(rawArgs, { forced = forcedCmd }) then
+--				if shouldRecord then
+--					NAmanage.updateLastCommand(rawArgs)
+--				end
+--				sendWebhookAsync(rawArgs)
+--				return
+--			end
+--		end
 		const command = callerLower and (cmds.Commands[callerLower] or cmds.Aliases[callerLower]) or nil
 		if command then
 			const depth = tonumber(NAmanage._cmdRunDepth) or 0
@@ -29062,13 +28775,13 @@ cmd.run = function(args)
 			end
 			sendWebhookAsync(rawArgs)
 		else
-			if cmdIntegrationEnabled and not forcedCmd and routingMode ~= "Explicit Only" and NAmanage.tryCmdIntegration(rawArgs) then
-				if shouldRecord then
-					NAmanage.updateLastCommand(rawArgs)
-				end
-				sendWebhookAsync(rawArgs)
-				return
-			end
+--			if not forcedCmd and routingMode ~= "Explicit Only" and NAmanage.tryCmdIntegration(rawArgs) then
+--				if shouldRecord then
+--					NAmanage.updateLastCommand(rawArgs)
+--				end
+--				sendWebhookAsync(rawArgs)
+--				return
+--			end
 			const closest = callerLower and didYouMean(callerLower) or nil
 			if closest and doPREDICTION then
 				const commandFunc = cmds.Commands[closest] and cmds.Commands[closest][1] or cmds.Aliases[closest] and cmds.Aliases[closest][1]
@@ -29595,21 +29308,19 @@ NAmanage._safeLoadStart = function()
 			elseif type(body) ~= "string" or body == "" then
 				warn("empty source")
 			else
-				if type(loadstring) ~= "function" then
+				const loader = loadstring or load
+				if type(loader) ~= "function" then
 					warn("loadstring unavailable")
 				else
 					Wait()
-					local fn, lerr = _na_boot.loadLuau(body, name)
+					local fn, lerr = loader(body, name)
 					body = nil
 					job.src = nil
 					if type(fn) ~= "function" then
 						warn(tostring(lerr or "compile error"))
 					else
 						if type(job.env) == "table" then
-							local envOk, envErr = _na_boot.applyEnv(fn, job.env)
-							if not envOk then
-								warn("environment rebinding unavailable: "..tostring(envErr))
-							end
+							pcall(setfenv, fn, job.env)
 						end
 						Wait()
 						const args = job.args or {}
@@ -40527,7 +40238,7 @@ NAmanage.LoadPlugins = function(opts)
 		pluginStore.shared = pluginShared
 		pluginStore.globals = pluginGlobals
 		pluginStore.env = proxyEnv
-		const baseEnv = (_na_boot and type(_na_boot.hostEnv) == "table" and _na_boot.hostEnv) or _G or {}
+		const baseEnv = getfenv()
 		local pluginApi = nil
 		const pluginNil = {}
 		const pluginEnvShims = {}
@@ -40650,18 +40361,19 @@ NAmanage.LoadPlugins = function(opts)
 			if target == nil or type(target) == "number" then
 				return proxyEnv
 			end
-			const env = _na_boot and _na_boot.getFunctionEnv and _na_boot.getFunctionEnv(target) or nil
-			if type(env) == "table" then
-				return _plugCleanEnv(env)
+			const hostGetfenv = baseEnv and baseEnv.getfenv or getfenv
+			if type(hostGetfenv) == "function" then
+				local ok, env = pcall(hostGetfenv, target)
+				if ok then
+					return _plugCleanEnv(env)
+				end
 			end
 			return proxyEnv
 		end
 		pluginEnvShims.setfenv = function(fn, env)
-			if type(fn) == "function" then
-				local ok = _na_boot and _na_boot.applyEnv and _na_boot.applyEnv(fn, _plugCleanEnv(env))
-				if ok then
-					return fn
-				end
+			const hostSetfenv = baseEnv and baseEnv.setfenv or setfenv
+			if type(hostSetfenv) == "function" and type(fn) == "function" then
+				return hostSetfenv(fn, _plugCleanEnv(env))
 			end
 			return fn
 		end
@@ -41646,6 +41358,7 @@ NAmanage.LoadPlugins = function(opts)
 			__metatable = "NAPluginEnvironment",
 			__index = function(_, k)
 				if k == "loadstring" then
+					const baseLoader = baseEnv.loadstring or loadstring
 					const function collectRemoteReturn(...)
 						const first = select(1, ...)
 						if type(first) == "table" then
@@ -41664,20 +41377,21 @@ NAmanage.LoadPlugins = function(opts)
 								return NAmanage.RunSourceInEnv(src, chunkname or "@NAPluginRuntime", proxyEnv, collectRemoteReturn, ...)
 							end
 						end
-						local f, e = _na_boot.loadLuau(code, chunkname)
+						local f, e = baseLoader(code, chunkname)
 						if not f then
 							return nil, e
 						end
-						local envOk, envErr = _na_boot.applyEnv(f, proxyEnv)
-						if not envOk then
-							return nil, "plugin loadstring environment unavailable: "..tostring(envErr)
-						end
+						setfenv(f, proxyEnv)
 						return function(...)
 							return collectRemoteReturn(f(...))
 						end
 					end
 				elseif k == "load" then
-					return nil
+					const baseLoad = baseEnv.load
+					if not baseLoad then return nil end
+					return function(chunk, chunkname, mode2)
+						return baseLoad(chunk, chunkname, mode2, proxyEnv)
+					end
 				elseif k == "Plugin" then
 					return pluginApi
 				elseif k == "NAPlugin" or k == "plugin" then
@@ -41742,11 +41456,7 @@ NAmanage.LoadPlugins = function(opts)
 			end
 		})
 
-		local envOk, envErr = _na_boot.applyEnv(func, proxyEnv)
-		if not envOk then
-			DoWindow("[Plugin Load Error] '"..file.."': Luau environment rebinding unavailable ("..tostring(envErr)..")")
-			return
-		end
+		setfenv(func, proxyEnv)
 
 		const prevSkipAdd = cmds._skipAutoSuffix
 		cmds._skipAutoSuffix = true
@@ -53440,16 +53150,23 @@ cmd.add({"rjre","rejoinrefresh"},{"rjre (rejoinrefresh)","Rejoins and teleports 
 local s,err = pcall(function()
 	repeat Wait() until game:IsLoaded()
 	local function naPrivateRoot()
-		local env = _G or {}
-		if type(getgenv) == "function" then
+		local env = (getgenv and getgenv()) or _G or {}
+		local dbg = rawget(env, "debug") or debug
+		local registry
+		if type(getreg) == "function" then
 			pcall(function()
-				local nextEnv = getgenv()
-				if type(nextEnv) == "table" then
-					env = nextEnv
-				end
+				registry = getreg()
 			end)
 		end
-		local root = type(env) == "table" and rawget(env, "__nameless_admin_private") or nil
+		if type(registry) ~= "table" and type(dbg) == "table" and type(dbg.getregistry) == "function" then
+			pcall(function()
+				registry = dbg.getregistry()
+			end)
+		end
+		if type(registry) ~= "table" then
+			registry = env
+		end
+		local root = type(registry) == "table" and rawget(registry, "__nameless_admin_private") or nil
 		return type(root) == "table" and root or nil
 	end
 	local function resolveService(name)
@@ -61205,27 +60922,23 @@ cmd.add({"synapsedex","sdex"},{"synapsedex (sdex)","Loads SynapseX's dex explore
 		function GiveOwnGlobals(Func,Script)
 			const Fenv={}
 			const RealFenv={script=Script}
-			const hostEnv = (_na_boot and _na_boot.getFunctionEnv and _na_boot.getFunctionEnv()) or (_na_boot and _na_boot.hostEnv) or _G or {}
 			const FenvMt={}
 			FenvMt.__index=function(a,b)
 				if RealFenv[b]==nil then
-					return hostEnv[b]
+					return getfenv()[b]
 				else
 					return RealFenv[b]
 				end
 			end
 			FenvMt.__newindex=function(a,b,c)
 				if RealFenv[b]==nil then
-					hostEnv[b]=c
+					getfenv()[b]=c
 				else
 					RealFenv[b]=c
 				end
 			end
 			setmetatable(Fenv,FenvMt)
-			local envOk, envErr = _na_boot.applyEnv(Func,Fenv)
-			if not envOk then
-				error("Synapse Dex requires Luau executor environment rebinding: "..tostring(envErr), 2)
-			end
+			setfenv(Func,Fenv)
 			return Func
 		end
 
@@ -62709,43 +62422,33 @@ NAmanage.SeedNpcCandidates = function()
 	end
 end
 
-NAmanage.ResolveNPCEspTargetSet = function(speaker)
-	const pool = {}
-	for inst in NAStuff.npcCandidates do
-		if inst and inst.Parent and CheckIfNPC(inst) then
-			Insert(pool, inst)
-		end
-	end
+NAStuff.NPC_ESP_Filter = tostring(NAStuff.NPC_ESP_Filter or "")
 
-	const filter = tostring(NAStuff.NPC_ESP_Filter or "")
-	const tokens = NAmanage.NPCArgSplit(filter)
-	const targets = {}
-	const function add(list)
-		for _, inst in list do
-			if typeof(inst) == "Instance" and inst:IsA("Model") then
-				targets[inst] = true
+NAmanage.ResolveNPCESPFilter = function(pool, speaker, raw)
+	raw = Lower(NAmanage.NPCArgTrim(raw))
+	const parsed = NAmanage.ParseNPCPlayerArg(raw)
+	if parsed ~= nil then
+		raw = parsed
+	end
+	const tokens = NAmanage.NPCArgSplit(raw)
+	if #tokens == 0 then
+		return pool
+	end
+	const out = {}
+	const seen = {}
+	for _, token in tokens do
+		for _, npc in NAmanage.NPCArgFilter(pool, speaker, token) do
+			if not seen[npc] then
+				seen[npc] = true
+				Insert(out, npc)
 			end
 		end
 	end
-
-	if #tokens == 0 then
-		add(pool)
-	else
-		for _, token in tokens do
-			add(NAmanage.NPCArgFilter(pool, speaker, token))
-		end
-	end
-
-	return targets
+	return out
 end
 
-cmd.add({"npcesp","espnpc"},{"npcesp [name|npc:filter] (espnpc)","locate all npcs or only npcs matching the given name/filter"},function(...)
-	local filter = Lower(NAmanage.PlayerQueryFromArgs(...))
-	const npcFilter = NAmanage.ParseNPCPlayerArg(filter)
-	if npcFilter ~= nil then
-		filter = npcFilter
-	end
-	NAStuff.NPC_ESP_Filter = filter
+cmd.add({"npcesp","espnpc"},{"npcesp [npc:name|filter] (espnpc)","locate all NPCs or only NPCs matching a name/filter"},function(...)
+	NAStuff.NPC_ESP_Filter = Concat({...}, " "):match("^%s*(.-)%s*$") or ""
 	NPCESPenabled = true
 	NAmanage.ESP_RecomputeEnabled()
 	chamsEnabled = false
@@ -62763,41 +62466,39 @@ cmd.add({"npcesp","espnpc"},{"npcesp [name|npc:filter] (espnpc)","locate all npc
 			const plr = Players.LocalPlayer
 			const char = plr and plr.Character
 			const root = char and getRoot(char)
-			const targets = NAmanage.ResolveNPCEspTargetSet(plr)
+			const pool = {}
 
+			for inst in NAStuff.npcCandidates do
+				if inst and inst.Parent and CheckIfNPC(inst) and NAmanage.IsValidESPModel(inst, true) then
+					Insert(pool, inst)
+				else
+					NAStuff.npcCandidates[inst] = nil
+					NAStuff.npcESPList[inst] = nil
+					NAmanage.ESP_Disconnect(inst)
+				end
+			end
+
+			const selected = NAmanage.ResolveNPCESPFilter(pool, plr, NAStuff.NPC_ESP_Filter)
 			const found = {}
 			local cnt = 0
 			const maxCnt = NAStuff.NPC_ESP_MaxCount or 200
 			const maxDist = NAStuff.NPC_ESP_MaxDist or 400
 
-			for inst in NAStuff.npcCandidates do
-				if inst and inst.Parent then
-					if not (CheckIfNPC(inst) and NAmanage.IsValidESPModel(inst, true)) then
-						NAStuff.npcCandidates[inst] = nil
-						NAStuff.npcESPList[inst] = nil
-						NAmanage.ESP_Disconnect(inst)
-						continue
-					end
-					if not targets[inst] then
-						continue
-					end
-					const rp = getRoot(inst)
-					if rp then
-						const d = root and (rp.Position - root.Position).Magnitude or nil
-						if NAmanage.ESP_IsWithinDistance(d, maxDist) then
-							found[inst] = true
-							if not NAStuff.npcESPList[inst] then
-								NAStuff.npcESPList[inst] = true
-								NAmanage.ESP_Add(inst, false, true)
-							end
-							cnt += 1
-							if cnt >= maxCnt then
-								break
-							end
+			for _, inst in selected do
+				const rp = getRoot(inst)
+				if rp then
+					const d = root and (rp.Position - root.Position).Magnitude or nil
+					if NAmanage.ESP_IsWithinDistance(d, maxDist) then
+						found[inst] = true
+						if not NAStuff.npcESPList[inst] then
+							NAStuff.npcESPList[inst] = true
+							NAmanage.ESP_Add(inst, false, true)
+						end
+						cnt += 1
+						if cnt >= maxCnt then
+							break
 						end
 					end
-				else
-					NAStuff.npcCandidates[inst] = nil
 				end
 			end
 
@@ -62842,6 +62543,7 @@ cmd.add({"unnpcesp","unespnpc"},{"unnpcesp (unespnpc)","stop locating npcs"},fun
 	NAStuff.npcESPList = {}
 	_na_env.npcESPList = NAStuff.npcESPList
 	NAStuff.npcCandidates = {}
+	NAStuff.NPC_ESP_Filter = ""
 	if not (ESPPlayersEnabled or chamsEnabled or NPCESPenabled) then
 		NAmanage.ESP_StopGlobal()
 	end
@@ -65705,6 +65407,11 @@ NAmanage.GetSaveInstance420 = NAmanage.GetSaveInstance420 or function()
 		return cached
 	end
 
+	const loader = loadstring or load
+	if type(loader) ~= "function" then
+		error("SaveInstance 420 Edition loader unavailable")
+	end
+
 	const repoUrl = "https://sirmemegithub.com/RealSlimShady2000/SaveInstance420Edition/raw/branch/main/"
 	const scriptName = "saveinstance"
 	local source = NAmanage.HttpGetOrError(repoUrl..scriptName..".luau", { noCache = true, timeout = 20 })
@@ -65718,9 +65425,9 @@ NAmanage.GetSaveInstance420 = NAmanage.GetSaveInstance420 or function()
 				StatusGui.Parent = RobloxGui or CoreGui
 			end
 			]], 1)
-	local chunk, compileErr = _na_boot.loadLuau(source, "@SaveInstance420Edition/"..scriptName..".luau")
+	const chunk = loader(source, "@SaveInstance420Edition/"..scriptName..".luau")
 	if type(chunk) ~= "function" then
-		error("failed to compile SaveInstance 420 Edition: "..tostring(compileErr))
+		error("failed to compile SaveInstance 420 Edition")
 	end
 
 	const saveInstance420 = chunk()
@@ -71141,7 +70848,7 @@ end,true)
 cmd.add({"netbypass", "netb"}, {"netbypass (netb)", "Net bypass"}, function()
 	Wait()
 	DebugNotif("Netbypass enabled")
-	const fenv = (_na_boot and _na_boot.hostEnv) or _G or {}
+	const fenv = getfenv()
 	const shp = fenv.sethiddenproperty or fenv.set_hidden_property or fenv.sethiddenprop or fenv.set_hidden_prop
 	const ssr = fenv.setsimulationradius or fenv.setsimradius or fenv.set_simulation_radius
 	net = shp and function(r) shp(lp, "SimulationRadius", r) end or ssr
@@ -83086,8 +82793,6 @@ cmd.add({"firetouchinterestsfind","ftifind","firetifind"},{"firetouchinterestsfi
 	end
 end,true)
 
-NAmanage.StartupYield("interact:touch_commands")
-
 NAutil.parseInterval = function(defaultInterval, ...)
 	const args = { ... }
 	const n1 = tonumber(args[1])
@@ -83636,8 +83341,6 @@ NAindex.init = function(opts)
 	end
 end
 
-NAmanage.StartupYield("interact:index_helpers")
-
 NAsuppress._acquire = function(pp)
 	const r = NAsuppress.ref[pp] or 0
 	if r == 0 then
@@ -83685,8 +83388,6 @@ NAsuppress.releaseList = function(list)
 		NAsuppress._release(p)
 	end
 end
-
-NAmanage.StartupYield("interact:suppress_helpers")
 
 NAjobs._tracked = NAjobs._tracked or {}
 NAjobs._tracked.prompt = NAjobs._tracked.prompt or { list = {}, idx = {} }
@@ -83798,8 +83499,6 @@ NAjobs._ensureTracked = function()
 	end))
 end
 
-NAmanage.StartupYield("interact:tracking_helpers")
-
 NAjobs._isRemote = function(inst)
 	return typeof(inst) == "Instance" and (inst:IsA("RemoteEvent") or inst:IsA("UnreliableRemoteEvent") or inst:IsA("RemoteFunction"))
 end
@@ -83879,8 +83578,6 @@ NAjobs._remoteFullName = function(r)
 	end)
 	return ok and tostring(res or r.Name) or tostring(r and r.Name or "Remote")
 end
-
-NAmanage.StartupYield("interact:remote_tracking_helpers")
 
 NAjobs._fireRemote = function(r)
 	if not NAjobs._isRemote(r) or not (r and r.Parent) then
@@ -84473,8 +84170,6 @@ NAjobs._runStep = function(method)
 	NAjobs._restoreTouchDue()
 end
 
-NAmanage.StartupYield("interact:job_step_helpers")
-
 NAjobs._sigKey = function(method)
 	return "NAjobs_stp_"..NAmanage.SanitizeLoopMethod(method or "PostSimulation")
 end
@@ -84933,8 +84628,6 @@ NAmanage._windowStopKindFind=function(kind, titleText)
 	buildStopWindow(kind, titleText, true)
 end
 
-NAmanage.StartupYield("interact:job_management_helpers")
-
 cmd.add({"autofireproxi","afp"},{"autofireproxi <interval> [target]","Automatically fires ProximityPrompts matching [target] every <interval> seconds"}, function(...)
 	const args = {...}
 	local interval, target
@@ -85104,8 +84797,6 @@ cmd.add({"noproximitypromptlimits","nopplimits","removepplimits"},{"noproximityp
 		v.MaxActivationDistance = limit
 	end
 end,true)
-
-NAmanage.StartupYield("interact:autofire_commands")
 
 NAStuff.instantProximityPrompts = type(NAStuff.instantProximityPrompts) == "table" and NAStuff.instantProximityPrompts or {}
 NAStuff.instantProximityPrompts.active = NAStuff.instantProximityPrompts.active == true
@@ -85354,8 +85045,6 @@ cmd.add({"unloopenableproximityprompts","unloopenableprox","unlenprox","unlenpp"
 	NAmanage.StopProximityPromptEnableWatcher()
 end)
 
-NAmanage.StartupYield("interact:prompt_state_helpers")
-
 NAmanage.rigPromptErr = function(n, er)
 	er=tostring(er or "unknown error"):gsub("[\r\n]", " ")
 	if #er > 240 then
@@ -85530,8 +85219,6 @@ cmd.add({"unloopmaxslopeangle", "unloopmsa", "unlmsa"}, {"unloopmaxslopeangle (u
 	NAlib.disconnect("loopmsa_apply")
 	NAlib.disconnect("loopmsa_char")
 end)
-
-NAmanage.StartupYield("player:rig_and_slope_commands")
 
 -- garbage that needs to be changed to something else
 
@@ -85836,8 +85523,6 @@ NAmanage.God_Disable = function()
 	NAStuff._godHumRef = nil
 end
 
-NAmanage.StartupYield("player:god_helpers")
-
 cmd.add({"godmode","god"},{"godmode (god)","Pick and enable an invincibility method"},function(...)
 	const args = {...}
 	const choice = args[1] and Lower(args[1]) or nil
@@ -85914,27 +85599,19 @@ cmd.add({"godmode","god"},{"godmode (god)","Pick and enable an invincibility met
 	})
 end)
 
-NAmanage.StartupYield("player:god_command")
-
 cmd.add({"ungodmode","ungod"},{"ungodmode (ungod)","Disable invincibility"},function()
 	NAmanage.God_Disable()
 end)
-
-NAmanage.StartupYield("player:ungod_command")
 
 cmd.add({"controllock","ctrllock"},{"controllock (ctrllock)","Set Shiftlock keys to Control for this session"},function()
 	if not IsOnPC then DebugNotif("PC-only feature") return end
 	NAmanage.ControlLock_Apply("LeftControl,RightControl")
 end)
 
-NAmanage.StartupYield("player:controllock_command")
-
 cmd.add({"uncontrollock","unctrllock"},{"uncontrollock (unctrllock)","Restore Shiftlock keys to default (Shift)"},function()
 	if not IsOnPC then DebugNotif("PC-only feature") return end
 	NAmanage.ControlLock_Apply("LeftShift,RightShift")
 end)
-
-NAmanage.StartupYield("player:uncontrollock_command")
 
 cmd.add({"resetlock"}, {"resetlock", "Resets your Shiftlock keybinds to default (LeftShift)"}, function()
 	const player = LocalPlayer
@@ -85945,8 +85622,6 @@ cmd.add({"resetlock"}, {"resetlock", "Resets your Shiftlock keybinds to default 
 
 	DebugNotif("Reset your Shiftlock keybinds to Shift")
 end)
-
-NAmanage.StartupYield("player:lock_commands")
 
 --[[
 cmd.add({"autoreport"}, {"autoreport", "Automatically reports players to get them banned"}, function()
@@ -86142,8 +85817,6 @@ cmd.add({"flashlight","fl"},{"flashlight (fl)","Gives you a flashlight tool"},fu
 	DebugNotif("Flashlight added", 2)
 end)
 
-NAmanage.StartupYield("player:flashlight_command")
-
 cmd.add({"light"},{"light <range> <brightness> <hexColor>","Gives your player dynamic light"},function(rangeStr,brightnessStr,colorHex)
 	const range     = tonumber(rangeStr)   or settingsLight.range
 	const brightness= tonumber(brightnessStr)or settingsLight.brightness
@@ -86221,8 +85894,6 @@ cmd.add({"lighting","lightingcontrol"},{"lighting (lightingcontrol)","Manage lig
 		})
 	end
 end)
-
-NAmanage.StartupYield("player:lighting_commands")
 
 cmd.add({"friend"}, {"friend <player>", "Sends a friend request to your target"}, function(p)
 	const tg = getPlr(p)
@@ -86304,8 +85975,6 @@ cmd.add({"unfriend"}, {"unfriend <player>", "Prompts to unfriend your target"}, 
 	end
 end, true)
 
-NAmanage.StartupYield("social:friend_commands")
-
 NAmanage.GetBlockedUserIdsSafe = NAmanage.GetBlockedUserIdsSafe or function()
 	for _ = 1, 25 do
 		local ok, ids = pcall(function()
@@ -86318,8 +85987,6 @@ NAmanage.GetBlockedUserIdsSafe = NAmanage.GetBlockedUserIdsSafe or function()
 	end
 	return nil
 end
-
-NAmanage.StartupYield("social:block:get_ids_helper")
 
 NAmanage.IsBlockedUserId = NAmanage.IsBlockedUserId or function(userId, ids)
 	userId = tonumber(userId)
@@ -86338,8 +86005,6 @@ NAmanage.IsBlockedUserId = NAmanage.IsBlockedUserId or function(userId, ids)
 	return false
 end
 
-NAmanage.StartupYield("social:block:is_blocked_helper")
-
 NAmanage.GetCorePromptGui = NAmanage.GetCorePromptGui or function()
 	local ok, rg = pcall(function()
 		return __lt.cm("CoreGui", "FindFirstChild", "RobloxGui")
@@ -86355,8 +86020,6 @@ NAmanage.GetCorePromptGui = NAmanage.GetCorePromptGui or function()
 	end
 	return nil
 end
-
-NAmanage.StartupYield("social:block:core_prompt_helper")
 
 NAmanage.WaitCorePromptClosed = NAmanage.WaitCorePromptClosed or function()
 	local t0 = os.clock()
@@ -86391,8 +86054,6 @@ NAmanage.WaitCorePromptClosed = NAmanage.WaitCorePromptClosed or function()
 	end
 end
 
-NAmanage.StartupYield("social:block:wait_prompt_helper")
-
 NAmanage.GetFirstBlockTarget = NAmanage.GetFirstBlockTarget or function(list)
 	if type(list) ~= "table" then
 		return nil
@@ -86404,8 +86065,6 @@ NAmanage.GetFirstBlockTarget = NAmanage.GetFirstBlockTarget or function(list)
 	end
 	return nil
 end
-
-NAmanage.StartupYield("social:block:first_target_helper")
 
 NAmanage.PromptBlockState = NAmanage.PromptBlockState or function(plr, unblock)
 	if typeof(plr) ~= "Instance" or not plr:IsA("Player") or plr == LocalPlayer or tonumber(plr.UserId) == nil or plr.UserId < 0 then
@@ -86441,8 +86100,6 @@ NAmanage.PromptBlockState = NAmanage.PromptBlockState or function(plr, unblock)
 	return okOpen
 end
 
-NAmanage.StartupYield("social:block:prompt_state_helper")
-
 cmd.add({"block","blockuser"},{"block <player> (blockuser)","Open block / unblock prompt for target player"},function(p)
 	const t = NAmanage.GetFirstBlockTarget(getPlr(p))
 	if not t then
@@ -86468,8 +86125,6 @@ cmd.add({"unblock","unblockuser"},{"unblock <player> (unblockuser)","Open unbloc
 		DoNotif("Failed to open unblock prompt for "..tostring(t.Name), 2)
 	end
 end,true)
-
-NAmanage.StartupYield("social:block_helpers")
 
 NAmanage.NAgetFriendCircles=function()
 	const players = __lt.cm("Players", "GetPlayers")
@@ -95977,8 +95632,7 @@ cmd.add({"cameranoclip","camnoclip","cnoclip","nccam"},{"cameranoclip (camnoclip
 
 		if Popper then
 			for i, v in getgc() do
-				local env = _na_boot and _na_boot.getFunctionEnv and _na_boot.getFunctionEnv(v) or nil
-				if type(v) == "function" and env and env.script == Popper then
+				if type(v) == "function" and getfenv(v).script == Popper then
 					for i2, v2 in GetConstants(v) do
 						if tonumber(v2) == 0.25 then
 							SetConstant(v, i2, 0)
@@ -96073,8 +95727,7 @@ cmd.add({"uncameranoclip","uncamnoclip","uncnoclip","unnccam"},{"uncameranoclip 
 
 		if Popper then
 			for i, v in getgc() do
-				local env = _na_boot and _na_boot.getFunctionEnv and _na_boot.getFunctionEnv(v) or nil
-				if type(v) == "function" and env and env.script == Popper then
+				if type(v) == "function" and getfenv(v).script == Popper then
 					for i2, v2 in GetConstants(v) do
 						if tonumber(v2) == 0.25 then
 							SetConstant(v, i2, 0)
@@ -97034,8 +96687,8 @@ cmd.add({"jp", "jumppower"}, {"jumppower <number> (jp)", "Sets your JumpPower"},
 end, true)
 
 NAmanage.isCoreFunc=function(fn)
-	local env = _na_boot and _na_boot.getFunctionEnv and _na_boot.getFunctionEnv(fn) or nil
-	if type(env) ~= "table" then return false end
+	local ok, env = pcall(getfenv, fn)
+	if not ok or type(env) ~= "table" then return false end
 	const sc = rawget(env, "script")
 	return typeof(sc) == "Instance" and sc:IsDescendantOf(COREGUI)
 end
@@ -99620,12 +99273,10 @@ do
 		return
 	end
 	NAStuff.NASCREENGUI = ready
-	pcall(_na_boot.rememberMainUIRoot, ready)
 end
 
 if NAStuff.NASCREENGUI and NAStuff.NASCREENGUI:IsA("ScreenGui") then
 	NAStuff.uiBootHidden = true
-	pcall(_na_boot.rememberMainUIRoot, NAStuff.NASCREENGUI)
 	pcall(function()
 		NAStuff.NASCREENGUI.Enabled = false
 	end)
@@ -102983,7 +102634,7 @@ end
 --[[ GUI FUNCTIONS ]]--
 const patchedCommandColor = Color3.fromRGB(255, 115, 115)
 const pluginCommandColor = Color3.fromRGB(255, 196, 125)
-const cmdIntegrationColor = Color3.fromRGB(120, 180, 255)
+--const cmdIntegrationColor = Color3.fromRGB(120, 180, 255)
 
 NAgui.addPatchedLabel=function(text)
 	if not text then return text end
@@ -103107,7 +102758,7 @@ NAmanage.getCommandBuildSignature = NAmanage.getCommandBuildSignature or functio
 		tostring(countDictNA(cmds.Commands)),
 		tostring(countDictNA(cmds.Aliases)),
 		tostring(countDictNA(cmds.NASAVEDALIASES)),
-		tostring(type(NAStuff.CmdIntegrationCommands) == "table" and #NAStuff.CmdIntegrationCommands or 0),
+--		tostring(type(NAStuff.CmdIntegrationCommands) == "table" and #NAStuff.CmdIntegrationCommands or 0),
 	}, ":")
 	NAStuff.CommandBuildSignatureCache = signature
 	NAStuff.CommandBuildSignatureCacheRevision = revision
@@ -103280,95 +102931,95 @@ NAmanage.buildCommandDataPackage = function()
 		NAmanage.cmdYield(cmdStep, 120)
 	end
 
-	const cmdList = NAStuff.CmdIntegrationCommands
-	if type(cmdList) == "table" then
-		for cmdInfoIndex, info in cmdList do
-			NAmanage.cmdYield(cmdInfoIndex, 120)
-			local baseName = info and info.name
-			if baseName then
-				baseName = tostring(baseName)
-			end
-			if baseName and baseName ~= "" then
-				const canonicalName = "cmd:"..baseName
-				const aliases = { Lower(baseName), Lower(canonicalName) }
-				const displayAliases = {}
-				const seenAliases = {
-					[Lower(baseName)] = true;
-					[Lower(canonicalName)] = true;
-				}
-				if type(info.aliases) == "table" then
-					for _, alias in info.aliases do
-						const rawAlias = tostring(alias or "")
-						const lowerAlias = Lower(rawAlias)
-						if rawAlias ~= "" and lowerAlias ~= Lower(baseName) then
-							if not seenAliases[lowerAlias] then
-								seenAliases[lowerAlias] = true
-								Insert(aliases, lowerAlias)
-							end
-							const explicitAlias = "cmd:"..rawAlias
-							const lowerExplicitAlias = Lower(explicitAlias)
-							if not seenAliases[lowerExplicitAlias] then
-								seenAliases[lowerExplicitAlias] = true
-								Insert(aliases, lowerExplicitAlias)
-								Insert(displayAliases, explicitAlias)
-							end
-						end
-					end
-				end
-				local usage = canonicalName
-				const argumentHints = {}
-				if type(info.arguments) == "table" then
-					for index, argument in info.arguments do
-						local argumentName = type(argument) == "table" and tostring(argument.name or argument.type or "arg"..tostring(index)) or "arg"..tostring(index)
-						if argumentName == "" then
-							argumentName = "arg"..tostring(index)
-						end
-						Insert(argumentHints, "<"..argumentName..">")
-					end
-				end
-				if #argumentHints > 0 then
-					usage = usage.." "..Concat(argumentHints, " ")
-				end
-				const sourceDesc = type(info.desc) == "string" and info.desc or ""
-				const descParts = { "Run: "..usage }
-				if #displayAliases > 0 then
-					Insert(descParts, "Aliases: "..Concat(displayAliases, ", "))
-				end
-				if sourceDesc ~= "" then
-					Insert(descParts, sourceDesc)
-				end
-				const desc = Concat(descParts, "\n")
-				local finalText = "[Cmd] "..canonicalName
-				if #displayAliases > 0 then
-					finalText = finalText.." ("..Concat(displayAliases, ", ")..")"
-				end
-				local searchable = NAmanage.stripMarkup(Lower(finalText.." "..baseName))
-				if #aliases > 0 then
-					searchable = searchable.." "..Concat(aliases, " ")
-				end
-				if sourceDesc ~= "" then
-					searchable = searchable.." "..NAmanage.stripMarkup(Lower(sourceDesc))
-				end
-				used[Lower(canonicalName)] = true
-				metaByName[canonicalName] = {
-					origin = "cmd";
-					displayText = finalText;
-					searchable = searchable;
-					aliases = aliases;
-					sourceName = baseName;
-					duplicate = used[Lower(baseName)] == true;
-					usage = usage;
-					desc = desc;
-				}
-				entries[#entries + 1] = {
-					name = canonicalName;
-					display = finalText;
-					meta = metaByName[canonicalName];
-					sortKey = Lower(tostring(finalText));
-				}
-			end
-		end
-	end
+--	const cmdList = NAStuff.CmdIntegrationCommands
+--	if type(cmdList) == "table" then
+--		for cmdInfoIndex, info in cmdList do
+--			NAmanage.cmdYield(cmdInfoIndex, 120)
+--			local baseName = info and info.name
+--			if baseName then
+--				baseName = tostring(baseName)
+--			end
+--			if baseName and baseName ~= "" then
+--				const canonicalName = "cmd:"..baseName
+--				const aliases = { Lower(baseName), Lower(canonicalName) }
+--				const displayAliases = {}
+--				const seenAliases = {
+--					[Lower(baseName)] = true;
+--					[Lower(canonicalName)] = true;
+--				}
+--				if type(info.aliases) == "table" then
+--					for _, alias in info.aliases do
+--						const rawAlias = tostring(alias or "")
+--						const lowerAlias = Lower(rawAlias)
+--						if rawAlias ~= "" and lowerAlias ~= Lower(baseName) then
+--							if not seenAliases[lowerAlias] then
+--								seenAliases[lowerAlias] = true
+--								Insert(aliases, lowerAlias)
+--							end
+--							const explicitAlias = "cmd:"..rawAlias
+--							const lowerExplicitAlias = Lower(explicitAlias)
+--							if not seenAliases[lowerExplicitAlias] then
+--								seenAliases[lowerExplicitAlias] = true
+--								Insert(aliases, lowerExplicitAlias)
+--								Insert(displayAliases, explicitAlias)
+--							end
+--						end
+--					end
+--				end
+--				local usage = canonicalName
+--				const argumentHints = {}
+--				if type(info.arguments) == "table" then
+--					for index, argument in info.arguments do
+--						local argumentName = type(argument) == "table" and tostring(argument.name or argument.type or "arg"..tostring(index)) or "arg"..tostring(index)
+--						if argumentName == "" then
+--							argumentName = "arg"..tostring(index)
+--						end
+--						Insert(argumentHints, "<"..argumentName..">")
+--					end
+--				end
+--				if #argumentHints > 0 then
+--					usage = usage.." "..Concat(argumentHints, " ")
+--				end
+--				const sourceDesc = type(info.desc) == "string" and info.desc or ""
+--				const descParts = { "Run: "..usage }
+--				if #displayAliases > 0 then
+--					Insert(descParts, "Aliases: "..Concat(displayAliases, ", "))
+--				end
+--				if sourceDesc ~= "" then
+--					Insert(descParts, sourceDesc)
+--				end
+--				const desc = Concat(descParts, "\n")
+--				local finalText = "[Cmd] "..canonicalName
+--				if #displayAliases > 0 then
+--					finalText = finalText.." ("..Concat(displayAliases, ", ")..")"
+--				end
+--				local searchable = NAmanage.stripMarkup(Lower(finalText.." "..baseName))
+--				if #aliases > 0 then
+--					searchable = searchable.." "..Concat(aliases, " ")
+--				end
+--				if sourceDesc ~= "" then
+--					searchable = searchable.." "..NAmanage.stripMarkup(Lower(sourceDesc))
+--				end
+--				used[Lower(canonicalName)] = true
+--				metaByName[canonicalName] = {
+--					origin = "cmd";
+--					displayText = finalText;
+--					searchable = searchable;
+--					aliases = aliases;
+--					sourceName = baseName;
+--					duplicate = used[Lower(baseName)] == true;
+--					usage = usage;
+--					desc = desc;
+--				}
+--				entries[#entries + 1] = {
+--					name = canonicalName;
+--					display = finalText;
+--					meta = metaByName[canonicalName];
+--					sortKey = Lower(tostring(finalText));
+--				}
+--			end
+--		end
+--	end
 
 	if type(NAmanage.sortCommandEntries) == "function" then
 		NAmanage.sortCommandEntries(entries)
@@ -103440,9 +103091,9 @@ end
 
 NAmanage.totalCommandCount=function()
 	local count = countDictNA(cmds.Commands)
-	if type(NAStuff.CmdIntegrationCommands) == "table" then
-		count = count + #NAStuff.CmdIntegrationCommands
-	end
+--	if type(NAStuff.CmdIntegrationCommands) == "table" then
+--		count = count + #NAStuff.CmdIntegrationCommands
+--	end
 	return count
 end
 const COMMAND_LIST_TOP_PADDING = 5
@@ -103640,13 +103291,13 @@ const function applyCommandListEntry(state, label, entry, index)
 	const cmdName = entry.name
 	const finalText = meta.displayText or entry.display or cmdName
 	const isPatched = meta.patched == true
-	const isCmdIntegration = meta.origin == "cmd"
+--	const isCmdIntegration = meta.origin == "cmd"
 	const isPluginCmd = meta.pluginType ~= nil
 
 	if isPatched then
 		label.TextColor3 = patchedCommandColor
-	elseif isCmdIntegration then
-		label.TextColor3 = cmdIntegrationColor
+--	elseif isCmdIntegration then
+--		label.TextColor3 = cmdIntegrationColor
 	elseif isPluginCmd then
 		label.TextColor3 = pluginCommandColor
 	elseif state.defaultCmdColor then
@@ -103666,7 +103317,7 @@ const function applyCommandListEntry(state, label, entry, index)
 		NAmanage.SetAttr(label, "CmdDesc", desc)
 		NAmanage.SetAttr(label, "IsPluginCommand", isPluginCmd)
 		NAmanage.SetAttr(label, "IsPatchedCommand", isPatched)
-		NAmanage.SetAttr(label, "IsCmdIntegration", isCmdIntegration)
+--		NAmanage.SetAttr(label, "IsCmdIntegration", isCmdIntegration)
 	end
 
 	label.Name = cmdName
@@ -111907,7 +111558,7 @@ NAmanage.applyCmdAutofillEntryToFrame = function(frame, entry)
 	const name = entry.name or frame.Name
 	local finalDisplay = meta.displayText or entry.display or name
 	const isPatched = meta.patched == true
-	const isCmdIntegration = meta.origin == "cmd"
+--	const isCmdIntegration = meta.origin == "cmd"
 	const isPluginCmd = meta.pluginType ~= nil
 	const inputObj = frame:FindFirstChild("Input")
 	const defaultInputColor = NAStuff.defaultCmdAutofillInputColor
@@ -111916,8 +111567,8 @@ NAmanage.applyCmdAutofillEntryToFrame = function(frame, entry)
 		if isPatched then
 			inputObj.TextColor3 = patchedCommandColor
 			finalDisplay = NAgui.addPatchedLabel(finalDisplay)
-		elseif isCmdIntegration then
-			inputObj.TextColor3 = cmdIntegrationColor
+--		elseif isCmdIntegration then
+--			inputObj.TextColor3 = cmdIntegrationColor
 		elseif isPluginCmd then
 			inputObj.TextColor3 = pluginCommandColor
 		elseif defaultInputColor then
@@ -111930,7 +111581,7 @@ NAmanage.applyCmdAutofillEntryToFrame = function(frame, entry)
 
 	frame.Name = tostring(name)
 	NAmanage.SetAttr(frame, "NA_FillText", tostring(name))
-	NAmanage.SetAttr(frame, "IsCmdIntegration", isCmdIntegration)
+--	NAmanage.SetAttr(frame, "IsCmdIntegration", isCmdIntegration)
 	NAmanage.SetAttr(frame, "IsPluginCommand", isPluginCmd)
 	NAmanage.SetAttr(frame, "IsPatchedCommand", isPatched)
 end
@@ -126266,11 +125917,8 @@ SpawnCall(function()
 				execEnv = buildGuardSandbox(env)
 			end
 
-			if type(execEnv) == "table" then
-				local envOk, envErr = _na_boot.applyEnv(chunk, execEnv)
-				if not envOk then
-					warn("protector environment rebinding unavailable: "..tostring(envErr))
-				end
+			if type(setfenv) == "function" and type(execEnv) == "table" then
+				pcall(setfenv, chunk, execEnv)
 			end
 
 			local okRun, runErr = pcall(chunk)
@@ -127555,6 +127203,21 @@ NAmanage.scheduleLoader('UserButtons', function()
 	NAmanage.loadButtonIDS()
 	return NAmanage.RenderUserButtons()
 end, { requiresGui = true, retries = 5, delay = 0.4, retryOnFalse = true })
+--NAmanage.scheduleLoader('CmdIntegrationAutoRun', function()
+--	if NAStuff.CmdIntegrationAutoRun == true and NAmanage.loadCmdIntegration then
+--		local ok, err = NAmanage.loadCmdIntegration({ silent = true })
+--		if not ok then
+--			const msg = Format("Cmd auto-load failed: %s", tostring(err))
+--			if type(DebugNotif) == "function" then
+--				DebugNotif(msg, 3)
+--			else
+--				warn(msg)
+--			end
+--			return false
+--		end
+--	end
+--	return true
+--end, { retries = 2, delay = 0.6, retryOnFalse = true })
 NAmanage.scheduleLoader('CmdBar2AutoRun', function()
 	if NAStuff.CmdBar2AutoRun == true and cmd and cmd.run then
 		cmd.run({"cmdbar2"})
@@ -130550,10 +130213,6 @@ NAmanage.GetStartupPerformanceSnapshot = function()
 						attempt = item.attempt,
 						index = item.index,
 						ok = item.ok,
-						count = item.count,
-						mobile = item.mobile,
-						lastFrameDt = item.lastFrameDt,
-						command = item.command,
 					}
 				end
 			end
@@ -130571,7 +130230,6 @@ NAmanage.GetStartupPerformanceSnapshot = function()
 		frames = perf.frames,
 		spikes = copyList(perf.spikes, 12),
 		stages = copyList(perf.stages, 24),
-		trace = copyList(perf.trace, 64),
 		uiFetchElapsed = perf.uiFetchElapsed,
 		uiPrepareElapsed = perf.uiPrepareElapsed,
 		uiCompileElapsed = perf.uiCompileElapsed,
@@ -130585,7 +130243,6 @@ NAmanage.GetStartupPerformanceSnapshot = function()
 		uiSourceInstances = perf.uiSourceInstances,
 		instanceYields = perf.instanceYields,
 		commandYields = perf.commandYields,
-		commandBudgetCount = perf.commandBudgetCount,
 		instanceNameElapsed = perf.instanceNameElapsed,
 		instanceNameCount = perf.instanceNameCount,
 		settingsBuildElapsed = perf.settingsBuildElapsed,
@@ -133084,6 +132741,130 @@ NAgui.addTab(NA_TABS.TAB_INTEGRATIONS, { order = 2, textIcon = "chain-link" })
 NAgui.setTab(NA_TABS.TAB_INTEGRATIONS)
 
 NAgui.addSection("Integrations")
+
+--NAgui.addButton("Load Cmd (lxte)", function()
+--	local ok, err = NAmanage.loadCmdIntegration()
+--	if not ok then
+--		const msg = "Cmd failed to load: "..tostring(err)
+--		if type(DoNotif) == "function" then
+--			DoNotif(msg, 4)
+--		else
+--			warn(msg)
+--		end
+--	end
+--end)
+--
+--NAgui.addToggle("Auto-load Cmd (lxte)", NAStuff.CmdIntegrationAutoRun == true, function(v)
+--	NAStuff.CmdIntegrationAutoRun = v and true or false
+--	pcall(NAmanage.NASettingsSet, "cmdIntegrationAutoRun", NAStuff.CmdIntegrationAutoRun)
+--	if v then
+--		local ok, err = NAmanage.loadCmdIntegration()
+--		if not ok then
+--			const msg = "Cmd failed to load: "..tostring(err)
+--			if type(DoNotif) == "function" then
+--				DoNotif(msg, 4)
+--			else
+--				warn(msg)
+--			end
+--		end
+--	end
+--end)
+--NAmanage.RegisterToggleAutoSync("Auto-load Cmd (lxte)", function()
+--	return NAStuff.CmdIntegrationAutoRun == true
+--end)
+--
+--NAgui.addButton("Refresh Cmd Integration", function()
+--	if not NAStuff.CmdIntegrationLoaded then
+--		local ok, err = NAmanage.detectCmdManualLoad()
+--		if not ok then
+--			DoNotif("Cmd integration unavailable: "..tostring(err), 4)
+--			return
+--		end
+--	end
+--	local ok, result = NAmanage.CmdIntegrationRefresh({ refreshUI = true })
+--	if ok then
+--		DoNotif("Cmd integration refreshed ("..tostring(#result).." commands)", 3)
+--	else
+--		DoNotif("Cmd refresh failed: "..tostring(result), 4)
+--	end
+--end)
+--
+--NAgui.addButton("Open Cmd Command Bar", function()
+--	const bridge = NAStuff.CmdIntegrationBridge
+--	const openMethod = NAmanage.CmdIntegrationGetMethod(bridge, { "OpenCommandBar", "openCommandBar", "open" })
+--	if type(openMethod) ~= "function" then
+--		DoNotif("Cmd command bar access is unavailable.", 3)
+--		return
+--	end
+--	local ok, result = pcall(openMethod)
+--	if not ok or result == false then
+--		DoNotif("Cmd command bar failed to open.", 3)
+--	end
+--end)
+--
+--NAgui.addButton("Cmd Integration Status", function()
+--	const bridge = NAStuff.CmdIntegrationBridge
+--	if type(bridge) ~= "table" then
+--		DoNotif("Cmd integration is disconnected.", 3)
+--		return
+--	end
+--	const stateMethod = NAmanage.CmdIntegrationGetMethod(bridge, { "GetState", "getState" })
+--	local state = NAStuff.CmdIntegrationState or {}
+--	if type(stateMethod) == "function" then
+--		local ok, result = pcall(stateMethod)
+--		if ok and type(result) == "table" then
+--			state = result
+--			NAStuff.CmdIntegrationState = result
+--		end
+--	end
+--	const commandCount = type(NAStuff.CmdIntegrationCommands) == "table" and #NAStuff.CmdIntegrationCommands or tonumber(state.commandCount) or 0
+--	DoNotif("Cmd v"..tostring(state.version or bridge.Version or bridge.version or "unknown").." | protocol "..tostring(NAStuff.CmdIntegrationProtocol or bridge.Protocol or bridge.protocol or 1).." | "..tostring(commandCount).." commands | route: "..tostring(NAStuff.CmdIntegrationRoutingMode), 5)
+--end)
+--
+--NAgui.addButton("Disconnect Cmd Integration", function()
+--	NAmanage.disconnectCmdIntegration()
+--end)
+--
+--NAgui.addDropdown("Cmd Routing Priority", NAmanage.CmdIntegrationModes, NAStuff.CmdIntegrationRoutingMode, function(selection)
+--	NAStuff.CmdIntegrationRoutingMode = NAmanage.CmdIntegrationNormalizeMode(selection)
+--	pcall(NAmanage.NASettingsSet, "cmdIntegrationRoutingMode", NAStuff.CmdIntegrationRoutingMode)
+--	DoNotif("Cmd routing set to "..NAStuff.CmdIntegrationRoutingMode, 3)
+--end)
+--
+--NAgui.addToggle("Expose NA Gateway in Cmd", NAStuff.CmdIntegrationExposeGateway ~= false, function(value)
+--	NAStuff.CmdIntegrationExposeGateway = value == true
+--	pcall(NAmanage.NASettingsSet, "cmdIntegrationExposeGateway", NAStuff.CmdIntegrationExposeGateway)
+--	if NAStuff.CmdIntegrationLoaded then
+--		if NAStuff.CmdIntegrationExposeGateway then
+--			local ok, err = NAmanage.CmdIntegrationInstallGateway()
+--			if not ok then
+--				DoNotif("NA gateway failed: "..tostring(err), 4)
+--			end
+--		else
+--			NAmanage.CmdIntegrationRemoveGateway()
+--		end
+--		NAmanage.CmdIntegrationRefresh({ refreshUI = true })
+--	end
+--end)
+--NAmanage.RegisterToggleAutoSync("Expose NA Gateway in Cmd", function()
+--	return NAStuff.CmdIntegrationExposeGateway ~= false
+--end)
+--
+--NAgui.addToggle("Cmd Command Notifications", NAStuff.CmdIntegrationUseNotifications ~= false, function(value)
+--	NAStuff.CmdIntegrationUseNotifications = value == true
+--	pcall(NAmanage.NASettingsSet, "cmdIntegrationUseNotifications", NAStuff.CmdIntegrationUseNotifications)
+--end)
+--NAmanage.RegisterToggleAutoSync("Cmd Command Notifications", function()
+--	return NAStuff.CmdIntegrationUseNotifications ~= false
+--end)
+--
+--NAgui.addToggle("Mirror Cmd Notifications in NA", NAStuff.CmdIntegrationMirrorNotifications == true, function(value)
+--	NAStuff.CmdIntegrationMirrorNotifications = value == true
+--	pcall(NAmanage.NASettingsSet, "cmdIntegrationMirrorNotifications", NAStuff.CmdIntegrationMirrorNotifications)
+--end)
+--NAmanage.RegisterToggleAutoSync("Mirror Cmd Notifications in NA", function()
+--	return NAStuff.CmdIntegrationMirrorNotifications == true
+--end)
 
 NAgui.addToggle("Bloxtrap RPC Presence", NAmanage.btEnabled(), function(v)
 	NAmanage.btSetEnabled(v)
@@ -141029,7 +140810,11 @@ originalIO.fetchRobloxVersionData=function(forceRefresh)
 			return version and version() or nil
 		end)
 		if not okVersion or type(currentVersion) ~= "string" or currentVersion == "" then
-			return nil
+			if _VERSION then
+				currentVersion = tostring(_VERSION)
+			else
+				return nil
+			end
 		end
 
 		const nowText = os.date("!%m/%d/%Y, %I:%M:%S %p UTC")
@@ -141169,8 +140954,14 @@ const function buildRobloxDataControls()
 	end)
 	if okVersion and versionValue ~= nil then
 		clientVersion = tostring(versionValue)
+	elseif _VERSION then
+		clientVersion = tostring(_VERSION)
 	end
+	const luauVersion = tostring(_VERSION or "")
 	local textValue = clientVersion
+	if luauVersion ~= "" and luauVersion ~= clientVersion then
+		textValue = clientVersion.."-"..luauVersion
+	end
 	NAgui.addInfo("Your Version", textValue, {
 		minTextSize = 11;
 		clampAlignLeft = false;
