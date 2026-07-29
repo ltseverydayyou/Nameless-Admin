@@ -21,28 +21,40 @@
 
 -- © 2026 Nameless Admin. All rights reserved. Do not copy, paste, redistribute, or claim as your own.
 
-const _na_boot = {
-	hostEnv = (getgenv and getgenv()) or _G or {},
-}
-_na_boot.hostGetfenv = type(_na_boot.hostEnv.getfenv) == "function" and _na_boot.hostEnv.getfenv or getfenv
-_na_boot.hostSetfenv = type(_na_boot.hostEnv.setfenv) == "function" and _na_boot.hostEnv.setfenv or setfenv
-_na_boot.debug = rawget(_na_boot.hostEnv, "debug") or debug
+const _na_boot = {}
+_na_boot.hostEnv = _G or {}
+if type(getgenv) == "function" then
+	pcall(function()
+		const env = getgenv()
+		if type(env) == "table" then
+			_na_boot.hostEnv = env
+		end
+	end)
+end
+_na_boot.loadLuau = function(source, chunkName)
+	if type(loadstring) ~= "function" then
+		return nil, "loadstring unavailable; this Luau executor cannot compile dynamic chunks"
+	end
+	return loadstring(source, chunkName)
+end
+_na_boot.applyEnv = function(fn, env)
+	if type(fn) ~= "function" or type(env) ~= "table" then
+		return true
+	end
+	if type(setfenv) ~= "function" then
+		return false, "setfenv unavailable"
+	end
+	return pcall(setfenv, fn, env)
+end
+_na_boot.getFunctionEnv = function(target)
+	if type(getfenv) ~= "function" then
+		return nil
+	end
+	local ok, env = pcall(getfenv, target)
+	return (ok and type(env) == "table") and env or nil
+end
 _na_boot.getPrivateRegistry = function()
-	local registry
-	if type(getreg) == "function" then
-		pcall(function()
-			registry = getreg()
-		end)
-	end
-	if type(registry) ~= "table" and type(_na_boot.debug) == "table" and type(_na_boot.debug.getregistry) == "function" then
-		pcall(function()
-			registry = _na_boot.debug.getregistry()
-		end)
-	end
-	if type(registry) ~= "table" then
-		registry = _na_boot.hostEnv
-	end
-	return registry
+	return _na_boot.hostEnv
 end
 _na_boot.ensureTable = function(host, key)
 	local value = type(host) == "table" and rawget(host, key) or nil
@@ -72,10 +84,7 @@ _na_boot.runtimeEnv.getfenv = function(target)
 	if target == nil or target == 0 then
 		return _na_boot.runtimeEnv
 	end
-	if type(_na_boot.hostGetfenv) == "function" then
-		return _na_boot.hostGetfenv(target)
-	end
-	return _na_boot.runtimeEnv
+	return _na_boot.getFunctionEnv(target) or _na_boot.runtimeEnv
 end
 
 setmetatable(_na_boot.runtimeEnv, {
@@ -92,10 +101,6 @@ setmetatable(_na_boot.runtimeEnv, {
 		return _na_boot.hostEnv[key]
 	end
 })
-
-if type(_na_boot.hostSetfenv) == "function" then
-	pcall(_na_boot.hostSetfenv, 1, _na_boot.runtimeEnv)
-end
 
 const function naAlreadyLoaded()
 	if _na_env and (_na_env.ltseverydayyou_NA or _na_env.NA_LOADED) then
@@ -477,13 +482,9 @@ const __lt = (function()
 	if type(cached) == "table" then
 		return cached;
 	end;
-	const loader = loadstring or load;
-	if type(loader) ~= "function" then
-		error("Service resolver loader unavailable");
-	end;
-	const resolver = loader(_na_boot.httpGet("https://ltseverydayyou.github.io/ServiceResolver.luau"), "@ServiceResolver.luau");
+	local resolver, resolverErr = _na_boot.loadLuau(_na_boot.httpGet("https://ltseverydayyou.github.io/ServiceResolver.luau"), "@ServiceResolver.luau");
 	if type(resolver) ~= "function" then
-		error("Service resolver failed to compile");
+		error("Service resolver failed to compile: "..tostring(resolverErr));
 	end;
 	const loaded = resolver();
 	if type(loaded) ~= "table" then
@@ -511,13 +512,9 @@ const __NAUIProtector = (function()
 			end
 		end)
 	end
-	const loader = loadstring or load;
-	if type(loader) ~= "function" then
-		error("UI protector loader unavailable");
-	end;
-	const protector = loader(_na_boot.httpGet("https://ltseverydayyou.github.io/UIprotector.luau"), "@UIprotector.luau");
+	local protector, protectorErr = _na_boot.loadLuau(_na_boot.httpGet("https://ltseverydayyou.github.io/UIprotector.luau"), "@UIprotector.luau");
 	if type(protector) ~= "function" then
-		error("UI protector failed to compile");
+		error("UI protector failed to compile: "..tostring(protectorErr));
 	end;
 	const loaded = protector();
 	if type(loaded) ~= "table" then
@@ -1714,12 +1711,13 @@ local NAStuff = {
 	CmdBar2AutoRun = false;
 	CmdInputSafeMode = true;
 	HideCmdAutofill = false;
+	CmdIntegrationDisabled = true;
 	CmdIntegrationAutoRun = false;
 	CmdIntegrationLoaded = false;
 	CmdIntegrationLastSource = nil;
 	CmdIntegrationRoutingMode = "NA First";
-	CmdIntegrationExposeGateway = true;
-	CmdIntegrationUseNotifications = true;
+	CmdIntegrationExposeGateway = false;
+	CmdIntegrationUseNotifications = false;
 	CmdIntegrationMirrorNotifications = false;
 	cmdAutofillLoading = false;
 	cmdAutofillLoadRequested = false;
@@ -8291,8 +8289,8 @@ opt={
 	loader='';
 	NAUILOADER='';
 	NAAUTOSCALER=nil;
-	cmdIntegrationUrl = "https://raw.githubusercontent.com/lxte/cmd/main/main.lua";
-	cmdIntegrationFallbackUrl = "https://raw.githubusercontent.com/lxte/cmd/main/testing-main.lua";
+	cmdIntegrationUrl = nil;
+	cmdIntegrationFallbackUrl = nil;
 	NAREQUEST = nil;
 	queueteleport=(syn and syn.queue_on_teleport) or queue_on_teleport or (fluxus and fluxus.queue_on_teleport) or function() end;
 	hiddenprop=(sethiddenproperty or set_hidden_property or set_hidden_prop) or function() end;
@@ -9054,6 +9052,9 @@ NAmanage.CmdIntegrationGetMethod = function(bridge, names)
 end
 
 NAmanage.CmdIntegrationFindExistingBridge = function()
+	if NAStuff.CmdIntegrationDisabled == true then
+		return nil
+	end
 	for _, target in { _na_env, _na_shared, _na_boot.runtimeEnv, _na_boot.hostEnv } do
 		if type(target) == "table" then
 			const bridge = rawget(target, "CmdIntegration") or rawget(target, "CmdBridge") or rawget(target, "CmdIntegrationBridge")
@@ -9086,6 +9087,11 @@ end
 
 NAmanage.CmdIntegrationRefresh = function(opts)
 	opts = opts or {}
+	if NAStuff.CmdIntegrationDisabled == true then
+		NAStuff.CmdIntegrationCommands = nil
+		NAStuff.CmdIntegrationCommandSet = nil
+		return false, "cmd-integration-disabled"
+	end
 	const bridge = opts.bridge or NAStuff.CmdIntegrationBridge
 	if type(bridge) ~= "table" then
 		NAStuff.CmdIntegrationCommands = nil
@@ -9165,6 +9171,9 @@ NAmanage.CmdIntegrationRefresh = function(opts)
 end
 
 NAmanage.CmdIntegrationHasCommand = function(name)
+	if NAStuff.CmdIntegrationDisabled == true then
+		return false
+	end
 	name = Lower(tostring(name or ""))
 	if name == "" then
 		return false
@@ -9371,6 +9380,9 @@ NAmanage.CmdIntegrationInstallGateway = function(bridge, host)
 end
 
 NAmanage.CmdIntegrationAttach = function(bridge)
+	if NAStuff.CmdIntegrationDisabled == true then
+		return false, "cmd-integration-disabled"
+	end
 	if type(bridge) ~= "table" then
 		return false, "bridge-unavailable"
 	end
@@ -9421,6 +9433,9 @@ end
 
 NAmanage.CmdIntegrationApplyBridge = function(bridge, sourceLabel, opts)
 	opts = opts or {}
+	if NAStuff.CmdIntegrationDisabled == true then
+		return false, "cmd-integration-disabled"
+	end
 	if type(bridge) ~= "table" then
 		return false, "invalid-bridge"
 	end
@@ -9491,6 +9506,9 @@ end
 
 NAmanage.loadCmdIntegration=function(opts)
 	opts = opts or {}
+	if NAStuff.CmdIntegrationDisabled == true then
+		return false, "cmd-integration-disabled"
+	end
 
 	const function fetchFile(path)
 		if not (FileSupport and type(isfile) == "function" and isfile(path)) then
@@ -9701,11 +9719,7 @@ end
 ;return _b]=]
 	raw = raw..bridgeSuffix
 
-	const loader = loadstring or load
-	if type(loader) ~= "function" then
-		return false, "compiler unavailable"
-	end
-	local chunk, compileErr = loader(raw, "CmdIntegration")
+	local chunk, compileErr = _na_boot.loadLuau(raw, "CmdIntegration")
 	if not chunk then
 		return false, compileErr or "compile error"
 	end
@@ -9755,6 +9769,9 @@ end
 
 NAmanage.detectCmdManualLoad=function(opts)
 	opts = opts or {}
+	if NAStuff.CmdIntegrationDisabled == true then
+		return false, "cmd-integration-disabled"
+	end
 	const existingBridge = NAmanage.CmdIntegrationFindExistingBridge()
 	if type(existingBridge) == "table" then
 		return NAmanage.CmdIntegrationApplyBridge(existingBridge, "manual-bridge", opts)
@@ -15701,6 +15718,34 @@ NAmanage.MarkStartupStage = NAmanage.MarkStartupStage or function(stage, status)
 	end)
 end
 
+NAmanage.RecordStartupTrace = NAmanage.RecordStartupTrace or function(name, data)
+	const perf = NAStuff and NAStuff.StartupPerformance
+	if type(perf) ~= "table" or perf.finished == true then
+		return
+	end
+	local trace = perf.trace
+	if type(trace) ~= "table" then
+		trace = {}
+		perf.trace = trace
+	end
+	if #trace >= 160 then
+		return
+	end
+	const started = tonumber(perf.started) or os.clock()
+	const entry = {
+		name = tostring(name or "trace");
+		at = os.clock() - started;
+	}
+	if type(data) == "table" then
+		for key, value in data do
+			if type(value) == "string" or type(value) == "number" or type(value) == "boolean" then
+				entry[key] = value
+			end
+		end
+	end
+	trace[#trace + 1] = entry
+end
+
 NAlib.disconnect("NA_startup_performance")
 NAlib.connect("NA_startup_performance", RunService.Heartbeat:Connect(function(dt)
 	const perf = NAStuff.StartupPerformance
@@ -15775,6 +15820,29 @@ end
 
 NAmanage.IsStartupBuilding = NAmanage.IsStartupBuilding or function()
 	return not (NAStuff and (NAStuff._loadingFinalizedOnce == true or (NAAssetsLoading and NAAssetsLoading._finalized == true)))
+end
+
+NAmanage.StartupYield = NAmanage.StartupYield or function(label)
+	if not (NAStuff and type(NAStuff.StartupPerformance) == "table") then
+		return
+	end
+	if NAStuff._loadingFinalizedOnce == true or (NAAssetsLoading and NAAssetsLoading._finalized == true) then
+		return
+	end
+	if type(NAmanage.RecordStartupTrace) == "function" then
+		NAmanage.RecordStartupTrace(label or "yield")
+	end
+	local canYield = true
+	if coroutine and type(coroutine.isyieldable) == "function" then
+		canYield = coroutine.isyieldable()
+	end
+	if canYield then
+		Wait()
+		const perf = NAStuff.StartupPerformance
+		if type(perf) == "table" then
+			perf.manualYields = (tonumber(perf.manualYields) or 0) + 1
+		end
+	end
 end
 
 NAmanage.GetFastStartupInstanceName = NAmanage.GetFastStartupInstanceName or function()
@@ -19150,12 +19218,12 @@ SpawnCall(function()
 		return
 	end
 
-	if type(loadstring or load) ~= "function" then
+	if type(loadstring) ~= "function" then
 		_na_env.__NA_FUNCTION_FIXER_LOADED = false
 		return
 	end
 
-	_na_env.__NA_FUNCTION_FIXER_CHUNK = (loadstring or load)(_na_env.__NA_FUNCTION_FIXER_SOURCE, "@functionFixer.lua")
+	_na_env.__NA_FUNCTION_FIXER_CHUNK = _na_boot.loadLuau(_na_env.__NA_FUNCTION_FIXER_SOURCE, "@functionFixer.lua")
 	if type(_na_env.__NA_FUNCTION_FIXER_CHUNK) ~= "function" then
 		_na_env.__NA_FUNCTION_FIXER_LOADED = false
 		return
@@ -21780,12 +21848,6 @@ NAmanage.GetUnsafeFunctionStores = NAmanage.GetUnsafeFunctionStores or function(
 			addStore(env)
 		end
 	end
-	if type(getfenv) == "function" then
-		local ok, env = pcall(getfenv)
-		if ok then
-			addStore(env)
-		end
-	end
 	return stores
 end
 
@@ -24179,11 +24241,12 @@ NAStuff.ForceRconsoleNAConsole = NAmanage.NASettingsGet("forceRconsoleNAConsole"
 NAStuff.FriendRequestAutoDismiss = NAmanage.NASettingsGet("friendRequestAutoDismiss")
 NAStuff.StreamerModeEnabled = NAmanage.NASettingsGet("streamerMode") == true
 NAStuff.PurchasePromptsDisabled = NAmanage.NASettingsGet("purchasePromptsDisabled")
-NAStuff.CmdIntegrationAutoRun = NAmanage.NASettingsGet("cmdIntegrationAutoRun")
-NAStuff.CmdIntegrationRoutingMode = NAmanage.CmdIntegrationNormalizeMode(NAmanage.NASettingsGet("cmdIntegrationRoutingMode") or NAStuff.CmdIntegrationRoutingMode)
-NAStuff.CmdIntegrationExposeGateway = NAmanage.NASettingsGet("cmdIntegrationExposeGateway") ~= false
-NAStuff.CmdIntegrationUseNotifications = NAmanage.NASettingsGet("cmdIntegrationUseNotifications") ~= false
-NAStuff.CmdIntegrationMirrorNotifications = NAmanage.NASettingsGet("cmdIntegrationMirrorNotifications") == true
+NAStuff.CmdIntegrationDisabled = true
+NAStuff.CmdIntegrationAutoRun = false
+NAStuff.CmdIntegrationRoutingMode = "NA First"
+NAStuff.CmdIntegrationExposeGateway = false
+NAStuff.CmdIntegrationUseNotifications = false
+NAStuff.CmdIntegrationMirrorNotifications = false
 NAStuff.AutoPreloadAssets = NAmanage.NASettingsGet("autoPreloadAssets")
 NAStuff.LightingStyleAutomation = NAmanage.NASettingsGet("lightingStyleAutomation") == true
 NAStuff.LightingStyleAutomationStyle = NAmanage.NASettingsGet("lightingStyleAutomationStyle") or "Soft"
@@ -27163,6 +27226,9 @@ NAmanage.updateLastCommand=function(rawArgs)
 end
 
 NAmanage.tryCmdIntegration=function(rawArgs, opts)
+	if NAStuff.CmdIntegrationDisabled == true then
+		return false, "cmd-integration-disabled"
+	end
 	opts = opts or {}
 	local bridge = NAStuff.CmdIntegrationBridge
 	if type(bridge) ~= "table" then
@@ -27396,7 +27462,7 @@ NAmanage.invalidateCommandBuild = NAmanage.invalidateCommandBuild or function()
 	return NAStuff.CommandBuildRevision
 end
 
-NAmanage.StartupCommandBudgetStep = NAmanage.StartupCommandBudgetStep or function()
+NAmanage.StartupCommandBudgetStep = NAmanage.StartupCommandBudgetStep or function(commandName)
 	if NAStuff._loadingFinalizedOnce == true or (NAAssetsLoading and NAAssetsLoading._finalized == true) then
 		return
 	end
@@ -27411,12 +27477,21 @@ NAmanage.StartupCommandBudgetStep = NAmanage.StartupCommandBudgetStep or functio
 	const perf = NAStuff.StartupPerformance
 	const lastFrameDt = type(perf) == "table" and tonumber(perf.lastFrameDt) or nil
 	const highFps = lastFrameDt and lastFrameDt > 0 and lastFrameDt < (1 / 240)
-	const batch = highFps and (lowImpact and 2 or 5) or (lowImpact and 6 or 14)
-	const budget = highFps and 0.00075 or (lowImpact and 0.0015 or 0.003)
+	const mobile = IsOnMobile == true
+	const batch = highFps and (mobile and 2 or (lowImpact and 2 or 5)) or (mobile and 6 or (lowImpact and 5 or 14))
+	const budget = highFps and (mobile and 0.0006 or 0.00075) or (mobile and 0.0015 or (lowImpact and 0.0012 or 0.003))
 	if state.count % batch ~= 0 and now - (tonumber(state.lastYield) or now) < budget then
 		return
 	end
-	if type(NAmanage.pulseLoadingUI) == "function" and state.count % 40 == 0 then
+	if type(NAmanage.RecordStartupTrace) == "function" and state.count % (mobile and 25 or 75) == 0 then
+		NAmanage.RecordStartupTrace("commands", {
+			count = state.count;
+			mobile = mobile;
+			lastFrameDt = lastFrameDt or 0;
+			command = tostring(commandName or "");
+		})
+	end
+	if type(NAmanage.pulseLoadingUI) == "function" and state.count % (mobile and 120 or 40) == 0 then
 		pcall(NAmanage.pulseLoadingUI, "registering commands ("..tostring(state.count)..")", math.min(0.989, 0.965 + state.count / 40000))
 	end
 	local canYield = true
@@ -27427,6 +27502,7 @@ NAmanage.StartupCommandBudgetStep = NAmanage.StartupCommandBudgetStep or functio
 		Wait()
 		if type(perf) == "table" then
 			perf.commandYields = (tonumber(perf.commandYields) or 0) + 1
+			perf.commandBudgetCount = state.count
 		end
 	end
 	state.lastYield = os.clock()
@@ -27509,7 +27585,7 @@ cmd.add = function(aliases, info, func, requiresArguments, meta)
 		NAmanage.invalidateCommandBuild()
 	end
 	if type(NAmanage.StartupCommandBudgetStep) == "function" then
-		NAmanage.StartupCommandBudgetStep()
+		NAmanage.StartupCommandBudgetStep(type(aliases) == "table" and aliases[1] or nil)
 	end
 end
 
@@ -28765,8 +28841,9 @@ cmd.run = function(args)
 
 	const callerLower = (type(caller) == "string") and caller:lower() or nil
 	const shouldRecord = callerLower ~= "lastcommand" and callerLower ~= "lastcmd"
-	const routingMode = NAmanage.CmdIntegrationNormalizeMode(NAStuff.CmdIntegrationRoutingMode)
-	const forcedCmd = callerLower and Sub(callerLower, 1, 4) == "cmd:" or false
+	const cmdIntegrationEnabled = NAStuff.CmdIntegrationDisabled ~= true
+	const routingMode = cmdIntegrationEnabled and NAmanage.CmdIntegrationNormalizeMode(NAStuff.CmdIntegrationRoutingMode) or "NA First"
+	const forcedCmd = cmdIntegrationEnabled and callerLower and Sub(callerLower, 1, 4) == "cmd:" or false
 
 	local success, msg = pcall(function()
 		if forcedCmd or (routingMode == "Cmd First" and NAmanage.CmdIntegrationHasCommand(callerLower)) then
@@ -28795,7 +28872,7 @@ cmd.run = function(args)
 			end
 			sendWebhookAsync(rawArgs)
 		else
-			if not forcedCmd and routingMode ~= "Explicit Only" and NAmanage.tryCmdIntegration(rawArgs) then
+			if cmdIntegrationEnabled and not forcedCmd and routingMode ~= "Explicit Only" and NAmanage.tryCmdIntegration(rawArgs) then
 				if shouldRecord then
 					NAmanage.updateLastCommand(rawArgs)
 				end
@@ -29328,19 +29405,21 @@ NAmanage._safeLoadStart = function()
 			elseif type(body) ~= "string" or body == "" then
 				warn("empty source")
 			else
-				const loader = loadstring or load
-				if type(loader) ~= "function" then
+				if type(loadstring) ~= "function" then
 					warn("loadstring unavailable")
 				else
 					Wait()
-					local fn, lerr = loader(body, name)
+					local fn, lerr = _na_boot.loadLuau(body, name)
 					body = nil
 					job.src = nil
 					if type(fn) ~= "function" then
 						warn(tostring(lerr or "compile error"))
 					else
 						if type(job.env) == "table" then
-							pcall(setfenv, fn, job.env)
+							local envOk, envErr = _na_boot.applyEnv(fn, job.env)
+							if not envOk then
+								warn("environment rebinding unavailable: "..tostring(envErr))
+							end
 						end
 						Wait()
 						const args = job.args or {}
@@ -40258,7 +40337,7 @@ NAmanage.LoadPlugins = function(opts)
 		pluginStore.shared = pluginShared
 		pluginStore.globals = pluginGlobals
 		pluginStore.env = proxyEnv
-		const baseEnv = getfenv()
+		const baseEnv = (_na_boot and type(_na_boot.hostEnv) == "table" and _na_boot.hostEnv) or _G or {}
 		local pluginApi = nil
 		const pluginNil = {}
 		const pluginEnvShims = {}
@@ -40381,19 +40460,18 @@ NAmanage.LoadPlugins = function(opts)
 			if target == nil or type(target) == "number" then
 				return proxyEnv
 			end
-			const hostGetfenv = baseEnv and baseEnv.getfenv or getfenv
-			if type(hostGetfenv) == "function" then
-				local ok, env = pcall(hostGetfenv, target)
-				if ok then
-					return _plugCleanEnv(env)
-				end
+			const env = _na_boot and _na_boot.getFunctionEnv and _na_boot.getFunctionEnv(target) or nil
+			if type(env) == "table" then
+				return _plugCleanEnv(env)
 			end
 			return proxyEnv
 		end
 		pluginEnvShims.setfenv = function(fn, env)
-			const hostSetfenv = baseEnv and baseEnv.setfenv or setfenv
-			if type(hostSetfenv) == "function" and type(fn) == "function" then
-				return hostSetfenv(fn, _plugCleanEnv(env))
+			if type(fn) == "function" then
+				local ok = _na_boot and _na_boot.applyEnv and _na_boot.applyEnv(fn, _plugCleanEnv(env))
+				if ok then
+					return fn
+				end
 			end
 			return fn
 		end
@@ -41378,7 +41456,6 @@ NAmanage.LoadPlugins = function(opts)
 			__metatable = "NAPluginEnvironment",
 			__index = function(_, k)
 				if k == "loadstring" then
-					const baseLoader = baseEnv.loadstring or loadstring
 					const function collectRemoteReturn(...)
 						const first = select(1, ...)
 						if type(first) == "table" then
@@ -41397,21 +41474,20 @@ NAmanage.LoadPlugins = function(opts)
 								return NAmanage.RunSourceInEnv(src, chunkname or "@NAPluginRuntime", proxyEnv, collectRemoteReturn, ...)
 							end
 						end
-						local f, e = baseLoader(code, chunkname)
+						local f, e = _na_boot.loadLuau(code, chunkname)
 						if not f then
 							return nil, e
 						end
-						setfenv(f, proxyEnv)
+						local envOk, envErr = _na_boot.applyEnv(f, proxyEnv)
+						if not envOk then
+							return nil, "plugin loadstring environment unavailable: "..tostring(envErr)
+						end
 						return function(...)
 							return collectRemoteReturn(f(...))
 						end
 					end
 				elseif k == "load" then
-					const baseLoad = baseEnv.load
-					if not baseLoad then return nil end
-					return function(chunk, chunkname, mode2)
-						return baseLoad(chunk, chunkname, mode2, proxyEnv)
-					end
+					return nil
 				elseif k == "Plugin" then
 					return pluginApi
 				elseif k == "NAPlugin" or k == "plugin" then
@@ -41476,7 +41552,11 @@ NAmanage.LoadPlugins = function(opts)
 			end
 		})
 
-		setfenv(func, proxyEnv)
+		local envOk, envErr = _na_boot.applyEnv(func, proxyEnv)
+		if not envOk then
+			DoWindow("[Plugin Load Error] '"..file.."': Luau environment rebinding unavailable ("..tostring(envErr)..")")
+			return
+		end
 
 		const prevSkipAdd = cmds._skipAutoSuffix
 		cmds._skipAutoSuffix = true
@@ -53170,23 +53250,16 @@ cmd.add({"rjre","rejoinrefresh"},{"rjre (rejoinrefresh)","Rejoins and teleports 
 local s,err = pcall(function()
 	repeat Wait() until game:IsLoaded()
 	local function naPrivateRoot()
-		local env = (getgenv and getgenv()) or _G or {}
-		local dbg = rawget(env, "debug") or debug
-		local registry
-		if type(getreg) == "function" then
+		local env = _G or {}
+		if type(getgenv) == "function" then
 			pcall(function()
-				registry = getreg()
+				local nextEnv = getgenv()
+				if type(nextEnv) == "table" then
+					env = nextEnv
+				end
 			end)
 		end
-		if type(registry) ~= "table" and type(dbg) == "table" and type(dbg.getregistry) == "function" then
-			pcall(function()
-				registry = dbg.getregistry()
-			end)
-		end
-		if type(registry) ~= "table" then
-			registry = env
-		end
-		local root = type(registry) == "table" and rawget(registry, "__nameless_admin_private") or nil
+		local root = type(env) == "table" and rawget(env, "__nameless_admin_private") or nil
 		return type(root) == "table" and root or nil
 	end
 	local function resolveService(name)
@@ -60942,23 +61015,27 @@ cmd.add({"synapsedex","sdex"},{"synapsedex (sdex)","Loads SynapseX's dex explore
 		function GiveOwnGlobals(Func,Script)
 			const Fenv={}
 			const RealFenv={script=Script}
+			const hostEnv = (_na_boot and _na_boot.getFunctionEnv and _na_boot.getFunctionEnv()) or (_na_boot and _na_boot.hostEnv) or _G or {}
 			const FenvMt={}
 			FenvMt.__index=function(a,b)
 				if RealFenv[b]==nil then
-					return getfenv()[b]
+					return hostEnv[b]
 				else
 					return RealFenv[b]
 				end
 			end
 			FenvMt.__newindex=function(a,b,c)
 				if RealFenv[b]==nil then
-					getfenv()[b]=c
+					hostEnv[b]=c
 				else
 					RealFenv[b]=c
 				end
 			end
 			setmetatable(Fenv,FenvMt)
-			setfenv(Func,Fenv)
+			local envOk, envErr = _na_boot.applyEnv(Func,Fenv)
+			if not envOk then
+				error("Synapse Dex requires Luau executor environment rebinding: "..tostring(envErr), 2)
+			end
 			return Func
 		end
 
@@ -62442,7 +62519,43 @@ NAmanage.SeedNpcCandidates = function()
 	end
 end
 
-cmd.add({"npcesp","espnpc"},{"npcesp (espnpc)","locate where the npcs are"},function()
+NAmanage.ResolveNPCEspTargetSet = function(speaker)
+	const pool = {}
+	for inst in NAStuff.npcCandidates do
+		if inst and inst.Parent and CheckIfNPC(inst) then
+			Insert(pool, inst)
+		end
+	end
+
+	const filter = tostring(NAStuff.NPC_ESP_Filter or "")
+	const tokens = NAmanage.NPCArgSplit(filter)
+	const targets = {}
+	const function add(list)
+		for _, inst in list do
+			if typeof(inst) == "Instance" and inst:IsA("Model") then
+				targets[inst] = true
+			end
+		end
+	end
+
+	if #tokens == 0 then
+		add(pool)
+	else
+		for _, token in tokens do
+			add(NAmanage.NPCArgFilter(pool, speaker, token))
+		end
+	end
+
+	return targets
+end
+
+cmd.add({"npcesp","espnpc"},{"npcesp [name|npc:filter] (espnpc)","locate all npcs or only npcs matching the given name/filter"},function(...)
+	local filter = Lower(NAmanage.PlayerQueryFromArgs(...))
+	const npcFilter = NAmanage.ParseNPCPlayerArg(filter)
+	if npcFilter ~= nil then
+		filter = npcFilter
+	end
+	NAStuff.NPC_ESP_Filter = filter
 	NPCESPenabled = true
 	NAmanage.ESP_RecomputeEnabled()
 	chamsEnabled = false
@@ -62460,6 +62573,7 @@ cmd.add({"npcesp","espnpc"},{"npcesp (espnpc)","locate where the npcs are"},func
 			const plr = Players.LocalPlayer
 			const char = plr and plr.Character
 			const root = char and getRoot(char)
+			const targets = NAmanage.ResolveNPCEspTargetSet(plr)
 
 			const found = {}
 			local cnt = 0
@@ -62472,6 +62586,9 @@ cmd.add({"npcesp","espnpc"},{"npcesp (espnpc)","locate where the npcs are"},func
 						NAStuff.npcCandidates[inst] = nil
 						NAStuff.npcESPList[inst] = nil
 						NAmanage.ESP_Disconnect(inst)
+						continue
+					end
+					if not targets[inst] then
 						continue
 					end
 					const rp = getRoot(inst)
@@ -65398,11 +65515,6 @@ NAmanage.GetSaveInstance420 = NAmanage.GetSaveInstance420 or function()
 		return cached
 	end
 
-	const loader = loadstring or load
-	if type(loader) ~= "function" then
-		error("SaveInstance 420 Edition loader unavailable")
-	end
-
 	const repoUrl = "https://sirmemegithub.com/RealSlimShady2000/SaveInstance420Edition/raw/branch/main/"
 	const scriptName = "saveinstance"
 	local source = NAmanage.HttpGetOrError(repoUrl..scriptName..".luau", { noCache = true, timeout = 20 })
@@ -65416,9 +65528,9 @@ NAmanage.GetSaveInstance420 = NAmanage.GetSaveInstance420 or function()
 				StatusGui.Parent = RobloxGui or CoreGui
 			end
 			]], 1)
-	const chunk = loader(source, "@SaveInstance420Edition/"..scriptName..".luau")
+	local chunk, compileErr = _na_boot.loadLuau(source, "@SaveInstance420Edition/"..scriptName..".luau")
 	if type(chunk) ~= "function" then
-		error("failed to compile SaveInstance 420 Edition")
+		error("failed to compile SaveInstance 420 Edition: "..tostring(compileErr))
 	end
 
 	const saveInstance420 = chunk()
@@ -70839,7 +70951,7 @@ end,true)
 cmd.add({"netbypass", "netb"}, {"netbypass (netb)", "Net bypass"}, function()
 	Wait()
 	DebugNotif("Netbypass enabled")
-	const fenv = getfenv()
+	const fenv = (_na_boot and _na_boot.hostEnv) or _G or {}
 	const shp = fenv.sethiddenproperty or fenv.set_hidden_property or fenv.sethiddenprop or fenv.set_hidden_prop
 	const ssr = fenv.setsimulationradius or fenv.setsimradius or fenv.set_simulation_radius
 	net = shp and function(r) shp(lp, "SimulationRadius", r) end or ssr
@@ -82784,6 +82896,8 @@ cmd.add({"firetouchinterestsfind","ftifind","firetifind"},{"firetouchinterestsfi
 	end
 end,true)
 
+NAmanage.StartupYield("interact:touch_commands")
+
 NAutil.parseInterval = function(defaultInterval, ...)
 	const args = { ... }
 	const n1 = tonumber(args[1])
@@ -83332,6 +83446,8 @@ NAindex.init = function(opts)
 	end
 end
 
+NAmanage.StartupYield("interact:index_helpers")
+
 NAsuppress._acquire = function(pp)
 	const r = NAsuppress.ref[pp] or 0
 	if r == 0 then
@@ -83379,6 +83495,8 @@ NAsuppress.releaseList = function(list)
 		NAsuppress._release(p)
 	end
 end
+
+NAmanage.StartupYield("interact:suppress_helpers")
 
 NAjobs._tracked = NAjobs._tracked or {}
 NAjobs._tracked.prompt = NAjobs._tracked.prompt or { list = {}, idx = {} }
@@ -83490,6 +83608,8 @@ NAjobs._ensureTracked = function()
 	end))
 end
 
+NAmanage.StartupYield("interact:tracking_helpers")
+
 NAjobs._isRemote = function(inst)
 	return typeof(inst) == "Instance" and (inst:IsA("RemoteEvent") or inst:IsA("UnreliableRemoteEvent") or inst:IsA("RemoteFunction"))
 end
@@ -83569,6 +83689,8 @@ NAjobs._remoteFullName = function(r)
 	end)
 	return ok and tostring(res or r.Name) or tostring(r and r.Name or "Remote")
 end
+
+NAmanage.StartupYield("interact:remote_tracking_helpers")
 
 NAjobs._fireRemote = function(r)
 	if not NAjobs._isRemote(r) or not (r and r.Parent) then
@@ -84161,6 +84283,8 @@ NAjobs._runStep = function(method)
 	NAjobs._restoreTouchDue()
 end
 
+NAmanage.StartupYield("interact:job_step_helpers")
+
 NAjobs._sigKey = function(method)
 	return "NAjobs_stp_"..NAmanage.SanitizeLoopMethod(method or "PostSimulation")
 end
@@ -84619,6 +84743,8 @@ NAmanage._windowStopKindFind=function(kind, titleText)
 	buildStopWindow(kind, titleText, true)
 end
 
+NAmanage.StartupYield("interact:job_management_helpers")
+
 cmd.add({"autofireproxi","afp"},{"autofireproxi <interval> [target]","Automatically fires ProximityPrompts matching [target] every <interval> seconds"}, function(...)
 	const args = {...}
 	local interval, target
@@ -84788,6 +84914,8 @@ cmd.add({"noproximitypromptlimits","nopplimits","removepplimits"},{"noproximityp
 		v.MaxActivationDistance = limit
 	end
 end,true)
+
+NAmanage.StartupYield("interact:autofire_commands")
 
 NAStuff.instantProximityPrompts = type(NAStuff.instantProximityPrompts) == "table" and NAStuff.instantProximityPrompts or {}
 NAStuff.instantProximityPrompts.active = NAStuff.instantProximityPrompts.active == true
@@ -85036,6 +85164,8 @@ cmd.add({"unloopenableproximityprompts","unloopenableprox","unlenprox","unlenpp"
 	NAmanage.StopProximityPromptEnableWatcher()
 end)
 
+NAmanage.StartupYield("interact:prompt_state_helpers")
+
 NAmanage.rigPromptErr = function(n, er)
 	er=tostring(er or "unknown error"):gsub("[\r\n]", " ")
 	if #er > 240 then
@@ -85210,6 +85340,8 @@ cmd.add({"unloopmaxslopeangle", "unloopmsa", "unlmsa"}, {"unloopmaxslopeangle (u
 	NAlib.disconnect("loopmsa_apply")
 	NAlib.disconnect("loopmsa_char")
 end)
+
+NAmanage.StartupYield("player:rig_and_slope_commands")
 
 -- garbage that needs to be changed to something else
 
@@ -85514,6 +85646,8 @@ NAmanage.God_Disable = function()
 	NAStuff._godHumRef = nil
 end
 
+NAmanage.StartupYield("player:god_helpers")
+
 cmd.add({"godmode","god"},{"godmode (god)","Pick and enable an invincibility method"},function(...)
 	const args = {...}
 	const choice = args[1] and Lower(args[1]) or nil
@@ -85590,19 +85724,27 @@ cmd.add({"godmode","god"},{"godmode (god)","Pick and enable an invincibility met
 	})
 end)
 
+NAmanage.StartupYield("player:god_command")
+
 cmd.add({"ungodmode","ungod"},{"ungodmode (ungod)","Disable invincibility"},function()
 	NAmanage.God_Disable()
 end)
+
+NAmanage.StartupYield("player:ungod_command")
 
 cmd.add({"controllock","ctrllock"},{"controllock (ctrllock)","Set Shiftlock keys to Control for this session"},function()
 	if not IsOnPC then DebugNotif("PC-only feature") return end
 	NAmanage.ControlLock_Apply("LeftControl,RightControl")
 end)
 
+NAmanage.StartupYield("player:controllock_command")
+
 cmd.add({"uncontrollock","unctrllock"},{"uncontrollock (unctrllock)","Restore Shiftlock keys to default (Shift)"},function()
 	if not IsOnPC then DebugNotif("PC-only feature") return end
 	NAmanage.ControlLock_Apply("LeftShift,RightShift")
 end)
+
+NAmanage.StartupYield("player:uncontrollock_command")
 
 cmd.add({"resetlock"}, {"resetlock", "Resets your Shiftlock keybinds to default (LeftShift)"}, function()
 	const player = LocalPlayer
@@ -85613,6 +85755,8 @@ cmd.add({"resetlock"}, {"resetlock", "Resets your Shiftlock keybinds to default 
 
 	DebugNotif("Reset your Shiftlock keybinds to Shift")
 end)
+
+NAmanage.StartupYield("player:lock_commands")
 
 --[[
 cmd.add({"autoreport"}, {"autoreport", "Automatically reports players to get them banned"}, function()
@@ -85808,6 +85952,8 @@ cmd.add({"flashlight","fl"},{"flashlight (fl)","Gives you a flashlight tool"},fu
 	DebugNotif("Flashlight added", 2)
 end)
 
+NAmanage.StartupYield("player:flashlight_command")
+
 cmd.add({"light"},{"light <range> <brightness> <hexColor>","Gives your player dynamic light"},function(rangeStr,brightnessStr,colorHex)
 	const range     = tonumber(rangeStr)   or settingsLight.range
 	const brightness= tonumber(brightnessStr)or settingsLight.brightness
@@ -85885,6 +86031,8 @@ cmd.add({"lighting","lightingcontrol"},{"lighting (lightingcontrol)","Manage lig
 		})
 	end
 end)
+
+NAmanage.StartupYield("player:lighting_commands")
 
 cmd.add({"friend"}, {"friend <player>", "Sends a friend request to your target"}, function(p)
 	const tg = getPlr(p)
@@ -85966,6 +86114,8 @@ cmd.add({"unfriend"}, {"unfriend <player>", "Prompts to unfriend your target"}, 
 	end
 end, true)
 
+NAmanage.StartupYield("social:friend_commands")
+
 NAmanage.GetBlockedUserIdsSafe = NAmanage.GetBlockedUserIdsSafe or function()
 	for _ = 1, 25 do
 		local ok, ids = pcall(function()
@@ -85978,6 +86128,8 @@ NAmanage.GetBlockedUserIdsSafe = NAmanage.GetBlockedUserIdsSafe or function()
 	end
 	return nil
 end
+
+NAmanage.StartupYield("social:block:get_ids_helper")
 
 NAmanage.IsBlockedUserId = NAmanage.IsBlockedUserId or function(userId, ids)
 	userId = tonumber(userId)
@@ -85996,6 +86148,8 @@ NAmanage.IsBlockedUserId = NAmanage.IsBlockedUserId or function(userId, ids)
 	return false
 end
 
+NAmanage.StartupYield("social:block:is_blocked_helper")
+
 NAmanage.GetCorePromptGui = NAmanage.GetCorePromptGui or function()
 	local ok, rg = pcall(function()
 		return __lt.cm("CoreGui", "FindFirstChild", "RobloxGui")
@@ -86011,6 +86165,8 @@ NAmanage.GetCorePromptGui = NAmanage.GetCorePromptGui or function()
 	end
 	return nil
 end
+
+NAmanage.StartupYield("social:block:core_prompt_helper")
 
 NAmanage.WaitCorePromptClosed = NAmanage.WaitCorePromptClosed or function()
 	local t0 = os.clock()
@@ -86045,6 +86201,8 @@ NAmanage.WaitCorePromptClosed = NAmanage.WaitCorePromptClosed or function()
 	end
 end
 
+NAmanage.StartupYield("social:block:wait_prompt_helper")
+
 NAmanage.GetFirstBlockTarget = NAmanage.GetFirstBlockTarget or function(list)
 	if type(list) ~= "table" then
 		return nil
@@ -86056,6 +86214,8 @@ NAmanage.GetFirstBlockTarget = NAmanage.GetFirstBlockTarget or function(list)
 	end
 	return nil
 end
+
+NAmanage.StartupYield("social:block:first_target_helper")
 
 NAmanage.PromptBlockState = NAmanage.PromptBlockState or function(plr, unblock)
 	if typeof(plr) ~= "Instance" or not plr:IsA("Player") or plr == LocalPlayer or tonumber(plr.UserId) == nil or plr.UserId < 0 then
@@ -86091,6 +86251,8 @@ NAmanage.PromptBlockState = NAmanage.PromptBlockState or function(plr, unblock)
 	return okOpen
 end
 
+NAmanage.StartupYield("social:block:prompt_state_helper")
+
 cmd.add({"block","blockuser"},{"block <player> (blockuser)","Open block / unblock prompt for target player"},function(p)
 	const t = NAmanage.GetFirstBlockTarget(getPlr(p))
 	if not t then
@@ -86116,6 +86278,8 @@ cmd.add({"unblock","unblockuser"},{"unblock <player> (unblockuser)","Open unbloc
 		DoNotif("Failed to open unblock prompt for "..tostring(t.Name), 2)
 	end
 end,true)
+
+NAmanage.StartupYield("social:block_helpers")
 
 NAmanage.NAgetFriendCircles=function()
 	const players = __lt.cm("Players", "GetPlayers")
@@ -95623,7 +95787,8 @@ cmd.add({"cameranoclip","camnoclip","cnoclip","nccam"},{"cameranoclip (camnoclip
 
 		if Popper then
 			for i, v in getgc() do
-				if type(v) == "function" and getfenv(v).script == Popper then
+				local env = _na_boot and _na_boot.getFunctionEnv and _na_boot.getFunctionEnv(v) or nil
+				if type(v) == "function" and env and env.script == Popper then
 					for i2, v2 in GetConstants(v) do
 						if tonumber(v2) == 0.25 then
 							SetConstant(v, i2, 0)
@@ -95718,7 +95883,8 @@ cmd.add({"uncameranoclip","uncamnoclip","uncnoclip","unnccam"},{"uncameranoclip 
 
 		if Popper then
 			for i, v in getgc() do
-				if type(v) == "function" and getfenv(v).script == Popper then
+				local env = _na_boot and _na_boot.getFunctionEnv and _na_boot.getFunctionEnv(v) or nil
+				if type(v) == "function" and env and env.script == Popper then
 					for i2, v2 in GetConstants(v) do
 						if tonumber(v2) == 0.25 then
 							SetConstant(v, i2, 0)
@@ -96678,8 +96844,8 @@ cmd.add({"jp", "jumppower"}, {"jumppower <number> (jp)", "Sets your JumpPower"},
 end, true)
 
 NAmanage.isCoreFunc=function(fn)
-	local ok, env = pcall(getfenv, fn)
-	if not ok or type(env) ~= "table" then return false end
+	local env = _na_boot and _na_boot.getFunctionEnv and _na_boot.getFunctionEnv(fn) or nil
+	if type(env) ~= "table" then return false end
 	const sc = rawget(env, "script")
 	return typeof(sc) == "Instance" and sc:IsDescendantOf(COREGUI)
 end
@@ -125908,8 +126074,11 @@ SpawnCall(function()
 				execEnv = buildGuardSandbox(env)
 			end
 
-			if type(setfenv) == "function" and type(execEnv) == "table" then
-				pcall(setfenv, chunk, execEnv)
+			if type(execEnv) == "table" then
+				local envOk, envErr = _na_boot.applyEnv(chunk, execEnv)
+				if not envOk then
+					warn("protector environment rebinding unavailable: "..tostring(envErr))
+				end
 			end
 
 			local okRun, runErr = pcall(chunk)
@@ -127194,21 +127363,6 @@ NAmanage.scheduleLoader('UserButtons', function()
 	NAmanage.loadButtonIDS()
 	return NAmanage.RenderUserButtons()
 end, { requiresGui = true, retries = 5, delay = 0.4, retryOnFalse = true })
-NAmanage.scheduleLoader('CmdIntegrationAutoRun', function()
-	if NAStuff.CmdIntegrationAutoRun == true and NAmanage.loadCmdIntegration then
-		local ok, err = NAmanage.loadCmdIntegration({ silent = true })
-		if not ok then
-			const msg = Format("Cmd auto-load failed: %s", tostring(err))
-			if type(DebugNotif) == "function" then
-				DebugNotif(msg, 3)
-			else
-				warn(msg)
-			end
-			return false
-		end
-	end
-	return true
-end, { retries = 2, delay = 0.6, retryOnFalse = true })
 NAmanage.scheduleLoader('CmdBar2AutoRun', function()
 	if NAStuff.CmdBar2AutoRun == true and cmd and cmd.run then
 		cmd.run({"cmdbar2"})
@@ -130204,6 +130358,10 @@ NAmanage.GetStartupPerformanceSnapshot = function()
 						attempt = item.attempt,
 						index = item.index,
 						ok = item.ok,
+						count = item.count,
+						mobile = item.mobile,
+						lastFrameDt = item.lastFrameDt,
+						command = item.command,
 					}
 				end
 			end
@@ -130221,6 +130379,7 @@ NAmanage.GetStartupPerformanceSnapshot = function()
 		frames = perf.frames,
 		spikes = copyList(perf.spikes, 12),
 		stages = copyList(perf.stages, 24),
+		trace = copyList(perf.trace, 64),
 		uiFetchElapsed = perf.uiFetchElapsed,
 		uiPrepareElapsed = perf.uiPrepareElapsed,
 		uiCompileElapsed = perf.uiCompileElapsed,
@@ -130234,6 +130393,7 @@ NAmanage.GetStartupPerformanceSnapshot = function()
 		uiSourceInstances = perf.uiSourceInstances,
 		instanceYields = perf.instanceYields,
 		commandYields = perf.commandYields,
+		commandBudgetCount = perf.commandBudgetCount,
 		instanceNameElapsed = perf.instanceNameElapsed,
 		instanceNameCount = perf.instanceNameCount,
 		settingsBuildElapsed = perf.settingsBuildElapsed,
@@ -132732,130 +132892,6 @@ NAgui.addTab(NA_TABS.TAB_INTEGRATIONS, { order = 2, textIcon = "chain-link" })
 NAgui.setTab(NA_TABS.TAB_INTEGRATIONS)
 
 NAgui.addSection("Integrations")
-
-NAgui.addButton("Load Cmd (lxte)", function()
-	local ok, err = NAmanage.loadCmdIntegration()
-	if not ok then
-		const msg = "Cmd failed to load: "..tostring(err)
-		if type(DoNotif) == "function" then
-			DoNotif(msg, 4)
-		else
-			warn(msg)
-		end
-	end
-end)
-
-NAgui.addToggle("Auto-load Cmd (lxte)", NAStuff.CmdIntegrationAutoRun == true, function(v)
-	NAStuff.CmdIntegrationAutoRun = v and true or false
-	pcall(NAmanage.NASettingsSet, "cmdIntegrationAutoRun", NAStuff.CmdIntegrationAutoRun)
-	if v then
-		local ok, err = NAmanage.loadCmdIntegration()
-		if not ok then
-			const msg = "Cmd failed to load: "..tostring(err)
-			if type(DoNotif) == "function" then
-				DoNotif(msg, 4)
-			else
-				warn(msg)
-			end
-		end
-	end
-end)
-NAmanage.RegisterToggleAutoSync("Auto-load Cmd (lxte)", function()
-	return NAStuff.CmdIntegrationAutoRun == true
-end)
-
-NAgui.addButton("Refresh Cmd Integration", function()
-	if not NAStuff.CmdIntegrationLoaded then
-		local ok, err = NAmanage.detectCmdManualLoad()
-		if not ok then
-			DoNotif("Cmd integration unavailable: "..tostring(err), 4)
-			return
-		end
-	end
-	local ok, result = NAmanage.CmdIntegrationRefresh({ refreshUI = true })
-	if ok then
-		DoNotif("Cmd integration refreshed ("..tostring(#result).." commands)", 3)
-	else
-		DoNotif("Cmd refresh failed: "..tostring(result), 4)
-	end
-end)
-
-NAgui.addButton("Open Cmd Command Bar", function()
-	const bridge = NAStuff.CmdIntegrationBridge
-	const openMethod = NAmanage.CmdIntegrationGetMethod(bridge, { "OpenCommandBar", "openCommandBar", "open" })
-	if type(openMethod) ~= "function" then
-		DoNotif("Cmd command bar access is unavailable.", 3)
-		return
-	end
-	local ok, result = pcall(openMethod)
-	if not ok or result == false then
-		DoNotif("Cmd command bar failed to open.", 3)
-	end
-end)
-
-NAgui.addButton("Cmd Integration Status", function()
-	const bridge = NAStuff.CmdIntegrationBridge
-	if type(bridge) ~= "table" then
-		DoNotif("Cmd integration is disconnected.", 3)
-		return
-	end
-	const stateMethod = NAmanage.CmdIntegrationGetMethod(bridge, { "GetState", "getState" })
-	local state = NAStuff.CmdIntegrationState or {}
-	if type(stateMethod) == "function" then
-		local ok, result = pcall(stateMethod)
-		if ok and type(result) == "table" then
-			state = result
-			NAStuff.CmdIntegrationState = result
-		end
-	end
-	const commandCount = type(NAStuff.CmdIntegrationCommands) == "table" and #NAStuff.CmdIntegrationCommands or tonumber(state.commandCount) or 0
-	DoNotif("Cmd v"..tostring(state.version or bridge.Version or bridge.version or "unknown").." | protocol "..tostring(NAStuff.CmdIntegrationProtocol or bridge.Protocol or bridge.protocol or 1).." | "..tostring(commandCount).." commands | route: "..tostring(NAStuff.CmdIntegrationRoutingMode), 5)
-end)
-
-NAgui.addButton("Disconnect Cmd Integration", function()
-	NAmanage.disconnectCmdIntegration()
-end)
-
-NAgui.addDropdown("Cmd Routing Priority", NAmanage.CmdIntegrationModes, NAStuff.CmdIntegrationRoutingMode, function(selection)
-	NAStuff.CmdIntegrationRoutingMode = NAmanage.CmdIntegrationNormalizeMode(selection)
-	pcall(NAmanage.NASettingsSet, "cmdIntegrationRoutingMode", NAStuff.CmdIntegrationRoutingMode)
-	DoNotif("Cmd routing set to "..NAStuff.CmdIntegrationRoutingMode, 3)
-end)
-
-NAgui.addToggle("Expose NA Gateway in Cmd", NAStuff.CmdIntegrationExposeGateway ~= false, function(value)
-	NAStuff.CmdIntegrationExposeGateway = value == true
-	pcall(NAmanage.NASettingsSet, "cmdIntegrationExposeGateway", NAStuff.CmdIntegrationExposeGateway)
-	if NAStuff.CmdIntegrationLoaded then
-		if NAStuff.CmdIntegrationExposeGateway then
-			local ok, err = NAmanage.CmdIntegrationInstallGateway()
-			if not ok then
-				DoNotif("NA gateway failed: "..tostring(err), 4)
-			end
-		else
-			NAmanage.CmdIntegrationRemoveGateway()
-		end
-		NAmanage.CmdIntegrationRefresh({ refreshUI = true })
-	end
-end)
-NAmanage.RegisterToggleAutoSync("Expose NA Gateway in Cmd", function()
-	return NAStuff.CmdIntegrationExposeGateway ~= false
-end)
-
-NAgui.addToggle("Cmd Command Notifications", NAStuff.CmdIntegrationUseNotifications ~= false, function(value)
-	NAStuff.CmdIntegrationUseNotifications = value == true
-	pcall(NAmanage.NASettingsSet, "cmdIntegrationUseNotifications", NAStuff.CmdIntegrationUseNotifications)
-end)
-NAmanage.RegisterToggleAutoSync("Cmd Command Notifications", function()
-	return NAStuff.CmdIntegrationUseNotifications ~= false
-end)
-
-NAgui.addToggle("Mirror Cmd Notifications in NA", NAStuff.CmdIntegrationMirrorNotifications == true, function(value)
-	NAStuff.CmdIntegrationMirrorNotifications = value == true
-	pcall(NAmanage.NASettingsSet, "cmdIntegrationMirrorNotifications", NAStuff.CmdIntegrationMirrorNotifications)
-end)
-NAmanage.RegisterToggleAutoSync("Mirror Cmd Notifications in NA", function()
-	return NAStuff.CmdIntegrationMirrorNotifications == true
-end)
 
 NAgui.addToggle("Bloxtrap RPC Presence", NAmanage.btEnabled(), function(v)
 	NAmanage.btSetEnabled(v)
@@ -140801,11 +140837,7 @@ originalIO.fetchRobloxVersionData=function(forceRefresh)
 			return version and version() or nil
 		end)
 		if not okVersion or type(currentVersion) ~= "string" or currentVersion == "" then
-			if _VERSION then
-				currentVersion = tostring(_VERSION)
-			else
-				return nil
-			end
+			return nil
 		end
 
 		const nowText = os.date("!%m/%d/%Y, %I:%M:%S %p UTC")
@@ -140945,14 +140977,8 @@ const function buildRobloxDataControls()
 	end)
 	if okVersion and versionValue ~= nil then
 		clientVersion = tostring(versionValue)
-	elseif _VERSION then
-		clientVersion = tostring(_VERSION)
 	end
-	const luauVersion = tostring(_VERSION or "")
 	local textValue = clientVersion
-	if luauVersion ~= "" and luauVersion ~= clientVersion then
-		textValue = clientVersion.."-"..luauVersion
-	end
 	NAgui.addInfo("Your Version", textValue, {
 		minTextSize = 11;
 		clampAlignLeft = false;
