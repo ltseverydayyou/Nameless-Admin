@@ -104,6 +104,18 @@
       "desc": "Run code using loadstring"
     },
     {
+      "name": "tas",
+      "aliases": [
+        "tas",
+        "tascreator",
+        "toolassistedspeedrun",
+        "toolassistantspeedrun"
+      ],
+      "usage": "tas [file] [smooth] [fps] [path] [velocity] [nocamera]",
+      "args": "[file] [smooth] [fps] [path] [velocity] [nocamera]",
+      "desc": "Launch TAS Recorder Redux; optionally auto-load and play a saved run"
+    },
+    {
       "name": "scriptload",
       "aliases": [
         "scriptload",
