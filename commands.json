@@ -2496,6 +2496,15 @@
       "desc": "Restore skybox and studs"
     },
     {
+      "name": "2012",
+      "aliases": [
+        "2012"
+      ],
+      "usage": "2012",
+      "args": "",
+      "desc": "Makes your Pedoblox CoreGui look like the 2012 CoreGui"
+    },
+    {
       "name": "2016",
       "aliases": [
         "2016"
