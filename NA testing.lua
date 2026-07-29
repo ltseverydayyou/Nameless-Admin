@@ -59545,36 +59545,44 @@ cmd.add({"unoldroblox"},{"unoldroblox","Restore skybox and studs"},function()
 	end))
 end)
 
-cmd.add({"2012"},{"2012","Makes your Pedoblox CoreGui look like the 2012 CoreGui"},function()
+NAmanage.LoadLegacyYear = function(year)
+	year = math.clamp(math.floor(tonumber(year) or 2016), 2012, 2016)
 	_na_boot.hostEnv.LegacySettings = {
-		Year = 2012,
+		Year = year,
 		OldGraphics = true,
 		HideDisplayName = true,
 	}
 
-	local ok, err = pcall(function()
-		NAmanage.RunURL("https://raw.githubusercontent.com/yeku/legacy/refs/heads/main/Source.luau");
-	end)
-
-	if not ok then
-		DoNotif("Failed to load 2012 CoreGui: "..tostring(err), 3)
+	local okBody, body, bodyErr = NAmanage.HttpGet("https://raw.githubusercontent.com/yeku/legacy/refs/heads/main/Source.luau", { timeout = 10 })
+	if not okBody then
+		DoNotif("Failed to load "..tostring(year).." CoreGui: "..tostring(bodyErr), 3)
+		return
 	end
+
+	local okRun, runErr = NAmanage.RunSourceInEnv(body, "@Legacy"..tostring(year)..".luau", _na_boot.hostEnv)
+	if not okRun then
+		DoNotif("Failed to load "..tostring(year).." CoreGui: "..tostring(runErr), 3)
+	end
+end
+
+cmd.add({"2012"},{"2012","Makes your Pedoblox CoreGui look like the 2012 CoreGui"},function()
+	NAmanage.LoadLegacyYear(2012)
+end)
+
+cmd.add({"2013"},{"2013","Makes your Pedoblox CoreGui look like the 2013 CoreGui"},function()
+	NAmanage.LoadLegacyYear(2013)
+end)
+
+cmd.add({"2014"},{"2014","Makes your Pedoblox CoreGui look like the 2014 CoreGui"},function()
+	NAmanage.LoadLegacyYear(2014)
+end)
+
+cmd.add({"2015"},{"2015","Makes your Pedoblox CoreGui look like the 2015 CoreGui"},function()
+	NAmanage.LoadLegacyYear(2015)
 end)
 
 cmd.add({"2016"},{"2016","Makes your Pedoblox CoreGui look like the 2016 CoreGui"},function()
-	_na_boot.hostEnv.LegacySettings = {
-		Year = 2016,
-		OldGraphics = true,
-		HideDisplayName = true,
-	}
-
-	local ok, err = pcall(function()
-		NAmanage.RunURL("https://raw.githubusercontent.com/yeku/legacy/refs/heads/main/Source.luau");
-	end)
-
-	if not ok then
-		DoNotif("Failed to load 2016 CoreGui: "..tostring(err), 3)
-	end
+	NAmanage.LoadLegacyYear(2016)
 end)
 
 cmd.add({"f3x","fex"},{"f3x (fex)","F3X for client"},function()
