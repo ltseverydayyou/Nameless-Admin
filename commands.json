@@ -2517,6 +2517,33 @@
       "desc": "Makes your Pedoblox CoreGui look like the 2012 CoreGui"
     },
     {
+      "name": "2013",
+      "aliases": [
+        "2013"
+      ],
+      "usage": "2013",
+      "args": "",
+      "desc": "Makes your Pedoblox CoreGui look like the 2013 CoreGui"
+    },
+    {
+      "name": "2014",
+      "aliases": [
+        "2014"
+      ],
+      "usage": "2014",
+      "args": "",
+      "desc": "Makes your Pedoblox CoreGui look like the 2014 CoreGui"
+    },
+    {
+      "name": "2015",
+      "aliases": [
+        "2015"
+      ],
+      "usage": "2015",
+      "args": "",
+      "desc": "Makes your Pedoblox CoreGui look like the 2015 CoreGui"
+    },
+    {
       "name": "2016",
       "aliases": [
         "2016"
