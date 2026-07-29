@@ -3193,9 +3193,9 @@
         "npcesp",
         "espnpc"
       ],
-      "usage": "npcesp [name|npc:filter] (espnpc)",
-      "args": "[name|npc:filter]",
-      "desc": "locate all npcs or only npcs matching the given name/filter"
+      "usage": "npcesp [npc:name|filter] (espnpc)",
+      "args": "[npc:name|filter]",
+      "desc": "locate all NPCs or only NPCs matching a name/filter"
     },
     {
       "name": "unnpcesp",
