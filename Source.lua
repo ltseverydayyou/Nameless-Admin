@@ -55,6 +55,173 @@ const _na_env = _na_boot.ensureTable(_na_boot.privateRoot, "testing")
 const _na_shared = _na_boot.ensureTable(_na_env, "shared")
 _na_boot.runtimeEnv = _na_boot.ensureTable(_na_env, "runtime")
 
+_na_boot.uiMarkerNames = {
+	"CmdBar",
+	"Commands",
+	"setsettings",
+	"ChatLogs",
+	"soRealConsole",
+	"SuchWaypoint",
+	"binders",
+	"Executor",
+	"Notepad",
+	"Plugins",
+	"MusicPlayer",
+	"NA InfoTab",
+}
+
+_na_boot.isLiveInstance = function(value, className)
+	if typeof(value) ~= "Instance" then
+		return false
+	end
+	local ok, live = pcall(function()
+		if className and not value:IsA(className) then
+			return false
+		end
+		return value.Parent ~= nil
+	end)
+	return ok and live == true
+end
+
+_na_boot.setUIAttr = function(gui, key, value)
+	if typeof(gui) == "Instance" and gui.SetAttribute then
+		pcall(function()
+			gui:SetAttribute(key, value)
+		end)
+	end
+end
+
+_na_boot.markOwnedUI = function(gui)
+	if not _na_boot.isLiveInstance(gui, "ScreenGui") then
+		return false
+	end
+	_na_boot.setUIAttr(gui, "NamelessAdminOwnedUI", true)
+	return true
+end
+
+_na_boot.rememberMainUIRoot = function(gui)
+	if not _na_boot.markOwnedUI(gui) then
+		return false
+	end
+	_na_boot.setUIAttr(gui, "NamelessAdminUI", true)
+	_na_boot.setUIAttr(gui, "NamelessAdminUIRoot", true)
+	_na_boot.setUIAttr(gui, "NA_UI_ROOT", true)
+	for _, target in { _na_env, _na_shared, _na_boot.runtimeEnv, _na_boot.hostEnv } do
+		if type(target) == "table" then
+			pcall(function()
+				target.NA_UI_INSTANCE = gui
+				target.NA_RAW_UI = gui
+			end)
+		end
+	end
+	return true
+end
+
+_na_boot.uiRootScore = function(root, includeOwned)
+	if not _na_boot.isLiveInstance(root, "ScreenGui") then
+		return 0
+	end
+	local tagged = false
+	pcall(function()
+		tagged = root:GetAttribute("NamelessAdminUI") == true
+			or root:GetAttribute("NamelessAdminUIRoot") == true
+			or root:GetAttribute("NA_UI_ROOT") == true
+			or (includeOwned == true and root:GetAttribute("NamelessAdminOwnedUI") == true)
+	end)
+	if tagged then
+		return 100
+	end
+	local score = 0
+	for i = 1, #_na_boot.uiMarkerNames do
+		local found
+		pcall(function()
+			found = root:FindFirstChild(_na_boot.uiMarkerNames[i], true)
+		end)
+		if found then
+			if _na_boot.uiMarkerNames[i] == "NA InfoTab" then
+				return 2
+			end
+			score += 1
+			if score >= 2 then
+				return score
+			end
+		end
+	end
+	return score
+end
+
+_na_boot.collectUIRoots = function(includeOwned)
+	const roots = {}
+	const seen = setmetatable({}, { __mode = "k" })
+	const function add(root)
+		if _na_boot.isLiveInstance(root, "ScreenGui") and not seen[root] then
+			seen[root] = true
+			roots[#roots + 1] = root
+		end
+	end
+	for _, target in { _na_env, _na_shared, _na_boot.runtimeEnv, _na_boot.hostEnv } do
+		if type(target) == "table" then
+			add(rawget(target, "NA_UI_INSTANCE"))
+			add(rawget(target, "NA_RAW_UI"))
+			add(rawget(target, "NASCREENGUI"))
+		end
+	end
+	local parents = {}
+	pcall(function()
+		parents[#parents + 1] = game:GetService("CoreGui")
+	end)
+	pcall(function()
+		const player = game:GetService("Players").LocalPlayer
+		if player then
+			parents[#parents + 1] = player:FindFirstChildOfClass("PlayerGui")
+		end
+	end)
+	for i = 1, #parents do
+		const parent = parents[i]
+		if typeof(parent) == "Instance" then
+			local children = {}
+			pcall(function()
+				children = parent:GetChildren()
+			end)
+			for j = 1, #children do
+				const child = children[j]
+				if _na_boot.uiRootScore(child, includeOwned) >= 2 then
+					add(child)
+				end
+			end
+			local descendants = {}
+			pcall(function()
+				descendants = parent:GetDescendants()
+			end)
+			for j = 1, #descendants do
+				const child = descendants[j]
+				if _na_boot.uiRootScore(child, includeOwned) >= 2 then
+					add(child)
+				end
+			end
+		end
+	end
+	return roots
+end
+
+_na_boot.destroyUIRootsExcept = function(keep, includeOwned)
+	local destroyed = 0
+	const roots = _na_boot.collectUIRoots(includeOwned)
+	for i = 1, #roots do
+		const root = roots[i]
+		if root ~= keep then
+			local ok = pcall(function()
+				root.Enabled = false
+				root:Destroy()
+			end)
+			if ok then
+				destroyed += 1
+			end
+		end
+	end
+	return destroyed
+end
+
 _na_boot.runtimeEnv.shared = _na_shared
 _na_boot.runtimeEnv._G = _na_boot.runtimeEnv
 _na_boot.runtimeEnv.getgenv = function()
@@ -83,12 +250,46 @@ setmetatable(_na_boot.runtimeEnv, {
 })
 
 const function naAlreadyLoaded()
-	if _na_env and (_na_env.ltseverydayyou_NA or _na_env.NA_LOADED) then
+	const function hasRuntimeFlag(target)
+		return type(target) == "table"
+			and (rawget(target, "ltseverydayyou_NA") ~= nil or rawget(target, "NA_LOADED") ~= nil)
+	end
+	local rememberedRoot
+	for _, target in { _na_env, _na_shared, _na_boot.runtimeEnv, _na_boot.hostEnv } do
+		if type(target) == "table" then
+			rememberedRoot = rememberedRoot
+				or rawget(target, "NA_UI_INSTANCE")
+				or rawget(target, "NA_RAW_UI")
+				or rawget(target, "NASCREENGUI")
+		end
+	end
+	if not _na_boot.isLiveInstance(rememberedRoot, "ScreenGui") then
+		rememberedRoot = nil
+		const roots = _na_boot.collectUIRoots(false)
+		if #roots > 0 then
+			rememberedRoot = roots[1]
+		end
+	end
+	if rememberedRoot then
+		_na_boot.rememberMainUIRoot(rememberedRoot)
+	end
+	if hasRuntimeFlag(_na_env) then
+		_na_boot.destroyUIRootsExcept(rememberedRoot, false)
 		return true
 	end
-	if _na_shared and (_na_shared.ltseverydayyou_NA or _na_shared.NA_LOADED) then
+	if hasRuntimeFlag(_na_shared) then
+		_na_boot.destroyUIRootsExcept(rememberedRoot, false)
 		return true
 	end
+	if hasRuntimeFlag(_na_boot.runtimeEnv) then
+		_na_boot.destroyUIRootsExcept(rememberedRoot, false)
+		return true
+	end
+	if hasRuntimeFlag(_na_boot.hostEnv) then
+		_na_boot.destroyUIRootsExcept(rememberedRoot, false)
+		return true
+	end
+	_na_boot.destroyUIRootsExcept(nil, false)
 	return false
 end
 
@@ -283,6 +484,7 @@ _na_boot.syncRuntimeGlobals = function(values)
 	for _, target in { _na_env, _na_shared, _na_boot.runtimeEnv, _na_boot.hostEnv } do
 		if type(target) == "table" then
 			for key, value in values do
+				pcall(rawset, target, key, value)
 				pcall(function()
 					target[key] = value
 				end)
@@ -2555,6 +2757,7 @@ NAmanage.NARegisterUI=function(gui)
 
 	NAStuff.NASCREENGUI = gui
 	NAStuff.uiBootHidden = true
+	pcall(_na_boot.rememberMainUIRoot, gui)
 
 	pcall(function()
 		gui.Enabled = false
@@ -16355,6 +16558,7 @@ NAgui.NaProtectUI=function(gui)
 		})
 	end
 	if gui:IsA("ScreenGui") then
+		pcall(_na_boot.markOwnedUI, gui)
 		gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
 		gui.DisplayOrder   = MAX_DO
 		gui.ResetOnSpawn   = false
@@ -28535,6 +28739,12 @@ NAmanage.Unload = function(opts)
 			end
 		end
 	end
+	pcall(function()
+		const orphanRoots = _na_boot.collectUIRoots(true)
+		for i = 1, #orphanRoots do
+			addRoot(orphanRoots[i])
+		end
+	end)
 	const protector = rawget(_na_env, "__NAUIProtector") or rawget(_na_shared, "__NAUIProtector")
 	for i = 1, #roots do
 		const instance = roots[i]
@@ -99410,10 +99620,12 @@ do
 		return
 	end
 	NAStuff.NASCREENGUI = ready
+	pcall(_na_boot.rememberMainUIRoot, ready)
 end
 
 if NAStuff.NASCREENGUI and NAStuff.NASCREENGUI:IsA("ScreenGui") then
 	NAStuff.uiBootHidden = true
+	pcall(_na_boot.rememberMainUIRoot, NAStuff.NASCREENGUI)
 	pcall(function()
 		NAStuff.NASCREENGUI.Enabled = false
 	end)
