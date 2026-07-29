@@ -26489,10 +26489,51 @@ function ParseArguments(input)
 	return args
 end
 
-NAmanage.isCmdLoopCommand = function(name)
-	name = Lower(tostring(name or ""))
-	return name == "cmdloop"
-		or name == "commandloop"
+NAmanage.CommandArgumentAutofillFixedIndex = {
+	addalias = 2;
+	addbutton = 2;
+	ab = 2;
+	addautoexec = 2;
+	aaexec = 2;
+	addae = 2;
+	addauto = 2;
+	aexecadd = 2;
+	cmdloop = 2;
+	commandloop = 2;
+	ifundone = 2;
+	ifnotdone = 2;
+	ifnew = 2;
+	propertychanged = 4;
+	changed = 4;
+	pchanged = 4;
+	propchanged = 4;
+}
+
+NAmanage.commandArgumentAutofillIndex = function(firstLower, tokens)
+	firstLower = Lower(tostring(firstLower or ""))
+	const fixedIndex = NAmanage.CommandArgumentAutofillFixedIndex[firstLower]
+	if fixedIndex then
+		return fixedIndex
+	end
+
+	if firstLower == "loop" then
+		local idx = 2
+		if tokens[idx] and tonumber(tokens[idx].text) then
+			idx += 1
+		end
+		return idx
+	end
+
+	if firstLower == "repeat" then
+		local idx = 2
+		if tokens[idx] and tonumber(tokens[idx].text) then
+			idx += 1
+		end
+		if tokens[idx] and tonumber(tokens[idx].text) then
+			idx += 1
+		end
+		return idx
+	end
 end
 
 NAmanage.getCmdAutofillContext = function(rawText)
@@ -26524,22 +26565,28 @@ NAmanage.getCmdAutofillContext = function(rawText)
 	}
 
 	const first = tokens[1]
-	if first and NAmanage.isCmdLoopCommand(first.lower) then
-		const second = tokens[2]
-		ctx.mode = "cmdloop-command"
-		if second then
-			ctx.query = second.lower
-			ctx.prefix = sanitized:sub(1, second.startPos - 1)
-			ctx.suffix = sanitized:sub(second.endPos + 1)
-		else
+	local commandArgIndex = first and NAmanage.commandArgumentAutofillIndex(first.lower, tokens)
+	if commandArgIndex then
+		const commandToken = tokens[commandArgIndex]
+		if commandToken then
+			ctx.mode = "command-argument"
+			ctx.query = commandToken.lower
+			ctx.prefix = sanitized:sub(1, commandToken.startPos - 1)
+			ctx.suffix = sanitized:sub(commandToken.endPos + 1)
+		elseif sanitized:match("%s$") and #tokens >= commandArgIndex - 1 then
+			ctx.mode = "command-argument"
 			ctx.query = ""
 			ctx.prefix = sanitized
 			if sanitized ~= "" and not sanitized:match("%s$") then
 				ctx.prefix = sanitized.." "
 			end
 			ctx.suffix = ""
+		else
+			commandArgIndex = nil
 		end
-		return ctx
+		if commandArgIndex then
+			return ctx
+		end
 	end
 
 	const trimmed = ctx.query
@@ -26560,7 +26607,7 @@ NAmanage.composeCmdAutofillText = function(ctx, commandName)
 	if name == "" then
 		return ""
 	end
-	if ctx and (ctx.mode == "cmdloop-command" or ctx.suffix ~= "" or ctx.prefix ~= "") then
+	if ctx and (ctx.mode == "command-argument" or ctx.mode == "cmdloop-command" or ctx.suffix ~= "" or ctx.prefix ~= "") then
 		return (ctx.prefix or "")..name..(ctx.suffix or "")
 	end
 	return name
@@ -43662,6 +43709,121 @@ cmd.add({"loadstring", "ls", "lstring", "loads", "execute"}, {"loadstring <code>
 
 	local okRun, errRun = NAmanage.RunSource(code, "@NALoadstringCommand")
 	if not okRun then
+		warn(errRun)
+	end
+end, true)
+
+NAStuff.TASCreatorUrl = "https://raw.githubusercontent.com/tomatotxt/TAS-Creator/main/script.luau"
+
+NAmanage.BuildTASCreatorSource = function(source)
+	if type(source) ~= "string" or source == "" then
+		return nil, "empty TAS Creator source"
+	end
+
+	const replacement = [[HUD = Instance.new("ScreenGui")
+	HUD.Name = "TASRecorderGUI"
+	HUD:SetAttribute("NA_TASCreator", true)
+	if type(NAStuff) == "table" and typeof(NAStuff.TASCreatorGui) == "Instance" then
+		pcall(function()
+			NAStuff.TASCreatorGui:Destroy()
+		end)
+	end
+	if type(NAStuff) == "table" then
+		NAStuff.TASCreatorGui = HUD
+	end
+	if NAgui and type(NAgui.NaProtectUI) == "function" then
+		local okProtect = pcall(NAgui.NaProtectUI, HUD)
+		if not okProtect or HUD.Parent == nil then
+			HUD.Parent = LocalPlayer:FindFirstChildOfClass("PlayerGui") or LocalPlayer.PlayerGui
+		end
+	else
+		HUD.Parent = LocalPlayer:FindFirstChildOfClass("PlayerGui") or LocalPlayer.PlayerGui
+	end]]
+
+	local patched, count = source:gsub('HUD%s*=%s*Instance%.new%("ScreenGui",%s*LocalPlayer%.PlayerGui%)%s*HUD%.Name%s*=%s*"TASRecorderGUI"', replacement, 1)
+	if count ~= 1 then
+		return nil, "TAS Creator GUI setup pattern changed"
+	end
+	return patched
+end
+
+NAmanage.RunTASCreator = function(fileName, opts)
+	opts = type(opts) == "table" and opts or {}
+	fileName = tostring(fileName or ""):gsub("^%s+", ""):gsub("%s+$", "")
+
+	_na_boot.syncRuntimeGlobals({
+		AutoLoadAndPlayFile = fileName;
+		ExtremeSmoothing = opts.smoothing == true;
+		TargetSmoothingFPS = tonumber(opts.fps) or 24;
+		ShowVelocityDuringPlayback = opts.velocity == true;
+		ShowTASPathDuringPlayback = opts.path == true;
+		PlaybackCamera = opts.camera ~= false;
+	})
+
+	local okSource, source, sourceErr = NAmanage.HttpGet(NAStuff.TASCreatorUrl, {
+		noCache = true,
+		timeout = 10,
+	})
+	if not okSource then
+		return false, tostring(sourceErr or "failed to download TAS Creator")
+	end
+
+	local patched, patchErr = NAmanage.BuildTASCreatorSource(source)
+	if not patched then
+		return false, patchErr
+	end
+
+	return NAmanage.RunSource(patched, "@TAS-Creator.luau")
+end
+
+cmd.add({"tas", "tascreator", "toolassistedspeedrun", "toolassistantspeedrun"}, {"tas [file] [smooth] [fps] [path] [velocity] [nocamera]", "Launch TAS Recorder Redux; optionally auto-load and play a saved run"}, function(...)
+	const rawArgs = {...}
+	local fileParts = {}
+	local opts = {
+		camera = true;
+		fps = 24;
+		path = false;
+		smoothing = false;
+		velocity = false;
+	}
+
+	for _, rawArg in rawArgs do
+		const arg = tostring(rawArg or "")
+		const token = Lower(arg)
+		const fpsToken = token:match("^fps=(%d+)$")
+			or token:match("^targetfps=(%d+)$")
+			or token:match("^smoothfps=(%d+)$")
+
+		if token == "smooth" or token == "smoothing" or token == "cinematic" or token == "extreme" then
+			opts.smoothing = true
+		elseif fpsToken then
+			opts.smoothing = true
+			opts.fps = math.clamp(math.floor(tonumber(fpsToken) or opts.fps), 1, 240)
+		elseif tonumber(token) and opts.smoothing == true then
+			opts.fps = math.clamp(math.floor(tonumber(token) or opts.fps), 1, 240)
+		elseif token == "path" or token == "paths" or token == "taspath" then
+			opts.path = true
+		elseif token == "velocity" or token == "vel" or token == "traj" or token == "trajectory" then
+			opts.velocity = true
+		elseif token == "nocamera" or token == "cameraoff" or token == "no-camera" then
+			opts.camera = false
+		elseif token == "camera" or token == "cam" then
+			opts.camera = true
+		elseif arg ~= "" then
+			fileParts[#fileParts + 1] = arg
+		end
+	end
+
+	const fileName = Concat(fileParts, " "):gsub("^%s+", ""):gsub("%s+$", "")
+	local okRun, errRun = NAmanage.RunTASCreator(fileName, opts)
+	if okRun then
+		if fileName ~= "" then
+			DoNotif("Launching TAS playback: "..fileName, 3)
+		else
+			DoNotif("Launching TAS Creator", 3)
+		end
+	else
+		DoNotif(tostring(errRun or "TAS Creator failed to launch"), 3)
 		warn(errRun)
 	end
 end, true)
