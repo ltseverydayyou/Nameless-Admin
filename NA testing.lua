@@ -131104,202 +131104,190 @@ NAgui.setTab(NA_TABS.TAB_FFLAGS)
 const NAFFlags = NAmanage.NAFFlags or {}
 NAmanage.NAFFlags = NAFFlags
 
-NAFFlags.whitelist = NAFFlags.whitelist or {
-	{ name = "PhysicsReceiveNumParallelTasks", default = 16, valueType = "number" };
-	{ name = "RuntimeConcurrency", default = 15, valueType = "number" };
-	{ name = "SimWorldTaskQueueParallelTasks", default = 16, valueType = "number" };
-	{ name = "ReplicationDataCacheNumParallelTasks", default = 16, valueType = "number" };
-	{ name = "NetworkClusterPacketCacheNumParallelTasks", default = 16, valueType = "number" };
-	{ name = "FixParticleEmissionBias2", default = true, valueType = "boolean" };
-	{ name = "InterpolationNumParallelTasks", default = 16, valueType = "number" };
-	{ name = "MegaReplicatorNumParallelTasks", default = 16, valueType = "number" };
-	{ name = "LuaGcParallelMinMultiTasks", default = 16, valueType = "number" };
-	{ name = "FixParticleAttachmentCulling", default = true, valueType = "boolean" };
-	{ name = "DebugRenderingSetDeterministic", default = true, valueType = "boolean" };
+NAFFlags.whitelist = {
+	{ name = "GameBasicSettingsFramerateCap5", default = true, valueType = "boolean", category = "FPS & Frame Timing" };
+	{ name = "DebugDisplayFPS", default = true, valueType = "boolean", category = "FPS & Frame Timing" };
+	{ name = "MaxFrameBufferSize", default = 4, valueType = "number", category = "FPS & Frame Timing" };
+	{ name = "DebugPerfMode", default = true, valueType = "boolean", category = "FPS & Frame Timing" };
+	{ name = "TaskSchedulerTargetFps", default = 2147483647, valueType = "number", category = "FPS & Frame Timing" };
+	{ name = "TaskSchedulerLimitTargetFpsTo2402", default = false, valueType = "boolean", category = "FPS & Frame Timing" };
+	{ name = "GameBasicSettingsFramerateCap", default = 0, valueType = "number", category = "FPS & Frame Timing" };
+	{ name = "FFlagEnableFPSAndFrameTime", default = true, valueType = "boolean", category = "FPS & Frame Timing" };
+	{ name = "FFlagPerformanceControlRespectUserFpsOverridden", default = true, valueType = "boolean", category = "FPS & Frame Timing" };
 
-	{ name = "TaskSchedulerAutoThreadLimit", default = 15, valueType = "number" };
-	{ name = "TaskSchedulerAsyncTasksMinimumThreadCount", default = 15, valueType = "number" };
-	{ name = "SmoothClusterTaskQueueMaxParallelTasks", default = 16, valueType = "number" };
+	{ name = "FullscreenTitleBarTriggerDelayMillis", default = 3600000, valueType = "number", category = "Rendering API & Display" };
+	{ name = "HandleAltEnterFullscreenManually", default = false, valueType = "boolean", category = "Rendering API & Display" };
+	{ name = "DebugGraphicsPreferD3D11", default = false, valueType = "boolean", category = "Rendering API & Display" };
+	{ name = "DebugGraphicsPreferD3D11FL10", default = false, valueType = "boolean", category = "Rendering API & Display" };
+	{ name = "DebugGraphicsPreferVulkan", default = true, valueType = "boolean", category = "Rendering API & Display" };
+	{ name = "DebugGraphicsPreferOpenGL", default = false, valueType = "boolean", category = "Rendering API & Display" };
+	{ name = "DebugGraphicsDisableDirect3D11", default = true, valueType = "boolean", category = "Rendering API & Display" };
+	{ name = "RenderCheckThreading", default = true, valueType = "boolean", category = "Rendering API & Display" };
+	{ name = "DisableDPIScale", default = true, valueType = "boolean", category = "Rendering API & Display" };
+	{ name = "GraphicsGLEnableHQShadersExclusion", default = true, valueType = "boolean", category = "Rendering API & Display" };
+	{ name = "GraphicsGLEnableSuperHQShadersExclusion", default = true, valueType = "boolean", category = "Rendering API & Display" };
 
-	{ name = "TeleportReconnect", default = true, valueType = "boolean" };
-	{ name = "TeleportReconnect3", default = true, valueType = "boolean" };
-	{ name = "AddJoinAttemptId", default = true, valueType = "boolean" };
-	{ name = "ChatTranslationSettingEnabled3", default = true, valueType = "boolean" };
-	{ name = "EnableQuickGameLaunch", default = false, valueType = "boolean" };
-	{ name = "GameBasicSettingsFramerateCap5", default = true, valueType = "boolean" };
-	{ name = "UserShowGuiHideToggles", default = true, valueType = "boolean" };
-	{ name = "GuiHidingApiSupport2", default = true, valueType = "boolean" };
-	{ name = "CameraMaxZoomDistance", default = 400, valueType = "number" };
-	{ name = "DebugForceChatDisabled", default = false, valueType = "boolean" };
+	{ name = "LCCageDeformLimit", default = -1, valueType = "number", category = "Graphics Quality & Lighting" };
+	{ name = "DebugPauseVoxelizer", default = false, valueType = "boolean", category = "Graphics Quality & Lighting" };
+	{ name = "RobloxGuiBlurIntensity", default = 0, valueType = "number", category = "Graphics Quality & Lighting" };
+	{ name = "RenderShadowmapBias", default = -1, valueType = "number", category = "Graphics Quality & Lighting" };
+	{ name = "DebugForceMSAASamples", default = 0, valueType = "number", category = "Graphics Quality & Lighting" };
+	{ name = "TextureQualityOverrideEnabled", default = true, valueType = "boolean", category = "Graphics Quality & Lighting" };
+	{ name = "TextureQualityOverride", default = 0, valueType = "number", category = "Graphics Quality & Lighting" };
+	{ name = "TextureCompositorLowResFactor", default = 1, valueType = "number", category = "Graphics Quality & Lighting" };
+	{ name = "PerformanceControlTextureQualityBestUtility", default = -1, valueType = "number", category = "Graphics Quality & Lighting" };
+	{ name = "EnableRequestAsyncCompression", default = false, valueType = "boolean", category = "Graphics Quality & Lighting" };
+	{ name = "DisablePostFx", default = true, valueType = "boolean", category = "Graphics Quality & Lighting" };
+	{ name = "DebugRenderForceTechnologyVoxel", default = true, valueType = "boolean", category = "Graphics Quality & Lighting" };
+	{ name = "NewLightAttenuation", default = false, valueType = "boolean", category = "Graphics Quality & Lighting" };
+	{ name = "RenderShadowIntensity", default = 0, valueType = "number", category = "Graphics Quality & Lighting" };
+	{ name = "RomarkStartWithGraphicQualityLevel", default = 1, valueType = "number", category = "Graphics Quality & Lighting" };
+	{ name = "DebugFRMQualityLevelOverride", default = 0, valueType = "number", category = "Graphics Quality & Lighting" };
+	{ name = "DebugTextureManagerSkipMips", default = -1, valueType = "number", category = "Graphics Quality & Lighting" };
+	{ name = "DebugSSAOForce", default = false, valueType = "boolean", category = "Graphics Quality & Lighting" };
+	{ name = "SSAOMipLevels", default = 0, valueType = "number", category = "Graphics Quality & Lighting" };
+	{ name = "DebugSkyGray", default = false, valueType = "boolean", category = "Graphics Quality & Lighting" };
+	{ name = "CommitToGraphicsQualityFix", default = true, valueType = "boolean", category = "Graphics Quality & Lighting" };
+	{ name = "FixGraphicsQuality", default = true, valueType = "boolean", category = "Graphics Quality & Lighting" };
+	{ name = "GraphicsSettingsOnlyShowValidModes", default = true, valueType = "boolean", category = "Graphics Quality & Lighting" };
+	{ name = "PartTexturePackTable2022", default = true, valueType = "boolean", category = "Graphics Quality & Lighting" };
+	{ name = "PartTexturePackTablePre2022", default = false, valueType = "boolean", category = "Graphics Quality & Lighting" };
+	{ name = "CloudsReflectOnWater", default = false, valueType = "boolean", category = "Graphics Quality & Lighting" };
+	{ name = "DebugForceFutureIsBrightPhase2", default = false, valueType = "boolean", category = "Graphics Quality & Lighting" };
+	{ name = "DebugForceFutureIsBrightPhase3", default = false, valueType = "boolean", category = "Graphics Quality & Lighting" };
+	{ name = "RenderLocalLightFadeInMs_enabled", default = true, valueType = "boolean", category = "Graphics Quality & Lighting" };
+	{ name = "RenderLocalLightUpdatesMax", default = 1, valueType = "number", category = "Graphics Quality & Lighting" };
+	{ name = "RenderLocalLightUpdatesMin", default = 1, valueType = "number", category = "Graphics Quality & Lighting" };
+	{ name = "NullCheckCloudsRendering", default = true, valueType = "boolean", category = "Graphics Quality & Lighting" };
+	{ name = "GpuGeometryManager7", default = true, valueType = "boolean", category = "Graphics Quality & Lighting" };
+	{ name = "FFlagFastGPULightCulling3", default = true, valueType = "boolean", category = "Graphics Quality & Lighting" };
+	{ name = "FFlagFRMDisableCloudsAtLowQL", default = true, valueType = "boolean", category = "Graphics Quality & Lighting" };
+	{ name = "FFlagRenderAllocateShadowMapResourcesOnDemand2", default = true, valueType = "boolean", category = "Graphics Quality & Lighting" };
+	{ name = "FFlagGpuVoxelCompression", default = true, valueType = "boolean", category = "Graphics Quality & Lighting" };
 
-	{ name = "LCCageDeformLimit", default = -1, valueType = "number" };
-	{ name = "FullscreenTitleBarTriggerDelayMillis", default = 3600000, valueType = "number" };
-	{ name = "DebugPauseVoxelizer", default = false, valueType = "boolean" };
-	{ name = "RobloxGuiBlurIntensity", default = 0, valueType = "number" };
-	{ name = "DebugDisplayFPS", default = true, valueType = "boolean" };
-	{ name = "RenderShadowmapBias", default = -1, valueType = "number" };
-	{ name = "MaxFrameBufferSize", default = 4, valueType = "number" };
-	{ name = "DebugPerfMode", default = true, valueType = "boolean" };
-	{ name = "Order66", default = true, valueType = "boolean" };
-	{ name = "AdServiceEnabled", default = false, valueType = "boolean" };
-	{ name = "HandleAltEnterFullscreenManually", default = false, valueType = "boolean" };
+	{ name = "CSGLevelOfDetailSwitchingDistance", default = 0, valueType = "number", category = "Textures, Geometry & LOD" };
+	{ name = "CSGLevelOfDetailSwitchingDistanceL12", default = 0, valueType = "number", category = "Textures, Geometry & LOD" };
+	{ name = "CSGLevelOfDetailSwitchingDistanceL23", default = 0, valueType = "number", category = "Textures, Geometry & LOD" };
+	{ name = "CSGLevelOfDetailSwitchingDistanceL34", default = 0, valueType = "number", category = "Textures, Geometry & LOD" };
+	{ name = "CSGv2LodsToGenerate", default = 0, valueType = "number", category = "Textures, Geometry & LOD" };
+	{ name = "CSGv2LodMinTriangleCount", default = 0, valueType = "number", category = "Textures, Geometry & LOD" };
+	{ name = "CSGVoxelizerFadeRadius", default = 0, valueType = "number", category = "Textures, Geometry & LOD" };
+	{ name = "TerrainArraySliceSize", default = 0, valueType = "number", category = "Textures, Geometry & LOD" };
+	{ name = "TextureCompositorActiveJobs", default = 1, valueType = "number", category = "Textures, Geometry & LOD" };
+	{ name = "ViewportFrameMaxSize", default = 9999999, valueType = "number", category = "Textures, Geometry & LOD" };
+	{ name = "FFlagEnableMultiVETextureManagerSharing", default = true, valueType = "boolean", category = "Textures, Geometry & LOD" };
 
-	{ name = "DebugGraphicsPreferD3D11", default = false, valueType = "boolean" };
-	{ name = "DebugGraphicsPreferD3D11FL10", default = false, valueType = "boolean" };
-	{ name = "DebugGraphicsPreferVulkan", default = true, valueType = "boolean" };
-	{ name = "DebugGraphicsPreferOpenGL", default = false, valueType = "boolean" };
-	{ name = "DebugGraphicsDisableDirect3D11", default = true, valueType = "boolean" };
+	{ name = "FixParticleEmissionBias2", default = true, valueType = "boolean", category = "Particles, Grass, Wind & Animation" };
+	{ name = "FixParticleAttachmentCulling", default = true, valueType = "boolean", category = "Particles, Grass, Wind & Animation" };
+	{ name = "GlobalWindActivated", default = false, valueType = "boolean", category = "Particles, Grass, Wind & Animation" };
+	{ name = "GlobalWindRendering", default = false, valueType = "boolean", category = "Particles, Grass, Wind & Animation" };
+	{ name = "AnimationLodFacsDistanceMin", default = 0, valueType = "number", category = "Particles, Grass, Wind & Animation" };
+	{ name = "AnimationLodFacsDistanceMax", default = 0, valueType = "number", category = "Particles, Grass, Wind & Animation" };
+	{ name = "AnimationLodFacsVisibilityDenominator", default = 0, valueType = "number", category = "Particles, Grass, Wind & Animation" };
+	{ name = "FRMMaxGrassDistance", default = 0, valueType = "number", category = "Particles, Grass, Wind & Animation" };
+	{ name = "FRMMinGrassDistance", default = 0, valueType = "number", category = "Particles, Grass, Wind & Animation" };
+	{ name = "RenderGrassDetailStrands", default = 0, valueType = "number", category = "Particles, Grass, Wind & Animation" };
+	{ name = "GrassMovementReducedMotionFactor", default = 100, valueType = "number", category = "Particles, Grass, Wind & Animation" };
+	{ name = "RenderGrassHeightScaler", default = 0, valueType = "number", category = "Particles, Grass, Wind & Animation" };
+	{ name = "FFlagRenderParticlesCapNonVisibleEmission", default = true, valueType = "boolean", category = "Particles, Grass, Wind & Animation" };
+	{ name = "FFlagRenderParticlesNonVisibleSimBudget1", default = true, valueType = "boolean", category = "Particles, Grass, Wind & Animation" };
+	{ name = "FFlagRenderParticlesOptimizeVisibleSimLocality", default = true, valueType = "boolean", category = "Particles, Grass, Wind & Animation" };
 
-	{ name = "TaskSchedulerTargetFps", default = 2147483647, valueType = "number" };
-	{ name = "TaskSchedulerLimitTargetFpsTo2402", default = false, valueType = "boolean" };
+	{ name = "RuntimeConcurrency", default = 15, valueType = "number", category = "CPU, Threads & Memory" };
+	{ name = "SimWorldTaskQueueParallelTasks", default = 16, valueType = "number", category = "CPU, Threads & Memory" };
+	{ name = "LuaGcParallelMinMultiTasks", default = 16, valueType = "number", category = "CPU, Threads & Memory" };
+	{ name = "DebugRenderingSetDeterministic", default = true, valueType = "boolean", category = "CPU, Threads & Memory" };
+	{ name = "TaskSchedulerAutoThreadLimit", default = 15, valueType = "number", category = "CPU, Threads & Memory" };
+	{ name = "TaskSchedulerAsyncTasksMinimumThreadCount", default = 15, valueType = "number", category = "CPU, Threads & Memory" };
+	{ name = "SmoothClusterTaskQueueMaxParallelTasks", default = 16, valueType = "number", category = "CPU, Threads & Memory" };
+	{ name = "DebugRestrictGCDistance", default = 50, valueType = "number", category = "CPU, Threads & Memory" };
+	{ name = "MSRefactor5", default = false, valueType = "boolean", category = "CPU, Threads & Memory" };
+	{ name = "FFlagPerformanceControlEnablePortTextureManagerTrimMemory", default = true, valueType = "boolean", category = "CPU, Threads & Memory" };
+	{ name = "FFlagAvatarUseRuntimeThreads", default = true, valueType = "boolean", category = "CPU, Threads & Memory" };
 
-	{ name = "DebugForceMSAASamples", default = 0, valueType = "number" };
+	{ name = "PhysicsReceiveNumParallelTasks", default = 16, valueType = "number", category = "Network, Replication & Physics" };
+	{ name = "ReplicationDataCacheNumParallelTasks", default = 16, valueType = "number", category = "Network, Replication & Physics" };
+	{ name = "NetworkClusterPacketCacheNumParallelTasks", default = 16, valueType = "number", category = "Network, Replication & Physics" };
+	{ name = "InterpolationNumParallelTasks", default = 16, valueType = "number", category = "Network, Replication & Physics" };
+	{ name = "MegaReplicatorNumParallelTasks", default = 16, valueType = "number", category = "Network, Replication & Physics" };
+	{ name = "OptimizeNetworkTransport", default = true, valueType = "boolean", category = "Network, Replication & Physics" };
+	{ name = "OptimizeNetworkRouting", default = true, valueType = "boolean", category = "Network, Replication & Physics" };
+	{ name = "RakNetResendBufferArrayLength", default = 128, valueType = "number", category = "Network, Replication & Physics" };
+	{ name = "WaitOnRecvFromLoopEndedMS", default = 100, valueType = "number", category = "Network, Replication & Physics" };
+	{ name = "OptimizeNetwork", default = true, valueType = "boolean", category = "Network, Replication & Physics" };
+	{ name = "OptimizeServerTickRate", default = true, valueType = "boolean", category = "Network, Replication & Physics" };
+	{ name = "OptimizePingThreshold", default = true, valueType = "boolean", category = "Network, Replication & Physics" };
+	{ name = "QueueDataPingFromSendData", default = true, valueType = "boolean", category = "Network, Replication & Physics" };
+	{ name = "DontCreatePingJob", default = false, valueType = "boolean", category = "Network, Replication & Physics" };
+	{ name = "ServerTickRate", default = 60, valueType = "number", category = "Network, Replication & Physics" };
+	{ name = "ServerPhysicsUpdateRate", default = 60, valueType = "number", category = "Network, Replication & Physics" };
+	{ name = "PlayerNetworkUpdateRate", default = 60, valueType = "number", category = "Network, Replication & Physics" };
+	{ name = "PlayerNetworkUpdateQueueSize", default = 20, valueType = "number", category = "Network, Replication & Physics" };
+	{ name = "NetworkLatencyTolerance", default = 0, valueType = "number", category = "Network, Replication & Physics" };
+	{ name = "NetworkPrediction", default = true, valueType = "boolean", category = "Network, Replication & Physics" };
+	{ name = "DFIntS2PhysicsSenderRate", default = 15, valueType = "number", category = "Network, Replication & Physics" };
 
-	{ name = "TextureQualityOverrideEnabled", default = true, valueType = "boolean" };
-	{ name = "TextureQualityOverride", default = 0, valueType = "number" };
-	{ name = "TextureCompositorLowResFactor", default = 1, valueType = "number" };
-	{ name = "PerformanceControlTextureQualityBestUtility", default = -1, valueType = "number" };
-	{ name = "EnableRequestAsyncCompression", default = false, valueType = "boolean" };
-	{ name = "DisablePostFx", default = true, valueType = "boolean" };
-	{ name = "DebugRenderForceTechnologyVoxel", default = true, valueType = "boolean" };
+	{ name = "TeleportReconnect", default = true, valueType = "boolean", category = "Loading, Assets & Teleport" };
+	{ name = "TeleportReconnect3", default = true, valueType = "boolean", category = "Loading, Assets & Teleport" };
+	{ name = "AddJoinAttemptId", default = true, valueType = "boolean", category = "Loading, Assets & Teleport" };
+	{ name = "EnableQuickGameLaunch", default = false, valueType = "boolean", category = "Loading, Assets & Teleport" };
+	{ name = "PreloadAllFonts", default = true, valueType = "boolean", category = "Loading, Assets & Teleport" };
+	{ name = "BatchAssetApi", default = true, valueType = "boolean", category = "Loading, Assets & Teleport" };
+	{ name = "BatchAssetApiNoFallbackOnFail", default = false, valueType = "boolean", category = "Loading, Assets & Teleport" };
+	{ name = "HttpBatchApi_maxWaitMs", default = 50, valueType = "number", category = "Loading, Assets & Teleport" };
+	{ name = "HttpBatchApi_bgDelayMs", default = 10, valueType = "number", category = "Loading, Assets & Teleport" };
+	{ name = "DFFlagEnableTexturePreloading", default = true, valueType = "boolean", category = "Loading, Assets & Teleport" };
+	{ name = "DFFlagEnableSoundPreloading", default = true, valueType = "boolean", category = "Loading, Assets & Teleport" };
+	{ name = "DFFlagEnableMeshPreloading2", default = true, valueType = "boolean", category = "Loading, Assets & Teleport" };
 
-	{ name = "CSGLevelOfDetailSwitchingDistance", default = 0, valueType = "number" };
-	{ name = "CSGLevelOfDetailSwitchingDistanceL12", default = 0, valueType = "number" };
-	{ name = "CSGLevelOfDetailSwitchingDistanceL23", default = 0, valueType = "number" };
-	{ name = "CSGLevelOfDetailSwitchingDistanceL34", default = 0, valueType = "number" };
-	{ name = "CSGv2LodsToGenerate", default = 0, valueType = "number" };
-	{ name = "CSGv2LodMinTriangleCount", default = 0, valueType = "number" };
+	{ name = "ChatTranslationSettingEnabled3", default = true, valueType = "boolean", category = "Interface, Camera & Accessibility" };
+	{ name = "UserShowGuiHideToggles", default = true, valueType = "boolean", category = "Interface, Camera & Accessibility" };
+	{ name = "GuiHidingApiSupport2", default = true, valueType = "boolean", category = "Interface, Camera & Accessibility" };
+	{ name = "CameraMaxZoomDistance", default = 400, valueType = "number", category = "Interface, Camera & Accessibility" };
+	{ name = "DebugForceChatDisabled", default = false, valueType = "boolean", category = "Interface, Camera & Accessibility" };
+	{ name = "DebugDontRenderScreenGui", default = false, valueType = "boolean", category = "Interface, Camera & Accessibility" };
+	{ name = "EnableCommandAutocomplete", default = false, valueType = "boolean", category = "Interface, Camera & Accessibility" };
+	{ name = "CoreGuiTypeSelfViewPresent", default = false, valueType = "boolean", category = "Interface, Camera & Accessibility" };
+	{ name = "InGameMenuV1FullScreenTitleBar", default = false, valueType = "boolean", category = "Interface, Camera & Accessibility" };
+	{ name = "EnableInGameMenuV3", default = true, valueType = "boolean", category = "Interface, Camera & Accessibility" };
+	{ name = "EnableInGameMenuControls", default = true, valueType = "boolean", category = "Interface, Camera & Accessibility" };
+	{ name = "EnableMenuModernizationABTest", default = false, valueType = "boolean", category = "Interface, Camera & Accessibility" };
+	{ name = "EnableMenuModernizationABTest2", default = false, valueType = "boolean", category = "Interface, Camera & Accessibility" };
+	{ name = "EnableMenuControlsABTest", default = false, valueType = "boolean", category = "Interface, Camera & Accessibility" };
+	{ name = "EnableInGameMenuChromeABTest2", default = false, valueType = "boolean", category = "Interface, Camera & Accessibility" };
+	{ name = "EnableInGameMenuChromeABTest3", default = false, valueType = "boolean", category = "Interface, Camera & Accessibility" };
+	{ name = "EnableReportAbuseMenuRoact2", default = true, valueType = "boolean", category = "Interface, Camera & Accessibility" };
+	{ name = "EnableReportAbuseMenuLayerOnV3", default = true, valueType = "boolean", category = "Interface, Camera & Accessibility" };
+	{ name = "EnableBubbleChatConfigurationV2", default = true, valueType = "boolean", category = "Interface, Camera & Accessibility" };
+	{ name = "EnableChromePinnedChat", default = true, valueType = "boolean", category = "Interface, Camera & Accessibility" };
+	{ name = "EnableAccessibilitySettingsAPIV2", default = true, valueType = "boolean", category = "Interface, Camera & Accessibility" };
+	{ name = "EnableAccessibilitySettingsInExperienceMenu2", default = true, valueType = "boolean", category = "Interface, Camera & Accessibility" };
+	{ name = "EnableAccessibilitySettingsEffectsInExperienceChat", default = true, valueType = "boolean", category = "Interface, Camera & Accessibility" };
+	{ name = "EnableAccessibilitySettingsEffectsInCoreScripts2", default = true, valueType = "boolean", category = "Interface, Camera & Accessibility" };
 
-	{ name = "NewLightAttenuation", default = false, valueType = "boolean" };
-	{ name = "RenderShadowIntensity", default = 0, valueType = "number" };
-	{ name = "CSGVoxelizerFadeRadius", default = 0, valueType = "number" };
+	{ name = "EnableAudioOutputDevice", default = true, valueType = "boolean", category = "Audio" };
+	{ name = "FFlagFmodUseRuntimeThreading5", default = true, valueType = "boolean", category = "Audio" };
 
-	{ name = "TerrainArraySliceSize", default = 0, valueType = "number" };
+	{ name = "DebugDisableTelemetryEphemeralCounter", default = true, valueType = "boolean", category = "Telemetry & Privacy" };
+	{ name = "DebugDisableTelemetryEphemeralStat", default = true, valueType = "boolean", category = "Telemetry & Privacy" };
+	{ name = "DebugDisableTelemetryEventIngest", default = true, valueType = "boolean", category = "Telemetry & Privacy" };
+	{ name = "DebugDisableTelemetryPoint", default = true, valueType = "boolean", category = "Telemetry & Privacy" };
+	{ name = "DebugDisableTelemetryV2Counter", default = true, valueType = "boolean", category = "Telemetry & Privacy" };
+	{ name = "DebugDisableTelemetryV2Event", default = true, valueType = "boolean", category = "Telemetry & Privacy" };
+	{ name = "DebugDisableTelemetryV2Stat", default = true, valueType = "boolean", category = "Telemetry & Privacy" };
+	{ name = "RenderPerformanceTelemetry", default = false, valueType = "boolean", category = "Telemetry & Privacy" };
+	{ name = "EnableHardwareTelemetry", default = false, valueType = "boolean", category = "Telemetry & Privacy" };
+	{ name = "AudioDeviceTelemetry", default = false, valueType = "boolean", category = "Telemetry & Privacy" };
+	{ name = "EnableSoundTelemetry", default = false, valueType = "boolean", category = "Telemetry & Privacy" };
+	{ name = "EnableFmodErrorsTelemetry", default = false, valueType = "boolean", category = "Telemetry & Privacy" };
+	{ name = "SimReportCPUInfo", default = false, valueType = "boolean", category = "Telemetry & Privacy" };
+	{ name = "EnableGCapsHardwareTelemetry", default = false, valueType = "boolean", category = "Telemetry & Privacy" };
+	{ name = "HardwareTelemetryHundredthsPercent", default = 100, valueType = "number", category = "Telemetry & Privacy" };
+	{ name = "LightstepHTTPTransportHundredthsPercent2", default = 100, valueType = "number", category = "Telemetry & Privacy" };
+	{ name = "ClientLightingEnvmapPlacementTelemetryHundredthsPercent", default = 100, valueType = "number", category = "Telemetry & Privacy" };
 
-	{ name = "RomarkStartWithGraphicQualityLevel", default = 1, valueType = "number" };
-	{ name = "DebugFRMQualityLevelOverride", default = 0, valueType = "number" };
-	{ name = "DebugRestrictGCDistance", default = 50, valueType = "number" };
-
-	{ name = "MSRefactor5", default = false, valueType = "boolean" };
-	{ name = "DebugTextureManagerSkipMips", default = -1, valueType = "number" };
-
-	{ name = "GlobalWindActivated", default = false, valueType = "boolean" };
-	{ name = "GlobalWindRendering", default = false, valueType = "boolean" };
-
-	{ name = "DebugDontRenderScreenGui", default = false, valueType = "boolean" };
-	{ name = "DebugSSAOForce", default = false, valueType = "boolean" };
-	{ name = "SSAOMipLevels", default = 0, valueType = "number" };
-
-	{ name = "EnableCommandAutocomplete", default = false, valueType = "boolean" };
-
-	{ name = "AnimationLodFacsDistanceMin", default = 0, valueType = "number" };
-	{ name = "AnimationLodFacsDistanceMax", default = 0, valueType = "number" };
-	{ name = "AnimationLodFacsVisibilityDenominator", default = 0, valueType = "number" };
-
-	{ name = "TextureCompositorActiveJobs", default = 1, valueType = "number" };
-
-	{ name = "ViewportFrameMaxSize", default = 9999999, valueType = "number" };
-
-	{ name = "FRMMaxGrassDistance", default = 0, valueType = "number" };
-	{ name = "FRMMinGrassDistance", default = 0, valueType = "number" };
-	{ name = "RenderGrassDetailStrands", default = 0, valueType = "number" };
-	{ name = "GrassMovementReducedMotionFactor", default = 100, valueType = "number" };
-
-	{ name = "DebugSkyGray", default = false, valueType = "boolean" };
-	{ name = "CoreGuiTypeSelfViewPresent", default = false, valueType = "boolean" };
-	{ name = "RenderCheckThreading", default = true, valueType = "boolean" };
-
-	{ name = "OptimizeNetworkTransport", default = true, valueType = "boolean" };
-	{ name = "OptimizeNetworkRouting", default = true, valueType = "boolean" };
-	{ name = "RakNetResendBufferArrayLength", default = 128, valueType = "number" };
-	{ name = "WaitOnRecvFromLoopEndedMS", default = 100, valueType = "number" };
-
-	{ name = "DebugDisableTelemetryEphemeralCounter", default = true, valueType = "boolean" };
-	{ name = "DebugDisableTelemetryEphemeralStat", default = true, valueType = "boolean" };
-	{ name = "DebugDisableTelemetryEventIngest", default = true, valueType = "boolean" };
-	{ name = "DebugDisableTelemetryPoint", default = true, valueType = "boolean" };
-	{ name = "DebugDisableTelemetryV2Counter", default = true, valueType = "boolean" };
-	{ name = "DebugDisableTelemetryV2Event", default = true, valueType = "boolean" };
-	{ name = "DebugDisableTelemetryV2Stat", default = true, valueType = "boolean" };
-
-	{ name = "DisableDPIScale", default = true, valueType = "boolean" };
-
-	{ name = "OptimizeNetwork", default = true, valueType = "boolean" };
-	{ name = "OptimizeServerTickRate", default = true, valueType = "boolean" };
-	{ name = "OptimizePingThreshold", default = true, valueType = "boolean" };
-	{ name = "QueueDataPingFromSendData", default = true, valueType = "boolean" };
-	{ name = "DontCreatePingJob", default = false, valueType = "boolean" };
-
-	{ name = "RenderPerformanceTelemetry", default = false, valueType = "boolean" };
-
-	{ name = "CommitToGraphicsQualityFix", default = true, valueType = "boolean" };
-	{ name = "FixGraphicsQuality", default = true, valueType = "boolean" };
-	{ name = "GraphicsSettingsOnlyShowValidModes", default = true, valueType = "boolean" };
-
-	{ name = "PreloadAllFonts", default = true, valueType = "boolean" };
-
-	{ name = "PartTexturePackTable2022", default = true, valueType = "boolean" };
-	{ name = "PartTexturePackTablePre2022", default = false, valueType = "boolean" };
-
-	{ name = "CloudsReflectOnWater", default = false, valueType = "boolean" };
-	{ name = "DebugForceFutureIsBrightPhase2", default = false, valueType = "boolean" };
-	{ name = "DebugForceFutureIsBrightPhase3", default = false, valueType = "boolean" };
-
-	{ name = "InGameMenuV1FullScreenTitleBar", default = false, valueType = "boolean" };
-
-	{ name = "EnableHardwareTelemetry", default = false, valueType = "boolean" };
-	{ name = "AudioDeviceTelemetry", default = false, valueType = "boolean" };
-	{ name = "EnableSoundTelemetry", default = false, valueType = "boolean" };
-	{ name = "EnableFmodErrorsTelemetry", default = false, valueType = "boolean" };
-	{ name = "SimReportCPUInfo", default = false, valueType = "boolean" };
-	{ name = "EnableGCapsHardwareTelemetry", default = false, valueType = "boolean" };
-
-	{ name = "BatchAssetApi", default = true, valueType = "boolean" };
-	{ name = "BatchAssetApiNoFallbackOnFail", default = false, valueType = "boolean" };
-
-	{ name = "GameBasicSettingsFramerateCap", default = 0, valueType = "number" };
-	{ name = "RenderGrassHeightScaler", default = 0, valueType = "number" };
-	{ name = "HttpBatchApi_maxWaitMs", default = 50, valueType = "number" };
-	{ name = "HttpBatchApi_bgDelayMs", default = 10, valueType = "number" };
-
-	{ name = "ServerTickRate", default = 60, valueType = "number" };
-	{ name = "ServerPhysicsUpdateRate", default = 60, valueType = "number" };
-	{ name = "PlayerNetworkUpdateRate", default = 60, valueType = "number" };
-	{ name = "PlayerNetworkUpdateQueueSize", default = 20, valueType = "number" };
-	{ name = "NetworkLatencyTolerance", default = 0, valueType = "number" };
-	{ name = "NetworkPrediction", default = true, valueType = "boolean" };
-
-	{ name = "RenderLocalLightFadeInMs_enabled", default = true, valueType = "boolean" };
-	{ name = "RenderLocalLightUpdatesMax", default = 1, valueType = "number" };
-	{ name = "RenderLocalLightUpdatesMin", default = 1, valueType = "number" };
-	{ name = "GraphicsGLEnableHQShadersExclusion", default = true, valueType = "boolean" };
-	{ name = "GraphicsGLEnableSuperHQShadersExclusion", default = true, valueType = "boolean" };
-	{ name = "NullCheckCloudsRendering", default = true, valueType = "boolean" };
-	{ name = "GpuGeometryManager7", default = true, valueType = "boolean" };
-
-	{ name = "EnableInGameMenuV3", default = true, valueType = "boolean" };
-	{ name = "EnableInGameMenuControls", default = true, valueType = "boolean" };
-	{ name = "EnableMenuModernizationABTest", default = false, valueType = "boolean" };
-	{ name = "EnableMenuModernizationABTest2", default = false, valueType = "boolean" };
-	{ name = "EnableMenuControlsABTest", default = false, valueType = "boolean" };
-	{ name = "EnableInGameMenuChromeABTest2", default = false, valueType = "boolean" };
-	{ name = "EnableInGameMenuChromeABTest3", default = false, valueType = "boolean" };
-
-	{ name = "EnableReportAbuseMenuRoact2", default = true, valueType = "boolean" };
-	{ name = "EnableReportAbuseMenuLayerOnV3", default = true, valueType = "boolean" };
-	{ name = "EnableBubbleChatConfigurationV2", default = true, valueType = "boolean" };
-	{ name = "EnableChromePinnedChat", default = true, valueType = "boolean" };
-
-	{ name = "EnableAccessibilitySettingsAPIV2", default = true, valueType = "boolean" };
-	{ name = "EnableAccessibilitySettingsInExperienceMenu2", default = true, valueType = "boolean" };
-	{ name = "EnableAccessibilitySettingsEffectsInExperienceChat", default = true, valueType = "boolean" };
-	{ name = "EnableAccessibilitySettingsEffectsInCoreScripts2", default = true, valueType = "boolean" };
-
-	{ name = "EnableAudioOutputDevice", default = true, valueType = "boolean" };
-
-	{ name = "HardwareTelemetryHundredthsPercent", default = 100, valueType = "number" };
-	{ name = "LightstepHTTPTransportHundredthsPercent2", default = 100, valueType = "number" };
-	{ name = "ClientLightingEnvmapPlacementTelemetryHundredthsPercent", default = 100, valueType = "number" };
+	{ name = "Order66", default = true, valueType = "boolean", category = "Client Features & Compatibility" };
+	{ name = "AdServiceEnabled", default = false, valueType = "boolean", category = "Client Features & Compatibility" };
 }
 
 NAFFlags.info = NAFFlags.info or {
@@ -131499,6 +131487,23 @@ NAFFlags.info = NAFFlags.info or {
 	HardwareTelemetryHundredthsPercent = "How often hardware telemetry is sampled, expressed in hundredths of a percent. 100 means about 1% of sessions. Setting it to 0 effectively stops this on your client.";
 	LightstepHTTPTransportHundredthsPercent2 = "Sampling rate for a specific telemetry pipeline. 0 turns it off for you; 100 is a typical default.";
 	ClientLightingEnvmapPlacementTelemetryHundredthsPercent = "Sampling rate for a lighting-related telemetry channel. Set to 0 to stop sending this; set back to 100 if you want default reporting.";
+	FFlagEnableFPSAndFrameTime = "Enables Roblox's FPS and frame-time instrumentation path. Useful for performance diagnostics; it does not raise FPS by itself.";
+	FFlagPerformanceControlRespectUserFpsOverridden = "Makes performance control respect a user-overridden FPS target when the current client supports this path. Experimental and may be ignored by some builds.";
+	FFlagFastGPULightCulling3 = "Uses the newer GPU light-culling path. It can help scenes with many local lights, but driver-specific visual issues are possible.";
+	FFlagFRMDisableCloudsAtLowQL = "Allows the frame-rate manager to disable clouds at low quality levels, reducing cloud rendering cost on weaker hardware.";
+	FFlagRenderAllocateShadowMapResourcesOnDemand2 = "Allocates shadow-map resources on demand instead of eagerly. This can reduce unused graphics memory, but it is an internal rollout flag.";
+	FFlagGpuVoxelCompression = "Enables GPU-side voxel compression where supported. It may reduce graphics memory pressure; disable it if voxel lighting becomes unstable.";
+	FFlagEnableMultiVETextureManagerSharing = "Shares texture-manager state across multiple view engines where supported. This is intended to reduce duplicated texture work and memory use.";
+	FFlagRenderParticlesCapNonVisibleEmission = "Caps emission for particles that are not visible, reducing wasted particle work in effects-heavy places.";
+	FFlagRenderParticlesNonVisibleSimBudget1 = "Applies a simulation budget to non-visible particles. It can improve performance when many effects are off-screen.";
+	FFlagRenderParticlesOptimizeVisibleSimLocality = "Uses a locality optimization for visible particle simulation. Experimental; revert it if particle effects render incorrectly.";
+	FFlagPerformanceControlEnablePortTextureManagerTrimMemory = "Lets performance control request texture-memory trimming. Useful under memory pressure, but it can increase texture reloading or pop-in.";
+	FFlagAvatarUseRuntimeThreads = "Moves supported avatar work onto Roblox runtime threads. This may reduce main-thread spikes in avatar-heavy places, but it is experimental.";
+	DFIntS2PhysicsSenderRate = "Controls client physics replication send frequency. Roblox reports a normal default around 15. Higher or lower values can increase bandwidth, desync, and unfair behavior; this is included for controlled testing, not as an FPS or ping boost.";
+	DFFlagEnableTexturePreloading = "Enables texture preloading where the current client path supports it. It can reduce later texture pop-in at the cost of startup time and memory.";
+	DFFlagEnableSoundPreloading = "Enables sound preloading where supported. It can reduce delayed first playback, while using more startup bandwidth and memory.";
+	DFFlagEnableMeshPreloading2 = "Enables the newer mesh-preloading path. It can reduce mesh pop-in, but may increase initial loading work.";
+	FFlagFmodUseRuntimeThreading5 = "Uses Roblox runtime threading for supported FMOD audio work. Experimental; disable it if audio devices or playback become unstable.";
 }
 
 for _, entry in NAFFlags.whitelist do
@@ -132582,7 +132587,9 @@ NAgui.addSection("Whitelisted FastFlags")
 NAStuff.supportText = NAStuff.supportText or NAFFlags.hasSupport() and "Available" or "Unavailable (setfflag missing)"
 
 NAgui.addInfo("FastFlag Support", NAStuff.supportText)
-NAgui.addInfo("Session Warning", "FastFlags reset after you close Roblox")
+NAgui.addInfo("Session Warning", "Runtime FastFlags reset after you close Roblox")
+NAgui.addInfo("ClientAppSettings Allowlist", "Roblox ignores most non-allowlisted local JSON flags. Runtime support still depends on the current client and executor.")
+NAgui.addInfo("Experimental Flags", "Internal flags can be renamed, removed, ignored, or cause visual and stability issues after Roblox updates.")
 
 NAgui.addToggle("Use FastFlags", NAFFlags.config.useFFlags == true, function(state)
 	NAFFlags.config.useFFlags = state == true
@@ -132843,9 +132850,16 @@ NAgui.addButton("Remove Custom Flag", function()
 	end
 end)
 
-NAgui.addSection("Individual Flags")
+NAgui.addSection("FastFlag Categories")
 
+local currentFFlagCategory = nil
 for _, entry in NAFFlags.whitelist do
+	const entryCategory = entry.category or "Other"
+	if entryCategory ~= currentFFlagCategory then
+		currentFFlagCategory = entryCategory
+		NAgui.addSection(entryCategory)
+	end
+
 	const entryName = entry.name
 	const desc = NAFFlags.info and NAFFlags.info[entryName] or nil
 
