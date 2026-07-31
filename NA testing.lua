@@ -131112,8 +131112,8 @@ NAFFlags.whitelist = {
 	{ name = "TaskSchedulerTargetFps", default = 2147483647, valueType = "number", category = "FPS & Frame Timing" };
 	{ name = "TaskSchedulerLimitTargetFpsTo2402", default = false, valueType = "boolean", category = "FPS & Frame Timing" };
 	{ name = "GameBasicSettingsFramerateCap", default = 0, valueType = "number", category = "FPS & Frame Timing" };
-	{ name = "FFlagEnableFPSAndFrameTime", default = true, valueType = "boolean", category = "FPS & Frame Timing" };
-	{ name = "FFlagPerformanceControlRespectUserFpsOverridden", default = true, valueType = "boolean", category = "FPS & Frame Timing" };
+	{ name = "EnableFPSAndFrameTime", default = true, valueType = "boolean", category = "FPS & Frame Timing" };
+	{ name = "PerformanceControlRespectUserFpsOverridden", default = true, valueType = "boolean", category = "FPS & Frame Timing" };
 
 	{ name = "FullscreenTitleBarTriggerDelayMillis", default = 3600000, valueType = "number", category = "Rendering API & Display" };
 	{ name = "HandleAltEnterFullscreenManually", default = false, valueType = "boolean", category = "Rendering API & Display" };
@@ -131160,10 +131160,10 @@ NAFFlags.whitelist = {
 	{ name = "RenderLocalLightUpdatesMin", default = 1, valueType = "number", category = "Graphics Quality & Lighting" };
 	{ name = "NullCheckCloudsRendering", default = true, valueType = "boolean", category = "Graphics Quality & Lighting" };
 	{ name = "GpuGeometryManager7", default = true, valueType = "boolean", category = "Graphics Quality & Lighting" };
-	{ name = "FFlagFastGPULightCulling3", default = true, valueType = "boolean", category = "Graphics Quality & Lighting" };
-	{ name = "FFlagFRMDisableCloudsAtLowQL", default = true, valueType = "boolean", category = "Graphics Quality & Lighting" };
-	{ name = "FFlagRenderAllocateShadowMapResourcesOnDemand2", default = true, valueType = "boolean", category = "Graphics Quality & Lighting" };
-	{ name = "FFlagGpuVoxelCompression", default = true, valueType = "boolean", category = "Graphics Quality & Lighting" };
+	{ name = "FastGPULightCulling3", default = true, valueType = "boolean", category = "Graphics Quality & Lighting" };
+	{ name = "FRMDisableCloudsAtLowQL", default = true, valueType = "boolean", category = "Graphics Quality & Lighting" };
+	{ name = "RenderAllocateShadowMapResourcesOnDemand2", default = true, valueType = "boolean", category = "Graphics Quality & Lighting" };
+	{ name = "GpuVoxelCompression", default = true, valueType = "boolean", category = "Graphics Quality & Lighting" };
 
 	{ name = "CSGLevelOfDetailSwitchingDistance", default = 0, valueType = "number", category = "Textures, Geometry & LOD" };
 	{ name = "CSGLevelOfDetailSwitchingDistanceL12", default = 0, valueType = "number", category = "Textures, Geometry & LOD" };
@@ -131175,7 +131175,7 @@ NAFFlags.whitelist = {
 	{ name = "TerrainArraySliceSize", default = 0, valueType = "number", category = "Textures, Geometry & LOD" };
 	{ name = "TextureCompositorActiveJobs", default = 1, valueType = "number", category = "Textures, Geometry & LOD" };
 	{ name = "ViewportFrameMaxSize", default = 9999999, valueType = "number", category = "Textures, Geometry & LOD" };
-	{ name = "FFlagEnableMultiVETextureManagerSharing", default = true, valueType = "boolean", category = "Textures, Geometry & LOD" };
+	{ name = "EnableMultiVETextureManagerSharing", default = true, valueType = "boolean", category = "Textures, Geometry & LOD" };
 
 	{ name = "FixParticleEmissionBias2", default = true, valueType = "boolean", category = "Particles, Grass, Wind & Animation" };
 	{ name = "FixParticleAttachmentCulling", default = true, valueType = "boolean", category = "Particles, Grass, Wind & Animation" };
@@ -131189,9 +131189,9 @@ NAFFlags.whitelist = {
 	{ name = "RenderGrassDetailStrands", default = 0, valueType = "number", category = "Particles, Grass, Wind & Animation" };
 	{ name = "GrassMovementReducedMotionFactor", default = 100, valueType = "number", category = "Particles, Grass, Wind & Animation" };
 	{ name = "RenderGrassHeightScaler", default = 0, valueType = "number", category = "Particles, Grass, Wind & Animation" };
-	{ name = "FFlagRenderParticlesCapNonVisibleEmission", default = true, valueType = "boolean", category = "Particles, Grass, Wind & Animation" };
-	{ name = "FFlagRenderParticlesNonVisibleSimBudget1", default = true, valueType = "boolean", category = "Particles, Grass, Wind & Animation" };
-	{ name = "FFlagRenderParticlesOptimizeVisibleSimLocality", default = true, valueType = "boolean", category = "Particles, Grass, Wind & Animation" };
+	{ name = "RenderParticlesCapNonVisibleEmission", default = true, valueType = "boolean", category = "Particles, Grass, Wind & Animation" };
+	{ name = "RenderParticlesNonVisibleSimBudget1", default = true, valueType = "boolean", category = "Particles, Grass, Wind & Animation" };
+	{ name = "RenderParticlesOptimizeVisibleSimLocality", default = true, valueType = "boolean", category = "Particles, Grass, Wind & Animation" };
 
 	{ name = "RuntimeConcurrency", default = 15, valueType = "number", category = "CPU, Threads & Memory" };
 	{ name = "SimWorldTaskQueueParallelTasks", default = 16, valueType = "number", category = "CPU, Threads & Memory" };
@@ -131202,8 +131202,8 @@ NAFFlags.whitelist = {
 	{ name = "SmoothClusterTaskQueueMaxParallelTasks", default = 16, valueType = "number", category = "CPU, Threads & Memory" };
 	{ name = "DebugRestrictGCDistance", default = 50, valueType = "number", category = "CPU, Threads & Memory" };
 	{ name = "MSRefactor5", default = false, valueType = "boolean", category = "CPU, Threads & Memory" };
-	{ name = "FFlagPerformanceControlEnablePortTextureManagerTrimMemory", default = true, valueType = "boolean", category = "CPU, Threads & Memory" };
-	{ name = "FFlagAvatarUseRuntimeThreads", default = true, valueType = "boolean", category = "CPU, Threads & Memory" };
+	{ name = "PerformanceControlEnablePortTextureManagerTrimMemory", default = true, valueType = "boolean", category = "CPU, Threads & Memory" };
+	{ name = "AvatarUseRuntimeThreads", default = true, valueType = "boolean", category = "CPU, Threads & Memory" };
 
 	{ name = "PhysicsReceiveNumParallelTasks", default = 16, valueType = "number", category = "Network, Replication & Physics" };
 	{ name = "ReplicationDataCacheNumParallelTasks", default = 16, valueType = "number", category = "Network, Replication & Physics" };
@@ -131225,7 +131225,7 @@ NAFFlags.whitelist = {
 	{ name = "PlayerNetworkUpdateQueueSize", default = 20, valueType = "number", category = "Network, Replication & Physics" };
 	{ name = "NetworkLatencyTolerance", default = 0, valueType = "number", category = "Network, Replication & Physics" };
 	{ name = "NetworkPrediction", default = true, valueType = "boolean", category = "Network, Replication & Physics" };
-	{ name = "DFIntS2PhysicsSenderRate", default = 15, valueType = "number", category = "Network, Replication & Physics" };
+	{ name = "S2PhysicsSenderRate", default = 15, valueType = "number", category = "Network, Replication & Physics" };
 
 	{ name = "TeleportReconnect", default = true, valueType = "boolean", category = "Loading, Assets & Teleport" };
 	{ name = "TeleportReconnect3", default = true, valueType = "boolean", category = "Loading, Assets & Teleport" };
@@ -131236,9 +131236,9 @@ NAFFlags.whitelist = {
 	{ name = "BatchAssetApiNoFallbackOnFail", default = false, valueType = "boolean", category = "Loading, Assets & Teleport" };
 	{ name = "HttpBatchApi_maxWaitMs", default = 50, valueType = "number", category = "Loading, Assets & Teleport" };
 	{ name = "HttpBatchApi_bgDelayMs", default = 10, valueType = "number", category = "Loading, Assets & Teleport" };
-	{ name = "DFFlagEnableTexturePreloading", default = true, valueType = "boolean", category = "Loading, Assets & Teleport" };
-	{ name = "DFFlagEnableSoundPreloading", default = true, valueType = "boolean", category = "Loading, Assets & Teleport" };
-	{ name = "DFFlagEnableMeshPreloading2", default = true, valueType = "boolean", category = "Loading, Assets & Teleport" };
+	{ name = "EnableTexturePreloading", default = true, valueType = "boolean", category = "Loading, Assets & Teleport" };
+	{ name = "EnableSoundPreloading", default = true, valueType = "boolean", category = "Loading, Assets & Teleport" };
+	{ name = "EnableMeshPreloading2", default = true, valueType = "boolean", category = "Loading, Assets & Teleport" };
 
 	{ name = "ChatTranslationSettingEnabled3", default = true, valueType = "boolean", category = "Interface, Camera & Accessibility" };
 	{ name = "UserShowGuiHideToggles", default = true, valueType = "boolean", category = "Interface, Camera & Accessibility" };
@@ -131266,7 +131266,7 @@ NAFFlags.whitelist = {
 	{ name = "EnableAccessibilitySettingsEffectsInCoreScripts2", default = true, valueType = "boolean", category = "Interface, Camera & Accessibility" };
 
 	{ name = "EnableAudioOutputDevice", default = true, valueType = "boolean", category = "Audio" };
-	{ name = "FFlagFmodUseRuntimeThreading5", default = true, valueType = "boolean", category = "Audio" };
+	{ name = "FmodUseRuntimeThreading5", default = true, valueType = "boolean", category = "Audio" };
 
 	{ name = "DebugDisableTelemetryEphemeralCounter", default = true, valueType = "boolean", category = "Telemetry & Privacy" };
 	{ name = "DebugDisableTelemetryEphemeralStat", default = true, valueType = "boolean", category = "Telemetry & Privacy" };
@@ -131487,23 +131487,23 @@ NAFFlags.info = NAFFlags.info or {
 	HardwareTelemetryHundredthsPercent = "How often hardware telemetry is sampled, expressed in hundredths of a percent. 100 means about 1% of sessions. Setting it to 0 effectively stops this on your client.";
 	LightstepHTTPTransportHundredthsPercent2 = "Sampling rate for a specific telemetry pipeline. 0 turns it off for you; 100 is a typical default.";
 	ClientLightingEnvmapPlacementTelemetryHundredthsPercent = "Sampling rate for a lighting-related telemetry channel. Set to 0 to stop sending this; set back to 100 if you want default reporting.";
-	FFlagEnableFPSAndFrameTime = "Enables Roblox's FPS and frame-time instrumentation path. Useful for performance diagnostics; it does not raise FPS by itself.";
-	FFlagPerformanceControlRespectUserFpsOverridden = "Makes performance control respect a user-overridden FPS target when the current client supports this path. Experimental and may be ignored by some builds.";
-	FFlagFastGPULightCulling3 = "Uses the newer GPU light-culling path. It can help scenes with many local lights, but driver-specific visual issues are possible.";
-	FFlagFRMDisableCloudsAtLowQL = "Allows the frame-rate manager to disable clouds at low quality levels, reducing cloud rendering cost on weaker hardware.";
-	FFlagRenderAllocateShadowMapResourcesOnDemand2 = "Allocates shadow-map resources on demand instead of eagerly. This can reduce unused graphics memory, but it is an internal rollout flag.";
-	FFlagGpuVoxelCompression = "Enables GPU-side voxel compression where supported. It may reduce graphics memory pressure; disable it if voxel lighting becomes unstable.";
-	FFlagEnableMultiVETextureManagerSharing = "Shares texture-manager state across multiple view engines where supported. This is intended to reduce duplicated texture work and memory use.";
-	FFlagRenderParticlesCapNonVisibleEmission = "Caps emission for particles that are not visible, reducing wasted particle work in effects-heavy places.";
-	FFlagRenderParticlesNonVisibleSimBudget1 = "Applies a simulation budget to non-visible particles. It can improve performance when many effects are off-screen.";
-	FFlagRenderParticlesOptimizeVisibleSimLocality = "Uses a locality optimization for visible particle simulation. Experimental; revert it if particle effects render incorrectly.";
-	FFlagPerformanceControlEnablePortTextureManagerTrimMemory = "Lets performance control request texture-memory trimming. Useful under memory pressure, but it can increase texture reloading or pop-in.";
-	FFlagAvatarUseRuntimeThreads = "Moves supported avatar work onto Roblox runtime threads. This may reduce main-thread spikes in avatar-heavy places, but it is experimental.";
-	DFIntS2PhysicsSenderRate = "Controls client physics replication send frequency. Roblox reports a normal default around 15. Higher or lower values can increase bandwidth, desync, and unfair behavior; this is included for controlled testing, not as an FPS or ping boost.";
-	DFFlagEnableTexturePreloading = "Enables texture preloading where the current client path supports it. It can reduce later texture pop-in at the cost of startup time and memory.";
-	DFFlagEnableSoundPreloading = "Enables sound preloading where supported. It can reduce delayed first playback, while using more startup bandwidth and memory.";
-	DFFlagEnableMeshPreloading2 = "Enables the newer mesh-preloading path. It can reduce mesh pop-in, but may increase initial loading work.";
-	FFlagFmodUseRuntimeThreading5 = "Uses Roblox runtime threading for supported FMOD audio work. Experimental; disable it if audio devices or playback become unstable.";
+	EnableFPSAndFrameTime = "Enables Roblox's FPS and frame-time instrumentation path. Useful for performance diagnostics; it does not raise FPS by itself.";
+	PerformanceControlRespectUserFpsOverridden = "Makes performance control respect a user-overridden FPS target when the current client supports this path. Experimental and may be ignored by some builds.";
+	FastGPULightCulling3 = "Uses the newer GPU light-culling path. It can help scenes with many local lights, but driver-specific visual issues are possible.";
+	FRMDisableCloudsAtLowQL = "Allows the frame-rate manager to disable clouds at low quality levels, reducing cloud rendering cost on weaker hardware.";
+	RenderAllocateShadowMapResourcesOnDemand2 = "Allocates shadow-map resources on demand instead of eagerly. This can reduce unused graphics memory, but it is an internal rollout flag.";
+	GpuVoxelCompression = "Enables GPU-side voxel compression where supported. It may reduce graphics memory pressure; disable it if voxel lighting becomes unstable.";
+	EnableMultiVETextureManagerSharing = "Shares texture-manager state across multiple view engines where supported. This is intended to reduce duplicated texture work and memory use.";
+	RenderParticlesCapNonVisibleEmission = "Caps emission for particles that are not visible, reducing wasted particle work in effects-heavy places.";
+	RenderParticlesNonVisibleSimBudget1 = "Applies a simulation budget to non-visible particles. It can improve performance when many effects are off-screen.";
+	RenderParticlesOptimizeVisibleSimLocality = "Uses a locality optimization for visible particle simulation. Experimental; revert it if particle effects render incorrectly.";
+	PerformanceControlEnablePortTextureManagerTrimMemory = "Lets performance control request texture-memory trimming. Useful under memory pressure, but it can increase texture reloading or pop-in.";
+	AvatarUseRuntimeThreads = "Moves supported avatar work onto Roblox runtime threads. This may reduce main-thread spikes in avatar-heavy places, but it is experimental.";
+	S2PhysicsSenderRate = "Controls client physics replication send frequency. Roblox reports a normal default around 15. Higher or lower values can increase bandwidth, desync, and unfair behavior; this is included for controlled testing, not as an FPS or ping boost.";
+	EnableTexturePreloading = "Enables texture preloading where the current client path supports it. It can reduce later texture pop-in at the cost of startup time and memory.";
+	EnableSoundPreloading = "Enables sound preloading where supported. It can reduce delayed first playback, while using more startup bandwidth and memory.";
+	EnableMeshPreloading2 = "Enables the newer mesh-preloading path. It can reduce mesh pop-in, but may increase initial loading work.";
+	FmodUseRuntimeThreading5 = "Uses Roblox runtime threading for supported FMOD audio work. Experimental; disable it if audio devices or playback become unstable.";
 }
 
 for _, entry in NAFFlags.whitelist do
@@ -131518,12 +131518,12 @@ NAFFlags.config.clientKeyAliases = NAFFlags.config.clientKeyAliases or {}
 NAFFlags.values = NAFFlags.values or {}
 NAFFlags.clientPrefixes = NAFFlags.clientPrefixes or { "DFFlag", "DFInt", "DFString", "FFlag", "FInt", "FString", "SFFlag", "SFInt", "SFString" }
 NAFFlags.renderingPreferFlags = NAFFlags.renderingPreferFlags or {
-	"FFlagDebugGraphicsPreferD3D11",
-	"FFlagDebugGraphicsPreferD3D11FL10",
-	"FFlagDebugGraphicsPreferVulkan",
-	"FFlagDebugGraphicsPreferOpenGL",
+	"DebugGraphicsPreferD3D11",
+	"DebugGraphicsPreferD3D11FL10",
+	"DebugGraphicsPreferVulkan",
+	"DebugGraphicsPreferOpenGL",
 }
-NAFFlags.renderingDisableFlag = "FFlagDebugGraphicsDisableDirect3D11"
+NAFFlags.renderingDisableFlag = "DebugGraphicsDisableDirect3D11"
 
 NAFFlags.normalizeValue = function(entry, rawValue, opts)
 	opts = opts or {}
@@ -131957,7 +131957,7 @@ NAFFlags.normalizeRenderingPrefs = function(changedFlag)
 		NAFFlags.config.flags[name] = shouldBe
 	end
 	if disableFlag then
-		if active == "FFlagDebugGraphicsPreferVulkan" or active == "FFlagDebugGraphicsPreferOpenGL" then
+		if active == "DebugGraphicsPreferVulkan" or active == "DebugGraphicsPreferOpenGL" then
 			NAFFlags.values[disableFlag] = true
 			NAFFlags.config.flags[disableFlag] = true
 		elseif active then
