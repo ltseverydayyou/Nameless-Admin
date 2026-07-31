@@ -19780,6 +19780,35 @@ NAmanage.NASettingsGetSchema=function()
 				return math.clamp(numberValue, 0, 5)
 			end;
 		};
+		offsetCustomization = {
+			default = function()
+				return {
+					positionX = 0;
+					positionY = -15;
+					positionZ = 0;
+					rotationX = 0;
+					rotationY = 0;
+					rotationZ = 0;
+					preset = "Custom";
+				}
+			end;
+			coerce = function(value)
+				value = type(value) == "table" and value or {}
+				const function numberField(key, fallback, minimum, maximum)
+					const numberValue = tonumber(value[key])
+					return math.clamp(numberValue or fallback, minimum, maximum)
+				end
+				return {
+					positionX = numberField("positionX", 0, -10000, 10000);
+					positionY = numberField("positionY", -15, -10000, 10000);
+					positionZ = numberField("positionZ", 0, -10000, 10000);
+					rotationX = numberField("rotationX", 0, -180, 180);
+					rotationY = numberField("rotationY", 0, -180, 180);
+					rotationZ = numberField("rotationZ", 0, -180, 180);
+					preset = tostring(value.preset or "Custom");
+				}
+			end;
+		};
 		offVisOn = {
 			default = true;
 			coerce = function(value)
@@ -24381,6 +24410,18 @@ NAStuff.CrosshairShowCenter = NAStuff.CrosshairShowCenter ~= false
 NAStuff.MobileCamSensEnabled = NAStuff.MobileCamSensEnabled == true
 NAStuff.MobileCamSensitivity = math.clamp(tonumber(NAStuff.MobileCamSensitivity) or 1, 0.2, 4)
 NAStuff.OffVisOn = NAStuff.OffVisOn ~= false
+NAStuff.OffsetCustomization = NAmanage.NASettingsGet("offsetCustomization")
+if type(NAStuff.OffsetCustomization) ~= "table" then
+	NAStuff.OffsetCustomization = {
+		positionX = 0;
+		positionY = -15;
+		positionZ = 0;
+		rotationX = 0;
+		rotationY = 0;
+		rotationZ = 0;
+		preset = "Custom";
+	}
+end
 NAStuff.OffVisAcc = NAStuff.OffVisAcc ~= false
 NAStuff.OffVisFTr = math.clamp(tonumber(NAStuff.OffVisFTr) or 0.82, 0, 1)
 NAStuff.OffVisOTr = math.clamp(tonumber(NAStuff.OffVisOTr) or 0.15, 0, 1)
@@ -46446,7 +46487,7 @@ NAmanage.ovLive = function(reb)
 	end
 	const base = st.UndergroundCurrent or root.CFrame
 	const off = st.UndergroundResolvedOffset or st.UndergroundOffset or Vector3.new(0, 0, 0)
-	if off.Magnitude <= 0.0001 then
+	if off.Magnitude <= 0.0001 and not NAmanage.UG_hasTransform(st) then
 		NAmanage.ovClr(st)
 		return
 	end
@@ -46469,6 +46510,8 @@ do
 	st.UndergroundCurrent = nil
 	st.UndergroundTransform = nil
 	st.UndergroundMirrorGround = nil
+	st.UndergroundOffsetActive = nil
+	st.UndergroundUpsideDown = nil
 	st.UndergroundResolvedOffset = nil
 	st.PendingTranslation = nil
 	st.heartbeatConnection = nil
@@ -46479,6 +46522,203 @@ NAStuff.NA_UNDERGROUND_UPSIDEDOWN_CFRAME = NAStuff.NA_UNDERGROUND_UPSIDEDOWN_CFR
 	or (CFrame.Angles(math.rad(180), 0, 0) * CFrame.Angles(0, math.rad(180), 0))
 NAStuff.NA_UNDERGROUND_MIRROR_RAY_DISTANCE = NAStuff.NA_UNDERGROUND_MIRROR_RAY_DISTANCE or 2048
 NAStuff.NA_UNDERGROUND_MIRROR_FALLBACK_OFFSET = NAStuff.NA_UNDERGROUND_MIRROR_FALLBACK_OFFSET or Vector3.new(0, -15, 0)
+NAStuff.OffsetRotationPresetOrder = NAStuff.OffsetRotationPresetOrder or {
+	"Custom",
+	"Normal",
+	"Lay Forward",
+	"Lay Backward",
+	"Lay Left",
+	"Lay Right",
+	"Face Backward",
+	"Upside Down",
+}
+NAStuff.OffsetRotationPresets = NAStuff.OffsetRotationPresets or {
+	Normal = Vector3.new(0, 0, 0);
+	["Lay Forward"] = Vector3.new(90, 0, 0);
+	["Lay Backward"] = Vector3.new(-90, 0, 0);
+	["Lay Left"] = Vector3.new(0, 0, 90);
+	["Lay Right"] = Vector3.new(0, 0, -90);
+	["Face Backward"] = Vector3.new(0, 180, 0);
+	["Upside Down"] = Vector3.new(180, 180, 0);
+}
+
+NAmanage.UG_getCustomization = function()
+	local cfg = NAStuff.OffsetCustomization
+	if type(cfg) ~= "table" then
+		cfg = {}
+		NAStuff.OffsetCustomization = cfg
+	end
+	cfg.positionX = math.clamp(tonumber(cfg.positionX) or 0, -10000, 10000)
+	cfg.positionY = math.clamp(tonumber(cfg.positionY) or -15, -10000, 10000)
+	cfg.positionZ = math.clamp(tonumber(cfg.positionZ) or 0, -10000, 10000)
+	cfg.rotationX = math.clamp(tonumber(cfg.rotationX) or 0, -180, 180)
+	cfg.rotationY = math.clamp(tonumber(cfg.rotationY) or 0, -180, 180)
+	cfg.rotationZ = math.clamp(tonumber(cfg.rotationZ) or 0, -180, 180)
+	cfg.preset = tostring(cfg.preset or "Custom")
+	return cfg
+end
+
+NAmanage.UG_saveCustomization = function()
+	const cfg = NAmanage.UG_getCustomization()
+	NAStuff.OffsetCustomization = NAmanage.NASettingsSet("offsetCustomization", cfg) or cfg
+	return NAStuff.OffsetCustomization
+end
+
+NAmanage.UG_getConfiguredOffset = function()
+	const cfg = NAmanage.UG_getCustomization()
+	return Vector3.new(cfg.positionX, cfg.positionY, cfg.positionZ)
+end
+
+NAmanage.UG_getConfiguredRotation = function()
+	const cfg = NAmanage.UG_getCustomization()
+	return Vector3.new(cfg.rotationX, cfg.rotationY, cfg.rotationZ)
+end
+
+NAmanage.UG_syncCustomizationUI = function()
+	const cfg = NAmanage.UG_getCustomization()
+	if NAgui and NAgui.setSliderValue then
+		NAgui.setSliderValue("Offset Position X", cfg.positionX, { force = true, fire = false })
+		NAgui.setSliderValue("Offset Position Y", cfg.positionY, { force = true, fire = false })
+		NAgui.setSliderValue("Offset Position Z", cfg.positionZ, { force = true, fire = false })
+		NAgui.setSliderValue("Offset Rotation X", cfg.rotationX, { force = true, fire = false })
+		NAgui.setSliderValue("Offset Rotation Y", cfg.rotationY, { force = true, fire = false })
+		NAgui.setSliderValue("Offset Rotation Z", cfg.rotationZ, { force = true, fire = false })
+	end
+	if NAgui and NAgui.setDropdownValue then
+		NAgui.setDropdownValue("Offset Rotation Preset", cfg.preset, { fire = false })
+	end
+end
+
+NAmanage.UG_setConfiguredOffset = function(vec, syncUI)
+	if typeof(vec) ~= "Vector3" then
+		return NAmanage.UG_getConfiguredOffset()
+	end
+	const cfg = NAmanage.UG_getCustomization()
+	cfg.positionX = math.clamp(vec.X, -10000, 10000)
+	cfg.positionY = math.clamp(vec.Y, -10000, 10000)
+	cfg.positionZ = math.clamp(vec.Z, -10000, 10000)
+	NAmanage.UG_saveCustomization()
+	if syncUI ~= false then
+		NAmanage.UG_syncCustomizationUI()
+	end
+	return Vector3.new(cfg.positionX, cfg.positionY, cfg.positionZ)
+end
+
+NAmanage.UG_setConfiguredRotation = function(vec, preset, syncUI)
+	if typeof(vec) ~= "Vector3" then
+		return NAmanage.UG_getConfiguredRotation()
+	end
+	const cfg = NAmanage.UG_getCustomization()
+	cfg.rotationX = math.clamp(vec.X, -180, 180)
+	cfg.rotationY = math.clamp(vec.Y, -180, 180)
+	cfg.rotationZ = math.clamp(vec.Z, -180, 180)
+	cfg.preset = tostring(preset or "Custom")
+	NAmanage.UG_saveCustomization()
+	if syncUI ~= false then
+		NAmanage.UG_syncCustomizationUI()
+	end
+	return Vector3.new(cfg.rotationX, cfg.rotationY, cfg.rotationZ)
+end
+
+NAmanage.UG_refreshTransform = function(state)
+	if type(state) ~= "table" then
+		return NAStuff.NA_UNDERGROUND_IDENTITY_CFRAME
+	end
+	local transform = NAStuff.NA_UNDERGROUND_IDENTITY_CFRAME
+	local active = false
+	if state.UndergroundUpsideDown == true then
+		transform *= NAStuff.NA_UNDERGROUND_UPSIDEDOWN_CFRAME
+		active = true
+	end
+	if state.UndergroundOffsetActive == true then
+		const rotation = NAmanage.UG_getConfiguredRotation()
+		if rotation.Magnitude > 0.0001 then
+			transform *= CFrame.Angles(math.rad(rotation.X), math.rad(rotation.Y), math.rad(rotation.Z))
+			active = true
+		end
+	end
+	state.UndergroundTransform = active and transform or nil
+	return active and transform or NAStuff.NA_UNDERGROUND_IDENTITY_CFRAME
+end
+
+NAmanage.UG_applyCustomization = function()
+	const state = NAStuff.NAundergroundState
+	if type(state) ~= "table" then
+		return false
+	end
+	if state.UndergroundOffsetActive == true then
+		state.UndergroundOffset = NAmanage.UG_getConfiguredOffset()
+	end
+	NAmanage.UG_refreshTransform(state)
+	if state.Underground ~= true then
+		return true
+	end
+	local _, root, hum = NAmanage.UG_fetchCharPieces()
+	if not root then
+		return false
+	end
+	state.UndergroundResolvedOffset = NAmanage.UG_getActiveOffset(state, root, hum)
+	NAmanage.UG_updateVisualizer(state, root, state.UndergroundCurrent or root.CFrame, true)
+	return true
+end
+
+NAmanage.UG_setCustomizationValue = function(key, value)
+	const cfg = NAmanage.UG_getCustomization()
+	if key == "positionX" or key == "positionY" or key == "positionZ" then
+		cfg[key] = math.clamp(tonumber(value) or cfg[key], -10000, 10000)
+	elseif key == "rotationX" or key == "rotationY" or key == "rotationZ" then
+		cfg[key] = math.clamp(tonumber(value) or cfg[key], -180, 180)
+		cfg.preset = "Custom"
+	else
+		return false
+	end
+	NAmanage.UG_saveCustomization()
+	if key == "rotationX" or key == "rotationY" or key == "rotationZ" then
+		if NAgui and NAgui.setDropdownValue then
+			NAgui.setDropdownValue("Offset Rotation Preset", "Custom", { fire = false })
+		end
+	end
+	NAmanage.UG_applyCustomization()
+	return true
+end
+
+NAmanage.UG_applyRotationPreset = function(selection)
+	local name = type(selection) == "table" and tostring(selection[1] or "") or tostring(selection or "")
+	if name == "" then
+		return false
+	end
+	if name == "Custom" then
+		const cfg = NAmanage.UG_getCustomization()
+		cfg.preset = "Custom"
+		NAmanage.UG_saveCustomization()
+		return true
+	end
+	const rotation = NAStuff.OffsetRotationPresets[name]
+	if typeof(rotation) ~= "Vector3" then
+		return false
+	end
+	NAmanage.UG_setConfiguredRotation(rotation, name, true)
+	NAmanage.UG_applyCustomization()
+	return true
+end
+
+NAmanage.UG_enableConfiguredOffset = function(offsetVec)
+	local _, root, hum = NAmanage.UG_fetchCharPieces()
+	if not (root and hum) then
+		return false
+	end
+	const state = NAStuff.NAundergroundState
+	if typeof(offsetVec) == "Vector3" then
+		NAmanage.UG_setConfiguredOffset(offsetVec, true)
+	end
+	state.UndergroundOffsetActive = true
+	state.UndergroundOffset = NAmanage.UG_getConfiguredOffset()
+	state.PendingTranslation = nil
+	NAmanage.UG_refreshTransform(state)
+	state.UndergroundResolvedOffset = NAmanage.UG_getActiveOffset(state, root, hum)
+	NAmanage.UG_enable(state, root)
+	return true
+end
 
 NAmanage.UG_hasOffset = function(vec)
 	return typeof(vec) == "Vector3" and vec.Magnitude > 0.0001
@@ -46498,7 +46738,7 @@ end
 
 NAmanage.UG_updateVisualizer = function(state, root, current, force)
 	const offsetVec = (state and state.UndergroundResolvedOffset) or (state and state.UndergroundOffset) or Vector3.new(0, 0, 0)
-	if state and root and current and NAmanage.UG_hasOffset(offsetVec) then
+	if state and root and current and (NAmanage.UG_hasOffset(offsetVec) or NAmanage.UG_hasTransform(state)) then
 		const now = os.clock()
 		const rate = tonumber(NAStuff.NA_OFFSET_VISUALIZER_UPDATE_RATE) or (1 / 30)
 		if force or now >= (state.ovNextUpd or 0) then
@@ -46719,6 +46959,8 @@ NAmanage.UG_disable = function(state, message)
 	state.UndergroundCurrent = nil
 	state.UndergroundTransform = nil
 	state.UndergroundMirrorGround = nil
+	state.UndergroundOffsetActive = nil
+	state.UndergroundUpsideDown = nil
 	state.UndergroundResolvedOffset = nil
 
 	const hb = state.heartbeatConnection
@@ -46808,17 +47050,7 @@ NAmanage.UG_enable = function(state, rootPart)
 	NAmanage.UG_updateVisualizer(state, rootPart, state.UndergroundCurrent or rootPart.CFrame, true)
 end
 
-cmd.add({"offset","offpos","off"},{"offset [x y z|y]","Offsets your character for others (positive Y = up, negative Y = down)"},function(...)
-	const state = NAStuff.NAundergroundState
-
-	const function UG_Get(key)
-		return state[key]
-	end
-	const function UG_Set(key, val)
-		state[key] = val
-		return val
-	end
-
+cmd.add({"offset","offpos","off"},{"offset [x y z|y]","Offsets and rotates your character for others using the Character-tab customization"},function(...)
 	local character, rootPart, humanoid = NAmanage.UG_fetchCharPieces()
 	if not (character and rootPart and humanoid) then
 		if type(DoNotif) == "function" then
@@ -46827,48 +47059,34 @@ cmd.add({"offset","offpos","off"},{"offset [x y z|y]","Offsets your character fo
 		return
 	end
 
-	const defaultOffset = NAStuff.NA_UNDERGROUND_OFFSET or Vector3.new(0, -15, 0)
-	const function parseOffsetVector(...)
-		const raw = Concat({...}, " ")
-		const nums = {}
-		for token in tostring(raw):gmatch("[^,%s]+") do
-			const n = tonumber(token)
-			if n then
-				Insert(nums, n)
-			end
+	const raw = Concat({...}, " ")
+	const nums = {}
+	for token in tostring(raw):gmatch("[^,%s]+") do
+		const numberValue = tonumber(token)
+		if numberValue then
+			Insert(nums, numberValue)
 		end
-		if #nums >= 3 then
-			return Vector3.new(nums[1], nums[2], nums[3])
-		elseif #nums == 2 then
-			return Vector3.new(nums[1], nums[2], 0)
-		elseif #nums == 1 then
-			return Vector3.new(0, nums[1], 0)
-		end
-		return nil
 	end
-	const offsetVec = parseOffsetVector(...) or defaultOffset
 
-	const Underground = UG_Get("Underground")
-	if Underground then
-		UG_Set("UndergroundOffset", offsetVec)
-		state.UndergroundResolvedOffset = state.UndergroundMirrorGround and NAmanage.UG_getActiveOffset(state, rootPart, humanoid) or offsetVec
-		NAmanage.UG_updateVisualizer(state, rootPart, UG_Get("UndergroundCurrent") or rootPart.CFrame, true)
+	local offsetVec = nil
+	if #nums >= 3 then
+		offsetVec = Vector3.new(nums[1], nums[2], nums[3])
+	elseif #nums == 2 then
+		offsetVec = Vector3.new(nums[1], nums[2], 0)
+	elseif #nums == 1 then
+		offsetVec = Vector3.new(0, nums[1], 0)
+	end
+
+	const wasActive = NAStuff.NAundergroundState.Underground == true and NAStuff.NAundergroundState.UndergroundOffsetActive == true
+	if not NAmanage.UG_enableConfiguredOffset(offsetVec) then
 		if type(DoNotif) == "function" then
-			DoNotif("Offset updated", 2)
+			DoNotif("Unable to enable offset", 2)
 		end
 		return
 	end
-
-	UG_Set("UndergroundOffset", offsetVec)
-	state.UndergroundResolvedOffset = state.UndergroundMirrorGround and NAmanage.UG_getActiveOffset(state, rootPart, humanoid) or offsetVec
-	UG_Set("PendingTranslation", nil)
-
-	NAmanage.UG_enable(state, rootPart)
-
 	if type(DoNotif) == "function" then
-		DoNotif("Offset enabled (replicates for others)", 2)
+		DoNotif(wasActive and "Offset customization updated" or "Offset customization enabled (replicates for others)", 2)
 	end
-	return
 end)
 
 cmd.add({"upsidedown","flipchar"},{"upsidedown","Flips your character upside down for others using the offset replication method"},function()
@@ -46881,10 +47099,11 @@ cmd.add({"upsidedown","flipchar"},{"upsidedown","Flips your character upside dow
 		return
 	end
 
-	state.UndergroundTransform = NAStuff.NA_UNDERGROUND_UPSIDEDOWN_CFRAME
+	state.UndergroundUpsideDown = true
 	state.UndergroundMirrorGround = true
+	NAmanage.UG_refreshTransform(state)
 	if not state.Underground then
-		state.UndergroundOffset = state.UndergroundOffset or Vector3.new(0, 0, 0)
+		state.UndergroundOffset = state.UndergroundOffsetActive == true and NAmanage.UG_getConfiguredOffset() or Vector3.new(0, 0, 0)
 		state.PendingTranslation = nil
 		NAmanage.UG_enable(state, rootPart)
 		if type(DoNotif) == "function" then
@@ -46900,20 +47119,22 @@ cmd.add({"upsidedown","flipchar"},{"upsidedown","Flips your character upside dow
 	end
 end)
 
-cmd.add({"unoffset","unoffpos","unoff"},{"unoffset","Disables offset and restores your character"},function()
+cmd.add({"unoffset","unoffpos","unoff"},{"unoffset","Disables offset customization and restores your character"},function()
 	const state = NAStuff.NAundergroundState
 	if type(state) ~= "table" then
 		return
 	end
-	if state.Underground ~= true then
+	if state.Underground ~= true or state.UndergroundOffsetActive ~= true then
 		if type(DoNotif) == "function" then
 			DoNotif("Offset is already disabled", 2)
 		end
 		return
 	end
 
+	state.UndergroundOffsetActive = nil
 	state.UndergroundOffset = nil
-	if NAmanage.UG_hasTransform(state) then
+	NAmanage.UG_refreshTransform(state)
+	if state.UndergroundUpsideDown == true then
 		local _, root, hum = NAmanage.UG_fetchCharPieces()
 		state.UndergroundResolvedOffset = NAmanage.UG_getActiveOffset(state, root, hum)
 		NAmanage.UG_updateVisualizer(state, root, state.UndergroundCurrent or (root and root.CFrame), true)
@@ -46928,21 +47149,23 @@ end)
 
 cmd.add({"unupsidedown","unflipchar"},{"unupsidedown","Disables the upside down replication and restores your character"},function()
 	const state = NAStuff.NAundergroundState
-	if type(state) ~= "table" or state.Underground ~= true then
+	if type(state) ~= "table" or state.Underground ~= true or state.UndergroundUpsideDown ~= true then
 		if type(DoNotif) == "function" then
 			DoNotif("Upsidedown is already disabled", 2)
 		end
 		return
 	end
 
-	state.UndergroundTransform = nil
+	state.UndergroundUpsideDown = nil
 	state.UndergroundMirrorGround = nil
-	if NAmanage.UG_hasOffset(state.UndergroundOffset) then
+	NAmanage.UG_refreshTransform(state)
+	if state.UndergroundOffsetActive == true then
+		state.UndergroundOffset = NAmanage.UG_getConfiguredOffset()
 		state.UndergroundResolvedOffset = state.UndergroundOffset
 		local _, root = NAmanage.UG_fetchCharPieces()
 		NAmanage.UG_updateVisualizer(state, root, state.UndergroundCurrent or (root and root.CFrame), true)
 		if type(DoNotif) == "function" then
-			DoNotif("Upsidedown disabled, offset is still active", 2)
+			DoNotif("Upsidedown disabled, offset customization is still active", 2)
 		end
 		return
 	end
@@ -140075,6 +140298,49 @@ NAgui.addToggle("Safe Jump Method", NAStuff.SafeJumpMethod ~= false, function(st
 end)
 NAmanage.RegisterToggleAutoSync("Safe Jump Method", function()
 	return NAStuff.SafeJumpMethod ~= false
+end)
+
+NAgui.addSection("Offset Customization")
+NAgui.addSlider("Offset Position X", -100, 100, NAmanage.UG_getCustomization().positionX, 0.5, " studs", function(value)
+	NAmanage.UG_setCustomizationValue("positionX", value)
+end)
+NAgui.addSlider("Offset Position Y", -100, 100, NAmanage.UG_getCustomization().positionY, 0.5, " studs", function(value)
+	NAmanage.UG_setCustomizationValue("positionY", value)
+end)
+NAgui.addSlider("Offset Position Z", -100, 100, NAmanage.UG_getCustomization().positionZ, 0.5, " studs", function(value)
+	NAmanage.UG_setCustomizationValue("positionZ", value)
+end)
+NAgui.addDropdown("Offset Rotation Preset", NAStuff.OffsetRotationPresetOrder, NAmanage.UG_getCustomization().preset, function(selection)
+	NAmanage.UG_applyRotationPreset(selection)
+end)
+NAgui.addSlider("Offset Rotation X", -180, 180, NAmanage.UG_getCustomization().rotationX, 1, "°", function(value)
+	NAmanage.UG_setCustomizationValue("rotationX", value)
+end)
+NAgui.addSlider("Offset Rotation Y", -180, 180, NAmanage.UG_getCustomization().rotationY, 1, "°", function(value)
+	NAmanage.UG_setCustomizationValue("rotationY", value)
+end)
+NAgui.addSlider("Offset Rotation Z", -180, 180, NAmanage.UG_getCustomization().rotationZ, 1, "°", function(value)
+	NAmanage.UG_setCustomizationValue("rotationZ", value)
+end)
+NAgui.addButton("Enable / Update Offset", function()
+	const wasActive = NAStuff.NAundergroundState.Underground == true and NAStuff.NAundergroundState.UndergroundOffsetActive == true
+	if NAmanage.UG_enableConfiguredOffset() then
+		DoNotif(wasActive and "Offset customization updated" or "Offset customization enabled", 2)
+	else
+		DoNotif("Character is not ready yet", 2)
+	end
+end)
+NAgui.addButton("Reset Offset Rotation", function()
+	NAmanage.UG_setConfiguredRotation(Vector3.new(0, 0, 0), "Normal", true)
+	NAmanage.UG_applyCustomization()
+	DoNotif("Offset rotation reset", 2)
+end)
+NAgui.addButton("Reset Offset Customization", function()
+	NAmanage.UG_setConfiguredOffset(Vector3.new(0, -15, 0), false)
+	NAmanage.UG_setConfiguredRotation(Vector3.new(0, 0, 0), "Normal", false)
+	NAmanage.UG_syncCustomizationUI()
+	NAmanage.UG_applyCustomization()
+	DoNotif("Offset customization reset", 2)
 end)
 
 NAStuff.CustomMovementSounds = NAStuff.CustomMovementSounds or {
