@@ -520,7 +520,7 @@
       ],
       "usage": "offset [x y z|y]",
       "args": "[x y z|y]",
-      "desc": "Offsets your character for others (positive Y = up, negative Y = down)"
+      "desc": "Offsets and rotates your character for others using the Character-tab customization"
     },
     {
       "name": "upsidedown",
@@ -541,7 +541,7 @@
       ],
       "usage": "unoffset",
       "args": "",
-      "desc": "Disables offset and restores your character"
+      "desc": "Disables offset customization and restores your character"
     },
     {
       "name": "unupsidedown",
