@@ -85514,6 +85514,9 @@ end,true)
 NAStuff.instantProximityPrompts = type(NAStuff.instantProximityPrompts) == "table" and NAStuff.instantProximityPrompts or {}
 NAStuff.instantProximityPrompts.active = NAStuff.instantProximityPrompts.active == true
 NAStuff.instantProximityPrompts.prompts = NAmanage.ensureWeakKeyTable(NAStuff.instantProximityPrompts.prompts)
+NAStuff.fastProximityPrompts = type(NAStuff.fastProximityPrompts) == "table" and NAStuff.fastProximityPrompts or {}
+NAStuff.fastProximityPrompts.active = NAStuff.fastProximityPrompts.active == true
+NAStuff.fastProximityPrompts.prompts = NAmanage.ensureWeakKeyTable(NAStuff.fastProximityPrompts.prompts)
 
 NAmanage.InstantProximityPromptsTrack = function(pp)
 	const state = NAStuff.instantProximityPrompts
@@ -85584,7 +85587,79 @@ NAmanage.InstantProximityPromptsDisable = function()
 	end
 end
 
+NAmanage.FastProximityPromptsTrack = function(pp)
+	const state = NAStuff.fastProximityPrompts
+	if state.active ~= true or typeof(pp) ~= "Instance" or not pp:IsA("ProximityPrompt") or state.prompts[pp] then
+		return
+	end
+	local okDuration, duration = pcall(function()
+		return pp.HoldDuration
+	end)
+	if not okDuration then
+		return
+	end
+	const record = {
+		restore = duration;
+		applied = math.max(duration * 0.5, 0);
+		connection = nil;
+	}
+	state.prompts[pp] = record
+	local okConnection, connection = pcall(function()
+		return pp:GetPropertyChangedSignal("HoldDuration"):Connect(function()
+			if state.active ~= true or state.prompts[pp] ~= record then
+				return
+			end
+			local okCurrent, current = pcall(function()
+				return pp.HoldDuration
+			end)
+			if okCurrent and current ~= record.applied then
+				record.restore = current
+				record.applied = math.max(current * 0.5, 0)
+				pcall(function()
+					pp.HoldDuration = record.applied
+				end)
+			end
+		end)
+	end)
+	if okConnection then
+		record.connection = connection
+	end
+	pcall(function()
+		pp.HoldDuration = record.applied
+	end)
+end
+
+NAmanage.FastProximityPromptsUntrack = function(pp, restore)
+	const state = NAStuff.fastProximityPrompts
+	const record = state.prompts[pp]
+	if not record then
+		return
+	end
+	state.prompts[pp] = nil
+	record.connection = NAmanage.tryDisconnect(record.connection)
+	if restore == true and typeof(pp) == "Instance" and pp:IsA("ProximityPrompt") then
+		pcall(function()
+			pp.HoldDuration = record.restore
+		end)
+	end
+end
+
+NAmanage.FastProximityPromptsDisable = function()
+	const state = NAStuff.fastProximityPrompts
+	state.active = false
+	NAlib.disconnect("fastpp")
+	NAmanage.clrWsH("fastpp_duration")
+	const prompts = {}
+	for pp in state.prompts do
+		prompts[#prompts + 1] = pp
+	end
+	for i = 1, #prompts do
+		NAmanage.FastProximityPromptsUntrack(prompts[i], true)
+	end
+end
+
 cmd.add({"instantproximityprompts","instantpp","ipp"},{"instantproximityprompts (instantpp,ipp)","Sets proximity prompt HoldDuration values to 0.01 and keeps them near-instant"},function()
+	NAmanage.FastProximityPromptsDisable()
 	const state = NAStuff.instantProximityPrompts
 	state.active = true
 	NAmanage.setWsH("instantpp_duration", {
@@ -85607,6 +85682,32 @@ end)
 
 cmd.add({"uninstantproximityprompts","uninstantpp","unipp"},{"uninstantproximityprompts (uninstantpp,unipp)","Restores tracked proximity prompt HoldDuration values"},function()
 	NAmanage.InstantProximityPromptsDisable()
+end)
+
+cmd.add({"fastprompts","fastproximityprompts","fastpp"},{"fastprompts (fastproximityprompts,fastpp)","Halves proximity prompt HoldDuration values and keeps prompts 2x faster"},function()
+	NAmanage.InstantProximityPromptsDisable()
+	const state = NAStuff.fastProximityPrompts
+	state.active = true
+	NAmanage.setWsH("fastpp_duration", {
+		added = function(inst)
+			NAmanage.FastProximityPromptsTrack(inst)
+		end;
+		removing = function(inst)
+			NAmanage.FastProximityPromptsUntrack(inst, true)
+		end;
+		classNames = { "ProximityPrompt" };
+		enabled = function()
+			return state.active == true
+		end;
+	})
+	NAindex.init()
+	for _, pp in InstancesTbl.proxy do
+		NAmanage.FastProximityPromptsTrack(pp)
+	end
+end)
+
+cmd.add({"unfastprompts","unfastproximityprompts","unfastpp"},{"unfastprompts (unfastproximityprompts,unfastpp)","Restores tracked proximity prompt HoldDuration values"},function()
+	NAmanage.FastProximityPromptsDisable()
 end)
 
 cmd.add({"enableproximitypromptservice","enablepps","epps","ppson","ppon"},{"enableproximitypromptservice (enablepps,epps,ppson,ppon)","enable proximity prompt buttons"},function()
