@@ -130,7 +130,7 @@ Full docs: **https://ltseverydayyou.github.io/NA-docs/**
 <td align="center" width="50%">
 <a href="https://github.com/yeku">
 <img src="https://github.com/yeku.png?size=96" width="96"><br>
-<b>lxte</b><br>
+<b>yeku</b><br>
 <sub>same owner / later account</sub>
 </a>
 </td>
