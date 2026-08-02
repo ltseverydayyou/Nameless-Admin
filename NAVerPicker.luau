@@ -315,1103 +315,1692 @@ guiii.draggerV2 = function(ui, dragui)
 		dragui.Active = true;
 	end);
 end;
-local repo = "ltseverydayyou/Nameless-Admin";
-local br = "main";
-local chans = {
-	main = {
-		key = "main",
-		name = "Nameless Admin",
-		path = "Source.lua",
-		headRaw = "https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/Source.lua"
+local App = {
+	Repo = "ltseverydayyou/Nameless-Admin",
+	Branch = "main",
+	Channels = {
+		main = {
+			key = "main",
+			name = "Nameless Admin",
+			label = "Stable",
+			path = "Source.lua",
+			headRaw = "https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/Source.lua"
+		},
+		test = {
+			key = "test",
+			name = "NA Testing",
+			label = "Development",
+			path = "NA testing.lua",
+			headRaw = "https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NA%20testing.lua"
+		}
 	},
-	test = {
-		key = "test",
-		name = "NA Testing",
-		path = "NA testing.lua",
-		headRaw = "https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NA%20testing.lua"
-	}
-};
-local function getCommits(ch, n)
-	local ok, res = pcall(function()
-		local u = "https://api.github.com/repos/" .. repo .. "/commits?path=" .. __lt.cm("HttpService", "UrlEncode", ch.path) .. "&sha=" .. br .. "&per_page=" .. tostring(n);
-		local r = game:HttpGet(u);
-		return __lt.cm("HttpService", "JSONDecode", r);
-	end);
-	if not ok or (not res) then
-		return nil, "Failed to fetch commits";
-	end;
-	if type(res) ~= "table" or #res == 0 then
-		return nil, "No commits found";
-	end;
-	local list = {};
-	for _, v in res do
-		local c = v.commit or {};
-		local a = c.author or {};
-		list[(#list) + 1] = {
-			sha = v.sha,
-			date = a.date or "N/A",
-			msg = c.message or "No message"
-		};
-	end;
-	return list;
-end;
-local function shortSha(s)
-	if not s then
-		return "???????";
-	end;
-	return string.sub(s, 1, 7);
-end;
-local function mkRawFromCommit(ch, sha)
-	local p = ch.path:gsub(" ", "%%20");
-	return "https://raw.githubusercontent.com/" .. repo .. "/" .. sha .. "/" .. p;
-end;
-local function safeClip(s)
-	if type(setclipboard) == "function" then
-		return pcall(setclipboard, s);
-	end;
-	return false;
-end;
-local function tw(i, d, p, st)
-	if not TS then
-		return;
-	end;
-	local ti = TweenInfo.new(d, st or Enum.EasingStyle.Quad, Enum.EasingDirection.Out);
-	local tr = __lt.cm("TweenService", "Create", i, ti, p);
-	tr:Play();
-	return tr;
-end;
-local C = {
-	b0 = Color3.fromRGB(0, 0, 0),
-	b1 = Color3.fromRGB(10, 10, 10),
-	b2 = Color3.fromRGB(16, 16, 16),
-	b3 = Color3.fromRGB(22, 22, 22),
-	b4 = Color3.fromRGB(28, 28, 28),
-	w0 = Color3.fromRGB(245, 245, 245),
-	w1 = Color3.fromRGB(200, 200, 200),
-	w2 = Color3.fromRGB(150, 150, 150),
-	st = Color3.fromRGB(60, 60, 60),
-	st2 = Color3.fromRGB(90, 90, 90)
-};
-local opt = {
-	blr = true,
-	red = false,
-	ask = false,
-	autoClose = true,
-	cache = true,
-	showPath = true,
-	copyRaw = true,
-	cnt = 60,
-	hi = true,
-	cmp = false,
-	shw = true
-};
-local blur = nil;
-if Lgt then
-	blur = __lt.cm("Lighting", "FindFirstChild", "NA_VP_Blur2");
-	if not blur then
-		blur = Instance.new("BlurEffect");
-		blur.Name = "NA_VP_Blur2";
-		blur.Size = 0;
-		blur.Parent = Lgt;
-	end;
-end;
-local gui = Instance.new("ScreenGui");
-gui.Name = "NA_VersionPicker_2";
-gui.ResetOnSpawn = false;
-pcall(function()
-	NaProtectUI(gui);
-end);
-local bg = Instance.new("Frame");
-bg.Name = "Bg";
-bg.Parent = gui;
-bg.Size = UDim2.new(1, 0, 1, 0);
-bg.Position = UDim2.new(0, 0, 0, 0);
-bg.BackgroundColor3 = C.b0;
-bg.BackgroundTransparency = 0.32;
-bg.BorderSizePixel = 0;
-local root = Instance.new("Frame");
-root.Name = "Root";
-root.Parent = gui;
-root.AnchorPoint = Vector2.new(0.5, 0.5);
-root.Position = UDim2.new(0.5, 0, 0.5, 0);
-root.Size = UDim2.new(0, 560, 0, 390);
-root.BackgroundColor3 = C.b1;
-root.BorderSizePixel = 0;
-root.ClipsDescendants = true;
-local rc = Instance.new("UICorner");
-rc.CornerRadius = UDim.new(0, 18);
-rc.Parent = root;
-local rs = Instance.new("UIStroke");
-rs.Thickness = 1;
-rs.Transparency = 0;
-rs.Color = C.st;
-rs.ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
-rs.Parent = root;
-local shine = Instance.new("Frame");
-shine.Parent = root;
-shine.BackgroundColor3 = C.w0;
-shine.BackgroundTransparency = 0.95;
-shine.BorderSizePixel = 0;
-shine.Position = UDim2.new(-0.2, 0, -0.4, 0);
-shine.Size = UDim2.new(1.4, 0, 1.2, 0);
-local shg = Instance.new("UIGradient");
-shg.Parent = shine;
-shg.Color = ColorSequence.new({
-	ColorSequenceKeypoint.new(0, C.w0),
-	ColorSequenceKeypoint.new(0.5, C.w1),
-	ColorSequenceKeypoint.new(1, C.w0)
-});
-shg.Transparency = NumberSequence.new({
-	NumberSequenceKeypoint.new(0, 1),
-	NumberSequenceKeypoint.new(0.45, 0.95),
-	NumberSequenceKeypoint.new(0.55, 0.95),
-	NumberSequenceKeypoint.new(1, 1)
-});
-shg.Rotation = 28;
-local off = Instance.new("Vector3Value");
-off.Value = Vector3.new(-0.2, 0, 0);
-off.Changed:Connect(function(v)
-	shg.Offset = Vector2.new(v.X, 0);
-end);
-local function animShine()
-	while gui.Parent do
-		if opt.red then
-			task.wait(0.5);
-		else
-			local t1 = __lt.cm("TweenService", "Create", off, TweenInfo.new(1.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
-				Value = Vector3.new(0.2, 0, 0)
-			});
-			t1:Play();
-			t1.Completed:Wait();
-			local t2 = __lt.cm("TweenService", "Create", off, TweenInfo.new(1.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
-				Value = Vector3.new(-0.2, 0, 0)
-			});
-			t2:Play();
-			t2.Completed:Wait();
-		end;
-	end;
-end;
-task.spawn(animShine);
-local function crn(p, r)
-	local c = Instance.new("UICorner");
-	c.CornerRadius = UDim.new(0, r);
-	c.Parent = p;
-	return c;
-end;
-local function stk(p, tr, col)
-	local s = Instance.new("UIStroke");
-	s.Thickness = 1;
-	s.Transparency = tr or 0.2;
-	s.Color = col or C.st;
-	s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
-	s.Parent = p;
-	return s;
-end;
-local function pad(p, l, r, t, b)
-	local u = Instance.new("UIPadding");
-	u.PaddingLeft = UDim.new(0, l or 0);
-	u.PaddingRight = UDim.new(0, r or 0);
-	u.PaddingTop = UDim.new(0, t or 0);
-	u.PaddingBottom = UDim.new(0, b or 0);
-	u.Parent = p;
-	return u;
-end;
-local function txt(p, s, sz, bold, col)
-	local t = Instance.new("TextLabel");
-	t.Parent = p;
-	t.BackgroundTransparency = 1;
-	t.Text = s or "";
-	t.TextColor3 = col or C.w0;
-	t.TextSize = sz or 14;
-	t.Font = bold and Enum.Font.GothamSemibold or Enum.Font.Gotham;
-	t.TextXAlignment = Enum.TextXAlignment.Left;
-	t.TextYAlignment = Enum.TextYAlignment.Center;
-	return t;
-end;
-local function btn(p, s)
-	local b = Instance.new("TextButton");
-	b.Parent = p;
-	b.AutoButtonColor = false;
-	b.Text = s or "";
-	b.TextColor3 = C.w0;
-	b.TextSize = 13;
-	b.Font = Enum.Font.GothamSemibold;
-	b.BackgroundColor3 = C.b2;
-	b.BorderSizePixel = 0;
-	crn(b, 12);
-	local st = stk(b, 0.15, C.st);
-	return b, st;
-end;
-local function hvr(b, s)
-	local o = b.BackgroundColor3;
-	b.MouseEnter:Connect(function()
-		tw(b, opt.red and 0.06 or 0.11, {
-			BackgroundColor3 = C.b4
-		});
-		if s then
-			tw(s, opt.red and 0.06 or 0.11, {
-				Transparency = 0
-			});
-		end;
-	end);
-	b.MouseLeave:Connect(function()
-		tw(b, opt.red and 0.06 or 0.11, {
-			BackgroundColor3 = o
-		});
-		if s then
-			tw(s, opt.red and 0.06 or 0.11, {
-				Transparency = 0.15
-			});
-		end;
-	end);
-end;
-local function rip(b)
-	local r = Instance.new("Frame");
-	r.Parent = b;
-	r.BackgroundColor3 = C.w0;
-	r.BackgroundTransparency = 0.92;
-	r.BorderSizePixel = 0;
-	r.AnchorPoint = Vector2.new(0.5, 0.5);
-	r.Position = UDim2.new(0.5, 0, 0.5, 0);
-	r.Size = UDim2.new(0, 0, 0, 0);
-	r.ZIndex = (b.ZIndex or 1) + 1;
-	crn(r, 999);
-	local t1 = tw(r, opt.red and 0.1 or 0.18, {
-		Size = UDim2.new(1.4, 0, 2.2, 0),
+	Theme = {
+		black = Color3.fromRGB(0, 0, 0),
+		base = Color3.fromRGB(9, 9, 9),
+		surface = Color3.fromRGB(14, 14, 14),
+		surface2 = Color3.fromRGB(20, 20, 20),
+		surface3 = Color3.fromRGB(27, 27, 27),
+		hover = Color3.fromRGB(34, 34, 34),
+		white = Color3.fromRGB(246, 246, 246),
+		text = Color3.fromRGB(224, 224, 224),
+		muted = Color3.fromRGB(150, 150, 150),
+		dim = Color3.fromRGB(104, 104, 104),
+		stroke = Color3.fromRGB(55, 55, 55),
+		strokeBright = Color3.fromRGB(92, 92, 92)
+	},
+	Options = {
+		blur = true,
+		reduceMotion = false,
+		confirmLoad = false,
+		autoClose = true,
+		cacheCommits = true,
+		showPath = true,
+		copyRaw = true,
+		commitCount = 60,
+		highlightLatest = true,
+		compactRows = false,
+		showDate = true
+	},
+	State = {
+		cache = {},
+		cards = {},
+		channelButtons = {},
+		currentChannel = nil,
+		currentCommits = nil,
+		requestId = 0,
+		toastId = 0,
+		loadingId = 0,
+		minimized = false,
+		settingsOpen = false,
+		closed = false,
+		searchSerial = 0
+	},
+	UI = {},
+	Connections = {}
+}
+
+local Workspace = SafeGetService("Workspace")
+local RunService = SafeGetService("RunService")
+local Environment = (getgenv and getgenv()) or _G
+
+if type(Environment) == "table" and Environment.__NA_VERSION_PICKER_CLOSE then
+	pcall(Environment.__NA_VERSION_PICKER_CLOSE)
+end
+
+function App:connect(signal, callback)
+	local connection = signal:Connect(callback)
+	table.insert(self.Connections, connection)
+	return connection
+end
+
+function App:disconnectAll()
+	for _, connection in self.Connections do
+		pcall(function()
+			connection:Disconnect()
+		end)
+	end
+	table.clear(self.Connections)
+end
+
+function App:duration(value)
+	if self.Options.reduceMotion then
+		return math.min(value, 0.06)
+	end
+	return value
+end
+
+function App:tween(instance, duration, properties, style, direction)
+	if not instance or not instance.Parent or not TS then
+		return nil
+	end
+	local tween = __lt.cm(
+		"TweenService",
+		"Create",
+		instance,
+		TweenInfo.new(
+			self:duration(duration),
+			style or Enum.EasingStyle.Quart,
+			direction or Enum.EasingDirection.Out
+		),
+		properties
+	)
+	tween:Play()
+	return tween
+end
+
+function App:corner(parent, radius)
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, radius)
+	corner.Parent = parent
+	return corner
+end
+
+function App:stroke(parent, transparency, color, thickness)
+	local stroke = Instance.new("UIStroke")
+	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	stroke.Color = color or self.Theme.stroke
+	stroke.Transparency = transparency or 0
+	stroke.Thickness = thickness or 1
+	stroke.Parent = parent
+	return stroke
+end
+
+function App:padding(parent, left, right, top, bottom)
+	local padding = Instance.new("UIPadding")
+	padding.PaddingLeft = UDim.new(0, left or 0)
+	padding.PaddingRight = UDim.new(0, right or 0)
+	padding.PaddingTop = UDim.new(0, top or 0)
+	padding.PaddingBottom = UDim.new(0, bottom or 0)
+	padding.Parent = parent
+	return padding
+end
+
+function App:text(parent, value, size, weight, color)
+	local label = Instance.new("TextLabel")
+	label.BackgroundTransparency = 1
+	label.BorderSizePixel = 0
+	label.Font = weight == "bold" and Enum.Font.GothamBold or weight == "medium" and Enum.Font.GothamMedium or Enum.Font.Gotham
+	label.Text = value or ""
+	label.TextColor3 = color or self.Theme.text
+	label.TextSize = size or 13
+	label.TextXAlignment = Enum.TextXAlignment.Left
+	label.TextYAlignment = Enum.TextYAlignment.Center
+	label.Parent = parent
+	return label
+end
+
+function App:button(parent, value, radius)
+	local button = Instance.new("TextButton")
+	button.AutoButtonColor = false
+	button.BackgroundColor3 = self.Theme.surface2
+	button.BorderSizePixel = 0
+	button.ClipsDescendants = true
+	button.Font = Enum.Font.GothamSemibold
+	button.Text = value or ""
+	button.TextColor3 = self.Theme.text
+	button.TextSize = 12
+	button.Parent = parent
+	self:corner(button, radius or 10)
+	local stroke = self:stroke(button, 0.2, self.Theme.stroke)
+	local scale = Instance.new("UIScale")
+	scale.Scale = 1
+	scale.Parent = button
+	return button, stroke, scale
+end
+
+function App:bindButtonMotion(button, stroke, scale, baseColor, hoverColor, connector)
+	baseColor = baseColor or self.Theme.surface2
+	hoverColor = hoverColor or self.Theme.hover
+	local bind = connector or function(signal, callback)
+		return self:connect(signal, callback)
+	end
+	bind(button.MouseEnter, function()
+		self:tween(button, 0.14, { BackgroundColor3 = hoverColor })
+		if stroke then
+			self:tween(stroke, 0.14, { Transparency = 0, Color = self.Theme.strokeBright })
+		end
+		if scale then
+			self:tween(scale, 0.14, { Scale = 1.035 }, Enum.EasingStyle.Quart)
+		end
+	end)
+	bind(button.MouseLeave, function()
+		self:tween(button, 0.14, { BackgroundColor3 = baseColor })
+		if stroke then
+			self:tween(stroke, 0.14, { Transparency = 0.2, Color = self.Theme.stroke })
+		end
+		if scale then
+			self:tween(scale, 0.14, { Scale = 1 }, Enum.EasingStyle.Quart)
+		end
+	end)
+	bind(button.MouseButton1Down, function()
+		if scale then
+			self:tween(scale, 0.08, { Scale = 0.965 }, Enum.EasingStyle.Quad)
+		end
+	end)
+	bind(button.MouseButton1Up, function()
+		if scale then
+			self:tween(scale, 0.12, { Scale = 1.035 }, Enum.EasingStyle.Back)
+		end
+	end)
+end
+
+function App:pulse(button)
+	if not button or not button.Parent then
+		return
+	end
+	local pulse = Instance.new("Frame")
+	pulse.AnchorPoint = Vector2.new(0.5, 0.5)
+	pulse.BackgroundColor3 = self.Theme.white
+	pulse.BackgroundTransparency = 0.88
+	pulse.BorderSizePixel = 0
+	pulse.Position = UDim2.fromScale(0.5, 0.5)
+	pulse.Size = UDim2.fromOffset(0, 0)
+	pulse.ZIndex = button.ZIndex + 1
+	pulse.Parent = button
+	self:corner(pulse, 999)
+	local tween = self:tween(pulse, 0.32, {
+		Size = UDim2.new(1.5, 0, 2.5, 0),
 		BackgroundTransparency = 1
-	}, Enum.EasingStyle.Quad);
-	if t1 then
-		t1.Completed:Connect(function()
+	}, Enum.EasingStyle.Quad)
+	if tween then
+		tween.Completed:Connect(function()
 			pcall(function()
-				r:Destroy();
-			end);
-		end);
+				pulse:Destroy()
+			end)
+		end)
 	else
-		task.delay(0.2, function()
+		pulse:Destroy()
+	end
+end
+
+function App:shortSha(sha)
+	if type(sha) ~= "string" or sha == "" then
+		return "LATEST"
+	end
+	return string.sub(sha, 1, 7)
+end
+
+function App:cleanMessage(message)
+	local value = tostring(message or "No commit message")
+	value = value:gsub("\r", " "):gsub("\n", " ")
+	value = value:gsub("%s+", " ")
+	if #value > 118 then
+		value = string.sub(value, 1, 115) .. "..."
+	end
+	return value
+end
+
+function App:formatDate(value)
+	if type(value) ~= "string" or value == "" or value == "N/A" then
+		return "Date unavailable"
+	end
+	local ok, formatted = pcall(function()
+		local dateTime = DateTime.fromIsoDate(value)
+		return dateTime:FormatUniversalTime("MMM D, YYYY  •  HH:mm", "en-us") .. " UTC"
+	end)
+	if ok and type(formatted) == "string" then
+		return formatted
+	end
+	return value
+end
+
+function App:rawUrl(channel, sha)
+	if not sha then
+		return channel.headRaw
+	end
+	return "https://raw.githubusercontent.com/"
+		.. self.Repo
+		.. "/"
+		.. sha
+		.. "/"
+		.. channel.path:gsub(" ", "%%20")
+end
+
+function App:copy(value)
+	if type(setclipboard) ~= "function" then
+		return false
+	end
+	return pcall(setclipboard, value)
+end
+
+function App:fetchCommits(channel, count)
+	local ok, result = pcall(function()
+		local url = "https://api.github.com/repos/"
+			.. self.Repo
+			.. "/commits?path="
+			.. __lt.cm("HttpService", "UrlEncode", channel.path)
+			.. "&sha="
+			.. self.Branch
+			.. "&per_page="
+			.. tostring(count)
+		local response = game:HttpGet(url)
+		return __lt.cm("HttpService", "JSONDecode", response)
+	end)
+	if not ok or type(result) ~= "table" then
+		return nil, "Unable to reach GitHub"
+	end
+	if #result == 0 then
+		return nil, "No commits were returned"
+	end
+	local commits = {}
+	for _, item in result do
+		local commit = item.commit or {}
+		local author = commit.author or {}
+		table.insert(commits, {
+			sha = item.sha,
+			date = author.date or "N/A",
+			msg = commit.message or "No commit message"
+		})
+	end
+	return commits
+end
+
+function App:updateScale()
+	local camera = Workspace and Workspace.CurrentCamera
+	local rootScale = self.UI.RootScale
+	if not camera or not rootScale then
+		return
+	end
+	local viewport = camera.ViewportSize
+	local scale = math.min((viewport.X - 24) / 700, (viewport.Y - 24) / 480, 1)
+	rootScale.Scale = math.clamp(scale, 0.68, 1)
+end
+
+function App:updateBlur()
+	local blur = self.UI.Blur
+	if not blur then
+		return
+	end
+	local target = self.Options.blur and not self.State.closed and 11 or 0
+	self:tween(blur, 0.2, { Size = target })
+end
+
+function App:setStatus(text, busy)
+	if self.UI.StatusText then
+		self.UI.StatusText.Text = text or ""
+	end
+	if self.UI.StatusDot then
+		self:tween(self.UI.StatusDot, 0.16, {
+			BackgroundTransparency = busy and 0 or 0.38,
+			Size = busy and UDim2.fromOffset(7, 7) or UDim2.fromOffset(6, 6)
+		})
+	end
+	if self.UI.RefreshButton then
+		self.UI.RefreshButton.Active = not busy
+		self.UI.RefreshButton.TextTransparency = busy and 0.55 or 0
+	end
+end
+
+function App:toast(message, kind)
+	local toast = self.UI.Toast
+	local toastText = self.UI.ToastText
+	if not toast or not toastText then
+		return
+	end
+	self.State.toastId += 1
+	local toastId = self.State.toastId
+	toastText.Text = tostring(message or "")
+	toastText.TextColor3 = kind == "muted" and self.Theme.muted or self.Theme.text
+	toast.Visible = true
+	toast.GroupTransparency = 1
+	toast.Position = UDim2.new(0.5, 0, 1, -8)
+	self:tween(toast, 0.18, {
+		GroupTransparency = 0,
+		Position = UDim2.new(0.5, 0, 1, -18)
+	}, Enum.EasingStyle.Quart)
+	task.delay(1.65, function()
+		if self.State.closed or toastId ~= self.State.toastId or not toast.Parent then
+			return
+		end
+		local tween = self:tween(toast, 0.18, {
+			GroupTransparency = 1,
+			Position = UDim2.new(0.5, 0, 1, -8)
+		})
+		if tween then
+			tween.Completed:Wait()
+		end
+		if toastId == self.State.toastId and toast.Parent then
+			toast.Visible = false
+		end
+	end)
+end
+
+function App:clearCards()
+	for _, card in self.State.cards do
+		if card.connections then
+			for _, connection in card.connections do
+				pcall(function()
+					connection:Disconnect()
+				end)
+			end
+		end
+		if card.group then
 			pcall(function()
-				r:Destroy();
-			end);
-		end);
-	end;
-end;
-local top = Instance.new("Frame");
-top.Parent = root;
-top.BackgroundTransparency = 1;
-top.BorderSizePixel = 0;
-top.Size = UDim2.new(1, 0, 0, 56);
-local side = Instance.new("Frame");
-side.Parent = root;
-side.BackgroundColor3 = C.b2;
-side.BorderSizePixel = 0;
-side.Position = UDim2.new(0, 12, 0, 56);
-side.Size = UDim2.new(0, 170, 1, -68);
-crn(side, 16);
-stk(side, 0.25, C.st);
-local main = Instance.new("Frame");
-main.Parent = root;
-main.BackgroundColor3 = C.b1;
-main.BorderSizePixel = 0;
-main.Position = UDim2.new(0, 190, 0, 56);
-main.Size = UDim2.new(1, -202, 1, -68);
-crn(main, 16);
-stk(main, 0.25, C.st);
-main.ClipsDescendants = true;
-local bar = Instance.new("Frame");
-bar.Parent = main;
-bar.BackgroundColor3 = C.b2;
-bar.BorderSizePixel = 0;
-bar.Size = UDim2.new(1, 0, 0, 54);
-stk(bar, 0.35, C.st);
-local barC = Instance.new("UICorner");
-barC.CornerRadius = UDim.new(0, 16);
-barC.Parent = bar;
-local barMask = Instance.new("Frame");
-barMask.Parent = bar;
-barMask.BackgroundColor3 = C.b2;
-barMask.BorderSizePixel = 0;
-barMask.Position = UDim2.new(0, 0, 0.5, 0);
-barMask.Size = UDim2.new(1, 0, 0.5, 0);
-local t1 = txt(top, "Nameless Admin", 16, true, C.w0);
-t1.Position = UDim2.new(0, 18, 0, 9);
-t1.Size = UDim2.new(1, -170, 0, 20);
-local t2 = txt(top, "Version picker", 12, false, C.w2);
-t2.Position = UDim2.new(0, 18, 0, 30);
-t2.Size = UDim2.new(1, -170, 0, 18);
-local bCfg, bCfgS = btn(top, "SET");
-bCfg.Position = UDim2.new(1, -160, 0.5, -17);
-bCfg.Size = UDim2.new(0, 56, 0, 34);
-hvr(bCfg, bCfgS);
-local bMin, bMinS = btn(top, "-");
-bMin.Position = UDim2.new(1, -96, 0.5, -17);
-bMin.Size = UDim2.new(0, 44, 0, 34);
-bMin.TextSize = 18;
-hvr(bMin, bMinS);
-local bX, bXS = btn(top, "X");
-bX.Position = UDim2.new(1, -46, 0.5, -17);
-bX.Size = UDim2.new(0, 44, 0, 34);
-hvr(bX, bXS);
-local sHd = txt(side, "Channels", 13, true, C.w0);
-sHd.Position = UDim2.new(0, 14, 0, 12);
-sHd.Size = UDim2.new(1, -28, 0, 16);
-local chWrap = Instance.new("Frame");
-chWrap.Parent = side;
-chWrap.BackgroundTransparency = 1;
-chWrap.Position = UDim2.new(0, 14, 0, 34);
-chWrap.Size = UDim2.new(1, -28, 0, 120);
-local chLay = Instance.new("UIListLayout");
-chLay.Parent = chWrap;
-chLay.SortOrder = Enum.SortOrder.LayoutOrder;
-chLay.Padding = UDim.new(0, 10);
-local function mkChBtn(ch)
-	local f = Instance.new("TextButton");
-	f.Parent = chWrap;
-	f.AutoButtonColor = false;
-	f.Text = "";
-	f.BackgroundColor3 = C.b3;
-	f.BorderSizePixel = 0;
-	f.Size = UDim2.new(1, 0, 0, 54);
-	crn(f, 14);
-	local fs = stk(f, 0.25, C.st);
-	local a = Instance.new("Frame");
-	a.Parent = f;
-	a.BackgroundColor3 = C.w0;
-	a.BorderSizePixel = 0;
-	a.Position = UDim2.new(0, 0, 0, 0);
-	a.Size = UDim2.new(0, 2, 1, 0);
-	a.BackgroundTransparency = 0.65;
-	local n = txt(f, ch.name, 14, true, C.w0);
-	n.Position = UDim2.new(0, 12, 0, 9);
-	n.Size = UDim2.new(1, -24, 0, 18);
-	local p = txt(f, opt.showPath and ch.path or "Open versions", 12, false, C.w2);
-	p.Position = UDim2.new(0, 12, 0, 28);
-	p.Size = UDim2.new(1, -24, 0, 16);
-	f.MouseEnter:Connect(function()
-		tw(f, opt.red and 0.06 or 0.11, {
-			BackgroundColor3 = C.b4
-		});
-		tw(a, opt.red and 0.06 or 0.11, {
-			BackgroundTransparency = 0.25
-		});
-		if fs then
-			tw(fs, opt.red and 0.06 or 0.11, {
-				Transparency = 0
-			});
-		end;
-	end);
-	f.MouseLeave:Connect(function()
-		tw(f, opt.red and 0.06 or 0.11, {
-			BackgroundColor3 = C.b3
-		});
-		tw(a, opt.red and 0.06 or 0.11, {
-			BackgroundTransparency = 0.65
-		});
-		if fs then
-			tw(fs, opt.red and 0.06 or 0.11, {
-				Transparency = 0.25
-			});
-		end;
-	end);
-	return f, a, p;
-end;
-local chBtn = {};
-do
-	local bA, aA, pA = mkChBtn(chans.main);
-	local bB, aB, pB = mkChBtn(chans.test);
-	chBtn.main = {
-		b = bA,
-		a = aA,
-		p = pA,
-		ch = chans.main
-	};
-	chBtn.test = {
-		b = bB,
-		a = aB,
-		p = pB,
-		ch = chans.test
-	};
-end;
-local inf = txt(side, "", 12, false, C.w2);
-inf.Position = UDim2.new(0, 14, 1, -64);
-inf.Size = UDim2.new(1, -28, 0, 50);
-inf.TextWrapped = true;
-inf.TextYAlignment = Enum.TextYAlignment.Top;
-inf.Text = "Pick a channel. Search commits. Load any version.";
-local chT = txt(bar, "No channel selected", 14, true, C.w0);
-chT.Position = UDim2.new(0, 14, 0, 9);
-chT.Size = UDim2.new(1, -28, 0, 18);
-local chS = txt(bar, "", 12, false, C.w2);
-chS.Position = UDim2.new(0, 14, 0, 28);
-chS.Size = UDim2.new(1, -28, 0, 16);
-local src = Instance.new("TextBox");
-src.Parent = main;
-src.BackgroundColor3 = C.b2;
-src.BorderSizePixel = 0;
-src.Position = UDim2.new(0, 12, 0, 66);
-src.Size = UDim2.new(1, -24, 0, 36);
-src.Font = Enum.Font.Gotham;
-src.TextSize = 13;
-src.TextColor3 = C.w0;
-src.PlaceholderText = "Search by sha / message / date";
-src.PlaceholderColor3 = C.w2;
-src.ClearTextOnFocus = false;
-src.Text = "";
-crn(src, 14);
-stk(src, 0.2, C.st);
-pad(src, 12, 12, 0, 0);
-local list = Instance.new("ScrollingFrame");
-list.Parent = main;
-list.BackgroundTransparency = 1;
-list.BorderSizePixel = 0;
-list.Position = UDim2.new(0, 0, 0, 110);
-list.Size = UDim2.new(1, 0, 1, -110);
-list.ScrollBarThickness = 3;
-list.ScrollBarImageColor3 = C.w0;
-list.ScrollBarImageTransparency = 0.84;
-list.TopImage, list.MidImage, list.BottomImage = "", "", "";
-pad(list, 12, 12, 12, 12);
-local lay = Instance.new("UIListLayout");
-lay.Parent = list;
-lay.SortOrder = Enum.SortOrder.LayoutOrder;
-lay.Padding = UDim.new(0, 10);
-(lay:GetPropertyChangedSignal("AbsoluteContentSize")):Connect(function()
-	list.CanvasSize = UDim2.new(0, 0, 0, lay.AbsoluteContentSize.Y + 18);
-end);
-list.CanvasSize = UDim2.new(0, 0, 0, 18);
-local spin = Instance.new("Frame");
-spin.Parent = bar;
-spin.BackgroundTransparency = 1;
-spin.Size = UDim2.new(0, 18, 0, 18);
-spin.Position = UDim2.new(1, -26, 0.5, -9);
-spin.Visible = false;
-local ring = Instance.new("Frame");
-ring.Parent = spin;
-ring.BackgroundTransparency = 1;
-ring.Size = UDim2.new(1, 0, 1, 0);
-local ringS = Instance.new("UIStroke");
-ringS.Parent = ring;
-ringS.Thickness = 2;
-ringS.Transparency = 0.1;
-ringS.Color = C.w0;
-local ringG = Instance.new("UIGradient");
-ringG.Parent = ring;
-ringG.Color = ColorSequence.new({
-	ColorSequenceKeypoint.new(0, C.w0),
-	ColorSequenceKeypoint.new(1, C.w0)
-});
-ringG.Transparency = NumberSequence.new({
-	NumberSequenceKeypoint.new(0, 0.95),
-	NumberSequenceKeypoint.new(0.5, 0.1),
-	NumberSequenceKeypoint.new(1, 0.95)
-});
-task.spawn(function()
-	local v = 0;
-	while gui.Parent do
-		if spin.Visible and (not opt.red) then
-			v = (v + 7) % 360;
-			ringG.Rotation = v;
-			task.wait();
-		else
-			task.wait(0.08);
-		end;
-	end;
-end);
-local toast = Instance.new("TextLabel");
-toast.Parent = root;
-toast.BackgroundColor3 = C.b3;
-toast.BorderSizePixel = 0;
-toast.AnchorPoint = Vector2.new(0.5, 1);
-toast.Position = UDim2.new(0.5, 0, 1, -10);
-toast.Size = UDim2.new(0, 320, 0, 34);
-toast.TextColor3 = C.w0;
-toast.TextSize = 13;
-toast.Font = Enum.Font.GothamSemibold;
-toast.Text = "";
-toast.Visible = false;
-toast.ZIndex = 90;
-crn(toast, 14);
-stk(toast, 0.15, C.st);
-local function pop(s)
-	toast.Visible = true;
-	toast.Text = s;
-	toast.TextTransparency = 1;
-	toast.BackgroundTransparency = 1;
-	toast.Position = UDim2.new(0.5, 0, 1, -6);
-	tw(toast, opt.red and 0.1 or 0.16, {
-		TextTransparency = 0,
-		BackgroundTransparency = 0.06,
-		Position = UDim2.new(0.5, 0, 1, -10)
-	});
-	task.delay(1.25, function()
-		if toast.Visible then
-			local tr = tw(toast, opt.red and 0.1 or 0.16, {
-				TextTransparency = 1,
-				BackgroundTransparency = 1,
-				Position = UDim2.new(0.5, 0, 1, -6)
-			});
-			if tr then
-				tr.Completed:Wait();
-			end;
-			toast.Visible = false;
-		end;
-	end);
-end;
-local setP = Instance.new("Frame");
-setP.Parent = gui;
-setP.BackgroundTransparency = 1;
-setP.Size = UDim2.new(1, 0, 1, 0);
-setP.Visible = false;
-setP.ZIndex = 200;
-local dim = Instance.new("Frame");
-dim.Parent = setP;
-dim.BackgroundColor3 = C.b0;
-dim.BackgroundTransparency = 1;
-dim.BorderSizePixel = 0;
-dim.Size = UDim2.new(1, 0, 1, 0);
-dim.ZIndex = 200;
-local setW = Instance.new("Frame");
-setW.Parent = setP;
-setW.BackgroundColor3 = C.b1;
-setW.BorderSizePixel = 0;
-setW.AnchorPoint = Vector2.new(1, 0.5);
-setW.Position = UDim2.new(1, 20, 0.5, 0);
-setW.Size = UDim2.new(0, 340, 0, 360);
-setW.ZIndex = 201;
-setW.ClipsDescendants = true;
-crn(setW, 18);
-stk(setW, 0, C.st);
-local stT = txt(setW, "Settings", 16, true, C.w0);
-stT.Position = UDim2.new(0, 14, 0, 12);
-stT.Size = UDim2.new(1, -70, 0, 20);
-stT.ZIndex = 202;
-local stX, stXS = btn(setW, "X");
-stX.Position = UDim2.new(1, -56, 0, 10);
-stX.Size = UDim2.new(0, 42, 0, 34);
-stX.ZIndex = 202;
-hvr(stX, stXS);
-local stSc = Instance.new("ScrollingFrame");
-stSc.Parent = setW;
-stSc.BackgroundTransparency = 1;
-stSc.BorderSizePixel = 0;
-stSc.Position = UDim2.new(0, 0, 0, 50);
-stSc.Size = UDim2.new(1, 0, 1, -50);
-stSc.ScrollBarThickness = 3;
-stSc.ScrollBarImageColor3 = C.w0;
-stSc.ScrollBarImageTransparency = 0.86;
-stSc.TopImage, stSc.MidImage, stSc.BottomImage = "", "", "";
-stSc.ZIndex = 202;
-pad(stSc, 14, 14, 10, 14);
-local stLay = Instance.new("UIListLayout");
-stLay.Parent = stSc;
-stLay.SortOrder = Enum.SortOrder.LayoutOrder;
-stLay.Padding = UDim.new(0, 10);
-(stLay:GetPropertyChangedSignal("AbsoluteContentSize")):Connect(function()
-	stSc.CanvasSize = UDim2.new(0, 0, 0, stLay.AbsoluteContentSize.Y + 18);
-end);
-stSc.CanvasSize = UDim2.new(0, 0, 0, 18);
-local function row(h)
-	local r = Instance.new("Frame");
-	r.Parent = stSc;
-	r.BackgroundColor3 = C.b2;
-	r.BackgroundTransparency = 0.06;
-	r.BorderSizePixel = 0;
-	r.Size = UDim2.new(1, 0, 0, h or 44);
-	r.ZIndex = 202;
-	crn(r, 16);
-	stk(r, 0.22, C.st);
-	return r;
-end;
-local function tog(r, s, getv, setv)
-	local t = txt(r, s, 13, true, C.w0);
-	t.Position = UDim2.new(0, 12, 0, 0);
-	t.Size = UDim2.new(1, -80, 1, 0);
-	t.ZIndex = 203;
-	local b = Instance.new("TextButton");
-	b.Parent = r;
-	b.AutoButtonColor = false;
-	b.Text = "";
-	b.BorderSizePixel = 0;
-	b.BackgroundColor3 = C.b1;
-	b.Position = UDim2.new(1, -54, 0.5, -14);
-	b.Size = UDim2.new(0, 44, 0, 28);
-	b.ZIndex = 203;
-	crn(b, 14);
-	local bs = stk(b, 0.22, C.st);
-	local k = Instance.new("Frame");
-	k.Parent = b;
-	k.BorderSizePixel = 0;
-	k.BackgroundColor3 = C.w0;
-	k.Size = UDim2.new(0, 18, 0, 18);
-	k.Position = UDim2.new(0, 6, 0.5, -9);
-	k.ZIndex = 204;
-	crn(k, 99);
-	local function ap()
-		local on = getv();
-		if on then
-			tw(b, opt.red and 0.06 or 0.11, {
-				BackgroundColor3 = C.b4
-			});
-			tw(k, opt.red and 0.06 or 0.11, {
-				Position = UDim2.new(1, -24, 0.5, -9)
-			});
-			if bs then
-				tw(bs, opt.red and 0.06 or 0.11, {
-					Transparency = 0
-				});
-			end;
-		else
-			tw(b, opt.red and 0.06 or 0.11, {
-				BackgroundColor3 = C.b1
-			});
-			tw(k, opt.red and 0.06 or 0.11, {
-				Position = UDim2.new(0, 6, 0.5, -9)
-			});
-			if bs then
-				tw(bs, opt.red and 0.06 or 0.11, {
-					Transparency = 0.22
-				});
-			end;
-		end;
-	end;
-	ap();
-	b.MouseButton1Click:Connect(function()
-		rip(b);
-		setv(not getv());
-		ap();
-	end);
-	return ap;
-end;
-local function step(r, s, mn, mx, getv, setv)
-	local t = txt(r, s, 13, true, C.w0);
-	t.Position = UDim2.new(0, 12, 0, 0);
-	t.Size = UDim2.new(1, -170, 1, 0);
-	t.ZIndex = 203;
-	local vL = txt(r, "", 12, false, C.w1);
-	vL.TextXAlignment = Enum.TextXAlignment.Right;
-	vL.Position = UDim2.new(1, -170, 0, 0);
-	vL.Size = UDim2.new(0, 110, 1, 0);
-	vL.ZIndex = 203;
-	local box = Instance.new("Frame");
-	box.Parent = r;
-	box.BackgroundColor3 = C.b1;
-	box.BorderSizePixel = 0;
-	box.Position = UDim2.new(1, -54, 0.5, -10);
-	box.Size = UDim2.new(0, 44, 0, 20);
-	box.ZIndex = 203;
-	crn(box, 10);
-	stk(box, 0.22, C.st);
-	local dn, dnS = btn(box, "<");
-	dn.Size = UDim2.new(0.5, -2, 1, 0);
-	dn.Position = UDim2.new(0, 0, 0, 0);
-	dn.ZIndex = 204;
-	dn.BackgroundColor3 = C.b2;
-	hvr(dn, dnS);
-	local up, upS = btn(box, ">");
-	up.Size = UDim2.new(0.5, -2, 1, 0);
-	up.Position = UDim2.new(0.5, 2, 0, 0);
-	up.ZIndex = 204;
-	up.BackgroundColor3 = C.b2;
-	hvr(up, upS);
-	local function ap()
-		vL.Text = tostring(getv());
-	end;
-	ap();
-	up.MouseButton1Click:Connect(function()
-		rip(up);
-		setv(math.clamp(getv() + 5, mn, mx));
-		ap();
-	end);
-	dn.MouseButton1Click:Connect(function()
-		rip(dn);
-		setv(math.clamp(getv() - 5, mn, mx));
-		ap();
-	end);
-	return ap;
-end;
-local ap1 = tog(row(44), "Blur behind UI", function()
-	return opt.blr;
-end, function(v)
-	opt.blr = v;
-end);
-local ap2 = tog(row(44), "Reduce motion", function()
-	return opt.red;
-end, function(v)
-	opt.red = v;
-end);
-local ap3 = tog(row(44), "Confirm before load", function()
-	return opt.ask;
-end, function(v)
-	opt.ask = v;
-end);
-local ap4 = tog(row(44), "Auto close on load", function()
-	return opt.autoClose;
-end, function(v)
-	opt.autoClose = v;
-end);
-local ap5 = tog(row(44), "Cache commits", function()
-	return opt.cache;
-end, function(v)
-	opt.cache = v;
-end);
-local ap6 = tog(row(44), "Show path text", function()
-	return opt.showPath;
-end, function(v)
-	opt.showPath = v;
-end);
-local ap7 = tog(row(44), "Copy raw on load", function()
-	return opt.copyRaw;
-end, function(v)
-	opt.copyRaw = v;
-end);
-local ap8 = tog(row(44), "Highlight latest", function()
-	return opt.hi;
-end, function(v)
-	opt.hi = v;
-end);
-local ap9 = tog(row(44), "Compact rows", function()
-	return opt.cmp;
-end, function(v)
-	opt.cmp = v;
-end);
-local apA = tog(row(44), "Show date line", function()
-	return opt.shw;
-end, function(v)
-	opt.shw = v;
-end);
-local apB = step(row(44), "Commit count", 10, 100, function()
-	return opt.cnt;
-end, function(v)
-	opt.cnt = v;
-end);
-local function openSet(v)
-	if v then
-		setP.Visible = true;
-		dim.BackgroundTransparency = 1;
-		setW.Position = UDim2.new(1, 20, 0.5, 0);
-		if blur and opt.blr then
-			tw(blur, opt.red and 0.1 or 0.16, {
-				Size = 14
-			});
-		end;
-		tw(dim, opt.red and 0.1 or 0.16, {
-			BackgroundTransparency = 0.45
-		});
-		tw(setW, opt.red and 0.12 or 0.18, {
-			Position = UDim2.new(1, -10, 0.5, 0)
-		});
+				card.group:Destroy()
+			end)
+		end
+	end
+	table.clear(self.State.cards)
+	if self.UI.EmptyState then
+		self.UI.EmptyState.Visible = false
+	end
+end
+
+function App:cardHeight()
+	return self.Options.compactRows and 68 or 88
+end
+
+function App:updateCanvas()
+	if self.UI.CardLayout and self.UI.CommitList then
+		self.UI.CommitList.CanvasSize = UDim2.fromOffset(0, self.UI.CardLayout.AbsoluteContentSize.Y + 20)
+	end
+end
+
+function App:createCommitCard(channel, commit, index)
+	local cardConnections = {}
+	local function bind(signal, callback)
+		local connection = signal:Connect(callback)
+		table.insert(cardConnections, connection)
+		return connection
+	end
+	local group = Instance.new("CanvasGroup")
+	group.BackgroundColor3 = index == 1 and self.Options.highlightLatest and self.Theme.surface3 or self.Theme.surface2
+	group.BackgroundTransparency = 0
+	group.BorderSizePixel = 0
+	group.ClipsDescendants = true
+	group.GroupTransparency = 1
+	group.Position = UDim2.new(0, 14, 0, 0)
+	group.Size = UDim2.new(1, 0, 0, self:cardHeight())
+	group.Parent = self.UI.CommitList
+	self:corner(group, 14)
+	local cardStroke = self:stroke(
+		group,
+		index == 1 and self.Options.highlightLatest and 0.02 or 0.28,
+		index == 1 and self.Options.highlightLatest and self.Theme.strokeBright or self.Theme.stroke
+	)
+
+	local marker = Instance.new("Frame")
+	marker.BackgroundColor3 = self.Theme.white
+	marker.BackgroundTransparency = index == 1 and self.Options.highlightLatest and 0.05 or 0.82
+	marker.BorderSizePixel = 0
+	marker.Position = UDim2.new(0, 0, 0, 13)
+	marker.Size = UDim2.new(0, 2, 1, -26)
+	marker.Parent = group
+	self:corner(marker, 2)
+
+	local badge = self:text(group, index == 1 and "LATEST" or string.format("#%02d", index), 10, "bold", self.Theme.muted)
+	badge.Position = UDim2.new(0, 14, 0, 8)
+	badge.Size = UDim2.fromOffset(64, 18)
+
+	local shaLabel = self:text(group, self:shortSha(commit.sha), 12, "bold", self.Theme.white)
+	shaLabel.Position = UDim2.new(0, 76, 0, 8)
+	shaLabel.Size = UDim2.fromOffset(88, 18)
+
+	local dateLabel = self:text(group, self:formatDate(commit.date), 10, "regular", self.Theme.dim)
+	dateLabel.TextXAlignment = Enum.TextXAlignment.Right
+	dateLabel.Position = UDim2.new(1, -286, 0, 8)
+	dateLabel.Size = UDim2.fromOffset(166, 18)
+	dateLabel.Visible = self.Options.showDate and not self.Options.compactRows
+
+	local message = self:cleanMessage(commit.msg)
+	local messageLabel = self:text(group, message, 12, "medium", self.Theme.text)
+	messageLabel.Position = UDim2.new(0, 14, 0, self.Options.compactRows and 31 or 34)
+	messageLabel.Size = UDim2.new(1, -244, 0, self.Options.compactRows and 22 or 38)
+	messageLabel.TextWrapped = not self.Options.compactRows
+	messageLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	messageLabel.TextYAlignment = Enum.TextYAlignment.Top
+
+	local copyButton, copyStroke, copyScale = self:button(group, "COPY", 9)
+	copyButton.Position = UDim2.new(1, -210, 0.5, -16)
+	copyButton.Size = UDim2.fromOffset(76, 32)
+	copyButton.ZIndex = 3
+	self:bindButtonMotion(copyButton, copyStroke, copyScale, nil, nil, bind)
+
+	local loadButton, loadStroke, loadScale = self:button(group, "LOAD", 9)
+	loadButton.BackgroundColor3 = self.Theme.white
+	loadButton.TextColor3 = self.Theme.black
+	loadButton.Position = UDim2.new(1, -122, 0.5, -16)
+	loadButton.Size = UDim2.fromOffset(108, 32)
+	loadButton.ZIndex = 3
+	self:bindButtonMotion(loadButton, loadStroke, loadScale, self.Theme.white, Color3.fromRGB(215, 215, 215), bind)
+
+	bind(copyButton.MouseButton1Click, function()
+		self:pulse(copyButton)
+		local copied = self:copy(self:rawUrl(channel, commit.sha))
+		self:toast(copied and "Raw URL copied" or "Clipboard API unavailable", copied and nil or "muted")
+	end)
+
+	local confirmationSerial = 0
+	bind(loadButton.MouseButton1Click, function()
+		self:pulse(loadButton)
+		if self.Options.confirmLoad and loadButton.Text ~= "CONFIRM" then
+			confirmationSerial += 1
+			local serial = confirmationSerial
+			loadButton.Text = "CONFIRM"
+			self:tween(loadButton, 0.12, { BackgroundColor3 = self.Theme.surface3, TextColor3 = self.Theme.white })
+			task.delay(1.4, function()
+				if serial == confirmationSerial and loadButton.Parent then
+					loadButton.Text = "LOAD"
+					self:tween(loadButton, 0.12, { BackgroundColor3 = self.Theme.white, TextColor3 = self.Theme.black })
+				end
+			end)
+			return
+		end
+		confirmationSerial += 1
+		loadButton.Text = "LOADING"
+		loadButton.Active = false
+		self:loadCommit(channel, commit, loadButton)
+	end)
+
+	bind(group.MouseEnter, function()
+		self:tween(group, 0.15, { BackgroundColor3 = self.Theme.hover })
+		self:tween(cardStroke, 0.15, { Transparency = 0, Color = self.Theme.strokeBright })
+		self:tween(marker, 0.15, { BackgroundTransparency = 0.08 })
+	end)
+	bind(group.MouseLeave, function()
+		local selectedColor = index == 1 and self.Options.highlightLatest and self.Theme.surface3 or self.Theme.surface2
+		self:tween(group, 0.15, { BackgroundColor3 = selectedColor })
+		self:tween(cardStroke, 0.15, {
+			Transparency = index == 1 and self.Options.highlightLatest and 0.02 or 0.28,
+			Color = index == 1 and self.Options.highlightLatest and self.Theme.strokeBright or self.Theme.stroke
+		})
+		self:tween(marker, 0.15, {
+			BackgroundTransparency = index == 1 and self.Options.highlightLatest and 0.05 or 0.82
+		})
+	end)
+
+	local card = {
+		group = group,
+		connections = cardConnections,
+		sha = tostring(commit.sha or ""),
+		message = message,
+		date = tostring(commit.date or ""),
+		commit = commit
+	}
+	table.insert(self.State.cards, card)
+
+	local delayTime = self.Options.reduceMotion and 0 or math.min((index - 1) * 0.018, 0.24)
+	task.delay(delayTime, function()
+		if self.State.closed or not group.Parent then
+			return
+		end
+		self:tween(group, 0.24, {
+			GroupTransparency = 0,
+			Position = UDim2.new(0, 0, 0, 0)
+		}, Enum.EasingStyle.Quart)
+	end)
+
+	return card
+end
+
+function App:buildCards(channel, commits)
+	self:clearCards()
+	self.State.currentCommits = commits
+	for index, commit in commits do
+		self:createCommitCard(channel, commit, index)
+	end
+	self:updateCanvas()
+	self:filterCards()
+end
+
+function App:filterCards()
+	local query = string.lower(self.UI.SearchBox.Text or "")
+	local visibleCount = 0
+	for _, card in self.State.cards do
+		local visible = query == ""
+		if not visible then
+			visible = card.sha:lower():find(query, 1, true) ~= nil
+				or card.message:lower():find(query, 1, true) ~= nil
+				or card.date:lower():find(query, 1, true) ~= nil
+		end
+		card.group.Visible = visible
+		if visible then
+			visibleCount += 1
+		end
+	end
+	self.UI.EmptyState.Visible = #self.State.cards > 0 and visibleCount == 0
+	if #self.State.cards > 0 then
+		self.UI.ResultCount.Text = tostring(visibleCount) .. " / " .. tostring(#self.State.cards)
 	else
-		if blur then
-			tw(blur, opt.red and 0.1 or 0.16, {
-				Size = 0
-			});
-		end;
-		tw(dim, opt.red and 0.1 or 0.16, {
-			BackgroundTransparency = 1
-		});
-		local tr = tw(setW, opt.red and 0.1 or 0.16, {
-			Position = UDim2.new(1, 20, 0.5, 0)
-		});
-		if tr then
-			tr.Completed:Wait();
-		end;
-		setP.Visible = false;
-	end;
-end;
-bCfg.MouseButton1Click:Connect(function()
-	rip(bCfg);
-	openSet(true);
-end);
-stX.MouseButton1Click:Connect(function()
-	rip(stX);
-	openSet(false);
-end);
-dim.InputBegan:Connect(function(inp)
-	if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
-		openSet(false);
-	end;
-end);
-local cache = {};
-local cur = nil;
-local items = {};
-local function clrList()
-	for _, v in items do
-		if v and v.f then
-			pcall(function()
-				v.f:Destroy();
-			end);
-		end;
-	end;
-	table.clear(items);
-end;
-local function rowH()
-	return opt.cmp and 64 or 86;
-end;
-local function mkIt(ch, v, idx)
-	local f = Instance.new("Frame");
-	f.Parent = list;
-	f.BackgroundColor3 = C.b2;
-	f.BackgroundTransparency = 0.04;
-	f.BorderSizePixel = 0;
-	f.Size = UDim2.new(1, 0, 0, rowH());
-	f.ClipsDescendants = true;
-	crn(f, 16);
-	local fs = stk(f, 0.22, C.st);
-	local tag = idx == 1 and "LATEST" or "COMMIT " .. tostring(idx);
-	local sha = shortSha(v.sha);
-	local hd = txt(f, tag .. "  " .. sha, 13, true, C.w0);
-	hd.Position = UDim2.new(0, 14, 0, 10);
-	hd.Size = UDim2.new(1, -124, 0, 18);
-	local dt = txt(f, tostring(v.date or "N/A"), 12, false, C.w2);
-	dt.Position = UDim2.new(0, 14, 0, 30);
-	dt.Size = UDim2.new(1, -124, 0, 16);
-	dt.Visible = opt.shw;
-	local msg = tostring(v.msg or "No message");
-	msg = (msg:gsub("\r", " ")):gsub("\n", " ");
-	if #msg > 92 then
-		msg = string.sub(msg, 1, 89) .. "...";
-	end;
-	local tx = txt(f, msg, 12, false, C.w1);
-	tx.Position = UDim2.new(0, 14, 0, opt.shw and 48 or 32);
-	tx.Size = UDim2.new(1, -124, 0, 16);
-	local ld, ldS = btn(f, "LOAD");
-	ld.Size = UDim2.new(0, 92, 0, 34);
-	ld.Position = UDim2.new(1, -104, 0.5, -17);
-	hvr(ld, ldS);
-	if opt.hi and idx == 1 then
-		f.BackgroundColor3 = C.b3;
-		hd.TextColor3 = C.w0;
-		if fs then
-			fs.Transparency = 0.06;
-		end;
-	end;
-	local function getRaw()
-		if v and v.sha then
-			return mkRawFromCommit(ch, v.sha);
-		end;
-		return ch.headRaw;
-	end;
-	local arm = false;
-	local function doLoad()
-		local raw = getRaw();
-		if opt.copyRaw then
-			safeClip(raw);
-		end;
-		if opt.autoClose then
-			root.Visible = false;
-			gui.Enabled = false;
-		end;
-		local ok, err = pcall(function()
-			(loadstring(game:HttpGet(raw)))();
-		end);
-		if not ok then
-			pcall(function()
-				if rconsoleerr then
-					rconsoleerr("Load failed: " .. tostring(err));
-				end;
-			end);
-			gui.Enabled = true;
-			root.Visible = true;
-			pop("Load failed");
-			return;
-		end;
-		pop("Loaded");
-	end;
-	ld.MouseButton1Click:Connect(function()
-		rip(ld);
-		if opt.ask then
-			if not arm then
-				arm = true;
-				pop("Click again to confirm");
-				task.delay(0.9, function()
-					arm = false;
-				end);
-				return;
-			end;
-			arm = false;
-		end;
-		doLoad();
-	end);
-	f.MouseEnter:Connect(function()
-		tw(f, opt.red and 0.06 or 0.11, {
-			BackgroundColor3 = C.b4
-		});
-		if fs then
-			tw(fs, opt.red and 0.06 or 0.11, {
-				Transparency = 0
-			});
-		end;
-	end);
-	f.MouseLeave:Connect(function()
-		local bc = opt.hi and idx == 1 and C.b3 or C.b2;
-		tw(f, opt.red and 0.06 or 0.11, {
-			BackgroundColor3 = bc
-		});
-		if fs then
-			tw(fs, opt.red and 0.06 or 0.11, {
-				Transparency = opt.hi and idx == 1 and 0.06 or 0.22
-			});
-		end;
-	end);
-	return {
-		f = f,
-		sha = v.sha,
-		msg = msg,
-		date = tostring(v.date or "")
-	};
-end;
-local function setBusy(v, s)
-	spin.Visible = v and true or false;
-	chS.Text = s or "";
-end;
-local function applyChBtns()
-	for _, it in chBtn do
-		local on = cur and it.ch and cur.key == it.ch.key;
-		it.a.BackgroundTransparency = on and 0.1 or 0.65;
-		it.p.Text = opt.showPath and it.ch.path or "Open versions";
-	end;
-end;
-local function build(ch, list0)
-	clrList();
-	items = {};
-	local tot = #list0;
-	for i, v in list0 do
-		items[(#items) + 1] = mkIt(ch, v, i, tot);
-	end;
-end;
-local function filt()
-	local q = (src.Text or ""):lower();
-	for _, it in items do
-		if it and it.f then
-			if q == "" then
-				it.f.Visible = true;
-			else
-				local ok = false;
-				ok = ok or it.sha and ((tostring(it.sha)):lower()):find(q, 1, true) ~= nil;
-				ok = ok or it.msg and (it.msg:lower()):find(q, 1, true) ~= nil;
-				ok = ok or it.date and (it.date:lower()):find(q, 1, true) ~= nil;
-				it.f.Visible = ok;
-			end;
-		end;
-	end;
-end;
-local sDb = 0;
-(src:GetPropertyChangedSignal("Text")):Connect(function()
-	sDb += 1;
-	local c = sDb;
-	task.delay(0.12, function()
-		if c == sDb then
-			filt();
-		end;
-	end);
-end);
-local function openCh(ch)
-	cur = ch;
-	applyChBtns();
-	src.Text = "";
-	chT.Text = ch.name;
-	chS.Text = "Fetching...";
-	setBusy(true, "Fetching commits...");
-	local n = math.clamp(tonumber(opt.cnt) or 60, 10, 100);
-	local use = opt.cache and cache[ch.key] and #cache[ch.key] >= 1 and #cache[ch.key] >= math.min(10);
-	if use then
-		setBusy(false, "Loaded from cache (" .. tostring(#cache[ch.key]) .. ")");
-		build(ch, cache[ch.key]);
-		filt();
-		return;
-	end;
+		self.UI.ResultCount.Text = "0"
+	end
+	self:updateCanvas()
+end
+
+function App:stopLoadingAnimation()
+	self.State.loadingId += 1
+	if self.UI.LoadingLayer then
+		self.UI.LoadingLayer.Visible = false
+	end
+end
+
+function App:startLoadingAnimation()
+	self.State.loadingId += 1
+	local loadingId = self.State.loadingId
+	local layer = self.UI.LoadingLayer
+	layer.Visible = true
+	for _, child in layer:GetChildren() do
+		if child:IsA("CanvasGroup") then
+			child.GroupTransparency = 0.1
+		end
+	end
 	task.spawn(function()
-		local list0, err = getCommits(ch, n);
-		if not list0 then
-			setBusy(false, tostring(err or "Fetch failed"));
-			pop("Fetch failed (loading latest)");
-			build(ch, {
+		local phase = false
+		while not self.State.closed and loadingId == self.State.loadingId and layer.Visible do
+			phase = not phase
+			for _, child in layer:GetChildren() do
+				if child:IsA("CanvasGroup") then
+					self:tween(child, 0.55, { GroupTransparency = phase and 0.48 or 0.12 }, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
+				end
+			end
+			task.wait(0.58)
+		end
+	end)
+end
+
+function App:loadCommit(channel, commit, button)
+	local raw = self:rawUrl(channel, commit.sha)
+	if self.Options.copyRaw then
+		self:copy(raw)
+	end
+	local wasEnabled = self.UI.Gui.Enabled
+	if self.Options.autoClose then
+		self.UI.Gui.Enabled = false
+	end
+	local ok, err = pcall(function()
+		local source = game:HttpGet(raw)
+		local loader = loadstring or load
+		if type(loader) ~= "function" then
+			error("loadstring is unavailable")
+		end
+		local chunk = loader(source, "@" .. self:shortSha(commit.sha))
+		if type(chunk) ~= "function" then
+			error("downloaded source failed to compile")
+		end
+		chunk()
+	end)
+	if not ok then
+		self.UI.Gui.Enabled = wasEnabled
+		if button and button.Parent then
+			button.Text = "RETRY"
+			button.Active = true
+			self:tween(button, 0.12, { BackgroundColor3 = self.Theme.white, TextColor3 = self.Theme.black })
+		end
+		pcall(function()
+			if type(rconsoleerr) == "function" then
+				rconsoleerr("NA Version Picker load failed: " .. tostring(err))
+			end
+		end)
+		self:toast("Load failed", "muted")
+		return
+	end
+	if not self.Options.autoClose then
+		if button and button.Parent then
+			button.Text = "LOADED"
+			task.delay(1, function()
+				if button.Parent then
+					button.Text = "LOAD"
+					button.Active = true
+				end
+			end)
+		end
+		self:toast("Version loaded")
+	else
+		self:close(true)
+	end
+end
+
+function App:updateChannelButtons()
+	for _, item in self.State.channelButtons do
+		local selected = self.State.currentChannel and item.channel.key == self.State.currentChannel.key
+		self:tween(item.button, 0.16, {
+			BackgroundColor3 = selected and self.Theme.surface3 or self.Theme.surface
+		})
+		self:tween(item.stroke, 0.16, {
+			Transparency = selected and 0.02 or 0.48,
+			Color = selected and self.Theme.strokeBright or self.Theme.stroke
+		})
+		self:tween(item.indicator, 0.18, {
+			Size = selected and UDim2.new(0, 3, 0, 28) or UDim2.new(0, 3, 0, 8),
+			BackgroundTransparency = selected and 0 or 0.74
+		})
+		item.path.Text = self.Options.showPath and item.channel.path or item.channel.label
+		item.name.TextColor3 = selected and self.Theme.white or self.Theme.text
+	end
+end
+
+function App:openChannel(channel, forceRefresh)
+	if not channel then
+		return
+	end
+	self.State.currentChannel = channel
+	self.State.requestId += 1
+	local requestId = self.State.requestId
+	self:updateChannelButtons()
+	self.UI.SearchBox.Text = ""
+	self.UI.ChannelTitle.Text = channel.name
+	self.UI.ChannelPath.Text = self.Options.showPath and channel.path or channel.label .. " channel"
+	self.UI.CommitList.Visible = false
+	self.UI.EmptyState.Visible = false
+	self:startLoadingAnimation()
+	self:setStatus("Fetching commits", true)
+
+	local count = math.clamp(tonumber(self.Options.commitCount) or 60, 10, 100)
+	local cacheKey = channel.key .. ":" .. tostring(count)
+	local cached = self.Options.cacheCommits and not forceRefresh and self.State.cache[cacheKey]
+	if cached then
+		self:stopLoadingAnimation()
+		self.UI.CommitList.Visible = true
+		self:buildCards(channel, cached)
+		self:setStatus("Cached • " .. tostring(#cached) .. " commits", false)
+		return
+	end
+
+	task.spawn(function()
+		local commits, err = self:fetchCommits(channel, count)
+		if self.State.closed or requestId ~= self.State.requestId then
+			return
+		end
+		self:stopLoadingAnimation()
+		self.UI.CommitList.Visible = true
+		if not commits then
+			commits = {
 				{
 					sha = nil,
 					date = "N/A",
-					msg = "Latest from " .. br
+					msg = "Load the latest version from the " .. self.Branch .. " branch"
 				}
-			});
-			return;
-		end;
-		cache[ch.key] = list0;
-		setBusy(false, "Total: " .. tostring((#list0)));
-		build(ch, list0);
-		filt();
-	end);
-end;
-for _, it in chBtn do
-	it.b.MouseButton1Click:Connect(function()
-		rip(it.b);
-		openCh(it.ch);
-	end);
-end;
-local minned = false;
-local sz0 = root.Size;
-bMin.MouseButton1Click:Connect(function()
-	rip(bMin);
-	minned = not minned;
-	if minned then
-		bMin.Text = "+";
-		tw(root, opt.red and 0.1 or 0.16, {
-			Size = UDim2.new(0, sz0.X.Offset, 0, 56)
-		});
-		side.Visible = false;
-		main.Visible = false;
+			}
+			self:buildCards(channel, commits)
+			self:setStatus(err or "Fetch failed", false)
+			self:toast("GitHub fetch failed; latest is still available", "muted")
+			return
+		end
+		self.State.cache[cacheKey] = commits
+		self:buildCards(channel, commits)
+		self:setStatus(tostring(#commits) .. " commits", false)
+	end)
+end
+
+function App:refreshCurrent()
+	if not self.State.currentChannel then
+		return
+	end
+	self:openChannel(self.State.currentChannel, true)
+end
+
+function App:rebuildCurrent()
+	if self.State.currentChannel and self.State.currentCommits then
+		self:buildCards(self.State.currentChannel, self.State.currentCommits)
+	end
+	self:updateChannelButtons()
+	self:updateBlur()
+end
+
+function App:setSettingsOpen(open)
+	if self.State.settingsOpen == open or self.State.closed then
+		return
+	end
+	self.State.settingsOpen = open
+	local overlay = self.UI.SettingsOverlay
+	local drawer = self.UI.SettingsDrawer
+	if open then
+		overlay.Visible = true
+		overlay.BackgroundTransparency = 1
+		drawer.Position = UDim2.new(1, 20, 0, 0)
+		self:tween(overlay, 0.18, { BackgroundTransparency = 0.34 })
+		self:tween(drawer, 0.24, { Position = UDim2.new(1, -374, 0, 0) }, Enum.EasingStyle.Quart)
 	else
-		bMin.Text = "-";
-		side.Visible = true;
-		main.Visible = true;
-		tw(root, opt.red and 0.1 or 0.16, {
-			Size = sz0
-		});
-	end;
-end);
-bX.MouseButton1Click:Connect(function()
-	rip(bX);
-	if blur then
+		self:tween(overlay, 0.18, { BackgroundTransparency = 1 })
+		local tween = self:tween(drawer, 0.22, { Position = UDim2.new(1, 20, 0, 0) }, Enum.EasingStyle.Quart)
+		if tween then
+			tween.Completed:Connect(function()
+				if not self.State.settingsOpen and overlay.Parent then
+					overlay.Visible = false
+				end
+			end)
+		else
+			overlay.Visible = false
+		end
+	end
+end
+
+function App:setMinimized(minimized)
+	if self.State.minimized == minimized or self.State.closed then
+		return
+	end
+	self.State.minimized = minimized
+	local root = self.UI.Root
+	local body = self.UI.Body
+	local minimizeButton = self.UI.MinimizeButton
+	if minimized then
+		minimizeButton.Text = "+"
+		self:setSettingsOpen(false)
+		local tween = self:tween(root, 0.22, { Size = UDim2.fromOffset(700, 66) }, Enum.EasingStyle.Quart)
+		if tween then
+			tween.Completed:Connect(function()
+				if self.State.minimized and body.Parent then
+					body.Visible = false
+				end
+			end)
+		else
+			body.Visible = false
+		end
+	else
+		minimizeButton.Text = "—"
+		body.Visible = true
+		self:tween(root, 0.28, { Size = UDim2.fromOffset(700, 480) }, Enum.EasingStyle.Back)
+	end
+end
+
+function App:close(instant)
+	if self.State.closed then
+		return
+	end
+	self.State.closed = true
+	self.State.requestId += 1
+	self.State.loadingId += 1
+	if type(Environment) == "table" then
+		Environment.__NA_VERSION_PICKER_CLOSE = nil
+	end
+	local function destroy()
 		pcall(function()
-			blur:Destroy();
-		end);
-	end;
-	gui:Destroy();
-end);
-bg.InputBegan:Connect(function(inp)
-	if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
-		if setP.Visible then
-			openSet(false);
-		end;
-	end;
-end);
-local function applySet()
-	ap1();
-	ap2();
-	ap3();
-	ap4();
-	ap5();
-	ap6();
-	ap7();
-	ap8();
-	ap9();
-	apA();
-	apB();
-	for _, it in chBtn do
-		it.p.Text = opt.showPath and it.ch.path or "Open versions";
-	end;
-	for _, it in items do
-		if it and it.f then
-			it.f.Size = UDim2.new(1, 0, 0, rowH());
-		end;
-	end;
-	if cur and opt.cache and cache[cur.key] then
-		cache[cur.key] = cache[cur.key];
-	end;
-	if not opt.blr and blur then
-		blur.Size = 0;
-	end;
-end;
-(setP:GetPropertyChangedSignal("Visible")):Connect(function()
-	applySet();
-end);
-applySet();
-guiii.draggerV2(root, top);
-openCh(chans.main);
-pop("Ready");
+			if self.UI.Root then
+				NAlib.disconnect("DraggerV2_" .. self.UI.Root:GetDebugId())
+			end
+		end)
+		self:disconnectAll()
+		pcall(function()
+			if self.UI.Blur then
+				self.UI.Blur:Destroy()
+			end
+		end)
+		pcall(function()
+			if self.UI.Gui then
+				self.UI.Gui:Destroy()
+			end
+		end)
+	end
+	if instant then
+		destroy()
+		return
+	end
+	self:tween(self.UI.Blur, 0.18, { Size = 0 })
+	self:tween(self.UI.Backdrop, 0.18, { BackgroundTransparency = 1 })
+	self:tween(self.UI.RootScale, 0.18, { Scale = self.UI.RootScale.Scale * 0.95 })
+	local tween = self:tween(self.UI.Root, 0.18, {
+		GroupTransparency = 1,
+		Position = UDim2.new(0.5, 0, 0.5, 10)
+	}, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+	if tween then
+		tween.Completed:Connect(destroy)
+	else
+		destroy()
+	end
+end
+
+function App:createToggle(parent, title, description, getter, setter, onChanged)
+	local row = Instance.new("Frame")
+	row.BackgroundColor3 = self.Theme.surface2
+	row.BorderSizePixel = 0
+	row.Size = UDim2.new(1, 0, 0, 58)
+	row.ZIndex = 103
+	row.Parent = parent
+	self:corner(row, 13)
+	self:stroke(row, 0.35, self.Theme.stroke)
+
+	local titleLabel = self:text(row, title, 12, "medium", self.Theme.text)
+	titleLabel.Position = UDim2.new(0, 12, 0, 8)
+	titleLabel.Size = UDim2.new(1, -82, 0, 18)
+	titleLabel.ZIndex = 104
+
+	local descriptionLabel = self:text(row, description, 10, "regular", self.Theme.dim)
+	descriptionLabel.Position = UDim2.new(0, 12, 0, 28)
+	descriptionLabel.Size = UDim2.new(1, -82, 0, 18)
+	descriptionLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	descriptionLabel.ZIndex = 104
+
+	local switch = Instance.new("TextButton")
+	switch.AutoButtonColor = false
+	switch.BackgroundColor3 = self.Theme.base
+	switch.BorderSizePixel = 0
+	switch.ClipsDescendants = true
+	switch.Position = UDim2.new(1, -58, 0.5, -15)
+	switch.Size = UDim2.fromOffset(46, 30)
+	switch.Text = ""
+	switch.ZIndex = 104
+	switch.Parent = row
+	self:corner(switch, 15)
+	local switchStroke = self:stroke(switch, 0.28, self.Theme.stroke)
+
+	local knob = Instance.new("Frame")
+	knob.BackgroundColor3 = self.Theme.white
+	knob.BorderSizePixel = 0
+	knob.Size = UDim2.fromOffset(18, 18)
+	knob.ZIndex = 105
+	knob.Parent = switch
+	self:corner(knob, 9)
+
+	local function apply(animated)
+		local enabled = getter()
+		local position = enabled and UDim2.new(1, -24, 0.5, -9) or UDim2.new(0, 6, 0.5, -9)
+		local color = enabled and self.Theme.surface3 or self.Theme.base
+		if animated then
+			self:tween(knob, 0.16, { Position = position }, Enum.EasingStyle.Back)
+			self:tween(switch, 0.16, { BackgroundColor3 = color })
+			self:tween(switchStroke, 0.16, { Transparency = enabled and 0 or 0.28 })
+		else
+			knob.Position = position
+			switch.BackgroundColor3 = color
+			switchStroke.Transparency = enabled and 0 or 0.28
+		end
+	end
+
+	apply(false)
+	self:connect(switch.MouseButton1Click, function()
+		self:pulse(switch)
+		setter(not getter())
+		apply(true)
+		if onChanged then
+			onChanged()
+		end
+	end)
+	return apply
+end
+
+function App:createStepper(parent, title, description, getter, setter)
+	local row = Instance.new("Frame")
+	row.BackgroundColor3 = self.Theme.surface2
+	row.BorderSizePixel = 0
+	row.Size = UDim2.new(1, 0, 0, 64)
+	row.ZIndex = 103
+	row.Parent = parent
+	self:corner(row, 13)
+	self:stroke(row, 0.35, self.Theme.stroke)
+
+	local titleLabel = self:text(row, title, 12, "medium", self.Theme.text)
+	titleLabel.Position = UDim2.new(0, 12, 0, 8)
+	titleLabel.Size = UDim2.new(1, -154, 0, 18)
+	titleLabel.ZIndex = 104
+
+	local descriptionLabel = self:text(row, description, 10, "regular", self.Theme.dim)
+	descriptionLabel.Position = UDim2.new(0, 12, 0, 31)
+	descriptionLabel.Size = UDim2.new(1, -154, 0, 18)
+	descriptionLabel.ZIndex = 104
+
+	local control = Instance.new("Frame")
+	control.BackgroundTransparency = 1
+	control.Position = UDim2.new(1, -142, 0.5, -17)
+	control.Size = UDim2.fromOffset(130, 34)
+	control.ZIndex = 104
+	control.Parent = row
+
+	local minus, minusStroke, minusScale = self:button(control, "−", 9)
+	minus.Position = UDim2.fromOffset(0, 0)
+	minus.Size = UDim2.fromOffset(34, 34)
+	minus.TextSize = 16
+	minus.ZIndex = 105
+	self:bindButtonMotion(minus, minusStroke, minusScale)
+
+	local valueLabel = self:text(control, tostring(getter()), 12, "bold", self.Theme.white)
+	valueLabel.TextXAlignment = Enum.TextXAlignment.Center
+	valueLabel.Position = UDim2.fromOffset(38, 0)
+	valueLabel.Size = UDim2.fromOffset(54, 34)
+	valueLabel.ZIndex = 105
+
+	local plus, plusStroke, plusScale = self:button(control, "+", 9)
+	plus.Position = UDim2.fromOffset(96, 0)
+	plus.Size = UDim2.fromOffset(34, 34)
+	plus.TextSize = 15
+	plus.ZIndex = 105
+	self:bindButtonMotion(plus, plusStroke, plusScale)
+
+	local function change(delta)
+		setter(math.clamp(getter() + delta, 10, 100))
+		valueLabel.Text = tostring(getter())
+		self.State.cache = {}
+		self:refreshCurrent()
+	end
+
+	self:connect(minus.MouseButton1Click, function()
+		self:pulse(minus)
+		change(-10)
+	end)
+	self:connect(plus.MouseButton1Click, function()
+		self:pulse(plus)
+		change(10)
+	end)
+end
+
+function App:createChannelButton(channel, order)
+	local button = Instance.new("TextButton")
+	button.AutoButtonColor = false
+	button.BackgroundColor3 = self.Theme.surface
+	button.BorderSizePixel = 0
+	button.ClipsDescendants = true
+	button.LayoutOrder = order
+	button.Size = UDim2.new(1, 0, 0, 60)
+	button.Text = ""
+	button.Parent = self.UI.ChannelList
+	self:corner(button, 13)
+	local buttonStroke = self:stroke(button, 0.48, self.Theme.stroke)
+	local buttonScale = Instance.new("UIScale")
+	buttonScale.Scale = 1
+	buttonScale.Parent = button
+
+	local indicator = Instance.new("Frame")
+	indicator.AnchorPoint = Vector2.new(0, 0.5)
+	indicator.BackgroundColor3 = self.Theme.white
+	indicator.BackgroundTransparency = 0.74
+	indicator.BorderSizePixel = 0
+	indicator.Position = UDim2.new(0, 0, 0.5, 0)
+	indicator.Size = UDim2.new(0, 3, 0, 8)
+	indicator.Parent = button
+	self:corner(indicator, 3)
+
+	local name = self:text(button, channel.name, 12, "bold", self.Theme.text)
+	name.Position = UDim2.new(0, 14, 0, 9)
+	name.Size = UDim2.new(1, -28, 0, 20)
+
+	local path = self:text(button, self.Options.showPath and channel.path or channel.label, 10, "regular", self.Theme.muted)
+	path.Position = UDim2.new(0, 14, 0, 31)
+	path.Size = UDim2.new(1, -28, 0, 17)
+	path.TextTruncate = Enum.TextTruncate.AtEnd
+
+	self:connect(button.MouseEnter, function()
+		if not self.State.currentChannel or self.State.currentChannel.key ~= channel.key then
+			self:tween(button, 0.14, { BackgroundColor3 = self.Theme.surface2 })
+		end
+		self:tween(buttonScale, 0.14, { Scale = 1.018 })
+	end)
+	self:connect(button.MouseLeave, function()
+		local selected = self.State.currentChannel and self.State.currentChannel.key == channel.key
+		self:tween(button, 0.14, { BackgroundColor3 = selected and self.Theme.surface3 or self.Theme.surface })
+		self:tween(buttonScale, 0.14, { Scale = 1 })
+	end)
+	self:connect(button.MouseButton1Click, function()
+		self:pulse(button)
+		self:openChannel(channel, false)
+	end)
+
+	table.insert(self.State.channelButtons, {
+		button = button,
+		stroke = buttonStroke,
+		indicator = indicator,
+		name = name,
+		path = path,
+		channel = channel
+	})
+end
+
+function App:createLoadingCards(parent)
+	for index = 1, 5 do
+		local card = Instance.new("CanvasGroup")
+		card.BackgroundColor3 = self.Theme.surface2
+		card.BackgroundTransparency = 0.1
+		card.BorderSizePixel = 0
+		card.GroupTransparency = 0.12
+		card.LayoutOrder = index
+		card.Size = UDim2.new(1, 0, 0, 72)
+		card.Parent = parent
+		self:corner(card, 14)
+		self:stroke(card, 0.42, self.Theme.stroke)
+
+		local shortBar = Instance.new("Frame")
+		shortBar.BackgroundColor3 = self.Theme.strokeBright
+		shortBar.BackgroundTransparency = 0.45
+		shortBar.BorderSizePixel = 0
+		shortBar.Position = UDim2.fromOffset(14, 15)
+		shortBar.Size = UDim2.fromOffset(102, 10)
+		shortBar.Parent = card
+		self:corner(shortBar, 5)
+
+		local longBar = Instance.new("Frame")
+		longBar.BackgroundColor3 = self.Theme.stroke
+		longBar.BackgroundTransparency = 0.38
+		longBar.BorderSizePixel = 0
+		longBar.Position = UDim2.fromOffset(14, 39)
+		longBar.Size = UDim2.new(1, -150 - (index % 3) * 36, 0, 9)
+		longBar.Parent = card
+		self:corner(longBar, 5)
+
+		local actionBar = Instance.new("Frame")
+		actionBar.BackgroundColor3 = self.Theme.stroke
+		actionBar.BackgroundTransparency = 0.34
+		actionBar.BorderSizePixel = 0
+		actionBar.Position = UDim2.new(1, -108, 0.5, -14)
+		actionBar.Size = UDim2.fromOffset(94, 28)
+		actionBar.Parent = card
+		self:corner(actionBar, 9)
+	end
+end
+
+function App:createUI()
+	if Lgt then
+		local existing = __lt.cm("Lighting", "FindFirstChild", "NA_VersionPicker_Blur")
+		if existing then
+			pcall(function()
+				existing:Destroy()
+			end)
+		end
+		local blur = Instance.new("BlurEffect")
+		blur.Name = "NA_VersionPicker_Blur"
+		blur.Size = 0
+		blur.Parent = Lgt
+		self.UI.Blur = blur
+	end
+
+	local gui = Instance.new("ScreenGui")
+	gui.Name = "NA_VersionPicker_Reworked"
+	gui.IgnoreGuiInset = true
+	gui.ResetOnSpawn = false
+	gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+	self.UI.Gui = gui
+	pcall(function()
+		NaProtectUI(gui)
+	end)
+
+	local backdrop = Instance.new("Frame")
+	backdrop.BackgroundColor3 = self.Theme.black
+	backdrop.BackgroundTransparency = 1
+	backdrop.BorderSizePixel = 0
+	backdrop.Size = UDim2.fromScale(1, 1)
+	backdrop.Parent = gui
+	self.UI.Backdrop = backdrop
+
+	local root = Instance.new("CanvasGroup")
+	root.AnchorPoint = Vector2.new(0.5, 0.5)
+	root.BackgroundColor3 = self.Theme.base
+	root.BorderSizePixel = 0
+	root.ClipsDescendants = true
+	root.GroupTransparency = 1
+	root.Position = UDim2.new(0.5, 0, 0.5, 12)
+	root.Size = UDim2.fromOffset(700, 480)
+	root.Parent = gui
+	self:corner(root, 20)
+	self:stroke(root, 0, self.Theme.stroke, 1)
+	self.UI.Root = root
+
+	local rootScale = Instance.new("UIScale")
+	rootScale.Scale = 0.94
+	rootScale.Parent = root
+	self.UI.RootScale = rootScale
+
+	local topbar = Instance.new("Frame")
+	topbar.BackgroundColor3 = self.Theme.surface
+	topbar.BorderSizePixel = 0
+	topbar.Size = UDim2.new(1, 0, 0, 66)
+	topbar.Parent = root
+	self.UI.Topbar = topbar
+
+	local topDivider = Instance.new("Frame")
+	topDivider.BackgroundColor3 = self.Theme.stroke
+	topDivider.BackgroundTransparency = 0.25
+	topDivider.BorderSizePixel = 0
+	topDivider.Position = UDim2.new(0, 0, 1, -1)
+	topDivider.Size = UDim2.new(1, 0, 0, 1)
+	topDivider.Parent = topbar
+
+	local logo = Instance.new("Frame")
+	logo.BackgroundColor3 = self.Theme.white
+	logo.BorderSizePixel = 0
+	logo.Position = UDim2.fromOffset(14, 13)
+	logo.Size = UDim2.fromOffset(40, 40)
+	logo.Parent = topbar
+	self:corner(logo, 12)
+
+	local logoText = self:text(logo, "NA", 13, "bold", self.Theme.black)
+	logoText.TextXAlignment = Enum.TextXAlignment.Center
+	logoText.Size = UDim2.fromScale(1, 1)
+
+	local title = self:text(topbar, "Version Picker", 15, "bold", self.Theme.white)
+	title.Position = UDim2.fromOffset(66, 11)
+	title.Size = UDim2.fromOffset(230, 22)
+
+	local subtitle = self:text(topbar, "Nameless Admin release archive", 10, "regular", self.Theme.muted)
+	subtitle.Position = UDim2.fromOffset(66, 33)
+	subtitle.Size = UDim2.fromOffset(260, 18)
+
+	local statusPill = Instance.new("Frame")
+	statusPill.BackgroundColor3 = self.Theme.surface2
+	statusPill.BorderSizePixel = 0
+	statusPill.Position = UDim2.new(1, -362, 0.5, -15)
+	statusPill.Size = UDim2.fromOffset(188, 30)
+	statusPill.Parent = topbar
+	self:corner(statusPill, 10)
+	self:stroke(statusPill, 0.34, self.Theme.stroke)
+
+	local statusDot = Instance.new("Frame")
+	statusDot.AnchorPoint = Vector2.new(0.5, 0.5)
+	statusDot.BackgroundColor3 = self.Theme.white
+	statusDot.BackgroundTransparency = 0.38
+	statusDot.BorderSizePixel = 0
+	statusDot.Position = UDim2.new(0, 15, 0.5, 0)
+	statusDot.Size = UDim2.fromOffset(6, 6)
+	statusDot.Parent = statusPill
+	self:corner(statusDot, 4)
+	self.UI.StatusDot = statusDot
+
+	local statusText = self:text(statusPill, "Ready", 10, "medium", self.Theme.muted)
+	statusText.Position = UDim2.fromOffset(27, 0)
+	statusText.Size = UDim2.new(1, -36, 1, 0)
+	statusText.TextTruncate = Enum.TextTruncate.AtEnd
+	self.UI.StatusText = statusText
+
+	local settingsButton, settingsStroke, settingsScale = self:button(topbar, "SETTINGS", 10)
+	settingsButton.Position = UDim2.new(1, -164, 0.5, -15)
+	settingsButton.Size = UDim2.fromOffset(82, 30)
+	self:bindButtonMotion(settingsButton, settingsStroke, settingsScale)
+	self.UI.SettingsButton = settingsButton
+
+	local minimizeButton, minimizeStroke, minimizeScale = self:button(topbar, "—", 10)
+	minimizeButton.Position = UDim2.new(1, -74, 0.5, -15)
+	minimizeButton.Size = UDim2.fromOffset(30, 30)
+	minimizeButton.TextSize = 15
+	self:bindButtonMotion(minimizeButton, minimizeStroke, minimizeScale)
+	self.UI.MinimizeButton = minimizeButton
+
+	local closeButton, closeStroke, closeScale = self:button(topbar, "×", 10)
+	closeButton.Position = UDim2.new(1, -38, 0.5, -15)
+	closeButton.Size = UDim2.fromOffset(30, 30)
+	closeButton.TextSize = 17
+	self:bindButtonMotion(closeButton, closeStroke, closeScale)
+	self.UI.CloseButton = closeButton
+
+	local body = Instance.new("Frame")
+	body.BackgroundTransparency = 1
+	body.Position = UDim2.new(0, 0, 0, 66)
+	body.Size = UDim2.new(1, 0, 1, -66)
+	body.Parent = root
+	self.UI.Body = body
+
+	local sidebar = Instance.new("Frame")
+	sidebar.BackgroundColor3 = self.Theme.surface
+	sidebar.BorderSizePixel = 0
+	sidebar.Position = UDim2.fromOffset(0, 0)
+	sidebar.Size = UDim2.new(0, 190, 1, 0)
+	sidebar.Parent = body
+
+	local sideDivider = Instance.new("Frame")
+	sideDivider.BackgroundColor3 = self.Theme.stroke
+	sideDivider.BackgroundTransparency = 0.25
+	sideDivider.BorderSizePixel = 0
+	sideDivider.Position = UDim2.new(1, -1, 0, 0)
+	sideDivider.Size = UDim2.new(0, 1, 1, 0)
+	sideDivider.Parent = sidebar
+
+	local channelsHeader = self:text(sidebar, "CHANNELS", 9, "bold", self.Theme.dim)
+	channelsHeader.Position = UDim2.fromOffset(14, 15)
+	channelsHeader.Size = UDim2.new(1, -28, 0, 18)
+
+	local channelList = Instance.new("Frame")
+	channelList.BackgroundTransparency = 1
+	channelList.Position = UDim2.fromOffset(12, 42)
+	channelList.Size = UDim2.new(1, -24, 0, 138)
+	channelList.Parent = sidebar
+	self.UI.ChannelList = channelList
+
+	local channelLayout = Instance.new("UIListLayout")
+	channelLayout.Padding = UDim.new(0, 8)
+	channelLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	channelLayout.Parent = channelList
+
+	local sideInfo = Instance.new("Frame")
+	sideInfo.BackgroundColor3 = self.Theme.surface2
+	sideInfo.BorderSizePixel = 0
+	sideInfo.Position = UDim2.new(0, 12, 1, -96)
+	sideInfo.Size = UDim2.new(1, -24, 0, 82)
+	sideInfo.Parent = sidebar
+	self:corner(sideInfo, 13)
+	self:stroke(sideInfo, 0.38, self.Theme.stroke)
+
+	local infoTitle = self:text(sideInfo, "Archive access", 11, "bold", self.Theme.text)
+	infoTitle.Position = UDim2.fromOffset(12, 8)
+	infoTitle.Size = UDim2.new(1, -24, 0, 18)
+
+	local infoText = self:text(sideInfo, "Search, copy, and load any published commit.", 10, "regular", self.Theme.muted)
+	infoText.Position = UDim2.fromOffset(12, 29)
+	infoText.Size = UDim2.new(1, -24, 0, 40)
+	infoText.TextWrapped = true
+	infoText.TextYAlignment = Enum.TextYAlignment.Top
+
+	local content = Instance.new("Frame")
+	content.BackgroundColor3 = self.Theme.base
+	content.BorderSizePixel = 0
+	content.Position = UDim2.fromOffset(190, 0)
+	content.Size = UDim2.new(1, -190, 1, 0)
+	content.Parent = body
+
+	local contentHeader = Instance.new("Frame")
+	contentHeader.BackgroundTransparency = 1
+	contentHeader.Position = UDim2.fromOffset(16, 12)
+	contentHeader.Size = UDim2.new(1, -32, 0, 54)
+	contentHeader.Parent = content
+
+	local channelTitle = self:text(contentHeader, "No channel selected", 16, "bold", self.Theme.white)
+	channelTitle.Position = UDim2.fromOffset(0, 0)
+	channelTitle.Size = UDim2.new(1, -100, 0, 24)
+	self.UI.ChannelTitle = channelTitle
+
+	local channelPath = self:text(contentHeader, "", 10, "regular", self.Theme.muted)
+	channelPath.Position = UDim2.fromOffset(0, 27)
+	channelPath.Size = UDim2.new(1, -100, 0, 18)
+	self.UI.ChannelPath = channelPath
+
+	local refreshButton, refreshStroke, refreshScale = self:button(contentHeader, "REFRESH", 10)
+	refreshButton.Position = UDim2.new(1, -88, 0, 5)
+	refreshButton.Size = UDim2.fromOffset(88, 34)
+	self:bindButtonMotion(refreshButton, refreshStroke, refreshScale)
+	self.UI.RefreshButton = refreshButton
+
+	local searchShell = Instance.new("Frame")
+	searchShell.BackgroundColor3 = self.Theme.surface2
+	searchShell.BorderSizePixel = 0
+	searchShell.Position = UDim2.fromOffset(16, 73)
+	searchShell.Size = UDim2.new(1, -32, 0, 40)
+	searchShell.Parent = content
+	self:corner(searchShell, 12)
+	local searchStroke = self:stroke(searchShell, 0.32, self.Theme.stroke)
+
+	local searchGlyph = self:text(searchShell, "⌕", 17, "regular", self.Theme.muted)
+	searchGlyph.TextXAlignment = Enum.TextXAlignment.Center
+	searchGlyph.Position = UDim2.fromOffset(8, 0)
+	searchGlyph.Size = UDim2.fromOffset(30, 40)
+
+	local searchBox = Instance.new("TextBox")
+	searchBox.BackgroundTransparency = 1
+	searchBox.BorderSizePixel = 0
+	searchBox.ClearTextOnFocus = false
+	searchBox.Font = Enum.Font.Gotham
+	searchBox.PlaceholderColor3 = self.Theme.dim
+	searchBox.PlaceholderText = "Search SHA, commit message, or date"
+	searchBox.Position = UDim2.fromOffset(40, 0)
+	searchBox.Size = UDim2.new(1, -96, 1, 0)
+	searchBox.Text = ""
+	searchBox.TextColor3 = self.Theme.text
+	searchBox.TextSize = 11
+	searchBox.TextXAlignment = Enum.TextXAlignment.Left
+	searchBox.Parent = searchShell
+	self.UI.SearchBox = searchBox
+
+	local resultCount = self:text(searchShell, "0", 10, "bold", self.Theme.dim)
+	resultCount.TextXAlignment = Enum.TextXAlignment.Right
+	resultCount.Position = UDim2.new(1, -50, 0, 0)
+	resultCount.Size = UDim2.fromOffset(38, 40)
+	self.UI.ResultCount = resultCount
+
+	local listViewport = Instance.new("Frame")
+	listViewport.BackgroundTransparency = 1
+	listViewport.ClipsDescendants = true
+	listViewport.Position = UDim2.fromOffset(16, 121)
+	listViewport.Size = UDim2.new(1, -32, 1, -135)
+	listViewport.Parent = content
+	self.UI.ListViewport = listViewport
+
+	local commitList = Instance.new("ScrollingFrame")
+	commitList.BackgroundTransparency = 1
+	commitList.BorderSizePixel = 0
+	commitList.CanvasSize = UDim2.fromOffset(0, 0)
+	commitList.ScrollBarImageColor3 = self.Theme.white
+	commitList.ScrollBarImageTransparency = 0.78
+	commitList.ScrollBarThickness = 2
+	commitList.Size = UDim2.fromScale(1, 1)
+	commitList.TopImage = ""
+	commitList.MidImage = ""
+	commitList.BottomImage = ""
+	commitList.Parent = listViewport
+	self:padding(commitList, 0, 4, 0, 10)
+	self.UI.CommitList = commitList
+
+	local cardLayout = Instance.new("UIListLayout")
+	cardLayout.Padding = UDim.new(0, 8)
+	cardLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	cardLayout.Parent = commitList
+	self.UI.CardLayout = cardLayout
+
+	local loadingLayer = Instance.new("Frame")
+	loadingLayer.BackgroundTransparency = 1
+	loadingLayer.Size = UDim2.fromScale(1, 1)
+	loadingLayer.Visible = false
+	loadingLayer.Parent = listViewport
+	self.UI.LoadingLayer = loadingLayer
+	self:padding(loadingLayer, 0, 4, 0, 10)
+
+	local loadingLayout = Instance.new("UIListLayout")
+	loadingLayout.Padding = UDim.new(0, 8)
+	loadingLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	loadingLayout.Parent = loadingLayer
+	self:createLoadingCards(loadingLayer)
+
+	local emptyState = Instance.new("Frame")
+	emptyState.BackgroundTransparency = 1
+	emptyState.AnchorPoint = Vector2.new(0.5, 0.5)
+	emptyState.Position = UDim2.fromScale(0.5, 0.46)
+	emptyState.Size = UDim2.fromOffset(260, 100)
+	emptyState.Visible = false
+	emptyState.Parent = listViewport
+	self.UI.EmptyState = emptyState
+
+	local emptyIcon = self:text(emptyState, "⌕", 25, "regular", self.Theme.dim)
+	emptyIcon.TextXAlignment = Enum.TextXAlignment.Center
+	emptyIcon.Position = UDim2.fromOffset(0, 0)
+	emptyIcon.Size = UDim2.new(1, 0, 0, 36)
+
+	local emptyTitle = self:text(emptyState, "No matching commits", 12, "bold", self.Theme.text)
+	emptyTitle.TextXAlignment = Enum.TextXAlignment.Center
+	emptyTitle.Position = UDim2.fromOffset(0, 38)
+	emptyTitle.Size = UDim2.new(1, 0, 0, 20)
+
+	local emptyDescription = self:text(emptyState, "Try a different SHA, message, or date.", 10, "regular", self.Theme.muted)
+	emptyDescription.TextXAlignment = Enum.TextXAlignment.Center
+	emptyDescription.Position = UDim2.fromOffset(0, 61)
+	emptyDescription.Size = UDim2.new(1, 0, 0, 18)
+
+	local toast = Instance.new("CanvasGroup")
+	toast.AnchorPoint = Vector2.new(0.5, 1)
+	toast.BackgroundColor3 = self.Theme.surface3
+	toast.BorderSizePixel = 0
+	toast.GroupTransparency = 1
+	toast.Position = UDim2.new(0.5, 0, 1, -8)
+	toast.Size = UDim2.fromOffset(300, 36)
+	toast.Visible = false
+	toast.ZIndex = 90
+	toast.Parent = root
+	self:corner(toast, 12)
+	self:stroke(toast, 0.08, self.Theme.strokeBright)
+	local toastText = self:text(toast, "", 11, "medium", self.Theme.text)
+	toastText.TextXAlignment = Enum.TextXAlignment.Center
+	toastText.Size = UDim2.fromScale(1, 1)
+	toastText.ZIndex = 91
+	self.UI.Toast = toast
+	self.UI.ToastText = toastText
+
+	local settingsOverlay = Instance.new("Frame")
+	settingsOverlay.BackgroundColor3 = self.Theme.black
+	settingsOverlay.BackgroundTransparency = 1
+	settingsOverlay.BorderSizePixel = 0
+	settingsOverlay.Size = UDim2.fromScale(1, 1)
+	settingsOverlay.Visible = false
+	settingsOverlay.ZIndex = 100
+	settingsOverlay.Parent = root
+	self.UI.SettingsOverlay = settingsOverlay
+
+	local drawer = Instance.new("Frame")
+	drawer.BackgroundColor3 = self.Theme.surface
+	drawer.BorderSizePixel = 0
+	drawer.Position = UDim2.new(1, 20, 0, 0)
+	drawer.Size = UDim2.fromOffset(374, 480)
+	drawer.ZIndex = 101
+	drawer.Parent = root
+	self:stroke(drawer, 0.05, self.Theme.strokeBright)
+	self.UI.SettingsDrawer = drawer
+
+	local drawerHeader = Instance.new("Frame")
+	drawerHeader.BackgroundTransparency = 1
+	drawerHeader.Size = UDim2.new(1, 0, 0, 62)
+	drawerHeader.ZIndex = 102
+	drawerHeader.Parent = drawer
+
+	local settingsTitle = self:text(drawerHeader, "Settings", 16, "bold", self.Theme.white)
+	settingsTitle.Position = UDim2.fromOffset(16, 10)
+	settingsTitle.Size = UDim2.new(1, -70, 0, 22)
+	settingsTitle.ZIndex = 103
+
+	local settingsSubtitle = self:text(drawerHeader, "Picker behavior and presentation", 10, "regular", self.Theme.muted)
+	settingsSubtitle.Position = UDim2.fromOffset(16, 32)
+	settingsSubtitle.Size = UDim2.new(1, -70, 0, 18)
+	settingsSubtitle.ZIndex = 103
+
+	local drawerClose, drawerCloseStroke, drawerCloseScale = self:button(drawerHeader, "×", 10)
+	drawerClose.Position = UDim2.new(1, -46, 0, 14)
+	drawerClose.Size = UDim2.fromOffset(32, 32)
+	drawerClose.TextSize = 17
+	drawerClose.ZIndex = 103
+	self:bindButtonMotion(drawerClose, drawerCloseStroke, drawerCloseScale)
+
+	local settingsList = Instance.new("ScrollingFrame")
+	settingsList.BackgroundTransparency = 1
+	settingsList.BorderSizePixel = 0
+	settingsList.Position = UDim2.new(0, 0, 0, 62)
+	settingsList.Size = UDim2.new(1, 0, 1, -62)
+	settingsList.ScrollBarImageColor3 = self.Theme.white
+	settingsList.ScrollBarImageTransparency = 0.82
+	settingsList.ScrollBarThickness = 2
+	settingsList.TopImage = ""
+	settingsList.MidImage = ""
+	settingsList.BottomImage = ""
+	settingsList.ZIndex = 102
+	settingsList.Parent = drawer
+	self:padding(settingsList, 14, 14, 8, 16)
+
+	local settingsLayout = Instance.new("UIListLayout")
+	settingsLayout.Padding = UDim.new(0, 8)
+	settingsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	settingsLayout.Parent = settingsList
+
+	self:createToggle(settingsList, "Blur background", "Softens the game behind the picker", function()
+		return self.Options.blur
+	end, function(value)
+		self.Options.blur = value
+	end, function()
+		self:updateBlur()
+	end)
+
+	self:createToggle(settingsList, "Reduce motion", "Uses shorter, simpler transitions", function()
+		return self.Options.reduceMotion
+	end, function(value)
+		self.Options.reduceMotion = value
+	end)
+
+	self:createToggle(settingsList, "Confirm before loading", "Requires a second click on LOAD", function()
+		return self.Options.confirmLoad
+	end, function(value)
+		self.Options.confirmLoad = value
+	end)
+
+	self:createToggle(settingsList, "Close after loading", "Closes the picker after a successful load", function()
+		return self.Options.autoClose
+	end, function(value)
+		self.Options.autoClose = value
+	end)
+
+	self:createToggle(settingsList, "Cache commit lists", "Reuses fetched data when switching channels", function()
+		return self.Options.cacheCommits
+	end, function(value)
+		self.Options.cacheCommits = value
+	end)
+
+	self:createToggle(settingsList, "Show file paths", "Shows the source file under each channel", function()
+		return self.Options.showPath
+	end, function(value)
+		self.Options.showPath = value
+	end, function()
+		self:updateChannelButtons()
+		if self.State.currentChannel then
+			self.UI.ChannelPath.Text = self.Options.showPath and self.State.currentChannel.path or self.State.currentChannel.label .. " channel"
+		end
+	end)
+
+	self:createToggle(settingsList, "Copy raw URL on load", "Copies the selected source URL automatically", function()
+		return self.Options.copyRaw
+	end, function(value)
+		self.Options.copyRaw = value
+	end)
+
+	self:createToggle(settingsList, "Highlight newest commit", "Adds stronger contrast to the first result", function()
+		return self.Options.highlightLatest
+	end, function(value)
+		self.Options.highlightLatest = value
+	end, function()
+		self:rebuildCurrent()
+	end)
+
+	self:createToggle(settingsList, "Compact commit cards", "Reduces card height and hides date text", function()
+		return self.Options.compactRows
+	end, function(value)
+		self.Options.compactRows = value
+	end, function()
+		self:rebuildCurrent()
+	end)
+
+	self:createToggle(settingsList, "Show commit dates", "Displays the UTC author timestamp", function()
+		return self.Options.showDate
+	end, function(value)
+		self.Options.showDate = value
+	end, function()
+		self:rebuildCurrent()
+	end)
+
+	self:createStepper(settingsList, "Commit count", "Number requested from GitHub", function()
+		return self.Options.commitCount
+	end, function(value)
+		self.Options.commitCount = value
+	end)
+
+	local clearCache, clearCacheStroke, clearCacheScale = self:button(settingsList, "CLEAR COMMIT CACHE", 12)
+	clearCache.BackgroundColor3 = self.Theme.surface2
+	clearCache.Size = UDim2.new(1, 0, 0, 42)
+	clearCache.TextColor3 = self.Theme.text
+	clearCache.ZIndex = 103
+	self:bindButtonMotion(clearCache, clearCacheStroke, clearCacheScale)
+
+	self:connect(clearCache.MouseButton1Click, function()
+		self:pulse(clearCache)
+		self.State.cache = {}
+		self:toast("Commit cache cleared")
+	end)
+
+	self:connect(settingsLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
+		settingsList.CanvasSize = UDim2.fromOffset(0, settingsLayout.AbsoluteContentSize.Y + 24)
+	end)
+	self:connect(cardLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
+		self:updateCanvas()
+	end)
+	self:connect(searchBox.Focused, function()
+		self:tween(searchStroke, 0.15, { Transparency = 0, Color = self.Theme.strokeBright })
+	end)
+	self:connect(searchBox.FocusLost, function()
+		self:tween(searchStroke, 0.15, { Transparency = 0.32, Color = self.Theme.stroke })
+	end)
+	self:connect(searchBox:GetPropertyChangedSignal("Text"), function()
+		self.State.searchSerial += 1
+		local serial = self.State.searchSerial
+		task.delay(0.08, function()
+			if serial == self.State.searchSerial and not self.State.closed then
+				self:filterCards()
+			end
+		end)
+	end)
+	self:connect(refreshButton.MouseButton1Click, function()
+		self:pulse(refreshButton)
+		self:refreshCurrent()
+	end)
+	self:connect(settingsButton.MouseButton1Click, function()
+		self:pulse(settingsButton)
+		self:setSettingsOpen(true)
+	end)
+	self:connect(drawerClose.MouseButton1Click, function()
+		self:pulse(drawerClose)
+		self:setSettingsOpen(false)
+	end)
+	self:connect(settingsOverlay.InputBegan, function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			self:setSettingsOpen(false)
+		end
+	end)
+	self:connect(minimizeButton.MouseButton1Click, function()
+		self:pulse(minimizeButton)
+		self:setMinimized(not self.State.minimized)
+	end)
+	self:connect(closeButton.MouseButton1Click, function()
+		self:pulse(closeButton)
+		self:close(false)
+	end)
+	self:connect(backdrop.InputBegan, function(input)
+		if self.State.settingsOpen and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+			self:setSettingsOpen(false)
+		end
+	end)
+
+	self:createChannelButton(self.Channels.main, 1)
+	self:createChannelButton(self.Channels.test, 2)
+
+	guiii.draggerV2(root, topbar)
+	self:updateScale()
+	if Workspace and Workspace.CurrentCamera then
+		self:connect(Workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"), function()
+			self:updateScale()
+		end)
+	end
+	if Workspace then
+		self:connect(Workspace:GetPropertyChangedSignal("CurrentCamera"), function()
+			self:updateScale()
+		end)
+	end
+end
+
+function App:start()
+	self:createUI()
+	if type(Environment) == "table" then
+		Environment.__NA_VERSION_PICKER_CLOSE = function()
+			self:close(true)
+		end
+	end
+	self:updateBlur()
+	local targetScale = self.UI.RootScale.Scale
+	self.UI.RootScale.Scale = targetScale * 0.94
+	self:tween(self.UI.Backdrop, 0.24, { BackgroundTransparency = 0.38 })
+	self:tween(self.UI.RootScale, 0.34, { Scale = targetScale }, Enum.EasingStyle.Back)
+	self:tween(self.UI.Root, 0.26, {
+		GroupTransparency = 0,
+		Position = UDim2.new(0.5, 0, 0.5, 0)
+	}, Enum.EasingStyle.Quart)
+	self:openChannel(self.Channels.main, false)
+	task.delay(0.45, function()
+		if not self.State.closed then
+			self:toast("Version archive ready")
+		end
+	end)
+end
+
+App:start()
