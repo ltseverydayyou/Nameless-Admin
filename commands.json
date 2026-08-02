@@ -104,6 +104,18 @@
       "desc": "Run code using loadstring"
     },
     {
+      "name": "scriptlogger",
+      "aliases": [
+        "scriptlogger",
+        "sslogger",
+        "securescriptslogger",
+        "securelogger"
+      ],
+      "usage": "scriptlogger [gui/console/both] (sslogger, securescriptslogger, securelogger)",
+      "args": "[gui/console/both]",
+      "desc": "Load SecureScripts Logger before running a suspicious script"
+    },
+    {
       "name": "tas",
       "aliases": [
         "tas",
@@ -338,6 +350,17 @@
       "usage": "scripthub (hub)",
       "args": "",
       "desc": "Thanks to scriptblox/rscripts API"
+    },
+    {
+      "name": "gamescripts",
+      "aliases": [
+        "gamescripts",
+        "supportedscripts",
+        "gamesupport"
+      ],
+      "usage": "gamescripts [refresh/on/off] (supportedscripts, gamesupport)",
+      "args": "[refresh/on/off]",
+      "desc": "Show scripts listed for the current game"
     },
     {
       "name": "uiscale",
