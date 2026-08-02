@@ -6645,6 +6645,28 @@
       "desc": "Restores tracked proximity prompt HoldDuration values"
     },
     {
+      "name": "fastprompts",
+      "aliases": [
+        "fastprompts",
+        "fastproximityprompts",
+        "fastpp"
+      ],
+      "usage": "fastprompts (fastproximityprompts,fastpp)",
+      "args": "",
+      "desc": "Halves proximity prompt HoldDuration values and keeps prompts 2x faster"
+    },
+    {
+      "name": "unfastprompts",
+      "aliases": [
+        "unfastprompts",
+        "unfastproximityprompts",
+        "unfastpp"
+      ],
+      "usage": "unfastprompts (unfastproximityprompts,unfastpp)",
+      "args": "",
+      "desc": "Restores tracked proximity prompt HoldDuration values"
+    },
+    {
       "name": "enableproximitypromptservice",
       "aliases": [
         "enableproximitypromptservice",
