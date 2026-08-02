@@ -19188,6 +19188,7 @@ NAmanage.jlDef = {
 	SaveChatLog = true;
 	PhysicsLog = NAmanage.jlPhys();
 	WelcomeNotif = true;
+	SupportedGameNotif = true;
 	KeybindNotif = true;
 	PluginNotif = true;
 	NotifyFollowed = false;
@@ -29505,6 +29506,184 @@ NAmanage.RunURL = function(url, noCache, chunkName)
 	NAmanage._safeLoadStart()
 	return true
 end
+
+NAStuff.ScriptCatalogUrl = "https://ltseverydayyou.github.io/scripts/catalog.json"
+NAStuff.ScriptCatalogState = type(NAStuff.ScriptCatalogState) == "table" and NAStuff.ScriptCatalogState or {
+	entries = nil;
+	notified = {};
+}
+NAStuff.ScriptCatalogState.notified = type(NAStuff.ScriptCatalogState.notified) == "table" and NAStuff.ScriptCatalogState.notified or {}
+
+NAmanage.ScriptCatalogHasId = function(ids, wanted)
+	if type(ids) ~= "table" then
+		return false
+	end
+	wanted = tostring(wanted or "")
+	if wanted == "" then
+		return false
+	end
+	for _, id in ids do
+		if tostring(id) == wanted then
+			return true
+		end
+	end
+	return false
+end
+
+NAmanage.FetchScriptCatalog = function(opts)
+	opts = type(opts) == "table" and opts or {}
+	const state = NAStuff.ScriptCatalogState
+	if opts.refresh ~= true and type(state.entries) == "table" then
+		return true, state.entries
+	end
+
+	const cacheMinute = math.floor(os.time() / 60)
+	const url = NAStuff.ScriptCatalogUrl.."?_na="..tostring(cacheMinute)
+	local okFetch, body, fetchErr = NAmanage.HttpGet(url, {
+		maxAttempts = 3;
+		timeout = 8;
+		Headers = {
+			Accept = "application/json";
+			["Cache-Control"] = "no-cache";
+		};
+	})
+	if not okFetch or type(body) ~= "string" or body == "" then
+		return false, tostring(fetchErr or "catalog request failed")
+	end
+
+	local okDecode, catalog = pcall(HttpService.JSONDecode, HttpService, body)
+	if not okDecode or type(catalog) ~= "table" or catalog.schemaVersion ~= 1 or type(catalog.scripts) ~= "table" then
+		return false, "invalid catalog response"
+	end
+
+	const entries = {}
+	for _, entry in catalog.scripts do
+		if type(entry) == "table"
+			and type(entry.id) == "string"
+			and type(entry.name) == "string"
+			and type(entry.scriptUrl) == "string"
+			and entry.status == "supported" then
+			Insert(entries, entry)
+		end
+	end
+	state.entries = entries
+	state.loadedAt = os.time()
+	return true, entries
+end
+
+NAmanage.GetSupportedGameScripts = function(entries)
+	entries = type(entries) == "table" and entries or NAStuff.ScriptCatalogState.entries
+	if type(entries) ~= "table" then
+		return {}
+	end
+
+	const gameId = tostring((game and game.GameId) or GameId or "")
+	const placeId = tostring((game and game.PlaceId) or PlaceId or "")
+	const matches = {}
+	for _, entry in entries do
+		if NAmanage.ScriptCatalogHasId(entry.universeIds, gameId) then
+			Insert(matches, entry)
+		end
+	end
+	if #matches == 0 then
+		for _, entry in entries do
+			if NAmanage.ScriptCatalogHasId(entry.placeIds, placeId) then
+				Insert(matches, entry)
+			end
+		end
+	end
+	table.sort(matches, function(a, b)
+		return Lower(a.name) < Lower(b.name)
+	end)
+	return matches
+end
+
+NAmanage.ShowSupportedGameScripts = function(opts)
+	opts = type(opts) == "table" and opts or {}
+	local okCatalog, entriesOrErr = NAmanage.FetchScriptCatalog({ refresh = opts.refresh == true })
+	if not okCatalog then
+		DoNotif("Could not load the script catalog: "..tostring(entriesOrErr), 5, "Supported Game Scripts")
+		return false
+	end
+
+	const matches = NAmanage.GetSupportedGameScripts(entriesOrErr)
+	if #matches == 0 then
+		DoNotif("No supported scripts are listed for this game.", 4, "Supported Game Scripts")
+		return false
+	end
+
+	const buttons = {}
+	for _, entry in matches do
+		const selectedEntry = entry
+		Insert(buttons, {
+			Text = selectedEntry.name;
+			Callback = function()
+				local okRun, runErr = NAmanage.RunURL(selectedEntry.scriptUrl, true, "@NA-Catalog/"..selectedEntry.id)
+				if okRun then
+					DoNotif("Queued "..selectedEntry.name..".", 3, "Supported Game Scripts")
+				else
+					DoNotif("Could not run "..selectedEntry.name..": "..tostring(runErr), 5, "Supported Game Scripts")
+				end
+			end;
+		})
+	end
+
+	Window({
+		Title = "Supported Game Scripts";
+		Description = Format("%d supported %s available for this game. Select one to run it.", #matches, #matches == 1 and "script is" or "scripts are");
+		Buttons = buttons;
+	})
+	return true, matches
+end
+
+NAmanage.NotifySupportedGameScripts = function(opts)
+	opts = type(opts) == "table" and opts or {}
+	if NAmanage.jlCfg and NAmanage.jlCfg.SupportedGameNotif == false and opts.force ~= true then
+		return false
+	end
+
+	local okCatalog, entriesOrErr = NAmanage.FetchScriptCatalog({ refresh = opts.refresh == true })
+	if not okCatalog then
+		return false, entriesOrErr
+	end
+	const matches = NAmanage.GetSupportedGameScripts(entriesOrErr)
+	if #matches == 0 then
+		return false, "no matches"
+	end
+
+	const state = NAStuff.ScriptCatalogState
+	const gameKey = tostring((game and game.GameId) or GameId or "")..":"..tostring((game and game.PlaceId) or PlaceId or "")
+	if opts.force ~= true and state.notified[gameKey] then
+		return false, "already notified"
+	end
+	state.notified[gameKey] = true
+
+	const names = {}
+	for index = 1, math.min(#matches, 3) do
+		Insert(names, matches[index].name)
+	end
+	local description = Concat(names, ", ")
+	if #matches > #names then
+		description ..= Format(" and %d more", #matches - #names)
+	end
+	description = Format("%d supported %s available: %s", #matches, #matches == 1 and "script is" or "scripts are", description)
+
+	DoNotif({
+		Title = "Supported Game Scripts";
+		Description = description;
+		Duration = 10;
+		Buttons = {
+			{
+				Text = "View Scripts";
+				Callback = function()
+					NAmanage.ShowSupportedGameScripts()
+				end;
+			};
+		};
+	})
+	return true, matches
+end
+
 NAmanage.ExecutorScriptsSanitizeName = function(name)
 	name = tostring(name or "")
 	name = name:gsub('[\\/:*?"<>|]', "")
@@ -43754,6 +43933,100 @@ cmd.add({"loadstring", "ls", "lstring", "loads", "execute"}, {"loadstring <code>
 	end
 end, true)
 
+NAStuff.SecureScriptsLoggerUrl = "https://sirmemegithub.com/RealSlimShady2000/SecureScriptsLogger/raw/branch/main/logger.lua"
+
+NAmanage.IsSecureScriptsLoggerActive = function()
+	if rawget(_na_env, "__NA_SS_LOGGER_LOADED") == true then
+		return true
+	end
+	for _, target in { _na_env, _na_shared, _na_boot.runtimeEnv, _na_boot.hostEnv } do
+		if type(target) == "table" and rawget(target, "__SS_LOGGER_ACTIVE") == true then
+			return true
+		end
+	end
+	return false
+end
+
+NAmanage.ClearSecureScriptsLoggerConfig = function()
+	for _, target in { _na_env, _na_shared, _na_boot.runtimeEnv, _na_boot.hostEnv } do
+		if type(target) == "table" then
+			pcall(function()
+				target.SS_LOGGER_CONFIG = nil
+			end)
+		end
+	end
+end
+
+NAmanage.LoadSecureScriptsLogger = function(mode)
+	mode = Lower(tostring(mode or ""))
+	if mode == "" then
+		mode = "gui"
+	end
+	if mode ~= "gui" and mode ~= "console" and mode ~= "both" then
+		return false, "Usage: scriptlogger [gui/console/both]"
+	end
+	if NAmanage.IsSecureScriptsLoggerActive() then
+		return false, "SecureScripts Logger is already active."
+	end
+
+	const config = {
+		mode = mode;
+		toggleKey = "RightShift";
+		blockRPC = true;
+	}
+	for _, target in { _na_env, _na_shared, _na_boot.runtimeEnv, _na_boot.hostEnv } do
+		if type(target) == "table" then
+			pcall(function()
+				target.SS_LOGGER_CONFIG = config
+			end)
+		end
+	end
+
+	local okSource, source = pcall(_na_boot.httpGet, NAStuff.SecureScriptsLoggerUrl, {
+		maxAttempts = 5;
+		timeout = 12;
+	})
+	if not okSource or type(source) ~= "string" or source == "" then
+		NAmanage.ClearSecureScriptsLoggerConfig()
+		return false, "Failed to download SecureScripts Logger: "..tostring(source)
+	end
+
+	const loader = loadstring or load
+	if type(loader) ~= "function" then
+		NAmanage.ClearSecureScriptsLoggerConfig()
+		return false, "loadstring is unavailable."
+	end
+
+	local compiled, compileErr = loader(source, "@SecureScriptsLogger.lua")
+	source = nil
+	if type(compiled) ~= "function" then
+		NAmanage.ClearSecureScriptsLoggerConfig()
+		return false, "Failed to compile SecureScripts Logger: "..tostring(compileErr)
+	end
+
+	local okRun, runErr = pcall(compiled)
+	NAmanage.ClearSecureScriptsLoggerConfig()
+	if not okRun then
+		return false, "SecureScripts Logger failed: "..tostring(runErr)
+	end
+
+	_na_env.__NA_SS_LOGGER_LOADED = true
+	return true, mode
+end
+
+cmd.add({"scriptlogger", "sslogger", "securescriptslogger", "securelogger"}, {"scriptlogger [gui/console/both] (sslogger, securescriptslogger, securelogger)", "Load SecureScripts Logger before running a suspicious script"}, function(mode)
+	local ok, result = NAmanage.LoadSecureScriptsLogger(mode)
+	if not ok then
+		return DoNotif(result, 4, "SecureScripts Logger")
+	end
+
+	local message = "SecureScripts Logger is active in "..result.." mode. Its hooks remain active until you rejoin."
+	if result ~= "console" then
+		message ..= " Press RightShift to toggle its GUI."
+	end
+	DoNotif(message, 6, "SecureScripts Logger")
+end)
+
 NAStuff.TASCreatorUrl = "https://raw.githubusercontent.com/tomatotxt/TAS-Creator/main/script.luau"
 
 NAmanage.BuildTASCreatorSource = function(source)
@@ -45229,6 +45502,22 @@ end)
 
 cmd.add({"scripthub","hub"},{"scripthub (hub)","Thanks to scriptblox/rscripts API"},function()
 	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/ScriptHubNA.lua")
+end)
+
+cmd.add({"gamescripts", "supportedscripts", "gamesupport"}, {"gamescripts [refresh/on/off] (supportedscripts, gamesupport)", "Show scripts listed for the current game"}, function(mode)
+	mode = Lower(tostring(mode or ""))
+	if mode == "on" or mode == "enable" then
+		NAmanage.jlCfg.SupportedGameNotif = true
+		NAmanage.jlSave()
+		DoNotif("Supported game alerts enabled.", 3, "Supported Game Scripts")
+		return NAmanage.NotifySupportedGameScripts({ force = true })
+	elseif mode == "off" or mode == "disable" then
+		NAmanage.jlCfg.SupportedGameNotif = false
+		NAmanage.jlSave()
+		DoNotif("Supported game alerts disabled.", 3, "Supported Game Scripts")
+		return
+	end
+	NAmanage.ShowSupportedGameScripts({ refresh = mode == "refresh" })
 end)
 
 local scaleFrame = nil
@@ -126094,6 +126383,12 @@ SpawnCall(function()
 			DoNotif(notifBody, 6, rngMsg().." "..nameCheck)
 		end
 
+		if NAmanage.jlCfg.SupportedGameNotif ~= false and not (type(NAmanage.isStartupHidden) == "function" and NAmanage.isStartupHidden() == true) then
+			SpawnCall(function()
+				NAmanage.NotifySupportedGameScripts()
+			end)
+		end
+
 		if not FileSupport then
 			--warn("NAWWW NO FILE SUPPORT???????")
 			Window({
@@ -138662,6 +138957,17 @@ NAgui.addToggle("Show Welcome Notification", NAmanage.jlCfg.WelcomeNotif ~= fals
 	NAmanage.jlCfg.WelcomeNotif = v and true or false
 	NAmanage.jlSave()
 	DoNotif("Welcome notification "..(v and "enabled" or "disabled"), 2)
+end)
+
+NAgui.addToggle("Supported Game Alerts", NAmanage.jlCfg.SupportedGameNotif ~= false, function(v)
+	NAmanage.jlCfg.SupportedGameNotif = v and true or false
+	NAmanage.jlSave()
+	DoNotif("Supported game alerts "..(v and "enabled" or "disabled"), 2)
+	if v then
+		SpawnCall(function()
+			NAmanage.NotifySupportedGameScripts({ force = true })
+		end)
+	end
 end)
 
 NAgui.addToggle("Show Keybind Prefix Reminder", NAmanage.jlCfg.KeybindNotif ~= false, function(v)
