@@ -52491,6 +52491,163 @@ cmd.add({"stoptrackstaff", "untrackstaff", "unstaffwatch"}, {"stoptrackstaff (un
 	DoNotif("Tracking disabled", 3, "Staffwatch")
 end)
 
+NAStuff.AntiStaffState = NAStuff.AntiStaffState or {
+	active = false;
+	mode = "serverhop";
+	triggered = false;
+	token = 0;
+}
+
+NAmanage.AntiStaffNormalizeMode = function(mode)
+	const normalized = Lower(tostring(mode or "")):gsub("[%s_%-%+]+", "")
+	if normalized == "" or normalized == "serverhop" or normalized == "hop" or normalized == "shop" or normalized == "advanced" or normalized == "advancedserverhop" then
+		return "serverhop"
+	end
+	if normalized == "leave" or normalized == "exit" or normalized == "shutdown" then
+		return "leave"
+	end
+	return nil
+end
+
+NAmanage.AntiStaffStop = function()
+	NAlib.disconnect("antiStaffNotifier")
+	local state = NAStuff.AntiStaffState
+	if type(state) ~= "table" then
+		state = { active = false; mode = "serverhop"; triggered = false; token = 0; }
+		NAStuff.AntiStaffState = state
+	end
+	state.active = false
+	state.triggered = false
+	state.token = (tonumber(state.token) or 0) + 1
+end
+
+NAmanage.AntiStaffAct = function(player, info)
+	const state = NAStuff.AntiStaffState
+	if type(state) ~= "table" or state.active ~= true or state.triggered == true then
+		return false
+	end
+
+	state.triggered = true
+	const token = tonumber(state.token) or 0
+	local role = type(info) == "table" and tostring(info.Role or "Staff") or "Staff"
+	if role == "" or role == "Guest" then
+		role = "Staff"
+	end
+	const detectedName = nameChecker(player)
+
+	if state.mode == "leave" then
+		DoNotif("Staff detected: "..detectedName.." ("..role.."). Leaving server.", 6, "Anti Staff")
+		local exited = false
+		if cmd and type(cmd.run) == "function" then
+			exited = pcall(function()
+				cmd.run({"exit"})
+			end)
+		end
+		if not exited then
+			exited = pcall(function()
+				game:Shutdown()
+			end)
+		end
+		if not exited and LocalPlayer then
+			pcall(function()
+				LocalPlayer:Kick("\n\nAnti Staff\nStaff detected: "..detectedName.." ("..role..")\n")
+			end)
+		end
+		return true
+	end
+
+	DoNotif("Staff detected: "..detectedName.." ("..role.."). Starting advanced serverhop.", 6, "Anti Staff")
+	Spawn(function()
+		local ok, success, reason = pcall(function()
+			if type(NAmanage.ServerhopAdvanced) ~= "function" then
+				return false, "advanced serverhop is unavailable"
+			end
+			return NAmanage.ServerhopAdvanced()
+		end)
+		if not ok then
+			reason = success
+			success = false
+		end
+		if success ~= true and state.active == true and (tonumber(state.token) or 0) == token then
+			state.triggered = false
+			DoNotif("Advanced serverhop failed"..(reason and (": "..tostring(reason)) or "")..". Monitoring remains enabled.", 5, "Anti Staff")
+		end
+	end)
+	return true
+end
+
+NAmanage.AntiStaffHandlePlayer = function(player)
+	if typeof(player) ~= "Instance" or not player:IsA("Player") or not player.Parent then
+		return false
+	end
+	if player == LocalPlayer and NAStuff.StaffwatchIgnoreLocal ~= false then
+		return false
+	end
+	local ok, info = pcall(groupRole, player)
+	if not ok or type(info) ~= "table" or info.IsStaff ~= true then
+		return false
+	end
+	return NAmanage.AntiStaffAct(player, info)
+end
+
+NAmanage.AntiStaffStart = function(mode)
+	const normalizedMode = NAmanage.AntiStaffNormalizeMode(mode)
+	if not normalizedMode then
+		DoNotif("Usage: antistaff [leave/serverhop]", 4, "Anti Staff")
+		return false
+	end
+
+	NAmanage.AntiStaffStop()
+	if game.CreatorType ~= Enum.CreatorType.Group then
+		DoNotif("Game is not owned by a Group", 4, "Anti Staff")
+		return false
+	end
+
+	const state = NAStuff.AntiStaffState
+	state.active = true
+	state.mode = normalizedMode
+	state.triggered = false
+	state.token = (tonumber(state.token) or 0) + 1
+	const token = state.token
+
+	NAlib.connect("antiStaffNotifier", Players.PlayerAdded:Connect(function(player)
+		Spawn(function()
+			if state.active == true and state.token == token and state.triggered ~= true then
+				NAmanage.AntiStaffHandlePlayer(player)
+			end
+		end)
+	end))
+
+	Spawn(function()
+		const players = Players:GetPlayers()
+		for index, player in players do
+			if state.active ~= true or state.token ~= token or state.triggered == true then
+				return
+			end
+			if NAmanage.AntiStaffHandlePlayer(player) then
+				return
+			end
+			if index % 2 == 0 or IsOnMobile == true then
+				Wait()
+			end
+		end
+		if state.active == true and state.token == token and state.triggered ~= true then
+			const actionText = normalizedMode == "leave" and "leave" or "advanced serverhop"
+			DoNotif("Enabled - will "..actionText.." when staff is detected.", 4, "Anti Staff")
+		end
+	end)
+	return true
+end
+
+cmd.add({"antistaff", "staffescape", "staffavoid"}, {"antistaff [leave/serverhop] (staffescape, staffavoid)", "Automatically leave or advanced-serverhop when staff is detected"}, function(mode)
+	NAmanage.AntiStaffStart(mode)
+end)
+
+cmd.add({"unantistaff", "unstaffescape", "unstaffavoid"}, {"unantistaff (unstaffescape, unstaffavoid)", "Disable automatic staff avoidance"}, function()
+	NAmanage.AntiStaffStop()
+	DoNotif("Disabled", 3, "Anti Staff")
+end)
+
 NAStuff.Rewind = NAStuff.Rewind or {
 	Enabled = false;
 	Key = Enum.KeyCode.R;
@@ -67146,28 +67303,56 @@ NAStuff.srv.scan = function(self, mode)
 	return id, bp, bg
 end
 
-cmd.add({"serverhop","shop"},{"serverhop (shop)","serverhop"},function()
-	Wait()
+NAmanage.ServerhopDefault = function()
+	DebugNotif("Teleporting (default)")
+	local ok, err = pcall(function()
+		__lt.cm("TeleportService", "Teleport", PlaceId)
+	end)
+	if not ok then
+		DebugNotif("Teleport failed: "..tostring(err or "?"))
+		return false, err
+	end
+	return true
+end
 
-	const function defaultHop()
-		DebugNotif("Teleporting (default)")
-		local ok, err = pcall(function()
-			__lt.cm("TeleportService", "Teleport", PlaceId)
-		end)
-		if not ok then
-			DebugNotif("Teleport failed: "..tostring(err or "?"))
-		end
+NAmanage.ServerhopAdvanced = function()
+	DebugNotif("Searching")
+	if type(NAStuff.srv) ~= "table" or type(NAStuff.srv.scan) ~= "function" then
+		DebugNotif("Advanced serverhop is unavailable")
+		return false, "advanced serverhop is unavailable"
 	end
 
-	const function advancedHop()
-		DebugNotif("Searching")
-		local id, pl = NAStuff.srv:scan("high")
-		if id then
-			DebugNotif("serverhopping | Player Count: "..tostring(pl or "?"))
-			__lt.cm("TeleportService", "TeleportToPlaceInstance", PlaceId, id)
-		else
-			DebugNotif("No server found")
-		end
+	local id, pl = NAStuff.srv:scan("high")
+	if not id then
+		DebugNotif("No server found")
+		return false, "no server found"
+	end
+
+	DebugNotif("serverhopping | Player Count: "..tostring(pl or "?"))
+	local ok, err = pcall(function()
+		__lt.cm("TeleportService", "TeleportToPlaceInstance", PlaceId, id)
+	end)
+	if not ok then
+		DebugNotif("Teleport failed: "..tostring(err or "?"))
+		return false, err
+	end
+	return true, id, pl
+end
+
+cmd.add({"serverhop","shop"},{"serverhop [default/advanced] (shop)","serverhop"},function(method)
+	Wait()
+	const normalizedMethod = Lower(tostring(method or "")):gsub("[%s_%-%+]+", "")
+	if normalizedMethod == "default" then
+		NAmanage.ServerhopDefault()
+		return
+	end
+	if normalizedMethod == "advanced" or normalizedMethod == "high" then
+		NAmanage.ServerhopAdvanced()
+		return
+	end
+	if normalizedMethod ~= "" then
+		DoNotif("Usage: serverhop [default/advanced]", 4, "Serverhop")
+		return
 	end
 
 	const show = Window or DoWindow
@@ -67176,12 +67361,12 @@ cmd.add({"serverhop","shop"},{"serverhop (shop)","serverhop"},function()
 			Title = "Serverhop",
 			Description = "Choose a serverhop method.",
 			Buttons = {
-				{ Text = "Default",  Callback = defaultHop },
-				{ Text = "Advanced", Callback = advancedHop },
+				{ Text = "Default", Callback = NAmanage.ServerhopDefault },
+				{ Text = "Advanced", Callback = NAmanage.ServerhopAdvanced },
 			},
 		})
 	else
-		advancedHop()
+		NAmanage.ServerhopAdvanced()
 	end
 end)
 
