@@ -1092,6 +1092,28 @@
       "desc": "Stop tracking staff members"
     },
     {
+      "name": "antistaff",
+      "aliases": [
+        "antistaff",
+        "staffescape",
+        "staffavoid"
+      ],
+      "usage": "antistaff [leave/serverhop] (staffescape, staffavoid)",
+      "args": "[leave/serverhop]",
+      "desc": "Automatically leave or advanced-serverhop when staff is detected"
+    },
+    {
+      "name": "unantistaff",
+      "aliases": [
+        "unantistaff",
+        "unstaffescape",
+        "unstaffavoid"
+      ],
+      "usage": "unantistaff (unstaffescape, unstaffavoid)",
+      "args": "",
+      "desc": "Disable automatic staff avoidance"
+    },
+    {
       "name": "rewind",
       "aliases": [
         "rewind"
@@ -3796,8 +3818,8 @@
         "serverhop",
         "shop"
       ],
-      "usage": "serverhop (shop)",
-      "args": "",
+      "usage": "serverhop [default/advanced] (shop)",
+      "args": "[default/advanced]",
       "desc": "serverhop"
     },
     {
