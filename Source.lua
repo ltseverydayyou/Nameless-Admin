@@ -52637,6 +52637,9 @@ NAStuff.Rewind = NAStuff.Rewind or {
 	IsRewinding = false;
 	LastCharacter = nil;
 	AnimateOriginalDisabled = nil;
+	MobileActive = false;
+	MobileGui = nil;
+	MobileButton = nil;
 }
 
 NAmanage.RewindState = function()
@@ -52651,7 +52654,92 @@ NAmanage.RewindState = function()
 	if type(state.History) ~= "table" then
 		state.History = {}
 	end
+	state.MobileActive = state.MobileActive == true
+	if typeof(state.MobileGui) ~= "Instance" then
+		state.MobileGui = nil
+	end
+	if typeof(state.MobileButton) ~= "Instance" then
+		state.MobileButton = nil
+	end
 	return state
+end
+
+NAmanage.RewindSyncMobileButton = function()
+	const state = NAmanage.RewindState()
+	const button = state.MobileButton
+	if typeof(button) ~= "Instance" or not button.Parent then
+		return
+	end
+	const active = state.MobileActive == true
+	button.Text = active and "STOP" or "REW"
+	button.BackgroundColor3 = active and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(30, 30, 30)
+end
+
+NAmanage.RewindSetMobileActive = function(active)
+	const state = NAmanage.RewindState()
+	state.MobileActive = active == true and state.Enabled == true
+	NAmanage.RewindSyncMobileButton()
+end
+
+NAmanage.RewindDestroyMobileButton = function()
+	const state = NAmanage.RewindState()
+	state.MobileActive = false
+	if typeof(state.MobileGui) == "Instance" then
+		pcall(function()
+			state.MobileGui:Destroy()
+		end)
+	end
+	state.MobileGui = nil
+	state.MobileButton = nil
+end
+
+NAmanage.RewindCreateMobileButton = function()
+	if not IsOnMobile then
+		return
+	end
+	NAmanage.RewindDestroyMobileButton()
+	const state = NAmanage.RewindState()
+	const gui = InstanceNew("ScreenGui")
+	const button = InstanceNew("TextButton")
+	const corner = InstanceNew("UICorner")
+	const aspect = InstanceNew("UIAspectRatioConstraint")
+
+	NAgui.NaProtectUI(gui)
+	gui.Name = "NARewindMobile"
+	gui.ResetOnSpawn = false
+
+	button.Name = "RewindMainButton"
+	button.Parent = gui
+	button.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+	button.BackgroundTransparency = 0.1
+	button.Position = UDim2.new(0.8, 0, 0.5, 0)
+	button.Size = UDim2.new(0.08, 0, 0.1, 0)
+	button.Font = Enum.Font.GothamBold
+	button.Text = "REW"
+	button.TextColor3 = Color3.fromRGB(255, 255, 255)
+	button.TextSize = 18
+	button.TextWrapped = true
+	button.Active = true
+	button.TextScaled = true
+
+	corner.CornerRadius = UDim.new(0.2, 0)
+	corner.Parent = button
+
+	aspect.Parent = button
+	aspect.AspectRatio = 1
+
+	state.MobileGui = gui
+	state.MobileButton = button
+
+	MouseButtonFix(button, function()
+		if state.Enabled ~= true then
+			return
+		end
+		NAmanage.RewindSetMobileActive(state.MobileActive ~= true)
+	end)
+
+	NAgui.draggerV2(button)
+	NAmanage.RewindSyncMobileButton()
 end
 
 NAmanage.RewindClearHistory = function()
@@ -52812,6 +52900,7 @@ NAmanage.RewindStep = function()
 
 	if char ~= state.LastCharacter then
 		NAmanage.RewindStopPlayback(state.LastCharacter, nil)
+		NAmanage.RewindSetMobileActive(false)
 		state.LastCharacter = char
 		state.IsRewinding = false
 		state.AnimateOriginalDisabled = nil
@@ -52830,13 +52919,14 @@ NAmanage.RewindStep = function()
 		if state.IsRewinding then
 			NAmanage.RewindStopPlayback(char, hum)
 		end
+		NAmanage.RewindSetMobileActive(false)
 		NAmanage.RewindClearHistory()
 		return
 	end
 
 	const inputActive = NAmanage.isAnyNAInputActive and NAmanage.isAnyNAInputActive()
-	local keyDown = false
-	if not inputActive then
+	local keyDown = state.MobileActive == true
+	if not keyDown and not inputActive then
 		local okKey, down = pcall(function()
 			return __lt.cm("UserInputService", "IsKeyDown", state.Key)
 		end)
@@ -52846,14 +52936,20 @@ NAmanage.RewindStep = function()
 	if keyDown then
 		state.IsRewinding = true
 		NAmanage.RewindSetAnimate(char, true)
+		local foundSnapshot = false
 		for i = 1, state.Speed do
 			const snapshot = table.remove(state.History, #state.History)
 			if not snapshot then
 				break
 			end
+			foundSnapshot = true
 			if i == state.Speed or #state.History == 0 then
 				NAmanage.RewindApplySnapshot(state, char, root, snapshot)
 			end
+		end
+		if not foundSnapshot and state.MobileActive == true then
+			NAmanage.RewindSetMobileActive(false)
+			NAmanage.RewindStopPlayback(char, hum)
 		end
 		return
 	end
@@ -52892,23 +52988,32 @@ NAmanage.RewindStart = function(secondsArg)
 	state.Enabled = true
 	state.IsRewinding = false
 	state.AnimateOriginalDisabled = nil
+	state.MobileActive = false
 	NAmanage.RewindClearHistory()
 	NAlib.reconnect("NARewind", RunService.Heartbeat:Connect(NAmanage.RewindStep))
-	DebugNotif(("Rewind enabled. Hold %s to rewind. Capture: %ds. Speed: %dx."):format(state.Key.Name, state.Seconds, state.Speed), 4, "Rewind")
+	if IsOnMobile then
+		NAmanage.RewindCreateMobileButton()
+		DebugNotif(("Rewind enabled. Tap REW to start or stop rewinding. Capture: %ds. Speed: %dx."):format(state.Seconds, state.Speed), 4, "Rewind")
+	else
+		NAmanage.RewindDestroyMobileButton()
+		DebugNotif(("Rewind enabled. Hold %s to rewind. Capture: %ds. Speed: %dx."):format(state.Key.Name, state.Seconds, state.Speed), 4, "Rewind")
+	end
 end
 
 NAmanage.RewindStop = function(showNotif)
 	const state = NAmanage.RewindState()
 	state.Enabled = false
+	NAmanage.RewindSetMobileActive(false)
 	NAmanage.RewindStopPlayback(getChar(), getHum())
 	NAmanage.RewindClearHistory()
+	NAmanage.RewindDestroyMobileButton()
 	NAlib.disconnect("NARewind")
 	if showNotif ~= false then
 		DebugNotif("Rewind disabled.", 3, "Rewind")
 	end
 end
 
-cmd.add({"rewind"}, {"rewind [seconds]", "Enable hold-R rewind using NA's runtime state"}, function(secondsArg)
+cmd.add({"rewind"}, {"rewind [seconds]", "Enable rewind with hold-R on PC or a draggable mobile button"}, function(secondsArg)
 	NAmanage.RewindStart(secondsArg)
 end)
 
