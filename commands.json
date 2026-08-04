@@ -1120,7 +1120,7 @@
       ],
       "usage": "rewind [seconds]",
       "args": "[seconds]",
-      "desc": "Enable hold-R rewind using NA's runtime state"
+      "desc": "Enable rewind with hold-R on PC or a draggable mobile button"
     },
     {
       "name": "unrewind",
