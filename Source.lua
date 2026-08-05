@@ -19945,6 +19945,38 @@ NAmanage.NASettingsGetSchema=function()
 				return "PostSimulation"
 			end;
 		};
+		autoInteractMethod = {
+			default = "PostSimulation";
+			coerce = function(value)
+				local v = type(value) == "string" and value or tostring(value or "")
+				v = v:match("^%s*(.-)%s*$") or v
+				const l = v:lower():gsub("[%s_%-]", "")
+				if l == "presimulation" then
+					return "PreSimulation"
+				elseif l == "renderstepped" then
+					return "RenderStepped"
+				elseif l == "heartbeat" then
+					return "Heartbeat"
+				end
+				return "PostSimulation"
+			end;
+		};
+		autoFireRemoteMethod = {
+			default = "PostSimulation";
+			coerce = function(value)
+				local v = type(value) == "string" and value or tostring(value or "")
+				v = v:match("^%s*(.-)%s*$") or v
+				const l = v:lower():gsub("[%s_%-]", "")
+				if l == "presimulation" then
+					return "PreSimulation"
+				elseif l == "renderstepped" then
+					return "RenderStepped"
+				elseif l == "heartbeat" then
+					return "Heartbeat"
+				end
+				return "PostSimulation"
+			end;
+		};
 		managementAutoRefresh = {
 			default = false;
 			coerce = function(value)
@@ -20225,6 +20257,30 @@ NAmanage.NASettingsGetSchema=function()
 			end;
 		};
 		cmdIntegrationAutoRun = {
+			default = false;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
+			end;
+		};
+		cmdIntegrationRoutingMode = {
+			default = "NA First";
+			coerce = function(value)
+				return NAmanage.CmdIntegrationNormalizeMode(value)
+			end;
+		};
+		cmdIntegrationExposeGateway = {
+			default = true;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
+			end;
+		};
+		cmdIntegrationUseNotifications = {
+			default = true;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
+			end;
+		};
+		cmdIntegrationMirrorNotifications = {
 			default = false;
 			coerce = function(value)
 				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
@@ -20650,6 +20706,16 @@ NAmanage.NASettingsGetSchema=function()
 			end;
 		};
 		autoInteractDefaultInterval = {
+			default = 0.1;
+			coerce = function(value)
+				local n = tonumber(value)
+				if not n then return 0.1 end
+				if n < 0 then n = 0 end
+				if n > 1 then n = 1 end
+				return math.floor((n * 100) + 0.5) / 100
+			end;
+		};
+		autoFireRemoteDefaultInterval = {
 			default = 0.1;
 			coerce = function(value)
 				local n = tonumber(value)
@@ -135121,6 +135187,30 @@ do
 		return ordered, moreButton
 	end
 
+	const function layoutButtons(buttons, morePosition, layout)
+		local ordered, moreButton = orderButtons(buttons, morePosition)
+		if layout ~= "Menu + Chat + Voice" then
+			return ordered, moreButton
+		end
+		const joined = {}
+		const separated = {}
+		for _, button in ordered do
+			const role = classifyButton(button)
+			if role == "chat" or role == "voice" then
+				joined[#joined + 1] = button
+			else
+				separated[#separated + 1] = button
+			end
+		end
+		if #joined == 0 then
+			return ordered, moreButton
+		end
+		for _, button in separated do
+			joined[#joined + 1] = button
+		end
+		return joined, moreButton
+	end
+
 	const function getOwnedHelper(map, target, className, name)
 		local helper = map[target]
 		if helper and helper.Parent == target then
@@ -135168,16 +135258,20 @@ do
 		end
 	end
 
-	const function ensureLayout(targets, desired, ordered, buttonSize, gap)
+	const function ensureLayout(targets, desired, ordered, buttonSize, gap, menuGap, layout)
 		if not targets.buttonContainer then
 			return
 		end
 		const sidePadding = 4
+		local startX = sidePadding
+		if (layout == "All Unified" or layout == "Menu + Chat + Voice") and targets.menuHit then
+			startX = math.floor(targets.menuHit.AbsolutePosition.X + buttonSize + menuGap - targets.buttonContainer.AbsolutePosition.X + 0.5)
+		end
 		local visibleCount = 0
 		for _, button in ordered do
 			want(desired, button, "Size", UDim2.fromOffset(buttonSize, buttonSize))
 			if button.Visible then
-				const x = sidePadding + visibleCount * (buttonSize + gap)
+				const x = startX + visibleCount * (buttonSize + gap)
 				want(desired, button, "Position", UDim2.fromOffset(x, 0))
 				visibleCount += 1
 			end
@@ -135363,7 +135457,6 @@ do
 		for _, button in targets.buttons do
 			want(desired, button, "BackgroundTransparency", 1)
 		end
-		local menuMoveMembers = nil
 		if layout == "All Separate" then
 			styleObject(desired, targets.menuHit, color, transparency, radius, strokeUsed)
 			for _, button in ordered do
@@ -135398,7 +135491,6 @@ do
 				members[#members + 1] = button
 			end
 			addGroup(app, members, padding, color, transparency, radius)
-			menuMoveMembers = joined
 		elseif layout == "All Unified" then
 			const members = {}
 			if targets.menuHit then
@@ -135408,7 +135500,6 @@ do
 				members[#members + 1] = button
 			end
 			addGroup(app, members, padding, color, transparency, radius)
-			menuMoveMembers = ordered
 		else
 			styleObject(desired, targets.menuHit, color, transparency, radius, strokeUsed)
 			if targets.background then
@@ -135417,7 +135508,6 @@ do
 				addGroup(app, ordered, padding, color, transparency, radius)
 			end
 		end
-		return menuMoveMembers
 	end
 
 	const function visibleMembersRect(members)
@@ -135457,32 +135547,6 @@ do
 		))
 	end
 
-	const function positionMenuBeside(targets, members)
-		if not targets.triggerPoint or not targets.menuHit or #members == 0 then
-			restoreDynamic(targets.triggerPoint, "Position")
-			return
-		end
-		local minX, minY, _, maxY = visibleMembersRect(members)
-		if not minX then
-			restoreDynamic(targets.triggerPoint, "Position")
-			return
-		end
-		const parent = targets.triggerPoint.Parent
-		if not parent or not parent:IsA("GuiObject") then
-			return
-		end
-		const menuSize = targets.menuHit.AbsoluteSize
-		const gap = math.clamp(math.floor((tonumber(NAStuff.RobloxTopbarMenuGap) or 4) + 0.5), 0, 24)
-		const targetX = minX - menuSize.X - gap
-		const targetY = minY + math.max(0, ((maxY - minY) - menuSize.Y) / 2)
-		const parentPosition = parent.AbsolutePosition
-		const parentSize = parent.AbsoluteSize
-		const original = baseValue(targets.triggerPoint, "Position") or targets.triggerPoint.Position
-		const xOffset = math.floor(targetX - parentPosition.X - original.X.Scale * parentSize.X + 0.5)
-		const yOffset = math.floor(targetY - parentPosition.Y - original.Y.Scale * parentSize.Y + 0.5)
-		setDynamic(targets.triggerPoint, "Position", UDim2.new(original.X.Scale, xOffset, original.Y.Scale, yOffset))
-	end
-
 	updateGeometry = function()
 		if not editor.enabled or editor.applying then
 			return
@@ -135492,36 +135556,17 @@ do
 			return
 		end
 		const layout = NAStuff.RobloxTopbarLayout or "Controls Unified"
-		local ordered, moreButton = orderButtons(targets.buttons, NAStuff.RobloxTopbarMorePosition or "Original")
+		local _, moreButton = layoutButtons(targets.buttons, NAStuff.RobloxTopbarMorePosition or "Original", layout)
 		updateMoreSubMenu(targets, moreButton)
-		if layout == "All Unified" then
-			positionMenuBeside(targets, ordered)
-		elseif layout == "Menu + Chat + Voice" then
-			const joined = {}
-			for _, button in ordered do
-				const role = classifyButton(button)
-				if role == "chat" or role == "voice" then
-					joined[#joined + 1] = button
-				end
-			end
-			if #joined == 0 then
-				for _, button in ordered do
-					if button ~= moreButton then
-						joined[#joined + 1] = button
-					end
-				end
-			end
-			positionMenuBeside(targets, joined)
-		else
-			restoreDynamic(targets.triggerPoint, "Position")
-		end
+		restoreDynamic(targets.triggerPoint, "Position")
 		for _, spec in editor.groupSpecs do
 			const frame = spec.frame
 			local minX, minY, maxX, maxY, minZ = visibleMembersRect(spec.members)
 			if frame and minX then
 				const padding = math.max(0, tonumber(spec.padding) or 0)
+				const rootOrigin = frame.AbsolutePosition - Vector2.new(frame.Position.X.Offset, frame.Position.Y.Offset)
 				frame.Visible = true
-				frame.Position = UDim2.fromOffset(math.floor(minX - padding + 0.5), math.floor(minY - padding + 0.5))
+				frame.Position = UDim2.fromOffset(math.floor(minX - padding - rootOrigin.X + 0.5), math.floor(minY - padding - rootOrigin.Y + 0.5))
 				frame.Size = UDim2.fromOffset(math.max(1, math.floor(maxX - minX + padding * 2 + 0.5)), math.max(1, math.floor(maxY - minY + padding * 2 + 0.5)))
 				frame.ZIndex = minZ == math.huge and 0 or math.max(0, minZ - 1)
 			elseif frame then
@@ -135637,11 +135682,13 @@ do
 			const desired = setmetatable({}, { __mode = "k" })
 			const buttonSize = math.clamp(math.floor((tonumber(NAStuff.RobloxTopbarButtonSize) or 44) + 0.5), 32, 56)
 			const gap = math.clamp(math.floor((tonumber(NAStuff.RobloxTopbarSeparateGap) or 4) + 0.5), 0, 16)
+			const menuGap = math.clamp(math.floor((tonumber(NAStuff.RobloxTopbarMenuGap) or 4) + 0.5), 0, 24)
 			const verticalOffset = math.clamp(math.floor((tonumber(NAStuff.RobloxTopbarVerticalOffset) or 10) + 0.5), 0, 32)
 			const horizontalInset = math.clamp(math.floor((tonumber(NAStuff.RobloxTopbarHorizontalInset) or 16) + 0.5), 0, 48)
-			local ordered, moreButton = orderButtons(targets.buttons, NAStuff.RobloxTopbarMorePosition or "Original")
+			const layout = NAStuff.RobloxTopbarLayout or "Controls Unified"
+			local ordered, moreButton = layoutButtons(targets.buttons, NAStuff.RobloxTopbarMorePosition or "Original", layout)
 			applyOuterSizing(targets, desired, buttonSize, verticalOffset, horizontalInset)
-			ensureLayout(targets, desired, ordered, buttonSize, gap)
+			ensureLayout(targets, desired, ordered, buttonSize, gap, menuGap, layout)
 			styleIcons(targets, desired)
 			styleLayout(targets, desired, app, ordered, moreButton)
 			applyDesired(desired)
