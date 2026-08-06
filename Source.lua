@@ -85867,6 +85867,7 @@ NAStuff.instantProximityPrompts.active = NAStuff.instantProximityPrompts.active 
 NAStuff.instantProximityPrompts.prompts = NAmanage.ensureWeakKeyTable(NAStuff.instantProximityPrompts.prompts)
 NAStuff.fastProximityPrompts = type(NAStuff.fastProximityPrompts) == "table" and NAStuff.fastProximityPrompts or {}
 NAStuff.fastProximityPrompts.active = NAStuff.fastProximityPrompts.active == true
+NAStuff.fastProximityPrompts.multiplier = math.max(tonumber(NAStuff.fastProximityPrompts.multiplier) or 2, 0.01)
 NAStuff.fastProximityPrompts.prompts = NAmanage.ensureWeakKeyTable(NAStuff.fastProximityPrompts.prompts)
 
 NAmanage.InstantProximityPromptsTrack = function(pp)
@@ -85951,7 +85952,7 @@ NAmanage.FastProximityPromptsTrack = function(pp)
 	end
 	const record = {
 		restore = duration;
-		applied = math.max(duration * 0.5, 0);
+		applied = math.max(duration / state.multiplier, 0);
 		connection = nil;
 	}
 	state.prompts[pp] = record
@@ -85965,7 +85966,7 @@ NAmanage.FastProximityPromptsTrack = function(pp)
 			end)
 			if okCurrent and current ~= record.applied then
 				record.restore = current
-				record.applied = math.max(current * 0.5, 0)
+				record.applied = math.max(current / state.multiplier, 0)
 				pcall(function()
 					pp.HoldDuration = record.applied
 				end)
@@ -86035,9 +86036,15 @@ cmd.add({"uninstantproximityprompts","uninstantpp","unipp"},{"uninstantproximity
 	NAmanage.InstantProximityPromptsDisable()
 end)
 
-cmd.add({"fastprompts","fastproximityprompts","fastpp"},{"fastprompts (fastproximityprompts,fastpp)","Halves proximity prompt HoldDuration values and keeps prompts 2x faster"},function()
+cmd.add({"fastprompts","fastproximityprompts","fastpp"},{"fastprompts [speed] (fastproximityprompts,fastpp)","Makes proximity prompts use the specified speed multiplier, defaulting to 2x"},function(...)
+	const multiplier = tonumber((...)) or 2
+	if multiplier <= 0 then
+		return DoNotif("Prompt speed multiplier must be greater than 0",3)
+	end
 	NAmanage.InstantProximityPromptsDisable()
+	NAmanage.FastProximityPromptsDisable()
 	const state = NAStuff.fastProximityPrompts
+	state.multiplier = multiplier
 	state.active = true
 	NAmanage.setWsH("fastpp_duration", {
 		added = function(inst)
