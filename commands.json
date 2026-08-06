@@ -349,7 +349,7 @@
       ],
       "usage": "scripthub (hub)",
       "args": "",
-      "desc": "Thanks to scriptblox/rscripts API"
+      "desc": "Open the built-in Script Hub using RScripts, RobloxScripts, and ScriptBlox"
     },
     {
       "name": "gamescripts",
