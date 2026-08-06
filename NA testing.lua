@@ -2523,6 +2523,9 @@ NAmanage.OnUIWindowShown = NAmanage.OnUIWindowShown or function(frame)
 		elseif frame == NAUIMANAGER.ScriptHubFrame and type(NAgui.menu) == "function" then
 			lazyMenuKey = "ScriptHubFrame"
 			lazyMenuBinder = function() NAgui.menu(frame) end
+		elseif frame == NAUIMANAGER.SubplaceViewerFrame and type(NAgui.menu) == "function" then
+			lazyMenuKey = "SubplaceViewerFrame"
+			lazyMenuBinder = function() NAgui.menu(frame) end
 		end
 		if lazyMenuKey and lazyMenuBinder and NAStuff["LazyMenuBound_"..lazyMenuKey] ~= frame then
 			NAStuff["LazyMenuBound_"..lazyMenuKey] = frame
@@ -100594,6 +100597,197 @@ NAmanage.ScriptHub.imageAssets = type(NAmanage.ScriptHub.imageAssets) == "table"
 NAmanage.ScriptHub.imagePending = type(NAmanage.ScriptHub.imagePending) == "table" and NAmanage.ScriptHub.imagePending or {}
 NAmanage.ScriptHub.imageGeneration = tonumber(NAmanage.ScriptHub.imageGeneration) or 0
 
+NAmanage.ExecutorWindowSizing = type(NAmanage.ExecutorWindowSizing) == "table" and NAmanage.ExecutorWindowSizing or {}
+NAmanage.ExecutorWindowSizing.GetViewport = function()
+	const screenGui = NAStuff and NAStuff.NASCREENGUI
+	if screenGui and screenGui.AbsoluteSize and screenGui.AbsoluteSize.X > 0 and screenGui.AbsoluteSize.Y > 0 then
+		return screenGui.AbsoluteSize
+	end
+	const cam = Workspace and Workspace.CurrentCamera
+	if cam and cam.ViewportSize and cam.ViewportSize.X > 0 and cam.ViewportSize.Y > 0 then
+		return cam.ViewportSize
+	end
+	return Vector2.new(1280, 720)
+end
+NAmanage.ExecutorWindowSizing.GetSafePad = function()
+	local x, y = 12, 12
+	if GuiService and GuiService.GetGuiInset then
+		local ok, a, b = pcall(function()
+			return GuiService:GetGuiInset()
+		end)
+		if ok and typeof(a) == "Vector2" and typeof(b) == "Vector2" then
+			x += math.max(a.X, b.X)
+			y += math.max(a.Y, b.Y)
+		end
+	end
+	return x, y
+end
+NAmanage.ExecutorWindowSizing.IsTouchCompact = function(vp)
+	const touch = UserInputService and UserInputService.TouchEnabled
+	const mouse = UserInputService and UserInputService.MouseEnabled
+	const key = UserInputService and UserInputService.KeyboardEnabled
+	return IsOnMobile or vp.Y < 600 or vp.X < 900 or (touch and not (mouse or key))
+end
+NAmanage.ExecutorWindowSizing.GetSize = function(baseWidth, baseHeight)
+	const vp = NAmanage.ExecutorWindowSizing.GetViewport()
+	local padX, padY = NAmanage.ExecutorWindowSizing.GetSafePad()
+	const maxW = math.max(1, math.floor(vp.X - padX * 2 + 0.5))
+	const maxH = math.max(1, math.floor(vp.Y - padY * 2 + 0.5))
+	const mobile = NAmanage.ExecutorWindowSizing.IsTouchCompact(vp)
+	const baseW = math.max(1, tonumber(baseWidth) or 920)
+	const baseH = math.max(1, tonumber(baseHeight) or 540)
+	local capW = mobile and math.floor(maxW * 0.90 + 0.5) or math.min(baseW, maxW)
+	local capH = mobile and math.floor(maxH * 0.90 + 0.5) or math.min(baseH, maxH)
+	capW = math.max(1, capW)
+	capH = math.max(1, capH)
+	local scale = math.min(capW / baseW, capH / baseH, 1)
+	if not scale or scale <= 0 then
+		scale = 1
+	end
+	local width = math.floor(baseW * scale + 0.5)
+	local height = math.floor(baseH * scale + 0.5)
+	const minW = math.min(mobile and 340 or 680, capW)
+	const minH = math.min(mobile and 280 or 420, capH)
+	width = math.clamp(width, minW, capW)
+	height = math.clamp(height, minH, capH)
+	return {
+		viewport = vp;
+		width = width;
+		height = height;
+		capWidth = capW;
+		capHeight = capH;
+		minWidth = minW;
+		minHeight = minH;
+		mobile = mobile;
+	}
+end
+NAmanage.ExecutorWindowSizing.Save = function(frame, sizeXAttr, sizeYAttr)
+	if not (frame and frame.Parent and frame.SetAttribute) then
+		return
+	end
+	if frame.GetAttribute and NAmanage.GetAttr(frame, "NAMenuMinimized") == true then
+		return
+	end
+	const width = tonumber(frame.Size.X.Offset) or 0
+	const height = tonumber(frame.Size.Y.Offset) or 0
+	if width > 0 and height > 0 then
+		NAmanage.SetAttr(frame, sizeXAttr, math.floor(width + 0.5))
+		NAmanage.SetAttr(frame, sizeYAttr, math.floor(height + 0.5))
+	end
+end
+NAmanage.ExecutorWindowSizing.GetSaved = function(frame, sizeXAttr, sizeYAttr)
+	if frame and frame.GetAttribute then
+		const width = tonumber(NAmanage.GetAttr(frame, sizeXAttr))
+		const height = tonumber(NAmanage.GetAttr(frame, sizeYAttr))
+		if width and height and width > 0 and height > 0 then
+			return width, height
+		end
+	end
+	return nil
+end
+NAmanage.ExecutorWindowSizing.Apply = function(frame, config)
+	if not (frame and frame.Parent) then
+		return false
+	end
+	if frame.GetAttribute and NAmanage.GetAttr(frame, "NAMenuMinimized") == true then
+		return false
+	end
+	config = type(config) == "table" and config or {}
+	const key = tostring(config.key or frame.Name or "Window")
+	const sizeXAttr = "NA"..key.."SavedSizeX"
+	const sizeYAttr = "NA"..key.."SavedSizeY"
+	const initializedAttr = "NA"..key.."DefaultSized"
+	const metrics = NAmanage.ExecutorWindowSizing.GetSize(config.baseWidth, config.baseHeight)
+	const initialized = frame.GetAttribute and NAmanage.GetAttr(frame, initializedAttr) == true
+	const currentWidth = tonumber(frame.Size.X.Offset) or 0
+	const currentHeight = tonumber(frame.Size.Y.Offset) or 0
+	local savedWidth, savedHeight = NAmanage.ExecutorWindowSizing.GetSaved(frame, sizeXAttr, sizeYAttr)
+	local targetWidth = metrics.width
+	local targetHeight = metrics.height
+	if savedWidth and savedHeight then
+		targetWidth = math.clamp(math.floor(savedWidth + 0.5), metrics.minWidth, metrics.capWidth)
+		targetHeight = math.clamp(math.floor(savedHeight + 0.5), metrics.minHeight, metrics.capHeight)
+	elseif initialized and currentWidth > 0 and currentHeight > 0 then
+		targetWidth = math.clamp(math.floor(currentWidth + 0.5), metrics.minWidth, metrics.capWidth)
+		targetHeight = math.clamp(math.floor(currentHeight + 0.5), metrics.minHeight, metrics.capHeight)
+		if metrics.mobile and (targetWidth >= metrics.capWidth * 0.96 or targetWidth / math.max(targetHeight, 1) > 1.95 or targetHeight < metrics.height * 0.82) then
+			targetWidth = metrics.width
+			targetHeight = metrics.height
+		end
+	end
+	frame.AnchorPoint = Vector2.new(0, 0)
+	if frame.AbsoluteSize.X ~= targetWidth or frame.AbsoluteSize.Y ~= targetHeight then
+		frame.Size = UDim2.fromOffset(targetWidth, targetHeight)
+	end
+	if frame.SetAttribute then
+		NAmanage.SetAttr(frame, initializedAttr, true)
+	end
+	NAmanage.ExecutorWindowSizing.Save(frame, sizeXAttr, sizeYAttr)
+	if config.center == true and NAmanage.centerFrame then
+		pcall(NAmanage.centerFrame, frame)
+	end
+	return true, metrics, targetWidth, targetHeight
+end
+
+NAmanage.ScriptHub_UpdateResponsiveLayout = function()
+	const hub = NAmanage.ScriptHub
+	const ui = hub.ui or NAmanage.ScriptHub_GetUI()
+	if not (ui and ui.frame and ui.container) then
+		return false
+	end
+	const width = math.max(1, ui.frame.AbsoluteSize.X)
+	const previousCompact = hub.compact == true
+	const previousPhone = hub.phone == true
+	hub.compact = IsOnMobile == true or width < 690
+	hub.phone = width < 500
+	if ui.engine then
+		ui.engine.Size = UDim2.new(0, hub.phone and 126 or hub.compact and 142 or 154, 0, 24)
+		ui.engine.TextSize = hub.phone and 11 or 12
+	end
+	if ui.title then
+		ui.title.Visible = width >= 570
+		ui.title.Size = UDim2.new(0, hub.compact and 190 or 260, 1, 0)
+		ui.title.TextSize = hub.compact and 16 or 18
+	end
+	if ui.searchRow and ui.searchBox and ui.search then
+		const searchWidth = hub.phone and 76 or 92
+		ui.search.Size = UDim2.new(0, searchWidth, 0, 26)
+		ui.search.Position = UDim2.new(1, -(searchWidth + 6), 0.5, -13)
+		ui.searchBox.Size = UDim2.new(1, -(searchWidth + 20), 1, 0)
+		ui.searchBox.TextSize = hub.phone and 13 or 14
+	end
+	if ui.controls then
+		ui.controls.ScrollBarThickness = hub.compact and 3 or 2
+	end
+	if ui.results then
+		ui.results.ScrollBarThickness = 0
+	end
+	return previousCompact ~= hub.compact or previousPhone ~= hub.phone
+end
+
+NAmanage.ScriptHub_ApplyResponsive = function(center)
+	const hub = NAmanage.ScriptHub
+	const ui = hub.ui or NAmanage.ScriptHub_GetUI()
+	const frame = ui and ui.frame
+	if not frame then
+		return false
+	end
+	const ok = NAmanage.ExecutorWindowSizing.Apply(frame, {
+		key = "ScriptHub";
+		baseWidth = 760;
+		baseHeight = 520;
+		center = center == true;
+	})
+	if not ok then
+		return false
+	end
+	const changed = NAmanage.ScriptHub_UpdateResponsiveLayout()
+	if changed and #hub.entries > 0 and hub.rendering ~= true then
+		Defer(NAmanage.ScriptHub_Render)
+	end
+	return true
+end
+
 NAmanage.ScriptHub_GetUI = function()
 	const hub = NAmanage.ScriptHub
 	const frame = NAUIMANAGER and NAUIMANAGER.ScriptHubFrame
@@ -100604,7 +100798,9 @@ NAmanage.ScriptHub_GetUI = function()
 		frame = frame;
 		container = container;
 		topbar = topbar;
+		title = topbar and topbar:FindFirstChild("Title");
 		engine = topbar and topbar:FindFirstChild("Engine");
+		searchRow = container and container:FindFirstChild("SearchRow");
 		searchBox = container and container:FindFirstChild("SearchBox", true);
 		search = container and container:FindFirstChild("Search", true);
 		controls = controls;
@@ -101226,8 +101422,9 @@ NAmanage.ScriptHub_CreateCard = function(data, order)
 	end
 	local status = hub.engine == "RobloxScripts" and "Published" or data.isPatched and "Patched" or "Working"
 	local description = type(data.description) == "string" and GSub(data.description, "%c", " ") or ""
-	if #description > 150 then
-		description = Sub(description, 1, 147).."..."
+	const descriptionLimit = hub.phone and 105 or hub.compact and 130 or 150
+	if #description > descriptionLimit then
+		description = Sub(description, 1, descriptionLimit - 3).."..."
 	end
 	const lines = {}
 	if universal then
@@ -101244,9 +101441,9 @@ NAmanage.ScriptHub_CreateCard = function(data, order)
 		lines[#lines + 1] = description
 	end
 
-	const coverHeight = imageUrl and 108 or 0
+	const coverHeight = imageUrl and (hub.phone and 82 or hub.compact and 96 or 108) or 0
 	const bodyOffset = imageUrl and coverHeight + 8 or 0
-	const cardHeight = (description ~= "" and 174 or 154) + bodyOffset
+	const cardHeight = (hub.phone and (description ~= "" and 188 or 168) or hub.compact and (description ~= "" and 180 or 160) or (description ~= "" and 174 or 154)) + bodyOffset
 	const card = InstanceNew("Frame", results)
 	card.Name = "ScriptHubCard"
 	card.LayoutOrder = order
@@ -101316,7 +101513,7 @@ NAmanage.ScriptHub_CreateCard = function(data, order)
 	title.TextTruncate = Enum.TextTruncate.AtEnd
 	title.Text = titleText
 	title.TextColor3 = Color3.fromRGB(245, 245, 250)
-	title.TextSize = 15
+	title.TextSize = hub.phone and 14 or 15
 	title.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
 
 	const info = InstanceNew("TextLabel", card)
@@ -101330,7 +101527,7 @@ NAmanage.ScriptHub_CreateCard = function(data, order)
 	info.TextWrapped = true
 	info.Text = Concat(lines, "\n")
 	info.TextColor3 = Color3.fromRGB(205, 205, 218)
-	info.TextSize = 12
+	info.TextSize = hub.phone and 11 or 12
 	info.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
 
 	const actions = InstanceNew("Frame", card)
@@ -101366,6 +101563,7 @@ end
 
 NAmanage.ScriptHub_Render = function()
 	const hub = NAmanage.ScriptHub
+	hub.rendering = true
 	NAlib.disconnect("NAScriptHubCards")
 	NAmanage.ScriptHub_ClearResults()
 	local shown = 0
@@ -101385,6 +101583,7 @@ NAmanage.ScriptHub_Render = function()
 		NAmanage.ScriptHub_Message(text, Color3.fromRGB(105, 78, 42))
 	end
 	NAmanage.ScriptHub_UpdateControls()
+	hub.rendering = false
 end
 
 NAmanage.ScriptHub_BuildURL = function(query, page)
@@ -101563,6 +101762,36 @@ NAmanage.ScriptHub_Init = function()
 	end
 	NAmanage.ScriptHub_EnsureImageFolder()
 	NAmanage.ScriptHub_UpdateHeader()
+	NAmanage.ScriptHub_ApplyResponsive(false)
+	NAmanage.ScriptHub_SaveFrameSize = function()
+		NAmanage.ExecutorWindowSizing.Save(ui.frame, "NAScriptHubSavedSizeX", "NAScriptHubSavedSizeY")
+	end
+	NAlib.disconnect("NAScriptHubResponsive")
+	NAlib.connect("NAScriptHubResponsive", ui.frame:GetPropertyChangedSignal("Size"):Connect(NAmanage.ScriptHub_SaveFrameSize))
+	NAlib.connect("NAScriptHubResponsive", ui.frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+		const changed = NAmanage.ScriptHub_UpdateResponsiveLayout()
+		if changed and #hub.entries > 0 and hub.rendering ~= true then
+			Defer(NAmanage.ScriptHub_Render)
+		end
+	end))
+	if Workspace and Workspace.CurrentCamera then
+		NAlib.connect("NAScriptHubResponsive", Workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+			Defer(function()
+				if ui.frame and ui.frame.Parent then
+					NAmanage.ScriptHub_ApplyResponsive(true)
+				end
+			end)
+		end))
+	end
+	if NAStuff and NAStuff.NASCREENGUI then
+		NAlib.connect("NAScriptHubResponsive", NAStuff.NASCREENGUI:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+			Defer(function()
+				if ui.frame and ui.frame.Parent then
+					NAmanage.ScriptHub_ApplyResponsive(true)
+				end
+			end)
+		end))
+	end
 	if #hub.entries > 0 then
 		NAmanage.ScriptHub_Render()
 	else
@@ -101585,6 +101814,7 @@ NAmanage.ScriptHub_Toggle = function()
 		frame.Visible = false
 		return true
 	end
+	NAmanage.ScriptHub_ApplyResponsive(false)
 	frame.Visible = true
 	NAmanage.centerFrame(frame)
 	if NAmanage.OnUIWindowShown then
@@ -107807,7 +108037,10 @@ NAmanage.RefreshResizeHandles=function()
 			NAgui.resizeable(NAUIMANAGER.MusicFrame, Vector2.new(380, 280), Vector2.new(1100, 820))
 		end
 		if NAUIMANAGER.ScriptHubFrame then
-			NAgui.resizeable(NAUIMANAGER.ScriptHubFrame, IsOnMobile and Vector2.new(340, 300) or Vector2.new(560, 380), Vector2.new(1400, 1000))
+			NAgui.resizeable(NAUIMANAGER.ScriptHubFrame, IsOnMobile and Vector2.new(340, 280) or Vector2.new(680, 420), Vector2.new(5000, 5000))
+		end
+		if NAUIMANAGER.SubplaceViewerFrame then
+			NAgui.resizeable(NAUIMANAGER.SubplaceViewerFrame, IsOnMobile and Vector2.new(340, 280) or Vector2.new(680, 420), Vector2.new(5000, 5000))
 		end
 		if NAUIMANAGER.ExecutorFrame then
 			const exMin = IsOnMobile and Vector2.new(340, 280) or Vector2.new(680, 420)
@@ -121973,6 +122206,79 @@ NAmanage.SubplaceViewer.serverBases = type(NAmanage.SubplaceViewer.serverBases) 
 	"https://games.roblox.com";
 }
 NAmanage.SubplaceViewer.serverWorker = NAmanage.SubplaceViewer.serverWorker or "https://solaraserverhop.ltseverydayyou.workers.dev"
+NAmanage.SubplaceViewer.viewMode = NAmanage.SubplaceViewer.viewMode or "places"
+
+NAmanage.SubplaceViewer_UpdateResponsiveLayout = function()
+	const state = NAmanage.SubplaceViewer
+	const ui = state.ui or NAmanage.SubplaceViewer_GetUI()
+	if not (ui and ui.frame and ui.container) then
+		return false
+	end
+	const width = math.max(1, ui.frame.AbsoluteSize.X)
+	const previousCompact = state.compact == true
+	const previousPhone = state.phone == true
+	state.compact = IsOnMobile == true or width < 660
+	state.phone = width < 500
+	if state.compact then
+		ui.search.Position = UDim2.new(0, 8, 0, 8)
+		ui.search.Size = UDim2.new(1, -16, 0, 32)
+		ui.filter.Position = UDim2.new(0, 8, 0, 46)
+		ui.filter.Size = UDim2.new(0.33, -9, 0, 30)
+		ui.sort.Position = UDim2.new(0.33, 3, 0, 46)
+		ui.sort.Size = UDim2.new(0.37, -6, 0, 30)
+		ui.current.Position = UDim2.new(0.70, 3, 0, 46)
+		ui.current.Size = UDim2.new(0.30, -11, 0, 30)
+		ui.status.Position = UDim2.new(0, 10, 0, 80)
+		ui.status.Size = UDim2.new(1, -20, 0, 22)
+		ui.list.Position = UDim2.new(0, 8, 0, 106)
+		ui.list.Size = UDim2.new(1, -16, 1, -114)
+	else
+		ui.search.Position = UDim2.new(0, 8, 0, 8)
+		ui.search.Size = UDim2.new(1, -340, 0, 32)
+		ui.filter.Position = UDim2.new(1, -324, 0, 9)
+		ui.filter.Size = UDim2.new(0, 112, 0, 30)
+		ui.sort.Position = UDim2.new(1, -204, 0, 9)
+		ui.sort.Size = UDim2.new(0, 116, 0, 30)
+		ui.current.Position = UDim2.new(1, -80, 0, 9)
+		ui.current.Size = UDim2.new(0, 72, 0, 30)
+		ui.status.Position = UDim2.new(0, 10, 0, 44)
+		ui.status.Size = UDim2.new(1, -20, 0, 22)
+		ui.list.Position = UDim2.new(0, 8, 0, 70)
+		ui.list.Size = UDim2.new(1, -16, 1, -78)
+	end
+	ui.search.TextSize = state.phone and 13 or 14
+	ui.filter.TextSize = state.phone and 11 or 13
+	ui.sort.TextSize = state.phone and 11 or 13
+	ui.current.TextSize = state.phone and 11 or 13
+	ui.list.ScrollBarThickness = state.compact and 3 or 4
+	if ui.title then
+		ui.title.TextSize = state.phone and 16 or 18
+	end
+	return previousCompact ~= state.compact or previousPhone ~= state.phone
+end
+
+NAmanage.SubplaceViewer_ApplyResponsive = function(center)
+	const state = NAmanage.SubplaceViewer
+	const ui = state.ui or NAmanage.SubplaceViewer_GetUI()
+	const frame = ui and ui.frame
+	if not frame then
+		return false
+	end
+	const ok = NAmanage.ExecutorWindowSizing.Apply(frame, {
+		key = "SubplaceViewer";
+		baseWidth = 780;
+		baseHeight = 530;
+		center = center == true;
+	})
+	if not ok then
+		return false
+	end
+	const changed = NAmanage.SubplaceViewer_UpdateResponsiveLayout()
+	if changed and state.loaded and state.viewMode == "places" and state.rendering ~= true then
+		Defer(NAmanage.SubplaceViewer_Render)
+	end
+	return true
+end
 
 NAmanage.SubplaceViewer_GetUI = function()
 	const state = NAmanage.SubplaceViewer
@@ -121983,6 +122289,7 @@ NAmanage.SubplaceViewer_GetUI = function()
 		frame = frame;
 		container = container;
 		topbar = topbar;
+		title = topbar and topbar:FindFirstChild("Title");
 		refresh = topbar and topbar:FindFirstChild("Refresh");
 		search = container and container:FindFirstChild("Search");
 		filter = container and container:FindFirstChild("Filter");
@@ -122135,6 +122442,7 @@ end
 
 NAmanage.SubplaceViewer_ShowServers = function(place)
 	const state = NAmanage.SubplaceViewer
+	state.viewMode = "servers"
 	const ui = state.ui or NAmanage.SubplaceViewer_GetUI()
 	if not (ui and ui.list) then return end
 	state.serverToken += 1
@@ -122215,8 +122523,14 @@ end
 NAmanage.SubplaceViewer_Render = function()
 	const state = NAmanage.SubplaceViewer
 	state.serverToken += 1
+	state.viewMode = "places"
+	state.rendering = true
 	const ui = state.ui or NAmanage.SubplaceViewer_GetUI()
-	if not (ui and ui.list) then return end
+	if not (ui and ui.list) then
+		state.rendering = false
+		return
+	end
+	NAmanage.SubplaceViewer_UpdateResponsiveLayout()
 	NAlib.disconnect("NASubplaceViewerCards")
 	NAlib.disconnect("NASubplaceViewerServers")
 	for _, child in ui.list:GetChildren() do
@@ -122243,10 +122557,14 @@ NAmanage.SubplaceViewer_Render = function()
 	ui.status.Text = Format("%d/%d subplaces | Universe %s", #entries, #state.places, tostring(game.GameId))
 	for index, place in entries do
 		const isCurrent = place.PlaceId == game.PlaceId
+		const compact = state.compact == true
+		const phone = state.phone == true
+		const iconSize = compact and (phone and 54 or 60) or 72
+		const rowHeight = compact and (phone and 142 or 148) or 88
 		local row = Instance.new("Frame", ui.list)
 		row.Name = "Place_"..tostring(place.PlaceId)
 		row.LayoutOrder = index
-		row.Size = UDim2.new(1, -4, 0, 88)
+		row.Size = UDim2.new(1, -4, 0, rowHeight)
 		row.BackgroundColor3 = isCurrent and Color3.fromRGB(58,53,75) or Color3.fromRGB(48,48,56)
 		row.BackgroundTransparency = 0.1
 		Instance.new("UICorner", row).CornerRadius = UDim.new(0, 8)
@@ -122254,28 +122572,35 @@ NAmanage.SubplaceViewer_Render = function()
 		icon.Name = "Icon"
 		icon.BackgroundColor3 = Color3.fromRGB(35,35,42)
 		icon.Position = UDim2.new(0, 8, 0, 8)
-		icon.Size = UDim2.new(0, 72, 0, 72)
+		icon.Size = UDim2.new(0, iconSize, 0, iconSize)
 		icon.Image = "rbxthumb://type=GameIcon&id="..tostring(place.PlaceId).."&w=150&h=150"
 		Instance.new("UICorner", icon).CornerRadius = UDim.new(0, 7)
 		local label = Instance.new("TextLabel", row)
 		label.BackgroundTransparency = 1
-		label.Position = UDim2.new(0, 90, 0, 7)
-		label.Size = UDim2.new(0.52, -98, 1, -14)
 		label.TextXAlignment = Enum.TextXAlignment.Left
 		label.TextYAlignment = Enum.TextYAlignment.Top
 		label.TextWrapped = true
 		label.Text = place.Name.."\nPlaceId: "..tostring(place.PlaceId)..(isCurrent and "\nCurrent place" or "")
 		label.TextColor3 = Color3.fromRGB(230,230,240)
-		label.TextSize = 14
+		label.TextSize = phone and 13 or 14
 		label.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
 		local actions = Instance.new("Frame", row)
 		actions.Name = "Actions"
 		actions.BackgroundTransparency = 1
-		actions.Position = UDim2.new(0.52, 0, 0, 7)
-		actions.Size = UDim2.new(0.48, -8, 1, -14)
+		if compact then
+			label.Position = UDim2.new(0, iconSize + 18, 0, 7)
+			label.Size = UDim2.new(1, -(iconSize + 26), 0, iconSize + 2)
+			actions.Position = UDim2.new(0, 8, 0, iconSize + 16)
+			actions.Size = UDim2.new(1, -16, 0, 66)
+		else
+			label.Position = UDim2.new(0, 90, 0, 7)
+			label.Size = UDim2.new(0.52, -98, 1, -14)
+			actions.Position = UDim2.new(0.52, 0, 0, 7)
+			actions.Size = UDim2.new(0.48, -8, 1, -14)
+		end
 		local actionGrid = Instance.new("UIGridLayout", actions)
-		actionGrid.CellPadding = UDim2.new(0, 6, 0, 6)
-		actionGrid.CellSize = UDim2.new(0.25, -5, 0, 30)
+		actionGrid.CellPadding = UDim2.new(0, compact and 5 or 6, 0, 6)
+		actionGrid.CellSize = UDim2.new(0.25, compact and -4 or -5, 0, 30)
 		actionGrid.FillDirection = Enum.FillDirection.Horizontal
 		actionGrid.FillDirectionMaxCells = 4
 		actionGrid.HorizontalAlignment = Enum.HorizontalAlignment.Right
@@ -122289,7 +122614,7 @@ NAmanage.SubplaceViewer_Render = function()
 			b.BackgroundTransparency = 0.05
 			b.Text = text
 			b.TextColor3 = Color3.fromRGB(245,245,250)
-			b.TextSize = 11
+			b.TextSize = phone and 10 or 11
 			b.TextTruncate = Enum.TextTruncate.AtEnd
 			b.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
 			Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
@@ -122346,6 +122671,7 @@ NAmanage.SubplaceViewer_Render = function()
 			NAlib.connect("NASubplaceViewerCards", fullest.Activated:Connect(function() NAmanage.SubplaceViewer_Hop(game.PlaceId, "fullest") end))
 		end
 	end
+	state.rendering = false
 end
 
 NAmanage.SubplaceViewer_Fetch = function(force)
@@ -122394,6 +122720,36 @@ NAmanage.SubplaceViewer_Init = function()
 	state.initialized = true
 	NAmanage.SubplaceViewer_LoadFavorites()
 	if ui.sort then ui.sort.Text = state.sort == "id" and "Sort: ID" or "Sort: Name" end
+	NAmanage.SubplaceViewer_ApplyResponsive(false)
+	NAmanage.SubplaceViewer_SaveFrameSize = function()
+		NAmanage.ExecutorWindowSizing.Save(ui.frame, "NASubplaceViewerSavedSizeX", "NASubplaceViewerSavedSizeY")
+	end
+	NAlib.disconnect("NASubplaceViewerResponsive")
+	NAlib.connect("NASubplaceViewerResponsive", ui.frame:GetPropertyChangedSignal("Size"):Connect(NAmanage.SubplaceViewer_SaveFrameSize))
+	NAlib.connect("NASubplaceViewerResponsive", ui.frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+		const changed = NAmanage.SubplaceViewer_UpdateResponsiveLayout()
+		if changed and state.loaded and state.viewMode == "places" and state.rendering ~= true then
+			Defer(NAmanage.SubplaceViewer_Render)
+		end
+	end))
+	if Workspace and Workspace.CurrentCamera then
+		NAlib.connect("NASubplaceViewerResponsive", Workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+			Defer(function()
+				if ui.frame and ui.frame.Parent then
+					NAmanage.SubplaceViewer_ApplyResponsive(true)
+				end
+			end)
+		end))
+	end
+	if NAStuff and NAStuff.NASCREENGUI then
+		NAlib.connect("NASubplaceViewerResponsive", NAStuff.NASCREENGUI:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+			Defer(function()
+				if ui.frame and ui.frame.Parent then
+					NAmanage.SubplaceViewer_ApplyResponsive(true)
+				end
+			end)
+		end))
+	end
 	NAlib.connect("NASubplaceViewer", ui.refresh.Activated:Connect(function() NAmanage.SubplaceViewer_Fetch(true) end))
 	NAlib.connect("NASubplaceViewer", ui.search:GetPropertyChangedSignal("Text"):Connect(function() if state.loaded then NAmanage.SubplaceViewer_Render() end end))
 	NAlib.connect("NASubplaceViewer", ui.filter.Activated:Connect(function()
@@ -122418,6 +122774,9 @@ NAmanage.SubplaceViewer_Toggle = function(forceState)
 	NAmanage.SubplaceViewer_Init()
 	local visible = forceState
 	if type(visible) ~= "boolean" then visible = not ui.frame.Visible end
+	if visible then
+		NAmanage.SubplaceViewer_ApplyResponsive(false)
+	end
 	ui.frame.Visible = visible
 	if visible then
 		if NAmanage.centerFrame then pcall(NAmanage.centerFrame, ui.frame) end
@@ -122547,8 +122906,8 @@ NAStartupUI("Resize:Settings", 0.14, function() if NAUIMANAGER.SettingsFrame the
 NAStartupUI("Resize:Waypoints", 0.15, function() if NAUIMANAGER.WaypointFrame then NAgui.resizeable(NAUIMANAGER.WaypointFrame) end end)
 NAStartupUI("Resize:Binders", 0.16, function() if NAUIMANAGER.BindersFrame then NAgui.resizeable(NAUIMANAGER.BindersFrame) end end)
 NAStartupUI("Resize:Music", 0.3, function() if NAUIMANAGER.MusicFrame then NAgui.resizeable(NAUIMANAGER.MusicFrame, Vector2.new(380, 280), Vector2.new(1100, 820)) end end)
-NAStartupUI("Resize:ScriptHub", 0.31, function() if NAUIMANAGER.ScriptHubFrame then NAgui.resizeable(NAUIMANAGER.ScriptHubFrame, IsOnMobile and Vector2.new(340, 300) or Vector2.new(560, 380), Vector2.new(1400, 1000)) end end)
-NAStartupUI("Resize:SubplaceViewer", 0.2, function() if NAUIMANAGER.SubplaceViewerFrame then NAgui.resizeable(NAUIMANAGER.SubplaceViewerFrame, Vector2.new(430, 300), Vector2.new(5000, 5000)) end end)
+NAStartupUI("Resize:ScriptHub", 0.31, function() if NAUIMANAGER.ScriptHubFrame then NAgui.resizeable(NAUIMANAGER.ScriptHubFrame, IsOnMobile and Vector2.new(340, 280) or Vector2.new(680, 420), Vector2.new(5000, 5000)) end end)
+NAStartupUI("Resize:SubplaceViewer", 0.2, function() if NAUIMANAGER.SubplaceViewerFrame then NAgui.resizeable(NAUIMANAGER.SubplaceViewerFrame, IsOnMobile and Vector2.new(340, 280) or Vector2.new(680, 420), Vector2.new(5000, 5000)) end end)
 NAStartupUI("Resize:Executor", 0.17, function()
 	if NAUIMANAGER.ExecutorFrame then
 		const exMin = IsOnMobile and Vector2.new(340, 280) or Vector2.new(680, 420)
