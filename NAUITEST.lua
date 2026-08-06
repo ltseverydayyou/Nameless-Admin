@@ -3735,4 +3735,142 @@ do
 	resultsPadding.PaddingRight = UDim.new(0, 2);
 end
 
+
+do
+	local root = G2L["1"]
+	local accent = Color3.fromRGB(155, 100, 255)
+	local regularFont = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+	local semiboldFont = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+	local function corner(parent, radius)
+		local item = Instance.new("UICorner", parent)
+		item.CornerRadius = UDim.new(0, radius or 6)
+		return item
+	end
+	local function stroke(parent, thickness)
+		local item = Instance.new("UIStroke", parent)
+		item.Name = "UIStroker"
+		item.Thickness = thickness or 1.5
+		item.Color = accent
+		item.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		return item
+	end
+	local function button(parent, name, text, size, position, color)
+		local item = Instance.new("TextButton", parent)
+		item.Name = name
+		item.BorderSizePixel = 0
+		item.AutoButtonColor = false
+		item.BackgroundColor3 = color or Color3.fromRGB(55, 55, 65)
+		item.BackgroundTransparency = 0.18
+		item.Text = text
+		item.TextColor3 = Color3.fromRGB(245, 245, 250)
+		item.TextSize = 13
+		item.FontFace = semiboldFont
+		item.Size = size
+		item.Position = position
+		corner(item, 6)
+		stroke(item, 1.5)
+		return item
+	end
+
+	local frame = Instance.new("Frame", root)
+	frame.Name = "SubplaceViewer"
+	frame.BorderSizePixel = 0
+	frame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+	frame.BackgroundTransparency = 0.08
+	frame.AnchorPoint = Vector2.new(0.5, 0.5)
+	frame.Position = UDim2.new(0.5, 0, 0.5, 0)
+	frame.Size = UDim2.new(0, 780, 0, 530)
+	frame.Visible = false
+	frame.ClipsDescendants = true
+	corner(frame, 10)
+	stroke(frame, 2)
+
+	local topbar = Instance.new("Frame", frame)
+	topbar.Name = "Topbar"
+	topbar.BorderSizePixel = 0
+	topbar.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+	topbar.BackgroundTransparency = 0.15
+	topbar.Size = UDim2.new(1, 0, 0, 38)
+	corner(topbar, 10)
+	stroke(topbar, 2)
+
+	local title = Instance.new("TextLabel", topbar)
+	title.Name = "Title"
+	title.BackgroundTransparency = 1
+	title.Position = UDim2.new(0, 14, 0, 0)
+	title.Size = UDim2.new(1, -190, 1, 0)
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.Text = "Subplace Viewer"
+	title.TextColor3 = Color3.fromRGB(240, 240, 248)
+	title.TextSize = 18
+	title.FontFace = regularFont
+
+	button(topbar, "Refresh", "Refresh", UDim2.new(0, 78, 0, 26), UDim2.new(1, -148, 0.5, -13), Color3.fromRGB(70, 65, 90))
+	local minimize = button(topbar, "Minimize", "−", UDim2.new(0, 26, 0, 26), UDim2.new(1, -64, 0.5, -13))
+	minimize.TextSize = 16
+	local exit = button(topbar, "Exit", "×", UDim2.new(0, 26, 0, 26), UDim2.new(1, -32, 0.5, -13), Color3.fromRGB(185, 55, 55))
+	exit.TextSize = 16
+
+	local container = Instance.new("Frame", frame)
+	container.Name = "Container"
+	container.BorderSizePixel = 0
+	container.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+	container.BackgroundTransparency = 0.26
+	container.Position = UDim2.new(0, 8, 0, 46)
+	container.Size = UDim2.new(1, -16, 1, -54)
+	container.ClipsDescendants = true
+	corner(container, 9)
+
+	local search = Instance.new("TextBox", container)
+	search.Name = "Search"
+	search.BorderSizePixel = 0
+	search.BackgroundColor3 = Color3.fromRGB(50, 50, 58)
+	search.BackgroundTransparency = 0.1
+	search.ClearTextOnFocus = false
+	search.PlaceholderText = "Search subplaces..."
+	search.PlaceholderColor3 = Color3.fromRGB(145, 145, 158)
+	search.Text = ""
+	search.TextColor3 = Color3.fromRGB(235, 235, 245)
+	search.TextXAlignment = Enum.TextXAlignment.Left
+	search.TextSize = 14
+	search.FontFace = regularFont
+	search.Position = UDim2.new(0, 8, 0, 8)
+	search.Size = UDim2.new(1, -340, 0, 32)
+	corner(search, 7)
+	stroke(search, 1.25)
+
+	button(container, "Filter", "All Places", UDim2.new(0, 112, 0, 30), UDim2.new(1, -324, 0, 9))
+	button(container, "Sort", "Sort: Name", UDim2.new(0, 116, 0, 30), UDim2.new(1, -204, 0, 9))
+	button(container, "Current", "Current", UDim2.new(0, 72, 0, 30), UDim2.new(1, -80, 0, 9))
+
+	local status = Instance.new("TextLabel", container)
+	status.Name = "Status"
+	status.BackgroundTransparency = 1
+	status.Position = UDim2.new(0, 10, 0, 44)
+	status.Size = UDim2.new(1, -20, 0, 22)
+	status.TextXAlignment = Enum.TextXAlignment.Left
+	status.Text = "Ready"
+	status.TextColor3 = Color3.fromRGB(190, 190, 205)
+	status.TextSize = 13
+	status.FontFace = regularFont
+
+	local list = Instance.new("ScrollingFrame", container)
+	list.Name = "List"
+	list.BorderSizePixel = 0
+	list.BackgroundTransparency = 1
+	list.Position = UDim2.new(0, 8, 0, 70)
+	list.Size = UDim2.new(1, -16, 1, -78)
+	list.ScrollBarThickness = 4
+	list.ScrollBarImageColor3 = Color3.fromRGB(115, 105, 135)
+	list.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	list.CanvasSize = UDim2.new()
+	local layout = Instance.new("UIListLayout", list)
+	layout.Name = "Layout"
+	layout.Padding = UDim.new(0, 8)
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	local padding = Instance.new("UIPadding", list)
+	padding.PaddingBottom = UDim.new(0, 8)
+	padding.PaddingRight = UDim.new(0, 4)
+end
+
 return G2L["1"];

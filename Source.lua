@@ -2540,7 +2540,7 @@ NAmanage.InstallUIVisibilityOptimizer = NAmanage.InstallUIVisibilityOptimizer or
 	if not NAUIMANAGER or NAmanage._uiVisOptInstalled then return end
 	NAmanage._uiVisOptInstalled = true
 	NAmanage._uiVisibilityConns = NAmanage._uiVisibilityConns or {}
-	for _, name in {"SettingsFrame","commandsFrame","chatLogsFrame","NAconsoleFrame","CommandKeybindsFrame","WaypointFrame","BindersFrame","ExecutorFrame","NotepadFrame","PluginsFrame","MusicFrame","ScriptHubFrame"} do
+	for _, name in {"SettingsFrame","commandsFrame","chatLogsFrame","NAconsoleFrame","CommandKeybindsFrame","WaypointFrame","BindersFrame","ExecutorFrame","NotepadFrame","PluginsFrame","MusicFrame","ScriptHubFrame","SubplaceViewerFrame"} do
 		const frame = NAUIMANAGER[name]
 		if typeof(frame) == "Instance" and frame.GetPropertyChangedSignal then
 			const function sync()
@@ -46123,8 +46123,12 @@ cmd.add({"gotocampos","tocampos","tcp"},{"gotocampos (tocampos,tcp)","Teleports 
 	teleportPlayer()
 end)
 
-cmd.add({"teleportgui","tpui","universeviewer","uviewer"},{"teleportgui","Gives an UI that grabs all places and teleports you by clicking a simple button"},function()
-	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/main/Universe%20Viewer");
+cmd.add({"teleportgui","tpui","universeviewer","uviewer"},{"teleportgui","Open the universe subplace and public-server viewer"},function()
+	if NAmanage.SubplaceViewer_Toggle then
+		NAmanage.SubplaceViewer_Toggle()
+	else
+		DoNotif("Subplace Viewer UI unavailable.", 3, "Subplace Viewer")
+	end
 end)
 
 cmd.add({"imagescanner","imgscanner","imgscan","imgs","images"},{"imagescanner","Gives an UI that grabs all images on the game"},function()
@@ -100550,7 +100554,9 @@ NAUIMANAGER = {
 	MusicFrame = NAStuff.NASCREENGUI:FindFirstChild("MusicPlayer"),
 	MusicContainer = NAStuff.NASCREENGUI:FindFirstChild("MusicPlayer") and (NAStuff.NASCREENGUI:FindFirstChild("MusicPlayer")):FindFirstChild("Container"),
 	ScriptHubFrame = NAStuff.NASCREENGUI:FindFirstChild("ScriptHub"),
-	ScriptHubContainer = NAStuff.NASCREENGUI:FindFirstChild("ScriptHub") and (NAStuff.NASCREENGUI:FindFirstChild("ScriptHub")):FindFirstChild("Container")
+	ScriptHubContainer = NAStuff.NASCREENGUI:FindFirstChild("ScriptHub") and (NAStuff.NASCREENGUI:FindFirstChild("ScriptHub")):FindFirstChild("Container"),
+	SubplaceViewerFrame = NAStuff.NASCREENGUI:FindFirstChild("SubplaceViewer"),
+	SubplaceViewerContainer = NAStuff.NASCREENGUI:FindFirstChild("SubplaceViewer") and (NAStuff.NASCREENGUI:FindFirstChild("SubplaceViewer")):FindFirstChild("Container")
 };
 NAmanage.ScriptHub = type(NAmanage.ScriptHub) == "table" and NAmanage.ScriptHub or {}
 NAmanage.ScriptHub.engines = { "RScripts", "RobloxScripts", "ScriptBlox" }
@@ -112407,6 +112413,13 @@ NAmanage.Topbar_BuildBaseButtons=function()
 				DoNotif("Script Hub UI unavailable.", 3, "Script Hub")
 			end
 		end},
+		{name="tpui",icon="globe-detailed",activeFrame="SubplaceViewerFrame",func=function()
+			if NAmanage and NAmanage.SubplaceViewer_Toggle then
+				NAmanage.SubplaceViewer_Toggle()
+			else
+				DoNotif("Subplace Viewer UI unavailable.", 3, "Subplace Viewer")
+			end
+		end},
 	}
 end
 
@@ -121922,6 +121935,477 @@ NAmanage.Notepad_Init = function()
 	return true
 end
 
+
+NAmanage.SubplaceViewer = type(NAmanage.SubplaceViewer) == "table" and NAmanage.SubplaceViewer or {}
+NAmanage.SubplaceViewer.root = "Nameless-Admin/SubplaceViewer"
+NAmanage.SubplaceViewer.favoritesPath = NAmanage.SubplaceViewer.root.."/Favorites.json"
+NAmanage.SubplaceViewer.favorites = type(NAmanage.SubplaceViewer.favorites) == "table" and NAmanage.SubplaceViewer.favorites or {}
+NAmanage.SubplaceViewer.places = type(NAmanage.SubplaceViewer.places) == "table" and NAmanage.SubplaceViewer.places or {}
+NAmanage.SubplaceViewer.filter = NAmanage.SubplaceViewer.filter or "all"
+NAmanage.SubplaceViewer.sort = NAmanage.SubplaceViewer.sort == "id" and "id" or "name"
+NAmanage.SubplaceViewer.loaded = false
+NAmanage.SubplaceViewer.loading = false
+NAmanage.SubplaceViewer.fetchToken = tonumber(NAmanage.SubplaceViewer.fetchToken) or 0
+NAmanage.SubplaceViewer.serverToken = tonumber(NAmanage.SubplaceViewer.serverToken) or 0
+NAmanage.SubplaceViewer.serverBases = type(NAmanage.SubplaceViewer.serverBases) == "table" and NAmanage.SubplaceViewer.serverBases or {
+	"https://games.roproxy.com";
+	"https://games.rotunnel.com";
+	"https://games.roblox.com";
+}
+NAmanage.SubplaceViewer.serverWorker = NAmanage.SubplaceViewer.serverWorker or "https://solaraserverhop.ltseverydayyou.workers.dev"
+
+NAmanage.SubplaceViewer_GetUI = function()
+	const state = NAmanage.SubplaceViewer
+	const frame = NAUIMANAGER and NAUIMANAGER.SubplaceViewerFrame
+	const container = frame and frame:FindFirstChild("Container")
+	const topbar = frame and frame:FindFirstChild("Topbar")
+	state.ui = {
+		frame = frame;
+		container = container;
+		topbar = topbar;
+		refresh = topbar and topbar:FindFirstChild("Refresh");
+		search = container and container:FindFirstChild("Search");
+		filter = container and container:FindFirstChild("Filter");
+		sort = container and container:FindFirstChild("Sort");
+		current = container and container:FindFirstChild("Current");
+		status = container and container:FindFirstChild("Status");
+		list = container and container:FindFirstChild("List");
+	}
+	return state.ui
+end
+
+NAmanage.SubplaceViewer_SaveFavorites = function()
+	const state = NAmanage.SubplaceViewer
+	if not (HttpService and type(writefile) == "function") then return false end
+	pcall(function()
+		if type(isfolder) == "function" and type(makefolder) == "function" then
+			if not isfolder("Nameless-Admin") then makefolder("Nameless-Admin") end
+			if not isfolder(state.root) then makefolder(state.root) end
+		end
+	end)
+	local ok, data = pcall(HttpService.JSONEncode, HttpService, state.favorites)
+	if ok then return pcall(writefile, state.favoritesPath, data) end
+	return false
+end
+
+NAmanage.SubplaceViewer_LoadFavorites = function()
+	const state = NAmanage.SubplaceViewer
+	if not (HttpService and type(isfile) == "function" and type(readfile) == "function") then return end
+	local okFile, exists = pcall(isfile, state.favoritesPath)
+	if not (okFile and exists) then return end
+	local okRead, raw = pcall(readfile, state.favoritesPath)
+	if not okRead then return end
+	local okDecode, data = pcall(HttpService.JSONDecode, HttpService, raw)
+	if okDecode and type(data) == "table" then state.favorites = data end
+end
+
+NAmanage.SubplaceViewer_HttpJson = function(url)
+	local ok, body = pcall(_na_boot.httpGet, url, { maxAttempts = 4; timeout = 12 })
+	if not ok or type(body) ~= "string" then return nil, body end
+	local decodedOk, data = pcall(HttpService.JSONDecode, HttpService, body)
+	if not decodedOk then return nil, data end
+	return data
+end
+
+NAmanage.SubplaceViewer_FetchServers = function(placeId, cursor)
+	const state = NAmanage.SubplaceViewer
+	const pid = tostring(placeId)
+	local suffix = "/v1/games/"..pid.."/servers/Public?sortOrder=Asc&limit=100"
+	if cursor and cursor ~= "" then suffix ..= "&cursor="..HttpService:UrlEncode(cursor) end
+	local lastErr
+	for _, base in state.serverBases do
+		local data, err = NAmanage.SubplaceViewer_HttpJson(base..suffix)
+		if type(data) == "table" and type(data.data) == "table" then return data end
+		lastErr = err
+	end
+	local workerUrl = state.serverWorker.."/servers?placeId="..HttpService:UrlEncode(pid)
+	local data, err = NAmanage.SubplaceViewer_HttpJson(workerUrl)
+	if type(data) == "table" and type(data.data) == "table" then return data end
+	return nil, err or lastErr
+end
+
+NAmanage.SubplaceViewer_NormalizeServers = function(data, allowCurrent)
+	const servers = {}
+	if type(data) ~= "table" or type(data.data) ~= "table" then return servers end
+	for _, server in data.data do
+		if type(server) == "table" then
+			const serverId = tostring(server.id or "")
+			const playing = tonumber(server.playing) or 0
+			const maximum = tonumber(server.maxPlayers or server.max) or 0
+			if serverId ~= "" and maximum > playing and (allowCurrent or serverId ~= tostring(game.JobId)) then
+				servers[#servers + 1] = {
+					id = serverId;
+					playing = playing;
+					max = maximum;
+					ping = tonumber(server.ping) or 0;
+					fps = tonumber(server.fps) or 0;
+				}
+			end
+		end
+	end
+	return servers
+end
+
+NAmanage.SubplaceViewer_TeleportServer = function(placeId, server, message)
+	if type(server) ~= "table" or not server.id then
+		DoNotif("No joinable server was found.", 3, "Subplace Viewer")
+		return false
+	end
+	local ok, err = pcall(TeleportService.TeleportToPlaceInstance, TeleportService, placeId, server.id, player)
+	if ok then
+		DoNotif((message or "Joining server")..": "..tostring(server.playing).."/"..tostring(server.max).." | "..tostring(server.ping).."ms", 4, "Subplace Viewer")
+	else
+		DoNotif("Teleport failed: "..tostring(err), 4, "Subplace Viewer")
+	end
+	return ok
+end
+
+NAmanage.SubplaceViewer_Hop = function(placeId, mode)
+	const state = NAmanage.SubplaceViewer
+	const ui = state.ui or NAmanage.SubplaceViewer_GetUI()
+	const labels = {
+		advanced = "advanced server";
+		smallest = "smallest server";
+		fullest = "fullest server";
+	}
+	if ui and ui.status then ui.status.Text = "Finding the "..tostring(labels[mode] or "server").."..." end
+	Spawn(function()
+		local data, err = NAmanage.SubplaceViewer_FetchServers(placeId)
+		local servers = NAmanage.SubplaceViewer_NormalizeServers(data, false)
+		if #servers == 0 then
+			if ui and ui.status then ui.status.Text = "No other joinable public servers were found." end
+			DoNotif("No other joinable public servers were found: "..tostring(err or "none available"), 4, "Subplace Viewer")
+			return
+		end
+		if mode == "smallest" then
+			table.sort(servers, function(a, b)
+				if a.playing ~= b.playing then return a.playing < b.playing end
+				if a.ping ~= b.ping then
+					if a.ping <= 0 then return false end
+					if b.ping <= 0 then return true end
+					return a.ping < b.ping
+				end
+				return a.id < b.id
+			end)
+		elseif mode == "fullest" then
+			table.sort(servers, function(a, b)
+				if a.playing ~= b.playing then return a.playing > b.playing end
+				if a.ping ~= b.ping then
+					if a.ping <= 0 then return false end
+					if b.ping <= 0 then return true end
+					return a.ping < b.ping
+				end
+				return a.id < b.id
+			end)
+		else
+			table.sort(servers, function(a, b)
+				if a.ping ~= b.ping then
+					if a.ping <= 0 then return false end
+					if b.ping <= 0 then return true end
+					return a.ping < b.ping
+				end
+				if a.playing ~= b.playing then return a.playing > b.playing end
+				return a.id < b.id
+			end)
+		end
+		if ui and ui.status then ui.status.Text = "Joining the "..tostring(labels[mode] or "selected server").."..." end
+		NAmanage.SubplaceViewer_TeleportServer(placeId, servers[1], mode == "smallest" and "Smallest server" or mode == "fullest" and "Fullest server" or "Advanced hop")
+	end)
+end
+
+NAmanage.SubplaceViewer_ShowServers = function(place)
+	const state = NAmanage.SubplaceViewer
+	const ui = state.ui or NAmanage.SubplaceViewer_GetUI()
+	if not (ui and ui.list) then return end
+	state.serverToken += 1
+	const token = state.serverToken
+	NAlib.disconnect("NASubplaceViewerCards")
+	NAlib.disconnect("NASubplaceViewerServers")
+	for _, child in ui.list:GetChildren() do
+		if not child:IsA("UIListLayout") and not child:IsA("UIPadding") then child:Destroy() end
+	end
+	ui.status.Text = "Loading public servers for "..tostring(place.Name).."..."
+	Spawn(function()
+		local data, err = NAmanage.SubplaceViewer_FetchServers(place.PlaceId)
+		if token ~= state.serverToken then return end
+		local servers = NAmanage.SubplaceViewer_NormalizeServers(data, place.PlaceId ~= game.PlaceId)
+		if type(data) ~= "table" or type(data.data) ~= "table" then
+			ui.status.Text = "Server request failed: "..tostring(err or "unknown error")
+			return
+		end
+		table.sort(servers, function(a, b)
+			if a.playing ~= b.playing then return a.playing > b.playing end
+			return a.id < b.id
+		end)
+		ui.status.Text = tostring(#servers).." joinable public servers | "..tostring(place.Name)
+		local back = Instance.new("TextButton", ui.list)
+		back.Name = "Back"
+		back.Size = UDim2.new(1, -4, 0, 34)
+		back.BackgroundColor3 = Color3.fromRGB(65, 60, 82)
+		back.TextColor3 = Color3.fromRGB(245,245,250)
+		back.Text = "Back to subplaces"
+		back.TextSize = 14
+		back.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+		Instance.new("UICorner", back).CornerRadius = UDim.new(0, 7)
+		NAlib.connect("NASubplaceViewerServers", back.Activated:Connect(function() NAmanage.SubplaceViewer_Render() end))
+		if #servers == 0 then
+			local empty = Instance.new("TextLabel", ui.list)
+			empty.Name = "Empty"
+			empty.Size = UDim2.new(1, -4, 0, 44)
+			empty.BackgroundTransparency = 1
+			empty.Text = "No other joinable public servers were returned."
+			empty.TextColor3 = Color3.fromRGB(205,205,218)
+			empty.TextSize = 13
+			empty.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+			return
+		end
+		for index, server in servers do
+			local row = Instance.new("Frame", ui.list)
+			row.Name = "Server_"..tostring(index)
+			row.Size = UDim2.new(1, -4, 0, 62)
+			row.BackgroundColor3 = Color3.fromRGB(48,48,56)
+			row.BackgroundTransparency = 0.12
+			Instance.new("UICorner", row).CornerRadius = UDim.new(0, 7)
+			local label = Instance.new("TextLabel", row)
+			label.BackgroundTransparency = 1
+			label.Position = UDim2.new(0, 10, 0, 4)
+			label.Size = UDim2.new(1, -116, 1, -8)
+			label.TextXAlignment = Enum.TextXAlignment.Left
+			label.TextYAlignment = Enum.TextYAlignment.Center
+			label.Text = Format("%d/%d players\nPing: %s ms | FPS: %.2f", server.playing, server.max, tostring(server.ping), server.fps)
+			label.TextColor3 = Color3.fromRGB(225,225,235)
+			label.TextSize = 13
+			label.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+			local join = Instance.new("TextButton", row)
+			join.Size = UDim2.new(0, 92, 0, 32)
+			join.Position = UDim2.new(1, -102, 0.5, -16)
+			join.BackgroundColor3 = Color3.fromRGB(70,65,92)
+			join.Text = "Join"
+			join.TextColor3 = Color3.fromRGB(245,245,250)
+			join.TextSize = 13
+			join.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+			Instance.new("UICorner", join).CornerRadius = UDim.new(0, 6)
+			NAlib.connect("NASubplaceViewerServers", join.Activated:Connect(function()
+				NAmanage.SubplaceViewer_TeleportServer(place.PlaceId, server, "Joining server")
+			end))
+		end
+	end)
+end
+
+NAmanage.SubplaceViewer_Render = function()
+	const state = NAmanage.SubplaceViewer
+	state.serverToken += 1
+	const ui = state.ui or NAmanage.SubplaceViewer_GetUI()
+	if not (ui and ui.list) then return end
+	NAlib.disconnect("NASubplaceViewerCards")
+	NAlib.disconnect("NASubplaceViewerServers")
+	for _, child in ui.list:GetChildren() do
+		if not child:IsA("UIListLayout") and not child:IsA("UIPadding") then child:Destroy() end
+	end
+	local query = Lower(tostring(ui.search and ui.search.Text or ""))
+	local entries = {}
+	for _, place in state.places do
+		const favorite = state.favorites[tostring(place.PlaceId)] == true
+		if (state.filter == "all" or favorite) and (query == "" or Lower(place.Name):find(query, 1, true) or tostring(place.PlaceId):find(query, 1, true)) then
+			entries[#entries + 1] = place
+		end
+	end
+	table.sort(entries, function(a, b)
+		const ac = a.PlaceId == game.PlaceId
+		const bc = b.PlaceId == game.PlaceId
+		if ac ~= bc then return ac end
+		const af = state.favorites[tostring(a.PlaceId)] == true
+		const bf = state.favorites[tostring(b.PlaceId)] == true
+		if af ~= bf then return af end
+		if state.sort == "id" then return a.PlaceId < b.PlaceId end
+		return Lower(a.Name) < Lower(b.Name)
+	end)
+	ui.status.Text = Format("%d/%d subplaces | Universe %s", #entries, #state.places, tostring(game.GameId))
+	for index, place in entries do
+		const isCurrent = place.PlaceId == game.PlaceId
+		local row = Instance.new("Frame", ui.list)
+		row.Name = "Place_"..tostring(place.PlaceId)
+		row.LayoutOrder = index
+		row.Size = UDim2.new(1, -4, 0, 88)
+		row.BackgroundColor3 = isCurrent and Color3.fromRGB(58,53,75) or Color3.fromRGB(48,48,56)
+		row.BackgroundTransparency = 0.1
+		Instance.new("UICorner", row).CornerRadius = UDim.new(0, 8)
+		local icon = Instance.new("ImageLabel", row)
+		icon.Name = "Icon"
+		icon.BackgroundColor3 = Color3.fromRGB(35,35,42)
+		icon.Position = UDim2.new(0, 8, 0, 8)
+		icon.Size = UDim2.new(0, 72, 0, 72)
+		icon.Image = "rbxthumb://type=GameIcon&id="..tostring(place.PlaceId).."&w=150&h=150"
+		Instance.new("UICorner", icon).CornerRadius = UDim.new(0, 7)
+		local label = Instance.new("TextLabel", row)
+		label.BackgroundTransparency = 1
+		label.Position = UDim2.new(0, 90, 0, 7)
+		label.Size = UDim2.new(0.52, -98, 1, -14)
+		label.TextXAlignment = Enum.TextXAlignment.Left
+		label.TextYAlignment = Enum.TextYAlignment.Top
+		label.TextWrapped = true
+		label.Text = place.Name.."\nPlaceId: "..tostring(place.PlaceId)..(isCurrent and "\nCurrent place" or "")
+		label.TextColor3 = Color3.fromRGB(230,230,240)
+		label.TextSize = 14
+		label.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+		local actions = Instance.new("Frame", row)
+		actions.Name = "Actions"
+		actions.BackgroundTransparency = 1
+		actions.Position = UDim2.new(0.52, 0, 0, 7)
+		actions.Size = UDim2.new(0.48, -8, 1, -14)
+		local actionGrid = Instance.new("UIGridLayout", actions)
+		actionGrid.CellPadding = UDim2.new(0, 6, 0, 6)
+		actionGrid.CellSize = UDim2.new(0.25, -5, 0, 30)
+		actionGrid.FillDirection = Enum.FillDirection.Horizontal
+		actionGrid.FillDirectionMaxCells = 4
+		actionGrid.HorizontalAlignment = Enum.HorizontalAlignment.Right
+		actionGrid.VerticalAlignment = Enum.VerticalAlignment.Center
+		actionGrid.SortOrder = Enum.SortOrder.LayoutOrder
+		local function makeAction(name, text, order, color)
+			local b = Instance.new("TextButton", actions)
+			b.Name = name
+			b.LayoutOrder = order
+			b.BackgroundColor3 = color or Color3.fromRGB(63,59,82)
+			b.BackgroundTransparency = 0.05
+			b.Text = text
+			b.TextColor3 = Color3.fromRGB(245,245,250)
+			b.TextSize = 11
+			b.TextTruncate = Enum.TextTruncate.AtEnd
+			b.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+			Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
+			return b
+		end
+		local favorite = makeAction("Favorite", state.favorites[tostring(place.PlaceId)] and "Unfav" or "Fav", 1, state.favorites[tostring(place.PlaceId)] and Color3.fromRGB(115,88,55) or nil)
+		local join = makeAction("Join", isCurrent and "Server Hop" or "Join", 2, isCurrent and Color3.fromRGB(55,126,255) or nil)
+		local rejoin
+		local advanced
+		local smallest
+		local fullest
+		if isCurrent then
+			rejoin = makeAction("Rejoin", "Rejoin", 3, Color3.fromRGB(55,126,255))
+			advanced = makeAction("Advanced", "Adv Hop", 4, Color3.fromRGB(90,94,255))
+			smallest = makeAction("Smallest", "Smallest", 5, Color3.fromRGB(45,166,125))
+			fullest = makeAction("Fullest", "Fullest", 6, Color3.fromRGB(150,93,255))
+		else
+			advanced = makeAction("Advanced", "Adv Hop", 3, Color3.fromRGB(90,94,255))
+		end
+		local servers = makeAction("Servers", "Servers", isCurrent and 7 or 4)
+		local copy = makeAction("Copy", "Copy ID", isCurrent and 8 or 5)
+		NAlib.connect("NASubplaceViewerCards", favorite.Activated:Connect(function()
+			const key = tostring(place.PlaceId)
+			state.favorites[key] = not state.favorites[key] or nil
+			NAmanage.SubplaceViewer_SaveFavorites()
+			NAmanage.SubplaceViewer_Render()
+		end))
+		NAlib.connect("NASubplaceViewerCards", servers.Activated:Connect(function() NAmanage.SubplaceViewer_ShowServers(place) end))
+		NAlib.connect("NASubplaceViewerCards", copy.Activated:Connect(function()
+			if type(setclipboard) == "function" then setclipboard(tostring(place.PlaceId)) DoNotif("PlaceId copied.", 2, "Subplace Viewer") end
+		end))
+		NAlib.connect("NASubplaceViewerCards", join.Activated:Connect(function()
+			if isCurrent then
+				local ok, err = pcall(TeleportService.Teleport, TeleportService, game.PlaceId, player)
+				if ok then DoNotif("Server hopping this experience.", 2, "Subplace Viewer") else DoNotif("Teleport failed: "..tostring(err), 4, "Subplace Viewer") end
+			else
+				local ok, err = pcall(TeleportService.Teleport, TeleportService, place.PlaceId, player)
+				if ok then DoNotif("Teleporting to "..tostring(place.Name)..".", 2, "Subplace Viewer") else DoNotif("Teleport failed: "..tostring(err), 4, "Subplace Viewer") end
+			end
+		end))
+		if rejoin then
+			NAlib.connect("NASubplaceViewerCards", rejoin.Activated:Connect(function()
+				local ok, err = pcall(TeleportService.TeleportToPlaceInstance, TeleportService, game.PlaceId, game.JobId, player)
+				if ok then DoNotif("Rejoining this server.", 2, "Subplace Viewer") else DoNotif("Teleport failed: "..tostring(err), 4, "Subplace Viewer") end
+			end))
+		end
+		if advanced then
+			NAlib.connect("NASubplaceViewerCards", advanced.Activated:Connect(function() NAmanage.SubplaceViewer_Hop(place.PlaceId, "advanced") end))
+		end
+		if smallest then
+			NAlib.connect("NASubplaceViewerCards", smallest.Activated:Connect(function() NAmanage.SubplaceViewer_Hop(game.PlaceId, "smallest") end))
+		end
+		if fullest then
+			NAlib.connect("NASubplaceViewerCards", fullest.Activated:Connect(function() NAmanage.SubplaceViewer_Hop(game.PlaceId, "fullest") end))
+		end
+	end
+end
+
+NAmanage.SubplaceViewer_Fetch = function(force)
+	const state = NAmanage.SubplaceViewer
+	const ui = state.ui or NAmanage.SubplaceViewer_GetUI()
+	if state.loading then return end
+	if state.loaded and not force then NAmanage.SubplaceViewer_Render() return end
+	state.loading = true
+	state.fetchToken += 1
+	const token = state.fetchToken
+	if ui and ui.status then ui.status.Text = "Fetching universe subplaces..." end
+	Spawn(function()
+		local places = {}
+		local seen = {}
+		local ok, pages = pcall(function() return __lt.cm("AssetService", "GetGamePlacesAsync") end)
+		if ok and pages then
+			while true do
+				for _, info in pages:GetCurrentPage() do
+					if info.PlaceId and not seen[info.PlaceId] then
+						seen[info.PlaceId] = true
+						places[#places + 1] = { Name = tostring(info.Name or ("Place "..info.PlaceId)); PlaceId = info.PlaceId }
+					end
+				end
+				if pages.IsFinished then break end
+				local advanced = pcall(function() pages:AdvanceToNextPageAsync() end)
+				if not advanced then break end
+			end
+		end
+		if not seen[game.PlaceId] then places[#places + 1] = { Name = game.Name; PlaceId = game.PlaceId } end
+		if token ~= state.fetchToken then return end
+		state.places = places
+		state.loaded = true
+		state.loading = false
+		if #places == 0 then
+			if ui and ui.status then ui.status.Text = "No subplaces were returned." end
+		else
+			NAmanage.SubplaceViewer_Render()
+		end
+	end)
+end
+
+NAmanage.SubplaceViewer_Init = function()
+	const state = NAmanage.SubplaceViewer
+	const ui = NAmanage.SubplaceViewer_GetUI()
+	if state.initialized or not (ui and ui.frame) then return ui ~= nil end
+	state.initialized = true
+	NAmanage.SubplaceViewer_LoadFavorites()
+	if ui.sort then ui.sort.Text = state.sort == "id" and "Sort: ID" or "Sort: Name" end
+	NAlib.connect("NASubplaceViewer", ui.refresh.Activated:Connect(function() NAmanage.SubplaceViewer_Fetch(true) end))
+	NAlib.connect("NASubplaceViewer", ui.search:GetPropertyChangedSignal("Text"):Connect(function() if state.loaded then NAmanage.SubplaceViewer_Render() end end))
+	NAlib.connect("NASubplaceViewer", ui.filter.Activated:Connect(function()
+		state.filter = state.filter == "all" and "favorites" or "all"
+		ui.filter.Text = state.filter == "all" and "All Places" or "Favorites"
+		NAmanage.SubplaceViewer_Render()
+	end))
+	NAlib.connect("NASubplaceViewer", ui.sort.Activated:Connect(function()
+		state.sort = state.sort == "name" and "id" or "name"
+		ui.sort.Text = state.sort == "name" and "Sort: Name" or "Sort: ID"
+		NAmanage.SubplaceViewer_Render()
+	end))
+	NAlib.connect("NASubplaceViewer", ui.current.Activated:Connect(function()
+		ui.search.Text = tostring(game.PlaceId)
+	end))
+	return true
+end
+
+NAmanage.SubplaceViewer_Toggle = function(forceState)
+	const ui = NAmanage.SubplaceViewer_GetUI()
+	if not (ui and ui.frame) then DoNotif("Subplace Viewer UI unavailable.", 3) return false end
+	NAmanage.SubplaceViewer_Init()
+	local visible = forceState
+	if type(visible) ~= "boolean" then visible = not ui.frame.Visible end
+	ui.frame.Visible = visible
+	if visible then
+		if NAmanage.centerFrame then pcall(NAmanage.centerFrame, ui.frame) end
+		NAmanage.SubplaceViewer_Fetch(false)
+	end
+	return true
+end
+
 NAmanage.Notepad_Toggle = function(forceState)
 	if not (NAUIMANAGER and NAUIMANAGER.NotepadFrame) then
 		DoNotif("Notepad UI unavailable.", 3)
@@ -121998,6 +122482,7 @@ end)
 NAStartupUI("Menu:Executor", 0.08, function() if NAUIMANAGER.ExecutorFrame then NAgui.menu(NAUIMANAGER.ExecutorFrame) end end)
 NAStartupUI("Menu:Notepad", 0.09, function() if NAUIMANAGER.NotepadFrame then NAgui.menu(NAUIMANAGER.NotepadFrame) end end)
 NAStartupUI("Menu:ScriptHub", 0.1, function() if NAUIMANAGER.ScriptHubFrame then NAgui.menu(NAUIMANAGER.ScriptHubFrame) end end)
+NAStartupUI("Menu:SubplaceViewer", 0.1, function() if NAUIMANAGER.SubplaceViewerFrame then NAgui.menu(NAUIMANAGER.SubplaceViewerFrame) end end)
 
 --[[ GUI RESIZE FUNCTION ]]--
 
@@ -122043,6 +122528,7 @@ NAStartupUI("Resize:Waypoints", 0.15, function() if NAUIMANAGER.WaypointFrame th
 NAStartupUI("Resize:Binders", 0.16, function() if NAUIMANAGER.BindersFrame then NAgui.resizeable(NAUIMANAGER.BindersFrame) end end)
 NAStartupUI("Resize:Music", 0.3, function() if NAUIMANAGER.MusicFrame then NAgui.resizeable(NAUIMANAGER.MusicFrame, Vector2.new(380, 280), Vector2.new(1100, 820)) end end)
 NAStartupUI("Resize:ScriptHub", 0.31, function() if NAUIMANAGER.ScriptHubFrame then NAgui.resizeable(NAUIMANAGER.ScriptHubFrame, IsOnMobile and Vector2.new(340, 300) or Vector2.new(560, 380), Vector2.new(1400, 1000)) end end)
+NAStartupUI("Resize:SubplaceViewer", 0.2, function() if NAUIMANAGER.SubplaceViewerFrame then NAgui.resizeable(NAUIMANAGER.SubplaceViewerFrame, Vector2.new(430, 300), Vector2.new(5000, 5000)) end end)
 NAStartupUI("Resize:Executor", 0.17, function()
 	if NAUIMANAGER.ExecutorFrame then
 		const exMin = IsOnMobile and Vector2.new(340, 280) or Vector2.new(680, 420)
