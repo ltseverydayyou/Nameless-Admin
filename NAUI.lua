@@ -3483,4 +3483,256 @@ do
 	task.defer(lay)
 end
 
+do
+	local root = G2L["1"];
+	local accent = Color3.fromRGB(155, 100, 255);
+	local regularFont = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+	local semiboldFont = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal);
+	local function addCorner(parent, radius)
+		local item = Instance.new("UICorner", parent);
+		item.CornerRadius = UDim.new(0, radius or 6);
+		return item;
+	end;
+	local function addStroke(parent, thickness)
+		local item = Instance.new("UIStroke", parent);
+		item.Thickness = thickness or 1.5;
+		item.Color = accent;
+		item.ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
+		item.Name = "UIStroker";
+		return item;
+	end;
+	local function makeButton(parent, name, text, size, position, background)
+		local item = Instance.new("TextButton", parent);
+		item.Name = name;
+		item.BorderSizePixel = 0;
+		item.AutoButtonColor = false;
+		item.BackgroundColor3 = background or Color3.fromRGB(55, 55, 65);
+		item.BackgroundTransparency = 0.2;
+		item.Text = text;
+		item.TextColor3 = Color3.fromRGB(245, 245, 250);
+		item.TextSize = 13;
+		item.FontFace = semiboldFont;
+		item.Size = size;
+		item.Position = position;
+		addCorner(item, 6);
+		addStroke(item, 1.5);
+		return item;
+	end;
+
+	local frame = Instance.new("Frame", root);
+	frame.Name = "ScriptHub";
+	frame.BorderSizePixel = 0;
+	frame.BackgroundColor3 = Color3.fromRGB(30, 30, 35);
+	frame.BackgroundTransparency = 0.08;
+	frame.AnchorPoint = Vector2.new(0.5, 0.5);
+	frame.Position = UDim2.new(0.5, 0, 0.5, 0);
+	frame.Size = UDim2.new(0, 760, 0, 520);
+	frame.Visible = false;
+	frame.ClipsDescendants = true;
+	addCorner(frame, 10);
+	addStroke(frame, 2);
+	local frameGradient = Instance.new("UIGradient", frame);
+	frameGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(35, 35, 40)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(30, 30, 35))
+	});
+
+	local topbar = Instance.new("Frame", frame);
+	topbar.Name = "Topbar";
+	topbar.BorderSizePixel = 0;
+	topbar.BackgroundColor3 = Color3.fromRGB(40, 40, 45);
+	topbar.BackgroundTransparency = 0.2;
+	topbar.Size = UDim2.new(1, 0, 0, 35);
+	addCorner(topbar, 10);
+	addStroke(topbar, 2);
+
+	local engine = makeButton(topbar, "Engine", "Engine: RScripts", UDim2.new(0, 154, 0, 24), UDim2.new(0, 10, 0.5, -12), Color3.fromRGB(50, 50, 60));
+	engine.TextSize = 12;
+
+	local title = Instance.new("TextLabel", topbar);
+	title.Name = "Title";
+	title.BorderSizePixel = 0;
+	title.BackgroundTransparency = 1;
+	title.AnchorPoint = Vector2.new(0.5, 0.5);
+	title.Position = UDim2.new(0.5, 0, 0.5, 0);
+	title.Size = UDim2.new(0, 260, 1, 0);
+	title.TextXAlignment = Enum.TextXAlignment.Center;
+	title.Text = "Script Hub";
+	title.TextColor3 = Color3.fromRGB(235, 235, 245);
+	title.TextSize = 18;
+	title.FontFace = regularFont;
+
+	local minimize = makeButton(topbar, "Minimize", "−", UDim2.new(0, 24, 0, 24), UDim2.new(1, -40, 0.5, -12), Color3.fromRGB(55, 55, 65));
+	minimize.AnchorPoint = Vector2.new(1, 0);
+	minimize.TextSize = 16;
+	local exit = makeButton(topbar, "Exit", "×", UDim2.new(0, 24, 0, 24), UDim2.new(1, -10, 0.5, -12), Color3.fromRGB(185, 55, 55));
+	exit.AnchorPoint = Vector2.new(1, 0);
+	exit.TextSize = 16;
+
+	local container = Instance.new("Frame", frame);
+	container.Name = "Container";
+	container.BorderSizePixel = 0;
+	container.BackgroundColor3 = Color3.fromRGB(40, 40, 45);
+	container.BackgroundTransparency = 0.28;
+	container.AnchorPoint = Vector2.new(0.5, 1);
+	container.Position = UDim2.new(0.5, 0, 1, -10);
+	container.Size = UDim2.new(1, -16, 1, -44);
+	container.ClipsDescendants = true;
+	addCorner(container, 10);
+	local containerGradient = Instance.new("UIGradient", container);
+	containerGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(45, 45, 50)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(35, 35, 40))
+	});
+
+	local searchRow = Instance.new("Frame", container);
+	searchRow.Name = "SearchRow";
+	searchRow.BorderSizePixel = 0;
+	searchRow.BackgroundColor3 = Color3.fromRGB(50, 50, 58);
+	searchRow.BackgroundTransparency = 0.15;
+	searchRow.Position = UDim2.new(0, 8, 0, 8);
+	searchRow.Size = UDim2.new(1, -16, 0, 34);
+	addCorner(searchRow, 7);
+
+	local searchBox = Instance.new("TextBox", searchRow);
+	searchBox.Name = "SearchBox";
+	searchBox.BorderSizePixel = 0;
+	searchBox.BackgroundTransparency = 1;
+	searchBox.ClearTextOnFocus = false;
+	searchBox.TextXAlignment = Enum.TextXAlignment.Left;
+	searchBox.PlaceholderText = "Search for scripts (rscripts.net)";
+	searchBox.PlaceholderColor3 = Color3.fromRGB(145, 145, 158);
+	searchBox.Text = "";
+	searchBox.TextColor3 = Color3.fromRGB(235, 235, 245);
+	searchBox.TextSize = 14;
+	searchBox.FontFace = regularFont;
+	searchBox.Position = UDim2.new(0, 10, 0, 0);
+	searchBox.Size = UDim2.new(1, -112, 1, 0);
+
+	local search = makeButton(searchRow, "Search", "Search", UDim2.new(0, 92, 0, 26), UDim2.new(1, -98, 0.5, -13), Color3.fromRGB(75, 70, 95));
+
+	local controls = Instance.new("ScrollingFrame", container);
+	controls.Name = "Controls";
+	controls.BorderSizePixel = 0;
+	controls.BackgroundTransparency = 1;
+	controls.Position = UDim2.new(0, 8, 0, 48);
+	controls.Size = UDim2.new(1, -16, 0, 32);
+	controls.AutomaticCanvasSize = Enum.AutomaticSize.X;
+	controls.CanvasSize = UDim2.new();
+	controls.ScrollingDirection = Enum.ScrollingDirection.X;
+	controls.ScrollBarThickness = 2;
+	controls.ScrollBarImageColor3 = Color3.fromRGB(115, 105, 135);
+
+	local controlsLayout = Instance.new("UIListLayout", controls);
+	controlsLayout.FillDirection = Enum.FillDirection.Horizontal;
+	controlsLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left;
+	controlsLayout.VerticalAlignment = Enum.VerticalAlignment.Center;
+	controlsLayout.Padding = UDim.new(0, 6);
+	controlsLayout.SortOrder = Enum.SortOrder.LayoutOrder;
+
+	local function controlButton(name, text, width, order)
+		local item = makeButton(controls, name, text, UDim2.new(0, width, 0, 28), UDim2.new(), Color3.fromRGB(55, 55, 65));
+		item.LayoutOrder = order;
+		return item;
+	end;
+	controlButton("First", "First", 58, 1);
+	controlButton("Prev", "Prev", 58, 2);
+	local pageInfo = Instance.new("TextLabel", controls);
+	pageInfo.Name = "PageInfo";
+	pageInfo.BackgroundTransparency = 1;
+	pageInfo.Size = UDim2.new(0, 126, 0, 28);
+	pageInfo.LayoutOrder = 3;
+	pageInfo.Text = "Page 1 / 1";
+	pageInfo.TextColor3 = Color3.fromRGB(205, 205, 218);
+	pageInfo.TextSize = 13;
+	pageInfo.FontFace = regularFont;
+	controlButton("Next", "Next", 58, 4);
+	controlButton("Last", "Last", 58, 5);
+	controlButton("Filter", "Filter: All", 112, 6);
+
+	local results = Instance.new("ScrollingFrame", container);
+	results.Name = "Results";
+	results.BorderSizePixel = 0;
+	results.BackgroundTransparency = 1;
+	results.Position = UDim2.new(0, 8, 0, 86);
+	results.Size = UDim2.new(1, -38, 1, -94);
+	results.ScrollBarThickness = 0;
+	results.ScrollBarImageTransparency = 1;
+	results.AutomaticCanvasSize = Enum.AutomaticSize.Y;
+	results.CanvasSize = UDim2.new();
+
+	local resultsScrollBar = Instance.new("Frame", container);
+	resultsScrollBar.Name = "CustomScrollBar";
+	resultsScrollBar.BorderSizePixel = 0;
+	resultsScrollBar.BackgroundColor3 = Color3.fromRGB(40, 40, 45);
+	resultsScrollBar.BackgroundTransparency = 0.15;
+	resultsScrollBar.Position = UDim2.new(1, -18, 0, 86);
+	resultsScrollBar.Size = UDim2.new(0, 16, 1, -94);
+	resultsScrollBar.Visible = false;
+	addCorner(resultsScrollBar, 6);
+	local resultsScrollStroke = addStroke(resultsScrollBar, 1);
+	resultsScrollStroke.Transparency = 0.35;
+
+	local resultsScrollUp = Instance.new("TextButton", resultsScrollBar);
+	resultsScrollUp.Name = "Up";
+	resultsScrollUp.BorderSizePixel = 0;
+	resultsScrollUp.BackgroundColor3 = Color3.fromRGB(55, 55, 65);
+	resultsScrollUp.BackgroundTransparency = 0.15;
+	resultsScrollUp.Size = UDim2.new(1, 0, 0, 16);
+	resultsScrollUp.AutoButtonColor = false;
+	resultsScrollUp.Text = "^";
+	resultsScrollUp.TextColor3 = Color3.fromRGB(235, 235, 245);
+	resultsScrollUp.TextSize = 14;
+	resultsScrollUp.FontFace = semiboldFont;
+	addCorner(resultsScrollUp, 5);
+
+	local resultsScrollTrack = Instance.new("TextButton", resultsScrollBar);
+	resultsScrollTrack.Name = "Track";
+	resultsScrollTrack.BorderSizePixel = 0;
+	resultsScrollTrack.BackgroundColor3 = Color3.fromRGB(47, 47, 57);
+	resultsScrollTrack.BackgroundTransparency = 0.1;
+	resultsScrollTrack.Position = UDim2.new(0, 0, 0, 16);
+	resultsScrollTrack.Size = UDim2.new(1, 0, 1, -32);
+	resultsScrollTrack.AutoButtonColor = false;
+	resultsScrollTrack.Text = "";
+	addCorner(resultsScrollTrack, 5);
+
+	local resultsScrollThumb = Instance.new("TextButton", resultsScrollTrack);
+	resultsScrollThumb.Name = "Thumb";
+	resultsScrollThumb.BorderSizePixel = 0;
+	resultsScrollThumb.BackgroundColor3 = Color3.fromRGB(110, 110, 120);
+	resultsScrollThumb.BackgroundTransparency = 0.05;
+	resultsScrollThumb.Size = UDim2.new(1, 0, 0, 48);
+	resultsScrollThumb.AutoButtonColor = false;
+	resultsScrollThumb.Text = "";
+	addCorner(resultsScrollThumb, 5);
+	local resultsThumbStroke = addStroke(resultsScrollThumb, 1);
+	resultsThumbStroke.Color = Color3.fromRGB(72, 72, 82);
+	resultsThumbStroke.Transparency = 0.25;
+
+	local resultsScrollDown = Instance.new("TextButton", resultsScrollBar);
+	resultsScrollDown.Name = "Down";
+	resultsScrollDown.BorderSizePixel = 0;
+	resultsScrollDown.BackgroundColor3 = Color3.fromRGB(55, 55, 65);
+	resultsScrollDown.BackgroundTransparency = 0.15;
+	resultsScrollDown.Position = UDim2.new(0, 0, 1, -16);
+	resultsScrollDown.Size = UDim2.new(1, 0, 0, 16);
+	resultsScrollDown.AutoButtonColor = false;
+	resultsScrollDown.Text = "v";
+	resultsScrollDown.TextColor3 = Color3.fromRGB(235, 235, 245);
+	resultsScrollDown.TextSize = 14;
+	resultsScrollDown.FontFace = semiboldFont;
+	addCorner(resultsScrollDown, 5);
+
+	local resultsLayout = Instance.new("UIListLayout", results);
+	resultsLayout.Name = "Layout";
+	resultsLayout.Padding = UDim.new(0, 8);
+	resultsLayout.SortOrder = Enum.SortOrder.LayoutOrder;
+	local resultsPadding = Instance.new("UIPadding", results);
+	resultsPadding.PaddingTop = UDim.new(0, 2);
+	resultsPadding.PaddingBottom = UDim.new(0, 8);
+	resultsPadding.PaddingLeft = UDim.new(0, 2);
+	resultsPadding.PaddingRight = UDim.new(0, 2);
+end
+
 return G2L["1"];

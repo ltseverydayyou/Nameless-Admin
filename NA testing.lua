@@ -2520,6 +2520,9 @@ NAmanage.OnUIWindowShown = NAmanage.OnUIWindowShown or function(frame)
 		elseif frame == NAUIMANAGER.MusicFrame and type(NAgui.menu) == "function" then
 			lazyMenuKey = "MusicFrame"
 			lazyMenuBinder = function() NAgui.menu(frame) end
+		elseif frame == NAUIMANAGER.ScriptHubFrame and type(NAgui.menu) == "function" then
+			lazyMenuKey = "ScriptHubFrame"
+			lazyMenuBinder = function() NAgui.menu(frame) end
 		end
 		if lazyMenuKey and lazyMenuBinder and NAStuff["LazyMenuBound_"..lazyMenuKey] ~= frame then
 			NAStuff["LazyMenuBound_"..lazyMenuKey] = frame
@@ -2557,7 +2560,7 @@ NAmanage.InstallUIVisibilityOptimizer = NAmanage.InstallUIVisibilityOptimizer or
 	if not NAUIMANAGER or NAmanage._uiVisOptInstalled then return end
 	NAmanage._uiVisOptInstalled = true
 	NAmanage._uiVisibilityConns = NAmanage._uiVisibilityConns or {}
-	for _, name in {"SettingsFrame","commandsFrame","chatLogsFrame","NAconsoleFrame","CommandKeybindsFrame","WaypointFrame","BindersFrame","ExecutorFrame","NotepadFrame","PluginsFrame","MusicFrame"} do
+	for _, name in {"SettingsFrame","commandsFrame","chatLogsFrame","NAconsoleFrame","CommandKeybindsFrame","WaypointFrame","BindersFrame","ExecutorFrame","NotepadFrame","PluginsFrame","MusicFrame","ScriptHubFrame"} do
 		const frame = NAUIMANAGER[name]
 		if typeof(frame) == "Instance" and frame.GetPropertyChangedSignal then
 			const function sync()
@@ -10684,6 +10687,7 @@ const NAfiles = {
 	NAPLUGINFILEPATH = "Nameless-Admin/Plugins";
 	NAIYPLUGINFILEPATH = "Nameless-Admin/PluginsIY";
 	NAASSETSFILEPATH = "Nameless-Admin/Assets";
+	NASCRIPTIMAGEPATH = "Nameless-Admin/ScriptImages";
 	NAMAINSETTINGSPATH = "Nameless-Admin/Settings.json";
 	NAPREFIXPATH = "Nameless-Admin/Prefix.txt";
 	NABUTTONSIZEPATH = "Nameless-Admin/ButtonSize.txt";
@@ -45566,8 +45570,12 @@ cmd.add({"stoploop", "uncmdloop", "sloop", "stopl"}, {"stoploop", "Stop a runnin
 	cmd.stopLoop()
 end)
 
-cmd.add({"scripthub","hub"},{"scripthub (hub)","Thanks to scriptblox/rscripts API"},function()
-	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/ScriptHubNA.lua")
+cmd.add({"scripthub","hub"},{"scripthub (hub)","Open the built-in Script Hub using RScripts, RobloxScripts, and ScriptBlox"},function()
+	if NAmanage.ScriptHub_Toggle then
+		NAmanage.ScriptHub_Toggle()
+	else
+		DoNotif("Script Hub UI unavailable.", 3, "Script Hub")
+	end
 end)
 
 cmd.add({"gamescripts", "supportedscripts", "gamesupport"}, {"gamescripts [refresh/on/off] (supportedscripts, gamesupport)", "Show scripts listed for the current game"}, function(mode)
@@ -100560,8 +100568,1028 @@ NAUIMANAGER = {
 	PluginsList = NAStuff.NASCREENGUI:FindFirstChild("Plugins") and (NAStuff.NASCREENGUI:FindFirstChild("Plugins")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("Plugins")):FindFirstChild("Container")):FindFirstChild("List"),
 	PluginsFilter = NAStuff.NASCREENGUI:FindFirstChild("Plugins") and (NAStuff.NASCREENGUI:FindFirstChild("Plugins")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("Plugins")):FindFirstChild("Container")):FindFirstChild("Filter"),
 	MusicFrame = NAStuff.NASCREENGUI:FindFirstChild("MusicPlayer"),
-	MusicContainer = NAStuff.NASCREENGUI:FindFirstChild("MusicPlayer") and (NAStuff.NASCREENGUI:FindFirstChild("MusicPlayer")):FindFirstChild("Container")
+	MusicContainer = NAStuff.NASCREENGUI:FindFirstChild("MusicPlayer") and (NAStuff.NASCREENGUI:FindFirstChild("MusicPlayer")):FindFirstChild("Container"),
+	ScriptHubFrame = NAStuff.NASCREENGUI:FindFirstChild("ScriptHub"),
+	ScriptHubContainer = NAStuff.NASCREENGUI:FindFirstChild("ScriptHub") and (NAStuff.NASCREENGUI:FindFirstChild("ScriptHub")):FindFirstChild("Container")
 };
+NAmanage.ScriptHub = type(NAmanage.ScriptHub) == "table" and NAmanage.ScriptHub or {}
+NAmanage.ScriptHub.engines = { "RScripts", "RobloxScripts", "ScriptBlox" }
+NAmanage.ScriptHub.filterModes = { "all", "keyless", "key" }
+NAmanage.ScriptHub.engine = table.find(NAmanage.ScriptHub.engines, NAmanage.ScriptHub.engine) and NAmanage.ScriptHub.engine or "RScripts"
+NAmanage.ScriptHub.filterMode = table.find(NAmanage.ScriptHub.filterModes, NAmanage.ScriptHub.filterMode) and NAmanage.ScriptHub.filterMode or "all"
+NAmanage.ScriptHub.page = math.max(tonumber(NAmanage.ScriptHub.page) or 1, 1)
+NAmanage.ScriptHub.totalPages = math.max(tonumber(NAmanage.ScriptHub.totalPages) or 1, 1)
+NAmanage.ScriptHub.query = tostring(NAmanage.ScriptHub.query or "")
+NAmanage.ScriptHub.entries = type(NAmanage.ScriptHub.entries) == "table" and NAmanage.ScriptHub.entries or {}
+NAmanage.ScriptHub.searching = false
+NAmanage.ScriptHub.fetchToken = tonumber(NAmanage.ScriptHub.fetchToken) or 0
+NAmanage.ScriptHub.imageCacheDir = NAfiles.NASCRIPTIMAGEPATH or "Nameless-Admin/ScriptImages"
+NAmanage.ScriptHub.imageAssets = type(NAmanage.ScriptHub.imageAssets) == "table" and NAmanage.ScriptHub.imageAssets or {}
+NAmanage.ScriptHub.imagePending = type(NAmanage.ScriptHub.imagePending) == "table" and NAmanage.ScriptHub.imagePending or {}
+NAmanage.ScriptHub.imageGeneration = tonumber(NAmanage.ScriptHub.imageGeneration) or 0
+
+NAmanage.ScriptHub_GetUI = function()
+	const hub = NAmanage.ScriptHub
+	const frame = NAUIMANAGER and NAUIMANAGER.ScriptHubFrame
+	const container = frame and frame:FindFirstChild("Container")
+	const controls = container and container:FindFirstChild("Controls")
+	const topbar = frame and frame:FindFirstChild("Topbar")
+	hub.ui = {
+		frame = frame;
+		container = container;
+		topbar = topbar;
+		engine = topbar and topbar:FindFirstChild("Engine");
+		searchBox = container and container:FindFirstChild("SearchBox", true);
+		search = container and container:FindFirstChild("Search", true);
+		controls = controls;
+		first = controls and controls:FindFirstChild("First");
+		prev = controls and controls:FindFirstChild("Prev");
+		pageInfo = controls and controls:FindFirstChild("PageInfo");
+		next = controls and controls:FindFirstChild("Next");
+		last = controls and controls:FindFirstChild("Last");
+		filter = controls and controls:FindFirstChild("Filter");
+		results = container and container:FindFirstChild("Results");
+	}
+	return hub.ui
+end
+
+NAmanage.ScriptHub_SetButtonEnabled = function(button, enabled)
+	if not (button and button:IsA("GuiButton")) then
+		return
+	end
+	button.Active = enabled == true
+	button.AutoButtonColor = false
+	button.TextTransparency = enabled and 0 or 0.45
+	button.BackgroundTransparency = enabled and 0.2 or 0.55
+end
+
+NAmanage.ScriptHub_UpdateControls = function()
+	const hub = NAmanage.ScriptHub
+	const ui = hub.ui or NAmanage.ScriptHub_GetUI()
+	if not ui then
+		return
+	end
+	const page = math.max(tonumber(hub.page) or 1, 1)
+	const total = math.max(tonumber(hub.totalPages) or 1, 1)
+	if ui.pageInfo then
+		ui.pageInfo.Text = Format("Page %d / %d", page, total)
+	end
+	if ui.filter then
+		ui.filter.Text = hub.filterMode == "keyless" and "Filter: Keyless" or hub.filterMode == "key" and "Filter: Key Req" or "Filter: All"
+	end
+	const ready = hub.searching ~= true
+	NAmanage.ScriptHub_SetButtonEnabled(ui.first, ready and page > 1)
+	NAmanage.ScriptHub_SetButtonEnabled(ui.prev, ready and page > 1)
+	NAmanage.ScriptHub_SetButtonEnabled(ui.next, ready and page < total)
+	NAmanage.ScriptHub_SetButtonEnabled(ui.last, ready and page < total)
+	NAmanage.ScriptHub_SetButtonEnabled(ui.filter, ready and #hub.entries > 0)
+	NAmanage.ScriptHub_SetButtonEnabled(ui.engine, ready)
+	NAmanage.ScriptHub_SetButtonEnabled(ui.search, ready)
+	if ui.search then
+		ui.search.Text = hub.searching and "Searching..." or "Search"
+	end
+end
+
+NAmanage.ScriptHub_UpdateHeader = function()
+	const hub = NAmanage.ScriptHub
+	const ui = hub.ui or NAmanage.ScriptHub_GetUI()
+	if not ui then
+		return
+	end
+	if ui.engine then
+		ui.engine.Text = "Engine: "..hub.engine
+	end
+	if ui.searchBox then
+		if hub.engine == "RScripts" then
+			ui.searchBox.PlaceholderText = "Search for scripts (rscripts.net)"
+		elseif hub.engine == "RobloxScripts" then
+			ui.searchBox.PlaceholderText = "Search for scripts (robloxscripts.com)"
+		else
+			ui.searchBox.PlaceholderText = "Search for scripts (scriptblox.com)"
+		end
+	end
+	NAmanage.ScriptHub_UpdateControls()
+end
+
+NAmanage.ScriptHub_ClearResults = function()
+	NAlib.disconnect("NAScriptHubCards")
+	const hub = NAmanage.ScriptHub
+	const ui = hub.ui or NAmanage.ScriptHub_GetUI()
+	const results = ui and ui.results
+	if not results then
+		return
+	end
+	for _, child in results:GetChildren() do
+		if child:IsA("GuiObject") then
+			child:Destroy()
+		end
+	end
+	results.CanvasPosition = Vector2.new(0, 0)
+end
+
+NAmanage.ScriptHub_Message = function(text, color)
+	const hub = NAmanage.ScriptHub
+	const ui = hub.ui or NAmanage.ScriptHub_GetUI()
+	const results = ui and ui.results
+	if not results then
+		return
+	end
+	NAmanage.ScriptHub_ClearResults()
+	const message = InstanceNew("TextLabel", results)
+	message.Name = "ScriptHubMessage"
+	message.BorderSizePixel = 0
+	message.BackgroundColor3 = color or Color3.fromRGB(55, 55, 65)
+	message.BackgroundTransparency = 0.2
+	message.Size = UDim2.new(1, -4, 0, 54)
+	message.Text = tostring(text or "")
+	message.TextWrapped = true
+	message.TextColor3 = Color3.fromRGB(240, 240, 248)
+	message.TextSize = 14
+	message.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+	const corner = InstanceNew("UICorner", message)
+	corner.CornerRadius = UDim.new(0, 7)
+	const stroke = InstanceNew("UIStroke", message)
+	stroke.Name = "UIStroker"
+	stroke.Thickness = 1.25
+	stroke.Color = NAUISTROKER or Color3.fromRGB(155, 100, 255)
+	stroke.Transparency = 0.35
+end
+
+NAmanage.ScriptHub_RequiresKey = function(data)
+	const hub = NAmanage.ScriptHub
+	local value
+	if hub.engine == "RScripts" then
+		value = data.keySystem
+	else
+		value = data.key
+	end
+	if value == nil and type(data.accessType) == "string" then
+		value = Lower(data.accessType) == "key"
+	end
+	if type(value) == "boolean" then
+		return value
+	elseif type(value) == "number" then
+		return value ~= 0
+	elseif type(value) == "string" then
+		const normalized = Lower(value)
+		if normalized == "" or normalized == "false" or normalized == "0" or normalized == "none" or normalized == "n/a" then
+			return false
+		end
+		if Find(normalized, "no key", 1, true) or Find(normalized, "keyless", 1, true) then
+			return false
+		end
+		return true
+	end
+	return value ~= nil and value ~= false
+end
+
+NAmanage.ScriptHub_PassesFilter = function(data)
+	const mode = NAmanage.ScriptHub.filterMode
+	const requiresKey = NAmanage.ScriptHub_RequiresKey(data)
+	if mode == "keyless" then
+		return not requiresKey
+	elseif mode == "key" then
+		return requiresKey
+	end
+	return true
+end
+
+NAmanage.ScriptHub_GetSourceInfo = function(data)
+	const hub = NAmanage.ScriptHub
+	local source
+	if hub.engine == "RScripts" then
+		source = data.rawScript or data.scriptLink or data.raw or data.script
+	else
+		source = data.script or data.rawScriptUrl or data.scriptLink or data.raw or data.rawScript
+	end
+	source = type(source) == "string" and source or ""
+	return source, source:match("^https?://") ~= nil
+end
+
+NAmanage.ScriptHub_ResolveSource = function(data)
+	local source, isUrl = NAmanage.ScriptHub_GetSourceInfo(data)
+	if source == "" then
+		return false, nil, "script source unavailable"
+	end
+	if isUrl then
+		local ok, body, err = NAmanage.HttpGet(source, { timeout = 12; maxAttempts = 3; Headers = { Accept = "text/plain,*/*" } })
+		if not ok or type(body) ~= "string" or body == "" then
+			return false, nil, tostring(err or "failed to download script")
+		end
+		source = body
+	end
+	return true, source
+end
+
+NAmanage.ScriptHub_RunEntry = function(data)
+	SpawnCall(function()
+		local okSource, source, sourceErr = NAmanage.ScriptHub_ResolveSource(data)
+		if not okSource then
+			DoNotif(tostring(sourceErr or "Script source unavailable."), 3, "Script Hub")
+			return
+		end
+		local chunk, compileErr = loadstring(source, "@NA-ScriptHub/"..tostring(data.title or data.name or "Script"))
+		if type(chunk) ~= "function" then
+			DoNotif("Compile failed: "..tostring(compileErr), 4, "Script Hub")
+			return
+		end
+		local okRun, runErr = pcall(chunk)
+		if not okRun then
+			DoNotif("Execution failed: "..tostring(runErr), 4, "Script Hub")
+			return
+		end
+		DoNotif("Executed "..tostring(data.title or data.name or "script"), 2, "Script Hub")
+	end)
+end
+
+NAmanage.ScriptHub_CopyEntry = function(data)
+	if type(setclipboard) ~= "function" then
+		DoNotif("Clipboard API unavailable.", 3, "Script Hub")
+		return
+	end
+	SpawnCall(function()
+		local okSource, source, sourceErr = NAmanage.ScriptHub_ResolveSource(data)
+		if not okSource then
+			DoNotif(tostring(sourceErr or "Script source unavailable."), 3, "Script Hub")
+			return
+		end
+		local okCopy = pcall(setclipboard, source)
+		DoNotif(okCopy and "Script copied." or "Failed to copy script.", 2, "Script Hub")
+	end)
+end
+
+NAmanage.ScriptHub_SanitizeImageName = function(value)
+	return GSub(tostring(value or "image"), "[^%w%._%-]", "_")
+end
+
+NAmanage.ScriptHub_HashImageURL = function(value)
+	value = tostring(value or "")
+	local hash = 0
+	for index = 1, #value do
+		hash = (hash * 31 + string.byte(value, index)) % 4294967296
+	end
+	return Format("%08x", hash)
+end
+
+NAmanage.ScriptHub_NormalizeImageURL = function(value, base)
+	if type(value) ~= "string" then
+		return nil
+	end
+	const trimmed = Match(value, "^%s*(.-)%s*$") or ""
+	if trimmed == "" then
+		return nil
+	end
+	if Match(trimmed, "^rbxassetid://") or Match(trimmed, "^rbxthumb://") then
+		return trimmed
+	end
+	if Match(trimmed, "^https?://") then
+		return trimmed
+	end
+	if Sub(trimmed, 1, 2) == "//" then
+		return "https:"..trimmed
+	end
+	if type(base) ~= "string" or base == "" then
+		return trimmed
+	end
+	if Sub(trimmed, 1, 1) == "/" then
+		return base..trimmed
+	end
+	return base.."/"..trimmed
+end
+
+NAmanage.ScriptHub_IsMeaningfulImageURL = function(value)
+	if type(value) ~= "string" or value == "" then
+		return false
+	end
+	return not Find(Lower(value), "no-script", 1, true)
+end
+
+NAmanage.ScriptHub_PickImageURL = function(values, base)
+	for _, value in values do
+		const normalized = NAmanage.ScriptHub_NormalizeImageURL(value, base)
+		if normalized and NAmanage.ScriptHub_IsMeaningfulImageURL(normalized) then
+			return normalized
+		end
+	end
+	return nil
+end
+
+NAmanage.ScriptHub_ResolveImageURL = function(data)
+	const hub = NAmanage.ScriptHub
+	if type(data) ~= "table" then
+		return nil
+	end
+	const gameData = type(data.game) == "table" and data.game or {}
+	if hub.engine == "RScripts" then
+		return NAmanage.ScriptHub_PickImageURL({
+			data.image,
+			data.imageUrl,
+			data.thumbnail,
+			data.cover,
+			data.banner,
+			data.img,
+			gameData.imgurl,
+			gameData.imageUrl,
+			gameData.image,
+			gameData.thumbnail,
+			gameData.cover,
+			gameData.banner,
+			gameData.gameLogo,
+		}, "https://rscripts.net")
+	elseif hub.engine == "RobloxScripts" then
+		return NAmanage.ScriptHub_PickImageURL({
+			data.image,
+			data.imageUrl,
+			data.thumbnail,
+			gameData.iconUrl,
+			gameData.image,
+		}, "https://robloxscripts.com")
+	end
+	return NAmanage.ScriptHub_PickImageURL({
+		data.image,
+		data.imageUrl,
+		data.thumbnail,
+		data.coverImage,
+		data.icon,
+		gameData.imageUrl,
+		gameData.thumbnail,
+		gameData.image,
+		gameData.coverImage,
+		gameData.icon,
+	}, "https://scriptblox.com")
+end
+
+NAmanage.ScriptHub_BuildPlaceThumbnail = function(placeId)
+	const id = tostring(placeId or "")
+	if id == "" or id == "0" then
+		return nil
+	end
+	return "https://www.roblox.com/Thumbs/PlaceThumbnail.ashx?width=420&height=270&format=png&placeId="..id
+end
+
+NAmanage.ScriptHub_GetImageTargets = function(url)
+	local subdomain, path = Match(tostring(url), "^https?://([%w%-]+)%.roblox%.com(/.*)$")
+	if not subdomain then
+		subdomain, path = Match(tostring(url), "^https?://([%w%-]+)%.roproxy%.com(/.*)$")
+	end
+	if not subdomain then
+		subdomain, path = Match(tostring(url), "^https?://([%w%-]+)%.rotunnel%.com(/.*)$")
+	end
+	if not subdomain or not path then
+		return { url }
+	end
+	return {
+		"https://"..subdomain..".roproxy.com"..path,
+		"https://"..subdomain..".rotunnel.com"..path,
+		"https://"..subdomain..".roblox.com"..path,
+	}
+end
+
+NAmanage.ScriptHub_GetImageHeaders = function(url)
+	const host = Match(tostring(url), "^https?://([^/]+)") or ""
+	const headers = {
+		Accept = "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+	}
+	if Find(host, "rscripts.net", 1, true) then
+		headers.Referer = "https://rscripts.net"
+	elseif Find(host, "robloxscripts.com", 1, true) then
+		headers.Referer = "https://robloxscripts.com"
+	elseif Find(host, "rbxcdn.com", 1, true) or Find(host, "roblox.com", 1, true) or Find(host, "roproxy.com", 1, true) or Find(host, "rotunnel.com", 1, true) then
+		headers.Referer = "https://www.roblox.com/"
+	end
+	return headers
+end
+
+NAmanage.ScriptHub_EnsureImageFolder = function()
+	const hub = NAmanage.ScriptHub
+	if type(getcustomasset) ~= "function" or type(writefile) ~= "function" then
+		return false
+	end
+	if type(NAmanage.safeMakeFolder) == "function" then
+		NAmanage.safeMakeFolder(NAfiles.NAFILEPATH)
+		const ok = NAmanage.safeMakeFolder(hub.imageCacheDir)
+		return ok == true
+	end
+	if type(isfolder) ~= "function" or type(makefolder) ~= "function" then
+		return false
+	end
+	local okRoot, rootExists = pcall(isfolder, NAfiles.NAFILEPATH)
+	if not okRoot then
+		return false
+	end
+	if not rootExists and not pcall(makefolder, NAfiles.NAFILEPATH) then
+		return false
+	end
+	local okFolder, folderExists = pcall(isfolder, hub.imageCacheDir)
+	if not okFolder then
+		return false
+	end
+	return folderExists or pcall(makefolder, hub.imageCacheDir)
+end
+
+NAmanage.ScriptHub_ClearImageCache = function()
+	const hub = NAmanage.ScriptHub
+	hub.imageGeneration = (tonumber(hub.imageGeneration) or 0) + 1
+	hub.imageAssets = {}
+	hub.imagePending = {}
+	if type(listfiles) ~= "function" or type(delfile) ~= "function" then
+		return false
+	end
+	local folderExists = false
+	if type(NAmanage.safeIsFolder) == "function" then
+		folderExists = NAmanage.safeIsFolder(hub.imageCacheDir)
+	elseif type(isfolder) == "function" then
+		local okFolder, value = pcall(isfolder, hub.imageCacheDir)
+		folderExists = okFolder and value == true
+	end
+	if not folderExists then
+		return true
+	end
+	local okList, paths = pcall(listfiles, hub.imageCacheDir)
+	if not okList or type(paths) ~= "table" then
+		return false
+	end
+	for _, path in paths do
+		if type(path) == "string" and path ~= "" then
+			local fileExists = true
+			if type(NAmanage.safeIsFile) == "function" then
+				fileExists = NAmanage.safeIsFile(path)
+			elseif type(isfile) == "function" then
+				local okFile, value = pcall(isfile, path)
+				fileExists = okFile and value == true
+			end
+			if fileExists then
+				if type(NAmanage.safeDeleteFile) == "function" then
+					NAmanage.safeDeleteFile(path)
+				else
+					pcall(delfile, path)
+				end
+			end
+		end
+	end
+	return true
+end
+
+NAmanage.ScriptHub_ClearImageCache()
+
+NAmanage.ScriptHub_GetImagePath = function(url, generation)
+	const hub = NAmanage.ScriptHub
+	local fileName = Match(tostring(url), "/([^/%?#]+)") or "image"
+	fileName = Match(fileName, "([^?#]+)") or fileName
+	fileName = Match(fileName, "(.+)%.") or fileName
+	fileName = NAmanage.ScriptHub_SanitizeImageName(fileName)
+	return hub.imageCacheDir.."/"..(fileName ~= "" and fileName or "image").."_"..NAmanage.ScriptHub_HashImageURL(url).."_"..tostring(tonumber(generation) or hub.imageGeneration)..".txt"
+end
+
+NAmanage.ScriptHub_DownloadImage = function(url, generation)
+	const hub = NAmanage.ScriptHub
+	generation = tonumber(generation) or hub.imageGeneration
+	if generation ~= hub.imageGeneration or type(url) ~= "string" or url == "" then
+		return nil
+	end
+	if Match(url, "^rbxassetid://") or Match(url, "^rbxthumb://") then
+		return url
+	end
+	const cached = hub.imageAssets[url]
+	if type(cached) == "string" and cached ~= "" then
+		return cached
+	end
+	if generation ~= hub.imageGeneration then
+		return nil
+	end
+	if not NAmanage.ScriptHub_EnsureImageFolder() then
+		return url
+	end
+	const path = NAmanage.ScriptHub_GetImagePath(url, generation)
+	local exists = false
+	if type(NAmanage.safeIsFile) == "function" then
+		exists = NAmanage.safeIsFile(path)
+	elseif type(isfile) == "function" then
+		local okExists, value = pcall(isfile, path)
+		exists = okExists and value == true
+	end
+	if not exists then
+		local body
+		for _, targetUrl in NAmanage.ScriptHub_GetImageTargets(url) do
+			if generation ~= hub.imageGeneration then
+				return nil
+			end
+			local okGet, result = NAmanage.HttpGet(targetUrl, {
+				timeout = 12;
+				maxAttempts = 2;
+				Headers = NAmanage.ScriptHub_GetImageHeaders(targetUrl);
+			})
+			if generation ~= hub.imageGeneration then
+				return nil
+			end
+			if okGet and type(result) == "string" and result ~= "" then
+				body = result
+				break
+			end
+		end
+		if generation ~= hub.imageGeneration then
+			return nil
+		end
+		if type(body) ~= "string" or body == "" then
+			return url
+		end
+		local okWrite
+		if type(NAmanage.safeWriteFile) == "function" then
+			okWrite = NAmanage.safeWriteFile(path, body)
+		else
+			okWrite = pcall(writefile, path, body)
+		end
+		if generation ~= hub.imageGeneration then
+			if okWrite == true then
+				if type(NAmanage.safeDeleteFile) == "function" then
+					NAmanage.safeDeleteFile(path)
+				elseif type(delfile) == "function" then
+					pcall(delfile, path)
+				end
+			end
+			return nil
+		end
+		if okWrite ~= true then
+			return url
+		end
+	end
+	if generation ~= hub.imageGeneration then
+		return nil
+	end
+	local okAsset, asset = pcall(getcustomasset, path)
+	if generation ~= hub.imageGeneration then
+		return nil
+	end
+	if okAsset and type(asset) == "string" and asset ~= "" then
+		hub.imageAssets[url] = asset
+		return asset
+	end
+	return url
+end
+
+NAmanage.ScriptHub_ApplyImage = function(imageLabel, asset)
+	if not (imageLabel and imageLabel:IsA("ImageLabel") and type(asset) == "string" and asset ~= "") then
+		return
+	end
+	imageLabel.Image = asset
+	imageLabel.ImageTransparency = math.clamp(tonumber(imageLabel:GetAttribute("NAScriptHubLoadedTransparency")) or 0, 0, 1)
+end
+
+NAmanage.ScriptHub_LoadImage = function(imageLabel, url)
+	const hub = NAmanage.ScriptHub
+	if not (imageLabel and imageLabel:IsA("ImageLabel") and type(url) == "string" and url ~= "") then
+		return
+	end
+	if Match(url, "^rbxassetid://") or Match(url, "^rbxthumb://") then
+		NAmanage.ScriptHub_ApplyImage(imageLabel, url)
+		return
+	end
+	const cached = hub.imageAssets[url]
+	if type(cached) == "string" and cached ~= "" then
+		NAmanage.ScriptHub_ApplyImage(imageLabel, cached)
+		return
+	end
+	const generation = hub.imageGeneration
+	const pendingKey = tostring(generation).."|"..url
+	if type(hub.imagePending[pendingKey]) == "table" then
+		hub.imagePending[pendingKey][#hub.imagePending[pendingKey] + 1] = imageLabel
+		return
+	end
+	hub.imagePending[pendingKey] = { imageLabel }
+	SpawnCall(function()
+		const asset = NAmanage.ScriptHub_DownloadImage(url, generation)
+		const waiting = hub.imagePending[pendingKey] or {}
+		hub.imagePending[pendingKey] = nil
+		if generation ~= hub.imageGeneration or type(asset) ~= "string" or asset == "" then
+			return
+		end
+		for _, target in waiting do
+			if target and target.Parent then
+				NAmanage.ScriptHub_ApplyImage(target, asset)
+			end
+		end
+	end)
+end
+
+NAmanage.ScriptHub_CreateActionButton = function(parent, text, width, background)
+	const button = InstanceNew("TextButton", parent)
+	button.Name = text
+	button.BorderSizePixel = 0
+	button.AutoButtonColor = false
+	button.BackgroundColor3 = background
+	button.BackgroundTransparency = 0.12
+	button.Size = UDim2.new(0, width, 0, 28)
+	button.Text = text
+	button.TextColor3 = Color3.fromRGB(245, 245, 250)
+	button.TextSize = 13
+	button.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+	const corner = InstanceNew("UICorner", button)
+	corner.CornerRadius = UDim.new(0, 6)
+	const stroke = InstanceNew("UIStroke", button)
+	stroke.Name = "UIStroker"
+	stroke.Thickness = 1.25
+	stroke.Color = NAUISTROKER or Color3.fromRGB(155, 100, 255)
+	stroke.Transparency = 0.25
+	return button
+end
+
+NAmanage.ScriptHub_CreateCard = function(data, order)
+	const hub = NAmanage.ScriptHub
+	const ui = hub.ui or NAmanage.ScriptHub_GetUI()
+	const results = ui and ui.results
+	if not results then
+		return
+	end
+	const titleText = tostring(data.title or data.name or "Untitled Script")
+	const requiresKey = NAmanage.ScriptHub_RequiresKey(data)
+	const views = tostring(data.views or data.viewCount or 0)
+	const likes = tostring(data.likes or data.likeCount or 0)
+	const verified = data.verified == true or type(data.author) == "table" and data.author.verified == true
+	const universal = data.isUniversal == true or data.universal == true
+	const gameData = type(data.game) == "table" and data.game or nil
+	local gameName = gameData and tostring(gameData.name or gameData.title or "") or ""
+	local placeId
+	if hub.engine == "ScriptBlox" then
+		placeId = gameData and gameData.gameId
+	elseif hub.engine == "RScripts" then
+		placeId = gameData and (gameData.placeId or type(gameData.gameLink) == "string" and Match(gameData.gameLink, "/games/(%d+)"))
+	end
+	local imageUrl = NAmanage.ScriptHub_ResolveImageURL(data)
+	if not imageUrl and placeId then
+		imageUrl = NAmanage.ScriptHub_BuildPlaceThumbnail(placeId)
+	end
+	local status = hub.engine == "RobloxScripts" and "Published" or data.isPatched and "Patched" or "Working"
+	local description = type(data.description) == "string" and GSub(data.description, "%c", " ") or ""
+	if #description > 150 then
+		description = Sub(description, 1, 147).."..."
+	end
+	const lines = {}
+	if universal then
+		lines[#lines + 1] = "Scope: Universal"
+	elseif gameName ~= "" then
+		lines[#lines + 1] = placeId and Format("Game: %s (ID %s)", gameName, tostring(placeId)) or "Game: "..gameName
+	end
+	lines[#lines + 1] = Format("Status: %s | Key: %s | %s", status, requiresKey and "Required" or "No Key", verified and "Verified" or "Unverified")
+	lines[#lines + 1] = Format("Views: %s | Likes: %s", views, likes)
+	if hub.engine == "RScripts" then
+		lines[#lines + 1] = data.mobileReady == true and "Platform: Mobile Ready" or data.mobileReady == false and "Platform: PC Only" or "Platform: Unknown"
+	end
+	if description ~= "" then
+		lines[#lines + 1] = description
+	end
+
+	const coverHeight = imageUrl and 108 or 0
+	const bodyOffset = imageUrl and coverHeight + 8 or 0
+	const cardHeight = (description ~= "" and 174 or 154) + bodyOffset
+	const card = InstanceNew("Frame", results)
+	card.Name = "ScriptHubCard"
+	card.LayoutOrder = order
+	card.BorderSizePixel = 0
+	card.BackgroundColor3 = Color3.fromRGB(42, 42, 49)
+	card.BackgroundTransparency = 0.12
+	card.Size = UDim2.new(1, -4, 0, cardHeight)
+	card.ClipsDescendants = true
+	const corner = InstanceNew("UICorner", card)
+	corner.CornerRadius = UDim.new(0, 8)
+	const stroke = InstanceNew("UIStroke", card)
+	stroke.Name = "UIStroker"
+	stroke.Thickness = 1.25
+	stroke.Color = NAUISTROKER or Color3.fromRGB(155, 100, 255)
+	stroke.Transparency = 0.35
+
+	if imageUrl then
+		const cover = InstanceNew("ImageLabel", card)
+		cover.Name = "Cover"
+		cover.BorderSizePixel = 0
+		cover.BackgroundColor3 = Color3.fromRGB(25, 25, 31)
+		cover.BackgroundTransparency = 0.08
+		cover.Position = UDim2.new(0, 0, 0, 0)
+		cover.Size = UDim2.new(1, 0, 0, coverHeight)
+		cover.Image = ""
+		cover.ImageTransparency = 1
+		cover.ScaleType = Enum.ScaleType.Crop
+		cover.ClipsDescendants = true
+		const coverCorner = InstanceNew("UICorner", cover)
+		coverCorner.CornerRadius = UDim.new(0, 8)
+		const overlay = InstanceNew("Frame", cover)
+		overlay.Name = "Overlay"
+		overlay.BorderSizePixel = 0
+		overlay.BackgroundColor3 = Color3.new(0, 0, 0)
+		overlay.BackgroundTransparency = 0.55
+		overlay.Size = UDim2.new(1, 0, 1, 0)
+		const overlayGradient = InstanceNew("UIGradient", overlay)
+		overlayGradient.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.85),
+			NumberSequenceKeypoint.new(1, 0.15),
+		})
+		overlayGradient.Rotation = 90
+		if not universal and gameName ~= "" then
+			const gameLabel = InstanceNew("TextLabel", cover)
+			gameLabel.Name = "Game"
+			gameLabel.BorderSizePixel = 0
+			gameLabel.BackgroundTransparency = 1
+			gameLabel.Position = UDim2.new(0, 10, 1, -28)
+			gameLabel.Size = UDim2.new(1, -20, 0, 22)
+			gameLabel.TextXAlignment = Enum.TextXAlignment.Left
+			gameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+			gameLabel.Text = gameName
+			gameLabel.TextColor3 = Color3.fromRGB(245, 245, 250)
+			gameLabel.TextSize = 13
+			gameLabel.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+		end
+		NAmanage.ScriptHub_LoadImage(cover, imageUrl)
+	end
+
+	const title = InstanceNew("TextLabel", card)
+	title.Name = "Title"
+	title.BorderSizePixel = 0
+	title.BackgroundTransparency = 1
+	title.Position = UDim2.new(0, 10, 0, bodyOffset + 8)
+	title.Size = UDim2.new(1, -20, 0, 24)
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.TextTruncate = Enum.TextTruncate.AtEnd
+	title.Text = titleText
+	title.TextColor3 = Color3.fromRGB(245, 245, 250)
+	title.TextSize = 15
+	title.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+
+	const info = InstanceNew("TextLabel", card)
+	info.Name = "Info"
+	info.BorderSizePixel = 0
+	info.BackgroundTransparency = 1
+	info.Position = UDim2.new(0, 10, 0, bodyOffset + 34)
+	info.Size = UDim2.new(1, -20, 1, -(bodyOffset + 78))
+	info.TextXAlignment = Enum.TextXAlignment.Left
+	info.TextYAlignment = Enum.TextYAlignment.Top
+	info.TextWrapped = true
+	info.Text = Concat(lines, "\n")
+	info.TextColor3 = Color3.fromRGB(205, 205, 218)
+	info.TextSize = 12
+	info.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+
+	const actions = InstanceNew("Frame", card)
+	actions.Name = "Actions"
+	actions.BackgroundTransparency = 1
+	actions.Position = UDim2.new(0, 10, 1, -36)
+	actions.Size = UDim2.new(1, -20, 0, 28)
+	const layout = InstanceNew("UIListLayout", actions)
+	layout.FillDirection = Enum.FillDirection.Horizontal
+	layout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+	layout.VerticalAlignment = Enum.VerticalAlignment.Center
+	layout.Padding = UDim.new(0, 7)
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+
+	const run = NAmanage.ScriptHub_CreateActionButton(actions, "Run", 76, Color3.fromRGB(45, 125, 88))
+	NAlib.connect("NAScriptHubCards", run.MouseButton1Click:Connect(function()
+		NAmanage.ScriptHub_RunEntry(data)
+	end))
+	if type(setclipboard) == "function" then
+		const copy = NAmanage.ScriptHub_CreateActionButton(actions, "Copy", 76, Color3.fromRGB(65, 68, 82))
+		NAlib.connect("NAScriptHubCards", copy.MouseButton1Click:Connect(function()
+			NAmanage.ScriptHub_CopyEntry(data)
+		end))
+	end
+	if type(data.discord) == "string" and data.discord ~= "" and type(setclipboard) == "function" then
+		const discord = NAmanage.ScriptHub_CreateActionButton(actions, "Discord", 84, Color3.fromRGB(52, 90, 155))
+		NAlib.connect("NAScriptHubCards", discord.MouseButton1Click:Connect(function()
+			local okCopy = pcall(setclipboard, data.discord)
+			DoNotif(okCopy and "Discord link copied." or "Failed to copy Discord link.", 2, "Script Hub")
+		end))
+	end
+end
+
+NAmanage.ScriptHub_Render = function()
+	const hub = NAmanage.ScriptHub
+	NAlib.disconnect("NAScriptHubCards")
+	NAmanage.ScriptHub_ClearResults()
+	local shown = 0
+	for _, data in hub.entries do
+		if type(data) == "table" and NAmanage.ScriptHub_PassesFilter(data) then
+			shown += 1
+			NAmanage.ScriptHub_CreateCard(data, shown)
+		end
+	end
+	if shown == 0 then
+		local text = "No scripts found"
+		if hub.filterMode == "keyless" then
+			text = "No keyless scripts found on this page"
+		elseif hub.filterMode == "key" then
+			text = "No key-required scripts found on this page"
+		end
+		NAmanage.ScriptHub_Message(text, Color3.fromRGB(105, 78, 42))
+	end
+	NAmanage.ScriptHub_UpdateControls()
+end
+
+NAmanage.ScriptHub_BuildURL = function(query, page)
+	const hub = NAmanage.ScriptHub
+	query = tostring(query or "")
+	page = math.max(tonumber(page) or 1, 1)
+	local encoded = HttpService:UrlEncode(query)
+	if hub.engine == "RScripts" then
+		local url = Format("https://rscripts.net/api/v2/scripts?page=%d&orderBy=date&sort=desc", page)
+		if query ~= "" then
+			url ..= "&q="..encoded
+		end
+		return url
+	elseif hub.engine == "RobloxScripts" then
+		if #query > 100 then
+			query = Sub(query, 1, 100)
+			encoded = HttpService:UrlEncode(query)
+		end
+		local url = Format("https://robloxscripts.com/api/v1/scripts?page=%d&limit=24&sort=newest", page)
+		if query ~= "" then
+			url ..= "&q="..encoded
+		end
+		return url
+	elseif query == "" then
+		return Format("https://scriptblox.com/api/script/fetch?page=%d", page)
+	end
+	return Format("https://scriptblox.com/api/script/search?q=%s&page=%d", encoded, page)
+end
+
+NAmanage.ScriptHub_ParseResponse = function(decoded, requestedPage)
+	const hub = NAmanage.ScriptHub
+	local entries = {}
+	local totalPages = 1
+	local currentPage = requestedPage
+	if hub.engine == "RScripts" then
+		entries = type(decoded.scripts) == "table" and decoded.scripts or type(decoded.data) == "table" and decoded.data or {}
+		totalPages = tonumber(type(decoded.info) == "table" and decoded.info.maxPages) or tonumber(decoded.totalPages) or 1
+	elseif hub.engine == "RobloxScripts" then
+		entries = type(decoded.data) == "table" and decoded.data or type(decoded.scripts) == "table" and decoded.scripts or {}
+		const pagination = type(decoded.pagination) == "table" and decoded.pagination or {}
+		const totalItems = tonumber(pagination.total or pagination.totalItems)
+		const limit = tonumber(pagination.limit or pagination.perPage) or 24
+		totalPages = tonumber(pagination.totalPages or pagination.pages or pagination.lastPage)
+		if not totalPages and totalItems then
+			totalPages = math.ceil(totalItems / math.max(limit, 1))
+		end
+		currentPage = tonumber(pagination.page or pagination.currentPage) or requestedPage
+	else
+		const result = type(decoded.result) == "table" and decoded.result or {}
+		entries = type(result.scripts) == "table" and result.scripts or type(decoded.scripts) == "table" and decoded.scripts or {}
+		totalPages = tonumber(result.totalPages or decoded.totalPages) or 1
+	end
+	return entries, math.clamp(math.floor(tonumber(totalPages) or 1), 1, 500), math.max(math.floor(tonumber(currentPage) or requestedPage), 1)
+end
+
+NAmanage.ScriptHub_Fetch = function(query, page)
+	const hub = NAmanage.ScriptHub
+	if hub.searching then
+		return false
+	end
+	query = tostring(query or "")
+	query = GSub(GSub(query, "^%s+", ""), "%s+$", "")
+	page = math.max(math.floor(tonumber(page) or 1), 1)
+	hub.query = query
+	hub.page = page
+	NAmanage.ScriptHub_ClearImageCache()
+	hub.searching = true
+	hub.fetchToken += 1
+	const token = hub.fetchToken
+	NAmanage.ScriptHub_Message("Searching "..hub.engine.."...", Color3.fromRGB(65, 62, 82))
+	NAmanage.ScriptHub_UpdateControls()
+	SpawnCall(function()
+		const url = NAmanage.ScriptHub_BuildURL(query, page)
+		local okFetch, body, fetchErr = NAmanage.HttpGet(url, {
+			timeout = 12;
+			maxAttempts = 3;
+			Headers = { Accept = "application/json" };
+		})
+		if token ~= hub.fetchToken then
+			return
+		end
+		if not okFetch or type(body) ~= "string" or body == "" then
+			hub.searching = false
+			NAmanage.ScriptHub_Message("Request failed: "..tostring(fetchErr or "empty response"), Color3.fromRGB(120, 55, 65))
+			NAmanage.ScriptHub_UpdateControls()
+			return
+		end
+		local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, body)
+		if not okDecode or type(decoded) ~= "table" then
+			hub.searching = false
+			NAmanage.ScriptHub_Message("Invalid API response", Color3.fromRGB(120, 55, 65))
+			NAmanage.ScriptHub_UpdateControls()
+			return
+		end
+		local entries, totalPages, currentPage = NAmanage.ScriptHub_ParseResponse(decoded, page)
+		hub.entries = entries
+		hub.totalPages = totalPages
+		hub.page = math.clamp(currentPage, 1, totalPages)
+		hub.searching = false
+		NAmanage.ScriptHub_Render()
+	end)
+	return true
+end
+
+NAmanage.ScriptHub_SearchInput = function()
+	const hub = NAmanage.ScriptHub
+	const ui = hub.ui or NAmanage.ScriptHub_GetUI()
+	const query = ui and ui.searchBox and ui.searchBox.Text or ""
+	return NAmanage.ScriptHub_Fetch(query, 1)
+end
+
+NAmanage.ScriptHub_RequestPage = function(page)
+	const hub = NAmanage.ScriptHub
+	if hub.searching or #hub.entries == 0 then
+		return
+	end
+	page = math.clamp(math.floor(tonumber(page) or hub.page), 1, math.max(hub.totalPages, 1))
+	if page ~= hub.page then
+		NAmanage.ScriptHub_Fetch(hub.query, page)
+	end
+end
+
+NAmanage.ScriptHub_Init = function()
+	const hub = NAmanage.ScriptHub
+	const ui = NAmanage.ScriptHub_GetUI()
+	if not (ui and ui.frame and ui.container and ui.results and ui.searchBox and ui.search and ui.engine) then
+		return false
+	end
+	if hub.ready and hub.boundFrame == ui.frame then
+		return true
+	end
+	hub.boundFrame = ui.frame
+	hub.ready = true
+	NAlib.disconnect("NAScriptHub")
+	NAlib.connect("NAScriptHub", ui.engine.MouseButton1Click:Connect(function()
+		if hub.searching then
+			return
+		end
+		const index = table.find(hub.engines, hub.engine) or 1
+		hub.engine = hub.engines[index % #hub.engines + 1]
+		hub.page = 1
+		hub.totalPages = 1
+		hub.entries = {}
+		hub.query = ""
+		ui.searchBox.Text = ""
+		NAmanage.ScriptHub_UpdateHeader()
+		NAmanage.ScriptHub_Fetch("", 1)
+	end))
+	NAlib.connect("NAScriptHub", ui.search.MouseButton1Click:Connect(NAmanage.ScriptHub_SearchInput))
+	NAlib.connect("NAScriptHub", ui.searchBox.FocusLost:Connect(function(enterPressed)
+		if enterPressed then
+			NAmanage.ScriptHub_SearchInput()
+		end
+	end))
+	if ui.first then
+		NAlib.connect("NAScriptHub", ui.first.MouseButton1Click:Connect(function() NAmanage.ScriptHub_RequestPage(1) end))
+	end
+	if ui.prev then
+		NAlib.connect("NAScriptHub", ui.prev.MouseButton1Click:Connect(function() NAmanage.ScriptHub_RequestPage(hub.page - 1) end))
+	end
+	if ui.next then
+		NAlib.connect("NAScriptHub", ui.next.MouseButton1Click:Connect(function() NAmanage.ScriptHub_RequestPage(hub.page + 1) end))
+	end
+	if ui.last then
+		NAlib.connect("NAScriptHub", ui.last.MouseButton1Click:Connect(function() NAmanage.ScriptHub_RequestPage(hub.totalPages) end))
+	end
+	if ui.filter then
+		NAlib.connect("NAScriptHub", ui.filter.MouseButton1Click:Connect(function()
+			if hub.searching or #hub.entries == 0 then
+				return
+			end
+			const index = table.find(hub.filterModes, hub.filterMode) or 1
+			hub.filterMode = hub.filterModes[index % #hub.filterModes + 1]
+			NAmanage.ScriptHub_Render()
+		end))
+	end
+	NAmanage.ScriptHub_EnsureImageFolder()
+	NAmanage.ScriptHub_UpdateHeader()
+	if #hub.entries > 0 then
+		NAmanage.ScriptHub_Render()
+	else
+		NAmanage.ScriptHub_Message("Search or open the hub to load the latest scripts.", Color3.fromRGB(65, 62, 82))
+	end
+	return true
+end
+
+NAmanage.ScriptHub_Toggle = function()
+	const frame = NAUIMANAGER and NAUIMANAGER.ScriptHubFrame
+	if not frame then
+		DoNotif("Script Hub UI unavailable.", 3, "Script Hub")
+		return false
+	end
+	if not NAmanage.ScriptHub_Init() then
+		DoNotif("Script Hub failed to initialize.", 3, "Script Hub")
+		return false
+	end
+	if frame.Visible then
+		frame.Visible = false
+		return true
+	end
+	frame.Visible = true
+	NAmanage.centerFrame(frame)
+	if NAmanage.OnUIWindowShown then
+		pcall(NAmanage.OnUIWindowShown, frame)
+	end
+	if #NAmanage.ScriptHub.entries == 0 and not NAmanage.ScriptHub.searching then
+		NAmanage.ScriptHub_Fetch(NAmanage.ScriptHub.query, 1)
+	end
+	return true
+end
+
 do
 	const perf = NAStuff and NAStuff.StartupPerformance
 	if type(perf) == "table" then
@@ -101904,6 +102932,22 @@ do
 		};
 	end;
 
+	const function scriptHubWidgets()
+		const container = NAUIMANAGER and NAUIMANAGER.ScriptHubContainer
+		const bar = container and container:FindFirstChild("CustomScrollBar")
+		const track = bar and bar:FindFirstChild("Track")
+		if not (bar and track) then
+			return nil
+		end
+		return {
+			bar = bar,
+			upButton = bar:FindFirstChild("Up"),
+			downButton = bar:FindFirstChild("Down"),
+			track = track,
+			thumb = track:FindFirstChild("Thumb")
+		}
+	end
+
 	const function pluginsWidgets(axis)
 		const mgr = NAUIMANAGER;
 		if not mgr then
@@ -102034,6 +103078,19 @@ do
 		end
 	});
 
+	NAmanage.ScriptHubScroll = registry.create("script_hub", {
+		getWidgets = scriptHubWidgets,
+		getTarget = function()
+			const container = NAUIMANAGER and NAUIMANAGER.ScriptHubContainer
+			return container and container:FindFirstChild("Results") or nil
+		end,
+		layoutForTarget = alignBarToTarget,
+		fitTargetToBar = true,
+		isActive = function()
+			return NAmanage.IsUIWindowVisible and NAmanage.IsUIWindowVisible("ScriptHubFrame")
+		end
+	})
+
 	NAmanage.PluginsScroll = registry.create("plugins_v", {
 		getWidgets = function()
 			return pluginsWidgets("Y");
@@ -102083,6 +103140,9 @@ if NAmanage.BindersScroll and NAmanage.BindersScroll.install then
 end;
 if NAmanage.ConsoleScroll and NAmanage.ConsoleScroll.install then
 	NAmanage.ConsoleScroll.install();
+end;
+if NAmanage.ScriptHubScroll and NAmanage.ScriptHubScroll.install then
+	NAmanage.ScriptHubScroll.install();
 end;
 if NAmanage.PluginsScroll and NAmanage.PluginsScroll.install then
 	NAmanage.PluginsScroll.install();
@@ -106740,6 +107800,9 @@ NAmanage.RefreshResizeHandles=function()
 		if NAUIMANAGER.MusicFrame then
 			NAgui.resizeable(NAUIMANAGER.MusicFrame, Vector2.new(380, 280), Vector2.new(1100, 820))
 		end
+		if NAUIMANAGER.ScriptHubFrame then
+			NAgui.resizeable(NAUIMANAGER.ScriptHubFrame, IsOnMobile and Vector2.new(340, 300) or Vector2.new(560, 380), Vector2.new(1400, 1000))
+		end
 		if NAUIMANAGER.ExecutorFrame then
 			const exMin = IsOnMobile and Vector2.new(340, 280) or Vector2.new(680, 420)
 			NAgui.resizeable(NAUIMANAGER.ExecutorFrame, exMin, Vector2.new(5000, 5000))
@@ -111355,6 +112418,13 @@ NAmanage.Topbar_BuildBaseButtons=function()
 				NAmanage.MusicWindow_Toggle()
 			else
 				DoNotif("Music player UI unavailable.", 3, "Music")
+			end
+		end},
+		{name="scripthub",icon="cloud",activeFrame="ScriptHubFrame",func=function()
+			if NAmanage and NAmanage.ScriptHub_Toggle then
+				NAmanage.ScriptHub_Toggle()
+			else
+				DoNotif("Script Hub UI unavailable.", 3, "Script Hub")
 			end
 		end},
 	}
@@ -120947,6 +122017,7 @@ NAStartupUI("Menu:Music", 0.25, function()
 end)
 NAStartupUI("Menu:Executor", 0.08, function() if NAUIMANAGER.ExecutorFrame then NAgui.menu(NAUIMANAGER.ExecutorFrame) end end)
 NAStartupUI("Menu:Notepad", 0.09, function() if NAUIMANAGER.NotepadFrame then NAgui.menu(NAUIMANAGER.NotepadFrame) end end)
+NAStartupUI("Menu:ScriptHub", 0.1, function() if NAUIMANAGER.ScriptHubFrame then NAgui.menu(NAUIMANAGER.ScriptHubFrame) end end)
 
 --[[ GUI RESIZE FUNCTION ]]--
 
@@ -120991,6 +122062,7 @@ NAStartupUI("Resize:Settings", 0.14, function() if NAUIMANAGER.SettingsFrame the
 NAStartupUI("Resize:Waypoints", 0.15, function() if NAUIMANAGER.WaypointFrame then NAgui.resizeable(NAUIMANAGER.WaypointFrame) end end)
 NAStartupUI("Resize:Binders", 0.16, function() if NAUIMANAGER.BindersFrame then NAgui.resizeable(NAUIMANAGER.BindersFrame) end end)
 NAStartupUI("Resize:Music", 0.3, function() if NAUIMANAGER.MusicFrame then NAgui.resizeable(NAUIMANAGER.MusicFrame, Vector2.new(380, 280), Vector2.new(1100, 820)) end end)
+NAStartupUI("Resize:ScriptHub", 0.31, function() if NAUIMANAGER.ScriptHubFrame then NAgui.resizeable(NAUIMANAGER.ScriptHubFrame, IsOnMobile and Vector2.new(340, 300) or Vector2.new(560, 380), Vector2.new(1400, 1000)) end end)
 NAStartupUI("Resize:Executor", 0.17, function()
 	if NAUIMANAGER.ExecutorFrame then
 		const exMin = IsOnMobile and Vector2.new(340, 280) or Vector2.new(680, 420)
@@ -128359,6 +129431,7 @@ SpawnCall(function() -- init
 	if NAUIMANAGER.ExecutorFrame then NAgui.NAProtection(NAUIMANAGER.ExecutorFrame) end
 	if NAUIMANAGER.NotepadFrame then NAgui.NAProtection(NAUIMANAGER.NotepadFrame) end
 	if NAUIMANAGER.MusicFrame then NAgui.NAProtection(NAUIMANAGER.MusicFrame) end
+	if NAUIMANAGER.ScriptHubFrame then NAgui.NAProtection(NAUIMANAGER.ScriptHubFrame) end
 	if not PlrGui then PlrGui=Player:WaitForChild("PlayerGui",math.huge) end
 end)
 
