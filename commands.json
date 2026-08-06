@@ -445,7 +445,7 @@
       ],
       "usage": "teleportgui",
       "args": "",
-      "desc": "Gives an UI that grabs all places and teleports you by clicking a simple button"
+      "desc": "Open the universe subplace and public-server viewer"
     },
     {
       "name": "imagescanner",
