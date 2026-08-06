@@ -156,11 +156,11 @@ local ui = Svc("UserInputService");
 local hs = Svc("HttpService");
 local rs = Svc("RunService");
 local MarketplaceService = Svc("MarketplaceService");
-local eng = "ScriptBlox";
+local eng = "RScripts";
 local engines = {
-	"ScriptBlox",
 	"RScripts",
-	"RobloxScripts"
+	"RobloxScripts",
+	"ScriptBlox"
 };
 local col = {
 	bg = Color3.fromRGB(20, 22, 26),
@@ -311,8 +311,8 @@ trl.Padding = UDim.new(0, 6);
 trl.Parent = tr;
 local engb = Instance.new("TextButton");
 engb.Size = UDim2.new(0, 156, 1, 0);
-engb.BackgroundColor3 = col.bg;
-engb.Text = "Engine: ScriptBlox";
+engb.BackgroundColor3 = Color3.fromRGB(45, 49, 58);
+engb.Text = "Engine: RScripts";
 engb.TextColor3 = col.tx;
 engb.TextSize = 13;
 engb.Font = Enum.Font.GothamSemibold;
@@ -384,7 +384,7 @@ sbox.Size = UDim2.new(searchWidthScale, -(goWidth + sidePadding + 32), 1, -12);
 sbox.Position = UDim2.new(0, 36, 0, 6);
 sbox.BackgroundTransparency = 1;
 sbox.Font = Enum.Font.Gotham;
-sbox.PlaceholderText = "Search for scripts (scriptblox.com)";
+sbox.PlaceholderText = "Search for scripts (rscripts.net)";
 sbox.Text = "";
 sbox.TextColor3 = col.tx;
 sbox.PlaceholderColor3 = Color3.fromRGB(140, 146, 160);
