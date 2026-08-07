@@ -122276,6 +122276,7 @@ NAmanage.SubplaceViewer.viewMode = NAmanage.SubplaceViewer.viewMode or "places"
 
 NAmanage.SubplaceViewer.teleportGuiToken = tonumber(NAmanage.SubplaceViewer.teleportGuiToken) or 0
 NAmanage.SubplaceViewer.teleportGui = nil
+NAmanage.SubplaceViewer.teleportHandoffGui = nil
 
 NAmanage.SubplaceViewer_GetPlaceName = function(placeId)
 	const state = NAmanage.SubplaceViewer
@@ -122297,9 +122298,70 @@ NAmanage.SubplaceViewer_ClearTeleportGui = function(gui)
 	if target then
 		pcall(function() target:Destroy() end)
 	end
+	if state.teleportHandoffGui then
+		pcall(function() state.teleportHandoffGui:Destroy() end)
+		state.teleportHandoffGui = nil
+	end
 	if state.teleportGui == target or gui == nil then
 		state.teleportGui = nil
 	end
+end
+
+NAmanage.TeleportGui_ApplyStaticState = function(gui)
+	if not gui then return false end
+	const root = gui:FindFirstChild("Root")
+	if not root then return false end
+	const backdrop = root:FindFirstChild("Backdrop")
+	const foreground = root:FindFirstChild("Foreground")
+	const topBrand = foreground and foreground:FindFirstChild("TopBrand")
+	const content = foreground and foreground:FindFirstChild("Content")
+	const logo = topBrand and topBrand:FindFirstChild("Logo", true)
+	const fallback = topBrand and topBrand:FindFirstChild("Fallback", true)
+	const brand = topBrand and topBrand:FindFirstChild("Brand", true)
+	const subBrand = topBrand and topBrand:FindFirstChild("SubBrand", true)
+	const rightTag = foreground and foreground:FindFirstChild("RightTag", true)
+	const statusPill = content and content:FindFirstChild("StatusPill")
+	const statusDot = statusPill and statusPill:FindFirstChild("StatusDot")
+	const actionLabel = statusPill and statusPill:FindFirstChild("Action")
+	const destination = content and content:FindFirstChild("Destination")
+	const info = content and content:FindFirstChild("Info")
+	const footer = content and content:FindFirstChild("Footer")
+	const progressTrack = foreground and foreground:FindFirstChild("ProgressTrack")
+	const runner = progressTrack and progressTrack:FindFirstChild("Runner")
+	const progressCaption = foreground and foreground:FindFirstChild("ProgressCaption")
+	const placeTag = foreground and foreground:FindFirstChild("PlaceTag")
+	const topEdge = root:FindFirstChild("TopEdge")
+	if backdrop and backdrop:IsA("ImageLabel") then
+		backdrop.Position = UDim2.fromScale(0.5, 0.5)
+		backdrop.Size = UDim2.fromScale(1.08, 1.08)
+		backdrop.ImageTransparency = 0.34
+	end
+	if topBrand and topBrand:IsA("Frame") then
+		topBrand.Position = UDim2.new(0, tonumber(topBrand:GetAttribute("FinalX")) or 52, 0, tonumber(topBrand:GetAttribute("FinalY")) or 42)
+	end
+	if content and content:IsA("Frame") then
+		content.Position = UDim2.new(0, tonumber(content:GetAttribute("FinalX")) or 52, 1, tonumber(content:GetAttribute("FinalY")) or -70)
+	end
+	if logo and logo:IsA("ImageLabel") then logo.ImageTransparency = 0 end
+	if fallback and fallback:IsA("TextLabel") then fallback.TextTransparency = 0 end
+	if brand and brand:IsA("TextLabel") then brand.TextTransparency = 0 end
+	if subBrand and subBrand:IsA("TextLabel") then subBrand.TextTransparency = 0.18 end
+	if rightTag and rightTag:IsA("TextLabel") then rightTag.TextTransparency = 0.32 end
+	if statusPill and statusPill:IsA("Frame") then statusPill.BackgroundTransparency = 0.36 end
+	if statusDot and statusDot:IsA("Frame") then statusDot.BackgroundTransparency = 0 end
+	if actionLabel and actionLabel:IsA("TextLabel") then actionLabel.TextTransparency = 0 end
+	if destination and destination:IsA("TextLabel") then destination.TextTransparency = 0 end
+	if info and info:IsA("TextLabel") then info.TextTransparency = 0.08 end
+	if footer and footer:IsA("TextLabel") then footer.TextTransparency = 0.18 end
+	if progressTrack and progressTrack:IsA("Frame") then progressTrack.BackgroundTransparency = 0.72 end
+	if runner and runner:IsA("Frame") then
+		runner.Position = UDim2.new(0.24, 0, 0, 0)
+		runner.BackgroundTransparency = 0
+	end
+	if progressCaption and progressCaption:IsA("TextLabel") then progressCaption.TextTransparency = 0.16 end
+	if placeTag and placeTag:IsA("TextLabel") then placeTag.TextTransparency = 0.28 end
+	if topEdge and topEdge:IsA("Frame") then topEdge.BackgroundTransparency = 0.62 end
+	return true
 end
 
 NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action, detail)
@@ -122308,239 +122370,500 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 	end
 	const state = NAmanage.SubplaceViewer
 	NAmanage.SubplaceViewer_ClearTeleportGui()
-	local gui = Instance.new("ScreenGui")
-	gui.Name = "NATeleportGui"
-	gui.IgnoreGuiInset = true
-	gui.ResetOnSpawn = false
-	gui.Enabled = true
-	gui.DisplayOrder = 2147483647
-	gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
-	pcall(function() gui:SetAttribute("NASubplaceViewerTeleport", true) gui:SetAttribute("NACustomTeleportGui", true) end)
+	const ui = {}
+	const destinationId = tonumber(placeId) or tonumber(game.PlaceId) or 0
+	const mobile = IsOnMobile == true
+	const sidePad = mobile and 24 or 52
+	const topPad = mobile and 28 or 42
+	const bottomPad = mobile and 76 or 70
+	const destinationImage = "rbxthumb://type=GameIcon&id="..tostring(destinationId).."&w=512&h=512"
 
-	local root = Instance.new("Frame")
-	root.Name = "Root"
-	root.Size = UDim2.fromScale(1, 1)
-	root.Position = UDim2.fromScale(0, 0)
-	root.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	root.BorderSizePixel = 0
-	root.Visible = true
-	root.ZIndex = 1
-	root.Parent = gui
+	ui.gui = Instance.new("ScreenGui")
+	ui.gui.Name = "NATeleportGui"
+	ui.gui.IgnoreGuiInset = true
+	ui.gui.ResetOnSpawn = false
+	ui.gui.Enabled = true
+	ui.gui.DisplayOrder = 2147483647
+	ui.gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+	pcall(function()
+		ui.gui:SetAttribute("NASubplaceViewerTeleport", true)
+		ui.gui:SetAttribute("NACustomTeleportGui", true)
+		ui.gui:SetAttribute("NADestinationPlaceId", destinationId)
+	end)
 
-	local backdropGradient = Instance.new("UIGradient")
-	backdropGradient.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, Color3.fromRGB(18, 18, 18));
-		ColorSequenceKeypoint.new(0.42, Color3.fromRGB(5, 5, 5));
+	ui.root = Instance.new("Frame")
+	ui.root.Name = "Root"
+	ui.root.Size = UDim2.fromScale(1, 1)
+	ui.root.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	ui.root.BorderSizePixel = 0
+	ui.root.ZIndex = 1
+	ui.root.ClipsDescendants = true
+	ui.root.Parent = ui.gui
+
+	ui.backdrop = Instance.new("ImageLabel")
+	ui.backdrop.Name = "Backdrop"
+	ui.backdrop.AnchorPoint = Vector2.new(0.5, 0.5)
+	ui.backdrop.Position = UDim2.fromScale(0.488, 0.5)
+	ui.backdrop.Size = UDim2.fromScale(1.14, 1.14)
+	ui.backdrop.BackgroundTransparency = 1
+	ui.backdrop.Image = destinationImage
+	ui.backdrop.ImageColor3 = Color3.fromRGB(210, 210, 210)
+	ui.backdrop.ImageTransparency = 1
+	ui.backdrop.ScaleType = Enum.ScaleType.Crop
+	ui.backdrop.ZIndex = 2
+	ui.backdrop.Parent = ui.root
+
+	ui.wash = Instance.new("Frame")
+	ui.wash.Name = "Wash"
+	ui.wash.Size = UDim2.fromScale(1, 1)
+	ui.wash.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	ui.wash.BackgroundTransparency = 0.12
+	ui.wash.BorderSizePixel = 0
+	ui.wash.ZIndex = 3
+	ui.wash.Parent = ui.root
+	ui.washGradient = Instance.new("UIGradient")
+	ui.washGradient.Rotation = 90
+	ui.washGradient.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.16);
+		NumberSequenceKeypoint.new(0.48, 0.42);
+		NumberSequenceKeypoint.new(1, 0.08);
+	})
+	ui.washGradient.Parent = ui.wash
+
+	ui.sideShade = Instance.new("Frame")
+	ui.sideShade.Name = "SideShade"
+	ui.sideShade.Size = UDim2.fromScale(1, 1)
+	ui.sideShade.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	ui.sideShade.BorderSizePixel = 0
+	ui.sideShade.ZIndex = 4
+	ui.sideShade.Parent = ui.root
+	ui.sideGradient = Instance.new("UIGradient")
+	ui.sideGradient.Rotation = 0
+	ui.sideGradient.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.05);
+		NumberSequenceKeypoint.new(0.38, 0.26);
+		NumberSequenceKeypoint.new(0.72, 0.72);
+		NumberSequenceKeypoint.new(1, 0.86);
+	})
+	ui.sideGradient.Parent = ui.sideShade
+
+	ui.bottomShade = Instance.new("Frame")
+	ui.bottomShade.Name = "BottomShade"
+	ui.bottomShade.AnchorPoint = Vector2.new(0, 1)
+	ui.bottomShade.Position = UDim2.fromScale(0, 1)
+	ui.bottomShade.Size = UDim2.fromScale(1, 0.58)
+	ui.bottomShade.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	ui.bottomShade.BorderSizePixel = 0
+	ui.bottomShade.ZIndex = 5
+	ui.bottomShade.Parent = ui.root
+	ui.bottomGradient = Instance.new("UIGradient")
+	ui.bottomGradient.Rotation = 90
+	ui.bottomGradient.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 1);
+		NumberSequenceKeypoint.new(0.42, 0.64);
+		NumberSequenceKeypoint.new(1, 0.05);
+	})
+	ui.bottomGradient.Parent = ui.bottomShade
+
+	ui.topEdge = Instance.new("Frame")
+	ui.topEdge.Name = "TopEdge"
+	ui.topEdge.AnchorPoint = Vector2.new(0.5, 0)
+	ui.topEdge.Position = UDim2.fromScale(0.5, 0)
+	ui.topEdge.Size = UDim2.new(0.58, 0, 0, 1)
+	ui.topEdge.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	ui.topEdge.BackgroundTransparency = 1
+	ui.topEdge.BorderSizePixel = 0
+	ui.topEdge.ZIndex = 7
+	ui.topEdge.Parent = ui.root
+	ui.topEdgeGradient = Instance.new("UIGradient")
+	ui.topEdgeGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 0, 0));
+		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 255, 255));
 		ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 0, 0));
 	})
-	backdropGradient.Rotation = 90
-	backdropGradient.Parent = root
+	ui.topEdgeGradient.Parent = ui.topEdge
 
-	local topLine = Instance.new("Frame")
-	topLine.Name = "TopLine"
-	topLine.Size = UDim2.new(1, 0, 0, 1)
-	topLine.Position = UDim2.fromOffset(0, 0)
-	topLine.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-	topLine.BackgroundTransparency = 0.72
-	topLine.BorderSizePixel = 0
-	topLine.ZIndex = 2
-	topLine.Parent = root
+	ui.foreground = Instance.new("Frame")
+	ui.foreground.Name = "Foreground"
+	ui.foreground.Size = UDim2.fromScale(1, 1)
+	ui.foreground.BackgroundTransparency = 1
+	ui.foreground.ZIndex = 10
+	ui.foreground.Parent = ui.root
 
-	local bottomLine = topLine:Clone()
-	bottomLine.Name = "BottomLine"
-	bottomLine.AnchorPoint = Vector2.new(0, 1)
-	bottomLine.Position = UDim2.fromScale(0, 1)
-	bottomLine.Parent = root
+	ui.topBrand = Instance.new("Frame")
+	ui.topBrand.Name = "TopBrand"
+	ui.topBrand.Position = UDim2.new(0, sidePad, 0, topPad - 10)
+	ui.topBrand.Size = UDim2.fromOffset(mobile and 250 or 320, 48)
+	ui.topBrand.BackgroundTransparency = 1
+	ui.topBrand.ZIndex = 12
+	ui.topBrand:SetAttribute("FinalX", sidePad)
+	ui.topBrand:SetAttribute("FinalY", topPad)
+	ui.topBrand.Parent = ui.foreground
 
-	local content = Instance.new("Frame")
-	content.Name = "Content"
-	content.AnchorPoint = Vector2.new(0.5, 0.5)
-	content.Position = UDim2.fromScale(0.5, 0.5)
-	content.Size = UDim2.new(0.88, 0, 0, 310)
-	content.BackgroundTransparency = 1
-	content.BorderSizePixel = 0
-	content.ZIndex = 10
-	content.Parent = root
-
-	local contentSize = Instance.new("UISizeConstraint")
-	contentSize.MinSize = Vector2.new(280, 280)
-	contentSize.MaxSize = Vector2.new(580, 310)
-	contentSize.Parent = content
-
-	local logoHolder = Instance.new("Frame")
-	logoHolder.Name = "LogoHolder"
-	logoHolder.AnchorPoint = Vector2.new(0.5, 0)
-	logoHolder.Position = UDim2.new(0.5, 0, 0, 4)
-	logoHolder.Size = UDim2.fromOffset(92, 92)
-	logoHolder.BackgroundColor3 = Color3.fromRGB(8, 8, 8)
-	logoHolder.BackgroundTransparency = 0.1
-	logoHolder.BorderSizePixel = 0
-	logoHolder.ZIndex = 11
-	logoHolder.Parent = content
-
-	local logoCorner = Instance.new("UICorner")
-	logoCorner.CornerRadius = UDim.new(0, 18)
-	logoCorner.Parent = logoHolder
-
-	local logoStroke = Instance.new("UIStroke")
-	logoStroke.Color = Color3.fromRGB(255, 255, 255)
-	logoStroke.Transparency = 0.68
-	logoStroke.Thickness = 1
-	logoStroke.Parent = logoHolder
+	ui.logoHolder = Instance.new("Frame")
+	ui.logoHolder.Name = "LogoHolder"
+	ui.logoHolder.Size = UDim2.fromOffset(46, 46)
+	ui.logoHolder.BackgroundColor3 = Color3.fromRGB(8, 8, 8)
+	ui.logoHolder.BackgroundTransparency = 0.26
+	ui.logoHolder.BorderSizePixel = 0
+	ui.logoHolder.ZIndex = 13
+	ui.logoHolder.Parent = ui.topBrand
+	ui.logoCorner = Instance.new("UICorner")
+	ui.logoCorner.CornerRadius = UDim.new(0, 13)
+	ui.logoCorner.Parent = ui.logoHolder
+	ui.logoStroke = Instance.new("UIStroke")
+	ui.logoStroke.Color = Color3.fromRGB(255, 255, 255)
+	ui.logoStroke.Transparency = 0.64
+	ui.logoStroke.Thickness = 1
+	ui.logoStroke.Parent = ui.logoHolder
+	ui.logoScale = Instance.new("UIScale")
+	ui.logoScale.Scale = 1
+	ui.logoScale.Parent = ui.logoHolder
 
 	const iconAsset = NAmanage.getNAImageAsset("Icon", "")
-	local logo = Instance.new("ImageLabel")
-	logo.Name = "Logo"
-	logo.BackgroundTransparency = 1
-	logo.AnchorPoint = Vector2.new(0.5, 0.5)
-	logo.Position = UDim2.fromScale(0.5, 0.5)
-	logo.Size = UDim2.new(1, -18, 1, -18)
-	logo.ScaleType = Enum.ScaleType.Fit
-	logo.Image = iconAsset
-	logo.ZIndex = 13
-	logo.Parent = logoHolder
+	ui.logo = Instance.new("ImageLabel")
+	ui.logo.Name = "Logo"
+	ui.logo.AnchorPoint = Vector2.new(0.5, 0.5)
+	ui.logo.Position = UDim2.fromScale(0.5, 0.5)
+	ui.logo.Size = UDim2.new(1, -10, 1, -10)
+	ui.logo.BackgroundTransparency = 1
+	ui.logo.Image = iconAsset
+	ui.logo.ImageTransparency = 1
+	ui.logo.ScaleType = Enum.ScaleType.Fit
+	ui.logo.ZIndex = 15
+	ui.logo.Parent = ui.logoHolder
 
-	local logoFallback = Instance.new("TextLabel")
-	logoFallback.Name = "Fallback"
-	logoFallback.BackgroundTransparency = 1
-	logoFallback.Size = UDim2.fromScale(1, 1)
-	logoFallback.Text = "NA"
-	logoFallback.TextColor3 = Color3.fromRGB(255, 255, 255)
-	logoFallback.TextSize = 28
-	logoFallback.Font = Enum.Font.GothamBold
-	logoFallback.TextXAlignment = Enum.TextXAlignment.Center
-	logoFallback.TextYAlignment = Enum.TextYAlignment.Center
-	logoFallback.Visible = iconAsset == ""
-	logoFallback.ZIndex = 12
-	logoFallback.Parent = logoHolder
+	ui.logoFallback = Instance.new("TextLabel")
+	ui.logoFallback.Name = "Fallback"
+	ui.logoFallback.Size = UDim2.fromScale(1, 1)
+	ui.logoFallback.BackgroundTransparency = 1
+	ui.logoFallback.Text = "NA"
+	ui.logoFallback.TextColor3 = Color3.fromRGB(255, 255, 255)
+	ui.logoFallback.TextTransparency = 1
+	ui.logoFallback.TextSize = 17
+	ui.logoFallback.Font = Enum.Font.GothamBold
+	ui.logoFallback.Visible = iconAsset == ""
+	ui.logoFallback.ZIndex = 14
+	ui.logoFallback.Parent = ui.logoHolder
 
-	local brand = Instance.new("TextLabel")
-	brand.Name = "Brand"
-	brand.BackgroundTransparency = 1
-	brand.Position = UDim2.new(0, 12, 0, 112)
-	brand.Size = UDim2.new(1, -24, 0, 22)
-	brand.Text = "NAMELESS ADMIN"
-	brand.TextColor3 = Color3.fromRGB(255, 255, 255)
-	brand.TextSize = 17
-	brand.Font = Enum.Font.GothamBold
-	brand.TextXAlignment = Enum.TextXAlignment.Center
-	brand.ZIndex = 12
-	brand.Parent = content
+	ui.brand = Instance.new("TextLabel")
+	ui.brand.Name = "Brand"
+	ui.brand.Position = UDim2.new(0, 59, 0, 3)
+	ui.brand.Size = UDim2.new(1, -59, 0, 22)
+	ui.brand.BackgroundTransparency = 1
+	ui.brand.Text = "NAMELESS ADMIN"
+	ui.brand.TextColor3 = Color3.fromRGB(255, 255, 255)
+	ui.brand.TextTransparency = 1
+	ui.brand.TextSize = mobile and 15 or 16
+	ui.brand.Font = Enum.Font.GothamBold
+	ui.brand.TextXAlignment = Enum.TextXAlignment.Left
+	ui.brand.ZIndex = 14
+	ui.brand.Parent = ui.topBrand
 
-	local separator = Instance.new("Frame")
-	separator.Name = "Separator"
-	separator.AnchorPoint = Vector2.new(0.5, 0)
-	separator.Position = UDim2.new(0.5, 0, 0, 143)
-	separator.Size = UDim2.new(0.28, 0, 0, 1)
-	separator.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-	separator.BackgroundTransparency = 0.55
-	separator.BorderSizePixel = 0
-	separator.ZIndex = 12
-	separator.Parent = content
+	ui.subBrand = Instance.new("TextLabel")
+	ui.subBrand.Name = "SubBrand"
+	ui.subBrand.Position = UDim2.new(0, 59, 0, 26)
+	ui.subBrand.Size = UDim2.new(1, -59, 0, 16)
+	ui.subBrand.BackgroundTransparency = 1
+	ui.subBrand.Text = "SECURE TELEPORT HANDOFF"
+	ui.subBrand.TextColor3 = Color3.fromRGB(198, 198, 198)
+	ui.subBrand.TextTransparency = 1
+	ui.subBrand.TextSize = 8
+	ui.subBrand.Font = Enum.Font.GothamMedium
+	ui.subBrand.TextXAlignment = Enum.TextXAlignment.Left
+	ui.subBrand.ZIndex = 14
+	ui.subBrand.Parent = ui.topBrand
 
-	local actionLabel = Instance.new("TextLabel")
-	actionLabel.Name = "Action"
-	actionLabel.BackgroundTransparency = 1
-	actionLabel.Position = UDim2.new(0, 12, 0, 157)
-	actionLabel.Size = UDim2.new(1, -24, 0, 18)
-	actionLabel.Text = string.upper(tostring(action or "TELEPORTING"))
-	actionLabel.TextColor3 = Color3.fromRGB(170, 170, 170)
-	actionLabel.TextSize = 11
-	actionLabel.Font = Enum.Font.GothamMedium
-	actionLabel.TextXAlignment = Enum.TextXAlignment.Center
-	actionLabel.ZIndex = 12
-	actionLabel.Parent = content
+	ui.rightTag = Instance.new("TextLabel")
+	ui.rightTag.Name = "RightTag"
+	ui.rightTag.AnchorPoint = Vector2.new(1, 0)
+	ui.rightTag.Position = UDim2.new(1, -sidePad, 0, topPad + 12)
+	ui.rightTag.Size = UDim2.fromOffset(220, 14)
+	ui.rightTag.BackgroundTransparency = 1
+	ui.rightTag.Text = "NA  /  DESTINATION LINK"
+	ui.rightTag.TextColor3 = Color3.fromRGB(205, 205, 205)
+	ui.rightTag.TextTransparency = 1
+	ui.rightTag.TextSize = 8
+	ui.rightTag.Font = Enum.Font.GothamMedium
+	ui.rightTag.TextXAlignment = Enum.TextXAlignment.Right
+	ui.rightTag.Visible = not mobile
+	ui.rightTag.ZIndex = 12
+	ui.rightTag.Parent = ui.foreground
 
-	local destination = Instance.new("TextLabel")
-	destination.Name = "Destination"
-	destination.BackgroundTransparency = 1
-	destination.Position = UDim2.new(0, 16, 0, 181)
-	destination.Size = UDim2.new(1, -32, 0, 30)
-	destination.Text = tostring(placeName or NAmanage.SubplaceViewer_GetPlaceName(placeId))
-	destination.TextColor3 = Color3.fromRGB(255, 255, 255)
-	destination.TextSize = 21
-	destination.Font = Enum.Font.GothamMedium
-	destination.TextTruncate = Enum.TextTruncate.AtEnd
-	destination.TextXAlignment = Enum.TextXAlignment.Center
-	destination.ZIndex = 12
-	destination.Parent = content
+	ui.content = Instance.new("Frame")
+	ui.content.Name = "Content"
+	ui.content.AnchorPoint = Vector2.new(0, 1)
+	ui.content.Position = UDim2.new(0, sidePad, 1, -(bottomPad - 12))
+	ui.content.Size = UDim2.new(mobile and 1 or 0.68, mobile and -(sidePad * 2) or 0, 0, mobile and 132 or 144)
+	ui.content.BackgroundTransparency = 1
+	ui.content.ZIndex = 12
+	ui.content:SetAttribute("FinalX", sidePad)
+	ui.content:SetAttribute("FinalY", -bottomPad)
+	ui.content.Parent = ui.foreground
+	ui.contentSize = Instance.new("UISizeConstraint")
+	ui.contentSize.MinSize = Vector2.new(260, mobile and 132 or 144)
+	ui.contentSize.MaxSize = Vector2.new(780, mobile and 132 or 144)
+	ui.contentSize.Parent = ui.content
 
-	local info = Instance.new("TextLabel")
-	info.Name = "Info"
-	info.BackgroundTransparency = 1
-	info.Position = UDim2.new(0, 16, 0, 216)
-	info.Size = UDim2.new(1, -32, 0, 18)
-	info.Text = tostring(detail or ("Place ID "..tostring(placeId)))
-	info.TextColor3 = Color3.fromRGB(130, 130, 130)
-	info.TextSize = 11
-	info.Font = Enum.Font.Gotham
-	info.TextTruncate = Enum.TextTruncate.AtEnd
-	info.TextXAlignment = Enum.TextXAlignment.Center
-	info.ZIndex = 12
-	info.Parent = content
+	ui.statusPill = Instance.new("Frame")
+	ui.statusPill.Name = "StatusPill"
+	ui.statusPill.Size = UDim2.fromOffset(mobile and 142 or 158, 26)
+	ui.statusPill.BackgroundColor3 = Color3.fromRGB(8, 8, 8)
+	ui.statusPill.BackgroundTransparency = 1
+	ui.statusPill.BorderSizePixel = 0
+	ui.statusPill.ZIndex = 13
+	ui.statusPill.Parent = ui.content
+	ui.statusCorner = Instance.new("UICorner")
+	ui.statusCorner.CornerRadius = UDim.new(1, 0)
+	ui.statusCorner.Parent = ui.statusPill
+	ui.statusStroke = Instance.new("UIStroke")
+	ui.statusStroke.Color = Color3.fromRGB(255, 255, 255)
+	ui.statusStroke.Transparency = 0.62
+	ui.statusStroke.Thickness = 1
+	ui.statusStroke.Parent = ui.statusPill
 
-	local track = Instance.new("Frame")
-	track.Name = "ProgressTrack"
-	track.AnchorPoint = Vector2.new(0.5, 0)
-	track.Position = UDim2.new(0.5, 0, 0, 258)
-	track.Size = UDim2.new(0.76, 0, 0, 3)
-	track.BackgroundColor3 = Color3.fromRGB(42, 42, 42)
-	track.BorderSizePixel = 0
-	track.ClipsDescendants = true
-	track.ZIndex = 12
-	track.Parent = content
+	ui.statusDot = Instance.new("Frame")
+	ui.statusDot.Name = "StatusDot"
+	ui.statusDot.AnchorPoint = Vector2.new(0, 0.5)
+	ui.statusDot.Position = UDim2.new(0, 10, 0.5, 0)
+	ui.statusDot.Size = UDim2.fromOffset(6, 6)
+	ui.statusDot.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	ui.statusDot.BackgroundTransparency = 1
+	ui.statusDot.BorderSizePixel = 0
+	ui.statusDot.ZIndex = 15
+	ui.statusDot.Parent = ui.statusPill
+	ui.statusDotCorner = Instance.new("UICorner")
+	ui.statusDotCorner.CornerRadius = UDim.new(1, 0)
+	ui.statusDotCorner.Parent = ui.statusDot
 
-	local trackCorner = Instance.new("UICorner")
-	trackCorner.CornerRadius = UDim.new(1, 0)
-	trackCorner.Parent = track
+	ui.actionLabel = Instance.new("TextLabel")
+	ui.actionLabel.Name = "Action"
+	ui.actionLabel.Position = UDim2.new(0, 25, 0, 0)
+	ui.actionLabel.Size = UDim2.new(1, -31, 1, 0)
+	ui.actionLabel.BackgroundTransparency = 1
+	ui.actionLabel.Text = string.upper(tostring(action or "TELEPORTING"))
+	ui.actionLabel.TextColor3 = Color3.fromRGB(245, 245, 245)
+	ui.actionLabel.TextTransparency = 1
+	ui.actionLabel.TextSize = 9
+	ui.actionLabel.Font = Enum.Font.GothamBold
+	ui.actionLabel.TextXAlignment = Enum.TextXAlignment.Left
+	ui.actionLabel.ZIndex = 15
+	ui.actionLabel.Parent = ui.statusPill
 
-	local runner = Instance.new("Frame")
-	runner.Name = "Runner"
-	runner.Position = UDim2.new(-0.34, 0, 0, 0)
-	runner.Size = UDim2.new(0.34, 0, 1, 0)
-	runner.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-	runner.BorderSizePixel = 0
-	runner.ZIndex = 13
-	runner.Parent = track
+	ui.destination = Instance.new("TextLabel")
+	ui.destination.Name = "Destination"
+	ui.destination.Position = UDim2.new(0, 0, 0, 37)
+	ui.destination.Size = UDim2.new(1, 0, 0, mobile and 36 or 44)
+	ui.destination.BackgroundTransparency = 1
+	ui.destination.Text = tostring(placeName or NAmanage.SubplaceViewer_GetPlaceName(destinationId))
+	ui.destination.TextColor3 = Color3.fromRGB(255, 255, 255)
+	ui.destination.TextTransparency = 1
+	ui.destination.TextSize = mobile and 28 or 38
+	ui.destination.Font = Enum.Font.GothamBold
+	ui.destination.TextTruncate = Enum.TextTruncate.AtEnd
+	ui.destination.TextXAlignment = Enum.TextXAlignment.Left
+	ui.destination.ZIndex = 14
+	ui.destination.Parent = ui.content
 
-	local runnerCorner = Instance.new("UICorner")
-	runnerCorner.CornerRadius = UDim.new(1, 0)
-	runnerCorner.Parent = runner
+	ui.info = Instance.new("TextLabel")
+	ui.info.Name = "Info"
+	ui.info.Position = UDim2.new(0, 1, 0, mobile and 78 or 88)
+	ui.info.Size = UDim2.new(1, 0, 0, 18)
+	ui.info.BackgroundTransparency = 1
+	ui.info.Text = tostring(detail or ("Place ID  "..tostring(destinationId)))
+	ui.info.TextColor3 = Color3.fromRGB(205, 205, 205)
+	ui.info.TextTransparency = 1
+	ui.info.TextSize = mobile and 10 or 11
+	ui.info.Font = Enum.Font.Gotham
+	ui.info.TextTruncate = Enum.TextTruncate.AtEnd
+	ui.info.TextXAlignment = Enum.TextXAlignment.Left
+	ui.info.ZIndex = 14
+	ui.info.Parent = ui.content
 
-	local footer = Instance.new("TextLabel")
-	footer.Name = "Footer"
-	footer.BackgroundTransparency = 1
-	footer.Position = UDim2.new(0, 16, 0, 274)
-	footer.Size = UDim2.new(1, -32, 0, 18)
-	footer.Text = "Connecting to destination..."
-	footer.TextColor3 = Color3.fromRGB(112, 112, 112)
-	footer.TextSize = 10
-	footer.Font = Enum.Font.Gotham
-	footer.TextXAlignment = Enum.TextXAlignment.Center
-	footer.ZIndex = 12
-	footer.Parent = content
+	ui.footer = Instance.new("TextLabel")
+	ui.footer.Name = "Footer"
+	ui.footer.Position = UDim2.new(0, 1, 0, mobile and 103 or 115)
+	ui.footer.Size = UDim2.new(1, 0, 0, 17)
+	ui.footer.BackgroundTransparency = 1
+	ui.footer.Text = "Preparing destination"
+	ui.footer.TextColor3 = Color3.fromRGB(170, 170, 170)
+	ui.footer.TextTransparency = 1
+	ui.footer.TextSize = 9
+	ui.footer.Font = Enum.Font.GothamMedium
+	ui.footer.TextXAlignment = Enum.TextXAlignment.Left
+	ui.footer.ZIndex = 14
+	ui.footer.Parent = ui.content
+
+	ui.progressTrack = Instance.new("Frame")
+	ui.progressTrack.Name = "ProgressTrack"
+	ui.progressTrack.AnchorPoint = Vector2.new(0, 1)
+	ui.progressTrack.Position = UDim2.new(0, sidePad, 1, -31)
+	ui.progressTrack.Size = UDim2.new(1, -(sidePad * 2), 0, 2)
+	ui.progressTrack.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	ui.progressTrack.BackgroundTransparency = 1
+	ui.progressTrack.BorderSizePixel = 0
+	ui.progressTrack.ClipsDescendants = true
+	ui.progressTrack.ZIndex = 13
+	ui.progressTrack.Parent = ui.foreground
+	ui.progressCorner = Instance.new("UICorner")
+	ui.progressCorner.CornerRadius = UDim.new(1, 0)
+	ui.progressCorner.Parent = ui.progressTrack
+
+	ui.runner = Instance.new("Frame")
+	ui.runner.Name = "Runner"
+	ui.runner.Position = UDim2.new(-0.22, 0, 0, 0)
+	ui.runner.Size = UDim2.new(0.22, 0, 1, 0)
+	ui.runner.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	ui.runner.BackgroundTransparency = 0
+	ui.runner.BorderSizePixel = 0
+	ui.runner.ZIndex = 15
+	ui.runner.Parent = ui.progressTrack
+	ui.runnerCorner = Instance.new("UICorner")
+	ui.runnerCorner.CornerRadius = UDim.new(1, 0)
+	ui.runnerCorner.Parent = ui.runner
+	ui.runnerGradient = Instance.new("UIGradient")
+	ui.runnerGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(88, 88, 88));
+		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 255, 255));
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(88, 88, 88));
+	})
+	ui.runnerGradient.Parent = ui.runner
+
+	ui.progressCaption = Instance.new("TextLabel")
+	ui.progressCaption.Name = "ProgressCaption"
+	ui.progressCaption.Position = UDim2.new(0, sidePad, 1, -25)
+	ui.progressCaption.Size = UDim2.fromOffset(180, 14)
+	ui.progressCaption.BackgroundTransparency = 1
+	ui.progressCaption.Text = "ESTABLISHING CONNECTION"
+	ui.progressCaption.TextColor3 = Color3.fromRGB(195, 195, 195)
+	ui.progressCaption.TextTransparency = 1
+	ui.progressCaption.TextSize = 7
+	ui.progressCaption.Font = Enum.Font.GothamMedium
+	ui.progressCaption.TextXAlignment = Enum.TextXAlignment.Left
+	ui.progressCaption.ZIndex = 13
+	ui.progressCaption.Parent = ui.foreground
+
+	ui.placeTag = Instance.new("TextLabel")
+	ui.placeTag.Name = "PlaceTag"
+	ui.placeTag.AnchorPoint = Vector2.new(1, 0)
+	ui.placeTag.Position = UDim2.new(1, -sidePad, 1, -25)
+	ui.placeTag.Size = UDim2.fromOffset(220, 14)
+	ui.placeTag.BackgroundTransparency = 1
+	ui.placeTag.Text = "PLACE  "..tostring(destinationId)
+	ui.placeTag.TextColor3 = Color3.fromRGB(195, 195, 195)
+	ui.placeTag.TextTransparency = 1
+	ui.placeTag.TextSize = 7
+	ui.placeTag.Font = Enum.Font.GothamMedium
+	ui.placeTag.TextXAlignment = Enum.TextXAlignment.Right
+	ui.placeTag.ZIndex = 13
+	ui.placeTag.Parent = ui.foreground
 
 	const lp = (Players and Players.LocalPlayer) or player
 	const playerGui = lp and (lp:FindFirstChildOfClass("PlayerGui") or lp:FindFirstChild("PlayerGui"))
 	if playerGui then
-		gui.Parent = playerGui
+		ui.gui.Parent = playerGui
 	end
-	pcall(TeleportService.SetTeleportGui, TeleportService, gui)
-	state.teleportGui = gui
+
+	ui.handoffGui = ui.gui:Clone()
+	ui.handoffGui.Name = "NATeleportGui"
+	ui.handoffGui.Enabled = true
+	NAmanage.TeleportGui_ApplyStaticState(ui.handoffGui)
+	state.teleportHandoffGui = ui.handoffGui
+	pcall(TeleportService.SetTeleportGui, TeleportService, ui.handoffGui)
+	state.teleportGui = ui.gui
 	state.teleportGuiToken += 1
 	const token = state.teleportGuiToken
+
+	pcall(function()
+		TweenService:Create(ui.backdrop, TweenInfo.new(0.78, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+			Position = UDim2.fromScale(0.5, 0.5);
+			Size = UDim2.fromScale(1.08, 1.08);
+			ImageTransparency = 0.34;
+		}):Play()
+		TweenService:Create(ui.topBrand, TweenInfo.new(0.48, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), { Position = UDim2.new(0, sidePad, 0, topPad) }):Play()
+		TweenService:Create(ui.content, TweenInfo.new(0.56, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), { Position = UDim2.new(0, sidePad, 1, -bottomPad) }):Play()
+		TweenService:Create(ui.logo, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { ImageTransparency = 0 }):Play()
+		TweenService:Create(ui.logoFallback, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0 }):Play()
+		TweenService:Create(ui.brand, TweenInfo.new(0.38, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0 }):Play()
+		TweenService:Create(ui.subBrand, TweenInfo.new(0.42, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0.18 }):Play()
+		TweenService:Create(ui.rightTag, TweenInfo.new(0.48, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0.32 }):Play()
+		TweenService:Create(ui.statusPill, TweenInfo.new(0.42, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 0.36 }):Play()
+		TweenService:Create(ui.statusDot, TweenInfo.new(0.42, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 0 }):Play()
+		TweenService:Create(ui.actionLabel, TweenInfo.new(0.42, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0 }):Play()
+		TweenService:Create(ui.destination, TweenInfo.new(0.48, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0 }):Play()
+		TweenService:Create(ui.info, TweenInfo.new(0.54, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0.08 }):Play()
+		TweenService:Create(ui.footer, TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0.18 }):Play()
+		TweenService:Create(ui.progressTrack, TweenInfo.new(0.58, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 0.72 }):Play()
+		TweenService:Create(ui.progressCaption, TweenInfo.new(0.62, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0.16 }):Play()
+		TweenService:Create(ui.placeTag, TweenInfo.new(0.62, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0.28 }):Play()
+		TweenService:Create(ui.topEdge, TweenInfo.new(0.65, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 0.62 }):Play()
+	end)
+
 	Spawn(function()
-		while state.teleportGui == gui and token == state.teleportGuiToken and gui.Parent do
-			runner.Position = UDim2.new(-0.34, 0, 0, 0)
-			local tween = TweenService:Create(runner, TweenInfo.new(0.9, Enum.EasingStyle.Quint, Enum.EasingDirection.InOut), { Position = UDim2.new(1, 0, 0, 0) })
-			tween:Play()
-			pcall(function() tween.Completed:Wait() end)
-			Wait(0.03)
+		local dots = 0
+		while state.teleportGui == ui.gui and token == state.teleportGuiToken and ui.gui.Parent do
+			dots = (dots + 1) % 4
+			ui.footer.Text = "Preparing destination"..string.rep(".", dots)
+			Wait(0.34)
 		end
 	end)
-	return gui
+	Spawn(function()
+		while state.teleportGui == ui.gui and token == state.teleportGuiToken and ui.gui.Parent do
+			ui.runner.Position = UDim2.new(-0.22, 0, 0, 0)
+			local okTween, tween = pcall(TweenService.Create, TweenService, ui.runner, TweenInfo.new(1.12, Enum.EasingStyle.Quint, Enum.EasingDirection.InOut), { Position = UDim2.new(1, 0, 0, 0) })
+			if okTween and tween then
+				tween:Play()
+				pcall(function() tween.Completed:Wait() end)
+			else
+				Wait(1.12)
+			end
+			Wait(0.04)
+		end
+	end)
+	Spawn(function()
+		while state.teleportGui == ui.gui and token == state.teleportGuiToken and ui.gui.Parent do
+			pcall(function()
+				local dim = TweenService:Create(ui.statusDot, TweenInfo.new(0.56, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { BackgroundTransparency = 0.72 })
+				dim:Play()
+				dim.Completed:Wait()
+				local bright = TweenService:Create(ui.statusDot, TweenInfo.new(0.56, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { BackgroundTransparency = 0 })
+				bright:Play()
+				bright.Completed:Wait()
+			end)
+		end
+	end)
+	Spawn(function()
+		while state.teleportGui == ui.gui and token == state.teleportGuiToken and ui.gui.Parent do
+			pcall(function()
+				local drift = TweenService:Create(ui.backdrop, TweenInfo.new(4.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+					Position = UDim2.fromScale(0.507, 0.496);
+					Size = UDim2.fromScale(1.115, 1.115);
+				})
+				drift:Play()
+				drift.Completed:Wait()
+				local driftBack = TweenService:Create(ui.backdrop, TweenInfo.new(4.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+					Position = UDim2.fromScale(0.5, 0.5);
+					Size = UDim2.fromScale(1.08, 1.08);
+				})
+				driftBack:Play()
+				driftBack.Completed:Wait()
+			end)
+		end
+	end)
+	Spawn(function()
+		while state.teleportGui == ui.gui and token == state.teleportGuiToken and ui.gui.Parent do
+			pcall(function()
+				local grow = TweenService:Create(ui.logoScale, TweenInfo.new(1.15, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { Scale = 1.025 })
+				grow:Play()
+				grow.Completed:Wait()
+				local shrink = TweenService:Create(ui.logoScale, TweenInfo.new(1.15, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { Scale = 1 })
+				shrink:Play()
+				shrink.Completed:Wait()
+			end)
+		end
+	end)
+	return ui.gui
 end
-
 
 NAmanage.SubplaceViewer_PerformTeleport = function(placeId, placeName, action, serverId, detail)
 	const lp = (Players and Players.LocalPlayer) or player
@@ -122560,40 +122883,129 @@ NAmanage.SubplaceViewer_HandleArrivingTeleportGui = function()
 	local ok, gui = pcall(TeleportService.GetArrivingTeleportGui, TeleportService)
 	if not (ok and gui) then return end
 	local tagged = false
-	pcall(function() tagged = gui:GetAttribute("NASubplaceViewerTeleport") == true or gui:GetAttribute("NACustomTeleportGui") == true end)
+	pcall(function()
+		tagged = gui:GetAttribute("NASubplaceViewerTeleport") == true or gui:GetAttribute("NACustomTeleportGui") == true
+	end)
 	if not tagged and gui.Name ~= "NATeleportGui" then return end
 	const lp = (Players and Players.LocalPlayer) or player
 	const playerGui = lp and (lp:FindFirstChildOfClass("PlayerGui") or lp:FindFirstChild("PlayerGui"))
 	if playerGui then
 		pcall(function() gui.Parent = playerGui end)
 	end
-	for _, obj in gui:GetDescendants() do
-		if obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox") then
-			pcall(function()
-				TweenService:Create(obj, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-					TextTransparency = 1;
-					BackgroundTransparency = 1;
-				}):Play()
-			end)
-		elseif obj:IsA("ImageLabel") or obj:IsA("ImageButton") then
-			pcall(function()
-				TweenService:Create(obj, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-					ImageTransparency = 1;
-					BackgroundTransparency = 1;
-				}):Play()
-			end)
-		elseif obj:IsA("Frame") then
-			pcall(function()
-				TweenService:Create(obj, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 1 }):Play()
-			end)
-		elseif obj:IsA("UIStroke") then
-			pcall(function()
-				TweenService:Create(obj, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Transparency = 1 }):Play()
-			end)
-		end
+	NAmanage.TeleportGui_ApplyStaticState(gui)
+	const root = gui:FindFirstChild("Root")
+	const backdrop = root and root:FindFirstChild("Backdrop")
+	const wash = root and root:FindFirstChild("Wash")
+	const sideShade = root and root:FindFirstChild("SideShade")
+	const bottomShade = root and root:FindFirstChild("BottomShade")
+	const topEdge = root and root:FindFirstChild("TopEdge")
+	const foreground = root and root:FindFirstChild("Foreground")
+	const topBrand = foreground and foreground:FindFirstChild("TopBrand")
+	const content = foreground and foreground:FindFirstChild("Content")
+	const statusPill = content and content:FindFirstChild("StatusPill")
+	const statusDot = statusPill and statusPill:FindFirstChild("StatusDot")
+	const actionLabel = statusPill and statusPill:FindFirstChild("Action")
+	const footer = content and content:FindFirstChild("Footer")
+	const progressTrack = foreground and foreground:FindFirstChild("ProgressTrack")
+	const runner = progressTrack and progressTrack:FindFirstChild("Runner")
+	const progressCaption = foreground and foreground:FindFirstChild("ProgressCaption")
+	if actionLabel and actionLabel:IsA("TextLabel") then
+		actionLabel.Text = "CONNECTED"
+	end
+	if footer and footer:IsA("TextLabel") then
+		footer.Text = "Destination ready"
+		footer.TextColor3 = Color3.fromRGB(235, 235, 235)
+	end
+	if progressCaption and progressCaption:IsA("TextLabel") then
+		progressCaption.Text = "CONNECTION ESTABLISHED"
+	end
+	if statusPill and statusPill:IsA("Frame") then
+		pcall(function()
+			TweenService:Create(statusPill, TweenInfo.new(0.26, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 0.18 }):Play()
+		end)
+	end
+	if statusDot and statusDot:IsA("Frame") then
+		statusDot.BackgroundTransparency = 0
+	end
+	if runner and runner:IsA("Frame") then
+		pcall(function()
+			TweenService:Create(runner, TweenInfo.new(0.34, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+				Position = UDim2.fromScale(0, 0);
+				Size = UDim2.fromScale(1, 1);
+			}):Play()
+		end)
 	end
 	Spawn(function()
-		Wait(0.32)
+		Wait(0.52)
+		if not gui.Parent then return end
+		if content and content:IsA("Frame") then
+			pcall(function()
+				TweenService:Create(content, TweenInfo.new(0.58, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
+					Position = UDim2.new(content.Position.X.Scale, content.Position.X.Offset, content.Position.Y.Scale, content.Position.Y.Offset - 14);
+				}):Play()
+			end)
+		end
+		if topBrand and topBrand:IsA("Frame") then
+			pcall(function()
+				TweenService:Create(topBrand, TweenInfo.new(0.58, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
+					Position = UDim2.new(topBrand.Position.X.Scale, topBrand.Position.X.Offset, topBrand.Position.Y.Scale, topBrand.Position.Y.Offset - 8);
+				}):Play()
+			end)
+		end
+		if foreground then
+			for _, obj in foreground:GetDescendants() do
+				if obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox") then
+					pcall(function()
+						TweenService:Create(obj, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+							TextTransparency = 1;
+							BackgroundTransparency = 1;
+						}):Play()
+					end)
+				elseif obj:IsA("ImageLabel") or obj:IsA("ImageButton") then
+					pcall(function()
+						TweenService:Create(obj, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+							ImageTransparency = 1;
+							BackgroundTransparency = 1;
+						}):Play()
+					end)
+				elseif obj:IsA("UIStroke") then
+					pcall(function()
+						TweenService:Create(obj, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Transparency = 1 }):Play()
+					end)
+				elseif obj:IsA("Frame") and obj ~= foreground then
+					pcall(function()
+						TweenService:Create(obj, TweenInfo.new(0.52, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { BackgroundTransparency = 1 }):Play()
+					end)
+				end
+			end
+		end
+		if topEdge and topEdge:IsA("Frame") then
+			pcall(function()
+				TweenService:Create(topEdge, TweenInfo.new(0.48, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { BackgroundTransparency = 1 }):Play()
+			end)
+		end
+		Wait(0.24)
+		if backdrop and backdrop:IsA("ImageLabel") then
+			pcall(function()
+				TweenService:Create(backdrop, TweenInfo.new(0.92, Enum.EasingStyle.Quint, Enum.EasingDirection.InOut), {
+					ImageTransparency = 1;
+					Size = UDim2.fromScale(1.02, 1.02);
+				}):Play()
+			end)
+		end
+		for _, shade in { wash, sideShade, bottomShade } do
+			if shade and shade:IsA("Frame") then
+				pcall(function()
+					TweenService:Create(shade, TweenInfo.new(0.92, Enum.EasingStyle.Quint, Enum.EasingDirection.InOut), { BackgroundTransparency = 1 }):Play()
+				end)
+			end
+		end
+		if root and root:IsA("Frame") then
+			pcall(function()
+				TweenService:Create(root, TweenInfo.new(1.02, Enum.EasingStyle.Quint, Enum.EasingDirection.InOut), { BackgroundTransparency = 1 }):Play()
+			end)
+		end
+		Wait(1.05)
 		pcall(function() gui:Destroy() end)
 	end)
 end
