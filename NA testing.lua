@@ -16414,6 +16414,10 @@ function NACaller(fnOrOptions, ...)
 	return Unpack(t, 1, t.n)
 end
 
+if type(__NARootHost) == "table" then
+	pcall(rawset, __NARootHost, "NACaller", NACaller)
+end
+
 NAmanage.loaderState = NAmanage.loaderState or {
 	autoSkip = false;
 	loaded = false;
@@ -146040,7 +146044,7 @@ end)
 
 end))
 
-if type(__NARootHost) == "table" then
+if not __NARootResult[1] and type(__NARootHost) == "table" then
 	pcall(function()
 		if __NARootPreviousNACaller ~= nil then
 			rawset(__NARootHost, "NACaller", __NARootPreviousNACaller)
