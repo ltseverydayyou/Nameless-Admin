@@ -4950,16 +4950,23 @@ NAmanage.LaunchExperience = NAmanage.LaunchExperience or function(params, opts)
 		if launchParams.linkCode then
 			return false, expErr or "TeleportService has no linkCode fallback"
 		end
-		return pcall(function()
-			if gameInstanceId and placeId then
-				return tp:TeleportToPlaceInstance(placeId, gameInstanceId, lp)
-			elseif reservedCode and placeId and tp.TeleportToPrivateServer then
-				return tp:TeleportToPrivateServer(placeId, reservedCode, lp and { lp } or {})
-			elseif placeId then
-				return tp:Teleport(placeId, lp)
-			end
-			error("TeleportService fallback needs placeId")
-		end)
+		const meta = {
+			placeId = placeId;
+			placeName = opts.placeName;
+			action = opts.action or "TELEPORTING";
+			detail = opts.detail;
+		}
+		if type(NAmanage.TeleportServiceCall) ~= "function" then
+			return false, expErr or "NA teleport wrapper unavailable"
+		end
+		if gameInstanceId and placeId then
+			return NAmanage.TeleportServiceCall("TeleportToPlaceInstance", { placeId, gameInstanceId, lp }, meta)
+		elseif reservedCode and placeId and tp.TeleportToPrivateServer then
+			return NAmanage.TeleportServiceCall("TeleportToPrivateServer", { placeId, reservedCode, lp and { lp } or {} }, meta)
+		elseif placeId then
+			return NAmanage.TeleportServiceCall("Teleport", { placeId, lp }, meta)
+		end
+		return false, "TeleportService fallback needs placeId"
 	end
 	local service = ExperienceService
 	if not service then
@@ -4974,6 +4981,16 @@ NAmanage.LaunchExperience = NAmanage.LaunchExperience or function(params, opts)
 	if not service then
 		return fallbackTeleport("ExperienceService unavailable")
 	end
+	local launchGui
+	if type(NAmanage.TeleportGui_Create) == "function" then
+		const placeId = launchParams.placeId or launchParams.PlaceId or game.PlaceId
+		launchGui = NAmanage.TeleportGui_Create(
+			placeId,
+			opts.placeName or (type(NAmanage.TeleportGui_GetPlaceName) == "function" and NAmanage.TeleportGui_GetPlaceName(placeId) or nil),
+			opts.action or "TELEPORTING",
+			opts.detail
+		)
+	end
 	local ok, result = pcall(function()
 		if opts.callback and service.LaunchExperienceFromSourceWithCallback then
 			return service:LaunchExperienceFromSourceWithCallback(launchParams, opts.source or "NamelessAdmin", opts.callback)
@@ -4985,6 +5002,9 @@ NAmanage.LaunchExperience = NAmanage.LaunchExperience or function(params, opts)
 	end)
 	if ok then
 		return true, result
+	end
+	if launchGui and type(NAmanage.TeleportGui_Clear) == "function" then
+		NAmanage.TeleportGui_Clear(launchGui)
 	end
 	return fallbackTeleport(result)
 end
@@ -19597,6 +19617,10 @@ NAmanage.NASettingsGetSchema=function()
 			default = function() return IsOnMobile == true end;
 			coerce = function(value) return NAmanage.NASettingsSchemaState.coerceBoolean(value, IsOnMobile == true) end;
 		};
+		customTeleportGui = {
+			default = true;
+			coerce = function(value) return NAmanage.NASettingsSchemaState.coerceBoolean(value, true) end;
+		};
 		cmdInputSafeMode = {
 			default = function() return IsOnPC == true and IsOnMobile ~= true end;
 			coerce = function(value) return NAmanage.NASettingsSchemaState.coerceBoolean(value, IsOnPC == true and IsOnMobile ~= true) end;
@@ -24451,6 +24475,7 @@ NAStuff.MobileFlyAutoEnableOnRun = NAmanage.NASettingsGet("mobileFlyAutoEnableOn
 NAStuff.FlyNoVelocityClamp = NAmanage.NASettingsGet("flyNoVelocityClamp") == true
 NAStuff.CFlyVisualizerOn = NAmanage.NASettingsGet("cFlyVisualizer") ~= false
 NAStuff.LowEndMode = NAmanage.NASettingsGet("lowEndUiMode") == true
+NAStuff.CustomTeleportGuiEnabled = NAmanage.NASettingsGet("customTeleportGui") ~= false
 NAStuff.PluginAutoLoad = NAmanage.NASettingsGet("pluginAutoLoad") ~= false
 NAStuff.PluginSettingsUIEnabled = NAmanage.NASettingsGet("pluginAllowSettingsUI") ~= false
 NAHideStartup = NAmanage.NASettingsGet("hideStartup") == true
@@ -27177,6 +27202,9 @@ if NAStuff.onTP and typeof(NAStuff.onTP) == "RBXScriptSignal" and not NAStuff.on
 				NAStuff.teleportTransition = false
 				NAStuff.teleportTransitionSince = nil
 				NAStuff._qotQueued = false
+				if type(NAmanage.TeleportGui_Clear) == "function" then
+					pcall(NAmanage.TeleportGui_Clear)
+				end
 				return
 			end
 			if stateName == "RequestedFromServer" or stateName == "Started" or stateName == "WaitingForServer" or stateName == "InProgress" then
@@ -27209,6 +27237,9 @@ if TeleportService and not NAStuff.teleportTransitionFailHook then
 				NAStuff.teleportTransition = false
 				NAStuff.teleportTransitionSince = nil
 				NAStuff._qotQueued = false
+				if type(NAmanage.TeleportGui_Clear) == "function" then
+					pcall(NAmanage.TeleportGui_Clear)
+				end
 			end
 		end))
 	end)
@@ -54377,6 +54408,7 @@ cmd.add({"rejoin","rj"},{"rejoin (rj)","Rejoin the game"},function()
 		NAlib.connect("rejoin_tperr",tp.TeleportInitFailed:Connect(function(player,result,errMsg)
 			const currentLp = Players and Players.LocalPlayer
 			if currentLp and player == currentLp and NAStuff.teleportTransitionToken == transitionToken then
+				if type(NAmanage.TeleportGui_Clear) == "function" then pcall(NAmanage.TeleportGui_Clear) end
 				NAStuff.teleportTransition = false
 				NAStuff.teleportTransitionSince = nil
 				NAStuff.teleportTransitionToken = nil
@@ -54394,6 +54426,7 @@ cmd.add({"rejoin","rj"},{"rejoin (rj)","Rejoin the game"},function()
 
 	const function markTeleportFailed(msg)
 		if NAStuff.teleportTransitionToken == transitionToken then
+			if type(NAmanage.TeleportGui_Clear) == "function" then pcall(NAmanage.TeleportGui_Clear) end
 			NAStuff.teleportTransition = false
 			NAStuff.teleportTransitionSince = nil
 			NAStuff.teleportTransitionToken = nil
@@ -54415,6 +54448,7 @@ cmd.add({"rejoin","rj"},{"rejoin (rj)","Rejoin the game"},function()
 		Spawn(function()
 			Wait(30)
 			if NAStuff.teleportTransitionToken == watchToken then
+				if type(NAmanage.TeleportGui_Clear) == "function" then pcall(NAmanage.TeleportGui_Clear) end
 				NAStuff.teleportTransition = false
 				NAStuff.teleportTransitionSince = nil
 				NAStuff.teleportTransitionToken = nil
@@ -54431,9 +54465,12 @@ cmd.add({"rejoin","rj"},{"rejoin (rj)","Rejoin the game"},function()
 	end
 
 	if #__lt.cm("Players", "GetPlayers")<=1 then
-		local ok,err=pcall(function()
-			tp:Teleport(PlaceId,lp)
-		end)
+		local ok,err=NAmanage.TeleportServiceCall("Teleport", { PlaceId, lp }, {
+			placeId = PlaceId;
+			placeName = game.Name;
+			action = "REJOINING";
+			detail = "Finding a fresh server";
+		})
 		if not ok then
 			markTeleportFailed("Teleport error: "..tostring(err))
 			return
@@ -54441,23 +54478,32 @@ cmd.add({"rejoin","rj"},{"rejoin (rj)","Rejoin the game"},function()
 	else
 		const targetJobId = resolveRejoinJobId()
 		if targetJobId then
-			local ok,err=pcall(function()
-				tp:TeleportToPlaceInstance(PlaceId,targetJobId,lp)
-			end)
+			local ok,err=NAmanage.TeleportServiceCall("TeleportToPlaceInstance", { PlaceId, targetJobId, lp }, {
+				placeId = PlaceId;
+				placeName = game.Name;
+				action = "REJOINING SERVER";
+				detail = "Returning to the current server";
+			})
 			if not ok then
 				DoNotif("TeleportToPlaceInstance error: "..tostring(err))
-				local ok2, err2 = pcall(function()
-					tp:Teleport(PlaceId,lp)
-				end)
+				local ok2, err2 = NAmanage.TeleportServiceCall("Teleport", { PlaceId, lp }, {
+					placeId = PlaceId;
+					placeName = game.Name;
+					action = "REJOINING";
+					detail = "Current server unavailable, finding another server";
+				})
 				if not ok2 then
 					markTeleportFailed("Teleport fallback error: "..tostring(err2))
 					return
 				end
 			end
 		else
-			local ok, err = pcall(function()
-				tp:Teleport(PlaceId,lp)
-			end)
+			local ok, err = NAmanage.TeleportServiceCall("Teleport", { PlaceId, lp }, {
+				placeId = PlaceId;
+				placeName = game.Name;
+				action = "REJOINING";
+				detail = "Finding a server";
+			})
 			if not ok then
 				markTeleportFailed("Teleport error: "..tostring(err))
 				return
@@ -54472,7 +54518,7 @@ end)
 cmd.add({"teleporttoplace","toplace","ttp", "gametp"},{"teleporttoplace <id>","Teleports you using PlaceId"},function(...)
 	args={...}
 	pId=tonumber(args[1])
-	local ok, err = NAmanage.LaunchExperience({ placeId = pId })
+	local ok, err = NAmanage.LaunchExperience({ placeId = pId }, { action = "TELEPORTING TO PLACE"; detail = "Place ID "..tostring(pId) })
 	if not ok then
 		DoNotif("LaunchExperience error: "..tostring(err))
 	end
@@ -67165,7 +67211,7 @@ end)
 cmd.add({"joinjobid","joinjid","jjobid","jjid"},{"joinjobid <jobid>","Joins the job id you put in"},function(...)
 	zeId={...}
 	id=zeId[1]
-	__lt.cm("TeleportService", "TeleportToPlaceInstance", PlaceId,id)
+	NAmanage.TeleportServiceCall("TeleportToPlaceInstance", { PlaceId, id, Players.LocalPlayer }, { placeId = PlaceId; placeName = game.Name; action = "JOINING SERVER"; detail = "Job ID "..tostring(id) })
 end,true)
 
 NAmanage.CopyScriptsPlugin = NAmanage.CopyScriptsPlugin or {}
@@ -67471,9 +67517,12 @@ end
 
 NAmanage.ServerhopDefault = function()
 	DebugNotif("Teleporting (default)")
-	local ok, err = pcall(function()
-		__lt.cm("TeleportService", "Teleport", PlaceId)
-	end)
+	local ok, err = NAmanage.TeleportServiceCall("Teleport", { PlaceId, Players.LocalPlayer }, {
+		placeId = PlaceId;
+		placeName = game.Name;
+		action = "SERVER HOP";
+		detail = "Finding another public server";
+	})
 	if not ok then
 		DebugNotif("Teleport failed: "..tostring(err or "?"))
 		return false, err
@@ -67495,9 +67544,12 @@ NAmanage.ServerhopAdvanced = function()
 	end
 
 	DebugNotif("serverhopping | Player Count: "..tostring(pl or "?"))
-	local ok, err = pcall(function()
-		__lt.cm("TeleportService", "TeleportToPlaceInstance", PlaceId, id)
-	end)
+	local ok, err = NAmanage.TeleportServiceCall("TeleportToPlaceInstance", { PlaceId, id, Players.LocalPlayer }, {
+		placeId = PlaceId;
+		placeName = game.Name;
+		action = "SERVER HOP";
+		detail = "Players: "..tostring(pl or "?");
+	})
 	if not ok then
 		DebugNotif("Teleport failed: "..tostring(err or "?"))
 		return false, err
@@ -67543,7 +67595,7 @@ cmd.add({"smallserverhop","sshop"},{"smallserverhop (sshop)","serverhop to a sma
 	local id, pl = NAStuff.srv:scan("low")
 	if id then
 		DebugNotif("serverhopping | Player Count: "..tostring(pl or "?"))
-		__lt.cm("TeleportService", "TeleportToPlaceInstance", PlaceId, id)
+		NAmanage.TeleportServiceCall("TeleportToPlaceInstance", { PlaceId, id, Players.LocalPlayer }, { placeId = PlaceId; placeName = game.Name; action = "SMALL SERVER HOP"; detail = "Players: "..tostring(pl or "?") })
 	else
 		DebugNotif("No server found")
 	end
@@ -67556,7 +67608,7 @@ cmd.add({"pingserverhop","pshop"},{"pingserverhop (pshop)","serverhop to a serve
 	local id, pl, pn = NAStuff.srv:scan("ping")
 	if id and pn then
 		DebugNotif(Format("Serverhopping | Ping: %s ms | Players: %s", tostring(pn), tostring(pl or "?")))
-		__lt.cm("TeleportService", "TeleportToPlaceInstance", PlaceId, id)
+		NAmanage.TeleportServiceCall("TeleportToPlaceInstance", { PlaceId, id, Players.LocalPlayer }, { placeId = PlaceId; placeName = game.Name; action = "PING SERVER HOP"; detail = "Ping: "..tostring(pn).." ms | Players: "..tostring(pl or "?") })
 	else
 		DebugNotif("No server with ping found")
 	end
@@ -67627,9 +67679,12 @@ cmd.add({"autorejoin", "autorj"}, {"autorejoin (autorj)", "Rejoins the server if
 				cmd.run({"rejoin"})
 			end)
 			if not ok then
-				pcall(function()
-					__lt.cm("TeleportService", "Teleport", PlaceId, Players.LocalPlayer)
-				end)
+				NAmanage.TeleportServiceCall("Teleport", { PlaceId, Players.LocalPlayer }, {
+					placeId = PlaceId;
+					placeName = game.Name;
+					action = "AUTO REJOIN";
+					detail = "Recovering from disconnect";
+				})
 			end
 			Wait(1.5)
 			inFlight = false
@@ -80072,7 +80127,11 @@ cmd.addPatched({"reserveserver","privateserver","ps","rs"},{"reserveserver [code
 		const launchParams=buildLaunchParams(placeInfo,accessCode,variant)
 		NAmanage.ExperienceDebugConnect()
 		NAmanage.ExperienceDebugSnapshot("Before "..variant)
-		const launchOpts={}
+		const launchOpts={
+			placeName = placeInfo and placeInfo.Name or nil;
+			action = "JOINING RESERVED SERVER";
+			detail = codeKind == "linkCode" and "Using reserved server link code" or "Using reserved server access code";
+		}
 		if opts.source then launchOpts.source=opts.source end
 		if opts.callback then launchOpts.callback=opts.callback end
 		local ok,err=NAmanage.LaunchExperience(launchParams,launchOpts)
@@ -122195,6 +122254,380 @@ NAmanage.SubplaceViewer.serverBases = type(NAmanage.SubplaceViewer.serverBases) 
 NAmanage.SubplaceViewer.serverWorker = NAmanage.SubplaceViewer.serverWorker or "https://solaraserverhop.ltseverydayyou.workers.dev"
 NAmanage.SubplaceViewer.viewMode = NAmanage.SubplaceViewer.viewMode or "places"
 
+NAmanage.SubplaceViewer.teleportGuiToken = tonumber(NAmanage.SubplaceViewer.teleportGuiToken) or 0
+NAmanage.SubplaceViewer.teleportGui = nil
+
+NAmanage.SubplaceViewer_GetPlaceName = function(placeId)
+	const state = NAmanage.SubplaceViewer
+	for _, place in state.places do
+		if tonumber(place.PlaceId) == tonumber(placeId) then
+			return tostring(place.Name or ("Place "..tostring(placeId)))
+		end
+	end
+	if tonumber(placeId) == tonumber(game.PlaceId) then
+		return tostring(game.Name)
+	end
+	return "Place "..tostring(placeId)
+end
+
+NAmanage.SubplaceViewer_ClearTeleportGui = function(gui)
+	const state = NAmanage.SubplaceViewer
+	state.teleportGuiToken += 1
+	const target = gui or state.teleportGui
+	if target then
+		pcall(function() target:Destroy() end)
+	end
+	if state.teleportGui == target or gui == nil then
+		state.teleportGui = nil
+	end
+end
+
+NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action, detail)
+	if NAStuff.CustomTeleportGuiEnabled == false or NAStuff.AntiTeleportHooked == true then
+		return nil
+	end
+	const state = NAmanage.SubplaceViewer
+	NAmanage.SubplaceViewer_ClearTeleportGui()
+	local gui = Instance.new("ScreenGui")
+	gui.Name = "NATeleportGui"
+	gui.IgnoreGuiInset = true
+	gui.ResetOnSpawn = false
+	gui.Enabled = true
+	gui.DisplayOrder = 2147483647
+	gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+	pcall(function() gui:SetAttribute("NASubplaceViewerTeleport", true) gui:SetAttribute("NACustomTeleportGui", true) end)
+
+	local root = Instance.new("Frame")
+	root.Name = "Root"
+	root.Size = UDim2.fromScale(1, 1)
+	root.Position = UDim2.fromScale(0, 0)
+	root.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	root.BorderSizePixel = 0
+	root.Visible = true
+	root.ZIndex = 1
+	root.Parent = gui
+
+	local backdropGradient = Instance.new("UIGradient")
+	backdropGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(18, 18, 18));
+		ColorSequenceKeypoint.new(0.42, Color3.fromRGB(5, 5, 5));
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 0, 0));
+	})
+	backdropGradient.Rotation = 90
+	backdropGradient.Parent = root
+
+	local topLine = Instance.new("Frame")
+	topLine.Name = "TopLine"
+	topLine.Size = UDim2.new(1, 0, 0, 1)
+	topLine.Position = UDim2.fromOffset(0, 0)
+	topLine.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	topLine.BackgroundTransparency = 0.72
+	topLine.BorderSizePixel = 0
+	topLine.ZIndex = 2
+	topLine.Parent = root
+
+	local bottomLine = topLine:Clone()
+	bottomLine.Name = "BottomLine"
+	bottomLine.AnchorPoint = Vector2.new(0, 1)
+	bottomLine.Position = UDim2.fromScale(0, 1)
+	bottomLine.Parent = root
+
+	local content = Instance.new("Frame")
+	content.Name = "Content"
+	content.AnchorPoint = Vector2.new(0.5, 0.5)
+	content.Position = UDim2.fromScale(0.5, 0.5)
+	content.Size = UDim2.new(0.88, 0, 0, 310)
+	content.BackgroundTransparency = 1
+	content.BorderSizePixel = 0
+	content.ZIndex = 10
+	content.Parent = root
+
+	local contentSize = Instance.new("UISizeConstraint")
+	contentSize.MinSize = Vector2.new(280, 280)
+	contentSize.MaxSize = Vector2.new(580, 310)
+	contentSize.Parent = content
+
+	local logoHolder = Instance.new("Frame")
+	logoHolder.Name = "LogoHolder"
+	logoHolder.AnchorPoint = Vector2.new(0.5, 0)
+	logoHolder.Position = UDim2.new(0.5, 0, 0, 4)
+	logoHolder.Size = UDim2.fromOffset(92, 92)
+	logoHolder.BackgroundColor3 = Color3.fromRGB(8, 8, 8)
+	logoHolder.BackgroundTransparency = 0.1
+	logoHolder.BorderSizePixel = 0
+	logoHolder.ZIndex = 11
+	logoHolder.Parent = content
+
+	local logoCorner = Instance.new("UICorner")
+	logoCorner.CornerRadius = UDim.new(0, 18)
+	logoCorner.Parent = logoHolder
+
+	local logoStroke = Instance.new("UIStroke")
+	logoStroke.Color = Color3.fromRGB(255, 255, 255)
+	logoStroke.Transparency = 0.68
+	logoStroke.Thickness = 1
+	logoStroke.Parent = logoHolder
+
+	const iconAsset = NAmanage.getNAImageAsset("Icon", "")
+	local logo = Instance.new("ImageLabel")
+	logo.Name = "Logo"
+	logo.BackgroundTransparency = 1
+	logo.AnchorPoint = Vector2.new(0.5, 0.5)
+	logo.Position = UDim2.fromScale(0.5, 0.5)
+	logo.Size = UDim2.new(1, -18, 1, -18)
+	logo.ScaleType = Enum.ScaleType.Fit
+	logo.Image = iconAsset
+	logo.ZIndex = 13
+	logo.Parent = logoHolder
+
+	local logoFallback = Instance.new("TextLabel")
+	logoFallback.Name = "Fallback"
+	logoFallback.BackgroundTransparency = 1
+	logoFallback.Size = UDim2.fromScale(1, 1)
+	logoFallback.Text = "NA"
+	logoFallback.TextColor3 = Color3.fromRGB(255, 255, 255)
+	logoFallback.TextSize = 28
+	logoFallback.Font = Enum.Font.GothamBold
+	logoFallback.TextXAlignment = Enum.TextXAlignment.Center
+	logoFallback.TextYAlignment = Enum.TextYAlignment.Center
+	logoFallback.Visible = iconAsset == ""
+	logoFallback.ZIndex = 12
+	logoFallback.Parent = logoHolder
+
+	local brand = Instance.new("TextLabel")
+	brand.Name = "Brand"
+	brand.BackgroundTransparency = 1
+	brand.Position = UDim2.new(0, 12, 0, 112)
+	brand.Size = UDim2.new(1, -24, 0, 22)
+	brand.Text = "NAMELESS ADMIN"
+	brand.TextColor3 = Color3.fromRGB(255, 255, 255)
+	brand.TextSize = 17
+	brand.Font = Enum.Font.GothamBold
+	brand.TextXAlignment = Enum.TextXAlignment.Center
+	brand.ZIndex = 12
+	brand.Parent = content
+
+	local separator = Instance.new("Frame")
+	separator.Name = "Separator"
+	separator.AnchorPoint = Vector2.new(0.5, 0)
+	separator.Position = UDim2.new(0.5, 0, 0, 143)
+	separator.Size = UDim2.new(0.28, 0, 0, 1)
+	separator.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	separator.BackgroundTransparency = 0.55
+	separator.BorderSizePixel = 0
+	separator.ZIndex = 12
+	separator.Parent = content
+
+	local actionLabel = Instance.new("TextLabel")
+	actionLabel.Name = "Action"
+	actionLabel.BackgroundTransparency = 1
+	actionLabel.Position = UDim2.new(0, 12, 0, 157)
+	actionLabel.Size = UDim2.new(1, -24, 0, 18)
+	actionLabel.Text = string.upper(tostring(action or "TELEPORTING"))
+	actionLabel.TextColor3 = Color3.fromRGB(170, 170, 170)
+	actionLabel.TextSize = 11
+	actionLabel.Font = Enum.Font.GothamMedium
+	actionLabel.TextXAlignment = Enum.TextXAlignment.Center
+	actionLabel.ZIndex = 12
+	actionLabel.Parent = content
+
+	local destination = Instance.new("TextLabel")
+	destination.Name = "Destination"
+	destination.BackgroundTransparency = 1
+	destination.Position = UDim2.new(0, 16, 0, 181)
+	destination.Size = UDim2.new(1, -32, 0, 30)
+	destination.Text = tostring(placeName or NAmanage.SubplaceViewer_GetPlaceName(placeId))
+	destination.TextColor3 = Color3.fromRGB(255, 255, 255)
+	destination.TextSize = 21
+	destination.Font = Enum.Font.GothamMedium
+	destination.TextTruncate = Enum.TextTruncate.AtEnd
+	destination.TextXAlignment = Enum.TextXAlignment.Center
+	destination.ZIndex = 12
+	destination.Parent = content
+
+	local info = Instance.new("TextLabel")
+	info.Name = "Info"
+	info.BackgroundTransparency = 1
+	info.Position = UDim2.new(0, 16, 0, 216)
+	info.Size = UDim2.new(1, -32, 0, 18)
+	info.Text = tostring(detail or ("Place ID "..tostring(placeId)))
+	info.TextColor3 = Color3.fromRGB(130, 130, 130)
+	info.TextSize = 11
+	info.Font = Enum.Font.Gotham
+	info.TextTruncate = Enum.TextTruncate.AtEnd
+	info.TextXAlignment = Enum.TextXAlignment.Center
+	info.ZIndex = 12
+	info.Parent = content
+
+	local track = Instance.new("Frame")
+	track.Name = "ProgressTrack"
+	track.AnchorPoint = Vector2.new(0.5, 0)
+	track.Position = UDim2.new(0.5, 0, 0, 258)
+	track.Size = UDim2.new(0.76, 0, 0, 3)
+	track.BackgroundColor3 = Color3.fromRGB(42, 42, 42)
+	track.BorderSizePixel = 0
+	track.ClipsDescendants = true
+	track.ZIndex = 12
+	track.Parent = content
+
+	local trackCorner = Instance.new("UICorner")
+	trackCorner.CornerRadius = UDim.new(1, 0)
+	trackCorner.Parent = track
+
+	local runner = Instance.new("Frame")
+	runner.Name = "Runner"
+	runner.Position = UDim2.new(-0.34, 0, 0, 0)
+	runner.Size = UDim2.new(0.34, 0, 1, 0)
+	runner.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	runner.BorderSizePixel = 0
+	runner.ZIndex = 13
+	runner.Parent = track
+
+	local runnerCorner = Instance.new("UICorner")
+	runnerCorner.CornerRadius = UDim.new(1, 0)
+	runnerCorner.Parent = runner
+
+	local footer = Instance.new("TextLabel")
+	footer.Name = "Footer"
+	footer.BackgroundTransparency = 1
+	footer.Position = UDim2.new(0, 16, 0, 274)
+	footer.Size = UDim2.new(1, -32, 0, 18)
+	footer.Text = "Connecting to destination..."
+	footer.TextColor3 = Color3.fromRGB(112, 112, 112)
+	footer.TextSize = 10
+	footer.Font = Enum.Font.Gotham
+	footer.TextXAlignment = Enum.TextXAlignment.Center
+	footer.ZIndex = 12
+	footer.Parent = content
+
+	const lp = (Players and Players.LocalPlayer) or player
+	const playerGui = lp and (lp:FindFirstChildOfClass("PlayerGui") or lp:FindFirstChild("PlayerGui"))
+	if playerGui then
+		gui.Parent = playerGui
+	end
+	pcall(TeleportService.SetTeleportGui, TeleportService, gui)
+	state.teleportGui = gui
+	state.teleportGuiToken += 1
+	const token = state.teleportGuiToken
+	Spawn(function()
+		while state.teleportGui == gui and token == state.teleportGuiToken and gui.Parent do
+			runner.Position = UDim2.new(-0.34, 0, 0, 0)
+			local tween = TweenService:Create(runner, TweenInfo.new(0.9, Enum.EasingStyle.Quint, Enum.EasingDirection.InOut), { Position = UDim2.new(1, 0, 0, 0) })
+			tween:Play()
+			pcall(function() tween.Completed:Wait() end)
+			Wait(0.03)
+		end
+	end)
+	return gui
+end
+
+
+NAmanage.SubplaceViewer_PerformTeleport = function(placeId, placeName, action, serverId, detail)
+	const lp = (Players and Players.LocalPlayer) or player
+	const meta = {
+		placeId = placeId;
+		placeName = placeName;
+		action = action;
+		detail = detail;
+	}
+	if type(serverId) == "string" and serverId ~= "" then
+		return NAmanage.TeleportServiceCall("TeleportToPlaceInstance", { placeId, serverId, lp }, meta)
+	end
+	return NAmanage.TeleportServiceCall("Teleport", { placeId, lp }, meta)
+end
+
+NAmanage.SubplaceViewer_HandleArrivingTeleportGui = function()
+	local ok, gui = pcall(TeleportService.GetArrivingTeleportGui, TeleportService)
+	if not (ok and gui) then return end
+	local tagged = false
+	pcall(function() tagged = gui:GetAttribute("NASubplaceViewerTeleport") == true or gui:GetAttribute("NACustomTeleportGui") == true end)
+	if not tagged and gui.Name ~= "NATeleportGui" then return end
+	const lp = (Players and Players.LocalPlayer) or player
+	const playerGui = lp and (lp:FindFirstChildOfClass("PlayerGui") or lp:FindFirstChild("PlayerGui"))
+	if playerGui then
+		pcall(function() gui.Parent = playerGui end)
+	end
+	for _, obj in gui:GetDescendants() do
+		if obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox") then
+			pcall(function()
+				TweenService:Create(obj, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+					TextTransparency = 1;
+					BackgroundTransparency = 1;
+				}):Play()
+			end)
+		elseif obj:IsA("ImageLabel") or obj:IsA("ImageButton") then
+			pcall(function()
+				TweenService:Create(obj, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+					ImageTransparency = 1;
+					BackgroundTransparency = 1;
+				}):Play()
+			end)
+		elseif obj:IsA("Frame") then
+			pcall(function()
+				TweenService:Create(obj, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 1 }):Play()
+			end)
+		elseif obj:IsA("UIStroke") then
+			pcall(function()
+				TweenService:Create(obj, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Transparency = 1 }):Play()
+			end)
+		end
+	end
+	Spawn(function()
+		Wait(0.32)
+		pcall(function() gui:Destroy() end)
+	end)
+end
+
+Defer(NAmanage.SubplaceViewer_HandleArrivingTeleportGui)
+
+NAmanage.TeleportGui_Create = function(placeId, placeName, action, detail)
+	return NAmanage.SubplaceViewer_CreateTeleportGui(placeId, placeName, action, detail)
+end
+
+NAmanage.TeleportGui_Clear = function(gui)
+	return NAmanage.SubplaceViewer_ClearTeleportGui(gui)
+end
+
+NAmanage.TeleportGui_GetPlaceName = function(placeId)
+	return NAmanage.SubplaceViewer_GetPlaceName(placeId)
+end
+
+NAmanage.TeleportServiceCall = function(method, args, meta)
+	args = type(args) == "table" and args or {}
+	meta = type(meta) == "table" and meta or {}
+	local tp = TeleportService
+	if not tp then
+		local okTp, resolvedTp = pcall(function()
+			return game.TeleportService or game:GetService("TeleportService")
+		end)
+		if okTp and resolvedTp then
+			TeleportService = resolvedTp
+			tp = resolvedTp
+		end
+	end
+	if not tp then
+		return false, "TeleportService unavailable"
+	end
+	const fn = tp[method]
+	if typeof(fn) ~= "function" then
+		return false, "TeleportService."..tostring(method).." unavailable"
+	end
+	const placeId = meta.placeId or args[1]
+	const gui = NAmanage.TeleportGui_Create(
+		placeId,
+		meta.placeName or NAmanage.TeleportGui_GetPlaceName(placeId),
+		meta.action or "TELEPORTING",
+		meta.detail
+	)
+	local ok, result = pcall(function()
+		return fn(tp, Unpack(args))
+	end)
+	if not ok then
+		NAmanage.TeleportGui_Clear(gui)
+	end
+	return ok, result
+end
+
 NAmanage.SubplaceViewer_UpdateResponsiveLayout = function()
 	const state = NAmanage.SubplaceViewer
 	const ui = state.ui or NAmanage.SubplaceViewer_GetUI()
@@ -122365,7 +122798,13 @@ NAmanage.SubplaceViewer_TeleportServer = function(placeId, server, message)
 		DoNotif("No joinable server was found.", 3, "Subplace Viewer")
 		return false
 	end
-	local ok, err = pcall(TeleportService.TeleportToPlaceInstance, TeleportService, placeId, server.id, player)
+	local ok, err = NAmanage.SubplaceViewer_PerformTeleport(
+		placeId,
+		NAmanage.SubplaceViewer_GetPlaceName(placeId),
+		string.upper(tostring(message or "Joining server")),
+		server.id,
+		Format("%d/%d players  •  %s ms ping", server.playing, server.max, tostring(server.ping))
+	)
 	if ok then
 		DoNotif((message or "Joining server")..": "..tostring(server.playing).."/"..tostring(server.max).." | "..tostring(server.ping).."ms", 4, "Subplace Viewer")
 	else
@@ -122635,16 +123074,16 @@ NAmanage.SubplaceViewer_Render = function()
 		end))
 		NAlib.connect("NASubplaceViewerCards", join.Activated:Connect(function()
 			if isCurrent then
-				local ok, err = pcall(TeleportService.Teleport, TeleportService, game.PlaceId, player)
+				local ok, err = NAmanage.SubplaceViewer_PerformTeleport(game.PlaceId, game.Name, "SERVER HOP", nil, "Finding another public server")
 				if ok then DoNotif("Server hopping this experience.", 2, "Subplace Viewer") else DoNotif("Teleport failed: "..tostring(err), 4, "Subplace Viewer") end
 			else
-				local ok, err = pcall(TeleportService.Teleport, TeleportService, place.PlaceId, player)
+				local ok, err = NAmanage.SubplaceViewer_PerformTeleport(place.PlaceId, place.Name, "JOINING SUBPLACE", nil, "Place ID "..tostring(place.PlaceId))
 				if ok then DoNotif("Teleporting to "..tostring(place.Name)..".", 2, "Subplace Viewer") else DoNotif("Teleport failed: "..tostring(err), 4, "Subplace Viewer") end
 			end
 		end))
 		if rejoin then
 			NAlib.connect("NASubplaceViewerCards", rejoin.Activated:Connect(function()
-				local ok, err = pcall(TeleportService.TeleportToPlaceInstance, TeleportService, game.PlaceId, game.JobId, player)
+				local ok, err = NAmanage.SubplaceViewer_PerformTeleport(game.PlaceId, game.Name, "REJOINING SERVER", game.JobId, "Returning to the current server")
 				if ok then DoNotif("Rejoining this server.", 2, "Subplace Viewer") else DoNotif("Teleport failed: "..tostring(err), 4, "Subplace Viewer") end
 			end))
 		end
@@ -131360,6 +131799,18 @@ NAgui.addToggle("Low-End UI Mode", NAStuff.LowEndMode == true, function(v)
 	DoNotif("Low-End UI Mode "..(NAStuff.LowEndMode and "enabled" or "disabled"), 2)
 end)
 NAmanage.RegisterToggleAutoSync("Low-End UI Mode", function() return NAStuff.LowEndMode == true end)
+
+NAgui.addToggle("Custom Teleport Loading Screen", NAStuff.CustomTeleportGuiEnabled ~= false, function(v)
+	NAStuff.CustomTeleportGuiEnabled = v ~= false
+	pcall(NAmanage.NASettingsSet, "customTeleportGui", NAStuff.CustomTeleportGuiEnabled)
+	if not NAStuff.CustomTeleportGuiEnabled and type(NAmanage.TeleportGui_Clear) == "function" then
+		pcall(NAmanage.TeleportGui_Clear)
+	end
+	DoNotif("Custom teleport loading screen "..(NAStuff.CustomTeleportGuiEnabled and "enabled" or "disabled"), 2)
+end)
+NAmanage.RegisterToggleAutoSync("Custom Teleport Loading Screen", function()
+	return NAStuff.CustomTeleportGuiEnabled ~= false
+end)
 
 NAgui.addSection("Admin Utility")
 
