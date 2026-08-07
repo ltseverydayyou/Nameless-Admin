@@ -6673,9 +6673,9 @@
         "fastproximityprompts",
         "fastpp"
       ],
-      "usage": "fastprompts (fastproximityprompts,fastpp)",
-      "args": "",
-      "desc": "Halves proximity prompt HoldDuration values and keeps prompts 2x faster"
+      "usage": "fastprompts [speed] (fastproximityprompts,fastpp)",
+      "args": "[speed]",
+      "desc": "Makes proximity prompts use the specified speed multiplier, defaulting to 2x"
     },
     {
       "name": "unfastprompts",
