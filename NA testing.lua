@@ -102707,12 +102707,23 @@ NAmanage.PositionCmdBarAtViewportCenter = function()
 		const tabHint = centerBar:FindFirstChild("TabHint")
 		const input = centerBar:FindFirstChild("Input")
 		if tabHint and tabHint:IsA("TextLabel") then
-			tabHint.Text = mobileLayout and "TAP  AUTOFILL" or "TAB  AUTOFILL"
+			tabHint.Text = "TAB  AUTOFILL"
+			tabHint.Visible = not mobileLayout
 		end
-		const inputPadding = input and input:FindFirstChildOfClass("UIPadding")
-		if inputPadding then
-			inputPadding.PaddingRight = UDim.new(0, mobileLayout and 174 or 164)
+		const function layoutCmdTextBox(textBox)
+			if not (textBox and textBox:IsA("TextBox")) then return end
+			const rightClearance = mobileLayout and 76 or 164
+			textBox.AnchorPoint = Vector2.new(0, 0.5)
+			textBox.Position = UDim2.new(0, 43, 0.5, 0)
+			textBox.Size = UDim2.new(1, -(43 + rightClearance), 1, 0)
+			const padding = textBox:FindFirstChildOfClass("UIPadding")
+			if padding then
+				padding.PaddingLeft = UDim.new(0, 0)
+				padding.PaddingRight = UDim.new(0, 0)
+			end
 		end
+		layoutCmdTextBox(input)
+		layoutCmdTextBox(predictionInput)
 	end
 	local offsetX, offsetY = 0, 0
 	const screenGui = NAStuff and NAStuff.NASCREENGUI
@@ -146591,6 +146602,21 @@ end)
 		warn(errBuild)
 	end
 end)
+end))
+
+if not __NARootResult[1] and type(__NARootHost) == "table" then
+	pcall(function()
+		if __NARootPreviousNACaller ~= nil then
+			rawset(__NARootHost, "NACaller", __NARootPreviousNACaller)
+		else
+			rawset(__NARootHost, "NACaller", nil)
+		end
+	end)
+end
+
+if __NARootResult[1] then
+	return table.unpack(__NARootResult, 2, __NARootResult.n)
+end
 
 --[[print(
 
@@ -146611,19 +146637,3 @@ end)
 )]]
 
 -- © 2026 Nameless Admin. All rights reserved. Do not copy, paste, redistribute, or claim as your own.
-
-end))
-
-if not __NARootResult[1] and type(__NARootHost) == "table" then
-	pcall(function()
-		if __NARootPreviousNACaller ~= nil then
-			rawset(__NARootHost, "NACaller", __NARootPreviousNACaller)
-		else
-			rawset(__NARootHost, "NACaller", nil)
-		end
-	end)
-end
-
-if __NARootResult[1] then
-	return table.unpack(__NARootResult, 2, __NARootResult.n)
-end

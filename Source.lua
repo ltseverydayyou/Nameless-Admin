@@ -102652,6 +102652,84 @@ fillSizes = {
 	right = NAUIMANAGER.rightFill.Size,
 	left = NAUIMANAGER.leftFill.Size
 };
+cmdBarExpandedSize = NAUIMANAGER.centerBar and NAUIMANAGER.centerBar.Size or UDim2.new(0, 520, 1, 0)
+NAmanage.PositionCmdBarAtViewportCenter = function()
+	const bar = NAUIMANAGER and NAUIMANAGER.cmdBar
+	if not (bar and bar:IsA("GuiObject")) then return end
+	const camera = Workspace and Workspace.CurrentCamera
+	const viewport = camera and camera.ViewportSize or Vector2.new(1920, 1080)
+	local uiScale = 1
+	if NAUIMANAGER.AUTOSCALER and tonumber(NAUIMANAGER.AUTOSCALER.Scale) then
+		uiScale = math.max(tonumber(NAUIMANAGER.AUTOSCALER.Scale), 0.01)
+	end
+	const availableWidth = math.max(280, math.floor(((viewport.X - 24) / uiScale) + 0.5))
+	const barWidth = math.min(520, availableWidth)
+	cmdBarExpandedSize = UDim2.new(0, barWidth, 1, 0)
+	const centerBar = NAUIMANAGER.centerBar
+	if centerBar and (NAStuff.cmdBarSelected == true or centerBar.Size.X.Offset > 1) then
+		centerBar.Size = cmdBarExpandedSize
+	end
+
+	const touchOnly = UserInputService and UserInputService.TouchEnabled
+		and not UserInputService.KeyboardEnabled and not UserInputService.MouseEnabled
+	const mobileLayout = IsOnMobile == true or touchOnly
+	const compactMobile = mobileLayout and viewport.Y < 620
+	const suggestionLimit = compactMobile and 3 or 5
+	const suggestionRowHeight = compactMobile and 40 or 38
+	NAStuff.cmdAutofillLimit = suggestionLimit
+	NAStuff.cmdAutofillRowHeight = suggestionRowHeight
+	const autofill = NAUIMANAGER.cmdAutofill
+	if autofill and autofill:IsA("GuiObject") then
+		const visibleCount = math.clamp(tonumber(NAStuff.cmdAutofillVisibleCount) or 1, 1, suggestionLimit)
+		const autofillHeight = 16 + (visibleCount * suggestionRowHeight) + ((visibleCount - 1) * 6)
+		autofill.Size = UDim2.new(0, barWidth, 0, autofillHeight)
+	end
+	if centerBar then
+		const tabHint = centerBar:FindFirstChild("TabHint")
+		const input = centerBar:FindFirstChild("Input")
+		if tabHint and tabHint:IsA("TextLabel") then
+			tabHint.Text = "TAB  AUTOFILL"
+			tabHint.Visible = not mobileLayout
+		end
+		const function layoutCmdTextBox(textBox)
+			if not (textBox and textBox:IsA("TextBox")) then return end
+			const rightClearance = mobileLayout and 76 or 164
+			textBox.AnchorPoint = Vector2.new(0, 0.5)
+			textBox.Position = UDim2.new(0, 43, 0.5, 0)
+			textBox.Size = UDim2.new(1, -(43 + rightClearance), 1, 0)
+			const padding = textBox:FindFirstChildOfClass("UIPadding")
+			if padding then
+				padding.PaddingLeft = UDim.new(0, 0)
+				padding.PaddingRight = UDim.new(0, 0)
+			end
+		end
+		layoutCmdTextBox(input)
+		layoutCmdTextBox(predictionInput)
+	end
+	local offsetX, offsetY = 0, 0
+	const screenGui = NAStuff and NAStuff.NASCREENGUI
+	const ignoresInset = screenGui and screenGui:IsA("ScreenGui") and screenGui.IgnoreGuiInset == true
+	if not ignoresInset and GuiService and GuiService.GetGuiInset then
+		local ok, topLeft, bottomRight = pcall(GuiService.GetGuiInset, GuiService)
+		if ok and typeof(topLeft) == "Vector2" and typeof(bottomRight) == "Vector2" then
+			offsetX = math.floor(((topLeft.X - bottomRight.X) * 0.5) + 0.5)
+			offsetY = math.floor(((topLeft.Y - bottomRight.Y) * 0.5) + 0.5)
+		end
+	end
+	bar.Position = UDim2.new(0.5, offsetX, 0.5, offsetY)
+end
+NAmanage.PositionCmdBarAtViewportCenter()
+if Workspace and Workspace.CurrentCamera then
+	NAlib.connect("CmdBarViewportCenter", Workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(NAmanage.PositionCmdBarAtViewportCenter))
+end
+if NAUIMANAGER.AUTOSCALER then
+	NAlib.connect("CmdBarUIScale", NAUIMANAGER.AUTOSCALER:GetPropertyChangedSignal("Scale"):Connect(NAmanage.PositionCmdBarAtViewportCenter))
+end
+if GuiService then
+	pcall(function()
+		NAlib.connect("CmdBarInsetCenter", GuiService:GetPropertyChangedSignal("TopbarInset"):Connect(NAmanage.PositionCmdBarAtViewportCenter))
+	end)
+end
 if NAUIMANAGER.cmdExample then
 	NAUIMANAGER.cmdExample.Parent = nil;
 end;
@@ -104932,12 +105010,35 @@ end
 predictionInput = NAUIMANAGER.cmdInput:Clone()
 predictionInput.Name = "predictionInput"
 predictionInput.TextEditable = false
-predictionInput.TextTransparency = 1
-predictionInput.TextColor3 = Color3.fromRGB(180, 180, 180)
+predictionInput.Active = false
+predictionInput.Selectable = false
+predictionInput.TextTransparency = 0.55
+predictionInput.TextColor3 = Color3.fromRGB(155, 155, 164)
 predictionInput.BackgroundTransparency = 1
-predictionInput.ZIndex = NAUIMANAGER.cmdInput.ZIndex + 1
+predictionInput.ZIndex = math.max(1, NAUIMANAGER.cmdInput.ZIndex - 1)
 predictionInput.Parent = NAUIMANAGER.cmdInput.Parent
 predictionInput.PlaceholderText = ""
+predictionInput.Visible = false
+
+NAmanage.SyncCmdPredictionVisual = function()
+	if not predictionInput then return end
+	const typedText = NAUIMANAGER and NAUIMANAGER.cmdInput and NAUIMANAGER.cmdInput.Text or ""
+	const hasPrediction = predictionInput.Text ~= "" and predictionInput.Text ~= typedText
+	predictionInput.Visible = hasPrediction
+	const centerBar = NAUIMANAGER and NAUIMANAGER.centerBar
+	const hint = centerBar and centerBar:FindFirstChild("TabHint")
+	if not hint then return end
+	const outline = hint:FindFirstChild("TabHintOutline")
+	hint.TextColor3 = hasPrediction and Color3.fromRGB(245, 245, 248) or Color3.fromRGB(150, 150, 158)
+	hint.BackgroundColor3 = hasPrediction and Color3.fromRGB(42, 42, 47) or Color3.fromRGB(27, 27, 31)
+	hint.BackgroundTransparency = hasPrediction and 0.04 or 0.18
+	if outline then
+		outline.Transparency = hasPrediction and 0.52 or 0.86
+	end
+end
+NAlib.connect("CmdPredictionVisual", predictionInput:GetPropertyChangedSignal("Text"):Connect(NAmanage.SyncCmdPredictionVisual))
+NAlib.connect("CmdPredictionTypedVisual", NAUIMANAGER.cmdInput:GetPropertyChangedSignal("Text"):Connect(NAmanage.SyncCmdPredictionVisual))
+NAmanage.SyncCmdPredictionVisual()
 
 opt.NAAUTOSCALER = NAUIMANAGER.AUTOSCALER
 
@@ -114067,6 +114168,135 @@ NAgui._menuCompleted = NAgui._menuCompleted or function(key, tween, callback)
 	return conn
 end
 
+NAgui._bindMenuMaximize = function(menu, menuConnName, options)
+	options = type(options) == "table" and options or {}
+	const button = menu and menu:FindFirstChild("Maximize", true)
+	if not (button and button:IsA("GuiButton")) then return nil end
+	local maximized = NAmanage.GetAttr(menu, "NAMenuMaximized") == true
+	local busy = false
+	const geometryAttributes = {
+		"NAMenuRestorePositionXScale";
+		"NAMenuRestorePositionXOffset";
+		"NAMenuRestorePositionYScale";
+		"NAMenuRestorePositionYOffset";
+		"NAMenuRestoreSizeXScale";
+		"NAMenuRestoreSizeXOffset";
+		"NAMenuRestoreSizeYScale";
+		"NAMenuRestoreSizeYOffset";
+	}
+
+	const function setGlyph()
+		pcall(function()
+			const iconWeight = maximized and Enum.FontWeight.Bold or Enum.FontWeight.Regular
+			button.FontFace = Font.new(BUILDER_ICON_FONT_PATH or "rbxasset://LuaPackages/Packages/_Index/BuilderIcons/BuilderIcons/BuilderIcons.json", iconWeight, Enum.FontStyle.Normal)
+			button.Text = "square-corner-line"
+		end)
+	end
+	const function saveRestoreGeometry()
+		const position = menu.Position
+		const size = menu.Size
+		const values = {
+			position.X.Scale; position.X.Offset; position.Y.Scale; position.Y.Offset;
+			size.X.Scale; size.X.Offset; size.Y.Scale; size.Y.Offset;
+		}
+		for index, attribute in geometryAttributes do
+			NAmanage.SetAttr(menu, attribute, values[index])
+		end
+	end
+	const function getRestoreGeometry()
+		const values = {}
+		for index, attribute in geometryAttributes do
+			values[index] = tonumber(NAmanage.GetAttr(menu, attribute))
+			if values[index] == nil then return nil, nil end
+		end
+		return UDim2.new(values[1], values[2], values[3], values[4]), UDim2.new(values[5], values[6], values[7], values[8])
+	end
+	const function getScale()
+		if type(options.getScale) == "function" then
+			local ok, value = pcall(options.getScale)
+			if ok and tonumber(value) and tonumber(value) > 0 then return tonumber(value) end
+		end
+		local value = NAUIMANAGER and NAUIMANAGER.AUTOSCALER and tonumber(NAUIMANAGER.AUTOSCALER.Scale) or 1
+		return value and value > 0 and value or 1
+	end
+	const function getMaximizedGeometry()
+		local absolute = menu.Parent and menu.Parent.AbsoluteSize
+		if not absolute or absolute.X <= 0 or absolute.Y <= 0 then
+			absolute = Workspace and Workspace.CurrentCamera and Workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
+		end
+		const scale = getScale()
+		const pad = 10
+		const width = math.max(240, math.floor((absolute.X / scale) - (pad * 2) + 0.5))
+		const height = math.max(120, math.floor((absolute.Y / scale) - (pad * 2) + 0.5))
+		return UDim2.fromOffset(pad, pad), UDim2.fromOffset(width, height)
+	end
+	const function isBusy()
+		if busy then return true end
+		if type(options.isBusy) == "function" then
+			local ok, value = pcall(options.isBusy)
+			if ok and value == true then return true end
+		end
+		return false
+	end
+	const function setBusy(value)
+		busy = value == true
+		if type(options.setBusy) == "function" then pcall(options.setBusy, busy) end
+	end
+	const function applyMaximizedGeometry()
+		if not maximized or not menu.Parent then return end
+		local position, size = getMaximizedGeometry()
+		menu.Position = position
+		menu.Size = size
+	end
+	const function toggleMaximize()
+		if isBusy() then return end
+		const nextState = not maximized
+		if nextState then
+			if type(options.prepareMaximize) == "function" then pcall(options.prepareMaximize) end
+			saveRestoreGeometry()
+		end
+		local targetPosition, targetSize
+		if nextState then
+			targetPosition, targetSize = getMaximizedGeometry()
+		else
+			targetPosition, targetSize = getRestoreGeometry()
+			if not (targetPosition and targetSize) then return end
+		end
+		maximized = nextState
+		NAmanage.SetAttr(menu, "NAMenuMaximized", maximized)
+		setGlyph()
+		setBusy(true)
+		NAgui._menuCompleted(menuConnName, NAgui.tween(menu, "Quart", "Out", 0.35, {
+			Position = targetPosition;
+			Size = targetSize;
+		}), function()
+			setBusy(false)
+			if type(options.onComplete) == "function" then pcall(options.onComplete, maximized) end
+		end)
+	end
+
+	if maximized then
+		local restorePosition, restoreSize = getRestoreGeometry()
+		if restorePosition and restoreSize then
+			applyMaximizedGeometry()
+		else
+			maximized = false
+			NAmanage.SetAttr(menu, "NAMenuMaximized", false)
+		end
+	end
+	setGlyph()
+	NAlib.connect(menuConnName, MouseButtonFix(button, toggleMaximize))
+	if menu.Parent and menu.Parent.GetPropertyChangedSignal then
+		NAlib.connect(menuConnName, menu.Parent:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+			if maximized and not isBusy() then applyMaximizedGeometry() end
+		end))
+	end
+	return {
+		Toggle = toggleMaximize;
+		IsMaximized = function() return maximized end;
+	}
+end
+
 NAgui.menu = function(menu)
 	if not menu then return end
 	const menuConnName = NAgui._bindMenuCleanup(menu)
@@ -114187,6 +114417,22 @@ NAgui.menu = function(menu)
 				end)
 		end
 	end
+	NAgui._bindMenuMaximize(menu, menuConnName, {
+		isBusy = function() return isAnimating end;
+		setBusy = function(value) isAnimating = value == true end;
+		getScale = getScale;
+		prepareMaximize = function()
+			if minimized then
+				local restoreX, restoreY = getStoredSize()
+				menu.Size = UDim2.fromOffset(restoreX, restoreY)
+				setMinAtt(false)
+			end
+			setBodyVisible(true)
+		end;
+		onComplete = function()
+			setBodyVisible(true)
+		end;
+	})
 
 	NAlib.connect(menuConnName, MouseButtonFix(minimizeButton, toggleMinimize))
 	NAlib.connect(menuConnName, MouseButtonFix(exitButton, function()
@@ -114264,6 +114510,18 @@ NAgui.menuv2 = function(menu)
 		end)
 		if not success then warn("menuv2 toggleMinimize error:", err) end
 	end
+
+	NAgui._bindMenuMaximize(menu, menuConnName, {
+		isBusy = function() return isAnimating end;
+		setBusy = function(value) isAnimating = value == true end;
+		prepareMaximize = function()
+			if minimized then
+				local restoreX, restoreY = getStoredSize()
+				menu.Size = UDim2.fromOffset(restoreX, restoreY)
+				setMinAtt(false)
+			end
+		end;
+	})
 
 	NACaller(function()
 		NAlib.connect(menuConnName, MouseButtonFix(minimizeButton, toggleMinimize))
@@ -114392,6 +114650,7 @@ NAmanage.setCmdAutofillItemInteractivity = function(frame, enabled)
 end
 
 NAgui.hideFill = function()
+	NAStuff.cmdAutofillVisibleCount = 0
 	for i = 1, #prevVisible do
 		const v = prevVisible[i]
 		if v and v.Parent and v:IsA("GuiObject") then
@@ -114417,6 +114676,7 @@ NAgui.hideFill = function()
 				NAmanage.setCmdAutofillItemInteractivity(child, false)
 			end
 		end
+		host.Visible = false
 	end
 end
 
@@ -114429,7 +114689,8 @@ NAmanage.ApplyCmdAutofillVisibility = function(opts)
 	const hidden = NAmanage.IsCmdAutofillHidden()
 	const host = NAUIMANAGER and NAUIMANAGER.cmdAutofill
 	if host and host:IsA("GuiObject") then
-		host.Visible = not hidden
+		const active = NAmanage.isCmdBarActive and NAmanage.isCmdBarActive() == true
+		host.Visible = not hidden and active
 	end
 	if hidden then
 		NAgui.hideFill()
@@ -114585,7 +114846,35 @@ NAmanage.bindCmdAutofillFrame = function(frame)
 	end
 
 	bind(frame)
-	bind(frame:FindFirstChild("Input"))
+	const inputObj = frame:FindFirstChild("Input")
+	bind(inputObj)
+	local visual = frame:FindFirstChild("Background")
+	visual = visual and visual:FindFirstChild("Horizontal")
+	const outline = visual and visual:FindFirstChild("ItemOutline")
+	const line = visual and visual:FindFirstChild("SelectionLine")
+	const function applyHover(hovered)
+		const active = hovered == true and NAStuff.cmdAutofillClickable == true and NAStuff.cmdBarSelected == true
+		if visual then
+			NAgui.tween(visual, "Sine", "Out", 0.12, {
+				BackgroundColor3 = active and Color3.fromRGB(38, 38, 43) or Color3.fromRGB(24, 24, 27);
+				BackgroundTransparency = active and 0.08 or 0.2;
+			})
+		end
+		if outline then
+			NAgui.tween(outline, "Sine", "Out", 0.12, {
+				Transparency = active and 0.28 or 0.76;
+			})
+		end
+		if line then
+			NAgui.tween(line, "Sine", "Out", 0.12, {
+				BackgroundTransparency = active and 0.05 or 0.42;
+			})
+		end
+	end
+	if inputObj and inputObj.MouseEnter then
+		inputObj.MouseEnter:Connect(function() applyHover(true) end)
+		inputObj.MouseLeave:Connect(function() applyHover(false) end)
+	end
 	NAmanage.SetAttr(frame, "NA_AutofillBound", true)
 end
 
@@ -116684,10 +116973,27 @@ NAgui.barSelect = function(speed)
 	NAStuff.cmdBarSelected = true
 	NAmanage.setCmdAutofillClickable(true)
 
-	const targetSize = UDim2.new(0, 280, 1, 10)
-	const startSize = UDim2.new(0, 250, 1, 8)
+	const targetSize = cmdBarExpandedSize or UDim2.new(0, 520, 1, 0)
+	const startSize = UDim2.new(
+		targetSize.X.Scale,
+		math.max(0, targetSize.X.Offset - 36),
+		targetSize.Y.Scale,
+		targetSize.Y.Offset - 2
+	)
 	NAUIMANAGER.centerBar.Size = startSize
 	NAUIMANAGER.centerBar.Visible = true
+	const shell = NAUIMANAGER.centerBar:FindFirstChild("Horizontal")
+	const outline = shell and shell:FindFirstChild("CmdOutline")
+	if outline then
+		NAgui.tween(outline, "Sine", "Out", math.max(speed * 0.6, 0.05), {Transparency = 0.18})
+	end
+	const enterHint = NAUIMANAGER.centerBar:FindFirstChild("EnterHint")
+	if enterHint then
+		NAgui.tween(enterHint, "Sine", "Out", math.max(speed * 0.6, 0.05), {
+			TextColor3 = Color3.fromRGB(245, 245, 248);
+			BackgroundColor3 = Color3.fromRGB(40, 40, 45);
+		})
+	end
 	if speed > 0 then
 		NAgui.tween(NAUIMANAGER.centerBar, "Back", "Out", speed * 0.6, {
 			Size = targetSize
@@ -116792,6 +117098,18 @@ NAgui.barDeselect = function(speed)
 	NAmanage.setCmdAutofillClickable(false)
 	NAStuff.cmdSearchSuspendUntil = math.max(tonumber(NAStuff.cmdSearchSuspendUntil) or 0, os.clock() + 0.15)
 	gen += 1
+	const shell = NAUIMANAGER.centerBar and NAUIMANAGER.centerBar:FindFirstChild("Horizontal")
+	const outline = shell and shell:FindFirstChild("CmdOutline")
+	if outline then
+		NAgui.tween(outline, "Sine", "Out", math.max(speed * 0.45, 0.05), {Transparency = 0.58})
+	end
+	const enterHint = NAUIMANAGER.centerBar and NAUIMANAGER.centerBar:FindFirstChild("EnterHint")
+	if enterHint then
+		NAgui.tween(enterHint, "Sine", "Out", math.max(speed * 0.45, 0.05), {
+			TextColor3 = Color3.fromRGB(196, 196, 204);
+			BackgroundColor3 = Color3.fromRGB(31, 31, 35);
+		})
+	end
 
 	NAgui.tween(NAUIMANAGER.centerBar, "Back", "InOut", speed, {
 		Size = UDim2.new(0, 0, 0, 0)
@@ -116814,7 +117132,7 @@ NAgui.barDeselect = function(speed)
 			hadVisible = true
 			toHide[#toHide + 1] = v
 			NAgui.tween(v, "Exponential", "In", 0.12, {
-				Size = UDim2.new(0, 0, 0, 25)
+				Size = UDim2.new(0.96, -16, 0, 34)
 			})
 		end
 	end
@@ -116975,7 +117293,28 @@ NAmanage.performSearch = function(term, ctx)
 	if #searchIndex <= 0 and type(NAmanage.queueCommandDataBuild) == "function" then
 		pcall(NAmanage.queueCommandDataBuild, { force = true })
 	end
+	const suggestionLimit = math.clamp(tonumber(NAStuff.cmdAutofillLimit) or 5, 1, 5)
+	const suggestionRowHeight = math.max(34, tonumber(NAStuff.cmdAutofillRowHeight) or 38)
 	const suggestionPool = NAmanage.ensureCmdAutofillSuggestionPool and NAmanage.ensureCmdAutofillSuggestionPool(5) or {}
+	local visibleSuggestionCount = 0
+	const function finishSuggestionLayout()
+		NAStuff.cmdAutofillVisibleCount = visibleSuggestionCount
+		if not (autofillHost and autofillHost:IsA("GuiObject")) then
+			return
+		end
+		if listHidden or visibleSuggestionCount <= 0 then
+			autofillHost.Visible = false
+			return
+		end
+		const height = 16 + (visibleSuggestionCount * suggestionRowHeight) + ((visibleSuggestionCount - 1) * 6)
+		const targetSize = UDim2.new(autofillHost.Size.X.Scale, autofillHost.Size.X.Offset, 0, height)
+		autofillHost.Visible = true
+		if canTween then
+			NAgui.tween(autofillHost, "Quint", "Out", 0.16, {Size = targetSize})
+		else
+			autofillHost.Size = targetSize
+		end
+	end
 	const function pushTop(candidate)
 		local insertAt = #results + 1
 		for idx = 1, #results do
@@ -116986,7 +117325,7 @@ NAmanage.performSearch = function(term, ctx)
 			end
 		end
 		Insert(results, insertAt, candidate)
-		if #results > 5 then
+		if #results > suggestionLimit then
 			table.remove(results)
 		end
 	end
@@ -116998,18 +117337,26 @@ NAmanage.performSearch = function(term, ctx)
 		const frame = suggestionPool[index]
 		if not frame then return end
 		NAmanage.applyCmdAutofillEntryToFrame(frame, entry)
+		local visual = frame:FindFirstChild("Background")
+		visual = visual and visual:FindFirstChild("Horizontal")
+		if visual then
+			visual.BackgroundColor3 = Color3.fromRGB(24, 24, 27)
+			visual.BackgroundTransparency = 0.2
+			const outline = visual:FindFirstChild("ItemOutline")
+			if outline then outline.Transparency = 0.76 end
+			const line = visual:FindFirstChild("SelectionLine")
+			if line then line.BackgroundTransparency = 0.42 end
+		end
 		Insert(prevVisible, frame)
 		frame.Visible = true
+		visibleSuggestionCount = math.max(visibleSuggestionCount, index)
 		NAmanage.setCmdAutofillItemInteractivity(frame, NAStuff.cmdAutofillClickable == true and NAStuff.cmdBarSelected == true)
-		const w = math.sqrt(index) * 125
-		const y = (index - 1) * 28
-		const pos = UDim2.new(0.5, w, 0, y)
-		const size = UDim2.new(0.5, w, 0, 25)
+		const size = UDim2.new(1, -16, 0, suggestionRowHeight)
 		if canTween then
-			NAgui.tween(frame, "Quint", "Out", 0.2, {Size = size, Position = pos})
+			frame.Size = UDim2.new(0.96, -16, 0, suggestionRowHeight - 2)
+			NAgui.tween(frame, "Quint", "Out", 0.18, {Size = size})
 		else
 			frame.Size = size
-			frame.Position = pos
 		end
 	end
 
@@ -117020,7 +117367,7 @@ NAmanage.performSearch = function(term, ctx)
 			shouldShowDefaultAutofill = false
 			local displayed = 0
 			for _, cmdName in defaultBarCommands do
-				if displayed >= 5 then
+				if displayed >= suggestionLimit then
 					break
 				end
 				const target = Lower(cmdName)
@@ -117039,13 +117386,14 @@ NAmanage.performSearch = function(term, ctx)
 				end
 			end
 		else
-			for i = 1, math.min(5, #searchIndex) do
+			for i = 1, math.min(suggestionLimit, #searchIndex) do
 				const entry = searchIndex[i]
 				if entry then
 					revealEntry(entry, i)
 				end
 			end
 		end
+		finishSuggestionLayout()
 		return
 	end
 
@@ -117054,6 +117402,7 @@ NAmanage.performSearch = function(term, ctx)
 		const first = term:match("^%s*(%S+)")
 		if not first or first == "" then
 			predictionInput.Text = ""
+			finishSuggestionLayout()
 			return
 		end
 		lockedTerm = first
@@ -117142,6 +117491,7 @@ NAmanage.performSearch = function(term, ctx)
 		const r = results[i]
 		revealEntry(r.entry, i)
 	end
+	finishSuggestionLayout()
 end
 
 NAgui.searchCommands = function()
@@ -122796,6 +123146,8 @@ NAmanage.SubplaceViewer.root = "Nameless-Admin/SubplaceViewer"
 NAmanage.SubplaceViewer.favoritesPath = NAmanage.SubplaceViewer.root.."/Favorites.json"
 NAmanage.SubplaceViewer.favorites = type(NAmanage.SubplaceViewer.favorites) == "table" and NAmanage.SubplaceViewer.favorites or {}
 NAmanage.SubplaceViewer.places = type(NAmanage.SubplaceViewer.places) == "table" and NAmanage.SubplaceViewer.places or {}
+NAmanage.SubplaceViewer.placeIconAssets = type(NAmanage.SubplaceViewer.placeIconAssets) == "table" and NAmanage.SubplaceViewer.placeIconAssets or {}
+NAmanage.SubplaceViewer.placeIconRequests = type(NAmanage.SubplaceViewer.placeIconRequests) == "table" and NAmanage.SubplaceViewer.placeIconRequests or {}
 NAmanage.SubplaceViewer.filter = NAmanage.SubplaceViewer.filter or "all"
 NAmanage.SubplaceViewer.sort = NAmanage.SubplaceViewer.sort == "id" and "id" or "name"
 NAmanage.SubplaceViewer.loaded = false
@@ -122813,6 +123165,75 @@ NAmanage.SubplaceViewer.viewMode = NAmanage.SubplaceViewer.viewMode or "places"
 NAmanage.SubplaceViewer.teleportGuiToken = tonumber(NAmanage.SubplaceViewer.teleportGuiToken) or 0
 NAmanage.SubplaceViewer.teleportGui = nil
 NAmanage.SubplaceViewer.teleportHandoffGui = nil
+
+NAmanage.SubplaceViewer_GetPlaceThumbnail = function(placeId, width, height)
+	const destinationId = tonumber(placeId) or tonumber(game.PlaceId) or 0
+	return "rbxthumb://type=Asset&id="..tostring(destinationId)
+		.."&w="..tostring(tonumber(width) or 150)
+		.."&h="..tostring(tonumber(height) or 150)
+end
+
+NAmanage.SubplaceViewer_GetPlaceIcon = function(placeId, width, height, iconAssetId)
+	const state = NAmanage.SubplaceViewer
+	const destinationId = tonumber(placeId) or tonumber(game.PlaceId) or 0
+	const cached = state.placeIconAssets[destinationId]
+	const resolvedIconId = tonumber(iconAssetId) or (type(cached) == "number" and cached or nil)
+	if resolvedIconId and resolvedIconId > 0 then
+		return "rbxthumb://type=Asset&id="..tostring(resolvedIconId)
+			.."&w="..tostring(tonumber(width) or 150)
+			.."&h="..tostring(tonumber(height) or 150)
+	end
+	return NAmanage.SubplaceViewer_GetPlaceThumbnail(destinationId, width, height)
+end
+
+NAmanage.TeleportGui_ResolveDestinationIcon = function(gui, placeId)
+	if not gui then return false end
+	const state = NAmanage.SubplaceViewer
+	const destinationId = tonumber(placeId) or tonumber(game.PlaceId) or 0
+	const function applyIcon(target, iconAssetId)
+		if not target then return false end
+		local matchesDestination = false
+		local okAlive = pcall(function()
+			matchesDestination = target:GetAttribute("NADestinationPlaceId") == destinationId
+		end)
+		if not okAlive or not matchesDestination then return false end
+		const root = target:FindFirstChild("Root")
+		const foreground = root and root:FindFirstChild("Foreground")
+		const content = foreground and foreground:FindFirstChild("Content")
+		const icon = content and content:FindFirstChild("DestinationIcon")
+		if icon and icon:IsA("ImageLabel") then
+			icon.Image = NAmanage.SubplaceViewer_GetPlaceIcon(destinationId, 420, 420, iconAssetId)
+			return true
+		end
+		return false
+	end
+
+	const cached = state.placeIconAssets[destinationId]
+	if cached ~= nil then
+		return applyIcon(gui, type(cached) == "number" and cached or 0)
+	end
+	local waiting = state.placeIconRequests[destinationId]
+	if type(waiting) ~= "table" then
+		waiting = {}
+		state.placeIconRequests[destinationId] = waiting
+	end
+	waiting[#waiting + 1] = gui
+	if #waiting > 1 then return true end
+	Spawn(function()
+		local iconAssetId = 0
+		local ok, info = pcall(MarketplaceService.GetProductInfo, MarketplaceService, destinationId, Enum.InfoType.Asset)
+		if ok and type(info) == "table" then
+			iconAssetId = tonumber(info.IconImageAssetId) or 0
+			state.placeIconAssets[destinationId] = iconAssetId > 0 and iconAssetId or false
+		end
+		const targets = state.placeIconRequests[destinationId] or waiting
+		state.placeIconRequests[destinationId] = nil
+		for _, target in targets do
+			applyIcon(target, iconAssetId)
+		end
+	end)
+	return true
+end
 
 NAmanage.SubplaceViewer_GetPlaceName = function(placeId)
 	const state = NAmanage.SubplaceViewer
@@ -122848,6 +123269,8 @@ NAmanage.TeleportGui_ApplyStaticState = function(gui)
 	const root = gui:FindFirstChild("Root")
 	if not root then return false end
 	const backdrop = root:FindFirstChild("Backdrop")
+	const innerFrame = root:FindFirstChild("InnerFrame")
+	const innerFrameStroke = innerFrame and innerFrame:FindFirstChildOfClass("UIStroke")
 	const foreground = root:FindFirstChild("Foreground")
 	const topBrand = foreground and foreground:FindFirstChild("TopBrand")
 	const content = foreground and foreground:FindFirstChild("Content")
@@ -122860,6 +123283,9 @@ NAmanage.TeleportGui_ApplyStaticState = function(gui)
 	const statusDot = statusPill and statusPill:FindFirstChild("StatusDot")
 	const actionLabel = statusPill and statusPill:FindFirstChild("Action")
 	const destination = content and content:FindFirstChild("Destination")
+	const destinationIcon = content and content:FindFirstChild("DestinationIcon")
+	const contentStroke = content and content:FindFirstChildOfClass("UIStroke")
+	const accent = content and content:FindFirstChild("Accent")
 	const info = content and content:FindFirstChild("Info")
 	const footer = content and content:FindFirstChild("Footer")
 	const progressTrack = foreground and foreground:FindFirstChild("ProgressTrack")
@@ -122869,34 +123295,39 @@ NAmanage.TeleportGui_ApplyStaticState = function(gui)
 	const topEdge = root:FindFirstChild("TopEdge")
 	if backdrop and backdrop:IsA("ImageLabel") then
 		backdrop.Position = UDim2.fromScale(0.5, 0.5)
-		backdrop.Size = UDim2.fromScale(1.08, 1.08)
-		backdrop.ImageTransparency = 0.34
+		backdrop.Size = UDim2.fromScale(1.1, 1.1)
+		backdrop.ImageTransparency = 0.22
 	end
+	if innerFrameStroke then innerFrameStroke.Transparency = 0.78 end
 	if topBrand and topBrand:IsA("Frame") then
-		topBrand.Position = UDim2.new(0, tonumber(topBrand:GetAttribute("FinalX")) or 52, 0, tonumber(topBrand:GetAttribute("FinalY")) or 42)
+		topBrand.Position = UDim2.new(0, tonumber(topBrand:GetAttribute("FinalX")) or 52, 0, tonumber(topBrand:GetAttribute("FinalY")) or 88)
 	end
 	if content and content:IsA("Frame") then
 		content.Position = UDim2.new(0, tonumber(content:GetAttribute("FinalX")) or 52, 1, tonumber(content:GetAttribute("FinalY")) or -70)
+		content.BackgroundTransparency = 0.16
 	end
+	if contentStroke then contentStroke.Transparency = 0.56 end
+	if accent and accent:IsA("Frame") then accent.BackgroundTransparency = 0 end
 	if logo and logo:IsA("ImageLabel") then logo.ImageTransparency = 0 end
 	if fallback and fallback:IsA("TextLabel") then fallback.TextTransparency = 0 end
 	if brand and brand:IsA("TextLabel") then brand.TextTransparency = 0 end
 	if subBrand and subBrand:IsA("TextLabel") then subBrand.TextTransparency = 0.18 end
 	if rightTag and rightTag:IsA("TextLabel") then rightTag.TextTransparency = 0.32 end
-	if statusPill and statusPill:IsA("Frame") then statusPill.BackgroundTransparency = 0.36 end
+	if statusPill and statusPill:IsA("Frame") then statusPill.BackgroundTransparency = 0.18 end
 	if statusDot and statusDot:IsA("Frame") then statusDot.BackgroundTransparency = 0 end
 	if actionLabel and actionLabel:IsA("TextLabel") then actionLabel.TextTransparency = 0 end
 	if destination and destination:IsA("TextLabel") then destination.TextTransparency = 0 end
+	if destinationIcon and destinationIcon:IsA("ImageLabel") then destinationIcon.ImageTransparency = 0.04 end
 	if info and info:IsA("TextLabel") then info.TextTransparency = 0.08 end
 	if footer and footer:IsA("TextLabel") then footer.TextTransparency = 0.18 end
-	if progressTrack and progressTrack:IsA("Frame") then progressTrack.BackgroundTransparency = 0.72 end
+	if progressTrack and progressTrack:IsA("Frame") then progressTrack.BackgroundTransparency = 0.58 end
 	if runner and runner:IsA("Frame") then
 		runner.Position = UDim2.new(0.24, 0, 0, 0)
 		runner.BackgroundTransparency = 0
 	end
 	if progressCaption and progressCaption:IsA("TextLabel") then progressCaption.TextTransparency = 0.16 end
 	if placeTag and placeTag:IsA("TextLabel") then placeTag.TextTransparency = 0.28 end
-	if topEdge and topEdge:IsA("Frame") then topEdge.BackgroundTransparency = 0.62 end
+	if topEdge and topEdge:IsA("Frame") then topEdge.BackgroundTransparency = 0.18 end
 	return true
 end
 
@@ -122911,10 +123342,18 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 	const ui = {}
 	const destinationId = tonumber(placeId) or tonumber(game.PlaceId) or 0
 	const mobile = IsOnMobile == true
-	const sidePad = mobile and 24 or 52
-	const topPad = mobile and 28 or 42
-	const bottomPad = mobile and 76 or 70
-	const destinationImage = "rbxthumb://type=GameIcon&id="..tostring(destinationId).."&w=512&h=512"
+	const sidePad = mobile and 18 or 48
+	local guiInsetTop = 0
+	if GuiService and GuiService.GetGuiInset then
+		local okInset, topLeftInset = pcall(GuiService.GetGuiInset, GuiService)
+		if okInset and typeof(topLeftInset) == "Vector2" then
+			guiInsetTop = math.max(0, tonumber(topLeftInset.Y) or 0)
+		end
+	end
+	const topPad = math.max(mobile and 78 or 88, guiInsetTop + (mobile and 22 or 28))
+	const bottomPad = mobile and 62 or 64
+	const destinationThumbnail = NAmanage.SubplaceViewer_GetPlaceThumbnail(destinationId, 420, 420)
+	const destinationIconImage = NAmanage.SubplaceViewer_GetPlaceIcon(destinationId, 420, 420)
 
 	ui.gui = Instance.new("ScreenGui")
 	ui.gui.Name = "NATeleportGui"
@@ -122941,11 +123380,11 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 	ui.backdrop = Instance.new("ImageLabel")
 	ui.backdrop.Name = "Backdrop"
 	ui.backdrop.AnchorPoint = Vector2.new(0.5, 0.5)
-	ui.backdrop.Position = UDim2.fromScale(0.488, 0.5)
-	ui.backdrop.Size = UDim2.fromScale(1.14, 1.14)
+	ui.backdrop.Position = UDim2.fromScale(0.486, 0.5)
+	ui.backdrop.Size = UDim2.fromScale(1.16, 1.16)
 	ui.backdrop.BackgroundTransparency = 1
-	ui.backdrop.Image = destinationImage
-	ui.backdrop.ImageColor3 = Color3.fromRGB(210, 210, 210)
+	ui.backdrop.Image = destinationThumbnail
+	ui.backdrop.ImageColor3 = Color3.fromRGB(225, 225, 225)
 	ui.backdrop.ImageTransparency = 1
 	ui.backdrop.ScaleType = Enum.ScaleType.Crop
 	ui.backdrop.ZIndex = 2
@@ -122955,16 +123394,16 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 	ui.wash.Name = "Wash"
 	ui.wash.Size = UDim2.fromScale(1, 1)
 	ui.wash.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	ui.wash.BackgroundTransparency = 0.12
+	ui.wash.BackgroundTransparency = 0.34
 	ui.wash.BorderSizePixel = 0
 	ui.wash.ZIndex = 3
 	ui.wash.Parent = ui.root
 	ui.washGradient = Instance.new("UIGradient")
 	ui.washGradient.Rotation = 90
 	ui.washGradient.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0.16);
-		NumberSequenceKeypoint.new(0.48, 0.42);
-		NumberSequenceKeypoint.new(1, 0.08);
+		NumberSequenceKeypoint.new(0, 0.28);
+		NumberSequenceKeypoint.new(0.5, 0.58);
+		NumberSequenceKeypoint.new(1, 0.2);
 	})
 	ui.washGradient.Parent = ui.wash
 
@@ -122972,16 +123411,17 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 	ui.sideShade.Name = "SideShade"
 	ui.sideShade.Size = UDim2.fromScale(1, 1)
 	ui.sideShade.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	ui.sideShade.BackgroundTransparency = 0.22
 	ui.sideShade.BorderSizePixel = 0
 	ui.sideShade.ZIndex = 4
 	ui.sideShade.Parent = ui.root
 	ui.sideGradient = Instance.new("UIGradient")
 	ui.sideGradient.Rotation = 0
 	ui.sideGradient.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0.05);
-		NumberSequenceKeypoint.new(0.38, 0.26);
-		NumberSequenceKeypoint.new(0.72, 0.72);
-		NumberSequenceKeypoint.new(1, 0.86);
+		NumberSequenceKeypoint.new(0, 0.36);
+		NumberSequenceKeypoint.new(0.42, 0.5);
+		NumberSequenceKeypoint.new(0.74, 0.8);
+		NumberSequenceKeypoint.new(1, 0.92);
 	})
 	ui.sideGradient.Parent = ui.sideShade
 
@@ -122991,6 +123431,7 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 	ui.bottomShade.Position = UDim2.fromScale(0, 1)
 	ui.bottomShade.Size = UDim2.fromScale(1, 0.58)
 	ui.bottomShade.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	ui.bottomShade.BackgroundTransparency = 0.12
 	ui.bottomShade.BorderSizePixel = 0
 	ui.bottomShade.ZIndex = 5
 	ui.bottomShade.Parent = ui.root
@@ -122998,16 +123439,30 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 	ui.bottomGradient.Rotation = 90
 	ui.bottomGradient.Transparency = NumberSequence.new({
 		NumberSequenceKeypoint.new(0, 1);
-		NumberSequenceKeypoint.new(0.42, 0.64);
-		NumberSequenceKeypoint.new(1, 0.05);
+		NumberSequenceKeypoint.new(0.42, 0.72);
+		NumberSequenceKeypoint.new(1, 0.22);
 	})
 	ui.bottomGradient.Parent = ui.bottomShade
 
+	ui.innerFrame = Instance.new("Frame")
+	ui.innerFrame.Name = "InnerFrame"
+	ui.innerFrame.Position = UDim2.fromOffset(mobile and 9 or 18, mobile and 9 or 18)
+	ui.innerFrame.Size = UDim2.new(1, mobile and -18 or -36, 1, mobile and -18 or -36)
+	ui.innerFrame.BackgroundTransparency = 1
+	ui.innerFrame.BorderSizePixel = 0
+	ui.innerFrame.ZIndex = 7
+	ui.innerFrame.Parent = ui.root
+	ui.innerFrameStroke = Instance.new("UIStroke")
+	ui.innerFrameStroke.Color = Color3.fromRGB(255, 255, 255)
+	ui.innerFrameStroke.Transparency = 1
+	ui.innerFrameStroke.Thickness = 1
+	ui.innerFrameStroke.Parent = ui.innerFrame
+
 	ui.topEdge = Instance.new("Frame")
 	ui.topEdge.Name = "TopEdge"
-	ui.topEdge.AnchorPoint = Vector2.new(0.5, 0)
-	ui.topEdge.Position = UDim2.fromScale(0.5, 0)
-	ui.topEdge.Size = UDim2.new(0.58, 0, 0, 1)
+	ui.topEdge.AnchorPoint = Vector2.new(0, 0)
+	ui.topEdge.Position = UDim2.new(0, sidePad, 0, mobile and 9 or 18)
+	ui.topEdge.Size = UDim2.fromOffset(mobile and 72 or 112, 2)
 	ui.topEdge.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	ui.topEdge.BackgroundTransparency = 1
 	ui.topEdge.BorderSizePixel = 0
@@ -123031,7 +123486,7 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 	ui.topBrand = Instance.new("Frame")
 	ui.topBrand.Name = "TopBrand"
 	ui.topBrand.Position = UDim2.new(0, sidePad, 0, topPad - 10)
-	ui.topBrand.Size = UDim2.fromOffset(mobile and 250 or 320, 48)
+	ui.topBrand.Size = UDim2.fromOffset(mobile and 270 or 370, 46)
 	ui.topBrand.BackgroundTransparency = 1
 	ui.topBrand.ZIndex = 12
 	ui.topBrand:SetAttribute("FinalX", sidePad)
@@ -123040,18 +123495,18 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 
 	ui.logoHolder = Instance.new("Frame")
 	ui.logoHolder.Name = "LogoHolder"
-	ui.logoHolder.Size = UDim2.fromOffset(46, 46)
-	ui.logoHolder.BackgroundColor3 = Color3.fromRGB(8, 8, 8)
-	ui.logoHolder.BackgroundTransparency = 0.26
+	ui.logoHolder.Size = UDim2.fromOffset(42, 42)
+	ui.logoHolder.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	ui.logoHolder.BackgroundTransparency = 0.08
 	ui.logoHolder.BorderSizePixel = 0
 	ui.logoHolder.ZIndex = 13
 	ui.logoHolder.Parent = ui.topBrand
 	ui.logoCorner = Instance.new("UICorner")
-	ui.logoCorner.CornerRadius = UDim.new(0, 13)
+	ui.logoCorner.CornerRadius = UDim.new(0, 3)
 	ui.logoCorner.Parent = ui.logoHolder
 	ui.logoStroke = Instance.new("UIStroke")
 	ui.logoStroke.Color = Color3.fromRGB(255, 255, 255)
-	ui.logoStroke.Transparency = 0.64
+	ui.logoStroke.Transparency = 0.38
 	ui.logoStroke.Thickness = 1
 	ui.logoStroke.Parent = ui.logoHolder
 	ui.logoScale = Instance.new("UIScale")
@@ -123067,6 +123522,7 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 	ui.logo.BackgroundTransparency = 1
 	ui.logo.Image = iconAsset
 	ui.logo.ImageTransparency = 1
+	ui.logo.Visible = iconAsset ~= ""
 	ui.logo.ScaleType = Enum.ScaleType.Fit
 	ui.logo.ZIndex = 15
 	ui.logo.Parent = ui.logoHolder
@@ -123086,13 +123542,13 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 
 	ui.brand = Instance.new("TextLabel")
 	ui.brand.Name = "Brand"
-	ui.brand.Position = UDim2.new(0, 59, 0, 3)
-	ui.brand.Size = UDim2.new(1, -59, 0, 22)
+	ui.brand.Position = UDim2.new(0, 56, 0, 1)
+	ui.brand.Size = UDim2.new(1, -56, 0, 22)
 	ui.brand.BackgroundTransparency = 1
-	ui.brand.Text = "NAMELESS ADMIN"
+	ui.brand.Text = "NAMELESS / ADMIN"
 	ui.brand.TextColor3 = Color3.fromRGB(255, 255, 255)
 	ui.brand.TextTransparency = 1
-	ui.brand.TextSize = mobile and 15 or 16
+	ui.brand.TextSize = mobile and 14 or 15
 	ui.brand.Font = Enum.Font.GothamBold
 	ui.brand.TextXAlignment = Enum.TextXAlignment.Left
 	ui.brand.ZIndex = 14
@@ -123100,10 +123556,10 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 
 	ui.subBrand = Instance.new("TextLabel")
 	ui.subBrand.Name = "SubBrand"
-	ui.subBrand.Position = UDim2.new(0, 59, 0, 26)
-	ui.subBrand.Size = UDim2.new(1, -59, 0, 16)
+	ui.subBrand.Position = UDim2.new(0, 56, 0, 25)
+	ui.subBrand.Size = UDim2.new(1, -56, 0, 16)
 	ui.subBrand.BackgroundTransparency = 1
-	ui.subBrand.Text = "SECURE TELEPORT HANDOFF"
+	ui.subBrand.Text = "TELEPORT"
 	ui.subBrand.TextColor3 = Color3.fromRGB(198, 198, 198)
 	ui.subBrand.TextTransparency = 1
 	ui.subBrand.TextSize = 8
@@ -123118,13 +123574,13 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 	ui.rightTag.Position = UDim2.new(1, -sidePad, 0, topPad + 12)
 	ui.rightTag.Size = UDim2.fromOffset(220, 14)
 	ui.rightTag.BackgroundTransparency = 1
-	ui.rightTag.Text = "NA  /  DESTINATION LINK"
+	ui.rightTag.Text = ""
 	ui.rightTag.TextColor3 = Color3.fromRGB(205, 205, 205)
 	ui.rightTag.TextTransparency = 1
 	ui.rightTag.TextSize = 8
 	ui.rightTag.Font = Enum.Font.GothamMedium
 	ui.rightTag.TextXAlignment = Enum.TextXAlignment.Right
-	ui.rightTag.Visible = not mobile
+	ui.rightTag.Visible = false
 	ui.rightTag.ZIndex = 12
 	ui.rightTag.Parent = ui.foreground
 
@@ -123132,39 +123588,60 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 	ui.content.Name = "Content"
 	ui.content.AnchorPoint = Vector2.new(0, 1)
 	ui.content.Position = UDim2.new(0, sidePad, 1, -(bottomPad - 12))
-	ui.content.Size = UDim2.new(mobile and 1 or 0.68, mobile and -(sidePad * 2) or 0, 0, mobile and 132 or 144)
+	ui.content.Size = UDim2.new(mobile and 1 or 0.62, mobile and -(sidePad * 2) or 0, 0, mobile and 148 or 170)
+	ui.content.BackgroundColor3 = Color3.fromRGB(3, 3, 3)
 	ui.content.BackgroundTransparency = 1
+	ui.content.BorderSizePixel = 0
 	ui.content.ZIndex = 12
 	ui.content:SetAttribute("FinalX", sidePad)
 	ui.content:SetAttribute("FinalY", -bottomPad)
 	ui.content.Parent = ui.foreground
 	ui.contentSize = Instance.new("UISizeConstraint")
-	ui.contentSize.MinSize = Vector2.new(260, mobile and 132 or 144)
-	ui.contentSize.MaxSize = Vector2.new(780, mobile and 132 or 144)
+	ui.contentSize.MinSize = Vector2.new(260, mobile and 148 or 170)
+	ui.contentSize.MaxSize = Vector2.new(760, mobile and 148 or 170)
 	ui.contentSize.Parent = ui.content
+	ui.contentCorner = Instance.new("UICorner")
+	ui.contentCorner.CornerRadius = UDim.new(0, 4)
+	ui.contentCorner.Parent = ui.content
+	ui.contentStroke = Instance.new("UIStroke")
+	ui.contentStroke.Color = Color3.fromRGB(255, 255, 255)
+	ui.contentStroke.Transparency = 1
+	ui.contentStroke.Thickness = 1
+	ui.contentStroke.Parent = ui.content
+
+	ui.accent = Instance.new("Frame")
+	ui.accent.Name = "Accent"
+	ui.accent.Position = UDim2.fromOffset(0, mobile and 14 or 18)
+	ui.accent.Size = UDim2.new(0, 2, 1, mobile and -28 or -36)
+	ui.accent.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	ui.accent.BackgroundTransparency = 1
+	ui.accent.BorderSizePixel = 0
+	ui.accent.ZIndex = 16
+	ui.accent.Parent = ui.content
 
 	ui.statusPill = Instance.new("Frame")
 	ui.statusPill.Name = "StatusPill"
-	ui.statusPill.Size = UDim2.fromOffset(mobile and 142 or 158, 26)
-	ui.statusPill.BackgroundColor3 = Color3.fromRGB(8, 8, 8)
+	ui.statusPill.Position = UDim2.fromOffset(mobile and 14 or 18, mobile and 13 or 17)
+	ui.statusPill.Size = UDim2.fromOffset(mobile and 145 or 164, 24)
+	ui.statusPill.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 	ui.statusPill.BackgroundTransparency = 1
 	ui.statusPill.BorderSizePixel = 0
 	ui.statusPill.ZIndex = 13
 	ui.statusPill.Parent = ui.content
 	ui.statusCorner = Instance.new("UICorner")
-	ui.statusCorner.CornerRadius = UDim.new(1, 0)
+	ui.statusCorner.CornerRadius = UDim.new(0, 2)
 	ui.statusCorner.Parent = ui.statusPill
 	ui.statusStroke = Instance.new("UIStroke")
 	ui.statusStroke.Color = Color3.fromRGB(255, 255, 255)
-	ui.statusStroke.Transparency = 0.62
+	ui.statusStroke.Transparency = 0.44
 	ui.statusStroke.Thickness = 1
 	ui.statusStroke.Parent = ui.statusPill
 
 	ui.statusDot = Instance.new("Frame")
 	ui.statusDot.Name = "StatusDot"
 	ui.statusDot.AnchorPoint = Vector2.new(0, 0.5)
-	ui.statusDot.Position = UDim2.new(0, 10, 0.5, 0)
-	ui.statusDot.Size = UDim2.fromOffset(6, 6)
+	ui.statusDot.Position = UDim2.new(0, 9, 0.5, 0)
+	ui.statusDot.Size = UDim2.fromOffset(5, 5)
 	ui.statusDot.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	ui.statusDot.BackgroundTransparency = 1
 	ui.statusDot.BorderSizePixel = 0
@@ -123176,8 +123653,8 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 
 	ui.actionLabel = Instance.new("TextLabel")
 	ui.actionLabel.Name = "Action"
-	ui.actionLabel.Position = UDim2.new(0, 25, 0, 0)
-	ui.actionLabel.Size = UDim2.new(1, -31, 1, 0)
+	ui.actionLabel.Position = UDim2.new(0, 23, 0, 0)
+	ui.actionLabel.Size = UDim2.new(1, -28, 1, 0)
 	ui.actionLabel.BackgroundTransparency = 1
 	ui.actionLabel.Text = string.upper(tostring(action or "TELEPORTING"))
 	ui.actionLabel.TextColor3 = Color3.fromRGB(245, 245, 245)
@@ -123188,15 +123665,38 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 	ui.actionLabel.ZIndex = 15
 	ui.actionLabel.Parent = ui.statusPill
 
+	ui.destinationIcon = Instance.new("ImageLabel")
+	ui.destinationIcon.Name = "DestinationIcon"
+	ui.destinationIcon.AnchorPoint = Vector2.new(1, 0.5)
+	ui.destinationIcon.Position = UDim2.new(1, mobile and -14 or -18, 0.5, 0)
+	ui.destinationIcon.Size = UDim2.fromOffset(mobile and 82 or 128, mobile and 116 or 134)
+	ui.destinationIcon.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	ui.destinationIcon.BackgroundTransparency = 0.06
+	ui.destinationIcon.BorderSizePixel = 0
+	ui.destinationIcon.Image = destinationIconImage
+	ui.destinationIcon.ImageColor3 = Color3.fromRGB(220, 220, 220)
+	ui.destinationIcon.ImageTransparency = 1
+	ui.destinationIcon.ScaleType = Enum.ScaleType.Crop
+	ui.destinationIcon.ZIndex = 13
+	ui.destinationIcon.Parent = ui.content
+	ui.destinationIconCorner = Instance.new("UICorner")
+	ui.destinationIconCorner.CornerRadius = UDim.new(0, 2)
+	ui.destinationIconCorner.Parent = ui.destinationIcon
+	ui.destinationIconStroke = Instance.new("UIStroke")
+	ui.destinationIconStroke.Color = Color3.fromRGB(255, 255, 255)
+	ui.destinationIconStroke.Transparency = 0.62
+	ui.destinationIconStroke.Thickness = 1
+	ui.destinationIconStroke.Parent = ui.destinationIcon
+
 	ui.destination = Instance.new("TextLabel")
 	ui.destination.Name = "Destination"
-	ui.destination.Position = UDim2.new(0, 0, 0, 37)
-	ui.destination.Size = UDim2.new(1, 0, 0, mobile and 36 or 44)
+	ui.destination.Position = UDim2.new(0, mobile and 14 or 18, 0, mobile and 46 or 52)
+	ui.destination.Size = UDim2.new(1, mobile and -116 or -174, 0, mobile and 34 or 42)
 	ui.destination.BackgroundTransparency = 1
 	ui.destination.Text = tostring(placeName or NAmanage.SubplaceViewer_GetPlaceName(destinationId))
 	ui.destination.TextColor3 = Color3.fromRGB(255, 255, 255)
 	ui.destination.TextTransparency = 1
-	ui.destination.TextSize = mobile and 28 or 38
+	ui.destination.TextSize = mobile and 25 or 34
 	ui.destination.Font = Enum.Font.GothamBold
 	ui.destination.TextTruncate = Enum.TextTruncate.AtEnd
 	ui.destination.TextXAlignment = Enum.TextXAlignment.Left
@@ -123205,8 +123705,8 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 
 	ui.info = Instance.new("TextLabel")
 	ui.info.Name = "Info"
-	ui.info.Position = UDim2.new(0, 1, 0, mobile and 78 or 88)
-	ui.info.Size = UDim2.new(1, 0, 0, 18)
+	ui.info.Position = UDim2.new(0, mobile and 15 or 19, 0, mobile and 84 or 98)
+	ui.info.Size = UDim2.new(1, mobile and -117 or -176, 0, 18)
 	ui.info.BackgroundTransparency = 1
 	ui.info.Text = tostring(detail or ("Place ID  "..tostring(destinationId)))
 	ui.info.TextColor3 = Color3.fromRGB(205, 205, 205)
@@ -123220,10 +123720,10 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 
 	ui.footer = Instance.new("TextLabel")
 	ui.footer.Name = "Footer"
-	ui.footer.Position = UDim2.new(0, 1, 0, mobile and 103 or 115)
-	ui.footer.Size = UDim2.new(1, 0, 0, 17)
+	ui.footer.Position = UDim2.new(0, mobile and 15 or 19, 0, mobile and 111 or 130)
+	ui.footer.Size = UDim2.new(1, mobile and -117 or -176, 0, 17)
 	ui.footer.BackgroundTransparency = 1
-	ui.footer.Text = "Preparing destination"
+	ui.footer.Text = "Loading..."
 	ui.footer.TextColor3 = Color3.fromRGB(170, 170, 170)
 	ui.footer.TextTransparency = 1
 	ui.footer.TextSize = 9
@@ -123235,18 +123735,14 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 	ui.progressTrack = Instance.new("Frame")
 	ui.progressTrack.Name = "ProgressTrack"
 	ui.progressTrack.AnchorPoint = Vector2.new(0, 1)
-	ui.progressTrack.Position = UDim2.new(0, sidePad, 1, -31)
-	ui.progressTrack.Size = UDim2.new(1, -(sidePad * 2), 0, 2)
+	ui.progressTrack.Position = UDim2.new(0, sidePad, 1, -27)
+	ui.progressTrack.Size = UDim2.new(1, -(sidePad * 2), 0, 1)
 	ui.progressTrack.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	ui.progressTrack.BackgroundTransparency = 1
 	ui.progressTrack.BorderSizePixel = 0
 	ui.progressTrack.ClipsDescendants = true
 	ui.progressTrack.ZIndex = 13
 	ui.progressTrack.Parent = ui.foreground
-	ui.progressCorner = Instance.new("UICorner")
-	ui.progressCorner.CornerRadius = UDim.new(1, 0)
-	ui.progressCorner.Parent = ui.progressTrack
-
 	ui.runner = Instance.new("Frame")
 	ui.runner.Name = "Runner"
 	ui.runner.Position = UDim2.new(-0.22, 0, 0, 0)
@@ -123256,9 +123752,6 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 	ui.runner.BorderSizePixel = 0
 	ui.runner.ZIndex = 15
 	ui.runner.Parent = ui.progressTrack
-	ui.runnerCorner = Instance.new("UICorner")
-	ui.runnerCorner.CornerRadius = UDim.new(1, 0)
-	ui.runnerCorner.Parent = ui.runner
 	ui.runnerGradient = Instance.new("UIGradient")
 	ui.runnerGradient.Color = ColorSequence.new({
 		ColorSequenceKeypoint.new(0, Color3.fromRGB(88, 88, 88));
@@ -123269,10 +123762,10 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 
 	ui.progressCaption = Instance.new("TextLabel")
 	ui.progressCaption.Name = "ProgressCaption"
-	ui.progressCaption.Position = UDim2.new(0, sidePad, 1, -25)
+	ui.progressCaption.Position = UDim2.new(0, sidePad, 1, -48)
 	ui.progressCaption.Size = UDim2.fromOffset(180, 14)
 	ui.progressCaption.BackgroundTransparency = 1
-	ui.progressCaption.Text = "ESTABLISHING CONNECTION"
+	ui.progressCaption.Text = "LOADING"
 	ui.progressCaption.TextColor3 = Color3.fromRGB(195, 195, 195)
 	ui.progressCaption.TextTransparency = 1
 	ui.progressCaption.TextSize = 7
@@ -123284,10 +123777,10 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 	ui.placeTag = Instance.new("TextLabel")
 	ui.placeTag.Name = "PlaceTag"
 	ui.placeTag.AnchorPoint = Vector2.new(1, 0)
-	ui.placeTag.Position = UDim2.new(1, -sidePad, 1, -25)
+	ui.placeTag.Position = UDim2.new(1, -sidePad, 1, -48)
 	ui.placeTag.Size = UDim2.fromOffset(220, 14)
 	ui.placeTag.BackgroundTransparency = 1
-	ui.placeTag.Text = "PLACE  "..tostring(destinationId)
+	ui.placeTag.Text = "DESTINATION  //  "..tostring(destinationId)
 	ui.placeTag.TextColor3 = Color3.fromRGB(195, 195, 195)
 	ui.placeTag.TextTransparency = 1
 	ui.placeTag.TextSize = 7
@@ -123299,6 +123792,7 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 	if prearm then
 		pcall(function() ui.gui:SetAttribute("NAGameTeleportPrearmed", true) end)
 		NAmanage.TeleportGui_ApplyStaticState(ui.gui)
+		NAmanage.TeleportGui_ResolveDestinationIcon(ui.gui, destinationId)
 		state.teleportHandoffGui = ui.gui
 		state.teleportGui = nil
 		pcall(TeleportService.SetTeleportGui, TeleportService, ui.gui)
@@ -123315,6 +123809,8 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 	ui.handoffGui.Name = "NATeleportGui"
 	ui.handoffGui.Enabled = true
 	NAmanage.TeleportGui_ApplyStaticState(ui.handoffGui)
+	NAmanage.TeleportGui_ResolveDestinationIcon(ui.gui, destinationId)
+	NAmanage.TeleportGui_ResolveDestinationIcon(ui.handoffGui, destinationId)
 	state.teleportHandoffGui = ui.handoffGui
 	pcall(TeleportService.SetTeleportGui, TeleportService, ui.handoffGui)
 	state.teleportGui = ui.gui
@@ -123324,33 +123820,37 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 	pcall(function()
 		TweenService:Create(ui.backdrop, TweenInfo.new(0.78, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
 			Position = UDim2.fromScale(0.5, 0.5);
-			Size = UDim2.fromScale(1.08, 1.08);
-			ImageTransparency = 0.34;
+			Size = UDim2.fromScale(1.1, 1.1);
+			ImageTransparency = 0.22;
 		}):Play()
+		TweenService:Create(ui.innerFrameStroke, TweenInfo.new(0.65, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Transparency = 0.78 }):Play()
 		TweenService:Create(ui.topBrand, TweenInfo.new(0.48, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), { Position = UDim2.new(0, sidePad, 0, topPad) }):Play()
-		TweenService:Create(ui.content, TweenInfo.new(0.56, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), { Position = UDim2.new(0, sidePad, 1, -bottomPad) }):Play()
+		TweenService:Create(ui.content, TweenInfo.new(0.56, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), { Position = UDim2.new(0, sidePad, 1, -bottomPad); BackgroundTransparency = 0.16 }):Play()
+		TweenService:Create(ui.contentStroke, TweenInfo.new(0.58, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Transparency = 0.56 }):Play()
+		TweenService:Create(ui.accent, TweenInfo.new(0.46, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 0 }):Play()
 		TweenService:Create(ui.logo, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { ImageTransparency = 0 }):Play()
 		TweenService:Create(ui.logoFallback, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0 }):Play()
 		TweenService:Create(ui.brand, TweenInfo.new(0.38, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0 }):Play()
 		TweenService:Create(ui.subBrand, TweenInfo.new(0.42, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0.18 }):Play()
 		TweenService:Create(ui.rightTag, TweenInfo.new(0.48, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0.32 }):Play()
-		TweenService:Create(ui.statusPill, TweenInfo.new(0.42, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 0.36 }):Play()
+		TweenService:Create(ui.statusPill, TweenInfo.new(0.42, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 0.18 }):Play()
 		TweenService:Create(ui.statusDot, TweenInfo.new(0.42, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 0 }):Play()
 		TweenService:Create(ui.actionLabel, TweenInfo.new(0.42, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0 }):Play()
 		TweenService:Create(ui.destination, TweenInfo.new(0.48, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0 }):Play()
+		TweenService:Create(ui.destinationIcon, TweenInfo.new(0.52, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { ImageTransparency = 0.04 }):Play()
 		TweenService:Create(ui.info, TweenInfo.new(0.54, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0.08 }):Play()
 		TweenService:Create(ui.footer, TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0.18 }):Play()
-		TweenService:Create(ui.progressTrack, TweenInfo.new(0.58, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 0.72 }):Play()
+		TweenService:Create(ui.progressTrack, TweenInfo.new(0.58, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 0.58 }):Play()
 		TweenService:Create(ui.progressCaption, TweenInfo.new(0.62, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0.16 }):Play()
 		TweenService:Create(ui.placeTag, TweenInfo.new(0.62, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0.28 }):Play()
-		TweenService:Create(ui.topEdge, TweenInfo.new(0.65, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 0.62 }):Play()
+		TweenService:Create(ui.topEdge, TweenInfo.new(0.65, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 0.18 }):Play()
 	end)
 
 	Spawn(function()
 		local dots = 0
 		while state.teleportGui == ui.gui and token == state.teleportGuiToken and ui.gui.Parent do
-			dots = (dots + 1) % 4
-			ui.footer.Text = "Preparing destination"..string.rep(".", dots)
+			dots = (dots % 3) + 1
+			ui.footer.Text = "Loading"..string.rep(".", dots)
 			Wait(0.34)
 		end
 	end)
@@ -123384,13 +123884,13 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 			pcall(function()
 				local drift = TweenService:Create(ui.backdrop, TweenInfo.new(4.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
 					Position = UDim2.fromScale(0.507, 0.496);
-					Size = UDim2.fromScale(1.115, 1.115);
+					Size = UDim2.fromScale(1.13, 1.13);
 				})
 				drift:Play()
 				drift.Completed:Wait()
 				local driftBack = TweenService:Create(ui.backdrop, TweenInfo.new(4.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
 					Position = UDim2.fromScale(0.5, 0.5);
-					Size = UDim2.fromScale(1.08, 1.08);
+					Size = UDim2.fromScale(1.1, 1.1);
 				})
 				driftBack:Play()
 				driftBack.Completed:Wait()
@@ -123445,6 +123945,8 @@ NAmanage.SubplaceViewer_HandleArrivingTeleportGui = function()
 	const wash = root and root:FindFirstChild("Wash")
 	const sideShade = root and root:FindFirstChild("SideShade")
 	const bottomShade = root and root:FindFirstChild("BottomShade")
+	const innerFrame = root and root:FindFirstChild("InnerFrame")
+	const innerFrameStroke = innerFrame and innerFrame:FindFirstChildOfClass("UIStroke")
 	const topEdge = root and root:FindFirstChild("TopEdge")
 	const foreground = root and root:FindFirstChild("Foreground")
 	const topBrand = foreground and foreground:FindFirstChild("TopBrand")
@@ -123457,14 +123959,14 @@ NAmanage.SubplaceViewer_HandleArrivingTeleportGui = function()
 	const runner = progressTrack and progressTrack:FindFirstChild("Runner")
 	const progressCaption = foreground and foreground:FindFirstChild("ProgressCaption")
 	if actionLabel and actionLabel:IsA("TextLabel") then
-		actionLabel.Text = "CONNECTED"
+		actionLabel.Text = "READY"
 	end
 	if footer and footer:IsA("TextLabel") then
-		footer.Text = "Destination ready"
+		footer.Text = "Done"
 		footer.TextColor3 = Color3.fromRGB(235, 235, 235)
 	end
 	if progressCaption and progressCaption:IsA("TextLabel") then
-		progressCaption.Text = "CONNECTION ESTABLISHED"
+		progressCaption.Text = "READY"
 	end
 	if statusPill and statusPill:IsA("Frame") then
 		pcall(function()
@@ -123529,6 +124031,11 @@ NAmanage.SubplaceViewer_HandleArrivingTeleportGui = function()
 		if topEdge and topEdge:IsA("Frame") then
 			pcall(function()
 				TweenService:Create(topEdge, TweenInfo.new(0.48, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { BackgroundTransparency = 1 }):Play()
+			end)
+		end
+		if innerFrameStroke then
+			pcall(function()
+				TweenService:Create(innerFrameStroke, TweenInfo.new(0.48, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Transparency = 1 }):Play()
 			end)
 		end
 		Wait(0.24)
@@ -123625,15 +124132,22 @@ NAmanage.TeleportGui_UpdateDestination = function(gui, placeId, placeName, actio
 	const statusPill = content and content:FindFirstChild("StatusPill")
 	const actionLabel = statusPill and statusPill:FindFirstChild("Action")
 	const destination = content and content:FindFirstChild("Destination")
+	const destinationIcon = content and content:FindFirstChild("DestinationIcon")
 	const info = content and content:FindFirstChild("Info")
 	const footer = content and content:FindFirstChild("Footer")
 	const progressTrack = foreground and foreground:FindFirstChild("ProgressTrack")
 	const runner = progressTrack and progressTrack:FindFirstChild("Runner")
 	const progressCaption = foreground and foreground:FindFirstChild("ProgressCaption")
 	const placeTag = foreground and foreground:FindFirstChild("PlaceTag")
+	const destinationThumbnail = NAmanage.SubplaceViewer_GetPlaceThumbnail(placeId, 420, 420)
+	const destinationIconImage = NAmanage.SubplaceViewer_GetPlaceIcon(placeId, 420, 420)
 	if backdrop and backdrop:IsA("ImageLabel") then
-		backdrop.Image = "rbxthumb://type=GameIcon&id="..tostring(placeId).."&w=512&h=512"
+		backdrop.Image = destinationThumbnail
 	end
+	if destinationIcon and destinationIcon:IsA("ImageLabel") then
+		destinationIcon.Image = destinationIconImage
+	end
+	NAmanage.TeleportGui_ResolveDestinationIcon(gui, placeId)
 	if actionLabel and actionLabel:IsA("TextLabel") then
 		actionLabel.Text = string.upper(tostring(action or "GAME TELEPORT"))
 	end
@@ -123644,13 +124158,13 @@ NAmanage.TeleportGui_UpdateDestination = function(gui, placeId, placeName, actio
 		info.Text = tostring(detail or ("Place ID  "..tostring(placeId)))
 	end
 	if footer and footer:IsA("TextLabel") then
-		footer.Text = "Preparing destination"
+		footer.Text = "Loading..."
 	end
 	if progressCaption and progressCaption:IsA("TextLabel") then
-		progressCaption.Text = "ESTABLISHING CONNECTION"
+		progressCaption.Text = "LOADING"
 	end
 	if placeTag and placeTag:IsA("TextLabel") then
-		placeTag.Text = "PLACE  "..tostring(placeId)
+		placeTag.Text = "DESTINATION  //  "..tostring(placeId)
 	end
 	if runner and runner:IsA("Frame") then
 		runner.Position = UDim2.new(-0.22, 0, 0, 0)
@@ -123925,6 +124439,68 @@ NAmanage.SubplaceViewer_HttpJson = function(url)
 	return data
 end
 
+NAmanage.SubplaceViewer_ApplyPlaceIcon = function(place)
+	const state = NAmanage.SubplaceViewer
+	const ui = state.ui or NAmanage.SubplaceViewer_GetUI()
+	const placeId = tonumber(place and place.PlaceId)
+	if not (ui and ui.list and placeId) then return false end
+	const row = ui.list:FindFirstChild("Place_"..tostring(placeId))
+	const icon = row and row:FindFirstChild("Icon")
+	if icon and icon:IsA("ImageLabel") then
+		icon.Image = NAmanage.SubplaceViewer_GetPlaceIcon(placeId, 150, 150, place.IconAssetId)
+		return true
+	end
+	return false
+end
+
+NAmanage.SubplaceViewer_FetchPlaceIconAssets = function(places, fetchToken)
+	const state = NAmanage.SubplaceViewer
+	const workerCount = math.min(4, #places)
+	if workerCount <= 0 then return end
+	Delay(0.05, function()
+		if fetchToken ~= state.fetchToken then return end
+		local nextIndex = 0
+		for _ = 1, workerCount do
+			Spawn(function()
+				while fetchToken == state.fetchToken do
+					nextIndex += 1
+					const index = nextIndex
+					const place = places[index]
+					if not place then break end
+					const placeId = tonumber(place.PlaceId)
+					if placeId then
+						local cached = state.placeIconAssets[placeId]
+						if cached == nil then
+							local ok, info = pcall(MarketplaceService.GetProductInfo, MarketplaceService, placeId, Enum.InfoType.Asset)
+							if ok and type(info) == "table" then
+								const iconAssetId = tonumber(info.IconImageAssetId) or 0
+								cached = iconAssetId > 0 and iconAssetId or false
+								state.placeIconAssets[placeId] = cached
+							end
+						end
+						place.IconAssetId = type(cached) == "number" and cached or 0
+						if fetchToken == state.fetchToken then
+							NAmanage.SubplaceViewer_ApplyPlaceIcon(place)
+						end
+					end
+				end
+			end)
+		end
+	end)
+end
+
+NAmanage.SubplaceViewer_ApplyCachedPlaceIcons = function(places)
+	const state = NAmanage.SubplaceViewer
+	for _, place in places do
+		const cached = state.placeIconAssets[tonumber(place.PlaceId)]
+		if type(cached) == "number" then
+			place.IconAssetId = cached
+		elseif cached == false then
+			place.IconAssetId = 0
+		end
+	end
+end
+
 NAmanage.SubplaceViewer_FetchServers = function(placeId, cursor)
 	const state = NAmanage.SubplaceViewer
 	const pid = tostring(placeId)
@@ -124170,7 +124746,7 @@ NAmanage.SubplaceViewer_Render = function()
 		icon.BackgroundColor3 = Color3.fromRGB(35,35,42)
 		icon.Position = UDim2.new(0, 8, 0, 8)
 		icon.Size = UDim2.new(0, iconSize, 0, iconSize)
-		icon.Image = "rbxthumb://type=GameIcon&id="..tostring(place.PlaceId).."&w=150&h=150"
+		icon.Image = NAmanage.SubplaceViewer_GetPlaceIcon(place.PlaceId, 150, 150, place.IconAssetId)
 		Instance.new("UICorner", icon).CornerRadius = UDim.new(0, 7)
 		local label = Instance.new("TextLabel", row)
 		label.BackgroundTransparency = 1
@@ -124299,6 +124875,7 @@ NAmanage.SubplaceViewer_Fetch = function(force)
 		end
 		if not seen[game.PlaceId] then places[#places + 1] = { Name = game.Name; PlaceId = game.PlaceId } end
 		if token ~= state.fetchToken then return end
+		NAmanage.SubplaceViewer_ApplyCachedPlaceIcons(places)
 		state.places = places
 		state.loaded = true
 		state.loading = false
@@ -124306,6 +124883,7 @@ NAmanage.SubplaceViewer_Fetch = function(force)
 			if ui and ui.status then ui.status.Text = "No subplaces were returned." end
 		else
 			NAmanage.SubplaceViewer_Render()
+			NAmanage.SubplaceViewer_FetchPlaceIconAssets(places, token)
 		end
 	end)
 end
@@ -130761,7 +131339,10 @@ SpawnCall(function()
 			perf.autoExecElapsed = os.clock() - autoExecStart
 		end
 	end)
-	NAUIMANAGER.cmdInput.ZIndex = 10
+	NAUIMANAGER.cmdInput.ZIndex = math.max(tonumber(NAUIMANAGER.cmdInput.ZIndex) or 0, 23)
+	if predictionInput then
+		predictionInput.ZIndex = math.max(1, NAUIMANAGER.cmdInput.ZIndex - 1)
+	end
 	NAUIMANAGER.cmdInput.PlaceholderText = isAprilFools() and '🤡 '..adminName..curVer..' 🤡' or NAmanage.getSeasonEmoji()..' '..adminName..curVer..' '..NAmanage.getSeasonEmoji()
 	NAmanage.startAprilPranks()
 end)
@@ -146002,6 +146583,21 @@ end)
 		warn(errBuild)
 	end
 end)
+end))
+
+if not __NARootResult[1] and type(__NARootHost) == "table" then
+	pcall(function()
+		if __NARootPreviousNACaller ~= nil then
+			rawset(__NARootHost, "NACaller", __NARootPreviousNACaller)
+		else
+			rawset(__NARootHost, "NACaller", nil)
+		end
+	end)
+end
+
+if __NARootResult[1] then
+	return table.unpack(__NARootResult, 2, __NARootResult.n)
+end
 
 --[[print(
 
@@ -146022,19 +146618,3 @@ end)
 )]]
 
 -- © 2026 Nameless Admin. All rights reserved. Do not copy, paste, redistribute, or claim as your own.
-
-end))
-
-if not __NARootResult[1] and type(__NARootHost) == "table" then
-	pcall(function()
-		if __NARootPreviousNACaller ~= nil then
-			rawset(__NARootHost, "NACaller", __NARootPreviousNACaller)
-		else
-			rawset(__NARootHost, "NACaller", nil)
-		end
-	end)
-end
-
-if __NARootResult[1] then
-	return table.unpack(__NARootResult, 2, __NARootResult.n)
-end
