@@ -1,6 +1,221 @@
 --!nonstrict
 -- © 2026 Nameless Admin. All rights reserved. Do not copy, paste, redistribute, or claim as your own.
 
+local __NARootHost = (getgenv and getgenv()) or _G or {}
+local __NARootPreviousNACaller = type(__NARootHost) == "table" and rawget(__NARootHost, "NACaller") or nil
+local __NARootErrorState = type(__NARootHost) == "table" and rawget(__NARootHost, "__NAErrorLogState") or nil
+if type(__NARootErrorState) ~= "table" then
+	__NARootErrorState = { lastIndex = 0; rootCount = 0 }
+	if type(__NARootHost) == "table" then
+		pcall(rawset, __NARootHost, "__NAErrorLogState", __NARootErrorState)
+	end
+end
+
+local function __NARootExecutorInfo()
+	local name = "Unknown"
+	local versionValue = "Unknown"
+	if type(identifyexecutor) == "function" then
+		local ok, a, b = pcall(identifyexecutor)
+		if ok then
+			if a ~= nil and tostring(a) ~= "" then name = tostring(a) end
+			if b ~= nil and tostring(b) ~= "" then versionValue = tostring(b) end
+		end
+	end
+	if name == "Unknown" and type(getexecutorname) == "function" then
+		local ok, value = pcall(getexecutorname)
+		if ok and value ~= nil and tostring(value) ~= "" then name = tostring(value) end
+	end
+	if versionValue == "Unknown" and type(getexecutorversion) == "function" then
+		local ok, value = pcall(getexecutorversion)
+		if ok and value ~= nil and tostring(value) ~= "" then versionValue = tostring(value) end
+	end
+	return name, versionValue
+end
+
+local function __NARootDebugInfo(fn)
+	local source = "Unknown"
+	local line = 0
+	local name = "anonymous"
+	if type(debug) == "table" and type(debug.info) == "function" and type(fn) == "function" then
+		pcall(function()
+			local s, l, n = debug.info(fn, "sln")
+			if s ~= nil and tostring(s) ~= "" then source = tostring(s) end
+			if tonumber(l) then line = tonumber(l) end
+			if n ~= nil and tostring(n) ~= "" then name = tostring(n) end
+		end)
+	end
+	return source, line, name
+end
+
+local function __NARootNextErrorPath()
+	local root = "Nameless-Admin"
+	local dir = root.."/ErrorLogs"
+	local maxIndex = tonumber(__NARootErrorState.lastIndex) or 0
+	if type(makefolder) == "function" then
+		pcall(function()
+			if type(isfolder) ~= "function" or not isfolder(root) then makefolder(root) end
+		end)
+		pcall(function()
+			if type(isfolder) ~= "function" or not isfolder(dir) then makefolder(dir) end
+		end)
+	end
+	if type(listfiles) == "function" then
+		local ok, entries = pcall(listfiles, dir)
+		if ok and type(entries) == "table" then
+			for _, entry in entries do
+				local normalized = tostring(entry):gsub("\\", "/")
+				local index = tonumber(normalized:match("NA_Error#(%d+)%.txt$"))
+				if index and index > maxIndex then maxIndex = index end
+			end
+		end
+	end
+	local nextIndex = maxIndex + 1
+	local path = dir.."/NA_Error#"..tostring(nextIndex)..".txt"
+	if type(isfile) == "function" then
+		while isfile(path) do
+			nextIndex += 1
+			path = dir.."/NA_Error#"..tostring(nextIndex)..".txt"
+		end
+	end
+	__NARootErrorState.lastIndex = nextIndex
+	return path, nextIndex
+end
+
+local function __NARootReportError(rawError, tracebackText, context, fn, options)
+	options = type(options) == "table" and options or {}
+	__NARootErrorState.rootCount = (tonumber(__NARootErrorState.rootCount) or 0) + 1
+	local logPath, fileIndex = __NARootNextErrorPath()
+	local execName, execVersion = __NARootExecutorInfo()
+	local fnSource, fnLine, fnName = __NARootDebugInfo(fn)
+	local clientVersion = "Unknown"
+	if type(version) == "function" then
+		local ok, value = pcall(version)
+		if ok and value ~= nil and tostring(value) ~= "" then clientVersion = tostring(value) end
+	end
+	local timestamp = tostring(os.time and os.time() or "Unknown")
+	if type(os.date) == "function" then
+		local ok, value = pcall(os.date, "!%Y-%m-%dT%H:%M:%SZ")
+		if ok and value then timestamp = tostring(value) end
+	end
+	local placeName = "Unknown"
+	local placeId = "Unknown"
+	local gameId = "Unknown"
+	local jobId = "Unknown"
+	pcall(function()
+		placeName = tostring(game.Name or "Unknown")
+		placeId = tostring(game.PlaceId or "Unknown")
+		gameId = tostring(game.GameId or "Unknown")
+		jobId = tostring(game.JobId or "Unknown")
+	end)
+	local platform = "Unknown"
+	pcall(function()
+		local uis = game:GetService("UserInputService")
+		if uis and type(uis.GetPlatform) == "function" then
+			platform = tostring(uis:GetPlatform())
+		end
+	end)
+	local errorId = "NAE-ROOT-"..string.format("%06d", tonumber(fileIndex) or tonumber(__NARootErrorState.rootCount) or 1)
+	local lines = {
+		"[Nameless Admin Root Error Report]";
+		"Error ID: "..errorId;
+		"Error File: NA_Error#"..tostring(fileIndex or "Unknown")..".txt";
+		"Time (UTC): "..timestamp;
+		"Context: "..tostring(context or options.context or "Nameless Admin Main Runtime");
+		"Severity: "..string.upper(tostring(options.severity or "fatal"));
+		"";
+		"Runtime";
+		"Executor: "..execName;
+		"Executor Version: "..execVersion;
+		"Roblox Client: "..clientVersion;
+		"Platform: "..platform;
+		"NA Source: NA testing.lua";
+		"Coverage: Root NACaller";
+		"";
+		"Session";
+		"Place: "..placeName;
+		"PlaceId: "..placeId;
+		"GameId: "..gameId;
+		"JobId: "..jobId;
+		"";
+		"Callback";
+		"Function: "..fnName;
+		"Defined At: "..fnSource..":"..tostring(fnLine);
+		"";
+		"Error";
+		tostring(rawError or "Unknown error");
+		"";
+		"Traceback";
+		tostring(tracebackText or rawError or "Unavailable");
+	}
+	if type(options.details) == "table" then
+		lines[#lines + 1] = ""
+		lines[#lines + 1] = "Additional Context"
+		for key, value in options.details do
+			lines[#lines + 1] = tostring(key)..": "..tostring(value)
+		end
+	end
+	local report = table.concat(lines, "\n")
+	local writer = type(writefile) == "function" and writefile or (type(appendfile) == "function" and appendfile or nil)
+	local saved = false
+	if options.log ~= false and type(writer) == "function" then
+		pcall(function()
+			writer(logPath, report.."\n")
+			saved = true
+		end)
+	end
+	if options.warn ~= false and type(warn) == "function" then
+		pcall(warn, report..(saved and ("\nSaved: "..logPath) or ""))
+	end
+	return report, saved and logPath or nil, errorId
+end
+
+local function __NARootNACaller(fnOrOptions, ...)
+	local options = {}
+	local fn
+	local args
+	if type(fnOrOptions) == "table" and type(select(1, ...)) == "function" then
+		for key, value in fnOrOptions do options[key] = value end
+		fn = select(1, ...)
+		args = table.pack(select(2, ...))
+	else
+		fn = fnOrOptions
+		args = table.pack(...)
+	end
+	if type(fn) ~= "function" then
+		local message = "NACaller expected a function, got "..type(fn)
+		__NARootReportError(message, message, options.context or "NACaller bootstrap", nil, options)
+		return false, message
+	end
+	local rawError
+	local results = table.pack(xpcall(function()
+		return fn(table.unpack(args, 1, args.n))
+	end, function(message)
+		rawError = tostring(message or "Unknown error")
+		if type(debug) == "table" and type(debug.traceback) == "function" then
+			local ok, trace = pcall(debug.traceback, rawError, 2)
+			if ok and type(trace) == "string" and trace ~= "" then return trace end
+		end
+		return rawError
+	end))
+	if not results[1] then
+		local trace = tostring(results[2] or rawError or "Unknown error")
+		__NARootReportError(rawError or trace, trace, options.context or "Nameless Admin Main Runtime", fn, options)
+		if options.rethrow == true then error(trace, 0) end
+	end
+	return table.unpack(results, 1, results.n)
+end
+
+if type(__NARootHost) == "table" then
+	pcall(rawset, __NARootHost, "NACaller", __NARootNACaller)
+end
+
+local __NARootResult = table.pack(NACaller({
+	context = "Nameless Admin Main Runtime";
+	severity = "fatal";
+	warn = true;
+	log = true;
+}, function()
+
 const _na_boot = {
 	hostEnv = (getgenv and getgenv()) or _G or {},
 }
@@ -573,10 +788,25 @@ const function runTrackedTask(token, callback, args)
 		NAmanage._runtimeState.spawnActive[running] = nil
 		return
 	end
-	const results = table.pack(pcall(callback, table.unpack(args, 1, args.n)))
+	local rawTaskError
+	const results = table.pack(xpcall(function()
+		return callback(table.unpack(args, 1, args.n))
+	end, function(message)
+		rawTaskError = tostring(message or "Unknown error")
+		if type(debug) == "table" and type(debug.traceback) == "function" then
+			local ok, trace = pcall(debug.traceback, rawTaskError, 2)
+			if ok and type(trace) == "string" and trace ~= "" then return trace end
+		end
+		return rawTaskError
+	end))
 	NAmanage._runtimeState.spawnActive[running] = nil
 	if not results[1] and rawget(_na_env, "_NARunToken") == token and NAmanage._runtimeState.unloading ~= true then
-		error(results[2], 0)
+		const trace = tostring(results[2] or rawTaskError or "Unknown error")
+		if type(NAmanage.NACallerReportExternalError) == "function" then
+			pcall(NAmanage.NACallerReportExternalError, rawTaskError or trace, trace, callback, { context = "NA Tracked Task"; severity = "error" })
+		else
+			__NARootReportError(rawTaskError or trace, trace, "NA Tracked Task", callback, { severity = "error" })
+		end
 	end
 	return table.unpack(results, 2, results.n)
 end
@@ -15809,59 +16039,357 @@ function InstanceNew(c,p)
 	return inst
 end
 
-function NACaller(fn, ...)
-	const args = {...}
+NAStuff.NACallerErrors = type(NAStuff.NACallerErrors) == "table" and NAStuff.NACallerErrors or {}
+NAStuff.NACallerErrorCount = tonumber(NAStuff.NACallerErrorCount) or 0
+NAStuff.NACallerOptions = type(NAStuff.NACallerOptions) == "table" and NAStuff.NACallerOptions or {}
+for key, value in {
+	popup = true;
+	warn = true;
+	notify = false;
+	notifyDuration = 4;
+	log = true;
+	history = true;
+	includeTraceback = true;
+	maxHistory = 50;
+	rethrow = false;
+	silent = false;
+} do
+	if NAStuff.NACallerOptions[key] == nil then
+		NAStuff.NACallerOptions[key] = value
+	end
+end
+
+NAmanage.NACallerConfigure = function(nextOptions)
+	if type(nextOptions) == "table" then
+		for key, value in nextOptions do
+			NAStuff.NACallerOptions[key] = value
+		end
+	end
+	const snapshot = {}
+	for key, value in NAStuff.NACallerOptions do
+		snapshot[key] = value
+	end
+	return snapshot
+end
+
+NAmanage.NACallerGetExecutorInfo = function()
+	local execName = "Unknown"
+	local execVersion = "Unknown"
+	if type(NAmanage.btGetExecutorInfo) == "function" then
+		local ok, info = pcall(NAmanage.btGetExecutorInfo)
+		if ok and type(info) == "table" then
+			if info.name ~= nil and tostring(info.name) ~= "" then
+				execName = tostring(info.name)
+			end
+			if info.version ~= nil and tostring(info.version) ~= "" then
+				execVersion = tostring(info.version)
+			end
+		end
+	end
+	if execName == "Unknown" and type(identifyexecutor) == "function" then
+		local ok, name, versionValue = pcall(identifyexecutor)
+		if ok then
+			if name ~= nil and tostring(name) ~= "" then execName = tostring(name) end
+			if versionValue ~= nil and tostring(versionValue) ~= "" then execVersion = tostring(versionValue) end
+		end
+	end
+	if execName == "Unknown" and type(getexecutorname) == "function" then
+		local ok, value = pcall(getexecutorname)
+		if ok and value ~= nil and tostring(value) ~= "" then execName = tostring(value) end
+	end
+	if execVersion == "Unknown" and type(getexecutorversion) == "function" then
+		local ok, value = pcall(getexecutorversion)
+		if ok and value ~= nil and tostring(value) ~= "" then execVersion = tostring(value) end
+	end
+	return execName, execVersion
+end
+
+NAmanage.NACallerGetDebugInfo = function(fn, callerLevel)
+	const info = {
+		functionName = "anonymous";
+		functionSource = "Unknown";
+		functionLine = -1;
+		callerName = "anonymous";
+		callerSource = "Unknown";
+		callerLine = -1;
+	}
+	if type(debug) == "table" and type(debug.info) == "function" then
+		pcall(function()
+			local source, line, name = debug.info(fn, "sln")
+			if source ~= nil and tostring(source) ~= "" then info.functionSource = tostring(source) end
+			if tonumber(line) then info.functionLine = tonumber(line) end
+			if name ~= nil and tostring(name) ~= "" then info.functionName = tostring(name) end
+		end)
+		pcall(function()
+			local source, line, name = debug.info(tonumber(callerLevel) or 3, "sln")
+			if source ~= nil and tostring(source) ~= "" then info.callerSource = tostring(source) end
+			if tonumber(line) then info.callerLine = tonumber(line) end
+			if name ~= nil and tostring(name) ~= "" then info.callerName = tostring(name) end
+		end)
+	end
+	return info
+end
+
+NAmanage.NACallerGetEnvironmentInfo = function()
+	local platform = "Unknown"
+	if UserInputService then
+		pcall(function()
+			const value = UserInputService:GetPlatform()
+			platform = value and (value.Name or tostring(value)) or platform
+		end)
+	end
+	local clientVersion = "Unknown"
+	if type(version) == "function" then
+		local ok, value = pcall(version)
+		if ok and value ~= nil and tostring(value) ~= "" then clientVersion = tostring(value) end
+	end
+	local timestamp = tostring(os.time and os.time() or "Unknown")
+	if type(os.date) == "function" then
+		local ok, value = pcall(os.date, "!%Y-%m-%dT%H:%M:%SZ")
+		if ok and type(value) == "string" and value ~= "" then timestamp = value end
+	end
+	return {
+		platform = platform;
+		clientVersion = clientVersion;
+		timestamp = timestamp;
+		placeName = tostring(game and game.Name or "Unknown");
+		placeId = tostring(game and game.PlaceId or "Unknown");
+		gameId = tostring(game and game.GameId or "Unknown");
+		jobId = tostring(game and game.JobId or "Unknown");
+	}
+end
+
+NAmanage.NACallerBuildReport = function(rawError, tracebackText, fn, options)
+	options = type(options) == "table" and options or {}
+	NAStuff.NACallerErrorCount = (tonumber(NAStuff.NACallerErrorCount) or 0) + 1
+	const errorId = Format("NAE-%06d", NAStuff.NACallerErrorCount)
+	const execName, execVersion = NAmanage.NACallerGetExecutorInfo()
+	const debugInfo = NAmanage.NACallerGetDebugInfo(fn, 3)
+	const envInfo = NAmanage.NACallerGetEnvironmentInfo()
+	const context = tostring(options.context or options.label or options.name or (debugInfo.callerName ~= "anonymous" and debugInfo.callerName) or "NACaller callback")
+	const mode = (_na_env and _na_env.NATestingVer == true) and tostring(testingName or "NA Testing") or tostring(mainName or adminName or "Nameless Admin")
+	const sourceTag = tostring((_na_env and rawget(_na_env, "__NAKeySource")) or "Unknown")
+	const lines = {
+		"[Nameless Admin Error Report]";
+		"Error ID: "..errorId;
+		"Time (UTC): "..envInfo.timestamp;
+		"Context: "..context;
+		"Severity: "..string.upper(tostring(options.severity or "error"));
+		"";
+		"Runtime";
+		"Executor: "..execName;
+		"Executor Version: "..execVersion;
+		"Roblox Client: "..envInfo.clientVersion;
+		"Platform: "..envInfo.platform;
+		"NA Mode: "..mode;
+		"NA Source: "..sourceTag;
+		"Run Sequence: "..tostring(NAmanage._runtimeState and NAmanage._runtimeState.runSeq or "Unknown");
+		"";
+		"Session";
+		"Place: "..envInfo.placeName;
+		"PlaceId: "..envInfo.placeId;
+		"GameId: "..envInfo.gameId;
+		"JobId: "..envInfo.jobId;
+		"";
+		"Callback";
+		"Function: "..debugInfo.functionName;
+		"Defined At: "..debugInfo.functionSource..":"..tostring(debugInfo.functionLine);
+		"Called From: "..debugInfo.callerSource..":"..tostring(debugInfo.callerLine).." ("..debugInfo.callerName..")";
+		"";
+		"Error";
+		tostring(rawError or "Unknown error");
+	}
+	if type(options.details) == "table" then
+		lines[#lines + 1] = ""
+		lines[#lines + 1] = "Additional Context"
+		for key, value in options.details do
+			lines[#lines + 1] = tostring(key)..": "..tostring(value)
+		end
+	end
+	if options.includeTraceback ~= false then
+		lines[#lines + 1] = ""
+		lines[#lines + 1] = "Traceback"
+		lines[#lines + 1] = tostring(tracebackText or rawError or "Unavailable")
+	end
+	return errorId, context, Concat(lines, "\n")
+end
+
+NAStuff.NACallerFileCount = math.max(tonumber(NAStuff.NACallerFileCount) or 0, tonumber(__NARootErrorState.lastIndex) or 0)
+
+NAmanage.NACallerGetNextLogPath = function(dir)
+	local maxIndex = tonumber(NAStuff.NACallerFileCount) or 0
+	if type(listfiles) == "function" then
+		local ok, entries = pcall(listfiles, dir)
+		if ok and type(entries) == "table" then
+			for _, entry in entries do
+				const normalized = tostring(entry):gsub("\\", "/")
+				const index = tonumber(normalized:match("NA_Error#(%d+)%.txt$"))
+				if index and index > maxIndex then
+					maxIndex = index
+				end
+			end
+		end
+	end
+	local nextIndex = maxIndex + 1
+	local path = dir.."/NA_Error#"..tostring(nextIndex)..".txt"
+	if type(isfile) == "function" then
+		while isfile(path) do
+			nextIndex += 1
+			path = dir.."/NA_Error#"..tostring(nextIndex)..".txt"
+		end
+	end
+	NAStuff.NACallerFileCount = nextIndex
+	__NARootErrorState.lastIndex = math.max(tonumber(__NARootErrorState.lastIndex) or 0, nextIndex)
+	return path
+end
+
+NAmanage.NACallerStoreReport = function(errorId, context, report, options)
+	options = type(options) == "table" and options or {}
+	const history = NAStuff.NACallerErrors
+	if options.history ~= false then
+		history[#history + 1] = {
+			id = errorId;
+			context = context;
+			report = report;
+			time = os.time and os.time() or 0;
+		}
+		const maxHistory = math.clamp(math.floor(tonumber(options.maxHistory) or 50), 1, 250)
+		while #history > maxHistory do
+			table.remove(history, 1)
+		end
+	end
+	const writer = type(writefile) == "function" and writefile or (type(appendfile) == "function" and appendfile or nil)
+	if options.log == false or not FileSupport or type(writer) ~= "function" or not NAfiles or type(NAfiles.NAFILEPATH) ~= "string" then
+		return nil
+	end
+	local logPath
+	local saved = false
+	pcall(function()
+		const root = NAfiles.NAFILEPATH
+		const dir = root.."/ErrorLogs"
+		if type(NAmanage.safeMakeFolder) == "function" then
+			NAmanage.safeMakeFolder(root)
+			NAmanage.safeMakeFolder(dir)
+		elseif type(makefolder) == "function" then
+			if type(isfolder) ~= "function" or not isfolder(root) then pcall(makefolder, root) end
+			if type(isfolder) ~= "function" or not isfolder(dir) then pcall(makefolder, dir) end
+		end
+		logPath = NAmanage.NACallerGetNextLogPath(dir)
+		writer(logPath, report.."\n")
+		saved = true
+	end)
+	return saved and logPath or nil
+end
+
+NAmanage.NACallerReportExternalError = function(rawError, tracebackText, fn, nextOptions)
+	const options = {}
+	for key, value in NAStuff.NACallerOptions do options[key] = value end
+	if type(nextOptions) == "table" then
+		for key, value in nextOptions do options[key] = value end
+	end
+	const errorId, context, report = NAmanage.NACallerBuildReport(rawError, tracebackText, fn, options)
+	const logPath = NAmanage.NACallerStoreReport(errorId, context, report, options)
+	pcall(NAmanage.NACallerShowError, errorId, context, rawError, report, logPath, options)
+	return errorId, context, report, logPath
+end
+
+NAmanage.NACallerShowError = function(errorId, context, rawError, report, logPath, options)
+	options = type(options) == "table" and options or {}
+	if options.silent == true then return end
+	if options.warn ~= false then
+		warn("["..errorId.."] "..tostring(adminName or "NA").." callback error ("..context..")\n"..report)
+	end
+	if options.notify == true and type(DoNotif) == "function" then
+		pcall(DoNotif, errorId.." | "..context.." failed", tonumber(options.notifyDuration) or 4, "NA Error")
+	end
+	if options.popup == false or type(Popup) ~= "function" then return end
+	local shortError = tostring(rawError or "Unknown error")
+	if #shortError > 420 then shortError = shortError:sub(1, 417).."..." end
+	const execName, execVersion = NAmanage.NACallerGetExecutorInfo()
+	local description = errorId.."\n"..context.."\n\n"..shortError.."\n\nExecutor: "..execName.." | "..execVersion
+	if logPath then description ..= "\nLog: "..logPath end
+	Popup({
+		Title = tostring(options.title or ((adminName or "NA").." Error"));
+		Description = description;
+		Buttons = {
+			{
+				Text = "Copy Report";
+				Callback = function()
+					if type(setclipboard) == "function" then
+						pcall(setclipboard, report)
+						if type(DoNotif) == "function" then DoNotif("Full error report copied", 2, errorId) end
+					elseif type(DoWindow) == "function" then
+						DoWindow(report, errorId)
+					else
+						warn(report)
+					end
+				end;
+			};
+			{
+				Text = "View Details";
+				Callback = function()
+					if type(DoWindow) == "function" then
+						DoWindow(report, errorId.." Error Report")
+					else
+						warn(report)
+					end
+				end;
+			};
+			{
+				Text = "Discord Server";
+				Callback = function()
+					const inviteLink = type(NAmanage._sourceGlyph) == "function" and NAmanage._sourceGlyph(NAStuff.inviteLink) or tostring(NAStuff.inviteLink or "")
+					if type(setclipboard) == "function" then
+						pcall(setclipboard, inviteLink)
+						if type(DoNotif) == "function" then DoNotif("Discord link copied to clipboard", 2) end
+					elseif type(DoWindow) == "function" then
+						DoWindow("Server Invite: "..inviteLink, "Discord Server")
+					end
+				end;
+			};
+		};
+	})
+end
+
+function NACaller(fnOrOptions, ...)
+	const options = {}
+	for key, value in NAStuff.NACallerOptions do
+		options[key] = value
+	end
+	local fn
+	local args
+	if type(fnOrOptions) == "table" and type(select(1, ...)) == "function" then
+		for key, value in fnOrOptions do
+			options[key] = value
+		end
+		fn = select(1, ...)
+		args = table.pack(select(2, ...))
+	else
+		fn = fnOrOptions
+		args = table.pack(...)
+	end
+	if type(fn) ~= "function" then
+		const message = "NACaller expected a function, got "..type(fn)
+		if options.warn ~= false then warn(message) end
+		return false, message
+	end
+	local rawError
 	const function wrapped()
-		return fn(unpack(args))
+		return fn(Unpack(args, 1, args.n))
 	end
 	const t = table.pack(xpcall(wrapped, function(msg)
-		return debug.traceback(msg, 2)
+		rawError = tostring(msg or "Unknown error")
+		if type(debug) == "table" and type(debug.traceback) == "function" then
+			local ok, trace = pcall(debug.traceback, rawError, 2)
+			if ok and type(trace) == "string" and trace ~= "" then return trace end
+		end
+		return rawError
 	end))
 	if not t[1] then
-		const err = t[2]
-		warn(adminName.." script error:\n"..err)
-		if type(Popup) == "function" then
-			Popup({
-				Title       = adminName or "Oops!",
-				Description = Format("Oops! Something went wrong. If this keeps happening or seems serious, please let the owner know.\n\nDetails:\n%s", err),
-				Buttons     = {
-					{
-						Text = "Copy Error",
-						Callback = function()
-							if setclipboard then
-								setclipboard(err)
-								if type(DoNotif) == "function" then
-									DoNotif("Error details copied to clipboard!")
-								end
-							else
-								if type(DoWindow) == "function" then
-									DoWindow("Error details:\n"..err)
-								else
-									warn("Error details:\n"..err)
-								end
-							end
-						end
-					},
-					{
-						Text = "Discord Server",
-						Callback = function()
-							const inviteLink = NAmanage._sourceGlyph(NAStuff.inviteLink)
-							if setclipboard then
-								setclipboard(inviteLink)
-								if type(DoNotif) == "function" then
-									DoNotif("Discord link copied to clipboard!")
-								end
-							else
-								if type(DoWindow) == "function" then
-									DoWindow("Server Invite: "..inviteLink)
-								else
-									warn("Server Invite: "..inviteLink)
-								end
-							end
-						end
-					}
-				}
-			})
+		const tracebackText = tostring(t[2] or rawError or "Unknown error")
+		NAmanage.NACallerReportExternalError(rawError or tracebackText, tracebackText, fn, options)
+		if options.rethrow == true then
+			error(tracebackText, 0)
 		end
 	end
 	return Unpack(t, 1, t.n)
@@ -19620,6 +20148,10 @@ NAmanage.NASettingsGetSchema=function()
 		customTeleportGui = {
 			default = true;
 			coerce = function(value) return NAmanage.NASettingsSchemaState.coerceBoolean(value, true) end;
+		};
+		customTeleportGuiGameTeleports = {
+			default = false;
+			coerce = function(value) return NAmanage.NASettingsSchemaState.coerceBoolean(value, false) end;
 		};
 		cmdInputSafeMode = {
 			default = function() return IsOnPC == true and IsOnMobile ~= true end;
@@ -24476,6 +25008,7 @@ NAStuff.FlyNoVelocityClamp = NAmanage.NASettingsGet("flyNoVelocityClamp") == tru
 NAStuff.CFlyVisualizerOn = NAmanage.NASettingsGet("cFlyVisualizer") ~= false
 NAStuff.LowEndMode = NAmanage.NASettingsGet("lowEndUiMode") == true
 NAStuff.CustomTeleportGuiEnabled = NAmanage.NASettingsGet("customTeleportGui") ~= false
+NAStuff.CustomTeleportGuiGameTeleportsEnabled = NAmanage.NASettingsGet("customTeleportGuiGameTeleports") == true
 NAStuff.PluginAutoLoad = NAmanage.NASettingsGet("pluginAutoLoad") ~= false
 NAStuff.PluginSettingsUIEnabled = NAmanage.NASettingsGet("pluginAllowSettingsUI") ~= false
 NAHideStartup = NAmanage.NASettingsGet("hideStartup") == true
@@ -27191,11 +27724,14 @@ NAmanage.prepareTeleportCleanup = NAmanage.prepareTeleportCleanup or function()
 	end
 end
 
-NAStuff.onTP = NAStuff.onTP or LocalPlayer.OnTeleport
-if NAStuff.onTP and typeof(NAStuff.onTP) == "RBXScriptSignal" and not NAStuff.onTPConnected then
+NAStuff.onTP = LocalPlayer.OnTeleport
+if NAStuff.onTP and typeof(NAStuff.onTP) == "RBXScriptSignal" then
+	if NAStuff.onTPConnection then
+		pcall(function() NAStuff.onTPConnection:Disconnect() end)
+	end
 	NAStuff.onTPConnected = true
 	pcall(function()
-		NAStuff.onTP:Connect(function(...)
+		NAStuff.onTPConnection = NAStuff.onTP:Connect(function(...)
 			const tpState = select(1, ...)
 			const stateName = (typeof(tpState) == "EnumItem" and tpState.Name) or tostring(tpState or "")
 			if stateName == "Failed" then
@@ -27205,9 +27741,15 @@ if NAStuff.onTP and typeof(NAStuff.onTP) == "RBXScriptSignal" and not NAStuff.on
 				if type(NAmanage.TeleportGui_Clear) == "function" then
 					pcall(NAmanage.TeleportGui_Clear)
 				end
+				if type(NAmanage.GameTeleportGui_Reset) == "function" then
+					pcall(NAmanage.GameTeleportGui_Reset)
+				end
 				return
 			end
 			if stateName == "RequestedFromServer" or stateName == "Started" or stateName == "WaitingForServer" or stateName == "InProgress" then
+				if type(NAmanage.GameTeleportGui_OnTeleport) == "function" then
+					pcall(NAmanage.GameTeleportGui_OnTeleport, tpState, select(2, ...), select(3, ...))
+				end
 				NAmanage.prepareTeleportCleanup()
 				if not NAStuff._qotQueued then
 					NAStuff._qotQueued = true
@@ -27239,6 +27781,9 @@ if TeleportService and not NAStuff.teleportTransitionFailHook then
 				NAStuff._qotQueued = false
 				if type(NAmanage.TeleportGui_Clear) == "function" then
 					pcall(NAmanage.TeleportGui_Clear)
+				end
+				if type(NAmanage.GameTeleportGui_Reset) == "function" then
+					pcall(NAmanage.GameTeleportGui_Reset)
 				end
 			end
 		end))
@@ -43262,8 +43807,14 @@ else
 	local RBXGeneral = nil
 
 	const function getTextChannelsContainer()
-		const container = TextChatService and __lt.cm("TextChatService", "FindFirstChild", "TextChannels")
-		if typeof(container) == "Instance" then
+		if typeof(TextChatService) ~= "Instance" then
+			return nil
+		end
+		local container
+		local ok = pcall(function()
+			container = TextChatService:FindFirstChild("TextChannels")
+		end)
+		if ok and typeof(container) == "Instance" then
 			return container
 		end
 		return nil
@@ -43430,7 +43981,7 @@ else
 		return nil
 	end
 
-	NACaller(function()
+	NACaller({ context = "TextChat / Channel Resolver" }, function()
 		RBXGeneral = resolveGeneralChannel()
 
 		NAlib.LocalPlayerChat=function(...)
@@ -43508,8 +44059,9 @@ else
 		end
 	end)
 
-	if __lt.cm("TextChatService", "FindFirstChild", "TextChannels") then
-		NAmanage.childAdd(TextChatService.TextChannels, function(v)
+	const textChannelsContainer = getTextChannelsContainer()
+	if textChannelsContainer then
+		NAmanage.childAdd(textChannelsContainer, function(v)
 			if  v:IsA("TextChannel") and Find(v.Name,"RBXWhisper:") then
 				Wait(0.25)
 				for target, entry in chatmsgshooks do
@@ -122344,7 +122896,9 @@ NAmanage.TeleportGui_ApplyStaticState = function(gui)
 	return true
 end
 
-NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action, detail)
+NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action, detail, options)
+	options = type(options) == "table" and options or {}
+	const prearm = options.prearm == true
 	if NAStuff.CustomTeleportGuiEnabled == false or NAStuff.AntiTeleportHooked == true then
 		return nil
 	end
@@ -122738,6 +123292,15 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 	ui.placeTag.ZIndex = 13
 	ui.placeTag.Parent = ui.foreground
 
+	if prearm then
+		pcall(function() ui.gui:SetAttribute("NAGameTeleportPrearmed", true) end)
+		NAmanage.TeleportGui_ApplyStaticState(ui.gui)
+		state.teleportHandoffGui = ui.gui
+		state.teleportGui = nil
+		pcall(TeleportService.SetTeleportGui, TeleportService, ui.gui)
+		return ui.gui
+	end
+
 	const lp = (Players and Players.LocalPlayer) or player
 	const playerGui = lp and (lp:FindFirstChildOfClass("PlayerGui") or lp:FindFirstChild("PlayerGui"))
 	if playerGui then
@@ -123038,6 +123601,198 @@ NAmanage.TeleportServiceCall = function(method, args, meta)
 		NAmanage.TeleportGui_Clear(gui)
 	end
 	return ok, result
+end
+
+NAmanage.GameTeleportGui = type(NAmanage.GameTeleportGui) == "table" and NAmanage.GameTeleportGui or {}
+
+NAmanage.TeleportGui_UpdateDestination = function(gui, placeId, placeName, action, detail)
+	if not gui then return false end
+	placeId = tonumber(placeId) or tonumber(game.PlaceId) or 0
+	local okAlive = pcall(function() return gui.Parent end)
+	if not okAlive then return false end
+	pcall(function()
+		gui.Enabled = true
+		gui:SetAttribute("NADestinationPlaceId", placeId)
+	end)
+	const root = gui:FindFirstChild("Root")
+	const backdrop = root and root:FindFirstChild("Backdrop")
+	const foreground = root and root:FindFirstChild("Foreground")
+	const content = foreground and foreground:FindFirstChild("Content")
+	const statusPill = content and content:FindFirstChild("StatusPill")
+	const actionLabel = statusPill and statusPill:FindFirstChild("Action")
+	const destination = content and content:FindFirstChild("Destination")
+	const info = content and content:FindFirstChild("Info")
+	const footer = content and content:FindFirstChild("Footer")
+	const progressTrack = foreground and foreground:FindFirstChild("ProgressTrack")
+	const runner = progressTrack and progressTrack:FindFirstChild("Runner")
+	const progressCaption = foreground and foreground:FindFirstChild("ProgressCaption")
+	const placeTag = foreground and foreground:FindFirstChild("PlaceTag")
+	if backdrop and backdrop:IsA("ImageLabel") then
+		backdrop.Image = "rbxthumb://type=GameIcon&id="..tostring(placeId).."&w=512&h=512"
+	end
+	if actionLabel and actionLabel:IsA("TextLabel") then
+		actionLabel.Text = string.upper(tostring(action or "GAME TELEPORT"))
+	end
+	if destination and destination:IsA("TextLabel") then
+		destination.Text = tostring(placeName or NAmanage.TeleportGui_GetPlaceName(placeId))
+	end
+	if info and info:IsA("TextLabel") then
+		info.Text = tostring(detail or ("Place ID  "..tostring(placeId)))
+	end
+	if footer and footer:IsA("TextLabel") then
+		footer.Text = "Preparing destination"
+	end
+	if progressCaption and progressCaption:IsA("TextLabel") then
+		progressCaption.Text = "ESTABLISHING CONNECTION"
+	end
+	if placeTag and placeTag:IsA("TextLabel") then
+		placeTag.Text = "PLACE  "..tostring(placeId)
+	end
+	if runner and runner:IsA("Frame") then
+		runner.Position = UDim2.new(-0.22, 0, 0, 0)
+		runner.Size = UDim2.new(0.22, 0, 1, 0)
+	end
+	NAmanage.TeleportGui_ApplyStaticState(gui)
+	return true
+end
+
+NAmanage.GameTeleportGui_Disarm = function()
+	const state = NAmanage.GameTeleportGui
+	const gui = state.prearmedGui
+	state.prearmedGui = nil
+	state.lastGui = nil
+	state.lastPlaceId = nil
+	state.lastAt = 0
+	state.inFlight = false
+	const teleportState = NAmanage.SubplaceViewer
+	if gui then
+		if teleportState and teleportState.teleportHandoffGui == gui then
+			teleportState.teleportHandoffGui = nil
+		end
+		pcall(function() gui:Destroy() end)
+	end
+	if not (teleportState and teleportState.teleportGui and teleportState.teleportGui.Parent) then
+		pcall(TeleportService.SetTeleportGui, TeleportService, nil)
+	end
+end
+
+NAmanage.GameTeleportGui_Arm = function()
+	if NAStuff.CustomTeleportGuiEnabled == false or NAStuff.CustomTeleportGuiGameTeleportsEnabled ~= true or NAStuff.AntiTeleportHooked == true then
+		NAmanage.GameTeleportGui_Disarm()
+		return false
+	end
+	if NAStuff.teleportTransition == true then
+		return false
+	end
+	const state = NAmanage.GameTeleportGui
+	const teleportState = NAmanage.SubplaceViewer
+	if teleportState and teleportState.teleportGui and teleportState.teleportGui.Parent then
+		return false
+	end
+	if state.prearmedGui then
+		local okAlive = pcall(function() return state.prearmedGui.Name end)
+		if okAlive and teleportState and teleportState.teleportHandoffGui == state.prearmedGui then
+			pcall(TeleportService.SetTeleportGui, TeleportService, state.prearmedGui)
+			return true
+		end
+		state.prearmedGui = nil
+	end
+	const gui = NAmanage.SubplaceViewer_CreateTeleportGui(
+		game.PlaceId,
+		tostring(game.Name or "Current place"),
+		"GAME TELEPORT",
+		"Waiting for game teleport",
+		{ prearm = true }
+	)
+	if not gui then
+		return false
+	end
+	state.prearmedGui = gui
+	state.lastGui = nil
+	state.lastPlaceId = nil
+	state.lastAt = 0
+	state.inFlight = false
+	return true
+end
+
+NAmanage.GameTeleportGui_Reset = function()
+	const state = NAmanage.GameTeleportGui
+	state.prearmedGui = nil
+	state.lastPlaceId = nil
+	state.lastAt = 0
+	state.lastGui = nil
+	state.inFlight = false
+	if NAStuff.CustomTeleportGuiEnabled ~= false and NAStuff.CustomTeleportGuiGameTeleportsEnabled == true and NAStuff.AntiTeleportHooked ~= true then
+		Delay(0.25, function()
+			if NAStuff.teleportTransition ~= true then
+				pcall(NAmanage.GameTeleportGui_Arm)
+			end
+		end)
+	end
+end
+
+NAmanage.GameTeleportGui_OnTeleport = function(tpState, placeId, spawnName)
+	if NAStuff.CustomTeleportGuiEnabled == false or NAStuff.CustomTeleportGuiGameTeleportsEnabled ~= true or NAStuff.AntiTeleportHooked == true then
+		return nil
+	end
+	const stateName = (typeof(tpState) == "EnumItem" and tpState.Name) or tostring(tpState or "")
+	if stateName ~= "RequestedFromServer" and stateName ~= "Started" and stateName ~= "WaitingForServer" and stateName ~= "InProgress" then
+		return nil
+	end
+	const teleportState = NAmanage.SubplaceViewer
+	if teleportState and teleportState.teleportGui and teleportState.teleportGui.Parent then
+		return teleportState.teleportGui
+	end
+	placeId = tonumber(placeId)
+	if not placeId or placeId <= 0 then
+		return nil
+	end
+	const state = NAmanage.GameTeleportGui
+	local gui = state.prearmedGui
+	if not gui then
+		pcall(NAmanage.GameTeleportGui_Arm)
+		gui = state.prearmedGui
+	end
+	if not gui then
+		return nil
+	end
+	local detail = "Requested by game"
+	spawnName = tostring(spawnName or "")
+	if spawnName ~= "" then
+		detail = "Requested by game  /  Spawn "..spawnName
+	elseif stateName == "RequestedFromServer" then
+		detail = "Requested by server"
+	end
+	NAmanage.TeleportGui_UpdateDestination(
+		gui,
+		placeId,
+		NAmanage.TeleportGui_GetPlaceName(placeId),
+		"GAME TELEPORT",
+		detail
+	)
+	if not gui.Parent then
+		const lp = (Players and Players.LocalPlayer) or player
+		const playerGui = lp and (lp:FindFirstChildOfClass("PlayerGui") or lp:FindFirstChild("PlayerGui"))
+		if playerGui then
+			pcall(function() gui.Parent = playerGui end)
+		end
+	end
+	if teleportState then
+		teleportState.teleportHandoffGui = gui
+	end
+	state.lastPlaceId = placeId
+	state.lastAt = os.clock()
+	state.lastGui = gui
+	state.inFlight = true
+	return gui
+end
+
+if NAStuff.CustomTeleportGuiGameTeleportsEnabled == true then
+	Delay(1.25, function()
+		if NAStuff.teleportTransition ~= true then
+			pcall(NAmanage.GameTeleportGui_Arm)
+		end
+	end)
 end
 
 NAmanage.SubplaceViewer_UpdateResponsiveLayout = function()
@@ -132215,13 +132970,30 @@ NAmanage.RegisterToggleAutoSync("Low-End UI Mode", function() return NAStuff.Low
 NAgui.addToggle("Custom Teleport Loading Screen", NAStuff.CustomTeleportGuiEnabled ~= false, function(v)
 	NAStuff.CustomTeleportGuiEnabled = v ~= false
 	pcall(NAmanage.NASettingsSet, "customTeleportGui", NAStuff.CustomTeleportGuiEnabled)
-	if not NAStuff.CustomTeleportGuiEnabled and type(NAmanage.TeleportGui_Clear) == "function" then
-		pcall(NAmanage.TeleportGui_Clear)
+	if not NAStuff.CustomTeleportGuiEnabled then
+		if type(NAmanage.GameTeleportGui_Disarm) == "function" then pcall(NAmanage.GameTeleportGui_Disarm) end
+		if type(NAmanage.TeleportGui_Clear) == "function" then pcall(NAmanage.TeleportGui_Clear) end
+	elseif NAStuff.CustomTeleportGuiGameTeleportsEnabled == true and type(NAmanage.GameTeleportGui_Arm) == "function" then
+		pcall(NAmanage.GameTeleportGui_Arm)
 	end
 	DoNotif("Custom teleport loading screen "..(NAStuff.CustomTeleportGuiEnabled and "enabled" or "disabled"), 2)
 end)
 NAmanage.RegisterToggleAutoSync("Custom Teleport Loading Screen", function()
 	return NAStuff.CustomTeleportGuiEnabled ~= false
+end)
+
+NAgui.addToggle("Use Custom UI on Game Teleports", NAStuff.CustomTeleportGuiGameTeleportsEnabled == true, function(v)
+	NAStuff.CustomTeleportGuiGameTeleportsEnabled = v == true
+	pcall(NAmanage.NASettingsSet, "customTeleportGuiGameTeleports", NAStuff.CustomTeleportGuiGameTeleportsEnabled)
+	if NAStuff.CustomTeleportGuiGameTeleportsEnabled then
+		pcall(NAmanage.GameTeleportGui_Arm)
+	elseif type(NAmanage.GameTeleportGui_Disarm) == "function" then
+		pcall(NAmanage.GameTeleportGui_Disarm)
+	end
+	DoNotif("Custom UI on game teleports "..(NAStuff.CustomTeleportGuiGameTeleportsEnabled and "enabled" or "disabled"), 2)
+end)
+NAmanage.RegisterToggleAutoSync("Use Custom UI on Game Teleports", function()
+	return NAStuff.CustomTeleportGuiGameTeleportsEnabled == true
 end)
 
 NAgui.addSection("Admin Utility")
@@ -145246,3 +146018,19 @@ end)
 )]]
 
 -- © 2026 Nameless Admin. All rights reserved. Do not copy, paste, redistribute, or claim as your own.
+
+end))
+
+if type(__NARootHost) == "table" then
+	pcall(function()
+		if __NARootPreviousNACaller ~= nil then
+			rawset(__NARootHost, "NACaller", __NARootPreviousNACaller)
+		else
+			rawset(__NARootHost, "NACaller", nil)
+		end
+	end)
+end
+
+if __NARootResult[1] then
+	return table.unpack(__NARootResult, 2, __NARootResult.n)
+end
