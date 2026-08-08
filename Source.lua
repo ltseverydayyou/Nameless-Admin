@@ -1925,6 +1925,8 @@ local NAStuff = {
 	CmdInputSafeMode = true;
 	HideCmdAutofill = false;
 	LegacyCommandUI = false;
+	LegacyHorizontalSettingsTabs = false;
+	SettingsSidebarCompactMode = false;
 	CmdIntegrationAutoRun = false;
 	CmdIntegrationLoaded = false;
 	CmdIntegrationLastSource = nil;
@@ -10951,6 +10953,7 @@ const NAfiles = {
 	NATEXTCHATSETTINGSPATH = "Nameless-Admin/TextChatSettings.json";
 	NACUSTOMFONTPATH = "Nameless-Admin/CustomFont";
 	NACUSTOMICONPATH = "Nameless-Admin/CustomIcon";
+	NAWINDOWBACKGROUNDPATH = "Nameless-Admin/WindowBackgrounds";
 	NACOMMANDKEYBINDS = "Nameless-Admin/CommandKeybinds.json";
 	NANOTEPADPATH = "Nameless-Admin/NA-Notepad";
 	NAFLYBINDSPATH = "Nameless-Admin/FlyBinds.json";
@@ -15043,6 +15046,18 @@ NAmanage.ApplyUIScale = function(value, opts)
 		})
 	end
 
+	if NAmanage.SettingsTabLayout and type(NAmanage.SettingsTabLayout.Apply) == "function" then
+		Defer(function()
+			if type(NAmanage.SettingsTabLayout.FitFrameToViewport) == "function" then
+				NAmanage.SettingsTabLayout.FitFrameToViewport()
+			end
+			NAmanage.SettingsTabLayout.Apply()
+			if type(NAmanage.RefreshSettingsResizeHandle) == "function" then
+				NAmanage.RefreshSettingsResizeHandle()
+			end
+		end)
+	end
+
 	return clamped
 end
 
@@ -15865,11 +15880,11 @@ do
 end
 
 if _na_env.NATestingVer then
-	opt.loaderUrl = "https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NA%20testing.lua"
+	opt.loaderUrl="https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NA%20testing.lua"
 	opt.githubUrl="https://api.github.com/repos/ltseverydayyou/Nameless-Admin/commits?path=NA%20testing.lua"
 	opt.NAUILOADER="https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/refs/heads/main/NAUITEST.lua"
 else
-	opt.loaderUrl = "https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/Source.lua"
+	opt.loaderUrl="https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/Source.lua"
 	opt.githubUrl="https://api.github.com/repos/ltseverydayyou/Nameless-Admin/commits?path=Source.lua"
 	opt.NAUILOADER="https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/refs/heads/main/NAUI.lua"
 end
@@ -20193,6 +20208,14 @@ NAmanage.NASettingsGetSchema=function()
 			default = false;
 			coerce = function(value) return NAmanage.NASettingsSchemaState.coerceBoolean(value, false) end;
 		};
+		legacyHorizontalSettingsTabs = {
+			default = false;
+			coerce = function(value) return NAmanage.NASettingsSchemaState.coerceBoolean(value, false) end;
+		};
+		compactVerticalSettingsTabs = {
+			default = false;
+			coerce = function(value) return NAmanage.NASettingsSchemaState.coerceBoolean(value, false) end;
+		};
 		pluginAutoLoad = {
 			default = true;
 			coerce = function(value) return NAmanage.NASettingsSchemaState.coerceBoolean(value, true) end;
@@ -21094,6 +21117,65 @@ NAmanage.NASettingsGetSchema=function()
 				end
 				if type(value) == "number" then return value ~= 0 end
 				return false
+			end;
+		};
+
+		windowBackgroundEnabled = {
+			default = false;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
+			end;
+		};
+		windowBackgroundSource = {
+			default = "";
+			coerce = function(value)
+				if typeof(value) ~= "string" then
+					value = tostring(value or "")
+				end
+				return value:match("^%s*(.-)%s*$") or ""
+			end;
+		};
+		windowBackgroundLocalPath = {
+			default = "";
+			coerce = function(value)
+				if typeof(value) ~= "string" then
+					value = tostring(value or "")
+				end
+				return value:match("^%s*(.-)%s*$") or ""
+			end;
+		};
+		windowBackgroundScaleMode = {
+			default = "Crop";
+			coerce = function(value)
+				const mode = tostring(value or "Crop"):lower()
+				if mode == "fit" then return "Fit" end
+				if mode == "stretch" then return "Stretch" end
+				if mode == "tile" then return "Tile" end
+				return "Crop"
+			end;
+		};
+		windowBackgroundTransparency = {
+			default = 0.3;
+			coerce = function(value)
+				const n = NAmanage.NASettingsSchemaState.clampChannel(value)
+				if n == nil then return 0.3 end
+				return n
+			end;
+		};
+		windowBackgroundTopbarTransparency = {
+			default = 0.3;
+			coerce = function(value)
+				const n = NAmanage.NASettingsSchemaState.clampChannel(value)
+				if n == nil then return 0.3 end
+				return n
+			end;
+		};
+		windowBackgroundContainerTransparency = {
+			default = 0.42;
+			coerce = function(value)
+				const n = NAmanage.NASettingsSchemaState.clampChannel(value)
+				if n == nil then return 0.42 end
+				return n
 			end;
 		};
 		iconInvisible = {
@@ -24895,6 +24977,8 @@ do
 end
 NAStuff.HideCmdAutofill = NAmanage.NASettingsGet("hideCmdAutofill") == true
 NAStuff.LegacyCommandUI = NAmanage.NASettingsGet("legacyCommandUI") == true
+NAStuff.LegacyHorizontalSettingsTabs = NAmanage.NASettingsGet("legacyHorizontalSettingsTabs") == true
+NAStuff.SettingsSidebarCompactMode = NAmanage.NASettingsGet("compactVerticalSettingsTabs") == true
 NAStuff.LoopMethodOptions = { "PostSimulation", "PreSimulation", "RenderStepped", "Heartbeat" }
 NAStuff.LoopMethod = NAmanage.NASettingsGet("loopMethod") or "PostSimulation"
 NAStuff.ManagementAutoRefresh = NAmanage.NASettingsGet("managementAutoRefresh") == true
@@ -43876,6 +43960,9 @@ do
 		if ok then
 			if type(NAmanage.ApplyUserButtonStyles) == "function" then
 				pcall(NAmanage.ApplyUserButtonStyles)
+			end
+			if type(NAmanage.RefreshUserButtonEditor) == "function" then
+				pcall(NAmanage.RefreshUserButtonEditor, { preserveSelection = true })
 			end
 			return result
 		else
@@ -101328,6 +101415,13 @@ NAmanage.ScriptHub.imagePending = type(NAmanage.ScriptHub.imagePending) == "tabl
 NAmanage.ScriptHub.imageGeneration = tonumber(NAmanage.ScriptHub.imageGeneration) or 0
 
 NAmanage.ExecutorWindowSizing = type(NAmanage.ExecutorWindowSizing) == "table" and NAmanage.ExecutorWindowSizing or {}
+NAmanage.ExecutorWindowSizing.GetScale = function()
+	local scale = (NAUIMANAGER and NAUIMANAGER.AUTOSCALER and tonumber(NAUIMANAGER.AUTOSCALER.Scale)) or tonumber(NAUIScale) or 1
+	if not scale or scale <= 0 then
+		scale = 1
+	end
+	return scale
+end
 NAmanage.ExecutorWindowSizing.GetViewport = function()
 	const screenGui = NAStuff and NAStuff.NASCREENGUI
 	if screenGui and screenGui.AbsoluteSize and screenGui.AbsoluteSize.X > 0 and screenGui.AbsoluteSize.Y > 0 then
@@ -101339,15 +101433,25 @@ NAmanage.ExecutorWindowSizing.GetViewport = function()
 	end
 	return Vector2.new(1280, 720)
 end
+NAmanage.ExecutorWindowSizing.GetLogicalViewport = function()
+	const viewport = NAmanage.ExecutorWindowSizing.GetViewport()
+	const scale = NAmanage.ExecutorWindowSizing.GetScale()
+	return Vector2.new(
+		math.max(1, viewport.X / scale),
+		math.max(1, viewport.Y / scale)
+	)
+end
 NAmanage.ExecutorWindowSizing.GetSafePad = function()
-	local x, y = 12, 12
+	const scale = NAmanage.ExecutorWindowSizing.GetScale()
+	local x = IsOnMobile and 8 or 12
+	local y = IsOnMobile and 8 or 12
 	if GuiService and GuiService.GetGuiInset then
 		local ok, a, b = pcall(function()
 			return GuiService:GetGuiInset()
 		end)
 		if ok and typeof(a) == "Vector2" and typeof(b) == "Vector2" then
-			x += math.max(a.X, b.X)
-			y += math.max(a.Y, b.Y)
+			x += math.max(a.X, b.X) / scale
+			y += math.max(a.Y, b.Y) / scale
 		end
 	end
 	return x, y
@@ -101356,28 +101460,34 @@ NAmanage.ExecutorWindowSizing.IsTouchCompact = function(vp)
 	const touch = UserInputService and UserInputService.TouchEnabled
 	const mouse = UserInputService and UserInputService.MouseEnabled
 	const key = UserInputService and UserInputService.KeyboardEnabled
-	return IsOnMobile or vp.Y < 600 or vp.X < 900 or (touch and not (mouse or key))
+	return IsOnMobile or vp.Y < 620 or vp.X < 900 or (touch and not (mouse or key))
 end
-NAmanage.ExecutorWindowSizing.GetSize = function(baseWidth, baseHeight)
-	const vp = NAmanage.ExecutorWindowSizing.GetViewport()
+NAmanage.ExecutorWindowSizing.GetSize = function(baseWidth, baseHeight, config)
+	config = type(config) == "table" and config or {}
+	const vp = NAmanage.ExecutorWindowSizing.GetLogicalViewport()
 	local padX, padY = NAmanage.ExecutorWindowSizing.GetSafePad()
 	const maxW = math.max(1, math.floor(vp.X - padX * 2 + 0.5))
 	const maxH = math.max(1, math.floor(vp.Y - padY * 2 + 0.5))
 	const mobile = NAmanage.ExecutorWindowSizing.IsTouchCompact(vp)
 	const baseW = math.max(1, tonumber(baseWidth) or 920)
 	const baseH = math.max(1, tonumber(baseHeight) or 540)
-	local capW = mobile and math.floor(maxW * 0.90 + 0.5) or math.min(baseW, maxW)
-	local capH = mobile and math.floor(maxH * 0.90 + 0.5) or math.min(baseH, maxH)
+	const viewportRatio = math.clamp(tonumber(config.viewportRatio) or 0.90, 0.60, 1)
+	local capW = mobile and math.floor(maxW * viewportRatio + 0.5) or math.min(baseW, maxW)
+	local capH = mobile and math.floor(maxH * viewportRatio + 0.5) or math.min(baseH, maxH)
 	capW = math.max(1, capW)
 	capH = math.max(1, capH)
-	local scale = math.min(capW / baseW, capH / baseH, 1)
-	if not scale or scale <= 0 then
-		scale = 1
+	local factor = math.min(capW / baseW, capH / baseH, 1)
+	if not factor or factor <= 0 then
+		factor = 1
 	end
-	local width = math.floor(baseW * scale + 0.5)
-	local height = math.floor(baseH * scale + 0.5)
-	const minW = math.min(mobile and 340 or 680, capW)
-	const minH = math.min(mobile and 280 or 420, capH)
+	local width = math.floor(baseW * factor + 0.5)
+	local height = math.floor(baseH * factor + 0.5)
+	const mobileMinW = tonumber(config.mobileMinWidth) or math.min(baseW * 0.45, 340)
+	const mobileMinH = tonumber(config.mobileMinHeight) or math.min(baseH * 0.52, 280)
+	const desktopMinW = tonumber(config.minWidth) or math.min(baseW * 0.72, 680)
+	const desktopMinH = tonumber(config.minHeight) or math.min(baseH * 0.76, 420)
+	const minW = math.min(mobile and mobileMinW or desktopMinW, capW)
+	const minH = math.min(mobile and mobileMinH or desktopMinH, capH)
 	width = math.clamp(width, minW, capW)
 	height = math.clamp(height, minH, capH)
 	return {
@@ -101389,6 +101499,7 @@ NAmanage.ExecutorWindowSizing.GetSize = function(baseWidth, baseHeight)
 		minWidth = minW;
 		minHeight = minH;
 		mobile = mobile;
+		scale = NAmanage.ExecutorWindowSizing.GetScale();
 	}
 end
 NAmanage.ExecutorWindowSizing.Save = function(frame, sizeXAttr, sizeYAttr)
@@ -101427,7 +101538,7 @@ NAmanage.ExecutorWindowSizing.Apply = function(frame, config)
 	const sizeXAttr = "NA"..key.."SavedSizeX"
 	const sizeYAttr = "NA"..key.."SavedSizeY"
 	const initializedAttr = "NA"..key.."DefaultSized"
-	const metrics = NAmanage.ExecutorWindowSizing.GetSize(config.baseWidth, config.baseHeight)
+	const metrics = NAmanage.ExecutorWindowSizing.GetSize(config.baseWidth, config.baseHeight, config)
 	const initialized = frame.GetAttribute and NAmanage.GetAttr(frame, initializedAttr) == true
 	const currentWidth = tonumber(frame.Size.X.Offset) or 0
 	const currentHeight = tonumber(frame.Size.Y.Offset) or 0
@@ -101446,7 +101557,7 @@ NAmanage.ExecutorWindowSizing.Apply = function(frame, config)
 		end
 	end
 	frame.AnchorPoint = Vector2.new(0, 0)
-	if frame.AbsoluteSize.X ~= targetWidth or frame.AbsoluteSize.Y ~= targetHeight then
+	if frame.AbsoluteSize.X ~= math.floor(targetWidth * metrics.scale + 0.5) or frame.AbsoluteSize.Y ~= math.floor(targetHeight * metrics.scale + 0.5) then
 		frame.Size = UDim2.fromOffset(targetWidth, targetHeight)
 	end
 	if frame.SetAttribute then
@@ -101506,6 +101617,10 @@ NAmanage.ScriptHub_ApplyResponsive = function(center)
 		key = "ScriptHub";
 		baseWidth = 760;
 		baseHeight = 520;
+		minWidth = 560;
+		minHeight = 360;
+		mobileMinWidth = 280;
+		mobileMinHeight = 230;
 		center = center == true;
 	})
 	if not ok then
@@ -102522,6 +102637,15 @@ NAmanage.ScriptHub_Init = function()
 			end)
 		end))
 	end
+	if NAUIMANAGER and NAUIMANAGER.AUTOSCALER then
+		NAlib.connect("NAScriptHubResponsive", NAUIMANAGER.AUTOSCALER:GetPropertyChangedSignal("Scale"):Connect(function()
+			Defer(function()
+				if ui.frame and ui.frame.Parent then
+					NAmanage.ScriptHub_ApplyResponsive(true)
+				end
+			end)
+		end))
+	end
 	if #hub.entries > 0 then
 		NAmanage.ScriptHub_Render()
 	else
@@ -103246,6 +103370,464 @@ TabManager = {
 	lastNonAll = nil
 };
 
+NAmanage.SettingsTabLayout = NAmanage.SettingsTabLayout or {}
+do
+	const layoutState = NAmanage.SettingsTabLayout
+
+	layoutState.IsHorizontal = function()
+		return NAStuff.LegacyHorizontalSettingsTabs == true
+	end
+
+	layoutState.IsCompact = function()
+		return layoutState.IsHorizontal() ~= true and NAStuff.SettingsSidebarCompactMode == true
+	end
+
+	layoutState.GetScale = function()
+		local scale = NAUIMANAGER and NAUIMANAGER.AUTOSCALER and tonumber(NAUIMANAGER.AUTOSCALER.Scale) or tonumber(NAUIScale) or 1
+		if not scale or scale <= 0 then
+			scale = 1
+		end
+		return scale
+	end
+
+	layoutState.CapturePreferredSize = function(force)
+		const frame = NAUIMANAGER and NAUIMANAGER.SettingsFrame
+		if not frame then
+			return layoutState.preferredSize
+		end
+		if not force and layoutState.preferredSize then
+			return layoutState.preferredSize
+		end
+		const size = frame.Size
+		local width = tonumber(size.X.Offset) or 0
+		local height = tonumber(size.Y.Offset) or 0
+		if width <= 0 or height <= 0 then
+			const logical = NAmanage.GetLogicalAbsoluteSize and NAmanage.GetLogicalAbsoluteSize(frame) or Vector2.new(720, 480)
+			width = math.max(1, tonumber(logical.X) or 720)
+			height = math.max(1, tonumber(logical.Y) or 480)
+		end
+		layoutState.preferredSize = Vector2.new(width, height)
+		return layoutState.preferredSize
+	end
+
+	layoutState.FitFrameToViewport = function()
+		const frame = NAUIMANAGER and NAUIMANAGER.SettingsFrame
+		if not frame or layoutState.internalSizeChange == true then
+			return false
+		end
+		if NAmanage.GetAttr and (NAmanage.GetAttr(frame, "NAMenuMaximized") == true or NAmanage.GetAttr(frame, "NAMenuMinimized") == true) then
+			return false
+		end
+		const preferred = layoutState.CapturePreferredSize(false)
+		if not preferred then
+			return false
+		end
+		local viewport = NAStuff and NAStuff.NASCREENGUI and NAStuff.NASCREENGUI.AbsoluteSize or nil
+		if not viewport or viewport.X <= 0 or viewport.Y <= 0 then
+			viewport = Workspace and Workspace.CurrentCamera and Workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
+		end
+		const scale = layoutState.GetScale()
+		const maxWidth = math.max(220, math.floor(((viewport.X - 24) / scale) + 0.5))
+		const maxHeight = math.max(160, math.floor(((viewport.Y - 24) / scale) + 0.5))
+		const targetWidth = math.min(preferred.X, maxWidth)
+		const targetHeight = math.min(preferred.Y, maxHeight)
+		const current = frame.Size
+		if math.abs((tonumber(current.X.Offset) or 0) - targetWidth) < 1 and math.abs((tonumber(current.Y.Offset) or 0) - targetHeight) < 1 then
+			return false
+		end
+		layoutState.internalSizeChange = true
+		frame.Size = UDim2.fromOffset(targetWidth, targetHeight)
+		layoutState.internalSizeChange = false
+		return true
+	end
+
+	layoutState.GetLogicalSize = function(inst, fallback)
+		if inst and type(NAmanage.GetLogicalAbsoluteSize) == "function" then
+			local ok, size = pcall(NAmanage.GetLogicalAbsoluteSize, inst)
+			if ok and typeof(size) == "Vector2" and size.X > 0 and size.Y > 0 then
+				return size
+			end
+		end
+		return fallback or Vector2.new(700, 414)
+	end
+
+	layoutState.StyleButton = function(button, horizontal)
+		if not (button and button:IsA("GuiObject")) then
+			return
+		end
+		const compact = not horizontal and NAStuff.SettingsSidebarCompactMode == true
+		const title = button:FindFirstChild("Title")
+		const interact = button:FindFirstChild("Interact")
+		button.ZIndex = 6
+		if title and title:IsA("GuiObject") then
+			title.ZIndex = 7
+		end
+		if interact and interact:IsA("GuiObject") then
+			interact.ZIndex = 8
+		end
+		if horizontal then
+			button.Size = UDim2.new(0, 124, 0, 32)
+			if title and title:IsA("TextLabel") then
+				title.TextXAlignment = Enum.TextXAlignment.Center
+				title.Position = UDim2.new(0, 5, 0, 0)
+				title.Size = UDim2.new(1, -10, 1, 0)
+			end
+		elseif compact then
+			button.Size = UDim2.new(0, 40, 0, 36)
+			if title and title:IsA("TextLabel") then
+				title.TextXAlignment = Enum.TextXAlignment.Center
+				title.Position = UDim2.new(0, 0, 0, 0)
+				title.Size = UDim2.new(1, 0, 1, 0)
+			end
+		else
+			button.Size = UDim2.new(1, -12, 0, 34)
+			if title and title:IsA("TextLabel") then
+				title.TextXAlignment = Enum.TextXAlignment.Left
+				title.Position = UDim2.new(0, 12, 0, 0)
+				title.Size = UDim2.new(1, -20, 1, 0)
+			end
+		end
+	end
+
+	layoutState.UpdateTabCanvas = function(resetPosition)
+		const tabList = NAUIMANAGER and NAUIMANAGER.SettingsTabs
+		if not (tabList and tabList:IsA("ScrollingFrame")) then
+			return false
+		end
+		const listLayout = tabList:FindFirstChildWhichIsA("UIListLayout")
+		if not listLayout then
+			return false
+		end
+		local scale = NAmanage.GetUIScaleFactor and NAmanage.GetUIScaleFactor(tabList) or layoutState.GetScale()
+		if not scale or scale <= 0 then
+			scale = 1
+		end
+		const content = listLayout.AbsoluteContentSize
+		const padding = tabList:FindFirstChildWhichIsA("UIPadding")
+		local padX = 0
+		local padY = 0
+		if padding then
+			padX = (padding.PaddingLeft.Offset or 0) + (padding.PaddingRight.Offset or 0)
+			padY = (padding.PaddingTop.Offset or 0) + (padding.PaddingBottom.Offset or 0)
+		end
+		const horizontal = layoutState.IsHorizontal()
+		tabList.AutomaticCanvasSize = Enum.AutomaticSize.None
+		if horizontal then
+			const width = math.max(0, math.ceil((content.X / scale) + padX + 2))
+			tabList.CanvasSize = UDim2.fromOffset(width, 0)
+		else
+			const height = math.max(0, math.ceil((content.Y / scale) + padY + 2))
+			tabList.CanvasSize = UDim2.fromOffset(0, height)
+		end
+		Defer(function()
+			if not (tabList and tabList.Parent) then
+				return
+			end
+			pcall(function() tabList:ResetScrollVelocity() end)
+			if resetPosition then
+				tabList.CanvasPosition = Vector2.new(0, 0)
+				return
+			end
+			const maxX = math.max(0, tabList.AbsoluteCanvasSize.X - tabList.AbsoluteWindowSize.X)
+			const maxY = math.max(0, tabList.AbsoluteCanvasSize.Y - tabList.AbsoluteWindowSize.Y)
+			const pos = tabList.CanvasPosition
+			tabList.CanvasPosition = Vector2.new(math.clamp(pos.X, 0, maxX), math.clamp(pos.Y, 0, maxY))
+		end)
+		return true
+	end
+
+	layoutState.SyncTabButtons = function(horizontal)
+		const tabList = NAUIMANAGER and NAUIMANAGER.SettingsTabs
+		if not tabList then
+			return
+		end
+		if TabManager and type(TabManager.tabs) == "table" then
+			for _, info in TabManager.tabs do
+				if info and info.button then
+					if info.button.Parent ~= tabList then
+						info.button.Parent = tabList
+					end
+					info.button.Visible = true
+					layoutState.StyleButton(info.button, horizontal)
+					if originalIO and type(originalIO.applyTabDisplayText) == "function" then
+						originalIO.applyTabDisplayText(info, {
+							isActive = info._isActive,
+							defaultColor = NAUISTROKER or DEFAULT_UI_STROKE_COLOR
+						})
+					end
+				end
+			end
+		end
+	end
+
+	layoutState.EnsureCompactToggleButton = function(sidebar)
+		if not (sidebar and sidebar:IsA("GuiObject")) then
+			return nil
+		end
+		local button = sidebar:FindFirstChild("CompactModeToggle")
+		if button and not button:IsA("TextButton") then
+			pcall(function() button:Destroy() end)
+			button = nil
+		end
+		if not button then
+			button = Instance.new("TextButton")
+			button.Name = "CompactModeToggle"
+			button.AnchorPoint = Vector2.new(0.5, 1)
+			button.Position = UDim2.new(0.5, 0, 1, -7)
+			button.Size = UDim2.new(1, -14, 0, 32)
+			button.BorderSizePixel = 0
+			button.BackgroundColor3 = Color3.fromRGB(31, 32, 42)
+			button.BackgroundTransparency = 0.12
+			button.AutoButtonColor = false
+			button.TextColor3 = Color3.fromRGB(235, 235, 245)
+			button.TextSize = 13
+			button.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal)
+			button.ZIndex = 8
+			button.Parent = sidebar
+
+			const corner = Instance.new("UICorner")
+			corner.CornerRadius = UDim.new(0, 8)
+			corner.Parent = button
+
+			const stroke = Instance.new("UIStroke")
+			stroke.Name = "UIStroker"
+			stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+			stroke.Thickness = 1
+			stroke.Transparency = 0.34
+			stroke.Color = NAUISTROKER or DEFAULT_UI_STROKE_COLOR or Color3.fromRGB(155, 100, 255)
+			stroke.Parent = button
+			if NAgui and type(NAgui.RegisterColoredStroke) == "function" then
+				NAgui.RegisterColoredStroke(stroke)
+			end
+
+			MouseButtonFix(button, function()
+				if layoutState.IsHorizontal() then
+					return
+				end
+				if type(NAmanage.SetSettingsSidebarCompact) == "function" then
+					NAmanage.SetSettingsSidebarCompact(not NAStuff.SettingsSidebarCompactMode, { save = true })
+				else
+					NAStuff.SettingsSidebarCompactMode = not NAStuff.SettingsSidebarCompactMode
+					layoutState.Apply()
+				end
+			end)
+		end
+		return button
+	end
+
+	layoutState.Apply = function(opts)
+		opts = type(opts) == "table" and opts or {}
+		const tabContainer = NAUIMANAGER and NAUIMANAGER.SettingsTabContainer
+		const tabList = NAUIMANAGER and NAUIMANAGER.SettingsTabs
+		const searchBox = NAUIMANAGER and NAUIMANAGER.SettingsSearchBox
+		const pages = NAUIMANAGER and NAUIMANAGER.SettingsPages
+		if not (tabContainer and tabList and searchBox and pages) then
+			return false
+		end
+
+		const horizontal = layoutState.IsHorizontal()
+		const compact = layoutState.IsCompact()
+		const listLayout = tabList:FindFirstChildWhichIsA("UIListLayout")
+		const sidebar = tabContainer:FindFirstChild("SidebarSurface")
+		const compactToggle = layoutState.EnsureCompactToggleButton(sidebar)
+
+		const modeChanged = layoutState.lastHorizontal ~= nil and layoutState.lastHorizontal ~= horizontal
+		layoutState.lastHorizontal = horizontal
+		tabList.AutomaticCanvasSize = Enum.AutomaticSize.None
+		tabList.CanvasSize = UDim2.fromOffset(0, 0)
+		tabList.ElasticBehavior = Enum.ElasticBehavior.Never
+		tabList.ScrollingEnabled = true
+		tabList.ZIndex = 5
+
+		if horizontal then
+			if sidebar and sidebar:IsA("GuiObject") then
+				sidebar.Visible = false
+			end
+			if compactToggle then
+				compactToggle.Visible = false
+			end
+			tabList.Visible = true
+			tabList.ScrollingDirection = Enum.ScrollingDirection.X
+			tabList.Size = UDim2.new(1, -16, 0, 40)
+			tabList.Position = UDim2.new(0, 8, 0, 8)
+			tabList.ScrollBarThickness = 2
+			if listLayout then
+				listLayout.FillDirection = Enum.FillDirection.Horizontal
+				listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+				listLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+				listLayout.Padding = UDim.new(0, 6)
+			end
+			searchBox.Position = UDim2.new(0, 8, 0, 56)
+			searchBox.Size = UDim2.new(1, -16, 0, 36)
+			pages.Position = UDim2.new(0, 8, 0, 100)
+			pages.Size = UDim2.new(1, -16, 1, -108)
+		else
+			const logical = layoutState.GetLogicalSize(tabContainer, Vector2.new(700, 414))
+			const minSidebar = IsOnMobile and 132 or 148
+			const maxSidebar = IsOnMobile and 160 or 190
+			const expandedWidth = math.clamp(math.floor((logical.X * 0.25) + 0.5), minSidebar, maxSidebar)
+			const sidebarWidth = compact and (IsOnMobile and 54 or 58) or expandedWidth
+			const contentX = sidebarWidth + 14
+			if sidebar and sidebar:IsA("GuiObject") then
+				sidebar.Visible = true
+				sidebar.Position = UDim2.new(0, 4, 0, 4)
+				sidebar.Size = UDim2.new(0, sidebarWidth, 1, -8)
+			end
+			if compactToggle then
+				compactToggle.Visible = true
+				compactToggle.Size = compact and UDim2.new(0, 40, 0, 32) or UDim2.new(1, -14, 0, 32)
+				compactToggle.Text = compact and ">>" or "<<  Compact"
+				compactToggle.TextSize = compact and 15 or 13
+			end
+			tabList.Visible = true
+			tabList.ScrollingDirection = Enum.ScrollingDirection.Y
+			tabList.Size = UDim2.new(0, compact and 46 or math.max(104, sidebarWidth - 8), 1, -56)
+			tabList.Position = UDim2.new(0, compact and 6 or 8, 0, 8)
+			tabList.ScrollBarThickness = compact and 0 or 2
+			if listLayout then
+				listLayout.FillDirection = Enum.FillDirection.Vertical
+				listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+				listLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+				listLayout.Padding = UDim.new(0, 5)
+			end
+			searchBox.Position = UDim2.new(0, contentX, 0, 8)
+			searchBox.Size = UDim2.new(1, -(contentX + 8), 0, 36)
+			pages.Position = UDim2.new(0, contentX, 0, 52)
+			pages.Size = UDim2.new(1, -(contentX + 8), 1, -60)
+		end
+
+		layoutState.StyleButton(TabManager and TabManager.template, horizontal)
+		layoutState.SyncTabButtons(horizontal)
+		const resetCanvas = opts.resetCanvas == true or modeChanged
+		if resetCanvas then
+			tabList.CanvasPosition = Vector2.new(0, 0)
+		end
+		Defer(function()
+			if layoutState and type(layoutState.SyncTabButtons) == "function" then
+				layoutState.SyncTabButtons(horizontal)
+			end
+			if layoutState and type(layoutState.UpdateTabCanvas) == "function" then
+				layoutState.UpdateTabCanvas(resetCanvas)
+			end
+		end)
+
+		if NAUIMANAGER.SettingsList and type(updateCanvasSize) == "function" then
+			Defer(function()
+				if NAUIMANAGER and NAUIMANAGER.SettingsList then
+					updateCanvasSize(NAUIMANAGER.SettingsList, layoutState.GetScale())
+				end
+			end)
+		end
+		return true
+	end
+
+	NAmanage.GetSettingsResizeMin = function()
+		const horizontal = layoutState.IsHorizontal()
+		const compact = layoutState.IsCompact()
+		const base = horizontal
+			and (IsOnMobile and Vector2.new(340, 270) or Vector2.new(440, 320))
+			or (compact
+				and (IsOnMobile and Vector2.new(330, 280) or Vector2.new(430, 340))
+				or (IsOnMobile and Vector2.new(390, 300) or Vector2.new(520, 360)))
+		local viewport = NAStuff and NAStuff.NASCREENGUI and NAStuff.NASCREENGUI.AbsoluteSize or nil
+		if not viewport or viewport.X <= 0 or viewport.Y <= 0 then
+			viewport = Workspace and Workspace.CurrentCamera and Workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
+		end
+		const scale = layoutState.GetScale()
+		const maxX = math.max(220, math.floor(((viewport.X - 24) / scale) + 0.5))
+		const maxY = math.max(160, math.floor(((viewport.Y - 24) / scale) + 0.5))
+		return Vector2.new(math.min(base.X, maxX), math.min(base.Y, maxY))
+	end
+
+	NAmanage.RefreshSettingsResizeHandle = function()
+		if NAgui and type(NAgui.resizeable) == "function" and NAUIMANAGER and NAUIMANAGER.SettingsFrame then
+			return NAgui.resizeable(NAUIMANAGER.SettingsFrame, NAmanage.GetSettingsResizeMin(), Vector2.new(5000, 5000))
+		end
+	end
+
+	NAmanage.SetSettingsSidebarCompact = function(enabled, opts)
+		opts = type(opts) == "table" and opts or {}
+		NAStuff.SettingsSidebarCompactMode = enabled == true
+		if opts.save ~= false and type(NAmanage.NASettingsSet) == "function" then
+			pcall(NAmanage.NASettingsSet, "compactVerticalSettingsTabs", NAStuff.SettingsSidebarCompactMode)
+		end
+		layoutState.Apply({ resetCanvas = opts.resetCanvas == true })
+		if opts.refreshResize ~= false then
+			Defer(NAmanage.RefreshSettingsResizeHandle)
+		end
+		return NAStuff.SettingsSidebarCompactMode
+	end
+
+	NAmanage.SetHorizontalSettingsTabs = function(enabled, opts)
+		opts = type(opts) == "table" and opts or {}
+		NAStuff.LegacyHorizontalSettingsTabs = enabled == true
+		if opts.save ~= false and type(NAmanage.NASettingsSet) == "function" then
+			pcall(NAmanage.NASettingsSet, "legacyHorizontalSettingsTabs", NAStuff.LegacyHorizontalSettingsTabs)
+		end
+		layoutState.Apply({ resetCanvas = true })
+		if opts.refreshResize ~= false then
+			Defer(NAmanage.RefreshSettingsResizeHandle)
+		end
+		return NAStuff.LegacyHorizontalSettingsTabs
+	end
+
+	layoutState.CapturePreferredSize(true)
+	layoutState.FitFrameToViewport()
+
+	NAlib.disconnect("NA_SettingsTabLayout")
+	if NAUIMANAGER and NAUIMANAGER.SettingsFrame then
+		NAlib.connect("NA_SettingsTabLayout", NAUIMANAGER.SettingsFrame:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+			layoutState.Apply()
+		end))
+		NAlib.connect("NA_SettingsTabLayout", NAUIMANAGER.SettingsFrame:GetPropertyChangedSignal("Size"):Connect(function()
+			if layoutState.internalSizeChange ~= true and NAmanage.GetAttr and NAmanage.GetAttr(NAUIMANAGER.SettingsFrame, "NAResizeActive") == true then
+				layoutState.CapturePreferredSize(true)
+			end
+		end))
+	end
+	if NAUIMANAGER and NAUIMANAGER.AUTOSCALER then
+		NAlib.connect("NA_SettingsTabLayout", NAUIMANAGER.AUTOSCALER:GetPropertyChangedSignal("Scale"):Connect(function()
+			Defer(function()
+				layoutState.FitFrameToViewport()
+				layoutState.Apply()
+				NAmanage.RefreshSettingsResizeHandle()
+			end)
+		end))
+	end
+	if NAStuff and NAStuff.NASCREENGUI then
+		NAlib.connect("NA_SettingsTabLayout", NAStuff.NASCREENGUI:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+			Defer(function()
+				layoutState.FitFrameToViewport()
+				layoutState.Apply()
+				NAmanage.RefreshSettingsResizeHandle()
+			end)
+		end))
+	end
+	const tabCanvasList = NAUIMANAGER and NAUIMANAGER.SettingsTabs
+	const tabCanvasLayout = tabCanvasList and tabCanvasList:FindFirstChildWhichIsA("UIListLayout")
+	NAlib.disconnect("NA_SettingsTabCanvasContent")
+	NAlib.disconnect("NA_SettingsTabCanvasSize")
+	if tabCanvasLayout then
+		NAlib.connect("NA_SettingsTabCanvasContent", tabCanvasLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+			Defer(function()
+				if layoutState and type(layoutState.UpdateTabCanvas) == "function" then
+					layoutState.UpdateTabCanvas(false)
+				end
+			end)
+		end))
+	end
+	if tabCanvasList then
+		NAlib.connect("NA_SettingsTabCanvasSize", tabCanvasList:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+			Defer(function()
+				if layoutState and type(layoutState.UpdateTabCanvas) == "function" then
+					layoutState.UpdateTabCanvas(false)
+				end
+			end)
+		end))
+	end
+	layoutState.Apply({ resetCanvas = false })
+end
+
 BUILDER_ICON_FONT_PATH = "rbxasset://LuaPackages/Packages/_Index/BuilderIcons/BuilderIcons/BuilderIcons.json"
 
 originalIO.escapeRichTextText = function(text)
@@ -103361,6 +103943,15 @@ originalIO.composeTabTitleText = function(info, opts)
 		isActive = opts.isActive,
 		defaultColor = opts.defaultColor
 	});
+	const iconOnly = opts.iconOnly == true
+		or (NAmanage and NAmanage.SettingsTabLayout and type(NAmanage.SettingsTabLayout.IsCompact) == "function" and NAmanage.SettingsTabLayout.IsCompact());
+	if iconOnly then
+		if iconMarkup then
+			return iconMarkup;
+		end;
+		const fallback = tostring(rawTitle or info.name or "?"):match("^%s*(.)") or "?";
+		return originalIO.escapeRichTextText(fallback);
+	end;
 	if iconMarkup then
 		return iconMarkup .. (iconGap or " ") .. safeDisplay;
 	end;
@@ -105336,6 +105927,9 @@ NAgui.addTab=function(name, options)
 		end
 		button.LayoutOrder = layoutOrder
 		button.Parent = TabManager.holder
+		if NAmanage.SettingsTabLayout and type(NAmanage.SettingsTabLayout.StyleButton) == "function" then
+			NAmanage.SettingsTabLayout.StyleButton(button, NAmanage.SettingsTabLayout.IsHorizontal())
+		end
 		NAgui.RegisterStrokesFromAsync(button)
 		const interact = button:FindFirstChild("Interact") or button
 		MouseButtonFix(interact, function()
@@ -105418,6 +106012,12 @@ NAgui.addTab=function(name, options)
 	end
 
 	const shouldSet = (options and options.default) or not TabManager.current
+	if NAmanage.SettingsTabLayout and type(NAmanage.SettingsTabLayout.UpdateTabCanvas) == "function" then
+		Defer(function()
+			NAmanage.SettingsTabLayout.UpdateTabCanvas(false)
+		end)
+	end
+
 	if shouldSet then
 		NAgui.setTab(name)
 	else
@@ -109180,7 +109780,7 @@ NAmanage.RefreshResizeHandles=function()
 			NAgui.resizeable(NAUIMANAGER.CommandKeybindsFrame, Vector2.new(520, 360), Vector2.new(1400, 920))
 		end
 		if NAUIMANAGER.SettingsFrame then
-			NAgui.resizeable(NAUIMANAGER.SettingsFrame)
+			NAgui.resizeable(NAUIMANAGER.SettingsFrame, NAmanage.GetSettingsResizeMin and NAmanage.GetSettingsResizeMin() or nil, Vector2.new(5000, 5000))
 		end
 		if NAUIMANAGER.WaypointFrame then
 			NAgui.resizeable(NAUIMANAGER.WaypointFrame)
@@ -112680,11 +113280,18 @@ NAgui.addDropdown = function(label, values, defaultValue, callback, opts)
 			rowInteract.ZIndex = 50
 
 			MouseButtonFix(rowInteract, function()
-				if not DropdownSettings.MultipleOptions and Discover(DropdownSettings.CurrentOption, optionValue) then
+				const idx = Discover(DropdownSettings.CurrentOption, optionValue)
+				if not DropdownSettings.MultipleOptions and idx then
+					updateSelectedText()
+					applySelectionColors()
+					fireCallback(DropdownSettings.CurrentOption)
+					if list.Visible then
+						Wait(0.1)
+						closeDropdown()
+					end
 					return
 				end
 
-				const idx = Discover(DropdownSettings.CurrentOption, optionValue)
 				if idx then
 					table.remove(DropdownSettings.CurrentOption, idx)
 				else
@@ -119477,6 +120084,10 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 
 	const topbar = frame:FindFirstChild("Topbar")
 	local settingsButton = topbar and topbar:FindFirstChild("Settings")
+	if settingsButton then
+		settingsButton.AnchorPoint = Vector2.new(1, 0.5)
+		settingsButton.Position = UDim2.new(1, -112, 0.5, 0)
+	end
 	if topbar and not settingsButton then
 		settingsButton = InstanceNew("TextButton")
 		settingsButton.Name = "Settings"
@@ -119490,7 +120101,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		settingsButton.BackgroundTransparency = 0.3
 		settingsButton.Size = UDim2.new(0, 24, 0, 24)
 		settingsButton.Text = "S"
-		settingsButton.Position = UDim2.new(1, -70, 0.5, 0)
+		settingsButton.Position = UDim2.new(1, -112, 0.5, 0)
 		makeCornerAndStroke(settingsButton, 6, 2)
 	end
 
@@ -124912,6 +125523,10 @@ NAmanage.SubplaceViewer_ApplyResponsive = function(center)
 		key = "SubplaceViewer";
 		baseWidth = 780;
 		baseHeight = 530;
+		minWidth = 560;
+		minHeight = 360;
+		mobileMinWidth = 280;
+		mobileMinHeight = 230;
 		center = center == true;
 	})
 	if not ok then
@@ -125464,6 +126079,15 @@ NAmanage.SubplaceViewer_Init = function()
 			end)
 		end))
 	end
+	if NAUIMANAGER and NAUIMANAGER.AUTOSCALER then
+		NAlib.connect("NASubplaceViewerResponsive", NAUIMANAGER.AUTOSCALER:GetPropertyChangedSignal("Scale"):Connect(function()
+			Defer(function()
+				if ui.frame and ui.frame.Parent then
+					NAmanage.SubplaceViewer_ApplyResponsive(true)
+				end
+			end)
+		end))
+	end
 	NAlib.connect("NASubplaceViewer", ui.refresh.Activated:Connect(function() NAmanage.SubplaceViewer_Fetch(true) end))
 	NAlib.connect("NASubplaceViewer", ui.search:GetPropertyChangedSignal("Text"):Connect(function() if state.loaded then NAmanage.SubplaceViewer_Render() end end))
 	NAlib.connect("NASubplaceViewer", ui.filter.Activated:Connect(function()
@@ -125525,6 +126149,59 @@ NAmanage.Notepad_Toggle = function(forceState)
 	return true
 end
 
+NAmanage.StandardWindowResponsive = type(NAmanage.StandardWindowResponsive) == "table" and NAmanage.StandardWindowResponsive or {}
+NAmanage.StandardWindowResponsive.configs = {
+	ChatLogs = { frame = "chatLogsFrame"; baseWidth = 600; baseHeight = 400; minWidth = 420; minHeight = 280; mobileMinWidth = 280; mobileMinHeight = 220; };
+	Console = { frame = "NAconsoleFrame"; baseWidth = 560; baseHeight = 380; minWidth = 400; minHeight = 270; mobileMinWidth = 280; mobileMinHeight = 220; };
+	CommandKeybinds = { frame = "CommandKeybindsFrame"; baseWidth = 640; baseHeight = 470; minWidth = 460; minHeight = 320; mobileMinWidth = 300; mobileMinHeight = 240; };
+	Waypoints = { frame = "WaypointFrame"; baseWidth = 640; baseHeight = 430; minWidth = 460; minHeight = 300; mobileMinWidth = 300; mobileMinHeight = 240; };
+	Binders = { frame = "BindersFrame"; baseWidth = 560; baseHeight = 390; minWidth = 400; minHeight = 280; mobileMinWidth = 280; mobileMinHeight = 220; };
+	Plugins = { frame = "PluginsFrame"; baseWidth = 620; baseHeight = 440; minWidth = 440; minHeight = 300; mobileMinWidth = 300; mobileMinHeight = 240; };
+	Music = { frame = "MusicFrame"; baseWidth = 620; baseHeight = 450; minWidth = 420; minHeight = 290; mobileMinWidth = 300; mobileMinHeight = 240; };
+}
+NAmanage.StandardWindowResponsive.Apply = function(center)
+	for key, config in NAmanage.StandardWindowResponsive.configs do
+		const frame = NAUIMANAGER and NAUIMANAGER[config.frame]
+		if frame and frame.Parent then
+			NAmanage.ExecutorWindowSizing.Apply(frame, {
+				key = key;
+				baseWidth = config.baseWidth;
+				baseHeight = config.baseHeight;
+				minWidth = config.minWidth;
+				minHeight = config.minHeight;
+				mobileMinWidth = config.mobileMinWidth;
+				mobileMinHeight = config.mobileMinHeight;
+				center = true;
+			})
+		end
+	end
+end
+NAmanage.StandardWindowResponsive.Bind = function()
+	NAlib.disconnect("NAStandardWindowsResponsive")
+	if NAStuff and NAStuff.NASCREENGUI then
+		NAlib.connect("NAStandardWindowsResponsive", NAStuff.NASCREENGUI:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+			Defer(function()
+				NAmanage.StandardWindowResponsive.Apply(true)
+			end)
+		end))
+	end
+	if Workspace and Workspace.CurrentCamera then
+		NAlib.connect("NAStandardWindowsResponsive", Workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+			Defer(function()
+				NAmanage.StandardWindowResponsive.Apply(true)
+			end)
+		end))
+	end
+	if NAUIMANAGER and NAUIMANAGER.AUTOSCALER then
+		NAlib.connect("NAStandardWindowsResponsive", NAUIMANAGER.AUTOSCALER:GetPropertyChangedSignal("Scale"):Connect(function()
+			Defer(function()
+				NAmanage.StandardWindowResponsive.Apply(true)
+			end)
+		end))
+	end
+	NAmanage.StandardWindowResponsive.Apply(false)
+end
+
 NAStuff.cmdInputAtInit = NAUIMANAGER and NAUIMANAGER.cmdInput
 NAStuff.keepCmdFocus = false
 if NAStuff.cmdInputAtInit then
@@ -125551,6 +126228,11 @@ const function NAStartupUI(label, _, callback)
 	end)
 end
 
+NAStartupUI("Responsive:StandardWindows", 0, function()
+	if NAmanage.StandardWindowResponsive and NAmanage.StandardWindowResponsive.Bind then
+		NAmanage.StandardWindowResponsive.Bind()
+	end
+end)
 NAStartupUI("Menu:ChatLogs", 0, function() if NAUIMANAGER.chatLogsFrame then NAgui.menuv3(NAUIMANAGER.chatLogsFrame) end end)
 NAStartupUI("Menu:Console", 0.01, function() if NAUIMANAGER.NAconsoleFrame then NAgui.menuv2(NAUIMANAGER.NAconsoleFrame) end end)
 NAStartupUI("Menu:Commands", 0.02, function()
@@ -125615,13 +126297,40 @@ NAStartupUI("Resize:Commands", 0.12, function()
 		end
 	end
 end)
-NAStartupUI("Resize:CommandKeybinds", 0.13, function() if NAUIMANAGER.CommandKeybindsFrame then NAgui.resizeable(NAUIMANAGER.CommandKeybindsFrame, Vector2.new(520, 360), Vector2.new(1400, 920)) end end)
-NAStartupUI("Resize:Settings", 0.14, function() if NAUIMANAGER.SettingsFrame then NAgui.resizeable(NAUIMANAGER.SettingsFrame) end end)
+NAStartupUI("Resize:CommandKeybinds", 0.13, function()
+	if NAUIMANAGER.CommandKeybindsFrame then
+		const metrics = NAmanage.ExecutorWindowSizing.GetSize(640, 470, { minWidth = 460; minHeight = 320; mobileMinWidth = 300; mobileMinHeight = 240; })
+		NAgui.resizeable(NAUIMANAGER.CommandKeybindsFrame, Vector2.new(metrics.minWidth, metrics.minHeight), Vector2.new(1400, 920))
+	end
+end)
+NAStartupUI("Resize:Settings", 0.14, function()
+	if NAUIMANAGER.SettingsFrame then
+		NAgui.resizeable(NAUIMANAGER.SettingsFrame, NAmanage.GetSettingsResizeMin and NAmanage.GetSettingsResizeMin() or nil, Vector2.new(5000, 5000))
+		if NAmanage.SettingsTabLayout and type(NAmanage.SettingsTabLayout.Apply) == "function" then
+			NAmanage.SettingsTabLayout.Apply()
+		end
+	end
+end)
 NAStartupUI("Resize:Waypoints", 0.15, function() if NAUIMANAGER.WaypointFrame then NAgui.resizeable(NAUIMANAGER.WaypointFrame) end end)
 NAStartupUI("Resize:Binders", 0.16, function() if NAUIMANAGER.BindersFrame then NAgui.resizeable(NAUIMANAGER.BindersFrame) end end)
-NAStartupUI("Resize:Music", 0.3, function() if NAUIMANAGER.MusicFrame then NAgui.resizeable(NAUIMANAGER.MusicFrame, Vector2.new(380, 280), Vector2.new(1100, 820)) end end)
-NAStartupUI("Resize:ScriptHub", 0.31, function() if NAUIMANAGER.ScriptHubFrame then NAgui.resizeable(NAUIMANAGER.ScriptHubFrame, IsOnMobile and Vector2.new(340, 280) or Vector2.new(680, 420), Vector2.new(5000, 5000)) end end)
-NAStartupUI("Resize:SubplaceViewer", 0.2, function() if NAUIMANAGER.SubplaceViewerFrame then NAgui.resizeable(NAUIMANAGER.SubplaceViewerFrame, IsOnMobile and Vector2.new(340, 280) or Vector2.new(680, 420), Vector2.new(5000, 5000)) end end)
+NAStartupUI("Resize:Music", 0.3, function()
+	if NAUIMANAGER.MusicFrame then
+		const metrics = NAmanage.ExecutorWindowSizing.GetSize(620, 450, { minWidth = 420; minHeight = 290; mobileMinWidth = 300; mobileMinHeight = 240; })
+		NAgui.resizeable(NAUIMANAGER.MusicFrame, Vector2.new(metrics.minWidth, metrics.minHeight), Vector2.new(1100, 820))
+	end
+end)
+NAStartupUI("Resize:ScriptHub", 0.31, function()
+	if NAUIMANAGER.ScriptHubFrame then
+		const metrics = NAmanage.ExecutorWindowSizing.GetSize(760, 520, { minWidth = 560; minHeight = 360; mobileMinWidth = 280; mobileMinHeight = 230; })
+		NAgui.resizeable(NAUIMANAGER.ScriptHubFrame, Vector2.new(metrics.minWidth, metrics.minHeight), Vector2.new(5000, 5000))
+	end
+end)
+NAStartupUI("Resize:SubplaceViewer", 0.2, function()
+	if NAUIMANAGER.SubplaceViewerFrame then
+		const metrics = NAmanage.ExecutorWindowSizing.GetSize(780, 530, { minWidth = 560; minHeight = 360; mobileMinWidth = 280; mobileMinHeight = 230; })
+		NAgui.resizeable(NAUIMANAGER.SubplaceViewerFrame, Vector2.new(metrics.minWidth, metrics.minHeight), Vector2.new(5000, 5000))
+	end
+end)
 NAStartupUI("Resize:Executor", 0.17, function()
 	if NAUIMANAGER.ExecutorFrame then
 		const exMin = IsOnMobile and Vector2.new(340, 280) or Vector2.new(680, 420)
@@ -134092,6 +134801,14 @@ NAgui.addInput("UI Scale", "0.5 - 2.5", Format("%.2f", NAmanage.ClampUIScale(NAU
 		NAmanage.SyncUIScaleUI({ value = clamped, force = true })
 	end
 end)
+NAgui.addToggle("Legacy Horizontal Settings Tabs", NAStuff.LegacyHorizontalSettingsTabs == true, function(v)
+	const enabled = NAmanage.SetHorizontalSettingsTabs and NAmanage.SetHorizontalSettingsTabs(v, { save = true }) or (v == true)
+	DoNotif("Settings tabs changed to "..(enabled and "horizontal" or "vertical sidebar"), 2)
+end)
+NAmanage.RegisterToggleAutoSync("Legacy Horizontal Settings Tabs", function()
+	return NAStuff.LegacyHorizontalSettingsTabs == true
+end)
+
 NAgui.addToggle("Low-End UI Mode", NAStuff.LowEndMode == true, function(v)
 	NAStuff.LowEndMode = v == true
 	pcall(NAmanage.NASettingsSet, "lowEndUiMode", NAStuff.LowEndMode)
@@ -140506,6 +141223,724 @@ NAmanage.applyIconAppearance()
 NAmanage.applyTopbarStyle()
 NAmanage.applySideSwipeStyle({ rebuild = false })
 
+NAmanage.WindowAppearance = NAmanage.WindowAppearance or {}
+NAStuff.WindowAppearance = NAStuff.WindowAppearance or {}
+
+if NAStuff.WindowAppearance.initialized ~= true then
+	NAStuff.WindowAppearance.enabled = NAmanage.NASettingsGet("windowBackgroundEnabled") == true
+	NAStuff.WindowAppearance.source = tostring(NAmanage.NASettingsGet("windowBackgroundSource") or "")
+	NAStuff.WindowAppearance.localPath = tostring(NAmanage.NASettingsGet("windowBackgroundLocalPath") or "")
+	NAStuff.WindowAppearance.scaleMode = tostring(NAmanage.NASettingsGet("windowBackgroundScaleMode") or "Crop")
+	NAStuff.WindowAppearance.imageTransparency = tonumber(NAmanage.NASettingsGet("windowBackgroundTransparency")) or 0.3
+	NAStuff.WindowAppearance.topbarTransparency = tonumber(NAmanage.NASettingsGet("windowBackgroundTopbarTransparency")) or 0.3
+	NAStuff.WindowAppearance.containerTransparency = tonumber(NAmanage.NASettingsGet("windowBackgroundContainerTransparency")) or 0.42
+	NAStuff.WindowAppearance.pendingInput = NAStuff.WindowAppearance.source
+	NAStuff.WindowAppearance.entries = {}
+	NAStuff.WindowAppearance.index = 0
+	NAStuff.WindowAppearance.initialized = true
+end
+
+NAmanage.WindowAppearance.targetKeys = NAmanage.WindowAppearance.targetKeys or {
+	"SettingsFrame";
+	"commandsFrame";
+	"chatLogsFrame";
+	"NAconsoleFrame";
+	"CommandKeybindsFrame";
+	"WaypointFrame";
+	"BindersFrame";
+	"ExecutorFrame";
+	"NotepadFrame";
+	"PluginsFrame";
+	"MusicFrame";
+	"ScriptHubFrame";
+	"SubplaceViewerFrame";
+}
+
+NAmanage.WindowAppearance.manifestPath = NAfiles.NAWINDOWBACKGROUNDPATH.."/SavedBackgrounds.json"
+
+NAmanage.WindowAppearance.getTargets = function()
+	const result = {}
+	for _, key in NAmanage.WindowAppearance.targetKeys do
+		const frame = NAUIMANAGER and NAUIMANAGER[key]
+		if typeof(frame) == "Instance" and frame:IsA("GuiObject") then
+			result[#result + 1] = frame
+		end
+	end
+	return result
+end
+
+NAmanage.WindowAppearance.scaleType = function(mode)
+	mode = tostring(mode or "Crop")
+	if mode == "Fit" then
+		return Enum.ScaleType.Fit
+	elseif mode == "Stretch" then
+		return Enum.ScaleType.Stretch
+	elseif mode == "Tile" then
+		return Enum.ScaleType.Tile
+	end
+	return Enum.ScaleType.Crop
+end
+
+NAmanage.WindowAppearance.ensureFolder = function()
+	if not (FileSupport and type(writefile) == "function") then
+		return false, "Saved window backgrounds require file support."
+	end
+	return NAmanage.safeMakeFolder(NAfiles.NAWINDOWBACKGROUNDPATH)
+end
+
+NAmanage.WindowAppearance.normalizeUrl = function(value)
+	if type(NAgui.iconNormUrl) == "function" then
+		const normalized = NAgui.iconNormUrl(value)
+		if typeof(normalized) == "string" and normalized ~= "" then
+			return normalized
+		end
+	end
+	if typeof(value) ~= "string" then
+		return nil
+	end
+	value = value:match("^%s*(.-)%s*$") or ""
+	if value:match("^https?://") then
+		return value:gsub(" ", "%%20")
+	end
+	return nil
+end
+
+NAmanage.WindowAppearance.fileNameFromUrl = function(url)
+	local name = tostring(url or ""):match("/([^/%?]+)%??[^/]*$") or "window_background.png"
+	name = name:gsub("%%[%x][%x]", "_"):gsub("[^%w%._%-]", "_")
+	if #name > 96 then
+		name = name:sub(#name - 95)
+	end
+	const extension = name:lower():match("%.([%w]+)$")
+	if extension ~= "png" and extension ~= "jpg" and extension ~= "jpeg" and extension ~= "webp" and extension ~= "bmp" then
+		name ..= ".png"
+	end
+	return name
+end
+
+NAmanage.WindowAppearance.isImageFile = function(name)
+	const ext = tostring(name or ""):lower():match("%.([%w]+)$")
+	return ext == "png" or ext == "jpg" or ext == "jpeg" or ext == "webp" or ext == "bmp"
+end
+
+NAmanage.WindowAppearance.isManagedPath = function(path)
+	if type(path) ~= "string" or path == "" then
+		return false
+	end
+	const normalized = path:gsub("\\", "/")
+	const root = tostring(NAfiles.NAWINDOWBACKGROUNDPATH):gsub("\\", "/")
+	return normalized == root or normalized:sub(1, #root + 1) == root.."/"
+end
+
+NAmanage.WindowAppearance.entryKey = function(entry)
+	if type(entry) ~= "table" then
+		return ""
+	end
+	const localPath = tostring(entry.localPath or "")
+	if localPath ~= "" then
+		return "file:"..localPath:gsub("\\", "/")
+	end
+	return "source:"..tostring(entry.source or "")
+end
+
+NAmanage.WindowAppearance.resolveInput = function(inputValue)
+	local raw = typeof(inputValue) == "string" and inputValue or tostring(inputValue or "")
+	raw = raw:match("^%s*(.-)%s*$") or ""
+	if raw == "" then
+		return false, "Enter a Roblox asset id, image URL, or local image path."
+	end
+
+	const directDigits = raw:match("^rbxassetid://(%d+)$") or raw:match("^%s*(%d+)%s*$")
+	const isRobloxUrl = raw:match("^https?://[^/]*roblox%.com/") ~= nil
+	const robloxDigits = isRobloxUrl and (raw:match("[?&]id=(%d+)") or raw:match("^https?://[^/]*roblox%.com/.-/(%d+)")) or nil
+	const digits = directDigits or robloxDigits
+	if digits then
+		return true, {
+			source = "rbxassetid://"..digits;
+			asset = "rbxassetid://"..digits;
+			localPath = "";
+			name = "Roblox "..digits;
+		}
+	end
+
+	if FileSupport and type(getcustomasset) == "function" and NAmanage.safeIsFile(raw) then
+		local okAsset, asset = pcall(getcustomasset, raw)
+		if okAsset and typeof(asset) == "string" and asset ~= "" then
+			return true, {
+				source = raw;
+				asset = asset;
+				localPath = raw;
+				name = (type(getFName) == "function" and getFName(raw)) or raw:match("([^/\\]+)$") or "Local Background";
+			}
+		end
+		return false, "Unable to load that local image with getcustomasset."
+	end
+
+	const url = NAmanage.WindowAppearance.normalizeUrl(raw)
+	if not url then
+		return false, "Enter a valid Roblox asset id, HTTP(S) image URL, or local image path."
+	end
+	if type(getcustomasset) ~= "function" then
+		return false, "URL backgrounds require getcustomasset support."
+	end
+	local okFolder, folderErr = NAmanage.WindowAppearance.ensureFolder()
+	if not okFolder then
+		return false, folderErr or "Unable to prepare the window background folder."
+	end
+	local okGet, data = NAmanage.HttpGet(url, { timeout = 10 })
+	if not (okGet and typeof(data) == "string" and data ~= "") then
+		return false, "Unable to download the window background image."
+	end
+	const fileName = NAmanage.WindowAppearance.fileNameFromUrl(url)
+	const path = NAfiles.NAWINDOWBACKGROUNDPATH.."/"..fileName
+	local okWrite, writeErr = NAmanage.safeWriteFile(path, data)
+	if not okWrite then
+		return false, writeErr or "Unable to save the window background image."
+	end
+	local okAsset, asset = pcall(getcustomasset, path)
+	if not (okAsset and typeof(asset) == "string" and asset ~= "") then
+		return false, "The image downloaded, but getcustomasset could not load it."
+	end
+	return true, {
+		source = url;
+		asset = asset;
+		localPath = path;
+		name = fileName;
+	}
+end
+
+NAmanage.WindowAppearance.ensureLayer = function(frame)
+	local image = frame:FindFirstChild("NAWindowBackground")
+	if not (image and image:IsA("ImageLabel")) then
+		if image then
+			image:Destroy()
+		end
+		image = Instance.new("ImageLabel")
+		image.Name = "NAWindowBackground"
+		image.Parent = frame
+		image.BackgroundTransparency = 1
+		image.BorderSizePixel = 0
+		image.Position = UDim2.fromScale(0, 0)
+		image.Size = UDim2.fromScale(1, 1)
+		image.ZIndex = 0
+		image.Active = false
+		image.Selectable = false
+		image:SetAttribute("NAWindowBackgroundLayer", true)
+		const corner = Instance.new("UICorner", image)
+		const shellCorner = frame:FindFirstChildWhichIsA("UICorner")
+		corner.CornerRadius = shellCorner and shellCorner.CornerRadius or UDim.new(0, 6)
+	end
+	image.ImageColor3 = Color3.fromRGB(255, 255, 255)
+	const obsoleteOverlay = image:FindFirstChild("NALightnessOverlay")
+	if obsoleteOverlay then
+		obsoleteOverlay:Destroy()
+	end
+	return image
+end
+
+NAmanage.WindowAppearance.captureTransparency = function(item)
+	if not (item and item:IsA("GuiObject")) then
+		return
+	end
+	if item:GetAttribute("NAOriginalBackgroundTransparency") == nil then
+		item:SetAttribute("NAOriginalBackgroundTransparency", item.BackgroundTransparency)
+	end
+end
+
+NAmanage.WindowAppearance.restoreTransparency = function(item)
+	if not (item and item:IsA("GuiObject")) then
+		return
+	end
+	const original = item:GetAttribute("NAOriginalBackgroundTransparency")
+	if type(original) == "number" then
+		item.BackgroundTransparency = original
+	end
+end
+
+NAmanage.WindowAppearance.applyFrame = function(frame)
+	if not (frame and frame:IsA("GuiObject")) then
+		return
+	end
+	const state = NAStuff.WindowAppearance
+	const image = NAmanage.WindowAppearance.ensureLayer(frame)
+	const topbar = frame:FindFirstChild("Topbar")
+	const container = frame:FindFirstChild("Container")
+	NAmanage.WindowAppearance.captureTransparency(topbar)
+	NAmanage.WindowAppearance.captureTransparency(container)
+
+	if state.enabled and typeof(state.runtimeAsset) == "string" and state.runtimeAsset ~= "" then
+		image.Image = state.runtimeAsset
+		image.ImageColor3 = Color3.fromRGB(255, 255, 255)
+		image.ImageTransparency = math.clamp(tonumber(state.imageTransparency) or 0.3, 0, 1)
+		image.ScaleType = NAmanage.WindowAppearance.scaleType(state.scaleMode)
+		image.TileSize = UDim2.fromOffset(160, 160)
+		image.Visible = true
+		if topbar and topbar:IsA("GuiObject") then
+			topbar.BackgroundTransparency = math.clamp(tonumber(state.topbarTransparency) or 0.3, 0, 1)
+		end
+		if container and container:IsA("GuiObject") then
+			container.BackgroundTransparency = math.clamp(tonumber(state.containerTransparency) or 0.42, 0, 1)
+		end
+	else
+		image.Visible = false
+		image.Image = ""
+		image.ImageColor3 = Color3.fromRGB(255, 255, 255)
+		NAmanage.WindowAppearance.restoreTransparency(topbar)
+		NAmanage.WindowAppearance.restoreTransparency(container)
+	end
+end
+
+NAmanage.WindowAppearance.applyAll = function()
+	for _, frame in NAmanage.WindowAppearance.getTargets() do
+		NAmanage.WindowAppearance.applyFrame(frame)
+	end
+end
+
+NAmanage.WindowAppearance.save = function()
+	const state = NAStuff.WindowAppearance
+	const settings = NAmanage.NASettingsEnsure()
+	const schema = NAmanage.NASettingsGetSchema()
+	const values = {
+		windowBackgroundEnabled = state.enabled == true;
+		windowBackgroundSource = tostring(state.source or "");
+		windowBackgroundLocalPath = tostring(state.localPath or "");
+		windowBackgroundScaleMode = tostring(state.scaleMode or "Crop");
+		windowBackgroundTransparency = math.clamp(tonumber(state.imageTransparency) or 0.3, 0, 1);
+		windowBackgroundTopbarTransparency = math.clamp(tonumber(state.topbarTransparency) or 0.3, 0, 1);
+		windowBackgroundContainerTransparency = math.clamp(tonumber(state.containerTransparency) or 0.42, 0, 1);
+	}
+	for key, value in values do
+		const def = schema[key]
+		if def then
+			settings[key] = NAmanage.NASettingsCoerce(def, value)
+		end
+	end
+	NAmanage.NASettingsSave()
+end
+
+NAmanage.WindowAppearance.scheduleSave = function()
+	const state = NAStuff.WindowAppearance
+	state.saveSequence = (tonumber(state.saveSequence) or 0) + 1
+	const sequence = state.saveSequence
+	Delay(0.2, function()
+		if NAStuff.WindowAppearance and NAStuff.WindowAppearance.saveSequence == sequence then
+			NAmanage.WindowAppearance.save()
+		end
+	end)
+end
+
+NAmanage.WindowAppearance.loadLibraryFile = function()
+	if not (FileSupport and NAmanage.safeIsFile(NAmanage.WindowAppearance.manifestPath)) then
+		return {}
+	end
+	local okRead, raw = NAmanage.safeReadFile(NAmanage.WindowAppearance.manifestPath)
+	if not (okRead and type(raw) == "string" and raw ~= "") then
+		return {}
+	end
+	local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+	if not (okDecode and type(decoded) == "table") then
+		return {}
+	end
+	return decoded
+end
+
+NAmanage.WindowAppearance.saveLibrary = function()
+	if not NAmanage.WindowAppearance.ensureFolder() then
+		return false
+	end
+	const payload = {}
+	for _, entry in NAStuff.WindowAppearance.entries or {} do
+		if type(entry) == "table" and tostring(entry.source or "") ~= "" then
+			payload[#payload + 1] = {
+				name = tostring(entry.name or "Background");
+				source = tostring(entry.source or "");
+				localPath = tostring(entry.localPath or "");
+			}
+		end
+	end
+	local okEncode, encoded = pcall(HttpService.JSONEncode, HttpService, payload)
+	if not okEncode then
+		return false
+	end
+	return NAmanage.safeWriteFile(NAmanage.WindowAppearance.manifestPath, encoded)
+end
+
+NAmanage.WindowAppearance.scanLibrary = function()
+	const entries = {}
+	const seenSource = {}
+	const seenPath = {}
+	local manifestChanged = false
+	for _, saved in NAmanage.WindowAppearance.loadLibraryFile() do
+		if type(saved) == "table" then
+			const source = tostring(saved.source or "")
+			const localPath = tostring(saved.localPath or "")
+			local keep = source ~= ""
+			if keep and localPath ~= "" and FileSupport then
+				keep = NAmanage.safeIsFile(localPath) == true
+				if not keep then
+					manifestChanged = true
+				end
+			end
+			if keep then
+				const sourceKey = source:lower()
+				const pathKey = localPath ~= "" and localPath:gsub("\\", "/"):lower() or ""
+				if not seenSource[sourceKey] and (pathKey == "" or not seenPath[pathKey]) then
+					entries[#entries + 1] = {
+						name = tostring(saved.name or "Background");
+						source = source;
+						localPath = localPath;
+					}
+					seenSource[sourceKey] = true
+					if pathKey ~= "" then seenPath[pathKey] = true end
+				end
+			elseif source ~= "" then
+				manifestChanged = true
+			end
+		end
+	end
+
+	if FileSupport and type(listfiles) == "function" and NAmanage.WindowAppearance.ensureFolder() then
+		local okList, items = pcall(listfiles, NAfiles.NAWINDOWBACKGROUNDPATH)
+		if okList and type(items) == "table" then
+			for _, fullPath in items do
+				const name = (type(getFName) == "function" and getFName(fullPath)) or tostring(fullPath):match("([^/\\]+)$")
+				if name and NAmanage.WindowAppearance.isImageFile(name) and NAmanage.safeIsFile(fullPath) then
+					const pathKey = tostring(fullPath):gsub("\\", "/"):lower()
+					if not seenPath[pathKey] then
+						entries[#entries + 1] = {
+							name = name;
+							source = fullPath;
+							localPath = fullPath;
+						}
+						seenPath[pathKey] = true
+						manifestChanged = true
+					end
+				end
+			end
+		end
+	end
+
+	table.sort(entries, function(a, b)
+		return tostring(a.name or ""):lower() < tostring(b.name or ""):lower()
+	end)
+	NAStuff.WindowAppearance.entries = entries
+	if manifestChanged then
+		NAmanage.WindowAppearance.saveLibrary()
+	end
+	return entries
+end
+
+NAmanage.WindowAppearance.currentEntry = function()
+	const state = NAStuff.WindowAppearance
+	const source = tostring(state.source or "")
+	const path = tostring(state.localPath or "")
+	for i, entry in NAStuff.WindowAppearance.entries or {} do
+		if entry and ((path ~= "" and tostring(entry.localPath or "") == path) or (source ~= "" and tostring(entry.source or "") == source)) then
+			return entry, i
+		end
+	end
+	return nil, 0
+end
+
+NAmanage.WindowAppearance.makeCurrentName = function()
+	const state = NAStuff.WindowAppearance
+	if tostring(state.localPath or "") ~= "" then
+		return (type(getFName) == "function" and getFName(state.localPath)) or tostring(state.localPath):match("([^/\\]+)$") or "Local Background"
+	end
+	const digits = tostring(state.source or ""):match("^rbxassetid://(%d+)$")
+	if digits then
+		return "Roblox "..digits
+	end
+	if tostring(state.source or "") ~= "" then
+		return NAmanage.WindowAppearance.fileNameFromUrl(state.source)
+	end
+	return "Background"
+end
+
+NAmanage.WindowAppearance.saveCurrentToLibrary = function()
+	const state = NAStuff.WindowAppearance
+	if tostring(state.source or "") == "" then
+		return false, "No current window background to save."
+	end
+	if not NAmanage.WindowAppearance.ensureFolder() then
+		return false, "Saving multiple backgrounds requires file support."
+	end
+	NAmanage.WindowAppearance.scanLibrary()
+	local existing, existingIndex = NAmanage.WindowAppearance.currentEntry()
+	if existing then
+		existing.name = existing.name or NAmanage.WindowAppearance.makeCurrentName()
+		existing.source = tostring(state.source or existing.source or "")
+		existing.localPath = tostring(state.localPath or existing.localPath or "")
+		NAStuff.WindowAppearance.index = existingIndex
+		NAmanage.WindowAppearance.saveLibrary()
+		return true, existing.name
+	end
+
+	local name = NAmanage.WindowAppearance.makeCurrentName()
+	const base = name
+	local suffix = 2
+	local duplicate = true
+	while duplicate do
+		duplicate = false
+		for _, entry in NAStuff.WindowAppearance.entries or {} do
+			if entry and tostring(entry.name or ""):lower() == name:lower() then
+				duplicate = true
+				name = base.." ("..tostring(suffix)..")"
+				suffix += 1
+				break
+			end
+		end
+	end
+	NAStuff.WindowAppearance.entries[#NAStuff.WindowAppearance.entries + 1] = {
+		name = name;
+		source = tostring(state.source or "");
+		localPath = tostring(state.localPath or "");
+	}
+	NAStuff.WindowAppearance.index = #NAStuff.WindowAppearance.entries
+	NAmanage.WindowAppearance.saveLibrary()
+	return true, name
+end
+
+NAmanage.WindowAppearance.useEntry = function(entry)
+	if type(entry) ~= "table" then
+		return false, "No saved window background selected."
+	end
+	local result
+	const localPath = tostring(entry.localPath or "")
+	const source = tostring(entry.source or "")
+	if localPath ~= "" and FileSupport and type(getcustomasset) == "function" and NAmanage.safeIsFile(localPath) then
+		local okAsset, asset = pcall(getcustomasset, localPath)
+		if okAsset and typeof(asset) == "string" and asset ~= "" then
+			result = { source = source ~= "" and source or localPath; asset = asset; localPath = localPath; name = entry.name }
+		end
+	end
+	if not result and source:match("^rbxassetid://%d+$") then
+		result = { source = source; asset = source; localPath = ""; name = entry.name }
+	end
+	if not result and source ~= "" then
+		local okResolve, resolved = NAmanage.WindowAppearance.resolveInput(source)
+		if okResolve then
+			result = resolved
+		end
+	end
+	if not result then
+		return false, "Saved window background is unavailable."
+	end
+	const state = NAStuff.WindowAppearance
+	state.source = result.source
+	state.localPath = result.localPath or ""
+	state.runtimeAsset = result.asset
+	state.enabled = true
+	NAmanage.WindowAppearance.applyAll()
+	NAmanage.WindowAppearance.save()
+	if NAgui.setToggleState then
+		NAgui.setToggleState("Use Custom Window Background", true, { force = true, fire = false })
+	end
+	return true
+end
+
+NAmanage.WindowAppearance.removeEntry = function(entry)
+	if type(entry) ~= "table" then
+		return false
+	end
+	const state = NAStuff.WindowAppearance
+	const removingCurrent = (tostring(state.localPath or "") ~= "" and tostring(entry.localPath or "") == tostring(state.localPath or ""))
+		or (tostring(state.source or "") ~= "" and tostring(entry.source or "") == tostring(state.source or ""))
+	const localPath = tostring(entry.localPath or "")
+	if localPath ~= "" and NAmanage.WindowAppearance.isManagedPath(localPath) and type(delfile) == "function" and NAmanage.safeIsFile(localPath) then
+		pcall(delfile, localPath)
+	end
+	const kept = {}
+	for _, candidate in NAStuff.WindowAppearance.entries or {} do
+		if candidate ~= entry then
+			kept[#kept + 1] = candidate
+		end
+	end
+	NAStuff.WindowAppearance.entries = kept
+	NAmanage.WindowAppearance.saveLibrary()
+	if removingCurrent then
+		state.enabled = false
+		state.source = ""
+		state.localPath = ""
+		state.runtimeAsset = nil
+		state.pendingInput = ""
+		NAmanage.WindowAppearance.applyAll()
+		NAmanage.WindowAppearance.save()
+		if NAgui.setToggleState then
+			NAgui.setToggleState("Use Custom Window Background", false, { force = true, fire = false })
+		end
+	end
+	NAmanage.WindowAppearance.scanLibrary()
+	return true
+end
+
+NAmanage.WindowAppearance.removeAll = function()
+	if FileSupport and type(listfiles) == "function" and type(delfile) == "function" and NAmanage.WindowAppearance.ensureFolder() then
+		local okList, items = pcall(listfiles, NAfiles.NAWINDOWBACKGROUNDPATH)
+		if okList and type(items) == "table" then
+			for _, fullPath in items do
+				const name = (type(getFName) == "function" and getFName(fullPath)) or tostring(fullPath):match("([^/\\]+)$")
+				if name and NAmanage.WindowAppearance.isImageFile(name) and NAmanage.safeIsFile(fullPath) then
+					pcall(delfile, fullPath)
+				end
+			end
+		end
+		if NAmanage.safeIsFile(NAmanage.WindowAppearance.manifestPath) then
+			pcall(delfile, NAmanage.WindowAppearance.manifestPath)
+		end
+	end
+	NAStuff.WindowAppearance.entries = {}
+	NAStuff.WindowAppearance.index = 0
+	NAStuff.WindowAppearance.enabled = false
+	NAStuff.WindowAppearance.source = ""
+	NAStuff.WindowAppearance.localPath = ""
+	NAStuff.WindowAppearance.runtimeAsset = nil
+	NAStuff.WindowAppearance.pendingInput = ""
+	NAmanage.WindowAppearance.applyAll()
+	NAmanage.WindowAppearance.save()
+	if NAgui.setToggleState then
+		NAgui.setToggleState("Use Custom Window Background", false, { force = true, fire = false })
+	end
+end
+
+NAmanage.WindowAppearance.refreshInfo = function()
+	const info = NAStuff.WindowAppearance.info
+	if not info then
+		return
+	end
+	const state = NAStuff.WindowAppearance
+	const count = #(state.entries or {})
+	local prefix
+	if state.enabled and typeof(state.runtimeAsset) == "string" and state.runtimeAsset ~= "" then
+		prefix = "Enabled • "..tostring(state.scaleMode or "Crop")
+	elseif tostring(state.source or "") ~= "" then
+		prefix = state.enabled and "Saved but unavailable" or "Disabled"
+	else
+		prefix = "No background selected"
+	end
+	info.Text = prefix.." • "..tostring(count).." saved"
+end
+
+NAmanage.WindowAppearance.refreshDropdown = function()
+	const entries = NAStuff.WindowAppearance.entries or {}
+	local options = {}
+	local selected = "None"
+	const current, currentIndex = NAmanage.WindowAppearance.currentEntry()
+	for _, entry in entries do
+		if entry and tostring(entry.name or "") ~= "" then
+			options[#options + 1] = tostring(entry.name)
+		end
+	end
+	if #options == 0 then
+		options = { "None" }
+		NAStuff.WindowAppearance.index = 0
+	elseif current then
+		selected = tostring(current.name or options[1])
+		NAStuff.WindowAppearance.index = currentIndex
+	else
+		local idx = math.floor(tonumber(NAStuff.WindowAppearance.index) or 1)
+		if idx < 1 or idx > #options then
+			idx = 1
+		end
+		selected = options[idx]
+		NAStuff.WindowAppearance.index = idx
+	end
+	if NAgui.setDropdownOptions then
+		NAgui.setDropdownOptions("Select Saved Window Background", options)
+	end
+	if NAgui.setDropdownValue then
+		NAgui.setDropdownValue("Select Saved Window Background", selected, { fire = false })
+	end
+	NAmanage.WindowAppearance.refreshInfo()
+end
+
+NAmanage.WindowAppearance.loadStoredAsset = function()
+	const state = NAStuff.WindowAppearance
+	if typeof(state.localPath) == "string" and state.localPath ~= "" and FileSupport and type(getcustomasset) == "function" and NAmanage.safeIsFile(state.localPath) then
+		local okAsset, asset = pcall(getcustomasset, state.localPath)
+		if okAsset and typeof(asset) == "string" and asset ~= "" then
+			state.runtimeAsset = asset
+			return true
+		end
+	end
+	if typeof(state.source) == "string" then
+		const digits = state.source:match("^rbxassetid://(%d+)$")
+		if digits then
+			state.runtimeAsset = "rbxassetid://"..digits
+			return true
+		end
+	end
+	state.runtimeAsset = nil
+	return false
+end
+
+NAmanage.WindowAppearance.setEnabled = function(value, opts)
+	opts = opts or {}
+	const state = NAStuff.WindowAppearance
+	value = value == true
+	if value and not (typeof(state.runtimeAsset) == "string" and state.runtimeAsset ~= "") then
+		if not NAmanage.WindowAppearance.loadStoredAsset() then
+			if not opts.skipToggle and NAgui.setToggleState then
+				NAgui.setToggleState("Use Custom Window Background", false, { force = true, fire = false })
+			end
+			return false, "Apply or select a window background before enabling it."
+		end
+	end
+	state.enabled = value
+	NAmanage.WindowAppearance.applyAll()
+	NAmanage.WindowAppearance.save()
+	NAmanage.WindowAppearance.refreshInfo()
+	if not opts.skipToggle and NAgui.setToggleState then
+		NAgui.setToggleState("Use Custom Window Background", value, { force = true, fire = false })
+	end
+	return true
+end
+
+NAmanage.WindowAppearance.applyInput = function(inputValue)
+	local ok, result = NAmanage.WindowAppearance.resolveInput(inputValue)
+	if not ok then
+		return false, result
+	end
+	const state = NAStuff.WindowAppearance
+	state.source = result.source
+	state.localPath = result.localPath or ""
+	state.runtimeAsset = result.asset
+	state.pendingInput = ""
+	state.enabled = true
+	NAmanage.WindowAppearance.applyAll()
+	NAmanage.WindowAppearance.save()
+	if NAgui.setToggleState then
+		NAgui.setToggleState("Use Custom Window Background", true, { force = true, fire = false })
+	end
+	NAmanage.WindowAppearance.saveCurrentToLibrary()
+	NAmanage.WindowAppearance.scanLibrary()
+	NAmanage.WindowAppearance.refreshDropdown()
+	return true, result.source
+end
+
+NAmanage.WindowAppearance.clear = function()
+	const state = NAStuff.WindowAppearance
+	state.enabled = false
+	state.source = ""
+	state.localPath = ""
+	state.runtimeAsset = nil
+	state.pendingInput = ""
+	NAmanage.WindowAppearance.applyAll()
+	NAmanage.WindowAppearance.save()
+	NAmanage.WindowAppearance.refreshInfo()
+	if NAgui.setToggleState then
+		NAgui.setToggleState("Use Custom Window Background", false, { force = true, fire = false })
+	end
+	if NAgui.setInputValue then
+		NAgui.setInputValue("Window Background Asset / URL", "", { force = true, fire = false })
+	end
+	NAmanage.WindowAppearance.refreshDropdown()
+end
+
+NAmanage.WindowAppearance.loadStoredAsset()
+NAmanage.WindowAppearance.scanLibrary()
+NAmanage.WindowAppearance.applyAll()
+
 NAgui.addSection("UI Customization")
 
 NAgui.addSlider("NA Icon Size", 0.5, 3, NAScale, 0.01, "", function(val)
@@ -140568,6 +142003,34 @@ NAgui.applyMainColorToRegisteredStrokes=function(color)
 				stroke.Color = color
 			end
 		end
+	end
+end
+
+NAgui.applyMainColorToAccentSurfaces=function(color)
+	if typeof(color) ~= "Color3" then
+		return
+	end
+	if type(NAStuff.WindowAccentSurfaces) ~= "table" then
+		NAStuff.WindowAccentSurfaces = {}
+		if NAStuff.NASCREENGUI then
+			for _, item in NAStuff.NASCREENGUI:GetDescendants() do
+				if item:IsA("GuiObject") and item:GetAttribute("NAAccentSurface") == true then
+					NAStuff.WindowAccentSurfaces[#NAStuff.WindowAccentSurfaces + 1] = item
+				end
+			end
+		end
+	end
+	local writeIndex = 0
+	for i = 1, #NAStuff.WindowAccentSurfaces do
+		const item = NAStuff.WindowAccentSurfaces[i]
+		if typeof(item) == "Instance" and item:IsA("GuiObject") and item.Parent then
+			writeIndex += 1
+			NAStuff.WindowAccentSurfaces[writeIndex] = item
+			item.BackgroundColor3 = color
+		end
+	end
+	for i = writeIndex + 1, #NAStuff.WindowAccentSurfaces do
+		NAStuff.WindowAccentSurfaces[i] = nil
 	end
 end
 
@@ -140660,6 +142123,7 @@ NAgui.addColorPicker("Main Color", mainColorDefault, function(color, meta)
 
 	NAUISTROKER = color
 	NAgui.applyMainColorToRegisteredStrokes(color)
+	NAgui.applyMainColorToAccentSurfaces(color)
 	NAgui.scheduleMainColorTabRefresh(color, meta and meta.context == "init")
 	NAmanage.SideSwipe_UpdateHandleColors(color)
 
@@ -140669,6 +142133,185 @@ NAgui.addColorPicker("Main Color", mainColorDefault, function(color, meta)
 end, {
 	fireOnInit = true,
 })
+
+NAgui.addSection("Window Appearance")
+
+NAStuff.WindowAppearance.info = NAgui.addInfo("Custom Window Background", "No custom window background selected")
+NAmanage.WindowAppearance.refreshInfo()
+
+NAgui.addToggle("Use Custom Window Background", NAStuff.WindowAppearance.enabled == true and typeof(NAStuff.WindowAppearance.runtimeAsset) == "string", function(value)
+	local ok, err = NAmanage.WindowAppearance.setEnabled(value, { skipToggle = true })
+	if not ok then
+		if err then
+			DoNotif(err, 3)
+		end
+		if NAgui.setToggleState then
+			NAgui.setToggleState("Use Custom Window Background", NAStuff.WindowAppearance.enabled == true, { force = true, fire = false })
+		end
+	end
+end)
+
+NAmanage.RegisterToggleAutoSync("Use Custom Window Background", function()
+	return NAStuff.WindowAppearance.enabled == true and typeof(NAStuff.WindowAppearance.runtimeAsset) == "string" and NAStuff.WindowAppearance.runtimeAsset ~= ""
+end)
+
+NAgui.addInput("Window Background Asset / URL", "Asset id, image URL, or local path", NAStuff.WindowAppearance.pendingInput or "", function(text)
+	NAStuff.WindowAppearance.pendingInput = text or ""
+end)
+
+NAgui.addButton("Apply Window Background", function()
+	local ok, result = NAmanage.WindowAppearance.applyInput(NAStuff.WindowAppearance.pendingInput)
+	if not ok then
+		DoNotif(result or "Unable to apply window background.", 3)
+		return
+	end
+	NAStuff.WindowAppearance.pendingInput = ""
+	if NAgui.setInputValue then
+		NAgui.setInputValue("Window Background Asset / URL", "", { force = true, fire = false })
+	end
+	DoNotif("Custom window background applied and saved.", 2)
+end)
+
+NAgui.addDropdown("Select Saved Window Background", { "None" }, "None", function(selection)
+	local selected = type(selection) == "table" and selection[1] or selection
+	selected = tostring(selected or "")
+	if selected == "" or Lower(selected) == "none" then
+		return
+	end
+	local target, targetIndex
+	for i, entry in NAStuff.WindowAppearance.entries or {} do
+		if entry and tostring(entry.name or "") == selected then
+			target = entry
+			targetIndex = i
+			break
+		end
+	end
+	if not target then
+		DoNotif("Selected saved background is missing.", 3)
+		return
+	end
+	local okUse, errUse = NAmanage.WindowAppearance.useEntry(target)
+	if not okUse then
+		DoNotif(errUse or "Unable to apply saved background.", 3)
+		return
+	end
+	NAStuff.WindowAppearance.index = targetIndex or 0
+	NAmanage.WindowAppearance.refreshDropdown()
+	DoNotif('Applied saved background "'..selected..'".', 2)
+end)
+NAmanage.WindowAppearance.refreshDropdown()
+
+NAgui.addButton("Save Current Window Background", function()
+	local okSave, result = NAmanage.WindowAppearance.saveCurrentToLibrary()
+	if not okSave then
+		DoNotif(result or "Unable to save current background.", 3)
+		return
+	end
+	NAmanage.WindowAppearance.scanLibrary()
+	NAmanage.WindowAppearance.refreshDropdown()
+	DoNotif('Saved window background "'..tostring(result)..'".', 2)
+end)
+
+NAgui.addDropdown("Window Background Scale", { "Crop", "Fit", "Stretch", "Tile" }, NAStuff.WindowAppearance.scaleMode or "Crop", function(selection)
+	local picked = type(selection) == "table" and selection[1] or selection
+	picked = tostring(picked or "Crop")
+	if picked ~= "Fit" and picked ~= "Stretch" and picked ~= "Tile" then
+		picked = "Crop"
+	end
+	NAStuff.WindowAppearance.scaleMode = picked
+	NAmanage.WindowAppearance.applyAll()
+	NAmanage.WindowAppearance.scheduleSave()
+	NAmanage.WindowAppearance.refreshInfo()
+end)
+
+NAgui.addSlider("NA Window Background Transparency", 0, 1, NAStuff.WindowAppearance.imageTransparency or 0.3, 0.05, "", function(value)
+	NAStuff.WindowAppearance.imageTransparency = math.clamp(tonumber(value) or 0.3, 0, 1)
+	NAmanage.WindowAppearance.applyAll()
+	NAmanage.WindowAppearance.scheduleSave()
+end)
+
+NAgui.addSlider("Window Topbar Transparency", 0, 1, NAStuff.WindowAppearance.topbarTransparency or 0.3, 0.05, "", function(value)
+	NAStuff.WindowAppearance.topbarTransparency = math.clamp(tonumber(value) or 0.3, 0, 1)
+	NAmanage.WindowAppearance.applyAll()
+	NAmanage.WindowAppearance.scheduleSave()
+end)
+
+NAgui.addSlider("Window Container Transparency", 0, 1, NAStuff.WindowAppearance.containerTransparency or 0.42, 0.05, "", function(value)
+	NAStuff.WindowAppearance.containerTransparency = math.clamp(tonumber(value) or 0.42, 0, 1)
+	NAmanage.WindowAppearance.applyAll()
+	NAmanage.WindowAppearance.scheduleSave()
+end)
+
+NAgui.addButton("Reload Window Backgrounds", function()
+	NAmanage.WindowAppearance.scanLibrary()
+	NAmanage.WindowAppearance.refreshDropdown()
+	DoNotif("Saved window backgrounds reloaded.", 2)
+end)
+
+NAgui.addButton("Delete Selected Window Background", function()
+	local entry = NAmanage.WindowAppearance.currentEntry()
+	if not entry then
+		const idx = tonumber(NAStuff.WindowAppearance.index)
+		entry = idx and (NAStuff.WindowAppearance.entries or {})[idx] or nil
+	end
+	if not entry then
+		DoNotif("No saved window background selected.", 3)
+		return
+	end
+	const label = tostring(entry.name or "Background")
+	if not NAmanage.WindowAppearance.removeEntry(entry) then
+		DoNotif("Unable to delete the selected window background.", 3)
+		return
+	end
+	NAmanage.WindowAppearance.refreshDropdown()
+	DoNotif('Deleted saved background "'..label..'".', 2)
+end)
+
+NAgui.addButton("Remove Window Background...", function()
+	const entries = NAStuff.WindowAppearance.entries or {}
+	if #entries == 0 then
+		DoNotif("No saved window backgrounds.", 3)
+		return
+	end
+	if type(Popup) ~= "function" then
+		DoNotif("Popup UI is unavailable in this session.", 3)
+		return
+	end
+	const buttons = {}
+	for _, entry in entries do
+		const label = tostring(entry.name or "Background")
+		Insert(buttons, {
+			Text = label,
+			Callback = function()
+				NAmanage.WindowAppearance.removeEntry(entry)
+				NAmanage.WindowAppearance.refreshDropdown()
+				DoNotif('Removed saved background "'..label..'".', 2)
+			end,
+		})
+	end
+	Insert(buttons, { Text = "Cancel", Callback = function() end })
+	Popup({
+		Title = "Remove Window Background",
+		Description = "Select a saved background to delete.",
+		Duration = 0,
+		Buttons = buttons,
+	})
+end)
+
+NAgui.addButton("Remove All Window Backgrounds", function()
+	if #(NAStuff.WindowAppearance.entries or {}) == 0 then
+		DoNotif("No saved window backgrounds.", 3)
+		return
+	end
+	NAmanage.WindowAppearance.removeAll()
+	NAmanage.WindowAppearance.refreshDropdown()
+	DoNotif("Removed all saved window backgrounds.", 2)
+end)
+
+NAgui.addButton("Clear Window Background", function()
+	NAmanage.WindowAppearance.clear()
+	DoNotif("Custom window background cleared.", 2)
+end)
 
 NAgui.addSection("Icon Appearance")
 
@@ -143305,6 +144948,9 @@ originalIO.UserBtnEditor=function()
 		if type(NAmanage.RenderUserButtons) == "function" then
 			NAmanage.RenderUserButtons()
 		end
+		if type(NAmanage.RefreshUserButtonEditor) == "function" then
+			NAmanage.RefreshUserButtonEditor({ preserveSelection = true })
+		end
 		DoNotif("User buttons loaded", 2)
 	end)
 
@@ -143731,6 +145377,36 @@ originalIO.UserBtnEditor=function()
 		end
 	end
 
+	NAmanage.RefreshUserButtonEditor = function(opts)
+		opts = opts or {}
+		const ids = collectAllIds()
+		if #ids == 0 then
+			editorState.currentId = nil
+			editorState.currentIndex = 0
+			updateSelectionLabel()
+			return 0
+		end
+
+		local selectedIndex
+		if opts.preserveSelection ~= false and type(editorState.currentId) == "number" then
+			for i, id in ids do
+				if id == editorState.currentId then
+					selectedIndex = i
+					break
+				end
+			end
+		end
+
+		if not selectedIndex then
+			selectedIndex = tonumber(editorState.currentIndex) or 1
+			selectedIndex = math.clamp(math.floor(selectedIndex), 1, #ids)
+			editorState.currentId = ids[selectedIndex]
+		end
+		editorState.currentIndex = selectedIndex
+		updateSelectionLabel()
+		return #ids
+	end
+
 	const function getChildPickerColor(label, fallback)
 		const reg = NAgui and NAgui._colorPickerRegistry
 		const entry = reg and reg[label]
@@ -143803,9 +145479,13 @@ originalIO.UserBtnEditor=function()
 		editorState.currentId = id
 		updateSelectionLabel()
 	end)
-	selectByDelta(0)
-	if refreshButtonDropdown then
-		refreshButtonDropdown()
+	if type(NAmanage.RefreshUserButtonEditor) == "function" then
+		NAmanage.RefreshUserButtonEditor({ preserveSelection = true })
+	else
+		selectByDelta(0)
+		if refreshButtonDropdown then
+			refreshButtonDropdown()
+		end
 	end
 
 	NAgui.addButton("Delete Button", function()

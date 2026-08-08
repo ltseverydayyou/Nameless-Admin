@@ -101434,6 +101434,13 @@ NAmanage.ScriptHub.imagePending = type(NAmanage.ScriptHub.imagePending) == "tabl
 NAmanage.ScriptHub.imageGeneration = tonumber(NAmanage.ScriptHub.imageGeneration) or 0
 
 NAmanage.ExecutorWindowSizing = type(NAmanage.ExecutorWindowSizing) == "table" and NAmanage.ExecutorWindowSizing or {}
+NAmanage.ExecutorWindowSizing.GetScale = function()
+	local scale = (NAUIMANAGER and NAUIMANAGER.AUTOSCALER and tonumber(NAUIMANAGER.AUTOSCALER.Scale)) or tonumber(NAUIScale) or 1
+	if not scale or scale <= 0 then
+		scale = 1
+	end
+	return scale
+end
 NAmanage.ExecutorWindowSizing.GetViewport = function()
 	const screenGui = NAStuff and NAStuff.NASCREENGUI
 	if screenGui and screenGui.AbsoluteSize and screenGui.AbsoluteSize.X > 0 and screenGui.AbsoluteSize.Y > 0 then
@@ -101445,15 +101452,25 @@ NAmanage.ExecutorWindowSizing.GetViewport = function()
 	end
 	return Vector2.new(1280, 720)
 end
+NAmanage.ExecutorWindowSizing.GetLogicalViewport = function()
+	const viewport = NAmanage.ExecutorWindowSizing.GetViewport()
+	const scale = NAmanage.ExecutorWindowSizing.GetScale()
+	return Vector2.new(
+		math.max(1, viewport.X / scale),
+		math.max(1, viewport.Y / scale)
+	)
+end
 NAmanage.ExecutorWindowSizing.GetSafePad = function()
-	local x, y = 12, 12
+	const scale = NAmanage.ExecutorWindowSizing.GetScale()
+	local x = IsOnMobile and 8 or 12
+	local y = IsOnMobile and 8 or 12
 	if GuiService and GuiService.GetGuiInset then
 		local ok, a, b = pcall(function()
 			return GuiService:GetGuiInset()
 		end)
 		if ok and typeof(a) == "Vector2" and typeof(b) == "Vector2" then
-			x += math.max(a.X, b.X)
-			y += math.max(a.Y, b.Y)
+			x += math.max(a.X, b.X) / scale
+			y += math.max(a.Y, b.Y) / scale
 		end
 	end
 	return x, y
@@ -101462,28 +101479,34 @@ NAmanage.ExecutorWindowSizing.IsTouchCompact = function(vp)
 	const touch = UserInputService and UserInputService.TouchEnabled
 	const mouse = UserInputService and UserInputService.MouseEnabled
 	const key = UserInputService and UserInputService.KeyboardEnabled
-	return IsOnMobile or vp.Y < 600 or vp.X < 900 or (touch and not (mouse or key))
+	return IsOnMobile or vp.Y < 620 or vp.X < 900 or (touch and not (mouse or key))
 end
-NAmanage.ExecutorWindowSizing.GetSize = function(baseWidth, baseHeight)
-	const vp = NAmanage.ExecutorWindowSizing.GetViewport()
+NAmanage.ExecutorWindowSizing.GetSize = function(baseWidth, baseHeight, config)
+	config = type(config) == "table" and config or {}
+	const vp = NAmanage.ExecutorWindowSizing.GetLogicalViewport()
 	local padX, padY = NAmanage.ExecutorWindowSizing.GetSafePad()
 	const maxW = math.max(1, math.floor(vp.X - padX * 2 + 0.5))
 	const maxH = math.max(1, math.floor(vp.Y - padY * 2 + 0.5))
 	const mobile = NAmanage.ExecutorWindowSizing.IsTouchCompact(vp)
 	const baseW = math.max(1, tonumber(baseWidth) or 920)
 	const baseH = math.max(1, tonumber(baseHeight) or 540)
-	local capW = mobile and math.floor(maxW * 0.90 + 0.5) or math.min(baseW, maxW)
-	local capH = mobile and math.floor(maxH * 0.90 + 0.5) or math.min(baseH, maxH)
+	const viewportRatio = math.clamp(tonumber(config.viewportRatio) or 0.90, 0.60, 1)
+	local capW = mobile and math.floor(maxW * viewportRatio + 0.5) or math.min(baseW, maxW)
+	local capH = mobile and math.floor(maxH * viewportRatio + 0.5) or math.min(baseH, maxH)
 	capW = math.max(1, capW)
 	capH = math.max(1, capH)
-	local scale = math.min(capW / baseW, capH / baseH, 1)
-	if not scale or scale <= 0 then
-		scale = 1
+	local factor = math.min(capW / baseW, capH / baseH, 1)
+	if not factor or factor <= 0 then
+		factor = 1
 	end
-	local width = math.floor(baseW * scale + 0.5)
-	local height = math.floor(baseH * scale + 0.5)
-	const minW = math.min(mobile and 340 or 680, capW)
-	const minH = math.min(mobile and 280 or 420, capH)
+	local width = math.floor(baseW * factor + 0.5)
+	local height = math.floor(baseH * factor + 0.5)
+	const mobileMinW = tonumber(config.mobileMinWidth) or math.min(baseW * 0.45, 340)
+	const mobileMinH = tonumber(config.mobileMinHeight) or math.min(baseH * 0.52, 280)
+	const desktopMinW = tonumber(config.minWidth) or math.min(baseW * 0.72, 680)
+	const desktopMinH = tonumber(config.minHeight) or math.min(baseH * 0.76, 420)
+	const minW = math.min(mobile and mobileMinW or desktopMinW, capW)
+	const minH = math.min(mobile and mobileMinH or desktopMinH, capH)
 	width = math.clamp(width, minW, capW)
 	height = math.clamp(height, minH, capH)
 	return {
@@ -101495,6 +101518,7 @@ NAmanage.ExecutorWindowSizing.GetSize = function(baseWidth, baseHeight)
 		minWidth = minW;
 		minHeight = minH;
 		mobile = mobile;
+		scale = NAmanage.ExecutorWindowSizing.GetScale();
 	}
 end
 NAmanage.ExecutorWindowSizing.Save = function(frame, sizeXAttr, sizeYAttr)
@@ -101533,7 +101557,7 @@ NAmanage.ExecutorWindowSizing.Apply = function(frame, config)
 	const sizeXAttr = "NA"..key.."SavedSizeX"
 	const sizeYAttr = "NA"..key.."SavedSizeY"
 	const initializedAttr = "NA"..key.."DefaultSized"
-	const metrics = NAmanage.ExecutorWindowSizing.GetSize(config.baseWidth, config.baseHeight)
+	const metrics = NAmanage.ExecutorWindowSizing.GetSize(config.baseWidth, config.baseHeight, config)
 	const initialized = frame.GetAttribute and NAmanage.GetAttr(frame, initializedAttr) == true
 	const currentWidth = tonumber(frame.Size.X.Offset) or 0
 	const currentHeight = tonumber(frame.Size.Y.Offset) or 0
@@ -101552,7 +101576,7 @@ NAmanage.ExecutorWindowSizing.Apply = function(frame, config)
 		end
 	end
 	frame.AnchorPoint = Vector2.new(0, 0)
-	if frame.AbsoluteSize.X ~= targetWidth or frame.AbsoluteSize.Y ~= targetHeight then
+	if frame.AbsoluteSize.X ~= math.floor(targetWidth * metrics.scale + 0.5) or frame.AbsoluteSize.Y ~= math.floor(targetHeight * metrics.scale + 0.5) then
 		frame.Size = UDim2.fromOffset(targetWidth, targetHeight)
 	end
 	if frame.SetAttribute then
@@ -101612,6 +101636,10 @@ NAmanage.ScriptHub_ApplyResponsive = function(center)
 		key = "ScriptHub";
 		baseWidth = 760;
 		baseHeight = 520;
+		minWidth = 560;
+		minHeight = 360;
+		mobileMinWidth = 280;
+		mobileMinHeight = 230;
 		center = center == true;
 	})
 	if not ok then
@@ -102621,6 +102649,15 @@ NAmanage.ScriptHub_Init = function()
 	end
 	if NAStuff and NAStuff.NASCREENGUI then
 		NAlib.connect("NAScriptHubResponsive", NAStuff.NASCREENGUI:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+			Defer(function()
+				if ui.frame and ui.frame.Parent then
+					NAmanage.ScriptHub_ApplyResponsive(true)
+				end
+			end)
+		end))
+	end
+	if NAUIMANAGER and NAUIMANAGER.AUTOSCALER then
+		NAlib.connect("NAScriptHubResponsive", NAUIMANAGER.AUTOSCALER:GetPropertyChangedSignal("Scale"):Connect(function()
 			Defer(function()
 				if ui.frame and ui.frame.Parent then
 					NAmanage.ScriptHub_ApplyResponsive(true)
@@ -120066,6 +120103,10 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 
 	const topbar = frame:FindFirstChild("Topbar")
 	local settingsButton = topbar and topbar:FindFirstChild("Settings")
+	if settingsButton then
+		settingsButton.AnchorPoint = Vector2.new(1, 0.5)
+		settingsButton.Position = UDim2.new(1, -112, 0.5, 0)
+	end
 	if topbar and not settingsButton then
 		settingsButton = InstanceNew("TextButton")
 		settingsButton.Name = "Settings"
@@ -120079,7 +120120,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		settingsButton.BackgroundTransparency = 0.3
 		settingsButton.Size = UDim2.new(0, 24, 0, 24)
 		settingsButton.Text = "S"
-		settingsButton.Position = UDim2.new(1, -70, 0.5, 0)
+		settingsButton.Position = UDim2.new(1, -112, 0.5, 0)
 		makeCornerAndStroke(settingsButton, 6, 2)
 	end
 
@@ -125501,6 +125542,10 @@ NAmanage.SubplaceViewer_ApplyResponsive = function(center)
 		key = "SubplaceViewer";
 		baseWidth = 780;
 		baseHeight = 530;
+		minWidth = 560;
+		minHeight = 360;
+		mobileMinWidth = 280;
+		mobileMinHeight = 230;
 		center = center == true;
 	})
 	if not ok then
@@ -126053,6 +126098,15 @@ NAmanage.SubplaceViewer_Init = function()
 			end)
 		end))
 	end
+	if NAUIMANAGER and NAUIMANAGER.AUTOSCALER then
+		NAlib.connect("NASubplaceViewerResponsive", NAUIMANAGER.AUTOSCALER:GetPropertyChangedSignal("Scale"):Connect(function()
+			Defer(function()
+				if ui.frame and ui.frame.Parent then
+					NAmanage.SubplaceViewer_ApplyResponsive(true)
+				end
+			end)
+		end))
+	end
 	NAlib.connect("NASubplaceViewer", ui.refresh.Activated:Connect(function() NAmanage.SubplaceViewer_Fetch(true) end))
 	NAlib.connect("NASubplaceViewer", ui.search:GetPropertyChangedSignal("Text"):Connect(function() if state.loaded then NAmanage.SubplaceViewer_Render() end end))
 	NAlib.connect("NASubplaceViewer", ui.filter.Activated:Connect(function()
@@ -126114,6 +126168,59 @@ NAmanage.Notepad_Toggle = function(forceState)
 	return true
 end
 
+NAmanage.StandardWindowResponsive = type(NAmanage.StandardWindowResponsive) == "table" and NAmanage.StandardWindowResponsive or {}
+NAmanage.StandardWindowResponsive.configs = {
+	ChatLogs = { frame = "chatLogsFrame"; baseWidth = 600; baseHeight = 400; minWidth = 420; minHeight = 280; mobileMinWidth = 280; mobileMinHeight = 220; };
+	Console = { frame = "NAconsoleFrame"; baseWidth = 560; baseHeight = 380; minWidth = 400; minHeight = 270; mobileMinWidth = 280; mobileMinHeight = 220; };
+	CommandKeybinds = { frame = "CommandKeybindsFrame"; baseWidth = 640; baseHeight = 470; minWidth = 460; minHeight = 320; mobileMinWidth = 300; mobileMinHeight = 240; };
+	Waypoints = { frame = "WaypointFrame"; baseWidth = 640; baseHeight = 430; minWidth = 460; minHeight = 300; mobileMinWidth = 300; mobileMinHeight = 240; };
+	Binders = { frame = "BindersFrame"; baseWidth = 560; baseHeight = 390; minWidth = 400; minHeight = 280; mobileMinWidth = 280; mobileMinHeight = 220; };
+	Plugins = { frame = "PluginsFrame"; baseWidth = 620; baseHeight = 440; minWidth = 440; minHeight = 300; mobileMinWidth = 300; mobileMinHeight = 240; };
+	Music = { frame = "MusicFrame"; baseWidth = 620; baseHeight = 450; minWidth = 420; minHeight = 290; mobileMinWidth = 300; mobileMinHeight = 240; };
+}
+NAmanage.StandardWindowResponsive.Apply = function(center)
+	for key, config in NAmanage.StandardWindowResponsive.configs do
+		const frame = NAUIMANAGER and NAUIMANAGER[config.frame]
+		if frame and frame.Parent then
+			NAmanage.ExecutorWindowSizing.Apply(frame, {
+				key = key;
+				baseWidth = config.baseWidth;
+				baseHeight = config.baseHeight;
+				minWidth = config.minWidth;
+				minHeight = config.minHeight;
+				mobileMinWidth = config.mobileMinWidth;
+				mobileMinHeight = config.mobileMinHeight;
+				center = true;
+			})
+		end
+	end
+end
+NAmanage.StandardWindowResponsive.Bind = function()
+	NAlib.disconnect("NAStandardWindowsResponsive")
+	if NAStuff and NAStuff.NASCREENGUI then
+		NAlib.connect("NAStandardWindowsResponsive", NAStuff.NASCREENGUI:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+			Defer(function()
+				NAmanage.StandardWindowResponsive.Apply(true)
+			end)
+		end))
+	end
+	if Workspace and Workspace.CurrentCamera then
+		NAlib.connect("NAStandardWindowsResponsive", Workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+			Defer(function()
+				NAmanage.StandardWindowResponsive.Apply(true)
+			end)
+		end))
+	end
+	if NAUIMANAGER and NAUIMANAGER.AUTOSCALER then
+		NAlib.connect("NAStandardWindowsResponsive", NAUIMANAGER.AUTOSCALER:GetPropertyChangedSignal("Scale"):Connect(function()
+			Defer(function()
+				NAmanage.StandardWindowResponsive.Apply(true)
+			end)
+		end))
+	end
+	NAmanage.StandardWindowResponsive.Apply(false)
+end
+
 NAStuff.cmdInputAtInit = NAUIMANAGER and NAUIMANAGER.cmdInput
 NAStuff.keepCmdFocus = false
 if NAStuff.cmdInputAtInit then
@@ -126140,6 +126247,11 @@ const function NAStartupUI(label, _, callback)
 	end)
 end
 
+NAStartupUI("Responsive:StandardWindows", 0, function()
+	if NAmanage.StandardWindowResponsive and NAmanage.StandardWindowResponsive.Bind then
+		NAmanage.StandardWindowResponsive.Bind()
+	end
+end)
 NAStartupUI("Menu:ChatLogs", 0, function() if NAUIMANAGER.chatLogsFrame then NAgui.menuv3(NAUIMANAGER.chatLogsFrame) end end)
 NAStartupUI("Menu:Console", 0.01, function() if NAUIMANAGER.NAconsoleFrame then NAgui.menuv2(NAUIMANAGER.NAconsoleFrame) end end)
 NAStartupUI("Menu:Commands", 0.02, function()
@@ -126204,7 +126316,12 @@ NAStartupUI("Resize:Commands", 0.12, function()
 		end
 	end
 end)
-NAStartupUI("Resize:CommandKeybinds", 0.13, function() if NAUIMANAGER.CommandKeybindsFrame then NAgui.resizeable(NAUIMANAGER.CommandKeybindsFrame, Vector2.new(520, 360), Vector2.new(1400, 920)) end end)
+NAStartupUI("Resize:CommandKeybinds", 0.13, function()
+	if NAUIMANAGER.CommandKeybindsFrame then
+		const metrics = NAmanage.ExecutorWindowSizing.GetSize(640, 470, { minWidth = 460; minHeight = 320; mobileMinWidth = 300; mobileMinHeight = 240; })
+		NAgui.resizeable(NAUIMANAGER.CommandKeybindsFrame, Vector2.new(metrics.minWidth, metrics.minHeight), Vector2.new(1400, 920))
+	end
+end)
 NAStartupUI("Resize:Settings", 0.14, function()
 	if NAUIMANAGER.SettingsFrame then
 		NAgui.resizeable(NAUIMANAGER.SettingsFrame, NAmanage.GetSettingsResizeMin and NAmanage.GetSettingsResizeMin() or nil, Vector2.new(5000, 5000))
@@ -126215,9 +126332,24 @@ NAStartupUI("Resize:Settings", 0.14, function()
 end)
 NAStartupUI("Resize:Waypoints", 0.15, function() if NAUIMANAGER.WaypointFrame then NAgui.resizeable(NAUIMANAGER.WaypointFrame) end end)
 NAStartupUI("Resize:Binders", 0.16, function() if NAUIMANAGER.BindersFrame then NAgui.resizeable(NAUIMANAGER.BindersFrame) end end)
-NAStartupUI("Resize:Music", 0.3, function() if NAUIMANAGER.MusicFrame then NAgui.resizeable(NAUIMANAGER.MusicFrame, Vector2.new(380, 280), Vector2.new(1100, 820)) end end)
-NAStartupUI("Resize:ScriptHub", 0.31, function() if NAUIMANAGER.ScriptHubFrame then NAgui.resizeable(NAUIMANAGER.ScriptHubFrame, IsOnMobile and Vector2.new(340, 280) or Vector2.new(680, 420), Vector2.new(5000, 5000)) end end)
-NAStartupUI("Resize:SubplaceViewer", 0.2, function() if NAUIMANAGER.SubplaceViewerFrame then NAgui.resizeable(NAUIMANAGER.SubplaceViewerFrame, IsOnMobile and Vector2.new(340, 280) or Vector2.new(680, 420), Vector2.new(5000, 5000)) end end)
+NAStartupUI("Resize:Music", 0.3, function()
+	if NAUIMANAGER.MusicFrame then
+		const metrics = NAmanage.ExecutorWindowSizing.GetSize(620, 450, { minWidth = 420; minHeight = 290; mobileMinWidth = 300; mobileMinHeight = 240; })
+		NAgui.resizeable(NAUIMANAGER.MusicFrame, Vector2.new(metrics.minWidth, metrics.minHeight), Vector2.new(1100, 820))
+	end
+end)
+NAStartupUI("Resize:ScriptHub", 0.31, function()
+	if NAUIMANAGER.ScriptHubFrame then
+		const metrics = NAmanage.ExecutorWindowSizing.GetSize(760, 520, { minWidth = 560; minHeight = 360; mobileMinWidth = 280; mobileMinHeight = 230; })
+		NAgui.resizeable(NAUIMANAGER.ScriptHubFrame, Vector2.new(metrics.minWidth, metrics.minHeight), Vector2.new(5000, 5000))
+	end
+end)
+NAStartupUI("Resize:SubplaceViewer", 0.2, function()
+	if NAUIMANAGER.SubplaceViewerFrame then
+		const metrics = NAmanage.ExecutorWindowSizing.GetSize(780, 530, { minWidth = 560; minHeight = 360; mobileMinWidth = 280; mobileMinHeight = 230; })
+		NAgui.resizeable(NAUIMANAGER.SubplaceViewerFrame, Vector2.new(metrics.minWidth, metrics.minHeight), Vector2.new(5000, 5000))
+	end
+end)
 NAStartupUI("Resize:Executor", 0.17, function()
 	if NAUIMANAGER.ExecutorFrame then
 		const exMin = IsOnMobile and Vector2.new(340, 280) or Vector2.new(680, 420)

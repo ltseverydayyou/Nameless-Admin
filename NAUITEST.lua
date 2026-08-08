@@ -196,7 +196,7 @@ G2L.a.Color = ColorSequence.new({
 	ColorSequenceKeypoint.new(1, Color3.fromRGB(18, 19, 25))
 });
 G2L.b = Instance.new("UICorner", G2L["8"]);
-G2L.b.CornerRadius = UDim.new(0, 0);
+G2L.b.CornerRadius = UDim.new(0, 10);
 G2L.c = Instance.new("TextButton", G2L["8"]);
 G2L.c.BorderSizePixel = 0;
 G2L.c.TextSize = 14;
@@ -569,7 +569,7 @@ G2L["31"].Text = "Commands";
 G2L["31"].Name = "Title";
 G2L["31"].Position = UDim2.new(0.5, 0, 0.5, 0);
 G2L["32"] = Instance.new("UICorner", G2L["2a"]);
-G2L["32"].CornerRadius = UDim.new(0, 0);
+G2L["32"].CornerRadius = UDim.new(0, 10);
 G2L["33"] = Instance.new("UIStroke", G2L["2a"]);
 G2L["33"].Thickness = 1;
 G2L["33"].Color = Color3.fromRGB(155, 100, 255);
@@ -849,7 +849,7 @@ G2L["4c"].Text = "NA Console";
 G2L["4c"].Name = "Title";
 G2L["4c"].Position = UDim2.new(0.5, 0, 0.5, 0);
 G2L["4d"] = Instance.new("UICorner", G2L["42"]);
-G2L["4d"].CornerRadius = UDim.new(0, 0);
+G2L["4d"].CornerRadius = UDim.new(0, 10);
 G2L["4e"] = Instance.new("UIStroke", G2L["42"]);
 G2L["4e"].Thickness = 1;
 G2L["4e"].Color = Color3.fromRGB(155, 100, 255);
@@ -2153,7 +2153,7 @@ G2L.e4y.Color = Color3.fromRGB(155, 100, 255);
 G2L.e4y.Transparency = 0.38;
 G2L.e4y.ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
 G2L.ec = Instance.new("UICorner", G2L.e4);
-G2L.ec.CornerRadius = UDim.new(0, 0);
+G2L.ec.CornerRadius = UDim.new(0, 10);
 G2L.ed = Instance.new("UIStroke", G2L.e4);
 G2L.ed.Thickness = 1;
 G2L.ed.Color = Color3.fromRGB(155, 100, 255);
@@ -2224,7 +2224,7 @@ G2L["waypoint_topbar_gradient"].Color = ColorSequence.new({
 	ColorSequenceKeypoint.new(1, Color3.fromRGB(18, 19, 25))
 });
 G2L.f6 = Instance.new("UICorner", G2L.f5);
-G2L.f6.CornerRadius = UDim.new(0, 0);
+G2L.f6.CornerRadius = UDim.new(0, 10);
 G2L.f7 = Instance.new("UIStroke", G2L.f5);
 G2L.f7.Thickness = 1;
 G2L.f7.Color = Color3.fromRGB(156, 101, 255);
@@ -2803,7 +2803,7 @@ G2L["11f"].Text = "Event Binding";
 G2L["11f"].Name = "Title";
 G2L["11f"].Position = UDim2.new(0.5, 0, 0.5, 0);
 G2L["120"] = Instance.new("UICorner", G2L["118"]);
-G2L["120"].CornerRadius = UDim.new(0, 0);
+G2L["120"].CornerRadius = UDim.new(0, 10);
 G2L["121"] = Instance.new("UIStroke", G2L["118"]);
 G2L["121"].Thickness = 1;
 G2L["121"].Color = Color3.fromRGB(155, 100, 255);
@@ -3017,7 +3017,7 @@ G2L["executor_frame"] = Instance.new("Frame", G2L["1"]);
 G2L["executor_frame"].BorderSizePixel = 0;
 G2L["executor_frame"].BackgroundColor3 = Color3.fromRGB(15, 16, 21);
 G2L["executor_frame"].AnchorPoint = Vector2.new(0.5, 0.5);
-G2L["executor_frame"].Size = UDim2.new(0, 940, 0, 560);
+G2L["executor_frame"].Size = UDim2.new(0, 920, 0, 540);
 G2L["executor_frame"].Position = UDim2.new(0.5, 0, 0.5, 0);
 G2L["executor_frame"].Name = "Executor";
 G2L["executor_frame"].Visible = false;
@@ -3139,7 +3139,7 @@ G2L["executor_settings"].BackgroundTransparency = 0.18;
 G2L["executor_settings"].Size = UDim2.new(0, 24, 0, 24);
 G2L["executor_settings"].Text = "⚙";
 G2L["executor_settings"].Name = "Settings";
-G2L["executor_settings"].Position = UDim2.new(1, -100, 0.5, 0);
+G2L["executor_settings"].Position = UDim2.new(1, -112, 0.5, 0);
 G2L["executor_settings_corner"] = Instance.new("UICorner", G2L["executor_settings"]);
 G2L["executor_settings_corner"].CornerRadius = UDim.new(0, 5);
 G2L["executor_settings_stroke"] = Instance.new("UIStroke", G2L["executor_settings"]);
@@ -3164,7 +3164,7 @@ G2L["executor_title"].Text = "Executor";
 G2L["executor_title"].Name = "Title";
 G2L["executor_title"].Position = UDim2.new(0.5, 0, 0.5, 0);
 G2L["executor_corner"] = Instance.new("UICorner", G2L["executor_topbar"]);
-G2L["executor_corner"].CornerRadius = UDim.new(0, 0);
+G2L["executor_corner"].CornerRadius = UDim.new(0, 10);
 G2L["executor_stroke"] = Instance.new("UIStroke", G2L["executor_frame"]);
 G2L["executor_stroke"].Thickness = 1;
 G2L["executor_stroke"].Color = Color3.fromRGB(155, 100, 255);
@@ -3374,7 +3374,7 @@ G2L["command_keybinds_title"].Text = "Command Keybinds";
 G2L["command_keybinds_title"].Name = "Title";
 G2L["command_keybinds_title"].Position = UDim2.new(0.5, 0, 0.5, 0);
 G2L["command_keybinds_topbar_corner"] = Instance.new("UICorner", G2L["command_keybinds_topbar"]);
-G2L["command_keybinds_topbar_corner"].CornerRadius = UDim.new(0, 0);
+G2L["command_keybinds_topbar_corner"].CornerRadius = UDim.new(0, 10);
 G2L["command_keybinds_topbar_stroke"] = Instance.new("UIStroke", G2L["command_keybinds_topbar"]);
 G2L["command_keybinds_topbar_stroke"].Thickness = 1;
 G2L["command_keybinds_topbar_stroke"].Color = Color3.fromRGB(155, 100, 255);
@@ -3398,7 +3398,7 @@ G2L["notepad_frame"] = Instance.new("Frame", G2L["1"]);
 G2L["notepad_frame"].Visible = false;
 G2L["notepad_frame"].BorderSizePixel = 0;
 G2L["notepad_frame"].BackgroundColor3 = Color3.fromRGB(15, 16, 21);
-G2L["notepad_frame"].Size = UDim2.new(0, 720, 0, 480);
+G2L["notepad_frame"].Size = UDim2.new(0, 720, 0, 455);
 G2L["notepad_frame"].Position = UDim2.new(0.5, 0, 0.5, 0);
 G2L["notepad_frame"].AnchorPoint = Vector2.new(0.5, 0.5);
 G2L["notepad_frame"].Name = "Notepad";
@@ -3523,7 +3523,7 @@ G2L["notepad_title"].Text = "Notepad";
 G2L["notepad_title"].Name = "Title";
 G2L["notepad_title"].Position = UDim2.new(0.5, 0, 0.5, 0);
 G2L["notepad_topbar_corner"] = Instance.new("UICorner", G2L["notepad_topbar"]);
-G2L["notepad_topbar_corner"].CornerRadius = UDim.new(0, 0);
+G2L["notepad_topbar_corner"].CornerRadius = UDim.new(0, 10);
 G2L["notepad_topbar_stroke"] = Instance.new("UIStroke", G2L["notepad_topbar"]);
 G2L["notepad_topbar_stroke"].Thickness = 1;
 G2L["notepad_topbar_stroke"].Color = Color3.fromRGB(155, 100, 255);
@@ -3712,7 +3712,7 @@ G2L["plugins_title"].Text = "Plugins";
 G2L["plugins_title"].Name = "Title";
 G2L["plugins_title"].Position = UDim2.new(0.5, 0, 0.5, 0);
 G2L["plugins_topbar_corner"] = Instance.new("UICorner", G2L["plugins_topbar"]);
-G2L["plugins_topbar_corner"].CornerRadius = UDim.new(0, 0);
+G2L["plugins_topbar_corner"].CornerRadius = UDim.new(0, 10);
 G2L["plugins_topbar_stroke"] = Instance.new("UIStroke", G2L["plugins_topbar"]);
 G2L["plugins_topbar_stroke"].Thickness = 1;
 G2L["plugins_topbar_stroke"].Color = Color3.fromRGB(155, 100, 255);
@@ -4077,7 +4077,7 @@ G2L["music_title"].Text = "Music Player";
 G2L["music_title"].Name = "Title";
 G2L["music_title"].Position = UDim2.new(0.5, 0, 0.5, 0);
 G2L["music_topbar_corner"] = Instance.new("UICorner", G2L["music_topbar"]);
-G2L["music_topbar_corner"].CornerRadius = UDim.new(0, 0);
+G2L["music_topbar_corner"].CornerRadius = UDim.new(0, 10);
 G2L["music_topbar_stroke"] = Instance.new("UIStroke", G2L["music_topbar"]);
 G2L["music_topbar_stroke"].Thickness = 1;
 G2L["music_topbar_stroke"].Color = Color3.fromRGB(155, 100, 255);
@@ -4266,7 +4266,7 @@ do
 	frame.BackgroundTransparency = 0.1;
 	frame.AnchorPoint = Vector2.new(0.5, 0.5);
 	frame.Position = UDim2.new(0.5, 0, 0.5, 0);
-	frame.Size = UDim2.new(0, 840, 0, 580);
+	frame.Size = UDim2.new(0, 760, 0, 520);
 	frame.Visible = false;
 	frame.ClipsDescendants = true;
 	addCorner(frame, 10);
@@ -4290,7 +4290,7 @@ do
 		ColorSequenceKeypoint.new(0, Color3.fromRGB(27, 28, 36)),
 		ColorSequenceKeypoint.new(1, Color3.fromRGB(18, 19, 25))
 	});
-	addCorner(topbar, 0);
+	addCorner(topbar, 10);
 	addStroke(topbar, 1);
 
 	local engine = makeButton(topbar, "Engine", "Engine: RScripts", UDim2.new(0, 154, 0, 24), UDim2.new(0, 10, 0.5, -12), Color3.fromRGB(29, 30, 40));
@@ -4554,7 +4554,7 @@ do
 	frame.BackgroundTransparency = 0.1
 	frame.AnchorPoint = Vector2.new(0.5, 0.5)
 	frame.Position = UDim2.new(0.5, 0, 0.5, 0)
-	frame.Size = UDim2.new(0, 840, 0, 580)
+	frame.Size = UDim2.new(0, 780, 0, 530)
 	frame.Visible = false
 	frame.ClipsDescendants = true
 	corner(frame, 10)
@@ -4578,7 +4578,7 @@ do
 		ColorSequenceKeypoint.new(0, Color3.fromRGB(27, 28, 36)),
 		ColorSequenceKeypoint.new(1, Color3.fromRGB(18, 19, 25))
 	})
-	corner(topbar, 0)
+	corner(topbar, 10)
 	stroke(topbar, 1)
 
 	local title = Instance.new("TextLabel", topbar)
