@@ -2151,6 +2151,7 @@ local NAStuff = {
 	TopbarStrokeTransparency = 0.15;
 	TopbarPanelTransparency = 0.1;
 	TopbarButtonTransparency = 0.18;
+	TopbarButtonShape = "Circle";
 	RobloxTopbarEditorEnabled = false;
 	RobloxTopbarLayout = "Controls Unified";
 	RobloxTopbarMorePosition = "Original";
@@ -2159,6 +2160,13 @@ local NAStuff = {
 	RobloxTopbarCornerRadius = 22;
 	RobloxTopbarSeparateGap = 4;
 	SideSwipeWidth = 80;
+	SideSwipePanelHeight = 0;
+	SideSwipeHandleWidth = 0;
+	SideSwipeHandleHeight = 0;
+	SideSwipeHandleVerticalPosition = 50;
+	SideSwipeSwipeThreshold = 28;
+	SideSwipeButtonHeight = 48;
+	SideSwipeButtonSpacing = 8;
 	SideSwipeHandleTransparency = 0.72;
 	SideSwipePanelTransparency = 0.35;
 	SideSwipeButtonTransparency = 0.16;
@@ -20032,6 +20040,24 @@ NAmanage.NASettingsGetSchema=function()
 				return "Circle"
 			end;
 		};
+		topbarButtonShape = {
+			default = "Circle";
+			coerce = function(value)
+				local shape = type(value) == "string" and value or tostring(value or "")
+				shape = shape:match("^%s*(.-)%s*$") or shape
+				shape = shape:lower()
+				if shape == "square" then
+					return "Square"
+				elseif shape == "rounded" or shape == "round" then
+					return "Rounded"
+				elseif shape == "squircle" then
+					return "Squircle"
+				elseif shape == "circle" then
+					return "Circle"
+				end
+				return "Circle"
+			end;
+		};
 		iconBgTransparency = {
 			default = 0;
 			coerce = function(value)
@@ -21158,6 +21184,62 @@ NAmanage.NASettingsGetSchema=function()
 					return 80
 				end
 				return math.clamp(math.floor(numberValue + 0.5), 60, 200)
+			end;
+		};
+		sideSwipePanelHeight = {
+			default = 0;
+			coerce = function(value)
+				const numberValue = tonumber(value)
+				if not numberValue then return 0 end
+				return math.clamp(math.floor(numberValue + 0.5), 0, 1200)
+			end;
+		};
+		sideSwipeHandleWidth = {
+			default = 0;
+			coerce = function(value)
+				const numberValue = tonumber(value)
+				if not numberValue then return 0 end
+				return math.clamp(math.floor(numberValue + 0.5), 0, 120)
+			end;
+		};
+		sideSwipeHandleHeight = {
+			default = 0;
+			coerce = function(value)
+				const numberValue = tonumber(value)
+				if not numberValue then return 0 end
+				return math.clamp(math.floor(numberValue + 0.5), 0, 800)
+			end;
+		};
+		sideSwipeHandleVerticalPosition = {
+			default = 50;
+			coerce = function(value)
+				const numberValue = tonumber(value)
+				if not numberValue then return 50 end
+				return math.clamp(numberValue, 0, 100)
+			end;
+		};
+		sideSwipeSwipeThreshold = {
+			default = 28;
+			coerce = function(value)
+				const numberValue = tonumber(value)
+				if not numberValue then return 28 end
+				return math.clamp(math.floor(numberValue + 0.5), 8, 120)
+			end;
+		};
+		sideSwipeButtonHeight = {
+			default = 48;
+			coerce = function(value)
+				const numberValue = tonumber(value)
+				if not numberValue then return 48 end
+				return math.clamp(math.floor(numberValue + 0.5), 32, 96)
+			end;
+		};
+		sideSwipeButtonSpacing = {
+			default = 8;
+			coerce = function(value)
+				const numberValue = tonumber(value)
+				if not numberValue then return 8 end
+				return math.clamp(math.floor(numberValue + 0.5), 0, 32)
 			end;
 		};
 		sideSwipeHandleTransparency = {
@@ -25183,6 +25265,13 @@ if FileSupport then
 		return n
 	end
 	NAStuff.SideSwipeWidth = math.clamp(math.floor((tonumber(NAmanage.NASettingsGet("sideSwipeWidth")) or 80) + 0.5), 60, 200)
+	NAStuff.SideSwipePanelHeight = math.clamp(math.floor((tonumber(NAmanage.NASettingsGet("sideSwipePanelHeight")) or 0) + 0.5), 0, 1200)
+	NAStuff.SideSwipeHandleWidth = math.clamp(math.floor((tonumber(NAmanage.NASettingsGet("sideSwipeHandleWidth")) or 0) + 0.5), 0, 120)
+	NAStuff.SideSwipeHandleHeight = math.clamp(math.floor((tonumber(NAmanage.NASettingsGet("sideSwipeHandleHeight")) or 0) + 0.5), 0, 800)
+	NAStuff.SideSwipeHandleVerticalPosition = math.clamp(tonumber(NAmanage.NASettingsGet("sideSwipeHandleVerticalPosition")) or 50, 0, 100)
+	NAStuff.SideSwipeSwipeThreshold = math.clamp(math.floor((tonumber(NAmanage.NASettingsGet("sideSwipeSwipeThreshold")) or 28) + 0.5), 8, 120)
+	NAStuff.SideSwipeButtonHeight = math.clamp(math.floor((tonumber(NAmanage.NASettingsGet("sideSwipeButtonHeight")) or 48) + 0.5), 32, 96)
+	NAStuff.SideSwipeButtonSpacing = math.clamp(math.floor((tonumber(NAmanage.NASettingsGet("sideSwipeButtonSpacing")) or 8) + 0.5), 0, 32)
 	NAStuff.SideSwipeHandleTransparency = clamp01(NAmanage.NASettingsGet("sideSwipeHandleTransparency") or 0.72, 0.72)
 	NAStuff.SideSwipePanelTransparency = clamp01(NAmanage.NASettingsGet("sideSwipePanelTransparency") or 0.35, 0.35)
 	NAStuff.SideSwipeButtonTransparency = clamp01(NAmanage.NASettingsGet("sideSwipeButtonTransparency") or 0.16, 0.16)
@@ -25191,6 +25280,7 @@ if FileSupport then
 	NALoadingStartMinimized = NAmanage.NASettingsGet("loadingStartMinimized")
 	NAAssetsLoading.applyMinimizedPreference()
 	NAStuff.TopbarGlassTransparency = clamp01(NAmanage.NASettingsGet("topbarGlassTransparency") or 0.12, 0.12)
+	NAStuff.TopbarButtonShape = NAmanage.NASettingsGet("topbarButtonShape") or "Circle"
 	NAStuff.TopbarStrokeTransparency = clamp01(NAmanage.NASettingsGet("topbarStrokeTransparency") or 0.15, 0.15)
 	NAStuff.TopbarPanelTransparency = clamp01(NAmanage.NASettingsGet("topbarPanelTransparency") or 0.1, 0.1)
 	NAStuff.TopbarButtonTransparency = clamp01(NAmanage.NASettingsGet("topbarButtonTransparency") or 0.18, 0.18)
@@ -112749,6 +112839,56 @@ NAgui.setDropdownOptions = function(label, options, opts)
 	entry.setOptions(options, opts or {})
 end
 
+NAmanage.Topbar_SanitizeButtonShape=function(shape)
+	const raw = Lower(tostring(shape or ""))
+	if raw == "square" then
+		return "Square"
+	elseif raw == "rounded" or raw == "round" then
+		return "Rounded"
+	elseif raw == "squircle" then
+		return "Squircle"
+	elseif raw == "circle" then
+		return "Circle"
+	end
+	return "Circle"
+end
+
+NAmanage.Topbar_GetButtonShapeOptions=function()
+	return { "Square", "Rounded", "Squircle", "Circle" }
+end
+
+NAmanage.Topbar_GetButtonCornerRadius=function(shape)
+	const normalized = NAmanage.Topbar_SanitizeButtonShape(shape)
+	if normalized == "Square" then
+		return UDim.new(0, 0)
+	elseif normalized == "Rounded" then
+		return UDim.new(0.18, 0)
+	elseif normalized == "Squircle" then
+		return UDim.new(0.3, 0)
+	end
+	return UDim.new(1, 0)
+end
+
+NAmanage.Topbar_ApplyButtonShape=function(shape, opts)
+	opts = opts or {}
+	const normalized = NAmanage.Topbar_SanitizeButtonShape(shape)
+	NAStuff.TopbarButtonShape = normalized
+	const glass = TopBarApp and TopBarApp.tGlass
+	if glass then
+		local corner = glass:FindFirstChildOfClass("UICorner")
+		if not corner then
+			corner = InstanceNew("UICorner", glass)
+		end
+		corner.CornerRadius = NAmanage.Topbar_GetButtonCornerRadius(normalized)
+	end
+	if opts.save ~= false and NAmanage.NASettingsSet then
+		NAmanage.NASettingsSet("topbarButtonShape", normalized)
+	end
+	return normalized
+end
+
+NAStuff.TopbarButtonShape = NAmanage.Topbar_SanitizeButtonShape(NAStuff.TopbarButtonShape)
+
 NAmanage.Topbar_PlayTween=function(key,instance,info,props)
 	NAmanage._tweens=NAmanage._tweens or {}
 	if NAmanage._tweens[key] then NAmanage._tweens[key]:Cancel() end
@@ -113860,7 +114000,7 @@ NAmanage.Topbar_Init=function(opts)
 		TopBarApp.tGlass.BackgroundColor3=Color3.fromRGB(20,20,24)
 		TopBarApp.tGlass.BackgroundTransparency=NAStuff.TopbarGlassTransparency or 0.12
 		TopBarApp.tGlass.ZIndex=111
-		const tCorner=InstanceNew("UICorner",TopBarApp.tGlass); tCorner.CornerRadius=UDim.new(0, 6)
+		const tCorner=InstanceNew("UICorner",TopBarApp.tGlass); tCorner.CornerRadius=NAmanage.Topbar_GetButtonCornerRadius(NAStuff.TopbarButtonShape)
 		TopBarApp.tStroke=InstanceNew("UIStroke",TopBarApp.tGlass)
 		TopBarApp.tStroke.Thickness=1.25
 		TopBarApp.tStroke.Color=NAUISTROKER or Color3.fromRGB(148,93,255)
@@ -113957,11 +114097,14 @@ NAmanage.SideSwipe_PositionHandles=function()
 	if not (SideSwipeApp.gui and (SideSwipeApp.handles.left or SideSwipeApp.handles.right)) then return end
 	const cam = Workspace.CurrentCamera
 	const vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
-	const y = vp.Y * 0.5
 	const panelW = math.clamp(tonumber(NAStuff.SideSwipeWidth) or 80, 60, 200)
-	const handleW = math.clamp(math.floor(panelW * 0.22 + 0.5), 16, 44)
+	const configuredW = math.clamp(math.floor((tonumber(NAStuff.SideSwipeHandleWidth) or 0) + 0.5), 0, 120)
+	const configuredH = math.clamp(math.floor((tonumber(NAStuff.SideSwipeHandleHeight) or 0) + 0.5), 0, 800)
+	const handleW = configuredW > 0 and math.clamp(configuredW, 8, math.max(8, math.floor(vp.X * 0.35))) or math.clamp(math.floor(panelW * 0.22 + 0.5), 16, 44)
+	const handleH = configuredH > 0 and math.clamp(configuredH, 24, math.max(24, vp.Y - 8)) or math.clamp(vp.Y * 0.22, 90, 180)
 	const inset = math.max(4, math.floor(handleW * 0.4 + 0.5))
-	const handleH = math.clamp(vp.Y * 0.22, 90, 180)
+	const vertical = math.clamp(tonumber(NAStuff.SideSwipeHandleVerticalPosition) or 50, 0, 100) / 100
+	const y = math.clamp(vp.Y * vertical, handleH * 0.5 + 4, math.max(handleH * 0.5 + 4, vp.Y - handleH * 0.5 - 4))
 	const hideHandles = SideSwipeApp.handlesHidden == true or SideSwipeApp.isOpen == true
 	if SideSwipeApp.handles.left then
 		if hideHandles then
@@ -114073,7 +114216,9 @@ NAmanage.SideSwipe_UpdateCanvas=function()
 	const cam = Workspace.CurrentCamera
 	const vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
 	const maxH = math.max(120, vp.Y - 40)
-	const height = math.min(totalH + 16, maxH)
+	const configuredHeight = math.clamp(math.floor((tonumber(NAStuff.SideSwipePanelHeight) or 0) + 0.5), 0, 1200)
+	const autoHeight = math.min(totalH + 16, maxH)
+	const height = configuredHeight > 0 and math.min(math.max(configuredHeight, 120), maxH) or autoHeight
 	const width = math.clamp(tonumber(NAStuff.SideSwipeWidth) or 80, 60, 200)
 	SideSwipeApp.panel.Size = UDim2.new(0, width, 0, height)
 	SideSwipeApp.underlay.Size = UDim2.new(1, 0, 1, 0)
@@ -114116,10 +114261,10 @@ NAmanage.SideSwipe_Rebuild=function(opts)
 	list.FillDirection = Enum.FillDirection.Vertical
 	list.HorizontalAlignment = Enum.HorizontalAlignment.Center
 	list.VerticalAlignment = Enum.VerticalAlignment.Top
-	list.Padding = UDim.new(0, 8)
+	list.Padding = UDim.new(0, math.clamp(math.floor((tonumber(NAStuff.SideSwipeButtonSpacing) or 8) + 0.5), 0, 32))
 	list.SortOrder = Enum.SortOrder.LayoutOrder
 	SideSwipeApp.layout = list
-	const tile = 48
+	const tile = math.clamp(math.floor((tonumber(NAStuff.SideSwipeButtonHeight) or 48) + 0.5), 32, 96)
 	const buttons = NAmanage.SideSwipe_GetButtons()
 	for i, def in buttons do
 		NAmanage.MarkExternalLagProbe("sideswipe_rebuild_button:"..tostring(def.name or i))
@@ -114311,7 +114456,6 @@ NAmanage.SideSwipe_WireHandle=function(btn, side)
 	if not btn then return end
 	const key=side=="right" and "ss_swipe_right" or "ss_swipe_left"
 	NAlib.disconnect(key)
-	const SWIPE_THRESHOLD=28
 	local dragging=false
 	local dragStart
 	local dragInput
@@ -114357,17 +114501,18 @@ NAmanage.SideSwipe_WireHandle=function(btn, side)
 	NAlib.connect(key,UserInputService.InputChanged:Connect(function(input)
 		if input==dragInput and dragging and dragStart then
 			const delta=input.Position-dragStart
-			if side=="left" and delta.X>SWIPE_THRESHOLD then
+			const swipeThreshold = math.clamp(math.floor((tonumber(NAStuff.SideSwipeSwipeThreshold) or 28) + 0.5), 8, 120)
+			if side=="left" and delta.X>swipeThreshold then
 				resetDrag()
 				NAmanage.SideSwipe_SetOpen(true)
-			elseif side=="right" and delta.X<-SWIPE_THRESHOLD then
+			elseif side=="right" and delta.X<-swipeThreshold then
 				resetDrag()
 				NAmanage.SideSwipe_SetOpen(true)
 			elseif SideSwipeApp.isOpen then
-				if side=="left" and delta.X<-SWIPE_THRESHOLD then
+				if side=="left" and delta.X<-swipeThreshold then
 					resetDrag()
 					NAmanage.SideSwipe_SetOpen(false)
-				elseif side=="right" and delta.X>SWIPE_THRESHOLD then
+				elseif side=="right" and delta.X>swipeThreshold then
 					resetDrag()
 					NAmanage.SideSwipe_SetOpen(false)
 				end
@@ -139269,6 +139414,7 @@ end
 
 NAmanage.applyTopbarStyle = function()
 	const clamp01 = NAgui.clamp01
+	NAmanage.Topbar_ApplyButtonShape(NAStuff.TopbarButtonShape, { save = false })
 	const glass = TopBarApp and TopBarApp.tGlass
 	if glass then
 		glass.BackgroundTransparency = clamp01(NAStuff.TopbarGlassTransparency or 0.12, 0.12)
@@ -140656,6 +140802,14 @@ end)
 
 NAgui.addSection("Topbar")
 
+NAgui.addDropdown("Topbar Toggle Shape", NAmanage.Topbar_GetButtonShapeOptions(), NAmanage.Topbar_SanitizeButtonShape(NAStuff.TopbarButtonShape), function(selection)
+	local picked = selection
+	if type(picked) == "table" then
+		picked = picked[1]
+	end
+	NAmanage.Topbar_ApplyButtonShape(picked, { save = true })
+end)
+
 NAgui.addToggle("Dropdown Under Toggle", TopBarApp.mode == "bottom", function(state)
 	NAmanage.Topbar_SetMode(state and "bottom" or "side")
 end)
@@ -140953,10 +141107,52 @@ NAmanage.RegisterToggleAutoSync("Edge Swipe Gesture Enabled", function()
 end)
 
 NAgui.addSection("Edge Swipe Gesture Styling")
+NAgui.addInfo("Gesture Auto Size", "Set Panel Height, Handle Width, or Handle Height to 0 to use automatic sizing.")
 
 NAgui.addSlider("Gesture Panel Width", 60, 200, math.clamp(tonumber(NAStuff.SideSwipeWidth) or 80, 60, 200), 1, " px", function(v)
 	NAStuff.SideSwipeWidth = math.clamp(math.floor((tonumber(v) or 80) + 0.5), 60, 200)
 	NAmanage.NASettingsSet("sideSwipeWidth", NAStuff.SideSwipeWidth)
+	NAmanage.applySideSwipeStyle({ rebuild = true })
+end)
+
+NAgui.addSlider("Gesture Panel Height", 0, 1200, math.clamp(math.floor((tonumber(NAStuff.SideSwipePanelHeight) or 0) + 0.5), 0, 1200), 5, " px", function(v)
+	NAStuff.SideSwipePanelHeight = math.clamp(math.floor((tonumber(v) or 0) + 0.5), 0, 1200)
+	NAmanage.NASettingsSet("sideSwipePanelHeight", NAStuff.SideSwipePanelHeight)
+	NAmanage.applySideSwipeStyle({ rebuild = false })
+end)
+
+NAgui.addSlider("Gesture Handle Width", 0, 120, math.clamp(math.floor((tonumber(NAStuff.SideSwipeHandleWidth) or 0) + 0.5), 0, 120), 1, " px", function(v)
+	NAStuff.SideSwipeHandleWidth = math.clamp(math.floor((tonumber(v) or 0) + 0.5), 0, 120)
+	NAmanage.NASettingsSet("sideSwipeHandleWidth", NAStuff.SideSwipeHandleWidth)
+	NAmanage.applySideSwipeStyle({ rebuild = false })
+end)
+
+NAgui.addSlider("Gesture Handle Height", 0, 800, math.clamp(math.floor((tonumber(NAStuff.SideSwipeHandleHeight) or 0) + 0.5), 0, 800), 5, " px", function(v)
+	NAStuff.SideSwipeHandleHeight = math.clamp(math.floor((tonumber(v) or 0) + 0.5), 0, 800)
+	NAmanage.NASettingsSet("sideSwipeHandleHeight", NAStuff.SideSwipeHandleHeight)
+	NAmanage.applySideSwipeStyle({ rebuild = false })
+end)
+
+NAgui.addSlider("Gesture Handle Vertical Position", 0, 100, math.clamp(tonumber(NAStuff.SideSwipeHandleVerticalPosition) or 50, 0, 100), 1, "%", function(v)
+	NAStuff.SideSwipeHandleVerticalPosition = math.clamp(tonumber(v) or 50, 0, 100)
+	NAmanage.NASettingsSet("sideSwipeHandleVerticalPosition", NAStuff.SideSwipeHandleVerticalPosition)
+	NAmanage.applySideSwipeStyle({ rebuild = false })
+end)
+
+NAgui.addSlider("Gesture Swipe Threshold", 8, 120, math.clamp(math.floor((tonumber(NAStuff.SideSwipeSwipeThreshold) or 28) + 0.5), 8, 120), 1, " px", function(v)
+	NAStuff.SideSwipeSwipeThreshold = math.clamp(math.floor((tonumber(v) or 28) + 0.5), 8, 120)
+	NAmanage.NASettingsSet("sideSwipeSwipeThreshold", NAStuff.SideSwipeSwipeThreshold)
+end)
+
+NAgui.addSlider("Gesture Button Height", 32, 96, math.clamp(math.floor((tonumber(NAStuff.SideSwipeButtonHeight) or 48) + 0.5), 32, 96), 1, " px", function(v)
+	NAStuff.SideSwipeButtonHeight = math.clamp(math.floor((tonumber(v) or 48) + 0.5), 32, 96)
+	NAmanage.NASettingsSet("sideSwipeButtonHeight", NAStuff.SideSwipeButtonHeight)
+	NAmanage.applySideSwipeStyle({ rebuild = true })
+end)
+
+NAgui.addSlider("Gesture Button Spacing", 0, 32, math.clamp(math.floor((tonumber(NAStuff.SideSwipeButtonSpacing) or 8) + 0.5), 0, 32), 1, " px", function(v)
+	NAStuff.SideSwipeButtonSpacing = math.clamp(math.floor((tonumber(v) or 8) + 0.5), 0, 32)
+	NAmanage.NASettingsSet("sideSwipeButtonSpacing", NAStuff.SideSwipeButtonSpacing)
 	NAmanage.applySideSwipeStyle({ rebuild = true })
 end)
 
