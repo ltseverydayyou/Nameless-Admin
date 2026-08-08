@@ -86,7 +86,7 @@ G2L["6"].RichText = true;
 G2L["6"].Size = UDim2.new(1, -10, 0, 24);
 G2L["6"].Text = "[Roblox]: Hello, World!";
 G2L["7"] = Instance.new("UICorner", G2L["6"]);
-G2L["7"].CornerRadius = UDim.new(0, 4);
+G2L["7"].CornerRadius = UDim.new(0, 6);
 G2L["chat_scroll_bar"] = Instance.new("Frame", G2L["3"]);
 G2L["chat_scroll_bar"].Name = "CustomScrollBar";
 G2L["chat_scroll_bar"].BorderSizePixel = 0;
@@ -113,7 +113,7 @@ G2L["chat_scroll_up"].TextColor3 = Color3.fromRGB(235, 235, 245);
 G2L["chat_scroll_up"].TextSize = 14;
 G2L["chat_scroll_up"].FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal);
 G2L["chat_scroll_up_corner"] = Instance.new("UICorner", G2L["chat_scroll_up"]);
-G2L["chat_scroll_up_corner"].CornerRadius = UDim.new(0, 5);
+G2L["chat_scroll_up_corner"].CornerRadius = UDim.new(0, 6);
 G2L["chat_scroll_track"] = Instance.new("TextButton", G2L["chat_scroll_bar"]);
 G2L["chat_scroll_track"].Name = "Track";
 G2L["chat_scroll_track"].BorderSizePixel = 0;
@@ -124,7 +124,7 @@ G2L["chat_scroll_track"].Size = UDim2.new(1, 0, 1, -32);
 G2L["chat_scroll_track"].AutoButtonColor = false;
 G2L["chat_scroll_track"].Text = "";
 G2L["chat_scroll_track_corner"] = Instance.new("UICorner", G2L["chat_scroll_track"]);
-G2L["chat_scroll_track_corner"].CornerRadius = UDim.new(0, 5);
+G2L["chat_scroll_track_corner"].CornerRadius = UDim.new(0, 6);
 G2L["chat_scroll_thumb"] = Instance.new("TextButton", G2L["chat_scroll_track"]);
 G2L["chat_scroll_thumb"].Name = "Thumb";
 G2L["chat_scroll_thumb"].BorderSizePixel = 0;
@@ -134,7 +134,7 @@ G2L["chat_scroll_thumb"].Size = UDim2.new(1, 0, 0, 48);
 G2L["chat_scroll_thumb"].AutoButtonColor = false;
 G2L["chat_scroll_thumb"].Text = "";
 G2L["chat_scroll_thumb_corner"] = Instance.new("UICorner", G2L["chat_scroll_thumb"]);
-G2L["chat_scroll_thumb_corner"].CornerRadius = UDim.new(0, 5);
+G2L["chat_scroll_thumb_corner"].CornerRadius = UDim.new(0, 6);
 G2L["chat_scroll_thumb_stroke"] = Instance.new("UIStroke", G2L["chat_scroll_thumb"]);
 G2L["chat_scroll_thumb_stroke"].Thickness = 1;
 G2L["chat_scroll_thumb_stroke"].Color = Color3.fromRGB(72, 72, 82);
@@ -152,7 +152,7 @@ G2L["chat_scroll_down"].TextColor3 = Color3.fromRGB(235, 235, 245);
 G2L["chat_scroll_down"].TextSize = 14;
 G2L["chat_scroll_down"].FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal);
 G2L["chat_scroll_down_corner"] = Instance.new("UICorner", G2L["chat_scroll_down"]);
-G2L["chat_scroll_down_corner"].CornerRadius = UDim.new(0, 5);
+G2L["chat_scroll_down_corner"].CornerRadius = UDim.new(0, 6);
 G2L["8"] = Instance.new("Frame", G2L["2"]);
 G2L["8"].BorderSizePixel = 0;
 G2L["8"].BackgroundColor3 = Color3.fromRGB(40, 40, 45);
@@ -177,7 +177,7 @@ G2L.a.Color = ColorSequence.new({
 	ColorSequenceKeypoint.new(1, Color3.fromRGB(35, 35, 40))
 });
 G2L.b = Instance.new("UICorner", G2L["8"]);
-G2L.b.CornerRadius = UDim.new(0, 10);
+G2L.b.CornerRadius = UDim.new(0, 6);
 G2L.c = Instance.new("TextButton", G2L["8"]);
 G2L.c.BorderSizePixel = 0;
 G2L.c.TextSize = 14;
@@ -292,7 +292,7 @@ G2L["1b"].Thickness = 2;
 G2L["1b"].Color = Color3.fromRGB(155, 100, 255);
 G2L["1b"].ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
 G2L["1c"] = Instance.new("UICorner", G2L["2"]);
-G2L["1c"].CornerRadius = UDim.new(0, 10);
+G2L["1c"].CornerRadius = UDim.new(0, 6);
 G2L["1d"] = Instance.new("UIGradient", G2L["2"]);
 G2L["1d"].Color = ColorSequence.new({
 	ColorSequenceKeypoint.new(0, Color3.fromRGB(30, 30, 35)),
@@ -343,7 +343,7 @@ G2L["23"].BackgroundTransparency = 0.4;
 G2L["23"].Size = UDim2.new(1, -10, 0, 24);
 G2L["23"].Text = "example <player> <text>";
 G2L["24"] = Instance.new("UICorner", G2L["23"]);
-G2L["24"].CornerRadius = UDim.new(0, 4);
+G2L["24"].CornerRadius = UDim.new(0, 6);
 G2L["25"] = Instance.new("TextBox", G2L["20"]);
 G2L["25"].Name = "Filter";
 G2L["25"].PlaceholderColor3 = Color3.fromRGB(155, 155, 165);
@@ -390,7 +390,7 @@ G2L["commands_scroll_up"].TextColor3 = Color3.fromRGB(235, 235, 245);
 G2L["commands_scroll_up"].TextSize = 14;
 G2L["commands_scroll_up"].FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal);
 G2L["commands_scroll_up_corner"] = Instance.new("UICorner", G2L["commands_scroll_up"]);
-G2L["commands_scroll_up_corner"].CornerRadius = UDim.new(0, 5);
+G2L["commands_scroll_up_corner"].CornerRadius = UDim.new(0, 6);
 G2L["commands_scroll_track"] = Instance.new("TextButton", G2L["commands_scroll_bar"]);
 G2L["commands_scroll_track"].Name = "Track";
 G2L["commands_scroll_track"].BorderSizePixel = 0;
@@ -401,7 +401,7 @@ G2L["commands_scroll_track"].Size = UDim2.new(1, 0, 1, -32);
 G2L["commands_scroll_track"].AutoButtonColor = false;
 G2L["commands_scroll_track"].Text = "";
 G2L["commands_scroll_track_corner"] = Instance.new("UICorner", G2L["commands_scroll_track"]);
-G2L["commands_scroll_track_corner"].CornerRadius = UDim.new(0, 5);
+G2L["commands_scroll_track_corner"].CornerRadius = UDim.new(0, 6);
 G2L["commands_scroll_thumb"] = Instance.new("TextButton", G2L["commands_scroll_track"]);
 G2L["commands_scroll_thumb"].Name = "Thumb";
 G2L["commands_scroll_thumb"].BorderSizePixel = 0;
@@ -411,7 +411,7 @@ G2L["commands_scroll_thumb"].Size = UDim2.new(1, 0, 0, 48);
 G2L["commands_scroll_thumb"].AutoButtonColor = false;
 G2L["commands_scroll_thumb"].Text = "";
 G2L["commands_scroll_thumb_corner"] = Instance.new("UICorner", G2L["commands_scroll_thumb"]);
-G2L["commands_scroll_thumb_corner"].CornerRadius = UDim.new(0, 5);
+G2L["commands_scroll_thumb_corner"].CornerRadius = UDim.new(0, 6);
 G2L["commands_scroll_thumb_stroke"] = Instance.new("UIStroke", G2L["commands_scroll_thumb"]);
 G2L["commands_scroll_thumb_stroke"].Thickness = 1;
 G2L["commands_scroll_thumb_stroke"].Color = Color3.fromRGB(72, 72, 82);
@@ -429,8 +429,9 @@ G2L["commands_scroll_down"].TextColor3 = Color3.fromRGB(235, 235, 245);
 G2L["commands_scroll_down"].TextSize = 14;
 G2L["commands_scroll_down"].FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal);
 G2L["commands_scroll_down_corner"] = Instance.new("UICorner", G2L["commands_scroll_down"]);
-G2L["commands_scroll_down_corner"].CornerRadius = UDim.new(0, 5);
+G2L["commands_scroll_down_corner"].CornerRadius = UDim.new(0, 6);
 G2L["28"] = Instance.new("UICorner", G2L["20"]);
+G2L["28"].CornerRadius = UDim.new(0, 6);
 G2L["29"] = Instance.new("UIGradient", G2L["20"]);
 G2L["29"].Color = ColorSequence.new({
 	ColorSequenceKeypoint.new(0, Color3.fromRGB(45, 45, 50)),
@@ -510,13 +511,13 @@ G2L["31"].Text = "Commands";
 G2L["31"].Name = "Title";
 G2L["31"].Position = UDim2.new(0, 10, 0.5, 0);
 G2L["32"] = Instance.new("UICorner", G2L["2a"]);
-G2L["32"].CornerRadius = UDim.new(0, 10);
+G2L["32"].CornerRadius = UDim.new(0, 6);
 G2L["33"] = Instance.new("UIStroke", G2L["2a"]);
 G2L["33"].Thickness = 2;
 G2L["33"].Color = Color3.fromRGB(155, 100, 255);
 G2L["33"].ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
 G2L["34"] = Instance.new("UICorner", G2L["1f"]);
-G2L["34"].CornerRadius = UDim.new(0, 10);
+G2L["34"].CornerRadius = UDim.new(0, 6);
 G2L["35"] = Instance.new("UIGradient", G2L["1f"]);
 G2L["35"].Color = ColorSequence.new({
 	ColorSequenceKeypoint.new(0, Color3.fromRGB(35, 35, 40)),
@@ -568,8 +569,9 @@ G2L["3b"].BackgroundTransparency = 0.5;
 G2L["3b"].Size = UDim2.new(1, 0, 0, 26);
 G2L["3b"].Text = "[Output]: failed print 1";
 G2L["3c"] = Instance.new("UICorner", G2L["3b"]);
-G2L["3c"].CornerRadius = UDim.new(0, 5);
+G2L["3c"].CornerRadius = UDim.new(0, 6);
 G2L["3d"] = Instance.new("UICorner", G2L["38"]);
+G2L["3d"].CornerRadius = UDim.new(0, 6);
 G2L["3e"] = Instance.new("UIGradient", G2L["38"]);
 G2L["3e"].Color = ColorSequence.new({
 	ColorSequenceKeypoint.new(0, Color3.fromRGB(45, 45, 50)),
@@ -621,7 +623,7 @@ G2L["console_scroll_up"].TextColor3 = Color3.fromRGB(235, 235, 245);
 G2L["console_scroll_up"].TextSize = 14;
 G2L["console_scroll_up"].FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal);
 G2L["console_scroll_up_corner"] = Instance.new("UICorner", G2L["console_scroll_up"]);
-G2L["console_scroll_up_corner"].CornerRadius = UDim.new(0, 5);
+G2L["console_scroll_up_corner"].CornerRadius = UDim.new(0, 6);
 G2L["console_scroll_track"] = Instance.new("TextButton", G2L["console_scroll_bar"]);
 G2L["console_scroll_track"].Name = "Track";
 G2L["console_scroll_track"].BorderSizePixel = 0;
@@ -632,7 +634,7 @@ G2L["console_scroll_track"].Size = UDim2.new(1, 0, 1, -32);
 G2L["console_scroll_track"].AutoButtonColor = false;
 G2L["console_scroll_track"].Text = "";
 G2L["console_scroll_track_corner"] = Instance.new("UICorner", G2L["console_scroll_track"]);
-G2L["console_scroll_track_corner"].CornerRadius = UDim.new(0, 5);
+G2L["console_scroll_track_corner"].CornerRadius = UDim.new(0, 6);
 G2L["console_scroll_thumb"] = Instance.new("TextButton", G2L["console_scroll_track"]);
 G2L["console_scroll_thumb"].Name = "Thumb";
 G2L["console_scroll_thumb"].BorderSizePixel = 0;
@@ -642,7 +644,7 @@ G2L["console_scroll_thumb"].Size = UDim2.new(1, 0, 0, 48);
 G2L["console_scroll_thumb"].AutoButtonColor = false;
 G2L["console_scroll_thumb"].Text = "";
 G2L["console_scroll_thumb_corner"] = Instance.new("UICorner", G2L["console_scroll_thumb"]);
-G2L["console_scroll_thumb_corner"].CornerRadius = UDim.new(0, 5);
+G2L["console_scroll_thumb_corner"].CornerRadius = UDim.new(0, 6);
 G2L["console_scroll_thumb_stroke"] = Instance.new("UIStroke", G2L["console_scroll_thumb"]);
 G2L["console_scroll_thumb_stroke"].Thickness = 1;
 G2L["console_scroll_thumb_stroke"].Color = Color3.fromRGB(72, 72, 82);
@@ -660,7 +662,7 @@ G2L["console_scroll_down"].TextColor3 = Color3.fromRGB(235, 235, 245);
 G2L["console_scroll_down"].TextSize = 14;
 G2L["console_scroll_down"].FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal);
 G2L["console_scroll_down_corner"] = Instance.new("UICorner", G2L["console_scroll_down"]);
-G2L["console_scroll_down_corner"].CornerRadius = UDim.new(0, 5);
+G2L["console_scroll_down_corner"].CornerRadius = UDim.new(0, 6);
 G2L["42"] = Instance.new("Frame", G2L["37"]);
 G2L["42"].BackgroundColor3 = Color3.fromRGB(40, 40, 45);
 G2L["42"].Size = UDim2.new(1, 0, 0, 35);
@@ -753,13 +755,13 @@ G2L["4c"].Text = "NA Console";
 G2L["4c"].Name = "Title";
 G2L["4c"].Position = UDim2.new(0.5, 0, 0.5, 0);
 G2L["4d"] = Instance.new("UICorner", G2L["42"]);
-G2L["4d"].CornerRadius = UDim.new(0, 10);
+G2L["4d"].CornerRadius = UDim.new(0, 6);
 G2L["4e"] = Instance.new("UIStroke", G2L["42"]);
 G2L["4e"].Thickness = 2;
 G2L["4e"].Color = Color3.fromRGB(155, 100, 255);
 G2L["4e"].ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
 G2L["4f"] = Instance.new("UICorner", G2L["37"]);
-G2L["4f"].CornerRadius = UDim.new(0, 10);
+G2L["4f"].CornerRadius = UDim.new(0, 6);
 G2L["50"] = Instance.new("UIGradient", G2L["37"]);
 G2L["50"].Color = ColorSequence.new({
 	ColorSequenceKeypoint.new(0, Color3.fromRGB(35, 35, 40)),
@@ -794,7 +796,7 @@ G2L["54"].Size = UDim2.new(1, 0, 1, 0);
 G2L["54"].Name = "Horizontal";
 G2L["54"].BackgroundTransparency = 0.04;
 G2L["55"] = Instance.new("UICorner", G2L["54"]);
-G2L["55"].CornerRadius = UDim.new(0, 12);
+G2L["55"].CornerRadius = UDim.new(0, 6);
 G2L["56"] = Instance.new("UIGradient", G2L["54"]);
 G2L["56"].Color = ColorSequence.new({
 	ColorSequenceKeypoint.new(0, Color3.fromRGB(20, 20, 23)),
@@ -895,6 +897,7 @@ G2L["59"].Size = UDim2.new(1, 0, 1, 0);
 G2L["59"].Name = "Horizontal";
 G2L["59"].BackgroundTransparency = 1;
 G2L["5a"] = Instance.new("UICorner", G2L["59"]);
+G2L["5a"].CornerRadius = UDim.new(0, 6);
 G2L["5b"] = Instance.new("UIGradient", G2L["59"]);
 G2L["5b"].Color = ColorSequence.new({
 	ColorSequenceKeypoint.new(0, Color3.fromRGB(45, 45, 50)),
@@ -916,6 +919,7 @@ G2L["5d"].Position = UDim2.new(0, 0, 0, 0);
 G2L["5d"].Name = "Horizontal";
 G2L["5d"].BackgroundTransparency = 1;
 G2L["5e"] = Instance.new("UICorner", G2L["5d"]);
+G2L["5e"].CornerRadius = UDim.new(0, 6);
 G2L["5f"] = Instance.new("UIGradient", G2L["5d"]);
 G2L["5f"].Color = ColorSequence.new({
 	ColorSequenceKeypoint.new(0, Color3.fromRGB(45, 45, 50)),
@@ -937,7 +941,7 @@ G2L["60"].ClipsDescendants = true;
 G2L["60"].Visible = false;
 G2L["60"].ZIndex = 18;
 G2L["cmdautofill_corner"] = Instance.new("UICorner", G2L["60"]);
-G2L["cmdautofill_corner"].CornerRadius = UDim.new(0, 12);
+G2L["cmdautofill_corner"].CornerRadius = UDim.new(0, 6);
 G2L["cmdautofill_outline"] = Instance.new("UIStroke", G2L["60"]);
 G2L["cmdautofill_outline"].Name = "AutofillOutline";
 G2L["cmdautofill_outline"].ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
@@ -998,7 +1002,7 @@ G2L["64"].Name = "Horizontal";
 G2L["64"].BackgroundTransparency = 0.2;
 G2L["64"].ZIndex = 20;
 G2L["65"] = Instance.new("UICorner", G2L["64"]);
-G2L["65"].CornerRadius = UDim.new(0, 8);
+G2L["65"].CornerRadius = UDim.new(0, 6);
 G2L["66"] = Instance.new("UIGradient", G2L["64"]);
 G2L["66"].Color = ColorSequence.new({
 	ColorSequenceKeypoint.new(0, Color3.fromRGB(30, 30, 34)),
@@ -1020,7 +1024,7 @@ G2L["cmdautofill_item_line"].BackgroundColor3 = Color3.fromRGB(245, 245, 248);
 G2L["cmdautofill_item_line"].BackgroundTransparency = 0.42;
 G2L["cmdautofill_item_line"].ZIndex = 21;
 G2L["cmdautofill_item_line_corner"] = Instance.new("UICorner", G2L["cmdautofill_item_line"]);
-G2L["cmdautofill_item_line_corner"].CornerRadius = UDim.new(1, 0);
+G2L["cmdautofill_item_line_corner"].CornerRadius = UDim.new(0, 6);
 G2L["67"] = Instance.new("UIListLayout", G2L["60"]);
 G2L["67"].HorizontalAlignment = Enum.HorizontalAlignment.Center;
 G2L["67"].Padding = UDim.new(0, 6);
@@ -1041,6 +1045,7 @@ G2L["68"].BorderColor3 = Color3.fromRGB(63, 63, 63);
 G2L["68"].Text = "Name";
 G2L["68"].Name = "Description";
 G2L["69"] = Instance.new("UICorner", G2L["68"]);
+G2L["69"].CornerRadius = UDim.new(0, 6);
 G2L["6a"] = Instance.new("UIScale", G2L["1"]);
 G2L["6a"].Name = "AutoScale";
 G2L["6b"] = Instance.new("ImageButton", G2L["1"]);
@@ -1208,6 +1213,7 @@ G2L["80"].Position = UDim2.new(0, 5, 0, 45);
 G2L["80"].Text = "";
 G2L["80"].BackgroundTransparency = 0.2;
 G2L["81"] = Instance.new("UICorner", G2L["80"]);
+G2L["81"].CornerRadius = UDim.new(0, 6);
 G2L["82"] = Instance.new("UIStroke", G2L["80"]);
 G2L["82"].Thickness = 1.5;
 G2L["82"].Color = Color3.fromRGB(155, 100, 255);
@@ -1280,7 +1286,7 @@ G2L["8b"].Size = UDim2.new(0, 45, 0, 22);
 G2L["8b"].Position = UDim2.new(1, -15, 0.5, 0);
 G2L["8b"].Name = "Switch";
 G2L["8c"] = Instance.new("UICorner", G2L["8b"]);
-G2L["8c"].CornerRadius = UDim.new(0, 15);
+G2L["8c"].CornerRadius = UDim.new(0, 6);
 G2L["8d"] = Instance.new("Frame", G2L["8b"]);
 G2L["8d"].BorderSizePixel = 0;
 G2L["8d"].BackgroundColor3 = Color3.fromRGB(115, 115, 125);
@@ -1289,12 +1295,13 @@ G2L["8d"].Size = UDim2.new(0, 18, 0, 18);
 G2L["8d"].Position = UDim2.new(1, -42, 0.5, 0);
 G2L["8d"].Name = "Indicator";
 G2L["8e"] = Instance.new("UICorner", G2L["8d"]);
-G2L["8e"].CornerRadius = UDim.new(1, 0);
+G2L["8e"].CornerRadius = UDim.new(0, 6);
 G2L["8f"] = Instance.new("UIStroke", G2L["8d"]);
 G2L["8f"].Color = Color3.fromRGB(84, 84, 84);
 G2L["90"] = Instance.new("UIStroke", G2L["8b"]);
 G2L["90"].Color = Color3.fromRGB(72, 72, 72);
 G2L["91"] = Instance.new("UICorner", G2L["88"]);
+G2L["91"].CornerRadius = UDim.new(0, 6);
 G2L["92"] = Instance.new("Frame", G2L["86"]);
 G2L["92"].BorderSizePixel = 0;
 G2L["92"].BackgroundColor3 = Color3.fromRGB(45, 45, 50);
@@ -1302,6 +1309,7 @@ G2L["92"].Size = UDim2.new(1, -10, 0, 38);
 G2L["92"].Position = UDim2.new(0.01, 0, 0.45, 0);
 G2L["92"].Name = "Slider";
 G2L["93"] = Instance.new("UICorner", G2L["92"]);
+G2L["93"].CornerRadius = UDim.new(0, 6);
 G2L["94"] = Instance.new("TextLabel", G2L["92"]);
 G2L["94"].TextWrapped = true;
 G2L["94"].BorderSizePixel = 0;
@@ -1326,7 +1334,7 @@ G2L["95"].BorderColor3 = Color3.fromRGB(0, 0, 0);
 G2L["95"].Name = "Main";
 G2L["95"].BackgroundTransparency = 0.8;
 G2L["96"] = Instance.new("UICorner", G2L["95"]);
-G2L["96"].CornerRadius = UDim.new(1, 0);
+G2L["96"].CornerRadius = UDim.new(0, 6);
 G2L["97"] = Instance.new("UIStroke", G2L["95"]);
 G2L["97"].Transparency = 0.4;
 G2L["97"].Thickness = 1.2;
@@ -1368,7 +1376,7 @@ G2L["9a"].Size = UDim2.new(0, 0, 1, 0);
 G2L["9a"].BorderColor3 = Color3.fromRGB(34, 49, 60);
 G2L["9a"].Name = "Progress";
 G2L["9b"] = Instance.new("UICorner", G2L["9a"]);
-G2L["9b"].CornerRadius = UDim.new(1, 0);
+G2L["9b"].CornerRadius = UDim.new(0, 6);
 G2L["9c"] = Instance.new("UIStroke", G2L["9a"]);
 G2L["9c"].Transparency = 0.3;
 G2L["9c"].Thickness = 1.2;
@@ -1400,6 +1408,7 @@ G2L["9f"].Size = UDim2.new(1, -10, 0, 42);
 G2L["9f"].Position = UDim2.new(0.01, 0, 0.669, 0);
 G2L["9f"].Name = "Keybind";
 G2L.a0 = Instance.new("UICorner", G2L["9f"]);
+G2L.a0.CornerRadius = UDim.new(0, 6);
 G2L.a1 = Instance.new("TextLabel", G2L["9f"]);
 G2L.a1.TextWrapped = true;
 G2L.a1.BorderSizePixel = 0;
@@ -1436,6 +1445,7 @@ G2L.a3.Position = UDim2.new(0.5, 0, 0.5, 0);
 G2L.a3.Text = "Q";
 G2L.a3.BackgroundTransparency = 1;
 G2L.a4 = Instance.new("UICorner", G2L.a2);
+G2L.a4.CornerRadius = UDim.new(0, 6);
 G2L.a5 = Instance.new("UIStroke", G2L.a2);
 G2L.a5.Color = Color3.fromRGB(72, 72, 72);
 G2L.a6 = Instance.new("Frame", G2L["86"]);
@@ -1445,6 +1455,7 @@ G2L.a6.Size = UDim2.new(1, -10, 0, 42);
 G2L.a6.Position = UDim2.new(0.01, 0, 0.669, 0);
 G2L.a6.Name = "Input";
 G2L.a7 = Instance.new("UICorner", G2L.a6);
+G2L.a7.CornerRadius = UDim.new(0, 6);
 G2L.a8 = Instance.new("TextLabel", G2L.a6);
 G2L.a8.TextWrapped = true;
 G2L.a8.BorderSizePixel = 0;
@@ -1482,6 +1493,7 @@ G2L.aa.Position = UDim2.new(0.5, 0, 0.5, 0);
 G2L.aa.Text = "";
 G2L.aa.BackgroundTransparency = 1;
 G2L.ab = Instance.new("UICorner", G2L.a9);
+G2L.ab.CornerRadius = UDim.new(0, 6);
 G2L.ac = Instance.new("UIStroke", G2L.a9);
 G2L.ac.Color = Color3.fromRGB(72, 72, 72);
 G2L.ad = Instance.new("Frame", G2L["86"]);
@@ -1491,6 +1503,7 @@ G2L.ad.Size = UDim2.new(1, -10, 0, 150);
 G2L.ad.Position = UDim2.new(0.01, 0, 0.573, 0);
 G2L.ad.Name = "ColorPicker";
 G2L.ae = Instance.new("UICorner", G2L.ad);
+G2L.ae.CornerRadius = UDim.new(0, 6);
 G2L.af = Instance.new("TextButton", G2L.ad);
 G2L.af.BorderSizePixel = 0;
 G2L.af.TextTransparency = 1;
@@ -1564,6 +1577,7 @@ G2L.b9.Size = UDim2.new(0, 125, 0, 32);
 G2L.b9.Position = UDim2.new(0, 20, 0, 75);
 G2L.b9.Name = "HexInput";
 G2L.ba = Instance.new("UICorner", G2L.b9);
+G2L.ba.CornerRadius = UDim.new(0, 6);
 G2L.bb = Instance.new("TextBox", G2L.b9);
 G2L.bb.CursorPosition = -1;
 G2L.bb.Name = "InputBox";
@@ -1675,6 +1689,7 @@ G2L.c6.Position = UDim2.new(0.36, -7, 0.5, 0);
 G2L.c6.Name = "GInput";
 G2L.c6.LayoutOrder = 1;
 G2L.c7 = Instance.new("UICorner", G2L.c6);
+G2L.c7.CornerRadius = UDim.new(0, 6);
 G2L.c8 = Instance.new("TextBox", G2L.c6);
 G2L.c8.Name = "InputBox";
 G2L.c8.TextXAlignment = Enum.TextXAlignment.Left;
@@ -1702,6 +1717,7 @@ G2L.ca.Size = UDim2.new(0, 56, 0, 28);
 G2L.ca.Position = UDim2.new(0.182, -5, 0.5, 0);
 G2L.ca.Name = "RInput";
 G2L.cb = Instance.new("UICorner", G2L.ca);
+G2L.cb.CornerRadius = UDim.new(0, 6);
 G2L.cc = Instance.new("TextBox", G2L.ca);
 G2L.cc.Name = "InputBox";
 G2L.cc.TextXAlignment = Enum.TextXAlignment.Left;
@@ -1730,6 +1746,7 @@ G2L.ce.Position = UDim2.new(0.928, -5, 0.465, 0);
 G2L.ce.Name = "BInput";
 G2L.ce.LayoutOrder = 2;
 G2L.cf = Instance.new("UICorner", G2L.ce);
+G2L.cf.CornerRadius = UDim.new(0, 6);
 G2L.d0 = Instance.new("TextBox", G2L.ce);
 G2L.d0.Name = "InputBox";
 G2L.d0.TextXAlignment = Enum.TextXAlignment.Left;
@@ -1756,6 +1773,7 @@ G2L.d2.Size = UDim2.new(0, 240, 0, 32);
 G2L.d2.Position = UDim2.new(0, 20, 0, 115);
 G2L.d2.Name = "RGBToggle";
 G2L.d3 = Instance.new("UICorner", G2L.d2);
+G2L.d3.CornerRadius = UDim.new(0, 6);
 G2L.d4 = Instance.new("UIStroke", G2L.d2);
 G2L.d4.Color = Color3.fromRGB(72, 72, 72);
 G2L.d4.ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
@@ -1797,7 +1815,7 @@ G2L.d7.Size = UDim2.new(0, 45, 0, 22);
 G2L.d7.Position = UDim2.new(1, -12, 0.5, 0);
 G2L.d7.Name = "Switch";
 G2L.d8 = Instance.new("UICorner", G2L.d7);
-G2L.d8.CornerRadius = UDim.new(0, 12);
+G2L.d8.CornerRadius = UDim.new(0, 6);
 G2L.d9 = Instance.new("UIStroke", G2L.d7);
 G2L.d9.Color = Color3.fromRGB(72, 72, 72);
 G2L.da = Instance.new("Frame", G2L.d7);
@@ -1809,7 +1827,7 @@ G2L.da.Size = UDim2.new(0, 18, 0, 18);
 G2L.da.Position = UDim2.new(0, 2, 0.5, 0);
 G2L.da.Name = "Indicator";
 G2L.db = Instance.new("UICorner", G2L.da);
-G2L.db.CornerRadius = UDim.new(1, 0);
+G2L.db.CornerRadius = UDim.new(0, 6);
 G2L.dc = Instance.new("UIStroke", G2L.da);
 G2L.dc.Color = Color3.fromRGB(84, 84, 84);
 G2L.dd = Instance.new("Frame", G2L["86"]);
@@ -1818,6 +1836,7 @@ G2L.dd.BackgroundColor3 = Color3.fromRGB(45, 45, 50);
 G2L.dd.Size = UDim2.new(1, -10, 0, 38);
 G2L.dd.Name = "Button";
 G2L.de = Instance.new("UICorner", G2L.dd);
+G2L.de.CornerRadius = UDim.new(0, 6);
 G2L.df = Instance.new("TextLabel", G2L.dd);
 G2L.df.TextWrapped = true;
 G2L.df.BorderSizePixel = 0;
@@ -1863,6 +1882,7 @@ G2L.e1.Text = "button";
 G2L.e1.Name = "ElementIndicator";
 G2L.e1.Position = UDim2.new(1, -15, 0.5, 0);
 G2L.e2 = Instance.new("UICorner", G2L["76"]);
+G2L.e2.CornerRadius = UDim.new(0, 6);
 G2L.e3 = Instance.new("UIGradient", G2L["76"]);
 G2L.e3.Color = ColorSequence.new({
 	ColorSequenceKeypoint.new(0, Color3.fromRGB(45, 45, 50)),
@@ -1980,14 +2000,14 @@ G2L.e4y.Thickness = 1.5;
 G2L.e4y.Color = Color3.fromRGB(155, 100, 255);
 G2L.e4y.ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
 G2L.ec = Instance.new("UICorner", G2L.e4);
-G2L.ec.CornerRadius = UDim.new(0, 10);
+G2L.ec.CornerRadius = UDim.new(0, 6);
 G2L.ed = Instance.new("UIStroke", G2L.e4);
 G2L.ed.Thickness = 2;
 G2L.ed.Color = Color3.fromRGB(155, 100, 255);
 G2L.ed.ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
 G2L.ed.Name = "UIStroker";
 G2L.ee = Instance.new("UICorner", G2L["75"]);
-G2L.ee.CornerRadius = UDim.new(0, 10);
+G2L.ee.CornerRadius = UDim.new(0, 6);
 G2L.ef = Instance.new("UIGradient", G2L["75"]);
 G2L.ef.Color = ColorSequence.new({
 	ColorSequenceKeypoint.new(0, Color3.fromRGB(35, 35, 40)),
@@ -2007,7 +2027,7 @@ G2L.f1.Name = "SuchWaypoint";
 G2L.f1.Visible = false;
 G2L.f1.BackgroundTransparency = 0.1;
 G2L.f2 = Instance.new("UICorner", G2L.f1);
-G2L.f2.CornerRadius = UDim.new(0, 10);
+G2L.f2.CornerRadius = UDim.new(0, 6);
 G2L.f3 = Instance.new("UIGradient", G2L.f1);
 G2L.f3.Color = ColorSequence.new({
 	ColorSequenceKeypoint.new(0, Color3.fromRGB(36, 36, 41)),
@@ -2022,7 +2042,7 @@ G2L.f5.Size = UDim2.new(1, 0, 0, 35);
 G2L.f5.Name = "Topbar";
 G2L.f5.BackgroundTransparency = 0.2;
 G2L.f6 = Instance.new("UICorner", G2L.f5);
-G2L.f6.CornerRadius = UDim.new(0, 10);
+G2L.f6.CornerRadius = UDim.new(0, 6);
 G2L.f7 = Instance.new("UIStroke", G2L.f5);
 G2L.f7.Thickness = 2;
 G2L.f7.Color = Color3.fromRGB(156, 101, 255);
@@ -2260,7 +2280,7 @@ G2L["10c"].LayoutOrder = 1;
 G2L["10c"].Text = "TP";
 G2L["10c"].Name = "TPBtn";
 G2L["10d"] = Instance.new("UICorner", G2L["10c"]);
-G2L["10d"].CornerRadius = UDim.new(0, 4);
+G2L["10d"].CornerRadius = UDim.new(0, 6);
 G2L["waypoint_edit_btn"] = Instance.new("TextButton", G2L["10a"]);
 G2L["waypoint_edit_btn"].TextWrapped = true;
 G2L["waypoint_edit_btn"].TextScaled = true;
@@ -2272,7 +2292,7 @@ G2L["waypoint_edit_btn"].LayoutOrder = 2;
 G2L["waypoint_edit_btn"].Text = "Edit";
 G2L["waypoint_edit_btn"].Name = "EditBtn";
 G2L["waypoint_edit_btn_corner"] = Instance.new("UICorner", G2L["waypoint_edit_btn"]);
-G2L["waypoint_edit_btn_corner"].CornerRadius = UDim.new(0, 4);
+G2L["waypoint_edit_btn_corner"].CornerRadius = UDim.new(0, 6);
 G2L["10e"] = Instance.new("TextButton", G2L["10a"]);
 G2L["10e"].TextWrapped = true;
 G2L["10e"].TextScaled = true;
@@ -2284,7 +2304,7 @@ G2L["10e"].LayoutOrder = 5;
 G2L["10e"].Text = "Copy";
 G2L["10e"].Name = "CopyBtn";
 G2L["10f"] = Instance.new("UICorner", G2L["10e"]);
-G2L["10f"].CornerRadius = UDim.new(0, 4);
+G2L["10f"].CornerRadius = UDim.new(0, 6);
 G2L["waypoint_rename_btn"] = Instance.new("TextButton", G2L["10a"]);
 G2L["waypoint_rename_btn"].TextWrapped = true;
 G2L["waypoint_rename_btn"].TextScaled = true;
@@ -2296,7 +2316,7 @@ G2L["waypoint_rename_btn"].LayoutOrder = 3;
 G2L["waypoint_rename_btn"].Text = "Rename";
 G2L["waypoint_rename_btn"].Name = "RenameBtn";
 G2L["waypoint_rename_btn_corner"] = Instance.new("UICorner", G2L["waypoint_rename_btn"]);
-G2L["waypoint_rename_btn_corner"].CornerRadius = UDim.new(0, 4);
+G2L["waypoint_rename_btn_corner"].CornerRadius = UDim.new(0, 6);
 G2L["waypoint_path_btn"] = Instance.new("TextButton", G2L["10a"]);
 G2L["waypoint_path_btn"].TextWrapped = true;
 G2L["waypoint_path_btn"].TextScaled = true;
@@ -2308,7 +2328,7 @@ G2L["waypoint_path_btn"].LayoutOrder = 4;
 G2L["waypoint_path_btn"].Text = "Path";
 G2L["waypoint_path_btn"].Name = "PathBtn";
 G2L["waypoint_path_btn_corner"] = Instance.new("UICorner", G2L["waypoint_path_btn"]);
-G2L["waypoint_path_btn_corner"].CornerRadius = UDim.new(0, 4);
+G2L["waypoint_path_btn_corner"].CornerRadius = UDim.new(0, 6);
 G2L["110"] = Instance.new("TextButton", G2L["10a"]);
 G2L["110"].TextWrapped = true;
 G2L["110"].TextScaled = true;
@@ -2320,7 +2340,7 @@ G2L["110"].LayoutOrder = 6;
 G2L["110"].Text = "Del";
 G2L["110"].Name = "DelBtn";
 G2L["111"] = Instance.new("UICorner", G2L["110"]);
-G2L["111"].CornerRadius = UDim.new(0, 4);
+G2L["111"].CornerRadius = UDim.new(0, 6);
 G2L["waypoint_scroll_bar"] = Instance.new("Frame", G2L.ff);
 G2L["waypoint_scroll_bar"].Name = "CustomScrollBar";
 G2L["waypoint_scroll_bar"].BorderSizePixel = 0;
@@ -2347,7 +2367,7 @@ G2L["waypoint_scroll_up"].TextColor3 = Color3.fromRGB(235, 235, 245);
 G2L["waypoint_scroll_up"].TextSize = 14;
 G2L["waypoint_scroll_up"].FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal);
 G2L["waypoint_scroll_up_corner"] = Instance.new("UICorner", G2L["waypoint_scroll_up"]);
-G2L["waypoint_scroll_up_corner"].CornerRadius = UDim.new(0, 5);
+G2L["waypoint_scroll_up_corner"].CornerRadius = UDim.new(0, 6);
 G2L["waypoint_scroll_track"] = Instance.new("TextButton", G2L["waypoint_scroll_bar"]);
 G2L["waypoint_scroll_track"].Name = "Track";
 G2L["waypoint_scroll_track"].BorderSizePixel = 0;
@@ -2358,7 +2378,7 @@ G2L["waypoint_scroll_track"].Size = UDim2.new(1, 0, 1, -32);
 G2L["waypoint_scroll_track"].AutoButtonColor = false;
 G2L["waypoint_scroll_track"].Text = "";
 G2L["waypoint_scroll_track_corner"] = Instance.new("UICorner", G2L["waypoint_scroll_track"]);
-G2L["waypoint_scroll_track_corner"].CornerRadius = UDim.new(0, 5);
+G2L["waypoint_scroll_track_corner"].CornerRadius = UDim.new(0, 6);
 G2L["waypoint_scroll_thumb"] = Instance.new("TextButton", G2L["waypoint_scroll_track"]);
 G2L["waypoint_scroll_thumb"].Name = "Thumb";
 G2L["waypoint_scroll_thumb"].BorderSizePixel = 0;
@@ -2368,7 +2388,7 @@ G2L["waypoint_scroll_thumb"].Size = UDim2.new(1, 0, 0, 48);
 G2L["waypoint_scroll_thumb"].AutoButtonColor = false;
 G2L["waypoint_scroll_thumb"].Text = "";
 G2L["waypoint_scroll_thumb_corner"] = Instance.new("UICorner", G2L["waypoint_scroll_thumb"]);
-G2L["waypoint_scroll_thumb_corner"].CornerRadius = UDim.new(0, 5);
+G2L["waypoint_scroll_thumb_corner"].CornerRadius = UDim.new(0, 6);
 G2L["waypoint_scroll_thumb_stroke"] = Instance.new("UIStroke", G2L["waypoint_scroll_thumb"]);
 G2L["waypoint_scroll_thumb_stroke"].Thickness = 1;
 G2L["waypoint_scroll_thumb_stroke"].Color = Color3.fromRGB(72, 72, 82);
@@ -2386,7 +2406,7 @@ G2L["waypoint_scroll_down"].TextColor3 = Color3.fromRGB(235, 235, 245);
 G2L["waypoint_scroll_down"].TextSize = 14;
 G2L["waypoint_scroll_down"].FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal);
 G2L["waypoint_scroll_down_corner"] = Instance.new("UICorner", G2L["waypoint_scroll_down"]);
-G2L["waypoint_scroll_down_corner"].CornerRadius = UDim.new(0, 5);
+G2L["waypoint_scroll_down_corner"].CornerRadius = UDim.new(0, 6);
 G2L["112"] = Instance.new("Frame", G2L["1"]);
 G2L["112"].BorderSizePixel = 0;
 G2L["112"].BackgroundColor3 = Color3.fromRGB(30, 30, 35);
@@ -2419,6 +2439,7 @@ G2L["115"].HorizontalAlignment = Enum.HorizontalAlignment.Center;
 G2L["115"].Padding = UDim.new(0, 5);
 G2L["115"].SortOrder = Enum.SortOrder.LayoutOrder;
 G2L["116"] = Instance.new("UICorner", G2L["113"]);
+G2L["116"].CornerRadius = UDim.new(0, 6);
 G2L["117"] = Instance.new("UIGradient", G2L["113"]);
 G2L["117"].Color = ColorSequence.new({
 	ColorSequenceKeypoint.new(0, Color3.fromRGB(45, 45, 50)),
@@ -2450,7 +2471,7 @@ G2L["binders_scroll_up"].TextColor3 = Color3.fromRGB(235, 235, 245);
 G2L["binders_scroll_up"].TextSize = 14;
 G2L["binders_scroll_up"].FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal);
 G2L["binders_scroll_up_corner"] = Instance.new("UICorner", G2L["binders_scroll_up"]);
-G2L["binders_scroll_up_corner"].CornerRadius = UDim.new(0, 5);
+G2L["binders_scroll_up_corner"].CornerRadius = UDim.new(0, 6);
 G2L["binders_scroll_track"] = Instance.new("TextButton", G2L["binders_scroll_bar"]);
 G2L["binders_scroll_track"].Name = "Track";
 G2L["binders_scroll_track"].BorderSizePixel = 0;
@@ -2461,7 +2482,7 @@ G2L["binders_scroll_track"].Size = UDim2.new(1, 0, 1, -32);
 G2L["binders_scroll_track"].AutoButtonColor = false;
 G2L["binders_scroll_track"].Text = "";
 G2L["binders_scroll_track_corner"] = Instance.new("UICorner", G2L["binders_scroll_track"]);
-G2L["binders_scroll_track_corner"].CornerRadius = UDim.new(0, 5);
+G2L["binders_scroll_track_corner"].CornerRadius = UDim.new(0, 6);
 G2L["binders_scroll_thumb"] = Instance.new("TextButton", G2L["binders_scroll_track"]);
 G2L["binders_scroll_thumb"].Name = "Thumb";
 G2L["binders_scroll_thumb"].BorderSizePixel = 0;
@@ -2471,7 +2492,7 @@ G2L["binders_scroll_thumb"].Size = UDim2.new(1, 0, 0, 48);
 G2L["binders_scroll_thumb"].AutoButtonColor = false;
 G2L["binders_scroll_thumb"].Text = "";
 G2L["binders_scroll_thumb_corner"] = Instance.new("UICorner", G2L["binders_scroll_thumb"]);
-G2L["binders_scroll_thumb_corner"].CornerRadius = UDim.new(0, 5);
+G2L["binders_scroll_thumb_corner"].CornerRadius = UDim.new(0, 6);
 G2L["binders_scroll_thumb_stroke"] = Instance.new("UIStroke", G2L["binders_scroll_thumb"]);
 G2L["binders_scroll_thumb_stroke"].Thickness = 1;
 G2L["binders_scroll_thumb_stroke"].Color = Color3.fromRGB(72, 72, 82);
@@ -2489,7 +2510,7 @@ G2L["binders_scroll_down"].TextColor3 = Color3.fromRGB(235, 235, 245);
 G2L["binders_scroll_down"].TextSize = 14;
 G2L["binders_scroll_down"].FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal);
 G2L["binders_scroll_down_corner"] = Instance.new("UICorner", G2L["binders_scroll_down"]);
-G2L["binders_scroll_down_corner"].CornerRadius = UDim.new(0, 5);
+G2L["binders_scroll_down_corner"].CornerRadius = UDim.new(0, 6);
 G2L["118"] = Instance.new("Frame", G2L["112"]);
 G2L["118"].BackgroundColor3 = Color3.fromRGB(40, 40, 45);
 G2L["118"].Size = UDim2.new(1, 0, 0, 35);
@@ -2566,14 +2587,14 @@ G2L["11f"].Text = "Event Binding";
 G2L["11f"].Name = "Title";
 G2L["11f"].Position = UDim2.new(0.5, 0, 0.5, 0);
 G2L["120"] = Instance.new("UICorner", G2L["118"]);
-G2L["120"].CornerRadius = UDim.new(0, 10);
+G2L["120"].CornerRadius = UDim.new(0, 6);
 G2L["121"] = Instance.new("UIStroke", G2L["118"]);
 G2L["121"].Thickness = 2;
 G2L["121"].Color = Color3.fromRGB(155, 100, 255);
 G2L["121"].ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
 G2L["121"].Name = "UIStroker";
 G2L["122"] = Instance.new("UICorner", G2L["112"]);
-G2L["122"].CornerRadius = UDim.new(0, 10);
+G2L["122"].CornerRadius = UDim.new(0, 6);
 G2L["123"] = Instance.new("UIGradient", G2L["112"]);
 G2L["123"].Color = ColorSequence.new({
 	ColorSequenceKeypoint.new(0, Color3.fromRGB(35, 35, 40)),
@@ -2590,6 +2611,7 @@ G2L["125"].BackgroundColor3 = Color3.fromRGB(45, 45, 50);
 G2L["125"].Size = UDim2.new(1, -10, 0, 42);
 G2L["125"].Name = "Dropdown";
 G2L["126"] = Instance.new("UICorner", G2L["125"]);
+G2L["126"].CornerRadius = UDim.new(0, 6);
 G2L["127"] = Instance.new("TextLabel", G2L["125"]);
 G2L["127"].TextWrapped = true;
 G2L["127"].BorderSizePixel = 0;
@@ -2732,7 +2754,7 @@ G2L["settings_scroll_up"].TextColor3 = Color3.fromRGB(235, 235, 245);
 G2L["settings_scroll_up"].TextSize = 14;
 G2L["settings_scroll_up"].FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal);
 G2L["settings_scroll_up_corner"] = Instance.new("UICorner", G2L["settings_scroll_up"]);
-G2L["settings_scroll_up_corner"].CornerRadius = UDim.new(0, 5);
+G2L["settings_scroll_up_corner"].CornerRadius = UDim.new(0, 6);
 G2L["settings_scroll_track"] = Instance.new("TextButton", G2L["settings_scroll_bar"]);
 G2L["settings_scroll_track"].Name = "Track";
 G2L["settings_scroll_track"].BorderSizePixel = 0;
@@ -2743,7 +2765,7 @@ G2L["settings_scroll_track"].Size = UDim2.new(1, 0, 1, -32);
 G2L["settings_scroll_track"].AutoButtonColor = false;
 G2L["settings_scroll_track"].Text = "";
 G2L["settings_scroll_track_corner"] = Instance.new("UICorner", G2L["settings_scroll_track"]);
-G2L["settings_scroll_track_corner"].CornerRadius = UDim.new(0, 5);
+G2L["settings_scroll_track_corner"].CornerRadius = UDim.new(0, 6);
 G2L["settings_scroll_thumb"] = Instance.new("TextButton", G2L["settings_scroll_track"]);
 G2L["settings_scroll_thumb"].Name = "Thumb";
 G2L["settings_scroll_thumb"].BorderSizePixel = 0;
@@ -2753,7 +2775,7 @@ G2L["settings_scroll_thumb"].Size = UDim2.new(1, 0, 0, 48);
 G2L["settings_scroll_thumb"].AutoButtonColor = false;
 G2L["settings_scroll_thumb"].Text = "";
 G2L["settings_scroll_thumb_corner"] = Instance.new("UICorner", G2L["settings_scroll_thumb"]);
-G2L["settings_scroll_thumb_corner"].CornerRadius = UDim.new(0, 5);
+G2L["settings_scroll_thumb_corner"].CornerRadius = UDim.new(0, 6);
 G2L["settings_scroll_thumb_stroke"] = Instance.new("UIStroke", G2L["settings_scroll_thumb"]);
 G2L["settings_scroll_thumb_stroke"].Thickness = 1;
 G2L["settings_scroll_thumb_stroke"].Color = Color3.fromRGB(72, 72, 82);
@@ -2771,7 +2793,7 @@ G2L["settings_scroll_down"].TextColor3 = Color3.fromRGB(235, 235, 245);
 G2L["settings_scroll_down"].TextSize = 14;
 G2L["settings_scroll_down"].FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal);
 G2L["settings_scroll_down_corner"] = Instance.new("UICorner", G2L["settings_scroll_down"]);
-G2L["settings_scroll_down_corner"].CornerRadius = UDim.new(0, 5);
+G2L["settings_scroll_down_corner"].CornerRadius = UDim.new(0, 6);
 G2L["executor_frame"] = Instance.new("Frame", G2L["1"]);
 G2L["executor_frame"].BorderSizePixel = 0;
 G2L["executor_frame"].BackgroundColor3 = Color3.fromRGB(30, 30, 35);
@@ -2791,6 +2813,7 @@ G2L["executor_container"].Position = UDim2.new(0.5, 0, 1, -10);
 G2L["executor_container"].Name = "Container";
 G2L["executor_container"].BackgroundTransparency = 0.28;
 G2L["executor_container_corner"] = Instance.new("UICorner", G2L["executor_container"]);
+G2L["executor_container_corner"].CornerRadius = UDim.new(0, 6);
 G2L["executor_container_gradient"] = Instance.new("UIGradient", G2L["executor_container"]);
 G2L["executor_container_gradient"].Color = ColorSequence.new({
 	ColorSequenceKeypoint.new(0, Color3.fromRGB(45, 45, 50)),
@@ -2891,14 +2914,14 @@ G2L["executor_title"].Text = "Executor";
 G2L["executor_title"].Name = "Title";
 G2L["executor_title"].Position = UDim2.new(0.5, 0, 0.5, 0);
 G2L["executor_corner"] = Instance.new("UICorner", G2L["executor_topbar"]);
-G2L["executor_corner"].CornerRadius = UDim.new(0, 10);
+G2L["executor_corner"].CornerRadius = UDim.new(0, 6);
 G2L["executor_stroke"] = Instance.new("UIStroke", G2L["executor_frame"]);
 G2L["executor_stroke"].Thickness = 2;
 G2L["executor_stroke"].Color = Color3.fromRGB(155, 100, 255);
 G2L["executor_stroke"].ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
 G2L["executor_stroke"].Name = "UIStroker";
 G2L["executor_frame_corner"] = Instance.new("UICorner", G2L["executor_frame"]);
-G2L["executor_frame_corner"].CornerRadius = UDim.new(0, 10);
+G2L["executor_frame_corner"].CornerRadius = UDim.new(0, 6);
 G2L["executor_frame_gradient"] = Instance.new("UIGradient", G2L["executor_frame"]);
 G2L["executor_frame_gradient"].Color = ColorSequence.new({
 	ColorSequenceKeypoint.new(0, Color3.fromRGB(35, 35, 40)),
@@ -2923,6 +2946,7 @@ G2L["command_keybinds_container"].Position = UDim2.new(0.5, 0, 1, -10);
 G2L["command_keybinds_container"].Name = "Container";
 G2L["command_keybinds_container"].BackgroundTransparency = 0.3;
 G2L["command_keybinds_container_corner"] = Instance.new("UICorner", G2L["command_keybinds_container"]);
+G2L["command_keybinds_container_corner"].CornerRadius = UDim.new(0, 6);
 G2L["command_keybinds_container_gradient"] = Instance.new("UIGradient", G2L["command_keybinds_container"]);
 G2L["command_keybinds_container_gradient"].Color = ColorSequence.new({
 	ColorSequenceKeypoint.new(0, Color3.fromRGB(45, 45, 50)),
@@ -2954,7 +2978,7 @@ G2L["command_keybinds_scroll_up"].TextColor3 = Color3.fromRGB(235, 235, 245);
 G2L["command_keybinds_scroll_up"].TextSize = 14;
 G2L["command_keybinds_scroll_up"].FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal);
 G2L["command_keybinds_scroll_up_corner"] = Instance.new("UICorner", G2L["command_keybinds_scroll_up"]);
-G2L["command_keybinds_scroll_up_corner"].CornerRadius = UDim.new(0, 5);
+G2L["command_keybinds_scroll_up_corner"].CornerRadius = UDim.new(0, 6);
 G2L["command_keybinds_scroll_track"] = Instance.new("TextButton", G2L["command_keybinds_scroll_bar"]);
 G2L["command_keybinds_scroll_track"].Name = "Track";
 G2L["command_keybinds_scroll_track"].BorderSizePixel = 0;
@@ -2965,7 +2989,7 @@ G2L["command_keybinds_scroll_track"].Size = UDim2.new(1, 0, 1, -32);
 G2L["command_keybinds_scroll_track"].AutoButtonColor = false;
 G2L["command_keybinds_scroll_track"].Text = "";
 G2L["command_keybinds_scroll_track_corner"] = Instance.new("UICorner", G2L["command_keybinds_scroll_track"]);
-G2L["command_keybinds_scroll_track_corner"].CornerRadius = UDim.new(0, 5);
+G2L["command_keybinds_scroll_track_corner"].CornerRadius = UDim.new(0, 6);
 G2L["command_keybinds_scroll_thumb"] = Instance.new("TextButton", G2L["command_keybinds_scroll_track"]);
 G2L["command_keybinds_scroll_thumb"].Name = "Thumb";
 G2L["command_keybinds_scroll_thumb"].BorderSizePixel = 0;
@@ -2975,7 +2999,7 @@ G2L["command_keybinds_scroll_thumb"].Size = UDim2.new(1, 0, 0, 48);
 G2L["command_keybinds_scroll_thumb"].AutoButtonColor = false;
 G2L["command_keybinds_scroll_thumb"].Text = "";
 G2L["command_keybinds_scroll_thumb_corner"] = Instance.new("UICorner", G2L["command_keybinds_scroll_thumb"]);
-G2L["command_keybinds_scroll_thumb_corner"].CornerRadius = UDim.new(0, 5);
+G2L["command_keybinds_scroll_thumb_corner"].CornerRadius = UDim.new(0, 6);
 G2L["command_keybinds_scroll_thumb_stroke"] = Instance.new("UIStroke", G2L["command_keybinds_scroll_thumb"]);
 G2L["command_keybinds_scroll_thumb_stroke"].Thickness = 1;
 G2L["command_keybinds_scroll_thumb_stroke"].Color = Color3.fromRGB(72, 72, 82);
@@ -2993,7 +3017,7 @@ G2L["command_keybinds_scroll_down"].TextColor3 = Color3.fromRGB(235, 235, 245);
 G2L["command_keybinds_scroll_down"].TextSize = 14;
 G2L["command_keybinds_scroll_down"].FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal);
 G2L["command_keybinds_scroll_down_corner"] = Instance.new("UICorner", G2L["command_keybinds_scroll_down"]);
-G2L["command_keybinds_scroll_down_corner"].CornerRadius = UDim.new(0, 5);
+G2L["command_keybinds_scroll_down_corner"].CornerRadius = UDim.new(0, 6);
 G2L["command_keybinds_topbar"] = Instance.new("Frame", G2L["command_keybinds_frame"]);
 G2L["command_keybinds_topbar"].BackgroundColor3 = Color3.fromRGB(40, 40, 45);
 G2L["command_keybinds_topbar"].Size = UDim2.new(1, 0, 0, 35);
@@ -3068,13 +3092,13 @@ G2L["command_keybinds_title"].Text = "Command Keybinds";
 G2L["command_keybinds_title"].Name = "Title";
 G2L["command_keybinds_title"].Position = UDim2.new(0.5, 0, 0.5, 0);
 G2L["command_keybinds_topbar_corner"] = Instance.new("UICorner", G2L["command_keybinds_topbar"]);
-G2L["command_keybinds_topbar_corner"].CornerRadius = UDim.new(0, 10);
+G2L["command_keybinds_topbar_corner"].CornerRadius = UDim.new(0, 6);
 G2L["command_keybinds_topbar_stroke"] = Instance.new("UIStroke", G2L["command_keybinds_topbar"]);
 G2L["command_keybinds_topbar_stroke"].Thickness = 2;
 G2L["command_keybinds_topbar_stroke"].Color = Color3.fromRGB(155, 100, 255);
 G2L["command_keybinds_topbar_stroke"].ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
 G2L["command_keybinds_frame_corner"] = Instance.new("UICorner", G2L["command_keybinds_frame"]);
-G2L["command_keybinds_frame_corner"].CornerRadius = UDim.new(0, 10);
+G2L["command_keybinds_frame_corner"].CornerRadius = UDim.new(0, 6);
 G2L["command_keybinds_frame_gradient"] = Instance.new("UIGradient", G2L["command_keybinds_frame"]);
 G2L["command_keybinds_frame_gradient"].Color = ColorSequence.new({
 	ColorSequenceKeypoint.new(0, Color3.fromRGB(35, 35, 40)),
@@ -3104,7 +3128,7 @@ G2L["notepad_container"].Position = UDim2.new(0.5, 0, 1, -10);
 G2L["notepad_container"].Name = "Container";
 G2L["notepad_container"].BackgroundTransparency = 0.3;
 G2L["notepad_container_corner"] = Instance.new("UICorner", G2L["notepad_container"]);
-G2L["notepad_container_corner"].CornerRadius = UDim.new(0, 10);
+G2L["notepad_container_corner"].CornerRadius = UDim.new(0, 6);
 G2L["notepad_container_gradient"] = Instance.new("UIGradient", G2L["notepad_container"]);
 G2L["notepad_container_gradient"].Color = ColorSequence.new({
 	ColorSequenceKeypoint.new(0, Color3.fromRGB(45, 45, 50)),
@@ -3184,13 +3208,13 @@ G2L["notepad_title"].Text = "Notepad";
 G2L["notepad_title"].Name = "Title";
 G2L["notepad_title"].Position = UDim2.new(0.5, 0, 0.5, 0);
 G2L["notepad_topbar_corner"] = Instance.new("UICorner", G2L["notepad_topbar"]);
-G2L["notepad_topbar_corner"].CornerRadius = UDim.new(0, 10);
+G2L["notepad_topbar_corner"].CornerRadius = UDim.new(0, 6);
 G2L["notepad_topbar_stroke"] = Instance.new("UIStroke", G2L["notepad_topbar"]);
 G2L["notepad_topbar_stroke"].Thickness = 2;
 G2L["notepad_topbar_stroke"].Color = Color3.fromRGB(155, 100, 255);
 G2L["notepad_topbar_stroke"].ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
 G2L["notepad_frame_corner"] = Instance.new("UICorner", G2L["notepad_frame"]);
-G2L["notepad_frame_corner"].CornerRadius = UDim.new(0, 10);
+G2L["notepad_frame_corner"].CornerRadius = UDim.new(0, 6);
 G2L["notepad_frame_gradient"] = Instance.new("UIGradient", G2L["notepad_frame"]);
 G2L["notepad_frame_gradient"].Color = ColorSequence.new({
 	ColorSequenceKeypoint.new(0, Color3.fromRGB(35, 35, 40)),
@@ -3218,7 +3242,7 @@ G2L["plugins_container"].Position = UDim2.new(0.5, 0, 1, -10);
 G2L["plugins_container"].Name = "Container";
 G2L["plugins_container"].BackgroundTransparency = 0.3;
 G2L["plugins_container_corner"] = Instance.new("UICorner", G2L["plugins_container"]);
-G2L["plugins_container_corner"].CornerRadius = UDim.new(0, 10);
+G2L["plugins_container_corner"].CornerRadius = UDim.new(0, 6);
 G2L["plugins_container_gradient"] = Instance.new("UIGradient", G2L["plugins_container"]);
 G2L["plugins_container_gradient"].Color = ColorSequence.new({
 	ColorSequenceKeypoint.new(0, Color3.fromRGB(45, 45, 50)),
@@ -3338,14 +3362,14 @@ G2L["plugins_title"].Text = "Plugins";
 G2L["plugins_title"].Name = "Title";
 G2L["plugins_title"].Position = UDim2.new(0.5, 0, 0.5, 0);
 G2L["plugins_topbar_corner"] = Instance.new("UICorner", G2L["plugins_topbar"]);
-G2L["plugins_topbar_corner"].CornerRadius = UDim.new(0, 10);
+G2L["plugins_topbar_corner"].CornerRadius = UDim.new(0, 6);
 G2L["plugins_topbar_stroke"] = Instance.new("UIStroke", G2L["plugins_topbar"]);
 G2L["plugins_topbar_stroke"].Thickness = 2;
 G2L["plugins_topbar_stroke"].Color = Color3.fromRGB(155, 100, 255);
 G2L["plugins_topbar_stroke"].ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
 G2L["plugins_topbar_stroke"].Name = "UIStroker";
 G2L["plugins_frame_corner"] = Instance.new("UICorner", G2L["plugins_frame"]);
-G2L["plugins_frame_corner"].CornerRadius = UDim.new(0, 10);
+G2L["plugins_frame_corner"].CornerRadius = UDim.new(0, 6);
 G2L["plugins_frame_gradient"] = Instance.new("UIGradient", G2L["plugins_frame"]);
 G2L["plugins_frame_gradient"].Color = ColorSequence.new({
 	ColorSequenceKeypoint.new(0, Color3.fromRGB(35, 35, 40)),
@@ -3378,7 +3402,7 @@ G2L["music_container"].Position = UDim2.new(0.5, 0, 1, -10);
 G2L["music_container"].Name = "Container";
 G2L["music_container"].BackgroundTransparency = 0.3;
 G2L["music_container_corner"] = Instance.new("UICorner", G2L["music_container"]);
-G2L["music_container_corner"].CornerRadius = UDim.new(0, 10);
+G2L["music_container_corner"].CornerRadius = UDim.new(0, 6);
 G2L["music_container_gradient"] = Instance.new("UIGradient", G2L["music_container"]);
 G2L["music_container_gradient"].Color = ColorSequence.new({
 	ColorSequenceKeypoint.new(0, Color3.fromRGB(45, 45, 50)),
@@ -3668,14 +3692,14 @@ G2L["music_title"].Text = "Music Player";
 G2L["music_title"].Name = "Title";
 G2L["music_title"].Position = UDim2.new(0.5, 0, 0.5, 0);
 G2L["music_topbar_corner"] = Instance.new("UICorner", G2L["music_topbar"]);
-G2L["music_topbar_corner"].CornerRadius = UDim.new(0, 10);
+G2L["music_topbar_corner"].CornerRadius = UDim.new(0, 6);
 G2L["music_topbar_stroke"] = Instance.new("UIStroke", G2L["music_topbar"]);
 G2L["music_topbar_stroke"].Thickness = 2;
 G2L["music_topbar_stroke"].Color = Color3.fromRGB(155, 100, 255);
 G2L["music_topbar_stroke"].ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
 G2L["music_topbar_stroke"].Name = "UIStroker";
 G2L["music_frame_corner"] = Instance.new("UICorner", G2L["music_frame"]);
-G2L["music_frame_corner"].CornerRadius = UDim.new(0, 10);
+G2L["music_frame_corner"].CornerRadius = UDim.new(0, 6);
 G2L["music_frame_gradient"] = Instance.new("UIGradient", G2L["music_frame"]);
 G2L["music_frame_gradient"].Color = ColorSequence.new({
 	ColorSequenceKeypoint.new(0, Color3.fromRGB(35, 35, 40)),
@@ -3817,7 +3841,7 @@ do
 	local semiboldFont = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal);
 	local function addCorner(parent, radius)
 		local item = Instance.new("UICorner", parent);
-		item.CornerRadius = UDim.new(0, radius or 6);
+		item.CornerRadius = UDim.new(0, 6);
 		return item;
 	end;
 	local function addStroke(parent, thickness)
@@ -3841,7 +3865,7 @@ do
 		item.FontFace = semiboldFont;
 		item.Size = size;
 		item.Position = position;
-		addCorner(item, 6);
+		addCorner(item, 9);
 		addStroke(item, 1.5);
 		return item;
 	end;
@@ -3856,7 +3880,7 @@ do
 	frame.Size = UDim2.new(0, 760, 0, 520);
 	frame.Visible = false;
 	frame.ClipsDescendants = true;
-	addCorner(frame, 10);
+	addCorner(frame, 15);
 	addStroke(frame, 2);
 	local frameGradient = Instance.new("UIGradient", frame);
 	frameGradient.Color = ColorSequence.new({
@@ -3870,7 +3894,7 @@ do
 	topbar.BackgroundColor3 = Color3.fromRGB(40, 40, 45);
 	topbar.BackgroundTransparency = 0.2;
 	topbar.Size = UDim2.new(1, 0, 0, 35);
-	addCorner(topbar, 10);
+	addCorner(topbar, 15);
 	addStroke(topbar, 2);
 
 	local engine = makeButton(topbar, "Engine", "Engine: RScripts", UDim2.new(0, 154, 0, 24), UDim2.new(0, 10, 0.5, -12), Color3.fromRGB(50, 50, 60));
@@ -3920,7 +3944,7 @@ do
 	container.Position = UDim2.new(0.5, 0, 1, -10);
 	container.Size = UDim2.new(1, -15, 1, -50);
 	container.ClipsDescendants = true;
-	addCorner(container, 10);
+	addCorner(container, 15);
 	local containerGradient = Instance.new("UIGradient", container);
 	containerGradient.Color = ColorSequence.new({
 		ColorSequenceKeypoint.new(0, Color3.fromRGB(45, 45, 50)),
@@ -3934,7 +3958,7 @@ do
 	searchRow.BackgroundTransparency = 0.15;
 	searchRow.Position = UDim2.new(0, 8, 0, 8);
 	searchRow.Size = UDim2.new(1, -16, 0, 34);
-	addCorner(searchRow, 7);
+	addCorner(searchRow, 11);
 
 	local searchBox = Instance.new("TextBox", searchRow);
 	searchBox.Name = "SearchBox";
@@ -4011,7 +4035,7 @@ do
 	resultsScrollBar.Position = UDim2.new(1, -18, 0, 86);
 	resultsScrollBar.Size = UDim2.new(0, 16, 1, -94);
 	resultsScrollBar.Visible = false;
-	addCorner(resultsScrollBar, 6);
+	addCorner(resultsScrollBar, 9);
 	local resultsScrollStroke = addStroke(resultsScrollBar, 1);
 	resultsScrollStroke.Transparency = 0.35;
 
@@ -4026,7 +4050,7 @@ do
 	resultsScrollUp.TextColor3 = Color3.fromRGB(235, 235, 245);
 	resultsScrollUp.TextSize = 14;
 	resultsScrollUp.FontFace = semiboldFont;
-	addCorner(resultsScrollUp, 5);
+	addCorner(resultsScrollUp, 8);
 
 	local resultsScrollTrack = Instance.new("TextButton", resultsScrollBar);
 	resultsScrollTrack.Name = "Track";
@@ -4037,7 +4061,7 @@ do
 	resultsScrollTrack.Size = UDim2.new(1, 0, 1, -32);
 	resultsScrollTrack.AutoButtonColor = false;
 	resultsScrollTrack.Text = "";
-	addCorner(resultsScrollTrack, 5);
+	addCorner(resultsScrollTrack, 8);
 
 	local resultsScrollThumb = Instance.new("TextButton", resultsScrollTrack);
 	resultsScrollThumb.Name = "Thumb";
@@ -4047,7 +4071,7 @@ do
 	resultsScrollThumb.Size = UDim2.new(1, 0, 0, 48);
 	resultsScrollThumb.AutoButtonColor = false;
 	resultsScrollThumb.Text = "";
-	addCorner(resultsScrollThumb, 5);
+	addCorner(resultsScrollThumb, 8);
 	local resultsThumbStroke = addStroke(resultsScrollThumb, 1);
 	resultsThumbStroke.Color = Color3.fromRGB(72, 72, 82);
 	resultsThumbStroke.Transparency = 0.25;
@@ -4064,7 +4088,7 @@ do
 	resultsScrollDown.TextColor3 = Color3.fromRGB(235, 235, 245);
 	resultsScrollDown.TextSize = 14;
 	resultsScrollDown.FontFace = semiboldFont;
-	addCorner(resultsScrollDown, 5);
+	addCorner(resultsScrollDown, 8);
 
 	local resultsLayout = Instance.new("UIListLayout", results);
 	resultsLayout.Name = "Layout";
@@ -4085,7 +4109,7 @@ do
 	local semiboldFont = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
 	local function corner(parent, radius)
 		local item = Instance.new("UICorner", parent)
-		item.CornerRadius = UDim.new(0, radius or 6)
+		item.CornerRadius = UDim.new(0, 6)
 		return item
 	end
 	local function stroke(parent, thickness)
@@ -4109,7 +4133,7 @@ do
 		item.FontFace = semiboldFont
 		item.Size = size
 		item.Position = position
-		corner(item, 6)
+		corner(item, 9)
 		stroke(item, 1.5)
 		return item
 	end
@@ -4124,7 +4148,7 @@ do
 	frame.Size = UDim2.new(0, 780, 0, 530)
 	frame.Visible = false
 	frame.ClipsDescendants = true
-	corner(frame, 10)
+	corner(frame, 15)
 	stroke(frame, 2)
 	local frameGradient = Instance.new("UIGradient", frame)
 	frameGradient.Color = ColorSequence.new({
@@ -4138,7 +4162,7 @@ do
 	topbar.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
 	topbar.BackgroundTransparency = 0.2
 	topbar.Size = UDim2.new(1, 0, 0, 35)
-	corner(topbar, 10)
+	corner(topbar, 15)
 	stroke(topbar, 2)
 
 	local title = Instance.new("TextLabel", topbar)
@@ -4186,7 +4210,7 @@ do
 	container.Position = UDim2.new(0.5, 0, 1, -10)
 	container.Size = UDim2.new(1, -15, 1, -50)
 	container.ClipsDescendants = true
-	corner(container, 10)
+	corner(container, 15)
 	local containerGradient = Instance.new("UIGradient", container)
 	containerGradient.Color = ColorSequence.new({
 		ColorSequenceKeypoint.new(0, Color3.fromRGB(45, 45, 50)),
@@ -4208,7 +4232,7 @@ do
 	search.FontFace = regularFont
 	search.Position = UDim2.new(0, 8, 0, 8)
 	search.Size = UDim2.new(1, -340, 0, 32)
-	corner(search, 7)
+	corner(search, 11)
 	stroke(search, 1.25)
 
 	button(container, "Filter", "All Places", UDim2.new(0, 112, 0, 30), UDim2.new(1, -324, 0, 9))

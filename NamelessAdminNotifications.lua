@@ -1214,7 +1214,7 @@ function NotifFuns.mkHdr(par, z, kind, onPause, owner)
 	iconWrap.ZIndex = z + 209
 	iconWrap.Parent = hdr
 	local iwc = Instance.new("UICorner", iconWrap)
-	iwc.CornerRadius = UDim.new(0, isMobile and 10 or 8)
+	iwc.CornerRadius = UDim.new(0, 6)
 	local iws = Instance.new("UIStroke", iconWrap)
 	iws.Color = TH.Border
 	iws.Thickness = 1
@@ -1242,7 +1242,7 @@ function NotifFuns.mkHdr(par, z, kind, onPause, owner)
 	dot.Visible = false
 	dot.Parent = hdr
 	local dc = Instance.new("UICorner", dot)
-	dc.CornerRadius = UDim.new(1, 0)
+	dc.CornerRadius = UDim.new(0, 6)
 	local cnt = Instance.new("TextLabel")
 	protectUiInst(cnt)
 	cnt.AnchorPoint = Vector2.new(0, 0.5)
@@ -1262,7 +1262,7 @@ function NotifFuns.mkHdr(par, z, kind, onPause, owner)
 	cnt.Visible = false
 	cnt.Parent = hdr
 	local cntCr = Instance.new("UICorner", cnt)
-	cntCr.CornerRadius = UDim.new(1, 0)
+	cntCr.CornerRadius = UDim.new(0, 6)
 	local cntSt = Instance.new("UIStroke", cnt)
 	cntSt.Color = TH.Border
 	cntSt.Thickness = 1
@@ -1411,7 +1411,7 @@ function NotifFuns.mkHdr(par, z, kind, onPause, owner)
 		m.Parent = ov
 		fMenu = m
 		local c = Instance.new("UICorner", m)
-		c.CornerRadius = UDim.new(0, 10)
+		c.CornerRadius = UDim.new(0, 6)
 		local s = Instance.new("UIStroke", m)
 		s.Color = TH.Border
 		s.Thickness = 1
@@ -1568,7 +1568,7 @@ function NotifFuns.mkHdr(par, z, kind, onPause, owner)
 			m.Parent = ov
 			pMenu = m
 			local c = Instance.new("UICorner", m)
-			c.CornerRadius = UDim.new(0, 10)
+			c.CornerRadius = UDim.new(0, 6)
 			local s = Instance.new("UIStroke", m)
 			s.Color = TH.Border
 			s.Thickness = 1
@@ -1957,7 +1957,7 @@ function NotifFuns.mkBtnArea(cntObj, list, owner, z, maxH, font)
 		b.ClipsDescendants = true
 		b.Parent = sf
 		local cr = Instance.new("UICorner", b)
-		cr.CornerRadius = UDim.new(0, 8)
+		cr.CornerRadius = UDim.new(0, 6)
 		local st = Instance.new("UIStroke", b)
 		st.Color = TH.Border
 		st.Transparency = 0.92
@@ -2452,7 +2452,7 @@ function NotifFuns.mkCard(w, baseZ, kind, onPause)
 	shell.ZIndex = z
 	shell.Parent = card
 	local cr = Instance.new("UICorner", shell)
-	cr.CornerRadius = UDim.new(0, isMobile and 20 or 18)
+	cr.CornerRadius = UDim.new(0, 6)
 	local st = Instance.new("UIStroke", shell)
 	st.Color = TH.Border
 	st.Thickness = 1
@@ -2520,7 +2520,7 @@ function NotifFuns.mkCard(w, baseZ, kind, onPause)
 	trk.ZIndex = z + 140
 	trk.Parent = ftr
 	local c1 = Instance.new("UICorner", trk)
-	c1.CornerRadius = UDim.new(1, 0)
+	c1.CornerRadius = UDim.new(0, 6)
 	local fil = Instance.new("Frame")
 	protectUiInst(fil)
 	fil.AnchorPoint = Vector2.new(0, 0.5)
@@ -2532,7 +2532,7 @@ function NotifFuns.mkCard(w, baseZ, kind, onPause)
 	fil.ZIndex = z + 141
 	fil.Parent = trk
 	local c2 = Instance.new("UICorner", fil)
-	c2.CornerRadius = UDim.new(1, 0)
+	c2.CornerRadius = UDim.new(0, 6)
 	local hdr, ttl, act = mkHdr(shell, z, kind, onPause, card)
 	return card, hdr, ttl, act, st, sc, cntObj, ftr, trk, fil
 end
@@ -2799,7 +2799,7 @@ function NotifFuns.build(kind, p)
 		inp.ZIndex = card.ZIndex + 121
 		inp.Parent = cntObj
 		local c = Instance.new("UICorner", inp)
-		c.CornerRadius = UDim.new(0, 8)
+		c.CornerRadius = UDim.new(0, 6)
 		local st2 = Instance.new("UIStroke", inp)
 		st2.Color = TH.Border
 		st2.Transparency = 0.92

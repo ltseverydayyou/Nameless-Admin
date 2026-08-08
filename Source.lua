@@ -17840,7 +17840,7 @@ NAmanage.createLoadingUI=function(text, opts)
 	ui.container.BackgroundTransparency = 1
 
 	const cCorner = InstanceNew("UICorner", ui.container)
-	cCorner.CornerRadius = UDim.new(0, 14)
+	cCorner.CornerRadius = UDim.new(0, 6)
 
 	const cStroke = InstanceNew("UIStroke", ui.container)
 	cStroke.Thickness = 1
@@ -17950,7 +17950,7 @@ NAmanage.createLoadingUI=function(text, opts)
 	ui.minimizeButton.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
 	ui.minimizeButton.ZIndex = 13
 	const mCorner = InstanceNew("UICorner", ui.minimizeButton)
-	mCorner.CornerRadius = UDim.new(0, 8)
+	mCorner.CornerRadius = UDim.new(0, 6)
 	const mStroke = InstanceNew("UIStroke", ui.minimizeButton)
 	mStroke.Thickness = 1
 	mStroke.Color = Color3.fromRGB(255, 255, 255)
@@ -18060,7 +18060,7 @@ NAmanage.createLoadingUI=function(text, opts)
 	ui.skipButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	ui.skipButton.AutoButtonColor = false
 	const sCorner = InstanceNew("UICorner", ui.skipButton)
-	sCorner.CornerRadius = UDim.new(0, 8)
+	sCorner.CornerRadius = UDim.new(0, 6)
 	const sStroke = InstanceNew("UIStroke", ui.skipButton)
 	sStroke.Color = Color3.fromRGB(255, 255, 255)
 	sStroke.Transparency = 0.2
@@ -18076,7 +18076,7 @@ NAmanage.createLoadingUI=function(text, opts)
 	ui.autoSkipButton.BackgroundColor3 = Color3.fromRGB(16, 16, 16)
 	ui.autoSkipButton.TextColor3 = Color3.fromRGB(220, 220, 220)
 	const aCorner = InstanceNew("UICorner", ui.autoSkipButton)
-	aCorner.CornerRadius = UDim.new(0, 8)
+	aCorner.CornerRadius = UDim.new(0, 6)
 	const aStroke = InstanceNew("UIStroke", ui.autoSkipButton)
 	aStroke.Color = Color3.fromRGB(255, 255, 255)
 	aStroke.Transparency = 0.8
@@ -18092,7 +18092,7 @@ NAmanage.createLoadingUI=function(text, opts)
 	ui.toast.AutomaticSize = Enum.AutomaticSize.XY
 	ui.toast.BackgroundTransparency = 1
 	const tCorner = InstanceNew("UICorner", ui.toast)
-	tCorner.CornerRadius = UDim.new(1, 0)
+	tCorner.CornerRadius = UDim.new(0, 6)
 	const tStroke = InstanceNew("UIStroke", ui.toast)
 	tStroke.Color = Color3.fromRGB(255, 255, 255)
 	tStroke.Transparency = 0.85
@@ -18153,7 +18153,7 @@ NAmanage.createLoadingUI=function(text, opts)
 	ui.toastOpen.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	ui.toastOpen.AutoButtonColor = false
 	const toCorner = InstanceNew("UICorner", ui.toastOpen)
-	toCorner.CornerRadius = UDim.new(0, 8)
+	toCorner.CornerRadius = UDim.new(0, 6)
 	const toStroke = InstanceNew("UIStroke", ui.toastOpen)
 	toStroke.Thickness = 1
 	toStroke.Color = Color3.fromRGB(255, 255, 255)
@@ -18170,7 +18170,7 @@ NAmanage.createLoadingUI=function(text, opts)
 	ui.toastSkip.BackgroundColor3 = Color3.fromRGB(16, 16, 16)
 	ui.toastSkip.AutoButtonColor = false
 	const tsCorner = InstanceNew("UICorner", ui.toastSkip)
-	tsCorner.CornerRadius = UDim.new(0, 8)
+	tsCorner.CornerRadius = UDim.new(0, 6)
 	const tsStroke = InstanceNew("UIStroke", ui.toastSkip)
 	tsStroke.Thickness = 1
 	tsStroke.Color = Color3.fromRGB(255, 255, 255)
@@ -18187,14 +18187,14 @@ NAmanage.createLoadingUI=function(text, opts)
 	tpBack.ZIndex = 49
 	tpBack.Size = UDim2.new(1, 0, 1, 0)
 	const tpCorner = InstanceNew("UICorner", tpBack)
-	tpCorner.CornerRadius = UDim.new(1, 0)
+	tpCorner.CornerRadius = UDim.new(0, 6)
 	ui.toastFill = InstanceNew("Frame", tpBack)
 	ui.toastFill.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 	ui.toastFill.BorderSizePixel = 0
 	ui.toastFill.Size = UDim2.new(0, 0, 1, 0)
 	ui.toastFill.ZIndex = 50
 	const tfCorner = InstanceNew("UICorner", ui.toastFill)
-	tfCorner.CornerRadius = UDim.new(1, 0)
+	tfCorner.CornerRadius = UDim.new(0, 6)
 	const tfGrad = InstanceNew("UIGradient", ui.toastFill)
 	tfGrad.Color = ColorSequence.new(
 		Color3.fromRGB(210, 210, 210),
@@ -27334,7 +27334,7 @@ NAgui.MakeSwitchRow=function(parent, name, labelText)
 	sw.Parent = f
 
 	const c2 = InstanceNew("UICorner")
-	c2.CornerRadius = UDim.new(0, 12)
+	c2.CornerRadius = UDim.new(0, 6)
 	c2.Parent = sw
 
 	const st2 = InstanceNew("UIStroke")
@@ -27351,7 +27351,7 @@ NAgui.MakeSwitchRow=function(parent, name, labelText)
 	dot.Parent = sw
 
 	const c3 = InstanceNew("UICorner")
-	c3.CornerRadius = UDim.new(1, 0)
+	c3.CornerRadius = UDim.new(0, 6)
 	c3.Parent = dot
 
 	const st3 = InstanceNew("UIStroke")
@@ -32879,7 +32879,7 @@ NAmanage.RotectorEnsureScreenMarker = function(marker, entry)
 		stroke.Parent = frame
 
 		const corner = InstanceNew("UICorner")
-		corner.CornerRadius = UDim.new(0, 4)
+		corner.CornerRadius = UDim.new(0, 6)
 		corner.Parent = frame
 
 		const label = InstanceNew("TextLabel")
@@ -32997,7 +32997,7 @@ NAmanage.RotectorEnsureMarker = function(plr, entry)
 		stroke.Parent = label
 
 		const corner = InstanceNew("UICorner")
-		corner.CornerRadius = UDim.new(0, 4)
+		corner.CornerRadius = UDim.new(0, 6)
 		corner.Parent = label
 	else
 		if billboard then
@@ -38315,8 +38315,11 @@ NAmanage._ensureMobileFlyUI=function(mode)
 		const speedBox=InstanceNew("TextBox",gui)
 		const toggleBtn=InstanceNew("TextButton",btn)
 		const corner=InstanceNew("UICorner",btn)
+		corner.CornerRadius = UDim.new(0, 6)
 		const corner2=InstanceNew("UICorner",speedBox)
+		corner2.CornerRadius = UDim.new(0, 6)
 		const corner3=InstanceNew("UICorner",toggleBtn)
+		corner3.CornerRadius = UDim.new(0, 6)
 		const aspect=InstanceNew("UIAspectRatioConstraint",btn)
 		btn.BackgroundColor3=Color3.fromRGB(30,30,30)
 		btn.BackgroundTransparency=0.1
@@ -38326,7 +38329,7 @@ NAmanage._ensureMobileFlyUI=function(mode)
 		btn.Text=btnText()
 		btn.TextColor3=Color3.fromRGB(255,255,255)
 		btn.TextScaled=true
-		corner.CornerRadius=UDim.new(0.2,0)
+		corner.CornerRadius=UDim.new(0, 6)
 		aspect.AspectRatio=1
 		speedBox.BackgroundColor3=Color3.fromRGB(30,30,30)
 		speedBox.BackgroundTransparency=0.1
@@ -38348,7 +38351,7 @@ NAmanage._ensureMobileFlyUI=function(mode)
 			end
 			speedBox.Text=tostring(getSpeed())
 		end
-		corner2.CornerRadius=UDim.new(0.2,0)
+		corner2.CornerRadius=UDim.new(0, 6)
 		toggleBtn.BackgroundColor3=Color3.fromRGB(50,50,50)
 		toggleBtn.BackgroundTransparency=0.1
 		toggleBtn.Position=UDim2.new(0.8,0,-0.1,0)
@@ -38358,7 +38361,7 @@ NAmanage._ensureMobileFlyUI=function(mode)
 		toggleBtn.TextColor3=Color3.fromRGB(255,255,255)
 		toggleBtn.TextScaled=true
 		toggleBtn.AutoButtonColor=true
-		corner3.CornerRadius=UDim.new(1,0)
+		corner3.CornerRadius=UDim.new(0, 6)
 		MouseButtonFix(toggleBtn,function()
 			speedBox.Visible=not speedBox.Visible
 			toggleBtn.Text=speedBox.Visible and "-" or "+"
@@ -43126,7 +43129,7 @@ NAmanage.RenderUserButtons = function()
 			f.Parent = gui
 
 			const u = InstanceNew("UICorner")
-			u.CornerRadius = UDim.new(0.1,0)
+			u.CornerRadius = UDim.new(0, 6)
 			u.Parent = f
 
 			const t = InstanceNew("TextLabel")
@@ -43255,7 +43258,7 @@ NAmanage.RenderUserButtons = function()
 				btn.TextTransparency       = 0
 
 				const btnCorner = InstanceNew("UICorner")
-				btnCorner.CornerRadius = UDim.new(0.25,0)
+				btnCorner.CornerRadius = UDim.new(0, 6)
 				btnCorner.Parent       = btn
 
 				const baseBgColor = NAmanage.UserButtonColorFromTable(data.BgColor, Color3.fromRGB(0,0,0))
@@ -43338,7 +43341,7 @@ NAmanage.RenderUserButtons = function()
 						pad.PaddingRight = UDim.new(0, 6)
 
 						const dropCorner = InstanceNew("UICorner")
-						dropCorner.CornerRadius = UDim.new(0, 8)
+						dropCorner.CornerRadius = UDim.new(0, 6)
 						dropCorner.Parent = container
 
 						const dropStroke = InstanceNew("UIStroke")
@@ -43395,7 +43398,7 @@ NAmanage.RenderUserButtons = function()
 							cBtn.Parent = container
 
 							const cbCorner = InstanceNew("UICorner")
-							cbCorner.CornerRadius = UDim.new(0.25, 0)
+							cbCorner.CornerRadius = UDim.new(0, 6)
 							cbCorner.Parent = cBtn
 
 							const childKey = originalIO.userButtonChildKey(id, childIndex)
@@ -43434,7 +43437,7 @@ NAmanage.RenderUserButtons = function()
 								saveToggle.Parent                 = cBtn
 
 								const stCorner = InstanceNew("UICorner")
-								stCorner.CornerRadius = UDim.new(0.5,0)
+								stCorner.CornerRadius = UDim.new(0, 6)
 								stCorner.Parent       = saveToggle
 
 								MouseButtonFix(saveToggle, function()
@@ -43594,7 +43597,7 @@ NAmanage.RenderUserButtons = function()
 						saveToggle.Parent                 = btn
 
 						const stCorner = InstanceNew("UICorner")
-						stCorner.CornerRadius = UDim.new(0.5,0)
+						stCorner.CornerRadius = UDim.new(0, 6)
 						stCorner.Parent       = saveToggle
 
 						MouseButtonFix(saveToggle, function()
@@ -45033,7 +45036,7 @@ NAmanage.NAibtoolsCreateUI=function(state, actions)
 	frame.BorderSizePixel = 0
 
 	const frameCorner = InstanceNew("UICorner", frame)
-	frameCorner.CornerRadius = UDim.new(0, 8)
+	frameCorner.CornerRadius = UDim.new(0, 6)
 
 	const header = InstanceNew("Frame", frame)
 	header.Name = "Header"
@@ -46189,28 +46192,36 @@ cmd.add({"uiscale", "uscale", "guiscale", "gscale"}, {"uiscale (uscale)", "Adjus
 	const gui = InstanceNew("ScreenGui")
 	const frame = InstanceNew("Frame")
 	const frameCorner = InstanceNew("UICorner")
+	frameCorner.CornerRadius = UDim.new(0, 6)
 	const frameStroke = InstanceNew("UIStroke")
 	const sizeConstraint = InstanceNew("UISizeConstraint")
 	const dragHandle = InstanceNew("Frame")
 	const title = InstanceNew("TextLabel")
 	const closeButton = InstanceNew("TextButton")
 	const closeCorner = InstanceNew("UICorner")
+	closeCorner.CornerRadius = UDim.new(0, 6)
 	const valueLabel = InstanceNew("TextLabel")
 	const slider = InstanceNew("TextButton")
 	const sliderCorner = InstanceNew("UICorner")
+	sliderCorner.CornerRadius = UDim.new(0, 6)
 	const progress = InstanceNew("Frame")
 	const progressCorner = InstanceNew("UICorner")
+	progressCorner.CornerRadius = UDim.new(0, 6)
 	const knob = InstanceNew("TextButton")
 	const knobCorner = InstanceNew("UICorner")
+	knobCorner.CornerRadius = UDim.new(0, 6)
 	const knobStroke = InstanceNew("UIStroke")
 	const minLabel = InstanceNew("TextLabel")
 	const maxLabel = InstanceNew("TextLabel")
 	const decreaseButton = InstanceNew("TextButton")
 	const decreaseCorner = InstanceNew("UICorner")
+	decreaseCorner.CornerRadius = UDim.new(0, 6)
 	const resetButton = InstanceNew("TextButton")
 	const resetCorner = InstanceNew("UICorner")
+	resetCorner.CornerRadius = UDim.new(0, 6)
 	const increaseButton = InstanceNew("TextButton")
 	const increaseCorner = InstanceNew("UICorner")
+	increaseCorner.CornerRadius = UDim.new(0, 6)
 
 	const minSize, maxSize = NA_UI_SCALE_MIN, NA_UI_SCALE_MAX
 	const increment = 0.05
@@ -46233,7 +46244,7 @@ cmd.add({"uiscale", "uscale", "guiscale", "gscale"}, {"uiscale (uscale)", "Adjus
 	frame.ClipsDescendants = false
 	frame.Active = true
 
-	frameCorner.CornerRadius = UDim.new(0, 14)
+	frameCorner.CornerRadius = UDim.new(0, 6)
 	frameCorner.Parent = frame
 
 	frameStroke.Parent = frame
@@ -46274,7 +46285,7 @@ cmd.add({"uiscale", "uscale", "guiscale", "gscale"}, {"uiscale (uscale)", "Adjus
 	closeButton.AutoButtonColor = false
 	closeButton.ZIndex = 8
 
-	closeCorner.CornerRadius = UDim.new(0, 9)
+	closeCorner.CornerRadius = UDim.new(0, 6)
 	closeCorner.Parent = closeButton
 
 	valueLabel.Parent = frame
@@ -46299,7 +46310,7 @@ cmd.add({"uiscale", "uscale", "guiscale", "gscale"}, {"uiscale (uscale)", "Adjus
 	slider.ClipsDescendants = false
 	slider.ZIndex = 3
 
-	sliderCorner.CornerRadius = UDim.new(1, 0)
+	sliderCorner.CornerRadius = UDim.new(0, 6)
 	sliderCorner.Parent = slider
 
 	progress.Parent = slider
@@ -46310,7 +46321,7 @@ cmd.add({"uiscale", "uscale", "guiscale", "gscale"}, {"uiscale (uscale)", "Adjus
 	progress.BorderSizePixel = 0
 	progress.ZIndex = 4
 
-	progressCorner.CornerRadius = UDim.new(1, 0)
+	progressCorner.CornerRadius = UDim.new(0, 6)
 	progressCorner.Parent = progress
 
 	knob.Parent = slider
@@ -46324,7 +46335,7 @@ cmd.add({"uiscale", "uscale", "guiscale", "gscale"}, {"uiscale (uscale)", "Adjus
 	knob.Active = true
 	knob.ZIndex = 6
 
-	knobCorner.CornerRadius = UDim.new(1, 0)
+	knobCorner.CornerRadius = UDim.new(0, 6)
 	knobCorner.Parent = knob
 
 	knobStroke.Parent = knob
@@ -46365,7 +46376,7 @@ cmd.add({"uiscale", "uscale", "guiscale", "gscale"}, {"uiscale (uscale)", "Adjus
 		button.BorderSizePixel = 0
 		button.AutoButtonColor = false
 		button.ZIndex = 5
-		corner.CornerRadius = UDim.new(0, 9)
+		corner.CornerRadius = UDim.new(0, 6)
 		corner.Parent = button
 	end
 
@@ -46834,7 +46845,7 @@ cmd.add({"clickfling","mousefling"},{"clickfling (mousefling)","Fling a player b
 	toggleButton.Parent = clickflingUI
 
 	const uiCorner = InstanceNew("UICorner")
-	uiCorner.CornerRadius = UDim.new(0,8)
+	uiCorner.CornerRadius = UDim.new(0, 6)
 	uiCorner.Parent = toggleButton
 
 	NAgui.draggerV2(toggleButton)
@@ -48166,7 +48177,7 @@ cmd.add({"clickscare","clickspook"},{"clickscare (clickspook)","Teleports next t
 	toggleButton.Parent = clickscareUI
 
 	const uiCorner = InstanceNew("UICorner")
-	uiCorner.CornerRadius = UDim.new(0,8)
+	uiCorner.CornerRadius = UDim.new(0, 6)
 	uiCorner.Parent = toggleButton
 
 	NAgui.draggerV2(toggleButton)
@@ -48401,7 +48412,7 @@ cmd.add({"hoverinventory","hoverinv"}, {"hoverinventory (hoverinv)", "Shows a pl
 	hoverInventoryFrame.Visible = false
 	hoverInventoryFrame.ZIndex = 10
 	hoverInventoryFrame.Parent = hoverInventoryGui
-	InstanceNew("UICorner", hoverInventoryFrame).CornerRadius = UDim.new(0, 8)
+	InstanceNew("UICorner", hoverInventoryFrame).CornerRadius = UDim.new(0, 6)
 	const stroke = InstanceNew("UIStroke")
 	stroke.Color = NAUISTROKER or colors.Border or Color3.fromRGB(70, 75, 95)
 	stroke.Thickness = 1
@@ -48696,7 +48707,7 @@ function NAstatsUI.createWindow(position, baseSize, titleText)
 		Size = UDim2.new(1, 0, 1, 0),
 		Parent = holder
 	})
-	NAstatsUI.createInstance("UICorner", { CornerRadius = T.Radius.Window }, window)
+	NAstatsUI.createInstance("UICorner", { CornerRadius = UDim.new(0, 6) }, window)
 	NAstatsUI.createInstance("UIStroke", {
 		Color = T.Colors.Border,
 		Thickness = 4,
@@ -48721,7 +48732,7 @@ function NAstatsUI.createWindow(position, baseSize, titleText)
 		Parent = window,
 	})
 	NAstatsUI.createInstance("UICorner", {
-		CornerRadius = UDim.new(0, T.Radius.Window.Offset),
+		CornerRadius = UDim.new(0, 6),
 	}, topBar)
 
 	NAstatsUI.createInstance("UIPadding", {
@@ -48764,7 +48775,7 @@ function NAstatsUI.createWindow(position, baseSize, titleText)
 			RichText = true,
 			Parent = topBar,
 		})
-		NAstatsUI.createInstance("UICorner", { CornerRadius = UDim.new(1, 0) }, btn)
+		NAstatsUI.createInstance("UICorner", { CornerRadius = UDim.new(0, 6) }, btn)
 		NAstatsUI.createInstance("UIStroke", {
 			Color = T.Colors.Border,
 			Thickness = 2,
@@ -48950,7 +48961,7 @@ function NAstatsUI.createStatBox(parent, titleText)
 		Size = UDim2.new(boxWidthScale, boxWidthOffset, 0, boxHeight),
 		Parent = parent,
 	})
-	NAstatsUI.createInstance("UICorner", { CornerRadius = T.Radius.Container }, box)
+	NAstatsUI.createInstance("UICorner", { CornerRadius = UDim.new(0, 6) }, box)
 	NAstatsUI.createInstance("UIStroke", {
 		Color = T.Colors.Border,
 		Thickness = 1,
@@ -49007,7 +49018,7 @@ function NAstatsUI.createStatBox(parent, titleText)
 		Size = UDim2.new(1, 0, 0, 3),
 		Parent = box,
 	})
-	NAstatsUI.createInstance("UICorner", { CornerRadius = UDim.new(0, 2) }, barBg)
+	NAstatsUI.createInstance("UICorner", { CornerRadius = UDim.new(0, 6) }, barBg)
 
 	const bar = NAstatsUI.createInstance("Frame", {
 		Name = "Bar",
@@ -49016,7 +49027,7 @@ function NAstatsUI.createStatBox(parent, titleText)
 		Size = UDim2.new(0, 0, 1, 0),
 		Parent = barBg,
 	})
-	NAstatsUI.createInstance("UICorner", { CornerRadius = UDim.new(0, 2) }, bar)
+	NAstatsUI.createInstance("UICorner", { CornerRadius = UDim.new(0, 6) }, bar)
 
 	return box, valueLabel, bar
 end
@@ -52024,12 +52035,12 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 	pcall(function() NAgui.NaProtectUI(debugUI) end)
 
 	const window = new("Frame",{Name="Window", Size=UDim2.fromOffset(UI_SIZE.X, UI_SIZE.Y), Position=UDim2.new(0.5,-UI_SIZE.X/2,0.5,-UI_SIZE.Y/2), BackgroundColor3=BG_COLOR, BorderSizePixel=0, ClipsDescendants=true, Parent=debugUI, ZIndex=10})
-	new("UICorner",{CornerRadius=UDim.new(0,14),Parent=window})
+	new("UICorner",{CornerRadius=UDim.new(0, 6),Parent=window})
 	new("UIStroke",{Thickness=1,ApplyStrokeMode=Enum.ApplyStrokeMode.Border,Color=Color3.fromRGB(35,35,35),Parent=window})
 
 	const hdr = new("Frame",{Name="Header", Size=UDim2.new(1,0,0,HEADER_H), BackgroundColor3=BG_COLOR, BorderSizePixel=0, Parent=window, ZIndex=50})
 	const hdrStroke = new("UIStroke",{Thickness=1,ApplyStrokeMode=Enum.ApplyStrokeMode.Border,Color=Color3.fromRGB(45,45,45),Parent=hdr})
-	new("UICorner",{CornerRadius=UDim.new(0,14),Parent=hdr})
+	new("UICorner",{CornerRadius=UDim.new(0, 6),Parent=hdr})
 
 	const title = new("TextLabel",{Name="Title", Size=UDim2.new(0.5,-12,1,0), Position=UDim2.new(0,12,0,0), BackgroundTransparency=1, Font=Enum.Font.Code, TextSize=18, TextColor3=Color3.new(1,1,1), TextXAlignment=Enum.TextXAlignment.Left, Text="Character Debug", Parent=hdr, ZIndex=60})
 
@@ -52038,13 +52049,13 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 
 	const platformStr = tostring(__lt.cm("UserInputService", "GetPlatform"))
 	const status = new("TextLabel",{Name="Status", Size=UDim2.fromOffset(210,HEADER_H-16), BackgroundTransparency=0, BackgroundColor3=Color3.fromRGB(30,30,30), Font=Enum.Font.Code, TextSize=14, TextColor3=Color3.fromRGB(230,230,230), TextXAlignment=Enum.TextXAlignment.Center, Text="FPS: -- | Ping: -- | "..platformStr, Parent=right, ZIndex=61})
-	new("UICorner",{CornerRadius=UDim.new(1,8),Parent=status})
+	new("UICorner",{CornerRadius=UDim.new(0, 6),Parent=status})
 	const btnPause = new("TextButton",{Name="Pause", Size=UDim2.fromOffset(74,HEADER_H-16), BackgroundColor3=ACCENT, AutoButtonColor=true, TextColor3=Color3.new(1,1,1), Text="Pause", Font=Enum.Font.Code, TextSize=16, Parent=right, ZIndex=61})
-	new("UICorner",{CornerRadius=UDim.new(0,8),Parent=btnPause})
+	new("UICorner",{CornerRadius=UDim.new(0, 6),Parent=btnPause})
 	const btnMin = new("TextButton",{Name="Min", Size=UDim2.fromOffset(44,HEADER_H-16), BackgroundColor3=Color3.fromRGB(45,45,45), AutoButtonColor=true, TextColor3=Color3.new(1,1,1), Text="–", Font=Enum.Font.Code, TextSize=20, Parent=right, ZIndex=61})
-	new("UICorner",{CornerRadius=UDim.new(0,8),Parent=btnMin})
+	new("UICorner",{CornerRadius=UDim.new(0, 6),Parent=btnMin})
 	const btnClose = new("TextButton",{Name="Close", Size=UDim2.fromOffset(44,HEADER_H-16), BackgroundColor3=Color3.fromRGB(140,55,55), AutoButtonColor=true, TextColor3=Color3.new(1,1,1), Text="×", Font=Enum.Font.Code, TextSize=20, Parent=right, ZIndex=61})
-	new("UICorner",{CornerRadius=UDim.new(0,8),Parent=btnClose})
+	new("UICorner",{CornerRadius=UDim.new(0, 6),Parent=btnClose})
 
 	NAgui.draggerV2(window, hdr)
 
@@ -52062,7 +52073,7 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 
 	const logsHolder = new("Frame",{Name="LogsHolder", BackgroundTransparency=1, Visible=false, Size=UDim2.fromScale(1,1), Parent=content, ZIndex=21})
 	const panel = new("Frame",{Name="LogPanel", BackgroundColor3=PANEL_BG, BorderSizePixel=0, Parent=logsHolder, Size=UDim2.new(1,-24,1,-24), Position=UDim2.new(0,12,0,12), ZIndex=22})
-	new("UICorner",{CornerRadius=UDim.new(0,10),Parent=panel})
+	new("UICorner",{CornerRadius=UDim.new(0, 6),Parent=panel})
 	new("UIStroke",{Thickness=1,ApplyStrokeMode=Enum.ApplyStrokeMode.Border,Color=Color3.fromRGB(40,40,40),Parent=panel})
 	const counts = new("TextLabel",{Name="Counts", BackgroundTransparency=1, Position=UDim2.new(0,10,0,8), Size=UDim2.new(1,-20,0,18), Font=Enum.Font.Code, TextSize=14, TextColor3=Color3.fromRGB(200,200,200), TextXAlignment=Enum.TextXAlignment.Left, Text="Info:0  Warn:0  Error:0", Parent=panel, ZIndex=23})
 	const logScroll = new("ScrollingFrame",{Name="Scroll", Active=true, ScrollBarThickness=IsOnMobile and 10 or 6, ScrollingDirection=Enum.ScrollingDirection.Y, BackgroundTransparency=1, BorderSizePixel=0, Size=UDim2.new(1,-20,1,-40), Position=UDim2.new(0,10,0,30), Parent=panel, ZIndex=23})
@@ -52073,14 +52084,14 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 	const tabBtns = {}
 	for _, name in tabsList do
 		const b = new("TextButton",{Name=name, Size=UDim2.fromOffset(126, TAB_H-10), BackgroundColor3=(name==activeTab) and ACCENT or Color3.fromRGB(45,45,45), AutoButtonColor=true, TextColor3=Color3.new(1,1,1), Text=name, Font=Enum.Font.Code, TextSize=14, Parent=tabsHolder, ZIndex=32})
-		new("UICorner",{CornerRadius=UDim.new(0,8),Parent=b})
+		new("UICorner",{CornerRadius=UDim.new(0, 6),Parent=b})
 		tabBtns[name] = b
 	end
 
 	debugDock = new("ScreenGui",{Name="CharDebugDock",ResetOnSpawn=false,IgnoreGuiInset=true,ZIndexBehavior=Enum.ZIndexBehavior.Sibling,DisplayOrder=1100})
 	pcall(function() NAgui.NaProtectUI(debugDock) end)
 	const dock = new("Frame",{Name="Dock", Size=UDim2.fromOffset(IsOnMobile and 76 or 64,IsOnMobile and 76 or 64), AnchorPoint=Vector2.new(0,1), Position=UDim2.new(0,16,1,-16), BackgroundColor3=ACCENT, Visible=false, Parent=debugDock, ZIndex=100})
-	new("UICorner",{CornerRadius=UDim.new(0,20),Parent=dock})
+	new("UICorner",{CornerRadius=UDim.new(0, 6),Parent=dock})
 	const dockLabel = new("TextButton",{Name="Btn", BackgroundTransparency=1, Size=UDim2.fromScale(1,1), Text="CD", Font=Enum.Font.Code, TextSize=20, TextColor3=Color3.new(1,1,1), Parent=dock, ZIndex=101})
 
 	NAgui.draggerV2(dock, dockLabel)
@@ -52089,7 +52100,7 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 
 	const function makeCard(parent, key, height)
 		const f = new("Frame",{Name=key, Size=UDim2.fromOffset(400,height or 86), BackgroundColor3=PANEL_BG, BorderSizePixel=0, Parent=parent, ZIndex=22})
-		new("UICorner",{CornerRadius=UDim.new(0,10),Parent=f})
+		new("UICorner",{CornerRadius=UDim.new(0, 6),Parent=f})
 		new("UIStroke",{Thickness=1,ApplyStrokeMode=Enum.ApplyStrokeMode.Border,Color=Color3.fromRGB(40,40,40),Parent=f})
 		new("TextLabel",{Name="Key", BackgroundTransparency=1, Position=UDim2.new(0,10,0,8), Size=UDim2.new(1,-20,0,16), Font=Enum.Font.Code, TextSize=14, TextColor3=Color3.fromRGB(180,180,180), TextXAlignment=Enum.TextXAlignment.Left, Text=key, Parent=f, ZIndex=23})
 		const val = new("TextLabel",{Name="Val", BackgroundTransparency=1, Position=UDim2.new(0,10,0,28), Size=UDim2.new(1,-20,1,-36), Font=Enum.Font.Code, TextSize=16, TextColor3=Color3.new(1,1,1), TextXAlignment=Enum.TextXAlignment.Left, TextWrapped=true, Text="", Parent=f, ZIndex=23})
@@ -52575,6 +52586,7 @@ cmd.add({"somersault", "frontflip"}, {"somersault (frontflip)", "Makes you do a 
 		Somersault.btn = InstanceNew("ScreenGui")
 		const flipBtn = InstanceNew("TextButton")
 		const corner = InstanceNew("UICorner")
+		corner.CornerRadius = UDim.new(0, 6)
 		const aspect = InstanceNew("UIAspectRatioConstraint")
 
 		NAgui.NaProtectUI(Somersault.btn)
@@ -52593,7 +52605,7 @@ cmd.add({"somersault", "frontflip"}, {"somersault (frontflip)", "Makes you do a 
 		flipBtn.Active = true
 		flipBtn.TextScaled = true
 
-		corner.CornerRadius = UDim.new(0.2, 0)
+		corner.CornerRadius = UDim.new(0, 6)
 		corner.Parent = flipBtn
 
 		aspect.Parent = flipBtn
@@ -52885,7 +52897,7 @@ NAmanage.StaffwatchEnsureMarker = function(player, info)
 		stroke.Parent = label
 
 		const corner = InstanceNew("UICorner")
-		corner.CornerRadius = UDim.new(0, 4)
+		corner.CornerRadius = UDim.new(0, 6)
 		corner.Parent = label
 	elseif billboard then
 		marker.label = marker.label or billboard:FindFirstChildWhichIsA("TextLabel")
@@ -53382,6 +53394,7 @@ NAmanage.RewindCreateMobileButton = function()
 	const gui = InstanceNew("ScreenGui")
 	const button = InstanceNew("TextButton")
 	const corner = InstanceNew("UICorner")
+	corner.CornerRadius = UDim.new(0, 6)
 	const aspect = InstanceNew("UIAspectRatioConstraint")
 
 	NAgui.NaProtectUI(gui)
@@ -53402,7 +53415,7 @@ NAmanage.RewindCreateMobileButton = function()
 	button.Active = true
 	button.TextScaled = true
 
-	corner.CornerRadius = UDim.new(0.2, 0)
+	corner.CornerRadius = UDim.new(0, 6)
 	corner.Parent = button
 
 	aspect.Parent = button
@@ -59944,6 +59957,7 @@ NAStuff.ATPC._buildGUI = function()
 
 	const b = InstanceNew("TextButton")
 	const c = InstanceNew("UICorner")
+	c.CornerRadius = UDim.new(0, 6)
 	const a = InstanceNew("UIAspectRatioConstraint")
 
 	b.Parent = g
@@ -59956,7 +59970,7 @@ NAStuff.ATPC._buildGUI = function()
 	b.TextWrapped = true
 	b.Active = true
 
-	c.CornerRadius = UDim.new(0.2,0)
+	c.CornerRadius = UDim.new(0, 6)
 	c.Parent = b
 
 	a.Parent = b
@@ -61076,6 +61090,7 @@ cmd.add({"triggerbot", "tbot"}, {"triggerbot (tbot)", "Executes a script that au
 	const GUI = InstanceNew("ScreenGui")
 	const On = InstanceNew("TextLabel")
 	const uicorner = InstanceNew("UICorner")
+	uicorner.CornerRadius = UDim.new(0, 6)
 	NAgui.NaProtectUI(GUI)
 	NAStuff._triggerbotGui = GUI
 	On.Parent = GUI
@@ -62013,8 +62028,8 @@ NAmanage.makeClickTweenUI = function()
 	tweenTpButton.Text = "Enable Tween TP"
 	tweenTpButton.Parent = NAStuff.tpUI
 
-	InstanceNew("UICorner", clickTpButton)
-	InstanceNew("UICorner", tweenTpButton)
+	InstanceNew("UICorner", clickTpButton).CornerRadius = UDim.new(0, 6)
+	InstanceNew("UICorner", tweenTpButton).CornerRadius = UDim.new(0, 6)
 
 	local clickEnabled = false
 	local tweenEnabled = false
@@ -63153,11 +63168,15 @@ cmd.add({"vehiclespeed", "vspeed"}, {"vehiclespeed <amount> (vspeed)", "Change t
 	const speedBox = InstanceNew("TextBox")
 	const toggleBtn = InstanceNew("TextButton")
 	const corner = InstanceNew("UICorner")
+	corner.CornerRadius = UDim.new(0, 6)
 	const corner2 = InstanceNew("UICorner")
+	corner2.CornerRadius = UDim.new(0, 6)
 	const corner3 = InstanceNew("UICorner")
+	corner3.CornerRadius = UDim.new(0, 6)
 	const aspect = InstanceNew("UIAspectRatioConstraint")
 	const vstopBtn = InstanceNew("TextButton")
 	const vstopCorner = InstanceNew("UICorner")
+	vstopCorner.CornerRadius = UDim.new(0, 6)
 
 	NAgui.NaProtectUI(vspeedBTN)
 
@@ -63173,7 +63192,7 @@ cmd.add({"vehiclespeed", "vspeed"}, {"vehiclespeed <amount> (vspeed)", "Change t
 	btn.TextWrapped = true
 	btn.Active = true
 
-	corner.CornerRadius = UDim.new(0.2, 0)
+	corner.CornerRadius = UDim.new(0, 6)
 	corner.Parent = btn
 
 	aspect.Parent = btn
@@ -63194,7 +63213,7 @@ cmd.add({"vehiclespeed", "vspeed"}, {"vehiclespeed <amount> (vspeed)", "Change t
 	speedBox.PlaceholderText = "Speed"
 	speedBox.Visible = false
 
-	corner2.CornerRadius = UDim.new(0.2, 0)
+	corner2.CornerRadius = UDim.new(0, 6)
 	corner2.Parent = speedBox
 
 	toggleBtn.Parent = btn
@@ -63210,7 +63229,7 @@ cmd.add({"vehiclespeed", "vspeed"}, {"vehiclespeed <amount> (vspeed)", "Change t
 	toggleBtn.Active = true
 	toggleBtn.AutoButtonColor = true
 
-	corner3.CornerRadius = UDim.new(1, 0)
+	corner3.CornerRadius = UDim.new(0, 6)
 	corner3.Parent = toggleBtn
 
 	vstopBtn.Parent = vspeedBTN
@@ -63226,7 +63245,7 @@ cmd.add({"vehiclespeed", "vspeed"}, {"vehiclespeed <amount> (vspeed)", "Change t
 	vstopBtn.Active = true
 	vstopBtn.AutoButtonColor = true
 
-	vstopCorner.CornerRadius = UDim.new(0.2, 0)
+	vstopCorner.CornerRadius = UDim.new(0, 6)
 	vstopCorner.Parent = vstopBtn
 
 	MouseButtonFix(toggleBtn, function()
@@ -63831,7 +63850,7 @@ cmd.add({"alignmentkeys","alignkeys","ak"},{"alignmentkeys","Enable alignment ke
 		leftButton.Parent = alignmentButtonsGui
 
 		const leftUICorner = InstanceNew("UICorner")
-		leftUICorner.CornerRadius = UDim.new(1, 0)
+		leftUICorner.CornerRadius = UDim.new(0, 6)
 		leftUICorner.Parent = leftButton
 
 		const rightButton = InstanceNew("TextButton")
@@ -63847,7 +63866,7 @@ cmd.add({"alignmentkeys","alignkeys","ak"},{"alignmentkeys","Enable alignment ke
 		rightButton.Parent = alignmentButtonsGui
 
 		const rightUICorner = InstanceNew("UICorner")
-		rightUICorner.CornerRadius = UDim.new(1, 0)
+		rightUICorner.CornerRadius = UDim.new(0, 6)
 		rightUICorner.Parent = rightButton
 
 		NAgui.draggerV2(leftButton)
@@ -65636,7 +65655,7 @@ cmd.add({"animbuilder","abuilder"},{"animbuilder (abuilder)","Opens animation bu
 	main.BackgroundTransparency = 0.03
 	main.BorderSizePixel = 0
 	main.ClipsDescendants = true
-	InstanceNew("UICorner", main).CornerRadius = UDim.new(0, 16)
+	InstanceNew("UICorner", main).CornerRadius = UDim.new(0, 6)
 	const mainStroke = InstanceNew("UIStroke", main)
 	mainStroke.Color = Color3.fromRGB(65,68,82)
 	mainStroke.Thickness = 1
@@ -65653,7 +65672,7 @@ cmd.add({"animbuilder","abuilder"},{"animbuilder (abuilder)","Opens animation bu
 	header.Size = UDim2.new(1,0,0,headerH)
 	header.BackgroundColor3 = Color3.fromRGB(20,21,28)
 	header.BorderSizePixel = 0
-	InstanceNew("UICorner", header).CornerRadius = UDim.new(0, 16)
+	InstanceNew("UICorner", header).CornerRadius = UDim.new(0, 6)
 
 	const title = InstanceNew("TextLabel", header)
 	title.Position = UDim2.new(0,20,0,10)
@@ -65689,7 +65708,7 @@ cmd.add({"animbuilder","abuilder"},{"animbuilder (abuilder)","Opens animation bu
 	closeBtn.Font = Enum.Font.GothamBold
 	closeBtn.TextSize = 16
 	closeBtn.AutoButtonColor = true
-	InstanceNew("UICorner", closeBtn).CornerRadius = UDim.new(0,10)
+	InstanceNew("UICorner", closeBtn).CornerRadius = UDim.new(0, 6)
 	const closeStroke = InstanceNew("UIStroke", closeBtn)
 	closeStroke.Color = Color3.fromRGB(68,70,86)
 	closeStroke.Transparency = 0.3
@@ -65704,7 +65723,7 @@ cmd.add({"animbuilder","abuilder"},{"animbuilder (abuilder)","Opens animation bu
 	minBtn.Font = Enum.Font.GothamBold
 	minBtn.TextSize = 18
 	minBtn.AutoButtonColor = true
-	InstanceNew("UICorner", minBtn).CornerRadius = UDim.new(0,10)
+	InstanceNew("UICorner", minBtn).CornerRadius = UDim.new(0, 6)
 	const minStroke = InstanceNew("UIStroke", minBtn)
 	minStroke.Color = Color3.fromRGB(68,70,86)
 	minStroke.Transparency = 0.3
@@ -65767,7 +65786,7 @@ cmd.add({"animbuilder","abuilder"},{"animbuilder (abuilder)","Opens animation bu
 		b.Font = Enum.Font.GothamSemibold
 		b.TextSize = 15
 		b.AutoButtonColor = true
-		InstanceNew("UICorner", b).CornerRadius = UDim.new(0, 12)
+		InstanceNew("UICorner", b).CornerRadius = UDim.new(0, 6)
 		const st = InstanceNew("UIStroke", b)
 		st.Color = Color3.fromRGB(255,255,255)
 		st.Transparency = 0.88
@@ -65918,7 +65937,7 @@ cmd.add({"animbuilder","abuilder"},{"animbuilder (abuilder)","Opens animation bu
 		r.BackgroundColor3 = Color3.fromRGB(27,28,36)
 		r.BackgroundTransparency = 0
 		r.BorderSizePixel = 0
-		InstanceNew("UICorner", r).CornerRadius = UDim.new(0, 12)
+		InstanceNew("UICorner", r).CornerRadius = UDim.new(0, 6)
 		const rs = InstanceNew("UIStroke", r)
 		rs.Color = Color3.fromRGB(54,57,70)
 		rs.Thickness = 1
@@ -65950,7 +65969,7 @@ cmd.add({"animbuilder","abuilder"},{"animbuilder (abuilder)","Opens animation bu
 		box.TextXAlignment = Enum.TextXAlignment.Center
 		box.TextYAlignment = Enum.TextYAlignment.Center
 		box.TextTruncate = Enum.TextTruncate.AtEnd
-		InstanceNew("UICorner", box).CornerRadius = UDim.new(0, 10)
+		InstanceNew("UICorner", box).CornerRadius = UDim.new(0, 6)
 		const bs = InstanceNew("UIStroke", box)
 		bs.Color = Color3.fromRGB(58,61,74)
 		bs.Transparency = 0.15
@@ -69294,8 +69313,11 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 		const speedBox = InstanceNew("TextBox")
 		const toggleBtn = InstanceNew("TextButton")
 		const corner = InstanceNew("UICorner")
+		corner.CornerRadius = UDim.new(0, 6)
 		const corner2 = InstanceNew("UICorner")
+		corner2.CornerRadius = UDim.new(0, 6)
 		const corner3 = InstanceNew("UICorner")
+		corner3.CornerRadius = UDim.new(0, 6)
 		const aspect = InstanceNew("UIAspectRatioConstraint")
 
 		NAgui.NaProtectUI(fcBTNTOGGLE)
@@ -69315,7 +69337,7 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 		btn.Active = true
 		btn.TextScaled = true
 
-		corner.CornerRadius = UDim.new(0.2, 0)
+		corner.CornerRadius = UDim.new(0, 6)
 		corner.Parent = btn
 
 		aspect.Parent = btn
@@ -69337,7 +69359,7 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 		speedBox.PlaceholderText = "Speed"
 		speedBox.Visible = false
 
-		corner2.CornerRadius = UDim.new(0.2, 0)
+		corner2.CornerRadius = UDim.new(0, 6)
 		corner2.Parent = speedBox
 
 		toggleBtn.Name = "FreecamSpeedToggle"
@@ -69354,7 +69376,7 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 		toggleBtn.Active = true
 		toggleBtn.AutoButtonColor = true
 
-		corner3.CornerRadius = UDim.new(1, 0)
+		corner3.CornerRadius = UDim.new(0, 6)
 		corner3.Parent = toggleBtn
 
 		MouseButtonFix(toggleBtn, function()
@@ -69666,7 +69688,7 @@ cmd.add({"grippos", "setgrip"}, {"grippos (setgrip)", "Opens a UI to manually in
 	preview.BackgroundColor3 = Color3.fromRGB(75, 75, 95)
 	preview.TextColor3 = Color3.new(1, 1, 1)
 	preview.Parent = frame
-	InstanceNew("UICorner", preview)
+	InstanceNew("UICorner", preview).CornerRadius = UDim.new(0, 6)
 
 	const labels = {"X", "Y", "Z", "RX", "RY", "RZ"}
 	const textBoxes = {}
@@ -69699,7 +69721,7 @@ cmd.add({"grippos", "setgrip"}, {"grippos (setgrip)", "Opens a UI to manually in
 		box.Parent = frame
 
 		const boxCorner = InstanceNew("UICorner", box)
-		boxCorner.CornerRadius = UDim.new(0, 4)
+		boxCorner.CornerRadius = UDim.new(0, 6)
 
 		textBoxes[label] = box
 	end
@@ -69751,7 +69773,7 @@ cmd.add({"grippos", "setgrip"}, {"grippos (setgrip)", "Opens a UI to manually in
 	confirm.BackgroundColor3 = Color3.fromRGB(0, 170, 80)
 	confirm.TextColor3 = Color3.new(1, 1, 1)
 	confirm.Parent = frame
-	InstanceNew("UICorner", confirm)
+	InstanceNew("UICorner", confirm).CornerRadius = UDim.new(0, 6)
 
 	const cancel = InstanceNew("TextButton")
 	cancel.Size = UDim2.new(0, 130, 0, 32)
@@ -69762,7 +69784,7 @@ cmd.add({"grippos", "setgrip"}, {"grippos (setgrip)", "Opens a UI to manually in
 	cancel.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
 	cancel.TextColor3 = Color3.new(1, 1, 1)
 	cancel.Parent = frame
-	InstanceNew("UICorner", cancel)
+	InstanceNew("UICorner", cancel).CornerRadius = UDim.new(0, 6)
 
 	MouseButtonFix(confirm, function()
 		applyGrip()
@@ -70809,7 +70831,7 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		p.AnchorPoint = Vector2.new(1,0)
 		p.Position = UDim2.new(1, -10, 0, 10)
 		p.TextScaled = true
-		const pc = InstanceNew("UICorner", p); pc.CornerRadius = UDim.new(0, 999)
+		const pc = InstanceNew("UICorner", p); pc.CornerRadius = UDim.new(0, 6)
 		const pad = InstanceNew("UIPadding", p)
 		pad.PaddingLeft = UDim.new(0, 10)
 		pad.PaddingRight = UDim.new(0, 10)
@@ -70859,7 +70881,7 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		main.ClipsDescendants = true
 		main.Active = true
 		main.Name = "Main"
-		const uicorner = InstanceNew("UICorner", main); uicorner.CornerRadius = UDim.new(0, 14)
+		const uicorner = InstanceNew("UICorner", main); uicorner.CornerRadius = UDim.new(0, 6)
 		const stroke = InstanceNew("UIStroke", main); stroke.Color = COLORS.STROKE; stroke.Thickness = 1; stroke.Transparency = 0.2
 
 		const grad = InstanceNew("UIGradient", main)
@@ -70878,7 +70900,7 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		header.BackgroundColor3 = COLORS.TOP
 		header.BackgroundTransparency = 0.12
 
-		const headerC = InstanceNew("UICorner", header); headerC.CornerRadius = UDim.new(0, 14)
+		const headerC = InstanceNew("UICorner", header); headerC.CornerRadius = UDim.new(0, 6)
 
 		const title = InstanceNew("TextLabel", header)
 		title.Position = UDim2.new(0, 12, 0, 6)
@@ -70969,7 +70991,7 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 			b.BackgroundTransparency = 0.2
 			b.TextScaled = true
 			b.ZIndex = 5
-			const c = InstanceNew("UICorner", b); c.CornerRadius = UDim.new(0, 8)
+			const c = InstanceNew("UICorner", b); c.CornerRadius = UDim.new(0, 6)
 			const s = InstanceNew("UIStroke", b); s.Color = COLORS.STROKE; s.Thickness = 1; s.Transparency = 0.5
 			const ts = InstanceNew("UITextSizeConstraint", b); ts.MinTextSize = 10; ts.MaxTextSize = 18
 
@@ -70993,7 +71015,7 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		searchWrap.BackgroundColor3 = COLORS.BUTTON
 		searchWrap.BackgroundTransparency = 0.18
 		searchWrap.Size = UDim2.new(0, 260, 0, 24)
-		const swC = InstanceNew("UICorner", searchWrap); swC.CornerRadius = UDim.new(0, 8)
+		const swC = InstanceNew("UICorner", searchWrap); swC.CornerRadius = UDim.new(0, 6)
 		const swS = InstanceNew("UIStroke", searchWrap); swS.Color = COLORS.STROKE; swS.Thickness = 1; swS.Transparency = 0.6
 
 		const swPad = InstanceNew("UIPadding", searchWrap)
@@ -71097,7 +71119,7 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		loadingBox.BackgroundColor3 = COLORS.PANEL
 		loadingBox.BackgroundTransparency = 0.08
 		loadingBox.ZIndex = 51
-		const lbC = InstanceNew("UICorner", loadingBox); lbC.CornerRadius = UDim.new(0, 14)
+		const lbC = InstanceNew("UICorner", loadingBox); lbC.CornerRadius = UDim.new(0, 6)
 		const lbS = InstanceNew("UIStroke", loadingBox); lbS.Color = COLORS.STROKE; lbS.Thickness = 1; lbS.Transparency = 0.3
 		const loadingText = InstanceNew("TextLabel", loadingBox)
 		loadingText.AnchorPoint = Vector2.new(0.5,0.5)
@@ -71171,7 +71193,7 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 			f.BackgroundColor3 = Color3.fromRGB(36, 36, 40)
 			f.BackgroundTransparency = 0.12
 			f.ClipsDescendants = true
-			const fc = InstanceNew("UICorner", f); fc.CornerRadius = UDim.new(0, 12)
+			const fc = InstanceNew("UICorner", f); fc.CornerRadius = UDim.new(0, 6)
 			const fs = InstanceNew("UIStroke", f); fs.Color = COLORS.STROKE; fs.Thickness = 1; fs.Transparency = 0.2
 
 			const img = InstanceNew("ImageLabel", f)
@@ -71223,7 +71245,7 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 			tools.BackgroundColor3 = COLORS.BUTTON
 			tools.BackgroundTransparency = 0.35
 			tools.BorderSizePixel = 0
-			const tC = InstanceNew("UICorner", tools); tC.CornerRadius = UDim.new(0, 999)
+			const tC = InstanceNew("UICorner", tools); tC.CornerRadius = UDim.new(0, 6)
 			const tS = InstanceNew("UIStroke", tools); tS.Color = COLORS.STROKE; tS.Thickness = 1; tS.Transparency = 0.7
 			const tl = InstanceNew("UIListLayout", tools)
 			tl.FillDirection = Enum.FillDirection.Horizontal
@@ -71257,7 +71279,7 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 			f.BackgroundColor3 = Color3.fromRGB(36, 36, 40)
 			f.BackgroundTransparency = 0.12
 			f.ClipsDescendants = true
-			const fc = InstanceNew("UICorner", f); fc.CornerRadius = UDim.new(0, 12)
+			const fc = InstanceNew("UICorner", f); fc.CornerRadius = UDim.new(0, 6)
 			const fs = InstanceNew("UIStroke", f); fs.Color = COLORS.STROKE; fs.Thickness = 1; fs.Transparency = 0.2
 
 			const img = InstanceNew("ImageLabel", f)
@@ -71313,7 +71335,7 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 			tools.BackgroundColor3 = COLORS.BUTTON
 			tools.BackgroundTransparency = 0.35
 			tools.BorderSizePixel = 0
-			const tC = InstanceNew("UICorner", tools); tC.CornerRadius = UDim.new(0, 999)
+			const tC = InstanceNew("UICorner", tools); tC.CornerRadius = UDim.new(0, 6)
 			const tS = InstanceNew("UIStroke", tools); tS.Color = COLORS.STROKE; tS.Thickness = 1; tS.Transparency = 0.7
 			const tl = InstanceNew("UIListLayout", tools)
 			tl.FillDirection = Enum.FillDirection.Horizontal
@@ -74265,7 +74287,7 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 		pb.AutoButtonColor = true
 		pb.Text = ""
 		NAmanage.SetAttr(pb, "uid", plr.UserId)
-		const corner = InstanceNew("UICorner", pb) corner.CornerRadius = UDim.new(0, 10)
+		const corner = InstanceNew("UICorner", pb) corner.CornerRadius = UDim.new(0, 6)
 		const stroke = InstanceNew("UIStroke", pb) stroke.Thickness = 1 stroke.Transparency = 0.6 stroke.Color = Color3.fromRGB(70,70,70)
 		const img = InstanceNew("ImageLabel", pb)
 		img.Size = UDim2.new(0, ROW_H, 0, ROW_H)
@@ -74333,7 +74355,7 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 		drop.BorderSizePixel = 0
 		drop.Position = UDim2.new(0, 0, 1, PAD)
 		drop.Size = UDim2.new(1, 0, 0, 0)
-		const dCorner = InstanceNew("UICorner", drop) dCorner.CornerRadius = UDim.new(0, 12)
+		const dCorner = InstanceNew("UICorner", drop) dCorner.CornerRadius = UDim.new(0, 6)
 		const dStroke = InstanceNew("UIStroke", drop) dStroke.Thickness = 1 dStroke.Transparency = 0.6 dStroke.Color = Color3.fromRGB(64,64,64)
 
 		const header = InstanceNew("Frame", drop)
@@ -74352,7 +74374,7 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 		searchBox.ClearTextOnFocus = false
 		searchBox.Text = searchTerm
 		searchBox.TextColor3 = Color3.fromRGB(255,255,255)
-		const sCorner = InstanceNew("UICorner", searchBox) sCorner.CornerRadius = UDim.new(0, 8)
+		const sCorner = InstanceNew("UICorner", searchBox) sCorner.CornerRadius = UDim.new(0, 6)
 		const sStroke = InstanceNew("UIStroke", searchBox) sStroke.Thickness = 1 sStroke.Transparency = 0.6 sStroke.Color = Color3.fromRGB(70,70,70)
 
 		list = InstanceNew("ScrollingFrame", drop)
@@ -74427,7 +74449,7 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 		card.Position = UDim2.new(0.5, 0, 0.14, 0)
 		card.BackgroundColor3 = Color3.fromRGB(24,24,24)
 		card.BorderSizePixel = 0
-		const cardCorner = InstanceNew("UICorner", card) cardCorner.CornerRadius = UDim.new(0, 12)
+		const cardCorner = InstanceNew("UICorner", card) cardCorner.CornerRadius = UDim.new(0, 6)
 		const cardStroke = InstanceNew("UIStroke", card) cardStroke.Thickness = 1 cardStroke.Transparency = 0.5 cardStroke.Color = Color3.fromRGB(60,60,60)
 		const grad = InstanceNew("UIGradient", card) grad.Color = ColorSequence.new(Color3.fromRGB(30,30,30), Color3.fromRGB(18,18,18))
 		NAgui.draggerV2(card)
@@ -74441,7 +74463,7 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 		avatar.Size = UDim2.new(0, AV_SZ, 0, AV_SZ)
 		avatar.Position = UDim2.new(0, 0, 0.5, -AV_SZ/2)
 		avatar.BackgroundTransparency = 1
-		const avCorner = InstanceNew("UICorner", avatar) avCorner.CornerRadius = UDim.new(1, 0)
+		const avCorner = InstanceNew("UICorner", avatar) avCorner.CornerRadius = UDim.new(0, 6)
 
 		nameSub = InstanceNew("TextLabel", content)
 		nameSub.BackgroundTransparency = 1
@@ -74472,7 +74494,7 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 		btnPrev.TextColor3 = Color3.fromRGB(255,255,255)
 		btnPrev.Font = Enum.Font.SourceSansBold
 		btnPrev.TextSize = IsOnMobile and 16 or 16
-		const pc = InstanceNew("UICorner", btnPrev) pc.CornerRadius = UDim.new(0, 10)
+		const pc = InstanceNew("UICorner", btnPrev) pc.CornerRadius = UDim.new(0, 6)
 		const ps = InstanceNew("UIStroke", btnPrev) ps.Thickness = 1 ps.Transparency = 0.5 ps.Color = Color3.fromRGB(70,70,70)
 		MouseButtonFix(btnPrev, function() gotoIndex(currentIndex - 1) end)
 
@@ -74485,7 +74507,7 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 		btnNext.TextColor3 = Color3.fromRGB(255,255,255)
 		btnNext.Font = Enum.Font.SourceSansBold
 		btnNext.TextSize = IsOnMobile and 16 or 16
-		const nc = InstanceNew("UICorner", btnNext) nc.CornerRadius = UDim.new(0, 10)
+		const nc = InstanceNew("UICorner", btnNext) nc.CornerRadius = UDim.new(0, 6)
 		const ns = InstanceNew("UIStroke", btnNext) ns.Thickness = 1 ns.Transparency = 0.5 ns.Color = Color3.fromRGB(70,70,70)
 		MouseButtonFix(btnNext, function() gotoIndex(currentIndex + 1) end)
 
@@ -74498,7 +74520,7 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 		toggleBtn.TextColor3 = Color3.fromRGB(255,255,255)
 		toggleBtn.Font = Enum.Font.SourceSansBold
 		toggleBtn.TextSize = IsOnMobile and 14 or 14
-		const vc = InstanceNew("UICorner", toggleBtn) vc.CornerRadius = UDim.new(0, 10)
+		const vc = InstanceNew("UICorner", toggleBtn) vc.CornerRadius = UDim.new(0, 6)
 		const vs = InstanceNew("UIStroke", toggleBtn) vs.Thickness = 1 vs.Transparency = 0.5 vs.Color = Color3.fromRGB(70,70,70)
 		MouseButtonFix(toggleBtn, function()
 			if listOpen then closeDropdown() else openDropdown() end
@@ -74513,7 +74535,7 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 		btnClose.TextColor3 = Color3.fromRGB(255,255,255)
 		btnClose.Font = Enum.Font.SourceSansBold
 		btnClose.TextSize = IsOnMobile and 14 or 14
-		const xc = InstanceNew("UICorner", btnClose) xc.CornerRadius = UDim.new(0, 10)
+		const xc = InstanceNew("UICorner", btnClose) xc.CornerRadius = UDim.new(0, 6)
 		const xs = InstanceNew("UIStroke", btnClose) xs.Thickness = 1 xs.Transparency = 0.5 xs.Color = Color3.fromRGB(120,30,30)
 		MouseButtonFix(btnClose, function()
 			NAlib.disconnect("spectate2_step")
@@ -74823,6 +74845,7 @@ cmd.add({"freeze","thaw","anchor","fr"},{"freeze (thaw,anchor,fr)","Freezes your
 		freezeBTNTOGGLE = InstanceNew("ScreenGui")
 		const btn = InstanceNew("TextButton")
 		const corner = InstanceNew("UICorner")
+		corner.CornerRadius = UDim.new(0, 6)
 		const aspect = InstanceNew("UIAspectRatioConstraint")
 
 		NAgui.NaProtectUI(freezeBTNTOGGLE)
@@ -74841,7 +74864,7 @@ cmd.add({"freeze","thaw","anchor","fr"},{"freeze (thaw,anchor,fr)","Freezes your
 		btn.Active = true
 		btn.TextScaled = true
 
-		corner.CornerRadius = UDim.new(0.2, 0)
+		corner.CornerRadius = UDim.new(0, 6)
 		corner.Parent = btn
 
 		aspect.Parent = btn
@@ -74958,6 +74981,7 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 
 	const toggleBtn=InstanceNew("TextButton",sGUI)
 	const toggleCorner=InstanceNew("UICorner",toggleBtn)
+	toggleCorner.CornerRadius = UDim.new(0, 6)
 	toggleBtn.Text="Enable Blackhole"
 	toggleBtn.AnchorPoint=Vector2.new(0.5,0)
 	toggleBtn.Size=UDim2.new(0,160,0,40)
@@ -74966,7 +74990,7 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 	toggleBtn.TextColor3=Color3.new(1,1,1)
 	toggleBtn.Font=Enum.Font.SourceSansBold
 	toggleBtn.TextSize=18
-	toggleCorner.CornerRadius=UDim.new(0.25,0)
+	toggleCorner.CornerRadius=UDim.new(0, 6)
 
 	MouseButtonFix(toggleBtn,function()
 		_na_env.BlackholeActive=not _na_env.BlackholeActive
@@ -74988,6 +75012,7 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 
 	const moveBtn=InstanceNew("TextButton",sGUI)
 	const moveCorner=InstanceNew("UICorner",moveBtn)
+	moveCorner.CornerRadius = UDim.new(0, 6)
 	moveBtn.Text="Move Blackhole"
 	moveBtn.AnchorPoint=Vector2.new(0.5,0)
 	moveBtn.Size=UDim2.new(0,160,0,40)
@@ -74996,7 +75021,7 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 	moveBtn.TextColor3=Color3.new(1,1,1)
 	moveBtn.Font=Enum.Font.SourceSansBold
 	moveBtn.TextSize=18
-	moveCorner.CornerRadius=UDim.new(0.25,0)
+	moveCorner.CornerRadius=UDim.new(0, 6)
 
 	MouseButtonFix(moveBtn,function()
 		_na_env.BlackholeTarget=getBlackholeTarget()
@@ -75398,7 +75423,7 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 
 		const function stylePill(obj,radius,strokeTransparency)
 			const corner=InstanceNew("UICorner",obj)
-			corner.CornerRadius=UDim.new(0,radius)
+			corner.CornerRadius=UDim.new(0, 6)
 			const stroke=InstanceNew("UIStroke",obj)
 			stroke.Color=COLORS.Stroke
 			stroke.Thickness=1
@@ -76082,7 +76107,7 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 	shadow.BorderSizePixel=0
 	shadow.Size=UDim2.fromOffset(680,600)
 	shadow.ZIndex=0
-	const shCorner=InstanceNew("UICorner",shadow); shCorner.CornerRadius=UDim.new(0,26)
+	const shCorner=InstanceNew("UICorner",shadow); shCorner.CornerRadius=UDim.new(0, 6)
 
 	const win=InstanceNew("Frame",gui)
 	win.BackgroundColor3=Color3.fromRGB(20,20,20)
@@ -76095,7 +76120,7 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 	NAlib.connect(GROUP,win:GetPropertyChangedSignal("Position"):Connect(function() shadow.Position=win.Position end))
 
 	const corner=InstanceNew("UICorner",win)
-	corner.CornerRadius=UDim.new(0,26)
+	corner.CornerRadius=UDim.new(0, 6)
 	const stroke=InstanceNew("UIStroke",win)
 	stroke.Thickness=1
 	stroke.Transparency=0.6
@@ -76105,7 +76130,7 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 	top.BackgroundColor3=Color3.fromRGB(26,26,26)
 	top.Size=UDim2.new(1,0,0,60)
 	top.BorderSizePixel=0
-	const topCorner=InstanceNew("UICorner",top); topCorner.CornerRadius=UDim.new(0,26)
+	const topCorner=InstanceNew("UICorner",top); topCorner.CornerRadius=UDim.new(0, 6)
 	const topMask=InstanceNew("Frame",top); topMask.BackgroundTransparency=1; topMask.Size=UDim2.new(1,-24,1,-16); topMask.Position=UDim2.fromOffset(12,8)
 	NAgui.draggerV2(win,topMask)
 
@@ -76127,7 +76152,7 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 	close.BackgroundColor3=Color3.fromRGB(50,50,50)
 	close.TextColor3=Color3.fromRGB(255,255,255)
 	close.TextScaled=true
-	const closeCorner=InstanceNew("UICorner",close); closeCorner.CornerRadius=UDim.new(0,10)
+	const closeCorner=InstanceNew("UICorner",close); closeCorner.CornerRadius=UDim.new(0, 6)
 
 	const minimize=InstanceNew("TextButton",top)
 	minimize.Size=UDim2.fromOffset(36,36)
@@ -76137,14 +76162,14 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 	minimize.BackgroundColor3=Color3.fromRGB(50,50,50)
 	minimize.TextColor3=Color3.fromRGB(255,255,255)
 	minimize.TextScaled=true
-	const minCorner=InstanceNew("UICorner",minimize); minCorner.CornerRadius=UDim.new(0,10)
+	const minCorner=InstanceNew("UICorner",minimize); minCorner.CornerRadius=UDim.new(0, 6)
 
 	const head=InstanceNew("Frame",win)
 	head.BackgroundColor3=Color3.fromRGB(20,20,20)
 	head.Position=UDim2.fromOffset(16,68)
 	head.Size=UDim2.new(1,-32,0,48)
 	head.BorderSizePixel=0
-	const headCorner=InstanceNew("UICorner",head); headCorner.CornerRadius=UDim.new(0,16)
+	const headCorner=InstanceNew("UICorner",head); headCorner.CornerRadius=UDim.new(0, 6)
 	const headStroke=InstanceNew("UIStroke",head); headStroke.Thickness=1; headStroke.Transparency=0.7
 
 	const refresh=InstanceNew("TextButton",head)
@@ -76155,7 +76180,7 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 	refresh.BackgroundColor3=Color3.fromRGB(56,56,56)
 	refresh.TextColor3=Color3.fromRGB(255,255,255)
 	refresh.TextScaled=true
-	const rCorner=InstanceNew("UICorner",refresh); rCorner.CornerRadius=UDim.new(0,10)
+	const rCorner=InstanceNew("UICorner",refresh); rCorner.CornerRadius=UDim.new(0, 6)
 
 	const search=InstanceNew("TextBox",head)
 	search.Size=UDim2.new(1,-372,0,34)
@@ -76168,7 +76193,7 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 	search.BackgroundColor3=Color3.fromRGB(34,34,34)
 	search.TextColor3=Color3.fromRGB(230,230,230)
 	search.TextScaled=true
-	const sCorner=InstanceNew("UICorner",search); sCorner.CornerRadius=UDim.new(0,10)
+	const sCorner=InstanceNew("UICorner",search); sCorner.CornerRadius=UDim.new(0, 6)
 
 	const buyAll=InstanceNew("TextButton",head)
 	buyAll.Size=UDim2.fromOffset(108,34)
@@ -76178,7 +76203,7 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 	buyAll.BackgroundColor3=Color3.fromRGB(70,70,110)
 	buyAll.TextColor3=Color3.fromRGB(255,255,255)
 	buyAll.TextScaled=true
-	const bCorner=InstanceNew("UICorner",buyAll); bCorner.CornerRadius=UDim.new(0,10)
+	const bCorner=InstanceNew("UICorner",buyAll); bCorner.CornerRadius=UDim.new(0, 6)
 
 	const interval=InstanceNew("TextBox",head)
 	interval.Size=UDim2.fromOffset(120,34)
@@ -76191,7 +76216,7 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 	interval.BackgroundColor3=Color3.fromRGB(34,34,34)
 	interval.TextColor3=Color3.fromRGB(255,255,255)
 	interval.TextScaled=true
-	const iCorner=InstanceNew("UICorner",interval); iCorner.CornerRadius=UDim.new(0,10)
+	const iCorner=InstanceNew("UICorner",interval); iCorner.CornerRadius=UDim.new(0, 6)
 
 	const status=InstanceNew("TextLabel",win)
 	status.BackgroundTransparency=1
@@ -76208,7 +76233,7 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 	body.Position=UDim2.fromOffset(16,140)
 	body.Size=UDim2.new(1,-32,1,-156)
 	body.BorderSizePixel=0
-	const bodyCorner=InstanceNew("UICorner",body); bodyCorner.CornerRadius=UDim.new(0,22)
+	const bodyCorner=InstanceNew("UICorner",body); bodyCorner.CornerRadius=UDim.new(0, 6)
 	const bodyStroke=InstanceNew("UIStroke",body); bodyStroke.Thickness=1; bodyStroke.Transparency=0.75
 
 	const list=InstanceNew("ScrollingFrame",body)
@@ -76306,7 +76331,7 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 		row.BackgroundColor3=Color3.fromRGB(24,24,24)
 		row.BorderSizePixel=0
 		row.Size=UDim2.new(1,0,0,90)
-		const rCorner=InstanceNew("UICorner",row); rCorner.CornerRadius=UDim.new(0,18)
+		const rCorner=InstanceNew("UICorner",row); rCorner.CornerRadius=UDim.new(0, 6)
 		const rStroke=InstanceNew("UIStroke",row); rStroke.Thickness=1; rStroke.Transparency=0.75
 
 		const nameL=InstanceNew("TextLabel",row)
@@ -76340,7 +76365,7 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 		purchase.BackgroundColor3=Color3.fromRGB(0,170,127)
 		purchase.Text="Purchase"
 		purchase.TextScaled=true
-		const pCorner=InstanceNew("UICorner",purchase); pCorner.CornerRadius=UDim.new(0,12)
+		const pCorner=InstanceNew("UICorner",purchase); pCorner.CornerRadius=UDim.new(0, 6)
 
 		const loopBtn=InstanceNew("TextButton",row)
 		loopBtn.Size=UDim2.fromOffset(112,40)
@@ -76351,7 +76376,7 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 		loopBtn.BackgroundColor3=Color3.fromRGB(80,80,80)
 		loopBtn.Text="Loop"
 		loopBtn.TextScaled=true
-		const lCorner=InstanceNew("UICorner",loopBtn); lCorner.CornerRadius=UDim.new(0,12)
+		const lCorner=InstanceNew("UICorner",loopBtn); lCorner.CornerRadius=UDim.new(0, 6)
 
 		NAlib.connect(GROUP, MouseButtonFix(purchase, function()
 			fireProductPurchaseSignals(id)
@@ -76516,7 +76541,7 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 
 		const function stylePill(obj,radius,strokeTransparency)
 			const corner=InstanceNew("UICorner",obj)
-			corner.CornerRadius=UDim.new(0,radius)
+			corner.CornerRadius=UDim.new(0, 6)
 			const stroke=InstanceNew("UIStroke",obj)
 			stroke.Color=COLORS.Stroke
 			stroke.Thickness=1
@@ -76957,7 +76982,7 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 			icon.Image=getImageSource(passInfo)
 			icon.ZIndex=7
 			const iconCorner=InstanceNew("UICorner",icon)
-			iconCorner.CornerRadius=UDim.new(0,12)
+			iconCorner.CornerRadius=UDim.new(0, 6)
 
 			const inner=InstanceNew("Frame",row)
 			inner.BackgroundTransparency=1
@@ -77307,7 +77332,7 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 	shadow.BorderSizePixel=0
 	shadow.Size=UDim2.fromOffset(640,520)
 	shadow.ZIndex=0
-	const shCorner=InstanceNew("UICorner",shadow); shCorner.CornerRadius=UDim.new(0,22)
+	const shCorner=InstanceNew("UICorner",shadow); shCorner.CornerRadius=UDim.new(0, 6)
 
 	const win=InstanceNew("Frame",gui)
 	win.BackgroundColor3=Color3.fromRGB(20,20,20)
@@ -77319,14 +77344,14 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 	shadow.Position=win.Position
 	NAlib.connect(GROUP,win:GetPropertyChangedSignal("Position"):Connect(function() shadow.Position=win.Position end))
 
-	const corner=InstanceNew("UICorner",win); corner.CornerRadius=UDim.new(0,22)
+	const corner=InstanceNew("UICorner",win); corner.CornerRadius=UDim.new(0, 6)
 	const stroke=InstanceNew("UIStroke",win); stroke.Thickness=1; stroke.Transparency=0.6; stroke.Color=Color3.fromRGB(255,255,255)
 
 	const top=InstanceNew("Frame",win)
 	top.BackgroundColor3=Color3.fromRGB(26,26,26)
 	top.Size=UDim2.new(1,0,0,56)
 	top.BorderSizePixel=0
-	const topCorner=InstanceNew("UICorner",top); topCorner.CornerRadius=UDim.new(0,22)
+	const topCorner=InstanceNew("UICorner",top); topCorner.CornerRadius=UDim.new(0, 6)
 	const topMask=InstanceNew("Frame",top); topMask.BackgroundTransparency=1; topMask.Size=UDim2.new(1,-24,1,-16); topMask.Position=UDim2.fromOffset(12,8)
 	NAgui.draggerV2(win,topMask)
 
@@ -77348,14 +77373,14 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 	close.BackgroundColor3=Color3.fromRGB(50,50,50)
 	close.TextColor3=Color3.fromRGB(255,255,255)
 	close.TextScaled=true
-	const closeCorner=InstanceNew("UICorner",close); closeCorner.CornerRadius=UDim.new(0,10)
+	const closeCorner=InstanceNew("UICorner",close); closeCorner.CornerRadius=UDim.new(0, 6)
 
 	const head=InstanceNew("Frame",win)
 	head.BackgroundColor3=Color3.fromRGB(20,20,20)
 	head.Position=UDim2.fromOffset(16,64)
 	head.Size=UDim2.new(1,-32,0,72)
 	head.BorderSizePixel=0
-	const headCorner=InstanceNew("UICorner",head); headCorner.CornerRadius=UDim.new(0,14)
+	const headCorner=InstanceNew("UICorner",head); headCorner.CornerRadius=UDim.new(0, 6)
 	const headStroke=InstanceNew("UIStroke",head); headStroke.Thickness=1; headStroke.Transparency=0.7
 
 	const interval=InstanceNew("TextBox",head)
@@ -77369,7 +77394,7 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 	interval.BackgroundColor3=Color3.fromRGB(34,34,34)
 	interval.TextColor3=Color3.fromRGB(255,255,255)
 	interval.TextScaled=true
-	const iCorner=InstanceNew("UICorner",interval); iCorner.CornerRadius=UDim.new(0,10)
+	const iCorner=InstanceNew("UICorner",interval); iCorner.CornerRadius=UDim.new(0, 6)
 
 	const allBtn=InstanceNew("TextButton",head)
 	allBtn.Size=UDim2.fromOffset(120,34)
@@ -77379,7 +77404,7 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 	allBtn.BackgroundColor3=Color3.fromRGB(70,70,110)
 	allBtn.TextColor3=Color3.fromRGB(255,255,255)
 	allBtn.TextScaled=true
-	const allCorner=InstanceNew("UICorner",allBtn); allCorner.CornerRadius=UDim.new(0,10)
+	const allCorner=InstanceNew("UICorner",allBtn); allCorner.CornerRadius=UDim.new(0, 6)
 
 	const search=InstanceNew("TextBox",head)
 	search.Size=UDim2.new(1,-8-120-8-120-8,0,34)
@@ -77392,7 +77417,7 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 	search.BackgroundColor3=Color3.fromRGB(34,34,34)
 	search.TextColor3=Color3.fromRGB(230,230,230)
 	search.TextScaled=true
-	const sCorner=InstanceNew("UICorner",search); sCorner.CornerRadius=UDim.new(0,10)
+	const sCorner=InstanceNew("UICorner",search); sCorner.CornerRadius=UDim.new(0, 6)
 
 	const status=InstanceNew("TextLabel",win)
 	status.BackgroundTransparency=1
@@ -77409,7 +77434,7 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 	body.Position=UDim2.fromOffset(16,172)
 	body.Size=UDim2.new(1,-32,1,-188)
 	body.BorderSizePixel=0
-	const bodyCorner=InstanceNew("UICorner",body); bodyCorner.CornerRadius=UDim.new(0,18)
+	const bodyCorner=InstanceNew("UICorner",body); bodyCorner.CornerRadius=UDim.new(0, 6)
 	const bodyStroke=InstanceNew("UIStroke",body); bodyStroke.Thickness=1; bodyStroke.Transparency=0.75
 
 	const list=InstanceNew("ScrollingFrame",body)
@@ -77462,7 +77487,7 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 		row.BackgroundColor3=Color3.fromRGB(24,24,24)
 		row.BorderSizePixel=0
 		row.Size=UDim2.new(1,0,0,84)
-		const rCorner=InstanceNew("UICorner",row); rCorner.CornerRadius=UDim.new(0,16)
+		const rCorner=InstanceNew("UICorner",row); rCorner.CornerRadius=UDim.new(0, 6)
 		const rStroke=InstanceNew("UIStroke",row); rStroke.Thickness=1; rStroke.Transparency=0.75
 
 		const nameL=InstanceNew("TextLabel",row)
@@ -77496,7 +77521,7 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 		buy.BackgroundColor3=Color3.fromRGB(0,170,127)
 		buy.Text="Buy"
 		buy.TextScaled=true
-		const bCorner=InstanceNew("UICorner",buy); bCorner.CornerRadius=UDim.new(0,12)
+		const bCorner=InstanceNew("UICorner",buy); bCorner.CornerRadius=UDim.new(0, 6)
 
 		const spamBtn=InstanceNew("TextButton",row)
 		spamBtn.Size=UDim2.fromOffset(104,38)
@@ -77507,7 +77532,7 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 		spamBtn.BackgroundColor3=Color3.fromRGB(80,80,80)
 		spamBtn.Text="Spam"
 		spamBtn.TextScaled=true
-		const sCorner=InstanceNew("UICorner",spamBtn); sCorner.CornerRadius=UDim.new(0,12)
+		const sCorner=InstanceNew("UICorner",spamBtn); sCorner.CornerRadius=UDim.new(0, 6)
 
 		NAlib.connect(GROUP, MouseButtonFix(buy, function()
 			fireGamePassPurchaseSignals(id)
@@ -79600,7 +79625,7 @@ NAmanage.tvAttach=function(plr, data, char)
 		btn.BackgroundColor3 = isEquipped and NAStuff.TOOLVIEW_EQUIPPED_COLOR or NAStuff.TOOLVIEW_IDLE_COLOR
 		btn.AutoButtonColor = false
 		btn.ZIndex = 5
-		InstanceNew("UICorner", btn).CornerRadius = UDim.new(0.2, 0)
+		InstanceNew("UICorner", btn).CornerRadius = UDim.new(0, 6)
 		if hasImg then
 			btn.Image = tool.TextureId
 		else
@@ -79794,7 +79819,7 @@ cmd.add({"toolview2", "tview2"}, {"toolview2 (tview2)", "Live-updating tool view
 	main.Active = true
 	main.Selectable = true
 	main.Parent = idkwhyididntmakethisbruh
-	InstanceNew("UICorner", main).CornerRadius = UDim.new(0, 20)
+	InstanceNew("UICorner", main).CornerRadius = UDim.new(0, 6)
 
 	const topbar = InstanceNew("Frame")
 	topbar.Size = UDim2.new(1, 0, 0, 35)
@@ -79804,7 +79829,7 @@ cmd.add({"toolview2", "tview2"}, {"toolview2 (tview2)", "Live-updating tool view
 	topbar.Active = true
 	topbar.Selectable = true
 	topbar.Parent = main
-	InstanceNew("UICorner", topbar).CornerRadius = UDim.new(0, 8)
+	InstanceNew("UICorner", topbar).CornerRadius = UDim.new(0, 6)
 
 	const title = InstanceNew("TextLabel")
 	title.Text = "Tool Viewer"
@@ -79886,7 +79911,7 @@ cmd.add({"toolview2", "tview2"}, {"toolview2 (tview2)", "Live-updating tool view
 		btn.BackgroundColor3 = isEquipped and NAStuff.TOOLVIEW_EQUIPPED_COLOR or NAStuff.TOOLVIEW_IDLE_COLOR
 		btn.AutoButtonColor = false
 		btn.ZIndex = 10
-		InstanceNew("UICorner", btn).CornerRadius = UDim.new(0.2, 0)
+		InstanceNew("UICorner", btn).CornerRadius = UDim.new(0, 6)
 
 		if hasImg then
 			btn.Image = tool.TextureId
@@ -79950,7 +79975,7 @@ cmd.add({"toolview2", "tview2"}, {"toolview2 (tview2)", "Live-updating tool view
 		frame.BorderSizePixel = 0
 		frame.ZIndex = 10
 		frame.Parent = scroll
-		InstanceNew("UICorner", frame).CornerRadius = UDim.new(0, 12)
+		InstanceNew("UICorner", frame).CornerRadius = UDim.new(0, 6)
 
 		const name = InstanceNew("TextLabel")
 		name.Size = UDim2.new(1, -10, 0, 30)
@@ -82012,11 +82037,11 @@ cmd.add({"hug", "clickhug"}, {"hug (clickhug)", "huggies time (click on a target
 		sideToggleButton.Parent = hugUI
 
 		const uiCorner = InstanceNew("UICorner")
-		uiCorner.CornerRadius = UDim.new(0, 8)
+		uiCorner.CornerRadius = UDim.new(0, 6)
 		uiCorner.Parent = toggleHugButton
 
 		const sideUICorner = InstanceNew("UICorner")
-		sideUICorner.CornerRadius = UDim.new(0, 8)
+		sideUICorner.CornerRadius = UDim.new(0, 6)
 		sideUICorner.Parent = sideToggleButton
 
 		NAgui.draggerV2(toggleHugButton)
@@ -82312,7 +82337,7 @@ cmd.add({"airwalk", "float", "aw"}, {"airwalk (float, aw)", "Press space to go u
 		button.AutoButtonColor = false
 
 		const corner = InstanceNew("UICorner", button)
-		corner.CornerRadius = UDim.new(0.2, 0)
+		corner.CornerRadius = UDim.new(0, 6)
 
 		const stroke = InstanceNew("UIStroke", button)
 		stroke.Color = Color3.fromRGB(255, 255, 255)
@@ -97797,6 +97822,7 @@ cmd.add({"invisible", "invis"},{"invisible (invis)", "Sets invisibility to scare
 		invisBtnlol = InstanceNew("ScreenGui")
 		const TextButton = InstanceNew("TextButton")
 		const UICorner = InstanceNew("UICorner")
+		UICorner.CornerRadius = UDim.new(0, 6)
 		const UIAspectRatioConstraint = InstanceNew("UIAspectRatioConstraint")
 		NAgui.NaProtectUI(invisBtnlol)
 		invisBtnlol.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -99632,7 +99658,7 @@ do
 			disk.Parent = areola
 
 			const corner = InstanceNew("UICorner")
-			corner.CornerRadius = UDim.new(1, 0)
+			corner.CornerRadius = UDim.new(0, 6)
 			corner.Parent = disk
 
 			return rig, boob, nipple
@@ -100587,7 +100613,7 @@ cmd.add({"clicktouch", "ctouch"}, {"clicktouch (ctouch)", "Click a TouchTransmit
 	toggleButton.Parent = NAStuff.clicktouchUI
 
 	const uiCorner = InstanceNew("UICorner")
-	uiCorner.CornerRadius = UDim.new(0, 8)
+	uiCorner.CornerRadius = UDim.new(0, 6)
 	uiCorner.Parent = toggleButton
 
 	const targetLabel = InstanceNew("TextLabel")
@@ -100684,7 +100710,7 @@ cmd.add({"clickkillnpc", "cknpc"}, {"clickkillnpc (cknpc)", "Click on an NPC to 
 	toggleButton.Parent = NAStuff.clickkillUI
 
 	const uiCorner = InstanceNew("UICorner")
-	uiCorner.CornerRadius = UDim.new(0, 8)
+	uiCorner.CornerRadius = UDim.new(0, 6)
 	uiCorner.Parent = toggleButton
 
 	NAgui.draggerV2(toggleButton)
@@ -100749,7 +100775,7 @@ cmd.add({"clickvoidnpc", "cvnpc"}, {"clickvoidnpc (cvnpc)", "Click to void NPCs"
 	button.Parent = clickVoidUI
 
 	const corner = InstanceNew("UICorner", button)
-	corner.CornerRadius = UDim.new(0, 8)
+	corner.CornerRadius = UDim.new(0, 6)
 	NAgui.draggerV2(button)
 
 	MouseButtonFix(button, function()
@@ -100799,7 +100825,7 @@ cmd.add({"clicknpcws","cnpcws"},{"clicknpcws","Click on an NPC to set its WalkSp
 	btn.BackgroundTransparency=0.2
 	btn.Parent=clickSpeedUI
 	const cor1=InstanceNew("UICorner")
-	cor1.CornerRadius=UDim.new(0,8)
+	cor1.CornerRadius=UDim.new(0, 6)
 	cor1.Parent=btn
 	NAgui.draggerV2(btn)
 	const tb=InstanceNew("TextBox")
@@ -100814,7 +100840,7 @@ cmd.add({"clicknpcws","cnpcws"},{"clicknpcws","Click on an NPC to set its WalkSp
 	tb.BackgroundTransparency=0.2
 	tb.Parent=clickSpeedUI
 	const cor2=InstanceNew("UICorner")
-	cor2.CornerRadius=UDim.new(0,8)
+	cor2.CornerRadius=UDim.new(0, 6)
 	cor2.Parent=tb
 	NAgui.draggerV2(tb)
 	local speedNumber=16
@@ -100864,7 +100890,7 @@ cmd.add({"clicknpcjp","cnpcjp"},{"clicknpcjp","Click on an NPC to set its JumpPo
 	btn.BackgroundTransparency=0.2
 	btn.Parent=clickJumpUI
 	const cor1=InstanceNew("UICorner")
-	cor1.CornerRadius=UDim.new(0,8)
+	cor1.CornerRadius=UDim.new(0, 6)
 	cor1.Parent=btn
 	NAgui.draggerV2(btn)
 	const tb=InstanceNew("TextBox")
@@ -100879,7 +100905,7 @@ cmd.add({"clicknpcjp","cnpcjp"},{"clicknpcjp","Click on an NPC to set its JumpPo
 	tb.BackgroundTransparency=0.2
 	tb.Parent=clickJumpUI
 	const cor2=InstanceNew("UICorner")
-	cor2.CornerRadius=UDim.new(0,8)
+	cor2.CornerRadius=UDim.new(0, 6)
 	cor2.Parent=tb
 	NAgui.draggerV2(tb)
 	local jumpPowerNumber=50
@@ -101523,7 +101549,7 @@ NAmanage.ScriptHub_Message = function(text, color)
 	message.TextSize = 14
 	message.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
 	const corner = InstanceNew("UICorner", message)
-	corner.CornerRadius = UDim.new(0, 7)
+	corner.CornerRadius = UDim.new(0, 6)
 	const stroke = InstanceNew("UIStroke", message)
 	stroke.Name = "UIStroker"
 	stroke.Thickness = 1.25
@@ -102067,7 +102093,7 @@ NAmanage.ScriptHub_CreateCard = function(data, order)
 	card.Size = UDim2.new(1, -4, 0, cardHeight)
 	card.ClipsDescendants = true
 	const corner = InstanceNew("UICorner", card)
-	corner.CornerRadius = UDim.new(0, 8)
+	corner.CornerRadius = UDim.new(0, 6)
 	const stroke = InstanceNew("UIStroke", card)
 	stroke.Name = "UIStroker"
 	stroke.Thickness = 1.25
@@ -102087,7 +102113,7 @@ NAmanage.ScriptHub_CreateCard = function(data, order)
 		cover.ScaleType = Enum.ScaleType.Crop
 		cover.ClipsDescendants = true
 		const coverCorner = InstanceNew("UICorner", cover)
-		coverCorner.CornerRadius = UDim.new(0, 8)
+		coverCorner.CornerRadius = UDim.new(0, 6)
 		const overlay = InstanceNew("Frame", cover)
 		overlay.Name = "Overlay"
 		overlay.BorderSizePixel = 0
@@ -102469,7 +102495,7 @@ NAmanage.EnsurePluginsWindow = NAmanage.EnsurePluginsWindow or function()
 				if not obj then return end
 				if not obj:FindFirstChildWhichIsA("UICorner") then
 					const corner = InstanceNew("UICorner", obj)
-					corner.CornerRadius = UDim.new(0, radius or 5)
+					corner.CornerRadius = UDim.new(0, 6)
 				end
 				if strokeColor and not obj:FindFirstChildWhichIsA("UIStroke") then
 					const stroke = InstanceNew("UIStroke", obj)
@@ -107904,7 +107930,7 @@ NAmanage.PluginsWindow_Row = NAmanage.PluginsWindow_Row or function(height)
 	row.BorderSizePixel = 0
 	row.Size = UDim2.new(1, -6, 0, height or 42)
 	row.Parent = list
-	InstanceNew("UICorner", row).CornerRadius = UDim.new(0, 7)
+	InstanceNew("UICorner", row).CornerRadius = UDim.new(0, 6)
 	return row
 end
 
@@ -108004,7 +108030,7 @@ NAmanage.PluginsWindow_AddToggle = NAmanage.PluginsWindow_AddToggle or function(
 	switch.Size = UDim2.new(0, 45, 0, 22)
 	switch.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
 	switch.BorderSizePixel = 0
-	InstanceNew("UICorner", switch).CornerRadius = UDim.new(1, 0)
+	InstanceNew("UICorner", switch).CornerRadius = UDim.new(0, 6)
 	const stroke = InstanceNew("UIStroke", switch)
 	stroke.Thickness = 1
 	stroke.Color = Color3.fromRGB(72, 72, 72)
@@ -108014,7 +108040,7 @@ NAmanage.PluginsWindow_AddToggle = NAmanage.PluginsWindow_AddToggle or function(
 	knob.AnchorPoint = Vector2.new(0, 0.5)
 	knob.Size = UDim2.new(0, 18, 0, 18)
 	knob.BorderSizePixel = 0
-	InstanceNew("UICorner", knob).CornerRadius = UDim.new(1, 0)
+	InstanceNew("UICorner", knob).CornerRadius = UDim.new(0, 6)
 	local state = enabled == true
 	const function paint()
 		stroke.Color = state and (NAUISTROKER or Color3.fromRGB(155, 100, 255)) or Color3.fromRGB(72, 72, 72)
@@ -108123,7 +108149,7 @@ NAmanage.PluginsWindow_AddPlugin = NAmanage.PluginsWindow_AddPlugin or function(
 	stripe.BorderSizePixel = 0
 	stripe.Size = UDim2.new(0, 3, 1, -14)
 	stripe.Position = UDim2.new(0, 0, 0, 7)
-	InstanceNew("UICorner", stripe).CornerRadius = UDim.new(1, 0)
+	InstanceNew("UICorner", stripe).CornerRadius = UDim.new(0, 6)
 
 	const title = InstanceNew("TextLabel", row)
 	title.BackgroundTransparency = 1
@@ -108146,7 +108172,7 @@ NAmanage.PluginsWindow_AddPlugin = NAmanage.PluginsWindow_AddPlugin or function(
 	ext.Text = kind ~= "" and kind or "file"
 	ext.TextColor3 = Color3.fromRGB(210, 200, 245)
 	ext.TextSize = 11
-	InstanceNew("UICorner", ext).CornerRadius = UDim.new(0, 5)
+	InstanceNew("UICorner", ext).CornerRadius = UDim.new(0, 6)
 
 	const status = InstanceNew("TextLabel", row)
 	status.BackgroundTransparency = 1
@@ -108180,7 +108206,7 @@ NAmanage.PluginsWindow_AddPlugin = NAmanage.PluginsWindow_AddPlugin or function(
 		button.Text = text
 		button.TextColor3 = Color3.fromRGB(245, 245, 250)
 		button.TextSize = 12
-		InstanceNew("UICorner", button).CornerRadius = UDim.new(0, 5)
+		InstanceNew("UICorner", button).CornerRadius = UDim.new(0, 6)
 		MouseButtonFix(button, callback)
 		return button
 	end
@@ -108208,7 +108234,7 @@ NAmanage.PluginsWindow_AddPlugin = NAmanage.PluginsWindow_AddPlugin or function(
 	switch.Size = UDim2.new(0, 45, 0, 22)
 	switch.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
 	switch.BorderSizePixel = 0
-	InstanceNew("UICorner", switch).CornerRadius = UDim.new(1, 0)
+	InstanceNew("UICorner", switch).CornerRadius = UDim.new(0, 6)
 	const switchStroke = InstanceNew("UIStroke", switch)
 	switchStroke.Thickness = 1
 	const knob = InstanceNew("Frame", switch)
@@ -108216,7 +108242,7 @@ NAmanage.PluginsWindow_AddPlugin = NAmanage.PluginsWindow_AddPlugin or function(
 	knob.AnchorPoint = Vector2.new(0, 0.5)
 	knob.Size = UDim2.new(0, 18, 0, 18)
 	knob.BorderSizePixel = 0
-	InstanceNew("UICorner", knob).CornerRadius = UDim.new(1, 0)
+	InstanceNew("UICorner", knob).CornerRadius = UDim.new(0, 6)
 	local on = entry.enabled == true
 	const function paint()
 		switchStroke.Color = on and (NAUISTROKER or Color3.fromRGB(155, 100, 255)) or Color3.fromRGB(72, 72, 72)
@@ -108277,7 +108303,7 @@ NAmanage.PluginsWindow_AddAvailablePlugin = NAmanage.PluginsWindow_AddAvailableP
 	ext.Text = kind ~= "" and kind or "file"
 	ext.TextColor3 = Color3.fromRGB(210, 200, 245)
 	ext.TextSize = 11
-	InstanceNew("UICorner", ext).CornerRadius = UDim.new(0, 5)
+	InstanceNew("UICorner", ext).CornerRadius = UDim.new(0, 6)
 
 	const detail = InstanceNew("TextLabel", row)
 	detail.BackgroundTransparency = 1
@@ -110288,7 +110314,7 @@ NAgui.addColorPicker = function(label, defaultColor, callback, opts)
 		rgbSw.Parent = rgbTog
 
 		const c = InstanceNew("UICorner")
-		c.CornerRadius = UDim.new(0, 12)
+		c.CornerRadius = UDim.new(0, 6)
 		c.Parent = rgbSw
 
 		const st = InstanceNew("UIStroke")
@@ -110308,7 +110334,7 @@ NAgui.addColorPicker = function(label, defaultColor, callback, opts)
 		rgbDot.Parent = rgbSw
 
 		const c = InstanceNew("UICorner")
-		c.CornerRadius = UDim.new(1, 0)
+		c.CornerRadius = UDim.new(0, 6)
 		c.Parent = rgbDot
 
 		const st = InstanceNew("UIStroke")
@@ -113332,7 +113358,7 @@ NAmanage.Topbar_Rebuild=function(opts)
 		bg.BackgroundColor3=Color3.fromRGB(25,25,28)
 		bg.BackgroundTransparency=NAStuff.TopbarButtonTransparency or 0.18
 		bg.BorderSizePixel=0
-		const cr=InstanceNew("UICorner",bg); cr.CornerRadius=UDim.new(0,12)
+		const cr=InstanceNew("UICorner",bg); cr.CornerRadius=UDim.new(0, 6)
 		const stroke=InstanceNew("UIStroke",bg)
 		stroke.Thickness=1
 		stroke.Color=NAUISTROKER or Color3.fromRGB(148,93,255)
@@ -113815,7 +113841,7 @@ NAmanage.Topbar_Init=function(opts)
 		TopBarApp.tGlass.BackgroundColor3=Color3.fromRGB(20,20,24)
 		TopBarApp.tGlass.BackgroundTransparency=NAStuff.TopbarGlassTransparency or 0.12
 		TopBarApp.tGlass.ZIndex=111
-		const tCorner=InstanceNew("UICorner",TopBarApp.tGlass); tCorner.CornerRadius=UDim.new(0.5,0)
+		const tCorner=InstanceNew("UICorner",TopBarApp.tGlass); tCorner.CornerRadius=UDim.new(0, 6)
 		TopBarApp.tStroke=InstanceNew("UIStroke",TopBarApp.tGlass)
 		TopBarApp.tStroke.Thickness=1.25
 		TopBarApp.tStroke.Color=NAUISTROKER or Color3.fromRGB(148,93,255)
@@ -113849,7 +113875,7 @@ NAmanage.Topbar_Init=function(opts)
 		TopBarApp.underlay.BackgroundColor3=Color3.fromRGB(18,18,22)
 		TopBarApp.underlay.BackgroundTransparency=NAStuff.TopbarPanelTransparency or 0.1
 		TopBarApp.underlay.ZIndex=201
-		const pCorner=InstanceNew("UICorner",TopBarApp.underlay); pCorner.CornerRadius=UDim.new(0,12)
+		const pCorner=InstanceNew("UICorner",TopBarApp.underlay); pCorner.CornerRadius=UDim.new(0, 6)
 		const pStroke=InstanceNew("UIStroke",TopBarApp.underlay)
 		pStroke.Thickness=1
 		pStroke.Color=NAUISTROKER or Color3.fromRGB(148,93,255)
@@ -114095,7 +114121,7 @@ NAmanage.SideSwipe_Rebuild=function(opts)
 		bg.BackgroundTransparency = NAStuff.SideSwipeButtonTransparency or 0.16
 		bg.BorderSizePixel = 0
 		const cr = InstanceNew("UICorner", bg)
-		cr.CornerRadius = UDim.new(0, 12)
+		cr.CornerRadius = UDim.new(0, 6)
 		const stroke = InstanceNew("UIStroke", bg)
 		stroke.Thickness = 1
 		stroke.Color = NAUISTROKER or Color3.fromRGB(148,93,255)
@@ -114360,7 +114386,7 @@ NAmanage.SideSwipe_Init=function(opts)
 	SideSwipeApp.underlay.BackgroundColor3 = Color3.fromRGB(18,18,22)
 	SideSwipeApp.underlay.BackgroundTransparency = NAStuff.SideSwipePanelTransparency or 0.35
 	SideSwipeApp.underlay.ZIndex = 511
-	const uCorner = InstanceNew("UICorner", SideSwipeApp.underlay); uCorner.CornerRadius = UDim.new(0, 14)
+	const uCorner = InstanceNew("UICorner", SideSwipeApp.underlay); uCorner.CornerRadius = UDim.new(0, 6)
 	const uStroke = InstanceNew("UIStroke", SideSwipeApp.underlay)
 	uStroke.Thickness = 1
 	uStroke.Color = NAUISTROKER or Color3.fromRGB(148,93,255)
@@ -114377,7 +114403,7 @@ NAmanage.SideSwipe_Init=function(opts)
 	SideSwipeApp.handles.left.Text = ""
 	SideSwipeApp.handles.left.AnchorPoint = Vector2.new(0,0.5)
 	SideSwipeApp.handles.left.ZIndex = 470
-	const lCorner = InstanceNew("UICorner", SideSwipeApp.handles.left); lCorner.CornerRadius = UDim.new(1,0)
+	const lCorner = InstanceNew("UICorner", SideSwipeApp.handles.left); lCorner.CornerRadius = UDim.new(0, 6)
 	NAmanage.SideSwipe_WireHandle(SideSwipeApp.handles.left, "left")
 	SideSwipeApp.handles.right = InstanceNew("TextButton", SideSwipeApp.gui)
 	SideSwipeApp.handles.right.BackgroundColor3 = mainColor
@@ -114387,7 +114413,7 @@ NAmanage.SideSwipe_Init=function(opts)
 	SideSwipeApp.handles.right.Text = ""
 	SideSwipeApp.handles.right.AnchorPoint = Vector2.new(1,0.5)
 	SideSwipeApp.handles.right.ZIndex = 470
-	const rCorner = InstanceNew("UICorner", SideSwipeApp.handles.right); rCorner.CornerRadius = UDim.new(1,0)
+	const rCorner = InstanceNew("UICorner", SideSwipeApp.handles.right); rCorner.CornerRadius = UDim.new(0, 6)
 	NAmanage.SideSwipe_WireHandle(SideSwipeApp.handles.right, "right")
 	NAmanage.SideSwipe_UpdateHandleColors(mainColor)
 	SideSwipeApp.side = NASideSwipeSide or SideSwipeApp.side
@@ -115963,7 +115989,7 @@ NAgui.CmdMobileKeyboardShow = function()
 		end
 		b.Parent = parent
 		const bc = InstanceNew("UICorner")
-		bc.CornerRadius = UDim.new(0, 8)
+		bc.CornerRadius = UDim.new(0, 6)
 		bc.Parent = b
 		if action ~= "spacer" then
 			const function cb()
@@ -118961,7 +118987,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	}
 	const function makeCornerAndStroke(obj, radius, thickness)
 		const corner = InstanceNew("UICorner")
-		corner.CornerRadius = UDim.new(0, radius or 8)
+		corner.CornerRadius = UDim.new(0, 6)
 		corner.Parent = obj
 		const stroke = InstanceNew("UIStroke")
 		stroke.Color = colors.stroke
@@ -122207,7 +122233,7 @@ NAmanage.Notepad_Init = function()
 
 	const function skin(obj, r, t)
 		const c = InstanceNew("UICorner")
-		c.CornerRadius = UDim.new(0, r or 8)
+		c.CornerRadius = UDim.new(0, 6)
 		c.Parent = obj
 		const s = InstanceNew("UIStroke")
 		s.Color = col.st
@@ -123870,7 +123896,7 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 	ui.logoHolder.ZIndex = 13
 	ui.logoHolder.Parent = ui.topBrand
 	ui.logoCorner = Instance.new("UICorner")
-	ui.logoCorner.CornerRadius = UDim.new(0, 3)
+	ui.logoCorner.CornerRadius = UDim.new(0, 6)
 	ui.logoCorner.Parent = ui.logoHolder
 	ui.logoStroke = Instance.new("UIStroke")
 	ui.logoStroke.Color = Color3.fromRGB(255, 255, 255)
@@ -123969,7 +123995,7 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 	ui.contentSize.MaxSize = Vector2.new(760, mobile and 148 or 170)
 	ui.contentSize.Parent = ui.content
 	ui.contentCorner = Instance.new("UICorner")
-	ui.contentCorner.CornerRadius = UDim.new(0, 4)
+	ui.contentCorner.CornerRadius = UDim.new(0, 6)
 	ui.contentCorner.Parent = ui.content
 	ui.contentStroke = Instance.new("UIStroke")
 	ui.contentStroke.Color = Color3.fromRGB(255, 255, 255)
@@ -123997,7 +124023,7 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 	ui.statusPill.ZIndex = 13
 	ui.statusPill.Parent = ui.content
 	ui.statusCorner = Instance.new("UICorner")
-	ui.statusCorner.CornerRadius = UDim.new(0, 2)
+	ui.statusCorner.CornerRadius = UDim.new(0, 6)
 	ui.statusCorner.Parent = ui.statusPill
 	ui.statusStroke = Instance.new("UIStroke")
 	ui.statusStroke.Color = Color3.fromRGB(255, 255, 255)
@@ -124016,7 +124042,7 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 	ui.statusDot.ZIndex = 15
 	ui.statusDot.Parent = ui.statusPill
 	ui.statusDotCorner = Instance.new("UICorner")
-	ui.statusDotCorner.CornerRadius = UDim.new(1, 0)
+	ui.statusDotCorner.CornerRadius = UDim.new(0, 6)
 	ui.statusDotCorner.Parent = ui.statusDot
 
 	ui.actionLabel = Instance.new("TextLabel")
@@ -124048,7 +124074,7 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 	ui.destinationIcon.ZIndex = 13
 	ui.destinationIcon.Parent = ui.content
 	ui.destinationIconCorner = Instance.new("UICorner")
-	ui.destinationIconCorner.CornerRadius = UDim.new(0, 2)
+	ui.destinationIconCorner.CornerRadius = UDim.new(0, 6)
 	ui.destinationIconCorner.Parent = ui.destinationIcon
 	ui.destinationIconStroke = Instance.new("UIStroke")
 	ui.destinationIconStroke.Color = Color3.fromRGB(255, 255, 255)
@@ -125015,7 +125041,7 @@ NAmanage.SubplaceViewer_ShowServers = function(place)
 		back.Text = "Back to subplaces"
 		back.TextSize = 14
 		back.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-		Instance.new("UICorner", back).CornerRadius = UDim.new(0, 7)
+		Instance.new("UICorner", back).CornerRadius = UDim.new(0, 6)
 		NAlib.connect("NASubplaceViewerServers", back.Activated:Connect(function() NAmanage.SubplaceViewer_Render() end))
 		if #servers == 0 then
 			local empty = Instance.new("TextLabel", ui.list)
@@ -125034,7 +125060,7 @@ NAmanage.SubplaceViewer_ShowServers = function(place)
 			row.Size = UDim2.new(1, -4, 0, 62)
 			row.BackgroundColor3 = Color3.fromRGB(48,48,56)
 			row.BackgroundTransparency = 0.12
-			Instance.new("UICorner", row).CornerRadius = UDim.new(0, 7)
+			Instance.new("UICorner", row).CornerRadius = UDim.new(0, 6)
 			local label = Instance.new("TextLabel", row)
 			label.BackgroundTransparency = 1
 			label.Position = UDim2.new(0, 10, 0, 4)
@@ -125108,14 +125134,14 @@ NAmanage.SubplaceViewer_Render = function()
 		row.Size = UDim2.new(1, -4, 0, rowHeight)
 		row.BackgroundColor3 = isCurrent and Color3.fromRGB(58,53,75) or Color3.fromRGB(48,48,56)
 		row.BackgroundTransparency = 0.1
-		Instance.new("UICorner", row).CornerRadius = UDim.new(0, 8)
+		Instance.new("UICorner", row).CornerRadius = UDim.new(0, 6)
 		local icon = Instance.new("ImageLabel", row)
 		icon.Name = "Icon"
 		icon.BackgroundColor3 = Color3.fromRGB(35,35,42)
 		icon.Position = UDim2.new(0, 8, 0, 8)
 		icon.Size = UDim2.new(0, iconSize, 0, iconSize)
 		icon.Image = NAmanage.SubplaceViewer_GetPlaceIcon(place.PlaceId, 150, 150, place.IconAssetId)
-		Instance.new("UICorner", icon).CornerRadius = UDim.new(0, 7)
+		Instance.new("UICorner", icon).CornerRadius = UDim.new(0, 6)
 		local label = Instance.new("TextLabel", row)
 		label.BackgroundTransparency = 1
 		label.TextXAlignment = Enum.TextXAlignment.Left
@@ -127642,7 +127668,7 @@ NAmanage.CommandKeybindsUIInit=function()
 			box.TextSize = 16
 			box.ClearTextOnFocus = false
 			const corner = InstanceNew("UICorner", box)
-			corner.CornerRadius = UDim.new(0, 8)
+			corner.CornerRadius = UDim.new(0, 6)
 			const stroke = InstanceNew("UIStroke", box)
 			stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 			stroke.Thickness = 1.5
@@ -127699,7 +127725,7 @@ NAmanage.CommandKeybindsUIInit=function()
 		btn.Size = size
 		applyResponsiveText(btn, 10, 16)
 		const c = InstanceNew("UICorner", btn)
-		c.CornerRadius = UDim.new(0, 8)
+		c.CornerRadius = UDim.new(0, 6)
 		const s = InstanceNew("UIStroke", btn)
 		s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 		s.Thickness = 1.5
@@ -127968,7 +127994,7 @@ NAmanage.CommandKeybindsUIRefresh=function()
 		row.Size = UDim2.new(0.98, 0, 0, 32)
 		row.LayoutOrder = idx
 		const rc = InstanceNew("UICorner", row)
-		rc.CornerRadius = UDim.new(0, 8)
+		rc.CornerRadius = UDim.new(0, 6)
 		const rs = InstanceNew("UIStroke", row)
 		rs.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 		rs.Thickness = 1
@@ -128007,7 +128033,7 @@ NAmanage.CommandKeybindsUIRefresh=function()
 		editBtn.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
 		editBtn.TextSize = 13
 		const ec = InstanceNew("UICorner", editBtn)
-		ec.CornerRadius = UDim.new(0, 8)
+		ec.CornerRadius = UDim.new(0, 6)
 		NAgui.RegisterStrokesFrom(editBtn)
 
 		const disableBtn = InstanceNew("TextButton", row)
@@ -128021,7 +128047,7 @@ NAmanage.CommandKeybindsUIRefresh=function()
 		disableBtn.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
 		disableBtn.TextSize = 13
 		const dbc = InstanceNew("UICorner", disableBtn)
-		dbc.CornerRadius = UDim.new(0, 8)
+		dbc.CornerRadius = UDim.new(0, 6)
 		NAgui.RegisterStrokesFrom(disableBtn)
 
 		const remBtn = InstanceNew("TextButton", row)
@@ -128035,7 +128061,7 @@ NAmanage.CommandKeybindsUIRefresh=function()
 		remBtn.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
 		remBtn.TextSize = 13
 		const dc = InstanceNew("UICorner", remBtn)
-		dc.CornerRadius = UDim.new(0, 8)
+		dc.CornerRadius = UDim.new(0, 6)
 		NAgui.RegisterStrokesFrom(remBtn)
 
 		MouseButtonFix(editBtn, function()
@@ -129050,7 +129076,7 @@ NAmanage.bindToDevConsole = function()
 		btnContainer.BackgroundColor3 = Color3.fromRGB(30, 30, 30);
 		btnContainer.Parent = FilterButtons;
 		const corner = InstanceNew("UICorner");
-		corner.CornerRadius = UDim.new(1, 0);
+		corner.CornerRadius = UDim.new(0, 6);
 		corner.Parent = btnContainer;
 		const checkbox = InstanceNew("Frame");
 		checkbox.Name = "Checkbox";
@@ -129061,7 +129087,7 @@ NAmanage.bindToDevConsole = function()
 		checkbox.BorderSizePixel = 0;
 		checkbox.Parent = btnContainer;
 		const boxCorner = InstanceNew("UICorner");
-		boxCorner.CornerRadius = UDim.new(0, 4);
+		boxCorner.CornerRadius = UDim.new(0, 6);
 		boxCorner.Parent = checkbox;
 		const label = InstanceNew("TextLabel");
 		label.Name = "Label";
@@ -130663,10 +130689,12 @@ end);
 --[[ COMMAND BAR BUTTON ]]--
 TextLabel = InstanceNew("TextLabel")
 UICorner = InstanceNew("UICorner")
+UICorner.CornerRadius = UDim.new(0, 6)
 UIStroke = InstanceNew("UIStroke")
 TextButton = nil
 IconFallbackText = nil
 UICorner2 = InstanceNew("UICorner")
+UICorner2.CornerRadius = UDim.new(0, 6)
 
 NAgui.getIconShapeOptions = NAgui.getIconShapeOptions or function()
 	return {
@@ -130770,7 +130798,7 @@ TextLabel.ZIndex = 9999
 TextLabel.Active = true
 TextLabel.Selectable = false
 
-UICorner2.CornerRadius = UDim.new(0.25, 0)
+UICorner2.CornerRadius = UDim.new(0, 6)
 UICorner2.Parent = TextLabel
 
 UIStroke.Parent = TextLabel
@@ -131999,7 +132027,7 @@ NAmanage.bindRobloxDevConsoleCopyButtons = function(window, forceScan)
 		copyButton.Parent = host
 
 		const corner = InstanceNew("UICorner")
-		corner.CornerRadius = UDim.new(0, 4)
+		corner.CornerRadius = UDim.new(0, 6)
 		corner.Parent = copyButton
 
 		const stroke = InstanceNew("UIStroke")
@@ -132900,7 +132928,7 @@ SpawnCall(function()
 		binderFrame.ClipsDescendants = true
 		binderFrame.BackgroundColor3 = Color3.fromRGB(20,20,20)
 		const binderCorner = InstanceNew("UICorner", binderFrame)
-		binderCorner.CornerRadius    = UDim.new(0,8)
+		binderCorner.CornerRadius    = UDim.new(0, 6)
 		const binderStroke = InstanceNew("UIStroke", binderFrame)
 		binderStroke.Color           = Color3.fromRGB(60,60,60)
 		binderStroke.Thickness       = 1
@@ -132917,7 +132945,7 @@ SpawnCall(function()
 		header.TextColor3             = Color3.fromRGB(255,255,255)
 		header.Text                   = ev
 		const headerCorner = InstanceNew("UICorner", header)
-		headerCorner.CornerRadius     = UDim.new(0,6)
+		headerCorner.CornerRadius     = UDim.new(0, 6)
 		header.MouseEnter:Connect(function() header.BackgroundColor3 = Color3.fromRGB(50,50,50) end)
 		header.MouseLeave:Connect(function() header.BackgroundColor3 = Color3.fromRGB(30,30,30) end)
 
@@ -132933,7 +132961,7 @@ SpawnCall(function()
 		addBtn.TextColor3              = Color3.fromRGB(255,255,255)
 		addBtn.Text                    = "+"
 		const addCorner = InstanceNew("UICorner", addBtn)
-		addCorner.CornerRadius         = UDim.new(0,6)
+		addCorner.CornerRadius         = UDim.new(0, 6)
 		addBtn.MouseEnter:Connect(function() addBtn.BackgroundColor3 = Color3.fromRGB(50,50,50) end)
 		addBtn.MouseLeave:Connect(function() addBtn.BackgroundColor3 = Color3.fromRGB(30,30,30) end)
 
@@ -132944,7 +132972,7 @@ SpawnCall(function()
 		itemsFrame.Size                 = UDim2.new(1,0,0, 0)
 		itemsFrame.BackgroundColor3     = Color3.fromRGB(25,25,25)
 		const itemsCorner = InstanceNew("UICorner", itemsFrame)
-		itemsCorner.CornerRadius        = UDim.new(0,6)
+		itemsCorner.CornerRadius        = UDim.new(0, 6)
 
 		const uiLayout = InstanceNew("UIListLayout")
 		uiLayout.SortOrder              = Enum.SortOrder.LayoutOrder
@@ -133006,7 +133034,7 @@ SpawnCall(function()
 				item.BackgroundColor3   = disabled and Color3.fromRGB(28,28,31) or Color3.fromRGB(35,35,35)
 				item.BackgroundTransparency = disabled and 0.25 or 0
 				const itemCorner = InstanceNew("UICorner", item)
-				itemCorner.CornerRadius  = UDim.new(0,4)
+				itemCorner.CornerRadius  = UDim.new(0, 6)
 
 				const lbl = InstanceNew("TextLabel")
 				lbl.Parent               = item
@@ -133032,7 +133060,7 @@ SpawnCall(function()
 				dis.TextSize             = 13
 				dis.TextColor3           = Color3.fromRGB(244,244,244)
 				const disCorner = InstanceNew("UICorner", dis)
-				disCorner.CornerRadius   = UDim.new(0,6)
+				disCorner.CornerRadius   = UDim.new(0, 6)
 				MouseButtonFix(dis, function()
 					if NAmanage.BinderSetDisabled(ev, i, not disabled) then
 						DoNotif((disabled and "Enabled" or "Disabled").." "..ev.." binding", 2)
@@ -139772,7 +139800,7 @@ do
 		else
 			corner = getOwnedHelper(editor.cornerHelpers, object, "UICorner", "NA_TopBarAppCorner")
 			if corner then
-				corner.CornerRadius = UDim.new(0, radius)
+				corner.CornerRadius = UDim.new(0, 6)
 			end
 		end
 		const stroke = getOwnedHelper(editor.strokeHelpers, object, "UIStroke", "NA_TopBarAppStroke")
@@ -139915,6 +139943,7 @@ do
 		frame.Parent = app
 		trackOwned(frame)
 		const corner = InstanceNew("UICorner")
+		corner.CornerRadius = UDim.new(0, 6)
 		corner.Name = "NA_TopBarAppCorner"
 		corner.Parent = frame
 		trackOwned(corner)
@@ -139934,7 +139963,7 @@ do
 		frame.BackgroundTransparency = transparency
 		const corner = frame:FindFirstChildOfClass("UICorner")
 		if corner then
-			corner.CornerRadius = UDim.new(0, radius)
+			corner.CornerRadius = UDim.new(0, 6)
 		end
 		const stroke = frame:FindFirstChildOfClass("UIStroke")
 		if stroke then
@@ -143157,7 +143186,7 @@ originalIO.UserBtnEditor=function()
 		f.Parent = gui
 
 		const u = InstanceNew("UICorner")
-		u.CornerRadius = UDim.new(0.1, 0)
+		u.CornerRadius = UDim.new(0, 6)
 		u.Parent = f
 
 		const t = InstanceNew("TextLabel")
