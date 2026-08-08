@@ -21197,6 +21197,14 @@ NAmanage.NASettingsGetSchema=function()
 				return n
 			end;
 		};
+		windowBackgroundElementTransparency = {
+			default = 0;
+			coerce = function(value)
+				const n = NAmanage.NASettingsSchemaState.clampChannel(value)
+				if n == nil then return 0 end
+				return n
+			end;
+		};
 		iconInvisible = {
 			default = false;
 			coerce = function(value)
@@ -99854,7 +99862,7 @@ do
 			disk.Parent = areola
 
 			const corner = InstanceNew("UICorner")
-			corner.CornerRadius = UDim.new(0, 6)
+			corner.CornerRadius = UDim.new(0.5, 0)
 			corner.Parent = disk
 
 			return rig, boob, nipple
@@ -102687,7 +102695,6 @@ NAmanage.ScriptHub_Toggle = function()
 		frame.Visible = false
 		return true
 	end
-	NAmanage.ScriptHub_ApplyResponsive(false)
 	frame.Visible = true
 	NAmanage.centerFrame(frame)
 	if NAmanage.OnUIWindowShown then
@@ -126131,9 +126138,6 @@ NAmanage.SubplaceViewer_Toggle = function(forceState)
 	NAmanage.SubplaceViewer_Init()
 	local visible = forceState
 	if type(visible) ~= "boolean" then visible = not ui.frame.Visible end
-	if visible then
-		NAmanage.SubplaceViewer_ApplyResponsive(false)
-	end
 	ui.frame.Visible = visible
 	if visible then
 		if NAmanage.centerFrame then pcall(NAmanage.centerFrame, ui.frame) end
@@ -139351,7 +139355,7 @@ NAgui.setTab(NA_TABS.TAB_INTEGRATIONS)
 
 NAgui.addSection("Integrations")
 
-NAgui.addButton("Load Cmd (lxte)", function()
+NAgui.addButton("Load Cmd (qipu)", function()
 	local ok, err = NAmanage.loadCmdIntegration()
 	if not ok then
 		const msg = "Cmd failed to load: "..tostring(err)
@@ -139363,7 +139367,7 @@ NAgui.addButton("Load Cmd (lxte)", function()
 	end
 end)
 
-NAgui.addToggle("Auto-load Cmd (lxte)", NAStuff.CmdIntegrationAutoRun == true, function(v)
+NAgui.addToggle("Auto-load Cmd (qipu)", NAStuff.CmdIntegrationAutoRun == true, function(v)
 	NAStuff.CmdIntegrationAutoRun = v and true or false
 	pcall(NAmanage.NASettingsSet, "cmdIntegrationAutoRun", NAStuff.CmdIntegrationAutoRun)
 	if v then
@@ -139378,7 +139382,7 @@ NAgui.addToggle("Auto-load Cmd (lxte)", NAStuff.CmdIntegrationAutoRun == true, f
 		end
 	end
 end)
-NAmanage.RegisterToggleAutoSync("Auto-load Cmd (lxte)", function()
+NAmanage.RegisterToggleAutoSync("Auto-load Cmd (qipu)", function()
 	return NAStuff.CmdIntegrationAutoRun == true
 end)
 
@@ -141253,6 +141257,7 @@ if NAStuff.WindowAppearance.initialized ~= true then
 	NAStuff.WindowAppearance.imageTransparency = tonumber(NAmanage.NASettingsGet("windowBackgroundTransparency")) or 0.3
 	NAStuff.WindowAppearance.topbarTransparency = tonumber(NAmanage.NASettingsGet("windowBackgroundTopbarTransparency")) or 0.3
 	NAStuff.WindowAppearance.containerTransparency = tonumber(NAmanage.NASettingsGet("windowBackgroundContainerTransparency")) or 0.42
+	NAStuff.WindowAppearance.elementTransparency = tonumber(NAmanage.NASettingsGet("windowBackgroundElementTransparency")) or 0
 	NAStuff.WindowAppearance.pendingInput = NAStuff.WindowAppearance.source
 	NAStuff.WindowAppearance.entries = {}
 	NAStuff.WindowAppearance.index = 0
@@ -141476,6 +141481,112 @@ NAmanage.WindowAppearance.restoreTransparency = function(item)
 	end
 end
 
+NAmanage.WindowAppearance.elementRegistry = NAmanage.WindowAppearance.elementRegistry or setmetatable({}, { __mode = "k" })
+
+NAmanage.WindowAppearance.isElementSurface = function(item, frame)
+	if not (item and item:IsA("GuiObject")) or item == frame then
+		return false
+	end
+	if item:GetAttribute("NAWindowBackgroundLayer") == true then
+		return false
+	end
+	if item.Name == "Topbar" or item.Name == "Container" or item.Name == "HeaderAccent" or item.Name == "HeaderDivider" then
+		return false
+	end
+	return item.BackgroundTransparency < 0.999
+end
+
+NAmanage.WindowAppearance.captureElementTransparency = function(item)
+	if not (item and item:IsA("GuiObject")) then
+		return
+	end
+	if item:GetAttribute("NAOriginalElementBackgroundTransparency") == nil then
+		item:SetAttribute("NAOriginalElementBackgroundTransparency", item.BackgroundTransparency)
+	end
+end
+
+NAmanage.WindowAppearance.restoreElementTransparency = function(item)
+	if not (item and item:IsA("GuiObject")) then
+		return
+	end
+	const original = item:GetAttribute("NAOriginalElementBackgroundTransparency")
+	if type(original) == "number" then
+		item.BackgroundTransparency = original
+	end
+end
+
+NAmanage.WindowAppearance.applyElementSurface = function(item, enabled)
+	if not (item and item:IsA("GuiObject")) then
+		return
+	end
+	const original = item:GetAttribute("NAOriginalElementBackgroundTransparency")
+	if type(original) ~= "number" then
+		return
+	end
+	if enabled then
+		const amount = math.clamp(tonumber(NAStuff.WindowAppearance.elementTransparency) or 0, 0, 1)
+		item.BackgroundTransparency = original + ((1 - original) * amount)
+	else
+		item.BackgroundTransparency = original
+	end
+end
+
+NAmanage.WindowAppearance.ensureElementRegistry = function(frame)
+	if not (frame and frame:IsA("GuiObject")) then
+		return nil
+	end
+	local registry = NAmanage.WindowAppearance.elementRegistry[frame]
+	if type(registry) == "table" then
+		return registry
+	end
+	registry = {
+		items = {};
+		seen = setmetatable({}, { __mode = "k" });
+	}
+	NAmanage.WindowAppearance.elementRegistry[frame] = registry
+	for _, item in frame:GetDescendants() do
+		if NAmanage.WindowAppearance.isElementSurface(item, frame) then
+			registry.seen[item] = true
+			registry.items[#registry.items + 1] = item
+			NAmanage.WindowAppearance.captureElementTransparency(item)
+		end
+	end
+	registry.connection = frame.DescendantAdded:Connect(function(item)
+		Defer(function()
+			if not (item and item.Parent and frame.Parent) then
+				return
+			end
+			if registry.seen[item] or not NAmanage.WindowAppearance.isElementSurface(item, frame) then
+				return
+			end
+			registry.seen[item] = true
+			registry.items[#registry.items + 1] = item
+			NAmanage.WindowAppearance.captureElementTransparency(item)
+			NAmanage.WindowAppearance.applyElementSurface(item, NAStuff.WindowAppearance.enabled == true and typeof(NAStuff.WindowAppearance.runtimeAsset) == "string" and NAStuff.WindowAppearance.runtimeAsset ~= "")
+		end)
+	end)
+	return registry
+end
+
+NAmanage.WindowAppearance.applyElementSurfaces = function(frame, enabled)
+	const registry = NAmanage.WindowAppearance.ensureElementRegistry(frame)
+	if type(registry) ~= "table" then
+		return
+	end
+	local writeIndex = 0
+	for i = 1, #registry.items do
+		const item = registry.items[i]
+		if item and item.Parent then
+			writeIndex += 1
+			registry.items[writeIndex] = item
+			NAmanage.WindowAppearance.applyElementSurface(item, enabled)
+		end
+	end
+	for i = #registry.items, writeIndex + 1, -1 do
+		registry.items[i] = nil
+	end
+end
+
 NAmanage.WindowAppearance.applyFrame = function(frame)
 	if not (frame and frame:IsA("GuiObject")) then
 		return
@@ -141500,12 +141611,14 @@ NAmanage.WindowAppearance.applyFrame = function(frame)
 		if container and container:IsA("GuiObject") then
 			container.BackgroundTransparency = math.clamp(tonumber(state.containerTransparency) or 0.42, 0, 1)
 		end
+		NAmanage.WindowAppearance.applyElementSurfaces(frame, true)
 	else
 		image.Visible = false
 		image.Image = ""
 		image.ImageColor3 = Color3.fromRGB(255, 255, 255)
 		NAmanage.WindowAppearance.restoreTransparency(topbar)
 		NAmanage.WindowAppearance.restoreTransparency(container)
+		NAmanage.WindowAppearance.applyElementSurfaces(frame, false)
 	end
 end
 
@@ -141527,6 +141640,7 @@ NAmanage.WindowAppearance.save = function()
 		windowBackgroundTransparency = math.clamp(tonumber(state.imageTransparency) or 0.3, 0, 1);
 		windowBackgroundTopbarTransparency = math.clamp(tonumber(state.topbarTransparency) or 0.3, 0, 1);
 		windowBackgroundContainerTransparency = math.clamp(tonumber(state.containerTransparency) or 0.42, 0, 1);
+		windowBackgroundElementTransparency = math.clamp(tonumber(state.elementTransparency) or 0, 0, 1);
 	}
 	for key, value in values do
 		const def = schema[key]
@@ -142257,6 +142371,12 @@ end)
 
 NAgui.addSlider("Window Container Transparency", 0, 1, NAStuff.WindowAppearance.containerTransparency or 0.42, 0.05, "", function(value)
 	NAStuff.WindowAppearance.containerTransparency = math.clamp(tonumber(value) or 0.42, 0, 1)
+	NAmanage.WindowAppearance.applyAll()
+	NAmanage.WindowAppearance.scheduleSave()
+end)
+
+NAgui.addSlider("Window UI Element Transparency", 0, 1, NAStuff.WindowAppearance.elementTransparency or 0, 0.05, "", function(value)
+	NAStuff.WindowAppearance.elementTransparency = math.clamp(tonumber(value) or 0, 0, 1)
 	NAmanage.WindowAppearance.applyAll()
 	NAmanage.WindowAppearance.scheduleSave()
 end)
