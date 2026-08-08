@@ -1924,6 +1924,7 @@ local NAStuff = {
 	CmdBar2AutoRun = false;
 	CmdInputSafeMode = true;
 	HideCmdAutofill = false;
+	LegacyCommandUI = false;
 	CmdIntegrationAutoRun = false;
 	CmdIntegrationLoaded = false;
 	CmdIntegrationLastSource = nil;
@@ -19338,23 +19339,17 @@ NAmanage.queueStartupAssetPreload = NAmanage.queueStartupAssetPreload or functio
 	if not (NAStuff and NAStuff.AutoPreloadAssets) or NAStuff._assetPreloadQueued then
 		return
 	end
-	if IsOnMobile == true then
-		const perf = NAStuff.StartupPerformance
-		if type(perf) == "table" then
-			perf.assetPreloadSkippedMobile = true
-		end
-		NAmanage.MarkExternalLagProbe("asset_preload_skipped_mobile")
-		return
-	end
 	NAStuff._assetPreloadQueued = true
 	const perf = NAStuff.StartupPerformance
 	if type(perf) == "table" then
 		perf.assetPreloadQueued = os.clock()
 		perf.assetPreloadDelay = 6
+		perf.assetPreloadMobile = IsOnMobile == true
 	end
 	Defer(function()
 		Wait(6)
-		if type(NAmanage.isLoad) == "function" and not NAmanage.isLoad() then
+		if not (NAStuff and NAStuff.AutoPreloadAssets) then
+			NAStuff._assetPreloadQueued = false
 			return
 		end
 		const limit = tick() + 60
@@ -19369,9 +19364,12 @@ NAmanage.queueStartupAssetPreload = NAmanage.queueStartupAssetPreload or functio
 				silent = true,
 				st = true,
 				lowImpact = true,
+				incWs = true,
 				maxI = 3000,
 				maxE = 1000,
 			})
+		else
+			NAStuff._assetPreloadQueued = false
 		end
 	end)
 end
@@ -20162,6 +20160,10 @@ NAmanage.NASettingsGetSchema=function()
 			coerce = function(value) return NAmanage.NASettingsSchemaState.coerceBoolean(value, IsOnPC == true and IsOnMobile ~= true) end;
 		};
 		hideCmdAutofill = {
+			default = false;
+			coerce = function(value) return NAmanage.NASettingsSchemaState.coerceBoolean(value, false) end;
+		};
+		legacyCommandUI = {
 			default = false;
 			coerce = function(value) return NAmanage.NASettingsSchemaState.coerceBoolean(value, false) end;
 		};
@@ -22967,7 +22969,15 @@ NAmanage.ESPSettingsState = type(NAmanage.ESPSettingsState) == "table" and NAman
 }
 NAmanage.ESPSettingsLoaded = NAmanage.ESPSettingsState.loaded == true
 
-NAmanage.LoadESPSettings = function()
+NAmanage.LoadESPSettings = function(opts)
+	opts = type(opts) == "table" and opts or {}
+	if NAmanage.ESPSettingsState.loaded == true and opts.force ~= true then
+		NAmanage.ESPSettingsLoaded = true
+		return true
+	end
+	if NAmanage.ESPSettingsState.loading == true then
+		return false, "ESP settings load already running"
+	end
 	NAmanage.ESPSettingsState.loading = true
 	NAmanage.ESPSettingsState.loaded = false
 	NAmanage.ESPSettingsState.missingOnLoad = false
@@ -23331,6 +23341,7 @@ NAmanage.LoadESPSettings = function()
 			end
 		end)
 	end
+	return true
 end
 
 NAmanage.SaveESPSettings = function(opts)
@@ -24801,6 +24812,7 @@ do
 	end
 end
 NAStuff.HideCmdAutofill = NAmanage.NASettingsGet("hideCmdAutofill") == true
+NAStuff.LegacyCommandUI = NAmanage.NASettingsGet("legacyCommandUI") == true
 NAStuff.LoopMethodOptions = { "PostSimulation", "PreSimulation", "RenderStepped", "Heartbeat" }
 NAStuff.LoopMethod = NAmanage.NASettingsGet("loopMethod") or "PostSimulation"
 NAStuff.ManagementAutoRefresh = NAmanage.NASettingsGet("managementAutoRefresh") == true
@@ -102648,14 +102660,333 @@ resizeXY = {
 	}
 };
 
+NAmanage.IsLegacyCommandUI = function()
+	return type(NAStuff) == "table" and NAStuff.LegacyCommandUI == true
+end
+
+NAmanage.ApplyCmdAutofillFrameMode = function(frame, legacy)
+	if not (frame and frame:IsA("GuiObject")) then
+		return
+	end
+	legacy = legacy == true
+	frame.AnchorPoint = Vector2.new(0.5, 0)
+	frame.BackgroundTransparency = 1
+	frame.Size = legacy and UDim2.new(0.5, 0, 0, 28) or UDim2.new(1, -16, 0, 38)
+	frame.Position = legacy and UDim2.new(0.5, 0, 0.82, 0) or UDim2.new(0.5, 0, 0, 0)
+	frame.ZIndex = legacy and 1 or 19
+
+	const inputObj = frame:FindFirstChild("Input")
+	if inputObj and inputObj:IsA("TextButton") then
+		inputObj.TextWrapped = legacy
+		inputObj.TextSize = legacy and 18 or 14
+		inputObj.TextScaled = legacy
+		inputObj.TextColor3 = legacy and Color3.fromRGB(235, 235, 245) or Color3.fromRGB(232, 232, 236)
+		inputObj.TextXAlignment = legacy and Enum.TextXAlignment.Center or Enum.TextXAlignment.Left
+		inputObj.FontFace = legacy
+			and Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+			or Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal)
+		inputObj.ZIndex = legacy and 2 or 22
+		inputObj.AnchorPoint = legacy and Vector2.new(0, 0.5) or Vector2.new(0.5, 0.5)
+		inputObj.BackgroundTransparency = 1
+		inputObj.Size = legacy and UDim2.new(1, 0, 1, -5) or UDim2.new(1, 0, 1, 0)
+		inputObj.Position = legacy and UDim2.new(0, 0, 0.5, 0) or UDim2.new(0.5, 0, 0.5, 0)
+		inputObj.AutoButtonColor = legacy == true
+		const inputPadding = inputObj:FindFirstChildOfClass("UIPadding")
+		if inputPadding then
+			inputPadding.PaddingLeft = legacy and UDim.new(0, 0) or UDim.new(0, 16)
+			inputPadding.PaddingRight = legacy and UDim.new(0, 0) or UDim.new(0, 14)
+		end
+	end
+
+	const background = frame:FindFirstChild("Background")
+	if background and background:IsA("GuiObject") then
+		background.ZIndex = legacy and 1 or 20
+	end
+	const visual = background and background:FindFirstChild("Horizontal")
+	if visual and visual:IsA("GuiObject") then
+		visual.BackgroundColor3 = legacy and Color3.fromRGB(45, 45, 50) or Color3.fromRGB(24, 24, 27)
+		visual.BackgroundTransparency = legacy and 0.3 or 0.2
+		visual.ZIndex = legacy and 1 or 20
+		const corner = visual:FindFirstChildOfClass("UICorner")
+		if corner then
+			corner.CornerRadius = UDim.new(0, legacy and 6 or 8)
+		end
+		const gradient = visual:FindFirstChildOfClass("UIGradient")
+		if gradient then
+			gradient.Color = legacy and ColorSequence.new({
+				ColorSequenceKeypoint.new(0, Color3.fromRGB(50, 50, 55)),
+				ColorSequenceKeypoint.new(1, Color3.fromRGB(40, 40, 45))
+			}) or ColorSequence.new({
+				ColorSequenceKeypoint.new(0, Color3.fromRGB(30, 30, 34)),
+				ColorSequenceKeypoint.new(1, Color3.fromRGB(19, 19, 22))
+			})
+		end
+		const outline = visual:FindFirstChild("ItemOutline")
+		if outline and outline:IsA("UIStroke") then
+			outline.Enabled = not legacy
+			outline.Transparency = 0.76
+		end
+		const line = visual:FindFirstChild("SelectionLine")
+		if line and line:IsA("GuiObject") then
+			line.Visible = not legacy
+			line.BackgroundTransparency = 0.42
+		end
+	end
+end
+
+NAmanage.ApplyCommandPredictionMode = function(legacy)
+	if not predictionInput then
+		return
+	end
+	legacy = legacy == true
+	const inputObj = NAUIMANAGER and NAUIMANAGER.cmdInput
+	if inputObj then
+		predictionInput.AnchorPoint = inputObj.AnchorPoint
+		predictionInput.Position = inputObj.Position
+		predictionInput.Size = inputObj.Size
+		predictionInput.TextWrapped = inputObj.TextWrapped
+		predictionInput.TextScaled = inputObj.TextScaled
+		predictionInput.TextSize = inputObj.TextSize
+		predictionInput.TextXAlignment = inputObj.TextXAlignment
+		predictionInput.FontFace = inputObj.FontFace
+	end
+	predictionInput.TextEditable = false
+	predictionInput.Active = false
+	predictionInput.Selectable = false
+	predictionInput.BackgroundTransparency = 1
+	predictionInput.PlaceholderText = ""
+	if legacy then
+		predictionInput.TextTransparency = 1
+		predictionInput.TextColor3 = Color3.fromRGB(180, 180, 180)
+		predictionInput.ZIndex = (inputObj and inputObj.ZIndex or 2) + 1
+		predictionInput.Visible = true
+	else
+		predictionInput.TextTransparency = 0.55
+		predictionInput.TextColor3 = Color3.fromRGB(155, 155, 164)
+		predictionInput.ZIndex = math.max(1, (inputObj and inputObj.ZIndex or 23) - 1)
+		if type(NAmanage.SyncCmdPredictionVisual) == "function" then
+			NAmanage.SyncCmdPredictionVisual()
+		else
+			predictionInput.Visible = false
+		end
+	end
+end
+
+NAmanage.ApplyCommandUIMode = function(opts)
+	opts = type(opts) == "table" and opts or {}
+	const legacy = NAmanage.IsLegacyCommandUI()
+	const bar = NAUIMANAGER and NAUIMANAGER.cmdBar
+	const centerBar = NAUIMANAGER and NAUIMANAGER.centerBar
+	const inputObj = NAUIMANAGER and NAUIMANAGER.cmdInput
+	const leftFill = NAUIMANAGER and NAUIMANAGER.leftFill
+	const rightFill = NAUIMANAGER and NAUIMANAGER.rightFill
+	const autofill = NAUIMANAGER and NAUIMANAGER.cmdAutofill
+	if not (bar and centerBar and inputObj and leftFill and rightFill and autofill) then
+		return false
+	end
+
+	pcall(function()
+		bar:SetAttribute("NACommandUIMode", legacy and "Legacy" or "Modern")
+	end)
+	bar.Size = legacy and UDim2.new(1, 0, 0, 30) or UDim2.new(1, 0, 0, 46)
+	bar.Position = legacy and UDim2.new(0.5, 0, 0.5, -20) or UDim2.new(0.5, 0, 0.5, 0)
+
+	centerBar.ZIndex = legacy and 2 or 20
+	centerBar.AnchorPoint = Vector2.new(0.5, 0.5)
+	centerBar.Position = UDim2.new(0.5, 0, 0.5, 0)
+	centerBar.Size = legacy and UDim2.new(0, 280, 1, 10) or UDim2.new(0, 520, 1, 0)
+	centerBar.BackgroundTransparency = 1
+	centerBar.ClipsDescendants = not legacy
+
+	const shell = centerBar:FindFirstChild("Horizontal")
+	if shell and shell:IsA("GuiObject") then
+		shell.ZIndex = legacy and 2 or 20
+		shell.BackgroundColor3 = legacy and Color3.fromRGB(40, 40, 45) or Color3.fromRGB(13, 13, 15)
+		shell.BackgroundTransparency = legacy and 0.2 or 0.04
+		const corner = shell:FindFirstChildOfClass("UICorner")
+		if corner then
+			corner.CornerRadius = UDim.new(0, legacy and 8 or 12)
+		end
+		const gradient = shell:FindFirstChildOfClass("UIGradient")
+		if gradient then
+			gradient.Color = legacy and ColorSequence.new({
+				ColorSequenceKeypoint.new(0, Color3.fromRGB(45, 45, 50)),
+				ColorSequenceKeypoint.new(1, Color3.fromRGB(35, 35, 40))
+			}) or ColorSequence.new({
+				ColorSequenceKeypoint.new(0, Color3.fromRGB(20, 20, 23)),
+				ColorSequenceKeypoint.new(1, Color3.fromRGB(10, 10, 12))
+			})
+		end
+		const outline = shell:FindFirstChild("CmdOutline")
+		if outline and outline:IsA("UIStroke") then
+			outline.Enabled = not legacy
+			outline.Transparency = NAStuff.cmdBarSelected == true and 0.18 or 0.58
+		end
+	end
+
+	inputObj.Active = not legacy
+	inputObj.ZIndex = legacy and 2 or 23
+	inputObj.TextWrapped = legacy
+	inputObj.TextSize = legacy and 20 or 15
+	inputObj.TextScaled = legacy
+	inputObj.TextXAlignment = legacy and Enum.TextXAlignment.Center or Enum.TextXAlignment.Left
+	inputObj.TextColor3 = legacy and Color3.fromRGB(245, 245, 255) or Color3.fromRGB(246, 246, 248)
+	inputObj.FontFace = legacy
+		and Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+		or Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal)
+	inputObj.AnchorPoint = legacy and Vector2.new(0.5, 0.5) or Vector2.new(0, 0.5)
+	inputObj.Size = legacy and UDim2.new(1, -10, 0.7, 0) or UDim2.new(1, -207, 1, 0)
+	inputObj.Position = legacy and UDim2.new(0.5, 0, 0.5, 0) or UDim2.new(0, 43, 0.5, 0)
+	inputObj.ClearTextOnFocus = legacy
+	NAStuff.defaultCmdClear = legacy
+	inputObj.PlaceholderColor3 = legacy and Color3.fromRGB(178, 178, 178) or Color3.fromRGB(130, 130, 138)
+	const inputPadding = inputObj:FindFirstChildOfClass("UIPadding")
+	if inputPadding then
+		inputPadding.PaddingLeft = UDim.new(0, 0)
+		inputPadding.PaddingRight = UDim.new(0, 0)
+	end
+
+	for _, name in { "Prompt", "EnterHint", "TabHint" } do
+		const obj = centerBar:FindFirstChild(name)
+		if obj and obj:IsA("GuiObject") then
+			obj.Visible = not legacy
+		end
+	end
+
+	leftFill.AnchorPoint = Vector2.new(0, 0.5)
+	leftFill.Size = legacy and UDim2.new(0.5, -140, 1, 0) or UDim2.new(0, 0, 1, 0)
+	leftFill.Position = legacy and UDim2.new(0, 0, 0.5, 0) or UDim2.new(0.5, -260, 0.5, 0)
+	leftFill.Visible = legacy
+	const leftVisual = leftFill:FindFirstChild("Horizontal")
+	if leftVisual and leftVisual:IsA("GuiObject") then
+		leftVisual.BackgroundColor3 = legacy and Color3.fromRGB(40, 40, 45) or Color3.fromRGB(255, 255, 255)
+		leftVisual.BackgroundTransparency = legacy and 0.2 or 1
+		leftVisual.Size = legacy and UDim2.new(1.005, 0, 1, 0) or UDim2.new(1, 0, 1, 0)
+	end
+
+	rightFill.AnchorPoint = Vector2.new(1, 0.5)
+	rightFill.Size = legacy and UDim2.new(0.5, -140, 1, 0) or UDim2.new(0, 0, 1, 0)
+	rightFill.Position = legacy and UDim2.new(1, 0, 0.5, 0) or UDim2.new(0.5, 260, 0.5, 0)
+	rightFill.Visible = legacy
+	const rightVisual = rightFill:FindFirstChild("Horizontal")
+	if rightVisual and rightVisual:IsA("GuiObject") then
+		rightVisual.BackgroundColor3 = legacy and Color3.fromRGB(40, 40, 45) or Color3.fromRGB(255, 255, 255)
+		rightVisual.BackgroundTransparency = legacy and 0.2 or 1
+		rightVisual.Size = legacy and UDim2.new(1.005, 0, 1, 0) or UDim2.new(1, 0, 1, 0)
+		rightVisual.Position = legacy and UDim2.new(-0.005, 0, 0, 0) or UDim2.new(0, 0, 0, 0)
+	end
+
+	autofill.CanvasSize = legacy and UDim2.new(0, 0, 5, 0) or UDim2.new(0, 0, 0, 0)
+	autofill.ScrollingEnabled = false
+	autofill.BackgroundColor3 = legacy and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(12, 12, 14)
+	autofill.Selectable = false
+	autofill.AnchorPoint = legacy and Vector2.new(0.5, 0) or Vector2.new(0.5, 1)
+	autofill.Size = legacy and UDim2.new(1, 0, 0, 150) or UDim2.new(0, 520, 0, 56)
+	autofill.Position = legacy and UDim2.new(0.5, 0, -6.5, 15) or UDim2.new(0.5, 0, 0, -10)
+	autofill.BackgroundTransparency = 1
+	autofill.BorderSizePixel = 0
+	autofill.ScrollBarThickness = legacy and 12 or 0
+	autofill.ClipsDescendants = not legacy
+	autofill.ZIndex = legacy and 1 or 18
+	const autofillCorner = autofill:FindFirstChildOfClass("UICorner")
+	if autofillCorner then
+		autofillCorner.CornerRadius = UDim.new(0, legacy and 0 or 12)
+	end
+	const autofillOutline = autofill:FindFirstChild("AutofillOutline")
+	if autofillOutline and autofillOutline:IsA("UIStroke") then
+		autofillOutline.Enabled = not legacy
+		autofillOutline.Transparency = 1
+	end
+	const autofillPadding = autofill:FindFirstChildOfClass("UIPadding")
+	if autofillPadding then
+		const amount = legacy and 0 or 8
+		autofillPadding.PaddingTop = UDim.new(0, amount)
+		autofillPadding.PaddingBottom = UDim.new(0, amount)
+		autofillPadding.PaddingLeft = UDim.new(0, amount)
+		autofillPadding.PaddingRight = UDim.new(0, amount)
+	end
+	const layout = autofill:FindFirstChildOfClass("UIListLayout")
+	if layout then
+		layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		layout.Padding = UDim.new(0, legacy and 5 or 6)
+		layout.VerticalAlignment = legacy and Enum.VerticalAlignment.Bottom or Enum.VerticalAlignment.Top
+		layout.SortOrder = Enum.SortOrder.LayoutOrder
+	end
+
+	if NAUIMANAGER.cmdExample then
+		NAmanage.ApplyCmdAutofillFrameMode(NAUIMANAGER.cmdExample, legacy)
+	end
+	const pool = NAStuff and NAStuff.CmdAutofillPool
+	if type(pool) == "table" then
+		for i = 1, #pool do
+			NAmanage.ApplyCmdAutofillFrameMode(pool[i], legacy)
+		end
+	end
+
+	fillSizes = {
+		right = legacy and UDim2.new(0.5, -140, 1, 0) or UDim2.new(0, 0, 1, 0),
+		left = legacy and UDim2.new(0.5, -140, 1, 0) or UDim2.new(0, 0, 1, 0)
+	}
+	cmdBarExpandedSize = legacy and UDim2.new(0, 280, 1, 10) or UDim2.new(0, 520, 1, 0)
+	NAStuff.cmdAutofillLimit = legacy and 5 or (NAStuff.cmdAutofillLimit or 5)
+	NAStuff.cmdAutofillRowHeight = legacy and 28 or (NAStuff.cmdAutofillRowHeight or 38)
+	NAmanage.ApplyCommandPredictionMode(legacy)
+
+	if not legacy and type(NAmanage.PositionCmdBarAtViewportCenter) == "function" and opts.skipPosition ~= true then
+		NAmanage.PositionCmdBarAtViewportCenter()
+	end
+	if type(NAmanage.ApplyCmdAutofillVisibility) == "function" then
+		NAmanage.ApplyCmdAutofillVisibility({ refresh = false })
+	else
+		autofill.Visible = legacy and NAStuff.HideCmdAutofill ~= true or false
+	end
+	return true
+end
+
+NAmanage.SetLegacyCommandUI = function(enabled, opts)
+	opts = type(opts) == "table" and opts or {}
+	const active = NAmanage.isCmdBarActive and NAmanage.isCmdBarActive() == true
+	NAStuff.LegacyCommandUI = enabled == true
+	if opts.save ~= false and type(NAmanage.NASettingsSet) == "function" then
+		pcall(NAmanage.NASettingsSet, "legacyCommandUI", NAStuff.LegacyCommandUI)
+	end
+	NAmanage.ApplyCommandUIMode()
+	if active and type(NAgui.barSelect) == "function" then
+		NAgui.barSelect(0)
+		if type(NAgui.autoFILLLL) == "function" then
+			Delay(0, NAgui.autoFILLLL)
+		end
+	elseif type(NAgui.barDeselect) == "function" then
+		NAgui.barDeselect(0)
+	end
+	if opts.notify == true then
+		DoNotif("Legacy command input + autofill "..(NAStuff.LegacyCommandUI and "enabled" or "disabled"), 2)
+	end
+	return NAStuff.LegacyCommandUI
+end
+
+NAmanage.ApplyCommandUIMode({ skipPosition = true })
+
 fillSizes = {
 	right = NAUIMANAGER.rightFill.Size,
 	left = NAUIMANAGER.leftFill.Size
 };
-cmdBarExpandedSize = NAUIMANAGER.centerBar and NAUIMANAGER.centerBar.Size or UDim2.new(0, 520, 1, 0)
+cmdBarExpandedSize = NAmanage.IsLegacyCommandUI() and UDim2.new(0, 280, 1, 10) or (NAUIMANAGER.centerBar and NAUIMANAGER.centerBar.Size or UDim2.new(0, 520, 1, 0))
 NAmanage.PositionCmdBarAtViewportCenter = function()
 	const bar = NAUIMANAGER and NAUIMANAGER.cmdBar
 	if not (bar and bar:IsA("GuiObject")) then return end
+	if NAmanage.IsLegacyCommandUI and NAmanage.IsLegacyCommandUI() then
+		bar.Size = UDim2.new(1, 0, 0, 30)
+		bar.Position = UDim2.new(0.5, 0, 0.5, -20)
+		cmdBarExpandedSize = UDim2.new(0, 280, 1, 10)
+		NAStuff.cmdAutofillLimit = 5
+		NAStuff.cmdAutofillRowHeight = 28
+		const centerBar = NAUIMANAGER and NAUIMANAGER.centerBar
+		if centerBar and NAStuff.cmdBarSelected == true then
+			centerBar.Size = cmdBarExpandedSize
+		end
+		return
+	end
 	const camera = Workspace and Workspace.CurrentCamera
 	const viewport = camera and camera.ViewportSize or Vector2.new(1920, 1080)
 	local uiScale = 1
@@ -105022,6 +105353,10 @@ predictionInput.Visible = false
 
 NAmanage.SyncCmdPredictionVisual = function()
 	if not predictionInput then return end
+	if NAmanage.IsLegacyCommandUI and NAmanage.IsLegacyCommandUI() then
+		predictionInput.Visible = true
+		return
+	end
 	const typedText = NAUIMANAGER and NAUIMANAGER.cmdInput and NAUIMANAGER.cmdInput.Text or ""
 	const hasPrediction = predictionInput.Text ~= "" and predictionInput.Text ~= typedText
 	predictionInput.Visible = hasPrediction
@@ -105039,6 +105374,7 @@ end
 NAlib.connect("CmdPredictionVisual", predictionInput:GetPropertyChangedSignal("Text"):Connect(NAmanage.SyncCmdPredictionVisual))
 NAlib.connect("CmdPredictionTypedVisual", NAUIMANAGER.cmdInput:GetPropertyChangedSignal("Text"):Connect(NAmanage.SyncCmdPredictionVisual))
 NAmanage.SyncCmdPredictionVisual()
+NAmanage.ApplyCommandPredictionMode(NAmanage.IsLegacyCommandUI())
 
 opt.NAAUTOSCALER = NAUIMANAGER.AUTOSCALER
 
@@ -114676,7 +115012,9 @@ NAgui.hideFill = function()
 				NAmanage.setCmdAutofillItemInteractivity(child, false)
 			end
 		end
-		host.Visible = false
+		if not (NAmanage.IsLegacyCommandUI and NAmanage.IsLegacyCommandUI()) then
+			host.Visible = false
+		end
 	end
 end
 
@@ -114690,7 +115028,8 @@ NAmanage.ApplyCmdAutofillVisibility = function(opts)
 	const host = NAUIMANAGER and NAUIMANAGER.cmdAutofill
 	if host and host:IsA("GuiObject") then
 		const active = NAmanage.isCmdBarActive and NAmanage.isCmdBarActive() == true
-		host.Visible = not hidden and active
+		const legacy = NAmanage.IsLegacyCommandUI and NAmanage.IsLegacyCommandUI() == true
+		host.Visible = not hidden and (legacy or active)
 	end
 	if hidden then
 		NAgui.hideFill()
@@ -114853,6 +115192,9 @@ NAmanage.bindCmdAutofillFrame = function(frame)
 	const outline = visual and visual:FindFirstChild("ItemOutline")
 	const line = visual and visual:FindFirstChild("SelectionLine")
 	const function applyHover(hovered)
+		if NAmanage.IsLegacyCommandUI and NAmanage.IsLegacyCommandUI() then
+			return
+		end
 		const active = hovered == true and NAStuff.cmdAutofillClickable == true and NAStuff.cmdBarSelected == true
 		if visual then
 			NAgui.tween(visual, "Sine", "Out", 0.12, {
@@ -116950,9 +117292,7 @@ NAgui.ensureCmdFocus = function()
 		return
 	end
 	const box = NAUIMANAGER.cmdInput
-	if cmdDefaultClear == nil then
-		cmdDefaultClear = box.ClearTextOnFocus
-	end
+	cmdDefaultClear = NAmanage.IsLegacyCommandUI and NAmanage.IsLegacyCommandUI() == true
 	box.ClearTextOnFocus = false
 	box:CaptureFocus()
 	const deadline = os.clock() + 0.35
@@ -116973,8 +117313,9 @@ NAgui.barSelect = function(speed)
 	NAStuff.cmdBarSelected = true
 	NAmanage.setCmdAutofillClickable(true)
 
-	const targetSize = cmdBarExpandedSize or UDim2.new(0, 520, 1, 0)
-	const startSize = UDim2.new(
+	const legacy = NAmanage.IsLegacyCommandUI and NAmanage.IsLegacyCommandUI() == true
+	const targetSize = legacy and UDim2.new(0, 280, 1, 10) or (cmdBarExpandedSize or UDim2.new(0, 520, 1, 0))
+	const startSize = legacy and UDim2.new(0, 250, 1, 8) or UDim2.new(
 		targetSize.X.Scale,
 		math.max(0, targetSize.X.Offset - 36),
 		targetSize.Y.Scale,
@@ -116982,17 +117323,22 @@ NAgui.barSelect = function(speed)
 	)
 	NAUIMANAGER.centerBar.Size = startSize
 	NAUIMANAGER.centerBar.Visible = true
-	const shell = NAUIMANAGER.centerBar:FindFirstChild("Horizontal")
-	const outline = shell and shell:FindFirstChild("CmdOutline")
-	if outline then
-		NAgui.tween(outline, "Sine", "Out", math.max(speed * 0.6, 0.05), {Transparency = 0.18})
-	end
-	const enterHint = NAUIMANAGER.centerBar:FindFirstChild("EnterHint")
-	if enterHint then
-		NAgui.tween(enterHint, "Sine", "Out", math.max(speed * 0.6, 0.05), {
-			TextColor3 = Color3.fromRGB(245, 245, 248);
-			BackgroundColor3 = Color3.fromRGB(40, 40, 45);
-		})
+	if legacy then
+		NAUIMANAGER.leftFill.Visible = true
+		NAUIMANAGER.rightFill.Visible = true
+	else
+		const shell = NAUIMANAGER.centerBar:FindFirstChild("Horizontal")
+		const outline = shell and shell:FindFirstChild("CmdOutline")
+		if outline then
+			NAgui.tween(outline, "Sine", "Out", math.max(speed * 0.6, 0.05), {Transparency = 0.18})
+		end
+		const enterHint = NAUIMANAGER.centerBar:FindFirstChild("EnterHint")
+		if enterHint then
+			NAgui.tween(enterHint, "Sine", "Out", math.max(speed * 0.6, 0.05), {
+				TextColor3 = Color3.fromRGB(245, 245, 248);
+				BackgroundColor3 = Color3.fromRGB(40, 40, 45);
+			})
+		end
 	end
 	if speed > 0 then
 		NAgui.tween(NAUIMANAGER.centerBar, "Back", "Out", speed * 0.6, {
@@ -117098,17 +117444,20 @@ NAgui.barDeselect = function(speed)
 	NAmanage.setCmdAutofillClickable(false)
 	NAStuff.cmdSearchSuspendUntil = math.max(tonumber(NAStuff.cmdSearchSuspendUntil) or 0, os.clock() + 0.15)
 	gen += 1
-	const shell = NAUIMANAGER.centerBar and NAUIMANAGER.centerBar:FindFirstChild("Horizontal")
-	const outline = shell and shell:FindFirstChild("CmdOutline")
-	if outline then
-		NAgui.tween(outline, "Sine", "Out", math.max(speed * 0.45, 0.05), {Transparency = 0.58})
-	end
-	const enterHint = NAUIMANAGER.centerBar and NAUIMANAGER.centerBar:FindFirstChild("EnterHint")
-	if enterHint then
-		NAgui.tween(enterHint, "Sine", "Out", math.max(speed * 0.45, 0.05), {
-			TextColor3 = Color3.fromRGB(196, 196, 204);
-			BackgroundColor3 = Color3.fromRGB(31, 31, 35);
-		})
+	const legacy = NAmanage.IsLegacyCommandUI and NAmanage.IsLegacyCommandUI() == true
+	if not legacy then
+		const shell = NAUIMANAGER.centerBar and NAUIMANAGER.centerBar:FindFirstChild("Horizontal")
+		const outline = shell and shell:FindFirstChild("CmdOutline")
+		if outline then
+			NAgui.tween(outline, "Sine", "Out", math.max(speed * 0.45, 0.05), {Transparency = 0.58})
+		end
+		const enterHint = NAUIMANAGER.centerBar and NAUIMANAGER.centerBar:FindFirstChild("EnterHint")
+		if enterHint then
+			NAgui.tween(enterHint, "Sine", "Out", math.max(speed * 0.45, 0.05), {
+				TextColor3 = Color3.fromRGB(196, 196, 204);
+				BackgroundColor3 = Color3.fromRGB(31, 31, 35);
+			})
+		end
 	end
 
 	NAgui.tween(NAUIMANAGER.centerBar, "Back", "InOut", speed, {
@@ -117132,7 +117481,7 @@ NAgui.barDeselect = function(speed)
 			hadVisible = true
 			toHide[#toHide + 1] = v
 			NAgui.tween(v, "Exponential", "In", 0.12, {
-				Size = UDim2.new(0.96, -16, 0, 34)
+				Size = legacy and UDim2.new(0, 0, 0, 25) or UDim2.new(0.96, -16, 0, 34)
 			})
 		end
 	end
@@ -117293,13 +117642,18 @@ NAmanage.performSearch = function(term, ctx)
 	if #searchIndex <= 0 and type(NAmanage.queueCommandDataBuild) == "function" then
 		pcall(NAmanage.queueCommandDataBuild, { force = true })
 	end
-	const suggestionLimit = math.clamp(tonumber(NAStuff.cmdAutofillLimit) or 5, 1, 5)
-	const suggestionRowHeight = math.max(34, tonumber(NAStuff.cmdAutofillRowHeight) or 38)
+	const legacy = NAmanage.IsLegacyCommandUI and NAmanage.IsLegacyCommandUI() == true
+	const suggestionLimit = legacy and 5 or math.clamp(tonumber(NAStuff.cmdAutofillLimit) or 5, 1, 5)
+	const suggestionRowHeight = legacy and 28 or math.max(34, tonumber(NAStuff.cmdAutofillRowHeight) or 38)
 	const suggestionPool = NAmanage.ensureCmdAutofillSuggestionPool and NAmanage.ensureCmdAutofillSuggestionPool(5) or {}
 	local visibleSuggestionCount = 0
 	const function finishSuggestionLayout()
 		NAStuff.cmdAutofillVisibleCount = visibleSuggestionCount
 		if not (autofillHost and autofillHost:IsA("GuiObject")) then
+			return
+		end
+		if legacy then
+			autofillHost.Visible = not listHidden
 			return
 		end
 		if listHidden or visibleSuggestionCount <= 0 then
@@ -117337,6 +117691,24 @@ NAmanage.performSearch = function(term, ctx)
 		const frame = suggestionPool[index]
 		if not frame then return end
 		NAmanage.applyCmdAutofillEntryToFrame(frame, entry)
+		Insert(prevVisible, frame)
+		frame.Visible = true
+		visibleSuggestionCount = math.max(visibleSuggestionCount, index)
+		NAmanage.setCmdAutofillItemInteractivity(frame, NAStuff.cmdAutofillClickable == true and NAStuff.cmdBarSelected == true)
+		if legacy then
+			NAmanage.ApplyCmdAutofillFrameMode(frame, true)
+			const w = math.sqrt(index) * 125
+			const y = (index - 1) * 28
+			const pos = UDim2.new(0.5, w, 0, y)
+			const size = UDim2.new(0.5, w, 0, 25)
+			if canTween then
+				NAgui.tween(frame, "Quint", "Out", 0.2, {Size = size, Position = pos})
+			else
+				frame.Size = size
+				frame.Position = pos
+			end
+			return
+		end
 		local visual = frame:FindFirstChild("Background")
 		visual = visual and visual:FindFirstChild("Horizontal")
 		if visual then
@@ -117347,10 +117719,6 @@ NAmanage.performSearch = function(term, ctx)
 			const line = visual:FindFirstChild("SelectionLine")
 			if line then line.BackgroundTransparency = 0.42 end
 		end
-		Insert(prevVisible, frame)
-		frame.Visible = true
-		visibleSuggestionCount = math.max(visibleSuggestionCount, index)
-		NAmanage.setCmdAutofillItemInteractivity(frame, NAStuff.cmdAutofillClickable == true and NAStuff.cmdBarSelected == true)
 		const size = UDim2.new(1, -16, 0, suggestionRowHeight)
 		if canTween then
 			frame.Size = UDim2.new(0.96, -16, 0, suggestionRowHeight - 2)
@@ -131339,9 +131707,16 @@ SpawnCall(function()
 			perf.autoExecElapsed = os.clock() - autoExecStart
 		end
 	end)
-	NAUIMANAGER.cmdInput.ZIndex = math.max(tonumber(NAUIMANAGER.cmdInput.ZIndex) or 0, 23)
-	if predictionInput then
-		predictionInput.ZIndex = math.max(1, NAUIMANAGER.cmdInput.ZIndex - 1)
+	if NAmanage.IsLegacyCommandUI and NAmanage.IsLegacyCommandUI() then
+		NAUIMANAGER.cmdInput.ZIndex = 2
+		if predictionInput then
+			predictionInput.ZIndex = 3
+		end
+	else
+		NAUIMANAGER.cmdInput.ZIndex = math.max(tonumber(NAUIMANAGER.cmdInput.ZIndex) or 0, 23)
+		if predictionInput then
+			predictionInput.ZIndex = math.max(1, NAUIMANAGER.cmdInput.ZIndex - 1)
+		end
 	end
 	NAUIMANAGER.cmdInput.PlaceholderText = isAprilFools() and '🤡 '..adminName..curVer..' 🤡' or NAmanage.getSeasonEmoji()..' '..adminName..curVer..' '..NAmanage.getSeasonEmoji()
 	NAmanage.startAprilPranks()
@@ -133619,6 +133994,16 @@ NAgui.addToggle("Command Predictions Prompt", doPREDICTION, function(v)
 end)
 NAmanage.RegisterToggleAutoSync("Command Predictions Prompt", function()
 	return doPREDICTION == true
+end)
+
+NAgui.addToggle("Legacy Command Input & Autofill", NAStuff.LegacyCommandUI == true, function(v)
+	NAmanage.SetLegacyCommandUI(v == true, {
+		save = true;
+		notify = true;
+	})
+end)
+NAmanage.RegisterToggleAutoSync("Legacy Command Input & Autofill", function()
+	return NAStuff.LegacyCommandUI == true
 end)
 
 NAgui.addToggle("Hide Command Autofill List", NAStuff.HideCmdAutofill == true, function(v)
@@ -143670,6 +144055,30 @@ NAgui.addToggle("Show Rotector CoreGui Markers", NAmanage.jlCfg.RotectorMarkers 
 		NAmanage.RotectorClearAllMarkers()
 	end
 end)
+
+NAmanage.EnsureESPSettingsLoadedForUI = function(timeout)
+	const state = NAmanage.ESPSettingsState
+	if type(state) ~= "table" then
+		return false
+	end
+	if state.loaded == true then
+		return true
+	end
+	const deadline = os.clock() + math.max(0.1, tonumber(timeout) or 1.5)
+	while state.loading == true and os.clock() < deadline do
+		Wait()
+	end
+	if state.loaded == true then
+		return true
+	end
+	if state.loading == true or type(NAmanage.LoadESPSettings) ~= "function" then
+		return false
+	end
+	local ok, loaded = pcall(NAmanage.LoadESPSettings, { reason = "hydrate ESP settings UI" })
+	return ok and loaded ~= false and state.loaded == true
+end
+
+NAmanage.EnsureESPSettingsLoadedForUI(1.5)
 
 NAgui.addTab(NA_TABS.TAB_ESP, { order = 5, textIcon = "crosshairs" })
 NAgui.setTab(NA_TABS.TAB_ESP)

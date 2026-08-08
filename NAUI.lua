@@ -774,6 +774,8 @@ G2L["52"].AnchorPoint = Vector2.new(0.5, 0.5);
 G2L["52"].Size = UDim2.new(1, 0, 0, 46);
 G2L["52"].Position = UDim2.new(0.5, 0, 0.5, 0);
 G2L["52"].Name = "CmdBar";
+G2L["52"]:SetAttribute("NACommandUIMode", "Modern");
+G2L["52"]:SetAttribute("NALegacyCommandUICompatible", true);
 G2L["52"].BackgroundTransparency = 1;
 G2L["53"] = Instance.new("Frame", G2L["52"]);
 G2L["53"].ZIndex = 20;
