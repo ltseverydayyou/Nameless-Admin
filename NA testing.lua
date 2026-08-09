@@ -686,6 +686,46 @@ _na_boot.httpGet = function(url, opts)
 	error(lastErr or "HTTP request failed", 2)
 end
 
+_na_boot.bootstrapRemoteSources = {}
+_na_boot.prefetchBootstrapRemotes = function()
+	const targets = {}
+	if type(rawget(_na_boot.privateRoot, "serviceResolver")) ~= "table" then
+		targets.serviceResolver = "https://ltseverydayyou.github.io/ServiceResolver.luau"
+	end
+	const uiProtectorBuild = "session_name_cursed_null_v1"
+	const cachedProtector = rawget(_na_boot.privateRoot, "uiProtector")
+	if type(cachedProtector) ~= "table" or rawget(cachedProtector, "ready") ~= true or rawget(cachedProtector, "build") ~= uiProtectorBuild then
+		targets.uiProtector = "https://ltseverydayyou.github.io/UIprotector.luau"
+	end
+
+	local pending = 0
+	const canParallel = type(task) == "table" and type(task.spawn) == "function" and type(task.wait) == "function"
+	for key, url in targets do
+		if canParallel then
+			pending += 1
+			task.spawn(function()
+				local ok, source = pcall(_na_boot.httpGet, url, { maxAttempts = 2; timeout = 5; })
+				_na_boot.bootstrapRemoteSources[key] = ok and source or false
+				pending -= 1
+			end)
+		else
+			local ok, source = pcall(_na_boot.httpGet, url, { maxAttempts = 2; timeout = 5; })
+			_na_boot.bootstrapRemoteSources[key] = ok and source or false
+		end
+	end
+	while pending > 0 do
+		task.wait()
+	end
+end
+_na_boot.getBootstrapRemoteSource = function(key, url)
+	const cached = _na_boot.bootstrapRemoteSources[key]
+	if type(cached) == "string" and cached ~= "" then
+		return cached
+	end
+	return _na_boot.httpGet(url, { maxAttempts = 3; timeout = 5; })
+end
+_na_boot.prefetchBootstrapRemotes()
+
 const __lt = (function()
 	const cached = rawget(_na_boot.privateRoot, "serviceResolver");
 	if type(cached) == "table" then
@@ -695,7 +735,7 @@ const __lt = (function()
 	if type(loader) ~= "function" then
 		error("Service resolver loader unavailable");
 	end;
-	const resolver = loader(_na_boot.httpGet("https://ltseverydayyou.github.io/ServiceResolver.luau"), "@ServiceResolver.luau");
+	const resolver = loader(_na_boot.getBootstrapRemoteSource("serviceResolver", "https://ltseverydayyou.github.io/ServiceResolver.luau"), "@ServiceResolver.luau");
 	if type(resolver) ~= "function" then
 		error("Service resolver failed to compile");
 	end;
@@ -729,7 +769,7 @@ const __NAUIProtector = (function()
 	if type(loader) ~= "function" then
 		error("UI protector loader unavailable");
 	end;
-	const protector = loader(_na_boot.httpGet("https://ltseverydayyou.github.io/UIprotector.luau"), "@UIprotector.luau");
+	const protector = loader(_na_boot.getBootstrapRemoteSource("uiProtector", "https://ltseverydayyou.github.io/UIprotector.luau"), "@UIprotector.luau");
 	if type(protector) ~= "function" then
 		error("UI protector failed to compile");
 	end;
@@ -10809,6 +10849,8 @@ const NAImageAssets = {
 	Icon = "NAnew.png";
 	nilsongamer99 = "nilsongamer99.png";
 	Sheet = "sheet.png";
+	ShadeGradientFlipped = "shadeGradientFlipped.png";
+	DotCrosshair = "DotCrosshair.png";
 	Inlet = "Inlet.png";
 	Stud = "oldStud.png";
 	bk = "SkyBk.png";
@@ -18997,8 +19039,8 @@ local function __NA_UI_FRAME_NEW(...)
 	local __NA_PERF=type(NAStuff)=="table" and NAStuff.StartupPerformance or nil
 	local __NA_UI_FRAME_DT=type(__NA_PERF)=="table" and tonumber(__NA_PERF.lastFrameDt) or nil
 	local __NA_UI_HIGH_FPS=__NA_UI_FRAME_DT and __NA_UI_FRAME_DT>0 and __NA_UI_FRAME_DT<(1/240)
-	local __NA_UI_BATCH=__NA_UI_HIGH_FPS and 5 or 16
-	local __NA_UI_BUDGET=__NA_UI_HIGH_FPS and 0.0009 or 0.004
+	local __NA_UI_BATCH=__NA_UI_HIGH_FPS and 32 or 96
+	local __NA_UI_BUDGET=__NA_UI_HIGH_FPS and 0.006 or 0.012
 	if __NA_UI_NEW_COUNT%__NA_UI_BATCH==0 or (__NA_UI_NOW-__NA_UI_LAST_YIELD)>=__NA_UI_BUDGET then
 		local __NA_UI_CAN_YIELD=true
 		if coroutine and type(coroutine.isyieldable)=="function" then
@@ -19130,6 +19172,60 @@ if not NAAssetsLoading.setStatus then
 	end
 end
 
+NAAssetsLoading._startupFetches = {}
+NAAssetsLoading.startStartupFetch = function(key, callback)
+	if type(key) ~= "string" or key == "" or type(callback) ~= "function" then
+		return nil
+	end
+	const existing = NAAssetsLoading._startupFetches[key]
+	if type(existing) == "table" then
+		return existing
+	end
+	const state = { done = false; }
+	NAAssetsLoading._startupFetches[key] = state
+	Spawn(function()
+		local ok, a, b, c = pcall(callback)
+		if ok then
+			state.a, state.b, state.c = a, b, c
+		else
+			state.a, state.b, state.c = false, nil, a
+		end
+		state.done = true
+	end)
+	return state
+end
+NAAssetsLoading.awaitStartupFetch = function(key, timeoutSeconds)
+	const state = NAAssetsLoading._startupFetches[key]
+	if type(state) ~= "table" then
+		return nil, nil, "missing startup fetch"
+	end
+	const deadline = os.clock() + math.clamp(tonumber(timeoutSeconds) or NAAssetsLoading.githubTimeoutSeconds or 5, 0.25, 30)
+	while not state.done and os.clock() < deadline do
+		Wait(0.01)
+	end
+	if not state.done then
+		return false, nil, "startup fetch timed out"
+	end
+	return state.a, state.b, state.c
+end
+NAAssetsLoading.notificationUrl = "https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NamelessAdminNotifications.lua"
+NAAssetsLoading.startStartupFetch("notifications", function()
+	return NAAssetsLoading.httpGetNoSkipWithTimeout(NAAssetsLoading.notificationUrl, NAAssetsLoading.githubTimeoutSeconds or 5)
+end)
+NAAssetsLoading.startStartupFetch("nastuff", function()
+	return NAAssetsLoading.fetchNAStuffJson(NAAssetsLoading.githubTimeoutSeconds or 5)
+end)
+NAAssetsLoading.startStartupFetch("ui", function()
+	if type(opt.NAUILOADER) ~= "string" or opt.NAUILOADER == "" then
+		return false, nil, "missing UI loader url"
+	end
+	local ok, body, err = NAAssetsLoading.httpGetNoSkipWithTimeout(opt.NAUILOADER, NAAssetsLoading.githubTimeoutSeconds or 5)
+	if ok and type(body) == "string" and body ~= "" then
+		NAAssetsLoading.cachePrefetchedRemote(opt.NAUILOADER, body)
+	end
+	return ok, body, err
+end)
+
 NAmanage.MarkStartupStage("engine", "waiting for engine")
 NAAssetsLoading.setStatus("waiting for engine")
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -19141,14 +19237,16 @@ local notifAttempts = 0
 repeat
 	notifAttempts += 1
 	NAAssetsLoading.ok, NAAssetsLoading.res = pcall(function()
-		local okFetch, sourceOrErr
-		if NAAssetsLoading and NAAssetsLoading.httpGetImportant then
-			okFetch, sourceOrErr = NAAssetsLoading.httpGetImportant("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NamelessAdminNotifications.lua")
+		local okFetch, sourceOrErr, fetchErr
+		if notifAttempts == 1 and NAAssetsLoading._startupFetches and NAAssetsLoading._startupFetches.notifications then
+			okFetch, sourceOrErr, fetchErr = NAAssetsLoading.awaitStartupFetch("notifications", NAAssetsLoading.githubTimeoutSeconds or 5)
+		elseif NAAssetsLoading and NAAssetsLoading.httpGetImportant then
+			okFetch, sourceOrErr = NAAssetsLoading.httpGetImportant(NAAssetsLoading.notificationUrl)
 		else
-			okFetch, sourceOrErr = NAmanage.HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NamelessAdminNotifications.lua", { timeout = NAAssetsLoading.githubTimeoutSeconds or 5 })
+			okFetch, sourceOrErr = NAmanage.HttpGet(NAAssetsLoading.notificationUrl, { timeout = NAAssetsLoading.githubTimeoutSeconds or 5 })
 		end
 		if not okFetch then
-			error(sourceOrErr or "notification fetch failed")
+			error(fetchErr or sourceOrErr or "notification fetch failed")
 		end
 		return loadstring(sourceOrErr)()
 	end)
@@ -19179,7 +19277,12 @@ if NAAssetsLoading.progressPercent then NAAssetsLoading.progressPercent("assets"
 NAmanage.MarkStartupStage("nastuff", "Loading "..(adminName or "NA").." Data")
 NAAssetsLoading.setStatus("Loading "..(adminName or "NA").." Data")
 local naStuffReady = false
-local okFetch, dataOrNil, sourceOrErr = NAAssetsLoading.fetchNAStuffJson(NAAssetsLoading.githubTimeoutSeconds or 5)
+local okFetch, dataOrNil, sourceOrErr
+if NAAssetsLoading._startupFetches and NAAssetsLoading._startupFetches.nastuff then
+	okFetch, dataOrNil, sourceOrErr = NAAssetsLoading.awaitStartupFetch("nastuff", NAAssetsLoading.githubTimeoutSeconds or 5)
+else
+	okFetch, dataOrNil, sourceOrErr = NAAssetsLoading.fetchNAStuffJson(NAAssetsLoading.githubTimeoutSeconds or 5)
+end
 if okFetch and type(dataOrNil) == "table" then
 	NAStuff.NAjson = dataOrNil
 	pcall(NAmanage.btUpdate)
@@ -19205,40 +19308,29 @@ end)
 if NAAssetsLoading.progressPercent then NAAssetsLoading.progressPercent("loader") end
 
 NAmanage.MarkStartupStage("changelog", "Loading Update Log")
-NAAssetsLoading.runLoadingCheck("Loading Update Log", function()
+SpawnCall(function()
+	local body
 	if type(opt.githubUrl) ~= "string" or opt.githubUrl == "" then
-		return false, nil, "missing github url"
+		return
 	end
 	if type(opt.NAREQUEST) == "function" then
-		local ok, response, requestErr = NAAssetsLoading.requestWithTimeout(opt.NAREQUEST, {
+		local ok, response = NAAssetsLoading.requestWithTimeout(opt.NAREQUEST, {
 			Url = opt.githubUrl,
 			Method = "GET",
 			Timeout = NAAssetsLoading.githubTimeoutSeconds or 5
 		}, NAAssetsLoading.githubTimeoutSeconds or 5)
-		if not ok then
-			return false, nil, requestErr or response
+		if ok and typeof(response) == "table" and tonumber(response.StatusCode) == 200 and type(response.Body) == "string" and response.Body ~= "" then
+			body = response.Body
 		end
-		if typeof(response) ~= "table" then
-			return false, nil, "invalid response"
+	else
+		local ok, fetched = NAAssetsLoading.httpGetWithTimeout(opt.githubUrl, NAAssetsLoading.githubTimeoutSeconds or 5)
+		if ok and type(fetched) == "string" and fetched ~= "" then
+			body = fetched
 		end
-		const statusCode = tonumber(response.StatusCode)
-		if statusCode ~= 200 then
-			return false, nil, Format("http %s", tostring(statusCode or "nil"))
-		end
-		if type(response.Body) ~= "string" or response.Body == "" then
-			return false, nil, "empty body"
-		end
-		return true, response.Body
-	end
-	local ok, body, fetchErr = NAAssetsLoading.httpGetWithTimeout(opt.githubUrl, NAAssetsLoading.githubTimeoutSeconds or 5)
-	if not ok then
-		return false, nil, fetchErr or body
 	end
 	if type(body) ~= "string" or body == "" then
-		return false, nil, "empty response"
+		return
 	end
-	return true, body
-end, function(body)
 	local decodeOk, decoded = pcall(HttpService.JSONDecode, HttpService, body)
 	if decodeOk and type(decoded) == "table" then
 		const top = decoded[1]
@@ -19250,10 +19342,13 @@ end, function(body)
 			end
 		end
 	end
-end, {maxAttempts=1})
+end)
 if NAAssetsLoading.progressPercent then NAAssetsLoading.progressPercent("changelog") end
 
 NAmanage.MarkStartupStage("uiloader", "Loading UI")
+if NAAssetsLoading._startupFetches and NAAssetsLoading._startupFetches.ui and not NAAssetsLoading._startupFetches.ui.done then
+	NAAssetsLoading.awaitStartupFetch("ui", NAAssetsLoading.githubTimeoutSeconds or 5)
+end
 NAAssetsLoading.runLoadingCheck("Loading UI", function()
 	local src, serr = NAmanage.uiSrcGet(false)
 	if type(src) ~= "string" or src == "" then
@@ -104445,7 +104540,7 @@ end
 NAmanage.ScriptHub_UpdateResponsiveLayout = function()
 	const hub = NAmanage.ScriptHub
 	const ui = hub.ui or NAmanage.ScriptHub_GetUI()
-	if not (ui and ui.frame and ui.container) then
+	if not (ui and ui.frame) then
 		return false
 	end
 	const width = math.max(1, ui.frame.AbsoluteSize.X)
@@ -104453,28 +104548,6 @@ NAmanage.ScriptHub_UpdateResponsiveLayout = function()
 	const previousPhone = hub.phone == true
 	hub.compact = IsOnMobile == true or width < 690
 	hub.phone = width < 500
-	if ui.engine then
-		ui.engine.Size = UDim2.new(0, hub.phone and 126 or hub.compact and 142 or 154, 0, 24)
-		ui.engine.TextSize = hub.phone and 11 or 12
-	end
-	if ui.title then
-		ui.title.Visible = width >= 570
-		ui.title.Size = UDim2.new(0, hub.compact and 190 or 260, 1, 0)
-		ui.title.TextSize = hub.compact and 16 or 18
-	end
-	if ui.searchRow and ui.searchBox and ui.search then
-		const searchWidth = hub.phone and 76 or 92
-		ui.search.Size = UDim2.new(0, searchWidth, 0, 26)
-		ui.search.Position = UDim2.new(1, -(searchWidth + 6), 0.5, -13)
-		ui.searchBox.Size = UDim2.new(1, -(searchWidth + 20), 1, 0)
-		ui.searchBox.TextSize = hub.phone and 13 or 14
-	end
-	if ui.controls then
-		ui.controls.ScrollBarThickness = hub.compact and 3 or 2
-	end
-	if ui.results then
-		ui.results.ScrollBarThickness = 0
-	end
 	return previousCompact ~= hub.compact or previousPhone ~= hub.phone
 end
 
@@ -104491,8 +104564,8 @@ NAmanage.ScriptHub_ApplyResponsive = function(center)
 		baseHeight = 520;
 		minWidth = 560;
 		minHeight = 360;
-		mobileMinWidth = 280;
-		mobileMinHeight = 230;
+		mobileMinWidth = 320;
+		mobileMinHeight = 300;
 		center = center == true;
 	})
 	if not ok then
@@ -110002,10 +110075,12 @@ NAmanage.buildCommandDataPackage = function()
 		metaByName[name] = {
 			origin = "na";
 			displayText = finalText;
+			usage = displayText;
 			searchable = searchable;
 			aliases = aliasList;
 			pluginType = pluginTag;
 			desc = desc;
+			requiresArguments = type(data) == "table" and data[3] == true or false;
 			patched = isPatched;
 		}
 		entries[#entries + 1] = {
@@ -110101,6 +110176,7 @@ NAmanage.buildCommandDataPackage = function()
 					sourceName = baseName;
 					duplicate = used[Lower(baseName)] == true;
 					usage = usage;
+					requiresArguments = #argumentHints > 0 or info.requiresArguments == true or info.RequiresArguments == true;
 					desc = desc;
 				}
 				entries[#entries + 1] = {
@@ -110328,9 +110404,287 @@ NAmanage.cmdResp = function(center)
 	end
 end
 
+NAmanage.Commands_ParseInlineArguments = function(raw)
+	const out = {}
+	raw = tostring(raw or "")
+	if raw == "" then
+		return out
+	end
+	if type(ParseArguments) == "function" then
+		local okParse, parsed = pcall(ParseArguments, raw)
+		if okParse and type(parsed) == "table" then
+			for _, value in parsed do
+				out[#out + 1] = value
+			end
+			return out
+		end
+	end
+	for value in raw:gmatch("%S+") do
+		out[#out + 1] = value
+	end
+	return out
+end
+
+NAmanage.Commands_RunInline = function(name, rawArguments)
+	name = tostring(name or "")
+	if name == "" or type(cmd) ~= "table" or type(cmd.run) ~= "function" then
+		return
+	end
+	const runArgs = { name }
+	for _, value in NAmanage.Commands_ParseInlineArguments(rawArguments) do
+		runArgs[#runArgs + 1] = value
+	end
+	SpawnCall(function()
+		cmd.run(runArgs)
+	end)
+end
+
+NAmanage.Commands_UpdateExpandedMetrics = function(state)
+	if type(state) ~= "table" then
+		return
+	end
+	state.expandedIndex = nil
+	state.expandedExtra = 0
+	const expandedName = tostring(state.expandedName or "")
+	if expandedName == "" then
+		state.expandedName = nil
+		return
+	end
+	for index, entry in state.filteredEntries or {} do
+		if entry and tostring(entry.name or "") == expandedName then
+			state.expandedIndex = index
+			state.expandedExtra = 44
+			return
+		end
+	end
+	state.expandedName = nil
+end
+
+NAStuff.CommandInlineTweens = type(NAStuff.CommandInlineTweens) == "table" and NAStuff.CommandInlineTweens or setmetatable({}, { __mode = "k" })
+
+NAmanage.Commands_StopInlineTween = function(object)
+	if not object then
+		return
+	end
+	const tween = NAStuff.CommandInlineTweens and NAStuff.CommandInlineTweens[object]
+	if tween then
+		pcall(function()
+			tween:Cancel()
+		end)
+		NAStuff.CommandInlineTweens[object] = nil
+	end
+end
+
+NAmanage.Commands_TweenInline = function(object, goals, duration)
+	if not (object and type(goals) == "table") then
+		return false
+	end
+	NAmanage.Commands_StopInlineTween(object)
+	if not TweenService then
+		for property, value in goals do
+			pcall(function()
+				object[property] = value
+			end)
+		end
+		return false
+	end
+	local ok, tween = pcall(function()
+		return TweenService:Create(
+			object,
+			TweenInfo.new(tonumber(duration) or 0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+			goals
+		)
+	end)
+	if not (ok and tween) then
+		for property, value in goals do
+			pcall(function()
+				object[property] = value
+			end)
+		end
+		return false
+	end
+	NAStuff.CommandInlineTweens[object] = tween
+	tween:Play()
+	return true
+end
+
+NAmanage.Commands_SetInlineExpanded = function(state, commandName, expanded)
+	if type(state) ~= "table" then
+		return false
+	end
+	commandName = tostring(commandName or "")
+	if commandName == "" then
+		return false
+	end
+	const previousName = state.expandedName
+	local nextName = previousName
+	if expanded == true then
+		nextName = commandName
+	elseif expanded == false then
+		if tostring(previousName or "") == commandName then
+			nextName = nil
+		end
+	else
+		if tostring(previousName or "") == commandName then
+			nextName = nil
+		else
+			nextName = commandName
+		end
+	end
+	if previousName == nextName then
+		return false
+	end
+	state.expandedName = nextName
+	state.commandExpansionAnimation = {
+		openingName = nextName and tostring(nextName) ~= tostring(previousName or "") and tostring(nextName) or nil;
+		closingName = previousName and tostring(previousName) ~= tostring(nextName or "") and tostring(previousName) or nil;
+		duration = 0.25;
+		started = false;
+	}
+	NAmanage.Commands_UpdateExpandedMetrics(state)
+	if NAUIMANAGER.description then
+		NAUIMANAGER.description.Visible = false
+		NAUIMANAGER.description.Text = ""
+	end
+	if type(NAmanage.syncVisibleCommandRows) == "function" then
+		NAmanage.syncVisibleCommandRows(state)
+	end
+	return true
+end
+
 const function createCommandListLabel(state)
 	const label = NAUIMANAGER.commandExample:Clone()
-	label.MouseEnter:Connect(function()
+	label.ClipsDescendants = true
+
+	const title = InstanceNew("TextLabel", label)
+	title.Name = "CommandTitle"
+	title.BackgroundTransparency = 1
+	title.BorderSizePixel = 0
+	title.Position = UDim2.fromOffset(0, 0)
+	title.Size = UDim2.new(1, 0, 0, state.templateHeight or 32)
+	title.FontFace = label.FontFace
+	title.TextSize = label.TextSize
+	title.TextScaled = label.TextScaled
+	title.TextWrapped = label.TextWrapped
+	title.TextXAlignment = label.TextXAlignment
+	title.TextYAlignment = label.TextYAlignment
+	title.TextTruncate = label.TextTruncate
+	title.RichText = label.RichText
+	title.TextColor3 = label.TextColor3
+	title.TextStrokeColor3 = label.TextStrokeColor3
+	title.TextStrokeTransparency = label.TextStrokeTransparency
+	title.ZIndex = label.ZIndex + 1
+	label.TextTransparency = 1
+
+	const clickTarget = InstanceNew("TextButton", label)
+	clickTarget.Name = "CommandClickTarget"
+	clickTarget.BackgroundTransparency = 1
+	clickTarget.BorderSizePixel = 0
+	clickTarget.AutoButtonColor = false
+	clickTarget.Active = true
+	clickTarget.Text = ""
+	clickTarget.Position = UDim2.fromOffset(0, 0)
+	clickTarget.Size = UDim2.new(1, 0, 0, state.templateHeight or 32)
+	clickTarget.ZIndex = label.ZIndex + 3
+
+	const expansion = InstanceNew("Frame", label)
+	expansion.Name = "CommandExpansion"
+	expansion.BackgroundTransparency = 1
+	expansion.BorderSizePixel = 0
+	expansion.ClipsDescendants = true
+	expansion.Position = UDim2.new(0, 8, 0, (state.templateHeight or 32) + 4)
+	expansion.Size = UDim2.new(1, -16, 0, 36)
+	expansion.Visible = false
+	expansion.ZIndex = label.ZIndex + 2
+
+	const divider = InstanceNew("Frame", expansion)
+	divider.Name = "Divider"
+	divider.BorderSizePixel = 0
+	divider.BackgroundColor3 = NAUISTROKER or Color3.fromRGB(155, 100, 255)
+	divider.BackgroundTransparency = 0.45
+	divider.Position = UDim2.new(0, 0, 0, 0)
+	divider.Size = UDim2.new(1, 0, 0, 1)
+	divider.ZIndex = expansion.ZIndex
+
+	const argsBox = InstanceNew("TextBox", expansion)
+	argsBox.Name = "Arguments"
+	argsBox.BorderSizePixel = 0
+	argsBox.BackgroundColor3 = Color3.fromRGB(24, 25, 33)
+	argsBox.BackgroundTransparency = 0.08
+	argsBox.ClearTextOnFocus = false
+	argsBox.PlaceholderText = "Enter arguments..."
+	argsBox.PlaceholderColor3 = Color3.fromRGB(145, 148, 162)
+	argsBox.Text = ""
+	argsBox.TextColor3 = Color3.fromRGB(235, 237, 244)
+	argsBox.TextSize = 14
+	argsBox.TextXAlignment = Enum.TextXAlignment.Left
+	argsBox.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+	argsBox.Position = UDim2.new(0, 0, 0, 7)
+	argsBox.Size = UDim2.new(1, -78, 0, 28)
+	argsBox.ZIndex = expansion.ZIndex + 1
+	InstanceNew("UICorner", argsBox).CornerRadius = UDim.new(0, 5)
+	const argsStroke = InstanceNew("UIStroke", argsBox)
+	argsStroke.Name = "UIStroker"
+	argsStroke.Thickness = 1
+	argsStroke.Color = NAUISTROKER or Color3.fromRGB(155, 100, 255)
+	argsStroke.Transparency = 0.38
+	argsStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	const argsPadding = InstanceNew("UIPadding", argsBox)
+	argsPadding.PaddingLeft = UDim.new(0, 8)
+	argsPadding.PaddingRight = UDim.new(0, 8)
+
+	const runButton = InstanceNew("TextButton", expansion)
+	runButton.Name = "Run"
+	runButton.BorderSizePixel = 0
+	runButton.BackgroundColor3 = Color3.fromRGB(48, 42, 68)
+	runButton.BackgroundTransparency = 0.08
+	runButton.AutoButtonColor = false
+	runButton.Active = true
+	runButton.Text = "Run"
+	runButton.TextColor3 = Color3.fromRGB(242, 243, 248)
+	runButton.TextSize = 14
+	runButton.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal)
+	runButton.AnchorPoint = Vector2.new(1, 0)
+	runButton.Position = UDim2.new(1, 0, 0, 7)
+	runButton.Size = UDim2.new(0, 70, 0, 28)
+	runButton.ZIndex = expansion.ZIndex + 1
+	InstanceNew("UICorner", runButton).CornerRadius = UDim.new(0, 5)
+	const runStroke = InstanceNew("UIStroke", runButton)
+	runStroke.Name = "UIStroker"
+	runStroke.Thickness = 1
+	runStroke.Color = NAUISTROKER or Color3.fromRGB(155, 100, 255)
+	runStroke.Transparency = 0.28
+	runStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+	argsBox:GetPropertyChangedSignal("Text"):Connect(function()
+		state.inlineArguments = state.inlineArguments or {}
+		const commandName = tostring(NAmanage.GetAttr(label, "CmdName") or "")
+		if commandName ~= "" then
+			state.inlineArguments[commandName] = argsBox.Text
+		end
+	end)
+
+	runButton.Activated:Connect(function()
+		const commandName = tostring(NAmanage.GetAttr(label, "CmdName") or label.Name or "")
+		const requiresArguments = NAmanage.GetAttr(label, "CmdRequiresArguments") == true
+		if commandName ~= "" and tostring(state.expandedName or "") == commandName then
+			NAmanage.Commands_SetInlineExpanded(state, commandName, false)
+		end
+		NAmanage.Commands_RunInline(commandName, requiresArguments and argsBox.Text or "")
+	end)
+
+	clickTarget.Activated:Connect(function()
+		if NAmanage.Commands_SyncHiddenState and not NAmanage.Commands_SyncHiddenState({ responsive = false; syncRows = false }) then
+			return
+		end
+		const commandName = tostring(NAmanage.GetAttr(label, "CmdName") or label.Name or "")
+		if commandName == "" then
+			return
+		end
+		NAmanage.Commands_SetInlineExpanded(state, commandName, tostring(state.expandedName or "") ~= commandName)
+	end)
+
+	clickTarget.MouseEnter:Connect(function()
 		if NAmanage.Commands_SyncHiddenState and not NAmanage.Commands_SyncHiddenState({ responsive = false; syncRows = false }) then
 			return
 		end
@@ -110343,7 +110697,7 @@ const function createCommandListLabel(state)
 			NAUIMANAGER.description.Text = ""
 		end
 	end)
-	label.MouseLeave:Connect(function()
+	clickTarget.MouseLeave:Connect(function()
 		NAUIMANAGER.description.Visible = false
 		NAUIMANAGER.description.Text = ""
 	end)
@@ -110353,6 +110707,11 @@ end
 const function releaseCommandListLabel(state, label)
 	if not label then
 		return
+	end
+	NAmanage.Commands_StopInlineTween(label)
+	const expansion = label:FindFirstChild("CommandExpansion")
+	if expansion then
+		NAmanage.Commands_StopInlineTween(expansion)
 	end
 	label.Visible = false
 	label.Parent = nil
@@ -110378,13 +110737,22 @@ const function acquireCommandListLabel(state)
 	return label
 end
 
-const function applyCommandListEntry(state, label, entry, index)
+const function applyCommandListEntry(state, label, entry, index, animation)
 	const meta = entry.meta or {}
 	const cmdName = entry.name
 	const finalText = meta.displayText or entry.display or cmdName
 	const isPatched = meta.patched == true
 	const isCmdIntegration = meta.origin == "cmd"
 	const isPluginCmd = meta.pluginType ~= nil
+	const isExpanded = state.expandedName ~= nil and tostring(state.expandedName) == tostring(cmdName or "")
+	const previousCmdName = tostring(NAmanage.GetAttr(label, "CmdName") or "")
+	const sameEntryBefore = previousCmdName ~= "" and previousCmdName == tostring(cmdName or "")
+	const animationRunning = type(animation) == "table"
+	const animationFirstPass = animationRunning and animation.started ~= true
+	const animationOngoing = animationRunning and animation.started == true
+	const animationDuration = animationRunning and (tonumber(animation.duration) or 0.25) or 0.25
+	const openingThis = animationRunning and tostring(animation.openingName or "") == tostring(cmdName or "")
+	const closingThis = animationRunning and tostring(animation.closingName or "") == tostring(cmdName or "")
 
 	if isPatched then
 		label.TextColor3 = patchedCommandColor
@@ -110406,7 +110774,10 @@ const function applyCommandListEntry(state, label, entry, index)
 	end
 
 	if label.SetAttribute then
+		NAmanage.SetAttr(label, "CmdName", tostring(cmdName or ""))
+		NAmanage.SetAttr(label, "CmdUsage", tostring(meta.usage or meta.displayText or entry.display or cmdName or ""))
 		NAmanage.SetAttr(label, "CmdDesc", desc)
+		NAmanage.SetAttr(label, "CmdRequiresArguments", meta.requiresArguments == true)
 		NAmanage.SetAttr(label, "IsPluginCommand", isPluginCmd)
 		NAmanage.SetAttr(label, "IsPatchedCommand", isPatched)
 		NAmanage.SetAttr(label, "IsCmdIntegration", isCmdIntegration)
@@ -110414,13 +110785,87 @@ const function applyCommandListEntry(state, label, entry, index)
 
 	label.Name = cmdName
 	label.Text = " "..finalText
-	label.Size = state.templateSize or label.Size
+	const baseSize = state.templateSize or label.Size
+	const targetSize = UDim2.new(baseSize.X.Scale, baseSize.X.Offset, baseSize.Y.Scale, baseSize.Y.Offset + (isExpanded and 44 or 0))
+	local targetPosition
 	if state.staticMode then
 		label.LayoutOrder = index
-		label.Position = UDim2.new(0, 0, 0, 0)
+		targetPosition = UDim2.new(0, 0, 0, 0)
 	else
 		const rowStep = state.rowStep or 20
-		label.Position = UDim2.new(0, 0, 0, COMMAND_LIST_TOP_PADDING + ((index - 1) * rowStep))
+		const extraBefore = state.expandedIndex and index > state.expandedIndex and (state.expandedExtra or 0) or 0
+		targetPosition = UDim2.new(0, 0, 0, COMMAND_LIST_TOP_PADDING + ((index - 1) * rowStep) + extraBefore)
+	end
+
+	if animationOngoing and sameEntryBefore then
+	elseif animationFirstPass and sameEntryBefore then
+		NAmanage.Commands_TweenInline(label, {
+			Size = targetSize;
+			Position = targetPosition;
+		}, animationDuration)
+	else
+		NAmanage.Commands_StopInlineTween(label)
+		label.Size = targetSize
+		label.Position = targetPosition
+	end
+
+	const title = label:FindFirstChild("CommandTitle")
+	if title and title:IsA("TextLabel") then
+		title.Text = " "..finalText
+		title.TextColor3 = label.TextColor3
+		title.Size = UDim2.new(1, 0, 0, state.templateHeight or 32)
+	end
+	const clickTarget = label:FindFirstChild("CommandClickTarget")
+	if clickTarget and clickTarget:IsA("GuiObject") then
+		clickTarget.Size = UDim2.new(1, 0, 0, state.templateHeight or 32)
+	end
+	const expansion = label:FindFirstChild("CommandExpansion")
+	if expansion and expansion:IsA("Frame") then
+		expansion.Position = UDim2.new(0, 8, 0, (state.templateHeight or 32) + 4)
+		const argsBox = expansion:FindFirstChild("Arguments")
+		const runButton = expansion:FindFirstChild("Run")
+		if argsBox and argsBox:IsA("TextBox") then
+			const requiresArguments = meta.requiresArguments == true
+			argsBox.Visible = requiresArguments
+			if requiresArguments then
+				local hint = tostring(meta.usage or "")
+				hint = hint:match("^%S+%s+(.+)$") or "Enter arguments..."
+				argsBox.PlaceholderText = hint ~= "" and hint or "Enter arguments..."
+				state.inlineArguments = state.inlineArguments or {}
+				const savedText = tostring(state.inlineArguments[tostring(cmdName or "")] or "")
+				if argsBox.Text ~= savedText then
+					argsBox.Text = savedText
+				end
+			end
+		end
+		if runButton and runButton:IsA("TextButton") then
+			if meta.requiresArguments == true then
+				runButton.Size = UDim2.new(0, 70, 0, 28)
+			else
+				runButton.Size = UDim2.new(1, 0, 0, 28)
+			end
+		end
+
+		if animationOngoing and sameEntryBefore and (openingThis or closingThis) then
+		elseif animationFirstPass and sameEntryBefore and openingThis then
+			NAmanage.Commands_StopInlineTween(expansion)
+			expansion.Visible = true
+			expansion.Size = UDim2.new(1, -16, 0, 0)
+			NAmanage.Commands_TweenInline(expansion, { Size = UDim2.new(1, -16, 0, 36) }, animationDuration)
+		elseif animationFirstPass and sameEntryBefore and closingThis then
+			expansion.Visible = true
+			NAmanage.Commands_TweenInline(expansion, { Size = UDim2.new(1, -16, 0, 0) }, animationDuration)
+			const closingName = tostring(cmdName or "")
+			Delay(animationDuration, function()
+				if expansion.Parent == label and tostring(NAmanage.GetAttr(label, "CmdName") or "") == closingName and tostring(state.expandedName or "") ~= closingName then
+					expansion.Visible = false
+				end
+			end)
+		else
+			NAmanage.Commands_StopInlineTween(expansion)
+			expansion.Size = UDim2.new(1, -16, 0, 36)
+			expansion.Visible = isExpanded
+		end
 	end
 	label.Visible = true
 end
@@ -110608,6 +111053,11 @@ NAmanage.ensureCommandListState=function()
 		staticMode = staticMode;
 		staticLabels = {};
 		listLayout = listLayout;
+		expandedName = nil;
+		expandedIndex = nil;
+		expandedExtra = 0;
+		inlineArguments = {};
+		commandExpansionAnimation = nil;
 	}
 	NAStuff.CommandListState = state
 
@@ -110640,11 +111090,40 @@ NAmanage.syncVisibleCommandRows=function(state)
 	const virtualCanvas = state.virtualCanvas
 	const filteredEntries = state.filteredEntries or {}
 	const count = #filteredEntries
+	NAmanage.Commands_UpdateExpandedMetrics(state)
+	local expansionAnimation = state.commandExpansionAnimation
+	if type(expansionAnimation) == "table" and expansionAnimation.started == true then
+		const expiresAt = tonumber(expansionAnimation.expiresAt) or 0
+		if expiresAt > 0 and os.clock() >= expiresAt then
+			state.commandExpansionAnimation = nil
+			expansionAnimation = nil
+		end
+	end
 
 	if state.staticMode then
+		if type(state.staticLabels) == "table" then
+			for i = 1, #state.staticLabels do
+				const label = state.staticLabels[i]
+				const entry = filteredEntries[i] or state.entries[i]
+				if label and entry then
+					applyCommandListEntry(state, label, entry, i, expansionAnimation)
+				end
+			end
+		end
 		updateCanvasSize(cList, NAUIMANAGER and NAUIMANAGER.AUTOSCALER and NAUIMANAGER.AUTOSCALER.Scale or nil)
 		if NAmanage.CustomScroll and NAmanage.CustomScroll.refreshByTarget then
 			NAmanage.CustomScroll.refreshByTarget(cList)
+		end
+		if type(expansionAnimation) == "table" and expansionAnimation.started ~= true then
+			expansionAnimation.started = true
+			const duration = tonumber(expansionAnimation.duration) or 0.25
+			expansionAnimation.expiresAt = os.clock() + duration + 0.04
+			Delay(duration + 0.04, function()
+				if state.commandExpansionAnimation == expansionAnimation then
+					state.commandExpansionAnimation = nil
+					NAmanage.syncVisibleCommandRows(state)
+				end
+			end)
 		end
 		return
 	end
@@ -110655,6 +111134,7 @@ NAmanage.syncVisibleCommandRows=function(state)
 	end
 
 	if count <= 0 then
+		state.commandExpansionAnimation = nil
 		while #state.visibleLabels > 0 do
 			releaseCommandListLabel(state, table.remove(state.visibleLabels))
 		end
@@ -110669,7 +111149,7 @@ NAmanage.syncVisibleCommandRows=function(state)
 	end
 
 	const rowStep = state.rowStep or 20
-	const totalHeight = COMMAND_LIST_TOP_PADDING + (count * rowStep)
+	const totalHeight = COMMAND_LIST_TOP_PADDING + (count * rowStep) + (state.expandedExtra or 0)
 	virtualCanvas.Size = UDim2.new(1, 0, 0, totalHeight)
 	cList.CanvasSize = UDim2.new(0, 0, 0, totalHeight)
 
@@ -110716,10 +111196,23 @@ NAmanage.syncVisibleCommandRows=function(state)
 			elseif label.Parent ~= virtualCanvas then
 				label.Parent = virtualCanvas
 			end
-			applyCommandListEntry(state, label, entry, entryIndex)
+			applyCommandListEntry(state, label, entry, entryIndex, expansionAnimation)
 		end
 	end
+
+	if type(expansionAnimation) == "table" and expansionAnimation.started ~= true then
+		expansionAnimation.started = true
+		const duration = tonumber(expansionAnimation.duration) or 0.25
+		expansionAnimation.expiresAt = os.clock() + duration + 0.04
+		Delay(duration + 0.04, function()
+			if state.commandExpansionAnimation == expansionAnimation then
+				state.commandExpansionAnimation = nil
+				NAmanage.syncVisibleCommandRows(state)
+			end
+		end)
+	end
 end
+
 NAgui.commands = function(opts)
 	opts = type(opts) == "table" and opts or {}
 	const cFrame, cList = NAUIMANAGER.commandsFrame, NAUIMANAGER.commandsList
@@ -112716,11 +113209,9 @@ NAmanage.UpdateWaypointList=function()
 			const nameBtn = row:FindFirstChildWhichIsA("TextButton")
 			if nameBtn then
 				nameBtn.Text = name
-				nameBtn.Size = UDim2.new(1, -307, 1, 0)
 			end
 			const actionFrame = row:FindFirstChildWhichIsA("Frame")
 			if actionFrame then
-				actionFrame.Size = UDim2.new(0, 287, 0, 24)
 				const copyBtn = actionFrame:FindFirstChild("CopyBtn")
 				const delBtn = actionFrame:FindFirstChild("DelBtn")
 				const tpBtn = actionFrame:FindFirstChild("TPBtn")
@@ -129914,7 +130405,7 @@ end
 NAmanage.SubplaceViewer_UpdateResponsiveLayout = function()
 	const state = NAmanage.SubplaceViewer
 	const ui = state.ui or NAmanage.SubplaceViewer_GetUI()
-	if not (ui and ui.frame and ui.container) then
+	if not (ui and ui.frame) then
 		return false
 	end
 	const width = math.max(1, ui.frame.AbsoluteSize.X)
@@ -129922,41 +130413,6 @@ NAmanage.SubplaceViewer_UpdateResponsiveLayout = function()
 	const previousPhone = state.phone == true
 	state.compact = IsOnMobile == true or width < 660
 	state.phone = width < 500
-	if state.compact then
-		ui.search.Position = UDim2.new(0, 8, 0, 8)
-		ui.search.Size = UDim2.new(1, -16, 0, 32)
-		ui.filter.Position = UDim2.new(0, 8, 0, 46)
-		ui.filter.Size = UDim2.new(0.33, -9, 0, 30)
-		ui.sort.Position = UDim2.new(0.33, 3, 0, 46)
-		ui.sort.Size = UDim2.new(0.37, -6, 0, 30)
-		ui.current.Position = UDim2.new(0.70, 3, 0, 46)
-		ui.current.Size = UDim2.new(0.30, -11, 0, 30)
-		ui.status.Position = UDim2.new(0, 10, 0, 80)
-		ui.status.Size = UDim2.new(1, -20, 0, 22)
-		ui.list.Position = UDim2.new(0, 8, 0, 106)
-		ui.list.Size = UDim2.new(1, -16, 1, -114)
-	else
-		ui.search.Position = UDim2.new(0, 8, 0, 8)
-		ui.search.Size = UDim2.new(1, -340, 0, 32)
-		ui.filter.Position = UDim2.new(1, -324, 0, 9)
-		ui.filter.Size = UDim2.new(0, 112, 0, 30)
-		ui.sort.Position = UDim2.new(1, -204, 0, 9)
-		ui.sort.Size = UDim2.new(0, 116, 0, 30)
-		ui.current.Position = UDim2.new(1, -80, 0, 9)
-		ui.current.Size = UDim2.new(0, 72, 0, 30)
-		ui.status.Position = UDim2.new(0, 10, 0, 44)
-		ui.status.Size = UDim2.new(1, -20, 0, 22)
-		ui.list.Position = UDim2.new(0, 8, 0, 70)
-		ui.list.Size = UDim2.new(1, -16, 1, -78)
-	end
-	ui.search.TextSize = state.phone and 13 or 14
-	ui.filter.TextSize = state.phone and 11 or 13
-	ui.sort.TextSize = state.phone and 11 or 13
-	ui.current.TextSize = state.phone and 11 or 13
-	ui.list.ScrollBarThickness = state.compact and 3 or 4
-	if ui.title then
-		ui.title.TextSize = state.phone and 16 or 18
-	end
 	return previousCompact ~= state.compact or previousPhone ~= state.phone
 end
 
@@ -129973,8 +130429,8 @@ NAmanage.SubplaceViewer_ApplyResponsive = function(center)
 		baseHeight = 530;
 		minWidth = 560;
 		minHeight = 360;
-		mobileMinWidth = 280;
-		mobileMinHeight = 230;
+		mobileMinWidth = 320;
+		mobileMinHeight = 280;
 		center = center == true;
 	})
 	if not ok then
@@ -130596,10 +131052,10 @@ end
 
 NAmanage.StandardWindowResponsive = type(NAmanage.StandardWindowResponsive) == "table" and NAmanage.StandardWindowResponsive or {}
 NAmanage.StandardWindowResponsive.configs = {
-	ChatLogs = { frame = "chatLogsFrame"; baseWidth = 600; baseHeight = 400; minWidth = 420; minHeight = 280; mobileMinWidth = 280; mobileMinHeight = 220; };
+	ChatLogs = { frame = "chatLogsFrame"; baseWidth = 600; baseHeight = 400; minWidth = 420; minHeight = 280; mobileMinWidth = 300; mobileMinHeight = 260; };
 	Console = { frame = "NAconsoleFrame"; baseWidth = 560; baseHeight = 380; minWidth = 400; minHeight = 270; mobileMinWidth = 280; mobileMinHeight = 220; };
 	CommandKeybinds = { frame = "CommandKeybindsFrame"; baseWidth = 640; baseHeight = 470; minWidth = 460; minHeight = 320; mobileMinWidth = 300; mobileMinHeight = 240; };
-	Waypoints = { frame = "WaypointFrame"; baseWidth = 640; baseHeight = 430; minWidth = 460; minHeight = 300; mobileMinWidth = 300; mobileMinHeight = 240; };
+	Waypoints = { frame = "WaypointFrame"; baseWidth = 640; baseHeight = 430; minWidth = 460; minHeight = 300; mobileMinWidth = 320; mobileMinHeight = 270; };
 	Binders = { frame = "BindersFrame"; baseWidth = 560; baseHeight = 390; minWidth = 400; minHeight = 280; mobileMinWidth = 280; mobileMinHeight = 220; };
 	Plugins = { frame = "PluginsFrame"; baseWidth = 620; baseHeight = 440; minWidth = 440; minHeight = 300; mobileMinWidth = 300; mobileMinHeight = 240; };
 	Music = { frame = "MusicFrame"; baseWidth = 620; baseHeight = 450; minWidth = 420; minHeight = 290; mobileMinWidth = 300; mobileMinHeight = 240; };

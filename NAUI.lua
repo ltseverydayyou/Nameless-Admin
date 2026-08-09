@@ -1,4 +1,5 @@
 local G2L = {};
+G2L.__assetDownloads = {};
 local function getImageAsset(fileName, fallback)
 	if type(getcustomasset) ~= "function" then
 		return fallback;
@@ -26,13 +27,20 @@ local function getImageAsset(fileName, fallback)
 		end;
 	end;
 	local hasFile = type(isfile) == "function" and safeCall(isfile, assetPath);
-	if not hasFile and type(writefile) == "function" then
-		local ok, data = pcall(function()
-			return game:HttpGet(assetUrl);
-		end);
-		if ok and data then
-			safeCall(writefile, assetPath, data);
+	if not hasFile then
+		if type(writefile) == "function" and not G2L.__assetDownloads[assetPath] and type(task) == "table" and type(task.spawn) == "function" then
+			G2L.__assetDownloads[assetPath] = true;
+			task.spawn(function()
+				local ok, data = pcall(function()
+					return game:HttpGet(assetUrl);
+				end);
+				if ok and type(data) == "string" and data ~= "" then
+					safeCall(writefile, assetPath, data);
+				end;
+				G2L.__assetDownloads[assetPath] = nil;
+			end);
 		end;
+		return fallback;
 	end;
 	local customAsset = safeCall(getcustomasset, assetPath);
 	if customAsset then
@@ -53,12 +61,14 @@ G2L["2"].Name = "ChatLogs";
 G2L["2"].Visible = false;
 G2L["2"].BackgroundTransparency = 0.05;
 G2L["2"].ClipsDescendants = true;
+G2L["chat_size_constraint"] = Instance.new("UISizeConstraint", G2L["2"]);
+G2L["chat_size_constraint"].MinSize = Vector2.new(300, 260);
 G2L["3"] = Instance.new("Frame", G2L["2"]);
 G2L["3"].BorderSizePixel = 0;
 G2L["3"].BackgroundColor3 = Color3.fromRGB(18, 19, 25);
 G2L["3"].AnchorPoint = Vector2.new(0.5, 1);
 G2L["3"].ClipsDescendants = true;
-G2L["3"].Size = UDim2.new(1, -20, 1, -66);
+G2L["3"].Size = UDim2.new(1, -20, 1, -98);
 G2L["3"].Position = UDim2.new(0.5, 0, 1, -10);
 G2L["3"].Name = "Container";
 G2L["3"].BackgroundTransparency = 1;
@@ -158,7 +168,7 @@ G2L["chat_scroll_down_corner"].CornerRadius = UDim.new(0, 3);
 G2L["8"] = Instance.new("Frame", G2L["2"]);
 G2L["8"].BorderSizePixel = 0;
 G2L["8"].BackgroundColor3 = Color3.fromRGB(21, 22, 29);
-G2L["8"].Size = UDim2.new(1, 0, 0, 44);
+G2L["8"].Size = UDim2.new(1, 0, 0, 76);
 G2L["8"].Name = "Topbar";
 G2L["chat_header_accent"] = Instance.new("Frame", G2L["8"]);
 G2L["chat_header_accent"].Name = "HeaderAccent";
@@ -184,11 +194,11 @@ G2L["9"].TextXAlignment = Enum.TextXAlignment.Center;
 G2L["9"].FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal);
 G2L["9"].TextColor3 = Color3.fromRGB(245, 246, 250);
 G2L["9"].BackgroundTransparency = 1;
-G2L["9"].AnchorPoint = Vector2.new(0.5, 0.5);
-G2L["9"].Size = UDim2.new(0, 160, 1, 0);
+G2L["9"].AnchorPoint = Vector2.new(0.5, 0);
+G2L["9"].Size = UDim2.new(1, -150, 0, 34);
 G2L["9"].Text = "Chat Logs";
 G2L["9"].Name = "Title";
-G2L["9"].Position = UDim2.new(0.5, 0, 0.5, 0);
+G2L["9"].Position = UDim2.new(0.5, 0, 0, 3);
 G2L.a = Instance.new("UIGradient", G2L["8"]);
 G2L.a.Rotation = 90;
 G2L.a.Color = ColorSequence.new({
@@ -208,7 +218,7 @@ G2L.c.BackgroundTransparency = 0.12;
 G2L.c.Size = UDim2.new(0, 82, 0, 28);
 G2L.c.Text = "Translate";
 G2L.c.Name = "Translate";
-G2L.c.Position = UDim2.new(0, 76, 0.5, 0);
+G2L.c.Position = UDim2.new(0, 66, 0, 56);
 G2L.d = Instance.new("UICorner", G2L.c);
 G2L.d.CornerRadius = UDim.new(0, 5);
 G2L.e = Instance.new("UIStroke", G2L.c);
@@ -225,8 +235,8 @@ G2L.f.BackgroundColor3 = Color3.fromRGB(29, 30, 39);
 G2L.f.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal);
 G2L.f.AnchorPoint = Vector2.new(0, 0.5);
 G2L.f.PlaceholderText = "Lang";
-G2L.f.Size = UDim2.new(0, 58, 0, 28);
-G2L.f.Position = UDim2.new(0, 10, 0.5, 0);
+G2L.f.Size = UDim2.new(0, 48, 0, 28);
+G2L.f.Position = UDim2.new(0, 10, 0, 56);
 G2L.f.Text = "EN";
 G2L["10"] = Instance.new("UICorner", G2L.f);
 G2L["10"].CornerRadius = UDim.new(0, 5);
@@ -246,7 +256,7 @@ G2L["12"].BackgroundTransparency = 0.12;
 G2L["12"].Size = UDim2.new(0, 58, 0, 28);
 G2L["12"].Text = "Clear";
 G2L["12"].Name = "Clear";
-G2L["12"].Position = UDim2.new(1, -146, 0.5, 0);
+G2L["12"].Position = UDim2.new(1, -10, 0, 56);
 G2L["13"] = Instance.new("UICorner", G2L["12"]);
 G2L["13"].CornerRadius = UDim.new(0, 5);
 G2L["14"] = Instance.new("UIStroke", G2L["12"]);
@@ -265,7 +275,7 @@ G2L["15"].BackgroundTransparency = 0.08;
 G2L["15"].Size = UDim2.new(0, 28, 0, 28);
 G2L["15"].Text = "x";
 G2L["15"].Name = "Exit";
-G2L["15"].Position = UDim2.new(1, -10, 0.5, 0);
+G2L["15"].Position = UDim2.new(1, -10, 0, 19);
 G2L["16"] = Instance.new("UICorner", G2L["15"]);
 G2L["16"].CornerRadius = UDim.new(0, 5);
 G2L["17"] = Instance.new("UIStroke", G2L["15"]);
@@ -284,7 +294,7 @@ G2L["18"].BackgroundTransparency = 0.12;
 G2L["18"].Size = UDim2.new(0, 28, 0, 28);
 G2L["18"].Text = "minus";
 G2L["18"].Name = "Minimize";
-G2L["18"].Position = UDim2.new(1, -78, 0.5, 0);
+G2L["18"].Position = UDim2.new(1, -78, 0, 19);
 G2L["19"] = Instance.new("UICorner", G2L["18"]);
 G2L["19"].CornerRadius = UDim.new(0, 5);
 G2L["1a"] = Instance.new("UIStroke", G2L["18"]);
@@ -303,7 +313,7 @@ G2L["chat_maximize"].BackgroundTransparency = 0.12;
 G2L["chat_maximize"].Size = UDim2.new(0, 28, 0, 28);
 G2L["chat_maximize"].Text = "square-corner-line";
 G2L["chat_maximize"].Name = "Maximize";
-G2L["chat_maximize"].Position = UDim2.new(1, -44, 0.5, 0);
+G2L["chat_maximize"].Position = UDim2.new(1, -44, 0, 19);
 G2L["chat_maximize_corner"] = Instance.new("UICorner", G2L["chat_maximize"]);
 G2L["chat_maximize_corner"].CornerRadius = UDim.new(0, 5);
 G2L["chat_maximize_stroke"] = Instance.new("UIStroke", G2L["chat_maximize"]);
@@ -2184,6 +2194,8 @@ G2L.f1.Name = "SuchWaypoint";
 G2L.f1.Visible = false;
 G2L.f1.BackgroundTransparency = 0.1;
 G2L.f1.ClipsDescendants = true;
+G2L["waypoint_size_constraint"] = Instance.new("UISizeConstraint", G2L.f1);
+G2L["waypoint_size_constraint"].MinSize = Vector2.new(320, 270);
 G2L.f2 = Instance.new("UICorner", G2L.f1);
 G2L.f2.CornerRadius = UDim.new(0, 10);
 G2L.f3 = Instance.new("UIGradient", G2L.f1);
@@ -2294,7 +2306,7 @@ G2L.fe.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWei
 G2L.fe.TextColor3 = Color3.fromRGB(233, 235, 243);
 G2L.fe.BackgroundTransparency = 1;
 G2L.fe.AnchorPoint = Vector2.new(0.5, 0.5);
-G2L.fe.Size = UDim2.new(0, 190, 1, 0);
+G2L.fe.Size = UDim2.new(1, -150, 1, 0);
 G2L.fe.Text = "NA Waypoints";
 G2L.fe.Name = "Title";
 G2L.fe.Position = UDim2.new(0.5, 0, 0.5, 0);
@@ -2346,7 +2358,7 @@ G2L["waypoint_name_input"].BackgroundColor3 = Color3.fromRGB(26, 27, 35);
 G2L["waypoint_name_input"].FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal);
 G2L["waypoint_name_input"].ClearTextOnFocus = false;
 G2L["waypoint_name_input"].PlaceholderText = "Waypoint name";
-G2L["waypoint_name_input"].Size = UDim2.new(0.30, -8, 0, 34);
+G2L["waypoint_name_input"].Size = UDim2.new(0.24, -6, 0, 34);
 G2L["waypoint_name_input"].Position = UDim2.new(0, 8, 0, 8);
 G2L["waypoint_name_input"].Text = "";
 G2L["waypoint_name_input"].BackgroundTransparency = 0.22;
@@ -2366,8 +2378,8 @@ G2L["waypoint_coord_input"].BackgroundColor3 = Color3.fromRGB(26, 27, 35);
 G2L["waypoint_coord_input"].FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal);
 G2L["waypoint_coord_input"].ClearTextOnFocus = false;
 G2L["waypoint_coord_input"].PlaceholderText = "X, Y, Z";
-G2L["waypoint_coord_input"].Size = UDim2.new(0.44, -8, 0, 34);
-G2L["waypoint_coord_input"].Position = UDim2.new(0.30, 4, 0, 8);
+G2L["waypoint_coord_input"].Size = UDim2.new(0.34, -8, 0, 34);
+G2L["waypoint_coord_input"].Position = UDim2.new(0.24, 4, 0, 8);
 G2L["waypoint_coord_input"].Text = "";
 G2L["waypoint_coord_input"].BackgroundTransparency = 0.22;
 G2L["waypoint_coord_input_corner"] = Instance.new("UICorner", G2L["waypoint_coord_input"]);
@@ -2383,10 +2395,10 @@ G2L["waypoint_current_btn"].TextSize = 13;
 G2L["waypoint_current_btn"].TextColor3 = Color3.fromRGB(245, 246, 250);
 G2L["waypoint_current_btn"].BackgroundColor3 = Color3.fromRGB(65, 65, 76);
 G2L["waypoint_current_btn"].FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal);
-G2L["waypoint_current_btn"].AnchorPoint = Vector2.new(1, 0);
+G2L["waypoint_current_btn"].AnchorPoint = Vector2.new(0, 0);
 G2L["waypoint_current_btn"].BackgroundTransparency = 0.12;
-G2L["waypoint_current_btn"].Size = UDim2.new(0, 84, 0, 34);
-G2L["waypoint_current_btn"].Position = UDim2.new(1, -98, 0, 8);
+G2L["waypoint_current_btn"].Size = UDim2.new(0.19, -8, 0, 34);
+G2L["waypoint_current_btn"].Position = UDim2.new(0.58, 4, 0, 8);
 G2L["waypoint_current_btn"].Text = "Current";
 G2L["waypoint_current_btn_corner"] = Instance.new("UICorner", G2L["waypoint_current_btn"]);
 G2L["waypoint_current_btn_corner"].CornerRadius = UDim.new(0, 5);
@@ -2401,10 +2413,10 @@ G2L["waypoint_set_btn"].TextSize = 13;
 G2L["waypoint_set_btn"].TextColor3 = Color3.fromRGB(255, 255, 255);
 G2L["waypoint_set_btn"].BackgroundColor3 = Color3.fromRGB(89, 174, 0);
 G2L["waypoint_set_btn"].FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal);
-G2L["waypoint_set_btn"].AnchorPoint = Vector2.new(1, 0);
+G2L["waypoint_set_btn"].AnchorPoint = Vector2.new(0, 0);
 G2L["waypoint_set_btn"].BackgroundTransparency = 0.12;
-G2L["waypoint_set_btn"].Size = UDim2.new(0, 72, 0, 34);
-G2L["waypoint_set_btn"].Position = UDim2.new(1, -8, 0, 8);
+G2L["waypoint_set_btn"].Size = UDim2.new(0.23, -12, 0, 34);
+G2L["waypoint_set_btn"].Position = UDim2.new(0.77, 4, 0, 8);
 G2L["waypoint_set_btn"].Text = "Set";
 G2L["waypoint_set_btn_corner"] = Instance.new("UICorner", G2L["waypoint_set_btn"]);
 G2L["waypoint_set_btn_corner"].CornerRadius = UDim.new(0, 5);
@@ -2439,18 +2451,18 @@ G2L["109"].TextScaled = true;
 G2L["109"].TextColor3 = Color3.fromRGB(255, 255, 255);
 G2L["109"].FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal);
 G2L["109"].BackgroundTransparency = 1;
-G2L["109"].Size = UDim2.new(1, -307, 1, 0);
+G2L["109"].Size = UDim2.new(0.38, -8, 1, 0);
 G2L["109"].Text = "Loading Waypoint...";
 G2L["109"].Name = "WP_Name";
 G2L["10a"] = Instance.new("Frame", G2L["107"]);
 G2L["10a"].AnchorPoint = Vector2.new(1, 0.5);
-G2L["10a"].Size = UDim2.new(0, 310, 0, 30);
+G2L["10a"].Size = UDim2.new(0.62, -8, 0, 30);
 G2L["10a"].Position = UDim2.new(1, -8, 0.5, 0);
 G2L["10a"].Name = "ButtonsHolder";
 G2L["10a"].BackgroundTransparency = 1;
 G2L["10b"] = Instance.new("UIListLayout", G2L["10a"]);
 G2L["10b"].HorizontalAlignment = Enum.HorizontalAlignment.Right;
-G2L["10b"].Padding = UDim.new(0, 5);
+G2L["10b"].Padding = UDim.new(0, 2);
 G2L["10b"].VerticalAlignment = Enum.VerticalAlignment.Center;
 G2L["10b"].SortOrder = Enum.SortOrder.LayoutOrder;
 G2L["10b"].FillDirection = Enum.FillDirection.Horizontal;
@@ -2460,7 +2472,7 @@ G2L["10c"].TextScaled = true;
 G2L["10c"].TextColor3 = Color3.fromRGB(255, 255, 255);
 G2L["10c"].BackgroundColor3 = Color3.fromRGB(89, 174, 0);
 G2L["10c"].FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal);
-G2L["10c"].Size = UDim2.new(0, 36, 1, 0);
+G2L["10c"].Size = UDim2.new(0.12, 0, 1, 0);
 G2L["10c"].LayoutOrder = 1;
 G2L["10c"].Text = "TP";
 G2L["10c"].Name = "TPBtn";
@@ -2472,7 +2484,7 @@ G2L["waypoint_edit_btn"].TextScaled = true;
 G2L["waypoint_edit_btn"].TextColor3 = Color3.fromRGB(255, 255, 255);
 G2L["waypoint_edit_btn"].BackgroundColor3 = Color3.fromRGB(230, 145, 56);
 G2L["waypoint_edit_btn"].FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal);
-G2L["waypoint_edit_btn"].Size = UDim2.new(0, 40, 1, 0);
+G2L["waypoint_edit_btn"].Size = UDim2.new(0.14, 0, 1, 0);
 G2L["waypoint_edit_btn"].LayoutOrder = 2;
 G2L["waypoint_edit_btn"].Text = "Edit";
 G2L["waypoint_edit_btn"].Name = "EditBtn";
@@ -2484,7 +2496,7 @@ G2L["10e"].TextScaled = true;
 G2L["10e"].TextColor3 = Color3.fromRGB(255, 255, 255);
 G2L["10e"].BackgroundColor3 = Color3.fromRGB(0, 125, 207);
 G2L["10e"].FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal);
-G2L["10e"].Size = UDim2.new(0, 42, 1, 0);
+G2L["10e"].Size = UDim2.new(0.16, 0, 1, 0);
 G2L["10e"].LayoutOrder = 5;
 G2L["10e"].Text = "Copy";
 G2L["10e"].Name = "CopyBtn";
@@ -2496,7 +2508,7 @@ G2L["waypoint_rename_btn"].TextScaled = true;
 G2L["waypoint_rename_btn"].TextColor3 = Color3.fromRGB(255, 255, 255);
 G2L["waypoint_rename_btn"].BackgroundColor3 = Color3.fromRGB(145, 85, 255);
 G2L["waypoint_rename_btn"].FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal);
-G2L["waypoint_rename_btn"].Size = UDim2.new(0, 52, 1, 0);
+G2L["waypoint_rename_btn"].Size = UDim2.new(0.20, 0, 1, 0);
 G2L["waypoint_rename_btn"].LayoutOrder = 3;
 G2L["waypoint_rename_btn"].Text = "Rename";
 G2L["waypoint_rename_btn"].Name = "RenameBtn";
@@ -2508,7 +2520,7 @@ G2L["waypoint_path_btn"].TextScaled = true;
 G2L["waypoint_path_btn"].TextColor3 = Color3.fromRGB(255, 255, 255);
 G2L["waypoint_path_btn"].BackgroundColor3 = Color3.fromRGB(55, 125, 215);
 G2L["waypoint_path_btn"].FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal);
-G2L["waypoint_path_btn"].Size = UDim2.new(0, 44, 1, 0);
+G2L["waypoint_path_btn"].Size = UDim2.new(0.14, 0, 1, 0);
 G2L["waypoint_path_btn"].LayoutOrder = 4;
 G2L["waypoint_path_btn"].Text = "Path";
 G2L["waypoint_path_btn"].Name = "PathBtn";
@@ -2520,7 +2532,7 @@ G2L["110"].TextScaled = true;
 G2L["110"].TextColor3 = Color3.fromRGB(255, 255, 255);
 G2L["110"].BackgroundColor3 = Color3.fromRGB(255, 0, 0);
 G2L["110"].FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal);
-G2L["110"].Size = UDim2.new(0, 36, 1, 0);
+G2L["110"].Size = UDim2.new(0.12, 0, 1, 0);
 G2L["110"].LayoutOrder = 6;
 G2L["110"].Text = "Del";
 G2L["110"].Name = "DelBtn";
@@ -4269,6 +4281,8 @@ do
 	frame.Size = UDim2.new(0, 760, 0, 520);
 	frame.Visible = false;
 	frame.ClipsDescendants = true;
+	local frameSizeConstraint = Instance.new("UISizeConstraint", frame);
+	frameSizeConstraint.MinSize = Vector2.new(320, 300);
 	addCorner(frame, 10);
 	addStroke(frame, 1);
 	local frameGradient = Instance.new("UIGradient", frame);
@@ -4282,7 +4296,7 @@ do
 	topbar.BorderSizePixel = 0;
 	topbar.BackgroundColor3 = Color3.fromRGB(21, 22, 29);
 	topbar.BackgroundTransparency = 0.12;
-	topbar.Size = UDim2.new(1, 0, 0, 44);
+	topbar.Size = UDim2.new(1, 0, 0, 76);
 	local topbarGradient = Instance.new("UIGradient", topbar);
 	topbarGradient.Name = "TopbarGradient";
 	topbarGradient.Rotation = 90;
@@ -4293,10 +4307,10 @@ do
 	addCorner(topbar, 10);
 	addStroke(topbar, 1);
 
-	local engine = makeButton(topbar, "Engine", "Engine: RScripts", UDim2.new(0, 154, 0, 24), UDim2.new(0, 10, 0.5, -12), Color3.fromRGB(29, 30, 40));
+	local engine = makeButton(topbar, "Engine", "Engine: RScripts", UDim2.new(0.42, -10, 0, 24), UDim2.new(0, 10, 0, 56), Color3.fromRGB(29, 30, 40));
 	engine.TextSize = 12;
-	engine.AnchorPoint = Vector2.new(1, 0.5);
-	engine.Position = UDim2.new(1, -112, 0.5, 0);
+	engine.AnchorPoint = Vector2.new(0, 0.5);
+	engine.Position = UDim2.new(0, 10, 0, 56);
 
 	local title = Instance.new("TextLabel", topbar);
 	title.Name = "Title";
@@ -4310,9 +4324,9 @@ do
 	addCorner(headerAccent, 1);
 	title.BorderSizePixel = 0;
 	title.BackgroundTransparency = 1;
-	title.AnchorPoint = Vector2.new(0.5, 0.5);
-	title.Position = UDim2.new(0.5, -45, 0.5, 0);
-	title.Size = UDim2.new(0, 220, 1, 0);
+	title.AnchorPoint = Vector2.new(0.5, 0);
+	title.Position = UDim2.new(0.5, 0, 0, 3);
+	title.Size = UDim2.new(1, -150, 0, 34);
 	title.TextXAlignment = Enum.TextXAlignment.Center;
 	title.TextTruncate = Enum.TextTruncate.AtEnd;
 	title.Text = "Script Hub";
@@ -4320,21 +4334,21 @@ do
 	title.TextSize = 18;
 	title.FontFace = semiboldFont;
 
-	local minimize = makeButton(topbar, "Minimize", "minus", UDim2.new(0, 24, 0, 24), UDim2.new(1, -70, 0.5, 0), Color3.fromRGB(31, 32, 42));
+	local minimize = makeButton(topbar, "Minimize", "minus", UDim2.new(0, 24, 0, 24), UDim2.new(1, -70, 0, 19), Color3.fromRGB(31, 32, 42));
 	minimize.AnchorPoint = Vector2.new(1, 0.5);
 	minimize.BackgroundTransparency = 0.18;
 	minimize.FontFace = Font.new("rbxasset://LuaPackages/Packages/_Index/BuilderIcons/BuilderIcons/BuilderIcons.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal);
 	minimize.TextSize = 16;
 	local minimizeStroke = minimize:FindFirstChild("UIStroker");
 	if minimizeStroke then minimizeStroke.Thickness = 1; end;
-	local maximize = makeButton(topbar, "Maximize", "square-corner-line", UDim2.new(0, 24, 0, 24), UDim2.new(1, -40, 0.5, 0), Color3.fromRGB(31, 32, 42));
+	local maximize = makeButton(topbar, "Maximize", "square-corner-line", UDim2.new(0, 24, 0, 24), UDim2.new(1, -40, 0, 19), Color3.fromRGB(31, 32, 42));
 	maximize.AnchorPoint = Vector2.new(1, 0.5);
 	maximize.BackgroundTransparency = 0.18;
 	maximize.FontFace = Font.new("rbxasset://LuaPackages/Packages/_Index/BuilderIcons/BuilderIcons/BuilderIcons.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal);
 	maximize.TextSize = 16;
 	local maximizeStroke = maximize:FindFirstChild("UIStroker");
 	if maximizeStroke then maximizeStroke.Thickness = 1; end;
-	local exit = makeButton(topbar, "Exit", "x", UDim2.new(0, 24, 0, 24), UDim2.new(1, -10, 0.5, 0), Color3.fromRGB(60, 32, 39));
+	local exit = makeButton(topbar, "Exit", "x", UDim2.new(0, 24, 0, 24), UDim2.new(1, -10, 0, 19), Color3.fromRGB(60, 32, 39));
 	exit.AnchorPoint = Vector2.new(1, 0.5);
 	exit.BackgroundTransparency = 0.18;
 	exit.FontFace = Font.new("rbxasset://LuaPackages/Packages/_Index/BuilderIcons/BuilderIcons/BuilderIcons.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal);
@@ -4349,7 +4363,7 @@ do
 	container.BackgroundTransparency = 0.18;
 	container.AnchorPoint = Vector2.new(0.5, 1);
 	container.Position = UDim2.new(0.5, 0, 1, -10);
-	container.Size = UDim2.new(1, -20, 1, -66);
+	container.Size = UDim2.new(1, -20, 1, -98);
 	container.ClipsDescendants = true;
 	addCorner(container, 4);
 	local containerGradient = Instance.new("UIGradient", container);
@@ -4557,6 +4571,8 @@ do
 	frame.Size = UDim2.new(0, 780, 0, 530)
 	frame.Visible = false
 	frame.ClipsDescendants = true
+	local frameSizeConstraint = Instance.new("UISizeConstraint", frame)
+	frameSizeConstraint.MinSize = Vector2.new(320, 280)
 	corner(frame, 10)
 	stroke(frame, 1)
 	local frameGradient = Instance.new("UIGradient", frame)
@@ -4570,7 +4586,7 @@ do
 	topbar.BorderSizePixel = 0
 	topbar.BackgroundColor3 = Color3.fromRGB(21, 22, 29)
 	topbar.BackgroundTransparency = 0.12
-	topbar.Size = UDim2.new(1, 0, 0, 44)
+	topbar.Size = UDim2.new(1, 0, 0, 76)
 	local topbarGradient = Instance.new("UIGradient", topbar)
 	topbarGradient.Name = "TopbarGradient"
 	topbarGradient.Rotation = 90
@@ -4592,9 +4608,9 @@ do
 	headerAccent.Position = UDim2.new(0.5, 0, 1, -2)
 	corner(headerAccent, 1)
 	title.BackgroundTransparency = 1
-	title.AnchorPoint = Vector2.new(0.5, 0.5)
-	title.Position = UDim2.new(0.5, 0, 0.5, 0)
-	title.Size = UDim2.new(0, 220, 1, 0)
+	title.AnchorPoint = Vector2.new(0.5, 0)
+	title.Position = UDim2.new(0.5, 0, 0, 3)
+	title.Size = UDim2.new(1, -150, 0, 34)
 	title.TextXAlignment = Enum.TextXAlignment.Center
 	title.TextTruncate = Enum.TextTruncate.AtEnd
 	title.Text = "Subplace Viewer"
@@ -4602,23 +4618,23 @@ do
 	title.TextSize = 18
 	title.FontFace = semiboldFont
 
-	local refresh = button(topbar, "Refresh", "Refresh", UDim2.new(0, 78, 0, 24), UDim2.new(0, 10, 0.5, 0), Color3.fromRGB(48, 42, 68))
+	local refresh = button(topbar, "Refresh", "Refresh", UDim2.new(0.42, -10, 0, 24), UDim2.new(0, 10, 0, 56), Color3.fromRGB(48, 42, 68))
 	refresh.AnchorPoint = Vector2.new(0, 0.5)
-	local minimize = button(topbar, "Minimize", "minus", UDim2.new(0, 24, 0, 24), UDim2.new(1, -70, 0.5, 0))
+	local minimize = button(topbar, "Minimize", "minus", UDim2.new(0, 24, 0, 24), UDim2.new(1, -70, 0, 19))
 	minimize.AnchorPoint = Vector2.new(1, 0.5)
 	minimize.BackgroundTransparency = 0.18
 	minimize.FontFace = Font.new("rbxasset://LuaPackages/Packages/_Index/BuilderIcons/BuilderIcons/BuilderIcons.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
 	minimize.TextSize = 16
 	local minimizeStroke = minimize:FindFirstChild("UIStroker")
 	if minimizeStroke then minimizeStroke.Thickness = 1 end
-	local maximize = button(topbar, "Maximize", "square-corner-line", UDim2.new(0, 24, 0, 24), UDim2.new(1, -40, 0.5, 0))
+	local maximize = button(topbar, "Maximize", "square-corner-line", UDim2.new(0, 24, 0, 24), UDim2.new(1, -40, 0, 19))
 	maximize.AnchorPoint = Vector2.new(1, 0.5)
 	maximize.BackgroundTransparency = 0.18
 	maximize.FontFace = Font.new("rbxasset://LuaPackages/Packages/_Index/BuilderIcons/BuilderIcons/BuilderIcons.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
 	maximize.TextSize = 16
 	local maximizeStroke = maximize:FindFirstChild("UIStroker")
 	if maximizeStroke then maximizeStroke.Thickness = 1 end
-	local exit = button(topbar, "Exit", "x", UDim2.new(0, 24, 0, 24), UDim2.new(1, -10, 0.5, 0), Color3.fromRGB(60, 32, 39))
+	local exit = button(topbar, "Exit", "x", UDim2.new(0, 24, 0, 24), UDim2.new(1, -10, 0, 19), Color3.fromRGB(60, 32, 39))
 	exit.AnchorPoint = Vector2.new(1, 0.5)
 	exit.BackgroundTransparency = 0.18
 	exit.FontFace = Font.new("rbxasset://LuaPackages/Packages/_Index/BuilderIcons/BuilderIcons/BuilderIcons.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
@@ -4633,7 +4649,7 @@ do
 	container.BackgroundTransparency = 0.18
 	container.AnchorPoint = Vector2.new(0.5, 1)
 	container.Position = UDim2.new(0.5, 0, 1, -10)
-	container.Size = UDim2.new(1, -20, 1, -66)
+	container.Size = UDim2.new(1, -20, 1, -98)
 	container.ClipsDescendants = true
 	corner(container, 4)
 	local containerGradient = Instance.new("UIGradient", container)
@@ -4657,18 +4673,18 @@ do
 	search.TextSize = 14
 	search.FontFace = regularFont
 	search.Position = UDim2.new(0, 8, 0, 8)
-	search.Size = UDim2.new(1, -340, 0, 32)
+	search.Size = UDim2.new(1, -16, 0, 32)
 	corner(search, 5)
 	stroke(search, 1.25)
 
-	button(container, "Filter", "All Places", UDim2.new(0, 112, 0, 30), UDim2.new(1, -324, 0, 9))
-	button(container, "Sort", "Sort: Name", UDim2.new(0, 116, 0, 30), UDim2.new(1, -204, 0, 9))
-	button(container, "Current", "Current", UDim2.new(0, 72, 0, 30), UDim2.new(1, -80, 0, 9))
+	button(container, "Filter", "All Places", UDim2.new(0.31, -8, 0, 30), UDim2.new(0, 8, 0, 46))
+	button(container, "Sort", "Sort: Name", UDim2.new(0.37, -8, 0, 30), UDim2.new(0.31, 4, 0, 46))
+	button(container, "Current", "Current", UDim2.new(0.32, -12, 0, 30), UDim2.new(0.68, 4, 0, 46))
 
 	local status = Instance.new("TextLabel", container)
 	status.Name = "Status"
 	status.BackgroundTransparency = 1
-	status.Position = UDim2.new(0, 10, 0, 44)
+	status.Position = UDim2.new(0, 10, 0, 80)
 	status.Size = UDim2.new(1, -20, 0, 22)
 	status.TextXAlignment = Enum.TextXAlignment.Left
 	status.Text = "Ready"
@@ -4680,8 +4696,8 @@ do
 	list.Name = "List"
 	list.BorderSizePixel = 0
 	list.BackgroundTransparency = 1
-	list.Position = UDim2.new(0, 8, 0, 70)
-	list.Size = UDim2.new(1, -16, 1, -78)
+	list.Position = UDim2.new(0, 8, 0, 106)
+	list.Size = UDim2.new(1, -16, 1, -114)
 	list.ScrollBarThickness = 4
 	list.ScrollBarImageColor3 = Color3.fromRGB(100, 92, 124)
 	list.AutomaticCanvasSize = Enum.AutomaticSize.Y
