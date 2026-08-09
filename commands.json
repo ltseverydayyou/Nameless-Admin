@@ -12,6 +12,19 @@
       "desc": "Unload Nameless Admin and clean up its active runtime"
     },
     {
+      "name": "pluginmaker",
+      "aliases": [
+        "pluginmaker",
+        "makeplugin",
+        "pluginbuilder",
+        "plugmaker",
+        "pmaker"
+      ],
+      "usage": "pluginmaker",
+      "args": "",
+      "desc": "Open the no-code .na/.iy plugin builder"
+    },
+    {
       "name": "addallplugins",
       "aliases": [
         "addallplugins",
