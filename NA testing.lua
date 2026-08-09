@@ -70051,7 +70051,7 @@ cmd.add({"unlockiconposition","unlockicon"},{"unlockiconposition","Unlocks the N
 	end
 end)
 
-NAmanage.GetSaveInstance420 = NAmanage.GetSaveInstance420 or function()
+NAmanage.LoadSaveInstance420 = NAmanage.LoadSaveInstance420 or function()
 	const cacheHost = _na_env or _G
 	const cacheKey = "__na_saveinstance420_sirmeme_v3"
 	const cached = type(cacheHost) == "table" and rawget(cacheHost, cacheKey)
@@ -70251,6 +70251,72 @@ NAmanage.GetSaveInstance420 = NAmanage.GetSaveInstance420 or function()
 	end
 	return wrappedSaveInstance
 end
+
+NAmanage.SaveInstance420Loader = type(NAmanage.SaveInstance420Loader) == "table" and NAmanage.SaveInstance420Loader or {
+	loading = false;
+	ready = false;
+	value = nil;
+	error = nil;
+}
+
+NAmanage.StartSaveInstance420 = NAmanage.StartSaveInstance420 or function()
+	const state = NAmanage.SaveInstance420Loader
+	if state.loading or (state.ready and type(state.value) == "function") then
+		return
+	end
+
+	const cacheHost = _na_env or _G
+	const cached = type(cacheHost) == "table" and rawget(cacheHost, "__na_saveinstance420_sirmeme_v3")
+	if type(cached) == "function" then
+		state.value = cached
+		state.error = nil
+		state.ready = true
+		return
+	end
+
+	state.loading = true
+	state.error = nil
+	Spawn(function()
+		local ok, result = pcall(NAmanage.LoadSaveInstance420)
+		state.loading = false
+		if ok and type(result) == "function" then
+			state.value = result
+			state.error = nil
+			state.ready = true
+		else
+			state.value = nil
+			state.ready = false
+			state.error = result or "failed to load SaveInstance 420 Edition"
+		end
+	end)
+end
+
+NAmanage.GetSaveInstance420 = function()
+	const state = NAmanage.SaveInstance420Loader
+	if state.ready and type(state.value) == "function" then
+		return state.value
+	end
+
+	NAmanage.StartSaveInstance420()
+	while state.loading do
+		Wait()
+	end
+	if state.ready and type(state.value) == "function" then
+		return state.value
+	end
+
+	const previousError = state.error
+	NAmanage.StartSaveInstance420()
+	while state.loading do
+		Wait()
+	end
+	if not state.ready or type(state.value) ~= "function" then
+		error(state.error or previousError or "failed to load SaveInstance 420 Edition", 0)
+	end
+	return state.value
+end
+
+NAmanage.StartSaveInstance420()
 
 NAmanage.GetSaveInstancePlaceName = NAmanage.GetSaveInstancePlaceName or function()
 	if type(NAStuff._SaveInstancePlaceName) == "string" and NAStuff._SaveInstancePlaceName ~= "" then
