@@ -41561,44 +41561,35 @@ NAmanage.LoadPlugins = function(opts)
 			return { StatusCode = 0, Body = tostring(res) }
 		end
 
-		const pluginServiceNames = {
+		const pluginServiceNames = setmetatable({
 			Workspace = true;
 			Players = true;
-			UserService = true;
-			UserInputService = true;
-			TweenService = true;
-			RunService = true;
-			ContextActionService = true;
-			TeleportService = true;
-			Lighting = true;
-			ReplicatedStorage = true;
 			CoreGui = true;
-			SoundService = true;
-			TextChatService = true;
-			TextService = true;
+			ReplicatedFirst = true;
+			ReplicatedStorage = true;
+			Lighting = true;
 			StarterGui = true;
 			StarterPack = true;
 			StarterPlayer = true;
-			ContentProvider = true;
-			LocalizationService = true;
-			MarketplaceService = true;
-			GuiService = true;
-			Stats = true;
-			Debris = true;
+			ServerScriptService = true;
+			ServerStorage = true;
 			Teams = true;
-			CollectionService = true;
-			ProximityPromptService = true;
+			Debris = true;
+			Stats = true;
+			Chat = true;
+			Selection = true;
+			NetworkClient = true;
+			NetworkServer = true;
+			DebugSettings = true;
+			ScriptContext = true;
+			KeyframeSequenceProvider = true;
 			VirtualInputManager = true;
 			VirtualUser = true;
-			HttpService = true;
-			BadgeService = true;
-			Chat = true;
-			VRService = true;
-			PolicyService = true;
-			GroupService = true;
-			AvatarEditorService = true;
-			InsertService = true;
-		}
+		}, {
+			__index = function(_, name)
+				return type(name) == "string" and (name:match("Service$") ~= nil or name:match("Provider$") ~= nil)
+			end
+		})
 		const pluginServiceAliases = {
 			["workspace"] = "Workspace";
 			COREGUI = "CoreGui";
@@ -41611,41 +41602,82 @@ NAmanage.LoadPlugins = function(opts)
 			if type(name) ~= "string" then
 				return nil
 			end
-			return pluginServiceAliases[name] or name
+			name = pluginServiceAliases[name] or name
+			if not name:match("^[%a_][%w_]*$") then
+				return nil
+			end
+			return name
+		end
+		const function _plugGetRawService(name)
+			name = _plugServiceName(name)
+			if not name then
+				return nil
+			end
+			if type(__lt) == "table" and type(__lt.gs) == "function" then
+				local ok, svc = pcall(__lt.gs, name)
+				if ok and typeof(svc) == "Instance" then
+					return svc
+				end
+			end
+			return nil
 		end
 		const function _plugGetService(name)
 			name = _plugServiceName(name)
-			if type(name) ~= "string" or not pluginServiceNames[name] then
+			if not name then
 				return nil
 			end
 			if pluginServiceCache[name] ~= nil then
 				return pluginServiceCache[name]
 			end
 			local svc
-			local rawSvc
-			if rawGame and type(rawGame.GetService) == "function" then
-				pcall(function()
-					rawSvc = rawGame:GetService(name)
-				end)
-			end
-			if typeof(rawSvc) == "Instance" then
-				const ref = (type(cloneref) == "function" and cloneref) or (NAmanage and type(NAmanage.NA_getCloneRef) == "function" and NAmanage.NA_getCloneRef()) or nil
-				if type(ref) == "function" then
-					local okRef, cloned = pcall(ref, rawSvc)
-					if okRef and typeof(cloned) == "Instance" then
-						svc = cloned
+			const ref = (NAmanage and type(NAmanage.NA_getCloneRef) == "function" and NAmanage.NA_getCloneRef()) or ((type(cloneref) == "function") and cloneref or nil)
+			if type(__lt) == "table" then
+				if type(ref) == "function" and type(__lt.cs) == "function" then
+					local ok, resolved = pcall(__lt.cs, name, ref)
+					if ok and typeof(resolved) == "Instance" then
+						svc = resolved
 					end
 				end
-				svc = svc or rawSvc
+				if not svc and type(__lt.gs) == "function" then
+					local ok, resolved = pcall(__lt.gs, name)
+					if ok and typeof(resolved) == "Instance" then
+						svc = resolved
+					end
+				end
 			end
-			if typeof(svc) ~= "Instance" then
-				svc = nil
+			if not svc then
+				const rawSvc = _plugGetRawService(name)
+				if rawSvc then
+					if type(ref) == "function" then
+						local okRef, cloned = pcall(ref, rawSvc)
+						if okRef and typeof(cloned) == "Instance" then
+							svc = cloned
+						end
+					end
+					svc = svc or rawSvc
+				end
 			end
 			if svc then
 				pluginServiceCache[name] = svc
 			end
 			return svc
 		end
+		const pluginResolverFacade = {}
+		pluginResolverFacade.gs = function(selfOrName, maybeName)
+			local name = maybeName or selfOrName
+			return _plugGetRawService(name)
+		end
+		pluginResolverFacade.cs = function(selfOrName, maybeName)
+			local name = maybeName or selfOrName
+			return _plugGetService(name)
+		end
+		pluginResolverFacade.GetService = pluginResolverFacade.cs
+		pluginResolverFacade.getService = pluginResolverFacade.cs
+		pluginResolverFacade.GetRawService = pluginResolverFacade.gs
+		pluginResolverFacade.getRawService = pluginResolverFacade.gs
+		proxyEnv.ServiceResolver = pluginResolverFacade
+		proxyEnv.SafeGetService = pluginResolverFacade.cs
+
 		const gameProxy = {}
 		function gameProxy:GetService(serviceName)
 			return _plugGetService(serviceName)
@@ -41702,8 +41734,11 @@ NAmanage.LoadPlugins = function(opts)
 				if k == "HttpGetAsync" then
 					return gameProxy.HttpGetAsync
 				end
-				if type(k) == "string" and pluginServiceNames[k] then
-					return gameProxy:GetService(k)
+				if type(k) == "string" and (pluginServiceNames[k] or k:match("^[%a_][%w_]*$")) then
+					local service = gameProxy:GetService(k)
+					if service then
+						return service
+					end
 				end
 				if not pluginGameAllowedMembers[k] then
 					return nil
@@ -41836,6 +41871,7 @@ NAmanage.LoadPlugins = function(opts)
 				Player = ctxLocalPlayer,
 				LocalPlayer = ctxLocalPlayer,
 				Services = {},
+				ServiceResolver = pluginResolverFacade,
 			}
 			setmetatable(ctx.Services, {
 				__index = function(self, name)
@@ -42847,6 +42883,2749 @@ NAmanage.InitPlugs=function()
 		end)
 		return true
 	end
+
+
+	NAStuff.PluginMaker = NAStuff.PluginMaker or {}
+
+	NAmanage.PluginMaker_Quote = function(value)
+		return string.format("%q", tostring(value or ""))
+	end
+
+	NAmanage.PluginMaker_Trim = function(value)
+		return tostring(value or ""):match("^%s*(.-)%s*$") or ""
+	end
+
+	NAmanage.PluginMaker_SafeFileName = function(value)
+		local name = NAmanage.PluginMaker_Trim(value)
+		name = name:gsub("[\\/:*?\"<>|]", "_"):gsub("%s+", "_"):gsub("[^%w%._%-]", "_")
+		name = name:gsub("_+", "_"):gsub("^_+", ""):gsub("_+$", "")
+		if name == "" then
+			name = "MyPlugin"
+		end
+		return name
+	end
+
+	NAmanage.PluginMaker_SplitAliases = function(value)
+		local out = {}
+		local seen = {}
+		for part in tostring(value or ""):gmatch("[^,|/]+") do
+			local alias = NAmanage.PluginMaker_Trim(part)
+			if alias ~= "" then
+				local key = alias:lower()
+				if not seen[key] then
+					seen[key] = true
+					out[#out + 1] = alias
+				end
+			end
+		end
+		return out
+	end
+
+	NAmanage.PluginMaker_DefaultCommand = function(index)
+		index = tonumber(index) or 1
+		return {
+			name = index == 1 and "hello" or ("command"..tostring(index));
+			aliases = index == 1 and "hi" or "";
+			argsHint = index == 1 and "[name]" or "";
+			description = index == 1 and "Example command made with Plugin Maker" or "Plugin command";
+			requiresArgs = false;
+			overrideAliases = false;
+			userButton = index == 1;
+			userButtonLabel = index == 1 and "Hello" or "";
+			saveButtonArgs = true;
+			customCode = "";
+			actions = index == 1 and {
+				{ type = "notify"; value = "Hello {1}!"; extra = "3" };
+			} or {
+				{ type = "notify"; value = "Command executed"; extra = "3" };
+			};
+		}
+	end
+
+	NAmanage.PluginMaker_ResetState = function()
+		local pm = NAStuff.PluginMaker
+		pm.format = "na"
+		pm.pluginName = "My Plugin"
+		pm.fileName = "MyPlugin"
+		pm.description = "Created with Nameless Admin Plugin Maker"
+		pm.commands = { NAmanage.PluginMaker_DefaultCommand(1) }
+		pm.selectedCommand = 1
+		pm.actionType = "notify"
+		pm.actionValue = ""
+		pm.actionExtra = "3"
+		pm.startupCode = ""
+		pm.codeEditTarget = nil
+		pm.selectedServices = {}
+		pm.customServices = {}
+		pm.dirty = false
+	end
+
+	NAmanage.PluginMaker_GetSelectedCommand = function()
+		local pm = NAStuff.PluginMaker
+		if type(pm.commands) ~= "table" then
+			pm.commands = {}
+		end
+		local index = math.clamp(math.floor(tonumber(pm.selectedCommand) or 1), 1, math.max(#pm.commands, 1))
+		pm.selectedCommand = index
+		return pm.commands[index], index
+	end
+
+	NAmanage.PluginMaker_TemplateHelper = function()
+		return table.concat({
+			"local function __na_pm_fill(text, args, player)";
+			"\tlocal out = tostring(text or \"\")";
+			"\tlocal parts = {}";
+			"\tfor i = 1, #(args or {}) do parts[i] = tostring(args[i]) end";
+			"\tout = out:gsub(\"{args}\", function() return table.concat(parts, \" \") end)";
+			"\tout = out:gsub(\"{user}\", function() return player and tostring(player.Name or \"\") or \"\" end)";
+			"\tout = out:gsub(\"{display}\", function() return player and tostring(player.DisplayName or \"\") or \"\" end)";
+			"\tout = out:gsub(\"{placeid}\", function() return tostring(game.PlaceId or \"\") end)";
+			"\tout = out:gsub(\"{jobid}\", function() return tostring(game.JobId or \"\") end)";
+			"\tfor i = 1, #parts do";
+			"\t\tlocal key = \"{\"..tostring(i)..\"}\"";
+			"\t\tlocal value = parts[i]";
+			"\t\tout = out:gsub(key, function() return value end)";
+			"\tend";
+			"\treturn out";
+			"end";
+		}, "\n")
+	end
+
+
+	NAmanage.PluginMaker_ServiceCatalog = {
+		"AdService";
+		"AnalyticsService";
+		"AnimationClipProvider";
+		"AnimationFromVideoCreatorService";
+		"AssetDeliveryProxy";
+		"AssetManagerService";
+		"AssetService";
+		"AvatarCreationService";
+		"AvatarEditorService";
+		"AvatarImportService";
+		"BadgeService";
+		"BrowserService";
+		"BulkImportService";
+		"CaptureService";
+		"ChangeHistoryService";
+		"Chat";
+		"CollectionService";
+		"CommerceService";
+		"ConfigService";
+		"ConfigureServerService";
+		"ContentProvider";
+		"ContextActionService";
+		"ControllerService";
+		"CookiesService";
+		"CoreGui";
+		"CoreScriptSyncService";
+		"CreatorStoreService";
+		"DataStoreService";
+		"Debris";
+		"DebugSettings";
+		"DraftsService";
+		"EditableService";
+		"ExperienceService";
+		"GamepadService";
+		"GeometryService";
+		"GroupService";
+		"GuiService";
+		"HapticService";
+		"HttpRbxApiService";
+		"HttpService";
+		"InsertService";
+		"JointsService";
+		"KeyboardService";
+		"KeyframeSequenceProvider";
+		"LanguageService";
+		"Lighting";
+		"LocalizationService";
+		"LoginService";
+		"LogService";
+		"LuaWebService";
+		"MarketplaceService";
+		"MatchmakingService";
+		"MaterialGenerationService";
+		"MaterialService";
+		"MemoryStoreService";
+		"MemStorageService";
+		"MessagingService";
+		"MicroProfilerService";
+		"MLService";
+		"ModerationService";
+		"MouseService";
+		"NetworkClient";
+		"NetworkServer";
+		"NotificationService";
+		"OpenCloudService";
+		"PackageService";
+		"PathfindingService";
+		"PermissionsService";
+		"PhysicsService";
+		"PlacesService";
+		"Players";
+		"PlayerViewService";
+		"PluginConnectionService";
+		"PluginDebugService";
+		"PluginGuiService";
+		"PluginManagementService";
+		"PluginPolicyService";
+		"PointsService";
+		"PolicyService";
+		"ProcessInstancePhysicsService";
+		"ProximityPromptService";
+		"PublishService";
+		"RbxAnalyticsService";
+		"RecommendationService";
+		"ReflectionService";
+		"RemoteCommandService";
+		"ReplicatedFirst";
+		"ReplicatedStorage";
+		"RunService";
+		"SceneAnalysisService";
+		"ScriptContext";
+		"ScriptDebuggerService";
+		"ScriptEditorService";
+		"ScriptProfilerService";
+		"ScriptService";
+		"Selection";
+		"SerializationService";
+		"ServerScriptService";
+		"ServerStorage";
+		"SessionCheckService";
+		"SmoothVoxelsUpgraderService";
+		"SocialService";
+		"SoundService";
+		"SpawnerService";
+		"StarterGui";
+		"StarterPack";
+		"StarterPlayer";
+		"StartupMessageService";
+		"Stats";
+		"StudioCaptureService";
+		"StudioDataService";
+		"StudioDeviceEmulatorService";
+		"StudioDeviceSimulatorService";
+		"StudioPublishService";
+		"StudioScreenshotCapture";
+		"StudioService";
+		"StudioTestService";
+		"TeamCreateService";
+		"Teams";
+		"TeleportService";
+		"TestService";
+		"TextBoxService";
+		"TextChatService";
+		"TextService";
+		"TimerService";
+		"TouchInputService";
+		"TweenService";
+		"UGCValidationService";
+		"UniqueIdLookupService";
+		"UserInputService";
+		"UserService";
+		"VideoCaptureService";
+		"VideoService";
+		"VirtualInputManager";
+		"VirtualUser";
+		"VoiceChatService";
+		"VRService";
+		"VRStatusService";
+		"Workspace";
+	}
+
+	NAmanage.PluginMaker_ServiceVar = function(name)
+		name = tostring(name or ""):gsub("[^%w_]", "_")
+		if name == "" then
+			return nil
+		end
+		local reserved = {
+			["and"] = true; ["break"] = true; ["do"] = true; ["else"] = true; ["elseif"] = true;
+			["end"] = true; ["false"] = true; ["for"] = true; ["function"] = true; ["if"] = true;
+			["in"] = true; ["local"] = true; ["nil"] = true; ["not"] = true; ["or"] = true;
+			["repeat"] = true; ["return"] = true; ["then"] = true; ["true"] = true; ["until"] = true;
+			["while"] = true; ["continue"] = true; ["export"] = true; ["type"] = true;
+		}
+		if name:match("^%d") or reserved[name] then
+			name = "Service_"..name
+		end
+		return name
+	end
+
+	NAmanage.PluginMaker_NormalizeServices = function()
+		local pm = NAStuff.PluginMaker
+		pm.selectedServices = type(pm.selectedServices) == "table" and pm.selectedServices or {}
+		pm.customServices = type(pm.customServices) == "table" and pm.customServices or {}
+		local clean = {}
+		for name, enabled in pm.selectedServices do
+			name = NAmanage.PluginMaker_Trim(name)
+			if enabled == true and name:match("^[%a_][%w_]*$") then
+				clean[name] = true
+			end
+		end
+		pm.selectedServices = clean
+		return clean
+	end
+
+	NAmanage.PluginMaker_GetServiceCatalog = function()
+		local pm = NAStuff.PluginMaker
+		local out, seen = {}, {}
+		local function add(name)
+			name = NAmanage.PluginMaker_Trim(name)
+			if name == "" or not name:match("^[%a_][%w_]*$") then
+				return
+			end
+			local key = name:lower()
+			if not seen[key] then
+				seen[key] = true
+				out[#out + 1] = name
+			end
+		end
+		for _, name in NAmanage.PluginMaker_ServiceCatalog do
+			add(name)
+		end
+		for _, name in pm.customServices or {} do
+			add(name)
+		end
+		pcall(function()
+			for _, child in game:GetChildren() do
+				if typeof(child) == "Instance" then
+					add(child.ClassName)
+				end
+			end
+		end)
+		table.sort(out, function(a, b)
+			local sa = pm.selectedServices and pm.selectedServices[a] == true
+			local sb = pm.selectedServices and pm.selectedServices[b] == true
+			if sa ~= sb then
+				return sa
+			end
+			return a:lower() < b:lower()
+		end)
+		return out
+	end
+
+	NAmanage.PluginMaker_GetSelectedServices = function()
+		local selected = NAmanage.PluginMaker_NormalizeServices()
+		local out = {}
+		for name, enabled in selected do
+			if enabled == true then
+				out[#out + 1] = name
+			end
+		end
+		table.sort(out, function(a, b)
+			return a:lower() < b:lower()
+		end)
+		return out
+	end
+
+	NAmanage.PluginMaker_ServicePrelude = function()
+		local selected = NAmanage.PluginMaker_GetSelectedServices()
+		local lines = {
+			"local ServiceResolver = ServiceResolver";
+			"assert(type(ServiceResolver) == \"table\", \"NA ServiceResolver unavailable\")";
+			"local __na_pm_resolve = ServiceResolver.cs or ServiceResolver.GetService or ServiceResolver.getService";
+			"local __na_pm_resolveRaw = ServiceResolver.gs or ServiceResolver.GetRawService or ServiceResolver.getRawService";
+			"assert(type(__na_pm_resolve) == \"function\" or type(__na_pm_resolveRaw) == \"function\", \"NA ServiceResolver has no resolver method\")";
+			"local Services = setmetatable({}, {";
+			"\t__index = function(self, name)";
+			"\t\tlocal service = type(__na_pm_resolve) == \"function\" and __na_pm_resolve(name) or nil";
+			"\t\tif service == nil and type(__na_pm_resolveRaw) == \"function\" then service = __na_pm_resolveRaw(name) end";
+			"\t\tif service ~= nil then rawset(self, name, service) end";
+			"\t\treturn service";
+			"\tend";
+			"})";
+		}
+		for _, serviceName in selected do
+			local varName = NAmanage.PluginMaker_ServiceVar(serviceName)
+			if varName then
+				lines[#lines + 1] = "local "..varName.." = Services["..NAmanage.PluginMaker_Quote(serviceName).."]"
+			end
+		end
+		if NAStuff.PluginMaker.selectedServices and NAStuff.PluginMaker.selectedServices.Players == true then
+			lines[#lines + 1] = "local LocalPlayer = Players and Players.LocalPlayer or nil"
+		end
+		return table.concat(lines, "\n")
+	end
+
+	NAmanage.PluginMaker_AppendRaw = function(lines, code, indent)
+		if type(lines) ~= "table" then
+			return
+		end
+		code = tostring(code or "")
+		if code == "" then
+			return
+		end
+		indent = tostring(indent or "")
+		for line in (code.."\n"):gmatch("(.-)\n") do
+			lines[#lines + 1] = indent..line
+		end
+	end
+
+	NAmanage.PluginMaker_IYContextLines = function()
+		return {
+			"\t\t\t\tlocal ctx = {";
+			"\t\t\t\t\tLocalPlayer = player;";
+			"\t\t\t\t\tPlayer = player;";
+			"\t\t\t\t\tServices = Services;";
+			"\t\t\t\t\tServiceResolver = ServiceResolver;";
+			"\t\t\t\t\tIsOnMobile = IsOnMobile == true;";
+			"\t\t\t\t\tIsOnPC = IsOnPC == true;";
+			"\t\t\t\t}";
+			"\t\t\t\tctx.notify = function(_, message, duration)";
+			"\t\t\t\t\tif type(notify) == \"function\" then return notify(message, duration) end";
+			"\t\t\t\t\tif type(DoNotif) == \"function\" then return DoNotif(message, duration) end";
+			"\t\t\t\tend";
+			"\t\t\t\tctx.run = function(_, ...)";
+			"\t\t\t\t\tif type(cmdRun) == \"function\" then return cmdRun(...) end";
+			"\t\t\t\t\tif type(RunCommand) == \"function\" then return RunCommand(...) end";
+			"\t\t\t\tend";
+			"\t\t\t\tctx.addUserButton = function(_, ...)";
+			"\t\t\t\t\tif type(addUserButton) == \"function\" then return addUserButton(...) end";
+			"\t\t\t\tend";
+			"\t\t\t\tctx.removeUserButton = function(_, ...)";
+			"\t\t\t\t\tif type(removeUserButton) == \"function\" then return removeUserButton(...) end";
+			"\t\t\t\tend";
+		}
+	end
+
+	NAmanage.PluginMaker_ActionLines = function(action, mode)
+		action = type(action) == "table" and action or {}
+		local kind = tostring(action.type or "notify")
+		local value = NAmanage.PluginMaker_Quote(action.value or "")
+		local extra = tostring(action.extra or "")
+		local out = {}
+		local native = mode == "na"
+		local fill = "__na_pm_fill("..value..", args, player)"
+		if kind == "notify" then
+			local seconds = math.clamp(tonumber(extra) or 3, 0.1, 30)
+			out[#out + 1] = native and ("\t\tctx:notify("..fill..", "..tostring(seconds)..")") or ("\t\tif type(notify) == \"function\" then notify("..fill..", "..tostring(seconds)..") elseif type(DoNotif) == \"function\" then DoNotif("..fill..", "..tostring(seconds)..") end")
+		elseif kind == "run" then
+			out[#out + 1] = native and ("\t\tctx:run("..fill..")") or ("\t\tif type(cmdRun) == \"function\" then cmdRun("..fill..") elseif type(RunCommand) == \"function\" then RunCommand("..fill..") end")
+		elseif kind == "load_url" then
+			out[#out + 1] = "\t\tlocal __na_pm_url = "..fill
+			out[#out + 1] = "\t\tlocal __na_pm_source = game:HttpGet(__na_pm_url)"
+			out[#out + 1] = "\t\tlocal __na_pm_loader = loadstring or load"
+			out[#out + 1] = "\t\tif type(__na_pm_loader) ~= \"function\" then error(\"loadstring/load unavailable\") end"
+			out[#out + 1] = "\t\tlocal __na_pm_chunk, __na_pm_error = __na_pm_loader(__na_pm_source)"
+			out[#out + 1] = "\t\tif not __na_pm_chunk then error(__na_pm_error or \"failed to compile remote source\") end"
+			out[#out + 1] = "\t\t__na_pm_chunk()"
+		elseif kind == "wait" then
+			local seconds = math.clamp(tonumber(action.value) or tonumber(extra) or 1, 0, 120)
+			out[#out + 1] = "\t\tif task and task.wait then task.wait("..tostring(seconds)..") elseif wait then wait("..tostring(seconds)..") end"
+		elseif kind == "print" then
+			out[#out + 1] = "\t\tprint("..fill..")"
+		elseif kind == "copy" then
+			out[#out + 1] = "\t\tif type(setclipboard) == \"function\" then setclipboard("..fill..") end"
+		elseif kind == "mobile_run" then
+			if native then
+				out[#out + 1] = "\t\tif ctx.IsOnMobile then ctx:run("..fill..") end"
+			else
+				out[#out + 1] = "\t\tif IsOnMobile and type(cmdRun) == \"function\" then cmdRun("..fill..") end"
+			end
+		elseif kind == "pc_run" then
+			if native then
+				out[#out + 1] = "\t\tif ctx.IsOnPC then ctx:run("..fill..") end"
+			else
+				out[#out + 1] = "\t\tif IsOnPC and type(cmdRun) == \"function\" then cmdRun("..fill..") end"
+			end
+		elseif kind == "mobile_notify" then
+			local seconds = math.clamp(tonumber(extra) or 3, 0.1, 30)
+			if native then
+				out[#out + 1] = "\t\tif ctx.IsOnMobile then ctx:notify("..fill..", "..tostring(seconds)..") end"
+			else
+				out[#out + 1] = "\t\tif IsOnMobile and type(notify) == \"function\" then notify("..fill..", "..tostring(seconds)..") end"
+			end
+		elseif kind == "pc_notify" then
+			local seconds = math.clamp(tonumber(extra) or 3, 0.1, 30)
+			if native then
+				out[#out + 1] = "\t\tif ctx.IsOnPC then ctx:notify("..fill..", "..tostring(seconds)..") end"
+			else
+				out[#out + 1] = "\t\tif IsOnPC and type(notify) == \"function\" then notify("..fill..", "..tostring(seconds)..") end"
+			end
+		elseif kind == "add_button" then
+			local label = NAmanage.PluginMaker_Quote(action.value or "Button")
+			local command = NAmanage.PluginMaker_Quote(extra ~= "" and extra or "")
+			if native then
+				out[#out + 1] = "\t\tctx:addUserButton({ Label = "..label..", Command = "..command..", SaveArgs = true })"
+			else
+				out[#out + 1] = "\t\tif type(addUserButton) == \"function\" then addUserButton({ Label = "..label..", Command = "..command..", SaveArgs = true }) end"
+			end
+		elseif kind == "remove_button" then
+			out[#out + 1] = native and ("\t\tctx:removeUserButton("..fill..")") or ("\t\tif type(removeUserButton) == \"function\" then removeUserButton("..fill..") end")
+		elseif kind == "stop" then
+			out[#out + 1] = "\t\treturn"
+		elseif kind == "custom" then
+			local raw = tostring(action.value or "")
+			if raw ~= "" then
+				for line in (raw.."\n"):gmatch("(.-)\n") do
+					out[#out + 1] = "\t\t"..line
+				end
+			end
+		end
+		return out
+	end
+
+	NAmanage.PluginMaker_GenerateNA = function()
+		local pm = NAStuff.PluginMaker
+		local lines = {
+			"local plugin = Plugin.new("..NAmanage.PluginMaker_Quote(pm.pluginName)..", "..NAmanage.PluginMaker_Quote(pm.description)..")";
+			"";
+			NAmanage.PluginMaker_ServicePrelude();
+			"";
+			NAmanage.PluginMaker_TemplateHelper();
+			"";
+		}
+		if NAmanage.PluginMaker_Trim(pm.startupCode) ~= "" then
+			lines[#lines + 1] = ""
+			NAmanage.PluginMaker_AppendRaw(lines, pm.startupCode, "")
+			lines[#lines + 1] = ""
+		end
+		for _, command in pm.commands or {} do
+			local name = NAmanage.PluginMaker_Trim(command.name)
+			if name ~= "" then
+				local aliases = NAmanage.PluginMaker_SplitAliases(command.aliases)
+				local call = "\nplugin:cmd("..NAmanage.PluginMaker_Quote(name)
+				for _, alias in aliases do
+					if alias:lower() ~= name:lower() then
+						call = call..", "..NAmanage.PluginMaker_Quote(alias)
+					end
+				end
+				call = call..")"
+				lines[#lines + 1] = call
+				if NAmanage.PluginMaker_Trim(command.argsHint) ~= "" then
+					lines[#lines + 1] = "\t:args("..NAmanage.PluginMaker_Quote(command.argsHint)..")"
+				end
+				lines[#lines + 1] = "\t:info("..NAmanage.PluginMaker_Quote(command.description)..")"
+				if command.requiresArgs == true then
+					lines[#lines + 1] = "\t:requiresArgs()"
+				end
+				if command.overrideAliases == true then
+					lines[#lines + 1] = "\t:OverrideAliases()"
+				end
+				if command.userButton == true then
+					local label = NAmanage.PluginMaker_Trim(command.userButtonLabel)
+					if label == "" then label = name end
+					lines[#lines + 1] = "\t:userButton({ Label = "..NAmanage.PluginMaker_Quote(label)..", SaveArgs = "..tostring(command.saveButtonArgs ~= false).." })"
+				end
+				lines[#lines + 1] = "\t:run(function(ctx, ...)"
+				lines[#lines + 1] = "\t\tlocal args = {...}"
+				lines[#lines + 1] = "\t\tlocal player = ctx.LocalPlayer"
+				for _, action in command.actions or {} do
+					for _, actionLine in NAmanage.PluginMaker_ActionLines(action, "na") do
+						lines[#lines + 1] = actionLine
+					end
+				end
+				if NAmanage.PluginMaker_Trim(command.customCode) ~= "" then
+					lines[#lines + 1] = "\t\t"
+					NAmanage.PluginMaker_AppendRaw(lines, command.customCode, "\t\t")
+				end
+				lines[#lines + 1] = "\tend)"
+			end
+		end
+		return table.concat(lines, "\n")
+	end
+
+	NAmanage.PluginMaker_GenerateIY = function()
+		local pm = NAStuff.PluginMaker
+		local lines = {
+			NAmanage.PluginMaker_ServicePrelude();
+			"";
+			NAmanage.PluginMaker_TemplateHelper();
+			"";
+		}
+		if NAmanage.PluginMaker_Trim(pm.startupCode) ~= "" then
+			NAmanage.PluginMaker_AppendRaw(lines, pm.startupCode, "")
+			lines[#lines + 1] = ""
+		end
+		for _, command in pm.commands or {} do
+			local name = NAmanage.PluginMaker_Trim(command.name)
+			if name ~= "" and command.userButton == true then
+				local label = NAmanage.PluginMaker_Trim(command.userButtonLabel)
+				if label == "" then label = name end
+				lines[#lines + 1] = "if type(addUserButton) == \"function\" then addUserButton({ Label = "..NAmanage.PluginMaker_Quote(label)..", Command = "..NAmanage.PluginMaker_Quote(name)..", SaveArgs = "..tostring(command.saveButtonArgs ~= false).." }) end"
+			end
+		end
+		if #lines > 2 then
+			lines[#lines + 1] = ""
+		end
+		lines[#lines + 1] = "return {"
+		lines[#lines + 1] = "\tPluginName = "..NAmanage.PluginMaker_Quote(pm.pluginName)..";"
+		lines[#lines + 1] = "\tPluginDescription = "..NAmanage.PluginMaker_Quote(pm.description)..";"
+		lines[#lines + 1] = "\tCommands = {"
+		for _, command in pm.commands or {} do
+			local name = NAmanage.PluginMaker_Trim(command.name)
+			if name ~= "" then
+				local aliases = NAmanage.PluginMaker_SplitAliases(command.aliases)
+				lines[#lines + 1] = "\t\t["..NAmanage.PluginMaker_Quote(name).."] = {"
+				lines[#lines + 1] = "\t\t\tListName = "..NAmanage.PluginMaker_Quote(name)..";"
+				if #aliases > 0 then
+					local aliasText = {}
+					for _, alias in aliases do
+						if alias:lower() ~= name:lower() then
+							aliasText[#aliasText + 1] = NAmanage.PluginMaker_Quote(alias)
+						end
+					end
+					if #aliasText > 0 then
+						lines[#lines + 1] = "\t\t\tAliases = {"..table.concat(aliasText, ", ").."};"
+					end
+				end
+				if NAmanage.PluginMaker_Trim(command.argsHint) ~= "" then
+					lines[#lines + 1] = "\t\t\tArgsHint = "..NAmanage.PluginMaker_Quote(command.argsHint)..";"
+				end
+				lines[#lines + 1] = "\t\t\tDescription = "..NAmanage.PluginMaker_Quote(command.description)..";"
+				if command.requiresArgs == true then
+					lines[#lines + 1] = "\t\t\tRequiresArguments = true;"
+				end
+				if command.overrideAliases == true then
+					lines[#lines + 1] = "\t\t\tOverrideAliases = true;"
+				end
+				lines[#lines + 1] = "\t\t\tFunction = function(args, speaker)"
+				lines[#lines + 1] = "\t\t\t\tlocal player = speaker"
+				for _, ctxLine in NAmanage.PluginMaker_IYContextLines() do
+					lines[#lines + 1] = ctxLine
+				end
+				for _, action in command.actions or {} do
+					for _, actionLine in NAmanage.PluginMaker_ActionLines(action, "iy") do
+						lines[#lines + 1] = actionLine:gsub("^\t\t", "\t\t\t\t")
+					end
+				end
+				if NAmanage.PluginMaker_Trim(command.customCode) ~= "" then
+					lines[#lines + 1] = "\t\t\t\t"
+					NAmanage.PluginMaker_AppendRaw(lines, command.customCode, "\t\t\t\t")
+				end
+				lines[#lines + 1] = "\t\t\tend;"
+				lines[#lines + 1] = "\t\t};"
+			end
+		end
+		lines[#lines + 1] = "\t};"
+		lines[#lines + 1] = "}"
+		return table.concat(lines, "\n")
+	end
+
+	NAmanage.PluginMaker_Generate = function()
+		local pm = NAStuff.PluginMaker
+		if type(pm.commands) ~= "table" or #pm.commands == 0 then
+			return nil, "Add at least one command"
+		end
+		if NAmanage.PluginMaker_Trim(pm.pluginName) == "" then
+			return nil, "Plugin name is required"
+		end
+		local valid = 0
+		local seen = {}
+		for _, command in pm.commands do
+			local name = NAmanage.PluginMaker_Trim(command.name)
+			if name ~= "" then
+				local key = name:lower()
+				if seen[key] then
+					return nil, "Duplicate command name: "..name
+				end
+				seen[key] = true
+				valid += 1
+			end
+		end
+		if valid == 0 then
+			return nil, "At least one command needs a name"
+		end
+		if pm.format == "iy" then
+			return NAmanage.PluginMaker_GenerateIY()
+		end
+		return NAmanage.PluginMaker_GenerateNA()
+	end
+
+	NAmanage.PluginMaker_CompileCheck = function(source)
+		if type(source) ~= "string" or source == "" then
+			return false, "Generated source is empty"
+		end
+		local loader = loadstring or load
+		if type(loader) ~= "function" then
+			return true, "Compile checker unavailable"
+		end
+		local ok, fn, err = pcall(loader, source, "@NAPluginMaker")
+		if not ok then
+			ok, fn, err = pcall(loader, source)
+		end
+		if not ok then
+			return false, tostring(fn)
+		end
+		if not fn then
+			return false, tostring(err or "Compile failed")
+		end
+		return true
+	end
+
+	NAmanage.PluginMaker_UniquePath = function(path)
+		if type(isfile) ~= "function" or not isfile(path) then
+			return path
+		end
+		local stem, ext = path:match("^(.*)(%.[^%.\\/]+)$")
+		stem = stem or path
+		ext = ext or ""
+		for i = 2, 999 do
+			local candidate = stem.."_"..tostring(i)..ext
+			if not isfile(candidate) then
+				return candidate
+			end
+		end
+		return stem.."_"..tostring(os.time and os.time() or math.random(1000, 9999))..ext
+	end
+
+	NAmanage.PluginMaker_Save = function(install, conflictPolicy)
+		local pm = NAStuff.PluginMaker
+		local source, genErr = NAmanage.PluginMaker_Generate()
+		if not source then
+			return false, genErr
+		end
+		local compileOk, compileErr = NAmanage.PluginMaker_CompileCheck(source)
+		if not compileOk then
+			return false, "Compile check failed: "..tostring(compileErr)
+		end
+		if type(writefile) ~= "function" then
+			return false, "writefile is unavailable"
+		end
+		local ext = pm.format == "iy" and ".iy" or ".na"
+		local fileName = NAmanage.PluginMaker_SafeFileName(pm.fileName ~= "" and pm.fileName or pm.pluginName)
+		fileName = fileName:gsub("%.[nN][aA]$", ""):gsub("%.[iI][yY]$", "")..ext
+		local path = fileName
+		if install == true then
+			local folder = pm.format == "iy" and NAfiles.NAIYPLUGINFILEPATH or NAfiles.NAPLUGINFILEPATH
+			if type(isfolder) == "function" and type(makefolder) == "function" and not isfolder(folder) then
+				local okFolder = pcall(makefolder, folder)
+				if not okFolder then
+					return false, "Could not create plugin folder"
+				end
+			end
+			path = folder.."/"..fileName
+		end
+		local exists = type(isfile) == "function" and isfile(path)
+		if exists and conflictPolicy == nil then
+			if type(NAmanage.PluginMaker_OpenSaveConflict) == "function" then
+				NAmanage.PluginMaker_OpenSaveConflict(install, path)
+				return nil, "conflict", path
+			end
+			path = NAmanage.PluginMaker_UniquePath(path)
+		elseif exists and conflictPolicy == "copy" then
+			path = NAmanage.PluginMaker_UniquePath(path)
+		elseif exists and conflictPolicy == "backup" then
+			if type(readfile) ~= "function" then
+				return false, "readfile is unavailable for backup"
+			end
+			local stem, oldExt = path:match("^(.*)(%.[^%.\\/]+)$")
+			stem = stem or path
+			oldExt = oldExt or ""
+			local backupPath = NAmanage.PluginMaker_UniquePath(stem.."_old"..oldExt)
+			local okRead, oldSource = pcall(readfile, path)
+			if not okRead then
+				return false, "Failed to read existing plugin: "..tostring(oldSource)
+			end
+			local okBackup, backupErr = pcall(writefile, backupPath, oldSource)
+			if not okBackup then
+				return false, "Failed to back up existing plugin: "..tostring(backupErr)
+			end
+		end
+		local okWrite, writeErr = pcall(writefile, path, source)
+		if not okWrite then
+			return false, tostring(writeErr)
+		end
+		if install == true and type(NAmanage.LoadPlugins) == "function" then
+			pcall(NAmanage.LoadPlugins, { silent = true })
+			if type(NAmanage.PluginsWindow_RequestRebuild) == "function" then
+				pcall(NAmanage.PluginsWindow_RequestRebuild)
+			end
+		end
+		pm.dirty = false
+		return true, path, source
+	end
+
+	NAmanage.PluginMaker_ListPluginFiles = function()
+		local out = {}
+		if type(listfiles) ~= "function" then
+			return out
+		end
+		local dirs = {
+			{ path = NAfiles and NAfiles.NAPLUGINFILEPATH; format = "na" };
+			{ path = NAfiles and NAfiles.NAIYPLUGINFILEPATH; format = "iy" };
+		}
+		for _, info in dirs do
+			if type(info.path) == "string" and info.path ~= "" and (type(isfolder) ~= "function" or isfolder(info.path)) then
+				local ok, items = pcall(listfiles, info.path)
+				if ok and type(items) == "table" then
+					for _, path in items do
+						if type(path) == "string" then
+							local low = path:lower()
+							local valid = info.format == "na" and low:match("%.na$") or info.format == "iy" and low:match("%.iy$")
+							if valid then
+								out[#out + 1] = {
+									path = path;
+									format = info.format;
+									name = path:match("[^\\/]+$") or path;
+								}
+							end
+						end
+					end
+				end
+			end
+		end
+		table.sort(out, function(a, b)
+			return tostring(a.name):lower() < tostring(b.name):lower()
+		end)
+		return out
+	end
+
+	NAmanage.PluginMaker_ReloadPlugins = function()
+		if type(NAmanage.LoadPlugins) == "function" then
+			pcall(NAmanage.LoadPlugins, { silent = true })
+		end
+		if type(NAmanage.PluginsWindow_RequestRebuild) == "function" then
+			pcall(NAmanage.PluginsWindow_RequestRebuild)
+		end
+	end
+
+	NAmanage.PluginMaker_OpenInstalledManager = function()
+		local pm = NAStuff.PluginMaker
+		if type(NAmanage.PluginsWindow_SetVisible) == "function" then
+			NAmanage.PluginsWindow_SetVisible(true)
+			return true
+		end
+		if type(NAmanage.PluginsWindow_Toggle) == "function" then
+			NAmanage.PluginsWindow_Toggle(true)
+			return true
+		end
+		NAmanage.PluginMaker_SetStatus("Plugins window is unavailable", "error")
+		return false
+	end
+
+	NAmanage.PluginMaker_EnsureSaveConflict = function()
+		local pm = NAStuff.PluginMaker
+		if pm.SaveConflictOverlay and pm.SaveConflictOverlay.Parent == pm.Frame then
+			return true
+		end
+		if not pm.Frame or not pm.Frame.Parent then
+			return false
+		end
+		pm.SaveConflictOverlay = NAmanage.PluginMaker_New("Frame", pm.Frame, {
+			Name = "SaveConflictOverlay";
+			BackgroundColor3 = Color3.fromRGB(4, 4, 7);
+			BackgroundTransparency = 0.2;
+			BorderSizePixel = 0;
+			Size = UDim2.new(1, 0, 1, 0);
+			Visible = false;
+			Active = true;
+			ZIndex = 160;
+		})
+		local card = NAmanage.PluginMaker_New("Frame", pm.SaveConflictOverlay, {
+			AnchorPoint = Vector2.new(0.5, 0.5);
+			Position = UDim2.new(0.5, 0, 0.5, 0);
+			Size = UDim2.new(0, 390, 0, 250);
+			BackgroundColor3 = Color3.fromRGB(19, 20, 27);
+			BorderSizePixel = 0;
+			ZIndex = 161;
+		})
+		NAmanage.PluginMaker_Corner(card, 9)
+		NAmanage.PluginMaker_Stroke(card, 0.35)
+		local constraint = NAmanage.PluginMaker_New("UISizeConstraint", card, {})
+		constraint.MinSize = Vector2.new(250, 230)
+		constraint.MaxSize = Vector2.new(430, 280)
+
+		local title = NAmanage.PluginMaker_Label(card, "Plugin File Already Exists", 14)
+		title.Position = UDim2.new(0, 12, 0, 10)
+		title.Size = UDim2.new(1, -24, 0, 24)
+		title.Font = Enum.Font.GothamBold
+		title.TextColor3 = Color3.fromRGB(255, 205, 135)
+		title.ZIndex = 162
+
+		pm.SaveConflictPath = NAmanage.PluginMaker_Label(card, "", 10)
+		pm.SaveConflictPath.Position = UDim2.new(0, 12, 0, 38)
+		pm.SaveConflictPath.Size = UDim2.new(1, -24, 0, 42)
+		pm.SaveConflictPath.TextColor3 = Color3.fromRGB(165, 168, 185)
+		pm.SaveConflictPath.TextYAlignment = Enum.TextYAlignment.Top
+		pm.SaveConflictPath.ZIndex = 162
+
+		local choices = NAmanage.PluginMaker_New("Frame", card, {
+			BackgroundTransparency = 1;
+			Position = UDim2.new(0, 12, 0, 86);
+			Size = UDim2.new(1, -24, 1, -98);
+			ZIndex = 162;
+		})
+		local layout = NAmanage.PluginMaker_New("UIListLayout", choices, {
+			Padding = UDim.new(0, 6);
+			SortOrder = Enum.SortOrder.LayoutOrder;
+		})
+
+		local function finish(policy)
+			local pending = pm.PendingSaveConflict
+			pm.SaveConflictOverlay.Visible = false
+			pm.PendingSaveConflict = nil
+			if not pending then
+				return
+			end
+			local ok, path = NAmanage.PluginMaker_Save(pending.install == true, policy)
+			if ok then
+				NAmanage.PluginMaker_SetStatus((pending.install and "Installed " or "Saved ")..tostring(path), "success")
+				DoNotif((pending.install and "Plugin Maker installed " or "Plugin Maker saved ")..tostring(path), 3)
+			elseif ok == false then
+				NAmanage.PluginMaker_SetStatus(tostring(path), "error")
+			end
+		end
+
+		local overwrite = NAmanage.PluginMaker_Button(choices, "Overwrite Existing", function()
+			finish("overwrite")
+		end)
+		overwrite.Size = UDim2.new(1, 0, 0, 31)
+		overwrite.BackgroundColor3 = Color3.fromRGB(105, 45, 55)
+
+		local copy = NAmanage.PluginMaker_Button(choices, "Save As Copy (_2, _3, ...)", function()
+			finish("copy")
+		end)
+		copy.Size = UDim2.new(1, 0, 0, 31)
+
+		local backup = NAmanage.PluginMaker_Button(choices, "Back Up Existing As _old, Then Replace", function()
+			finish("backup")
+		end)
+		backup.Size = UDim2.new(1, 0, 0, 31)
+		backup.BackgroundColor3 = Color3.fromRGB(75, 58, 105)
+
+		local cancel = NAmanage.PluginMaker_Button(choices, "Cancel", function()
+			pm.PendingSaveConflict = nil
+			pm.SaveConflictOverlay.Visible = false
+			NAmanage.PluginMaker_SetStatus("Save cancelled", "warn")
+		end)
+		cancel.Size = UDim2.new(1, 0, 0, 31)
+		return true
+	end
+
+	NAmanage.PluginMaker_OpenSaveConflict = function(install, path)
+		local pm = NAStuff.PluginMaker
+		if not NAmanage.PluginMaker_EnsureSaveConflict() then
+			return false
+		end
+		pm.PendingSaveConflict = {
+			install = install == true;
+			path = path;
+		}
+		pm.SaveConflictPath.Text = "A file already exists at:\n"..tostring(path)
+		pm.SaveConflictOverlay.Visible = true
+		NAmanage.PluginMaker_SetStatus("Choose how to handle the existing file", "warn")
+		return true
+	end
+
+	NAmanage.PluginMaker_EnsureFilePicker = function()
+		local pm = NAStuff.PluginMaker
+		if pm.FilePickerOverlay and pm.FilePickerOverlay.Parent == pm.Frame then
+			return true
+		end
+		if not pm.Frame or not pm.Frame.Parent then
+			return false
+		end
+
+		pm.FilePickerOverlay = NAmanage.PluginMaker_New("Frame", pm.Frame, {
+			Name = "PluginFilePicker";
+			BackgroundColor3 = Color3.fromRGB(4, 4, 7);
+			BackgroundTransparency = 0.22;
+			BorderSizePixel = 0;
+			Size = UDim2.new(1, 0, 1, 0);
+			Visible = false;
+			Active = true;
+			ZIndex = 150;
+		})
+		local card = NAmanage.PluginMaker_New("Frame", pm.FilePickerOverlay, {
+			AnchorPoint = Vector2.new(0.5, 0.5);
+			Position = UDim2.new(0.5, 0, 0.5, 0);
+			Size = UDim2.new(0.66, 0, 0.75, 0);
+			BackgroundColor3 = Color3.fromRGB(18, 19, 25);
+			BorderSizePixel = 0;
+			ZIndex = 151;
+		})
+		NAmanage.PluginMaker_Corner(card, 9)
+		NAmanage.PluginMaker_Stroke(card, 0.38)
+		local constraint = NAmanage.PluginMaker_New("UISizeConstraint", card, {})
+		constraint.MinSize = Vector2.new(260, 240)
+		constraint.MaxSize = Vector2.new(560, 480)
+
+		local title = NAmanage.PluginMaker_Label(card, "Edit Existing Plugin", 14)
+		title.Position = UDim2.new(0, 10, 0, 8)
+		title.Size = UDim2.new(1, -88, 0, 24)
+		title.Font = Enum.Font.GothamBold
+		title.ZIndex = 152
+
+		local close = NAmanage.PluginMaker_Button(card, "Close", function()
+			pm.FilePickerOverlay.Visible = false
+		end)
+		close.AnchorPoint = Vector2.new(1, 0)
+		close.Position = UDim2.new(1, -8, 0, 7)
+		close.Size = UDim2.new(0, 66, 0, 26)
+		close.ZIndex = 153
+
+		pm.FilePickerSearch = NAmanage.PluginMaker_Input(card, "Search installed .na / .iy plugins...", "", function()
+			if type(NAmanage.PluginMaker_RefreshFilePicker) == "function" then
+				NAmanage.PluginMaker_RefreshFilePicker()
+			end
+		end)
+		pm.FilePickerSearch.Position = UDim2.new(0, 10, 0, 38)
+		pm.FilePickerSearch.Size = UDim2.new(1, -20, 0, 30)
+		pm.FilePickerSearch.ZIndex = 152
+		pm.FilePickerSearch:GetPropertyChangedSignal("Text"):Connect(function()
+			if pm.FilePickerOverlay and pm.FilePickerOverlay.Visible then
+				NAmanage.PluginMaker_RefreshFilePicker()
+			end
+		end)
+
+		pm.FilePickerList = NAmanage.PluginMaker_New("ScrollingFrame", card, {
+			BackgroundColor3 = Color3.fromRGB(12, 13, 17);
+			BackgroundTransparency = 0.08;
+			BorderSizePixel = 0;
+			Position = UDim2.new(0, 10, 0, 76);
+			Size = UDim2.new(1, -20, 1, -86);
+			CanvasSize = UDim2.new();
+			ScrollBarThickness = 4;
+			ScrollingDirection = Enum.ScrollingDirection.Y;
+			ZIndex = 152;
+		})
+		NAmanage.PluginMaker_Corner(pm.FilePickerList, 7)
+		NAmanage.PluginMaker_Stroke(pm.FilePickerList, 0.8)
+		return true
+	end
+
+	NAmanage.PluginMaker_OpenExistingFile = function(entry)
+		local pm = NAStuff.PluginMaker
+		if type(entry) ~= "table" or type(entry.path) ~= "string" or type(readfile) ~= "function" then
+			return
+		end
+		local ok, source = pcall(readfile, entry.path)
+		if not ok then
+			NAmanage.PluginMaker_SetStatus("Failed to read "..tostring(entry.name)..": "..tostring(source), "error")
+			return
+		end
+		if not NAmanage.PluginMaker_EnsureCodeEditor() then
+			return
+		end
+		pm.FilePickerOverlay.Visible = false
+		pm.codeEditTarget = "file"
+		pm.codeEditPath = entry.path
+		pm.codeEditFormat = entry.format
+		pm.CodeTitle.Text = "Edit Existing - "..tostring(entry.name)
+		pm.CodeHint.Text = "Raw plugin source. Save Code compile-checks it, writes it back to the same file, then reloads NA plugins."
+		pm.CodeBox.Text = tostring(source or "")
+		pm.CodeOverlay.Visible = true
+	end
+
+	NAmanage.PluginMaker_RefreshFilePicker = function()
+		local pm = NAStuff.PluginMaker
+		local list = pm.FilePickerList
+		if not list or not list.Parent then
+			return
+		end
+		NAmanage.PluginMaker_ClearGui(list)
+		local layout = NAmanage.PluginMaker_New("UIListLayout", list, {
+			Padding = UDim.new(0, 5);
+			SortOrder = Enum.SortOrder.LayoutOrder;
+		})
+		local pad = NAmanage.PluginMaker_New("UIPadding", list, {})
+		pad.PaddingTop = UDim.new(0, 6)
+		pad.PaddingBottom = UDim.new(0, 6)
+		pad.PaddingLeft = UDim.new(0, 6)
+		pad.PaddingRight = UDim.new(0, 6)
+
+		local query = tostring(pm.FilePickerSearch and pm.FilePickerSearch.Text or ""):lower()
+		local count = 0
+		for _, entry in NAmanage.PluginMaker_ListPluginFiles() do
+			local hay = (tostring(entry.name).." "..tostring(entry.format).." "..tostring(entry.path)):lower()
+			if query == "" or hay:find(query, 1, true) then
+				count += 1
+				local row = NAmanage.PluginMaker_New("Frame", list, {
+					BackgroundColor3 = Color3.fromRGB(31, 32, 41);
+					BackgroundTransparency = 0.08;
+					BorderSizePixel = 0;
+					Size = UDim2.new(1, -2, 0, 40);
+				})
+				NAmanage.PluginMaker_Corner(row, 6)
+				NAmanage.PluginMaker_Stroke(row, 0.84)
+				local tag = NAmanage.PluginMaker_Label(row, entry.format == "iy" and "IY" or "NA", 10)
+				tag.Position = UDim2.new(0, 7, 0.5, -11)
+				tag.Size = UDim2.new(0, 28, 0, 22)
+				tag.TextXAlignment = Enum.TextXAlignment.Center
+				tag.BackgroundTransparency = 0
+				tag.BackgroundColor3 = entry.format == "iy" and Color3.fromRGB(57, 74, 102) or Color3.fromRGB(75, 58, 105)
+				NAmanage.PluginMaker_Corner(tag, 5)
+				local name = NAmanage.PluginMaker_Label(row, entry.name, 11)
+				name.Position = UDim2.new(0, 42, 0, 0)
+				name.Size = UDim2.new(1, -122, 1, 0)
+				name.TextTruncate = Enum.TextTruncate.AtEnd
+				local edit = NAmanage.PluginMaker_Button(row, "Edit", function()
+					NAmanage.PluginMaker_OpenExistingFile(entry)
+				end)
+				edit.AnchorPoint = Vector2.new(1, 0.5)
+				edit.Position = UDim2.new(1, -7, 0.5, 0)
+				edit.Size = UDim2.new(0, 64, 0, 26)
+				edit.BackgroundColor3 = Color3.fromRGB(75, 58, 105)
+			end
+		end
+		if count == 0 then
+			local empty = NAmanage.PluginMaker_Label(list, "No matching installed plugins.", 11)
+			empty.Size = UDim2.new(1, -2, 0, 42)
+			empty.TextXAlignment = Enum.TextXAlignment.Center
+			empty.TextColor3 = Color3.fromRGB(150, 153, 170)
+		end
+		layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+			if list and list.Parent then
+				list.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 12)
+			end
+		end)
+		list.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 12)
+	end
+
+	NAmanage.PluginMaker_OpenFilePicker = function()
+		local pm = NAStuff.PluginMaker
+		if not NAmanage.PluginMaker_EnsureFilePicker() then
+			return
+		end
+		pm.FilePickerOverlay.Visible = true
+		NAmanage.PluginMaker_RefreshFilePicker()
+	end
+
+	NAmanage.PluginMaker_ToggleMinimize = function()
+		local pm = NAStuff.PluginMaker
+		local frame = pm.Frame
+		if not frame or not frame.Parent then
+			return
+		end
+		pm.minimized = not (pm.minimized == true)
+		if pm.minimized then
+			pm.restoreSize = frame.Size
+			if pm.ResizeCleanup then
+				pcall(pm.ResizeCleanup)
+				pm.ResizeCleanup = nil
+			end
+			if pm.Meta then pm.Meta.Visible = false end
+			if pm.Workspace then pm.Workspace.Visible = false end
+			if pm.Footer then pm.Footer.Visible = false end
+			if pm.PreviewOverlay then pm.PreviewOverlay.Visible = false end
+			if pm.ActionPickerOverlay then pm.ActionPickerOverlay.Visible = false end
+			if pm.CodeOverlay then pm.CodeOverlay.Visible = false end
+			if pm.FilePickerOverlay then pm.FilePickerOverlay.Visible = false end
+			if pm.SaveConflictOverlay then pm.SaveConflictOverlay.Visible = false end
+			NAmanage.SetAttr(frame, "NAMenuMinimized", true)
+			frame.Size = UDim2.fromOffset(math.max(260, frame.Size.X.Offset), 44)
+			if pm.MinimizeButton then pm.MinimizeButton.Text = "+" end
+		else
+			NAmanage.SetAttr(frame, "NAMenuMinimized", false)
+			frame.Size = pm.restoreSize or UDim2.fromOffset(900, 620)
+			if pm.Meta then pm.Meta.Visible = true end
+			if pm.Workspace then pm.Workspace.Visible = true end
+			if pm.Footer then pm.Footer.Visible = true end
+			if pm.MinimizeButton then pm.MinimizeButton.Text = "-" end
+			NAmanage.PluginMaker_ApplyLayout()
+			NAmanage.PluginMaker_BindResize()
+		end
+	end
+
+	NAmanage.PluginMaker_ProbeService = function(name)
+		name = NAmanage.PluginMaker_Trim(name)
+		if name == "" then
+			return false, "empty service name"
+		end
+		if type(NAmanage.NA_getServiceRef) == "function" then
+			local ok, service = pcall(NAmanage.NA_getServiceRef, name)
+			if ok and typeof(service) == "Instance" then
+				return true, service
+			end
+		end
+		if type(NAmanage.NA_getServiceRaw) == "function" then
+			local ok, service = pcall(NAmanage.NA_getServiceRaw, name)
+			if ok and typeof(service) == "Instance" then
+				return true, service
+			end
+		end
+		return false, nil
+	end
+
+	NAmanage.PluginMaker_UpdateServiceButton = function()
+		local pm = NAStuff.PluginMaker
+		if pm.ServicesButton and pm.ServicesButton.Parent then
+			local count = #NAmanage.PluginMaker_GetSelectedServices()
+			pm.ServicesButton.Text = "Services ("..tostring(count)..")"
+			pm.ServicesButton.BackgroundColor3 = count > 0 and Color3.fromRGB(75, 58, 105) or Color3.fromRGB(42, 43, 54)
+		end
+	end
+
+	NAmanage.PluginMaker_SelectServicePreset = function(kind)
+		local pm = NAStuff.PluginMaker
+		pm.selectedServices = type(pm.selectedServices) == "table" and pm.selectedServices or {}
+		if kind == "clear" then
+			pm.selectedServices = {}
+		elseif kind == "common" then
+			pm.selectedServices = {
+				Players = true;
+				Workspace = true;
+				RunService = true;
+				TweenService = true;
+				UserInputService = true;
+				HttpService = true;
+				ReplicatedStorage = true;
+				Lighting = true;
+			}
+		elseif kind == "all" then
+			local selected = {}
+			for _, name in NAmanage.PluginMaker_GetServiceCatalog() do
+				selected[name] = true
+			end
+			pm.selectedServices = selected
+		end
+		pm.dirty = true
+		NAmanage.PluginMaker_UpdateServiceButton()
+		if type(NAmanage.PluginMaker_RefreshServicePicker) == "function" then
+			NAmanage.PluginMaker_RefreshServicePicker()
+		end
+	end
+
+	NAmanage.PluginMaker_EnsureServicePicker = function()
+		local pm = NAStuff.PluginMaker
+		if pm.ServiceOverlay and pm.ServiceOverlay.Parent == pm.Frame then
+			return true
+		end
+		if not pm.Frame or not pm.Frame.Parent then
+			return false
+		end
+
+		pm.ServiceOverlay = NAmanage.PluginMaker_New("Frame", pm.Frame, {
+			Name = "ServicePicker";
+			BackgroundColor3 = Color3.fromRGB(4, 4, 7);
+			BackgroundTransparency = 0.2;
+			BorderSizePixel = 0;
+			Size = UDim2.new(1, 0, 1, 0);
+			Visible = false;
+			Active = true;
+			ZIndex = 170;
+		})
+
+		local card = NAmanage.PluginMaker_New("Frame", pm.ServiceOverlay, {
+			AnchorPoint = Vector2.new(0.5, 0.5);
+			Position = UDim2.new(0.5, 0, 0.5, 0);
+			Size = UDim2.new(0.72, 0, 0.84, 0);
+			BackgroundColor3 = Color3.fromRGB(18, 19, 25);
+			BorderSizePixel = 0;
+			ZIndex = 171;
+		})
+		NAmanage.PluginMaker_Corner(card, 9)
+		NAmanage.PluginMaker_Stroke(card, 0.35)
+		local sizeConstraint = NAmanage.PluginMaker_New("UISizeConstraint", card, {})
+		sizeConstraint.MinSize = Vector2.new(280, 300)
+		sizeConstraint.MaxSize = Vector2.new(620, 560)
+
+		local title = NAmanage.PluginMaker_Label(card, "Services - NA ServiceResolver", 14)
+		title.Position = UDim2.new(0, 10, 0, 8)
+		title.Size = UDim2.new(1, -90, 0, 22)
+		title.Font = Enum.Font.GothamBold
+		title.ZIndex = 172
+
+		local close = NAmanage.PluginMaker_Button(card, "Done", function()
+			pm.ServiceOverlay.Visible = false
+			NAmanage.PluginMaker_UpdateServiceButton()
+			NAmanage.PluginMaker_RebuildEditor()
+		end)
+		close.AnchorPoint = Vector2.new(1, 0)
+		close.Position = UDim2.new(1, -8, 0, 7)
+		close.Size = UDim2.new(0, 68, 0, 26)
+		close.BackgroundColor3 = Color3.fromRGB(75, 58, 105)
+		close.ZIndex = 173
+
+		local info = NAmanage.PluginMaker_Label(card, "Pick only what the plugin needs. Catalog + live DataModel services + custom names; ServiceResolver is the only service resolution path.", 10)
+		info.Position = UDim2.new(0, 10, 0, 31)
+		info.Size = UDim2.new(1, -20, 0, 32)
+		info.TextColor3 = Color3.fromRGB(155, 158, 176)
+		info.TextYAlignment = Enum.TextYAlignment.Top
+		info.ZIndex = 172
+
+		pm.ServiceSearch = NAmanage.PluginMaker_Input(card, "Search services...", "", function()
+			NAmanage.PluginMaker_RefreshServicePicker()
+		end)
+		pm.ServiceSearch.Position = UDim2.new(0, 10, 0, 66)
+		pm.ServiceSearch.Size = UDim2.new(1, -20, 0, 30)
+		pm.ServiceSearch.ZIndex = 172
+		pm.ServiceSearch:GetPropertyChangedSignal("Text"):Connect(function()
+			if pm.ServiceOverlay and pm.ServiceOverlay.Visible then
+				NAmanage.PluginMaker_RefreshServicePicker()
+			end
+		end)
+
+		pm.ServiceList = NAmanage.PluginMaker_New("ScrollingFrame", card, {
+			BackgroundColor3 = Color3.fromRGB(12, 13, 17);
+			BackgroundTransparency = 0.06;
+			BorderSizePixel = 0;
+			Position = UDim2.new(0, 10, 0, 102);
+			Size = UDim2.new(1, -20, 1, -194);
+			CanvasSize = UDim2.new();
+			ScrollBarThickness = 4;
+			ScrollingDirection = Enum.ScrollingDirection.Y;
+			ZIndex = 172;
+		})
+		NAmanage.PluginMaker_Corner(pm.ServiceList, 7)
+		NAmanage.PluginMaker_Stroke(pm.ServiceList, 0.8)
+
+		local customRow = NAmanage.PluginMaker_New("Frame", card, {
+			BackgroundTransparency = 1;
+			Position = UDim2.new(0, 10, 1, -86);
+			Size = UDim2.new(1, -20, 0, 30);
+			ZIndex = 172;
+		})
+		pm.CustomServiceBox = NAmanage.PluginMaker_Input(customRow, "Custom service name...", "", nil)
+		pm.CustomServiceBox.Position = UDim2.new(0, 0, 0, 0)
+		pm.CustomServiceBox.Size = UDim2.new(1, -88, 1, 0)
+		local addCustom = NAmanage.PluginMaker_Button(customRow, "Add", function()
+			local name = NAmanage.PluginMaker_Trim(pm.CustomServiceBox and pm.CustomServiceBox.Text or "")
+			if not name:match("^[%a_][%w_]*$") then
+				NAmanage.PluginMaker_SetStatus("Invalid service name", "error")
+				return
+			end
+			pm.customServices = type(pm.customServices) == "table" and pm.customServices or {}
+			local exists = false
+			for _, current in pm.customServices do
+				if tostring(current):lower() == name:lower() then
+					exists = true
+					break
+				end
+			end
+			if not exists then
+				pm.customServices[#pm.customServices + 1] = name
+			end
+			pm.selectedServices[name] = true
+			pm.CustomServiceBox.Text = ""
+			pm.dirty = true
+			NAmanage.PluginMaker_UpdateServiceButton()
+			NAmanage.PluginMaker_RefreshServicePicker()
+		end)
+		addCustom.AnchorPoint = Vector2.new(1, 0)
+		addCustom.Position = UDim2.new(1, 0, 0, 0)
+		addCustom.Size = UDim2.new(0, 82, 1, 0)
+		addCustom.BackgroundColor3 = Color3.fromRGB(57, 74, 102)
+
+		pm.ServiceSelectedLabel = NAmanage.PluginMaker_Label(card, "", 10)
+		pm.ServiceSelectedLabel.Position = UDim2.new(0, 10, 1, -52)
+		pm.ServiceSelectedLabel.Size = UDim2.new(0.28, -5, 0, 26)
+		pm.ServiceSelectedLabel.TextColor3 = Color3.fromRGB(165, 168, 185)
+		pm.ServiceSelectedLabel.ZIndex = 172
+
+		local presetRow = NAmanage.PluginMaker_New("Frame", card, {
+			BackgroundTransparency = 1;
+			Position = UDim2.new(0.28, 5, 1, -52);
+			Size = UDim2.new(0.72, -15, 0, 26);
+			ZIndex = 172;
+		})
+		local grid = NAmanage.PluginMaker_New("UIGridLayout", presetRow, {
+			CellPadding = UDim2.new(0, 5, 0, 0);
+			CellSize = UDim2.new(0.333333, -4, 1, 0);
+			FillDirectionMaxCells = 3;
+			SortOrder = Enum.SortOrder.LayoutOrder;
+		})
+		NAmanage.PluginMaker_Button(presetRow, "Common", function()
+			NAmanage.PluginMaker_SelectServicePreset("common")
+		end)
+		NAmanage.PluginMaker_Button(presetRow, "All", function()
+			NAmanage.PluginMaker_SelectServicePreset("all")
+		end)
+		local clear = NAmanage.PluginMaker_Button(presetRow, "Clear", function()
+			NAmanage.PluginMaker_SelectServicePreset("clear")
+		end)
+		clear.TextColor3 = Color3.fromRGB(255, 165, 170)
+		return true
+	end
+
+	NAmanage.PluginMaker_RefreshServicePicker = function()
+		local pm = NAStuff.PluginMaker
+		local list = pm.ServiceList
+		if not list or not list.Parent then
+			return
+		end
+		NAmanage.PluginMaker_NormalizeServices()
+		NAmanage.PluginMaker_ClearGui(list)
+		local layout = NAmanage.PluginMaker_New("UIListLayout", list, {
+			Padding = UDim.new(0, 4);
+			SortOrder = Enum.SortOrder.LayoutOrder;
+		})
+		local padding = NAmanage.PluginMaker_New("UIPadding", list, {})
+		padding.PaddingTop = UDim.new(0, 5)
+		padding.PaddingBottom = UDim.new(0, 5)
+		padding.PaddingLeft = UDim.new(0, 5)
+		padding.PaddingRight = UDim.new(0, 5)
+
+		local query = tostring(pm.ServiceSearch and pm.ServiceSearch.Text or ""):lower()
+		local visibleCount = 0
+		for _, name in NAmanage.PluginMaker_GetServiceCatalog() do
+			if query == "" or name:lower():find(query, 1, true) then
+				visibleCount += 1
+				local selected = pm.selectedServices[name] == true
+				local button = NAmanage.PluginMaker_Button(list, (selected and "✓  " or "    ")..name, function()
+					local enable = not (pm.selectedServices[name] == true)
+					pm.selectedServices[name] = enable
+					pm.dirty = true
+					if enable then
+						local available = NAmanage.PluginMaker_ProbeService(name)
+						if available then
+							NAmanage.PluginMaker_SetStatus(name.." selected through ServiceResolver", "success")
+						else
+							NAmanage.PluginMaker_SetStatus(name.." selected; ServiceResolver may return nil in this client/context", "warn")
+						end
+					end
+					NAmanage.PluginMaker_UpdateServiceButton()
+					NAmanage.PluginMaker_RefreshServicePicker()
+				end)
+				button.Size = UDim2.new(1, -2, 0, 30)
+				button.TextXAlignment = Enum.TextXAlignment.Left
+				if selected then
+					button.BackgroundColor3 = Color3.fromRGB(75, 58, 105)
+					button.TextColor3 = Color3.fromRGB(255, 255, 255)
+				end
+				local pad = button:FindFirstChildOfClass("UIPadding")
+				if pad then pad.PaddingLeft = UDim.new(0, 9) end
+			end
+		end
+		if visibleCount == 0 then
+			local empty = NAmanage.PluginMaker_Label(list, "No matching services. Use Custom Service below.", 11)
+			empty.Size = UDim2.new(1, -2, 0, 40)
+			empty.TextXAlignment = Enum.TextXAlignment.Center
+			empty.TextColor3 = Color3.fromRGB(145, 148, 165)
+		end
+		if pm.ServiceSelectedLabel then
+			pm.ServiceSelectedLabel.Text = tostring(#NAmanage.PluginMaker_GetSelectedServices()).." selected"
+		end
+		layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+			if list and list.Parent then
+				list.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 10)
+			end
+		end)
+		list.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 10)
+	end
+
+	NAmanage.PluginMaker_OpenServicePicker = function()
+		local pm = NAStuff.PluginMaker
+		if not NAmanage.PluginMaker_EnsureServicePicker() then
+			return
+		end
+		pm.ServiceOverlay.Visible = true
+		NAmanage.PluginMaker_RefreshServicePicker()
+	end
+
+	NAmanage.PluginMaker_SetStatus = function(text, kind)
+		local pm = NAStuff.PluginMaker
+		if pm.Status and pm.Status.Parent then
+			pm.Status.Text = tostring(text or "")
+			if kind == "error" then
+				pm.Status.TextColor3 = Color3.fromRGB(255, 125, 135)
+			elseif kind == "success" then
+				pm.Status.TextColor3 = Color3.fromRGB(135, 230, 160)
+			elseif kind == "warn" then
+				pm.Status.TextColor3 = Color3.fromRGB(245, 205, 125)
+			else
+				pm.Status.TextColor3 = Color3.fromRGB(175, 178, 195)
+			end
+		end
+	end
+
+	NAmanage.PluginMaker_New = function(className, parent, props)
+		local obj = InstanceNew(className)
+		local hasExplicitZ = type(props) == "table" and props.ZIndex ~= nil
+		if type(props) == "table" then
+			for key, value in props do
+				pcall(function()
+					obj[key] = value
+				end)
+			end
+		end
+		if not hasExplicitZ and obj:IsA("GuiObject") and typeof(parent) == "Instance" and parent:IsA("GuiObject") then
+			pcall(function()
+				obj.ZIndex = math.max(1, parent.ZIndex + 1)
+			end)
+		end
+		obj.Parent = parent
+		return obj
+	end
+
+	NAmanage.PluginMaker_SyncZIndex = function(root)
+		if typeof(root) ~= "Instance" then
+			return
+		end
+		local function sync(parent)
+			for _, child in parent:GetChildren() do
+				if child:IsA("GuiObject") then
+					if parent:IsA("GuiObject") and child.ZIndex <= parent.ZIndex then
+						child.ZIndex = parent.ZIndex + 1
+					end
+					sync(child)
+				end
+			end
+		end
+		sync(root)
+	end
+
+	NAmanage.PluginMaker_Corner = function(obj, radius)
+		local corner = NAmanage.PluginMaker_New("UICorner", obj, {})
+		corner.CornerRadius = UDim.new(0, radius or 6)
+		return corner
+	end
+
+	NAmanage.PluginMaker_Stroke = function(obj, transparency)
+		local stroke = NAmanage.PluginMaker_New("UIStroke", obj, {
+			Thickness = 1;
+			Color = NAUISTROKER or Color3.fromRGB(155, 100, 255);
+			Transparency = transparency == nil and 0.55 or transparency;
+			ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
+		})
+		return stroke
+	end
+
+	NAmanage.PluginMaker_Button = function(parent, text, callback)
+		local button = NAmanage.PluginMaker_New("TextButton", parent, {
+			AutoButtonColor = false;
+			BackgroundColor3 = Color3.fromRGB(42, 43, 54);
+			BackgroundTransparency = 0.08;
+			BorderSizePixel = 0;
+			Font = Enum.Font.Gotham;
+			Text = tostring(text or "Button");
+			TextColor3 = Color3.fromRGB(238, 239, 245);
+			TextSize = 12;
+			TextWrapped = true;
+		})
+		NAmanage.PluginMaker_Corner(button, 6)
+		NAmanage.PluginMaker_Stroke(button, 0.72)
+		button.MouseButton1Click:Connect(function()
+			if type(callback) == "function" then
+				pcall(callback)
+			end
+		end)
+		return button
+	end
+
+	NAmanage.PluginMaker_Input = function(parent, placeholder, text, callback)
+		local box = NAmanage.PluginMaker_New("TextBox", parent, {
+			BackgroundColor3 = Color3.fromRGB(29, 30, 39);
+			BackgroundTransparency = 0.08;
+			BorderSizePixel = 0;
+			ClearTextOnFocus = false;
+			Font = Enum.Font.Gotham;
+			PlaceholderText = tostring(placeholder or "");
+			PlaceholderColor3 = Color3.fromRGB(135, 138, 155);
+			Text = tostring(text or "");
+			TextColor3 = Color3.fromRGB(238, 239, 245);
+			TextSize = 12;
+			TextXAlignment = Enum.TextXAlignment.Left;
+		})
+		NAmanage.PluginMaker_Corner(box, 6)
+		NAmanage.PluginMaker_Stroke(box, 0.76)
+		local pad = NAmanage.PluginMaker_New("UIPadding", box, {})
+		pad.PaddingLeft = UDim.new(0, 8)
+		pad.PaddingRight = UDim.new(0, 8)
+		box.FocusLost:Connect(function()
+			if type(callback) == "function" then
+				pcall(callback, box.Text)
+			end
+		end)
+		return box
+	end
+
+	NAmanage.PluginMaker_Label = function(parent, text, size)
+		return NAmanage.PluginMaker_New("TextLabel", parent, {
+			BackgroundTransparency = 1;
+			BorderSizePixel = 0;
+			Font = Enum.Font.Gotham;
+			Text = tostring(text or "");
+			TextColor3 = Color3.fromRGB(205, 207, 220);
+			TextSize = size or 12;
+			TextWrapped = true;
+			TextXAlignment = Enum.TextXAlignment.Left;
+			TextYAlignment = Enum.TextYAlignment.Center;
+		})
+	end
+
+	NAmanage.PluginMaker_ClearGui = function(parent)
+		if not parent then return end
+		for _, child in parent:GetChildren() do
+			child:Destroy()
+		end
+	end
+
+	NAmanage.PluginMaker_ActionName = function(kind)
+		local names = {
+			notify = "Notify";
+			run = "Run NA Command";
+			load_url = "Load URL / loadstring";
+			wait = "Wait";
+			print = "Print";
+			copy = "Copy Text";
+			mobile_run = "Run Command - Mobile Only";
+			pc_run = "Run Command - PC Only";
+			mobile_notify = "Notify - Mobile Only";
+			pc_notify = "Notify - PC Only";
+			add_button = "Add User Button";
+			remove_button = "Remove User Button";
+			stop = "Stop Command";
+			custom = "Custom Lua";
+		}
+		return names[tostring(kind or "")] or tostring(kind or "Action")
+	end
+
+	NAmanage.PluginMaker_ActionTypes = {
+		"notify";
+		"run";
+		"load_url";
+		"wait";
+		"print";
+		"copy";
+		"mobile_run";
+		"pc_run";
+		"mobile_notify";
+		"pc_notify";
+		"add_button";
+		"remove_button";
+		"stop";
+		"custom";
+	}
+
+	NAmanage.PluginMaker_RebuildCommandList = function()
+		local pm = NAStuff.PluginMaker
+		local list = pm.CommandList
+		if not list or not list.Parent then return end
+		NAmanage.PluginMaker_ClearGui(list)
+		local layout = NAmanage.PluginMaker_New("UIListLayout", list, {
+			Padding = UDim.new(0, 5);
+			SortOrder = Enum.SortOrder.LayoutOrder;
+		})
+		local pad = NAmanage.PluginMaker_New("UIPadding", list, {})
+		pad.PaddingTop = UDim.new(0, 6)
+		pad.PaddingBottom = UDim.new(0, 6)
+		pad.PaddingLeft = UDim.new(0, 6)
+		pad.PaddingRight = UDim.new(0, 6)
+		for index, command in pm.commands or {} do
+			local button = NAmanage.PluginMaker_Button(list, tostring(command.name ~= "" and command.name or ("Command "..index)), function()
+				pm.selectedCommand = index
+				NAmanage.PluginMaker_RebuildCommandList()
+				NAmanage.PluginMaker_RebuildEditor()
+			end)
+			button.Size = UDim2.new(1, -2, 0, 34)
+			if index == pm.selectedCommand then
+				button.BackgroundColor3 = Color3.fromRGB(75, 58, 105)
+				button.TextColor3 = Color3.fromRGB(255, 255, 255)
+			end
+		end
+		layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+			if list and list.Parent then
+				list.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 12)
+			end
+		end)
+		list.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 12)
+	end
+
+	NAmanage.PluginMaker_ActionExtraHint = function(kind)
+		if kind == "notify" or kind == "mobile_notify" or kind == "pc_notify" then
+			return "Duration seconds"
+		elseif kind == "add_button" then
+			return "Command to run"
+		elseif kind == "load_url" then
+			return "No extra value needed"
+		elseif kind == "wait" then
+			return "Optional seconds"
+		end
+		return "Extra value"
+	end
+
+	NAmanage.PluginMaker_ActionValueHint = function(kind)
+		if kind == "notify" or kind == "print" or kind == "copy" or kind == "mobile_notify" or kind == "pc_notify" then
+			return "Text; placeholders supported"
+		elseif kind == "run" or kind == "mobile_run" or kind == "pc_run" then
+			return "NA command, e.g. fly 50"
+		elseif kind == "load_url" then
+			return "Raw script URL, e.g. https://raw.githubusercontent.com/..."
+		elseif kind == "wait" then
+			return "Seconds"
+		elseif kind == "add_button" then
+			return "Button label"
+		elseif kind == "remove_button" then
+			return "Button label or id"
+		elseif kind == "custom" then
+			return "Lua/Luau code"
+		elseif kind == "stop" then
+			return "No value needed"
+		end
+		return "Value"
+	end
+
+	NAmanage.PluginMaker_EnsureActionPicker = function()
+		local pm = NAStuff.PluginMaker
+		if pm.ActionPickerOverlay and pm.ActionPickerOverlay.Parent == pm.Frame then
+			return true
+		end
+		if not pm.Frame or not pm.Frame.Parent then
+			return false
+		end
+
+		pm.ActionPickerOverlay = NAmanage.PluginMaker_New("Frame", pm.Frame, {
+			Name = "ActionPickerOverlay";
+			BackgroundTransparency = 1;
+			BorderSizePixel = 0;
+			Size = UDim2.new(1, 0, 1, 0);
+			Visible = false;
+			Active = true;
+			ZIndex = 130;
+		})
+
+		local card = NAmanage.PluginMaker_New("Frame", pm.ActionPickerOverlay, {
+			Name = "ActionPickerCard";
+			AnchorPoint = Vector2.new(0.5, 0.5);
+			Position = UDim2.new(0.5, 0, 0.5, 0);
+			Size = UDim2.new(0.55, 0, 0.72, 0);
+			BackgroundColor3 = Color3.fromRGB(20, 21, 28);
+			BackgroundTransparency = 0.02;
+			BorderSizePixel = 0;
+			ZIndex = 131;
+		})
+		NAmanage.PluginMaker_Corner(card, 9)
+		NAmanage.PluginMaker_Stroke(card, 0.35)
+
+		local sizeConstraint = NAmanage.PluginMaker_New("UISizeConstraint", card, {})
+		sizeConstraint.MinSize = Vector2.new(240, 220)
+		sizeConstraint.MaxSize = Vector2.new(420, 420)
+
+		local title = NAmanage.PluginMaker_Label(card, "Choose Action", 14)
+		title.Position = UDim2.new(0, 12, 0, 8)
+		title.Size = UDim2.new(1, -92, 0, 24)
+		title.Font = Enum.Font.GothamBold
+		title.TextColor3 = Color3.fromRGB(245, 246, 250)
+		title.ZIndex = 132
+
+		local close = NAmanage.PluginMaker_Button(card, "Close", function()
+			pm.ActionPickerOverlay.Visible = false
+		end)
+		close.AnchorPoint = Vector2.new(1, 0)
+		close.Position = UDim2.new(1, -8, 0, 7)
+		close.Size = UDim2.new(0, 66, 0, 26)
+		close.ZIndex = 133
+
+		local hint = NAmanage.PluginMaker_Label(card, "Select what the command should do. The picker closes after selection.", 10)
+		hint.Position = UDim2.new(0, 12, 0, 34)
+		hint.Size = UDim2.new(1, -24, 0, 30)
+		hint.TextColor3 = Color3.fromRGB(160, 163, 180)
+		hint.ZIndex = 132
+
+		local list = NAmanage.PluginMaker_New("ScrollingFrame", card, {
+			Name = "ActionPickerList";
+			BackgroundColor3 = Color3.fromRGB(15, 16, 21);
+			BackgroundTransparency = 0.08;
+			BorderSizePixel = 0;
+			Position = UDim2.new(0, 10, 0, 68);
+			Size = UDim2.new(1, -20, 1, -78);
+			CanvasSize = UDim2.new();
+			ScrollBarThickness = 4;
+			ScrollingDirection = Enum.ScrollingDirection.Y;
+			ZIndex = 132;
+		})
+		NAmanage.PluginMaker_Corner(list, 7)
+		NAmanage.PluginMaker_Stroke(list, 0.78)
+		local layout = NAmanage.PluginMaker_New("UIListLayout", list, {
+			Padding = UDim.new(0, 5);
+			SortOrder = Enum.SortOrder.LayoutOrder;
+		})
+		local padding = NAmanage.PluginMaker_New("UIPadding", list, {})
+		padding.PaddingTop = UDim.new(0, 6)
+		padding.PaddingBottom = UDim.new(0, 6)
+		padding.PaddingLeft = UDim.new(0, 6)
+		padding.PaddingRight = UDim.new(0, 6)
+
+		for _, kind in NAmanage.PluginMaker_ActionTypes do
+			local button = NAmanage.PluginMaker_Button(list, NAmanage.PluginMaker_ActionName(kind), function()
+				pm.actionType = kind
+				pm.ActionPickerOverlay.Visible = false
+				if pm.ActionTypeButton and pm.ActionTypeButton.Parent then
+					pm.ActionTypeButton.Text = NAmanage.PluginMaker_ActionName(kind).."  v"
+				end
+				if pm.ActionValueBox and pm.ActionValueBox.Parent then
+					pm.ActionValueBox.PlaceholderText = NAmanage.PluginMaker_ActionValueHint(kind)
+				end
+				if pm.ActionExtraBox and pm.ActionExtraBox.Parent then
+					pm.ActionExtraBox.PlaceholderText = NAmanage.PluginMaker_ActionExtraHint(kind)
+				end
+			end)
+			button.Size = UDim2.new(1, -2, 0, 34)
+			button.TextXAlignment = Enum.TextXAlignment.Left
+			button.ZIndex = 133
+		end
+
+		layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+			if list and list.Parent then
+				list.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 12)
+			end
+		end)
+		list.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 12)
+		return true
+	end
+
+	NAmanage.PluginMaker_OpenActionMenu = function()
+		local pm = NAStuff.PluginMaker
+		if not NAmanage.PluginMaker_EnsureActionPicker() then
+			return
+		end
+		pm.ActionPickerOverlay.Visible = true
+	end
+
+	NAmanage.PluginMaker_EnsureCodeEditor = function()
+		local pm = NAStuff.PluginMaker
+		if pm.CodeOverlay and pm.CodeOverlay.Parent == pm.Frame then
+			return true
+		end
+		if not pm.Frame or not pm.Frame.Parent then
+			return false
+		end
+
+		pm.CodeOverlay = NAmanage.PluginMaker_New("Frame", pm.Frame, {
+			Name = "CodeEditorOverlay";
+			BackgroundColor3 = Color3.fromRGB(4, 4, 7);
+			BackgroundTransparency = 0.25;
+			BorderSizePixel = 0;
+			Size = UDim2.new(1, 0, 1, 0);
+			Visible = false;
+			Active = true;
+			ZIndex = 140;
+		})
+
+		local card = NAmanage.PluginMaker_New("Frame", pm.CodeOverlay, {
+			Name = "CodeEditorCard";
+			AnchorPoint = Vector2.new(0.5, 0.5);
+			Position = UDim2.new(0.5, 0, 0.5, 0);
+			Size = UDim2.new(1, -30, 1, -30);
+			BackgroundColor3 = Color3.fromRGB(18, 19, 25);
+			BorderSizePixel = 0;
+			ZIndex = 141;
+		})
+		NAmanage.PluginMaker_Corner(card, 9)
+		NAmanage.PluginMaker_Stroke(card, 0.4)
+
+		pm.CodeTitle = NAmanage.PluginMaker_Label(card, "Code Editor", 14)
+		pm.CodeTitle.Position = UDim2.new(0, 10, 0, 7)
+		pm.CodeTitle.Size = UDim2.new(1, -20, 0, 22)
+		pm.CodeTitle.Font = Enum.Font.GothamBold
+		pm.CodeTitle.TextColor3 = Color3.fromRGB(245, 246, 250)
+		pm.CodeTitle.ZIndex = 142
+
+		pm.CodeHint = NAmanage.PluginMaker_Label(card, "", 10)
+		pm.CodeHint.Position = UDim2.new(0, 10, 0, 31)
+		pm.CodeHint.Size = UDim2.new(1, -20, 0, 34)
+		pm.CodeHint.TextColor3 = Color3.fromRGB(155, 158, 176)
+		pm.CodeHint.TextYAlignment = Enum.TextYAlignment.Top
+		pm.CodeHint.ZIndex = 142
+
+		pm.CodeBox = NAmanage.PluginMaker_New("TextBox", card, {
+			Name = "Code";
+			BackgroundColor3 = Color3.fromRGB(11, 12, 16);
+			BackgroundTransparency = 0.02;
+			BorderSizePixel = 0;
+			ClearTextOnFocus = false;
+			Font = Enum.Font.Code;
+			MultiLine = true;
+			Position = UDim2.new(0, 10, 0, 70);
+			Size = UDim2.new(1, -20, 1, -146);
+			Text = "";
+			TextColor3 = Color3.fromRGB(225, 227, 235);
+			TextSize = 12;
+			TextWrapped = false;
+			TextXAlignment = Enum.TextXAlignment.Left;
+			TextYAlignment = Enum.TextYAlignment.Top;
+			ZIndex = 142;
+		})
+		NAmanage.PluginMaker_Corner(pm.CodeBox, 6)
+		NAmanage.PluginMaker_Stroke(pm.CodeBox, 0.75)
+		local codePadding = NAmanage.PluginMaker_New("UIPadding", pm.CodeBox, {})
+		codePadding.PaddingTop = UDim.new(0, 7)
+		codePadding.PaddingBottom = UDim.new(0, 7)
+		codePadding.PaddingLeft = UDim.new(0, 7)
+		codePadding.PaddingRight = UDim.new(0, 7)
+
+		local buttons = NAmanage.PluginMaker_New("Frame", card, {
+			BackgroundTransparency = 1;
+			Position = UDim2.new(0, 10, 1, -68);
+			Size = UDim2.new(1, -20, 0, 58);
+			ZIndex = 142;
+		})
+		local grid = NAmanage.PluginMaker_New("UIGridLayout", buttons, {
+			CellPadding = UDim2.new(0, 5, 0, 4);
+			CellSize = UDim2.new(0.333333, -4, 0, 27);
+			FillDirectionMaxCells = 3;
+			SortOrder = Enum.SortOrder.LayoutOrder;
+		})
+
+		NAmanage.PluginMaker_Button(buttons, "Load URL Example", function()
+			local snippet = 'loadstring(game:HttpGet("https://raw.githubusercontent.com/user/repo/refs/heads/main/script.lua"))()'
+			if pm.CodeBox.Text ~= "" and not pm.CodeBox.Text:match("\n$") then
+				pm.CodeBox.Text ..= "\n"
+			end
+			pm.CodeBox.Text ..= snippet
+		end)
+
+		NAmanage.PluginMaker_Button(buttons, "Service Example", function()
+			local selected = NAmanage.PluginMaker_GetSelectedServices()
+			local name = selected[1] or "CollectionService"
+			local varName = NAmanage.PluginMaker_ServiceVar(name) or "Service"
+			local snippet = 'local '..varName..' = Services['..NAmanage.PluginMaker_Quote(name)..']'
+			if pm.CodeBox.Text ~= "" and not pm.CodeBox.Text:match("\n$") then
+				pm.CodeBox.Text ..= "\n"
+			end
+			pm.CodeBox.Text ..= snippet
+		end)
+
+		NAmanage.PluginMaker_Button(buttons, "Copy", function()
+			if type(setclipboard) == "function" then
+				pcall(setclipboard, pm.CodeBox.Text)
+			end
+		end)
+
+		local save = NAmanage.PluginMaker_Button(buttons, "Save Code", function()
+			local value = tostring(pm.CodeBox.Text or "")
+			if pm.codeEditTarget == "file" then
+				if type(pm.codeEditPath) ~= "string" or type(writefile) ~= "function" then
+					NAmanage.PluginMaker_SetStatus("Existing plugin path or writefile is unavailable", "error")
+					return
+				end
+				local okCompile, compileErr = NAmanage.PluginMaker_CompileCheck(value)
+				if not okCompile then
+					NAmanage.PluginMaker_SetStatus("Compile error: "..tostring(compileErr), "error")
+					return
+				end
+				local okWrite, writeErr = pcall(writefile, pm.codeEditPath, value)
+				if not okWrite then
+					NAmanage.PluginMaker_SetStatus("Failed to update plugin: "..tostring(writeErr), "error")
+					return
+				end
+				NAmanage.PluginMaker_ReloadPlugins()
+				pm.CodeOverlay.Visible = false
+				NAmanage.PluginMaker_SetStatus("Updated "..tostring(pm.codeEditPath), "success")
+				DoNotif("Plugin updated and reloaded", 3)
+				return
+			end
+			if pm.codeEditTarget == "startup" then
+				pm.startupCode = value
+			elseif pm.codeEditTarget == "command" then
+				local command = pm.commands and pm.commands[pm.codeEditCommandIndex or pm.selectedCommand]
+				if command then
+					command.customCode = value
+				end
+			end
+			pm.dirty = true
+			pm.CodeOverlay.Visible = false
+			NAmanage.PluginMaker_RebuildEditor()
+			NAmanage.PluginMaker_SetStatus("Custom code updated", "success")
+		end)
+		save.BackgroundColor3 = Color3.fromRGB(75, 58, 105)
+
+		NAmanage.PluginMaker_Button(buttons, "Cancel", function()
+			pm.CodeOverlay.Visible = false
+		end)
+		return true
+	end
+
+	NAmanage.PluginMaker_OpenCodeEditor = function(target)
+		local pm = NAStuff.PluginMaker
+		if not NAmanage.PluginMaker_EnsureCodeEditor() then
+			return
+		end
+		pm.codeEditTarget = target
+		if target == "startup" then
+			pm.codeEditCommandIndex = nil
+			pm.CodeTitle.Text = "Plugin Startup Code"
+			pm.CodeHint.Text = "Runs when the plugin loads. Available: ServiceResolver, Services, and "..tostring(#NAmanage.PluginMaker_GetSelectedServices()).." selected service local(s)."
+			pm.CodeBox.Text = tostring(pm.startupCode or "")
+		else
+			local command, index = NAmanage.PluginMaker_GetSelectedCommand()
+			pm.codeEditCommandIndex = index
+			pm.CodeTitle.Text = "Command Code - "..tostring(command and command.name or "Command")
+			pm.CodeHint.Text = "Runs inside this command after its visual actions. Available: args, player, ctx, ctx.ServiceResolver, Services, and "..tostring(#NAmanage.PluginMaker_GetSelectedServices()).." selected service local(s)."
+			pm.CodeBox.Text = tostring(command and command.customCode or "")
+		end
+		pm.CodeOverlay.Visible = true
+	end
+
+	NAmanage.PluginMaker_RebuildEditor = function()
+		local pm = NAStuff.PluginMaker
+		local scroll = pm.Editor
+		if not scroll or not scroll.Parent then return end
+		NAmanage.PluginMaker_ClearGui(scroll)
+		local command = NAmanage.PluginMaker_GetSelectedCommand()
+		if not command then return end
+		local layout = NAmanage.PluginMaker_New("UIListLayout", scroll, {
+			Padding = UDim.new(0, 7);
+			SortOrder = Enum.SortOrder.LayoutOrder;
+		})
+		local padding = NAmanage.PluginMaker_New("UIPadding", scroll, {})
+		padding.PaddingTop = UDim.new(0, 8)
+		padding.PaddingBottom = UDim.new(0, 10)
+		padding.PaddingLeft = UDim.new(0, 8)
+		padding.PaddingRight = UDim.new(0, 8)
+
+		local function row(height)
+			return NAmanage.PluginMaker_New("Frame", scroll, {
+				BackgroundTransparency = 1;
+				BorderSizePixel = 0;
+				Size = UDim2.new(1, -2, 0, height or 34);
+			})
+		end
+
+		local function inputRow(labelText, value, placeholder, callback)
+			local holder = row(38)
+			local label = NAmanage.PluginMaker_Label(holder, labelText, 11)
+			label.Position = UDim2.new(0, 0, 0, 0)
+			label.Size = UDim2.new(0.31, -6, 1, 0)
+			local box = NAmanage.PluginMaker_Input(holder, placeholder, value, callback)
+			box.Position = UDim2.new(0.31, 0, 0, 2)
+			box.Size = UDim2.new(0.69, 0, 1, -4)
+			return box
+		end
+
+		inputRow("Command", command.name, "Command name", function(value)
+			command.name = NAmanage.PluginMaker_Trim(value)
+			pm.dirty = true
+			NAmanage.PluginMaker_RebuildCommandList()
+		end)
+		inputRow("Aliases", command.aliases, "alias1, alias2", function(value)
+			command.aliases = value
+			pm.dirty = true
+		end)
+		inputRow("Arguments", command.argsHint, "[player] [text]", function(value)
+			command.argsHint = value
+			pm.dirty = true
+		end)
+		inputRow("Description", command.description, "What this command does", function(value)
+			command.description = value
+			pm.dirty = true
+		end)
+
+		local toggleRow = row(34)
+		local toggleLayout = NAmanage.PluginMaker_New("UIGridLayout", toggleRow, {
+			CellPadding = UDim2.new(0, 5, 0, 0);
+			CellSize = UDim2.new(0.33, -4, 1, 0);
+			FillDirectionMaxCells = 3;
+			SortOrder = Enum.SortOrder.LayoutOrder;
+		})
+		local function toggleButton(text, key)
+			local button
+			local function paint()
+				button.Text = text..": "..(command[key] == true and "ON" or "OFF")
+				button.BackgroundColor3 = command[key] == true and Color3.fromRGB(75, 58, 105) or Color3.fromRGB(42, 43, 54)
+			end
+			button = NAmanage.PluginMaker_Button(toggleRow, "", function()
+				command[key] = not (command[key] == true)
+				pm.dirty = true
+				paint()
+				if key == "userButton" then
+					NAmanage.PluginMaker_RebuildEditor()
+				end
+			end)
+			paint()
+			return button
+		end
+		toggleButton("Requires Args", "requiresArgs")
+		toggleButton("Override Alias", "overrideAliases")
+		toggleButton("User Button", "userButton")
+
+		if command.userButton == true then
+			inputRow("Button Label", command.userButtonLabel, command.name ~= "" and command.name or "Button", function(value)
+				command.userButtonLabel = value
+				pm.dirty = true
+			end)
+			local saveArgsRow = row(32)
+			local saveArgs = NAmanage.PluginMaker_Button(saveArgsRow, "", function()
+				command.saveButtonArgs = not (command.saveButtonArgs ~= false)
+				pm.dirty = true
+				NAmanage.PluginMaker_RebuildEditor()
+			end)
+			saveArgs.Size = UDim2.new(1, 0, 1, 0)
+			saveArgs.Text = "User Button Saves Typed Args: "..(command.saveButtonArgs ~= false and "ON" or "OFF")
+			if command.saveButtonArgs ~= false then saveArgs.BackgroundColor3 = Color3.fromRGB(75, 58, 105) end
+		end
+
+		local hint = row(48)
+		local hintLabel = NAmanage.PluginMaker_Label(hint, "Placeholders: {1}, {2}, {args}, {user}, {display}, {placeid}, {jobid}", 11)
+		hintLabel.Size = UDim2.new(1, 0, 1, 0)
+		hintLabel.TextColor3 = Color3.fromRGB(165, 168, 185)
+
+		local codeRow = row(34)
+		local codeGrid = NAmanage.PluginMaker_New("UIGridLayout", codeRow, {
+			CellPadding = UDim2.new(0, 6, 0, 0);
+			CellSize = UDim2.new(0.5, -3, 1, 0);
+			FillDirectionMaxCells = 2;
+			SortOrder = Enum.SortOrder.LayoutOrder;
+		})
+		local startupCodeButton = NAmanage.PluginMaker_Button(codeRow, "Plugin Startup Code"..(NAmanage.PluginMaker_Trim(pm.startupCode) ~= "" and "  *" or ""), function()
+			NAmanage.PluginMaker_OpenCodeEditor("startup")
+		end)
+		local commandCodeButton = NAmanage.PluginMaker_Button(codeRow, "Command Code"..(NAmanage.PluginMaker_Trim(command.customCode) ~= "" and "  *" or ""), function()
+			NAmanage.PluginMaker_OpenCodeEditor("command")
+		end)
+		if NAmanage.PluginMaker_Trim(pm.startupCode) ~= "" then
+			startupCodeButton.BackgroundColor3 = Color3.fromRGB(57, 74, 102)
+		end
+		if NAmanage.PluginMaker_Trim(command.customCode) ~= "" then
+			commandCodeButton.BackgroundColor3 = Color3.fromRGB(75, 58, 105)
+		end
+
+		local actionHeader = row(24)
+		local actionTitle = NAmanage.PluginMaker_Label(actionHeader, "Actions", 13)
+		actionTitle.Size = UDim2.new(1, 0, 1, 0)
+		actionTitle.Font = Enum.Font.GothamBold
+
+		for index, action in command.actions or {} do
+			local actionRow = row(58)
+			actionRow.BackgroundColor3 = Color3.fromRGB(34, 35, 44)
+			actionRow.BackgroundTransparency = 0.12
+			NAmanage.PluginMaker_Corner(actionRow, 6)
+			NAmanage.PluginMaker_Stroke(actionRow, 0.82)
+			local title = NAmanage.PluginMaker_Label(actionRow, tostring(index)..". "..NAmanage.PluginMaker_ActionName(action.type), 11)
+			title.Position = UDim2.new(0, 8, 0, 4)
+			title.Size = UDim2.new(1, -104, 0, 18)
+			title.Font = Enum.Font.GothamBold
+			local summary = NAmanage.PluginMaker_Label(actionRow, tostring(action.value or "")..((action.extra and action.extra ~= "") and ("  |  "..tostring(action.extra)) or ""), 10)
+			summary.Position = UDim2.new(0, 8, 0, 24)
+			summary.Size = UDim2.new(1, -104, 0, 26)
+			summary.TextColor3 = Color3.fromRGB(170, 173, 190)
+			summary.TextTruncate = Enum.TextTruncate.AtEnd
+			local up = NAmanage.PluginMaker_Button(actionRow, "^", function()
+				if index > 1 then
+					command.actions[index], command.actions[index - 1] = command.actions[index - 1], command.actions[index]
+					pm.dirty = true
+					NAmanage.PluginMaker_RebuildEditor()
+				end
+			end)
+			up.Position = UDim2.new(1, -92, 0, 14)
+			up.Size = UDim2.new(0, 26, 0, 28)
+			local down = NAmanage.PluginMaker_Button(actionRow, "v", function()
+				if index < #command.actions then
+					command.actions[index], command.actions[index + 1] = command.actions[index + 1], command.actions[index]
+					pm.dirty = true
+					NAmanage.PluginMaker_RebuildEditor()
+				end
+			end)
+			down.Position = UDim2.new(1, -62, 0, 14)
+			down.Size = UDim2.new(0, 26, 0, 28)
+			local remove = NAmanage.PluginMaker_Button(actionRow, "x", function()
+				table.remove(command.actions, index)
+				pm.dirty = true
+				NAmanage.PluginMaker_RebuildEditor()
+			end)
+			remove.Position = UDim2.new(1, -32, 0, 14)
+			remove.Size = UDim2.new(0, 26, 0, 28)
+			remove.TextColor3 = Color3.fromRGB(255, 160, 168)
+		end
+
+		local addAction = row(112)
+		addAction.BackgroundColor3 = Color3.fromRGB(31, 32, 40)
+		addAction.BackgroundTransparency = 0.08
+		NAmanage.PluginMaker_Corner(addAction, 7)
+		NAmanage.PluginMaker_Stroke(addAction, 0.78)
+
+		pm.ActionTypeButton = NAmanage.PluginMaker_Button(addAction, NAmanage.PluginMaker_ActionName(pm.actionType).."  v", function()
+			NAmanage.PluginMaker_OpenActionMenu()
+		end)
+		pm.ActionTypeButton.Position = UDim2.new(0, 6, 0, 6)
+		pm.ActionTypeButton.Size = UDim2.new(0.38, -9, 0, 30)
+
+		pm.ActionValueBox = NAmanage.PluginMaker_Input(addAction, NAmanage.PluginMaker_ActionValueHint(pm.actionType), pm.actionValue or "", function(value)
+			pm.actionValue = value
+		end)
+		pm.ActionValueBox.Position = UDim2.new(0.38, 3, 0, 6)
+		pm.ActionValueBox.Size = UDim2.new(0.62, -9, 0, 30)
+
+		pm.ActionExtraBox = NAmanage.PluginMaker_Input(addAction, NAmanage.PluginMaker_ActionExtraHint(pm.actionType), pm.actionExtra or "", function(value)
+			pm.actionExtra = value
+		end)
+		pm.ActionExtraBox.Position = UDim2.new(0, 6, 0, 42)
+		pm.ActionExtraBox.Size = UDim2.new(0.62, -9, 0, 30)
+
+		local addButton = NAmanage.PluginMaker_Button(addAction, "Add Action", function()
+			if pm.ActionValueBox then pm.actionValue = pm.ActionValueBox.Text end
+			if pm.ActionExtraBox then pm.actionExtra = pm.ActionExtraBox.Text end
+			command.actions = command.actions or {}
+			command.actions[#command.actions + 1] = {
+				type = pm.actionType or "notify";
+				value = pm.actionValue or "";
+				extra = pm.actionExtra or "";
+			}
+			pm.actionValue = ""
+			if pm.actionType ~= "notify" and pm.actionType ~= "mobile_notify" and pm.actionType ~= "pc_notify" then
+				pm.actionExtra = ""
+			end
+			pm.dirty = true
+			NAmanage.PluginMaker_RebuildEditor()
+		end)
+		addButton.Position = UDim2.new(0.62, 3, 0, 42)
+		addButton.Size = UDim2.new(0.38, -9, 0, 30)
+		addButton.BackgroundColor3 = Color3.fromRGB(75, 58, 105)
+
+		layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+			if scroll and scroll.Parent then
+				scroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 18)
+			end
+		end)
+		scroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 18)
+	end
+
+	NAmanage.PluginMaker_OpenPreview = function()
+		local pm = NAStuff.PluginMaker
+		local source, err = NAmanage.PluginMaker_Generate()
+		if not source then
+			NAmanage.PluginMaker_SetStatus(err, "error")
+			return
+		end
+		local okCompile, compileErr = NAmanage.PluginMaker_CompileCheck(source)
+		if not okCompile then
+			NAmanage.PluginMaker_SetStatus("Compile error: "..tostring(compileErr), "error")
+			return
+		end
+		if not pm.PreviewOverlay or not pm.PreviewOverlay.Parent then return end
+		pm.PreviewBox.Text = source
+		pm.PreviewOverlay.Visible = true
+		NAmanage.PluginMaker_SetStatus("Generated "..tostring(pm.format == "iy" and ".iy" or ".na").." source successfully", "success")
+	end
+
+	NAmanage.PluginMaker_ApplyLayout = function()
+		local pm = NAStuff.PluginMaker
+		local frame = pm.Frame
+		if not frame or not frame.Parent then return end
+		local size = frame.AbsoluteSize
+		local width = math.max(1, tonumber(size.X) or 1)
+		local compactTop = width < 520
+		if pm.FormatButton then
+			pm.FormatButton.Size = UDim2.new(0, compactTop and 42 or 54, 0, 28)
+			pm.FormatButton.Position = UDim2.new(1, compactTop and -154 or -200, 0.5, 0)
+		end
+		if pm.EditExistingButton then
+			pm.EditExistingButton.Text = compactTop and "E" or "Edit"
+			pm.EditExistingButton.Size = UDim2.new(0, compactTop and 30 or 48, 0, 28)
+			pm.EditExistingButton.Position = UDim2.new(1, compactTop and -106 or -146, 0.5, 0)
+		end
+		if pm.ManageButton then
+			pm.ManageButton.Text = compactTop and "P" or "Plugins"
+			pm.ManageButton.Size = UDim2.new(0, compactTop and 30 or 58, 0, 28)
+			pm.ManageButton.Position = UDim2.new(1, compactTop and -70 or -82, 0.5, 0)
+		end
+		if pm.Topbar then
+			local title = pm.Topbar:FindFirstChildWhichIsA("TextLabel")
+			if title then
+				title.Size = UDim2.new(1, compactTop and -170 or -250, 0, 20)
+			end
+		end
+		if pm.CommandPanel then
+			local leftWidth
+			if width < 500 then
+				leftWidth = math.clamp(math.floor(width * 0.28), 104, 132)
+			else
+				leftWidth = math.clamp(math.floor(width * 0.25), 132, 210)
+			end
+			pm.CommandPanel.Size = UDim2.new(0, leftWidth, 1, 0)
+			if pm.EditorPanel then
+				pm.EditorPanel.Position = UDim2.new(0, leftWidth + 8, 0, 0)
+				pm.EditorPanel.Size = UDim2.new(1, -(leftWidth + 8), 1, 0)
+			end
+		end
+	end
+
+	NAmanage.PluginMaker_Resize = function(initial)
+		local pm = NAStuff.PluginMaker
+		local frame = pm.Frame
+		if not frame or not frame.Parent then return end
+		if initial == true then
+			local camera = Workspace and Workspace.CurrentCamera
+			local vp = camera and camera.ViewportSize or Vector2.new(900, 600)
+			local width = math.max(300, math.min(900, vp.X - 18))
+			local height = math.max(280, math.min(620, vp.Y - 28))
+			if NAmanage.ExecutorWindowSizing and type(NAmanage.ExecutorWindowSizing.GetSize) == "function" then
+				local okMetrics, metrics = pcall(NAmanage.ExecutorWindowSizing.GetSize, 900, 620, {
+					minWidth = 520;
+					minHeight = 360;
+					mobileMinWidth = 300;
+					mobileMinHeight = 260;
+				})
+				if okMetrics and type(metrics) == "table" then
+					width = math.min(tonumber(metrics.width) or width, math.max(300, vp.X - 18))
+					height = math.min(tonumber(metrics.height) or height, math.max(280, vp.Y - 28))
+				end
+			end
+			frame.Size = UDim2.fromOffset(width, height)
+		end
+		NAmanage.PluginMaker_ApplyLayout()
+		if initial == true and type(NAmanage.centerFrame) == "function" then
+			pcall(NAmanage.centerFrame, frame)
+		end
+	end
+
+	NAmanage.PluginMaker_BindResize = function()
+		local pm = NAStuff.PluginMaker
+		local frame = pm.Frame
+		if not frame or not frame.Parent then
+			return
+		end
+		if pm.ResizeCleanup then
+			pcall(pm.ResizeCleanup)
+			pm.ResizeCleanup = nil
+		end
+		if NAgui and type(NAgui.resizeable) == "function" then
+			local minSize = IsOnMobile and Vector2.new(300, 260) or Vector2.new(520, 360)
+			pm.ResizeCleanup = NAgui.resizeable(frame, minSize, Vector2.new(5000, 5000))
+		end
+		if pm.LayoutConnection then
+			pcall(function() pm.LayoutConnection:Disconnect() end)
+			pm.LayoutConnection = nil
+		end
+		pm.LayoutConnection = frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+			NAmanage.PluginMaker_ApplyLayout()
+		end)
+	end
+
+	NAmanage.PluginMaker_BindDrag = function()
+		local pm = NAStuff.PluginMaker
+		local frame = pm.Frame
+		local topbar = pm.Topbar
+		if not frame or not topbar or not UserInputService then return end
+		pm.dragging = false
+		topbar.InputBegan:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+				pm.dragging = true
+				pm.dragStart = input.Position
+				pm.dragPos = frame.Position
+				input.Changed:Connect(function()
+					if input.UserInputState == Enum.UserInputState.End then
+						pm.dragging = false
+					end
+				end)
+			end
+		end)
+		UserInputService.InputChanged:Connect(function(input)
+			if not pm.dragging or not pm.dragStart or not pm.dragPos then return end
+			if input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Touch then return end
+			local delta = input.Position - pm.dragStart
+			frame.Position = UDim2.new(pm.dragPos.X.Scale, pm.dragPos.X.Offset + delta.X, pm.dragPos.Y.Scale, pm.dragPos.Y.Offset + delta.Y)
+		end)
+	end
+
+	NAmanage.PluginMaker_BuildUI = function()
+		local pm = NAStuff.PluginMaker
+		local root = NAmanage.getUI and NAmanage.getUI() or (NAStuff and NAStuff.NASCREENGUI)
+		if not root then
+			return false, "NA UI root unavailable"
+		end
+		if pm.Frame and pm.Frame.Parent then
+			pm.Frame:Destroy()
+		end
+
+		pm.Frame = NAmanage.PluginMaker_New("Frame", root, {
+			Name = "PluginMaker";
+			AnchorPoint = Vector2.new(0, 0);
+			Position = UDim2.fromOffset(0, 0);
+			BackgroundColor3 = Color3.fromRGB(15, 16, 21);
+			BackgroundTransparency = 0.04;
+			BorderSizePixel = 0;
+			ClipsDescendants = true;
+			Visible = true;
+			ZIndex = 70;
+		})
+		NAmanage.PluginMaker_Corner(pm.Frame, 10)
+		NAmanage.PluginMaker_Stroke(pm.Frame, 0.38)
+
+		pm.Topbar = NAmanage.PluginMaker_New("Frame", pm.Frame, {
+			BackgroundColor3 = Color3.fromRGB(21, 22, 29);
+			BackgroundTransparency = 0.06;
+			BorderSizePixel = 0;
+			Position = UDim2.new(0, 0, 0, 0);
+			Size = UDim2.new(1, 0, 0, 44);
+			ZIndex = 72;
+		})
+		local title = NAmanage.PluginMaker_Label(pm.Topbar, "Plugin Maker", 16)
+		title.Position = UDim2.new(0, 12, 0, 4)
+		title.Size = UDim2.new(1, -250, 0, 20)
+		title.Font = Enum.Font.GothamBold
+		title.TextColor3 = Color3.fromRGB(245, 246, 250)
+		title.ZIndex = 73
+		local subtitle = NAmanage.PluginMaker_Label(pm.Topbar, "Build .na / .iy plugins without writing code", 10)
+		subtitle.Position = UDim2.new(0, 12, 0, 23)
+		subtitle.Size = UDim2.new(1, -250, 0, 15)
+		subtitle.TextColor3 = Color3.fromRGB(160, 163, 180)
+		subtitle.ZIndex = 73
+
+		local close = NAmanage.PluginMaker_Button(pm.Topbar, "X", function()
+			pm.Frame.Visible = false
+		end)
+		close.AnchorPoint = Vector2.new(1, 0.5)
+		close.Position = UDim2.new(1, -10, 0.5, 0)
+		close.Size = UDim2.new(0, 30, 0, 28)
+		close.TextColor3 = Color3.fromRGB(255, 170, 176)
+		close.ZIndex = 74
+
+		pm.MinimizeButton = NAmanage.PluginMaker_Button(pm.Topbar, "-", function()
+			NAmanage.PluginMaker_ToggleMinimize()
+		end)
+		pm.MinimizeButton.AnchorPoint = Vector2.new(1, 0.5)
+		pm.MinimizeButton.Position = UDim2.new(1, -46, 0.5, 0)
+		pm.MinimizeButton.Size = UDim2.new(0, 30, 0, 28)
+		pm.MinimizeButton.ZIndex = 74
+
+		pm.ManageButton = NAmanage.PluginMaker_Button(pm.Topbar, "Plugins", function()
+			NAmanage.PluginMaker_OpenInstalledManager()
+		end)
+		pm.ManageButton.AnchorPoint = Vector2.new(1, 0.5)
+		pm.ManageButton.Position = UDim2.new(1, -82, 0.5, 0)
+		pm.ManageButton.Size = UDim2.new(0, 58, 0, 28)
+		pm.ManageButton.ZIndex = 74
+
+		pm.EditExistingButton = NAmanage.PluginMaker_Button(pm.Topbar, "Edit", function()
+			NAmanage.PluginMaker_OpenFilePicker()
+		end)
+		pm.EditExistingButton.AnchorPoint = Vector2.new(1, 0.5)
+		pm.EditExistingButton.Position = UDim2.new(1, -146, 0.5, 0)
+		pm.EditExistingButton.Size = UDim2.new(0, 48, 0, 28)
+		pm.EditExistingButton.BackgroundColor3 = Color3.fromRGB(57, 74, 102)
+		pm.EditExistingButton.ZIndex = 74
+
+		pm.FormatButton = NAmanage.PluginMaker_Button(pm.Topbar, ".NA", function()
+			pm.format = pm.format == "na" and "iy" or "na"
+			pm.FormatButton.Text = pm.format == "iy" and ".IY" or ".NA"
+			pm.FormatButton.BackgroundColor3 = pm.format == "iy" and Color3.fromRGB(57, 74, 102) or Color3.fromRGB(75, 58, 105)
+			pm.dirty = true
+			NAmanage.PluginMaker_RebuildEditor()
+			NAmanage.PluginMaker_SetStatus("Output format: "..(pm.format == "iy" and "Infinite Yield .iy" or "Native NA .na"), "warn")
+		end)
+		pm.FormatButton.AnchorPoint = Vector2.new(1, 0.5)
+		pm.FormatButton.Position = UDim2.new(1, -200, 0.5, 0)
+		pm.FormatButton.Size = UDim2.new(0, 54, 0, 28)
+		pm.FormatButton.BackgroundColor3 = Color3.fromRGB(75, 58, 105)
+		pm.FormatButton.ZIndex = 74
+
+		pm.Meta = NAmanage.PluginMaker_New("Frame", pm.Frame, {
+			BackgroundTransparency = 1;
+			BorderSizePixel = 0;
+			Position = UDim2.new(0, 10, 0, 52);
+			Size = UDim2.new(1, -20, 0, 82);
+			ZIndex = 71;
+		})
+
+		local pluginNameLabel = NAmanage.PluginMaker_Label(pm.Meta, "Plugin Name", 10)
+		pluginNameLabel.Position = UDim2.new(0, 0, 0, 0)
+		pluginNameLabel.Size = UDim2.new(0.5, -5, 0, 16)
+		local fileNameLabel = NAmanage.PluginMaker_Label(pm.Meta, "File Name", 10)
+		fileNameLabel.Position = UDim2.new(0.5, 5, 0, 0)
+		fileNameLabel.Size = UDim2.new(0.5, -5, 0, 16)
+		pm.PluginNameBox = NAmanage.PluginMaker_Input(pm.Meta, "My Plugin", pm.pluginName, function(value)
+			pm.pluginName = NAmanage.PluginMaker_Trim(value)
+			if pm.fileName == "" or pm.fileName == "MyPlugin" then
+				pm.fileName = NAmanage.PluginMaker_SafeFileName(pm.pluginName)
+				if pm.FileNameBox then pm.FileNameBox.Text = pm.fileName end
+			end
+			pm.dirty = true
+		end)
+		pm.PluginNameBox.Position = UDim2.new(0, 0, 0, 18)
+		pm.PluginNameBox.Size = UDim2.new(0.5, -5, 0, 28)
+		pm.FileNameBox = NAmanage.PluginMaker_Input(pm.Meta, "MyPlugin", pm.fileName, function(value)
+			pm.fileName = NAmanage.PluginMaker_SafeFileName(value)
+			pm.dirty = true
+		end)
+		pm.FileNameBox.Position = UDim2.new(0.5, 5, 0, 18)
+		pm.FileNameBox.Size = UDim2.new(0.5, -5, 0, 28)
+		pm.DescriptionBox = NAmanage.PluginMaker_Input(pm.Meta, "Plugin description", pm.description, function(value)
+			pm.description = value
+			pm.dirty = true
+		end)
+		pm.DescriptionBox.Position = UDim2.new(0, 0, 0, 52)
+		pm.DescriptionBox.Size = UDim2.new(0.68, -5, 0, 28)
+		pm.ServicesButton = NAmanage.PluginMaker_Button(pm.Meta, "Services (0)", function()
+			NAmanage.PluginMaker_OpenServicePicker()
+		end)
+		pm.ServicesButton.Position = UDim2.new(0.68, 5, 0, 52)
+		pm.ServicesButton.Size = UDim2.new(0.32, -5, 0, 28)
+		pm.ServicesButton.BackgroundColor3 = Color3.fromRGB(42, 43, 54)
+
+		pm.Workspace = NAmanage.PluginMaker_New("Frame", pm.Frame, {
+			BackgroundTransparency = 1;
+			BorderSizePixel = 0;
+			Position = UDim2.new(0, 10, 0, 142);
+			Size = UDim2.new(1, -20, 1, -202);
+			ZIndex = 71;
+		})
+
+		pm.CommandPanel = NAmanage.PluginMaker_New("Frame", pm.Workspace, {
+			BackgroundColor3 = Color3.fromRGB(24, 25, 32);
+			BackgroundTransparency = 0.08;
+			BorderSizePixel = 0;
+			Position = UDim2.new(0, 0, 0, 0);
+			Size = UDim2.new(0, 190, 1, 0);
+			ZIndex = 72;
+		})
+		NAmanage.PluginMaker_Corner(pm.CommandPanel, 7)
+		NAmanage.PluginMaker_Stroke(pm.CommandPanel, 0.76)
+		local commandsTitle = NAmanage.PluginMaker_Label(pm.CommandPanel, "Commands", 12)
+		commandsTitle.Position = UDim2.new(0, 8, 0, 4)
+		commandsTitle.Size = UDim2.new(1, -16, 0, 22)
+		commandsTitle.Font = Enum.Font.GothamBold
+		pm.CommandList = NAmanage.PluginMaker_New("ScrollingFrame", pm.CommandPanel, {
+			BackgroundTransparency = 1;
+			BorderSizePixel = 0;
+			Position = UDim2.new(0, 4, 0, 30);
+			Size = UDim2.new(1, -8, 1, -72);
+			CanvasSize = UDim2.new();
+			ScrollBarThickness = 3;
+			ZIndex = 73;
+		})
+		local commandButtons = NAmanage.PluginMaker_New("Frame", pm.CommandPanel, {
+			BackgroundTransparency = 1;
+			Position = UDim2.new(0, 6, 1, -38);
+			Size = UDim2.new(1, -12, 0, 32);
+			ZIndex = 74;
+		})
+		local commandGrid = NAmanage.PluginMaker_New("UIGridLayout", commandButtons, {
+			CellPadding = UDim2.new(0, 4, 0, 0);
+			CellSize = UDim2.new(0.333, -3, 1, 0);
+			FillDirectionMaxCells = 3;
+			SortOrder = Enum.SortOrder.LayoutOrder;
+		})
+		local addCommand = NAmanage.PluginMaker_Button(commandButtons, "+", function()
+			pm.commands[#pm.commands + 1] = NAmanage.PluginMaker_DefaultCommand(#pm.commands + 1)
+			pm.selectedCommand = #pm.commands
+			pm.dirty = true
+			NAmanage.PluginMaker_RebuildCommandList()
+			NAmanage.PluginMaker_RebuildEditor()
+		end)
+		local duplicateCommand = NAmanage.PluginMaker_Button(commandButtons, "Copy", function()
+			local command = NAmanage.PluginMaker_GetSelectedCommand()
+			if not command then return end
+			local copy = {}
+			for key, value in command do
+				if key == "actions" then
+					copy.actions = {}
+					for _, action in value or {} do
+						copy.actions[#copy.actions + 1] = { type = action.type; value = action.value; extra = action.extra }
+					end
+				else
+					copy[key] = value
+				end
+			end
+			copy.name = tostring(copy.name or "command").."_copy"
+			pm.commands[#pm.commands + 1] = copy
+			pm.selectedCommand = #pm.commands
+			pm.dirty = true
+			NAmanage.PluginMaker_RebuildCommandList()
+			NAmanage.PluginMaker_RebuildEditor()
+		end)
+		local deleteCommand = NAmanage.PluginMaker_Button(commandButtons, "Del", function()
+			if #pm.commands <= 1 then
+				NAmanage.PluginMaker_SetStatus("A plugin needs at least one command", "warn")
+				return
+			end
+			table.remove(pm.commands, pm.selectedCommand)
+			pm.selectedCommand = math.clamp(pm.selectedCommand, 1, #pm.commands)
+			pm.dirty = true
+			NAmanage.PluginMaker_RebuildCommandList()
+			NAmanage.PluginMaker_RebuildEditor()
+		end)
+		deleteCommand.TextColor3 = Color3.fromRGB(255, 160, 168)
+
+		pm.EditorPanel = NAmanage.PluginMaker_New("Frame", pm.Workspace, {
+			BackgroundColor3 = Color3.fromRGB(24, 25, 32);
+			BackgroundTransparency = 0.08;
+			BorderSizePixel = 0;
+			Position = UDim2.new(0, 198, 0, 0);
+			Size = UDim2.new(1, -198, 1, 0);
+			ZIndex = 72;
+		})
+		NAmanage.PluginMaker_Corner(pm.EditorPanel, 7)
+		NAmanage.PluginMaker_Stroke(pm.EditorPanel, 0.76)
+		pm.Editor = NAmanage.PluginMaker_New("ScrollingFrame", pm.EditorPanel, {
+			BackgroundTransparency = 1;
+			BorderSizePixel = 0;
+			Position = UDim2.new(0, 4, 0, 4);
+			Size = UDim2.new(1, -8, 1, -8);
+			CanvasSize = UDim2.new();
+			ScrollBarThickness = 4;
+			ZIndex = 73;
+		})
+
+		pm.Footer = NAmanage.PluginMaker_New("Frame", pm.Frame, {
+			BackgroundTransparency = 1;
+			BorderSizePixel = 0;
+			Position = UDim2.new(0, 10, 1, -52);
+			Size = UDim2.new(1, -20, 0, 42);
+			ZIndex = 72;
+		})
+		pm.Status = NAmanage.PluginMaker_Label(pm.Footer, "Ready", 10)
+		pm.Status.Position = UDim2.new(0, 0, 0, 0)
+		pm.Status.Size = UDim2.new(1, 0, 0, 12)
+		local footerButtons = NAmanage.PluginMaker_New("Frame", pm.Footer, {
+			BackgroundTransparency = 1;
+			Position = UDim2.new(0, 0, 0, 14);
+			Size = UDim2.new(1, 0, 0, 28);
+			ZIndex = 73;
+		})
+		local footerGrid = NAmanage.PluginMaker_New("UIGridLayout", footerButtons, {
+			CellPadding = UDim2.new(0, 5, 0, 0);
+			CellSize = UDim2.new(0.2, -4, 1, 0);
+			FillDirectionMaxCells = 5;
+			SortOrder = Enum.SortOrder.LayoutOrder;
+		})
+		NAmanage.PluginMaker_Button(footerButtons, "Preview", function()
+			NAmanage.PluginMaker_OpenPreview()
+		end)
+		NAmanage.PluginMaker_Button(footerButtons, "Copy Source", function()
+			local source, err = NAmanage.PluginMaker_Generate()
+			if not source then
+				NAmanage.PluginMaker_SetStatus(err, "error")
+				return
+			end
+			local okCompile, compileErr = NAmanage.PluginMaker_CompileCheck(source)
+			if not okCompile then
+				NAmanage.PluginMaker_SetStatus("Compile error: "..tostring(compileErr), "error")
+				return
+			end
+			if type(setclipboard) ~= "function" then
+				NAmanage.PluginMaker_SetStatus("Clipboard unavailable", "error")
+				return
+			end
+			local ok = pcall(setclipboard, source)
+			NAmanage.PluginMaker_SetStatus(ok and "Plugin source copied" or "Copy failed", ok and "success" or "error")
+		end)
+		NAmanage.PluginMaker_Button(footerButtons, "Save File", function()
+			local ok, path = NAmanage.PluginMaker_Save(false)
+			if ok == true then
+				NAmanage.PluginMaker_SetStatus("Saved "..tostring(path), "success")
+				DoNotif("Plugin Maker saved "..tostring(path), 3)
+			elseif ok == false then
+				NAmanage.PluginMaker_SetStatus(tostring(path), "error")
+			end
+		end)
+		local installButton = NAmanage.PluginMaker_Button(footerButtons, "Save + Install", function()
+			local ok, path = NAmanage.PluginMaker_Save(true)
+			if ok == true then
+				NAmanage.PluginMaker_SetStatus("Installed "..tostring(path), "success")
+				DoNotif("Plugin Maker installed "..tostring(path), 3)
+			elseif ok == false then
+				NAmanage.PluginMaker_SetStatus(tostring(path), "error")
+			end
+		end)
+		installButton.BackgroundColor3 = Color3.fromRGB(75, 58, 105)
+		NAmanage.PluginMaker_Button(footerButtons, "Reset", function()
+			NAmanage.PluginMaker_ResetState()
+			pm = NAStuff.PluginMaker
+			if pm.Frame and pm.Frame.Parent then pm.Frame:Destroy() end
+			NAmanage.PluginMaker_BuildUI()
+		end)
+
+		pm.PreviewOverlay = NAmanage.PluginMaker_New("Frame", pm.Frame, {
+			BackgroundColor3 = Color3.fromRGB(5, 5, 8);
+			BackgroundTransparency = 0.16;
+			BorderSizePixel = 0;
+			Size = UDim2.new(1, 0, 1, 0);
+			Visible = false;
+			ZIndex = 100;
+		})
+		local previewCard = NAmanage.PluginMaker_New("Frame", pm.PreviewOverlay, {
+			AnchorPoint = Vector2.new(0.5, 0.5);
+			Position = UDim2.new(0.5, 0, 0.5, 0);
+			Size = UDim2.new(1, -30, 1, -30);
+			BackgroundColor3 = Color3.fromRGB(18, 19, 25);
+			BorderSizePixel = 0;
+			ZIndex = 101;
+		})
+		NAmanage.PluginMaker_Corner(previewCard, 8)
+		NAmanage.PluginMaker_Stroke(previewCard, 0.45)
+		local previewTitle = NAmanage.PluginMaker_Label(previewCard, "Generated Plugin Source", 14)
+		previewTitle.Position = UDim2.new(0, 10, 0, 6)
+		previewTitle.Size = UDim2.new(1, -92, 0, 26)
+		previewTitle.Font = Enum.Font.GothamBold
+		previewTitle.ZIndex = 102
+		local previewClose = NAmanage.PluginMaker_Button(previewCard, "Close", function()
+			pm.PreviewOverlay.Visible = false
+		end)
+		previewClose.AnchorPoint = Vector2.new(1, 0)
+		previewClose.Position = UDim2.new(1, -8, 0, 6)
+		previewClose.Size = UDim2.new(0, 68, 0, 26)
+		previewClose.ZIndex = 103
+		pm.PreviewBox = NAmanage.PluginMaker_New("TextBox", previewCard, {
+			BackgroundColor3 = Color3.fromRGB(12, 13, 17);
+			BackgroundTransparency = 0.04;
+			BorderSizePixel = 0;
+			ClearTextOnFocus = false;
+			Font = Enum.Font.Code;
+			MultiLine = true;
+			Position = UDim2.new(0, 8, 0, 38);
+			Size = UDim2.new(1, -16, 1, -76);
+			Text = "";
+			TextColor3 = Color3.fromRGB(225, 227, 235);
+			TextSize = 12;
+			TextWrapped = false;
+			TextXAlignment = Enum.TextXAlignment.Left;
+			TextYAlignment = Enum.TextYAlignment.Top;
+			ZIndex = 102;
+		})
+		NAmanage.PluginMaker_Corner(pm.PreviewBox, 6)
+		NAmanage.PluginMaker_Stroke(pm.PreviewBox, 0.78)
+		local previewCopy = NAmanage.PluginMaker_Button(previewCard, "Copy Source", function()
+			if type(setclipboard) == "function" then
+				local ok = pcall(setclipboard, pm.PreviewBox.Text)
+				NAmanage.PluginMaker_SetStatus(ok and "Plugin source copied" or "Copy failed", ok and "success" or "error")
+			end
+		end)
+		previewCopy.Position = UDim2.new(0, 8, 1, -32)
+		previewCopy.Size = UDim2.new(0, 110, 0, 26)
+		previewCopy.ZIndex = 103
+
+		NAmanage.PluginMaker_Resize(true)
+		NAmanage.PluginMaker_RebuildCommandList()
+		NAmanage.PluginMaker_RebuildEditor()
+		NAmanage.PluginMaker_UpdateServiceButton()
+		NAmanage.PluginMaker_SyncZIndex(pm.Frame)
+		NAmanage.PluginMaker_BindResize()
+		NAmanage.PluginMaker_BindDrag()
+
+		if Workspace and Workspace.CurrentCamera then
+			Workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+				if pm.Frame and pm.Frame.Parent then
+					NAmanage.PluginMaker_Resize(false)
+					if type(NAmanage.centerFrame) == "function" then
+						pcall(NAmanage.centerFrame, pm.Frame)
+					end
+				end
+			end)
+		end
+		return true
+	end
+
+	NAmanage.PluginMaker_Open = function()
+		local pm = NAStuff.PluginMaker
+		if type(pm.commands) ~= "table" or #pm.commands == 0 then
+			NAmanage.PluginMaker_ResetState()
+			pm = NAStuff.PluginMaker
+		end
+		if pm.Frame and pm.Frame.Parent then
+			pm.Frame.Visible = true
+			if pm.minimized == true then
+				NAmanage.PluginMaker_ToggleMinimize()
+			end
+			NAmanage.PluginMaker_Resize(false)
+			if type(NAmanage.centerFrame) == "function" then
+				pcall(NAmanage.centerFrame, pm.Frame)
+			end
+			NAmanage.PluginMaker_RebuildCommandList()
+			NAmanage.PluginMaker_RebuildEditor()
+			NAmanage.PluginMaker_UpdateServiceButton()
+			NAmanage.PluginMaker_SyncZIndex(pm.Frame)
+			if not pm.ResizeCleanup then
+				NAmanage.PluginMaker_BindResize()
+			end
+			return true
+		end
+		return NAmanage.PluginMaker_BuildUI()
+	end
+
+	cmd.add(
+		{"pluginmaker","makeplugin","pluginbuilder","plugmaker","pmaker"},
+		{"pluginmaker","Open the no-code .na/.iy plugin builder"},
+		function()
+			local ok, err = NAmanage.PluginMaker_Open()
+			if not ok then
+				DoNotif("Plugin Maker failed: "..tostring(err or "unknown error"), 3)
+			end
+		end
+	)
 
 	cmd.add(
 		{"addallplugins","addplugins","aap","aaplugs"},
@@ -109104,6 +111883,13 @@ NAmanage.PluginsWindow_Rebuild = NAmanage.PluginsWindow_Rebuild or function(opts
 		pcall(NAmanage.NASettingsSet, "pluginAllowSettingsUI", NAStuff.PluginSettingsUIEnabled)
 		DoNotif("Plugin UI controls "..(on and "enabled" or "disabled"), 2)
 	end)
+	NAmanage.PluginsWindow_AddButton("Create plugin with Plugin Maker", function()
+		if type(NAmanage.PluginMaker_Open) == "function" then
+			NAmanage.PluginMaker_Open()
+		elseif cmd and cmd.run then
+			cmd.run({"pluginmaker"})
+		end
+	end)
 	NAmanage.PluginsWindow_AddButton("Reload enabled plugins", function()
 		if NAmanage.LoadPlugins then
 			NAmanage.LoadPlugins({ forceNotify = true })
@@ -119659,6 +122445,1295 @@ NAmanage.ExecutorBindSetting = NAmanage.ExecutorBindSetting or function(toggle, 
 	end
 end
 
+NAStuff.ExecutorCodec = NAStuff.ExecutorCodec or {}
+NAStuff.ExecutorCodec.Alphabet92 = " !#$%&()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[]^_`abcdefghijklmnopqrstuvwxyz{|}~"
+NAStuff.ExecutorCodec.Base64Alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+
+NAStuff.ExecutorCodec.Base64Encode = NAStuff.ExecutorCodec.Base64Encode or function(source)
+	source = tostring(source or "")
+	const alphabet = NAStuff.ExecutorCodec.Base64Alphabet
+	const out = {}
+	for i = 1, #source, 3 do
+		const a = string.byte(source, i) or 0
+		const b = string.byte(source, i + 1)
+		const c = string.byte(source, i + 2)
+		const n = a * 65536 + (b or 0) * 256 + (c or 0)
+		const ia = math.floor(n / 262144) % 64 + 1
+		const ib = math.floor(n / 4096) % 64 + 1
+		const ic = math.floor(n / 64) % 64 + 1
+		const id = n % 64 + 1
+		out[#out + 1] = alphabet:sub(ia, ia)
+		out[#out + 1] = alphabet:sub(ib, ib)
+		out[#out + 1] = b and alphabet:sub(ic, ic) or "="
+		out[#out + 1] = c and alphabet:sub(id, id) or "="
+	end
+	return table.concat(out)
+end
+
+NAStuff.ExecutorCodec.Base64Decode = NAStuff.ExecutorCodec.Base64Decode or function(source)
+	source = tostring(source or ""):gsub("%s+", "")
+	if source == "" or #source % 4 ~= 0 then
+		return nil, "invalid Base64 length"
+	end
+	const alphabet = NAStuff.ExecutorCodec.Base64Alphabet
+	const map = {}
+	for i = 1, #alphabet do
+		map[alphabet:sub(i, i)] = i - 1
+	end
+	const out = {}
+	for i = 1, #source, 4 do
+		const ca = source:sub(i, i)
+		const cb = source:sub(i + 1, i + 1)
+		const cc = source:sub(i + 2, i + 2)
+		const cd = source:sub(i + 3, i + 3)
+		const a = map[ca]
+		const b = map[cb]
+		const c = cc == "=" and 0 or map[cc]
+		const d = cd == "=" and 0 or map[cd]
+		if a == nil or b == nil or c == nil or d == nil then
+			return nil, "invalid Base64 character"
+		end
+		const n = a * 262144 + b * 4096 + c * 64 + d
+		out[#out + 1] = string.char(math.floor(n / 65536) % 256)
+		if cc ~= "=" then out[#out + 1] = string.char(math.floor(n / 256) % 256) end
+		if cd ~= "=" then out[#out + 1] = string.char(n % 256) end
+	end
+	return table.concat(out)
+end
+
+NAStuff.ExecutorCodec.HexDecode = NAStuff.ExecutorCodec.HexDecode or function(source)
+	source = tostring(source or ""):gsub("%s+", "")
+	if source == "" or #source % 2 ~= 0 or source:find("[^%x]") then
+		return nil, "invalid hex"
+	end
+	const out = {}
+	for i = 1, #source, 2 do
+		out[#out + 1] = string.char(tonumber(source:sub(i, i + 1), 16))
+	end
+	return table.concat(out)
+end
+
+NAStuff.ExecutorCodec.HexEncode = NAStuff.ExecutorCodec.HexEncode or function(source)
+	source = tostring(source or "")
+	const out = type(table.create) == "function" and table.create(#source) or {}
+	for i = 1, #source do
+		out[i] = string.format("%02X", string.byte(source, i))
+	end
+	return table.concat(out)
+end
+
+NAStuff.ExecutorCodec.Base64UrlEncode = NAStuff.ExecutorCodec.Base64UrlEncode or function(source)
+	return (NAStuff.ExecutorCodec.Base64Encode(source):gsub("%+", "-"):gsub("/", "_"):gsub("=+$", ""))
+end
+
+NAStuff.ExecutorCodec.Base64UrlDecode = NAStuff.ExecutorCodec.Base64UrlDecode or function(source)
+	source = tostring(source or ""):gsub("%s+", ""):gsub("-", "+"):gsub("_", "/")
+	if source == "" or source:find("[^%w%+/%=]") then return nil, "invalid Base64URL" end
+	while #source % 4 ~= 0 do source ..= "=" end
+	return NAStuff.ExecutorCodec.Base64Decode(source)
+end
+
+NAStuff.ExecutorCodec.Base32Alphabet = NAStuff.ExecutorCodec.Base32Alphabet or "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+
+NAStuff.ExecutorCodec.Base32Encode = NAStuff.ExecutorCodec.Base32Encode or function(source)
+	source = tostring(source or "")
+	if source == "" then return "" end
+	const alphabet = NAStuff.ExecutorCodec.Base32Alphabet
+	const out = {}
+	local buffer = 0
+	local bits = 0
+	for i = 1, #source do
+		buffer = buffer * 256 + string.byte(source, i)
+		bits += 8
+		while bits >= 5 do
+			bits -= 5
+			const div = 2 ^ bits
+			const index = math.floor(buffer / div) % 32
+			out[#out + 1] = alphabet:sub(index + 1, index + 1)
+			buffer %= div
+		end
+	end
+	if bits > 0 then
+		const index = (buffer * (2 ^ (5 - bits))) % 32
+		out[#out + 1] = alphabet:sub(index + 1, index + 1)
+	end
+	while #out % 8 ~= 0 do out[#out + 1] = "=" end
+	return table.concat(out)
+end
+
+NAStuff.ExecutorCodec.Base32Decode = NAStuff.ExecutorCodec.Base32Decode or function(source)
+	source = tostring(source or ""):upper():gsub("%s+", "")
+	if source == "" then return nil, "empty Base32" end
+	source = source:gsub("=+$", "")
+	const alphabet = NAStuff.ExecutorCodec.Base32Alphabet
+	const map = {}
+	for i = 1, #alphabet do map[alphabet:sub(i, i)] = i - 1 end
+	const out = {}
+	local buffer = 0
+	local bits = 0
+	for i = 1, #source do
+		const value = map[source:sub(i, i)]
+		if value == nil then return nil, "invalid Base32 character" end
+		buffer = buffer * 32 + value
+		bits += 5
+		while bits >= 8 do
+			bits -= 8
+			const div = 2 ^ bits
+			out[#out + 1] = string.char(math.floor(buffer / div) % 256)
+			buffer %= div
+		end
+	end
+	return table.concat(out)
+end
+
+NAStuff.ExecutorCodec.PercentEncode = NAStuff.ExecutorCodec.PercentEncode or function(source)
+	source = tostring(source or "")
+	const out = type(table.create) == "function" and table.create(#source) or {}
+	for i = 1, #source do
+		out[i] = string.format("%%%02X", string.byte(source, i))
+	end
+	return table.concat(out)
+end
+
+NAStuff.ExecutorCodec.PercentDecode = NAStuff.ExecutorCodec.PercentDecode or function(source)
+	source = tostring(source or ""):gsub("%s+", "")
+	if source == "" or #source % 3 ~= 0 then return nil, "invalid percent encoding" end
+	const out = {}
+	for i = 1, #source, 3 do
+		if source:sub(i, i) ~= "%" then return nil, "invalid percent encoding" end
+		const hex = source:sub(i + 1, i + 2)
+		if not hex:match("^%x%x$") then return nil, "invalid percent byte" end
+		out[#out + 1] = string.char(tonumber(hex, 16))
+	end
+	return table.concat(out)
+end
+
+NAStuff.ExecutorCodec.DecimalEncode = NAStuff.ExecutorCodec.DecimalEncode or function(source)
+	source = tostring(source or "")
+	const out = type(table.create) == "function" and table.create(#source) or {}
+	for i = 1, #source do out[i] = tostring(string.byte(source, i)) end
+	return table.concat(out, ",")
+end
+
+NAStuff.ExecutorCodec.DecimalDecode = NAStuff.ExecutorCodec.DecimalDecode or function(source)
+	const out = {}
+	for token in tostring(source or ""):gmatch("[^,%s]+") do
+		const value = tonumber(token)
+		if not value or value < 0 or value > 255 or value % 1 ~= 0 then return nil, "invalid decimal byte" end
+		out[#out + 1] = string.char(value)
+	end
+	if #out == 0 then return nil, "empty decimal stream" end
+	return table.concat(out)
+end
+
+NAStuff.ExecutorCodec.BinaryEncode = NAStuff.ExecutorCodec.BinaryEncode or function(source)
+	source = tostring(source or "")
+	const out = type(table.create) == "function" and table.create(#source) or {}
+	for i = 1, #source do
+		local value = string.byte(source, i)
+		local bits = ""
+		for bit = 7, 0, -1 do
+			const unit = 2 ^ bit
+			if value >= unit then bits ..= "1"; value -= unit else bits ..= "0" end
+		end
+		out[i] = bits
+	end
+	return table.concat(out)
+end
+
+NAStuff.ExecutorCodec.BinaryDecode = NAStuff.ExecutorCodec.BinaryDecode or function(source)
+	source = tostring(source or ""):gsub("%s+", "")
+	if source == "" or #source % 8 ~= 0 or source:find("[^01]") then return nil, "invalid binary stream" end
+	const out = {}
+	for i = 1, #source, 8 do
+		out[#out + 1] = string.char(tonumber(source:sub(i, i + 7), 2))
+	end
+	return table.concat(out)
+end
+
+NAStuff.ExecutorCodec.OctalEncode = NAStuff.ExecutorCodec.OctalEncode or function(source)
+	source = tostring(source or "")
+	const out = type(table.create) == "function" and table.create(#source) or {}
+	for i = 1, #source do out[i] = string.format("%03o", string.byte(source, i)) end
+	return table.concat(out)
+end
+
+NAStuff.ExecutorCodec.OctalDecode = NAStuff.ExecutorCodec.OctalDecode or function(source)
+	source = tostring(source or ""):gsub("%s+", "")
+	if source == "" or #source % 3 ~= 0 or source:find("[^0-7]") then return nil, "invalid octal stream" end
+	const out = {}
+	for i = 1, #source, 3 do
+		const value = tonumber(source:sub(i, i + 2), 8)
+		if not value or value > 255 then return nil, "invalid octal byte" end
+		out[#out + 1] = string.char(value)
+	end
+	return table.concat(out)
+end
+
+NAStuff.ExecutorCodec.Rot13 = NAStuff.ExecutorCodec.Rot13 or function(source)
+	source = tostring(source or "")
+	const out = type(table.create) == "function" and table.create(#source) or {}
+	for i = 1, #source do
+		local byte = string.byte(source, i)
+		if byte >= 65 and byte <= 90 then byte = 65 + ((byte - 65 + 13) % 26)
+		elseif byte >= 97 and byte <= 122 then byte = 97 + ((byte - 97 + 13) % 26) end
+		out[i] = string.char(byte)
+	end
+	return table.concat(out)
+end
+
+NAStuff.ExecutorCodec.ByteShift = NAStuff.ExecutorCodec.ByteShift or function(source, amount)
+	source = tostring(source or "")
+	amount = math.floor(tonumber(amount) or 0)
+	const out = type(table.create) == "function" and table.create(#source) or {}
+	for i = 1, #source do out[i] = string.char((string.byte(source, i) + amount) % 256) end
+	return table.concat(out)
+end
+
+NAStuff.ExecutorCodec.Complement = NAStuff.ExecutorCodec.Complement or function(source)
+	source = tostring(source or "")
+	const out = type(table.create) == "function" and table.create(#source) or {}
+	for i = 1, #source do out[i] = string.char(255 - string.byte(source, i)) end
+	return table.concat(out)
+end
+
+NAStuff.ExecutorCodec.NibbleSwap = NAStuff.ExecutorCodec.NibbleSwap or function(source)
+	source = tostring(source or "")
+	const out = type(table.create) == "function" and table.create(#source) or {}
+	for i = 1, #source do
+		const byte = string.byte(source, i)
+		out[i] = string.char((byte % 16) * 16 + math.floor(byte / 16))
+	end
+	return table.concat(out)
+end
+
+NAStuff.ExecutorCodec.RotateLeft = NAStuff.ExecutorCodec.RotateLeft or function(source, amount)
+	source = tostring(source or "")
+	amount = math.floor(tonumber(amount) or 3) % 8
+	if amount == 0 then return source end
+	const high = 2 ^ amount
+	const low = 2 ^ (8 - amount)
+	const out = type(table.create) == "function" and table.create(#source) or {}
+	for i = 1, #source do
+		const byte = string.byte(source, i)
+		out[i] = string.char(((byte * high) % 256) + math.floor(byte / low))
+	end
+	return table.concat(out)
+end
+
+NAStuff.ExecutorCodec.RotateRight = NAStuff.ExecutorCodec.RotateRight or function(source, amount)
+	source = tostring(source or "")
+	amount = math.floor(tonumber(amount) or 3) % 8
+	if amount == 0 then return source end
+	return NAStuff.ExecutorCodec.RotateLeft(source, 8 - amount)
+end
+
+NAStuff.ExecutorCodec.RepeatXor = NAStuff.ExecutorCodec.RepeatXor or function(source, key)
+	source = tostring(source or "")
+	key = tostring(key or "")
+	if key == "" then key = "NA" end
+	const out = type(table.create) == "function" and table.create(#source) or {}
+	for i = 1, #source do
+		out[i] = string.char(NAStuff.ExecutorCodec.XorByte(string.byte(source, i), string.byte(key, ((i - 1) % #key) + 1)))
+	end
+	return table.concat(out)
+end
+
+NAStuff.ExecutorCodec.DeltaEncode = NAStuff.ExecutorCodec.DeltaEncode or function(source)
+	source = tostring(source or "")
+	if source == "" then return "" end
+	const out = type(table.create) == "function" and table.create(#source) or {}
+	local previous = 0
+	for i = 1, #source do
+		const byte = string.byte(source, i)
+		out[i] = string.char((byte - previous) % 256)
+		previous = byte
+	end
+	return table.concat(out)
+end
+
+NAStuff.ExecutorCodec.DeltaDecode = NAStuff.ExecutorCodec.DeltaDecode or function(source)
+	source = tostring(source or "")
+	if source == "" then return "" end
+	const out = type(table.create) == "function" and table.create(#source) or {}
+	local previous = 0
+	for i = 1, #source do
+		previous = (previous + string.byte(source, i)) % 256
+		out[i] = string.char(previous)
+	end
+	return table.concat(out)
+end
+
+NAStuff.ExecutorCodec.RLEEncode = NAStuff.ExecutorCodec.RLEEncode or function(source)
+	source = tostring(source or "")
+	if source == "" then return "" end
+	const out = {}
+	local i = 1
+	while i <= #source do
+		const byte = string.byte(source, i)
+		local count = 1
+		while i + count <= #source and count < 255 and string.byte(source, i + count) == byte do count += 1 end
+		out[#out + 1] = string.char(count, byte)
+		i += count
+	end
+	return table.concat(out)
+end
+
+NAStuff.ExecutorCodec.RLEDecode = NAStuff.ExecutorCodec.RLEDecode or function(source)
+	source = tostring(source or "")
+	if #source % 2 ~= 0 then return nil, "invalid RLE stream" end
+	const out = {}
+	for i = 1, #source, 2 do
+		const count = string.byte(source, i)
+		const char = source:sub(i + 1, i + 1)
+		out[#out + 1] = string.rep(char, count)
+	end
+	return table.concat(out)
+end
+
+NAStuff.ExecutorCodec.Z85Alphabet = NAStuff.ExecutorCodec.Z85Alphabet or "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.-:+=^!/*?&<>()[]{}@%$#"
+
+NAStuff.ExecutorCodec.Z85Encode = NAStuff.ExecutorCodec.Z85Encode or function(source)
+	source = tostring(source or "")
+	const originalLength = #source
+	if source == "" then return "", 0 end
+	while #source % 4 ~= 0 do source ..= "\0" end
+	const alphabet = NAStuff.ExecutorCodec.Z85Alphabet
+	const out = {}
+	for i = 1, #source, 4 do
+		local value = string.byte(source, i) * 16777216 + string.byte(source, i + 1) * 65536 + string.byte(source, i + 2) * 256 + string.byte(source, i + 3)
+		const chars = table.create and table.create(5) or {}
+		for j = 5, 1, -1 do
+			const index = value % 85
+			chars[j] = alphabet:sub(index + 1, index + 1)
+			value = math.floor(value / 85)
+		end
+		out[#out + 1] = table.concat(chars)
+	end
+	return table.concat(out), originalLength
+end
+
+NAStuff.ExecutorCodec.Z85Decode = NAStuff.ExecutorCodec.Z85Decode or function(source, originalLength)
+	source = tostring(source or "")
+	if source == "" then return originalLength == 0 and "" or nil end
+	if #source % 5 ~= 0 then return nil, "invalid Z85 length" end
+	const alphabet = NAStuff.ExecutorCodec.Z85Alphabet
+	const map = {}
+	for i = 1, #alphabet do map[alphabet:sub(i, i)] = i - 1 end
+	const out = {}
+	for i = 1, #source, 5 do
+		local value = 0
+		for j = 0, 4 do
+			const digit = map[source:sub(i + j, i + j)]
+			if digit == nil then return nil, "invalid Z85 character" end
+			value = value * 85 + digit
+		end
+		out[#out + 1] = string.char(
+			math.floor(value / 16777216) % 256,
+			math.floor(value / 65536) % 256,
+			math.floor(value / 256) % 256,
+			value % 256
+		)
+	end
+	local result = table.concat(out)
+	originalLength = tonumber(originalLength)
+	if originalLength then result = result:sub(1, originalLength) end
+	return result
+end
+
+NAStuff.ExecutorCodec.Base4Encode = NAStuff.ExecutorCodec.Base4Encode or function(source)
+	source = tostring(source or "")
+	const alphabet = "0123"
+	const out = type(table.create) == "function" and table.create(#source) or {}
+	for i = 1, #source do
+		local value = string.byte(source, i)
+		local chunk = ""
+		for power = 3, 0, -1 do
+			const unit = 4 ^ power
+			const digit = math.floor(value / unit) % 4
+			chunk ..= alphabet:sub(digit + 1, digit + 1)
+		end
+		out[i] = chunk
+	end
+	return table.concat(out)
+end
+
+NAStuff.ExecutorCodec.Base4Decode = NAStuff.ExecutorCodec.Base4Decode or function(source)
+	source = tostring(source or ""):gsub("%s+", "")
+	if source == "" or #source % 4 ~= 0 or source:find("[^0-3]") then return nil, "invalid Base4 stream" end
+	const out = {}
+	for i = 1, #source, 4 do
+		local value = 0
+		for j = 0, 3 do value = value * 4 + tonumber(source:sub(i + j, i + j)) end
+		out[#out + 1] = string.char(value)
+	end
+	return table.concat(out)
+end
+
+NAStuff.ExecutorCodec.Base36Alphabet = NAStuff.ExecutorCodec.Base36Alphabet or "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+NAStuff.ExecutorCodec.Base36Encode = NAStuff.ExecutorCodec.Base36Encode or function(source)
+	source = tostring(source or "")
+	const alphabet = NAStuff.ExecutorCodec.Base36Alphabet
+	const out = type(table.create) == "function" and table.create(#source) or {}
+	for i = 1, #source do
+		const value = string.byte(source, i)
+		const a = math.floor(value / 36)
+		const b = value % 36
+		out[i] = alphabet:sub(a + 1, a + 1)..alphabet:sub(b + 1, b + 1)
+	end
+	return table.concat(out)
+end
+
+NAStuff.ExecutorCodec.Base36Decode = NAStuff.ExecutorCodec.Base36Decode or function(source)
+	source = tostring(source or ""):upper():gsub("%s+", "")
+	if source == "" or #source % 2 ~= 0 then return nil, "invalid Base36 byte stream" end
+	const alphabet = NAStuff.ExecutorCodec.Base36Alphabet
+	const map = {}
+	for i = 1, #alphabet do map[alphabet:sub(i, i)] = i - 1 end
+	const out = {}
+	for i = 1, #source, 2 do
+		const a = map[source:sub(i, i)]
+		const b = map[source:sub(i + 1, i + 1)]
+		if a == nil or b == nil then return nil, "invalid Base36 character" end
+		const value = a * 36 + b
+		if value > 255 then return nil, "invalid Base36 byte" end
+		out[#out + 1] = string.char(value)
+	end
+	return table.concat(out)
+end
+
+NAStuff.ExecutorCodec.Base62Alphabet = NAStuff.ExecutorCodec.Base62Alphabet or "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+
+NAStuff.ExecutorCodec.Base62Encode = NAStuff.ExecutorCodec.Base62Encode or function(source)
+	source = tostring(source or "")
+	const alphabet = NAStuff.ExecutorCodec.Base62Alphabet
+	const out = type(table.create) == "function" and table.create(#source) or {}
+	for i = 1, #source do
+		const value = string.byte(source, i)
+		const a = math.floor(value / 62)
+		const b = value % 62
+		out[i] = alphabet:sub(a + 1, a + 1)..alphabet:sub(b + 1, b + 1)
+	end
+	return table.concat(out)
+end
+
+NAStuff.ExecutorCodec.Base62Decode = NAStuff.ExecutorCodec.Base62Decode or function(source)
+	source = tostring(source or ""):gsub("%s+", "")
+	if source == "" or #source % 2 ~= 0 then return nil, "invalid Base62 byte stream" end
+	const alphabet = NAStuff.ExecutorCodec.Base62Alphabet
+	const map = {}
+	for i = 1, #alphabet do map[alphabet:sub(i, i)] = i - 1 end
+	const out = {}
+	for i = 1, #source, 2 do
+		const a = map[source:sub(i, i)]
+		const b = map[source:sub(i + 1, i + 1)]
+		if a == nil or b == nil then return nil, "invalid Base62 character" end
+		const value = a * 62 + b
+		if value > 255 then return nil, "invalid Base62 byte" end
+		out[#out + 1] = string.char(value)
+	end
+	return table.concat(out)
+end
+
+NAStuff.ExecutorCodec.PairSwap = NAStuff.ExecutorCodec.PairSwap or function(source)
+	source = tostring(source or "")
+	const out = {}
+	for i = 1, #source, 2 do
+		const a = source:sub(i, i)
+		const b = source:sub(i + 1, i + 1)
+		if b ~= "" then out[#out + 1] = b..a else out[#out + 1] = a end
+	end
+	return table.concat(out)
+end
+
+NAStuff.ExecutorCodec.IndexShift = NAStuff.ExecutorCodec.IndexShift or function(source, decode)
+	source = tostring(source or "")
+	const out = type(table.create) == "function" and table.create(#source) or {}
+	for i = 1, #source do
+		const amount = i % 256
+		const byte = string.byte(source, i)
+		out[i] = string.char((byte + (decode and -amount or amount)) % 256)
+	end
+	return table.concat(out)
+end
+
+NAStuff.ExecutorCodec.AffineEncode = NAStuff.ExecutorCodec.AffineEncode or function(source, add)
+	source = tostring(source or "")
+	add = math.floor(tonumber(add) or 37) % 256
+	const out = type(table.create) == "function" and table.create(#source) or {}
+	for i = 1, #source do out[i] = string.char((string.byte(source, i) * 5 + add) % 256) end
+	return table.concat(out)
+end
+
+NAStuff.ExecutorCodec.AffineDecode = NAStuff.ExecutorCodec.AffineDecode or function(source, add)
+	source = tostring(source or "")
+	add = math.floor(tonumber(add) or 37) % 256
+	const out = type(table.create) == "function" and table.create(#source) or {}
+	for i = 1, #source do out[i] = string.char(((string.byte(source, i) - add) * 205) % 256) end
+	return table.concat(out)
+end
+
+NAStuff.ExecutorCodec.BitReverse = NAStuff.ExecutorCodec.BitReverse or function(source)
+	source = tostring(source or "")
+	const out = type(table.create) == "function" and table.create(#source) or {}
+	for i = 1, #source do
+		local value = string.byte(source, i)
+		local reversed = 0
+		for _ = 1, 8 do
+			reversed = reversed * 2 + (value % 2)
+			value = math.floor(value / 2)
+		end
+		out[i] = string.char(reversed)
+	end
+	return table.concat(out)
+end
+
+NAStuff.ExecutorCodec.XorByte = NAStuff.ExecutorCodec.XorByte or function(a, b)
+	if type(bit32) == "table" and type(bit32.bxor) == "function" then
+		return bit32.bxor(a, b)
+	end
+	local result = 0
+	local place = 1
+	while a > 0 or b > 0 do
+		const aa = a % 2
+		const bb = b % 2
+		if aa ~= bb then result += place end
+		a = math.floor(a / 2)
+		b = math.floor(b / 2)
+		place *= 2
+	end
+	return result
+end
+
+NAStuff.ExecutorCodec.IndexXor = NAStuff.ExecutorCodec.IndexXor or function(source)
+	source = tostring(source or "")
+	const out = type(table.create) == "function" and table.create(#source) or {}
+	for i = 1, #source do out[i] = string.char(NAStuff.ExecutorCodec.XorByte(string.byte(source, i), i % 256)) end
+	return table.concat(out)
+end
+
+NAStuff.ExecutorCodec.GrayEncode = NAStuff.ExecutorCodec.GrayEncode or function(source)
+	source = tostring(source or "")
+	const out = type(table.create) == "function" and table.create(#source) or {}
+	for i = 1, #source do
+		const byte = string.byte(source, i)
+		out[i] = string.char(NAStuff.ExecutorCodec.XorByte(byte, math.floor(byte / 2)))
+	end
+	return table.concat(out)
+end
+
+NAStuff.ExecutorCodec.GrayDecode = NAStuff.ExecutorCodec.GrayDecode or function(source)
+	source = tostring(source or "")
+	const out = type(table.create) == "function" and table.create(#source) or {}
+	for i = 1, #source do
+		local gray = string.byte(source, i)
+		local value = gray
+		while gray > 0 do
+			gray = math.floor(gray / 2)
+			value = NAStuff.ExecutorCodec.XorByte(value, gray)
+		end
+		out[i] = string.char(value)
+	end
+	return table.concat(out)
+end
+
+NAStuff.ExecutorCodec.Xor = NAStuff.ExecutorCodec.Xor or function(source, key)
+	source = tostring(source or "")
+	key = math.clamp(math.floor(tonumber(key) or 91), 0, 255)
+	const out = type(table.create) == "function" and table.create(#source) or {}
+	for i = 1, #source do
+		out[i] = string.char(NAStuff.ExecutorCodec.XorByte(string.byte(source, i), key))
+	end
+	return table.concat(out)
+end
+
+NAStuff.ExecutorCodec.LZW92Encode = NAStuff.ExecutorCodec.LZW92Encode or function(source)
+	source = tostring(source or "")
+	if source == "" then return "" end
+	const alphabet = NAStuff.ExecutorCodec.Alphabet92
+	local dictionary = {}
+	for i = 0, 255 do dictionary[string.char(i)] = i end
+	local nextCode = 256
+	local previous = source:sub(1, 1)
+	const result = {}
+	const function emit(code)
+		const a = math.floor(code / 92)
+		const b = code % 92
+		result[#result + 1] = alphabet:sub(a + 1, a + 1)
+		result[#result + 1] = alphabet:sub(b + 1, b + 1)
+	end
+	for i = 2, #source do
+		const current = source:sub(i, i)
+		const combined = previous..current
+		if dictionary[combined] ~= nil then
+			previous = combined
+		else
+			emit(dictionary[previous])
+			dictionary[combined] = nextCode
+			nextCode += 1
+			if nextCode > 8463 then
+				dictionary = {}
+				for j = 0, 255 do dictionary[string.char(j)] = j end
+				nextCode = 256
+			end
+			previous = current
+		end
+	end
+	emit(dictionary[previous])
+	return table.concat(result)
+end
+
+NAStuff.ExecutorCodec.LZW92Decode = NAStuff.ExecutorCodec.LZW92Decode or function(source, alphabet)
+	source = tostring(source or "")
+	alphabet = tostring(alphabet or NAStuff.ExecutorCodec.Alphabet92)
+	if #alphabet ~= 92 or #source < 2 or #source % 2 ~= 0 then
+		return nil, "invalid Base92/LZW stream"
+	end
+	const map = {}
+	for i = 1, 92 do map[alphabet:sub(i, i)] = i - 1 end
+	local dictionary = {}
+	for i = 0, 255 do dictionary[i] = string.char(i) end
+	const function readCode(i)
+		const a = map[source:sub(i, i)]
+		const b = map[source:sub(i + 1, i + 1)]
+		if a == nil or b == nil then return nil end
+		return a * 92 + b
+	end
+	const firstCode = readCode(1)
+	if firstCode == nil or dictionary[firstCode] == nil then
+		return nil, "invalid initial LZW code"
+	end
+	local nextCode = 256
+	local previous = dictionary[firstCode]
+	const result = { previous }
+	for i = 3, #source, 2 do
+		const code = readCode(i)
+		if code == nil then return nil, "invalid Base92 character" end
+		local entry = dictionary[code]
+		if entry == nil then entry = previous..previous:sub(1, 1) end
+		result[#result + 1] = entry
+		dictionary[nextCode] = previous..entry:sub(1, 1)
+		nextCode += 1
+		if nextCode > 8463 then
+			dictionary = {}
+			for j = 0, 255 do dictionary[j] = string.char(j) end
+			nextCode = 256
+		end
+		previous = entry
+	end
+	return table.concat(result)
+end
+
+NAStuff.ExecutorCodec.DecodeLuaEscapes = NAStuff.ExecutorCodec.DecodeLuaEscapes or function(source)
+	source = tostring(source or "")
+	const out = {}
+	local i = 1
+	while i <= #source do
+		const ch = source:sub(i, i)
+		if ch ~= "\\" then
+			out[#out + 1] = ch
+			i += 1
+		else
+			const nextChar = source:sub(i + 1, i + 1)
+			if nextChar == "n" then out[#out + 1] = "\n"; i += 2
+			elseif nextChar == "r" then out[#out + 1] = "\r"; i += 2
+			elseif nextChar == "t" then out[#out + 1] = "\t"; i += 2
+			elseif nextChar == "a" then out[#out + 1] = string.char(7); i += 2
+			elseif nextChar == "b" then out[#out + 1] = string.char(8); i += 2
+			elseif nextChar == "f" then out[#out + 1] = string.char(12); i += 2
+			elseif nextChar == "v" then out[#out + 1] = string.char(11); i += 2
+			elseif nextChar == "\\" or nextChar == '"' or nextChar == "'" then out[#out + 1] = nextChar; i += 2
+			elseif nextChar == "x" and source:sub(i + 2, i + 3):match("^%x%x$") then
+				out[#out + 1] = string.char(tonumber(source:sub(i + 2, i + 3), 16)); i += 4
+			elseif nextChar:match("%d") then
+				const digits = source:sub(i + 1):match("^(%d%d?%d?)") or ""
+				const value = tonumber(digits)
+				if value and value <= 255 then out[#out + 1] = string.char(value); i += 1 + #digits else out[#out + 1] = nextChar; i += 2 end
+			elseif nextChar == "z" then
+				i += 2
+				while i <= #source and source:sub(i, i):match("%s") do i += 1 end
+			else
+				out[#out + 1] = nextChar
+				i += 2
+			end
+		end
+	end
+	return table.concat(out)
+end
+
+NAStuff.ExecutorCodec.DecodeCharList = NAStuff.ExecutorCodec.DecodeCharList or function(numbers)
+	const out = {}
+	for token in tostring(numbers or ""):gmatch("[^,%s]+") do
+		const value = tonumber(token)
+		if not value or value < 0 or value > 255 or value % 1 ~= 0 then return nil end
+		out[#out + 1] = string.char(value)
+	end
+	if #out == 0 then return nil end
+	return table.concat(out)
+end
+
+NAStuff.ExecutorCodec.TextScore = NAStuff.ExecutorCodec.TextScore or function(source)
+	source = tostring(source or "")
+	if source == "" then return 0 end
+	local good = 0
+	for i = 1, #source do
+		const byte = string.byte(source, i)
+		if byte == 9 or byte == 10 or byte == 13 or (byte >= 32 and byte <= 126) then good += 1 end
+	end
+	return good / #source
+end
+
+NAStuff.ExecutorCodec.StripLeadingJunk = NAStuff.ExecutorCodec.StripLeadingJunk or function(source)
+	source = tostring(source or "")
+	const out = {}
+	local removed = 0
+	local scanning = true
+	const trailing = source:sub(-1) == "\n"
+	for line in (source.."\n"):gmatch("(.-)\n") do
+		if scanning then
+			const trimmed = line:gsub("^%s+", ""):gsub("%s+$", "")
+			const body = trimmed:match("^%-%-%[%[(.-)%]%]$")
+			if body then
+				const low = body:lower()
+				if low:find("obfuscated by", 1, true) or low:find("was here", 1, true) or low:find("made by", 1, true) or low:find("on discord", 1, true) or low:find("on top", 1, true) then
+					removed += 1
+				else
+					scanning = false
+					out[#out + 1] = line
+				end
+			elseif trimmed == "" and removed > 0 then
+			else
+				scanning = false
+				out[#out + 1] = line
+			end
+		else
+			out[#out + 1] = line
+		end
+	end
+	local result = table.concat(out, "\n")
+	if not trailing then result = result:gsub("\n$", "") end
+	return result, removed
+end
+
+NAStuff.ExecutorCodec.TryFullLayer = NAStuff.ExecutorCodec.TryFullLayer or function(source)
+	source = tostring(source or "")
+	const markerName = source:match("%-%-%[%[NA_OBF:([A-Z0-9_]+)%]%]")
+	if markerName then
+		const payload = source:match('local%s+P%s*=%s*"([^"]*)"') or source:match('const%s+P%s*=%s*"([^"]*)"')
+		const keyNumber = tonumber(source:match("local%s+K%s*=%s*(%d+)") or source:match("const%s+K%s*=%s*(%d+)"))
+		const keyString = source:match('local%s+K%s*=%s*"([^"]*)"') or source:match('const%s+K%s*=%s*"([^"]*)"')
+		const originalLength = tonumber(source:match("local%s+L%s*=%s*(%d+)") or source:match("const%s+L%s*=%s*(%d+)"))
+		if payload then
+			if markerName == "B4" then
+				const decoded = NAStuff.ExecutorCodec.Base4Decode(payload)
+				if decoded then return decoded, "NA Base4 bytes" end
+			elseif markerName == "B36" then
+				const decoded = NAStuff.ExecutorCodec.Base36Decode(payload)
+				if decoded then return decoded, "NA Base36 bytes" end
+			elseif markerName == "B62" then
+				const decoded = NAStuff.ExecutorCodec.Base62Decode(payload)
+				if decoded then return decoded, "NA Base62 bytes" end
+			elseif markerName == "B64" then
+				const decoded = NAStuff.ExecutorCodec.Base64Decode(payload)
+				if decoded then return decoded, "NA Base64" end
+			elseif markerName == "B64URL" then
+				const decoded = NAStuff.ExecutorCodec.Base64UrlDecode(payload)
+				if decoded then return decoded, "NA Base64URL" end
+			elseif markerName == "B32" then
+				const decoded = NAStuff.ExecutorCodec.Base32Decode(payload)
+				if decoded then return decoded, "NA Base32" end
+			elseif markerName == "Z85" then
+				const decoded = NAStuff.ExecutorCodec.Z85Decode(payload, originalLength)
+				if decoded then return decoded, "NA Z85" end
+			elseif markerName == "HEX" then
+				const decoded = NAStuff.ExecutorCodec.HexDecode(payload)
+				if decoded then return decoded, "NA Hex" end
+			elseif markerName == "PERCENT" then
+				const decoded = NAStuff.ExecutorCodec.PercentDecode(payload)
+				if decoded then return decoded, "NA Percent" end
+			elseif markerName == "DEC" then
+				const decoded = NAStuff.ExecutorCodec.DecimalDecode(payload)
+				if decoded then return decoded, "NA Decimal bytes" end
+			elseif markerName == "BIN" then
+				const decoded = NAStuff.ExecutorCodec.BinaryDecode(payload)
+				if decoded then return decoded, "NA Binary" end
+			elseif markerName == "OCT" then
+				const decoded = NAStuff.ExecutorCodec.OctalDecode(payload)
+				if decoded then return decoded, "NA Octal" end
+			elseif markerName == "REV64" then
+				const decoded = NAStuff.ExecutorCodec.Base64Decode(payload:reverse())
+				if decoded then return decoded, "NA Reverse Base64" end
+			elseif markerName == "ROT13_64" then
+				const decoded = NAStuff.ExecutorCodec.Base64Decode(payload)
+				if decoded then return NAStuff.ExecutorCodec.Rot13(decoded), "NA ROT13+Base64" end
+			elseif markerName == "SHIFT64" then
+				const decoded = NAStuff.ExecutorCodec.Base64Decode(payload)
+				if decoded and keyNumber then return NAStuff.ExecutorCodec.ByteShift(decoded, -keyNumber), "NA byte shift+Base64" end
+			elseif markerName == "COMP64" then
+				const decoded = NAStuff.ExecutorCodec.Base64Decode(payload)
+				if decoded then return NAStuff.ExecutorCodec.Complement(decoded), "NA complement+Base64" end
+			elseif markerName == "NIBBLE64" then
+				const decoded = NAStuff.ExecutorCodec.Base64Decode(payload)
+				if decoded then return NAStuff.ExecutorCodec.NibbleSwap(decoded), "NA nibble swap+Base64" end
+			elseif markerName == "ROL64" then
+				const decoded = NAStuff.ExecutorCodec.Base64Decode(payload)
+				if decoded and keyNumber then return NAStuff.ExecutorCodec.RotateRight(decoded, keyNumber), "NA rotate+Base64" end
+			elseif markerName == "PAIR64" then
+				const decoded = NAStuff.ExecutorCodec.Base64Decode(payload)
+				if decoded then return NAStuff.ExecutorCodec.PairSwap(decoded), "NA pair swap+Base64" end
+			elseif markerName == "REVB64" then
+				const decoded = NAStuff.ExecutorCodec.Base64Decode(payload)
+				if decoded then return decoded:reverse(), "NA reversed bytes+Base64" end
+			elseif markerName == "IDXOR64" then
+				const decoded = NAStuff.ExecutorCodec.Base64Decode(payload)
+				if decoded then return NAStuff.ExecutorCodec.IndexXor(decoded), "NA index XOR+Base64" end
+			elseif markerName == "IDSHIFT64" then
+				const decoded = NAStuff.ExecutorCodec.Base64Decode(payload)
+				if decoded then return NAStuff.ExecutorCodec.IndexShift(decoded, true), "NA index shift+Base64" end
+			elseif markerName == "AFFINE64" then
+				const decoded = NAStuff.ExecutorCodec.Base64Decode(payload)
+				if decoded and keyNumber then return NAStuff.ExecutorCodec.AffineDecode(decoded, keyNumber), "NA affine bytes+Base64" end
+			elseif markerName == "BITREV64" then
+				const decoded = NAStuff.ExecutorCodec.Base64Decode(payload)
+				if decoded then return NAStuff.ExecutorCodec.BitReverse(decoded), "NA bit reverse+Base64" end
+			elseif markerName == "GRAY64" then
+				const decoded = NAStuff.ExecutorCodec.Base64Decode(payload)
+				if decoded then return NAStuff.ExecutorCodec.GrayDecode(decoded), "NA Gray code+Base64" end
+			elseif markerName == "XOR64" then
+				const decoded = NAStuff.ExecutorCodec.Base64Decode(payload)
+				if decoded and keyNumber then return NAStuff.ExecutorCodec.Xor(decoded, keyNumber), "NA XOR+Base64" end
+			elseif markerName == "RXOR64" then
+				const decoded = NAStuff.ExecutorCodec.Base64Decode(payload)
+				if decoded and keyString then return NAStuff.ExecutorCodec.RepeatXor(decoded, keyString), "NA repeating XOR+Base64" end
+			elseif markerName == "DELTA64" then
+				const decoded = NAStuff.ExecutorCodec.Base64Decode(payload)
+				if decoded then return NAStuff.ExecutorCodec.DeltaDecode(decoded), "NA delta+Base64" end
+			elseif markerName == "RLE64" then
+				const decoded = NAStuff.ExecutorCodec.Base64Decode(payload)
+				if decoded then
+					const result = NAStuff.ExecutorCodec.RLEDecode(decoded)
+					if result then return result, "NA RLE+Base64" end
+				end
+			elseif markerName == "JSCAMO" or markerName == "PYCAMO" then
+				const decoded = NAStuff.ExecutorCodec.Base64Decode(payload)
+				if decoded and keyNumber then
+					return NAStuff.ExecutorCodec.Xor(decoded, keyNumber), markerName == "JSCAMO" and "JavaScript camouflage" or "Python camouflage"
+				end
+			elseif markerName == "JSCAMO_STRONG" then
+				const decoded = NAStuff.ExecutorCodec.Base64Decode(payload)
+				if decoded and keyString then
+					const packed = NAStuff.ExecutorCodec.RepeatXor(decoded, keyString)
+					const result = NAStuff.ExecutorCodec.LZW92Decode(packed)
+					if result then return result, "JavaScript camouflage strong" end
+				end
+			elseif markerName == "PYCAMO_STRONG" then
+				const decoded = NAStuff.ExecutorCodec.Base32Decode(payload)
+				if decoded and keyString then
+					const packed = NAStuff.ExecutorCodec.RepeatXor(decoded, keyString)
+					const result = NAStuff.ExecutorCodec.LZW92Decode(packed)
+					if result then return result, "Python camouflage strong" end
+				end
+			elseif markerName == "LZW92" then
+				const decoded = NAStuff.ExecutorCodec.LZW92Decode(payload)
+				if decoded then return decoded, "NA LZW92" end
+			elseif markerName == "LZW92_B64" then
+				const decoded = NAStuff.ExecutorCodec.Base64Decode(payload)
+				if decoded then
+					const result = NAStuff.ExecutorCodec.LZW92Decode(decoded)
+					if result then return result, "NA LZW92+Base64" end
+				end
+			elseif markerName == "LZW92_XOR64" then
+				const decoded = NAStuff.ExecutorCodec.Base64Decode(payload)
+				if decoded and keyNumber then
+					const packed = NAStuff.ExecutorCodec.Xor(decoded, keyNumber)
+					const result = NAStuff.ExecutorCodec.LZW92Decode(packed)
+					if result then return result, "NA LZW92+XOR+Base64" end
+				end
+			elseif markerName == "LZW92_RXOR32" then
+				const decoded = NAStuff.ExecutorCodec.Base32Decode(payload)
+				if decoded and keyString then
+					const packed = NAStuff.ExecutorCodec.RepeatXor(decoded, keyString)
+					const result = NAStuff.ExecutorCodec.LZW92Decode(packed)
+					if result then return result, "NA LZW92+repeating XOR+Base32" end
+				end
+			end
+		end
+	end
+
+	if source:find("local z_as2=", 1, true) and source:find("local s=", 1, true) and source:find("local b=", 1, true) then
+		const payload = source:match('local%s+s%s*=%s*"([^"]*)"%s*local%s+b%s*=%s*"')
+		const alphabet = source:match('local%s+b%s*=%s*"([^"]+)"')
+		if payload and alphabet and #alphabet == 92 then
+			const decoded = NAStuff.ExecutorCodec.LZW92Decode(payload, alphabet)
+			if decoded then return decoded, "z_as Base92/LZW" end
+		end
+	end
+
+	const loader = source:gsub("^%s+", ""):gsub("%s+$", ""):gsub(";%s*$", "")
+	local literal = loader:match('^loadstring%s*%(%s*"([^"\\]*)"%s*%)%s*%(%s*%)$')
+	if literal then return NAStuff.ExecutorCodec.DecodeLuaEscapes(literal), "loadstring literal" end
+	literal = loader:match("^loadstring%s*%(%s*'([^'\\]*)'%s*%)%s*%(%s*%)$")
+	if literal then return NAStuff.ExecutorCodec.DecodeLuaEscapes(literal), "loadstring literal" end
+
+	const charList = loader:match("^loadstring%s*%(%s*string%.char%s*%(([%d,%s]+)%)%s*%)%s*%(%s*%)$")
+	if charList then
+		const decoded = NAStuff.ExecutorCodec.DecodeCharList(charList)
+		if decoded then return decoded, "string.char loader" end
+	end
+
+	local reversed = loader:match('^loadstring%s*%(%s*string%.reverse%s*%(%s*"([^"\\]*)"%s*%)%s*%)%s*%(%s*%)$')
+	if reversed then return reversed:reverse(), "string.reverse loader" end
+	reversed = loader:match("^loadstring%s*%(%s*string%.reverse%s*%(%s*'([^'\\]*)'%s*%)%s*%)%s*%(%s*%)$")
+	if reversed then return reversed:reverse(), "string.reverse loader" end
+
+	const compact = source:gsub("%s+", "")
+	if #compact >= 16 and #compact % 4 == 0 and not compact:find("[^%w%+/%=]") then
+		const decoded = NAStuff.ExecutorCodec.Base64Decode(compact)
+		if decoded and NAStuff.ExecutorCodec.TextScore(decoded) >= 0.90 and decoded:find("[%a_][%w_]*") then return decoded, "raw Base64" end
+	end
+	if #compact >= 16 and not compact:find("[^%w%-%_%=]") and (compact:find("-", 1, true) or compact:find("_", 1, true)) then
+		const decoded = NAStuff.ExecutorCodec.Base64UrlDecode(compact)
+		if decoded and NAStuff.ExecutorCodec.TextScore(decoded) >= 0.90 and decoded:find("[%a_][%w_]*") then return decoded, "raw Base64URL" end
+	end
+	if #compact >= 16 and not compact:find("[^A-Z2-7=]") then
+		const decoded = NAStuff.ExecutorCodec.Base32Decode(compact)
+		if decoded and NAStuff.ExecutorCodec.TextScore(decoded) >= 0.90 and decoded:find("[%a_][%w_]*") then return decoded, "raw Base32" end
+	end
+	if #compact >= 16 and #compact % 2 == 0 and not compact:find("[^%x]") then
+		const decoded = NAStuff.ExecutorCodec.HexDecode(compact)
+		if decoded and NAStuff.ExecutorCodec.TextScore(decoded) >= 0.90 and decoded:find("[%a_][%w_]*") then return decoded, "raw hex" end
+	end
+	if #compact >= 24 and #compact % 4 == 0 and not compact:find("[^0-3]") then
+		const decoded = NAStuff.ExecutorCodec.Base4Decode(compact)
+		if decoded and NAStuff.ExecutorCodec.TextScore(decoded) >= 0.90 and decoded:find("[%a_][%w_]*") then return decoded, "raw Base4 bytes" end
+	end
+	if #compact >= 24 and #compact % 8 == 0 and not compact:find("[^01]") then
+		const decoded = NAStuff.ExecutorCodec.BinaryDecode(compact)
+		if decoded and NAStuff.ExecutorCodec.TextScore(decoded) >= 0.90 and decoded:find("[%a_][%w_]*") then return decoded, "raw binary" end
+	end
+	if #compact >= 18 and #compact % 3 == 0 and not compact:find("[^0-7]") then
+		const decoded = NAStuff.ExecutorCodec.OctalDecode(compact)
+		if decoded and NAStuff.ExecutorCodec.TextScore(decoded) >= 0.90 and decoded:find("[%a_][%w_]*") then return decoded, "raw octal" end
+	end
+	if #compact >= 18 and #compact % 3 == 0 and compact:sub(1, 1) == "%" and compact:gsub("%%[%x][%x]", "") == "" then
+		const decoded = NAStuff.ExecutorCodec.PercentDecode(compact)
+		if decoded and NAStuff.ExecutorCodec.TextScore(decoded) >= 0.90 and decoded:find("[%a_][%w_]*") then return decoded, "raw percent encoding" end
+	end
+	if source:match("^%s*%d+%s*,") and not source:find("[^%d,%s]") then
+		const decoded = NAStuff.ExecutorCodec.DecimalDecode(source)
+		if decoded and NAStuff.ExecutorCodec.TextScore(decoded) >= 0.90 and decoded:find("[%a_][%w_]*") then return decoded, "raw decimal bytes" end
+	end
+	if source:find("\\x", 1, true) or source:match("\\%d%d?%d?") then
+		const decoded = NAStuff.ExecutorCodec.DecodeLuaEscapes(source)
+		if decoded ~= source and NAStuff.ExecutorCodec.TextScore(decoded) >= 0.90 and decoded:find("[%a_][%w_]*") then return decoded, "Lua byte escapes" end
+	end
+	return nil
+end
+
+NAStuff.ExecutorCodec.AutoDeobfuscate = NAStuff.ExecutorCodec.AutoDeobfuscate or function(source)
+	source = tostring(source or "")
+	local current = source
+	const applied = {}
+	for _ = 1, 24 do
+		local nextSource, engine = NAStuff.ExecutorCodec.TryFullLayer(current)
+		if type(nextSource) ~= "string" or nextSource == current then break end
+		current = nextSource
+		applied[#applied + 1] = engine or "decoded layer"
+	end
+	local cleaned, removed = NAStuff.ExecutorCodec.StripLeadingJunk(current)
+	if removed > 0 then
+		current = cleaned
+		applied[#applied + 1] = "junk comments x"..tostring(removed)
+	end
+	return current, applied
+end
+
+NAStuff.ExecutorCodec.MakeBase64Decoder = NAStuff.ExecutorCodec.MakeBase64Decoder or function(tail)
+	return 'local A="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/" local I={} for i=1,#A do I[A:sub(i,i)]=i-1 end local O={} for i=1,#P,4 do local a=I[P:sub(i,i)] or 0 local b=I[P:sub(i+1,i+1)] or 0 local c=P:sub(i+2,i+2) local d=P:sub(i+3,i+3) local n=a*262144+b*4096+(I[c] or 0)*64+(I[d] or 0) O[#O+1]=string.char(math.floor(n/65536)%256) if c~="=" then O[#O+1]=string.char(math.floor(n/256)%256) end if d~="=" then O[#O+1]=string.char(n%256) end end local D=table.concat(O) '..tail
+end
+
+NAStuff.ExecutorCodec.MakeBase64UrlDecoder = NAStuff.ExecutorCodec.MakeBase64UrlDecoder or function(tail)
+	return 'P=P:gsub("-","+"):gsub("_","/") while #P%4~=0 do P=P.."=" end '..NAStuff.ExecutorCodec.MakeBase64Decoder(tail)
+end
+
+NAStuff.ExecutorCodec.MakeBase32Decoder = NAStuff.ExecutorCodec.MakeBase32Decoder or function(tail)
+	return 'local A="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567" local I={} for i=1,#A do I[A:sub(i,i)]=i-1 end P=P:gsub("=+$","") local O={} local B,N=0,0 for i=1,#P do local V=I[P:sub(i,i)] B=B*32+V N=N+5 while N>=8 do N=N-8 local Q=2^N O[#O+1]=string.char(math.floor(B/Q)%256) B=B%Q end end local D=table.concat(O) '..tail
+end
+
+NAStuff.ExecutorCodec.MakeHexDecoder = NAStuff.ExecutorCodec.MakeHexDecoder or function(tail)
+	return 'local O={} for i=1,#P,2 do O[#O+1]=string.char(tonumber(P:sub(i,i+1),16)) end local D=table.concat(O) '..tail
+end
+
+NAStuff.ExecutorCodec.MakePercentDecoder = NAStuff.ExecutorCodec.MakePercentDecoder or function(tail)
+	return 'local O={} for i=1,#P,3 do O[#O+1]=string.char(tonumber(P:sub(i+1,i+2),16)) end local D=table.concat(O) '..tail
+end
+
+NAStuff.ExecutorCodec.MakeDecimalDecoder = NAStuff.ExecutorCodec.MakeDecimalDecoder or function(tail)
+	return 'local O={} for N in P:gmatch("[^,]+") do O[#O+1]=string.char(tonumber(N)) end local D=table.concat(O) '..tail
+end
+
+NAStuff.ExecutorCodec.MakeBinaryDecoder = NAStuff.ExecutorCodec.MakeBinaryDecoder or function(tail)
+	return 'local O={} for i=1,#P,8 do O[#O+1]=string.char(tonumber(P:sub(i,i+7),2)) end local D=table.concat(O) '..tail
+end
+
+NAStuff.ExecutorCodec.MakeOctalDecoder = NAStuff.ExecutorCodec.MakeOctalDecoder or function(tail)
+	return 'local O={} for i=1,#P,3 do O[#O+1]=string.char(tonumber(P:sub(i,i+2),8)) end local D=table.concat(O) '..tail
+end
+
+NAStuff.ExecutorCodec.MakeZ85Decoder = NAStuff.ExecutorCodec.MakeZ85Decoder or function(tail)
+	return 'local A="0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.-:+=^!/*?&<>()[]{}@%$#" local I={} for i=1,#A do I[A:sub(i,i)]=i-1 end local O={} for i=1,#P,5 do local V=0 for j=0,4 do V=V*85+I[P:sub(i+j,i+j)] end O[#O+1]=string.char(math.floor(V/16777216)%256,math.floor(V/65536)%256,math.floor(V/256)%256,V%256) end local D=table.concat(O):sub(1,L) '..tail
+end
+
+NAStuff.ExecutorCodec.MakeBase4Decoder = NAStuff.ExecutorCodec.MakeBase4Decoder or function(tail)
+	return 'local O={} for i=1,#P,4 do local V=0 for j=0,3 do V=V*4+tonumber(P:sub(i+j,i+j)) end O[#O+1]=string.char(V) end local D=table.concat(O) '..tail
+end
+
+NAStuff.ExecutorCodec.MakeBase36Decoder = NAStuff.ExecutorCodec.MakeBase36Decoder or function(tail)
+	return 'local A="0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ" local I={} for i=1,#A do I[A:sub(i,i)]=i-1 end local O={} for i=1,#P,2 do O[#O+1]=string.char(I[P:sub(i,i)]*36+I[P:sub(i+1,i+1)]) end local D=table.concat(O) '..tail
+end
+
+NAStuff.ExecutorCodec.MakeBase62Decoder = NAStuff.ExecutorCodec.MakeBase62Decoder or function(tail)
+	return 'local A="0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz" local I={} for i=1,#A do I[A:sub(i,i)]=i-1 end local O={} for i=1,#P,2 do O[#O+1]=string.char(I[P:sub(i,i)]*62+I[P:sub(i+1,i+1)]) end local D=table.concat(O) '..tail
+end
+
+NAStuff.ExecutorCodec.MakePairSwapDecoder = NAStuff.ExecutorCodec.MakePairSwapDecoder or function(tail)
+	return 'local T={} for i=1,#D,2 do local a,b=D:sub(i,i),D:sub(i+1,i+1) T[#T+1]=b~="" and b..a or a end D=table.concat(T) '..tail
+end
+
+NAStuff.ExecutorCodec.MakeIndexXorDecoder = NAStuff.ExecutorCodec.MakeIndexXorDecoder or function(tail)
+	return 'local X=(bit32 and bit32.bxor) or (bit and bit.bxor) or function(a,b)local r,p=0,1 while a>0 or b>0 do local aa,bb=a%2,b%2 if aa~=bb then r=r+p end a=math.floor(a/2)b=math.floor(b/2)p=p*2 end return r end local T={} for i=1,#D do T[i]=string.char(X(string.byte(D,i),i%256)) end D=table.concat(T) '..tail
+end
+
+NAStuff.ExecutorCodec.MakeIndexShiftDecoder = NAStuff.ExecutorCodec.MakeIndexShiftDecoder or function(tail)
+	return 'local T={} for i=1,#D do T[i]=string.char((string.byte(D,i)-(i%256))%256) end D=table.concat(T) '..tail
+end
+
+NAStuff.ExecutorCodec.MakeAffineDecoder = NAStuff.ExecutorCodec.MakeAffineDecoder or function(tail)
+	return 'local T={} for i=1,#D do T[i]=string.char(((string.byte(D,i)-K)*205)%256) end D=table.concat(T) '..tail
+end
+
+NAStuff.ExecutorCodec.MakeBitReverseDecoder = NAStuff.ExecutorCodec.MakeBitReverseDecoder or function(tail)
+	return 'local T={} for i=1,#D do local b,r=string.byte(D,i),0 for j=1,8 do r=r*2+(b%2)b=math.floor(b/2) end T[i]=string.char(r) end D=table.concat(T) '..tail
+end
+
+NAStuff.ExecutorCodec.MakeGrayDecoder = NAStuff.ExecutorCodec.MakeGrayDecoder or function(tail)
+	return 'local X=(bit32 and bit32.bxor) or (bit and bit.bxor) or function(a,b)local r,p=0,1 while a>0 or b>0 do local aa,bb=a%2,b%2 if aa~=bb then r=r+p end a=math.floor(a/2)b=math.floor(b/2)p=p*2 end return r end local T={} for i=1,#D do local g=string.byte(D,i)local v=g while g>0 do g=math.floor(g/2)v=X(v,g) end T[i]=string.char(v) end D=table.concat(T) '..tail
+end
+
+NAStuff.ExecutorCodec.MakeXorDecoder = NAStuff.ExecutorCodec.MakeXorDecoder or function(tail)
+	return 'local X=(bit32 and bit32.bxor) or (bit and bit.bxor) or function(a,b)local r,p=0,1 while a>0 or b>0 do local aa,bb=a%2,b%2 if aa~=bb then r=r+p end a=math.floor(a/2)b=math.floor(b/2)p=p*2 end return r end local T={} for i=1,#D do T[i]=string.char(X(string.byte(D,i),K)) end D=table.concat(T) '..tail
+end
+
+NAStuff.ExecutorCodec.MakeRepeatXorDecoder = NAStuff.ExecutorCodec.MakeRepeatXorDecoder or function(tail)
+	return 'local X=(bit32 and bit32.bxor) or (bit and bit.bxor) or function(a,b)local r,p=0,1 while a>0 or b>0 do local aa,bb=a%2,b%2 if aa~=bb then r=r+p end a=math.floor(a/2)b=math.floor(b/2)p=p*2 end return r end local T={} for i=1,#D do T[i]=string.char(X(string.byte(D,i),string.byte(K,((i-1)%#K)+1))) end D=table.concat(T) '..tail
+end
+
+NAStuff.ExecutorCodec.MakeRot13Decoder = NAStuff.ExecutorCodec.MakeRot13Decoder or function(tail)
+	return 'local T={} for i=1,#D do local b=string.byte(D,i) if b>=65 and b<=90 then b=65+((b-65+13)%26) elseif b>=97 and b<=122 then b=97+((b-97+13)%26) end T[i]=string.char(b) end D=table.concat(T) '..tail
+end
+
+NAStuff.ExecutorCodec.MakeShiftDecoder = NAStuff.ExecutorCodec.MakeShiftDecoder or function(tail)
+	return 'local T={} for i=1,#D do T[i]=string.char((string.byte(D,i)-K)%256) end D=table.concat(T) '..tail
+end
+
+NAStuff.ExecutorCodec.MakeComplementDecoder = NAStuff.ExecutorCodec.MakeComplementDecoder or function(tail)
+	return 'local T={} for i=1,#D do T[i]=string.char(255-string.byte(D,i)) end D=table.concat(T) '..tail
+end
+
+NAStuff.ExecutorCodec.MakeNibbleDecoder = NAStuff.ExecutorCodec.MakeNibbleDecoder or function(tail)
+	return 'local T={} for i=1,#D do local b=string.byte(D,i) T[i]=string.char((b%16)*16+math.floor(b/16)) end D=table.concat(T) '..tail
+end
+
+NAStuff.ExecutorCodec.MakeRotateDecoder = NAStuff.ExecutorCodec.MakeRotateDecoder or function(tail)
+	return 'local T={} local S=8-(K%8) local H=2^S local L=2^(8-S) for i=1,#D do local b=string.byte(D,i) T[i]=string.char(((b*H)%256)+math.floor(b/L)) end D=table.concat(T) '..tail
+end
+
+NAStuff.ExecutorCodec.MakeDeltaDecoder = NAStuff.ExecutorCodec.MakeDeltaDecoder or function(tail)
+	return 'local T={} local V=0 for i=1,#D do V=(V+string.byte(D,i))%256 T[i]=string.char(V) end D=table.concat(T) '..tail
+end
+
+NAStuff.ExecutorCodec.MakeRLEDecoder = NAStuff.ExecutorCodec.MakeRLEDecoder or function(tail)
+	return 'local T={} for i=1,#D,2 do T[#T+1]=string.rep(D:sub(i+1,i+1),string.byte(D,i)) end D=table.concat(T) '..tail
+end
+
+NAStuff.ExecutorCodec.MakeLZWDecoder = NAStuff.ExecutorCodec.MakeLZWDecoder or function(tail)
+	return 'local B=" !#$%&()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[]^_`abcdefghijklmnopqrstuvwxyz{|}~" local M,R={},{} for i=1,92 do M[B:sub(i,i)]=i-1 end local Z={} for i=0,255 do Z[i]=string.char(i) end local N=256 local W=Z[M[D:sub(1,1)]*92+M[D:sub(2,2)]] R[1]=W for i=3,#D,2 do local C=M[D:sub(i,i)]*92+M[D:sub(i+1,i+1)] local E=Z[C] or W..W:sub(1,1) R[#R+1]=E Z[N]=W..E:sub(1,1) N=N+1 if N>8463 then Z={} for j=0,255 do Z[j]=string.char(j) end N=256 end W=E end D=table.concat(R) '..tail
+end
+
+NAStuff.ExecutorCodec.MakeDirectLZWDecoder = NAStuff.ExecutorCodec.MakeDirectLZWDecoder or function(tail)
+	return 'local D=P '..NAStuff.ExecutorCodec.MakeLZWDecoder(tail)
+end
+
+NAStuff.ExecutorCodec.UniversalRunTail = NAStuff.ExecutorCodec.UniversalRunTail or 'local F=loadstring or load;if not F then error("dynamic loader unavailable") end;local C,E=F(D);if not C then error(E or "compile failed") end;C()'
+
+NAStuff.ExecutorCodec.MakeJavaScriptCamouflage = NAStuff.ExecutorCodec.MakeJavaScriptCamouflage or function(payload, keyValue, strong, sourceLength)
+	const decoy = '--[[\n"use strict";\n\nconst Runtime = Object.freeze({\n    engine: "V8",\n    platform: "node",\n    module: "executor.bundle.js",\n    sourceMap: false,\n    byteLength: '..tostring(sourceLength or 0)..',\n});\n\nclass ScriptRuntime {\n    constructor(options = {}) {\n        this.options = { sandbox: true, strict: true, ...options };\n        this.ready = false;\n    }\n\n    async initialize() {\n        this.ready = true;\n        return this;\n    }\n\n    async execute() {\n        if (!this.ready) await this.initialize();\n        const module = await import("./runtime.js");\n        return module.default(Runtime);\n    }\n}\n\nnew ScriptRuntime({ optimize: true })\n    .execute()\n    .catch(error => console.error(error));\n]]\n'
+	if strong then
+		return decoy..'--[[NA_OBF:JSCAMO_STRONG]]\nlocal P="'..payload..'";local K="'..tostring(keyValue or "")..'";'..
+			NAStuff.ExecutorCodec.MakeBase64Decoder(NAStuff.ExecutorCodec.MakeRepeatXorDecoder(NAStuff.ExecutorCodec.MakeLZWDecoder(NAStuff.ExecutorCodec.UniversalRunTail)))
+	end
+	return decoy..'--[[NA_OBF:JSCAMO]]\nlocal P="'..payload..'";local K='..tostring(keyValue or 0)..';'..
+		NAStuff.ExecutorCodec.MakeBase64Decoder(NAStuff.ExecutorCodec.MakeXorDecoder(NAStuff.ExecutorCodec.UniversalRunTail))
+end
+
+NAStuff.ExecutorCodec.MakePythonCamouflage = NAStuff.ExecutorCodec.MakePythonCamouflage or function(payload, keyValue, strong, sourceLength)
+	const decoy = '--[[\nfrom __future__ import annotations\n\nfrom dataclasses import dataclass\nfrom typing import Any, Final\n\nENGINE: Final[str] = "CPython"\nSOURCE_BYTES: Final[int] = '..tostring(sourceLength or 0)..'\n\n@dataclass(slots=True)\nclass RuntimeConfig:\n    sandbox: bool = True\n    optimize: bool = True\n    trace: bool = False\n\nclass ScriptRuntime:\n    def __init__(self, config: RuntimeConfig) -> None:\n        self.config = config\n        self.ready = False\n\n    def initialize(self) -> "ScriptRuntime":\n        self.ready = True\n        return self\n\n    def execute(self) -> Any:\n        if not self.ready:\n            self.initialize()\n        return Runtime.execute(config=self.config)\n\nif __name__ == "__main__":\n    ScriptRuntime(RuntimeConfig()).execute()\n]]\n'
+	if strong then
+		return decoy..'--[[NA_OBF:PYCAMO_STRONG]]\nlocal P="'..payload..'"\nlocal K="'..tostring(keyValue or "")..'"\n'..
+			NAStuff.ExecutorCodec.MakeBase32Decoder(NAStuff.ExecutorCodec.MakeRepeatXorDecoder(NAStuff.ExecutorCodec.MakeLZWDecoder(NAStuff.ExecutorCodec.UniversalRunTail)))
+	end
+	return decoy..'--[[NA_OBF:PYCAMO]]\nlocal P="'..payload..'"\nlocal K='..tostring(keyValue or 0)..'\n'..
+		NAStuff.ExecutorCodec.MakeBase64Decoder(NAStuff.ExecutorCodec.MakeXorDecoder(NAStuff.ExecutorCodec.UniversalRunTail))
+end
+
+NAStuff.ExecutorCodec.Obfuscate = NAStuff.ExecutorCodec.Obfuscate or function(source, mode)
+	source = tostring(source or "")
+	mode = tostring(mode or "auto"):lower():gsub("[%s%-%_]+", "")
+	const aliases = {
+		light = "base64", b4 = "base4", b36 = "base36", b62 = "base62", b64 = "base64", b64url = "base64url", b32 = "base32",
+		dec = "decimal", bin = "binary", oct = "octal", rev = "reverse64", reverse = "reverse64", reversebytes64 = "reversebytes",
+		pair = "pairswap", rot = "rot13", shift64 = "shift", comp = "complement", nibble64 = "nibble", rol = "rotate",
+		idxor = "indexxor", idxshift = "indexshift", bitrev = "bitreverse", rxor = "repeatxor", delta64 = "delta", rle64 = "rle",
+		lzw = "lzw92", lzw64 = "lzw92base64", js = "jscamo", javascript = "jscamo", jsstrong = "jscamostrong", python = "pycamo", py = "pycamo", pystrong = "pycamostrong", ultra = "ultra"
+	}
+	mode = aliases[mode] or mode
+	if mode == "auto" then
+		if #source <= 70000 then mode = "ultra"
+		elseif #source <= 180000 then mode = "strong"
+		else mode = "balanced" end
+	end
+	const valid = {
+		base4=true, base36=true, base62=true, base64=true, base64url=true, base32=true, z85=true, hex=true, percent=true, decimal=true, binary=true, octal=true,
+		reverse64=true, reversebytes=true, pairswap=true, rot13=true, shift=true, complement=true, nibble=true, rotate=true, indexxor=true, indexshift=true,
+		affine=true, bitreverse=true, gray=true, xor=true, repeatxor=true, delta=true, rle=true, lzw92=true, lzw92base64=true, jscamo=true, jscamostrong=true, pycamo=true, pycamostrong=true, balanced=true, strong=true, ultra=true
+	}
+	if not valid[mode] then return nil, nil, "Unsupported obfuscation method" end
+
+	local key = math.floor((os.clock() * 100000) % 223) + 17
+	if key > 255 then key = 251 end
+	const repeatKey = "NA"..string.format("%X", math.floor((os.clock() * 1000000) % 16777215)).."X"
+
+	if mode == "base4" then
+		const payload = NAStuff.ExecutorCodec.Base4Encode(source)
+		return '--[[NA_OBF:B4]]\nlocal P="'..payload..'" '..NAStuff.ExecutorCodec.MakeBase4Decoder(NAStuff.ExecutorCodec.UniversalRunTail), "Base4 bytes"
+	elseif mode == "base36" then
+		const payload = NAStuff.ExecutorCodec.Base36Encode(source)
+		return '--[[NA_OBF:B36]]\nlocal P="'..payload..'" '..NAStuff.ExecutorCodec.MakeBase36Decoder(NAStuff.ExecutorCodec.UniversalRunTail), "Base36 bytes"
+	elseif mode == "base62" then
+		const payload = NAStuff.ExecutorCodec.Base62Encode(source)
+		return '--[[NA_OBF:B62]]\nlocal P="'..payload..'" '..NAStuff.ExecutorCodec.MakeBase62Decoder(NAStuff.ExecutorCodec.UniversalRunTail), "Base62 bytes"
+	elseif mode == "base64" then
+		const payload = NAStuff.ExecutorCodec.Base64Encode(source)
+		return '--[[NA_OBF:B64]]\nlocal P="'..payload..'" '..NAStuff.ExecutorCodec.MakeBase64Decoder(NAStuff.ExecutorCodec.UniversalRunTail), "Base64"
+	elseif mode == "base64url" then
+		const payload = NAStuff.ExecutorCodec.Base64UrlEncode(source)
+		return '--[[NA_OBF:B64URL]]\nlocal P="'..payload..'" '..NAStuff.ExecutorCodec.MakeBase64UrlDecoder(NAStuff.ExecutorCodec.UniversalRunTail), "Base64URL"
+	elseif mode == "base32" then
+		const payload = NAStuff.ExecutorCodec.Base32Encode(source)
+		return '--[[NA_OBF:B32]]\nlocal P="'..payload..'" '..NAStuff.ExecutorCodec.MakeBase32Decoder(NAStuff.ExecutorCodec.UniversalRunTail), "Base32"
+	elseif mode == "z85" then
+		local payload, originalLength = NAStuff.ExecutorCodec.Z85Encode(source)
+		return '--[[NA_OBF:Z85]]\nlocal P="'..payload..'" local L='..tostring(originalLength)..' '..NAStuff.ExecutorCodec.MakeZ85Decoder(NAStuff.ExecutorCodec.UniversalRunTail), "Z85"
+	elseif mode == "hex" then
+		const payload = NAStuff.ExecutorCodec.HexEncode(source)
+		return '--[[NA_OBF:HEX]]\nlocal P="'..payload..'" '..NAStuff.ExecutorCodec.MakeHexDecoder(NAStuff.ExecutorCodec.UniversalRunTail), "Hex"
+	elseif mode == "percent" then
+		const payload = NAStuff.ExecutorCodec.PercentEncode(source)
+		return '--[[NA_OBF:PERCENT]]\nlocal P="'..payload..'" '..NAStuff.ExecutorCodec.MakePercentDecoder(NAStuff.ExecutorCodec.UniversalRunTail), "Percent bytes"
+	elseif mode == "decimal" then
+		const payload = NAStuff.ExecutorCodec.DecimalEncode(source)
+		return '--[[NA_OBF:DEC]]\nlocal P="'..payload..'" '..NAStuff.ExecutorCodec.MakeDecimalDecoder(NAStuff.ExecutorCodec.UniversalRunTail), "Decimal bytes"
+	elseif mode == "binary" then
+		const payload = NAStuff.ExecutorCodec.BinaryEncode(source)
+		return '--[[NA_OBF:BIN]]\nlocal P="'..payload..'" '..NAStuff.ExecutorCodec.MakeBinaryDecoder(NAStuff.ExecutorCodec.UniversalRunTail), "Binary bytes"
+	elseif mode == "octal" then
+		const payload = NAStuff.ExecutorCodec.OctalEncode(source)
+		return '--[[NA_OBF:OCT]]\nlocal P="'..payload..'" '..NAStuff.ExecutorCodec.MakeOctalDecoder(NAStuff.ExecutorCodec.UniversalRunTail), "Octal bytes"
+	elseif mode == "reverse64" then
+		const payload = NAStuff.ExecutorCodec.Base64Encode(source):reverse()
+		return '--[[NA_OBF:REV64]]\nlocal P="'..payload..'" P=P:reverse() '..NAStuff.ExecutorCodec.MakeBase64Decoder(NAStuff.ExecutorCodec.UniversalRunTail), "Reverse Base64"
+	elseif mode == "pairswap" then
+		const payload = NAStuff.ExecutorCodec.Base64Encode(NAStuff.ExecutorCodec.PairSwap(source))
+		return '--[[NA_OBF:PAIR64]]\nlocal P="'..payload..'" '..NAStuff.ExecutorCodec.MakeBase64Decoder(NAStuff.ExecutorCodec.MakePairSwapDecoder(NAStuff.ExecutorCodec.UniversalRunTail)), "Pair swap+Base64"
+	elseif mode == "reversebytes" then
+		const payload = NAStuff.ExecutorCodec.Base64Encode(source:reverse())
+		return '--[[NA_OBF:REVB64]]\nlocal P="'..payload..'" '..NAStuff.ExecutorCodec.MakeBase64Decoder('D=D:reverse();'..NAStuff.ExecutorCodec.UniversalRunTail), "Reversed bytes+Base64"
+	elseif mode == "indexxor" then
+		const payload = NAStuff.ExecutorCodec.Base64Encode(NAStuff.ExecutorCodec.IndexXor(source))
+		return '--[[NA_OBF:IDXOR64]]\nlocal P="'..payload..'" '..NAStuff.ExecutorCodec.MakeBase64Decoder(NAStuff.ExecutorCodec.MakeIndexXorDecoder(NAStuff.ExecutorCodec.UniversalRunTail)), "Index XOR+Base64"
+	elseif mode == "indexshift" then
+		const payload = NAStuff.ExecutorCodec.Base64Encode(NAStuff.ExecutorCodec.IndexShift(source, false))
+		return '--[[NA_OBF:IDSHIFT64]]\nlocal P="'..payload..'" '..NAStuff.ExecutorCodec.MakeBase64Decoder(NAStuff.ExecutorCodec.MakeIndexShiftDecoder(NAStuff.ExecutorCodec.UniversalRunTail)), "Index shift+Base64"
+	elseif mode == "affine" then
+		const affineAdd = key
+		const payload = NAStuff.ExecutorCodec.Base64Encode(NAStuff.ExecutorCodec.AffineEncode(source, affineAdd))
+		return '--[[NA_OBF:AFFINE64]]\nlocal P="'..payload..'" local K='..tostring(affineAdd)..' '..NAStuff.ExecutorCodec.MakeBase64Decoder(NAStuff.ExecutorCodec.MakeAffineDecoder(NAStuff.ExecutorCodec.UniversalRunTail)), "Affine bytes+Base64"
+	elseif mode == "bitreverse" then
+		const payload = NAStuff.ExecutorCodec.Base64Encode(NAStuff.ExecutorCodec.BitReverse(source))
+		return '--[[NA_OBF:BITREV64]]\nlocal P="'..payload..'" '..NAStuff.ExecutorCodec.MakeBase64Decoder(NAStuff.ExecutorCodec.MakeBitReverseDecoder(NAStuff.ExecutorCodec.UniversalRunTail)), "Bit reverse+Base64"
+	elseif mode == "gray" then
+		const payload = NAStuff.ExecutorCodec.Base64Encode(NAStuff.ExecutorCodec.GrayEncode(source))
+		return '--[[NA_OBF:GRAY64]]\nlocal P="'..payload..'" '..NAStuff.ExecutorCodec.MakeBase64Decoder(NAStuff.ExecutorCodec.MakeGrayDecoder(NAStuff.ExecutorCodec.UniversalRunTail)), "Gray code+Base64"
+	elseif mode == "rot13" then
+		const payload = NAStuff.ExecutorCodec.Base64Encode(NAStuff.ExecutorCodec.Rot13(source))
+		return '--[[NA_OBF:ROT13_64]]\nlocal P="'..payload..'" '..NAStuff.ExecutorCodec.MakeBase64Decoder(NAStuff.ExecutorCodec.MakeRot13Decoder(NAStuff.ExecutorCodec.UniversalRunTail)), "ROT13+Base64"
+	elseif mode == "shift" then
+		const payload = NAStuff.ExecutorCodec.Base64Encode(NAStuff.ExecutorCodec.ByteShift(source, key))
+		return '--[[NA_OBF:SHIFT64]]\nlocal P="'..payload..'" local K='..tostring(key)..' '..NAStuff.ExecutorCodec.MakeBase64Decoder(NAStuff.ExecutorCodec.MakeShiftDecoder(NAStuff.ExecutorCodec.UniversalRunTail)), "Byte shift+Base64"
+	elseif mode == "complement" then
+		const payload = NAStuff.ExecutorCodec.Base64Encode(NAStuff.ExecutorCodec.Complement(source))
+		return '--[[NA_OBF:COMP64]]\nlocal P="'..payload..'" '..NAStuff.ExecutorCodec.MakeBase64Decoder(NAStuff.ExecutorCodec.MakeComplementDecoder(NAStuff.ExecutorCodec.UniversalRunTail)), "Byte complement+Base64"
+	elseif mode == "nibble" then
+		const payload = NAStuff.ExecutorCodec.Base64Encode(NAStuff.ExecutorCodec.NibbleSwap(source))
+		return '--[[NA_OBF:NIBBLE64]]\nlocal P="'..payload..'" '..NAStuff.ExecutorCodec.MakeBase64Decoder(NAStuff.ExecutorCodec.MakeNibbleDecoder(NAStuff.ExecutorCodec.UniversalRunTail)), "Nibble swap+Base64"
+	elseif mode == "rotate" then
+		const rotateBy = 3
+		const payload = NAStuff.ExecutorCodec.Base64Encode(NAStuff.ExecutorCodec.RotateLeft(source, rotateBy))
+		return '--[[NA_OBF:ROL64]]\nlocal P="'..payload..'" local K='..tostring(rotateBy)..' '..NAStuff.ExecutorCodec.MakeBase64Decoder(NAStuff.ExecutorCodec.MakeRotateDecoder(NAStuff.ExecutorCodec.UniversalRunTail)), "Bit rotate+Base64"
+	elseif mode == "xor" or mode == "balanced" then
+		const payload = NAStuff.ExecutorCodec.Base64Encode(NAStuff.ExecutorCodec.Xor(source, key))
+		return '--[[NA_OBF:XOR64]]\nlocal P="'..payload..'" local K='..tostring(key)..' '..NAStuff.ExecutorCodec.MakeBase64Decoder(NAStuff.ExecutorCodec.MakeXorDecoder(NAStuff.ExecutorCodec.UniversalRunTail)), mode == "balanced" and "Balanced" or "XOR+Base64"
+	elseif mode == "repeatxor" then
+		const payload = NAStuff.ExecutorCodec.Base64Encode(NAStuff.ExecutorCodec.RepeatXor(source, repeatKey))
+		return '--[[NA_OBF:RXOR64]]\nlocal P="'..payload..'" local K="'..repeatKey..'" '..NAStuff.ExecutorCodec.MakeBase64Decoder(NAStuff.ExecutorCodec.MakeRepeatXorDecoder(NAStuff.ExecutorCodec.UniversalRunTail)), "Repeating XOR+Base64"
+	elseif mode == "delta" then
+		const payload = NAStuff.ExecutorCodec.Base64Encode(NAStuff.ExecutorCodec.DeltaEncode(source))
+		return '--[[NA_OBF:DELTA64]]\nlocal P="'..payload..'" '..NAStuff.ExecutorCodec.MakeBase64Decoder(NAStuff.ExecutorCodec.MakeDeltaDecoder(NAStuff.ExecutorCodec.UniversalRunTail)), "Delta bytes+Base64"
+	elseif mode == "rle" then
+		const payload = NAStuff.ExecutorCodec.Base64Encode(NAStuff.ExecutorCodec.RLEEncode(source))
+		return '--[[NA_OBF:RLE64]]\nlocal P="'..payload..'" '..NAStuff.ExecutorCodec.MakeBase64Decoder(NAStuff.ExecutorCodec.MakeRLEDecoder(NAStuff.ExecutorCodec.UniversalRunTail)), "RLE+Base64"
+	elseif mode == "jscamo" then
+		const payload = NAStuff.ExecutorCodec.Base64Encode(NAStuff.ExecutorCodec.Xor(source, key))
+		return NAStuff.ExecutorCodec.MakeJavaScriptCamouflage(payload, key, false, #source), "JavaScript Camouflage"
+	elseif mode == "jscamostrong" then
+		const packed = NAStuff.ExecutorCodec.LZW92Encode(source)
+		const payload = NAStuff.ExecutorCodec.Base64Encode(NAStuff.ExecutorCodec.RepeatXor(packed, repeatKey))
+		return NAStuff.ExecutorCodec.MakeJavaScriptCamouflage(payload, repeatKey, true, #source), "JavaScript Camouflage Strong"
+	elseif mode == "pycamo" then
+		const payload = NAStuff.ExecutorCodec.Base64Encode(NAStuff.ExecutorCodec.Xor(source, key))
+		return NAStuff.ExecutorCodec.MakePythonCamouflage(payload, key, false, #source), "Python Camouflage"
+	elseif mode == "pycamostrong" then
+		const packed = NAStuff.ExecutorCodec.LZW92Encode(source)
+		const payload = NAStuff.ExecutorCodec.Base32Encode(NAStuff.ExecutorCodec.RepeatXor(packed, repeatKey))
+		return NAStuff.ExecutorCodec.MakePythonCamouflage(payload, repeatKey, true, #source), "Python Camouflage Strong"
+	elseif mode == "lzw92" then
+		const payload = NAStuff.ExecutorCodec.LZW92Encode(source)
+		return '--[[NA_OBF:LZW92]]\nlocal P="'..payload..'" '..NAStuff.ExecutorCodec.MakeDirectLZWDecoder(NAStuff.ExecutorCodec.UniversalRunTail), "LZW92"
+	elseif mode == "lzw92base64" then
+		const payload = NAStuff.ExecutorCodec.Base64Encode(NAStuff.ExecutorCodec.LZW92Encode(source))
+		return '--[[NA_OBF:LZW92_B64]]\nlocal P="'..payload..'" '..NAStuff.ExecutorCodec.MakeBase64Decoder(NAStuff.ExecutorCodec.MakeLZWDecoder(NAStuff.ExecutorCodec.UniversalRunTail)), "LZW92+Base64"
+	elseif mode == "strong" then
+		const packed = NAStuff.ExecutorCodec.LZW92Encode(source)
+		const payload = NAStuff.ExecutorCodec.Base64Encode(NAStuff.ExecutorCodec.Xor(packed, key))
+		return '--[[NA_OBF:LZW92_XOR64]]\nlocal P="'..payload..'" local K='..tostring(key)..' '..NAStuff.ExecutorCodec.MakeBase64Decoder(NAStuff.ExecutorCodec.MakeXorDecoder(NAStuff.ExecutorCodec.MakeLZWDecoder(NAStuff.ExecutorCodec.UniversalRunTail))), "Strong"
+	end
+
+	const packed = NAStuff.ExecutorCodec.LZW92Encode(source)
+	const payload = NAStuff.ExecutorCodec.Base32Encode(NAStuff.ExecutorCodec.RepeatXor(packed, repeatKey))
+	return '--[[NA_OBF:LZW92_RXOR32]]\nlocal P="'..payload..'" local K="'..repeatKey..'" '..NAStuff.ExecutorCodec.MakeBase32Decoder(NAStuff.ExecutorCodec.MakeRepeatXorDecoder(NAStuff.ExecutorCodec.MakeLZWDecoder(NAStuff.ExecutorCodec.UniversalRunTail))), "Ultra"
+end
+
 NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	if not (NAUIMANAGER and NAUIMANAGER.ExecutorFrame and NAUIMANAGER.ExecutorContainer) then
 		return false
@@ -120634,7 +124709,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	const actionLayout = InstanceNew("UIGridLayout")
 	actionLayout.CellPadding = UDim2.new(0, 6, 0, 0)
 	const hasClipboardPaste = type(getclipboard) == "function"
-	const actionButtonCount = hasClipboardPaste and 9 or 8
+	const actionButtonCount = hasClipboardPaste and 11 or 10
 	actionLayout.CellSize = UDim2.new(1 / actionButtonCount, -6, 1, 0)
 	actionLayout.FillDirectionMaxCells = actionButtonCount
 	actionLayout.SortOrder = Enum.SortOrder.LayoutOrder
@@ -120649,6 +124724,8 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		pasteButton.TextSize = 10
 	end
 	const formatButton = makeButton(actions, "Format", colors.panel3)
+	NAStuff.ExecutorTools.DeobfuscateButton = makeButton(actions, "Deobfuscate", colors.panel3)
+	NAStuff.ExecutorTools.ObfuscateButton = makeButton(actions, "Obfuscate", colors.panel3)
 	const renameButton = makeButton(actions, "Rename Tab", colors.panel3)
 	const duplicateButton = makeButton(actions, "Duplicate Tab", colors.panel3)
 	const deleteTabButton = makeButton(actions, "Delete Tab", colors.panel3)
@@ -120812,21 +124889,27 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	promptCard.BorderSizePixel = 0
 	promptCard.AnchorPoint = Vector2.new(0.5, 0.5)
 	promptCard.Position = UDim2.new(0.5, 0, 0.5, 0)
-	promptCard.Size = UDim2.new(0, 320, 0, 152)
+	promptCard.Size = UDim2.new(1, -28, 0, 170)
 	promptCard.ZIndex = 51
 	promptCard.Parent = promptOverlay
 	makeCornerAndStroke(promptCard, 10, 1)
+	NAStuff.ExecutorTools.PromptSizeConstraint = InstanceNew("UISizeConstraint")
+	NAStuff.ExecutorTools.PromptSizeConstraint.MaxSize = Vector2.new(360, 170)
+	NAStuff.ExecutorTools.PromptSizeConstraint.MinSize = Vector2.new(220, 170)
+	NAStuff.ExecutorTools.PromptSizeConstraint.Parent = promptCard
 
 	const promptTitle = InstanceNew("TextLabel")
 	promptTitle.BackgroundTransparency = 1
 	promptTitle.BorderSizePixel = 0
 	promptTitle.Font = Enum.Font.GothamBold
-	promptTitle.Position = UDim2.new(0, 14, 0, 12)
-	promptTitle.Size = UDim2.new(1, -28, 0, 20)
+	promptTitle.Position = UDim2.new(0, 14, 0, 10)
+	promptTitle.Size = UDim2.new(1, -28, 0, 36)
 	promptTitle.Text = "Name"
 	promptTitle.TextColor3 = colors.text
 	promptTitle.TextSize = 15
+	promptTitle.TextWrapped = true
 	promptTitle.TextXAlignment = Enum.TextXAlignment.Left
+	promptTitle.TextYAlignment = Enum.TextYAlignment.Top
 	promptTitle.ZIndex = 52
 	promptTitle.Parent = promptCard
 
@@ -120836,7 +124919,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	promptInput.ClearTextOnFocus = false
 	promptInput.Font = Enum.Font.Gotham
 	promptInput.PlaceholderText = "Enter a name"
-	promptInput.Position = UDim2.new(0, 14, 0, 46)
+	promptInput.Position = UDim2.new(0, 14, 0, 54)
 	promptInput.Size = UDim2.new(1, -28, 0, 38)
 	promptInput.Text = ""
 	promptInput.TextColor3 = colors.text
@@ -120853,6 +124936,210 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	promptCancel.Position = UDim2.new(0.5, 6, 1, -42)
 	promptCancel.Size = UDim2.new(0.5, -20, 0, 28)
 	promptCancel.ZIndex = 52
+
+	NAStuff.ExecutorTools.ObfuscationMenu = {}
+	NAStuff.ExecutorTools.ObfuscationMenu.Overlay = InstanceNew("Frame")
+	NAStuff.ExecutorTools.ObfuscationMenu.Overlay.Name = "ObfuscationMenu"
+	NAStuff.ExecutorTools.ObfuscationMenu.Overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	NAStuff.ExecutorTools.ObfuscationMenu.Overlay.BackgroundTransparency = 0.3
+	NAStuff.ExecutorTools.ObfuscationMenu.Overlay.BorderSizePixel = 0
+	NAStuff.ExecutorTools.ObfuscationMenu.Overlay.Size = UDim2.new(1, 0, 1, 0)
+	NAStuff.ExecutorTools.ObfuscationMenu.Overlay.Visible = false
+	NAStuff.ExecutorTools.ObfuscationMenu.Overlay.ZIndex = 54
+	NAStuff.ExecutorTools.ObfuscationMenu.Overlay.Parent = container
+
+	NAStuff.ExecutorTools.ObfuscationMenu.Card = InstanceNew("Frame")
+	NAStuff.ExecutorTools.ObfuscationMenu.Card.BackgroundColor3 = colors.panel
+	NAStuff.ExecutorTools.ObfuscationMenu.Card.BorderSizePixel = 0
+	NAStuff.ExecutorTools.ObfuscationMenu.Card.AnchorPoint = Vector2.new(0.5, 0.5)
+	NAStuff.ExecutorTools.ObfuscationMenu.Card.Position = UDim2.new(0.5, 0, 0.5, 0)
+	NAStuff.ExecutorTools.ObfuscationMenu.Card.Size = UDim2.new(1, -28, 0, 340)
+	NAStuff.ExecutorTools.ObfuscationMenu.Card.ZIndex = 55
+	NAStuff.ExecutorTools.ObfuscationMenu.Card.Parent = NAStuff.ExecutorTools.ObfuscationMenu.Overlay
+	makeCornerAndStroke(NAStuff.ExecutorTools.ObfuscationMenu.Card, 10, 1)
+
+	NAStuff.ExecutorTools.ObfuscationMenu.SizeConstraint = InstanceNew("UISizeConstraint")
+	NAStuff.ExecutorTools.ObfuscationMenu.SizeConstraint.MaxSize = Vector2.new(420, 340)
+	NAStuff.ExecutorTools.ObfuscationMenu.SizeConstraint.MinSize = Vector2.new(220, 280)
+	NAStuff.ExecutorTools.ObfuscationMenu.SizeConstraint.Parent = NAStuff.ExecutorTools.ObfuscationMenu.Card
+
+	NAStuff.ExecutorTools.ObfuscationMenu.Title = InstanceNew("TextLabel")
+	NAStuff.ExecutorTools.ObfuscationMenu.Title.BackgroundTransparency = 1
+	NAStuff.ExecutorTools.ObfuscationMenu.Title.BorderSizePixel = 0
+	NAStuff.ExecutorTools.ObfuscationMenu.Title.Font = Enum.Font.GothamBold
+	NAStuff.ExecutorTools.ObfuscationMenu.Title.Position = UDim2.new(0, 14, 0, 12)
+	NAStuff.ExecutorTools.ObfuscationMenu.Title.Size = UDim2.new(1, -28, 0, 22)
+	NAStuff.ExecutorTools.ObfuscationMenu.Title.Text = "Obfuscation Method"
+	NAStuff.ExecutorTools.ObfuscationMenu.Title.TextColor3 = colors.text
+	NAStuff.ExecutorTools.ObfuscationMenu.Title.TextSize = 15
+	NAStuff.ExecutorTools.ObfuscationMenu.Title.TextWrapped = true
+	NAStuff.ExecutorTools.ObfuscationMenu.Title.TextXAlignment = Enum.TextXAlignment.Left
+	NAStuff.ExecutorTools.ObfuscationMenu.Title.ZIndex = 56
+	NAStuff.ExecutorTools.ObfuscationMenu.Title.Parent = NAStuff.ExecutorTools.ObfuscationMenu.Card
+
+	NAStuff.ExecutorTools.ObfuscationMenu.Subtitle = InstanceNew("TextLabel")
+	NAStuff.ExecutorTools.ObfuscationMenu.Subtitle.BackgroundTransparency = 1
+	NAStuff.ExecutorTools.ObfuscationMenu.Subtitle.BorderSizePixel = 0
+	NAStuff.ExecutorTools.ObfuscationMenu.Subtitle.Font = Enum.Font.Gotham
+	NAStuff.ExecutorTools.ObfuscationMenu.Subtitle.Position = UDim2.new(0, 14, 0, 38)
+	NAStuff.ExecutorTools.ObfuscationMenu.Subtitle.Size = UDim2.new(1, -28, 0, 32)
+	NAStuff.ExecutorTools.ObfuscationMenu.Subtitle.Text = "Select a method for the current Executor tab."
+	NAStuff.ExecutorTools.ObfuscationMenu.Subtitle.TextColor3 = colors.subtle
+	NAStuff.ExecutorTools.ObfuscationMenu.Subtitle.TextSize = 12
+	NAStuff.ExecutorTools.ObfuscationMenu.Subtitle.TextWrapped = true
+	NAStuff.ExecutorTools.ObfuscationMenu.Subtitle.TextXAlignment = Enum.TextXAlignment.Left
+	NAStuff.ExecutorTools.ObfuscationMenu.Subtitle.TextYAlignment = Enum.TextYAlignment.Top
+	NAStuff.ExecutorTools.ObfuscationMenu.Subtitle.ZIndex = 56
+	NAStuff.ExecutorTools.ObfuscationMenu.Subtitle.Parent = NAStuff.ExecutorTools.ObfuscationMenu.Card
+
+	NAStuff.ExecutorTools.ObfuscationMenu.List = InstanceNew("ScrollingFrame")
+	NAStuff.ExecutorTools.ObfuscationMenu.List.Name = "Methods"
+	NAStuff.ExecutorTools.ObfuscationMenu.List.BackgroundColor3 = colors.panel2
+	NAStuff.ExecutorTools.ObfuscationMenu.List.BackgroundTransparency = 0.08
+	NAStuff.ExecutorTools.ObfuscationMenu.List.BorderSizePixel = 0
+	NAStuff.ExecutorTools.ObfuscationMenu.List.Position = UDim2.new(0, 14, 0, 76)
+	NAStuff.ExecutorTools.ObfuscationMenu.List.Size = UDim2.new(1, -28, 0, 180)
+	NAStuff.ExecutorTools.ObfuscationMenu.List.CanvasSize = UDim2.new(0, 0, 0, 0)
+	NAStuff.ExecutorTools.ObfuscationMenu.List.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	NAStuff.ExecutorTools.ObfuscationMenu.List.ScrollingDirection = Enum.ScrollingDirection.Y
+	NAStuff.ExecutorTools.ObfuscationMenu.List.ScrollBarThickness = 4
+	NAStuff.ExecutorTools.ObfuscationMenu.List.ScrollBarImageColor3 = colors.subtle
+	NAStuff.ExecutorTools.ObfuscationMenu.List.ZIndex = 56
+	NAStuff.ExecutorTools.ObfuscationMenu.List.Parent = NAStuff.ExecutorTools.ObfuscationMenu.Card
+	makeCornerAndStroke(NAStuff.ExecutorTools.ObfuscationMenu.List, 8, 1)
+
+	NAStuff.ExecutorTools.ObfuscationMenu.ListLayout = InstanceNew("UIListLayout")
+	NAStuff.ExecutorTools.ObfuscationMenu.ListLayout.Padding = UDim.new(0, 6)
+	NAStuff.ExecutorTools.ObfuscationMenu.ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	NAStuff.ExecutorTools.ObfuscationMenu.ListLayout.Parent = NAStuff.ExecutorTools.ObfuscationMenu.List
+
+	NAStuff.ExecutorTools.ObfuscationMenu.ListPadding = InstanceNew("UIPadding")
+	NAStuff.ExecutorTools.ObfuscationMenu.ListPadding.PaddingTop = UDim.new(0, 6)
+	NAStuff.ExecutorTools.ObfuscationMenu.ListPadding.PaddingBottom = UDim.new(0, 6)
+	NAStuff.ExecutorTools.ObfuscationMenu.ListPadding.PaddingLeft = UDim.new(0, 6)
+	NAStuff.ExecutorTools.ObfuscationMenu.ListPadding.PaddingRight = UDim.new(0, 6)
+	NAStuff.ExecutorTools.ObfuscationMenu.ListPadding.Parent = NAStuff.ExecutorTools.ObfuscationMenu.List
+
+	NAStuff.ExecutorTools.ObfuscationMenu.Buttons = {}
+	NAStuff.ExecutorTools.ObfuscationMenu.Selected = "auto"
+	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod = function(mode, title, detail)
+		local button = InstanceNew("TextButton")
+		button.Name = mode
+		button.AutoButtonColor = false
+		button.BackgroundColor3 = mode == "auto" and colors.tabActive or colors.panel3
+		button.BorderSizePixel = 0
+		button.Font = Enum.Font.Gotham
+		button.Size = UDim2.new(1, -2, 0, 42)
+		button.Text = title.."  -  "..detail
+		button.TextColor3 = mode == "auto" and colors.tabTextActive or colors.text
+		button.TextSize = 12
+		button.TextWrapped = true
+		button.TextXAlignment = Enum.TextXAlignment.Left
+		button.ZIndex = 57
+		button.Parent = NAStuff.ExecutorTools.ObfuscationMenu.List
+		makeCornerAndStroke(button, 7, 1)
+		NAStuff.ExecutorTools.ObfuscationMenu.Buttons[mode] = button
+		button.MouseButton1Click:Connect(function()
+			NAStuff.ExecutorTools.ObfuscationMenu.Selected = mode
+			for method, methodButton in NAStuff.ExecutorTools.ObfuscationMenu.Buttons do
+				const selected = method == mode
+				methodButton.BackgroundColor3 = selected and colors.tabActive or colors.panel3
+				methodButton.TextColor3 = selected and colors.tabTextActive or colors.text
+			end
+			NAStuff.ExecutorTools.ObfuscationMenu.Selection.Text = "Selected: "..title
+			NAStuff.ExecutorTools.ObfuscationMenu.Confirm.Text = "Obfuscate: "..title
+		end)
+	end
+
+	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("auto", "Auto", "Chooses Ultra, Strong, or Balanced by script size")
+	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("light", "Light", "Compatibility alias for Base64")
+	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("base4", "Base4 Bytes", "Four base-4 digits per source byte")
+	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("base36", "Base36 Bytes", "Two fixed base-36 digits per source byte")
+	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("base62", "Base62 Bytes", "Two fixed base-62 digits per source byte")
+	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("base64", "Base64", "Standard Base64 text encoding")
+	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("base64url", "Base64URL", "URL-safe Base64 alphabet without padding")
+	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("base32", "Base32", "RFC-style A-Z and 2-7 encoding")
+	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("z85", "Z85", "Compact printable base-85 encoding")
+	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("hex", "Hex", "Two hexadecimal digits per source byte")
+	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("percent", "Percent Bytes", "Every byte encoded as %XX")
+	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("decimal", "Decimal Bytes", "Comma-separated byte values")
+	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("binary", "Binary Bytes", "Eight 0/1 digits per source byte")
+	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("octal", "Octal Bytes", "Three octal digits per source byte")
+	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("reverse64", "Reverse Base64", "Base64 payload stored backwards")
+	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("pairswap", "Pair Swap + Base64", "Swaps each adjacent byte pair")
+	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("reversebytes", "Reverse Bytes + Base64", "Reverses the complete source byte order")
+	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("indexxor", "Index XOR + Base64", "XOR key changes with each byte position")
+	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("indexshift", "Index Shift + Base64", "Byte shift changes with each byte position")
+	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("affine", "Affine Bytes + Base64", "Invertible multiply-and-add byte transform")
+	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("bitreverse", "Bit Reverse + Base64", "Reverses the 8 bits inside every byte")
+	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("gray", "Gray Code + Base64", "Converts every byte to Gray code")
+	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("rot13", "ROT13 + Base64", "ROT13 letter transform then Base64")
+	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("shift", "Byte Shift + Base64", "Adds a rotating numeric byte offset")
+	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("complement", "Complement + Base64", "Maps each byte to 255-byte")
+	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("nibble", "Nibble Swap + Base64", "Swaps high and low 4-bit halves")
+	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("rotate", "Bit Rotate + Base64", "Rotates every source byte by 3 bits")
+	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("xor", "XOR + Base64", "Single-byte XOR with generated key")
+	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("repeatxor", "Repeating XOR + Base64", "Multi-byte repeating generated key")
+	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("delta", "Delta + Base64", "Stores byte differences instead of bytes")
+	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("rle", "RLE + Base64", "Run-length packs repeated bytes")
+	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("lzw92", "LZW92", "LZW compression packed in base-92 pairs")
+	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("lzw92base64", "LZW92 + Base64", "LZW92 stream wrapped in Base64")
+	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("jscamo", "JavaScript Camouflage", "Looks like a JavaScript module but executes as Luau")
+	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("jscamostrong", "JavaScript Camouflage Strong", "JavaScript decoy + LZW92 + repeating XOR")
+	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("pycamo", "Python Camouflage", "Looks like a Python module but executes as Luau")
+	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("pycamostrong", "Python Camouflage Strong", "Python decoy + LZW92 + repeating XOR")
+	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("balanced", "Balanced", "XOR + Base64 compatibility preset")
+	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("strong", "Strong", "LZW92 + XOR + Base64")
+	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("ultra", "Ultra", "LZW92 + repeating XOR + Base32")
+
+	NAStuff.ExecutorTools.ObfuscationMenu.Selection = InstanceNew("TextLabel")
+	NAStuff.ExecutorTools.ObfuscationMenu.Selection.BackgroundTransparency = 1
+	NAStuff.ExecutorTools.ObfuscationMenu.Selection.BorderSizePixel = 0
+	NAStuff.ExecutorTools.ObfuscationMenu.Selection.Font = Enum.Font.Gotham
+	NAStuff.ExecutorTools.ObfuscationMenu.Selection.Position = UDim2.new(0, 14, 0, 262)
+	NAStuff.ExecutorTools.ObfuscationMenu.Selection.Size = UDim2.new(1, -28, 0, 16)
+	NAStuff.ExecutorTools.ObfuscationMenu.Selection.Text = "Selected: Auto"
+	NAStuff.ExecutorTools.ObfuscationMenu.Selection.TextColor3 = colors.subtle
+	NAStuff.ExecutorTools.ObfuscationMenu.Selection.TextSize = 11
+	NAStuff.ExecutorTools.ObfuscationMenu.Selection.TextXAlignment = Enum.TextXAlignment.Left
+	NAStuff.ExecutorTools.ObfuscationMenu.Selection.ZIndex = 56
+	NAStuff.ExecutorTools.ObfuscationMenu.Selection.Parent = NAStuff.ExecutorTools.ObfuscationMenu.Card
+
+	NAStuff.ExecutorTools.ObfuscationMenu.Confirm = makeButton(NAStuff.ExecutorTools.ObfuscationMenu.Card, "Obfuscate: Auto", colors.tabActive)
+	NAStuff.ExecutorTools.ObfuscationMenu.Confirm.Position = UDim2.new(0, 14, 1, -42)
+	NAStuff.ExecutorTools.ObfuscationMenu.Confirm.Size = UDim2.new(0.62, -18, 0, 28)
+	NAStuff.ExecutorTools.ObfuscationMenu.Confirm.ZIndex = 56
+
+	NAStuff.ExecutorTools.ObfuscationMenu.Cancel = makeButton(NAStuff.ExecutorTools.ObfuscationMenu.Card, "Cancel", colors.panel3)
+	NAStuff.ExecutorTools.ObfuscationMenu.Cancel.Position = UDim2.new(0.62, 4, 1, -42)
+	NAStuff.ExecutorTools.ObfuscationMenu.Cancel.Size = UDim2.new(0.38, -18, 0, 28)
+	NAStuff.ExecutorTools.ObfuscationMenu.Cancel.ZIndex = 56
+
+	NAStuff.ExecutorTools.ObfuscationMenu.Show = function()
+		NAStuff.ExecutorTools.ObfuscationMenu.Selected = "auto"
+		for method, methodButton in NAStuff.ExecutorTools.ObfuscationMenu.Buttons do
+			const selected = method == "auto"
+			methodButton.BackgroundColor3 = selected and colors.tabActive or colors.panel3
+			methodButton.TextColor3 = selected and colors.tabTextActive or colors.text
+		end
+		NAStuff.ExecutorTools.ObfuscationMenu.Selection.Text = "Selected: Auto"
+		NAStuff.ExecutorTools.ObfuscationMenu.Confirm.Text = "Obfuscate: Auto"
+		NAStuff.ExecutorTools.ObfuscationMenu.List.CanvasPosition = Vector2.new(0, 0)
+		NAStuff.ExecutorTools.ObfuscationMenu.Overlay.Visible = true
+	end
+
+	NAStuff.ExecutorTools.ObfuscationMenu.Hide = function()
+		NAStuff.ExecutorTools.ObfuscationMenu.Overlay.Visible = false
+	end
+
+	NAStuff.ExecutorTools.ObfuscationMenu.Cancel.MouseButton1Click:Connect(NAStuff.ExecutorTools.ObfuscationMenu.Hide)
+	NAStuff.ExecutorTools.ObfuscationMenu.Confirm.MouseButton1Click:Connect(function()
+		const mode = NAStuff.ExecutorTools.ObfuscationMenu.Selected or "auto"
+		NAStuff.ExecutorTools.ObfuscationMenu.Hide()
+		if type(NAStuff.ExecutorTools.RunObfuscateMode) == "function" then
+			NAStuff.ExecutorTools.RunObfuscateMode(mode)
+		end
+	end)
 
 	local promptCallback
 	const tabs = {}
@@ -121737,10 +126024,10 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		rootPad.PaddingTop = UDim.new(0, pad)
 		tabsBar.Size = UDim2.new(1, 0, 0, compact and 30 or 34)
 		body.Position = UDim2.new(0, 0, 0, compact and 36 or 42)
-		body.Size = UDim2.new(1, 0, 1, compact and -82 or -92)
-		statusLabel.Position = UDim2.new(0, 0, 1, compact and -38 or -42)
-		actions.Position = UDim2.new(0, 0, 1, compact and -20 or -22)
-		actions.Size = UDim2.new(1, 0, 0, compact and 24 or 28)
+		body.Size = UDim2.new(1, 0, 1, compact and -112 or -92)
+		statusLabel.Position = UDim2.new(0, 0, 1, compact and -68 or -42)
+		actions.Position = UDim2.new(0, 0, 1, compact and -50 or -22)
+		actions.Size = UDim2.new(1, 0, 0, compact and 48 or 28)
 
 		hubPane.Visible = showHub
 		editorPane.Visible = true
@@ -121771,8 +126058,10 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		end
 
 		const actionPad = w < 420 and 2 or (compact and 4 or 6)
-		actionLayout.CellPadding = UDim2.new(0, actionPad, 0, 0)
-		actionLayout.CellSize = UDim2.new(1 / math.max(1, actionButtonCount), -actionPad, 1, 0)
+		const actionColumns = compact and math.ceil(actionButtonCount / 2) or actionButtonCount
+		actionLayout.CellPadding = UDim2.new(0, actionPad, 0, compact and 4 or 0)
+		actionLayout.CellSize = UDim2.new(1 / math.max(1, actionColumns), -actionPad, 0, compact and 22 or 28)
+		actionLayout.FillDirectionMaxCells = actionColumns
 		hubButtons.ScrollBarThickness = compact and 3 or 4
 		for _, btn in { hubOpen, hubOpenNew, hubSave, hubClear, hubNew, hubDelete, hubRefresh, NAStuff.ExecutorTools.HubStopLast } do
 			btn.Size = UDim2.new(1, -2, 0, compact and 22 or 26)
@@ -121783,11 +126072,14 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			actionButtons[#actionButtons + 1] = pasteButton
 		end
 		actionButtons[#actionButtons + 1] = formatButton
+		actionButtons[#actionButtons + 1] = NAStuff.ExecutorTools.DeobfuscateButton
+		actionButtons[#actionButtons + 1] = NAStuff.ExecutorTools.ObfuscateButton
 		actionButtons[#actionButtons + 1] = renameButton
 		actionButtons[#actionButtons + 1] = duplicateButton
 		actionButtons[#actionButtons + 1] = deleteTabButton
 		for _, btn in actionButtons do
-			btn.TextSize = (btn == pasteButton) and (compact and 9 or 10) or (compact and 11 or 13)
+			const longAction = btn == pasteButton or btn == NAStuff.ExecutorTools.DeobfuscateButton or btn == NAStuff.ExecutorTools.ObfuscateButton
+			btn.TextSize = longAction and (compact and 9 or 10) or (compact and 11 or 13)
 		end
 		cfg.fontSize = clamp(math.floor(num(cfg.fontSize, 15) + 0.5), 11, 24)
 		textBox.TextSize = clamp(cfg.fontSize + (compact and -2 or 0), 10, 24)
@@ -122483,6 +126775,70 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		loadCurrentPage()
 		scheduleTabsSave()
 		setStatus("Formatted Luau script", colors.success)
+	end)
+	NAStuff.ExecutorTools.DeobfuscateButton.MouseButton1Click:Connect(function()
+		commitCurrentPage(true)
+		local targetTab = tabs[currentTab]
+		local source = NAmanage.ExecutorGetTabText(targetTab)
+		if source:gsub("%s+", "") == "" then
+			setStatus("Nothing to deobfuscate", colors.warn)
+			return
+		end
+		setStatus("Auto-detecting obfuscation...", colors.warn)
+		Spawn(function()
+			local okDecode, decoded, applied = pcall(NAStuff.ExecutorCodec.AutoDeobfuscate, source)
+			if not okDecode then
+				Defer(setStatus, "Deobfuscation failed: "..tostring(decoded), colors.error)
+				return
+			end
+			if type(decoded) ~= "string" or decoded == source then
+				Defer(setStatus, "No supported obfuscation layer detected", colors.warn)
+				return
+			end
+			Defer(function()
+				setTabFullText(targetTab, decoded, true)
+				if tabs[currentTab] == targetTab then loadCurrentPage() end
+				scheduleTabsSave()
+				local detail = type(applied) == "table" and table.concat(applied, " -> ") or "decoded"
+				if #detail > 96 then detail = detail:sub(1, 93).."..." end
+				setStatus("Deobfuscated: "..detail, colors.success)
+			end)
+		end)
+	end)
+	NAStuff.ExecutorTools.RunObfuscateMode = function(mode)
+		commitCurrentPage(true)
+		local targetTab = tabs[currentTab]
+		local source = NAmanage.ExecutorGetTabText(targetTab)
+		if source:gsub("%s+", "") == "" then
+			setStatus("Nothing to obfuscate", colors.warn)
+			return
+		end
+		setStatus("Obfuscating script...", colors.warn)
+		Spawn(function()
+			local okObfuscate, encoded, selectedMode, transformErr = pcall(NAStuff.ExecutorCodec.Obfuscate, source, mode)
+			if not okObfuscate then
+				Defer(setStatus, "Obfuscation failed: "..tostring(encoded), colors.error)
+				return
+			end
+			if type(encoded) ~= "string" then
+				Defer(setStatus, tostring(transformErr or "Unsupported obfuscation mode"), colors.error)
+				return
+			end
+			local compiled, compileErr = loadstring(encoded, "Executor/ObfuscationCheck")
+			if not compiled then
+				Defer(setStatus, "Generated wrapper failed compile check: "..tostring(compileErr), colors.error)
+				return
+			end
+			Defer(function()
+				setTabFullText(targetTab, encoded, true)
+				if tabs[currentTab] == targetTab then loadCurrentPage() end
+				scheduleTabsSave()
+				setStatus("Obfuscated ("..tostring(selectedMode or mode or "Auto").."): "..tostring(#source).." -> "..tostring(#encoded).." bytes", colors.success)
+			end)
+		end)
+	end
+	NAStuff.ExecutorTools.ObfuscateButton.MouseButton1Click:Connect(function()
+		NAStuff.ExecutorTools.ObfuscationMenu.Show()
 	end)
 	renameButton.MouseButton1Click:Connect(function()
 		renameTab(currentTab)
