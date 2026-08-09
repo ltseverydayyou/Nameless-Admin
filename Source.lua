@@ -76958,9 +76958,17 @@ NAmanage._openOutfitPagedWindow=function(cfg,page)
 end
 
 cmd.add({"goto","to","tp","teleport"},{"goto <player|npc:filter|X,Y,Z>","Teleport to the given player, NPC, or X,Y,Z coordinates"},function(...)
-	const input   = Concat({...}," ")
+	const input = Concat({...}," ")
+	const char = getChar()
+	local x,y,z = input:match("^%s*([+-]?%d+%.?%d*)[,%s]+([+-]?%d+%.?%d*)[,%s]+([+-]?%d+%.?%d*)%s*$")
+	if x and y and z then
+		if char then
+			NAmanage.UG_pivotModel(char, CFrame.new(tonumber(x),tonumber(y),tonumber(z)))
+		end
+		return
+	end
+
 	const targets = getPlr(input)
-	const char    = getChar()
 	if #targets > 0 then
 		local moved = false
 		for _,target in targets do
@@ -76974,14 +76982,7 @@ cmd.add({"goto","to","tp","teleport"},{"goto <player|npc:filter|X,Y,Z>","Telepor
 			DebugNotif("No valid player or NPC root found",3)
 		end
 	else
-		local x,y,z = input:match("^(%-?%d+%.?%d*)[,%s]+(%-?%d+%.?%d*)[,%s]+(%-?%d+%.?%d*)$")
-		if x and y and z then
-			if char then
-				NAmanage.UG_pivotModel(char, CFrame.new(tonumber(x),tonumber(y),tonumber(z)))
-			end
-		else
-			DebugNotif("Invalid input: not a valid player, NPC, or X,Y,Z coordinates",3)
-		end
+		DebugNotif("Invalid input: not a valid player, NPC, or X,Y,Z coordinates",3)
 	end
 end,true)
 
