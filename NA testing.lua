@@ -99515,6 +99515,1706 @@ cmd.add({"unxray", "xrayoff"}, {"unxray (xrayoff)", "Disables X-ray vision"}, fu
 	originalIO.togXray(false)
 end)
 
+NAmanage.Echolocation = NAmanage.Echolocation or {}
+
+NAmanage.Echolocation.GetState = function()
+	local state = NAStuff.EcholocationState
+	if type(state) ~= "table" then
+		state = {
+			enabled = false;
+			token = 0;
+			pulses = {};
+			wavePool = {};
+			highlightPool = {};
+			targetSlots = NAmanage.ensureWeakKeyTable(nil);
+			patchSlots = NAmanage.ensureWeakKeyTable(nil);
+			sourceOrigins = NAmanage.ensureWeakKeyTable(nil);
+			sourceSoundPulseAt = NAmanage.ensureWeakKeyTable(nil);
+			emitterBoundPlayers = NAmanage.ensureWeakKeyTable(nil);
+			soundRecords = NAmanage.ensureWeakKeyTable(nil);
+			soundList = {};
+			soundCursor = 1;
+			nextSoundPoll = 0;
+			config = {};
+			lastStepAt = 0;
+			lastDarknessAt = 0;
+			wasGrounded = nil;
+			airborneAt = 0;
+		}
+		NAStuff.EcholocationState = state
+	end
+	state.config = type(state.config) == "table" and state.config or {}
+	for key, value in {
+		range = 74;
+		waveSpeed = 92;
+		revealTime = 1.15;
+		queryInterval = 0.055;
+		maxQueryParts = 220;
+		maxRevealPerQuery = 72;
+		maxHighlights = 112;
+		maxWaves = 8;
+		maxActivePulses = 28;
+		maxPulsesPerSource = 3;
+		maxWaveSlotsPerSource = 1;
+		largePartDimension = 36;
+		largePartApparentRatio = 0.9;
+		surfacePatchMaxSize = 12;
+		surfacePatchMinSize = 1.5;
+		surfacePatchCameraRatio = 0.22;
+		surfacePatchThickness = 0.055;
+		movingSourceResetDistance = 5.5;
+		stepBaseInterval = 0.56;
+		soundPollInterval = 0.05;
+		soundPulseCooldown = 0.18;
+		soundSourceMergeCooldown = 0.09;
+		soundEventDebounce = 0.045;
+		soundMinLoudness = 1;
+		soundBaseRange = 20;
+		soundMaxRange = 120;
+		soundChecksPerPoll = 96;
+		audioGraphDepth = 10;
+		maxPatchSlotsPerPart = 6;
+	} do
+		if state.config[key] == nil then
+			state.config[key] = value
+		end
+	end
+	state.pulses = type(state.pulses) == "table" and state.pulses or {}
+	state.wavePool = type(state.wavePool) == "table" and state.wavePool or {}
+	state.highlightPool = type(state.highlightPool) == "table" and state.highlightPool or {}
+	state.targetSlots = NAmanage.ensureWeakKeyTable(state.targetSlots)
+	state.patchSlots = NAmanage.ensureWeakKeyTable(state.patchSlots)
+	state.sourceOrigins = NAmanage.ensureWeakKeyTable(state.sourceOrigins)
+	state.sourceSoundPulseAt = NAmanage.ensureWeakKeyTable(state.sourceSoundPulseAt)
+	state.emitterBoundPlayers = NAmanage.ensureWeakKeyTable(state.emitterBoundPlayers)
+	state.soundRecords = NAmanage.ensureWeakKeyTable(state.soundRecords)
+	state.soundList = type(state.soundList) == "table" and state.soundList or {}
+	state.soundCursor = math.max(1, math.floor(tonumber(state.soundCursor) or 1))
+	state.nextSoundPoll = tonumber(state.nextSoundPoll) or 0
+	return state
+end
+
+NAmanage.Echolocation.SafeSet = function(inst, prop, value)
+	if typeof(inst) ~= "Instance" then
+		return false
+	end
+	local ok = pcall(function()
+		inst[prop] = value
+	end)
+	if not ok and NAlib and type(NAlib.setProperty) == "function" then
+		ok = pcall(NAlib.setProperty, inst, prop, value)
+	end
+	return ok
+end
+
+NAmanage.Echolocation.SafeGet = function(inst, prop)
+	if typeof(inst) ~= "Instance" then
+		return nil
+	end
+	local ok, value = pcall(function()
+		return inst[prop]
+	end)
+	if ok then
+		return value
+	end
+	return nil
+end
+
+NAmanage.Echolocation.DisableConflictingLighting = function()
+	if type(NAmanage._ensureL) ~= "function" then
+		return
+	end
+	local st = NAmanage._ensureL()
+	if type(st) ~= "table" then
+		return
+	end
+	for _, name in { "disableTimeLoops", "disableFB", "disableNB", "disableShader" } do
+		if type(st[name]) == "function" then
+			pcall(st[name])
+		end
+	end
+	if type(st.disableNF) == "function" then
+		pcall(st.disableNF, true)
+	end
+	if type(st.disableNM) == "function" then
+		pcall(st.disableNM)
+	end
+end
+
+NAmanage.Echolocation.CaptureLighting = function()
+	local state = NAmanage.Echolocation.GetState()
+	if not Lighting then
+		return
+	end
+	NAmanage.Echolocation.DisableConflictingLighting()
+	state.lightingTarget = {
+		Brightness = 0;
+		Ambient = Color3.new(0, 0, 0);
+		OutdoorAmbient = Color3.new(0, 0, 0);
+		ColorShift_Top = Color3.new(0, 0, 0);
+		ColorShift_Bottom = Color3.new(0, 0, 0);
+		ExposureCompensation = -3.5;
+		ClockTime = 0;
+		FogColor = Color3.new(0, 0, 0);
+		FogStart = 0;
+		FogEnd = 42;
+		EnvironmentDiffuseScale = 0;
+		EnvironmentSpecularScale = 0;
+		GlobalShadows = false;
+	}
+	state.lightingBackup = {}
+	for prop in state.lightingTarget do
+		local value = NAmanage.Echolocation.SafeGet(Lighting, prop)
+		if value ~= nil then
+			state.lightingBackup[prop] = value
+		end
+	end
+end
+
+NAmanage.Echolocation.ApplyDarkness = function()
+	local state = NAmanage.Echolocation.GetState()
+	if not state.enabled or not Lighting or type(state.lightingTarget) ~= "table" then
+		return
+	end
+	for prop, value in state.lightingTarget do
+		if NAmanage.Echolocation.SafeGet(Lighting, prop) ~= value then
+			NAmanage.Echolocation.SafeSet(Lighting, prop, value)
+		end
+	end
+end
+
+NAmanage.Echolocation.RestoreLighting = function()
+	local state = NAmanage.Echolocation.GetState()
+	if Lighting and type(state.lightingBackup) == "table" then
+		for prop, value in state.lightingBackup do
+			NAmanage.Echolocation.SafeSet(Lighting, prop, value)
+		end
+	end
+	state.lightingBackup = nil
+	state.lightingTarget = nil
+end
+
+NAmanage.Echolocation.EnsureVisualRoot = function()
+	local state = NAmanage.Echolocation.GetState()
+	if typeof(state.visualRoot) == "Instance" and state.visualRoot.Parent then
+		return state.visualRoot
+	end
+	local folder = InstanceNew("Folder")
+	folder.Name = "\0"
+	folder.Parent = Workspace
+	state.visualRoot = folder
+	return folder
+end
+
+NAmanage.Echolocation.UpdateOverlapFilter = function()
+	local state = NAmanage.Echolocation.GetState()
+	if typeof(state.overlap) ~= "OverlapParams" then
+		state.overlap = OverlapParams.new()
+	end
+	pcall(function()
+		state.overlap.FilterType = Enum.RaycastFilterType.Exclude
+		state.overlap.MaxParts = math.max(0, math.floor(tonumber(state.config.maxQueryParts) or 220))
+		state.overlap.RespectCanCollide = false
+		local filter = {}
+		if typeof(state.visualRoot) == "Instance" then
+			filter[#filter + 1] = state.visualRoot
+		end
+		if typeof(state.character) == "Instance" then
+			filter[#filter + 1] = state.character
+		end
+		state.overlap.FilterDescendantsInstances = filter
+	end)
+	return state.overlap
+end
+
+NAmanage.Echolocation.EnsureSelfHighlight = function()
+	local state = NAmanage.Echolocation.GetState()
+	if typeof(state.selfHighlight) ~= "Instance" or not state.selfHighlight.Parent then
+		local root = NAmanage.Echolocation.EnsureVisualRoot()
+		local highlight = InstanceNew("Highlight", root)
+		highlight.Name = "\0"
+		highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+		highlight.FillColor = Color3.new(1, 1, 1)
+		highlight.OutlineColor = Color3.new(1, 1, 1)
+		highlight.FillTransparency = 0.93
+		highlight.OutlineTransparency = 0.05
+		highlight.Enabled = true
+		state.selfHighlight = highlight
+	end
+	state.selfHighlight.Adornee = state.character
+	return state.selfHighlight
+end
+
+NAmanage.Echolocation.CreateWaveSlot = function()
+	local state = NAmanage.Echolocation.GetState()
+	if #state.wavePool >= math.max(1, math.floor(tonumber(state.config.maxWaves) or 4)) then
+		return nil
+	end
+	local root = NAmanage.Echolocation.EnsureVisualRoot()
+	local part = InstanceNew("Part", root)
+	part.Name = "\0"
+	part.Anchored = true
+	part.CanCollide = false
+	part.CanQuery = false
+	part.CanTouch = false
+	part.CastShadow = false
+	part.Transparency = 1
+	part.Size = Vector3.new(0.05, 0.05, 0.05)
+	local slot = {
+		active = false;
+		part = part;
+		rings = {};
+	}
+	for i = 1, 3 do
+		local ring = InstanceNew("CylinderHandleAdornment", root)
+		ring.Name = "\0"
+		ring.Adornee = part
+		ring.AlwaysOnTop = true
+		ring.ZIndex = 10
+		ring.Color3 = Color3.new(1, 1, 1)
+		ring.Transparency = 1
+		ring.Height = 0.035
+		ring.Angle = 360
+		ring.Radius = 0.1
+		ring.InnerRadius = 0
+		if i == 2 then
+			ring.CFrame = CFrame.Angles(math.pi * 0.5, 0, 0)
+		elseif i == 3 then
+			ring.CFrame = CFrame.Angles(0, 0, math.pi * 0.5)
+		end
+		pcall(function()
+			ring.AdornCullingMode = Enum.AdornCullingMode.Never
+		end)
+		slot.rings[i] = ring
+	end
+	state.wavePool[#state.wavePool + 1] = slot
+	return slot
+end
+
+NAmanage.Echolocation.AcquireWaveSlot = function(sourceKey)
+	local state = NAmanage.Echolocation.GetState()
+	local perSourceCap = math.max(1, math.floor(tonumber(state.config.maxWaveSlotsPerSource) or 2))
+	local sourceActive = 0
+	local inactive = nil
+	local counts = {}
+	for i = 1, #state.wavePool do
+		local slot = state.wavePool[i]
+		if slot.active ~= true then
+			inactive = inactive or slot
+		else
+			local pulse = slot.pulse
+			local key = type(pulse) == "table" and pulse.sourceKey or nil
+			counts[key or false] = (counts[key or false] or 0) + 1
+			if key == sourceKey then
+				sourceActive += 1
+			end
+		end
+	end
+	if sourceActive >= perSourceCap then
+		return nil
+	end
+	if inactive then
+		return inactive
+	end
+	if #state.wavePool < math.max(1, math.floor(tonumber(state.config.maxWaves) or 6)) then
+		return NAmanage.Echolocation.CreateWaveSlot()
+	end
+	local donorSlot = nil
+	local donorCount = 1
+	local donorStarted = math.huge
+	for i = 1, #state.wavePool do
+		local slot = state.wavePool[i]
+		local pulse = slot.active == true and slot.pulse or nil
+		if type(pulse) == "table" then
+			local key = pulse.sourceKey
+			local count = counts[key or false] or 0
+			local started = tonumber(pulse.started) or 0
+			if key ~= sourceKey and count > 1 and (count > donorCount or (count == donorCount and started < donorStarted)) then
+				donorSlot = slot
+				donorCount = count
+				donorStarted = started
+			end
+		end
+	end
+	if donorSlot then
+		local donorPulse = donorSlot.pulse
+		if type(donorPulse) == "table" and donorPulse.slot == donorSlot then
+			donorPulse.slot = nil
+		end
+		NAmanage.Echolocation.ReleaseWaveSlot(donorSlot)
+		return donorSlot
+	end
+	return nil
+end
+
+NAmanage.Echolocation.ReleaseWaveSlot = function(slot)
+	if type(slot) ~= "table" then
+		return
+	end
+	slot.active = false
+	slot.pulse = nil
+	for i = 1, #(slot.rings or {}) do
+		pcall(function()
+			slot.rings[i].Transparency = 1
+		end)
+	end
+end
+
+NAmanage.Echolocation.CreateHighlightSlot = function()
+	local state = NAmanage.Echolocation.GetState()
+	if #state.highlightPool >= math.max(1, math.floor(tonumber(state.config.maxHighlights) or 112)) then
+		return nil
+	end
+	local root = NAmanage.Echolocation.EnsureVisualRoot()
+	local highlight = InstanceNew("Highlight", root)
+	highlight.Name = "\0"
+	highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+	highlight.FillColor = Color3.new(1, 1, 1)
+	highlight.OutlineColor = Color3.new(1, 1, 1)
+	highlight.FillTransparency = 1
+	highlight.OutlineTransparency = 1
+	highlight.Enabled = false
+	local slot = {
+		active = false;
+		highlight = highlight;
+		patch = nil;
+		mode = nil;
+	}
+	state.highlightPool[#state.highlightPool + 1] = slot
+	return slot
+end
+
+NAmanage.Echolocation.EnsurePatchVisual = function(slot)
+	if type(slot) ~= "table" then
+		return nil
+	end
+	if typeof(slot.patch) == "Instance" and slot.patch.Parent then
+		return slot.patch
+	end
+	local root = NAmanage.Echolocation.EnsureVisualRoot()
+	local patch = InstanceNew("BoxHandleAdornment", root)
+	patch.Name = "\0"
+	patch.AlwaysOnTop = true
+	patch.ZIndex = 9
+	patch.Color3 = Color3.new(1, 1, 1)
+	patch.Transparency = 1
+	patch.Size = Vector3.new(0.05, 0.05, 0.05)
+	pcall(function()
+		patch.AdornCullingMode = Enum.AdornCullingMode.Never
+	end)
+	slot.patch = patch
+	return patch
+end
+
+NAmanage.Echolocation.ReleaseHighlightSlot = function(slot)
+	local state = NAmanage.Echolocation.GetState()
+	if type(slot) ~= "table" then
+		return
+	end
+	if slot.lookupKind == "patch" and typeof(slot.lookupTarget) == "Instance" then
+		local sourceMap = state.patchSlots[slot.lookupTarget]
+		if type(sourceMap) == "table" then
+			local lookupKey = slot.lookupSourceKey ~= nil and slot.lookupSourceKey or false
+			if sourceMap[lookupKey] == slot then
+				sourceMap[lookupKey] = nil
+			end
+			if next(sourceMap) == nil then
+				state.patchSlots[slot.lookupTarget] = nil
+			end
+		end
+	elseif slot.target and state.targetSlots[slot.target] == slot then
+		state.targetSlots[slot.target] = nil
+	end
+	slot.target = nil
+	slot.sourceKey = nil
+	slot.lookupKind = nil
+	slot.lookupTarget = nil
+	slot.lookupSourceKey = nil
+	slot.active = false
+	slot.started = 0
+	slot.lastTouched = 0
+	slot.revealDuration = 0
+	slot.expires = 0
+	slot.mode = nil
+	slot.patchPart = nil
+	slot.patchOrigin = nil
+	if typeof(slot.highlight) == "Instance" then
+		pcall(function()
+			slot.highlight.Enabled = false
+			slot.highlight.Adornee = nil
+			slot.highlight.FillTransparency = 1
+			slot.highlight.OutlineTransparency = 1
+		end)
+	end
+	if typeof(slot.patch) == "Instance" then
+		pcall(function()
+			slot.patch.Adornee = nil
+			slot.patch.Transparency = 1
+		end)
+	end
+end
+
+NAmanage.Echolocation.RefreshMovingSource = function(sourceKey, origin)
+	local state = NAmanage.Echolocation.GetState()
+	if not state.enabled or typeof(sourceKey) ~= "Instance" or not sourceKey.Parent or typeof(origin) ~= "Vector3" then
+		return false
+	end
+	local record = state.sourceOrigins[sourceKey]
+	if type(record) ~= "table" then
+		record = { origin = origin; }
+		state.sourceOrigins[sourceKey] = record
+		return false
+	end
+	local previous = record.origin
+	if typeof(previous) ~= "Vector3" then
+		record.origin = origin
+		return false
+	end
+	local resetDistance = math.max(1, tonumber(state.config.movingSourceResetDistance) or 5.5)
+	if (origin - previous).Magnitude < resetDistance then
+		return false
+	end
+	record.origin = origin
+	record.lastMovedAt = os.clock()
+	return true
+end
+
+NAmanage.Echolocation.GetPhysicalSourceKey = function(sourceObject, fallback)
+	if typeof(sourceObject) == "Instance" and sourceObject.Parent then
+		if tostring(sourceObject.ClassName or "") == "Attachment" then
+			local parent = sourceObject.Parent
+			if parent and parent:IsA("BasePart") then
+				return parent
+			end
+		end
+		if sourceObject:IsA("BasePart") or sourceObject:IsA("Model") then
+			return sourceObject
+		end
+	end
+	return typeof(fallback) == "Instance" and fallback or nil
+end
+
+NAmanage.Echolocation.ResolveTarget = function(part)
+	local state = NAmanage.Echolocation.GetState()
+	if typeof(part) ~= "Instance" or not part:IsA("BasePart") or not part.Parent then
+		return nil, false
+	end
+	if typeof(state.visualRoot) == "Instance" and part:IsDescendantOf(state.visualRoot) then
+		return nil, false
+	end
+	if typeof(state.character) == "Instance" and part:IsDescendantOf(state.character) then
+		return nil, false
+	end
+	local camera = Workspace.CurrentCamera
+	if camera and part:IsDescendantOf(camera) then
+		return nil, false
+	end
+	local model = part:FindFirstAncestorOfClass("Model")
+	if model and model ~= state.character then
+		local humanoid = model:FindFirstChildOfClass("Humanoid")
+		if humanoid then
+			return model, true
+		end
+	end
+	return part, false
+end
+
+NAmanage.Echolocation.ShouldUseSurfacePatch = function(part)
+	local state = NAmanage.Echolocation.GetState()
+	if typeof(part) ~= "Instance" or not part:IsA("BasePart") or not part.Parent then
+		return false
+	end
+	local size = part.Size
+	local maxDimension = math.max(size.X, size.Y, size.Z)
+	if maxDimension >= math.max(8, tonumber(state.config.largePartDimension) or 36) then
+		return true
+	end
+	local camera = Workspace.CurrentCamera
+	if not camera then
+		return false
+	end
+	local cameraPosition = camera.CFrame.Position
+	local closest = nil
+	pcall(function()
+		closest = part:GetClosestPointOnSurface(cameraPosition)
+	end)
+	if typeof(closest) ~= "Vector3" then
+		closest = part.Position
+	end
+	local distance = math.max(0.5, (cameraPosition - closest).Magnitude)
+	return (maxDimension / distance) >= math.max(0.2, tonumber(state.config.largePartApparentRatio) or 0.9)
+end
+
+NAmanage.Echolocation.GetSurfacePatch = function(part, origin)
+	local state = NAmanage.Echolocation.GetState()
+	if typeof(part) ~= "Instance" or not part:IsA("BasePart") or not part.Parent then
+		return nil, nil
+	end
+	origin = typeof(origin) == "Vector3" and origin or part.Position
+	local size = part.Size
+	local half = size * 0.5
+	local localOrigin = part.CFrame:PointToObjectSpace(origin)
+	local localSurface = Vector3.new(
+		math.clamp(localOrigin.X, -half.X, half.X),
+		math.clamp(localOrigin.Y, -half.Y, half.Y),
+		math.clamp(localOrigin.Z, -half.Z, half.Z)
+	)
+	local inside = math.abs(localOrigin.X) <= half.X and math.abs(localOrigin.Y) <= half.Y and math.abs(localOrigin.Z) <= half.Z
+	if inside then
+		local dx = half.X - math.abs(localOrigin.X)
+		local dy = half.Y - math.abs(localOrigin.Y)
+		local dz = half.Z - math.abs(localOrigin.Z)
+		if dx <= dy and dx <= dz then
+			localSurface = Vector3.new(localOrigin.X >= 0 and half.X or -half.X, localOrigin.Y, localOrigin.Z)
+		elseif dy <= dz then
+			localSurface = Vector3.new(localOrigin.X, localOrigin.Y >= 0 and half.Y or -half.Y, localOrigin.Z)
+		else
+			localSurface = Vector3.new(localOrigin.X, localOrigin.Y, localOrigin.Z >= 0 and half.Z or -half.Z)
+		end
+	else
+		local closest = nil
+		pcall(function()
+			closest = part:GetClosestPointOnSurface(origin)
+		end)
+		if typeof(closest) == "Vector3" then
+			localSurface = part.CFrame:PointToObjectSpace(closest)
+		end
+	end
+	local nx = half.X > 0 and math.abs(math.abs(localSurface.X) - half.X) or math.huge
+	local ny = half.Y > 0 and math.abs(math.abs(localSurface.Y) - half.Y) or math.huge
+	local nz = half.Z > 0 and math.abs(math.abs(localSurface.Z) - half.Z) or math.huge
+	local axis = "X"
+	if ny <= nx and ny <= nz then
+		axis = "Y"
+	elseif nz <= nx and nz <= ny then
+		axis = "Z"
+	end
+	if axis == "X" then
+		localSurface = Vector3.new(localSurface.X >= 0 and half.X or -half.X, math.clamp(localSurface.Y, -half.Y, half.Y), math.clamp(localSurface.Z, -half.Z, half.Z))
+	elseif axis == "Y" then
+		localSurface = Vector3.new(math.clamp(localSurface.X, -half.X, half.X), localSurface.Y >= 0 and half.Y or -half.Y, math.clamp(localSurface.Z, -half.Z, half.Z))
+	else
+		localSurface = Vector3.new(math.clamp(localSurface.X, -half.X, half.X), math.clamp(localSurface.Y, -half.Y, half.Y), localSurface.Z >= 0 and half.Z or -half.Z)
+	end
+	local worldSurface = part.CFrame:PointToWorldSpace(localSurface)
+	local camera = Workspace.CurrentCamera
+	local cameraDistance = camera and (camera.CFrame.Position - worldSurface).Magnitude or 30
+	local minSpan = math.max(0.5, tonumber(state.config.surfacePatchMinSize) or 1.5)
+	local maxSpan = math.max(minSpan, tonumber(state.config.surfacePatchMaxSize) or 12)
+	local ratio = math.max(0.05, tonumber(state.config.surfacePatchCameraRatio) or 0.22)
+	local span = math.clamp(cameraDistance * ratio, minSpan, maxSpan)
+	local thickness = math.max(0.015, tonumber(state.config.surfacePatchThickness) or 0.055)
+	local patchSize
+	if axis == "X" then
+		patchSize = Vector3.new(thickness, math.min(size.Y, span), math.min(size.Z, span))
+	elseif axis == "Y" then
+		patchSize = Vector3.new(math.min(size.X, span), thickness, math.min(size.Z, span))
+	else
+		patchSize = Vector3.new(math.min(size.X, span), math.min(size.Y, span), thickness)
+	end
+	return CFrame.new(localSurface), patchSize
+end
+
+NAmanage.Echolocation.ApplySlotVisual = function(slot, target, isCharacter, hitPart, origin)
+	if type(slot) ~= "table" or typeof(target) ~= "Instance" then
+		return
+	end
+	local previousMode = slot.mode
+	local previousPatchPart = slot.patchPart
+	local patchPart = nil
+	if isCharacter ~= true then
+		if typeof(hitPart) == "Instance" and hitPart:IsA("BasePart") and hitPart.Parent then
+			patchPart = hitPart
+		elseif target:IsA("BasePart") then
+			patchPart = target
+		end
+	end
+	local usePatch = patchPart and NAmanage.Echolocation.ShouldUseSurfacePatch(patchPart)
+	slot.mode = usePatch and "patch" or "highlight"
+	slot.patchPart = usePatch and patchPart or nil
+	slot.patchOrigin = usePatch and origin or nil
+	if usePatch then
+		local patch = NAmanage.Echolocation.EnsurePatchVisual(slot)
+		local relativeCFrame, patchSize = NAmanage.Echolocation.GetSurfacePatch(patchPart, origin)
+		local samePatch = previousMode == "patch"
+			and previousPatchPart == patchPart
+			and patch
+			and patch.Adornee == patchPart
+		if typeof(slot.highlight) == "Instance" then
+			pcall(function()
+				slot.highlight.Enabled = false
+				slot.highlight.Adornee = nil
+			end)
+		end
+		if patch and relativeCFrame and patchSize then
+			pcall(function()
+				patch.Adornee = patchPart
+				if samePatch then
+					patch.CFrame = patch.CFrame:Lerp(relativeCFrame, 0.55)
+					patch.Size = patch.Size:Lerp(patchSize, 0.55)
+				else
+					patch.CFrame = relativeCFrame
+					patch.Size = patchSize
+					patch.Transparency = 1
+				end
+			end)
+		end
+	else
+		if typeof(slot.patch) == "Instance" then
+			pcall(function()
+				slot.patch.Adornee = nil
+				slot.patch.Transparency = 1
+			end)
+		end
+		if typeof(slot.highlight) == "Instance" then
+			local sameHighlight = previousMode == "highlight"
+				and slot.highlight.Adornee == target
+				and slot.highlight.Enabled == true
+			pcall(function()
+				slot.highlight.Adornee = target
+				if not sameHighlight then
+					slot.highlight.FillTransparency = 1
+					slot.highlight.OutlineTransparency = 1
+				end
+				slot.highlight.Enabled = true
+			end)
+		end
+	end
+end
+
+NAmanage.Echolocation.TouchTarget = function(target, isCharacter, strength, sourceKey, hitPart, origin)
+	local state = NAmanage.Echolocation.GetState()
+	if typeof(target) ~= "Instance" or not target.Parent then
+		return
+	end
+	local patchPart = nil
+	if isCharacter ~= true then
+		if typeof(hitPart) == "Instance" and hitPart:IsA("BasePart") and hitPart.Parent then
+			patchPart = hitPart
+		elseif target:IsA("BasePart") then
+			patchPart = target
+		end
+	end
+	local wantsPatch = patchPart ~= nil and NAmanage.Echolocation.ShouldUseSurfacePatch(patchPart)
+	local sourceLookupKey = sourceKey ~= nil and sourceKey or false
+	local slot
+	local sourceMap
+	if wantsPatch then
+		sourceMap = state.patchSlots[patchPart]
+		if type(sourceMap) ~= "table" then
+			sourceMap = {}
+			state.patchSlots[patchPart] = sourceMap
+		end
+		slot = sourceMap[sourceLookupKey]
+	else
+		slot = state.targetSlots[target]
+	end
+	local now = os.clock()
+	local revealDuration = (tonumber(state.config.revealTime) or 1.15) * math.clamp(tonumber(strength) or 1, 0.75, 1.5)
+	if type(slot) == "table" and slot.active == true then
+		if type(slot.started) ~= "number" then
+			slot.started = now
+		end
+		slot.lastTouched = now
+		slot.revealDuration = math.max(tonumber(slot.revealDuration) or 0, revealDuration)
+		slot.expires = math.max(tonumber(slot.expires) or 0, now + revealDuration)
+		slot.isCharacter = isCharacter == true
+		slot.sourceKey = sourceKey
+		NAmanage.Echolocation.ApplySlotVisual(slot, target, isCharacter, hitPart, origin)
+		return
+	end
+	if wantsPatch and type(sourceMap) == "table" then
+		local patchCount = 0
+		local oldestSlot = nil
+		local oldestTouched = math.huge
+		for _, existing in sourceMap do
+			if type(existing) == "table" and existing.active == true then
+				patchCount += 1
+				local touched = tonumber(existing.lastTouched) or 0
+				if touched < oldestTouched then
+					oldestTouched = touched
+					oldestSlot = existing
+				end
+			end
+		end
+		if patchCount >= math.max(1, math.floor(tonumber(state.config.maxPatchSlotsPerPart) or 6)) and oldestSlot then
+			NAmanage.Echolocation.ReleaseHighlightSlot(oldestSlot)
+		end
+	end
+	for i = 1, #state.highlightPool do
+		if state.highlightPool[i].active ~= true then
+			slot = state.highlightPool[i]
+			break
+		end
+	end
+	if type(slot) ~= "table" or slot.active == true then
+		slot = NAmanage.Echolocation.CreateHighlightSlot()
+	end
+	if not slot then
+		return
+	end
+	slot.active = true
+	slot.target = target
+	slot.started = now
+	slot.lastTouched = now
+	slot.revealDuration = revealDuration
+	slot.expires = now + revealDuration
+	slot.isCharacter = isCharacter == true
+	slot.sourceKey = sourceKey
+	if wantsPatch then
+		sourceMap = state.patchSlots[patchPart]
+		if type(sourceMap) ~= "table" then
+			sourceMap = {}
+			state.patchSlots[patchPart] = sourceMap
+		end
+		slot.lookupKind = "patch"
+		slot.lookupTarget = patchPart
+		slot.lookupSourceKey = sourceLookupKey
+		sourceMap[sourceLookupKey] = slot
+	else
+		slot.lookupKind = "highlight"
+		slot.lookupTarget = target
+		slot.lookupSourceKey = nil
+		state.targetSlots[target] = slot
+	end
+	NAmanage.Echolocation.ApplySlotVisual(slot, target, isCharacter, hitPart, origin)
+end
+
+NAmanage.Echolocation.UpdateHighlights = function(now)
+	local state = NAmanage.Echolocation.GetState()
+	for i = 1, #state.highlightPool do
+		local slot = state.highlightPool[i]
+		if slot.active == true then
+			if typeof(slot.target) ~= "Instance" or not slot.target.Parent or now >= (tonumber(slot.expires) or 0) then
+				NAmanage.Echolocation.ReleaseHighlightSlot(slot)
+			else
+				local started = tonumber(slot.started) or now
+				local revealDuration = math.max(0.05, tonumber(slot.revealDuration) or ((tonumber(slot.expires) or now) - started))
+				local age = math.max(0, now - started)
+				local remaining = math.max(0, (tonumber(slot.expires) or now) - now)
+				local fadeIn = math.clamp(age / 0.07, 0, 1)
+				local fadeOutWindow = math.clamp(revealDuration * 0.42, 0.18, 0.55)
+				local fadeOut = math.clamp(remaining / fadeOutWindow, 0, 1)
+				local opacity = math.min(fadeIn, fadeOut)
+				if slot.mode == "patch" and typeof(slot.patch) == "Instance" then
+					if typeof(slot.patchPart) == "Instance" and slot.patchPart.Parent then
+						pcall(function()
+							slot.patch.Transparency = math.clamp(1 - (0.82 * opacity), 0.12, 1)
+						end)
+					else
+						NAmanage.Echolocation.ReleaseHighlightSlot(slot)
+					end
+				elseif typeof(slot.highlight) == "Instance" then
+					local fillTarget = slot.isCharacter and 0.68 or 0.88
+					local outlineTarget = slot.isCharacter and 0.02 or 0.08
+					pcall(function()
+						slot.highlight.FillTransparency = 1 - ((1 - fillTarget) * opacity)
+						slot.highlight.OutlineTransparency = 1 - ((1 - outlineTarget) * opacity)
+					end)
+				end
+			end
+		end
+	end
+end
+
+NAmanage.Echolocation.IsPartReachedByPulse = function(part, pulse)
+	if typeof(part) ~= "Instance" or not part:IsA("BasePart") or type(pulse) ~= "table" or typeof(pulse.origin) ~= "Vector3" then
+		return false
+	end
+	local radius = math.max(0.25, tonumber(pulse.radius) or 0.25)
+	local tolerance = math.clamp(radius * 0.025, 0.2, 1.25)
+	local size = part.Size
+	local maxDimension = math.max(size.X, size.Y, size.Z)
+	local className = tostring(part.ClassName or "")
+	local needsExact = maxDimension >= math.max(8, tonumber(NAmanage.Echolocation.GetState().config.largePartDimension) or 36)
+		or className == "MeshPart"
+		or part:IsA("PartOperation")
+	if needsExact then
+		local closest = nil
+		pcall(function()
+			closest = part:GetClosestPointOnSurface(pulse.origin)
+		end)
+		if typeof(closest) == "Vector3" then
+			return (closest - pulse.origin).Magnitude <= radius + tolerance
+		end
+	end
+	local centerDistance = (part.Position - pulse.origin).Magnitude
+	local halfDiagonal = size.Magnitude * 0.5
+	local nearestApprox = math.max(0, centerDistance - halfDiagonal)
+	return nearestApprox <= radius + tolerance
+end
+
+NAmanage.Echolocation.QueryPulse = function(pulse)
+	local state = NAmanage.Echolocation.GetState()
+	if type(pulse) ~= "table" or not state.enabled then
+		return
+	end
+	local overlap = NAmanage.Echolocation.UpdateOverlapFilter()
+	local ok, parts = pcall(function()
+		return Workspace:GetPartBoundsInRadius(pulse.origin, math.max(0.25, tonumber(pulse.radius) or 0.25), overlap)
+	end)
+	if not ok or type(parts) ~= "table" then
+		return
+	end
+	local revealed = 0
+	local maxReveal = math.max(1, math.floor(tonumber(state.config.maxRevealPerQuery) or 72))
+	for i = 1, #parts do
+		local part = parts[i]
+		if NAmanage.Echolocation.IsPartReachedByPulse(part, pulse) then
+			local target, isCharacter = NAmanage.Echolocation.ResolveTarget(part)
+			if target and not pulse.seen[target] then
+				pulse.seen[target] = true
+				NAmanage.Echolocation.TouchTarget(target, isCharacter, pulse.strength, pulse.sourceKey, part, pulse.origin)
+				revealed += 1
+				if revealed >= maxReveal then
+					break
+				end
+			end
+		end
+	end
+end
+
+NAmanage.Echolocation.RemovePulseAt = function(index)
+	local state = NAmanage.Echolocation.GetState()
+	index = math.floor(tonumber(index) or 0)
+	if index < 1 or index > #state.pulses then
+		return nil
+	end
+	local pulse = table.remove(state.pulses, index)
+	if type(pulse) == "table" then
+		NAmanage.Echolocation.ReleaseWaveSlot(pulse.slot)
+		pulse.slot = nil
+	end
+	return pulse
+end
+
+NAmanage.Echolocation.TrimPulseCapacity = function(sourceKey)
+	local state = NAmanage.Echolocation.GetState()
+	local maxActivePulses = math.max(4, math.floor(tonumber(state.config.maxActivePulses) or 28))
+	local perSourceCap = math.max(1, math.floor(tonumber(state.config.maxPulsesPerSource) or 3))
+	if sourceKey ~= nil then
+		local sourceCount = 0
+		for i = 1, #state.pulses do
+			local pulse = state.pulses[i]
+			if type(pulse) == "table" and pulse.sourceKey == sourceKey then
+				sourceCount += 1
+			end
+		end
+		if sourceCount >= perSourceCap then
+			return false
+		end
+	end
+	if #state.pulses < maxActivePulses then
+		return true
+	end
+	local counts = {}
+	for i = 1, #state.pulses do
+		local pulse = state.pulses[i]
+		if type(pulse) == "table" then
+			local key = pulse.sourceKey or false
+			counts[key] = (counts[key] or 0) + 1
+		end
+	end
+	local removeIndex = nil
+	local donorCount = 1
+	local donorStarted = math.huge
+	for i = 1, #state.pulses do
+		local pulse = state.pulses[i]
+		if type(pulse) == "table" then
+			local key = pulse.sourceKey or false
+			local count = counts[key] or 0
+			local started = tonumber(pulse.started) or 0
+			if key ~= (sourceKey or false) and count > 1 and (count > donorCount or (count == donorCount and started < donorStarted)) then
+				removeIndex = i
+				donorCount = count
+				donorStarted = started
+			end
+		end
+	end
+	if removeIndex then
+		NAmanage.Echolocation.RemovePulseAt(removeIndex)
+		return #state.pulses < maxActivePulses
+	end
+	return false
+end
+
+NAmanage.Echolocation.Emit = function(origin, maxRadius, strength, sourceKey)
+	local state = NAmanage.Echolocation.GetState()
+	if not state.enabled or typeof(origin) ~= "Vector3" then
+		return false
+	end
+	if typeof(sourceKey) == "Instance" then
+		NAmanage.Echolocation.RefreshMovingSource(sourceKey, origin)
+	end
+	if NAmanage.Echolocation.TrimPulseCapacity(sourceKey) ~= true then
+		return false
+	end
+	local slot = NAmanage.Echolocation.AcquireWaveSlot(sourceKey)
+	local radius = math.clamp(tonumber(maxRadius) or tonumber(state.config.range) or 74, 12, 180)
+	local waveSpeed = math.max(20, tonumber(state.config.waveSpeed) or 92)
+	local now = os.clock()
+	local pulse = {
+		origin = origin;
+		started = now;
+		duration = radius / waveSpeed;
+		maxRadius = radius;
+		radius = 0.1;
+		lastRadius = 0;
+		strength = math.clamp(tonumber(strength) or 1, 0.5, 1.5);
+		sourceKey = sourceKey;
+		nextQuery = 0;
+		seen = NAmanage.ensureWeakKeyTable(nil);
+		slot = slot;
+	}
+	if type(slot) == "table" then
+		slot.active = true
+		slot.pulse = pulse
+		pcall(function()
+			slot.part.CFrame = CFrame.new(origin)
+		end)
+	end
+	state.pulses[#state.pulses + 1] = pulse
+	return true
+end
+
+NAmanage.Echolocation.UpdatePulses = function(now)
+	local state = NAmanage.Echolocation.GetState()
+	for i = #state.pulses, 1, -1 do
+		local pulse = state.pulses[i]
+		local progress = math.clamp((now - pulse.started) / math.max(0.05, pulse.duration), 0, 1)
+		pulse.radius = math.max(0.1, pulse.maxRadius * progress)
+		local ringThickness = math.clamp(pulse.radius * 0.012, 0.08, 0.28)
+		local ringTransparency = math.clamp(0.1 + progress * 0.72, 0.1, 0.9)
+		if type(pulse.slot) == "table" then
+			for ringIndex = 1, #(pulse.slot.rings or {}) do
+				local ring = pulse.slot.rings[ringIndex]
+				pcall(function()
+					ring.Radius = pulse.radius
+					ring.InnerRadius = math.max(0, pulse.radius - ringThickness)
+					ring.Transparency = math.clamp(ringTransparency + ((ringIndex - 1) * 0.04), 0, 0.96)
+				end)
+			end
+		end
+		if now >= (tonumber(pulse.nextQuery) or 0) then
+			pulse.nextQuery = now + math.max(0.025, tonumber(state.config.queryInterval) or 0.055)
+			NAmanage.Echolocation.QueryPulse(pulse)
+		end
+		if progress >= 1 then
+			NAmanage.Echolocation.ReleaseWaveSlot(pulse.slot)
+			table.remove(state.pulses, i)
+		end
+	end
+end
+
+
+NAmanage.Echolocation.GetWorldPosition = function(inst)
+	if typeof(inst) ~= "Instance" then
+		return nil
+	end
+	local className = tostring(inst.ClassName or "")
+	if className == "Attachment" then
+		local ok, value = pcall(function()
+			return inst.WorldPosition
+		end)
+		if ok and typeof(value) == "Vector3" then
+			return value
+		end
+	elseif inst:IsA("BasePart") then
+		return inst.Position
+	elseif className == "Camera" then
+		local ok, value = pcall(function()
+			return inst.CFrame.Position
+		end)
+		if ok and typeof(value) == "Vector3" then
+			return value
+		end
+	elseif inst:IsA("Model") then
+		local root = getRoot(inst)
+		if root then
+			return root.Position
+		end
+		local ok, pivot = pcall(function()
+			return inst:GetPivot()
+		end)
+		if ok and typeof(pivot) == "CFrame" then
+			return pivot.Position
+		end
+	end
+	return nil
+end
+
+NAmanage.Echolocation.ResolveClassicSoundOrigin = function(sound)
+	if typeof(sound) ~= "Instance" or tostring(sound.ClassName or "") ~= "Sound" or not sound.Parent then
+		return nil, nil
+	end
+	local current = sound.Parent
+	while typeof(current) == "Instance" and current ~= Workspace do
+		local className = tostring(current.ClassName or "")
+		if className == "Attachment" or current:IsA("BasePart") then
+			return NAmanage.Echolocation.GetWorldPosition(current), current
+		end
+		current = current.Parent
+	end
+	local tool = sound:FindFirstAncestorOfClass("Tool")
+	if tool then
+		local handle = tool:FindFirstChild("Handle")
+		if handle and handle:IsA("BasePart") then
+			return handle.Position, handle
+		end
+	end
+	local model = sound:FindFirstAncestorOfClass("Model")
+	if model and model:IsDescendantOf(Workspace) then
+		local position = NAmanage.Echolocation.GetWorldPosition(model)
+		if position then
+			return position, model
+		end
+	end
+	return nil, nil
+end
+
+NAmanage.Echolocation.ResolveEmitterOrigin = function(emitter)
+	if typeof(emitter) ~= "Instance" or tostring(emitter.ClassName or "") ~= "AudioEmitter" or not emitter.Parent then
+		return nil, nil
+	end
+	local positionType = NAmanage.Echolocation.SafeGet(emitter, "PositionType")
+	if positionType ~= nil and tostring(positionType):find("Instance", 1, true) then
+		local positionInstance = NAmanage.Echolocation.SafeGet(emitter, "PositionInstance")
+		local position = NAmanage.Echolocation.GetWorldPosition(positionInstance)
+		if position then
+			return position, positionInstance
+		end
+	end
+	local parent = emitter.Parent
+	local position = NAmanage.Echolocation.GetWorldPosition(parent)
+	if position then
+		return position, parent
+	end
+	return nil, nil
+end
+
+NAmanage.Echolocation.FindAudioPlayers = function(node, depth, visited, out, playingOnly)
+	if typeof(node) ~= "Instance" or (tonumber(depth) or 0) > math.max(2, tonumber(NAmanage.Echolocation.GetState().config.audioGraphDepth) or 10) then
+		return out or {}
+	end
+	visited = type(visited) == "table" and visited or {}
+	out = type(out) == "table" and out or {}
+	if visited[node] then
+		return out
+	end
+	visited[node] = true
+	if tostring(node.ClassName or "") == "AudioPlayer" then
+		if playingOnly ~= true or NAmanage.Echolocation.SafeGet(node, "IsPlaying") == true then
+			out[#out + 1] = node
+		end
+		return out
+	end
+	local okMethod, getWires = pcall(function()
+		return node.GetConnectedWires
+	end)
+	if not okMethod or type(getWires) ~= "function" then
+		return out
+	end
+	local ok, wires = pcall(getWires, node, "Input")
+	if not ok or type(wires) ~= "table" then
+		return out
+	end
+	for i = 1, #wires do
+		local wire = wires[i]
+		if typeof(wire) == "Instance" then
+			local source = NAmanage.Echolocation.SafeGet(wire, "SourceInstance")
+			NAmanage.Echolocation.FindAudioPlayers(source, (tonumber(depth) or 0) + 1, visited, out, playingOnly)
+		end
+	end
+	return out
+end
+
+NAmanage.Echolocation.FindPlayingAudioPlayers = function(node)
+	return NAmanage.Echolocation.FindAudioPlayers(node, 0, {}, {}, true)
+end
+
+NAmanage.Echolocation.FindPlayingAudioPlayer = function(node, depth, visited)
+	local players = NAmanage.Echolocation.FindAudioPlayers(node, depth or 0, visited or {}, {}, true)
+	return players[1]
+end
+
+NAmanage.Echolocation.GetEmitterDistanceCap = function(emitter)
+	if typeof(emitter) ~= "Instance" or tostring(emitter.ClassName or "") ~= "AudioEmitter" then
+		return nil
+	end
+	local ok, curve = pcall(function()
+		return emitter:GetDistanceAttenuation()
+	end)
+	if not ok or type(curve) ~= "table" then
+		return nil
+	end
+	local maxDistance = nil
+	for distance, volume in curve do
+		local d = tonumber(distance)
+		local v = tonumber(volume)
+		if d and v and v > 0 and (not maxDistance or d > maxDistance) then
+			maxDistance = d
+		end
+	end
+	return maxDistance
+end
+
+NAmanage.Echolocation.SourcePulseAllowed = function(sourceKey, now, moved)
+	local state = NAmanage.Echolocation.GetState()
+	if sourceKey == nil then
+		return true
+	end
+	now = tonumber(now) or os.clock()
+	local last = tonumber(state.sourceSoundPulseAt[sourceKey]) or 0
+	local cooldown = math.max(0.03, tonumber(state.config.soundSourceMergeCooldown) or 0.09)
+	if moved ~= true and now - last < cooldown then
+		return false
+	end
+	state.sourceSoundPulseAt[sourceKey] = now
+	return true
+end
+
+NAmanage.Echolocation.RevealSourceObject = function(sourceObject, strength, sourceKey, origin)
+	if typeof(sourceObject) ~= "Instance" or not sourceObject.Parent then
+		return
+	end
+	local target
+	local hitPart
+	local isCharacter = false
+	if sourceObject:IsA("BasePart") then
+		hitPart = sourceObject
+		target, isCharacter = NAmanage.Echolocation.ResolveTarget(sourceObject)
+	elseif sourceObject:IsA("Model") then
+		target = sourceObject
+		isCharacter = sourceObject:FindFirstChildOfClass("Humanoid") ~= nil
+		hitPart = sourceObject.PrimaryPart or sourceObject:FindFirstChildWhichIsA("BasePart", true)
+	elseif tostring(sourceObject.ClassName or "") == "Attachment" then
+		local parent = sourceObject.Parent
+		if parent and parent:IsA("BasePart") then
+			hitPart = parent
+			target, isCharacter = NAmanage.Echolocation.ResolveTarget(parent)
+		end
+	end
+	if target then
+		NAmanage.Echolocation.TouchTarget(target, isCharacter, strength, sourceKey, hitPart, origin)
+	end
+end
+
+NAmanage.Echolocation.EmitClassicSound = function(sound, now, force)
+	local state = NAmanage.Echolocation.GetState()
+	if not state.enabled or typeof(sound) ~= "Instance" or tostring(sound.ClassName or "") ~= "Sound" or not sound.Parent then
+		return false
+	end
+	local record = state.soundRecords[sound]
+	if type(record) ~= "table" then
+		return false
+	end
+	local playing = NAmanage.Echolocation.SafeGet(sound, "IsPlaying") == true or NAmanage.Echolocation.SafeGet(sound, "Playing") == true
+	local wasPlaying = record.playing == true
+	record.playing = playing
+	if playing and not wasPlaying then
+		force = true
+	end
+	if not playing and force ~= true then
+		return false
+	end
+	local origin, sourceObject = NAmanage.Echolocation.ResolveClassicSoundOrigin(sound)
+	if typeof(origin) ~= "Vector3" then
+		return false
+	end
+	local sourceKey = NAmanage.Echolocation.GetPhysicalSourceKey(sourceObject, sound) or sound
+	local sourceMoved = NAmanage.Echolocation.RefreshMovingSource(sourceKey, origin)
+	now = tonumber(now) or os.clock()
+	local loudness = math.max(0, tonumber(NAmanage.Echolocation.SafeGet(sound, "PlaybackLoudness")) or 0)
+	local volume = math.max(0, tonumber(NAmanage.Echolocation.SafeGet(sound, "Volume")) or 1)
+	local minLoudness = math.max(0, tonumber(state.config.soundMinLoudness) or 1)
+	local normalized = math.clamp(loudness / 1000, 0, 1)
+	local cooldown = math.max(0.08, tonumber(state.config.soundPulseCooldown) or 0.18)
+	local quietFallback = force ~= true and loudness < minLoudness and playing and volume > 0
+	if quietFallback then
+		cooldown = math.max(0.45, cooldown * 2.5)
+		normalized = math.clamp(volume / 4, 0.05, 0.25)
+	elseif force == true and normalized <= 0 then
+		normalized = math.clamp(volume / 2, 0.08, 0.45)
+	else
+		cooldown = math.clamp(cooldown - (normalized * 0.07), 0.09, 0.5)
+	end
+	if force ~= true and sourceMoved ~= true and now - (tonumber(record.lastPulse) or 0) < cooldown then
+		return false
+	end
+	if NAmanage.Echolocation.SourcePulseAllowed(sourceKey, now, sourceMoved) ~= true then
+		NAmanage.Echolocation.RevealSourceObject(sourceObject, math.clamp(0.82 + (normalized * 0.68), 0.82, 1.5), sourceKey, origin)
+		return false
+	end
+	local minRange = math.max(12, tonumber(state.config.soundBaseRange) or 20)
+	local maxRange = math.max(minRange, tonumber(state.config.soundMaxRange) or 120)
+	local radius = minRange + (math.sqrt(normalized) * (maxRange - minRange))
+	local rolloff = tonumber(NAmanage.Echolocation.SafeGet(sound, "RollOffMaxDistance"))
+	if rolloff and rolloff > 0 then
+		radius = math.min(radius, math.max(12, rolloff))
+	end
+	radius = math.clamp(radius, 12, maxRange)
+	local strength = math.clamp(0.82 + (normalized * 0.68), 0.82, 1.5)
+	record.lastPulse = now
+	record.lastLoudness = loudness
+	record.sourceKey = sourceKey
+	NAmanage.Echolocation.RevealSourceObject(sourceObject, strength, sourceKey, origin)
+	return NAmanage.Echolocation.Emit(origin, radius, strength, sourceKey)
+end
+
+NAmanage.Echolocation.EmitAudioEmitter = function(emitter, now, force)
+	local state = NAmanage.Echolocation.GetState()
+	if not state.enabled or typeof(emitter) ~= "Instance" or tostring(emitter.ClassName or "") ~= "AudioEmitter" or not emitter.Parent then
+		return false
+	end
+	local record = state.soundRecords[emitter]
+	if type(record) ~= "table" then
+		return false
+	end
+	local players = NAmanage.Echolocation.FindPlayingAudioPlayers(emitter)
+	if #players <= 0 then
+		record.playing = false
+		return false
+	end
+	local wasPlaying = record.playing == true
+	record.playing = true
+	if not wasPlaying then
+		force = true
+	end
+	now = tonumber(now) or os.clock()
+	local origin, sourceObject = NAmanage.Echolocation.ResolveEmitterOrigin(emitter)
+	if typeof(origin) ~= "Vector3" then
+		return false
+	end
+	local sourceKey = NAmanage.Echolocation.GetPhysicalSourceKey(sourceObject, emitter) or emitter
+	local sourceMoved = NAmanage.Echolocation.RefreshMovingSource(sourceKey, origin)
+	local cooldown = math.max(0.14, (tonumber(state.config.soundPulseCooldown) or 0.18) * 1.35)
+	if force ~= true and sourceMoved ~= true and now - (tonumber(record.lastPulse) or 0) < cooldown then
+		return false
+	end
+	local combined = 0
+	for i = 1, #players do
+		local volume = math.max(0, tonumber(NAmanage.Echolocation.SafeGet(players[i], "Volume")) or 1)
+		combined += math.clamp(volume / 2, 0.05, 1)
+	end
+	local normalized = math.clamp(combined / math.max(1, math.sqrt(#players)), 0.12, 1)
+	if NAmanage.Echolocation.SourcePulseAllowed(sourceKey, now, sourceMoved) ~= true then
+		NAmanage.Echolocation.RevealSourceObject(sourceObject, math.clamp(0.85 + normalized * 0.55, 0.85, 1.4), sourceKey, origin)
+		return false
+	end
+	local minRange = math.max(12, tonumber(state.config.soundBaseRange) or 20)
+	local maxRange = math.max(minRange, tonumber(state.config.soundMaxRange) or 120)
+	local radius = math.clamp(minRange + math.sqrt(normalized) * (maxRange - minRange), 12, maxRange)
+	local emitterCap = NAmanage.Echolocation.GetEmitterDistanceCap(emitter)
+	if emitterCap and emitterCap > 0 then
+		radius = math.min(radius, math.max(12, emitterCap))
+	end
+	local strength = math.clamp(0.85 + normalized * 0.55, 0.85, 1.4)
+	record.lastPulse = now
+	record.playerCount = #players
+	record.sourceKey = sourceKey
+	NAmanage.Echolocation.RevealSourceObject(sourceObject, strength, sourceKey, origin)
+	return NAmanage.Echolocation.Emit(origin, radius, strength, sourceKey)
+end
+
+NAmanage.Echolocation.BindEmitterAudioPlayers = function(emitter)
+	local state = NAmanage.Echolocation.GetState()
+	if typeof(emitter) ~= "Instance" or tostring(emitter.ClassName or "") ~= "AudioEmitter" or not emitter.Parent then
+		return
+	end
+	local bound = state.emitterBoundPlayers[emitter]
+	if type(bound) ~= "table" then
+		bound = NAmanage.ensureWeakKeyTable(nil)
+		state.emitterBoundPlayers[emitter] = bound
+	end
+	local players = NAmanage.Echolocation.FindAudioPlayers(emitter, 0, {}, {}, false)
+	for i = 1, #players do
+		local player = players[i]
+		if typeof(player) == "Instance" and not bound[player] then
+			bound[player] = true
+			local okSignal, signal = pcall(function()
+				return player:GetPropertyChangedSignal("IsPlaying")
+			end)
+			if okSignal and signal then
+				NAlib.connect("echolocation_audio_events", signal:Connect(function()
+					if NAmanage.Echolocation.GetState().enabled and NAmanage.Echolocation.SafeGet(player, "IsPlaying") == true then
+						Defer(function()
+							if emitter.Parent and NAmanage.Echolocation.GetState().enabled then
+								NAmanage.Echolocation.EmitAudioEmitter(emitter, os.clock(), true)
+							end
+						end)
+					end
+				end))
+			end
+			local okLoop, looped = pcall(function()
+				return player.Looped
+			end)
+			if okLoop and looped then
+				NAlib.connect("echolocation_audio_events", looped:Connect(function()
+					if emitter.Parent and NAmanage.Echolocation.GetState().enabled then
+						NAmanage.Echolocation.EmitAudioEmitter(emitter, os.clock(), true)
+					end
+				end))
+			end
+		end
+	end
+end
+
+NAmanage.Echolocation.TrackAudioSource = function(inst)
+	local state = NAmanage.Echolocation.GetState()
+	if typeof(inst) ~= "Instance" or not inst.Parent then
+		return false
+	end
+	local className = tostring(inst.ClassName or "")
+	if className ~= "Sound" and className ~= "AudioEmitter" then
+		return false
+	end
+	if state.soundRecords[inst] then
+		if className == "AudioEmitter" then
+			NAmanage.Echolocation.BindEmitterAudioPlayers(inst)
+		end
+		return true
+	end
+	local record = {
+		instance = inst;
+		kind = className;
+		lastPulse = 0;
+		lastLoudness = 0;
+		lastEventAt = 0;
+		playing = false;
+	}
+	state.soundRecords[inst] = record
+	state.soundList[#state.soundList + 1] = record
+	if className == "Sound" then
+		local function trigger()
+			local currentState = NAmanage.Echolocation.GetState()
+			if not currentState.enabled or not inst.Parent then
+				return
+			end
+			local now = os.clock()
+			local eventDebounce = math.max(0.02, tonumber(currentState.config.soundEventDebounce) or 0.045)
+			if now - (tonumber(record.lastEventAt) or 0) < eventDebounce then
+				return
+			end
+			record.lastEventAt = now
+			Defer(function()
+				if inst.Parent and NAmanage.Echolocation.GetState().enabled then
+					NAmanage.Echolocation.EmitClassicSound(inst, os.clock(), true)
+				end
+			end)
+		end
+		local okPlayed, played = pcall(function()
+			return inst.Played
+		end)
+		if okPlayed and played then
+			NAlib.connect("echolocation_sound_events", played:Connect(trigger))
+		end
+		local okPlaying, playingSignal = pcall(function()
+			return inst:GetPropertyChangedSignal("Playing")
+		end)
+		if okPlaying and playingSignal then
+			NAlib.connect("echolocation_sound_events", playingSignal:Connect(function()
+				if NAmanage.Echolocation.SafeGet(inst, "Playing") == true then
+					trigger()
+				end
+			end))
+		end
+	else
+		NAmanage.Echolocation.BindEmitterAudioPlayers(inst)
+		local okWiring, wiringChanged = pcall(function()
+			return inst.WiringChanged
+		end)
+		if okWiring and wiringChanged then
+			NAlib.connect("echolocation_audio_events", wiringChanged:Connect(function()
+				if inst.Parent and NAmanage.Echolocation.GetState().enabled then
+					NAmanage.Echolocation.BindEmitterAudioPlayers(inst)
+					Defer(function()
+						NAmanage.Echolocation.EmitAudioEmitter(inst, os.clock(), true)
+					end)
+				end
+			end))
+		end
+	end
+	return true
+end
+
+NAmanage.Echolocation.InitializeAudioSources = function()
+	local state = NAmanage.Echolocation.GetState()
+	NAlib.disconnect("echolocation_sound_events")
+	NAlib.disconnect("echolocation_audio_events")
+	NAlib.disconnect("echolocation_source_added")
+	state.soundRecords = NAmanage.ensureWeakKeyTable(nil)
+	state.emitterBoundPlayers = NAmanage.ensureWeakKeyTable(nil)
+	state.sourceSoundPulseAt = NAmanage.ensureWeakKeyTable(nil)
+	state.soundList = {}
+	state.soundCursor = 1
+	state.nextSoundPoll = 0
+	local classic = NAmanage.QueryDescendants(Workspace, "Sound")
+	for i = 1, #classic do
+		NAmanage.Echolocation.TrackAudioSource(classic[i])
+	end
+	local emitters = NAmanage.QueryDescendants(Workspace, "AudioEmitter")
+	for i = 1, #emitters do
+		NAmanage.Echolocation.TrackAudioSource(emitters[i])
+	end
+	NAlib.reconnect("echolocation_source_added", Workspace.DescendantAdded:Connect(function(inst)
+		if not NAmanage.Echolocation.GetState().enabled or typeof(inst) ~= "Instance" then
+			return
+		end
+		local className = tostring(inst.ClassName or "")
+		if className == "Sound" or className == "AudioEmitter" then
+			NAmanage.Echolocation.TrackAudioSource(inst)
+			Defer(function()
+				local currentState = NAmanage.Echolocation.GetState()
+				if not currentState.enabled or not inst.Parent then
+					return
+				end
+				if className == "Sound" then
+					NAmanage.Echolocation.EmitClassicSound(inst, os.clock(), false)
+				else
+					NAmanage.Echolocation.EmitAudioEmitter(inst, os.clock(), false)
+				end
+			end)
+		end
+	end))
+end
+
+NAmanage.Echolocation.UpdateAudioSources = function(now)
+	local state = NAmanage.Echolocation.GetState()
+	if not state.enabled or now < (tonumber(state.nextSoundPoll) or 0) then
+		return
+	end
+	state.nextSoundPoll = now + math.max(0.02, tonumber(state.config.soundPollInterval) or 0.05)
+	local list = state.soundList
+	local count = #list
+	if count <= 0 then
+		return
+	end
+	local checks = math.min(count, math.max(1, math.floor(tonumber(state.config.soundChecksPerPoll) or 48)))
+	local cursor = math.clamp(math.floor(tonumber(state.soundCursor) or 1), 1, math.max(1, count))
+	for _ = 1, checks do
+		if cursor > #list then
+			cursor = 1
+		end
+		local record = list[cursor]
+		local inst = type(record) == "table" and record.instance or nil
+		if typeof(inst) ~= "Instance" or not inst.Parent or not inst:IsDescendantOf(Workspace) then
+			if typeof(inst) == "Instance" then
+				state.soundRecords[inst] = nil
+			end
+			table.remove(list, cursor)
+			if #list <= 0 then
+				cursor = 1
+				break
+			end
+		else
+			if record.kind == "Sound" then
+				NAmanage.Echolocation.EmitClassicSound(inst, now, false)
+			elseif record.kind == "AudioEmitter" then
+				NAmanage.Echolocation.EmitAudioEmitter(inst, now)
+			end
+			cursor += 1
+		end
+	end
+	state.soundCursor = cursor
+end
+
+NAmanage.Echolocation.GetFootOrigin = function(root, humanoid)
+	if not root then
+		return nil
+	end
+	local offset = 2.5
+	if humanoid then
+		offset = math.max(1.5, (tonumber(humanoid.HipHeight) or 2) + ((root.Size and root.Size.Y or 2) * 0.5))
+	end
+	return root.Position - Vector3.new(0, offset, 0)
+end
+
+NAmanage.Echolocation.UpdateCharacter = function(now)
+	local state = NAmanage.Echolocation.GetState()
+	local player = Players and Players.LocalPlayer
+	local character = player and player.Character or nil
+	if character ~= state.character then
+		state.character = character
+		state.wasGrounded = nil
+		state.airborneAt = now
+		state.lastStepAt = 0
+		NAmanage.Echolocation.UpdateOverlapFilter()
+		NAmanage.Echolocation.EnsureSelfHighlight()
+	end
+	if not character or not character.Parent then
+		return
+	end
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	local root = getRoot(character)
+	if not humanoid or not root or humanoid.Health <= 0 then
+		return
+	end
+	local currentFootOrigin = NAmanage.Echolocation.GetFootOrigin(root, humanoid) or root.Position
+	NAmanage.Echolocation.RefreshMovingSource(root, currentFootOrigin)
+	if typeof(state.selfHighlight) == "Instance" then
+		state.selfHighlight.Adornee = character
+	end
+	local grounded = humanoid.FloorMaterial ~= Enum.Material.Air
+	if state.wasGrounded == nil then
+		state.wasGrounded = grounded
+	end
+	if not grounded and state.wasGrounded == true then
+		state.airborneAt = now
+	elseif grounded and state.wasGrounded == false then
+		local airTime = now - (tonumber(state.airborneAt) or now)
+		if airTime >= 0.16 then
+			local origin = NAmanage.Echolocation.GetFootOrigin(root, humanoid)
+			if origin then
+				NAmanage.Echolocation.Emit(origin, math.min(110, (tonumber(state.config.range) or 74) * 1.2), 1.25, root)
+				state.lastStepAt = now
+			end
+		end
+	end
+	state.wasGrounded = grounded
+	if not grounded or humanoid.MoveDirection.Magnitude <= 0.05 then
+		return
+	end
+	local velocity = root.AssemblyLinearVelocity
+	local speed = Vector3.new(velocity.X, 0, velocity.Z).Magnitude
+	if speed < 1 then
+		speed = humanoid.MoveDirection.Magnitude * math.max(tonumber(humanoid.WalkSpeed) or 16, 1)
+	end
+	if speed < 1 then
+		return
+	end
+	local interval = math.clamp((tonumber(state.config.stepBaseInterval) or 0.56) * (16 / math.max(speed, 6)), 0.22, 0.68)
+	if now - (tonumber(state.lastStepAt) or 0) < interval then
+		return
+	end
+	state.lastStepAt = now
+	local origin = NAmanage.Echolocation.GetFootOrigin(root, humanoid)
+	if origin then
+		local radius = math.clamp((tonumber(state.config.range) or 74) + ((speed - 16) * 0.8), 54, 105)
+		NAmanage.Echolocation.Emit(origin, radius, math.clamp(0.85 + (speed / 80), 0.9, 1.25), root)
+	end
+end
+
+NAmanage.Echolocation.Update = function()
+	local state = NAmanage.Echolocation.GetState()
+	if not state.enabled then
+		return
+	end
+	local now = os.clock()
+	NAmanage.Echolocation.UpdateCharacter(now)
+	NAmanage.Echolocation.UpdateAudioSources(now)
+	NAmanage.Echolocation.UpdatePulses(now)
+	NAmanage.Echolocation.UpdateHighlights(now)
+	if now - (tonumber(state.lastDarknessAt) or 0) >= 0.2 then
+		state.lastDarknessAt = now
+		NAmanage.Echolocation.ApplyDarkness()
+	end
+end
+
+NAmanage.Echolocation.Start = function(notify)
+	local state = NAmanage.Echolocation.GetState()
+	if state.enabled then
+		if notify ~= false then
+			DoNotif("Echolocation is already enabled", 2)
+		end
+		return true
+	end
+	state.enabled = true
+	state.token = (tonumber(state.token) or 0) + 1
+	state.pulses = {}
+	state.sourceOrigins = NAmanage.ensureWeakKeyTable(nil)
+	state.sourceSoundPulseAt = NAmanage.ensureWeakKeyTable(nil)
+	state.patchSlots = NAmanage.ensureWeakKeyTable(nil)
+	state.lastStepAt = 0
+	state.lastDarknessAt = 0
+	state.wasGrounded = nil
+	state.airborneAt = os.clock()
+	NAmanage.Echolocation.EnsureVisualRoot()
+	NAmanage.Echolocation.CaptureLighting()
+	state.character = Players and Players.LocalPlayer and Players.LocalPlayer.Character or nil
+	NAmanage.Echolocation.UpdateOverlapFilter()
+	NAmanage.Echolocation.EnsureSelfHighlight()
+	NAmanage.Echolocation.InitializeAudioSources()
+	NAmanage.Echolocation.ApplyDarkness()
+	NAlib.reconnect("echolocation_runtime", RunService.Heartbeat:Connect(function()
+		NAmanage.Echolocation.Update()
+	end))
+	local root = state.character and getRoot(state.character) or nil
+	if root then
+		NAmanage.Echolocation.Emit(root.Position, math.min(90, tonumber(state.config.range) or 74), 1.1, root)
+	end
+	if notify ~= false then
+		DoNotif("Echolocation enabled. Movement, landings, and spatial game sounds now emit pings.", 3, "Echolocation")
+	end
+	return true
+end
+
+NAmanage.Echolocation.Stop = function(notify)
+	local state = NAmanage.Echolocation.GetState()
+	local hadState = state.enabled == true or state.lightingBackup ~= nil or typeof(state.visualRoot) == "Instance"
+	state.enabled = false
+	state.token = (tonumber(state.token) or 0) + 1
+	NAlib.disconnect("echolocation_runtime")
+	NAlib.disconnect("echolocation_source_added")
+	NAlib.disconnect("echolocation_sound_events")
+	NAlib.disconnect("echolocation_audio_events")
+	NAmanage.Echolocation.RestoreLighting()
+	if typeof(state.visualRoot) == "Instance" then
+		pcall(function()
+			state.visualRoot:Destroy()
+		end)
+	end
+	state.visualRoot = nil
+	state.selfHighlight = nil
+	state.overlap = nil
+	state.character = nil
+	state.pulses = {}
+	state.wavePool = {}
+	state.highlightPool = {}
+	state.targetSlots = NAmanage.ensureWeakKeyTable(nil)
+	state.patchSlots = NAmanage.ensureWeakKeyTable(nil)
+	state.sourceOrigins = NAmanage.ensureWeakKeyTable(nil)
+	state.sourceSoundPulseAt = NAmanage.ensureWeakKeyTable(nil)
+	state.emitterBoundPlayers = NAmanage.ensureWeakKeyTable(nil)
+	state.soundRecords = NAmanage.ensureWeakKeyTable(nil)
+	state.soundList = {}
+	state.soundCursor = 1
+	state.nextSoundPoll = 0
+	state.wasGrounded = nil
+	state.airborneAt = 0
+	state.lastStepAt = 0
+	if notify ~= false and hadState then
+		DoNotif("Echolocation disabled and Lighting restored.", 3, "Echolocation")
+	end
+	return hadState
+end
+
+NAmanage.RegisterUnloadCleanup("echolocation_restore", function()
+	NAmanage.Echolocation.Stop(false)
+end, 120)
+
+cmd.add({"echolocation", "echo", "echolocate"}, {"[BETA] echolocation (echo, echolocate)", "Darkens the world and reveals geometry and entities from movement, landings, and spatial Sound/AudioEmitter sources"}, function()
+	NAmanage.Echolocation.Start(true)
+end)
+
+cmd.add({"unecholocation", "unecho", "noecho"}, {"unecholocation (unecho, noecho)", "Disable echolocation and restore Lighting"}, function()
+	NAmanage.Echolocation.Stop(true)
+end)
+
+cmd.add({"echoping", "eping", "sonarping"}, {"echoping (eping, sonarping)", "Emit a strong manual echolocation ping"}, function()
+	local state = NAmanage.Echolocation.GetState()
+	if not state.enabled then
+		DoNotif("Enable echolocation first", 2, "Echolocation")
+		return
+	end
+	local character = Players and Players.LocalPlayer and Players.LocalPlayer.Character or nil
+	local root = character and getRoot(character) or nil
+	if not root then
+		DoNotif("Character root unavailable", 2, "Echolocation")
+		return
+	end
+	NAmanage.Echolocation.Emit(root.Position, math.min(140, (tonumber(state.config.range) or 74) * 1.45), 1.5)
+end)
+
 NAmanage._ensureL=function()
 	const st = _na_env._LState or {}
 	_na_env._LState = st
@@ -99575,6 +101275,12 @@ NAmanage._ensureL=function()
 			end
 		end
 		st.cancelFor = function(mode)
+			if mode ~= "echo" and type(NAmanage.Echolocation) == "table" and type(NAmanage.Echolocation.GetState) == "function" and type(NAmanage.Echolocation.Stop) == "function" then
+				local echoState = NAmanage.Echolocation.GetState()
+				if echoState and echoState.enabled == true then
+					NAmanage.Echolocation.Stop(false)
+				end
+			end
 			if mode=="fb" then
 				st.disableTimeLoops()
 				st.disableNF()
