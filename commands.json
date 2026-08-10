@@ -7978,6 +7978,39 @@
       "desc": "Disables X-ray vision"
     },
     {
+      "name": "echolocation",
+      "aliases": [
+        "echolocation",
+        "echo",
+        "echolocate"
+      ],
+      "usage": "[BETA] echolocation (echo, echolocate)",
+      "args": "[BETA]",
+      "desc": "Darkens the world and reveals geometry and entities from movement, landings, and spatial Sound/AudioEmitter sources"
+    },
+    {
+      "name": "unecholocation",
+      "aliases": [
+        "unecholocation",
+        "unecho",
+        "noecho"
+      ],
+      "usage": "unecholocation (unecho, noecho)",
+      "args": "",
+      "desc": "Disable echolocation and restore Lighting"
+    },
+    {
+      "name": "echoping",
+      "aliases": [
+        "echoping",
+        "eping",
+        "sonarping"
+      ],
+      "usage": "echoping (eping, sonarping)",
+      "args": "",
+      "desc": "Emit a strong manual echolocation ping"
+    },
+    {
       "name": "fullbright",
       "aliases": [
         "fullbright",
