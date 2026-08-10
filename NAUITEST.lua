@@ -4307,10 +4307,22 @@ do
 	addCorner(topbar, 10);
 	addStroke(topbar, 1);
 
-	local engine = makeButton(topbar, "Engine", "Engine: RScripts", UDim2.new(0.42, -10, 0, 24), UDim2.new(0, 10, 0, 56), Color3.fromRGB(29, 30, 40));
+	local publicTab = makeButton(topbar, "PublicTab", "Public Hub", UDim2.new(0.20, -8, 0, 24), UDim2.new(0, 10, 0, 56), Color3.fromRGB(52, 46, 74));
+	publicTab.TextSize = 12;
+	publicTab.AnchorPoint = Vector2.new(0, 0.5);
+	publicTab.Position = UDim2.new(0, 10, 0, 56);
+
+	local supportedTab = makeButton(topbar, "SupportedTab", "NA Scripts", UDim2.new(0.22, -8, 0, 24), UDim2.new(0.20, 6, 0, 56), Color3.fromRGB(29, 30, 40));
+	supportedTab.TextSize = 12;
+	supportedTab.AnchorPoint = Vector2.new(0, 0.5);
+
+	local savedTab = makeButton(topbar, "SavedTab", "Saved Scripts", UDim2.new(0.24, -8, 0, 24), UDim2.new(0.42, 6, 0, 56), Color3.fromRGB(29, 30, 40));
+	savedTab.TextSize = 12;
+	savedTab.AnchorPoint = Vector2.new(0, 0.5);
+
+	local engine = makeButton(topbar, "Engine", "Engine: RScripts", UDim2.new(0.34, -16, 0, 24), UDim2.new(0.66, 6, 0, 56), Color3.fromRGB(29, 30, 40));
 	engine.TextSize = 12;
 	engine.AnchorPoint = Vector2.new(0, 0.5);
-	engine.Position = UDim2.new(0, 10, 0, 56);
 
 	local title = Instance.new("TextLabel", topbar);
 	title.Name = "Title";
@@ -4697,11 +4709,75 @@ do
 	list.BorderSizePixel = 0
 	list.BackgroundTransparency = 1
 	list.Position = UDim2.new(0, 8, 0, 106)
-	list.Size = UDim2.new(1, -16, 1, -114)
-	list.ScrollBarThickness = 4
-	list.ScrollBarImageColor3 = Color3.fromRGB(100, 92, 124)
+	list.Size = UDim2.new(1, -32, 1, -114)
+	list.ScrollBarThickness = 0
+	list.ScrollBarImageTransparency = 1
 	list.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	list.CanvasSize = UDim2.new()
+
+	local listScrollBar = Instance.new("Frame", container)
+	listScrollBar.Name = "CustomScrollBar"
+	listScrollBar.BorderSizePixel = 0
+	listScrollBar.BackgroundColor3 = Color3.fromRGB(21, 22, 29)
+	listScrollBar.BackgroundTransparency = 0.12
+	listScrollBar.Position = UDim2.new(1, -14, 0, 106)
+	listScrollBar.Size = UDim2.new(0, 10, 1, -114)
+	listScrollBar.Visible = false
+	corner(listScrollBar, 4)
+	local listScrollStroke = stroke(listScrollBar, 1)
+	listScrollStroke.Transparency = 0.35
+
+	local listScrollUp = Instance.new("TextButton", listScrollBar)
+	listScrollUp.Name = "Up"
+	listScrollUp.BorderSizePixel = 0
+	listScrollUp.BackgroundColor3 = Color3.fromRGB(31, 32, 42)
+	listScrollUp.BackgroundTransparency = 0.12
+	listScrollUp.Size = UDim2.new(1, 0, 0, 16)
+	listScrollUp.AutoButtonColor = false
+	listScrollUp.Text = "^"
+	listScrollUp.TextColor3 = Color3.fromRGB(232, 234, 242)
+	listScrollUp.TextSize = 14
+	listScrollUp.FontFace = semiboldFont
+	corner(listScrollUp, 3)
+
+	local listScrollTrack = Instance.new("TextButton", listScrollBar)
+	listScrollTrack.Name = "Track"
+	listScrollTrack.BorderSizePixel = 0
+	listScrollTrack.BackgroundColor3 = Color3.fromRGB(23, 24, 31)
+	listScrollTrack.BackgroundTransparency = 0.1
+	listScrollTrack.Position = UDim2.new(0, 0, 0, 16)
+	listScrollTrack.Size = UDim2.new(1, 0, 1, -32)
+	listScrollTrack.AutoButtonColor = false
+	listScrollTrack.Text = ""
+	corner(listScrollTrack, 2)
+
+	local listScrollThumb = Instance.new("TextButton", listScrollTrack)
+	listScrollThumb.Name = "Thumb"
+	listScrollThumb.BorderSizePixel = 0
+	listScrollThumb.BackgroundColor3 = Color3.fromRGB(86, 88, 104)
+	listScrollThumb.BackgroundTransparency = 0.05
+	listScrollThumb.Size = UDim2.new(1, 0, 0, 48)
+	listScrollThumb.AutoButtonColor = false
+	listScrollThumb.Text = ""
+	corner(listScrollThumb, 4)
+	local listThumbStroke = stroke(listScrollThumb, 1)
+	listThumbStroke.Color = Color3.fromRGB(64, 66, 82)
+	listThumbStroke.Transparency = 0.25
+
+	local listScrollDown = Instance.new("TextButton", listScrollBar)
+	listScrollDown.Name = "Down"
+	listScrollDown.BorderSizePixel = 0
+	listScrollDown.BackgroundColor3 = Color3.fromRGB(31, 32, 42)
+	listScrollDown.BackgroundTransparency = 0.12
+	listScrollDown.Position = UDim2.new(0, 0, 1, -16)
+	listScrollDown.Size = UDim2.new(1, 0, 0, 16)
+	listScrollDown.AutoButtonColor = false
+	listScrollDown.Text = "v"
+	listScrollDown.TextColor3 = Color3.fromRGB(232, 234, 242)
+	listScrollDown.TextSize = 14
+	listScrollDown.FontFace = semiboldFont
+	corner(listScrollDown, 3)
+
 	local layout = Instance.new("UIListLayout", list)
 	layout.Name = "Layout"
 	layout.Padding = UDim.new(0, 8)
