@@ -123776,6 +123776,42 @@ end
 
 NAStuff.ExecutorCodec.TryFullLayer = NAStuff.ExecutorCodec.TryFullLayer or function(source)
 	source = tostring(source or "")
+	const wrdRecoveryIdPrefix = "--[[NA_OBF:WRD_PROMETHEUS_RECOVERY_V2:"
+	if source:sub(1, #wrdRecoveryIdPrefix) == wrdRecoveryIdPrefix then
+		const closePos = source:find("]]", #wrdRecoveryIdPrefix + 1, true)
+		if closePos then
+			const recoveryId = source:sub(#wrdRecoveryIdPrefix + 1, closePos - 1)
+			if recoveryId ~= "" and not recoveryId:find("[^%w%-%_]") and type(readfile) == "function" then
+				const recoveryPath = "Nameless-Admin/ExecutorPrometheusRecovery/"..recoveryId..".txt"
+				local okRead, payload = pcall(readfile, recoveryPath)
+				if okRead and type(payload) == "string" and payload ~= "" then
+					const packed = NAStuff.ExecutorCodec.Base64Decode(payload)
+					if packed then
+						const original = NAStuff.ExecutorCodec.LZW92Decode(packed)
+						if type(original) == "string" then
+							return original, "WeAreDevs / Prometheus local recovery"
+						end
+					end
+				end
+			end
+		end
+	end
+	const wrdRecoveryPrefix = "--[[NA_OBF:WRD_PROMETHEUS_RECOVERY_V1:"
+	if source:sub(1, #wrdRecoveryPrefix) == wrdRecoveryPrefix then
+		const closePos = source:find("]]", #wrdRecoveryPrefix + 1, true)
+		if closePos then
+			const payload = source:sub(#wrdRecoveryPrefix + 1, closePos - 1)
+			if payload ~= "" then
+				const packed = NAStuff.ExecutorCodec.Base64Decode(payload)
+				if packed then
+					const original = NAStuff.ExecutorCodec.LZW92Decode(packed)
+					if type(original) == "string" then
+						return original, "WeAreDevs / Prometheus embedded recovery"
+					end
+				end
+			end
+		end
+	end
 	const markerName = source:match("%-%-%[%[NA_OBF:([A-Z0-9_]+)%]%]")
 	if markerName then
 		const payload = source:match('local%s+P%s*=%s*"([^"]*)"') or source:match('const%s+P%s*=%s*"([^"]*)"')
@@ -124145,6 +124181,336 @@ NAStuff.ExecutorCodec.MakePythonCamouflage = NAStuff.ExecutorCodec.MakePythonCam
 		NAStuff.ExecutorCodec.MakeBase64Decoder(NAStuff.ExecutorCodec.MakeXorDecoder(NAStuff.ExecutorCodec.UniversalRunTail))
 end
 
+NAStuff.ExecutorCodec.PrometheusRemote = type(NAStuff.ExecutorCodec.PrometheusRemote) == "table" and NAStuff.ExecutorCodec.PrometheusRemote or {
+	BaseUrl = "https://raw.githubusercontent.com/prometheus-lua/Prometheus/v0.2.11.1/src/",
+	Modules = {},
+	Sources = {},
+	Loading = {},
+	LoadErrors = {},
+	Runtime = nil,
+	Build = "v0.2.11.1-r6",
+}
+if NAStuff.ExecutorCodec.PrometheusRemote.Build ~= "v0.2.11.1-r6" then
+	NAStuff.ExecutorCodec.PrometheusRemote.BaseUrl = "https://raw.githubusercontent.com/prometheus-lua/Prometheus/v0.2.11.1/src/"
+	NAStuff.ExecutorCodec.PrometheusRemote.Modules = {}
+	NAStuff.ExecutorCodec.PrometheusRemote.Sources = {}
+	NAStuff.ExecutorCodec.PrometheusRemote.Loading = {}
+	NAStuff.ExecutorCodec.PrometheusRemote.LoadErrors = {}
+	NAStuff.ExecutorCodec.PrometheusRemote.Runtime = nil
+	NAStuff.ExecutorCodec.PrometheusRemote.Build = "v0.2.11.1-r6"
+else
+	NAStuff.ExecutorCodec.PrometheusRemote.BaseUrl = "https://raw.githubusercontent.com/prometheus-lua/Prometheus/v0.2.11.1/src/"
+	NAStuff.ExecutorCodec.PrometheusRemote.Modules = type(NAStuff.ExecutorCodec.PrometheusRemote.Modules) == "table" and NAStuff.ExecutorCodec.PrometheusRemote.Modules or {}
+	NAStuff.ExecutorCodec.PrometheusRemote.Sources = type(NAStuff.ExecutorCodec.PrometheusRemote.Sources) == "table" and NAStuff.ExecutorCodec.PrometheusRemote.Sources or {}
+	NAStuff.ExecutorCodec.PrometheusRemote.Loading = type(NAStuff.ExecutorCodec.PrometheusRemote.Loading) == "table" and NAStuff.ExecutorCodec.PrometheusRemote.Loading or {}
+	NAStuff.ExecutorCodec.PrometheusRemote.LoadErrors = type(NAStuff.ExecutorCodec.PrometheusRemote.LoadErrors) == "table" and NAStuff.ExecutorCodec.PrometheusRemote.LoadErrors or {}
+end
+
+NAStuff.ExecutorCodec.PrometheusHttpGet = NAStuff.ExecutorCodec.PrometheusHttpGet or function(url)
+	if type(_na_boot) == "table" and type(_na_boot.httpGet) == "function" then
+		return _na_boot.httpGet(url, { maxAttempts = 3; timeout = 12; })
+	end
+	local ok, body = pcall(function()
+		return game:HttpGet(url, true)
+	end)
+	if ok and type(body) == "string" and body ~= "" then
+		return body
+	end
+	error("Prometheus source download failed: "..tostring(body or "empty response"), 0)
+end
+
+NAStuff.ExecutorCodec.PrometheusBuildMath = function(hostMath)
+	if type(hostMath) ~= "table" then
+		return hostMath
+	end
+	const mathProxy = {}
+	for key, value in hostMath do
+		mathProxy[key] = value
+	end
+	if type(mathProxy.log10) ~= "function" and type(hostMath.log) == "function" then
+		mathProxy.log10 = function(value)
+			return hostMath.log(value, 10)
+		end
+	end
+	const rawRandom = hostMath.random
+	if type(rawRandom) == "function" then
+		local supportsWideRandom = false
+		pcall(function()
+			rawRandom(1, 2 ^ 40)
+			supportsWideRandom = true
+		end)
+		if not supportsWideRandom then
+			local compatRandom
+			compatRandom = function(a, b)
+				if a == nil and b == nil then
+					return rawRandom()
+				end
+				if b == nil then
+					return compatRandom(1, a)
+				end
+				a = tonumber(a) or 0
+				b = tonumber(b) or 0
+				if a > b then
+					a, b = b, a
+				end
+				a = math.ceil(a)
+				b = math.floor(b)
+				if a > b then
+					error("interval is empty", 2)
+				end
+				const diff = b - a
+				if diff > 2147483647 then
+					return math.floor(rawRandom() * diff + a)
+				end
+				return rawRandom(a, b)
+			end
+			mathProxy.random = compatRandom
+		end
+	end
+	return mathProxy
+end
+
+NAStuff.ExecutorCodec.PrometheusGetRuntime = function()
+	const state = NAStuff.ExecutorCodec.PrometheusRemote
+	if type(state.Runtime) == "table" then
+		if type(state.Runtime.arg) ~= "table" then
+			state.Runtime.arg = {}
+		end
+		if type(state.Runtime.package) ~= "table" then
+			state.Runtime.package = {}
+		end
+		state.Runtime.package.loaded = state.Modules
+		state.Runtime.package.preload = type(state.Runtime.package.preload) == "table" and state.Runtime.package.preload or {}
+		state.Runtime.math = NAStuff.ExecutorCodec.PrometheusBuildMath(state.Runtime.math)
+		return state.Runtime
+	end
+	const host = (getgenv and getgenv()) or _G or {}
+	local hostPackage = type(host) == "table" and rawget(host, "package") or nil
+	local hostArg = type(host) == "table" and rawget(host, "arg") or nil
+	const hostMath = type(host) == "table" and rawget(host, "math") or math
+	const runtime = {
+		arg = type(hostArg) == "table" and hostArg or {},
+		math = NAStuff.ExecutorCodec.PrometheusBuildMath(hostMath),
+		package = {
+			path = type(hostPackage) == "table" and tostring(hostPackage.path or "") or "",
+			config = type(hostPackage) == "table" and tostring(hostPackage.config or "") or "",
+			loaded = state.Modules,
+			preload = {},
+		},
+	}
+	setmetatable(runtime, { __index = host })
+	runtime._G = runtime
+	runtime.require = function(moduleName)
+		return NAStuff.ExecutorCodec.PrometheusRequire(moduleName)
+	end
+	if type(runtime.newproxy) ~= "function" then
+		runtime.newproxy = function(useMetatable)
+			local proxy = {}
+			if useMetatable then
+				setmetatable(proxy, {})
+			end
+			return proxy
+		end
+	end
+	state.Runtime = runtime
+	return runtime
+end
+
+NAStuff.ExecutorCodec.PrometheusRequire = function(moduleName)
+	moduleName = tostring(moduleName or "")
+	if moduleName == "" then
+		error("Prometheus require received an empty module name", 0)
+	end
+	const state = NAStuff.ExecutorCodec.PrometheusRemote
+	if state.Modules[moduleName] ~= nil then
+		return state.Modules[moduleName]
+	end
+
+	const currentThread = coroutine.running()
+	local activeLoad = state.Loading[moduleName]
+	if type(activeLoad) == "table" then
+		if activeLoad.thread == currentThread then
+			error("Prometheus circular require: "..moduleName, 0)
+		end
+		local deadline = os.clock() + 45
+		while type(state.Loading[moduleName]) == "table" do
+			local owner = state.Loading[moduleName]
+			if type(owner.thread) == "thread" then
+				local okStatus, status = pcall(coroutine.status, owner.thread)
+				if okStatus and status == "dead" then
+					state.Loading[moduleName] = nil
+					break
+				end
+			end
+			if os.clock() >= deadline then
+				error("Prometheus require timed out waiting for module: "..moduleName, 0)
+			end
+			if type(task) == "table" and type(task.wait) == "function" then
+				task.wait()
+			elseif type(wait) == "function" then
+				wait()
+			else
+				break
+			end
+		end
+		if state.Modules[moduleName] ~= nil then
+			return state.Modules[moduleName]
+		end
+		local priorError = state.LoadErrors[moduleName]
+		if priorError ~= nil then
+			error(priorError, 0)
+		end
+		if state.Loading[moduleName] ~= nil then
+			error("Prometheus module is already loading: "..moduleName, 0)
+		end
+	end
+
+	const loadToken = { thread = currentThread; started = os.clock(); }
+	state.Loading[moduleName] = loadToken
+	state.LoadErrors[moduleName] = nil
+	local ok, result = xpcall(function()
+		const path = moduleName:gsub("%.", "/")..".lua"
+		local source = state.Sources[moduleName]
+		if type(source) ~= "string" or source == "" then
+			source = NAStuff.ExecutorCodec.PrometheusHttpGet(state.BaseUrl..path)
+			state.Sources[moduleName] = source
+		end
+		const runtime = NAStuff.ExecutorCodec.PrometheusGetRuntime()
+		local chunk, compileErr
+		if type(loadstring) == "function" then
+			chunk, compileErr = loadstring(source, "@Prometheus/"..path)
+			if chunk and type(setfenv) == "function" then
+				setfenv(chunk, runtime)
+			elseif chunk then
+				error("Prometheus integration requires setfenv when loadstring is used", 0)
+			end
+		elseif type(load) == "function" then
+			chunk, compileErr = load(source, "@Prometheus/"..path, "t", runtime)
+		else
+			error("Prometheus integration requires loadstring or load", 0)
+		end
+		if type(chunk) ~= "function" then
+			error("Prometheus module compile failed ("..moduleName.."): "..tostring(compileErr), 0)
+		end
+		local value = chunk()
+		if value == nil then value = true end
+		return value
+	end, function(message)
+		local raw = tostring(message or "Unknown Prometheus error")
+		if type(debug) == "table" and type(debug.traceback) == "function" then
+			local traceOk, trace = pcall(debug.traceback, raw, 2)
+			if traceOk and type(trace) == "string" and trace ~= "" then
+				return trace
+			end
+		end
+		return raw
+	end)
+	if state.Loading[moduleName] == loadToken then
+		state.Loading[moduleName] = nil
+	end
+	if not ok then
+		state.LoadErrors[moduleName] = result
+		error(result, 0)
+	end
+	state.LoadErrors[moduleName] = nil
+	state.Modules[moduleName] = result
+	return result
+end
+
+NAStuff.ExecutorCodec.PrometheusObfuscate = function(source)
+	source = tostring(source or "")
+	if source == "" then
+		return nil, "Nothing to obfuscate"
+	end
+	const state = NAStuff.ExecutorCodec.PrometheusRemote
+	if state.Obfuscating == true then
+		return nil, "Prometheus obfuscation is already in progress"
+	end
+	state.Obfuscating = true
+	local function finish(output, err)
+		state.Obfuscating = false
+		return output, err
+	end
+	local okBootstrap, Pipeline, Presets, Logger = pcall(function()
+		return NAStuff.ExecutorCodec.PrometheusRequire("prometheus.pipeline"), NAStuff.ExecutorCodec.PrometheusRequire("presets"), NAStuff.ExecutorCodec.PrometheusRequire("logger")
+	end)
+	if not okBootstrap then
+		return finish(nil, tostring(Pipeline))
+	end
+	if type(Pipeline) ~= "table" or type(Pipeline.fromConfig) ~= "function" then
+		return finish(nil, "Prometheus pipeline module is unavailable")
+	end
+	if type(Presets) ~= "table" or type(Presets.Strong) ~= "table" then
+		return finish(nil, "Prometheus Strong preset is unavailable")
+	end
+	if type(Logger) == "table" then
+		if type(Logger.LogLevel) == "table" then
+			Logger.logLevel = Logger.LogLevel.Error or 0
+		end
+		Logger.debugCallback = function() end
+		Logger.logCallback = function() end
+		Logger.warnCallback = function() end
+		Logger.errorCallback = function(...)
+			const parts = {}
+			for i = 1, select("#", ...) do
+				parts[#parts + 1] = tostring(select(i, ...))
+			end
+			error(table.concat(parts, " "), 0)
+		end
+	end
+	const config = {}
+	for key, value in Presets.Strong do
+		config[key] = value
+	end
+	config.LuaVersion = "LuaU"
+	config.PrettyPrint = false
+	config.Seed = math.max(1, math.floor(((os.clock() * 1000000) + os.time()) % 2147483646))
+	local okPipeline, pipeline = pcall(Pipeline.fromConfig, Pipeline, config)
+	if not okPipeline or type(pipeline) ~= "table" then
+		return finish(nil, "Prometheus pipeline setup failed: "..tostring(pipeline))
+	end
+	local okApply, output = pcall(pipeline.apply, pipeline, source, "Executor/WeAreDevs-Prometheus")
+	if not okApply or type(output) ~= "string" or output == "" then
+		return finish(nil, "Prometheus obfuscation failed: "..tostring(output))
+	end
+	local recoveryPayload
+	local okRecovery, recoveryResult = pcall(function()
+		return NAStuff.ExecutorCodec.Base64Encode(NAStuff.ExecutorCodec.LZW92Encode(source))
+	end)
+	if okRecovery and type(recoveryResult) == "string" and recoveryResult ~= "" then
+		recoveryPayload = recoveryResult
+	end
+	if type(recoveryPayload) ~= "string" or recoveryPayload == "" then
+		return finish(nil, "Prometheus recovery payload generation failed")
+	end
+
+	local recoveryId
+	if type(writefile) == "function" then
+		pcall(function()
+			if type(makefolder) == "function" then
+				if type(isfolder) ~= "function" or not isfolder("Nameless-Admin") then makefolder("Nameless-Admin") end
+				if type(isfolder) ~= "function" or not isfolder("Nameless-Admin/ExecutorPrometheusRecovery") then makefolder("Nameless-Admin/ExecutorPrometheusRecovery") end
+			end
+			local generatedId
+			pcall(function()
+				generatedId = game:GetService("HttpService"):GenerateGUID(false):gsub("[^%w%-]", "")
+			end)
+			if type(generatedId) ~= "string" or generatedId == "" then
+				generatedId = tostring(os.time()).."-"..tostring(math.floor((os.clock() * 1000000) % 1000000000)).."-"..tostring(math.random(1, 999999999))
+			end
+			const recoveryPath = "Nameless-Admin/ExecutorPrometheusRecovery/"..generatedId..".txt"
+			writefile(recoveryPath, recoveryPayload)
+			recoveryId = generatedId
+		end)
+	end
+
+	state.Obfuscating = false
+	if type(recoveryId) == "string" and recoveryId ~= "" then
+		return "--[[NA_OBF:WRD_PROMETHEUS_RECOVERY_V2:"..recoveryId.."]]\n"..output
+	end
+	return "--[[NA_OBF:WRD_PROMETHEUS_RECOVERY_V1:"..recoveryPayload.."]]\n"..output
+end
+
 NAStuff.ExecutorCodec.Obfuscate = NAStuff.ExecutorCodec.Obfuscate or function(source, mode)
 	source = tostring(source or "")
 	mode = tostring(mode or "auto"):lower():gsub("[%s%-%_]+", "")
@@ -124153,7 +124519,7 @@ NAStuff.ExecutorCodec.Obfuscate = NAStuff.ExecutorCodec.Obfuscate or function(so
 		dec = "decimal", bin = "binary", oct = "octal", rev = "reverse64", reverse = "reverse64", reversebytes64 = "reversebytes",
 		pair = "pairswap", rot = "rot13", shift64 = "shift", comp = "complement", nibble64 = "nibble", rol = "rotate",
 		idxor = "indexxor", idxshift = "indexshift", bitrev = "bitreverse", rxor = "repeatxor", delta64 = "delta", rle64 = "rle",
-		lzw = "lzw92", lzw64 = "lzw92base64", js = "jscamo", javascript = "jscamo", jsstrong = "jscamostrong", python = "pycamo", py = "pycamo", pystrong = "pycamostrong", ultra = "ultra"
+		lzw = "lzw92", lzw64 = "lzw92base64", js = "jscamo", javascript = "jscamo", jsstrong = "jscamostrong", python = "pycamo", py = "pycamo", pystrong = "pycamostrong", wrd = "wearedevs", prometheus = "wearedevs", wrdprometheus = "wearedevs", ultra = "ultra"
 	}
 	mode = aliases[mode] or mode
 	if mode == "auto" then
@@ -124164,7 +124530,7 @@ NAStuff.ExecutorCodec.Obfuscate = NAStuff.ExecutorCodec.Obfuscate or function(so
 	const valid = {
 		base4=true, base36=true, base62=true, base64=true, base64url=true, base32=true, z85=true, hex=true, percent=true, decimal=true, binary=true, octal=true,
 		reverse64=true, reversebytes=true, pairswap=true, rot13=true, shift=true, complement=true, nibble=true, rotate=true, indexxor=true, indexshift=true,
-		affine=true, bitreverse=true, gray=true, xor=true, repeatxor=true, delta=true, rle=true, lzw92=true, lzw92base64=true, jscamo=true, jscamostrong=true, pycamo=true, pycamostrong=true, balanced=true, strong=true, ultra=true
+		affine=true, bitreverse=true, gray=true, xor=true, repeatxor=true, delta=true, rle=true, lzw92=true, lzw92base64=true, jscamo=true, jscamostrong=true, pycamo=true, pycamostrong=true, wearedevs=true, balanced=true, strong=true, ultra=true
 	}
 	if not valid[mode] then return nil, nil, "Unsupported obfuscation method" end
 
@@ -124285,6 +124651,12 @@ NAStuff.ExecutorCodec.Obfuscate = NAStuff.ExecutorCodec.Obfuscate or function(so
 		const packed = NAStuff.ExecutorCodec.LZW92Encode(source)
 		const payload = NAStuff.ExecutorCodec.Base64Encode(NAStuff.ExecutorCodec.Xor(packed, key))
 		return '--[[NA_OBF:LZW92_XOR64]]\nlocal P="'..payload..'" local K='..tostring(key)..' '..NAStuff.ExecutorCodec.MakeBase64Decoder(NAStuff.ExecutorCodec.MakeXorDecoder(NAStuff.ExecutorCodec.MakeLZWDecoder(NAStuff.ExecutorCodec.UniversalRunTail))), "Strong"
+	elseif mode == "wearedevs" then
+		local output, err = NAStuff.ExecutorCodec.PrometheusObfuscate(source)
+		if type(output) ~= "string" or output == "" then
+			return nil, nil, err or "WeAreDevs/Prometheus obfuscation failed"
+		end
+		return output, "WeAreDevs / Prometheus Strong"
 	end
 
 	const packed = NAStuff.ExecutorCodec.LZW92Encode(source)
@@ -125610,6 +125982,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	end
 
 	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("auto", "Auto", "Chooses Ultra, Strong, or Balanced by script size")
+	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("wearedevs", "WeAreDevs / Prometheus", "Prometheus Strong LuaU pipeline - reversible with NA Deobfuscate")
 	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("light", "Light", "Compatibility alias for Base64")
 	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("base4", "Base4 Bytes", "Four base-4 digits per source byte")
 	NAStuff.ExecutorTools.ObfuscationMenu.AddMethod("base36", "Base36 Bytes", "Two fixed base-36 digits per source byte")
