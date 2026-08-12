@@ -3687,7 +3687,8 @@ NAmanage._wsCacheRemove = function(hub, inst)
 end
 
 NAmanage._wsCacheAdd = function(hub, inst)
-	if type(hub) ~= "table" or typeof(inst) ~= "Instance" or inst == Workspace then
+	const RawWorkspace = __lt.gs("Workspace")
+	if type(hub) ~= "table" or typeof(inst) ~= "Instance" or inst == Workspace or inst == RawWorkspace then
 		return false
 	end
 	if type(hub.cache) ~= "table" then
@@ -3706,7 +3707,8 @@ NAmanage._wsCacheAdd = function(hub, inst)
 end
 
 NAmanage._wsCacheConnect = function(hub)
-	if type(hub) ~= "table" or hub.root ~= Workspace then
+	const RawWorkspace = __lt.gs("Workspace")
+	if type(hub) ~= "table" or (hub.root ~= Workspace and hub.root ~= RawWorkspace) then
 		return
 	end
 	if not hub.cacheAdd then
@@ -3774,6 +3776,7 @@ NAmanage._wsCacheBuildSync = function(hub)
 end
 
 NAmanage._wsCacheBuildAsync = function(hub, opts)
+	const RawWorkspace = __lt.gs("Workspace")
 	if type(hub) ~= "table" or hub.cacheBuilding == true then
 		return
 	end
@@ -3787,7 +3790,7 @@ NAmanage._wsCacheBuildAsync = function(hub, opts)
 	Spawn(function()
 		const q = { Workspace }
 		local qi, qn = 1, 1
-		while qi <= qn and hub.cacheBuilding == true and hub.root == Workspace do
+		while qi <= qn and hub.cacheBuilding == true and (hub.root == Workspace or hub.root == RawWorkspace) do
 			local budget, waitDelay = NAmanage._evtHubBudget(tonumber(opts.buildBudget) or 192, {
 				delay = tonumber(opts.delayTime) or 0,
 				ldSc = 0.25,
@@ -3797,8 +3800,8 @@ NAmanage._wsCacheBuildAsync = function(hub, opts)
 				const inst = q[qi]
 				q[qi] = nil
 				qi += 1
-				if inst and (inst == Workspace or inst.Parent) then
-					if inst ~= Workspace then
+				if inst and (inst == Workspace or inst == RawWorkspace or inst.Parent) then
+					if inst ~= Workspace and inst ~= RawWorkspace then
 						NAmanage._wsCacheAdd(hub, inst)
 					end
 					local ok, children = pcall(inst.GetChildren, inst)
@@ -4148,6 +4151,8 @@ NAmanage._descHubGet = NAmanage._descHubGet or function(root)
 end
 
 NAmanage.descSub = NAmanage.descSub or function(root, spec)
+	const RawWorkspace = __lt.gs("Workspace")
+	const RawCoreGui = __lt.gs("CoreGui")
 	const noop = {
 		Connected = false,
 		Disconnect = function() end,
@@ -4155,11 +4160,11 @@ NAmanage.descSub = NAmanage.descSub or function(root, spec)
 	if typeof(root) ~= "Instance" then
 		return noop
 	end
-	if root == Workspace and NAmanage.wsSub then
+	if (root == Workspace or root == RawWorkspace) and NAmanage.wsSub then
 		return NAmanage.wsSub(spec)
 	end
 	const coreRoot = (typeof(COREGUI) == "Instance" and COREGUI) or SafeGetService("CoreGui")
-	if coreRoot and root == coreRoot and NAmanage.cgSub then
+	if coreRoot and (root == coreRoot or root == RawCoreGui) and NAmanage.cgSub then
 		return NAmanage.cgSub(spec)
 	end
 	if NAmanage.pgSub and NAmanage._pgHubGet then
@@ -5027,6 +5032,7 @@ NAmanage.RunAfterSettingsBuild = NAmanage.RunAfterSettingsBuild or function(dela
 end
 
 NAmanage.ForEachWorkspaceYield = function(handler, opts)
+	const RawWorkspace = __lt.gs("Workspace")
 	opts = opts or {}
 	if type(handler) ~= "function" then
 		return 0
@@ -5048,8 +5054,8 @@ NAmanage.ForEachWorkspaceYield = function(handler, opts)
 		const inst = q[qi]
 		q[qi] = nil
 		qi += 1
-		if inst and (inst == Workspace or inst.Parent) then
-			if includeRoot or inst ~= Workspace then
+		if inst and (inst == Workspace or inst == RawWorkspace or inst.Parent) then
+			if includeRoot or (inst ~= Workspace and inst ~= RawWorkspace) then
 				processed += 1
 				handler(inst, processed, nil)
 				if maxItems > 0 and processed >= maxItems then
@@ -6263,6 +6269,7 @@ NAmanage.StreamerGetRoots = NAmanage.StreamerGetRoots or function(opts)
 end
 
 NAmanage.StreamerScrubAll = NAmanage.StreamerScrubAll or function(token, opts)
+	const RawWorkspace = __lt.gs("Workspace")
 	opts = opts or {}
 	const state = NAmanage.StreamerGetState()
 	if state.scrubBusy then
@@ -6276,7 +6283,7 @@ NAmanage.StreamerScrubAll = NAmanage.StreamerScrubAll or function(token, opts)
 			if token and token.cancelled then
 				break
 			end
-			if root == Workspace then
+			if root == Workspace or root == RawWorkspace then
 				NAmanage.ForEachDescendantYield(root, function(inst)
 					if token and token.cancelled then
 						return
@@ -32360,11 +32367,12 @@ NAmanage.NewPersistentPlayerRef = function(player)
 end
 
 NAmanage.ResolvePersistentPlayer = function(ref)
+	const RawPlayers = __lt.gs("Players")
 	if type(ref) ~= "table" then
 		return nil
 	end
 	local player = ref.Player
-	if typeof(player) == "Instance" and player:IsA("Player") and player.Parent == Players then
+	if typeof(player) == "Instance" and player:IsA("Player") and player.Parent == RawPlayers then
 		return player
 	end
 	const targets = getPlr(ref.Selector or (ref.Name and ("exactuser:"..ref.Name)) or "")
@@ -32822,12 +32830,13 @@ NAmanage.RotectorGetPlayerRecord = function(plrOrId)
 end
 
 NAmanage.RotectorWaitForPlayerRecord = function(plr, timeout)
+	const RawPlayers = __lt.gs("Players")
 	if not (typeof(plr) == "Instance" and plr:IsA("Player")) then
 		return nil
 	end
 	const deadline = tick() + (tonumber(timeout) or 3)
 	local record = NAmanage.RotectorGetPlayerRecord(plr)
-	while type(record) ~= "table" and plr.Parent == Players and tick() < deadline do
+	while type(record) ~= "table" and plr.Parent == RawPlayers and tick() < deadline do
 		Wait(0.1)
 		record = NAmanage.RotectorGetPlayerRecord(plr)
 	end
@@ -32979,12 +32988,13 @@ NAmanage.RotectorFindAnchor = function(plr)
 end
 
 NAmanage.RotectorUpdateMarkerFrame = function(marker)
+	const RawPlayers = __lt.gs("Players")
 	if type(marker) ~= "table" then
 		return
 	end
 	const frame = marker.frame
 	const plr = marker.player
-	if not (typeof(frame) == "Instance" and typeof(plr) == "Instance" and plr.Parent == Players) then
+	if not (typeof(frame) == "Instance" and typeof(plr) == "Instance" and plr.Parent == RawPlayers) then
 		return
 	end
 	const camera = Workspace and Workspace.CurrentCamera
@@ -33320,6 +33330,7 @@ NAmanage.RotectorEnsureMarker = function(plr, entry)
 end
 
 NAmanage.RotectorApplyPlayerResult = function(plr, entry)
+	const RawPlayers = __lt.gs("Players")
 	if not (typeof(plr) == "Instance" and plr:IsA("Player")) then
 		return
 	end
@@ -33336,7 +33347,7 @@ NAmanage.RotectorApplyPlayerResult = function(plr, entry)
 	end
 	if shouldSurface and key and type(rt) == "table" and type(rt.joinLogPending) == "table" and rt.joinLogPending[key] then
 		const suppressJoinLeave = NAStuff and NAStuff.StreamerModeEnabled == true
-		if NAmanage.jlCfg and NAmanage.jlCfg.JoinLog and not suppressJoinLeave and plr.Parent == Players then
+		if NAmanage.jlCfg and NAmanage.jlCfg.JoinLog and not suppressJoinLeave and plr.Parent == RawPlayers then
 			NAmanage.RotectorNotifyJoinLeave(plr, "Join", "joined", NAmanage.RotectorGetPlayerRecord(plr))
 		end
 		rt.joinLogPending[key] = nil
@@ -33397,6 +33408,7 @@ NAmanage.RotectorServerWarningsEnabled = function()
 end
 
 NAmanage.RotectorCollectFlaggedRecords = function()
+	const RawPlayers = __lt.gs("Players")
 	const rt = NAmanage.Rotector
 	const out = {}
 	if type(rt) ~= "table" or type(rt.flagged) ~= "table" then
@@ -33404,7 +33416,7 @@ NAmanage.RotectorCollectFlaggedRecords = function()
 	end
 	for key, record in rt.flagged do
 		const plr = record and record.player
-		if typeof(plr) == "Instance" and plr:IsA("Player") and plr.Parent == Players then
+		if typeof(plr) == "Instance" and plr:IsA("Player") and plr.Parent == RawPlayers then
 			Insert(out, record)
 		else
 			rt.flagged[key] = nil
@@ -33470,6 +33482,7 @@ NAmanage.RotectorScheduleServerSummary = function(delaySeconds)
 end
 
 NAmanage.RotectorFlushQueue = function()
+	const RawPlayers = __lt.gs("Players")
 	const rt = NAmanage.Rotector
 	if not rt then
 		return
@@ -33495,12 +33508,12 @@ NAmanage.RotectorFlushQueue = function()
 			rt.pending[key] = nil
 			const entry = results and (results[key] or results[id])
 			const plr = rt.players and rt.players[key]
-			if typeof(plr) == "Instance" and plr.Parent == Players then
+			if typeof(plr) == "Instance" and plr.Parent == RawPlayers then
 				if type(entry) ~= "table" or not NAmanage.RotectorShouldSurface(entry) then
 					Insert(retryIds, id)
 				end
 			end
-			if type(entry) == "table" and typeof(plr) == "Instance" and plr.Parent == Players then
+			if type(entry) == "table" and typeof(plr) == "Instance" and plr.Parent == RawPlayers then
 				NAmanage.RotectorApplyPlayerResult(plr, entry)
 			end
 		end
@@ -33512,7 +33525,7 @@ NAmanage.RotectorFlushQueue = function()
 				const single = NAmanage.RotectorLookupIds({ id })
 				const singleEntry = type(single) == "table" and (single[key] or single[id]) or nil
 				const plr = rt.players and rt.players[key]
-				if NAmanage.RotectorShouldSurface(singleEntry) and typeof(plr) == "Instance" and plr.Parent == Players then
+				if NAmanage.RotectorShouldSurface(singleEntry) and typeof(plr) == "Instance" and plr.Parent == RawPlayers then
 					NAmanage.RotectorApplyPlayerResult(plr, singleEntry)
 				end
 				rt.retrying = math.max(0, (tonumber(rt.retrying) or 1) - 1)
@@ -33582,6 +33595,7 @@ NAmanage.RotectorQueueCurrentPlayers = function(force)
 end
 
 NAmanage.RotectorScheduleJoinRescan = function(plr)
+	const RawPlayers = __lt.gs("Players")
 	if not (typeof(plr) == "Instance" and plr:IsA("Player")) then
 		return
 	end
@@ -33603,7 +33617,7 @@ NAmanage.RotectorScheduleJoinRescan = function(plr)
 	NAmanage.spawnSafe(function()
 		for _, delaySeconds in { 3, 12 } do
 			Wait(delaySeconds)
-			if not (typeof(plr) == "Instance" and plr.Parent == Players) then
+			if not (typeof(plr) == "Instance" and plr.Parent == RawPlayers) then
 				break
 			end
 			if not (type(rt.joinRescanTokens) == "table" and rt.joinRescanTokens[key] == token) then
@@ -37777,12 +37791,13 @@ NAStuff.xrayConn = NAStuff.xrayState.conn
 NAStuff.xrayEnabled = NAStuff.xrayState.enabled
 
 originalIO.isHumPart=function(inst)
+	const RawWorkspace = __lt.gs("Workspace")
 	if not inst or not inst.Parent then
 		return false
 	end
 	local cur = inst.Parent
 	for i = 1, 5 do
-		if not cur or cur == Workspace then
+		if not cur or cur == RawWorkspace then
 			break
 		end
 		if cur:FindFirstChildOfClass("Humanoid") then
@@ -47895,6 +47910,7 @@ end
 
 cmd.add({"shaders", "shader", "rtx", "hd"}, {"shaders (shader, rtx, hd)", "Enable a shader preset for Lighting"}, function()
 	const lighting = Lighting
+	const RawLighting = __lt.gs("Lighting")
 	if not lighting then
 		DoNotif("Lighting service unavailable", 3)
 		return
@@ -47971,7 +47987,7 @@ cmd.add({"shaders", "shader", "rtx", "hd"}, {"shaders (shader, rtx, hd)", "Enabl
 				inst = InstanceNew(def.className)
 				inst.Name = def.name
 				inst.Parent = lighting
-			elseif inst.Parent ~= lighting then
+			elseif inst.Parent ~= RawLighting then
 				pcall(function() inst.Parent = lighting end)
 			end
 			for prop, val in def.props do
@@ -49630,6 +49646,7 @@ cmd.add({"music","musicplayer","songplayer"},{"music (musicplayer)","Open the NA
 end)
 
 cmd.add({"rotector","rocheck","safetycheck"},{"rotector <player|username|userid|all|id:userId|on|off> (rocheck)","Check Rotector API status for Roblox users"},function(...)
+	const RawPlayers = __lt.gs("Players")
 	const args = {...}
 	local query = Concat(args, " ")
 	query = type(query) == "string" and query:gsub("^%s+", ""):gsub("%s+$", "") or ""
@@ -49740,7 +49757,7 @@ cmd.add({"rotector","rocheck","safetycheck"},{"rotector <player|username|userid|
 			const line = label.." - "..NAmanage.RotectorFormatStatus(entry)
 			const flag = NAmanage.RotectorToNumber(entry.flagType) or 0
 			const playerTarget = playersById[key]
-			if typeof(playerTarget) == "Instance" and playerTarget.Parent == Players then
+			if typeof(playerTarget) == "Instance" and playerTarget.Parent == RawPlayers then
 				NAmanage.RotectorApplyPlayerResult(playerTarget, entry)
 			end
 			if NAmanage.RotectorShouldWarn(entry) then
@@ -57647,8 +57664,9 @@ NAmanage.TouchFlingParts = NAmanage.TouchFlingParts or function(model, hum)
 end
 
 NAmanage.TouchFlingModel = NAmanage.TouchFlingModel or function(part)
+	const RawWorkspace = __lt.gs("Workspace")
 	local cur = part
-	while cur and cur ~= Workspace do
+	while cur and cur ~= RawWorkspace do
 		if cur:IsA("Model") then
 			const hum = NAmanage.TouchFlingHum(cur)
 			local root, torso, head = NAmanage.TouchFlingParts(cur, hum)
@@ -58941,6 +58959,7 @@ NAmanage.StopNPCAura = function()
 end
 
 cmd.add({"npcaura"},{"npcaura [distance]","Continuously damages nearby NPCs with equipped tool"},function(dist)
+	const RawWorkspace = __lt.gs("Workspace")
 	dist = tonumber(dist) or 20
 	if not firetouchinterest then return DoNotif("firetouchinterest unsupported",2) end
 	NAmanage.StopNPCAura()
@@ -59021,7 +59040,7 @@ cmd.add({"npcaura"},{"npcaura [distance]","Continuously damages nearby NPCs with
 		if ok and type(parts) == "table" then
 			for _, part in parts do
 				local current = part.Parent
-				while current and current ~= Workspace do
+				while current and current ~= RawWorkspace do
 					if current:IsA("Model") and current:FindFirstChildOfClass("Humanoid") then
 						addTarget(out, seen, current, root)
 						break
@@ -60173,8 +60192,9 @@ NAmanage.PredictionOrbSize = function()
 end
 
 NAmanage.PredictionEnsureFolder = function()
+	const RawWorkspace = __lt.gs("Workspace")
 	const state = NAmanage.PredictionEnsureState()
-	if state.folder and state.folder.Parent == Workspace then
+	if state.folder and state.folder.Parent == RawWorkspace then
 		return state.folder
 	end
 	if state.folder then
@@ -60526,6 +60546,7 @@ NAmanage.waitDropParent=function(tool, parent, tries, step)
 end
 
 NAmanage.dropToolStep=function(tool, character, backpack, done)
+	const RawWorkspace = __lt.gs("Workspace")
 	if type(done) ~= "function" then
 		done = function() end
 	end
@@ -60559,7 +60580,7 @@ NAmanage.dropToolStep=function(tool, character, backpack, done)
 		tool.Parent = Workspace
 	end)
 
-	const dropped = tool.Parent == Workspace
+	const dropped = tool.Parent == RawWorkspace
 	done(dropped)
 	return dropped
 end
@@ -60666,6 +60687,7 @@ NAmanage.dropQueueStep=function(queue, index, state)
 end
 
 NAmanage.dropAllToolsSafe=function(done)
+	const RawWorkspace = __lt.gs("Workspace")
 	const backpack = getBp()
 	const character = getChar()
 	if not character then
@@ -60689,7 +60711,7 @@ NAmanage.dropAllToolsSafe=function(done)
 	local dropped = 0
 	local failed = 0
 	for _, tool in queue do
-		if tool and tool.Parent and tool.Parent ~= Workspace and NAmanage.canDropTool(tool) then
+		if tool and tool.Parent and tool.Parent ~= RawWorkspace and NAmanage.canDropTool(tool) then
 			if tool.Parent ~= character then
 				NACaller(function()
 					tool.Parent = character
@@ -60701,7 +60723,7 @@ NAmanage.dropAllToolsSafe=function(done)
 				tool.Parent = Workspace
 			end)
 
-			if tool.Parent == Workspace then
+			if tool.Parent == RawWorkspace then
 				dropped += 1
 			else
 				failed += 1
@@ -61707,6 +61729,7 @@ cmd.add({"unannoy"}, {"unannoy", "Stops the annoy command"}, function()
 end)
 
 NAmanage.IsPlayerOrNPCPart = NAmanage.IsPlayerOrNPCPart or function(inst)
+	const RawWorkspace = __lt.gs("Workspace")
 	if typeof(inst) ~= "Instance" then
 		return false, nil, nil
 	end
@@ -61716,7 +61739,7 @@ NAmanage.IsPlayerOrNPCPart = NAmanage.IsPlayerOrNPCPart or function(inst)
 		model, humanoid = NAmanage.ResolveHumanoidModelFromPart(inst)
 	else
 		local current = inst
-		while current and current ~= Workspace do
+		while current and current ~= RawWorkspace do
 			if current:IsA("Model") then
 				const hum = current:FindFirstChildOfClass("Humanoid")
 				if hum then
@@ -62811,6 +62834,7 @@ NAmanage.AntiKick_EnsureHook = function()
 end
 
 NAmanage.AntiTeleport_EnsureHook = function()
+	const RawTeleportService = __lt.gs("TeleportService")
 	if NAStuff.AntiTeleportHooked then return end
 	const getRawMetatable = (debug and debug.getmetatable) or getrawmetatable
 	const setReadOnly = setreadonly or (make_writeable and function(t, ro) if ro then make_readonly(t) else make_writeable(t) end end)
@@ -62827,7 +62851,7 @@ NAmanage.AntiTeleport_EnsureHook = function()
 		if typeof(fn)=="function" then
 			local orig
 			orig = hookfunction(fn, newcclosure(function(self, ...)
-				if self==TeleportService then
+				if self==TeleportService or self==RawTeleportService then
 					Defer(DebugNotif, "Teleport blocked (hook)", 2)
 					if NAStuff.AntiTeleportMode=="error" then
 						error("Teleport blocked",0)
@@ -62843,7 +62867,7 @@ NAmanage.AntiTeleport_EnsureHook = function()
 	setReadOnly(meta,false)
 	meta.__namecall = newcclosure(function(self, ...)
 		const method = getnamecallmethod()
-		if self==TeleportService and typeof(method)=="string" and Lower(method):find("teleport") then
+		if (self==TeleportService or self==RawTeleportService) and typeof(method)=="string" and Lower(method):find("teleport") then
 			Defer(DebugNotif, "Teleport blocked (__namecall)", 2)
 			if NAStuff.AntiTeleportMode=="error" then
 				error("Teleport blocked",0)
@@ -62854,7 +62878,7 @@ NAmanage.AntiTeleport_EnsureHook = function()
 		return NAStuff.AntiTeleportOrig.namecall(self,...)
 	end)
 	meta.__index = newcclosure(function(self, key)
-		if self==TeleportService then
+		if self==TeleportService or self==RawTeleportService then
 			const k = Lower(tostring(key))
 			if k:find("teleport") then
 				Defer(DebugNotif, "Blocked access: "..tostring(key), 2)
@@ -62868,7 +62892,7 @@ NAmanage.AntiTeleport_EnsureHook = function()
 		return NAStuff.AntiTeleportOrig.index(self,key)
 	end)
 	meta.__newindex = newcclosure(function(self, key, value)
-		if self==TeleportService then
+		if self==TeleportService or self==RawTeleportService then
 			const k = Lower(tostring(key))
 			if k:find("teleport") then
 				Defer(DebugNotif, "Blocked overwrite: "..tostring(key), 2)
@@ -64977,8 +65001,9 @@ NAmanage.GetMouseTargetPart = NAmanage.GetMouseTargetPart or function(mouse, exc
 end
 
 NAmanage.ResolveHumanoidModelFromPart = NAmanage.ResolveHumanoidModelFromPart or function(part)
+	const RawWorkspace = __lt.gs("Workspace")
 	local current = part
-	while current and current ~= Workspace do
+	while current and current ~= RawWorkspace do
 		if current:IsA("Model") then
 			const humanoid = current:FindFirstChildOfClass("Humanoid")
 			if humanoid then
@@ -73129,6 +73154,7 @@ NAmanage.isOwnPackTool = NAmanage.isOwnPackTool or function(tool)
 end
 
 NAmanage.isCharTool = NAmanage.isCharTool or function(tool)
+	const RawWorkspace = __lt.gs("Workspace")
 	if typeof(tool) ~= "Instance" or not tool:IsA("Tool") then
 		return false
 	end
@@ -73138,7 +73164,7 @@ NAmanage.isCharTool = NAmanage.isCharTool or function(tool)
 	end
 
 	local inst = tool.Parent
-	while inst and inst ~= Workspace do
+	while inst and inst ~= RawWorkspace do
 		if inst:IsA("Model") then
 			local okPlr, plr = pcall(function()
 				return Players:GetPlayerFromCharacter(inst)
@@ -75482,6 +75508,7 @@ end
 
 NAmanage.AntiTouchEnableRemoveParts = function()
 	const policy = SafeGetService("PolicyService")
+	const RawPolicyService = __lt.gs("PolicyService")
 	if not policy then
 		return false, "AntiTouch is unavailable on this client."
 	end
@@ -75495,7 +75522,7 @@ NAmanage.AntiTouchEnableRemoveParts = function()
 		end
 		const part = inst.Parent
 		const parent = part and part.Parent
-		if not (part and parent and parent ~= policy) then
+		if not (part and parent and parent ~= RawPolicyService) then
 			return false
 		end
 		if moved[part] == nil then
@@ -75504,7 +75531,7 @@ NAmanage.AntiTouchEnableRemoveParts = function()
 		const ok = pcall(function()
 			part.Parent = policy
 		end)
-		return ok and part.Parent == policy
+		return ok and part.Parent == RawPolicyService
 	end
 
 	NAlib.connect("antikb", NAmanage.wsAdd(function(inst)
@@ -76142,6 +76169,7 @@ cmd.add({"fixcam", "fix"}, {"fixcam", "Fix your camera"}, function()
 end)
 
 cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(...)
+	const RawPlayers = __lt.gs("Players")
 	const Players = game:GetService("Players")
 	const LocalPlayer = Players.LocalPlayer
 	const query = Concat({ ... }, " ")
@@ -76274,7 +76302,7 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(...)
 						break
 					end
 				until targetChangedOrLost(BasePart)
-					or TargetPlayer.Parent ~= Players
+					or TargetPlayer.Parent ~= RawPlayers
 					or Humanoid.Health <= 0
 					or tick() > Time + TimeToWait
 			end
@@ -76996,6 +77024,7 @@ function stareFIXER(char, facePos)
 end
 
 cmd.add({"lookat", "stare"}, {"lookat <player|npc:filter>", "Stare at a player or NPC"}, function(...)
+	const RawPlayers = __lt.gs("Players")
 	const Username = (...)
 	const Target = getPlr(Username)
 
@@ -77014,7 +77043,7 @@ cmd.add({"lookat", "stare"}, {"lookat <player|npc:filter>", "Stare at a player o
 			const root = tchar and getRoot(tchar)
 			if lp.Character and root then
 				stareFIXER(lp.Character, root.Position)
-			elseif typeof(plr) ~= "Instance" or not plr.Parent or (plr:IsA("Player") and plr.Parent ~= Players) then
+			elseif typeof(plr) ~= "Instance" or not plr.Parent or (plr:IsA("Player") and plr.Parent ~= RawPlayers) then
 				NAlib.disconnect("stare_direct")
 			end
 		end
@@ -78324,6 +78353,7 @@ LOOPPROTECT = nil
 LOOPFLING_ID = LOOPFLING_ID or 0
 
 cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(...)
+	const RawPlayers = __lt.gs("Players")
 	const query = Concat({ ... }, " ")
 	if query == "" then
 		return DebugNotif("Player name or selector required", 3)
@@ -78349,7 +78379,7 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(.
 	const id = LOOPFLING_ID
 
 	const function SkidFling(TargetPlayer)
-		if not Loopvoid or id ~= LOOPFLING_ID or IsLocalTarget(TargetPlayer) or TargetPlayer.Parent ~= Players then
+		if not Loopvoid or id ~= LOOPFLING_ID or IsLocalTarget(TargetPlayer) or TargetPlayer.Parent ~= RawPlayers then
 			return
 		end
 
@@ -81085,104 +81115,146 @@ if IsOnPC then
 	end)
 end
 
-platformParts = {}
+local platformParts = {}
 
-cmd.add({"headsit"}, {"headsit <player>", "sit on someone's head"}, function(p)
-	const ppp = getPlr(p)
+local function stopHeadSit(launchHumanoid)
+	NAStuff.headsitActive = false
+	NAStuff.headsitToken = (tonumber(NAStuff.headsitToken) or 0) + 1
 
-	for _, plr in next, ppp do
-		if not plr then return end
-
-		const char = getChar()
-		const hum = getHum()
-		if not hum then return end
-
-		NAlib.disconnect("headsit_follow")
-		NAlib.disconnect("headsit_died")
-
-		const charRoot = getRoot(char)
-		const target = plr.Character
-		if not charRoot or not target then return end
-
-		hum.Sit = true
-
-		NAlib.connect("headsit_died", NAmanage.ConnectHumanoidDeath(hum, function()
-			NAlib.disconnect("headsit_follow")
-			NAlib.disconnect("headsit_died")
-			for _, part in platformParts do
-				part:Destroy()
-			end
-			platformParts = {}
-		end))
-
-		for _, part in platformParts do
-			part:Destroy()
-		end
-		platformParts = {}
-
-		const thick = 1
-		const halfWidth = 2
-		const halfDepth = 2
-		const halfHeight = 3
-
-		const walls = {
-			{offset = CFrame.new(0, 0, halfDepth + thick / 500), size = Vector3.new(4, 6, thick)},
-			{offset = CFrame.new(0, 0, -(halfDepth + thick / 500)), size = Vector3.new(4, 6, thick)},
-			{offset = CFrame.new(halfWidth + thick / 500, 0, 0), size = Vector3.new(thick, 6, 4)},
-			{offset = CFrame.new(-(halfWidth + thick / 500), 0, 0), size = Vector3.new(thick, 6, 4)},
-			{offset = CFrame.new(0, halfHeight + thick / 500, 0), size = Vector3.new(4, thick, 4)},
-			{offset = CFrame.new(0, -(halfHeight + thick / 500), 0), size = Vector3.new(4, thick, 4)}
-		}
-
-		for _, wall in walls do
-			const part = InstanceNew("Part")
-			part.Size = wall.size
-			part.Anchored = true
-			part.CanCollide = true
-			part.Transparency = 1
-			part.Parent = Workspace
-			Insert(platformParts, part)
-		end
-
-		NAlib.connect("headsit_follow", RunService.PreSimulation:Connect(function()
-			if plr.Parent ~= Players
-				or not plr.Character
-				or not getHead(plr.Character)
-				or hum.Sit == false then
-
-				NAlib.disconnect("headsit_follow")
-				NAlib.disconnect("headsit_died")
-
-				for _, part in platformParts do
-					part:Destroy()
-				end
-				platformParts = {}
-			else
-				const targetHead = getHead(plr.Character)
-				charRoot.CFrame = targetHead.CFrame * CFrame.new(0, 1.6, 0.4)
-
-				for i, wall in walls do
-					platformParts[i].CFrame = charRoot.CFrame * wall.offset
-				end
-			end
-		end))
-	end
-end, true)
-
-cmd.add({"unheadsit"}, {"unheadsit", "Stop the headsit command."}, function()
 	NAlib.disconnect("headsit_follow")
 	NAlib.disconnect("headsit_died")
 
 	for _, part in platformParts do
-		part:Destroy()
+		pcall(function()
+			part:Destroy()
+		end)
 	end
 	platformParts = {}
 
-	const char = getChar()
-	const hum = getHum()
-	if hum then
-		NAmanage.LaunchHumanoid(hum, char and getRoot(char))
+	if launchHumanoid then
+		const char = getChar()
+		const hum = char and getHum(char)
+		if hum then
+			NAmanage.LaunchHumanoid(hum, getRoot(char))
+		end
 	end
+end
+
+NAmanage.RegisterUnloadCleanup("headsit_cleanup", function()
+	stopHeadSit(false)
+end, 60)
+
+cmd.add({"headsit"}, {"headsit <player>", "sit on someone's head"}, function(...)
+	const RawPlayers = __lt.gs("Players")
+	const query = Concat({...}, " ")
+	const targets = getPlr(query)
+	const plr = targets and targets[1]
+	if not plr then return end
+
+	stopHeadSit(false)
+
+	const char = getChar()
+	const hum = char and getHum(char)
+	const root = char and getRoot(char)
+	const targetChar = plr.Character
+	const targetHead = targetChar and getHead(targetChar)
+	if not char or not char.Parent
+		or not hum or not hum.Parent or hum.Health <= 0
+		or not root or not root.Parent
+		or not targetHead or not targetHead.Parent then
+		return
+	end
+
+	const token = NAStuff.headsitToken
+	NAStuff.headsitActive = true
+
+	const thick = 1
+	const halfWidth = 2
+	const halfDepth = 2
+	const halfHeight = 3
+	const walls = {
+		{offset = CFrame.new(0, 0, halfDepth + thick / 500), size = Vector3.new(4, 6, thick)},
+		{offset = CFrame.new(0, 0, -(halfDepth + thick / 500)), size = Vector3.new(4, 6, thick)},
+		{offset = CFrame.new(halfWidth + thick / 500, 0, 0), size = Vector3.new(thick, 6, 4)},
+		{offset = CFrame.new(-(halfWidth + thick / 500), 0, 0), size = Vector3.new(thick, 6, 4)},
+		{offset = CFrame.new(0, halfHeight + thick / 500, 0), size = Vector3.new(4, thick, 4)},
+		{offset = CFrame.new(0, -(halfHeight + thick / 500), 0), size = Vector3.new(4, thick, 4)},
+	}
+
+	const function updatePosition()
+		const currentTargetChar = plr.Character
+		const currentTargetHead = currentTargetChar and getHead(currentTargetChar)
+		if plr.Parent ~= RawPlayers
+			or not char.Parent
+			or not hum.Parent or hum.Health <= 0
+			or not root.Parent
+			or not currentTargetHead or not currentTargetHead.Parent then
+			return false
+		end
+
+		const targetCFrame = currentTargetHead.CFrame * CFrame.new(0, 1.6, 0.4)
+		root.CFrame = targetCFrame
+		root.AssemblyLinearVelocity = Vector3.zero
+		root.AssemblyAngularVelocity = Vector3.zero
+
+		for i, wall in walls do
+			const part = platformParts[i]
+			if not part or not part.Parent then
+				return false
+			end
+			part.CFrame = targetCFrame * wall.offset
+		end
+
+		return true
+	end
+
+	const initialCFrame = targetHead.CFrame * CFrame.new(0, 1.6, 0.4)
+	for _, wall in walls do
+		const part = InstanceNew("Part")
+		part.Size = wall.size
+		part.CFrame = initialCFrame * wall.offset
+		part.Anchored = true
+		part.CanCollide = true
+		part.Transparency = 1
+		pcall(function()
+			part.CanQuery = false
+			part.CanTouch = false
+			part.CastShadow = false
+		end)
+		part.Parent = Workspace
+		Insert(platformParts, part)
+	end
+
+	root.CFrame = initialCFrame
+	root.AssemblyLinearVelocity = Vector3.zero
+	root.AssemblyAngularVelocity = Vector3.zero
+	hum.Sit = true
+
+	NAlib.connect("headsit_died", NAmanage.ConnectHumanoidDeath(hum, function()
+		if NAStuff.headsitToken == token then
+			stopHeadSit(false)
+		end
+	end))
+
+	NAlib.connect("headsit_follow", RunService.PreSimulation:Connect(function()
+		if NAStuff.headsitActive ~= true
+			or NAStuff.headsitToken ~= token
+			or hum.Sit == false then
+			if NAStuff.headsitToken == token then
+				stopHeadSit(false)
+			end
+			return
+		end
+
+		local ok, keepRunning = pcall(updatePosition)
+		if (not ok or keepRunning ~= true) and NAStuff.headsitToken == token then
+			stopHeadSit(false)
+		end
+	end))
+end, true)
+
+cmd.add({"unheadsit"}, {"unheadsit", "Stop the headsit command."}, function()
+	stopHeadSit(true)
 end)
 
 NAmanage.wallTpFlat = NAmanage.wallTpFlat or function(v)
@@ -81214,12 +81286,13 @@ NAmanage.wallTpCollideRay = NAmanage.wallTpCollideRay or function(params, root)
 end
 
 NAmanage.wallTpHumModel = NAmanage.wallTpHumModel or function(inst)
+	const RawWorkspace = __lt.gs("Workspace")
 	if not (inst and typeof(inst) == "Instance") then
 		return nil
 	end
 
 	local cur = inst
-	while cur and cur ~= Workspace do
+	while cur and cur ~= RawWorkspace do
 		if cur:IsA("Model") and cur:FindFirstChildOfClass("Humanoid") then
 			return cur
 		end
@@ -81877,6 +81950,7 @@ end)
 standParts = {}
 
 cmd.add({"headstand"}, {"headstand <player>", "Stand on someone's head."}, function(p)
+	const RawPlayers = __lt.gs("Players")
 	NAlib.disconnect("headstand_follow")
 	NAlib.disconnect("headstand_died")
 
@@ -81929,7 +82003,7 @@ cmd.add({"headstand"}, {"headstand <player>", "Stand on someone's head."}, funct
 
 	NAlib.connect("headstand_follow", RunService.PreSimulation:Connect(function()
 		const plrCharacter = plr.Character
-		if plr.Parent == Players and plrCharacter and getRoot(plrCharacter) and getRoot(char) then
+		if plr.Parent == RawPlayers and plrCharacter and getRoot(plrCharacter) and getRoot(char) then
 			const charRoot = getRoot(char)
 			charRoot.CFrame = getRoot(plrCharacter).CFrame * CFrame.new(0, 4.6, 0.4)
 			for i, wall in walls do
@@ -82921,6 +82995,7 @@ cmd.add({"untoolview", "untview"}, {"untview <player> (untview)", "Removes the t
 end, true)
 
 cmd.add({"toolview2", "tview2"}, {"toolview2 (tview2)", "Live-updating tool viewer"}, function()
+	const RawPlayers = __lt.gs("Players")
 	if renderConn then renderConn:Disconnect() end
 	if playerAddConn then playerAddConn:Disconnect() end
 	if playerRemoveConn then playerRemoveConn:Disconnect() end
@@ -83215,7 +83290,7 @@ cmd.add({"toolview2", "tview2"}, {"toolview2 (tview2)", "Live-updating tool view
 
 	const function refreshAll()
 		for plr in sections do
-			if plr and plr.Parent == Players then
+			if plr and plr.Parent == RawPlayers then
 				updateTools(plr)
 			end
 		end
@@ -93545,6 +93620,7 @@ NAmanage.NameESP_SelfMatches = function(obj, mode)
 end
 
 NAmanage.NameESP_MatchedModelForPart = function(part, mode)
+	const RawWorkspace = __lt.gs("Workspace")
 	if typeof(part) ~= "Instance" or not part:IsA("BasePart") then
 		return nil
 	end
@@ -93554,7 +93630,7 @@ NAmanage.NameESP_MatchedModelForPart = function(part, mode)
 		if obj:IsA("Model") and NAmanage.NameESP_SelfMatches(obj, mode) then
 			return obj
 		end
-		if obj == Workspace then
+		if obj == RawWorkspace then
 			break
 		end
 		obj = obj.Parent
@@ -93564,6 +93640,7 @@ NAmanage.NameESP_MatchedModelForPart = function(part, mode)
 end
 
 NAmanage.NameESP_BasePartMatches = function(part, mode)
+	const RawWorkspace = __lt.gs("Workspace")
 	if typeof(part) ~= "Instance" or not part:IsA("BasePart") then
 		return false
 	end
@@ -93581,7 +93658,7 @@ NAmanage.NameESP_BasePartMatches = function(part, mode)
 		elseif NAmanage.NameESP_SelfMatches(obj, mode) then
 			return true
 		end
-		if obj == Workspace then
+		if obj == RawWorkspace then
 			break
 		end
 		obj = obj.Parent
@@ -93591,6 +93668,7 @@ NAmanage.NameESP_BasePartMatches = function(part, mode)
 end
 
 NAmanage.NameESP_TermMatchesPart = function(term, part, mode)
+	const RawWorkspace = __lt.gs("Workspace")
 	term = Lower(tostring(term or ""))
 	if term == "" or typeof(part) ~= "Instance" then
 		return false
@@ -93602,7 +93680,7 @@ NAmanage.NameESP_TermMatchesPart = function(term, part, mode)
 		if (mode == "exact" and nm == term) or (mode == "partial" and Find(nm, term)) then
 			return true
 		end
-		if obj == Workspace then
+		if obj == RawWorkspace then
 			break
 		end
 		obj = obj.Parent
@@ -93664,7 +93742,8 @@ NAmanage.NameESP_DisconnectWatcher = function(obj)
 end
 
 NAmanage.NameESP_QueueCheck = function(obj, reason)
-	if typeof(obj) ~= "Instance" or obj == Workspace then
+	const RawWorkspace = __lt.gs("Workspace")
+	if typeof(obj) ~= "Instance" or obj == RawWorkspace then
 		return
 	end
 	if not obj.Parent then
@@ -93754,7 +93833,8 @@ NAmanage.NameESP_QueueCheck = function(obj, reason)
 end
 
 NAmanage.NameESP_AttachWatcher = function(obj)
-	if typeof(obj) ~= "Instance" or obj == Workspace then
+	const RawWorkspace = __lt.gs("Workspace")
+	if typeof(obj) ~= "Instance" or obj == RawWorkspace then
 		return
 	end
 	if not obj.Parent then
@@ -93848,6 +93928,7 @@ NAmanage.NameESP_StopNameWatchIfIdle = function(force)
 end
 
 NAmanage.EnableNameEsp = function(mode, color, ...)
+	const RawWorkspace = __lt.gs("Workspace")
 	const function currentColor()
 		const resolved = (type(color) == "function") and color() or color
 		if typeof(resolved) == "Color3" then
@@ -93971,7 +94052,7 @@ NAmanage.EnableNameEsp = function(mode, color, ...)
 					parentMatched = true
 					break
 				end
-				if parent == Workspace then
+				if parent == RawWorkspace then
 					break
 				end
 				parent = parent.Parent
@@ -100525,11 +100606,12 @@ NAmanage.Echolocation.GetWorldPosition = function(inst)
 end
 
 NAmanage.Echolocation.ResolveClassicSoundOrigin = function(sound)
+	const RawWorkspace = __lt.gs("Workspace")
 	if typeof(sound) ~= "Instance" or tostring(sound.ClassName or "") ~= "Sound" or not sound.Parent then
 		return nil, nil
 	end
 	local current = sound.Parent
-	while typeof(current) == "Instance" and current ~= Workspace do
+	while typeof(current) == "Instance" and current ~= RawWorkspace do
 		local className = tostring(current.ClassName or "")
 		if className == "Attachment" or current:IsA("BasePart") then
 			return NAmanage.Echolocation.GetWorldPosition(current), current
@@ -102719,6 +102801,7 @@ cmd.add({"invisbind", "invisiblebind","bindinvis"}, {"invisbind (invisiblebind, 
 end,true)
 
 cmd.add({"fireremote", "fremote", "frmt"}, {"fireremote [select|remote name/full name] (fremote, frmt)", "Fire one remote by selection, name, or full path"}, function(...)
+	const RawCoreGui = __lt.gs("CoreGui")
 	const args = {...}
 	local q = Concat(args, " ")
 	q = (tostring(q or ""):gsub("^%s+", ""):gsub("%s+$", ""))
@@ -102752,7 +102835,7 @@ cmd.add({"fireremote", "fremote", "frmt"}, {"fireremote [select|remote name/full
 			qlist[qi] = nil
 			qi += 1
 
-			if typeof(inst) == "Instance" and inst ~= COREGUI then
+			if typeof(inst) == "Instance" and inst ~= RawCoreGui then
 				if isRem(inst) and not seen[inst] then
 					seen[inst] = true
 					list[#list + 1] = inst
@@ -102764,7 +102847,7 @@ cmd.add({"fireremote", "fremote", "frmt"}, {"fireremote [select|remote name/full
 				if ok and type(ch) == "table" then
 					for i = 1, #ch do
 						const c = ch[i]
-						if c ~= COREGUI then
+						if c ~= RawCoreGui then
 							qn += 1
 							qlist[qn] = c
 						end
@@ -102911,6 +102994,7 @@ cmd.add({"fireremote", "fremote", "frmt"}, {"fireremote [select|remote name/full
 end,true)
 
 cmd.add({"fireremotes", "fremotes", "frem"}, {"fireremotes (fremotes, frem)", "Fires every remote with arguments"}, function()
+	const RawCoreGui = __lt.gs("CoreGui")
 	const remoteList = {}
 	local remoteCount = 0
 	local failedCount = 0
@@ -102924,7 +103008,7 @@ cmd.add({"fireremotes", "fremotes", "frem"}, {"fireremotes (fremotes, frem)", "F
 		const inst = q[qi]
 		qi += 1
 
-		if inst ~= COREGUI then
+		if inst ~= RawCoreGui then
 			if inst:IsA("RemoteEvent") or inst:IsA("UnreliableRemoteEvent") or inst:IsA("RemoteFunction") then
 				remoteList[#remoteList + 1] = inst
 			end
@@ -102932,7 +103016,7 @@ cmd.add({"fireremotes", "fremotes", "frem"}, {"fireremotes (fremotes, frem)", "F
 			const ch = inst:GetChildren()
 			for i = 1, #ch do
 				const c = ch[i]
-				if c ~= COREGUI then
+				if c ~= RawCoreGui then
 					qn += 1
 					q[qn] = c
 				end
@@ -111875,6 +111959,7 @@ end
 
 
 NAmanage.DeleteGuiAtPosition = NAmanage.DeleteGuiAtPosition or function(x, y)
+	const RawCoreGui = __lt.gs("CoreGui")
 	x = tonumber(x)
 	y = tonumber(y)
 	if not x or not y then
@@ -111889,7 +111974,7 @@ NAmanage.DeleteGuiAtPosition = NAmanage.DeleteGuiAtPosition or function(x, y)
 	pcall(function()
 		hui = NAlib.huiGrabber and NAlib.huiGrabber()
 	end)
-	if hui and hui ~= pg and hui ~= COREGUI then
+	if hui and hui ~= pg and hui ~= COREGUI and hui ~= RawCoreGui then
 		roots[#roots + 1] = hui
 	end
 	const seen = {}
@@ -139179,8 +139264,9 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 		end;
 	end;
 	const function hasBulkAddRoot(inst)
+		const RawWorkspace = __lt.gs("Workspace")
 		local parent = inst and inst.Parent;
-		while parent and parent ~= Workspace do
+		while parent and parent ~= RawWorkspace do
 			if bulkAddRoots[parent] then
 				return true;
 			end;
@@ -151960,11 +152046,12 @@ NAmanage.NAInitCoreGuiCustomization=function()
 			end
 
 			const function getBuilderIconPath(inst)
+				const RawCoreGui = __lt.gs("CoreGui")
 				const parts = {}
 				local current = inst
 				local depth = 0
 				while current and depth < 64 do
-					if current == CoreGui then
+					if current == RawCoreGui then
 						break
 					end
 					Insert(parts, 1, tostring(current.Name or current.ClassName))
