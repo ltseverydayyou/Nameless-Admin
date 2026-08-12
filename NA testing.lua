@@ -2501,9 +2501,7 @@ NAmanage._linkGlyph = NAmanage._linkGlyph or function(parts)
 	return Concat(out)
 end
 
-local opt = {
-	NA_cloneref = nil;
-}
+local opt = {}
 
 const LoadstringCommandAliases = {
 	loadstring = true;
@@ -2517,19 +2515,9 @@ NAmanage._le0 = NAmanage._le0 or { 122, 120, 117, 121, 137, 70, 126, 115, 124, 1
 NAmanage._cf2 = NAmanage._cf2 or { 138, 132, 124, 135, 127, 136, 127, 66, 131, 143, 115, 138 }
 NAmanage._lx0 = NAmanage._lx0 or { 126, 139, 136, 122 }
 
-opt.NA_cloneref = (type(cloneref) == "function") and cloneref or nil
-NAmanage.NA_getCloneRef = NAmanage.NA_getCloneRef or function()
-	const ref = (type(cloneref) == "function") and cloneref or opt.NA_cloneref
-	if type(ref) == "function" then
-		opt.NA_cloneref = ref
-		return ref
-	end
-	return nil
-end
 NAmanage.NA_getServiceRef = function(name)
-	const ref = NAmanage.NA_getCloneRef()
-	if ref then
-		return __lt.cs(name, ref)
+	if type(cloneref) == "function" and type(__lt.cs) == "function" then
+		return __lt.cs(name, cloneref)
 	end
 	return __lt.gs(name)
 end
@@ -2562,49 +2550,44 @@ function SafeGetService(name, useCloneRef)
 		return NA_SRV_RAW[name]
 	end
 	const cached = rawget(NA_SRV, name)
-	const ref = NAmanage.NA_getCloneRef and NAmanage.NA_getCloneRef() or nil
-	if cached ~= nil and (not ref or cached ~= NA_SRV_RAW[name]) then
+	if cached ~= nil then
 		return cached
-	end
-	local ok, svc = pcall(NAmanage.NA_getServiceRef, name)
-	if ok and svc then
-		rawset(NA_SRV, name, svc)
-		return svc
 	end
 	return NA_SRV[name]
 end
 
-const Workspace = SafeGetService("Workspace");
-const HttpService = SafeGetService('HttpService');
-const Players = SafeGetService("Players");
-const UserService = SafeGetService("UserService");
-const UserInputService = SafeGetService("UserInputService");
-const TweenService = SafeGetService("TweenService");
-const RunService = SafeGetService("RunService");
-const ContextActionService = SafeGetService("ContextActionService");
-local TeleportService = SafeGetService("TeleportService");
-local ExperienceService = SafeGetService("ExperienceService");
-const Lighting = SafeGetService("Lighting");
-const ReplicatedStorage = SafeGetService("ReplicatedStorage");
-const COREGUI = SafeGetService("CoreGui");
-const SoundService = SafeGetService("SoundService");
-const TextChatService = SafeGetService("TextChatService");
-const TextService = SafeGetService("TextService");
-const StarterGui = SafeGetService("StarterGui");
-const ContentProvider = SafeGetService("ContentProvider");
-const LocalizationService = SafeGetService("LocalizationService");
-const MarketplaceService = SafeGetService("MarketplaceService");
-const GuiService = SafeGetService("GuiService");
-const StatsService = SafeGetService("Stats");
-const LogService = SafeGetService("LogService");
+const Services = {
+	Workspace = SafeGetService("Workspace");
+	HttpService = SafeGetService("HttpService");
+	Players = SafeGetService("Players");
+	UserService = SafeGetService("UserService");
+	UserInputService = SafeGetService("UserInputService");
+	TweenService = SafeGetService("TweenService");
+	RunService = SafeGetService("RunService");
+	ContextActionService = SafeGetService("ContextActionService");
+	TeleportService = SafeGetService("TeleportService");
+	ExperienceService = SafeGetService("ExperienceService");
+	Lighting = SafeGetService("Lighting");
+	ReplicatedStorage = SafeGetService("ReplicatedStorage");
+	CoreGui = SafeGetService("CoreGui");
+	SoundService = SafeGetService("SoundService");
+	TextChatService = SafeGetService("TextChatService");
+	TextService = SafeGetService("TextService");
+	StarterGui = SafeGetService("StarterGui");
+	ContentProvider = SafeGetService("ContentProvider");
+	LocalizationService = SafeGetService("LocalizationService");
+	MarketplaceService = SafeGetService("MarketplaceService");
+	GuiService = SafeGetService("GuiService");
+	Stats = SafeGetService("Stats");
+	LogService = SafeGetService("LogService");
+}
 
 NAmanage.SafeCloneRef = NAmanage.SafeCloneRef or function(value)
 	if value == nil then
 		return nil
 	end
-	const ref = NAmanage.NA_getCloneRef and NAmanage.NA_getCloneRef() or nil
-	if type(ref) == "function" then
-		local ok, cloned = pcall(ref, value)
+	if type(__lt.cv) == "function" then
+		local ok, cloned = pcall(__lt.cv, value)
 		if ok and cloned ~= nil then
 			return cloned
 		end
@@ -2620,20 +2603,11 @@ NAmanage.GetMouse = NAmanage.GetMouse or function(plr)
 	if not plr then
 		return nil
 	end
-	const ref = NAmanage.NA_getCloneRef and NAmanage.NA_getCloneRef() or nil
-	if type(ref) == "function" then
-		local ok, mouse = pcall(function()
-			return ref(plr:GetMouse())
-		end)
-		if ok and mouse then
-			return mouse
-		end
-	end
 	local ok, mouse = pcall(function()
 		return plr:GetMouse()
 	end)
 	if ok and mouse then
-		return mouse
+		return NAmanage.SafeCloneRef(mouse)
 	end
 	return nil
 end
@@ -2730,9 +2704,9 @@ end
 NAmanage.IsLowEndUI = NAmanage.IsLowEndUI or function()
 	if NAStuff and NAStuff.LowEndMode == true then return true end
 	local uis
-	pcall(function() uis = UserInputService or (SafeGetService and SafeGetService("UserInputService")) end)
+	pcall(function() uis = Services.UserInputService or (SafeGetService and SafeGetService("UserInputService")) end)
 	if uis and uis.TouchEnabled and not (uis.KeyboardEnabled or uis.MouseEnabled) then return true end
-	local ok, size = pcall(function() return Workspace and Workspace.CurrentCamera and Workspace.CurrentCamera.ViewportSize end)
+	local ok, size = pcall(function() return Services.Workspace and Services.Workspace.CurrentCamera and Services.Workspace.CurrentCamera.ViewportSize end)
 	return ok and size and (size.X <= 900 or size.Y <= 540) or false
 end
 
@@ -3649,7 +3623,7 @@ NAmanage._wsHubDispose = NAmanage._wsHubDispose or function(hub)
 end
 
 NAmanage._wsHubGet = NAmanage._wsHubGet or function()
-	const hub = NAmanage._descHubBaseGet(NAmanage._wsHubMap, Workspace, {
+	const hub = NAmanage._descHubBaseGet(NAmanage._wsHubMap, Services.Workspace, {
 		ancestry = false,
 		skipTeleport = false,
 	})
@@ -3707,7 +3681,7 @@ end
 
 NAmanage._wsCacheAdd = function(hub, inst)
 	const RawWorkspace = __lt.gs("Workspace")
-	if type(hub) ~= "table" or typeof(inst) ~= "Instance" or inst == Workspace or inst == RawWorkspace then
+	if type(hub) ~= "table" or typeof(inst) ~= "Instance" or inst == Services.Workspace or inst == RawWorkspace then
 		return false
 	end
 	if type(hub.cache) ~= "table" then
@@ -3727,16 +3701,16 @@ end
 
 NAmanage._wsCacheConnect = function(hub)
 	const RawWorkspace = __lt.gs("Workspace")
-	if type(hub) ~= "table" or (hub.root ~= Workspace and hub.root ~= RawWorkspace) then
+	if type(hub) ~= "table" or (hub.root ~= Services.Workspace and hub.root ~= RawWorkspace) then
 		return
 	end
 	if not hub.cacheAdd then
-		hub.cacheAdd = Workspace.DescendantAdded:Connect(function(inst)
+		hub.cacheAdd = Services.Workspace.DescendantAdded:Connect(function(inst)
 			NAmanage._wsCacheAdd(hub, inst)
 		end)
 	end
 	if not hub.cacheRem then
-		hub.cacheRem = Workspace.DescendantRemoving:Connect(function(inst)
+		hub.cacheRem = Services.Workspace.DescendantRemoving:Connect(function(inst)
 			NAmanage._wsCacheRemove(hub, inst)
 		end)
 	end
@@ -3760,7 +3734,7 @@ NAmanage._wsCachePrune = function(hub, budget)
 	const maxCheck = math.clamp(math.floor(tonumber(budget) or 48), 1, 256)
 	while checked < maxCheck and #list > 0 do
 		const inst = list[cursor]
-		if typeof(inst) ~= "Instance" or not inst.Parent or not inst:IsDescendantOf(Workspace) then
+		if typeof(inst) ~= "Instance" or not inst.Parent or not inst:IsDescendantOf(Services.Workspace) then
 			NAmanage._wsCacheRemove(hub, inst)
 			if cursor > #list then
 				cursor = 1
@@ -3780,7 +3754,7 @@ NAmanage._wsCacheBuildSync = function(hub)
 	if type(hub) ~= "table" then
 		return {}
 	end
-	const descs = Workspace:QueryDescendants("Instance")
+	const descs = Services.Workspace:QueryDescendants("Instance")
 	hub.cache = {}
 	hub.idx = NAmanage.ensureWeakTable(nil, "k")
 	for i = 1, #descs do
@@ -3807,9 +3781,9 @@ NAmanage._wsCacheBuildAsync = function(hub, opts)
 	hub.cacheTouched = os.clock()
 	NAmanage._wsCacheConnect(hub)
 	Spawn(function()
-		const q = { Workspace }
+		const q = { Services.Workspace }
 		local qi, qn = 1, 1
-		while qi <= qn and hub.cacheBuilding == true and (hub.root == Workspace or hub.root == RawWorkspace) do
+		while qi <= qn and hub.cacheBuilding == true and (hub.root == Services.Workspace or hub.root == RawWorkspace) do
 			local budget, waitDelay = NAmanage._evtHubBudget(tonumber(opts.buildBudget) or 192, {
 				delay = tonumber(opts.delayTime) or 0,
 				ldSc = 0.25,
@@ -3819,8 +3793,8 @@ NAmanage._wsCacheBuildAsync = function(hub, opts)
 				const inst = q[qi]
 				q[qi] = nil
 				qi += 1
-				if inst and (inst == Workspace or inst == RawWorkspace or inst.Parent) then
-					if inst ~= Workspace and inst ~= RawWorkspace then
+				if inst and (inst == Services.Workspace or inst == RawWorkspace or inst.Parent) then
+					if inst ~= Services.Workspace and inst ~= RawWorkspace then
 						NAmanage._wsCacheAdd(hub, inst)
 					end
 					local ok, children = pcall(inst.GetChildren, inst)
@@ -3878,7 +3852,7 @@ NAmanage._cgHubDispose = NAmanage._cgHubDispose or function(hub)
 end
 
 NAmanage._cgHubGet = NAmanage._cgHubGet or function()
-	const root = (typeof(COREGUI) == "Instance" and COREGUI) or SafeGetService("CoreGui")
+	const root = (typeof(Services.CoreGui) == "Instance" and Services.CoreGui) or SafeGetService("CoreGui")
 	if typeof(root) ~= "Instance" then
 		return nil
 	end
@@ -4179,10 +4153,10 @@ NAmanage.descSub = NAmanage.descSub or function(root, spec)
 	if typeof(root) ~= "Instance" then
 		return noop
 	end
-	if (root == Workspace or root == RawWorkspace) and NAmanage.wsSub then
+	if (root == Services.Workspace or root == RawWorkspace) and NAmanage.wsSub then
 		return NAmanage.wsSub(spec)
 	end
-	const coreRoot = (typeof(COREGUI) == "Instance" and COREGUI) or SafeGetService("CoreGui")
+	const coreRoot = (typeof(Services.CoreGui) == "Instance" and Services.CoreGui) or SafeGetService("CoreGui")
 	if coreRoot and (root == coreRoot or root == RawCoreGui) and NAmanage.cgSub then
 		return NAmanage.cgSub(spec)
 	end
@@ -5063,7 +5037,7 @@ NAmanage.ForEachWorkspaceYield = function(handler, opts)
 	const delayTime = tonumber(opts.delayTime) or tonumber(opts.delay) or 0
 	const maxItems = tonumber(opts.maxItems) or 0
 	local processed = 0
-	const q = { Workspace }
+	const q = { Services.Workspace }
 	local qi, qn = 1, 1
 
 	while qi <= qn do
@@ -5073,8 +5047,8 @@ NAmanage.ForEachWorkspaceYield = function(handler, opts)
 		const inst = q[qi]
 		q[qi] = nil
 		qi += 1
-		if inst and (inst == Workspace or inst == RawWorkspace or inst.Parent) then
-			if includeRoot or (inst ~= Workspace and inst ~= RawWorkspace) then
+		if inst and (inst == Services.Workspace or inst == RawWorkspace or inst.Parent) then
+			if includeRoot or (inst ~= Services.Workspace and inst ~= RawWorkspace) then
 				processed += 1
 				handler(inst, processed, nil)
 				if maxItems > 0 and processed >= maxItems then
@@ -5236,20 +5210,20 @@ NAmanage.LaunchExperience = NAmanage.LaunchExperience or function(params, opts)
 		end
 	end
 	const function fallbackTeleport(expErr)
-		local tp = TeleportService
+		local tp = Services.TeleportService
 		if not tp then
 			local okTp, resolvedTp = pcall(function()
 				return game.TeleportService or game:GetService("TeleportService")
 			end)
 			if okTp and resolvedTp then
-				TeleportService = resolvedTp
+				Services.TeleportService = resolvedTp
 				tp = resolvedTp
 			end
 		end
 		if not tp then
 			return false, expErr or "TeleportService fallback unavailable"
 		end
-		const lp = Players and Players.LocalPlayer
+		const lp = Services.Players and Services.Players.LocalPlayer
 		const placeId = launchParams.placeId or launchParams.PlaceId
 		const gameInstanceId = launchParams.gameInstanceId or launchParams.jobId
 		const reservedCode = launchParams.reservedServerAccessCode or launchParams.accessCode
@@ -5274,13 +5248,13 @@ NAmanage.LaunchExperience = NAmanage.LaunchExperience or function(params, opts)
 		end
 		return false, "TeleportService fallback needs placeId"
 	end
-	local service = ExperienceService
+	local service = Services.ExperienceService
 	if not service then
 		local ok, resolved = pcall(function()
 			return game.ExperienceService or game:GetService("ExperienceService")
 		end)
 		if ok and resolved then
-			ExperienceService = resolved
+			Services.ExperienceService = resolved
 			service = resolved
 		end
 	end
@@ -5340,13 +5314,13 @@ NAmanage.ExperienceDebugValue = NAmanage.ExperienceDebugValue or function(value,
 end
 
 NAmanage.ExperienceDebugSnapshot = NAmanage.ExperienceDebugSnapshot or function(label)
-	local service = ExperienceService
+	local service = Services.ExperienceService
 	if not service then
 		local ok, resolved = pcall(function()
 			return game.ExperienceService or game:GetService("ExperienceService")
 		end)
 		if ok and resolved then
-			ExperienceService = resolved
+			Services.ExperienceService = resolved
 			service = resolved
 		end
 	end
@@ -5396,12 +5370,12 @@ NAmanage.ExperienceDebugConnect = NAmanage.ExperienceDebugConnect or function()
 	if NAStuff.ExperienceDebugConnected then
 		return true
 	end
-	local service = ExperienceService
+	local service = Services.ExperienceService
 	if not service then
 		pcall(function()
 			service = game.ExperienceService or game:GetService("ExperienceService")
 		end)
-		if service then ExperienceService = service end
+		if service then Services.ExperienceService = service end
 	end
 	if not service then
 		DebugNotif("ExperienceService debug unavailable", 4)
@@ -5442,9 +5416,9 @@ NAmanage.ExperienceDebugConnect = NAmanage.ExperienceDebugConnect or function()
 			end)
 		end
 	end
-	if LogService and LogService.MessageOut then
+	if Services.LogService and Services.LogService.MessageOut then
 		pcall(function()
-			NAlib.connect("experience_debug_log", LogService.MessageOut:Connect(function(message, messageType)
+			NAlib.connect("experience_debug_log", Services.LogService.MessageOut:Connect(function(message, messageType)
 				const lowerMessage = Lower(tostring(message or ""))
 				if lowerMessage:find("experience") or lowerMessage:find("launch") or lowerMessage:find("queue") or lowerMessage:find("notificationtype") then
 					dbg("LogService", tostring(message), tostring(messageType))
@@ -5459,11 +5433,11 @@ end
 
 NAmanage.GetDataPingStat = NAmanage.GetDataPingStat or function()
 	local ok, pingStat = pcall(function()
-		if not StatsService then
+		if not Services.Stats then
 			return nil
 		end
 
-		const network = StatsService:FindFirstChild("Network")
+		const network = Services.Stats:FindFirstChild("Network")
 		if not network then
 			return nil
 		end
@@ -5569,7 +5543,7 @@ end
 
 NAmanage.StreamerSetPlayerListHidden = NAmanage.StreamerSetPlayerListHidden or function(hidden)
 	const state = NAmanage.StreamerGetState()
-	const starterGui = StarterGui or SafeGetService("StarterGui")
+	const starterGui = Services.StarterGui or SafeGetService("StarterGui")
 	if not starterGui or not Enum or not Enum.CoreGuiType or not Enum.CoreGuiType.PlayerList then
 		return false
 	end
@@ -5645,7 +5619,7 @@ NAmanage.StreamerRefreshNameTokens = NAmanage.StreamerRefreshNameTokens or funct
 	const state = NAmanage.StreamerGetState()
 	const tokens = {}
 	const seen = {}
-	if Players then
+	if Services.Players then
 		for _, plr in __lt.cm("Players", "GetPlayers") do
 			const names = {
 				plr and plr.Name or nil,
@@ -6271,7 +6245,7 @@ NAmanage.StreamerGetRoots = NAmanage.StreamerGetRoots or function(opts)
 		Insert(roots, root)
 	end
 
-	addRoot(COREGUI)
+	addRoot(Services.CoreGui)
 	do
 		local ok, hub = pcall(function()
 			return NAmanage._pgHubGet and NAmanage._pgHubGet()
@@ -6280,9 +6254,9 @@ NAmanage.StreamerGetRoots = NAmanage.StreamerGetRoots or function(opts)
 			addRoot(hub.root)
 		end
 	end
-	addRoot(NAlib.distinctHuiGrabber and NAlib.distinctHuiGrabber(COREGUI) or nil)
+	addRoot(NAlib.distinctHuiGrabber and NAlib.distinctHuiGrabber(Services.CoreGui) or nil)
 	if opts.includeWorkspace == true then
-		addRoot(Workspace)
+		addRoot(Services.Workspace)
 	end
 	return roots
 end
@@ -6302,7 +6276,7 @@ NAmanage.StreamerScrubAll = NAmanage.StreamerScrubAll or function(token, opts)
 			if token and token.cancelled then
 				break
 			end
-			if root == Workspace or root == RawWorkspace then
+			if root == Services.Workspace or root == RawWorkspace then
 				NAmanage.ForEachDescendantYield(root, function(inst)
 					if token and token.cancelled then
 						return
@@ -6363,8 +6337,8 @@ NAmanage.StreamerGetPriorityRoots = NAmanage.StreamerGetPriorityRoots or functio
 		seen[root] = true
 		Insert(roots, root)
 	end
-	if Players and Players.LocalPlayer and Players.LocalPlayer.Character then
-		addRoot(Players.LocalPlayer.Character)
+	if Services.Players and Services.Players.LocalPlayer and Services.Players.LocalPlayer.Character then
+		addRoot(Services.Players.LocalPlayer.Character)
 	end
 	const baseRoots = NAmanage.StreamerGetRoots({
 		includeWorkspace = false;
@@ -6546,7 +6520,7 @@ NAmanage.StreamerRestoreAll = NAmanage.StreamerRestoreAll or function(opts)
 end
 
 NAmanage.StreamerWatchPlayer = NAmanage.StreamerWatchPlayer or function(plr)
-	if not (plr and Players) then
+	if not (plr and Services.Players) then
 		return
 	end
 	const userId = tonumber(plr.UserId)
@@ -6659,7 +6633,7 @@ NAmanage.setStreamerMode = NAmanage.setStreamerMode or function(enable, opts)
 	end)
 	NAlib.disconnect("streamermode_player_chars")
 	NAlib.disconnect("streamermode_player_names")
-	if Players then
+	if Services.Players then
 		for _, plr in __lt.cm("Players", "GetPlayers") do
 			NAmanage.StreamerWatchPlayer(plr)
 		end
@@ -6678,7 +6652,7 @@ NAmanage.setStreamerMode = NAmanage.setStreamerMode or function(enable, opts)
 	}))
 	NAlib.disconnect("streamermode_hui")
 	do
-		const hui = NAlib.distinctHuiGrabber and NAlib.distinctHuiGrabber(COREGUI) or nil
+		const hui = NAlib.distinctHuiGrabber and NAlib.distinctHuiGrabber(Services.CoreGui) or nil
 		if hui then
 			NAlib.connect("streamermode_hui", NAmanage.descSub(hui, {
 				added = NAmanage.StreamerHandleAdded,
@@ -6761,7 +6735,7 @@ const IsOnMobile=(function()
 		return true
 	end
 	if platform==Enum.Platform.None then
-		return UserInputService.TouchEnabled and not (UserInputService.KeyboardEnabled or UserInputService.MouseEnabled)
+		return Services.UserInputService.TouchEnabled and not (Services.UserInputService.KeyboardEnabled or Services.UserInputService.MouseEnabled)
 	end
 	return false
 end)()
@@ -6771,7 +6745,7 @@ const IsOnPC=(function()
 		return true
 	end
 	if platform==Enum.Platform.None then
-		return UserInputService.KeyboardEnabled or UserInputService.MouseEnabled
+		return Services.UserInputService.KeyboardEnabled or Services.UserInputService.MouseEnabled
 	end
 	return false
 end)()
@@ -6836,10 +6810,10 @@ NA_GRAB_BODY = (function()
 					end;
 					overrideModel = nil;
 					selectingOverride = false;
-					if Players and Players.LocalPlayer and Workspace then
-						const lp = Players.LocalPlayer;
+					if Services.Players and Services.Players.LocalPlayer and Services.Workspace then
+						const lp = Services.Players.LocalPlayer;
 						const cur = lp.Character;
-						if cur and cur.Parent and (not cur:IsDescendantOf(Workspace)) then
+						if cur and cur.Parent and (not cur:IsDescendantOf(Services.Workspace)) then
 							Spawn(function()
 								pickOverrideModel();
 							end);
@@ -6853,15 +6827,15 @@ NA_GRAB_BODY = (function()
 		if selectingOverride then
 			return overrideModel;
 		end;
-		if not (Window and Players and Players.LocalPlayer and Workspace) then
+		if not (Window and Services.Players and Services.Players.LocalPlayer and Services.Workspace) then
 			return overrideModel;
 		end;
-		const lp = Players.LocalPlayer;
+		const lp = Services.Players.LocalPlayer;
 		const cur = lp.Character;
 		if not cur then
 			return overrideModel;
 		end;
-		if not force and cur:IsDescendantOf(Workspace) then
+		if not force and cur:IsDescendantOf(Services.Workspace) then
 			return overrideModel;
 		end;
 		selectingOverride = true;
@@ -6870,13 +6844,13 @@ NA_GRAB_BODY = (function()
 		const seen = {};
 		for _, plr in __lt.cm("Players", "GetPlayers") do
 			const ch = plr.Character;
-			if ch and ch:IsDescendantOf(Workspace) and (not seen[ch]) then
+			if ch and ch:IsDescendantOf(Services.Workspace) and (not seen[ch]) then
 				seen[ch] = true;
 				Insert(cands, ch);
 			end;
 		end;
 		if CheckIfNPC then
-			const q = { Workspace }
+			const q = { Services.Workspace }
 			local qi, qn = 1, 1
 			while qi <= qn do
 				const inst = q[qi]
@@ -6990,10 +6964,10 @@ NA_GRAB_BODY = (function()
 	end
 	const function ensure(obj)
 		local model = asChar(obj);
-		if obj == Players.LocalPlayer then
+		if obj == Services.Players.LocalPlayer then
 			if overrideModel then
 				model = overrideModel;
-			elseif model and model.Parent and (not model:IsDescendantOf(Workspace)) then
+			elseif model and model.Parent and (not model:IsDescendantOf(Services.Workspace)) then
 				const now = os.clock()
 				if now - lastOverridePickAt >= OVERRIDE_PICK_COOLDOWN then
 					lastOverridePickAt = now
@@ -7118,7 +7092,7 @@ function getHead(char)
 end
 
 function getChar()
-	const plr = Players.LocalPlayer
+	const plr = Services.Players.LocalPlayer
 	if not plr then return nil end
 	local rec, model = NA_GRAB_BODY.ensure(plr)
 	return model
@@ -7129,7 +7103,7 @@ function getPlrChar(plr)
 end
 
 function getBp()
-	const plr = Players.LocalPlayer
+	const plr = Services.Players.LocalPlayer
 	return plr and plr:FindFirstChildOfClass("Backpack") or nil
 end
 
@@ -7139,7 +7113,7 @@ function getHum(char, waitSeconds)
 	if char then
 		target = NA_GRAB_BODY.asChar(char) or char
 	else
-		const plr = Players.LocalPlayer
+		const plr = Services.Players.LocalPlayer
 		if plr then
 			target = plr.Character
 		end
@@ -7190,7 +7164,7 @@ NAmanage.GetJumpLaunchVelocity = function(hum)
 
 	const jumpHeight = tonumber(NAlib.isProperty(hum, "JumpHeight"))
 	if jumpHeight and jumpHeight > 0 then
-		return math.sqrt(2 * Workspace.Gravity * jumpHeight)
+		return math.sqrt(2 * Services.Workspace.Gravity * jumpHeight)
 	end
 
 	return jumpPower
@@ -7200,7 +7174,7 @@ NAmanage.GetJumpHeightFromJumpPower = function(jumpPower)
 	const power = tonumber(jumpPower)
 	if not power then return nil end
 
-	local gravity = tonumber(Workspace.Gravity) or 196.2
+	local gravity = tonumber(Services.Workspace.Gravity) or 196.2
 	if gravity <= 0 then
 		gravity = 196.2
 	end
@@ -7284,7 +7258,7 @@ function getPlrHum(plr)
 end
 
 function IsR15(plr)
-	plr=(plr or Players.LocalPlayer)
+	plr=(plr or Services.Players.LocalPlayer)
 	if plr then
 		const h=getPlrHum(plr)
 		if h and h.RigType==Enum.HumanoidRigType.R15 then return true end
@@ -7293,7 +7267,7 @@ function IsR15(plr)
 end
 
 function IsR6(plr)
-	plr=(plr or Players.LocalPlayer)
+	plr=(plr or Services.Players.LocalPlayer)
 	if plr then
 		const h=getPlrHum(plr)
 		if h and h.RigType==Enum.HumanoidRigType.R6 then return true end
@@ -7320,7 +7294,7 @@ CheckIfNPC = function(character)
 		return false
 	end
 	const function isPlayerModel(model)
-		if not Players then
+		if not Services.Players then
 			return false
 		end
 		local okPlr, plr = pcall(function()
@@ -7352,7 +7326,7 @@ NAmanage.IsValidESPModel = function(model, allowNPC)
 	if not (model and model:IsA("Model")) then
 		return false
 	end
-	if not model.Parent or not Workspace or not model:IsDescendantOf(Workspace) then
+	if not model.Parent or not Services.Workspace or not model:IsDescendantOf(Services.Workspace) then
 		return false
 	end
 	const hum = model:FindFirstChildOfClass("Humanoid")
@@ -7539,11 +7513,11 @@ NAmanage.CreateNAFreecam=function()
 	const sqrt = math.sqrt
 	const tan = math.tan
 
-	local Camera = Workspace.CurrentCamera
+	local Camera = Services.Workspace.CurrentCamera
 
-	Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
-		if Workspace.CurrentCamera then
-			Camera = Workspace.CurrentCamera
+	Services.Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+		if Services.Workspace.CurrentCamera then
+			Camera = Services.Workspace.CurrentCamera
 		end
 	end)
 
@@ -7816,17 +7790,17 @@ NAmanage.CreateNAFreecam=function()
 		storedState.cameraCFrame = Camera.CFrame
 		storedState.cameraFocus = Camera.Focus
 		storedState.cameraFov = Camera.FieldOfView
-		storedState.mouseIconEnabled = UserInputService.MouseIconEnabled
-		storedState.mouseBehavior = UserInputService.MouseBehavior
+		storedState.mouseIconEnabled = Services.UserInputService.MouseIconEnabled
+		storedState.mouseBehavior = Services.UserInputService.MouseBehavior
 
 		const cframe = typeof(initialCFrame) == "CFrame" and initialCFrame or Camera.CFrame
 		setCameraCFrame(cframe)
 
 		Camera.CameraType = Enum.CameraType.Fixed
-		UserInputService.MouseIconEnabled = false
-		UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+		Services.UserInputService.MouseIconEnabled = false
+		Services.UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
 
-		if not capturing and ContextActionService then
+		if not capturing and Services.ContextActionService then
 			const freecamKeyboardAction = NAmanage.GetSessionActionName("FreecamKeyboard")
 			const freecamMousePanAction = NAmanage.GetSessionActionName("FreecamMousePan")
 			const freecamMouseWheelAction = NAmanage.GetSessionActionName("FreecamMouseWheel")
@@ -7842,7 +7816,7 @@ NAmanage.CreateNAFreecam=function()
 		end
 
 		if IsOnMobile and not touchConnection then
-			touchConnection = UserInputService.InputChanged:Connect(function(input, gameProcessed)
+			touchConnection = Services.UserInputService.InputChanged:Connect(function(input, gameProcessed)
 				if input.UserInputType ~= Enum.UserInputType.Touch then
 					return
 				end
@@ -7870,7 +7844,7 @@ NAmanage.CreateNAFreecam=function()
 		const freecamRenderBind = NAmanage.GetSessionActionName("FreecamRenderStep")
 		__lt.cm("RunService", "UnbindFromRenderStep", freecamRenderBind)
 
-		if capturing and ContextActionService then
+		if capturing and Services.ContextActionService then
 			const freecamKeyboardAction = NAmanage.GetSessionActionName("FreecamKeyboard")
 			const freecamMousePanAction = NAmanage.GetSessionActionName("FreecamMousePan")
 			const freecamMouseWheelAction = NAmanage.GetSessionActionName("FreecamMouseWheel")
@@ -7895,14 +7869,14 @@ NAmanage.CreateNAFreecam=function()
 		end
 
 		if storedState.mouseIconEnabled ~= nil then
-			UserInputService.MouseIconEnabled = storedState.mouseIconEnabled
+			Services.UserInputService.MouseIconEnabled = storedState.mouseIconEnabled
 		end
 		if storedState.mouseBehavior ~= nil then
 			local behavior = storedState.mouseBehavior
 			if behavior == Enum.MouseBehavior.LockCenter then
 				behavior = Enum.MouseBehavior.Default
 			end
-			UserInputService.MouseBehavior = behavior
+			Services.UserInputService.MouseBehavior = behavior
 		end
 	end
 
@@ -7948,7 +7922,7 @@ NAmanage.CreateNAFreecam=function()
 		module.Toggle()
 	end
 
-	if ContextActionService then
+	if Services.ContextActionService then
 		const freecamToggleAction = NAmanage.GetSessionActionName("FreecamToggleKey")
 		__lt.cm("ContextActionService", "BindActionAtPriority", freecamToggleAction, function(_, state, input)
 			if state == Enum.UserInputState.Begin and input.KeyCode == FREECAM_MACRO_KEYS[#FREECAM_MACRO_KEYS] then
@@ -7973,9 +7947,7 @@ do
 	local sqrt = math.sqrt
 	local tan = math.tan
 
-	local Workspace = SafeGetService("Workspace")
 	local Camera = Workspace.CurrentCamera
-	local ContextActionService = SafeGetService("ContextActionService")
 
 	Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
 		if Workspace.CurrentCamera then
@@ -8671,8 +8643,8 @@ NAmanage.HttpRetryAfter = NAmanage.HttpRetryAfter or function(response)
 		return retryAfter
 	end
 	const body = NAmanage.HttpResponseBody(response)
-	if type(body) == "string" and body ~= "" and HttpService then
-		local ok, decoded = pcall(HttpService.JSONDecode, HttpService, body)
+	if type(body) == "string" and body ~= "" and Services.HttpService then
+		local ok, decoded = pcall(Services.HttpService.JSONDecode, Services.HttpService, body)
 		if ok and type(decoded) == "table" then
 			return tonumber(decoded.retry_after or decoded.retryAfter)
 		end
@@ -8787,7 +8759,7 @@ NAmanage.HttpRequestRaw = NAmanage.HttpRequestRaw or function(requestData)
 		end
 		return false, response
 	end
-	if HttpService and type(HttpService.RequestAsync) == "function" then
+	if Services.HttpService and type(Services.HttpService.RequestAsync) == "function" then
 		const requestAsyncData = {}
 		for key, value in requestData do
 			if key ~= "url"
@@ -8801,7 +8773,7 @@ NAmanage.HttpRequestRaw = NAmanage.HttpRequestRaw or function(requestData)
 				requestAsyncData[key] = value
 			end
 		end
-		return pcall(HttpService.RequestAsync, HttpService, requestAsyncData)
+		return pcall(Services.HttpService.RequestAsync, Services.HttpService, requestAsyncData)
 	end
 	return false, "HTTP request unavailable"
 end
@@ -9238,7 +9210,7 @@ NAmanage.btSend=function(command, data)
 	}
 
 	local ok, encoded = pcall(function()
-		return HttpService:JSONEncode(payload)
+		return Services.HttpService:JSONEncode(payload)
 	end)
 
 	if ok and encoded then
@@ -10300,7 +10272,7 @@ NAmanage.WebhookIsoTimestamp = NAmanage.WebhookIsoTimestamp or function()
 end
 
 NAmanage.WebhookContext = NAmanage.WebhookContext or function(extra)
-	const localPlayer = Players and Players.LocalPlayer
+	const localPlayer = Services.Players and Services.Players.LocalPlayer
 	const playerName = localPlayer and localPlayer.Name or "LocalPlayer"
 	const displayName = localPlayer and localPlayer.DisplayName or playerName
 	const context = {
@@ -10313,8 +10285,8 @@ NAmanage.WebhookContext = NAmanage.WebhookContext or function(extra)
 		placeId = tostring(game.PlaceId or "");
 		gameId = tostring(game.GameId or "");
 		jobId = tostring(game.JobId or "");
-		players = tostring(Players and Players.NumPlayers or 0);
-		maxPlayers = tostring(Players and Players.MaxPlayers or "?");
+		players = tostring(Services.Players and Services.Players.NumPlayers or 0);
+		maxPlayers = tostring(Services.Players and Services.Players.MaxPlayers or "?");
 		admin = tostring(adminName or "NA");
 		time = "";
 	}
@@ -10378,8 +10350,8 @@ NAmanage.WebhookServerField = NAmanage.WebhookServerField or function()
 	const placeId = tostring(game.PlaceId or "")
 	const gameId = tostring(game.GameId or "")
 	const jobId = tostring(game.JobId or "")
-	const count = tostring(Players and Players.NumPlayers or 0)
-	const maximum = tostring(Players and Players.MaxPlayers or "?")
+	const count = tostring(Services.Players and Services.Players.NumPlayers or 0)
+	const maximum = tostring(Services.Players and Services.Players.MaxPlayers or "?")
 	const lines = {
 		Format("PlaceId: `%s`", placeId ~= "" and placeId or "unknown");
 		Format("GameId: `%s`", gameId ~= "" and gameId or "unknown");
@@ -10558,7 +10530,7 @@ NAmanage.SendIntegrationWebhook=function(kind, content)
 		return false, Format("local cooldown (%.1fs remaining)", minInt - (now - lastSent))
 	end
 	const payloadData = NAmanage.BuildIntegrationWebhookPayload(kind, content)
-	local okEncode, payload = pcall(HttpService.JSONEncode, HttpService, payloadData)
+	local okEncode, payload = pcall(Services.HttpService.JSONEncode, Services.HttpService, payloadData)
 	if not okEncode then
 		cfg.stats.failed += 1
 		cfg.stats.lastError = tostring(payload)
@@ -10604,7 +10576,7 @@ NAmanage.WebhookJoinLeave=function(plr, action)
 	if NAStuff and NAStuff.teleportTransition == true then return end
 	const cfg = NAStuff.Integrations and NAStuff.Integrations.webhook
 	if not (cfg and cfg.enableJoinLeave) then return end
-	const localPlr = Players and Players.LocalPlayer
+	const localPlr = Services.Players and Services.Players.LocalPlayer
 	if localPlr and plr then
 		if plr == localPlr then return end
 		const lpId = tonumber(localPlr.UserId)
@@ -10645,7 +10617,7 @@ NAmanage.WebhookCommand=function(rawArgs)
 	const cfg = NAStuff.Integrations and NAStuff.Integrations.webhook
 	if not (cfg and cfg.enableCommands) then return end
 	if type(rawArgs) ~= "table" or #rawArgs == 0 then return end
-	const localPlayer = Players and Players.LocalPlayer
+	const localPlayer = Services.Players and Services.Players.LocalPlayer
 	const playerName = nameChecker and nameChecker(localPlayer) or (localPlayer and localPlayer.Name) or "LocalPlayer"
 	const line = Concat(rawArgs, " ")
 	const text = NAmanage.BuildWebhookEventText("command", {
@@ -10697,9 +10669,9 @@ NAmanage.ComposeServerNote=function(note)
 	if jobId and jobId ~= "" then
 		Insert(parts, "JobId: "..jobId)
 	end
-	const serverCount = Players and Players.NumPlayers or nil
+	const serverCount = Services.Players and Services.Players.NumPlayers or nil
 	if serverCount then
-		const max = Players.MaxPlayers or "?"
+		const max = Services.Players.MaxPlayers or "?"
 		Insert(parts, Format("Players: %s/%s", serverCount, max))
 	end
 	if note and note ~= "" then
@@ -11185,7 +11157,7 @@ NAmanage.safeJsonDecode=NAmanage.safeJsonDecode or function(raw)
 	if type(raw) ~= "string" or raw == "" then
 		return false, nil, "empty json"
 	end
-	NAmanage._jsonSafeState.decode.ok, NAmanage._jsonSafeState.decode.value = pcall(HttpService.JSONDecode, HttpService, raw)
+	NAmanage._jsonSafeState.decode.ok, NAmanage._jsonSafeState.decode.value = pcall(Services.HttpService.JSONDecode, Services.HttpService, raw)
 	if NAmanage._jsonSafeState.decode.ok and type(NAmanage._jsonSafeState.decode.value) == "table" then
 		return true, NAmanage._jsonSafeState.decode.value
 	end
@@ -11386,11 +11358,11 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 	}
 	if FileSupport then
 		if not NAmanage.safeIsFile(CE.path) then
-			NAmanage.safeWriteFile(CE.path, HttpService:JSONEncode(CE.default))
+			NAmanage.safeWriteFile(CE.path, Services.HttpService:JSONEncode(CE.default))
 		end
 		local okRead, raw = pcall(readfile, CE.path)
 		if okRead and type(raw) == "string" then
-			local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+			local okDecode, decoded = pcall(Services.HttpService.JSONDecode, Services.HttpService, raw)
 			if okDecode and type(decoded) == "table" then
 				data.enabled = decoded.enabled == true
 				const parsedRadius = tonumber(decoded.radius)
@@ -11565,7 +11537,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 	end
 
 	const function getPlayerGui()
-		const lp = Players and Players.LocalPlayer
+		const lp = Services.Players and Services.Players.LocalPlayer
 		if not lp then
 			return nil
 		end
@@ -11896,7 +11868,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			applyCornersIn(container)
 		end
 
-		const world = Workspace
+		const world = Services.Workspace
 		if not world then
 			return
 		end
@@ -11930,7 +11902,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		const seq = cornerSaveSeq
 		const function writeCornerData()
 			pcall(function()
-				NAmanage.safeWriteFile(CE.path, HttpService:JSONEncode(CE.data))
+				NAmanage.safeWriteFile(CE.path, Services.HttpService:JSONEncode(CE.data))
 			end)
 		end
 		if opts.immediate == true then
@@ -12081,7 +12053,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		if not (CE.data.enabled and CE.data.targetPlayerGui) then
 			return
 		end
-		const lp = Players and Players.LocalPlayer
+		const lp = Services.Players and Services.Players.LocalPlayer
 		if not lp then
 			return
 		end
@@ -12270,7 +12242,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		end
 		const segments = {}
 		for segment in normalized:gmatch("[^/]+") do
-			segments[#segments + 1] = HttpService:UrlEncode(segment)
+			segments[#segments + 1] = Services.HttpService:UrlEncode(segment)
 		end
 		return Concat(segments, "/")
 	end
@@ -12340,7 +12312,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		if not (ok and type(raw) == "string" and raw ~= "") then
 			return false, raw or "Unable to fetch GitHub folder contents."
 		end
-		local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+		local okDecode, decoded = pcall(Services.HttpService.JSONDecode, Services.HttpService, raw)
 		if not (okDecode and type(decoded) == "table") then
 			return false, "Invalid GitHub folder response."
 		end
@@ -12638,7 +12610,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			return
 		end
 		const payload = { fonts = FontEditor.customFonts }
-		pcall(writefile, FontEditor.customManifest, HttpService:JSONEncode(payload))
+		pcall(writefile, FontEditor.customManifest, Services.HttpService:JSONEncode(payload))
 	end
 
 	const function customFontFileExists(fileName)
@@ -12802,7 +12774,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		if not (ok and type(raw) == "string" and raw ~= "") then
 			return
 		end
-		local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+		local okDecode, decoded = pcall(Services.HttpService.JSONDecode, Services.HttpService, raw)
 		if not (okDecode and type(decoded) == "table") then
 			return
 		end
@@ -12948,7 +12920,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 				},
 			},
 		}
-		local okWrite, errWrite = pcall(writefile, familyPath, HttpService:JSONEncode(familyData))
+		local okWrite, errWrite = pcall(writefile, familyPath, Services.HttpService:JSONEncode(familyData))
 		if not okWrite then
 			return nil, errWrite or "Unable to create font family data."
 		end
@@ -13107,7 +13079,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		if not (ok and type(raw) == "string" and raw ~= "") then
 			return false, "Unable to fetch NA font catalog."
 		end
-		local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+		local okDecode, decoded = pcall(Services.HttpService.JSONDecode, Services.HttpService, raw)
 		if not (okDecode and type(decoded) == "table") then
 			return false, "Invalid NA font catalog."
 		end
@@ -13279,7 +13251,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			targetHiddenUi = FontEditor.data.targetHiddenUi,
 			useCustomCycle = FontEditor.data.useCustomCycle,
 		}
-		NAmanage.safeWriteFile(FontEditor.path, HttpService:JSONEncode(payload))
+		NAmanage.safeWriteFile(FontEditor.path, Services.HttpService:JSONEncode(payload))
 	end
 
 	const function loadFontData()
@@ -13287,11 +13259,11 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 
 		if FileSupport then
 			if not NAmanage.safeIsFile(FontEditor.path) then
-				NAmanage.safeWriteFile(FontEditor.path, HttpService:JSONEncode(FontEditor.default))
+				NAmanage.safeWriteFile(FontEditor.path, Services.HttpService:JSONEncode(FontEditor.default))
 			end
 			local ok, raw = pcall(readfile, FontEditor.path)
 			if ok and type(raw) == "string" then
-				local okD, dec = pcall(HttpService.JSONDecode, HttpService, raw)
+				local okD, dec = pcall(Services.HttpService.JSONDecode, Services.HttpService, raw)
 				if okD and type(dec) == "table" then
 					stored = dec
 				end
@@ -13664,7 +13636,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			applyFontToDescendants(container)
 		end
 
-		const world = Workspace
+		const world = Services.Workspace
 		if not world then
 			return
 		end
@@ -13869,7 +13841,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		if not (FontEditor.data.enabled and FontEditor.data.targetPlayerGui) then
 			return
 		end
-		const lp = Players and Players.LocalPlayer
+		const lp = Services.Players and Services.Players.LocalPlayer
 		if not lp then
 			return
 		end
@@ -14230,11 +14202,11 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		local d = Icfg.def
 		if FileSupport then
 			if not NAmanage.safeIsFile(Icfg.path) then
-				NAmanage.safeWriteFile(Icfg.path, HttpService:JSONEncode(Icfg.def))
+				NAmanage.safeWriteFile(Icfg.path, Services.HttpService:JSONEncode(Icfg.def))
 			end
 			local ok, raw = pcall(readfile, Icfg.path)
 			if ok and type(raw) == "string" then
-				local okD, dec = pcall(HttpService.JSONDecode, HttpService, raw)
+				local okD, dec = pcall(Services.HttpService.JSONDecode, Services.HttpService, raw)
 				if okD and type(dec) == "table" then
 					d = dec
 				end
@@ -14253,7 +14225,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			localPath = typeof(NAStuff.CustomIcon.localPath) == "string" and NAStuff.CustomIcon.localPath or "",
 			index = tonumber(NAStuff.CustomIcon.index) or 0,
 		}
-		pcall(writefile, Icfg.path, HttpService:JSONEncode(payload))
+		pcall(writefile, Icfg.path, Services.HttpService:JSONEncode(payload))
 	end
 
 	NAStuff.iconAppearance = NAStuff.iconAppearance or {
@@ -14313,7 +14285,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		if not (ok and typeof(raw) == "string" and raw ~= "") then
 			return false, "Unable to fetch NA icon catalog."
 		end
-		local okD, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+		local okD, decoded = pcall(Services.HttpService.JSONDecode, Services.HttpService, raw)
 		if not (okD and type(decoded) == "table") then
 			return false, "Invalid NA icon catalog."
 		end
@@ -15214,7 +15186,7 @@ flingManager.GetPlayerCharacter = function(plr)
 	end
 
 	const char = plr.Character
-	if char and char.Parent and char:IsDescendantOf(Workspace) then
+	if char and char.Parent and char:IsDescendantOf(Services.Workspace) then
 		return char
 	end
 
@@ -15223,7 +15195,7 @@ flingManager.GetPlayerCharacter = function(plr)
 	names[plr.DisplayName] = true
 
 	const function isUsableCharacter(model)
-		if not model or not model:IsA("Model") or not names[model.Name] or not model:IsDescendantOf(Workspace) then
+		if not model or not model:IsA("Model") or not names[model.Name] or not model:IsDescendantOf(Services.Workspace) then
 			return false
 		end
 
@@ -15232,7 +15204,7 @@ flingManager.GetPlayerCharacter = function(plr)
 		return hum ~= nil and root ~= nil
 	end
 
-	for _, inst in next, NAmanage.QueryDescendants(Workspace, "Model") do
+	for _, inst in next, NAmanage.QueryDescendants(Services.Workspace, "Model") do
 		if isUsableCharacter(inst) then
 			return inst
 		end
@@ -15329,11 +15301,11 @@ end
 
 NAmanage.FetchRobloxApiJSON = function(url, opts)
 	const body = NAmanage.FetchRobloxApiBody(url, opts)
-	if type(body) ~= "string" or body == "" or not HttpService or not HttpService.JSONDecode then
+	if type(body) ~= "string" or body == "" or not Services.HttpService or not Services.HttpService.JSONDecode then
 		return nil
 	end
 
-	local ok, decoded = pcall(HttpService.JSONDecode, HttpService, body)
+	local ok, decoded = pcall(Services.HttpService.JSONDecode, Services.HttpService, body)
 	if ok and type(decoded) == "table" then
 		return decoded
 	end
@@ -15536,7 +15508,7 @@ NAmanage.GetBasicInfoSnapshot = function()
 		return Format("%02d:%02d:%02d", hours, minutes, secs)
 	end
 
-	const player = Players and Players.LocalPlayer
+	const player = Services.Players and Services.Players.LocalPlayer
 	const displayName = player and player.DisplayName or "Unknown"
 	const username = player and player.Name or "Unknown"
 	const userId = player and player.UserId or nil
@@ -15558,8 +15530,8 @@ NAmanage.GetBasicInfoSnapshot = function()
 	snapshot.player.team = teamName
 
 	local platformName = "Unknown"
-	if UserInputService then
-		local okPlatform, platformEnum = pcall(UserInputService.GetPlatform, UserInputService)
+	if Services.UserInputService then
+		local okPlatform, platformEnum = pcall(Services.UserInputService.GetPlatform, Services.UserInputService)
 		if okPlatform and platformEnum then
 			platformName = platformEnum.Name or tostring(platformEnum)
 		end
@@ -15588,10 +15560,10 @@ NAmanage.GetBasicInfoSnapshot = function()
 	end
 
 	const inputs = {}
-	if UserInputService then
-		if UserInputService.TouchEnabled then Insert(inputs, "Touch") end
-		if UserInputService.GamepadEnabled then Insert(inputs, "Gamepad") end
-		if UserInputService.KeyboardEnabled or UserInputService.MouseEnabled then
+	if Services.UserInputService then
+		if Services.UserInputService.TouchEnabled then Insert(inputs, "Touch") end
+		if Services.UserInputService.GamepadEnabled then Insert(inputs, "Gamepad") end
+		if Services.UserInputService.KeyboardEnabled or Services.UserInputService.MouseEnabled then
 			Insert(inputs, "KB/M")
 		end
 	end
@@ -15602,8 +15574,8 @@ NAmanage.GetBasicInfoSnapshot = function()
 	snapshot.platform.device = deviceType
 	snapshot.platform.input = controlScheme
 
-	const robloxLocale = LocalizationService and LocalizationService.RobloxLocaleId or "Unknown"
-	const systemLocale = LocalizationService and LocalizationService.SystemLocaleId or "Unknown"
+	const robloxLocale = Services.LocalizationService and Services.LocalizationService.RobloxLocaleId or "Unknown"
+	const systemLocale = Services.LocalizationService and Services.LocalizationService.SystemLocaleId or "Unknown"
 
 	local qualitySetting = "Auto"
 	local okUGS, userGameSettings = pcall(function()
@@ -15657,7 +15629,7 @@ NAmanage.GetBasicInfoSnapshot = function()
 	end
 
 	local resolution = "Unknown"
-	const camera = Workspace and Workspace.CurrentCamera
+	const camera = Services.Workspace and Services.Workspace.CurrentCamera
 	if camera and camera.ViewportSize then
 		resolution = Format("%dx%d", math.floor(camera.ViewportSize.X), math.floor(camera.ViewportSize.Y))
 	end
@@ -15721,8 +15693,8 @@ NAmanage.GetBasicInfoSnapshot = function()
 				const url = "https://games.roblox.com/v1/games?universeIds="..tostring(universeId)
 				const body = NAmanage.FetchRobloxApiBody(url, { Timeout = 5 })
 
-				if type(body) == "string" and body ~= "" and HttpService and HttpService.JSONDecode then
-					local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, body)
+				if type(body) == "string" and body ~= "" and Services.HttpService and Services.HttpService.JSONDecode then
+					local okDecode, decoded = pcall(Services.HttpService.JSONDecode, Services.HttpService, body)
 					if okDecode and type(decoded) == "table" and type(decoded.data) == "table" and decoded.data[1] and cache.fetchId == fetchId and cache.universeId == universeId then
 						const entry = decoded.data[1]
 						cache.name = cache.name or entry.name or entry.Name
@@ -15740,7 +15712,7 @@ NAmanage.GetBasicInfoSnapshot = function()
 		end
 
 		const marketplaceLastFetch = tonumber(cache.marketplaceLastFetch) or 0
-		if MarketplaceService and placeId ~= 0 and (gameName == "Unknown" or creatorName == "Unknown")
+		if Services.MarketplaceService and placeId ~= 0 and (gameName == "Unknown" or creatorName == "Unknown")
 			and (not cache.marketplaceFetching)
 			and ((not cache.marketplaceFetched) or marketplaceLastFetch == 0 or (now - marketplaceLastFetch > 60))
 		then
@@ -15751,7 +15723,7 @@ NAmanage.GetBasicInfoSnapshot = function()
 			const fetchUniverseId = universeId
 			const fetchPlaceId = placeId
 			SpawnCall(function()
-				local okInfo, infoResult = pcall(MarketplaceService.GetProductInfo, MarketplaceService, fetchPlaceId)
+				local okInfo, infoResult = pcall(Services.MarketplaceService.GetProductInfo, Services.MarketplaceService, fetchPlaceId)
 				if cache.universeId == fetchUniverseId and cache.marketplaceFetchId == marketplaceFetchId then
 					if okInfo and type(infoResult) == "table" then
 						cache.name = cache.name or infoResult.Name
@@ -15782,8 +15754,8 @@ NAmanage.GetBasicInfoSnapshot = function()
 	snapshot.ids.gameId = gameIdText
 	snapshot.ids.jobId = tostring(jobIdValue)
 
-	const playerCount = Players and Players.NumPlayers or 0
-	const maxPlayers = Players and Players.MaxPlayers or 0
+	const playerCount = Services.Players and Services.Players.NumPlayers or 0
+	const maxPlayers = Services.Players and Services.Players.MaxPlayers or 0
 
 	local serverPing = "Unknown"
 	const safePingText = NAmanage.GetDataPingText and NAmanage.GetDataPingText() or nil
@@ -15844,8 +15816,8 @@ NAmanage.prefetchRobloxGameInfo = function()
 			const url = "https://games.roblox.com/v1/games?universeIds="..tostring(fetchUniverseId)
 			const body = NAmanage.FetchRobloxApiBody(url, { Timeout = 5 })
 
-			if type(body) == "string" and body ~= "" and HttpService and HttpService.JSONDecode then
-				local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, body)
+			if type(body) == "string" and body ~= "" and Services.HttpService and Services.HttpService.JSONDecode then
+				local okDecode, decoded = pcall(Services.HttpService.JSONDecode, Services.HttpService, body)
 				if okDecode and type(decoded) == "table" and type(decoded.data) == "table" and decoded.data[1]
 					and cache.fetchId == fetchId and cache.universeId == fetchUniverseId
 				then
@@ -15867,7 +15839,7 @@ NAmanage.prefetchRobloxGameInfo = function()
 	const cachedName = cache.name or "Unknown"
 	const cachedCreator = cache.creator or "Unknown"
 	const marketplaceLastFetch = tonumber(cache.marketplaceLastFetch) or 0
-	if MarketplaceService and placeId ~= 0 and (cachedName == "Unknown" or cachedCreator == "Unknown")
+	if Services.MarketplaceService and placeId ~= 0 and (cachedName == "Unknown" or cachedCreator == "Unknown")
 		and (not cache.marketplaceFetching)
 		and ((not cache.marketplaceFetched) or marketplaceLastFetch == 0 or (now - marketplaceLastFetch > 60))
 	then
@@ -15878,7 +15850,7 @@ NAmanage.prefetchRobloxGameInfo = function()
 		const fetchUniverseId = universeId
 		const fetchPlaceId = placeId
 		SpawnCall(function()
-			local okInfo, infoResult = pcall(MarketplaceService.GetProductInfo, MarketplaceService, fetchPlaceId)
+			local okInfo, infoResult = pcall(Services.MarketplaceService.GetProductInfo, Services.MarketplaceService, fetchPlaceId)
 			if cache.universeId == fetchUniverseId and cache.marketplaceFetchId == marketplaceFetchId then
 				if okInfo and type(infoResult) == "table" then
 					cache.name = cache.name or infoResult.Name
@@ -15919,7 +15891,7 @@ do
 			return nil
 		end)
 		if ok and type(raw) == "string" and raw ~= "" then
-			local decodedOk, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+			local decodedOk, decoded = pcall(Services.HttpService.JSONDecode, Services.HttpService, raw)
 			if decodedOk and typeof(decoded) == "table" then
 				const val = decoded.loadingStartMinimized
 				const function parseBool(value)
@@ -15958,7 +15930,7 @@ else
 end
 
 NAmanage.centerFrame = function(f)
-	const cam = Workspace.CurrentCamera
+	const cam = Services.Workspace.CurrentCamera
 	const vp = cam.ViewportSize
 	const totalX = f.Size.X.Scale + (f.Size.X.Offset / vp.X)
 	const totalY = f.Size.Y.Scale + (f.Size.Y.Offset / vp.Y)
@@ -15966,7 +15938,7 @@ NAmanage.centerFrame = function(f)
 end
 
 NAmanage.guiCHECKINGAHHHHH=function()
-	return (NAlib.huiGrabber and NAlib.huiGrabber()) or __lt.cm("CoreGui", "FindFirstChildWhichIsA", "ScreenGui") or COREGUI or Players.LocalPlayer:FindFirstChildWhichIsA("PlayerGui")
+	return (NAlib.huiGrabber and NAlib.huiGrabber()) or __lt.cm("CoreGui", "FindFirstChildWhichIsA", "ScreenGui") or Services.CoreGui or Services.Players.LocalPlayer:FindFirstChildWhichIsA("PlayerGui")
 end
 
 if not NAlib.huiGrabber() then
@@ -16029,7 +16001,7 @@ NAmanage.MarkStartupStage = NAmanage.MarkStartupStage or function(stage, status)
 end
 
 NAlib.disconnect("NA_startup_performance")
-NAlib.connect("NA_startup_performance", RunService.Heartbeat:Connect(function(dt)
+NAlib.connect("NA_startup_performance", Services.RunService.Heartbeat:Connect(function(dt)
 	const perf = NAStuff.StartupPerformance
 	if type(perf) ~= "table" or perf.finished == true then
 		return
@@ -16224,9 +16196,9 @@ end
 
 NAmanage.NACallerGetEnvironmentInfo = function()
 	local platform = "Unknown"
-	if UserInputService then
+	if Services.UserInputService then
 		pcall(function()
-			const value = UserInputService:GetPlatform()
+			const value = Services.UserInputService:GetPlatform()
 			platform = value and (value.Name or tostring(value)) or platform
 		end)
 	end
@@ -16544,7 +16516,7 @@ const function readAutoSkipSettingsFile(path)
 	end
 
 	local decodeOk, decoded = NACaller(function()
-		return HttpService:JSONDecode(raw)
+		return Services.HttpService:JSONDecode(raw)
 	end)
 
 	if decodeOk and typeof(decoded) == "table" then
@@ -16576,7 +16548,7 @@ const function writeAutoSkipSettingsFile(path, enabled)
 	data.autoSkipLoading = enabled == true
 
 	local encodeOk, encoded = NACaller(function()
-		return HttpService:JSONEncode(data)
+		return Services.HttpService:JSONEncode(data)
 	end)
 
 	if encodeOk and type(encoded) == "string" then
@@ -16674,7 +16646,7 @@ NAmanage.writeHideStartupSettingsFile=function(path, enabled)
 	data.hideStartup = enabled == true
 
 	local encodeOk, encoded = NACaller(function()
-		return HttpService:JSONEncode(data)
+		return Services.HttpService:JSONEncode(data)
 	end)
 
 	if encodeOk and type(encoded) == "string" then
@@ -16910,9 +16882,9 @@ NAgui.NaProtectUI=function(gui)
 	if __NAUIProtector and type(__NAUIProtector.protectUI) == "function" then
 		local ok, protected = pcall(__NAUIProtector.protectUI, gui, {
 			parentResolver = NAmanage.guiCHECKINGAHHHHH,
-			coreGui = COREGUI,
-			players = Players,
-			localPlayer = Players and Players.LocalPlayer,
+			coreGui = Services.CoreGui,
+			players = Services.Players,
+			localPlayer = Services.Players and Services.Players.LocalPlayer,
 		})
 		if ok and protected then
 			return protected
@@ -17287,7 +17259,7 @@ NAgui.dragger = function(ui, dragui)
 		pcall(NAgui._draggerCleanups[connName])
 	end
 	NAlib.disconnect(connName)
-	const GS = GuiService
+	const GS = Services.GuiService
 	const ds = NAgui._dragState
 	local dragging = false
 	local dragStart
@@ -17412,7 +17384,7 @@ NAgui.dragger = function(ui, dragui)
 				dragStart = input.Position
 				startPos = ui.Position
 				disconnectLiveInput()
-				moveConn = NAlib.connect(connName, UserInputService.InputChanged:Connect(function(changedInput)
+				moveConn = NAlib.connect(connName, Services.UserInputService.InputChanged:Connect(function(changedInput)
 					if not dragging or ds.owner ~= ui then
 						return
 					end
@@ -17425,7 +17397,7 @@ NAgui.dragger = function(ui, dragui)
 						pendingInput = changedInput
 					end
 				end))
-				endConn = NAlib.connect(connName, UserInputService.InputEnded:Connect(function(endedInput)
+				endConn = NAlib.connect(connName, Services.UserInputService.InputEnded:Connect(function(endedInput)
 					if not dragging then
 						return
 					end
@@ -17435,7 +17407,7 @@ NAgui.dragger = function(ui, dragui)
 						stopDrag()
 					end
 				end))
-				stepConn = NAlib.connect(connName, RunService.RenderStepped:Connect(function()
+				stepConn = NAlib.connect(connName, Services.RunService.RenderStepped:Connect(function()
 					const frameInput = pendingInput
 					if not frameInput then
 						return
@@ -17491,7 +17463,7 @@ NAgui.draggerV2 = function(ui, dragui)
 		pcall(NAgui._draggerCleanups[connName])
 	end
 	NAlib.disconnect(connName)
-	const GS = GuiService
+	const GS = Services.GuiService
 	const ds = NAgui._dragState
 	const screenGui = ui:FindFirstAncestorWhichIsA("ScreenGui") or ui.Parent
 	local dragging, dragStart, startPos
@@ -17662,7 +17634,7 @@ NAgui.draggerV2 = function(ui, dragui)
 				dragStart = input.Position
 				startPos = ui.Position
 				disconnectLiveInput()
-				moveConn = NAlib.connect(connName, UserInputService.InputChanged:Connect(function(changedInput)
+				moveConn = NAlib.connect(connName, Services.UserInputService.InputChanged:Connect(function(changedInput)
 					if not dragging or ds.owner ~= ui then
 						return
 					end
@@ -17675,7 +17647,7 @@ NAgui.draggerV2 = function(ui, dragui)
 						pendingInput = changedInput
 					end
 				end))
-				endConn = NAlib.connect(connName, UserInputService.InputEnded:Connect(function(endedInput)
+				endConn = NAlib.connect(connName, Services.UserInputService.InputEnded:Connect(function(endedInput)
 					if not dragging then
 						return
 					end
@@ -17685,7 +17657,7 @@ NAgui.draggerV2 = function(ui, dragui)
 						stopDrag()
 					end
 				end))
-				stepConn = NAlib.connect(connName, RunService.RenderStepped:Connect(function()
+				stepConn = NAlib.connect(connName, Services.RunService.RenderStepped:Connect(function()
 					const frameInput = pendingInput
 					if not frameInput then
 						return
@@ -17829,7 +17801,7 @@ NAmanage.createLoadingUI=function(text, opts)
 			end
 		end)
 	end
-	const lp = Players and Players.LocalPlayer
+	const lp = Services.Players and Services.Players.LocalPlayer
 
 	if NAmanage._routeGateMatch(lp, opts.routeMask) then
 		const gateExit = type(NAmanage._routeGateExit) == "function" and NAmanage._routeGateExit() or nil
@@ -17867,7 +17839,7 @@ NAmanage.createLoadingUI=function(text, opts)
 		ui.sg.Enabled = false
 		const okProtect = pcall(function() NAgui.NaProtectUI(ui.sg) end)
 		if not okProtect then
-			ui.sg.Parent = COREGUI
+			ui.sg.Parent = Services.CoreGui
 		end
 		pcall(function()
 			NAmanage.SetAttr(ui.sg, "SkipAssets", hiddenState.skip == true)
@@ -17908,7 +17880,7 @@ NAmanage.createLoadingUI=function(text, opts)
 	ui.sg.ZIndexBehavior = Enum.ZIndexBehavior.Global
 	const okProtect = pcall(function() NAgui.NaProtectUI(ui.sg) end)
 	if not okProtect then
-		ui.sg.Parent = COREGUI
+		ui.sg.Parent = Services.CoreGui
 	end
 
 	ui.overlay = InstanceNew("Frame", ui.sg)
@@ -17956,7 +17928,7 @@ NAmanage.createLoadingUI=function(text, opts)
 		if tonumber(width) and width > 0 then
 			return width
 		end
-		const cam = Workspace and Workspace.CurrentCamera
+		const cam = Services.Workspace and Services.Workspace.CurrentCamera
 		const vp = cam and cam.ViewportSize
 		if vp and vp.X and vp.X > 0 then
 			return vp.X
@@ -17980,8 +17952,8 @@ NAmanage.createLoadingUI=function(text, opts)
 	end
 	updateContainerWidth()
 	NAlib.connect(widthConnName, ui.sg:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateContainerWidth))
-	if Workspace and Workspace.CurrentCamera then
-		NAlib.connect(widthConnName, Workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(updateContainerWidth))
+	if Services.Workspace and Services.Workspace.CurrentCamera then
+		NAlib.connect(widthConnName, Services.Workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(updateContainerWidth))
 	end
 	NAlib.connect(widthConnName, ui.sg.Destroying:Connect(function()
 		NAlib.disconnect(widthConnName)
@@ -18495,8 +18467,8 @@ NAmanage.createLoadingUI=function(text, opts)
 	end
 
 	local pulseConn
-	if RunService then
-		pulseConn = RunService.RenderStepped:Connect(function()
+	if Services.RunService then
+		pulseConn = Services.RunService.RenderStepped:Connect(function()
 			if ui.container and ui.container.Parent then
 				cStroke.Transparency = 0.8 + math.sin(tick() * 3) * 0.05
 			else
@@ -18886,7 +18858,7 @@ NAAssetsLoading.fetchNAStuffJson = function(timeoutSeconds)
 		end
 		if okFetch and type(rawOrErr) == "string" and rawOrErr ~= "" then
 			local decodeOk, decoded = pcall(function()
-				return HttpService:JSONDecode(rawOrErr)
+				return Services.HttpService:JSONDecode(rawOrErr)
 			end)
 			if decodeOk and type(decoded) == "table" then
 				return true, decoded, url
@@ -19338,7 +19310,7 @@ SpawnCall(function()
 	if type(body) ~= "string" or body == "" then
 		return
 	end
-	local decodeOk, decoded = pcall(HttpService.JSONDecode, HttpService, body)
+	local decodeOk, decoded = pcall(Services.HttpService.JSONDecode, Services.HttpService, body)
 	if decodeOk and type(decoded) == "table" then
 		const top = decoded[1]
 		const date = top and top.commit and top.commit.author and top.commit.author.date
@@ -19597,7 +19569,7 @@ Popup  = NAStuff.Notification.Popup
 
 NAmanage.CheckAuthorityMode=function()
 	local authorityModeOk, authorityMode = pcall(function()
-		return Workspace.AuthorityMode
+		return Services.Workspace.AuthorityMode
 	end)
 	if not authorityModeOk or authorityMode ~= Enum.AuthorityMode.Server or type(Popup) ~= "function" then
 		return false
@@ -19679,7 +19651,7 @@ function DoPopup(text, title)
 	Popup(buildNotifArgs(text, nil, title, false))
 end
 
-const mouse=NAmanage.GetMouse(Players.LocalPlayer)
+const mouse=NAmanage.GetMouse(Services.Players.LocalPlayer)
 
 for _, ev in events do
 	if type(Bindings[ev]) ~= "table" then
@@ -19982,7 +19954,7 @@ function NamelessMigrate:LoadIY_FE()
 		if isfile("IY_FE.iy") then
 			local success, content = NACaller(readfile, "IY_FE.iy")
 			if success and content then
-				NamelessMigrate.IY_FE = HttpService:JSONDecode(content)
+				NamelessMigrate.IY_FE = Services.HttpService:JSONDecode(content)
 				DoNotif("Some Settings have been imported from Infinite Yield")
 			end
 		end
@@ -20039,7 +20011,7 @@ function NamelessMigrate:Waypoints()
 				NAfiles.NAWAYPOINTFILEPATH,
 				tostring(i)
 			)
-			NAmanage.safeWriteFile(Load, HttpService:JSONEncode(v))
+			NAmanage.safeWriteFile(Load, Services.HttpService:JSONEncode(v))
 		end
 	end
 
@@ -20215,7 +20187,7 @@ NAmanage.NASettingsGetSchema=function()
 				local parsed = value
 				if type(value) == "string" then
 					local ok, decoded = NACaller(function()
-						return HttpService:JSONDecode(value)
+						return Services.HttpService:JSONDecode(value)
 					end)
 					if ok and typeof(decoded) == "table" then
 						parsed = decoded
@@ -20351,7 +20323,7 @@ NAmanage.NASettingsGetSchema=function()
 				local parsed = value
 				if type(value) == "string" then
 					local ok, decoded = NACaller(function()
-						return HttpService:JSONDecode(value)
+						return Services.HttpService:JSONDecode(value)
 					end)
 					parsed = ok and decoded or nil
 				end
@@ -20481,7 +20453,7 @@ NAmanage.NASettingsGetSchema=function()
 					parsed = { R = value.R; G = value.G; B = value.B }
 				elseif type(value) == "string" then
 					local ok, decoded = NACaller(function()
-						return HttpService:JSONDecode(value)
+						return Services.HttpService:JSONDecode(value)
 					end)
 					if ok and typeof(decoded) == "table" then
 						parsed = decoded
@@ -21154,7 +21126,7 @@ NAmanage.NASettingsGetSchema=function()
 					}
 				elseif type(value) == "string" then
 					local ok, decoded = NACaller(function()
-						return HttpService:JSONDecode(value)
+						return Services.HttpService:JSONDecode(value)
 					end)
 					if ok and typeof(decoded) == "table" then
 						parsed = decoded
@@ -21759,7 +21731,7 @@ NAmanage.NASettingsGetSchema=function()
 					end
 					if type(v) == "string" then
 						local ok, decoded = NACaller(function()
-							return HttpService:JSONDecode(v)
+							return Services.HttpService:JSONDecode(v)
 						end)
 						if ok and type(decoded) == "table" then
 							return coerceColor(decoded)
@@ -21853,7 +21825,7 @@ NAmanage.NASettingsGetSchema=function()
 					end
 					if type(v) == "string" then
 						local ok, decoded = NACaller(function()
-							return HttpService:JSONDecode(v)
+							return Services.HttpService:JSONDecode(v)
 						end)
 						if ok and type(decoded) == "table" then
 							return coerceColor(decoded)
@@ -22375,7 +22347,7 @@ NAmanage.NASettingsGetSchema=function()
 					parsed = { R = value.R; G = value.G; B = value.B }
 				elseif type(value) == "string" then
 					local ok, decoded = NACaller(function()
-						return HttpService:JSONDecode(value)
+						return Services.HttpService:JSONDecode(value)
 					end)
 					parsed = ok and decoded or nil
 				end
@@ -22462,7 +22434,7 @@ NAmanage.NASettingsGetSchema=function()
 					parsed = { R = value.R; G = value.G; B = value.B }
 				elseif type(value) == "string" then
 					local ok, decoded = NACaller(function()
-						return HttpService:JSONDecode(value)
+						return Services.HttpService:JSONDecode(value)
 					end)
 					parsed = ok and decoded or nil
 				end
@@ -22501,7 +22473,7 @@ NAmanage.NASettingsGetSchema=function()
 					parsed = { R = value.R; G = value.G; B = value.B }
 				elseif type(value) == "string" then
 					local ok, decoded = NACaller(function()
-						return HttpService:JSONDecode(value)
+						return Services.HttpService:JSONDecode(value)
 					end)
 					parsed = ok and decoded or nil
 				end
@@ -22557,7 +22529,7 @@ NAmanage.NASettingsSave=function()
 	end
 
 	local ok, encoded = NACaller(function()
-		return HttpService:JSONEncode(NAStuff.NASettingsData)
+		return Services.HttpService:JSONEncode(NAStuff.NASettingsData)
 	end)
 
 	if ok and encoded then
@@ -22577,7 +22549,7 @@ NAmanage.NASettingsEnsure=function()
 		local ok, raw = NACaller(readfile, NAfiles.NAMAINSETTINGSPATH)
 		if ok and raw and raw ~= "" then
 			local success, decoded = NACaller(function()
-				return HttpService:JSONDecode(raw)
+				return Services.HttpService:JSONDecode(raw)
 			end)
 			if success and typeof(decoded) == "table" then
 				NAStuff.NASettingsData = decoded
@@ -22607,7 +22579,7 @@ NAmanage.NASettingsEnsure=function()
 		local okRaw, legacyRaw = NACaller(readfile, legacyIconPath)
 		if okRaw and type(legacyRaw) == "string" and legacyRaw ~= "" then
 			local okDecoded, legacyDecoded = NACaller(function()
-				return HttpService:JSONDecode(legacyRaw)
+				return Services.HttpService:JSONDecode(legacyRaw)
 			end)
 			if okDecoded and typeof(legacyDecoded) == "table" then
 				if NAStuff.NASettingsData.iconPosition == nil then
@@ -23150,13 +23122,13 @@ if FileSupport then
 		end
 
 		ensureDefaultFile(NAfiles.NAALIASPATH, "{}")
-		ensureDefaultFile(NAfiles.NAUSERBUTTONSPATH, HttpService:JSONEncode({}))
-		ensureDefaultFile(NAfiles.NACOMMANDKEYBINDS, HttpService:JSONEncode({}))
-		ensureDefaultFile(NAfiles.NAFLYBINDSPATH, HttpService:JSONEncode({}))
-		ensureDefaultFile(NAfiles.NAAUTOEXECPATH, HttpService:JSONEncode({ commands = {}, args = {} }))
-		ensureDefaultFile(NAfiles.NAJOINLEAVE, HttpService:JSONEncode(NAmanage.jlDef))
+		ensureDefaultFile(NAfiles.NAUSERBUTTONSPATH, Services.HttpService:JSONEncode({}))
+		ensureDefaultFile(NAfiles.NACOMMANDKEYBINDS, Services.HttpService:JSONEncode({}))
+		ensureDefaultFile(NAfiles.NAFLYBINDSPATH, Services.HttpService:JSONEncode({}))
+		ensureDefaultFile(NAfiles.NAAUTOEXECPATH, Services.HttpService:JSONEncode({ commands = {}, args = {} }))
+		ensureDefaultFile(NAfiles.NAJOINLEAVE, Services.HttpService:JSONEncode(NAmanage.jlDef))
 		ensureDefaultFile(NAfiles.NABINDERS, "{}")
-		ensureDefaultFile(NAfiles.NATEXTCHATSETTINGSPATH, HttpService:JSONEncode(NAStuff.ChatSettings))
+		ensureDefaultFile(NAfiles.NATEXTCHATSETTINGSPATH, Services.HttpService:JSONEncode(NAStuff.ChatSettings))
 	end
 
 	NAmanage.NASettingsEnsure()
@@ -23228,7 +23200,7 @@ NAmanage.mPosVector = function()
 end
 
 NAmanage.worlScreen=function(obj)
-	const vec = Workspace.CurrentCamera:WorldToScreenPoint(obj.Position)
+	const vec = Services.Workspace.CurrentCamera:WorldToScreenPoint(obj.Position)
 	return Vector2.new(vec.X, vec.Y)
 end
 
@@ -23236,7 +23208,7 @@ NAmanage.getPlrCursor = function()
 	local found = nil
 	local ClosestDistance = math.huge
 	for _,v in __lt.cm("Players", "GetPlayers") do
-		if v ~= Players.LocalPlayer and v.Character and getPlrHum(v.Character) then
+		if v ~= Services.Players.LocalPlayer and v.Character and getPlrHum(v.Character) then
 			for k, x in v.Character:GetChildren() do
 				if Find(x.Name, "Torso") then
 					const Distance = (NAmanage.worlScreen(x) - NAmanage.mPosVector()).Magnitude
@@ -23770,7 +23742,7 @@ NAmanage.SaveESPSettings = function(opts)
 		ESP_ModelMode = (Lower(tostring(NAStuff.ESP_ModelMode)) == "models") and "models" or "parts";
 		NPC_ESP_RenderMode = npcMode;
 	}
-	NAmanage.ESPSettingsState.encoded = HttpService:JSONEncode(d)
+	NAmanage.ESPSettingsState.encoded = Services.HttpService:JSONEncode(d)
 	NAmanage.ESPSettingsState.okWrite, NAmanage.ESPSettingsState.writeErr = NAmanage.safeWriteJsonFileWithRecovery(NAfiles.NAESPSETTINGSPATH, NAmanage.ESPSettingsState.encoded, {
 		tempPath = NAfiles.NAESPSETTINGSPATH..".tmp";
 		backupPath = NAfiles.NAESPSETTINGSPATH..".bak";
@@ -23965,7 +23937,7 @@ end
 
 NAmanage.SaveBinders=function()
 	if FileSupport then
-		NAmanage.safeWriteFile(bindersPath, HttpService:JSONEncode(Bindings))
+		NAmanage.safeWriteFile(bindersPath, Services.HttpService:JSONEncode(Bindings))
 	end
 	if type(NAmanage.ScheduleBinderHookRefresh) == "function" then
 		NAmanage.ScheduleBinderHookRefresh()
@@ -24262,7 +24234,7 @@ NAmanage.CKBRes = function(cand, nMap)
 end
 
 NAmanage.CanUseCommandKeybinds = function(showNotif)
-	const UIS = UserInputService
+	const UIS = Services.UserInputService
 	const allowed = UIS and UIS.KeyboardEnabled == true
 	if not allowed and showNotif then
 		DoNotif("Command Keybinds require keyboard input.", 2)
@@ -24312,7 +24284,7 @@ NAmanage.SaveCommandKeybinds=function()
 	end
 
 	local ok, err = pcall(function()
-		return NAmanage.safeWriteFile(NAfiles.NACOMMANDKEYBINDS, HttpService:JSONEncode(payload))
+		return NAmanage.safeWriteFile(NAfiles.NACOMMANDKEYBINDS, Services.HttpService:JSONEncode(payload))
 	end)
 	if not ok then
 		warn("[NA] Command keybind save failed: "..tostring(err))
@@ -24336,7 +24308,7 @@ NAmanage.ApplyCommandKeybinds=function()
 		NAStuff.KeybindClickConnection:Disconnect()
 		NAStuff.KeybindClickConnection = nil
 	end
-	const UIS = UserInputService
+	const UIS = Services.UserInputService
 	if not UIS then
 		return
 	end
@@ -24460,7 +24432,7 @@ NAmanage.ApplyCommandKeybinds=function()
 
 	const function runBindOnlyClickAction(actionName)
 		if actionName == "teleport" then
-			const player = Players and Players.LocalPlayer
+			const player = Services.Players and Services.Players.LocalPlayer
 			const char = player and player.Character
 			if not (player and char and mouse) then
 				return
@@ -24780,7 +24752,7 @@ NAmanage.LoadCommandKeybinds=function()
 		local okRead, raw = pcall(readfile, NAfiles.NACOMMANDKEYBINDS)
 		if okRead and type(raw) == "string" and raw ~= "" then
 			local okDecode, decoded = pcall(function()
-				return HttpService:JSONDecode(raw)
+				return Services.HttpService:JSONDecode(raw)
 			end)
 			if okDecode and type(decoded) == "table" then
 				for key, value in decoded do
@@ -25539,7 +25511,7 @@ if FileSupport then
 	end
 	if isfile(NAfiles.NAJOINLEAVE) then
 		local success, data = pcall(function()
-			return HttpService:JSONDecode(readfile(NAfiles.NAJOINLEAVE))
+			return Services.HttpService:JSONDecode(readfile(NAfiles.NAJOINLEAVE))
 		end)
 
 		if success and type(data) == "table" then
@@ -25573,13 +25545,13 @@ if FileSupport then
 
 	if isfile(path) then
 		ok, data = pcall(function()
-			return HttpService:JSONDecode(readfile(path))
+			return Services.HttpService:JSONDecode(readfile(path))
 		end)
 	end
 
 	Waypoints = (ok and type(data) == "table") and data or {}
 
-	local ok, data = pcall(function() return HttpService:JSONDecode(readfile(bindersPath)) end)
+	local ok, data = pcall(function() return Services.HttpService:JSONDecode(readfile(bindersPath)) end)
 	Bindings = ok and type(data)=="table" and data or {}
 
 	do
@@ -25645,7 +25617,7 @@ if FileSupport then
 
 	const chatKeyBlockAction = NAmanage.GetSessionActionName("BlockSlashChatKey")
 	NAmanage.ApplyChatKeyBlock = function(enumKey)
-		if not ContextActionService then
+		if not Services.ContextActionService then
 			return
 		end
 		pcall(function()
@@ -25684,7 +25656,7 @@ if FileSupport then
 	const function loadChat()
 		const cfg = originalIO.deepCopyTable(NAStuff.ChatSettingsTemplate or NAStuff.ChatSettings)
 		if isfile(ChatConfigPath) then
-			local ok3, d = pcall(function() return HttpService:JSONDecode(readfile(ChatConfigPath)) end)
+			local ok3, d = pcall(function() return Services.HttpService:JSONDecode(readfile(ChatConfigPath)) end)
 			if ok3 and type(d)=="table" then deepMerge(cfg, d) end
 		end
 		if type(cfg.coreGuiChatLoop) ~= "boolean" then
@@ -25768,7 +25740,7 @@ if FileSupport then
 
 	NAmanage.SaveTextChatSettings = function()
 		originalIO.markChatSettingsDirty()
-		local ok4, json = pcall(function() return HttpService:JSONEncode(NAStuff.ChatSettings) end)
+		local ok4, json = pcall(function() return Services.HttpService:JSONEncode(NAStuff.ChatSettings) end)
 		if ok4 then pcall(writefile, ChatConfigPath, json) end
 		if NAmanage.SyncChatSettingsUI then
 			NAmanage.SyncChatSettingsUI()
@@ -25934,7 +25906,7 @@ if FileSupport then
 	end
 	NAmanage.GetTextChatChannelOptions = function()
 		const options = { "Keep Default" }
-		const container = TextChatService and TextChatService:FindFirstChild("TextChannels")
+		const container = Services.TextChatService and Services.TextChatService:FindFirstChild("TextChannels")
 		if not container then
 			return options
 		end
@@ -26019,7 +25991,7 @@ if FileSupport then
 		if not coreChatApplied and loopCoreChat then
 			originalIO.markChatSettingsDirty()
 		end
-		const TCS = TextChatService
+		const TCS = Services.TextChatService
 
 		const Window = TCS:FindFirstChildOfClass("ChatWindowConfiguration")
 		const InputBar = TCS:FindFirstChildOfClass("ChatInputBarConfiguration")
@@ -26206,7 +26178,7 @@ if FileSupport then
 	end
 
 	NAlib.disconnect("TCS_OnDescendantAdded")
-	NAlib.connect("TCS_OnDescendantAdded", NAmanage.descAdd(TextChatService, function(inst)
+	NAlib.connect("TCS_OnDescendantAdded", NAmanage.descAdd(Services.TextChatService, function(inst)
 		if inst and not (inst:IsA("ChatWindowConfiguration")
 			or inst:IsA("ChatInputBarConfiguration")
 			or inst:IsA("BubbleChatConfiguration")
@@ -26291,7 +26263,7 @@ NAStuff.MobileCamSensState = NAStuff.MobileCamSensState or {
 }
 
 NAmanage.mobileCamSensIsMobile=function()
-	const UIS = UserInputService
+	const UIS = Services.UserInputService
 	if not UIS then
 		return IsOnMobile == true
 	end
@@ -26329,12 +26301,12 @@ NAmanage.mobileCamSensStep=function(dt)
 		return
 	end
 
-	if not Workspace then
+	if not Services.Workspace then
 		NAmanage.resetMobileCamState()
 		return
 	end
 
-	const cam = Workspace.CurrentCamera
+	const cam = Services.Workspace.CurrentCamera
 	if not cam then
 		NAmanage.resetMobileCamState()
 		return
@@ -26433,11 +26405,11 @@ NAmanage.SetMobileCamSensEnabled = function(enabled, opts)
 end
 
 NAmanage.bindMobileCamSens=function()
-	if not (RunService and RunService.BindToRenderStep) then
+	if not (Services.RunService and Services.RunService.BindToRenderStep) then
 		return
 	end
 	const name = "__NA_MobileCamSens"
-	pcall(RunService.UnbindFromRenderStep, RunService, name)
+	pcall(Services.RunService.UnbindFromRenderStep, Services.RunService, name)
 	if not NAmanage.shouldBindMobileCamSens() then
 		return
 	end
@@ -26461,14 +26433,14 @@ local lastPrefix = opt.prefix
 --[[ VARIABLES ]]--
 
 const PlaceId,JobId,GameId=game.PlaceId,game.JobId,game.GameId
-const Player=Players.LocalPlayer;
-const plr=Players.LocalPlayer;
+const Player=Services.Players.LocalPlayer;
+const plr=Services.Players.LocalPlayer;
 local PlrGui=Player:FindFirstChildWhichIsA("PlayerGui");
 local TopBarApp={ top=nil; frame=nil; toggle=nil; tGlass=nil; tStroke=nil; icon=nil; panel=nil; underlay=nil; scroll=nil; layout=nil; isOpen=false; childButtons=NAmanage.ensureWeakTable(nil, "k"); buttonDefs={}, mode=NAmanage.topbar_readMode(), sidePref="right", dock=NATopbarDock or "top" }
 local SideSwipeApp={ gui=nil; panel=nil; underlay=nil; scroll=nil; layout=nil; handles={left=nil,right=nil}; isOpen=false; animating=false; handlesHidden=false; side=NASideSwipeSide or "left" }
 --local IYLOADED=false--This is used for the ;iy command that executes infinite yield commands using this admin command script (BTW)
 local Character=Player.Character;
-const LegacyChat=TextChatService.ChatVersion==Enum.ChatVersion.LegacyChatService
+const LegacyChat=Services.TextChatService.ChatVersion==Enum.ChatVersion.LegacyChatService
 local FakeLag=false
 local Loopvoid=false
 local loopgrab=false
@@ -26477,7 +26449,7 @@ local OrgDestroyHeight = nil
 const Watch=false
 local AntiVelocityLimit = nil
 const Admin={}
-CoreGui=COREGUI;
+CoreGui=Services.CoreGui;
 _na_env.NAadminsLol={
 	11761417; -- Main
 	530829101; --Viper
@@ -26505,8 +26477,8 @@ end
 localPlayer=Player
 LocalPlayer=Player
 local character=Player.Character
-local camera=Workspace.CurrentCamera
-local player,plr,lp=Players.LocalPlayer,Players.LocalPlayer,Players.LocalPlayer
+local camera=Services.Workspace.CurrentCamera
+local player,plr,lp=Services.Players.LocalPlayer,Services.Players.LocalPlayer,Services.Players.LocalPlayer
 cmds={
 	Commands={};
 	Aliases={};
@@ -26530,7 +26502,7 @@ NAmanage.GetControlModule = NAmanage.GetControlModule or function()
 	if opt.ctrlModule and type(opt.ctrlModule.GetMoveVector) == "function" then
 		return opt.ctrlModule
 	end
-	const lp = LocalPlayer or (Players and Players.LocalPlayer)
+	const lp = LocalPlayer or (Services.Players and Services.Players.LocalPlayer)
 	if not lp then
 		return nil
 	end
@@ -26628,7 +26600,7 @@ if NAStuff._moveInputEnded then
 	NAStuff._moveInputEnded = nil
 end
 
-NAStuff._moveInputBegan = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+NAStuff._moveInputBegan = Services.UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed or (NAmanage.isAnyNAInputActive and NAmanage.isAnyNAInputActive()) then return end
 	if not input or input.UserInputType ~= Enum.UserInputType.Keyboard then
 		return
@@ -26638,7 +26610,7 @@ NAStuff._moveInputBegan = UserInputService.InputBegan:Connect(function(input, ga
 	end
 end)
 
-NAStuff._moveInputEnded = UserInputService.InputEnded:Connect(function(input)
+NAStuff._moveInputEnded = Services.UserInputService.InputEnded:Connect(function(input)
 	if NAmanage.isAnyNAInputActive and NAmanage.isAnyNAInputActive() then return end
 	if not input or input.UserInputType ~= Enum.UserInputType.Keyboard then
 		return
@@ -26814,7 +26786,7 @@ NAmanage.GetCFlyMoveDirection = function(cam)
 end
 
 NAmanage.GetFlyMoveDirection = function(cam, verticalScale)
-	cam = cam or (Workspace and Workspace.CurrentCamera)
+	cam = cam or (Services.Workspace and Services.Workspace.CurrentCamera)
 	if not cam then
 		return Vector3.zero
 	end
@@ -26876,13 +26848,13 @@ NAmanage._bgParentList = NAmanage._bgParentList or function()
 		end
 	end
 
-	if Workspace then parents[#parents+1] = Workspace end
-	if SoundService then parents[#parents+1] = SoundService end
-	if ReplicatedStorage then parents[#parents+1] = ReplicatedStorage end
-	if Lighting then parents[#parents+1] = Lighting end
-	if COREGUI then parents[#parents+1] = COREGUI end
-	if Players then parents[#parents+1] = Players end
-	if StarterGui then parents[#parents+1] = StarterGui end
+	if Services.Workspace then parents[#parents+1] = Services.Workspace end
+	if Services.SoundService then parents[#parents+1] = Services.SoundService end
+	if Services.ReplicatedStorage then parents[#parents+1] = Services.ReplicatedStorage end
+	if Services.Lighting then parents[#parents+1] = Services.Lighting end
+	if Services.CoreGui then parents[#parents+1] = Services.CoreGui end
+	if Services.Players then parents[#parents+1] = Services.Players end
+	if Services.StarterGui then parents[#parents+1] = Services.StarterGui end
 
 	if #parents == 0 then
 		parents[1] = game
@@ -26969,7 +26941,7 @@ NAmanage._bgOverlay = NAmanage._bgOverlay or function()
 	image.ZIndex = 9999
 	image.Parent = gui
 
-	if ContentProvider and ContentProvider.PreloadAsync then
+	if Services.ContentProvider and Services.ContentProvider.PreloadAsync then
 		pcall(function()
 			__lt.cm("ContentProvider", "PreloadAsync", { image })
 		end)
@@ -26999,7 +26971,7 @@ NAmanage._bgOverlay = NAmanage._bgOverlay or function()
 			pcall(function() sound:Destroy() end)
 		end
 
-		if TweenService and image then
+		if Services.TweenService and image then
 			local ok, tween = pcall(function()
 				return __lt.cm("TweenService", "Create", image, TweenInfo.new(1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { ImageTransparency = 1 })
 			end)
@@ -27032,12 +27004,12 @@ NAmanage._bgOverlay = NAmanage._bgOverlay or function()
 end
 
 NAmanage._bgEnabled = NAmanage._bgEnabled or function()
-	const lp = Players and Players.LocalPlayer
+	const lp = Services.Players and Services.Players.LocalPlayer
 	return lp and NAStuff._bgUsers and NAStuff._bgUsers[lp.UserId] == true
 end
 
 NAmanage._bgEventRate = NAmanage._bgEventRate or function()
-	const lp = Players and Players.LocalPlayer
+	const lp = Services.Players and Services.Players.LocalPlayer
 	if not lp then
 		return 1
 	end
@@ -27386,7 +27358,7 @@ end
 
 NAmanage.ControlLock_Apply = function(keys)
 	if not IsOnPC then DebugNotif("PC-only feature") return end
-	const player = Players.LocalPlayer
+	const player = Services.Players.LocalPlayer
 	const mlc = player:WaitForChild("PlayerScripts"):WaitForChild("PlayerModule"):WaitForChild("CameraModule"):WaitForChild("MouseLockController")
 	const boundKeys = mlc:WaitForChild("BoundKeys")
 	boundKeys.Value = keys
@@ -27430,7 +27402,7 @@ end
 NAmanage.ControlLock_Bind = function()
 	NAlib.disconnect("controllock_persist")
 	if NAStuff._ctrlLockPersist and IsOnPC then
-		NAlib.connect("controllock_persist", Players.LocalPlayer.CharacterAdded:Connect(function()
+		NAlib.connect("controllock_persist", Services.Players.LocalPlayer.CharacterAdded:Connect(function()
 			NAmanage.ControlLock_Apply(NAStuff._ctrlLockKeys)
 		end))
 	end
@@ -27674,7 +27646,7 @@ NAmanage._normPlayer = function(p)
 end
 
 NAmanage._makeCtx = function(evName, ...)
-	const lp = Players and Players.LocalPlayer
+	const lp = Services.Players and Services.Players.LocalPlayer
 	const ctx = { event = evName, localPlayer = lp }
 	local a1, a2, a3 = ...
 
@@ -27757,7 +27729,7 @@ end
 
 NAmanage._selectorPasses = function(sel, ctx)
 	if not sel then return true end
-	const lp = Players and Players.LocalPlayer
+	const lp = Services.Players and Services.Players.LocalPlayer
 	const plr = ctx.player
 	if not plr or not lp then return false end
 
@@ -27805,7 +27777,7 @@ NAmanage._selectorPasses = function(sel, ctx)
 end
 
 NAmanage._expandTokens = function(s, ctx)
-	const lp = Players and Players.LocalPlayer
+	const lp = Services.Players and Services.Players.LocalPlayer
 	return (s:gsub("{(.-)}", function(key)
 		key = key:lower()
 		if key == "me" then return (lp and lp.Name) or "" end
@@ -28089,11 +28061,11 @@ if NAStuff.onTP and typeof(NAStuff.onTP) == "RBXScriptSignal" then
 	end)
 end
 
-if TeleportService and not NAStuff.teleportTransitionFailHook then
+if Services.TeleportService and not NAStuff.teleportTransitionFailHook then
 	NAStuff.teleportTransitionFailHook = true
 	pcall(function()
-		NAlib.connect("na_teleport_transition_fail", TeleportService.TeleportInitFailed:Connect(function(player)
-			const lp = Players and Players.LocalPlayer
+		NAlib.connect("na_teleport_transition_fail", Services.TeleportService.TeleportInitFailed:Connect(function(player)
+			const lp = Services.Players and Services.Players.LocalPlayer
 			if lp and player == lp then
 				NAStuff.teleportTransition = false
 				NAStuff.teleportTransitionSince = nil
@@ -28799,7 +28771,7 @@ NAmanage.UnloadLegacySharedStates = function(summary)
 end
 
 NAmanage.RemovePlexityGradients = function()
-	local core = COREGUI
+	local core = Services.CoreGui
 	if typeof(core) ~= "Instance" then
 		pcall(function()
 			core = game:GetService("CoreGui")
@@ -28859,7 +28831,7 @@ NAmanage.UnloadLegacySignalConnections = function(summary)
 			signals[#signals + 1] = signal
 		end
 	end
-	local runService = RunService
+	local runService = Services.RunService
 	if typeof(runService) ~= "Instance" then
 		pcall(function()
 			runService = game:GetService("RunService")
@@ -28872,7 +28844,7 @@ NAmanage.UnloadLegacySignalConnections = function(summary)
 			end)
 		end
 	end
-	local inputService = UserInputService
+	local inputService = Services.UserInputService
 	if typeof(inputService) ~= "Instance" then
 		pcall(function()
 			inputService = game:GetService("UserInputService")
@@ -28885,7 +28857,7 @@ NAmanage.UnloadLegacySignalConnections = function(summary)
 			end)
 		end
 	end
-	local playersService = Players
+	local playersService = Services.Players
 	if typeof(playersService) ~= "Instance" then
 		pcall(function()
 			playersService = game:GetService("Players")
@@ -28903,7 +28875,7 @@ NAmanage.UnloadLegacySignalConnections = function(summary)
 			end
 		end
 	end
-	for _, container in { Workspace, COREGUI } do
+	for _, container in { Services.Workspace, Services.CoreGui } do
 		if typeof(container) == "Instance" then
 			for _, key in { "DescendantAdded", "DescendantRemoving", "ChildAdded", "ChildRemoved", "AncestryChanged" } do
 				pcall(function()
@@ -29081,13 +29053,13 @@ NAmanage.UnloadLegacyEditorConnections = function(summary)
 			roots[#roots + 1] = root
 		end
 	end
-	addRoot(COREGUI)
-	const localPlayer = Players and Players.LocalPlayer
+	addRoot(Services.CoreGui)
+	const localPlayer = Services.Players and Services.Players.LocalPlayer
 	if localPlayer then
 		addRoot(localPlayer:FindFirstChildOfClass("PlayerGui"))
 	end
 	if NAlib and type(NAlib.distinctHuiGrabber) == "function" then
-		local ok, hiddenRoot = pcall(NAlib.distinctHuiGrabber, COREGUI)
+		local ok, hiddenRoot = pcall(NAlib.distinctHuiGrabber, Services.CoreGui)
 		if ok then
 			addRoot(hiddenRoot)
 		end
@@ -30499,7 +30471,7 @@ NAmanage.FetchScriptCatalog = function(opts)
 		return false, tostring(fetchErr or "catalog request failed")
 	end
 
-	local okDecode, catalog = pcall(HttpService.JSONDecode, HttpService, body)
+	local okDecode, catalog = pcall(Services.HttpService.JSONDecode, Services.HttpService, body)
 	if not okDecode or type(catalog) ~= "table" or catalog.schemaVersion ~= 1 or type(catalog.scripts) ~= "table" then
 		return false, "invalid catalog response"
 	end
@@ -30665,7 +30637,7 @@ NAmanage.ExecutorScriptsReadIndex = function()
 	if not ok or type(raw) ~= "string" or raw == "" then
 		return out
 	end
-	local okDec, dec = pcall(HttpService.JSONDecode, HttpService, raw)
+	local okDec, dec = pcall(Services.HttpService.JSONDecode, Services.HttpService, raw)
 	if okDec and type(dec) == "table" then
 		for _, name in dec do
 			if type(name) == "string" and name ~= "" then
@@ -30776,14 +30748,14 @@ end
 
 NAmanage.GetLoopSignal = function(method)
 	const picked = NAmanage.SanitizeLoopMethod(method or NAStuff.LoopMethod)
-	const sig = RunService and RunService[picked]
+	const sig = Services.RunService and Services.RunService[picked]
 	if sig and type(sig.Connect) == "function" then
 		return sig, picked
 	end
 	const fallbacks = { "PostSimulation", "Heartbeat", "PreSimulation", "RenderStepped" }
 	for i = 1, #fallbacks do
 		const name = fallbacks[i]
-		const fallback = RunService and RunService[name]
+		const fallback = Services.RunService and Services.RunService[name]
 		if fallback and type(fallback.Connect) == "function" then
 			return fallback, name
 		end
@@ -31414,8 +31386,8 @@ NAmanage.NPCArgAll = NAmanage.NPCArgAll or function()
 			Insert(out, m)
 		end
 	end
-	if Workspace then
-		for _, m in Workspace:QueryDescendants("Model") do
+	if Services.Workspace then
+		for _, m in Services.Workspace:QueryDescendants("Model") do
 			add(m)
 		end
 	end
@@ -31682,7 +31654,7 @@ NAmanage.PlayerArgIsNeutral = NAmanage.PlayerArgIsNeutral or function(player)
 end
 
 NAmanage.PlayerArgSameTeam = function(target, speaker)
-	const lp = speaker or Players.LocalPlayer
+	const lp = speaker or Services.Players.LocalPlayer
 	if not (typeof(target) == "Instance" and target:IsA("Player")) then
 		return false
 	end
@@ -31712,7 +31684,7 @@ NAmanage.PlayerArgSameTeam = function(target, speaker)
 end
 
 NAmanage.PlayerArgNonTeam = function(target, speaker)
-	const lp = speaker or Players.LocalPlayer
+	const lp = speaker or Services.Players.LocalPlayer
 	if not (typeof(target) == "Instance" and target:IsA("Player")) then
 		return false
 	end
@@ -32313,10 +32285,10 @@ end
 const function getPlr(a, b)
 	local speaker, raw
 	if b == nil then
-		speaker = Players.LocalPlayer
+		speaker = Services.Players.LocalPlayer
 		raw = originalIO.normalizePlayerQuery(a)
 	else
-		speaker = a or Players.LocalPlayer
+		speaker = a or Services.Players.LocalPlayer
 		raw = originalIO.normalizePlayerQuery(b)
 	end
 
@@ -32403,7 +32375,7 @@ end
 NAmanage.PersistentPlayerRefs = function(query, speaker)
 	const refs = {}
 	const seen = {}
-	for _, player in getPlr(speaker or Players.LocalPlayer, query) do
+	for _, player in getPlr(speaker or Services.Players.LocalPlayer, query) do
 		if typeof(player) == "Instance" and player:IsA("Player") and not seen[player.UserId] then
 			seen[player.UserId] = true
 			Insert(refs, NAmanage.NewPersistentPlayerRef(player))
@@ -32564,9 +32536,9 @@ NAmanage.RotectorUserLabel = function(id, fallback)
 			return "@"..name
 		end
 	end
-	if n and UserService and type(UserService.GetUserInfosByUserIdsAsync) == "function" then
+	if n and Services.UserService and type(Services.UserService.GetUserInfosByUserIdsAsync) == "function" then
 		local ok, infos = pcall(function()
-			return UserService:GetUserInfosByUserIdsAsync({ n })
+			return Services.UserService:GetUserInfosByUserIdsAsync({ n })
 		end)
 		if ok and type(infos) == "table" then
 			for _, info in infos do
@@ -32580,7 +32552,7 @@ NAmanage.RotectorUserLabel = function(id, fallback)
 	end
 	if n then
 		local ok, name = pcall(function()
-			return Players:GetNameFromUserIdAsync(n)
+			return Services.Players:GetNameFromUserIdAsync(n)
 		end)
 		if ok and type(name) == "string" and name ~= "" then
 			rt.userInfo[key] = { Id = n; Username = name; }
@@ -32608,7 +32580,7 @@ NAmanage.RotectorResolveOfflineUser = function(query)
 		return nil, nil, "empty username"
 	end
 	local ok, uid = pcall(function()
-		return Players:GetUserIdFromNameAsync(name)
+		return Services.Players:GetUserIdFromNameAsync(name)
 	end)
 	uid = ok and tonumber(uid) or nil
 	if uid and uid > 0 then
@@ -32629,11 +32601,11 @@ NAmanage.RotectorExtractBody = function(response)
 end
 
 NAmanage.RotectorHttpPost = function(payload)
-	if not (HttpService and type(HttpService.JSONEncode) == "function" and type(HttpService.JSONDecode) == "function") then
+	if not (Services.HttpService and type(Services.HttpService.JSONEncode) == "function" and type(Services.HttpService.JSONDecode) == "function") then
 		return nil, "HttpService JSON support is unavailable"
 	end
 
-	local okEncode, body = pcall(HttpService.JSONEncode, HttpService, payload)
+	local okEncode, body = pcall(Services.HttpService.JSONEncode, Services.HttpService, payload)
 	if not okEncode or type(body) ~= "string" then
 		return nil, "failed to encode request"
 	end
@@ -32706,7 +32678,7 @@ NAmanage.RotectorLookupIds = function(ids, opts)
 	if not body then
 		return nil, requestErr or "request failed"
 	end
-	local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, body)
+	local okDecode, decoded = pcall(Services.HttpService.JSONDecode, Services.HttpService, body)
 	if not okDecode or type(decoded) ~= "table" then
 		return nil, "invalid JSON response"
 	end
@@ -32941,9 +32913,9 @@ NAmanage.RotectorStoreVisual = function(inst)
 				return protected.Parent
 			end
 		end
-		const host = COREGUI
+		const host = Services.CoreGui
 			or (NAlib.huiGrabber and NAlib.huiGrabber())
-			or (Players and Players.LocalPlayer and Players.LocalPlayer:FindFirstChildOfClass("PlayerGui"))
+			or (Services.Players and Services.Players.LocalPlayer and Services.Players.LocalPlayer:FindFirstChildOfClass("PlayerGui"))
 		if host then
 			inst.Parent = host
 			return host
@@ -32954,9 +32926,9 @@ NAmanage.RotectorStoreVisual = function(inst)
 		return NAmanage.ESP_StoreVisual(inst)
 	end
 	const host = (NAlib.huiGrabber and NAlib.huiGrabber())
-		or COREGUI
-		or (Players and Players.LocalPlayer and Players.LocalPlayer:FindFirstChildOfClass("PlayerGui"))
-		or Workspace.CurrentCamera
+		or Services.CoreGui
+		or (Services.Players and Services.Players.LocalPlayer and Services.Players.LocalPlayer:FindFirstChildOfClass("PlayerGui"))
+		or Services.Workspace.CurrentCamera
 	if not host then
 		return nil
 	end
@@ -33016,7 +32988,7 @@ NAmanage.RotectorUpdateMarkerFrame = function(marker)
 	if not (typeof(frame) == "Instance" and typeof(plr) == "Instance" and plr.Parent == RawPlayers) then
 		return
 	end
-	const camera = Workspace and Workspace.CurrentCamera
+	const camera = Services.Workspace and Services.Workspace.CurrentCamera
 	local _, anchor = NAmanage.RotectorFindAnchor(plr)
 	if not (camera and anchor) then
 		frame.Visible = false
@@ -33042,7 +33014,7 @@ NAmanage.RotectorEnsureRenderLoop = function()
 	if rt.renderConn then
 		return
 	end
-	rt.renderConn = RunService.RenderStepped:Connect(function()
+	rt.renderConn = Services.RunService.RenderStepped:Connect(function()
 		const markers = rt.markers
 		if type(markers) ~= "table" then
 			return
@@ -33679,7 +33651,7 @@ plr=Player
 speaker=Player
 char=plr.Character
 deathCFrame = nil
-const JSONEncode,JSONDecode=HttpService.JSONEncode,HttpService.JSONDecode
+const JSONEncode,JSONDecode=Services.HttpService.JSONEncode,Services.HttpService.JSONDecode
 
 NACaller(function()
 	LocalPlayer.CharacterAdded:Connect(function(c)
@@ -34139,7 +34111,7 @@ NAgui.getInstanceWorldBounds = function(inst)
 end
 
 NAgui.getInstanceViewportBounds = function(inst, camera)
-	camera = camera or (Workspace and Workspace.CurrentCamera)
+	camera = camera or (Services.Workspace and Services.Workspace.CurrentCamera)
 	if not camera then
 		return nil
 	end
@@ -34341,7 +34313,7 @@ end
 
 NAmanage.DrawingUpdateText = function(txt, worldPos, text, color, textSize, options)
 	if not txt then return false end
-	const cam = Workspace and Workspace.CurrentCamera
+	const cam = Services.Workspace and Services.Workspace.CurrentCamera
 	if not cam or not worldPos then
 		pcall(function()
 			txt.Visible = false
@@ -34513,7 +34485,7 @@ NAgui.updateLabelBounds=function(label)
 		text = label.Name or " "
 	end
 	const targetSize = NAgui.sanitizeLabelSize(NAStuff.ESP_LabelTextSize)
-	local success, bounds = pcall(TextService.GetTextSize, TextService, text, targetSize, label.Font, Vector2.new(1e4, 1e4))
+	local success, bounds = pcall(Services.TextService.GetTextSize, Services.TextService, text, targetSize, label.Font, Vector2.new(1e4, 1e4))
 	local width = 150
 	local height = math.max(targetSize + 12, 30)
 	if success and bounds then
@@ -34748,7 +34720,7 @@ NAmanage.PartESP_QueueRun = function()
 	if NAlib.isConnected("esp_part_queue") then
 		return
 	end
-	NAlib.connect("esp_part_queue", RunService.Heartbeat:Connect(function()
+	NAlib.connect("esp_part_queue", Services.RunService.Heartbeat:Connect(function()
 		const queue = NAStuff.partESPQueue
 		const qMap = NAStuff.partESPQueueMap
 		local head = tonumber(NAStuff.partESPQueueHead) or 1
@@ -34929,7 +34901,7 @@ NAmanage.PartESP_StartSweep = function(key, predicate, budget, intervalOverride)
 
 	if not NAlib.isConnected(key) then
 		state.nextRun = 0
-		NAlib.connect(key, RunService.Heartbeat:Connect(function()
+		NAlib.connect(key, Services.RunService.Heartbeat:Connect(function()
 			const active = NAStuff.partESPSweeps and NAStuff.partESPSweeps[key]
 			if active ~= state then
 				NAlib.disconnect(key)
@@ -35063,8 +35035,8 @@ NAmanage.ESP_GetOcclusionFilterList = function(inst, localChar, opts)
 end
 
 NAmanage.ESP_RaycastOccluded = function(inst, targetPos, localChar, opts)
-	const cam = Workspace and Workspace.CurrentCamera
-	if not (cam and Workspace and Workspace.Raycast and targetPos) then
+	const cam = Services.Workspace and Services.Workspace.CurrentCamera
+	if not (cam and Services.Workspace and Services.Workspace.Raycast and targetPos) then
 		return false
 	end
 	const origin = cam.CFrame.Position
@@ -35096,7 +35068,7 @@ NAmanage.ESP_RaycastOccluded = function(inst, targetPos, localChar, opts)
 	const probeLimit = math.clamp(math.floor(tonumber(NAStuff.ESP_OcclusionHitProbeLimit) or 4), 1, 20)
 	for _ = 1, probeLimit do
 		params.FilterDescendantsInstances = filter
-		const result = Workspace:Raycast(origin, direction, params)
+		const result = Services.Workspace:Raycast(origin, direction, params)
 		if not result then
 			return false
 		end
@@ -35183,7 +35155,7 @@ NAmanage.PartESP_UpdateEntry = function(entry, force, rootPart)
 	if NAStuff.ESP_OcclusionEnabled == true and NAStuff.ESP_OcclusionIncludeParts == true then
 		const pos = NAgui.getInstanceWorldPosition(part)
 		if pos then
-			const plr = Players.LocalPlayer
+			const plr = Services.Players.LocalPlayer
 			const char = plr and plr.Character
 			occluded = NAmanage.ESP_GetOcclusionState(part, part, pos, char, tick(), false, {
 				partESP = true
@@ -35206,7 +35178,7 @@ NAmanage.PartESP_UpdateEntry = function(entry, force, rootPart)
 	const showDistance = (NAStuff.ESP_ShowPartDistance == true)
 	local root = rootPart
 	if showDistance and not root then
-		const plr = Players.LocalPlayer
+		const plr = Services.Players.LocalPlayer
 		const char = plr and plr.Character
 		root = char and getRoot(char)
 	end
@@ -35370,7 +35342,7 @@ NAmanage.PartESP_UpdateTexts = function(force)
 	end
 	local rootPart = nil
 	if NAStuff.ESP_ShowPartDistance == true then
-		const plr = Players.LocalPlayer
+		const plr = Services.Players.LocalPlayer
 		const char = plr and plr.Character
 		rootPart = char and getRoot(char)
 	end
@@ -35438,7 +35410,7 @@ NAmanage.PartESP_StartHeartbeat = function()
 	end
 	NAStuff.partESPUpdateSignal = desiredSignal
 	NAStuff.partESPLastUpdate = 0
-	const signal = useDrawingSignal and RunService.RenderStepped or RunService.Heartbeat
+	const signal = useDrawingSignal and Services.RunService.RenderStepped or Services.RunService.Heartbeat
 	NAlib.connect("esp_part_update", signal:Connect(function()
 		NAmanage.PartESP_UpdateTexts(false)
 	end))
@@ -35743,9 +35715,9 @@ end
 
 NAmanage.ESP_GetSecureHost = function()
 	const host = (NAlib.huiGrabber and NAlib.huiGrabber())
-		or COREGUI
-		or (Players and Players.LocalPlayer and Players.LocalPlayer:FindFirstChildOfClass("PlayerGui"))
-		or Workspace.CurrentCamera
+		or Services.CoreGui
+		or (Services.Players and Services.Players.LocalPlayer and Services.Players.LocalPlayer:FindFirstChildOfClass("PlayerGui"))
+		or Services.Workspace.CurrentCamera
 	if typeof(host) == "Instance" then
 		return host
 	end
@@ -35844,7 +35816,7 @@ NAmanage.ESP_CollectTrackedBillboards = function(model, uid)
 end
 
 NAmanage.Helper_GetSecureHost = function()
-	return Workspace
+	return Services.Workspace
 end
 
 NAmanage.Helper_EnsureSecureContainer = function()
@@ -36199,7 +36171,7 @@ NAmanage.ESP_GetDrawingBoxStyle = function()
 end
 
 NAmanage.ESP_GetDrawingTracerOrigin = function(viewportSize)
-	const vp = viewportSize or (Workspace and Workspace.CurrentCamera and Workspace.CurrentCamera.ViewportSize)
+	const vp = viewportSize or (Services.Workspace and Services.Workspace.CurrentCamera and Services.Workspace.CurrentCamera.ViewportSize)
 	if typeof(vp) ~= "Vector2" then
 		return nil
 	end
@@ -36416,7 +36388,7 @@ NAmanage.ESP_UpdateDrawingTracer = function(data, inst, color)
 		if data.drawingTracerOutline then pcall(function() data.drawingTracerOutline.Visible = false end) end
 		return true
 	end
-	const cam = Workspace and Workspace.CurrentCamera
+	const cam = Services.Workspace and Services.Workspace.CurrentCamera
 	if not cam then
 		return false
 	end
@@ -36762,7 +36734,7 @@ NAmanage.ESP_PlayerPassesTeamFilter = function(player)
 	if not (typeof(player) == "Instance" and player:IsA("Player")) then
 		return false
 	end
-	if player == Players.LocalPlayer then
+	if player == Services.Players.LocalPlayer then
 		return false
 	end
 
@@ -36794,7 +36766,7 @@ NAmanage.ESP_ShouldTrackPlayer = function(player)
 	if not ((ESPPlayersEnabled or chamsEnabled) == true) then
 		return false
 	end
-	if not (typeof(player) == "Instance" and player:IsA("Player") and player.Parent ~= nil and player ~= Players.LocalPlayer) then
+	if not (typeof(player) == "Instance" and player:IsA("Player") and player.Parent ~= nil and player ~= Services.Players.LocalPlayer) then
 		return false
 	end
 	if NAmanage.ESP_HasPlayerLabelOverride and NAmanage.ESP_HasPlayerLabelOverride(player) == true then
@@ -36811,7 +36783,7 @@ NAmanage.ESP_RefreshPlayerTeamFilters = NAmanage.ESP_RefreshPlayerTeamFilters or
 		return
 	end
 	for _, plr in __lt.cm("Players", "GetPlayers") do
-		if plr ~= Players.LocalPlayer then
+		if plr ~= Services.Players.LocalPlayer then
 			if NAmanage.ESP_ShouldTrackPlayer(plr) then
 				if ESPAutoTrackAll or NAmanage.ESP_HasPlayerLabelOverride(plr) == true then
 					const model = plr.Character
@@ -36890,7 +36862,7 @@ NAmanage.ESP_WatchPlayerCharacter = function(player, model)
 			NAmanage.ESP_RequestReattachPlayer(player, force == true)
 			return
 		end
-		if Workspace and model.Parent and model:IsDescendantOf(Workspace) then
+		if Services.Workspace and model.Parent and model:IsDescendantOf(Services.Workspace) then
 			const data = espCONS[model]
 			if NAmanage.IsValidESPModel(model, false) then
 				if not data then
@@ -36935,7 +36907,7 @@ NAmanage.ESP_SetupPlayerWatch = function(player)
 	if not (typeof(player) == "Instance" and player:IsA("Player")) then
 		return
 	end
-	if player == Players.LocalPlayer then
+	if player == Services.Players.LocalPlayer then
 		return
 	end
 	const addKey = NAmanage.ESP_PlayerConnKey("esp_charAdded_plr", player)
@@ -37019,7 +36991,7 @@ NAmanage.ESP_StartPlayerRosterWatch = NAmanage.ESP_StartPlayerRosterWatch or fun
 		end
 	end
 
-	NAlib.connect("esp_roster_player_added", Players.PlayerAdded:Connect(function(player)
+	NAlib.connect("esp_roster_player_added", Services.Players.PlayerAdded:Connect(function(player)
 		Defer(function()
 			if not (ESPPlayersEnabled or chamsEnabled) then
 				return
@@ -37031,7 +37003,7 @@ NAmanage.ESP_StartPlayerRosterWatch = NAmanage.ESP_StartPlayerRosterWatch or fun
 		end)
 	end))
 
-	NAlib.connect("esp_roster_player_removing", Players.PlayerRemoving:Connect(function(player)
+	NAlib.connect("esp_roster_player_removing", Services.Players.PlayerRemoving:Connect(function(player)
 		const model = player and player.Character
 		if model and espCONS[model] then
 			NAmanage.ESP_ClearModel(model)
@@ -37041,7 +37013,7 @@ NAmanage.ESP_StartPlayerRosterWatch = NAmanage.ESP_StartPlayerRosterWatch or fun
 		end
 	end))
 
-	const lp = Players.LocalPlayer
+	const lp = Services.Players.LocalPlayer
 	if typeof(lp) == "Instance" and lp:IsA("Player") then
 		NAlib.connect("esp_local_team_changed", lp:GetPropertyChangedSignal("Team"):Connect(refreshAll))
 		NAlib.connect("esp_local_teamcolor_changed", lp:GetPropertyChangedSignal("TeamColor"):Connect(refreshAll))
@@ -37067,7 +37039,7 @@ NAmanage.ESP_GetPlayerCharacterSet = function()
 		end
 	end
 	for _, plr in __lt.cm("Players", "GetPlayers") do
-		if plr ~= Players.LocalPlayer then
+		if plr ~= Services.Players.LocalPlayer then
 			const char = plr and plr.Character
 			if typeof(char) == "Instance" then
 				characters[char] = true
@@ -37214,7 +37186,7 @@ NAmanage.ESP_RequestReattachPlayer = function(player, force)
 				if not NAlib.isConnected(parentKey) or NAStuff.ESP_WatchedCharacterByUserId[uid] ~= model then
 					NAmanage.ESP_WatchPlayerCharacter(player, model)
 				end
-				if Workspace and model.Parent and model:IsDescendantOf(Workspace) and NAmanage.IsValidESPModel(model, false) then
+				if Services.Workspace and model.Parent and model:IsDescendantOf(Services.Workspace) and NAmanage.IsValidESPModel(model, false) then
 					if not espCONS[model] then
 						NAmanage.ESP_Add(player, true, false)
 					end
@@ -37243,7 +37215,7 @@ NAmanage.ESP_ReconcilePlayers = function(now)
 	for model, data in espCONS do
 		if data and data.isNPC ~= true and data.persistent == true then
 			const owner = data.ownerPlayer
-			if not (owner and owner.Parent and NAmanage.ESP_ShouldTrackPlayer(owner) and owner.Character == model and model.Parent and Workspace and model:IsDescendantOf(Workspace)) then
+			if not (owner and owner.Parent and NAmanage.ESP_ShouldTrackPlayer(owner) and owner.Character == model and model.Parent and Services.Workspace and model:IsDescendantOf(Services.Workspace)) then
 				stale[#stale + 1] = model
 			end
 		end
@@ -37252,7 +37224,7 @@ NAmanage.ESP_ReconcilePlayers = function(now)
 		NAmanage.ESP_ClearModel(stale[i])
 	end
 	for _, player in __lt.cm("Players", "GetPlayers") do
-		if player ~= Players.LocalPlayer then
+		if player ~= Services.Players.LocalPlayer then
 			const addKey = NAmanage.ESP_PlayerConnKey("esp_charAdded_plr", player)
 			if not NAlib.isConnected(addKey) then
 				NAmanage.ESP_SetupPlayerWatch(player)
@@ -37370,7 +37342,7 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 	const checkOcclusion = (isNPC and NAStuff.ESP_OcclusionIncludeNPCs == true)
 		or ((not isNPC) and NAStuff.ESP_OcclusionIncludePlayers == true)
 	if rootPart and checkOcclusion then
-		const plr = Players.LocalPlayer
+		const plr = Services.Players.LocalPlayer
 		const char = plr and plr.Character
 		occluded = NAmanage.ESP_GetOcclusionState(model, model, rootPart.Position, char, now)
 	end
@@ -37644,7 +37616,7 @@ NAmanage.ESP_Add = function(target, persistent, isNPC)
 	NAlib.connect(key.."_ancestry", model.AncestryChanged:Connect(function(_, parent)
 		const data = espCONS[model]
 		if not data then return end
-		if parent == nil or not (Workspace and model:IsDescendantOf(Workspace)) then
+		if parent == nil or not (Services.Workspace and model:IsDescendantOf(Services.Workspace)) then
 			const owner = data.ownerPlayer
 			NAmanage.ESP_ClearModel(model)
 			if data.persistent and owner then
@@ -37666,7 +37638,7 @@ end
 
 NAmanage.ESP_StartGlobal = function()
 	if NAlib.isConnected("esp_update_global") then return end
-	NAlib.connect("esp_update_global", RunService.Heartbeat:Connect(function()
+	NAlib.connect("esp_update_global", Services.RunService.Heartbeat:Connect(function()
 		if not (ESPenabled or chamsEnabled) then return end
 		const now = tick()
 		if ESPPlayersEnabled or chamsEnabled then
@@ -37676,7 +37648,7 @@ NAmanage.ESP_StartGlobal = function()
 		const n = list and #list or 0
 		if n == 0 then return end
 
-		const plr = Players.LocalPlayer
+		const plr = Services.Players.LocalPlayer
 		const char = plr and plr.Character or nil
 		const root = char and getRoot(char) or nil
 
@@ -37843,7 +37815,7 @@ originalIO.applyXrayToPart=function(prt, transVal)
 end
 
 originalIO.scanWorkspaceXray=function(transVal, token)
-	const root = Workspace
+	const root = Services.Workspace
 	if not root then
 		return
 	end
@@ -38010,7 +37982,7 @@ NAmanage.SaveFlyKeybinds = function()
 	NAStuff.FreecamUpKey = payload.freecamUp
 	NAStuff.FreecamDownKey = payload.freecamDown
 	local ok, err = pcall(function()
-		writefile(NAfiles.NAFLYBINDSPATH, HttpService:JSONEncode(payload))
+		writefile(NAfiles.NAFLYBINDSPATH, Services.HttpService:JSONEncode(payload))
 	end)
 	if not ok then
 		warn("[NA] Fly keybind save failed: "..tostring(err))
@@ -38039,7 +38011,7 @@ NAmanage.LoadFlyKeybinds = function()
 	end
 
 	local okDecode, decoded = pcall(function()
-		return HttpService:JSONDecode(raw)
+		return Services.HttpService:JSONDecode(raw)
 	end)
 	if not okDecode or type(decoded) ~= "table" then
 		return
@@ -38061,7 +38033,7 @@ NAmanage.LoadFlyKeybinds()
 
 -----------------------------
 
-cmdlp = Players.LocalPlayer
+cmdlp = Services.Players.LocalPlayer
 plr = cmdlp
 goofyFLY = nil
 
@@ -38157,7 +38129,7 @@ NAmanage._clearPhysics = function(full)
 	end
 
 	Spawn(function()
-		const root = Workspace
+		const root = Services.Workspace
 		if not root then
 			return
 		end
@@ -38559,14 +38531,14 @@ NAmanage.pauseCurrent = function()
 end
 
 NAmanage._camera=function()
-	const cam=Workspace.CurrentCamera
+	const cam=Services.Workspace.CurrentCamera
 	if cam and cam.Parent then return cam end
 	return nil
 end
 
 NAmanage._bindCameraWatch=function()
 	if flyVariables._camChangedConn then pcall(function() flyVariables._camChangedConn:Disconnect() end) end
-	flyVariables._camChangedConn=Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function() end)
+	flyVariables._camChangedConn=Services.Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function() end)
 end
 
 NAmanage.resumeCurrent=function()
@@ -38702,7 +38674,7 @@ NAmanage._ensureMobileFlyUI=function(mode)
 		mk("tfly",function() return FLYING and "UnTFly" or "TFly" end,function() NAmanage.toggleTFly() end,function() return flyVariables.TflySpeed end,function(v) flyVariables.TflySpeed=v end,function(gui,btn) flyVariables.tflyButtonUI=gui flyVariables.TFLYBTN=btn end)
 	end
 	if flyVariables.uiUpdateConn then pcall(function() flyVariables.uiUpdateConn:Disconnect() end) end
-	flyVariables.uiUpdateConn=NAlib.reconnect("fly_mobile_ui_update", RunService.Heartbeat:Connect(function()
+	flyVariables.uiUpdateConn=NAlib.reconnect("fly_mobile_ui_update", Services.RunService.Heartbeat:Connect(function()
 		if mode=="fly" and flyVariables.mFlyBruh then
 			const b=flyVariables.mFlyBruh:FindFirstChildOfClass("TextButton")
 			if b then b.Text=FLYING and "Unfly" or "Fly" b.BackgroundColor3=FLYING and Color3.fromRGB(0,170,0) or Color3.fromRGB(30,30,30) end
@@ -38755,7 +38727,7 @@ NAmanage.sFLY=function(vfly,cfly,tfly)
 	end
 	NAmanage._bindQE()
 	if tfly then
-		goofyFLY=goofyFLY or InstanceNew("Part",Workspace)
+		goofyFLY=goofyFLY or InstanceNew("Part",Services.Workspace)
 		NAmanage.configureFlyHelper(goofyFLY)
 		if not goofyFLY:FindFirstChildOfClass("Weld") then
 			const w=InstanceNew("Weld",goofyFLY) w.Part0=goofyFLY w.Part1=root w.C0=CFrame.new()
@@ -38801,7 +38773,7 @@ NAmanage.sFLY=function(vfly,cfly,tfly)
 			end)
 		end
 	elseif cfly then
-		goofyFLY=goofyFLY or InstanceNew("Part",Workspace)
+		goofyFLY=goofyFLY or InstanceNew("Part",Services.Workspace)
 		NAmanage.configureFlyHelper(goofyFLY)
 		goofyFLY.Anchored=true
 		const cflyTarget=NAmanage._getCFlyTarget(getChar())
@@ -38814,7 +38786,7 @@ NAmanage.sFLY=function(vfly,cfly,tfly)
 		end
 		if CFloop then pcall(function() CFloop:Disconnect() end) end
 		NAlib.disconnect("fly_cfly_loop")
-		CFloop=NAlib.reconnect("fly_cfly_loop", RunService.RenderStepped:Connect(function()
+		CFloop=NAlib.reconnect("fly_cfly_loop", Services.RunService.RenderStepped:Connect(function()
 			if NAmanage._state.mode~="cfly" or not FLYING then return end
 			const currentChar=getChar()
 			const currentTarget=NAmanage._getCFlyTarget(currentChar)
@@ -38833,7 +38805,7 @@ NAmanage.sFLY=function(vfly,cfly,tfly)
 			end
 		end))
 	else
-		goofyFLY=goofyFLY or InstanceNew("Part",Workspace)
+		goofyFLY=goofyFLY or InstanceNew("Part",Services.Workspace)
 		NAmanage.configureFlyHelper(goofyFLY)
 		if not goofyFLY:FindFirstChildOfClass("Weld") then
 			const w=InstanceNew("Weld",goofyFLY) w.Part0=goofyFLY w.Part1=root w.C0=CFrame.new()
@@ -38907,7 +38879,7 @@ NAmanage._ensureForces=function()
 	const root=getRoot(char); if not root then return end
 	const cam=NAmanage._camera()
 	if not goofyFLY or goofyFLY.Parent==nil then
-		goofyFLY=InstanceNew("Part",Workspace)
+		goofyFLY=InstanceNew("Part",Services.Workspace)
 		NAmanage.configureFlyHelper(goofyFLY)
 		goofyFLY.Anchored=(NAmanage._state.mode=="cfly")
 		const head=getHead(char); if head then goofyFLY:PivotTo(head:GetPivot()) end
@@ -38984,7 +38956,7 @@ NAmanage._ensureLoops=function()
 							const currentChar=getChar()
 							const currentHum=getHum(currentChar)
 							const currentRoot=currentChar and getRoot(currentChar)
-							const cam=Workspace.CurrentCamera
+							const cam=Services.Workspace.CurrentCamera
 							const sp=tonumber(flyVariables.TflySpeed) or 1
 							const moveDirection=NAmanage.GetFlyMoveDirection(cam, 1)
 							local np=flyVariables.TFgyro.cframe-flyVariables.TFgyro.cframe.p+flyVariables.TFpos.position
@@ -39025,7 +38997,7 @@ NAmanage._ensureLoops=function()
 							const currentChar=getChar()
 							const currentHum=getHum(currentChar)
 							const currentRoot=currentChar and getRoot(currentChar)
-							const cam=Workspace.CurrentCamera
+							const cam=Services.Workspace.CurrentCamera
 							const moveDirection=NAmanage.GetFlyMoveDirection(cam, 0.2)
 							const has=moveDirection.Magnitude>0
 							if has then
@@ -39072,13 +39044,13 @@ NAmanage._ensureLoops=function()
 	elseif NAmanage._state.mode=="cfly" then
 		if not CFloop or CFloop.Connected==false then
 			if CFloop then pcall(function() CFloop:Disconnect() end) end
-			CFloop=NAlib.reconnect("fly_cfly_loop", RunService.RenderStepped:Connect(function()
+			CFloop=NAlib.reconnect("fly_cfly_loop", Services.RunService.RenderStepped:Connect(function()
 				if NAmanage._state.mode~="cfly" or not FLYING then return end
 				NAmanage._ensureForces()
 				const char=getChar()
 				const cflyTarget=NAmanage._getCFlyTarget(char)
 				if not cflyTarget then return end
-				const cam=Workspace.CurrentCamera
+				const cam=Services.Workspace.CurrentCamera
 				if not cam then return end
 				const vertical=(CONTROL.E+CONTROL.Q)
 				const md=NAmanage.GetCFlyMoveDirection(cam)+(cam.CFrame.UpVector*vertical)
@@ -39098,12 +39070,12 @@ end
 
 NAmanage._ensureWeldTarget=function()
 	if flyVariables._weldLoopConn then return end
-	flyVariables._weldLoopConn=NAlib.reconnect("fly_weld_target", RunService.Heartbeat:Connect(function()
+	flyVariables._weldLoopConn=NAlib.reconnect("fly_weld_target", Services.RunService.Heartbeat:Connect(function()
 		if NAmanage._state.mode=="none" or NAmanage._state.mode=="cfly" or not FLYING then return end
 		const char=getChar(); if not char then return end
 		const root=getRoot(char); if not root then return end
 		if not goofyFLY or goofyFLY.Parent==nil then
-			goofyFLY=InstanceNew("Part",Workspace)
+			goofyFLY=InstanceNew("Part",Services.Workspace)
 			NAmanage.configureFlyHelper(goofyFLY)
 			goofyFLY.Anchored=false
 			const head=getHead(char); if head then goofyFLY:PivotTo(head:GetPivot()) end
@@ -39138,7 +39110,7 @@ NAmanage.startWatcher=function()
 		NAmanage._bindCameraWatch()
 		return
 	end
-	flyVariables._watchConn=NAlib.reconnect("fly_watch", RunService.Heartbeat:Connect(function()
+	flyVariables._watchConn=NAlib.reconnect("fly_watch", Services.RunService.Heartbeat:Connect(function()
 		const watching = flyVariables.flyEnabled or flyVariables.vFlyEnabled or flyVariables.cFlyEnabled or flyVariables.TFlyEnabled
 		if not watching then
 			if flyVariables._watchConn then
@@ -39254,7 +39226,7 @@ NAmanage._resumeCFlyAfterRespawn = function(char, token)
 end
 
 NAmanage._bindFlyCharacterCleanup = function()
-	const lp = Players and Players.LocalPlayer
+	const lp = Services.Players and Services.Players.LocalPlayer
 	if not lp then
 		return
 	end
@@ -39339,7 +39311,7 @@ NAmanage.activateMode = function(mode, opts)
 	if NAlib.isConnected("fly_pending_char") then
 		NAlib.disconnect("fly_pending_char")
 	end
-	NAlib.connect("fly_pending_char", Players.LocalPlayer.CharacterAdded:Connect(function()
+	NAlib.connect("fly_pending_char", Services.Players.LocalPlayer.CharacterAdded:Connect(function()
 		Spawn(function()
 			local t=0
 			while t<5 and (not getChar() or not getRoot(getChar()) or not getHum()) do
@@ -39446,7 +39418,7 @@ NAmanage._connectFlyToggleKey = function(connField, keyField, mode)
 		oldConn:Disconnect()
 		flyVariables[connField] = nil
 	end
-	flyVariables[connField] = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	flyVariables[connField] = Services.UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		if NAmanage._shouldIgnoreFlyKeyInput(input, gameProcessed) then
 			return
 		end
@@ -39489,7 +39461,7 @@ NAmanage.readAliasFile = function()
 	end
 
 	local okDecode, decoded = pcall(function()
-		return HttpService:JSONDecode(raw)
+		return Services.HttpService:JSONDecode(raw)
 	end)
 	if okDecode and type(decoded) == "table" then
 		return decoded
@@ -39501,7 +39473,7 @@ NAmanage.readAliasFile = function()
 		pcall(writefile, backupPath, raw)
 		NAmanage.loaderWarn('Aliases', ('failed to decode storage; backed up to %s, resetting'):format(backupPath))
 	end
-	pcall(writefile, NAfiles.NAALIASPATH, HttpService:JSONEncode({}))
+	pcall(writefile, NAfiles.NAALIASPATH, Services.HttpService:JSONEncode({}))
 	return {}
 end
 
@@ -39525,7 +39497,7 @@ NAmanage.decodeUserButtons=function(raw)
 		return nil
 	end
 	local ok, decoded = pcall(function()
-		return HttpService:JSONDecode(raw)
+		return Services.HttpService:JSONDecode(raw)
 	end)
 	if ok and type(decoded) == "table" then
 		return decoded
@@ -39574,7 +39546,7 @@ NAmanage.UserButtonsSave = function(reason, data)
 
 	const path = NAfiles.NAUSERBUTTONSPATH
 	const backupPath = path..".bak"
-	local okEncode, encoded = pcall(HttpService.JSONEncode, HttpService, pay)
+	local okEncode, encoded = pcall(Services.HttpService.JSONEncode, Services.HttpService, pay)
 	if not okEncode then
 		NAmanage.loaderWarn('UserButtons', 'failed to encode data'..(reason and (' ('..reason..')') or '')..': '..tostring(encoded))
 		return false
@@ -39607,7 +39579,7 @@ NAmanage.loadButtonIDS = function()
 
 	if not (isfile and isfile(path)) then
 		local okCreate, createErr = pcall(function()
-			writefile(path, HttpService:JSONEncode({}))
+			writefile(path, Services.HttpService:JSONEncode({}))
 		end)
 		if not okCreate then
 			NAmanage.loaderWarn('UserButtons', 'failed to create storage: '..tostring(createErr))
@@ -39926,7 +39898,7 @@ NAmanage.AutoExecSave = function(data, context)
 	end
 
 	local ok, err = pcall(function()
-		writefile(NAfiles.NAAUTOEXECPATH, HttpService:JSONEncode(out))
+		writefile(NAfiles.NAAUTOEXECPATH, Services.HttpService:JSONEncode(out))
 	end)
 
 	if not ok then
@@ -39951,7 +39923,7 @@ NAmanage.loadAutoExec = function()
 
 	if not (isfile and isfile(path)) then
 		local okc, erc = pcall(function()
-			writefile(path, HttpService:JSONEncode({ commands = {}, args = {} }))
+			writefile(path, Services.HttpService:JSONEncode({ commands = {}, args = {} }))
 		end)
 		if not okc then
 			NAmanage.loaderWarn("AutoExec", "failed to create storage: " .. tostring(erc))
@@ -39966,7 +39938,7 @@ NAmanage.loadAutoExec = function()
 	end
 
 	local okd, dec = pcall(function()
-		return HttpService:JSONDecode(raw)
+		return Services.HttpService:JSONDecode(raw)
 	end)
 
 	if not okd or type(dec) ~= "table" then
@@ -39978,7 +39950,7 @@ NAmanage.loadAutoExec = function()
 			pcall(writefile, bkp, raw)
 			NAmanage.loaderWarn("AutoExec", ("failed to decode storage; backed up to %s, resetting"):format(bkp))
 			local okrs, er2 = pcall(function()
-				writefile(path, HttpService:JSONEncode({ commands = {}, args = {} }))
+				writefile(path, Services.HttpService:JSONEncode({ commands = {}, args = {} }))
 			end)
 			if not okrs then
 				NAmanage.loaderWarn("AutoExec", "failed to reset storage: " .. tostring(er2))
@@ -41740,10 +41712,9 @@ NAmanage.LoadPlugins = function(opts)
 				return pluginServiceCache[name]
 			end
 			local svc
-			const ref = (NAmanage and type(NAmanage.NA_getCloneRef) == "function" and NAmanage.NA_getCloneRef()) or ((type(cloneref) == "function") and cloneref or nil)
 			if type(__lt) == "table" then
-				if type(ref) == "function" and type(__lt.cs) == "function" then
-					local ok, resolved = pcall(__lt.cs, name, ref)
+				if type(cloneref) == "function" and type(__lt.cs) == "function" then
+					local ok, resolved = pcall(__lt.cs, name, cloneref)
 					if ok and typeof(resolved) == "Instance" then
 						svc = resolved
 					end
@@ -41758,8 +41729,8 @@ NAmanage.LoadPlugins = function(opts)
 			if not svc then
 				const rawSvc = _plugGetRawService(name)
 				if rawSvc then
-					if type(ref) == "function" then
-						local okRef, cloned = pcall(ref, rawSvc)
+					if type(__lt) == "table" and type(__lt.cv) == "function" then
+						local okRef, cloned = pcall(__lt.cv, rawSvc)
 						if okRef and typeof(cloned) == "Instance" then
 							svc = cloned
 						end
@@ -45238,7 +45209,7 @@ NAmanage.InitPlugs=function()
 		local frame = pm.Frame
 		if not frame or not frame.Parent then return end
 		if initial == true then
-			local camera = Workspace and Workspace.CurrentCamera
+			local camera = Services.Workspace and Services.Workspace.CurrentCamera
 			local vp = camera and camera.ViewportSize or Vector2.new(900, 600)
 			local width = math.max(300, math.min(900, vp.X - 18))
 			local height = math.max(280, math.min(620, vp.Y - 28))
@@ -45289,7 +45260,7 @@ NAmanage.InitPlugs=function()
 		local pm = NAStuff.PluginMaker
 		local frame = pm.Frame
 		local topbar = pm.Topbar
-		if not frame or not topbar or not UserInputService then return end
+		if not frame or not topbar or not Services.UserInputService then return end
 		pm.dragging = false
 		topbar.InputBegan:Connect(function(input)
 			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -45303,7 +45274,7 @@ NAmanage.InitPlugs=function()
 				end)
 			end
 		end)
-		UserInputService.InputChanged:Connect(function(input)
+		Services.UserInputService.InputChanged:Connect(function(input)
 			if not pm.dragging or not pm.dragStart or not pm.dragPos then return end
 			if input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Touch then return end
 			local delta = input.Position - pm.dragStart
@@ -45686,8 +45657,8 @@ NAmanage.InitPlugs=function()
 		NAmanage.PluginMaker_BindResize()
 		NAmanage.PluginMaker_BindDrag()
 
-		if Workspace and Workspace.CurrentCamera then
-			Workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+		if Services.Workspace and Services.Workspace.CurrentCamera then
+			Services.Workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
 				if pm.Frame and pm.Frame.Parent then
 					NAmanage.PluginMaker_Resize(false)
 					if type(NAmanage.centerFrame) == "function" then
@@ -45969,7 +45940,7 @@ NAmanage.SaveWaypoints = function()
 	const path = NAmanage.GetWPPath()
 
 	if next(Waypoints) then
-		writefile(path, HttpService:JSONEncode(Waypoints))
+		writefile(path, Services.HttpService:JSONEncode(Waypoints))
 	else
 		if delfile and isfile(path) then
 			pcall(delfile, path)
@@ -46056,7 +46027,7 @@ NAmanage.RenderUserButtons = function()
 		table.clear(UserButtonGuiList)
 		table.clear(UserButtonGuiMap)
 
-		const UIS = UserInputService
+		const UIS = Services.UserInputService
 		const SavedArgs       = {}
 		const ActivePrompts   = {}
 		const ActiveKeyBinding= {}
@@ -46084,7 +46055,7 @@ NAmanage.RenderUserButtons = function()
 			dropSize = dropSize or Vector2.new(0, 0)
 			const tap = btn.AbsolutePosition
 			const tsz = btn.AbsoluteSize
-			const cam = Workspace.CurrentCamera
+			const cam = Services.Workspace.CurrentCamera
 			const vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
 			const margin = 8
 			const gapDown = (dropdownPos.gap or 0) + (dropdownPos.downOffset or 0)
@@ -46441,7 +46412,7 @@ NAmanage.RenderUserButtons = function()
 						dropStroke.Parent = container
 						NAgui.RegisterColoredStroke(dropStroke)
 
-						const cam = Workspace.CurrentCamera
+						const cam = Services.Workspace.CurrentCamera
 						const vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
 						const margin = 8
 						const dropWidth = math.max(btn.AbsoluteSize.X + 40, 140)
@@ -46887,7 +46858,7 @@ do
 	end
 end
 
-const lp=Players.LocalPlayer
+const lp=Services.Players.LocalPlayer
 NAStuff.ChatLocalIdentity = NAStuff.ChatLocalIdentity or {}
 if lp then
 	if type(NAStuff.ChatLocalIdentity.realName) ~= "string" or NAStuff.ChatLocalIdentity.realName == "" then
@@ -46910,21 +46881,21 @@ if oldChat then
 	NAlib.LocalPlayerChat=function(...)
 		const args={...}
 		if args[2] and args[2]~="All" then
-			ReplicatedStorage.DefaultChatSystemChatEvents.SayMessageRequest:FireServer("/w "..args[2].." "..args[1] or "","All")
+			Services.ReplicatedStorage.DefaultChatSystemChatEvents.SayMessageRequest:FireServer("/w "..args[2].." "..args[1] or "","All")
 		else
-			ReplicatedStorage.DefaultChatSystemChatEvents.SayMessageRequest:FireServer(args[1] or "","All")
+			Services.ReplicatedStorage.DefaultChatSystemChatEvents.SayMessageRequest:FireServer(args[1] or "","All")
 		end
 	end
 else
 	local RBXGeneral = nil
 
 	const function getTextChannelsContainer()
-		if typeof(TextChatService) ~= "Instance" then
+		if typeof(Services.TextChatService) ~= "Instance" then
 			return nil
 		end
 		local container
 		local ok = pcall(function()
-			container = TextChatService:FindFirstChild("TextChannels")
+			container = Services.TextChatService:FindFirstChild("TextChannels")
 		end)
 		if ok and typeof(container) == "Instance" then
 			return container
@@ -46943,7 +46914,7 @@ else
 				children = result
 			end
 		else
-			local ok, result = pcall(TextChatService.GetChildren, TextChatService)
+			local ok, result = pcall(Services.TextChatService.GetChildren, Services.TextChatService)
 			if ok then
 				children = result
 			end
@@ -47042,7 +47013,7 @@ else
 	const function resolveGeneralChannel()
 		local channels, container = getTextChannels()
 
-		if TextChatService.CreateDefaultTextChannels and container then
+		if Services.TextChatService.CreateDefaultTextChannels and container then
 			const ch = container:FindFirstChild("RBXGeneral")
 			if ch and ch:IsA("TextChannel") and localCanSend(ch) then
 				return ch
@@ -47246,7 +47217,7 @@ NAlib.parseText = function(text, watch, rPlr)
 
 	local prefix
 	if rPlr then
-		if isRelAdmin(rPlr) and isRelAdmin(Players.LocalPlayer) then
+		if isRelAdmin(rPlr) and isRelAdmin(Services.Players.LocalPlayer) then
 			return nil
 		elseif not isRelAdmin(rPlr) then
 			prefix = ";"
@@ -47306,7 +47277,7 @@ end
 
 NAlib.parseCommand = function(text, rPlr)
 	wrap(function()
-		const prefix = rPlr and (isRelAdmin(rPlr) and not isRelAdmin(Players.LocalPlayer) and ";" or nil) or opt.prefix
+		const prefix = rPlr and (isRelAdmin(rPlr) and not isRelAdmin(Services.Players.LocalPlayer) and ";" or nil) or opt.prefix
 		if not prefix then return end
 		const commands = NAlib.parseText(text, prefix, rPlr)
 		if not commands then return end
@@ -47928,7 +47899,7 @@ NAmanage.NAremoveShaderEffects=function(lighting)
 end
 
 cmd.add({"shaders", "shader", "rtx", "hd"}, {"shaders (shader, rtx, hd)", "Enable a shader preset for Lighting"}, function()
-	const lighting = Lighting
+	const lighting = Services.Lighting
 	const RawLighting = __lt.gs("Lighting")
 	if not lighting then
 		DoNotif("Lighting service unavailable", 3)
@@ -48059,7 +48030,7 @@ cmd.add({"shaders", "shader", "rtx", "hd"}, {"shaders (shader, rtx, hd)", "Enabl
 				end) end)
 		end
 
-		st.hook("shader_effects_loop", function() return RunService.RenderStepped:Connect(function()
+		st.hook("shader_effects_loop", function() return Services.RunService.RenderStepped:Connect(function()
 				if not (st.shader and st.shader.enabled) then return end
 				ensureEffects()
 				shader.apply()
@@ -48085,7 +48056,7 @@ cmd.add({"shaders", "shader", "rtx", "hd"}, {"shaders (shader, rtx, hd)", "Enabl
 end)
 
 cmd.add({"unshaders", "shadersoff", "rtxoff"}, {"unshaders (shadersoff, rtxoff)", "Disable the shader preset and restore Lighting"}, function()
-	const lighting = Lighting
+	const lighting = Services.Lighting
 	if not lighting then
 		DoNotif("Lighting service unavailable", 3)
 		return
@@ -48362,7 +48333,7 @@ cmd.add({"ibtools"}, {"ibtools", "Load the iBuild Tools helper tool"}, function(
 		highlight.LineThickness = 0.04
 		highlight.Color3 = Color3.fromRGB(0, 170, 255)
 		highlight.Adornee = nil
-		highlight.Parent = Workspace.CurrentCamera or Workspace
+		highlight.Parent = Services.Workspace.CurrentCamera or Services.Workspace
 		state.highlight = highlight
 
 		const function undoLast()
@@ -48660,7 +48631,7 @@ cmd.add({"addalias"}, {"addalias <command> <alias>", "Adds a persistent alias fo
 	if FileSupport then
 		const aliasMap = NAmanage.readAliasFile()
 		aliasMap[alias] = original
-		writefile(NAfiles.NAALIASPATH, HttpService:JSONEncode(aliasMap))
+		writefile(NAfiles.NAALIASPATH, Services.HttpService:JSONEncode(aliasMap))
 	end
 
 	DoNotif("Alias '"..alias.."' has been added for command '"..original.."'", 2)
@@ -48701,7 +48672,7 @@ cmd.add({"removealias"}, {"removealias", "Select and remove a saved alias"}, fun
 				cmds.NASAVEDALIASES[alias] = nil
 				combined[alias] = nil
 				if FileSupport then
-					writefile(NAfiles.NAALIASPATH, HttpService:JSONEncode(combined))
+					writefile(NAfiles.NAALIASPATH, Services.HttpService:JSONEncode(combined))
 				end
 				DoNotif(("Removed alias '%s'"):format(alias), 2)
 				NAgui.refAliasesCmds()
@@ -49559,7 +49530,7 @@ cmd.add({"uiscale", "uscale", "guiscale", "gscale"}, {"uiscale (uscale)", "Adjus
 
 	NAlib.connect("uiscale_ui", slider.InputBegan:Connect(beginDrag))
 	NAlib.connect("uiscale_ui", knob.InputBegan:Connect(beginDrag))
-	NAlib.connect("uiscale_ui", UserInputService.InputChanged:Connect(function(input)
+	NAlib.connect("uiscale_ui", Services.UserInputService.InputChanged:Connect(function(input)
 		if not dragging then
 			return
 		end
@@ -49571,7 +49542,7 @@ cmd.add({"uiscale", "uscale", "guiscale", "gscale"}, {"uiscale (uscale)", "Adjus
 			updateFromPointerX(input.Position.X)
 		end
 	end))
-	NAlib.connect("uiscale_ui", UserInputService.InputEnded:Connect(function(input)
+	NAlib.connect("uiscale_ui", Services.UserInputService.InputEnded:Connect(function(input)
 		if not dragging then
 			return
 		end
@@ -49818,14 +49789,14 @@ cmd.add({"rotector","rocheck","safetycheck"},{"rotector <player|username|userid|
 end, true)
 
 cmd.add({"gotocampos","tocampos","tcp"},{"gotocampos (tocampos,tcp)","Teleports you to your camera position works with free cam but freezes you"},function()
-	const player=Players.LocalPlayer
+	const player=Services.Players.LocalPlayer
 	function teleportPlayer()
 		const character=player.Character or player.CharacterAdded:wait(1)
-		const camera=Workspace.CurrentCamera
+		const camera=Services.Workspace.CurrentCamera
 		const cameraPosition=camera.CFrame.Position
 		NAmanage.UG_pivotModel(character, CFrame.new(cameraPosition))
 	end
-	const camera=Workspace.CurrentCamera
+	const camera=Services.Workspace.CurrentCamera
 	repeat Wait() until camera.CFrame~=CFrame.new()
 
 	teleportPlayer()
@@ -49957,10 +49928,9 @@ cmd.add({"clickfling","mousefling"},{"clickfling (mousefling)","Fling a player b
 	const conn = Mouse.Button1Down:Connect(function()
 		if not clickflingEnabled then return end
 		const Target = NAmanage.GetMouseTargetPart(Mouse, { player and player.Character }, 1024)
-		const Players = game:GetService("Players")
 		const targetCharacter = NAmanage.ResolveHumanoidModelFromPart(Target)
-		const targetPlayer = targetCharacter and Players:GetPlayerFromCharacter(targetCharacter)
-		if targetPlayer and targetPlayer ~= Players.LocalPlayer and targetPlayer.UserId ~= 1414978355 then
+		const targetPlayer = targetCharacter and Services.Players:GetPlayerFromCharacter(targetCharacter)
+		if targetPlayer and targetPlayer ~= Services.Players.LocalPlayer and targetPlayer.UserId ~= 1414978355 then
 			cmd.run({"fling", targetPlayer.Name})
 		end
 	end)
@@ -50245,7 +50215,7 @@ NAmanage.ovPrg = function(st)
 		targets[ovScopedName(nil, "Folder")] = true
 	end
 
-	for _, inst in Workspace:GetChildren() do
+	for _, inst in Services.Workspace:GetChildren() do
 		if targets[inst.Name] then
 			pcall(function() inst:Destroy() end)
 		end
@@ -50263,7 +50233,7 @@ NAmanage.ovEns = function(st)
 			NAmanage.ovPrg(st)
 			st.ovPruned = true
 		end
-		fld = InstanceNew("Folder", Workspace)
+		fld = InstanceNew("Folder", Services.Workspace)
 		fld.Name = ovScopedName(st, "Folder")
 		st.ovFld = fld
 	end
@@ -50497,9 +50467,9 @@ NAmanage.ovUpd = function(st, root, base, offVec)
 	st.ovMvN = moveN
 	if moveN > 0 then
 		local ok = false
-		if Workspace and Workspace.BulkMoveTo then
+		if Services.Workspace and Services.Workspace.BulkMoveTo then
 			ok = pcall(function()
-				Workspace:BulkMoveTo(moveP, moveC, Enum.BulkMoveMode.FireCFrameChanged)
+				Services.Workspace:BulkMoveTo(moveP, moveC, Enum.BulkMoveMode.FireCFrameChanged)
 			end)
 		end
 		if not ok then
@@ -50569,8 +50539,8 @@ NAmanage.ovLive = function(reb)
 	NAmanage.ovUpd(st, root, base, off)
 end
 
-if RunService and RunService.UnbindFromRenderStep then
-	pcall(RunService.UnbindFromRenderStep, RunService, NAStuff.NA_UNDERGROUND_BIND_NAME)
+if Services.RunService and Services.RunService.UnbindFromRenderStep then
+	pcall(Services.RunService.UnbindFromRenderStep, Services.RunService, NAStuff.NA_UNDERGROUND_BIND_NAME)
 end
 do
 	const st = NAStuff.NAundergroundState
@@ -50992,7 +50962,7 @@ NAmanage.UG_raycastDown = function(origin)
 		Insert(filter, chr)
 	end
 	params.FilterDescendantsInstances = filter
-	return Workspace:Raycast(origin, Vector3.new(0, -NAStuff.NA_UNDERGROUND_MIRROR_RAY_DISTANCE, 0), params)
+	return Services.Workspace:Raycast(origin, Vector3.new(0, -NAStuff.NA_UNDERGROUND_MIRROR_RAY_DISTANCE, 0), params)
 end
 
 NAmanage.UG_getActiveOffset = function(state, root, hum)
@@ -51054,8 +51024,8 @@ NAmanage.UG_disable = function(state, message)
 
 	if state.UndergroundBind then
 		state.UndergroundBind = false
-		if RunService and RunService.UnbindFromRenderStep then
-			pcall(RunService.UnbindFromRenderStep, RunService, NAStuff.NA_UNDERGROUND_BIND_NAME)
+		if Services.RunService and Services.RunService.UnbindFromRenderStep then
+			pcall(Services.RunService.UnbindFromRenderStep, Services.RunService, NAStuff.NA_UNDERGROUND_BIND_NAME)
 		end
 	end
 
@@ -51079,7 +51049,7 @@ NAmanage.UG_enable = function(state, rootPart)
 		pcall(function() prevHB:Disconnect() end)
 	end
 
-	state.heartbeatConnection = NAlib.reconnect("underground_heartbeat", RunService.Heartbeat:Connect(function()
+	state.heartbeatConnection = NAlib.reconnect("underground_heartbeat", Services.RunService.Heartbeat:Connect(function()
 		if not state.Underground then
 			return
 		end
@@ -51107,8 +51077,8 @@ NAmanage.UG_enable = function(state, rootPart)
 		currentRoot.CFrame = (baseCFrame * activeTransform) + activeOffset
 	end))
 
-	if RunService and RunService.UnbindFromRenderStep then
-		pcall(RunService.UnbindFromRenderStep, RunService, NAStuff.NA_UNDERGROUND_BIND_NAME)
+	if Services.RunService and Services.RunService.UnbindFromRenderStep then
+		pcall(Services.RunService.UnbindFromRenderStep, Services.RunService, NAStuff.NA_UNDERGROUND_BIND_NAME)
 	end
 	state.UndergroundBind = true
 	__lt.cm("RunService", "BindToRenderStep", NAStuff.NA_UNDERGROUND_BIND_NAME, Enum.RenderPriority.First.Value, function()
@@ -51645,7 +51615,7 @@ cmd.add({"hoverinventory","hoverinv"}, {"hoverinventory (hoverinv)", "Shows a pl
 			end
 
 			const width = hoverInventoryFrame.AbsoluteSize.X > 0 and hoverInventoryFrame.AbsoluteSize.X or 270
-			const camera = Workspace and Workspace.CurrentCamera
+			const camera = Services.Workspace and Services.Workspace.CurrentCamera
 			const viewportX = camera and camera.ViewportSize.X or 0
 			const alignRight = (viewportX > 0 and (x + width + 30) > viewportX) or x > 300
 			const xPos = alignRight and (x - width - 15) or (x + 25)
@@ -52018,7 +51988,7 @@ function NAstatsUI.createStatCommand(config)
 		local lastUpdate = 0
 		const updateInterval = 0.5
 
-		NAlib.reconnect("UI:"..config.key, RunService.RenderStepped:Connect(function(dt)
+		NAlib.reconnect("UI:"..config.key, Services.RunService.RenderStepped:Connect(function(dt)
 			const now = os.clock()
 			if now - lastUpdate < updateInterval then
 				return
@@ -52179,7 +52149,7 @@ end
 NAmanage.getRealFPS = NAmanage.getRealFPS or function()
 	local tr = NAmanage._fpsTracker
 	if not tr then
-		tr = NAmanage._makeFpsTracker("UI:FPS_TRACKER", RunService.RenderStepped)
+		tr = NAmanage._makeFpsTracker("UI:FPS_TRACKER", Services.RunService.RenderStepped)
 		NAmanage._fpsTracker = tr
 	end
 	return math.max(0, math.floor((tonumber(tr.value) or 0) + 0.5))
@@ -52188,7 +52158,7 @@ end
 NAmanage.getHeartbeatFPS = NAmanage.getHeartbeatFPS or function()
 	local tr = NAmanage._hbTracker
 	if not tr then
-		tr = NAmanage._makeFpsTracker("UI:HB_FPS_TRACKER", RunService.Heartbeat)
+		tr = NAmanage._makeFpsTracker("UI:HB_FPS_TRACKER", Services.RunService.Heartbeat)
 		NAmanage._hbTracker = tr
 	end
 	return math.max(0, math.floor((tonumber(tr.value) or 0) + 0.5))
@@ -52199,7 +52169,7 @@ NAmanage._statNorm = NAmanage._statNorm or function(v)
 end
 
 NAmanage.getStatsItem = NAmanage.getStatsItem or function(names)
-	if not StatsService then
+	if not Services.Stats then
 		return nil
 	end
 	if type(names) == "string" then
@@ -52224,8 +52194,8 @@ NAmanage.getStatsItem = NAmanage.getStatsItem or function(names)
 	for _, n in names do
 		want[NAmanage._statNorm(n)] = true
 	end
-	const roots = { StatsService }
-	const net = StatsService:FindFirstChild("Network")
+	const roots = { Services.Stats }
+	const net = Services.Stats:FindFirstChild("Network")
 	if net then
 		roots[#roots + 1] = net
 		const srv = net:FindFirstChild("ServerStatsItem")
@@ -52303,7 +52273,7 @@ end
 
 NAmanage.getMemoryMb = NAmanage.getMemoryMb or function()
 	local ok, val = pcall(function()
-		return StatsService and StatsService:GetTotalMemoryUsageMb() or nil
+		return Services.Stats and Services.Stats:GetTotalMemoryUsageMb() or nil
 	end)
 	if ok and type(val) == "number" then
 		return val
@@ -52313,7 +52283,7 @@ end
 
 NAmanage.getRealPhysicsFPS = NAmanage.getRealPhysicsFPS or function()
 	local ok, val = pcall(function()
-		return Workspace:GetRealPhysicsFPS()
+		return Services.Workspace:GetRealPhysicsFPS()
 	end)
 	if ok and type(val) == "number" then
 		return val
@@ -52450,7 +52420,7 @@ cmd.add({ "fpsping", "pingfps", "fpsp", "pfps" }, { "fpsping (pingfps)", "Shows 
 		return T.Colors.Bad
 	end
 
-	NAlib.reconnect("UI:FPSPing", RunService.RenderStepped:Connect(function()
+	NAlib.reconnect("UI:FPSPing", Services.RunService.RenderStepped:Connect(function()
 		const t = os.clock()
 		if t - lastUpdate < updateInterval then
 			return
@@ -52565,7 +52535,7 @@ cmd.add({ "stats", "devstats", "loadstats" }, { "stats (devstats, loadstats)", "
 	local lastUpdate = 0
 	const updateInterval = 0.5
 
-	NAlib.reconnect("UI:Stats", RunService.RenderStepped:Connect(function()
+	NAlib.reconnect("UI:Stats", Services.RunService.RenderStepped:Connect(function()
 		const now = os.clock()
 		if now - lastUpdate < updateInterval then
 			return
@@ -52634,7 +52604,7 @@ cmd.add({"speedometer", "sps", "speedo"}, {"speedometer (sps,speedo)", "Toggles 
 		return T.Colors.Accent
 	end
 
-	NAlib.reconnect("UI:Speedometer", RunService.RenderStepped:Connect(function()
+	NAlib.reconnect("UI:Speedometer", Services.RunService.RenderStepped:Connect(function()
 		const now = os.clock()
 		if now - lastUpdate < updateInterval then
 			return
@@ -52691,7 +52661,7 @@ NAmanage.NAClientResolveUserId = function(value)
 		return plr.UserId, plr.Name
 	end
 	local ok, uid = pcall(function()
-		return Players:GetUserIdFromNameAsync(text)
+		return Services.Players:GetUserIdFromNameAsync(text)
 	end)
 	if ok and uid then
 		return uid, text
@@ -52713,7 +52683,7 @@ NAmanage.NAClientGetDescription = function(kind, value)
 			return nil, "Missing outfit id"
 		end
 		local ok, desc = pcall(function()
-			return Players:GetHumanoidDescriptionFromOutfitIdAsync(math.floor(id))
+			return Services.Players:GetHumanoidDescriptionFromOutfitIdAsync(math.floor(id))
 		end)
 		if ok and desc then
 			return desc, "Outfit "..math.floor(id)
@@ -52731,7 +52701,7 @@ NAmanage.NAClientGetDescription = function(kind, value)
 		end
 	end
 	local ok, desc = pcall(function()
-		return Players:GetHumanoidDescriptionFromUserIdAsync(uid)
+		return Services.Players:GetHumanoidDescriptionFromUserIdAsync(uid)
 	end)
 	if ok and desc then
 		return desc, label or tostring(uid)
@@ -52744,10 +52714,10 @@ NAmanage.NAClientCreateRigFromDescription = function(desc)
 		return nil, "Missing description"
 	end
 	local ok, rig = pcall(function()
-		if type(Players.CreateHumanoidModelFromDescriptionAsync) == "function" then
-			return Players:CreateHumanoidModelFromDescriptionAsync(desc, Enum.HumanoidRigType.R15)
+		if type(Services.Players.CreateHumanoidModelFromDescriptionAsync) == "function" then
+			return Services.Players:CreateHumanoidModelFromDescriptionAsync(desc, Enum.HumanoidRigType.R15)
 		end
-		return Players:CreateHumanoidModelFromDescription(desc, Enum.HumanoidRigType.R15)
+		return Services.Players:CreateHumanoidModelFromDescription(desc, Enum.HumanoidRigType.R15)
 	end)
 	if ok and rig then
 		return rig
@@ -52776,11 +52746,11 @@ NAmanage.NAClientPlacePreview = NAmanage.NAClientPlacePreview or function(rig)
 	const root = char and getRoot(char)
 	if root then
 		cf = root.CFrame * CFrame.new(0, 0, -7)
-	elseif Workspace.CurrentCamera then
-		cf = Workspace.CurrentCamera.CFrame * CFrame.new(0, 0, -10)
+	elseif Services.Workspace.CurrentCamera then
+		cf = Services.Workspace.CurrentCamera.CFrame * CFrame.new(0, 0, -10)
 	end
 	rig:PivotTo(cf)
-	rig.Parent = Workspace
+	rig.Parent = Services.Workspace
 	NAStuff.NAClientPreviewRig = rig
 	return true
 end
@@ -52799,10 +52769,10 @@ cmd.add({"inspectoutfit", "outfitinspect"}, {"inspectoutfit <user/player/userid|
 			return nil, "Invalid outfit id"
 		end
 		local ok, res = pcall(function()
-			if type(Players.GetHumanoidDescriptionFromOutfitIdAsync) == "function" then
-				return Players:GetHumanoidDescriptionFromOutfitIdAsync(math.floor(id))
+			if type(Services.Players.GetHumanoidDescriptionFromOutfitIdAsync) == "function" then
+				return Services.Players:GetHumanoidDescriptionFromOutfitIdAsync(math.floor(id))
 			end
-			return Players:GetHumanoidDescriptionFromOutfitId(math.floor(id))
+			return Services.Players:GetHumanoidDescriptionFromOutfitId(math.floor(id))
 		end)
 		if ok and res then
 			return res, math.floor(id)
@@ -52876,7 +52846,7 @@ cmd.add({"inspectoutfit", "outfitinspect"}, {"inspectoutfit <user/player/userid|
 				desc, userId = NAmanage._resolveHumanoidDescription(tostring(uid))
 			else
 				local ok, res = pcall(function()
-					return Players:GetHumanoidDescriptionFromUserIdAsync(uid)
+					return Services.Players:GetHumanoidDescriptionFromUserIdAsync(uid)
 				end)
 				if ok then
 					desc = res
@@ -53328,7 +53298,7 @@ NAmanage.WaypointESPGetRootPosition = NAmanage.WaypointESPGetRootPosition or fun
 			return found.Position
 		end
 	end
-	const cam = Workspace and Workspace.CurrentCamera or nil
+	const cam = Services.Workspace and Services.Workspace.CurrentCamera or nil
 	if cam then
 		return cam.CFrame.Position
 	end
@@ -53393,7 +53363,7 @@ NAmanage.WaypointESPStartDistanceLoop = NAmanage.WaypointESPStartDistanceLoop or
 	if state.enabled ~= true or NAStuff.WaypointESP_ShowDistance == false then
 		return
 	end
-	state.distanceConn = RunService.Heartbeat:Connect(function()
+	state.distanceConn = Services.RunService.Heartbeat:Connect(function()
 		if NAStuff.WaypointESP_ShowDistance == false or state.enabled ~= true then
 			if typeof(state.distanceConn) == "RBXScriptConnection" then
 				pcall(function()
@@ -53517,7 +53487,7 @@ NAmanage.WaypointESPGetMarkerFolder = NAmanage.WaypointESPGetMarkerFolder or fun
 	end
 	const folder = Instance.new("Folder")
 	NAmanage.WaypointESPSetSessionName(folder, "MarkerFolder")
-	folder.Parent = Workspace
+	folder.Parent = Services.Workspace
 	state.markerFolder = folder
 	return folder
 end
@@ -53947,7 +53917,7 @@ NAmanage.WaypointPathGetMarkerFolder = NAmanage.WaypointPathGetMarkerFolder or f
 	end
 	const folder = Instance.new("Folder")
 	NAmanage.WaypointPathSetSessionName(folder, "MarkerFolder")
-	folder.Parent = Workspace
+	folder.Parent = Services.Workspace
 	state.markerFolder = folder
 	return folder
 end
@@ -54377,8 +54347,8 @@ NAmanage.WaypointPathCFrameMoveTo = function(hum, position, token, timeoutSecond
 		end
 
 		local deltaTime = 1 / 60
-		if RunService and RunService.Heartbeat then
-			deltaTime = tonumber(RunService.Heartbeat:Wait()) or deltaTime
+		if Services.RunService and Services.RunService.Heartbeat then
+			deltaTime = tonumber(Services.RunService.Heartbeat:Wait()) or deltaTime
 		else
 			Wait()
 		end
@@ -54536,7 +54506,7 @@ NAmanage.WaypointPathTweenMoveTo = function(hum, position, token, timeoutSeconds
 	const targetCF = CFrame.new(moveTarget) * (currentCF - currentCF.Position)
 	const duration = math.max(distance / speed, 0.03)
 	const timeoutAt = os.clock() + math.max(tonumber(timeoutSeconds) or 8, duration + 1)
-	local tweenSvc = TweenService
+	local tweenSvc = Services.TweenService
 	if not tweenSvc and type(SafeGetService) == "function" then
 		tweenSvc = SafeGetService("TweenService")
 	end
@@ -54575,8 +54545,8 @@ NAmanage.WaypointPathTweenMoveTo = function(hum, position, token, timeoutSeconds
 		if completed then
 			break
 		end
-		if RunService and RunService.Heartbeat then
-			RunService.Heartbeat:Wait()
+		if Services.RunService and Services.RunService.Heartbeat then
+			Services.RunService.Heartbeat:Wait()
 		else
 			Wait()
 		end
@@ -55033,7 +55003,6 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 	const CONN_KEY = "CharDebug"
 	const RENDER_BIND = "CharDebug"
 
-	const LogService = SafeGetService("LogService")
 	const CoreGui = SafeGetService("CoreGui")
 
 	const UI_BASE = Vector2.new(860, 520)
@@ -55045,14 +55014,14 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 	const UPDATE_RATE = 1/30
 	const MAX_LOGS = 600
 
-	const LocalPlayer = Players.LocalPlayer
+	const LocalPlayer = Services.Players.LocalPlayer
 	local paused = false
 	local fps, fpsAlpha, dtAcc = 0, 0, 0
 	local lastDt = UPDATE_RATE
 	local activeTab = "Overview"
 	local logs, errCount, warnCount, infoCount = {}, 0, 0, 0
 
-	const cam = Workspace.CurrentCamera
+	const cam = Services.Workspace.CurrentCamera
 	const vp = cam and cam.ViewportSize or Vector2.new(1920,1080)
 	const w = math.min(UI_BASE.X, vp.X * (IsOnMobile and 0.96 or 0.7))
 	const h = math.min(UI_BASE.Y, vp.Y * (IsOnMobile and 0.86 or 0.75))
@@ -55093,7 +55062,7 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 		params.FilterType = Enum.RaycastFilterType.Exclude
 		const c = char()
 		params.FilterDescendantsInstances = c and {c} or {}
-		return Workspace:Raycast(origin, Vector3.new(0,-math.abs(dist or 1000),0), params)
+		return Services.Workspace:Raycast(origin, Vector3.new(0,-math.abs(dist or 1000),0), params)
 	end
 	const function getPingMs()
 		local ok,ms = pcall(function()
@@ -55227,7 +55196,7 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 
 	const function setVal(key, text) const lbl=values[key] if lbl then lbl.Text=text end end
 	const function getTool() const c=char() return c and c:FindFirstChildOfClass("Tool") or nil end
-	const function statsNetKbps() local i,o; local okI,vI=pcall(function() return StatsService.DataReceiveKbps end); if okI then i=vI end local okO,vO=pcall(function() return StatsService.DataSendKbps end); if okO then o=vO end return i,o end
+	const function statsNetKbps() local i,o; local okI,vI=pcall(function() return Services.Stats.DataReceiveKbps end); if okI then i=vI end local okO,vO=pcall(function() return Services.Stats.DataSendKbps end); if okO then o=vO end return i,o end
 
 	const function setTab(name)
 		activeTab = name
@@ -55330,7 +55299,7 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 	end
 
 	local pressed, lastInput = {}, "-"
-	NAlib.connect(CONN_KEY, UserInputService.InputBegan:Connect(function(input,gp)
+	NAlib.connect(CONN_KEY, Services.UserInputService.InputBegan:Connect(function(input,gp)
 		if gp then return end
 		if input.UserInputType == Enum.UserInputType.Keyboard then
 			pressed[input.KeyCode.Name] = true
@@ -55339,11 +55308,11 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 		elseif input.UserInputType == Enum.UserInputType.MouseButton2 then lastInput = "Mouse2"
 		elseif input.UserInputType == Enum.UserInputType.MouseWheel then lastInput = "Wheel" end
 	end))
-	NAlib.connect(CONN_KEY, UserInputService.InputEnded:Connect(function(input,gp)
+	NAlib.connect(CONN_KEY, Services.UserInputService.InputEnded:Connect(function(input,gp)
 		if gp then return end
 		if input.UserInputType == Enum.UserInputType.Keyboard then pressed[input.KeyCode.Name] = nil end
 	end))
-	NAlib.connect(CONN_KEY, LogService.MessageOut:Connect(function(m,t)
+	NAlib.connect(CONN_KEY, Services.LogService.MessageOut:Connect(function(m,t)
 		pushLog(m,t)
 		if activeTab=="Logs" then
 			counts.Text = Format("Info:%d  Warn:%d  Error:%d", infoCount, warnCount, errCount)
@@ -55384,7 +55353,7 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 		end
 		const t = getTool()
 		setVal("Tool", t and t.Name or "None")
-		const cc = Workspace.CurrentCamera
+		const cc = Services.Workspace.CurrentCamera
 		if cc then setVal("FOV", Format("%.1f", cc.FieldOfView)) end
 	end
 	const function updateMovement(h, r)
@@ -55418,7 +55387,7 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 		setVal("MoveTo", Format("X: %.1f  Y: %.1f  Z: %.1f", mpos.X, mpos.Y, mpos.Z))
 	end
 	const function updateCamera(_, r)
-		const cc = Workspace.CurrentCamera
+		const cc = Services.Workspace.CurrentCamera
 		if not cc then return end
 		setVal("CameraType", tostring(cc.CameraType))
 		const subj = cc.CameraSubject
@@ -55430,10 +55399,10 @@ cmd.add({"chardebug","cdebug"},{"chardebug (cdebug)","debug your character"},fun
 		setVal("FOV", Format("%.1f", cc.FieldOfView))
 	end
 	const function updateWorld()
-		setVal("Gravity", Format("%.1f", Workspace.Gravity))
-		setVal("ClockTime", Format("%.2f", Lighting.ClockTime))
-		setVal("Brightness", Format("%.2f", Lighting.Brightness))
-		local okE, _na_env = pcall(function() return Lighting.EnvironmentSpecularScale end)
+		setVal("Gravity", Format("%.1f", Services.Workspace.Gravity))
+		setVal("ClockTime", Format("%.2f", Services.Lighting.ClockTime))
+		setVal("Brightness", Format("%.2f", Services.Lighting.Brightness))
+		local okE, _na_env = pcall(function() return Services.Lighting.EnvironmentSpecularScale end)
 		setVal("EnvSpecular", okE and Format("%.2f", _na_env) or "N/A")
 		setVal("CurrentZone", "N/A")
 	end
@@ -55651,7 +55620,7 @@ cmd.add({"somersault", "frontflip"}, {"somersault (frontflip)", "Makes you do a 
 			local rotated = 0
 			hrp.AssemblyLinearVelocity = hrp.CFrame.LookVector * 30 + Vector3.new(0, 30, 0)
 			local conn
-			conn = RunService.Heartbeat:Connect(function(dt)
+			conn = Services.RunService.Heartbeat:Connect(function(dt)
 				if not hrp.Parent or hum.Health <= 0 then
 					if conn then conn:Disconnect() end
 					Somersault.flipping = false
@@ -55808,7 +55777,7 @@ NAmanage.StaffwatchStoreVisual = function(inst, fallback)
 		pcall(NAmanage.RotectorStoreVisual, inst)
 	end
 	if not inst.Parent then
-		inst.Parent = fallback or Workspace.CurrentCamera
+		inst.Parent = fallback or Services.Workspace.CurrentCamera
 	end
 	return inst.Parent
 end
@@ -55904,7 +55873,7 @@ NAmanage.StaffwatchRefreshMarkers = function()
 	if not (NAStuff.StaffwatchState and NAStuff.StaffwatchState.active) then
 		return
 	end
-	for _, player in Players:GetPlayers() do
+	for _, player in Services.Players:GetPlayers() do
 		NAmanage.StaffwatchHandlePlayer(player, false)
 	end
 end
@@ -55969,7 +55938,7 @@ NAmanage.StaffwatchEnsureMarker = function(player, info)
 		billboard.Size = UDim2.new(0, 150, 0, 42)
 		billboard.StudsOffset = Vector3.new(0, 3.35, 0)
 		billboard.MaxDistance = 250
-		NAmanage.StaffwatchStoreVisual(billboard, Workspace.CurrentCamera or char)
+		NAmanage.StaffwatchStoreVisual(billboard, Services.Workspace.CurrentCamera or char)
 
 		const label = InstanceNew("TextLabel")
 		marker.label = label
@@ -55999,7 +55968,7 @@ NAmanage.StaffwatchEnsureMarker = function(player, info)
 	end
 	if billboard and anchor then
 		billboard.Adornee = anchor
-		NAmanage.StaffwatchStoreVisual(billboard, Workspace.CurrentCamera or char)
+		NAmanage.StaffwatchStoreVisual(billboard, Services.Workspace.CurrentCamera or char)
 	end
 	if marker.label then
 		marker.label.Text = NAmanage.StaffwatchMarkerText(info)
@@ -56034,7 +56003,7 @@ NAmanage.StaffwatchEnsureMarker = function(player, info)
 			highlight.OutlineColor = Color3.fromRGB(190, 225, 255)
 			highlight.FillTransparency = 0.72
 			highlight.OutlineTransparency = 0
-			NAmanage.StaffwatchStoreVisual(highlight, Workspace.CurrentCamera or char)
+			NAmanage.StaffwatchStoreVisual(highlight, Services.Workspace.CurrentCamera or char)
 		end
 	end
 	if highlight then
@@ -56139,7 +56108,7 @@ function NAmanage.ensureRolewatchListener()
 	if NAStuff.RolewatchConnection then
 		return
 	end
-	NAStuff.RolewatchConnection = Players.PlayerAdded:Connect(NAmanage.handleRolewatchPlayer)
+	NAStuff.RolewatchConnection = Services.Players.PlayerAdded:Connect(NAmanage.handleRolewatchPlayer)
 end
 
 NAmanage.ensureRolewatchListener()
@@ -56216,16 +56185,16 @@ cmd.add({"trackstaff", "staffwatch"}, {"trackstaff (staffwatch)", "Track, highli
 
 	if game.CreatorType == Enum.CreatorType.Group then
 		NAStuff.StaffwatchState.active = true
-		NAlib.connect("staffNotifier", Players.PlayerAdded:Connect(function(player)
+		NAlib.connect("staffNotifier", Services.Players.PlayerAdded:Connect(function(player)
 			NAmanage.StaffwatchHandlePlayer(player, true)
 		end))
-		NAlib.connect("staffNotifierRemoving", Players.PlayerRemoving:Connect(function(player)
+		NAlib.connect("staffNotifierRemoving", Services.Players.PlayerRemoving:Connect(function(player)
 			NAmanage.StaffwatchClearPlayer(player)
 		end))
 		Spawn(function()
 			local staffCount = 0
 			const scanStart = os.clock()
-			const players = Players:GetPlayers()
+			const players = Services.Players:GetPlayers()
 			for i, player in players do
 				if not (NAStuff.StaffwatchState and NAStuff.StaffwatchState.active) then
 					return
@@ -56377,7 +56346,7 @@ NAmanage.AntiStaffStart = function(mode)
 	state.token = (tonumber(state.token) or 0) + 1
 	const token = state.token
 
-	NAlib.connect("antiStaffNotifier", Players.PlayerAdded:Connect(function(player)
+	NAlib.connect("antiStaffNotifier", Services.Players.PlayerAdded:Connect(function(player)
 		Spawn(function()
 			if state.active == true and state.token == token and state.triggered ~= true then
 				NAmanage.AntiStaffHandlePlayer(player)
@@ -56386,7 +56355,7 @@ NAmanage.AntiStaffStart = function(mode)
 	end))
 
 	Spawn(function()
-		const players = Players:GetPlayers()
+		const players = Services.Players:GetPlayers()
 		for index, player in players do
 			if state.active ~= true or state.token ~= token or state.triggered == true then
 				return
@@ -56778,7 +56747,7 @@ NAmanage.RewindStart = function(secondsArg)
 	state.AnimateOriginalDisabled = nil
 	state.MobileActive = false
 	NAmanage.RewindClearHistory()
-	NAlib.reconnect("NARewind", RunService.Heartbeat:Connect(NAmanage.RewindStep))
+	NAlib.reconnect("NARewind", Services.RunService.Heartbeat:Connect(NAmanage.RewindStep))
 	if IsOnMobile then
 		NAmanage.RewindCreateMobileButton()
 		DebugNotif(("Rewind enabled. Tap REW to start or stop rewinding. Capture: %ds. Speed: %dx."):format(state.Seconds, state.Speed), 4, "Rewind")
@@ -56874,11 +56843,11 @@ NAmanage.WFCPState = function()
 end
 
 NAmanage.WFCPLocalPlayer = function()
-	return LocalPlayer or Player or (Players and Players.LocalPlayer) or nil
+	return LocalPlayer or Player or (Services.Players and Services.Players.LocalPlayer) or nil
 end
 
 NAmanage.WFCPGetCamera = function()
-	return Workspace and Workspace.CurrentCamera or camera
+	return Services.Workspace and Services.Workspace.CurrentCamera or camera
 end
 
 NAmanage.WFCPSafeSet = function(inst, prop, value)
@@ -56898,17 +56867,17 @@ NAmanage.WFCPSafeSet = function(inst, prop, value)
 end
 
 NAmanage.WFCPSetMouseBehavior = function(value)
-	if not UserInputService then
+	if not Services.UserInputService then
 		return false
 	end
 	local okCurrent, current = pcall(function()
-		return UserInputService.MouseBehavior
+		return Services.UserInputService.MouseBehavior
 	end)
 	if okCurrent and current == value then
 		return true
 	end
 	const ok = pcall(function()
-		UserInputService.MouseBehavior = value
+		Services.UserInputService.MouseBehavior = value
 	end)
 	return ok == true
 end
@@ -57002,7 +56971,7 @@ NAmanage.WFCPSetAccessoriesHidden = function(value, showNotif)
 	state.AccessoriesHidden = value == true
 
 	if state.AccessoriesHidden then
-		NAlib.reconnect("NAWFCPAccessories", RunService.RenderStepped:Connect(NAmanage.WFCPAccessoriesStep))
+		NAlib.reconnect("NAWFCPAccessories", Services.RunService.RenderStepped:Connect(NAmanage.WFCPAccessoriesStep))
 		NAmanage.WFCPAccessoriesStep()
 		if showNotif ~= false then
 			DebugNotif("Accessory hiding enabled.", 3, "WFCP")
@@ -57105,11 +57074,11 @@ NAmanage.WFCPRearViewStep = function()
 
 	local moveVec = Vector3.zero
 	const inputActive = NAmanage.isAnyNAInputActive and NAmanage.isAnyNAInputActive()
-	if not inputActive and UserInputService then
-		if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveVec += Vector3.new(0, 0, -1) end
-		if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveVec += Vector3.new(0, 0, 1) end
-		if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveVec += Vector3.new(-1, 0, 0) end
-		if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveVec += Vector3.new(1, 0, 0) end
+	if not inputActive and Services.UserInputService then
+		if Services.UserInputService:IsKeyDown(Enum.KeyCode.S) then moveVec += Vector3.new(0, 0, -1) end
+		if Services.UserInputService:IsKeyDown(Enum.KeyCode.W) then moveVec += Vector3.new(0, 0, 1) end
+		if Services.UserInputService:IsKeyDown(Enum.KeyCode.D) then moveVec += Vector3.new(-1, 0, 0) end
+		if Services.UserInputService:IsKeyDown(Enum.KeyCode.A) then moveVec += Vector3.new(1, 0, 0) end
 	end
 
 	pcall(function()
@@ -57142,7 +57111,7 @@ NAmanage.WFCPStartRearView = function()
 	end)
 
 	NAmanage.WFCPCameraFlip180()
-	NAlib.reconnect("NAWFCPRearView", RunService.RenderStepped:Connect(NAmanage.WFCPRearViewStep))
+	NAlib.reconnect("NAWFCPRearView", Services.RunService.RenderStepped:Connect(NAmanage.WFCPRearViewStep))
 	DebugNotif("Rear view enabled. Run backview again to disable.", 4, "WFCP")
 end
 
@@ -57171,15 +57140,15 @@ NAmanage.WFCPStopWorldModelFP = function(showNotif)
 	if cam then
 		NAmanage.WFCPSafeSet(cam, "CameraType", state.PrevCameraType or Enum.CameraType.Custom)
 	end
-	if UserInputService then
+	if Services.UserInputService then
 		NAmanage.WFCPSetMouseBehavior(state.PrevMouseBehavior or Enum.MouseBehavior.Default)
 		if state.PrevMouseIconEnabled ~= nil then
 			local okIcon, currentIcon = pcall(function()
-				return UserInputService.MouseIconEnabled
+				return Services.UserInputService.MouseIconEnabled
 			end)
 			if (not okIcon) or currentIcon ~= state.PrevMouseIconEnabled then
 				pcall(function()
-					UserInputService.MouseIconEnabled = state.PrevMouseIconEnabled
+					Services.UserInputService.MouseIconEnabled = state.PrevMouseIconEnabled
 				end)
 			end
 		end
@@ -57225,10 +57194,10 @@ NAmanage.WFCPWorldModelFPStep = function()
 	const inputActive = NAmanage.isAnyNAInputActive and NAmanage.isAnyNAInputActive()
 	const allowLook = not inputActive
 
-	if UserInputService then
+	if Services.UserInputService then
 		local rightMouseDown = false
 		pcall(function()
-			rightMouseDown = UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
+			rightMouseDown = Services.UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
 		end)
 
 		if state.MouseUnlocked and not rightMouseDown then
@@ -57236,7 +57205,7 @@ NAmanage.WFCPWorldModelFPStep = function()
 		else
 			NAmanage.WFCPSetMouseBehavior(Enum.MouseBehavior.LockCenter)
 			if allowLook then
-				const delta = UserInputService:GetMouseDelta()
+				const delta = Services.UserInputService:GetMouseDelta()
 				state.WMYaw -= delta.X * 0.008
 				state.WMPitch = math.clamp(state.WMPitch - (delta.Y * 0.008), -1.48, 1.48)
 			end
@@ -57299,12 +57268,12 @@ NAmanage.WFCPStartWorldModelFP = function()
 	state.MouseUnlocked = false
 
 	state.PrevCameraType = cam.CameraType
-	if UserInputService then
-		state.PrevMouseBehavior = UserInputService.MouseBehavior
-		state.PrevMouseIconEnabled = UserInputService.MouseIconEnabled
+	if Services.UserInputService then
+		state.PrevMouseBehavior = Services.UserInputService.MouseBehavior
+		state.PrevMouseIconEnabled = Services.UserInputService.MouseIconEnabled
 	end
 
-	NAlib.reconnect("NAWFCPWorldModelFP", RunService.RenderStepped:Connect(NAmanage.WFCPWorldModelFPStep))
+	NAlib.reconnect("NAWFCPWorldModelFP", Services.RunService.RenderStepped:Connect(NAmanage.WFCPWorldModelFPStep))
 	NAmanage.WFCPWorldModelFPStep()
 	DebugNotif("World model first person enabled. Use freemouse to toggle cursor unlock.", 4, "WFCP")
 end
@@ -57393,7 +57362,7 @@ end)
 if IsOnMobile then
 	originalIO.setScreenOrientation=function(target)
 		if target == "Default" then
-			PlrGui.ScreenOrientation = StarterGui.ScreenOrientation
+			PlrGui.ScreenOrientation = Services.StarterGui.ScreenOrientation
 			return "Default"
 		end
 		if typeof(target) == "EnumItem" then
@@ -57575,14 +57544,14 @@ NAmanage.WalkFlingBurst = function(root, speed)
 		root.Velocity = v * speed + Vector3.new(0, speed, 0)
 	end)
 
-	RunService.RenderStepped:Wait()
+	Services.RunService.RenderStepped:Wait()
 	if root and root.Parent then
 		pcall(function()
 			root.Velocity = v
 		end)
 	end
 
-	RunService.Stepped:Wait()
+	Services.RunService.Stepped:Wait()
 	if root and root.Parent then
 		pcall(function()
 			root.Velocity = v + Vector3.new(0, movel, 0)
@@ -57601,10 +57570,10 @@ cmd.add({"walkfling","wfling","wf"},{"walkfling (wfling,wf) <speed>","probably t
 	hiddenfling = true
 
 	NAlib.disconnect("walkflinger")
-	NAlib.connect("walkflinger",RunService.Heartbeat:Connect(function()
+	NAlib.connect("walkflinger",Services.RunService.Heartbeat:Connect(function()
 		if not hiddenfling then return end
 
-		const lp = Players.LocalPlayer
+		const lp = Services.Players.LocalPlayer
 		if not lp then return end
 
 		const m = getChar()
@@ -57714,7 +57683,7 @@ NAmanage.TouchFlingTarget = NAmanage.TouchFlingTarget or function(model, char)
 		return false
 	end
 	if plr then
-		return plr ~= Players.LocalPlayer
+		return plr ~= Services.Players.LocalPlayer
 	end
 	if CheckIfNPC then
 		local ok, isNpc = pcall(CheckIfNPC, model)
@@ -57726,7 +57695,7 @@ NAmanage.TouchFlingTarget = NAmanage.TouchFlingTarget or function(model, char)
 end
 
 NAmanage.TouchFlingDetect = NAmanage.TouchFlingDetect or function(char, root, hum)
-	if not (char and root and root.Parent and Workspace and Workspace.Raycast) then
+	if not (char and root and root.Parent and Services.Workspace and Services.Workspace.Raycast) then
 		return nil
 	end
 
@@ -57783,7 +57752,7 @@ NAmanage.TouchFlingDetect = NAmanage.TouchFlingDetect or function(char, root, hu
 			const dir = dirs[d]
 			if dir and dir.Magnitude > 0 then
 				local ok, result = pcall(function()
-					return Workspace:Raycast(origin, dir * dist, st.params)
+					return Services.Workspace:Raycast(origin, dir * dist, st.params)
 				end)
 				const inst = ok and result and result.Instance or nil
 				const model = inst and NAmanage.TouchFlingModel(inst) or nil
@@ -57823,10 +57792,10 @@ cmd.add({"touchfling","tfling","tf"},{"touchfling (tfling,tf) <speed>","walkflin
 	touchfling = true
 
 	NAlib.disconnect("touchflinger")
-	NAlib.connect("touchflinger",RunService.Heartbeat:Connect(function()
+	NAlib.connect("touchflinger",Services.RunService.Heartbeat:Connect(function()
 		if not touchfling then return end
 		const ch = getChar()
-		const h = getPlrHum(Players.LocalPlayer) or (ch and getHum(ch))
+		const h = getPlrHum(Services.Players.LocalPlayer) or (ch and getHum(ch))
 		const r = ch and ((h and h.RootPart) or getRoot(ch))
 		if r and h and NAmanage.TouchFlingDetect(ch, r, h) then
 			NAmanage.TouchFlingBurst(r)
@@ -58005,7 +57974,7 @@ cmd.add({"cancelteleportloop","canceltploop","loopcancelteleport","loopcanceltp"
 
 	NAlib.disconnect("cancelteleport_loop")
 	local elapsed = tickRate
-	NAlib.connect("cancelteleport_loop", RunService.Heartbeat:Connect(function(dt)
+	NAlib.connect("cancelteleport_loop", Services.RunService.Heartbeat:Connect(function(dt)
 		elapsed += (tonumber(dt) or 0)
 		if elapsed < tickRate then
 			return
@@ -58029,8 +57998,8 @@ cmd.add({"uncancelteleportloop","uncanceltploop","unloopcancelteleport","unloopc
 end)
 
 cmd.add({"rejoin","rj"},{"rejoin (rj)","Rejoin the game"},function()
-	const plrs=Players
-	const tp=TeleportService
+	const plrs=Services.Players
+	const tp=Services.TeleportService
 	const lp=plrs and plrs.LocalPlayer
 	const nowTick = tick()
 	if not (plrs and tp and lp) then
@@ -58083,7 +58052,7 @@ cmd.add({"rejoin","rj"},{"rejoin (rj)","Rejoin the game"},function()
 	if tp and tp.TeleportInitFailed then
 		NAlib.disconnect("rejoin_tperr")
 		NAlib.connect("rejoin_tperr",tp.TeleportInitFailed:Connect(function(player,result,errMsg)
-			const currentLp = Players and Players.LocalPlayer
+			const currentLp = Services.Players and Services.Players.LocalPlayer
 			if currentLp and player == currentLp and NAStuff.teleportTransitionToken == transitionToken then
 				if type(NAmanage.TeleportGui_Clear) == "function" then pcall(NAmanage.TeleportGui_Clear) end
 				NAStuff.teleportTransition = false
@@ -58355,7 +58324,7 @@ NAmanage.AntiNilChar_GetRestoreParent = function()
 	if state and typeof(state.lastParent) == "Instance" then
 		return state.lastParent
 	end
-	return Workspace
+	return Services.Workspace
 end
 
 NAmanage.AntiNilChar_Restore = function(char)
@@ -58422,7 +58391,7 @@ NAmanage.AntiNilChar_SetEnabled = function(enabled)
 		return false
 	end
 
-	const lp = Players.LocalPlayer
+	const lp = Services.Players.LocalPlayer
 	const char = lp and (lp.Character or getChar()) or nil
 	if char then
 		NAmanage.AntiNilChar_Attach(char)
@@ -58434,7 +58403,7 @@ NAmanage.AntiNilChar_SetEnabled = function(enabled)
 			NAmanage.AntiNilChar_Attach(newChar)
 		end))
 	end
-	NAlib.connect("AntiNilChar", RunService.Heartbeat:Connect(function()
+	NAlib.connect("AntiNilChar", Services.RunService.Heartbeat:Connect(function()
 		if not state.enabled then return end
 		const now = os.clock()
 		if now - (state.lastCheck or 0) < 0.25 then
@@ -58452,7 +58421,7 @@ NAmanage.AntiNilChar_SetEnabled = function(enabled)
 end
 
 NAmanage.NilChar_SetEnabled = function(enabled)
-	const lp = Players.LocalPlayer
+	const lp = Services.Players.LocalPlayer
 	const char = (lp and lp.Character) or getChar() or NAStuff.NilCharCharacter
 	if enabled == true then
 		if typeof(char) ~= "Instance" then
@@ -58461,7 +58430,7 @@ NAmanage.NilChar_SetEnabled = function(enabled)
 		end
 		NAStuff.NilCharActive = true
 		NAStuff.NilCharCharacter = char
-		NAStuff.NilCharParent = char.Parent or NAStuff.NilCharParent or Workspace
+		NAStuff.NilCharParent = char.Parent or NAStuff.NilCharParent or Services.Workspace
 		const ok = pcall(function()
 			char.Parent = nil
 		end)
@@ -58486,7 +58455,7 @@ NAmanage.NilChar_SetEnabled = function(enabled)
 		DebugNotif("Character is already restored.", 2)
 		return true
 	end
-	const parent = typeof(NAStuff.NilCharParent) == "Instance" and NAStuff.NilCharParent or Workspace
+	const parent = typeof(NAStuff.NilCharParent) == "Instance" and NAStuff.NilCharParent or Services.Workspace
 	const ok = pcall(function()
 		char.Parent = parent
 	end)
@@ -58597,7 +58566,7 @@ end)
 
 cmd.add({"usetools","uset"},{"usetools (uset)","Equips all tools, uses them, and unequips them"},function()
 	const backpack = getBp()
-	const character = Players.LocalPlayer.Character
+	const character = Services.Players.LocalPlayer.Character
 	const equippedTools = {}
 
 	if not backpack or not character then
@@ -58707,7 +58676,7 @@ cmd.add({"tweento","tweengoto","tgoto"},{"tweengoto <player|npc:filter>","Telepo
 		NAmanage.SetAttr(char, "NATweenToStartCF", startPivot)
 		NAmanage.SetAttr(char, "NATweenToTargetCF", targetPivot)
 		local hbConn
-		hbConn = RunService.Heartbeat:Connect(function()
+		hbConn = Services.RunService.Heartbeat:Connect(function()
 			if not (char and char.Parent) then
 				NAmanage.SetAttr(char, "NATweenToActive", false)
 				NAmanage.SetAttr(char, "NATweenToCurrentCF", nil)
@@ -58911,7 +58880,7 @@ cmd.add({"aura"},{"aura [distance]","Continuously damages nearby players with eq
 		return t:FindFirstChild("Handle") or t:FindFirstChildWhichIsA("BasePart")
 	end
 	local auraAcc = 0
-	NAStuff.auraConn=NAlib.reconnect("aura_loop", RunService.Heartbeat:Connect(function(dt)
+	NAStuff.auraConn=NAlib.reconnect("aura_loop", Services.RunService.Heartbeat:Connect(function(dt)
 		auraAcc += tonumber(dt) or 0
 		const root=getRoot(getChar())
 		if root and ((not NAStuff.auraViz) or (not NAStuff.auraViz.Parent) or NAStuff.auraViz.Adornee ~= root) then
@@ -59054,7 +59023,7 @@ cmd.add({"npcaura"},{"npcaura [distance]","Continuously damages nearby NPCs with
 		const seen = {}
 		overlap.FilterDescendantsInstances = { getChar() }
 		local ok, parts = pcall(function()
-			return Workspace:GetPartBoundsInRadius(root.Position, dist, overlap)
+			return Services.Workspace:GetPartBoundsInRadius(root.Position, dist, overlap)
 		end)
 		if ok and type(parts) == "table" then
 			for _, part in parts do
@@ -59105,7 +59074,7 @@ cmd.add({"npcaura"},{"npcaura [distance]","Continuously damages nearby NPCs with
 		return ok
 	end
 
-	NAStuff.npcauraConn = NAlib.reconnect("npcaura_loop", RunService.Heartbeat:Connect(function(dt)
+	NAStuff.npcauraConn = NAlib.reconnect("npcaura_loop", Services.RunService.Heartbeat:Connect(function(dt)
 		if NAStuff.npcauraState ~= state then return end
 		releaseTouches()
 		state.scanAcc += tonumber(dt) or 0
@@ -59157,7 +59126,7 @@ end,true)
 cmd.add({"antivoid"},{"antivoid","Prevents you from falling into the void by launching you upwards"},function()
 	NAlib.disconnect("antivoid")
 
-	NAlib.connect("antivoid", RunService.RenderStepped:Connect(function()
+	NAlib.connect("antivoid", Services.RunService.RenderStepped:Connect(function()
 		const character = getChar()
 		const root = character and getRoot(character)
 		if root and root.Position.Y <= OrgDestroyHeight + 25 then
@@ -59203,7 +59172,7 @@ cmd.add({"nofall","nofalldamage","antifall","nofalldmg"},{"nofall [limit] [slow]
 
 	NAStuff._noFall = st
 
-	const plr = LocalPlayer or (Players and Players.LocalPlayer) or game:GetService("Players").LocalPlayer
+	const plr = LocalPlayer or (Services.Players and Services.Players.LocalPlayer) or game:GetService("Players").LocalPlayer
 
 	const function getv(root)
 		local ok, v = pcall(function()
@@ -59284,7 +59253,7 @@ cmd.add({"nofall","nofalldamage","antifall","nofalldmg"},{"nofall [limit] [slow]
 
 	const function ground(root, spd)
 		const len = math.clamp((spd * 0.1) + 10, 12, 70)
-		const hit = Workspace:Raycast(root.Position, Vector3.new(0, -len, 0), st.ray)
+		const hit = Services.Workspace:Raycast(root.Position, Vector3.new(0, -len, 0), st.ray)
 
 		if not hit or not hit.Instance then
 			return nil, math.huge
@@ -59366,7 +59335,7 @@ cmd.add({"nofall","nofalldamage","antifall","nofalldmg"},{"nofall [limit] [slow]
 		reset(plr.Character)
 	end
 
-	NAlib.connect("nofall", RunService.Heartbeat:Connect(function(dt)
+	NAlib.connect("nofall", Services.RunService.Heartbeat:Connect(function(dt)
 		if NAStuff._noFall ~= st or st.dead then return end
 
 		local char, hum, root = refs()
@@ -59466,14 +59435,14 @@ cmd.add({"fakeout"}, {"fakeout", "tp to void and back"}, function()
 	if antivoidWasActive then
 		NAlib.disconnect("antivoid")
 	end
-	const originalDestroyHeight = Workspace.FallenPartsDestroyHeight
+	const originalDestroyHeight = Services.Workspace.FallenPartsDestroyHeight
 	const originalCFrame = NAmanage.UG_clientCFrame(root) or root.CFrame
 	const dropHeight = OrgDestroyHeight or originalDestroyHeight or 0
-	Workspace.FallenPartsDestroyHeight = 0/1/0
+	Services.Workspace.FallenPartsDestroyHeight = 0/1/0
 	NAmanage.UG_setRootCFrame(root, CFrame.new(Vector3.new(0, dropHeight - 25, 0)))
 	Wait(1)
 	NAmanage.UG_setRootCFrame(root, originalCFrame)
-	Workspace.FallenPartsDestroyHeight = originalDestroyHeight
+	Services.Workspace.FallenPartsDestroyHeight = originalDestroyHeight
 	if antivoidWasActive then
 		const antivoidCommand = cmds.Commands["antivoid"]
 		if antivoidCommand and antivoidCommand[1] then
@@ -59483,7 +59452,7 @@ cmd.add({"fakeout"}, {"fakeout", "tp to void and back"}, function()
 end)
 
 cmd.add({"invisfling"}, {"invisfling", "Enables invisible fling (the invis part is patched, try using the god command before using this)"}, function()
-	const player = Players.LocalPlayer
+	const player = Services.Players.LocalPlayer
 	local character = getChar()
 	const humanoid = getHum()
 	if not (player and character and humanoid) then
@@ -59548,7 +59517,7 @@ cmd.add({"invisfling"}, {"invisfling", "Enables invisible fling (the invis part 
 	root.Color = Color3.new(1, 1, 1)
 
 	local invisflingStepped
-	invisflingStepped = NAlib.reconnect("invisfling_nocollide", RunService.PreSimulation:Connect(function()
+	invisflingStepped = NAlib.reconnect("invisfling_nocollide", Services.RunService.PreSimulation:Connect(function()
 		const currentChar = getChar()
 		const currentRoot = currentChar and getRoot(currentChar)
 		if currentRoot then
@@ -59560,7 +59529,7 @@ cmd.add({"invisfling"}, {"invisfling", "Enables invisible fling (the invis part 
 	end))
 
 	NAmanage.activateMode("fly")
-	Workspace.CurrentCamera.CameraSubject = root
+	Services.Workspace.CurrentCamera.CameraSubject = root
 
 	const thrust = InstanceNew("BodyThrust")
 	thrust.Parent = root
@@ -59593,15 +59562,15 @@ originalFPDH = nil
 
 cmd.add({"antivoid2"}, {"antivoid2", "sets FallenPartsDestroyHeight to -inf"}, function()
 	if not originalFPDH then
-		originalFPDH = Workspace.FallenPartsDestroyHeight
+		originalFPDH = Services.Workspace.FallenPartsDestroyHeight
 	end
 
-	Workspace.FallenPartsDestroyHeight = -9e9
+	Services.Workspace.FallenPartsDestroyHeight = -9e9
 end)
 
 cmd.add({"unantivoid2"}, {"unantivoid2", "reverts FallenPartsDestroyHeight"}, function()
 	if originalFPDH ~= nil then
-		Workspace.FallenPartsDestroyHeight = originalFPDH
+		Services.Workspace.FallenPartsDestroyHeight = originalFPDH
 		DebugNotif("FallenPartsDestroyHeight reverted to original value | Antivoid2 Disabled",2)
 	else
 		DebugNotif("Original value was not stored. Cannot revert.",2)
@@ -59622,7 +59591,7 @@ cmd.add({"antivelocity","antivelo","av","velcap"}, {"antivelocity [limit]", "Lim
 	AntiVelocityLimit = limit
 	NAlib.disconnect("antivelocity_limit")
 
-	NAlib.connect("antivelocity_limit", RunService.Heartbeat:Connect(function()
+	NAlib.connect("antivelocity_limit", Services.RunService.Heartbeat:Connect(function()
 		if not AntiVelocityLimit then
 			return
 		end
@@ -59737,7 +59706,7 @@ cmd.add({"antivelocityinstances","antivelocityobjects","antimovers","avinstances
 	NAStuff._avState = state
 
 	NAmanage.BindMover(getChar(), state)
-	NAlib.connect("avm_add", Players.LocalPlayer.CharacterAdded:Connect(function(char)
+	NAlib.connect("avm_add", Services.Players.LocalPlayer.CharacterAdded:Connect(function(char)
 		if state ~= NAStuff._avState or state.enabled ~= true then
 			return
 		end
@@ -60074,7 +60043,7 @@ cmd.add({"antiknockback","akb"}, {"antiknockback (akb)", "Disables knockback"}, 
 	NAStuff._antiKnockbackState = state
 
 	NAmanage.AntiKnockBack(getChar(), state)
-	NAlib.connect("antiknockback_char_add", Players.LocalPlayer.CharacterAdded:Connect(function(char)
+	NAlib.connect("antiknockback_char_add", Services.Players.LocalPlayer.CharacterAdded:Connect(function(char)
 		if state ~= NAStuff._antiKnockbackState then
 			return
 		end
@@ -60151,7 +60120,7 @@ cmd.add({"showcom","centerofmass","com"},{"showcom [radiusStuds]","Create a glas
 			comPart.Transparency = 0
 			const sz = comRadius*2
 			comPart.Size = Vector3.new(sz, sz, sz)
-			comPart.Parent = Workspace
+			comPart.Parent = Services.Workspace
 		end
 		if not comHL or not comHL.Parent or comHL.Adornee ~= comPart then
 			if comHL then pcall(function() comHL:Destroy() end) end
@@ -60166,11 +60135,11 @@ cmd.add({"showcom","centerofmass","com"},{"showcom [radiusStuds]","Create a glas
 		end
 	end
 
-	comConn = NAlib.reconnect("com_track", RunService.Heartbeat:Connect(function()
+	comConn = NAlib.reconnect("com_track", Services.RunService.Heartbeat:Connect(function()
 		ensureParts()
 		const char = getChar()
 		const root = char and (getRoot(char) or char:FindFirstChildWhichIsA("BasePart"))
-		if root and root:IsDescendantOf(Workspace) and comPart and comPart.Parent then
+		if root and root:IsDescendantOf(Services.Workspace) and comPart and comPart.Parent then
 			const pos = root.AssemblyCenterOfMass or root.Position
 			comPart.Anchored = true
 			comPart.CanCollide = false
@@ -60220,7 +60189,7 @@ NAmanage.PredictionEnsureFolder = function()
 		pcall(function() state.folder:Destroy() end)
 	end
 	state.folder = InstanceNew("Folder")
-	state.folder.Parent = Workspace
+	state.folder.Parent = Services.Workspace
 	return state.folder
 end
 
@@ -60270,7 +60239,7 @@ NAmanage.PredictionRootFromPlayer = function(plr)
 			break
 		end
 	end
-	if root and root:IsDescendantOf(Workspace) then
+	if root and root:IsDescendantOf(Services.Workspace) then
 		return root
 	end
 	return nil
@@ -60283,7 +60252,7 @@ NAmanage.PredictionResolvePlayer = function(userId, fallbackPlayer)
 	end
 	const numericId = tonumber(userId) or (plr and tonumber(plr.UserId))
 	if numericId then
-		local ok, resolved = pcall(Players.GetPlayerByUserId, Players, numericId)
+		local ok, resolved = pcall(Services.Players.GetPlayerByUserId, Services.Players, numericId)
 		if ok and resolved and resolved.Parent and resolved:IsDescendantOf(game) then
 			return resolved
 		end
@@ -60412,13 +60381,13 @@ end
 NAmanage.PredictionEnsureLoop = function()
 	const state = NAmanage.PredictionEnsureState()
 	if not state.cleanupConn then
-		state.cleanupConn = Players.PlayerRemoving:Connect(function(plr)
+		state.cleanupConn = Services.Players.PlayerRemoving:Connect(function(plr)
 			NAmanage.PredictionDestroyEntry(plr.UserId)
 			NAmanage.PredictionStopIfEmpty()
 		end)
 	end
 	if not state.conn then
-		state.conn = NAlib.reconnect("prediction_track", RunService.Heartbeat:Connect(NAmanage.PredictionHeartbeatSafe))
+		state.conn = NAlib.reconnect("prediction_track", Services.RunService.Heartbeat:Connect(NAmanage.PredictionHeartbeatSafe))
 	end
 end
 
@@ -60441,7 +60410,7 @@ cmd.add({"predict"},{"predict <player> [leadSeconds]","Visualize predicted playe
 
 	local added = 0
 	for _, plr in targets do
-		if plr and plr ~= Players.LocalPlayer then
+		if plr and plr ~= Services.Players.LocalPlayer then
 			const entry = NAmanage.PredictionEnsureEntry(plr.UserId, plr, state.lead)
 			if entry then
 				added += 1
@@ -60596,7 +60565,7 @@ NAmanage.dropToolStep=function(tool, character, backpack, done)
 	end
 
 	NACaller(function()
-		tool.Parent = Workspace
+		tool.Parent = Services.Workspace
 	end)
 
 	const dropped = tool.Parent == RawWorkspace
@@ -60739,7 +60708,7 @@ NAmanage.dropAllToolsSafe=function(done)
 			end
 
 			NACaller(function()
-				tool.Parent = Workspace
+				tool.Parent = Services.Workspace
 			end)
 
 			if tool.Parent == RawWorkspace then
@@ -60838,11 +60807,11 @@ cmd.addPatched({"breaklayeredclothing","blc"},{"breaklayeredclothing (blc)","Str
 
 	DoNotif("Break layered clothing executed,if you havent already equip shirt,jacket,pants and shoes (Layered Clothing ones)")
 	local swimming=false
-	oldgrav=Workspace.Gravity
-	Workspace.Gravity=0
+	oldgrav=Services.Workspace.Gravity
+	Services.Workspace.Gravity=0
 	const char=getChar()
 	const swimDied=function()
-		Workspace.Gravity=oldgrav
+		Services.Workspace.Gravity=oldgrav
 		swimming=false
 	end
 	Humanoid=char:FindFirstChildWhichIsA("Humanoid")
@@ -60853,7 +60822,7 @@ cmd.addPatched({"breaklayeredclothing","blc"},{"breaklayeredclothing (blc)","Str
 		Humanoid:SetStateEnabled(v,false)
 	end
 	Humanoid:ChangeState(Enum.HumanoidStateType.Swimming)
-	swimbeat=NAlib.reconnect("breaklayeredclothing_swimbeat", RunService.Heartbeat:Connect(function()
+	swimbeat=NAlib.reconnect("breaklayeredclothing_swimbeat", Services.RunService.Heartbeat:Connect(function()
 		pcall(function()
 			getRoot(char).Velocity=((Humanoid.MoveDirection~=Vector3.new(0, 0, 0) or __lt.cm("UserInputService", "IsKeyDown", Enum.KeyCode.Space)) and getRoot(char).Velocity or Vector3.new(0, 0, 0))
 		end)
@@ -60870,7 +60839,7 @@ cmd.addPatched({"breaklayeredclothing","blc"},{"breaklayeredclothing (blc)","Str
 			end
 		end
 	end
-	Noclipping=NAlib.reconnect("breaklayeredclothing_noclip", RunService.PreSimulation:Connect(NoclipLoop))
+	Noclipping=NAlib.reconnect("breaklayeredclothing_noclip", Services.RunService.PreSimulation:Connect(NoclipLoop))
 	NAmanage.RunURL('https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/leg%20resize')
 end)
 
@@ -60882,7 +60851,7 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 		end;
 		return;
 	end;
-	const w = Workspace;
+	const w = Services.Workspace;
 	const st = NAmanage and NAmanage._ensureL and NAmanage._ensureL() or {
 		safeGet = function(i, p)
 			local ok, v = pcall(function()
@@ -61042,7 +61011,7 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 			"Technology"
 			} do
 			if originals.lighting[p] == nil then
-				originals.lighting[p] = st.safeGet(Lighting, p);
+				originals.lighting[p] = st.safeGet(Services.Lighting, p);
 			end;
 		end;
 		for _, e in __lt.cm("Lighting", "GetChildren") do
@@ -61096,13 +61065,13 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 			end);
 		end;
 		if flattenLighting then
-			st.safeSet(Lighting, "GlobalShadows", false);
-			st.safeSet(Lighting, "FogEnd", math.huge);
-			st.safeSet(Lighting, "Brightness", 0);
-			st.safeSet(Lighting, "Ambient", Color3.new(0.4, 0.4, 0.4));
-			st.safeSet(Lighting, "OutdoorAmbient", Color3.new(0.4, 0.4, 0.4));
-			setHiddenOrNormal(Lighting, "LightingStyle", Enum.LightingStyle.Soft);
-			setHiddenOrNormal(Lighting, "Technology", Enum.Technology.Compatibility);
+			st.safeSet(Services.Lighting, "GlobalShadows", false);
+			st.safeSet(Services.Lighting, "FogEnd", math.huge);
+			st.safeSet(Services.Lighting, "Brightness", 0);
+			st.safeSet(Services.Lighting, "Ambient", Color3.new(0.4, 0.4, 0.4));
+			st.safeSet(Services.Lighting, "OutdoorAmbient", Color3.new(0.4, 0.4, 0.4));
+			setHiddenOrNormal(Services.Lighting, "LightingStyle", Enum.LightingStyle.Soft);
+			setHiddenOrNormal(Services.Lighting, "Technology", Enum.Technology.Compatibility);
 		end;
 		const T = w:FindFirstChildOfClass("Terrain");
 		if T and simplifyMaterials then
@@ -61145,11 +61114,11 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 		for p, v in originals.lighting do
 			if v ~= nil then
 				if p == "LightingStyle" then
-					setHiddenOrNormal(Lighting, p, typeof(v) == "EnumItem" and v or Enum.LightingStyle[v] or Enum.LightingStyle.Soft);
+					setHiddenOrNormal(Services.Lighting, p, typeof(v) == "EnumItem" and v or Enum.LightingStyle[v] or Enum.LightingStyle.Soft);
 				elseif p == "Technology" then
-					setHiddenOrNormal(Lighting, p, typeof(v) == "EnumItem" and v or Enum.Technology[v] or Enum.Technology.Compatibility);
+					setHiddenOrNormal(Services.Lighting, p, typeof(v) == "EnumItem" and v or Enum.Technology[v] or Enum.Technology.Compatibility);
 				else
-					st.safeSet(Lighting, p, v);
+					st.safeSet(Services.Lighting, p, v);
 				end;
 			end;
 		end;
@@ -61194,10 +61163,10 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 			if not isNPC then
 				const pl = playerFromCharacter(cm)
 				if pl then
-					if ignoreSelf and pl == Players.LocalPlayer then
+					if ignoreSelf and pl == Services.Players.LocalPlayer then
 						return
 					end
-					if ignorePlayers and pl ~= Players.LocalPlayer then
+					if ignorePlayers and pl ~= Services.Players.LocalPlayer then
 						return
 					end
 				end
@@ -61633,7 +61602,7 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 		snapshotEnv();
 
 		connect(NAmanage.descAdd(w, handleAdded));
-		connect(NAmanage.descAdd(Lighting, handleAdded));
+		connect(NAmanage.descAdd(Services.Lighting, handleAdded));
 
 		const camSeen = {};
 		const function hookCamera(cam)
@@ -61659,7 +61628,7 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 			DoNotif("FPSBooster destroy mode: effects are removed until you rejoin", 3);
 		end;
 
-		for _, v in NAmanage.QueryDescendants(Lighting, "Instance") do
+		for _, v in NAmanage.QueryDescendants(Services.Lighting, "Instance") do
 			safeOptimize(v);
 		end;
 		sweepAll();
@@ -61735,7 +61704,7 @@ cmd.add({"annoy"}, {"annoy <player>", "Annoys the given player"}, function(...)
 		const offset = Vector3.new(math.random(-3,3), math.random(0,2), math.random(-3,3))
 		NAmanage.UG_setClientCFrame(myRoot, targetRoot.CFrame + offset)
 
-		RunService.RenderStepped:Wait()
+		Services.RunService.RenderStepped:Wait()
 	until not NAStuff.annoyLoop
 
 	if myRoot and originalCFrame then
@@ -61797,7 +61766,7 @@ cmd.add({"deleteinvisparts","deleteinvisibleparts","dip"},{"deleteinvisparts","D
 	local skippedNPCs = 0
 	local skippedHumanoids = 0
 
-	for _, v in NAmanage.QueryDescendants(Workspace, "BasePart") do
+	for _, v in NAmanage.QueryDescendants(Services.Workspace, "BasePart") do
 		if v.Transparency == 1 and v.CanCollide then
 			local skip, kind = NAmanage.IsPlayerOrNPCPart(v)
 			if skip then
@@ -61827,7 +61796,7 @@ end)
 NAStuff.shownParts = {}
 
 cmd.add({"invisibleparts","invisparts"},{"invisibleparts","Shows invisible parts"},function()
-	for _, v in NAmanage.QueryDescendants(Workspace, "BasePart") do
+	for _, v in NAmanage.QueryDescendants(Services.Workspace, "BasePart") do
 		if v.Transparency == 1 then
 			local alreadyShown = false
 			for _, p in NAStuff.shownParts do
@@ -61899,7 +61868,7 @@ end
 
 NAmanage.RemoveAdsScan = NAmanage.RemoveAdsScan or function()
 	local count = 0
-	for _, obj in NAmanage.QueryDescendants(Workspace, "PackageLink") do
+	for _, obj in NAmanage.QueryDescendants(Services.Workspace, "PackageLink") do
 		if NAmanage.RemoveAdsCandidate(obj) then
 			count += 1
 		end
@@ -62485,7 +62454,7 @@ cmd.add({"vehicleseat", "vseat"}, {"vehicleseat (vseat)", "Sits you in a vehicle
 end)
 cmd.add({"copytools","ctools"},{"copytools <player> (ctools)","Copies the tools the given player has"},function(...)
 	const targets = getPlr(NAmanage.PlayerQueryFromArgs(...))
-	const lp = Players.LocalPlayer
+	const lp = Services.Players.LocalPlayer
 	if not lp then return end
 	const backpack = lp:FindFirstChildOfClass("Backpack")
 	if not backpack then return end
@@ -62552,9 +62521,9 @@ cmd.add({"cartornado", "ctornado"}, {"cartornado (ctornado)", "Tornados a car ju
 		NAStuff._cartornadoHelper = nil
 	end
 
-	const Player = Players.LocalPlayer
+	const Player = Services.Players.LocalPlayer
 
-	repeat RunService.RenderStepped:Wait() until Player.Character
+	repeat Services.RunService.RenderStepped:Wait() until Player.Character
 	const Character = Player.Character
 
 	const SPart = InstanceNew("Part")
@@ -62562,7 +62531,7 @@ cmd.add({"cartornado", "ctornado"}, {"cartornado (ctornado)", "Tornados a car ju
 	SPart.CanCollide = true
 	SPart.Size = Vector3.new(1, 100, 1)
 	SPart.Transparency = 0.4
-	SPart.Parent = Workspace
+	SPart.Parent = Services.Workspace
 	NAStuff._cartornadoPart = SPart
 	NAlib.connect(CONN_KEY, SPart.AncestryChanged:Connect(function(_, parent)
 		if not parent then
@@ -62577,13 +62546,13 @@ cmd.add({"cartornado", "ctornado"}, {"cartornado (ctornado)", "Tornados a car ju
 	NAmanage._raycastFilterType(rayParams)
 	rayParams.FilterDescendantsInstances = { Character }
 
-	NAlib.connect(CONN_KEY, RunService.PreSimulation:Connect(function()
+	NAlib.connect(CONN_KEY, Services.RunService.PreSimulation:Connect(function()
 		if not SPart or not SPart.Parent then return end
 		const hum = Character and getHum()
 		if hum and Character.PrimaryPart then
 			const rayOrigin = Character.PrimaryPart.Position + Character.PrimaryPart.CFrame.LookVector * 6
 			const rayDir = Vector3.new(0, -4, 0)
-			const result = Workspace:Raycast(rayOrigin, rayDir, rayParams)
+			const result = Services.Workspace:Raycast(rayOrigin, rayDir, rayParams)
 			if result then
 				SPart.CFrame = Character.PrimaryPart.CFrame + Character.PrimaryPart.CFrame.LookVector * 6
 			end
@@ -62619,7 +62588,7 @@ cmd.add({"cartornado", "ctornado"}, {"cartornado (ctornado)", "Tornados a car ju
 		helperPart.Transparency = 1
 		helperPart.Size = Vector3.new(1, 1, 1)
 		helperPart.CFrame = motionBase.CFrame
-		helperPart.Parent = Workspace
+		helperPart.Parent = Services.Workspace
 		NAStuff._cartornadoHelper = helperPart
 
 		const helperWeld = InstanceNew("WeldConstraint")
@@ -62681,8 +62650,8 @@ cmd.add({"cartornado", "ctornado"}, {"cartornado (ctornado)", "Tornados a car ju
 
 		SpawnCall(function()
 			while isFlying do
-				flyg.CFrame = Workspace.CurrentCamera.CFrame * CFrame.Angles(-math.rad(f * 50 * speed / maxSpeed), 0, 0)
-				flyv.Velocity = Workspace.CurrentCamera.CFrame.LookVector * speed
+				flyg.CFrame = Services.Workspace.CurrentCamera.CFrame * CFrame.Angles(-math.rad(f * 50 * speed / maxSpeed), 0, 0)
+				flyv.Velocity = Services.Workspace.CurrentCamera.CFrame.LookVector * speed
 				Wait(0.1)
 
 				if speed < 0 then
@@ -62786,7 +62755,7 @@ NAmanage.AntiKick_EnsureHook = function()
 	if not getRawMetatable or not setReadOnly or not newcclosure or not hookfunction then return end
 	const meta = getRawMetatable(game)
 	if not meta then return end
-	const player = Players.LocalPlayer
+	const player = Services.Players.LocalPlayer
 	if not player then return end
 	NAStuff.AntiKickOrig.namecall = meta.__namecall
 	NAStuff.AntiKickOrig.index = meta.__index
@@ -62860,17 +62829,17 @@ NAmanage.AntiTeleport_EnsureHook = function()
 	if not getRawMetatable or not setReadOnly or not newcclosure or not hookfunction then return end
 	const meta = getRawMetatable(game)
 	if not meta then return end
-	if not TeleportService then return end
+	if not Services.TeleportService then return end
 	NAStuff.AntiTeleportOrig.namecall = meta.__namecall
 	NAStuff.AntiTeleportOrig.index = meta.__index
 	NAStuff.AntiTeleportOrig.newindex = meta.__newindex
 	const methods = {"Teleport","TeleportToPlaceInstance","TeleportAsync","TeleportPartyAsync","TeleportToPrivateServer"}
 	for _,m in methods do
-		const fn = TeleportService[m]
+		const fn = Services.TeleportService[m]
 		if typeof(fn)=="function" then
 			local orig
 			orig = hookfunction(fn, newcclosure(function(self, ...)
-				if self==TeleportService or self==RawTeleportService then
+				if self==Services.TeleportService or self==RawTeleportService then
 					Defer(DebugNotif, "Teleport blocked (hook)", 2)
 					if NAStuff.AntiTeleportMode=="error" then
 						error("Teleport blocked",0)
@@ -62886,7 +62855,7 @@ NAmanage.AntiTeleport_EnsureHook = function()
 	setReadOnly(meta,false)
 	meta.__namecall = newcclosure(function(self, ...)
 		const method = getnamecallmethod()
-		if (self==TeleportService or self==RawTeleportService) and typeof(method)=="string" and Lower(method):find("teleport") then
+		if (self==Services.TeleportService or self==RawTeleportService) and typeof(method)=="string" and Lower(method):find("teleport") then
 			Defer(DebugNotif, "Teleport blocked (__namecall)", 2)
 			if NAStuff.AntiTeleportMode=="error" then
 				error("Teleport blocked",0)
@@ -62897,7 +62866,7 @@ NAmanage.AntiTeleport_EnsureHook = function()
 		return NAStuff.AntiTeleportOrig.namecall(self,...)
 	end)
 	meta.__index = newcclosure(function(self, key)
-		if self==TeleportService or self==RawTeleportService then
+		if self==Services.TeleportService or self==RawTeleportService then
 			const k = Lower(tostring(key))
 			if k:find("teleport") then
 				Defer(DebugNotif, "Blocked access: "..tostring(key), 2)
@@ -62911,7 +62880,7 @@ NAmanage.AntiTeleport_EnsureHook = function()
 		return NAStuff.AntiTeleportOrig.index(self,key)
 	end)
 	meta.__newindex = newcclosure(function(self, key, value)
-		if self==TeleportService or self==RawTeleportService then
+		if self==Services.TeleportService or self==RawTeleportService then
 			const k = Lower(tostring(key))
 			if k:find("teleport") then
 				Defer(DebugNotif, "Blocked overwrite: "..tostring(key), 2)
@@ -62979,7 +62948,7 @@ cmd.add({"unantikick","unnokick","unbypasskick","unbk"},{"unantikick","Disables 
 		DoNotif("Anti-Kick not active or missing references",3)
 		return
 	end
-	const player = Players.LocalPlayer
+	const player = Services.Players.LocalPlayer
 	for k,orig in NAStuff.AntiKickOrig.kicks or {} do
 		pcall(function() hookfunction(k, orig) end)
 	end
@@ -63001,7 +62970,7 @@ cmd.add({"unantiteleport","unnoteleport","unblocktp"},{"unantiteleport","Disable
 		return
 	end
 	for name,orig in NAStuff.AntiTeleportOrig.funcs or {} do
-		const fn = TeleportService[name]
+		const fn = Services.TeleportService[name]
 		if typeof(fn)=="function" and orig then
 			pcall(function() hookfunction(fn, orig) end)
 		end
@@ -63017,7 +62986,7 @@ end)
 
 NAStuff.ATPC = {
 	state = false,
-	plr = Players.LocalPlayer,
+	plr = Services.Players.LocalPlayer,
 	gui = nil,
 	btn = nil,
 	allowed = {},
@@ -63155,7 +63124,7 @@ end
 NAStuff.ATPC.Enable = function()
 	if NAStuff.ATPC.state then return end
 
-	const plr = Players.LocalPlayer
+	const plr = Services.Players.LocalPlayer
 	if not plr then
 		DoNotif("Anti CFrame Teleport failed (no player)")
 		return
@@ -63293,10 +63262,10 @@ cmd.add({"permtrip","ptrip"},{"permtrip (ptrip)","Permanent trip that keeps you 
 	NAlib.disconnect("permtrip_char")
 	applyPermTrip()
 
-	NAlib.connect("permtrip_step", RunService.RenderStepped:Connect(function()
+	NAlib.connect("permtrip_step", Services.RunService.RenderStepped:Connect(function()
 		applyPermTrip()
 	end))
-	NAlib.connect("permtrip_char", Players.LocalPlayer.CharacterAdded:Connect(function()
+	NAlib.connect("permtrip_char", Services.Players.LocalPlayer.CharacterAdded:Connect(function()
 		if not NAStuff.permtrip then return end
 		Wait(0.2)
 		applyPermTrip()
@@ -63322,7 +63291,7 @@ cmd.add({"unpermtrip","unptrip"},{"unpermtrip (unptrip)","Disable permanent trip
 end)
 
 cmd.add({"antitrip", "antiragdoll"}, {"antitrip", "no tripping today bruh"}, function()
-	const LocalPlayer=Players.LocalPlayer
+	const LocalPlayer=Services.Players.LocalPlayer
 	const states={Enum.HumanoidStateType.FallingDown,Enum.HumanoidStateType.Ragdoll,Enum.HumanoidStateType.PlatformStanding}
 	shared.__antitrip=shared.__antitrip or {saved={}}
 	const STORE=shared.__antitrip
@@ -63358,7 +63327,7 @@ cmd.add({"antitrip", "antiragdoll"}, {"antitrip", "no tripping today bruh"}, fun
 			end
 		end))
 		NAlib.disconnect("trip_step")
-		NAlib.connect("trip_step",RunService.RenderStepped:Connect(function()
+		NAlib.connect("trip_step",Services.RunService.RenderStepped:Connect(function()
 			const s=hum:GetState()
 			if s==Enum.HumanoidStateType.FallingDown or s==Enum.HumanoidStateType.Ragdoll or s==Enum.HumanoidStateType.PlatformStanding then
 				recover(hum,root)
@@ -63730,13 +63699,13 @@ NAmanage.HumanoidStateLockStartLoops = function()
 		end
 	end
 	pcall(function()
-		NAlib.connect("humstate_lock_step", RunService.RenderStepped:Connect(pulse))
+		NAlib.connect("humstate_lock_step", Services.RunService.RenderStepped:Connect(pulse))
 	end)
 	pcall(function()
-		NAlib.connect("humstate_lock_step", RunService.PreSimulation:Connect(pulse))
+		NAlib.connect("humstate_lock_step", Services.RunService.PreSimulation:Connect(pulse))
 	end)
 	pcall(function()
-		NAlib.connect("humstate_lock_step", RunService.Heartbeat:Connect(pulse))
+		NAlib.connect("humstate_lock_step", Services.RunService.Heartbeat:Connect(pulse))
 	end)
 end
 
@@ -63754,7 +63723,7 @@ NAmanage.HumanoidStateLockStart = function(states)
 	NAmanage.HumanoidStateLockStartLoops()
 
 	NAlib.disconnect("humstate_lock_char")
-	const lp = Players.LocalPlayer
+	const lp = Services.Players.LocalPlayer
 	if lp then
 		NAlib.connect("humstate_lock_char", lp.CharacterAdded:Connect(function(char)
 			if not NAStuff.HumanoidStateLockEnabled then return end
@@ -63888,8 +63857,8 @@ cmd.add({"sit"},{"sit","Sit your player"},function()
 end)
 
 cmd.add({"oldroblox"},{"oldroblox","Old skybox and studs"},function()
-	if NAmanage.GetAttr(Lighting, "NAOldRbx_Enabled") then return end
-	NAmanage.SetAttr(Lighting, "NAOldRbx_Enabled", true)
+	if NAmanage.GetAttr(Services.Lighting, "NAOldRbx_Enabled") then return end
+	NAmanage.SetAttr(Services.Lighting, "NAOldRbx_Enabled", true)
 
 	const studTex = NAmanage.getNAImageAsset("Stud", "rbxassetid://48715260")
 	const inletTex = NAmanage.getNAImageAsset("Inlet", "rbxassetid://20299774")
@@ -63913,7 +63882,7 @@ cmd.add({"oldroblox"},{"oldroblox","Old skybox and studs"},function()
 		sky.SkyboxLf = skyA.lf
 		sky.SkyboxRt = skyA.rt
 		sky.SkyboxUp = skyA.up
-		sky.Parent = Lighting
+		sky.Parent = Services.Lighting
 		return sky
 	end
 
@@ -63953,14 +63922,14 @@ cmd.add({"oldroblox"},{"oldroblox","Old skybox and studs"},function()
 		v.Material = Enum.Material.Plastic
 	end
 
-	NAmanage.SetAttr(Lighting, "NAOldRbx_PrevClockTime", Lighting.ClockTime)
-	NAmanage.SetAttr(Lighting, "NAOldRbx_PrevGlobalShadows", Lighting.GlobalShadows)
-	local ok,outlines = pcall(function() return Lighting.Outlines end)
-	if ok then NAmanage.SetAttr(Lighting, "NAOldRbx_HadOutlines", true) NAmanage.SetAttr(Lighting, "NAOldRbx_PrevOutlines", outlines) end
+	NAmanage.SetAttr(Services.Lighting, "NAOldRbx_PrevClockTime", Services.Lighting.ClockTime)
+	NAmanage.SetAttr(Services.Lighting, "NAOldRbx_PrevGlobalShadows", Services.Lighting.GlobalShadows)
+	local ok,outlines = pcall(function() return Services.Lighting.Outlines end)
+	if ok then NAmanage.SetAttr(Services.Lighting, "NAOldRbx_HadOutlines", true) NAmanage.SetAttr(Services.Lighting, "NAOldRbx_PrevOutlines", outlines) end
 
-	const stash = Workspace:FindFirstChild("NAOldRbx_SkyStash") or InstanceNew("Folder")
+	const stash = Services.Workspace:FindFirstChild("NAOldRbx_SkyStash") or InstanceNew("Folder")
 	stash.Name = "NAOldRbx_SkyStash"
-	stash.Parent = Workspace
+	stash.Parent = Services.Workspace
 	for _,v in __lt.cm("Lighting", "GetChildren") do
 		if v:IsA("Sky") then
 			const c = v:Clone()
@@ -63969,9 +63938,9 @@ cmd.add({"oldroblox"},{"oldroblox","Old skybox and studs"},function()
 		end
 	end
 
-	Lighting.ClockTime = 12
-	pcall(function() Lighting.GlobalShadows = false end)
-	pcall(function() Lighting.Outlines = false end)
+	Services.Lighting.ClockTime = 12
+	pcall(function() Services.Lighting.GlobalShadows = false end)
+	pcall(function() Services.Lighting.Outlines = false end)
 	ensureSky()
 
 	const RS = SafeGetService("RunService")
@@ -63979,11 +63948,11 @@ cmd.add({"oldroblox"},{"oldroblox","Old skybox and studs"},function()
 	const q = {head = 1, tail = 0, data = {}}
 	const function qpush(x) q.tail += 1; q.data[q.tail] = x end
 	const function qpop() const i = q.head; if i > q.tail then return nil end; const x = q.data[i]; q.data[i] = nil; q.head = i + 1; return x end
-	for _,child in Workspace:GetChildren() do qpush(child) end
+	for _,child in Services.Workspace:GetChildren() do qpush(child) end
 
 	NAlib.disconnect("oldrbx_tick")
 	NAlib.connect("oldrbx_tick", RS.Heartbeat:Connect(function()
-		if not NAmanage.GetAttr(Lighting, "NAOldRbx_Enabled") then return end
+		if not NAmanage.GetAttr(Services.Lighting, "NAOldRbx_Enabled") then return end
 		const budgetNodes = 200
 		local i = 0
 		while i < budgetNodes do
@@ -64003,15 +63972,15 @@ cmd.add({"oldroblox"},{"oldroblox","Old skybox and studs"},function()
 
 	NAlib.disconnect("oldrbx_desc")
 	NAlib.connect("oldrbx_desc", NAmanage.wsAdd(function(obj)
-		if not NAmanage.GetAttr(Lighting, "NAOldRbx_Enabled") then return end
+		if not NAmanage.GetAttr(Services.Lighting, "NAOldRbx_Enabled") then return end
 		if obj:IsA("BasePart") then
 			qpush(obj)
 		end
 	end))
 
 	NAlib.disconnect("oldrbx_skywatch")
-	NAlib.connect("oldrbx_skywatch", NAmanage.childAdd(Lighting, function(obj)
-		if not NAmanage.GetAttr(Lighting, "NAOldRbx_Enabled") then return end
+	NAlib.connect("oldrbx_skywatch", NAmanage.childAdd(Services.Lighting, function(obj)
+		if not NAmanage.GetAttr(Services.Lighting, "NAOldRbx_Enabled") then return end
 		if obj:IsA("Sky") and obj.Name ~= "NAOldRobloxSky" then
 			const c = obj:Clone()
 			c.Parent = stash
@@ -64023,8 +63992,8 @@ cmd.add({"oldroblox"},{"oldroblox","Old skybox and studs"},function()
 	end))
 
 	NAlib.disconnect("oldrbx_skyguard")
-	NAlib.connect("oldrbx_skyguard", NAmanage.childRem(Lighting, function(obj)
-		if not NAmanage.GetAttr(Lighting, "NAOldRbx_Enabled") then return end
+	NAlib.connect("oldrbx_skyguard", NAmanage.childRem(Services.Lighting, function(obj)
+		if not NAmanage.GetAttr(Services.Lighting, "NAOldRbx_Enabled") then return end
 		if obj:IsA("Sky") and not __lt.cm("Lighting", "FindFirstChild", "NAOldRobloxSky") then
 			ensureSky()
 		end
@@ -64034,7 +64003,7 @@ cmd.add({"oldroblox"},{"oldroblox","Old skybox and studs"},function()
 end)
 
 cmd.add({"unoldroblox"},{"unoldroblox","Restore skybox and studs"},function()
-	if not NAmanage.GetAttr(Lighting, "NAOldRbx_Enabled") then return end
+	if not NAmanage.GetAttr(Services.Lighting, "NAOldRbx_Enabled") then return end
 
 	NAlib.disconnect("oldrbx_desc")
 	NAlib.disconnect("oldrbx_skywatch")
@@ -64046,7 +64015,7 @@ cmd.add({"unoldroblox"},{"unoldroblox","Restore skybox and studs"},function()
 	const rq = {head = 1, tail = 0, data = {}}
 	const function rpush(x) rq.tail += 1; rq.data[rq.tail] = x end
 	const function rpop() const i = rq.head; if i > rq.tail then return nil end; const x = rq.data[i]; rq.data[i] = nil; rq.head = i + 1; return x end
-	for _,child in Workspace:GetChildren() do rpush(child) end
+	for _,child in Services.Workspace:GetChildren() do rpush(child) end
 
 	NAlib.disconnect("oldrbx_untick")
 	NAlib.connect("oldrbx_untick", RS.Heartbeat:Connect(function()
@@ -64082,30 +64051,30 @@ cmd.add({"unoldroblox"},{"unoldroblox","Restore skybox and studs"},function()
 					v:Destroy()
 				end
 			end
-			const stash = Workspace:FindFirstChild("NAOldRbx_SkyStash")
+			const stash = Services.Workspace:FindFirstChild("NAOldRbx_SkyStash")
 			if stash then
 				for _,c in stash:GetChildren() do
 					if c:IsA("Sky") then
-						c.Parent = Lighting
+						c.Parent = Services.Lighting
 					end
 				end
 				stash:Destroy()
 			end
 
-			const prevClock = NAmanage.GetAttr(Lighting, "NAOldRbx_PrevClockTime")
-			const prevShadows = NAmanage.GetAttr(Lighting, "NAOldRbx_PrevGlobalShadows")
-			if typeof(prevClock) == "number" then pcall(function() Lighting.ClockTime = prevClock end) end
-			if typeof(prevShadows) == "boolean" then pcall(function() Lighting.GlobalShadows = prevShadows end) end
-			if NAmanage.GetAttr(Lighting, "NAOldRbx_HadOutlines") then
-				const prevOut = NAmanage.GetAttr(Lighting, "NAOldRbx_PrevOutlines")
-				pcall(function() Lighting.Outlines = prevOut end)
+			const prevClock = NAmanage.GetAttr(Services.Lighting, "NAOldRbx_PrevClockTime")
+			const prevShadows = NAmanage.GetAttr(Services.Lighting, "NAOldRbx_PrevGlobalShadows")
+			if typeof(prevClock) == "number" then pcall(function() Services.Lighting.ClockTime = prevClock end) end
+			if typeof(prevShadows) == "boolean" then pcall(function() Services.Lighting.GlobalShadows = prevShadows end) end
+			if NAmanage.GetAttr(Services.Lighting, "NAOldRbx_HadOutlines") then
+				const prevOut = NAmanage.GetAttr(Services.Lighting, "NAOldRbx_PrevOutlines")
+				pcall(function() Services.Lighting.Outlines = prevOut end)
 			end
 
-			NAmanage.SetAttr(Lighting, "NAOldRbx_Enabled", nil)
-			NAmanage.SetAttr(Lighting, "NAOldRbx_PrevClockTime", nil)
-			NAmanage.SetAttr(Lighting, "NAOldRbx_PrevGlobalShadows", nil)
-			NAmanage.SetAttr(Lighting, "NAOldRbx_HadOutlines", nil)
-			NAmanage.SetAttr(Lighting, "NAOldRbx_PrevOutlines", nil)
+			NAmanage.SetAttr(Services.Lighting, "NAOldRbx_Enabled", nil)
+			NAmanage.SetAttr(Services.Lighting, "NAOldRbx_PrevClockTime", nil)
+			NAmanage.SetAttr(Services.Lighting, "NAOldRbx_PrevGlobalShadows", nil)
+			NAmanage.SetAttr(Services.Lighting, "NAOldRbx_HadOutlines", nil)
+			NAmanage.SetAttr(Services.Lighting, "NAOldRbx_PrevOutlines", nil)
 		end
 	end))
 end)
@@ -64180,10 +64149,10 @@ cmd.add({"triggerbot", "tbot"}, {"triggerbot (tbot)", "Executes a script that au
 	const ToggleKey = Enum.KeyCode.Z
 	const FieldOfView = 10
 
-	const UIS = UserInputService
-	const Camera = Workspace.CurrentCamera
+	const UIS = Services.UserInputService
+	const Camera = Services.Workspace.CurrentCamera
 
-	const Player = Players.LocalPlayer
+	const Player = Services.Players.LocalPlayer
 	const Mouse = NAmanage.GetMouse(Player)
 	local Toggled = false
 	local Mode = "FFA"
@@ -64247,7 +64216,7 @@ cmd.add({"triggerbot", "tbot"}, {"triggerbot (tbot)", "Executes a script that au
 	end
 
 	const function CheckMode()
-		if #__lt.cm("Players", "GetPlayers") > 0 and Players.LocalPlayer.Team == nil then
+		if #__lt.cm("Players", "GetPlayers") > 0 and Services.Players.LocalPlayer.Team == nil then
 			Mode = "FFA"
 		else
 			Mode = "Team"
@@ -64266,7 +64235,7 @@ cmd.add({"triggerbot", "tbot"}, {"triggerbot (tbot)", "Executes a script that au
 		end
 	end))
 
-	NAlib.connect(CONN_KEY, RunService.RenderStepped:Connect(function()
+	NAlib.connect(CONN_KEY, Services.RunService.RenderStepped:Connect(function()
 		CheckMode()
 		if Toggled then
 			const targetPlayer = GetClosestPlayer()
@@ -64363,7 +64332,7 @@ cmd.add({"setspawn","spawnpoint","ss"},{"setspawn (spawnpoint, ss)","Sets your s
 		end
 	end
 
-	NAlib.connect("spawnCONNECTION",RunService.RenderStepped:Connect(handleRespawn))
+	NAlib.connect("spawnCONNECTION",Services.RunService.RenderStepped:Connect(handleRespawn))
 
 	NAlib.connect("spawnCHARCON",LocalPlayer.CharacterAdded:Connect(function(ch2)
 		NAStuff.lastChar = ch2
@@ -64482,7 +64451,7 @@ NAmanage.fbaSafe = NAmanage.fbaSafe or function(root, hum, char)
 	if vel and (vel.Magnitude > 250 or vel.Y < -90) then
 		return false
 	end
-	const fph = tonumber(Workspace.FallenPartsDestroyHeight) or -500
+	const fph = tonumber(Services.Workspace.FallenPartsDestroyHeight) or -500
 	if pos.Y <= fph + 25 then
 		return false
 	end
@@ -64495,7 +64464,7 @@ NAmanage.fbaSafe = NAmanage.fbaSafe or function(root, hum, char)
 	end
 	params.FilterDescendantsInstances = char and { char } or {}
 	local ok, hit = pcall(function()
-		return Workspace:Raycast(pos, Vector3.new(0, -8, 0), params)
+		return Services.Workspace:Raycast(pos, Vector3.new(0, -8, 0), params)
 	end)
 	return ok and hit ~= nil
 end
@@ -64584,7 +64553,7 @@ cmd.add({"tospawn", "ts"}, {"tospawn (ts)", "Teleports you to a SpawnLocation"},
 	local closestSpawn = nil
 	local shortestDistance = math.huge
 	const rootPosition = NAmanage.UG_clientPosition(root) or root.Position
-	for _, descendant in NAmanage.QueryDescendants(Workspace, "SpawnLocation") do
+	for _, descendant in NAmanage.QueryDescendants(Services.Workspace, "SpawnLocation") do
 		const distance = (descendant.Position - rootPosition).Magnitude
 		if distance < shortestDistance then
 			shortestDistance = distance
@@ -64673,7 +64642,7 @@ NAmanage.HamsterCleanup = NAmanage.HamsterCleanup or function(opts)
 	end
 
 	if oldCamSubj then
-		const Camera = Workspace.CurrentCamera
+		const Camera = Services.Workspace.CurrentCamera
 		if Camera then
 			pcall(function()
 				Camera.CameraSubject = oldCamSubj
@@ -64701,7 +64670,7 @@ cmd.add({"hamster"}, {"hamster <number>", "Hamster ball"}, function(...)
 		return DebugNotif("Hamster is already enabled")
 	end
 
-	const Camera = Workspace.CurrentCamera
+	const Camera = Services.Workspace.CurrentCamera
 
 	const SPEED_MULTIPLIER = (...) or 30
 	const JUMP_POWER = 60
@@ -64763,7 +64732,7 @@ cmd.add({"hamster"}, {"hamster <number>", "Hamster ball"}, function(...)
 	NAStuff.hamsterState.rootState = rootState
 	NAStuff.hamsterState.humanoidState = humanoidState
 
-	NAlib.connect("hamster_render", RunService.RenderStepped:Connect(function(delta)
+	NAlib.connect("hamster_render", Services.RunService.RenderStepped:Connect(function(delta)
 		if not NAStuff.hamsterState.active then
 			return
 		end
@@ -64785,14 +64754,14 @@ cmd.add({"hamster"}, {"hamster <number>", "Hamster ball"}, function(...)
 		end
 	end))
 
-	NAlib.connect("hamster_jump", UserInputService.JumpRequest:Connect(function()
+	NAlib.connect("hamster_jump", Services.UserInputService.JumpRequest:Connect(function()
 		if not NAStuff.hamsterState.active then
 			return
 		end
 		if not ball or not ball.Parent then
 			return
 		end
-		const result = Workspace:Raycast(
+		const result = Services.Workspace:Raycast(
 			ball.Position,
 			Vector3.new(0, -((ball.Size.Y / 2) + JUMP_GAP), 0),
 			params
@@ -64955,7 +64924,7 @@ NAmanage._raycastIsExcluded = NAmanage._raycastIsExcluded or function(inst, excl
 end
 
 NAmanage.RaycastFromMouse = NAmanage.RaycastFromMouse or function(mouse, maxDistance, excludeList)
-	if not (mouse and Workspace and Workspace.Raycast) then
+	if not (mouse and Services.Workspace and Services.Workspace.Raycast) then
 		return nil
 	end
 
@@ -64964,7 +64933,7 @@ NAmanage.RaycastFromMouse = NAmanage.RaycastFromMouse or function(mouse, maxDist
 		unitRay = mouse.UnitRay
 	end)
 	if not unitRay then
-		const camera = Workspace.CurrentCamera
+		const camera = Services.Workspace.CurrentCamera
 		if camera and camera.ViewportPointToRay then
 			const x = tonumber(mouse.X) or 0
 			const y = tonumber(mouse.Y) or 0
@@ -64984,7 +64953,7 @@ NAmanage.RaycastFromMouse = NAmanage.RaycastFromMouse or function(mouse, maxDist
 	NAmanage._raycastFilterType(params)
 	params.FilterDescendantsInstances = NAmanage._raycastFilterList(excludeList)
 	params.IgnoreWater = true
-	return Workspace:Raycast(unitRay.Origin, unitRay.Direction * (tonumber(maxDistance) or 1024), params)
+	return Services.Workspace:Raycast(unitRay.Origin, unitRay.Direction * (tonumber(maxDistance) or 1024), params)
 end
 
 NAmanage.GetMouseWorldCFrame = NAmanage.GetMouseWorldCFrame or function(mouse, excludeList, maxDistance)
@@ -65109,8 +65078,7 @@ end
 
 NAmanage.makeClickTweenUI = function()
 	NAmanage.clearAllTP()
-	const TweenService = SafeGetService("TweenService")
-	const player = Players.LocalPlayer
+	const player = Services.Players.LocalPlayer
 	const mouse = NAmanage.GetMouse(player)
 
 	NAStuff.tpUI = InstanceNew("ScreenGui")
@@ -65211,7 +65179,7 @@ NAmanage.makeClickTweenUI = function()
 				NAmanage.SetAttr(char, tweenAttrActive, true)
 				NAmanage.SetAttr(char, tweenAttrStart, startCF)
 				NAmanage.SetAttr(char, tweenAttrTarget, targetCF)
-				ctTweenState.conn = RunService.Heartbeat:Connect(function(dt)
+				ctTweenState.conn = Services.RunService.Heartbeat:Connect(function(dt)
 					if not ctTweenState.active or not char.Parent then
 						stopActiveTween()
 						return
@@ -65243,8 +65211,7 @@ end
 
 NAmanage.makeClickTweenTools = function()
 	NAmanage.clearAllTP()
-	const TweenService = SafeGetService("TweenService")
-	const player = Players.LocalPlayer
+	const player = Services.Players.LocalPlayer
 	const tweenAttrActive = "NATweenTeleportToolActive"
 	const tweenAttrStart = "NATweenTeleportToolStartCF"
 	const tweenAttrTarget = "NATweenTeleportToolTargetCF"
@@ -65276,7 +65243,7 @@ NAmanage.makeClickTweenTools = function()
 				NAmanage.SetAttr(char, tweenAttrStart, startCF)
 				NAmanage.SetAttr(char, tweenAttrTarget, targetCF)
 				local hbConn
-				hbConn = RunService.Heartbeat:Connect(function(dt)
+				hbConn = Services.RunService.Heartbeat:Connect(function(dt)
 					if not char.Parent then
 						NAmanage.SetAttr(char, tweenAttrCurrent, nil)
 						NAmanage.SetAttr(char, tweenAttrActive, false)
@@ -65358,7 +65325,7 @@ cmd.add({"thru"},{"thru <distance>","Move forward by distance"},function(distanc
 	const look = rootCF.LookVector
 	local targetPos = rootCF.Position + (look * num)
 
-	if Workspace and Workspace.Raycast and look.Magnitude > 0 then
+	if Services.Workspace and Services.Workspace.Raycast and look.Magnitude > 0 then
 		const params = RaycastParams.new()
 		NAmanage._raycastFilterType(params)
 		params.FilterDescendantsInstances = { char }
@@ -65368,11 +65335,11 @@ cmd.add({"thru"},{"thru <distance>","Move forward by distance"},function(distanc
 		const clearance = math.max(3, math.max(math.abs(rootSize.X), math.abs(rootSize.Z)) + 1.5)
 		const scanDistance = math.max(num + clearance, clearance + 4)
 		const origin = rootCF.Position + Vector3.new(0, math.min(math.max(rootSize.Y * 0.15, 0), 1), 0)
-		const hit = Workspace:Raycast(origin, look * scanDistance, params)
+		const hit = Services.Workspace:Raycast(origin, look * scanDistance, params)
 		if hit and hit.Position then
 			const probeDistance = math.max(num + clearance, clearance + 12)
 			const farOrigin = hit.Position + (look * probeDistance)
-			const backHit = Workspace:Raycast(farOrigin, -look * (probeDistance + clearance), params)
+			const backHit = Services.Workspace:Raycast(farOrigin, -look * (probeDistance + clearance), params)
 			if backHit and backHit.Position then
 				targetPos = backHit.Position + (look * clearance)
 			else
@@ -65450,7 +65417,7 @@ cmd.add({"decompiler"},{"decompiler","Allows you to decompile LocalScript/Module
 			end
 			const httpResult = opt.NAREQUEST({
 				Url = API,
-				Body = HttpService:JSONEncode({
+				Body = Services.HttpService:JSONEncode({
 					script = encodeBase64(bytecode)
 				}),
 				Method = "POST",
@@ -65739,7 +65706,7 @@ cmd.add({"antifling"},{"antifling","makes other players non-collidable with you"
 	const orig = NAStuff._afOrigCan
 	const sigs = NAStuff._afSignals
 
-	const lp = Players.LocalPlayer
+	const lp = Services.Players.LocalPlayer
 	if not lp then
 		DebugNotif("Antifling: LocalPlayer missing")
 		return
@@ -65834,8 +65801,8 @@ cmd.add({"antifling"},{"antifling","makes other players non-collidable with you"
 		hookOther(pl)
 	end
 
-	NAlib.connect("antifling_players", Players.PlayerAdded:Connect(hookOther))
-	NAlib.connect("antifling_players", Players.PlayerRemoving:Connect(function(pl)
+	NAlib.connect("antifling_players", Services.Players.PlayerAdded:Connect(hookOther))
+	NAlib.connect("antifling_players", Services.Players.PlayerRemoving:Connect(function(pl)
 		if pl == lp then
 			return
 		end
@@ -65845,7 +65812,7 @@ cmd.add({"antifling"},{"antifling","makes other players non-collidable with you"
 	local lastKey = nil
 	const quotaPerStep = 256
 
-	NAlib.connect("antifling", RunService.PreSimulation:Connect(function()
+	NAlib.connect("antifling", Services.RunService.PreSimulation:Connect(function()
 		const t = tracked
 		if not t then
 			return
@@ -66065,7 +66032,7 @@ cmd.add({"antiflingparts","antiunanchoredfling","afparts"},{"antiflingparts [lin
 		if overlapParams then
 			overlapParams.FilterDescendantsInstances = {character}
 			local ok, result = pcall(function()
-				return Workspace:GetPartBoundsInRadius(root.Position, DISTANCE_LIMIT, overlapParams)
+				return Services.Workspace:GetPartBoundsInRadius(root.Position, DISTANCE_LIMIT, overlapParams)
 			end)
 			if ok and type(result) == "table" then
 				parts = result
@@ -66073,7 +66040,7 @@ cmd.add({"antiflingparts","antiunanchoredfling","afparts"},{"antiflingparts [lin
 		end
 
 		if type(parts) ~= "table" then
-			const wsList = NAmanage.QueryDescendants(Workspace, "BasePart")
+			const wsList = NAmanage.QueryDescendants(Services.Workspace, "BasePart")
 			parts = {}
 			local count = 0
 			for i = 1, #wsList do
@@ -66114,7 +66081,7 @@ cmd.add({"antiflingparts","antiunanchoredfling","afparts"},{"antiflingparts [lin
 		end
 	end))
 
-	NAlib.connect("antifling_parts_scan", RunService.PreSimulation:Connect(function()
+	NAlib.connect("antifling_parts_scan", Services.RunService.PreSimulation:Connect(function()
 		const localRoot = getRoot(getChar())
 		local quota = TRACK_QUOTA
 		if not localRoot then
@@ -66199,7 +66166,7 @@ cmd.add({"gravitygun"},{"gravitygun","Probably the best gravity gun script thats
 end)
 
 originalIO.setWorkspaceLocked=function(flag)
-	const root = Workspace
+	const root = Services.Workspace
 	if not root then
 		return
 	end
@@ -66253,8 +66220,8 @@ cmd.add({"vehiclespeed", "vspeed"}, {"vehiclespeed <amount> (vspeed)", "Change t
 
 	local intens = tonumber(amount) or 1
 
-	NAlib.connect("vehicleloopspeed", RunService.PreSimulation:Connect(function()
-		const subject = Workspace.CurrentCamera.CameraSubject
+	NAlib.connect("vehicleloopspeed", Services.RunService.PreSimulation:Connect(function()
+		const subject = Services.Workspace.CurrentCamera.CameraSubject
 		if subject and subject:IsA("Humanoid") and subject.SeatPart then
 			subject.SeatPart:ApplyImpulse(subject.SeatPart.CFrame.LookVector * Vector3.new(intens, 0, intens))
 		elseif subject and subject:IsA("BasePart") then
@@ -66368,8 +66335,8 @@ cmd.add({"vehiclespeed", "vspeed"}, {"vehiclespeed <amount> (vspeed)", "Change t
 			intens = newIntens
 
 			NAlib.disconnect("vehicleloopspeed")
-			NAlib.connect("vehicleloopspeed", RunService.PreSimulation:Connect(function()
-				const subject = Workspace.CurrentCamera.CameraSubject
+			NAlib.connect("vehicleloopspeed", Services.RunService.PreSimulation:Connect(function()
+				const subject = Services.Workspace.CurrentCamera.CameraSubject
 				if subject and subject:IsA("Humanoid") and subject.SeatPart then
 					subject.SeatPart:ApplyImpulse(subject.SeatPart.CFrame.LookVector * Vector3.new(intens, 0, intens))
 				elseif subject and subject:IsA("BasePart") then
@@ -66382,7 +66349,7 @@ cmd.add({"vehiclespeed", "vspeed"}, {"vehiclespeed <amount> (vspeed)", "Change t
 		else
 			NAlib.disconnect("vehicleloopspeed")
 
-			const subject = Workspace.CurrentCamera.CameraSubject
+			const subject = Services.Workspace.CurrentCamera.CameraSubject
 			if subject then
 				local root
 				if subject:IsA("Humanoid") and subject.SeatPart then
@@ -66410,7 +66377,7 @@ cmd.add({"vehiclespeed", "vspeed"}, {"vehiclespeed <amount> (vspeed)", "Change t
 	end)
 
 	MouseButtonFix(vstopBtn, function()
-		const subject = Workspace.CurrentCamera.CameraSubject
+		const subject = Services.Workspace.CurrentCamera.CameraSubject
 		if subject then
 			local root
 			if subject:IsA("Humanoid") and subject.SeatPart then
@@ -66444,8 +66411,8 @@ cmd.add({"vehiclespeed", "vspeed"}, {"vehiclespeed <amount> (vspeed)", "Change t
 		intens = newIntens
 
 		NAlib.disconnect("vehicleloopspeed")
-		NAlib.connect("vehicleloopspeed", RunService.PreSimulation:Connect(function()
-			const subject = Workspace.CurrentCamera.CameraSubject
+		NAlib.connect("vehicleloopspeed", Services.RunService.PreSimulation:Connect(function()
+			const subject = Services.Workspace.CurrentCamera.CameraSubject
 			if subject and subject:IsA("Humanoid") and subject.SeatPart then
 				subject.SeatPart:ApplyImpulse(subject.SeatPart.CFrame.LookVector * Vector3.new(intens, 0, intens))
 			elseif subject and subject:IsA("BasePart") then
@@ -66469,7 +66436,7 @@ cmd.add({"unvehiclespeed", "unvspeed"}, {"unvehiclespeed (unvspeed)", "Stops the
 		vspeedBTN = nil
 	end
 
-	const subject = Workspace.CurrentCamera.CameraSubject
+	const subject = Services.Workspace.CurrentCamera.CameraSubject
 	if subject then
 		local root
 		if subject:IsA("Humanoid") and subject.SeatPart then
@@ -66500,10 +66467,10 @@ cmd.add({"unvehiclespeed", "unvspeed"}, {"unvehiclespeed (unvspeed)", "Stops the
 end)
 
 active=false
-players=Players
-camera=Workspace.CurrentCamera
+players=Services.Players
+camera=Services.Workspace.CurrentCamera
 
-uis=UserInputService
+uis=Services.UserInputService
 
 active=false
 function UpdateAutoRotate(BOOL)
@@ -66526,7 +66493,7 @@ function EnableShiftLock()
 		OriginalRotationType = currentRotation
 	end
 
-	NAlib.connect("shiftlock_loop", RunService.RenderStepped:Connect(function()
+	NAlib.connect("shiftlock_loop", Services.RunService.RenderStepped:Connect(function()
 		NACaller(function()
 			GameSettings.RotationType = Enum.RotationType.CameraRelative
 		end)
@@ -66811,7 +66778,7 @@ end
 
 originalIO.ensureForceCam=function()
 	if not NAStuff.forceCamState.enabled or not NAStuff.forceCamState.target then return end
-	const cam = Workspace.CurrentCamera
+	const cam = Services.Workspace.CurrentCamera
 	if not cam then return end
 	if cam.CameraType ~= NAStuff.forceCamState.target then
 		pcall(function() cam.CameraType = NAStuff.forceCamState.target end)
@@ -66820,7 +66787,7 @@ end
 
 originalIO.bindForceCamPropWatcher=function()
 	NAlib.disconnect("forcecam_camprop")
-	const cam = Workspace.CurrentCamera
+	const cam = Services.Workspace.CurrentCamera
 	if cam then
 		NAlib.connect("forcecam_camprop", cam:GetPropertyChangedSignal("CameraType"):Connect(originalIO.ensureForceCam))
 	end
@@ -66836,7 +66803,7 @@ originalIO.startForceCam=function(targetType)
 	originalIO.ensureForceCam()
 	originalIO.bindForceCamPropWatcher()
 
-	NAlib.connect("forcecam_main", Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+	NAlib.connect("forcecam_main", Services.Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
 		originalIO.ensureForceCam()
 		originalIO.bindForceCamPropWatcher()
 	end))
@@ -66852,7 +66819,7 @@ cmd.add({"cam","camera","cameratype"},{"cam (camera, cameratype)","Manage camera
 		Insert(buttons, {
 			Text = ct.Name,
 			Callback = function()
-				Workspace.CurrentCamera.CameraType = ct
+				Services.Workspace.CurrentCamera.CameraType = ct
 			end
 		})
 	end
@@ -66923,14 +66890,14 @@ alignmentButtonsGui = nil
 cmd.add({"alignmentkeys","alignkeys","ak"},{"alignmentkeys","Enable alignment keys"}, function()
 	const function onInput(input, gameProcessed)
 		if gameProcessed then return end
-		if input.KeyCode == Enum.KeyCode.Comma and Workspace.CurrentCamera then
-			Workspace.CurrentCamera:PanUnits(-1)
-		elseif input.KeyCode == Enum.KeyCode.Period and Workspace.CurrentCamera then
-			Workspace.CurrentCamera:PanUnits(1)
+		if input.KeyCode == Enum.KeyCode.Comma and Services.Workspace.CurrentCamera then
+			Services.Workspace.CurrentCamera:PanUnits(-1)
+		elseif input.KeyCode == Enum.KeyCode.Period and Services.Workspace.CurrentCamera then
+			Services.Workspace.CurrentCamera:PanUnits(1)
 		end
 	end
 	if not NAlib.isConnected("align_input") then
-		NAlib.connect("align_input", UserInputService.InputBegan:Connect(onInput))
+		NAlib.connect("align_input", Services.UserInputService.InputBegan:Connect(onInput))
 	end
 	if IsOnMobile and not alignmentButtonsGui then
 		alignmentButtonsGui = InstanceNew("ScreenGui")
@@ -66976,13 +66943,13 @@ cmd.add({"alignmentkeys","alignkeys","ak"},{"alignmentkeys","Enable alignment ke
 		NAgui.draggerV2(rightButton)
 
 		NAlib.connect("align_mobile_left", MouseButtonFix(leftButton,function()
-			if Workspace.CurrentCamera then
-				Workspace.CurrentCamera:PanUnits(-1)
+			if Services.Workspace.CurrentCamera then
+				Services.Workspace.CurrentCamera:PanUnits(-1)
 			end
 		end))
 		NAlib.connect("align_mobile_right", MouseButtonFix(rightButton,function()
-			if Workspace.CurrentCamera then
-				Workspace.CurrentCamera:PanUnits(1)
+			if Services.Workspace.CurrentCamera then
+				Services.Workspace.CurrentCamera:PanUnits(1)
 			end
 		end))
 	end
@@ -67019,7 +66986,7 @@ NAmanage.ESP_EnablePlayerMode = function(mode, teamPrefix, useChams, label, opts
 	end
 	local count = 0
 	for _, player in __lt.cm("Players", "GetPlayers") do
-		if player ~= Players.LocalPlayer then
+		if player ~= Services.Players.LocalPlayer then
 			NAmanage.ESP_SetupPlayerWatch(player)
 		end
 		if NAmanage.ESP_ShouldTrackPlayer(player) then
@@ -67113,7 +67080,7 @@ cmd.add({"locate"}, {"locate <username1> <username2> etc (optional)", "locate wh
 	end
 	for _, token in tokens do
 		for _, target in getPlr(token) do
-			if target and target ~= Players.LocalPlayer then
+			if target and target ~= Services.Players.LocalPlayer then
 				const uid = tonumber(target.UserId)
 				if uid and uid > 0 then
 					targetUidSet[uid] = true
@@ -67127,7 +67094,7 @@ cmd.add({"locate"}, {"locate <username1> <username2> etc (optional)", "locate wh
 	end
 	if not shouldAuto and chamsEnabled then
 		for _, plr in __lt.cm("Players", "GetPlayers") do
-			if plr and plr ~= Players.LocalPlayer then
+			if plr and plr ~= Services.Players.LocalPlayer then
 				const uid = tonumber(plr.UserId)
 				if not (uid and targetUidSet[uid]) then
 					NAmanage.ESP_SetPlayerLabelOverride(plr, false)
@@ -67189,7 +67156,7 @@ end
 
 NAmanage.SeedNpcCandidates = function()
 	NAStuff.npcCandidates = {}
-	for _, inst in NAmanage.QueryDescendants(Workspace, "Model") do
+	for _, inst in NAmanage.QueryDescendants(Services.Workspace, "Model") do
 		NAmanage.AddNpcCandidate(inst)
 	end
 end
@@ -67229,13 +67196,13 @@ cmd.add({"npcesp","espnpc"},{"npcesp [npc:name|filter] (espnpc)","locate all NPC
 	NAmanage.SeedNpcCandidates()
 	if not NAlib.isConnected(NAStuff.NPC_SCAN_KEY) then
 		local acc = 0
-		NAlib.connect(NAStuff.NPC_SCAN_KEY, RunService.Heartbeat:Connect(function(dt)
+		NAlib.connect(NAStuff.NPC_SCAN_KEY, Services.RunService.Heartbeat:Connect(function(dt)
 			if not NPCESPenabled then return end
 			acc = acc + dt
 			if acc < (NAStuff.NPC_ESP_ScanInterval or 0.6) then return end
 			acc = 0
 
-			const plr = Players.LocalPlayer
+			const plr = Services.Players.LocalPlayer
 			const char = plr and plr.Character
 			const root = char and getRoot(char)
 			const pool = {}
@@ -67428,7 +67395,7 @@ cmd.add({"vehicleclip", "vclip", "unvnoclip", "unvehiclenoclip"}, {"vehicleclip 
 end)
 
 cmd.add({"handlekill", "hkill"}, {"handlekill <player> (hkill)", "Kills a player using a tool that deals damage on touch"}, function(...)
-	const LocalPlayer = Players.LocalPlayer
+	const LocalPlayer = Services.Players.LocalPlayer
 
 	if not firetouchinterest then
 		return DoNotif('Your exploit does not support firetouchinterest to run this command')
@@ -67497,7 +67464,7 @@ cmd.add({"handlekill", "hkill"}, {"handlekill <player> (hkill)", "Kills a player
 					end
 				end
 
-				RunService.PreSimulation:Wait()
+				Services.RunService.PreSimulation:Wait()
 			end
 		end)
 	end
@@ -67536,7 +67503,7 @@ cmd.add({"creep"}, {"creep <player>", "Teleports from a player behind them and u
 		NAlib.disconnect("creep_noclip")
 	end
 
-	NAlib.connect("creep_noclip", RunService.PreSimulation:Connect(function()
+	NAlib.connect("creep_noclip", Services.RunService.PreSimulation:Connect(function()
 		const char = getChar()
 		if not char then return end
 		for _, part in char:QueryDescendants("BasePart") do
@@ -67548,7 +67515,7 @@ cmd.add({"creep"}, {"creep <player>", "Teleports from a player behind them and u
 	root.Anchored = true
 	Wait()
 
-	const tweenService = TweenService
+	const tweenService = Services.TweenService
 	const tweenInfo = TweenInfo.new(1000, Enum.EasingStyle.Linear)
 	const tween = tweenService:Create(root, tweenInfo, {CFrame = CFrame.new(0, 10000, 0)})
 	tween:Play()
@@ -67569,7 +67536,7 @@ cmd.add({"netless","net"},{"netless (net)","Executes netless which makes scripts
 	end
 
 	NAlib.disconnect("netless")
-	NAlib.connect("netless", RunService.PreSimulation:Connect(function()
+	NAlib.connect("netless", Services.RunService.PreSimulation:Connect(function()
 		const c = getChar()
 		if not c then return end
 		for _, v in NAmanage.QueryDescendants(c, "BasePart") do
@@ -67643,7 +67610,7 @@ NAmanage.AntiBreakClearSignals = function(hum)
 end
 
 NAmanage.AntiBreakRefreshCache = function(char, hum)
-	const plr = Players.LocalPlayer
+	const plr = Services.Players.LocalPlayer
 	const c = char or (plr and plr.Character) or getChar()
 	const h = hum or (c and (c:FindFirstChildOfClass("Humanoid") or c:FindFirstChildOfClass("AnimationController"))) or nil
 	NAStuff.AntiBreakChar = c
@@ -67812,7 +67779,7 @@ end
 NAmanage.AntiBreakStartWatch = function()
 	NAlib.disconnect("antibreak_step")
 	NAlib.disconnect("antibreak_loops")
-	NAlib.connect("antibreak_loops", RunService.PreSimulation:Connect(function()
+	NAlib.connect("antibreak_loops", Services.RunService.PreSimulation:Connect(function()
 		if not NAStuff.AntiBreakEnabled then return end
 		local h = NAStuff.AntiBreakHum
 		if not h or h.Parent == nil then
@@ -67836,7 +67803,7 @@ cmd.add({"antibreakjoints","antibjoints","nobreakjoints"},{"antibreakjoints","Pr
 	end
 	NAmanage.AntiBreakStartWatch()
 	NAlib.disconnect("antibreak_char")
-	NAlib.connect("antibreak_char", Players.LocalPlayer.CharacterAdded:Connect(function(char)
+	NAlib.connect("antibreak_char", Services.Players.LocalPlayer.CharacterAdded:Connect(function(char)
 		if not NAStuff.AntiBreakEnabled then return end
 		const h = char:FindFirstChildOfClass("Humanoid") or char:WaitForChild("Humanoid", 10)
 		if h then
@@ -68131,12 +68098,12 @@ NAmanage.DesyncOffsetRender = function()
 end
 
 NAmanage.DesyncBindRender = function()
-	if RunService and RunService.UnbindFromRenderStep then
-		pcall(RunService.UnbindFromRenderStep, RunService, NAStuff.desyncOffsetBindName)
+	if Services.RunService and Services.RunService.UnbindFromRenderStep then
+		pcall(Services.RunService.UnbindFromRenderStep, Services.RunService, NAStuff.desyncOffsetBindName)
 	end
 	NAlib.disconnect(NAStuff.desyncOffsetRenderKey)
 
-	if RunService and RunService.BindToRenderStep then
+	if Services.RunService and Services.RunService.BindToRenderStep then
 		const ok = pcall(function()
 			__lt.cm("RunService", "BindToRenderStep", NAStuff.desyncOffsetBindName, Enum.RenderPriority.First.Value, function()
 				NAmanage.DesyncOffsetRender()
@@ -68147,7 +68114,7 @@ NAmanage.DesyncBindRender = function()
 		end
 	end
 
-	NAlib.reconnect(NAStuff.desyncOffsetRenderKey, RunService.RenderStepped:Connect(function()
+	NAlib.reconnect(NAStuff.desyncOffsetRenderKey, Services.RunService.RenderStepped:Connect(function()
 		NACaller(function()
 			NAmanage.DesyncOffsetRender()
 		end)
@@ -68156,8 +68123,8 @@ end
 
 NAmanage.DesyncUnbindRender = function()
 	NAlib.disconnect(NAStuff.desyncOffsetRenderKey)
-	if RunService and RunService.UnbindFromRenderStep then
-		pcall(RunService.UnbindFromRenderStep, RunService, NAStuff.desyncOffsetBindName)
+	if Services.RunService and Services.RunService.UnbindFromRenderStep then
+		pcall(Services.RunService.UnbindFromRenderStep, Services.RunService, NAStuff.desyncOffsetBindName)
 	end
 end
 
@@ -68237,15 +68204,15 @@ NAmanage.SetOffsetDesync = function(enabled)
 		NAStuff.desyncOffsetAnchor = cf
 		NAStuff.desyncOffsetCurrent = cf
 
-		if RunService and RunService.PostSimulation then
-			NAlib.reconnect(NAStuff.desyncOffsetPostKey, RunService.PostSimulation:Connect(function()
+		if Services.RunService and Services.RunService.PostSimulation then
+			NAlib.reconnect(NAStuff.desyncOffsetPostKey, Services.RunService.PostSimulation:Connect(function()
 				NACaller(function()
 					NAmanage.DesyncOffsetStep()
 				end)
 			end))
 		end
 
-		NAlib.reconnect(NAStuff.desyncOffsetKey, RunService.Heartbeat:Connect(function()
+		NAlib.reconnect(NAStuff.desyncOffsetKey, Services.RunService.Heartbeat:Connect(function()
 			NACaller(function()
 				NAmanage.DesyncOffsetStep()
 			end)
@@ -68388,9 +68355,9 @@ NAmanage.abFileOk=function()
 	return type(isfile) == "function"
 		and type(readfile) == "function"
 		and type(writefile) == "function"
-		and HttpService
-		and type(HttpService.JSONEncode) == "function"
-		and type(HttpService.JSONDecode) == "function"
+		and Services.HttpService
+		and type(Services.HttpService.JSONEncode) == "function"
+		and type(Services.HttpService.JSONDecode) == "function"
 end
 
 NAmanage.abDir=function()
@@ -68424,7 +68391,7 @@ NAmanage.abRead=function()
 	if not okRead or type(raw) ~= "string" or raw == "" then
 		return {}
 	end
-	local okDec, data = pcall(HttpService.JSONDecode, HttpService, raw)
+	local okDec, data = pcall(Services.HttpService.JSONDecode, Services.HttpService, raw)
 	if okDec and type(data) == "table" then
 		return data
 	end
@@ -68436,7 +68403,7 @@ NAmanage.abWrite=function(data)
 		return false
 	end
 	NAmanage.abDir()
-	local okEnc, enc = pcall(HttpService.JSONEncode, HttpService, data)
+	local okEnc, enc = pcall(Services.HttpService.JSONEncode, Services.HttpService, data)
 	if not okEnc or type(enc) ~= "string" then
 		return false
 	end
@@ -68905,7 +68872,7 @@ cmd.add({"animbuilder","abuilder"},{"animbuilder (abuilder)","Opens animation bu
 	const forget = NAmanage.abButton(bar, "Forget", Color3.fromRGB(82,84,100), UDim2.new(0.5,4,0,50))
 
 	NAmanage.abVP=function()
-		const cam = Workspace.CurrentCamera
+		const cam = Services.Workspace.CurrentCamera
 		local vp = cam and cam.ViewportSize
 		if not vp or vp.X <= 0 or vp.Y <= 0 then
 			vp = Vector2.new(660, 500)
@@ -69101,13 +69068,13 @@ cmd.add({"animbuilder","abuilder"},{"animbuilder (abuilder)","Opens animation bu
 
 	for i, n in states do NAmanage.makeRow(n, i) end
 	NAmanage.abFit()
-	const cam = Workspace.CurrentCamera
+	const cam = Services.Workspace.CurrentCamera
 	if cam then
 		NAmanage.abTrack(cam:GetPropertyChangedSignal("ViewportSize"):Connect(function()
 			NAmanage.abFit()
 		end))
 	end
-	NAmanage.abTrack(Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+	NAmanage.abTrack(Services.Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
 		Defer(NAmanage.abFit)
 	end))
 
@@ -69606,7 +69573,7 @@ cmd.add({"syncanim","animsync"}, {"syncanim <target>","Mirror target animations 
 		applyTracks(captureTracks())
 	end))
 
-	NAlib.connect(NAStuff.SYNC_TAG, RunService.Heartbeat:Connect(function()
+	NAlib.connect(NAStuff.SYNC_TAG, Services.RunService.Heartbeat:Connect(function()
 		if stopped then return end
 		if not (myChar and myChar.Parent and myHum and myHum.Parent and myAnimator and myAnimator.Parent) then stopAndRestore() return end
 		if not (targetChar and targetChar.Parent and targetHum and targetHum.Parent and targetAnimator and targetAnimator.Parent) then stopAndRestore() return end
@@ -69615,11 +69582,11 @@ cmd.add({"syncanim","animsync"}, {"syncanim <target>","Mirror target animations 
 
 	NAlib.connect(NAStuff.SYNC_TAG, myChar.AncestryChanged:Connect(function() stopAndRestore() end))
 	NAlib.connect(NAStuff.SYNC_TAG, targetChar.AncestryChanged:Connect(function() stopAndRestore() end))
-	NAlib.connect(NAStuff.SYNC_TAG, Players.LocalPlayer.CharacterAdded:Connect(function() stopAndRestore() end))
+	NAlib.connect(NAStuff.SYNC_TAG, Services.Players.LocalPlayer.CharacterAdded:Connect(function() stopAndRestore() end))
 
 	if typeof(target) == "Instance" and target:IsA("Player") then
 		NAlib.connect(NAStuff.SYNC_TAG, target.CharacterAdded:Connect(function() stopAndRestore() end))
-		NAlib.connect(NAStuff.SYNC_TAG, Players.PlayerRemoving:Connect(function(plr)
+		NAlib.connect(NAStuff.SYNC_TAG, Services.Players.PlayerRemoving:Connect(function(plr)
 			if plr == target then
 				stopAndRestore()
 			end
@@ -70006,7 +69973,7 @@ cmd.add({"mimic","mirror","mclone","mcopy","mimi"}, {"mimic <target> [delay]","C
 		return child and child:IsA("Tool")
 	end))
 
-	NAlib.connect(NAStuff.MIMIC_TAG, RunService.Heartbeat:Connect(function()
+	NAlib.connect(NAStuff.MIMIC_TAG, Services.RunService.Heartbeat:Connect(function()
 		if stopped then return end
 		if not (targetChar and targetChar.Parent and targetRoot and targetRoot.Parent) then stopAndRestore() return end
 		if not (myChar and myChar.Parent and myRoot and myRoot.Parent) then stopAndRestore() return end
@@ -70078,12 +70045,12 @@ cmd.add({"mimic","mirror","mclone","mcopy","mimi"}, {"mimic <target> [delay]","C
 
 	NAlib.connect(NAStuff.MIMIC_TAG, myChar.AncestryChanged:Connect(function() stopAndRestore() end))
 	NAlib.connect(NAStuff.MIMIC_TAG, targetChar.AncestryChanged:Connect(function() stopAndRestore() end))
-	NAlib.connect(NAStuff.MIMIC_TAG, Players.LocalPlayer.CharacterAdded:Connect(function() stopAndRestore() end))
+	NAlib.connect(NAStuff.MIMIC_TAG, Services.Players.LocalPlayer.CharacterAdded:Connect(function() stopAndRestore() end))
 	if typeof(target) == "Instance" and target:IsA("Player") then
 		NAlib.connect(NAStuff.MIMIC_TAG, target.CharacterAdded:Connect(function() stopAndRestore() end))
 	end
 	if typeof(target) == "Instance" and target:IsA("Player") then
-		NAlib.connect(NAStuff.MIMIC_TAG, Players.PlayerRemoving:Connect(function(plr)
+		NAlib.connect(NAStuff.MIMIC_TAG, Services.Players.PlayerRemoving:Connect(function(plr)
 			if plr == target then stopAndRestore() end
 		end))
 	end
@@ -70218,7 +70185,7 @@ NAmanage.LoadSaveInstance420 = NAmanage.LoadSaveInstance420 or function()
 	end
 
 	const function getLocalHumanoid()
-		const player = Players and Players.LocalPlayer
+		const player = Services.Players and Services.Players.LocalPlayer
 		const character = player and player.Character
 		if character then
 			return character:FindFirstChildOfClass("Humanoid")
@@ -70229,7 +70196,7 @@ NAmanage.LoadSaveInstance420 = NAmanage.LoadSaveInstance420 or function()
 		const state = {}
 
 		pcall(function()
-			const camera = Workspace and Workspace.CurrentCamera
+			const camera = Services.Workspace and Services.Workspace.CurrentCamera
 			state.Camera = camera
 			if camera then
 				state.CameraType = camera.CameraType
@@ -70238,7 +70205,7 @@ NAmanage.LoadSaveInstance420 = NAmanage.LoadSaveInstance420 or function()
 		end)
 
 		pcall(function()
-			const userInput = UserInputService or SafeGetService("UserInputService")
+			const userInput = Services.UserInputService or SafeGetService("UserInputService")
 			state.UserInput = userInput
 			if userInput then
 				state.MouseBehavior = userInput.MouseBehavior
@@ -70255,7 +70222,7 @@ NAmanage.LoadSaveInstance420 = NAmanage.LoadSaveInstance420 or function()
 		end
 
 		pcall(function()
-			const userInput = state.UserInput or UserInputService or SafeGetService("UserInputService")
+			const userInput = state.UserInput or Services.UserInputService or SafeGetService("UserInputService")
 			if not userInput then
 				return
 			end
@@ -70268,7 +70235,7 @@ NAmanage.LoadSaveInstance420 = NAmanage.LoadSaveInstance420 or function()
 		end)
 
 		pcall(function()
-			const runService = RunService or SafeGetService("RunService")
+			const runService = Services.RunService or SafeGetService("RunService")
 			if runService and runService.Set3dRenderingEnabled then
 				runService:Set3dRenderingEnabled(true)
 			end
@@ -70277,7 +70244,7 @@ NAmanage.LoadSaveInstance420 = NAmanage.LoadSaveInstance420 or function()
 		pcall(function()
 			local camera = state.Camera
 			if not camera or camera.Parent == nil then
-				camera = Workspace and Workspace.CurrentCamera
+				camera = Services.Workspace and Services.Workspace.CurrentCamera
 			end
 			if not camera then
 				return
@@ -70530,7 +70497,7 @@ NAmanage.DecodeSaveInstanceExtraOptions = NAmanage.DecodeSaveInstanceExtraOption
 		return {}
 	end
 	local okDecode, decoded = pcall(function()
-		return HttpService:JSONDecode(trimmed)
+		return Services.HttpService:JSONDecode(trimmed)
 	end)
 	if not okDecode or type(decoded) ~= "table" then
 		error("Extra Options JSON is invalid")
@@ -70967,7 +70934,7 @@ end)
 cmd.add({"joinjobid","joinjid","jjobid","jjid"},{"joinjobid <jobid>","Joins the job id you put in"},function(...)
 	zeId={...}
 	id=zeId[1]
-	NAmanage.TeleportServiceCall("TeleportToPlaceInstance", { PlaceId, id, Players.LocalPlayer }, { placeId = PlaceId; placeName = game.Name; action = "JOINING SERVER"; detail = "Job ID "..tostring(id) })
+	NAmanage.TeleportServiceCall("TeleportToPlaceInstance", { PlaceId, id, Services.Players.LocalPlayer }, { placeId = PlaceId; placeName = game.Name; action = "JOINING SERVER"; detail = "Job ID "..tostring(id) })
 end,true)
 
 NAmanage.CopyScriptsPlugin = NAmanage.CopyScriptsPlugin or {}
@@ -70997,7 +70964,7 @@ NAmanage.CopyScriptsPlugin = NAmanage.CopyScriptsPlugin or {}
 	end
 
 	csp.get = function()
-		const lp = Players and Players.LocalPlayer
+		const lp = Services.Players and Services.Players.LocalPlayer
 		const ch = lp and lp.Character
 		if not ch then
 			return nil, "No character found"
@@ -71165,7 +71132,7 @@ NAStuff.srv.j = function(self, s)
 		return nil
 	end
 	local ok, js = pcall(function()
-		return HttpService:JSONDecode(s)
+		return Services.HttpService:JSONDecode(s)
 	end)
 	if ok and type(js) == "table" then
 		return js
@@ -71212,7 +71179,7 @@ NAStuff.srv.pg = function(self, cid, mode)
 	const wbody = self:get(wurl)
 	if type(wbody) == "string" and #wbody > 0 then
 		local ok2, js = pcall(function()
-			return HttpService:JSONDecode(wbody)
+			return Services.HttpService:JSONDecode(wbody)
 		end)
 		if ok2 and type(js) == "table" and type(js.data) == "table" then
 			return js.data, js.nextPageCursor
@@ -71273,7 +71240,7 @@ end
 
 NAmanage.ServerhopDefault = function()
 	DebugNotif("Teleporting (default)")
-	local ok, err = NAmanage.TeleportServiceCall("Teleport", { PlaceId, Players.LocalPlayer }, {
+	local ok, err = NAmanage.TeleportServiceCall("Teleport", { PlaceId, Services.Players.LocalPlayer }, {
 		placeId = PlaceId;
 		placeName = game.Name;
 		action = "SERVER HOP";
@@ -71300,7 +71267,7 @@ NAmanage.ServerhopAdvanced = function()
 	end
 
 	DebugNotif("serverhopping | Player Count: "..tostring(pl or "?"))
-	local ok, err = NAmanage.TeleportServiceCall("TeleportToPlaceInstance", { PlaceId, id, Players.LocalPlayer }, {
+	local ok, err = NAmanage.TeleportServiceCall("TeleportToPlaceInstance", { PlaceId, id, Services.Players.LocalPlayer }, {
 		placeId = PlaceId;
 		placeName = game.Name;
 		action = "SERVER HOP";
@@ -71351,7 +71318,7 @@ cmd.add({"smallserverhop","sshop"},{"smallserverhop (sshop)","serverhop to a sma
 	local id, pl = NAStuff.srv:scan("low")
 	if id then
 		DebugNotif("serverhopping | Player Count: "..tostring(pl or "?"))
-		NAmanage.TeleportServiceCall("TeleportToPlaceInstance", { PlaceId, id, Players.LocalPlayer }, { placeId = PlaceId; placeName = game.Name; action = "SMALL SERVER HOP"; detail = "Players: "..tostring(pl or "?") })
+		NAmanage.TeleportServiceCall("TeleportToPlaceInstance", { PlaceId, id, Services.Players.LocalPlayer }, { placeId = PlaceId; placeName = game.Name; action = "SMALL SERVER HOP"; detail = "Players: "..tostring(pl or "?") })
 	else
 		DebugNotif("No server found")
 	end
@@ -71364,7 +71331,7 @@ cmd.add({"pingserverhop","pshop"},{"pingserverhop (pshop)","serverhop to a serve
 	local id, pl, pn = NAStuff.srv:scan("ping")
 	if id and pn then
 		DebugNotif(Format("Serverhopping | Ping: %s ms | Players: %s", tostring(pn), tostring(pl or "?")))
-		NAmanage.TeleportServiceCall("TeleportToPlaceInstance", { PlaceId, id, Players.LocalPlayer }, { placeId = PlaceId; placeName = game.Name; action = "PING SERVER HOP"; detail = "Ping: "..tostring(pn).." ms | Players: "..tostring(pl or "?") })
+		NAmanage.TeleportServiceCall("TeleportToPlaceInstance", { PlaceId, id, Services.Players.LocalPlayer }, { placeId = PlaceId; placeName = game.Name; action = "PING SERVER HOP"; detail = "Ping: "..tostring(pn).." ms | Players: "..tostring(pl or "?") })
 	else
 		DebugNotif("No server with ping found")
 	end
@@ -71379,7 +71346,7 @@ cmd.add({"autorejoin", "autorj"}, {"autorejoin (autorj)", "Rejoins the server if
 	const watchedPromptLabels = {}
 
 	const function getAutoRejoinPromptLabels()
-		const promptGui = COREGUI and COREGUI:FindFirstChild("RobloxPromptGui")
+		const promptGui = Services.CoreGui and Services.CoreGui:FindFirstChild("RobloxPromptGui")
 		const promptOverlay = promptGui and promptGui:FindFirstChild("promptOverlay")
 		const errorPrompt = promptOverlay and promptOverlay:FindFirstChild("ErrorPrompt")
 		const titleFrame = errorPrompt and errorPrompt:FindFirstChild("TitleFrame")
@@ -71435,7 +71402,7 @@ cmd.add({"autorejoin", "autorj"}, {"autorejoin (autorj)", "Rejoins the server if
 				cmd.run({"rejoin"})
 			end)
 			if not ok then
-				NAmanage.TeleportServiceCall("Teleport", { PlaceId, Players.LocalPlayer }, {
+				NAmanage.TeleportServiceCall("Teleport", { PlaceId, Services.Players.LocalPlayer }, {
 					placeId = PlaceId;
 					placeName = game.Name;
 					action = "AUTO REJOIN";
@@ -71472,10 +71439,10 @@ cmd.add({"autorejoin", "autorj"}, {"autorejoin (autorj)", "Rejoins the server if
 		end
 	end
 
-	NAlib.connect("autorejoin", GuiService.ErrorMessageChanged:Connect(function(message)
+	NAlib.connect("autorejoin", Services.GuiService.ErrorMessageChanged:Connect(function(message)
 		handleRejoin(message)
 	end))
-	NAlib.connect("autorejoin", NAmanage.descSub(COREGUI, {
+	NAlib.connect("autorejoin", NAmanage.descSub(Services.CoreGui, {
 		added = function(descendant)
 			if descendant.Name == "RobloxPromptGui"
 				or descendant.Name == "promptOverlay"
@@ -71839,7 +71806,7 @@ cmd.add({"functionspy"},{"functionspy","Check console"},function()
 	end
 	NAmanage.Wrap(AKIHDI_fake_script)()
 	function KVVJTK_fake_script()
-		const UIS=UserInputService
+		const UIS=Services.UserInputService
 		const frame=FakeTitle.Parent
 		local dragToggle=nil
 		const dragSpeed=0.25
@@ -71990,7 +71957,7 @@ cmd.add({"noclip","nclip","nc"},{"noclip","Disable your player's collision"},fun
 	end
 
 	step()
-	NAlib.connect("noclip", RunService.PreSimulation:Connect(step))
+	NAlib.connect("noclip", Services.RunService.PreSimulation:Connect(step))
 end)
 
 cmd.add({"clip","unnoclip","stopclip","unnclip","unnc"},{"clip","Enable your player's collision"},function()
@@ -72017,7 +71984,7 @@ cmd.add({"antianchor","aa"},{"antianchor","Prevent your parts from being anchore
 	NAStuff._aaOrig = NAStuff._aaOrig or {}
 	NAStuff._aaSignals = NAStuff._aaSignals or {}
 	const tracked, orig, signals = NAStuff._aaTracked, NAStuff._aaOrig, NAStuff._aaSignals
-	const lp = Players.LocalPlayer
+	const lp = Services.Players.LocalPlayer
 	const enforce = function(p)
 		if not (p and p:IsA("BasePart")) then return end
 		if orig[p] == nil then orig[p] = NAlib.isProperty(p,"Anchored") end
@@ -72063,7 +72030,7 @@ cmd.add({"antianchor","aa"},{"antianchor","Prevent your parts from being anchore
 		for k in tracked do tracked[k]=nil end
 		for k in orig do orig[k]=nil end
 	end))
-	NAlib.connect("antianchor", RunService.PreSimulation:Connect(function()
+	NAlib.connect("antianchor", Services.RunService.PreSimulation:Connect(function()
 		const char = lp.Character
 		if not char then return end
 		for p in tracked do
@@ -72103,7 +72070,7 @@ cmd.add({"antibang"}, {"antibang", "prevents users to bang you (still WORK IN PR
 	if not root then return end
 
 	originalPos = root.CFrame
-	const orgHeight = Workspace.FallenPartsDestroyHeight
+	const orgHeight = Services.Workspace.FallenPartsDestroyHeight
 	const anims = {"rbxassetid://5918726674", "rbxassetid://148840371", "rbxassetid://698251653", "rbxassetid://72042024", "rbxassetid://189854234", "rbxassetid://106772613", "rbxassetid://10714360343", "rbxassetid://95383980"}
 	local inVoid = false
 	local targetPlayer = nil
@@ -72124,7 +72091,7 @@ cmd.add({"antibang"}, {"antibang", "prevents users to bang you (still WORK IN PR
 		inVoid = true
 		activationTime = tick()
 		targetPlayer = player
-		Workspace.FallenPartsDestroyHeight = 0/1/0
+		Services.Workspace.FallenPartsDestroyHeight = 0/1/0
 
 		if platformPart then
 			platformPart:Destroy()
@@ -72136,7 +72103,7 @@ cmd.add({"antibang"}, {"antibang", "prevents users to bang you (still WORK IN PR
 		platformPart.CanCollide = true
 		platformPart.Transparency = 1
 		platformPart.Position = Vector3.new(0, orgHeight - 30, 0)
-		platformPart.Parent = Workspace
+		platformPart.Parent = Services.Workspace
 		NAmanage.UG_setRootCFrame(root, CFrame.new(Vector3.new(0, orgHeight - 25, 0)))
 
 		if not toldNotif then
@@ -72205,7 +72172,7 @@ cmd.add({"antibang"}, {"antibang", "prevents users to bang you (still WORK IN PR
 		return triggered
 	end
 
-	NAlib.connect("antibang_loop", RunService.PreSimulation:Connect(function(_, dt)
+	NAlib.connect("antibang_loop", Services.RunService.PreSimulation:Connect(function(_, dt)
 		if not root then
 			return
 		end
@@ -72247,7 +72214,7 @@ cmd.add({"antibang"}, {"antibang", "prevents users to bang you (still WORK IN PR
 				root.Anchored = true
 				Wait()
 				root.Anchored = false
-				Workspace.FallenPartsDestroyHeight = orgHeight
+				Services.Workspace.FallenPartsDestroyHeight = orgHeight
 				if platformPart then
 					platformPart:Destroy()
 					platformPart = nil
@@ -72298,7 +72265,7 @@ cmd.add({"orbit"}, {"orbit <player> <distance> [speed]", "Orbit around a player"
 	const dist = tonumber(d) or 4
 	const spd = NAmanage.getOrbitSpeed(s)
 	local sineX, sineZ = 0, math.pi / 2
-	NAlib.connect("orbit", RunService.PreSimulation:Connect(function(dt)
+	NAlib.connect("orbit", Services.RunService.PreSimulation:Connect(function(dt)
 		if not (thrp.Parent and hrp.Parent) then
 			NAlib.disconnect("orbit")
 			return
@@ -72326,7 +72293,7 @@ cmd.add({"uporbit"}, {"uporbit <player> <distance> [speed]", "Orbit around a pla
 	const dist = tonumber(d) or 4
 	const spd = NAmanage.getOrbitSpeed(s)
 	local sineX, sineY = 0, math.pi / 2
-	NAlib.connect("orbit", RunService.PreSimulation:Connect(function(dt)
+	NAlib.connect("orbit", Services.RunService.PreSimulation:Connect(function(dt)
 		if not (thrp.Parent and hrp.Parent) then
 			NAlib.disconnect("orbit")
 			return
@@ -72448,7 +72415,7 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 			NAmanage.SetAttr(camPart, freecamMoveAttr, moveCF)
 		end
 
-		NAlib.connect("freecam", RunService.RenderStepped:Connect(function(dt)
+		NAlib.connect("freecam", Services.RunService.RenderStepped:Connect(function(dt)
 			const primaryPart = camPart
 			camera.CameraSubject = primaryPart
 
@@ -72700,9 +72667,9 @@ cmd.add({"instantrespawn", "instantr", "irespawn"}, {"instantrespawn (instantr, 
 
 	const rootPart = LocalPlayer.Character and getRoot(LocalPlayer.Character)
 	const respawnCF = rootPart and (NAmanage.UG_clientCFrame(rootPart) or rootPart.CFrame) or nil
-	const cam = Workspace.CurrentCamera
+	const cam = Services.Workspace.CurrentCamera
 
-	Wait(Players.RespawnTime - 0.165)
+	Wait(Services.Players.RespawnTime - 0.165)
 
 	const humanoid = getHum()
 	if humanoid then
@@ -72718,7 +72685,7 @@ cmd.add({"instantrespawn", "instantr", "irespawn"}, {"instantrespawn (instantr, 
 		end
 	end
 
-	Workspace.CurrentCamera = cam
+	Services.Workspace.CurrentCamera = cam
 end)
 
 function getAllTools()
@@ -72987,8 +72954,8 @@ cmd.add({"seizure"}, {"seizure", "Gives you a seizure"}, function()
 			else
 				Anim.AnimationId = "rbxassetid://180436148"
 			end
-			_na_env.currentnormal = Workspace.Gravity
-			Workspace.Gravity = 196.2
+			_na_env.currentnormal = Services.Workspace.Gravity
+			Services.Workspace.Gravity = 196.2
 			NAmanage.UG_pivotModel(LocalPlayer.Character, ((getRoot(LocalPlayer.Character) and NAmanage.UG_clientCFrame(getRoot(LocalPlayer.Character))) or LocalPlayer.Character:GetPivot()) * CFrame.Angles(2, 0, 0))
 			Wait(0.5)
 			if getHum() and getHum().PlatformStand then getHum().PlatformStand = true end
@@ -73005,13 +72972,13 @@ cmd.add({"seizure"}, {"seizure", "Gives you a seizure"}, function()
 			else
 				Anim.AnimationId = "rbxassetid://180436148"
 			end
-			Workspace.Gravity = currentnormal
+			Services.Workspace.Gravity = currentnormal
 			if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
 			getHum().Jump = true
 			k:Stop()
 
 			LocalPlayer.Character.Animate.Disabled = false
-			RunService.Heartbeat:Wait()
+			Services.RunService.Heartbeat:Wait()
 			for i = 1,10 do
 				getRoot(LocalPlayer.Character).AssemblyLinearVelocity = Vector3.new(0, 0, 0)
 				Wait(0.1)
@@ -73019,7 +72986,7 @@ cmd.add({"seizure"}, {"seizure", "Gives you a seizure"}, function()
 		end
 
 		NAlib.disconnect("seizure_loop")
-		NAlib.connect("seizure_loop", RunService.RenderStepped:Connect(function()
+		NAlib.connect("seizure_loop", Services.RunService.RenderStepped:Connect(function()
 			if _na_env.Lzzz == true then
 				getRoot(LocalPlayer.Character).CFrame = getRoot(LocalPlayer.Character).CFrame * CFrame.new(
 					.075 * math.sin(45 * tick()),
@@ -73046,14 +73013,14 @@ cmd.add({"unseizure"}, {"unseizure", "Stops you from having a seizure not in rea
 		const k = getHum():LoadAnimation(Anim)
 
 		_na_env.Lzzz = false
-		Workspace.Gravity = currentnormal
+		Services.Workspace.Gravity = currentnormal
 		if getHum() and getHum().PlatformStand then getHum().PlatformStand = false end
 		getHum().Jump = true
 		k:Stop()
 
 		LocalPlayer.Character.Animate.Disabled = false
 
-		RunService.Heartbeat:Wait()
+		Services.RunService.Heartbeat:Wait()
 		for i = 1, 10 do
 			getRoot(LocalPlayer.Character).AssemblyLinearVelocity = Vector3.new(0, 0, 0)
 			Wait(0.1)
@@ -73082,7 +73049,7 @@ cmd.add({"fakelag", "flag"}, {"fakelag (flag)", "fake lag"}, function(interval, 
 	local state = false
 	local nextFlipAt = time()
 
-	NAlib.connect("FakeLag", RunService.Heartbeat:Connect(function()
+	NAlib.connect("FakeLag", Services.RunService.Heartbeat:Connect(function()
 		if not FakeLag then
 			NAlib.disconnect("FakeLag")
 			const r = getRoot(getChar())
@@ -73132,7 +73099,7 @@ cmd.add({"hide", "unshow"}, {"hide <player> (unshow)", "places the selected play
 			const A_1 = "/mute "..plr.Name
 			const A_2 = "All"
 			NAlib.LocalPlayerChat(A_1, A_2)
-			plr.Character.Parent = Lighting
+			plr.Character.Parent = Services.Lighting
 		end
 	end
 end, true)
@@ -73147,7 +73114,7 @@ cmd.add({"unhide", "show"}, {"show <player> (unhide)", "places the selected play
 			const A_1 = "/unmute "..plr.Name
 			const A_2 = "All"
 			NAlib.LocalPlayerChat(A_1, A_2)
-			plr.Character.Parent = Workspace
+			plr.Character.Parent = Services.Workspace
 		end
 	end
 end, true)
@@ -73186,7 +73153,7 @@ NAmanage.isCharTool = NAmanage.isCharTool or function(tool)
 	while inst and inst ~= RawWorkspace do
 		if inst:IsA("Model") then
 			local okPlr, plr = pcall(function()
-				return Players:GetPlayerFromCharacter(inst)
+				return Services.Players:GetPlayerFromCharacter(inst)
 			end)
 			if okPlr and plr then
 				return true
@@ -73205,7 +73172,7 @@ NAmanage.isDroppedTool = NAmanage.isDroppedTool or function(tool)
 	if typeof(tool) ~= "Instance" or not tool:IsA("Tool") then
 		return false
 	end
-	if not tool:IsDescendantOf(Workspace) then
+	if not tool:IsDescendantOf(Services.Workspace) then
 		return false
 	end
 	if NAmanage.isOwnPackTool(tool) then
@@ -73451,11 +73418,11 @@ NAmanage.initToolCache=function()
 	NAmanage.grabBusy = NAmanage.ensureWeakKeyTable(NAmanage.grabBusy)
 	NAmanage.toolGrabCol = NAmanage.ensureWeakKeyTable(NAmanage.toolGrabCol)
 
-	for _, ch in Workspace:GetChildren() do
+	for _, ch in Services.Workspace:GetChildren() do
 		NAmanage.scanToolBranch(ch)
 	end
 
-	NAlib.connect("grabtools_cache_add", NAmanage.descAdd(Workspace, function(inst)
+	NAlib.connect("grabtools_cache_add", NAmanage.descAdd(Services.Workspace, function(inst)
 		NAmanage.scanToolBranch(inst)
 		if inst:IsA("Folder") or inst:IsA("Model") then
 			Defer(function()
@@ -73468,7 +73435,7 @@ NAmanage.initToolCache=function()
 		return inst and (inst:IsA("Tool") or inst:IsA("Folder") or inst:IsA("Model"))
 	end))
 
-	NAlib.connect("grabtools_cache_rem", NAmanage.descRem(Workspace, function(inst)
+	NAlib.connect("grabtools_cache_rem", NAmanage.descRem(Services.Workspace, function(inst)
 		if inst:IsA("Tool") then
 			NAmanage.dropToolCache(inst)
 		end
@@ -73478,7 +73445,7 @@ NAmanage.initToolCache=function()
 
 	Spawn(function()
 		local scanned = 0
-		for _, inst in NAmanage.QueryDescendants(Workspace, "Tool") do
+		for _, inst in NAmanage.QueryDescendants(Services.Workspace, "Tool") do
 			NAmanage.addToolCache(inst)
 			scanned += 1
 			if scanned % 2500 == 0 then
@@ -73511,7 +73478,7 @@ NAmanage.toolList=function(forceScan)
 		return list
 	end
 
-	for _, tool in NAmanage.QueryDescendants(Workspace, "Tool") do
+	for _, tool in NAmanage.QueryDescendants(Services.Workspace, "Tool") do
 		NAmanage.addToolCache(tool)
 		if NAmanage.isDroppedTool(tool) and not seen[tool] then
 			seen[tool] = true
@@ -73522,7 +73489,7 @@ NAmanage.toolList=function(forceScan)
 		return list
 	end
 
-	for _, ch in Workspace:GetChildren() do
+	for _, ch in Services.Workspace:GetChildren() do
 		NAmanage.scanToolBranch(ch)
 	end
 
@@ -73743,7 +73710,7 @@ NAmanage.grabAllTools=function(range)
 	const useRange = range and range > 0
 
 	local count = 0
-	for _, tool in NAmanage.QueryDescendants(Workspace, "Tool") do
+	for _, tool in NAmanage.QueryDescendants(Services.Workspace, "Tool") do
 		if useRange then
 			const handle = tool:FindFirstChild("Handle") or tool:FindFirstChildWhichIsA("BasePart")
 			if handle and (handle.Position - root.Position).Magnitude <= range then
@@ -73834,7 +73801,7 @@ end)
 
 cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (badgeview, bviewer, badgev, bv)","loads up a badge viewer UI that views all badges in the game you're in"},function()
 	const BadgeService = SafeGetService("BadgeService",false)
-	const Player = Players.LocalPlayer
+	const Player = Services.Players.LocalPlayer
 
 	const COLORS = {
 		PANEL = Color3.fromRGB(28, 28, 32),
@@ -73891,7 +73858,7 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 
 		const url = ("https://badges.roblox.com/v1/users/%d/badges/awarded-dates?badgeIds=%s"):format(
 			tonumber(userId) or 0,
-			HttpService:UrlEncode(Concat(queryIds, ","))
+			Services.HttpService:UrlEncode(Concat(queryIds, ","))
 		)
 		const data = NAmanage.FetchRobloxApiJSON(url, { Timeout = 6 })
 		if type(data) ~= "table" or type(data.data) ~= "table" then
@@ -74967,7 +74934,7 @@ cmd.add({"bodytransparency","btransparency","bodyt"}, {"bodytransparency <number
 	end
 
 	const function apply()
-		const ch = getChar() or (Players.LocalPlayer and Players.LocalPlayer.Character)
+		const ch = getChar() or (Services.Players.LocalPlayer and Services.Players.LocalPlayer.Character)
 		if ch ~= st.ch then
 			setch(ch)
 			if st.ch then
@@ -75017,7 +74984,7 @@ cmd.add({"bodytransparency","btransparency","bodyt"}, {"bodytransparency <number
 
 		apply()
 
-		NAlib.connect("body_transparency", RunService.RenderStepped:Connect(function()
+		NAlib.connect("body_transparency", Services.RunService.RenderStepped:Connect(function()
 			Defer(apply)
 		end))
 	end
@@ -75077,7 +75044,7 @@ cmd.add({"bodytransparency","btransparency","bodyt"}, {"bodytransparency <number
 		return
 	end
 
-	const ch = getChar() or (Players.LocalPlayer and Players.LocalPlayer.Character)
+	const ch = getChar() or (Services.Players.LocalPlayer and Services.Players.LocalPlayer.Character)
 	const btns = {}
 
 	Insert(btns, { Text = "All", Callback = function() queuePick("__all") end })
@@ -75112,7 +75079,7 @@ cmd.add({"unbodytransparency","unbtransparency","unbodyt"}, {"unbodytransparency
 
 	NAlib.disconnect("body_transparency")
 
-	const ch = getChar() or (Players.LocalPlayer and Players.LocalPlayer.Character)
+	const ch = getChar() or (Services.Players.LocalPlayer and Services.Players.LocalPlayer.Character)
 	if ch then
 		for _,p in NAmanage.QueryDescendants(ch, "BasePart") do
 			if Lower(p.Name) ~= "head" and not p:FindFirstAncestorOfClass("Accessory") and not p:FindFirstAncestorOfClass("Tool") then
@@ -75244,7 +75211,7 @@ originalIO.startCharMaterial=function(mat)
 	st.enabled = true
 	st.mat = mat
 	NAlib.disconnect("char_material_char")
-	const lp = Players.LocalPlayer
+	const lp = Services.Players.LocalPlayer
 	if lp then
 		NAlib.connect("char_material_char", lp.CharacterAdded:Connect(function(ch)
 			Defer(function()
@@ -75325,7 +75292,7 @@ cmd.add({"animationspeed", "animspeed", "aspeed"}, {"animationspeed <speed> (ani
 
 	NAlib.disconnect("animation_speed")
 
-	NAlib.connect("animation_speed", RunService.PreSimulation:Connect(function()
+	NAlib.connect("animation_speed", Services.RunService.PreSimulation:Connect(function()
 		const character = getChar()
 		const humanoid = getHum()
 		if humanoid then
@@ -75378,7 +75345,7 @@ cmd.add({"firework"}, {"firework", "pop"}, function()
 	part.Transparency = 1
 	part.Anchored = false
 	part.CanCollide = false
-	part.Parent = Workspace
+	part.Parent = Services.Workspace
 
 	const weld = InstanceNew("Weld")
 	weld.Part0 = part
@@ -75402,7 +75369,7 @@ cmd.add({"firework"}, {"firework", "pop"}, function()
 	const startTime = tick()
 	local angle = 0
 
-	NAlib.connect("firework_spin", RunService.Heartbeat:Connect(function(dt)
+	NAlib.connect("firework_spin", Services.RunService.Heartbeat:Connect(function(dt)
 		if tick() - startTime > spinTime then
 			NAlib.disconnect("firework_spin")
 			bv:Destroy()
@@ -75413,7 +75380,7 @@ cmd.add({"firework"}, {"firework", "pop"}, function()
 			explosion.Position = root.Position
 			explosion.BlastRadius = 6
 			explosion.BlastPressure = 500000
-			explosion.Parent = Workspace
+			explosion.Parent = Services.Workspace
 
 			humanoid.Health = 0
 			return
@@ -75489,7 +75456,7 @@ NAmanage.AntiTouchRestoreState = function()
 	const moved = NAStuff._kbMovedParts or {}
 	for part, parent in moved do
 		if typeof(part) == "Instance" and part.Parent then
-			const targetParent = (typeof(parent) == "Instance" and parent.Parent) and parent or Workspace
+			const targetParent = (typeof(parent) == "Instance" and parent.Parent) and parent or Services.Workspace
 			const ok = pcall(function()
 				part.Parent = targetParent
 			end)
@@ -75558,7 +75525,7 @@ NAmanage.AntiTouchEnableRemoveParts = function()
 	end))
 
 	local changed = 0
-	for _, inst in NAmanage.QueryDescendants(Workspace, "TouchTransmitter") do
+	for _, inst in NAmanage.QueryDescendants(Services.Workspace, "TouchTransmitter") do
 		if moveTouchPart(inst) then
 			changed += 1
 		end
@@ -75597,7 +75564,7 @@ NAmanage.AntiTouchEnableCanTouch = function()
 		disableTouchPart(inst)
 	end))
 
-	NAlib.connect("antikb", RunService.PreSimulation:Connect(function()
+	NAlib.connect("antikb", Services.RunService.PreSimulation:Connect(function()
 		for part in tracked do
 			if typeof(part) == "Instance" and part.Parent then
 				if NAlib.isProperty(part, "CanTouch") ~= false then
@@ -75611,7 +75578,7 @@ NAmanage.AntiTouchEnableCanTouch = function()
 	end))
 
 	local changed = 0
-	for _, inst in NAmanage.QueryDescendants(Workspace, "TouchTransmitter") do
+	for _, inst in NAmanage.QueryDescendants(Services.Workspace, "TouchTransmitter") do
 		if disableTouchPart(inst) then
 			changed += 1
 		end
@@ -75735,16 +75702,16 @@ cmd.add({"netbypass", "netb"}, {"netbypass (netb)", "Net bypass"}, function()
 end)
 
 cmd.add({"day"},{"day","Makes it day"},function()
-	Lighting.ClockTime=14
+	Services.Lighting.ClockTime=14
 end)
 
 cmd.add({"night"},{"night","Makes it night"},function()
-	Lighting.ClockTime=0
+	Services.Lighting.ClockTime=0
 end)
 
 cmd.add({"time"}, {"time <number>", "Sets the time"}, function(...)
 	const time = {...}
-	if time then Lighting.ClockTime = time[1] end
+	if time then Services.Lighting.ClockTime = time[1] end
 end, true)
 
 cmd.add({"chat", "message"}, {"chat <text> (message)", "Chats for you, useful if you're muted"}, function(...)
@@ -75863,7 +75830,7 @@ NAmanage.ChatCutePath = function(root, ...)
 end
 
 NAmanage.ChatCuteChannels = function()
-	local tcs = TextChatService
+	local tcs = Services.TextChatService
 	if not tcs and SafeGetService then
 		tcs = SafeGetService("TextChatService")
 	end
@@ -75904,7 +75871,7 @@ NAmanage.ChatCuteRecipient = function(chip)
 		const who = txt:match("^%[To%s+(.+)%]$")
 		if who and who ~= "" then
 			const low = who:lower()
-			for _, plr in Players:GetPlayers() do
+			for _, plr in Services.Players:GetPlayers() do
 				if tostring(plr.DisplayName or ""):lower() == low or tostring(plr.Name or ""):lower() == low then
 					return plr.Name
 				end
@@ -75938,7 +75905,7 @@ NAmanage.ChatCuteSend = function(message, recipient)
 end
 
 NAmanage.ChatCuteInput = function()
-	local cg = COREGUI
+	local cg = Services.CoreGui
 	if not cg and SafeGetService then
 		cg = SafeGetService("CoreGui")
 	end
@@ -76051,7 +76018,7 @@ NAmanage.ChatCuteAuto = function(state)
 			return false
 		end
 		NAlib.disconnect("chatcute_watch")
-		local cg = COREGUI
+		local cg = Services.CoreGui
 		if not cg and SafeGetService then
 			cg = SafeGetService("CoreGui")
 		end
@@ -76164,8 +76131,8 @@ cmd.add({"stopmimicchat", "unmimicchat"}, {"stopmimicchat (unmimicchat)", "Stops
 end, true)
 
 cmd.add({"fixcam", "fix"}, {"fixcam", "Fix your camera"}, function()
-	const ws = Workspace
-	const plr = Players.LocalPlayer
+	const ws = Services.Workspace
+	const plr = Services.Players.LocalPlayer
 	local cam = ws.CurrentCamera
 	if not cam then return end
 	const al = cam:FindFirstChildOfClass("AudioListener")
@@ -76189,8 +76156,7 @@ end)
 
 cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(...)
 	const RawPlayers = __lt.gs("Players")
-	const Players = game:GetService("Players")
-	const LocalPlayer = Players.LocalPlayer
+	const LocalPlayer = Services.Players.LocalPlayer
 	const query = Concat({ ... }, " ")
 	if query == "" then
 		return DebugNotif("Player name or selector required", 3)
@@ -76221,7 +76187,7 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(...)
 	end
 
 	const flingManager       = flingManager
-	const OrgDestroyHeight   = Workspace.FallenPartsDestroyHeight
+	const OrgDestroyHeight   = Services.Workspace.FallenPartsDestroyHeight
 
 	const function SkidFling(TargetPlayer)
 		if IsLocalTarget(TargetPlayer) then
@@ -76250,7 +76216,7 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(...)
 			flingPart.Transparency = 1
 			flingPart.Size = Vector3.new(1, 1, 1)
 			flingPart.CFrame = RootPart.CFrame
-			flingPart.Parent = Workspace
+			flingPart.Parent = Services.Workspace
 
 			const flingWeld = InstanceNew("WeldConstraint")
 			flingWeld.Part0 = flingPart
@@ -76270,11 +76236,11 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(...)
 			end
 
 			if THead then
-				Workspace.CurrentCamera.CameraSubject = THead
+				Services.Workspace.CurrentCamera.CameraSubject = THead
 			elseif Handle then
-				Workspace.CurrentCamera.CameraSubject = Handle
+				Services.Workspace.CurrentCamera.CameraSubject = Handle
 			elseif THumanoid and TRootPart then
-				Workspace.CurrentCamera.CameraSubject = THumanoid
+				Services.Workspace.CurrentCamera.CameraSubject = THumanoid
 			end
 
 			if not TChar:FindFirstChildWhichIsA("BasePart") then
@@ -76326,7 +76292,7 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(...)
 					or tick() > Time + TimeToWait
 			end
 
-			Workspace.FallenPartsDestroyHeight = 0/0
+			Services.Workspace.FallenPartsDestroyHeight = 0/0
 
 			const BV = InstanceNew("BodyVelocity")
 			BV.Parent    = flingPart
@@ -76352,7 +76318,7 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(...)
 			BV:Destroy()
 			cleanupFlingPart()
 			Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
-			Workspace.CurrentCamera.CameraSubject = Humanoid
+			Services.Workspace.CurrentCamera.CameraSubject = Humanoid
 
 			repeat
 				NAmanage.UG_setRootCFrame(RootPart, flingManager.cFlingOldPos * CFrame.new(0, .5, 0))
@@ -76366,7 +76332,7 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(...)
 				Wait()
 			until (RootPart.Position - flingManager.cFlingOldPos.p).Magnitude < 25
 
-			Workspace.FallenPartsDestroyHeight = OrgDestroyHeight
+			Services.Workspace.FallenPartsDestroyHeight = OrgDestroyHeight
 		end
 	end
 
@@ -76378,7 +76344,7 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(...)
 end)
 
 cmd.add({"commitoof", "suicide", "kys"}, {"commitoof (suicide, kys)", "Triggers a dramatic oof sequence for the player"}, function()
-	const p = Players.LocalPlayer
+	const p = Services.Players.LocalPlayer
 	if not p then
 		return
 	end
@@ -76435,7 +76401,7 @@ cmd.add({"preftransparency","prefalpha"},{"preftransparency <0-15>","Preferred U
 end,true)
 
 cmd.add({"sensitivity","sens"},{"sensitivity <1-10> (sens)","Changes your sensitivity"},function(ss)
-	UserInputService.MouseDeltaSensitivity=ss
+	Services.UserInputService.MouseDeltaSensitivity=ss
 end,true)
 
 cmd.add({"torandom","tr"},{"torandom (tr)","Teleports to a random player"},function()
@@ -76470,7 +76436,7 @@ cmd.add({"timestop", "tstop"}, {"timestop (tstop)", "freezes all players (ZA WAR
 		end))
 	end
 
-	NAlib.connect("timestop_playeradd", Players.PlayerAdded:Connect(function(plr)
+	NAlib.connect("timestop_playeradd", Services.Players.PlayerAdded:Connect(function(plr)
 		NAlib.connect("timestop_char_"..plr.UserId, plr.CharacterAdded:Connect(function(char)
 			while not getRoot(char) do Wait(.1) end
 			for _, v in char:QueryDescendants("BasePart") do
@@ -76504,7 +76470,7 @@ NAStuff._outfitCache=NAStuff._outfitCache or{};NAStuff._httpBackoff=NAStuff._htt
 NAmanage._avatarHttpJSON=function(method,url,body)
 	local payload=nil
 	if body~=nil then
-		local okEncode,encoded=pcall(HttpService.JSONEncode,HttpService,body)
+		local okEncode,encoded=pcall(Services.HttpService.JSONEncode,Services.HttpService,body)
 		if not okEncode or type(encoded)~="string" then return nil end
 		payload=encoded
 	end
@@ -76521,7 +76487,7 @@ NAmanage._avatarHttpJSON=function(method,url,body)
 		Timeout=5,
 	})
 	if type(text)~="string" or text=="" then return nil end
-	local okDecode,decoded=pcall(HttpService.JSONDecode,HttpService,text)
+	local okDecode,decoded=pcall(Services.HttpService.JSONDecode,Services.HttpService,text)
 	if not okDecode then return nil end
 	return decoded
 end
@@ -76533,7 +76499,7 @@ NAmanage._resolveHumanoidUserId=function(target)
 	if name=="" then return nil end
 	const targets=getPlr(name)
 	if targets[1] then return targets[1].UserId end
-	local ok,id=pcall(Players.GetUserIdFromNameAsync,Players,name)
+	local ok,id=pcall(Services.Players.GetUserIdFromNameAsync,Services.Players,name)
 	if ok and id then return id end
 	const data=NAmanage._avatarHttpJSON("POST","https://users.roblox.com/v1/usernames/users",{usernames={name},excludeBannedUsers=false})
 	const entry=data and data.data and data.data[1]
@@ -76731,7 +76697,7 @@ NAmanage._resolveHumanoidDescription=function(target)
 	end
 	const userId=NAmanage._resolveHumanoidUserId(target)
 	if not userId then return nil end
-	local okDesc,desc=pcall(Players.GetHumanoidDescriptionFromUserId,Players,userId)
+	local okDesc,desc=pcall(Services.Players.GetHumanoidDescriptionFromUserId,Services.Players,userId)
 	if okDesc and desc and NAmanage._humanoidDescriptionHasAppearance(desc) then
 		return desc,userId
 	end
@@ -76758,7 +76724,7 @@ cmd.add({"team"},{"team <team name>","Changes your team (for the client)"},funct
 		if Lower(team.Name):find(lookup,1,true) then targetTeam=team break end
 	end
 	if not targetTeam then DoNotif(Format("Invalid team \"%s\"",teamName),3,"Team") return end
-	const localPlayer=Players.LocalPlayer
+	const localPlayer=Services.Players.LocalPlayer
 	if not localPlayer then return end
 	const character=getChar()
 	const root=character and getRoot(character)
@@ -76769,7 +76735,7 @@ cmd.add({"team"},{"team <team name>","Changes your team (for the client)"},funct
 		end)
 	end
 	if typeof(firetouchinterest)=="function" and root then
-		for _,spawnLocation in NAmanage.QueryDescendants(Workspace, "SpawnLocation") do
+		for _,spawnLocation in NAmanage.QueryDescendants(Services.Workspace, "SpawnLocation") do
 			if spawnLocation.BrickColor==targetTeam.TeamColor and spawnLocation.AllowTeamChangeOnTouch then
 				pcall(firetouchinterest,spawnLocation,root,0)
 				Wait()
@@ -76807,7 +76773,7 @@ NAmanage._outfitHttpJSON=function(url)
 	const function lowerKeys(t)const r={};for k,v in t or{} do r[Lower(k)]=v end;return r end
 	const function decodeBody(text)
 		if type(text)~="string" or text=="" then return nil end
-		local okJ,data=pcall(HttpService.JSONDecode,HttpService,text)
+		local okJ,data=pcall(Services.HttpService.JSONDecode,Services.HttpService,text)
 		if okJ and type(data)=="table" then
 			return data
 		end
@@ -77050,7 +77016,7 @@ cmd.add({"lookat", "stare"}, {"lookat <player|npc:filter>", "Stare at a player o
 	for _, plr in next, Target do
 		NAlib.disconnect("stare_direct")
 
-		const lp = Players.LocalPlayer
+		const lp = Services.Players.LocalPlayer
 		local tchar = NAmanage.PlayerArgChar(plr)
 		if not (lp.Character and getRoot(lp.Character)) then return end
 		if not (tchar and tchar.Parent and getRoot(tchar)) then return end
@@ -77067,7 +77033,7 @@ cmd.add({"lookat", "stare"}, {"lookat <player|npc:filter>", "Stare at a player o
 			end
 		end
 
-		NAlib.connect("stare_direct", RunService.RenderStepped:Connect(Stare))
+		NAlib.connect("stare_direct", Services.RunService.RenderStepped:Connect(Stare))
 	end
 end, true)
 
@@ -77086,13 +77052,13 @@ cmd.add({"starenear", "stareclosest"}, {"starenear (stareclosest)", "Stare at th
 		return targets[1]
 	end
 
-	const lp = Players.LocalPlayer
+	const lp = Services.Players.LocalPlayer
 	if getHum() then
 		getHum().AutoRotate = false
 	end
 
 	const function stare()
-		const lp = Players.LocalPlayer
+		const lp = Services.Players.LocalPlayer
 		const char = lp.Character
 		if not (char and getRoot(char)) then return end
 		const target = getClosest()
@@ -77101,7 +77067,7 @@ cmd.add({"starenear", "stareclosest"}, {"starenear (stareclosest)", "Stare at th
 		end
 	end
 
-	NAlib.connect("stare_nearest", RunService.RenderStepped:Connect(stare))
+	NAlib.connect("stare_nearest", Services.RunService.RenderStepped:Connect(stare))
 end)
 
 cmd.add({"unstarenear", "unstareclosest"}, {"unstarenear (unstareclosest)", "Stop staring at closest player"}, function()
@@ -77166,8 +77132,8 @@ end
 
 originalIO.ensureCam=function()
 	if not spectateTarget or not spectateSubject then return end
-	if not Workspace then return end
-	const cam = Workspace.CurrentCamera
+	if not Services.Workspace then return end
+	const cam = Services.Workspace.CurrentCamera
 	if not cam then return end
 	if NAlib.isProperty(cam, "CameraSubject") == nil then return end
 	if cam.CameraSubject ~= spectateSubject then
@@ -77176,8 +77142,8 @@ originalIO.ensureCam=function()
 end
 
 originalIO.hookCameraGuard=function()
-	if not Workspace then return end
-	const cam = Workspace.CurrentCamera
+	if not Services.Workspace then return end
+	const cam = Services.Workspace.CurrentCamera
 	if not cam then return end
 
 	if spectateConns.cam then
@@ -77192,8 +77158,8 @@ originalIO.hookCameraGuard=function()
 		end))
 	end
 
-	if not spectateConns.camW and NAlib.isProperty(Workspace, "CurrentCamera") ~= nil then
-		spectateConns.camW = NAlib.connect("spectate_camW", Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+	if not spectateConns.camW and NAlib.isProperty(Services.Workspace, "CurrentCamera") ~= nil then
+		spectateConns.camW = NAlib.connect("spectate_camW", Services.Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
 			if not spectateTarget or not spectateSubject then return end
 			originalIO.hookCameraGuard()
 			originalIO.ensureCam()
@@ -77217,8 +77183,8 @@ function cleanup(preserveSpecUI)
 	end
 
 	const hum = getHum()
-	if Workspace then
-		const cam = Workspace.CurrentCamera
+	if Services.Workspace then
+		const cam = Services.Workspace.CurrentCamera
 		if hum and cam and NAlib.isProperty(cam, "CameraSubject") ~= nil then
 			NAlib.setProperty(cam, "CameraSubject", hum)
 		end
@@ -77281,14 +77247,14 @@ function spectatePlayer(targetPlayer)
 		setCamToCharacter(character, true)
 	end))
 
-	spectateConns.leave = NAlib.connect("spectate_leave", Players.PlayerRemoving:Connect(function(player)
+	spectateConns.leave = NAlib.connect("spectate_leave", Services.Players.PlayerRemoving:Connect(function(player)
 		if player == targetPlayer and spectateTarget == targetPlayer then
 			cleanup(true)
 			DebugNotif("Player left - camera reset")
 		end
 	end))
 
-	spectateConns.loop = NAlib.connect("spectate_loop", RunService.RenderStepped:Connect(function()
+	spectateConns.loop = NAlib.connect("spectate_loop", Services.RunService.RenderStepped:Connect(function()
 		if spectateTarget ~= targetPlayer then return end
 
 		const char = targetPlayer.Character
@@ -77337,7 +77303,7 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 	NAlib.disconnect("spectate_loop")
 	NAlib.disconnect("spectate_leave")
 
-	const LocalPlayer = Players.LocalPlayer
+	const LocalPlayer = Services.Players.LocalPlayer
 	const PAD = 8
 	const CARD_W = IsOnMobile and 0.6 or 0.4
 	const CARD_H = IsOnMobile and 62 or 68
@@ -77569,7 +77535,7 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 		padIn.PaddingTop = UDim.new(0, 6)
 		padIn.PaddingBottom = UDim.new(0, 6)
 
-		const vpY = Workspace.CurrentCamera and Workspace.CurrentCamera.ViewportSize.Y or 720
+		const vpY = Services.Workspace.CurrentCamera and Services.Workspace.CurrentCamera.ViewportSize.Y or 720
 		dropMaxH = math.floor(vpY * (IsOnMobile and 0.7 or 0.55))
 		const openStart = __lt.cm("TweenService", "Create", drop, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(1, 0, 0, math.min(dropMaxH, (IsOnMobile and 280 or 240)))})
 		openStart:Play()
@@ -77741,7 +77707,7 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 	specUI = ui
 	gotoIndex(1)
 
-	NAlib.connect("spectate2_add", Players.PlayerAdded:Connect(function(plr)
+	NAlib.connect("spectate2_add", Services.Players.PlayerAdded:Connect(function(plr)
 		const wasOpen = listOpen
 		const keep = searchTerm
 		const prevSel = spectatedPlayer
@@ -77755,7 +77721,7 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 		searchTerm = keep
 	end))
 
-	NAlib.connect("spectate2_remove", Players.PlayerRemoving:Connect(function(plr)
+	NAlib.connect("spectate2_remove", Services.Players.PlayerRemoving:Connect(function(plr)
 		const wasOpen = listOpen
 		const keep = searchTerm
 		const prevSel = spectatedPlayer
@@ -77765,7 +77731,7 @@ cmd.add({"watch2","view2","spectate2"},{"watch2",""},function()
 			spectatedPlayer = nil
 			nameMain.Text = "None"
 			const hum = getHum()
-			if hum then Workspace.CurrentCamera.CameraSubject = hum end
+			if hum then Services.Workspace.CurrentCamera.CameraSubject = hum end
 		else
 			if prevSel then currentIndex = Discover(playerList, prevSel) or currentIndex end
 		end
@@ -77812,7 +77778,7 @@ cmd.add({"follow", "stalk", "walk"}, {"follow <player>", "Follow a player wherev
 			DoNotif("Player not found or invalid.")
 			return
 		end
-		NAlib.connect("follow", RunService.RenderStepped:Connect(function()
+		NAlib.connect("follow", Services.RunService.RenderStepped:Connect(function()
 			const target = plr.Character
 			if target then
 				const hum = getHum()
@@ -77882,7 +77848,7 @@ cmd.add({"autofollow", "autostalk", "proxfollow"}, {"autofollow (autostalk,proxf
 	ISfollowing = false
 	followTarget = nil
 
-	NAlib.connect("autofollow", RunService.PreSimulation:Connect(function()
+	NAlib.connect("autofollow", Services.RunService.PreSimulation:Connect(function()
 		if ISfollowing then return end
 
 		const myChar = getChar()
@@ -77908,7 +77874,7 @@ cmd.add({"autofollow", "autostalk", "proxfollow"}, {"autofollow (autostalk,proxf
 
 							if followConnection then followConnection:Disconnect() end
 							NAlib.disconnect("autofollow_target")
-							followConnection = NAlib.reconnect("autofollow_target", RunService.PreSimulation:Connect(function()
+							followConnection = NAlib.reconnect("autofollow_target", Services.RunService.PreSimulation:Connect(function()
 								if myChar and myHum and targetRoot and char and char.Parent then
 									myHum:MoveTo(targetRoot.Position)
 								else
@@ -77973,7 +77939,7 @@ cmd.add({"pathfind"},{"pathfind <player>","Follow a player using the pathfinder 
 			NAlib.disconnect("follow")
 			const ps=SafeGetService("PathfindingService")
 			local lastSrc, lastDst = Vector3.new(0, 0, 0), Vector3.new(0, 0, 0)
-			NAlib.connect("follow",RunService.Heartbeat:Connect(function()
+			NAlib.connect("follow",Services.RunService.Heartbeat:Connect(function()
 				const hum=getHum() const char=getChar() const tgt=plr.Character
 				if not(hum and char and tgt and hum.RootPart) then return end
 				const src=hum.RootPart.Position
@@ -78086,7 +78052,7 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 
 	const UIS=SafeGetService("UserInputService")
 	const Mouse=NAmanage.GetMouse(LocalPlayer)
-	const Folder=InstanceNew("Folder",Workspace)
+	const Folder=InstanceNew("Folder",Services.Workspace)
 	const Part=InstanceNew("Part",Folder)
 	const Attachment1=InstanceNew("Attachment",Part)
 	Part.Anchored=true Part.CanCollide=false Part.Transparency=1
@@ -78104,7 +78070,7 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 	_na_env.BlackholeTarget=Updated
 	_na_env.BlackholeActive=false
 
-	NAlib.connect("blackhole_sim",RunService.RenderStepped:Connect(function()
+	NAlib.connect("blackhole_sim",Services.RunService.RenderStepped:Connect(function()
 		settings().Physics.AllowSleep=false
 		for _,plr in next,__lt.cm("Players", "GetPlayers") do
 			if plr~=LocalPlayer then NACaller(function()
@@ -78118,7 +78084,7 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 		end)
 	end))
 
-	NAlib.connect("blackhole_pos",RunService.RenderStepped:Connect(function()
+	NAlib.connect("blackhole_pos",Services.RunService.RenderStepped:Connect(function()
 		if _na_env.BlackholeAttachment then
 			_na_env.BlackholeAttachment.WorldCFrame=_na_env.BlackholeTarget
 		end
@@ -78141,7 +78107,7 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 		end
 	end
 
-	for _, v in NAmanage.QueryDescendants(Workspace, "BasePart") do ForcePart(v) end
+	for _, v in NAmanage.QueryDescendants(Services.Workspace, "BasePart") do ForcePart(v) end
 	NAlib.connect("blackhole_force",NAmanage.wsAdd(ForcePart))
 
 	UIS.InputBegan:Connect(function(k,chat)
@@ -78170,7 +78136,7 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 		_na_env.BlackholeActive=not _na_env.BlackholeActive
 		toggleBtn.Text=_na_env.BlackholeActive and "Disable Blackhole" or "Enable Blackhole"
 		if not _na_env.BlackholeActive then
-			for _,p in NAmanage.QueryDescendants(Workspace, "BasePart") do
+			for _,p in NAmanage.QueryDescendants(Services.Workspace, "BasePart") do
 				if not p.Anchored then
 					for _,o in p:GetChildren() do
 						if o:IsA("AlignPosition") or o:IsA("Torque") or o:IsA("Attachment") then o:Destroy() end
@@ -78179,7 +78145,7 @@ cmd.add({"blackhole","bhole","bholepull"},{"blackhole","Makes unanchored parts t
 			end
 			DebugNotif("Blackhole force disabled",2)
 		else
-			for _, v in NAmanage.QueryDescendants(Workspace, "BasePart") do ForcePart(v) end
+			for _, v in NAmanage.QueryDescendants(Services.Workspace, "BasePart") do ForcePart(v) end
 			DebugNotif("Blackhole force enabled",2)
 		end
 	end)
@@ -78252,7 +78218,7 @@ NAmanage.IsFireKeyBlockedByTextBox = function()
 		return true
 	end
 
-	if not (UserInputService and UserInputService.GetMouseLocation) then
+	if not (Services.UserInputService and Services.UserInputService.GetMouseLocation) then
 		return false
 	end
 
@@ -78320,7 +78286,7 @@ end
 
 NAmanage.WaitForFireKeyTextBoxClear = function()
 	while NAmanage.IsFireKeyBlockedByTextBox() do
-		RunService.RenderStepped:Wait()
+		Services.RunService.RenderStepped:Wait()
 	end
 end
 
@@ -78378,8 +78344,7 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(.
 		return DebugNotif("Player name or selector required", 3)
 	end
 
-	const Players = game:GetService("Players")
-	const Player = Players.LocalPlayer
+	const Player = Services.Players.LocalPlayer
 	const LocalUserId = tonumber(Player.UserId)
 	const function IsLocalTarget(TargetPlayer)
 		if TargetPlayer == Player then
@@ -78556,10 +78521,7 @@ NA_DEVPROD_GUI=nil
 cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Products"},function()
 	do
 		if NA_DEVPROD_GUI and NA_DEVPROD_GUI.Parent then NA_DEVPROD_GUI:Destroy() end
-		const MarketplaceService=SafeGetService("MarketplaceService")
-		const UserInputService=SafeGetService("UserInputService")
-		const TweenService=SafeGetService("TweenService")
-		const LocalPlayer=Players.LocalPlayer
+		const LocalPlayer=Services.Players.LocalPlayer
 		const GROUP="DevProductsGUI"
 		NAlib.disconnect(GROUP)
 
@@ -78619,12 +78581,12 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 
 		const function tween(obj,goal,duration)
 			pcall(function()
-				TweenService:Create(obj,TweenInfo.new(duration or 0.18,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),goal):Play()
+				Services.TweenService:Create(obj,TweenInfo.new(duration or 0.18,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),goal):Play()
 			end)
 		end
 
 		const function getViewport()
-			const cam=Workspace.CurrentCamera
+			const cam=Services.Workspace.CurrentCamera
 			if cam and cam.ViewportSize.X > 0 and cam.ViewportSize.Y > 0 then
 				return cam.ViewportSize
 			end
@@ -78632,7 +78594,7 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 		end
 
 		const function isCompactViewport(vp)
-			const touchOnly=UserInputService and UserInputService.TouchEnabled and not (UserInputService.KeyboardEnabled or UserInputService.MouseEnabled)
+			const touchOnly=Services.UserInputService and Services.UserInputService.TouchEnabled and not (Services.UserInputService.KeyboardEnabled or Services.UserInputService.MouseEnabled)
 			return vp.X < 760 or (touchOnly and vp.X < 980)
 		end
 
@@ -79235,7 +79197,7 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 			shadow.Position=win.Position
 		end))
 
-		const cam=Workspace.CurrentCamera
+		const cam=Services.Workspace.CurrentCamera
 		if cam then
 			NAlib.connect(GROUP,cam:GetPropertyChangedSignal("ViewportSize"):Connect(function()
 				updateWindowLayout()
@@ -79267,7 +79229,6 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 		return
 	end
 	if NA_DEVPROD_GUI and NA_DEVPROD_GUI.Parent then NA_DEVPROD_GUI:Destroy() end
-	const MarketplaceService=SafeGetService("MarketplaceService")
 	const GROUP="DevProductsGUI"
 	NAlib.disconnect(GROUP)
 
@@ -79465,7 +79426,7 @@ cmd.add({"devproducts","products"},{"devproducts (products)","Lists Developer Pr
 		end
 	end))
 
-	const cam=Workspace.CurrentCamera
+	const cam=Services.Workspace.CurrentCamera
 	if cam then
 		NAlib.connect(GROUP,cam:GetPropertyChangedSignal("ViewportSize"):Connect(function()
 			NAmanage.centerFrame(win)
@@ -79673,10 +79634,7 @@ NA_GAMEPASS_GUI=nil
 cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passes (manual IDs)"},function()
 	do
 		if NA_GAMEPASS_GUI and NA_GAMEPASS_GUI.Parent then NA_GAMEPASS_GUI:Destroy() end
-		const MarketplaceService=SafeGetService("MarketplaceService")
-		const UserInputService=SafeGetService("UserInputService")
-		const TweenService=SafeGetService("TweenService")
-		const LocalPlayer=Players.LocalPlayer
+		const LocalPlayer=Services.Players.LocalPlayer
 		const GROUP="GamePassesGUI"
 		NAlib.disconnect(GROUP)
 
@@ -79737,12 +79695,12 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 
 		const function tween(obj,goal,duration)
 			pcall(function()
-				TweenService:Create(obj,TweenInfo.new(duration or 0.18,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),goal):Play()
+				Services.TweenService:Create(obj,TweenInfo.new(duration or 0.18,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),goal):Play()
 			end)
 		end
 
 		const function getViewport()
-			const cam=Workspace.CurrentCamera
+			const cam=Services.Workspace.CurrentCamera
 			if cam and cam.ViewportSize.X > 0 and cam.ViewportSize.Y > 0 then
 				return cam.ViewportSize
 			end
@@ -79750,7 +79708,7 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 		end
 
 		const function isCompactViewport(vp)
-			const touchOnly=UserInputService and UserInputService.TouchEnabled and not (UserInputService.KeyboardEnabled or UserInputService.MouseEnabled)
+			const touchOnly=Services.UserInputService and Services.UserInputService.TouchEnabled and not (Services.UserInputService.KeyboardEnabled or Services.UserInputService.MouseEnabled)
 			return vp.X < 760 or (touchOnly and vp.X < 980)
 		end
 
@@ -80467,7 +80425,7 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 			shadow.Position=win.Position
 		end))
 
-		const cam=Workspace.CurrentCamera
+		const cam=Services.Workspace.CurrentCamera
 		if cam then
 			NAlib.connect(GROUP,cam:GetPropertyChangedSignal("ViewportSize"):Connect(function()
 				updateWindowLayout()
@@ -80492,8 +80450,7 @@ cmd.add({"gamepasses","passes"},{"gamepasses (passes)","Prompt & list Game Passe
 		return
 	end
 	if NA_GAMEPASS_GUI and NA_GAMEPASS_GUI.Parent then NA_GAMEPASS_GUI:Destroy() end
-	const MarketplaceService=SafeGetService("MarketplaceService")
-	const LocalPlayer=Players.LocalPlayer
+	const LocalPlayer=Services.Players.LocalPlayer
 	const GROUP="GamePassesGUI"
 	NAlib.disconnect(GROUP)
 
@@ -80937,11 +80894,11 @@ if IsOnPC then
 		NAgui.doModal(true)
 	end)
 	cmd.add({"lockmouse2", "lockm2"}, {"lockmouse2 (lockm2)", "Locks your mouse in the center"}, function()
-		UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+		Services.UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
 	end)
 
 	cmd.add({"unlockmouse2", "unlockm2"}, {"unlockmouse2 (unlockm2)", "Unlocks your mouse"}, function()
-		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+		Services.UserInputService.MouseBehavior = Enum.MouseBehavior.Default
 	end)
 
 	NAStuff.MouseTools = type(NAStuff.MouseTools) == "table" and NAStuff.MouseTools or {}
@@ -80949,7 +80906,7 @@ if IsOnPC then
 	NAStuff.MouseTools.bindName = "NA_MouseTools_Enforcer"
 	NAStuff.MouseTools.mode = nil
 	NAStuff.MouseTools.getMouse = function()
-		NAStuff.MouseTools.mouse = NAmanage.GetMouse(Players.LocalPlayer)
+		NAStuff.MouseTools.mouse = NAmanage.GetMouse(Services.Players.LocalPlayer)
 		return NAStuff.MouseTools.mouse
 	end
 	NAStuff.MouseTools.captureDefault = function(property, getter)
@@ -80963,20 +80920,20 @@ if IsOnPC then
 	end
 	NAStuff.MouseTools.captureDefaults = function()
 		NAStuff.MouseTools.captureDefault("MouseIconEnabled", function()
-			return UserInputService.MouseIconEnabled
+			return Services.UserInputService.MouseIconEnabled
 		end)
 		NAStuff.MouseTools.captureDefault("MouseBehavior", function()
-			return UserInputService.MouseBehavior
+			return Services.UserInputService.MouseBehavior
 		end)
 		NAStuff.MouseTools.captureDefault("MouseIcon", function()
 			NAStuff.MouseTools.getMouse()
 			if NAStuff.MouseTools.mouse then
 				return NAStuff.MouseTools.mouse.Icon
 			end
-			return UserInputService.MouseIcon
+			return Services.UserInputService.MouseIcon
 		end)
 		NAStuff.MouseTools.captureDefault("OverrideMouseIconBehavior", function()
-			return UserInputService.OverrideMouseIconBehavior
+			return Services.UserInputService.OverrideMouseIconBehavior
 		end)
 		NAStuff.MouseTools.captureDefault("NAModal", function()
 			if not NAUIMANAGER or not NAUIMANAGER.ModalFixer then
@@ -81004,7 +80961,7 @@ if IsOnPC then
 	end
 	NAStuff.MouseTools.restoreIcon = function()
 		return NAStuff.MouseTools.restoreProperty("MouseIcon", function(value)
-			UserInputService.MouseIcon = value
+			Services.UserInputService.MouseIcon = value
 			NAStuff.MouseTools.getMouse()
 			if NAStuff.MouseTools.mouse then
 				NAStuff.MouseTools.mouse.Icon = value
@@ -81012,33 +80969,33 @@ if IsOnPC then
 		end)
 	end
 	NAStuff.MouseTools.stop = function()
-		pcall(RunService.UnbindFromRenderStep, RunService, NAStuff.MouseTools.bindName)
+		pcall(Services.RunService.UnbindFromRenderStep, Services.RunService, NAStuff.MouseTools.bindName)
 	end
 	NAStuff.MouseTools.applyCurrent = function()
 		if NAStuff.MouseTools.mode == nil then
 			return
 		end
 		pcall(function()
-			if UserInputService.OverrideMouseIconBehavior ~= Enum.OverrideMouseIconBehavior.ForceShow then
-				UserInputService.OverrideMouseIconBehavior = Enum.OverrideMouseIconBehavior.ForceShow
+			if Services.UserInputService.OverrideMouseIconBehavior ~= Enum.OverrideMouseIconBehavior.ForceShow then
+				Services.UserInputService.OverrideMouseIconBehavior = Enum.OverrideMouseIconBehavior.ForceShow
 			end
 		end)
 		pcall(function()
-			if UserInputService.MouseIconEnabled ~= true then
-				UserInputService.MouseIconEnabled = true
+			if Services.UserInputService.MouseIconEnabled ~= true then
+				Services.UserInputService.MouseIconEnabled = true
 			end
 		end)
 		if NAStuff.MouseTools.mode == "reset" then
 			pcall(function()
-				if UserInputService.MouseBehavior ~= Enum.MouseBehavior.Default then
-					UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+				if Services.UserInputService.MouseBehavior ~= Enum.MouseBehavior.Default then
+					Services.UserInputService.MouseBehavior = Enum.MouseBehavior.Default
 				end
 			end)
 		end
 		if NAStuff.MouseTools.mode == "reset" then
 			pcall(function()
-				if UserInputService.MouseIcon ~= "" then
-					UserInputService.MouseIcon = ""
+				if Services.UserInputService.MouseIcon ~= "" then
+					Services.UserInputService.MouseIcon = ""
 				end
 			end)
 			pcall(function()
@@ -81057,7 +81014,7 @@ if IsOnPC then
 		end
 		if mode == "visible" then
 			NAStuff.MouseTools.restoreProperty("MouseBehavior", function(value)
-				UserInputService.MouseBehavior = value
+				Services.UserInputService.MouseBehavior = value
 			end)
 			NAStuff.MouseTools.restoreProperty("NAModal", function(value)
 				NAStuff.MouseTools.setModal(value)
@@ -81067,7 +81024,7 @@ if IsOnPC then
 		end
 		NAStuff.MouseTools.mode = mode
 		NAStuff.MouseTools.applyCurrent()
-		NAStuff.MouseTools.bindOK, NAStuff.MouseTools.bindError = pcall(RunService.BindToRenderStep, RunService, NAStuff.MouseTools.bindName, Enum.RenderPriority.Last.Value + 1, NAStuff.MouseTools.applyCurrent)
+		NAStuff.MouseTools.bindOK, NAStuff.MouseTools.bindError = pcall(Services.RunService.BindToRenderStep, Services.RunService, NAStuff.MouseTools.bindName, Enum.RenderPriority.Last.Value + 1, NAStuff.MouseTools.applyCurrent)
 		if not NAStuff.MouseTools.bindOK then
 			NAStuff.MouseTools.mode = nil
 			DoNotif("Mouse command failed: "..tostring(NAStuff.MouseTools.bindError), 3, "Mouse Tools")
@@ -81081,7 +81038,7 @@ if IsOnPC then
 		NAStuff.MouseTools.mode = nil
 		NAStuff.MouseTools.restored = 0
 		if NAStuff.MouseTools.restoreProperty("OverrideMouseIconBehavior", function(value)
-			UserInputService.OverrideMouseIconBehavior = value
+			Services.UserInputService.OverrideMouseIconBehavior = value
 		end) then
 			NAStuff.MouseTools.restored += 1
 		end
@@ -81091,12 +81048,12 @@ if IsOnPC then
 			NAStuff.MouseTools.restored += 1
 		end
 		if NAStuff.MouseTools.restoreProperty("MouseIconEnabled", function(value)
-			UserInputService.MouseIconEnabled = value
+			Services.UserInputService.MouseIconEnabled = value
 		end) then
 			NAStuff.MouseTools.restored += 1
 		end
 		if NAStuff.MouseTools.restoreProperty("MouseBehavior", function(value)
-			UserInputService.MouseBehavior = value
+			Services.UserInputService.MouseBehavior = value
 		end) then
 			NAStuff.MouseTools.restored += 1
 		end
@@ -81240,7 +81197,7 @@ cmd.add({"headsit"}, {"headsit <player>", "sit on someone's head"}, function(...
 			part.CanTouch = false
 			part.CastShadow = false
 		end)
-		part.Parent = Workspace
+		part.Parent = Services.Workspace
 		Insert(platformParts, part)
 	end
 
@@ -81255,7 +81212,7 @@ cmd.add({"headsit"}, {"headsit <player>", "sit on someone's head"}, function(...
 		end
 	end))
 
-	NAlib.connect("headsit_follow", RunService.PreSimulation:Connect(function()
+	NAlib.connect("headsit_follow", Services.RunService.PreSimulation:Connect(function()
 		if NAStuff.headsitActive ~= true
 			or NAStuff.headsitToken ~= token
 			or hum.Sit == false then
@@ -81402,7 +81359,7 @@ NAmanage.wallTpTop = function(part, hit)
 	local bestPos, bestY
 	const y = math.max(48, sz.Magnitude + 12)
 	for _, point in points do
-		const res = Workspace:Raycast(Vector3.new(point.X, topY + y, point.Z), Vector3.new(0, -(y * 2 + 8), 0), params)
+		const res = Services.Workspace:Raycast(Vector3.new(point.X, topY + y, point.Z), Vector3.new(0, -(y * 2 + 8), 0), params)
 		if res and res.Position and res.Instance == part then
 			const ry = res.Position.Y
 			if not bestY or ry > bestY then
@@ -81443,7 +81400,7 @@ NAmanage.wallTpTop = function(part, hit)
 end
 
 NAmanage.wallTpHit = function(char, root, hum)
-	if not (Workspace and Workspace.Raycast and char and root) then
+	if not (Services.Workspace and Services.Workspace.Raycast and char and root) then
 		return nil
 	end
 
@@ -81483,7 +81440,7 @@ NAmanage.wallTpHit = function(char, root, hum)
 		local left = mag
 		for _ = 1, 8 do
 			params.FilterDescendantsInstances = excludes
-			const res = Workspace:Raycast(from, unit * left, params)
+			const res = Services.Workspace:Raycast(from, unit * left, params)
 			if not res then
 				return nil
 			end
@@ -81544,7 +81501,7 @@ cmd.add({"walltp","wtp"},{"walltp","Toggles wall top teleport (BETA)"},function(
 	const st = { acc = 0, last = nil, t = 0 }
 	NAStuff.wallTpState = st
 
-	NAlib.reconnect("walltp_loop", RunService.Heartbeat:Connect(function(dt)
+	NAlib.reconnect("walltp_loop", Services.RunService.Heartbeat:Connect(function(dt)
 		st.acc += dt
 		if st.acc < 0.06 then
 			return
@@ -81618,7 +81575,7 @@ cmd.add({"wallhop"},{"wallhop","wallhop helper"},function()
 
 	local canHop = true
 
-	NAlib.connect("wallhop_loop", RunService.PreSimulation:Connect(function()
+	NAlib.connect("wallhop_loop", Services.RunService.PreSimulation:Connect(function()
 		if not char or not root or not hum or hum.Health <= 0 then
 			NAlib.disconnect("wallhop_loop")
 			return
@@ -81630,12 +81587,12 @@ cmd.add({"wallhop"},{"wallhop","wallhop helper"},function()
 
 		const origin = root.Position + Vector3.new(0, -1, 0)
 		const direction = root.CFrame.LookVector * 1.5
-		const wallResult = Workspace:Raycast(origin, direction, params)
+		const wallResult = Services.Workspace:Raycast(origin, direction, params)
 
 		if wallResult and hum.FloorMaterial == Enum.Material.Air then
 			const hitPart = wallResult.Instance
 			const topPoint = wallResult.Position + Vector3.new(0, 0.1, 0)
-			const upperCheck = Workspace:Raycast(topPoint, Vector3.new(0, 2, 0), params)
+			const upperCheck = Services.Workspace:Raycast(topPoint, Vector3.new(0, 2, 0), params)
 
 			if upperCheck and upperCheck.Instance ~= hitPart then
 				if root.Velocity.Y < -1 and canHop then
@@ -81682,7 +81639,7 @@ end)
 
 cmd.add({"loopjump","bhop"},{"loopjump (bhop)","Continuously jump."},function()
 	NAlib.disconnect("loopjump")
-	NAlib.connect("loopjump",RunService.RenderStepped:Connect(function()
+	NAlib.connect("loopjump",Services.RunService.RenderStepped:Connect(function()
 		const h=getHum()
 		if h and h:GetState()~=Enum.HumanoidStateType.Freefall and h.FloorMaterial~=Enum.Material.Air then
 			NAmanage.LaunchHumanoid(h)
@@ -81797,7 +81754,7 @@ NAmanage.JBApply = function(h, r)
 
 	Spawn(function()
 		for i = 1, 3 do
-			RunService.RenderStepped:Wait()
+			Services.RunService.RenderStepped:Wait()
 			const st2 = NAStuff.jb
 			if type(st2) ~= "table" or not st2.on or st2.seq ~= seq then return end
 			set()
@@ -81843,8 +81800,8 @@ NAmanage.JBHook = function()
 	st.busy = false
 	st.seq = (tonumber(st.seq) or 0) + 1
 
-	if UserInputService and UserInputService.JumpRequest then
-		NAlib.connect("jumpboost_input", UserInputService.JumpRequest:Connect(function()
+	if Services.UserInputService and Services.UserInputService.JumpRequest then
+		NAlib.connect("jumpboost_input", Services.UserInputService.JumpRequest:Connect(function()
 			const st2 = NAStuff.jb
 			if type(st2) == "table" and st2.on then
 				st2.req = tick()
@@ -81852,11 +81809,11 @@ NAmanage.JBHook = function()
 		end))
 	end
 
-	NAlib.connect("jumpboost", RunService.RenderStepped:Connect(function()
+	NAlib.connect("jumpboost", Services.RunService.RenderStepped:Connect(function()
 		NACaller(NAmanage.JBStep)
 	end))
 
-	const lp = Players.LocalPlayer
+	const lp = Services.Players.LocalPlayer
 	if lp then
 		NAlib.connect("jumpboost_char", lp.CharacterAdded:Connect(function()
 			const st2 = NAStuff.jb
@@ -82016,11 +81973,11 @@ cmd.add({"headstand"}, {"headstand <player>", "Stand on someone's head."}, funct
 		part.Anchored = true
 		part.CanCollide = true
 		part.Transparency = 1
-		part.Parent = Workspace
+		part.Parent = Services.Workspace
 		Insert(standParts, part)
 	end
 
-	NAlib.connect("headstand_follow", RunService.PreSimulation:Connect(function()
+	NAlib.connect("headstand_follow", Services.RunService.PreSimulation:Connect(function()
 		const plrCharacter = plr.Character
 		if plr.Parent == RawPlayers and plrCharacter and getRoot(plrCharacter) and getRoot(char) then
 			const charRoot = getRoot(char)
@@ -82085,7 +82042,7 @@ NAmanage.GetVelocityWalkSpeedMoveDirection = function(root, hum)
 	if typeof(moveVec) == "Vector3" then
 		const flatInput = flatMoveVec
 		if flatInput.Magnitude > 0.05 then
-			const basisCF = Workspace.CurrentCamera and Workspace.CurrentCamera.CFrame or (root and root.CFrame)
+			const basisCF = Services.Workspace.CurrentCamera and Services.Workspace.CurrentCamera.CFrame or (root and root.CFrame)
 			if basisCF then
 				local right = Vector3.new(basisCF.RightVector.X, 0, basisCF.RightVector.Z)
 				local look = Vector3.new(basisCF.LookVector.X, 0, basisCF.LookVector.Z)
@@ -82198,7 +82155,7 @@ NAmanage.EnsureVelocityWalkSpeedClampLoop = function()
 	if NAlib.isConnected("na_velocityws_cap") then
 		return
 	end
-	const clampSignal = RunService.Heartbeat
+	const clampSignal = Services.RunService.Heartbeat
 	NAlib.connect("na_velocityws_cap", clampSignal:Connect(function()
 		NAmanage.ClampVelocityWalkSpeedRoot()
 	end))
@@ -82390,7 +82347,7 @@ NAmanage.GetVelocityWalkSpeedWallAdjustedVelocity = function(root, desiredVeloci
 		root.Position + Vector3.new(0, 1.5, 0),
 	}
 	for i = 1, #origins do
-		const result = Workspace:Raycast(origins[i], direction, params)
+		const result = Services.Workspace:Raycast(origins[i], direction, params)
 		if result and result.Instance and result.Instance.CanCollide and result.Distance <= stopDistance then
 			local flatNormal = Vector3.new(result.Normal.X, 0, result.Normal.Z)
 			if flatNormal.Magnitude > 0.05 and math.abs(result.Normal.Y) < 0.45 then
@@ -82415,7 +82372,7 @@ NAmanage.EnsureVelocityWalkSpeedHelper = function(root)
 	const state = NAmanage.GetVelocityWalkSpeedState()
 	local part = state.part
 	if not part or part.Parent == nil then
-		part = InstanceNew("Part", Workspace)
+		part = InstanceNew("Part", Services.Workspace)
 		NAmanage.configureFlyHelper(part)
 		pcall(function()
 			part.Anchored = false
@@ -82508,7 +82465,7 @@ NAmanage.RefreshVelocityWalkSpeed = function()
 		return
 	end
 	NAmanage.EnsureVelocityWalkSpeedClampLoop()
-	NAlib.connect("na_velocityws_apply", RunService.PreSimulation:Connect(function()
+	NAlib.connect("na_velocityws_apply", Services.RunService.PreSimulation:Connect(function()
 		const speed = NAmanage.GetVelocityWalkSpeedValue()
 		if not speed or speed <= 0 then
 			NAmanage.ClearVelocityWalkSpeedClampState()
@@ -82675,7 +82632,7 @@ cmd.add({"unloopjumppower", "unloopjp", "unljp"}, {"unloopjumppower (unloopjp,un
 end)
 
 cmd.add({"stopanimations", "stopanims", "stopanim", "noanim"}, {"stopanimations (stopanims,stopanim,noanim)", "Stops running animations"}, function()
-	const char = Players.LocalPlayer and Players.LocalPlayer.Character
+	const char = Services.Players.LocalPlayer and Services.Players.LocalPlayer.Character
 	const hum = getHum()
 	if not hum then return end
 
@@ -82728,7 +82685,7 @@ cmd.add({"loopwaveat", "loopwat"}, {"loopwaveat <player> (loopwat)", "Wave to a 
 			const charPos = char.PrimaryPart.Position
 			const tpos = getRoot(plr.Character).Position
 			const newCFrame = CFrame.new(charPos, Vector3.new(tpos.X, charPos.Y, tpos.Z))
-			NAmanage.UG_pivotModel(Players.LocalPlayer.Character, newCFrame)
+			NAmanage.UG_pivotModel(Services.Players.LocalPlayer.Character, newCFrame)
 			const wave = getHum():LoadAnimation(waveAnim)
 			wave:Play(-1, 5, -1)
 			Wait(1.6)
@@ -82751,8 +82708,8 @@ cmd.add({"tools", "gears"}, {"tools (gears)", "Copies tools from ReplicatedStora
 		end
 	end
 
-	copyTools(Lighting)
-	copyTools(ReplicatedStorage)
+	copyTools(Services.Lighting)
+	copyTools(Services.ReplicatedStorage)
 
 	Wait()
 	DebugNotif("Copied tools from ReplicatedStorage and Lighting", 3)
@@ -82899,7 +82856,7 @@ NAmanage.tvAttach=function(plr, data, char)
 	data.lastToolSnapshot = getToolSnapshot()
 	data.renderConnKey = "toolviewer_visual_"..tostring(plr.UserId or plr.Name)
 
-	data.renderConn = NAlib.reconnect(data.renderConnKey, RunService.RenderStepped:Connect(function()
+	data.renderConn = NAlib.reconnect(data.renderConnKey, Services.RunService.RenderStepped:Connect(function()
 		if not plr.Parent then NAmanage.tvCleanupVisual(data) return end
 		const activeChar = plr.Character or getPlrChar(plr)
 		if activeChar ~= char then NAmanage.tvCleanupVisual(data) return end
@@ -82910,7 +82867,7 @@ NAmanage.tvAttach=function(plr, data, char)
 			bb.Adornee = head
 			bb.Parent = head
 		end
-		if not head:IsDescendantOf(Workspace) then NAmanage.tvCleanupVisual(data) return end
+		if not head:IsDescendantOf(Services.Workspace) then NAmanage.tvCleanupVisual(data) return end
 
 		const currentSnapshot = getToolSnapshot()
 		const previous = data.lastToolSnapshot or {}
@@ -82982,11 +82939,11 @@ cmd.add({"toolview", "tview"}, {"toolview <player> (tview)", "3D tool viewer abo
 		if NAStuff.tviewAddConn then NAStuff.tviewAddConn:Disconnect() end
 		if NAStuff.tviewRemoveConn then NAStuff.tviewRemoveConn:Disconnect() end
 		NAStuff.tviewGlobalMode = lowerFirst
-		NAStuff.tviewAddConn = Players.PlayerAdded:Connect(function(plr)
-			if NAStuff.tviewGlobalMode == "others" and plr == Players.LocalPlayer then return end
+		NAStuff.tviewAddConn = Services.Players.PlayerAdded:Connect(function(plr)
+			if NAStuff.tviewGlobalMode == "others" and plr == Services.Players.LocalPlayer then return end
 			NAmanage.tvEnsure(plr)
 		end)
-		NAStuff.tviewRemoveConn = Players.PlayerRemoving:Connect(function(plr)
+		NAStuff.tviewRemoveConn = Services.Players.PlayerRemoving:Connect(function(plr)
 			NAmanage.tvDetach(plr)
 		end)
 	end
@@ -83319,11 +83276,11 @@ cmd.add({"toolview2", "tview2"}, {"toolview2 (tview2)", "Live-updating tool view
 		createSection(plr)
 	end
 
-	renderConn = NAlib.reconnect("toolviewer_render", RunService.RenderStepped:Connect(refreshAll))
-	playerAddConn = Players.PlayerAdded:Connect(function(plr)
+	renderConn = NAlib.reconnect("toolviewer_render", Services.RunService.RenderStepped:Connect(refreshAll))
+	playerAddConn = Services.Players.PlayerAdded:Connect(function(plr)
 		createSection(plr)
 	end)
-	playerRemoveConn = Players.PlayerRemoving:Connect(function(plr)
+	playerRemoveConn = Services.Players.PlayerRemoving:Connect(function(plr)
 		removeSection(plr)
 	end)
 
@@ -83371,7 +83328,7 @@ cmd.add({"waveat", "wat"}, {"waveat <player> (wat)", "Wave to a player"}, functi
 		const targetHRP = getRoot(plr.Character)
 		if targetHRP then
 			const newCFrame = CFrame.new(charPos, Vector3.new(targetHRP.Position.X, charPos.Y, targetHRP.Position.Z))
-			NAmanage.UG_pivotModel(Players.LocalPlayer.Character, newCFrame)
+			NAmanage.UG_pivotModel(Services.Players.LocalPlayer.Character, newCFrame)
 		end
 		const waveAnim = InstanceNew("Animation")
 		if IsR15() then
@@ -83399,7 +83356,7 @@ cmd.add({"headbang", "mouthbang", "headfuck", "mouthfuck", "facebang", "facefuck
 		DoNotif("No targets found", 2)
 	end
 	bangAnim = InstanceNew("Animation")
-	if not IsR15(Players.LocalPlayer) then
+	if not IsR15(Services.Players.LocalPlayer) then
 		bangAnim.AnimationId = "rbxassetid://148840371"
 	else
 		bangAnim.AnimationId = "rbxassetid://5918726674"
@@ -83429,7 +83386,7 @@ cmd.add({"headbang", "mouthbang", "headfuck", "mouthfuck", "facebang", "facefuck
 	bangParts = {}
 	const bangOffset = CFrame.new(0, 1, -1.1)
 	if bangplr then
-		bangLoop = NAlib.reconnect("headbang_loop", RunService.RenderStepped:Connect(function()
+		bangLoop = NAlib.reconnect("headbang_loop", Services.RunService.RenderStepped:Connect(function()
 			NACaller(function()
 				const targetPlayer = NAmanage.ResolvePersistentPlayer(bangplr)
 				if not targetPlayer or not targetPlayer.Character then return end
@@ -83523,12 +83480,12 @@ cmd.add({"jerkuser", "jorkuser", "handjob", "hjob", "handj"}, {"jerkuser <player
 		part.Anchored = true
 		part.CanCollide = true
 		part.Transparency = 1
-		part.Parent = Workspace
+		part.Parent = Services.Workspace
 		Insert(jerkParts, part)
 	end
 
 	const jerkOffset = CFrame.new(0, -2.5, -0.25) * CFrame.Angles(math.pi * 0.5, 0, math.pi)
-	jerkLoop = NAlib.reconnect("jerkuser_loop", RunService.RenderStepped:Connect(function()
+	jerkLoop = NAlib.reconnect("jerkuser_loop", Services.RunService.RenderStepped:Connect(function()
 		NACaller(function()
 			for i, wall in walls do
 				jerkParts[i].CFrame = root.CFrame * wall.offset
@@ -83600,7 +83557,7 @@ cmd.add({"suck","dicksuck"},{"suck <player> <number>","suck it"},function(h,d)
 	const targetRef = NAmanage.NewPersistentPlayerRef(plr)
 
 	suckANIM = InstanceNew("Animation")
-	if not IsR15(Players.LocalPlayer) then
+	if not IsR15(Services.Players.LocalPlayer) then
 		suckANIM.AnimationId = "rbxassetid://189854234"
 	else
 		suckANIM.AnimationId = "rbxassetid://5918726674"
@@ -83634,7 +83591,7 @@ cmd.add({"suck","dicksuck"},{"suck <player> <number>","suck it"},function(h,d)
 		part.Anchored=true
 		part.CanCollide=true
 		part.Transparency=1
-		part.Parent=Workspace
+		part.Parent=Services.Workspace
 		Insert(SUCKYSUCKY,part)
 	end
 
@@ -83808,8 +83765,8 @@ cmd.addPatched({"reserveserver","privateserver","ps","rs"},{"reserveserver [code
 			return accessPart,"accessCode",instancePart
 		end
 		local linkCode=raw:match("[?&]privateServerLinkCode=([^&%s]+)") or raw:match("[?&]linkCode=([^&%s]+)")
-		if linkCode and HttpService and HttpService.UrlDecode then
-			local ok,decoded=pcall(function() return HttpService:UrlDecode(linkCode) end)
+		if linkCode and Services.HttpService and Services.HttpService.UrlDecode then
+			local ok,decoded=pcall(function() return Services.HttpService:UrlDecode(linkCode) end)
 			if ok and decoded and decoded~="" then linkCode=decoded end
 		end
 		if linkCode and linkCode~="" then
@@ -83909,7 +83866,7 @@ cmd.addPatched({"reserveserver","privateserver","ps","rs"},{"reserveserver [code
 			payload.snapshot=snapshotText
 		end
 		local okJson,json=pcall(function()
-			return HttpService:JSONEncode(payload)
+			return Services.HttpService:JSONEncode(payload)
 		end)
 		if okJson then
 			return json
@@ -84328,7 +84285,7 @@ originalIO.startLoopForTool=function(toolRef)
 
 	originalIO.equipToolInstance(toolRef)
 
-	ToolLoopCons.loop = NAlib.reconnect("equiptool_loop", RunService.RenderStepped:Connect(function()
+	ToolLoopCons.loop = NAlib.reconnect("equiptool_loop", Services.RunService.RenderStepped:Connect(function()
 		if not ToolLoopCons.filter then
 			return
 		end
@@ -84398,7 +84355,7 @@ originalIO.stopMultiTool=function(silent)
 end
 
 originalIO.startMultiTool=function()
-	const localPlayer = Players.LocalPlayer
+	const localPlayer = Services.Players.LocalPlayer
 	const char = getChar()
 	const backpack = getBp()
 
@@ -84595,13 +84552,13 @@ cmd.add({"edgejump", "ejump"}, {"edgejump (ejump)", "Automatically jumps when yo
 
 	edgeJump()
 	if HumanModCons.ejLoop then HumanModCons.ejLoop:Disconnect() end
-	HumanModCons.ejLoop = NAlib.reconnect("edgejump_loop", RunService.RenderStepped:Connect(edgeJump))
+	HumanModCons.ejLoop = NAlib.reconnect("edgejump_loop", Services.RunService.RenderStepped:Connect(edgeJump))
 	HumanModCons.ejCA = (HumanModCons.ejCA and HumanModCons.ejCA:Disconnect() and false) or speaker.CharacterAdded:Connect(function(newChar)
 		Char = newChar
 		Human = getPlrHum(newChar)
 		edgeJump()
 		if HumanModCons.ejLoop then HumanModCons.ejLoop:Disconnect() end
-		HumanModCons.ejLoop = NAlib.reconnect("edgejump_loop", RunService.RenderStepped:Connect(edgeJump))
+		HumanModCons.ejLoop = NAlib.reconnect("edgejump_loop", Services.RunService.RenderStepped:Connect(edgeJump))
 	end)
 end)
 
@@ -84779,7 +84736,7 @@ cmd.add({"bang", "fuck"}, {"bang <player> <number> (fuck)", "fucks the player by
 	end
 
 	bangAnim = InstanceNew("Animation")
-	if not IsR15(Players.LocalPlayer) then
+	if not IsR15(Services.Players.LocalPlayer) then
 		bangAnim.AnimationId = "rbxassetid://148840371"
 	else
 		bangAnim.AnimationId = "rbxassetid://5918726674"
@@ -84807,7 +84764,7 @@ cmd.add({"bang", "fuck"}, {"bang <player> <number> (fuck)", "fucks the player by
 
 	const bangOffset = CFrame.new(0, 0, 1.1)
 	if bangplr then
-		bangLoop = NAlib.reconnect("bang_loop", RunService.RenderStepped:Connect(function()
+		bangLoop = NAlib.reconnect("bang_loop", Services.RunService.RenderStepped:Connect(function()
 			NACaller(function()
 				const targetPlayer = NAmanage.ResolvePersistentPlayer(bangplr)
 				if not targetPlayer or not targetPlayer.Character then return end
@@ -84918,7 +84875,7 @@ cmd.add({"carpet"}, {"carpet <player>", "Be someone's carpet"}, function(usernam
 
 	carpetDied = NAmanage.ConnectHumanoidDeath(humanoid, originalIO.stopCarpet)
 	if targetPlayer and targetRoot then
-		carpetLoop = NAlib.reconnect("carpet_loop", RunService.Heartbeat:Connect(function()
+		carpetLoop = NAlib.reconnect("carpet_loop", Services.RunService.Heartbeat:Connect(function()
 			NACaller(function()
 				const target = NAmanage.ResolvePersistentPlayer(targetRef)
 				const tgtChar = target and target.Character
@@ -84969,9 +84926,9 @@ cmd.add({"climb"}, {"climb", "Allows you to climb while in air"}, function()
 	climbPart.CanCollide = true
 	climbPart.Anchored = true
 	climbPart.Name = NAmanage.GetSessionInstanceName("ClimbPart")
-	climbPart.Parent = Workspace
+	climbPart.Parent = Services.Workspace
 
-	climbLoop = NAlib.reconnect("climb_loop", RunService.Heartbeat:Connect(function()
+	climbLoop = NAlib.reconnect("climb_loop", Services.RunService.Heartbeat:Connect(function()
 		NACaller(function()
 			if not climbPart or not climbPart.Parent then
 				return originalIO.stopClimb()
@@ -85043,7 +85000,7 @@ cmd.add({"inversebang","ibang","inverseb"},{"inversebang <player> <number>","you
 	const bangplr = NAmanage.NewPersistentPlayerRef(plr)
 
 	inversebangAnim = InstanceNew("Animation")
-	const isR15 = IsR15(Players.LocalPlayer)
+	const isR15 = IsR15(Services.Players.LocalPlayer)
 	if not isR15 then
 		inversebangAnim.AnimationId = "rbxassetid://189854234"
 		inversebangAnim2 = InstanceNew("Animation")
@@ -85067,7 +85024,7 @@ cmd.add({"inversebang","ibang","inverseb"},{"inversebang <player> <number>","you
 
 	if bangplr then
 		local lastStep = 0
-		inversebangLoop = NAlib.reconnect("inversebang_loop", RunService.Heartbeat:Connect(function()
+		inversebangLoop = NAlib.reconnect("inversebang_loop", Services.RunService.Heartbeat:Connect(function()
 			if tick() - lastStep < 0.1 then return end
 			lastStep = tick()
 			NACaller(function()
@@ -85313,10 +85270,10 @@ cmd.add({"hug", "clickhug"}, {"hug (clickhug)", "huggies time (click on a target
 							part.Anchored = true
 							part.CanCollide = true
 							part.Transparency = 1
-							part.Parent = Workspace
+							part.Parent = Services.Workspace
 							Insert(huggiePARTS, part)
 						end
-						NAlib.connect("hug_plat", RunService.RenderStepped:Connect(function()
+						NAlib.connect("hug_plat", Services.RunService.RenderStepped:Connect(function()
 							const charRoot = getRoot(LocalPlayer.Character)
 							if charRoot then
 								for i, wall in walls do
@@ -85403,7 +85360,7 @@ cmd.add({"glue","loopgoto","lgoto"},{"glue <player>","Loop teleport to a player"
 		const ref = NAmanage.NewPersistentPlayerRef(p)
 		if glueloop[name] then glueloop[name]:Disconnect() end
 		NAlib.disconnect("glue_loop_"..name)
-		glueloop[name] = NAlib.reconnect("glue_loop_"..name, RunService.RenderStepped:Connect(function()
+		glueloop[name] = NAlib.reconnect("glue_loop_"..name, Services.RunService.RenderStepped:Connect(function()
 			const target = NAmanage.ResolvePersistentPlayer(ref)
 			const localRoot = getRoot(getChar())
 			const targetRoot = target and target.Character and getRoot(target.Character)
@@ -85432,7 +85389,7 @@ cmd.add({"glueback","loopbehind","lbehind"},{"glueback <player>","Loop teleport 
 			glueBACKER[name] = nil
 		end
 		NAlib.disconnect("glueback_loop_"..name)
-		glueBACKER[name] = NAlib.reconnect("glueback_loop_"..name, RunService.RenderStepped:Connect(function()
+		glueBACKER[name] = NAlib.reconnect("glueback_loop_"..name, Services.RunService.RenderStepped:Connect(function()
 			const player = NAmanage.ResolvePersistentPlayer(ref)
 			const localRoot = getRoot(getChar())
 			const targetRoot = player and player.Character and getRoot(player.Character)
@@ -85585,8 +85542,8 @@ cmd.add({"airwalk", "float", "aw"}, {"airwalk (float, aw)", "Press space to go u
 		NAStuff.airwalk.guis.down = createButton(NAStuff.NASCREENGUI, "DOWN", UDim2.new(0.9, 0, 0.7, 0), function() NAStuff.airwalk.Vars.decrease = true end, function() NAStuff.airwalk.Vars.decrease = false end)
 		NAStuff.airwalk.guis.up = createButton(NAStuff.NASCREENGUI, "UP", UDim2.new(0.9, 0, 0.5, 0), function() NAStuff.airwalk.Vars.increase = true end, function() NAStuff.airwalk.Vars.increase = false end)
 	else
-		NAStuff.airwalk.connections.focused = UserInputService.TextBoxFocused:Connect(function() NAStuff.airwalk.Vars.isTyping = true end)
-		NAStuff.airwalk.connections.released = UserInputService.TextBoxFocusReleased:Connect(function() NAStuff.airwalk.Vars.isTyping = false end)
+		NAStuff.airwalk.connections.focused = Services.UserInputService.TextBoxFocused:Connect(function() NAStuff.airwalk.Vars.isTyping = true end)
+		NAStuff.airwalk.connections.released = Services.UserInputService.TextBoxFocusReleased:Connect(function() NAStuff.airwalk.Vars.isTyping = false end)
 
 		NAStuff.airwalk.connections.inputBegan = uis.InputBegan:Connect(function(input, gpe)
 			if gpe or NAStuff.airwalk.Vars.isTyping then return end
@@ -85600,13 +85557,13 @@ cmd.add({"airwalk", "float", "aw"}, {"airwalk (float, aw)", "Press space to go u
 		end)
 	end
 
-	awPart = InstanceNew("Part", Workspace)
+	awPart = InstanceNew("Part", Services.Workspace)
 	awPart.Size = Vector3.new(10, 2, 10)
 	awPart.Transparency = 1
 	awPart.Anchored = true
 	awPart.CanCollide = true
 
-	Airwalker = NAlib.reconnect("airwalk_loop", RunService.RenderStepped:Connect(function()
+	Airwalker = NAlib.reconnect("airwalk_loop", Services.RunService.RenderStepped:Connect(function()
 		if not awPart then Airwalker:Disconnect() return end
 
 		const char = getChar()
@@ -85735,7 +85692,7 @@ NAmanage.AirMomentumStartSim = function()
 		return
 	end
 
-	const signal = RunService.PreSimulation or RunService.Heartbeat
+	const signal = Services.RunService.PreSimulation or Services.RunService.Heartbeat
 	state.connections.sim = signal:Connect(NAmanage.AirMomentumSim)
 end
 
@@ -85861,7 +85818,7 @@ cmd.add({"loopcbring", "loopclientb", "loppclientb", "loopclientbring", "lcbring
 	if NAlib.isConnected("cbnoclip") then
 		NAlib.disconnect("cbnoclip")
 	end
-	NAlib.connect("cbnoclip", RunService.RenderStepped:Connect(function()
+	NAlib.connect("cbnoclip", Services.RunService.RenderStepped:Connect(function()
 		const char = getChar()
 		if not char then return end
 		for _, descendant in char:QueryDescendants("BasePart") do
@@ -85870,7 +85827,7 @@ cmd.add({"loopcbring", "loopclientb", "loppclientb", "loopclientbring", "lcbring
 	end))
 	for _, plr in next, target do
 		if not plr then return end
-		Insert(bringc, NAlib.connect("cbring", RunService.RenderStepped:Connect(function()
+		Insert(bringc, NAlib.connect("cbring", Services.RunService.RenderStepped:Connect(function()
 			const targetChar = getPlrChar(plr)
 			const localChar = getChar()
 			if targetChar and localChar then
@@ -85934,7 +85891,7 @@ cmd.add({"tpwalk", "tpwalk"}, {"tpwalk <number>", "More undetectable walkspeed s
 	const maxSteps = 3
 	local accumulator = 0
 
-	NAlib.connect("TPWalkingConnection", RunService.Heartbeat:Connect(function(deltaTime)
+	NAlib.connect("TPWalkingConnection", Services.RunService.Heartbeat:Connect(function(deltaTime)
 		if not TPWalk then
 			return
 		end
@@ -86038,7 +85995,7 @@ cmd.add({"tpjump", "tjump"}, {"tpjump <number>",""}, function(...)
 
 	bindHumanoidJump()
 
-	NAlib.reconnect("TPJumpRequest", UserInputService.JumpRequest:Connect(function()
+	NAlib.reconnect("TPJumpRequest", Services.UserInputService.JumpRequest:Connect(function()
 		NAmanage.TPJumpPulse()
 	end))
 
@@ -86053,7 +86010,7 @@ cmd.add({"tpjump", "tjump"}, {"tpjump <number>",""}, function(...)
 		end)
 	end))
 
-	NAlib.reconnect("TPJumpConnection", RunService.Heartbeat:Connect(function(deltaTime)
+	NAlib.reconnect("TPJumpConnection", Services.RunService.Heartbeat:Connect(function(deltaTime)
 		if not TPJump then
 			return
 		end
@@ -86187,7 +86144,7 @@ cmd.add({"copyposition", "copypos", "cpos"}, {"copyposition <player>", "Get the 
 	local targetList
 
 	if #args == 0 then
-		targetList = {Players and Players.LocalPlayer}
+		targetList = {Services.Players and Services.Players.LocalPlayer}
 	else
 		targetList = getPlr(NAmanage.PlayerQueryFromArgs(...))
 	end
@@ -86231,7 +86188,7 @@ cmd.add({"unequiptools"},{"unequiptools","Unequips every tool you are currently 
 end)
 
 cmd.add({"removeterrain", "rterrain", "noterrain"},{"removeterrain (rterrain, noterrain)","clears terrain"},function()
-	Workspace:FindFirstChildOfClass('Terrain'):Clear()
+	Services.Workspace:FindFirstChildOfClass('Terrain'):Clear()
 end)
 
 cmd.add({"memory", "mem"}, {"memory", "Shows you your current memory usage"}, function(args)
@@ -86484,7 +86441,7 @@ function NAmanage.nuhuhprompt(v)
 				Insert(promptTBL.conns, inner)
 			end
 
-			const rootConn = NAmanage.childAdd(COREGUI, trackAndDisable, function(inst)
+			const rootConn = NAmanage.childAdd(Services.CoreGui, trackAndDisable, function(inst)
 				return inst and inst:IsA("ScreenGui") and NAmanage.isPromptGuiName(inst.Name)
 			end)
 			Insert(promptTBL.conns, rootConn)
@@ -86498,10 +86455,10 @@ function NAmanage.nuhuhprompt(v)
 			})
 			Insert(promptTBL.conns, c)
 
-			trackAndDisable(COREGUI and COREGUI:FindFirstChild("FoundationOverlay"))
+			trackAndDisable(Services.CoreGui and Services.CoreGui:FindFirstChild("FoundationOverlay"))
 
 			SpawnCall(function()
-				NAmanage.ForEachDescendantYield(COREGUI, trackAndDisable, {
+				NAmanage.ForEachDescendantYield(Services.CoreGui, trackAndDisable, {
 					cancelToken = scanToken,
 					yieldEvery = 400,
 				})
@@ -86618,7 +86575,7 @@ end
 NAmanage.setFriendRequestAutoDismiss = function(enable)
 	NACaller(function()
 		const tbl = notificationButtonBlock
-		const coreGui = COREGUI
+		const coreGui = Services.CoreGui
 		if not coreGui then
 			return
 		end
@@ -86745,7 +86702,7 @@ function NAmanage.isNetworkPauseScript(inst)
 		return false
 	end
 	const robloxGui = inst:FindFirstAncestor("RobloxGui")
-	if not robloxGui or not robloxGui:IsDescendantOf(COREGUI) then
+	if not robloxGui or not robloxGui:IsDescendantOf(Services.CoreGui) then
 		return false
 	end
 	if name == "CoreScripts/NetworkPause" then
@@ -86769,7 +86726,7 @@ function NAmanage.isNetworkPauseGui(inst)
 	if name ~= "robloxnetworkpausenotification" and not name:find("networkpause", 1, true) then
 		return false
 	end
-	return inst:IsDescendantOf(COREGUI)
+	return inst:IsDescendantOf(Services.CoreGui)
 end
 
 function NAmanage.getNetworkPauseScript()
@@ -86797,13 +86754,13 @@ end
 function NAmanage.fireNetworkPauseEnabled(enabled)
 	local fired = false
 	const state = enabled == true
-	if GuiService and type(firesignal) == "function" then
+	if Services.GuiService and type(firesignal) == "function" then
 		pcall(function()
-			firesignal(GuiService.NetworkPausedEnabledChanged, state)
+			firesignal(Services.GuiService.NetworkPausedEnabledChanged, state)
 			fired = true
 		end)
 	end
-	if StarterGui then
+	if Services.StarterGui then
 		pcall(function()
 			__lt.cm("StarterGui", "SetCore", "NetworkPausedEnabled", state)
 			fired = true
@@ -86817,7 +86774,7 @@ end
 
 function NAmanage.setNetworkPauseFocused(focused)
 	pcall(function()
-		RunService:SetRobloxGuiFocused(focused == true)
+		Services.RunService:SetRobloxGuiFocused(focused == true)
 	end)
 end
 
@@ -86887,7 +86844,7 @@ function NAmanage.scanNetworkPauseItems(callback)
 			roots[#roots + 1] = root
 		end
 	end
-	add(COREGUI)
+	add(Services.CoreGui)
 	add(__lt.cm("CoreGui", "FindFirstChild", "RobloxGui"))
 	for i = 1, #roots do
 		const root = roots[i]
@@ -86961,7 +86918,7 @@ function NAmanage.setNetworkPauseBlocked(disable)
 						Insert(tbl.conns, conn)
 					end
 				end
-				watchRoot(COREGUI)
+				watchRoot(Services.CoreGui)
 				local okPause, pauseConn = pcall(function()
 					return LocalPlayer:GetPropertyChangedSignal("GameplayPaused"):Connect(function()
 						if tbl.blocking then
@@ -87064,11 +87021,11 @@ NAmanage.TargetGuiRoots = function()
 			Insert(roots, root)
 		end
 	end
-	const lp = Players.LocalPlayer
+	const lp = Services.Players.LocalPlayer
 	add(PlrGui)
 	add(lp and (lp:FindFirstChildOfClass("PlayerGui") or lp:FindFirstChild("PlayerGui")))
 	add(HUI)
-	add(COREGUI)
+	add(Services.CoreGui)
 	return roots
 end
 
@@ -87169,7 +87126,7 @@ NAmanage.HideCurrentGuiRoots = function()
 			Insert(roots, root)
 		end
 	end
-	const lp = Players.LocalPlayer
+	const lp = Services.Players.LocalPlayer
 	add(PlrGui)
 	add(lp and (lp:FindFirstChildOfClass("PlayerGui") or lp:FindFirstChild("PlayerGui")))
 	return roots
@@ -87495,7 +87452,7 @@ cmd.add({"turtlespy","tspy"},{"turtlespy (tspy)","executes Turtle Spy that suppo
 end)
 
 cmd.add({"gravity","grav"},{"gravity <amount> (grav)","sets game gravity to whatever u want"},function(...)
-	Workspace.Gravity=(...)
+	Services.Workspace.Gravity=(...)
 end,true)
 
 cmd.add({"fireclickdetectors","fcd","firecd"},{"fireclickdetectors (fcd,firecd)","Fires every ClickDetector in Workspace"},function(...)
@@ -88061,7 +88018,7 @@ NAmanage.ClickTouchMouseRay = function(mouse)
 	if ok and unitRay then
 		return unitRay.Origin, unitRay.Direction.Unit
 	end
-	const camera = Workspace and Workspace.CurrentCamera
+	const camera = Services.Workspace and Services.Workspace.CurrentCamera
 	if camera and camera.ViewportPointToRay then
 		const x = tonumber(mouse.X) or 0
 		const y = tonumber(mouse.Y) or 0
@@ -88076,7 +88033,7 @@ NAmanage.ClickTouchMouseRay = function(mouse)
 end
 
 NAmanage.ClickTouchOccludedByCollide = function(origin, targetPart, cfg, excludeList)
-	if not (origin and targetPart and targetPart:IsA("BasePart") and Workspace and Workspace.Raycast) then
+	if not (origin and targetPart and targetPart:IsA("BasePart") and Services.Workspace and Services.Workspace.Raycast) then
 		return false
 	end
 	cfg = cfg or NAmanage.ClickTouchGetConfig()
@@ -88096,7 +88053,7 @@ NAmanage.ClickTouchOccludedByCollide = function(origin, targetPart, cfg, exclude
 	const direction = delta.Unit
 	for _ = 1, 32 do
 		params.FilterDescendantsInstances = filter
-		const result = Workspace:Raycast(origin, direction * distance, params)
+		const result = Services.Workspace:Raycast(origin, direction * distance, params)
 		const hit = result and result.Instance
 		if not hit then
 			return false
@@ -88116,7 +88073,7 @@ NAmanage.ClickTouchOccludedByCollide = function(origin, targetPart, cfg, exclude
 end
 
 NAmanage.ClickTouchPickRaycast = function(mouse, excludeList, cfg)
-	if not (mouse and Workspace and Workspace.Raycast) then
+	if not (mouse and Services.Workspace and Services.Workspace.Raycast) then
 		return nil
 	end
 	cfg = cfg or NAmanage.ClickTouchGetConfig()
@@ -88134,7 +88091,7 @@ NAmanage.ClickTouchPickRaycast = function(mouse, excludeList, cfg)
 	end
 	for _ = 1, 80 do
 		params.FilterDescendantsInstances = filter
-		const result = Workspace:Raycast(origin, direction * maxDistance, params)
+		const result = Services.Workspace:Raycast(origin, direction * maxDistance, params)
 		const part = result and result.Instance
 		if not (part and part:IsA("BasePart")) then
 			return nil
@@ -88155,7 +88112,7 @@ NAmanage.ClickTouchPickRaycast = function(mouse, excludeList, cfg)
 end
 
 NAmanage.ClickTouchPickInvisible = function(mouse, excludeList, cfg)
-	if not (mouse and Workspace and Workspace.CurrentCamera and InstancesTbl and type(InstancesTbl.touch) == "table") then
+	if not (mouse and Services.Workspace and Services.Workspace.CurrentCamera and InstancesTbl and type(InstancesTbl.touch) == "table") then
 		return nil
 	end
 	cfg = cfg or NAmanage.ClickTouchGetConfig()
@@ -88166,7 +88123,7 @@ NAmanage.ClickTouchPickInvisible = function(mouse, excludeList, cfg)
 	if not origin then
 		return nil
 	end
-	const camera = Workspace.CurrentCamera
+	const camera = Services.Workspace.CurrentCamera
 	const mousePos = Vector2.new(tonumber(mouse.X) or 0, tonumber(mouse.Y) or 0)
 	local bestPart, bestTi, bestScore
 	const maxDistance = tonumber(cfg.maxDistance) or 1024
@@ -88410,14 +88367,14 @@ NAjobs._ensureTracked = function()
 			end
 		end
 	elseif not NAmanage.ensureInteractionIndex then
-		for _, inst in NAmanage.QueryDescendants(Workspace, "ProximityPrompt") do
+		for _, inst in NAmanage.QueryDescendants(Services.Workspace, "ProximityPrompt") do
 			NAjobs._trackedAdd("prompt", inst)
 		end
-		for _, inst in NAmanage.QueryDescendants(Workspace, "ClickDetector") do
+		for _, inst in NAmanage.QueryDescendants(Services.Workspace, "ClickDetector") do
 			NAjobs._trackedAdd("click", inst)
 		end
 	end
-	NAlib.connect("NAjobs_track_add", NAmanage.descAdd(Workspace, function(inst)
+	NAlib.connect("NAjobs_track_add", NAmanage.descAdd(Services.Workspace, function(inst)
 		if inst:IsA("ProximityPrompt") then
 			NAjobs._trackedAdd("prompt", inst)
 		elseif inst:IsA("ClickDetector") then
@@ -88426,7 +88383,7 @@ NAjobs._ensureTracked = function()
 	end, function(inst)
 		return inst and (inst:IsA("ProximityPrompt") or inst:IsA("ClickDetector"))
 	end))
-	NAlib.connect("NAjobs_track_rem", NAmanage.descRem(Workspace, function(inst)
+	NAlib.connect("NAjobs_track_rem", NAmanage.descRem(Services.Workspace, function(inst)
 		if inst:IsA("ProximityPrompt") then
 			NAjobs._trackedRemove("prompt", inst)
 		elseif inst:IsA("ClickDetector") then
@@ -88440,7 +88397,7 @@ NAjobs._isRemote = function(inst)
 end
 
 NAjobs._skipRemoteRoot = function(inst)
-	const cg = COREGUI
+	const cg = Services.CoreGui
 	if typeof(inst) ~= "Instance" or typeof(cg) ~= "Instance" then
 		return false
 	end
@@ -89364,7 +89321,7 @@ NAjobs.start = function(kind, interval, target, useFind, method)
 			end
 			const char = getChar()
 			const root = char and (getRoot(char) or char:FindFirstChildWhichIsA("BasePart"))
-			if not root or (not root:IsDescendantOf(Workspace)) then
+			if not root or (not root:IsDescendantOf(Services.Workspace)) then
 				return
 			end
 			const list = {}
@@ -89403,7 +89360,7 @@ NAjobs.start = function(kind, interval, target, useFind, method)
 				if NAjobs._claim(it.part) then
 					Spawn(function()
 						const asm = it.part
-						if not asm or (not asm.Parent) or (not asm:IsDescendantOf(Workspace)) then
+						if not asm or (not asm.Parent) or (not asm:IsDescendantOf(Services.Workspace)) then
 							return
 						end
 						local st = NAjobs._touchState[asm]
@@ -89415,7 +89372,7 @@ NAjobs.start = function(kind, interval, target, useFind, method)
 						end
 						const char2 = getChar()
 						const root2 = char2 and (getRoot(char2) or char2:FindFirstChildWhichIsA("BasePart"))
-						if not root2 or (not root2:IsDescendantOf(Workspace)) then
+						if not root2 or (not root2:IsDescendantOf(Services.Workspace)) then
 							return
 						end
 						asm:PivotTo(root2.CFrame)
@@ -90074,7 +90031,7 @@ NAmanage.StartProximityPromptEnableWatcher = function(term)
 	for _, obj in InstancesTbl.proxy do
 		watchPrompt(obj)
 	end
-	NAlib.connect("loopenableproximityprompts_add", NAmanage.descAdd(Workspace, function(obj)
+	NAlib.connect("loopenableproximityprompts_add", NAmanage.descAdd(Services.Workspace, function(obj)
 		watchPrompt(obj)
 	end, function(obj)
 		return obj and obj:IsA("ProximityPrompt")
@@ -90346,7 +90303,7 @@ NAmanage.God_WireNoHooks = function(h, strong)
 	end
 	NAStuff._godStrong = strong ~= false
 	if not NAlib.isConnected("god_loops") then
-		NAlib.connect("god_loops", RunService.RenderStepped:Connect(function()
+		NAlib.connect("god_loops", Services.RunService.RenderStepped:Connect(function()
 			if not NAStuff._godEnabled then return end
 			const hh = getHum()
 			if not hh then return end
@@ -90361,12 +90318,12 @@ NAmanage.God_WireNoHooks = function(h, strong)
 				end
 			end
 		end))
-		NAlib.connect("god_loops", RunService.PreSimulation:Connect(function()
+		NAlib.connect("god_loops", Services.RunService.PreSimulation:Connect(function()
 			if not NAStuff._godEnabled then return end
 			const hh = getHum()
 			if hh and hh.Health < hh.MaxHealth then NAlib.setProperty(hh,"Health", hh.MaxHealth) end
 		end))
-		NAlib.connect("god_loops", RunService.Heartbeat:Connect(function()
+		NAlib.connect("god_loops", Services.RunService.Heartbeat:Connect(function()
 			if not NAStuff._godEnabled then return end
 			const hh = getHum()
 			if hh and hh.Health < hh.MaxHealth then NAlib.setProperty(hh,"Health", hh.MaxHealth) end
@@ -90402,7 +90359,7 @@ NAmanage.God_HookMeta = function()
 				if self==hum and m=="destroy" then
 					return
 				end
-				const char = Players.LocalPlayer.Character
+				const char = Services.Players.LocalPlayer.Character
 				if char and self==char and m=="breakjoints" then
 					return
 				end
@@ -90437,7 +90394,7 @@ NAmanage.God_GetAltSignal = function(lp)
 end
 
 NAmanage.God_CanAltRepSignal = function()
-	return typeof(replicatesignal)=="function" and NAmanage.God_GetAltSignal(Players.LocalPlayer) ~= nil
+	return typeof(replicatesignal)=="function" and NAmanage.God_GetAltSignal(Services.Players.LocalPlayer) ~= nil
 end
 
 NAmanage.God_SetAltStates = function(h, enabled)
@@ -90486,7 +90443,7 @@ NAmanage.God_AltRepSignal = function(h)
 	if not h or typeof(replicatesignal)~="function" then
 		return false
 	end
-	const sig = NAmanage.God_GetAltSignal(Players.LocalPlayer)
+	const sig = NAmanage.God_GetAltSignal(Services.Players.LocalPlayer)
 	if not sig then
 		return false
 	end
@@ -90502,7 +90459,7 @@ NAmanage.God_Enable = function(method)
 	NAmanage.God_ClearSignals()
 	NAmanage.God_UnhookMeta()
 	NAStuff._godMethod = method or NAStuff._godMethod
-	const lp = Players.LocalPlayer
+	const lp = Services.Players.LocalPlayer
 	const h = getHum()
 	if not h then
 		NAlib.connect("god_char", lp.CharacterAdded:Connect(function(char)
@@ -90839,7 +90796,7 @@ cmd.add({"flashlight","fl"},{"flashlight (fl)","Gives you a flashlight tool"},fu
 		mouse = m
 		motor.Parent = tool
 		NAlib.disconnect(key.."_render")
-		NAlib.connect(key.."_render", RunService.RenderStepped:Connect(point))
+		NAlib.connect(key.."_render", Services.RunService.RenderStepped:Connect(point))
 	end))
 
 	NAlib.connect(key, tool.Unequipped:Connect(function()
@@ -90903,12 +90860,12 @@ cmd.add({"lighting","lightingcontrol"},{"lighting (lightingcontrol)","Manage lig
 	const target = args[1]
 	const buttons = {}
 	const function applyLightingTechnology(tech)
-		if not Lighting or not tech then
+		if not Services.Lighting or not tech then
 			return
 		end
-		Lighting.Technology = tech
+		Services.Lighting.Technology = tech
 		const style = tech == Enum.Technology.Future and Enum.LightingStyle.Realistic or Enum.LightingStyle.Soft
-		NAlib.setProperty(Lighting, "LightingStyle", style)
+		NAlib.setProperty(Services.Lighting, "LightingStyle", style)
 	end
 	for _, lt in Enum.Technology:GetEnumItems() do
 		Insert(buttons, {
@@ -91184,7 +91141,7 @@ NAmanage.NAgetFriendCircles=function()
 			return friendSets[plr]
 		end
 		const set = {}
-		local ok, pages = pcall(Players.GetFriendsAsync, Players, plr.UserId)
+		local ok, pages = pcall(Services.Players.GetFriendsAsync, Services.Players, plr.UserId)
 		if ok and pages then
 			const function addPage(page)
 				for _, item in page do
@@ -91243,13 +91200,331 @@ NAmanage.NAgetFriendCircles=function()
 	return groups, graph
 end
 
+NAmanage.SocialClientGetService = NAmanage.SocialClientGetService or function()
+	return SafeGetService("SocialService")
+end
+
+NAmanage.SocialClientGetLocalPlayer = NAmanage.SocialClientGetLocalPlayer or function()
+	return Services.Players and Services.Players.LocalPlayer or nil
+end
+
+NAmanage.SocialClientResolveUserId = NAmanage.SocialClientResolveUserId or function(value)
+	value = tostring(value or "")
+	if value == "" then
+		return nil
+	end
+	const numeric = tonumber(value)
+	if numeric and numeric > 0 then
+		return math.floor(numeric)
+	end
+	if not Services.Players or type(Services.Players.GetUserIdFromNameAsync) ~= "function" then
+		return nil
+	end
+	local ok, userId = pcall(Services.Players.GetUserIdFromNameAsync, Services.Players, value)
+	if ok and tonumber(userId) and tonumber(userId) > 0 then
+		return math.floor(tonumber(userId))
+	end
+	return nil
+end
+
+NAmanage.SocialClientPromptInvite = NAmanage.SocialClientPromptInvite or function(target)
+	const service = NAmanage.SocialClientGetService()
+	const player = NAmanage.SocialClientGetLocalPlayer()
+	if not service or not player then
+		DoNotif("SocialService is unavailable on this client.", 4, "Social")
+		return false
+	end
+	local inviteOptions
+	local targetUserId
+	if target ~= nil and tostring(target) ~= "" then
+		targetUserId = NAmanage.SocialClientResolveUserId(target)
+		if not targetUserId then
+			DoNotif("Could not resolve that username/UserId.", 4, "Social")
+			return false
+		end
+		local okOptions, optionsOrError = pcall(function()
+			const options = InstanceNew("ExperienceInviteOptions")
+			options.InviteUser = targetUserId
+			return options
+		end)
+		if not okOptions then
+			DoNotif("Targeted invites are unavailable: "..tostring(optionsOrError), 5, "Social")
+			return false
+		end
+		inviteOptions = optionsOrError
+	end
+	if type(service.CanSendGameInviteAsync) == "function" then
+		local okCan, canInvite = pcall(function()
+			if targetUserId then
+				return service:CanSendGameInviteAsync(player, targetUserId)
+			end
+			return service:CanSendGameInviteAsync(player)
+		end)
+		if not okCan then
+			DoNotif("Could not check invite availability: "..tostring(canInvite), 5, "Social")
+			return false
+		end
+		if canInvite ~= true then
+			DoNotif(targetUserId and "You cannot invite that user from this client." or "Game invites are unavailable on this client.", 4, "Social")
+			return false
+		end
+	end
+	local okPrompt, promptError = pcall(function()
+		return service:PromptGameInvite(player, inviteOptions)
+	end)
+	if not okPrompt then
+		DoNotif("Invite prompt failed: "..tostring(promptError), 5, "Social")
+		return false
+	end
+	return true
+end
+
+NAmanage.SocialClientEventTitle = NAmanage.SocialClientEventTitle or function(event)
+	if type(event) ~= "table" then
+		return "Unknown Event"
+	end
+	return tostring(event.DisplayTitle or event.Title or event.Id or "Unknown Event")
+end
+
+NAmanage.SocialClientEventTime = NAmanage.SocialClientEventTime or function(value)
+	if type(value) ~= "table" then
+		return "Unknown"
+	end
+	local year = tonumber(value.Year)
+	local month = tonumber(value.Month)
+	local day = tonumber(value.Day)
+	local hour = tonumber(value.Hour) or 0
+	local minute = tonumber(value.Minute) or 0
+	if year and month and day then
+		return Format("%04d-%02d-%02d %02d:%02d", year, month, day, hour, minute)
+	end
+	return "Unknown"
+end
+
+NAmanage.SocialClientEventInfoText = NAmanage.SocialClientEventInfoText or function(event, fallbackEventId)
+	if type(event) ~= "table" then
+		return "Event data unavailable."
+	end
+	const eventId = tostring(event.Id or fallbackEventId or "Unknown")
+	const lines = {
+		"Title: "..NAmanage.SocialClientEventTitle(event),
+		"Event ID: "..eventId,
+		"Subtitle: "..tostring(event.DisplaySubtitle or event.Subtitle or ""),
+		"Status: "..tostring(event.Status or "Unknown"),
+		"RSVP: "..tostring(event.UserRsvpStatus or "None"),
+		"Started: "..tostring(event.HasStarted == true),
+		"Ended: "..tostring(event.HasEnded == true),
+		"Start: "..NAmanage.SocialClientEventTime(event.StartTime),
+		"End: "..NAmanage.SocialClientEventTime(event.EndTime),
+	}
+	const description = tostring(event.DisplayDescription or event.Description or "")
+	if description ~= "" then
+		lines[#lines + 1] = ""
+		lines[#lines + 1] = description
+	end
+	return Concat(lines, "\n")
+end
+
+NAmanage.SocialClientOpenEventPopup = NAmanage.SocialClientOpenEventPopup or function(event, fallbackEventId)
+	if type(event) ~= "table" then
+		DoNotif("Event data unavailable.", 4, "Social")
+		return false
+	end
+	const eventId = tostring(event.Id or fallbackEventId or "")
+	const infoText = NAmanage.SocialClientEventInfoText(event, eventId)
+	const buttons = {}
+	if eventId ~= "" then
+		buttons[#buttons + 1] = {
+			Text = "Copy Event ID";
+			Callback = function()
+				if type(setclipboard) == "function" then
+					pcall(setclipboard, eventId)
+					DoNotif("Event ID copied: "..eventId, 3, "Social")
+				else
+					DoNotif("Clipboard unavailable. Event ID: "..eventId, 6, "Social")
+				end
+			end;
+		}
+		buttons[#buttons + 1] = {
+			Text = "RSVP";
+			Callback = function()
+				NAmanage.SocialClientPromptRsvp(eventId)
+			end;
+		}
+	end
+	buttons[#buttons + 1] = {
+		Text = "Copy Event Info";
+		Callback = function()
+			if type(setclipboard) == "function" then
+				pcall(setclipboard, infoText)
+				DoNotif("Event info copied.", 3, "Social")
+			else
+				DoNotif("Clipboard unavailable.", 4, "Social")
+			end
+		end;
+	}
+	Popup({
+		Title = NAmanage.SocialClientEventTitle(event);
+		Description = infoText;
+		Buttons = buttons;
+	})
+	return true
+end
+
+NAmanage.SocialClientShowEvents = NAmanage.SocialClientShowEvents or function()
+	const service = NAmanage.SocialClientGetService()
+	if not service or type(service.GetUpcomingExperienceEventsAsync) ~= "function" then
+		DoNotif("Experience events are unavailable on this client.", 4, "Social")
+		return false
+	end
+	local ok, events = pcall(function()
+		return service:GetUpcomingExperienceEventsAsync()
+	end)
+	if not ok then
+		DoNotif("Failed to load experience events: "..tostring(events), 5, "Social")
+		return false
+	end
+	if type(events) ~= "table" or #events == 0 then
+		Popup({Title = "Experience Events", Description = "No upcoming experience events were returned."})
+		return true
+	end
+	const buttons = {}
+	const allIds = {}
+	local shown = 0
+	for index, event in ipairs(events) do
+		if index > 15 then
+			break
+		end
+		if type(event) == "table" then
+			shown += 1
+			const selectedEvent = event
+			const eventId = tostring(selectedEvent.Id or "")
+			const title = NAmanage.SocialClientEventTitle(selectedEvent)
+			if eventId ~= "" then
+				allIds[#allIds + 1] = eventId
+			end
+			const selectedEventId = eventId
+			buttons[#buttons + 1] = {
+				Text = Format("%d) %s%s", shown, title, selectedEventId ~= "" and (" | "..selectedEventId) or "");
+				Callback = function()
+					NAmanage.SocialClientOpenEventPopup(selectedEvent, selectedEventId)
+				end;
+			}
+		end
+	end
+	if #allIds > 0 then
+		buttons[#buttons + 1] = {
+			Text = "Copy All Event IDs";
+			Callback = function()
+				const copied = Concat(allIds, "\n")
+				if type(setclipboard) == "function" then
+					pcall(setclipboard, copied)
+					DoNotif(Format("Copied %d event ID%s.", #allIds, #allIds == 1 and "" or "s"), 3, "Social")
+				else
+					DoNotif("Clipboard unavailable.", 4, "Social")
+				end
+			end;
+		}
+	end
+	const extra = #events > shown and Format("\nShowing the first %d of %d events.", shown, #events) or ""
+	Popup({
+		Title = "Experience Events";
+		Description = "Select an event to view its details, copy its ID/info, or RSVP."..extra;
+		Buttons = buttons;
+	})
+	return true
+end
+
+NAmanage.SocialClientShowEventInfo = NAmanage.SocialClientShowEventInfo or function(eventId)
+	const service = NAmanage.SocialClientGetService()
+	eventId = tostring(eventId or "")
+	if eventId == "" then
+		DoNotif("Missing event ID.", 3, "Social")
+		return false
+	end
+	if not service or type(service.GetExperienceEventAsync) ~= "function" then
+		DoNotif("Experience event lookup is unavailable on this client.", 4, "Social")
+		return false
+	end
+	local ok, event = pcall(function()
+		return service:GetExperienceEventAsync(eventId)
+	end)
+	if not ok then
+		DoNotif("Event lookup failed: "..tostring(event), 5, "Social")
+		return false
+	end
+	if type(event) ~= "table" then
+		DoNotif("That event is unavailable in this experience.", 4, "Social")
+		return false
+	end
+	return NAmanage.SocialClientOpenEventPopup(event, eventId)
+end
+
+NAmanage.SocialClientPromptRsvp = NAmanage.SocialClientPromptRsvp or function(eventId)
+	const service = NAmanage.SocialClientGetService()
+	eventId = tostring(eventId or "")
+	if eventId == "" then
+		DoNotif("Missing event ID.", 3, "Social")
+		return false
+	end
+	if not service or type(service.PromptRsvpToEventAsync) ~= "function" then
+		DoNotif("Event RSVP is unavailable on this client.", 4, "Social")
+		return false
+	end
+	local ok, status = pcall(function()
+		return service:PromptRsvpToEventAsync(eventId)
+	end)
+	if not ok then
+		DoNotif("RSVP prompt failed: "..tostring(status), 5, "Social")
+		return false
+	end
+	DoNotif("Event RSVP status: "..tostring(status), 4, "Social")
+	return true, status
+end
+
+NAmanage.SocialClientPromptFeedback = NAmanage.SocialClientPromptFeedback or function()
+	const service = NAmanage.SocialClientGetService()
+	if not service or type(service.PromptFeedbackSubmissionAsync) ~= "function" then
+		DoNotif("Feedback submission is unavailable on this client.", 4, "Social")
+		return false
+	end
+	local ok, result = pcall(function()
+		return service:PromptFeedbackSubmissionAsync()
+	end)
+	if not ok then
+		DoNotif("Feedback prompt failed: "..tostring(result), 5, "Social")
+		return false
+	end
+	return true, result
+end
+
+cmd.add({"invitefriends","invite"},{"invitefriends [username/userId] (invite)","Opens Roblox's client invite prompt, optionally targeting a user"},function(target)
+	NAmanage.SocialClientPromptInvite(target)
+end)
+
+cmd.add({"experienceevents","events"},{"experienceevents (events)","Shows upcoming experience events with copy/details/RSVP options"},function()
+	NAmanage.SocialClientShowEvents()
+end)
+
+cmd.add({"eventinfo"},{"eventinfo <eventId>","Shows an experience event with copy/details/RSVP options"},function(eventId)
+	NAmanage.SocialClientShowEventInfo(eventId)
+end,true)
+
+cmd.add({"rsvpevent","eventrsvp"},{"rsvpevent <eventId> (eventrsvp)","Opens Roblox's RSVP prompt for an experience event"},function(eventId)
+	NAmanage.SocialClientPromptRsvp(eventId)
+end,true)
+
+cmd.add({"feedback"},{"feedback","Opens Roblox's client experience feedback prompt"},function()
+	NAmanage.SocialClientPromptFeedback()
+end)
+
 cmd.add({"friendweb","fweb"},{"friendweb (fweb)","Finds friend circles in the current server"},function()
 	DoNotif("Looking for friend circles... I'll let you know what I find.", 4)
 
 	local groups, graph = NAmanage.NAgetFriendCircles()
 	local useDisplayNames = false
 	local ok, enabled = pcall(function()
-		return StarterGui and __lt.cm("StarterGui", "GetCoreGuiEnabled", Enum.CoreGuiType.PlayerList)
+		return Services.StarterGui and __lt.cm("StarterGui", "GetCoreGuiEnabled", Enum.CoreGuiType.PlayerList)
 	end)
 	if ok and enabled then
 		useDisplayNames = true
@@ -91291,7 +91566,7 @@ cmd.add({"massfollowedinto"}, {"massfollowedinto", "Shows everyone in the server
 		const followId = (okFollow and tonumber(followIdRaw)) or 0
 		if followId and followId ~= 0 then
 			local followedName = tostring(followId)
-			local okName, resolvedName = pcall(Players.GetNameFromUserIdAsync, Players, followId)
+			local okName, resolvedName = pcall(Services.Players.GetNameFromUserIdAsync, Services.Players, followId)
 			if okName and type(resolvedName) == "string" and resolvedName ~= "" then
 				followedName = resolvedName
 			end
@@ -91312,18 +91587,17 @@ cmd.add({"massfollowedinto"}, {"massfollowedinto", "Shows everyone in the server
 end)
 
 cmd.add({"tweengotocampos","tweentocampos","tweentcp"}, {"tweengotocampos (tweentcp)","Another version of goto camera position but bypassing more anti-cheats"}, function()
-	const player = Players.LocalPlayer;
-	const TweenService = TweenService;
+	const player = Services.Players.LocalPlayer;
 	function teleportPlayer()
 		const character = player.Character or player.CharacterAdded:wait(1);
-		const camera = Workspace.CurrentCamera;
+		const camera = Services.Workspace.CurrentCamera;
 		const cameraPosition = camera.CFrame.Position;
 		const tween = __lt.cm("TweenService", "Create", character.PrimaryPart, TweenInfo.new(NAmanage.resolveTweenDuration(2)), {
 			CFrame = CFrame.new(cameraPosition)
 		});
 		tween:Play();
 	end;
-	const camera = Workspace.CurrentCamera;
+	const camera = Services.Workspace.CurrentCamera;
 	repeat
 		Wait();
 	until camera.CFrame ~= CFrame.new();
@@ -91336,7 +91610,7 @@ cmd.add({"delete","remove","del"}, {"delete {partname} (remove, del)","Removes a
 		...
 	};
 	const targetName = Concat(args, " ");
-	for _, d in Workspace:QueryDescendants("Instance") do
+	for _, d in Services.Workspace:QueryDescendants("Instance") do
 		if d.Name:lower() == targetName:lower() then
 			d:Destroy();
 			deleteCount = deleteCount + 1;
@@ -91354,7 +91628,7 @@ cmd.add({"deletefind", "removefind", "delfind"}, {"deletefind {partname} (remove
 	local deFind = 0
 	const targetName = Concat({...}, " "):lower()
 
-	for _, d in Workspace:QueryDescendants("Instance") do
+	for _, d in Services.Workspace:QueryDescendants("Instance") do
 		if d.Name:lower():find(targetName) then
 			d:Destroy()
 			deFind = deFind + 1
@@ -91371,13 +91645,13 @@ cmd.add({"deletefind", "removefind", "delfind"}, {"deletefind {partname} (remove
 end, true)
 
 cmd.add({"deletelighting", "removelighting", "removel", "ldel"},{"deletelighting (removelighting, removel, ldel)","Removes all descendants (objects) within Lighting."},function()
-	for _, l in NAmanage.QueryDescendants(Lighting, "Instance") do
+	for _, l in NAmanage.QueryDescendants(Services.Lighting, "Instance") do
 		l:Destroy()
 	end
 end)
 
 cmd.add({"lightingdisable", "disablelighting", "ldisable"},{"lightingdisable (disablelighting, ldisable)", "Disables all post-processing effects in Lighting instead of deleting them."},function()
-	for _, inst in NAmanage.QueryDescendants(Lighting, "PostEffect") do
+	for _, inst in NAmanage.QueryDescendants(Services.Lighting, "PostEffect") do
 		inst.Enabled = false
 	end
 end)
@@ -91408,7 +91682,7 @@ cmd.add({"autodelete", "autoremove", "autodel"}, {"autodelete {partname} (autore
 
 	if not FindInTable(autoRemover, targetName) then
 		Insert(autoRemover, targetName)
-		for _, part in Workspace:QueryDescendants("Instance") do
+		for _, part in Services.Workspace:QueryDescendants("Instance") do
 			if part.Name:lower() == targetName then
 				part:Destroy()
 			end
@@ -91534,7 +91808,7 @@ cmd.add({"autodeletefind", "autoremovefind", "autodelfind"}, {"autodeletefind {n
 
 	if not FindInTable(autoFinder, kw) then
 		Insert(autoFinder, kw)
-		for _, obj in Workspace:QueryDescendants("Instance") do
+		for _, obj in Services.Workspace:QueryDescendants("Instance") do
 			if obj.Name:lower():find(kw) then
 				obj:Destroy()
 			end
@@ -91636,7 +91910,7 @@ cmd.add({"deleteclass", "removeclass", "dc"}, {"deleteclass {ClassName} (removec
 	const targetClass = args[1]:lower()
 	local deleteCount = 0
 
-	for _, part in Workspace:QueryDescendants("Instance") do
+	for _, part in Services.Workspace:QueryDescendants("Instance") do
 		if part.ClassName:lower() == targetClass then
 			part:Destroy()
 			deleteCount = deleteCount + 1
@@ -91677,7 +91951,7 @@ cmd.add({"autodeleteclass", "autoremoveclass", "autodc"}, {"autodeleteclass {Cla
 
 	if not FindInTable(NAStuff.autoClassRemover, targetClass) then
 		Insert(NAStuff.autoClassRemover, targetClass)
-		for _, part in Workspace:QueryDescendants("Instance") do
+		for _, part in Services.Workspace:QueryDescendants("Instance") do
 			if part.ClassName:lower() == targetClass then
 				part:Destroy()
 			end
@@ -91985,7 +92259,7 @@ do
 		if not nextCFrame then
 			return;
 		end;
-		const tracer = InstanceNew("Part", Workspace);
+		const tracer = InstanceNew("Part", Services.Workspace);
 		tracer.Name = NAmanage.GetSessionInstanceName("GotoNextTracer");
 		tracer.Anchored = true;
 		tracer.CanCollide = false;
@@ -91996,7 +92270,7 @@ do
 		tracer.BottomSurface = Enum.SurfaceType.Smooth;
 		state.tracerPart = tracer;
 		state.tracerHue = 0;
-		state.tracerConnection = NAlib.reconnect("gotonext_tracer", RunService.Heartbeat:Connect(function(dt)
+		state.tracerConnection = NAlib.reconnect("gotonext_tracer", Services.RunService.Heartbeat:Connect(function(dt)
 			if not state.tracerPart or (not state.tracerPart.Parent) then
 				gotoNext.clearTracer();
 				return;
@@ -92032,7 +92306,7 @@ do
 	function gotoNext.buildNameIndex(objectType)
 		const nameIndex = {};
 		const queue = {
-			Workspace
+			Services.Workspace
 		};
 		local index = 1;
 		while queue[index] do
@@ -92079,7 +92353,7 @@ do
 			return matches;
 		end;
 		const queue = {
-			Workspace
+			Services.Workspace
 		};
 		local index = 1;
 		while queue[index] do
@@ -92566,7 +92840,7 @@ NAmanage.fastWorkspaceMatches=function(className, needle, mode)
 
 	const out = {}
 	const selector = type(className) == "string" and className ~= "" and className or "Instance"
-	for _, inst in Workspace:QueryDescendants(selector) do
+	for _, inst in Services.Workspace:QueryDescendants(selector) do
 		local pass
 		if mode == "class" then
 			pass = Lower(inst.ClassName) == query
@@ -92638,7 +92912,7 @@ cmd.add({"tweengotopart","tgotopart","ttopart","ttoprt"},{"tweengotopart <partNa
 					NAmanage.SetAttr(char, tweenAttrActive, true)
 					NAmanage.SetAttr(char, tweenAttrStart, startCF)
 					NAmanage.SetAttr(char, tweenAttrTarget, targetCF)
-					hbConn = RunService.Heartbeat:Connect(function(dt)
+					hbConn = Services.RunService.Heartbeat:Connect(function(dt)
 						if not state.active or not char.Parent then
 							NAmanage.SetAttr(char, tweenAttrCurrent, nil)
 							NAmanage.SetAttr(char, tweenAttrActive, false)
@@ -92978,7 +93252,7 @@ cmd.add({"gotofolder","gofldr"},{"gotofolder {folderName}","Teleports you to all
 	end)
 end,true)
 
-OGGRAVV = Workspace.Gravity;
+OGGRAVV = Services.Workspace.Gravity;
 SWIMMERRRR = false;
 
 NAStuff.SWIM_STATES = NAStuff.SWIM_STATES or {
@@ -93007,18 +93281,18 @@ cmd.add({"swim"}, {"swim {speed}","Swim in the air"}, function(speed)
 		return;
 	end;
 	const spd = tonumber(speed) or 16;
-	OGGRAVV = Workspace.Gravity;
-	Workspace.Gravity = 0;
+	OGGRAVV = Services.Workspace.Gravity;
+	Services.Workspace.Gravity = 0;
 	ZEhumSTATE(humanoid, false);
 	humanoid:ChangeState(Enum.HumanoidStateType.Swimming);
 	humanoid.WalkSpeed = spd;
 	NAlib.connect("swim_die", NAmanage.ConnectHumanoidDeath(humanoid, function()
-		Workspace.Gravity = OGGRAVV;
+		Services.Workspace.Gravity = OGGRAVV;
 		SWIMMERRRR = false;
 		NAlib.disconnect("swim_heartbeat");
 		ZEhumSTATE(humanoid, true);
 	end));
-	NAlib.connect("swim_heartbeat", RunService.RenderStepped:Connect(function()
+	NAlib.connect("swim_heartbeat", Services.RunService.RenderStepped:Connect(function()
 		NACaller(function()
 			if not SWIMMERRRR then
 				return;
@@ -93049,7 +93323,7 @@ cmd.add({"unswim"}, {"unswim","Stops the swim script"}, function()
 	if not humanoid then
 		return;
 	end;
-	Workspace.Gravity = OGGRAVV;
+	Services.Workspace.Gravity = OGGRAVV;
 	SWIMMERRRR = false;
 	NAlib.disconnect("swim_die");
 	NAlib.disconnect("swim_heartbeat");
@@ -93077,7 +93351,7 @@ cmd.add({"tpua","bringua"},{"tpua <player>","Brings every unanchored part on the
 	const targetCF=root.CFrame
 
 	SpawnCall(function()
-		while RunService.Heartbeat:Wait() do
+		while Services.RunService.Heartbeat:Wait() do
 			NACaller(function()
 				opt.hiddenprop(LocalPlayer,"SimulationRadius",1e9)
 				LocalPlayer.MaximumSimulationRadius=1e9
@@ -93102,7 +93376,7 @@ cmd.add({"tpua","bringua"},{"tpua <player>","Brings every unanchored part on the
 		v.CFrame=targetCF*CFrame.new(math.random(-10,10),0,math.random(-10,10))
 	end
 
-	for _, part in NAmanage.QueryDescendants(Workspace, "BasePart") do
+	for _, part in NAmanage.QueryDescendants(Services.Workspace, "BasePart") do
 		ForcePart(part)
 	end
 end,true)
@@ -93141,10 +93415,10 @@ cmd.add({"blackholefollow","bhf","bhpull","bhfollow"},{"blackholefollow","Pulls 
 		torque.Torque=Vector3.new(100000,100000,100000)
 	end
 
-	for _, part in NAmanage.QueryDescendants(Workspace, "BasePart") do Defer(function() ForcePart(part) end) end
+	for _, part in NAmanage.QueryDescendants(Services.Workspace, "BasePart") do Defer(function() ForcePart(part) end) end
 
 	NAlib.connect("bhf",NAmanage.wsAdd(ForcePart))
-	NAlib.connect("bhf_sim",RunService.Heartbeat:Connect(function()
+	NAlib.connect("bhf_sim",Services.RunService.Heartbeat:Connect(function()
 		NACaller(function()
 			opt.hiddenprop(LocalPlayer,"SimulationRadius",1e9)
 			LocalPlayer.MaximumSimulationRadius=1e9
@@ -93161,7 +93435,7 @@ cmd.add({"noblackholefollow","nobhf","nobhpull","stopbhf"},{"noblackholefollow",
 	const root=getRoot(getPlrChar(LocalPlayer))
 	if root then const att=root:FindFirstChild("BHF_Attach") if att then att:Destroy() end end
 
-	for _,part in NAmanage.QueryDescendants(Workspace, "BasePart") do
+	for _,part in NAmanage.QueryDescendants(Services.Workspace, "BasePart") do
 		if not part.Anchored then
 			for _,obj in part:GetChildren() do
 				if obj:IsA("AlignPosition") or obj:IsA("Torque") or obj:IsA("Attachment") then obj:Destroy() end
@@ -93555,7 +93829,7 @@ NAmanage.EnableEsp = function(objType, color, list)
 		NAmanage.RecolorPartESPList(list, currentColor())
 		return
 	end
-	for _,obj in NAmanage.QueryDescendants(Workspace, objType) do
+	for _,obj in NAmanage.QueryDescendants(Services.Workspace, objType) do
 		const parent = obj:FindFirstAncestorWhichIsA("BasePart") or obj:FindFirstAncestorWhichIsA("Model")
 		if parent then
 			objectMap[obj] = parent
@@ -93800,7 +94074,7 @@ NAmanage.NameESP_QueueCheck = function(obj, reason)
 	if NAlib.isConnected("esp_name_watch_queue") then
 		return
 	end
-	NAlib.connect("esp_name_watch_queue", RunService.Heartbeat:Connect(function()
+	NAlib.connect("esp_name_watch_queue", Services.RunService.Heartbeat:Connect(function()
 		const active = NAmanage.NameESP_HasAnyActive()
 		const queueNow = NAStuff.espNameWatchQueue
 		const mapNow = NAStuff.espNameWatchQueueMap
@@ -93827,7 +94101,7 @@ NAmanage.NameESP_QueueCheck = function(obj, reason)
 				if type(mapNow) == "table" and inst ~= nil and mapNow[inst] == itemNow then
 					mapNow[inst] = nil
 				end
-				if typeof(inst) == "Instance" and inst.Parent and inst:IsDescendantOf(Workspace) then
+				if typeof(inst) == "Instance" and inst.Parent and inst:IsDescendantOf(Services.Workspace) then
 					const applicators = NAStuff.espNameApplicators
 					if type(applicators) == "table" then
 						if NAmanage.NameESP_HasActiveMode("exact") and type(applicators.exact) == "function" then
@@ -94621,7 +94895,7 @@ NAmanage.ESP_LocatorEnableGui = function(force)
 	end
 
 	NAlib.disconnect("esp_locator_loop")
-	NAlib.connect("esp_locator_loop", RunService.RenderStepped:Connect(function(dt)
+	NAlib.connect("esp_locator_loop", Services.RunService.RenderStepped:Connect(function(dt)
 		if not NAStuff.ESP_LocatorEnabled then return end
 		accum += tonumber(dt) or 0
 		const updateRate = math.clamp(tonumber(NAStuff.ESP_LocatorUpdateRate) or 18, 8, 60)
@@ -94631,7 +94905,7 @@ NAmanage.ESP_LocatorEnableGui = function(force)
 		end
 		accum = 0
 
-		const cam = Workspace.CurrentCamera
+		const cam = Services.Workspace.CurrentCamera
 		if not cam then return end
 		const vp = cam.ViewportSize
 		if vp.X <= 0 or vp.Y <= 0 then return end
@@ -94650,7 +94924,7 @@ NAmanage.ESP_LocatorEnableGui = function(force)
 
 		local root = nil
 		if NAStuff.ESP_ShowPartDistance == true then
-			const lp = Players.LocalPlayer
+			const lp = Services.Players.LocalPlayer
 			const ch = lp and lp.Character
 			root = ch and getRoot(ch)
 		end
@@ -94890,7 +95164,7 @@ NAmanage.ESP_LocatorEnableDrawing = function(force)
 	end
 
 	NAlib.disconnect("esp_locator_loop")
-	NAlib.connect("esp_locator_loop", RunService.RenderStepped:Connect(function(dt)
+	NAlib.connect("esp_locator_loop", Services.RunService.RenderStepped:Connect(function(dt)
 		if not NAStuff.ESP_LocatorEnabled then
 			return
 		end
@@ -94902,7 +95176,7 @@ NAmanage.ESP_LocatorEnableDrawing = function(force)
 		end
 		accum = 0
 
-		const cam = Workspace.CurrentCamera
+		const cam = Services.Workspace.CurrentCamera
 		if not cam then return end
 		const vp = cam.ViewportSize
 		if vp.X <= 0 or vp.Y <= 0 then return end
@@ -94921,7 +95195,7 @@ NAmanage.ESP_LocatorEnableDrawing = function(force)
 
 		local root = nil
 		if NAStuff.ESP_ShowPartDistance == true then
-			const lp = Players.LocalPlayer
+			const lp = Services.Players.LocalPlayer
 			const ch = lp and lp.Character
 			root = ch and getRoot(ch)
 		end
@@ -95238,7 +95512,7 @@ NAmanage.ESP_PlayerLocatorEnableGui = function(force)
 	end
 
 	NAlib.disconnect("esp_player_locator_loop")
-	NAlib.connect("esp_player_locator_loop", RunService.RenderStepped:Connect(function(dt)
+	NAlib.connect("esp_player_locator_loop", Services.RunService.RenderStepped:Connect(function(dt)
 		if not NAStuff.ESP_PlayerLocatorEnabled then return end
 		accum += tonumber(dt) or 0
 		const updateRate = math.clamp(tonumber(NAStuff.ESP_PlayerLocatorUpdateRate) or 18, 8, 60)
@@ -95248,7 +95522,7 @@ NAmanage.ESP_PlayerLocatorEnableGui = function(force)
 		end
 		accum = 0
 
-		const cam = Workspace.CurrentCamera
+		const cam = Services.Workspace.CurrentCamera
 		if not cam then return end
 		const vp = cam.ViewportSize
 		if vp.X <= 0 or vp.Y <= 0 then return end
@@ -95261,7 +95535,7 @@ NAmanage.ESP_PlayerLocatorEnableGui = function(force)
 		const now = os.clock()
 
 		local localRoot = nil
-		const lp = Players.LocalPlayer
+		const lp = Services.Players.LocalPlayer
 		const localChar = lp and lp.Character
 		localRoot = localChar and getRoot(localChar)
 
@@ -95501,7 +95775,7 @@ NAmanage.ESP_PlayerLocatorEnableDrawing = function(force)
 	end
 
 	NAlib.disconnect("esp_player_locator_loop")
-	NAlib.connect("esp_player_locator_loop", RunService.RenderStepped:Connect(function(dt)
+	NAlib.connect("esp_player_locator_loop", Services.RunService.RenderStepped:Connect(function(dt)
 		if not NAStuff.ESP_PlayerLocatorEnabled then return end
 		accum += tonumber(dt) or 0
 		const updateRate = math.clamp(tonumber(NAStuff.ESP_PlayerLocatorUpdateRate) or 18, 8, 60)
@@ -95511,7 +95785,7 @@ NAmanage.ESP_PlayerLocatorEnableDrawing = function(force)
 		end
 		accum = 0
 
-		const cam = Workspace.CurrentCamera
+		const cam = Services.Workspace.CurrentCamera
 		if not cam then return end
 		const vp = cam.ViewportSize
 		if vp.X <= 0 or vp.Y <= 0 then return end
@@ -95523,7 +95797,7 @@ NAmanage.ESP_PlayerLocatorEnableDrawing = function(force)
 		const staleSeconds = math.clamp(tonumber(NAStuff.ESP_PlayerLocatorHoldSeconds) or 0.5, 0.15, 3)
 		const now = os.clock()
 
-		const lp = Players.LocalPlayer
+		const lp = Services.Players.LocalPlayer
 		const localChar = lp and lp.Character
 		const localRoot = localChar and getRoot(localChar)
 
@@ -95792,7 +96066,7 @@ NAmanage.ItemESPEnable = NAmanage.ItemESPEnable or function()
 	NAlib.disconnect("itemesp_loop")
 	local nextRefresh = 0
 	local nextFullRefresh = 0
-	NAlib.connect("itemesp_loop", RunService.Heartbeat:Connect(function()
+	NAlib.connect("itemesp_loop", Services.RunService.Heartbeat:Connect(function()
 		if NAStuff.itemESPEnabled ~= true then
 			NAlib.disconnect("itemesp_loop")
 			return
@@ -95808,7 +96082,7 @@ NAmanage.ItemESPEnable = NAmanage.ItemESPEnable or function()
 		end
 	end))
 	NAlib.disconnect("itemesp_workspace_add")
-	NAlib.connect("itemesp_workspace_add", NAmanage.descAdd(Workspace, function(inst)
+	NAlib.connect("itemesp_workspace_add", NAmanage.descAdd(Services.Workspace, function(inst)
 		if NAStuff.itemESPEnabled ~= true then return end
 		if inst:IsA("Tool") then
 			NAmanage.addToolCache(inst)
@@ -95832,7 +96106,7 @@ NAmanage.ItemESPEnable = NAmanage.ItemESPEnable or function()
 		return inst and (inst:IsA("Tool") or inst:IsA("BasePart"))
 	end))
 	NAlib.disconnect("itemesp_workspace_rem")
-	NAlib.connect("itemesp_workspace_rem", NAmanage.descRem(Workspace, function(inst)
+	NAlib.connect("itemesp_workspace_rem", NAmanage.descRem(Services.Workspace, function(inst)
 		if inst:IsA("Tool") then
 			NAmanage.ItemESPRemoveTool(inst)
 		elseif inst:IsA("BasePart") then
@@ -97606,7 +97880,7 @@ end,true)
 
 cmd.add({"viewpart", "viewp", "vpart"}, {"viewpart {partName} (viewp, vpart)", "Focuses camera on a part, model, or folder"},function(...)
 	const partName = Concat({...}, " "):lower()
-	const ws = Workspace
+	const ws = Services.Workspace
 	const camera = ws.CurrentCamera
 
 	for _, obj in NAmanage.QueryDescendants(ws, "Instance") do
@@ -97627,7 +97901,7 @@ cmd.add({"viewpart", "viewp", "vpart"}, {"viewpart {partName} (viewp, vpart)", "
 end,true)
 
 cmd.add({"unviewpart", "unviewp"}, {"unviewpart (unviewp)", "Resets the camera to the local humanoid"}, function()
-	const camera = Workspace.CurrentCamera
+	const camera = Services.Workspace.CurrentCamera
 	const humanoid = getHum()
 	if humanoid then
 		camera.CameraSubject = humanoid
@@ -97636,7 +97910,7 @@ end)
 
 cmd.add({"viewpartfind", "viewpfind", "vpartfind"}, {"viewpartfind {name} (viewpfind, vpartfind)", "Focuses camera on a part, model, or folder with name containing the given text"}, function(...)
 	const name = Concat({...}, " "):lower()
-	const ws = Workspace
+	const ws = Services.Workspace
 	const cam = ws.CurrentCamera
 
 	for _, obj in NAmanage.QueryDescendants(ws, "Instance") do
@@ -97657,7 +97931,7 @@ cmd.add({"viewpartfind", "viewpfind", "vpartfind"}, {"viewpartfind {name} (viewp
 end, true)
 
 cmd.add({"unviewpart", "unviewp"}, {"unviewpart (unviewp)", "Resets the camera to the local humanoid"}, function()
-	const cam = Workspace.CurrentCamera
+	const cam = Services.Workspace.CurrentCamera
 	const hum = getHum()
 	if hum then
 		cam.CameraSubject = hum
@@ -98117,7 +98391,7 @@ cmd.add({"hitbox","hbox"}, {"hitbox <player> {size}",""}, function(pArg, sArg)
 							if not D.cfg then
 								return;
 							end;
-							if parent and Workspace and m:IsDescendantOf(Workspace) then
+							if parent and Services.Workspace and m:IsDescendantOf(Services.Workspace) then
 								Defer(function()
 									Scan(m);
 								end);
@@ -98153,7 +98427,7 @@ cmd.add({"hitbox","hbox"}, {"hitbox <player> {size}",""}, function(pArg, sArg)
 					end);
 					local acc = 0;
 					local acc2 = 0;
-					D.run = NAlib.reconnect("hitbox_npc_loop", RunService.Heartbeat:Connect(function(dt)
+					D.run = NAlib.reconnect("hitbox_npc_loop", Services.RunService.Heartbeat:Connect(function(dt)
 						acc += dt;
 						acc2 += dt;
 						if acc >= 0.12 then
@@ -98197,7 +98471,7 @@ cmd.add({"hitbox","hbox"}, {"hitbox <player> {size}",""}, function(pArg, sArg)
 						end;
 						if acc2 >= 0.35 then
 							acc2 = 0;
-							for _, ch in Workspace:GetChildren() do
+							for _, ch in Services.Workspace:GetChildren() do
 								if ch:IsA("Model") and CheckIfNPC(ch) and (not D.md[ch]) then
 									Setup(ch);
 								end;
@@ -98267,7 +98541,7 @@ cmd.add({"hitbox","hbox"}, {"hitbox <player> {size}",""}, function(pArg, sArg)
 						if selectorMode == "all" then
 							return true;
 						elseif selectorMode == "others" then
-							return plr ~= Players.LocalPlayer;
+							return plr ~= Services.Players.LocalPlayer;
 						elseif selectorMode == "nonteam" or selectorMode == "noteam" or selectorMode == "noteams" or selectorMode == "nonteams" or selectorMode == "notteam" or selectorMode == "enemies" or selectorMode == "enemy" then
 							return NAmanage.PlayerArgNonTeam(plr);
 						elseif selectorMode == "team" or selectorMode == "allies" or selectorMode == "ally" then
@@ -98317,7 +98591,7 @@ cmd.add({"hitbox","hbox"}, {"hitbox <player> {size}",""}, function(pArg, sArg)
 							if not D.cfg then
 								return;
 							end;
-							if parent and Workspace and ch:IsDescendantOf(Workspace) then
+							if parent and Services.Workspace and ch:IsDescendantOf(Services.Workspace) then
 								Defer(function()
 									const cc = GetChar(k);
 									if cc then
@@ -98380,12 +98654,12 @@ cmd.add({"hitbox","hbox"}, {"hitbox <player> {size}",""}, function(pArg, sArg)
 						end;
 					end;
 					if selectorMode then
-						D.addConn = Players.PlayerAdded:Connect(function(plr)
+						D.addConn = Services.Players.PlayerAdded:Connect(function(plr)
 							if ModeAllows(plr) then
 								SetupKey(plr);
 							end;
 						end);
-						D.remConn = Players.PlayerRemoving:Connect(function(plr)
+						D.remConn = Services.Players.PlayerRemoving:Connect(function(plr)
 							if D.ca[plr] then
 								D.ca[plr]:Disconnect();
 								D.ca[plr] = nil;
@@ -98407,7 +98681,7 @@ cmd.add({"hitbox","hbox"}, {"hitbox <player> {size}",""}, function(pArg, sArg)
 						end);
 					end;
 					local acc = 0;
-					D.run = NAlib.reconnect("hitbox_player_loop", RunService.Heartbeat:Connect(function(dt)
+					D.run = NAlib.reconnect("hitbox_player_loop", Services.RunService.Heartbeat:Connect(function(dt)
 						acc += dt;
 						if acc < 0.12 then
 							return;
@@ -98705,7 +98979,7 @@ cmd.add({"unhitbox","unhbox"}, {"unhitbox <player>",""}, function(pArg)
 	end
 
 	const D = NAStuff.HB.P
-	const lp = Players.LocalPlayer
+	const lp = Services.Players.LocalPlayer
 
 	if glb then
 		if argL == "others" then
@@ -99074,7 +99348,7 @@ end
 
 NAmanage.PST_StartFlush = function()
 	if NAlib.isConnected("partsizeFlush") then return end
-	NAlib.connect("partsizeFlush", RunService.Heartbeat:Connect(function()
+	NAlib.connect("partsizeFlush", Services.RunService.Heartbeat:Connect(function()
 		if not NAmanage.PST_Active() then
 			NAmanage.PST_ClearQueue()
 			NAlib.disconnect("partsizeFlush")
@@ -99168,7 +99442,7 @@ NAmanage.PST_UpdateActive = function(newOpts)
 end
 
 NAmanage.PST_ScanAll = function()
-	for _, obj in NAmanage.QueryDescendants(Workspace, "BasePart") do
+	for _, obj in NAmanage.QueryDescendants(Services.Workspace, "BasePart") do
 		NAmanage.PST_Queue(obj)
 	end
 end
@@ -99373,11 +99647,11 @@ cmd.add({"breakcars", "bcars"}, {"breakcars (bcars)", "Breaks any car"}, functio
 
 	DebugNotif("Car breaker loaded, sit on a vehicle and be the driver")
 
-	const Player = Players.LocalPlayer
+	const Player = Services.Players.LocalPlayer
 	const Mouse = NAmanage.GetMouse(Player)
 
 	const Folder = InstanceNew("Folder")
-	Folder.Parent = Workspace
+	Folder.Parent = Services.Workspace
 	NAStuff._breakcarsFolder = Folder
 	NAlib.connect(CONN_KEY, Folder.AncestryChanged:Connect(function(_, parent)
 		if not parent then
@@ -99459,13 +99733,13 @@ cmd.add({"breakcars", "bcars"}, {"breakcars (bcars)", "Breaks any car"}, functio
 		alignPosition.Attachment1 = Attachment1
 	end
 
-	for _, descendant in NAmanage.QueryDescendants(Workspace, "BasePart") do
+	for _, descendant in NAmanage.QueryDescendants(Services.Workspace, "BasePart") do
 		applyForceToPart(descendant)
 	end
 
 	NAlib.connect(CONN_KEY, NAmanage.wsAdd(applyForceToPart))
 
-	NAlib.connect(CONN_KEY, UserInputService.InputBegan:Connect(function(input, isChatting)
+	NAlib.connect(CONN_KEY, Services.UserInputService.InputBegan:Connect(function(input, isChatting)
 		if input.KeyCode == Enum.KeyCode.E and not isChatting then
 			UpdatedPosition = getBreakcarsTarget()
 		end
@@ -99536,7 +99810,7 @@ cmd.add({"infjump", "infinitejump"}, {"infjump (infinitejump)", "Enables infinit
 
 		while not humanoid do Wait(.1) humanoid = getHum() end
 
-		NAlib.connect("infjump_jump", UserInputService.JumpRequest:Connect(function()
+		NAlib.connect("infjump_jump", Services.UserInputService.JumpRequest:Connect(function()
 			if not debounce and humanoid:GetState() ~= Enum.HumanoidStateType.Dead then
 				debounce = true
 				NAmanage.LaunchHumanoid(humanoid)
@@ -99569,7 +99843,7 @@ cmd.add({"flyjump"},{"flyjump","Allows you to hold space to fly up"},function()
 	DebugNotif("FlyJump Enabled", 3)
 
 	NAlib.disconnect("flyjump")
-	NAlib.connect("flyjump", UserInputService.JumpRequest:Connect(function()
+	NAlib.connect("flyjump", Services.UserInputService.JumpRequest:Connect(function()
 		const hum = getHum()
 		if hum then
 			NAmanage.LaunchHumanoid(hum)
@@ -99724,7 +99998,7 @@ end
 
 NAmanage.Echolocation.CaptureLighting = function()
 	local state = NAmanage.Echolocation.GetState()
-	if not Lighting then
+	if not Services.Lighting then
 		return
 	end
 	NAmanage.Echolocation.DisableConflictingLighting()
@@ -99745,7 +100019,7 @@ NAmanage.Echolocation.CaptureLighting = function()
 	}
 	state.lightingBackup = {}
 	for prop in state.lightingTarget do
-		local value = NAmanage.Echolocation.SafeGet(Lighting, prop)
+		local value = NAmanage.Echolocation.SafeGet(Services.Lighting, prop)
 		if value ~= nil then
 			state.lightingBackup[prop] = value
 		end
@@ -99754,21 +100028,21 @@ end
 
 NAmanage.Echolocation.ApplyDarkness = function()
 	local state = NAmanage.Echolocation.GetState()
-	if not state.enabled or not Lighting or type(state.lightingTarget) ~= "table" then
+	if not state.enabled or not Services.Lighting or type(state.lightingTarget) ~= "table" then
 		return
 	end
 	for prop, value in state.lightingTarget do
-		if NAmanage.Echolocation.SafeGet(Lighting, prop) ~= value then
-			NAmanage.Echolocation.SafeSet(Lighting, prop, value)
+		if NAmanage.Echolocation.SafeGet(Services.Lighting, prop) ~= value then
+			NAmanage.Echolocation.SafeSet(Services.Lighting, prop, value)
 		end
 	end
 end
 
 NAmanage.Echolocation.RestoreLighting = function()
 	local state = NAmanage.Echolocation.GetState()
-	if Lighting and type(state.lightingBackup) == "table" then
+	if Services.Lighting and type(state.lightingBackup) == "table" then
 		for prop, value in state.lightingBackup do
-			NAmanage.Echolocation.SafeSet(Lighting, prop, value)
+			NAmanage.Echolocation.SafeSet(Services.Lighting, prop, value)
 		end
 	end
 	state.lightingBackup = nil
@@ -99782,7 +100056,7 @@ NAmanage.Echolocation.EnsureVisualRoot = function()
 	end
 	local folder = InstanceNew("Folder")
 	folder.Name = "\0"
-	folder.Parent = Workspace
+	folder.Parent = Services.Workspace
 	state.visualRoot = folder
 	return folder
 end
@@ -100086,7 +100360,7 @@ NAmanage.Echolocation.ResolveTarget = function(part)
 	if typeof(state.character) == "Instance" and part:IsDescendantOf(state.character) then
 		return nil, false
 	end
-	local camera = Workspace.CurrentCamera
+	local camera = Services.Workspace.CurrentCamera
 	if camera and part:IsDescendantOf(camera) then
 		return nil, false
 	end
@@ -100110,7 +100384,7 @@ NAmanage.Echolocation.ShouldUseSurfacePatch = function(part)
 	if maxDimension >= math.max(8, tonumber(state.config.largePartDimension) or 36) then
 		return true
 	end
-	local camera = Workspace.CurrentCamera
+	local camera = Services.Workspace.CurrentCamera
 	if not camera then
 		return false
 	end
@@ -100178,7 +100452,7 @@ NAmanage.Echolocation.GetSurfacePatch = function(part, origin)
 		localSurface = Vector3.new(math.clamp(localSurface.X, -half.X, half.X), math.clamp(localSurface.Y, -half.Y, half.Y), localSurface.Z >= 0 and half.Z or -half.Z)
 	end
 	local worldSurface = part.CFrame:PointToWorldSpace(localSurface)
-	local camera = Workspace.CurrentCamera
+	local camera = Services.Workspace.CurrentCamera
 	local cameraDistance = camera and (camera.CFrame.Position - worldSurface).Magnitude or 30
 	local minSpan = math.max(0.5, tonumber(state.config.surfacePatchMinSize) or 1.5)
 	local maxSpan = math.max(minSpan, tonumber(state.config.surfacePatchMaxSize) or 12)
@@ -100432,7 +100706,7 @@ NAmanage.Echolocation.QueryPulse = function(pulse)
 	end
 	local overlap = NAmanage.Echolocation.UpdateOverlapFilter()
 	local ok, parts = pcall(function()
-		return Workspace:GetPartBoundsInRadius(pulse.origin, math.max(0.25, tonumber(pulse.radius) or 0.25), overlap)
+		return Services.Workspace:GetPartBoundsInRadius(pulse.origin, math.max(0.25, tonumber(pulse.radius) or 0.25), overlap)
 	end)
 	if not ok or type(parts) ~= "table" then
 		return
@@ -100645,7 +100919,7 @@ NAmanage.Echolocation.ResolveClassicSoundOrigin = function(sound)
 		end
 	end
 	local model = sound:FindFirstAncestorOfClass("Model")
-	if model and model:IsDescendantOf(Workspace) then
+	if model and model:IsDescendantOf(Services.Workspace) then
 		local position = NAmanage.Echolocation.GetWorldPosition(model)
 		if position then
 			return position, model
@@ -101030,15 +101304,15 @@ NAmanage.Echolocation.InitializeAudioSources = function()
 	state.soundList = {}
 	state.soundCursor = 1
 	state.nextSoundPoll = 0
-	local classic = NAmanage.QueryDescendants(Workspace, "Sound")
+	local classic = NAmanage.QueryDescendants(Services.Workspace, "Sound")
 	for i = 1, #classic do
 		NAmanage.Echolocation.TrackAudioSource(classic[i])
 	end
-	local emitters = NAmanage.QueryDescendants(Workspace, "AudioEmitter")
+	local emitters = NAmanage.QueryDescendants(Services.Workspace, "AudioEmitter")
 	for i = 1, #emitters do
 		NAmanage.Echolocation.TrackAudioSource(emitters[i])
 	end
-	NAlib.reconnect("echolocation_source_added", Workspace.DescendantAdded:Connect(function(inst)
+	NAlib.reconnect("echolocation_source_added", Services.Workspace.DescendantAdded:Connect(function(inst)
 		if not NAmanage.Echolocation.GetState().enabled or typeof(inst) ~= "Instance" then
 			return
 		end
@@ -101079,7 +101353,7 @@ NAmanage.Echolocation.UpdateAudioSources = function(now)
 		end
 		local record = list[cursor]
 		local inst = type(record) == "table" and record.instance or nil
-		if typeof(inst) ~= "Instance" or not inst.Parent or not inst:IsDescendantOf(Workspace) then
+		if typeof(inst) ~= "Instance" or not inst.Parent or not inst:IsDescendantOf(Services.Workspace) then
 			if typeof(inst) == "Instance" then
 				state.soundRecords[inst] = nil
 			end
@@ -101113,7 +101387,7 @@ end
 
 NAmanage.Echolocation.UpdateCharacter = function(now)
 	local state = NAmanage.Echolocation.GetState()
-	local player = Players and Players.LocalPlayer
+	local player = Services.Players and Services.Players.LocalPlayer
 	local character = player and player.Character or nil
 	if character ~= state.character then
 		state.character = character
@@ -101212,12 +101486,12 @@ NAmanage.Echolocation.Start = function(notify)
 	state.airborneAt = os.clock()
 	NAmanage.Echolocation.EnsureVisualRoot()
 	NAmanage.Echolocation.CaptureLighting()
-	state.character = Players and Players.LocalPlayer and Players.LocalPlayer.Character or nil
+	state.character = Services.Players and Services.Players.LocalPlayer and Services.Players.LocalPlayer.Character or nil
 	NAmanage.Echolocation.UpdateOverlapFilter()
 	NAmanage.Echolocation.EnsureSelfHighlight()
 	NAmanage.Echolocation.InitializeAudioSources()
 	NAmanage.Echolocation.ApplyDarkness()
-	NAlib.reconnect("echolocation_runtime", RunService.Heartbeat:Connect(function()
+	NAlib.reconnect("echolocation_runtime", Services.RunService.Heartbeat:Connect(function()
 		NAmanage.Echolocation.Update()
 	end))
 	local root = state.character and getRoot(state.character) or nil
@@ -101288,7 +101562,7 @@ cmd.add({"echoping", "eping", "sonarping"}, {"echoping (eping, sonarping)", "Emi
 		DoNotif("Enable echolocation first", 2, "Echolocation")
 		return
 	end
-	local character = Players and Players.LocalPlayer and Players.LocalPlayer.Character or nil
+	local character = Services.Players and Services.Players.LocalPlayer and Services.Players.LocalPlayer.Character or nil
 	local root = character and getRoot(character) or nil
 	if not root then
 		DoNotif("Character root unavailable", 2, "Echolocation")
@@ -101327,8 +101601,8 @@ NAmanage._ensureL=function()
 			if not wasEnabled then return end
 			if not ((st.fb and st.fb.enabled) or (st.nb and st.nb.enabled)) then
 				if st.safeSet then
-					if nf.baselineFogEnd~=nil then st.safeSet(Lighting,"FogEnd",nf.baselineFogEnd) end
-					if st.safeGet(Lighting,"FogStart")~=nil and nf.baselineFogStart~=nil then st.safeSet(Lighting,"FogStart",nf.baselineFogStart) end
+					if nf.baselineFogEnd~=nil then st.safeSet(Services.Lighting,"FogEnd",nf.baselineFogEnd) end
+					if st.safeGet(Services.Lighting,"FogStart")~=nil and nf.baselineFogStart~=nil then st.safeSet(Services.Lighting,"FogStart",nf.baselineFogStart) end
 				end
 			end
 			const cache = nf.cache
@@ -101397,79 +101671,79 @@ NAmanage._ensureL=function()
 end
 
 cmd.add({"fullbright","fullb","fb"},{"fullbright (fullb,fb)","makes dark games bright without destroying effects"},function()
-	if not Lighting then return end
+	if not Services.Lighting then return end
 	const st = NAmanage._ensureL()
 	const function ensureFB()
 		st.fb = st.fb or {init=false,enabled=false,baseline={},target={Brightness=1,ClockTime=12,FogEnd=786543,GlobalShadows=false,Ambient=Color3.fromRGB(178,178,178)}}
-		if st.fb.baseline.Brightness == nil then st.fb.baseline.Brightness = st.safeGet(Lighting,"Brightness") or 2 end
-		if st.fb.baseline.ClockTime == nil then st.fb.baseline.ClockTime = st.safeGet(Lighting,"ClockTime") or 12 end
-		if st.fb.baseline.FogEnd == nil then st.fb.baseline.FogEnd = st.safeGet(Lighting,"FogEnd") or 100000 end
-		if st.fb.baseline.GlobalShadows == nil then const v=st.safeGet(Lighting,"GlobalShadows") st.fb.baseline.GlobalShadows = v~=nil and v or true end
-		if st.fb.baseline.Ambient == nil then st.fb.baseline.Ambient = st.safeGet(Lighting,"Ambient") or Color3.fromRGB(128,128,128) end
+		if st.fb.baseline.Brightness == nil then st.fb.baseline.Brightness = st.safeGet(Services.Lighting,"Brightness") or 2 end
+		if st.fb.baseline.ClockTime == nil then st.fb.baseline.ClockTime = st.safeGet(Services.Lighting,"ClockTime") or 12 end
+		if st.fb.baseline.FogEnd == nil then st.fb.baseline.FogEnd = st.safeGet(Services.Lighting,"FogEnd") or 100000 end
+		if st.fb.baseline.GlobalShadows == nil then const v=st.safeGet(Services.Lighting,"GlobalShadows") st.fb.baseline.GlobalShadows = v~=nil and v or true end
+		if st.fb.baseline.Ambient == nil then st.fb.baseline.Ambient = st.safeGet(Services.Lighting,"Ambient") or Color3.fromRGB(128,128,128) end
 		if not st.initFB then
 			st.initFB = function()
 				st.hook("fb_brightness", function() return __lt.cm("Lighting", "GetPropertyChangedSignal", "Brightness"):Connect(function()
 						if st.fb and st.fb.enabled then
-							if st.safeGet(Lighting,"Brightness") ~= st.fb.target.Brightness then st.safeSet(Lighting,"Brightness",st.fb.target.Brightness) end
+							if st.safeGet(Services.Lighting,"Brightness") ~= st.fb.target.Brightness then st.safeSet(Services.Lighting,"Brightness",st.fb.target.Brightness) end
 						else
-							st.fb.baseline.Brightness = st.safeGet(Lighting,"Brightness") or st.fb.baseline.Brightness
+							st.fb.baseline.Brightness = st.safeGet(Services.Lighting,"Brightness") or st.fb.baseline.Brightness
 						end
 					end) end)
 				st.hook("fb_clocktime", function() return __lt.cm("Lighting", "GetPropertyChangedSignal", "ClockTime"):Connect(function()
 						if st.fb and st.fb.enabled then
-							if st.safeGet(Lighting,"ClockTime") ~= st.fb.target.ClockTime then st.safeSet(Lighting,"ClockTime",st.fb.target.ClockTime) end
+							if st.safeGet(Services.Lighting,"ClockTime") ~= st.fb.target.ClockTime then st.safeSet(Services.Lighting,"ClockTime",st.fb.target.ClockTime) end
 						else
-							st.fb.baseline.ClockTime = st.safeGet(Lighting,"ClockTime") or st.fb.baseline.ClockTime
+							st.fb.baseline.ClockTime = st.safeGet(Services.Lighting,"ClockTime") or st.fb.baseline.ClockTime
 						end
 					end) end)
 				st.hook("fb_fogend", function() return __lt.cm("Lighting", "GetPropertyChangedSignal", "FogEnd"):Connect(function()
 						if st.fb and st.fb.enabled then
-							if st.safeGet(Lighting,"FogEnd") ~= st.fb.target.FogEnd then st.safeSet(Lighting,"FogEnd",st.fb.target.FogEnd) end
+							if st.safeGet(Services.Lighting,"FogEnd") ~= st.fb.target.FogEnd then st.safeSet(Services.Lighting,"FogEnd",st.fb.target.FogEnd) end
 						else
-							st.fb.baseline.FogEnd = st.safeGet(Lighting,"FogEnd") or st.fb.baseline.FogEnd
+							st.fb.baseline.FogEnd = st.safeGet(Services.Lighting,"FogEnd") or st.fb.baseline.FogEnd
 						end
 					end) end)
 				st.hook("fb_shadows", function() return __lt.cm("Lighting", "GetPropertyChangedSignal", "GlobalShadows"):Connect(function()
 						if st.fb and st.fb.enabled then
-							if st.safeGet(Lighting,"GlobalShadows") ~= st.fb.target.GlobalShadows then st.safeSet(Lighting,"GlobalShadows",st.fb.target.GlobalShadows) end
+							if st.safeGet(Services.Lighting,"GlobalShadows") ~= st.fb.target.GlobalShadows then st.safeSet(Services.Lighting,"GlobalShadows",st.fb.target.GlobalShadows) end
 						else
-							const v=st.safeGet(Lighting,"GlobalShadows") if v~=nil then st.fb.baseline.GlobalShadows=v end
+							const v=st.safeGet(Services.Lighting,"GlobalShadows") if v~=nil then st.fb.baseline.GlobalShadows=v end
 						end
 					end) end)
 				st.hook("fb_ambient", function() return __lt.cm("Lighting", "GetPropertyChangedSignal", "Ambient"):Connect(function()
 						if st.fb and st.fb.enabled then
-							if st.safeGet(Lighting,"Ambient") ~= st.fb.target.Ambient then st.safeSet(Lighting,"Ambient",st.fb.target.Ambient) end
+							if st.safeGet(Services.Lighting,"Ambient") ~= st.fb.target.Ambient then st.safeSet(Services.Lighting,"Ambient",st.fb.target.Ambient) end
 						else
-							st.fb.baseline.Ambient = st.safeGet(Lighting,"Ambient") or st.fb.baseline.Ambient
+							st.fb.baseline.Ambient = st.safeGet(Services.Lighting,"Ambient") or st.fb.baseline.Ambient
 						end
 					end) end)
-				st.hook("fb_loop", function() return RunService.RenderStepped:Connect(function()
+				st.hook("fb_loop", function() return Services.RunService.RenderStepped:Connect(function()
 						if not (st.fb and st.fb.enabled) then return end
-						if st.safeGet(Lighting,"Brightness") ~= st.fb.target.Brightness then st.safeSet(Lighting,"Brightness",st.fb.target.Brightness) end
-						if st.safeGet(Lighting,"ClockTime") ~= st.fb.target.ClockTime then st.safeSet(Lighting,"ClockTime",st.fb.target.ClockTime) end
-						if st.safeGet(Lighting,"FogEnd") ~= st.fb.target.FogEnd then st.safeSet(Lighting,"FogEnd",st.fb.target.FogEnd) end
-						const gs = st.safeGet(Lighting,"GlobalShadows")
-						if gs~=nil and gs ~= st.fb.target.GlobalShadows then st.safeSet(Lighting,"GlobalShadows",st.fb.target.GlobalShadows) end
-						if st.safeGet(Lighting,"Ambient") ~= st.fb.target.Ambient then st.safeSet(Lighting,"Ambient",st.fb.target.Ambient) end
+						if st.safeGet(Services.Lighting,"Brightness") ~= st.fb.target.Brightness then st.safeSet(Services.Lighting,"Brightness",st.fb.target.Brightness) end
+						if st.safeGet(Services.Lighting,"ClockTime") ~= st.fb.target.ClockTime then st.safeSet(Services.Lighting,"ClockTime",st.fb.target.ClockTime) end
+						if st.safeGet(Services.Lighting,"FogEnd") ~= st.fb.target.FogEnd then st.safeSet(Services.Lighting,"FogEnd",st.fb.target.FogEnd) end
+						const gs = st.safeGet(Services.Lighting,"GlobalShadows")
+						if gs~=nil and gs ~= st.fb.target.GlobalShadows then st.safeSet(Services.Lighting,"GlobalShadows",st.fb.target.GlobalShadows) end
+						if st.safeGet(Services.Lighting,"Ambient") ~= st.fb.target.Ambient then st.safeSet(Services.Lighting,"Ambient",st.fb.target.Ambient) end
 					end) end)
 			end
 		end
 		if not st.applyFB then
 			st.applyFB = function()
-				st.safeSet(Lighting,"Brightness",st.fb.target.Brightness)
-				st.safeSet(Lighting,"ClockTime",st.fb.target.ClockTime)
-				st.safeSet(Lighting,"FogEnd",st.fb.target.FogEnd)
-				st.safeSet(Lighting,"GlobalShadows",st.fb.target.GlobalShadows)
-				st.safeSet(Lighting,"Ambient",st.fb.target.Ambient)
+				st.safeSet(Services.Lighting,"Brightness",st.fb.target.Brightness)
+				st.safeSet(Services.Lighting,"ClockTime",st.fb.target.ClockTime)
+				st.safeSet(Services.Lighting,"FogEnd",st.fb.target.FogEnd)
+				st.safeSet(Services.Lighting,"GlobalShadows",st.fb.target.GlobalShadows)
+				st.safeSet(Services.Lighting,"Ambient",st.fb.target.Ambient)
 			end
 		end
 		if not st.restoreFB then
 			st.restoreFB = function()
-				st.safeSet(Lighting,"Brightness",st.fb.baseline.Brightness)
-				st.safeSet(Lighting,"ClockTime",st.fb.baseline.ClockTime)
-				st.safeSet(Lighting,"FogEnd",st.fb.baseline.FogEnd)
-				st.safeSet(Lighting,"GlobalShadows",st.fb.baseline.GlobalShadows)
-				st.safeSet(Lighting,"Ambient",st.fb.baseline.Ambient)
+				st.safeSet(Services.Lighting,"Brightness",st.fb.baseline.Brightness)
+				st.safeSet(Services.Lighting,"ClockTime",st.fb.baseline.ClockTime)
+				st.safeSet(Services.Lighting,"FogEnd",st.fb.baseline.FogEnd)
+				st.safeSet(Services.Lighting,"GlobalShadows",st.fb.baseline.GlobalShadows)
+				st.safeSet(Services.Lighting,"Ambient",st.fb.baseline.Ambient)
 			end
 		end
 		if not st.toggleFB then
@@ -101488,101 +101762,101 @@ cmd.add({"fullbright","fullb","fb"},{"fullbright (fullb,fb)","makes dark games b
 end)
 
 cmd.add({"loopday","lday"},{"loopday","Sunshiiiine!"},function()
-	if not Lighting then return end
+	if not Services.Lighting then return end
 	const st = NAmanage._ensureL()
 	st.fb = st.fb or {enabled=false,baseline={},target={Brightness=1,ClockTime=12,FogEnd=786543,GlobalShadows=false,Ambient=Color3.fromRGB(178,178,178)}}
-	st.fb.baseline.ClockTime = st.safeGet(Lighting,"ClockTime") or 12
+	st.fb.baseline.ClockTime = st.safeGet(Services.Lighting,"ClockTime") or 12
 	st.cancelFor("day")
 	NAlib.disconnect("time_day")
-	st.safeSet(Lighting,"ClockTime",14)
+	st.safeSet(Services.Lighting,"ClockTime",14)
 	NAlib.connect("time_day", __lt.cm("Lighting", "GetPropertyChangedSignal", "ClockTime"):Connect(function()
-		if st.safeGet(Lighting,"ClockTime") ~= 14 then st.safeSet(Lighting,"ClockTime",14) end
+		if st.safeGet(Services.Lighting,"ClockTime") ~= 14 then st.safeSet(Services.Lighting,"ClockTime",14) end
 	end))
 end)
 
 cmd.add({"unloopday","unlday"},{"unloopday","No more sunshine"},function()
-	if not Lighting then return end
+	if not Services.Lighting then return end
 	const st = _na_env._LState
 	if not st then return end
 	NAlib.disconnect("time_day")
-	const target = (st.fb and st.fb.enabled) and ((st.fb.target and st.fb.target.ClockTime) or 12) or ((st.fb and st.fb.baseline and st.fb.baseline.ClockTime) or (st.safeGet and st.safeGet(Lighting,"ClockTime")) or 12)
-	if st.safeSet then st.safeSet(Lighting,"ClockTime",target) else Lighting.ClockTime = target end
+	const target = (st.fb and st.fb.enabled) and ((st.fb.target and st.fb.target.ClockTime) or 12) or ((st.fb and st.fb.baseline and st.fb.baseline.ClockTime) or (st.safeGet and st.safeGet(Services.Lighting,"ClockTime")) or 12)
+	if st.safeSet then st.safeSet(Services.Lighting,"ClockTime",target) else Services.Lighting.ClockTime = target end
 end)
 
 cmd.add({"loopfullbright","loopfb","lfb"},{"loopfullbright","Sunshiiiine!"},function()
-	if not Lighting then return end
+	if not Services.Lighting then return end
 	const st = NAmanage._ensureL()
 	const function ensureFB()
 		st.fb = st.fb or {init=false,enabled=false,baseline={},target={Brightness=1,ClockTime=12,FogEnd=786543,GlobalShadows=false,Ambient=Color3.fromRGB(178,178,178)}}
-		if st.fb.baseline.Brightness == nil then st.fb.baseline.Brightness = st.safeGet(Lighting,"Brightness") or 2 end
-		if st.fb.baseline.ClockTime == nil then st.fb.baseline.ClockTime = st.safeGet(Lighting,"ClockTime") or 12 end
-		if st.fb.baseline.FogEnd == nil then st.fb.baseline.FogEnd = st.safeGet(Lighting,"FogEnd") or 100000 end
-		if st.fb.baseline.GlobalShadows == nil then const v=st.safeGet(Lighting,"GlobalShadows") st.fb.baseline.GlobalShadows = v~=nil and v or true end
-		if st.fb.baseline.Ambient == nil then st.fb.baseline.Ambient = st.safeGet(Lighting,"Ambient") or Color3.fromRGB(128,128,128) end
+		if st.fb.baseline.Brightness == nil then st.fb.baseline.Brightness = st.safeGet(Services.Lighting,"Brightness") or 2 end
+		if st.fb.baseline.ClockTime == nil then st.fb.baseline.ClockTime = st.safeGet(Services.Lighting,"ClockTime") or 12 end
+		if st.fb.baseline.FogEnd == nil then st.fb.baseline.FogEnd = st.safeGet(Services.Lighting,"FogEnd") or 100000 end
+		if st.fb.baseline.GlobalShadows == nil then const v=st.safeGet(Services.Lighting,"GlobalShadows") st.fb.baseline.GlobalShadows = v~=nil and v or true end
+		if st.fb.baseline.Ambient == nil then st.fb.baseline.Ambient = st.safeGet(Services.Lighting,"Ambient") or Color3.fromRGB(128,128,128) end
 		if not st.initFB then
 			st.initFB = function()
 				st.hook("fb_brightness", function() return __lt.cm("Lighting", "GetPropertyChangedSignal", "Brightness"):Connect(function()
 						if st.fb and st.fb.enabled then
-							if st.safeGet(Lighting,"Brightness") ~= st.fb.target.Brightness then st.safeSet(Lighting,"Brightness",st.fb.target.Brightness) end
+							if st.safeGet(Services.Lighting,"Brightness") ~= st.fb.target.Brightness then st.safeSet(Services.Lighting,"Brightness",st.fb.target.Brightness) end
 						else
-							st.fb.baseline.Brightness = st.safeGet(Lighting,"Brightness") or st.fb.baseline.Brightness
+							st.fb.baseline.Brightness = st.safeGet(Services.Lighting,"Brightness") or st.fb.baseline.Brightness
 						end
 					end) end)
 				st.hook("fb_clocktime", function() return __lt.cm("Lighting", "GetPropertyChangedSignal", "ClockTime"):Connect(function()
 						if st.fb and st.fb.enabled then
-							if st.safeGet(Lighting,"ClockTime") ~= st.fb.target.ClockTime then st.safeSet(Lighting,"ClockTime",st.fb.target.ClockTime) end
+							if st.safeGet(Services.Lighting,"ClockTime") ~= st.fb.target.ClockTime then st.safeSet(Services.Lighting,"ClockTime",st.fb.target.ClockTime) end
 						else
-							st.fb.baseline.ClockTime = st.safeGet(Lighting,"ClockTime") or st.fb.baseline.ClockTime
+							st.fb.baseline.ClockTime = st.safeGet(Services.Lighting,"ClockTime") or st.fb.baseline.ClockTime
 						end
 					end) end)
 				st.hook("fb_fogend", function() return __lt.cm("Lighting", "GetPropertyChangedSignal", "FogEnd"):Connect(function()
 						if st.fb and st.fb.enabled then
-							if st.safeGet(Lighting,"FogEnd") ~= st.fb.target.FogEnd then st.safeSet(Lighting,"FogEnd",st.fb.target.FogEnd) end
+							if st.safeGet(Services.Lighting,"FogEnd") ~= st.fb.target.FogEnd then st.safeSet(Services.Lighting,"FogEnd",st.fb.target.FogEnd) end
 						else
-							st.fb.baseline.FogEnd = st.safeGet(Lighting,"FogEnd") or st.fb.baseline.FogEnd
+							st.fb.baseline.FogEnd = st.safeGet(Services.Lighting,"FogEnd") or st.fb.baseline.FogEnd
 						end
 					end) end)
 				st.hook("fb_shadows", function() return __lt.cm("Lighting", "GetPropertyChangedSignal", "GlobalShadows"):Connect(function()
 						if st.fb and st.fb.enabled then
-							if st.safeGet(Lighting,"GlobalShadows") ~= st.fb.target.GlobalShadows then st.safeSet(Lighting,"GlobalShadows",st.fb.target.GlobalShadows) end
+							if st.safeGet(Services.Lighting,"GlobalShadows") ~= st.fb.target.GlobalShadows then st.safeSet(Services.Lighting,"GlobalShadows",st.fb.target.GlobalShadows) end
 						else
-							const v=st.safeGet(Lighting,"GlobalShadows") if v~=nil then st.fb.baseline.GlobalShadows=v end
+							const v=st.safeGet(Services.Lighting,"GlobalShadows") if v~=nil then st.fb.baseline.GlobalShadows=v end
 						end
 					end) end)
 				st.hook("fb_ambient", function() return __lt.cm("Lighting", "GetPropertyChangedSignal", "Ambient"):Connect(function()
 						if st.fb and st.fb.enabled then
-							if st.safeGet(Lighting,"Ambient") ~= st.fb.target.Ambient then st.safeSet(Lighting,"Ambient",st.fb.target.Ambient) end
+							if st.safeGet(Services.Lighting,"Ambient") ~= st.fb.target.Ambient then st.safeSet(Services.Lighting,"Ambient",st.fb.target.Ambient) end
 						else
-							st.fb.baseline.Ambient = st.safeGet(Lighting,"Ambient") or st.fb.baseline.Ambient
+							st.fb.baseline.Ambient = st.safeGet(Services.Lighting,"Ambient") or st.fb.baseline.Ambient
 						end
 					end) end)
-				st.hook("fb_loop", function() return RunService.RenderStepped:Connect(function()
+				st.hook("fb_loop", function() return Services.RunService.RenderStepped:Connect(function()
 						if not (st.fb and st.fb.enabled) then return end
-						if st.safeGet(Lighting,"Brightness") ~= st.fb.target.Brightness then st.safeSet(Lighting,"Brightness",st.fb.target.Brightness) end
-						if st.safeGet(Lighting,"ClockTime") ~= st.fb.target.ClockTime then st.safeSet(Lighting,"ClockTime",st.fb.target.ClockTime) end
-						if st.safeGet(Lighting,"FogEnd") ~= st.fb.target.FogEnd then st.safeSet(Lighting,"FogEnd",st.fb.target.FogEnd) end
-						const gs = st.safeGet(Lighting,"GlobalShadows")
-						if gs~=nil and gs ~= st.fb.target.GlobalShadows then st.safeSet(Lighting,"GlobalShadows",st.fb.target.GlobalShadows) end
-						if st.safeGet(Lighting,"Ambient") ~= st.fb.target.Ambient then st.safeSet(Lighting,"Ambient",st.fb.target.Ambient) end
+						if st.safeGet(Services.Lighting,"Brightness") ~= st.fb.target.Brightness then st.safeSet(Services.Lighting,"Brightness",st.fb.target.Brightness) end
+						if st.safeGet(Services.Lighting,"ClockTime") ~= st.fb.target.ClockTime then st.safeSet(Services.Lighting,"ClockTime",st.fb.target.ClockTime) end
+						if st.safeGet(Services.Lighting,"FogEnd") ~= st.fb.target.FogEnd then st.safeSet(Services.Lighting,"FogEnd",st.fb.target.FogEnd) end
+						const gs = st.safeGet(Services.Lighting,"GlobalShadows")
+						if gs~=nil and gs ~= st.fb.target.GlobalShadows then st.safeSet(Services.Lighting,"GlobalShadows",st.fb.target.GlobalShadows) end
+						if st.safeGet(Services.Lighting,"Ambient") ~= st.fb.target.Ambient then st.safeSet(Services.Lighting,"Ambient",st.fb.target.Ambient) end
 					end) end)
 			end
 		end
 		if not st.applyFB then
 			st.applyFB = function()
-				st.safeSet(Lighting,"Brightness",st.fb.target.Brightness)
-				st.safeSet(Lighting,"ClockTime",st.fb.target.ClockTime)
-				st.safeSet(Lighting,"FogEnd",st.fb.target.FogEnd)
-				st.safeSet(Lighting,"GlobalShadows",st.fb.target.GlobalShadows)
-				st.safeSet(Lighting,"Ambient",st.fb.target.Ambient)
+				st.safeSet(Services.Lighting,"Brightness",st.fb.target.Brightness)
+				st.safeSet(Services.Lighting,"ClockTime",st.fb.target.ClockTime)
+				st.safeSet(Services.Lighting,"FogEnd",st.fb.target.FogEnd)
+				st.safeSet(Services.Lighting,"GlobalShadows",st.fb.target.GlobalShadows)
+				st.safeSet(Services.Lighting,"Ambient",st.fb.target.Ambient)
 			end
 		end
 		if not st.restoreFB then
 			st.restoreFB = function()
-				st.safeSet(Lighting,"Brightness",st.fb.baseline.Brightness)
-				st.safeSet(Lighting,"ClockTime",st.fb.baseline.ClockTime)
-				st.safeSet(Lighting,"FogEnd",st.fb.baseline.FogEnd)
-				st.safeSet(Lighting,"GlobalShadows",st.fb.baseline.GlobalShadows)
-				st.safeSet(Lighting,"Ambient",st.fb.baseline.Ambient)
+				st.safeSet(Services.Lighting,"Brightness",st.fb.baseline.Brightness)
+				st.safeSet(Services.Lighting,"ClockTime",st.fb.baseline.ClockTime)
+				st.safeSet(Services.Lighting,"FogEnd",st.fb.baseline.FogEnd)
+				st.safeSet(Services.Lighting,"GlobalShadows",st.fb.baseline.GlobalShadows)
+				st.safeSet(Services.Lighting,"Ambient",st.fb.baseline.Ambient)
 			end
 		end
 		if not st.toggleFB then
@@ -101601,31 +101875,31 @@ cmd.add({"loopfullbright","loopfb","lfb"},{"loopfullbright","Sunshiiiine!"},func
 end)
 
 cmd.add({"unloopfullbright","unloopfb","unlfb"},{"unloopfullbright","No more sunshine"},function()
-	if not Lighting then return end
+	if not Services.Lighting then return end
 	const st = NAmanage._ensureL()
 	const function ensureFB()
 		st.fb = st.fb or {init=false,enabled=false,baseline={},target={Brightness=1,ClockTime=12,FogEnd=786543,GlobalShadows=false,Ambient=Color3.fromRGB(178,178,178)}}
-		if st.fb.baseline.Brightness == nil then st.fb.baseline.Brightness = st.safeGet(Lighting,"Brightness") or 2 end
-		if st.fb.baseline.ClockTime == nil then st.fb.baseline.ClockTime = st.safeGet(Lighting,"ClockTime") or 12 end
-		if st.fb.baseline.FogEnd == nil then st.fb.baseline.FogEnd = st.safeGet(Lighting,"FogEnd") or 100000 end
-		if st.fb.baseline.GlobalShadows == nil then const v=st.safeGet(Lighting,"GlobalShadows") st.fb.baseline.GlobalShadows = v~=nil and v or true end
-		if st.fb.baseline.Ambient == nil then st.fb.baseline.Ambient = st.safeGet(Lighting,"Ambient") or Color3.fromRGB(128,128,128) end
+		if st.fb.baseline.Brightness == nil then st.fb.baseline.Brightness = st.safeGet(Services.Lighting,"Brightness") or 2 end
+		if st.fb.baseline.ClockTime == nil then st.fb.baseline.ClockTime = st.safeGet(Services.Lighting,"ClockTime") or 12 end
+		if st.fb.baseline.FogEnd == nil then st.fb.baseline.FogEnd = st.safeGet(Services.Lighting,"FogEnd") or 100000 end
+		if st.fb.baseline.GlobalShadows == nil then const v=st.safeGet(Services.Lighting,"GlobalShadows") st.fb.baseline.GlobalShadows = v~=nil and v or true end
+		if st.fb.baseline.Ambient == nil then st.fb.baseline.Ambient = st.safeGet(Services.Lighting,"Ambient") or Color3.fromRGB(128,128,128) end
 		if not st.applyFB then
 			st.applyFB = function()
-				st.safeSet(Lighting,"Brightness",st.fb.target.Brightness)
-				st.safeSet(Lighting,"ClockTime",st.fb.target.ClockTime)
-				st.safeSet(Lighting,"FogEnd",st.fb.target.FogEnd)
-				st.safeSet(Lighting,"GlobalShadows",st.fb.target.GlobalShadows)
-				st.safeSet(Lighting,"Ambient",st.fb.target.Ambient)
+				st.safeSet(Services.Lighting,"Brightness",st.fb.target.Brightness)
+				st.safeSet(Services.Lighting,"ClockTime",st.fb.target.ClockTime)
+				st.safeSet(Services.Lighting,"FogEnd",st.fb.target.FogEnd)
+				st.safeSet(Services.Lighting,"GlobalShadows",st.fb.target.GlobalShadows)
+				st.safeSet(Services.Lighting,"Ambient",st.fb.target.Ambient)
 			end
 		end
 		if not st.restoreFB then
 			st.restoreFB = function()
-				st.safeSet(Lighting,"Brightness",st.fb.baseline.Brightness)
-				st.safeSet(Lighting,"ClockTime",st.fb.baseline.ClockTime)
-				st.safeSet(Lighting,"FogEnd",st.fb.baseline.FogEnd)
-				st.safeSet(Lighting,"GlobalShadows",st.fb.baseline.GlobalShadows)
-				st.safeSet(Lighting,"Ambient",st.fb.baseline.Ambient)
+				st.safeSet(Services.Lighting,"Brightness",st.fb.baseline.Brightness)
+				st.safeSet(Services.Lighting,"ClockTime",st.fb.baseline.ClockTime)
+				st.safeSet(Services.Lighting,"FogEnd",st.fb.baseline.FogEnd)
+				st.safeSet(Services.Lighting,"GlobalShadows",st.fb.baseline.GlobalShadows)
+				st.safeSet(Services.Lighting,"Ambient",st.fb.baseline.Ambient)
 			end
 		end
 	end
@@ -101636,80 +101910,80 @@ cmd.add({"unloopfullbright","unloopfb","unlfb"},{"unloopfullbright","No more sun
 end)
 
 cmd.add({"loopnight","loopn","ln"},{"loopnight","Moonlight."},function()
-	if not Lighting then return end
+	if not Services.Lighting then return end
 	const st = NAmanage._ensureL()
 	st.cancelFor("night")
 	const function ensureNB()
 		st.nb = st.nb or {init=false,enabled=false,baseline={},target={Brightness=1,ClockTime=0,FogEnd=786543,GlobalShadows=false,Ambient=Color3.fromRGB(178,178,178)}}
-		if st.nb.baseline.Brightness == nil then st.nb.baseline.Brightness = st.safeGet(Lighting,"Brightness") or 2 end
-		if st.nb.baseline.ClockTime == nil then st.nb.baseline.ClockTime = st.safeGet(Lighting,"ClockTime") or 12 end
-		if st.nb.baseline.FogEnd == nil then st.nb.baseline.FogEnd = st.safeGet(Lighting,"FogEnd") or 100000 end
-		if st.nb.baseline.GlobalShadows == nil then const v=st.safeGet(Lighting,"GlobalShadows") st.nb.baseline.GlobalShadows = v~=nil and v or true end
-		if st.nb.baseline.Ambient == nil then st.nb.baseline.Ambient = st.safeGet(Lighting,"Ambient") or Color3.fromRGB(128,128,128) end
+		if st.nb.baseline.Brightness == nil then st.nb.baseline.Brightness = st.safeGet(Services.Lighting,"Brightness") or 2 end
+		if st.nb.baseline.ClockTime == nil then st.nb.baseline.ClockTime = st.safeGet(Services.Lighting,"ClockTime") or 12 end
+		if st.nb.baseline.FogEnd == nil then st.nb.baseline.FogEnd = st.safeGet(Services.Lighting,"FogEnd") or 100000 end
+		if st.nb.baseline.GlobalShadows == nil then const v=st.safeGet(Services.Lighting,"GlobalShadows") st.nb.baseline.GlobalShadows = v~=nil and v or true end
+		if st.nb.baseline.Ambient == nil then st.nb.baseline.Ambient = st.safeGet(Services.Lighting,"Ambient") or Color3.fromRGB(128,128,128) end
 		if not st.initNB then
 			st.initNB = function()
 				st.hook("nb_brightness", function() return __lt.cm("Lighting", "GetPropertyChangedSignal", "Brightness"):Connect(function()
 						if st.nb and st.nb.enabled then
-							if st.safeGet(Lighting,"Brightness") ~= st.nb.target.Brightness then st.safeSet(Lighting,"Brightness",st.nb.target.Brightness) end
+							if st.safeGet(Services.Lighting,"Brightness") ~= st.nb.target.Brightness then st.safeSet(Services.Lighting,"Brightness",st.nb.target.Brightness) end
 						else
-							st.nb.baseline.Brightness = st.safeGet(Lighting,"Brightness") or st.nb.baseline.Brightness
+							st.nb.baseline.Brightness = st.safeGet(Services.Lighting,"Brightness") or st.nb.baseline.Brightness
 						end
 					end) end)
 				st.hook("nb_clocktime", function() return __lt.cm("Lighting", "GetPropertyChangedSignal", "ClockTime"):Connect(function()
 						if st.nb and st.nb.enabled then
-							if st.safeGet(Lighting,"ClockTime") ~= st.nb.target.ClockTime then st.safeSet(Lighting,"ClockTime",st.nb.target.ClockTime) end
+							if st.safeGet(Services.Lighting,"ClockTime") ~= st.nb.target.ClockTime then st.safeSet(Services.Lighting,"ClockTime",st.nb.target.ClockTime) end
 						else
-							st.nb.baseline.ClockTime = st.safeGet(Lighting,"ClockTime") or st.nb.baseline.ClockTime
+							st.nb.baseline.ClockTime = st.safeGet(Services.Lighting,"ClockTime") or st.nb.baseline.ClockTime
 						end
 					end) end)
 				st.hook("nb_fogend", function() return __lt.cm("Lighting", "GetPropertyChangedSignal", "FogEnd"):Connect(function()
 						if st.nb and st.nb.enabled then
-							if st.safeGet(Lighting,"FogEnd") ~= st.nb.target.FogEnd then st.safeSet(Lighting,"FogEnd",st.nb.target.FogEnd) end
+							if st.safeGet(Services.Lighting,"FogEnd") ~= st.nb.target.FogEnd then st.safeSet(Services.Lighting,"FogEnd",st.nb.target.FogEnd) end
 						else
-							st.nb.baseline.FogEnd = st.safeGet(Lighting,"FogEnd") or st.nb.baseline.FogEnd
+							st.nb.baseline.FogEnd = st.safeGet(Services.Lighting,"FogEnd") or st.nb.baseline.FogEnd
 						end
 					end) end)
 				st.hook("nb_shadows", function() return __lt.cm("Lighting", "GetPropertyChangedSignal", "GlobalShadows"):Connect(function()
 						if st.nb and st.nb.enabled then
-							if st.safeGet(Lighting,"GlobalShadows") ~= st.nb.target.GlobalShadows then st.safeSet(Lighting,"GlobalShadows",st.nb.target.GlobalShadows) end
+							if st.safeGet(Services.Lighting,"GlobalShadows") ~= st.nb.target.GlobalShadows then st.safeSet(Services.Lighting,"GlobalShadows",st.nb.target.GlobalShadows) end
 						else
-							const v=st.safeGet(Lighting,"GlobalShadows") if v~=nil then st.nb.baseline.GlobalShadows=v end
+							const v=st.safeGet(Services.Lighting,"GlobalShadows") if v~=nil then st.nb.baseline.GlobalShadows=v end
 						end
 					end) end)
 				st.hook("nb_ambient", function() return __lt.cm("Lighting", "GetPropertyChangedSignal", "Ambient"):Connect(function()
 						if st.nb and st.nb.enabled then
-							if st.safeGet(Lighting,"Ambient") ~= st.nb.target.Ambient then st.safeSet(Lighting,"Ambient",st.nb.target.Ambient) end
+							if st.safeGet(Services.Lighting,"Ambient") ~= st.nb.target.Ambient then st.safeSet(Services.Lighting,"Ambient",st.nb.target.Ambient) end
 						else
-							st.nb.baseline.Ambient = st.safeGet(Lighting,"Ambient") or st.nb.baseline.Ambient
+							st.nb.baseline.Ambient = st.safeGet(Services.Lighting,"Ambient") or st.nb.baseline.Ambient
 						end
 					end) end)
-				st.hook("nb_loop", function() return RunService.RenderStepped:Connect(function()
+				st.hook("nb_loop", function() return Services.RunService.RenderStepped:Connect(function()
 						if not (st.nb and st.nb.enabled) then return end
-						if st.safeGet(Lighting,"Brightness") ~= st.nb.target.Brightness then st.safeSet(Lighting,"Brightness",st.nb.target.Brightness) end
-						if st.safeGet(Lighting,"ClockTime") ~= st.nb.target.ClockTime then st.safeSet(Lighting,"ClockTime",st.nb.target.ClockTime) end
-						if st.safeGet(Lighting,"FogEnd") ~= st.nb.target.FogEnd then st.safeSet(Lighting,"FogEnd",st.nb.target.FogEnd) end
-						const gs = st.safeGet(Lighting,"GlobalShadows")
-						if gs~=nil and gs ~= st.nb.target.GlobalShadows then st.safeSet(Lighting,"GlobalShadows",st.nb.target.GlobalShadows) end
-						if st.safeGet(Lighting,"Ambient") ~= st.nb.target.Ambient then st.safeSet(Lighting,"Ambient",st.nb.target.Ambient) end
+						if st.safeGet(Services.Lighting,"Brightness") ~= st.nb.target.Brightness then st.safeSet(Services.Lighting,"Brightness",st.nb.target.Brightness) end
+						if st.safeGet(Services.Lighting,"ClockTime") ~= st.nb.target.ClockTime then st.safeSet(Services.Lighting,"ClockTime",st.nb.target.ClockTime) end
+						if st.safeGet(Services.Lighting,"FogEnd") ~= st.nb.target.FogEnd then st.safeSet(Services.Lighting,"FogEnd",st.nb.target.FogEnd) end
+						const gs = st.safeGet(Services.Lighting,"GlobalShadows")
+						if gs~=nil and gs ~= st.nb.target.GlobalShadows then st.safeSet(Services.Lighting,"GlobalShadows",st.nb.target.GlobalShadows) end
+						if st.safeGet(Services.Lighting,"Ambient") ~= st.nb.target.Ambient then st.safeSet(Services.Lighting,"Ambient",st.nb.target.Ambient) end
 					end) end)
 			end
 		end
 		if not st.applyNB then
 			st.applyNB = function()
-				st.safeSet(Lighting,"Brightness",st.nb.target.Brightness)
-				st.safeSet(Lighting,"ClockTime",st.nb.target.ClockTime)
-				st.safeSet(Lighting,"FogEnd",st.nb.target.FogEnd)
-				st.safeSet(Lighting,"GlobalShadows",st.nb.target.GlobalShadows)
-				st.safeSet(Lighting,"Ambient",st.nb.target.Ambient)
+				st.safeSet(Services.Lighting,"Brightness",st.nb.target.Brightness)
+				st.safeSet(Services.Lighting,"ClockTime",st.nb.target.ClockTime)
+				st.safeSet(Services.Lighting,"FogEnd",st.nb.target.FogEnd)
+				st.safeSet(Services.Lighting,"GlobalShadows",st.nb.target.GlobalShadows)
+				st.safeSet(Services.Lighting,"Ambient",st.nb.target.Ambient)
 			end
 		end
 		if not st.restoreNB then
 			st.restoreNB = function()
-				st.safeSet(Lighting,"Brightness",st.nb.baseline.Brightness)
-				st.safeSet(Lighting,"ClockTime",st.nb.baseline.ClockTime)
-				st.safeSet(Lighting,"FogEnd",st.nb.baseline.FogEnd)
-				st.safeSet(Lighting,"GlobalShadows",st.nb.baseline.GlobalShadows)
-				st.safeSet(Lighting,"Ambient",st.nb.baseline.Ambient)
+				st.safeSet(Services.Lighting,"Brightness",st.nb.baseline.Brightness)
+				st.safeSet(Services.Lighting,"ClockTime",st.nb.baseline.ClockTime)
+				st.safeSet(Services.Lighting,"FogEnd",st.nb.baseline.FogEnd)
+				st.safeSet(Services.Lighting,"GlobalShadows",st.nb.baseline.GlobalShadows)
+				st.safeSet(Services.Lighting,"Ambient",st.nb.baseline.Ambient)
 			end
 		end
 		if not st.toggleNB then
@@ -101725,17 +101999,17 @@ cmd.add({"loopnight","loopn","ln"},{"loopnight","Moonlight."},function()
 end)
 
 cmd.add({"unloopnight","unloopn","unln"},{"unloopnight","No more moonlight."},function()
-	if not Lighting then return end
+	if not Services.Lighting then return end
 	const st = NAmanage._ensureL()
 	const function ensureNB()
 		st.nb = st.nb or {init=false,enabled=false,baseline={},target={Brightness=1,ClockTime=0,FogEnd=786543,GlobalShadows=false,Ambient=Color3.fromRGB(178,178,178)}}
 		if not st.restoreNB then
 			st.restoreNB = function()
-				st.safeSet(Lighting,"Brightness",st.nb.baseline.Brightness)
-				st.safeSet(Lighting,"ClockTime",st.nb.baseline.ClockTime)
-				st.safeSet(Lighting,"FogEnd",st.nb.baseline.FogEnd)
-				st.safeSet(Lighting,"GlobalShadows",st.nb.baseline.GlobalShadows)
-				st.safeSet(Lighting,"Ambient",st.nb.baseline.Ambient)
+				st.safeSet(Services.Lighting,"Brightness",st.nb.baseline.Brightness)
+				st.safeSet(Services.Lighting,"ClockTime",st.nb.baseline.ClockTime)
+				st.safeSet(Services.Lighting,"FogEnd",st.nb.baseline.FogEnd)
+				st.safeSet(Services.Lighting,"GlobalShadows",st.nb.baseline.GlobalShadows)
+				st.safeSet(Services.Lighting,"Ambient",st.nb.baseline.Ambient)
 			end
 		end
 	end
@@ -101746,9 +102020,9 @@ cmd.add({"unloopnight","unloopn","unln"},{"unloopnight","No more moonlight."},fu
 end)
 
 cmd.add({"loopnoeffect","lnoeffect","loopne","lne"},{"loopnoeffect","Keeps Lighting and CurrentCamera effects disabled"},function()
-	if not Lighting then return end
+	if not Services.Lighting then return end
 	const st = NAmanage._ensureL()
-	const w = Workspace
+	const w = Services.Workspace
 	st.ne = st.ne or {init=false,enabled=false,cache=NAmanage.ensureWeakKeyTable(nil),sticky=false}
 	const ne = st.ne
 	ne.cache = NAmanage.ensureWeakKeyTable(ne.cache)
@@ -101784,7 +102058,7 @@ cmd.add({"loopnoeffect","lnoeffect","loopne","lne"},{"loopnoeffect","Keeps Light
 		end
 	end
 	const function processLighting()
-		for _,inst in NAmanage.QueryDescendants(Lighting, "Instance") do disableEffect(inst) end
+		for _,inst in NAmanage.QueryDescendants(Services.Lighting, "Instance") do disableEffect(inst) end
 	end
 	const function processCamera()
 		const cam = w.CurrentCamera
@@ -101826,7 +102100,7 @@ cmd.add({"loopnoeffect","lnoeffect","loopne","lne"},{"loopnoeffect","Keeps Light
 				if not (st.ne and st.ne.enabled) then return end
 				attachCameraWatcher()
 			end) end)
-		st.hook("ne_loop", function() return RunService.RenderStepped:Connect(function()
+		st.hook("ne_loop", function() return Services.RunService.RenderStepped:Connect(function()
 				if not (st.ne and st.ne.enabled) then return end
 				processLighting()
 				processCamera()
@@ -101840,7 +102114,7 @@ cmd.add({"loopnoeffect","lnoeffect","loopne","lne"},{"loopnoeffect","Keeps Light
 end)
 
 cmd.add({"unloopnoeffect","unlnoeffect","unloopne","unlne"},{"unloopnoeffect","Restores Lighting and CurrentCamera effects"},function()
-	if not Lighting then return end
+	if not Services.Lighting then return end
 	const st = _na_env._LState
 	if not st or not st.ne then return end
 	const ne = st.ne
@@ -101868,7 +102142,7 @@ cmd.add({"unloopnoeffect","unlnoeffect","unloopne","unlne"},{"unloopnoeffect","R
 end)
 
 cmd.add({"noeffect","cleareffects","disableeffects"},{"noeffect","Disables Lighting and CurrentCamera effects"},function()
-	if not Lighting then return end
+	if not Services.Lighting then return end
 	const st = NAmanage._ensureL()
 	const function disableEffect(inst)
 		if not inst then return end
@@ -101885,18 +102159,18 @@ cmd.add({"noeffect","cleareffects","disableeffects"},{"noeffect","Disables Light
 			if glare~=nil and glare~=0 then st.safeSet(inst,"Glare",0) end
 		end
 	end
-	for _,inst in NAmanage.QueryDescendants(Lighting, "Instance") do disableEffect(inst) end
-	const cam = Workspace.CurrentCamera
+	for _,inst in NAmanage.QueryDescendants(Services.Lighting, "Instance") do disableEffect(inst) end
+	const cam = Services.Workspace.CurrentCamera
 	if cam then
 		for _,inst in NAmanage.QueryDescendants(cam, "Instance") do disableEffect(inst) end
 	end
 end)
 
 cmd.add({"loopnofog","lnofog","lnf","loopnf"},{"loopnofog","See clearly forever!"},function()
-	if not Lighting then return end
+	if not Services.Lighting then return end
 	const st = NAmanage._ensureL()
 	if st.disableNM then st.disableNM() end
-	st.nf = st.nf or {init=false,enabled=false,baselineFogEnd=st.safeGet(Lighting,"FogEnd") or 100000,baselineFogStart=st.safeGet(Lighting,"FogStart") or 0,cache=NAmanage.ensureWeakKeyTable(nil),sticky=false}
+	st.nf = st.nf or {init=false,enabled=false,baselineFogEnd=st.safeGet(Services.Lighting,"FogEnd") or 100000,baselineFogStart=st.safeGet(Services.Lighting,"FogStart") or 0,cache=NAmanage.ensureWeakKeyTable(nil),sticky=false}
 	const nf = st.nf
 	nf.cache = NAmanage.ensureWeakKeyTable(nf.cache)
 	const function cacheOnce(inst, props)
@@ -101911,9 +102185,9 @@ cmd.add({"loopnofog","lnofog","lnf","loopnf"},{"loopnofog","See clearly forever!
 	end
 	const function enforceNoFog()
 		if not (st.nf and st.nf.enabled) then return end
-		st.safeSet(Lighting,"FogEnd",786543)
-		if st.safeGet(Lighting,"FogStart") ~= nil then
-			st.safeSet(Lighting,"FogStart",0)
+		st.safeSet(Services.Lighting,"FogEnd",786543)
+		if st.safeGet(Services.Lighting,"FogStart") ~= nil then
+			st.safeSet(Services.Lighting,"FogStart",0)
 		end
 		for inst,_ in nf.cache do
 			if inst and inst.Parent then
@@ -101926,25 +102200,25 @@ cmd.add({"loopnofog","lnofog","lnf","loopnf"},{"loopnofog","See clearly forever!
 		local scanAccumulator = 0
 		st.hook("nf_prop_end", function() return __lt.cm("Lighting", "GetPropertyChangedSignal", "FogEnd"):Connect(function()
 				if st.nf and st.nf.enabled then
-					if st.safeGet(Lighting,"FogEnd") ~= 786543 then st.safeSet(Lighting,"FogEnd",786543) end
+					if st.safeGet(Services.Lighting,"FogEnd") ~= 786543 then st.safeSet(Services.Lighting,"FogEnd",786543) end
 				end
 			end) end)
 		st.hook("nf_prop_start", function() return __lt.cm("Lighting", "GetPropertyChangedSignal", "FogStart"):Connect(function()
 				if st.nf and st.nf.enabled then
-					if st.safeGet(Lighting,"FogStart") ~= 0 then st.safeSet(Lighting,"FogStart",0) end
+					if st.safeGet(Services.Lighting,"FogStart") ~= 0 then st.safeSet(Services.Lighting,"FogStart",0) end
 				end
 			end) end)
-		st.hook("nf_added", function() return NAmanage.descAdd(Lighting, function(inst)
+		st.hook("nf_added", function() return NAmanage.descAdd(Services.Lighting, function(inst)
 				if not (st.nf and st.nf.enabled) then return end
 				disableEffect(inst)
 			end) end)
-		st.hook("nf_loop", function() return RunService.RenderStepped:Connect(function(dt)
+		st.hook("nf_loop", function() return Services.RunService.RenderStepped:Connect(function(dt)
 				if not (st.nf and st.nf.enabled) then return end
 				enforceNoFog()
 				scanAccumulator = scanAccumulator + dt
 				if scanAccumulator >= 0.5 then
 					scanAccumulator = 0
-					for _, inst in NAmanage.QueryDescendants(Lighting, "Instance") do
+					for _, inst in NAmanage.QueryDescendants(Services.Lighting, "Instance") do
 						disableEffect(inst)
 					end
 				end
@@ -101953,24 +102227,24 @@ cmd.add({"loopnofog","lnofog","lnf","loopnf"},{"loopnofog","See clearly forever!
 	nf.enabled = true
 	enforceNoFog()
 	nf.sticky = true
-	nf.baselineFogEnd = st.safeGet(Lighting,"FogEnd") or nf.baselineFogEnd
-	nf.baselineFogStart = st.safeGet(Lighting,"FogStart") or nf.baselineFogStart
-	st.safeSet(Lighting,"FogEnd",786543)
-	st.safeSet(Lighting,"FogStart",0)
-	for _,v in NAmanage.QueryDescendants(Lighting, "Instance") do disableEffect(v) end
+	nf.baselineFogEnd = st.safeGet(Services.Lighting,"FogEnd") or nf.baselineFogEnd
+	nf.baselineFogStart = st.safeGet(Services.Lighting,"FogStart") or nf.baselineFogStart
+	st.safeSet(Services.Lighting,"FogEnd",786543)
+	st.safeSet(Services.Lighting,"FogStart",0)
+	for _,v in NAmanage.QueryDescendants(Services.Lighting, "Instance") do disableEffect(v) end
 end)
 
 cmd.add({"unloopnofog","unlnofog","unlnf","unloopnf","unnf"},{"unloopnofog","No more sight."},function()
-	if not Lighting then return end
+	if not Services.Lighting then return end
 	const st = _na_env._LState
 	if not st or not st.nf then return end
 	st.nf.sticky = false
 	st.nf.enabled = false
 	if not ((st.fb and st.fb.enabled) or (st.nb and st.nb.enabled)) then
 		if st.safeSet then
-			st.safeSet(Lighting,"FogEnd",st.nf.baselineFogEnd or 100000)
-			if st.safeGet(Lighting,"FogStart")~=nil then
-				st.safeSet(Lighting,"FogStart",st.nf.baselineFogStart or 0)
+			st.safeSet(Services.Lighting,"FogEnd",st.nf.baselineFogEnd or 100000)
+			if st.safeGet(Services.Lighting,"FogStart")~=nil then
+				st.safeSet(Services.Lighting,"FogStart",st.nf.baselineFogStart or 0)
 			end
 		end
 	end
@@ -101988,7 +102262,7 @@ cmd.add({"unloopnofog","unlnofog","unlnf","unloopnf","unnf"},{"unloopnofog","No 
 end)
 
 cmd.add({"nofog"},{"nofog","Removes all fog from the game"},function()
-	if not Lighting then return end
+	if not Services.Lighting then return end
 	const st = NAmanage._ensureL()
 	const function disableEffect(inst)
 		if inst and inst:IsA("PostEffect") then st.safeSet(inst,"Enabled",false) end
@@ -101998,13 +102272,13 @@ cmd.add({"nofog"},{"nofog","Removes all fog from the game"},function()
 			if st.safeGet(inst,"Glare")~=nil then st.safeSet(inst,"Glare",0) end
 		end
 	end
-	st.safeSet(Lighting,"FogEnd",786543)
-	if st.safeGet(Lighting,"FogStart")~=nil then st.safeSet(Lighting,"FogStart",0) end
-	for _,v in NAmanage.QueryDescendants(Lighting, "Instance") do disableEffect(v) end
+	st.safeSet(Services.Lighting,"FogEnd",786543)
+	if st.safeGet(Services.Lighting,"FogStart")~=nil then st.safeSet(Services.Lighting,"FogStart",0) end
+	for _,v in NAmanage.QueryDescendants(Services.Lighting, "Instance") do disableEffect(v) end
 end)
 
 cmd.add({"nightmare","nm"},{"nightmare","Make it dark and spooky"},function()
-	if not Lighting then return end
+	if not Services.Lighting then return end
 	const st = NAmanage._ensureL()
 	if not st.disableNM then
 		const prevCancel = st.cancelFor
@@ -102037,31 +102311,31 @@ cmd.add({"nightmare","nm"},{"nightmare","Make it dark and spooky"},function()
 	const function ensureEffect(className, key)
 		const name = "NA_nm_"..key
 		local inst = __lt.cm("Lighting", "FindFirstChild", name)
-		if not inst then inst = InstanceNew(className); inst.Name = name; inst.Parent = Lighting end
+		if not inst then inst = InstanceNew(className); inst.Name = name; inst.Parent = Services.Lighting end
 		st.nm.effects[key] = inst
 		return inst
 	end
 	if not st.captureNM then
 		st.captureNM = function()
 			st.nm.baseline = {
-				Brightness = st.safeGet(Lighting,"Brightness") or 2,
-				ClockTime = st.safeGet(Lighting,"ClockTime") or 12,
-				FogStart = st.safeGet(Lighting,"FogStart"),
-				FogEnd = st.safeGet(Lighting,"FogEnd") or 100000,
-				GlobalShadows = st.safeGet(Lighting,"GlobalShadows"),
-				Ambient = st.safeGet(Lighting,"Ambient") or Color3.fromRGB(128,128,128)
+				Brightness = st.safeGet(Services.Lighting,"Brightness") or 2,
+				ClockTime = st.safeGet(Services.Lighting,"ClockTime") or 12,
+				FogStart = st.safeGet(Services.Lighting,"FogStart"),
+				FogEnd = st.safeGet(Services.Lighting,"FogEnd") or 100000,
+				GlobalShadows = st.safeGet(Services.Lighting,"GlobalShadows"),
+				Ambient = st.safeGet(Services.Lighting,"Ambient") or Color3.fromRGB(128,128,128)
 			}
 		end
 	end
 	if not st.applyNM then
 		st.applyNM = function()
 			st.captureNM()
-			st.safeSet(Lighting,"Brightness",st.nm.target.Brightness)
-			st.safeSet(Lighting,"ClockTime",st.nm.target.ClockTime)
-			if st.safeGet(Lighting,"FogStart")~=nil then st.safeSet(Lighting,"FogStart",st.nm.target.FogStart) end
-			st.safeSet(Lighting,"FogEnd",st.nm.target.FogEnd)
-			const gs = st.safeGet(Lighting,"GlobalShadows"); if gs~=nil then st.safeSet(Lighting,"GlobalShadows",st.nm.target.GlobalShadows) end
-			st.safeSet(Lighting,"Ambient",st.nm.target.Ambient)
+			st.safeSet(Services.Lighting,"Brightness",st.nm.target.Brightness)
+			st.safeSet(Services.Lighting,"ClockTime",st.nm.target.ClockTime)
+			if st.safeGet(Services.Lighting,"FogStart")~=nil then st.safeSet(Services.Lighting,"FogStart",st.nm.target.FogStart) end
+			st.safeSet(Services.Lighting,"FogEnd",st.nm.target.FogEnd)
+			const gs = st.safeGet(Services.Lighting,"GlobalShadows"); if gs~=nil then st.safeSet(Services.Lighting,"GlobalShadows",st.nm.target.GlobalShadows) end
+			st.safeSet(Services.Lighting,"Ambient",st.nm.target.Ambient)
 			const cc = ensureEffect("ColorCorrectionEffect","cc")
 			st.safeSet(cc,"Enabled",true)
 			st.safeSet(cc,"Brightness",-0.05)
@@ -102085,12 +102359,12 @@ cmd.add({"nightmare","nm"},{"nightmare","Make it dark and spooky"},function()
 	end
 	if not st.restoreNM then
 		st.restoreNM = function()
-			st.safeSet(Lighting,"Brightness",st.nm.baseline.Brightness)
-			st.safeSet(Lighting,"ClockTime",st.nm.baseline.ClockTime)
-			if st.nm.baseline.FogStart~=nil then st.safeSet(Lighting,"FogStart",st.nm.baseline.FogStart) end
-			st.safeSet(Lighting,"FogEnd",st.nm.baseline.FogEnd)
-			if st.nm.baseline.GlobalShadows~=nil then st.safeSet(Lighting,"GlobalShadows",st.nm.baseline.GlobalShadows) end
-			st.safeSet(Lighting,"Ambient",st.nm.baseline.Ambient)
+			st.safeSet(Services.Lighting,"Brightness",st.nm.baseline.Brightness)
+			st.safeSet(Services.Lighting,"ClockTime",st.nm.baseline.ClockTime)
+			if st.nm.baseline.FogStart~=nil then st.safeSet(Services.Lighting,"FogStart",st.nm.baseline.FogStart) end
+			st.safeSet(Services.Lighting,"FogEnd",st.nm.baseline.FogEnd)
+			if st.nm.baseline.GlobalShadows~=nil then st.safeSet(Services.Lighting,"GlobalShadows",st.nm.baseline.GlobalShadows) end
+			st.safeSet(Services.Lighting,"Ambient",st.nm.baseline.Ambient)
 			for _,inst in st.nm.effects do if inst and inst.Parent then inst:Destroy() end end
 			st.nm.effects = {}
 		end
@@ -102104,31 +102378,31 @@ cmd.add({"nightmare","nm"},{"nightmare","Make it dark and spooky"},function()
 		NAlib.disconnect("nm_ambient")
 		NAlib.disconnect("nm_loop")
 		NAlib.connect("nm_brightness", __lt.cm("Lighting", "GetPropertyChangedSignal", "Brightness"):Connect(function()
-			if st.nm and st.nm.enabled and st.safeGet(Lighting,"Brightness") ~= st.nm.target.Brightness then st.safeSet(Lighting,"Brightness",st.nm.target.Brightness) end
+			if st.nm and st.nm.enabled and st.safeGet(Services.Lighting,"Brightness") ~= st.nm.target.Brightness then st.safeSet(Services.Lighting,"Brightness",st.nm.target.Brightness) end
 		end))
 		NAlib.connect("nm_clocktime", __lt.cm("Lighting", "GetPropertyChangedSignal", "ClockTime"):Connect(function()
-			if st.nm and st.nm.enabled and st.safeGet(Lighting,"ClockTime") ~= st.nm.target.ClockTime then st.safeSet(Lighting,"ClockTime",st.nm.target.ClockTime) end
+			if st.nm and st.nm.enabled and st.safeGet(Services.Lighting,"ClockTime") ~= st.nm.target.ClockTime then st.safeSet(Services.Lighting,"ClockTime",st.nm.target.ClockTime) end
 		end))
 		NAlib.connect("nm_fogstart", __lt.cm("Lighting", "GetPropertyChangedSignal", "FogStart"):Connect(function()
-			if st.nm and st.nm.enabled then const fs = st.safeGet(Lighting,"FogStart"); if fs==nil or fs ~= st.nm.target.FogStart then st.safeSet(Lighting,"FogStart",st.nm.target.FogStart) end end
+			if st.nm and st.nm.enabled then const fs = st.safeGet(Services.Lighting,"FogStart"); if fs==nil or fs ~= st.nm.target.FogStart then st.safeSet(Services.Lighting,"FogStart",st.nm.target.FogStart) end end
 		end))
 		NAlib.connect("nm_fogend", __lt.cm("Lighting", "GetPropertyChangedSignal", "FogEnd"):Connect(function()
-			if st.nm and st.nm.enabled and st.safeGet(Lighting,"FogEnd") ~= st.nm.target.FogEnd then st.safeSet(Lighting,"FogEnd",st.nm.target.FogEnd) end
+			if st.nm and st.nm.enabled and st.safeGet(Services.Lighting,"FogEnd") ~= st.nm.target.FogEnd then st.safeSet(Services.Lighting,"FogEnd",st.nm.target.FogEnd) end
 		end))
 		NAlib.connect("nm_shadows", __lt.cm("Lighting", "GetPropertyChangedSignal", "GlobalShadows"):Connect(function()
-			if st.nm and st.nm.enabled then const gs = st.safeGet(Lighting,"GlobalShadows"); if gs==nil or gs ~= st.nm.target.GlobalShadows then st.safeSet(Lighting,"GlobalShadows",st.nm.target.GlobalShadows) end end
+			if st.nm and st.nm.enabled then const gs = st.safeGet(Services.Lighting,"GlobalShadows"); if gs==nil or gs ~= st.nm.target.GlobalShadows then st.safeSet(Services.Lighting,"GlobalShadows",st.nm.target.GlobalShadows) end end
 		end))
 		NAlib.connect("nm_ambient", __lt.cm("Lighting", "GetPropertyChangedSignal", "Ambient"):Connect(function()
-			if st.nm and st.nm.enabled and st.safeGet(Lighting,"Ambient") ~= st.nm.target.Ambient then st.safeSet(Lighting,"Ambient",st.nm.target.Ambient) end
+			if st.nm and st.nm.enabled and st.safeGet(Services.Lighting,"Ambient") ~= st.nm.target.Ambient then st.safeSet(Services.Lighting,"Ambient",st.nm.target.Ambient) end
 		end))
-		NAlib.connect("nm_loop", RunService.RenderStepped:Connect(function()
+		NAlib.connect("nm_loop", Services.RunService.RenderStepped:Connect(function()
 			if not (st.nm and st.nm.enabled) then return end
-			if st.safeGet(Lighting,"Brightness") ~= st.nm.target.Brightness then st.safeSet(Lighting,"Brightness",st.nm.target.Brightness) end
-			if st.safeGet(Lighting,"ClockTime") ~= st.nm.target.ClockTime then st.safeSet(Lighting,"ClockTime",st.nm.target.ClockTime) end
-			const fs = st.safeGet(Lighting,"FogStart"); if fs==nil or fs ~= st.nm.target.FogStart then st.safeSet(Lighting,"FogStart",st.nm.target.FogStart) end
-			if st.safeGet(Lighting,"FogEnd") ~= st.nm.target.FogEnd then st.safeSet(Lighting,"FogEnd",st.nm.target.FogEnd) end
-			const gs = st.safeGet(Lighting,"GlobalShadows"); if gs==nil or gs ~= st.nm.target.GlobalShadows then st.safeSet(Lighting,"GlobalShadows",st.nm.target.GlobalShadows) end
-			if st.safeGet(Lighting,"Ambient") ~= st.nm.target.Ambient then st.safeSet(Lighting,"Ambient",st.nm.target.Ambient) end
+			if st.safeGet(Services.Lighting,"Brightness") ~= st.nm.target.Brightness then st.safeSet(Services.Lighting,"Brightness",st.nm.target.Brightness) end
+			if st.safeGet(Services.Lighting,"ClockTime") ~= st.nm.target.ClockTime then st.safeSet(Services.Lighting,"ClockTime",st.nm.target.ClockTime) end
+			const fs = st.safeGet(Services.Lighting,"FogStart"); if fs==nil or fs ~= st.nm.target.FogStart then st.safeSet(Services.Lighting,"FogStart",st.nm.target.FogStart) end
+			if st.safeGet(Services.Lighting,"FogEnd") ~= st.nm.target.FogEnd then st.safeSet(Services.Lighting,"FogEnd",st.nm.target.FogEnd) end
+			const gs = st.safeGet(Services.Lighting,"GlobalShadows"); if gs==nil or gs ~= st.nm.target.GlobalShadows then st.safeSet(Services.Lighting,"GlobalShadows",st.nm.target.GlobalShadows) end
+			if st.safeGet(Services.Lighting,"Ambient") ~= st.nm.target.Ambient then st.safeSet(Services.Lighting,"Ambient",st.nm.target.Ambient) end
 			ensureEffect("ColorCorrectionEffect","cc")
 			ensureEffect("BloomEffect","bloom")
 			ensureEffect("DepthOfFieldEffect","dof")
@@ -102168,23 +102442,23 @@ cmd.add({"nightmare","nm"},{"nightmare","Make it dark and spooky"},function()
 end)
 
 cmd.add({"unnightmare","unnm"},{"unnightmare (unnm)","Disable nightmare mode"},function()
-	if not Lighting then return end
+	if not Services.Lighting then return end
 	const st = NAmanage._ensureL()
 	if st.disableNM then st.disableNM() end
 end)
 
 cmd.add({"brightness"},{"brightness <number>","Changes the brightness lighting property"},function(num)
 	loopBrightnessValue = tonumber(num)
-	Lighting.Brightness = loopBrightnessValue
+	Services.Lighting.Brightness = loopBrightnessValue
 end,true)
 
 cmd.add({"loopbrightness","loopbri","loopb"},{"loopbrightness (loopbri,loopb)","Lock the brightness lighting property"},function(num)
 	loopBrightnessValue = tonumber(num)
 	NAlib.disconnect("loopbrightness")
-	Lighting.Brightness = loopBrightnessValue
+	Services.Lighting.Brightness = loopBrightnessValue
 	NAlib.connect("loopbrightness", __lt.cm("Lighting", "GetPropertyChangedSignal", "Brightness"):Connect(function()
-		if Lighting.Brightness ~= loopBrightnessValue then
-			Lighting.Brightness = loopBrightnessValue
+		if Services.Lighting.Brightness ~= loopBrightnessValue then
+			Services.Lighting.Brightness = loopBrightnessValue
 		end
 	end))
 end,true)
@@ -102194,25 +102468,25 @@ cmd.add({"unloopbrightness","unloopbri","unloopb"},{"unloopbrightness (unloopbri
 end)
 
 cmd.add({"globalshadows","gshadows"},{"globalshadows","Enables global shadows"},function()
-	Lighting.GlobalShadows=true
+	Services.Lighting.GlobalShadows=true
 end)
 
 cmd.add({"unglobalshadows","nogshadows","ungshadows","noglobalshadows"},{"unglobalshadows (nogshadows,ungshadows,noglobalshadows)","Disables global shadows"},function()
-	Lighting.GlobalShadows=false
+	Services.Lighting.GlobalShadows=false
 end)
 
 cmd.add({"gamma", "exposure"},{"gamma (exposure)","gamma vision (real)"},function(num)
 	expose = tonumber(num) or 0
-	Lighting.ExposureCompensation = expose
+	Services.Lighting.ExposureCompensation = expose
 end,true)
 
 cmd.add({"loopgamma", "loopexposure"},{"loopgamma (loopexposure)","loop gamma vision (mega real)"},function(num)
 	expose = tonumber(num) or 0
 	NAlib.disconnect("loopgamma")
-	Lighting.ExposureCompensation = expose
+	Services.Lighting.ExposureCompensation = expose
 	NAlib.connect("loopgamma", __lt.cm("Lighting", "GetPropertyChangedSignal", "ExposureCompensation"):Connect(function()
-		if Lighting.ExposureCompensation ~= expose then
-			Lighting.ExposureCompensation = expose
+		if Services.Lighting.ExposureCompensation ~= expose then
+			Services.Lighting.ExposureCompensation = expose
 		end
 	end))
 end, true)
@@ -102237,7 +102511,7 @@ NAStuff.loopZoomState.minApply = false
 originalIO.applyLoopMaxZoom=function()
 	const z = NAStuff.loopZoomState
 	if not z or z.max == nil or z.maxApply then return true end
-	const p = Players.LocalPlayer
+	const p = Services.Players.LocalPlayer
 	if not p then return false end
 	if p.CameraMaxZoomDistance ~= z.max then
 		z.maxApply = true
@@ -102258,7 +102532,7 @@ end
 originalIO.applyLoopMinZoom=function()
 	const z = NAStuff.loopZoomState
 	if not z or z.min == nil or z.minApply then return true end
-	const p = Players.LocalPlayer
+	const p = Services.Players.LocalPlayer
 	if not p then return false end
 	if p.CameraMinZoomDistance ~= z.min then
 		z.minApply = true
@@ -102281,7 +102555,7 @@ originalIO.startLoopMaxZoom=function(num)
 	NAStuff.loopZoomState.max = num
 	NAStuff.loopZoomState.maxApply = false
 	NAlib.disconnect("loopmaxzoom")
-	const p = Players.LocalPlayer
+	const p = Services.Players.LocalPlayer
 	if p then
 		if not originalIO.applyLoopMaxZoom() then return end
 		if NAStuff.loopZoomState.max ~= nil then
@@ -102296,7 +102570,7 @@ originalIO.startLoopMinZoom=function(num)
 	NAStuff.loopZoomState.min = num
 	NAStuff.loopZoomState.minApply = false
 	NAlib.disconnect("loopminzoom")
-	const p = Players.LocalPlayer
+	const p = Services.Players.LocalPlayer
 	if p then
 		if not originalIO.applyLoopMinZoom() then return end
 		if NAStuff.loopZoomState.min ~= nil then
@@ -102324,7 +102598,7 @@ end
 
 cmd.add({"maxzoom"},{"maxzoom <amount>","Set your maximum camera distance"},function(num)
 	const num=tonumber(num) or 128
-	Players.LocalPlayer.CameraMaxZoomDistance=num
+	Services.Players.LocalPlayer.CameraMaxZoomDistance=num
 end,true)
 
 cmd.add({"minzoom"},{"minzoom <amount>","Set your minimum camera distance"},function(...)
@@ -102336,7 +102610,7 @@ cmd.add({"minzoom"},{"minzoom <amount>","Set your minimum camera distance"},func
 	else
 		num=tonumber(num)
 	end
-	Players.LocalPlayer.CameraMinZoomDistance=num
+	Services.Players.LocalPlayer.CameraMinZoomDistance=num
 end,true)
 
 cmd.add({"loopmaxzoom","lmaxzoom","lmzoom","lmz","forcemaxzoom","fmaxzoom"},{"loopmaxzoom <amount> (lmaxzoom,lmzoom,lmz,forcemaxzoom,fmaxzoom)","Loop your maximum camera distance and restore it when changed"},function(num)
@@ -102375,8 +102649,8 @@ cmd.add({"unloopminzoom","unlminzoom","unlnzoom","unlnz","unforceminzoom","unfmi
 end)
 
 cmd.add({"cameranoclip","camnoclip","cnoclip","nccam"},{"cameranoclip (camnoclip,cnoclip,nccam)","Makes your camera clip through walls"}, function()
-	const player = Players.LocalPlayer
-	const camera = Workspace.CurrentCamera
+	const player = Services.Players.LocalPlayer
+	const camera = Services.Workspace.CurrentCamera
 
 	const SetConstant = (debug and debug.setconstant) or setconstant
 	const GetConstants = (debug and debug.getconstants) or getconstants
@@ -102468,8 +102742,8 @@ cmd.add({"cameranoclip","camnoclip","cnoclip","nccam"},{"cameranoclip (camnoclip
 end)
 
 cmd.add({"uncameranoclip","uncamnoclip","uncnoclip","unnccam"},{"uncameranoclip (uncamnoclip,uncnoclip,unnccam)","Restores normal camera"}, function()
-	const player = Players.LocalPlayer
-	const camera = Workspace.CurrentCamera
+	const player = Services.Players.LocalPlayer
+	const camera = Services.Workspace.CurrentCamera
 
 	const SetConstant = (debug and debug.setconstant) or setconstant
 	const GetConstants = (debug and debug.getconstants) or getconstants
@@ -102544,7 +102818,7 @@ cmd.add({"toolinvisible", "tinvis"}, {"toolinvisible (tinvis)", "Be invisible wh
 		end
 	end
 
-	const tool = InstanceNew("Tool", Players.LocalPlayer.Backpack)
+	const tool = InstanceNew("Tool", Services.Players.LocalPlayer.Backpack)
 	tool.Name = "Turn Invisible"
 	tool.RequiresHandle = false
 	tool.CanBeDropped = false
@@ -102562,7 +102836,7 @@ cmd.add({"toolinvisible", "tinvis"}, {"toolinvisible (tinvis)", "Be invisible wh
 				weld:Destroy()
 			end
 
-			handle = InstanceNew("Part", Workspace)
+			handle = InstanceNew("Part", Services.Workspace)
 			handle.Name = "Handle"
 			handle.Transparency = 1
 			handle.CanCollide = false
@@ -102574,12 +102848,12 @@ cmd.add({"toolinvisible", "tinvis"}, {"toolinvisible (tinvis)", "Be invisible wh
 			weld.C0 = CFrame.new(0, offset - 1.5, 0)
 
 			setDisplayDistance(offset + 100)
-			Workspace.CurrentCamera.CameraSubject = handle
+			Services.Workspace.CurrentCamera.CameraSubject = handle
 			getRoot(getChar()).CFrame = getRoot(getChar()).CFrame * CFrame.new(0, offset, 0)
 			getHum().HipHeight = offset
 			getHum():ChangeState(11)
 
-			for _, child in Players.LocalPlayer.Backpack:GetChildren() do
+			for _, child in Services.Players.LocalPlayer.Backpack:GetChildren() do
 				if child:IsA("Tool") and child ~= tool then
 					grips[child] = child.Grip
 				end
@@ -102601,7 +102875,7 @@ cmd.add({"toolinvisible", "tinvis"}, {"toolinvisible (tinvis)", "Be invisible wh
 
 			for _, child in getChar():GetChildren() do
 				if child:IsA("Tool") then
-					child.Parent = Players.LocalPlayer.Backpack
+					child.Parent = Services.Players.LocalPlayer.Backpack
 				end
 			end
 
@@ -102613,7 +102887,7 @@ cmd.add({"toolinvisible", "tinvis"}, {"toolinvisible (tinvis)", "Be invisible wh
 
 			heldTool = nil
 			setDisplayDistance(100)
-			Workspace.CurrentCamera.CameraSubject = getHum()
+			Services.Workspace.CurrentCamera.CameraSubject = getHum()
 			getRoot(getChar()).CFrame = getRoot(getChar()).CFrame * CFrame.new(0, -offset, 0)
 			getHum().HipHeight = HH
 
@@ -102623,7 +102897,7 @@ cmd.add({"toolinvisible", "tinvis"}, {"toolinvisible (tinvis)", "Be invisible wh
 			end
 		end
 
-		tool.Parent = Players.LocalPlayer.Backpack
+		tool.Parent = Services.Players.LocalPlayer.Backpack
 	end)
 
 	NAmanage.childAdd(getChar(), function(child)
@@ -102642,7 +102916,7 @@ cmd.add({"toolinvisible", "tinvis"}, {"toolinvisible (tinvis)", "Be invisible wh
 
 			getChar().Animate.Disabled = true
 			heldTool.Grip = heldTool.Grip * (CFrame.new(0, offset - 1.5, 1.5) * CFrame.Angles(math.rad(-90), 0, 0))
-			heldTool.Parent = Players.LocalPlayer.Backpack
+			heldTool.Parent = Services.Players.LocalPlayer.Backpack
 			heldTool.Parent = getChar()
 
 			if gripChanged then
@@ -102658,7 +102932,7 @@ cmd.add({"toolinvisible", "tinvis"}, {"toolinvisible (tinvis)", "Be invisible wh
 				if heldTool.Grip ~= lastGrip then
 					lastGrip = heldTool.Grip * (CFrame.new(0, offset - 1.5, 1.5) * CFrame.Angles(math.rad(-90), 0, 0))
 					heldTool.Grip = lastGrip
-					heldTool.Parent = Players.LocalPlayer.Backpack
+					heldTool.Parent = Services.Players.LocalPlayer.Backpack
 					heldTool.Parent = getChar()
 				end
 			end)
@@ -102681,7 +102955,7 @@ cmd.add({"invisible", "invis"},{"invisible (invis)", "Sets invisibility to scare
 		return
 	end
 
-	const Character = Players.LocalPlayer.Character or Players.LocalPlayer.CharacterAdded:Wait()
+	const Character = Services.Players.LocalPlayer.Character or Services.Players.LocalPlayer.CharacterAdded:Wait()
 	Character.Archivable = true
 	OriginalPosition = getRoot(Character).CFrame
 
@@ -102693,9 +102967,9 @@ cmd.add({"invisible", "invis"},{"invisible (invis)", "Sets invisibility to scare
 			InvisibleCharacter:Destroy()
 			InvisibleCharacter = nil
 		end
-		Players.LocalPlayer.Character = Character
-		Character.Parent = Workspace
-		RunService.Heartbeat:Wait()
+		Services.Players.LocalPlayer.Character = Character
+		Character.Parent = Services.Workspace
+		Services.RunService.Heartbeat:Wait()
 		const root = getRoot(Character)
 		if root then
 			NAmanage.UG_setRootCFrame(root, OriginalPosition)
@@ -102708,7 +102982,7 @@ cmd.add({"invisible", "invis"},{"invisible (invis)", "Sets invisibility to scare
 		if not IsInvis then
 			IsInvis = true
 			InvisibleCharacter = Character:Clone()
-			InvisibleCharacter.Parent = Workspace
+			InvisibleCharacter.Parent = Services.Workspace
 			for _, v in InvisibleCharacter:QueryDescendants("BasePart") do
 				v.Transparency = v.Name:lower() == "humanoidrootpart" and 1 or 0.5
 			end
@@ -102718,13 +102992,13 @@ cmd.add({"invisible", "invis"},{"invisible (invis)", "Sets invisibility to scare
 				NAmanage.UG_setRootCFrame(root, CFrame.new(0, math.pi * 1000000, 0))
 			end
 			Wait(0.1)
-			Character.Parent = ReplicatedStorage
+			Character.Parent = Services.ReplicatedStorage
 			const invisRoot = getRoot(InvisibleCharacter)
 			if invisRoot then
 				invisRoot.CFrame = OriginalPosition
 			end
-			Players.LocalPlayer.Character = InvisibleCharacter
-			Workspace.CurrentCamera.CameraSubject = getPlrHum(InvisibleCharacter)
+			Services.Players.LocalPlayer.Character = InvisibleCharacter
+			Services.Workspace.CurrentCamera.CameraSubject = getPlrHum(InvisibleCharacter)
 			DebugNotif("You are now invisible.")
 			__lt.cm("StarterGui", "SetCore", "ResetButtonCallback", false)
 		else
@@ -102737,7 +103011,7 @@ cmd.add({"invisible", "invis"},{"invisible (invis)", "Sets invisibility to scare
 		invisKeybindConnection = nil
 	end
 
-	invisKeybindConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	invisKeybindConnection = Services.UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == InvisBindLol and not gameProcessed then
 			ToggleInvisibility()
 		end
@@ -102794,12 +103068,12 @@ cmd.add({"visible", "vis"}, {"visible", "turn visible"}, function()
 		invisBtnlol:Destroy()
 		invisBtnlol = nil
 	end
-	const Character = Players.LocalPlayer.Character or Players.LocalPlayer.CharacterAdded:Wait()
+	const Character = Services.Players.LocalPlayer.Character or Services.Players.LocalPlayer.CharacterAdded:Wait()
 	if IsInvis then
 		IsInvis = false
 		if InvisibleCharacter then InvisibleCharacter:Destroy() InvisibleCharacter = nil end
-		Players.LocalPlayer.Character = Character
-		Character.Parent = Workspace
+		Services.Players.LocalPlayer.Character = Character
+		Character.Parent = Services.Workspace
 	end
 	DebugNotif("Invisibility Disabled",2)
 end)
@@ -103202,8 +103476,8 @@ do
 			pcall(NAlib.disconnect, "fov_watch_cc")
 		end
 		local ok, conn = pcall(function()
-			return Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
-				FOVhandler.cam = Workspace.CurrentCamera
+			return Services.Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+				FOVhandler.cam = Services.Workspace.CurrentCamera
 			end)
 		end)
 		if ok and conn then
@@ -103212,7 +103486,7 @@ do
 				pcall(NAlib.connect, "fov_watch_cc", conn)
 			end
 		end
-		FOVhandler.cam = Workspace.CurrentCamera
+		FOVhandler.cam = Services.Workspace.CurrentCamera
 	end
 
 	originalIO.FOVstep=function()
@@ -103225,7 +103499,7 @@ do
 			sum += (tonumber(FOVhandler.mem.base[i]) or 0)
 		end
 		const target = (o ~= 0 and o) or sum
-		const cam = Workspace.CurrentCamera; if not cam then return end
+		const cam = Services.Workspace.CurrentCamera; if not cam then return end
 
 		if cam ~= FOVhandler.cam then
 			FOVhandler.cam = cam
@@ -103293,7 +103567,7 @@ do
 			FOVhandler.mem.base[1] = t
 			setFovNumberAttr(parent, FOV_ATTR.base1, t)
 		end
-		const cam = Workspace.CurrentCamera
+		const cam = Services.Workspace.CurrentCamera
 		if cam then
 			const vis = math.clamp(t, 25, 120)
 			__lt.cm("TweenService", "Create", cam, TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {FieldOfView = vis}):Play()
@@ -103311,7 +103585,7 @@ do
 			FOVhandler.cam = nil
 		end
 		disconnectLoopHold()
-		const cam = Workspace.CurrentCamera
+		const cam = Services.Workspace.CurrentCamera
 		if cam then
 			const vis = math.clamp(t, 25, 120)
 			if cam.FieldOfView ~= vis then cam.FieldOfView = vis end
@@ -103381,7 +103655,7 @@ cmd.add({"loadtools", "ltools"}, {"loadtools (ltools)", "Restores your saved too
 end)
 
 cmd.add({"preventtools", "noequip", "antiequip"}, {"preventtools (noequip,antiequip)", "Prevents any item from being equipped"}, function()
-	const p = Players.LocalPlayer
+	const p = Services.Players.LocalPlayer
 	const c = p.Character
 
 	NAlib.disconnect("noequip_char")
@@ -103450,7 +103724,7 @@ NAmanage.isCoreFunc=function(fn)
 	local ok, env = pcall(getfenv, fn)
 	if not ok or type(env) ~= "table" then return false end
 	const sc = rawget(env, "script")
-	return typeof(sc) == "Instance" and sc:IsDescendantOf(COREGUI)
+	return typeof(sc) == "Instance" and sc:IsDescendantOf(Services.CoreGui)
 end
 
 NAmanage.pruneBlockedRemoteState = NAmanage.pruneBlockedRemoteState or function()
@@ -103619,8 +103893,8 @@ cmd.add({"blockremote","br"},{"blockremote [name]","Block a remote event/functio
 				end
 			end
 		end
-		scan(ReplicatedStorage)
-		const plr = Players.LocalPlayer
+		scan(Services.ReplicatedStorage)
+		const plr = Services.Players.LocalPlayer
 		const pg = PlrGui or plr:FindFirstChildOfClass("PlayerGui")
 		if pg then scan(pg) else scan(plr) end
 		return list
@@ -103774,9 +104048,9 @@ NAmanage.StartBypassSpeedLoop = function(val)
 	_na_env.NA_BPS_Val = val
 	NAlib.disconnect("na_bps_apply")
 	NAlib.disconnect("na_bps_char")
-	const plr = Players.LocalPlayer
+	const plr = Services.Players.LocalPlayer
 	NAmanage.ApplyBypassSpeedOnce(val)
-	NAlib.connect("na_bps_apply", RunService.Heartbeat:Connect(function()
+	NAlib.connect("na_bps_apply", Services.RunService.Heartbeat:Connect(function()
 		if not _na_env.NA_BPS_Enabled then return end
 		const hum = getHum()
 		if hum and hum.WalkSpeed ~= _na_env.NA_BPS_Val then
@@ -103845,16 +104119,16 @@ cmd.add({"oofspam"},{"oofspam","Spams oof"},function()
 	Humanoid.BreakJointsOnDeath = false
 	Humanoid.RequiresNeck = false
 
-	NAlib.connect("oofspam_forcerun", RunService.PreSimulation:Connect(function()
+	NAlib.connect("oofspam_forcerun", Services.RunService.PreSimulation:Connect(function()
 		if not Humanoid then return NAlib.disconnect("oofspam_forcerun") end
 		Humanoid:ChangeState(Enum.HumanoidStateType.Running)
 	end))
 
 	LocalPlayer.Character = nil
 	LocalPlayer.Character = Character
-	Wait(Players.RespawnTime + 0.1)
+	Wait(Services.Players.RespawnTime + 0.1)
 
-	NAlib.connect("oofspam_loop", RunService.Heartbeat:Connect(function()
+	NAlib.connect("oofspam_loop", Services.RunService.Heartbeat:Connect(function()
 		if not _na_env.enabled then
 			NAlib.disconnect("oofspam_loop")
 			return
@@ -103885,7 +104159,7 @@ cmd.add({"antierror"}, {"antierror", "Continuously blocks and clears any future 
 	NAlib.disconnect("antierror")
 	NAStuff.AntiErrorState = type(NAStuff.AntiErrorState) == "table" and NAStuff.AntiErrorState or {}
 	NAStuff.AntiErrorState.clearing = false
-	NAlib.connect("antierror", GuiService.ErrorMessageChanged:Connect(function(message)
+	NAlib.connect("antierror", Services.GuiService.ErrorMessageChanged:Connect(function(message)
 		const st = NAStuff.AntiErrorState
 		if type(st) ~= "table" then
 			return
@@ -103896,7 +104170,7 @@ cmd.add({"antierror"}, {"antierror", "Continuously blocks and clears any future 
 		const msg = tostring(message or "")
 		if msg == "" then
 			local ok, current = pcall(function()
-				return GuiService.ErrorMessage
+				return Services.GuiService.ErrorMessage
 			end)
 			if not ok or tostring(current or "") == "" then
 				return
@@ -104070,7 +104344,7 @@ do
 				host = res
 			end
 		end
-		host = host or Workspace
+		host = host or Services.Workspace
 		local folder = state.folder
 		if typeof(folder) == "Instance" and folder.Parent then
 			if folder.Parent ~= host then
@@ -104253,7 +104527,7 @@ do
 			helper.AssemblyLinearVelocity = root.AssemblyLinearVelocity
 			helper.AssemblyAngularVelocity = root.AssemblyAngularVelocity
 		end)
-		helper.Parent = folder or Workspace
+		helper.Parent = folder or Services.Workspace
 		originalIO.bodyModsTrack(objs, helper)
 
 		const pa = originalIO.bodyModsAttachment(helper, "NA_BodyModsFollow", CFrame.new(), objs)
@@ -104346,12 +104620,12 @@ do
 	end
 
 	originalIO.bodyModsGetCharacter = function(waitFor)
-		const character = Players.LocalPlayer and Players.LocalPlayer.Character
+		const character = Services.Players.LocalPlayer and Services.Players.LocalPlayer.Character
 		if character or not waitFor then
 			return character
 		end
 		local ok, result = pcall(function()
-			return Players.LocalPlayer.Character or Players.LocalPlayer.CharacterAdded:Wait()
+			return Services.Players.LocalPlayer.Character or Services.Players.LocalPlayer.CharacterAdded:Wait()
 		end)
 		return ok and result or nil
 	end
@@ -104374,7 +104648,7 @@ do
 	originalIO.bodyModsWaitFor = function(partNames, timeout)
 		const deadline = os.clock() + (timeout or 10)
 		while os.clock() < deadline do
-			const character = Players.LocalPlayer and Players.LocalPlayer.Character
+			const character = Services.Players.LocalPlayer and Services.Players.LocalPlayer.Character
 			if character then
 				for _, name in partNames do
 					const part = character:FindFirstChild(name)
@@ -104406,7 +104680,7 @@ do
 	end
 
 	originalIO.bodyModsGetSkinColor = function()
-		const character = Players.LocalPlayer and Players.LocalPlayer.Character
+		const character = Services.Players.LocalPlayer and Services.Players.LocalPlayer.Character
 		if not character then
 			return Color3.new(1, 0.8, 0.6)
 		end
@@ -104439,12 +104713,12 @@ do
 		if state.colorConn and state.colorConn.Connected then
 			return
 		end
-		state.colorConn = NAlib.reconnect("bodymods_color", RunService.Heartbeat:Connect(function()
+		state.colorConn = NAlib.reconnect("bodymods_color", Services.RunService.Heartbeat:Connect(function()
 			if not originalIO.bodyModsAnyActive() then
 				originalIO.bodyModsDisconnectColorWatcher()
 				return
 			end
-			const character = Players.LocalPlayer and Players.LocalPlayer.Character
+			const character = Services.Players.LocalPlayer and Services.Players.LocalPlayer.Character
 			if not character then
 				return
 			end
@@ -104475,7 +104749,7 @@ do
 
 	originalIO.bodyModsOnAppearanceLoaded = function()
 		Defer(function()
-			const character = Players.LocalPlayer and Players.LocalPlayer.Character
+			const character = Services.Players.LocalPlayer and Services.Players.LocalPlayer.Character
 			if not character then
 				return
 			end
@@ -104620,7 +104894,7 @@ do
 		state.boobs.ccf = nil
 		state.boobs.linit = false
 
-		state.boobs.conn = NAlib.reconnect("bodymods_boobs", RunService.RenderStepped:Connect(function(dt)
+		state.boobs.conn = NAlib.reconnect("bodymods_boobs", Services.RunService.RenderStepped:Connect(function(dt)
 			const currentChar = originalIO.bodyModsGetCharacter()
 			if not currentChar or not currentChar.Parent then
 				return
@@ -104632,7 +104906,7 @@ do
 			const currentHumanoid = currentChar:FindFirstChildOfClass("Humanoid") or humanoid
 			local localVel, localAng, accel, planarSpeed, moveAlpha, grounded
 			dt, localVel, localAng, accel, planarSpeed, moveAlpha, grounded = originalIO.bodyModsMotion(hrp, currentHumanoid, state.boobs, dt)
-			const camera = Workspace.CurrentCamera
+			const camera = Services.Workspace.CurrentCamera
 			local camAng = Vector3.zero
 			if camera and state.boobs.ccf then
 				const rel = state.boobs.ccf:ToObjectSpace(camera.CFrame)
@@ -104640,7 +104914,7 @@ do
 				camAng = originalIO.bodyModsClampVec(Vector3.new(x, y, z) / dt, 18)
 			end
 			state.boobs.ccf = camera and camera.CFrame or nil
-			const useCam = (Players.LocalPlayer and Players.LocalPlayer.CameraMode == Enum.CameraMode.LockFirstPerson) or (UserInputService.MouseBehavior == Enum.MouseBehavior.LockCenter)
+			const useCam = (Services.Players.LocalPlayer and Services.Players.LocalPlayer.CameraMode == Enum.CameraMode.LockFirstPerson) or (Services.UserInputService.MouseBehavior == Enum.MouseBehavior.LockCenter)
 			const angInput = useCam and camAng or localAng
 			const sc = math.clamp((state.boobs.size or 1) / 3, 0.4, 2.4)
 			const air = grounded and 0 or 1
@@ -104683,7 +104957,7 @@ do
 
 		originalIO.bodyModsAppear({ left, right, leftNipple, rightNipple }, 0.35, 0.22)
 		originalIO.bodyModsEnsureColorWatcher()
-		originalIO.bodyModsConnectAppearanceLoaded(Players.LocalPlayer, originalIO.bodyModsOnAppearanceLoaded)
+		originalIO.bodyModsConnectAppearanceLoaded(Services.Players.LocalPlayer, originalIO.bodyModsOnAppearanceLoaded)
 		originalIO.bodyModsEnsureSpawnConnection()
 		DebugNotif("Boobs "..tostring(size),1.5)
 	end
@@ -104773,7 +105047,7 @@ do
 		state.ass.llv = Vector3.zero
 		state.ass.linit = false
 
-		state.ass.conn = NAlib.reconnect("bodymods_ass", RunService.RenderStepped:Connect(function(dt)
+		state.ass.conn = NAlib.reconnect("bodymods_ass", Services.RunService.RenderStepped:Connect(function(dt)
 			const currentChar = originalIO.bodyModsGetCharacter()
 			if not currentChar or not currentChar.Parent then
 				return
@@ -104828,7 +105102,7 @@ do
 
 		originalIO.bodyModsAppear({ left, right }, 0.35, 0.22)
 		originalIO.bodyModsEnsureColorWatcher()
-		originalIO.bodyModsConnectAppearanceLoaded(Players.LocalPlayer, originalIO.bodyModsOnAppearanceLoaded)
+		originalIO.bodyModsConnectAppearanceLoaded(Services.Players.LocalPlayer, originalIO.bodyModsOnAppearanceLoaded)
 		originalIO.bodyModsEnsureSpawnConnection()
 		DebugNotif("Ass "..tostring(size),1.5)
 	end
@@ -104936,7 +105210,7 @@ do
 		state.pp.llv = Vector3.zero
 		state.pp.linit = false
 
-		state.pp.animConn = NAlib.reconnect("bodymods_pp", RunService.RenderStepped:Connect(function(dt)
+		state.pp.animConn = NAlib.reconnect("bodymods_pp", Services.RunService.RenderStepped:Connect(function(dt)
 			const currentChar = originalIO.bodyModsGetCharacter()
 			if not currentChar or not currentChar.Parent then
 				return
@@ -105008,7 +105282,7 @@ do
 
 		originalIO.bodyModsAppear({ leftBall, rightBall, shaft, tip }, 0.35, 0.22)
 		originalIO.bodyModsEnsureColorWatcher()
-		originalIO.bodyModsConnectAppearanceLoaded(Players.LocalPlayer, originalIO.bodyModsOnAppearanceLoaded)
+		originalIO.bodyModsConnectAppearanceLoaded(Services.Players.LocalPlayer, originalIO.bodyModsOnAppearanceLoaded)
 		originalIO.bodyModsEnsureSpawnConnection()
 		DebugNotif("penis "..tostring(value),1.5)
 	end
@@ -105095,12 +105369,12 @@ do
 		if state.spawnConn and state.spawnConn.Connected then
 			return
 		end
-		state.spawnConn = Players.LocalPlayer.CharacterAdded:Connect(originalIO.bodyModsReapplyOnSpawn)
+		state.spawnConn = Services.Players.LocalPlayer.CharacterAdded:Connect(originalIO.bodyModsReapplyOnSpawn)
 	end
 
 	originalIO.bodyModsEnsurePlayerAppearanceHook = function()
 		state.apConn = originalIO.bodyModsDisconnectConnection(state.apConn)
-		state.apConn = originalIO.bodyModsConnectAppearanceLoaded(Players.LocalPlayer, originalIO.bodyModsOnAppearanceLoaded)
+		state.apConn = originalIO.bodyModsConnectAppearanceLoaded(Services.Players.LocalPlayer, originalIO.bodyModsOnAppearanceLoaded)
 	end
 
 	originalIO.bodyModsEnsurePlayerAppearanceHook()
@@ -105147,7 +105421,7 @@ cmd.add({"flingnpcs"}, {"flingnpcs", "Flings NPCs"}, function()
 			hum.HipHeight = 1024
 		end
 	end
-	for _, hum in NAmanage.QueryDescendants(Workspace, "Humanoid") do
+	for _, hum in NAmanage.QueryDescendants(Services.Workspace, "Humanoid") do
 		disappear(hum)
 	end
 end)
@@ -105163,7 +105437,7 @@ cmd.add({"npcfollow"}, {"npcfollow", "Makes NPCS follow you"}, function()
 			hum:MoveTo(targetPos)
 		end
 	end
-	for _, hum in NAmanage.QueryDescendants(Workspace, "Humanoid") do
+	for _, hum in NAmanage.QueryDescendants(Services.Workspace, "Humanoid") do
 		disappear(hum)
 	end
 end)
@@ -105183,7 +105457,7 @@ cmd.add({"loopnpcfollow"}, {"loopnpcfollow", "Makes NPCS follow you in a loop"},
 				hum:MoveTo(targetPos)
 			end
 		end
-		for _, hum in NAmanage.QueryDescendants(Workspace, "Humanoid") do
+		for _, hum in NAmanage.QueryDescendants(Services.Workspace, "Humanoid") do
 			disappear(hum)
 		end
 	until npcfollowloop == false
@@ -105205,7 +105479,7 @@ cmd.add({"sitnpcs"}, {"sitnpcs", "Makes NPCS sit"}, function()
 			end
 		end
 	end
-	for _, hum in NAmanage.QueryDescendants(Workspace, "Humanoid") do
+	for _, hum in NAmanage.QueryDescendants(Services.Workspace, "Humanoid") do
 		disappear(hum)
 	end
 end)
@@ -105222,7 +105496,7 @@ cmd.add({"unsitnpcs"}, {"unsitnpcs", "Makes NPCS unsit"}, function()
 			end
 		end
 	end
-	for _, hum in NAmanage.QueryDescendants(Workspace, "Humanoid") do
+	for _, hum in NAmanage.QueryDescendants(Services.Workspace, "Humanoid") do
 		disappear(hum)
 	end
 end)
@@ -105239,14 +105513,14 @@ cmd.add({"killnpcs"}, {"killnpcs", "Kills NPCs"}, function()
 			end
 		end
 	end
-	for _, hum in NAmanage.QueryDescendants(Workspace, "Humanoid") do
+	for _, hum in NAmanage.QueryDescendants(Services.Workspace, "Humanoid") do
 		disappear(hum)
 	end
 end)
 
 cmd.add({"npcwalkspeed","npcws"},{"npcwalkspeed <speed>","Sets all NPC WalkSpeed to <speed> (default 16)"},function(speedStr)
 	const speed = tonumber(speedStr) or 16
-	for _, hum in NAmanage.QueryDescendants(Workspace, "Humanoid") do
+	for _, hum in NAmanage.QueryDescendants(Services.Workspace, "Humanoid") do
 		if CheckIfNPC(hum.Parent) then
 			const root = getRoot(hum.Parent)
 			if root then hum.WalkSpeed = speed end
@@ -105256,7 +105530,7 @@ end,true)
 
 cmd.add({"npcjumppower","npcjp"},{"npcjumppower <power>","Sets all NPC JumpPower to <power> (default 50)"},function(powerStr)
 	const power=tonumber(powerStr) or 50
-	for _,hum in NAmanage.QueryDescendants(Workspace, "Humanoid") do
+	for _,hum in NAmanage.QueryDescendants(Services.Workspace, "Humanoid") do
 		if CheckIfNPC(hum.Parent) then
 			const root=getRoot(hum.Parent)
 			if root then hum.JumpPower=power end
@@ -105279,7 +105553,7 @@ cmd.add({"bringnpcs"}, {"bringnpcs [distance]", "Brings NPCs"}, function(...)
 			end
 		end
 	end
-	for _, hum in NAmanage.QueryDescendants(Workspace, "Humanoid") do
+	for _, hum in NAmanage.QueryDescendants(Services.Workspace, "Humanoid") do
 		disappear(hum)
 	end
 end)
@@ -105290,13 +105564,13 @@ cmd.add({"loopbringnpcs", "lbnpcs", "loopbnpcs", "lbringnpcs", "lbringnpc", "loo
 	const distance = NAmanage.parseBringDistance(args, 0)
 	if NAlib.isConnected("loopbringnpcs") then NAlib.disconnect("loopbringnpcs") end
 	table.clear(npcCache)
-	for _, hum in NAmanage.QueryDescendants(Workspace, "Humanoid") do
+	for _, hum in NAmanage.QueryDescendants(Services.Workspace, "Humanoid") do
 		if CheckIfNPC(hum.Parent) then
 			Insert(npcCache, hum)
 		end
 	end
 
-	NAlib.connect("loopbringnpcs", RunService.RenderStepped:Connect(function()
+	NAlib.connect("loopbringnpcs", Services.RunService.RenderStepped:Connect(function()
 		local w = 1
 		for i = 1, #npcCache do
 			const hum = npcCache[i]
@@ -105332,9 +105606,9 @@ cmd.add({"unloopbringnpcs", "unlbnpcs", "unloopbnpcs", "unlbringnpcs", "unlbring
 end)
 
 cmd.add({"gotonpcs"}, {"gotonpcs", "Teleports to each NPC"}, function()
-	const LocalPlayer = Players.LocalPlayer
+	const LocalPlayer = Services.Players.LocalPlayer
 	const npcs = {}
-	for _, d in NAmanage.QueryDescendants(Workspace, "Humanoid") do
+	for _, d in NAmanage.QueryDescendants(Services.Workspace, "Humanoid") do
 		if CheckIfNPC(d.Parent) then
 			const root = getRoot(d.Parent)
 			if root then
@@ -105380,7 +105654,7 @@ cmd.add({"actnpc"}, {"actnpc", "Start acting like an NPC"}, function()
 		DebugNotif("Moving to: "..Format("X: %.0f, Y: %.0f, Z: %.0f", targetPos.X, targetPos.Y, targetPos.Z), 1.5)
 	end
 
-	NPCControl.Connection = NAlib.reconnect("actnpc_loop", RunService.Heartbeat:Connect(function(dt)
+	NPCControl.Connection = NAlib.reconnect("actnpc_loop", Services.RunService.Heartbeat:Connect(function(dt)
 		const char = LocalPlayer.Character
 		const hum = getHum()
 		const root = getRoot(char)
@@ -105419,7 +105693,7 @@ cmd.add({"actnpc"}, {"actnpc", "Start acting like an NPC"}, function()
 		const rayParams = RaycastParams.new()
 		rayParams.FilterType = Enum.RaycastFilterType.Blacklist
 		rayParams.FilterDescendantsInstances = {char}
-		const result = Workspace:Raycast(origin, forward * 3 + Vector3.new(0, -2, 0), rayParams)
+		const result = Services.Workspace:Raycast(origin, forward * 3 + Vector3.new(0, -2, 0), rayParams)
 
 		if result and NPCControl._jumpCooldown <= 0 then
 			const part = result.Instance
@@ -105584,7 +105858,7 @@ cmd.add({"clicktouch", "ctouch"}, {"clicktouch (ctouch)", "Click a TouchTransmit
 	end)
 
 	local lastScan = 0
-	NAlib.connect("clicktouch_track", RunService.RenderStepped:Connect(function()
+	NAlib.connect("clicktouch_track", Services.RunService.RenderStepped:Connect(function()
 		if not NAStuff.clicktouchEnabled then
 			return
 		end
@@ -105676,7 +105950,7 @@ cmd.add({"unclickkillnpc", "uncknpc"}, {"unclickkillnpc (uncknpc)", "Disable cli
 end)
 
 cmd.add({"voidnpcs", "vnpcs"}, {"voidnpcs (vnpcs)", "Teleports NPC's to void"}, function()
-	for _, d in NAmanage.QueryDescendants(Workspace, "Humanoid") do
+	for _, d in NAmanage.QueryDescendants(Services.Workspace, "Humanoid") do
 		if CheckIfNPC(d.Parent) then
 			const root = getPlrHum(d.Parent)
 			if root then
@@ -105745,7 +106019,7 @@ cmd.add({"clicknpcws","cnpcws"},{"clicknpcws","Click on an NPC to set its WalkSp
 	clickSpeedEnabled=true
 	if clickSpeedUI then clickSpeedUI:Destroy() end
 	NAlib.disconnect("clickspeed_mouse")
-	const player=Players.LocalPlayer
+	const player=Services.Players.LocalPlayer
 	const mouse=NAmanage.GetMouse(player)
 	clickSpeedUI=InstanceNew("ScreenGui")
 	NAgui.NaProtectUI(clickSpeedUI)
@@ -105810,7 +106084,7 @@ cmd.add({"clicknpcjp","cnpcjp"},{"clicknpcjp","Click on an NPC to set its JumpPo
 	clickJumpEnabled=true
 	if clickJumpUI then clickJumpUI:Destroy() end
 	NAlib.disconnect("clickjump_mouse")
-	const player=Players.LocalPlayer
+	const player=Services.Players.LocalPlayer
 	const mouse=NAmanage.GetMouse(player)
 	clickJumpUI=InstanceNew("ScreenGui")
 	NAgui.NaProtectUI(clickJumpUI)
@@ -106211,7 +106485,7 @@ NAmanage.ExecutorWindowSizing.GetViewport = function()
 	if screenGui and screenGui.AbsoluteSize and screenGui.AbsoluteSize.X > 0 and screenGui.AbsoluteSize.Y > 0 then
 		return screenGui.AbsoluteSize
 	end
-	const cam = Workspace and Workspace.CurrentCamera
+	const cam = Services.Workspace and Services.Workspace.CurrentCamera
 	if cam and cam.ViewportSize and cam.ViewportSize.X > 0 and cam.ViewportSize.Y > 0 then
 		return cam.ViewportSize
 	end
@@ -106229,9 +106503,9 @@ NAmanage.ExecutorWindowSizing.GetSafePad = function()
 	const scale = NAmanage.ExecutorWindowSizing.GetScale()
 	local x = IsOnMobile and 8 or 12
 	local y = IsOnMobile and 8 or 12
-	if GuiService and GuiService.GetGuiInset then
+	if Services.GuiService and Services.GuiService.GetGuiInset then
 		local ok, a, b = pcall(function()
-			return GuiService:GetGuiInset()
+			return Services.GuiService:GetGuiInset()
 		end)
 		if ok and typeof(a) == "Vector2" and typeof(b) == "Vector2" then
 			x += math.max(a.X, b.X) / scale
@@ -106241,9 +106515,9 @@ NAmanage.ExecutorWindowSizing.GetSafePad = function()
 	return x, y
 end
 NAmanage.ExecutorWindowSizing.IsTouchCompact = function(vp)
-	const touch = UserInputService and UserInputService.TouchEnabled
-	const mouse = UserInputService and UserInputService.MouseEnabled
-	const key = UserInputService and UserInputService.KeyboardEnabled
+	const touch = Services.UserInputService and Services.UserInputService.TouchEnabled
+	const mouse = Services.UserInputService and Services.UserInputService.MouseEnabled
+	const key = Services.UserInputService and Services.UserInputService.KeyboardEnabled
 	return IsOnMobile or vp.Y < 620 or vp.X < 900 or (touch and not (mouse or key))
 end
 NAmanage.ExecutorWindowSizing.GetSize = function(baseWidth, baseHeight, config)
@@ -106972,7 +107246,7 @@ NAmanage.ScriptHub_ReadSavedRecords = function()
 	if not okRead or type(raw) ~= "string" or raw == "" then
 		return records
 	end
-	local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+	local okDecode, decoded = pcall(Services.HttpService.JSONDecode, Services.HttpService, raw)
 	if not okDecode or type(decoded) ~= "table" then
 		return records
 	end
@@ -107013,7 +107287,7 @@ NAmanage.ScriptHub_WriteSavedRecords = function(records)
 			})
 		end
 	end
-	local okEncode, encoded = pcall(HttpService.JSONEncode, HttpService, { version = 1; entries = serializable })
+	local okEncode, encoded = pcall(Services.HttpService.JSONEncode, Services.HttpService, { version = 1; entries = serializable })
 	if not okEncode then
 		return false, encoded
 	end
@@ -107817,7 +108091,7 @@ NAmanage.ScriptHub_FetchCatalogGameIcons = function(entries)
 			Headers = { Accept = "application/json" };
 		})
 		if okFetch and type(body) == "string" and body ~= "" then
-			local okDecode, payload = pcall(HttpService.JSONDecode, HttpService, body)
+			local okDecode, payload = pcall(Services.HttpService.JSONDecode, Services.HttpService, body)
 			if okDecode and type(payload) == "table" and type(payload.data) == "table" then
 				decoded = payload
 				break
@@ -107863,7 +108137,7 @@ NAmanage.ScriptHub_FetchCatalogGameNames = function(entries)
 			Headers = { Accept = "application/json" };
 		})
 		if okFetch and type(body) == "string" and body ~= "" then
-			local okDecode, payload = pcall(HttpService.JSONDecode, HttpService, body)
+			local okDecode, payload = pcall(Services.HttpService.JSONDecode, Services.HttpService, body)
 			if okDecode and type(payload) == "table" and type(payload.data) == "table" then
 				decoded = payload
 				break
@@ -108003,7 +108277,7 @@ NAmanage.ScriptHub_ResolveScriptBloxPlaceId = function(data)
 		Headers = { Accept = "application/json" };
 	})
 	if okFetch and type(body) == "string" and body ~= "" then
-		local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, body)
+		local okDecode, decoded = pcall(Services.HttpService.JSONDecode, Services.HttpService, body)
 		const details = okDecode and type(decoded) == "table" and type(decoded.script) == "table" and decoded.script or nil
 		placeId = details and NAmanage.ScriptHub_GetPlaceId(details) or nil
 	end
@@ -108027,7 +108301,7 @@ NAmanage.ScriptHub_ResolveRobloxScriptsPlaceId = function(data)
 	end
 
 	local placeId
-	const query = HttpService:UrlEncode(gameName ~= "" and gameName or tostring(gameData.slug or ""))
+	const query = Services.HttpService:UrlEncode(gameName ~= "" and gameName or tostring(gameData.slug or ""))
 	for _, host in { "apis.roproxy.com", "apis.rotunnel.com", "apis.roblox.com" } do
 		local okFetch, body = NAmanage.HttpGet("https://"..host.."/search-api/omni-search?searchQuery="..query.."&sessionId=na-script-hub", {
 			timeout = 7;
@@ -108035,7 +108309,7 @@ NAmanage.ScriptHub_ResolveRobloxScriptsPlaceId = function(data)
 			Headers = { Accept = "application/json" };
 		})
 		if okFetch and type(body) == "string" and body ~= "" then
-			local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, body)
+			local okDecode, decoded = pcall(Services.HttpService.JSONDecode, Services.HttpService, body)
 			if okDecode and type(decoded) == "table" and type(decoded.searchResults) == "table" then
 				for _, group in decoded.searchResults do
 					if type(group) == "table" and group.contentGroupType == "Game" and type(group.contents) == "table" then
@@ -108113,7 +108387,7 @@ NAmanage.ScriptHub_BuildURL = function(query, page)
 	const hub = NAmanage.ScriptHub
 	query = tostring(query or "")
 	page = math.max(tonumber(page) or 1, 1)
-	local encoded = HttpService:UrlEncode(query)
+	local encoded = Services.HttpService:UrlEncode(query)
 	if hub.engine == "RScripts" then
 		local url = Format("https://rscripts.net/api/v2/scripts?page=%d&orderBy=date&sort=desc", page)
 		if query ~= "" then
@@ -108123,7 +108397,7 @@ NAmanage.ScriptHub_BuildURL = function(query, page)
 	elseif hub.engine == "RobloxScripts" then
 		if #query > 100 then
 			query = Sub(query, 1, 100)
-			encoded = HttpService:UrlEncode(query)
+			encoded = Services.HttpService:UrlEncode(query)
 		end
 		local url = Format("https://robloxscripts.com/api/v1/scripts?page=%d&limit=24&sort=newest", page)
 		if query ~= "" then
@@ -108198,7 +108472,7 @@ NAmanage.ScriptHub_Fetch = function(query, page)
 			NAmanage.ScriptHub_UpdateControls()
 			return
 		end
-		local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, body)
+		local okDecode, decoded = pcall(Services.HttpService.JSONDecode, Services.HttpService, body)
 		if not okDecode or type(decoded) ~= "table" then
 			hub.searching = false
 			NAmanage.ScriptHub_Message("Invalid API response", Color3.fromRGB(120, 55, 65))
@@ -108337,8 +108611,8 @@ NAmanage.ScriptHub_Init = function()
 			Defer(NAmanage.ScriptHub_Render)
 		end
 	end))
-	if Workspace and Workspace.CurrentCamera then
-		NAlib.connect("NAScriptHubResponsive", Workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+	if Services.Workspace and Services.Workspace.CurrentCamera then
+		NAlib.connect("NAScriptHubResponsive", Services.Workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
 			Defer(function()
 				if ui.frame and ui.frame.Parent then
 					NAmanage.ScriptHub_ApplyResponsive(true)
@@ -108950,7 +109224,7 @@ NAmanage.PositionCmdBarAtViewportCenter = function()
 		end
 		return
 	end
-	const camera = Workspace and Workspace.CurrentCamera
+	const camera = Services.Workspace and Services.Workspace.CurrentCamera
 	const viewport = camera and camera.ViewportSize or Vector2.new(1920, 1080)
 	local uiScale = 1
 	if NAUIMANAGER.AUTOSCALER and tonumber(NAUIMANAGER.AUTOSCALER.Scale) then
@@ -108964,8 +109238,8 @@ NAmanage.PositionCmdBarAtViewportCenter = function()
 		centerBar.Size = cmdBarExpandedSize
 	end
 
-	const touchOnly = UserInputService and UserInputService.TouchEnabled
-		and not UserInputService.KeyboardEnabled and not UserInputService.MouseEnabled
+	const touchOnly = Services.UserInputService and Services.UserInputService.TouchEnabled
+		and not Services.UserInputService.KeyboardEnabled and not Services.UserInputService.MouseEnabled
 	const mobileLayout = IsOnMobile == true or touchOnly
 	const compactMobile = mobileLayout and viewport.Y < 620
 	const suggestionLimit = compactMobile and 3 or 5
@@ -109003,8 +109277,8 @@ NAmanage.PositionCmdBarAtViewportCenter = function()
 	local offsetX, offsetY = 0, 0
 	const screenGui = NAStuff and NAStuff.NASCREENGUI
 	const ignoresInset = screenGui and screenGui:IsA("ScreenGui") and screenGui.IgnoreGuiInset == true
-	if not ignoresInset and GuiService and GuiService.GetGuiInset then
-		local ok, topLeft, bottomRight = pcall(GuiService.GetGuiInset, GuiService)
+	if not ignoresInset and Services.GuiService and Services.GuiService.GetGuiInset then
+		local ok, topLeft, bottomRight = pcall(Services.GuiService.GetGuiInset, Services.GuiService)
 		if ok and typeof(topLeft) == "Vector2" and typeof(bottomRight) == "Vector2" then
 			offsetX = math.floor(((topLeft.X - bottomRight.X) * 0.5) + 0.5)
 			offsetY = math.floor(((topLeft.Y - bottomRight.Y) * 0.5) + 0.5)
@@ -109013,15 +109287,15 @@ NAmanage.PositionCmdBarAtViewportCenter = function()
 	bar.Position = UDim2.new(0.5, offsetX, 0.5, offsetY)
 end
 NAmanage.PositionCmdBarAtViewportCenter()
-if Workspace and Workspace.CurrentCamera then
-	NAlib.connect("CmdBarViewportCenter", Workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(NAmanage.PositionCmdBarAtViewportCenter))
+if Services.Workspace and Services.Workspace.CurrentCamera then
+	NAlib.connect("CmdBarViewportCenter", Services.Workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(NAmanage.PositionCmdBarAtViewportCenter))
 end
 if NAUIMANAGER.AUTOSCALER then
 	NAlib.connect("CmdBarUIScale", NAUIMANAGER.AUTOSCALER:GetPropertyChangedSignal("Scale"):Connect(NAmanage.PositionCmdBarAtViewportCenter))
 end
-if GuiService then
+if Services.GuiService then
 	pcall(function()
-		NAlib.connect("CmdBarInsetCenter", GuiService:GetPropertyChangedSignal("TopbarInset"):Connect(NAmanage.PositionCmdBarAtViewportCenter))
+		NAlib.connect("CmdBarInsetCenter", Services.GuiService:GetPropertyChangedSignal("TopbarInset"):Connect(NAmanage.PositionCmdBarAtViewportCenter))
 	end)
 end
 if NAUIMANAGER.cmdExample then
@@ -109147,7 +109421,7 @@ do
 		end
 		local viewport = NAStuff and NAStuff.NASCREENGUI and NAStuff.NASCREENGUI.AbsoluteSize or nil
 		if not viewport or viewport.X <= 0 or viewport.Y <= 0 then
-			viewport = Workspace and Workspace.CurrentCamera and Workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
+			viewport = Services.Workspace and Services.Workspace.CurrentCamera and Services.Workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
 		end
 		const scale = layoutState.GetScale()
 		const maxWidth = math.max(220, math.floor(((viewport.X - 24) / scale) + 0.5))
@@ -109454,7 +109728,7 @@ do
 				or (IsOnMobile and Vector2.new(390, 300) or Vector2.new(520, 360)))
 		local viewport = NAStuff and NAStuff.NASCREENGUI and NAStuff.NASCREENGUI.AbsoluteSize or nil
 		if not viewport or viewport.X <= 0 or viewport.Y <= 0 then
-			viewport = Workspace and Workspace.CurrentCamera and Workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
+			viewport = Services.Workspace and Services.Workspace.CurrentCamera and Services.Workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
 		end
 		const scale = layoutState.GetScale()
 		const maxX = math.max(220, math.floor(((viewport.X - 24) / scale) + 0.5))
@@ -110374,7 +110648,7 @@ do
 						stop = stop
 					};
 					ctrl.scrollBy(delta);
-					endConn = UserInputService.InputEnded:Connect(function(endedInput)
+					endConn = Services.UserInputService.InputEnded:Connect(function(endedInput)
 						if endedInput.UserInputType == Enum.UserInputType.MouseButton1
 							or (endedInput.UserInputType == Enum.UserInputType.Touch and endedInput == pointer) then
 							stop();
@@ -110460,7 +110734,7 @@ do
 					ctrl._thumbDrag = {
 						stop = stop
 					};
-					moveConn = UserInputService.InputChanged:Connect(function(changedInput)
+					moveConn = Services.UserInputService.InputChanged:Connect(function(changedInput)
 						if not active then
 							return;
 						end;
@@ -110484,7 +110758,7 @@ do
 						const percent = trackTravel > 0 and (thumbPos / trackTravel) or 0;
 						ctrl.scrollTo(percent * ctrl.getMaxPosition(target));
 					end);
-					endConn = UserInputService.InputEnded:Connect(function(endedInput)
+					endConn = Services.UserInputService.InputEnded:Connect(function(endedInput)
 						if endedInput.UserInputType == Enum.UserInputType.MouseButton1
 							or (endedInput.UserInputType == Enum.UserInputType.Touch and endedInput == pointer) then
 							stop();
@@ -111935,20 +112209,20 @@ NAmanage.ResolveInstPath = NAmanage.ResolveInstPath or function(path)
 	if lowFirst == "game" then
 		current = game
 	elseif lowFirst == "workspace" then
-		current = Workspace
+		current = Services.Workspace
 	elseif lowFirst == "player" or lowFirst == "localplayer" or lowFirst == "me" then
-		current = Players and Players.LocalPlayer or nil
+		current = Services.Players and Services.Players.LocalPlayer or nil
 	elseif lowFirst == "character" or lowFirst == "char" then
-		const lp = Players and Players.LocalPlayer
+		const lp = Services.Players and Services.Players.LocalPlayer
 		current = lp and lp.Character or nil
 	elseif lowFirst == "playergui" then
-		const lp = Players and Players.LocalPlayer
+		const lp = Services.Players and Services.Players.LocalPlayer
 		current = lp and lp:FindFirstChildOfClass("PlayerGui") or nil
 	elseif lowFirst == "backpack" then
-		const lp = Players and Players.LocalPlayer
+		const lp = Services.Players and Services.Players.LocalPlayer
 		current = lp and lp:FindFirstChildOfClass("Backpack") or nil
 	else
-		current = game:FindFirstChild(first) or Workspace:FindFirstChild(first)
+		current = game:FindFirstChild(first) or Services.Workspace:FindFirstChild(first)
 		startIndex = 2
 	end
 	if not current then
@@ -111984,16 +112258,16 @@ NAmanage.DeleteGuiAtPosition = NAmanage.DeleteGuiAtPosition or function(x, y)
 	if not x or not y then
 		return 0
 	end
-	const lp = Players and Players.LocalPlayer
+	const lp = Services.Players and Services.Players.LocalPlayer
 	const roots = {}
 	const pg = lp and lp:FindFirstChildOfClass("PlayerGui")
 	if pg then roots[#roots + 1] = pg end
-	if COREGUI then roots[#roots + 1] = COREGUI end
+	if Services.CoreGui then roots[#roots + 1] = Services.CoreGui end
 	local hui
 	pcall(function()
 		hui = NAlib.huiGrabber and NAlib.huiGrabber()
 	end)
-	if hui and hui ~= pg and hui ~= COREGUI and hui ~= RawCoreGui then
+	if hui and hui ~= pg and hui ~= Services.CoreGui and hui ~= RawCoreGui then
 		roots[#roots + 1] = hui
 	end
 	const seen = {}
@@ -112158,7 +112432,7 @@ NAmanage.StartSpecificToolRemoval = NAmanage.StartSpecificToolRemoval or functio
 
 	NAmanage.RemoveSpecificToolNow(wanted)
 	bindCurrentContainers()
-	const lp = Players and Players.LocalPlayer
+	const lp = Services.Players and Services.Players.LocalPlayer
 	if lp then
 		rec.conns[#rec.conns + 1] = lp.CharacterAdded:Connect(function(char)
 			if st.specificTools[wanted] ~= rec then
@@ -112267,13 +112541,13 @@ end
 
 NAmanage.FreezeUnanchored = NAmanage.FreezeUnanchored or function()
 	local count = 0
-	for _, inst in Workspace:QueryDescendants("BasePart") do
+	for _, inst in Services.Workspace:QueryDescendants("BasePart") do
 		if NAmanage.FreezeUnanchoredPart(inst) then
 			count += 1
 		end
 	end
 	NAlib.disconnect("freeze_unanchored_added")
-	NAlib.connect("freeze_unanchored_added", Workspace.DescendantAdded:Connect(function(inst)
+	NAlib.connect("freeze_unanchored_added", Services.Workspace.DescendantAdded:Connect(function(inst)
 		if NAmanage.FreezeUnanchoredPart(inst) then
 			DebugNotif("Froze new unanchored part: "..inst.Name, 1)
 		end
@@ -112296,7 +112570,7 @@ cmd.add({"autorespawn", "autore", "arespawn"}, {"autorespawn (autore,arespawn)",
 			st.autoRespawnCFrame = r and r.CFrame or root.CFrame
 		end))
 	end
-	const lp = Players and Players.LocalPlayer
+	const lp = Services.Players and Services.Players.LocalPlayer
 	if lp then
 		bind(lp.Character)
 		NAlib.connect("auto_respawn", lp.CharacterAdded:Connect(function(char)
@@ -112325,15 +112599,15 @@ end)
 
 cmd.add({"guidelete", "gdel", "guidel"}, {"guidelete (gdel,guidel)", "Deletes GUI under mouse with Backspace/Delete, or under tap on mobile"}, function()
 	NAlib.disconnect("gui_delete")
-	NAlib.connect("gui_delete", UserInputService.InputBegan:Connect(function(input, gp)
+	NAlib.connect("gui_delete", Services.UserInputService.InputBegan:Connect(function(input, gp)
 		if gp or not input then return end
 		if input.KeyCode == Enum.KeyCode.Backspace or input.KeyCode == Enum.KeyCode.Delete then
 			local pos
 			pcall(function()
-				pos = UserInputService:GetMouseLocation()
+				pos = Services.UserInputService:GetMouseLocation()
 			end)
 			if not pos then
-				const mouse = Players.LocalPlayer and Players.LocalPlayer:GetMouse()
+				const mouse = Services.Players.LocalPlayer and Services.Players.LocalPlayer:GetMouse()
 				pos = mouse and Vector2.new(mouse.X, mouse.Y) or nil
 			end
 			if pos then
@@ -112342,7 +112616,7 @@ cmd.add({"guidelete", "gdel", "guidel"}, {"guidelete (gdel,guidel)", "Deletes GU
 			end
 		end
 	end))
-	NAlib.connect("gui_delete", UserInputService.TouchTap:Connect(function(positions, gp)
+	NAlib.connect("gui_delete", Services.UserInputService.TouchTap:Connect(function(positions, gp)
 		if gp then return end
 		const pos = type(positions) == "table" and positions[1] or positions
 		if typeof(pos) == "Vector2" then
@@ -112536,7 +112810,7 @@ originalIO.ApplyLastInputPatch = function()
 		table.clear(NAStuff.LastInputConns)
 		table.clear(NAStuff.PreferredInputConns)
 
-		for _, c in getconnections(UserInputService.LastInputTypeChanged) do
+		for _, c in getconnections(Services.UserInputService.LastInputTypeChanged) do
 			Insert(NAStuff.LastInputConns, c)
 			pcall(function()
 				if c.Disable then
@@ -112571,7 +112845,7 @@ originalIO.ApplyLastInputPatch = function()
 		NAlib.connect("NA_LastInputTouch", __lt.cm("GuiService", "GetPropertyChangedSignal", "TouchControlsEnabled"):Connect(function()
 			if IsOnMobile then
 				pcall(function()
-					GuiService.TouchControlsEnabled = true
+					Services.GuiService.TouchControlsEnabled = true
 				end)
 			end
 		end))
@@ -112579,7 +112853,7 @@ originalIO.ApplyLastInputPatch = function()
 		__lt.cm("GuiService", "GetPropertyChangedSignal", "TouchControlsEnabled"):Connect(function()
 			if IsOnMobile then
 				pcall(function()
-					GuiService.TouchControlsEnabled = true
+					Services.GuiService.TouchControlsEnabled = true
 				end)
 			end
 		end)
@@ -112632,7 +112906,7 @@ NAgui.addPatchedLabel=function(text)
 end
 
 NAgui.txtSize=function(ui,x,y)
-	const textService = TextService
+	const textService = Services.TextService
 	if not (textService and ui) then
 		return Vector2.new(0, 0)
 	end
@@ -113100,8 +113374,8 @@ NAmanage.vpSize = function()
 	if sg and sg.AbsoluteSize then
 		vp = sg.AbsoluteSize
 	end
-	if (not vp or vp.X <= 0 or vp.Y <= 0) and Workspace.CurrentCamera then
-		vp = Workspace.CurrentCamera.ViewportSize
+	if (not vp or vp.X <= 0 or vp.Y <= 0) and Services.Workspace.CurrentCamera then
+		vp = Services.Workspace.CurrentCamera.ViewportSize
 	end
 	vp = vp or Vector2.new(1280, 720)
 
@@ -113302,7 +113576,7 @@ NAmanage.Commands_TweenInline = function(object, goals, duration)
 		return false
 	end
 	NAmanage.Commands_StopInlineTween(object)
-	if not TweenService then
+	if not Services.TweenService then
 		for property, value in goals do
 			pcall(function()
 				object[property] = value
@@ -113311,7 +113585,7 @@ NAmanage.Commands_TweenInline = function(object, goals, duration)
 		return false
 	end
 	local ok, tween = pcall(function()
-		return TweenService:Create(
+		return Services.TweenService:Create(
 			object,
 			TweenInfo.new(tonumber(duration) or 0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
 			goals
@@ -114193,8 +114467,8 @@ NAmanage.MusicWindowInit = NAmanage.MusicWindowInit or function()
 		return pcall(makefolder, st.root) == true
 	end
 	const function saveCfg()
-		if not (HttpService and type(writefile) == "function" and safeFolder()) then return false end
-		local ok, data = pcall(HttpService.JSONEncode, HttpService, {
+		if not (Services.HttpService and type(writefile) == "function" and safeFolder()) then return false end
+		local ok, data = pcall(Services.HttpService.JSONEncode, Services.HttpService, {
 			last = st.last or "",
 			vol = st.vol,
 			spd = st.spd,
@@ -114205,12 +114479,12 @@ NAmanage.MusicWindowInit = NAmanage.MusicWindowInit or function()
 		return false
 	end
 	const function loadCfg()
-		if not (HttpService and type(isfile) == "function" and type(readfile) == "function") then return end
+		if not (Services.HttpService and type(isfile) == "function" and type(readfile) == "function") then return end
 		local okFile, has = pcall(isfile, st.cfgPath)
 		if not (okFile and has) then return end
 		local okRead, raw = pcall(readfile, st.cfgPath)
 		if not (okRead and type(raw) == "string" and raw ~= "") then return end
-		local okDec, cfg = pcall(HttpService.JSONDecode, HttpService, raw)
+		local okDec, cfg = pcall(Services.HttpService.JSONDecode, Services.HttpService, raw)
 		if not (okDec and type(cfg) == "table") then return end
 		st.last = tostring(cfg.last or st.last or "")
 		st.vol = math.clamp(tonumber(cfg.vol) or st.vol or 1, 0, 10)
@@ -114649,7 +114923,7 @@ NAmanage.MusicWindowInit = NAmanage.MusicWindowInit or function()
 			setProg(len * a, len)
 		end))
 	end
-	NAlib.connect("NA_MusicPlayer", RunService.Heartbeat:Connect(function(dt)
+	NAlib.connect("NA_MusicPlayer", Services.RunService.Heartbeat:Connect(function(dt)
 		st.tick = (tonumber(st.tick) or 0) + (tonumber(dt) or 0)
 		if st.tick < 0.18 then return end
 		st.tick = 0
@@ -115603,8 +115877,8 @@ NAgui.resizeable = function(ui, min, max)
 	const screenGui = ui:FindFirstAncestorWhichIsA("ScreenGui") or ui:FindFirstAncestorWhichIsA("LayerCollector") or ui.Parent
 	local mouse
 	pcall(function()
-		if Players and Players.LocalPlayer then
-			mouse = NAmanage.GetMouse(Players.LocalPlayer)
+		if Services.Players and Services.Players.LocalPlayer then
+			mouse = NAmanage.GetMouse(Services.Players.LocalPlayer)
 		end
 	end)
 
@@ -115734,8 +116008,8 @@ NAgui.resizeable = function(ui, min, max)
 	const function ensureMouse()
 		if mouse then return mouse end
 		pcall(function()
-			if Players and Players.LocalPlayer then
-				mouse = NAmanage.GetMouse(Players.LocalPlayer)
+			if Services.Players and Services.Players.LocalPlayer then
+				mouse = NAmanage.GetMouse(Services.Players.LocalPlayer)
 			end
 		end)
 		return mouse
@@ -115827,7 +116101,7 @@ NAgui.resizeable = function(ui, min, max)
 
 	local uisChangedConn, uisEndedConn
 	pcall(function()
-		uisChangedConn = UserInputService.InputChanged:Connect(function(input)
+		uisChangedConn = Services.UserInputService.InputChanged:Connect(function(input)
 			pcall(function()
 				if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
 					if input.UserInputType == Enum.UserInputType.Touch and input ~= dragInput then
@@ -115840,7 +116114,7 @@ NAgui.resizeable = function(ui, min, max)
 	end)
 
 	pcall(function()
-		uisEndedConn = UserInputService.InputEnded:Connect(function(input)
+		uisEndedConn = Services.UserInputService.InputEnded:Connect(function(input)
 			pcall(function()
 				if not dragging then return end
 				if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -115995,7 +116269,7 @@ NAmanage.RefreshResizeHandles=function()
 			NAgui.resizeable(NAUIMANAGER.ExecutorFrame, exMin, Vector2.new(5000, 5000))
 		end
 		if NAUIMANAGER.NotepadFrame then
-			const npVp = Workspace.CurrentCamera and Workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
+			const npVp = Services.Workspace.CurrentCamera and Services.Workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
 			const npSmall = IsOnMobile or npVp.X < 720 or npVp.Y < 520
 			const npMin = npSmall and Vector2.new(280, 230) or Vector2.new(460, 340)
 			NAgui.resizeable(NAUIMANAGER.NotepadFrame, npMin, Vector2.new(5000, 5000))
@@ -116167,7 +116441,7 @@ NAgui.atchSettings = function(row, hoverKey, strength)
 	if not (row and row:IsA("GuiObject")) then
 		return
 	end
-	if not (TweenService and NAlib and NAlib.connect and NAlib.disconnect) then
+	if not (Services.TweenService and NAlib and NAlib.connect and NAlib.disconnect) then
 		return
 	end
 
@@ -116382,7 +116656,7 @@ NAgui.getInputTextWidth=function(box, padding)
 	end
 	const measureText = NAgui.getInputMeasureText(box)
 
-	if box.TextScaled and TextService then
+	if box.TextScaled and Services.TextService then
 		local okScaled, sizeScaled = pcall(function()
 			const fontSize = tonumber(box.TextSize) or 14
 			return __lt.cm("TextService", "GetTextSize", measureText, fontSize, box.Font or Enum.Font.SourceSans, Vector2.new(1e4, 1e3))
@@ -116399,7 +116673,7 @@ NAgui.getInputTextWidth=function(box, padding)
 		return bounds.X + padding
 	end
 
-	if TextService then
+	if Services.TextService then
 		local okSize, size = pcall(function()
 			return __lt.cm("TextService", "GetTextSize", measureText, box.TextSize or 14, box.Font or Enum.Font.SourceSans, Vector2.new(1e4, 1e3))
 		end)
@@ -117883,12 +118157,12 @@ NAgui.addInput = function(label, placeholder, defaultText, callback, opts)
 
 	const function startMobileInputPoll()
 		stopMobileInputPoll()
-		if not (RunService and UserInputService and UserInputService.TouchEnabled) then
+		if not (Services.RunService and Services.UserInputService and Services.UserInputService.TouchEnabled) then
 			return
 		end
 
 		local accum = 0
-		mobileInputPollConn = NAlib.reconnect("NAgui_input_mobile_poll:"..tostring(label)..":"..tostring(input.LayoutOrder), RunService.Heartbeat:Connect(function(dt)
+		mobileInputPollConn = NAlib.reconnect("NAgui_input_mobile_poll:"..tostring(label)..":"..tostring(input.LayoutOrder), Services.RunService.Heartbeat:Connect(function(dt)
 			if not (input and input.Parent and box and box.Parent) then
 				stopMobileInputPoll()
 				return
@@ -118529,7 +118803,7 @@ NAgui.addKeybind = function(label, defaultKey, callback)
 		tweenFrameWidth()
 	end))
 
-	NAlib.connect(connKey, UserInputService.InputBegan:Connect(function(input, processed)
+	NAlib.connect(connKey, Services.UserInputService.InputBegan:Connect(function(input, processed)
 		if not input or input.UserInputType ~= Enum.UserInputType.Keyboard then
 			return
 		end
@@ -118850,7 +119124,7 @@ NAgui.addSlider = function(label, min, max, defaultValue, increment, suffix, cal
 
 	const function ensureDragListeners()
 		disconnectDragListeners()
-		dragInputChangedConn = UserInputService.InputChanged:Connect(function(input)
+		dragInputChangedConn = Services.UserInputService.InputChanged:Connect(function(input)
 			if not dragging then
 				return
 			end
@@ -118863,7 +119137,7 @@ NAgui.addSlider = function(label, min, max, defaultValue, increment, suffix, cal
 				queuePointerX(input)
 			end
 		end)
-		dragInputEndedConn = UserInputService.InputEnded:Connect(function(input)
+		dragInputEndedConn = Services.UserInputService.InputEnded:Connect(function(input)
 			if isActiveDragInput(input) then
 				stopDrag()
 			end
@@ -118882,7 +119156,7 @@ NAgui.addSlider = function(label, min, max, defaultValue, increment, suffix, cal
 				end
 			end)
 		end
-		dragStepConn = NAlib.reconnect(connKey..":drag_step", RunService.RenderStepped:Connect(function()
+		dragStepConn = NAlib.reconnect(connKey..":drag_step", Services.RunService.RenderStepped:Connect(function()
 			const pointerX = pendingPointerX
 			if not dragging or pointerX == nil then
 				return
@@ -119686,7 +119960,7 @@ end
 NAmanage.Topbar_ComputedSize=function()
 	const pad=8
 	const count=NAmanage.Topbar_ButtonCount()
-	const cam=Workspace.CurrentCamera
+	const cam=Services.Workspace.CurrentCamera
 	const vpX=cam and cam.ViewportSize.X or 1280
 	const margin=8
 	if TopBarApp.mode=="bottom" then
@@ -119812,7 +120086,7 @@ NAmanage.Topbar_ApplyDock=function(dock, opts)
 end
 
 NAmanage.Topbar_ChooseSide=function()
-	const cam=Workspace.CurrentCamera
+	const cam=Services.Workspace.CurrentCamera
 	if not cam then return end
 	const vp=cam.ViewportSize
 	const ap,sz=TopBarApp.toggle.AbsolutePosition,TopBarApp.toggle.AbsoluteSize
@@ -119833,7 +120107,7 @@ end
 NAmanage.Topbar_PositionPanel=function()
 	if not (TopBarApp.panel and TopBarApp.toggle) then return end
 
-	const cam = Workspace.CurrentCamera
+	const cam = Services.Workspace.CurrentCamera
 	if not cam then return end
 
 	const vp = cam.ViewportSize
@@ -119990,7 +120264,7 @@ NAmanage.Topbar_SetOpen=function(state, opts)
 		end
 		return
 	end
-	const ts=TweenService
+	const ts=Services.TweenService
 	const dur=0.18
 	const ease=TweenInfo.new(dur,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut)
 	if state then
@@ -120000,7 +120274,7 @@ NAmanage.Topbar_SetOpen=function(state, opts)
 		tween.Completed:Connect(function()
 			TopBarApp.animating=false
 		end)
-		NAlib.connect("tb_follow",RunService.RenderStepped:Connect(function()
+		NAlib.connect("tb_follow",Services.RunService.RenderStepped:Connect(function()
 			NAmanage.Topbar_PositionPanel()
 		end))
 	else
@@ -120450,7 +120724,7 @@ NAmanage.Topbar_MakeDraggableHorizontal=function(ui)
 
 	local lastStep=0
 	NAlib.disconnect("tb_drag_input")
-	NAlib.connect("tb_drag_input",UserInputService.InputChanged:Connect(function(input)
+	NAlib.connect("tb_drag_input",Services.UserInputService.InputChanged:Connect(function(input)
 		if input==dragInput and dragging then
 			const now=os.clock()
 			if now-lastStep<(1/60) then return end
@@ -120696,7 +120970,7 @@ NAmanage.GetManagedUIRoot = NAmanage.GetManagedUIRoot or function(key, visible, 
 	end)
 
 	const name = NAmanage.GetSessionInstanceName(key)
-	const old = COREGUI and COREGUI:FindFirstChild(name)
+	const old = Services.CoreGui and Services.CoreGui:FindFirstChild(name)
 	if old and old ~= gui and old:IsA("ScreenGui") then
 		pcall(function()
 			old:Destroy()
@@ -120836,8 +121110,8 @@ NAmanage.Topbar_Init=function(opts)
 			NAmanage.Topbar_ClampToggle()
 			if TopBarApp.isOpen then NAmanage.Topbar_PositionPanel() end
 		end))
-		if Workspace.CurrentCamera then
-			NAlib.connect("tb_repos_vp",Workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+		if Services.Workspace.CurrentCamera then
+			NAlib.connect("tb_repos_vp",Services.Workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
 				NAmanage.Topbar_ClampToggle()
 				if TopBarApp.isOpen then NAmanage.Topbar_PositionPanel() end
 			end))
@@ -120874,7 +121148,7 @@ end
 
 NAmanage.SideSwipe_PositionHandles=function()
 	if not (SideSwipeApp.gui and (SideSwipeApp.handles.left or SideSwipeApp.handles.right)) then return end
-	const cam = Workspace.CurrentCamera
+	const cam = Services.Workspace.CurrentCamera
 	const vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
 	const panelW = math.clamp(tonumber(NAStuff.SideSwipeWidth) or 80, 60, 200)
 	const configuredW = math.clamp(math.floor((tonumber(NAStuff.SideSwipeHandleWidth) or 0) + 0.5), 0, 120)
@@ -120963,7 +121237,7 @@ end
 NAmanage.SideSwipe_PositionPanel=function(opts)
 	opts = opts or {}
 	if not SideSwipeApp.panel then return end
-	const cam = Workspace.CurrentCamera
+	const cam = Services.Workspace.CurrentCamera
 	const vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
 	const size = SideSwipeApp.panel.AbsoluteSize
 	const margin = 10
@@ -120992,7 +121266,7 @@ NAmanage.SideSwipe_UpdateCanvas=function()
 	if not (SideSwipeApp.scroll and SideSwipeApp.layout and SideSwipeApp.panel and SideSwipeApp.underlay) then return end
 	const content = SideSwipeApp.layout.AbsoluteContentSize
 	const totalH = content.Y + 16
-	const cam = Workspace.CurrentCamera
+	const cam = Services.Workspace.CurrentCamera
 	const vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
 	const maxH = math.max(120, vp.Y - 40)
 	const configuredHeight = math.clamp(math.floor((tonumber(NAStuff.SideSwipePanelHeight) or 0) + 0.5), 0, 1200)
@@ -121169,7 +121443,7 @@ NAmanage.SideSwipe_SetOpen=function(state)
 	SideSwipeApp.animating = true
 	SideSwipeApp.panel.Visible = true
 	NAmanage.SideSwipe_UpdateCanvas()
-	const cam = Workspace.CurrentCamera
+	const cam = Services.Workspace.CurrentCamera
 	const vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
 	const size = SideSwipeApp.panel.AbsoluteSize
 	const margin = 10
@@ -121277,7 +121551,7 @@ NAmanage.SideSwipe_WireHandle=function(btn, side)
 		end
 	end))
 
-	NAlib.connect(key,UserInputService.InputChanged:Connect(function(input)
+	NAlib.connect(key,Services.UserInputService.InputChanged:Connect(function(input)
 		if input==dragInput and dragging and dragStart then
 			const delta=input.Position-dragStart
 			const swipeThreshold = math.clamp(math.floor((tonumber(NAStuff.SideSwipeSwipeThreshold) or 28) + 0.5), 8, 120)
@@ -121362,8 +121636,8 @@ NAmanage.SideSwipe_Init=function(opts)
 	SideSwipeApp.side = NASideSwipeSide or SideSwipeApp.side
 	NAmanage.SideSwipe_SetSide(SideSwipeApp.side, { skipAnimate = true, force = true })
 	NAmanage.SideSwipe_PositionHandles()
-	if Workspace.CurrentCamera then
-		NAlib.connect("ss_vp", Workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+	if Services.Workspace.CurrentCamera then
+		NAlib.connect("ss_vp", Services.Workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
 			NAmanage.SideSwipe_PositionHandles()
 			NAmanage.SideSwipe_UpdateCanvas()
 		end))
@@ -121387,7 +121661,7 @@ NAmanage.SideSwipe_Init=function(opts)
 			end
 		end
 
-		NAlib.connect("ss_click", UserInputService.InputBegan:Connect(onInputBegan))
+		NAlib.connect("ss_click", Services.UserInputService.InputBegan:Connect(onInputBegan))
 	end
 	SideSwipe_HookOutsideClose()
 	if startupLite and NAmanage.SideSwipe_DeferActiveRefresh then
@@ -121527,7 +121801,7 @@ NAgui._bindMenuMaximize = function(menu, menuConnName, options)
 	const function getMaximizedGeometry()
 		local absolute = menu.Parent and menu.Parent.AbsoluteSize
 		if not absolute or absolute.X <= 0 or absolute.Y <= 0 then
-			absolute = Workspace and Workspace.CurrentCamera and Workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
+			absolute = Services.Workspace and Services.Workspace.CurrentCamera and Services.Workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
 		end
 		const scale = getScale()
 		const pad = 10
@@ -122548,7 +122822,7 @@ NAmanage.isAnyNAInputActive = function()
 	if NAmanage.CmdInputActualFocused and NAmanage.CmdInputActualFocused() then
 		return true
 	end
-	if UserInputService and UserInputService.GetFocusedTextBox then
+	if Services.UserInputService and Services.UserInputService.GetFocusedTextBox then
 		local ok, focusedBox = pcall(function()
 			return __lt.cm("UserInputService", "GetFocusedTextBox")
 		end)
@@ -122590,7 +122864,7 @@ NAmanage.CmdInputStartKeyRepeat = function(keyCode, callback, opts)
 			local keepGoing = true
 			if keyCode ~= nil then
 				local ok, isDown = pcall(function()
-					return UserInputService:IsKeyDown(keyCode)
+					return Services.UserInputService:IsKeyDown(keyCode)
 				end)
 				keepGoing = ok and isDown == true
 			end
@@ -122639,7 +122913,7 @@ NAmanage.CmdInputGetSoftSinkInputs = function()
 end
 
 NAmanage.CmdInputBindSoftSink = function(enabled)
-	if not ContextActionService then
+	if not Services.ContextActionService then
 		return
 	end
 	const priority = 2147483647
@@ -122655,21 +122929,21 @@ NAmanage.CmdInputBindSoftSink = function(enabled)
 		if type(actions) == "table" then
 			for _, rec in actions do
 				if type(rec) == "table" and type(rec.name) == "string" then
-					if rec.core == true and type(ContextActionService.UnbindCoreAction) == "function" then
+					if rec.core == true and type(Services.ContextActionService.UnbindCoreAction) == "function" then
 						pcall(function()
-							ContextActionService:UnbindCoreAction(rec.name)
+							Services.ContextActionService:UnbindCoreAction(rec.name)
 						end)
 					else
 						pcall(function()
-							ContextActionService:UnbindAction(rec.name)
+							Services.ContextActionService:UnbindAction(rec.name)
 						end)
 					end
 				end
 			end
 		end
-		pcall(function() ContextActionService:UnbindAction("NA_CMD_SOFT_INPUT_SINK") end)
-		if type(ContextActionService.UnbindCoreAction) == "function" then
-			pcall(function() ContextActionService:UnbindCoreAction("NA_CMD_SOFT_INPUT_CORE_SINK") end)
+		pcall(function() Services.ContextActionService:UnbindAction("NA_CMD_SOFT_INPUT_SINK") end)
+		if type(Services.ContextActionService.UnbindCoreAction) == "function" then
+			pcall(function() Services.ContextActionService:UnbindCoreAction("NA_CMD_SOFT_INPUT_CORE_SINK") end)
 		end
 		NAStuff.cmdInputSoftSinkActions = {}
 		NAStuff.cmdInputSoftSinkBound = false
@@ -122685,7 +122959,7 @@ NAmanage.CmdInputBindSoftSink = function(enabled)
 	actions = {}
 	const inputs = (NAmanage.CmdInputGetSoftSinkInputs and NAmanage.CmdInputGetSoftSinkInputs()) or { Enum.UserInputType.Keyboard }
 	const function bindChunks(methodName, prefix, isCore)
-		const fn = ContextActionService[methodName]
+		const fn = Services.ContextActionService[methodName]
 		if type(fn) ~= "function" then
 			return
 		end
@@ -122697,7 +122971,7 @@ NAmanage.CmdInputBindSoftSink = function(enabled)
 				args[#args + 1] = inputs[j]
 			end
 			const ok = pcall(function()
-				fn(ContextActionService, table.unpack(args))
+				fn(Services.ContextActionService, table.unpack(args))
 			end)
 			if ok then
 				actions[#actions + 1] = { name = actionName, core = isCore == true }
@@ -122744,7 +123018,7 @@ NAgui.CmdMobileKeyboardGetRows = function()
 	const function dims()
 		local viewY = 720
 		pcall(function()
-			const cam = Workspace and Workspace.CurrentCamera
+			const cam = Services.Workspace and Services.Workspace.CurrentCamera
 			if cam then
 				viewY = cam.ViewportSize.Y
 			end
@@ -122916,7 +123190,7 @@ NAgui.CmdMobileKeyboardShow = function()
 		b.Font = Enum.Font.GothamMedium
 		local viewY = 720
 		pcall(function()
-			const cam = Workspace and Workspace.CurrentCamera
+			const cam = Services.Workspace and Services.Workspace.CurrentCamera
 			if cam then
 				viewY = cam.ViewportSize.Y
 			end
@@ -123001,7 +123275,7 @@ NAgui.CmdMobileKeyboardShow = function()
 		end
 		local viewY = 720
 		pcall(function()
-			const cam = Workspace and Workspace.CurrentCamera
+			const cam = Services.Workspace and Services.Workspace.CurrentCamera
 			if cam then
 				viewY = cam.ViewportSize.Y
 			end
@@ -123406,13 +123680,13 @@ NAmanage.CmdInputBindOutsideSoftBlur = function(enabled)
 				NAgui.barDeselect(0.18)
 			end
 		end
-		NAlib.connect(key, UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		NAlib.connect(key, Services.UserInputService.InputBegan:Connect(function(input, gameProcessed)
 			if not input or not (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
 				return
 			end
 			outsideBlurAt(input.Position)
 		end))
-		NAlib.connect(key .. "_tap", UserInputService.TouchTap:Connect(function(positions, gameProcessed)
+		NAlib.connect(key .. "_tap", Services.UserInputService.TouchTap:Connect(function(positions, gameProcessed)
 			const pos = type(positions) == "table" and positions[1] or nil
 			outsideBlurAt(pos)
 		end))
@@ -123950,7 +124224,7 @@ NAmanage.CmdInputKeyToChar = function(input)
 	const name = key and key.Name or ""
 	local shift = false
 	pcall(function()
-		shift = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.RightShift)
+		shift = Services.UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or Services.UserInputService:IsKeyDown(Enum.KeyCode.RightShift)
 	end)
 	if #name == 1 and name:match("%a") then
 		return shift and name:upper() or name:lower()
@@ -124176,8 +124450,8 @@ NAmanage.HandleCmdSoftInput = function(input, gameProcessed)
 	local ctrl = false
 	local shift = false
 	pcall(function()
-		ctrl = UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) or UserInputService:IsKeyDown(Enum.KeyCode.RightControl)
-		shift = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.RightShift)
+		ctrl = Services.UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) or Services.UserInputService:IsKeyDown(Enum.KeyCode.RightControl)
+		shift = Services.UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or Services.UserInputService:IsKeyDown(Enum.KeyCode.RightShift)
 	end)
 	const box = NAUIMANAGER and NAUIMANAGER.cmdInput
 	if not box then
@@ -124382,7 +124656,7 @@ NAgui.activateCmdInput = function(opts)
 		return true
 	end
 	local alreadyFocused = false
-	if UserInputService.GetFocusedTextBox then
+	if Services.UserInputService.GetFocusedTextBox then
 		alreadyFocused = __lt.cm("UserInputService", "GetFocusedTextBox") == box
 	end
 	if not alreadyFocused then
@@ -125059,7 +125333,7 @@ originalIO.resolvePrefixKey=function()
 	end
 	return nil
 end
-NAlib.connect("cmdbar_soft_repeat_end", UserInputService.InputEnded:Connect(function(i, g)
+NAlib.connect("cmdbar_soft_repeat_end", Services.UserInputService.InputEnded:Connect(function(i, g)
 	if not (NAmanage.isCmdSoftInputActive and NAmanage.isCmdSoftInputActive()) then
 		return
 	end
@@ -125075,7 +125349,7 @@ NAlib.connect("cmdbar_soft_repeat_end", UserInputService.InputEnded:Connect(func
 		end
 	end
 end))
-NAlib.connect("cmdbar_hotkeys", UserInputService.InputBegan:Connect(function(i, g)
+NAlib.connect("cmdbar_hotkeys", Services.UserInputService.InputBegan:Connect(function(i, g)
 	if NAmanage.HandleCmdSoftInput and NAmanage.HandleCmdSoftInput(i, g) then
 		return
 	end
@@ -127523,9 +127797,9 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		child:Destroy()
 	end
 
-	const TextServiceRef = TextService
-	const UserInputServiceRef = UserInputService
-	const GuiServiceRef = GuiService
+	const TextServiceRef = Services.TextService
+	const UserInputServiceRef = Services.UserInputService
+	const GuiServiceRef = Services.GuiService
 	const execResponsive = {
 		compact = false,
 		phone = false,
@@ -127633,7 +127907,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		button.Parent = parent
 		makeCornerAndStroke(button, 8, 1)
 		button.MouseEnter:Connect(function()
-			TweenService:Create(button, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Services.TweenService:Create(button, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 				BackgroundColor3 = (background or colors.panel3):Lerp(Color3.new(1, 1, 1), 0.06)
 			}):Play()
 		end)
@@ -127642,7 +127916,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			if button.GetAttribute and NAmanage.GetAttr(button, "NAExecutorSelected") then
 				targetColor = colors.tabActive
 			end
-			TweenService:Create(button, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Services.TweenService:Create(button, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 				BackgroundColor3 = targetColor
 			}):Play()
 		end)
@@ -127687,7 +127961,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		if not ok or type(raw) ~= "string" or raw == "" then
 			return list
 		end
-		local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+		local okDecode, decoded = pcall(Services.HttpService.JSONDecode, Services.HttpService, raw)
 		if okDecode and type(decoded) == "table" then
 			for _, value in decoded do
 				if type(value) == "string" and value ~= "" then
@@ -127716,7 +127990,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			return a:lower() < b:lower()
 		end)
 		local ok, encoded = pcall(function()
-			return HttpService:JSONEncode(clean)
+			return Services.HttpService:JSONEncode(clean)
 		end)
 		if ok and encoded then
 			return pcall(writefile, indexFile, encoded)
@@ -127801,7 +128075,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			if isfile(settingsFile) then
 				const raw = readfile(settingsFile)
 				if raw and raw ~= "" then
-					local ok, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+					local ok, decoded = pcall(Services.HttpService.JSONDecode, Services.HttpService, raw)
 					if ok and type(decoded) == "table" then
 						if type(decoded.syntax) == "boolean" then cfg.syntax = decoded.syntax end
 						if type(decoded.lineNumbers) == "boolean" then cfg.lineNumbers = decoded.lineNumbers end
@@ -127837,7 +128111,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			fontSize = math.clamp(math.floor((tonumber(cfg.fontSize) or 15) + 0.5), 11, 24),
 		}
 		local ok, encoded = pcall(function()
-			return HttpService:JSONEncode(payload)
+			return Services.HttpService:JSONEncode(payload)
 		end)
 		if ok and encoded then
 			const wrote = pcall(writefile, settingsFile, encoded)
@@ -127851,7 +128125,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		if screenGui and screenGui.AbsoluteSize and screenGui.AbsoluteSize.X > 0 and screenGui.AbsoluteSize.Y > 0 then
 			return screenGui.AbsoluteSize
 		end
-		const cam = Workspace and Workspace.CurrentCamera
+		const cam = Services.Workspace and Services.Workspace.CurrentCamera
 		if cam and cam.ViewportSize and cam.ViewportSize.X > 0 and cam.ViewportSize.Y > 0 then
 			return cam.ViewportSize
 		end
@@ -129075,7 +129349,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			NAmanage.ExecutorYieldWork(workState)
 		end
 		local ok, encoded = pcall(function()
-			return HttpService:JSONEncode(payload)
+			return Services.HttpService:JSONEncode(payload)
 		end)
 		if not (ok and encoded) then
 			setStatus("Executor tabs cannot save: encode failed", colors.error)
@@ -129714,7 +129988,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			return
 		end
 		const step = math.max(24, getEditorLineHeight() * 3)
-		const horizontal = UserInputService and (UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.RightShift))
+		const horizontal = Services.UserInputService and (Services.UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or Services.UserInputService:IsKeyDown(Enum.KeyCode.RightShift))
 		if horizontal and executorHorizontalScroll and executorHorizontalScroll.scrollBy then
 			executorHorizontalScroll.scrollBy(-wheel * step)
 		elseif executorVerticalScroll and executorVerticalScroll.scrollBy then
@@ -130259,7 +130533,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		if fsOk and isfile(tabsFile) then
 			local ok, raw = pcall(readfile, tabsFile)
 			if ok and raw and raw ~= "" then
-				local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+				local okDecode, decoded = pcall(Services.HttpService.JSONDecode, Services.HttpService, raw)
 				if okDecode and type(decoded) == "table" then
 					if type(decoded.tabs) == "table" then
 						for index, entry in decoded.tabs do
@@ -130694,8 +130968,8 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 
 	queueExecutorResponsive(true)
 	NAlib.disconnect("NAExecutorResponsive")
-	if Workspace and Workspace.CurrentCamera then
-		NAlib.connect("NAExecutorResponsive", Workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+	if Services.Workspace and Services.Workspace.CurrentCamera then
+		NAlib.connect("NAExecutorResponsive", Services.Workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
 			queueExecutorResponsive(false)
 		end))
 	end
@@ -130815,7 +131089,7 @@ NAmanage.Notepad_Init = function()
 		if sg and sg.AbsoluteSize and sg.AbsoluteSize.X > 0 and sg.AbsoluteSize.Y > 0 then
 			return sg.AbsoluteSize
 		end
-		const cam = Workspace and Workspace.CurrentCamera
+		const cam = Services.Workspace and Services.Workspace.CurrentCamera
 		if cam and cam.ViewportSize and cam.ViewportSize.X > 0 and cam.ViewportSize.Y > 0 then
 			return cam.ViewportSize
 		end
@@ -130826,9 +131100,9 @@ NAmanage.Notepad_Init = function()
 		const s = getNotepadScale()
 		local x = IsOnMobile and 8 or 16
 		local y = IsOnMobile and 8 or 18
-		if GuiService and GuiService.GetGuiInset then
+		if Services.GuiService and Services.GuiService.GetGuiInset then
 			local ok, a, b = pcall(function()
-				return GuiService:GetGuiInset()
+				return Services.GuiService:GetGuiInset()
 			end)
 			if ok and typeof(a) == "Vector2" and typeof(b) == "Vector2" then
 				x += math.max(a.X, b.X) / s
@@ -131054,7 +131328,7 @@ NAmanage.Notepad_Init = function()
 		if not ok or type(raw) ~= "string" or raw == "" then
 			return names
 		end
-		local okDec, data = pcall(HttpService.JSONDecode, HttpService, raw)
+		local okDec, data = pcall(Services.HttpService.JSONDecode, Services.HttpService, raw)
 		if okDec and type(data) == "table" then
 			for _, v in data do
 				if type(v) == "string" and v ~= "" then
@@ -131082,7 +131356,7 @@ NAmanage.Notepad_Init = function()
 		table.sort(out, function(a, b)
 			return a:lower() < b:lower()
 		end)
-		local okEnc, raw = pcall(HttpService.JSONEncode, HttpService, out)
+		local okEnc, raw = pcall(Services.HttpService.JSONEncode, Services.HttpService, out)
 		if okEnc and raw then
 			return pcall(writefile, idx, raw)
 		end
@@ -131169,16 +131443,16 @@ NAmanage.Notepad_Init = function()
 		b.Parent = par
 		skin(b, 8, 1)
 		b.MouseEnter:Connect(function()
-			if TweenService then
-				TweenService:Create(b, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = col.bg3:Lerp(Color3.new(1, 1, 1), 0.06)}):Play()
+			if Services.TweenService then
+				Services.TweenService:Create(b, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = col.bg3:Lerp(Color3.new(1, 1, 1), 0.06)}):Play()
 			else
 				b.BackgroundColor3 = col.bg3:Lerp(Color3.new(1, 1, 1), 0.06)
 			end
 		end)
 		b.MouseLeave:Connect(function()
 			const c = (sel and b.Name == sel) and col.on or col.bg3
-			if TweenService then
-				TweenService:Create(b, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = c}):Play()
+			if Services.TweenService then
+				Services.TweenService:Create(b, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = c}):Play()
 			else
 				b.BackgroundColor3 = c
 			end
@@ -131895,7 +132169,7 @@ NAmanage.Notepad_Init = function()
 
 	const function getNotepadLineHeight()
 		const fallback = tonumber(box.TextSize) or 15
-		const widthService = TextService or TextServiceRef
+		const widthService = Services.TextService or TextServiceRef
 		if widthService and widthService.GetTextSize then
 			local ok, measured = pcall(function()
 				return widthService:GetTextSize("M", box.TextSize, box.Font, Vector2.new(1000, 1000)).Y
@@ -131914,9 +132188,9 @@ NAmanage.Notepad_Init = function()
 		for line in ((source or "").."\n"):gmatch("(.-)\n") do
 			lines += 1
 			local width = 0
-			if TextService and TextService.GetTextSize then
+			if Services.TextService and Services.TextService.GetTextSize then
 				local ok, res = pcall(function()
-					return TextService:GetTextSize((line ~= "" and line or " "), box.TextSize, box.Font, Vector2.new(10000, 10000)).X
+					return Services.TextService:GetTextSize((line ~= "" and line or " "), box.TextSize, box.Font, Vector2.new(10000, 10000)).X
 				end)
 				if ok and type(res) == "number" then
 					width = res
@@ -132343,7 +132617,7 @@ NAmanage.Notepad_Init = function()
 			return
 		end
 		const step = math.max(24, getNotepadLineHeight() * 3)
-		const horizontal = UserInputService and (UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.RightShift))
+		const horizontal = Services.UserInputService and (Services.UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or Services.UserInputService:IsKeyDown(Enum.KeyCode.RightShift))
 		if horizontal and notepadHorizontalScroll and notepadHorizontalScroll.scrollBy then
 			notepadHorizontalScroll.scrollBy(-wheel * step)
 		elseif notepadVerticalScroll and notepadVerticalScroll.scrollBy then
@@ -132387,8 +132661,8 @@ NAmanage.Notepad_Init = function()
 		end
 	end)
 
-	if UserInputService then
-		UserInputService.InputBegan:Connect(function(input, gp)
+	if Services.UserInputService then
+		Services.UserInputService.InputBegan:Connect(function(input, gp)
 			if input.KeyCode == Enum.KeyCode.Tab and box:IsFocused() then
 				const pos = box.CursorPosition
 				if pos and pos > 0 then
@@ -132396,7 +132670,7 @@ NAmanage.Notepad_Init = function()
 					box.Text = tx:sub(1, pos - 1).."    "..tx:sub(pos)
 					box.CursorPosition = pos + 4
 				end
-			elseif input.KeyCode == Enum.KeyCode.S and box:IsFocused() and (UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) or UserInputService:IsKeyDown(Enum.KeyCode.RightControl)) then
+			elseif input.KeyCode == Enum.KeyCode.S and box:IsFocused() and (Services.UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) or Services.UserInputService:IsKeyDown(Enum.KeyCode.RightControl)) then
 				saveFile(nameBox.Text)
 			end
 		end)
@@ -132410,8 +132684,8 @@ NAmanage.Notepad_Init = function()
 	updCount()
 	NAlib.disconnect("NANotepadResponsive")
 	NAlib.connect("NANotepadResponsive", frame:GetPropertyChangedSignal("Size"):Connect(saveNotepadFrameSize))
-	if Workspace and Workspace.CurrentCamera then
-		NAlib.connect("NANotepadResponsive", Workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+	if Services.Workspace and Services.Workspace.CurrentCamera then
+		NAlib.connect("NANotepadResponsive", Services.Workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
 			Defer(function()
 				if frame and frame.Parent then
 					updateNotepadLayout()
@@ -132525,7 +132799,7 @@ NAmanage.TeleportGui_ResolveDestinationIcon = function(gui, placeId)
 	if #waiting > 1 then return true end
 	Spawn(function()
 		local iconAssetId = 0
-		local ok, info = pcall(MarketplaceService.GetProductInfo, MarketplaceService, destinationId, Enum.InfoType.Asset)
+		local ok, info = pcall(Services.MarketplaceService.GetProductInfo, Services.MarketplaceService, destinationId, Enum.InfoType.Asset)
 		if ok and type(info) == "table" then
 			iconAssetId = tonumber(info.IconImageAssetId) or 0
 			state.placeIconAssets[destinationId] = iconAssetId > 0 and iconAssetId or false
@@ -132648,8 +132922,8 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 	const mobile = IsOnMobile == true
 	const sidePad = mobile and 18 or 48
 	local guiInsetTop = 0
-	if GuiService and GuiService.GetGuiInset then
-		local okInset, topLeftInset = pcall(GuiService.GetGuiInset, GuiService)
+	if Services.GuiService and Services.GuiService.GetGuiInset then
+		local okInset, topLeftInset = pcall(Services.GuiService.GetGuiInset, Services.GuiService)
 		if okInset and typeof(topLeftInset) == "Vector2" then
 			guiInsetTop = math.max(0, tonumber(topLeftInset.Y) or 0)
 		end
@@ -133099,11 +133373,11 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 		NAmanage.TeleportGui_ResolveDestinationIcon(ui.gui, destinationId)
 		state.teleportHandoffGui = ui.gui
 		state.teleportGui = nil
-		pcall(TeleportService.SetTeleportGui, TeleportService, ui.gui)
+		pcall(Services.TeleportService.SetTeleportGui, Services.TeleportService, ui.gui)
 		return ui.gui
 	end
 
-	const lp = (Players and Players.LocalPlayer) or player
+	const lp = (Services.Players and Services.Players.LocalPlayer) or player
 	const playerGui = lp and (lp:FindFirstChildOfClass("PlayerGui") or lp:FindFirstChild("PlayerGui"))
 	if playerGui then
 		ui.gui.Parent = playerGui
@@ -133116,38 +133390,38 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 	NAmanage.TeleportGui_ResolveDestinationIcon(ui.gui, destinationId)
 	NAmanage.TeleportGui_ResolveDestinationIcon(ui.handoffGui, destinationId)
 	state.teleportHandoffGui = ui.handoffGui
-	pcall(TeleportService.SetTeleportGui, TeleportService, ui.handoffGui)
+	pcall(Services.TeleportService.SetTeleportGui, Services.TeleportService, ui.handoffGui)
 	state.teleportGui = ui.gui
 	state.teleportGuiToken += 1
 	const token = state.teleportGuiToken
 
 	pcall(function()
-		TweenService:Create(ui.backdrop, TweenInfo.new(0.78, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+		Services.TweenService:Create(ui.backdrop, TweenInfo.new(0.78, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
 			Position = UDim2.fromScale(0.5, 0.5);
 			Size = UDim2.fromScale(1.1, 1.1);
 			ImageTransparency = 0.22;
 		}):Play()
-		TweenService:Create(ui.innerFrameStroke, TweenInfo.new(0.65, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Transparency = 0.78 }):Play()
-		TweenService:Create(ui.topBrand, TweenInfo.new(0.48, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), { Position = UDim2.new(0, sidePad, 0, topPad) }):Play()
-		TweenService:Create(ui.content, TweenInfo.new(0.56, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), { Position = UDim2.new(0, sidePad, 1, -bottomPad); BackgroundTransparency = 0.16 }):Play()
-		TweenService:Create(ui.contentStroke, TweenInfo.new(0.58, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Transparency = 0.56 }):Play()
-		TweenService:Create(ui.accent, TweenInfo.new(0.46, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 0 }):Play()
-		TweenService:Create(ui.logo, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { ImageTransparency = 0 }):Play()
-		TweenService:Create(ui.logoFallback, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0 }):Play()
-		TweenService:Create(ui.brand, TweenInfo.new(0.38, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0 }):Play()
-		TweenService:Create(ui.subBrand, TweenInfo.new(0.42, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0.18 }):Play()
-		TweenService:Create(ui.rightTag, TweenInfo.new(0.48, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0.32 }):Play()
-		TweenService:Create(ui.statusPill, TweenInfo.new(0.42, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 0.18 }):Play()
-		TweenService:Create(ui.statusDot, TweenInfo.new(0.42, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 0 }):Play()
-		TweenService:Create(ui.actionLabel, TweenInfo.new(0.42, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0 }):Play()
-		TweenService:Create(ui.destination, TweenInfo.new(0.48, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0 }):Play()
-		TweenService:Create(ui.destinationIcon, TweenInfo.new(0.52, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { ImageTransparency = 0.04 }):Play()
-		TweenService:Create(ui.info, TweenInfo.new(0.54, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0.08 }):Play()
-		TweenService:Create(ui.footer, TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0.18 }):Play()
-		TweenService:Create(ui.progressTrack, TweenInfo.new(0.58, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 0.58 }):Play()
-		TweenService:Create(ui.progressCaption, TweenInfo.new(0.62, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0.16 }):Play()
-		TweenService:Create(ui.placeTag, TweenInfo.new(0.62, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0.28 }):Play()
-		TweenService:Create(ui.topEdge, TweenInfo.new(0.65, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 0.18 }):Play()
+		Services.TweenService:Create(ui.innerFrameStroke, TweenInfo.new(0.65, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Transparency = 0.78 }):Play()
+		Services.TweenService:Create(ui.topBrand, TweenInfo.new(0.48, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), { Position = UDim2.new(0, sidePad, 0, topPad) }):Play()
+		Services.TweenService:Create(ui.content, TweenInfo.new(0.56, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), { Position = UDim2.new(0, sidePad, 1, -bottomPad); BackgroundTransparency = 0.16 }):Play()
+		Services.TweenService:Create(ui.contentStroke, TweenInfo.new(0.58, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Transparency = 0.56 }):Play()
+		Services.TweenService:Create(ui.accent, TweenInfo.new(0.46, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 0 }):Play()
+		Services.TweenService:Create(ui.logo, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { ImageTransparency = 0 }):Play()
+		Services.TweenService:Create(ui.logoFallback, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0 }):Play()
+		Services.TweenService:Create(ui.brand, TweenInfo.new(0.38, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0 }):Play()
+		Services.TweenService:Create(ui.subBrand, TweenInfo.new(0.42, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0.18 }):Play()
+		Services.TweenService:Create(ui.rightTag, TweenInfo.new(0.48, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0.32 }):Play()
+		Services.TweenService:Create(ui.statusPill, TweenInfo.new(0.42, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 0.18 }):Play()
+		Services.TweenService:Create(ui.statusDot, TweenInfo.new(0.42, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 0 }):Play()
+		Services.TweenService:Create(ui.actionLabel, TweenInfo.new(0.42, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0 }):Play()
+		Services.TweenService:Create(ui.destination, TweenInfo.new(0.48, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0 }):Play()
+		Services.TweenService:Create(ui.destinationIcon, TweenInfo.new(0.52, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { ImageTransparency = 0.04 }):Play()
+		Services.TweenService:Create(ui.info, TweenInfo.new(0.54, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0.08 }):Play()
+		Services.TweenService:Create(ui.footer, TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0.18 }):Play()
+		Services.TweenService:Create(ui.progressTrack, TweenInfo.new(0.58, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 0.58 }):Play()
+		Services.TweenService:Create(ui.progressCaption, TweenInfo.new(0.62, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0.16 }):Play()
+		Services.TweenService:Create(ui.placeTag, TweenInfo.new(0.62, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextTransparency = 0.28 }):Play()
+		Services.TweenService:Create(ui.topEdge, TweenInfo.new(0.65, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 0.18 }):Play()
 	end)
 
 	Spawn(function()
@@ -133161,7 +133435,7 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 	Spawn(function()
 		while state.teleportGui == ui.gui and token == state.teleportGuiToken and ui.gui.Parent do
 			ui.runner.Position = UDim2.new(-0.22, 0, 0, 0)
-			local okTween, tween = pcall(TweenService.Create, TweenService, ui.runner, TweenInfo.new(1.12, Enum.EasingStyle.Quint, Enum.EasingDirection.InOut), { Position = UDim2.new(1, 0, 0, 0) })
+			local okTween, tween = pcall(Services.TweenService.Create, Services.TweenService, ui.runner, TweenInfo.new(1.12, Enum.EasingStyle.Quint, Enum.EasingDirection.InOut), { Position = UDim2.new(1, 0, 0, 0) })
 			if okTween and tween then
 				tween:Play()
 				pcall(function() tween.Completed:Wait() end)
@@ -133174,10 +133448,10 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 	Spawn(function()
 		while state.teleportGui == ui.gui and token == state.teleportGuiToken and ui.gui.Parent do
 			pcall(function()
-				local dim = TweenService:Create(ui.statusDot, TweenInfo.new(0.56, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { BackgroundTransparency = 0.72 })
+				local dim = Services.TweenService:Create(ui.statusDot, TweenInfo.new(0.56, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { BackgroundTransparency = 0.72 })
 				dim:Play()
 				dim.Completed:Wait()
-				local bright = TweenService:Create(ui.statusDot, TweenInfo.new(0.56, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { BackgroundTransparency = 0 })
+				local bright = Services.TweenService:Create(ui.statusDot, TweenInfo.new(0.56, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { BackgroundTransparency = 0 })
 				bright:Play()
 				bright.Completed:Wait()
 			end)
@@ -133186,13 +133460,13 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 	Spawn(function()
 		while state.teleportGui == ui.gui and token == state.teleportGuiToken and ui.gui.Parent do
 			pcall(function()
-				local drift = TweenService:Create(ui.backdrop, TweenInfo.new(4.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+				local drift = Services.TweenService:Create(ui.backdrop, TweenInfo.new(4.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
 					Position = UDim2.fromScale(0.507, 0.496);
 					Size = UDim2.fromScale(1.13, 1.13);
 				})
 				drift:Play()
 				drift.Completed:Wait()
-				local driftBack = TweenService:Create(ui.backdrop, TweenInfo.new(4.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+				local driftBack = Services.TweenService:Create(ui.backdrop, TweenInfo.new(4.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
 					Position = UDim2.fromScale(0.5, 0.5);
 					Size = UDim2.fromScale(1.1, 1.1);
 				})
@@ -133204,10 +133478,10 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 	Spawn(function()
 		while state.teleportGui == ui.gui and token == state.teleportGuiToken and ui.gui.Parent do
 			pcall(function()
-				local grow = TweenService:Create(ui.logoScale, TweenInfo.new(1.15, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { Scale = 1.025 })
+				local grow = Services.TweenService:Create(ui.logoScale, TweenInfo.new(1.15, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { Scale = 1.025 })
 				grow:Play()
 				grow.Completed:Wait()
-				local shrink = TweenService:Create(ui.logoScale, TweenInfo.new(1.15, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { Scale = 1 })
+				local shrink = Services.TweenService:Create(ui.logoScale, TweenInfo.new(1.15, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { Scale = 1 })
 				shrink:Play()
 				shrink.Completed:Wait()
 			end)
@@ -133217,7 +133491,7 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 end
 
 NAmanage.SubplaceViewer_PerformTeleport = function(placeId, placeName, action, serverId, detail)
-	const lp = (Players and Players.LocalPlayer) or player
+	const lp = (Services.Players and Services.Players.LocalPlayer) or player
 	const meta = {
 		placeId = placeId;
 		placeName = placeName;
@@ -133231,14 +133505,14 @@ NAmanage.SubplaceViewer_PerformTeleport = function(placeId, placeName, action, s
 end
 
 NAmanage.SubplaceViewer_HandleArrivingTeleportGui = function()
-	local ok, gui = pcall(TeleportService.GetArrivingTeleportGui, TeleportService)
+	local ok, gui = pcall(Services.TeleportService.GetArrivingTeleportGui, Services.TeleportService)
 	if not (ok and gui) then return end
 	local tagged = false
 	pcall(function()
 		tagged = gui:GetAttribute("NASubplaceViewerTeleport") == true or gui:GetAttribute("NACustomTeleportGui") == true
 	end)
 	if not tagged and gui.Name ~= "NATeleportGui" then return end
-	const lp = (Players and Players.LocalPlayer) or player
+	const lp = (Services.Players and Services.Players.LocalPlayer) or player
 	const playerGui = lp and (lp:FindFirstChildOfClass("PlayerGui") or lp:FindFirstChild("PlayerGui"))
 	if playerGui then
 		pcall(function() gui.Parent = playerGui end)
@@ -133274,7 +133548,7 @@ NAmanage.SubplaceViewer_HandleArrivingTeleportGui = function()
 	end
 	if statusPill and statusPill:IsA("Frame") then
 		pcall(function()
-			TweenService:Create(statusPill, TweenInfo.new(0.26, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 0.18 }):Play()
+			Services.TweenService:Create(statusPill, TweenInfo.new(0.26, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 0.18 }):Play()
 		end)
 	end
 	if statusDot and statusDot:IsA("Frame") then
@@ -133282,7 +133556,7 @@ NAmanage.SubplaceViewer_HandleArrivingTeleportGui = function()
 	end
 	if runner and runner:IsA("Frame") then
 		pcall(function()
-			TweenService:Create(runner, TweenInfo.new(0.34, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+			Services.TweenService:Create(runner, TweenInfo.new(0.34, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
 				Position = UDim2.fromScale(0, 0);
 				Size = UDim2.fromScale(1, 1);
 			}):Play()
@@ -133293,14 +133567,14 @@ NAmanage.SubplaceViewer_HandleArrivingTeleportGui = function()
 		if not gui.Parent then return end
 		if content and content:IsA("Frame") then
 			pcall(function()
-				TweenService:Create(content, TweenInfo.new(0.58, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
+				Services.TweenService:Create(content, TweenInfo.new(0.58, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
 					Position = UDim2.new(content.Position.X.Scale, content.Position.X.Offset, content.Position.Y.Scale, content.Position.Y.Offset - 14);
 				}):Play()
 			end)
 		end
 		if topBrand and topBrand:IsA("Frame") then
 			pcall(function()
-				TweenService:Create(topBrand, TweenInfo.new(0.58, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
+				Services.TweenService:Create(topBrand, TweenInfo.new(0.58, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
 					Position = UDim2.new(topBrand.Position.X.Scale, topBrand.Position.X.Offset, topBrand.Position.Y.Scale, topBrand.Position.Y.Offset - 8);
 				}):Play()
 			end)
@@ -133309,43 +133583,43 @@ NAmanage.SubplaceViewer_HandleArrivingTeleportGui = function()
 			for _, obj in foreground:GetDescendants() do
 				if obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox") then
 					pcall(function()
-						TweenService:Create(obj, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+						Services.TweenService:Create(obj, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
 							TextTransparency = 1;
 							BackgroundTransparency = 1;
 						}):Play()
 					end)
 				elseif obj:IsA("ImageLabel") or obj:IsA("ImageButton") then
 					pcall(function()
-						TweenService:Create(obj, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+						Services.TweenService:Create(obj, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
 							ImageTransparency = 1;
 							BackgroundTransparency = 1;
 						}):Play()
 					end)
 				elseif obj:IsA("UIStroke") then
 					pcall(function()
-						TweenService:Create(obj, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Transparency = 1 }):Play()
+						Services.TweenService:Create(obj, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Transparency = 1 }):Play()
 					end)
 				elseif obj:IsA("Frame") and obj ~= foreground then
 					pcall(function()
-						TweenService:Create(obj, TweenInfo.new(0.52, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { BackgroundTransparency = 1 }):Play()
+						Services.TweenService:Create(obj, TweenInfo.new(0.52, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { BackgroundTransparency = 1 }):Play()
 					end)
 				end
 			end
 		end
 		if topEdge and topEdge:IsA("Frame") then
 			pcall(function()
-				TweenService:Create(topEdge, TweenInfo.new(0.48, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { BackgroundTransparency = 1 }):Play()
+				Services.TweenService:Create(topEdge, TweenInfo.new(0.48, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { BackgroundTransparency = 1 }):Play()
 			end)
 		end
 		if innerFrameStroke then
 			pcall(function()
-				TweenService:Create(innerFrameStroke, TweenInfo.new(0.48, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Transparency = 1 }):Play()
+				Services.TweenService:Create(innerFrameStroke, TweenInfo.new(0.48, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Transparency = 1 }):Play()
 			end)
 		end
 		Wait(0.24)
 		if backdrop and backdrop:IsA("ImageLabel") then
 			pcall(function()
-				TweenService:Create(backdrop, TweenInfo.new(0.92, Enum.EasingStyle.Quint, Enum.EasingDirection.InOut), {
+				Services.TweenService:Create(backdrop, TweenInfo.new(0.92, Enum.EasingStyle.Quint, Enum.EasingDirection.InOut), {
 					ImageTransparency = 1;
 					Size = UDim2.fromScale(1.02, 1.02);
 				}):Play()
@@ -133354,13 +133628,13 @@ NAmanage.SubplaceViewer_HandleArrivingTeleportGui = function()
 		for _, shade in { wash, sideShade, bottomShade } do
 			if shade and shade:IsA("Frame") then
 				pcall(function()
-					TweenService:Create(shade, TweenInfo.new(0.92, Enum.EasingStyle.Quint, Enum.EasingDirection.InOut), { BackgroundTransparency = 1 }):Play()
+					Services.TweenService:Create(shade, TweenInfo.new(0.92, Enum.EasingStyle.Quint, Enum.EasingDirection.InOut), { BackgroundTransparency = 1 }):Play()
 				end)
 			end
 		end
 		if root and root:IsA("Frame") then
 			pcall(function()
-				TweenService:Create(root, TweenInfo.new(1.02, Enum.EasingStyle.Quint, Enum.EasingDirection.InOut), { BackgroundTransparency = 1 }):Play()
+				Services.TweenService:Create(root, TweenInfo.new(1.02, Enum.EasingStyle.Quint, Enum.EasingDirection.InOut), { BackgroundTransparency = 1 }):Play()
 			end)
 		end
 		Wait(1.05)
@@ -133385,13 +133659,13 @@ end
 NAmanage.TeleportServiceCall = function(method, args, meta)
 	args = type(args) == "table" and args or {}
 	meta = type(meta) == "table" and meta or {}
-	local tp = TeleportService
+	local tp = Services.TeleportService
 	if not tp then
 		local okTp, resolvedTp = pcall(function()
 			return game.TeleportService or game:GetService("TeleportService")
 		end)
 		if okTp and resolvedTp then
-			TeleportService = resolvedTp
+			Services.TeleportService = resolvedTp
 			tp = resolvedTp
 		end
 	end
@@ -133494,7 +133768,7 @@ NAmanage.GameTeleportGui_Disarm = function()
 		pcall(function() gui:Destroy() end)
 	end
 	if not (teleportState and teleportState.teleportGui and teleportState.teleportGui.Parent) then
-		pcall(TeleportService.SetTeleportGui, TeleportService, nil)
+		pcall(Services.TeleportService.SetTeleportGui, Services.TeleportService, nil)
 	end
 end
 
@@ -133514,7 +133788,7 @@ NAmanage.GameTeleportGui_Arm = function()
 	if state.prearmedGui then
 		local okAlive = pcall(function() return state.prearmedGui.Name end)
 		if okAlive and teleportState and teleportState.teleportHandoffGui == state.prearmedGui then
-			pcall(TeleportService.SetTeleportGui, TeleportService, state.prearmedGui)
+			pcall(Services.TeleportService.SetTeleportGui, Services.TeleportService, state.prearmedGui)
 			return true
 		end
 		state.prearmedGui = nil
@@ -133593,7 +133867,7 @@ NAmanage.GameTeleportGui_OnTeleport = function(tpState, placeId, spawnName)
 		detail
 	)
 	if not gui.Parent then
-		const lp = (Players and Players.LocalPlayer) or player
+		const lp = (Services.Players and Services.Players.LocalPlayer) or player
 		const playerGui = lp and (lp:FindFirstChildOfClass("PlayerGui") or lp:FindFirstChild("PlayerGui"))
 		if playerGui then
 			pcall(function() gui.Parent = playerGui end)
@@ -133715,33 +133989,33 @@ end
 
 NAmanage.SubplaceViewer_SaveFavorites = function()
 	const state = NAmanage.SubplaceViewer
-	if not (HttpService and type(writefile) == "function") then return false end
+	if not (Services.HttpService and type(writefile) == "function") then return false end
 	pcall(function()
 		if type(isfolder) == "function" and type(makefolder) == "function" then
 			if not isfolder("Nameless-Admin") then makefolder("Nameless-Admin") end
 			if not isfolder(state.root) then makefolder(state.root) end
 		end
 	end)
-	local ok, data = pcall(HttpService.JSONEncode, HttpService, state.favorites)
+	local ok, data = pcall(Services.HttpService.JSONEncode, Services.HttpService, state.favorites)
 	if ok then return pcall(writefile, state.favoritesPath, data) end
 	return false
 end
 
 NAmanage.SubplaceViewer_LoadFavorites = function()
 	const state = NAmanage.SubplaceViewer
-	if not (HttpService and type(isfile) == "function" and type(readfile) == "function") then return end
+	if not (Services.HttpService and type(isfile) == "function" and type(readfile) == "function") then return end
 	local okFile, exists = pcall(isfile, state.favoritesPath)
 	if not (okFile and exists) then return end
 	local okRead, raw = pcall(readfile, state.favoritesPath)
 	if not okRead then return end
-	local okDecode, data = pcall(HttpService.JSONDecode, HttpService, raw)
+	local okDecode, data = pcall(Services.HttpService.JSONDecode, Services.HttpService, raw)
 	if okDecode and type(data) == "table" then state.favorites = data end
 end
 
 NAmanage.SubplaceViewer_HttpJson = function(url)
 	local ok, body = pcall(_na_boot.httpGet, url, { maxAttempts = 4; timeout = 12 })
 	if not ok or type(body) ~= "string" then return nil, body end
-	local decodedOk, data = pcall(HttpService.JSONDecode, HttpService, body)
+	local decodedOk, data = pcall(Services.HttpService.JSONDecode, Services.HttpService, body)
 	if not decodedOk then return nil, data end
 	return data
 end
@@ -133778,7 +134052,7 @@ NAmanage.SubplaceViewer_FetchPlaceIconAssets = function(places, fetchToken)
 					if placeId then
 						local cached = state.placeIconAssets[placeId]
 						if cached == nil then
-							local ok, info = pcall(MarketplaceService.GetProductInfo, MarketplaceService, placeId, Enum.InfoType.Asset)
+							local ok, info = pcall(Services.MarketplaceService.GetProductInfo, Services.MarketplaceService, placeId, Enum.InfoType.Asset)
 							if ok and type(info) == "table" then
 								const iconAssetId = tonumber(info.IconImageAssetId) or 0
 								cached = iconAssetId > 0 and iconAssetId or false
@@ -134239,8 +134513,8 @@ NAmanage.SubplaceViewer_Init = function()
 			Defer(NAmanage.SubplaceViewer_Render)
 		end
 	end))
-	if Workspace and Workspace.CurrentCamera then
-		NAlib.connect("NASubplaceViewerResponsive", Workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+	if Services.Workspace and Services.Workspace.CurrentCamera then
+		NAlib.connect("NASubplaceViewerResponsive", Services.Workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
 			Defer(function()
 				if ui.frame and ui.frame.Parent then
 					NAmanage.SubplaceViewer_ApplyResponsive(true)
@@ -134363,8 +134637,8 @@ NAmanage.StandardWindowResponsive.Bind = function()
 			end)
 		end))
 	end
-	if Workspace and Workspace.CurrentCamera then
-		NAlib.connect("NAStandardWindowsResponsive", Workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+	if Services.Workspace and Services.Workspace.CurrentCamera then
+		NAlib.connect("NAStandardWindowsResponsive", Services.Workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
 			Defer(function()
 				NAmanage.StandardWindowResponsive.Apply(true)
 			end)
@@ -134384,7 +134658,7 @@ NAStuff.cmdInputAtInit = NAUIMANAGER and NAUIMANAGER.cmdInput
 NAStuff.keepCmdFocus = false
 if NAStuff.cmdInputAtInit then
 	NAStuff.keepCmdFocus = NAStuff.cmdInputAtInit:IsFocused()
-	if not NAStuff.keepCmdFocus and UserInputService.GetFocusedTextBox then
+	if not NAStuff.keepCmdFocus and Services.UserInputService.GetFocusedTextBox then
 		NAStuff.keepCmdFocus = __lt.cm("UserInputService", "GetFocusedTextBox") == NAStuff.cmdInputAtInit
 	end
 end
@@ -134517,7 +134791,7 @@ NAStartupUI("Resize:Executor", 0.17, function()
 end)
 NAStartupUI("Resize:Notepad", 0.18, function()
 	if NAUIMANAGER.NotepadFrame then
-		const npVp = Workspace.CurrentCamera and Workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
+		const npVp = Services.Workspace.CurrentCamera and Services.Workspace.CurrentCamera.ViewportSize or Vector2.new(1280, 720)
 		const npSmall = IsOnMobile or npVp.X < 720 or npVp.Y < 520
 		const npMin = npSmall and Vector2.new(280, 230) or Vector2.new(460, 340)
 		NAgui.resizeable(NAUIMANAGER.NotepadFrame, npMin, Vector2.new(5000, 5000))
@@ -134699,7 +134973,7 @@ NAlib.connect("commands_filter_text", NAUIMANAGER.commandsFilter:GetPropertyChan
 end))
 
 originalIO.naTransLatooor=function()
-	const Http = HttpService
+	const Http = Services.HttpService
 	const translator = NAStuff.ChatTranslator or {}
 	NAStuff.ChatTranslator = translator
 
@@ -136513,7 +136787,7 @@ end
 originalIO.naTransLatooor()
 
 NAmanage.CommandKeybindsAdd=function()
-	const UIS = UserInputService
+	const UIS = Services.UserInputService
 	if not UIS then return end
 	local listening = true
 	local bindConn
@@ -137297,11 +137571,11 @@ NAmanage.CommandKeybindsUIWire=function()
 				if msg then DoNotif(msg, 1.5) end
 			end
 
-			conn = UserInputService.InputBegan:Connect(function(input, gp)
+			conn = Services.UserInputService.InputBegan:Connect(function(input, gp)
 				if tok ~= ui._capTok then return end
 				if gp and input and input.UserInputType ~= Enum.UserInputType.Keyboard then return end
 
-				const keyName = NAmanage.CKBBind(input, UserInputService)
+				const keyName = NAmanage.CKBBind(input, Services.UserInputService)
 				if not keyName then
 					return
 				end
@@ -137506,7 +137780,7 @@ NAmanage.bindToChat=function(plr, msg)
 
 			if not NAStuff.AdminChatRainbowConnection then
 				local lastUpdate = 0
-				NAStuff.AdminChatRainbowConnection = NAlib.reconnect("admin_chat_rainbow", RunService.Heartbeat:Connect(function()
+				NAStuff.AdminChatRainbowConnection = NAlib.reconnect("admin_chat_rainbow", Services.RunService.Heartbeat:Connect(function()
 					const now = tick()
 					if now - lastUpdate < 0.12 then
 						return
@@ -138650,8 +138924,8 @@ originalIO.binderAttachHumanoidListeners=function(plr, hum)
 				fireJump()
 			end
 		end)
-		if plr == LocalPlayer and UserInputService and UserInputService.JumpRequest then
-			rec.conns[#rec.conns + 1] = UserInputService.JumpRequest:Connect(function()
+		if plr == LocalPlayer and Services.UserInputService and Services.UserInputService.JumpRequest then
+			rec.conns[#rec.conns + 1] = Services.UserInputService.JumpRequest:Connect(function()
 				fireJump()
 			end)
 		end
@@ -138823,7 +139097,7 @@ originalIO.binderSetupCharacter=function(plr, char)
 end
 
 NAmanage.RefreshBinderHooks = function()
-	if not Players then
+	if not Services.Players then
 		return
 	end
 	if not NAmanage.BinderNeedsCharacterHooks() then
@@ -139087,7 +139361,7 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 }))
 
 	SpawnCall(function()
-		const HUI = NAlib.distinctHuiGrabber and NAlib.distinctHuiGrabber(COREGUI) or nil;
+		const HUI = NAlib.distinctHuiGrabber and NAlib.distinctHuiGrabber(Services.CoreGui) or nil;
 	const iIdx = {
 		click = NAmanage.ensureWeakTable(nil, "k");
 		proxy = NAmanage.ensureWeakTable(nil, "k");
@@ -139396,7 +139670,7 @@ SpawnCall(function()
 		end
 		local lastSafe = 0
 		const safeSampleInterval = 0.35
-		fbHumCons[#fbHumCons + 1] = RunService.Heartbeat:Connect(function()
+		fbHumCons[#fbHumCons + 1] = Services.RunService.Heartbeat:Connect(function()
 			const now = os.clock()
 			if now - lastSafe < safeSampleInterval then
 				return
@@ -140049,7 +140323,7 @@ NAgui.clampIconPositionUDim=function(pos)
 	const container = TextButton.Parent
 	local parentSize = container.AbsoluteSize
 	if parentSize.X <= 0 or parentSize.Y <= 0 then
-		const cam = Workspace and Workspace.CurrentCamera
+		const cam = Services.Workspace and Services.Workspace.CurrentCamera
 		if cam then
 			parentSize = cam.ViewportSize
 		end
@@ -140797,7 +141071,7 @@ NAmanage.cleanupRobloxDevConsoleCopyButtons = function()
 end
 
 NAmanage.getRobloxDevConsoleWindow = function()
-	const coreGui = COREGUI
+	const coreGui = Services.CoreGui
 	if not coreGui then
 		return nil
 	end
@@ -141265,7 +141539,7 @@ NAmanage.ensureRobloxDevConsoleCopyLoop = function()
 
 	local elapsed = 1
 	local lastVisible = false
-	NAlib.connect("rbx_devconsole_copy_loop", RunService.Heartbeat:Connect(function(dt)
+	NAlib.connect("rbx_devconsole_copy_loop", Services.RunService.Heartbeat:Connect(function(dt)
 		elapsed = elapsed + (dt or 0)
 		const interval = lastVisible and 1.25 or 4
 		if elapsed < interval then
@@ -141703,7 +141977,7 @@ NAmanage.injectNAConsole = function()
 	end))
 
 	ensureInjection = function()
-		const coreGui = COREGUI
+		const coreGui = Services.CoreGui
 		if not coreGui then
 			watchConsoleRoot(nil)
 			resetCommandLine()
@@ -141766,7 +142040,7 @@ NAmanage.injectNAConsole = function()
 	do
 		local injectTick = 0
 		consoleVisible = ensureInjection() == true
-		NAlib.connect("naconsole_loop", RunService.Heartbeat:Connect(function(dt)
+		NAlib.connect("naconsole_loop", Services.RunService.Heartbeat:Connect(function(dt)
 			injectTick = injectTick + (dt or 0)
 			const pollInterval = consoleVisible and 4 or 8
 			if injectTick < pollInterval then
@@ -141804,13 +142078,13 @@ NAmanage.destroyNAConsole = function()
 end
 
 NAmanage.applyLightingStyleAutomation = function()
-	if NAStuff.LightingStyleAutomation ~= true or not Lighting then
+	if NAStuff.LightingStyleAutomation ~= true or not Services.Lighting then
 		return false
 	end
 	const styleName = type(NAStuff.LightingStyleAutomationStyle) == "string" and NAStuff.LightingStyleAutomationStyle or "Soft"
 	const style = Enum.LightingStyle[styleName] or Enum.LightingStyle.Soft
 	const ok = pcall(function()
-		Lighting.LightingStyle = style
+		Services.Lighting.LightingStyle = style
 	end)
 	return ok == true
 end
@@ -141940,7 +142214,7 @@ end, { retries = 4, delay = 0.5, retryOnFalse = true })
 NAmanage.scheduleLoader('Waypoints', NAmanage.UpdateWaypointList, { spacing = 0.12 })
 NAmanage.scheduleLoader('ESPSettings', NAmanage.LoadESPSettings, { spacing = 0.12 })
 
-OrgDestroyHeight=NAlib.isProperty(Workspace, "FallenPartsDestroyHeight") or math.huge
+OrgDestroyHeight=NAlib.isProperty(Services.Workspace, "FallenPartsDestroyHeight") or math.huge
 
 NAStuff.bindersList      = NAUIMANAGER.BindersList
 SpawnCall(function()
@@ -143587,7 +143861,7 @@ originalIO.AssetsPreloadNA = function(opts)
 		SafeGetService("TextChatService",false),
 	}
 	if incWs then
-		roots[#roots + 1] = Workspace
+		roots[#roots + 1] = Services.Workspace
 	end
 
 	for i = 1, #roots do
@@ -143734,7 +144008,7 @@ NAmanage.StartAssetPreload = NAmanage.StartAssetPreload or function(opts)
 		end
 		return
 	end
-	if not ContentProvider or not ContentProvider.PreloadAsync then
+	if not Services.ContentProvider or not Services.ContentProvider.PreloadAsync then
 		if not silent then
 			DoNotif("ContentProvider preloading is unavailable on this platform.", 3)
 		end
@@ -143984,7 +144258,7 @@ end
 
 	NAgui.EnsureScreenGuiNoRenderKeybind=function()
 	if NAStuff.ScreenGuiNoRenderConn then
-		if ContextActionService then
+		if Services.ContextActionService then
 			const screenGuiNoRenderAction = NAmanage.GetSessionActionName("ScreenGuiNoRenderToggle")
 			pcall(function() __lt.cm("ContextActionService", "UnbindAction", screenGuiNoRenderAction) end)
 		end
@@ -143994,7 +144268,7 @@ end
 		NAStuff.ScreenGuiNoRenderUISConn:Disconnect()
 		NAStuff.ScreenGuiNoRenderUISConn = nil
 	end
-	if not (IsOnPC and NAgui.screenGuiNoRenderSupported and _na_env.NADebugDontRenderKeybindEnabled == true and ContextActionService) then
+	if not (IsOnPC and NAgui.screenGuiNoRenderSupported and _na_env.NADebugDontRenderKeybindEnabled == true and Services.ContextActionService) then
 		return
 	end
 
@@ -144022,7 +144296,7 @@ end
 		macroKey
 	)
 
-	NAStuff.ScreenGuiNoRenderUISConn = UserInputService.InputBegan:Connect(function(input, processed)
+	NAStuff.ScreenGuiNoRenderUISConn = Services.UserInputService.InputBegan:Connect(function(input, processed)
 		if processed then
 			return
 		end
@@ -145122,14 +145396,14 @@ end
 NAmanage.GetRecentClientLogs = function(limit, filter)
 	limit = math.clamp(math.floor(tonumber(limit) or 100), 10, 1000)
 	filter = tostring(filter or "All")
-	if not LogService then
+	if not Services.LogService then
 		return false, "LogService is unavailable."
 	end
 	local ok, history = pcall(function()
 		if type(__lt) == "table" and type(__lt.cm) == "function" then
 			return __lt.cm("LogService", "GetLogHistory")
 		end
-		return LogService:GetLogHistory()
+		return Services.LogService:GetLogHistory()
 	end)
 	if not ok or type(history) ~= "table" then
 		return false, "Unable to read client logs."
@@ -145168,9 +145442,9 @@ NAmanage.SetManagementAutoRefresh = function(enabled, opts)
 		pcall(NAmanage.NASettingsSet, "managementAutoRefresh", state)
 	end
 	NAlib.disconnect("ManagementDashboardAutoRefresh")
-	if state and RunService and RunService.Heartbeat then
+	if state and Services.RunService and Services.RunService.Heartbeat then
 		local elapsed = 0
-		NAlib.connect("ManagementDashboardAutoRefresh", RunService.Heartbeat:Connect(function(dt)
+		NAlib.connect("ManagementDashboardAutoRefresh", Services.RunService.Heartbeat:Connect(function(dt)
 			elapsed += tonumber(dt) or 0
 			const interval = math.clamp(tonumber(NAStuff.ManagementRefreshInterval) or 2, 0.5, 10)
 			if elapsed >= interval then
@@ -146216,7 +146490,7 @@ NAFFlags.clientValueText = function(value)
 end
 
 NAFFlags.escapeJsonString = function(value)
-	local ok, encoded = pcall(HttpService.JSONEncode, HttpService, tostring(value))
+	local ok, encoded = pcall(Services.HttpService.JSONEncode, Services.HttpService, tostring(value))
 	if ok and type(encoded) == "string" then
 		return encoded
 	end
@@ -146288,7 +146562,7 @@ NAFFlags.loadMeta = function()
 	if not okRead or type(raw) ~= "string" or raw == "" then
 		return false
 	end
-	local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+	local okDecode, decoded = pcall(Services.HttpService.JSONDecode, Services.HttpService, raw)
 	if not okDecode or type(decoded) ~= "table" then
 		return false
 	end
@@ -146340,7 +146614,7 @@ NAFFlags.saveMeta = function()
 		enabledFlags = NAFFlags.config.enabledFlags or {};
 		clientKeyAliases = NAFFlags.config.clientKeyAliases or {};
 	}
-	local okEncode, encoded = pcall(HttpService.JSONEncode, HttpService, meta)
+	local okEncode, encoded = pcall(Services.HttpService.JSONEncode, Services.HttpService, meta)
 	if okEncode and encoded then
 		pcall(writefile, NAFFlags.metaPath, encoded)
 	end
@@ -146404,7 +146678,7 @@ NAFFlags.importClientAppSettingsJson = function(raw, opts)
 		return false, 0, 0, 0, "Empty JSON"
 	end
 
-	local ok, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+	local ok, decoded = pcall(Services.HttpService.JSONDecode, Services.HttpService, raw)
 	if not ok or type(decoded) ~= "table" then
 		return false, 0, 0, 0, "Invalid JSON"
 	end
@@ -146570,7 +146844,7 @@ NAFFlags.load = function()
 	local okRead, raw = pcall(readfile, NAFFlags.filePath)
 
 	if okRead and type(raw) == "string" and raw ~= "" then
-		local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+		local okDecode, decoded = pcall(Services.HttpService.JSONDecode, Services.HttpService, raw)
 		if okDecode and type(decoded) == "table" then
 			const legacyConfig = type(decoded.flags) == "table"
 				or type(decoded.custom) == "table"
@@ -147856,7 +148130,7 @@ end)
 NAgui.addButton("Copy Payload Preview", function()
 	const previewText = NAmanage.BuildWebhookEventText("chat", NAmanage.WebhookSampleContext)
 	const payload = NAmanage.BuildIntegrationWebhookPayload("chat", previewText)
-	local ok, encoded = pcall(HttpService.JSONEncode, HttpService, payload)
+	local ok, encoded = pcall(Services.HttpService.JSONEncode, Services.HttpService, payload)
 	if not ok then
 		DoNotif("Preview encode failed: "..tostring(encoded), 3)
 	elseif type(setclipboard) == "function" then
@@ -147919,7 +148193,7 @@ NAgui.addInput("Raw JSON Payload", [[{"content":"Hello from Nameless Admin"}]], 
 	end
 end)
 NAgui.addButton("Send Raw JSON To Main Webhook", function()
-	local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, webhookCfg.rawPayload or "")
+	local okDecode, decoded = pcall(Services.HttpService.JSONDecode, Services.HttpService, webhookCfg.rawPayload or "")
 	if not okDecode or type(decoded) ~= "table" then
 		DoNotif("Raw webhook JSON is invalid: "..tostring(decoded), 4)
 		return
@@ -148188,7 +148462,7 @@ NAmanage.applyCrosshair = function()
 		targetParent = (type(NAmanage.guiCHECKINGAHHHHH) == "function" and NAmanage.guiCHECKINGAHHHHH()) or nil
 	end
 	if not targetParent then
-		const pg = Players and Players.LocalPlayer and Players.LocalPlayer:FindFirstChildOfClass("PlayerGui")
+		const pg = Services.Players and Services.Players.LocalPlayer and Services.Players.LocalPlayer:FindFirstChildOfClass("PlayerGui")
 		targetParent = pg
 	end
 	if not targetParent then return end
@@ -148205,7 +148479,7 @@ NAmanage.applyCrosshair = function()
 			gui.Parent = targetParent
 		end)
 		if not ok then
-			const fallbackPg = Players and Players.LocalPlayer and Players.LocalPlayer:FindFirstChildOfClass("PlayerGui")
+			const fallbackPg = Services.Players and Services.Players.LocalPlayer and Services.Players.LocalPlayer:FindFirstChildOfClass("PlayerGui")
 			if fallbackPg then
 				ok = pcall(function()
 					gui.Parent = fallbackPg
@@ -148614,10 +148888,10 @@ do
 	end
 
 	const function findTopbarApp()
-		if not COREGUI then
+		if not Services.CoreGui then
 			return nil, nil
 		end
-		const root = COREGUI:FindFirstChild("TopBarApp")
+		const root = Services.CoreGui:FindFirstChild("TopBarApp")
 		if not root then
 			return nil, nil
 		end
@@ -149248,7 +149522,7 @@ do
 
 	const function bindCamera()
 		disconnectCamera()
-		const camera = Workspace.CurrentCamera
+		const camera = Services.Workspace.CurrentCamera
 		if camera then
 			editor.cameraConnection = camera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
 				if editor.enabled and not editor.applying then
@@ -149350,27 +149624,27 @@ do
 		editor.enabled = nextEnabled
 		editor.generation += 1
 		if editor.enabled then
-			if COREGUI then
-				editor.connections[#editor.connections + 1] = COREGUI.ChildAdded:Connect(function(child)
+			if Services.CoreGui then
+				editor.connections[#editor.connections + 1] = Services.CoreGui.ChildAdded:Connect(function(child)
 					if editor.enabled and child.Name == "TopBarApp" then
 						scheduleApply()
 					end
 				end)
-				editor.connections[#editor.connections + 1] = COREGUI.ChildRemoved:Connect(function(child)
+				editor.connections[#editor.connections + 1] = Services.CoreGui.ChildRemoved:Connect(function(child)
 					if editor.enabled and child.Name == "TopBarApp" then
 						scheduleApply()
 					end
 				end)
 			end
-			editor.connections[#editor.connections + 1] = Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+			editor.connections[#editor.connections + 1] = Services.Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
 				if editor.enabled then
 					bindCamera()
 					scheduleApply()
 				end
 			end)
-			if GuiService then
+			if Services.GuiService then
 				local okConnection, connection = pcall(function()
-					return GuiService:GetPropertyChangedSignal("TopbarInset"):Connect(function()
+					return Services.GuiService:GetPropertyChangedSignal("TopbarInset"):Connect(function()
 						if editor.enabled and not editor.applying then
 							scheduleGeometry()
 						end
@@ -149826,7 +150100,7 @@ NAmanage.WindowAppearance.loadLibraryFile = function()
 	if not (okRead and type(raw) == "string" and raw ~= "") then
 		return {}
 	end
-	local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+	local okDecode, decoded = pcall(Services.HttpService.JSONDecode, Services.HttpService, raw)
 	if not (okDecode and type(decoded) == "table") then
 		return {}
 	end
@@ -149847,7 +150121,7 @@ NAmanage.WindowAppearance.saveLibrary = function()
 			}
 		end
 	end
-	local okEncode, encoded = pcall(HttpService.JSONEncode, HttpService, payload)
+	local okEncode, encoded = pcall(Services.HttpService.JSONEncode, Services.HttpService, payload)
 	if not okEncode then
 		return false
 	end
@@ -151144,12 +151418,12 @@ NAmanage.NAInitCoreGuiCustomization=function()
 		local data = PT.default
 		if FileSupport then
 			if not isfile(PT.path) then
-				writefile(PT.path, HttpService:JSONEncode(PT.default))
+				writefile(PT.path, Services.HttpService:JSONEncode(PT.default))
 			end
 
 			local okRead, raw = pcall(readfile, PT.path)
 			if okRead and type(raw) == "string" then
-				local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+				local okDecode, decoded = pcall(Services.HttpService.JSONDecode, Services.HttpService, raw)
 				if okDecode and type(decoded) == "table" then
 					data = decoded
 				end
@@ -151199,7 +151473,7 @@ NAmanage.NAInitCoreGuiCustomization=function()
 			const seq = plexSaveSeq
 			const function writePlexData()
 				pcall(function()
-					writefile(PT.path, HttpService:JSONEncode(PT.data))
+					writefile(PT.path, Services.HttpService:JSONEncode(PT.data))
 				end)
 			end
 			if opts.immediate == true then
@@ -152166,7 +152440,7 @@ NAmanage.NAInitCoreGuiCustomization=function()
 					return
 				end
 				pcall(function()
-					writefile(BuilderIconEditor.path, HttpService:JSONEncode(BuilderIconEditor.data))
+					writefile(BuilderIconEditor.path, Services.HttpService:JSONEncode(BuilderIconEditor.data))
 				end)
 			end
 
@@ -152185,7 +152459,7 @@ NAmanage.NAInitCoreGuiCustomization=function()
 					saveBuilderIconData()
 					return
 				end
-				local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+				local okDecode, decoded = pcall(Services.HttpService.JSONDecode, Services.HttpService, raw)
 				if okDecode then
 					BuilderIconEditor.data = normalizeBuilderIconData(decoded)
 					rebuildBuilderIconOverrideLeafs()
@@ -152694,7 +152968,7 @@ NAmanage.NAInitCoreGuiCustomization=function()
 						return
 					end
 
-					local okDecode, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+					local okDecode, decoded = pcall(Services.HttpService.JSONDecode, Services.HttpService, raw)
 					if token ~= BuilderIconEditor.catalogFetchToken then
 						return
 					end
@@ -153995,7 +154269,7 @@ function NAmanage.jlSave()
 	NAmanage.jlCfg = NAmanage.jlNorm(NAmanage.jlCfg)
 	NAmanage.logApply()
 	if FileSupport then
-		writefile(NAfiles.NAJOINLEAVE, HttpService:JSONEncode(NAmanage.jlCfg))
+		writefile(NAfiles.NAJOINLEAVE, Services.HttpService:JSONEncode(NAmanage.jlCfg))
 	elseif not NAStuff.joinLeaveWarned then
 		NAStuff.joinLeaveWarned = true
 		DebugNotif("Logging settings will reset after this session (no file support detected).")
@@ -156039,7 +156313,7 @@ NAmanage.CustomMovementSoundSetEnabled = NAmanage.CustomMovementSoundSetEnabled 
 	if cfg.Enabled then
 		NAmanage.CustomMovementSoundSyncConfig(opts.notifyInvalid == true)
 		NAlib.disconnect("na_move_sounds_char")
-		NAlib.connect("na_move_sounds_char", Players.LocalPlayer.CharacterAdded:Connect(function(char)
+		NAlib.connect("na_move_sounds_char", Services.Players.LocalPlayer.CharacterAdded:Connect(function(char)
 			Defer(function()
 				NAmanage.CustomMovementSoundBindCharacter(char)
 				NAmanage.CustomMovementSoundApplyToCharacter(char)
@@ -156420,7 +156694,7 @@ NAStuff.RobloxVersionSource = NAStuff.RobloxVersionEndpoints[1]
 originalIO.parseRobloxVersionBody=function(body)
 	if type(body) ~= "string" then return nil end
 	if body:sub(1,3) == "\239\187\191" then body = body:sub(4) end
-	local ok, decoded = pcall(HttpService.JSONDecode, HttpService, body)
+	local ok, decoded = pcall(Services.HttpService.JSONDecode, Services.HttpService, body)
 	if ok and type(decoded) == "table" then return decoded end
 	local a,depth,inStr,esc=nil,0,false,false
 	for i=1,#body do
@@ -156433,7 +156707,7 @@ originalIO.parseRobloxVersionBody=function(body)
 			elseif c=='}' and depth>0 then
 				depth=depth-1
 				if depth==0 and a then
-					local ok2, j = pcall(HttpService.JSONDecode, HttpService, body:sub(a,i))
+					local ok2, j = pcall(Services.HttpService.JSONDecode, Services.HttpService, body:sub(a,i))
 					if ok2 and type(j)=="table" then return j end
 				end
 			end
@@ -156564,7 +156838,7 @@ originalIO.fetchGitHubCommits = function(forceRefresh)
 			const status = tonumber(response.StatusCode) or tonumber(response.Status)
 			const body = response.Body or response.body
 			if status == 200 and type(body) == "string" then
-				local decodeOk, decoded = pcall(HttpService.JSONDecode, HttpService, body)
+				local decodeOk, decoded = pcall(Services.HttpService.JSONDecode, Services.HttpService, body)
 				if decodeOk and type(decoded) == "table" then
 					NAStuff.GitHubCommits = decoded
 					NAStuff.GitHubCommitsLastFetch = tick()
@@ -156591,7 +156865,7 @@ originalIO.fetchGitHubCommits = function(forceRefresh)
 		const directUrl = baseUrl..sep..cacheBuster
 		local okDirect, bodyDirect = NAmanage.HttpGet(directUrl, { timeout = 8, Headers = headers })
 		if okDirect and type(bodyDirect) == "string" then
-			local decodeOk, decoded = pcall(HttpService.JSONDecode, HttpService, bodyDirect)
+			local decodeOk, decoded = pcall(Services.HttpService.JSONDecode, Services.HttpService, bodyDirect)
 			if decodeOk and type(decoded) == "table" then
 				NAStuff.GitHubCommits = decoded
 				NAStuff.GitHubCommitsLastFetch = tick()
