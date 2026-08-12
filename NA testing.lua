@@ -22740,11 +22740,316 @@ NAmanage.NAConsoleTagColor = NAmanage.NAConsoleTagColor or function(tag)
 	return "#cccccc"
 end
 
-NAmanage.NAConsoleWrite = NAmanage.NAConsoleWrite or function(text, tag)
+NAmanage.NAConsoleEscapeRich = NAmanage.NAConsoleEscapeRich or function(value)
+	local s = tostring(value or "")
+	return ((s:gsub("&", "&amp;")):gsub("<", "&lt;")):gsub(">", "&gt;")
+end
+
+NAmanage.NAConsoleNormalizeContext = NAmanage.NAConsoleNormalizeContext or function(context)
+	if type(context) ~= "table" then
+		return {}
+	end
+	const seen = {}
+	const function normalizeValue(value, depth)
+		const valueType = type(value)
+		const valueKind = typeof(value)
+		if valueKind == "Instance" then
+			local ok, fullName = pcall(function()
+				return value:GetFullName()
+			end)
+			return ok and tostring(fullName) or tostring(value)
+		end
+		if valueType == "string" then
+			if #value > 2048 then
+				return value:sub(1, 2045).."..."
+			end
+			return value
+		elseif valueType == "number" or valueType == "boolean" or valueType == "nil" then
+			return value
+		elseif valueType ~= "table" then
+			return tostring(value)
+		end
+		if seen[value] then
+			return "<cycle>"
+		end
+		if depth >= 3 then
+			return tostring(value)
+		end
+		seen[value] = true
+		local out = {}
+		local count = 0
+		for key, item in value do
+			count += 1
+			if count > 48 then
+				out.__truncated = true
+				break
+			end
+			out[tostring(key)] = normalizeValue(item, depth + 1)
+		end
+		seen[value] = nil
+		return out
+	end
+	return normalizeValue(context, 0)
+end
+
+NAmanage.NAConsoleContextText = NAmanage.NAConsoleContextText or function(context)
+	if type(context) ~= "table" or next(context) == nil then
+		return ""
+	end
+	const keys = {}
+	for key in context do
+		keys[#keys + 1] = tostring(key)
+	end
+	table.sort(keys)
+	const parts = {}
+	for i = 1, #keys do
+		const key = keys[i]
+		const value = context[key]
+		local valueText
+		if type(value) == "table" then
+			local ok, encoded = pcall(function()
+				return Services.HttpService:JSONEncode(value)
+			end)
+			valueText = ok and encoded or tostring(value)
+		else
+			valueText = tostring(value)
+		end
+		parts[#parts + 1] = key.."="..valueText
+	end
+	return Concat(parts, " | ")
+end
+
+NAmanage.NAConsoleResolveSource = NAmanage.NAConsoleResolveSource or function(context, rawText)
+	context = type(context) == "table" and context or {}
+	local source = context.source or context.Source or context.origin or context.Origin
+	local subsystem = context.subsystem or context.Subsystem or context.system or context.System
+	if source == nil then
+		const text = Lower(tostring(rawText or ""))
+		if text:sub(1, 4) == "[na]" or text:find("nameless admin", 1, true) then
+			source = "NamelessAdmin"
+		else
+			source = "Game"
+		end
+	end
+	return tostring(source), subsystem ~= nil and tostring(subsystem) or ""
+end
+
+NAmanage.NAConsoleTimeInfo = NAmanage.NAConsoleTimeInfo or function(timestamp)
+	local numeric = tonumber(timestamp)
+	if numeric and numeric > 100000000 then
+		numeric = math.floor(numeric)
+		local ok, clock = pcall(os.date, "%H:%M:%S", numeric)
+		if ok and clock then
+			return tostring(clock), numeric
+		end
+	end
+	local ok, clock = pcall(os.date, "%H:%M:%S")
+	return (ok and tostring(clock)) or "--:--:--", numeric or (os.time and os.time() or 0)
+end
+
+NAmanage.NAConsoleRefreshRecord = NAmanage.NAConsoleRefreshRecord or function(record)
+	if type(record) ~= "table" then
+		return record
+	end
+	const showTime = NAStuff.DevConsoleTimestamps ~= false
+	const showSource = NAStuff.DevConsoleShowSource ~= false
+	const copyContext = NAStuff.DevConsoleCopyContext ~= false
+	local sourceLabel = tostring(record.source or "")
+	if Lower(sourceLabel) == "namelessadmin" then
+		sourceLabel = "NA"
+	end
+	const subsystem = tostring(record.subsystem or "")
+	if subsystem ~= "" then
+		sourceLabel = sourceLabel ~= "" and (sourceLabel.."/"..subsystem) or subsystem
+	end
+	const count = math.max(1, tonumber(record.duplicateCount) or 1)
+	const suffix = count > 1 and ("  ×"..tostring(count)) or ""
+	const timeText = tostring(record.lastTimeText or record.timeText or "--:--:--")
+	local plainPrefix = ""
+	local richPrefix = ""
+	if showTime then
+		plainPrefix = "["..timeText.."] "
+		richPrefix = "<font color=\"#888888\">["..NAmanage.NAConsoleEscapeRich(timeText).."]</font> "
+	end
+	local sourcePlain = ""
+	local sourceRich = ""
+	if showSource and sourceLabel ~= "" and sourceLabel ~= "Game" then
+		sourcePlain = " ["..sourceLabel.."]"
+		sourceRich = " <font color=\"#aaaaaa\">["..NAmanage.NAConsoleEscapeRich(sourceLabel).."]</font>"
+	end
+	record.plainText = plainPrefix.."["..tostring(record.tag or "Output").."]"..sourcePlain..": "..tostring(record.raw or "")..suffix
+	record.richText = richPrefix.."<font color=\""..tostring(record.color or "#cccccc").."\">["..NAmanage.NAConsoleEscapeRich(record.tag or "Output").."]</font>"..sourceRich..": <font color=\"#ffffff\">"..NAmanage.NAConsoleEscapeRich(record.raw or "")..NAmanage.NAConsoleEscapeRich(suffix).."</font>"
+	local copy = record.plainText
+	if copyContext and tostring(record.contextText or "") ~= "" then
+		copy ..= "\nContext: "..tostring(record.contextText)
+	end
+	if count > 1 then
+		copy ..= "\nFirst seen: "..tostring(record.timeText or timeText).." | Last seen: "..timeText.." | Count: "..tostring(count)
+	end
+	record.copyText = copyContext and copy or tostring(record.raw or "")
+	record.searchText = Lower(Concat({
+		record.plainText,
+		tostring(record.raw or ""),
+		tostring(record.source or ""),
+		tostring(record.subsystem or ""),
+		tostring(record.contextText or ""),
+		"count="..tostring(count),
+	}, " "))
+	record.height = nil
+	record.measureWidth = nil
+	record.revision = (tonumber(record.revision) or 0) + 1
+	return record
+end
+
+NAmanage.NAConsoleRecordMatchesQuery = NAmanage.NAConsoleRecordMatchesQuery or function(record, query)
+	if type(record) ~= "table" then
+		return false
+	end
+	query = Lower(tostring(query or "")):match("^%s*(.-)%s*$") or ""
+	if query == "" then
+		return true
+	end
+	const searchText = tostring(record.searchText or "")
+	for token in query:gmatch("%S+") do
+		local key, value = token:match("^([%w_]+):(.*)$")
+		if key and value and value ~= "" then
+			if key == "type" or key == "tag" then
+				if Find(Lower(tostring(record.tag or "")), value, 1, true) == nil then return false end
+			elseif key == "source" then
+				if Find(Lower(tostring(record.source or "")), value, 1, true) == nil then return false end
+			elseif key == "subsystem" or key == "system" then
+				if Find(Lower(tostring(record.subsystem or "")), value, 1, true) == nil then return false end
+			elseif key == "ctx" or key == "context" then
+				if Find(Lower(tostring(record.contextText or "")), value, 1, true) == nil then return false end
+			elseif key == "count" then
+				const count = math.max(1, tonumber(record.duplicateCount) or 1)
+				const op, numText = value:match("^([<>]=?)(%d+)$")
+				const wanted = tonumber(numText or value)
+				if wanted then
+					if op == ">" and not (count > wanted) then return false end
+					if op == ">=" and not (count >= wanted) then return false end
+					if op == "<" and not (count < wanted) then return false end
+					if op == "<=" and not (count <= wanted) then return false end
+					if not op and count ~= wanted then return false end
+				end
+			else
+				if Find(searchText, token, 1, true) == nil then return false end
+			end
+		elseif Find(searchText, token, 1, true) == nil then
+			return false
+		end
+	end
+	return true
+end
+
+NAmanage.NAConsoleExportRecords = NAmanage.NAConsoleExportRecords or function(records, formatName)
+	if type(records) ~= "table" then
+		return false, "NA Console records are unavailable."
+	end
+	if type(writefile) ~= "function" then
+		return false, "writefile is unavailable."
+	end
+	formatName = Lower(tostring(formatName or "txt"))
+	if formatName ~= "json" then
+		formatName = "txt"
+	end
+	const root = "Nameless-Admin"
+	const dir = root.."/ConsoleLogs"
+	if type(makefolder) == "function" then
+		pcall(function() if type(isfolder) ~= "function" or not isfolder(root) then makefolder(root) end end)
+		pcall(function() if type(isfolder) ~= "function" or not isfolder(dir) then makefolder(dir) end end)
+	end
+	local stamp = "session"
+	pcall(function() stamp = os.date("%Y%m%d_%H%M%S") end)
+	local path = dir.."/NA_Console_"..stamp.."."..formatName
+	if type(isfile) == "function" and isfile(path) then
+		local index = 2
+		repeat
+			path = dir.."/NA_Console_"..stamp.."_"..tostring(index).."."..formatName
+			index += 1
+		until not isfile(path)
+	end
+	local data
+	if formatName == "json" then
+		const exported = {}
+		for i = 1, #records do
+			const record = records[i]
+			if type(record) == "table" then
+				exported[#exported + 1] = {
+					id = record.id,
+					type = record.tag,
+					message = record.raw,
+					source = record.source,
+					subsystem = record.subsystem,
+					context = record.context,
+					timestamp = record.timestamp,
+					firstSeen = record.timeText,
+					lastSeen = record.lastTimeText or record.timeText,
+					count = math.max(1, tonumber(record.duplicateCount) or 1),
+				}
+			end
+		end
+		local ok, encoded = pcall(function()
+			return Services.HttpService:JSONEncode({
+				generatedAt = os.time and os.time() or nil,
+				placeId = game.PlaceId,
+				gameId = game.GameId,
+				jobId = game.JobId,
+				count = #exported,
+				records = exported,
+			})
+		end)
+		if not ok then
+			return false, "Failed to encode console JSON: "..tostring(encoded)
+		end
+		data = encoded
+	else
+		const lines = {
+			"Nameless Admin Console Export",
+			"PlaceId: "..tostring(game.PlaceId).." | GameId: "..tostring(game.GameId).." | JobId: "..tostring(game.JobId),
+			"Entries: "..tostring(#records),
+			"",
+		}
+		for i = 1, #records do
+			const record = records[i]
+			if type(record) == "table" then
+				lines[#lines + 1] = tostring(record.copyText or record.plainText or record.raw or "")
+			end
+		end
+		data = Concat(lines, "\r\n")
+	end
+	local ok, err = pcall(writefile, path, data)
+	if not ok then
+		return false, "Failed to export console: "..tostring(err)
+	end
+	return true, path, #records
+end
+
+NAmanage.NAConsoleExport = NAmanage.NAConsoleExport or function(formatName)
+	if type(NAmanage._NAConsoleExternalExport) == "function" then
+		return NAmanage._NAConsoleExternalExport(formatName)
+	end
+	if type(NAStuff.NAConsoleRuntimeRecords) ~= "table" and type(NAmanage.bindToDevConsole) == "function" then
+		pcall(NAmanage.bindToDevConsole)
+	end
+	if type(NAmanage._NAConsoleExternalExport) == "function" then
+		return NAmanage._NAConsoleExternalExport(formatName)
+	end
+	if type(NAStuff.NAConsoleRuntimeRecords) == "table" then
+		return NAmanage.NAConsoleExportRecords(NAStuff.NAConsoleRuntimeRecords, formatName)
+	end
+	return false, "NA Console records are unavailable."
+end
+
+NAmanage.NAConsoleWrite = NAmanage.NAConsoleWrite or function(text, tag, context)
 	tag = NAmanage.NAConsoleNormalizeTag(tag)
 	text = tostring(text or "")
+	context = NAmanage.NAConsoleNormalizeContext(context)
+	if context.source == nil then
+		context.source = "NamelessAdmin"
+	end
 	if type(NAmanage._NAConsoleExternalWrite) == "function" then
-		return NAmanage._NAConsoleExternalWrite(text, tag)
+		return NAmanage._NAConsoleExternalWrite(text, tag, context)
 	end
 	local pending = NAStuff.NAConsoleExternalPending
 	if type(pending) ~= "table" then
@@ -22754,8 +23059,32 @@ NAmanage.NAConsoleWrite = NAmanage.NAConsoleWrite or function(text, tag)
 	pending[#pending + 1] = {
 		text = text,
 		tag = tag,
+		context = context,
+		timestamp = os.time and os.time() or nil,
 	}
 	return true
+end
+
+NAmanage.NAConsoleStructuredLog = NAmanage.NAConsoleStructuredLog or function(text, tag, context)
+	tag = NAmanage.NAConsoleNormalizeTag(tag)
+	text = tostring(text or "")
+	context = NAmanage.NAConsoleNormalizeContext(context)
+	if context.source == nil then context.source = "NamelessAdmin" end
+	if tag == "Error" then
+		return NAmanage.NAConsoleWrite(text, tag, context)
+	end
+	const logService = Services.LogService or SafeGetService("LogService")
+	const methodName = tag == "Warn" and "Warn" or (tag == "Info" and "Info" or "Output")
+	if logService and type(__lt) == "table" and type(__lt.cm) == "function" then
+		const templateSafeText = text:gsub("{", "{{"):gsub("}", "}}")
+		local ok = pcall(function()
+			__lt.cm("LogService", methodName, templateSafeText, context)
+		end)
+		if ok then
+			return true
+		end
+	end
+	return NAmanage.NAConsoleWrite(text, tag, context)
 end
 
 NAmanage.NAConsoleClear = NAmanage.NAConsoleClear or function()
@@ -25316,6 +25645,10 @@ NAStuff.ClickTouchInvisibleFallback = NAmanage.NASettingsGet("clickTouchInvisibl
 NAStuff.ClickTouchAlwaysOnTop = NAmanage.NASettingsGet("clickTouchAlwaysOnTop") == true
 NAStuff.RobloxDevConsoleCopyButtonsEnabled = NAStuff.RobloxDevConsoleCopyButtonsEnabled ~= false
 NAStuff.NAConsoleMasterEnabled = NAStuff.NAConsoleMasterEnabled ~= false
+NAStuff.DevConsoleTimestamps = NAStuff.DevConsoleTimestamps ~= false
+NAStuff.DevConsoleCollapseDuplicates = NAStuff.DevConsoleCollapseDuplicates ~= false
+NAStuff.DevConsoleShowSource = NAStuff.DevConsoleShowSource ~= false
+NAStuff.DevConsoleCopyContext = NAStuff.DevConsoleCopyContext ~= false
 NAStuff.CrosshairColor = NAStuff.CrosshairColor or Color3.new(1, 1, 1)
 NAStuff.CrosshairEnabled = NAStuff.CrosshairEnabled == true
 NAStuff.CrosshairSize = NAStuff.CrosshairSize or 8
@@ -25363,6 +25696,10 @@ if FileSupport then
 	NAStuff.AutoFireRemoteMethod = NAmanage.NASettingsGet("autoFireRemoteMethod") or NAStuff.AutoFireRemoteMethod or "PostSimulation"
 	NAStuff.RobloxDevConsoleCopyButtonsEnabled = NAmanage.NASettingsGet("devConsoleCopyButtons") ~= false
 	NAStuff.NAConsoleMasterEnabled = NAmanage.NASettingsGet("devConsoleMasterInput") ~= false
+	NAStuff.DevConsoleTimestamps = NAmanage.NASettingsGet("devConsoleTimestamps") ~= false
+	NAStuff.DevConsoleCollapseDuplicates = NAmanage.NASettingsGet("devConsoleCollapseDuplicates") ~= false
+	NAStuff.DevConsoleShowSource = NAmanage.NASettingsGet("devConsoleShowSource") ~= false
+	NAStuff.DevConsoleCopyContext = NAmanage.NASettingsGet("devConsoleCopyContext") ~= false
 	NAStuff.DevConsoleLogLimit = math.clamp(math.floor((tonumber(NAmanage.NASettingsGet("devConsoleLogLimit")) or NAStuff.DevConsoleLogLimit or 1200) + 0.5), 200, 5000)
 	NAStuff.DevConsoleQueueLimit = math.clamp(math.floor((tonumber(NAmanage.NASettingsGet("devConsoleQueueLimit")) or NAStuff.DevConsoleQueueLimit or 600) + 0.5), 100, 4000)
 	NAStuff.DevConsoleOverscan = math.clamp(math.floor((tonumber(NAmanage.NASettingsGet("devConsoleOverscan")) or NAStuff.DevConsoleOverscan or 320) + 0.5), 60, 2000)
@@ -87955,6 +88292,113 @@ NAindex.clickTarget = function(cd)
 	return part, part and part.Position or nil
 end
 
+NAmanage.GotoInteractable = function(kind, ...)
+	const args = {...}
+	const targetText = args[1] and Concat(args, " ") or nil
+	const target = targetText and Lower(targetText) or nil
+	local char = getChar()
+	local root = char and getRoot(char)
+	if not (char and root) then
+		return DebugNotif("Your character is invalid", 3)
+	end
+
+	NAindex.init()
+	const isPrompt = kind == "prompt"
+	const isClick = kind == "click"
+	const isTouch = kind == "touch"
+	const source = isPrompt and (InstancesTbl.proxy or {})
+		or isClick and (InstancesTbl.click or {})
+		or isTouch and (InstancesTbl.touch or {})
+		or {}
+	const label = isPrompt and "ProximityPrompt"
+		or isClick and "ClickDetector"
+		or isTouch and "TouchInterest"
+		or "Interactable"
+	local bestInst, bestPart, bestDistance, bestScore
+	const rootPos = NAmanage.UG_clientPosition(root) or root.Position
+
+	for _, inst in source do
+		if inst and inst.Parent then
+			local names, part
+			if isPrompt then
+				names = NAindex.namesForPrompt(inst)
+				part = select(1, NAindex.promptTarget(inst))
+			elseif isClick then
+				names = NAindex.namesForClick(inst)
+				part = select(1, NAindex.clickTarget(inst))
+			elseif isTouch then
+				const container = inst.Parent
+				part = NAindex.carPart(container)
+				names = {}
+				if inst.Name and inst.Name ~= "" then Insert(names, NAindex.lc(inst.Name)) end
+				if container and container.Name and container.Name ~= "" then Insert(names, NAindex.lc(container.Name)) end
+				if part and part.Name and part.Name ~= "" then Insert(names, NAindex.lc(part.Name)) end
+				local model = part and part:FindFirstAncestorWhichIsA("Model") or nil
+				while model do
+					if model.Name and model.Name ~= "" then Insert(names, NAindex.lc(model.Name)) end
+					model = model:FindFirstAncestorWhichIsA("Model")
+				end
+			end
+
+			local score = 0
+			if not target or target == "" then
+				score = 1
+			elseif NAindex.matchAny(names or {}, target) then
+				score = 2
+			elseif NAindex.matchAnyFind(names or {}, target) then
+				score = 1
+			end
+
+			if score > 0 and part and part.Parent then
+				const distance = (part.Position - rootPos).Magnitude
+				if not bestPart or score > bestScore or (score == bestScore and distance < bestDistance) then
+					bestInst = inst
+					bestPart = part
+					bestDistance = distance
+					bestScore = score
+				end
+			end
+		end
+	end
+
+	if not bestPart then
+		if targetText then
+			return DebugNotif(("No %ss found matching \"%s\""):format(label, targetText), 2)
+		end
+		return DebugNotif("No "..label.."s found", 2)
+	end
+
+	const hum = getHum()
+	if hum then
+		hum.Sit = false
+		Wait(0.1)
+	end
+
+	char = getChar()
+	root = char and getRoot(char)
+	if not (char and root and bestPart and bestPart.Parent) then
+		return DebugNotif("Teleport target is no longer available", 2)
+	end
+
+	if NAmanage.UG_pivotModel(char, bestPart:GetPivot()) then
+		DebugNotif(("Teleported to %s \"%s\""):format(label, bestInst and bestInst.Name or bestPart.Name), 2)
+	else
+		DebugNotif("Failed to teleport to "..label, 2)
+	end
+end
+
+cmd.add({"proximitypromptgoto", "promptgoto", "ppgoto"}, {"proximitypromptgoto [name] (promptgoto, ppgoto)", "Teleports to the nearest ProximityPrompt part, optionally matching its name/object/action/parent/model"}, function(...)
+	NAmanage.GotoInteractable("prompt", ...)
+end, true)
+
+cmd.add({"clickdetectorgoto", "clickgoto", "cdgoto"}, {"clickdetectorgoto [name] (clickgoto, cdgoto)", "Teleports to the nearest ClickDetector part, optionally matching its name/parent/model"}, function(...)
+	NAmanage.GotoInteractable("click", ...)
+end, true)
+
+cmd.add({"touchinterestgoto", "touchgoto", "tigoto"}, {"touchinterestgoto [name] (touchgoto, tigoto)", "Teleports to the nearest TouchInterest part, optionally matching its name/parent/part/model"}, function(...)
+	NAmanage.GotoInteractable("touch", ...)
+end, true)
+
 NAmanage.ClickTouchGetConfig = function()
 	local maxDistance = math.floor((tonumber(NAStuff.ClickTouchMaxDistance) or 1024) + 0.5)
 	if maxDistance > 0 then
@@ -97963,6 +98407,14 @@ end)
 cmd.add({"oldconsole", "olddebug"}, {"oldconsole", "opens old version of the developer console"}, function()
 	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/OldConsole.lua")
 end)
+
+cmd.add({"exportconsole", "consoleexport", "conexport"}, {"exportconsole [txt|json] (consoleexport, conexport)", "Exports the current NA Console records with timestamps, duplicate counts, and structured context"}, function(formatName)
+	local ok, path, count = NAmanage.NAConsoleExport(formatName or "txt")
+	if not ok then
+		return DoNotif(tostring(path), 4)
+	end
+	DoNotif("Exported "..tostring(count or 0).." console entries to "..tostring(path), 3)
+end, true)
 
 NAmanage.HB_Defaults=function()
 	return {
@@ -131825,6 +132277,7 @@ NAmanage.Notepad_Init = function()
 	box.ClearTextOnFocus = false
 	box.Font = Enum.Font.Code
 	box.MultiLine = true
+	box.RichText = true
 	box.PlaceholderText = "type here..."
 	box.PlaceholderColor3 = col.sub
 	box.Text = ""
@@ -131836,6 +132289,639 @@ NAmanage.Notepad_Init = function()
 	box.Size = UDim2.new(0, 320, 0, 200)
 	box.Position = UDim2.new(0, 8, 0, 8)
 	box.Parent = body
+
+
+	const fmt = {
+		popups = {},
+		headingSizes = { 28, 22, 19, 17, 15, 13 },
+	}
+
+	fmt.stripRich = function(source)
+		source = tostring(source or "")
+		source = source:gsub("<!%-%-NA_LINK:.-%-%->", "")
+		source = source:gsub("<font%s+[^>]->", "")
+		source = source:gsub("</font>", "")
+		source = source:gsub("<b>", ""):gsub("</b>", "")
+		source = source:gsub("<i>", ""):gsub("</i>", "")
+		source = source:gsub("<s>", ""):gsub("</s>", "")
+		source = source:gsub("<u>", ""):gsub("</u>", "")
+		return source
+	end
+
+	fmt.bar = InstanceNew("Frame")
+	fmt.bar.Name = "FormattingBar"
+	fmt.bar.BackgroundColor3 = col.bg2
+	fmt.bar.BackgroundTransparency = 0.1
+	fmt.bar.BorderSizePixel = 0
+	fmt.bar.ZIndex = 25
+	fmt.bar.Parent = main
+	skin(fmt.bar, 8, 1)
+
+	fmt.scroll = InstanceNew("ScrollingFrame")
+	fmt.scroll.Name = "FormattingTools"
+	fmt.scroll.Active = true
+	fmt.scroll.BackgroundTransparency = 1
+	fmt.scroll.BorderSizePixel = 0
+	fmt.scroll.CanvasSize = UDim2.new()
+	fmt.scroll.ScrollBarThickness = 0
+	fmt.scroll.ScrollingDirection = Enum.ScrollingDirection.X
+	fmt.scroll.Position = UDim2.new(0, 4, 0, 2)
+	fmt.scroll.Size = UDim2.new(1, -8, 1, -4)
+	fmt.scroll.ZIndex = 26
+	fmt.scroll.Parent = fmt.bar
+
+	fmt.layout = InstanceNew("UIListLayout")
+	fmt.layout.FillDirection = Enum.FillDirection.Horizontal
+	fmt.layout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+	fmt.layout.VerticalAlignment = Enum.VerticalAlignment.Center
+	fmt.layout.SortOrder = Enum.SortOrder.LayoutOrder
+	fmt.layout.Padding = UDim.new(0, 5)
+	fmt.layout.Parent = fmt.scroll
+
+	fmt.tip = InstanceNew("TextLabel")
+	fmt.tip.Name = "FormattingTooltip"
+	fmt.tip.Visible = false
+	fmt.tip.BackgroundColor3 = col.bg3
+	fmt.tip.BackgroundTransparency = 0.02
+	fmt.tip.BorderSizePixel = 0
+	fmt.tip.Font = Enum.Font.Gotham
+	fmt.tip.TextColor3 = col.tx
+	fmt.tip.TextSize = 11
+	fmt.tip.TextWrapped = false
+	fmt.tip.TextXAlignment = Enum.TextXAlignment.Center
+	fmt.tip.TextYAlignment = Enum.TextYAlignment.Center
+	fmt.tip.ZIndex = 95
+	fmt.tip.Parent = main
+	skin(fmt.tip, 6, 1)
+
+	fmt.hideTip = function()
+		fmt.tip.Visible = false
+	end
+
+	fmt.showTip = function(button, text)
+		if not (button and button.Parent and fmt.tip and fmt.tip.Parent) then
+			return
+		end
+		fmt.tip.Text = tostring(text or "")
+		local width = math.clamp(#fmt.tip.Text * 6 + 18, 70, 220)
+		fmt.tip.Size = UDim2.fromOffset(width, 24)
+		const mainPos = main.AbsolutePosition
+		const pos = button.AbsolutePosition
+		const size = button.AbsoluteSize
+		local x = pos.X - mainPos.X + size.X * 0.5 - width * 0.5
+		local y = pos.Y - mainPos.Y - 28
+		if y < 4 then
+			y = pos.Y - mainPos.Y + size.Y + 4
+		end
+		x = math.clamp(x, 4, math.max(4, main.AbsoluteSize.X - width - 4))
+		fmt.tip.Position = UDim2.fromOffset(math.floor(x + 0.5), math.floor(y + 0.5))
+		fmt.tip.Visible = true
+	end
+
+	fmt.makeTool = function(text, width, order, tooltip)
+		const b = btn(fmt.scroll, text, width, order)
+		b.Name = "Format"..tostring(order)
+		b.Size = UDim2.new(0, width, 1, 0)
+		b.TextSize = 12
+		b.ZIndex = 27
+		b.MouseEnter:Connect(function()
+			fmt.showTip(b, tooltip)
+		end)
+		b.MouseLeave:Connect(fmt.hideTip)
+		return b
+	end
+
+	fmt.heading = fmt.makeTool("Body v", 62, 1, "Headings")
+	fmt.list = fmt.makeTool("List v", 52, 2, "Lists")
+	fmt.bold = fmt.makeTool("B", 30, 3, "Bold (Ctrl+B)")
+	fmt.bold.Font = Enum.Font.GothamBold
+	fmt.italic = fmt.makeTool("I", 30, 4, "Italic (Ctrl+I)")
+	fmt.strike = fmt.makeTool("S", 30, 5, "Strikethrough (Ctrl+Shift+X)")
+	fmt.link = fmt.makeTool("Link", 42, 6, "Link (Ctrl+K)")
+	fmt.clear = fmt.makeTool("Clear", 48, 7, "Clear formatting (Ctrl+Space)")
+
+	fmt.strikeLine = InstanceNew("Frame")
+	fmt.strikeLine.AnchorPoint = Vector2.new(0.5, 0.5)
+	fmt.strikeLine.BackgroundColor3 = col.tx
+	fmt.strikeLine.BorderSizePixel = 0
+	fmt.strikeLine.Position = UDim2.new(0.5, 0, 0.5, 0)
+	fmt.strikeLine.Size = UDim2.new(0, 12, 0, 1)
+	fmt.strikeLine.ZIndex = 28
+	fmt.strikeLine.Parent = fmt.strike
+
+	fmt.layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+		fmt.scroll.CanvasSize = UDim2.new(0, fmt.layout.AbsoluteContentSize.X + 8, 0, 0)
+	end)
+
+	fmt.positionPopup = function(popup, anchorButton)
+		if not (popup and anchorButton and popup.Parent and anchorButton.Parent) then
+			return
+		end
+		const mainPos = main.AbsolutePosition
+		const buttonPos = anchorButton.AbsolutePosition
+		const buttonSize = anchorButton.AbsoluteSize
+		const popupSize = popup.AbsoluteSize
+		local x = buttonPos.X - mainPos.X
+		local y = buttonPos.Y - mainPos.Y + buttonSize.Y + 5
+		local width = popupSize.X > 0 and popupSize.X or popup.Size.X.Offset
+		local height = popupSize.Y > 0 and popupSize.Y or popup.Size.Y.Offset
+		x = math.clamp(x, 4, math.max(4, main.AbsoluteSize.X - width - 6))
+		if y + height + 6 > main.AbsoluteSize.Y then
+			y = buttonPos.Y - mainPos.Y - height - 5
+		end
+		popup.Position = UDim2.fromOffset(math.floor(x + 0.5), math.max(4, math.floor(y + 0.5)))
+	end
+
+	fmt.hidePopups = function(except)
+		for _, popup in fmt.popups do
+			if popup ~= except then
+				popup.Visible = false
+			end
+		end
+		fmt.hideTip()
+	end
+
+	fmt.newPopup = function(name, width, height)
+		const popup = InstanceNew("Frame")
+		popup.Name = name
+		popup.Visible = false
+		popup.ClipsDescendants = true
+		popup.BackgroundColor3 = col.bg2
+		popup.BorderSizePixel = 0
+		popup.Size = UDim2.fromOffset(width, height)
+		popup.ZIndex = 70
+		popup.Parent = main
+		skin(popup, 8, 1)
+		fmt.popups[#fmt.popups + 1] = popup
+		return popup
+	end
+
+	fmt.headingPopup = fmt.newPopup("HeadingMenu", 166, 218)
+	fmt.headingPad = InstanceNew("UIPadding")
+	fmt.headingPad.PaddingTop = UDim.new(0, 6)
+	fmt.headingPad.PaddingBottom = UDim.new(0, 6)
+	fmt.headingPad.PaddingLeft = UDim.new(0, 6)
+	fmt.headingPad.PaddingRight = UDim.new(0, 6)
+	fmt.headingPad.Parent = fmt.headingPopup
+	fmt.headingLayout = InstanceNew("UIListLayout")
+	fmt.headingLayout.Padding = UDim.new(0, 3)
+	fmt.headingLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	fmt.headingLayout.Parent = fmt.headingPopup
+	fmt.headingOptions = {
+		{ "Title", 1 },
+		{ "Subtitle", 2 },
+		{ "Heading", 3 },
+		{ "Subheading", 4 },
+		{ "Section", 5 },
+		{ "Subsection", 6 },
+		{ "Body", 0 },
+	}
+
+	fmt.listPopup = fmt.newPopup("ListMenu", 180, 132)
+	fmt.listPad = InstanceNew("UIPadding")
+	fmt.listPad.PaddingTop = UDim.new(0, 6)
+	fmt.listPad.PaddingBottom = UDim.new(0, 6)
+	fmt.listPad.PaddingLeft = UDim.new(0, 6)
+	fmt.listPad.PaddingRight = UDim.new(0, 6)
+	fmt.listPad.Parent = fmt.listPopup
+	fmt.listLayout = InstanceNew("UIListLayout")
+	fmt.listLayout.Padding = UDim.new(0, 4)
+	fmt.listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	fmt.listLayout.Parent = fmt.listPopup
+
+	fmt.linkPopup = fmt.newPopup("LinkMenu", 246, 112)
+	fmt.linkLabel = InstanceNew("TextLabel")
+	fmt.linkLabel.BackgroundTransparency = 1
+	fmt.linkLabel.Font = Enum.Font.GothamSemibold
+	fmt.linkLabel.Position = UDim2.new(0, 10, 0, 7)
+	fmt.linkLabel.Size = UDim2.new(1, -20, 0, 20)
+	fmt.linkLabel.Text = "Insert link"
+	fmt.linkLabel.TextColor3 = col.tx
+	fmt.linkLabel.TextSize = 12
+	fmt.linkLabel.TextXAlignment = Enum.TextXAlignment.Left
+	fmt.linkLabel.ZIndex = 71
+	fmt.linkLabel.Parent = fmt.linkPopup
+	fmt.linkUrl = InstanceNew("TextBox")
+	fmt.linkUrl.BackgroundColor3 = col.bg3
+	fmt.linkUrl.BorderSizePixel = 0
+	fmt.linkUrl.ClearTextOnFocus = false
+	fmt.linkUrl.Font = Enum.Font.Gotham
+	fmt.linkUrl.PlaceholderText = "https://example.com"
+	fmt.linkUrl.PlaceholderColor3 = col.sub
+	fmt.linkUrl.Position = UDim2.new(0, 10, 0, 31)
+	fmt.linkUrl.Size = UDim2.new(1, -20, 0, 30)
+	fmt.linkUrl.Text = ""
+	fmt.linkUrl.TextColor3 = col.tx
+	fmt.linkUrl.TextSize = 12
+	fmt.linkUrl.TextXAlignment = Enum.TextXAlignment.Left
+	fmt.linkUrl.ZIndex = 71
+	fmt.linkUrl.Parent = fmt.linkPopup
+	skin(fmt.linkUrl, 6, 1)
+	fmt.linkApply = btn(fmt.linkPopup, "Apply", 74, 1)
+	fmt.linkApply.Position = UDim2.new(1, -158, 1, -38)
+	fmt.linkApply.Size = UDim2.fromOffset(70, 28)
+	fmt.linkApply.ZIndex = 71
+	fmt.linkCancel = btn(fmt.linkPopup, "Cancel", 74, 2)
+	fmt.linkCancel.Position = UDim2.new(1, -80, 1, -38)
+	fmt.linkCancel.Size = UDim2.fromOffset(70, 28)
+	fmt.linkCancel.ZIndex = 71
+
+
+	fmt.savedCursor = 1
+	fmt.savedSelectionStart = -1
+	fmt.captureSelection = function()
+		const liveCursor = tonumber(box.CursorPosition) or -1
+		const liveAnchor = tonumber(box.SelectionStart) or -1
+		if liveCursor > 0 then
+			fmt.savedCursor = liveCursor
+			if liveAnchor > 0 and liveAnchor ~= liveCursor then
+				fmt.savedSelectionStart = liveAnchor
+			elseif box:IsFocused() then
+				fmt.savedSelectionStart = -1
+			end
+		end
+	end
+
+	fmt.getSelection = function()
+		const text = tostring(box.Text or "")
+		fmt.captureSelection()
+		local cursor = tonumber(box.CursorPosition) or -1
+		local anchor = tonumber(box.SelectionStart) or -1
+		if cursor < 1 then
+			cursor = tonumber(fmt.savedCursor) or (#text + 1)
+		end
+		if anchor < 1 then
+			anchor = tonumber(fmt.savedSelectionStart) or -1
+		end
+		cursor = math.clamp(cursor, 1, #text + 1)
+		if anchor and anchor > 0 then
+			anchor = math.clamp(anchor, 1, #text + 1)
+		end
+		if anchor and anchor > 0 and anchor ~= cursor then
+			return text, math.min(anchor, cursor), math.max(anchor, cursor), true
+		end
+		return text, cursor, cursor, false
+	end
+
+	fmt.setSelection = function(startPos, endPos)
+		const limitNow = #tostring(box.Text or "") + 1
+		startPos = math.clamp(math.floor(tonumber(startPos) or 1), 1, limitNow)
+		endPos = math.clamp(math.floor(tonumber(endPos) or startPos), 1, limitNow)
+		fmt.savedCursor = endPos
+		fmt.savedSelectionStart = startPos ~= endPos and startPos or -1
+		Defer(function()
+			if not (box and box.Parent) then
+				return
+			end
+			const limit = #tostring(box.Text or "") + 1
+			startPos = math.clamp(startPos, 1, limit)
+			endPos = math.clamp(endPos, 1, limit)
+			pcall(function()
+				box:CaptureFocus()
+				box.SelectionStart = startPos
+				box.CursorPosition = endPos
+			end)
+		end)
+	end
+
+	fmt.replaceRange = function(firstPos, lastPos, replacement, selectFirst, selectLast)
+		const text = tostring(box.Text or "")
+		firstPos = math.clamp(math.floor(tonumber(firstPos) or 1), 1, #text + 1)
+		lastPos = math.clamp(math.floor(tonumber(lastPos) or firstPos), firstPos, #text + 1)
+		replacement = tostring(replacement or "")
+		box.Text = text:sub(1, firstPos - 1)..replacement..text:sub(lastPos)
+		if selectFirst ~= nil then
+			fmt.setSelection(selectFirst, selectLast or selectFirst)
+		else
+			fmt.setSelection(firstPos + #replacement, firstPos + #replacement)
+		end
+	end
+
+	fmt.wrapInline = function(openMark, closeMark, placeholder, statusName)
+		local text, firstPos, lastPos, selected = fmt.getSelection()
+		const chosen = selected and text:sub(firstPos, lastPos - 1) or ""
+		if selected and #chosen >= (#openMark + #closeMark) and chosen:sub(1, #openMark) == openMark and chosen:sub(-#closeMark) == closeMark then
+			const inner = chosen:sub(#openMark + 1, #chosen - #closeMark)
+			fmt.replaceRange(firstPos, lastPos, inner, firstPos, firstPos + #inner)
+			setStatus("Removed "..statusName.." formatting", col.sub)
+			return
+		end
+		if selected and firstPos > #openMark and text:sub(firstPos - #openMark, firstPos - 1) == openMark and text:sub(lastPos, lastPos + #closeMark - 1) == closeMark then
+			fmt.replaceRange(firstPos - #openMark, lastPos + #closeMark, chosen, firstPos - #openMark, firstPos - #openMark + #chosen)
+			setStatus("Removed "..statusName.." formatting", col.sub)
+			return
+		end
+		const inner = selected and chosen or tostring(placeholder or "text")
+		const replacement = openMark..inner..closeMark
+		fmt.replaceRange(firstPos, lastPos, replacement, firstPos + #openMark, firstPos + #openMark + #inner)
+		setStatus("Applied "..statusName.." formatting", col.ok)
+	end
+
+	fmt.getLineRange = function()
+		local text, firstPos, lastPos, selected = fmt.getSelection()
+		local before = text:sub(1, math.max(firstPos - 1, 0))
+		local lineStart = before:match(".*()\n")
+		lineStart = lineStart and (lineStart + 1) or 1
+		local probe = selected and math.max(firstPos, lastPos - 1) or firstPos
+		local nextBreak = text:find("\n", probe, true)
+		local lineEnd = nextBreak and (nextBreak - 1) or #text
+		return text, lineStart, lineEnd + 1
+	end
+
+	fmt.transformLines = function(transform)
+		local text, firstPos, lastPos = fmt.getLineRange()
+		const block = text:sub(firstPos, lastPos - 1)
+		const lines = {}
+		for line in (block.."\n"):gmatch("(.-)\n") do
+			lines[#lines + 1] = line
+		end
+		if #lines == 0 then
+			lines[1] = ""
+		end
+		for i, line in lines do
+			lines[i] = tostring(transform(line, i, lines) or "")
+		end
+		const replacement = Concat(lines, "\n")
+		fmt.replaceRange(firstPos, lastPos, replacement, firstPos, firstPos + #replacement)
+		return replacement
+	end
+
+	fmt.removeHeadingPrefix = function(content)
+		content = tostring(content or "")
+		local _, inner = content:match('^<font size="(%d+)"><b>(.*)</b></font>$')
+		if inner ~= nil then
+			return inner
+		end
+		local hashes, rest = content:match("^(#+)%s+(.*)$")
+		if hashes and #hashes <= 6 then
+			return rest
+		end
+		return content
+	end
+
+	fmt.stripLinePrefix = function(line)
+		local indent, content = tostring(line or ""):match("^(%s*)(.*)$")
+		indent = indent or ""
+		content = fmt.removeHeadingPrefix(content or "")
+		content = content:gsub("^•%s+", "")
+		content = content:gsub("^[-%*+]%s+", "")
+		content = content:gsub("^%d+[%.%)]%s+", "")
+		return indent, content
+	end
+
+	fmt.applyHeading = function(level)
+		level = math.clamp(math.floor(tonumber(level) or 0), 0, 6)
+		fmt.transformLines(function(line)
+			local indent, content = tostring(line or ""):match("^(%s*)(.*)$")
+			indent = indent or ""
+			content = fmt.removeHeadingPrefix(content or "")
+			if level == 0 then
+				return indent..content
+			end
+			const size = fmt.headingSizes[level] or box.TextSize
+			return indent..'<font size="'..tostring(size)..'"><b>'..content..'</b></font>'
+		end)
+		fmt.heading.Text = level == 0 and "Body v" or ("H"..tostring(level).." v")
+		fmt.headingPopup.Visible = false
+		setStatus(level == 0 and "Changed to body text" or ("Applied heading H"..tostring(level)), col.ok)
+	end
+
+	fmt.applyList = function(kind)
+		local number = 0
+		fmt.transformLines(function(line)
+			local indent, content = fmt.stripLinePrefix(line)
+			if kind == "bullet" then
+				return indent.."• "..content
+			end
+			number += 1
+			return indent..tostring(number)..". "..content
+		end)
+		fmt.listPopup.Visible = false
+		setStatus(kind == "bullet" and "Applied bulleted list" or "Applied numbered list", col.ok)
+	end
+
+	fmt.indentLines = function(direction)
+		fmt.transformLines(function(line)
+			line = tostring(line or "")
+			if direction > 0 then
+				return "    "..line
+			end
+			if line:sub(1, 1) == "\t" then
+				return line:sub(2)
+			end
+			local spaces = line:match("^( +)")
+			if spaces then
+				const remove = math.min(#spaces, 4)
+				return line:sub(remove + 1)
+			end
+			return line
+		end)
+		setStatus(direction > 0 and "Increased indent" or "Decreased indent", col.sub)
+	end
+
+	fmt.stripInline = function(source)
+		source = fmt.stripRich(source)
+		source = source:gsub("%[([^%]]-)%]%([^%)]-%)", "%1")
+		source = source:gsub("%*%*", "")
+		source = source:gsub("__", "")
+		source = source:gsub("~~", "")
+		source = source:gsub("`", "")
+		source = source:gsub("_", "")
+		source = source:gsub("%*", "")
+		return source
+	end
+
+	fmt.clearFormatting = function()
+		local text, firstPos, lastPos, selected = fmt.getSelection()
+		if selected then
+			local chosen = text:sub(firstPos, lastPos - 1)
+			const cleaned = fmt.stripInline(chosen:gsub("(^[^\n]*)", function(line)
+				local indent, content = fmt.stripLinePrefix(line)
+				return indent..content
+			end):gsub("\n([^\n]*)", function(line)
+				local indent, content = fmt.stripLinePrefix(line)
+				return "\n"..indent..content
+			end))
+			fmt.replaceRange(firstPos, lastPos, cleaned, firstPos, firstPos + #cleaned)
+		else
+			fmt.transformLines(function(line)
+				local indent, content = fmt.stripLinePrefix(line)
+				return indent..fmt.stripInline(content)
+			end)
+		end
+		setStatus("Cleared formatting", col.sub)
+	end
+
+	fmt.currentLine = function()
+		local text, firstPos = fmt.getSelection()
+		local before = text:sub(1, math.max(firstPos - 1, 0))
+		local lineStart = before:match(".*()\n")
+		lineStart = lineStart and lineStart + 1 or 1
+		local nextBreak = text:find("\n", firstPos, true)
+		return text:sub(lineStart, nextBreak and nextBreak - 1 or #text)
+	end
+
+	fmt.syncContext = function()
+		const line = fmt.currentLine()
+		const richSize = tonumber(line:match('^%s*<font size="(%d+)"><b>'))
+		if richSize then
+			local level = 0
+			for i, size in fmt.headingSizes do
+				if tonumber(size) == richSize then
+					level = i
+					break
+				end
+			end
+			fmt.heading.Text = level > 0 and ("H"..tostring(level).." v") or "Body v"
+			return
+		end
+		const hashes = line:match("^%s*(#+)%s+")
+		fmt.heading.Text = hashes and #hashes <= 6 and ("H"..tostring(#hashes).." v") or "Body v"
+	end
+
+	fmt.hasListContext = function()
+		const line = fmt.currentLine()
+		return line:match("^%s*•%s+") ~= nil or line:match("^%s*[-%*+]%s+") ~= nil or line:match("^%s*%d+[%.%)]%s+") ~= nil
+	end
+
+	fmt.setListIndentEnabled = function(enabled)
+		for _, b in { fmt.indentMore, fmt.indentLess } do
+			if b then
+				b.Active = enabled
+				b.TextColor3 = enabled and col.tx or col.sub:Lerp(col.bg2, 0.25)
+				b.BackgroundColor3 = enabled and col.bg3 or col.bg2
+			end
+		end
+	end
+
+	for order, entry in fmt.headingOptions do
+		const item = btn(fmt.headingPopup, entry[1], 1, order)
+		item.Size = UDim2.new(1, 0, 0, 26)
+		item.TextXAlignment = Enum.TextXAlignment.Left
+		item.TextSize = order == 1 and 18 or (order == 2 and 16 or (order == 3 and 14 or 12))
+		item.ZIndex = 71
+		MouseButtonFix(item, function()
+			fmt.applyHeading(entry[2])
+		end)
+	end
+
+	fmt.bulletItem = btn(fmt.listPopup, "Bulleted list", 1, 1)
+	fmt.bulletItem.Size = UDim2.new(1, 0, 0, 27)
+	fmt.bulletItem.TextXAlignment = Enum.TextXAlignment.Left
+	fmt.bulletItem.ZIndex = 71
+	fmt.numberItem = btn(fmt.listPopup, "Numbered list", 1, 2)
+	fmt.numberItem.Size = UDim2.new(1, 0, 0, 27)
+	fmt.numberItem.TextXAlignment = Enum.TextXAlignment.Left
+	fmt.numberItem.ZIndex = 71
+	fmt.indentMore = btn(fmt.listPopup, "Increase indent", 1, 3)
+	fmt.indentMore.Size = UDim2.new(1, 0, 0, 27)
+	fmt.indentMore.TextXAlignment = Enum.TextXAlignment.Left
+	fmt.indentMore.ZIndex = 71
+	fmt.indentLess = btn(fmt.listPopup, "Decrease indent", 1, 4)
+	fmt.indentLess.Size = UDim2.new(1, 0, 0, 27)
+	fmt.indentLess.TextXAlignment = Enum.TextXAlignment.Left
+	fmt.indentLess.ZIndex = 71
+
+	fmt.showLink = function()
+		fmt.hidePopups(fmt.linkPopup)
+		fmt.positionPopup(fmt.linkPopup, fmt.link)
+		fmt.linkPopup.Visible = true
+		if type(getclipboard) == "function" then
+			local ok, clip = pcall(getclipboard)
+			if ok and type(clip) == "string" and clip:match("^https?://") then
+				fmt.linkUrl.Text = clip
+			end
+		end
+		Defer(function()
+			if fmt.linkPopup.Visible then
+				pcall(function() fmt.linkUrl:CaptureFocus() end)
+			end
+		end)
+	end
+
+	fmt.applyLink = function()
+		const url = trim(fmt.linkUrl.Text)
+		if url == "" then
+			setStatus("Enter a link URL", col.err)
+			return
+		end
+		local text, firstPos, lastPos, selected = fmt.getSelection()
+		const chosen = selected and text:sub(firstPos, lastPos - 1) or "link text"
+		const openTag = '<u><font color="#64AFFF">'
+		const closeTag = '</font></u>'
+		const safeUrl = tostring(url):gsub("%-%-", "%%2D%%2D")
+		const replacement = openTag..chosen..closeTag.."<!--NA_LINK:"..safeUrl.."-->"
+		fmt.replaceRange(firstPos, lastPos, replacement, firstPos + #openTag, firstPos + #openTag + #chosen)
+		fmt.linkPopup.Visible = false
+		setStatus("Inserted visual link", col.ok)
+	end
+
+
+	MouseButtonFix(fmt.heading, function()
+		const nextState = not fmt.headingPopup.Visible
+		fmt.hidePopups(fmt.headingPopup)
+		if nextState then
+			fmt.positionPopup(fmt.headingPopup, fmt.heading)
+		end
+		fmt.headingPopup.Visible = nextState
+	end)
+	MouseButtonFix(fmt.list, function()
+		const nextState = not fmt.listPopup.Visible
+		fmt.hidePopups(fmt.listPopup)
+		if nextState then
+			fmt.setListIndentEnabled(fmt.hasListContext())
+			fmt.positionPopup(fmt.listPopup, fmt.list)
+		end
+		fmt.listPopup.Visible = nextState
+	end)
+	MouseButtonFix(fmt.bold, function()
+		fmt.hidePopups()
+		fmt.wrapInline("<b>", "</b>", "bold text", "bold")
+	end)
+	MouseButtonFix(fmt.italic, function()
+		fmt.hidePopups()
+		fmt.wrapInline("<i>", "</i>", "italic text", "italic")
+	end)
+	MouseButtonFix(fmt.strike, function()
+		fmt.hidePopups()
+		fmt.wrapInline("<s>", "</s>", "strikethrough text", "strikethrough")
+	end)
+	MouseButtonFix(fmt.link, fmt.showLink)
+	MouseButtonFix(fmt.clear, function()
+		fmt.hidePopups()
+		fmt.clearFormatting()
+	end)
+	MouseButtonFix(fmt.bulletItem, function()
+		fmt.applyList("bullet")
+	end)
+	MouseButtonFix(fmt.numberItem, function()
+		fmt.applyList("number")
+	end)
+	MouseButtonFix(fmt.indentMore, function()
+		if fmt.hasListContext() then
+			fmt.indentLines(1)
+		end
+	end)
+	MouseButtonFix(fmt.indentLess, function()
+		if fmt.hasListContext() then
+			fmt.indentLines(-1)
+		end
+	end)
+	MouseButtonFix(fmt.linkApply, fmt.applyLink)
+	MouseButtonFix(fmt.linkCancel, function()
+		fmt.linkPopup.Visible = false
+	end)
+
+	box:GetPropertyChangedSignal("CursorPosition"):Connect(function()
+		fmt.captureSelection()
+		fmt.syncContext()
+	end)
+	pcall(function()
+		box:GetPropertyChangedSignal("SelectionStart"):Connect(function()
+			fmt.captureSelection()
+			fmt.syncContext()
+		end)
+	end)
 
 	const optionsDrop = InstanceNew("Frame")
 	optionsDrop.Visible = false
@@ -132049,8 +133135,13 @@ NAmanage.Notepad_Init = function()
 			optBtn.Visible = true
 			setBtnSize(optBtn, tiny and 50 or (compact and 56 or 62), txtSize)
 		end
-		body.Position = UDim2.new(0, inner, 0, inner + toolH + 8)
-		body.Size = UDim2.new(1, -inner * 2, 1, -(inner + toolH + 44))
+		const fmtH = compact and 28 or 30
+		fmt.bar.Position = UDim2.new(0, inner, 0, inner + toolH + 6)
+		fmt.bar.Size = UDim2.new(1, -inner * 2, 0, fmtH)
+		fmt.scroll.CanvasSize = UDim2.new(0, fmt.layout.AbsoluteContentSize.X + 8, 0, 0)
+		const bodyTop = inner + toolH + fmtH + 14
+		body.Position = UDim2.new(0, inner, 0, bodyTop)
+		body.Size = UDim2.new(1, -inner * 2, 1, -(bodyTop + (compact and 36 or 40)))
 		body.ScrollBarThickness = 0
 		notepadLineScroll.Position = body.Position
 		notepadLineScroll.Size = body.Size
@@ -132072,6 +133163,17 @@ NAmanage.Notepad_Init = function()
 		end
 		if optionsDrop.Visible then
 			posOptionsDrop()
+		end
+		for _, popup in fmt.popups do
+			if popup.Visible then
+				if popup == fmt.headingPopup then
+					fmt.positionPopup(popup, fmt.heading)
+				elseif popup == fmt.listPopup then
+					fmt.positionPopup(popup, fmt.list)
+				elseif popup == fmt.linkPopup then
+					fmt.positionPopup(popup, fmt.link)
+				end
+			end
 		end
 	end
 
@@ -132155,7 +133257,7 @@ NAmanage.Notepad_Init = function()
 	const function countNotepadChars()
 		local total = math.max(#chunks - 1, 0)
 		for _, line in chunks do
-			total += #tostring(line or "")
+			total += #fmt.stripRich(tostring(line or ""))
 		end
 		return total
 	end
@@ -132244,7 +133346,11 @@ NAmanage.Notepad_Init = function()
 	end
 
 	const function updEditorSize()
-		local w, h = measureNotepadText(box.Text or "")
+		local w, h = measureNotepadText((box.RichText and box.ContentText) or box.Text or "")
+		if box.RichText and box.TextBounds then
+			w = math.max(w, math.ceil(box.TextBounds.X + 18))
+			h = math.max(h, math.ceil(box.TextBounds.Y + 18))
+		end
 		notepadLineHeight = getNotepadLineHeight()
 		const fullHeight = math.max(getNotepadViewportHeight(), math.max(#chunks, 1) * notepadLineHeight + 18)
 		local _, visibleLines = getNotepadWindowMetrics()
@@ -132339,6 +133445,23 @@ NAmanage.Notepad_Init = function()
 	end
 
 	const function setFullText(source)
+		source = tostring(source or "")
+		if not source:find("<b>", 1, true) and not source:find("<font size=", 1, true) then
+			source = source:gsub("^(######)%s+([^\n]*)", function(_, text) return '<font size="13"><b>'..text..'</b></font>' end)
+			source = source:gsub("\n(######)%s+([^\n]*)", function(_, text) return '\n<font size="13"><b>'..text..'</b></font>' end)
+			source = source:gsub("^(#####)%s+([^\n]*)", function(_, text) return '<font size="15"><b>'..text..'</b></font>' end)
+			source = source:gsub("\n(#####)%s+([^\n]*)", function(_, text) return '\n<font size="15"><b>'..text..'</b></font>' end)
+			source = source:gsub("^(####)%s+([^\n]*)", function(_, text) return '<font size="17"><b>'..text..'</b></font>' end)
+			source = source:gsub("\n(####)%s+([^\n]*)", function(_, text) return '\n<font size="17"><b>'..text..'</b></font>' end)
+			source = source:gsub("^(###)%s+([^\n]*)", function(_, text) return '<font size="19"><b>'..text..'</b></font>' end)
+			source = source:gsub("\n(###)%s+([^\n]*)", function(_, text) return '\n<font size="19"><b>'..text..'</b></font>' end)
+			source = source:gsub("^(##)%s+([^\n]*)", function(_, text) return '<font size="22"><b>'..text..'</b></font>' end)
+			source = source:gsub("\n(##)%s+([^\n]*)", function(_, text) return '\n<font size="22"><b>'..text..'</b></font>' end)
+			source = source:gsub("^(#)%s+([^\n]*)", function(_, text) return '<font size="28"><b>'..text..'</b></font>' end)
+			source = source:gsub("\n(#)%s+([^\n]*)", function(_, text) return '\n<font size="28"><b>'..text..'</b></font>' end)
+			source = source:gsub("%*%*(.-)%*%*", "<b>%1</b>")
+			source = source:gsub("~~(.-)~~", "<s>%1</s>")
+		end
 		loadingText = true
 		chunks = splitText(source)
 		page = 1
@@ -132663,14 +133786,27 @@ NAmanage.Notepad_Init = function()
 
 	if Services.UserInputService then
 		Services.UserInputService.InputBegan:Connect(function(input, gp)
-			if input.KeyCode == Enum.KeyCode.Tab and box:IsFocused() then
+			const focused = box:IsFocused()
+			const ctrl = Services.UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) or Services.UserInputService:IsKeyDown(Enum.KeyCode.RightControl)
+			const shift = Services.UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or Services.UserInputService:IsKeyDown(Enum.KeyCode.RightShift)
+			if focused and ctrl and input.KeyCode == Enum.KeyCode.B then
+				fmt.wrapInline("<b>", "</b>", "bold text", "bold")
+			elseif focused and ctrl and input.KeyCode == Enum.KeyCode.I then
+				fmt.wrapInline("<i>", "</i>", "italic text", "italic")
+			elseif focused and ctrl and shift and input.KeyCode == Enum.KeyCode.X then
+				fmt.wrapInline("<s>", "</s>", "strikethrough text", "strikethrough")
+			elseif focused and ctrl and input.KeyCode == Enum.KeyCode.K then
+				fmt.showLink()
+			elseif focused and ctrl and input.KeyCode == Enum.KeyCode.Space then
+				fmt.clearFormatting()
+			elseif input.KeyCode == Enum.KeyCode.Tab and focused then
 				const pos = box.CursorPosition
 				if pos and pos > 0 then
 					const tx = box.Text or ""
 					box.Text = tx:sub(1, pos - 1).."    "..tx:sub(pos)
 					box.CursorPosition = pos + 4
 				end
-			elseif input.KeyCode == Enum.KeyCode.S and box:IsFocused() and (Services.UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) or Services.UserInputService:IsKeyDown(Enum.KeyCode.RightControl)) then
+			elseif focused and ctrl and input.KeyCode == Enum.KeyCode.S then
 				saveFile(nameBox.Text)
 			end
 		end)
@@ -132714,7 +133850,8 @@ NAmanage.Notepad_Init = function()
 			end)
 		end))
 	end
-	setStatus(fsOk and ("Ready | "..dir) or "Filesystem unavailable", fsOk and col.sub or col.err)
+	fmt.syncContext()
+	setStatus(fsOk and ("Ready | "..dir.." | formatting uses Markdown") or "Filesystem unavailable", fsOk and col.sub or col.err)
 	return true
 end
 
@@ -137924,6 +139061,7 @@ NAmanage.bindToDevConsole = function()
 	end;
 	const pool, visibleLabels = {}, {};
 	local allMessages, filteredMessages = {}, {};
+	NAStuff.NAConsoleRuntimeRecords = allMessages;
 	local pending = {};
 	local pendingHead = 1;
 	local pendingTail = 0;
@@ -137999,8 +139137,8 @@ NAmanage.bindToDevConsole = function()
 		const filterBox = NAUIMANAGER.NAfilter;
 		return tostring((filterBox and filterBox.Text) or ""):lower();
 	end;
-	const function matchesQuery(haystack, needle)
-		return needle == "" or Find(haystack, needle, 1, true) ~= nil;
+	const function matchesQuery(record, needle)
+		return NAmanage.NAConsoleRecordMatchesQuery(record, needle);
 	end;
 	const function getTagInfo(msgTYPE)
 		local tagColor = "#cccccc";
@@ -138119,12 +139257,14 @@ NAmanage.bindToDevConsole = function()
 			return;
 		end;
 		const currentId = NAmanage.GetAttr and NAmanage.GetAttr(lbl, "NA_RecordId");
-		if currentId ~= record.id then
+		const currentRevision = NAmanage.GetAttr and NAmanage.GetAttr(lbl, "NA_RecordRevision");
+		if currentId ~= record.id or currentRevision ~= record.revision then
 			lbl.Name = "Log_" .. tostring(record.id);
 			lbl.Text = record.richText;
 			NAmanage.SetAttr(lbl, "Tag", record.tag);
 			NAmanage.SetAttr(lbl, "NA_CopyText", record.copyText);
 			NAmanage.SetAttr(lbl, "NA_RecordId", record.id);
+			NAmanage.SetAttr(lbl, "NA_RecordRevision", record.revision);
 		end;
 		lbl.Size = UDim2.new(1, 0, 0, record.height or 18);
 		lbl.Position = UDim2.new(0, 0, 0, record.top or 0);
@@ -138200,7 +139340,7 @@ NAmanage.bindToDevConsole = function()
 		const query = getQuery();
 		for i = 1, #allMessages do
 			const record = allMessages[i];
-			if record and (record.forceVisible == true or toggles[record.tag]) and matchesQuery(record.searchText, query) then
+			if record and (record.forceVisible == true or toggles[record.tag]) and matchesQuery(record, query) then
 				ensureRecordHeight(record, width);
 				filteredMessages[#filteredMessages + 1] = record;
 			end;
@@ -138210,25 +139350,51 @@ NAmanage.bindToDevConsole = function()
 			followBottom = isNearBottom()
 		});
 	end;
-	const function appendRecord(rawText, tagText, tagColor, forceVisible)
+	const function appendRecord(rawText, tagText, tagColor, forceVisible, context, timestamp)
+		rawText = tostring(rawText or "");
+		context = NAmanage.NAConsoleNormalizeContext(context);
+		const contextText = NAmanage.NAConsoleContextText(context);
+		const source, subsystem = NAmanage.NAConsoleResolveSource(context, rawText);
+		const timeText, timestampValue = NAmanage.NAConsoleTimeInfo(timestamp);
+		const fingerprint = Lower(tostring(tagText or "Output")).."\0"..rawText.."\0"..contextText;
+		const previous = allMessages[#allMessages];
+		if NAStuff.DevConsoleCollapseDuplicates ~= false and previous and previous.fingerprint == fingerprint then
+			previous.duplicateCount = math.max(1, tonumber(previous.duplicateCount) or 1) + 1;
+			previous.lastTimeText = timeText;
+			previous.lastTimestamp = timestampValue;
+			NAmanage.NAConsoleRefreshRecord(previous);
+			const query = getQuery();
+			removeFilteredRecord(previous);
+			if (previous.forceVisible == true or toggles[previous.tag]) and matchesQuery(previous, query) then
+				ensureRecordHeight(previous, getMeasureWidth(), true);
+				filteredMessages[#filteredMessages + 1] = previous;
+			end;
+			layoutDirty = true;
+			return previous, true;
+		end;
 		messageCounter += 1;
-		const labelText = "[" .. tagText .. "]: " .. rawText;
 		const record = {
 			id = messageCounter,
 			raw = rawText,
 			tag = tagText,
 			color = tagColor,
 			forceVisible = forceVisible == true,
-			copyText = rawText,
-			plainText = labelText,
-			searchText = labelText:lower(),
-			richText = "<font color=\"" .. tagColor .. "\">[" .. tagText .. "]</font>: <font color=\"#ffffff\">" .. escape(rawText) .. "</font>",
-			height = nil,
-			measureWidth = nil
+			context = context,
+			contextText = contextText,
+			source = source,
+			subsystem = subsystem,
+			timestamp = timestampValue,
+			lastTimestamp = timestampValue,
+			timeText = timeText,
+			lastTimeText = timeText,
+			duplicateCount = 1,
+			fingerprint = fingerprint,
+			revision = 0,
 		};
+		NAmanage.NAConsoleRefreshRecord(record);
 		allMessages[#allMessages + 1] = record;
 		const query = getQuery();
-		if (record.forceVisible == true or toggles[tagText]) and matchesQuery(record.searchText, query) then
+		if (record.forceVisible == true or toggles[tagText]) and matchesQuery(record, query) then
 			ensureRecordHeight(record, getMeasureWidth());
 			filteredMessages[#filteredMessages + 1] = record;
 		end;
@@ -138239,6 +139405,7 @@ NAmanage.bindToDevConsole = function()
 			end;
 		end;
 		layoutDirty = true;
+		return record, false;
 	end;
 	const function flushOverflowSummary()
 		if overflowTotal <= 0 then
@@ -138252,7 +139419,7 @@ NAmanage.bindToDevConsole = function()
 			end;
 		end;
 		const suffix = (#parts > 0) and (" (" .. Concat(parts, ", ") .. ")") or "";
-		appendRecord("[NA] Skipped " .. tostring(overflowTotal) .. " console messages while rate-limiting spam." .. suffix, "Warn", "#ffcc00");
+		appendRecord("[NA] Skipped " .. tostring(overflowTotal) .. " console messages while rate-limiting spam." .. suffix, "Warn", "#ffcc00", { source = "NamelessAdmin"; subsystem = "Console"; event = "queue_overflow"; dropped = overflowTotal; }, os.time and os.time() or nil);
 		overflowCounts = {};
 		overflowTotal = 0;
 		return true;
@@ -138260,6 +139427,7 @@ NAmanage.bindToDevConsole = function()
 	const function clearConsoleState()
 		allMessages = {};
 		filteredMessages = {};
+		NAStuff.NAConsoleRuntimeRecords = allMessages;
 		pending = {};
 		pendingHead = 1;
 		pendingTail = 0;
@@ -138473,7 +139641,7 @@ NAmanage.bindToDevConsole = function()
 			NAmanage.ConsoleScroll.scheduleRefresh();
 		end;
 	end;
-	const function enqueueMessage(msg, msgTYPE, forceVisible)
+	const function enqueueMessage(msg, msgTYPE, forceVisible, context, timestamp)
 		const rawText = tostring(msg or "");
 		local tagText, tagColor = getTagInfo(msgTYPE);
 		if forceVisible ~= true and not shouldCaptureTag(tagText) then
@@ -138490,7 +139658,9 @@ NAmanage.bindToDevConsole = function()
 			raw = rawText,
 			t = tagText,
 			c = tagColor,
-			f = forceVisible == true
+			f = forceVisible == true,
+			ctx = NAmanage.NAConsoleNormalizeContext(context),
+			ts = timestamp,
 		};
 	end;
 	const function processPendingQueue()
@@ -138512,7 +139682,7 @@ NAmanage.bindToDevConsole = function()
 					pending[pendingHead] = nil;
 					pendingHead += 1;
 					if item then
-						appendRecord(item.raw, item.t, item.c, item.f);
+						appendRecord(item.raw, item.t, item.c, item.f, item.ctx, item.ts);
 						processed += 1;
 					end;
 				end;
@@ -138543,11 +139713,14 @@ NAmanage.bindToDevConsole = function()
 		end
 		return nil
 	end
-	NAmanage._NAConsoleExternalWrite = function(text, tag)
+	NAmanage._NAConsoleExternalWrite = function(text, tag, context)
 		tag = NAmanage.NAConsoleNormalizeTag(tag)
-		enqueueMessage(tostring(text or ""), externalMessageTypeFromTag(tag), true)
+		enqueueMessage(tostring(text or ""), externalMessageTypeFromTag(tag), true, context, os.time and os.time() or nil)
 		processPendingQueue()
 		return true
+	end
+	NAmanage._NAConsoleExternalExport = function(formatName)
+		return NAmanage.NAConsoleExportRecords(allMessages, formatName)
 	end
 	NAmanage._NAConsoleExternalClear = function()
 		clearConsoleState()
@@ -138559,7 +139732,7 @@ NAmanage.bindToDevConsole = function()
 			for i = 1, #externalPending do
 				const item = externalPending[i]
 				if item then
-					enqueueMessage(item.text, externalMessageTypeFromTag(item.tag), true)
+					enqueueMessage(item.text, externalMessageTypeFromTag(item.tag), true, item.context, item.timestamp)
 				end
 			end
 			NAStuff.NAConsoleExternalPending = {}
@@ -138585,10 +139758,12 @@ NAmanage.bindToDevConsole = function()
 				if entry then
 					const text = entry.message or entry.Message or entry[1];
 					const msgType = entry.messageType or entry.MessageType or entry.type;
+					const context = entry.context or entry.Context;
+					const timestamp = entry.timestamp or entry.Timestamp;
 					if text ~= nil then
 						const tagText = getTagInfo(msgType);
 						if shouldCaptureTag(tagText) then
-							enqueueMessage(text, msgType);
+							enqueueMessage(text, msgType, false, context, timestamp);
 						end;
 					end;
 				end;
@@ -138597,12 +139772,12 @@ NAmanage.bindToDevConsole = function()
 	end;
 	processPendingQueue();
 	if logService then
-		NAlib.connect(CONN_KEY, logService.MessageOut:Connect(function(msg, msgTYPE)
+		NAlib.connect(CONN_KEY, logService.MessageOut:Connect(function(msg, msgTYPE, context)
 			const tagText = getTagInfo(msgTYPE);
 			if not shouldCaptureTag(tagText) then
 				return;
 			end;
-			enqueueMessage(msg, msgTYPE);
+			enqueueMessage(msg, msgTYPE, false, context, os.time and os.time() or nil);
 			processPendingQueue();
 		end));
 	end;
@@ -138652,6 +139827,12 @@ NAmanage.bindToDevConsole = function()
 		end
 		if NAmanage and NAmanage._NAConsoleExternalClear then
 			NAmanage._NAConsoleExternalClear = nil
+		end
+		if NAmanage and NAmanage._NAConsoleExternalExport then
+			NAmanage._NAConsoleExternalExport = nil
+		end
+		if NAStuff then
+			NAStuff.NAConsoleRuntimeRecords = nil
 		end
 		while #visibleLabels > 0 do
 			releaseLabel(table.remove(visibleLabels))
@@ -141926,7 +143107,16 @@ NAmanage.injectNAConsole = function()
 			return
 		end
 		textbox.Text = ""
-		print("> "..commandText)
+		if NAmanage.NAConsoleStructuredLog then
+			NAmanage.NAConsoleStructuredLog("> "..commandText, "Output", {
+				source = "NamelessAdmin";
+				subsystem = "Console";
+				action = "execute";
+				command = commandText;
+			})
+		else
+			print("> "..commandText)
+		end
 
 		const trimmed = commandText:match("^%s*(.-)%s*$")
 		local commandLiteral = nil
@@ -143623,6 +144813,45 @@ const function buildDevConsoleControls()
 		NAStuff.DevConsoleQueueLimit = math.clamp(math.floor((tonumber(v) or 600) + 0.5), 100, 4000)
 		pcall(NAmanage.NASettingsSet, "devConsoleQueueLimit", NAStuff.DevConsoleQueueLimit)
 		pcall(NAmanage.bindToDevConsole)
+	end)
+
+	NAgui.addToggle("NA Console Timestamps", NAStuff.DevConsoleTimestamps ~= false, function(v)
+		NAStuff.DevConsoleTimestamps = v ~= false
+		pcall(NAmanage.NASettingsSet, "devConsoleTimestamps", NAStuff.DevConsoleTimestamps)
+		pcall(NAmanage.bindToDevConsole)
+	end)
+	NAmanage.RegisterToggleAutoSync("NA Console Timestamps", function() return NAStuff.DevConsoleTimestamps ~= false end)
+
+	NAgui.addToggle("NA Console Collapse Duplicates", NAStuff.DevConsoleCollapseDuplicates ~= false, function(v)
+		NAStuff.DevConsoleCollapseDuplicates = v ~= false
+		pcall(NAmanage.NASettingsSet, "devConsoleCollapseDuplicates", NAStuff.DevConsoleCollapseDuplicates)
+		pcall(NAmanage.bindToDevConsole)
+	end)
+	NAmanage.RegisterToggleAutoSync("NA Console Collapse Duplicates", function() return NAStuff.DevConsoleCollapseDuplicates ~= false end)
+
+	NAgui.addToggle("NA Console Source Labels", NAStuff.DevConsoleShowSource ~= false, function(v)
+		NAStuff.DevConsoleShowSource = v ~= false
+		pcall(NAmanage.NASettingsSet, "devConsoleShowSource", NAStuff.DevConsoleShowSource)
+		pcall(NAmanage.bindToDevConsole)
+	end)
+	NAmanage.RegisterToggleAutoSync("NA Console Source Labels", function() return NAStuff.DevConsoleShowSource ~= false end)
+
+	NAgui.addToggle("NA Console Copy Context", NAStuff.DevConsoleCopyContext ~= false, function(v)
+		NAStuff.DevConsoleCopyContext = v ~= false
+		pcall(NAmanage.NASettingsSet, "devConsoleCopyContext", NAStuff.DevConsoleCopyContext)
+		pcall(NAmanage.bindToDevConsole)
+	end)
+	NAmanage.RegisterToggleAutoSync("NA Console Copy Context", function() return NAStuff.DevConsoleCopyContext ~= false end)
+
+	NAgui.addInfo("NA Console Search", "type:error source:NamelessAdmin subsystem:Console ctx:key=value count:>1")
+
+	NAgui.addButton("Export NA Console (TXT)", function()
+		local ok, path, count = NAmanage.NAConsoleExport("txt")
+		DoNotif(ok and ("Exported "..tostring(count or 0).." console entries to "..tostring(path)) or tostring(path), ok and 3 or 4)
+	end)
+	NAgui.addButton("Export NA Console (JSON)", function()
+		local ok, path, count = NAmanage.NAConsoleExport("json")
+		DoNotif(ok and ("Exported "..tostring(count or 0).." console entries to "..tostring(path)) or tostring(path), ok and 3 or 4)
 	end)
 end
 
