@@ -6969,6 +6969,54 @@
       "desc": "Open unblock prompt for target player"
     },
     {
+      "name": "invitefriends",
+      "aliases": [
+        "invitefriends",
+        "invite"
+      ],
+      "usage": "invitefriends [username/userId] (invite)",
+      "args": "[username/userId]",
+      "desc": "Opens Roblox's client invite prompt, optionally targeting a user"
+    },
+    {
+      "name": "experienceevents",
+      "aliases": [
+        "experienceevents",
+        "events"
+      ],
+      "usage": "experienceevents (events)",
+      "args": "",
+      "desc": "Shows upcoming experience events with copy/details/RSVP options"
+    },
+    {
+      "name": "eventinfo",
+      "aliases": [
+        "eventinfo"
+      ],
+      "usage": "eventinfo <eventId>",
+      "args": "<eventId>",
+      "desc": "Shows an experience event with copy/details/RSVP options"
+    },
+    {
+      "name": "rsvpevent",
+      "aliases": [
+        "rsvpevent",
+        "eventrsvp"
+      ],
+      "usage": "rsvpevent <eventId> (eventrsvp)",
+      "args": "<eventId>",
+      "desc": "Opens Roblox's RSVP prompt for an experience event"
+    },
+    {
+      "name": "feedback",
+      "aliases": [
+        "feedback"
+      ],
+      "usage": "feedback",
+      "args": "",
+      "desc": "Opens Roblox's client experience feedback prompt"
+    },
+    {
       "name": "friendweb",
       "aliases": [
         "friendweb",
