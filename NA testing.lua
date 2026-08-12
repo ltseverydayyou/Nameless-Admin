@@ -8341,7 +8341,7 @@ originalIO.resolveWithListfiles=function(target)
 	return nil
 end
 
-if identifyexecutor and (identifyexecutor():lower()=="solara" or identifyexecutor():lower()=="xeno") then
+if identifyexecutor and identifyexecutor():lower()=="xeno" then
 	if not _na_env["__NA_SOLARA_PATH_FIX__"] then
 		_na_env["__NA_SOLARA_PATH_FIX__"] = true
 
