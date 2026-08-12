@@ -6476,6 +6476,39 @@
       "desc": "Fires TouchInterests substring-matching [target] in Workspace"
     },
     {
+      "name": "proximitypromptgoto",
+      "aliases": [
+        "proximitypromptgoto",
+        "promptgoto",
+        "ppgoto"
+      ],
+      "usage": "proximitypromptgoto [name] (promptgoto, ppgoto)",
+      "args": "[name]",
+      "desc": "Teleports to the nearest ProximityPrompt part, optionally matching its name/object/action/parent/model"
+    },
+    {
+      "name": "clickdetectorgoto",
+      "aliases": [
+        "clickdetectorgoto",
+        "clickgoto",
+        "cdgoto"
+      ],
+      "usage": "clickdetectorgoto [name] (clickgoto, cdgoto)",
+      "args": "[name]",
+      "desc": "Teleports to the nearest ClickDetector part, optionally matching its name/parent/model"
+    },
+    {
+      "name": "touchinterestgoto",
+      "aliases": [
+        "touchinterestgoto",
+        "touchgoto",
+        "tigoto"
+      ],
+      "usage": "touchinterestgoto [name] (touchgoto, tigoto)",
+      "args": "[name]",
+      "desc": "Teleports to the nearest TouchInterest part, optionally matching its name/parent/part/model"
+    },
+    {
       "name": "autofireproxi",
       "aliases": [
         "autofireproxi",
@@ -7879,6 +7912,17 @@
       "usage": "oldconsole",
       "args": "",
       "desc": "opens old version of the developer console"
+    },
+    {
+      "name": "exportconsole",
+      "aliases": [
+        "exportconsole",
+        "consoleexport",
+        "conexport"
+      ],
+      "usage": "exportconsole [txt|json] (consoleexport, conexport)",
+      "args": "[txt|json]",
+      "desc": "Exports the current NA Console records with timestamps, duplicate counts, and structured context"
     },
     {
       "name": "hitbox",
