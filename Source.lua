@@ -13139,7 +13139,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 			targetHiddenUi = false,
 			useCustomCycle = false,
 		},
-		cg = CoreGui,
+		cg = Services.CoreGui,
 		store = newFontStore(),
 		data = {
 			enabled = false,
@@ -108515,7 +108515,7 @@ NAmanage.ScriptHub_FetchCatalogGameIcons = function(entries)
 		return {}
 	end
 
-	const query = "placeIds="..HttpService:UrlEncode(Concat(placeIds, ",")).."&returnPolicy=PlaceHolder&size=256x256&format=Png&isCircular=false"
+	const query = "placeIds="..Services.HttpService:UrlEncode(Concat(placeIds, ",")).."&returnPolicy=PlaceHolder&size=256x256&format=Png&isCircular=false"
 	local decoded
 	for _, host in { "thumbnails.roproxy.com", "thumbnails.rotunnel.com", "thumbnails.roblox.com" } do
 		local okFetch, body = NAmanage.HttpGet("https://"..host.."/v1/places/gameicons?"..query, {
@@ -108561,7 +108561,7 @@ NAmanage.ScriptHub_FetchCatalogGameNames = function(entries)
 		return {}
 	end
 
-	const query = "universeIds="..HttpService:UrlEncode(Concat(universeIds, ","))
+	const query = "universeIds="..Services.HttpService:UrlEncode(Concat(universeIds, ","))
 	local decoded
 	for _, host in { "games.roproxy.com", "games.rotunnel.com", "games.roblox.com" } do
 		local okFetch, body = NAmanage.HttpGet("https://"..host.."/v1/games?"..query, {
@@ -108704,7 +108704,7 @@ NAmanage.ScriptHub_ResolveScriptBloxPlaceId = function(data)
 		return cached or nil
 	end
 	local placeId
-	local okFetch, body = NAmanage.HttpGet("https://scriptblox.com/api/script/"..HttpService:UrlEncode(scriptId), {
+	local okFetch, body = NAmanage.HttpGet("https://scriptblox.com/api/script/"..Services.HttpService:UrlEncode(scriptId), {
 		timeout = 7;
 		maxAttempts = 2;
 		Headers = { Accept = "application/json" };
@@ -152587,12 +152587,12 @@ NAmanage.NAInitCoreGuiCustomization=function()
 	return NAgui.withSettingsTabContext(NA_TABS.TAB_INTERFACE, function()
 		NAgui.addSection("CoreGui Customization")
 
-	if CoreGui then
+	if Services.CoreGui then
 		const coreCustomizerBatch = IsOnMobile and 12 or 32
 		const PT = {
 			path      = NAfiles.NAFILEPATH.."/plexity_theme.json",
 			default   = { enabled = false, start = { h = 0.8, s = 1, v = 1 }, finish = { h = 0, s = 1, v = 1 } },
-			cg        = CoreGui,
+			cg        = Services.CoreGui,
 			images    = setmetatable({}, { __mode = "k" }),
 			gradients = setmetatable({}, { __mode = "k" }),
 			watchers  = setmetatable({}, { __mode = "k" }),
@@ -152697,7 +152697,7 @@ NAmanage.NAInitCoreGuiCustomization=function()
 			end)
 		end
 
-		const HUI = NAlib.distinctHuiGrabber and NAlib.distinctHuiGrabber(CoreGui) or nil
+		const HUI = NAlib.distinctHuiGrabber and NAlib.distinctHuiGrabber(Services.CoreGui) or nil
 		const function skipCoreGuiHiddenRoot(inst)
 			return HUI and inst == HUI
 		end
@@ -153776,7 +153776,7 @@ NAmanage.NAInitCoreGuiCustomization=function()
 				end
 				local foundAny = false
 				local appliedAny = false
-				NAmanage.ForEachDescendantYield(CoreGui, function(inst)
+				NAmanage.ForEachDescendantYield(Services.CoreGui, function(inst)
 					if isBuilderIconTarget(inst) then
 						const path = getBuilderIconPath(inst)
 						if getSavedBuilderIconTextForPath(path) ~= nil then
@@ -153802,7 +153802,7 @@ NAmanage.NAInitCoreGuiCustomization=function()
 					return false
 				end
 				const foundPaths = {}
-				NAmanage.ForEachDescendantYield(CoreGui, function(inst)
+				NAmanage.ForEachDescendantYield(Services.CoreGui, function(inst)
 					if isBuilderIconTarget(inst) then
 						const path = normalizeBuilderIconOverridePath(getBuilderIconPath(inst))
 						if type(path) == "string" and path ~= "" then
@@ -154251,7 +154251,7 @@ NAmanage.NAInitCoreGuiCustomization=function()
 					BuilderIconEditor.liveTargets = setmetatable({}, {
 						__mode = "k",
 					})
-					NAmanage.ForEachDescendantYield(CoreGui, function(inst)
+					NAmanage.ForEachDescendantYield(Services.CoreGui, function(inst)
 						if isBuilderIconTarget(inst) then
 							BuilderIconEditor.liveTargets[inst] = true
 							Insert(found, inst)
@@ -154434,7 +154434,7 @@ NAmanage.NAInitCoreGuiCustomization=function()
 				BuilderIconEditor.watchersEnabled = true
 				NAlib.disconnect("BuilderIconEditorAdded")
 				NAlib.disconnect("BuilderIconEditorRemoving")
-				NAlib.connect("BuilderIconEditorAdded", NAmanage.descSub(CoreGui, {
+				NAlib.connect("BuilderIconEditorAdded", NAmanage.descSub(Services.CoreGui, {
 					added = function(o)
 						if not isBuilderIconTarget(o) then
 							return
@@ -154671,7 +154671,7 @@ NAmanage.NAInitCoreGuiCustomization=function()
 			warn(builderErr)
 		end
 		if type(NAmanage.initUIEditors) == "function" then
-			local okEditors, editorsErr = pcall(NAmanage.initUIEditors, CoreGui, HUI)
+			local okEditors, editorsErr = pcall(NAmanage.initUIEditors, Services.CoreGui, HUI)
 			if not okEditors then
 				warn(editorsErr)
 			end
