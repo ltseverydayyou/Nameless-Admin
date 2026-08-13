@@ -2358,6 +2358,16 @@ local NAStuff = {
 		sshop = true;
 		pingserverhop = true;
 		pshop = true;
+		oldserverhop = true;
+		oldhop = true;
+		newserverhop = true;
+		newhop = true;
+		versionhop = true;
+		vhop = true;
+		oldversionhop = true;
+		ovhop = true;
+		regionhop = true;
+		rhop = true;
 	};
 	NASettingsSchema = nil;
 	NASettingsData = nil;
@@ -15744,8 +15754,42 @@ NAmanage.GetBasicInfoSnapshot = function()
 		serverPing = safePingText
 	end
 
+	local serverMeta = nil
+	if type(NAStuff.srv) == "table" and type(NAStuff.srv.getServerDetail) == "function" and tostring(game.JobId or "") ~= "" then
+		NAmanage.BasicInfoServerCache = type(NAmanage.BasicInfoServerCache) == "table" and NAmanage.BasicInfoServerCache or {}
+		const cache = NAmanage.BasicInfoServerCache
+		const key = tostring(placeId).."|"..tostring(game.JobId)
+		if cache.key ~= key then
+			cache.key = key
+			cache.data = nil
+			cache.fetching = false
+			cache.lastFetch = 0
+		end
+		serverMeta = cache.data
+		const metaNow = tick()
+		if not cache.fetching and (cache.lastFetch == 0 or metaNow - (tonumber(cache.lastFetch) or 0) > 60) then
+			cache.fetching = true
+			cache.lastFetch = metaNow
+			const fetchKey = key
+			SpawnCall(function()
+				local detail = NAStuff.srv:getServerDetail(placeId, game.JobId, false)
+				if cache.key == fetchKey then
+					cache.data = detail
+					cache.fetching = false
+				end
+			end)
+		end
+	end
+
 	snapshot.server.playerCount = Format("%d/%d", playerCount, maxPlayers)
 	snapshot.server.ping = serverPing
+	snapshot.server.region = serverMeta and (serverMeta.regionLabel or serverMeta.city or serverMeta.regionName or serverMeta.country) or "Unknown"
+	snapshot.server.city = serverMeta and serverMeta.city or "Unknown"
+	snapshot.server.country = serverMeta and serverMeta.country or "Unknown"
+	snapshot.server.datacenter = serverMeta and serverMeta.datacenterId and tostring(serverMeta.datacenterId) or "Unknown"
+	snapshot.server.ip = serverMeta and serverMeta.ipAddress or "Unknown"
+	snapshot.server.uptime = serverMeta and serverMeta.uptime and NAStuff.srv:formatUptime(serverMeta.uptime, true) or "Unknown"
+	snapshot.server.placeVersion = serverMeta and serverMeta.placeVersion and tostring(serverMeta.placeVersion) or "Unknown"
 
 	const isTesting = getgenv and _na_env.NATestingVer
 	const aprilMode = getgenv and _na_env.ActivateAprilMode
@@ -71408,6 +71452,43 @@ NAStuff.srv.b = {
 	"https://games.roblox.com",
 }
 
+NAStuff.srv.latency = type(NAStuff.srv.latency) == "table" and NAStuff.srv.latency or {}
+NAStuff.srv.latency.cfg = {
+	rovalraBase = "https://apis.rovalra.com";
+	datacentersUrl = "https://apis.rovalra.com/v1/datacenters/list";
+	geolocationUrl = "https://ipapi.co/json/";
+	modelTtl = 900;
+	regionTtl = 45;
+	publicPageLimit = 25;
+	regionPageLimit = 2;
+	requestDelay = 0.12;
+	baseOverheadMs = 30;
+	defaultCoefficient = 1;
+	minCoefficient = 0.3;
+	maxCoefficient = 3;
+	calibrationMinDistanceKm = 200;
+}
+NAStuff.srv.latency.model = type(NAStuff.srv.latency.model) == "table" and NAStuff.srv.latency.model or {
+	ready = false;
+	loading = false;
+	updatedAt = 0;
+	datacenters = {};
+	origin = nil;
+	originIsReal = false;
+	coefficient = 1;
+	baseOverheadMs = 30;
+	currentServerRealPing = nil;
+	currentServerCity = nil;
+	cityOrder = {};
+	cityRank = {};
+	cityPing = {};
+}
+NAStuff.srv.latency.regionCache = type(NAStuff.srv.latency.regionCache) == "table" and NAStuff.srv.latency.regionCache or {}
+NAStuff.srv.detailsCache = type(NAStuff.srv.detailsCache) == "table" and NAStuff.srv.detailsCache or {}
+NAStuff.srv.countsCache = type(NAStuff.srv.countsCache) == "table" and NAStuff.srv.countsCache or {}
+NAStuff.srv.detailsTtl = tonumber(NAStuff.srv.detailsTtl) or 60
+NAStuff.srv.countsTtl = tonumber(NAStuff.srv.countsTtl) or 60
+
 NAStuff.srv.j = function(self, s)
 	if type(s) ~= "string" or #s == 0 then
 		return nil
@@ -71432,15 +71513,460 @@ NAStuff.srv.get = function(self, url)
 	end
 end
 
-NAStuff.srv.pg = function(self, cid, mode)
+NAStuff.srv.extractLatLon = function(self, location)
+	if type(location) ~= "table" then
+		return nil, nil
+	end
+	if type(location.latLong) == "table" then
+		return tonumber(location.latLong[1]), tonumber(location.latLong[2])
+	end
+	if location.latitude ~= nil and location.longitude ~= nil then
+		return tonumber(location.latitude), tonumber(location.longitude)
+	end
+	if location.lat ~= nil and location.lon ~= nil then
+		return tonumber(location.lat), tonumber(location.lon)
+	end
+	return nil, nil
+end
+
+NAStuff.srv.haversine = function(self, lat1, lon1, lat2, lon2)
+	lat1, lon1, lat2, lon2 = tonumber(lat1), tonumber(lon1), tonumber(lat2), tonumber(lon2)
+	if not (lat1 and lon1 and lat2 and lon2) then
+		return math.huge
+	end
+	const radiusKm = 6371
+	const dLat = math.rad(lat2 - lat1)
+	const dLon = math.rad(lon2 - lon1)
+	const a = math.sin(dLat / 2) ^ 2 + math.cos(math.rad(lat1)) * math.cos(math.rad(lat2)) * math.sin(dLon / 2) ^ 2
+	const c = 2 * math.atan2(math.sqrt(a), math.sqrt(math.max(0, 1 - a)))
+	return radiusKm * c
+end
+
+NAStuff.srv.getCurrentRealPing = function(self)
+	local ok, value = pcall(function()
+		return Services.Stats.Network.ServerStatsItem["Data Ping"]:GetValue()
+	end)
+	if ok and type(value) == "number" and value > 0 then
+		return value
+	end
+	return nil
+end
+
+NAStuff.srv.getCurrentServerCity = function(self)
+	if tostring(game.JobId or "") == "" then
+		return nil
+	end
+	const cfg = self.latency.cfg
+	const url = cfg.rovalraBase.."/v1/servers/details?place_id="..tostring(game.PlaceId).."&server_ids="..Services.HttpService:UrlEncode(tostring(game.JobId))
+	const decoded = self:j(self:get(url))
+	if type(decoded) == "table" and type(decoded.servers) == "table" and type(decoded.servers[1]) == "table" then
+		const city = decoded.servers[1].city
+		if city ~= nil and tostring(city) ~= "" then
+			return tostring(city)
+		end
+	end
+	return nil
+end
+
+
+NAStuff.srv.parseIsoTimestamp = function(self, value)
+	if type(value) ~= "string" or value == "" then return nil end
+	local y, mo, d, h, mi, s = value:match("^(%d%d%d%d)%-(%d%d)%-(%d%d)T(%d%d):(%d%d):(%d%d)")
+	y, mo, d, h, mi, s = tonumber(y), tonumber(mo), tonumber(d), tonumber(h), tonumber(mi), tonumber(s)
+	if not (y and mo and d and h and mi and s) then return nil end
+	local ok, dt = pcall(DateTime.fromUniversalTime, y, mo, d, h, mi, s)
+	if ok and dt then return dt.UnixTimestamp end
+	return nil
+end
+
+NAStuff.srv.formatUptime = function(self, seconds, estimated)
+	local value = tonumber(seconds)
+	if not value or value < 0 then return "Unknown" end
+	value = math.floor(value)
+	const days = math.floor(value / 86400)
+	const hours = math.floor((value % 86400) / 3600)
+	const minutes = math.floor((value % 3600) / 60)
+	const secs = math.floor(value % 60)
+	const parts = {}
+	if days > 0 then parts[#parts + 1] = tostring(days).."d" end
+	if hours > 0 then parts[#parts + 1] = tostring(hours).."h" end
+	if minutes > 0 then parts[#parts + 1] = tostring(minutes).."m" end
+	if #parts == 0 then parts[#parts + 1] = tostring(secs).."s" end
+	return Concat(parts, " ")..(estimated == true and "~" or "")
+end
+
+NAStuff.srv.normalizeDetail = function(self, raw)
+	if type(raw) ~= "table" then return nil end
+	const id = tostring(raw.server_id or raw.id or "")
+	if id == "" then return nil end
+	local firstSeenUnix = self:parseIsoTimestamp(raw.first_seen)
+	local uptime = nil
+	if firstSeenUnix then
+		local nowUnix = nil
+		local okNow, nowDt = pcall(DateTime.now)
+		if okNow and nowDt then nowUnix = nowDt.UnixTimestamp end
+		if nowUnix then uptime = math.max(0, nowUnix - firstSeenUnix) end
+	end
+	const locationParts = {}
+	if raw.city and tostring(raw.city) ~= "" and tostring(raw.city) ~= "Unknown" then locationParts[#locationParts + 1] = tostring(raw.city) end
+	if raw.region and tostring(raw.region) ~= "" and tostring(raw.region) ~= "Unknown" and tostring(raw.region) ~= tostring(raw.city) then locationParts[#locationParts + 1] = tostring(raw.region) end
+	if raw.country and tostring(raw.country) ~= "" and tostring(raw.country) ~= "Unknown" then locationParts[#locationParts + 1] = tostring(raw.country) end
+	return {
+		id = id;
+		serverId = id;
+		firstSeen = raw.first_seen;
+		firstSeenUnix = firstSeenUnix;
+		uptime = uptime;
+		uptimeEstimated = firstSeenUnix ~= nil;
+		placeVersion = tonumber(raw.place_version) or raw.place_version;
+		city = raw.city and tostring(raw.city) or nil;
+		regionName = raw.region and tostring(raw.region) or nil;
+		country = raw.country and tostring(raw.country) or nil;
+		ipAddress = raw.ip_address and tostring(raw.ip_address) or nil;
+		datacenterId = raw.datacenter_id;
+		regionLabel = #locationParts > 0 and Concat(locationParts, ", ") or nil;
+	}
+end
+
+NAStuff.srv.fetchDetails = function(self, placeId, serverIds, force)
+	const pid = tonumber(placeId) or tonumber(PlaceId)
+	if type(serverIds) ~= "table" or #serverIds == 0 then return {} end
+	const results = {}
+	const missing = {}
+	const now = tick()
+	for _, rawId in serverIds do
+		const id = tostring(rawId or "")
+		if id ~= "" then
+			const key = tostring(pid).."|"..id
+			const cached = self.detailsCache[key]
+			if not force and type(cached) == "table" and now - (tonumber(cached.at) or 0) < self.detailsTtl and type(cached.data) == "table" then
+				results[id] = cached.data
+			else
+				missing[#missing + 1] = id
+			end
+		end
+	end
+	local index = 1
+	while index <= #missing do
+		const batch = {}
+		for i = index, math.min(index + 39, #missing) do batch[#batch + 1] = missing[i] end
+		index += #batch
+		const url = self.latency.cfg.rovalraBase.."/v1/servers/details?place_id="..tostring(pid).."&server_ids="..Services.HttpService:UrlEncode(Concat(batch, ","))
+		const decoded = self:j(self:get(url))
+		if type(decoded) == "table" and type(decoded.servers) == "table" then
+			for _, raw in decoded.servers do
+				const detail = self:normalizeDetail(raw)
+				if detail then
+					results[detail.id] = detail
+					self.detailsCache[tostring(pid).."|"..detail.id] = { at = tick(); data = detail }
+				end
+			end
+		end
+		if index <= #missing then Wait(self.latency.cfg.requestDelay) end
+	end
+	return results
+end
+
+NAStuff.srv.getServerDetail = function(self, placeId, serverId, force)
+	const id = tostring(serverId or "")
+	if id == "" then return nil end
+	const map = self:fetchDetails(placeId, { id }, force)
+	return map[id]
+end
+
+NAStuff.srv.getCounts = function(self, placeId, force)
+	const pid = tonumber(placeId) or tonumber(PlaceId)
+	const key = tostring(pid)
+	const cached = self.countsCache[key]
+	if not force and type(cached) == "table" and tick() - (tonumber(cached.at) or 0) < self.countsTtl and type(cached.data) == "table" then
+		return cached.data
+	end
+	const url = self.latency.cfg.rovalraBase.."/v1/servers/counts?place_id="..tostring(pid)
+	const decoded = self:j(self:get(url))
+	if type(decoded) == "table" and type(decoded.counts) == "table" then
+		self.countsCache[key] = { at = tick(); data = decoded.counts }
+		return decoded.counts
+	end
+	return nil
+end
+
+NAStuff.srv.queryRoValraServers = function(self, path, pageLimit)
+	local cursor = nil
+	local page = 0
+	const out = {}
+	const seen = {}
+	while page < math.max(1, math.floor(tonumber(pageLimit) or 3)) do
+		page += 1
+		local url = self.latency.cfg.rovalraBase..path
+		if cursor and cursor ~= "" and cursor ~= "0" then
+			url ..= (url:find("?", 1, true) and "&" or "?").."cursor="..Services.HttpService:UrlEncode(tostring(cursor))
+		end
+		const decoded = self:j(self:get(url))
+		if type(decoded) ~= "table" or type(decoded.servers) ~= "table" then break end
+		for _, raw in decoded.servers do
+			if type(raw) == "table" then
+				const id = tostring(raw.server_id or raw.id or "")
+				if id ~= "" and not seen[id] then
+					seen[id] = true
+					out[#out + 1] = raw
+				end
+			end
+		end
+		cursor = decoded.next_cursor or decoded.nextPageCursor
+		if not cursor or cursor == "" or cursor == "0" then break end
+		Wait(self.latency.cfg.requestDelay)
+	end
+	return out
+end
+
+NAStuff.srv.resolveRegionQuery = function(self, query)
+	const raw = tostring(query or ""):match("^%s*(.-)%s*$") or ""
+	if raw == "" then return nil end
+	self:refreshLatencyModel(false)
+	const needle = Lower(raw)
+	local best = nil
+	local bestRank = math.huge
+	for _, dc in self.latency.model.datacenters do
+		const city = tostring(dc.city or "")
+		const country = tostring(dc.country or "")
+		const cityLower = Lower(city)
+		const countryLower = Lower(country)
+		local score = nil
+		if cityLower == needle then score = 0
+		elseif countryLower == needle then score = 1
+		elseif cityLower:find(needle, 1, true) then score = 2
+		elseif countryLower:find(needle, 1, true) then score = 3 end
+		if score ~= nil then
+			const rank = tonumber(self.latency.model.cityRank[city]) or math.huge
+			if not best or score < best.score or (score == best.score and rank < bestRank) then
+				best = { city = city; country = country; score = score }
+				bestRank = rank
+			end
+		end
+	end
+	return best or { city = raw; country = nil; score = 9 }
+end
+
+NAStuff.srv.matchPublicByIds = function(self, placeId, orderedIds, mode)
+	const pid = tonumber(placeId) or tonumber(PlaceId)
+	if type(orderedIds) ~= "table" or #orderedIds == 0 then return nil, "no servers returned" end
+	const _, byId = self:collect(pid, mode == "fullest" and "high" or "low", self.latency.cfg.publicPageLimit)
+	for _, id in orderedIds do
+		const server = byId[tostring(id)]
+		if server then
+			local details = self:fetchDetails(pid, { tostring(id) }, false)
+			const detail = details[tostring(id)]
+			if detail then
+				for k, v in detail do server[k] = v end
+				if detail.city then server.region = detail.city end
+				if detail.regionLabel then server.regionLabel = detail.regionLabel end
+			end
+			if self:refreshLatencyModel(false) and server.city then
+				server.regionRank = self.latency.model.cityRank[server.city]
+				server.latency = self.latency.model.cityPing[server.city]
+				server.latencyEstimated = tonumber(server.latency) ~= nil
+			end
+			if not tonumber(server.latency) and (tonumber(server.ping) or 0) > 0 then
+				server.latency = tonumber(server.ping)
+				server.latencyEstimated = false
+			end
+			return server
+		end
+	end
+	return nil, "matching public server was not found"
+end
+
+NAStuff.srv.pickUptime = function(self, placeId, kind)
+	const pid = tonumber(placeId) or tonumber(PlaceId)
+	kind = kind == "newest" and "newest" or "oldest"
+	const raw = self:queryRoValraServers("/v1/servers/"..kind.."?place_id="..tostring(pid).."&limit=100", 4)
+	const ids = {}
+	for _, entry in raw do
+		const id = tostring(entry.server_id or entry.id or "")
+		if id ~= "" and not (pid == tonumber(game.PlaceId) and id == tostring(game.JobId)) then ids[#ids + 1] = id end
+	end
+	return self:matchPublicByIds(pid, ids, "low")
+end
+
+NAStuff.srv.pickVersion = function(self, placeId, version)
+	const pid = tonumber(placeId) or tonumber(PlaceId)
+	const ver = tonumber(version)
+	if not ver then return nil, "invalid place version" end
+	const path = "/v1/servers/versions?place_id="..tostring(pid).."&place_version="..tostring(math.floor(ver)).."&limit=100"
+	const raw = self:queryRoValraServers(path, 4)
+	const ids = {}
+	for _, entry in raw do
+		const id = tostring(entry.server_id or entry.id or "")
+		if id ~= "" and not (pid == tonumber(game.PlaceId) and id == tostring(game.JobId)) then ids[#ids + 1] = id end
+	end
+	return self:matchPublicByIds(pid, ids, "low")
+end
+
+NAStuff.srv.pickOldestVersion = function(self, placeId)
+	const pid = tonumber(placeId) or tonumber(PlaceId)
+	const counts = self:getCounts(pid, false)
+	local version = counts and tonumber(counts.oldest_place_version) or nil
+	if not version and counts and type(counts.place_versions) == "table" then
+		for _, rawVersion in counts.place_versions do
+			const n = tonumber(type(rawVersion) == "table" and (rawVersion.place_version or rawVersion.version) or rawVersion)
+			if n and (not version or n < version) then version = n end
+		end
+	end
+	if not version then return nil, "oldest active place version is unavailable" end
+	local server, err = self:pickVersion(pid, version)
+	if server then server.requestedVersion = version end
+	return server, err, version
+end
+
+NAStuff.srv.pickRegion = function(self, placeId, query)
+	const pid = tonumber(placeId) or tonumber(PlaceId)
+	const resolved = self:resolveRegionQuery(query)
+	if not resolved then return nil, "region is required" end
+	local path = "/v1/servers/region?place_id="..tostring(pid).."&city="..Services.HttpService:UrlEncode(tostring(resolved.city)).."&limit=100"
+	local raw = self:queryRoValraServers(path, 3)
+	if #raw == 0 then
+		path = "/v1/servers/region?place_id="..tostring(pid).."&region="..Services.HttpService:UrlEncode(tostring(query)).."&limit=100"
+		raw = self:queryRoValraServers(path, 3)
+	end
+	const ids = {}
+	for _, entry in raw do
+		const id = tostring(entry.server_id or entry.id or "")
+		if id ~= "" and not (pid == tonumber(game.PlaceId) and id == tostring(game.JobId)) then ids[#ids + 1] = id end
+	end
+	local server, err = self:matchPublicByIds(pid, ids, "low")
+	if server then
+		server.region = server.city or resolved.city
+		server.regionLabel = server.regionLabel or resolved.city
+	end
+	return server, err, resolved
+end
+
+NAStuff.srv.refreshLatencyModel = function(self, force)
+	const latency = self.latency
+	const cfg = latency.cfg
+	const model = latency.model
+	const now = tick()
+	if not force and model.ready == true and now - (tonumber(model.updatedAt) or 0) < cfg.modelTtl then
+		return true
+	end
+	if model.loading == true then
+		const started = tick()
+		while model.loading == true and tick() - started < 10 do
+			Wait(0.05)
+		end
+		return model.ready == true
+	end
+
+	model.loading = true
+	local okRefresh = pcall(function()
+		model.ready = false
+		model.datacenters = {}
+		model.origin = nil
+		model.originIsReal = false
+		model.coefficient = cfg.defaultCoefficient
+		model.baseOverheadMs = cfg.baseOverheadMs
+		model.currentServerRealPing = nil
+		model.currentServerCity = nil
+		model.cityOrder = {}
+		model.cityRank = {}
+		model.cityPing = {}
+
+		const dcDecoded = self:j(self:get(cfg.datacentersUrl))
+		if type(dcDecoded) == "table" then
+			const seenCities = {}
+			for _, dc in dcDecoded do
+				const location = type(dc) == "table" and dc.location or nil
+				const city = type(location) == "table" and location.city or nil
+				local lat, lon = self:extractLatLon(location)
+				if city and lat and lon and not seenCities[tostring(city)] then
+					seenCities[tostring(city)] = true
+					model.datacenters[#model.datacenters + 1] = {
+						city = tostring(city);
+						country = tostring(location.country or "");
+						lat = lat;
+						lon = lon;
+					}
+				end
+			end
+		end
+
+		const geoDecoded = self:j(self:get(cfg.geolocationUrl))
+		if type(geoDecoded) == "table" then
+			local lat, lon = self:extractLatLon(geoDecoded)
+			if lat and lon then
+				model.origin = { lat = lat; lon = lon }
+				model.originIsReal = true
+			end
+		end
+
+		model.currentServerCity = self:getCurrentServerCity()
+		if not model.origin and model.currentServerCity then
+			for _, dc in model.datacenters do
+				if dc.city == model.currentServerCity then
+					model.origin = { lat = dc.lat; lon = dc.lon }
+					break
+				end
+			end
+		end
+
+		if model.origin and #model.datacenters > 0 then
+			const ranked = {}
+			for _, dc in model.datacenters do
+				ranked[#ranked + 1] = {
+					city = dc.city;
+					distance = self:haversine(model.origin.lat, model.origin.lon, dc.lat, dc.lon);
+				}
+			end
+			table.sort(ranked, function(a, b)
+				return a.distance < b.distance
+			end)
+
+			const realPing = self:getCurrentRealPing()
+			if realPing and model.currentServerCity then
+				model.currentServerRealPing = math.floor(realPing)
+				for _, entry in ranked do
+					if entry.city == model.currentServerCity and entry.distance > cfg.calibrationMinDistanceKm then
+						const coefficient = (realPing - cfg.baseOverheadMs) / math.sqrt(entry.distance)
+						if coefficient == coefficient and coefficient > 0 then
+							model.coefficient = math.clamp(coefficient, cfg.minCoefficient, cfg.maxCoefficient)
+						end
+						break
+					end
+				end
+			end
+
+			for index, entry in ranked do
+				const estimated = math.max(1, math.floor(model.coefficient * math.sqrt(math.max(0, entry.distance)) + model.baseOverheadMs))
+				model.cityOrder[index] = {
+					city = entry.city;
+					distance = entry.distance;
+					latency = estimated;
+					rank = index;
+				}
+				model.cityRank[entry.city] = index
+				model.cityPing[entry.city] = estimated
+			end
+			model.ready = #model.cityOrder > 0
+		end
+		model.updatedAt = tick()
+	end)
+	model.loading = false
+	if not okRefresh then
+		model.ready = false
+	end
+	return model.ready == true
+end
+
+NAStuff.srv.pg = function(self, cid, mode, placeId)
+	const pid = tonumber(placeId) or tonumber(PlaceId)
 	const sortOrder = mode == "high" and "Desc" or "Asc"
 	local q = "?sortOrder="..sortOrder.."&excludeFullGames=true&limit=100"
 	if cid and cid ~= "" then
-		q = q.."&cursor="..HttpService:UrlEncode(cid)
+		q ..= "&cursor="..Services.HttpService:UrlEncode(cid)
 	end
 
 	for _, b in self.b do
-		const url = b.."/v1/games/"..tostring(PlaceId).."/servers/Public"..q
+		const url = b.."/v1/games/"..tostring(pid).."/servers/Public"..q
 		const body = self:get(url)
 		if type(body) == "string" and #body > 0 then
 			const js = self:j(body)
@@ -71450,19 +71976,17 @@ NAStuff.srv.pg = function(self, cid, mode)
 		end
 	end
 
-	local wq = "placeId="..tostring(PlaceId)
-	wq = wq.."&sortOrder="..HttpService:UrlEncode(sortOrder).."&excludeFullGames=true"
+	local wq = "placeId="..tostring(pid)
+	wq ..= "&sortOrder="..Services.HttpService:UrlEncode(sortOrder).."&excludeFullGames=true"
 	if cid and cid ~= "" then
-		wq = wq.."&cursor="..HttpService:UrlEncode(cid)
+		wq ..= "&cursor="..Services.HttpService:UrlEncode(cid)
 	end
 
 	const wurl = NAStuff.srvWorker.."/servers?"..wq
 	const wbody = self:get(wurl)
 	if type(wbody) == "string" and #wbody > 0 then
-		local ok2, js = pcall(function()
-			return Services.HttpService:JSONDecode(wbody)
-		end)
-		if ok2 and type(js) == "table" and type(js.data) == "table" then
+		const js = self:j(wbody)
+		if type(js) == "table" and type(js.data) == "table" then
 			return js.data, js.nextPageCursor
 		end
 	end
@@ -71470,53 +71994,226 @@ NAStuff.srv.pg = function(self, cid, mode)
 	return nil, nil
 end
 
-NAStuff.srv.scan = function(self, mode)
-	local id, bp, bg = nil, nil, nil
-	local cid, pgc = nil, 0
-	const maxPages = mode == "ping" and 4 or 2
-
-	while pgc < maxPages do
-		pgc += 1
-		local dat, nxt = self:pg(cid, mode)
-		if type(dat) ~= "table" then
+NAStuff.srv.collect = function(self, placeId, mode, pageLimit)
+	const pid = tonumber(placeId) or tonumber(PlaceId)
+	const maxPages = math.clamp(math.floor(tonumber(pageLimit) or self.latency.cfg.publicPageLimit), 1, self.latency.cfg.publicPageLimit)
+	const servers = {}
+	const byId = {}
+	local cursor = nil
+	local page = 0
+	while page < maxPages do
+		page += 1
+		local data, nextCursor = self:pg(cursor, mode, pid)
+		if type(data) ~= "table" then
 			break
 		end
-
-		for _, s in dat do
-			if type(s) == "table" and s.id and s.id ~= JobId then
-				const pl = tonumber(s.playing)
-				const mx = tonumber(s.maxPlayers)
-				const pn = tonumber(s.ping)
-
-				if pl and mx and mx > pl then
-					if mode == "high" then
-						if not bp or pl > bp then
-							bp, id = pl, s.id
-						end
-					elseif mode == "low" then
-						if not bp or pl < bp then
-							bp, id = pl, s.id
-						end
-					elseif mode == "ping" then
-						if pn and (not bg or pn < bg) then
-							bg, id, bp = pn, s.id, pl
-						end
-					end
+		for _, raw in data do
+			if type(raw) == "table" then
+				const id = tostring(raw.id or "")
+				const playing = tonumber(raw.playing) or 0
+				const maximum = tonumber(raw.maxPlayers or raw.max) or 0
+				if id ~= "" and maximum > playing and not (pid == tonumber(game.PlaceId) and id == tostring(game.JobId)) and not byId[id] then
+					const server = {
+						id = id;
+						playing = playing;
+						max = maximum;
+						ping = tonumber(raw.ping) or 0;
+						fps = tonumber(raw.fps) or 0;
+					}
+					servers[#servers + 1] = server
+					byId[id] = server
 				end
 			end
 		end
-
-		if id and mode ~= "ping" then
+		if not nextCursor or nextCursor == "" then
 			break
 		end
+		cursor = nextCursor
+		Wait()
+	end
+	return servers, byId
+end
 
-		if not nxt or nxt == "" then
-			break
-		end
-		cid = nxt
+NAStuff.srv.regionIds = function(self, placeId, city)
+	const pid = tonumber(placeId) or tonumber(PlaceId)
+	const cfg = self.latency.cfg
+	const key = tostring(pid).."|"..tostring(city)
+	const cached = self.latency.regionCache[key]
+	if type(cached) == "table" and tick() - (tonumber(cached.at) or 0) < cfg.regionTtl and type(cached.ids) == "table" then
+		return cached.ids
 	end
 
-	return id, bp, bg
+	const ids = {}
+	local cursor = "0"
+	local pages = 0
+	while cursor and pages < cfg.regionPageLimit do
+		pages += 1
+		const url = cfg.rovalraBase.."/v1/servers/region?place_id="..tostring(pid).."&city="..Services.HttpService:UrlEncode(tostring(city)).."&limit=100&cursor="..Services.HttpService:UrlEncode(tostring(cursor))
+		const decoded = self:j(self:get(url))
+		if type(decoded) ~= "table" or type(decoded.servers) ~= "table" then
+			break
+		end
+		for _, entry in decoded.servers do
+			if type(entry) == "table" and entry.server_id then
+				ids[tostring(entry.server_id)] = true
+			end
+		end
+		cursor = decoded.next_cursor
+		if not cursor or cursor == "" or cursor == "0" then
+			break
+		end
+		Wait(cfg.requestDelay)
+	end
+	self.latency.regionCache[key] = { at = tick(); ids = ids }
+	return ids
+end
+
+NAStuff.srv.sortCandidates = function(self, servers, mode)
+	table.sort(servers, function(a, b)
+		if mode == "low" then
+			if a.playing ~= b.playing then return a.playing < b.playing end
+		elseif mode == "high" then
+			if a.playing ~= b.playing then return a.playing > b.playing end
+		else
+			const ap = tonumber(a.ping) or 0
+			const bp = tonumber(b.ping) or 0
+			if ap ~= bp then
+				if ap <= 0 then return false end
+				if bp <= 0 then return true end
+				return ap < bp
+			end
+			if a.playing ~= b.playing then return a.playing > b.playing end
+		end
+		const ap = tonumber(a.ping) or 0
+		const bp = tonumber(b.ping) or 0
+		if ap ~= bp then
+			if ap <= 0 then return false end
+			if bp <= 0 then return true end
+			return ap < bp
+		end
+		return tostring(a.id) < tostring(b.id)
+	end)
+	return servers
+end
+
+NAStuff.srv.pickLatency = function(self, placeId, mode)
+	const pid = tonumber(placeId) or tonumber(PlaceId)
+	mode = mode == "low" and "low" or mode == "high" and "high" or "ping"
+	const servers, byId = self:collect(pid, mode, self.latency.cfg.publicPageLimit)
+	if #servers == 0 then
+		return nil, "no joinable public servers"
+	end
+
+	if self:refreshLatencyModel(false) then
+		for _, cityInfo in self.latency.model.cityOrder do
+			const ids = self:regionIds(pid, cityInfo.city)
+			const matches = {}
+			for id in ids do
+				const server = byId[id]
+				if server then
+					server.region = cityInfo.city
+					server.regionRank = cityInfo.rank
+					server.latency = cityInfo.latency
+					server.latencyEstimated = true
+					matches[#matches + 1] = server
+				end
+			end
+			if #matches > 0 then
+				self:sortCandidates(matches, mode)
+				return matches[1]
+			end
+			Wait(self.latency.cfg.requestDelay)
+		end
+	end
+
+	self:sortCandidates(servers, mode)
+	const fallback = servers[1]
+	if fallback then
+		fallback.latency = tonumber(fallback.ping) or 0
+		fallback.latencyEstimated = false
+	end
+	return fallback, fallback and nil or "no joinable public servers"
+end
+
+NAStuff.srv.latencyText = function(self, server, fallbackLatency)
+	server = type(server) == "table" and server or {}
+	const value = tonumber(server.latency) or tonumber(fallbackLatency) or tonumber(server.ping) or 0
+	local text = value > 0 and ((server.latencyEstimated == true and "~" or "")..tostring(math.floor(value)).." ms") or "unknown latency"
+	const regionText = server.regionLabel or server.region
+	if regionText and tostring(regionText) ~= "" then
+		text ..= " | "..tostring(regionText)
+	end
+	return text
+end
+
+NAStuff.srv.enrichLatencyList = function(self, placeId, servers)
+	const pid = tonumber(placeId) or tonumber(PlaceId)
+	if type(servers) ~= "table" or #servers == 0 then return servers, false end
+	const ids = {}
+	const byId = {}
+	for _, server in servers do
+		if type(server) == "table" and server.id then
+			const id = tostring(server.id)
+			ids[#ids + 1] = id
+			byId[id] = server
+			server.region = nil
+			server.regionLabel = nil
+			server.regionRank = nil
+			server.latency = nil
+			server.latencyEstimated = false
+		end
+	end
+	const detailMap = self:fetchDetails(pid, ids, false)
+	const modelReady = self:refreshLatencyModel(false)
+	local mapped = 0
+	for id, detail in detailMap do
+		const server = byId[id]
+		if server and detail then
+			for k, v in detail do server[k] = v end
+			server.region = detail.city or detail.regionName or detail.country
+			server.regionLabel = detail.regionLabel or server.region
+			if modelReady and detail.city then
+				server.regionRank = self.latency.model.cityRank[detail.city]
+				server.latency = self.latency.model.cityPing[detail.city]
+				server.latencyEstimated = tonumber(server.latency) ~= nil
+			end
+			mapped += 1
+		end
+	end
+	if modelReady and mapped < #servers then
+		for _, cityInfo in self.latency.model.cityOrder do
+			const regionIds = self:regionIds(pid, cityInfo.city)
+			for id in regionIds do
+				const server = byId[id]
+				if server and not server.region then
+					server.region = cityInfo.city
+					server.regionLabel = cityInfo.city
+					server.regionRank = cityInfo.rank
+					server.latency = cityInfo.latency
+					server.latencyEstimated = true
+				end
+			end
+			Wait(self.latency.cfg.requestDelay)
+		end
+	end
+	for _, server in servers do
+		if type(server) == "table" and not tonumber(server.latency) then
+			const rawPing = tonumber(server.ping) or 0
+			if rawPing > 0 then
+				server.latency = rawPing
+				server.latencyEstimated = false
+			end
+		end
+	end
+	return servers, modelReady
+end
+
+NAStuff.srv.scan = function(self, mode, placeId)
+	const server, err = self:pickLatency(placeId or PlaceId, mode)
+	if not server then
+		return nil, nil, nil, nil, err
+	end
+	return server.id, server.playing, tonumber(server.latency) or tonumber(server.ping), server, nil
 end
 
 NAmanage.ServerhopDefault = function()
@@ -71535,30 +72232,31 @@ NAmanage.ServerhopDefault = function()
 end
 
 NAmanage.ServerhopAdvanced = function()
-	DebugNotif("Searching")
+	DebugNotif("Searching for the best-latency server")
 	if type(NAStuff.srv) ~= "table" or type(NAStuff.srv.scan) ~= "function" then
 		DebugNotif("Advanced serverhop is unavailable")
 		return false, "advanced serverhop is unavailable"
 	end
 
-	local id, pl = NAStuff.srv:scan("high")
+	local id, pl, latency, server, scanErr = NAStuff.srv:scan("high")
 	if not id then
-		DebugNotif("No server found")
-		return false, "no server found"
+		DebugNotif("No server found"..(scanErr and (": "..tostring(scanErr)) or ""))
+		return false, scanErr or "no server found"
 	end
 
-	DebugNotif("serverhopping | Player Count: "..tostring(pl or "?"))
+	const latencyText = NAStuff.srv:latencyText(server, latency)
+	DebugNotif("serverhopping | "..latencyText.." | Player Count: "..tostring(pl or "?"))
 	local ok, err = NAmanage.TeleportServiceCall("TeleportToPlaceInstance", { PlaceId, id, Services.Players.LocalPlayer }, {
 		placeId = PlaceId;
 		placeName = game.Name;
 		action = "SERVER HOP";
-		detail = "Players: "..tostring(pl or "?");
+		detail = "Latency: "..latencyText.." | Players: "..tostring(pl or "?");
 	})
 	if not ok then
 		DebugNotif("Teleport failed: "..tostring(err or "?"))
 		return false, err
 	end
-	return true, id, pl
+	return true, id, pl, latency, server
 end
 
 cmd.add({"serverhop","shop"},{"serverhop [default/advanced] (shop)","serverhop"},function(method)
@@ -71581,10 +72279,10 @@ cmd.add({"serverhop","shop"},{"serverhop [default/advanced] (shop)","serverhop"}
 	if type(show) == "function" then
 		show({
 			Title = "Serverhop",
-			Description = "Choose a serverhop method.",
+			Description = "Choose a serverhop method. Advanced uses the best-latency region.",
 			Buttons = {
 				{ Text = "Default", Callback = NAmanage.ServerhopDefault },
-				{ Text = "Advanced", Callback = NAmanage.ServerhopAdvanced },
+				{ Text = "Advanced (Latency)", Callback = NAmanage.ServerhopAdvanced },
 			},
 		})
 	else
@@ -71592,30 +72290,88 @@ cmd.add({"serverhop","shop"},{"serverhop [default/advanced] (shop)","serverhop"}
 	end
 end)
 
-cmd.add({"smallserverhop","sshop"},{"smallserverhop (sshop)","serverhop to a small server"},function()
+cmd.add({"smallserverhop","sshop"},{"smallserverhop (sshop)","serverhop to a small server in the best-latency region"},function()
 	Wait()
-	DebugNotif("Searching")
+	DebugNotif("Searching for a small server in the best-latency region")
 
-	local id, pl = NAStuff.srv:scan("low")
+	local id, pl, latency, server, scanErr = NAStuff.srv:scan("low")
 	if id then
-		DebugNotif("serverhopping | Player Count: "..tostring(pl or "?"))
-		NAmanage.TeleportServiceCall("TeleportToPlaceInstance", { PlaceId, id, Services.Players.LocalPlayer }, { placeId = PlaceId; placeName = game.Name; action = "SMALL SERVER HOP"; detail = "Players: "..tostring(pl or "?") })
+		const latencyText = NAStuff.srv:latencyText(server, latency)
+		DebugNotif("serverhopping | "..latencyText.." | Player Count: "..tostring(pl or "?"))
+		NAmanage.TeleportServiceCall("TeleportToPlaceInstance", { PlaceId, id, Services.Players.LocalPlayer }, { placeId = PlaceId; placeName = game.Name; action = "SMALL SERVER HOP"; detail = "Latency: "..latencyText.." | Players: "..tostring(pl or "?") })
 	else
-		DebugNotif("No server found")
+		DebugNotif("No server found"..(scanErr and (": "..tostring(scanErr)) or ""))
 	end
 end)
 
-cmd.add({"pingserverhop","pshop"},{"pingserverhop (pshop)","serverhop to a server with the best ping"},function()
+cmd.add({"pingserverhop","pshop"},{"pingserverhop (pshop)","serverhop to the best estimated-latency server"},function()
 	Wait()
-	DebugNotif("Searching for server with best ping")
+	DebugNotif("Searching for server with best latency")
 
-	local id, pl, pn = NAStuff.srv:scan("ping")
-	if id and pn then
-		DebugNotif(Format("Serverhopping | Ping: %s ms | Players: %s", tostring(pn), tostring(pl or "?")))
-		NAmanage.TeleportServiceCall("TeleportToPlaceInstance", { PlaceId, id, Services.Players.LocalPlayer }, { placeId = PlaceId; placeName = game.Name; action = "PING SERVER HOP"; detail = "Ping: "..tostring(pn).." ms | Players: "..tostring(pl or "?") })
+	local id, pl, latency, server, scanErr = NAStuff.srv:scan("ping")
+	if id then
+		const latencyText = NAStuff.srv:latencyText(server, latency)
+		DebugNotif(Format("Serverhopping | %s | Players: %s", latencyText, tostring(pl or "?")))
+		NAmanage.TeleportServiceCall("TeleportToPlaceInstance", { PlaceId, id, Services.Players.LocalPlayer }, { placeId = PlaceId; placeName = game.Name; action = "PING SERVER HOP"; detail = "Latency: "..latencyText.." | Players: "..tostring(pl or "?") })
 	else
-		DebugNotif("No server with ping found")
+		DebugNotif("No server with latency data found"..(scanErr and (": "..tostring(scanErr)) or ""))
 	end
+end)
+
+
+NAmanage.RoValraHopServer = function(server, action, detailPrefix)
+	if type(server) ~= "table" or not server.id then return false, "no server found" end
+	const latencyText = type(NAStuff.srv.latencyText) == "function" and NAStuff.srv:latencyText(server) or "unknown latency"
+	local detail = tostring(detailPrefix or action or "Server hop").." | "..latencyText
+	if server.placeVersion then detail ..= " | Version: "..tostring(server.placeVersion) end
+	if server.uptime then detail ..= " | Uptime: "..NAStuff.srv:formatUptime(server.uptime, true) end
+	return NAmanage.TeleportServiceCall("TeleportToPlaceInstance", { PlaceId, server.id, Services.Players.LocalPlayer }, {
+		placeId = PlaceId;
+		placeName = game.Name;
+		action = tostring(action or "SERVER HOP");
+		detail = detail;
+	})
+end
+
+cmd.add({"oldserverhop","oldhop"},{"oldserverhop (oldhop)","serverhop to one of the oldest active servers"},function()
+	Wait()
+	DebugNotif("Searching for an old active server")
+	local server, err = NAStuff.srv:pickUptime(PlaceId, "oldest")
+	if not server then DebugNotif("No old server found: "..tostring(err or "unknown")) return end
+	NAmanage.RoValraHopServer(server, "OLDEST SERVER HOP", "Oldest active server")
+end)
+
+cmd.add({"newserverhop","newhop"},{"newserverhop (newhop)","serverhop to one of the newest active servers"},function()
+	Wait()
+	DebugNotif("Searching for a new active server")
+	local server, err = NAStuff.srv:pickUptime(PlaceId, "newest")
+	if not server then DebugNotif("No new server found: "..tostring(err or "unknown")) return end
+	NAmanage.RoValraHopServer(server, "NEWEST SERVER HOP", "Newest active server")
+end)
+
+cmd.add({"versionhop","vhop"},{"versionhop <version> (vhop)","serverhop to a server running a specific active place version"},function(version)
+	const ver = tonumber(version)
+	if not ver then DoNotif("Usage: versionhop <version>", 4, "Serverhop") return end
+	Wait()
+	local server, err = NAStuff.srv:pickVersion(PlaceId, ver)
+	if not server then DebugNotif("No server found for version "..tostring(ver)..": "..tostring(err or "unknown")) return end
+	NAmanage.RoValraHopServer(server, "VERSION SERVER HOP", "Place version "..tostring(math.floor(ver)))
+end)
+
+cmd.add({"oldversionhop","ovhop"},{"oldversionhop (ovhop)","serverhop to the oldest currently active place version"},function()
+	Wait()
+	local server, err, version = NAStuff.srv:pickOldestVersion(PlaceId)
+	if not server then DebugNotif("No old-version server found: "..tostring(err or "unknown")) return end
+	NAmanage.RoValraHopServer(server, "OLD VERSION SERVER HOP", "Oldest active version "..tostring(version or server.placeVersion or "?"))
+end)
+
+cmd.add({"regionhop","rhop"},{"regionhop <region/city> (rhop)","serverhop to a public server in a requested RoValra region"},function(...)
+	const query = Concat({...}, " "):match("^%s*(.-)%s*$") or ""
+	if query == "" then DoNotif("Usage: regionhop <region/city>", 4, "Serverhop") return end
+	Wait()
+	local server, err, resolved = NAStuff.srv:pickRegion(PlaceId, query)
+	if not server then DebugNotif("No server found for region "..query..": "..tostring(err or "unknown")) return end
+	NAmanage.RoValraHopServer(server, "REGION SERVER HOP", "Region: "..tostring((resolved and resolved.city) or query))
 end)
 
 cmd.add({"autorejoin", "autorj"}, {"autorejoin (autorj)", "Rejoins the server if you get kicked / disconnected"}, function()
@@ -135207,77 +135963,78 @@ NAmanage.SubplaceViewer_TeleportServer = function(placeId, server, message)
 		DoNotif("No joinable server was found.", 3, "Subplace Viewer")
 		return false
 	end
+	const latencyText = type(NAStuff.srv) == "table" and type(NAStuff.srv.latencyText) == "function" and NAStuff.srv:latencyText(server) or ((tonumber(server.ping) or 0) > 0 and (tostring(math.floor(tonumber(server.ping))).." ms") or "unknown latency")
 	local ok, err = NAmanage.SubplaceViewer_PerformTeleport(
 		placeId,
 		NAmanage.SubplaceViewer_GetPlaceName(placeId),
 		string.upper(tostring(message or "Joining server")),
 		server.id,
-		Format("%d/%d players  •  %s ms ping", server.playing, server.max, tostring(server.ping))
+		Format("%d/%d players  •  %s", server.playing, server.max, latencyText)
 	)
 	if ok then
-		DoNotif((message or "Joining server")..": "..tostring(server.playing).."/"..tostring(server.max).." | "..tostring(server.ping).."ms", 4, "Subplace Viewer")
+		DoNotif((message or "Joining server")..": "..tostring(server.playing).."/"..tostring(server.max).." | "..latencyText, 4, "Subplace Viewer")
 	else
 		DoNotif("Teleport failed: "..tostring(err), 4, "Subplace Viewer")
 	end
 	return ok
 end
 
-NAmanage.SubplaceViewer_Hop = function(placeId, mode)
+NAmanage.SubplaceViewer_Hop = function(placeId, mode, value)
 	const state = NAmanage.SubplaceViewer
 	const ui = state.ui or NAmanage.SubplaceViewer_GetUI()
 	const labels = {
-		advanced = "advanced server";
-		smallest = "smallest server";
-		fullest = "fullest server";
+		advanced = "best-latency server";
+		smallest = "small server in the best-latency region";
+		fullest = "full server in the best-latency region";
+		oldest = "oldest active server";
+		newest = "newest active server";
+		version = "requested place version";
+		oldversion = "oldest active place version";
+		region = "requested region";
 	}
 	if ui and ui.status then ui.status.Text = "Finding the "..tostring(labels[mode] or "server").."..." end
 	Spawn(function()
-		local data, err = NAmanage.SubplaceViewer_FetchServers(placeId)
-		local servers = NAmanage.SubplaceViewer_NormalizeServers(data, false)
-		if #servers == 0 then
-			if ui and ui.status then ui.status.Text = "No other joinable public servers were found." end
-			DoNotif("No other joinable public servers were found: "..tostring(err or "none available"), 4, "Subplace Viewer")
+		if type(NAStuff.srv) ~= "table" then
+			if ui and ui.status then ui.status.Text = "RoValra server picker is unavailable." end
 			return
 		end
-		if mode == "smallest" then
-			table.sort(servers, function(a, b)
-				if a.playing ~= b.playing then return a.playing < b.playing end
-				if a.ping ~= b.ping then
-					if a.ping <= 0 then return false end
-					if b.ping <= 0 then return true end
-					return a.ping < b.ping
-				end
-				return a.id < b.id
-			end)
-		elseif mode == "fullest" then
-			table.sort(servers, function(a, b)
-				if a.playing ~= b.playing then return a.playing > b.playing end
-				if a.ping ~= b.ping then
-					if a.ping <= 0 then return false end
-					if b.ping <= 0 then return true end
-					return a.ping < b.ping
-				end
-				return a.id < b.id
-			end)
+		local server, err, extra = nil, nil, nil
+		if mode == "oldest" or mode == "newest" then
+			server, err = NAStuff.srv:pickUptime(placeId, mode)
+		elseif mode == "version" then
+			server, err = NAStuff.srv:pickVersion(placeId, value)
+		elseif mode == "oldversion" then
+			server, err, extra = NAStuff.srv:pickOldestVersion(placeId)
+		elseif mode == "region" then
+			server, err, extra = NAStuff.srv:pickRegion(placeId, value)
 		else
-			table.sort(servers, function(a, b)
-				if a.ping ~= b.ping then
-					if a.ping <= 0 then return false end
-					if b.ping <= 0 then return true end
-					return a.ping < b.ping
-				end
-				if a.playing ~= b.playing then return a.playing > b.playing end
-				return a.id < b.id
-			end)
+			const pickMode = mode == "smallest" and "low" or mode == "fullest" and "high" or "ping"
+			server, err = NAStuff.srv:pickLatency(placeId, pickMode)
 		end
-		if ui and ui.status then ui.status.Text = "Joining the "..tostring(labels[mode] or "selected server").."..." end
-		NAmanage.SubplaceViewer_TeleportServer(placeId, servers[1], mode == "smallest" and "Smallest server" or mode == "fullest" and "Fullest server" or "Advanced hop")
+		if not server then
+			if ui and ui.status then ui.status.Text = "No matching joinable public server was found." end
+			DoNotif("No matching joinable public server was found: "..tostring(err or "none available"), 4, "Subplace Viewer")
+			return
+		end
+		const latencyText = type(NAStuff.srv.latencyText) == "function" and NAStuff.srv:latencyText(server) or "unknown latency"
+		if ui and ui.status then ui.status.Text = "Joining "..latencyText.."..." end
+		const names = {
+			smallest = "Smallest low-latency server";
+			fullest = "Fullest low-latency server";
+			oldest = "Oldest active server";
+			newest = "Newest active server";
+			version = "Version "..tostring(value or server.placeVersion or "?");
+			oldversion = "Oldest active version "..tostring(extra or server.placeVersion or "?");
+			region = "Region "..tostring((type(extra) == "table" and extra.city) or value or server.region or "?");
+		}
+		NAmanage.SubplaceViewer_TeleportServer(placeId, server, names[mode] or "Best latency hop")
 	end)
 end
 
 NAmanage.SubplaceViewer_ShowServers = function(place)
 	const state = NAmanage.SubplaceViewer
 	state.viewMode = "servers"
+	state.serverSort = state.serverSort or "latency"
 	const ui = state.ui or NAmanage.SubplaceViewer_GetUI()
 	if not (ui and ui.list) then return end
 	state.serverToken += 1
@@ -135292,28 +136049,116 @@ NAmanage.SubplaceViewer_ShowServers = function(place)
 		local data, err = NAmanage.SubplaceViewer_FetchServers(place.PlaceId)
 		if token ~= state.serverToken then return end
 		local servers = NAmanage.SubplaceViewer_NormalizeServers(data, place.PlaceId ~= game.PlaceId)
-		if type(data) ~= "table" or type(data.data) ~= "table" then
-			ui.status.Text = "Server request failed: "..tostring(err or "unknown error")
-			return
+		if type(data) ~= "table" or type(data.data) ~= "table" then ui.status.Text = "Server request failed: "..tostring(err or "unknown error") return end
+		local latencyModelReady = false
+		if #servers > 0 and type(NAStuff.srv) == "table" and type(NAStuff.srv.enrichLatencyList) == "function" then
+			ui.status.Text = "Resolving region, uptime, version and latency for "..tostring(place.Name).."..."
+			servers, latencyModelReady = NAStuff.srv:enrichLatencyList(place.PlaceId, servers)
+			if token ~= state.serverToken then return end
 		end
-		table.sort(servers, function(a, b)
-			if a.playing ~= b.playing then return a.playing > b.playing end
-			return a.id < b.id
-		end)
-		ui.status.Text = tostring(#servers).." joinable public servers | "..tostring(place.Name)
-		local back = Instance.new("TextButton", ui.list)
-		back.Name = "Back"
-		back.Size = UDim2.new(1, -4, 0, 34)
-		back.BackgroundColor3 = Color3.fromRGB(65, 60, 82)
-		back.TextColor3 = Color3.fromRGB(245,245,250)
-		back.Text = "Back to subplaces"
-		back.TextSize = 14
-		back.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-		Instance.new("UICorner", back).CornerRadius = UDim.new(0, 6)
+
+		local function sortServers()
+			const mode = state.serverSort or "latency"
+			table.sort(servers, function(a, b)
+				if mode == "players" then
+					if a.playing ~= b.playing then return a.playing < b.playing end
+				elseif mode == "uptime" then
+					const au = tonumber(a.uptime) or -1
+					const bu = tonumber(b.uptime) or -1
+					if au ~= bu then return au > bu end
+				elseif mode == "version" then
+					const av = tonumber(a.placeVersion) or math.huge
+					const bv = tonumber(b.placeVersion) or math.huge
+					if av ~= bv then return av < bv end
+				else
+					const ar = tonumber(a.regionRank) or math.huge
+					const br = tonumber(b.regionRank) or math.huge
+					if ar ~= br then return ar < br end
+					const al = tonumber(a.latency) or tonumber(a.ping) or math.huge
+					const bl = tonumber(b.latency) or tonumber(b.ping) or math.huge
+					if al ~= bl then return al < bl end
+				end
+				return tostring(a.id) < tostring(b.id)
+			end)
+		end
+		sortServers()
+
+		local knownRegions = 0
+		for _, server in servers do if server.region or server.regionLabel then knownRegions += 1 end end
+		ui.status.Text = latencyModelReady and Format("%d joinable | %d region-mapped | %s", #servers, knownRegions, tostring(place.Name)) or Format("%d joinable | Roblox ping fallback | %s", #servers, tostring(place.Name))
+
+		local controls = Instance.new("Frame", ui.list)
+		controls.Name = "ServerControls"
+		controls.Size = UDim2.new(1, -4, 0, 110)
+		controls.BackgroundTransparency = 1
+		local grid = Instance.new("UIGridLayout", controls)
+		grid.CellPadding = UDim2.new(0, 5, 0, 5)
+		grid.CellSize = UDim2.new(0.25, -4, 0, 33)
+		grid.FillDirectionMaxCells = 4
+		local function makeControl(name, label, order)
+			local b = Instance.new("TextButton", controls)
+			b.Name = name
+			b.LayoutOrder = order
+			b.BackgroundColor3 = Color3.fromRGB(65,60,82)
+			b.TextColor3 = Color3.fromRGB(245,245,250)
+			b.Text = label
+			b.TextSize = 12
+			b.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+			Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
+			return b
+		end
+		local function makeInput(name, placeholder, order)
+			local box = Instance.new("TextBox", controls)
+			box.Name = name
+			box.LayoutOrder = order
+			box.BackgroundColor3 = Color3.fromRGB(43,43,52)
+			box.TextColor3 = Color3.fromRGB(245,245,250)
+			box.PlaceholderColor3 = Color3.fromRGB(160,160,176)
+			box.PlaceholderText = placeholder
+			box.Text = ""
+			box.ClearTextOnFocus = false
+			box.TextSize = 12
+			box.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+			Instance.new("UICorner", box).CornerRadius = UDim.new(0, 6)
+			return box
+		end
+		local back = makeControl("Back", "Back", 1)
+		local sort = makeControl("Sort", "Sort: "..string.upper(string.sub(state.serverSort,1,1))..string.sub(state.serverSort,2), 2)
+		local best = makeControl("Best", "Best Latency", 3)
+		local smallest = makeControl("Smallest", "Smallest", 4)
+		local fullest = makeControl("Fullest", "Fullest", 5)
+		local oldest = makeControl("Oldest", "Oldest", 6)
+		local newest = makeControl("Newest", "Newest", 7)
+		local oldversion = makeControl("OldVersion", "Old Version", 8)
+		local regionInput = makeInput("RegionInput", "Region / city", 9)
+		local region = makeControl("Region", "Region Hop", 10)
+		local versionInput = makeInput("VersionInput", "Place version", 11)
+		local version = makeControl("Version", "Version Hop", 12)
 		NAlib.connect("NASubplaceViewerServers", back.Activated:Connect(function() NAmanage.SubplaceViewer_Render() end))
+		NAlib.connect("NASubplaceViewerServers", best.Activated:Connect(function() NAmanage.SubplaceViewer_Hop(place.PlaceId, "advanced") end))
+		NAlib.connect("NASubplaceViewerServers", smallest.Activated:Connect(function() NAmanage.SubplaceViewer_Hop(place.PlaceId, "smallest") end))
+		NAlib.connect("NASubplaceViewerServers", fullest.Activated:Connect(function() NAmanage.SubplaceViewer_Hop(place.PlaceId, "fullest") end))
+		NAlib.connect("NASubplaceViewerServers", oldest.Activated:Connect(function() NAmanage.SubplaceViewer_Hop(place.PlaceId, "oldest") end))
+		NAlib.connect("NASubplaceViewerServers", newest.Activated:Connect(function() NAmanage.SubplaceViewer_Hop(place.PlaceId, "newest") end))
+		NAlib.connect("NASubplaceViewerServers", oldversion.Activated:Connect(function() NAmanage.SubplaceViewer_Hop(place.PlaceId, "oldversion") end))
+		NAlib.connect("NASubplaceViewerServers", region.Activated:Connect(function()
+			const query = tostring(regionInput.Text or ""):match("^%s*(.-)%s*$") or ""
+			if query == "" then DoNotif("Enter a region or city first.", 3, "Subplace Viewer") return end
+			NAmanage.SubplaceViewer_Hop(place.PlaceId, "region", query)
+		end))
+		NAlib.connect("NASubplaceViewerServers", version.Activated:Connect(function()
+			const selectedVersion = tonumber(versionInput.Text)
+			if not selectedVersion then DoNotif("Enter a valid place version first.", 3, "Subplace Viewer") return end
+			NAmanage.SubplaceViewer_Hop(place.PlaceId, "version", selectedVersion)
+		end))
+		NAlib.connect("NASubplaceViewerServers", sort.Activated:Connect(function()
+			const order = { latency = "players"; players = "uptime"; uptime = "version"; version = "latency" }
+			state.serverSort = order[state.serverSort] or "latency"
+			NAmanage.SubplaceViewer_ShowServers(place)
+		end))
+
 		if #servers == 0 then
 			local empty = Instance.new("TextLabel", ui.list)
-			empty.Name = "Empty"
 			empty.Size = UDim2.new(1, -4, 0, 44)
 			empty.BackgroundTransparency = 1
 			empty.Text = "No other joinable public servers were returned."
@@ -135322,35 +136167,38 @@ NAmanage.SubplaceViewer_ShowServers = function(place)
 			empty.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
 			return
 		end
+
 		for index, server in servers do
 			local row = Instance.new("Frame", ui.list)
 			row.Name = "Server_"..tostring(index)
-			row.Size = UDim2.new(1, -4, 0, 62)
+			row.Size = UDim2.new(1, -4, 0, 92)
 			row.BackgroundColor3 = Color3.fromRGB(48,48,56)
 			row.BackgroundTransparency = 0.12
 			Instance.new("UICorner", row).CornerRadius = UDim.new(0, 6)
 			local label = Instance.new("TextLabel", row)
 			label.BackgroundTransparency = 1
-			label.Position = UDim2.new(0, 10, 0, 4)
-			label.Size = UDim2.new(1, -116, 1, -8)
+			label.Position = UDim2.new(0,10,0,4)
+			label.Size = UDim2.new(1,-116,1,-8)
 			label.TextXAlignment = Enum.TextXAlignment.Left
 			label.TextYAlignment = Enum.TextYAlignment.Center
-			label.Text = Format("%d/%d players\nPing: %s ms | FPS: %.2f", server.playing, server.max, tostring(server.ping), server.fps)
+			const latencyText = type(NAStuff.srv) == "table" and NAStuff.srv:latencyText(server) or "unknown latency"
+			const pingText = (tonumber(server.ping) or 0) > 0 and (tostring(math.floor(tonumber(server.ping))).." ms") or "N/A"
+			const uptimeText = type(NAStuff.srv) == "table" and NAStuff.srv:formatUptime(server.uptime, server.uptimeEstimated == true) or "Unknown"
+			const versionText = server.placeVersion and tostring(server.placeVersion) or "Unknown"
+			label.Text = Format("%d/%d players\nLatency: %s\nUptime: %s | Version: %s\nRoblox ping: %s | FPS: %.2f", server.playing, server.max, latencyText, uptimeText, versionText, pingText, server.fps)
 			label.TextColor3 = Color3.fromRGB(225,225,235)
-			label.TextSize = 13
+			label.TextSize = 12
 			label.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
 			local join = Instance.new("TextButton", row)
-			join.Size = UDim2.new(0, 92, 0, 32)
-			join.Position = UDim2.new(1, -102, 0.5, -16)
+			join.Size = UDim2.new(0,92,0,32)
+			join.Position = UDim2.new(1,-102,0.5,-16)
 			join.BackgroundColor3 = Color3.fromRGB(70,65,92)
 			join.Text = "Join"
 			join.TextColor3 = Color3.fromRGB(245,245,250)
 			join.TextSize = 13
 			join.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
 			Instance.new("UICorner", join).CornerRadius = UDim.new(0, 6)
-			NAlib.connect("NASubplaceViewerServers", join.Activated:Connect(function()
-				NAmanage.SubplaceViewer_TeleportServer(place.PlaceId, server, "Joining server")
-			end))
+			NAlib.connect("NASubplaceViewerServers", join.Activated:Connect(function() NAmanage.SubplaceViewer_TeleportServer(place.PlaceId, server, "Joining server") end))
 		end
 	end)
 end
@@ -135395,7 +136243,7 @@ NAmanage.SubplaceViewer_Render = function()
 		const compact = state.compact == true
 		const phone = state.phone == true
 		const iconSize = compact and (phone and 54 or 60) or 72
-		const rowHeight = compact and (phone and 142 or 148) or 88
+		const rowHeight = compact and (phone and 176 or 182) or 126
 		local row = Instance.new("Frame", ui.list)
 		row.Name = "Place_"..tostring(place.PlaceId)
 		row.LayoutOrder = index
@@ -135426,7 +136274,7 @@ NAmanage.SubplaceViewer_Render = function()
 			label.Position = UDim2.new(0, iconSize + 18, 0, 7)
 			label.Size = UDim2.new(1, -(iconSize + 26), 0, iconSize + 2)
 			actions.Position = UDim2.new(0, 8, 0, iconSize + 16)
-			actions.Size = UDim2.new(1, -16, 0, 66)
+			actions.Size = UDim2.new(1, -16, 0, 100)
 		else
 			label.Position = UDim2.new(0, 90, 0, 7)
 			label.Size = UDim2.new(0.52, -98, 1, -14)
@@ -135462,19 +136310,15 @@ NAmanage.SubplaceViewer_Render = function()
 		favorite.FontFace = Font.new("rbxasset://LuaPackages/Packages/_Index/BuilderIcons/BuilderIcons/BuilderIcons.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
 		local join = makeAction("Join", isCurrent and "Server Hop" or "Join", 2, isCurrent and Color3.fromRGB(55,126,255) or nil)
 		local rejoin
-		local advanced
-		local smallest
-		local fullest
-		if isCurrent then
-			rejoin = makeAction("Rejoin", "Rejoin", 3, Color3.fromRGB(55,126,255))
-			advanced = makeAction("Advanced", "Adv Hop", 4, Color3.fromRGB(90,94,255))
-			smallest = makeAction("Smallest", "Smallest", 5, Color3.fromRGB(45,166,125))
-			fullest = makeAction("Fullest", "Fullest", 6, Color3.fromRGB(150,93,255))
-		else
-			advanced = makeAction("Advanced", "Adv Hop", 3, Color3.fromRGB(90,94,255))
-		end
-		local servers = makeAction("Servers", "Servers", isCurrent and 7 or 4)
-		local copy = makeAction("Copy", "Copy ID", isCurrent and 8 or 5)
+		if isCurrent then rejoin = makeAction("Rejoin", "Rejoin", 3, Color3.fromRGB(55,126,255)) end
+		local advanced = makeAction("Advanced", "Best Latency", isCurrent and 4 or 3, Color3.fromRGB(90,94,255))
+		local smallest = makeAction("Smallest", "Smallest", isCurrent and 5 or 4, Color3.fromRGB(45,166,125))
+		local fullest = makeAction("Fullest", "Fullest", isCurrent and 6 or 5, Color3.fromRGB(150,93,255))
+		local oldest = makeAction("Oldest", "Oldest", isCurrent and 7 or 6, Color3.fromRGB(125,94,62))
+		local newest = makeAction("Newest", "Newest", isCurrent and 8 or 7, Color3.fromRGB(55,126,180))
+		local oldversion = makeAction("OldVersion", "Old Version", isCurrent and 9 or 8, Color3.fromRGB(125,75,110))
+		local servers = makeAction("Servers", "Servers", isCurrent and 10 or 9)
+		local copy = makeAction("Copy", "Copy ID", isCurrent and 11 or 10)
 		NAlib.connect("NASubplaceViewerCards", favorite.Activated:Connect(function()
 			const key = tostring(place.PlaceId)
 			state.favorites[key] = not state.favorites[key] or nil
@@ -135487,8 +136331,7 @@ NAmanage.SubplaceViewer_Render = function()
 		end))
 		NAlib.connect("NASubplaceViewerCards", join.Activated:Connect(function()
 			if isCurrent then
-				local ok, err = NAmanage.SubplaceViewer_PerformTeleport(game.PlaceId, game.Name, "SERVER HOP", nil, "Finding another public server")
-				if ok then DoNotif("Server hopping this experience.", 2, "Subplace Viewer") else DoNotif("Teleport failed: "..tostring(err), 4, "Subplace Viewer") end
+				NAmanage.SubplaceViewer_Hop(game.PlaceId, "advanced")
 			else
 				local ok, err = NAmanage.SubplaceViewer_PerformTeleport(place.PlaceId, place.Name, "JOINING SUBPLACE", nil, "Place ID "..tostring(place.PlaceId))
 				if ok then DoNotif("Teleporting to "..tostring(place.Name)..".", 2, "Subplace Viewer") else DoNotif("Teleport failed: "..tostring(err), 4, "Subplace Viewer") end
@@ -135503,12 +136346,11 @@ NAmanage.SubplaceViewer_Render = function()
 		if advanced then
 			NAlib.connect("NASubplaceViewerCards", advanced.Activated:Connect(function() NAmanage.SubplaceViewer_Hop(place.PlaceId, "advanced") end))
 		end
-		if smallest then
-			NAlib.connect("NASubplaceViewerCards", smallest.Activated:Connect(function() NAmanage.SubplaceViewer_Hop(game.PlaceId, "smallest") end))
-		end
-		if fullest then
-			NAlib.connect("NASubplaceViewerCards", fullest.Activated:Connect(function() NAmanage.SubplaceViewer_Hop(game.PlaceId, "fullest") end))
-		end
+		if smallest then NAlib.connect("NASubplaceViewerCards", smallest.Activated:Connect(function() NAmanage.SubplaceViewer_Hop(place.PlaceId, "smallest") end)) end
+		if fullest then NAlib.connect("NASubplaceViewerCards", fullest.Activated:Connect(function() NAmanage.SubplaceViewer_Hop(place.PlaceId, "fullest") end)) end
+		if oldest then NAlib.connect("NASubplaceViewerCards", oldest.Activated:Connect(function() NAmanage.SubplaceViewer_Hop(place.PlaceId, "oldest") end)) end
+		if newest then NAlib.connect("NASubplaceViewerCards", newest.Activated:Connect(function() NAmanage.SubplaceViewer_Hop(place.PlaceId, "newest") end)) end
+		if oldversion then NAlib.connect("NASubplaceViewerCards", oldversion.Activated:Connect(function() NAmanage.SubplaceViewer_Hop(place.PlaceId, "oldversion") end)) end
 	end
 	state.rendering = false
 	NAmanage.SubplaceViewer_RefreshScroll()
@@ -157676,6 +158518,13 @@ NAmanage.SetupBasicInfoTab = function()
 			fields = {
 				{ id = "serverPlayers", label = "Players", path = {"server","playerCount"} };
 				{ id = "serverPing", label = "Ping", path = {"server","ping"} };
+				{ id = "serverRegion", label = "Region", path = {"server","region"} };
+				{ id = "serverCity", label = "City", path = {"server","city"} };
+				{ id = "serverCountry", label = "Country", path = {"server","country"} };
+				{ id = "serverDatacenter", label = "Datacenter ID", path = {"server","datacenter"} };
+				{ id = "serverIp", label = "Server IP", path = {"server","ip"} };
+				{ id = "serverUptime", label = "Server Uptime", path = {"server","uptime"} };
+				{ id = "serverPlaceVersion", label = "Server Place Version", path = {"server","placeVersion"} };
 			};
 		},
 		{
@@ -157793,7 +158642,12 @@ NAmanage.SetupBasicInfoTab = function()
 
 	NAgui.RefreshBasicInfo = refreshBasicInfo
 	refreshBasicInfo()
-	NAgui.addButton("Refresh Basic Info", refreshBasicInfo)
+	NAgui.addButton("Refresh Basic Info", function()
+		if type(NAmanage.BasicInfoServerCache) == "table" then
+			NAmanage.BasicInfoServerCache.lastFetch = 0
+		end
+		refreshBasicInfo()
+	end)
 
 	const updateInterval = 1
 	if not NAgui.BasicInfoUpdate then
