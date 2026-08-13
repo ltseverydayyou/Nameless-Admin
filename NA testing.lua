@@ -121382,7 +121382,7 @@ NAmanage.Topbar_UpdateToggleVisual=function(open, opts)
 			TopBarApp.tStroke.Transparency = strokeT
 		end
 	else
-		NAmanage.Topbar_PlayTween("tglass_bg",TopBarApp.tGlass,ti,{BackgroundTransparency=bgTarget})
+		if TopBarApp.tGlass then NAmanage.Topbar_PlayTween("tglass_bg",TopBarApp.tGlass,ti,{BackgroundTransparency=bgTarget}) end
 		if TopBarApp.tStroke then NAmanage.Topbar_PlayTween("tglass_stroke",TopBarApp.tStroke,ti,{Transparency=strokeT}) end
 	end
 	const CLOSED_ICON="three-bars-horizontal"
