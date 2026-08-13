@@ -48064,39 +48064,7 @@ cmd.add({"scriptlogger", "sslogger", "securescriptslogger", "securelogger"}, {"s
 	DoNotif(message, 6, "SecureScripts Logger")
 end)
 
-NAStuff.TASCreatorUrl = "https://raw.githubusercontent.com/tomatotxt/TAS-Creator/main/script.luau"
-
-NAmanage.BuildTASCreatorSource = function(source)
-	if type(source) ~= "string" or source == "" then
-		return nil, "empty TAS Creator source"
-	end
-
-	const replacement = [[HUD = Instance.new("ScreenGui")
-	HUD.Name = "TASRecorderGUI"
-	HUD:SetAttribute("NA_TASCreator", true)
-	if type(NAStuff) == "table" and typeof(NAStuff.TASCreatorGui) == "Instance" then
-		pcall(function()
-			NAStuff.TASCreatorGui:Destroy()
-		end)
-	end
-	if type(NAStuff) == "table" then
-		NAStuff.TASCreatorGui = HUD
-	end
-	if NAgui and type(NAgui.NaProtectUI) == "function" then
-		local okProtect = pcall(NAgui.NaProtectUI, HUD)
-		if not okProtect or HUD.Parent == nil then
-			HUD.Parent = LocalPlayer:FindFirstChildOfClass("PlayerGui") or LocalPlayer.PlayerGui
-		end
-	else
-		HUD.Parent = LocalPlayer:FindFirstChildOfClass("PlayerGui") or LocalPlayer.PlayerGui
-	end]]
-
-	local patched, count = source:gsub('HUD%s*=%s*Instance%.new%("ScreenGui",%s*LocalPlayer%.PlayerGui%)%s*HUD%.Name%s*=%s*"TASRecorderGUI"', replacement, 1)
-	if count ~= 1 then
-		return nil, "TAS Creator GUI setup pattern changed"
-	end
-	return patched
-end
+NAStuff.TASCreatorUrl = "https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/TAS.luau"
 
 NAmanage.RunTASCreator = function(fileName, opts)
 	opts = type(opts) == "table" and opts or {}
@@ -48116,15 +48084,10 @@ NAmanage.RunTASCreator = function(fileName, opts)
 		timeout = 10,
 	})
 	if not okSource then
-		return false, tostring(sourceErr or "failed to download TAS Creator")
+		return false, tostring(sourceErr or "failed to download TAS")
 	end
 
-	local patched, patchErr = NAmanage.BuildTASCreatorSource(source)
-	if not patched then
-		return false, patchErr
-	end
-
-	return NAmanage.RunSource(patched, "@TAS-Creator.luau")
+	return NAmanage.RunSource(source, "@TAS.luau")
 end
 
 cmd.add({"tas", "tascreator", "toolassistedspeedrun", "toolassistantspeedrun"}, {"tas [file] [smooth] [fps] [path] [velocity] [nocamera]", "Launch TAS Recorder Redux; optionally auto-load and play a saved run"}, function(...)
@@ -48171,10 +48134,10 @@ cmd.add({"tas", "tascreator", "toolassistedspeedrun", "toolassistantspeedrun"}, 
 		if fileName ~= "" then
 			DoNotif("Launching TAS playback: "..fileName, 3)
 		else
-			DoNotif("Launching TAS Creator", 3)
+			DoNotif("Launching TAS", 3)
 		end
 	else
-		DoNotif(tostring(errRun or "TAS Creator failed to launch"), 3)
+		DoNotif(tostring(errRun or "TAS failed to launch"), 3)
 		warn(errRun)
 	end
 end, true)
