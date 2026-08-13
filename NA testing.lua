@@ -140097,18 +140097,16 @@ NAmanage.bindToDevConsole = function()
 			return;
 		end;
 		syncQueued = true;
-		Defer(function()
-			syncQueued = false;
-			if not isBindActive() then
-				syncQueuedFollowBottom = false;
-				return;
-			end;
-			const followBottom = syncQueuedFollowBottom;
+		syncQueued = false;
+		if not isBindActive() then
 			syncQueuedFollowBottom = false;
-			syncVisibleMessages({
-				followBottom = followBottom
-			});
-		end);
+			return;
+		end;
+		const followBottom = syncQueuedFollowBottom;
+		syncQueuedFollowBottom = false;
+		syncVisibleMessages({
+			followBottom = followBottom
+		});
 	end;
 	const function rebuildFilteredMessages()
 		filteredMessages = {};
@@ -140444,39 +140442,27 @@ NAmanage.bindToDevConsole = function()
 			return;
 		end;
 		pendingProcessing = true;
-		Spawn(function()
-			while isBindActive() and pendingHead <= pendingTail do
-				if not NAUIMANAGER.NAconsoleLogs or (not NAUIMANAGER.NAconsoleLogs.Parent) then
-					pendingProcessing = false;
-					return;
-				end;
-				const perStep = 60;
-				local processed = 0;
-				const followBottom = isNearBottom();
-				while processed < perStep and pendingHead <= pendingTail do
-					const item = pending[pendingHead];
-					pending[pendingHead] = nil;
-					pendingHead += 1;
-					if item then
-						appendRecord(item.raw, item.t, item.c, item.f, item.ctx, item.ts);
-						processed += 1;
-					end;
-				end;
-				flushOverflowSummary();
-				requestSync({
-					followBottom = followBottom
-				});
-				Wait();
-			end;
-			if not isBindActive() then
-				pendingProcessing = false;
-				return;
-			end;
-			pending = {};
-			pendingHead = 1;
-			pendingTail = 0;
+		if not isBindActive() or not NAUIMANAGER.NAconsoleLogs or (not NAUIMANAGER.NAconsoleLogs.Parent) then
 			pendingProcessing = false;
-		end);
+			return;
+		end;
+		const followBottom = isNearBottom();
+		while pendingHead <= pendingTail do
+			const item = pending[pendingHead];
+			pending[pendingHead] = nil;
+			pendingHead += 1;
+			if item then
+				appendRecord(item.raw, item.t, item.c, item.f, item.ctx, item.ts);
+			end;
+		end;
+		flushOverflowSummary();
+		requestSync({
+			followBottom = followBottom
+		});
+		pending = {};
+		pendingHead = 1;
+		pendingTail = 0;
+		pendingProcessing = false;
 	end;
 	const function externalMessageTypeFromTag(tag)
 		tag = NAmanage.NAConsoleNormalizeTag(tag)
