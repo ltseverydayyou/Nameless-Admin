@@ -20239,7 +20239,7 @@ NAmanage.NASettingsGetSchema=function()
 			end;
 		};
 			iconKeepPosition = {
-				default = false;
+				default = true;
 				coerce = function(value)
 					return value == true
 				end;
@@ -126146,34 +126146,25 @@ NAmanage.performSearch = function(term, ctx)
 	if term == "" or Match(term, "^%s*$") then
 		predictionInput.Text = ""
 		NAStuff.lastCmdAutofillCompletion = ""
-		if shouldShowDefaultAutofill then
-			shouldShowDefaultAutofill = false
-			local displayed = 0
-			for _, cmdName in defaultBarCommands do
-				if displayed >= suggestionLimit then
-					break
-				end
-				const target = Lower(cmdName)
-				local entry = type(NAStuff.DefaultBarAutofillEntries) == "table" and NAStuff.DefaultBarAutofillEntries[target] or nil
-				if not entry then
-					for _, searchEntry in searchIndex do
-						if NAmanage.defaultCommandMatches(searchEntry, target) then
-							entry = searchEntry
-							break
-						end
+		shouldShowDefaultAutofill = false
+		local displayed = 0
+		for _, cmdName in defaultBarCommands do
+			if displayed >= suggestionLimit then
+				break
+			end
+			const target = Lower(cmdName)
+			local entry = type(NAStuff.DefaultBarAutofillEntries) == "table" and NAStuff.DefaultBarAutofillEntries[target] or nil
+			if not entry then
+				for _, searchEntry in searchIndex do
+					if NAmanage.defaultCommandMatches(searchEntry, target) then
+						entry = searchEntry
+						break
 					end
 				end
-				if entry then
-					displayed += 1
-					revealEntry(entry, displayed)
-				end
 			end
-		else
-			for i = 1, math.min(suggestionLimit, #searchIndex) do
-				const entry = searchIndex[i]
-				if entry then
-					revealEntry(entry, i)
-				end
+			if entry then
+				displayed += 1
+				revealEntry(entry, displayed)
 			end
 		end
 		finishSuggestionLayout()
@@ -132977,7 +132968,7 @@ NAmanage.Notepad_Init = function()
 	box.ClearTextOnFocus = false
 	box.Font = Enum.Font.Code
 	box.MultiLine = true
-	box.RichText = true
+	box.RichText = false
 	box.PlaceholderText = "type here..."
 	box.PlaceholderColor3 = col.sub
 	box.Text = ""
@@ -133378,8 +133369,7 @@ NAmanage.Notepad_Init = function()
 			if level == 0 then
 				return indent..content
 			end
-			const size = fmt.headingSizes[level] or box.TextSize
-			return indent..'<font size="'..tostring(size)..'"><b>'..content..'</b></font>'
+			return indent..string.rep("#", level).." "..content
 		end)
 		fmt.heading.Text = level == 0 and "Body v" or ("H"..tostring(level).." v")
 		fmt.headingPopup.Visible = false
@@ -133391,7 +133381,7 @@ NAmanage.Notepad_Init = function()
 		fmt.transformLines(function(line)
 			local indent, content = fmt.stripLinePrefix(line)
 			if kind == "bullet" then
-				return indent.."• "..content
+				return indent.."- "..content
 			end
 			number += 1
 			return indent..tostring(number)..". "..content
@@ -133547,13 +133537,10 @@ NAmanage.Notepad_Init = function()
 		end
 		local text, firstPos, lastPos, selected = fmt.getSelection()
 		const chosen = selected and text:sub(firstPos, lastPos - 1) or "link text"
-		const openTag = '<u><font color="#64AFFF">'
-		const closeTag = '</font></u>'
-		const safeUrl = tostring(url):gsub("%-%-", "%%2D%%2D")
-		const replacement = openTag..chosen..closeTag.."<!--NA_LINK:"..safeUrl.."-->"
-		fmt.replaceRange(firstPos, lastPos, replacement, firstPos + #openTag, firstPos + #openTag + #chosen)
+		const replacement = "["..chosen.."]("..url..")"
+		fmt.replaceRange(firstPos, lastPos, replacement, firstPos + 1, firstPos + 1 + #chosen)
 		fmt.linkPopup.Visible = false
-		setStatus("Inserted visual link", col.ok)
+		setStatus("Inserted Markdown link", col.ok)
 	end
 
 
@@ -133576,15 +133563,15 @@ NAmanage.Notepad_Init = function()
 	end)
 	MouseButtonFix(fmt.bold, function()
 		fmt.hidePopups()
-		fmt.wrapInline("<b>", "</b>", "bold text", "bold")
+		fmt.wrapInline("**", "**", "bold text", "bold")
 	end)
 	MouseButtonFix(fmt.italic, function()
 		fmt.hidePopups()
-		fmt.wrapInline("<i>", "</i>", "italic text", "italic")
+		fmt.wrapInline("*", "*", "italic text", "italic")
 	end)
 	MouseButtonFix(fmt.strike, function()
 		fmt.hidePopups()
-		fmt.wrapInline("<s>", "</s>", "strikethrough text", "strikethrough")
+		fmt.wrapInline("~~", "~~", "strikethrough text", "strikethrough")
 	end)
 	MouseButtonFix(fmt.link, fmt.showLink)
 	MouseButtonFix(fmt.clear, function()
@@ -133957,7 +133944,7 @@ NAmanage.Notepad_Init = function()
 	const function countNotepadChars()
 		local total = math.max(#chunks - 1, 0)
 		for _, line in chunks do
-			total += #fmt.stripRich(tostring(line or ""))
+			total += #tostring(line or "")
 		end
 		return total
 	end
@@ -134146,22 +134133,6 @@ NAmanage.Notepad_Init = function()
 
 	const function setFullText(source)
 		source = tostring(source or "")
-		if not source:find("<b>", 1, true) and not source:find("<font size=", 1, true) then
-			source = source:gsub("^(######)%s+([^\n]*)", function(_, text) return '<font size="13"><b>'..text..'</b></font>' end)
-			source = source:gsub("\n(######)%s+([^\n]*)", function(_, text) return '\n<font size="13"><b>'..text..'</b></font>' end)
-			source = source:gsub("^(#####)%s+([^\n]*)", function(_, text) return '<font size="15"><b>'..text..'</b></font>' end)
-			source = source:gsub("\n(#####)%s+([^\n]*)", function(_, text) return '\n<font size="15"><b>'..text..'</b></font>' end)
-			source = source:gsub("^(####)%s+([^\n]*)", function(_, text) return '<font size="17"><b>'..text..'</b></font>' end)
-			source = source:gsub("\n(####)%s+([^\n]*)", function(_, text) return '\n<font size="17"><b>'..text..'</b></font>' end)
-			source = source:gsub("^(###)%s+([^\n]*)", function(_, text) return '<font size="19"><b>'..text..'</b></font>' end)
-			source = source:gsub("\n(###)%s+([^\n]*)", function(_, text) return '\n<font size="19"><b>'..text..'</b></font>' end)
-			source = source:gsub("^(##)%s+([^\n]*)", function(_, text) return '<font size="22"><b>'..text..'</b></font>' end)
-			source = source:gsub("\n(##)%s+([^\n]*)", function(_, text) return '\n<font size="22"><b>'..text..'</b></font>' end)
-			source = source:gsub("^(#)%s+([^\n]*)", function(_, text) return '<font size="28"><b>'..text..'</b></font>' end)
-			source = source:gsub("\n(#)%s+([^\n]*)", function(_, text) return '\n<font size="28"><b>'..text..'</b></font>' end)
-			source = source:gsub("%*%*(.-)%*%*", "<b>%1</b>")
-			source = source:gsub("~~(.-)~~", "<s>%1</s>")
-		end
 		loadingText = true
 		chunks = splitText(source)
 		page = 1
@@ -134490,11 +134461,11 @@ NAmanage.Notepad_Init = function()
 			const ctrl = Services.UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) or Services.UserInputService:IsKeyDown(Enum.KeyCode.RightControl)
 			const shift = Services.UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or Services.UserInputService:IsKeyDown(Enum.KeyCode.RightShift)
 			if focused and ctrl and input.KeyCode == Enum.KeyCode.B then
-				fmt.wrapInline("<b>", "</b>", "bold text", "bold")
+				fmt.wrapInline("**", "**", "bold text", "bold")
 			elseif focused and ctrl and input.KeyCode == Enum.KeyCode.I then
-				fmt.wrapInline("<i>", "</i>", "italic text", "italic")
+				fmt.wrapInline("*", "*", "italic text", "italic")
 			elseif focused and ctrl and shift and input.KeyCode == Enum.KeyCode.X then
-				fmt.wrapInline("<s>", "</s>", "strikethrough text", "strikethrough")
+				fmt.wrapInline("~~", "~~", "strikethrough text", "strikethrough")
 			elseif focused and ctrl and input.KeyCode == Enum.KeyCode.K then
 				fmt.showLink()
 			elseif focused and ctrl and input.KeyCode == Enum.KeyCode.Space then
