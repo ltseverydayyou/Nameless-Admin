@@ -3843,7 +3843,7 @@
       ],
       "usage": "smallserverhop (sshop)",
       "args": "",
-      "desc": "serverhop to a small server"
+      "desc": "serverhop to a small server in the best-latency region"
     },
     {
       "name": "pingserverhop",
@@ -3853,7 +3853,57 @@
       ],
       "usage": "pingserverhop (pshop)",
       "args": "",
-      "desc": "serverhop to a server with the best ping"
+      "desc": "serverhop to the best estimated-latency server"
+    },
+    {
+      "name": "oldserverhop",
+      "aliases": [
+        "oldserverhop",
+        "oldhop"
+      ],
+      "usage": "oldserverhop (oldhop)",
+      "args": "",
+      "desc": "serverhop to one of the oldest active servers"
+    },
+    {
+      "name": "newserverhop",
+      "aliases": [
+        "newserverhop",
+        "newhop"
+      ],
+      "usage": "newserverhop (newhop)",
+      "args": "",
+      "desc": "serverhop to one of the newest active servers"
+    },
+    {
+      "name": "versionhop",
+      "aliases": [
+        "versionhop",
+        "vhop"
+      ],
+      "usage": "versionhop <version> (vhop)",
+      "args": "<version>",
+      "desc": "serverhop to a server running a specific active place version"
+    },
+    {
+      "name": "oldversionhop",
+      "aliases": [
+        "oldversionhop",
+        "ovhop"
+      ],
+      "usage": "oldversionhop (ovhop)",
+      "args": "",
+      "desc": "serverhop to the oldest currently active place version"
+    },
+    {
+      "name": "regionhop",
+      "aliases": [
+        "regionhop",
+        "rhop"
+      ],
+      "usage": "regionhop <region/city> (rhop)",
+      "args": "<region/city>",
+      "desc": "serverhop to a public server in a requested RoValra region"
     },
     {
       "name": "autorejoin",
