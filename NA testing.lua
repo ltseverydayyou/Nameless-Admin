@@ -84027,8 +84027,9 @@ cmd.add({"untoolview", "untview"}, {"untview <player> (untview)", "Removes the t
 end, true)
 
 cmd.add({"toolview2", "tview2"}, {"toolview2 (tview2)", "Live-updating tool viewer"}, function()
-	const RawPlayers = __lt.gs("Players")
 	if renderConn then renderConn:Disconnect() end
+	NAlib.disconnect("toolviewer_render")
+	renderConn = nil
 	if playerAddConn then playerAddConn:Disconnect() end
 	if playerRemoveConn then playerRemoveConn:Disconnect() end
 	for _, c in toolConnections do NACaller(function() if c and c.Disconnect then c:Disconnect() end end) end
@@ -84118,6 +84119,16 @@ cmd.add({"toolview2", "tview2"}, {"toolview2 (tview2)", "Live-updating tool view
 	list.Parent = scroll
 
 	const sections = {}
+	const pendingUpdates = {}
+	local isOpen = true
+
+	const function untrackConn(conn)
+		for i = #toolConnections, 1, -1 do
+			if toolConnections[i] == conn then
+				table.remove(toolConnections, i)
+			end
+		end
+	end
 
 	const function disconnectAll(list)
 		for i = #list, 1, -1 do
@@ -84125,6 +84136,7 @@ cmd.add({"toolview2", "tview2"}, {"toolview2 (tview2)", "Live-updating tool view
 			NACaller(function()
 				if conn and conn.Disconnect then conn:Disconnect() end
 			end)
+			untrackConn(conn)
 			list[i] = nil
 		end
 	end
@@ -84160,7 +84172,7 @@ cmd.add({"toolview2", "tview2"}, {"toolview2 (tview2)", "Live-updating tool view
 
 	const function updateTools(plr)
 		const sec = sections[plr]
-		if not sec then return end
+		if not sec or not sec.Holder or not sec.Holder.Parent then return end
 
 		for _, btn in sec.Holder:GetChildren() do
 			if btn:IsA("GuiButton") then btn:Destroy() end
@@ -84193,6 +84205,17 @@ cmd.add({"toolview2", "tview2"}, {"toolview2 (tview2)", "Live-updating tool view
 				makeToolBtn(t, char and t.Parent == char).Parent = sec.Holder
 			end
 		end
+	end
+
+	const function queueUpdate(plr)
+		if not isOpen or pendingUpdates[plr] then return end
+		pendingUpdates[plr] = true
+		task.defer(function()
+			pendingUpdates[plr] = nil
+			if isOpen and sections[plr] then
+				updateTools(plr)
+			end
+		end)
 	end
 
 	const function createSection(plr)
@@ -84254,12 +84277,12 @@ cmd.add({"toolview2", "tview2"}, {"toolview2 (tview2)", "Live-updating tool view
 			disconnectAll(sec.backpackConns)
 			if typeof(bp) ~= "Instance" then return end
 			registerConn(sec.backpackConns, NAmanage.childAdd(bp, function(item)
-				if item:IsA("Tool") then updateTools(plr) end
+				if item:IsA("Tool") then queueUpdate(plr) end
 			end, function(item)
 				return item and item:IsA("Tool")
 			end))
 			registerConn(sec.backpackConns, NAmanage.childRem(bp, function(item)
-				if item:IsA("Tool") then updateTools(plr) end
+				if item:IsA("Tool") then queueUpdate(plr) end
 			end, function(item)
 				return item and item:IsA("Tool")
 			end))
@@ -84269,12 +84292,12 @@ cmd.add({"toolview2", "tview2"}, {"toolview2 (tview2)", "Live-updating tool view
 			disconnectAll(sec.charConns)
 			if typeof(char) ~= "Instance" then return end
 			registerConn(sec.charConns, NAmanage.childAdd(char, function(item)
-				if item:IsA("Tool") then updateTools(plr) end
+				if item:IsA("Tool") then queueUpdate(plr) end
 			end, function(item)
 				return item and item:IsA("Tool")
 			end))
 			registerConn(sec.charConns, NAmanage.childRem(char, function(item)
-				if item:IsA("Tool") then updateTools(plr) end
+				if item:IsA("Tool") then queueUpdate(plr) end
 			end, function(item)
 				return item and item:IsA("Tool")
 			end))
@@ -84283,7 +84306,7 @@ cmd.add({"toolview2", "tview2"}, {"toolview2 (tview2)", "Live-updating tool view
 		registerConn(sec.playerConns, NAmanage.childAdd(plr, function(child)
 			if typeof(child) == "Instance" and child:IsA("Backpack") then
 				connectBackpack(child)
-				updateTools(plr)
+				queueUpdate(plr)
 			end
 		end, function(child)
 			return typeof(child) == "Instance" and child:IsA("Backpack")
@@ -84291,18 +84314,18 @@ cmd.add({"toolview2", "tview2"}, {"toolview2 (tview2)", "Live-updating tool view
 		registerConn(sec.playerConns, NAmanage.childRem(plr, function(child)
 			if typeof(child) == "Instance" and child:IsA("Backpack") then
 				disconnectAll(sec.backpackConns)
-				updateTools(plr)
+				queueUpdate(plr)
 			end
 		end, function(child)
 			return typeof(child) == "Instance" and child:IsA("Backpack")
 		end))
 		registerConn(sec.playerConns, plr.CharacterAdded:Connect(function(char)
 			connectCharacter(char)
-			updateTools(plr)
+			queueUpdate(plr)
 		end))
 		registerConn(sec.playerConns, plr.CharacterRemoving:Connect(function()
 			disconnectAll(sec.charConns)
-			updateTools(plr)
+			queueUpdate(plr)
 		end))
 
 		connectBackpack(plr:FindFirstChildOfClass("Backpack") or plr:FindFirstChild("Backpack"))
@@ -84313,6 +84336,7 @@ cmd.add({"toolview2", "tview2"}, {"toolview2 (tview2)", "Live-updating tool view
 	const function removeSection(plr)
 		const sec = sections[plr]
 		if not sec then return end
+		pendingUpdates[plr] = nil
 		disconnectAll(sec.charConns)
 		disconnectAll(sec.backpackConns)
 		disconnectAll(sec.playerConns)
@@ -84320,19 +84344,10 @@ cmd.add({"toolview2", "tview2"}, {"toolview2 (tview2)", "Live-updating tool view
 		sections[plr] = nil
 	end
 
-	const function refreshAll()
-		for plr in sections do
-			if plr and plr.Parent == RawPlayers then
-				updateTools(plr)
-			end
-		end
-	end
-
 	for _, plr in __lt.cm("Players", "GetPlayers") do
 		createSection(plr)
 	end
 
-	renderConn = NAlib.reconnect("toolviewer_render", Services.RunService.RenderStepped:Connect(refreshAll))
 	playerAddConn = Services.Players.PlayerAdded:Connect(function(plr)
 		createSection(plr)
 	end)
@@ -84348,8 +84363,10 @@ cmd.add({"toolview2", "tview2"}, {"toolview2 (tview2)", "Live-updating tool view
 	end)
 
 	MouseButtonFix(closeBtn, function()
+		isOpen = false
 		if renderConn then renderConn:Disconnect() end
 		NAlib.disconnect("toolviewer_render")
+		renderConn = nil
 		if playerAddConn then playerAddConn:Disconnect() end
 		if playerRemoveConn then playerRemoveConn:Disconnect() end
 		const toRemove = {}
