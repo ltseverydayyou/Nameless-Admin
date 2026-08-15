@@ -5210,7 +5210,22 @@ NAlib.distinctHuiGrabber = NAlib.distinctHuiGrabber or function(coreRoot)
 end
 
 
-NAmanage.LaunchExperience = NAmanage.LaunchExperience or function(params, opts)
+NAmanage.ResolveExperienceService = NAmanage.ResolveExperienceService or function()
+	local service = Services.ExperienceService
+	if service then
+		return service
+	end
+	local ok, resolved = pcall(function()
+		return game.ExperienceService or game:GetService("ExperienceService")
+	end)
+	if ok and resolved then
+		Services.ExperienceService = resolved
+		return resolved
+	end
+	return nil
+end
+
+NAmanage.ExperienceServiceLaunch = NAmanage.ExperienceServiceLaunch or function(params, opts)
 	params = type(params) == "table" and params or { placeId = params }
 	opts = type(opts) == "table" and opts or {}
 	const launchParams = {}
@@ -5219,60 +5234,12 @@ NAmanage.LaunchExperience = NAmanage.LaunchExperience or function(params, opts)
 			launchParams[key] = value
 		end
 	end
-	const function fallbackTeleport(expErr)
-		local tp = Services.TeleportService
-		if not tp then
-			local okTp, resolvedTp = pcall(function()
-				return game.TeleportService or game:GetService("TeleportService")
-			end)
-			if okTp and resolvedTp then
-				Services.TeleportService = resolvedTp
-				tp = resolvedTp
-			end
-		end
-		if not tp then
-			return false, expErr or "TeleportService fallback unavailable"
-		end
-		const lp = Services.Players and Services.Players.LocalPlayer
-		const placeId = launchParams.placeId or launchParams.PlaceId
-		const gameInstanceId = launchParams.gameInstanceId or launchParams.jobId
-		const reservedCode = launchParams.reservedServerAccessCode or launchParams.accessCode
-		if launchParams.linkCode then
-			return false, expErr or "TeleportService has no linkCode fallback"
-		end
-		const meta = {
-			placeId = placeId;
-			placeName = opts.placeName;
-			action = opts.action or "TELEPORTING";
-			detail = opts.detail;
-		}
-		if type(NAmanage.TeleportServiceCall) ~= "function" then
-			return false, expErr or "NA teleport wrapper unavailable"
-		end
-		if gameInstanceId and placeId then
-			return NAmanage.TeleportServiceCall("TeleportToPlaceInstance", { placeId, gameInstanceId, lp }, meta)
-		elseif reservedCode and placeId and tp.TeleportToPrivateServer then
-			return NAmanage.TeleportServiceCall("TeleportToPrivateServer", { placeId, reservedCode, lp and { lp } or {} }, meta)
-		elseif placeId then
-			return NAmanage.TeleportServiceCall("Teleport", { placeId, lp }, meta)
-		end
-		return false, "TeleportService fallback needs placeId"
-	end
-	local service = Services.ExperienceService
+	const service = NAmanage.ResolveExperienceService()
 	if not service then
-		local ok, resolved = pcall(function()
-			return game.ExperienceService or game:GetService("ExperienceService")
-		end)
-		if ok and resolved then
-			Services.ExperienceService = resolved
-			service = resolved
-		end
-	end
-	if not service then
-		return fallbackTeleport("ExperienceService unavailable")
+		return false, "ExperienceService unavailable"
 	end
 	local launchGui
-	if type(NAmanage.TeleportGui_Create) == "function" then
+	if type(NAmanage.TeleportGui_Create) == "function" and opts.skipGui ~= true then
 		const placeId = launchParams.placeId or launchParams.PlaceId or game.PlaceId
 		launchGui = NAmanage.TeleportGui_Create(
 			placeId,
@@ -5290,13 +5257,115 @@ NAmanage.LaunchExperience = NAmanage.LaunchExperience or function(params, opts)
 		end
 		return service:LaunchExperience(launchParams)
 	end)
+	if not ok and launchGui and type(NAmanage.TeleportGui_Clear) == "function" then
+		pcall(NAmanage.TeleportGui_Clear, launchGui)
+	end
+	return ok, result
+end
+
+NAmanage.TeleportArgsToExperienceParams = NAmanage.TeleportArgsToExperienceParams or function(method, args, meta)
+	args = type(args) == "table" and args or {}
+	meta = type(meta) == "table" and meta or {}
+	const params = {}
+	const placeId = tonumber(meta.placeId or args[1])
+	if placeId then
+		params.placeId = placeId
+	end
+	if method == "TeleportToPlaceInstance" then
+		const instanceId = args[2]
+		if instanceId ~= nil and tostring(instanceId) ~= "" then
+			params.gameInstanceId = tostring(instanceId)
+		end
+	elseif method == "TeleportToPrivateServer" then
+		const accessCode = args[2]
+		if accessCode ~= nil and tostring(accessCode) ~= "" then
+			params.reservedServerAccessCode = tostring(accessCode)
+		end
+	elseif method == "TeleportAsync" then
+		const teleportOptions = args[3]
+		if typeof(teleportOptions) == "Instance" then
+			pcall(function()
+				const instanceId = teleportOptions.ServerInstanceId
+				if instanceId and tostring(instanceId) ~= "" then
+					params.gameInstanceId = tostring(instanceId)
+				end
+			end)
+			pcall(function()
+				const accessCode = teleportOptions.ReservedServerAccessCode
+				if accessCode and tostring(accessCode) ~= "" then
+					params.reservedServerAccessCode = tostring(accessCode)
+				end
+			end)
+		end
+	end
+	if type(meta.experienceParams) == "table" then
+		for key, value in meta.experienceParams do
+			if value ~= nil then
+				params[key] = value
+			end
+		end
+	end
+	if next(params) == nil then
+		return nil
+	end
+	return params
+end
+
+NAmanage.RegisterTeleportFallback = NAmanage.RegisterTeleportFallback or function(method, args, meta)
+	const params = NAmanage.TeleportArgsToExperienceParams(method, args, meta)
+	if not params then
+		return nil
+	end
+	const token = tostring(os.clock())..":"..tostring(math.random(1, 1e9))
+	NAStuff.TeleportExperienceFallback = {
+		token = token;
+		params = params;
+		opts = type(meta) == "table" and {
+			placeName = meta.placeName;
+			action = meta.action;
+			detail = meta.detail;
+			source = meta.source;
+			callback = meta.callback;
+		} or {};
+		method = method;
+		startedAt = os.clock();
+	}
+	task.delay(35, function()
+		const pending = NAStuff.TeleportExperienceFallback
+		if pending and pending.token == token then
+			NAStuff.TeleportExperienceFallback = nil
+		end
+	end)
+	return token
+end
+
+NAmanage.TryExperienceFallback = NAmanage.TryExperienceFallback or function(reason, expectedToken)
+	const pending = NAStuff.TeleportExperienceFallback
+	if type(pending) ~= "table" then
+		return false, "No pending ExperienceService fallback"
+	end
+	if expectedToken and pending.token ~= expectedToken then
+		return false, "Teleport fallback token changed"
+	end
+	if os.clock() - (tonumber(pending.startedAt) or 0) > 35 then
+		NAStuff.TeleportExperienceFallback = nil
+		return false, "Teleport fallback expired"
+	end
+	NAStuff.TeleportExperienceFallback = nil
+	const opts = type(pending.opts) == "table" and pending.opts or {}
+	if reason and tostring(reason) ~= "" then
+		opts.detail = opts.detail and (tostring(opts.detail).." | TeleportService failed") or "TeleportService failed"
+	end
+	local ok, result = NAmanage.ExperienceServiceLaunch(pending.params, opts)
 	if ok then
+		DebugNotif("TeleportService failed; ExperienceService fallback launched.", 3)
 		return true, result
 	end
-	if launchGui and type(NAmanage.TeleportGui_Clear) == "function" then
-		NAmanage.TeleportGui_Clear(launchGui)
-	end
-	return fallbackTeleport(result)
+	return false, result
+end
+
+NAmanage.LaunchExperience = function(params, opts)
+	return NAmanage.ExperienceServiceLaunch(params, opts)
 end
 
 NAmanage.ExperienceDebugValue = NAmanage.ExperienceDebugValue or function(value, depth, seen)
@@ -12315,7 +12384,7 @@ NAmanage.initUIEditors=function(coreGui, HUI)
 		if encodedPath ~= "" then
 			baseUrl = baseUrl.."/"..encodedPath
 		end
-		baseUrl = baseUrl.."?ref="..HttpService:UrlEncode(branch)
+		baseUrl = baseUrl.."?ref="..Services.HttpService:UrlEncode(branch)
 		local ok, raw = pcall(function()
 			return NAmanage.HttpGetOrError(baseUrl)
 		end)
@@ -28416,6 +28485,12 @@ if NAStuff.onTP and typeof(NAStuff.onTP) == "RBXScriptSignal" then
 				if type(NAmanage.GameTeleportGui_Reset) == "function" then
 					pcall(NAmanage.GameTeleportGui_Reset)
 				end
+				if type(NAmanage.TryExperienceFallback) == "function" then
+					local fallbackOk, fallbackErr = NAmanage.TryExperienceFallback("LocalPlayer.OnTeleport Failed")
+					if not fallbackOk and fallbackErr and fallbackErr ~= "No pending ExperienceService fallback" then
+						DebugNotif("ExperienceService fallback failed: "..tostring(fallbackErr), 4)
+					end
+				end
 				return
 			end
 			if stateName == "RequestedFromServer" or stateName == "Started" or stateName == "WaitingForServer" or stateName == "InProgress" then
@@ -28442,10 +28517,11 @@ if NAStuff.onTP and typeof(NAStuff.onTP) == "RBXScriptSignal" then
 	end)
 end
 
-if Services.TeleportService and not NAStuff.teleportTransitionFailHook then
+if Services.TeleportService then
 	NAStuff.teleportTransitionFailHook = true
 	pcall(function()
-		NAlib.connect("na_teleport_transition_fail", Services.TeleportService.TeleportInitFailed:Connect(function(player)
+		NAlib.disconnect("na_teleport_transition_fail")
+		NAlib.connect("na_teleport_transition_fail", Services.TeleportService.TeleportInitFailed:Connect(function(player, result, errorMessage)
 			const lp = Services.Players and Services.Players.LocalPlayer
 			if lp and player == lp then
 				NAStuff.teleportTransition = false
@@ -28456,6 +28532,12 @@ if Services.TeleportService and not NAStuff.teleportTransitionFailHook then
 				end
 				if type(NAmanage.GameTeleportGui_Reset) == "function" then
 					pcall(NAmanage.GameTeleportGui_Reset)
+				end
+				if type(NAmanage.TryExperienceFallback) == "function" then
+					local fallbackOk, fallbackErr = NAmanage.TryExperienceFallback("TeleportInitFailed: "..tostring(result).." "..tostring(errorMessage))
+					if not fallbackOk and fallbackErr and fallbackErr ~= "No pending ExperienceService fallback" then
+						DebugNotif("ExperienceService fallback failed: "..tostring(fallbackErr), 4)
+					end
 				end
 			end
 		end))
@@ -58508,9 +58590,13 @@ end)
 cmd.add({"teleporttoplace","toplace","ttp", "gametp"},{"teleporttoplace <id>","Teleports you using PlaceId"},function(...)
 	args={...}
 	pId=tonumber(args[1])
-	local ok, err = NAmanage.LaunchExperience({ placeId = pId }, { action = "TELEPORTING TO PLACE"; detail = "Place ID "..tostring(pId) })
+	local ok, err = NAmanage.TeleportServiceCall("Teleport", { pId, Services.Players and Services.Players.LocalPlayer }, {
+		placeId = pId;
+		action = "TELEPORTING TO PLACE";
+		detail = "Place ID "..tostring(pId);
+	})
 	if not ok then
-		DoNotif("LaunchExperience error: "..tostring(err))
+		DoNotif("Teleport error: "..tostring(err))
 	end
 end,true)
 
@@ -71415,15 +71501,30 @@ NAmanage.CopyScriptsPlugin = NAmanage.CopyScriptsPlugin or {}
 		return csp.lines({
 			"local Players = game:GetService(\"Players\")",
 			"local TeleportService = game:GetService(\"TeleportService\")",
-			"TeleportService:Teleport("..tostring(PlaceId)..", Players.LocalPlayer)",
+			"local ExperienceService = game:GetService(\"ExperienceService\")",
+			"local lp = Players.LocalPlayer",
+			"local params = { placeId = "..tostring(PlaceId).." }",
+			"local usedFallback = false",
+			"local function fallback() if usedFallback then return end usedFallback = true pcall(function() ExperienceService:LaunchExperience(params) end) end",
+			"local con; con = TeleportService.TeleportInitFailed:Connect(function(player) if player == lp then if con then con:Disconnect() end fallback() end end)",
+			"local ok = pcall(function() TeleportService:Teleport("..tostring(PlaceId)..", lp) end)",
+			"if not ok then if con then con:Disconnect() end fallback() end",
 		})
 	end
 
 	csp.mkServer = function()
+		const instanceId = Format("%q", tostring(JobId or ""))
 		return csp.lines({
 			"local Players = game:GetService(\"Players\")",
 			"local TeleportService = game:GetService(\"TeleportService\")",
-			"TeleportService:TeleportToPlaceInstance("..tostring(PlaceId)..", "..Format("%q", tostring(JobId or ""))..", Players.LocalPlayer)",
+			"local ExperienceService = game:GetService(\"ExperienceService\")",
+			"local lp = Players.LocalPlayer",
+			"local params = { placeId = "..tostring(PlaceId)..", gameInstanceId = "..instanceId.." }",
+			"local usedFallback = false",
+			"local function fallback() if usedFallback then return end usedFallback = true pcall(function() ExperienceService:LaunchExperience(params) end) end",
+			"local con; con = TeleportService.TeleportInitFailed:Connect(function(player) if player == lp then if con then con:Disconnect() end fallback() end end)",
+			"local ok = pcall(function() TeleportService:TeleportToPlaceInstance("..tostring(PlaceId)..", "..instanceId..", lp) end)",
+			"if not ok then if con then con:Disconnect() end fallback() end",
 		})
 	end
 
@@ -74991,7 +75092,7 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		repeat
 			const url = ("https://badges.roblox.com/v1/universes/%d/badges?limit=100&sortOrder=Asc%s"):format(
 				GameId,
-				cursor ~= "" and "&cursor="..HttpService:UrlEncode(cursor) or ""
+				cursor ~= "" and "&cursor="..Services.HttpService:UrlEncode(cursor) or ""
 			)
 			const body = NAmanage.FetchRobloxApiJSON(url, { Timeout = 5 })
 			if type(body) ~= "table" then break end
@@ -77943,7 +78044,7 @@ NAmanage._fetchUserOutfits=function(userId)
 		local outfits={}
 		local cursor=nil
 		repeat
-			const cursorQuery=cursor and ("&cursor="..HttpService:UrlEncode(cursor)) or ""
+			const cursorQuery=cursor and ("&cursor="..Services.HttpService:UrlEncode(cursor)) or ""
 			const url=Format(base,uid,cursorQuery)
 			local okD,data=NAmanage._outfitHttpJSON(url)
 			if not okD then
@@ -135503,6 +135604,7 @@ end
 NAmanage.TeleportServiceCall = function(method, args, meta)
 	args = type(args) == "table" and args or {}
 	meta = type(meta) == "table" and meta or {}
+	const expParams = NAmanage.TeleportArgsToExperienceParams(method, args, meta)
 	local tp = Services.TeleportService
 	if not tp then
 		local okTp, resolvedTp = pcall(function()
@@ -135514,10 +135616,16 @@ NAmanage.TeleportServiceCall = function(method, args, meta)
 		end
 	end
 	if not tp then
+		if expParams then
+			return NAmanage.ExperienceServiceLaunch(expParams, meta)
+		end
 		return false, "TeleportService unavailable"
 	end
 	const fn = tp[method]
 	if typeof(fn) ~= "function" then
+		if expParams then
+			return NAmanage.ExperienceServiceLaunch(expParams, meta)
+		end
 		return false, "TeleportService."..tostring(method).." unavailable"
 	end
 	const placeId = meta.placeId or args[1]
@@ -135527,11 +135635,19 @@ NAmanage.TeleportServiceCall = function(method, args, meta)
 		meta.action or "TELEPORTING",
 		meta.detail
 	)
+	const fallbackToken = NAmanage.RegisterTeleportFallback(method, args, meta)
 	local ok, result = pcall(function()
 		return fn(tp, Unpack(args))
 	end)
 	if not ok then
 		NAmanage.TeleportGui_Clear(gui)
+		if fallbackToken then
+			local fallbackOk, fallbackResult = NAmanage.TryExperienceFallback("TeleportService call error: "..tostring(result), fallbackToken)
+			if fallbackOk then
+				return true, fallbackResult
+			end
+			return false, tostring(result).." | ExperienceService fallback: "..tostring(fallbackResult)
+		end
 	end
 	return ok, result
 end
@@ -135930,14 +136046,14 @@ NAmanage.SubplaceViewer_FetchServers = function(placeId, cursor)
 	const state = NAmanage.SubplaceViewer
 	const pid = tostring(placeId)
 	local suffix = "/v1/games/"..pid.."/servers/Public?sortOrder=Asc&limit=100"
-	if cursor and cursor ~= "" then suffix ..= "&cursor="..HttpService:UrlEncode(cursor) end
+	if cursor and cursor ~= "" then suffix ..= "&cursor="..Services.HttpService:UrlEncode(cursor) end
 	local lastErr
 	for _, base in state.serverBases do
 		local data, err = NAmanage.SubplaceViewer_HttpJson(base..suffix)
 		if type(data) == "table" and type(data.data) == "table" then return data end
 		lastErr = err
 	end
-	local workerUrl = state.serverWorker.."/servers?placeId="..HttpService:UrlEncode(pid)
+	local workerUrl = state.serverWorker.."/servers?placeId="..Services.HttpService:UrlEncode(pid)
 	local data, err = NAmanage.SubplaceViewer_HttpJson(workerUrl)
 	if type(data) == "table" and type(data.data) == "table" then return data end
 	return nil, err or lastErr
@@ -150307,11 +150423,18 @@ const function getIntegrationTeleportScript()
 	if placeId == "" or jobId == "" then
 		return ""
 	end
-	return Format(
-		'game:GetService("TeleportService"):TeleportToPlaceInstance(%s, "%s", game:GetService("Players").LocalPlayer)',
-		placeId,
-		jobId
-	)
+	return Concat({
+		'local Players = game:GetService("Players")',
+		'local TeleportService = game:GetService("TeleportService")',
+		'local ExperienceService = game:GetService("ExperienceService")',
+		'local lp = Players.LocalPlayer',
+		'local params = { placeId = '..placeId..', gameInstanceId = '..Format("%q", jobId)..' }',
+		'local usedFallback = false',
+		'local function fallback() if usedFallback then return end usedFallback = true pcall(function() ExperienceService:LaunchExperience(params) end) end',
+		'local con; con = TeleportService.TeleportInitFailed:Connect(function(player) if player == lp then if con then con:Disconnect() end fallback() end end)',
+		'local ok = pcall(function() TeleportService:TeleportToPlaceInstance('..placeId..', '..Format("%q", jobId)..', lp) end)',
+		'if not ok then if con then con:Disconnect() end fallback() end',
+	}, "\n")
 end
 
 const function getIntegrationServerIds()
