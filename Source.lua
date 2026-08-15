@@ -105468,9 +105468,9 @@ end)
 -- [[ Body Mods Section ]] --
 do
 	originalIO.bodyModsState = originalIO.bodyModsState or {
-		boobs = { active = false, size = 1, conn = nil, ox = 0.5, oy = -0.4, oz = nil, sy = 0, vy = 0, sz = 0, vz = 0, sx = 0, vx = 0, rx = 0, vrx = 0, ry = 0, rv = 0, yw = 0, vyw = 0, llv = Vector3.zero, rigs = {}, objs = {} },
-		ass = { active = false, size = 1, conn = nil, ox = 0.48, oy = nil, oz = nil, sy = 0, vy = 0, sz = 0, vz = 0, sx = 0, vx = 0, rx = 0, vrx = 0, ry = 0, rv = 0, yw = 0, vyw = 0, llv = Vector3.zero, rigs = {}, objs = {} },
-		pp = { active = false, len = 1, animConn = nil, sy = 0, vy = 0, sz = 0, vz = 0, sx = 0, vx = 0, rx = 0, vrx = 0, ry = 0, vry = 0, bsy = 0, bvy = 0, bsz = 0, bvz = 0, bsx = 0, bvx = 0, brx = 0, bvrx = 0, bry = 0, bvry = 0, baseS = nil, baseBL = nil, baseBR = nil, llv = Vector3.zero, rigs = {}, objs = {} },
+		boobs = { active = false, size = 1, conn = nil, ox = 0.5, oy = -0.4, oz = nil, rigs = {}, objs = {} },
+		ass = { active = false, size = 1, conn = nil, ox = 0.48, oy = nil, oz = nil, rigs = {}, objs = {} },
+		pp = { active = false, len = 1, animConn = nil, baseS = nil, baseBL = nil, baseBR = nil, rigs = {}, objs = {} },
 		colorConn = nil,
 		spawnConn = nil,
 		apConn = nil
@@ -105487,70 +105487,138 @@ do
 
 	const pinkColor = Color3.fromRGB(255, 100, 150)
 	const ringColor = Color3.fromRGB(225, 80, 120)
-	const softPhys = PhysicalProperties.new(0.48, 0.34, 0.10, 0.65, 0.28)
-	const decoPhys = PhysicalProperties.new(0.18, 0.30, 0.05, 0.55, 0.18)
+	const BODYMOD_TAIL_STEP = 0.008333333333333333
+	const BODYMOD_TAIL_STIFFNESS = 248
+	const BODYMOD_TAIL_DAMPING = 12
+	const BODYMOD_TAIL_LINEAR_AMPLITUDE = Vector3.new(28, 9, 28)
+	const BODYMOD_TAIL_ANGULAR_AMPLITUDE = Vector3.new(0, 8, 0)
+	const BODYMOD_TAIL_MOVEMENT_THRESHOLD = 15
 
-	originalIO.bodyModsSpring = function(u, v, target, stiffness, damping, dt)
-		dt = math.clamp(tonumber(dt) or (1 / 60), 1 / 240, 1 / 30)
-		u = tonumber(u) or 0
-		v = tonumber(v) or 0
-		target = tonumber(target) or 0
-		stiffness = math.max(tonumber(stiffness) or 0, 0)
-		damping = math.max(tonumber(damping) or 0, 0)
-		const accel = (target - u) * stiffness - v * damping
-		v += accel * dt
-		v = math.clamp(v, -14, 14)
-		u += v * dt
-		if math.abs(u) < 0.00005 and math.abs(v) < 0.00005 then
-			u = 0
-			v = 0
+	originalIO.bodyModsTailScaleVector = function(value, scale)
+		if typeof(scale) == "Vector3" then
+			return Vector3.new(value.X * scale.X, value.Y * scale.Y, value.Z * scale.Z)
 		end
-		return u, v
+		local n = tonumber(scale) or 1
+		return value * n
 	end
 
-	originalIO.bodyModsCritDamp = function(stiffness, ratio)
-		stiffness = math.max(tonumber(stiffness) or 0, 0)
-		ratio = tonumber(ratio) or 1
-		return 2 * math.sqrt(stiffness) * ratio
+	originalIO.bodyModsTailBind = function(rig, pivotPosition, linearScale, angularScale)
+		if type(rig) ~= "table" or not rig.root or not rig.target then
+			return nil
+		end
+
+		local base = rig.base or rig.target.CFrame or CFrame.identity
+		local pivot = typeof(pivotPosition) == "Vector3" and pivotPosition or base.Position
+		local pivotCFrame = CFrame.new(pivot)
+		local pivotOffset = base:ToObjectSpace(pivotCFrame)
+
+		rig.tailPhysics = {
+			rootPreviousCFrame = rig.root.CFrame,
+			rootPreviousDeltaCFrame = CFrame.identity,
+			weldPreviousCFrame = base,
+			weldCurrentCFrame = base,
+			currentAngle = Vector3.zero,
+			angularVelocity = Vector3.zero,
+			pivotCFrame = pivotCFrame,
+			inversePivotOffsetCFrame = pivotOffset:Inverse(),
+			linearAmplitude = originalIO.bodyModsTailScaleVector(BODYMOD_TAIL_LINEAR_AMPLITUDE, linearScale),
+			angularAmplitude = originalIO.bodyModsTailScaleVector(BODYMOD_TAIL_ANGULAR_AMPLITUDE, angularScale),
+			stiffness = BODYMOD_TAIL_STIFFNESS,
+			damping = BODYMOD_TAIL_DAMPING,
+			movementDistanceThreshold = BODYMOD_TAIL_MOVEMENT_THRESHOLD,
+			accumulator = 0
+		}
+
+		rig.target.CFrame = base
+		return rig.tailPhysics
 	end
 
-	originalIO.bodyModsClampVec = function(vec, cap)
-		cap = math.max(tonumber(cap) or 0, 0)
-		if typeof(vec) ~= "Vector3" then
-			return Vector3.zero
+	originalIO.bodyModsTailReset = function(rig)
+		if type(rig) ~= "table" or not rig.root or not rig.target then
+			return
 		end
-		const mag = vec.Magnitude
-		if cap > 0 and mag > cap then
-			return vec.Unit * cap
+		local sim = rig.tailPhysics
+		if type(sim) ~= "table" then
+			return
 		end
-		return vec
+		local base = rig.base or CFrame.identity
+		sim.rootPreviousCFrame = rig.root.CFrame
+		sim.rootPreviousDeltaCFrame = CFrame.identity
+		sim.weldPreviousCFrame = base
+		sim.weldCurrentCFrame = base
+		sim.currentAngle = Vector3.zero
+		sim.angularVelocity = Vector3.zero
+		sim.accumulator = 0
+		rig.target.CFrame = base
 	end
 
-	originalIO.bodyModsMotion = function(root, humanoid, st, dt)
-		dt = math.clamp(tonumber(dt) or (1 / 60), 1 / 240, 1 / 30)
-		const velocity = (root and (root.AssemblyLinearVelocity or root.Velocity)) or Vector3.zero
-		const localVel = root and root.CFrame:VectorToObjectSpace(velocity) or Vector3.zero
-		const angular = (root and root.AssemblyAngularVelocity) or Vector3.zero
-		const localAng = root and root.CFrame:VectorToObjectSpace(angular) or Vector3.zero
-		local accel = Vector3.zero
-		if st and st.linit and typeof(st.llv) == "Vector3" then
-			accel = (localVel - st.llv) / dt
-		elseif st then
-			st.linit = true
+	originalIO.bodyModsTailStep = function(rig)
+		local sim = type(rig) == "table" and rig.tailPhysics or nil
+		local root = type(rig) == "table" and rig.root or nil
+		if type(sim) ~= "table" or not root or not root.Parent then
+			return
 		end
-		if st then
-			st.llv = localVel
+
+		local rootCFrame = root.CFrame
+		local rootDelta = sim.rootPreviousCFrame:ToObjectSpace(rootCFrame)
+		if rootDelta.Position.Magnitude > sim.movementDistanceThreshold then
+			rootDelta = rootDelta.Rotation
 		end
-		const planarSpeed = Vector3.new(localVel.X, 0, localVel.Z).Magnitude
-		accel = originalIO.bodyModsClampVec(accel, 70 + math.clamp(planarSpeed * 2.5, 0, 55))
-		local moveAlpha = 0
-		local grounded = false
-		if humanoid then
-			moveAlpha = math.clamp(humanoid.MoveDirection.Magnitude, 0, 1)
-			const humState = humanoid:GetState()
-			grounded = humanoid.FloorMaterial ~= Enum.Material.Air and humState ~= Enum.HumanoidStateType.Freefall and humState ~= Enum.HumanoidStateType.Jumping
+
+		local rootDeltaChange = sim.rootPreviousDeltaCFrame:ToObjectSpace(rootDelta)
+		local deltaPosition = rootDeltaChange.Position
+		local linearAmplitude = sim.linearAmplitude
+		local linearInput = Vector3.new(
+			deltaPosition.X * linearAmplitude.X,
+			deltaPosition.Y * linearAmplitude.Y,
+			deltaPosition.Z * linearAmplitude.Z
+		)
+
+		local lever = sim.pivotCFrame.Position - sim.weldPreviousCFrame.Position
+		local linearTorque = lever:Cross(linearInput)
+
+		local ax, ay, az = rootDeltaChange:ToEulerAnglesXYZ()
+		local angularAmplitude = sim.angularAmplitude
+		local angularInput = Vector3.new(
+			ax * angularAmplitude.X,
+			ay * angularAmplitude.Y,
+			az * angularAmplitude.Z
+		)
+
+		local currentAngle = sim.currentAngle
+		local angularVelocity = sim.angularVelocity
+		local nextVelocity = angularVelocity - (sim.stiffness * currentAngle + sim.damping * angularVelocity) * BODYMOD_TAIL_STEP
+		local nextAngle = currentAngle + nextVelocity * BODYMOD_TAIL_STEP
+
+		sim.currentAngle = nextAngle
+		sim.angularVelocity = nextVelocity + linearTorque - angularInput
+
+		local nextCFrame = sim.pivotCFrame
+			* CFrame.fromEulerAnglesXYZ(nextAngle.X, nextAngle.Y, nextAngle.Z)
+			* sim.inversePivotOffsetCFrame
+
+		sim.rootPreviousCFrame = rootCFrame
+		sim.rootPreviousDeltaCFrame = rootDelta
+		sim.weldPreviousCFrame = sim.weldCurrentCFrame
+		sim.weldCurrentCFrame = nextCFrame
+	end
+
+	originalIO.bodyModsTailUpdate = function(rig, dt)
+		local sim = type(rig) == "table" and rig.tailPhysics or nil
+		if type(sim) ~= "table" or not rig.target then
+			return
 		end
-		return dt, localVel, localAng, accel, planarSpeed, moveAlpha, grounded
+
+		dt = math.min(math.max(tonumber(dt) or 0, 0), 0.1)
+		sim.accumulator += dt
+
+		while sim.accumulator >= BODYMOD_TAIL_STEP do
+			sim.accumulator -= BODYMOD_TAIL_STEP
+			originalIO.bodyModsTailStep(rig)
+		end
+
+		local alpha = sim.accumulator * 120
+		rig.target.CFrame = sim.weldPreviousCFrame:Lerp(sim.weldCurrentCFrame, alpha)
 	end
 
 	originalIO.bodyModsDisconnectConnection = function(conn)
@@ -105765,102 +105833,36 @@ do
 			part.CustomPhysicalProperties = nil
 		end)
 
-		const folder = originalIO.bodyModsGetFolder()
-		const helper = InstanceNew("Part")
-		helper.Name = "NA_BodyModsPhysics"
-		helper.Shape = part.Shape
-		helper.Size = part.Size
-		helper.Color = part.Color
-		helper.Material = part.Material
-		helper.Transparency = 1
-		helper.Anchored = false
-		helper.CanCollide = false
-		pcall(function() helper.CanTouch = false end)
-		pcall(function() helper.CanQuery = false end)
-		pcall(function() helper.Massless = true end)
-		pcall(function() helper.RootPriority = -127 end)
-		local deco = false
-		pcall(function()
-			deco = part:GetAttribute("NA_BodyModDeco") == true
-		end)
-		helper.CustomPhysicalProperties = deco and decoPhys or softPhys
-		pcall(function()
-			helper:SetAttribute("NA_BodyMod", true)
-			helper:SetAttribute("NA_BodyModPart", part.Name)
-			helper:SetAttribute("NA_BodyModHelper", true)
-		end)
-		if NAmanage.configureFlyHelper then
-			pcall(NAmanage.configureFlyHelper, helper)
-		end
-		helper.CFrame = root.CFrame * localCf
-		pcall(function()
-			helper.AssemblyLinearVelocity = root.AssemblyLinearVelocity
-			helper.AssemblyAngularVelocity = root.AssemblyAngularVelocity
-		end)
-		helper.Parent = folder or Services.Workspace
-		originalIO.bodyModsTrack(objs, helper)
-
-		const pa = originalIO.bodyModsAttachment(helper, "NA_BodyModsFollow", CFrame.new(), objs)
-		const ta = originalIO.bodyModsAttachment(root, "NA_BodyModsTarget", localCf, objs)
-		const ap = InstanceNew("AlignPosition")
-		ap.Attachment0 = pa
-		ap.Attachment1 = ta
-		ap.ApplyAtCenterOfMass = true
-		ap.RigidityEnabled = false
-		ap.ReactionForceEnabled = false
-		ap.Responsiveness = opts.pr or 18
-		ap.MaxForce = opts.force or 9000
-		ap.MaxVelocity = opts.vel or 55
-		ap.Parent = helper
-
-		const ao = InstanceNew("AlignOrientation")
-		ao.Attachment0 = pa
-		ao.Attachment1 = ta
-		ao.RigidityEnabled = false
-		ao.ReactionTorqueEnabled = false
-		ao.Responsiveness = opts.rr or 16
-		ao.MaxTorque = opts.torque or 9000
-		ao.MaxAngularVelocity = opts.angVel or 26
-		ao.Parent = helper
-
-		originalIO.bodyModsTrack(objs, ap)
-		originalIO.bodyModsTrack(objs, ao)
-		originalIO.bodyModsNoCollide(helper, root, objs)
-
-		const rig = { part = part, helper = helper, target = ta, base = localCf, ap = ap, ao = ao, kids = {}, snapDist = opts.snap or 8 }
+		const target = originalIO.bodyModsAttachment(root, "NA_BodyModsTailTarget", localCf, objs)
+		const rig = {
+			part = part,
+			root = root,
+			target = target,
+			base = localCf,
+			kids = {},
+			cfg = opts
+		}
 		originalIO.bodyModsSyncRig(rig, true)
 		return rig
 	end
 
-	originalIO.bodyModsSyncRig = function(rig, forceSnap)
+	originalIO.bodyModsSyncRig = function(rig)
 		if type(rig) ~= "table" then
 			return
 		end
-		const root = rig.target and rig.target.Parent
-		const cf = rig.target and rig.target.CFrame or rig.base or CFrame.new()
-		local worldCf = nil
-		if root then
-			worldCf = root.CFrame * cf
+		local root = rig.root or (rig.target and rig.target.Parent)
+		local localCf = rig.target and rig.target.CFrame or rig.base or CFrame.new()
+		if not root or not root.Parent then
+			return
 		end
-		const helper = rig.helper
-		if helper and helper.Parent and worldCf then
-			const dist = (helper.Position - worldCf.Position).Magnitude
-			if forceSnap or dist > (rig.snapDist or 8) then
-				helper.CFrame = worldCf
-				pcall(function()
-					helper.AssemblyLinearVelocity = root.AssemblyLinearVelocity
-					helper.AssemblyAngularVelocity = root.AssemblyAngularVelocity
-				end)
-			end
+		local worldCf = root.CFrame * localCf
+		if rig.part and rig.part.Parent then
+			rig.part.CFrame = worldCf
 		end
-		const visualCf = (helper and helper.Parent and helper.CFrame) or worldCf
-		if rig.part and rig.part.Parent and visualCf then
-			rig.part.CFrame = visualCf
-		end
-		if type(rig.kids) == "table" and visualCf then
+		if type(rig.kids) == "table" then
 			for _, link in rig.kids do
 				if type(link) == "table" and link.part and link.part.Parent then
-					link.part.CFrame = visualCf * (link.cf or CFrame.new())
+					link.part.CFrame = worldCf * (link.cf or CFrame.new())
 				end
 			end
 		end
@@ -106050,13 +106052,13 @@ do
 	end
 
 	originalIO.bodyModsRigCfg = function(sizeScale, kind)
-		const mass = 1 + math.clamp(tonumber(sizeScale) or 1, 0.3, 3) * 0.55
+		local scale = math.clamp(tonumber(sizeScale) or 1, 0.3, 3)
 		if kind == "heavy" then
-			return { pr = math.clamp(17 / mass, 7, 16), rr = math.clamp(13 / mass, 6, 13), force = 11000 * mass, torque = 10000 * mass, vel = 50, angVel = 22 }
+			return { linearScale = 0.72 + scale * 0.08, angularScale = 0.78 + scale * 0.05 }
 		elseif kind == "loose" then
-			return { pr = math.clamp(14 / mass, 6, 14), rr = math.clamp(11 / mass, 5, 12), force = 8500 * mass, torque = 8000 * mass, vel = 42, angVel = 18 }
+			return { linearScale = 0.98 + scale * 0.10, angularScale = 0.96 + scale * 0.08 }
 		end
-		return { pr = math.clamp(19 / mass, 8, 18), rr = math.clamp(16 / mass, 7, 16), force = 10000 * mass, torque = 9500 * mass, vel = 55, angVel = 24 }
+		return { linearScale = 0.86 + scale * 0.08, angularScale = 0.88 + scale * 0.06 }
 	end
 
 	originalIO.bodyModsApplyBoobs = function(size)
@@ -106107,7 +106109,12 @@ do
 		const function createHalf(side)
 			const boob = originalIO.bodyModsTrack(state.boobs.objs, originalIO.bodyModsPart(Enum.PartType.Ball, boobSize, skin, "Boob", bodyParent, false))
 			const base = CFrame.new(side * state.boobs.ox, state.boobs.oy, state.boobs.oz)
-			const rig = originalIO.bodyModsRig(boob, torso, base, originalIO.bodyModsRigCfg(sizeScale, "heavy"), state.boobs.objs)
+			const cfg = originalIO.bodyModsRigCfg(sizeScale, "heavy")
+			const rig = originalIO.bodyModsRig(boob, torso, base, cfg, state.boobs.objs)
+			if rig then
+				const pivot = (base * CFrame.new(0, 0, boobSize.Z * 0.34)).Position
+				originalIO.bodyModsTailBind(rig, pivot, cfg.linearScale, cfg.angularScale)
+			end
 
 			const nipple = originalIO.bodyModsTrack(state.boobs.objs, originalIO.bodyModsPart(Enum.PartType.Ball, nippleSize, pinkColor, "Nipple", bodyParent, true))
 			const nippleCf = CFrame.new(0, 0, -(offsetToFront(boob.Size, nipple.Size) + popForward))
@@ -106148,81 +106155,17 @@ do
 		state.boobs.rigs = { leftRig, rightRig }
 		state.boobs.size = size
 		state.boobs.active = true
-		state.boobs.sy = 0
-		state.boobs.vy = 0
-		state.boobs.sz = 0
-		state.boobs.vz = 0
-		state.boobs.sx = 0
-		state.boobs.vx = 0
-		state.boobs.rx = 0
-		state.boobs.vrx = 0
-		state.boobs.ry = 0
-		state.boobs.rv = 0
-		state.boobs.yw = 0
-		state.boobs.vyw = 0
-		state.boobs.llv = Vector3.zero
-		state.boobs.ccf = nil
-		state.boobs.linit = false
-
 		state.boobs.conn = NAlib.reconnect("bodymods_boobs", Services.RunService.RenderStepped:Connect(function(dt)
 			const currentChar = originalIO.bodyModsGetCharacter()
 			if not currentChar or not currentChar.Parent then
 				return
 			end
-			const hrp = currentChar:FindFirstChild("HumanoidRootPart")
-			if not hrp then
-				return
+			for _, rig in state.boobs.rigs do
+				if rig and rig.root and rig.root.Parent then
+					originalIO.bodyModsTailUpdate(rig, dt)
+					originalIO.bodyModsSyncRig(rig)
+				end
 			end
-			const currentHumanoid = currentChar:FindFirstChildOfClass("Humanoid") or humanoid
-			local localVel, localAng, accel, planarSpeed, moveAlpha, grounded
-			dt, localVel, localAng, accel, planarSpeed, moveAlpha, grounded = originalIO.bodyModsMotion(hrp, currentHumanoid, state.boobs, dt)
-			const camera = Services.Workspace.CurrentCamera
-			local camAng = Vector3.zero
-			if camera and state.boobs.ccf then
-				const rel = state.boobs.ccf:ToObjectSpace(camera.CFrame)
-				local x, y, z = rel:ToEulerAnglesXYZ()
-				camAng = originalIO.bodyModsClampVec(Vector3.new(x, y, z) / dt, 18)
-			end
-			state.boobs.ccf = camera and camera.CFrame or nil
-			const useCam = (Services.Players.LocalPlayer and Services.Players.LocalPlayer.CameraMode == Enum.CameraMode.LockFirstPerson) or (Services.UserInputService.MouseBehavior == Enum.MouseBehavior.LockCenter)
-			const angInput = useCam and camAng or localAng
-			const sc = math.clamp((state.boobs.size or 1) / 3, 0.4, 2.4)
-			const air = grounded and 0 or 1
-			const softness = math.clamp((planarSpeed + math.abs(localVel.Y) * 0.25) / 24, 0, 1)
-			const gait = math.sin(os.clock() * (5.4 + planarSpeed * 0.12)) * math.clamp((planarSpeed - 0.8) / 13, 0, 1) * moveAlpha * (grounded and 1 or 0.28)
-			const settleY = -0.018 * sc - 0.008 * air
-			const settleZ = 0.006 * sc + 0.004 * air
-			const mass = 1.04 + sc * 0.46
-			const amp = 0.50 + sc * 0.22
-
-			const targetY = math.clamp(settleY + ((-localVel.Y * 0.006) - accel.Y * 0.0018 + math.abs(gait) * 0.012) * amp, -0.14, 0.13)
-			const targetZ = math.clamp(settleZ + ((-localVel.Z * 0.008) - accel.Z * 0.0022 + math.abs(gait) * 0.010) * amp, -0.13, 0.16)
-			const targetX = math.clamp(((-localVel.X * 0.006) - accel.X * 0.0015) * amp, -0.11, 0.11)
-			const targetPitch = math.clamp(settleY * 0.42 + ((-localVel.Y * 0.006) - accel.Y * 0.0014 + gait * 0.026) * (0.50 + sc * 0.16) + angInput.X * 0.10, -0.20, 0.20)
-			const targetRoll = math.clamp(((-localVel.X * 0.012) - accel.X * 0.0011) * (0.48 + sc * 0.11) - angInput.Y * 0.09, -0.17, 0.17)
-			const targetYaw = math.clamp(((localVel.X * 0.008) + accel.X * 0.0009) * (0.42 + sc * 0.09) + angInput.Z * 0.07, -0.13, 0.13)
-			const kTrans = math.clamp((54 - 12 * softness - 7 * air) / mass, 18, 66)
-			const dTrans = originalIO.bodyModsCritDamp(kTrans, 1.04)
-			const kRot = math.clamp((50 - 11 * softness - 6 * air) / math.max(mass * 0.94, 0.72), 16, 62)
-			const dRot = originalIO.bodyModsCritDamp(kRot, 1.02)
-
-			state.boobs.sy, state.boobs.vy = originalIO.bodyModsSpring(state.boobs.sy, state.boobs.vy, targetY, kTrans, dTrans, dt)
-			state.boobs.sz, state.boobs.vz = originalIO.bodyModsSpring(state.boobs.sz, state.boobs.vz, targetZ, kTrans, dTrans, dt)
-			state.boobs.sx, state.boobs.vx = originalIO.bodyModsSpring(state.boobs.sx, state.boobs.vx, targetX, kTrans, dTrans, dt)
-			state.boobs.rx, state.boobs.vrx = originalIO.bodyModsSpring(state.boobs.rx, state.boobs.vrx, targetPitch, kRot, dRot, dt)
-			state.boobs.ry, state.boobs.rv = originalIO.bodyModsSpring(state.boobs.ry, state.boobs.rv, targetRoll, kRot, dRot, dt)
-			state.boobs.yw, state.boobs.vyw = originalIO.bodyModsSpring(state.boobs.yw, state.boobs.vyw, targetYaw, kRot, dRot, dt)
-
-			const sxCap = math.clamp(state.boobs.sx, -state.boobs.ox * 0.4, state.boobs.ox * 0.4)
-			const z = state.boobs.oz - math.clamp(state.boobs.sz, -0.15, 0.18) * 0.18
-			if leftRig and leftRig.target then
-				leftRig.target.CFrame = CFrame.new(-state.boobs.ox - sxCap, state.boobs.oy + math.clamp(state.boobs.sy, -0.16, 0.15), z) * CFrame.Angles(math.clamp(state.boobs.rx, -0.22, 0.22), math.clamp(state.boobs.yw, -0.14, 0.14), math.clamp(state.boobs.ry, -0.18, 0.18))
-			end
-			if rightRig and rightRig.target then
-				rightRig.target.CFrame = CFrame.new(state.boobs.ox + sxCap, state.boobs.oy + math.clamp(state.boobs.sy, -0.16, 0.15), z) * CFrame.Angles(math.clamp(state.boobs.rx, -0.22, 0.22), -math.clamp(state.boobs.yw, -0.14, 0.14), -math.clamp(state.boobs.ry, -0.18, 0.18))
-			end
-			originalIO.bodyModsSyncRig(leftRig)
-			originalIO.bodyModsSyncRig(rightRig)
 		end))
 
 		originalIO.bodyModsAppear({ left, right, leftNipple, rightNipple }, 0.35, 0.22)
@@ -106292,7 +106235,12 @@ do
 		const function createCheek(side)
 			const cheek = originalIO.bodyModsTrack(state.ass.objs, originalIO.bodyModsPart(Enum.PartType.Ball, cheekSize, skin, "Cheek", bodyParent, false))
 			const base = CFrame.new(side * state.ass.ox, state.ass.oy, state.ass.oz)
-			const rig = originalIO.bodyModsRig(cheek, torso, base, originalIO.bodyModsRigCfg(sizeScale, "loose"), state.ass.objs)
+			const cfg = originalIO.bodyModsRigCfg(sizeScale, "loose")
+			const rig = originalIO.bodyModsRig(cheek, torso, base, cfg, state.ass.objs)
+			if rig then
+				const pivot = (base * CFrame.new(0, 0, -cheekSize.Z * 0.34)).Position
+				originalIO.bodyModsTailBind(rig, pivot, cfg.linearScale, cfg.angularScale)
+			end
 			return rig, cheek
 		end
 
@@ -106302,72 +106250,17 @@ do
 		state.ass.rigs = { leftRig, rightRig }
 		state.ass.size = size
 		state.ass.active = true
-		state.ass.sy = 0
-		state.ass.vy = 0
-		state.ass.sz = 0
-		state.ass.vz = 0
-		state.ass.sx = 0
-		state.ass.vx = 0
-		state.ass.rx = 0
-		state.ass.vrx = 0
-		state.ass.ry = 0
-		state.ass.rv = 0
-		state.ass.yw = 0
-		state.ass.vyw = 0
-		state.ass.llv = Vector3.zero
-		state.ass.linit = false
-
 		state.ass.conn = NAlib.reconnect("bodymods_ass", Services.RunService.RenderStepped:Connect(function(dt)
 			const currentChar = originalIO.bodyModsGetCharacter()
 			if not currentChar or not currentChar.Parent then
 				return
 			end
-			const hrp = currentChar:FindFirstChild("HumanoidRootPart")
-			if not hrp then
-				return
+			for _, rig in state.ass.rigs do
+				if rig and rig.root and rig.root.Parent then
+					originalIO.bodyModsTailUpdate(rig, dt)
+					originalIO.bodyModsSyncRig(rig)
+				end
 			end
-			const currentHumanoid = currentChar:FindFirstChildOfClass("Humanoid") or humanoid
-			local localVel, localAng, accel, planarSpeed, moveAlpha, grounded
-			dt, localVel, localAng, accel, planarSpeed, moveAlpha, grounded = originalIO.bodyModsMotion(hrp, currentHumanoid, state.ass, dt)
-			const sc = math.clamp((state.ass.size or 1) / 3, 0.4, 2.5)
-			const air = grounded and 0 or 1
-			const softness = math.clamp((planarSpeed + math.abs(localVel.Y) * 0.22) / 24, 0, 1)
-			const stride = math.sin(os.clock() * (5.9 + planarSpeed * 0.12))
-			const gait = stride * math.clamp((planarSpeed - 0.8) / 12, 0, 1) * moveAlpha * (grounded and 1 or 0.22)
-			const settleY = -0.052 * sc - 0.014 * air
-			const settleZ = 0.034 * sc + 0.008 * air
-			const mass = 1.18 + sc * 0.54
-			const amp = 0.50 + sc * 0.22
-			const targetY = math.clamp(settleY + ((-localVel.Y * 0.008) - accel.Y * 0.0020 + math.abs(gait) * 0.012) * amp, -0.16, 0.13)
-			const targetZ = math.clamp(settleZ + ((-localVel.Z * 0.010) - accel.Z * 0.0018 + math.abs(gait) * 0.008) * amp, -0.10, 0.16)
-			const targetX = math.clamp(((localVel.X * 0.008) + accel.X * 0.0014) * amp, -0.12, 0.12)
-			const targetPitch = math.clamp(((-localVel.Y * 0.004) + localAng.X * 0.10 + gait * 0.020) * (0.50 + sc * 0.12), -0.16, 0.16)
-			const targetRoll = math.clamp(((-localVel.X * 0.010) - accel.X * 0.0010 - localAng.Y * 0.10) * (0.46 + sc * 0.10), -0.15, 0.15)
-			const targetYaw = math.clamp(((localVel.X * 0.006) - localAng.Z * 0.08) * (0.40 + sc * 0.08), -0.11, 0.11)
-			const kTrans = math.clamp((50 - 10 * softness - 6 * air) / mass, 16, 58)
-			const dTrans = originalIO.bodyModsCritDamp(kTrans, 1.06)
-			const kRot = math.clamp((44 - 9 * softness - 5 * air) / math.max(mass * 0.94, 0.76), 16, 52)
-			const dRot = originalIO.bodyModsCritDamp(kRot, 1.05)
-
-			state.ass.sy, state.ass.vy = originalIO.bodyModsSpring(state.ass.sy, state.ass.vy, targetY, kTrans, dTrans, dt)
-			state.ass.sz, state.ass.vz = originalIO.bodyModsSpring(state.ass.sz, state.ass.vz, targetZ, kTrans, dTrans, dt)
-			state.ass.sx, state.ass.vx = originalIO.bodyModsSpring(state.ass.sx, state.ass.vx, targetX, kTrans, dTrans, dt)
-			state.ass.rx, state.ass.vrx = originalIO.bodyModsSpring(state.ass.rx, state.ass.vrx, targetPitch, kRot, dRot, dt)
-			state.ass.ry, state.ass.rv = originalIO.bodyModsSpring(state.ass.ry, state.ass.rv, targetRoll, kRot, dRot, dt)
-			state.ass.yw, state.ass.vyw = originalIO.bodyModsSpring(state.ass.yw, state.ass.vyw, targetYaw, kRot, dRot, dt)
-
-			const sxCap = math.clamp(state.ass.sx, -state.ass.ox * 0.55, state.ass.ox * 0.55)
-			const z = state.ass.oz + math.clamp(state.ass.sz, -0.10, 0.16) + math.abs(gait) * math.clamp(0.006 + sc * 0.004, 0.006, 0.018)
-			const cheekLift = gait * math.clamp(0.006 + sc * 0.004, 0.006, 0.018)
-			const cheekRoll = gait * math.clamp(0.014 + sc * 0.006, 0.014, 0.034)
-			if leftRig and leftRig.target then
-				leftRig.target.CFrame = CFrame.new(-state.ass.ox - sxCap, state.ass.oy + math.clamp(state.ass.sy, -0.15, 0.14) + cheekLift, z) * CFrame.Angles(math.clamp(state.ass.rx, -0.17, 0.17), math.clamp(state.ass.yw, -0.12, 0.12), math.clamp(state.ass.ry, -0.16, 0.16) + cheekRoll)
-			end
-			if rightRig and rightRig.target then
-				rightRig.target.CFrame = CFrame.new(state.ass.ox + sxCap, state.ass.oy + math.clamp(state.ass.sy, -0.15, 0.14) - cheekLift, z) * CFrame.Angles(math.clamp(state.ass.rx, -0.17, 0.17), -math.clamp(state.ass.yw, -0.12, 0.12), -math.clamp(state.ass.ry, -0.16, 0.16) - cheekRoll)
-			end
-			originalIO.bodyModsSyncRig(leftRig)
-			originalIO.bodyModsSyncRig(rightRig)
 		end))
 
 		originalIO.bodyModsAppear({ left, right }, 0.35, 0.22)
@@ -106451,102 +106344,36 @@ do
 		const leftRig = originalIO.bodyModsRig(leftBall, torso, state.pp.baseBL, ballCfg, state.pp.objs)
 		const rightRig = originalIO.bodyModsRig(rightBall, torso, state.pp.baseBR, ballCfg, state.pp.objs)
 		const shaftRig = originalIO.bodyModsRig(shaft, torso, state.pp.baseS, shaftCfg, state.pp.objs)
+		if leftRig then
+			const pivot = (state.pp.baseBL * CFrame.new(0, ballRadius * 0.46, ballRadius * 0.16)).Position
+			originalIO.bodyModsTailBind(leftRig, pivot, ballCfg.linearScale, ballCfg.angularScale)
+		end
+		if rightRig then
+			const pivot = (state.pp.baseBR * CFrame.new(0, ballRadius * 0.46, ballRadius * 0.16)).Position
+			originalIO.bodyModsTailBind(rightRig, pivot, ballCfg.linearScale, ballCfg.angularScale)
+		end
+		if shaftRig then
+			const pivot = (state.pp.baseS * CFrame.new(shaftLength * 0.48, 0, 0)).Position
+			originalIO.bodyModsTailBind(shaftRig, pivot, shaftCfg.linearScale, shaftCfg.angularScale)
+		end
 		const tipCf = CFrame.new(-shaftLength * 0.5, 0, 0)
 		tip.CFrame = shaft.CFrame * tipCf
 		originalIO.bodyModsLinkVisual(shaftRig, tip, tipCf)
 
 		state.pp.rigs = { shaft = shaftRig, left = leftRig, right = rightRig }
 		state.pp.active = true
-		state.pp.sy = 0
-		state.pp.vy = 0
-		state.pp.sz = 0
-		state.pp.vz = 0
-		state.pp.sx = 0
-		state.pp.vx = 0
-		state.pp.rx = 0
-		state.pp.vrx = 0
-		state.pp.ry = 0
-		state.pp.vry = 0
-		state.pp.bsy = 0
-		state.pp.bvy = 0
-		state.pp.bsz = 0
-		state.pp.bvz = 0
-		state.pp.bsx = 0
-		state.pp.bvx = 0
-		state.pp.brx = 0
-		state.pp.bvrx = 0
-		state.pp.bry = 0
-		state.pp.bvry = 0
-		state.pp.llv = Vector3.zero
-		state.pp.linit = false
-
 		state.pp.animConn = NAlib.reconnect("bodymods_pp", Services.RunService.RenderStepped:Connect(function(dt)
 			const currentChar = originalIO.bodyModsGetCharacter()
 			if not currentChar or not currentChar.Parent then
 				return
 			end
-			const hrp = currentChar:FindFirstChild("HumanoidRootPart")
-			if not hrp then
-				return
-			end
-			const currentHumanoid = currentChar:FindFirstChildOfClass("Humanoid") or humanoid
-			local localVel, localAng, accel, planarSpeed, moveAlpha, grounded
-			dt, localVel, localAng, accel, planarSpeed, moveAlpha, grounded = originalIO.bodyModsMotion(hrp, currentHumanoid, state.pp, dt)
-			const air = grounded and 0 or 1
-			const softness = math.clamp((planarSpeed + math.abs(localVel.Y) * 0.20) / 24, 0, 1)
-			const gait = math.sin(os.clock() * (5.6 + planarSpeed * 0.12)) * math.clamp((planarSpeed - 0.8) / 12, 0, 1) * moveAlpha * (grounded and 1 or 0.25)
-			const amp = 0.44 + lenScale * 0.12
-			const targetY = math.clamp((-0.026 * lenScale - 0.010 * air) + ((-localVel.Y * 0.006) - accel.Y * 0.0014 + math.abs(gait) * 0.008) * amp, -0.12, 0.08)
-			const targetZ = math.clamp((-localVel.Z * 0.006) - accel.Z * 0.0014 - math.abs(gait) * 0.006, -0.18, 0.08)
-			const targetX = math.clamp(((-localVel.X * 0.006) - accel.X * 0.0012) * amp, -0.09, 0.09)
-			const targetPitch = math.clamp((localAng.Z * 0.008) - (localVel.Y * 0.0024) - (accel.Y * 0.0007), -0.10, 0.10)
-			const targetRoll = math.clamp((localAng.X * 0.008) + (localVel.X * 0.0038) + (accel.X * 0.0007), -0.10, 0.10)
-			const kTrans = math.clamp((40 - 8 * softness - 5 * air) / math.max(0.78 + lenScale * 0.40, 0.78), 12, 44)
-			const dTrans = originalIO.bodyModsCritDamp(kTrans, 1.02)
-			const kRot = math.clamp((34 - 7 * softness - 4 * air) / math.max(0.82 + lenScale * 0.34, 0.82), 12, 38)
-			const dRot = originalIO.bodyModsCritDamp(kRot, 1.02)
-
-			state.pp.sy, state.pp.vy = originalIO.bodyModsSpring(state.pp.sy, state.pp.vy, targetY, kTrans, dTrans, dt)
-			state.pp.sz, state.pp.vz = originalIO.bodyModsSpring(state.pp.sz, state.pp.vz, targetZ, kTrans, dTrans, dt)
-			state.pp.sx, state.pp.vx = originalIO.bodyModsSpring(state.pp.sx, state.pp.vx, targetX, kTrans, dTrans, dt)
-			state.pp.rx, state.pp.vrx = originalIO.bodyModsSpring(state.pp.rx, state.pp.vrx, targetPitch, kRot, dRot, dt)
-			state.pp.ry, state.pp.vry = originalIO.bodyModsSpring(state.pp.ry, state.pp.vry, targetRoll, kRot, dRot, dt)
-
-			if state.pp.rigs and state.pp.rigs.shaft and state.pp.rigs.shaft.target and state.pp.baseS then
-				const sway = CFrame.new(math.clamp(state.pp.sx, -0.09, 0.09), math.clamp(state.pp.sy, -0.10, 0.08), math.clamp(state.pp.sz, -0.19, 0.09)) * CFrame.Angles(math.clamp(state.pp.rx, -0.11, 0.11), 0, math.clamp(state.pp.ry, -0.11, 0.11))
-				state.pp.rigs.shaft.target.CFrame = state.pp.baseS * sway
-			end
-
-			if state.pp.rigs and state.pp.rigs.left and state.pp.rigs.right and state.pp.baseBL and state.pp.baseBR then
-				const ballTargetY = math.clamp((-0.026 * lenScale) + (-localVel.Y * 0.007) - (accel.Y * 0.0016) + math.abs(gait) * 0.010, -0.11, 0.09)
-				const ballTargetZ = math.clamp((-0.030 * lenScale) + (-localVel.Z * 0.005) - (accel.Z * 0.0015) - math.abs(gait) * 0.007, -0.10, 0.06)
-				const ballTargetX = math.clamp((-localVel.X * 0.006) - (accel.X * 0.0013), -0.07, 0.07)
-				const ballTargetPitch = math.clamp((-localVel.Y * 0.004) - (accel.Y * 0.0008), -0.10, 0.10)
-				const ballTargetRoll = math.clamp((localVel.X * 0.006) + gait * 0.020, -0.10, 0.10)
-				const kBallTrans = math.clamp((32 - 7 * softness - 4 * air) / math.max(0.88 + lenScale * 0.24, 0.88), 10, 34)
-				const dBallTrans = originalIO.bodyModsCritDamp(kBallTrans, 1.06)
-				const kBallRot = math.clamp((26 - 6 * softness - 3 * air) / math.max(0.92 + lenScale * 0.18, 0.92), 8, 28)
-				const dBallRot = originalIO.bodyModsCritDamp(kBallRot, 1.06)
-
-				state.pp.bsy, state.pp.bvy = originalIO.bodyModsSpring(state.pp.bsy, state.pp.bvy, ballTargetY, kBallTrans, dBallTrans, dt)
-				state.pp.bsz, state.pp.bvz = originalIO.bodyModsSpring(state.pp.bsz, state.pp.bvz, ballTargetZ, kBallTrans, dBallTrans, dt)
-				state.pp.bsx, state.pp.bvx = originalIO.bodyModsSpring(state.pp.bsx, state.pp.bvx, ballTargetX, kBallTrans, dBallTrans, dt)
-				state.pp.brx, state.pp.bvrx = originalIO.bodyModsSpring(state.pp.brx, state.pp.bvrx, ballTargetPitch, kBallRot, dBallRot, dt)
-				state.pp.bry, state.pp.bvry = originalIO.bodyModsSpring(state.pp.bry, state.pp.bvry, ballTargetRoll, kBallRot, dBallRot, dt)
-				const spreadJiggle = math.abs(gait) * math.clamp(0.006 + ballRadius * 0.006, 0.006, 0.014)
-				const leftSway = CFrame.new(-spreadJiggle - math.clamp(state.pp.bsx, -0.07, 0.07), math.clamp(state.pp.bsy, -0.11, 0.09), math.clamp(state.pp.bsz, -0.10, 0.06)) * CFrame.Angles(math.clamp(state.pp.brx, -0.10, 0.10), 0, math.clamp(state.pp.bry, -0.10, 0.10))
-				const rightSway = CFrame.new(spreadJiggle + math.clamp(state.pp.bsx, -0.07, 0.07), math.clamp(state.pp.bsy, -0.11, 0.09), math.clamp(state.pp.bsz, -0.10, 0.06)) * CFrame.Angles(math.clamp(state.pp.brx, -0.10, 0.10), 0, -math.clamp(state.pp.bry, -0.10, 0.10))
-				if state.pp.rigs.left.target then
-					state.pp.rigs.left.target.CFrame = state.pp.baseBL * leftSway
-				end
-				if state.pp.rigs.right.target then
-					state.pp.rigs.right.target.CFrame = state.pp.baseBR * rightSway
-				end
-			end
 			if state.pp.rigs then
-				originalIO.bodyModsSyncRig(state.pp.rigs.shaft)
-				originalIO.bodyModsSyncRig(state.pp.rigs.left)
-				originalIO.bodyModsSyncRig(state.pp.rigs.right)
+				for _, rig in { state.pp.rigs.shaft, state.pp.rigs.left, state.pp.rigs.right } do
+					if rig and rig.root and rig.root.Parent then
+						originalIO.bodyModsTailUpdate(rig, dt)
+						originalIO.bodyModsSyncRig(rig)
+					end
+				end
 			end
 		end))
 
@@ -106581,17 +106408,6 @@ do
 		state.pp.baseS = nil
 		state.pp.baseBL = nil
 		state.pp.baseBR = nil
-		state.pp.llv = Vector3.zero
-		state.pp.sy = 0
-		state.pp.sz = 0
-		state.pp.sx = 0
-		state.pp.rx = 0
-		state.pp.ry = 0
-		state.pp.bsy = 0
-		state.pp.bsz = 0
-		state.pp.bsx = 0
-		state.pp.brx = 0
-		state.pp.bry = 0
 		originalIO.bodyModsEnsureColorWatcher()
 		DebugNotif("PP Removed",1.5)
 	end
