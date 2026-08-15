@@ -20522,6 +20522,68 @@ NAmanage.NASettingsGetSchema=function()
 				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
 			end;
 		};
+		staffwatchOverrideESP = {
+			default = true;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
+			end;
+		};
+		staffwatchMarkerColor = {
+			default = function()
+				return { R = 35 / 255; G = 140 / 255; B = 1 }
+			end;
+			coerce = function(value)
+				local parsed = value
+				if typeof(value) == "Color3" then
+					parsed = { R = value.R; G = value.G; B = value.B }
+				elseif type(value) == "string" then
+					local ok, decoded = NACaller(function()
+						return Services.HttpService:JSONDecode(value)
+					end)
+					parsed = ok and type(decoded) == "table" and decoded or nil
+				end
+				if type(parsed) == "table" then
+					const r = NAmanage.NASettingsSchemaState.clampChannel(parsed.R or parsed.r)
+					const g = NAmanage.NASettingsSchemaState.clampChannel(parsed.G or parsed.g)
+					const b = NAmanage.NASettingsSchemaState.clampChannel(parsed.B or parsed.b)
+					if r and g and b then
+						return { R = r; G = g; B = b }
+					end
+				end
+				return { R = 35 / 255; G = 140 / 255; B = 1 }
+			end;
+		};
+		rotectorOverrideESP = {
+			default = true;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
+			end;
+		};
+		rotectorMarkerColor = {
+			default = function()
+				return { R = 1; G = 30 / 255; B = 45 / 255 }
+			end;
+			coerce = function(value)
+				local parsed = value
+				if typeof(value) == "Color3" then
+					parsed = { R = value.R; G = value.G; B = value.B }
+				elseif type(value) == "string" then
+					local ok, decoded = NACaller(function()
+						return Services.HttpService:JSONDecode(value)
+					end)
+					parsed = ok and type(decoded) == "table" and decoded or nil
+				end
+				if type(parsed) == "table" then
+					const r = NAmanage.NASettingsSchemaState.clampChannel(parsed.R or parsed.r)
+					const g = NAmanage.NASettingsSchemaState.clampChannel(parsed.G or parsed.g)
+					const b = NAmanage.NASettingsSchemaState.clampChannel(parsed.B or parsed.b)
+					if r and g and b then
+						return { R = r; G = g; B = b }
+					end
+				end
+				return { R = 1; G = 30 / 255; B = 45 / 255 }
+			end;
+		};
 		mobileCamSensEnabled = {
 			default = false;
 			coerce = function(value)
@@ -25551,6 +25613,10 @@ NAStuff.LightingStyleAutomation = NAmanage.NASettingsGet("lightingStyleAutomatio
 NAStuff.LightingStyleAutomationStyle = NAmanage.NASettingsGet("lightingStyleAutomationStyle") or "Soft"
 NAStuff.StaffwatchIgnoreLocal = NAmanage.NASettingsGet("staffwatchIgnoreLocal") ~= false
 NAStuff.StaffwatchHighlightEnabled = NAmanage.NASettingsGet("staffwatchHighlight") ~= false
+NAStuff.StaffwatchOverrideESP = NAmanage.NASettingsGet("staffwatchOverrideESP") ~= false
+NAStuff.StaffwatchMarkerColor = NAmanage.NASettingsGet("staffwatchMarkerColor")
+NAStuff.RotectorOverrideESP = NAmanage.NASettingsGet("rotectorOverrideESP") ~= false
+NAStuff.RotectorMarkerColor = NAmanage.NASettingsGet("rotectorMarkerColor")
 NAStuff.SafeSpeedMethod = NAmanage.NASettingsGet("safeSpeedMethod") ~= false
 NAStuff.SafeJumpMethod = NAmanage.NASettingsGet("safeJumpMethod") ~= false
 NAStuff.CustomMovementSounds = NAStuff.CustomMovementSounds or {}
@@ -33365,6 +33431,39 @@ NAmanage.RotectorMarkersEnabled = function()
 	return NAmanage.RotectorEnabled() and not (NAmanage.jlCfg and NAmanage.jlCfg.RotectorMarkers == false)
 end
 
+NAmanage.SpecialMarkerColor = function(value, fallback)
+	if typeof(value) == "Color3" then
+		return value
+	end
+	if type(value) == "table" then
+		local r = tonumber(value.R or value.r)
+		local g = tonumber(value.G or value.g)
+		local b = tonumber(value.B or value.b)
+		if r and g and b then
+			return Color3.new(math.clamp(r, 0, 1), math.clamp(g, 0, 1), math.clamp(b, 0, 1))
+		end
+	end
+	return fallback or Color3.new(1, 1, 1)
+end
+
+NAmanage.SpecialMarkerOutlineColor = function(color)
+	color = NAmanage.SpecialMarkerColor(color, Color3.new(1, 1, 1))
+	return color:Lerp(Color3.new(1, 1, 1), 0.72)
+end
+
+NAmanage.SpecialMarkerStrokeColor = function(color)
+	color = NAmanage.SpecialMarkerColor(color, Color3.new(1, 1, 1))
+	return Color3.new(color.R * 0.15, color.G * 0.15, color.B * 0.15)
+end
+
+NAmanage.RotectorGetMarkerColor = function()
+	return NAmanage.SpecialMarkerColor(NAStuff.RotectorMarkerColor, Color3.fromRGB(255, 30, 45))
+end
+
+NAmanage.StaffwatchGetMarkerColor = function()
+	return NAmanage.SpecialMarkerColor(NAStuff.StaffwatchMarkerColor, Color3.fromRGB(35, 140, 255))
+end
+
 NAmanage.RotectorStoreVisual = function(inst)
 	if typeof(inst) ~= "Instance" then
 		return nil
@@ -33384,6 +33483,15 @@ NAmanage.RotectorStoreVisual = function(inst)
 			return host
 		end
 		return nil
+	end
+	pcall(function()
+		NAmanage.SetAttr(inst, "NA_RotectorVisual", true)
+	end)
+	if type(NAmanage.Helper_StoreInstance) == "function" then
+		local ok, parent = pcall(NAmanage.Helper_StoreInstance, inst)
+		if ok and parent then
+			return parent
+		end
 	end
 	if NAmanage.ESP_StoreVisual then
 		return NAmanage.ESP_StoreVisual(inst)
@@ -33546,6 +33654,7 @@ NAmanage.RotectorClearMarker = function(plrOrId)
 	if type(marker) ~= "table" then
 		return
 	end
+	const markerPlayer = typeof(marker.player) == "Instance" and marker.player:IsA("Player") and marker.player or nil
 	rt.markers[key] = nil
 	for _, field in { "charConn", "ancestryConn" } do
 		const conn = marker[field]
@@ -33563,6 +33672,19 @@ NAmanage.RotectorClearMarker = function(plrOrId)
 			end)
 		end
 		marker[field] = nil
+	end
+	if markerPlayer and NAStuff.RotectorOverrideESP ~= false and (ESPPlayersEnabled or chamsEnabled) then
+		Defer(function()
+			if not (markerPlayer and markerPlayer.Parent) then
+				return
+			end
+			if type(NAmanage.ESP_SetupPlayerWatch) == "function" then
+				NAmanage.ESP_SetupPlayerWatch(markerPlayer)
+			end
+			if type(NAmanage.ESP_ShouldTrackPlayer) == "function" and NAmanage.ESP_ShouldTrackPlayer(markerPlayer) and type(NAmanage.ESP_RequestReattachPlayer) == "function" then
+				NAmanage.ESP_RequestReattachPlayer(markerPlayer, true)
+			end
+		end)
 	end
 end
 
@@ -33614,7 +33736,7 @@ NAmanage.RotectorEnsureScreenMarker = function(marker, entry)
 		frame.Parent = gui
 
 		const stroke = InstanceNew("UIStroke")
-		stroke.Color = Color3.fromRGB(255, 70, 82)
+		stroke.Color = NAmanage.RotectorGetMarkerColor()
 		stroke.Transparency = 1
 		stroke.Thickness = 1
 		stroke.Parent = frame
@@ -33630,8 +33752,9 @@ NAmanage.RotectorEnsureScreenMarker = function(marker, entry)
 		label.Position = UDim2.fromOffset(4, 2)
 		label.BackgroundTransparency = 1
 		label.Font = Enum.Font.GothamBlack
-		label.TextColor3 = Color3.fromRGB(255, 60, 75)
-		label.TextStrokeColor3 = Color3.fromRGB(25, 0, 0)
+		const markerColor = NAmanage.RotectorGetMarkerColor()
+		label.TextColor3 = markerColor
+		label.TextStrokeColor3 = NAmanage.SpecialMarkerStrokeColor(markerColor)
 		label.TextStrokeTransparency = 0
 		label.TextSize = 14
 		label.TextWrapped = true
@@ -33650,7 +33773,9 @@ NAmanage.RotectorEnsureScreenMarker = function(marker, entry)
 	if marker.screenLabel then
 		marker.screenLabel.Text = NAmanage.RotectorMarkerText(entry)
 		marker.screenLabel.BackgroundTransparency = 1
-		marker.screenLabel.TextColor3 = Color3.fromRGB(255, 60, 75)
+		const markerColor = NAmanage.RotectorGetMarkerColor()
+		marker.screenLabel.TextColor3 = markerColor
+		marker.screenLabel.TextStrokeColor3 = NAmanage.SpecialMarkerStrokeColor(markerColor)
 		marker.screenLabel.TextStrokeTransparency = 0
 	end
 	return frame
@@ -33682,6 +33807,12 @@ NAmanage.RotectorEnsureMarker = function(plr, entry)
 	end
 	marker.entry = entry
 	marker.player = plr
+	if NAStuff.RotectorOverrideESP ~= false then
+		const model = plr.Character
+		if model and espCONS[model] and type(NAmanage.ESP_ClearModel) == "function" then
+			NAmanage.ESP_ClearModel(model)
+		end
+	end
 	if marker.charConn == nil then
 		marker.charConn = plr.CharacterAdded:Connect(function()
 			NAmanage.spawnSafe(function()
@@ -33724,15 +33855,16 @@ NAmanage.RotectorEnsureMarker = function(plr, entry)
 		label.BackgroundTransparency = 1
 		label.BorderSizePixel = 0
 		label.Font = Enum.Font.GothamBlack
-		label.TextColor3 = Color3.fromRGB(255, 60, 75)
-		label.TextStrokeColor3 = Color3.fromRGB(25, 0, 0)
+		const markerColor = NAmanage.RotectorGetMarkerColor()
+		label.TextColor3 = markerColor
+		label.TextStrokeColor3 = NAmanage.SpecialMarkerStrokeColor(markerColor)
 		label.TextStrokeTransparency = 0
 		label.TextSize = 14
 		label.TextWrapped = true
 		label.Parent = billboard
 
 		const stroke = InstanceNew("UIStroke")
-		stroke.Color = Color3.fromRGB(255, 70, 82)
+		stroke.Color = NAmanage.RotectorGetMarkerColor()
 		stroke.Transparency = 1
 		stroke.Thickness = 1
 		stroke.Parent = label
@@ -33753,10 +33885,13 @@ NAmanage.RotectorEnsureMarker = function(plr, entry)
 	if marker.label then
 		marker.label.Text = NAmanage.RotectorMarkerText(entry)
 		marker.label.BackgroundTransparency = 1
-		marker.label.TextColor3 = Color3.fromRGB(255, 60, 75)
+		const markerColor = NAmanage.RotectorGetMarkerColor()
+		marker.label.TextColor3 = markerColor
+		marker.label.TextStrokeColor3 = NAmanage.SpecialMarkerStrokeColor(markerColor)
 		marker.label.TextStrokeTransparency = 0
 		const stroke = marker.label:FindFirstChildWhichIsA("UIStroke")
 		if stroke then
+			stroke.Color = markerColor
 			stroke.Transparency = 1
 		end
 	end
@@ -33769,18 +33904,38 @@ NAmanage.RotectorEnsureMarker = function(plr, entry)
 			marker.highlight = highlight
 			highlight.Name = "NA_RotectorHighlight"
 			highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-			highlight.FillColor = Color3.fromRGB(255, 30, 45)
-			highlight.OutlineColor = Color3.fromRGB(255, 235, 235)
+			const markerColor = NAmanage.RotectorGetMarkerColor()
+			highlight.FillColor = markerColor
+			highlight.OutlineColor = NAmanage.SpecialMarkerOutlineColor(markerColor)
 			highlight.FillTransparency = 0.78
 			highlight.OutlineTransparency = 0
 			NAmanage.RotectorStoreVisual(highlight)
 		end
 	end
 	if highlight then
+		const markerColor = NAmanage.RotectorGetMarkerColor()
+		highlight.FillColor = markerColor
+		highlight.OutlineColor = NAmanage.SpecialMarkerOutlineColor(markerColor)
 		highlight.Adornee = char
 		highlight.Enabled = true
 	end
 
+end
+
+NAmanage.RotectorRefreshMarkers = function()
+	const rt = NAmanage.Rotector
+	if type(rt) ~= "table" or type(rt.markers) ~= "table" then
+		return
+	end
+	const pending = {}
+	for _, marker in rt.markers do
+		if type(marker) == "table" and typeof(marker.player) == "Instance" and marker.player:IsA("Player") then
+			pending[#pending + 1] = { player = marker.player; entry = marker.entry; }
+		end
+	end
+	for _, rec in pending do
+		NAmanage.RotectorEnsureMarker(rec.player, rec.entry)
+	end
 end
 
 NAmanage.RotectorApplyPlayerResult = function(plr, entry)
@@ -37225,11 +37380,40 @@ NAmanage.ESP_PlayerPassesTeamFilter = function(player)
 	return true
 end
 
+NAmanage.ESP_IsStaffwatchOwnedPlayer = function(player)
+	if not (typeof(player) == "Instance" and player:IsA("Player")) then
+		return false
+	end
+	const state = NAStuff and NAStuff.StaffwatchState
+	if type(state) ~= "table" or state.active ~= true or type(state.staffPlayers) ~= "table" then
+		return false
+	end
+	return state.staffPlayers[tostring(player.UserId)] == true
+end
+
+NAmanage.ESP_IsRotectorOwnedPlayer = function(player)
+	if not (typeof(player) == "Instance" and player:IsA("Player")) then
+		return false
+	end
+	const rt = NAmanage.Rotector
+	if type(rt) ~= "table" or type(rt.markers) ~= "table" then
+		return false
+	end
+	const marker = rt.markers[NAmanage.RotectorIdKey(player.UserId)]
+	return type(marker) == "table" and marker.player == player
+end
+
 NAmanage.ESP_ShouldTrackPlayer = function(player)
 	if not ((ESPPlayersEnabled or chamsEnabled) == true) then
 		return false
 	end
 	if not (typeof(player) == "Instance" and player:IsA("Player") and player.Parent ~= nil and player ~= Services.Players.LocalPlayer) then
+		return false
+	end
+	if NAStuff.StaffwatchOverrideESP ~= false and NAmanage.ESP_IsStaffwatchOwnedPlayer(player) then
+		return false
+	end
+	if NAStuff.RotectorOverrideESP ~= false and NAmanage.ESP_IsRotectorOwnedPlayer(player) then
 		return false
 	end
 	if NAmanage.ESP_HasPlayerLabelOverride and NAmanage.ESP_HasPlayerLabelOverride(player) == true then
@@ -37538,6 +37722,9 @@ end
 NAmanage.ESP_IsKnownPartVisual = function(inst)
 	if typeof(inst) ~= "Instance" then
 		return false
+	end
+	if NAmanage.GetAttr(inst, "NA_StaffwatchVisual") == true or NAmanage.GetAttr(inst, "NA_RotectorVisual") == true then
+		return true
 	end
 	if type(NAStuff.partESPVisualMap) == "table" and NAStuff.partESPVisualMap[inst] then
 		return true
@@ -56172,12 +56359,20 @@ NAStuff.StaffwatchState = NAStuff.StaffwatchState or {
 	markers = {};
 	charConnections = {};
 	notified = {};
+	staffPlayers = {};
 }
+NAStuff.StaffwatchState.staffPlayers = type(NAStuff.StaffwatchState.staffPlayers) == "table" and NAStuff.StaffwatchState.staffPlayers or {}
 if NAStuff.StaffwatchIgnoreLocal == nil then
 	NAStuff.StaffwatchIgnoreLocal = true
 end
 if NAStuff.StaffwatchHighlightEnabled == nil then
 	NAStuff.StaffwatchHighlightEnabled = true
+end
+if NAStuff.StaffwatchOverrideESP == nil then
+	NAStuff.StaffwatchOverrideESP = true
+end
+if NAStuff.RotectorOverrideESP == nil then
+	NAStuff.RotectorOverrideESP = true
 end
 
 NAmanage.StaffwatchKey = function(player)
@@ -56198,6 +56393,15 @@ end
 NAmanage.StaffwatchStoreVisual = function(inst, fallback)
 	if typeof(inst) ~= "Instance" then
 		return nil
+	end
+	pcall(function()
+		NAmanage.SetAttr(inst, "NA_StaffwatchVisual", true)
+	end)
+	if type(NAmanage.Helper_StoreInstance) == "function" then
+		local ok, parent = pcall(NAmanage.Helper_StoreInstance, inst)
+		if ok and parent then
+			return parent
+		end
 	end
 	if type(NAmanage.RotectorStoreVisual) == "function" then
 		pcall(NAmanage.RotectorStoreVisual, inst)
@@ -56243,9 +56447,22 @@ NAmanage.StaffwatchClearPlayer = function(playerOrKey)
 	if type(state) ~= "table" then
 		return
 	end
-	const key = typeof(playerOrKey) == "Instance" and NAmanage.StaffwatchKey(playerOrKey) or tostring(playerOrKey or "")
+	const directPlayer = typeof(playerOrKey) == "Instance" and playerOrKey:IsA("Player") and playerOrKey or nil
+	const key = directPlayer and NAmanage.StaffwatchKey(directPlayer) or tostring(playerOrKey or "")
 	if key == "" then
 		return
+	end
+	local player = directPlayer
+	if not player then
+		const userId = tonumber(key)
+		if userId and userId > 0 then
+			pcall(function()
+				player = Services.Players:GetPlayerByUserId(userId)
+			end)
+		end
+	end
+	if type(state.staffPlayers) == "table" then
+		state.staffPlayers[key] = nil
 	end
 	NAmanage.StaffwatchClearMarker(key)
 	const conn = state.charConnections and state.charConnections[key]
@@ -56260,6 +56477,17 @@ NAmanage.StaffwatchClearPlayer = function(playerOrKey)
 	if state.notified then
 		state.notified[key] = nil
 	end
+	if player and player ~= Services.Players.LocalPlayer and NAStuff.StaffwatchOverrideESP ~= false and (ESPPlayersEnabled or chamsEnabled) then
+		Defer(function()
+			if not (player and player.Parent) or NAmanage.ESP_IsStaffwatchOwnedPlayer(player) then
+				return
+			end
+			NAmanage.ESP_SetupPlayerWatch(player)
+			if NAmanage.ESP_ShouldTrackPlayer(player) then
+				NAmanage.ESP_RequestReattachPlayer(player, true)
+			end
+		end)
+	end
 end
 
 NAmanage.StaffwatchClearAll = function()
@@ -56267,7 +56495,7 @@ NAmanage.StaffwatchClearAll = function()
 	NAlib.disconnect("staffNotifierRemoving")
 	const state = NAStuff.StaffwatchState
 	if type(state) ~= "table" then
-		NAStuff.StaffwatchState = { markers = {}, charConnections = {}, notified = {} }
+		NAStuff.StaffwatchState = { markers = {}, charConnections = {}, notified = {}, staffPlayers = {} }
 		return
 	end
 	state.active = false
@@ -56278,6 +56506,7 @@ NAmanage.StaffwatchClearAll = function()
 		NAmanage.StaffwatchClearPlayer(key)
 	end
 	state.notified = {}
+	state.staffPlayers = {}
 end
 
 NAmanage.StaffwatchClearHighlights = function()
@@ -56310,12 +56539,13 @@ NAmanage.StaffwatchEnsureMarker = function(player, info)
 	end
 	local state = NAStuff.StaffwatchState
 	if type(state) ~= "table" then
-		state = { markers = {}, charConnections = {} }
+		state = { markers = {}, charConnections = {}, notified = {}, staffPlayers = {} }
 		NAStuff.StaffwatchState = state
 	end
 	state.markers = type(state.markers) == "table" and state.markers or {}
 	state.charConnections = type(state.charConnections) == "table" and state.charConnections or {}
 	state.notified = type(state.notified) == "table" and state.notified or {}
+	state.staffPlayers = type(state.staffPlayers) == "table" and state.staffPlayers or {}
 
 	const key = NAmanage.StaffwatchKey(player)
 	if not key then
@@ -56373,15 +56603,16 @@ NAmanage.StaffwatchEnsureMarker = function(player, info)
 		label.BackgroundTransparency = 1
 		label.BorderSizePixel = 0
 		label.Font = Enum.Font.GothamBlack
-		label.TextColor3 = Color3.fromRGB(80, 170, 255)
-		label.TextStrokeColor3 = Color3.fromRGB(0, 18, 40)
+		const markerColor = NAmanage.StaffwatchGetMarkerColor()
+		label.TextColor3 = markerColor
+		label.TextStrokeColor3 = NAmanage.SpecialMarkerStrokeColor(markerColor)
 		label.TextStrokeTransparency = 0
 		label.TextSize = 14
 		label.TextWrapped = true
 		label.Parent = billboard
 
 		const stroke = InstanceNew("UIStroke")
-		stroke.Color = Color3.fromRGB(85, 175, 255)
+		stroke.Color = NAmanage.StaffwatchGetMarkerColor()
 		stroke.Transparency = 1
 		stroke.Thickness = 1
 		stroke.Parent = label
@@ -56399,10 +56630,13 @@ NAmanage.StaffwatchEnsureMarker = function(player, info)
 	if marker.label then
 		marker.label.Text = NAmanage.StaffwatchMarkerText(info)
 		marker.label.BackgroundTransparency = 1
-		marker.label.TextColor3 = Color3.fromRGB(80, 170, 255)
+		const markerColor = NAmanage.StaffwatchGetMarkerColor()
+		marker.label.TextColor3 = markerColor
+		marker.label.TextStrokeColor3 = NAmanage.SpecialMarkerStrokeColor(markerColor)
 		marker.label.TextStrokeTransparency = 0
 		const stroke = marker.label:FindFirstChildWhichIsA("UIStroke")
 		if stroke then
+			stroke.Color = markerColor
 			stroke.Transparency = 1
 		end
 	end
@@ -56425,14 +56659,18 @@ NAmanage.StaffwatchEnsureMarker = function(player, info)
 			marker.highlight = highlight
 			highlight.Name = "NA_StaffwatchHighlight"
 			highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-			highlight.FillColor = Color3.fromRGB(35, 140, 255)
-			highlight.OutlineColor = Color3.fromRGB(190, 225, 255)
+			const markerColor = NAmanage.StaffwatchGetMarkerColor()
+			highlight.FillColor = markerColor
+			highlight.OutlineColor = NAmanage.SpecialMarkerOutlineColor(markerColor)
 			highlight.FillTransparency = 0.72
 			highlight.OutlineTransparency = 0
 			NAmanage.StaffwatchStoreVisual(highlight, Services.Workspace.CurrentCamera or char)
 		end
 	end
 	if highlight then
+		const markerColor = NAmanage.StaffwatchGetMarkerColor()
+		highlight.FillColor = markerColor
+		highlight.OutlineColor = NAmanage.SpecialMarkerOutlineColor(markerColor)
 		highlight.Adornee = char
 		highlight.Enabled = true
 	end
@@ -56441,7 +56679,7 @@ end
 NAmanage.StaffwatchNotify = function(player, info)
 	local state = NAStuff.StaffwatchState
 	if type(state) ~= "table" then
-		state = { markers = {}, charConnections = {}, notified = {} }
+		state = { markers = {}, charConnections = {}, notified = {}, staffPlayers = {} }
 		NAStuff.StaffwatchState = state
 	end
 	state.notified = type(state.notified) == "table" and state.notified or {}
@@ -56465,6 +56703,22 @@ NAmanage.StaffwatchHandlePlayer = function(player, shouldNotify)
 	end
 	const info = groupRole(player)
 	if info.IsStaff then
+		local state = NAStuff.StaffwatchState
+		if type(state) ~= "table" then
+			state = { markers = {}, charConnections = {}, notified = {}, staffPlayers = {} }
+			NAStuff.StaffwatchState = state
+		end
+		state.staffPlayers = type(state.staffPlayers) == "table" and state.staffPlayers or {}
+		const key = NAmanage.StaffwatchKey(player)
+		if key then
+			state.staffPlayers[key] = true
+		end
+		if NAStuff.StaffwatchOverrideESP ~= false then
+			const model = player and player.Character
+			if model and espCONS[model] then
+				NAmanage.ESP_ClearModel(model)
+			end
+		end
 		NAmanage.StaffwatchEnsureMarker(player, info)
 		if shouldNotify then
 			NAmanage.StaffwatchNotify(player, info)
@@ -146284,6 +146538,24 @@ NAgui.addToggle("Staffwatch Highlight", NAStuff.StaffwatchHighlightEnabled ~= fa
 	DoNotif("Staffwatch highlight "..(NAStuff.StaffwatchHighlightEnabled and "enabled" or "disabled"), 2)
 end)
 
+NAgui.addToggle("Staffwatch Overrides ESP/Chams", NAStuff.StaffwatchOverrideESP ~= false, function(v)
+	NAStuff.StaffwatchOverrideESP = v and true or false
+	pcall(NAmanage.NASettingsSet, "staffwatchOverrideESP", NAStuff.StaffwatchOverrideESP)
+	if type(NAmanage.ESP_RefreshPlayerTeamFilters) == "function" then
+		NAmanage.ESP_RefreshPlayerTeamFilters()
+	end
+	DoNotif("Staffwatch ESP/Chams override "..(NAStuff.StaffwatchOverrideESP and "enabled" or "disabled"), 2)
+end)
+
+NAgui.addColorPicker("Staffwatch Marker Color", NAmanage.StaffwatchGetMarkerColor(), function(color)
+	if typeof(color) ~= "Color3" then
+		return
+	end
+	NAStuff.StaffwatchMarkerColor = color
+	pcall(NAmanage.NASettingsSet, "staffwatchMarkerColor", { R = color.R; G = color.G; B = color.B })
+	NAmanage.StaffwatchRefreshMarkers()
+end)
+
 NAgui.addSection("Command & AutoFire Options")
 
 const autoInteractExtraDefault = math.clamp(tonumber(NAStuff.AutoInteractExtraRange) or 5, 0, 1000)
@@ -156475,6 +156747,26 @@ NAgui.addToggle("Show Rotector CoreGui Markers", NAmanage.jlCfg.RotectorMarkers 
 		end
 	else
 		NAmanage.RotectorClearAllMarkers()
+	end
+end)
+
+NAgui.addToggle("Rotector Overrides ESP/Chams", NAStuff.RotectorOverrideESP ~= false, function(v)
+	NAStuff.RotectorOverrideESP = v and true or false
+	pcall(NAmanage.NASettingsSet, "rotectorOverrideESP", NAStuff.RotectorOverrideESP)
+	if type(NAmanage.ESP_RefreshPlayerTeamFilters) == "function" then
+		NAmanage.ESP_RefreshPlayerTeamFilters()
+	end
+	DoNotif("Rotector ESP/Chams override "..(NAStuff.RotectorOverrideESP and "enabled" or "disabled"), 2, "Rotector")
+end)
+
+NAgui.addColorPicker("Rotector Marker Color", NAmanage.RotectorGetMarkerColor(), function(color)
+	if typeof(color) ~= "Color3" then
+		return
+	end
+	NAStuff.RotectorMarkerColor = color
+	pcall(NAmanage.NASettingsSet, "rotectorMarkerColor", { R = color.R; G = color.G; B = color.B })
+	if type(NAmanage.RotectorRefreshMarkers) == "function" then
+		NAmanage.RotectorRefreshMarkers()
 	end
 end)
 
