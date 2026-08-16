@@ -48290,15 +48290,21 @@ NAmanage.GetNoCooldownState = function()
 	if type(state) ~= "table" then
 		state = {
 			enabled = false;
+			seconds = 0;
 			hooks = {};
 			failures = {};
+			clockContexts = {};
+			generation = 0;
 		}
 		if type(host) == "table" then
 			pcall(rawset, host, "__NA_NoCooldownState", state)
 		end
 	end
+	state.seconds = math.max(0, tonumber(state.seconds) or 0)
 	state.hooks = type(state.hooks) == "table" and state.hooks or {}
 	state.failures = type(state.failures) == "table" and state.failures or {}
+	state.clockContexts = type(state.clockContexts) == "table" and state.clockContexts or {}
+	state.generation = tonumber(state.generation) or 0
 	return state
 end
 
@@ -48313,6 +48319,8 @@ NAmanage.RestoreNoCooldownHooks = function()
 	local targets = {
 		["wait"] = wait;
 		["task.wait"] = task and task.wait;
+		["delay"] = delay;
+		["task.delay"] = task and task.delay;
 		["tick"] = tick;
 		["os.clock"] = os and os.clock;
 	}
@@ -48336,7 +48344,8 @@ NAmanage.InstallNoCooldownHooks = function()
 	const hook = type(host) == "table" and rawget(host, "hookfunction") or hookfunction
 	const callerCheck = type(host) == "table" and rawget(host, "checkcaller") or checkcaller
 	const callingScript = type(host) == "table" and rawget(host, "getcallingscript") or getcallingscript
-	const hookVersion = 2
+	const hookVersion = 4
+	const CLOCK_JUMP = 1000000000
 
 	if type(hook) ~= "function" then
 		return false, 0, "hookfunction is unavailable"
@@ -48349,31 +48358,112 @@ NAmanage.InstallNoCooldownHooks = function()
 		NAmanage.RestoreNoCooldownHooks()
 		state = NAmanage.GetNoCooldownState()
 		state.version = hookVersion
+		state.clockContexts = {}
+		state.generation = (tonumber(state.generation) or 0) + 1
 	end
 
-	local function shouldIntercept()
-		if not state.enabled then
-			return false
-		end
-
+	local function getGameCallerKey()
 		if type(callerCheck) == "function" then
 			local ok, isExecutorCaller = pcall(callerCheck)
-			if ok then
-				return not isExecutorCaller
+			if ok and isExecutorCaller then
+				return false, nil
 			end
 		end
 
 		if type(callingScript) == "function" then
 			local ok, sourceScript = pcall(callingScript)
-			if ok then
-				return sourceScript ~= nil
+			if ok and sourceScript ~= nil then
+				return true, sourceScript
 			end
 		end
 
-		return false
+		if type(callerCheck) == "function" then
+			local ok, isExecutorCaller = pcall(callerCheck)
+			if ok and not isExecutorCaller then
+				return true, coroutine.running() or state
+			end
+		end
+
+		return false, nil
 	end
 
-	local function installWaitHook(key, target)
+	local function shouldInterceptDuration()
+		if not state.enabled then
+			return false
+		end
+		local isGameCaller = getGameCallerKey()
+		return isGameCaller == true
+	end
+
+	local function getClockContext(clockKey, callerKey, realNow)
+		local callerContexts = state.clockContexts[callerKey]
+		if type(callerContexts) ~= "table" then
+			callerContexts = {}
+			state.clockContexts[callerKey] = callerContexts
+		end
+
+		local ctx = callerContexts[clockKey]
+		if type(ctx) ~= "table" then
+			ctx = {
+				realStart = realNow;
+				realLast = realNow;
+				virtualStart = realNow;
+				lastValue = realNow;
+				generation = state.generation;
+			}
+			callerContexts[clockKey] = ctx
+		end
+		return ctx
+	end
+
+	local function readVirtualClock(clockKey, original)
+		local realNow = original()
+		local isGameCaller, callerKey = getGameCallerKey()
+		if not isGameCaller then
+			return realNow
+		end
+
+		local callerContexts = state.clockContexts[callerKey]
+		local ctx = type(callerContexts) == "table" and callerContexts[clockKey] or nil
+
+		if not state.enabled then
+			if type(ctx) ~= "table" then
+				return realNow
+			end
+
+			local realDelta = math.max(0, realNow - (tonumber(ctx.realLast) or realNow))
+			ctx.lastValue = math.max(tonumber(ctx.lastValue) or realNow, realNow) + realDelta
+			ctx.realLast = realNow
+			return ctx.lastValue
+		end
+
+		ctx = getClockContext(clockKey, callerKey, realNow)
+		if ctx.generation ~= state.generation then
+			ctx.realStart = realNow
+			ctx.virtualStart = math.max(tonumber(ctx.lastValue) or realNow, realNow)
+			ctx.realLast = realNow
+			ctx.generation = state.generation
+		end
+
+		local seconds = math.max(0, tonumber(state.seconds) or 0)
+		local value
+		if seconds <= 0 then
+			value = math.max(tonumber(ctx.lastValue) or realNow, realNow) + CLOCK_JUMP
+		else
+			local elapsed = math.max(0, realNow - (tonumber(ctx.realStart) or realNow))
+			local bucket = math.floor(elapsed / seconds)
+			value = (tonumber(ctx.virtualStart) or realNow) + bucket * CLOCK_JUMP
+			if value < (tonumber(ctx.lastValue) or value) then
+				value = ctx.lastValue
+			end
+		end
+
+		ctx.lastValue = value
+		ctx.realLast = realNow
+		return value
+	end
+
+	local function installDurationHook(key, target)
 		if type(state.hooks[key]) == "function" then
 			return true
 		end
@@ -48385,8 +48475,8 @@ NAmanage.InstallNoCooldownHooks = function()
 		local original
 		local ok, err = pcall(function()
 			original = hook(target, function(seconds, ...)
-				if shouldIntercept() then
-					return original(0, ...)
+				if shouldInterceptDuration() then
+					return original(state.seconds, ...)
 				end
 				return original(seconds, ...)
 			end)
@@ -48414,10 +48504,7 @@ NAmanage.InstallNoCooldownHooks = function()
 		local original
 		local ok, err = pcall(function()
 			original = hook(target, function(...)
-				if shouldIntercept() then
-					return 0
-				end
-				return original(...)
+				return readVirtualClock(key, original)
 			end)
 		end)
 
@@ -48431,54 +48518,50 @@ NAmanage.InstallNoCooldownHooks = function()
 		return false
 	end
 
-	installWaitHook("wait", wait)
-	installWaitHook("task.wait", task and task.wait)
+	installDurationHook("wait", wait)
+	installDurationHook("task.wait", task and task.wait)
+	installDurationHook("delay", delay)
+	installDurationHook("task.delay", task and task.delay)
 	installClockHook("tick", tick)
 	installClockHook("os.clock", os and os.clock)
 
 	local count = 0
-	for _, key in {"wait", "task.wait", "tick", "os.clock"} do
+	for _, key in {"wait", "task.wait", "delay", "task.delay", "tick", "os.clock"} do
 		if type(state.hooks[key]) == "function" then
 			count += 1
 		end
 	end
 
-	state.installed = count == 4
+	state.installed = count == 6
 	return count > 0, count, state
 end
 
-cmd.add({"nocooldown", "ncd"}, {"nocooldown [on/off/toggle] (ncd)", "Toggle game-script cooldown hooks without affecting NA/executor code"}, function(mode)
+cmd.add({"nocooldown", "ncd"}, {"nocooldown <number> (ncd)", "Override game-script cooldown timing with the chosen number of seconds"}, function(value)
 	const state = NAmanage.GetNoCooldownState()
-	mode = Lower(tostring(mode or "toggle"))
+	const seconds = tonumber(value)
 
-	local nextEnabled
-	if mode == "" or mode == "toggle" then
-		nextEnabled = not state.enabled
-	elseif mode == "on" or mode == "true" or mode == "1" or mode == "enable" then
-		nextEnabled = true
-	elseif mode == "off" or mode == "false" or mode == "0" or mode == "disable" then
-		nextEnabled = false
-	else
-		return DoNotif("Usage: nocooldown [on/off/toggle]", 3, "No Cooldown")
+	if seconds == nil or seconds < 0 or seconds ~= seconds or seconds == math.huge then
+		return DoNotif("Usage: nocooldown <number>", 3, "No Cooldown")
 	end
 
-	if nextEnabled then
-		local okInstall, count, detail = NAmanage.InstallNoCooldownHooks()
-		if not okInstall then
-			return DoNotif("No Cooldown failed: "..tostring(detail), 4, "No Cooldown")
-		end
-		state.enabled = true
-		return DoNotif("Enabled for game scripts only ("..tostring(count).."/4 hooks active).", 3, "No Cooldown")
+	state.seconds = seconds
+	state.enabled = true
+	state.generation = (tonumber(state.generation) or 0) + 1
+
+	local okInstall, count, detail = NAmanage.InstallNoCooldownHooks()
+	if not okInstall then
+		state.enabled = false
+		return DoNotif("No Cooldown failed: "..tostring(detail), 4, "No Cooldown")
 	end
 
-	state.enabled = false
-	DoNotif("Disabled.", 2, "No Cooldown")
+	DoNotif("Game-script cooldown timing set to "..tostring(seconds).."s ("..tostring(count).."/6 hooks active).", 3, "No Cooldown")
 end)
 
-cmd.add({"unnocooldown", "unncd"}, {"unnocooldown (unncd)", "Disable the game-script cooldown hooks"}, function()
+cmd.add({"unnocooldown", "unncd"}, {"unnocooldown (unncd)", "Disable the game-script cooldown timing override"}, function()
 	const state = NAmanage.GetNoCooldownState()
 	state.enabled = false
-	DoNotif("Disabled.", 2, "No Cooldown")
+	state.generation = (tonumber(state.generation) or 0) + 1
+	DoNotif("Cooldown override disabled.", 2, "No Cooldown")
 end)
 
 NAStuff.TailSwayURL = "https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/TailSway.luau"
