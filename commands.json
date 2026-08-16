@@ -137,6 +137,76 @@
       "desc": "Disable the game-script cooldown timing override"
     },
     {
+      "name": "waitcap",
+      "aliases": [
+        "waitcap",
+        "maxwait"
+      ],
+      "usage": "waitcap <seconds> (maxwait)",
+      "args": "<seconds>",
+      "desc": "Caps game-script wait/delay durations without shortening waits already below the cap"
+    },
+    {
+      "name": "unwaitcap",
+      "aliases": [
+        "unwaitcap",
+        "unmaxwait"
+      ],
+      "usage": "unwaitcap (unmaxwait)",
+      "args": "",
+      "desc": "Disables the game-script wait/delay cap"
+    },
+    {
+      "name": "notween",
+      "aliases": [
+        "notween",
+        "instanttween"
+      ],
+      "usage": "notween [seconds] (instanttween)",
+      "args": "[seconds]",
+      "desc": "Forces all TweenService-created tweens, including NA/executor UI tweens, to the chosen duration; defaults to 0"
+    },
+    {
+      "name": "unnotween",
+      "aliases": [
+        "unnotween",
+        "uninstanttween"
+      ],
+      "usage": "unnotween (uninstanttween)",
+      "args": "",
+      "desc": "Stops overriding game-created tween durations"
+    },
+    {
+      "name": "gcsearch",
+      "aliases": [
+        "gcsearch",
+        "gcs"
+      ],
+      "usage": "gcsearch <text> (gcs)",
+      "args": "<text>",
+      "desc": "Searches getgc tables, function metadata, constants, and upvalues for text"
+    },
+    {
+      "name": "autopatchtool",
+      "aliases": [
+        "autopatchtool",
+        "apt"
+      ],
+      "usage": "autopatchtool [tool|all] (apt)",
+      "args": "[tool|all]",
+      "desc": "Aggressively patches common cooldown, reload, recoil, spread, ammo, fire-rate, range, and damage settings for a tool"
+    },
+    {
+      "name": "unautopatchtool",
+      "aliases": [
+        "unautopatchtool",
+        "unapt"
+      ],
+      "usage": "unautopatchtool (unapt)",
+      "args": "",
+      "desc": "Restores values changed by Auto Patch Tool and disables its guards"
+    },
+    {
       "name": "tailsway",
       "aliases": [
         "tailsway",
@@ -8158,9 +8228,9 @@
         "echo",
         "echolocate"
       ],
-      "usage": "[BETA] echolocation (echo, echolocate)",
-      "args": "[BETA]",
-      "desc": "Darkens the world and reveals geometry and entities from movement, landings, and spatial Sound/AudioEmitter sources"
+      "usage": "echolocation (echo, echolocate)",
+      "args": "",
+      "desc": "[BETA] Darkens the world and reveals geometry and entities from movement, landings, and spatial Sound/AudioEmitter sources"
     },
     {
       "name": "unecholocation",
