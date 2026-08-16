@@ -124,7 +124,7 @@
       ],
       "usage": "nocooldown <number> (ncd)",
       "args": "<number>",
-      "desc": "Override game-script cooldown timing with the chosen number of seconds"
+      "desc": "Override game-script cooldown timing with the chosen number of seconds; defaults to 0 when omitted"
     },
     {
       "name": "unnocooldown",
