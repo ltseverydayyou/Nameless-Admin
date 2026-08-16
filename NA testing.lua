@@ -59817,6 +59817,38 @@ cmd.add({"resetreach", "normalreach", "unreach"}, {"resetreach (normalreach, unr
 	end
 end)
 
+NAmanage.GetWorldRoot = NAmanage.GetWorldRoot or function(inst)
+	if typeof(inst) ~= "Instance" then
+		return nil
+	end
+	local current = inst
+	while current do
+		if current:IsA("WorldRoot") then
+			return current
+		end
+		current = current.Parent
+	end
+	return nil
+end
+
+NAmanage.SafeFireTouchInterest = NAmanage.SafeFireTouchInterest or function(part0, part1, state)
+	if type(firetouchinterest) ~= "function" then
+		return false
+	end
+	if typeof(part0) ~= "Instance" or typeof(part1) ~= "Instance" or not part0:IsA("BasePart") or not part1:IsA("BasePart") then
+		return false
+	end
+	if not part0.Parent or not part1.Parent then
+		return false
+	end
+	const world0 = NAmanage.GetWorldRoot(part0)
+	const world1 = NAmanage.GetWorldRoot(part1)
+	if not world0 or world0 ~= world1 then
+		return false
+	end
+	return pcall(firetouchinterest, part0, part1, state)
+end
+
 NAmanage.MakeAuraVisualizer = NAmanage.MakeAuraVisualizer or function(name, color, radius)
 	const root = getRoot(getChar())
 	if not root then
@@ -59837,60 +59869,162 @@ end
 NAStuff.auraConn = NAStuff.auraConn or nil
 NAStuff.auraViz = NAStuff.auraViz or nil
 
-cmd.add({"aura"},{"aura [distance]","Continuously damages nearby players with equipped tool"},function(dist)
+cmd.add({"aura"},{"aura [distance]","Continuously damages all nearby humanoid targets with equipped tool"},function(dist)
 	dist=tonumber(dist) or 20
 	if not firetouchinterest then return DoNotif("firetouchinterest unsupported",2) end
 	if NAStuff.auraConn then NAStuff.auraConn:Disconnect() NAStuff.auraConn=nil end
 	NAlib.disconnect("aura_loop")
 	if NAStuff.auraViz then NAStuff.auraViz:Destroy() NAStuff.auraViz=nil end
-	NAStuff.auraViz = NAmanage.MakeAuraVisualizer("NA_AuraRadius", Color3.fromRGB(255,0,0), dist)
+	NAStuff.auraViz=NAmanage.MakeAuraVisualizer("NA_AuraRadius",Color3.fromRGB(255,0,0),dist)
+
+	const rawWorkspace=__lt.gs("Workspace")
+	const overlap=OverlapParams.new()
+	overlap.FilterType=Enum.RaycastFilterType.Exclude
+	overlap.MaxParts=0
+	pcall(function()
+		overlap.RespectCanCollide=false
+	end)
+
+	const state={
+		pending={},
+		acc=1,
+		interval=0.08,
+		lastQueryParts=0,
+		lastTargets=0,
+		lastTouches=0,
+	}
+	NAStuff.auraState=state
+
 	const function getDamagePart()
-		const c=getChar() if not c then return end
-		const t=c:FindFirstChildWhichIsA("Tool") if not t then return end
-		for _,desc in NAmanage.QueryDescendants(t, "TouchTransmitter") do
+		const character=getChar()
+		if not character then return end
+		const tool=character:FindFirstChildWhichIsA("Tool")
+		if not tool then return end
+		for _,desc in NAmanage.QueryDescendants(tool,"TouchTransmitter") do
 			const parent=desc.Parent
 			if parent and parent:IsA("BasePart") then
 				return parent
 			end
 		end
-		return t:FindFirstChild("Handle") or t:FindFirstChildWhichIsA("BasePart")
-	end
-	local auraAcc = 0
-	NAStuff.auraConn=NAlib.reconnect("aura_loop", Services.RunService.Heartbeat:Connect(function(dt)
-		auraAcc += tonumber(dt) or 0
-		const root=getRoot(getChar())
-		if root and ((not NAStuff.auraViz) or (not NAStuff.auraViz.Parent) or NAStuff.auraViz.Adornee ~= root) then
-			if NAStuff.auraViz then NAStuff.auraViz:Destroy() end
-			NAStuff.auraViz = NAmanage.MakeAuraVisualizer("NA_AuraRadius", Color3.fromRGB(255,0,0), dist)
+		const handle=tool:FindFirstChild("Handle")
+		if handle and handle:IsA("BasePart") then
+			return handle
 		end
-		if auraAcc < 0.12 then return end
-		auraAcc = 0
+		return tool:FindFirstChildWhichIsA("BasePart")
+	end
+
+	const function releaseTouches()
+		for i=1,#state.pending do
+			const pair=state.pending[i]
+			const damagePart=pair[1]
+			const targetPart=pair[2]
+			const world=pair[3]
+			if NAmanage.GetWorldRoot(damagePart)==world and NAmanage.GetWorldRoot(targetPart)==world then
+				NAmanage.SafeFireTouchInterest(damagePart,targetPart,1)
+			end
+			state.pending[i]=nil
+		end
+	end
+
+	const function resolveHumanoidModel(part)
+		local current=part and part.Parent
+		while current and current~=rawWorkspace do
+			if current:IsA("Model") then
+				const humanoid=current:FindFirstChildOfClass("Humanoid")
+				if humanoid then
+					return current,humanoid
+				end
+			end
+			current=current.Parent
+		end
+		return nil,nil
+	end
+
+	NAStuff.auraConn=NAlib.reconnect("aura_loop",Services.RunService.Heartbeat:Connect(function(dt)
+		if NAStuff.auraState~=state then return end
+		releaseTouches()
+		state.acc += tonumber(dt) or 0
+
+		const character=getChar()
+		const root=getRoot(character)
+		if root and ((not NAStuff.auraViz) or (not NAStuff.auraViz.Parent) or NAStuff.auraViz.Adornee~=root) then
+			if NAStuff.auraViz then NAStuff.auraViz:Destroy() end
+			NAStuff.auraViz=NAmanage.MakeAuraVisualizer("NA_AuraRadius",Color3.fromRGB(255,0,0),dist)
+		end
+		if not root or not character or state.acc<state.interval then return end
+		state.acc=0
+
 		const damagePart=getDamagePart()
-		if not damagePart or not root then return end
-		for _,plr in getPlr("others") do
-			if plr.Character then
-				const hum=getPlrHum(plr)
-				if hum and hum.Health>0 then
-					for _,part in plr.Character:GetChildren() do
-						if part:IsA("BasePart") and (part.Position-damagePart.Position).Magnitude<=dist then
-							firetouchinterest(damagePart,part,0)
-							Defer(function()
-								Wait()
-								if damagePart and damagePart.Parent and part and part.Parent then
-									firetouchinterest(damagePart,part,1)
+		if not damagePart then
+			state.lastQueryParts=0
+			state.lastTargets=0
+			state.lastTouches=0
+			return
+		end
+		pcall(function()
+			if damagePart.CanTouch==false then damagePart.CanTouch=true end
+		end)
+
+		overlap.FilterDescendantsInstances={character}
+		local ok,parts=pcall(function()
+			return Services.Workspace:GetPartBoundsInRadius(root.Position,dist,overlap)
+		end)
+		if not ok or type(parts)~="table" then
+			state.lastQueryParts=0
+			state.lastTargets=0
+			state.lastTouches=0
+			return
+		end
+
+		const targets={}
+		local targetCount=0
+		for i=1,#parts do
+			const part=parts[i]
+			if part and part:IsA("BasePart") and part.Parent then
+				const model,humanoid=resolveHumanoidModel(part)
+				if model and model~=character and humanoid and humanoid.Health>0 and not targets[model] then
+					targets[model]=true
+					targetCount += 1
+				end
+			end
+		end
+
+		const touchWorld=NAmanage.GetWorldRoot(damagePart)
+		local touchCount=0
+		if touchWorld then
+			for model in targets do
+				if model.Parent then
+					const humanoid=model:FindFirstChildOfClass("Humanoid")
+					if humanoid and humanoid.Health>0 then
+						for _,targetPart in model:GetChildren() do
+							if targetPart:IsA("BasePart") and NAmanage.GetWorldRoot(targetPart)==touchWorld then
+								if NAmanage.SafeFireTouchInterest(damagePart,targetPart,0) then
+									Insert(state.pending,{damagePart,targetPart,touchWorld})
+									touchCount += 1
 								end
-							end)
-							break
+							end
 						end
 					end
 				end
 			end
 		end
+		state.lastQueryParts=#parts
+		state.lastTargets=targetCount
+		state.lastTouches=touchCount
 	end))
 	DebugNotif("Aura enabled at "..dist,1.2)
 end,true)
 
 cmd.add({"unaura"},{"unaura","Stops aura loop and removes visualizer"},function()
+	const state=NAStuff.auraState
+	if state and type(state.pending)=="table" then
+		for _,pair in state.pending do
+			if NAmanage.GetWorldRoot(pair[1])==pair[3] and NAmanage.GetWorldRoot(pair[2])==pair[3] then
+				NAmanage.SafeFireTouchInterest(pair[1],pair[2],1)
+			end
+		end
+	end
+	NAStuff.auraState=nil
 	if NAStuff.auraConn then NAStuff.auraConn:Disconnect() NAStuff.auraConn=nil end
 	NAlib.disconnect("aura_loop")
 	if NAStuff.auraViz then NAStuff.auraViz:Destroy() NAStuff.auraViz=nil end
@@ -68432,11 +68566,19 @@ cmd.add({"handlekill", "hkill"}, {"handlekill <player> (hkill)", "Kills a player
 					break
 				end
 
-				for _, part in getPlrChar(targetPlayer):GetChildren() do
+				const targetCharacter = getPlrChar(targetPlayer)
+				if not targetCharacter then
+					break
+				end
+				for _, part in targetCharacter:GetChildren() do
 					if part:IsA("BasePart") then
-						firetouchinterest(DamagePart, part, 0)
-						Wait()
-						firetouchinterest(DamagePart, part, 1)
+						const touchWorld = NAmanage.GetWorldRoot(DamagePart)
+						if touchWorld and NAmanage.SafeFireTouchInterest(DamagePart, part, 0) then
+							Wait()
+							if NAmanage.GetWorldRoot(DamagePart) == touchWorld and NAmanage.GetWorldRoot(part) == touchWorld then
+								NAmanage.SafeFireTouchInterest(DamagePart, part, 1)
+							end
+						end
 					end
 				end
 
