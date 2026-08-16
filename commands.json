@@ -122,9 +122,9 @@
         "nocooldown",
         "ncd"
       ],
-      "usage": "nocooldown [on/off/toggle] (ncd)",
-      "args": "[on/off/toggle]",
-      "desc": "Toggle game-script cooldown hooks without affecting NA/executor code"
+      "usage": "nocooldown <number> (ncd)",
+      "args": "<number>",
+      "desc": "Override game-script cooldown timing with the chosen number of seconds"
     },
     {
       "name": "unnocooldown",
@@ -134,7 +134,7 @@
       ],
       "usage": "unnocooldown (unncd)",
       "args": "",
-      "desc": "Disable the game-script cooldown hooks"
+      "desc": "Disable the game-script cooldown timing override"
     },
     {
       "name": "tailsway",
