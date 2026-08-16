@@ -1674,7 +1674,7 @@
       ],
       "usage": "aura [distance]",
       "args": "[distance]",
-      "desc": "Continuously damages nearby players with equipped tool"
+      "desc": "Continuously damages all nearby humanoid targets with equipped tool"
     },
     {
       "name": "unaura",
