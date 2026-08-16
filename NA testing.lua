@@ -48302,6 +48302,214 @@ cmd.add({"loadstring", "ls", "lstring", "loads", "execute"}, {"loadstring <code>
 	end
 end, true)
 
+
+NAmanage.GetNoCooldownState = function()
+	const host = _na_boot.hostEnv
+	local state = type(host) == "table" and rawget(host, "__NA_NoCooldownState") or nil
+	if type(state) ~= "table" then
+		state = {
+			enabled = false;
+			hooks = {};
+			failures = {};
+		}
+		if type(host) == "table" then
+			pcall(rawset, host, "__NA_NoCooldownState", state)
+		end
+	end
+	state.hooks = type(state.hooks) == "table" and state.hooks or {}
+	state.failures = type(state.failures) == "table" and state.failures or {}
+	return state
+end
+
+NAmanage.RestoreNoCooldownHooks = function()
+	const state = NAmanage.GetNoCooldownState()
+	const host = _na_boot.hostEnv
+	const hook = type(host) == "table" and rawget(host, "hookfunction") or hookfunction
+	if type(hook) ~= "function" then
+		return false
+	end
+
+	local targets = {
+		["wait"] = wait;
+		["task.wait"] = task and task.wait;
+		["tick"] = tick;
+		["os.clock"] = os and os.clock;
+	}
+
+	for key, target in targets do
+		local original = state.hooks[key]
+		if type(target) == "function" and type(original) == "function" then
+			pcall(hook, target, original)
+		end
+	end
+
+	state.hooks = {}
+	state.failures = {}
+	state.installed = false
+	return true
+end
+
+NAmanage.InstallNoCooldownHooks = function()
+	local state = NAmanage.GetNoCooldownState()
+	const host = _na_boot.hostEnv
+	const hook = type(host) == "table" and rawget(host, "hookfunction") or hookfunction
+	const callerCheck = type(host) == "table" and rawget(host, "checkcaller") or checkcaller
+	const callingScript = type(host) == "table" and rawget(host, "getcallingscript") or getcallingscript
+	const hookVersion = 2
+
+	if type(hook) ~= "function" then
+		return false, 0, "hookfunction is unavailable"
+	end
+	if type(callerCheck) ~= "function" and type(callingScript) ~= "function" then
+		return false, 0, "checkcaller/getcallingscript is unavailable"
+	end
+
+	if state.version ~= hookVersion then
+		NAmanage.RestoreNoCooldownHooks()
+		state = NAmanage.GetNoCooldownState()
+		state.version = hookVersion
+	end
+
+	local function shouldIntercept()
+		if not state.enabled then
+			return false
+		end
+
+		if type(callerCheck) == "function" then
+			local ok, isExecutorCaller = pcall(callerCheck)
+			if ok then
+				return not isExecutorCaller
+			end
+		end
+
+		if type(callingScript) == "function" then
+			local ok, sourceScript = pcall(callingScript)
+			if ok then
+				return sourceScript ~= nil
+			end
+		end
+
+		return false
+	end
+
+	local function installWaitHook(key, target)
+		if type(state.hooks[key]) == "function" then
+			return true
+		end
+		if type(target) ~= "function" then
+			state.failures[key] = "function unavailable"
+			return false
+		end
+
+		local original
+		local ok, err = pcall(function()
+			original = hook(target, function(seconds, ...)
+				if shouldIntercept() then
+					return original(0, ...)
+				end
+				return original(seconds, ...)
+			end)
+		end)
+
+		if ok and type(original) == "function" then
+			state.hooks[key] = original
+			state.failures[key] = nil
+			return true
+		end
+
+		state.failures[key] = tostring(err or "hook failed")
+		return false
+	end
+
+	local function installClockHook(key, target)
+		if type(state.hooks[key]) == "function" then
+			return true
+		end
+		if type(target) ~= "function" then
+			state.failures[key] = "function unavailable"
+			return false
+		end
+
+		local original
+		local ok, err = pcall(function()
+			original = hook(target, function(...)
+				if shouldIntercept() then
+					return 0
+				end
+				return original(...)
+			end)
+		end)
+
+		if ok and type(original) == "function" then
+			state.hooks[key] = original
+			state.failures[key] = nil
+			return true
+		end
+
+		state.failures[key] = tostring(err or "hook failed")
+		return false
+	end
+
+	installWaitHook("wait", wait)
+	installWaitHook("task.wait", task and task.wait)
+	installClockHook("tick", tick)
+	installClockHook("os.clock", os and os.clock)
+
+	local count = 0
+	for _, key in {"wait", "task.wait", "tick", "os.clock"} do
+		if type(state.hooks[key]) == "function" then
+			count += 1
+		end
+	end
+
+	state.installed = count == 4
+	return count > 0, count, state
+end
+
+cmd.add({"nocooldown", "ncd"}, {"nocooldown [on/off/toggle] (ncd)", "Toggle game-script cooldown hooks without affecting NA/executor code"}, function(mode)
+	const state = NAmanage.GetNoCooldownState()
+	mode = Lower(tostring(mode or "toggle"))
+
+	local nextEnabled
+	if mode == "" or mode == "toggle" then
+		nextEnabled = not state.enabled
+	elseif mode == "on" or mode == "true" or mode == "1" or mode == "enable" then
+		nextEnabled = true
+	elseif mode == "off" or mode == "false" or mode == "0" or mode == "disable" then
+		nextEnabled = false
+	else
+		return DoNotif("Usage: nocooldown [on/off/toggle]", 3, "No Cooldown")
+	end
+
+	if nextEnabled then
+		local okInstall, count, detail = NAmanage.InstallNoCooldownHooks()
+		if not okInstall then
+			return DoNotif("No Cooldown failed: "..tostring(detail), 4, "No Cooldown")
+		end
+		state.enabled = true
+		return DoNotif("Enabled for game scripts only ("..tostring(count).."/4 hooks active).", 3, "No Cooldown")
+	end
+
+	state.enabled = false
+	DoNotif("Disabled.", 2, "No Cooldown")
+end)
+
+cmd.add({"unnocooldown", "unncd"}, {"unnocooldown (unncd)", "Disable the game-script cooldown hooks"}, function()
+	const state = NAmanage.GetNoCooldownState()
+	state.enabled = false
+	DoNotif("Disabled.", 2, "No Cooldown")
+end)
+
+NAStuff.TailSwayURL = "https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/TailSway.luau"
+
+cmd.add({"tailsway", "tailwag", "tailwagging", "tailswaying"}, {"tailsway (tailwag, tailwagging, tailswaying)", "Load the TailSway physics/wagging script"}, function()
+	local okRun, errRun = NAmanage.RunURL(NAStuff.TailSwayURL, true, "@TailSway.luau")
+	if not okRun then
+		return DoNotif("Failed to queue TailSway: "..tostring(errRun), 4, "Tail Sway")
+	end
+	DoNotif("TailSway queued.", 2, "Tail Sway")
+end)
+
 NAStuff.SecureScriptsLoggerUrl = "https://sirmemegithub.com/RealSlimShady2000/SecureScriptsLogger/raw/branch/main/logger.lua"
 
 NAmanage.IsSecureScriptsLoggerActive = function()
