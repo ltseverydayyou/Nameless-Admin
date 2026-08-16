@@ -48555,9 +48555,10 @@ NAmanage.InstallNoCooldownHooks = function()
 	return count > 0, count, state
 end
 
-cmd.add({"nocooldown", "ncd"}, {"nocooldown <number> (ncd)", "Override game-script cooldown timing with the chosen number of seconds"}, function(value)
+cmd.add({"nocooldown", "ncd"}, {"nocooldown <number> (ncd)", "Override game-script cooldown timing with the chosen number of seconds; defaults to 0 when omitted"}, function(value)
 	const state = NAmanage.GetNoCooldownState()
-	const seconds = tonumber(value)
+	const rawValue = value == nil and "" or tostring(value)
+	const seconds = rawValue:match("%S") and tonumber(rawValue) or 0
 
 	if seconds == nil or seconds < 0 or seconds ~= seconds or seconds == math.huge then
 		return DoNotif("Usage: nocooldown <number>", 3, "No Cooldown")
