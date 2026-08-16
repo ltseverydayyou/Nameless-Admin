@@ -117,6 +117,38 @@
       "desc": "Run code using loadstring"
     },
     {
+      "name": "nocooldown",
+      "aliases": [
+        "nocooldown",
+        "ncd"
+      ],
+      "usage": "nocooldown [on/off/toggle] (ncd)",
+      "args": "[on/off/toggle]",
+      "desc": "Toggle game-script cooldown hooks without affecting NA/executor code"
+    },
+    {
+      "name": "unnocooldown",
+      "aliases": [
+        "unnocooldown",
+        "unncd"
+      ],
+      "usage": "unnocooldown (unncd)",
+      "args": "",
+      "desc": "Disable the game-script cooldown hooks"
+    },
+    {
+      "name": "tailsway",
+      "aliases": [
+        "tailsway",
+        "tailwag",
+        "tailwagging",
+        "tailswaying"
+      ],
+      "usage": "tailsway (tailwag, tailwagging, tailswaying)",
+      "args": "",
+      "desc": "Load the TailSway physics/wagging script"
+    },
+    {
       "name": "scriptlogger",
       "aliases": [
         "scriptlogger",
