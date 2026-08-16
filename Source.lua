@@ -48291,6 +48291,8 @@ NAmanage.GetNoCooldownState = function()
 		state = {
 			enabled = false;
 			seconds = 0;
+			waitCapEnabled = false;
+			waitCapSeconds = 0;
 			hooks = {};
 			failures = {};
 			clockContexts = {};
@@ -48301,6 +48303,8 @@ NAmanage.GetNoCooldownState = function()
 		end
 	end
 	state.seconds = math.max(0, tonumber(state.seconds) or 0)
+	state.waitCapEnabled = state.waitCapEnabled == true
+	state.waitCapSeconds = math.max(0, tonumber(state.waitCapSeconds) or 0)
 	state.hooks = type(state.hooks) == "table" and state.hooks or {}
 	state.failures = type(state.failures) == "table" and state.failures or {}
 	state.clockContexts = type(state.clockContexts) == "table" and state.clockContexts or {}
@@ -48344,7 +48348,7 @@ NAmanage.InstallNoCooldownHooks = function()
 	const hook = type(host) == "table" and rawget(host, "hookfunction") or hookfunction
 	const callerCheck = type(host) == "table" and rawget(host, "checkcaller") or checkcaller
 	const callingScript = type(host) == "table" and rawget(host, "getcallingscript") or getcallingscript
-	const hookVersion = 4
+	const hookVersion = 5
 	const CLOCK_JUMP = 1000000000
 
 	if type(hook) ~= "function" then
@@ -48388,11 +48392,25 @@ NAmanage.InstallNoCooldownHooks = function()
 	end
 
 	local function shouldInterceptDuration()
-		if not state.enabled then
+		if not state.enabled and not state.waitCapEnabled then
 			return false
 		end
 		local isGameCaller = getGameCallerKey()
 		return isGameCaller == true
+	end
+
+	local function overrideDuration(seconds)
+		local value = seconds
+		if state.enabled then
+			value = math.max(0, tonumber(state.seconds) or 0)
+		end
+		if state.waitCapEnabled then
+			local numeric = tonumber(value)
+			if numeric ~= nil then
+				value = math.min(math.max(0, numeric), math.max(0, tonumber(state.waitCapSeconds) or 0))
+			end
+		end
+		return value
 	end
 
 	local function getClockContext(clockKey, callerKey, realNow)
@@ -48476,7 +48494,7 @@ NAmanage.InstallNoCooldownHooks = function()
 		local ok, err = pcall(function()
 			original = hook(target, function(seconds, ...)
 				if shouldInterceptDuration() then
-					return original(state.seconds, ...)
+					return original(overrideDuration(seconds), ...)
 				end
 				return original(seconds, ...)
 			end)
@@ -48522,18 +48540,28 @@ NAmanage.InstallNoCooldownHooks = function()
 	installDurationHook("task.wait", task and task.wait)
 	installDurationHook("delay", delay)
 	installDurationHook("task.delay", task and task.delay)
-	installClockHook("tick", tick)
-	installClockHook("os.clock", os and os.clock)
+	if state.enabled then
+		installClockHook("tick", tick)
+		installClockHook("os.clock", os and os.clock)
+	end
 
-	local count = 0
-	for _, key in {"wait", "task.wait", "delay", "task.delay", "tick", "os.clock"} do
+	local durationCount = 0
+	for _, key in {"wait", "task.wait", "delay", "task.delay"} do
 		if type(state.hooks[key]) == "function" then
-			count += 1
+			durationCount += 1
 		end
 	end
 
-	state.installed = count == 6
-	return count > 0, count, state
+	local clockCount = 0
+	for _, key in {"tick", "os.clock"} do
+		if type(state.hooks[key]) == "function" then
+			clockCount += 1
+		end
+	end
+
+	const count = durationCount + clockCount
+	state.installed = durationCount == 4 and (not state.enabled or clockCount == 2)
+	return durationCount > 0 and (not state.enabled or clockCount > 0), count, state
 end
 
 cmd.add({"nocooldown", "ncd"}, {"nocooldown <number> (ncd)", "Override game-script cooldown timing with the chosen number of seconds; defaults to 0 when omitted"}, function(value)
@@ -48563,6 +48591,850 @@ cmd.add({"unnocooldown", "unncd"}, {"unnocooldown (unncd)", "Disable the game-sc
 	state.enabled = false
 	state.generation = (tonumber(state.generation) or 0) + 1
 	DoNotif("Cooldown override disabled.", 2, "No Cooldown")
+end)
+
+cmd.add({"waitcap", "maxwait"}, {"waitcap <seconds> (maxwait)", "Caps game-script wait/delay durations without shortening waits already below the cap"}, function(value)
+	const seconds = tonumber(value)
+	if seconds == nil or seconds < 0 or seconds ~= seconds or seconds == math.huge then
+		return DoNotif("Usage: waitcap <seconds>", 3, "Wait Cap")
+	end
+
+	const state = NAmanage.GetNoCooldownState()
+	state.waitCapSeconds = seconds
+	state.waitCapEnabled = true
+
+	local okInstall, count, detail = NAmanage.InstallNoCooldownHooks()
+	if not okInstall then
+		state.waitCapEnabled = false
+		return DoNotif("Wait Cap failed: "..tostring(detail), 4, "Wait Cap")
+	end
+
+	local durationCount = 0
+	for _, key in {"wait", "task.wait", "delay", "task.delay"} do
+		if type(state.hooks[key]) == "function" then durationCount += 1 end
+	end
+	DoNotif("Game-script waits/delays capped at "..tostring(seconds).."s ("..tostring(durationCount).."/4 wait hooks active).", 3, "Wait Cap")
+end, true)
+
+cmd.add({"unwaitcap", "unmaxwait"}, {"unwaitcap (unmaxwait)", "Disables the game-script wait/delay cap"}, function()
+	const state = NAmanage.GetNoCooldownState()
+	state.waitCapEnabled = false
+	DoNotif("Wait/delay cap disabled.", 2, "Wait Cap")
+end)
+
+NAmanage.GetNoTweenState = function()
+	const host = _na_boot.hostEnv
+	local state = type(host) == "table" and rawget(host, "__NA_NoTweenState") or nil
+	if type(state) ~= "table" then
+		state = {
+			enabled = false;
+			seconds = 0;
+			original = nil;
+			installed = false;
+			failure = nil;
+		}
+		if type(host) == "table" then
+			pcall(rawset, host, "__NA_NoTweenState", state)
+		end
+	end
+	state.enabled = state.enabled == true
+	state.seconds = math.max(0, tonumber(state.seconds) or 0)
+	return state
+end
+
+NAmanage.InstallNoTweenHook = function()
+	local state = NAmanage.GetNoTweenState()
+	const host = _na_boot.hostEnv
+	const hook = type(host) == "table" and rawget(host, "hookfunction") or hookfunction
+	const hookMeta = type(host) == "table" and rawget(host, "hookmetamethod") or hookmetamethod
+	const getNamecall = type(host) == "table" and rawget(host, "getnamecallmethod") or getnamecallmethod
+	const makeClosure = type(host) == "table" and rawget(host, "newcclosure") or newcclosure
+	local tweenService
+	pcall(function() tweenService = game:GetService("TweenService") end)
+	tweenService = tweenService or Services.TweenService
+	const target = tweenService and tweenService.Create
+	const hookVersion = 4
+
+	if not tweenService then
+		state.failure = "TweenService unavailable"
+		return false, state.failure
+	end
+	if type(hook) ~= "function" and (type(hookMeta) ~= "function" or type(getNamecall) ~= "function") then
+		state.failure = "TweenService hook APIs unavailable"
+		return false, state.failure
+	end
+
+	if state.version ~= hookVersion then
+		if type(hook) == "function" and type(target) == "function" then
+			const oldCreate = state.originalCreate or state.original
+			if type(oldCreate) == "function" then
+				pcall(hook, target, oldCreate)
+			end
+		end
+		if type(hookMeta) == "function" and type(state.originalNamecall) == "function" then
+			pcall(hookMeta, game, "__namecall", state.originalNamecall)
+		end
+		state.original = nil
+		state.originalCreate = nil
+		state.originalNamecall = nil
+		state.createInstalled = false
+		state.namecallInstalled = false
+		state.installed = false
+		state.version = hookVersion
+	end
+
+	local function overrideInfo(info)
+		local repeatCount = tonumber(info.RepeatCount) or 0
+		if repeatCount < 0 then
+			repeatCount = 0
+		end
+		return TweenInfo.new(
+			math.max(0, tonumber(state.seconds) or 0),
+			info.EasingStyle,
+			info.EasingDirection,
+			repeatCount,
+			info.Reverses,
+			0
+		)
+	end
+
+	if not state.createInstalled and type(hook) == "function" and type(target) == "function" then
+		local originalCreate
+		local replacement = function(self, instance, info, properties)
+			if state.enabled and typeof(info) == "TweenInfo" then
+				return originalCreate(self, instance, overrideInfo(info), properties)
+			end
+			return originalCreate(self, instance, info, properties)
+		end
+		if type(makeClosure) == "function" then
+			replacement = makeClosure(replacement)
+		end
+		local ok, err = pcall(function()
+			originalCreate = hook(target, replacement)
+		end)
+		if ok and type(originalCreate) == "function" then
+			state.original = originalCreate
+			state.originalCreate = originalCreate
+			state.createInstalled = true
+		else
+			state.createFailure = tostring(err or "TweenService.Create hook failed")
+		end
+	end
+
+	if not state.namecallInstalled and type(hookMeta) == "function" and type(getNamecall) == "function" then
+		local originalNamecall
+		local replacement = function(self, ...)
+			local method = Lower(tostring(getNamecall() or ""))
+			if state.enabled and self == tweenService and method == "create" then
+				local args = table.pack(...)
+				if typeof(args[2]) == "TweenInfo" then
+					args[2] = overrideInfo(args[2])
+				end
+				return originalNamecall(self, table.unpack(args, 1, args.n))
+			end
+			return originalNamecall(self, ...)
+		end
+		if type(makeClosure) == "function" then
+			replacement = makeClosure(replacement)
+		end
+		local ok, err = pcall(function()
+			originalNamecall = hookMeta(game, "__namecall", replacement)
+		end)
+		if ok and type(originalNamecall) == "function" then
+			state.originalNamecall = originalNamecall
+			state.namecallInstalled = true
+		else
+			state.namecallFailure = tostring(err or "__namecall hook failed")
+		end
+	end
+
+	state.installed = state.createInstalled == true or state.namecallInstalled == true
+	if not state.installed then
+		state.failure = state.namecallFailure or state.createFailure or "TweenService hooks failed"
+		return false, state.failure
+	end
+	state.failure = nil
+	return true
+end
+
+cmd.add({"notween", "instanttween"}, {"notween [seconds] (instanttween)", "Forces all TweenService-created tweens, including NA/executor UI tweens, to the chosen duration; defaults to 0"}, function(value)
+	const rawValue = value == nil and "" or tostring(value)
+	const seconds = rawValue:match("%S") and tonumber(rawValue) or 0
+	if seconds == nil or seconds < 0 or seconds ~= seconds or seconds == math.huge then
+		return DoNotif("Usage: notween [seconds]", 3, "No Tween")
+	end
+	const state = NAmanage.GetNoTweenState()
+	state.seconds = seconds
+	state.enabled = true
+	local ok, err = NAmanage.InstallNoTweenHook()
+	if not ok then
+		state.enabled = false
+		return DoNotif("No Tween failed: "..tostring(err), 4, "No Tween")
+	end
+	DoNotif(seconds <= 0 and "All TweenService-created tweens are now instant." or ("All TweenService-created tweens forced to "..tostring(seconds).."s."), 3, "No Tween")
+end)
+
+cmd.add({"unnotween", "uninstanttween"}, {"unnotween (uninstanttween)", "Stops overriding game-created tween durations"}, function()
+	const state = NAmanage.GetNoTweenState()
+	state.enabled = false
+	DoNotif("Tween override disabled.", 2, "No Tween")
+end)
+
+NAmanage.GCSearch = function(query, resultLimit)
+	query = tostring(query or "")
+	const needle = Lower(query)
+	if needle == "" then
+		return false, "missing query", {}
+	end
+
+	const host = _na_boot.hostEnv
+	const gc = type(host) == "table" and rawget(host, "getgc") or getgc
+	if type(gc) ~= "function" then
+		return false, "getgc is unavailable", {}
+	end
+
+	const dbg = type(host) == "table" and rawget(host, "debug") or debug
+	const getConstants = (type(dbg) == "table" and dbg.getconstants) or (type(host) == "table" and rawget(host, "getconstants")) or getconstants
+	const getUpvalues = (type(dbg) == "table" and dbg.getupvalues) or (type(host) == "table" and rawget(host, "getupvalues")) or getupvalues
+	const debugInfo = type(dbg) == "table" and dbg.info or nil
+	const isCClosure = type(host) == "table" and rawget(host, "iscclosure") or iscclosure
+	resultLimit = math.clamp(math.floor(tonumber(resultLimit) or 30), 1, 100)
+
+	local okGC, objects = pcall(gc, true)
+	if not okGC or type(objects) ~= "table" then
+		return false, tostring(objects or "getgc failed"), {}
+	end
+
+	const results = {}
+	const functions = {}
+	local scanned = 0
+	local deepScanned = 0
+	local truncated = false
+	const startedAt = DateTime.now().UnixTimestampMillis
+	const deadline = startedAt + 3500
+
+	local function outOfTime()
+		return DateTime.now().UnixTimestampMillis >= deadline
+	end
+
+	local function hit(value)
+		return Lower(tostring(value or "")):find(needle, 1, true) ~= nil
+	end
+
+	local function add(kind, object, where, value)
+		if #results >= resultLimit then return end
+		results[#results + 1] = {
+			kind = kind;
+			object = object;
+			where = tostring(where or "");
+			value = value;
+		}
+	end
+
+	for index = 1, #objects do
+		if #results >= resultLimit then break end
+		if index % 128 == 0 and outOfTime() then
+			truncated = true
+			break
+		end
+
+		const object = objects[index]
+		scanned += 1
+		const objectType = type(object)
+		if objectType == "table" then
+			pcall(function()
+				local checked = 0
+				for key, value in next, object do
+					checked += 1
+					if hit(key) then
+						add("table", object, "key", key)
+					elseif type(value) ~= "table" and type(value) ~= "function" and hit(value) then
+						add("table", object, "value:"..tostring(key), value)
+					end
+					if #results >= resultLimit or checked >= 96 then break end
+				end
+			end)
+		elseif objectType == "function" then
+			local source, name = "?", "?"
+			if type(debugInfo) == "function" then
+				pcall(function()
+					source, name = debugInfo(object, "sn")
+				end)
+			end
+			if hit(source) or hit(name) then
+				add("function", object, "debug", tostring(source).." :: "..tostring(name))
+			end
+			if #functions < 6000 then
+				functions[#functions + 1] = object
+			end
+		end
+
+		if scanned % 256 == 0 then
+			Wait()
+		end
+	end
+
+	if #results < resultLimit and not outOfTime() then
+		for index = 1, #functions do
+			if #results >= resultLimit then break end
+			if index % 32 == 0 and outOfTime() then
+				truncated = true
+				break
+			end
+
+			const object = functions[index]
+			local inspect = true
+			if type(isCClosure) == "function" then
+				local okC, isC = pcall(isCClosure, object)
+				if okC and isC then inspect = false end
+			end
+
+			if inspect then
+				deepScanned += 1
+				if type(getConstants) == "function" then
+					local okConstants, constants = pcall(getConstants, object)
+					if okConstants and type(constants) == "table" then
+						for constantIndex, constantValue in next, constants do
+							if hit(constantValue) then
+								add("function", object, "constant:"..tostring(constantIndex), constantValue)
+								break
+							end
+						end
+					end
+				end
+
+				if #results < resultLimit and type(getUpvalues) == "function" then
+					local okUpvalues, upvalues = pcall(getUpvalues, object)
+					if okUpvalues and type(upvalues) == "table" then
+						local checked = 0
+						for upvalueKey, upvalueValue in next, upvalues do
+							checked += 1
+							if hit(upvalueKey) or (type(upvalueValue) ~= "table" and type(upvalueValue) ~= "function" and hit(upvalueValue)) then
+								add("function", object, "upvalue:"..tostring(upvalueKey), upvalueValue)
+								break
+							end
+							if checked >= 48 then break end
+						end
+					end
+				end
+			end
+
+			if index % 64 == 0 then
+				Wait()
+			end
+		end
+	elseif outOfTime() then
+		truncated = true
+	end
+
+	NAStuff.GCSearchResults = results
+	NAStuff.GCSearchQuery = query
+	NAStuff.GCSearchStats = {
+		scanned = scanned;
+		deepScanned = deepScanned;
+		truncated = truncated;
+		elapsedMs = DateTime.now().UnixTimestampMillis - startedAt;
+	}
+	return true, scanned, results
+end
+
+cmd.add({"gcsearch", "gcs"}, {"gcsearch <text> (gcs)", "Searches getgc tables, function metadata, constants, and upvalues for text"}, function(...)
+	const args = {...}
+	const query = Concat(args, " ")
+	if query == "" then
+		return DoNotif("Usage: gcsearch <text>", 3, "GC Search")
+	end
+
+	SpawnCall(function()
+		local ok, detail, results = NAmanage.GCSearch(query, 30)
+		if not ok then
+			return DoNotif("GC Search failed: "..tostring(detail), 4, "GC Search")
+		end
+		print(("[NA GC Search] query=%q scanned=%d matches=%d"):format(query, tonumber(detail) or 0, #results))
+		for index, result in ipairs(results) do
+			print(("[NA GC Search #%d] %s | %s | %s"):format(index, tostring(result.kind), tostring(result.where), tostring(result.value)))
+		end
+		local stats = NAStuff.GCSearchStats or {}
+		DoNotif(("GC Search found %d match%s in %dms%s. Results printed to console and saved in NAStuff.GCSearchResults."):format(#results, #results == 1 and "" or "es", tonumber(stats.elapsedMs) or 0, stats.truncated and " (scan budget reached)" or ""), 4, "GC Search")
+	end)
+end, true)
+
+NAmanage.GetAutoPatchToolState = function()
+	const host = _na_boot.hostEnv
+	local state = type(host) == "table" and rawget(host, "__NA_AutoPatchToolState") or nil
+	if type(state) ~= "table" then
+		state = {
+			enabled = false;
+			all = false;
+			records = {};
+			seenTables = setmetatable({}, { __mode = "k" });
+			seenInstances = setmetatable({}, { __mode = "k" });
+			connections = {};
+			guardConnections = setmetatable({}, { __mode = "k" });
+			patchedTools = setmetatable({}, { __mode = "k" });
+		}
+		if type(host) == "table" then
+			pcall(rawset, host, "__NA_AutoPatchToolState", state)
+		end
+	end
+	state.records = type(state.records) == "table" and state.records or {}
+	state.seenTables = type(state.seenTables) == "table" and state.seenTables or setmetatable({}, { __mode = "k" })
+	state.seenInstances = type(state.seenInstances) == "table" and state.seenInstances or setmetatable({}, { __mode = "k" })
+	state.connections = type(state.connections) == "table" and state.connections or {}
+	state.guardConnections = type(state.guardConnections) == "table" and state.guardConnections or setmetatable({}, { __mode = "k" })
+	state.patchedTools = type(state.patchedTools) == "table" and state.patchedTools or setmetatable({}, { __mode = "k" })
+	return state
+end
+
+NAmanage.AutoPatchToolKey = function(key, value)
+	const compact = Lower(tostring(key or "")):gsub("[^%w]", "")
+	if compact == "" then return nil end
+
+	const zeroKeys = {
+		cooldown=true; cooldowntime=true; cooldownseconds=true; firedelay=true; shotdelay=true; fireinterval=true; attackdelay=true;
+		reloadtime=true; reloadduration=true; equiptime=true; equipdelay=true; chargetime=true; winduptime=true; windup=true;
+		spread=true; maxspread=true; minspread=true; bloom=true; recoil=true; recoilx=true; recoily=true; recoilz=true;
+		kick=true; kickback=true; sway=true; deviation=true; inaccuracy=true; heatperbullet=true; recoverydelay=true;
+	}
+	const highKeys = {
+		ammo=true; currentammo=true; maxammo=true; ammocount=true; reserveammo=true; maxreserveammo=true; magazine=true;
+		magsize=true; magazinesize=true; clipsize=true; clip=true; capacity=true; range=true; maxrange=true; projectilerange=true;
+		firerate=true; rateoffire=true; rpm=true; reloadspeed=true; bulletspeed=true; projectilespeed=true; velocity=true;
+		damage=true; basedamage=true; bulletdamage=true; hitdamage=true;
+	}
+	const trueKeys = {
+		automatic=true; auto=true; fullauto=true; canfire=true; canshoot=true; enabled=true; infiniteammo=true; unlimitedammo=true;
+	}
+	const falseKeys = {
+		reloading=true; isreloading=true; coolingdown=true; oncooldown=true; jammed=true; isjammed=true; overheated=true; isoverheated=true;
+	}
+
+	if type(value) == "number" then
+		if zeroKeys[compact] then return 0, "zero" end
+		if highKeys[compact] then return 1000000, "high" end
+	elseif type(value) == "boolean" then
+		if trueKeys[compact] then return true, "true" end
+		if falseKeys[compact] then return false, "false" end
+	end
+	return nil
+end
+
+NAmanage.AutoPatchToolRememberTable = function(state, tbl, key, oldValue)
+	local seen = state.seenTables[tbl]
+	if type(seen) ~= "table" then
+		seen = {}
+		state.seenTables[tbl] = seen
+	end
+	if seen[key] then return end
+	seen[key] = true
+	state.records[#state.records + 1] = { kind="table"; target=tbl; key=key; old=oldValue; }
+end
+
+NAmanage.AutoPatchToolRememberInstance = function(state, inst, key, oldValue, kind)
+	local seen = state.seenInstances[inst]
+	if type(seen) ~= "table" then
+		seen = {}
+		state.seenInstances[inst] = seen
+	end
+	const token = tostring(kind)..":"..tostring(key)
+	if seen[token] then return end
+	seen[token] = true
+	state.records[#state.records + 1] = { kind=kind; target=inst; key=key; old=oldValue; }
+end
+
+NAmanage.AutoPatchToolTable = function(state, tbl, stats, depth, visited)
+	if type(tbl) ~= "table" then return end
+	depth = tonumber(depth) or 0
+	if depth > 3 then return end
+	visited = visited or setmetatable({}, { __mode = "k" })
+	if visited[tbl] then return end
+	visited[tbl] = true
+
+	local checked = 0
+	for key, value in next, tbl do
+		checked += 1
+		local replacement = NAmanage.AutoPatchToolKey(key, value)
+		if replacement ~= nil and replacement ~= value then
+			NAmanage.AutoPatchToolRememberTable(state, tbl, key, value)
+			local ok = pcall(function() tbl[key] = replacement end)
+			if ok then stats.tables += 1 end
+		elseif type(value) == "table" and depth < 3 then
+			NAmanage.AutoPatchToolTable(state, value, stats, depth + 1, visited)
+		end
+		if checked >= 900 then break end
+	end
+end
+
+NAmanage.AutoPatchToolValue = function(state, inst, stats)
+	if not (inst and inst.Parent and inst:IsA("ValueBase")) then return end
+	local okValue, oldValue = pcall(function() return inst.Value end)
+	if not okValue then return end
+	local replacement = NAmanage.AutoPatchToolKey(inst.Name, oldValue)
+	if replacement == nil or replacement == oldValue then return end
+	NAmanage.AutoPatchToolRememberInstance(state, inst, "Value", oldValue, "value")
+	if pcall(function() inst.Value = replacement end) then
+		stats.values += 1
+	end
+	if not state.guardConnections[inst] then
+		local conn
+		conn = inst.Changed:Connect(function()
+			if not state.enabled or not inst.Parent then return end
+			local current = inst.Value
+			local nextValue = NAmanage.AutoPatchToolKey(inst.Name, current)
+			if nextValue ~= nil and current ~= nextValue then
+				pcall(function() inst.Value = nextValue end)
+			end
+		end)
+		state.guardConnections[inst] = conn
+	end
+end
+
+NAmanage.AutoPatchToolAttributes = function(state, inst, stats)
+	if typeof(inst) ~= "Instance" then return end
+	local okAttributes, attributes = pcall(inst.GetAttributes, inst)
+	if not okAttributes or type(attributes) ~= "table" then return end
+	for key, oldValue in next, attributes do
+		local replacement = NAmanage.AutoPatchToolKey(key, oldValue)
+		if replacement ~= nil and replacement ~= oldValue then
+			NAmanage.AutoPatchToolRememberInstance(state, inst, key, oldValue, "attribute")
+			if pcall(inst.SetAttribute, inst, key, replacement) then
+				stats.attributes += 1
+			end
+			local guardKey = tostring(inst:GetDebugId())..":"..tostring(key)
+			if not state.guardConnections[guardKey] then
+				local conn = inst:GetAttributeChangedSignal(key):Connect(function()
+					if not state.enabled or not inst.Parent then return end
+					local current = inst:GetAttribute(key)
+					local nextValue = NAmanage.AutoPatchToolKey(key, current)
+					if nextValue ~= nil and current ~= nextValue then
+						pcall(inst.SetAttribute, inst, key, nextValue)
+					end
+				end)
+				state.guardConnections[guardKey] = conn
+			end
+		end
+	end
+end
+
+NAmanage.AutoPatchToolObject = function(state, inst, stats)
+	if typeof(inst) ~= "Instance" then return end
+	NAmanage.AutoPatchToolAttributes(state, inst, stats)
+	if inst:IsA("ValueBase") then
+		NAmanage.AutoPatchToolValue(state, inst, stats)
+	elseif inst:IsA("ModuleScript") then
+		local okModule, exported = pcall(require, inst)
+		if okModule and type(exported) == "table" then
+			stats.modules += 1
+			NAmanage.AutoPatchToolTable(state, exported, stats, 0)
+		end
+	elseif inst:IsA("LocalScript") then
+		local host = _na_boot.hostEnv
+		local getEnv = type(host) == "table" and rawget(host, "getsenv") or getsenv
+		if type(getEnv) == "function" then
+			local okEnv, env = pcall(getEnv, inst)
+			if okEnv and type(env) == "table" then
+				NAmanage.AutoPatchToolTable(state, env, stats, 0)
+			end
+		end
+	end
+end
+
+NAmanage.AutoPatchToolRuntimeTables = function(state, tool, stats)
+	const host = _na_boot.hostEnv
+	const gc = type(host) == "table" and rawget(host, "getgc") or getgc
+	const getEnv = type(host) == "table" and rawget(host, "getfenv") or getfenv
+	const dbg = type(host) == "table" and rawget(host, "debug") or debug
+	const getUpvalues = (type(dbg) == "table" and dbg.getupvalues) or (type(host) == "table" and rawget(host, "getupvalues")) or getupvalues
+	const isCClosure = type(host) == "table" and rawget(host, "iscclosure") or iscclosure
+	if type(gc) ~= "function" then return end
+
+	local okGC, objects = pcall(gc, true)
+	if not okGC or type(objects) ~= "table" then return end
+
+	const toolName = Lower(tool.Name)
+	const refs = setmetatable({ [tool] = true }, { __mode = "k" })
+	for _, descendant in ipairs(tool:GetDescendants()) do
+		refs[descendant] = true
+	end
+
+	const instanceKeys = {
+		"tool", "Tool", "weapon", "Weapon", "item", "Item", "instance", "Instance",
+		"currentTool", "CurrentTool", "equippedTool", "EquippedTool", "weaponTool", "WeaponTool";
+	}
+	const nameKeys = { "name", "Name", "weaponName", "WeaponName", "toolName", "ToolName", "itemName", "ItemName" }
+	const functions = {}
+	const startedAt = DateTime.now().UnixTimestampMillis
+	const deadline = startedAt + 2200
+	local scanned = 0
+	local truncated = false
+
+	local function outOfTime()
+		return DateTime.now().UnixTimestampMillis >= deadline
+	end
+
+	local function isRelatedInstance(value)
+		if typeof(value) ~= "Instance" then return false end
+		if refs[value] then return true end
+		local ok, related = pcall(value.IsDescendantOf, value, tool)
+		return ok and related == true
+	end
+
+	local function tableIsRelated(tbl)
+		for index = 1, #instanceKeys do
+			local value = rawget(tbl, instanceKeys[index])
+			if value ~= nil and isRelatedInstance(value) then
+				return true
+			end
+		end
+		for index = 1, #nameKeys do
+			local value = rawget(tbl, nameKeys[index])
+			if value ~= nil and Lower(tostring(value)) == toolName then
+				return true
+			end
+		end
+		return false
+	end
+
+	for index = 1, #objects do
+		if index % 256 == 0 and outOfTime() then
+			truncated = true
+			break
+		end
+		const object = objects[index]
+		if type(object) == "table" then
+			local okRelated, related = pcall(tableIsRelated, object)
+			if okRelated and related then
+				stats.gcTables += 1
+				NAmanage.AutoPatchToolTable(state, object, stats, 0)
+			end
+		elseif type(object) == "function" and #functions < 5000 then
+			functions[#functions + 1] = object
+		end
+		scanned += 1
+		if scanned % 512 == 0 then Wait() end
+	end
+
+	if type(getEnv) == "function" and not outOfTime() then
+		for index = 1, #functions do
+			if index % 32 == 0 and outOfTime() then
+				truncated = true
+				break
+			end
+
+			const object = functions[index]
+			local inspect = true
+			if type(isCClosure) == "function" then
+				local okC, isC = pcall(isCClosure, object)
+				if okC and isC then inspect = false end
+			end
+
+			if inspect then
+				local relatedFunction = false
+				local okEnv, env = pcall(getEnv, object)
+				if okEnv and type(env) == "table" then
+					local sourceScript = rawget(env, "script")
+					if isRelatedInstance(sourceScript) then
+						relatedFunction = true
+						NAmanage.AutoPatchToolTable(state, env, stats, 0)
+					end
+				end
+
+				if relatedFunction and type(getUpvalues) == "function" then
+					local okUpvalues, upvalues = pcall(getUpvalues, object)
+					if okUpvalues and type(upvalues) == "table" then
+						local checked = 0
+						for _, upvalue in next, upvalues do
+							checked += 1
+							if type(upvalue) == "table" then
+								stats.gcTables += 1
+								NAmanage.AutoPatchToolTable(state, upvalue, stats, 0)
+							end
+							if checked >= 64 then break end
+						end
+					end
+				end
+			end
+
+			if index % 64 == 0 then Wait() end
+		end
+	elseif outOfTime() then
+		truncated = true
+	end
+
+	stats.runtimeScanned = scanned
+	stats.runtimeTruncated = truncated
+	stats.runtimeElapsedMs = DateTime.now().UnixTimestampMillis - startedAt
+end
+
+NAmanage.AutoPatchToolApply = function(tool)
+	if typeof(tool) ~= "Instance" or not tool:IsA("Tool") then
+		return nil, "tool unavailable"
+	end
+	const state = NAmanage.GetAutoPatchToolState()
+	const stats = { values=0; attributes=0; tables=0; modules=0; gcTables=0; }
+	state.patchedTools[tool] = true
+	state.lastTool = tool
+
+	NAmanage.AutoPatchToolObject(state, tool, stats)
+	local descendants = tool:GetDescendants()
+	for index = 1, #descendants do
+		NAmanage.AutoPatchToolObject(state, descendants[index], stats)
+		if index % 150 == 0 then Wait() end
+	end
+	NAmanage.AutoPatchToolRuntimeTables(state, tool, stats)
+
+	if not state.guardConnections[tool] then
+		local conn = tool.DescendantAdded:Connect(function(inst)
+			if not state.enabled or not tool.Parent then return end
+			Defer(function()
+				local liveStats = { values=0; attributes=0; tables=0; modules=0; gcTables=0; }
+				NAmanage.AutoPatchToolObject(state, inst, liveStats)
+			end)
+		end)
+		state.guardConnections[tool] = conn
+	end
+
+	return stats
+end
+
+NAmanage.AutoPatchToolFind = function(query)
+	const char = getChar()
+	const backpack = getBp()
+	query = tostring(query or "")
+	if query == "" then
+		const equipped = char and char:FindFirstChildOfClass("Tool")
+		if equipped then return { equipped } end
+		return {}
+	end
+	const needle = Lower(query)
+	const results = {}
+	local function scan(parent)
+		if not parent then return end
+		for _, child in ipairs(parent:GetChildren()) do
+			if child:IsA("Tool") and (needle == "all" or Lower(child.Name):find(needle, 1, true)) then
+				results[#results + 1] = child
+			end
+		end
+	end
+	scan(char)
+	scan(backpack)
+	return results
+end
+
+NAmanage.AutoPatchToolDisconnect = function(state)
+	for key, conn in next, state.connections do
+		if conn and type(conn.Disconnect) == "function" then pcall(conn.Disconnect, conn) end
+		state.connections[key] = nil
+	end
+	for key, conn in next, state.guardConnections do
+		if conn and type(conn.Disconnect) == "function" then pcall(conn.Disconnect, conn) end
+		state.guardConnections[key] = nil
+	end
+end
+
+NAmanage.AutoPatchToolRestore = function()
+	const state = NAmanage.GetAutoPatchToolState()
+	state.enabled = false
+	state.all = false
+	NAmanage.AutoPatchToolDisconnect(state)
+	local restored = 0
+	for index = #state.records, 1, -1 do
+		const record = state.records[index]
+		if type(record) == "table" then
+			if record.kind == "table" and type(record.target) == "table" then
+				if pcall(function() record.target[record.key] = record.old end) then restored += 1 end
+			elseif record.kind == "value" and typeof(record.target) == "Instance" and record.target.Parent then
+				if pcall(function() record.target.Value = record.old end) then restored += 1 end
+			elseif record.kind == "attribute" and typeof(record.target) == "Instance" and record.target.Parent then
+				if pcall(record.target.SetAttribute, record.target, record.key, record.old) then restored += 1 end
+			end
+		end
+		state.records[index] = nil
+	end
+	state.seenTables = setmetatable({}, { __mode = "k" })
+	state.seenInstances = setmetatable({}, { __mode = "k" })
+	state.patchedTools = setmetatable({}, { __mode = "k" })
+	state.guardConnections = setmetatable({}, { __mode = "k" })
+	return restored
+end
+
+NAmanage.AutoPatchToolEnableAll = function(state)
+	state.all = true
+	const function patch(inst)
+		if not state.enabled or typeof(inst) ~= "Instance" or not inst:IsA("Tool") then return end
+		SpawnCall(function()
+			NAmanage.AutoPatchToolApply(inst)
+		end)
+	end
+	const function bindCharacter(char)
+		if state.connections.char then
+			pcall(state.connections.char.Disconnect, state.connections.char)
+			state.connections.char = nil
+		end
+		if char then
+			state.connections.char = char.ChildAdded:Connect(patch)
+		end
+	end
+	const function bindBackpack(backpack)
+		if state.connections.backpack then
+			pcall(state.connections.backpack.Disconnect, state.connections.backpack)
+			state.connections.backpack = nil
+		end
+		if backpack then
+			state.connections.backpack = backpack.ChildAdded:Connect(patch)
+		end
+	end
+
+	const player = Services.Players.LocalPlayer
+	bindCharacter(getChar())
+	bindBackpack(getBp())
+	if player then
+		state.connections.characterAdded = player.CharacterAdded:Connect(function(char)
+			if state.enabled and state.all then bindCharacter(char) end
+		end)
+		state.connections.playerChildAdded = player.ChildAdded:Connect(function(child)
+			if state.enabled and state.all and child:IsA("Backpack") then bindBackpack(child) end
+		end)
+	end
+end
+
+cmd.add({"autopatchtool", "apt"}, {"autopatchtool [tool|all] (apt)", "Aggressively patches common cooldown, reload, recoil, spread, ammo, fire-rate, range, and damage settings for a tool"}, function(...)
+	const query = Concat({...}, " ")
+	local state = NAmanage.GetAutoPatchToolState()
+	if state.enabled or #state.records > 0 then
+		NAmanage.AutoPatchToolRestore()
+		state = NAmanage.GetAutoPatchToolState()
+	end
+	state.enabled = true
+	state.guardConnections = setmetatable({}, { __mode = "k" })
+
+	const allMode = Lower(query) == "all"
+	local tools = NAmanage.AutoPatchToolFind(query)
+	if #tools == 0 and not allMode then
+		state.enabled = false
+		return DoNotif(query == "" and "Equip a tool first, or use autopatchtool all / autopatchtool <name>." or ("No tool matched '"..query.."'."), 4, "Auto Patch Tool")
+	end
+
+	if allMode then
+		NAmanage.AutoPatchToolEnableAll(state)
+		tools = NAmanage.AutoPatchToolFind("all")
+	end
+
+	SpawnCall(function()
+		local totals = { values=0; attributes=0; tables=0; modules=0; gcTables=0; }
+		for _, tool in ipairs(tools) do
+			local stats = NAmanage.AutoPatchToolApply(tool)
+			if stats then
+				for key, value in next, stats do totals[key] = (totals[key] or 0) + (tonumber(value) or 0) end
+			end
+		end
+		DoNotif(("Patched %d tool%s | values %d | attributes %d | table fields %d | modules %d | runtime tables %d"):format(#tools, #tools == 1 and "" or "s", totals.values, totals.attributes, totals.tables, totals.modules, totals.gcTables), 5, "Auto Patch Tool")
+	end)
+end)
+
+cmd.add({"unautopatchtool", "unapt"}, {"unautopatchtool (unapt)", "Restores values changed by Auto Patch Tool and disables its guards"}, function()
+	const restored = NAmanage.AutoPatchToolRestore()
+	DoNotif("Auto Patch Tool disabled. Restored "..tostring(restored).." recorded value(s).", 4, "Auto Patch Tool")
 end)
 
 NAStuff.TailSwayURL = "https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/TailSway.luau"
@@ -103506,7 +104378,7 @@ NAmanage.RegisterUnloadCleanup("echolocation_restore", function()
 	NAmanage.Echolocation.Stop(false)
 end, 120)
 
-cmd.add({"echolocation", "echo", "echolocate"}, {"[BETA] echolocation (echo, echolocate)", "Darkens the world and reveals geometry and entities from movement, landings, and spatial Sound/AudioEmitter sources"}, function()
+cmd.add({"echolocation", "echo", "echolocate"}, {"echolocation (echo, echolocate)", "[BETA] Darkens the world and reveals geometry and entities from movement, landings, and spatial Sound/AudioEmitter sources"}, function()
 	NAmanage.Echolocation.Start(true)
 end)
 
