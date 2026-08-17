@@ -66905,67 +66905,30 @@ NAmanage._raycastIsExcluded = NAmanage._raycastIsExcluded or function(inst, excl
 	return check(excludeList)
 end
 
-NAmanage.RaycastFromMouse = NAmanage.RaycastFromMouse or function(mouse, maxDistance, excludeList)
-	if not (mouse and Services.Workspace and Services.Workspace.Raycast) then
-		return nil
-	end
-
-	local unitRay
-	pcall(function()
-		unitRay = mouse.UnitRay
-	end)
-	if not unitRay then
-		const camera = Services.Workspace.CurrentCamera
-		if camera and camera.ViewportPointToRay then
-			const x = tonumber(mouse.X) or 0
-			const y = tonumber(mouse.Y) or 0
-			local ok, ray = pcall(function()
-				return camera:ViewportPointToRay(x, y)
-			end)
-			if ok then
-				unitRay = ray
-			end
-		end
-	end
-	if not unitRay then
-		return nil
-	end
-
-	const params = RaycastParams.new()
-	NAmanage._raycastFilterType(params)
-	params.FilterDescendantsInstances = NAmanage._raycastFilterList(excludeList)
-	params.IgnoreWater = true
-	return Services.Workspace:Raycast(unitRay.Origin, unitRay.Direction * (tonumber(maxDistance) or 1024), params)
-end
-
 NAmanage.GetMouseWorldCFrame = NAmanage.GetMouseWorldCFrame or function(mouse, excludeList, maxDistance)
-	const result = NAmanage.RaycastFromMouse(mouse, maxDistance, excludeList)
-	if result and result.Position then
-		return CFrame.new(result.Position), result
+	if not mouse then
+		return nil, nil
 	end
-	if mouse then
-		local ok, hit = pcall(function()
-			return mouse.Hit
-		end)
-		if ok and typeof(hit) == "CFrame" then
-			return hit, nil
-		end
+
+	local ok, hit = pcall(function()
+		return mouse.Hit
+	end)
+	if ok and typeof(hit) == "CFrame" then
+		return hit, nil
 	end
 	return nil, nil
 end
 
 NAmanage.GetMouseTargetPart = NAmanage.GetMouseTargetPart or function(mouse, excludeList, maxDistance)
-	const result = NAmanage.RaycastFromMouse(mouse, maxDistance, excludeList)
-	if result and result.Instance and result.Instance:IsA("BasePart") then
-		return result.Instance, result
+	if not mouse then
+		return nil, nil
 	end
-	if mouse then
-		local ok, target = pcall(function()
-			return mouse.Target
-		end)
-		if ok and target and target:IsA("BasePart") and not NAmanage._raycastIsExcluded(target, excludeList) then
-			return target, nil
-		end
+
+	local ok, target = pcall(function()
+		return mouse.Target
+	end)
+	if ok and target and target:IsA("BasePart") and not NAmanage._raycastIsExcluded(target, excludeList) then
+		return target, nil
 	end
 	return nil, nil
 end
@@ -90853,24 +90816,22 @@ NAmanage.ClickTouchMouseRay = function(mouse)
 	if not mouse then
 		return nil
 	end
-	local ok, unitRay = pcall(function()
-		return mouse.UnitRay
+
+	local okOrigin, origin = pcall(function()
+		return mouse.Origin
 	end)
-	if ok and unitRay then
-		return unitRay.Origin, unitRay.Direction.Unit
+	local okHit, hit = pcall(function()
+		return mouse.Hit
+	end)
+	if not (okOrigin and typeof(origin) == "CFrame" and okHit and typeof(hit) == "CFrame") then
+		return nil
 	end
-	const camera = Services.Workspace and Services.Workspace.CurrentCamera
-	if camera and camera.ViewportPointToRay then
-		const x = tonumber(mouse.X) or 0
-		const y = tonumber(mouse.Y) or 0
-		local okRay, ray = pcall(function()
-			return camera:ViewportPointToRay(x, y)
-		end)
-		if okRay and ray then
-			return ray.Origin, ray.Direction.Unit
-		end
+
+	const delta = hit.Position - origin.Position
+	if delta.Magnitude <= 0.001 then
+		return nil
 	end
-	return nil
+	return origin.Position, delta.Unit
 end
 
 NAmanage.ClickTouchOccludedByCollide = function(origin, targetPart, cfg, excludeList)
