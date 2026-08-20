@@ -323,12 +323,102 @@ _na_boot.installExistingMCPBridge = function()
 	if options.notifyReads == nil then
 		options.notifyReads = true
 	end
+	options.requireIdentity = true
 
-	const function notifyExistingBridge(action, detail, isRead)
-		if options.notifyCommands ~= true then
+	if type(existing) == "table"
+		and tonumber(existing.version)
+		and tonumber(existing.version) >= 2
+		and existing.identityRequired == true
+		and type(existing.identify) == "function"
+		and type(existing.manifest) == "function"
+	then
+		existing.alreadyLoaded = true
+		for _, target in { _na_env, _na_shared, _na_boot.runtimeEnv, _na_boot.hostEnv } do
+			if type(target) == "table" then
+				pcall(function()
+					target.NA_MCP = existing
+					target.NamelessAdminMCP = existing
+					target.NA_MCP_OPTIONS = options
+					target.cmdRun = target.cmdRun or existing.run
+					target.RunCommand = target.RunCommand or existing.run
+					target.runCommand = target.runCommand or existing.run
+				end)
+			end
+		end
+		return true
+	end
+
+	const function cleanIdentityText(value, maxLength)
+		local text = tostring(value or "")
+		text = text:gsub("^%s+", ""):gsub("%s+$", "")
+		if #text > (maxLength or 96) then
+			text = text:sub(1, maxLength or 96)
+		end
+		return text
+	end
+
+	const function snapshotIdentity()
+		const identity = type(options.identity) == "table" and options.identity or nil
+		if not identity then
+			return nil
+		end
+		return {
+			provider = cleanIdentityText(identity.provider, 64),
+			model = cleanIdentityText(identity.model, 96),
+			tool = cleanIdentityText(identity.tool, 96),
+			client = cleanIdentityText(identity.client, 96),
+			version = cleanIdentityText(identity.version, 48),
+			sessionId = cleanIdentityText(identity.sessionId, 96),
+			displayName = cleanIdentityText(identity.displayName, 96),
+			connectedAt = identity.connectedAt,
+		}
+	end
+
+	const function identityLabel()
+		const identity = snapshotIdentity()
+		if not identity then
+			return ""
+		end
+		local tool = identity.tool ~= "" and identity.tool or identity.client
+		local model = identity.model
+		if tool ~= "" and model ~= "" then
+			return tool.." | "..model
+		elseif model ~= "" then
+			return model
+		end
+		return tool
+	end
+
+	const function normalizeIdentity(info)
+		if type(info) ~= "table" then
+			return nil, "identity must be a table"
+		end
+		const model = cleanIdentityText(info.model or info.modelName or info.aiModel, 96)
+		const tool = cleanIdentityText(info.tool or info.aiTool or info.clientTool or info.mcpTool, 96)
+		const client = cleanIdentityText(info.client or info.clientName or info.application, 96)
+		if model == "" then
+			return nil, "AI model is required"
+		end
+		if tool == "" then
+			return nil, "AI tool is required"
+		end
+		return {
+			provider = cleanIdentityText(info.provider or info.vendor or info.company, 64),
+			model = model,
+			tool = tool,
+			client = client,
+			version = cleanIdentityText(info.version or info.clientVersion or info.toolVersion, 48),
+			sessionId = cleanIdentityText(info.sessionId or info.session or info.conversationId, 96),
+			displayName = cleanIdentityText(info.displayName or info.name, 96),
+			connectedAt = tick(),
+		}
+	end
+
+	const function notifyExistingBridge(action, detail, isRead, force)
+		if options.notifyCommands ~= true and force ~= true then
 			return
 		end
-		if isRead and options.notifyReads ~= true then
+		if isRead and options.notifyReads ~= true and force ~= true then
 			return
 		end
 		local notifier = rawget(_na_env, "DoNotif") or rawget(_na_shared, "DoNotif") or rawget(_na_boot.runtimeEnv, "DoNotif") or rawget(_na_boot.hostEnv, "DoNotif")
@@ -338,16 +428,18 @@ _na_boot.installExistingMCPBridge = function()
 		if type(notifier) ~= "function" then
 			return
 		end
-		const actor = tostring(options.actor or "")
-		const prefix = actor ~= "" and ("MCP "..actor) or "MCP"
+		const label = identityLabel()
+		const fallbackActor = cleanIdentityText(options.actor, 96)
+		const actor = label ~= "" and label or fallbackActor
+		const prefix = actor ~= "" and ("MCP ["..actor.."]") or "MCP"
 		local msg = prefix.." "..tostring(action or "activity")
 		if detail and tostring(detail) ~= "" then
 			msg ..= ": "..tostring(detail)
 		end
-		if #msg > 160 then
-			msg = msg:sub(1, 157).."..."
+		if #msg > 220 then
+			msg = msg:sub(1, 217).."..."
 		end
-		pcall(notifier, msg, isRead and 1.5 or 2.25, "MCP")
+		pcall(notifier, msg, isRead and 1.75 or 2.75, "MCP")
 	end
 
 	const function findRunner()
@@ -364,28 +456,196 @@ _na_boot.installExistingMCPBridge = function()
 		return nil
 	end
 
-	const bridge = type(existing) == "table" and existing or {
-		name = "Nameless Admin MCP Bridge",
-		version = 1,
-		kind = "nameless-admin",
-		ready = true,
-		alreadyLoaded = true,
-		helpers = { "run", "ui", "options", "ping" },
-	}
+	const bridge = type(existing) == "table" and existing or {}
+	const previousHelpers = {}
+	for _, helperName in { "run", "runSequence", "commands", "snapshot", "basicInfo", "logs", "ui", "activity", "options" } do
+		const fn = bridge[helperName]
+		if type(fn) == "function" then
+			previousHelpers[helperName] = fn
+		end
+	end
+	const previousRun = previousHelpers.run
+	const previousUI = previousHelpers.ui
+	bridge.name = "Nameless Admin MCP Bridge"
+	bridge.version = 2
+	bridge.protocolVersion = "2.0"
+	bridge.kind = "nameless-admin"
+	bridge.ready = true
+	bridge.alreadyLoaded = true
+	bridge.identityRequired = true
+	bridge.requiredIdentityFields = { "model", "tool" }
+	bridge.instructions = "Before using NA MCP operational helpers, identify yourself with bridge.identify({provider=..., model=..., tool=..., client=...}). Use the exact model name when available and never invent one. Tell the user which AI tool/client and model are connected to Nameless Admin MCP Bridge. After each command or state-changing action, tell the user which NA MCP helper/command ran and summarize its result."
+	bridge.helpers = { "identify", "handshake", "hello", "whoami", "manifest", "help", "status", "run", "runSequence", "commands", "snapshot", "basicInfo", "logs", "ui", "activity", "options", "ping", "disconnectAI" }
 
-	bridge.ping = bridge.ping or function()
+	const function meta(operation)
+		const identity = snapshotIdentity()
+		local disclosure
+		if identity then
+			const provider = identity.provider ~= "" and (" by "..identity.provider) or ""
+			disclosure = "Nameless Admin MCP Bridge "..tostring(operation or "activity").." used "..identity.tool.." with "..identity.model..provider.."."
+		end
 		return {
-			ok = true,
-			name = bridge.name,
-			version = bridge.version,
-			alreadyLoaded = bridge.alreadyLoaded == true,
-			testing = _na_env and _na_env.NATestingVer == true or false,
-			time = os.time and os.time() or nil,
+			bridge = bridge.name,
+			bridgeVersion = bridge.version,
+			protocolVersion = bridge.protocolVersion,
+			operation = tostring(operation or ""),
+			identityRequired = true,
+			ai = identity,
+			disclosureRequired = identity ~= nil,
+			userDisclosure = disclosure,
 		}
 	end
 
-	bridge.options = bridge.options or function(nextOptions)
+	const function attachMeta(payload, operation)
+		if type(payload) ~= "table" then
+			payload = { ok = true, result = payload }
+		end
+		const mcpMeta = meta(operation)
+		payload.mcp = mcpMeta
+		if mcpMeta.userDisclosure and payload.mustTellUser == nil then
+			payload.mustTellUser = mcpMeta.userDisclosure
+		end
+		return payload
+	end
+
+	const function requireIdentity(operation)
+		if snapshotIdentity() then
+			return true
+		end
+		const payload = {
+			ok = false,
+			code = "MCP_AI_IDENTITY_REQUIRED",
+			error = "AI identity required before '"..tostring(operation or "operation").."'. Call bridge.identify with the AI model and MCP tool/client first.",
+			requiredAction = "identify",
+			requiredFields = { "model", "tool" },
+			instructions = bridge.instructions,
+		}
+		payload.mcp = meta(operation)
+		notifyExistingBridge("blocked "..tostring(operation or "operation"), "AI model/tool identity required", false, true)
+		return false, payload
+	end
+
+	const function callPrevious(helperName, isRead, ...)
+		local allowed, denial = requireIdentity(helperName)
+		if not allowed then
+			return denial
+		end
+		const fn = previousHelpers[helperName]
+		if type(fn) ~= "function" then
+			notifyExistingBridge(helperName.." error", "helper unavailable", isRead == true, true)
+			return attachMeta({ ok = false, error = "Existing NA runtime does not expose '"..helperName.."'. Reload NA fully to install the complete MCP v2 bridge." }, helperName)
+		end
+		local ok, result = pcall(fn, ...)
+		if not ok then
+			notifyExistingBridge(helperName.." error", tostring(result), isRead == true, true)
+			return attachMeta({ ok = false, error = tostring(result) }, helperName)
+		end
+		return attachMeta(result, helperName)
+	end
+
+	bridge.ping = function()
+		return attachMeta({
+			ok = true,
+			name = bridge.name,
+			version = bridge.version,
+			protocolVersion = bridge.protocolVersion,
+			alreadyLoaded = true,
+			testing = _na_env and _na_env.NATestingVer == true or false,
+			identityRequired = true,
+			identified = snapshotIdentity() ~= nil,
+			requiredIdentityFields = bridge.requiredIdentityFields,
+			helpers = bridge.helpers,
+			instructions = bridge.instructions,
+			time = os.time and os.time() or nil,
+		}, "ping")
+	end
+
+	bridge.manifest = function()
+		return attachMeta({
+			ok = true,
+			name = bridge.name,
+			version = bridge.version,
+			kind = bridge.kind,
+			identityRequired = true,
+			requiredIdentityFields = bridge.requiredIdentityFields,
+			instructions = bridge.instructions,
+			tools = {
+				{ name = "identify", description = "Register the AI provider, exact model, MCP tool and client before operational access." },
+				{ name = "whoami", description = "Read the currently registered AI identity." },
+				{ name = "ping", description = "Read bridge version, readiness and handshake requirements." },
+				{ name = "run", description = "Run an exposed Nameless Admin command after AI identification." },
+				{ name = "ui", description = "Read NA UI metadata; the Instance is returned only when UI access is enabled." },
+				{ name = "options", description = "Read or change bridge options. Mutating options requires identification." },
+				{ name = "disconnectAI", description = "Clear the active AI identity and require a new handshake." },
+			},
+		}, "manifest")
+	end
+	bridge.help = bridge.manifest
+
+	bridge.identify = function(info)
+		local identity, err = normalizeIdentity(info)
+		if not identity then
+			return attachMeta({
+				ok = false,
+				code = "MCP_INVALID_AI_IDENTITY",
+				error = err,
+				requiredFields = { "model", "tool" },
+				instructions = bridge.instructions,
+			}, "identify")
+		end
+		options.identity = identity
+		options.actor = identityLabel()
+		notifyExistingBridge("AI connected", identityLabel(), false, true)
+		const provider = identity.provider ~= "" and (" by "..identity.provider) or ""
+		return attachMeta({
+			ok = true,
+			identity = snapshotIdentity(),
+			disclosureRequired = true,
+			userDisclosure = "Connected to Nameless Admin MCP Bridge through "..identity.tool.." using "..identity.model..provider..".",
+			instructions = bridge.instructions,
+		}, "identify")
+	end
+	bridge.handshake = bridge.identify
+	bridge.hello = bridge.identify
+
+	bridge.whoami = function()
+		const identity = snapshotIdentity()
+		return attachMeta({
+			ok = identity ~= nil,
+			identified = identity ~= nil,
+			identity = identity,
+			requiredFields = identity and nil or { "model", "tool" },
+			instructions = bridge.instructions,
+		}, "whoami")
+	end
+
+	bridge.status = function()
+		return attachMeta({
+			ok = true,
+			ready = true,
+			identified = snapshotIdentity() ~= nil,
+			identity = snapshotIdentity(),
+			allowUIAccess = options.allowUIAccess == true,
+			commandPrediction = options.commandPrediction == true,
+			notifyCommands = options.notifyCommands == true,
+			notifyReads = options.notifyReads == true,
+			requireIdentity = true,
+		}, "status")
+	end
+
+	bridge.options = function(nextOptions)
 		if type(nextOptions) == "table" then
+			local allowed, denial = requireIdentity("options")
+			if not allowed then
+				return denial
+			end
+			if type(previousHelpers.options) == "function" then
+				local ok, result = pcall(previousHelpers.options, nextOptions)
+				if not ok then
+					return attachMeta({ ok = false, error = tostring(result) }, "options")
+				end
+				return attachMeta(result, "options")
+			end
 			const changed = {}
 			for key, value in nextOptions do
 				if key == "allowUIAccess" or key == "commandPrediction" or key == "notifyCommands" or key == "notifyReads" then
@@ -394,45 +654,75 @@ _na_boot.installExistingMCPBridge = function()
 				elseif key == "notifyActivity" then
 					options.notifyCommands = value == true
 					changed[#changed + 1] = "notifyCommands="..tostring(options.notifyCommands)
-				elseif key == "actor" or key == "clientName" then
-					options.actor = tostring(value or "")
+				elseif key == "actor" then
+					options.actor = cleanIdentityText(value, 96)
 				end
 			end
 			if #changed > 0 then
-				notifyExistingBridge("options", table.concat(changed, ", "), false)
+				notifyExistingBridge("options", table.concat(changed, ", "), false, true)
+			end
+		elseif type(previousHelpers.options) == "function" then
+			local ok, result = pcall(previousHelpers.options)
+			if ok then
+				return attachMeta(result, "options")
 			end
 		end
-		return {
+		return attachMeta({
+			ok = true,
 			allowUIAccess = options.allowUIAccess == true,
 			commandPrediction = options.commandPrediction == true,
 			notifyCommands = options.notifyCommands == true,
 			notifyActivity = options.notifyCommands == true,
 			notifyReads = options.notifyReads == true,
-			actor = options.actor,
-		}
+			requireIdentity = true,
+			identity = snapshotIdentity(),
+		}, "options")
 	end
 
-	bridge.run = bridge.run or function(...)
+	bridge.run = function(...)
+		local allowed, denial = requireIdentity("run")
+		if not allowed then
+			return denial
+		end
+		if type(previousRun) == "function" and previousRun ~= bridge.run then
+			local ok, result = pcall(previousRun, ...)
+			if not ok then
+				notifyExistingBridge("command error", tostring(result), false, true)
+				return attachMeta({ ok = false, error = tostring(result) }, "run")
+			end
+			return attachMeta(result, "run")
+		end
 		const runner = findRunner()
-		if type(runner) ~= "function" then
-			notifyExistingBridge("command error", "runner unavailable", false)
-			return { ok = false, error = "NA command runner is not exposed yet." }
+		if type(runner) ~= "function" or runner == bridge.run then
+			notifyExistingBridge("command error", "runner unavailable", false, true)
+			return attachMeta({ ok = false, error = "NA command runner is not exposed yet." }, "run")
 		end
 		local ok, result = pcall(runner, ...)
 		if not ok then
-			notifyExistingBridge("command error", tostring(result), false)
-			return { ok = false, error = tostring(result) }
+			notifyExistingBridge("command error", tostring(result), false, true)
+			return attachMeta({ ok = false, error = tostring(result) }, "run")
 		end
 		const parts = {}
 		for i = 1, select("#", ...) do
 			parts[#parts + 1] = tostring(select(i, ...) or "")
 		end
-		notifyExistingBridge("ran", table.concat(parts, " "), false)
-		return { ok = true, result = result }
+		notifyExistingBridge("ran", table.concat(parts, " "), false, false)
+		return attachMeta({ ok = true, result = result }, "run")
 	end
 
-	bridge.ui = bridge.ui or function()
-		notifyExistingBridge("requested UI", options.allowUIAccess == true and "access granted" or "access denied", true)
+	bridge.ui = function()
+		local allowed, denial = requireIdentity("ui")
+		if not allowed then
+			return denial
+		end
+		if type(previousUI) == "function" and previousUI ~= bridge.ui then
+			local ok, result = pcall(previousUI)
+			if not ok then
+				return attachMeta({ ok = false, error = tostring(result) }, "ui")
+			end
+			return attachMeta(result, "ui")
+		end
+		notifyExistingBridge("requested UI", options.allowUIAccess == true and "access granted" or "access denied", true, false)
 		local gui = rawget(_na_env, "NA_UI_INSTANCE") or rawget(_na_env, "NA_RAW_UI")
 			or rawget(_na_shared, "NA_UI_INSTANCE") or rawget(_na_shared, "NA_RAW_UI")
 		if not gui then
@@ -458,7 +748,43 @@ _na_boot.installExistingMCPBridge = function()
 				info.instance = gui
 			end
 		end
-		return info
+		return attachMeta(info, "ui")
+	end
+
+	bridge.runSequence = function(...)
+		return callPrevious("runSequence", false, ...)
+	end
+
+	bridge.commands = function(...)
+		return callPrevious("commands", true, ...)
+	end
+
+	bridge.snapshot = function(...)
+		return callPrevious("snapshot", true, ...)
+	end
+
+	bridge.basicInfo = function(...)
+		return callPrevious("basicInfo", true, ...)
+	end
+
+	bridge.logs = function(...)
+		return callPrevious("logs", true, ...)
+	end
+
+	bridge.activity = function(...)
+		return callPrevious("activity", true, ...)
+	end
+
+	bridge.disconnectAI = function()
+		local allowed, denial = requireIdentity("disconnectAI")
+		if not allowed then
+			return denial
+		end
+		const oldIdentity = snapshotIdentity()
+		notifyExistingBridge("AI disconnected", identityLabel(), false, true)
+		options.identity = nil
+		options.actor = ""
+		return attachMeta({ ok = true, disconnected = oldIdentity }, "disconnectAI")
 	end
 
 	for _, target in { _na_env, _na_shared, _na_boot.runtimeEnv, _na_boot.hostEnv } do
@@ -30432,7 +30758,7 @@ NAmanage.MCPNormalizeArgs = NAmanage.MCPNormalizeArgs or function(...)
 				end
 			elseif ch == "'" or ch == '"' then
 				quote = ch
-			elseif ch == " " or ch == "\t" then
+			elseif ch == " " or ch == "	" then
 				if #buf > 0 then
 					out[#out + 1] = buf
 					buf = ""
@@ -30479,7 +30805,7 @@ NAmanage.MCPSplitSequence = NAmanage.MCPSplitSequence or function(text)
 	return steps
 end
 
-NAmanage.MCPCommandList = NAmanage.MCPCommandList or function(filter, limit)
+NAmanage.MCPCommandList = function(filter, limit)
 	filter = Lower(tostring(filter or ""))
 	limit = math.clamp(math.floor(tonumber(limit) or 250), 1, 1000)
 	const out = {}
@@ -30487,18 +30813,38 @@ NAmanage.MCPCommandList = NAmanage.MCPCommandList or function(filter, limit)
 	for alias, data in cmds.Aliases or {} do
 		if data then
 			aliasesByEntry[data] = aliasesByEntry[data] or {}
-			aliasesByEntry[data][#aliasesByEntry[data] + 1] = alias
+			aliasesByEntry[data][#aliasesByEntry[data] + 1] = tostring(alias)
 		end
 	end
-	for name, data in cmds.Commands or {} do
-		if filter == "" or Find(name, filter, 1, true) then
-			const info = type(data) == "table" and data[2] or nil
+	for _, aliases in aliasesByEntry do
+		table.sort(aliases)
+	end
+
+	const names = {}
+	for name in cmds.Commands or {} do
+		names[#names + 1] = tostring(name)
+	end
+	table.sort(names)
+
+	for i = 1, #names do
+		const name = names[i]
+		const data = cmds.Commands and cmds.Commands[name]
+		const info = type(data) == "table" and data[2] or nil
+		const title = type(info) == "table" and tostring(info[1] or "") or tostring(info or "")
+		const description = type(info) == "table" and tostring(info[2] or "") or ""
+		const aliases = aliasesByEntry[data] or {}
+		local matches = filter == ""
+		if not matches then
+			const searchable = Lower(name.." "..title.." "..description.." "..Concat(aliases, " "))
+			matches = Find(searchable, filter, 1, true) ~= nil
+		end
+		if matches then
 			out[#out + 1] = {
 				name = name,
-				title = type(info) == "table" and tostring(info[1] or "") or tostring(info or ""),
-				description = type(info) == "table" and tostring(info[2] or "") or "",
+				title = title,
+				description = description,
 				requiresArguments = type(data) == "table" and data[3] == true or false,
-				aliases = aliasesByEntry[data] or {},
+				aliases = aliases,
 			}
 			if #out >= limit then
 				break
@@ -30523,25 +30869,107 @@ NAmanage.MCPFormatCommand = NAmanage.MCPFormatCommand or function(argv)
 	return Concat(parts, " ")
 end
 
-NAmanage.MCPNotifyActivity = NAmanage.MCPNotifyActivity or function(action, detail, opts)
+NAmanage.MCPCleanText = function(value, maxLength)
+	local text = tostring(value or "")
+	text = text:gsub("^%s+", ""):gsub("%s+$", "")
+	maxLength = math.clamp(math.floor(tonumber(maxLength) or 96), 1, 512)
+	if #text > maxLength then
+		text = text:sub(1, maxLength)
+	end
+	return text
+end
+
+NAmanage.MCPAgentInstructions = "Before using any operational Nameless Admin MCP helper, call identify/handshake and provide your AI provider when known, exact model name, MCP/AI tool, and client application. Never invent an exact model name; report unknown only when the host genuinely does not expose it. In the next user-facing response after identification, explicitly state the model and AI/MCP tool/client connected to Nameless Admin MCP Bridge. After every run, runSequence, or settings mutation, explicitly tell the user which NA MCP helper/command executed and summarize the result."
+
+NAmanage.MCPNormalizeIdentity = function(info)
+	if type(info) ~= "table" then
+		return nil, "identity must be a table"
+	end
+	const source = type(info.ai) == "table" and info.ai or info
+	const model = NAmanage.MCPCleanText(source.model or source.modelName or source.aiModel, 96)
+	const tool = NAmanage.MCPCleanText(source.tool or source.aiTool or source.clientTool or source.mcpTool, 96)
+	const client = NAmanage.MCPCleanText(source.client or source.clientName or source.application, 96)
+	if model == "" then
+		return nil, "AI model is required"
+	end
+	if tool == "" then
+		return nil, "AI tool is required"
+	end
+	return {
+		provider = NAmanage.MCPCleanText(source.provider or source.vendor or source.company, 64),
+		model = model,
+		tool = tool,
+		client = client,
+		version = NAmanage.MCPCleanText(source.version or source.clientVersion or source.toolVersion, 48),
+		sessionId = NAmanage.MCPCleanText(source.sessionId or source.session or source.conversationId, 96),
+		displayName = NAmanage.MCPCleanText(source.displayName or source.name, 96),
+		connectedAt = tick(),
+	}
+end
+
+NAmanage.MCPIdentitySnapshot = function()
+	NAStuff.MCP = type(NAStuff.MCP) == "table" and NAStuff.MCP or {}
+	const identity = type(NAStuff.MCP.identity) == "table" and NAStuff.MCP.identity or nil
+	if not identity then
+		return nil
+	end
+	return {
+		provider = NAmanage.MCPCleanText(identity.provider, 64),
+		model = NAmanage.MCPCleanText(identity.model, 96),
+		tool = NAmanage.MCPCleanText(identity.tool, 96),
+		client = NAmanage.MCPCleanText(identity.client, 96),
+		version = NAmanage.MCPCleanText(identity.version, 48),
+		sessionId = NAmanage.MCPCleanText(identity.sessionId, 96),
+		displayName = NAmanage.MCPCleanText(identity.displayName, 96),
+		connectedAt = identity.connectedAt,
+	}
+end
+
+NAmanage.MCPIdentityLabel = function(identity)
+	identity = type(identity) == "table" and identity or NAmanage.MCPIdentitySnapshot()
+	if not identity then
+		return ""
+	end
+	const tool = NAmanage.MCPCleanText(identity.tool ~= "" and identity.tool or identity.client, 96)
+	const model = NAmanage.MCPCleanText(identity.model, 96)
+	if tool ~= "" and model ~= "" then
+		return tool.." | "..model
+	elseif model ~= "" then
+		return model
+	end
+	return tool
+end
+
+NAmanage.MCPIdentityDisclosure = function(operation, detail, identity)
+	identity = type(identity) == "table" and identity or NAmanage.MCPIdentitySnapshot()
+	if not identity then
+		return nil
+	end
+	const provider = identity.provider ~= "" and (" by "..identity.provider) or ""
+	local action = tostring(operation or "activity")
+	if detail and tostring(detail) ~= "" then
+		action ..= " ["..tostring(detail).."]"
+	end
+	return "Nameless Admin MCP Bridge "..action.." used "..identity.tool.." with "..identity.model..provider.."."
+end
+
+NAmanage.MCPNotifyActivity = function(action, detail, opts)
 	opts = type(opts) == "table" and opts or {}
 	NAStuff.MCP = type(NAStuff.MCP) == "table" and NAStuff.MCP or {}
 	const isRead = opts.read == true
-	if NAStuff.MCP.notifyCommands ~= true then
-		if opts.force ~= true then
-			return false
-		end
+	if NAStuff.MCP.notifyCommands ~= true and opts.force ~= true then
+		return false
 	end
-	if isRead and NAStuff.MCP.notifyReads ~= true then
-		if opts.force ~= true then
-			return false
-		end
+	if isRead and NAStuff.MCP.notifyReads ~= true and opts.force ~= true then
+		return false
 	end
+	const identity = type(opts.identity) == "table" and opts.identity or NAmanage.MCPIdentitySnapshot()
+	const actor = identity and NAmanage.MCPIdentityLabel(identity) or NAmanage.MCPCleanText(opts.actor or NAStuff.MCP.actor, 96)
 	const now = os.clock()
-	const key = tostring(action or "activity").."|"..tostring(detail or "")
+	const key = tostring(action or "activity").."|"..tostring(detail or "").."|"..actor
 	const lastKey = tostring(NAStuff.MCP._lastNotifyKey or "")
 	const lastAt = tonumber(NAStuff.MCP._lastNotifyAt) or 0
-	if key == lastKey and now - lastAt < (isRead and 3 or 0.75) then
+	if key == lastKey and now - lastAt < (isRead and 3 or 0.75) and opts.force ~= true then
 		NAStuff.MCP._suppressedNotifyCount = (tonumber(NAStuff.MCP._suppressedNotifyCount) or 0) + 1
 		return false
 	end
@@ -30549,21 +30977,26 @@ NAmanage.MCPNotifyActivity = NAmanage.MCPNotifyActivity or function(action, deta
 	NAStuff.MCP._lastNotifyAt = now
 	const history = type(NAStuff.MCP.history) == "table" and NAStuff.MCP.history or {}
 	NAStuff.MCP.history = history
-	const actor = tostring(opts.actor or NAStuff.MCP.actor or "")
 	history[#history + 1] = {
 		t = tick(),
 		action = tostring(action or "activity"),
 		detail = tostring(detail or ""),
 		read = isRead,
 		actor = actor,
+		identity = identity,
+		provider = identity and identity.provider or nil,
+		model = identity and identity.model or nil,
+		tool = identity and identity.tool or nil,
+		client = identity and identity.client or nil,
+		sessionId = identity and identity.sessionId or nil,
 	}
-	while #history > 25 do
+	while #history > 100 do
 		table.remove(history, 1)
 	end
 	if type(DoNotif) ~= "function" then
 		return false
 	end
-	const prefix = actor ~= "" and ("MCP "..actor) or "MCP"
+	const prefix = actor ~= "" and ("MCP ["..actor.."]") or "MCP"
 	local msg = prefix.." "..tostring(action or "activity")
 	if detail and tostring(detail) ~= "" then
 		msg ..= ": "..tostring(detail)
@@ -30573,14 +31006,65 @@ NAmanage.MCPNotifyActivity = NAmanage.MCPNotifyActivity or function(action, deta
 		msg ..= " (+"..tostring(suppressed).." repeated)"
 		NAStuff.MCP._suppressedNotifyCount = 0
 	end
-	if #msg > 160 then
-		msg = msg:sub(1, 157).."..."
+	if #msg > 220 then
+		msg = msg:sub(1, 217).."..."
 	end
-	pcall(DoNotif, msg, opts.duration or (isRead and 1.5 or 2.25), "MCP")
+	pcall(DoNotif, msg, opts.duration or (isRead and 1.75 or 2.75), "MCP")
 	return true
 end
 
-NAmanage.InstallMCPBridge = NAmanage.InstallMCPBridge or function()
+NAmanage.MCPMeta = function(operation, detail, identity)
+	identity = type(identity) == "table" and identity or NAmanage.MCPIdentitySnapshot()
+	const bridge = type(NAmanage.MCP) == "table" and NAmanage.MCP or {}
+	return {
+		bridge = tostring(bridge.name or "Nameless Admin MCP Bridge"),
+		bridgeVersion = tonumber(bridge.version) or 2,
+		protocolVersion = tostring(bridge.protocolVersion or "2.0"),
+		operation = tostring(operation or ""),
+		detail = detail and tostring(detail) or nil,
+		identityRequired = true,
+		ai = identity,
+		disclosureRequired = identity ~= nil,
+		userDisclosure = NAmanage.MCPIdentityDisclosure(operation, detail, identity),
+	}
+end
+
+NAmanage.MCPAttachMeta = function(payload, operation, detail, identity)
+	if type(payload) ~= "table" then
+		payload = { ok = true, result = payload }
+	end
+	const meta = NAmanage.MCPMeta(operation, detail, identity)
+	payload.mcp = meta
+	if meta.userDisclosure and payload.mustTellUser == nil then
+		payload.mustTellUser = meta.userDisclosure
+	end
+	return payload
+end
+
+NAmanage.MCPRequireIdentity = function(operation)
+	const identity = NAmanage.MCPIdentitySnapshot()
+	if identity then
+		return true, identity
+	end
+	const payload = {
+		ok = false,
+		code = "MCP_AI_IDENTITY_REQUIRED",
+		error = "AI identity required before '"..tostring(operation or "operation").."'. Call identify/handshake with the AI model and MCP tool/client first.",
+		requiredAction = "identify",
+		requiredFields = { "model", "tool" },
+		instructions = NAmanage.MCPAgentInstructions,
+		example = {
+			provider = "OpenAI",
+			model = "<exact model name>",
+			tool = "<MCP/AI tool name>",
+			client = "<client application>",
+		},
+	}
+	NAmanage.MCPNotifyActivity("blocked "..tostring(operation or "operation"), "AI model/tool identity required", { force = true })
+	return false, nil, NAmanage.MCPAttachMeta(payload, operation)
+end
+
+NAmanage.InstallMCPBridge = function()
 	NAStuff.MCP = type(NAStuff.MCP) == "table" and NAStuff.MCP or {}
 	if NAStuff.MCP.allowUIAccess == nil then
 		NAStuff.MCP.allowUIAccess = false
@@ -30594,15 +31078,27 @@ NAmanage.InstallMCPBridge = NAmanage.InstallMCPBridge or function()
 	if NAStuff.MCP.notifyReads == nil then
 		NAStuff.MCP.notifyReads = true
 	end
+	NAStuff.MCP.requireIdentity = true
 
 	const bridge = type(NAmanage.MCP) == "table" and NAmanage.MCP or {}
 	NAmanage.MCP = bridge
 
 	bridge.name = "Nameless Admin MCP Bridge"
-	bridge.version = 1
+	bridge.version = 2
+	bridge.protocolVersion = "2.0"
 	bridge.kind = "nameless-admin"
 	bridge.ready = true
+	bridge.identityRequired = true
+	bridge.requiredIdentityFields = { "model", "tool" }
+	bridge.instructions = NAmanage.MCPAgentInstructions
 	bridge.helpers = {
+		"identify",
+		"handshake",
+		"hello",
+		"whoami",
+		"status",
+		"manifest",
+		"help",
 		"run",
 		"runSequence",
 		"commands",
@@ -30613,21 +31109,141 @@ NAmanage.InstallMCPBridge = NAmanage.InstallMCPBridge or function()
 		"activity",
 		"options",
 		"ping",
+		"disconnectAI",
+	}
+	bridge.capabilities = {
+		commandExecution = true,
+		commandSequences = true,
+		commandDiscovery = true,
+		runtimeSnapshot = true,
+		basicInfo = true,
+		clientLogs = true,
+		uiMetadata = true,
+		uiInstanceAccess = NAStuff.MCP.allowUIAccess == true,
+		activityHistory = true,
+		mandatoryAIIdentity = true,
+		structuredDisclosure = true,
 	}
 
 	bridge.ping = function()
-		return {
+		const identity = NAmanage.MCPIdentitySnapshot()
+		return NAmanage.MCPAttachMeta({
 			ok = true,
 			name = bridge.name,
 			version = bridge.version,
+			protocolVersion = bridge.protocolVersion,
+			kind = bridge.kind,
 			adminName = tostring(adminName or "Nameless Admin"),
 			testing = _na_env and _na_env.NATestingVer == true or false,
+			ready = bridge.ready == true,
+			identityRequired = true,
+			identified = identity ~= nil,
+			requiredIdentityFields = bridge.requiredIdentityFields,
+			helpers = bridge.helpers,
+			capabilities = bridge.capabilities,
+			instructions = bridge.instructions,
 			time = os.time and os.time() or nil,
-		}
+		}, "ping", nil, identity)
+	end
+
+	bridge.manifest = function()
+		const identity = NAmanage.MCPIdentitySnapshot()
+		return NAmanage.MCPAttachMeta({
+			ok = true,
+			name = bridge.name,
+			version = bridge.version,
+			protocolVersion = bridge.protocolVersion,
+			kind = bridge.kind,
+			identityRequired = true,
+			requiredIdentityFields = bridge.requiredIdentityFields,
+			instructions = bridge.instructions,
+			capabilities = bridge.capabilities,
+			tools = {
+				{ name = "identify", aliases = { "handshake", "hello" }, access = "public", description = "Register AI provider/model/tool/client. Model and tool are mandatory." },
+				{ name = "whoami", access = "public", description = "Read the currently registered AI identity." },
+				{ name = "status", access = "public", description = "Read bridge readiness, options and identity state." },
+				{ name = "ping", access = "public", description = "Read protocol/version, helpers, capabilities and handshake requirements." },
+				{ name = "manifest", aliases = { "help" }, access = "public", description = "Describe the bridge contract and available helpers." },
+				{ name = "run", access = "identified", description = "Run one exposed Nameless Admin command." },
+				{ name = "runSequence", access = "identified", description = "Run semicolon/newline-separated commands, with wait/delay steps." },
+				{ name = "commands", access = "identified", description = "Search deterministic command metadata by name, alias, title or description." },
+				{ name = "snapshot", access = "identified", description = "Read runtime management and basic-info snapshots." },
+				{ name = "basicInfo", access = "identified", description = "Read the compact NA/client information snapshot." },
+				{ name = "logs", access = "identified", description = "Read recent client logs using NA log filtering." },
+				{ name = "ui", access = "identified", description = "Read UI metadata; Instance access also requires allowUIAccess." },
+				{ name = "activity", access = "identified", description = "Read recent MCP actions including AI model/tool attribution." },
+				{ name = "options", access = "public-read/identified-write", description = "Read bridge options or mutate supported options after identification." },
+				{ name = "disconnectAI", access = "identified", description = "Clear the active AI identity and require a new handshake." },
+			},
+		}, "manifest", nil, identity)
+	end
+	bridge.help = bridge.manifest
+
+	bridge.identify = function(info)
+		local identity, err = NAmanage.MCPNormalizeIdentity(info)
+		if not identity then
+			return NAmanage.MCPAttachMeta({
+				ok = false,
+				code = "MCP_INVALID_AI_IDENTITY",
+				error = err,
+				requiredFields = { "model", "tool" },
+				instructions = bridge.instructions,
+			}, "identify")
+		end
+		NAStuff.MCP.identity = identity
+		NAStuff.MCP.actor = NAmanage.MCPIdentityLabel(identity)
+		NAmanage.MCPNotifyActivity("AI connected", NAmanage.MCPIdentityLabel(identity), { force = true, identity = identity, duration = 3.5 })
+		const provider = identity.provider ~= "" and (" by "..identity.provider) or ""
+		const disclosure = "Connected to Nameless Admin MCP Bridge through "..identity.tool.." using "..identity.model..provider.."."
+		return NAmanage.MCPAttachMeta({
+			ok = true,
+			identified = true,
+			identity = NAmanage.MCPIdentitySnapshot(),
+			disclosureRequired = true,
+			userDisclosure = disclosure,
+			mustTellUser = disclosure,
+			instructions = bridge.instructions,
+		}, "identify", NAmanage.MCPIdentityLabel(identity), identity)
+	end
+	bridge.handshake = bridge.identify
+	bridge.hello = bridge.identify
+
+	bridge.whoami = function()
+		const identity = NAmanage.MCPIdentitySnapshot()
+		return NAmanage.MCPAttachMeta({
+			ok = identity ~= nil,
+			identified = identity ~= nil,
+			identity = identity,
+			requiredFields = identity and nil or { "model", "tool" },
+			instructions = bridge.instructions,
+		}, "whoami", nil, identity)
+	end
+
+	bridge.status = function()
+		const identity = NAmanage.MCPIdentitySnapshot()
+		bridge.capabilities.uiInstanceAccess = NAStuff.MCP.allowUIAccess == true
+		return NAmanage.MCPAttachMeta({
+			ok = true,
+			ready = bridge.ready == true,
+			identified = identity ~= nil,
+			identity = identity,
+			identityRequired = true,
+			allowUIAccess = NAStuff.MCP.allowUIAccess == true,
+			commandPrediction = NAStuff.MCP.commandPrediction == true,
+			notifyCommands = NAStuff.MCP.notifyCommands == true,
+			notifyReads = NAStuff.MCP.notifyReads == true,
+			helpers = bridge.helpers,
+			capabilities = bridge.capabilities,
+			instructions = bridge.instructions,
+		}, "status", nil, identity)
 	end
 
 	bridge.options = function(nextOptions)
 		if type(nextOptions) == "table" then
+			local allowed, _, denial = NAmanage.MCPRequireIdentity("options")
+			if not allowed then
+				return denial
+			end
 			const changed = {}
 			for key, value in nextOptions do
 				if key == "allowUIAccess" or key == "commandPrediction" or key == "notifyCommands" or key == "notifyReads" then
@@ -30636,8 +31252,8 @@ NAmanage.InstallMCPBridge = NAmanage.InstallMCPBridge or function()
 				elseif key == "notifyActivity" then
 					NAStuff.MCP.notifyCommands = value == true
 					changed[#changed + 1] = "notifyCommands="..tostring(NAStuff.MCP.notifyCommands)
-				elseif key == "actor" or key == "clientName" then
-					NAStuff.MCP.actor = tostring(value or "")
+				elseif key == "actor" then
+					NAStuff.MCP.actor = NAmanage.MCPCleanText(value, 96)
 				end
 			end
 			if #changed > 0 then
@@ -30645,30 +31261,39 @@ NAmanage.InstallMCPBridge = NAmanage.InstallMCPBridge or function()
 				pcall(NAmanage.NASettingsSet, "mcpNotifyReads", NAStuff.MCP.notifyReads == true)
 				pcall(NAmanage.NASettingsSet, "mcpAllowUIAccess", NAStuff.MCP.allowUIAccess == true)
 				pcall(NAmanage.NASettingsSet, "mcpCommandPrediction", NAStuff.MCP.commandPrediction == true)
-				NAmanage.MCPNotifyActivity("options", Concat(changed, ", "), { duration = 2, force = true })
+				bridge.capabilities.uiInstanceAccess = NAStuff.MCP.allowUIAccess == true
+				NAmanage.MCPNotifyActivity("options", Concat(changed, ", "), { duration = 2.5, force = true })
 			end
 		end
-		return {
+		const identity = NAmanage.MCPIdentitySnapshot()
+		return NAmanage.MCPAttachMeta({
+			ok = true,
 			allowUIAccess = NAStuff.MCP.allowUIAccess == true,
 			commandPrediction = NAStuff.MCP.commandPrediction == true,
 			notifyCommands = NAStuff.MCP.notifyCommands == true,
 			notifyActivity = NAStuff.MCP.notifyCommands == true,
 			notifyReads = NAStuff.MCP.notifyReads == true,
-			actor = NAStuff.MCP.actor,
-		}
+			requireIdentity = true,
+			identity = identity,
+		}, "options", nil, identity)
 	end
 
 	bridge.run = function(...)
+		local allowed, identity, denial = NAmanage.MCPRequireIdentity("run")
+		if not allowed then
+			return denial
+		end
 		local argv, argErr = NAmanage.MCPNormalizeArgs(...)
 		if not argv then
 			NAmanage.MCPNotifyActivity("rejected command", argErr or "invalid command")
-			return { ok = false, error = argErr or "invalid command" }
+			return NAmanage.MCPAttachMeta({ ok = false, error = argErr or "invalid command" }, "run", nil, identity)
 		end
 		const commandName = Lower(tostring(argv[1] or ""))
 		const commandExists = (cmds.Commands and cmds.Commands[commandName]) or (cmds.Aliases and cmds.Aliases[commandName])
+		const formatted = NAmanage.MCPFormatCommand(argv)
 		if not commandExists and NAStuff.MCP.commandPrediction ~= true then
 			NAmanage.MCPNotifyActivity("rejected command", tostring(argv[1]).." does not exist")
-			return { ok = false, command = argv, error = "Command '"..tostring(argv[1]).."' does not exist." }
+			return NAmanage.MCPAttachMeta({ ok = false, command = argv, error = "Command '"..tostring(argv[1]).."' does not exist." }, "run", formatted, identity)
 		end
 
 		const oldPrediction = doPREDICTION
@@ -30681,44 +31306,68 @@ NAmanage.InstallMCPBridge = NAmanage.InstallMCPBridge or function()
 		doPREDICTION = oldPrediction
 
 		if not ok then
-			NAmanage.MCPNotifyActivity("command error", NAmanage.MCPFormatCommand(argv).." | "..tostring(result))
-			return { ok = false, command = argv, error = tostring(result) }
+			NAmanage.MCPNotifyActivity("command error", formatted.." | "..tostring(result))
+			return NAmanage.MCPAttachMeta({ ok = false, command = argv, error = tostring(result) }, "run", formatted, identity)
 		end
 		NAStuff._lastMCPCommand = NAmanage.cloneArgsArray(argv)
-		NAmanage.MCPNotifyActivity("ran", NAmanage.MCPFormatCommand(argv), { duration = 2.25 })
-		return { ok = true, command = argv, result = result }
+		NAmanage.MCPNotifyActivity("ran", formatted, { duration = 2.75 })
+		return NAmanage.MCPAttachMeta({ ok = true, command = argv, result = result }, "run", formatted, identity)
 	end
 
 	bridge.runSequence = function(text)
+		local allowed, identity, denial = NAmanage.MCPRequireIdentity("runSequence")
+		if not allowed then
+			return denial
+		end
 		const steps = NAmanage.MCPSplitSequence(text)
 		if #steps == 0 then
 			NAmanage.MCPNotifyActivity("rejected sequence", "no commands provided")
-			return { ok = false, error = "no commands provided" }
+			return NAmanage.MCPAttachMeta({ ok = false, error = "no commands provided" }, "runSequence", nil, identity)
 		end
-		NAmanage.MCPNotifyActivity("sequence", tostring(#steps).." step"..(#steps == 1 and "" or "s"), { duration = 2.25 })
+		NAmanage.MCPNotifyActivity("sequence", tostring(#steps).." step"..(#steps == 1 and "" or "s"), { duration = 2.75 })
 		const results = {}
+		local allOk = true
 		for _, step in steps do
 			const waitSeconds = step:lower():match("^wait%s+([%d%.]+)$")
 				or step:lower():match("^delay%s+([%d%.]+)$")
 			if waitSeconds then
-				Wait(math.max(0, tonumber(waitSeconds) or 0))
-				results[#results + 1] = { ok = true, wait = tonumber(waitSeconds) or 0 }
+				const seconds = math.max(0, tonumber(waitSeconds) or 0)
+				Wait(seconds)
+				results[#results + 1] = { ok = true, wait = seconds }
 			else
-				results[#results + 1] = bridge.run(step)
+				const result = bridge.run(step)
+				results[#results + 1] = result
+				if type(result) ~= "table" or result.ok ~= true then
+					allOk = false
+				end
 			end
 		end
-		return { ok = true, count = #results, results = results }
+		return NAmanage.MCPAttachMeta({ ok = allOk, count = #results, results = results }, "runSequence", tostring(#steps).." steps", identity)
 	end
 
 	bridge.commands = function(filter, limit)
-		NAmanage.MCPNotifyActivity("listed commands", tostring(filter or "all").." / "..tostring(limit or 250), { read = true })
-		return {
+		local allowed, identity, denial = NAmanage.MCPRequireIdentity("commands")
+		if not allowed then
+			return denial
+		end
+		const normalizedFilter = tostring(filter or "")
+		const normalizedLimit = math.clamp(math.floor(tonumber(limit) or 250), 1, 1000)
+		NAmanage.MCPNotifyActivity("listed commands", (normalizedFilter ~= "" and normalizedFilter or "all").." / "..tostring(normalizedLimit), { read = true })
+		const list = NAmanage.MCPCommandList(normalizedFilter, normalizedLimit)
+		return NAmanage.MCPAttachMeta({
 			ok = true,
-			commands = NAmanage.MCPCommandList(filter, limit),
-		}
+			filter = normalizedFilter,
+			limit = normalizedLimit,
+			count = #list,
+			commands = list,
+		}, "commands", normalizedFilter ~= "" and normalizedFilter or "all", identity)
 	end
 
 	bridge.snapshot = function()
+		local allowed, identity, denial = NAmanage.MCPRequireIdentity("snapshot")
+		if not allowed then
+			return denial
+		end
 		NAmanage.MCPNotifyActivity("read snapshot", "", { read = true })
 		const out = { ok = true }
 		if type(NAmanage.GetManagementSnapshot) == "function" then
@@ -30727,29 +31376,48 @@ NAmanage.InstallMCPBridge = NAmanage.InstallMCPBridge or function()
 		if type(NAmanage.GetBasicInfoSnapshot) == "function" then
 			out.basicInfo = NAmanage.GetBasicInfoSnapshot()
 		end
-		return out
+		return NAmanage.MCPAttachMeta(out, "snapshot", nil, identity)
 	end
 
 	bridge.basicInfo = function()
+		local allowed, identity, denial = NAmanage.MCPRequireIdentity("basicInfo")
+		if not allowed then
+			return denial
+		end
 		if type(NAmanage.GetBasicInfoSnapshot) ~= "function" then
 			NAmanage.MCPNotifyActivity("basic info error", "unavailable", { read = true })
-			return { ok = false, error = "basic info unavailable" }
+			return NAmanage.MCPAttachMeta({ ok = false, error = "basic info unavailable" }, "basicInfo", nil, identity)
 		end
 		NAmanage.MCPNotifyActivity("read basic info", "", { read = true })
-		return { ok = true, basicInfo = NAmanage.GetBasicInfoSnapshot() }
+		return NAmanage.MCPAttachMeta({ ok = true, basicInfo = NAmanage.GetBasicInfoSnapshot() }, "basicInfo", nil, identity)
 	end
 
 	bridge.logs = function(limit, filter)
+		local allowed, identity, denial = NAmanage.MCPRequireIdentity("logs")
+		if not allowed then
+			return denial
+		end
 		if type(NAmanage.GetRecentClientLogs) ~= "function" then
 			NAmanage.MCPNotifyActivity("logs error", "unavailable", { read = true })
-			return { ok = false, error = "client logs unavailable" }
+			return NAmanage.MCPAttachMeta({ ok = false, error = "client logs unavailable" }, "logs", nil, identity)
 		end
-		NAmanage.MCPNotifyActivity("read logs", tostring(filter or "All").." / "..tostring(limit or 100), { read = true })
-		local ok, payload, count = NAmanage.GetRecentClientLogs(limit or 100, filter or "All")
-		return { ok = ok == true, logs = payload, count = count, error = ok == true and nil or payload }
+		const normalizedLimit = math.clamp(math.floor(tonumber(limit) or 100), 1, 1000)
+		const normalizedFilter = tostring(filter or "All")
+		NAmanage.MCPNotifyActivity("read logs", normalizedFilter.." / "..tostring(normalizedLimit), { read = true })
+		local ok, payload, count = NAmanage.GetRecentClientLogs(normalizedLimit, normalizedFilter)
+		return NAmanage.MCPAttachMeta({
+			ok = ok == true,
+			logs = payload,
+			count = count,
+			error = ok == true and nil or payload,
+		}, "logs", normalizedFilter.." / "..tostring(normalizedLimit), identity)
 	end
 
 	bridge.ui = function()
+		local allowed, identity, denial = NAmanage.MCPRequireIdentity("ui")
+		if not allowed then
+			return denial
+		end
 		NAmanage.MCPNotifyActivity("requested UI", NAStuff.MCP.allowUIAccess == true and "access granted" or "access denied", { read = true })
 		const gui = NAmanage.getUI and NAmanage.getUI() or nil
 		const info = {
@@ -30766,10 +31434,14 @@ NAmanage.InstallMCPBridge = NAmanage.InstallMCPBridge or function()
 				info.instance = gui
 			end
 		end
-		return info
+		return NAmanage.MCPAttachMeta(info, "ui", NAStuff.MCP.allowUIAccess == true and "instance access enabled" or "metadata only", identity)
 	end
 
 	bridge.activity = function(limit)
+		local allowed, identity, denial = NAmanage.MCPRequireIdentity("activity")
+		if not allowed then
+			return denial
+		end
 		const history = type(NAStuff.MCP) == "table" and type(NAStuff.MCP.history) == "table" and NAStuff.MCP.history or {}
 		const maxItems = math.clamp(math.floor(tonumber(limit) or 25), 1, 100)
 		const out = {}
@@ -30783,10 +31455,48 @@ NAmanage.InstallMCPBridge = NAmanage.InstallMCPBridge or function()
 					detail = item.detail,
 					read = item.read == true,
 					actor = item.actor,
+					identity = type(item.identity) == "table" and item.identity or nil,
+					provider = item.provider,
+					model = item.model,
+					tool = item.tool,
+					client = item.client,
+					sessionId = item.sessionId,
 				}
 			end
 		end
-		return { ok = true, activity = out, count = #history }
+		NAmanage.MCPNotifyActivity("read activity", tostring(#out).." item"..(#out == 1 and "" or "s"), { read = true })
+		return NAmanage.MCPAttachMeta({ ok = true, activity = out, returned = #out, count = #history }, "activity", tostring(#out).." items", identity)
+	end
+
+	bridge.disconnectAI = function()
+		local allowed, identity, denial = NAmanage.MCPRequireIdentity("disconnectAI")
+		if not allowed then
+			return denial
+		end
+		const label = NAmanage.MCPIdentityLabel(identity)
+		const disclosure = "Disconnected "..label.." from Nameless Admin MCP Bridge. A new model/tool handshake is required before further operational access."
+		NAmanage.MCPNotifyActivity("AI disconnected", label, { force = true, identity = identity, duration = 3 })
+		NAStuff.MCP.identity = nil
+		NAStuff.MCP.actor = ""
+		const payload = {
+			ok = true,
+			disconnected = identity,
+			identityRequired = true,
+			disclosureRequired = true,
+			userDisclosure = disclosure,
+			mustTellUser = disclosure,
+		}
+		payload.mcp = {
+			bridge = bridge.name,
+			bridgeVersion = bridge.version,
+			protocolVersion = bridge.protocolVersion,
+			operation = "disconnectAI",
+			identityRequired = true,
+			ai = identity,
+			disclosureRequired = true,
+			userDisclosure = disclosure,
+		}
+		return payload
 	end
 
 	for _, target in { _na_env, _na_shared, _na_boot.runtimeEnv, _na_boot.hostEnv } do
@@ -88152,12 +88862,77 @@ NAStuff.airwalk = {
 	},
 	connections = {},
 	guis = {},
+	mouse = nil,
+	previousTargetFilter = nil,
+	targetFilterPart = nil,
+	targetFilterCaptured = false,
 }
+
+NAmanage.AirwalkRestoreTargetFilter = function()
+	const state = NAStuff.airwalk
+	const mouse = state and state.mouse
+	if state and state.targetFilterCaptured == true and mouse then
+		pcall(function()
+			const current = mouse.TargetFilter
+			if current == state.targetFilterPart or current == nil then
+				mouse.TargetFilter = state.previousTargetFilter
+			end
+		end)
+	end
+	if state then
+		state.mouse = nil
+		state.previousTargetFilter = nil
+		state.targetFilterPart = nil
+		state.targetFilterCaptured = false
+	end
+end
+
+NAmanage.AirwalkApplyTargetFilter = function(part)
+	NAmanage.AirwalkRestoreTargetFilter()
+	if typeof(part) ~= "Instance" or not part:IsA("BasePart") then
+		return false
+	end
+	const player = Services.Players and Services.Players.LocalPlayer
+	if not player then
+		return false
+	end
+	local mouse
+	local okMouse = pcall(function()
+		mouse = type(NAmanage.GetMouse) == "function" and NAmanage.GetMouse(player) or player:GetMouse()
+	end)
+	if not okMouse or not mouse then
+		return false
+	end
+	local previous
+	const okRead = pcall(function()
+		previous = mouse.TargetFilter
+	end)
+	if not okRead then
+		return false
+	end
+	const state = NAStuff.airwalk
+	state.mouse = mouse
+	state.previousTargetFilter = previous
+	state.targetFilterPart = part
+	state.targetFilterCaptured = true
+	const okSet = pcall(function()
+		mouse.TargetFilter = part
+	end)
+	if not okSet then
+		state.mouse = nil
+		state.previousTargetFilter = nil
+		state.targetFilterPart = nil
+		state.targetFilterCaptured = false
+		return false
+	end
+	return true
+end
 
 cmd.add({"airwalk", "float", "aw"}, {"airwalk (float, aw)", "Press space to go up, unairwalk to stop"}, function()
 	DebugNotif(IsOnMobile and "Airwalk: ON" or "Airwalk: ON (Q And E)")
 	if Airwalker then Airwalker:Disconnect() Airwalker = nil end
 	NAlib.disconnect("airwalk_loop")
+	NAmanage.AirwalkRestoreTargetFilter()
 	if awPart then awPart:Destroy() awPart = nil end
 	for _, conn in NAStuff.airwalk.connections do
 		if conn then conn:Disconnect() end
@@ -88240,6 +89015,7 @@ cmd.add({"airwalk", "float", "aw"}, {"airwalk (float, aw)", "Press space to go u
 	awPart.Transparency = 1
 	awPart.Anchored = true
 	awPart.CanCollide = true
+	NAmanage.AirwalkApplyTargetFilter(awPart)
 
 	Airwalker = NAlib.reconnect("airwalk_loop", Services.RunService.RenderStepped:Connect(function()
 		if not awPart then Airwalker:Disconnect() return end
@@ -88274,6 +89050,7 @@ end)
 cmd.add({"unairwalk", "unfloat", "unaw"}, {"unairwalk (unfloat, unaw)", "Stops the airwalk command"}, function()
 	if Airwalker then Airwalker:Disconnect() Airwalker = nil end
 	NAlib.disconnect("airwalk_loop")
+	NAmanage.AirwalkRestoreTargetFilter()
 	if awPart then awPart:Destroy() awPart = nil end
 	for _, conn in NAStuff.airwalk.connections do
 		if conn then conn:Disconnect() end
@@ -149289,6 +150066,30 @@ NAgui.addToggle("MCP Command Prediction", NAStuff.MCP and NAStuff.MCP.commandPre
 end)
 NAmanage.RegisterToggleAutoSync("MCP Command Prediction", function()
 	return type(NAStuff.MCP) == "table" and NAStuff.MCP.commandPrediction == true
+end)
+
+NAgui.addInfo("MCP AI Identity", "Model + AI/MCP tool handshake is mandatory before MCP commands, reads, logs, snapshots, or UI access.")
+
+NAgui.addButton("Show MCP AI Identity", function()
+	const identity = type(NAmanage.MCPIdentitySnapshot) == "function" and NAmanage.MCPIdentitySnapshot() or nil
+	if not identity then
+		DoNotif("No AI is identified. Operational MCP helpers are blocked until identify/handshake provides model + tool.", 4, "MCP AI Identity")
+		return
+	end
+	const provider = identity.provider ~= "" and identity.provider or "Unknown"
+	const client = identity.client ~= "" and identity.client or "Unknown"
+	DoNotif("Tool: "..identity.tool.."\nModel: "..identity.model.."\nClient: "..client.."\nProvider: "..provider, 5, "MCP AI Identity")
+end)
+
+NAgui.addButton("Reset MCP AI Identity", function()
+	NAStuff.MCP = type(NAStuff.MCP) == "table" and NAStuff.MCP or {}
+	const identity = type(NAmanage.MCPIdentitySnapshot) == "function" and NAmanage.MCPIdentitySnapshot() or nil
+	if identity and type(NAmanage.MCPNotifyActivity) == "function" then
+		pcall(NAmanage.MCPNotifyActivity, "AI identity reset", NAmanage.MCPIdentityLabel(identity), { force = true, identity = identity, duration = 3 })
+	end
+	NAStuff.MCP.identity = nil
+	NAStuff.MCP.actor = ""
+	DoNotif("MCP AI identity cleared. The next operational helper must identify its model + tool again.", 3.5, "MCP AI Identity")
 end)
 
 NAgui.addSection("Runtime Dashboard")
