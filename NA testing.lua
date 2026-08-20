@@ -2319,6 +2319,12 @@ local NAStuff = {
 	CmdIntegrationExposeGateway = true;
 	CmdIntegrationUseNotifications = true;
 	CmdIntegrationMirrorNotifications = false;
+	IYIntegrationAutoRun = false;
+	IYIntegrationLoaded = false;
+	IYIntegrationLastSource = nil;
+	IYIntegrationRoutingMode = "NA First";
+	IYIntegrationExposeGateway = true;
+	IYIntegrationMirrorNotifications = false;
 	cmdAutofillLoading = false;
 	cmdAutofillLoadRequested = false;
 	uiBootHidden = false;
@@ -8982,6 +8988,7 @@ opt={
 	NAUILOADER='';
 	NAAUTOSCALER=nil;
 	cmdIntegrationUrl = "https://raw.githubusercontent.com/yeku/cmd/refs/heads/main/Source.luau";
+	iyIntegrationUrl = "https://raw.githubusercontent.com/edgeiy/infiniteyield/master/source";
 	NAREQUEST = nil;
 	queueteleport=(syn and syn.queue_on_teleport) or queue_on_teleport or (fluxus and fluxus.queue_on_teleport) or function() end;
 	hiddenprop=(sethiddenproperty or set_hidden_property or set_hidden_prop) or function() end;
@@ -10519,6 +10526,622 @@ NAmanage.detectCmdManualLoad=function(opts)
 		end;
 	}
 	return NAmanage.CmdIntegrationApplyBridge(bridge, "manual-detect", opts)
+end
+
+NAmanage.IYIntegrationModes = NAmanage.IYIntegrationModes or { "NA First", "IY First", "Explicit Only" }
+
+NAmanage.IYIntegrationNormalizeMode = function(value)
+	value = tostring(value or "NA First")
+	for _, mode in NAmanage.IYIntegrationModes do
+		if Lower(mode) == Lower(value) then
+			return mode
+		end
+	end
+	return "NA First"
+end
+
+NAmanage.IYIntegrationGetMethod = function(bridge, names)
+	if type(bridge) ~= "table" then return nil end
+	for _, name in names do
+		const callback = bridge[name]
+		if type(callback) == "function" then return callback end
+	end
+	return nil
+end
+
+NAmanage.IYIntegrationFindExistingBridge = function()
+	for _, target in { _na_env, _na_shared, _na_boot and _na_boot.runtimeEnv, _na_boot and _na_boot.hostEnv, type(getgenv) == "function" and getgenv() or nil, _G } do
+		if type(target) == "table" then
+			const bridge = rawget(target, "IYIntegration") or rawget(target, "IYBridge") or rawget(target, "InfiniteYieldIntegration") or rawget(target, "InfiniteYieldBridge")
+			if type(bridge) == "table" then
+				const listMethod = NAmanage.IYIntegrationGetMethod(bridge, { "ListCommands", "listCommands", "list" })
+				const runMethod = NAmanage.IYIntegrationGetMethod(bridge, { "RunCommand", "runCommand", "Parse", "parse" })
+				if type(listMethod) == "function" and type(runMethod) == "function" then return bridge end
+			end
+		end
+	end
+	return nil
+end
+
+NAmanage.IYIntegrationFindUI = function()
+	const roots = {}
+	if Services.CoreGui then roots[#roots + 1] = Services.CoreGui end
+	const playerGui = Services.Players and Services.Players.LocalPlayer and Services.Players.LocalPlayer:FindFirstChildOfClass("PlayerGui")
+	if playerGui then roots[#roots + 1] = playerGui end
+	for _, root in roots do
+		local ok, descendants = pcall(root.GetDescendants, root)
+		if ok and type(descendants) == "table" then
+			for _, node in descendants do
+				if node:IsA("TextLabel") and type(node.Text) == "string" and node.Text:match("^Infinite Yield FE v") then
+					const holder = node.Parent
+					const commands = holder and holder:FindFirstChild("CMDs")
+					const commandBar = holder and holder:FindFirstChild("Cmdbar")
+					local input = commandBar
+					if typeof(input) ~= "Instance" or not input:IsA("TextBox") then
+						input = commandBar and commandBar:FindFirstChildWhichIsA("TextBox", true) or nil
+					end
+					if holder and commands and commands:IsA("GuiObject") and input and input:IsA("TextBox") then
+						return { holder = holder; commands = commands; input = input; title = node; root = root; }
+					end
+				end
+			end
+		end
+	end
+	return nil
+end
+
+NAmanage.IYIntegrationParseDisplayCommand = function(text, description)
+	text = tostring(text or ""):match("^%s*(.-)%s*$") or ""
+	if text == "" then return nil end
+	const arguments = {}
+	for hint in text:gmatch("%[([^%]]+)%]") do
+		hint = tostring(hint or ""):match("^%s*(.-)%s*$") or ""
+		if hint ~= "" then arguments[#arguments + 1] = { name = hint; type = "String"; } end
+	end
+	local head = text:match("^([^%[]+)") or text
+	head = head:gsub("%s*%([^%)]*%)%s*$", "")
+	const names = {}
+	for part in head:gmatch("[^/]+") do
+		part = tostring(part or ""):match("^%s*(.-)%s*$") or ""
+		part = part:gsub("%s*%([^%)]*%)%s*$", "")
+		const token = part:match("^([^%s]+)")
+		if token and token ~= "" then names[#names + 1] = token end
+	end
+	if #names == 0 then return nil end
+	const aliases = {}
+	const seen = { [Lower(names[1])] = true }
+	for index = 2, #names do
+		const alias = names[index]
+		const key = Lower(alias)
+		if alias ~= "" and not seen[key] then seen[key] = true; aliases[#aliases + 1] = alias end
+	end
+	return {
+		name = names[1];
+		aliases = aliases;
+		desc = tostring(description or "");
+		usage = text;
+		arguments = arguments;
+		requiresArguments = #arguments > 0;
+		plugin = false;
+	}
+end
+
+NAmanage.IYIntegrationBuildUIBridge = function(ui)
+	ui = type(ui) == "table" and ui or NAmanage.IYIntegrationFindUI()
+	if type(ui) ~= "table" or typeof(ui.commands) ~= "Instance" or typeof(ui.input) ~= "Instance" then return nil, "iy-ui-unavailable" end
+	const bridge = { Protocol = 2; protocol = 2; Name = "Infinite Yield"; name = "Infinite Yield"; Kind = "InfiniteYieldUI"; kind = "InfiniteYieldUI"; uiOnly = true; }
+	const virtualPrimary = {}
+	const virtualLookup = {}
+	local virtualFocusConnection = nil
+	local virtualTextConnection = nil
+	local virtualKeyConnection = nil
+	local virtualLastText = tostring(ui.input.Text or "")
+	local virtualLastRunText = ""
+	local virtualLastRunAt = 0
+	const function currentPrefix()
+		local placeholder = tostring(ui.input and ui.input.PlaceholderText or "")
+		return placeholder:match("%((.-)%)%s*$") or ";"
+	end
+	const function stripPrefix(line)
+		line = tostring(line or "")
+		const pfx = currentPrefix()
+		if pfx ~= "" and line:sub(1, #pfx) == pfx then return line:sub(#pfx + 1) end
+		return line
+	end
+	const function runVirtualLine(rawLine)
+		local line = stripPrefix(rawLine)
+		line = tostring(line or ""):match("^%s*(.-)%s*$") or ""
+		if line == "" then return false end
+		const now = os.clock()
+		if line == virtualLastRunText and now - virtualLastRunAt < 0.2 then return false end
+		const args = {}
+		for token in line:gmatch("%S+") do args[#args + 1] = token end
+		const first = args[1] and Lower(args[1]) or ""
+		const entry = first ~= "" and virtualLookup[first] or nil
+		if not entry then return false end
+		virtualLastRunText = line
+		virtualLastRunAt = now
+		table.remove(args, 1)
+		Defer(function()
+			local ok, accepted, result = pcall(entry.callback, table.unpack(args))
+			if not ok then
+				warn("Infinite Yield virtual command error:", tostring(entry.name), tostring(accepted))
+			elseif accepted == false then
+				warn("Infinite Yield virtual command failed:", tostring(entry.name), tostring(result or "unknown error"))
+			end
+		end)
+		return true
+	end
+	const function ensureVirtualFocus()
+		if virtualTextConnection == nil then
+			virtualTextConnection = ui.input:GetPropertyChangedSignal("Text"):Connect(function()
+				const current = tostring(ui.input.Text or "")
+				if current ~= "" then virtualLastText = current end
+			end)
+		end
+		if virtualKeyConnection == nil and Services.UserInputService then
+			virtualKeyConnection = Services.UserInputService.InputBegan:Connect(function(input)
+				if not input or not ui.input:IsFocused() then return end
+				if input.KeyCode == Enum.KeyCode.Return or input.KeyCode == Enum.KeyCode.KeypadEnter then
+					runVirtualLine(virtualLastText ~= "" and virtualLastText or ui.input.Text)
+				end
+			end)
+		end
+		if virtualFocusConnection == nil then
+			virtualFocusConnection = ui.input.FocusLost:Connect(function(enterPressed)
+				if enterPressed then runVirtualLine(virtualLastText ~= "" and virtualLastText or ui.input.Text) end
+			end)
+		end
+	end
+	const function maybeDisconnectVirtualFocus()
+		if next(virtualPrimary) ~= nil then return end
+		for _, connection in { virtualFocusConnection, virtualTextConnection, virtualKeyConnection } do
+			if connection then pcall(connection.Disconnect, connection) end
+		end
+		virtualFocusConnection = nil
+		virtualTextConnection = nil
+		virtualKeyConnection = nil
+		virtualLastText = ""
+	end
+	const function listCommands()
+		const result = {}
+		for _, child in ui.commands:GetChildren() do
+			if child:IsA("TextButton") and child.TextTransparency < 1 then
+				const info = NAmanage.IYIntegrationParseDisplayCommand(child:GetAttribute("Title") or child.Text, child:GetAttribute("Desc"))
+				if info then result[#result + 1] = info end
+			end
+		end
+		for _, entry in virtualPrimary do
+			result[#result + 1] = {
+				name = entry.name;
+				aliases = entry.aliases;
+				desc = entry.desc;
+				usage = entry.name;
+				arguments = entry.arguments;
+				requiresArguments = #entry.arguments > 0;
+				plugin = true;
+			}
+		end
+		table.sort(result, function(a, b) return Lower(a.name) < Lower(b.name) end)
+		return result
+	end
+	const function parseLine(inputLine)
+		if not (ui.input and ui.input.Parent) then return false, "command-bar-unavailable" end
+		local ok, err = pcall(function()
+			ui.input:CaptureFocus()
+			ui.input.Text = tostring(inputLine or "")
+			ui.input.CursorPosition = #ui.input.Text + 1
+			ui.input:ReleaseFocus(true)
+		end)
+		if not ok then return false, tostring(err) end
+		return true, "submitted"
+	end
+	bridge.ListCommands = listCommands
+	bridge.listCommands = listCommands
+	bridge.list = listCommands
+	bridge.Parse = parseLine
+	bridge.parse = parseLine
+	bridge.HasCommand = function(name)
+		name = Lower(tostring(name or ""))
+		if name == "" then return false end
+		if virtualLookup[name] then return true end
+		for _, info in listCommands() do
+			if Lower(tostring(info.name or "")) == name then return true end
+			for _, alias in type(info.aliases) == "table" and info.aliases or {} do if Lower(tostring(alias or "")) == name then return true end end
+		end
+		return false
+	end
+	bridge.hasCommand = bridge.HasCommand
+	bridge.RunCommand = function(name, args)
+		const key = Lower(tostring(name or ""))
+		const virtual = virtualLookup[key]
+		const values = {}
+		for _, value in type(args) == "table" and args or {} do values[#values + 1] = tostring(value or "") end
+		if virtual then
+			local ok, accepted, result = pcall(virtual.callback, table.unpack(values))
+			if not ok then return false, tostring(accepted) end
+			if accepted == false then return false, tostring(result or "virtual-command-failed") end
+			return true, result ~= nil and result or accepted
+		end
+		local line = tostring(name or "")
+		if #values > 0 then line ..= " "..Concat(values, " ") end
+		return parseLine(line)
+	end
+	bridge.runCommand = bridge.RunCommand
+	bridge.AddCommand = function(info)
+		if type(info) ~= "table" then return false, "invalid-command" end
+		local name = tostring(info.Name or info.name or "")
+		if name == "" then return false, "missing-command-name" end
+		const callback = info.Task or info.task or info.Callback or info.callback or info.Function or info.func
+		if type(callback) ~= "function" then return false, "missing-command-callback" end
+		const aliases = {}
+		const entry = { name = name; aliases = aliases; callback = callback; desc = tostring(info.Description or info.description or ""); arguments = type(info.Arguments or info.arguments) == "table" and (info.Arguments or info.arguments) or {}; }
+		virtualPrimary[Lower(name)] = entry
+		virtualLookup[Lower(name)] = entry
+		for _, alias in type(info.Aliases or info.aliases) == "table" and (info.Aliases or info.aliases) or {} do
+			alias = tostring(alias or "")
+			if alias ~= "" then aliases[#aliases + 1] = alias; virtualLookup[Lower(alias)] = entry end
+		end
+		ensureVirtualFocus()
+		return true, name
+	end
+	bridge.addCommand = bridge.AddCommand
+	bridge.RemoveCommand = function(name)
+		const key = Lower(tostring(name or ""))
+		const entry = virtualLookup[key]
+		if not entry then return false, "command-not-found" end
+		virtualPrimary[Lower(entry.name)] = nil
+		virtualLookup[Lower(entry.name)] = nil
+		for _, alias in entry.aliases do virtualLookup[Lower(alias)] = nil end
+		maybeDisconnectVirtualFocus()
+		return true, entry.name
+	end
+	bridge.removeCommand = bridge.RemoveCommand
+	bridge.GetState = function()
+		local version = "unknown"
+		if ui.title and type(ui.title.Text) == "string" then version = ui.title.Text:match("v([^%s]+)") or version end
+		return { name = "Infinite Yield"; version = version; protocol = 2; prefix = currentPrefix(); commandCount = #listCommands(); commandBarAvailable = ui.input and ui.input.Parent ~= nil; uiVisible = ui.holder and ui.holder.Visible ~= false; uiOnly = true; }
+	end
+	bridge.getState = bridge.GetState
+	bridge.OpenCommandBar = function()
+		if not (ui.input and ui.input.Parent) then return false, "command-bar-unavailable" end
+		if ui.holder then ui.holder.Visible = true end
+		local ok, err = pcall(function() ui.input:CaptureFocus() end)
+		return ok, err
+	end
+	bridge.openCommandBar = bridge.OpenCommandBar
+	bridge.open = bridge.OpenCommandBar
+	bridge.GetUI = function() return ui.holder end
+	bridge.getUI = bridge.GetUI
+	bridge.Subscribe = function(event, callback)
+		if event ~= "commandsChanged" or type(callback) ~= "function" then return nil end
+		const bag = {}
+		bag[#bag + 1] = ui.commands.ChildAdded:Connect(function(child)
+			if child:IsA("TextButton") then Defer(callback, { Action = "add"; }) end
+		end)
+		bag[#bag + 1] = ui.commands.ChildRemoved:Connect(function(child)
+			if child:IsA("TextButton") then Defer(callback, { Action = "remove"; }) end
+		end)
+		return { Disconnect = function() for _, connection in bag do pcall(connection.Disconnect, connection) end end; }
+	end
+	bridge.subscribe = bridge.Subscribe
+	bridge.on = bridge.Subscribe
+	bridge.Destroy = function()
+		for _, connection in { virtualFocusConnection, virtualTextConnection, virtualKeyConnection } do
+			if connection then pcall(connection.Disconnect, connection) end
+		end
+		virtualFocusConnection = nil
+		virtualTextConnection = nil
+		virtualKeyConnection = nil
+		table.clear(virtualPrimary)
+		table.clear(virtualLookup)
+	end
+	bridge.destroy = bridge.Destroy
+	return bridge
+end
+
+NAmanage.IYIntegrationBuildRuntimeBridge = function(runtime)
+	if type(runtime) ~= "table" or type(runtime.cmds) ~= "table" or type(runtime.execCmd) ~= "function" then return nil, "iy-runtime-unavailable" end
+	const bridge = { Protocol = 2; protocol = 2; Name = "Infinite Yield"; name = "Infinite Yield"; Kind = "InfiniteYieldRuntime"; kind = "InfiniteYieldRuntime"; runtimeCaptured = true; }
+	const function listCommands()
+		const meta = {}
+		if type(runtime.CMDs) == "table" then
+			for _, display in runtime.CMDs do
+				if type(display) == "table" then
+					const info = NAmanage.IYIntegrationParseDisplayCommand(display.NAME, display.DESC)
+					if info then
+						meta[Lower(info.name)] = info
+						for _, alias in info.aliases do meta[Lower(alias)] = info end
+					end
+				end
+			end
+		end
+		const result = {}
+		for _, entry in runtime.cmds do
+			if type(entry) == "table" then
+				const name = tostring(entry.NAME or "")
+				if name ~= "" then
+					const aliases = {}
+					for _, alias in type(entry.ALIAS) == "table" and entry.ALIAS or {} do aliases[#aliases + 1] = tostring(alias or "") end
+					local info = meta[Lower(name)]
+					if not info then for _, alias in aliases do info = meta[Lower(alias)]; if info then break end end end
+					result[#result + 1] = { name = name; aliases = aliases; desc = info and info.desc or ""; usage = info and info.usage or name; arguments = info and info.arguments or {}; requiresArguments = info and info.requiresArguments or false; plugin = entry.PLUGIN ~= nil and entry.PLUGIN ~= false; }
+				end
+			end
+		end
+		table.sort(result, function(a, b) return Lower(a.name) < Lower(b.name) end)
+		return result
+	end
+	bridge.ListCommands = listCommands
+	bridge.listCommands = listCommands
+	bridge.list = listCommands
+	bridge.Parse = function(line)
+		local ok, err = pcall(runtime.execCmd, tostring(line or ""), Services.Players and Services.Players.LocalPlayer, true)
+		if not ok then return false, tostring(err) end
+		return true, "scheduled"
+	end
+	bridge.parse = bridge.Parse
+	bridge.RunCommand = function(name, args)
+		local line = tostring(name or "")
+		const values = {}
+		for _, value in type(args) == "table" and args or {} do values[#values + 1] = tostring(value or "") end
+		if #values > 0 then line ..= " "..Concat(values, " ") end
+		return bridge.Parse(line)
+	end
+	bridge.runCommand = bridge.RunCommand
+	bridge.HasCommand = function(name)
+		if type(runtime.findCmd) ~= "function" then return false end
+		local ok, result = pcall(runtime.findCmd, tostring(name or ""))
+		return ok and result ~= nil
+	end
+	bridge.hasCommand = bridge.HasCommand
+	bridge.AddCommand = function(info)
+		if type(runtime.addcmd) ~= "function" or type(info) ~= "table" then return false, "dynamic-commands-unavailable" end
+		local name = tostring(info.Name or info.name or "")
+		const aliases = {}
+		for _, alias in type(info.Aliases or info.aliases) == "table" and (info.Aliases or info.aliases) or {} do if tostring(alias or "") ~= "" then aliases[#aliases + 1] = tostring(alias) end end
+		if name == "" then return false, "missing-command-name" end
+		const callback = info.Task or info.task or info.Callback or info.callback or info.Function or info.func
+		if type(callback) ~= "function" then return false, "missing-command-callback" end
+		local ok, err = pcall(runtime.addcmd, name, aliases, function(args) return callback(table.unpack(type(args) == "table" and args or {})) end, true)
+		return ok, ok and name or err
+	end
+	bridge.addCommand = bridge.AddCommand
+	bridge.RemoveCommand = function(name)
+		if type(runtime.removecmd) ~= "function" then return false, "dynamic-commands-unavailable" end
+		local ok, err = pcall(runtime.removecmd, tostring(name or ""))
+		return ok, ok and tostring(name or "") or err
+	end
+	bridge.removeCommand = bridge.RemoveCommand
+	bridge.GetState = function() return { name = "Infinite Yield"; version = tostring(runtime.currentVersion or "unknown"); protocol = 2; commandCount = #listCommands(); runtimeCaptured = true; } end
+	bridge.getState = bridge.GetState
+	local ui = NAmanage.IYIntegrationFindUI()
+	if type(ui) == "table" then
+		const uiBridge = NAmanage.IYIntegrationBuildUIBridge(ui)
+		if type(uiBridge) == "table" then
+			bridge.OpenCommandBar = uiBridge.OpenCommandBar
+			bridge.openCommandBar = uiBridge.openCommandBar
+			bridge.open = uiBridge.open
+			bridge.GetUI = uiBridge.GetUI
+			bridge.getUI = uiBridge.getUI
+			bridge.Subscribe = uiBridge.Subscribe
+			bridge.subscribe = uiBridge.subscribe
+			bridge.on = uiBridge.on
+		end
+	end
+	return bridge
+end
+
+NAmanage.IYIntegrationDisconnectSubscriptions = function()
+	const subscriptions = NAStuff.IYIntegrationSubscriptions
+	if type(subscriptions) == "table" then
+		for key, subscription in subscriptions do
+			if type(subscription) == "function" then pcall(subscription)
+			elseif type(subscription) == "table" and type(subscription.Disconnect) == "function" then pcall(subscription.Disconnect, subscription)
+			elseif typeof(subscription) == "RBXScriptConnection" then pcall(subscription.Disconnect, subscription) end
+			subscriptions[key] = nil
+		end
+	end
+	NAStuff.IYIntegrationSubscriptions = {}
+end
+
+NAmanage.IYIntegrationRefresh = function(opts)
+	opts = opts or {}
+	const bridge = opts.bridge or NAStuff.IYIntegrationBridge
+	if type(bridge) ~= "table" then return false, "bridge-unavailable" end
+	const listMethod = NAmanage.IYIntegrationGetMethod(bridge, { "ListCommands", "listCommands", "list" })
+	if type(listMethod) ~= "function" then return false, "command-list-unavailable" end
+	local okList, rawList = pcall(listMethod)
+	if not okList or type(rawList) ~= "table" then return false, tostring(rawList or "command-list-failed") end
+	const normalized, commandSet = {}, {}
+	for _, info in rawList do
+		if type(info) == "table" then
+			const name = tostring(info.name or info.Name or "")
+			if name ~= "" then
+				const aliases, seen = {}, {}
+				for _, alias in type(info.aliases or info.Aliases) == "table" and (info.aliases or info.Aliases) or {} do
+					const value = tostring(alias or "")
+					const key = Lower(value)
+					if value ~= "" and not seen[key] then seen[key] = true; aliases[#aliases + 1] = value; commandSet[key] = name end
+				end
+				commandSet[Lower(name)] = name
+				normalized[#normalized + 1] = { name = name; aliases = aliases; desc = tostring(info.desc or info.description or info.Description or ""); arguments = type(info.arguments or info.Arguments) == "table" and (info.arguments or info.Arguments) or {}; plugin = info.plugin == true or info.Plugin == true; origin = "iy"; }
+			end
+		end
+	end
+	table.sort(normalized, function(a, b) return Lower(a.name) < Lower(b.name) end)
+	NAStuff.IYIntegrationCommands = normalized
+	NAStuff.IYIntegrationCommandSet = commandSet
+	if type(NAmanage.invalidateCommandBuild) == "function" then NAmanage.invalidateCommandBuild() end
+	if opts.refreshUI ~= false and NAgui and type(NAgui.loadCMDS) == "function" then pcall(NAgui.loadCMDS) end
+	return true, normalized
+end
+
+NAmanage.IYIntegrationHasCommand = function(name)
+	name = Lower(tostring(name or ""))
+	if name == "" then return false end
+	const bridge = NAStuff.IYIntegrationBridge
+	const hasMethod = NAmanage.IYIntegrationGetMethod(bridge, { "HasCommand", "hasCommand" })
+	if type(hasMethod) == "function" then local ok, found = pcall(hasMethod, name); if ok then return found == true end end
+	return type(NAStuff.IYIntegrationCommandSet) == "table" and NAStuff.IYIntegrationCommandSet[name] ~= nil
+end
+
+NAmanage.IYIntegrationRemoveGateway = function(bridge)
+	bridge = bridge or NAStuff.IYIntegrationBridge
+	const gateway = NAStuff.IYIntegrationGatewayName
+	if not gateway then return false end
+	const removeMethod = NAmanage.IYIntegrationGetMethod(bridge, { "RemoveCommand", "removeCommand" })
+	if type(removeMethod) == "function" then pcall(removeMethod, gateway) end
+	NAStuff.IYIntegrationGatewayName = nil
+	return true
+end
+
+NAmanage.IYIntegrationInstallGateway = function(bridge, host)
+	bridge = bridge or NAStuff.IYIntegrationBridge
+	host = host or NAStuff.IYIntegrationHost
+	NAmanage.IYIntegrationRemoveGateway(bridge)
+	if NAStuff.IYIntegrationExposeGateway == false or type(host) ~= "table" then return false, "gateway-disabled" end
+	const addMethod = NAmanage.IYIntegrationGetMethod(bridge, { "AddCommand", "addCommand" })
+	if type(addMethod) ~= "function" then return false, "runtime-gateway-unavailable" end
+	const gateway = NAmanage.IYIntegrationHasCommand("na") and "namelessadmin" or "na"
+	local ok, accepted, result = pcall(addMethod, { Name = gateway; Aliases = gateway == "na" and { "namelessadmin", "naadmin" } or { "naadmin" }; Description = "Run a Nameless Admin command through Infinite Yield"; Task = function(...)
+		const args = { ... }
+		if #args == 0 then return false end
+		if type(host.run) == "function" then return host.run(args) end
+		return false
+	end; })
+	if not ok or accepted == false then return false, tostring(result or accepted or "gateway-failed") end
+	NAStuff.IYIntegrationGatewayName = tostring(result or gateway)
+	return true, NAStuff.IYIntegrationGatewayName
+end
+
+NAmanage.IYIntegrationAttach = function(bridge)
+	if type(bridge) ~= "table" then return false end
+	NAmanage.IYIntegrationDisconnectSubscriptions()
+	const host = NAmanage.CmdIntegrationBuildHost and NAmanage.CmdIntegrationBuildHost() or nil
+	NAStuff.IYIntegrationHost = host
+	NAmanage.IYIntegrationInstallGateway(bridge, host)
+	const subscribeMethod = NAmanage.IYIntegrationGetMethod(bridge, { "Subscribe", "subscribe", "on" })
+	if type(subscribeMethod) == "function" then
+		local ok, subscription = pcall(subscribeMethod, "commandsChanged", function()
+			NAStuff.IYIntegrationRefreshToken = (tonumber(NAStuff.IYIntegrationRefreshToken) or 0) + 1
+			const token = NAStuff.IYIntegrationRefreshToken
+			Delay(0.1, function() if NAStuff.IYIntegrationRefreshToken == token then NAmanage.IYIntegrationRefresh({ refreshUI = true }) end end)
+		end)
+		if ok and subscription then NAStuff.IYIntegrationSubscriptions = { commands = subscription } end
+	end
+	return true
+end
+
+NAmanage.IYIntegrationApplyBridge = function(bridge, sourceLabel, opts)
+	opts = opts or {}
+	if type(bridge) ~= "table" then return false, "invalid-bridge" end
+	NAStuff.IYIntegrationBridge = bridge
+	NAStuff.IYIntegrationLoaded = true
+	NAStuff.IYIntegrationLastSource = sourceLabel or "Infinite Yield"
+	NAStuff.IYIntegrationProtocol = tonumber(bridge.Protocol or bridge.protocol) or 1
+	const stateMethod = NAmanage.IYIntegrationGetMethod(bridge, { "GetState", "getState" })
+	if type(stateMethod) == "function" then local ok, state = pcall(stateMethod); if ok and type(state) == "table" then NAStuff.IYIntegrationState = state end end
+	local okRefresh, refreshResult = NAmanage.IYIntegrationRefresh({ bridge = bridge; refreshUI = opts.refreshUI ~= false; })
+	if not okRefresh then NAStuff.IYIntegrationLoaded = false; NAStuff.IYIntegrationBridge = nil; return false, refreshResult end
+	NAmanage.IYIntegrationAttach(bridge)
+	return true, sourceLabel
+end
+
+NAmanage.disconnectIYIntegration = function(opts)
+	opts = opts or {}
+	const bridge = NAStuff.IYIntegrationBridge
+	NAmanage.IYIntegrationDisconnectSubscriptions()
+	NAmanage.IYIntegrationRemoveGateway(bridge)
+	local destroyMethod = NAmanage.IYIntegrationGetMethod(bridge, { "Destroy", "destroy" })
+	if type(destroyMethod) == "function" then pcall(destroyMethod) end
+	NAStuff.IYIntegrationBridge = nil
+	NAStuff.IYIntegrationHost = nil
+	NAStuff.IYIntegrationLoaded = false
+	NAStuff.IYIntegrationLastSource = nil
+	NAStuff.IYIntegrationProtocol = nil
+	NAStuff.IYIntegrationCommands = nil
+	NAStuff.IYIntegrationCommandSet = nil
+	NAStuff.IYIntegrationState = nil
+	NAStuff.IYIntegrationGatewayName = nil
+	if type(NAmanage.invalidateCommandBuild) == "function" then NAmanage.invalidateCommandBuild() end
+	if NAgui and type(NAgui.loadCMDS) == "function" then pcall(NAgui.loadCMDS) end
+	if not opts.silent and type(DoNotif) == "function" then DoNotif("Infinite Yield integration disconnected", 3) end
+	return true
+end
+
+NAmanage.detectIYManualLoad = function(opts)
+	opts = opts or {}
+	local bridge = NAmanage.IYIntegrationFindExistingBridge()
+	if type(bridge) == "table" then return NAmanage.IYIntegrationApplyBridge(bridge, opts.sourceLabel or "existing-bridge", opts) end
+	const ui = NAmanage.IYIntegrationFindUI()
+	if type(ui) ~= "table" then return false, "infinite-yield-not-found" end
+	local built, err = NAmanage.IYIntegrationBuildUIBridge(ui)
+	if type(built) ~= "table" then return false, err or "ui-bridge-build-failed" end
+	return NAmanage.IYIntegrationApplyBridge(built, opts.sourceLabel or "existing-ui", opts)
+end
+
+NAmanage.loadIYIntegration = function(opts)
+	opts = opts or {}
+	if NAStuff.IYIntegrationLoading then return false, "Infinite Yield is already loading" end
+	if NAStuff.IYIntegrationLoaded and type(NAStuff.IYIntegrationBridge) == "table" then return NAmanage.IYIntegrationRefresh({ refreshUI = true }) end
+	local okExisting, existingResult = NAmanage.detectIYManualLoad({ sourceLabel = "existing-ui"; refreshUI = opts.refreshUI ~= false; })
+	if okExisting then return true, existingResult end
+	local alreadyLoaded = false
+	if type(getgenv) == "function" then local ok, env = pcall(getgenv); if ok and type(env) == "table" then alreadyLoaded = rawget(env, "IY_LOADED") == true end end
+	if alreadyLoaded then
+		for _ = 1, 30 do
+			Wait(0.1)
+			local okAttach, attachResult = NAmanage.detectIYManualLoad({ sourceLabel = "existing-ui"; refreshUI = opts.refreshUI ~= false; })
+			if okAttach then return true, attachResult end
+		end
+		return false, "Infinite Yield is loaded but its command UI was not found"
+	end
+	const function fetchUrl(url)
+		if type(url) ~= "string" or url == "" then return nil, "invalid url" end
+		const request = opt and opt.NAREQUEST
+		if type(request) == "function" then
+			local ok, response = pcall(request, { Url = url; Method = "GET"; Timeout = 15; FollowRedirects = true; SslVerify = false; })
+			if ok and response then
+				const body = response.Body or response.body or response.Data or response.data or response.Text or response.text or response.Content or response.content or response[1]
+				if type(body) == "string" and body ~= "" then return body end
+			end
+		end
+		local ok, body = NAmanage.HttpGet(url, { timeout = 15 })
+		if ok and type(body) == "string" and body ~= "" then return body end
+		return nil, "request failed"
+	end
+	const sourceUrl = tostring(opts.url or (opt and opt.iyIntegrationUrl) or "https://raw.githubusercontent.com/edgeiy/infiniteyield/master/source")
+	local raw, fetchErr = fetchUrl(sourceUrl)
+	if not raw then return false, fetchErr end
+	const captureSuffix = [=[
+;return {cmds=cmds,findCmd=findCmd,execCmd=execCmd,addcmd=addcmd,removecmd=removecmd,notify=notify,CMDs=CMDs,Holder=Holder,Cmdbar=Cmdbar,PARENT=PARENT,currentVersion=currentVersion,prefix=prefix,Players=Players,maximizeHolder=maximizeHolder}
+]=]
+	const loader = loadstring or load
+	if type(loader) ~= "function" then return false, "compiler unavailable" end
+	local chunk, compileErr = loader(raw..captureSuffix, "InfiniteYieldIntegration")
+	if not chunk then return false, compileErr or "compile error" end
+	NAStuff.IYIntegrationLoading = true
+	local okRun, runtime = pcall(chunk)
+	NAStuff.IYIntegrationLoading = false
+	if not okRun then return false, runtime end
+	local bridge
+	if type(runtime) == "table" then bridge = NAmanage.IYIntegrationBuildRuntimeBridge(runtime) end
+	if type(bridge) ~= "table" then
+		for _ = 1, 30 do
+			Wait(0.1)
+			local ui = NAmanage.IYIntegrationFindUI()
+			if type(ui) == "table" then bridge = NAmanage.IYIntegrationBuildUIBridge(ui); break end
+		end
+	end
+	if type(bridge) ~= "table" then return false, "Infinite Yield loaded but bridge creation failed" end
+	local okApply, applyResult = NAmanage.IYIntegrationApplyBridge(bridge, sourceUrl, opts)
+	if not okApply then return false, applyResult end
+	if not opts.silent and type(DoNotif) == "function" then
+		const state = NAStuff.IYIntegrationState or {}
+		DoNotif("Infinite Yield integrated"..(state.version and (" (v"..tostring(state.version)..")") or ""), 3)
+	end
+	return true, sourceUrl
 end
 
 NAmanage.resolveTweenDuration=function(scale)
@@ -21498,6 +22121,30 @@ NAmanage.NASettingsGetSchema=function()
 				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
+		iyIntegrationAutoRun = {
+			default = false;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
+			end;
+		};
+		iyIntegrationRoutingMode = {
+			default = "NA First";
+			coerce = function(value)
+				return NAmanage.IYIntegrationNormalizeMode(value)
+			end;
+		};
+		iyIntegrationExposeGateway = {
+			default = true;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
+			end;
+		};
+		iyIntegrationMirrorNotifications = {
+			default = false;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
+			end;
+		};
 		purchasePromptsDisabled = {
 			default = false;
 			coerce = function(value)
@@ -25934,6 +26581,10 @@ NAStuff.CmdIntegrationRoutingMode = NAmanage.CmdIntegrationNormalizeMode(NAmanag
 NAStuff.CmdIntegrationExposeGateway = NAmanage.NASettingsGet("cmdIntegrationExposeGateway") ~= false
 NAStuff.CmdIntegrationUseNotifications = NAmanage.NASettingsGet("cmdIntegrationUseNotifications") ~= false
 NAStuff.CmdIntegrationMirrorNotifications = NAmanage.NASettingsGet("cmdIntegrationMirrorNotifications") == true
+NAStuff.IYIntegrationAutoRun = NAmanage.NASettingsGet("iyIntegrationAutoRun") == true
+NAStuff.IYIntegrationRoutingMode = NAmanage.IYIntegrationNormalizeMode(NAmanage.NASettingsGet("iyIntegrationRoutingMode") or NAStuff.IYIntegrationRoutingMode)
+NAStuff.IYIntegrationExposeGateway = NAmanage.NASettingsGet("iyIntegrationExposeGateway") ~= false
+NAStuff.IYIntegrationMirrorNotifications = NAmanage.NASettingsGet("iyIntegrationMirrorNotifications") == true
 NAStuff.AutoPreloadAssets = NAmanage.NASettingsGet("autoPreloadAssets")
 NAStuff.LightingStyleAutomation = NAmanage.NASettingsGet("lightingStyleAutomation") == true
 NAStuff.LightingStyleAutomationStyle = NAmanage.NASettingsGet("lightingStyleAutomationStyle") or "Soft"
@@ -29024,6 +29675,46 @@ NAmanage.updateLastCommand=function(rawArgs)
 	NAStuff._lastCommand = rawArgs
 end
 
+NAmanage.tryIYIntegration=function(rawArgs, opts)
+	opts = opts or {}
+	local bridge = NAStuff.IYIntegrationBridge
+	if type(bridge) ~= "table" then
+		bridge = NAmanage.IYIntegrationFindExistingBridge()
+		if type(bridge) == "table" then
+			NAStuff.IYIntegrationBridge = bridge
+		else
+			local okAttach = false
+			if type(NAmanage.detectIYManualLoad) == "function" then
+				okAttach = select(1, NAmanage.detectIYManualLoad({ sourceLabel = "lazy-ui"; refreshUI = false; }))
+			end
+			if okAttach then bridge = NAStuff.IYIntegrationBridge end
+		end
+	end
+	if type(bridge) ~= "table" or type(rawArgs) ~= "table" or type(rawArgs[1]) ~= "string" then
+		return false, "bridge-unavailable"
+	end
+	const first = tostring(rawArgs[1])
+	const forced = Sub(first, 1, 3):lower() == "iy:"
+	local commandName = forced and Sub(first, 4) or first
+	commandName = Lower(tostring(commandName or ""))
+	if commandName == "" or not NAmanage.IYIntegrationHasCommand(commandName) then return false, "command-not-found" end
+	const arguments = {}
+	for index = 2, #rawArgs do arguments[#arguments + 1] = tostring(rawArgs[index] or "") end
+	const runMethod = NAmanage.IYIntegrationGetMethod(bridge, { "RunCommand", "runCommand" })
+	if type(runMethod) == "function" then
+		local okRun, accepted, result = pcall(runMethod, commandName, arguments, { source = "nameless-admin"; })
+		if okRun and accepted ~= false then return true, result end
+		return false, tostring(result or accepted or "command-run-failed")
+	end
+	const parseMethod = NAmanage.IYIntegrationGetMethod(bridge, { "Parse", "parse" })
+	if type(parseMethod) ~= "function" then return false, "parser-unavailable" end
+	local line = commandName
+	if #arguments > 0 then line = line.." "..Concat(arguments, " ") end
+	local okParse, accepted, result = pcall(parseMethod, line, { source = "nameless-admin"; })
+	if okParse and accepted ~= false then return true, result end
+	return false, tostring(result or accepted or "command-parse-failed")
+end
+
 NAmanage.tryCmdIntegration=function(rawArgs, opts)
 	opts = opts or {}
 	local bridge = NAStuff.CmdIntegrationBridge
@@ -30628,16 +31319,37 @@ cmd.run = function(args)
 	const callerLower = (type(caller) == "string") and caller:lower() or nil
 	const shouldRecord = callerLower ~= "lastcommand" and callerLower ~= "lastcmd"
 	const routingMode = NAmanage.CmdIntegrationNormalizeMode(NAStuff.CmdIntegrationRoutingMode)
+	const iyRoutingMode = NAmanage.IYIntegrationNormalizeMode(NAStuff.IYIntegrationRoutingMode)
 	const forcedCmd = callerLower and Sub(callerLower, 1, 4) == "cmd:" or false
+	const forcedIY = callerLower and Sub(callerLower, 1, 3) == "iy:" or false
 
 	local success, msg = pcall(function()
-		if forcedCmd or (routingMode == "Cmd First" and NAmanage.CmdIntegrationHasCommand(callerLower)) then
-			if NAmanage.tryCmdIntegration(rawArgs, { forced = forcedCmd }) then
-				if shouldRecord then
-					NAmanage.updateLastCommand(rawArgs)
-				end
+		if forcedCmd then
+			if NAmanage.tryCmdIntegration(rawArgs, { forced = true }) then
+				if shouldRecord then NAmanage.updateLastCommand(rawArgs) end
 				sendWebhookAsync(rawArgs)
 				return
+			end
+		elseif forcedIY then
+			if NAmanage.tryIYIntegration(rawArgs, { forced = true }) then
+				if shouldRecord then NAmanage.updateLastCommand(rawArgs) end
+				sendWebhookAsync(rawArgs)
+				return
+			end
+		else
+			if routingMode == "Cmd First" and NAmanage.CmdIntegrationHasCommand(callerLower) then
+				if NAmanage.tryCmdIntegration(rawArgs) then
+					if shouldRecord then NAmanage.updateLastCommand(rawArgs) end
+					sendWebhookAsync(rawArgs)
+					return
+				end
+			end
+			if iyRoutingMode == "IY First" and NAmanage.IYIntegrationHasCommand(callerLower) then
+				if NAmanage.tryIYIntegration(rawArgs) then
+					if shouldRecord then NAmanage.updateLastCommand(rawArgs) end
+					sendWebhookAsync(rawArgs)
+					return
+				end
 			end
 		end
 		const command = callerLower and (cmds.Commands[callerLower] or cmds.Aliases[callerLower]) or nil
@@ -30657,10 +31369,13 @@ cmd.run = function(args)
 			end
 			sendWebhookAsync(rawArgs)
 		else
-			if not forcedCmd and routingMode ~= "Explicit Only" and NAmanage.tryCmdIntegration(rawArgs) then
-				if shouldRecord then
-					NAmanage.updateLastCommand(rawArgs)
-				end
+			if not forcedCmd and not forcedIY and routingMode ~= "Explicit Only" and NAmanage.tryCmdIntegration(rawArgs) then
+				if shouldRecord then NAmanage.updateLastCommand(rawArgs) end
+				sendWebhookAsync(rawArgs)
+				return
+			end
+			if not forcedCmd and not forcedIY and iyRoutingMode ~= "Explicit Only" and NAmanage.tryIYIntegration(rawArgs) then
+				if shouldRecord then NAmanage.updateLastCommand(rawArgs) end
 				sendWebhookAsync(rawArgs)
 				return
 			end
@@ -116299,6 +117014,7 @@ end
 const patchedCommandColor = Color3.fromRGB(255, 115, 115)
 const pluginCommandColor = Color3.fromRGB(255, 196, 125)
 const cmdIntegrationColor = Color3.fromRGB(120, 180, 255)
+const iyIntegrationColor = Color3.fromRGB(255, 205, 110)
 
 NAgui.addPatchedLabel=function(text)
 	if not text then return text end
@@ -116423,6 +117139,7 @@ NAmanage.getCommandBuildSignature = NAmanage.getCommandBuildSignature or functio
 		tostring(countDictNA(cmds.Aliases)),
 		tostring(countDictNA(cmds.NASAVEDALIASES)),
 		tostring(type(NAStuff.CmdIntegrationCommands) == "table" and #NAStuff.CmdIntegrationCommands or 0),
+		tostring(type(NAStuff.IYIntegrationCommands) == "table" and #NAStuff.IYIntegrationCommands or 0),
 	}, ":")
 	NAStuff.CommandBuildSignatureCache = signature
 	NAStuff.CommandBuildSignatureCacheRevision = revision
@@ -116688,6 +117405,70 @@ NAmanage.buildCommandDataPackage = function()
 		end
 	end
 
+	const iyList = NAStuff.IYIntegrationCommands
+	if type(iyList) == "table" then
+		for iyInfoIndex, info in iyList do
+			NAmanage.cmdYield(iyInfoIndex, 120)
+			local baseName = info and info.name
+			if baseName then baseName = tostring(baseName) end
+			if baseName and baseName ~= "" then
+				const canonicalName = "iy:"..baseName
+				const aliases = { Lower(baseName), Lower(canonicalName) }
+				const displayAliases = {}
+				const seenAliases = { [Lower(baseName)] = true; [Lower(canonicalName)] = true; }
+				if type(info.aliases) == "table" then
+					for _, alias in info.aliases do
+						const rawAlias = tostring(alias or "")
+						const lowerAlias = Lower(rawAlias)
+						if rawAlias ~= "" and lowerAlias ~= Lower(baseName) then
+							if not seenAliases[lowerAlias] then seenAliases[lowerAlias] = true; Insert(aliases, lowerAlias) end
+							const explicitAlias = "iy:"..rawAlias
+							const lowerExplicitAlias = Lower(explicitAlias)
+							if not seenAliases[lowerExplicitAlias] then
+								seenAliases[lowerExplicitAlias] = true
+								Insert(aliases, lowerExplicitAlias)
+								Insert(displayAliases, explicitAlias)
+							end
+						end
+					end
+				end
+				local usage = canonicalName
+				const argumentHints = {}
+				if type(info.arguments) == "table" then
+					for index, argument in info.arguments do
+						local argumentName = type(argument) == "table" and tostring(argument.name or argument.type or "arg"..tostring(index)) or "arg"..tostring(index)
+						if argumentName == "" then argumentName = "arg"..tostring(index) end
+						Insert(argumentHints, "<"..argumentName..">")
+					end
+				end
+				if #argumentHints > 0 then usage = usage.." "..Concat(argumentHints, " ") end
+				const sourceDesc = type(info.desc) == "string" and info.desc or ""
+				const descParts = { "Run: "..usage }
+				if #displayAliases > 0 then Insert(descParts, "Aliases: "..Concat(displayAliases, ", ")) end
+				if sourceDesc ~= "" then Insert(descParts, sourceDesc) end
+				const desc = Concat(descParts, "\n")
+				local finalText = "[IY] "..canonicalName
+				if #displayAliases > 0 then finalText = finalText.." ("..Concat(displayAliases, ", ")..")" end
+				local searchable = NAmanage.stripMarkup(Lower(finalText.." "..baseName))
+				if #aliases > 0 then searchable = searchable.." "..Concat(aliases, " ") end
+				if sourceDesc ~= "" then searchable = searchable.." "..NAmanage.stripMarkup(Lower(sourceDesc)) end
+				used[Lower(canonicalName)] = true
+				metaByName[canonicalName] = {
+					origin = "iy";
+					displayText = finalText;
+					searchable = searchable;
+					aliases = aliases;
+					sourceName = baseName;
+					duplicate = used[Lower(baseName)] == true;
+					usage = usage;
+					requiresArguments = #argumentHints > 0 or info.requiresArguments == true or info.RequiresArguments == true;
+					desc = desc;
+				}
+				entries[#entries + 1] = { name = canonicalName; display = finalText; meta = metaByName[canonicalName]; sortKey = Lower(tostring(finalText)); }
+			end
+		end
+	end
+
 	if type(NAmanage.sortCommandEntries) == "function" then
 		NAmanage.sortCommandEntries(entries)
 	else
@@ -116760,6 +117541,9 @@ NAmanage.totalCommandCount=function()
 	local count = countDictNA(cmds.Commands)
 	if type(NAStuff.CmdIntegrationCommands) == "table" then
 		count = count + #NAStuff.CmdIntegrationCommands
+	end
+	if type(NAStuff.IYIntegrationCommands) == "table" then
+		count = count + #NAStuff.IYIntegrationCommands
 	end
 	return count
 end
@@ -117242,6 +118026,7 @@ const function applyCommandListEntry(state, label, entry, index, animation)
 	const finalText = meta.displayText or entry.display or cmdName
 	const isPatched = meta.patched == true
 	const isCmdIntegration = meta.origin == "cmd"
+	const isIYIntegration = meta.origin == "iy"
 	const isPluginCmd = meta.pluginType ~= nil
 	const isExpanded = state.expandedName ~= nil and tostring(state.expandedName) == tostring(cmdName or "")
 	const previousCmdName = tostring(NAmanage.GetAttr(label, "CmdName") or "")
@@ -117257,6 +118042,8 @@ const function applyCommandListEntry(state, label, entry, index, animation)
 		label.TextColor3 = patchedCommandColor
 	elseif isCmdIntegration then
 		label.TextColor3 = cmdIntegrationColor
+	elseif isIYIntegration then
+		label.TextColor3 = iyIntegrationColor
 	elseif isPluginCmd then
 		label.TextColor3 = pluginCommandColor
 	elseif state.defaultCmdColor then
@@ -125944,6 +126731,7 @@ NAmanage.applyCmdAutofillEntryToFrame = function(frame, entry)
 	local finalDisplay = meta.displayText or entry.display or name
 	const isPatched = meta.patched == true
 	const isCmdIntegration = meta.origin == "cmd"
+	const isIYIntegration = meta.origin == "iy"
 	const isPluginCmd = meta.pluginType ~= nil
 	const inputObj = frame:FindFirstChild("Input")
 	const defaultInputColor = NAStuff.defaultCmdAutofillInputColor
@@ -125954,6 +126742,8 @@ NAmanage.applyCmdAutofillEntryToFrame = function(frame, entry)
 			finalDisplay = NAgui.addPatchedLabel(finalDisplay)
 		elseif isCmdIntegration then
 			inputObj.TextColor3 = cmdIntegrationColor
+		elseif isIYIntegration then
+			inputObj.TextColor3 = iyIntegrationColor
 		elseif isPluginCmd then
 			inputObj.TextColor3 = pluginCommandColor
 		elseif defaultInputColor then
@@ -125967,6 +126757,7 @@ NAmanage.applyCmdAutofillEntryToFrame = function(frame, entry)
 	frame.Name = tostring(name)
 	NAmanage.SetAttr(frame, "NA_FillText", tostring(name))
 	NAmanage.SetAttr(frame, "IsCmdIntegration", isCmdIntegration)
+	NAmanage.SetAttr(frame, "IsIYIntegration", isIYIntegration)
 	NAmanage.SetAttr(frame, "IsPluginCommand", isPluginCmd)
 	NAmanage.SetAttr(frame, "IsPatchedCommand", isPatched)
 end
@@ -129206,6 +129997,9 @@ NAmanage.ExecutorFormatLuauLineSpacing = NAmanage.ExecutorFormatLuauLineSpacing 
 		const two = line:sub(i, i + 1)
 		const three = line:sub(i, i + 2)
 		if two == "--" then
+			if #out > 0 and not currentText():match("%s$") then
+				append(" ")
+			end
 			append(line:sub(i))
 			break
 		elseif ch:match("[\"'`]") then
@@ -129267,6 +130061,9 @@ NAmanage.ExecutorFormatLuauLineSpacing = NAmanage.ExecutorFormatLuauLineSpacing 
 				appendOperator(ch)
 			elseif ch == "-" then
 				if isUnaryMinus() then
+					if currentText():sub(-1) == "-" then
+						append(" ")
+					end
 					append("-")
 					i += 1
 					while i <= len and line:sub(i, i):match("%s") do
@@ -129394,14 +130191,34 @@ NAmanage.ExecutorCollapseLuauShortCalls = NAmanage.ExecutorCollapseLuauShortCall
 	return Concat(out, "\n")
 end
 
-NAmanage.ExecutorFormatLuauSource = NAmanage.ExecutorFormatLuauSource or function(source)
+NAmanage.ExecutorFormatLuauSource = function(source)
 	source = tostring(source or ""):gsub("\r\n", "\n"):gsub("\r", "\n")
-	const lines = {}
-	const splitState = {}
-	for line in (source.."\n"):gmatch("(.-)\n") do
-		for _, part in NAmanage.ExecutorSplitLuauStatementLine(line, splitState) do
-			lines[#lines + 1] = part
+	if source:gsub("%s+", "") == "" then
+		return source
+	end
+
+	const function compileCheck(text, chunkName)
+		if type(loadstring) ~= "function" then
+			return true
 		end
+		local ok, fn, err = pcall(loadstring, text, chunkName)
+		if not ok then
+			return false, tostring(fn or "unknown syntax error")
+		end
+		if fn then
+			return true
+		end
+		return false, tostring(err or "unknown syntax error")
+	end
+
+	local sourceValid, sourceErr = compileCheck(source, "Executor/FormatInput")
+	if not sourceValid then
+		return nil, "Input has a syntax error: " .. sourceErr
+	end
+
+	const lines = {}
+	for line in (source .. "\n"):gmatch("(.-)\n") do
+		lines[#lines + 1] = line
 	end
 	if #lines > 0 and lines[#lines] == "" and source:sub(-1) ~= "\n" then
 		table.remove(lines)
@@ -129411,28 +130228,35 @@ NAmanage.ExecutorFormatLuauSource = NAmanage.ExecutorFormatLuauSource or functio
 	local indent = 0
 	const state = {}
 	const indentText = "\t"
+	const workState = { lastYield = os.clock() }
 
-	for _, rawLine in lines do
+	for lineIndex, rawLine in lines do
 		const line = tostring(rawLine or ""):gsub("%s+$", "")
 		const trimmed = line:gsub("^%s+", "")
+		const wasInsideLongToken = state.longClose ~= nil
 		const code = NAmanage.ExecutorStripLuauLineForIndent(trimmed, state)
-		const spaced = NAmanage.ExecutorFormatLuauLineSpacing(trimmed)
 		const compact = code:gsub("^%s+", "")
-		local closeOutdent = 0
-		local branchOutdent = 0
+		local lineIndent = indent
+		local leadingClose = 0
+		local branchLine = false
+
 		if compact ~= "" then
 			if compact:match("^end%f[^%w_]") or compact:match("^until%f[^%w_]") or compact:sub(1, 1) == "}" then
-				closeOutdent += 1
-			end
-			if compact:match("^else%f[^%w_]") or compact:match("^elseif%f[^%w_]") then
-				branchOutdent += 1
+				leadingClose = 1
+			elseif compact:match("^else%f[^%w_]") or compact:match("^elseif%f[^%w_]") then
+				leadingClose = 1
+				branchLine = true
 			end
 		end
-		indent = math.max(indent - closeOutdent - branchOutdent, 0)
-		if trimmed == "" then
+
+		lineIndent = math.max(lineIndent - leadingClose, 0)
+		if wasInsideLongToken then
+			formatted[#formatted + 1] = tostring(rawLine or "")
+		elseif trimmed == "" then
 			formatted[#formatted + 1] = ""
 		else
-			formatted[#formatted + 1] = string.rep(indentText, indent)..spaced
+			const spaced = NAmanage.ExecutorFormatLuauLineSpacing(trimmed)
+			formatted[#formatted + 1] = string.rep(indentText, lineIndent) .. spaced
 		end
 
 		local opens = 0
@@ -129444,17 +130268,32 @@ NAmanage.ExecutorFormatLuauSource = NAmanage.ExecutorFormatLuauSource or functio
 				closes += 1
 			end
 		end
-		for _ in code:gmatch("{") do opens += 1 end
-		for _ in code:gmatch("}") do closes += 1 end
-		if compact:match("^else%f[^%w_]") then
+		for _ in code:gmatch("{") do
 			opens += 1
 		end
-		indent = math.max(indent + opens - math.max(closes - closeOutdent, 0), 0)
+		for _ in code:gmatch("}") do
+			closes += 1
+		end
+
+		indent = math.max(indent - leadingClose, 0)
+		closes = math.max(closes - leadingClose, 0)
+		indent = math.max(indent + opens - closes, 0)
+		if branchLine and not compact:match("^elseif%f[^%w_]") then
+			indent += 1
+		end
+
+		if lineIndex % 128 == 0 and type(NAmanage.ExecutorYieldWork) == "function" then
+			NAmanage.ExecutorYieldWork(workState)
+		end
 	end
 
-	return NAmanage.ExecutorCollapseLuauShortCalls(Concat(formatted, "\n")):gsub("%s+$", "")
+	local result = Concat(formatted, "\n"):gsub("%s+$", "")
+	local resultValid, resultErr = compileCheck(result, "Executor/FormatOutput")
+	if not resultValid then
+		return nil, "Formatter validation failed; original text was kept: " .. resultErr
+	end
+	return result
 end
-
 NAmanage.ExecutorMergeEditorChunks = NAmanage.ExecutorMergeEditorChunks or function(chunks)
 	if type(chunks) ~= "table" or #chunks == 0 then
 		return ""
@@ -134199,6 +135038,10 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		end)
 	end
 	formatButton.MouseButton1Click:Connect(function()
+		if NAStuff.ExecutorTools.FormatBusy == true then
+			setStatus("Formatter is already running", colors.warn)
+			return
+		end
 		commitCurrentPage(true)
 		const tab = tabs[currentTab]
 		const source = NAmanage.ExecutorGetTabText(tab)
@@ -134206,15 +135049,42 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			setStatus("Nothing to format", colors.warn)
 			return
 		end
-		const formatted = NAmanage.ExecutorFormatLuauSource(source)
-		if formatted == source then
-			setStatus("Already formatted", colors.subtle)
-			return
-		end
-		setTabFullText(tab, formatted, true)
-		loadCurrentPage()
-		scheduleTabsSave()
-		setStatus("Formatted Luau script", colors.success)
+		NAStuff.ExecutorTools.FormatBusy = true
+		formatButton.Text = "Formatting..."
+		setStatus("Formatting Luau script...", colors.warn)
+		Spawn(function()
+			local okFormat, formatted, formatErr = pcall(NAmanage.ExecutorFormatLuauSource, source)
+			if not okFormat then
+				formatErr = formatted
+				formatted = nil
+			end
+			Defer(function()
+				NAStuff.ExecutorTools.FormatBusy = false
+				if formatButton and formatButton.Parent then
+					formatButton.Text = "Format"
+				end
+				if type(formatted) ~= "string" then
+					setStatus(tostring(formatErr or "Formatting failed"), colors.error)
+					return
+				end
+				if NAmanage.ExecutorGetTabText(tab) ~= source then
+					setStatus("Format cancelled because the tab changed", colors.warn)
+					return
+				end
+				if formatted == source then
+					setStatus("Already formatted", colors.subtle)
+					return
+				end
+				setTabFullText(tab, formatted, true)
+				scheduleTabsSave()
+				if tabs[currentTab] == tab then
+					loadCurrentPage()
+					setStatus("Formatted Luau script (validated)", colors.success)
+				else
+					setStatus("Formatted tab in background", colors.success)
+				end
+			end)
+		end)
 	end)
 	NAStuff.ExecutorTools.DeobfuscateButton.MouseButton1Click:Connect(function()
 		commitCurrentPage(true)
@@ -146399,6 +147269,17 @@ NAmanage.scheduleLoader('CmdIntegrationAutoRun', function()
 	end
 	return true
 end, { retries = 2, delay = 0.6, retryOnFalse = true })
+NAmanage.scheduleLoader('IYIntegrationAutoRun', function()
+	if NAStuff.IYIntegrationAutoRun == true and NAmanage.loadIYIntegration then
+		local ok, err = NAmanage.loadIYIntegration({ silent = true })
+		if not ok then
+			const msg = Format("Infinite Yield auto-load failed: %s", tostring(err))
+			if type(DebugNotif) == "function" then DebugNotif(msg, 3) else warn(msg) end
+			return false
+		end
+	end
+	return true
+end, { retries = 2, delay = 0.8, retryOnFalse = true })
 NAmanage.scheduleLoader('CmdBar2AutoRun', function()
 	if NAStuff.CmdBar2AutoRun == true and cmd and cmd.run then
 		cmd.run({"cmdbar2"})
@@ -152188,6 +153069,88 @@ end)
 NAmanage.RegisterToggleAutoSync("Mirror Cmd Notifications in NA", function()
 	return NAStuff.CmdIntegrationMirrorNotifications == true
 end)
+
+NAgui.addSection("Infinite Yield")
+
+NAgui.addButton("Load Infinite Yield", function()
+	local ok, err = NAmanage.loadIYIntegration()
+	if not ok then
+		const msg = "Infinite Yield failed to load: "..tostring(err)
+		if type(DoNotif) == "function" then DoNotif(msg, 4) else warn(msg) end
+	end
+end)
+
+NAgui.addToggle("Auto-load Infinite Yield", NAStuff.IYIntegrationAutoRun == true, function(v)
+	NAStuff.IYIntegrationAutoRun = v and true or false
+	pcall(NAmanage.NASettingsSet, "iyIntegrationAutoRun", NAStuff.IYIntegrationAutoRun)
+	if v then
+		local ok, err = NAmanage.loadIYIntegration()
+		if not ok then
+			const msg = "Infinite Yield failed to load: "..tostring(err)
+			if type(DoNotif) == "function" then DoNotif(msg, 4) else warn(msg) end
+		end
+	end
+end)
+NAmanage.RegisterToggleAutoSync("Auto-load Infinite Yield", function() return NAStuff.IYIntegrationAutoRun == true end)
+
+NAgui.addButton("Refresh Infinite Yield Integration", function()
+	if not NAStuff.IYIntegrationLoaded then
+		local ok, err = NAmanage.detectIYManualLoad()
+		if not ok then DoNotif("Infinite Yield integration unavailable: "..tostring(err), 4); return end
+	end
+	local ok, result = NAmanage.IYIntegrationRefresh({ refreshUI = true })
+	if ok then DoNotif("Infinite Yield integration refreshed ("..tostring(#result).." commands)", 3) else DoNotif("Infinite Yield refresh failed: "..tostring(result), 4) end
+end)
+
+NAgui.addButton("Open Infinite Yield Command Bar", function()
+	const bridge = NAStuff.IYIntegrationBridge
+	const openMethod = NAmanage.IYIntegrationGetMethod(bridge, { "OpenCommandBar", "openCommandBar", "open" })
+	if type(openMethod) ~= "function" then DoNotif("Infinite Yield command bar access is unavailable.", 3); return end
+	local ok, result = pcall(openMethod)
+	if not ok or result == false then DoNotif("Infinite Yield command bar failed to open.", 3) end
+end)
+
+NAgui.addButton("Infinite Yield Integration Status", function()
+	const bridge = NAStuff.IYIntegrationBridge
+	if type(bridge) ~= "table" then DoNotif("Infinite Yield integration is disconnected.", 3); return end
+	const stateMethod = NAmanage.IYIntegrationGetMethod(bridge, { "GetState", "getState" })
+	local state = NAStuff.IYIntegrationState or {}
+	if type(stateMethod) == "function" then
+		local ok, result = pcall(stateMethod)
+		if ok and type(result) == "table" then state = result; NAStuff.IYIntegrationState = result end
+	end
+	const commandCount = type(NAStuff.IYIntegrationCommands) == "table" and #NAStuff.IYIntegrationCommands or tonumber(state.commandCount) or 0
+	DoNotif("Infinite Yield v"..tostring(state.version or bridge.Version or bridge.version or "unknown").." | protocol "..tostring(NAStuff.IYIntegrationProtocol or bridge.Protocol or bridge.protocol or 1).." | "..tostring(commandCount).." commands | route: "..tostring(NAStuff.IYIntegrationRoutingMode), 5)
+end)
+
+NAgui.addButton("Disconnect Infinite Yield Integration", function() NAmanage.disconnectIYIntegration() end)
+
+NAgui.addDropdown("Infinite Yield Routing Priority", NAmanage.IYIntegrationModes, NAStuff.IYIntegrationRoutingMode, function(selection)
+	NAStuff.IYIntegrationRoutingMode = NAmanage.IYIntegrationNormalizeMode(selection)
+	pcall(NAmanage.NASettingsSet, "iyIntegrationRoutingMode", NAStuff.IYIntegrationRoutingMode)
+	DoNotif("Infinite Yield routing set to "..NAStuff.IYIntegrationRoutingMode, 3)
+end)
+
+NAgui.addToggle("Expose NA Gateway in Infinite Yield", NAStuff.IYIntegrationExposeGateway ~= false, function(value)
+	NAStuff.IYIntegrationExposeGateway = value == true
+	pcall(NAmanage.NASettingsSet, "iyIntegrationExposeGateway", NAStuff.IYIntegrationExposeGateway)
+	if NAStuff.IYIntegrationLoaded then
+		if NAStuff.IYIntegrationExposeGateway then
+			local ok, err = NAmanage.IYIntegrationInstallGateway()
+			if not ok then DoNotif("Infinite Yield NA gateway failed: "..tostring(err), 4) end
+		else
+			NAmanage.IYIntegrationRemoveGateway()
+		end
+		NAmanage.IYIntegrationRefresh({ refreshUI = true })
+	end
+end)
+NAmanage.RegisterToggleAutoSync("Expose NA Gateway in Infinite Yield", function() return NAStuff.IYIntegrationExposeGateway ~= false end)
+
+NAgui.addToggle("Mirror Infinite Yield Notifications in NA", NAStuff.IYIntegrationMirrorNotifications == true, function(value)
+	NAStuff.IYIntegrationMirrorNotifications = value == true
+	pcall(NAmanage.NASettingsSet, "iyIntegrationMirrorNotifications", NAStuff.IYIntegrationMirrorNotifications)
+end)
+NAmanage.RegisterToggleAutoSync("Mirror Infinite Yield Notifications in NA", function() return NAStuff.IYIntegrationMirrorNotifications == true end)
 
 NAgui.addToggle("Bloxtrap RPC Presence", NAmanage.btEnabled(), function(v)
 	NAmanage.btSetEnabled(v)
