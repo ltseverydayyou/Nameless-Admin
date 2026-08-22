@@ -68824,74 +68824,109 @@ cmd.add({"animationplayer","animplayer", "aplayer","animp"},{"animationplayer","
 	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/AnimPlayer.luau");
 end)
 
-cmd.add({"decompiler"},{"decompiler","Allows you to decompile LocalScript/ModuleScript bytecode through lua.expert"},function()
-	Spawn(function()
-		assert(getscriptbytecode, "Exploit not supported.")
-		assert(opt and type(opt.NAREQUEST) == "function", "HTTP request not supported.")
+cmd.add({"decompiler"},{"decompiler","Choose lua.expert or Luacid to decompile LocalScript/ModuleScript bytecode"},function()
+	const function installDecompiler(provider: string)
+		Spawn(function()
+			assert(getscriptbytecode, "Exploit not supported.")
+			assert(opt and type(opt.NAREQUEST) == "function", "HTTP request not supported.")
 
-		const API: string = "https://api.lua.expert/decompile"
-		local last_call = 0
-		const function encodeBase64(data: string): string
-			if type(base64_encode) == "function" then
-				return base64_encode(data)
-			end
-			const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
-			return ((data:gsub(".", function(x)
-				local bits, byte = "", x:byte()
-				for i = 8, 1, -1 do
-					bits = bits .. (byte % 2 ^ i - byte % 2 ^ (i - 1) > 0 and "1" or "0")
+			const useLuacid = provider == "Luacid"
+			const API: string = useLuacid and "https://api.luacid.dev/decompile" or "https://api.lua.expert/decompile"
+			const minimumDelay = useLuacid and 1 or .6
+			local last_call = 0
+			const function encodeBase64(data: string): string
+				if type(base64_encode) == "function" then
+					return base64_encode(data)
 				end
-				return bits
-			end) .. "0000"):gsub("%d%d%d?%d?%d?%d?", function(x)
-				if #x < 6 then
-					return ""
+				const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+				return ((data:gsub(".", function(x)
+					local bits, byte = "", x:byte()
+					for i = 8, 1, -1 do
+						bits = bits .. (byte % 2 ^ i - byte % 2 ^ (i - 1) > 0 and "1" or "0")
+					end
+					return bits
+				end) .. "0000"):gsub("%d%d%d?%d?%d?%d?", function(x)
+					if #x < 6 then
+						return ""
+					end
+					local c = 0
+					for i = 1, 6 do
+						c = c + (x:sub(i, i) == "1" and 2 ^ (6 - i) or 0)
+					end
+					return chars:sub(c + 1, c + 1)
+				end) .. ({ "", "==", "=" })[#data % 3 + 1])
+			end
+			function decompile(scriptPath: Script | ModuleScript | LocalScript): string
+				local success: boolean, bytecode: string = NACaller(getscriptbytecode, scriptPath)
+
+				if (not success) then
+					return "-- failed to read script bytecode\n--[[\n" .. tostring(bytecode) .. "\n--]]"
 				end
-				local c = 0
-				for i = 1, 6 do
-					c = c + (x:sub(i, i) == "1" and 2 ^ (6 - i) or 0)
+				if type(bytecode) ~= "string" or bytecode == "" then
+					return "-- failed to read script bytecode\n--[[\nempty bytecode\n--]]"
 				end
-				return chars:sub(c + 1, c + 1)
-			end) .. ({ "", "==", "=" })[#data % 3 + 1])
-		end
-		function decompile(scriptPath: Script | ModuleScript | LocalScript): string
-			local success: boolean, bytecode: string = NACaller(getscriptbytecode, scriptPath)
 
-			if (not success) then
-				return "-- failed to read script bytecode\n--[[\n" .. tostring(bytecode) .. "\n--]]"
+				const time_elapsed = os.clock() - last_call
+				if time_elapsed <= minimumDelay then
+					Wait(minimumDelay - time_elapsed)
+				end
+
+				local body = bytecode
+				local contentType = "application/octet-stream"
+				if not useLuacid then
+					body = Services.HttpService:JSONEncode({
+						script = encodeBase64(bytecode)
+					})
+					contentType = "application/json"
+				end
+
+				const httpResult = opt.NAREQUEST({
+					Url = API,
+					Body = body,
+					Method = "POST",
+					Headers = {
+						["content-type"] = contentType
+					},
+				})
+				last_call = os.clock()
+
+				if (not httpResult or httpResult.StatusCode ~= 200) then
+					return "-- "..provider.." api request error\n--[[\n" .. tostring(httpResult and httpResult.Body or "no response") .. "\n--]]"
+				else
+					return httpResult.Body
+				end
 			end
 
-			const time_elapsed = os.clock() - last_call
-			if time_elapsed <= .6 then
-				Wait(.6 - time_elapsed)
+			function disassemble(scriptPath: Script | ModuleScript | LocalScript): string
+				return "-- "..provider.." does not provide a Luau disassemble endpoint."
 			end
-			const httpResult = opt.NAREQUEST({
-				Url = API,
-				Body = Services.HttpService:JSONEncode({
-					script = encodeBase64(bytecode)
-				}),
-				Method = "POST",
-				Headers = {
-					["content-type"] = "application/json"
-				},
-			})
-			last_call = os.clock()
 
-			if (not httpResult or httpResult.StatusCode ~= 200) then
-				return "-- api request error\n--[[\n" .. tostring(httpResult and httpResult.Body or "no response") .. "\n--]]"
-			else
-				return httpResult.Body
-			end
-		end
+			_na_env.decompile = decompile
+			_na_env.disassemble = disassemble
+			DoNotif(provider.." decompiler selected.", 3, "Decompiler")
 
-		function disassemble(scriptPath: Script | ModuleScript | LocalScript): string
-			return "-- lua.expert does not provide a Luau disassemble endpoint."
-		end
+			-- API docs: https://lua.expert/docs and https://luacid.dev/docs
+		end)
+	end
 
-		_na_env.decompile = decompile
-		_na_env.disassemble = disassemble
-
-		-- decompiler API docs: https://lua.expert/docs
-	end)
+	Window({
+		Title = "Decompiler";
+		Description = "Choose which decompiler should handle decompile(script).";
+		Buttons = {
+			{
+				Text = "lua.expert";
+				Callback = function()
+					installDecompiler("lua.expert")
+				end;
+			};
+			{
+				Text = "Luacid";
+				Callback = function()
+					installDecompiler("Luacid")
+				end;
+			};
+		};
+	})
 	--NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/WompWomp.lua")
 end)
 
