@@ -21711,9 +21711,9 @@ NAmanage.NASettingsGetSchema=function()
 					return math.clamp(numberValue or fallback, minimum, maximum)
 				end
 				return {
-					positionX = numberField("positionX", 0, -10000, 10000);
-					positionY = numberField("positionY", -15, -10000, 10000);
-					positionZ = numberField("positionZ", 0, -10000, 10000);
+					positionX = tonumber(value.positionX) or 0;
+					positionY = tonumber(value.positionY) or -15;
+					positionZ = tonumber(value.positionZ) or 0;
 					rotationX = numberField("rotationX", 0, -180, 180);
 					rotationY = numberField("rotationY", 0, -180, 180);
 					rotationZ = numberField("rotationZ", 0, -180, 180);
@@ -53874,9 +53874,9 @@ NAmanage.UG_getCustomization = function()
 		cfg = {}
 		NAStuff.OffsetCustomization = cfg
 	end
-	cfg.positionX = math.clamp(tonumber(cfg.positionX) or 0, -10000, 10000)
-	cfg.positionY = math.clamp(tonumber(cfg.positionY) or -15, -10000, 10000)
-	cfg.positionZ = math.clamp(tonumber(cfg.positionZ) or 0, -10000, 10000)
+	cfg.positionX = tonumber(cfg.positionX) or 0
+	cfg.positionY = tonumber(cfg.positionY) or -15
+	cfg.positionZ = tonumber(cfg.positionZ) or 0
 	cfg.rotationX = math.clamp(tonumber(cfg.rotationX) or 0, -180, 180)
 	cfg.rotationY = math.clamp(tonumber(cfg.rotationY) or 0, -180, 180)
 	cfg.rotationZ = math.clamp(tonumber(cfg.rotationZ) or 0, -180, 180)
@@ -53920,9 +53920,9 @@ NAmanage.UG_setConfiguredOffset = function(vec, syncUI)
 		return NAmanage.UG_getConfiguredOffset()
 	end
 	const cfg = NAmanage.UG_getCustomization()
-	cfg.positionX = math.clamp(vec.X, -10000, 10000)
-	cfg.positionY = math.clamp(vec.Y, -10000, 10000)
-	cfg.positionZ = math.clamp(vec.Z, -10000, 10000)
+	cfg.positionX = vec.X
+	cfg.positionY = vec.Y
+	cfg.positionZ = vec.Z
 	NAmanage.UG_saveCustomization()
 	if syncUI ~= false then
 		NAmanage.UG_syncCustomizationUI()
@@ -53991,7 +53991,7 @@ end
 NAmanage.UG_setCustomizationValue = function(key, value)
 	const cfg = NAmanage.UG_getCustomization()
 	if key == "positionX" or key == "positionY" or key == "positionZ" then
-		cfg[key] = math.clamp(tonumber(value) or cfg[key], -10000, 10000)
+		cfg[key] = tonumber(value) or cfg[key]
 	elseif key == "rotationX" or key == "rotationY" or key == "rotationZ" then
 		cfg[key] = math.clamp(tonumber(value) or cfg[key], -180, 180)
 		cfg.preset = "Custom"
