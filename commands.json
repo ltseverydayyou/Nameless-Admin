@@ -2978,7 +2978,7 @@
       ],
       "usage": "decompiler",
       "args": "",
-      "desc": "Allows you to decompile LocalScript/ModuleScript bytecode through lua.expert"
+      "desc": "Choose lua.expert or Luacid to decompile LocalScript/ModuleScript bytecode"
     },
     {
       "name": "getidfromusername",
