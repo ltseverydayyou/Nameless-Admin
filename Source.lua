@@ -16104,6 +16104,10 @@ NAmanage.ApplyUIScale = function(value, opts)
 			if type(NAmanage.RefreshSettingsResizeHandle) == "function" then
 				NAmanage.RefreshSettingsResizeHandle()
 			end
+			const settingsFrame = NAUIMANAGER and NAUIMANAGER.SettingsFrame
+			if settingsFrame and settingsFrame.Parent and settingsFrame.Visible and type(NAmanage.centerFrame) == "function" then
+				NAmanage.centerFrame(settingsFrame)
+			end
 		end)
 	end
 
@@ -16973,11 +16977,45 @@ else
 end
 
 NAmanage.centerFrame = function(f)
-	const cam = Services.Workspace.CurrentCamera
-	const vp = cam.ViewportSize
-	const totalX = f.Size.X.Scale + (f.Size.X.Offset / vp.X)
-	const totalY = f.Size.Y.Scale + (f.Size.Y.Offset / vp.Y)
-	f.Position = UDim2.new(0.5 - totalX/2, 0, 0.5 - totalY/2, 0)
+	if not f or not f.Parent then
+		return false
+	end
+
+	local parentSize
+	pcall(function()
+		parentSize = f.Parent.AbsoluteSize
+	end)
+	if typeof(parentSize) ~= "Vector2" or parentSize.X <= 0 or parentSize.Y <= 0 then
+		const cam = Services.Workspace.CurrentCamera
+		parentSize = cam and cam.ViewportSize or nil
+	end
+	if typeof(parentSize) ~= "Vector2" or parentSize.X <= 0 or parentSize.Y <= 0 then
+		return false
+	end
+
+	local renderedSize = f.AbsoluteSize
+	if typeof(renderedSize) ~= "Vector2" or renderedSize.X <= 0 or renderedSize.Y <= 0 then
+		local scale = NAmanage.GetUIScaleFactor and NAmanage.GetUIScaleFactor(f) or 1
+		if not scale or scale <= 0 then
+			scale = 1
+		end
+		renderedSize = Vector2.new(
+			((parentSize.X * f.Size.X.Scale) + f.Size.X.Offset) * scale,
+			((parentSize.Y * f.Size.Y.Scale) + f.Size.Y.Offset) * scale
+		)
+	end
+
+	const anchor = f.AnchorPoint
+	const targetAnchor = Vector2.new(parentSize.X * 0.5, parentSize.Y * 0.5) + Vector2.new(
+		(anchor.X - 0.5) * renderedSize.X,
+		(anchor.Y - 0.5) * renderedSize.Y
+	)
+
+	f.Position = UDim2.fromScale(
+		targetAnchor.X / parentSize.X,
+		targetAnchor.Y / parentSize.Y
+	)
+	return true
 end
 
 NAmanage.guiCHECKINGAHHHHH=function()
@@ -20084,6 +20122,10 @@ NAmanage.uiFnGet = NAmanage.uiFnGet or function(force)
 		return NAStuff.uiFn
 	end
 
+	if type(NAmanage.pulseLoadingUI) == "function" then
+		pcall(NAmanage.pulseLoadingUI, "fetching interface", 0.971)
+	end
+
 	local src, err = NAmanage.uiSrcGet(force)
 	if type(src) ~= "string" or src == "" then
 		return nil, err or "missing source"
@@ -20092,6 +20134,9 @@ NAmanage.uiFnGet = NAmanage.uiFnGet or function(force)
 	local compileSource = src
 	local replacements = 0
 	if type(NAmanage.prepareUiSource) == "function" then
+		if type(NAmanage.pulseLoadingUI) == "function" then
+			pcall(NAmanage.pulseLoadingUI, "preparing interface", 0.972)
+		end
 		const prepareStart = os.clock()
 		local okPrepare, prepared, count = pcall(NAmanage.prepareUiSource, src)
 		const perf = NAStuff and NAStuff.StartupPerformance
@@ -20105,6 +20150,10 @@ NAmanage.uiFnGet = NAmanage.uiFnGet or function(force)
 		end
 	end
 	NAStuff.UIFrameBudgetReplacementCount = replacements
+
+	if type(NAmanage.pulseLoadingUI) == "function" then
+		pcall(NAmanage.pulseLoadingUI, "compiling interface", 0.973)
+	end
 
 	const compileStart = os.clock()
 	local fn, lerr = loadstring(compileSource)
@@ -20128,6 +20177,9 @@ NAmanage.uiRun = NAmanage.uiRun or function(force)
 	if type(fn) ~= "function" then
 		return false, err
 	end
+	if type(NAmanage.pulseLoadingUI) == "function" then
+		pcall(NAmanage.pulseLoadingUI, "building interface", 0.974)
+	end
 	local ok, res = pcall(fn)
 	if not ok then
 		NAStuff.uiErr = tostring(res)
@@ -20144,6 +20196,30 @@ if not NAAssetsLoading.setStatus then
 	end
 	NAgui.NaProtectUI(NAAssetsLoading.ui)
 	NAAssetsLoading.applyMinimizedPreference()
+
+	const startupWatchdogToken = NAmanage._runToken
+	Delay(IsOnMobile == true and 45 or 35, function()
+		if rawget(_na_env, "_NARunToken") ~= startupWatchdogToken then
+			return
+		end
+		if NAStuff._loadingFinalizedOnce == true or NAAssetsLoading._finalized == true then
+			return
+		end
+		if type(NAAssetsLoading.setStatus) == "function" then
+			pcall(NAAssetsLoading.setStatus, "startup timed out; releasing loading screen")
+		end
+		warn("[NA loader] Startup watchdog released a loading screen that was still active")
+		Wait(0.5)
+		if NAAssetsLoading.completed then
+			pcall(function()
+				if typeof(NAAssetsLoading.completed) == "Instance" then
+					NAmanage.SetAttr(NAAssetsLoading.completed, "Completed", true)
+				else
+					NAAssetsLoading.completed.Completed = true
+				end
+			end)
+		end
+	end)
 	const stageOrder = {
 		"engine",
 		"notifications",
@@ -29945,14 +30021,17 @@ NAmanage.StartupCommandBudgetStep = NAmanage.StartupCommandBudgetStep or functio
 	const perf = NAStuff.StartupPerformance
 	const lastFrameDt = type(perf) == "table" and tonumber(perf.lastFrameDt) or nil
 	const highFps = lastFrameDt and lastFrameDt > 0 and lastFrameDt < (1 / 240)
-	const batch = highFps and (lowImpact and 2 or 5) or (lowImpact and 6 or 14)
-	const budget = highFps and 0.00075 or (lowImpact and 0.0015 or 0.003)
-	if state.count % batch ~= 0 and now - (tonumber(state.lastYield) or now) < budget then
-		return
-	end
+	const batch = highFps and (lowImpact and 32 or 64) or (lowImpact and 64 or 96)
+	const budget = highFps and 0.006 or (lowImpact and 0.018 or 0.025)
+
 	if type(NAmanage.pulseLoadingUI) == "function" and state.count % 40 == 0 then
 		pcall(NAmanage.pulseLoadingUI, "registering commands ("..tostring(state.count)..")", math.min(0.989, 0.965 + state.count / 40000))
 	end
+
+	if state.count % batch ~= 0 and now - (tonumber(state.lastYield) or now) < budget then
+		return
+	end
+
 	local canYield = true
 	if coroutine and type(coroutine.isyieldable) == "function" then
 		canYield = coroutine.isyieldable()
@@ -110293,6 +110372,10 @@ originalIO.NAfetchUILoaderSource=function()
 end
 
 do
+	if type(NAmanage.pulseLoadingUI) == "function" then
+		pcall(NAmanage.pulseLoadingUI, "starting interface loader", 0.970)
+	end
+
 	const gui = NAmanage.getUI and NAmanage.getUI() or nil
 	if gui then
 		NAmanage.NARegisterUI(gui)
@@ -110305,18 +110388,28 @@ do
 	end
 
 	if not NAmanage.waitForScreenGui(0.15) then
-		const maxTry = 8
+		const maxTry = IsOnMobile == true and 3 or 4
 		local attempt = 0
 		local lastErr = nil
+		local forcedRefreshUsed = false
 
 		while not NAmanage.waitForScreenGui(0.05) and attempt < maxTry do
 			attempt += 1
+
+			if type(NAmanage.pulseLoadingUI) == "function" then
+				pcall(NAmanage.pulseLoadingUI, "starting interface ("..tostring(attempt).."/"..tostring(maxTry)..")", 0.970 + math.min(attempt, maxTry) * 0.001)
+			end
 
 			local okRun, result = false, nil
 			const attemptStart = os.clock()
 
 			if NAmanage and NAmanage.uiRun then
-				okRun, result = NAmanage.uiRun(attempt > 1)
+				okRun, result = NAmanage.uiRun(false)
+				if not okRun and not forcedRefreshUsed then
+					forcedRefreshUsed = true
+					NAStuff.uiFn = nil
+					okRun, result = NAmanage.uiRun(true)
+				end
 			else
 				local src, err = originalIO.NAfetchUILoaderSource()
 				if not src then
@@ -110351,6 +110444,15 @@ do
 					end
 					break
 				end
+
+				const delayedGui = NAmanage.waitForScreenGui(IsOnMobile == true and 0.65 or 0.35)
+				if delayedGui and NAmanage.NARegisterUI(delayedGui) then
+					if type(perf) == "table" then
+						perf.uiRegisterElapsed = (tonumber(perf.uiRegisterElapsed) or 0) + (os.clock() - registerStart)
+					end
+					break
+				end
+
 				if type(perf) == "table" then
 					perf.uiRegisterElapsed = (tonumber(perf.uiRegisterElapsed) or 0) + (os.clock() - registerStart)
 				end
@@ -110361,8 +110463,8 @@ do
 			end
 
 			if attempt < maxTry and not NAmanage.waitForScreenGui(0.05) then
-				warn(Format("%d | Failed to load UI module: %s | retrying...", math.random(1, 999999), tostring(lastErr)))
-				Wait(0.15 + attempt * 0.1)
+				warn(Format("%d | Failed to load UI module: %s | retrying cached loader...", math.random(1, 999999), tostring(lastErr)))
+				Wait(0.12 + attempt * 0.08)
 			end
 		end
 
@@ -110403,6 +110505,18 @@ do
 	end
 	if not ready then
 		warn("[NA loader] UI never became a ScreenGui; stopping before NAUIMANAGER")
+		if NAAssetsLoading and type(NAAssetsLoading.setStatus) == "function" then
+			pcall(NAAssetsLoading.setStatus, "interface failed to load")
+		end
+		if NAAssetsLoading and NAAssetsLoading.completed then
+			pcall(function()
+				if typeof(NAAssetsLoading.completed) == "Instance" then
+					NAmanage.SetAttr(NAAssetsLoading.completed, "Completed", true)
+				else
+					NAAssetsLoading.completed.Completed = true
+				end
+			end)
+		end
 		return
 	end
 	NAStuff.NASCREENGUI = ready
@@ -113887,6 +114001,10 @@ do
 				layoutState.FitFrameToViewport()
 				layoutState.Apply()
 				NAmanage.RefreshSettingsResizeHandle()
+				const settingsFrame = NAUIMANAGER and NAUIMANAGER.SettingsFrame
+				if settingsFrame and settingsFrame.Parent and settingsFrame.Visible and type(NAmanage.centerFrame) == "function" then
+					NAmanage.centerFrame(settingsFrame)
+				end
 			end)
 		end))
 	end
@@ -119154,13 +119272,27 @@ end
 
 NAgui.settingss = function()
 	if NAUIMANAGER.SettingsFrame then
+		const settingsFrame = NAUIMANAGER.SettingsFrame
 		if NAmanage.InstallUIVisibilityOptimizer then pcall(NAmanage.InstallUIVisibilityOptimizer) end
-		if not NAUIMANAGER.SettingsFrame.Visible then
-			NAUIMANAGER.SettingsFrame.Visible = true
+		if not settingsFrame.Visible then
+			settingsFrame.Visible = true
 		end
-		if NAmanage.OnUIWindowShown then pcall(NAmanage.OnUIWindowShown, NAUIMANAGER.SettingsFrame) end
-		--NAUIMANAGER.SettingsFrame.Position = UDim2.new(0.43, 0, 0.4, 0)
-		NAmanage.centerFrame(NAUIMANAGER.SettingsFrame)
+		if NAmanage.OnUIWindowShown then pcall(NAmanage.OnUIWindowShown, settingsFrame) end
+		NAmanage.centerFrame(settingsFrame)
+		Defer(function()
+			if not (settingsFrame and settingsFrame.Parent and settingsFrame.Visible) then
+				return
+			end
+			if NAmanage.SettingsTabLayout then
+				if type(NAmanage.SettingsTabLayout.FitFrameToViewport) == "function" then
+					NAmanage.SettingsTabLayout.FitFrameToViewport()
+				end
+				if type(NAmanage.SettingsTabLayout.Apply) == "function" then
+					NAmanage.SettingsTabLayout.Apply()
+				end
+			end
+			NAmanage.centerFrame(settingsFrame)
+		end)
 	end
 end
 NAgui.commandkeybinds = function()
