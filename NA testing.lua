@@ -53095,6 +53095,10 @@ cmd.add({"imagescanner","imgscanner","imgscan","imgs","images"},{"imagescanner",
 	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/ImageScanner.lua");
 end)
 
+cmd.add({"audiologger","alogger","audiol","alog","al"},{"audiologger","Gives an UI that grabs all audios on the game"},function()
+	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/AudioLogger.luau");
+end)
+
 cmd.add({"serverremotespy","srs","sremotespy"},{"serverremotespy (srs,sremotespy)","Gives an UI that logs all the remotes being called from the server (thanks SolSpy lol)"},function()
 	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/Server%20Spy.lua")
 end)
@@ -108028,14 +108032,16 @@ do
 	end)
 end
 
-cmd.add({"homebrew"},{"homebrew","Executes homebrew admin"},function()
+-- deleted
+--[[cmd.add({"homebrew"},{"homebrew","Executes homebrew admin"},function()
 	_na_env.CustomUI=false
 	NAmanage.RunURL(('https://raw.githubusercontent.com/mgamingpro/HomebrewAdmin/master/Main'),true)
-end)
+end)]]
 
-cmd.add({"fatesadmin"},{"fatesadmin","Executes fates admin"},function()
+-- useless
+--[[cmd.add({"fatesadmin"},{"fatesadmin","Executes fates admin"},function()
 	NAmanage.RunURL("https://raw.githubusercontent.com/fatesc/fates-admin/main/main.lua");
-end)
+end)]]
 
 storedTools = {}
 
@@ -111234,22 +111240,41 @@ NAmanage.ScriptHub_ResolveSource = function(data)
 	return true, source
 end
 
+NAmanage.ScriptHub_SafeRunEntry = function(data)
+	local source, isUrl = NAmanage.ScriptHub_GetSourceInfo(data)
+	if source == "" then
+		DoNotif("Script source unavailable.", 3, "Script Hub")
+		return false
+	end
+	const chunkName = "@NA-ScriptHub/"..tostring(data.title or data.name or "Script")
+	if isUrl then
+		local okRun, runErr = NAmanage.RunURL(source, false, chunkName)
+		if okRun ~= true then
+			DoNotif("Safe execution failed: "..tostring(runErr or "unable to queue URL"), 4, "Script Hub")
+			return false
+		end
+	else
+		local okRun, runErr = NAmanage.RunSourceInEnv(source, chunkName)
+		if okRun ~= true then
+			DoNotif("Safe execution failed: "..tostring(runErr or "unable to queue source"), 4, "Script Hub")
+			return false
+		end
+	end
+	DoNotif("Safe Execute queued "..tostring(data.title or data.name or "script"), 2, "Script Hub")
+	return true
+end
+
 NAmanage.ScriptHub_RunEntry = function(data)
 	SpawnCall(function()
-		local okSource, source, sourceErr = NAmanage.ScriptHub_ResolveSource(data)
-		if not okSource then
-			DoNotif(tostring(sourceErr or "Script source unavailable."), 3, "Script Hub")
+		local source, isUrl = NAmanage.ScriptHub_GetSourceInfo(data)
+		if source == "" then
+			DoNotif("Script source unavailable.", 3, "Script Hub")
 			return
 		end
-		local chunk, compileErr = loadstring(source, "@NA-ScriptHub/"..tostring(data.title or data.name or "Script"))
-		if type(chunk) ~= "function" then
-			DoNotif("Compile failed: "..tostring(compileErr), 4, "Script Hub")
-			return
-		end
-		local okRun, runErr = pcall(chunk)
-		if not okRun then
-			DoNotif("Execution failed: "..tostring(runErr), 4, "Script Hub")
-			return
+		if isUrl then
+			loadstring(game:HttpGet(source))()
+		else
+			loadstring(source)()
 		end
 		DoNotif("Executed "..tostring(data.title or data.name or "script"), 2, "Script Hub")
 	end)
@@ -112255,6 +112280,10 @@ NAmanage.ScriptHub_CreateCard = function(data, order)
 	layout.Padding = UDim.new(0, 7)
 	layout.SortOrder = Enum.SortOrder.LayoutOrder
 
+	const safeExecute = NAmanage.ScriptHub_CreateActionButton(actions, "Safe Execute", 116, Color3.fromRGB(56, 103, 154), "shield-check")
+	NAlib.connect("NAScriptHubCards", safeExecute.MouseButton1Click:Connect(function()
+		NAmanage.ScriptHub_SafeRunEntry(data)
+	end))
 	const execute = NAmanage.ScriptHub_CreateActionButton(actions, "Execute", 98, Color3.fromRGB(45, 125, 88), "bullet-flying")
 	NAlib.connect("NAScriptHubCards", execute.MouseButton1Click:Connect(function()
 		NAmanage.ScriptHub_RunEntry(data)
@@ -112285,7 +112314,7 @@ NAmanage.ScriptHub_CreateCard = function(data, order)
 		end))
 	end
 	if type(data.discord) == "string" and data.discord ~= "" and type(setclipboard) == "function" then
-		const discord = NAmanage.ScriptHub_CreateActionButton(actions, "Discord", 84, Color3.fromRGB(52, 90, 155))
+		const discord = NAmanage.ScriptHub_CreateActionButton(actions, "Discord", 84, Color3.fromRGB(52, 90, 155), "discord")
 		NAlib.connect("NAScriptHubCards", discord.MouseButton1Click:Connect(function()
 			local okCopy = pcall(setclipboard, data.discord)
 			DoNotif(okCopy and "Discord link copied." or "Failed to copy Discord link.", 2, "Script Hub")
