@@ -576,6 +576,19 @@
       "desc": "Gives an UI that grabs all images on the game"
     },
     {
+      "name": "audiologger",
+      "aliases": [
+        "audiologger",
+        "alogger",
+        "audiol",
+        "alog",
+        "al"
+      ],
+      "usage": "audiologger",
+      "args": "",
+      "desc": "Gives an UI that grabs all audios on the game"
+    },
+    {
       "name": "serverremotespy",
       "aliases": [
         "serverremotespy",
@@ -8760,24 +8773,6 @@
       "usage": "unloopfov (unlfov)",
       "args": "",
       "desc": "Stops FOV loop"
-    },
-    {
-      "name": "homebrew",
-      "aliases": [
-        "homebrew"
-      ],
-      "usage": "homebrew",
-      "args": "",
-      "desc": "Executes homebrew admin"
-    },
-    {
-      "name": "fatesadmin",
-      "aliases": [
-        "fatesadmin"
-      ],
-      "usage": "fatesadmin",
-      "args": "",
-      "desc": "Executes fates admin"
     },
     {
       "name": "savetools",
