@@ -133183,12 +133183,13 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	const actionLayout = InstanceNew("UIGridLayout")
 	actionLayout.CellPadding = UDim2.new(0, 6, 0, 0)
 	const hasClipboardPaste = type(getclipboard) == "function"
-	const actionButtonCount = hasClipboardPaste and 11 or 10
+	const actionButtonCount = hasClipboardPaste and 12 or 11
 	actionLayout.CellSize = UDim2.new(1 / actionButtonCount, -6, 1, 0)
 	actionLayout.FillDirectionMaxCells = actionButtonCount
 	actionLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	actionLayout.Parent = actions
 
+	const safeExecuteButton = makeButton(actions, "Safe Execute", colors.tabActive)
 	const executeButton = makeButton(actions, "Execute", colors.tabActive)
 	const clearButton = makeButton(actions, "Clear", colors.panel3)
 	const copyButton = makeButton(actions, "Copy", colors.panel3)
@@ -134542,7 +134543,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 			btn.Size = UDim2.new(1, -2, 0, compact and 22 or 26)
 			btn.TextSize = compact and 11 or 13
 		end
-		const actionButtons = { executeButton, clearButton, copyButton, newLineButton }
+		const actionButtons = { safeExecuteButton, executeButton, clearButton, copyButton, newLineButton }
 		if pasteButton then
 			actionButtons[#actionButtons + 1] = pasteButton
 		end
@@ -135157,6 +135158,23 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		return false, tostring(NAStuff.ExecutorTools.RunErr)
 	end
 
+
+	safeExecuteButton.MouseButton1Click:Connect(function()
+		commitCurrentPage(true)
+		const source = NAmanage.ExecutorGetTabText(tabs[currentTab])
+		if source == "" then
+			setStatus("Nothing to execute", colors.warn)
+			return
+		end
+		setStatus("Queueing safe execution...", colors.warn)
+		const chunkName = "Executor/"..(tabs[currentTab] and (tabs[currentTab].title or ("Tab "..currentTab)) or "Script")
+		local okRun, runErr = NAmanage.RunSource(source, chunkName)
+		if okRun then
+			setStatus("Safe execution queued", colors.success)
+		else
+			setStatus(tostring(runErr or "Safe execution failed"), colors.error)
+		end
+	end)
 
 	executeButton.MouseButton1Click:Connect(function()
 		commitCurrentPage(true)
