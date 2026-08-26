@@ -221,6 +221,8 @@ const _na_boot = {
 }
 _na_boot.hostGetfenv = type(_na_boot.hostEnv.getfenv) == "function" and _na_boot.hostEnv.getfenv or getfenv
 _na_boot.hostSetfenv = type(_na_boot.hostEnv.setfenv) == "function" and _na_boot.hostEnv.setfenv or setfenv
+_na_boot.hostLoadstring = type(rawget(_na_boot.hostEnv, "loadstring")) == "function" and rawget(_na_boot.hostEnv, "loadstring") or loadstring
+_na_boot.hostLoad = type(rawget(_na_boot.hostEnv, "load")) == "function" and rawget(_na_boot.hostEnv, "load") or load
 _na_boot.debug = rawget(_na_boot.hostEnv, "debug") or debug
 _na_boot.getPrivateRegistry = function()
 	local registry
@@ -32441,6 +32443,28 @@ NAmanage.RunURL = function(url, noCache, chunkName)
 	return true
 end
 
+NAmanage.RawCompile = function(src, chunkName)
+	if type(src) ~= "string" or src == "" then
+		return nil, "empty source"
+	end
+	const loader = type(_na_boot.hostLoadstring) == "function" and _na_boot.hostLoadstring
+		or (type(_na_boot.hostLoad) == "function" and _na_boot.hostLoad or nil)
+	if type(loader) ~= "function" then
+		return nil, "loadstring unavailable"
+	end
+	local fn, loadErr = loader(src, chunkName)
+	if type(fn) ~= "function" then
+		return nil, loadErr
+	end
+	if type(_na_boot.hostSetfenv) == "function" and type(_na_boot.hostEnv) == "table" then
+		local okEnv, envErr = pcall(_na_boot.hostSetfenv, fn, _na_boot.hostEnv)
+		if not okEnv then
+			return nil, tostring(envErr or "failed to restore executor environment")
+		end
+	end
+	return fn
+end
+
 NAStuff.ScriptCatalogUrl = "https://ltseverydayyou.github.io/scripts/catalog.json"
 NAStuff.ScriptCatalogState = type(NAStuff.ScriptCatalogState) == "table" and NAStuff.ScriptCatalogState or {
 	entries = nil;
@@ -52482,7 +52506,7 @@ cmd.add({"stoploop", "uncmdloop", "sloop", "stopl"}, {"stoploop", "Stop a runnin
 	cmd.stopLoop()
 end)
 
-cmd.add({"scripthub","hub"},{"scripthub (hub)","Open the built-in Script Hub using RScripts, RobloxScripts, and ScriptBlox"},function()
+cmd.add({"scripthub","hub"},{"scripthub (hub)","Open the built-in Script Hub using RScripts, RobloxScripts, HaxHell, and ScriptBlox"},function()
 	if NAmanage.ScriptHub_Toggle then
 		NAmanage.ScriptHub_Toggle()
 	else
@@ -110685,7 +110709,7 @@ NAUIMANAGER = {
 	SubplaceViewerContainer = NAStuff.NASCREENGUI:FindFirstChild("SubplaceViewer") and (NAStuff.NASCREENGUI:FindFirstChild("SubplaceViewer")):FindFirstChild("Container")
 };
 NAmanage.ScriptHub = type(NAmanage.ScriptHub) == "table" and NAmanage.ScriptHub or {}
-NAmanage.ScriptHub.engines = { "RScripts", "RobloxScripts", "ScriptBlox" }
+NAmanage.ScriptHub.engines = { "RScripts", "RobloxScripts", "HaxHell", "ScriptBlox" }
 NAmanage.ScriptHub.filterModes = { "all", "keyless", "key" }
 NAmanage.ScriptHub.catalogModes = { "all", "games", "other" }
 NAmanage.ScriptHub.tabModes = { "public", "supported", "saved" }
@@ -111040,6 +111064,8 @@ NAmanage.ScriptHub_UpdateHeader = function()
 			ui.searchBox.PlaceholderText = "Search for scripts (rscripts.net)"
 		elseif hub.engine == "RobloxScripts" then
 			ui.searchBox.PlaceholderText = "Search for scripts (robloxscripts.com)"
+		elseif hub.engine == "HaxHell" then
+			ui.searchBox.PlaceholderText = "Search for scripts (haxhell.com)"
 		else
 			ui.searchBox.PlaceholderText = "Search for scripts (scriptblox.com)"
 		end
@@ -111149,6 +111175,9 @@ NAmanage.ScriptHub_RequiresKey = function(data)
 	local value
 	if hub.engine == "RScripts" then
 		value = data.keySystem
+	elseif hub.engine == "HaxHell" then
+		const flags = type(data.flags) == "table" and data.flags or {}
+		value = flags.keySystem
 	else
 		value = data.key
 	end
@@ -111199,6 +111228,10 @@ NAmanage.ScriptHub_GetSourceInfo = function(data)
 		source = data.scriptUrl
 	elseif hub.engine == "RScripts" then
 		source = data.rawScript or data.scriptLink or data.raw or data.script
+	elseif hub.engine == "HaxHell" then
+		const links = type(data.links) == "table" and data.links or {}
+		const sourceData = type(data.source) == "table" and data.source or {}
+		source = links.raw or sourceData.rawUrl or sourceData.code or data.rawScriptUrl or data.script
 	else
 		source = data.script or data.rawScriptUrl or data.scriptLink or data.raw or data.rawScript
 	end
@@ -111252,11 +111285,16 @@ NAmanage.ScriptHub_RunEntry = function(data)
 			DoNotif("Script source unavailable.", 3, "Script Hub")
 			return
 		end
+		local body = source
 		if isUrl then
-			loadstring(game:HttpGet(source))()
-		else
-			loadstring(source)()
+			body = game:HttpGet(source)
 		end
+		const chunkName = "@NA-ScriptHub/"..tostring(data.title or data.name or "Script")
+		local fn, loadErr = NAmanage.RawCompile(body, chunkName)
+		if not fn then
+			error(tostring(loadErr or "compile error"), 0)
+		end
+		fn()
 		DoNotif("Executed "..tostring(data.title or data.name or "script"), 2, "Script Hub")
 	end)
 end
@@ -111318,7 +111356,7 @@ NAmanage.ScriptHub_IsUniversal = function(data)
 	if type(data) ~= "table" then
 		return false
 	end
-	return data.isUniversal == true or data.universal == true
+	return data.isUniversal == true or data.universal == true or Lower(tostring(data.type or "")) == "universal"
 end
 
 NAmanage.ScriptHub_NormalizeGameName = function(value)
@@ -111457,6 +111495,18 @@ NAmanage.ScriptHub_ResolveImageURL = function(data)
 			gameData.iconUrl,
 			gameData.image,
 		}, "https://robloxscripts.com")
+	elseif hub.engine == "HaxHell" then
+		const media = type(data.media) == "table" and data.media or {}
+		return NAmanage.ScriptHub_PickImageURL({
+			media.thumbnailUrl,
+			data.image,
+			data.imageUrl,
+			data.thumbnail,
+			gameData.thumbnailUrl,
+			gameData.iconUrl,
+			gameData.imageUrl,
+			gameData.image,
+		}, "https://haxhell.com")
 	end
 	return NAmanage.ScriptHub_PickImageURL({
 		data.image,
@@ -111686,7 +111736,8 @@ NAmanage.ScriptHub_SaveEntry = function(data, button)
 	const gameName = tostring(gameData.name or gameData.title or "")
 	const requiresKey = NAmanage.ScriptHub_RequiresKey(data)
 	const universal = NAmanage.ScriptHub_IsUniversal(data)
-	const verified = data.verified == true or type(data.author) == "table" and data.author.verified == true
+	const flags = type(data.flags) == "table" and data.flags or {}
+	const verified = data.verified == true or flags.verified == true or type(data.author) == "table" and (data.author.verified == true or data.author.isScripterVerified == true)
 	local description = type(data.description) == "string" and GSub(data.description, "%c", " ") or ""
 	if #description > 500 then
 		description = Sub(description, 1, 497).."..."
@@ -112100,9 +112151,11 @@ NAmanage.ScriptHub_CreateCard = function(data, order)
 	end
 	const titleText = tostring(data.title or data.name or "Untitled Script")
 	const requiresKey = NAmanage.ScriptHub_RequiresKey(data)
-	const views = tostring(data.views or data.viewCount or 0)
-	const likes = tostring(data.likes or data.likeCount or 0)
-	const verified = data.verified == true or type(data.author) == "table" and data.author.verified == true
+	const stats = type(data.stats) == "table" and data.stats or {}
+	const flags = type(data.flags) == "table" and data.flags or {}
+	const views = tostring(data.views or data.viewCount or stats.views or 0)
+	const likes = tostring(data.likes or data.likeCount or stats.likes or 0)
+	const verified = data.verified == true or flags.verified == true or type(data.author) == "table" and (data.author.verified == true or data.author.isScripterVerified == true)
 	const universal = NAmanage.ScriptHub_IsUniversal(data)
 	const catalogEntry = data.naCatalog == true
 	const savedEntry = data.naSaved == true
@@ -112113,7 +112166,7 @@ NAmanage.ScriptHub_CreateCard = function(data, order)
 	if not imageUrl and placeId then
 		imageUrl = NAmanage.ScriptHub_BuildPlaceThumbnail(placeId)
 	end
-	local status = savedEntry and "Saved" or catalogEntry and "Supported" or hub.engine == "RobloxScripts" and "Published" or data.isPatched and "Patched" or "Working"
+	local status = savedEntry and "Saved" or catalogEntry and "Supported" or hub.engine == "RobloxScripts" and "Published" or (data.isPatched == true or flags.patched == true) and "Patched" or "Working"
 	local description = type(data.description) == "string" and GSub(data.description, "%c", " ") or ""
 	const descriptionLimit = hub.phone and 105 or hub.compact and 130 or 150
 	if #description > descriptionLimit then
@@ -112149,6 +112202,8 @@ NAmanage.ScriptHub_CreateCard = function(data, order)
 		lines[#lines + 1] = Format("Views: %s | Likes: %s", views, likes)
 		if hub.engine == "RScripts" then
 			lines[#lines + 1] = data.mobileReady == true and "Platform: Mobile Ready" or data.mobileReady == false and "Platform: PC Only" or "Platform: Unknown"
+		elseif hub.engine == "HaxHell" then
+			lines[#lines + 1] = flags.mobileSupported == true and "Platform: Mobile Supported" or flags.mobileSupported == false and "Platform: PC / Unknown" or "Platform: Unknown"
 		end
 	end
 	if description ~= "" then
@@ -112681,6 +112736,11 @@ NAmanage.ScriptHub_BuildURL = function(query, page)
 			url ..= "&q="..encoded
 		end
 		return url
+	elseif hub.engine == "HaxHell" then
+		if query == "" then
+			return Format("https://haxhell.com/api/v1/scripts?page=%d&limit=24&sort=latest", page)
+		end
+		return Format("https://haxhell.com/api/v1/search/scripts?q=%s&page=%d&limit=24&sort=latest", encoded, page)
 	elseif query == "" then
 		return Format("https://scriptblox.com/api/script/fetch?page=%d", page)
 	end
@@ -112705,12 +112765,18 @@ NAmanage.ScriptHub_ParseResponse = function(decoded, requestedPage)
 			totalPages = math.ceil(totalItems / math.max(limit, 1))
 		end
 		currentPage = tonumber(pagination.page or pagination.currentPage) or requestedPage
+	elseif hub.engine == "HaxHell" then
+		entries = type(decoded.data) == "table" and decoded.data or {}
+		const pagination = type(decoded.pagination) == "table" and decoded.pagination or {}
+		totalPages = tonumber(pagination.totalPages or pagination.pages or pagination.lastPage) or 1
+		currentPage = tonumber(pagination.page or pagination.currentPage) or requestedPage
 	else
 		const result = type(decoded.result) == "table" and decoded.result or {}
 		entries = type(result.scripts) == "table" and result.scripts or type(decoded.scripts) == "table" and decoded.scripts or {}
 		totalPages = tonumber(result.totalPages or decoded.totalPages) or 1
 	end
-	return entries, math.clamp(math.floor(tonumber(totalPages) or 1), 1, 500), math.max(math.floor(tonumber(currentPage) or requestedPage), 1)
+	const pageCap = hub.engine == "HaxHell" and 10000 or 500
+	return entries, math.clamp(math.floor(tonumber(totalPages) or 1), 1, pageCap), math.max(math.floor(tonumber(currentPage) or requestedPage), 1)
 end
 
 NAmanage.ScriptHub_Fetch = function(query, page)
@@ -112723,6 +112789,11 @@ NAmanage.ScriptHub_Fetch = function(query, page)
 	end
 	query = tostring(query or "")
 	query = GSub(GSub(query, "^%s+", ""), "%s+$", "")
+	if hub.engine == "HaxHell" and query ~= "" and #query < 2 then
+		NAmanage.ScriptHub_Message("HaxHell search requires at least 2 characters.", Color3.fromRGB(120, 85, 45))
+		NAmanage.ScriptHub_UpdateControls()
+		return false
+	end
 	page = math.max(math.floor(tonumber(page) or 1), 1)
 	hub.query = query
 	hub.page = page
@@ -135166,7 +135237,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		end
 		setStatus("Running script...", colors.warn)
 		const chunkName = "Executor/"..(tabs[currentTab] and (tabs[currentTab].title or ("Tab "..currentTab)) or "Script")
-		local fn, loadErr = loadstring(source, chunkName)
+		local fn, loadErr = NAmanage.RawCompile(source, chunkName)
 		if not fn then
 			setStatus(tostring(loadErr), colors.error)
 			return
