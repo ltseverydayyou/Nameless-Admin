@@ -5759,6 +5759,16 @@
       "desc": "provides a custom backpack gui"
     },
     {
+      "name": "unloadbackpack",
+      "aliases": [
+        "unloadbackpack",
+        "unbackpack"
+      ],
+      "usage": "unloadbackpack (unbackpack)",
+      "args": "",
+      "desc": "unloads the custom backpack gui"
+    },
+    {
       "name": "edgejump",
       "aliases": [
         "edgejump",
