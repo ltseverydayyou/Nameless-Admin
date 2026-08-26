@@ -464,7 +464,7 @@
       ],
       "usage": "scripthub (hub)",
       "args": "",
-      "desc": "Open the built-in Script Hub using RScripts, RobloxScripts, and ScriptBlox"
+      "desc": "Open the built-in Script Hub using RScripts, RobloxScripts, HaxHell, and ScriptBlox"
     },
     {
       "name": "gamescripts",
