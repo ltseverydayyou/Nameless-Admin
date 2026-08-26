@@ -87899,6 +87899,21 @@ cmd.add({"backpack"},{"backpack","provides a custom backpack gui"},function()
 	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/mobileBACKPACK.lua");
 end)
 
+cmd.add({"unloadbackpack","unbackpack"},{"unloadbackpack (unbackpack)","unloads the custom backpack gui"},function()
+	local env = (getgenv and getgenv()) or _G
+	local unload = type(env) == "table" and rawget(env, "__NA_MobileBackpackUnload") or nil
+	if type(unload) ~= "function" then
+		DoNotif("Custom backpack is not loaded.", 2)
+		return
+	end
+	local ok, err = pcall(unload)
+	if ok then
+		DoNotif("Custom backpack unloaded.", 2)
+	else
+		DoNotif("Failed to unload custom backpack: "..tostring(err), 4)
+	end
+end)
+
 -- patched
 cmd.addPatched({"reserveserver","privateserver","ps","rs"},{"reserveserver [code/link] [instanceId] | reserveserver debug [placeId] [seed]","Teleports to a reserved server or creates one if code is missing"},function(code,instanceArg,debugInput)
 	const md5={}
