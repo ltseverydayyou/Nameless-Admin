@@ -1831,6 +1831,24 @@ NAmanage.pruneRuntimeInstanceState = NAmanage.pruneRuntimeInstanceState or funct
 		end
 	end
 
+	if type(NAmanage.Rotector) == "table" then
+		const rt = NAmanage.Rotector
+		const now = os.time()
+		const maxAge = tonumber(rt.cacheSeconds) or 600
+		if type(rt.cache) == "table" then
+			for key, rec in rt.cache do
+				if type(rec) ~= "table" or now - (tonumber(rec.time) or 0) > maxAge then
+					rt.cache[key] = nil
+				end
+			end
+		end
+		NAmanage.pruneRecordMap(rt.markers, { "player", "billboard", "highlight", "screenFrame", "screenLabel", "label" }, function(marker, key)
+			if type(NAmanage.RotectorClearMarker) == "function" then
+				pcall(NAmanage.RotectorClearMarker, key)
+			end
+		end)
+	end
+
 	if type(NAindex) == "table" and type(NAindex.pruneCaches) == "function" then
 		pcall(NAindex.pruneCaches)
 	end
@@ -2230,6 +2248,7 @@ const NA_TABS = {
 	TAB_SAVE_INSTANCE = "Save Instance";
 	TAB_USER_BUTTONS = "User Buttons";
 	TAB_LOGGING = "Logging";
+	TAB_ROTECTOR = "Rotector";
 	TAB_ESP = "ESP";
 	TAB_CHAT = "Chat";
 	TAB_CHARACTER = "Character";
@@ -20966,6 +20985,13 @@ NAmanage.jlDef = {
 	KeybindNotif = true;
 	PluginNotif = true;
 	NotifyFollowed = false;
+	RotectorWarnings = true;
+	RotectorServerWarnings = true;
+	RotectorMixedWarnings = true;
+	RotectorMarkers = true;
+	RotectorDetailedLookups = true;
+	RotectorInfoRecords = true;
+	RotectorWarningReasons = true;
 	JoinLeaveShowUserIds = false;
 	ChatShowTimestamps = true;
 	ChatUseDisplayNames = true;
@@ -21552,6 +21578,37 @@ NAmanage.NASettingsGetSchema=function()
 					end
 				end
 				return { R = 35 / 255; G = 140 / 255; B = 1 }
+			end;
+		};
+		rotectorOverrideESP = {
+			default = true;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
+			end;
+		};
+		rotectorMarkerColor = {
+			default = function()
+				return { R = 1; G = 30 / 255; B = 45 / 255 }
+			end;
+			coerce = function(value)
+				local parsed = value
+				if typeof(value) == "Color3" then
+					parsed = { R = value.R; G = value.G; B = value.B }
+				elseif type(value) == "string" then
+					local ok, decoded = NACaller(function()
+						return Services.HttpService:JSONDecode(value)
+					end)
+					parsed = ok and type(decoded) == "table" and decoded or nil
+				end
+				if type(parsed) == "table" then
+					const r = NAmanage.NASettingsSchemaState.clampChannel(parsed.R or parsed.r)
+					const g = NAmanage.NASettingsSchemaState.clampChannel(parsed.G or parsed.g)
+					const b = NAmanage.NASettingsSchemaState.clampChannel(parsed.B or parsed.b)
+					if r and g and b then
+						return { R = r; G = g; B = b }
+					end
+				end
+				return { R = 1; G = 30 / 255; B = 45 / 255 }
 			end;
 		};
 		mobileCamSensEnabled = {
@@ -26613,6 +26670,8 @@ NAStuff.StaffwatchIgnoreLocal = NAmanage.NASettingsGet("staffwatchIgnoreLocal") 
 NAStuff.StaffwatchHighlightEnabled = NAmanage.NASettingsGet("staffwatchHighlight") ~= false
 NAStuff.StaffwatchOverrideESP = NAmanage.NASettingsGet("staffwatchOverrideESP") ~= false
 NAStuff.StaffwatchMarkerColor = NAmanage.NASettingsGet("staffwatchMarkerColor")
+NAStuff.RotectorOverrideESP = NAmanage.NASettingsGet("rotectorOverrideESP") ~= false
+NAStuff.RotectorMarkerColor = NAmanage.NASettingsGet("rotectorMarkerColor")
 NAStuff.SafeSpeedMethod = NAmanage.NASettingsGet("safeSpeedMethod") ~= false
 NAStuff.SafeJumpMethod = NAmanage.NASettingsGet("safeJumpMethod") ~= false
 NAStuff.CustomMovementSounds = NAStuff.CustomMovementSounds or {}
@@ -33986,6 +34045,60 @@ const PlayerArgs = {
 		return Targets
 	end,
 
+	["flagged"] = function()
+		const targets, ids, playersById = {}, {}, {}
+		for _, player in __lt.cm("Players", "GetPlayers") do
+			if player ~= LocalPlayer then
+				const id = tonumber(player.UserId)
+				if id and id > 0 then
+					const record = NAmanage.RotectorGetPlayerRecord and NAmanage.RotectorGetPlayerRecord(player)
+					if type(record) == "table" then
+						if record.flagged == true then
+							Insert(targets, player)
+						end
+					else
+						Insert(ids, id)
+						playersById[NAmanage.RotectorIdKey(id)] = player
+						if NAmanage.RotectorQueuePlayer then
+							NAmanage.RotectorQueuePlayer(player)
+						end
+					end
+				end
+			end
+		end
+		if #ids == 0 then
+			return targets
+		end
+
+		const lookup = NAmanage and NAmanage.RotectorLookupIds
+		if type(lookup) ~= "function" then
+			return targets
+		end
+
+		local results = nil
+		const ok = pcall(function()
+			results = lookup(ids)
+		end)
+		if not ok or type(results) ~= "table" then
+			return targets
+		end
+
+		for _, id in ids do
+			const key = NAmanage.RotectorIdKey(id)
+			const entry = results[key] or results[id]
+			const player = playersById[key]
+			const shouldFlag = (NAmanage.RotectorShouldSurface and NAmanage.RotectorShouldSurface(entry))
+				or (NAmanage.RotectorShouldWarn and NAmanage.RotectorShouldWarn(entry))
+			if player and type(entry) == "table" and NAmanage.RotectorRememberPlayerResult then
+				NAmanage.RotectorRememberPlayerResult(player, entry)
+			end
+			if player and shouldFlag then
+				Insert(targets, player)
+			end
+		end
+		return targets
+	end,
+
 	["#(%d+)"] = function(speaker, args, currentList)
 		const returns = {}
 		const randAmount = tonumber(args[1])
@@ -34328,23 +34441,1355 @@ NAmanage.PersistentPlayerRefs = function(query, speaker)
 	return refs
 end
 
-NAmanage.JoinLeaveTitle = function(kind)
+NAmanage.Rotector = NAmanage.Rotector or {
+	endpoint = "https://roscoe.rotector.com/v1/lookup/roblox/user";
+	cache = {};
+	pending = {};
+	queue = {};
+	players = {};
+	records = {};
+	flagged = {};
+	notified = {};
+	markers = {};
+	overlay = nil;
+	renderConn = nil;
+	scheduled = false;
+	serverSummaryScheduled = false;
+	serverSummaryShown = false;
+	cacheSeconds = 600;
+}
+
+NAmanage.RotectorFlagNames = NAmanage.RotectorFlagNames or {
+	[0] = "Unflagged";
+	[1] = "Flagged";
+	[2] = "Confirmed";
+	[3] = "Queued";
+	[4] = "Provisional Flag";
+	[5] = "Mixed";
+	[6] = "Past Offender";
+	[8] = "Redacted";
+}
+
+NAmanage.RotectorCategoryNames = NAmanage.RotectorCategoryNames or {
+	[1] = "CSAM";
+	[2] = "Sexual";
+	[3] = "Kink";
+	[4] = "Raceplay";
+	[5] = "Condo";
+	[6] = "Other";
+}
+
+NAmanage.RotectorToNumber = function(value)
+	const n = tonumber(value)
+	if n then
+		return math.floor(n)
+	end
+	return nil
+end
+
+NAmanage.RotectorIdKey = function(value)
+	const n = tonumber(value)
+	if n then
+		return tostring(math.floor(n))
+	end
+	return tostring(value)
+end
+
+NAmanage.RotectorFlagName = function(value)
+	const flag = NAmanage.RotectorToNumber(value)
+	return NAmanage.RotectorFlagNames[flag] or ("Unknown ("..tostring(value)..")")
+end
+
+NAmanage.RotectorCategoryName = function(value)
+	const category = NAmanage.RotectorToNumber(value)
+	return NAmanage.RotectorCategoryNames[category]
+end
+
+NAmanage.RotectorShouldWarn = function(entry)
+	if type(entry) ~= "table" then
+		return false
+	end
+	const flag = NAmanage.RotectorToNumber(entry.flagType)
+	if flag == 1 or flag == 2 then
+		return true
+	end
+	if flag == 5 then
+		return not (NAmanage.jlCfg and NAmanage.jlCfg.RotectorMixedWarnings == false)
+	end
+	return false
+end
+
+NAmanage.RotectorShowInfoRecords = function()
+	return not (NAmanage.jlCfg and NAmanage.jlCfg.RotectorInfoRecords == false)
+end
+
+NAmanage.RotectorHasReasons = function(entry)
+	const reasons = type(entry) == "table" and entry.reasons
+	if type(reasons) ~= "table" then
+		return false
+	end
+	for _ in reasons do
+		return true
+	end
+	return false
+end
+
+NAmanage.RotectorShouldSurface = function(entry)
+	if type(entry) ~= "table" then
+		return false
+	end
+	if NAmanage.RotectorShouldWarn(entry) then
+		return true
+	end
+	if not NAmanage.RotectorShowInfoRecords() then
+		return false
+	end
+	const flag = NAmanage.RotectorToNumber(entry.flagType)
+	if flag and flag ~= 0 then
+		return true
+	end
+	return NAmanage.RotectorHasReasons(entry)
+end
+
+NAmanage.RotectorEnabled = function()
+	if NAStuff and (NAStuff.StreamerModeEnabled == true or NAStuff.teleportTransition == true) then
+		return false
+	end
+	return not (NAmanage.jlCfg and NAmanage.jlCfg.RotectorWarnings == false)
+end
+
+NAmanage.RotectorConfidenceText = function(value)
+	local n = tonumber(value)
+	if not n then
+		return nil
+	end
+	if n <= 1 then
+		n = n * 100
+	end
+	n = math.max(0, math.min(100, n))
+	return Format("%d%%", math.floor(n + 0.5))
+end
+
+NAmanage.RotectorPlayerLabel = function(plr, fallbackId)
+	if typeof(plr) == "Instance" and plr:IsA("Player") then
+		return nameChecker(plr)
+	end
+	return "UserId "..tostring(fallbackId or "?")
+end
+
+NAmanage.RotectorUserLabel = function(id, fallback)
+	const n = tonumber(id)
+	const key = n and NAmanage.RotectorIdKey(n) or tostring(id or "")
+	const rt = NAmanage.Rotector
+	rt.userInfo = type(rt.userInfo) == "table" and rt.userInfo or {}
+	const cached = rt.userInfo[key]
+	if type(cached) == "table" then
+		const name = cached.Username or cached.Name or cached.username or cached.name
+		const display = cached.DisplayName or cached.displayName
+		if type(name) == "string" and name ~= "" then
+			if type(display) == "string" and display ~= "" and display ~= name then
+				return display.." (@"..name..")"
+			end
+			return "@"..name
+		end
+	end
+	if n and Services.UserService and type(Services.UserService.GetUserInfosByUserIdsAsync) == "function" then
+		local ok, infos = pcall(function()
+			return Services.UserService:GetUserInfosByUserIdsAsync({ n })
+		end)
+		if ok and type(infos) == "table" then
+			for _, info in infos do
+				const infoId = tonumber(info.Id or info.id or info.UserId or info.userId)
+				if infoId == n then
+					rt.userInfo[key] = info
+					return NAmanage.RotectorUserLabel(n, fallback)
+				end
+			end
+		end
+	end
+	if n then
+		local ok, name = pcall(function()
+			return Services.Players:GetNameFromUserIdAsync(n)
+		end)
+		if ok and type(name) == "string" and name ~= "" then
+			rt.userInfo[key] = { Id = n; Username = name; }
+			return "@"..name
+		end
+	end
+	return tostring(fallback or ("UserId "..tostring(id or "?")))
+end
+
+NAmanage.RotectorResolveOfflineUser = function(query)
+	const raw = tostring(query or ""):gsub("^%s+", ""):gsub("%s+$", "")
+	if raw == "" then
+		return nil, nil, "empty query"
+	end
+	local id = raw:match("^[Uu]ser[Ii]d:(%d+)$") or raw:match("^[Ii][Dd]:(%d+)$") or raw:match("^%d+$")
+	if id then
+		id = tonumber(id)
+		if id and id > 0 then
+			return id, NAmanage.RotectorUserLabel(id, "UserId "..tostring(id)), nil
+		end
+		return nil, nil, "invalid user id"
+	end
+	const name = raw:gsub("^@", "")
+	if name == "" then
+		return nil, nil, "empty username"
+	end
+	local ok, uid = pcall(function()
+		return Services.Players:GetUserIdFromNameAsync(name)
+	end)
+	uid = ok and tonumber(uid) or nil
+	if uid and uid > 0 then
+		return uid, NAmanage.RotectorUserLabel(uid, "@"..name), nil
+	end
+	return nil, nil, "unknown username"
+end
+
+NAmanage.RotectorExtractBody = function(response)
+	if type(response) == "table" then
+		const status = tonumber(response.StatusCode or response.statusCode or response.Status or response.status)
+		return response.Body or response.body or response.Response or response.response, status
+	end
+	if type(response) == "string" then
+		return response, nil
+	end
+	return nil, nil
+end
+
+NAmanage.RotectorHttpPost = function(payload)
+	if not (Services.HttpService and type(Services.HttpService.JSONEncode) == "function" and type(Services.HttpService.JSONDecode) == "function") then
+		return nil, "HttpService JSON support is unavailable"
+	end
+
+	local okEncode, body = pcall(Services.HttpService.JSONEncode, Services.HttpService, payload)
+	if not okEncode or type(body) ~= "string" then
+		return nil, "failed to encode request"
+	end
+
+	const url = (NAmanage.Rotector and NAmanage.Rotector.endpoint) or "https://roscoe.rotector.com/v1/lookup/roblox/user"
+	const headers = {
+		["Content-Type"] = "application/json";
+		["Accept"] = "application/json";
+	}
+	local okRequest, response, requestErr = NAmanage.HttpPost(url, body, {
+		Headers = headers,
+		timeout = 10,
+		maxAttempts = 5,
+	})
+	local responseBody, status = NAmanage.RotectorExtractBody(response)
+	if okRequest and responseBody then
+		if status and status >= 400 then
+			return nil, Format("HTTP %d", status)
+		end
+		return responseBody, nil
+	elseif requestErr then
+		return nil, requestErr
+	end
+
+	return nil, requestErr or "request failed"
+end
+
+NAmanage.RotectorLookupIds = function(ids, opts)
+	opts = type(opts) == "table" and opts or {}
+	const unique, seen = {}, {}
+	for _, id in type(ids) == "table" and ids or {} do
+		const n = tonumber(id)
+		if n and n > 0 then
+			const key = NAmanage.RotectorIdKey(n)
+			if not seen[key] then
+				seen[key] = true
+				Insert(unique, math.floor(n))
+			end
+		end
+	end
+	if #unique == 0 then
+		return {}, nil
+	end
+	if #unique > 100 then
+		const combined = {}
+		for startIndex = 1, #unique, 100 do
+			const chunk = {}
+			for i = startIndex, math.min(startIndex + 99, #unique) do
+				Insert(chunk, unique[i])
+			end
+			local chunkData, chunkErr = NAmanage.RotectorLookupIds(chunk, opts)
+			if not chunkData then
+				return nil, chunkErr
+			end
+			for key, value in chunkData do
+				combined[tostring(key)] = value
+			end
+			if startIndex + 100 <= #unique then
+				Wait(0.4)
+			end
+		end
+		return combined, nil
+	end
+
+	const payload = {
+		ids = unique;
+		excludeInfo = opts.excludeInfo == true or (opts.excludeInfo == nil and NAmanage.jlCfg and NAmanage.jlCfg.RotectorDetailedLookups == false);
+	}
+	local body, requestErr = NAmanage.RotectorHttpPost(payload)
+	if not body then
+		return nil, requestErr or "request failed"
+	end
+	local okDecode, decoded = pcall(Services.HttpService.JSONDecode, Services.HttpService, body)
+	if not okDecode or type(decoded) ~= "table" then
+		return nil, "invalid JSON response"
+	end
+	if decoded.success ~= true or type(decoded.data) ~= "table" then
+		return nil, tostring(decoded.error or "lookup failed")
+	end
+
+	const now = os.time()
+	const rt = NAmanage.Rotector
+	rt.cache = rt.cache or {}
+	const normalized = {}
+	for _, value in decoded.data do
+		if type(value) == "table" then
+			const entryId = value.id or value.userId or value.userID or value.robloxId or value.robloxID or value.robloxUserId
+			if entryId then
+				normalized[NAmanage.RotectorIdKey(entryId)] = value
+			end
+		end
+	end
+	for _, id in unique do
+		const key = NAmanage.RotectorIdKey(id)
+		local entry = decoded.data[key] or decoded.data[id] or normalized[key]
+		if type(entry) ~= "table" then
+			entry = { id = id; flagType = 0; }
+		end
+		rt.cache[key] = {
+			time = now;
+			data = entry;
+		}
+		decoded.data[key] = entry
+	end
+	return decoded.data, nil
+end
+
+NAmanage.RotectorGetCached = function(id)
+	const rt = NAmanage.Rotector
+	const key = NAmanage.RotectorIdKey(id)
+	const record = rt and rt.cache and rt.cache[key]
+	if type(record) ~= "table" or type(record.data) ~= "table" then
+		return nil
+	end
+	const maxAge = tonumber(rt.cacheSeconds) or 600
+	if os.time() - (tonumber(record.time) or 0) > maxAge then
+		rt.cache[key] = nil
+		return nil
+	end
+	return record.data
+end
+
+NAmanage.RotectorRememberPlayerResult = function(plr, entry)
+	const rt = NAmanage.Rotector
+	if type(rt) ~= "table" or type(entry) ~= "table" then
+		return
+	end
+	const id = tonumber(entry.id) or (plr and tonumber(plr.UserId))
+	if not id then
+		return
+	end
+	const key = NAmanage.RotectorIdKey(id)
+	const shouldSurface = NAmanage.RotectorShouldSurface(entry)
+	const record = {
+		player = plr;
+		entry = entry;
+		checkedAt = os.time();
+		flagged = shouldSurface == true;
+		warning = NAmanage.RotectorShouldWarn(entry) == true;
+	}
+	rt.records = rt.records or {}
+	rt.flagged = rt.flagged or {}
+	rt.players = rt.players or {}
+	rt.records[key] = record
+	if typeof(plr) == "Instance" and plr:IsA("Player") then
+		rt.players[key] = plr
+	end
+	if shouldSurface then
+		rt.flagged[key] = record
+		if type(NAmanage.RotectorScheduleServerSummary) == "function" and not (rt.serverSummaryShown or rt.serverSummaryScheduled) then
+			NAmanage.RotectorScheduleServerSummary(0.25)
+		end
+	else
+		rt.flagged[key] = nil
+	end
+end
+
+NAmanage.RotectorForgetPlayer = function(plrOrId)
+	const rt = NAmanage.Rotector
+	if type(rt) ~= "table" then
+		return
+	end
+	local id = nil
+	if typeof(plrOrId) == "Instance" and plrOrId:IsA("Player") then
+		id = tonumber(plrOrId.UserId)
+	else
+		id = tonumber(plrOrId)
+	end
+	if not id then
+		return
+	end
+	const key = NAmanage.RotectorIdKey(id)
+	if type(rt.players) == "table" then
+		rt.players[key] = nil
+	end
+	if type(rt.records) == "table" then
+		rt.records[key] = nil
+	end
+	if type(rt.flagged) == "table" then
+		rt.flagged[key] = nil
+	end
+	if type(rt.queue) == "table" then
+		rt.queue[key] = nil
+	end
+	if type(rt.pending) == "table" then
+		rt.pending[key] = nil
+	end
+	if type(rt.joinLogPending) == "table" then
+		rt.joinLogPending[key] = nil
+	end
+	if type(rt.joinRescanTokens) == "table" then
+		rt.joinRescanTokens[key] = nil
+	end
+	NAmanage.RotectorClearMarker(key)
+end
+
+NAmanage.RotectorGetPlayerRecord = function(plrOrId)
+	const rt = NAmanage.Rotector
+	if type(rt) ~= "table" then
+		return nil
+	end
+	local id = nil
+	if typeof(plrOrId) == "Instance" and plrOrId:IsA("Player") then
+		id = tonumber(plrOrId.UserId)
+	else
+		id = tonumber(plrOrId)
+	end
+	if not id then
+		return nil
+	end
+	const key = NAmanage.RotectorIdKey(id)
+	return rt.records and rt.records[key] or nil
+end
+
+NAmanage.RotectorWaitForPlayerRecord = function(plr, timeout)
+	const RawPlayers = __lt.gs("Players")
+	if not (typeof(plr) == "Instance" and plr:IsA("Player")) then
+		return nil
+	end
+	const deadline = tick() + (tonumber(timeout) or 3)
+	local record = NAmanage.RotectorGetPlayerRecord(plr)
+	while type(record) ~= "table" and plr.Parent == RawPlayers and tick() < deadline do
+		Wait(0.1)
+		record = NAmanage.RotectorGetPlayerRecord(plr)
+	end
+	return record
+end
+
+NAmanage.RotectorJoinLeaveTitle = function(kind, flagged)
+	if flagged then
+		return '<font color="#ff3c4b">FLAGGED</font> '..tostring(kind or "Join/Leave")
+	end
 	if kind == "Join" then
 		return ('<font color="%s">Join</font>/'..'<font color="%s">Leave</font>'):format(NAStuff.logClrs.GREEN, NAStuff.logClrs.WHITE)
 	end
 	return ('<font color="%s">Join</font>/'..'<font color="%s">Leave</font>'):format(NAStuff.logClrs.WHITE, NAStuff.logClrs.RED)
 end
 
-NAmanage.FormatJoinLeaveMessage = function(plr, action)
-	return NAmanage.formatLogPlayerName(plr, {
+NAmanage.RotectorFormatJoinLeaveMessage = function(plr, action, record)
+	local msg = NAmanage.formatLogPlayerName(plr, {
 		showUserId = NAmanage.jlCfg.JoinLeaveShowUserIds == true;
 	}).." has "..tostring(action).." the game."
+	if type(record) == "table" and record.flagged == true and type(record.entry) == "table" then
+		msg = msg.."\nStatus: "..NAmanage.RotectorFormatStatus(record.entry)
+	end
+	return msg
 end
 
-NAmanage.NotifyJoinLeave = function(plr, kind, action)
-	const msg = NAmanage.FormatJoinLeaveMessage(plr, action)
-	DoNotif(msg, 1, NAmanage.JoinLeaveTitle(kind))
+NAmanage.RotectorNotifyJoinLeave = function(plr, kind, action, record)
+	const flagged = type(record) == "table" and record.flagged == true
+	const msg = NAmanage.RotectorFormatJoinLeaveMessage(plr, action, record)
+	DoNotif(msg, flagged and 6 or 1, NAmanage.RotectorJoinLeaveTitle(kind, flagged))
 	NAmanage.LogJoinLeave(msg)
+end
+
+NAmanage.RotectorFormatStatus = function(entry)
+	entry = type(entry) == "table" and entry or {}
+	const parts = { NAmanage.RotectorFlagName(entry.flagType) }
+	const category = NAmanage.RotectorCategoryName(entry.category)
+	if category then
+		Insert(parts, "Category: "..category)
+	end
+	const confidence = NAmanage.RotectorConfidenceText(entry.confidence)
+	if confidence then
+		Insert(parts, "Confidence: "..confidence)
+	end
+	return Concat(parts, " | ")
+end
+
+NAmanage.RotectorReasonLines = function(entry, maxLines)
+	const out = {}
+	const reasons = type(entry) == "table" and entry.reasons
+	if type(reasons) ~= "table" then
+		return out
+	end
+	maxLines = tonumber(maxLines) or 3
+	for reasonName, reasonData in reasons do
+		if #out >= maxLines then
+			break
+		end
+		local message = type(reasonData) == "table" and reasonData.message or nil
+		if type(message) == "string" and message ~= "" then
+			message = message:gsub("%s+", " ")
+			if #message > 220 then
+				message = message:sub(1, 217).."..."
+			end
+			Insert(out, tostring(reasonName)..": "..message)
+		end
+	end
+	return out
+end
+
+NAmanage.RotectorMarkersEnabled = function()
+	return NAmanage.RotectorEnabled() and not (NAmanage.jlCfg and NAmanage.jlCfg.RotectorMarkers == false)
+end
+
+NAmanage.SpecialMarkerColor = function(value, fallback)
+	if typeof(value) == "Color3" then
+		return value
+	end
+	if type(value) == "table" then
+		local r = tonumber(value.R or value.r)
+		local g = tonumber(value.G or value.g)
+		local b = tonumber(value.B or value.b)
+		if r and g and b then
+			return Color3.new(math.clamp(r, 0, 1), math.clamp(g, 0, 1), math.clamp(b, 0, 1))
+		end
+	end
+	return fallback or Color3.new(1, 1, 1)
+end
+
+NAmanage.SpecialMarkerOutlineColor = function(color)
+	color = NAmanage.SpecialMarkerColor(color, Color3.new(1, 1, 1))
+	return color:Lerp(Color3.new(1, 1, 1), 0.72)
+end
+
+NAmanage.SpecialMarkerStrokeColor = function(color)
+	color = NAmanage.SpecialMarkerColor(color, Color3.new(1, 1, 1))
+	return Color3.new(color.R * 0.15, color.G * 0.15, color.B * 0.15)
+end
+
+NAmanage.RotectorGetMarkerColor = function()
+	return NAmanage.SpecialMarkerColor(NAStuff.RotectorMarkerColor, Color3.fromRGB(255, 30, 45))
+end
+
+NAmanage.StaffwatchGetMarkerColor = function()
+	return NAmanage.SpecialMarkerColor(NAStuff.StaffwatchMarkerColor, Color3.fromRGB(35, 140, 255))
+end
+
+NAmanage.RotectorStoreVisual = function(inst)
+	if typeof(inst) ~= "Instance" then
+		return nil
+	end
+	if inst:IsA("ScreenGui") then
+		if NAgui and NAgui.NaProtectUI then
+			local okProtect, protected = pcall(NAgui.NaProtectUI, inst)
+			if okProtect and protected then
+				return protected.Parent
+			end
+		end
+		const host = Services.CoreGui
+			or (NAlib.huiGrabber and NAlib.huiGrabber())
+			or (Services.Players and Services.Players.LocalPlayer and Services.Players.LocalPlayer:FindFirstChildOfClass("PlayerGui"))
+		if host then
+			inst.Parent = host
+			return host
+		end
+		return nil
+	end
+	pcall(function()
+		NAmanage.SetAttr(inst, "NA_RotectorVisual", true)
+	end)
+	if type(NAmanage.Helper_StoreInstance) == "function" then
+		local ok, parent = pcall(NAmanage.Helper_StoreInstance, inst)
+		if ok and parent then
+			return parent
+		end
+	end
+	if NAmanage.ESP_StoreVisual then
+		return NAmanage.ESP_StoreVisual(inst)
+	end
+	const host = (NAlib.huiGrabber and NAlib.huiGrabber())
+		or Services.CoreGui
+		or (Services.Players and Services.Players.LocalPlayer and Services.Players.LocalPlayer:FindFirstChildOfClass("PlayerGui"))
+		or Services.Workspace.CurrentCamera
+	if not host then
+		return nil
+	end
+	pcall(function()
+		inst.Archivable = false
+	end)
+	inst.Parent = host
+	return host
+end
+
+NAmanage.RotectorEnsureOverlay = function()
+	const rt = NAmanage.Rotector
+	if type(rt) ~= "table" then
+		return nil
+	end
+	local gui = rt.overlay
+	if typeof(gui) == "Instance" and gui.Parent then
+		return gui
+	end
+
+	gui = InstanceNew("ScreenGui")
+	gui.Name = "NA_RotectorOverlay"
+	gui.ResetOnSpawn = false
+	gui.IgnoreGuiInset = true
+	gui.DisplayOrder = 2147483000
+	gui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+	rt.overlay = gui
+	NAmanage.RotectorStoreVisual(gui)
+	return gui
+end
+
+NAmanage.RotectorFindAnchor = function(plr)
+	const char = typeof(plr) == "Instance" and plr.Character or nil
+	if not char then
+		return nil, nil
+	end
+	const anchor = getHead(char)
+		or char:FindFirstChild("Head")
+		or getRoot(char)
+		or char:FindFirstChild("HumanoidRootPart")
+		or char:FindFirstChild("UpperTorso")
+		or char:FindFirstChild("Torso")
+		or char:FindFirstChildWhichIsA("BasePart")
+	if anchor and anchor:IsA("BasePart") then
+		return char, anchor
+	end
+	return char, nil
+end
+
+NAmanage.RotectorUpdateMarkerFrame = function(marker)
+	const RawPlayers = __lt.gs("Players")
+	if type(marker) ~= "table" then
+		return
+	end
+	const frame = marker.frame
+	const plr = marker.player
+	if not (typeof(frame) == "Instance" and typeof(plr) == "Instance" and plr.Parent == RawPlayers) then
+		return
+	end
+	const camera = Services.Workspace and Services.Workspace.CurrentCamera
+	local _, anchor = NAmanage.RotectorFindAnchor(plr)
+	if not (camera and anchor) then
+		frame.Visible = false
+		return
+	end
+
+	const top = anchor.Position + Vector3.new(0, math.max(2.5, anchor.Size.Y + 1.7), 0)
+	local pos, onScreen = camera:WorldToViewportPoint(top)
+	if not onScreen or pos.Z <= 0 then
+		frame.Visible = false
+		return
+	end
+
+	frame.Visible = true
+	frame.Position = UDim2.fromOffset(math.floor(pos.X + 0.5), math.floor(pos.Y + 0.5))
+end
+
+NAmanage.RotectorEnsureRenderLoop = function()
+	const rt = NAmanage.Rotector
+	if type(rt) ~= "table" then
+		return
+	end
+	if rt.renderConn then
+		return
+	end
+	rt.renderConn = Services.RunService.RenderStepped:Connect(function()
+		const markers = rt.markers
+		if type(markers) ~= "table" then
+			return
+		end
+		for _, marker in markers do
+			NAmanage.RotectorUpdateMarkerFrame(marker)
+		end
+	end)
+end
+
+NAmanage.RotectorDestroyScreenMarker = function(marker)
+	if type(marker) ~= "table" then
+		return
+	end
+	for _, field in { "screenLabel", "frame" } do
+		const inst = marker[field]
+		if typeof(inst) == "Instance" then
+			pcall(function()
+				inst:Destroy()
+			end)
+		end
+		marker[field] = nil
+	end
+end
+
+NAmanage.RotectorDisableScreenOverlay = function()
+	const rt = NAmanage.Rotector
+	if type(rt) ~= "table" then
+		return
+	end
+	if rt.renderConn then
+		pcall(function()
+			rt.renderConn:Disconnect()
+		end)
+		rt.renderConn = nil
+	end
+	if type(rt.markers) == "table" then
+		for _, marker in rt.markers do
+			NAmanage.RotectorDestroyScreenMarker(marker)
+		end
+	end
+	if typeof(rt.overlay) == "Instance" then
+		pcall(function()
+			rt.overlay:Destroy()
+		end)
+	end
+	rt.overlay = nil
+end
+
+NAmanage.RotectorClearMarker = function(plrOrId)
+	const rt = NAmanage.Rotector
+	if type(rt) ~= "table" then
+		return
+	end
+	local id = nil
+	if typeof(plrOrId) == "Instance" and plrOrId:IsA("Player") then
+		id = tonumber(plrOrId.UserId)
+	else
+		id = tonumber(plrOrId)
+	end
+	if not id then
+		return
+	end
+	const key = NAmanage.RotectorIdKey(id)
+	const marker = rt.markers and rt.markers[key]
+	if type(marker) ~= "table" then
+		return
+	end
+	const markerPlayer = typeof(marker.player) == "Instance" and marker.player:IsA("Player") and marker.player or nil
+	rt.markers[key] = nil
+	for _, field in { "charConn", "ancestryConn" } do
+		const conn = marker[field]
+		if conn then
+			pcall(function()
+				conn:Disconnect()
+			end)
+		end
+	end
+	for _, field in { "billboard", "highlight", "frame", "screenLabel", "label" } do
+		const inst = marker[field]
+		if typeof(inst) == "Instance" then
+			pcall(function()
+				inst:Destroy()
+			end)
+		end
+		marker[field] = nil
+	end
+	if markerPlayer and NAStuff.RotectorOverrideESP ~= false and (ESPPlayersEnabled or chamsEnabled) then
+		Defer(function()
+			if not (markerPlayer and markerPlayer.Parent) then
+				return
+			end
+			if type(NAmanage.ESP_SetupPlayerWatch) == "function" then
+				NAmanage.ESP_SetupPlayerWatch(markerPlayer)
+			end
+			if type(NAmanage.ESP_ShouldTrackPlayer) == "function" and NAmanage.ESP_ShouldTrackPlayer(markerPlayer) and type(NAmanage.ESP_RequestReattachPlayer) == "function" then
+				NAmanage.ESP_RequestReattachPlayer(markerPlayer, true)
+			end
+		end)
+	end
+end
+
+NAmanage.RotectorClearAllMarkers = function()
+	const rt = NAmanage.Rotector
+	const markers = rt and rt.markers
+	if type(markers) == "table" then
+		const ids = {}
+		for key in markers do
+			Insert(ids, key)
+		end
+		for _, key in ids do
+			NAmanage.RotectorClearMarker(key)
+		end
+	end
+	if type(NAmanage.RotectorDisableScreenOverlay) == "function" then
+		NAmanage.RotectorDisableScreenOverlay()
+	end
+end
+
+NAmanage.RotectorMarkerText = function(entry)
+	local flagName = NAmanage.RotectorFlagName(entry and entry.flagType)
+	if flagName == "Flagged" then
+		flagName = "Flagged User"
+	elseif flagName == "Confirmed" then
+		flagName = "Confirmed Flag"
+	elseif flagName == "Mixed" then
+		flagName = "Mixed Record"
+	end
+	return "ROTECTOR\n"..flagName
+end
+
+NAmanage.RotectorEnsureScreenMarker = function(marker, entry)
+	const gui = NAmanage.RotectorEnsureOverlay()
+	if not gui then
+		return nil
+	end
+	local frame = marker.frame
+	if not (typeof(frame) == "Instance" and frame.Parent) then
+		frame = InstanceNew("Frame")
+		marker.frame = frame
+		frame.Name = "RotectorMarker"
+		frame.AnchorPoint = Vector2.new(0.5, 1)
+		frame.Size = UDim2.fromOffset(150, 42)
+		frame.BackgroundTransparency = 1
+		frame.BorderSizePixel = 0
+		frame.Visible = false
+		frame.ZIndex = 2147483000
+		frame.Parent = gui
+
+		const stroke = InstanceNew("UIStroke")
+		stroke.Color = NAmanage.RotectorGetMarkerColor()
+		stroke.Transparency = 1
+		stroke.Thickness = 1
+		stroke.Parent = frame
+
+		const corner = InstanceNew("UICorner")
+		corner.CornerRadius = UDim.new(0, 6)
+		corner.Parent = frame
+
+		const label = InstanceNew("TextLabel")
+		marker.screenLabel = label
+		label.Name = "Label"
+		label.Size = UDim2.new(1, -8, 1, -4)
+		label.Position = UDim2.fromOffset(4, 2)
+		label.BackgroundTransparency = 1
+		label.Font = Enum.Font.GothamBlack
+		const markerColor = NAmanage.RotectorGetMarkerColor()
+		label.TextColor3 = markerColor
+		label.TextStrokeColor3 = NAmanage.SpecialMarkerStrokeColor(markerColor)
+		label.TextStrokeTransparency = 0
+		label.TextSize = 14
+		label.TextWrapped = true
+		label.ZIndex = frame.ZIndex + 1
+		label.Parent = frame
+	else
+		marker.screenLabel = marker.screenLabel or frame:FindFirstChildWhichIsA("TextLabel")
+	end
+	if frame then
+		frame.BackgroundTransparency = 1
+		const stroke = frame:FindFirstChildWhichIsA("UIStroke")
+		if stroke then
+			stroke.Transparency = 1
+		end
+	end
+	if marker.screenLabel then
+		marker.screenLabel.Text = NAmanage.RotectorMarkerText(entry)
+		marker.screenLabel.BackgroundTransparency = 1
+		const markerColor = NAmanage.RotectorGetMarkerColor()
+		marker.screenLabel.TextColor3 = markerColor
+		marker.screenLabel.TextStrokeColor3 = NAmanage.SpecialMarkerStrokeColor(markerColor)
+		marker.screenLabel.TextStrokeTransparency = 0
+	end
+	return frame
+end
+
+NAmanage.RotectorEnsureMarker = function(plr, entry)
+	if not NAmanage.RotectorMarkersEnabled() then
+		NAmanage.RotectorClearMarker(plr)
+		return
+	end
+	if not NAmanage.RotectorShouldSurface(entry) then
+		NAmanage.RotectorClearMarker(plr)
+		return
+	end
+	if not (typeof(plr) == "Instance" and plr:IsA("Player")) then
+		return
+	end
+	const id = tonumber(plr.UserId)
+	if not id then
+		return
+	end
+	const rt = NAmanage.Rotector
+	rt.markers = rt.markers or {}
+	const key = NAmanage.RotectorIdKey(id)
+	local marker = rt.markers[key]
+	if type(marker) ~= "table" then
+		marker = {}
+		rt.markers[key] = marker
+	end
+	marker.entry = entry
+	marker.player = plr
+	if NAStuff.RotectorOverrideESP ~= false then
+		const model = plr.Character
+		if model and espCONS[model] and type(NAmanage.ESP_ClearModel) == "function" then
+			NAmanage.ESP_ClearModel(model)
+		end
+	end
+	if marker.charConn == nil then
+		marker.charConn = plr.CharacterAdded:Connect(function()
+			NAmanage.spawnSafe(function()
+				Wait(0.6)
+				const current = NAmanage.Rotector and NAmanage.Rotector.cache and NAmanage.Rotector.cache[key]
+				NAmanage.RotectorEnsureMarker(plr, current and current.data or marker.entry)
+			end)
+		end)
+	end
+	if marker.ancestryConn == nil then
+		marker.ancestryConn = plr.AncestryChanged:Connect(function(_, parent)
+			if not parent then
+				NAmanage.RotectorClearMarker(key)
+			end
+		end)
+	end
+
+	NAmanage.RotectorDisableScreenOverlay()
+
+	local char, anchor = NAmanage.RotectorFindAnchor(plr)
+	if not char then
+		return
+	end
+
+	local billboard = marker.billboard
+	if anchor and not (typeof(billboard) == "Instance" and billboard.Parent) then
+		billboard = InstanceNew("BillboardGui")
+		marker.billboard = billboard
+		billboard.Name = "NA_RotectorMarker"
+		billboard.AlwaysOnTop = true
+		billboard.Size = UDim2.new(0, 150, 0, 42)
+		billboard.StudsOffset = Vector3.new(0, 3.35, 0)
+		billboard.MaxDistance = 250
+		NAmanage.RotectorStoreVisual(billboard)
+
+		const label = InstanceNew("TextLabel")
+		marker.label = label
+		label.Name = "Label"
+		label.Size = UDim2.new(1, 0, 1, 0)
+		label.BackgroundTransparency = 1
+		label.BorderSizePixel = 0
+		label.Font = Enum.Font.GothamBlack
+		const markerColor = NAmanage.RotectorGetMarkerColor()
+		label.TextColor3 = markerColor
+		label.TextStrokeColor3 = NAmanage.SpecialMarkerStrokeColor(markerColor)
+		label.TextStrokeTransparency = 0
+		label.TextSize = 14
+		label.TextWrapped = true
+		label.Parent = billboard
+
+		const stroke = InstanceNew("UIStroke")
+		stroke.Color = NAmanage.RotectorGetMarkerColor()
+		stroke.Transparency = 1
+		stroke.Thickness = 1
+		stroke.Parent = label
+
+		const corner = InstanceNew("UICorner")
+		corner.CornerRadius = UDim.new(0, 6)
+		corner.Parent = label
+	else
+		if billboard then
+			marker.label = marker.label or billboard:FindFirstChildWhichIsA("TextLabel")
+		end
+	end
+
+	if billboard and anchor then
+		billboard.Adornee = anchor
+		NAmanage.RotectorStoreVisual(billboard)
+	end
+	if marker.label then
+		marker.label.Text = NAmanage.RotectorMarkerText(entry)
+		marker.label.BackgroundTransparency = 1
+		const markerColor = NAmanage.RotectorGetMarkerColor()
+		marker.label.TextColor3 = markerColor
+		marker.label.TextStrokeColor3 = NAmanage.SpecialMarkerStrokeColor(markerColor)
+		marker.label.TextStrokeTransparency = 0
+		const stroke = marker.label:FindFirstChildWhichIsA("UIStroke")
+		if stroke then
+			stroke.Color = markerColor
+			stroke.Transparency = 1
+		end
+	end
+
+	local highlight = marker.highlight
+	if not (typeof(highlight) == "Instance" and highlight.Parent) then
+		local ok, hl = pcall(InstanceNew, "Highlight")
+		if ok and hl then
+			highlight = hl
+			marker.highlight = highlight
+			highlight.Name = "NA_RotectorHighlight"
+			highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+			const markerColor = NAmanage.RotectorGetMarkerColor()
+			highlight.FillColor = markerColor
+			highlight.OutlineColor = NAmanage.SpecialMarkerOutlineColor(markerColor)
+			highlight.FillTransparency = 0.78
+			highlight.OutlineTransparency = 0
+			NAmanage.RotectorStoreVisual(highlight)
+		end
+	end
+	if highlight then
+		const markerColor = NAmanage.RotectorGetMarkerColor()
+		highlight.FillColor = markerColor
+		highlight.OutlineColor = NAmanage.SpecialMarkerOutlineColor(markerColor)
+		highlight.Adornee = char
+		highlight.Enabled = true
+	end
+
+end
+
+NAmanage.RotectorRefreshMarkers = function()
+	const rt = NAmanage.Rotector
+	if type(rt) ~= "table" or type(rt.markers) ~= "table" then
+		return
+	end
+	const pending = {}
+	for _, marker in rt.markers do
+		if type(marker) == "table" and typeof(marker.player) == "Instance" and marker.player:IsA("Player") then
+			pending[#pending + 1] = { player = marker.player; entry = marker.entry; }
+		end
+	end
+	for _, rec in pending do
+		NAmanage.RotectorEnsureMarker(rec.player, rec.entry)
+	end
+end
+
+NAmanage.RotectorApplyPlayerResult = function(plr, entry)
+	const RawPlayers = __lt.gs("Players")
+	if not (typeof(plr) == "Instance" and plr:IsA("Player")) then
+		return
+	end
+	NAmanage.RotectorRememberPlayerResult(plr, entry)
+	const shouldWarn = NAmanage.RotectorShouldWarn(entry)
+	const shouldSurface = NAmanage.RotectorShouldSurface(entry)
+	const rt = NAmanage.Rotector
+	const id = tonumber(entry and entry.id) or tonumber(plr.UserId)
+	const key = id and NAmanage.RotectorIdKey(id) or nil
+	if shouldSurface then
+		NAmanage.RotectorEnsureMarker(plr, entry)
+	else
+		NAmanage.RotectorClearMarker(plr)
+	end
+	if shouldSurface and key and type(rt) == "table" and type(rt.joinLogPending) == "table" and rt.joinLogPending[key] then
+		const suppressJoinLeave = NAStuff and NAStuff.StreamerModeEnabled == true
+		if NAmanage.jlCfg and NAmanage.jlCfg.JoinLog and not suppressJoinLeave and plr.Parent == RawPlayers then
+			NAmanage.RotectorNotifyJoinLeave(plr, "Join", "joined", NAmanage.RotectorGetPlayerRecord(plr))
+		end
+		rt.joinLogPending[key] = nil
+	elseif key and type(rt) == "table" and type(rt.joinLogPending) == "table" and tonumber(rt.joinLogPending[key]) and os.time() - rt.joinLogPending[key] > 30 then
+		rt.joinLogPending[key] = nil
+	end
+	if shouldWarn then
+		NAmanage.RotectorNotifyPlayer(plr, entry)
+	end
+end
+
+NAmanage.RotectorNotifyPlayer = function(plr, entry)
+	if NAmanage.jlCfg and NAmanage.jlCfg.RotectorWarnings == false then
+		return
+	end
+	if NAStuff and (NAStuff.StreamerModeEnabled == true or NAStuff.teleportTransition == true) then
+		return
+	end
+	if not NAmanage.RotectorShouldWarn(entry) then
+		return
+	end
+	const rt = NAmanage.Rotector
+	const id = tonumber(entry.id) or (plr and tonumber(plr.UserId))
+	if not id then
+		return
+	end
+	const key = NAmanage.RotectorIdKey(id)
+	const flag = NAmanage.RotectorToNumber(entry.flagType) or -1
+	if rt.notified and rt.notified[key] == flag then
+		return
+	end
+	rt.notified = rt.notified or {}
+	rt.notified[key] = flag
+
+	const label = NAmanage.RotectorPlayerLabel(plr, id)
+	const prefix = tostring(opt and opt.prefix or ";")
+	const status = NAmanage.RotectorFormatStatus(entry)
+	local reasons = {}
+	if not (NAmanage.jlCfg and NAmanage.jlCfg.RotectorWarningReasons == false) then
+		reasons = NAmanage.RotectorReasonLines(entry, 2)
+	end
+	local hint = ""
+	if typeof(plr) == "Instance" and plr:IsA("Player") then
+		hint = "\nRun "..prefix.."rotector "..plr.Name.." for details."
+	end
+	const reasonText = #reasons > 0 and ("\n"..Concat(reasons, "\n")) or ""
+	DoNotif(label.."\nRotector: "..status..reasonText.."\nSource: rotector.com"..hint, 8, "Rotector Warning")
+end
+
+NAmanage.RotectorServerWarningsEnabled = function()
+	if NAmanage.jlCfg and NAmanage.jlCfg.RotectorServerWarnings == false then
+		return false
+	end
+	if NAStuff and (NAStuff.StreamerModeEnabled == true or NAStuff.teleportTransition == true) then
+		return false
+	end
+	return true
+end
+
+NAmanage.RotectorCollectFlaggedRecords = function()
+	const RawPlayers = __lt.gs("Players")
+	const rt = NAmanage.Rotector
+	const out = {}
+	if type(rt) ~= "table" or type(rt.flagged) ~= "table" then
+		return out
+	end
+	for key, record in rt.flagged do
+		const plr = record and record.player
+		if typeof(plr) == "Instance" and plr:IsA("Player") and plr.Parent == RawPlayers then
+			Insert(out, record)
+		else
+			rt.flagged[key] = nil
+		end
+	end
+	table.sort(out, function(a, b)
+		const ap = a and a.player
+		const bp = b and b.player
+		const an = ap and tostring(ap.Name) or ""
+		const bn = bp and tostring(bp.Name) or ""
+		return an < bn
+	end)
+	return out
+end
+
+NAmanage.RotectorNotifyServerFlagged = function()
+	if not NAmanage.RotectorServerWarningsEnabled() then
+		return
+	end
+	const flagged = NAmanage.RotectorCollectFlaggedRecords()
+	if #flagged == 0 then
+		return false
+	end
+	const lines = {
+		Format("Rotector found %d flagged/recorded player%s in this server:", #flagged, #flagged == 1 and "" or "s")
+	}
+	for i, record in flagged do
+		if i > 8 then
+			Insert(lines, Format("...and %d more.", #flagged - 8))
+			break
+		end
+		const plr = record.player
+		Insert(lines, (plr and nameChecker(plr) or ("UserId "..tostring(record.entry and record.entry.id or "?"))).." - "..NAmanage.RotectorFormatStatus(record.entry))
+	end
+	Insert(lines, "")
+	Insert(lines, "Source: rotector.com")
+	DoNotif(Concat(lines, "\n"), 9, "Rotector Server")
+	return true
+end
+
+NAmanage.RotectorScheduleServerSummary = function(delaySeconds)
+	const rt = NAmanage.Rotector
+	if type(rt) ~= "table" or rt.serverSummaryScheduled or rt.serverSummaryShown then
+		return
+	end
+	rt.serverSummaryScheduled = true
+	NAmanage.spawnSafe(function()
+		Wait(tonumber(delaySeconds) or 1.5)
+		const started = tick()
+		while (rt.scheduled or next(rt.pending or {}) ~= nil or (tonumber(rt.retrying) or 0) > 0) and tick() - started < 8 do
+			Wait(0.25)
+		end
+		if rt.scheduled or next(rt.pending or {}) ~= nil or (tonumber(rt.retrying) or 0) > 0 then
+			rt.serverSummaryScheduled = false
+			NAmanage.RotectorScheduleServerSummary(2)
+			return
+		end
+		rt.serverSummaryScheduled = false
+		if NAmanage.RotectorNotifyServerFlagged() then
+			rt.serverSummaryShown = true
+		end
+	end)
+end
+
+NAmanage.RotectorFlushQueue = function()
+	const RawPlayers = __lt.gs("Players")
+	const rt = NAmanage.Rotector
+	if not rt then
+		return
+	end
+	rt.scheduled = false
+	while true do
+		const ids = {}
+		for key in rt.queue or {} do
+			rt.queue[key] = nil
+			Insert(ids, tonumber(key))
+			if #ids >= 100 then
+				break
+			end
+		end
+		if #ids == 0 then
+			break
+		end
+
+		local results, err = NAmanage.RotectorLookupIds(ids)
+		const retryIds = {}
+		for _, id in ids do
+			const key = NAmanage.RotectorIdKey(id)
+			rt.pending[key] = nil
+			const entry = results and (results[key] or results[id])
+			const plr = rt.players and rt.players[key]
+			if typeof(plr) == "Instance" and plr.Parent == RawPlayers then
+				if type(entry) ~= "table" or not NAmanage.RotectorShouldSurface(entry) then
+					Insert(retryIds, id)
+				end
+			end
+			if type(entry) == "table" and typeof(plr) == "Instance" and plr.Parent == RawPlayers then
+				NAmanage.RotectorApplyPlayerResult(plr, entry)
+			end
+		end
+		for index, id in retryIds do
+			rt.retrying = (tonumber(rt.retrying) or 0) + 1
+			NAmanage.spawnSafe(function()
+				Wait(math.min((index - 1) * 0.08, 2))
+				const key = NAmanage.RotectorIdKey(id)
+				const single = NAmanage.RotectorLookupIds({ id })
+				const singleEntry = type(single) == "table" and (single[key] or single[id]) or nil
+				const plr = rt.players and rt.players[key]
+				if NAmanage.RotectorShouldSurface(singleEntry) and typeof(plr) == "Instance" and plr.Parent == RawPlayers then
+					NAmanage.RotectorApplyPlayerResult(plr, singleEntry)
+				end
+				rt.retrying = math.max(0, (tonumber(rt.retrying) or 1) - 1)
+				if rt.retrying == 0 and not (rt.serverSummaryShown or rt.serverSummaryScheduled) then
+					NAmanage.RotectorScheduleServerSummary(0.25)
+				end
+			end)
+		end
+		if not results and err then
+			DebugNotif("Rotector lookup failed: "..tostring(err), 4, "Rotector")
+		end
+		if #ids >= 100 then
+			Wait(0.4)
+		end
+	end
+	if not (rt.serverSummaryShown or rt.serverSummaryScheduled) then
+		NAmanage.RotectorScheduleServerSummary(0.25)
+	end
+end
+
+NAmanage.RotectorQueuePlayer = function(plr, force)
+	if not (typeof(plr) == "Instance" and plr:IsA("Player")) then
+		return
+	end
+	if plr == LocalPlayer then
+		return
+	end
+	const id = tonumber(plr.UserId)
+	if not id or id <= 0 then
+		return
+	end
+
+	const rt = NAmanage.Rotector
+	const key = NAmanage.RotectorIdKey(id)
+	rt.players = rt.players or {}
+	rt.players[key] = plr
+
+	const cached = force == true and nil or NAmanage.RotectorGetCached(key)
+	if cached then
+		NAmanage.RotectorApplyPlayerResult(plr, cached)
+		return
+	end
+	if rt.pending and rt.pending[key] then
+		return
+	end
+
+	rt.queue = rt.queue or {}
+	rt.pending = rt.pending or {}
+	rt.queue[key] = true
+	rt.pending[key] = true
+
+	if not rt.scheduled then
+		rt.scheduled = true
+		NAmanage.spawnSafe(function()
+			Wait(0.2)
+			NAmanage.RotectorFlushQueue()
+		end)
+	end
+end
+
+NAmanage.RotectorQueueCurrentPlayers = function(force)
+	for _, plr in __lt.cm("Players", "GetPlayers") do
+		if plr ~= LocalPlayer then
+			NAmanage.RotectorQueuePlayer(plr, force == true)
+		end
+	end
+end
+
+NAmanage.RotectorScheduleJoinRescan = function(plr)
+	const RawPlayers = __lt.gs("Players")
+	if not (typeof(plr) == "Instance" and plr:IsA("Player")) then
+		return
+	end
+	if plr == LocalPlayer then
+		return
+	end
+	const id = tonumber(plr.UserId)
+	if not id or id <= 0 then
+		return
+	end
+	const rt = NAmanage.Rotector
+	if type(rt) ~= "table" then
+		return
+	end
+	const key = NAmanage.RotectorIdKey(id)
+	rt.joinRescanTokens = rt.joinRescanTokens or {}
+	const token = (tonumber(rt.joinRescanTokens[key]) or 0) + 1
+	rt.joinRescanTokens[key] = token
+	NAmanage.spawnSafe(function()
+		for _, delaySeconds in { 3, 12 } do
+			Wait(delaySeconds)
+			if not (typeof(plr) == "Instance" and plr.Parent == RawPlayers) then
+				break
+			end
+			if not (type(rt.joinRescanTokens) == "table" and rt.joinRescanTokens[key] == token) then
+				break
+			end
+			const record = NAmanage.RotectorGetPlayerRecord and NAmanage.RotectorGetPlayerRecord(plr)
+			if type(record) == "table" and record.flagged == true then
+				break
+			end
+			NAmanage.RotectorQueuePlayer(plr, true)
+		end
+	end)
+end
+
+NAmanage.RotectorScheduleStartupRescan = function()
+	const rt = NAmanage.Rotector
+	if type(rt) ~= "table" or rt.startupRescanScheduled then
+		return
+	end
+	rt.startupRescanScheduled = true
+	NAmanage.spawnSafe(function()
+		for _, delaySeconds in { 5, 15, 30 } do
+			Wait(delaySeconds)
+			if #NAmanage.RotectorCollectFlaggedRecords() > 0 then
+				if not (rt.serverSummaryShown or rt.serverSummaryScheduled) then
+					NAmanage.RotectorScheduleServerSummary(0.25)
+				end
+				break
+			end
+			rt.serverSummaryShown = false
+			NAmanage.RotectorQueueCurrentPlayers(true)
+			NAmanage.RotectorScheduleServerSummary(2)
+		end
+		rt.startupRescanScheduled = false
+	end)
 end
 
 --[[ MORE VARIABLES ]]--
@@ -37474,6 +38919,18 @@ NAmanage.ESP_IsStaffwatchOwnedPlayer = function(player)
 	return state.staffPlayers[tostring(player.UserId)] == true
 end
 
+NAmanage.ESP_IsRotectorOwnedPlayer = function(player)
+	if not (typeof(player) == "Instance" and player:IsA("Player")) then
+		return false
+	end
+	const rt = NAmanage.Rotector
+	if type(rt) ~= "table" or type(rt.markers) ~= "table" then
+		return false
+	end
+	const marker = rt.markers[NAmanage.RotectorIdKey(player.UserId)]
+	return type(marker) == "table" and marker.player == player
+end
+
 NAmanage.ESP_ShouldTrackPlayer = function(player)
 	if not ((ESPPlayersEnabled or chamsEnabled) == true) then
 		return false
@@ -37482,6 +38939,9 @@ NAmanage.ESP_ShouldTrackPlayer = function(player)
 		return false
 	end
 	if NAStuff.StaffwatchOverrideESP ~= false and NAmanage.ESP_IsStaffwatchOwnedPlayer(player) then
+		return false
+	end
+	if NAStuff.RotectorOverrideESP ~= false and NAmanage.ESP_IsRotectorOwnedPlayer(player) then
 		return false
 	end
 	if NAmanage.ESP_HasPlayerLabelOverride and NAmanage.ESP_HasPlayerLabelOverride(player) == true then
@@ -37791,7 +39251,7 @@ NAmanage.ESP_IsKnownPartVisual = function(inst)
 	if typeof(inst) ~= "Instance" then
 		return false
 	end
-	if NAmanage.GetAttr(inst, "NA_StaffwatchVisual") == true then
+	if NAmanage.GetAttr(inst, "NA_StaffwatchVisual") == true or NAmanage.GetAttr(inst, "NA_RotectorVisual") == true then
 		return true
 	end
 	if type(NAStuff.partESPVisualMap) == "table" and NAStuff.partESPVisualMap[inst] then
@@ -51480,6 +52940,158 @@ cmd.add({"music","musicplayer","songplayer"},{"music (musicplayer)","Open the NA
 	end
 end)
 
+cmd.add({"rotector","rocheck","safetycheck"},{"rotector <player|username|userid|all|id:userId|on|off> (rocheck)","Check Rotector API status for Roblox users"},function(...)
+	const RawPlayers = __lt.gs("Players")
+	const args = {...}
+	local query = Concat(args, " ")
+	query = type(query) == "string" and query:gsub("^%s+", ""):gsub("%s+$", "") or ""
+	const lowerQuery = Lower(query)
+
+	if lowerQuery == "on" or lowerQuery == "enable" then
+		NAmanage.jlCfg.RotectorWarnings = true
+		NAmanage.jlSave()
+		DoNotif("Rotector warnings enabled", 2, "Rotector")
+		return
+	elseif lowerQuery == "off" or lowerQuery == "disable" then
+		NAmanage.jlCfg.RotectorWarnings = false
+		NAmanage.jlSave()
+		DoNotif("Rotector warnings disabled", 2, "Rotector")
+		return
+	elseif lowerQuery == "mixed on" or lowerQuery == "mixedon" then
+		NAmanage.jlCfg.RotectorMixedWarnings = true
+		NAmanage.jlSave()
+		DoNotif("Rotector Mixed warnings enabled", 2, "Rotector")
+		return
+	elseif lowerQuery == "mixed off" or lowerQuery == "mixedoff" then
+		NAmanage.jlCfg.RotectorMixedWarnings = false
+		NAmanage.jlSave()
+		DoNotif("Rotector Mixed warnings disabled", 2, "Rotector")
+		return
+	elseif lowerQuery == "markers on" or lowerQuery == "marker on" then
+		NAmanage.jlCfg.RotectorMarkers = true
+		NAmanage.jlSave()
+		DoNotif("Rotector CoreGui markers enabled", 2, "Rotector")
+		for _, plr in __lt.cm("Players", "GetPlayers") do
+			const cached = NAmanage.RotectorGetCached(plr.UserId)
+			if cached then
+				NAmanage.RotectorApplyPlayerResult(plr, cached)
+			else
+				NAmanage.RotectorQueuePlayer(plr)
+			end
+		end
+		return
+	elseif lowerQuery == "markers off" or lowerQuery == "marker off" then
+		NAmanage.jlCfg.RotectorMarkers = false
+		NAmanage.jlSave()
+		NAmanage.RotectorClearAllMarkers()
+		DoNotif("Rotector CoreGui markers disabled", 2, "Rotector")
+		return
+	end
+
+	const ids, labels, playersById = {}, {}, {}
+	const seen = {}
+	const function addId(id, label, plr)
+		id = tonumber(id)
+		if not id or id <= 0 then
+			return false
+		end
+		const key = NAmanage.RotectorIdKey(id)
+		if seen[key] then
+			return false
+		end
+		seen[key] = true
+		Insert(ids, id)
+		labels[key] = label or NAmanage.RotectorUserLabel(id, "UserId "..tostring(id))
+		if typeof(plr) == "Instance" and plr:IsA("Player") then
+			playersById[key] = plr
+		end
+		return true
+	end
+
+	const targetQuery = query ~= "" and query or "others"
+	const forceOffline = targetQuery:match("^[Uu]ser[Ii]d:%d+$") or targetQuery:match("^[Ii][Dd]:%d+$") or targetQuery:match("^%d+$")
+	if not forceOffline then
+		const targets = getPlr(targetQuery)
+		if type(targets) == "table" and #targets > 0 then
+			for _, target in targets do
+				if typeof(target) == "Instance" and target:IsA("Player") then
+					addId(target.UserId, nameChecker(target), target)
+				end
+			end
+		end
+	end
+
+	if #ids == 0 and targetQuery ~= "" and Lower(targetQuery) ~= "all" and Lower(targetQuery) ~= "others" then
+		local id, label, resolveErr = NAmanage.RotectorResolveOfflineUser(targetQuery)
+		if id then
+			addId(id, label, nil)
+		else
+			DoNotif("No matching Roblox user found: "..tostring(resolveErr or targetQuery), 4, "Rotector")
+			return
+		end
+	end
+
+	if #ids == 0 then
+		DoNotif("No Roblox user IDs to check.", 3, "Rotector")
+		return
+	end
+
+	DoNotif(Format("Checking Rotector for %d user%s...", #ids, #ids == 1 and "" or "s"), 2, "Rotector")
+	NAmanage.spawnSafe(function()
+		local results, err = NAmanage.RotectorLookupIds(ids)
+		if not results then
+			DoNotif("Rotector lookup failed: "..tostring(err or "unknown error"), 5, "Rotector")
+			return
+		end
+
+		const warnings, otherRecords, detailBlocks = {}, {}, {}
+		for _, id in ids do
+			const key = NAmanage.RotectorIdKey(id)
+			const entry = results[key] or results[id] or { id = id; flagType = 0; }
+			const label = labels[key] or ("UserId "..key)
+			const line = label.." - "..NAmanage.RotectorFormatStatus(entry)
+			const flag = NAmanage.RotectorToNumber(entry.flagType) or 0
+			const playerTarget = playersById[key]
+			if typeof(playerTarget) == "Instance" and playerTarget.Parent == RawPlayers then
+				NAmanage.RotectorApplyPlayerResult(playerTarget, entry)
+			end
+			if NAmanage.RotectorShouldWarn(entry) then
+				Insert(warnings, line)
+			elseif NAmanage.RotectorShowInfoRecords() and (flag ~= 0 or (NAmanage.RotectorHasReasons and NAmanage.RotectorHasReasons(entry))) then
+				Insert(otherRecords, line.." (not automatically actionable)")
+			end
+
+			const reasonLines = NAmanage.RotectorReasonLines(entry, #ids == 1 and 5 or 2)
+			if #reasonLines > 0 then
+				Insert(detailBlocks, label.."\n"..Concat(reasonLines, "\n"))
+			end
+		end
+
+		const lines = {}
+		if #warnings > 0 then
+			Insert(lines, "Rotector warning records:")
+			for _, line in warnings do
+				Insert(lines, line)
+			end
+		else
+			Insert(lines, "No actionable Rotector flags found.")
+		end
+		if #otherRecords > 0 then
+			Insert(lines, "")
+			Insert(lines, "Other Rotector records:")
+			for _, line in otherRecords do
+				Insert(lines, line)
+			end
+		end
+		Insert(lines, "")
+		Insert(lines, "Source: rotector.com")
+
+		DoNotif(Concat(lines, "\n"), #warnings > 0 and 9 or 5, "Rotector")
+		if #detailBlocks > 0 then
+			DoWindow(Concat(detailBlocks, "\n\n"), "Rotector Details")
+		end
+	end)
+end, true)
 
 cmd.add({"gotocampos","tocampos","tcp"},{"gotocampos (tocampos,tcp)","Teleports you to your camera position works with free cam but freezes you"},function()
 	const player=Services.Players.LocalPlayer
@@ -57455,6 +59067,9 @@ end
 if NAStuff.StaffwatchOverrideESP == nil then
 	NAStuff.StaffwatchOverrideESP = true
 end
+if NAStuff.RotectorOverrideESP == nil then
+	NAStuff.RotectorOverrideESP = true
+end
 
 NAmanage.StaffwatchKey = function(player)
 	if typeof(player) ~= "Instance" or not player:IsA("Player") then
@@ -57483,6 +59098,9 @@ NAmanage.StaffwatchStoreVisual = function(inst, fallback)
 		if ok and parent then
 			return parent
 		end
+	end
+	if type(NAmanage.RotectorStoreVisual) == "function" then
+		pcall(NAmanage.RotectorStoreVisual, inst)
 	end
 	if not inst.Parent then
 		inst.Parent = fallback or Services.Workspace.CurrentCamera
@@ -57639,8 +59257,13 @@ NAmanage.StaffwatchEnsureMarker = function(player, info)
 		end)
 	end
 
-	local char = player.Character
-	local anchor = char and (getHead(char) or getRoot(char) or char:FindFirstChildWhichIsA("BasePart"))
+	local char, anchor = nil, nil
+	if type(NAmanage.RotectorFindAnchor) == "function" then
+		char, anchor = NAmanage.RotectorFindAnchor(player)
+	else
+		char = player.Character
+		anchor = char and (getHead(char) or getRoot(char) or char:FindFirstChildWhichIsA("BasePart"))
+	end
 	if not (typeof(char) == "Instance" and char.Parent) then
 		return
 	end
@@ -143016,8 +144639,30 @@ originalIO.setupPlayer=function(plr,bruh)
 	end
 
 	const suppressJoinLeave = NAStuff and NAStuff.StreamerModeEnabled == true
+	const forceRotectorLookup = not bruh
+	NAmanage.RotectorQueuePlayer(plr, forceRotectorLookup)
+	if forceRotectorLookup and NAmanage.RotectorScheduleJoinRescan then
+		NAmanage.RotectorScheduleJoinRescan(plr)
+	end
+
 	if NAmanage.jlCfg.JoinLog and not bruh and not suppressJoinLeave then
-		NAmanage.NotifyJoinLeave(plr, "Join", "joined")
+		const rotectorJoinRecord = NAmanage.RotectorGetPlayerRecord and NAmanage.RotectorGetPlayerRecord(plr)
+		NAmanage.RotectorNotifyJoinLeave(plr, "Join", "joined", rotectorJoinRecord)
+		if plr ~= LocalPlayer and not (type(rotectorJoinRecord) == "table" and rotectorJoinRecord.flagged == true) then
+			const id = tonumber(plr.UserId)
+			const rt = NAmanage.Rotector
+			if id and type(rt) == "table" then
+				rt.joinLogPending = rt.joinLogPending or {}
+				const key = NAmanage.RotectorIdKey(id)
+				const joinedAt = os.time()
+				rt.joinLogPending[key] = joinedAt
+				Delay(35, function()
+					if type(rt.joinLogPending) == "table" and rt.joinLogPending[key] == joinedAt then
+						rt.joinLogPending[key] = nil
+					end
+				end)
+			end
+		end
 	end
 	if not bruh and not suppressJoinLeave and plr ~= LocalPlayer and NAmanage.jlCfg.NotifyFollowed == true then
 		local okFollow, followIdRaw = pcall(function()
@@ -143036,6 +144681,8 @@ for _, plr in __lt.cm("Players", "GetPlayers") do
 		NAmanage.queueCharacterWork(plr, plr.Character, false)
 	end
 end
+NAmanage.RotectorScheduleServerSummary(1.5)
+NAmanage.RotectorScheduleStartupRescan()
 
 NAlib.disconnect("playerLifecycle")
 NAlib.connect("playerLifecycle", NAmanage.playersSub({
@@ -143059,9 +144706,13 @@ NAlib.connect("playerLifecycle", NAmanage.playersSub({
 		end
 		NAmanage.ExecuteBindings("OnLeave", plr)
 		NAmanage.ESP_Disconnect(plr)
+		const rotectorLeaveRecord = NAmanage.RotectorGetPlayerRecord and NAmanage.RotectorGetPlayerRecord(plr)
 		const suppressJoinLeave = NAStuff and NAStuff.StreamerModeEnabled == true
 		if NAmanage.jlCfg.LeaveLog and not suppressJoinLeave then
-			NAmanage.NotifyJoinLeave(plr, "Leave", "left")
+			NAmanage.RotectorNotifyJoinLeave(plr, "Leave", "left", rotectorLeaveRecord)
+		end
+		if NAmanage.RotectorForgetPlayer and plr then
+			NAmanage.RotectorForgetPlayer(plr)
 		end
 		if NAmanage.WebhookJoinLeave then
 			NAmanage.WebhookJoinLeave(plr, "leave")
@@ -158338,6 +159989,117 @@ NAgui.addButton("Clear Chat Log File", function()
 	DoNotif(ok and "Chat log cleared." or ("Failed to clear: "..tostring(msg)), 2.5)
 end)
 
+NAgui.addTab(NA_TABS.TAB_ROTECTOR, { order = 3.25, textIcon = "shield-check" })
+NAgui.setTab(NA_TABS.TAB_ROTECTOR)
+
+NAgui.addSection("Rotector API")
+
+NAgui.addToggle("Request Detailed Rotector Info", NAmanage.jlCfg.RotectorDetailedLookups ~= false, function(v)
+	NAmanage.jlCfg.RotectorDetailedLookups = v and true or false
+	NAmanage.jlSave()
+	DoNotif("Rotector detailed lookups "..(v and "enabled" or "disabled"), 2)
+end)
+
+NAgui.addButton("Refresh Current Server", function()
+	if NAmanage.Rotector then
+		NAmanage.Rotector.serverSummaryShown = false
+	end
+	NAmanage.RotectorQueueCurrentPlayers(true)
+	NAmanage.RotectorScheduleServerSummary(2)
+	DoNotif("Refreshing Rotector records for current server", 2, "Rotector")
+end)
+
+NAgui.addSection("Rotector Warnings")
+
+NAgui.addToggle("Warn If Server Has Rotector Records", NAmanage.jlCfg.RotectorServerWarnings ~= false, function(v)
+	NAmanage.jlCfg.RotectorServerWarnings = v and true or false
+	NAmanage.jlSave()
+	DoNotif("Rotector server warnings "..(v and "enabled" or "disabled"), 2)
+	if v then
+		NAmanage.RotectorNotifyServerFlagged()
+	end
+end)
+
+NAgui.addToggle("Rotector Player Warnings", NAmanage.jlCfg.RotectorWarnings ~= false, function(v)
+	NAmanage.jlCfg.RotectorWarnings = v and true or false
+	NAmanage.jlSave()
+	DoNotif("Rotector player warnings "..(v and "enabled" or "disabled"), 2)
+	if v then
+		for _, plr in __lt.cm("Players", "GetPlayers") do
+			NAmanage.RotectorQueuePlayer(plr)
+		end
+	else
+		NAmanage.RotectorClearAllMarkers()
+	end
+end)
+
+NAgui.addToggle("Warn On Rotector Mixed Records", NAmanage.jlCfg.RotectorMixedWarnings ~= false, function(v)
+	NAmanage.jlCfg.RotectorMixedWarnings = v and true or false
+	NAmanage.jlSave()
+	DoNotif("Rotector Mixed warnings "..(v and "enabled" or "disabled"), 2)
+end)
+
+NAgui.addToggle("Show Informational Rotector Records", NAmanage.jlCfg.RotectorInfoRecords ~= false, function(v)
+	NAmanage.jlCfg.RotectorInfoRecords = v and true or false
+	NAmanage.jlSave()
+	DoNotif("Rotector informational records "..(v and "shown" or "hidden"), 2)
+	if v then
+		NAmanage.RotectorQueueCurrentPlayers(true)
+	else
+		for _, plr in __lt.cm("Players", "GetPlayers") do
+			const record = NAmanage.RotectorGetPlayerRecord(plr)
+			if type(record) == "table" and not NAmanage.RotectorShouldWarn(record.entry) then
+				NAmanage.RotectorClearMarker(plr)
+			end
+		end
+	end
+end)
+
+NAgui.addToggle("Include Reason Lines In Warnings", NAmanage.jlCfg.RotectorWarningReasons ~= false, function(v)
+	NAmanage.jlCfg.RotectorWarningReasons = v and true or false
+	NAmanage.jlSave()
+	DoNotif("Rotector warning reasons "..(v and "enabled" or "disabled"), 2)
+end)
+
+NAgui.addSection("Rotector Markers")
+
+NAgui.addToggle("Show Rotector CoreGui Markers", NAmanage.jlCfg.RotectorMarkers ~= false, function(v)
+	NAmanage.jlCfg.RotectorMarkers = v and true or false
+	NAmanage.jlSave()
+	DoNotif("Rotector CoreGui markers "..(v and "enabled" or "disabled"), 2)
+	if v then
+		for _, plr in __lt.cm("Players", "GetPlayers") do
+			const cached = NAmanage.RotectorGetCached(plr.UserId)
+			if cached then
+				NAmanage.RotectorApplyPlayerResult(plr, cached)
+			else
+				NAmanage.RotectorQueuePlayer(plr)
+			end
+		end
+	else
+		NAmanage.RotectorClearAllMarkers()
+	end
+end)
+
+NAgui.addToggle("Rotector Overrides ESP/Chams", NAStuff.RotectorOverrideESP ~= false, function(v)
+	NAStuff.RotectorOverrideESP = v and true or false
+	pcall(NAmanage.NASettingsSet, "rotectorOverrideESP", NAStuff.RotectorOverrideESP)
+	if type(NAmanage.ESP_RefreshPlayerTeamFilters) == "function" then
+		NAmanage.ESP_RefreshPlayerTeamFilters()
+	end
+	DoNotif("Rotector ESP/Chams override "..(NAStuff.RotectorOverrideESP and "enabled" or "disabled"), 2, "Rotector")
+end)
+
+NAgui.addColorPicker("Rotector Marker Color", NAmanage.RotectorGetMarkerColor(), function(color)
+	if typeof(color) ~= "Color3" then
+		return
+	end
+	NAStuff.RotectorMarkerColor = color
+	pcall(NAmanage.NASettingsSet, "rotectorMarkerColor", { R = color.R; G = color.G; B = color.B })
+	if type(NAmanage.RotectorRefreshMarkers) == "function" then
+		NAmanage.RotectorRefreshMarkers()
+	end
+end)
 
 NAmanage.EnsureESPSettingsLoadedForUI = function(timeout)
 	const state = NAmanage.ESPSettingsState
