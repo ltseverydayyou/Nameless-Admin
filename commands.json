@@ -529,6 +529,17 @@
       "desc": "Open the NA music player"
     },
     {
+      "name": "rotector",
+      "aliases": [
+        "rotector",
+        "rocheck",
+        "safetycheck"
+      ],
+      "usage": "rotector <player|username|userid|all|id:userId|on|off> (rocheck)",
+      "args": "<player|username|userid|all|id:userId|on|off>",
+      "desc": "Check Rotector API status for Roblox users"
+    },
+    {
       "name": "gotocampos",
       "aliases": [
         "gotocampos",
