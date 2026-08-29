@@ -42235,7 +42235,7 @@ NAmanage.LoadPlugins = function(opts)
 			"assert", "error", "ipairs", "next", "pairs", "pcall", "xpcall", "select", "tonumber", "tostring", "type", "typeof",
 			"unpack", "rawequal", "rawget", "rawset", "setmetatable", "getmetatable", "print", "warn", "require",
 			"wait", "spawn", "delay", "tick", "time", "elapsedTime", "gcinfo", "collectgarbage", "settings", "UserSettings", "version",
-			"cloneref", "compareinstances", "hookfunction", "hookmetamethod", "getnamecallmethod", "setnamecallmethod", "newcclosure", "checkcaller",
+			"cloneref", "compareinstances", "hookfunction", "hookmetamethod", "getnamecallmethod", "setnamecallmethod", "newcclosure", "checkcaller", "getthreadidentity", "getidentity", "get_thread_identity", "setthreadidentity", "setidentity", "set_thread_identity",
 			"iscclosure", "islclosure", "isexecutorclosure", "isourclosure", "restorefunction", "clonefunction", "getconnections", "firesignal", "replicatesignal",
 			"firetouchinterest", "fireproximityprompt", "fireclickdetector", "getnilinstances", "getinstances", "gethui", "getcustomasset", "getgc", "filtergc",
 			"setclipboard", "toclipboard", "queue_on_teleport", "queueonteleport", "identifyexecutor", "isfile", "isfolder", "readfile", "writefile", "appendfile", "listfiles", "makefolder", "delfile", "delfolder",
