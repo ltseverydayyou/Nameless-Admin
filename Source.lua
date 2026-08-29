@@ -52259,6 +52259,9 @@ do
 	if st.heartbeatConnection then
 		pcall(function() st.heartbeatConnection:Disconnect() end)
 	end
+	if st.preSimulationConnection then
+		pcall(function() st.preSimulationConnection:Disconnect() end)
+	end
 	NAmanage.ovClr(st)
 	NAmanage.ovPrg()
 	st.ovPruned = true
@@ -52272,6 +52275,7 @@ do
 	st.UndergroundResolvedOffset = nil
 	st.PendingTranslation = nil
 	st.heartbeatConnection = nil
+	st.preSimulationConnection = nil
 end
 
 NAStuff.NA_UNDERGROUND_IDENTITY_CFRAME = NAStuff.NA_UNDERGROUND_IDENTITY_CFRAME or CFrame.new()
@@ -52727,7 +52731,15 @@ NAmanage.UG_disable = function(state, message)
 		end)
 		state.heartbeatConnection = nil
 	end
+	const preSim = state.preSimulationConnection
+	if preSim then
+		pcall(function()
+			preSim:Disconnect()
+		end)
+		state.preSimulationConnection = nil
+	end
 	NAlib.disconnect("underground_heartbeat")
+	NAlib.disconnect("underground_presimulation")
 
 	state.UndergroundOffset = nil
 	state.PendingTranslation = nil
@@ -52760,6 +52772,24 @@ NAmanage.UG_enable = function(state, rootPart)
 	if prevHB then
 		pcall(function() prevHB:Disconnect() end)
 	end
+	const prevPreSim = state.preSimulationConnection
+	if prevPreSim then
+		pcall(function() prevPreSim:Disconnect() end)
+	end
+
+	state.preSimulationConnection = NAlib.reconnect("underground_presimulation", Services.RunService.PreSimulation:Connect(function()
+		if not state.Underground then
+			return
+		end
+		const current = state.UndergroundCurrent
+		if typeof(current) ~= "CFrame" then
+			return
+		end
+		local _, currentRoot = NAmanage.UG_fetchCharPieces()
+		if currentRoot then
+			currentRoot.CFrame = current
+		end
+	end))
 
 	state.heartbeatConnection = NAlib.reconnect("underground_heartbeat", Services.RunService.Heartbeat:Connect(function()
 		if not state.Underground then
@@ -84654,6 +84684,11 @@ NAmanage.GetVelocityWalkSpeedValue = function()
 	return tonumber(_na_env.NamelessSpeed)
 end
 
+NAmanage.IsVelocityWalkSpeedExternallyOverridden = function()
+	const lp = LocalPlayer or (Services.Players and Services.Players.LocalPlayer)
+	return lp and lp:GetAttribute("NAExternalSpeedOverride") == true or false
+end
+
 NAmanage.IsCharacterFullyNoClip = function(char)
 	if typeof(char) ~= "Instance" then
 		return false
@@ -84767,6 +84802,10 @@ NAmanage.ClampVelocityWalkSpeedVector = function(velocity, cap, axes, planarDire
 end
 
 NAmanage.ClampVelocityWalkSpeedRoot = function()
+	if NAmanage.IsVelocityWalkSpeedExternallyOverridden and NAmanage.IsVelocityWalkSpeedExternallyOverridden() then
+		NAmanage.ClearVelocityWalkSpeedClampState()
+		return
+	end
 	const state = NAmanage.GetVelocityWalkSpeedState()
 	const root = state.clampRoot
 	const hum = state.clampHum
@@ -85107,6 +85146,11 @@ NAmanage.RefreshVelocityWalkSpeed = function()
 	NAmanage.EnsureVelocityWalkSpeedClampLoop()
 	NAlib.connect("na_velocityws_apply", Services.RunService.PreSimulation:Connect(function()
 		const speed = NAmanage.GetVelocityWalkSpeedValue()
+		if NAmanage.IsVelocityWalkSpeedExternallyOverridden and NAmanage.IsVelocityWalkSpeedExternallyOverridden() then
+			NAmanage.ClearVelocityWalkSpeedClampState()
+			NAmanage.SetVelocityWalkSpeedHelperActive(Vector3.zero, false)
+			return
+		end
 		if not speed or speed <= 0 then
 			NAmanage.ClearVelocityWalkSpeedClampState()
 			NAmanage.SetVelocityWalkSpeedHelperActive(Vector3.zero, false)
