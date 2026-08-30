@@ -142673,12 +142673,14 @@ originalIO.binderAttachHumanoidListeners=function(plr, hum)
 				NAmanage.ExecuteBindings("OnKill", killer, plr)
 			end
 		end)
-		cleanup()
 	end
 
-	if wantDamage then
+	if wantDamage or wantDeath or wantKill then
 		rec.conns[#rec.conns + 1] = hum.HealthChanged:Connect(function(newHP)
 			const oldHP = rec.lastHP
+			if rec.dead and tonumber(newHP) and newHP > 0 then
+				rec.dead = false
+			end
 			if wantDamage and tonumber(newHP) and tonumber(oldHP) and newHP < oldHP then
 				NAmanage.ExecuteBindings("OnDamage", plr, oldHP, newHP)
 			end
