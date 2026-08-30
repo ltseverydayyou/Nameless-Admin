@@ -34183,6 +34183,15 @@ NAmanage.PlayerArgResolveSimple = function(speaker, raw, currentList)
 
 	const onlyDigits = raw:match("^%d+$")
 	if onlyDigits then
+		const exactNumericUser = {}
+		for _, plr in currentList do
+			if Lower(plr.Name) == raw then
+				Insert(exactNumericUser, plr)
+			end
+		end
+		if #exactNumericUser > 0 then
+			return exactNumericUser
+		end
 		return PlayerArgs["#(%d+)"](speaker, { onlyDigits }, currentList) or {}
 	end
 
