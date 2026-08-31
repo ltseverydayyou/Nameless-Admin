@@ -2725,6 +2725,15 @@
       "desc": "F3X for client"
     },
     {
+      "name": "telekinesis",
+      "aliases": [
+        "telekinesis"
+      ],
+      "usage": "telekinesis",
+      "args": "",
+      "desc": "tool that controls unanchored parts (depending if you have ownership of that part)"
+    },
+    {
       "name": "harked",
       "aliases": [
         "harked",
