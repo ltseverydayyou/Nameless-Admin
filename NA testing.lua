@@ -66058,6 +66058,10 @@ cmd.add({"f3x","fex"},{"f3x (fex)","F3X for client"},function()
 	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/F3X.luau", true, "@F3X.luau")
 end)
 
+cmd.add({"telekinesis"},{"telekinesis","tool that controls unanchored parts (depending if you have ownership of that part)"},function()
+	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/Telekinesis.luau", true, "@Telekinesis.luau")
+end)
+
 cmd.add({"harked","comet"},{"harked (comet)","Executes Comet which is like harked"},function()
 	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/comet");
 end)
