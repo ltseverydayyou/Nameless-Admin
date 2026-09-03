@@ -63587,7 +63587,7 @@ end);
 
 NAStuff.annoyLoop = false
 
-cmd.add({"annoy"}, {"annoy <player>", "Annoys the given player"}, function(...)
+cmd.add({"annoy"}, {"annoy <player|npc:filter>", "Annoys the given player or NPC"}, function(...)
 	if NAStuff.annoyLoop then
 		DoNotif("Already annoying someone. Use :unannoy first.", 3)
 		return
@@ -63606,7 +63606,8 @@ cmd.add({"annoy"}, {"annoy <player>", "Annoys the given player"}, function(...)
 	end
 
 	const target = targets[1]
-	if not target.Character or not getRoot(target.Character) then
+	const initialTargetChar = NAmanage.PlayerArgChar(target)
+	if not initialTargetChar or not getRoot(initialTargetChar) then
 		DoNotif("Target has no character or root part.", 3)
 		annoyLoop = false
 		return
@@ -63627,7 +63628,7 @@ cmd.add({"annoy"}, {"annoy <player>", "Annoys the given player"}, function(...)
 	repeat
 		Wait(0.05)
 
-		const targetChar = target.Character
+		const targetChar = NAmanage.PlayerArgChar(target)
 		const targetRoot = targetChar and getRoot(targetChar)
 		myChar = getChar()
 		myRoot = myChar and getRoot(myChar)
@@ -68985,7 +68986,19 @@ cmd.add({"chamsteam", "teamchams", "chamsteamname", "chamsbyteam"}, {"chamsteam 
 	end
 end, true)
 
-cmd.add({"locate"}, {"locate <username1> <username2> etc (optional)", "locate where the specified player(s) are"}, function(...)
+NAStuff.LocatedNPCs = type(NAStuff.LocatedNPCs) == "table" and NAStuff.LocatedNPCs or {}
+
+NAmanage.HasLocatedNPCs = function()
+	for npc in NAStuff.LocatedNPCs do
+		if typeof(npc) == "Instance" and npc:IsA("Model") and npc.Parent then
+			return true
+		end
+		NAStuff.LocatedNPCs[npc] = nil
+	end
+	return false
+end
+
+cmd.add({"locate"}, {"locate <player|npc:filter> ... (optional)", "Locate specific players or NPCs"}, function(...)
 	ESPPlayersEnabled = true
 	NAmanage.ESP_RecomputeEnabled()
 	local tokens = {...}
@@ -69018,14 +69031,19 @@ cmd.add({"locate"}, {"locate <username1> <username2> etc (optional)", "locate wh
 	for _, token in tokens do
 		for _, target in getPlr(token) do
 			if target and target ~= Services.Players.LocalPlayer then
-				const uid = tonumber(target.UserId)
-				if uid and uid > 0 then
-					targetUidSet[uid] = true
+				if target:IsA("Player") then
+					const uid = tonumber(target.UserId)
+					if uid and uid > 0 then
+						targetUidSet[uid] = true
+					end
+					if not shouldAuto then
+						NAmanage.ESP_SetPlayerLabelOverride(target, true)
+					end
+					NAmanage.ESP_Add(target, true)
+				elseif target:IsA("Model") then
+					NAStuff.LocatedNPCs[target] = true
+					NAmanage.ESP_Add(target, false, true)
 				end
-				if not shouldAuto then
-					NAmanage.ESP_SetPlayerLabelOverride(target, true)
-				end
-				NAmanage.ESP_Add(target, true)
 			end
 		end
 	end
@@ -69045,8 +69063,7 @@ cmd.add({"locate"}, {"locate <username1> <username2> etc (optional)", "locate wh
 	if not shouldAuto and type(NAmanage.ESP_RefreshPlayerTeamFilters) == "function" then
 		NAmanage.ESP_RefreshPlayerTeamFilters()
 	end
-end, true)
-
+end, true, {argumentHint="Examples: player, me, nearest, npc:name, npcs"})
 NAStuff.NPC_SCAN_KEY = NAStuff.NPC_SCAN_KEY or "npc_esp_scan"
 NAStuff.npcESPList = NAStuff.npcESPList or _na_env.npcESPList
 if not NAStuff.npcESPList then
@@ -69239,7 +69256,7 @@ cmd.add({"unesp","unchams","unespteam","unespenemies","unespallies","unespplayer
 	end
 end)
 
-cmd.add({"unlocate"},{"unlocate <username1> <username2>"},function(...)
+cmd.add({"unlocate"},{"unlocate <player|npc:filter> ..."},function(...)
 	const tokens = {...}
 	local clearAll = (#tokens == 0)
 	for _, name in tokens do
@@ -69251,6 +69268,12 @@ cmd.add({"unlocate"},{"unlocate <username1> <username2>"},function(...)
 	end
 	if clearAll then
 		NAmanage.ESP_ClearPlayerLabelOverrides()
+		for npc in NAStuff.LocatedNPCs do
+			if typeof(npc) == "Instance" then
+				NAmanage.ESP_Disconnect(npc)
+			end
+			NAStuff.LocatedNPCs[npc] = nil
+		end
 		if not chamsEnabled then
 			ESPAutoTrackAll = false
 			ESPPlayersEnabled = false
@@ -69269,33 +69292,29 @@ cmd.add({"unlocate"},{"unlocate <username1> <username2>"},function(...)
 		return
 	end
 	for _, name in tokens do
-		for _, plr in getPlr(name) do
-			NAmanage.ESP_SetPlayerLabelOverride(plr, false)
-			if plr.Character and espCONS[plr.Character] then
-				NAmanage.ESP_DestroyLabel(plr.Character)
-			end
-			if not chamsEnabled then
-				NAmanage.ESP_Disconnect(plr)
+		for _, target in getPlr(name) do
+			if target:IsA("Player") then
+				NAmanage.ESP_SetPlayerLabelOverride(target, false)
+				if target.Character and espCONS[target.Character] then
+					NAmanage.ESP_DestroyLabel(target.Character)
+				end
+				if not chamsEnabled then
+					NAmanage.ESP_Disconnect(target)
+				end
+			elseif target:IsA("Model") then
+				NAStuff.LocatedNPCs[target] = nil
+				NAmanage.ESP_Disconnect(target)
 			end
 		end
 	end
-	if not chamsEnabled and ESPAutoTrackAll ~= true and not NAmanage.ESP_HasAnyPlayerLabelOverride() then
+	if not chamsEnabled and ESPAutoTrackAll ~= true and not NAmanage.ESP_HasAnyPlayerLabelOverride() and not NAmanage.HasLocatedNPCs() then
 		ESPPlayersEnabled = false
 		NAmanage.ESP_RecomputeEnabled()
 		if not NPCESPenabled then
 			NAmanage.ESP_StopGlobal()
 		end
 	end
-end, true)
-
---[[
-cmd.add({"crash"},{"crash","crashes ur client lol (why would you even use this tho)"},function()
-	while true do end
-end)
-]]
-
-VVVVVVVVVVVCARRR = {}
-
+end, true, {argumentHint="Examples: player, npc:name, npcs"})
 cmd.add({"vehiclenoclip", "vnoclip"}, {"vehiclenoclip (vnoclip)", "Disables vehicle collision"}, function()
 	VVVVVVVVVVVCARRR = {}
 
@@ -69331,7 +69350,7 @@ cmd.add({"vehicleclip", "vclip", "unvnoclip", "unvehiclenoclip"}, {"vehicleclip 
 	VVVVVVVVVVVCARRR = {}
 end)
 
-cmd.add({"handlekill", "hkill"}, {"handlekill <player> (hkill)", "Kills a player using a tool that deals damage on touch"}, function(...)
+cmd.add({"handlekill", "hkill"}, {"handlekill <player|npc:filter> (hkill)", "Kills a player or NPC using a tool that deals damage on touch"}, function(...)
 	const LocalPlayer = Services.Players.LocalPlayer
 
 	if not firetouchinterest then
@@ -69413,9 +69432,9 @@ cmd.add({"handlekill", "hkill"}, {"handlekill <player> (hkill)", "Kills a player
 			end
 		end)
 	end
-end, true)
+end, true, {argumentHint="Examples: player, me, nearest, npc:name, npcs"})
 
-cmd.add({"creep"}, {"creep <player>", "Teleports from a player behind them and under the floor to the top"}, function(...)
+cmd.add({"creep"}, {"creep <player|npc:filter>", "Teleports from a player or NPC behind them and under the floor to the top"}, function(...)
 	const username = ...
 	const targets = getPlr(username)
 	if #targets == 0 then
@@ -69436,12 +69455,14 @@ cmd.add({"creep"}, {"creep <player>", "Teleports from a player behind them and u
 		return
 	end
 
-	if not target.Character or not getPlrHum(target) or not getPlrHum(target).RootPart then
+	const targetChar = NAmanage.PlayerArgChar(target)
+	const targetHum = getPlrHum(target)
+	if not targetChar or not targetHum or not targetHum.RootPart then
 		DoNotif("Target's character is invalid.", 3)
 		return
 	end
 
-	NAmanage.UG_setRootCFrame(root, getPlrHum(target).RootPart.CFrame * CFrame.new(0, -10, 4))
+	NAmanage.UG_setRootCFrame(root, targetHum.RootPart.CFrame * CFrame.new(0, -10, 4))
 	Wait()
 
 	if NAlib.isConnected("creep_noclip") then
@@ -71264,7 +71285,7 @@ cmd.add({"resetanims", "defaultanims", "animsreset"}, {"resetanims (defaultanims
 	NAStuff.storedAnims[hum] = nil
 end)
 
-cmd.add({"animcopycore","animcopy","copyanim","copyan"}, {"animcopycore <target>","Copy core animations from target"}, function(targetArg)
+cmd.add({"animcopycore","animcopy","copyanim","copyan"}, {"animcopycore <player|npc:filter>","Copy core animations from a player or NPC"}, function(targetArg)
 	if not targetArg or targetArg == "" then return end
 	const targets = getPlr(targetArg)
 	const target = targets and targets[1]
@@ -71323,7 +71344,7 @@ cmd.add({"animcopycore","animcopy","copyanim","copyan"}, {"animcopycore <target>
 	refresh(myHum)
 end)
 
-cmd.add({"syncanim","animsync"}, {"syncanim <target>","Mirror target animations (live)"}, function(targetArg)
+cmd.add({"syncanim","animsync"}, {"syncanim <player|npc:filter>","Mirror player or NPC animations (live)"}, function(targetArg)
 	if not targetArg or targetArg == "" then return end
 	const targets = getPlr(targetArg)
 	const target = targets and targets[1]
@@ -71650,7 +71671,7 @@ cmd.add({"unsyncreset","unsync","unsres","unsr"}, {"unsyncreset","Stop sync and 
 	refresh(myHum)
 end)
 
-cmd.add({"mimic","mirror","mclone","mcopy","mimi"}, {"mimic <target> [delay]","Clone target movement with optional delay"}, function(targetArg, delayArg)
+cmd.add({"mimic","mirror","mclone","mcopy","mimi"}, {"mimic <player|npc:filter> [delay]","Clone player or NPC movement with optional delay"}, function(targetArg, delayArg)
 	if not targetArg or targetArg == "" then return end
 	local delay = tonumber(delayArg) or 0
 	if delay < 0 then delay = 0 end
@@ -74923,12 +74944,12 @@ NAmanage.getOrbitSpeed=function(v)
 	return math.clamp(n, 0.005, 1)
 end
 
-cmd.add({"orbit"}, {"orbit <player> <distance> [speed]", "Orbit around a player"}, function(p, d, s)
+cmd.add({"orbit"}, {"orbit <player|npc:filter> <distance> [speed]", "Orbit around a player or NPC"}, function(p, d, s)
 	NAlib.disconnect("orbit")
 	const targets = getPlr(p)
 	if #targets == 0 then return end
 	const target = targets[1]
-	const tchar = target.Character
+	const tchar = NAmanage.PlayerArgChar(target)
 	const char = getChar()
 	if not tchar or not char then return end
 	const thrp = getRoot(tchar)
@@ -74951,12 +74972,12 @@ cmd.add({"orbit"}, {"orbit <player> <distance> [speed]", "Orbit around a player"
 	end))
 end, true)
 
-cmd.add({"uporbit"}, {"uporbit <player> <distance> [speed]", "Orbit around a player on the Y axis"}, function(p, d, s)
+cmd.add({"uporbit"}, {"uporbit <player|npc:filter> <distance> [speed]", "Orbit around a player or NPC on the Y axis"}, function(p, d, s)
 	NAlib.disconnect("orbit")
 	const targets = getPlr(p)
 	if #targets == 0 then return end
 	const target = targets[1]
-	const tchar = target.Character
+	const tchar = NAmanage.PlayerArgChar(target)
 	const char = getChar()
 	if not tchar or not char then return end
 	const thrp = getRoot(tchar)
@@ -75261,7 +75282,7 @@ cmd.add({"freecam","fc","fcam"},{"freecam [speed] (fc,fcam)","Enable free camera
 	end
 end, true)
 
-cmd.add({"freecamgoto","fcgoto","fcgo","fcg","freecamto","fcto"},{"freecamgoto <player> (fcgoto,fcgo,fcg,freecamto,fcto)","Start or move freecam to a player"},function(...)
+cmd.add({"freecamgoto","fcgoto","fcgo","fcg","freecamto","fcto"},{"freecamgoto <player|npc:filter> (fcgoto,fcgo,fcg,freecamto,fcto)","Start or move freecam to a player or NPC"},function(...)
 	const query = Concat({...}, " ")
 	if query == "" then
 		return DebugNotif("Player name required", 3)
@@ -79093,7 +79114,7 @@ cmd.add({"timestop", "tstop"}, {"timestop (tstop)", "freezes all players (ZA WAR
 	NAlib.disconnect("timestop_playeradd")
 
 	for _, plr in target do
-		const char = plr.Character or getPlrChar(plr)
+		const char = NAmanage.PlayerArgChar(plr)
 		if char then
 			for _, v in char:QueryDescendants("BasePart") do
 				v.Anchored = true
@@ -79128,7 +79149,7 @@ cmd.add({"untimestop", "untstop"}, {"untimestop (untstop)", "unfreeze all player
 	NAlib.disconnect("timestop_playeradd")
 
 	for _, plr in target do
-		const char = plr.Character or getPlrChar(plr)
+		const char = NAmanage.PlayerArgChar(plr)
 		if char then
 			for _, v in char:QueryDescendants("BasePart") do
 				v.Anchored = false
@@ -79669,7 +79690,7 @@ cmd.add({"goto","to","tp","teleport"},{"goto <player|npc:filter|X,Y,Z>","Telepor
 	else
 		DebugNotif("Invalid input: not a valid player, NPC, or X,Y,Z coordinates",3)
 	end
-end,true)
+end,true,{argumentHint="Examples: me, nearest, npc:name, npcs, X,Y,Z"})
 
 function stareFIXER(char, facePos)
 	const root = getRoot(char)
@@ -79707,7 +79728,7 @@ cmd.add({"lookat", "stare"}, {"lookat <player|npc:filter>", "Stare at a player o
 
 		NAlib.connect("stare_direct", Services.RunService.RenderStepped:Connect(Stare))
 	end
-end, true)
+end, true, {argumentHint="Examples: me, nearest, npc:name, npcs"})
 
 cmd.add({"unlookat", "unstare"}, {"unlookat", "Stops staring"}, function()
 	NAlib.disconnect("stare_direct")
@@ -80419,13 +80440,13 @@ cmd.add({"unwatch2","unview2"},{"unwatch2",""},function()
 	DebugNotif("Spectate stopped", 1.2)
 end, true)
 
-cmd.add({"stealaudio","getaudio","steal","logaudio"},{"stealaudio <player>","Save all sounds a player is playing to a file -Cyrus"},function(p)
+cmd.add({"stealaudio","getaudio","steal","logaudio"},{"stealaudio <player|npc:filter>","Save sounds playing from a player or NPC to a file -Cyrus"},function(p)
 	Wait(.1)
 	const players=getPlr(p)
 	if not next(players) then DoNotif("Player not found") return end
 	const ids={}
 	for _,plr in players do
-		const char=plr and plr.Character
+		const char=plr and NAmanage.PlayerArgChar(plr)
 		if char then
 			for _,snd in NAmanage.QueryDescendants(char, "Sound") do
 				if snd.Playing then
@@ -80442,7 +80463,7 @@ cmd.add({"stealaudio","getaudio","steal","logaudio"},{"stealaudio <player>","Sav
 	end
 end,true)
 
-cmd.add({"follow", "stalk", "walk"}, {"follow <player>", "Follow a player wherever they go"}, function(p)
+cmd.add({"follow", "stalk", "walk"}, {"follow <player|npc:filter>", "Follow a player or NPC wherever they go"}, function(p)
 	NAlib.disconnect("follow")
 	const targetPlayers = getPlr(p)
 	for _, plr in next, targetPlayers do
@@ -80451,7 +80472,7 @@ cmd.add({"follow", "stalk", "walk"}, {"follow <player>", "Follow a player wherev
 			return
 		end
 		NAlib.connect("follow", Services.RunService.RenderStepped:Connect(function()
-			const target = plr.Character
+			const target = NAmanage.PlayerArgChar(plr)
 			if target then
 				const hum = getHum()
 				const targetPart = getHead(target)
@@ -80603,7 +80624,7 @@ cmd.add({"unautofollow", "stopautofollow", "unproxfollow"}, {"unautofollow (stop
 	followTarget = nil
 end)
 
-cmd.add({"pathfind"},{"pathfind <player>","Follow a player using the pathfinder API wherever they go"},function(p)
+cmd.add({"pathfind"},{"pathfind <player|npc:filter>","Follow a player or NPC using the pathfinder API"},function(p)
 	Wait(.1)
 	const players=getPlr(p)
 	for _,plr in players do
@@ -80612,7 +80633,7 @@ cmd.add({"pathfind"},{"pathfind <player>","Follow a player using the pathfinder 
 			const ps=SafeGetService("PathfindingService")
 			local lastSrc, lastDst = Vector3.new(0, 0, 0), Vector3.new(0, 0, 0)
 			NAlib.connect("follow",Services.RunService.Heartbeat:Connect(function()
-				const hum=getHum() const char=getChar() const tgt=plr.Character
+				const hum=getHum() const char=getChar() const tgt=NAmanage.PlayerArgChar(plr)
 				if not(hum and char and tgt and hum.RootPart) then return end
 				const src=hum.RootPart.Position
 				const dst=(getRoot(tgt) or getHead(tgt)).Position+Vector3.new(0,0,-2)
@@ -83792,7 +83813,7 @@ NAmanage.RegisterUnloadCleanup("headsit_cleanup", function()
 	stopHeadSit(false)
 end, 60)
 
-cmd.add({"headsit"}, {"headsit <player>", "sit on someone's head"}, function(...)
+cmd.add({"headsit"}, {"headsit <player|npc:filter>", "Sit on a player or NPC's head"}, function(...)
 	const RawPlayers = __lt.gs("Players")
 	const query = Concat({...}, " ")
 	const targets = getPlr(query)
@@ -83804,13 +83825,17 @@ cmd.add({"headsit"}, {"headsit <player>", "sit on someone's head"}, function(...
 	const char = getChar()
 	const hum = char and getHum(char)
 	const root = char and getRoot(char)
-	const targetChar = plr.Character
+	const targetChar = NAmanage.PlayerArgChar(plr)
 	const targetHead = targetChar and getHead(targetChar)
 	if not char or not char.Parent
 		or not hum or not hum.Parent or hum.Health <= 0
 		or not root or not root.Parent
 		or not targetHead or not targetHead.Parent then
 		return
+	end
+
+	const function targetExists()
+		return (plr:IsA("Player") and plr.Parent == RawPlayers) or (plr:IsA("Model") and plr.Parent ~= nil)
 	end
 
 	const token = NAStuff.headsitToken
@@ -83830,9 +83855,9 @@ cmd.add({"headsit"}, {"headsit <player>", "sit on someone's head"}, function(...
 	}
 
 	const function updatePosition()
-		const currentTargetChar = plr.Character
+		const currentTargetChar = NAmanage.PlayerArgChar(plr)
 		const currentTargetHead = currentTargetChar and getHead(currentTargetChar)
-		if plr.Parent ~= RawPlayers
+		if not targetExists()
 			or not char.Parent
 			or not hum.Parent or hum.Health <= 0
 			or not root.Parent
@@ -84597,7 +84622,7 @@ end)
 
 standParts = {}
 
-cmd.add({"headstand"}, {"headstand <player>", "Stand on someone's head."}, function(p)
+cmd.add({"headstand"}, {"headstand <player|npc:filter>", "Stand on a player or NPC's head."}, function(p)
 	const RawPlayers = __lt.gs("Players")
 	NAlib.disconnect("headstand_follow")
 	NAlib.disconnect("headstand_died")
@@ -84649,9 +84674,13 @@ cmd.add({"headstand"}, {"headstand <player>", "Stand on someone's head."}, funct
 		Insert(standParts, part)
 	end
 
+	const function targetExists()
+		return (plr:IsA("Player") and plr.Parent == RawPlayers) or (plr:IsA("Model") and plr.Parent ~= nil)
+	end
+
 	NAlib.connect("headstand_follow", Services.RunService.PreSimulation:Connect(function()
-		const plrCharacter = plr.Character
-		if plr.Parent == RawPlayers and plrCharacter and getRoot(plrCharacter) and getRoot(char) then
+		const plrCharacter = NAmanage.PlayerArgChar(plr)
+		if targetExists() and plrCharacter and getRoot(plrCharacter) and getRoot(char) then
 			const charRoot = getRoot(char)
 			charRoot.CFrame = getRoot(plrCharacter).CFrame * CFrame.new(0, 4.6, 0.4)
 			for i, wall in walls do
@@ -85337,7 +85366,7 @@ end)
 
 loopwave = false
 
-cmd.add({"loopwaveat", "loopwat"}, {"loopwaveat <player> (loopwat)", "Wave to a player in a loop"}, function(...)
+cmd.add({"loopwaveat", "loopwat"}, {"loopwaveat <player|npc:filter> (loopwat)", "Wave to a player or NPC in a loop"}, function(...)
 	loopwave = true
 	const playerName = (...)
 	const targets = getPlr(playerName)
@@ -85346,7 +85375,10 @@ cmd.add({"loopwaveat", "loopwat"}, {"loopwaveat <player> (loopwat)", "Wave to a 
 		const oldCFrame = NAmanage.UG_clientCFrame(getRoot(char)) or getRoot(char).CFrame
 		repeat
 			Wait(0.2)
-			const targetCFrame = getRoot(plr.Character).CFrame
+			const targetChar = NAmanage.PlayerArgChar(plr)
+			const targetRoot = targetChar and getRoot(targetChar)
+			if not targetRoot then break end
+			const targetCFrame = targetRoot.CFrame
 			const waveAnim = InstanceNew("Animation")
 			if getHum().RigType == Enum.HumanoidRigType.R15 then
 				waveAnim.AnimationId = "rbxassetid://507770239"
@@ -85355,7 +85387,7 @@ cmd.add({"loopwaveat", "loopwat"}, {"loopwaveat <player> (loopwat)", "Wave to a 
 			end
 			NAmanage.UG_setRootCFrame(getRoot(char), targetCFrame * CFrame.new(0, 0, -3))
 			const charPos = char.PrimaryPart.Position
-			const tpos = getRoot(plr.Character).Position
+			const tpos = targetRoot.Position
 			const newCFrame = CFrame.new(charPos, Vector3.new(tpos.X, charPos.Y, tpos.Z))
 			NAmanage.UG_pivotModel(Services.Players.LocalPlayer.Character, newCFrame)
 			const wave = getHum():LoadAnimation(waveAnim)
@@ -85805,7 +85837,7 @@ cmd.add({"toolview2", "tview2"}, {"toolview2 (tview2)", "Live-updating tool view
 			end
 		end
 
-		const char = plr.Character or getPlrChar(plr)
+		const char = NAmanage.PlayerArgChar(plr)
 		if char then
 			for _, t in char:GetChildren() do
 				if t:IsA("Tool") then Insert(tools, t) end
@@ -86001,7 +86033,7 @@ cmd.add({"toolview2", "tview2"}, {"toolview2 (tview2)", "Live-updating tool view
 end)
 
 
-cmd.add({"waveat", "wat"}, {"waveat <player> (wat)", "Wave to a player"}, function(...)
+cmd.add({"waveat", "wat"}, {"waveat <player|npc:filter> (wat)", "Wave to a player or NPC"}, function(...)
 	const playerName = (...)
 	const targets = getPlr(playerName)
 	if #targets == 0 then return end
@@ -86010,11 +86042,11 @@ cmd.add({"waveat", "wat"}, {"waveat <player> (wat)", "Wave to a player"}, functi
 	const humanoid = getHum()
 	const localRoot = getRoot(char)
 	const oldCFrame = NAmanage.UG_clientCFrame(localRoot) or localRoot.CFrame
-	const targetRoot = getRoot(plr.Character)
+	const targetRoot = getRoot(NAmanage.PlayerArgChar(plr))
 	if targetRoot then
 		NAmanage.UG_setClientCFrame(localRoot, targetRoot.CFrame * CFrame.new(0, 0, -3))
 		const charPos = char.PrimaryPart.Position
-		const targetHRP = getRoot(plr.Character)
+		const targetHRP = getRoot(NAmanage.PlayerArgChar(plr))
 		if targetHRP then
 			const newCFrame = CFrame.new(charPos, Vector3.new(targetHRP.Position.X, charPos.Y, targetHRP.Position.Z))
 			NAmanage.UG_pivotModel(Services.Players.LocalPlayer.Character, newCFrame)
@@ -88109,7 +88141,7 @@ cmd.add({"unglueback","unloopbehind","unlbehind"},{"unglueback","Stops teleporti
 	glueBACKER = {}
 end)
 
-cmd.add({"spook", "scare"}, {"spook <player> (scare)", "Teleports next to a player for a few seconds"}, function(...)
+cmd.add({"spook", "scare"}, {"spook <player|npc:filter> (scare)", "Teleports next to a player or NPC for a few seconds"}, function(...)
 	const username = (...)
 	const targets = getPlr(username)
 	for _, plr in next, targets do
@@ -88118,7 +88150,7 @@ cmd.add({"spook", "scare"}, {"spook <player> (scare)", "Teleports next to a play
 		const oldCF = NAmanage.UG_clientCFrame(root) or root.CFrame
 		const distancepl = 2
 		if getPlrHum(plr) then
-			const targetRoot = getRoot(plr.Character)
+			const targetRoot = getRoot(NAmanage.PlayerArgChar(plr))
 			if targetRoot then
 				const nextCF = targetRoot.CFrame + targetRoot.CFrame.LookVector * distancepl
 				NAmanage.UG_setClientCFrame(root, nextCF)
@@ -88554,7 +88586,7 @@ NAmanage.bringOffsetCFrame=function(cf, distance)
 	return cf + cf.LookVector * distance
 end
 
-cmd.add({"cbring", "clientbring", "clientb"}, {"cbring <player> [distance]", "Brings the player once on your client"}, function(...)
+cmd.add({"cbring", "clientbring", "clientb"}, {"cbring <player|npc:filter> [distance]", "Brings a player or NPC once on your client"}, function(...)
 	const args = {...}
 	const distance = NAmanage.parseBringDistance(args, 3)
 	const username = args[1]
@@ -88575,7 +88607,7 @@ cmd.add({"cbring", "clientbring", "clientb"}, {"cbring <player> [distance]", "Br
 	end
 end, true)
 
-cmd.add({"loopcbring", "loopclientb", "loppclientb", "loopclientbring", "lcbring", "lclientb"}, {"loopcbring <player> [distance]", "Continuously brings the player on your client"}, function(...)
+cmd.add({"loopcbring", "loopclientb", "loppclientb", "loopclientbring", "lcbring", "lclientb"}, {"loopcbring <player|npc:filter> [distance]", "Continuously brings a player or NPC on your client"}, function(...)
 	const args = {...}
 	const distance = NAmanage.parseBringDistance(args, 3)
 	const username = args[1]
@@ -88623,7 +88655,7 @@ cmd.add({"unloopcbring", "unloopclientb", "unloopcientb", "unlcbring", "unlclien
 	end
 end)
 
-cmd.add({"mute", "muteboombox"}, {"mute <player> (muteboombox)", "Mutes the player's boombox"}, function(...)
+cmd.add({"mute", "muteboombox"}, {"mute <player|npc:filter> (muteboombox)", "Mutes sounds from a player or NPC"}, function(...)
 	const uuuu = ...
 	const pp = getPlr(uuuu)
 	if #pp == 0 then return end
@@ -88637,11 +88669,12 @@ cmd.add({"mute", "muteboombox"}, {"mute <player> (muteboombox)", "Mutes the play
 	end
 
 	for _, plr in pp do
-		if plr and plr.Character then
-			NONOSOUND(plr.Character)
+		const targetChar = plr and NAmanage.PlayerArgChar(plr)
+		if targetChar then
+			NONOSOUND(targetChar)
 		end
 
-		const BK = plr:FindFirstChildOfClass("Backpack")
+		const BK = plr:IsA("Player") and plr:FindFirstChildOfClass("Backpack") or nil
 		if BK then
 			NONOSOUND(BK)
 		end
@@ -88837,20 +88870,21 @@ end)
 
 muteLOOP = {}
 
-cmd.add({"loopmute", "loopmuteboombox"}, {"loopmute <player> (loopmuteboombox)", "Loop mutes the player's boombox"}, function(...)
+cmd.add({"loopmute", "loopmuteboombox"}, {"loopmute <player|npc:filter> (loopmuteboombox)", "Loop mutes sounds from a player or NPC"}, function(...)
 	const u = ...
 	const pls = getPlr(u)
 	if #pls == 0 then return end
 
 	const function mute(p)
-		if p and p.Character then
-			for _, d in NAmanage.QueryDescendants(p.Character, "Sound") do
+		const targetChar = p and NAmanage.PlayerArgChar(p)
+		if targetChar then
+			for _, d in NAmanage.QueryDescendants(targetChar, "Sound") do
 				if d.Playing then
 					d.Playing = false
 				end
 			end
 		end
-		const bp = p:FindFirstChildOfClass("Backpack")
+		const bp = p and p:IsA("Player") and p:FindFirstChildOfClass("Backpack") or nil
 		if bp then
 			for _, d in NAmanage.QueryDescendants(bp, "Sound") do
 				if d.Playing then
@@ -88861,7 +88895,7 @@ cmd.add({"loopmute", "loopmuteboombox"}, {"loopmute <player> (loopmuteboombox)",
 	end
 
 	for _, p in pls do
-		const id = p.UserId
+		const id = p:IsA("Player") and ("player:"..tostring(p.UserId)) or p
 		if not muteLOOP[id] then
 			muteLOOP[id] = Spawn(function()
 				while p and p.Parent do
@@ -88877,13 +88911,13 @@ cmd.add({"loopmute", "loopmuteboombox"}, {"loopmute <player> (loopmuteboombox)",
 	end
 end, true)
 
-cmd.add({"unloopmute", "unloopmuteboombox"}, {"unloopmute <player> (unloopmuteboombox)", "Unloop mutes the player's boombox"}, function(...)
+cmd.add({"unloopmute", "unloopmuteboombox"}, {"unloopmute <player|npc:filter> (unloopmuteboombox)", "Stops loop muting a player or NPC"}, function(...)
 	const u = ...
 	const pls = getPlr(u)
 	if #pls == 0 then return end
 
 	for _, p in pls do
-		const id = p.UserId
+		const id = p:IsA("Player") and ("player:"..tostring(p.UserId)) or p
 		const t = muteLOOP[id]
 		if t then
 			coroutine.close(t)
@@ -88895,10 +88929,10 @@ cmd.add({"unloopmute", "unloopmuteboombox"}, {"unloopmute <player> (unloopmutebo
 	end
 end, true)
 
-cmd.add({"getmass"}, {"getmass <player>", "Get your mass"}, function(...)
+cmd.add({"getmass"}, {"getmass <player|npc:filter>", "Get a player or NPC root mass"}, function(...)
 	const target = getPlr(NAmanage.PlayerQueryFromArgs(...))
 	for _, plr in next, target do
-		const char = plr.Character or getPlrChar(plr)
+		const char = NAmanage.PlayerArgChar(plr)
 		if char then
 			const root = getRoot(char)
 			if root then
@@ -88910,7 +88944,7 @@ cmd.add({"getmass"}, {"getmass <player>", "Get your mass"}, function(...)
 	end
 end, true)
 
-cmd.add({"copyposition", "copypos", "cpos"}, {"copyposition <player>", "Get the position of another player"}, function(...)
+cmd.add({"copyposition", "copypos", "cpos"}, {"copyposition <player|npc:filter>", "Get the position of a player or NPC"}, function(...)
 	const args = {...}
 	local targetList
 
@@ -88926,7 +88960,7 @@ cmd.add({"copyposition", "copypos", "cpos"}, {"copyposition <player>", "Get the 
 		return
 	end
 
-	const char = plr.Character or getPlrChar(plr)
+	const char = NAmanage.PlayerArgChar(plr)
 	if not char then
 		DebugNotif("Unable to find "..tostring(plr.Name).."'s character")
 		return
@@ -92599,10 +92633,10 @@ NAmanage.InstantProximityPromptsTrack = function(pp)
 			local okCurrent, current = pcall(function()
 				return pp.HoldDuration
 			end)
-			if okCurrent and current ~= 0.01 then
+			if okCurrent and current ~= 0 then
 				record.restore = current
 				pcall(function()
-					pp.HoldDuration = 0.01
+					pp.HoldDuration = 0
 				end)
 			end
 		end)
@@ -92611,7 +92645,7 @@ NAmanage.InstantProximityPromptsTrack = function(pp)
 		record.connection = connection
 	end
 	pcall(function()
-		pp.HoldDuration = 0.01
+		pp.HoldDuration = 0
 	end)
 end
 
@@ -92659,11 +92693,12 @@ NAmanage.FastProximityPromptsTrack = function(pp)
 		restore = duration;
 		applied = math.max(duration / state.multiplier, 0);
 		connection = nil;
+		writing = false;
 	}
 	state.prompts[pp] = record
 	local okConnection, connection = pcall(function()
 		return pp:GetPropertyChangedSignal("HoldDuration"):Connect(function()
-			if state.active ~= true or state.prompts[pp] ~= record then
+			if state.active ~= true or state.prompts[pp] ~= record or record.writing then
 				return
 			end
 			local okCurrent, current = pcall(function()
@@ -92672,18 +92707,24 @@ NAmanage.FastProximityPromptsTrack = function(pp)
 			if okCurrent and current ~= record.applied then
 				record.restore = current
 				record.applied = math.max(current / state.multiplier, 0)
+				record.writing = true
 				pcall(function()
 					pp.HoldDuration = record.applied
+					record.applied = pp.HoldDuration
 				end)
+				record.writing = false
 			end
 		end)
 	end)
 	if okConnection then
 		record.connection = connection
 	end
+	record.writing = true
 	pcall(function()
 		pp.HoldDuration = record.applied
+		record.applied = pp.HoldDuration
 	end)
+	record.writing = false
 end
 
 NAmanage.FastProximityPromptsUntrack = function(pp, restore)
@@ -92715,7 +92756,7 @@ NAmanage.FastProximityPromptsDisable = function()
 	end
 end
 
-cmd.add({"instantproximityprompts","instantpp","ipp"},{"instantproximityprompts (instantpp,ipp)","Sets proximity prompt HoldDuration values to 0.01 and keeps them near-instant"},function()
+cmd.add({"instantproximityprompts","instantpp","ipp"},{"instantproximityprompts (instantpp,ipp)","Sets proximity prompt HoldDuration values to 0"},function()
 	NAmanage.FastProximityPromptsDisable()
 	const state = NAStuff.instantProximityPrompts
 	state.active = true
@@ -96216,12 +96257,13 @@ cmd.add({"punch"},{"punch","punch tool that flings"},function()
 	NAmanage.RunURL('https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/refs/heads/main/puncher.luau')
 end)
 
-cmd.add({"tpua","bringua"},{"tpua <player>","Brings every unanchored part on the map to the player"},function(...)
+cmd.add({"tpua","bringua"},{"tpua <player|npc:filter>","Brings every unanchored part on the map to a player or NPC"},function(...)
 	const targets=getPlr(NAmanage.PlayerQueryFromArgs(...))
 	local targetPlayer=targets[1]
 	if not targetPlayer then targetPlayer=LocalPlayer end
 
-	const root=getRoot(getPlrChar(targetPlayer))
+	const targetChar=getPlrChar(targetPlayer)
+	const root=getRoot(targetChar)
 	if not root then return end
 
 	const targetCF=root.CFrame
@@ -96237,7 +96279,7 @@ cmd.add({"tpua","bringua"},{"tpua <player>","Brings every unanchored part on the
 
 	const function ForcePart(v)
 		if not v:IsA("BasePart") then return end
-		if v.Anchored or v:IsDescendantOf(targetPlayer.Character) then return end
+		if v.Anchored or v:IsDescendantOf(targetChar) then return end
 		if v.Parent:FindFirstChildWhichIsA("Humanoid") or v.Parent:FindFirstChild("Head") or v.Name=="Handle" then return end
 
 		for _,x in next,v:GetChildren() do
@@ -101025,7 +101067,7 @@ function NAmanage.HitboxUpdateActive(newOpts)
 	updateCfg(NAStuff.HB and NAStuff.HB.N)
 end
 
-cmd.add({"hitbox","hbox"}, {"hitbox <player> {size}",""}, function(pArg, sArg)
+cmd.add({"hitbox","hbox"}, {"hitbox <player|npc:filter> {size}",""}, function(pArg, sArg)
 	NAStuff.HB = NAStuff.HB or {};
 	NAStuff.HB.P = NAStuff.HB.P or {
 		ps = {},
@@ -101604,7 +101646,7 @@ cmd.add({"hitbox","hbox"}, {"hitbox <player> {size}",""}, function(pArg, sArg)
 	});
 end, true);
 
-cmd.add({"unhitbox","unhbox"}, {"unhitbox <player>",""}, function(pArg)
+cmd.add({"unhitbox","unhbox"}, {"unhitbox <player|npc:filter>",""}, function(pArg)
 	NAStuff.HB = NAStuff.HB or {}
 	NAStuff.HB.P = NAStuff.HB.P or {
 		ps = {},
@@ -115985,6 +116027,7 @@ NAmanage.buildCommandDataPackage = function()
 			origin = "na";
 			displayText = finalText;
 			usage = displayText;
+			argumentHint = type(commandMeta.argumentHint) == "string" and commandMeta.argumentHint or nil;
 			searchable = searchable;
 			aliases = aliasList;
 			pluginType = pluginTag;
@@ -116807,8 +116850,19 @@ const function applyCommandListEntry(state, label, entry, index, animation)
 			const requiresArguments = meta.requiresArguments == true
 			argsBox.Visible = requiresArguments
 			if requiresArguments then
-				local hint = tostring(meta.usage or "")
-				hint = hint:match("^%S+%s+(.+)$") or "Enter arguments..."
+				local hint = tostring(meta.argumentHint or "")
+				if hint == "" then
+					const usage = tostring(meta.usage or "")
+					const usageLower = Lower(usage)
+					hint = usage:match("^%S+%s+(.+)$") or "Enter arguments..."
+					hint = hint:gsub("%s+%([^)]*%)$", "")
+					if usageLower:find("npc:", 1, true) then
+						hint = hint:gsub("<player|npc:filter>", "player / me / others / nearest / npc:name / npcs")
+						hint = hint:gsub("<target|npc:filter>", "player / me / others / nearest / npc:name / npcs")
+					elseif usageLower:find("<player>", 1, true) then
+						hint = hint:gsub("<[Pp][Ll][Aa][Yy][Ee][Rr]>", "player / me / others / nearest")
+					end
+				end
 				argsBox.PlaceholderText = hint ~= "" and hint or "Enter arguments..."
 				state.inlineArguments = state.inlineArguments or {}
 				const savedText = tostring(state.inlineArguments[tostring(cmdName or "")] or "")
@@ -158440,7 +158494,7 @@ const function addPartESPColorPicker(label, key, defaultColor, refreshFn)
 end
 
 NAgui.addSection("Visuals & Color")
-NAgui.addInfo("Drawing API Warning", "Drawing library may break with DisableDirect3D11 or PreferVulkan if a bootstrapper manages them (aka: voidstrap)");
+NAgui.addInfo("Drawing API Warning", "Drawing API may break with Vulkan enabled by a bootstrapper");
 
 (function()
 	local supportInfo
