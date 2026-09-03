@@ -2044,9 +2044,9 @@
       "aliases": [
         "annoy"
       ],
-      "usage": "annoy <player>",
-      "args": "<player>",
-      "desc": "Annoys the given player"
+      "usage": "annoy <player|npc:filter>",
+      "args": "<player|npc:filter>",
+      "desc": "Annoys the given player or NPC"
     },
     {
       "name": "unannoy",
@@ -3402,9 +3402,9 @@
       "aliases": [
         "locate"
       ],
-      "usage": "locate <username1> <username2> etc (optional)",
-      "args": "<username1> <username2>",
-      "desc": "locate where the specified player(s) are"
+      "usage": "locate <player|npc:filter> ... (optional)",
+      "args": "<player|npc:filter>",
+      "desc": "Locate specific players or NPCs"
     },
     {
       "name": "npcesp",
@@ -3448,8 +3448,8 @@
       "aliases": [
         "unlocate"
       ],
-      "usage": "unlocate <username1> <username2>",
-      "args": "<username1> <username2>",
+      "usage": "unlocate <player|npc:filter> ...",
+      "args": "<player|npc:filter>",
       "desc": ""
     },
     {
@@ -3480,18 +3480,18 @@
         "handlekill",
         "hkill"
       ],
-      "usage": "handlekill <player> (hkill)",
-      "args": "<player>",
-      "desc": "Kills a player using a tool that deals damage on touch"
+      "usage": "handlekill <player|npc:filter> (hkill)",
+      "args": "<player|npc:filter>",
+      "desc": "Kills a player or NPC using a tool that deals damage on touch"
     },
     {
       "name": "creep",
       "aliases": [
         "creep"
       ],
-      "usage": "creep <player>",
-      "args": "<player>",
-      "desc": "Teleports from a player behind them and under the floor to the top"
+      "usage": "creep <player|npc:filter>",
+      "args": "<player|npc:filter>",
+      "desc": "Teleports from a player or NPC behind them and under the floor to the top"
     },
     {
       "name": "netless",
@@ -3661,9 +3661,9 @@
         "copyanim",
         "copyan"
       ],
-      "usage": "animcopycore <target>",
-      "args": "<target>",
-      "desc": "Copy core animations from target"
+      "usage": "animcopycore <player|npc:filter>",
+      "args": "<player|npc:filter>",
+      "desc": "Copy core animations from a player or NPC"
     },
     {
       "name": "syncanim",
@@ -3671,9 +3671,9 @@
         "syncanim",
         "animsync"
       ],
-      "usage": "syncanim <target>",
-      "args": "<target>",
-      "desc": "Mirror target animations (live)"
+      "usage": "syncanim <player|npc:filter>",
+      "args": "<player|npc:filter>",
+      "desc": "Mirror player or NPC animations (live)"
     },
     {
       "name": "syncstop",
@@ -3721,9 +3721,9 @@
         "mcopy",
         "mimi"
       ],
-      "usage": "mimic <target> [delay]",
-      "args": "<target> [delay]",
-      "desc": "Clone target movement with optional delay"
+      "usage": "mimic <player|npc:filter> [delay]",
+      "args": "<player|npc:filter> [delay]",
+      "desc": "Clone player or NPC movement with optional delay"
     },
     {
       "name": "mstop",
@@ -4172,18 +4172,18 @@
       "aliases": [
         "orbit"
       ],
-      "usage": "orbit <player> <distance> [speed]",
-      "args": "<player> <distance> [speed]",
-      "desc": "Orbit around a player"
+      "usage": "orbit <player|npc:filter> <distance> [speed]",
+      "args": "<player|npc:filter> <distance> [speed]",
+      "desc": "Orbit around a player or NPC"
     },
     {
       "name": "uporbit",
       "aliases": [
         "uporbit"
       ],
-      "usage": "uporbit <player> <distance> [speed]",
-      "args": "<player> <distance> [speed]",
-      "desc": "Orbit around a player on the Y axis"
+      "usage": "uporbit <player|npc:filter> <distance> [speed]",
+      "args": "<player|npc:filter> <distance> [speed]",
+      "desc": "Orbit around a player or NPC on the Y axis"
     },
     {
       "name": "unorbit",
@@ -4215,9 +4215,9 @@
         "freecamto",
         "fcto"
       ],
-      "usage": "freecamgoto <player> (fcgoto,fcgo,fcg,freecamto,fcto)",
-      "args": "<player>",
-      "desc": "Start or move freecam to a player"
+      "usage": "freecamgoto <player|npc:filter> (fcgoto,fcgo,fcg,freecamto,fcto)",
+      "args": "<player|npc:filter>",
+      "desc": "Start or move freecam to a player or NPC"
     },
     {
       "name": "freecamgotopart",
@@ -5015,9 +5015,9 @@
         "steal",
         "logaudio"
       ],
-      "usage": "stealaudio <player>",
-      "args": "<player>",
-      "desc": "Save all sounds a player is playing to a file -Cyrus"
+      "usage": "stealaudio <player|npc:filter>",
+      "args": "<player|npc:filter>",
+      "desc": "Save sounds playing from a player or NPC to a file -Cyrus"
     },
     {
       "name": "follow",
@@ -5026,9 +5026,9 @@
         "stalk",
         "walk"
       ],
-      "usage": "follow <player>",
-      "args": "<player>",
-      "desc": "Follow a player wherever they go"
+      "usage": "follow <player|npc:filter>",
+      "args": "<player|npc:filter>",
+      "desc": "Follow a player or NPC wherever they go"
     },
     {
       "name": "unfollow",
@@ -5069,9 +5069,9 @@
       "aliases": [
         "pathfind"
       ],
-      "usage": "pathfind <player>",
-      "args": "<player>",
-      "desc": "Follow a player using the pathfinder API wherever they go"
+      "usage": "pathfind <player|npc:filter>",
+      "args": "<player|npc:filter>",
+      "desc": "Follow a player or NPC using the pathfinder API"
     },
     {
       "name": "freeze",
@@ -5326,9 +5326,9 @@
       "aliases": [
         "headsit"
       ],
-      "usage": "headsit <player>",
-      "args": "<player>",
-      "desc": "sit on someone's head"
+      "usage": "headsit <player|npc:filter>",
+      "args": "<player|npc:filter>",
+      "desc": "Sit on a player or NPC's head"
     },
     {
       "name": "unheadsit",
@@ -5474,9 +5474,9 @@
       "aliases": [
         "headstand"
       ],
-      "usage": "headstand <player>",
-      "args": "<player>",
-      "desc": "Stand on someone's head."
+      "usage": "headstand <player|npc:filter>",
+      "args": "<player|npc:filter>",
+      "desc": "Stand on a player or NPC's head."
     },
     {
       "name": "unheadstand",
@@ -5562,9 +5562,9 @@
         "loopwaveat",
         "loopwat"
       ],
-      "usage": "loopwaveat <player> (loopwat)",
-      "args": "<player>",
-      "desc": "Wave to a player in a loop"
+      "usage": "loopwaveat <player|npc:filter> (loopwat)",
+      "args": "<player|npc:filter>",
+      "desc": "Wave to a player or NPC in a loop"
     },
     {
       "name": "unloopwaveat",
@@ -5622,9 +5622,9 @@
         "waveat",
         "wat"
       ],
-      "usage": "waveat <player> (wat)",
-      "args": "<player>",
-      "desc": "Wave to a player"
+      "usage": "waveat <player|npc:filter> (wat)",
+      "args": "<player|npc:filter>",
+      "desc": "Wave to a player or NPC"
     },
     {
       "name": "headbang",
@@ -6037,9 +6037,9 @@
         "spook",
         "scare"
       ],
-      "usage": "spook <player> (scare)",
-      "args": "<player>",
-      "desc": "Teleports next to a player for a few seconds"
+      "usage": "spook <player|npc:filter> (scare)",
+      "args": "<player|npc:filter>",
+      "desc": "Teleports next to a player or NPC for a few seconds"
     },
     {
       "name": "loopspook",
@@ -6112,9 +6112,9 @@
         "clientbring",
         "clientb"
       ],
-      "usage": "cbring <player> [distance]",
-      "args": "<player> [distance]",
-      "desc": "Brings the player once on your client"
+      "usage": "cbring <player|npc:filter> [distance]",
+      "args": "<player|npc:filter> [distance]",
+      "desc": "Brings a player or NPC once on your client"
     },
     {
       "name": "loopcbring",
@@ -6126,9 +6126,9 @@
         "lcbring",
         "lclientb"
       ],
-      "usage": "loopcbring <player> [distance]",
-      "args": "<player> [distance]",
-      "desc": "Continuously brings the player on your client"
+      "usage": "loopcbring <player|npc:filter> [distance]",
+      "args": "<player|npc:filter> [distance]",
+      "desc": "Continuously brings a player or NPC on your client"
     },
     {
       "name": "unloopcbring",
@@ -6151,9 +6151,9 @@
         "mute",
         "muteboombox"
       ],
-      "usage": "mute <player> (muteboombox)",
-      "args": "<player>",
-      "desc": "Mutes the player's boombox"
+      "usage": "mute <player|npc:filter> (muteboombox)",
+      "args": "<player|npc:filter>",
+      "desc": "Mutes sounds from a player or NPC"
     },
     {
       "name": "tpwalk",
@@ -6200,9 +6200,9 @@
         "loopmute",
         "loopmuteboombox"
       ],
-      "usage": "loopmute <player> (loopmuteboombox)",
-      "args": "<player>",
-      "desc": "Loop mutes the player's boombox"
+      "usage": "loopmute <player|npc:filter> (loopmuteboombox)",
+      "args": "<player|npc:filter>",
+      "desc": "Loop mutes sounds from a player or NPC"
     },
     {
       "name": "unloopmute",
@@ -6210,18 +6210,18 @@
         "unloopmute",
         "unloopmuteboombox"
       ],
-      "usage": "unloopmute <player> (unloopmuteboombox)",
-      "args": "<player>",
-      "desc": "Unloop mutes the player's boombox"
+      "usage": "unloopmute <player|npc:filter> (unloopmuteboombox)",
+      "args": "<player|npc:filter>",
+      "desc": "Stops loop muting a player or NPC"
     },
     {
       "name": "getmass",
       "aliases": [
         "getmass"
       ],
-      "usage": "getmass <player>",
-      "args": "<player>",
-      "desc": "Get your mass"
+      "usage": "getmass <player|npc:filter>",
+      "args": "<player|npc:filter>",
+      "desc": "Get a player or NPC root mass"
     },
     {
       "name": "copyposition",
@@ -6230,9 +6230,9 @@
         "copypos",
         "cpos"
       ],
-      "usage": "copyposition <player>",
-      "args": "<player>",
-      "desc": "Get the position of another player"
+      "usage": "copyposition <player|npc:filter>",
+      "args": "<player|npc:filter>",
+      "desc": "Get the position of a player or NPC"
     },
     {
       "name": "equiptools",
@@ -6872,7 +6872,7 @@
       ],
       "usage": "instantproximityprompts (instantpp,ipp)",
       "args": "",
-      "desc": "Sets proximity prompt HoldDuration values to 0.01 and keeps them near-instant"
+      "desc": "Sets proximity prompt HoldDuration values to 0"
     },
     {
       "name": "uninstantproximityprompts",
@@ -7637,9 +7637,9 @@
         "tpua",
         "bringua"
       ],
-      "usage": "tpua <player>",
-      "args": "<player>",
-      "desc": "Brings every unanchored part on the map to the player"
+      "usage": "tpua <player|npc:filter>",
+      "args": "<player|npc:filter>",
+      "desc": "Brings every unanchored part on the map to a player or NPC"
     },
     {
       "name": "blackholefollow",
@@ -8113,8 +8113,8 @@
         "unhitbox",
         "unhbox"
       ],
-      "usage": "unhitbox <player>",
-      "args": "<player>",
+      "usage": "unhitbox <player|npc:filter>",
+      "args": "<player|npc:filter>",
       "desc": ""
     },
     {
