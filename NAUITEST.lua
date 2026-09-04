@@ -4787,4 +4787,199 @@ do
 	padding.PaddingRight = UDim.new(0, 4)
 end
 
+
+do
+	local root = G2L["1"]
+	local accent = Color3.fromRGB(155, 100, 255)
+	local regularFont = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+	local semiboldFont = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+	local iconFont = Font.new("rbxasset://LuaPackages/Packages/_Index/BuilderIcons/BuilderIcons/BuilderIcons.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+	local function corner(parent, radius)
+		local item = Instance.new("UICorner", parent)
+		item.CornerRadius = UDim.new(0, radius or 5)
+		return item
+	end
+	local function stroke(parent, thickness)
+		local item = Instance.new("UIStroke", parent)
+		item.Name = "UIStroker"
+		item.Thickness = thickness or 1.5
+		item.Color = accent
+		item.Transparency = 0.38
+		item.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		return item
+	end
+	local function button(parent, name, text, size, position, color)
+		local item = Instance.new("TextButton", parent)
+		item.Name = name
+		item.BorderSizePixel = 0
+		item.AutoButtonColor = true
+		item.BackgroundColor3 = color or Color3.fromRGB(31, 32, 42)
+		item.BackgroundTransparency = 0.18
+		item.Text = text
+		item.TextColor3 = Color3.fromRGB(245, 246, 250)
+		item.TextSize = 13
+		item.FontFace = semiboldFont
+		item.Size = size
+		item.Position = position
+		corner(item, 5)
+		stroke(item, 1.5)
+		return item
+	end
+
+	local frame = Instance.new("Frame", root)
+	frame.Name = "ServerList"
+	frame.BorderSizePixel = 0
+	frame.BackgroundColor3 = Color3.fromRGB(15, 16, 21)
+	frame.BackgroundTransparency = 0.1
+	frame.AnchorPoint = Vector2.new(0.5, 0.5)
+	frame.Position = UDim2.new(0.5, 0, 0.5, 0)
+	frame.Size = UDim2.new(0, 820, 0, 560)
+	frame.Visible = false
+	frame.ClipsDescendants = true
+	local frameSizeConstraint = Instance.new("UISizeConstraint", frame)
+	frameSizeConstraint.MinSize = Vector2.new(340, 300)
+	corner(frame, 10)
+	stroke(frame, 1)
+	local frameGradient = Instance.new("UIGradient", frame)
+	frameGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(18, 19, 25)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(15, 16, 21))
+	})
+
+	local topbar = Instance.new("Frame", frame)
+	topbar.Name = "Topbar"
+	topbar.BorderSizePixel = 0
+	topbar.BackgroundColor3 = Color3.fromRGB(21, 22, 29)
+	topbar.BackgroundTransparency = 0.12
+	topbar.Size = UDim2.new(1, 0, 0, 84)
+	local topbarGradient = Instance.new("UIGradient", topbar)
+	topbarGradient.Rotation = 90
+	topbarGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(27, 28, 36)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(18, 19, 25))
+	})
+	corner(topbar, 10)
+	stroke(topbar, 1)
+
+	local title = Instance.new("TextLabel", topbar)
+	title.Name = "Title"
+	title.BackgroundTransparency = 1
+	title.AnchorPoint = Vector2.new(0.5, 0)
+	title.Position = UDim2.new(0.5, 0, 0, 3)
+	title.Size = UDim2.new(1, -150, 0, 34)
+	title.TextXAlignment = Enum.TextXAlignment.Center
+	title.TextTruncate = Enum.TextTruncate.AtEnd
+	title.Text = "Server List"
+	title.TextColor3 = Color3.fromRGB(242, 243, 248)
+	title.TextSize = 18
+	title.FontFace = semiboldFont
+
+	local minimize = button(topbar, "Minimize", "minus", UDim2.new(0, 24, 0, 24), UDim2.new(1, -70, 0, 19))
+	minimize.AnchorPoint = Vector2.new(1, 0.5)
+	minimize.FontFace = iconFont
+	minimize.TextSize = 16
+	local maximize = button(topbar, "Maximize", "square-corner-line", UDim2.new(0, 24, 0, 24), UDim2.new(1, -40, 0, 19))
+	maximize.AnchorPoint = Vector2.new(1, 0.5)
+	maximize.FontFace = iconFont
+	maximize.TextSize = 16
+	local exit = button(topbar, "Exit", "x", UDim2.new(0, 24, 0, 24), UDim2.new(1, -10, 0, 19), Color3.fromRGB(60, 32, 39))
+	exit.AnchorPoint = Vector2.new(1, 0.5)
+	exit.FontFace = iconFont
+	exit.TextSize = 16
+
+	local placeId = Instance.new("TextBox", topbar)
+	placeId.Name = "PlaceId"
+	placeId.BorderSizePixel = 0
+	placeId.BackgroundColor3 = Color3.fromRGB(28, 29, 38)
+	placeId.BackgroundTransparency = 0.08
+	placeId.ClearTextOnFocus = false
+	placeId.PlaceholderText = "Place ID"
+	placeId.PlaceholderColor3 = Color3.fromRGB(132, 136, 152)
+	placeId.Text = ""
+	placeId.TextColor3 = Color3.fromRGB(232, 234, 242)
+	placeId.TextXAlignment = Enum.TextXAlignment.Left
+	placeId.TextSize = 13
+	placeId.FontFace = regularFont
+	placeId.Position = UDim2.new(0, 10, 0, 46)
+	placeId.Size = UDim2.new(1, -226, 0, 28)
+	corner(placeId, 5)
+	stroke(placeId, 1.25)
+	local placePad = Instance.new("UIPadding", placeId)
+	placePad.PaddingLeft = UDim.new(0, 9)
+	placePad.PaddingRight = UDim.new(0, 9)
+
+	local current = button(topbar, "Current", "Current Place", UDim2.new(0, 96, 0, 28), UDim2.new(1, -206, 0, 46), Color3.fromRGB(48, 42, 68))
+	local refresh = button(topbar, "Refresh", "Refresh", UDim2.new(0, 96, 0, 28), UDim2.new(1, -106, 0, 46), Color3.fromRGB(48, 42, 68))
+
+	local container = Instance.new("Frame", frame)
+	container.Name = "Container"
+	container.BorderSizePixel = 0
+	container.BackgroundColor3 = Color3.fromRGB(21, 22, 29)
+	container.BackgroundTransparency = 0.18
+	container.AnchorPoint = Vector2.new(0.5, 1)
+	container.Position = UDim2.new(0.5, 0, 1, -10)
+	container.Size = UDim2.new(1, -20, 1, -106)
+	container.ClipsDescendants = true
+	corner(container, 5)
+	local containerGradient = Instance.new("UIGradient", container)
+	containerGradient.Rotation = 90
+	containerGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(25, 26, 34)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(18, 19, 25))
+	})
+
+	local controls = Instance.new("Frame", container)
+	controls.Name = "Controls"
+	controls.BackgroundTransparency = 1
+	controls.Position = UDim2.new(0, 8, 0, 8)
+	controls.Size = UDim2.new(1, -16, 0, 32)
+	local controlsGrid = Instance.new("UIGridLayout", controls)
+	controlsGrid.CellPadding = UDim2.new(0, 6, 0, 0)
+	controlsGrid.CellSize = UDim2.new(0.25, -5, 1, 0)
+	controlsGrid.FillDirectionMaxCells = 4
+	controlsGrid.SortOrder = Enum.SortOrder.LayoutOrder
+	local layoutMode = button(controls, "Layout", "Layout: List", UDim2.new(), UDim2.new(), Color3.fromRGB(48, 42, 68))
+	layoutMode.LayoutOrder = 1
+	local sortMode = button(controls, "Sort", "Sort: Latency", UDim2.new(), UDim2.new(), Color3.fromRGB(48, 42, 68))
+	sortMode.LayoutOrder = 2
+	local hideFull = button(controls, "HideFull", "Hide Full: OFF", UDim2.new(), UDim2.new())
+	hideFull.LayoutOrder = 3
+	local copyPlayers = button(controls, "CopyPlayers", "Copy Players", UDim2.new(), UDim2.new())
+	copyPlayers.LayoutOrder = 4
+
+	local status = Instance.new("TextLabel", container)
+	status.Name = "Status"
+	status.BackgroundTransparency = 1
+	status.Position = UDim2.new(0, 10, 0, 44)
+	status.Size = UDim2.new(1, -20, 0, 22)
+	status.TextXAlignment = Enum.TextXAlignment.Left
+	status.Text = "Ready"
+	status.TextColor3 = Color3.fromRGB(184, 188, 202)
+	status.TextSize = 13
+	status.FontFace = regularFont
+
+	local list = Instance.new("ScrollingFrame", container)
+	list.Name = "List"
+	list.BorderSizePixel = 0
+	list.BackgroundTransparency = 1
+	list.Position = UDim2.new(0, 8, 0, 70)
+	list.Size = UDim2.new(1, -16, 1, -78)
+	list.ScrollBarThickness = 4
+	list.ScrollBarImageColor3 = Color3.fromRGB(116, 105, 154)
+	list.ScrollBarImageTransparency = 0.18
+	list.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	list.CanvasSize = UDim2.new()
+	list.ScrollingDirection = Enum.ScrollingDirection.Y
+
+	local layout = Instance.new("UIListLayout", list)
+	layout.Name = "Layout"
+	layout.Padding = UDim.new(0, 7)
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	local padding = Instance.new("UIPadding", list)
+	padding.Name = "Padding"
+	padding.PaddingTop = UDim.new(0, 2)
+	padding.PaddingBottom = UDim.new(0, 8)
+	padding.PaddingLeft = UDim.new(0, 2)
+	padding.PaddingRight = UDim.new(0, 6)
+end
 return G2L["1"];
