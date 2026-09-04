@@ -5727,7 +5727,7 @@
       ],
       "usage": "serverlist (serverlister,slist)",
       "args": "",
-      "desc": "list of servers to join in"
+      "desc": "open the native server browser"
     },
     {
       "name": "keyboard",
