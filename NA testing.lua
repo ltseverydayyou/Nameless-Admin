@@ -3106,6 +3106,9 @@ NAmanage.OnUIWindowShown = NAmanage.OnUIWindowShown or function(frame)
 		elseif frame == NAUIMANAGER.SubplaceViewerFrame and type(NAgui.menu) == "function" then
 			lazyMenuKey = "SubplaceViewerFrame"
 			lazyMenuBinder = function() NAgui.menu(frame) end
+		elseif frame == NAUIMANAGER.ServerListFrame and type(NAgui.menu) == "function" then
+			lazyMenuKey = "ServerListFrame"
+			lazyMenuBinder = function() NAgui.menu(frame) end
 		end
 		if lazyMenuKey and lazyMenuBinder and NAStuff["LazyMenuBound_"..lazyMenuKey] ~= frame then
 			NAStuff["LazyMenuBound_"..lazyMenuKey] = frame
@@ -3143,7 +3146,7 @@ NAmanage.InstallUIVisibilityOptimizer = NAmanage.InstallUIVisibilityOptimizer or
 	if not NAUIMANAGER or NAmanage._uiVisOptInstalled then return end
 	NAmanage._uiVisOptInstalled = true
 	NAmanage._uiVisibilityConns = NAmanage._uiVisibilityConns or {}
-	for _, name in {"SettingsFrame","commandsFrame","chatLogsFrame","NAconsoleFrame","CommandKeybindsFrame","WaypointFrame","BindersFrame","ExecutorFrame","NotepadFrame","PluginsFrame","MusicFrame","ScriptHubFrame","SubplaceViewerFrame"} do
+	for _, name in {"SettingsFrame","commandsFrame","chatLogsFrame","NAconsoleFrame","CommandKeybindsFrame","WaypointFrame","BindersFrame","ExecutorFrame","NotepadFrame","PluginsFrame","MusicFrame","ScriptHubFrame","SubplaceViewerFrame","ServerListFrame"} do
 		const frame = NAUIMANAGER[name]
 		if typeof(frame) == "Instance" and frame.GetPropertyChangedSignal then
 			const function sync()
@@ -86359,8 +86362,12 @@ cmd.add({"undotextures"},{"undotextures","Switches Textures"},function()
 	opt.hiddenprop(SafeGetService("MaterialService"), "Use2022Materials", false)
 end)
 
-cmd.add({"serverlist","serverlister","slist"},{"serverlist (serverlister,slist)","list of servers to join in"},function()
-	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/ServerLister.lua");
+cmd.add({"serverlist","serverlister","slist"},{"serverlist (serverlister,slist)","open the native server browser"},function()
+	if type(NAmanage.ServerList_Toggle) == "function" then
+		NAmanage.ServerList_Toggle()
+	else
+		DoNotif("Server List is unavailable.", 3, "Nameless Admin")
+	end
 end)
 
 cmd.add({"keyboard"},{"keyboard","provides a keyboard gui for mobile users"},function()
@@ -109207,7 +109214,9 @@ NAUIMANAGER = {
 	ScriptHubFrame = NAStuff.NASCREENGUI:FindFirstChild("ScriptHub"),
 	ScriptHubContainer = NAStuff.NASCREENGUI:FindFirstChild("ScriptHub") and (NAStuff.NASCREENGUI:FindFirstChild("ScriptHub")):FindFirstChild("Container"),
 	SubplaceViewerFrame = NAStuff.NASCREENGUI:FindFirstChild("SubplaceViewer"),
-	SubplaceViewerContainer = NAStuff.NASCREENGUI:FindFirstChild("SubplaceViewer") and (NAStuff.NASCREENGUI:FindFirstChild("SubplaceViewer")):FindFirstChild("Container")
+	SubplaceViewerContainer = NAStuff.NASCREENGUI:FindFirstChild("SubplaceViewer") and (NAStuff.NASCREENGUI:FindFirstChild("SubplaceViewer")):FindFirstChild("Container"),
+	ServerListFrame = NAStuff.NASCREENGUI:FindFirstChild("ServerList"),
+	ServerListContainer = NAStuff.NASCREENGUI:FindFirstChild("ServerList") and (NAStuff.NASCREENGUI:FindFirstChild("ServerList")):FindFirstChild("Container")
 };
 NAmanage.ScriptHub = type(NAmanage.ScriptHub) == "table" and NAmanage.ScriptHub or {}
 NAmanage.ScriptHub.engines = { "RScripts", "RobloxScripts", "HaxHell", "ScriptBlox" }
@@ -113778,6 +113787,22 @@ do
 		}
 	end
 
+	const function serverListWidgets()
+		const container = NAUIMANAGER and NAUIMANAGER.ServerListContainer
+		const bar = container and container:FindFirstChild("CustomScrollBar")
+		const track = bar and bar:FindFirstChild("Track")
+		if not (bar and track) then
+			return nil
+		end
+		return {
+			bar = bar,
+			upButton = bar:FindFirstChild("Up"),
+			downButton = bar:FindFirstChild("Down"),
+			track = track,
+			thumb = track:FindFirstChild("Thumb")
+		}
+	end
+
 	const function pluginsWidgets(axis)
 		const mgr = NAUIMANAGER;
 		if not mgr then
@@ -113931,6 +113956,19 @@ do
 		fitTargetToBar = true,
 		isActive = function()
 			return NAmanage.IsUIWindowVisible and NAmanage.IsUIWindowVisible("SubplaceViewerFrame")
+		end
+	})
+
+	NAmanage.ServerListScroll = registry.create("server_list", {
+		getWidgets = serverListWidgets,
+		getTarget = function()
+			const container = NAUIMANAGER and NAUIMANAGER.ServerListContainer
+			return container and container:FindFirstChild("List") or nil
+		end,
+		layoutForTarget = alignBarToTarget,
+		fitTargetToBar = true,
+		isActive = function()
+			return NAmanage.IsUIWindowVisible and NAmanage.IsUIWindowVisible("ServerListFrame")
 		end
 	})
 
@@ -119215,6 +119253,9 @@ NAmanage.RefreshResizeHandles=function()
 		if NAUIMANAGER.SubplaceViewerFrame then
 			NAgui.resizeable(NAUIMANAGER.SubplaceViewerFrame, IsOnMobile and Vector2.new(340, 280) or Vector2.new(680, 420), Vector2.new(5000, 5000))
 		end
+		if NAUIMANAGER.ServerListFrame then
+			NAgui.resizeable(NAUIMANAGER.ServerListFrame, IsOnMobile and Vector2.new(340, 300) or Vector2.new(620, 420), Vector2.new(5000, 5000))
+		end
 		if NAUIMANAGER.ExecutorFrame then
 			const exMin = IsOnMobile and Vector2.new(340, 280) or Vector2.new(680, 420)
 			NAgui.resizeable(NAUIMANAGER.ExecutorFrame, exMin, Vector2.new(5000, 5000))
@@ -123901,6 +123942,13 @@ NAmanage.Topbar_BuildBaseButtons=function()
 				DoNotif("Subplace Viewer UI unavailable.", 3, "Subplace Viewer")
 			end
 		end},
+		{name="serverlist",icon="grid",activeFrame="ServerListFrame",func=function()
+			if NAmanage and NAmanage.ServerList_Toggle then
+				NAmanage.ServerList_Toggle()
+			else
+				DoNotif("Server List UI unavailable.", 3, "Server List")
+			end
+		end},
 	}
 end
 
@@ -124881,6 +124929,7 @@ NAgui.menu = function(menu)
 		return math.max(1, x), math.max(1, y)
 	end
 	const function getMiniHeight()
+		if menu.Name == "ServerList" then return 35 end
 		local h = 35
 		const top = menu:FindFirstChild("Topbar")
 		if top and top:IsA("GuiObject") then
@@ -125007,6 +125056,7 @@ NAgui.menuv2 = function(menu)
 
 	local minimized = false
 	local isAnimating = false
+	const compactMinimize = menu == (NAUIMANAGER and NAUIMANAGER.chatLogsFrame) or menu.Name == "ChatLogs"
 	const sizeXAttr = "NAMenuStoredSizeX"
 	const sizeYAttr = "NAMenuStoredSizeY"
 	const function setStoredSize(x, y)
@@ -125024,6 +125074,58 @@ NAgui.menuv2 = function(menu)
 		storedX = storedX or menu.Size.X.Offset
 		storedY = storedY or menu.Size.Y.Offset
 		return storedX, storedY
+	end
+	const minimizedConstraintSizes = {}
+	const compactTopbarState = {}
+	const function getMiniHeight()
+		return 35
+	end
+	const function setBodyVisible(value)
+		if not compactMinimize then return end
+		const body = menu:FindFirstChild("Container")
+		if body and body:IsA("GuiObject") then body.Visible = value == true end
+	end
+	const function setCompactTopbar(value)
+		if not compactMinimize then return end
+		const topbar = menu:FindFirstChild("Topbar")
+		if not (topbar and topbar:IsA("GuiObject")) then return end
+		if value == true then
+			if compactTopbarState.size == nil then compactTopbarState.size = topbar.Size end
+			topbar.Size = UDim2.new(topbar.Size.X.Scale, topbar.Size.X.Offset, 0, getMiniHeight())
+			for _, name in {"Translate", "TranslateInput", "Clear", "HeaderAccent", "HeaderDivider"} do
+				const item = topbar:FindFirstChild(name)
+				if item and item:IsA("GuiObject") then
+					if compactTopbarState[item] == nil then compactTopbarState[item] = item.Visible end
+					item.Visible = false
+				end
+			end
+		else
+			if compactTopbarState.size ~= nil then
+				topbar.Size = compactTopbarState.size
+				compactTopbarState.size = nil
+			end
+			for item, wasVisible in compactTopbarState do
+				if typeof(item) == "Instance" and item:IsA("GuiObject") and item.Parent then item.Visible = wasVisible == true end
+				compactTopbarState[item] = nil
+			end
+		end
+	end
+	const function setMinimizeConstraints(value)
+		if not compactMinimize then return end
+		for _, child in menu:GetChildren() do
+			if child:IsA("UISizeConstraint") then
+				if value == true then
+					if minimizedConstraintSizes[child] == nil then minimizedConstraintSizes[child] = { min = child.MinSize; max = child.MaxSize } end
+					const original = minimizedConstraintSizes[child]
+					const h = getMiniHeight()
+					child.MinSize = Vector2.new(original.min.X, h)
+					child.MaxSize = Vector2.new(original.max.X, h)
+				else
+					const original = minimizedConstraintSizes[child]
+					if original then child.MinSize = original.min child.MaxSize = original.max minimizedConstraintSizes[child] = nil end
+				end
+			end
+		end
 	end
 	const function setMinAtt(value)
 		minimized = value
@@ -125044,17 +125146,29 @@ NAgui.menuv2 = function(menu)
 				const currentX = menu.Size.X.Offset
 				const currentY = menu.Size.Y.Offset
 				setStoredSize(currentX, currentY)
+				setMinimizeConstraints(true)
+				setCompactTopbar(true)
+				setBodyVisible(false)
+				menu.ClipsDescendants = true
 				NAgui._menuCompleted(menuConnName, NAgui.tween(menu, "Quart", "Out", 0.5, {
-					Size = UDim2.new(0, currentX, 0, 35)
+					Size = UDim2.new(0, currentX, 0, getMiniHeight())
 				}), function()
+					menu.Size = UDim2.new(0, currentX, 0, getMiniHeight())
+					setMinimizeConstraints(true)
+					setCompactTopbar(true)
 					isAnimating = false
 				end)
 			else
 				local restoreX, restoreY = getStoredSize()
+				setMinimizeConstraints(false)
+				setCompactTopbar(false)
+				setBodyVisible(false)
 				NAgui._menuCompleted(menuConnName, NAgui.tween(menu, "Quart", "Out", 0.5, {
 					Size = UDim2.new(0, restoreX, 0, restoreY)
 				}), function()
 					isAnimating = false
+					setCompactTopbar(false)
+					setBodyVisible(true)
 				end)
 			end
 		end)
@@ -125067,9 +125181,13 @@ NAgui.menuv2 = function(menu)
 		prepareMaximize = function()
 			if minimized then
 				local restoreX, restoreY = getStoredSize()
+				setMinimizeConstraints(false)
+				setCompactTopbar(false)
 				menu.Size = UDim2.fromOffset(restoreX, restoreY)
 				setMinAtt(false)
 			end
+			setCompactTopbar(false)
+			setBodyVisible(true)
 		end;
 	})
 
@@ -138089,6 +138207,414 @@ NAmanage.SubplaceViewer_ShowServers = function(place)
 	end)
 end
 
+NAmanage.ServerList = type(NAmanage.ServerList) == "table" and NAmanage.ServerList or {}
+NAmanage.ServerList.layout = NAmanage.ServerList.layout == "grid" and "grid" or "list"
+NAmanage.ServerList.sort = table.find({"latency","players","uptime","version","fps"}, NAmanage.ServerList.sort) and NAmanage.ServerList.sort or "latency"
+NAmanage.ServerList.hideFull = NAmanage.ServerList.hideFull == true
+NAmanage.ServerList.servers = type(NAmanage.ServerList.servers) == "table" and NAmanage.ServerList.servers or {}
+NAmanage.ServerList.fetchToken = tonumber(NAmanage.ServerList.fetchToken) or 0
+NAmanage.ServerList.loading = false
+NAmanage.ServerList.bound = false
+
+NAmanage.ServerList_GetUI = function()
+	const state = NAmanage.ServerList
+	const frame = NAUIMANAGER and NAUIMANAGER.ServerListFrame
+	const topbar = frame and frame:FindFirstChild("Topbar")
+	const container = frame and frame:FindFirstChild("Container")
+	const controls = container and container:FindFirstChild("Controls")
+	state.ui = {
+		frame = frame;
+		topbar = topbar;
+		container = container;
+		placeId = topbar and topbar:FindFirstChild("PlaceId");
+		current = topbar and topbar:FindFirstChild("Current");
+		refresh = topbar and topbar:FindFirstChild("Refresh");
+		controls = controls;
+		layout = controls and controls:FindFirstChild("Layout");
+		sort = controls and controls:FindFirstChild("Sort");
+		hideFull = controls and controls:FindFirstChild("HideFull");
+		copyPlayers = controls and controls:FindFirstChild("CopyPlayers");
+		status = container and container:FindFirstChild("Status");
+		list = container and container:FindFirstChild("List");
+	}
+	return state.ui
+end
+
+NAmanage.ServerList_ApplyResponsive = function(center)
+	const ui = NAmanage.ServerList.ui or NAmanage.ServerList_GetUI()
+	if not (ui and ui.frame) then return false end
+	if NAmanage.ExecutorWindowSizing and type(NAmanage.ExecutorWindowSizing.Apply) == "function" then
+		return NAmanage.ExecutorWindowSizing.Apply(ui.frame, {
+			key = "ServerList";
+			baseWidth = 820;
+			baseHeight = 560;
+			minWidth = 620;
+			minHeight = 420;
+			mobileMinWidth = 340;
+			mobileMinHeight = 300;
+			center = center == true;
+		})
+	end
+	if center and NAmanage.centerFrame then NAmanage.centerFrame(ui.frame) end
+	return true
+end
+
+NAmanage.ServerList_HttpJson = function(url)
+	if type(NAmanage.SubplaceViewer_HttpJson) == "function" then
+		return NAmanage.SubplaceViewer_HttpJson(url)
+	end
+	if type(NAStuff.srv) == "table" and type(NAStuff.srv.get) == "function" and type(NAStuff.srv.j) == "function" then
+		const body = NAStuff.srv:get(url)
+		const data = NAStuff.srv:j(body)
+		if type(data) == "table" then return data end
+	end
+	return nil, "request failed"
+end
+
+NAmanage.ServerList_FetchPage = function(placeId, cursor)
+	const pid = tostring(placeId)
+	local suffix = "/v1/games/"..pid.."/servers/Public?sortOrder=Asc&limit=100"
+	if cursor and cursor ~= "" then suffix ..= "&cursor="..Services.HttpService:UrlEncode(tostring(cursor)) end
+	const bases = type(NAStuff.srv) == "table" and type(NAStuff.srv.b) == "table" and NAStuff.srv.b or {
+		"https://games.roproxy.com";
+		"https://games.rotunnel.com";
+		"https://games.roblox.com";
+	}
+	local lastErr
+	for _, base in bases do
+		local data, err = NAmanage.ServerList_HttpJson(base..suffix)
+		if type(data) == "table" and type(data.data) == "table" then return data end
+		lastErr = err
+	end
+	const worker = NAStuff.srvWorker or "https://solaraserverhop.ltseverydayyou.workers.dev"
+	local workerUrl = worker.."/servers?placeId="..Services.HttpService:UrlEncode(pid)
+	if cursor and cursor ~= "" then workerUrl ..= "&cursor="..Services.HttpService:UrlEncode(tostring(cursor)) end
+	local data, err = NAmanage.ServerList_HttpJson(workerUrl)
+	if type(data) == "table" and type(data.data) == "table" then return data end
+	return nil, err or lastErr or "server request failed"
+end
+
+NAmanage.ServerList_Collect = function(placeId, token)
+	const state = NAmanage.ServerList
+	const ui = state.ui or NAmanage.ServerList_GetUI()
+	const pid = tonumber(placeId)
+	const out = {}
+	const byId = {}
+	local cursor = nil
+	local page = 0
+	repeat
+		if token ~= state.fetchToken then return nil, "cancelled" end
+		page += 1
+		if ui and ui.status then ui.status.Text = "Loading public servers... page "..tostring(page) end
+		local data, err = NAmanage.ServerList_FetchPage(pid, cursor)
+		if type(data) ~= "table" or type(data.data) ~= "table" then
+			if page == 1 then return nil, err or "server request failed" end
+			break
+		end
+		for _, raw in data.data do
+			if type(raw) == "table" then
+				const id = tostring(raw.id or raw.server_id or "")
+				if id ~= "" and not byId[id] then
+					const server = {
+						id = id;
+						playing = tonumber(raw.playing) or tonumber(raw.player_count) or 0;
+						max = tonumber(raw.maxPlayers) or tonumber(raw.max) or tonumber(raw.max_players) or 0;
+						ping = tonumber(raw.ping) or 0;
+						fps = tonumber(raw.fps) or 0;
+					}
+					out[#out + 1] = server
+					byId[id] = server
+				end
+			end
+		end
+		cursor = data.nextPageCursor or data.next_cursor
+		if cursor and cursor ~= "" then Wait() end
+	until not cursor or cursor == ""
+	return out, nil, byId
+end
+
+NAmanage.ServerList_EnsureCurrent = function(placeId, servers, byId)
+	const pid = tonumber(placeId)
+	if pid ~= tonumber(game.PlaceId) or tostring(game.JobId or "") == "" then return nil end
+	const currentId = tostring(game.JobId)
+	local current = byId and byId[currentId] or nil
+	if not current then
+		local maxPlayers = 0
+		pcall(function() maxPlayers = tonumber(Services.Players.MaxPlayers) or 0 end)
+		current = {
+			id = currentId;
+			playing = Services.Players and #Services.Players:GetPlayers() or 0;
+			max = maxPlayers;
+			ping = 0;
+			fps = 0;
+		}
+		servers[#servers + 1] = current
+		if byId then byId[currentId] = current end
+	end
+	current.current = true
+	pcall(function() current.playing = #Services.Players:GetPlayers() end)
+	if (tonumber(current.max) or 0) <= 0 then pcall(function() current.max = tonumber(Services.Players.MaxPlayers) or 0 end) end
+	if type(NAStuff.srv) == "table" and type(NAStuff.srv.getCurrentRealPing) == "function" then
+		const realPing = NAStuff.srv:getCurrentRealPing()
+		if realPing then
+			current.latency = realPing
+			current.latencyEstimated = false
+		end
+	end
+	if (tonumber(current.fps) or 0) <= 0 and Services.Workspace then
+		pcall(function() current.fps = Services.Workspace:GetRealPhysicsFPS() end)
+	end
+	return current
+end
+
+NAmanage.ServerList_Sort = function()
+	const state = NAmanage.ServerList
+	const current = {}
+	const others = {}
+	for _, server in state.servers do
+		if server.current == true then current[#current + 1] = server else others[#others + 1] = server end
+	end
+	const mode = state.sort
+	table.sort(others, function(a, b)
+		if mode == "players" then
+			if a.playing ~= b.playing then return a.playing > b.playing end
+		elseif mode == "uptime" then
+			const av, bv = tonumber(a.uptime) or -1, tonumber(b.uptime) or -1
+			if av ~= bv then return av > bv end
+		elseif mode == "version" then
+			const av, bv = tonumber(a.placeVersion) or math.huge, tonumber(b.placeVersion) or math.huge
+			if av ~= bv then return av < bv end
+		elseif mode == "fps" then
+			const av, bv = tonumber(a.fps) or 0, tonumber(b.fps) or 0
+			if av ~= bv then return av > bv end
+		else
+			const av = tonumber(a.latency) or tonumber(a.ping) or math.huge
+			const bv = tonumber(b.latency) or tonumber(b.ping) or math.huge
+			if av ~= bv then return av < bv end
+		end
+		return tostring(a.id) < tostring(b.id)
+	end)
+	const sorted = {}
+	for _, server in current do sorted[#sorted + 1] = server end
+	for _, server in others do sorted[#sorted + 1] = server end
+	state.servers = sorted
+	return sorted
+end
+
+NAmanage.ServerList_ApplyLayout = function()
+	const state = NAmanage.ServerList
+	const ui = state.ui or NAmanage.ServerList_GetUI()
+	if not (ui and ui.list) then return end
+	const old = ui.list:FindFirstChild("Layout")
+	if old then old:Destroy() end
+	if state.layout == "grid" then
+		const grid = Instance.new("UIGridLayout", ui.list)
+		grid.Name = "Layout"
+		grid.SortOrder = Enum.SortOrder.LayoutOrder
+		grid.CellPadding = UDim2.fromOffset(8, 8)
+		const narrow = ui.frame and ui.frame.AbsoluteSize.X < 620
+		grid.CellSize = narrow and UDim2.new(1, -8, 0, 150) or UDim2.new(0.5, -8, 0, 150)
+	else
+		const layout = Instance.new("UIListLayout", ui.list)
+		layout.Name = "Layout"
+		layout.Padding = UDim.new(0, 7)
+		layout.SortOrder = Enum.SortOrder.LayoutOrder
+	end
+end
+
+NAmanage.ServerList_Render = function()
+	const state = NAmanage.ServerList
+	const ui = state.ui or NAmanage.ServerList_GetUI()
+	if not (ui and ui.list) then return end
+	NAlib.disconnect("NAServerListRows")
+	for _, child in ui.list:GetChildren() do
+		if not child:IsA("UIPadding") and child.Name ~= "Layout" then child:Destroy() end
+	end
+	NAmanage.ServerList_ApplyLayout()
+	NAmanage.ServerList_Sort()
+	const shown = {}
+	for _, server in state.servers do
+		const full = (tonumber(server.max) or 0) > 0 and (tonumber(server.playing) or 0) >= (tonumber(server.max) or 0)
+		if server.current == true or not (state.hideFull and full) then shown[#shown + 1] = server end
+	end
+	if #shown == 0 then
+		const empty = Instance.new("TextLabel", ui.list)
+		empty.Name = "Empty"
+		empty.Size = UDim2.new(1, -4, 0, 46)
+		empty.BackgroundTransparency = 1
+		empty.Text = "No public servers matched the current filters."
+		empty.TextColor3 = Color3.fromRGB(205, 205, 218)
+		empty.TextSize = 13
+		return
+	end
+	for index, server in shown do
+		const card = Instance.new("Frame", ui.list)
+		card.Name = "Server_"..tostring(index)
+		card.LayoutOrder = server.current == true and -1000000 or index
+		card.Size = state.layout == "grid" and UDim2.new(1, 0, 0, 150) or UDim2.new(1, -4, 0, 98)
+		card.BackgroundColor3 = server.current == true and Color3.fromRGB(54, 46, 72) or Color3.fromRGB(42, 43, 52)
+		card.BackgroundTransparency = server.current == true and 0.04 or 0.12
+		card.BorderSizePixel = 0
+		Instance.new("UICorner", card).CornerRadius = UDim.new(0, 7)
+		const cardStroke = Instance.new("UIStroke", card)
+		cardStroke.Color = server.current == true and Color3.fromRGB(155, 100, 255) or Color3.fromRGB(73, 74, 88)
+		cardStroke.Transparency = server.current == true and 0.12 or 0.5
+		cardStroke.Thickness = 1
+		const label = Instance.new("TextLabel", card)
+		label.Name = "Info"
+		label.BackgroundTransparency = 1
+		label.Position = UDim2.new(0, 10, 0, 6)
+		label.Size = state.layout == "grid" and UDim2.new(1, -20, 1, -50) or UDim2.new(1, -126, 1, -12)
+		label.TextXAlignment = Enum.TextXAlignment.Left
+		label.TextYAlignment = Enum.TextYAlignment.Center
+		label.TextWrapped = true
+		label.TextColor3 = Color3.fromRGB(230, 231, 239)
+		label.TextSize = state.layout == "grid" and 11.5 or 12
+		label.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+		const latencyValue = tonumber(server.latency) or tonumber(server.ping) or 0
+		const latencyText = latencyValue > 0 and ((server.latencyEstimated == true and "~" or "")..tostring(math.floor(latencyValue)).." ms") or "N/A"
+		const pingText = (tonumber(server.ping) or 0) > 0 and (tostring(math.floor(tonumber(server.ping))).." ms") or "N/A"
+		const uptimeText = type(NAStuff.srv) == "table" and type(NAStuff.srv.formatUptime) == "function" and NAStuff.srv:formatUptime(server.uptime, server.uptimeEstimated == true) or "Unknown"
+		const versionText = server.placeVersion and tostring(server.placeVersion) or "Unknown"
+		const regionText = tostring(server.regionLabel or server.region or "Unknown")
+		const head = server.current == true and "CURRENT SERVER" or ("SERVER "..tostring(index))
+		label.Text = Format("%s  |  %d/%d players\nLatency: %s  |  Roblox ping: %s  |  FPS: %.1f\nRegion: %s\nUptime: %s  |  Version: %s", head, tonumber(server.playing) or 0, tonumber(server.max) or 0, latencyText, pingText, tonumber(server.fps) or 0, regionText, uptimeText, versionText)
+		const join = Instance.new("TextButton", card)
+		join.Name = "Join"
+		join.Size = state.layout == "grid" and UDim2.new(1, -20, 0, 30) or UDim2.new(0, 96, 0, 34)
+		join.Position = state.layout == "grid" and UDim2.new(0, 10, 1, -38) or UDim2.new(1, -106, 0.5, -17)
+		join.BackgroundColor3 = server.current == true and Color3.fromRGB(67, 58, 87) or Color3.fromRGB(70, 65, 92)
+		join.Text = server.current == true and "Current" or "Join"
+		join.TextColor3 = Color3.fromRGB(245, 245, 250)
+		join.TextSize = 13
+		join.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+		join.AutoButtonColor = server.current ~= true
+		Instance.new("UICorner", join).CornerRadius = UDim.new(0, 6)
+		if server.current ~= true then
+			NAlib.connect("NAServerListRows", join.Activated:Connect(function()
+				local pid = tonumber(ui.placeId and ui.placeId.Text) or tonumber(game.PlaceId)
+				NAmanage.SubplaceViewer_TeleportServer(pid, server, "Joining server")
+			end))
+		end
+	end
+	if ui.status then
+		local regions = 0
+		for _, server in shown do if server.region or server.regionLabel then regions += 1 end end
+		ui.status.Text = Format("%d shown / %d total | %d region-mapped | Current server pinned first", #shown, #state.servers, regions)
+	end
+end
+
+NAmanage.ServerList_Refresh = function()
+	const state = NAmanage.ServerList
+	const ui = state.ui or NAmanage.ServerList_GetUI()
+	if not (ui and ui.placeId and ui.list) then return end
+	const pid = tonumber(tostring(ui.placeId.Text or ""):match("^%s*(.-)%s*$"))
+	if not pid or pid <= 0 then
+		if ui.status then ui.status.Text = "Enter a valid PlaceId." end
+		return
+	end
+	state.fetchToken += 1
+	const token = state.fetchToken
+	state.loading = true
+	if ui.status then ui.status.Text = "Loading public servers..." end
+	Spawn(function()
+		local servers, err, byId = NAmanage.ServerList_Collect(pid, token)
+		if token ~= state.fetchToken then return end
+		if type(servers) ~= "table" then
+			state.loading = false
+			if ui.status then ui.status.Text = "Server request failed: "..tostring(err or "unknown error") end
+			return
+		end
+		NAmanage.ServerList_EnsureCurrent(pid, servers, byId)
+		if #servers > 0 and type(NAStuff.srv) == "table" and type(NAStuff.srv.enrichLatencyList) == "function" then
+			if ui.status then ui.status.Text = "Resolving RoValra region, uptime, version and latency..." end
+			servers = NAStuff.srv:enrichLatencyList(pid, servers)
+			if token ~= state.fetchToken then return end
+			NAmanage.ServerList_EnsureCurrent(pid, servers, byId)
+		end
+		state.servers = servers
+		state.placeId = pid
+		state.loading = false
+		NAmanage.ServerList_Render()
+	end)
+end
+
+NAmanage.ServerList_Init = function()
+	const state = NAmanage.ServerList
+	const ui = state.ui or NAmanage.ServerList_GetUI()
+	if not (ui and ui.frame) then return false end
+	if ui.placeId and tostring(ui.placeId.Text or "") == "" then ui.placeId.Text = tostring(game.PlaceId) end
+	if ui.layout then ui.layout.Text = "Layout: "..(state.layout == "grid" and "Grid" or "List") end
+	if ui.sort then ui.sort.Text = "Sort: "..string.upper(string.sub(state.sort, 1, 1))..string.sub(state.sort, 2) end
+	if ui.hideFull then ui.hideFull.Text = "Hide Full: "..(state.hideFull and "ON" or "OFF") end
+	if state.bound then return true end
+	state.bound = true
+	NAlib.disconnect("NAServerList")
+	if ui.current then
+		NAlib.connect("NAServerList", ui.current.Activated:Connect(function()
+			ui.placeId.Text = tostring(game.PlaceId)
+			NAmanage.ServerList_Refresh()
+		end))
+	end
+	if ui.refresh then NAlib.connect("NAServerList", ui.refresh.Activated:Connect(NAmanage.ServerList_Refresh)) end
+	if ui.layout then
+		NAlib.connect("NAServerList", ui.layout.Activated:Connect(function()
+			state.layout = state.layout == "list" and "grid" or "list"
+			ui.layout.Text = "Layout: "..(state.layout == "grid" and "Grid" or "List")
+			NAmanage.ServerList_Render()
+		end))
+	end
+	if ui.sort then
+		NAlib.connect("NAServerList", ui.sort.Activated:Connect(function()
+			const order = { latency = "players"; players = "uptime"; uptime = "version"; version = "fps"; fps = "latency" }
+			state.sort = order[state.sort] or "latency"
+			ui.sort.Text = "Sort: "..string.upper(string.sub(state.sort, 1, 1))..string.sub(state.sort, 2)
+			NAmanage.ServerList_Render()
+		end))
+	end
+	if ui.hideFull then
+		NAlib.connect("NAServerList", ui.hideFull.Activated:Connect(function()
+			state.hideFull = not state.hideFull
+			ui.hideFull.Text = "Hide Full: "..(state.hideFull and "ON" or "OFF")
+			NAmanage.ServerList_Render()
+		end))
+	end
+	if ui.copyPlayers then
+		NAlib.connect("NAServerList", ui.copyPlayers.Activated:Connect(function()
+			const names = {}
+			for _, plr in Services.Players:GetPlayers() do names[#names + 1] = plr.Name end
+			const value = Concat(names, "\n")
+			if type(setclipboard) == "function" then pcall(setclipboard, value) end
+			if ui.status then ui.status.Text = "Copied "..tostring(#names).." current-server player name(s)." end
+		end))
+	end
+	if ui.frame.GetPropertyChangedSignal then
+		NAlib.connect("NAServerList", ui.frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+			if state.layout == "grid" then NAmanage.ServerList_ApplyLayout() end
+		end))
+	end
+	return true
+end
+
+NAmanage.ServerList_Toggle = function()
+	if not NAmanage.ServerList_Init() then return false end
+	const state = NAmanage.ServerList
+	const ui = state.ui or NAmanage.ServerList_GetUI()
+	if not (ui and ui.frame) then return false end
+	if ui.frame.Visible then
+		ui.frame.Visible = false
+		return true
+	end
+	ui.frame.Visible = true
+	NAmanage.ServerList_ApplyResponsive(true)
+	if ui.placeId and tostring(ui.placeId.Text or "") == "" then ui.placeId.Text = tostring(game.PlaceId) end
+	const pid = tonumber(ui.placeId and ui.placeId.Text) or tonumber(game.PlaceId)
+	if #state.servers == 0 or state.placeId ~= pid then NAmanage.ServerList_Refresh() else NAmanage.ServerList_Render() end
+	return true
+end
+
+Defer(NAmanage.ServerList_Init)
+
 NAmanage.SubplaceViewer_Render = function()
 	const state = NAmanage.SubplaceViewer
 	state.serverToken += 1
@@ -138519,6 +139045,7 @@ NAStartupUI("Menu:Executor", 0.08, function() if NAUIMANAGER.ExecutorFrame then 
 NAStartupUI("Menu:Notepad", 0.09, function() if NAUIMANAGER.NotepadFrame then NAgui.menu(NAUIMANAGER.NotepadFrame) end end)
 NAStartupUI("Menu:ScriptHub", 0.1, function() if NAUIMANAGER.ScriptHubFrame then NAgui.menu(NAUIMANAGER.ScriptHubFrame) end end)
 NAStartupUI("Menu:SubplaceViewer", 0.1, function() if NAUIMANAGER.SubplaceViewerFrame then NAgui.menu(NAUIMANAGER.SubplaceViewerFrame) end end)
+NAStartupUI("Menu:ServerList", 0.105, function() if NAUIMANAGER.ServerListFrame then NAgui.menu(NAUIMANAGER.ServerListFrame) end end)
 
 --[[ GUI RESIZE FUNCTION ]]--
 
@@ -138590,6 +139117,12 @@ NAStartupUI("Resize:SubplaceViewer", 0.2, function()
 	if NAUIMANAGER.SubplaceViewerFrame then
 		const metrics = NAmanage.ExecutorWindowSizing.GetSize(780, 530, { minWidth = 560; minHeight = 360; mobileMinWidth = 280; mobileMinHeight = 230; })
 		NAgui.resizeable(NAUIMANAGER.SubplaceViewerFrame, Vector2.new(metrics.minWidth, metrics.minHeight), Vector2.new(5000, 5000))
+	end
+end)
+NAStartupUI("Resize:ServerList", 0.205, function()
+	if NAUIMANAGER.ServerListFrame then
+		const metrics = NAmanage.ExecutorWindowSizing.GetSize(820, 560, { minWidth = 620; minHeight = 420; mobileMinWidth = 340; mobileMinHeight = 300; })
+		NAgui.resizeable(NAUIMANAGER.ServerListFrame, Vector2.new(metrics.minWidth, metrics.minHeight), Vector2.new(5000, 5000))
 	end
 end)
 NAStartupUI("Resize:Executor", 0.17, function()
@@ -153711,7 +154244,11 @@ NAmanage.WindowAppearance.targetKeys = NAmanage.WindowAppearance.targetKeys or {
 	"MusicFrame";
 	"ScriptHubFrame";
 	"SubplaceViewerFrame";
+	"ServerListFrame";
 }
+if not table.find(NAmanage.WindowAppearance.targetKeys, "ServerListFrame") then
+	NAmanage.WindowAppearance.targetKeys[#NAmanage.WindowAppearance.targetKeys + 1] = "ServerListFrame"
+end
 
 NAmanage.WindowAppearance.manifestPath = NAfiles.NAWINDOWBACKGROUNDPATH.."/SavedBackgrounds.json"
 
