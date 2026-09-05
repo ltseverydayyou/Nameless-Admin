@@ -72853,19 +72853,43 @@ cmd.add({"saveinstance","savegame"},{"saveinstance (savegame)","Saves the game w
 end)
 
 cmd.add({"admin","whitelist"},{"admin <player>","Whitelist the user to have access to *your* client-side commands, anything they type runs on *you*, not on themselves"},function(...)
-	function ChatMessage(Message,Whisper)
-		NAlib.LocalPlayerChat(Message,Whisper or "All")
-	end
 	const Player=getPlr(NAmanage.PlayerQueryFromArgs(...))
+	const pending={}
 	for _, plr in next, Player do
 		if plr~=nil and not Admin[plr.UserId] then
-			Admin[plr.UserId]={plr=plr}
-			ChatMessage("["..adminName.."] You've got admin. Prefix: ';'",plr.Name)
-			Wait(0.2)
-			DoNotif(nameChecker(plr).." has now been whitelisted to use commands",15)
-		else
-			DoNotif("No player found")
+			pending[#pending+1]=plr
 		end
+	end
+	if #pending==0 then
+		DoNotif("No eligible player found")
+		return
+	end
+	const names={}
+	for _, plr in pending do names[#names+1]=nameChecker(plr) end
+	const function grantAdmin(tellUser)
+		for _, plr in pending do
+			if plr and plr.Parent and not Admin[plr.UserId] then
+				Admin[plr.UserId]={plr=plr}
+				if tellUser then
+					NAlib.LocalPlayerChat("["..adminName.."] You've got admin. Prefix: ';'. Your commands will control my client.",plr.Name)
+					Wait(0.2)
+				end
+				DoNotif(nameChecker(plr).." has now been whitelisted to use commands"..(tellUser and " and was notified" or " silently"),15)
+			end
+		end
+	end
+	const show=Window or DoWindow
+	if type(show)=="function" then
+		show({
+			Title="Admin Access",
+			Description="Whitelist "..Concat(names, ", ").."?\n\nChoose whether they should be privately told that their ';' commands will control your client.",
+			Buttons={
+				{Text="Tell User",Callback=function() grantAdmin(true) end},
+				{Text="Silent",Callback=function() grantAdmin(false) end},
+			}
+		})
+	else
+		grantAdmin(false)
 	end
 end,true)
 
@@ -73106,8 +73130,8 @@ NAStuff.srv = NAStuff.srv or {}
 NAStuff.srvWorker = NAStuff.srvWorker or "https://solaraserverhop.ltseverydayyou.workers.dev"
 
 NAStuff.srv.b = {
-	"https://games.roproxy.com",
 	"https://games.rotunnel.com",
+	"https://games.roproxy.com",
 	"https://games.roblox.com",
 }
 
@@ -73624,14 +73648,12 @@ NAStuff.srv.pg = function(self, cid, mode, placeId)
 		q ..= "&cursor="..Services.HttpService:UrlEncode(cid)
 	end
 
-	for _, b in self.b do
-		const url = b.."/v1/games/"..tostring(pid).."/servers/Public"..q
-		const body = self:get(url)
-		if type(body) == "string" and #body > 0 then
-			const js = self:j(body)
-			if type(js) == "table" and type(js.data) == "table" then
-				return js.data, js.nextPageCursor
-			end
+	const primaryBase = self.b[1] or "https://games.rotunnel.com"
+	local body = self:get(primaryBase.."/v1/games/"..tostring(pid).."/servers/Public"..q)
+	if type(body) == "string" and #body > 0 then
+		const js = self:j(body)
+		if type(js) == "table" and type(js.data) == "table" then
+			return js.data, js.nextPageCursor
 		end
 	end
 
@@ -73640,13 +73662,22 @@ NAStuff.srv.pg = function(self, cid, mode, placeId)
 	if cid and cid ~= "" then
 		wq ..= "&cursor="..Services.HttpService:UrlEncode(cid)
 	end
-
-	const wurl = NAStuff.srvWorker.."/servers?"..wq
-	const wbody = self:get(wurl)
+	const wbody = self:get(NAStuff.srvWorker.."/servers?"..wq)
 	if type(wbody) == "string" and #wbody > 0 then
 		const js = self:j(wbody)
 		if type(js) == "table" and type(js.data) == "table" then
 			return js.data, js.nextPageCursor
+		end
+	end
+
+	for index = 2, #self.b do
+		const base = self.b[index]
+		body = self:get(base.."/v1/games/"..tostring(pid).."/servers/Public"..q)
+		if type(body) == "string" and #body > 0 then
+			const js = self:j(body)
+			if type(js) == "table" and type(js.data) == "table" then
+				return js.data, js.nextPageCursor
+			end
 		end
 	end
 
@@ -73876,12 +73907,12 @@ NAStuff.srv.scan = function(self, mode, placeId)
 end
 
 NAmanage.ServerhopDefault = function()
-	DebugNotif("Teleporting (default)")
+	DebugNotif("Teleporting with the legacy serverhop method")
 	local ok, err = NAmanage.TeleportServiceCall("Teleport", { PlaceId, Services.Players.LocalPlayer }, {
 		placeId = PlaceId;
 		placeName = game.Name;
 		action = "SERVER HOP";
-		detail = "Finding another public server";
+		detail = "Legacy Roblox serverhop";
 	})
 	if not ok then
 		DebugNotif("Teleport failed: "..tostring(err or "?"))
@@ -73890,11 +73921,61 @@ NAmanage.ServerhopDefault = function()
 	return true
 end
 
+NAmanage.ServerhopLegacyPick = function(mode)
+	if type(NAStuff.srv) ~= "table" or type(NAStuff.srv.collect) ~= "function" then
+		return nil, "legacy server list is unavailable"
+	end
+	mode = mode == "low" and "low" or mode == "high" and "high" or "ping"
+	local pageLimit = 4
+	if type(NAStuff.srv.latency) == "table" and type(NAStuff.srv.latency.cfg) == "table" then
+		pageLimit = tonumber(NAStuff.srv.latency.cfg.publicPageLimit) or pageLimit
+	end
+	local servers = NAStuff.srv:collect(PlaceId, mode, pageLimit)
+	if type(servers) ~= "table" or #servers == 0 then
+		return nil, "no joinable public servers"
+	end
+	if type(NAStuff.srv.sortCandidates) == "function" then
+		NAStuff.srv:sortCandidates(servers, mode)
+	else
+		table.sort(servers, function(a, b)
+			if mode == "low" and a.playing ~= b.playing then return a.playing < b.playing end
+			if mode == "high" and a.playing ~= b.playing then return a.playing > b.playing end
+			const ap, bp = tonumber(a.ping) or math.huge, tonumber(b.ping) or math.huge
+			if ap ~= bp then return ap < bp end
+			return tostring(a.id) < tostring(b.id)
+		end)
+	end
+	const server = servers[1]
+	if server then
+		server.latency = tonumber(server.ping) or 0
+		server.latencyEstimated = false
+	end
+	return server
+end
+
+NAmanage.ServerhopLegacyServer = function(mode, action, label)
+	DebugNotif("Searching with the legacy Roblox server list")
+	local server, scanErr = NAmanage.ServerhopLegacyPick(mode)
+	if not server or not server.id then
+		DebugNotif("No server found"..(scanErr and (": "..tostring(scanErr)) or ""))
+		return false, scanErr or "no server found"
+	end
+	const ping = tonumber(server.ping) or 0
+	const pingText = ping > 0 and (tostring(math.floor(ping)).." ms") or "unknown ping"
+	DebugNotif(tostring(label or "Serverhop").." | "..pingText.." | Players: "..tostring(server.playing or "?"))
+	return NAmanage.TeleportServiceCall("TeleportToPlaceInstance", { PlaceId, server.id, Services.Players.LocalPlayer }, {
+		placeId = PlaceId;
+		placeName = game.Name;
+		action = tostring(action or "SERVER HOP");
+		detail = "Legacy Roblox data | Ping: "..pingText.." | Players: "..tostring(server.playing or "?");
+	})
+end
+
 NAmanage.ServerhopAdvanced = function()
-	DebugNotif("Searching for the best-latency server")
+	DebugNotif("Searching with RoValra for the best-latency server")
 	if type(NAStuff.srv) ~= "table" or type(NAStuff.srv.scan) ~= "function" then
-		DebugNotif("Advanced serverhop is unavailable")
-		return false, "advanced serverhop is unavailable"
+		DebugNotif("RoValra serverhop is unavailable")
+		return false, "RoValra serverhop is unavailable"
 	end
 
 	local id, pl, latency, server, scanErr = NAStuff.srv:scan("high")
@@ -73909,7 +73990,7 @@ NAmanage.ServerhopAdvanced = function()
 		placeId = PlaceId;
 		placeName = game.Name;
 		action = "SERVER HOP";
-		detail = "Latency: "..latencyText.." | Players: "..tostring(pl or "?");
+		detail = "RoValra | Latency: "..latencyText.." | Players: "..tostring(pl or "?");
 	})
 	if not ok then
 		DebugNotif("Teleport failed: "..tostring(err or "?"))
@@ -73918,65 +73999,116 @@ NAmanage.ServerhopAdvanced = function()
 	return true, id, pl, latency, server
 end
 
-cmd.add({"serverhop","shop"},{"serverhop [default/advanced] (shop)","serverhop"},function(method)
+NAmanage.SmallServerhopLegacy = function()
+	return NAmanage.ServerhopLegacyServer("low", "SMALL SERVER HOP", "Legacy small server")
+end
+
+NAmanage.SmallServerhopRoValra = function()
+	DebugNotif("Searching with RoValra for a small server in the best-latency region")
+	local id, pl, latency, server, scanErr = NAStuff.srv:scan("low")
+	if not id then
+		DebugNotif("No server found"..(scanErr and (": "..tostring(scanErr)) or ""))
+		return false, scanErr or "no server found"
+	end
+	const latencyText = NAStuff.srv:latencyText(server, latency)
+	DebugNotif("serverhopping | "..latencyText.." | Player Count: "..tostring(pl or "?"))
+	return NAmanage.TeleportServiceCall("TeleportToPlaceInstance", { PlaceId, id, Services.Players.LocalPlayer }, {
+		placeId = PlaceId;
+		placeName = game.Name;
+		action = "SMALL SERVER HOP";
+		detail = "RoValra | Latency: "..latencyText.." | Players: "..tostring(pl or "?");
+	})
+end
+
+NAmanage.PingServerhopLegacy = function()
+	return NAmanage.ServerhopLegacyServer("ping", "PING SERVER HOP", "Legacy best Roblox ping")
+end
+
+NAmanage.PingServerhopRoValra = function()
+	DebugNotif("Searching with RoValra for the best estimated-latency server")
+	local id, pl, latency, server, scanErr = NAStuff.srv:scan("ping")
+	if not id then
+		DebugNotif("No server with latency data found"..(scanErr and (": "..tostring(scanErr)) or ""))
+		return false, scanErr or "no server found"
+	end
+	const latencyText = NAStuff.srv:latencyText(server, latency)
+	DebugNotif(Format("Serverhopping | %s | Players: %s", latencyText, tostring(pl or "?")))
+	return NAmanage.TeleportServiceCall("TeleportToPlaceInstance", { PlaceId, id, Services.Players.LocalPlayer }, {
+		placeId = PlaceId;
+		placeName = game.Name;
+		action = "PING SERVER HOP";
+		detail = "RoValra | Latency: "..latencyText.." | Players: "..tostring(pl or "?");
+	})
+end
+
+NAmanage.ServerhopMethodPicker = function(title, description, legacyCallback, rovalraCallback)
+	const show = Window or DoWindow
+	if type(show) == "function" then
+		show({
+			Title = tostring(title or "Serverhop"),
+			Description = tostring(description or "Choose how servers are selected.").." Legacy uses Roblox server data directly. RoValra resolves region and latency data in the background and can take a little longer.",
+			Buttons = {
+				{ Text = "Legacy", Callback = legacyCallback },
+				{ Text = "RoValra", Callback = rovalraCallback },
+			},
+		})
+		return true
+	end
+	return rovalraCallback()
+end
+
+NAmanage.ServerhopResolveMethod = function(method, title, description, legacyCallback, rovalraCallback, usage)
+	const normalizedMethod = Lower(tostring(method or "")):gsub("[%s_%-%+]+", "")
+	if normalizedMethod == "legacy" or normalizedMethod == "old" or normalizedMethod == "default" then
+		return legacyCallback()
+	end
+	if normalizedMethod == "rovalra" or normalizedMethod == "advanced" or normalizedMethod == "high" then
+		return rovalraCallback()
+	end
+	if normalizedMethod ~= "" then
+		DoNotif(tostring(usage or "Usage: serverhop [legacy/rovalra]"), 4, "Serverhop")
+		return false
+	end
+	return NAmanage.ServerhopMethodPicker(title, description, legacyCallback, rovalraCallback)
+end
+
+cmd.add({"serverhop","shop"},{"serverhop [default/advanced] (shop)","serverhop using Roblox's default handling or NA's advanced RoValra method"},function(method)
 	Wait()
 	const normalizedMethod = Lower(tostring(method or "")):gsub("[%s_%-%+]+", "")
-	if normalizedMethod == "default" then
-		NAmanage.ServerhopDefault()
-		return
+	if normalizedMethod == "default" or normalizedMethod == "legacy" or normalizedMethod == "old" then
+		return NAmanage.ServerhopDefault()
 	end
-	if normalizedMethod == "advanced" or normalizedMethod == "high" then
-		NAmanage.ServerhopAdvanced()
-		return
+	if normalizedMethod == "advanced" or normalizedMethod == "rovalra" or normalizedMethod == "high" then
+		return NAmanage.ServerhopAdvanced()
 	end
 	if normalizedMethod ~= "" then
 		DoNotif("Usage: serverhop [default/advanced]", 4, "Serverhop")
-		return
+		return false
 	end
-
 	const show = Window or DoWindow
 	if type(show) == "function" then
 		show({
 			Title = "Serverhop",
-			Description = "Choose a serverhop method. Advanced uses the best-latency region.",
+			Description = "Choose the original serverhop method. Default lets Roblox handle the teleport/server selection and may return you to the same server. Advanced uses RoValra-assisted server selection.",
 			Buttons = {
 				{ Text = "Default", Callback = NAmanage.ServerhopDefault },
-				{ Text = "Advanced (Latency)", Callback = NAmanage.ServerhopAdvanced },
+				{ Text = "Advanced", Callback = NAmanage.ServerhopAdvanced },
 			},
 		})
-	else
-		NAmanage.ServerhopAdvanced()
+		return true
 	end
+	return NAmanage.ServerhopAdvanced()
 end)
 
-cmd.add({"smallserverhop","sshop"},{"smallserverhop (sshop)","serverhop to a small server in the best-latency region"},function()
+cmd.add({"smallserverhop","sshop"},{"smallserverhop [legacy/rovalra] (sshop)","serverhop to a small server using Roblox data or RoValra"},function(method)
 	Wait()
-	DebugNotif("Searching for a small server in the best-latency region")
-
-	local id, pl, latency, server, scanErr = NAStuff.srv:scan("low")
-	if id then
-		const latencyText = NAStuff.srv:latencyText(server, latency)
-		DebugNotif("serverhopping | "..latencyText.." | Player Count: "..tostring(pl or "?"))
-		NAmanage.TeleportServiceCall("TeleportToPlaceInstance", { PlaceId, id, Services.Players.LocalPlayer }, { placeId = PlaceId; placeName = game.Name; action = "SMALL SERVER HOP"; detail = "Latency: "..latencyText.." | Players: "..tostring(pl or "?") })
-	else
-		DebugNotif("No server found"..(scanErr and (": "..tostring(scanErr)) or ""))
-	end
+	return NAmanage.ServerhopResolveMethod(method, "Small Serverhop", "Legacy chooses the smallest server from Roblox's public server data. RoValra chooses a small server inside the best-latency region.", NAmanage.SmallServerhopLegacy, NAmanage.SmallServerhopRoValra, "Usage: smallserverhop [legacy/rovalra]")
 end)
 
-cmd.add({"pingserverhop","pshop"},{"pingserverhop (pshop)","serverhop to the best estimated-latency server"},function()
+cmd.add({"pingserverhop","pshop"},{"pingserverhop [legacy/rovalra] (pshop)","serverhop by Roblox-reported ping or RoValra estimated latency"},function(method)
 	Wait()
-	DebugNotif("Searching for server with best latency")
-
-	local id, pl, latency, server, scanErr = NAStuff.srv:scan("ping")
-	if id then
-		const latencyText = NAStuff.srv:latencyText(server, latency)
-		DebugNotif(Format("Serverhopping | %s | Players: %s", latencyText, tostring(pl or "?")))
-		NAmanage.TeleportServiceCall("TeleportToPlaceInstance", { PlaceId, id, Services.Players.LocalPlayer }, { placeId = PlaceId; placeName = game.Name; action = "PING SERVER HOP"; detail = "Latency: "..latencyText.." | Players: "..tostring(pl or "?") })
-	else
-		DebugNotif("No server with latency data found"..(scanErr and (": "..tostring(scanErr)) or ""))
-	end
+	return NAmanage.ServerhopResolveMethod(method, "Ping Serverhop", "Legacy sorts by Roblox's reported server ping. RoValra estimates the best region and latency before choosing.", NAmanage.PingServerhopLegacy, NAmanage.PingServerhopRoValra, "Usage: pingserverhop [legacy/rovalra]")
 end)
-
 
 NAmanage.RoValraHopServer = function(server, action, detailPrefix)
 	if type(server) ~= "table" or not server.id then return false, "no server found" end
@@ -76396,50 +76528,126 @@ NAmanage.grabTool=function(tool, tries)
 	return ok
 end
 
-NAmanage.grabAllTools=function(range)
+NAmanage.parseGrabToolArgs=function(forceQuery, ...)
+	const packed = table.pack(...)
+	const args = {}
+	for index = 1, packed.n do
+		const text = tostring(packed[index] or ""):match("^%s*(.-)%s*$") or ""
+		if text ~= "" then args[#args + 1] = text end
+	end
+
+	local range
+	if #args > 0 then
+		const firstNumber = tonumber(args[1])
+		const lastNumber = tonumber(args[#args])
+		if forceQuery ~= true and firstNumber and firstNumber > 0 then
+			range = firstNumber
+			table.remove(args, 1)
+		elseif #args > 1 and lastNumber and lastNumber > 0 then
+			range = lastNumber
+			table.remove(args, #args)
+		elseif #args > 1 and firstNumber and firstNumber > 0 then
+			range = firstNumber
+			table.remove(args, 1)
+		end
+	end
+
+	const query = (Concat(args, " "):match("^%s*(.-)%s*$") or "")
+	return range, query
+end
+
+NAmanage.toolGrabNameMatches=function(tool, query, partial)
+	query = tostring(query or "")
+	if query == "" then return true end
+	const name = Lower(tostring(tool and tool.Name or ""))
+	const needle = Lower(query)
+	if partial == true then
+		return string.find(name, needle, 1, true) ~= nil
+	end
+	return name == needle
+end
+
+NAmanage.grabAllTools=function(range, query, partial, preserveEquipped)
 	const char = getChar()
 	const hum = char and getHum(char)
 	const root = char and getRoot(char)
-	if not hum or not root then return 0 end
+	if not hum or not root then return 0, 0 end
 
 	range = tonumber(range)
+	query = tostring(query or ""):match("^%s*(.-)%s*$") or ""
 	const useRange = range and range > 0
+	const keepEquipped = preserveEquipped == true
+	const equippedTool = keepEquipped and char:FindFirstChildOfClass("Tool") or nil
+	const hadEquippedTool = equippedTool ~= nil
 
 	local count = 0
+	local matched = 0
 	for _, tool in NAmanage.QueryDescendants(Services.Workspace, "Tool") do
-		if useRange then
-			const handle = tool:FindFirstChild("Handle") or tool:FindFirstChildWhichIsA("BasePart")
-			if handle and (handle.Position - root.Position).Magnitude <= range then
-				if NACaller(function() hum:EquipTool(tool) end) then
-					count += 1
+		if NAmanage.toolGrabNameMatches(tool, query, partial) then
+			if useRange then
+				const handle = tool:FindFirstChild("Handle") or tool:FindFirstChildWhichIsA("BasePart")
+				if handle and (handle.Position - root.Position).Magnitude <= range then
+					matched += 1
+					if NACaller(function() hum:EquipTool(tool) end) then count += 1 end
 				end
-			end
-		else
-			if NACaller(function() hum:EquipTool(tool) end) then
-				count += 1
+			else
+				matched += 1
+				if NACaller(function() hum:EquipTool(tool) end) then count += 1 end
 			end
 		end
 	end
-	return count
+
+	if keepEquipped then
+		const currentChar = getChar()
+		const currentHum = currentChar and getHum(currentChar)
+		const currentBackpack = getBp()
+		if currentHum then
+			if equippedTool and equippedTool.Parent and (equippedTool.Parent == currentChar or equippedTool.Parent == currentBackpack) then
+				if equippedTool.Parent ~= currentChar then
+					NACaller(function() currentHum:EquipTool(equippedTool) end)
+				end
+			elseif not hadEquippedTool then
+				NACaller(function() currentHum:UnequipTools() end)
+			end
+		end
+	end
+
+	return count, matched
 end
 
-cmd.add({"grabtools","gtools","gtls"},{"grabtools [range]","Grabs dropped tools"},function(...)
-	const firstArg = ...
-	const range = tonumber(firstArg)
-
-	const count = NAmanage.grabAllTools(range)
+NAmanage.notifyGrabToolsResult=function(count, matched, range, query, partial)
+	query = tostring(query or "")
 	if count > 0 then
-		if range and range > 0 then
-			DebugNotif(("Grabbed %d tools within %d studs"):format(count, range), 2)
-		else
-			DebugNotif(("Grabbed %d tools"):format(count), 2)
+		local text = ("Grabbed %d tool%s"):format(count, count == 1 and "" or "s")
+		if query ~= "" then
+			text ..= partial == true and (" matching '%s'"):format(query) or (" named '%s'"):format(query)
 		end
+		if range and range > 0 then text ..= (" within %d studs"):format(range) end
+		DebugNotif(text, 2)
+	elseif query ~= "" and matched == 0 then
+		DebugNotif((partial == true and "No tools matched '" or "No tool named '")..query.."'", 2)
 	else
 		DebugNotif("No tools to grab", 2)
 	end
+end
+
+cmd.add({"grabtools","gtools","gtls"},{"grabtools [tool name] [range]","Grabs dropped tools, optionally filtering by exact tool name"},function(...)
+	const range, query = NAmanage.parseGrabToolArgs(false, ...)
+	const count, matched = NAmanage.grabAllTools(range, query, false)
+	NAmanage.notifyGrabToolsResult(count, matched, range, query, false)
 end)
 
-cmd.add({"loopgrabtools","loopgrab","lgtools","lgtls","lgrab","lg"},{"loopgrabtools [range]","Loop grabs dropped tools"},function(...)
+cmd.add({"grabtoolsfind","gtoolsfind","gtlsfind","grabfind"},{"grabtoolsfind <tool name> [range]","Grabs dropped tools whose names contain the given text"},function(...)
+	const range, query = NAmanage.parseGrabToolArgs(true, ...)
+	if query == "" then
+		DebugNotif("Usage: grabtoolsfind <tool name> [range]", 3)
+		return
+	end
+	const count, matched = NAmanage.grabAllTools(range, query, true)
+	NAmanage.notifyGrabToolsResult(count, matched, range, query, true)
+end)
+
+cmd.add({"loopgrabtools","loopgrab","lgtools","lgtls","lgrab","lg"},{"loopgrabtools [range]","Loop grabs dropped tools without changing your equipped tool"},function(...)
 	if loopgrab then
 		DebugNotif("Loop grab already running", 2)
 		return
@@ -76451,7 +76659,7 @@ cmd.add({"loopgrabtools","loopgrab","lgtools","lgtls","lgrab","lg"},{"loopgrabto
 	DebugNotif("Started loop grabbing tools", 2)
 	SpawnCall(function()
 		while loopgrab do
-			NAmanage.grabAllTools(range)
+			NAmanage.grabAllTools(range, nil, false, true)
 			Wait(1)
 		end
 		DebugNotif("Stopped loop grabbing tools", 2)
@@ -109259,6 +109467,7 @@ NAmanage.ScriptHub.tabStates.saved = type(NAmanage.ScriptHub.tabStates.saved) ==
 }
 NAmanage.ScriptHub.supportedPageSize = 16
 NAmanage.ScriptHub.savedPageSize = 16
+NAmanage.ScriptHub.engineDropdown = nil
 
 NAmanage.ExecutorWindowSizing = type(NAmanage.ExecutorWindowSizing) == "table" and NAmanage.ExecutorWindowSizing or {}
 NAmanage.ExecutorWindowSizing.GetScale = function()
@@ -109554,7 +109763,7 @@ NAmanage.ScriptHub_UpdateHeader = function()
 		return
 	end
 	if ui.engine then
-		ui.engine.Text = hub.tabMode == "supported" and "Catalog: GitHub" or hub.tabMode == "saved" and "Storage: Local" or hub.phone and hub.engine or "Engine: "..hub.engine
+		ui.engine.Text = hub.tabMode == "supported" and "Catalog: GitHub" or hub.tabMode == "saved" and "Storage: Local" or hub.phone and (hub.engine.." ▼") or ("API: "..hub.engine.." ▼")
 	end
 	if ui.title then
 		ui.title.Text = hub.tabMode == "supported" and "Script Hub - NA Scripts" or hub.tabMode == "saved" and "Script Hub - Saved Scripts" or "Script Hub"
@@ -109583,6 +109792,103 @@ NAmanage.ScriptHub_UpdateHeader = function()
 	NAmanage.ScriptHub_UpdateControls()
 end
 
+NAmanage.ScriptHub_CloseEngineDropdown = function()
+	const hub = NAmanage.ScriptHub
+	if hub.engineDropdown and hub.engineDropdown.Parent then
+		hub.engineDropdown:Destroy()
+	end
+	if hub.ui and hub.ui.frame then
+		local dismiss = hub.ui.frame:FindFirstChild("EngineDropdownDismiss")
+		if dismiss then dismiss:Destroy() end
+	end
+	hub.engineDropdown = nil
+end
+
+NAmanage.ScriptHub_SelectEngine = function(engine)
+	const hub = NAmanage.ScriptHub
+	if hub.searching or hub.tabMode ~= "public" or not table.find(hub.engines, engine) then
+		return false
+	end
+	NAmanage.ScriptHub_CloseEngineDropdown()
+	if hub.engine == engine then
+		NAmanage.ScriptHub_UpdateHeader()
+		return true
+	end
+	hub.engine = engine
+	hub.page = 1
+	hub.totalPages = 1
+	hub.entries = {}
+	hub.query = ""
+	const ui = hub.ui or NAmanage.ScriptHub_GetUI()
+	if ui and ui.searchBox then ui.searchBox.Text = "" end
+	NAmanage.ScriptHub_UpdateHeader()
+	NAmanage.ScriptHub_Fetch("", 1)
+	return true
+end
+
+NAmanage.ScriptHub_ToggleEngineDropdown = function()
+	const hub = NAmanage.ScriptHub
+	const ui = hub.ui or NAmanage.ScriptHub_GetUI()
+	if hub.searching or hub.tabMode ~= "public" or not (ui and ui.frame and ui.engine) then
+		NAmanage.ScriptHub_CloseEngineDropdown()
+		return false
+	end
+	if hub.engineDropdown and hub.engineDropdown.Parent then
+		NAmanage.ScriptHub_CloseEngineDropdown()
+		return true
+	end
+	local dismiss = Instance.new("TextButton", ui.frame)
+	dismiss.Name = "EngineDropdownDismiss"
+	dismiss.BorderSizePixel = 0
+	dismiss.BackgroundTransparency = 1
+	dismiss.Size = UDim2.fromScale(1, 1)
+	dismiss.Text = ""
+	dismiss.AutoButtonColor = false
+	dismiss.ZIndex = 209
+	dismiss.MouseButton1Click:Connect(NAmanage.ScriptHub_CloseEngineDropdown)
+	local menu = Instance.new("Frame", ui.frame)
+	menu.Name = "EngineDropdown"
+	menu.BorderSizePixel = 0
+	menu.BackgroundColor3 = Color3.fromRGB(20, 21, 28)
+	menu.BackgroundTransparency = 0.03
+	menu.Position = UDim2.new(ui.engine.Position.X.Scale, ui.engine.Position.X.Offset, 0, 70)
+	menu.Size = UDim2.new(ui.engine.Size.X.Scale, ui.engine.Size.X.Offset, 0, #hub.engines * 30 + 8)
+	menu.ZIndex = 210
+	Instance.new("UICorner", menu).CornerRadius = UDim.new(0, 6)
+	local menuStroke = Instance.new("UIStroke", menu)
+	menuStroke.Color = Color3.fromRGB(155, 100, 255)
+	menuStroke.Transparency = 0.22
+	menuStroke.Thickness = 1
+	local padding = Instance.new("UIPadding", menu)
+	padding.PaddingTop = UDim.new(0, 4)
+	padding.PaddingBottom = UDim.new(0, 4)
+	padding.PaddingLeft = UDim.new(0, 4)
+	padding.PaddingRight = UDim.new(0, 4)
+	local layout = Instance.new("UIListLayout", menu)
+	layout.Padding = UDim.new(0, 2)
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	for index, engine in hub.engines do
+		local option = Instance.new("TextButton", menu)
+		option.Name = "API_"..tostring(engine)
+		option.LayoutOrder = index
+		option.BorderSizePixel = 0
+		option.BackgroundColor3 = engine == hub.engine and Color3.fromRGB(72, 54, 104) or Color3.fromRGB(31, 32, 42)
+		option.BackgroundTransparency = engine == hub.engine and 0.04 or 0.12
+		option.Size = UDim2.new(1, 0, 0, 28)
+		option.Text = engine
+		option.TextColor3 = Color3.fromRGB(245, 246, 250)
+		option.TextSize = 12
+		option.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+		option.ZIndex = 211
+		Instance.new("UICorner", option).CornerRadius = UDim.new(0, 5)
+		option.MouseButton1Click:Connect(function()
+			NAmanage.ScriptHub_SelectEngine(engine)
+		end)
+	end
+	hub.engineDropdown = menu
+	return true
+end
+
 NAmanage.ScriptHub_SaveTabState = function()
 	const hub = NAmanage.ScriptHub
 	const state = type(hub.tabStates[hub.tabMode]) == "table" and hub.tabStates[hub.tabMode] or {}
@@ -109608,6 +109914,7 @@ end
 
 NAmanage.ScriptHub_SetTab = function(tabMode)
 	const hub = NAmanage.ScriptHub
+	NAmanage.ScriptHub_CloseEngineDropdown()
 	if not table.find(hub.tabModes, tabMode) or tabMode == hub.tabMode then
 		return false
 	end
@@ -111401,18 +111708,7 @@ NAmanage.ScriptHub_Init = function()
 		NAmanage.ScriptHub_SetTab("saved")
 	end))
 	NAlib.connect("NAScriptHub", ui.engine.MouseButton1Click:Connect(function()
-		if hub.searching or hub.tabMode ~= "public" then
-			return
-		end
-		const index = table.find(hub.engines, hub.engine) or 1
-		hub.engine = hub.engines[index % #hub.engines + 1]
-		hub.page = 1
-		hub.totalPages = 1
-		hub.entries = {}
-		hub.query = ""
-		ui.searchBox.Text = ""
-		NAmanage.ScriptHub_UpdateHeader()
-		NAmanage.ScriptHub_Fetch("", 1)
+		NAmanage.ScriptHub_ToggleEngineDropdown()
 	end))
 	NAlib.connect("NAScriptHub", ui.search.MouseButton1Click:Connect(NAmanage.ScriptHub_SearchInput))
 	NAlib.connect("NAScriptHub", ui.searchBox.FocusLost:Connect(function(enterPressed)
@@ -136558,9 +136854,13 @@ NAmanage.SubplaceViewer.loaded = false
 NAmanage.SubplaceViewer.loading = false
 NAmanage.SubplaceViewer.fetchToken = tonumber(NAmanage.SubplaceViewer.fetchToken) or 0
 NAmanage.SubplaceViewer.serverToken = tonumber(NAmanage.SubplaceViewer.serverToken) or 0
+NAmanage.SubplaceViewer.serverPage = math.max(math.floor(tonumber(NAmanage.SubplaceViewer.serverPage) or 1), 1)
+NAmanage.SubplaceViewer.serverPageSize = math.max(math.floor(tonumber(NAmanage.SubplaceViewer.serverPageSize) or 20), 1)
+NAmanage.SubplaceViewer.serverTotalPages = math.max(math.floor(tonumber(NAmanage.SubplaceViewer.serverTotalPages) or 1), 1)
+NAmanage.SubplaceViewer.serverApiLoading = false
 NAmanage.SubplaceViewer.serverBases = type(NAmanage.SubplaceViewer.serverBases) == "table" and NAmanage.SubplaceViewer.serverBases or {
-	"https://games.roproxy.com";
 	"https://games.rotunnel.com";
+	"https://games.roproxy.com";
 	"https://games.roblox.com";
 }
 NAmanage.SubplaceViewer.serverWorker = NAmanage.SubplaceViewer.serverWorker or "https://solaraserverhop.ltseverydayyou.workers.dev"
@@ -137923,21 +138223,40 @@ NAmanage.SubplaceViewer_ApplyCachedPlaceIcons = function(places)
 	end
 end
 
-NAmanage.SubplaceViewer_FetchServers = function(placeId, cursor)
+NAmanage.SubplaceViewer_FetchServers = function(placeId, cursor, preferredSource)
 	const state = NAmanage.SubplaceViewer
 	const pid = tostring(placeId)
 	local suffix = "/v1/games/"..pid.."/servers/Public?sortOrder=Asc&limit=100"
-	if cursor and cursor ~= "" then suffix ..= "&cursor="..Services.HttpService:UrlEncode(cursor) end
-	local lastErr
-	for _, base in state.serverBases do
-		local data, err = NAmanage.SubplaceViewer_HttpJson(base..suffix)
-		if type(data) == "table" and type(data.data) == "table" then return data end
-		lastErr = err
+	if cursor and cursor ~= "" then suffix ..= "&cursor="..Services.HttpService:UrlEncode(tostring(cursor)) end
+	const sources = {
+		{ name = "rotunnel", base = state.serverBases[1] or "https://games.rotunnel.com" };
+		{ name = "worker", worker = true };
+		{ name = "roproxy", base = state.serverBases[2] or "https://games.roproxy.com" };
+		{ name = "roblox", base = state.serverBases[3] or "https://games.roblox.com" };
+	}
+	if preferredSource then
+		for index, source in sources do
+			if source.name == preferredSource and index > 1 then
+				table.remove(sources, index)
+				table.insert(sources, 1, source)
+				break
+			end
+		end
 	end
-	local workerUrl = state.serverWorker.."/servers?placeId="..Services.HttpService:UrlEncode(pid)
-	local data, err = NAmanage.SubplaceViewer_HttpJson(workerUrl)
-	if type(data) == "table" and type(data.data) == "table" then return data end
-	return nil, err or lastErr
+	local lastErr
+	for _, source in sources do
+		local url
+		if source.worker then
+			url = state.serverWorker.."/servers?placeId="..Services.HttpService:UrlEncode(pid).."&sortOrder=Asc&excludeFullGames=true"
+			if cursor and cursor ~= "" then url ..= "&cursor="..Services.HttpService:UrlEncode(tostring(cursor)) end
+		else
+			url = source.base..suffix
+		end
+		local data, err = NAmanage.SubplaceViewer_HttpJson(url)
+		if type(data) == "table" and type(data.data) == "table" then return data, nil, source.name end
+		lastErr = err or lastErr
+	end
+	return nil, lastErr, nil
 end
 
 NAmanage.SubplaceViewer_NormalizeServers = function(data, allowCurrent)
@@ -137960,6 +138279,49 @@ NAmanage.SubplaceViewer_NormalizeServers = function(data, allowCurrent)
 		end
 	end
 	return servers
+end
+
+NAmanage.SubplaceViewer_CollectServers = function(placeId, token, allowCurrent, onPage)
+	const state = NAmanage.SubplaceViewer
+	const servers = {}
+	const byId = {}
+	const seenCursors = {}
+	local cursor = nil
+	local source = nil
+	local page = 0
+	repeat
+		if token ~= state.serverToken then return nil, "cancelled" end
+		page += 1
+		if state.ui and state.ui.status then state.ui.status.Text = "Loading public servers... API page "..tostring(page) end
+		local data, err, usedSource = NAmanage.SubplaceViewer_FetchServers(placeId, cursor, source)
+		if type(data) ~= "table" or type(data.data) ~= "table" then
+			if page == 1 then return nil, err or "server request failed" end
+			break
+		end
+		source = usedSource or source
+		local pageAdded = {}
+		for _, server in NAmanage.SubplaceViewer_NormalizeServers(data, allowCurrent) do
+			if server.id and not byId[server.id] then
+				servers[#servers + 1] = server
+				pageAdded[#pageAdded + 1] = server
+				byId[server.id] = server
+			end
+		end
+		local nextCursor = data.nextPageCursor or data.next_cursor
+		const hasMore = nextCursor ~= nil and nextCursor ~= ""
+		if type(onPage) == "function" then
+			pcall(onPage, servers, pageAdded, source, page, hasMore)
+		end
+		if nextCursor and nextCursor ~= "" then
+			if seenCursors[nextCursor] then break end
+			seenCursors[nextCursor] = true
+			cursor = nextCursor
+			Wait()
+		else
+			cursor = nil
+		end
+	until not cursor or page >= 100
+	return servers, nil, source
 end
 
 NAmanage.SubplaceViewer_TeleportServer = function(placeId, server, message)
@@ -138035,6 +138397,216 @@ NAmanage.SubplaceViewer_Hop = function(placeId, mode, value)
 	end)
 end
 
+NAmanage.SubplaceViewer_RenderServerResults = function(place, servers, token, resolving, latencyModelReady)
+	const state = NAmanage.SubplaceViewer
+	const ui = state.ui or NAmanage.SubplaceViewer_GetUI()
+	if token ~= state.serverToken or not (ui and ui.list) then return end
+	NAlib.disconnect("NASubplaceViewerServers")
+	for _, child in ui.list:GetChildren() do
+		if not child:IsA("UIListLayout") and not child:IsA("UIPadding") then child:Destroy() end
+	end
+
+	local function sortServers()
+		const mode = state.serverSort or "latency"
+		table.sort(servers, function(a, b)
+			if mode == "players" then
+				if a.playing ~= b.playing then return a.playing < b.playing end
+			elseif mode == "uptime" then
+				const au = tonumber(a.uptime) or -1
+				const bu = tonumber(b.uptime) or -1
+				if au ~= bu then return au > bu end
+			elseif mode == "version" then
+				const av = tonumber(a.placeVersion) or math.huge
+				const bv = tonumber(b.placeVersion) or math.huge
+				if av ~= bv then return av < bv end
+			else
+				const ar = tonumber(a.regionRank) or math.huge
+				const br = tonumber(b.regionRank) or math.huge
+				if ar ~= br then return ar < br end
+				const al = tonumber(a.latency) or tonumber(a.ping) or math.huge
+				const bl = tonumber(b.latency) or tonumber(b.ping) or math.huge
+				if al ~= bl then return al < bl end
+			end
+			return tostring(a.id) < tostring(b.id)
+		end)
+	end
+	sortServers()
+	const pageSize = math.max(math.floor(tonumber(state.serverPageSize) or 20), 1)
+	const totalPages = math.max(math.ceil(#servers / pageSize), 1)
+	state.serverTotalPages = totalPages
+	state.serverPage = math.clamp(math.floor(tonumber(state.serverPage) or 1), 1, totalPages)
+	const pageStart = (state.serverPage - 1) * pageSize + 1
+	const pageEnd = math.min(pageStart + pageSize - 1, #servers)
+	const pageServers = {}
+	for index = pageStart, pageEnd do pageServers[#pageServers + 1] = servers[index] end
+
+	local knownRegions = 0
+	for _, server in servers do if server.region or server.regionLabel then knownRegions += 1 end end
+	if state.serverApiLoading == true then
+		ui.status.Text = Format("Page %d/%d+ | %d servers loaded | Loading more API pages... | %s", state.serverPage, totalPages, #servers, tostring(place.Name))
+	elseif resolving then
+		ui.status.Text = Format("Page %d/%d | %d joinable | RoValra solving in background... | %s", state.serverPage, totalPages, #servers, tostring(place.Name))
+	elseif latencyModelReady then
+		ui.status.Text = Format("Page %d/%d | %d joinable | %d region-mapped | %s", state.serverPage, totalPages, #servers, knownRegions, tostring(place.Name))
+	else
+		ui.status.Text = Format("Page %d/%d | %d joinable | Roblox ping fallback | %s", state.serverPage, totalPages, #servers, tostring(place.Name))
+	end
+
+	local controls = Instance.new("Frame", ui.list)
+	controls.Name = "ServerControls"
+	controls.Size = UDim2.new(1, -4, 0, 110)
+	controls.BackgroundTransparency = 1
+	local grid = Instance.new("UIGridLayout", controls)
+	grid.CellPadding = UDim2.new(0, 5, 0, 5)
+	grid.CellSize = UDim2.new(0.25, -4, 0, 33)
+	grid.FillDirectionMaxCells = 4
+	local function makeControl(name, label, order)
+		local b = Instance.new("TextButton", controls)
+		b.Name = name
+		b.LayoutOrder = order
+		b.BackgroundColor3 = Color3.fromRGB(65,60,82)
+		b.TextColor3 = Color3.fromRGB(245,245,250)
+		b.Text = label
+		b.TextSize = 12
+		b.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+		Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
+		return b
+	end
+	local function makeInput(name, placeholder, order)
+		local box = Instance.new("TextBox", controls)
+		box.Name = name
+		box.LayoutOrder = order
+		box.BackgroundColor3 = Color3.fromRGB(43,43,52)
+		box.TextColor3 = Color3.fromRGB(245,245,250)
+		box.PlaceholderColor3 = Color3.fromRGB(160,160,176)
+		box.PlaceholderText = placeholder
+		box.Text = ""
+		box.ClearTextOnFocus = false
+		box.TextSize = 12
+		box.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+		Instance.new("UICorner", box).CornerRadius = UDim.new(0, 6)
+		return box
+	end
+	local back = makeControl("Back", "Back", 1)
+	local sort = makeControl("Sort", "Sort: "..string.upper(string.sub(state.serverSort,1,1))..string.sub(state.serverSort,2), 2)
+	local best = makeControl("Best", "Best Latency", 3)
+	local smallest = makeControl("Smallest", "Smallest", 4)
+	local fullest = makeControl("Fullest", "Fullest", 5)
+	local oldest = makeControl("Oldest", "Oldest", 6)
+	local newest = makeControl("Newest", "Newest", 7)
+	local oldversion = makeControl("OldVersion", "Old Version", 8)
+	local regionInput = makeInput("RegionInput", "Region / city", 9)
+	local region = makeControl("Region", "Region Hop", 10)
+	local versionInput = makeInput("VersionInput", "Place version", 11)
+	local version = makeControl("Version", "Version Hop", 12)
+	local pager = Instance.new("Frame", ui.list)
+	pager.Name = "ServerPager"
+	pager.Size = UDim2.new(1, -4, 0, 34)
+	pager.BackgroundTransparency = 1
+	local pagerGrid = Instance.new("UIGridLayout", pager)
+	pagerGrid.CellPadding = UDim2.new(0, 5, 0, 0)
+	pagerGrid.CellSize = UDim2.new(0.2, -4, 1, 0)
+	pagerGrid.FillDirectionMaxCells = 5
+	pagerGrid.SortOrder = Enum.SortOrder.LayoutOrder
+	local function makePagerButton(name, text, order, enabled)
+		local button = Instance.new("TextButton", pager)
+		button.Name = name
+		button.LayoutOrder = order
+		button.BorderSizePixel = 0
+		button.BackgroundColor3 = Color3.fromRGB(48, 42, 68)
+		button.BackgroundTransparency = enabled and 0.12 or 0.45
+		button.Text = text
+		button.TextColor3 = Color3.fromRGB(245, 246, 250)
+		button.TextTransparency = enabled and 0 or 0.45
+		button.TextSize = 12
+		button.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+		button.Active = enabled
+		button.AutoButtonColor = enabled
+		Instance.new("UICorner", button).CornerRadius = UDim.new(0, 5)
+		return button
+	end
+	local firstPage = makePagerButton("First", "First", 1, state.serverPage > 1)
+	local prevPage = makePagerButton("Prev", "Prev", 2, state.serverPage > 1)
+	local pageInfo = makePagerButton("PageInfo", Format("Page %d/%d%s", state.serverPage, totalPages, state.serverApiLoading and "+" or ""), 3, false)
+	local nextPage = makePagerButton("Next", "Next", 4, state.serverPage < totalPages)
+	local lastPage = makePagerButton("Last", "Last", 5, state.serverPage < totalPages)
+	NAlib.connect("NASubplaceViewerServers", firstPage.Activated:Connect(function() state.serverPage = 1; NAmanage.SubplaceViewer_RenderServerResults(place, servers, token, resolving, latencyModelReady) end))
+	NAlib.connect("NASubplaceViewerServers", prevPage.Activated:Connect(function() state.serverPage = math.max(1, state.serverPage - 1); NAmanage.SubplaceViewer_RenderServerResults(place, servers, token, resolving, latencyModelReady) end))
+	NAlib.connect("NASubplaceViewerServers", nextPage.Activated:Connect(function() state.serverPage = math.min(totalPages, state.serverPage + 1); NAmanage.SubplaceViewer_RenderServerResults(place, servers, token, resolving, latencyModelReady) end))
+	NAlib.connect("NASubplaceViewerServers", lastPage.Activated:Connect(function() state.serverPage = totalPages; NAmanage.SubplaceViewer_RenderServerResults(place, servers, token, resolving, latencyModelReady) end))
+	NAlib.connect("NASubplaceViewerServers", back.Activated:Connect(function() NAmanage.SubplaceViewer_Render() end))
+	NAlib.connect("NASubplaceViewerServers", best.Activated:Connect(function() NAmanage.SubplaceViewer_Hop(place.PlaceId, "advanced") end))
+	NAlib.connect("NASubplaceViewerServers", smallest.Activated:Connect(function() NAmanage.SubplaceViewer_Hop(place.PlaceId, "smallest") end))
+	NAlib.connect("NASubplaceViewerServers", fullest.Activated:Connect(function() NAmanage.SubplaceViewer_Hop(place.PlaceId, "fullest") end))
+	NAlib.connect("NASubplaceViewerServers", oldest.Activated:Connect(function() NAmanage.SubplaceViewer_Hop(place.PlaceId, "oldest") end))
+	NAlib.connect("NASubplaceViewerServers", newest.Activated:Connect(function() NAmanage.SubplaceViewer_Hop(place.PlaceId, "newest") end))
+	NAlib.connect("NASubplaceViewerServers", oldversion.Activated:Connect(function() NAmanage.SubplaceViewer_Hop(place.PlaceId, "oldversion") end))
+	NAlib.connect("NASubplaceViewerServers", region.Activated:Connect(function()
+		const query = tostring(regionInput.Text or ""):match("^%s*(.-)%s*$") or ""
+		if query == "" then DoNotif("Enter a region or city first.", 3, "Subplace Viewer") return end
+		NAmanage.SubplaceViewer_Hop(place.PlaceId, "region", query)
+	end))
+	NAlib.connect("NASubplaceViewerServers", version.Activated:Connect(function()
+		const selectedVersion = tonumber(versionInput.Text)
+		if not selectedVersion then DoNotif("Enter a valid place version first.", 3, "Subplace Viewer") return end
+		NAmanage.SubplaceViewer_Hop(place.PlaceId, "version", selectedVersion)
+	end))
+	NAlib.connect("NASubplaceViewerServers", sort.Activated:Connect(function()
+		const order = { latency = "players"; players = "uptime"; uptime = "version"; version = "latency" }
+		state.serverSort = order[state.serverSort] or "latency"
+		state.serverPage = 1
+		NAmanage.SubplaceViewer_RenderServerResults(place, servers, token, resolving, latencyModelReady)
+	end))
+
+	if #servers == 0 then
+		local empty = Instance.new("TextLabel", ui.list)
+		empty.Size = UDim2.new(1, -4, 0, 44)
+		empty.BackgroundTransparency = 1
+		empty.Text = "No other joinable public servers were returned."
+		empty.TextColor3 = Color3.fromRGB(205,205,218)
+		empty.TextSize = 13
+		empty.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+		return
+	end
+
+	for index, server in pageServers do
+		local row = Instance.new("Frame", ui.list)
+		row.Name = "Server_"..tostring(index)
+		row.Size = UDim2.new(1, -4, 0, 92)
+		row.BackgroundColor3 = Color3.fromRGB(48,48,56)
+		row.BackgroundTransparency = 0.12
+		Instance.new("UICorner", row).CornerRadius = UDim.new(0, 6)
+		local label = Instance.new("TextLabel", row)
+		label.BackgroundTransparency = 1
+		label.Position = UDim2.new(0,10,0,4)
+		label.Size = UDim2.new(1,-116,1,-8)
+		label.TextXAlignment = Enum.TextXAlignment.Left
+		label.TextYAlignment = Enum.TextYAlignment.Center
+		const pingText = (tonumber(server.ping) or 0) > 0 and (tostring(math.floor(tonumber(server.ping))).." ms") or "N/A"
+		if resolving then
+			label.Text = Format("%d/%d players\nRoblox ping: %s | FPS: %.2f\nRoValra: Solving region, uptime, version & latency...", server.playing, server.max, pingText, server.fps)
+		else
+			const latencyText = type(NAStuff.srv) == "table" and NAStuff.srv:latencyText(server) or "unknown latency"
+			const uptimeText = type(NAStuff.srv) == "table" and NAStuff.srv:formatUptime(server.uptime, server.uptimeEstimated == true) or "Unknown"
+			const versionText = server.placeVersion and tostring(server.placeVersion) or "Unknown"
+			label.Text = Format("%d/%d players\nLatency: %s\nUptime: %s | Version: %s\nRoblox ping: %s | FPS: %.2f", server.playing, server.max, latencyText, uptimeText, versionText, pingText, server.fps)
+		end
+		label.TextColor3 = Color3.fromRGB(225,225,235)
+		label.TextSize = 12
+		label.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+		local join = Instance.new("TextButton", row)
+		join.Size = UDim2.new(0,92,0,32)
+		join.Position = UDim2.new(1,-102,0.5,-16)
+		join.BackgroundColor3 = Color3.fromRGB(70,65,92)
+		join.Text = "Join"
+		join.TextColor3 = Color3.fromRGB(245,245,250)
+		join.TextSize = 13
+		join.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+		Instance.new("UICorner", join).CornerRadius = UDim.new(0, 6)
+		NAlib.connect("NASubplaceViewerServers", join.Activated:Connect(function() NAmanage.SubplaceViewer_TeleportServer(place.PlaceId, server, "Joining server") end))
+	end
+end
+
 NAmanage.SubplaceViewer_ShowServers = function(place)
 	const state = NAmanage.SubplaceViewer
 	state.viewMode = "servers"
@@ -138043,6 +138615,8 @@ NAmanage.SubplaceViewer_ShowServers = function(place)
 	if not (ui and ui.list) then return end
 	state.serverToken += 1
 	const token = state.serverToken
+	state.serverPage = 1
+	state.serverApiLoading = true
 	NAlib.disconnect("NASubplaceViewerCards")
 	NAlib.disconnect("NASubplaceViewerServers")
 	for _, child in ui.list:GetChildren() do
@@ -138050,160 +138624,34 @@ NAmanage.SubplaceViewer_ShowServers = function(place)
 	end
 	ui.status.Text = "Loading public servers for "..tostring(place.Name).."..."
 	Spawn(function()
-		local data, err = NAmanage.SubplaceViewer_FetchServers(place.PlaceId)
-		if token ~= state.serverToken then return end
-		local servers = NAmanage.SubplaceViewer_NormalizeServers(data, place.PlaceId ~= game.PlaceId)
-		if type(data) ~= "table" or type(data.data) ~= "table" then ui.status.Text = "Server request failed: "..tostring(err or "unknown error") return end
-		local latencyModelReady = false
-		if #servers > 0 and type(NAStuff.srv) == "table" and type(NAStuff.srv.enrichLatencyList) == "function" then
-			ui.status.Text = "Resolving region, uptime, version and latency for "..tostring(place.Name).."..."
-			servers, latencyModelReady = NAStuff.srv:enrichLatencyList(place.PlaceId, servers)
+		local servers, err, source = NAmanage.SubplaceViewer_CollectServers(place.PlaceId, token, place.PlaceId ~= game.PlaceId, function(partial, pageAdded, usedSource, apiPage, hasMore)
 			if token ~= state.serverToken then return end
-		end
-
-		local function sortServers()
-			const mode = state.serverSort or "latency"
-			table.sort(servers, function(a, b)
-				if mode == "players" then
-					if a.playing ~= b.playing then return a.playing < b.playing end
-				elseif mode == "uptime" then
-					const au = tonumber(a.uptime) or -1
-					const bu = tonumber(b.uptime) or -1
-					if au ~= bu then return au > bu end
-				elseif mode == "version" then
-					const av = tonumber(a.placeVersion) or math.huge
-					const bv = tonumber(b.placeVersion) or math.huge
-					if av ~= bv then return av < bv end
-				else
-					const ar = tonumber(a.regionRank) or math.huge
-					const br = tonumber(b.regionRank) or math.huge
-					if ar ~= br then return ar < br end
-					const al = tonumber(a.latency) or tonumber(a.ping) or math.huge
-					const bl = tonumber(b.latency) or tonumber(b.ping) or math.huge
-					if al ~= bl then return al < bl end
-				end
-				return tostring(a.id) < tostring(b.id)
-			end)
-		end
-		sortServers()
-
-		local knownRegions = 0
-		for _, server in servers do if server.region or server.regionLabel then knownRegions += 1 end end
-		ui.status.Text = latencyModelReady and Format("%d joinable | %d region-mapped | %s", #servers, knownRegions, tostring(place.Name)) or Format("%d joinable | Roblox ping fallback | %s", #servers, tostring(place.Name))
-
-		local controls = Instance.new("Frame", ui.list)
-		controls.Name = "ServerControls"
-		controls.Size = UDim2.new(1, -4, 0, 110)
-		controls.BackgroundTransparency = 1
-		local grid = Instance.new("UIGridLayout", controls)
-		grid.CellPadding = UDim2.new(0, 5, 0, 5)
-		grid.CellSize = UDim2.new(0.25, -4, 0, 33)
-		grid.FillDirectionMaxCells = 4
-		local function makeControl(name, label, order)
-			local b = Instance.new("TextButton", controls)
-			b.Name = name
-			b.LayoutOrder = order
-			b.BackgroundColor3 = Color3.fromRGB(65,60,82)
-			b.TextColor3 = Color3.fromRGB(245,245,250)
-			b.Text = label
-			b.TextSize = 12
-			b.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-			Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
-			return b
-		end
-		local function makeInput(name, placeholder, order)
-			local box = Instance.new("TextBox", controls)
-			box.Name = name
-			box.LayoutOrder = order
-			box.BackgroundColor3 = Color3.fromRGB(43,43,52)
-			box.TextColor3 = Color3.fromRGB(245,245,250)
-			box.PlaceholderColor3 = Color3.fromRGB(160,160,176)
-			box.PlaceholderText = placeholder
-			box.Text = ""
-			box.ClearTextOnFocus = false
-			box.TextSize = 12
-			box.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-			Instance.new("UICorner", box).CornerRadius = UDim.new(0, 6)
-			return box
-		end
-		local back = makeControl("Back", "Back", 1)
-		local sort = makeControl("Sort", "Sort: "..string.upper(string.sub(state.serverSort,1,1))..string.sub(state.serverSort,2), 2)
-		local best = makeControl("Best", "Best Latency", 3)
-		local smallest = makeControl("Smallest", "Smallest", 4)
-		local fullest = makeControl("Fullest", "Fullest", 5)
-		local oldest = makeControl("Oldest", "Oldest", 6)
-		local newest = makeControl("Newest", "Newest", 7)
-		local oldversion = makeControl("OldVersion", "Old Version", 8)
-		local regionInput = makeInput("RegionInput", "Region / city", 9)
-		local region = makeControl("Region", "Region Hop", 10)
-		local versionInput = makeInput("VersionInput", "Place version", 11)
-		local version = makeControl("Version", "Version Hop", 12)
-		NAlib.connect("NASubplaceViewerServers", back.Activated:Connect(function() NAmanage.SubplaceViewer_Render() end))
-		NAlib.connect("NASubplaceViewerServers", best.Activated:Connect(function() NAmanage.SubplaceViewer_Hop(place.PlaceId, "advanced") end))
-		NAlib.connect("NASubplaceViewerServers", smallest.Activated:Connect(function() NAmanage.SubplaceViewer_Hop(place.PlaceId, "smallest") end))
-		NAlib.connect("NASubplaceViewerServers", fullest.Activated:Connect(function() NAmanage.SubplaceViewer_Hop(place.PlaceId, "fullest") end))
-		NAlib.connect("NASubplaceViewerServers", oldest.Activated:Connect(function() NAmanage.SubplaceViewer_Hop(place.PlaceId, "oldest") end))
-		NAlib.connect("NASubplaceViewerServers", newest.Activated:Connect(function() NAmanage.SubplaceViewer_Hop(place.PlaceId, "newest") end))
-		NAlib.connect("NASubplaceViewerServers", oldversion.Activated:Connect(function() NAmanage.SubplaceViewer_Hop(place.PlaceId, "oldversion") end))
-		NAlib.connect("NASubplaceViewerServers", region.Activated:Connect(function()
-			const query = tostring(regionInput.Text or ""):match("^%s*(.-)%s*$") or ""
-			if query == "" then DoNotif("Enter a region or city first.", 3, "Subplace Viewer") return end
-			NAmanage.SubplaceViewer_Hop(place.PlaceId, "region", query)
-		end))
-		NAlib.connect("NASubplaceViewerServers", version.Activated:Connect(function()
-			const selectedVersion = tonumber(versionInput.Text)
-			if not selectedVersion then DoNotif("Enter a valid place version first.", 3, "Subplace Viewer") return end
-			NAmanage.SubplaceViewer_Hop(place.PlaceId, "version", selectedVersion)
-		end))
-		NAlib.connect("NASubplaceViewerServers", sort.Activated:Connect(function()
-			const order = { latency = "players"; players = "uptime"; uptime = "version"; version = "latency" }
-			state.serverSort = order[state.serverSort] or "latency"
-			NAmanage.SubplaceViewer_ShowServers(place)
-		end))
-
-		if #servers == 0 then
-			local empty = Instance.new("TextLabel", ui.list)
-			empty.Size = UDim2.new(1, -4, 0, 44)
-			empty.BackgroundTransparency = 1
-			empty.Text = "No other joinable public servers were returned."
-			empty.TextColor3 = Color3.fromRGB(205,205,218)
-			empty.TextSize = 13
-			empty.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+			state.serverSource = usedSource or state.serverSource
+			state.serverResults = partial
+			state.serverPlaceId = tonumber(place.PlaceId)
+			state.serverApiLoading = hasMore
+			NAmanage.SubplaceViewer_RenderServerResults(place, partial, token, false, false)
+		end)
+		if token ~= state.serverToken then return end
+		if type(servers) ~= "table" then
+			state.serverApiLoading = false
+			ui.status.Text = "Server request failed: "..tostring(err or "unknown error")
 			return
 		end
-
-		for index, server in servers do
-			local row = Instance.new("Frame", ui.list)
-			row.Name = "Server_"..tostring(index)
-			row.Size = UDim2.new(1, -4, 0, 92)
-			row.BackgroundColor3 = Color3.fromRGB(48,48,56)
-			row.BackgroundTransparency = 0.12
-			Instance.new("UICorner", row).CornerRadius = UDim.new(0, 6)
-			local label = Instance.new("TextLabel", row)
-			label.BackgroundTransparency = 1
-			label.Position = UDim2.new(0,10,0,4)
-			label.Size = UDim2.new(1,-116,1,-8)
-			label.TextXAlignment = Enum.TextXAlignment.Left
-			label.TextYAlignment = Enum.TextYAlignment.Center
-			const latencyText = type(NAStuff.srv) == "table" and NAStuff.srv:latencyText(server) or "unknown latency"
-			const pingText = (tonumber(server.ping) or 0) > 0 and (tostring(math.floor(tonumber(server.ping))).." ms") or "N/A"
-			const uptimeText = type(NAStuff.srv) == "table" and NAStuff.srv:formatUptime(server.uptime, server.uptimeEstimated == true) or "Unknown"
-			const versionText = server.placeVersion and tostring(server.placeVersion) or "Unknown"
-			label.Text = Format("%d/%d players\nLatency: %s\nUptime: %s | Version: %s\nRoblox ping: %s | FPS: %.2f", server.playing, server.max, latencyText, uptimeText, versionText, pingText, server.fps)
-			label.TextColor3 = Color3.fromRGB(225,225,235)
-			label.TextSize = 12
-			label.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-			local join = Instance.new("TextButton", row)
-			join.Size = UDim2.new(0,92,0,32)
-			join.Position = UDim2.new(1,-102,0.5,-16)
-			join.BackgroundColor3 = Color3.fromRGB(70,65,92)
-			join.Text = "Join"
-			join.TextColor3 = Color3.fromRGB(245,245,250)
-			join.TextSize = 13
-			join.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-			Instance.new("UICorner", join).CornerRadius = UDim.new(0, 6)
-			NAlib.connect("NASubplaceViewerServers", join.Activated:Connect(function() NAmanage.SubplaceViewer_TeleportServer(place.PlaceId, server, "Joining server") end))
-		end
+		state.serverApiLoading = false
+		state.serverSource = source
+		state.serverResults = servers
+		state.serverPlaceId = tonumber(place.PlaceId)
+		const canEnrich = #servers > 0 and type(NAStuff.srv) == "table" and type(NAStuff.srv.enrichLatencyList) == "function"
+		NAmanage.SubplaceViewer_RenderServerResults(place, servers, token, canEnrich, false)
+		if not canEnrich then return end
+		Spawn(function()
+			local enriched, latencyModelReady = NAStuff.srv:enrichLatencyList(place.PlaceId, servers)
+			if token ~= state.serverToken then return end
+			if type(enriched) == "table" then servers = enriched end
+			state.serverResults = servers
+			NAmanage.SubplaceViewer_RenderServerResults(place, servers, token, false, latencyModelReady == true)
+		end)
 	end)
 end
 
@@ -138213,7 +138661,12 @@ NAmanage.ServerList.sort = table.find({"latency","players","uptime","version","f
 NAmanage.ServerList.hideFull = NAmanage.ServerList.hideFull == true
 NAmanage.ServerList.servers = type(NAmanage.ServerList.servers) == "table" and NAmanage.ServerList.servers or {}
 NAmanage.ServerList.fetchToken = tonumber(NAmanage.ServerList.fetchToken) or 0
+NAmanage.ServerList.page = math.max(math.floor(tonumber(NAmanage.ServerList.page) or 1), 1)
+NAmanage.ServerList.pageSize = math.max(math.floor(tonumber(NAmanage.ServerList.pageSize) or 20), 1)
+NAmanage.ServerList.totalPages = math.max(math.floor(tonumber(NAmanage.ServerList.totalPages) or 1), 1)
 NAmanage.ServerList.loading = false
+NAmanage.ServerList.enriching = false
+NAmanage.ServerList.apiLoading = false
 NAmanage.ServerList.bound = false
 
 NAmanage.ServerList_GetUI = function()
@@ -138234,10 +138687,98 @@ NAmanage.ServerList_GetUI = function()
 		sort = controls and controls:FindFirstChild("Sort");
 		hideFull = controls and controls:FindFirstChild("HideFull");
 		copyPlayers = controls and controls:FindFirstChild("CopyPlayers");
+		pager = container and container:FindFirstChild("Pager");
+		pageFirst = container and container:FindFirstChild("Pager") and container:FindFirstChild("Pager"):FindFirstChild("First");
+		pagePrev = container and container:FindFirstChild("Pager") and container:FindFirstChild("Pager"):FindFirstChild("Prev");
+		pageInfo = container and container:FindFirstChild("Pager") and container:FindFirstChild("Pager"):FindFirstChild("PageInfo");
+		pageNext = container and container:FindFirstChild("Pager") and container:FindFirstChild("Pager"):FindFirstChild("Next");
+		pageLast = container and container:FindFirstChild("Pager") and container:FindFirstChild("Pager"):FindFirstChild("Last");
 		status = container and container:FindFirstChild("Status");
 		list = container and container:FindFirstChild("List");
+		scrollBar = container and container:FindFirstChild("CustomScrollBar");
 	}
 	return state.ui
+end
+
+NAmanage.ServerList_EnsurePager = function()
+	const state = NAmanage.ServerList
+	const ui = state.ui or NAmanage.ServerList_GetUI()
+	if not (ui and ui.container and ui.list and ui.status) then return nil end
+	local pager = ui.container:FindFirstChild("Pager")
+	if not pager then
+		pager = Instance.new("Frame", ui.container)
+		pager.Name = "Pager"
+		pager.BackgroundTransparency = 1
+		pager.Position = UDim2.new(0, 8, 0, 44)
+		pager.Size = UDim2.new(1, -16, 0, 30)
+		local grid = Instance.new("UIGridLayout", pager)
+		grid.CellPadding = UDim2.new(0, 6, 0, 0)
+		grid.CellSize = UDim2.new(0.2, -5, 1, 0)
+		grid.FillDirectionMaxCells = 5
+		grid.SortOrder = Enum.SortOrder.LayoutOrder
+		local function makeButton(name, text, order)
+			local button = Instance.new("TextButton", pager)
+			button.Name = name
+			button.LayoutOrder = order
+			button.BorderSizePixel = 0
+			button.BackgroundColor3 = Color3.fromRGB(48, 42, 68)
+			button.BackgroundTransparency = 0.12
+			button.Text = text
+			button.TextColor3 = Color3.fromRGB(245, 246, 250)
+			button.TextSize = 12
+			button.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+			Instance.new("UICorner", button).CornerRadius = UDim.new(0, 5)
+			return button
+		end
+		makeButton("First", "First", 1)
+		makeButton("Prev", "Prev", 2)
+		local info = makeButton("PageInfo", "Page 1/1", 3)
+		info.Active = false
+		info.AutoButtonColor = false
+		makeButton("Next", "Next", 4)
+		makeButton("Last", "Last", 5)
+	end
+	ui.status.Position = UDim2.new(0, 10, 0, 78)
+	ui.list.Position = UDim2.new(0, 8, 0, 104)
+	ui.list.Size = UDim2.new(1, -32, 1, -112)
+	if ui.scrollBar then
+		ui.scrollBar.Position = UDim2.new(1, -14, 0, 104)
+		ui.scrollBar.Size = UDim2.new(0, 10, 1, -112)
+	end
+	ui.pager = pager
+	ui.pageFirst = pager:FindFirstChild("First")
+	ui.pagePrev = pager:FindFirstChild("Prev")
+	ui.pageInfo = pager:FindFirstChild("PageInfo")
+	ui.pageNext = pager:FindFirstChild("Next")
+	ui.pageLast = pager:FindFirstChild("Last")
+	return pager
+end
+
+NAmanage.ServerList_UpdatePager = function(totalPages)
+	const state = NAmanage.ServerList
+	const ui = state.ui or NAmanage.ServerList_GetUI()
+	state.totalPages = math.max(math.floor(tonumber(totalPages) or 1), 1)
+	state.page = math.clamp(math.floor(tonumber(state.page) or 1), 1, state.totalPages)
+	local function enabled(button, value)
+		if not button then return end
+		button.Active = value
+		button.AutoButtonColor = value
+		button.TextTransparency = value and 0 or 0.45
+		button.BackgroundTransparency = value and 0.12 or 0.45
+	end
+	if ui.pageInfo then ui.pageInfo.Text = Format("Page %d/%d%s", state.page, state.totalPages, state.apiLoading and "+" or "") end
+	enabled(ui.pageFirst, state.page > 1)
+	enabled(ui.pagePrev, state.page > 1)
+	enabled(ui.pageNext, state.page < state.totalPages)
+	enabled(ui.pageLast, state.page < state.totalPages)
+end
+
+NAmanage.ServerList_SetPage = function(page)
+	const state = NAmanage.ServerList
+	state.page = math.clamp(math.floor(tonumber(page) or 1), 1, math.max(tonumber(state.totalPages) or 1, 1))
+	const ui = state.ui or NAmanage.ServerList_GetUI()
+	if ui and ui.list then ui.list.CanvasPosition = Vector2.new(0, 0) end
+	NAmanage.ServerList_Render()
 end
 
 NAmanage.ServerList_ApplyResponsive = function(center)
@@ -138271,46 +138812,68 @@ NAmanage.ServerList_HttpJson = function(url)
 	return nil, "request failed"
 end
 
-NAmanage.ServerList_FetchPage = function(placeId, cursor)
+NAmanage.ServerList_FetchPage = function(placeId, cursor, preferredSource)
 	const pid = tostring(placeId)
 	local suffix = "/v1/games/"..pid.."/servers/Public?sortOrder=Asc&limit=100"
 	if cursor and cursor ~= "" then suffix ..= "&cursor="..Services.HttpService:UrlEncode(tostring(cursor)) end
 	const bases = type(NAStuff.srv) == "table" and type(NAStuff.srv.b) == "table" and NAStuff.srv.b or {
-		"https://games.roproxy.com";
 		"https://games.rotunnel.com";
+		"https://games.roproxy.com";
 		"https://games.roblox.com";
 	}
-	local lastErr
-	for _, base in bases do
-		local data, err = NAmanage.ServerList_HttpJson(base..suffix)
-		if type(data) == "table" and type(data.data) == "table" then return data end
-		lastErr = err
+	const sources = {
+		{ name = "rotunnel", base = bases[1] or "https://games.rotunnel.com" };
+		{ name = "worker", worker = true };
+		{ name = "roproxy", base = bases[2] or "https://games.roproxy.com" };
+		{ name = "roblox", base = bases[3] or "https://games.roblox.com" };
+	}
+	if preferredSource then
+		for index, source in sources do
+			if source.name == preferredSource and index > 1 then
+				table.remove(sources, index)
+				table.insert(sources, 1, source)
+				break
+			end
+		end
 	end
-	const worker = NAStuff.srvWorker or "https://solaraserverhop.ltseverydayyou.workers.dev"
-	local workerUrl = worker.."/servers?placeId="..Services.HttpService:UrlEncode(pid)
-	if cursor and cursor ~= "" then workerUrl ..= "&cursor="..Services.HttpService:UrlEncode(tostring(cursor)) end
-	local data, err = NAmanage.ServerList_HttpJson(workerUrl)
-	if type(data) == "table" and type(data.data) == "table" then return data end
-	return nil, err or lastErr or "server request failed"
+	local lastErr
+	for _, source in sources do
+		local url
+		if source.worker then
+			const worker = NAStuff.srvWorker or "https://solaraserverhop.ltseverydayyou.workers.dev"
+			url = worker.."/servers?placeId="..Services.HttpService:UrlEncode(pid).."&sortOrder=Asc&excludeFullGames=true"
+			if cursor and cursor ~= "" then url ..= "&cursor="..Services.HttpService:UrlEncode(tostring(cursor)) end
+		else
+			url = source.base..suffix
+		end
+		local data, err = NAmanage.ServerList_HttpJson(url)
+		if type(data) == "table" and type(data.data) == "table" then return data, nil, source.name end
+		lastErr = err or lastErr
+	end
+	return nil, lastErr or "server request failed", nil
 end
 
-NAmanage.ServerList_Collect = function(placeId, token)
+NAmanage.ServerList_Collect = function(placeId, token, onPage)
 	const state = NAmanage.ServerList
 	const ui = state.ui or NAmanage.ServerList_GetUI()
 	const pid = tonumber(placeId)
 	const out = {}
 	const byId = {}
 	local cursor = nil
+	local source = nil
 	local page = 0
+	const seenCursors = {}
 	repeat
 		if token ~= state.fetchToken then return nil, "cancelled" end
 		page += 1
-		if ui and ui.status then ui.status.Text = "Loading public servers... page "..tostring(page) end
-		local data, err = NAmanage.ServerList_FetchPage(pid, cursor)
+		if ui and ui.status then ui.status.Text = "Loading public servers... API page "..tostring(page) end
+		local data, err, usedSource = NAmanage.ServerList_FetchPage(pid, cursor, source)
+		source = usedSource or source
 		if type(data) ~= "table" or type(data.data) ~= "table" then
 			if page == 1 then return nil, err or "server request failed" end
 			break
 		end
+		local pageAdded = {}
 		for _, raw in data.data do
 			if type(raw) == "table" then
 				const id = tostring(raw.id or raw.server_id or "")
@@ -138323,14 +138886,26 @@ NAmanage.ServerList_Collect = function(placeId, token)
 						fps = tonumber(raw.fps) or 0;
 					}
 					out[#out + 1] = server
+					pageAdded[#pageAdded + 1] = server
 					byId[id] = server
 				end
 			end
 		end
-		cursor = data.nextPageCursor or data.next_cursor
-		if cursor and cursor ~= "" then Wait() end
-	until not cursor or cursor == ""
-	return out, nil, byId
+		local nextCursor = data.nextPageCursor or data.next_cursor
+		const hasMore = nextCursor ~= nil and nextCursor ~= ""
+		if type(onPage) == "function" then
+			pcall(onPage, out, pageAdded, byId, source, page, hasMore)
+		end
+		if nextCursor and nextCursor ~= "" then
+			if seenCursors[nextCursor] then break end
+			seenCursors[nextCursor] = true
+			cursor = nextCursor
+			Wait()
+		else
+			cursor = nil
+		end
+	until not cursor or page >= 100
+	return out, nil, byId, source
 end
 
 NAmanage.ServerList_EnsureCurrent = function(placeId, servers, byId)
@@ -138437,6 +139012,13 @@ NAmanage.ServerList_Render = function()
 		const full = (tonumber(server.max) or 0) > 0 and (tonumber(server.playing) or 0) >= (tonumber(server.max) or 0)
 		if server.current == true or not (state.hideFull and full) then shown[#shown + 1] = server end
 	end
+	const pageSize = math.max(math.floor(tonumber(state.pageSize) or 20), 1)
+	const totalPages = math.max(math.ceil(#shown / pageSize), 1)
+	NAmanage.ServerList_UpdatePager(totalPages)
+	const pageStart = (state.page - 1) * pageSize + 1
+	const pageEnd = math.min(pageStart + pageSize - 1, #shown)
+	const pageShown = {}
+	for index = pageStart, pageEnd do pageShown[#pageShown + 1] = shown[index] end
 	if #shown == 0 then
 		const empty = Instance.new("TextLabel", ui.list)
 		empty.Name = "Empty"
@@ -138447,7 +139029,8 @@ NAmanage.ServerList_Render = function()
 		empty.TextSize = 13
 		return
 	end
-	for index, server in shown do
+	for localIndex, server in pageShown do
+		const index = pageStart + localIndex - 1
 		const card = Instance.new("Frame", ui.list)
 		card.Name = "Server_"..tostring(index)
 		card.LayoutOrder = server.current == true and -1000000 or index
@@ -138471,14 +139054,18 @@ NAmanage.ServerList_Render = function()
 		label.TextColor3 = Color3.fromRGB(230, 231, 239)
 		label.TextSize = state.layout == "grid" and 11.5 or 12
 		label.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-		const latencyValue = tonumber(server.latency) or tonumber(server.ping) or 0
-		const latencyText = latencyValue > 0 and ((server.latencyEstimated == true and "~" or "")..tostring(math.floor(latencyValue)).." ms") or "N/A"
 		const pingText = (tonumber(server.ping) or 0) > 0 and (tostring(math.floor(tonumber(server.ping))).." ms") or "N/A"
-		const uptimeText = type(NAStuff.srv) == "table" and type(NAStuff.srv.formatUptime) == "function" and NAStuff.srv:formatUptime(server.uptime, server.uptimeEstimated == true) or "Unknown"
-		const versionText = server.placeVersion and tostring(server.placeVersion) or "Unknown"
-		const regionText = tostring(server.regionLabel or server.region or "Unknown")
 		const head = server.current == true and "CURRENT SERVER" or ("SERVER "..tostring(index))
-		label.Text = Format("%s  |  %d/%d players\nLatency: %s  |  Roblox ping: %s  |  FPS: %.1f\nRegion: %s\nUptime: %s  |  Version: %s", head, tonumber(server.playing) or 0, tonumber(server.max) or 0, latencyText, pingText, tonumber(server.fps) or 0, regionText, uptimeText, versionText)
+		if state.enriching == true or server.rovalraResolving == true then
+			label.Text = Format("%s  |  %d/%d players\nRoblox ping: %s  |  FPS: %.1f\nRoValra: Solving region, uptime, version & latency...", head, tonumber(server.playing) or 0, tonumber(server.max) or 0, pingText, tonumber(server.fps) or 0)
+		else
+			const latencyValue = tonumber(server.latency) or tonumber(server.ping) or 0
+			const latencyText = latencyValue > 0 and ((server.latencyEstimated == true and "~" or "")..tostring(math.floor(latencyValue)).." ms") or "N/A"
+			const uptimeText = type(NAStuff.srv) == "table" and type(NAStuff.srv.formatUptime) == "function" and NAStuff.srv:formatUptime(server.uptime, server.uptimeEstimated == true) or "Unknown"
+			const versionText = server.placeVersion and tostring(server.placeVersion) or "Unknown"
+			const regionText = tostring(server.regionLabel or server.region or "Unknown")
+			label.Text = Format("%s  |  %d/%d players\nLatency: %s  |  Roblox ping: %s  |  FPS: %.1f\nRegion: %s\nUptime: %s  |  Version: %s", head, tonumber(server.playing) or 0, tonumber(server.max) or 0, latencyText, pingText, tonumber(server.fps) or 0, regionText, uptimeText, versionText)
+		end
 		const join = Instance.new("TextButton", card)
 		join.Name = "Join"
 		join.Size = state.layout == "grid" and UDim2.new(1, -20, 0, 30) or UDim2.new(0, 96, 0, 34)
@@ -138498,9 +139085,15 @@ NAmanage.ServerList_Render = function()
 		end
 	end
 	if ui.status then
-		local regions = 0
-		for _, server in shown do if server.region or server.regionLabel then regions += 1 end end
-		ui.status.Text = Format("%d shown / %d total | %d region-mapped | Current server pinned first", #shown, #state.servers, regions)
+		if state.apiLoading == true then
+			ui.status.Text = Format("Page %d/%d+ | %d on page / %d loaded | Loading more API pages...", state.page, totalPages, #pageShown, #state.servers)
+		elseif state.enriching == true then
+			ui.status.Text = Format("Page %d/%d | %d on page / %d matched / %d fetched | RoValra solving in background...", state.page, totalPages, #pageShown, #shown, #state.servers)
+		else
+			local regions = 0
+			for _, server in shown do if server.region or server.regionLabel then regions += 1 end end
+			ui.status.Text = Format("Page %d/%d | %d on page / %d matched / %d fetched | %d region-mapped", state.page, totalPages, #pageShown, #shown, #state.servers, regions)
+		end
 	end
 end
 
@@ -138515,27 +139108,53 @@ NAmanage.ServerList_Refresh = function()
 	end
 	state.fetchToken += 1
 	const token = state.fetchToken
+	state.page = 1
 	state.loading = true
+	state.apiLoading = true
+	state.enriching = false
 	if ui.status then ui.status.Text = "Loading public servers..." end
 	Spawn(function()
-		local servers, err, byId = NAmanage.ServerList_Collect(pid, token)
+		local servers, err, byId, source = NAmanage.ServerList_Collect(pid, token, function(partial, pageAdded, partialById, usedSource, apiPage, hasMore)
+			if token ~= state.fetchToken then return end
+			NAmanage.ServerList_EnsureCurrent(pid, partial, partialById)
+			state.servers = partial
+			state.placeId = pid
+			state.source = usedSource or state.source
+			state.loading = hasMore
+			state.apiLoading = hasMore
+			state.enriching = false
+			NAmanage.ServerList_Render()
+		end)
 		if token ~= state.fetchToken then return end
 		if type(servers) ~= "table" then
 			state.loading = false
+			state.apiLoading = false
+			state.enriching = false
 			if ui.status then ui.status.Text = "Server request failed: "..tostring(err or "unknown error") end
 			return
 		end
+		state.apiLoading = false
 		NAmanage.ServerList_EnsureCurrent(pid, servers, byId)
-		if #servers > 0 and type(NAStuff.srv) == "table" and type(NAStuff.srv.enrichLatencyList) == "function" then
-			if ui.status then ui.status.Text = "Resolving RoValra region, uptime, version and latency..." end
-			servers = NAStuff.srv:enrichLatencyList(pid, servers)
-			if token ~= state.fetchToken then return end
-			NAmanage.ServerList_EnsureCurrent(pid, servers, byId)
-		end
+		const canEnrich = #servers > 0 and type(NAStuff.srv) == "table" and type(NAStuff.srv.enrichLatencyList) == "function"
+		for _, server in servers do server.rovalraResolving = canEnrich end
 		state.servers = servers
 		state.placeId = pid
+		state.source = source
 		state.loading = false
+		state.apiLoading = false
+		state.enriching = canEnrich
 		NAmanage.ServerList_Render()
+		if not canEnrich then return end
+		Spawn(function()
+			local enriched = NAStuff.srv:enrichLatencyList(pid, servers)
+			if token ~= state.fetchToken then return end
+			if type(enriched) == "table" then servers = enriched end
+			NAmanage.ServerList_EnsureCurrent(pid, servers, byId)
+			for _, server in servers do server.rovalraResolving = false end
+			state.servers = servers
+			state.enriching = false
+			NAmanage.ServerList_Render()
+		end)
 	end)
 end
 
@@ -138543,13 +139162,20 @@ NAmanage.ServerList_Init = function()
 	const state = NAmanage.ServerList
 	const ui = state.ui or NAmanage.ServerList_GetUI()
 	if not (ui and ui.frame) then return false end
+	NAmanage.ServerList_EnsurePager()
 	if ui.placeId and tostring(ui.placeId.Text or "") == "" then ui.placeId.Text = tostring(game.PlaceId) end
 	if ui.layout then ui.layout.Text = "Layout: "..(state.layout == "grid" and "Grid" or "List") end
 	if ui.sort then ui.sort.Text = "Sort: "..string.upper(string.sub(state.sort, 1, 1))..string.sub(state.sort, 2) end
 	if ui.hideFull then ui.hideFull.Text = "Hide Full: "..(state.hideFull and "ON" or "OFF") end
-	if state.bound then return true end
+	NAmanage.ServerList_UpdatePager(state.totalPages)
+	if state.bound and state.boundFrame == ui.frame then return true end
 	state.bound = true
+	state.boundFrame = ui.frame
 	NAlib.disconnect("NAServerList")
+	if ui.pageFirst then NAlib.connect("NAServerList", ui.pageFirst.Activated:Connect(function() NAmanage.ServerList_SetPage(1) end)) end
+	if ui.pagePrev then NAlib.connect("NAServerList", ui.pagePrev.Activated:Connect(function() NAmanage.ServerList_SetPage(state.page - 1) end)) end
+	if ui.pageNext then NAlib.connect("NAServerList", ui.pageNext.Activated:Connect(function() NAmanage.ServerList_SetPage(state.page + 1) end)) end
+	if ui.pageLast then NAlib.connect("NAServerList", ui.pageLast.Activated:Connect(function() NAmanage.ServerList_SetPage(state.totalPages) end)) end
 	if ui.current then
 		NAlib.connect("NAServerList", ui.current.Activated:Connect(function()
 			ui.placeId.Text = tostring(game.PlaceId)
@@ -138568,6 +139194,7 @@ NAmanage.ServerList_Init = function()
 		NAlib.connect("NAServerList", ui.sort.Activated:Connect(function()
 			const order = { latency = "players"; players = "uptime"; uptime = "version"; version = "fps"; fps = "latency" }
 			state.sort = order[state.sort] or "latency"
+			state.page = 1
 			ui.sort.Text = "Sort: "..string.upper(string.sub(state.sort, 1, 1))..string.sub(state.sort, 2)
 			NAmanage.ServerList_Render()
 		end))
@@ -138575,6 +139202,7 @@ NAmanage.ServerList_Init = function()
 	if ui.hideFull then
 		NAlib.connect("NAServerList", ui.hideFull.Activated:Connect(function()
 			state.hideFull = not state.hideFull
+			state.page = 1
 			ui.hideFull.Text = "Hide Full: "..(state.hideFull and "ON" or "OFF")
 			NAmanage.ServerList_Render()
 		end))
