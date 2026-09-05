@@ -120083,12 +120083,29 @@ NAgui.addInfo = function(label, value, opts)
 	end
 
 	box.TextXAlignment = Enum.TextXAlignment.Center
-	box.TextWrapped = false
+	box.TextWrapped = opts.textWrapped == true
+	box.MultiLine = opts.textWrapped == true
+	if opts.textWrapped == true then
+		box.Size = UDim2.new(box.Size.X.Scale, box.Size.X.Offset, 1, -12)
+	end
+	box.TextYAlignment = opts.textYAlignment == "Top" and Enum.TextYAlignment.Top or Enum.TextYAlignment.Center
 	box.TextTruncate = Enum.TextTruncate.None
 	const textScaledEnabled = opts.textScaled ~= false
 	box.TextScaled = textScaledEnabled
 	box.ClipsDescendants = true
 	frame.ClipsDescendants = true
+	const inputHeight = math.max(30, math.floor(tonumber(opts.inputHeight) or 30))
+	const rowHeight = math.max(56, math.floor(tonumber(opts.rowHeight) or 56))
+	const fillWidth = opts.fillWidth == true
+	const autoHeight = opts.autoHeight == true
+	const minInputHeight = math.max(30, math.floor(tonumber(opts.minInputHeight) or 30))
+	const maxInputHeight = math.max(minInputHeight, math.floor(tonumber(opts.maxInputHeight) or 96))
+	if autoHeight then
+		frame.Size = UDim2.new(frame.Size.X.Scale, frame.Size.X.Offset, 0, inputHeight)
+		info.Size = UDim2.new(info.Size.X.Scale, info.Size.X.Offset, 0, math.max(56, inputHeight + 16))
+	elseif opts.rowHeight ~= nil then
+		info.Size = UDim2.new(info.Size.X.Scale, info.Size.X.Offset, 0, rowHeight)
+	end
 	const baseTextSize = tonumber(opts.textSize) or tonumber(box.TextSize) or 14
 	local minTextSize = tonumber(opts.minTextSize) or 10
 	if minTextSize > baseTextSize then
@@ -120098,6 +120115,7 @@ NAgui.addInfo = function(label, value, opts)
 	const autoShrink = opts.autoShrink ~= false
 
 	local lastW
+	local lastH
 	local resizeBusy = false
 	local resizeQueued = false
 	local resizePending = false
@@ -120135,6 +120153,12 @@ NAgui.addInfo = function(label, value, opts)
 			return
 		end
 		if NAgui.isSettingsLayoutSuspended and NAgui.isSettingsLayoutSuspended() then
+			resizePending = true
+			Delay(0.08, function()
+				if info and info.Parent then
+					requestResize()
+				end
+			end)
 			return
 		end
 		if not (info and info.Parent and frame and frame.Parent and box and box.Parent) then
@@ -120171,12 +120195,17 @@ NAgui.addInfo = function(label, value, opts)
 		local w = math.max(textW, minW)
 		local hit = false
 		if maxW then
-			const clamped = math.max(minW, math.min(w, maxW))
-			hit = clamped >= (maxW - 0.5)
-			w = clamped
+			if fillWidth then
+				w = math.max(minW, maxW)
+				hit = true
+			else
+				const clamped = math.max(minW, math.min(w, maxW))
+				hit = clamped >= (maxW - 0.5)
+				w = clamped
+			end
 		end
 
-		const targetAlignment = (hit and clampAlignLeft) and Enum.TextXAlignment.Left or Enum.TextXAlignment.Center
+		const targetAlignment = ((fillWidth or hit) and clampAlignLeft) and Enum.TextXAlignment.Left or Enum.TextXAlignment.Center
 		if box.TextXAlignment ~= targetAlignment then
 			box.TextXAlignment = targetAlignment
 		end
@@ -120200,9 +120229,32 @@ NAgui.addInfo = function(label, value, opts)
 			return
 		end
 
-		if not lastW or math.abs(lastW - w) > 0.5 then
+		local targetInputHeight = inputHeight
+		if autoHeight and box.TextWrapped then
+			local measuredHeight = baseTextSize
+			const textService = Services.TextService
+			if textService then
+				local font = box.Font
+				if font == nil or font == Enum.Font.Unknown then
+					font = Enum.Font.SourceSans
+				end
+				local okMeasure, measured = pcall(textService.GetTextSize, textService, tostring(box.Text or ""), tonumber(box.TextSize) or baseTextSize, font, Vector2.new(math.max(1, w - 16), 10000))
+				if okMeasure and measured then
+					measuredHeight = measured.Y
+				end
+			end
+			targetInputHeight = math.clamp(math.ceil(measuredHeight + 12), minInputHeight, maxInputHeight)
+			const targetRowHeight = math.max(56, targetInputHeight + 16)
+			const targetInfoSize = UDim2.new(info.Size.X.Scale, info.Size.X.Offset, 0, targetRowHeight)
+			if info.Size ~= targetInfoSize then
+				info.Size = targetInfoSize
+			end
+		end
+
+		if not lastW or not lastH or math.abs(lastW - w) > 0.5 or math.abs(lastH - targetInputHeight) > 0.5 then
 			lastW = w
-			const targetSize = UDim2.new(0, w, 0, 30)
+			lastH = targetInputHeight
+			const targetSize = UDim2.new(0, w, 0, targetInputHeight)
 			if frame.Size ~= targetSize then
 				frame.Size = targetSize
 			end
@@ -120224,7 +120276,15 @@ NAgui.addInfo = function(label, value, opts)
 	box:GetPropertyChangedSignal("TextBounds"):Connect(requestResize)
 	box:GetPropertyChangedSignal("Text"):Connect(requestResize)
 	info:GetPropertyChangedSignal("AbsoluteSize"):Connect(requestResize)
+	frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(requestResize)
+	if settingsList and settingsList:IsA("GuiObject") then
+		settingsList:GetPropertyChangedSignal("AbsoluteSize"):Connect(requestResize)
+		settingsList:GetPropertyChangedSignal("Visible"):Connect(requestResize)
+	end
 	resize()
+	Defer(function() requestResize() end)
+	Delay(0.12, function() requestResize() end)
+	Delay(0.35, function() requestResize() end)
 
 	const interact = frame:FindFirstChild("Interact")
 	if interact then
@@ -161730,6 +161790,7 @@ NAStuff.GitHubEmptyText = "No commits found"
 NAStuff.GitHubEndpointField = nil
 NAStuff.GitHubCommits = nil
 NAStuff.GitHubCommitMessageField = nil
+NAStuff.GitHubCommitDescriptionField = nil
 NAStuff.GitHubCommitAuthorField = nil
 NAStuff.GitHubCommitDateField = nil
 NAStuff.GitHubCommitsLastFetch = 0
@@ -161947,14 +162008,41 @@ originalIO.fetchGitHubCommits = function(forceRefresh)
 	return false, lastError or NAStuff.GitHubFailureText
 end
 
-originalIO.sanitizeCommitMessage = function(message)
-	message = tostring(message or "(no message)")
-	message = message:gsub("[%c]", " ")
-	message = message:gsub("%s+", " ")
-	if #message > 70 then
-		message = message:sub(1, 67).."..."
+originalIO.splitCommitMessage = function(message)
+	local raw = tostring(message or "")
+	raw = raw:gsub("\r\n", "\n"):gsub("\r", "\n")
+	local title, body
+	const firstNewline = string.find(raw, "\n", 1, true)
+	if firstNewline then
+		title = raw:sub(1, firstNewline - 1)
+		body = raw:sub(firstNewline + 1)
+	else
+		title = raw
+		body = ""
 	end
-	return message
+	title = tostring(title or ""):gsub("^%s+", ""):gsub("%s+$", ""):gsub("%s+", " ")
+	body = tostring(body or ""):gsub("^\n+", ""):gsub("\n+$", "")
+	body = body:gsub("[\t\v\f]+", " ")
+	if title == "" then
+		title = "(no message)"
+	end
+	if body:match("^%s*$") then
+		body = "No description provided."
+	end
+	return title, body
+end
+
+originalIO.sanitizeCommitMessage = function(message)
+	local title = originalIO.splitCommitMessage(message)
+	if #title > 86 then
+		title = title:sub(1, 83).."..."
+	end
+	return title
+end
+
+originalIO.sanitizeCommitDescription = function(message)
+	local _, description = originalIO.splitCommitMessage(message)
+	return description
 end
 
 originalIO.formatCommitAuthor = function(commit)
@@ -162007,6 +162095,7 @@ NAmanage.UpdateGitHubCommitUI = function(commits, statusMessage)
 	commits = commits or NAStuff.GitHubCommits
 	const commit = (type(commits) == "table" and commits[1]) or nil
 	const messageField = NAStuff.GitHubCommitMessageField
+	const descriptionField = NAStuff.GitHubCommitDescriptionField
 	const authorField = NAStuff.GitHubCommitAuthorField
 	const dateField = NAStuff.GitHubCommitDateField
 
@@ -162019,11 +162108,15 @@ NAmanage.UpdateGitHubCommitUI = function(commits, statusMessage)
 		const message = NAmanage.FormatGitHubCommitSummary(commit)
 		const authorDisplay = originalIO.formatCommitAuthor(commit)
 		const commitInfo = commit.commit or {}
+		const description = originalIO.sanitizeCommitDescription(commitInfo.message)
 		const authorInfo = commitInfo.author or commitInfo.committer or {}
 		local dateDisplay, shortDate = originalIO.formatCommitDate(authorInfo.date)
 
 		if messageField then
 			messageField.Text = message or NAStuff.GitHubEmptyText
+		end
+		if descriptionField then
+			descriptionField.Text = description or "No description provided."
 		end
 		if authorField then
 			authorField.Text = authorDisplay or NAStuff.GitHubEmptyText
@@ -162039,6 +162132,9 @@ NAmanage.UpdateGitHubCommitUI = function(commits, statusMessage)
 		const fallback = statusMessage or NAStuff.GitHubEmptyText
 		if messageField then
 			messageField.Text = fallback
+		end
+		if descriptionField then
+			descriptionField.Text = fallback
 		end
 		if authorField then
 			authorField.Text = fallback
@@ -162395,6 +162491,19 @@ NAgui.setTab(NA_TABS.TAB_ADMIN_INFO)
 if not NAStuff.GitHubTabInitialized then
 	NAgui.addSection("Latest Commit")
 	NAStuff.GitHubCommitMessageField = NAgui.addInfo("Commit", NAStuff.GitHubLoadingText)
+	NAStuff.GitHubCommitDescriptionField = NAgui.addInfo("Description", NAStuff.GitHubLoadingText, {
+		textWrapped = true;
+		textScaled = false;
+		textSize = 11;
+		minTextSize = 10;
+		autoShrink = false;
+		fillWidth = true;
+		autoHeight = true;
+		inputHeight = 46;
+		minInputHeight = 30;
+		maxInputHeight = 84;
+		textYAlignment = "Center";
+	})
 	NAStuff.GitHubCommitAuthorField = NAgui.addInfo("Author", NAStuff.GitHubLoadingText)
 	NAStuff.GitHubCommitDateField = NAgui.addInfo("Updated", NAStuff.GitHubLoadingText)
 
@@ -162457,6 +162566,7 @@ SpawnCall(function()
 		end
 	end
 	if (NAStuff.GitHubCommitMessageField and NAStuff.GitHubCommitMessageField.Text == NAStuff.GitHubLoadingText)
+		or (NAStuff.GitHubCommitDescriptionField and NAStuff.GitHubCommitDescriptionField.Text == NAStuff.GitHubLoadingText)
 		or (NAStuff.GitHubCommitAuthorField and NAStuff.GitHubCommitAuthorField.Text == NAStuff.GitHubLoadingText)
 		or (NAStuff.GitHubCommitDateField and NAStuff.GitHubCommitDateField.Text == NAStuff.GitHubLoadingText) then
 		NAmanage.UpdateGitHubCommitUI(nil, NAStuff.GitHubFailureText)
