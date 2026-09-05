@@ -880,6 +880,26 @@
       "desc": "Creates a client-only avatar preview rig"
     },
     {
+      "name": "char",
+      "aliases": [
+        "char"
+      ],
+      "usage": "char <me/player/userId> | char outfit <outfitId>",
+      "args": "<me/player/userId> <outfitId>",
+      "desc": "Transforms your client character to a user's avatar appearance"
+    },
+    {
+      "name": "unchar",
+      "aliases": [
+        "unchar",
+        "resetchar",
+        "charreset"
+      ],
+      "usage": "unchar (resetchar, charreset)",
+      "args": "",
+      "desc": "Restores your appearance"
+    },
+    {
       "name": "clearavatarpreview",
       "aliases": [
         "clearavatarpreview",
