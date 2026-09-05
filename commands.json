@@ -3946,7 +3946,7 @@
       ],
       "usage": "serverhop [default/advanced] (shop)",
       "args": "[default/advanced]",
-      "desc": "serverhop"
+      "desc": "serverhop using Roblox's default handling or NA's advanced RoValra method"
     },
     {
       "name": "smallserverhop",
@@ -3954,9 +3954,9 @@
         "smallserverhop",
         "sshop"
       ],
-      "usage": "smallserverhop (sshop)",
-      "args": "",
-      "desc": "serverhop to a small server in the best-latency region"
+      "usage": "smallserverhop [legacy/rovalra] (sshop)",
+      "args": "[legacy/rovalra]",
+      "desc": "serverhop to a small server using Roblox data or RoValra"
     },
     {
       "name": "pingserverhop",
@@ -3964,9 +3964,9 @@
         "pingserverhop",
         "pshop"
       ],
-      "usage": "pingserverhop (pshop)",
-      "args": "",
-      "desc": "serverhop to the best estimated-latency server"
+      "usage": "pingserverhop [legacy/rovalra] (pshop)",
+      "args": "[legacy/rovalra]",
+      "desc": "serverhop by Roblox-reported ping or RoValra estimated latency"
     },
     {
       "name": "oldserverhop",
@@ -4362,9 +4362,21 @@
         "gtools",
         "gtls"
       ],
-      "usage": "grabtools [range]",
-      "args": "[range]",
-      "desc": "Grabs dropped tools"
+      "usage": "grabtools [tool name] [range]",
+      "args": "[tool name] [range]",
+      "desc": "Grabs dropped tools, optionally filtering by exact tool name"
+    },
+    {
+      "name": "grabtoolsfind",
+      "aliases": [
+        "grabtoolsfind",
+        "gtoolsfind",
+        "gtlsfind",
+        "grabfind"
+      ],
+      "usage": "grabtoolsfind <tool name> [range]",
+      "args": "<tool name> [range]",
+      "desc": "Grabs dropped tools whose names contain the given text"
     },
     {
       "name": "loopgrabtools",
@@ -4378,7 +4390,7 @@
       ],
       "usage": "loopgrabtools [range]",
       "args": "[range]",
-      "desc": "Loop grabs dropped tools"
+      "desc": "Loop grabs dropped tools without changing your equipped tool"
     },
     {
       "name": "unloopgrabtools",
