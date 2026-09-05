@@ -54498,6 +54498,394 @@ NAmanage.NAClientPlacePreview = NAmanage.NAClientPlacePreview or function(rig)
 	return true
 end
 
+NAStuff.NAClientCharState = type(NAStuff.NAClientCharState) == "table" and NAStuff.NAClientCharState or {}
+
+NAmanage.NAClientCharBodyParts = {
+	"Head";
+	"UpperTorso";
+	"LowerTorso";
+	"LeftUpperArm";
+	"LeftLowerArm";
+	"LeftHand";
+	"RightUpperArm";
+	"RightLowerArm";
+	"RightHand";
+	"LeftUpperLeg";
+	"LeftLowerLeg";
+	"LeftFoot";
+	"RightUpperLeg";
+	"RightLowerLeg";
+	"RightFoot";
+}
+
+NAmanage.NAClientCharScaleMap = {
+	BodyDepthScale = "DepthScale";
+	BodyHeightScale = "HeightScale";
+	BodyProportionScale = "ProportionScale";
+	BodyTypeScale = "BodyTypeScale";
+	BodyWidthScale = "WidthScale";
+	HeadScale = "HeadScale";
+}
+
+NAmanage.NAClientCharacterTarget = function()
+	const char = getChar() or (LocalPlayer and LocalPlayer.Character)
+	if not char then
+		return nil, nil, "Character unavailable"
+	end
+	const hum = getPlrHum(char) or char:FindFirstChildOfClass("Humanoid")
+	if not hum then
+		return char, nil, "Humanoid unavailable"
+	end
+	return char, hum
+end
+
+NAmanage.NAClientCharacterSnapshotCurrentAnimations = function(char)
+	const animate = char and char:FindFirstChild("Animate")
+	if not animate then
+		return nil
+	end
+	const snapshot = {}
+	for _, obj in animate:GetDescendants() do
+		if obj:IsA("Animation") then
+			const parts = {}
+			local node = obj
+			while node and node ~= animate do
+				table.insert(parts, 1, node.Name)
+				node = node.Parent
+			end
+			snapshot[Concat(parts, "/")] = obj.AnimationId
+		end
+	end
+	return snapshot
+end
+
+NAmanage.NAClientCharacterRestoreCurrentAnimations = function(char, snapshot)
+	const animate = char and char:FindFirstChild("Animate")
+	if not animate or type(snapshot) ~= "table" then
+		return
+	end
+	for path, id in snapshot do
+		local node = animate
+		for name in tostring(path):gmatch("[^/]+") do
+			node = node and node:FindFirstChild(name)
+		end
+		if node and node:IsA("Animation") and node.AnimationId ~= id then
+			pcall(function()
+				node.AnimationId = id
+			end)
+		end
+	end
+end
+
+NAmanage.NAClientCharacterPreserveCurrentAnimations = function(char, snapshot)
+	if type(snapshot) ~= "table" then
+		return
+	end
+	NAmanage.NAClientCharacterRestoreCurrentAnimations(char, snapshot)
+	const delayFn = type(NAmanage._rawTaskDelay) == "function" and NAmanage._rawTaskDelay or task.delay
+	for _, delayTime in {0.15, 0.75} do
+		delayFn(delayTime, function()
+			if char and char.Parent then
+				NAmanage.NAClientCharacterRestoreCurrentAnimations(char, snapshot)
+			end
+		end)
+	end
+end
+
+NAmanage.NAClientCharacterClearState = function()
+	const state = NAStuff.NAClientCharState
+	if typeof(state.originalDescription) == "Instance" then
+		pcall(function()
+			state.originalDescription:Destroy()
+		end)
+	end
+	state.character = nil
+	state.originalDescription = nil
+	state.active = false
+end
+
+NAmanage.NAClientCharacterCaptureOriginal = function(char, hum)
+	const state = NAStuff.NAClientCharState
+	if state.active == true and state.character == char and typeof(state.originalDescription) == "Instance" then
+		return true
+	end
+	NAmanage.NAClientCharacterClearState()
+	local ok, desc = pcall(function()
+		return hum:GetAppliedDescription()
+	end)
+	if not ok or not desc then
+		desc = select(1, NAmanage.NAClientGetDescription("user", "me"))
+	end
+	if not desc then
+		return false, "Unable to save current appearance"
+	end
+	state.character = char
+	state.originalDescription = desc
+	state.active = true
+	return true
+end
+
+NAmanage.NAClientCreateCharRig = function(desc, rigType)
+	if not desc then
+		return nil, "Missing description"
+	end
+	rigType = rigType == Enum.HumanoidRigType.R6 and Enum.HumanoidRigType.R6 or Enum.HumanoidRigType.R15
+	local ok, rig = pcall(function()
+		if type(Services.Players.CreateHumanoidModelFromDescriptionAsync) == "function" then
+			return Services.Players:CreateHumanoidModelFromDescriptionAsync(desc, rigType)
+		end
+		return Services.Players:CreateHumanoidModelFromDescription(desc, rigType)
+	end)
+	if ok and rig then
+		return rig
+	end
+	return nil, rig
+end
+
+NAmanage.NAClientCharacterSetScales = function(hum, desc)
+	if not hum or not desc or hum.RigType ~= Enum.HumanoidRigType.R15 then
+		return
+	end
+	for valueName, propertyName in NAmanage.NAClientCharScaleMap do
+		const scale = hum:FindFirstChild(valueName)
+		local value
+		pcall(function()
+			value = tonumber(desc[propertyName])
+		end)
+		if scale and scale:IsA("NumberValue") and value ~= nil then
+			pcall(function()
+				scale.Value = value
+			end)
+		end
+	end
+end
+
+NAmanage.NAClientCharClearVisualChildren = function(part)
+	for _, child in part:GetChildren() do
+		if child:IsA("Decal") or child:IsA("Texture") or child:IsA("SurfaceAppearance") or child:IsA("FaceControls") then
+			pcall(function()
+				child:Destroy()
+			end)
+		end
+	end
+end
+
+NAmanage.NAClientCharCopyVisualChildren = function(sourcePart, targetPart)
+	if not sourcePart or not targetPart then
+		return
+	end
+	NAmanage.NAClientCharClearVisualChildren(targetPart)
+	for _, child in sourcePart:GetChildren() do
+		if child:IsA("Decal") or child:IsA("Texture") or child:IsA("SurfaceAppearance") or child:IsA("FaceControls") then
+			pcall(function()
+				child:Clone().Parent = targetPart
+			end)
+		end
+	end
+end
+
+NAmanage.NAClientCharacterApplyBody = function(source, char, hum)
+	if hum.RigType == Enum.HumanoidRigType.R15 then
+		for _, name in NAmanage.NAClientCharBodyParts do
+			const sourcePart = source:FindFirstChild(name)
+			const targetPart = char:FindFirstChild(name)
+			if sourcePart and targetPart and sourcePart:IsA("BasePart") and targetPart:IsA("BasePart") then
+				if sourcePart:IsA("MeshPart") and targetPart:IsA("MeshPart") then
+					pcall(function()
+						targetPart:ApplyMesh(sourcePart)
+					end)
+				end
+				pcall(function()
+					targetPart.Color = sourcePart.Color
+					targetPart.Material = sourcePart.Material
+					targetPart.MaterialVariant = sourcePart.MaterialVariant
+					targetPart.Reflectance = sourcePart.Reflectance
+				end)
+				NAmanage.NAClientCharCopyVisualChildren(sourcePart, targetPart)
+			end
+		end
+	else
+		for _, name in {"Head", "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg"} do
+			const sourcePart = source:FindFirstChild(name)
+			const targetPart = char:FindFirstChild(name)
+			if sourcePart and targetPart and sourcePart:IsA("BasePart") and targetPart:IsA("BasePart") then
+				pcall(function()
+					targetPart.Color = sourcePart.Color
+				end)
+				if sourcePart:IsA("MeshPart") and targetPart:IsA("MeshPart") then
+					pcall(function()
+						targetPart:ApplyMesh(sourcePart)
+					end)
+				end
+				NAmanage.NAClientCharCopyVisualChildren(sourcePart, targetPart)
+			end
+		end
+	end
+end
+
+NAmanage.NAClientCharIsAppearanceObject = function(inst)
+	return inst:IsA("Accessory")
+		or inst:IsA("Clothing")
+		or inst:IsA("ShirtGraphic")
+		or inst:IsA("BodyColors")
+		or inst:IsA("CharacterMesh")
+end
+
+NAmanage.NAClientCharacterAttachAccessory = function(sourceAccessory, char)
+	local accessory
+	local cloned = pcall(function()
+		accessory = sourceAccessory:Clone()
+	end)
+	if not cloned or not accessory then
+		return false
+	end
+
+	const sourceHandle = sourceAccessory:FindFirstChild("Handle")
+	const sourceWeld = sourceHandle and sourceHandle:FindFirstChild("AccessoryWeld")
+	const handle = accessory:FindFirstChild("Handle")
+	local weld = handle and handle:FindFirstChild("AccessoryWeld")
+	local targetPart
+
+	if sourceWeld and sourceWeld.Part1 then
+		targetPart = char:FindFirstChild(sourceWeld.Part1.Name)
+	end
+
+	if not targetPart and handle then
+		const handleAttachment = handle:FindFirstChildOfClass("Attachment")
+		if handleAttachment then
+			const targetAttachment = char:FindFirstChild(handleAttachment.Name, true)
+			if targetAttachment and targetAttachment:IsA("Attachment") and targetAttachment.Parent and targetAttachment.Parent:IsA("BasePart") then
+				targetPart = targetAttachment.Parent
+				if not weld then
+					weld = InstanceNew("Weld")
+					weld.Name = "AccessoryWeld"
+					weld.C0 = handleAttachment.CFrame
+					weld.C1 = targetAttachment.CFrame
+					weld.Parent = handle
+				end
+			end
+		end
+	end
+
+	if weld and handle and targetPart then
+		pcall(function()
+			weld.Part0 = handle
+			weld.Part1 = targetPart
+			handle.CFrame = targetPart.CFrame * weld.C1 * weld.C0:Inverse()
+		end)
+	end
+
+	accessory.Parent = char
+	return accessory.Parent == char
+end
+
+NAmanage.NAClientCharacterApplyAppearanceObjects = function(source, char)
+	for _, child in char:GetChildren() do
+		if NAmanage.NAClientCharIsAppearanceObject(child) then
+			pcall(function()
+				child:Destroy()
+			end)
+		end
+	end
+
+	for _, child in source:GetChildren() do
+		if child:IsA("Accessory") then
+			NAmanage.NAClientCharacterAttachAccessory(child, char)
+		elseif NAmanage.NAClientCharIsAppearanceObject(child) then
+			pcall(function()
+				child:Clone().Parent = char
+			end)
+		end
+	end
+end
+
+NAmanage.NAClientCharacterApplySource = function(source, char, hum, desc)
+	if typeof(source) ~= "Instance" or not char or not hum or not desc then
+		return false, "Appearance source unavailable"
+	end
+
+	local originalRequiresNeck
+	pcall(function()
+		originalRequiresNeck = hum.RequiresNeck
+		hum.RequiresNeck = false
+	end)
+
+	NAmanage.NAClientCharacterSetScales(hum, desc)
+	NAmanage.NAClientCharacterApplyBody(source, char, hum)
+	NAmanage.NAClientCharacterApplyAppearanceObjects(source, char)
+
+	if originalRequiresNeck ~= nil then
+		pcall(function()
+			hum.RequiresNeck = originalRequiresNeck
+		end)
+	end
+
+	if hum.Health <= 0 then
+		return false, "Character died while applying appearance"
+	end
+	return true
+end
+
+NAmanage.NAClientCharacterDestroyRigLater = function(rig)
+	if typeof(rig) ~= "Instance" then
+		return
+	end
+	const delayFn = type(NAmanage._rawTaskDelay) == "function" and NAmanage._rawTaskDelay or task.delay
+	delayFn(1.25, function()
+		pcall(function()
+			rig:Destroy()
+		end)
+	end)
+end
+
+NAmanage.NAClientCharacterApplyDescription = function(desc)
+	const char, hum, targetErr = NAmanage.NAClientCharacterTarget()
+	if not hum then
+		return false, targetErr
+	end
+
+	const currentAnimations = NAmanage.NAClientCharacterSnapshotCurrentAnimations(char)
+	local captured, captureErr = NAmanage.NAClientCharacterCaptureOriginal(char, hum)
+	if not captured then
+		return false, captureErr
+	end
+
+	local rig, rigErr = NAmanage.NAClientCreateCharRig(desc, hum.RigType)
+	if not rig then
+		return false, rigErr
+	end
+
+	local ok, err = NAmanage.NAClientCharacterApplySource(rig, char, hum, desc)
+	NAmanage.NAClientCharacterPreserveCurrentAnimations(char, currentAnimations)
+	NAmanage.NAClientCharacterDestroyRigLater(rig)
+	return ok, err
+end
+
+NAmanage.NAClientCharacterReset = function()
+	const char, hum, targetErr = NAmanage.NAClientCharacterTarget()
+	if not hum then
+		return false, targetErr
+	end
+
+	const state = NAStuff.NAClientCharState
+	if state.active ~= true or state.character ~= char or typeof(state.originalDescription) ~= "Instance" then
+		NAmanage.NAClientCharacterClearState()
+		return false, "No active char transformation"
+	end
+
+	const currentAnimations = NAmanage.NAClientCharacterSnapshotCurrentAnimations(char)
+	local rig, rigErr = NAmanage.NAClientCreateCharRig(state.originalDescription, hum.RigType)
+	if not rig then
+		return false, rigErr
+	end
+
+	local ok, err = NAmanage.NAClientCharacterApplySource(rig, char, hum, state.originalDescription)
+	NAmanage.NAClientCharacterPreserveCurrentAnimations(char, currentAnimations)
+	NAmanage.NAClientCharacterDestroyRigLater(rig)
+	NAmanage.NAClientCharacterClearState()
+	return ok, err
+end
+
 cmd.add({"inspectoutfit", "outfitinspect"}, {"inspectoutfit <user/player/userid|outfit:id>", "Open a user's saved outfits and inspect a selected outfit"}, function(arg)
 	if not arg or arg == "" then
 		DoNotif("Usage: inspectoutfit <user/player/userid|outfit:id>", 3, "InspectOutfit")
@@ -54702,6 +55090,43 @@ cmd.add({"avatarpreview", "apreview", "clientavatar"}, {"avatarpreview <me/playe
 		DoNotif("Preview rig placement failed.")
 	end
 end, true)
+
+cmd.add({"char"}, {"char <me/player/userId> | char outfit <outfitId>", "Transforms your client character to a user's avatar appearance"}, function(kind, value)
+	const text = Lower(tostring(kind or ""))
+	if text == "" then
+		DoNotif("Usage: char <me/player/userId> | char outfit <outfitId>")
+		return
+	end
+
+	local desc, label
+	if text == "outfit" or text == "fit" or text == "o" then
+		desc, label = NAmanage.NAClientGetDescription("outfit", value)
+	else
+		desc, label = NAmanage.NAClientGetDescription("user", kind)
+	end
+
+	if not desc then
+		DoNotif("Char failed: "..tostring(label))
+		return
+	end
+
+	local ok, err = NAmanage.NAClientCharacterApplyDescription(desc)
+	if not ok then
+		DoNotif("Char failed: "..tostring(err))
+		return
+	end
+
+	DebugNotif("Character changed to "..tostring(label)..".")
+end, true)
+
+cmd.add({"unchar", "resetchar", "charreset"}, {"unchar (resetchar, charreset)", "Restores your appearance"}, function()
+	local ok, err = NAmanage.NAClientCharacterReset()
+	if ok then
+		DebugNotif("Character appearance restored.")
+	else
+		DoNotif("Char reset failed: "..tostring(err))
+	end
+end)
 
 cmd.add({"clearavatarpreview", "unavatarpreview", "capreview"}, {"clearavatarpreview", "Removes the client-only avatar preview rig"}, function()
 	NAmanage.NAClientClearPreview()
