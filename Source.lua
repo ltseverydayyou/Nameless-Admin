@@ -92257,6 +92257,128 @@ NAjobs._canRefire = function(lastMap, inst, now, cooldown)
 	return (now - last) >= cd
 end
 
+NAjobs._promptFireBusy = NAmanage.ensureWeakKeyTable(nil)
+NAjobs._promptUnblockBusy = NAmanage.ensureWeakKeyTable(nil)
+
+NAjobs._promptInteractionContainer = function(inst)
+	if not (inst and inst.Parent) then
+		return nil
+	end
+	local node = inst.Parent
+	for _ = 1, 6 do
+		if not node then
+			break
+		end
+		if node:IsA("Model") then
+			return node
+		end
+		node = node.Parent
+	end
+	return inst.Parent
+end
+
+NAjobs._promptCoveredByActiveJob = function(inst)
+	if not (inst and inst.Parent) then
+		return false
+	end
+	const part = NAjobs._resolvePromptPart(inst)
+	const names = NAjobs._collectNames("prompt", inst, part)
+	for _, job in NAjobs.jobs do
+		if job and job.kind == "prompt" then
+			if not job.target or job.target == "" then
+				return true
+			end
+			const matcher = job.m or (job.useFind and NAindex.matchAnyFind or NAindex.matchAny)
+			if NAjobs._matchNames(matcher, names, job.target) then
+				return true
+			end
+		end
+	end
+	return false
+end
+
+NAjobs._snapshotContainerPrompts = function(container, ignore)
+	const snapshot = NAmanage.ensureWeakKeyTable(nil)
+	if not (container and container.Parent) then
+		return snapshot
+	end
+	for _, pp in NAmanage.QueryDescendants(container, "ProximityPrompt") do
+		if pp ~= ignore and pp.Parent then
+			snapshot[pp] = pp.Enabled == true
+		end
+	end
+	return snapshot
+end
+
+NAjobs._dispatchPromptUnblocker = function(inst)
+	if not (inst and inst.Parent and inst.Enabled) then
+		return false
+	end
+	local busyMap = NAjobs._promptUnblockBusy
+	if type(busyMap) ~= "table" then
+		busyMap = NAmanage.ensureWeakKeyTable(nil)
+		NAjobs._promptUnblockBusy = busyMap
+	end
+	if busyMap[inst] or (NAjobs._promptFireBusy and NAjobs._promptFireBusy[inst]) then
+		return false
+	end
+	busyMap[inst] = true
+	Spawn(function()
+		pcall(fireproximityprompt, inst)
+		busyMap[inst] = nil
+	end)
+	return true
+end
+
+NAjobs._watchPromptBlocker = function(source, container, before)
+	if not (source and container and container.Parent) then
+		return
+	end
+	Spawn(function()
+		for _ = 1, 8 do
+			Wait(0.05)
+			if not (container and container.Parent) then
+				return
+			end
+			for _, pp in NAmanage.QueryDescendants(container, "ProximityPrompt") do
+				if pp ~= source and pp.Parent and pp.Enabled then
+					const previous = before[pp]
+					if previous ~= true and not NAjobs._promptCoveredByActiveJob(pp) then
+						NAjobs._dispatchPromptUnblocker(pp)
+						return
+					end
+				end
+			end
+		end
+	end)
+end
+
+NAjobs._dispatchPromptFire = function(inst, lastMap, now)
+	if not (inst and inst.Parent) then
+		return false
+	end
+	local busyMap = NAjobs._promptFireBusy
+	if type(busyMap) ~= "table" then
+		busyMap = NAmanage.ensureWeakKeyTable(nil)
+		NAjobs._promptFireBusy = busyMap
+	end
+	if busyMap[inst] then
+		return false
+	end
+	const container = NAjobs._promptInteractionContainer(inst)
+	const before = NAjobs._snapshotContainerPrompts(container, inst)
+	busyMap[inst] = true
+	if type(lastMap) == "table" then
+		lastMap[inst] = tonumber(now) or time()
+	end
+	NAjobs._watchPromptBlocker(inst, container, before)
+	Spawn(function()
+		pcall(fireproximityprompt, inst)
+		busyMap[inst] = nil
+	end)
+	return true
+end
+
 NAjobs._runPromptBatch = function(dueJobs)
 	const char = getChar()
 	const root = char and (getRoot(char) or char:FindFirstChildWhichIsA("BasePart"))
@@ -92318,10 +92440,8 @@ NAjobs._runPromptBatch = function(dueJobs)
 					const dist = (part.Position - rootPos).Magnitude
 					ok = dist <= ((inst.MaxActivationDistance or 0) + extraRange)
 				end
-				if ok and NAjobs._claim(inst) and NAjobs._canRefire(lastMap, inst, now, cooldown) then
-					const okFire = pcall(fireproximityprompt, inst)
-					if okFire then
-						lastMap[inst] = now
+				if ok and not NAjobs._promptFireBusy[inst] and NAjobs._claim(inst) and NAjobs._canRefire(lastMap, inst, now, cooldown) then
+					if NAjobs._dispatchPromptFire(inst, lastMap, now) then
 						fired += 1
 					end
 				end
