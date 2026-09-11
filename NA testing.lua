@@ -32429,6 +32429,47 @@ NAmanage.RawCompile = function(src, chunkName)
 	return fn
 end
 
+NAmanage.RunLoopSource = function(src, chunkName, ...)
+	if type(src) ~= "string" or src == "" then
+		return false, "empty source"
+	end
+
+	const loopData = NAmanage._loopDispatchData
+	if type(loopData) ~= "table" or loopData.running ~= true then
+		return NAmanage.RunSource(src, chunkName, ...)
+	end
+	if loopData._loadstringBusy == true then
+		return true
+	end
+
+	local fn = loopData._loadstringFunction
+	if loopData._loadstringSource ~= src or type(fn) ~= "function" then
+		const loader = type(loadstring) == "function" and loadstring or load
+		if type(loader) ~= "function" then
+			return false, "loadstring unavailable"
+		end
+		local compileError
+		fn, compileError = loader(src, chunkName)
+		if type(fn) ~= "function" then
+			return false, compileError or "loadstring unavailable"
+		end
+		loopData._loadstringSource = src
+		loopData._loadstringChunkName = chunkName
+		loopData._loadstringFunction = fn
+	end
+
+	loopData._loadstringBusy = true
+	const args = table.pack(...)
+	Spawn(function()
+		local ok, err = pcall(fn, Unpack(args, 1, args.n))
+		loopData._loadstringBusy = false
+		if not ok and loopData.running == true then
+			warn("[NA] command-loop loadstring failed: "..tostring(err))
+		end
+	end)
+	return true
+end
+
 NAStuff.ScriptCatalogUrl = "https://ltseverydayyou.github.io/scripts/catalog.json"
 NAStuff.ScriptCatalogState = type(NAStuff.ScriptCatalogState) == "table" and NAStuff.ScriptCatalogState or {
 	entries = nil;
@@ -32776,6 +32817,28 @@ NAmanage.GetLoopDt = function(...)
 	return 0
 end
 
+NAmanage._runLoopCommand = function(loopKey, loopData)
+	if type(loopData) ~= "table" or type(loopData.command) ~= "function" then
+		return false, "Loop command is unavailable."
+	end
+
+	local previousDepth = tonumber(NAmanage._loopDispatchDepth) or 0
+	local previousKey = NAmanage._loopDispatchKey
+	local previousData = NAmanage._loopDispatchData
+	NAmanage._loopDispatchDepth = previousDepth + 1
+	NAmanage._loopDispatchKey = loopKey
+	NAmanage._loopDispatchData = loopData
+
+	local ok, err = pcall(function()
+		loopData.command(Unpack(loopData.args or {}))
+	end)
+
+	NAmanage._loopDispatchDepth = previousDepth > 0 and previousDepth or nil
+	NAmanage._loopDispatchKey = previousKey
+	NAmanage._loopDispatchData = previousData
+	return ok, err
+end
+
 NAmanage.ConnectLoop = function(loopKey)
 	const loopData = Loops and Loops[loopKey]
 	if not loopData then
@@ -32797,17 +32860,13 @@ NAmanage.ConnectLoop = function(loopKey)
 			return
 		end
 		if currentLoop.interval <= 0 then
-			pcall(function()
-				currentLoop.command(Unpack(currentLoop.args))
-			end)
+			NAmanage._runLoopCommand(loopKey, currentLoop)
 			return
 		end
 		acc += NAmanage.GetLoopDt(...)
 		if acc >= currentLoop.interval then
 			acc %= currentLoop.interval
-			pcall(function()
-				currentLoop.command(Unpack(currentLoop.args))
-			end)
+			NAmanage._runLoopCommand(loopKey, currentLoop)
 		end
 	end))
 	return true, method
@@ -32931,9 +32990,7 @@ NAmanage.StartLoop = function(cmdName, args, interval, method)
 
 	Loops[loopKey] = loopData
 
-	pcall(function()
-		loopData.command(Unpack(loopData.args))
-	end)
+	NAmanage._runLoopCommand(loopKey, loopData)
 
 	local ok, msg = NAmanage.ConnectLoop(loopKey)
 	if not ok then
@@ -48410,7 +48467,8 @@ cmd.add({"loadstring", "ls", "lstring", "loads", "execute"}, {"loadstring <code>
 		return DoNotif("no code provided", 2)
 	end
 
-	local okRun, errRun = NAmanage.RunSource(code, "@NALoadstringCommand")
+	local runSource = NAmanage._loopDispatchDepth and NAmanage._loopDispatchDepth > 0 and NAmanage.RunLoopSource or NAmanage.RunSource
+	local okRun, errRun = runSource(code, "@NALoadstringCommand")
 	if not okRun then
 		warn(errRun)
 	end
