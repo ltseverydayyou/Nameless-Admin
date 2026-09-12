@@ -217,9 +217,25 @@ end
 
 
 local __NA_SPLIT_LOAD_TOKEN = {}
+local __NA_GLOBAL_ENV = (type(getgenv) == "function" and getgenv()) or _G or {}
+local __NA_GLOBAL_STATE_KEY = "__NamelessAdminRuntimeState"
+local __NA_GLOBAL_PREVIOUS_STATE = type(__NA_GLOBAL_ENV) == "table" and rawget(__NA_GLOBAL_ENV, __NA_GLOBAL_STATE_KEY) or nil
+if type(__NA_GLOBAL_PREVIOUS_STATE) == "table" and (__NA_GLOBAL_PREVIOUS_STATE.loading == true or __NA_GLOBAL_PREVIOUS_STATE.loaded == true) then
+	return
+end
+local __NA_GLOBAL_STATE = { loading = true; source = __NA_SPLIT_SOURCE_TAG; token = __NA_SPLIT_LOAD_TOKEN; }
+if type(__NA_GLOBAL_ENV) == "table" then
+	rawset(__NA_GLOBAL_ENV, __NA_GLOBAL_STATE_KEY, __NA_GLOBAL_STATE)
+	if rawget(__NA_GLOBAL_ENV, __NA_GLOBAL_STATE_KEY) ~= __NA_GLOBAL_STATE then
+		return
+	end
+end
 local __NA_SPLIT_HOST_LOADING = type(__NARootHost) == "table" and rawget(__NARootHost, "__NA_SPLIT_LOADING") or nil
 local __NA_SPLIT_HOST_LOADED = type(__NARootHost) == "table" and (rawget(__NARootHost, "ltseverydayyou_NA") ~= nil or rawget(__NARootHost, "NA_LOADED") ~= nil)
 if __NA_SPLIT_HOST_LOADING ~= nil or __NA_SPLIT_HOST_LOADED then
+	if type(__NA_GLOBAL_ENV) == "table" and rawget(__NA_GLOBAL_ENV, __NA_GLOBAL_STATE_KEY) == __NA_GLOBAL_STATE then
+		rawset(__NA_GLOBAL_ENV, __NA_GLOBAL_STATE_KEY, nil)
+	end
 	return
 end
 if type(__NARootHost) == "table" then
@@ -232,6 +248,71 @@ local function __NA_SPLIT_CLEAR_LOADING()
 	if type(__NARootHost) == "table" and rawget(__NARootHost, "__NA_SPLIT_LOADING") == __NA_SPLIT_LOAD_TOKEN then
 		rawset(__NARootHost, "__NA_SPLIT_LOADING", nil)
 	end
+end
+
+local __NA_SPLIT_FS_LOCK_OWNED = false
+local __NA_SPLIT_FS_LOCK_PATH = nil
+local __NA_SPLIT_FS_LOADED_PATH = nil
+local function __NA_SPLIT_CLAIM_FS_LOCK()
+	if type(isfile) ~= "function" or type(isfolder) ~= "function" or type(makefolder) ~= "function" then
+		return true
+	end
+	local placeId = "unknown"
+	local jobId = "unknown"
+	pcall(function()
+		placeId = tostring(game.PlaceId or "unknown")
+		jobId = tostring(game.JobId or "unknown")
+	end)
+	if jobId == "" or jobId == "unknown" then
+		return true
+	end
+	local key = (placeId.."_"..jobId):gsub("[^%w_%-]", "_")
+	local stateRoot = "Nameless-Admin/.na-split-runtime"
+	__NA_SPLIT_FS_LOCK_PATH = stateRoot.."/lock-"..key
+	__NA_SPLIT_FS_LOADED_PATH = stateRoot.."/loaded-"..key..".txt"
+	pcall(makefolder, "Nameless-Admin")
+	pcall(makefolder, stateRoot)
+	if isfile(__NA_SPLIT_FS_LOADED_PATH) or isfolder(__NA_SPLIT_FS_LOCK_PATH) then
+		return false
+	end
+	local created = pcall(makefolder, __NA_SPLIT_FS_LOCK_PATH)
+	if not created or not isfolder(__NA_SPLIT_FS_LOCK_PATH) then
+		return false
+	end
+	__NA_SPLIT_FS_LOCK_OWNED = true
+	return true
+end
+if not __NA_SPLIT_CLAIM_FS_LOCK() then
+	__NA_SPLIT_CLEAR_LOADING()
+	if type(__NA_GLOBAL_ENV) == "table" and rawget(__NA_GLOBAL_ENV, __NA_GLOBAL_STATE_KEY) == __NA_GLOBAL_STATE then
+		rawset(__NA_GLOBAL_ENV, __NA_GLOBAL_STATE_KEY, nil)
+	end
+	return
+end
+local function __NA_SPLIT_RELEASE(success)
+	if __NA_SPLIT_FS_LOCK_OWNED then
+		if success and type(writefile) == "function" and __NA_SPLIT_FS_LOADED_PATH then
+			pcall(writefile, __NA_SPLIT_FS_LOADED_PATH, __NA_SPLIT_SOURCE_TAG)
+		end
+		if type(delfolder) == "function" and __NA_SPLIT_FS_LOCK_PATH then
+			pcall(delfolder, __NA_SPLIT_FS_LOCK_PATH)
+		end
+		__NA_SPLIT_FS_LOCK_OWNED = false
+	end
+	if type(__NA_GLOBAL_ENV) == "table" and rawget(__NA_GLOBAL_ENV, __NA_GLOBAL_STATE_KEY) == __NA_GLOBAL_STATE then
+		if success then
+			__NA_GLOBAL_STATE.loading = false
+			__NA_GLOBAL_STATE.loaded = true
+			__NA_GLOBAL_STATE.token = nil
+		else
+			rawset(__NA_GLOBAL_ENV, __NA_GLOBAL_STATE_KEY, nil)
+			if type(__NARootHost) == "table" then
+				rawset(__NARootHost, "NA_LOADED", nil)
+				rawset(__NARootHost, "ltseverydayyou_NA", nil)
+			end
+		end
+	end
+	__NA_SPLIT_CLEAR_LOADING()
 end
 
 local __NA_SPLIT_REMOTE_ROOT = rawget(__NARootHost, "__NA_SPLIT_BASE_URL")
@@ -478,8 +559,8 @@ if not __NARootResult[1] and type(__NARootHost) == "table" then
 end
 
 if __NARootResult[1] then
-	__NA_SPLIT_CLEAR_LOADING()
+	__NA_SPLIT_RELEASE(true)
 	return table.unpack(__NARootResult, 2, __NARootResult.n)
 end
 
-__NA_SPLIT_CLEAR_LOADING()
+__NA_SPLIT_RELEASE(false)
