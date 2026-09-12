@@ -51730,6 +51730,7 @@ NAStuff.NAundergroundState = NAStuff.NAundergroundState or {}
 NAStuff.NA_UNDERGROUND_BIND_NAME = NAStuff.NA_UNDERGROUND_BIND_NAME
 	or NAmanage.GetSessionActionName("UndergroundBind")
 NAStuff.NA_UNDERGROUND_OFFSET = NAStuff.NA_UNDERGROUND_OFFSET or Vector3.new(0, -15, 0)
+NAStuff.NA_UNDERGROUND_EXTERNAL_TELEPORT_DISTANCE = NAStuff.NA_UNDERGROUND_EXTERNAL_TELEPORT_DISTANCE or 4
 NAStuff.NA_OFFSET_VISUALIZER_UPDATE_RATE = NAStuff.NA_OFFSET_VISUALIZER_UPDATE_RATE or (1 / 30)
 NAStuff.NA_OFFSET_VISUALIZER_MESH_RATE = NAStuff.NA_OFFSET_VISUALIZER_MESH_RATE or 0.35
 NAStuff.NA_OFFSET_VISUALIZER_PRUNE_RATE = NAStuff.NA_OFFSET_VISUALIZER_PRUNE_RATE or 0.75
@@ -52335,6 +52336,7 @@ do
 	st.Underground = false
 	st.UndergroundBind = false
 	st.UndergroundCurrent = nil
+	st.UndergroundServerCFrame = nil
 	st.UndergroundTransform = nil
 	st.UndergroundMirrorGround = nil
 	st.UndergroundOffsetActive = nil
@@ -52643,6 +52645,7 @@ NAmanage.UG_setClientCFrame = function(root, cf)
 	const st = NAmanage.UG_activeState and NAmanage.UG_activeState() or nil
 	if st then
 		st.UndergroundCurrent = cf
+		st.UndergroundServerCFrame = nil
 		st.PendingTranslation = nil
 		local _, liveRoot, hum = NAmanage.UG_fetchCharPieces()
 		root = root or liveRoot
@@ -52784,6 +52787,7 @@ NAmanage.UG_disable = function(state, message)
 	end
 
 	state.UndergroundCurrent = nil
+	state.UndergroundServerCFrame = nil
 	state.UndergroundTransform = nil
 	state.UndergroundMirrorGround = nil
 	state.UndergroundOffsetActive = nil
@@ -52816,6 +52820,34 @@ NAmanage.UG_disable = function(state, message)
 	end
 end
 
+NAmanage.UG_cframeNear = function(a, b, distance)
+	return typeof(a) == "CFrame" and typeof(b) == "CFrame"
+		and (a.Position - b.Position).Magnitude <= (distance or 0.05)
+end
+
+NAmanage.UG_adoptExternalCFrame = function(st, observed)
+	if type(st) ~= "table" or typeof(observed) ~= "CFrame" then
+		return false
+	end
+	local current = st.UndergroundCurrent
+	if typeof(current) ~= "CFrame" then
+		st.UndergroundCurrent = observed
+		st.UndergroundServerCFrame = nil
+		st.PendingTranslation = nil
+		return true
+	end
+	if NAmanage.UG_cframeNear(observed, st.UndergroundServerCFrame) then
+		return false
+	end
+	if (observed.Position - current.Position).Magnitude < (tonumber(NAStuff.NA_UNDERGROUND_EXTERNAL_TELEPORT_DISTANCE) or 4) then
+		return false
+	end
+	st.UndergroundCurrent = observed
+	st.UndergroundServerCFrame = nil
+	st.PendingTranslation = nil
+	return true
+end
+
 NAmanage.UG_enable = function(state, rootPart)
 	if state.Underground then
 		NAmanage.UG_updateVisualizer(state, rootPart, state.UndergroundCurrent or (rootPart and rootPart.CFrame), true)
@@ -52824,6 +52856,7 @@ NAmanage.UG_enable = function(state, rootPart)
 
 	state.Underground = true
 	state.UndergroundCurrent = rootPart.CFrame
+	state.UndergroundServerCFrame = nil
 	state.PendingTranslation = nil
 
 	const prevHB = state.heartbeatConnection
@@ -52841,7 +52874,13 @@ NAmanage.UG_enable = function(state, rootPart)
 			return
 		end
 
-		local baseCFrame = currentRoot.CFrame
+		local observed = currentRoot.CFrame
+		if not NAmanage.UG_cframeNear(observed, state.UndergroundServerCFrame) then
+			if not NAmanage.UG_adoptExternalCFrame(state, observed) then
+				state.UndergroundCurrent = observed
+			end
+		end
+		local baseCFrame = state.UndergroundCurrent or observed
 		const pendingTranslation = state.PendingTranslation
 		if typeof(pendingTranslation) == "Vector3" and pendingTranslation.Magnitude > 0 then
 			baseCFrame += pendingTranslation
@@ -52856,7 +52895,8 @@ NAmanage.UG_enable = function(state, rootPart)
 		const activeTransform = NAmanage.UG_getTransform(state)
 		const activeOffset = NAmanage.UG_getActiveOffset(state, currentRoot, hum)
 		state.UndergroundResolvedOffset = activeOffset
-		currentRoot.CFrame = (baseCFrame * activeTransform) + activeOffset
+		state.UndergroundServerCFrame = (baseCFrame * activeTransform) + activeOffset
+		currentRoot.CFrame = state.UndergroundServerCFrame
 	end))
 
 	if Services.RunService and Services.RunService.UnbindFromRenderStep then
@@ -52864,9 +52904,15 @@ NAmanage.UG_enable = function(state, rootPart)
 	end
 	state.UndergroundBind = true
 	__lt.cm("RunService", "BindToRenderStep", NAStuff.NA_UNDERGROUND_BIND_NAME, Enum.RenderPriority.First.Value, function()
+		local _, root = NAmanage.UG_fetchCharPieces()
+		if root then
+			local observed = root.CFrame
+			if not NAmanage.UG_cframeNear(observed, state.UndergroundServerCFrame) then
+				NAmanage.UG_adoptExternalCFrame(state, observed)
+			end
+		end
 		const current = state.UndergroundCurrent
 		if state.Underground and current then
-			local _, root = NAmanage.UG_fetchCharPieces()
 			if root then
 				root.CFrame = current
 				NAmanage.UG_updateVisualizer(state, root, current)
