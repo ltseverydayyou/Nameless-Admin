@@ -252,7 +252,6 @@ end
 
 local __NA_SPLIT_FS_LOCK_OWNED = false
 local __NA_SPLIT_FS_LOCK_PATH = nil
-local __NA_SPLIT_FS_LOADED_PATH = nil
 local function __NA_SPLIT_CLAIM_FS_LOCK()
 	if type(isfile) ~= "function" or type(isfolder) ~= "function" or type(makefolder) ~= "function" then
 		return true
@@ -269,10 +268,9 @@ local function __NA_SPLIT_CLAIM_FS_LOCK()
 	local key = (placeId.."_"..jobId):gsub("[^%w_%-]", "_")
 	local stateRoot = "Nameless-Admin/.na-split-runtime"
 	__NA_SPLIT_FS_LOCK_PATH = stateRoot.."/lock-"..key
-	__NA_SPLIT_FS_LOADED_PATH = stateRoot.."/loaded-"..key..".txt"
 	pcall(makefolder, "Nameless-Admin")
 	pcall(makefolder, stateRoot)
-	if isfile(__NA_SPLIT_FS_LOADED_PATH) or isfolder(__NA_SPLIT_FS_LOCK_PATH) then
+	if isfolder(__NA_SPLIT_FS_LOCK_PATH) then
 		return false
 	end
 	local created = pcall(makefolder, __NA_SPLIT_FS_LOCK_PATH)
@@ -291,9 +289,6 @@ if not __NA_SPLIT_CLAIM_FS_LOCK() then
 end
 local function __NA_SPLIT_RELEASE(success)
 	if __NA_SPLIT_FS_LOCK_OWNED then
-		if success and type(writefile) == "function" and __NA_SPLIT_FS_LOADED_PATH then
-			pcall(writefile, __NA_SPLIT_FS_LOADED_PATH, __NA_SPLIT_SOURCE_TAG)
-		end
 		if type(delfolder) == "function" and __NA_SPLIT_FS_LOCK_PATH then
 			pcall(delfolder, __NA_SPLIT_FS_LOCK_PATH)
 		end
