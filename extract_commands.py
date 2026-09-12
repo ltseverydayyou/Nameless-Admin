@@ -1,6 +1,7 @@
 import argparse
 import json
 import re
+from pathlib import Path
 
 
 STRING_RE = re.compile(r'"([^"\\]*(?:\\.[^"\\]*)*)"|\'([^\'\\]*(?:\\.[^\'\\]*)*)\'')
@@ -239,14 +240,20 @@ def parse_engine_settings_commands(filecontent: str):
 
 def main():
 	parser = argparse.ArgumentParser(
-		description="Extract commands from Nameless Admin Source.lua"
+		description="Extract commands from Nameless Admin's source or ordered runtime chunks"
 	)
-	parser.add_argument("--source", default="Source.lua", help="Path to Source.lua")
+	parser.add_argument("--source", default="NA-split/common", help="Source file or chunk directory")
 	parser.add_argument("--output", default="commands.json", help="Output JSON file")
 	args = parser.parse_args()
 
-	with open(args.source, "r", encoding="utf-8") as f:
-		filecontent = f.read()
+	source_path = Path(args.source)
+	if source_path.is_dir():
+		parts = sorted(source_path.glob("part-*.lua"))
+		if not parts:
+			raise SystemExit(f"No part-*.lua files found in {source_path}")
+		filecontent = "\n".join(part.read_text(encoding="utf-8") for part in parts)
+	else:
+		filecontent = source_path.read_text(encoding="utf-8")
 
 	clean = strip_lua_comments(filecontent)
 

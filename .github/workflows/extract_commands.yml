@@ -6,6 +6,8 @@ on:
       - main
     paths:
       - Source.lua
+      - NA-split/common/**
+      - extract_commands.py
 
 permissions:
   contents: write
@@ -24,7 +26,7 @@ jobs:
 
       - name: Run extraction script
         run: |
-          python extract_commands.py --source Source.lua --output commands.json
+          python extract_commands.py --source NA-split/common --output commands.json
 
       - name: Commit and push changes
         uses: EndBug/add-and-commit@v9

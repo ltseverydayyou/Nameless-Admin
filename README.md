@@ -21,6 +21,14 @@ A Roblox admin script with commands, plugins, UI tools, settings, and fixes kept
 
 ## Load
 
+The entrypoints below are intentionally small bootstraps. They load the
+ordered runtime chunks from `NA-split/common/`, so executors do not have to
+compile the former 5 MB monolith as one unit.
+
+The bootstrap checks the remote chunk manifest and refreshes stale local
+chunks automatically when a new version is published; a complete local cache
+is used as an offline fallback.
+
 ```lua
 loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/Source.lua"))()
 ```
