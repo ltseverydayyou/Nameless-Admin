@@ -252,6 +252,20 @@ def find_body(lines: list[str]) -> list[str]:
 
 
 def split_body(body: list[str], target_lines: int = 6000) -> list[list[str]]:
+    for index, line in enumerate(body):
+        if line.strip() != "const function naAlreadyLoaded()":
+            continue
+        end = next(
+            (candidate for candidate in range(index + 1, len(body)) if body[candidate].strip() == "return false"),
+            None,
+        )
+        if end is not None:
+            body[end:end] = [
+                '\tif _na_boot.hostEnv and (_na_boot.hostEnv.ltseverydayyou_NA or _na_boot.hostEnv.NA_LOADED) then',
+                '\t\treturn true',
+                '\tend',
+            ]
+        break
     depths, safe = line_depths(body)
     body = transform_shared_declarations(body, depths)
     # Recalculate line metadata is unnecessary: transformation preserves lines.
@@ -296,6 +310,21 @@ local __NA_SPLIT_CONFIG = {{
 }}
 
 {prefix}
+
+local __NA_SPLIT_LOAD_TOKEN = {{}}
+local __NA_SPLIT_HOST_LOADING = type(__NARootHost) == "table" and rawget(__NARootHost, "__NA_SPLIT_LOADING") or nil
+local __NA_SPLIT_HOST_LOADED = type(__NARootHost) == "table" and (rawget(__NARootHost, "ltseverydayyou_NA") ~= nil or rawget(__NARootHost, "NA_LOADED") ~= nil)
+if __NA_SPLIT_HOST_LOADING ~= nil or __NA_SPLIT_HOST_LOADED then
+	return
+end
+if type(__NARootHost) == "table" then
+	rawset(__NARootHost, "__NA_SPLIT_LOADING", __NA_SPLIT_LOAD_TOKEN)
+end
+local function __NA_SPLIT_CLEAR_LOADING()
+	if type(__NARootHost) == "table" and rawget(__NARootHost, "__NA_SPLIT_LOADING") == __NA_SPLIT_LOAD_TOKEN then
+		rawset(__NARootHost, "__NA_SPLIT_LOADING", nil)
+	end
+end
 
 local __NA_SPLIT_REMOTE_ROOT = rawget(__NARootHost, "__NA_SPLIT_BASE_URL")
 if type(__NA_SPLIT_REMOTE_ROOT) ~= "string" or __NA_SPLIT_REMOTE_ROOT == "" then
@@ -541,8 +570,11 @@ if not __NARootResult[1] and type(__NARootHost) == "table" then
 end
 
 if __NARootResult[1] then
+	__NA_SPLIT_CLEAR_LOADING()
 	return table.unpack(__NARootResult, 2, __NARootResult.n)
 end
+
+__NA_SPLIT_CLEAR_LOADING()
 '''
 
 

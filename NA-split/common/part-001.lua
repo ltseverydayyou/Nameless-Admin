@@ -87,6 +87,9 @@ function naAlreadyLoaded()
 	if _na_shared and (_na_shared.ltseverydayyou_NA or _na_shared.NA_LOADED) then
 		return true
 	end
+	if _na_boot.hostEnv and (_na_boot.hostEnv.ltseverydayyou_NA or _na_boot.hostEnv.NA_LOADED) then
+		return true
+	end
 	return false
 end
 

@@ -216,6 +216,21 @@ if type(__NARootHost) == "table" then
 end
 
 
+local __NA_SPLIT_LOAD_TOKEN = {}
+local __NA_SPLIT_HOST_LOADING = type(__NARootHost) == "table" and rawget(__NARootHost, "__NA_SPLIT_LOADING") or nil
+local __NA_SPLIT_HOST_LOADED = type(__NARootHost) == "table" and (rawget(__NARootHost, "ltseverydayyou_NA") ~= nil or rawget(__NARootHost, "NA_LOADED") ~= nil)
+if __NA_SPLIT_HOST_LOADING ~= nil or __NA_SPLIT_HOST_LOADED then
+	return
+end
+if type(__NARootHost) == "table" then
+	rawset(__NARootHost, "__NA_SPLIT_LOADING", __NA_SPLIT_LOAD_TOKEN)
+end
+local function __NA_SPLIT_CLEAR_LOADING()
+	if type(__NARootHost) == "table" and rawget(__NARootHost, "__NA_SPLIT_LOADING") == __NA_SPLIT_LOAD_TOKEN then
+		rawset(__NARootHost, "__NA_SPLIT_LOADING", nil)
+	end
+end
+
 local __NA_SPLIT_REMOTE_ROOT = rawget(__NARootHost, "__NA_SPLIT_BASE_URL")
 if type(__NA_SPLIT_REMOTE_ROOT) ~= "string" or __NA_SPLIT_REMOTE_ROOT == "" then
 	__NA_SPLIT_REMOTE_ROOT = "https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NA-split/common/"
@@ -460,5 +475,8 @@ if not __NARootResult[1] and type(__NARootHost) == "table" then
 end
 
 if __NARootResult[1] then
+	__NA_SPLIT_CLEAR_LOADING()
 	return table.unpack(__NARootResult, 2, __NARootResult.n)
 end
+
+__NA_SPLIT_CLEAR_LOADING()
