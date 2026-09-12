@@ -224,6 +224,9 @@ if __NA_SPLIT_HOST_LOADING ~= nil or __NA_SPLIT_HOST_LOADED then
 end
 if type(__NARootHost) == "table" then
 	rawset(__NARootHost, "__NA_SPLIT_LOADING", __NA_SPLIT_LOAD_TOKEN)
+	if rawget(__NARootHost, "__NA_SPLIT_LOADING") ~= __NA_SPLIT_LOAD_TOKEN then
+		return
+	end
 end
 local function __NA_SPLIT_CLEAR_LOADING()
 	if type(__NARootHost) == "table" and rawget(__NARootHost, "__NA_SPLIT_LOADING") == __NA_SPLIT_LOAD_TOKEN then
