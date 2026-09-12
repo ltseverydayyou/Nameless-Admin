@@ -6188,6 +6188,30 @@
       "desc": "Mutes sounds from a player or NPC"
     },
     {
+      "name": "offsetwalk",
+      "aliases": [
+        "offsetwalk",
+        "owalk",
+        "offsetspeed",
+        "ospeed"
+      ],
+      "usage": "offsetwalk <number|off> (owalk,offsetspeed,ospeed)",
+      "args": "<number|off>",
+      "desc": "moves the character by teleporting it a set number of studs every frame"
+    },
+    {
+      "name": "unoffsetwalk",
+      "aliases": [
+        "unoffsetwalk",
+        "unowalk",
+        "unoffsetspeed",
+        "unospeed"
+      ],
+      "usage": "unoffsetwalk (unowalk,unoffsetspeed,unospeed)",
+      "args": "",
+      "desc": "Stops Offset Walk"
+    },
+    {
       "name": "tpwalk",
       "aliases": [
         "tpwalk",
