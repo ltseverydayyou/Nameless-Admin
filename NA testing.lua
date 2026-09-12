@@ -30899,6 +30899,7 @@ NAmanage.Unload = function(opts)
 	invoke("SideSwipe_Destroy")
 	invoke("ClickTouchStop")
 	invoke("WaypointPathLoopStop", true)
+	invoke("StopOffsetWalk", true)
 	invoke("WaypointPathStop", true)
 	invoke("WaypointPathDestroy", true)
 	invoke("WaypointESPDestroy", true)
@@ -85452,6 +85453,13 @@ _na_env.NamelessSpeed = nil
 NAStuff.loopws = false
 
 NAmanage.GetVelocityWalkSpeedValue = function()
+	const offsetState = NAStuff.OffsetWalkState
+	if type(offsetState) == "table" and offsetState.active == true then
+		const offsetSpeed = tonumber(offsetState.speed)
+		if offsetSpeed and offsetSpeed > 0 then
+			return offsetSpeed
+		end
+	end
 	return tonumber(_na_env.NamelessSpeed)
 end
 
@@ -85975,13 +85983,32 @@ end
 NAmanage.SyncSpeedMethodState = function()
 	NAmanage.StopVelocityWalkSpeed()
 	NAmanage.StopLegacyLoopWalkSpeed()
+	const offsetState = NAStuff.OffsetWalkState
+	const offsetActive = type(offsetState) == "table" and offsetState.active == true and tonumber(offsetState.speed) and tonumber(offsetState.speed) > 0
 	if NAStuff.SafeSpeedMethod ~= false then
 		if NAStuff.loopws and tonumber(_na_env.NamelessWs) then
 			_na_env.NamelessSpeed = tonumber(_na_env.NamelessWs)
 		end
 		NAStuff.loopws = false
 		_na_env.NamelessWs = nil
+		if offsetActive then
+			const hum = getHum()
+			if hum and tonumber(offsetState.originalWalkSpeed) then
+				pcall(function()
+					hum.WalkSpeed = offsetState.originalWalkSpeed
+				end)
+			end
+		end
 		NAmanage.RefreshVelocityWalkSpeed()
+		return
+	end
+	if offsetActive then
+		const hum = getHum()
+		if hum then
+			pcall(function()
+				hum.WalkSpeed = tonumber(offsetState.speed)
+			end)
+		end
 		return
 	end
 	if NAStuff.loopws and tonumber(_na_env.NamelessWs) then
@@ -89425,9 +89452,252 @@ cmd.add({"mute", "muteboombox"}, {"mute <player|npc:filter> (muteboombox)", "Mut
 	end
 end, true)
 
+NAmanage.GetOffsetWalkState = function()
+	if type(NAStuff.OffsetWalkState) ~= "table" then
+		NAStuff.OffsetWalkState = {}
+	end
+	const state = NAStuff.OffsetWalkState
+	state.interval = math.max(0.01, tonumber(state.interval) or 0.1)
+	state.bindName = tostring(state.bindName or "NA_OffsetWalkReplication")
+	state.externalTeleportDistance = math.max(0.5, tonumber(state.externalTeleportDistance) or 4)
+	return state
+end
+
+NAmanage.OffsetWalkCFrameNear = function(a, b, distance)
+	return typeof(a) == "CFrame" and typeof(b) == "CFrame"
+		and (a.Position - b.Position).Magnitude <= (distance or 0.05)
+end
+
+NAmanage.OffsetWalkAdoptExternalCFrame = function(root, observed)
+	const state = NAmanage.GetOffsetWalkState()
+	if not root or typeof(observed) ~= "CFrame" then
+		return false
+	end
+	if typeof(state.localCFrame) ~= "CFrame" then
+		state.localCFrame = observed
+		state.serverCFrame = observed
+		state.lastBurst = os.clock()
+		return true
+	end
+	if NAmanage.OffsetWalkCFrameNear(observed, state.serverCFrame) then
+		return false
+	end
+	const dynamicDistance = math.max(state.externalTeleportDistance, (tonumber(state.speed) or 16) * 0.04)
+	if (observed.Position - state.localCFrame.Position).Magnitude < dynamicDistance then
+		return false
+	end
+	state.localCFrame = observed
+	state.serverCFrame = observed
+	state.lastBurst = os.clock()
+	state.lastWriteCFrame = observed
+	return true
+end
+
+NAmanage.OffsetWalkRestoreDirectSpeed = function(state, hum)
+	state = type(state) == "table" and state or NAmanage.GetOffsetWalkState()
+	hum = hum or getHum()
+	if not hum then
+		return
+	end
+	local restore = nil
+	if NAStuff.SafeSpeedMethod == false then
+		if NAStuff.loopws and tonumber(_na_env.NamelessWs) then
+			restore = tonumber(_na_env.NamelessWs)
+		elseif tonumber(_na_env.NamelessSpeed) then
+			restore = tonumber(_na_env.NamelessSpeed)
+		end
+	end
+	restore = restore or tonumber(state.originalWalkSpeed)
+	if restore then
+		pcall(function()
+			hum.WalkSpeed = restore
+		end)
+	end
+end
+
+NAmanage.StopOffsetWalk = function(silent)
+	const state = NAmanage.GetOffsetWalkState()
+	const localCFrame = state.localCFrame
+	state.active = false
+	NAlib.disconnect("na_offsetwalk_heartbeat")
+	if Services.RunService and Services.RunService.UnbindFromRenderStep then
+		pcall(Services.RunService.UnbindFromRenderStep, Services.RunService, state.bindName)
+	end
+	const root = getRoot(getChar())
+	if root and typeof(localCFrame) == "CFrame" then
+		pcall(function()
+			root.CFrame = localCFrame
+		end)
+	end
+	const hum = getHum()
+	NAmanage.OffsetWalkRestoreDirectSpeed(state, hum)
+	state.root = nil
+	state.humanoid = nil
+	state.originalWalkSpeed = nil
+	state.localCFrame = nil
+	state.serverCFrame = nil
+	state.lastBurst = nil
+	state.lastWriteCFrame = nil
+	state.speed = nil
+	if NAStuff._unloading ~= true then
+		if NAStuff.SafeSpeedMethod ~= false then
+			NAmanage.StopVelocityWalkSpeed()
+			if tonumber(_na_env.NamelessSpeed) and tonumber(_na_env.NamelessSpeed) > 0 then
+				NAmanage.RefreshVelocityWalkSpeed()
+			end
+		elseif NAStuff.loopws and tonumber(_na_env.NamelessWs) then
+			NAmanage.StartLegacyLoopWalkSpeed(tonumber(_na_env.NamelessWs))
+		end
+	else
+		NAmanage.StopVelocityWalkSpeed()
+		NAmanage.StopLegacyLoopWalkSpeed()
+	end
+	if not silent then
+		DoNotif("Offset Walk disabled", 2)
+	end
+end
+
+NAmanage.StartOffsetWalk = function(value)
+	const speed = tonumber(value)
+	if not speed or speed <= 0 then
+		NAmanage.StopOffsetWalk(true)
+		return false
+	end
+	const char = getChar()
+	const hum = getHum(char)
+	const root = getRoot(char)
+	if not (char and hum and root) then
+		return false
+	end
+	if TPWalk then
+		TPWalk = false
+		NAlib.disconnect("TPWalkingConnection")
+	end
+	const state = NAmanage.GetOffsetWalkState()
+	if state.active ~= true or state.root ~= root then
+		state.originalWalkSpeed = tonumber(hum.WalkSpeed)
+	end
+	state.active = true
+	state.speed = speed
+	state.root = root
+	state.humanoid = hum
+	state.localCFrame = root.CFrame
+	state.serverCFrame = root.CFrame
+	state.lastBurst = os.clock()
+	state.lastWriteCFrame = root.CFrame
+	NAmanage.StopLegacyLoopWalkSpeed()
+	if NAStuff.SafeSpeedMethod ~= false then
+		NAmanage.RefreshVelocityWalkSpeed()
+	else
+		NAmanage.StopVelocityWalkSpeed()
+		hum.WalkSpeed = speed
+	end
+	NAlib.disconnect("na_offsetwalk_heartbeat")
+	if Services.RunService and Services.RunService.UnbindFromRenderStep then
+		pcall(Services.RunService.UnbindFromRenderStep, Services.RunService, state.bindName)
+	end
+	NAlib.connect("na_offsetwalk_heartbeat", Services.RunService.Heartbeat:Connect(function()
+		if state.active ~= true then
+			return
+		end
+		const currentChar = getChar()
+		const currentHum = getHum(currentChar)
+		const currentRoot = getRoot(currentChar)
+		if not (currentChar and currentHum and currentRoot) then
+			return
+		end
+		if state.root ~= currentRoot then
+			state.root = currentRoot
+			state.humanoid = currentHum
+			state.originalWalkSpeed = tonumber(currentHum.WalkSpeed)
+			state.localCFrame = currentRoot.CFrame
+			state.serverCFrame = currentRoot.CFrame
+			state.lastBurst = os.clock()
+			state.lastWriteCFrame = currentRoot.CFrame
+		end
+		if NAStuff.SafeSpeedMethod ~= false then
+			if not NAlib.isConnected("na_velocityws_apply") then
+				NAmanage.RefreshVelocityWalkSpeed()
+			end
+		else
+			if currentHum.WalkSpeed ~= state.speed then
+				currentHum.WalkSpeed = state.speed
+			end
+		end
+		const observed = currentRoot.CFrame
+		if not NAmanage.OffsetWalkCFrameNear(observed, state.serverCFrame) then
+			NAmanage.OffsetWalkAdoptExternalCFrame(currentRoot, observed)
+		end
+		if not NAmanage.OffsetWalkCFrameNear(observed, state.serverCFrame) then
+			state.localCFrame = observed
+		end
+		const now = os.clock()
+		if now - (tonumber(state.lastBurst) or 0) >= state.interval then
+			state.serverCFrame = state.localCFrame or observed
+			state.lastBurst = now
+		end
+		const serverCFrame = state.serverCFrame or observed
+		state.lastWriteCFrame = serverCFrame
+		pcall(function()
+			currentRoot.CFrame = serverCFrame
+		end)
+	end))
+	if Services.RunService and Services.RunService.BindToRenderStep then
+		Services.RunService:BindToRenderStep(state.bindName, Enum.RenderPriority.First.Value, function()
+			if state.active ~= true then
+				return
+			end
+			const currentRoot = getRoot(getChar())
+			if not currentRoot then
+				return
+			end
+			const observed = currentRoot.CFrame
+			if not NAmanage.OffsetWalkCFrameNear(observed, state.serverCFrame) then
+				NAmanage.OffsetWalkAdoptExternalCFrame(currentRoot, observed)
+			end
+			const localCFrame = state.localCFrame or observed
+			state.localCFrame = localCFrame
+			pcall(function()
+				currentRoot.CFrame = localCFrame
+			end)
+		end)
+	end
+	return true
+end
+
+cmd.add({"offsetwalk", "owalk", "offsetspeed", "ospeed"}, {"offsetwalk <number|off> (owalk,offsetspeed,ospeed)", "moves the character by teleporting it a set number of studs every frame"}, function(...)
+	const args = {...}
+	const value = args[2] or args[1]
+	const text = string.lower(tostring(value or "16"))
+	if text == "off" or text == "disable" or text == "disabled" or text == "reset" then
+		NAmanage.StopOffsetWalk(true)
+		DoNotif("Offset Walk disabled", 2)
+		return
+	end
+	const speed = tonumber(value) or 16
+	if speed <= 0 then
+		NAmanage.StopOffsetWalk(true)
+		DoNotif("Offset Walk disabled", 2)
+		return
+	end
+	if NAmanage.StartOffsetWalk(speed) then
+		DoNotif("Offset Walk: "..tostring(speed).." ("..(NAStuff.SafeSpeedMethod ~= false and "Safe Speed" or "WalkSpeed")..")", 2)
+	else
+		DoNotif("Offset Walk failed: character is not ready", 3)
+	end
+end, true)
+
+cmd.add({"unoffsetwalk", "unowalk", "unoffsetspeed", "unospeed"}, {"unoffsetwalk (unowalk,unoffsetspeed,unospeed)", "Stops Offset Walk"}, function()
+	NAmanage.StopOffsetWalk(true)
+	DoNotif("Offset Walk disabled", 2)
+end)
+
 TPWalk = false
 
 cmd.add({"tpwalk", "tpwalk"}, {"tpwalk <number>", "More undetectable walkspeed script"}, function(...)
+	if type(NAmanage.StopOffsetWalk) == "function" then
+		NAmanage.StopOffsetWalk(true)
+	end
 	if TPWalk then
 		TPWalk = false
 		NAlib.disconnect("TPWalkingConnection")
