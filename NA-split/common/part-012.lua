@@ -1828,9 +1828,6 @@ cmd.add({"telekinesis"},{"telekinesis","tool that controls unanchored parts (dep
 	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/Telekinesis.luau", true, "@Telekinesis.luau")
 end)
 
-cmd.add({"harked","comet"},{"harked (comet)","Executes Comet which is like harked"},function()
-	NAmanage.RunURL("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/comet");
-end)
 
 cmd.add({"triggerbot", "tbot"}, {"triggerbot (tbot)", "Executes a script that automatically clicks the mouse when the mouse is on a player"}, function()
 	NAStuff = NAStuff or {}

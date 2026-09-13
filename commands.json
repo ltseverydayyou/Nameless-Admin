@@ -2754,16 +2754,6 @@
       "desc": "tool that controls unanchored parts (depending if you have ownership of that part)"
     },
     {
-      "name": "harked",
-      "aliases": [
-        "harked",
-        "comet"
-      ],
-      "usage": "harked (comet)",
-      "args": "",
-      "desc": "Executes Comet which is like harked"
-    },
-    {
       "name": "triggerbot",
       "aliases": [
         "triggerbot",
