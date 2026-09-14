@@ -8041,16 +8041,6 @@
       "desc": ""
     },
     {
-      "name": "modelesp",
-      "aliases": [
-        "modelesp",
-        "mesp"
-      ],
-      "usage": "",
-      "args": "",
-      "desc": ""
-    },
-    {
       "name": "unfolderesp",
       "aliases": [
         "unfolderesp",
@@ -8059,16 +8049,6 @@
       "usage": "unfolderesp [folderName]",
       "args": "[folderName]",
       "desc": "Disables folder ESP for a folder or all"
-    },
-    {
-      "name": "unmodelesp",
-      "aliases": [
-        "unmodelesp",
-        "unmesp"
-      ],
-      "usage": "unmodelesp [modelName]",
-      "args": "[modelName]",
-      "desc": "Disables model ESP for a model or all"
     },
     {
       "name": "viewpart",
@@ -9539,6 +9519,148 @@
       "usage": "unmodelesp [modelName]",
       "args": "[modelName]",
       "desc": "Disables model ESP for matching model(s) or all"
+    },
+    {
+      "name": "spooftransform",
+      "aliases": [
+        "spooftransform",
+        "stf"
+      ],
+      "usage": "spooftransform [x y z pitch yaw roll]",
+      "args": "[x y z pitch yaw roll]",
+      "desc": "Spoofs replicated character position/rotation while restoring the local render transform"
+    },
+    {
+      "name": "unspooftransform",
+      "aliases": [
+        "unspooftransform",
+        "unstf"
+      ],
+      "usage": "unspooftransform",
+      "args": "",
+      "desc": "Disables character transform spoofing"
+    },
+    {
+      "name": "spoofwalk",
+      "aliases": [
+        "spoofwalk",
+        "swalk"
+      ],
+      "usage": "spoofwalk [realSpeed maskedSpeed]",
+      "args": "[realSpeed maskedSpeed]",
+      "desc": "Uses one WalkSpeed for local simulation while exposing another around replication"
+    },
+    {
+      "name": "unspoofwalk",
+      "aliases": [
+        "unspoofwalk",
+        "unswalk"
+      ],
+      "usage": "unspoofwalk",
+      "args": "",
+      "desc": "Disables WalkSpeed masking and restores the original value"
+    },
+    {
+      "name": "spoofvelocity",
+      "aliases": [
+        "spoofvelocity",
+        "svel"
+      ],
+      "usage": "spoofvelocity [linX linY linZ angX angY angZ]",
+      "args": "[linX linY linZ angX angY angZ]",
+      "desc": "Preserves local simulation velocity while exposing masked linear/angular assembly velocity"
+    },
+    {
+      "name": "unspoofvelocity",
+      "aliases": [
+        "unspoofvelocity",
+        "unsvel"
+      ],
+      "usage": "unspoofvelocity",
+      "args": "",
+      "desc": "Disables linear/angular velocity spoofing"
+    },
+    {
+      "name": "spoofpart",
+      "aliases": [
+        "spoofpart",
+        "spart",
+        "spoofvehicle"
+      ],
+      "usage": "spoofpart [x y z pitch yaw roll]",
+      "args": "[x y z pitch yaw roll]",
+      "desc": "Spoofs the unanchored assembly under your cursor while restoring it locally"
+    },
+    {
+      "name": "unspoofpart",
+      "aliases": [
+        "unspoofpart",
+        "unspart",
+        "unspoofvehicle"
+      ],
+      "usage": "unspoofpart",
+      "args": "",
+      "desc": "Disables the current part/vehicle transform spoof"
+    },
+    {
+      "name": "posesplit",
+      "aliases": [
+        "posesplit",
+        "spose"
+      ],
+      "usage": "posesplit",
+      "args": "",
+      "desc": "Freezes the locally rendered Motor6D pose while animation tracks continue"
+    },
+    {
+      "name": "unposesplit",
+      "aliases": [
+        "unposesplit",
+        "unspose"
+      ],
+      "usage": "unposesplit",
+      "args": "",
+      "desc": "Disables the local pose split"
+    },
+    {
+      "name": "humspoof",
+      "aliases": [
+        "humspoof",
+        "shum"
+      ],
+      "usage": "humspoof [property realValue maskValue]",
+      "args": "[property realValue maskValue]",
+      "desc": "Masks selected Humanoid physics properties between simulation and replication"
+    },
+    {
+      "name": "unhumspoof",
+      "aliases": [
+        "unhumspoof",
+        "unshum"
+      ],
+      "usage": "unhumspoof [property|all]",
+      "args": "[property|all]",
+      "desc": "Disables one Humanoid property mask or all masks"
+    },
+    {
+      "name": "spoofstatus",
+      "aliases": [
+        "spoofstatus",
+        "sstatus"
+      ],
+      "usage": "spoofstatus",
+      "args": "",
+      "desc": "Shows currently enabled spoof features"
+    },
+    {
+      "name": "unloadspoofs",
+      "aliases": [
+        "unloadspoofs",
+        "unspoofall"
+      ],
+      "usage": "unloadspoofs",
+      "args": "",
+      "desc": "Stops every spoof feature and restores saved state"
     },
     {
       "name": "renderstreamedregions",
