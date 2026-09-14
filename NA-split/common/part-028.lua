@@ -122,3 +122,216 @@ NAmanage._ensureMobileFlyUI=function(mode)
 		end
 	end))
 end
+
+local _modelESPPreviousSkipAutoSuffix = cmds._skipAutoSuffix
+cmds._skipAutoSuffix = true
+
+cmd.add({"modelesp","mesp"},{"modelesp {modelName}","Highlights matching models"},function(...)
+	const rawInput = Concat({...}, " ")
+	const name = Lower(rawInput)
+	if name == "" then
+		return
+	end
+	if NAStuff.modelSearchToken then
+		NAmanage.CancelTokenCancel(NAStuff.modelSearchToken)
+	end
+	const searchToken = NAmanage.NewCancelToken()
+	NAStuff.modelSearchToken = searchToken
+
+	SpawnCall(function()
+		const exactMatches = {}
+		const matches = {}
+		NAmanage.ForEachWorkspaceYield(function(obj)
+			if searchToken.cancelled then
+				return
+			end
+			if obj and obj:IsA("Model") then
+				const lowered = Lower(obj.Name)
+				if lowered == name then
+					Insert(exactMatches, obj)
+				elseif Find(lowered, name, 1, true) then
+					Insert(matches, obj)
+				end
+			end
+		end, {
+			yieldEvery = tonumber(NAStuff.ESP_ScanBatchSize) or 160,
+			delayTime = tonumber(NAStuff.ESP_ScanDelay) or 0,
+			cancelToken = searchToken,
+		})
+
+		if searchToken.cancelled then
+			return
+		end
+		if NAStuff.modelSearchToken == searchToken then
+			NAStuff.modelSearchToken = nil
+		end
+
+		if #exactMatches > 0 then
+			for _, model in exactMatches do
+				if model and model:IsA("Model") then
+					NAmanage.ModelESP_Enable(model)
+				end
+			end
+			return
+		end
+
+		if #matches == 0 then
+			DoNotif(Format("No models found containing '%s'.", rawInput), 3)
+			return
+		end
+
+		originalIO.espSortNameMatches(matches, name)
+		const buttons = {}
+		if #matches > 1 then
+			Insert(buttons, {
+				Text = "All Matches",
+				Callback = function()
+					for _, model in matches do
+						if model and model:IsA("Model") then
+							NAmanage.ModelESP_Enable(model)
+						end
+					end
+				end
+			})
+		end
+		for _, model in matches do
+			const modelRef = model
+			Insert(buttons, {
+				Text = originalIO.espDisplayName(modelRef),
+				Callback = function()
+					if modelRef and modelRef:IsA("Model") then
+						NAmanage.ModelESP_Enable(modelRef)
+					end
+				end
+			})
+		end
+
+		Window({
+			Title = "Model ESP",
+			Description = "Select model(s) to highlight. Toggle multi-select in the header to pick several.",
+			Buttons = buttons
+		})
+	end)
+end,true)
+
+cmd.add({"unmodelesp","unmesp"},{"unmodelesp [modelName]","Disables model ESP for matching model(s) or all"},function(...)
+	const models = NAStuff.modelESPModels
+	if type(models) ~= "table" or #models == 0 then
+		DoNotif("No model ESP entries are active.", 2)
+		return
+	end
+
+	const function detachModel(model)
+		if typeof(model) ~= "Instance" then
+			return false
+		end
+		return NAmanage.ModelESP_Disable(model)
+	end
+
+	const function collectTrackedModels()
+		const tracked = {}
+		for i = #models, 1, -1 do
+			const model = models[i]
+			if typeof(model) == "Instance" and model:IsA("Model") and model.Parent and model:FindFirstChildWhichIsA("BasePart", true) then
+				tracked[#tracked + 1] = model
+			else
+				NAmanage.ModelESP_Disable(model)
+			end
+		end
+		table.sort(tracked, function(a, b)
+			return Lower(a.Name) < Lower(b.Name)
+		end)
+		return tracked
+	end
+
+	const function removeAllModels()
+		const tracked = collectTrackedModels()
+		local removed = 0
+		for _, model in tracked do
+			if detachModel(model) then
+				removed += 1
+			end
+		end
+		if removed > 0 then
+			DoNotif(Format("Stopped model ESP for %d model(s).", removed), 2)
+		else
+			DoNotif("No model ESP entries were active.", 2)
+		end
+	end
+
+	const trackedModels = collectTrackedModels()
+	local rawInput = Concat({...}, " ")
+	rawInput = (type(rawInput) == "string") and rawInput:gsub("^%s+", ""):gsub("%s+$", "") or ""
+	const loweredInput = Lower(rawInput)
+
+	if loweredInput ~= "" then
+		if loweredInput == "all" or loweredInput == "*" then
+			removeAllModels()
+			return
+		end
+
+		const exactModels = {}
+		for _, model in trackedModels do
+			if Lower(model.Name) == loweredInput then
+				exactModels[#exactModels + 1] = model
+			end
+		end
+		if #exactModels > 0 then
+			local removed = 0
+			for _, model in exactModels do
+				if detachModel(model) then
+					removed += 1
+				end
+			end
+			DoNotif(Format("Stopped model ESP for %d model(s) named '%s'.", removed, rawInput), 2)
+			return
+		end
+
+		local picked = nil
+		for _, model in trackedModels do
+			if Find(Lower(model.Name), loweredInput, 1, true) then
+				picked = model
+				break
+			end
+		end
+		if picked and detachModel(picked) then
+			DoNotif(Format("Stopped model ESP for '%s'.", picked.Name), 2)
+		else
+			DoNotif(Format("No model ESP entry matching '%s'.", rawInput ~= "" and rawInput or loweredInput), 3)
+		end
+		return
+	end
+
+	if #trackedModels == 0 then
+		DoNotif("No model ESP entries are active.", 2)
+		return
+	end
+
+	const buttons = {
+		{
+			Text = "All",
+			Callback = removeAllModels
+		}
+	}
+	for _, model in trackedModels do
+		const modelRef = model
+		buttons[#buttons + 1] = {
+			Text = originalIO.espDisplayName(modelRef),
+			Callback = function()
+				if detachModel(modelRef) then
+					DoNotif(Format("Stopped model ESP for '%s'.", modelRef.Name), 2)
+				else
+					DoNotif("Model ESP entry was not active.", 2)
+				end
+			end
+		}
+	end
+
+	Window({
+		Title = "Model ESP",
+		Description = "Select a model ESP entry to disable.",
+		Buttons = buttons
+	})
+end,true)
+
+cmds._skipAutoSuffix = _modelESPPreviousSkipAutoSuffix
