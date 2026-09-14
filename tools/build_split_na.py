@@ -284,24 +284,51 @@ def split_body(body: list[str], target_lines: int = 6000) -> list[list[str]]:
     return chunks
 
 
+def _git_blob_sha(data: bytes) -> str:
+    header = f"blob {len(data)}\0".encode("ascii")
+    return hashlib.sha1(header + data).hexdigest()
+
+
 def write_chunks(chunks: list[list[str]]) -> None:
+    previous_manifest = (COMMON / "manifest.lua").read_text(encoding="utf-8") if (COMMON / "manifest.lua").exists() else ""
+    loader_version_match = re.search(r'loader_version\s*=\s*"([^"]+)"', previous_manifest)
+    loader_version = loader_version_match.group(1) if loader_version_match else None
+    cache_loader_start = previous_manifest.find("local function cacheLoader()")
+    cache_loader_suffix = previous_manifest[cache_loader_start:] if cache_loader_start >= 0 else ""
+
     if COMMON.exists():
         shutil.rmtree(COMMON)
     COMMON.mkdir(parents=True)
     digest = hashlib.sha256()
+    fingerprints: dict[str, str] = {}
     for index, chunk in enumerate(chunks, start=1):
-        path = COMMON / f"part-{index:03d}.lua"
+        part_name = f"part-{index:03d}.lua"
+        path = COMMON / part_name
         data = ("\n".join(chunk).rstrip() + "\n").encode("utf-8")
         path.write_bytes(data)
-        digest.update(f"part-{index:03d}.lua\0".encode("utf-8"))
+        digest.update(f"{part_name}\0".encode("utf-8"))
         digest.update(data)
+        fingerprints[part_name] = _git_blob_sha(data)
     version = digest.hexdigest()[:16]
-    (COMMON / "manifest.lua").write_text(
-        "return { version = \"%s\"; count = %d; directory = \"common\"; }\n"
-        % (version, len(chunks)),
-        encoding="utf-8",
-    )
 
+    manifest = [
+        "local meta = {",
+        f'\tversion = "{version}";',
+        f"\tcount = {len(chunks)};",
+        '\tdirectory = "common";',
+    ]
+    if loader_version:
+        manifest.append(f'\tloader_version = "{loader_version}";')
+    manifest.append("\tparts = {")
+    for part_name, fingerprint in fingerprints.items():
+        manifest.append(f'\t\t["{part_name}"] = "{fingerprint}";')
+    manifest.extend(["\t};", "}", ""])
+    if cache_loader_suffix:
+        manifest.append(cache_loader_suffix.rstrip())
+    else:
+        manifest.append("return meta")
+    manifest.append("")
+    (COMMON / "manifest.lua").write_text("\n".join(manifest), encoding="utf-8", newline="\n")
 
 BOOT_LOADER = r'''local __NA_SPLIT_SOURCE_TAG = "{source_tag}"
 local __NA_SPLIT_CONFIG = {{
@@ -494,33 +521,58 @@ local __NA_SPLIT_REMOTE_META = __NA_SPLIT_LOAD_MANIFEST(__NA_SPLIT_REMOTE_MANIFE
 if __NA_SPLIT_REMOTE_META and type(__NA_SPLIT_REMOTE_META.version) == "string" and __NA_SPLIT_REMOTE_META.version ~= "" then
 	__NA_SPLIT_REMOTE_QUERY = "?na_build="..__NA_SPLIT_REMOTE_META.version
 end
-local __NA_SPLIT_USE_REMOTE = __NA_SPLIT_REMOTE_META ~= nil
+local __NA_SPLIT_REMOTE_CHANGED = __NA_SPLIT_REMOTE_META ~= nil
 	and (__NA_SPLIT_LOCAL_META == nil or __NA_SPLIT_REMOTE_META.version ~= __NA_SPLIT_LOCAL_META.version)
 local __NA_SPLIT_COUNT = math.max(0, math.floor(tonumber(
-	(__NA_SPLIT_USE_REMOTE and __NA_SPLIT_REMOTE_META and __NA_SPLIT_REMOTE_META.count)
+	(__NA_SPLIT_REMOTE_META and __NA_SPLIT_REMOTE_META.count)
 		or (__NA_SPLIT_LOCAL_META and __NA_SPLIT_LOCAL_META.count)
 		or {chunk_count}
 ) or 0))
 local __NA_SPLIT_CACHE_ROOT = __NA_SPLIT_LOCAL_ROOT or __NA_SPLIT_LOCAL_ROOTS[1]
 local __NA_SPLIT_PENDING_CACHE = {{}}
+local __NA_SPLIT_CACHE_MANIFEST = __NA_SPLIT_REMOTE_META ~= nil and (
+	__NA_SPLIT_LOCAL_META == nil
+	or __NA_SPLIT_REMOTE_CHANGED
+	or type(__NA_SPLIT_LOCAL_META.parts) ~= "table"
+	or __NA_SPLIT_LOCAL_META.loader_version ~= __NA_SPLIT_REMOTE_META.loader_version
+)
+
+local function __NA_SPLIT_PART_FINGERPRINT(meta, partName)
+	local parts = type(meta) == "table" and meta.parts or nil
+	local fingerprint = type(parts) == "table" and parts[partName] or nil
+	return type(fingerprint) == "string" and fingerprint ~= "" and fingerprint or nil
+end
 
 local function __NA_SPLIT_READ_PART(partName)
-	if not __NA_SPLIT_USE_REMOTE and __NA_SPLIT_LOCAL_ROOT then
-		return __NA_SPLIT_READ_LOCAL(__NA_SPLIT_LOCAL_ROOT, partName)
+	local localSource = __NA_SPLIT_LOCAL_ROOT and __NA_SPLIT_READ_LOCAL(__NA_SPLIT_LOCAL_ROOT, partName) or nil
+	if not __NA_SPLIT_REMOTE_META then
+		if localSource then
+			return localSource
+		end
+		error("Nameless Admin chunk unavailable: "..partName, 0)
 	end
+
+	if localSource then
+		local remoteFingerprint = __NA_SPLIT_PART_FINGERPRINT(__NA_SPLIT_REMOTE_META, partName)
+		local localFingerprint = __NA_SPLIT_PART_FINGERPRINT(__NA_SPLIT_LOCAL_META, partName)
+		if remoteFingerprint and localFingerprint and remoteFingerprint == localFingerprint then
+			return localSource
+		end
+		if not __NA_SPLIT_REMOTE_CHANGED and not localFingerprint then
+			return localSource
+		end
+	end
+
 	local remote = __NA_SPLIT_READ_REMOTE(partName)
 	if remote then
 		__NA_SPLIT_PENDING_CACHE[partName] = remote
 		return remote
 	end
-	if __NA_SPLIT_LOCAL_ROOT and not __NA_SPLIT_REMOTE_META then
-		return __NA_SPLIT_READ_LOCAL(__NA_SPLIT_LOCAL_ROOT, partName)
-	end
 	error("Nameless Admin chunk unavailable: "..partName, 0)
 end
 
 local function __NA_SPLIT_CACHE_REMOTE()
-	if not __NA_SPLIT_USE_REMOTE or not __NA_SPLIT_REMOTE_MANIFEST_SOURCE or type(writefile) ~= "function" then
+	if not __NA_SPLIT_CACHE_MANIFEST or not __NA_SPLIT_REMOTE_MANIFEST_SOURCE or type(writefile) ~= "function" then
 		return
 	end
 	if type(makefolder) == "function" then
