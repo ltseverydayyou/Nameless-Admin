@@ -6,17 +6,22 @@ same private environment.
 
 On each run the bootstrap checks the small remote `manifest.lua`. If its build
 version differs from the local manifest, the new chunks are downloaded and
-written to the local cache after a successful load. If the network is down, a
-complete local cache continues to work.
+written to the local cache after a successful load. The remote manifest also
+keeps a validated local copy of whichever loader is being used, so the last
+working `Source.lua` / `NA testing.lua` can be used when GitHub is unavailable.
 
-The bootstrap checks these local paths first:
+The bootstrap checks these local chunk paths first:
 
 - `NA-split/common/`
 - `Nameless-Admin/NA-split/common/`
 - `Nameless Admin/NA-split/common/`
 
+The matching loader is cached one directory above `common/`, for example
+`NA-split/Source.lua` or `NA-split/NA testing.lua`. The loader cache has its own
+version marker, so it does not need to redownload the loader every run.
+
 If the files are not present, it downloads them from the repository's raw
-GitHub URL. An executor can override that URL with
+GitHub URL. An executor can override the chunk URL with
 `getgenv().__NA_SPLIT_BASE_URL` before loading Nameless Admin.
 
 The loader yields between chunks when `task.wait` is available. This spreads

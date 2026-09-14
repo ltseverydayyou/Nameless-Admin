@@ -26,18 +26,63 @@ ordered runtime chunks from `NA-split/common/`, so executors do not have to
 compile the former 5 MB monolith as one unit.
 
 The bootstrap checks the remote chunk manifest and refreshes stale local
-chunks automatically when a new version is published; a complete local cache
-is used as an offline fallback.
+chunks automatically when a new version is published. Runtime chunks and the
+loader itself are cached under `NA-split/`, so the last complete copy can run
+when GitHub is unavailable.
 
 ```lua
-loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/Source.lua"))()
+local url = "https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/Source.lua"
+local cache = "NA-split/Source.lua"
+local ok, source = pcall(game.HttpGet, game, url)
+local chunk, compileError
+
+if ok and type(source) == "string" and source ~= "" then
+    chunk, compileError = loadstring(source)
+    if chunk and type(writefile) == "function" then
+        if type(makefolder) == "function" then pcall(makefolder, "NA-split") end
+        pcall(writefile, cache, source)
+    end
+end
+
+if not chunk and type(readfile) == "function" then
+    local readOk, cached = pcall(readfile, cache)
+    if readOk and type(cached) == "string" and cached ~= "" then
+        chunk, compileError = loadstring(cached)
+    end
+end
+
+assert(chunk, compileError or "Nameless Admin loader unavailable and no local cache exists")
+chunk()
 ```
 
 <details>
 <summary><b>Testing build</b></summary>
 
+Use the same resilient launcher with the testing entrypoint/cache:
+
 ```lua
-loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NA%20testing.lua"))()
+local url = "https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NA%20testing.lua"
+local cache = "NA-split/NA testing.lua"
+local ok, source = pcall(game.HttpGet, game, url)
+local chunk, compileError
+
+if ok and type(source) == "string" and source ~= "" then
+    chunk, compileError = loadstring(source)
+    if chunk and type(writefile) == "function" then
+        if type(makefolder) == "function" then pcall(makefolder, "NA-split") end
+        pcall(writefile, cache, source)
+    end
+end
+
+if not chunk and type(readfile) == "function" then
+    local readOk, cached = pcall(readfile, cache)
+    if readOk and type(cached) == "string" and cached ~= "" then
+        chunk, compileError = loadstring(cached)
+    end
+end
+
+assert(chunk, compileError or "Nameless Admin testing loader unavailable and no local cache exists")
+chunk()
 ```
 
 </details>
