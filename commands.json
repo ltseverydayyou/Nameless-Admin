@@ -9521,6 +9521,26 @@
       "desc": "Thaws parts frozen by freezeunanchored"
     },
     {
+      "name": "modelesp",
+      "aliases": [
+        "modelesp",
+        "mesp"
+      ],
+      "usage": "",
+      "args": "",
+      "desc": ""
+    },
+    {
+      "name": "unmodelesp",
+      "aliases": [
+        "unmodelesp",
+        "unmesp"
+      ],
+      "usage": "unmodelesp [modelName]",
+      "args": "[modelName]",
+      "desc": "Disables model ESP for matching model(s) or all"
+    },
+    {
       "name": "renderstreamedregions",
       "aliases": [
         "renderstreamedregions",
