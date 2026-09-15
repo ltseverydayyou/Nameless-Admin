@@ -9511,6 +9511,30 @@
       "desc": ""
     },
     {
+      "name": "modelespfind",
+      "aliases": [
+        "modelespfind",
+        "mespfind",
+        "mfindesp",
+        "modelfindesp"
+      ],
+      "usage": "",
+      "args": "",
+      "desc": ""
+    },
+    {
+      "name": "unmodelespfind",
+      "aliases": [
+        "unmodelespfind",
+        "unmespfind",
+        "unmfindesp",
+        "unmodelfindesp"
+      ],
+      "usage": "unmodelespfind [modelName|All]",
+      "args": "[modelName|All]",
+      "desc": "Stops partial-name model ESP tracking rules"
+    },
+    {
       "name": "unmodelesp",
       "aliases": [
         "unmodelesp",
