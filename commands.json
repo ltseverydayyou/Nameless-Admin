@@ -9518,7 +9518,7 @@
       ],
       "usage": "unmodelesp [modelName]",
       "args": "[modelName]",
-      "desc": "Disables model ESP for matching model(s) or all"
+      "desc": "Stops a model ESP tracking rule or all rules"
     },
     {
       "name": "spooftransform",
