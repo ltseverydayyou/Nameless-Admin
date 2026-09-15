@@ -1590,6 +1590,240 @@ NAmanage.FolderESP_RefreshActive = function()
 	end
 end
 
+NAmanage.ModelESP_EnsureRules = function()
+	if type(NAStuff.modelESPRules) ~= "table" then
+		NAStuff.modelESPRules = {}
+	end
+	if type(NAStuff.modelESPRuleWatchers) ~= "table" then
+		NAStuff.modelESPRuleWatchers = NAmanage.ensureWeakTable(nil, "k")
+	end
+	return NAStuff.modelESPRules
+end
+
+NAmanage.ModelESP_RuleMatches = function(rule, model)
+	if type(rule) ~= "table" or typeof(model) ~= "Instance" or not model:IsA("Model") then
+		return false
+	end
+	const term = Lower(tostring(rule.term or ""))
+	if term == "" then
+		return false
+	end
+	const name = Lower(model.Name)
+	if rule.mode == "partial" then
+		return Find(name, term, 1, true) ~= nil
+	end
+	return name == term
+end
+
+NAmanage.ModelESP_ModelMatchesAnyRule = function(model)
+	const rules = NAmanage.ModelESP_EnsureRules()
+	for _, rule in rules do
+		if NAmanage.ModelESP_RuleMatches(rule, model) then
+			return true
+		end
+	end
+	return false
+end
+
+NAmanage.ModelESP_ApplyRulesToModel = function(model)
+	if typeof(model) ~= "Instance" or not model:IsA("Model") or not model.Parent then
+		return
+	end
+	if NAmanage.ModelESP_ModelMatchesAnyRule(model) then
+		if model:FindFirstChildWhichIsA("BasePart", true) then
+			NAmanage.ModelESP_Enable(model)
+		end
+	elseif type(NAStuff.modelESPMap) == "table" and NAStuff.modelESPMap[model] ~= nil then
+		NAmanage.ModelESP_Disable(model)
+	end
+end
+
+NAmanage.ModelESP_AttachRuleWatcher = function(model)
+	if typeof(model) ~= "Instance" or not model:IsA("Model") then
+		return
+	end
+	NAmanage.ModelESP_EnsureRules()
+	const watchers = NAStuff.modelESPRuleWatchers
+	if watchers[model] then
+		return
+	end
+	const connections = {}
+	local ok, signal = pcall(function()
+		return model:GetPropertyChangedSignal("Name")
+	end)
+	if ok and signal then
+		connections[#connections + 1] = signal:Connect(function()
+			NAmanage.ModelESP_ApplyRulesToModel(model)
+		end)
+	end
+	connections[#connections + 1] = model.AncestryChanged:Connect(function(_, parentNow)
+		if not parentNow then
+			const current = NAStuff.modelESPRuleWatchers and NAStuff.modelESPRuleWatchers[model]
+			NAStuff.modelESPRuleWatchers[model] = nil
+			if type(current) == "table" then
+				for _, conn in current do
+					pcall(function() conn:Disconnect() end)
+				end
+			end
+		end
+	end)
+	watchers[model] = connections
+end
+
+NAmanage.ModelESP_StopRuleWatchIfIdle = function(force)
+	const rules = NAmanage.ModelESP_EnsureRules()
+	if force ~= true and #rules > 0 then
+		return
+	end
+	NAlib.disconnect("esp_model_rule_hub")
+	const watchers = NAStuff.modelESPRuleWatchers
+	if type(watchers) == "table" then
+		const models = {}
+		for model, _ in watchers do
+			models[#models + 1] = model
+		end
+		for _, model in models do
+			const connections = watchers[model]
+			watchers[model] = nil
+			if type(connections) == "table" then
+				for _, conn in connections do
+					pcall(function() conn:Disconnect() end)
+				end
+			end
+		end
+	end
+	NAStuff.modelESPRuleWatchers = NAmanage.ensureWeakTable(nil, "k")
+end
+
+NAmanage.ModelESP_StartRuleWatch = function()
+	const rules = NAmanage.ModelESP_EnsureRules()
+	if #rules == 0 or NAlib.isConnected("esp_model_rule_hub") then
+		return
+	end
+	NAlib.connect("esp_model_rule_hub", NAmanage.wsSub({
+		added = function(obj)
+			if typeof(obj) ~= "Instance" then
+				return
+			end
+			if obj:IsA("Model") then
+				NAmanage.ModelESP_AttachRuleWatcher(obj)
+				Defer(function()
+					NAmanage.ModelESP_ApplyRulesToModel(obj)
+				end)
+			elseif obj:IsA("BasePart") then
+				local parent = obj.Parent
+				while parent and parent ~= Services.Workspace do
+					if parent:IsA("Model") then
+						NAmanage.ModelESP_AttachRuleWatcher(parent)
+						NAmanage.ModelESP_ApplyRulesToModel(parent)
+					end
+					parent = parent.Parent
+				end
+			end
+		end,
+		removing = function(obj)
+			if typeof(obj) == "Instance" and obj:IsA("Model") then
+				const watchers = NAStuff.modelESPRuleWatchers
+				const connections = type(watchers) == "table" and watchers[obj] or nil
+				if type(watchers) == "table" then
+					watchers[obj] = nil
+				end
+				if type(connections) == "table" then
+					for _, conn in connections do
+						pcall(function() conn:Disconnect() end)
+					end
+				end
+			end
+		end,
+	}))
+end
+
+NAmanage.ModelESP_AddRule = function(term, mode)
+	term = Lower(tostring(term or "")):gsub("^%s+", ""):gsub("%s+$", "")
+	if term == "" then
+		return false
+	end
+	mode = mode == "partial" and "partial" or "exact"
+	const rules = NAmanage.ModelESP_EnsureRules()
+	local exists = false
+	for _, rule in rules do
+		if type(rule) == "table" and rule.term == term and rule.mode == mode then
+			exists = true
+			break
+		end
+	end
+	if not exists then
+		rules[#rules + 1] = { term = term, mode = mode }
+	end
+	NAmanage.ModelESP_StartRuleWatch()
+	const token = NAmanage.NewCancelToken()
+	SpawnCall(function()
+		NAmanage.ForEachWorkspaceYield(function(obj)
+			if token.cancelled then
+				return
+			end
+			if obj and obj:IsA("Model") then
+				NAmanage.ModelESP_AttachRuleWatcher(obj)
+				if NAmanage.ModelESP_RuleMatches({ term = term, mode = mode }, obj) then
+					NAmanage.ModelESP_ApplyRulesToModel(obj)
+				end
+			end
+		end, {
+			yieldEvery = tonumber(NAStuff.ESP_ScanBatchSize) or 160,
+			delayTime = tonumber(NAStuff.ESP_ScanDelay) or 0,
+			cancelToken = token,
+		})
+	end)
+	return not exists
+end
+
+NAmanage.ModelESP_RemoveRule = function(term)
+	term = Lower(tostring(term or "")):gsub("^%s+", ""):gsub("%s+$", "")
+	if term == "" then
+		return false
+	end
+	const rules = NAmanage.ModelESP_EnsureRules()
+	local removed = false
+	for i = #rules, 1, -1 do
+		const rule = rules[i]
+		if type(rule) == "table" and rule.term == term then
+			table.remove(rules, i)
+			removed = true
+		end
+	end
+	if not removed then
+		return false
+	end
+	const tracked = {}
+	for _, model in (NAStuff.modelESPModels or {}) do
+		tracked[#tracked + 1] = model
+	end
+	for _, model in tracked do
+		if typeof(model) == "Instance" and model:IsA("Model") then
+			NAmanage.ModelESP_ApplyRulesToModel(model)
+		end
+	end
+	NAmanage.ModelESP_StopRuleWatchIfIdle(false)
+	return true
+end
+
+NAmanage.ModelESP_ClearRules = function()
+	const rules = NAmanage.ModelESP_EnsureRules()
+	table.clear(rules)
+	const tracked = {}
+	for _, model in (NAStuff.modelESPModels or {}) do
+		tracked[#tracked + 1] = model
+	end
+	local removed = 0
+	for _, model in tracked do
+		if NAmanage.ModelESP_Disable(model) then
+			removed += 1
+		end
+	end
+	NAmanage.ModelESP_StopRuleWatchIfIdle(true)
+	return removed
+end
+
 NAmanage.ModelESP_Enable = function(model)
 	if typeof(model) ~= "Instance" or not model:IsA("Model") then
 		return
