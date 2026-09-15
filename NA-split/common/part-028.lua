@@ -206,6 +206,35 @@ cmd.add({"modelesp","mesp"},{"modelesp {modelName}","Highlights matching models 
 	end)
 end,true)
 
+cmd.add({"modelespfind","mespfind","mfindesp","modelfindesp"},{"modelespfind {modelName}","Highlights models containing the name and keeps tracking future matches"},function(...)
+	const rawInput = Concat({...}, " ")
+	if rawInput == "" then return end
+	NAmanage.ModelESP_AddRule(rawInput, "partial")
+end,true)
+
+cmd.add({"unmodelespfind","unmespfind","unmfindesp","unmodelfindesp"},{"unmodelespfind [modelName|All]","Stops partial-name model ESP tracking rules"},function(...)
+	local rawInput = Concat({...}, " ")
+	rawInput = (type(rawInput) == "string") and rawInput:gsub("^%s+", ""):gsub("%s+$", "") or ""
+	const loweredInput = Lower(rawInput)
+	const rules = NAmanage.ModelESP_EnsureRules()
+	if loweredInput == "" or loweredInput == "all" or loweredInput == "*" then
+		const terms = {}
+		for _, rule in rules do
+			if type(rule) == "table" and rule.mode == "partial" then
+				terms[#terms + 1] = rule.term
+			end
+		end
+		for _, term in terms do NAmanage.ModelESP_RemoveRule(term, "partial") end
+		DoNotif(Format("Cleared %d partial model ESP rule%s.", #terms, #terms == 1 and "" or "s"), 2)
+		return
+	end
+	if NAmanage.ModelESP_RemoveRule(loweredInput, "partial") then
+		DoNotif(Format("Stopped partial model ESP rule '%s'.", rawInput), 2)
+	else
+		DoNotif(Format("No partial model ESP rule matching '%s'.", rawInput), 3)
+	end
+end,true)
+
 cmd.add({"unmodelesp","unmesp"},{"unmodelesp [modelName]","Stops a model ESP tracking rule or all rules"},function(...)
 	const rules = NAmanage.ModelESP_EnsureRules()
 	if type(rules) ~= "table" or #rules == 0 then
