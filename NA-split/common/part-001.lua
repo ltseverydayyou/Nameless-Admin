@@ -1,6 +1,6 @@
 
 _na_boot = { splitConfig = __NA_SPLIT_CONFIG;
-	hostEnv = (getgenv and getgenv()) or _G or {},
+	hostEnv = type(__NARootHost) == "table" and __NARootHost or ((getgenv and getgenv()) or _G or {}),
 }
 _na_boot.hostGetfenv = type(_na_boot.hostEnv.getfenv) == "function" and _na_boot.hostEnv.getfenv or getfenv
 _na_boot.hostSetfenv = type(_na_boot.hostEnv.setfenv) == "function" and _na_boot.hostEnv.setfenv or setfenv
