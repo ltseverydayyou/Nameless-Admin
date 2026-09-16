@@ -232,14 +232,62 @@ NAmanage.RegisterToggleAutoSync("Safe Command Input", function()
 	return NAStuff.CmdInputSafeMode ~= false
 end)
 
-NAgui.addToggle("Disable Purchase Prompts", NAStuff.PurchasePromptsDisabled == true, function(v)
+NAmanage.ApplyStandaloneFFlag = NAmanage.ApplyStandaloneFFlag or function(flagName, flagValue, opts)
+	opts = opts or {}
+	local setter = nil
+	if type(setfflag) == "function" then
+		setter = setfflag
+	elseif game and type(game.DefineFastFlag) == "function" then
+		setter = function(name, value)
+			return game:DefineFastFlag(name, value)
+		end
+	end
+
+	if not setter then
+		if not opts.silent then
+			DoNotif("FastFlag changes are unavailable on this executor.", 3)
+		end
+		return false, "unsupported"
+	end
+
+	local ok, err = pcall(setter, flagName, tostring(flagValue))
+	if not ok then
+		if not opts.silent then
+			DoNotif("Failed to set "..tostring(flagName)..".", 3)
+		end
+		return false, err
+	end
+
+	return true
+end
+
+NAgui.addToggle("Hide Purchase Prompt GUI", NAStuff.PurchasePromptsDisabled == true, function(v)
 	NAStuff.PurchasePromptsDisabled = v == true
 	pcall(NAmanage.NASettingsSet, "purchasePromptsDisabled", NAStuff.PurchasePromptsDisabled)
 	NAmanage.nuhuhprompt(not NAStuff.PurchasePromptsDisabled)
-	DoNotif("Purchase prompts "..(NAStuff.PurchasePromptsDisabled and "blocked" or "allowed"), 2)
+	DoNotif("Purchase prompt GUI "..(NAStuff.PurchasePromptsDisabled and "hidden" or "visible"), 2)
 end)
-NAmanage.RegisterToggleAutoSync("Disable Purchase Prompts", function()
+NAmanage.RegisterToggleAutoSync("Hide Purchase Prompt GUI", function()
 	return NAStuff.PurchasePromptsDisabled == true
+end)
+
+NAmanage.SetOrder66PurchaseBlock = NAmanage.SetOrder66PurchaseBlock or function(enabled, opts)
+	return NAmanage.ApplyStandaloneFFlag("Order66", enabled == true, opts)
+end
+
+NAmanage.SetOrder66PurchaseBlock(NAStuff.Order66PurchaseBlock == true, { silent = true })
+NAgui.addToggle("Block Robux Purchases", NAStuff.Order66PurchaseBlock == true, function(v)
+	const enabled = v == true
+	local ok = NAmanage.SetOrder66PurchaseBlock(enabled)
+	if not ok then
+		return
+	end
+	NAStuff.Order66PurchaseBlock = enabled
+	pcall(NAmanage.NASettingsSet, "order66PurchaseBlock", enabled)
+	DoNotif("Robux purchases "..(enabled and "blocked" or "allowed"), 2)
+end)
+NAmanage.RegisterToggleAutoSync("Block Robux Purchases", function()
+	return NAStuff.Order66PurchaseBlock == true
 end)
 
 NAgui.addToggle("Disable Network Pause", NAStuff.NetworkPauseDisabled == true, function(v)
@@ -2997,7 +3045,6 @@ NAFFlags.whitelist = {
 	{ name = "PlayerNetworkUpdateQueueSize", default = 20, valueType = "number", category = "Network, Replication & Physics" };
 	{ name = "NetworkLatencyTolerance", default = 0, valueType = "number", category = "Network, Replication & Physics" };
 	{ name = "NetworkPrediction", default = true, valueType = "boolean", category = "Network, Replication & Physics" };
-	{ name = "S2PhysicsSenderRate", default = 15, valueType = "number", category = "Network, Replication & Physics" };
 
 	{ name = "TeleportReconnect", default = true, valueType = "boolean", category = "Loading, Assets & Teleport" };
 	{ name = "TeleportReconnect3", default = true, valueType = "boolean", category = "Loading, Assets & Teleport" };
@@ -3058,7 +3105,6 @@ NAFFlags.whitelist = {
 	{ name = "LightstepHTTPTransportHundredthsPercent2", default = 100, valueType = "number", category = "Telemetry & Privacy" };
 	{ name = "ClientLightingEnvmapPlacementTelemetryHundredthsPercent", default = 100, valueType = "number", category = "Telemetry & Privacy" };
 
-	{ name = "Order66", default = true, valueType = "boolean", category = "Client Features & Compatibility" };
 	{ name = "AdServiceEnabled", default = false, valueType = "boolean", category = "Client Features & Compatibility" };
 }
 
@@ -3098,7 +3144,6 @@ NAFFlags.info = NAFFlags.info or {
 	RenderShadowmapBias = "Fine-tunes how shadows sit on surfaces. -1 lets Roblox pick automatically. If shadows look like they float or crawl, go back to -1.";
 	MaxFrameBufferSize = "How many frames can be buffered. Lower values reduce input lag, higher ones can feel smoother. 4 is a reasonable default to go back to.";
 	DebugPerfMode = "Enables a bundle of performance-focused debug paths. If things act unstable, turn this off.";
-	Order66 = "An internal bundle of debug/perf toggles. Best left at its default for your config. If messing with it causes issues, restore your original value.";
 	AdServiceEnabled = "Turns the built-in ad system on or off. Keeping it false avoids any extra ad-related overhead.";
 	HandleAltEnterFullscreenManually = "Makes Roblox handle Alt+Enter itself instead of leaving it to the OS. If Alt+Enter acts weird, try toggling this.";
 
@@ -3271,7 +3316,6 @@ NAFFlags.info = NAFFlags.info or {
 	RenderParticlesOptimizeVisibleSimLocality = "Uses a locality optimization for visible particle simulation. Experimental; revert it if particle effects render incorrectly.";
 	PerformanceControlEnablePortTextureManagerTrimMemory = "Lets performance control request texture-memory trimming. Useful under memory pressure, but it can increase texture reloading or pop-in.";
 	AvatarUseRuntimeThreads = "Moves supported avatar work onto Roblox runtime threads. This may reduce main-thread spikes in avatar-heavy places, but it is experimental.";
-	S2PhysicsSenderRate = "Controls client physics replication send frequency. Roblox reports a normal default around 15. Higher or lower values can increase bandwidth, desync, and unfair behavior; this is included for controlled testing, not as an FPS or ping boost.";
 	EnableTexturePreloading = "Enables texture preloading where the current client path supports it. It can reduce later texture pop-in at the cost of startup time and memory.";
 	EnableSoundPreloading = "Enables sound preloading where supported. It can reduce delayed first playback, while using more startup bandwidth and memory.";
 	EnableMeshPreloading2 = "Enables the newer mesh-preloading path. It can reduce mesh pop-in, but may increase initial loading work.";
@@ -13002,6 +13046,26 @@ NAmanage.ApplyJump = function(val)
 end
 
 NAgui.addSection("Methods")
+NAmanage.SetEnhancedPhysicsReplication = NAmanage.SetEnhancedPhysicsReplication or function(enabled, opts)
+	const rate = enabled == true and 64 or 15
+	return NAmanage.ApplyStandaloneFFlag("S2PhysicsSenderRate", rate, opts), rate
+end
+
+NAmanage.SetEnhancedPhysicsReplication(NAStuff.EnhancedPhysicsReplication == true, { silent = true })
+NAgui.addToggle("Enhanced Physics Replication", NAStuff.EnhancedPhysicsReplication == true, function(v)
+	const enabled = v == true
+	local ok, rate = NAmanage.SetEnhancedPhysicsReplication(enabled)
+	if not ok then
+		return
+	end
+	NAStuff.EnhancedPhysicsReplication = enabled
+	pcall(NAmanage.NASettingsSet, "enhancedPhysicsReplication", enabled)
+	DoNotif("Physics sender rate set to "..tostring(rate), 2)
+end)
+NAmanage.RegisterToggleAutoSync("Enhanced Physics Replication", function()
+	return NAStuff.EnhancedPhysicsReplication == true
+end)
+
 NAgui.addToggle("Safe Speed Method", NAStuff.SafeSpeedMethod ~= false, function(state)
 	NAStuff.SafeSpeedMethod = state ~= false
 	NAmanage.NASettingsSet("safeSpeedMethod", NAStuff.SafeSpeedMethod)
