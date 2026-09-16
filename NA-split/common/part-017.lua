@@ -3721,7 +3721,7 @@ NAmanage.CreateBox = function(part, color, transparency, customName)
 			NAmanage.ESP_StoreVisual(visual)
 			Defer(function()
 				if visual and visual.Parent then
-					visual.Enabled = true
+					visual.Enabled = NAgui.isInstanceInViewport(part)
 				end
 			end)
 		else

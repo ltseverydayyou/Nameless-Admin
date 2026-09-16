@@ -73,8 +73,19 @@ NAmanage.PartESP_UpdateEntry = function(entry, force, rootPart)
 			display = Format("%s | %d studs", baseName, dist)
 		end
 	end
+	const instanceOnScreen = NAgui.isInstanceInViewport(part)
+	local labelOnScreen = false
+	if showPartText then
+		const labelWorldPos = NAgui.getInstanceLabelWorldPosition(part, 0.2)
+		labelOnScreen = NAgui.isWorldPositionInViewport(labelWorldPos)
+	end
+	if billboard and billboard.Parent then
+		pcall(function()
+			billboard.Enabled = showPartText and labelOnScreen
+		end)
+	end
 	if label then
-		if showPartText then
+		if showPartText and labelOnScreen then
 			if label.Text ~= display then
 				label.Text = display
 			end
@@ -178,6 +189,9 @@ NAmanage.PartESP_UpdateEntry = function(entry, force, rootPart)
 	if visual and visual.Parent then
 		NAmanage.ESP_StoreVisual(visual)
 		if visual:IsA("Highlight") then
+			if visual.Enabled ~= instanceOnScreen then
+				visual.Enabled = instanceOnScreen
+			end
 			if visual.FillTransparency ~= transparency then
 				visual.FillTransparency = transparency
 			end
@@ -192,6 +206,9 @@ NAmanage.PartESP_UpdateEntry = function(entry, force, rootPart)
 				visual.OutlineTransparency = outlineTr
 			end
 		elseif visual:IsA("BoxHandleAdornment") then
+			if visual.Visible ~= instanceOnScreen then
+				visual.Visible = instanceOnScreen
+			end
 			if visual.Color3 ~= visualLight then
 				visual.Color3 = visualLight
 			end
@@ -1766,8 +1783,8 @@ NAmanage.ESP_WatchPlayerCharacter = function(player, model)
 			if NAmanage.IsValidESPModel(model, false) then
 				if not data then
 					NAmanage.ESP_RequestReattachPlayer(player, force == true)
-				elseif NAmanage.ESP_SetModelVisualsEnabled then
-					NAmanage.ESP_SetModelVisualsEnabled(data, true)
+				else
+					data.next = 0
 				end
 			elseif data then
 				data.next = 0
@@ -2176,10 +2193,6 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 		end
 		return
 	end
-	if NAmanage.ESP_SetModelVisualsEnabled then
-		NAmanage.ESP_SetModelVisualsEnabled(data, true)
-	end
-
 	const rootPart = getRoot(model)
 	const labelAnchor = getHead(model) or rootPart or NAmanage.ESP_FirstBasePart(model)
 	if data.billboard then
@@ -2222,6 +2235,10 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 
 	if data.next and now < data.next then return end
 	data.next = now + budget
+
+	const modelOnScreen = NAgui.isInstanceInViewport(model)
+	const labelWorldPos = NAmanage.ESP_GetLabelWorldPosition(model)
+	const labelOnScreen = NAgui.isWorldPositionInViewport(labelWorldPos)
 
 	const distColor = dist and ((dist > 100 and Color3.fromRGB(0, 255, 0)) or (dist > 50 and Color3.fromRGB(255, 165, 0)) or Color3.fromRGB(255, 0, 0)) or Color3.new(1, 1, 1)
 	const customColor = (NAStuff.ESP_UseCustomColor == true) and NAStuff.ESP_CustomColor or nil
@@ -2318,7 +2335,7 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 				end
 			end
 			if highlight then
-				if highlight.Enabled ~= true then highlight.Enabled = true end
+				if highlight.Enabled ~= modelOnScreen then highlight.Enabled = modelOnScreen end
 				NAmanage.ESP_StoreVisual(highlight)
 				if highlight.FillTransparency ~= displayTransparency then highlight.FillTransparency = displayTransparency end
 				const outline = NAgui.sanitizeTransparency(NAStuff.ESP_OutlineTransparency or 0)
@@ -2339,8 +2356,14 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 				data.highlight:Destroy()
 				data.highlight = nil
 			end
-			if not NAmanage.ESP_UpdateCharacterBox(model, data, boxColor, displayTransparency) then
-				NAmanage.ESP_RemoveCharacterBox(data)
+			if modelOnScreen then
+				if not NAmanage.ESP_UpdateCharacterBox(model, data, boxColor, displayTransparency) then
+					NAmanage.ESP_RemoveCharacterBox(data)
+				elseif data.charBox and data.charBox.Visible ~= true then
+					data.charBox.Visible = true
+				end
+			elseif data.charBox and data.charBox.Visible ~= false then
+				data.charBox.Visible = false
 			end
 		else
 			NAmanage.ESP_RemoveCharacterBox(data)
@@ -2354,6 +2377,8 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 					end
 				else
 					NAmanage.ESP_StoreVisual(box)
+					const partOnScreen = NAgui.isInstanceInViewport(part)
+					if box.Visible ~= partOnScreen then box.Visible = partOnScreen end
 					if box.Color3 ~= boxColor then box.Color3 = boxColor end
 					if part:IsA("BasePart") and box.Size ~= part.Size then box.Size = part.Size end
 					if box.Transparency ~= displayTransparency then box.Transparency = displayTransparency end
@@ -2395,7 +2420,7 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 		end
 	end
 
-	if wantLabel and pieces and #pieces > 0 then
+	if wantLabel and pieces and #pieces > 0 and labelOnScreen then
 		const txt = Concat(pieces, " | ")
 		const txtColor = labelColor
 		if NAgui.espUsesDrawing(renderTarget) and NAmanage.DrawingTextSupported() then
@@ -2417,6 +2442,17 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 				if label.Text ~= txt then label.Text = txt end
 				if label.TextColor3 ~= txtColor then label.TextColor3 = txtColor end
 			end
+		end
+	elseif wantLabel and pieces and #pieces > 0 then
+		if data.billboard then
+			pcall(function()
+				data.billboard.Enabled = false
+			end)
+		end
+		if data.drawingLabel then
+			pcall(function()
+				data.drawingLabel.Visible = false
+			end)
 		end
 	else
 		NAmanage.ESP_DestroyLabel(model)

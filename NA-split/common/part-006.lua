@@ -4849,6 +4849,26 @@ NAgui.getInstanceViewportBounds = function(inst, camera)
 	return minX, minY, width, height
 end
 
+NAgui.isWorldPositionInViewport = function(worldPos, camera)
+	camera = camera or (Services.Workspace and Services.Workspace.CurrentCamera)
+	if not camera or typeof(worldPos) ~= "Vector3" then
+		return false
+	end
+	const point, visible = camera:WorldToViewportPoint(worldPos)
+	if point.Z <= 0 then
+		return false
+	end
+	const viewportSize = camera.ViewportSize
+	return visible == true
+		and point.X >= 0 and point.X <= viewportSize.X
+		and point.Y >= 0 and point.Y <= viewportSize.Y
+end
+
+NAgui.isInstanceInViewport = function(inst, camera)
+	local minX = NAgui.getInstanceViewportBounds(inst, camera)
+	return minX ~= nil
+end
+
 NAgui.toDrawingTransparency = function(fillTransparency)
 	return math.clamp(1 - NAgui.sanitizeTransparency(fillTransparency), 0, 1)
 end
