@@ -400,6 +400,11 @@ NAmanage.PartESP_UnregisterEntry = function(entry)
 	if not entry or entry.removed then return end
 	entry.removed = true
 	NAmanage.ESP_LocatorRemoveArrow(entry)
+	if entry.highlightMaterialTarget then
+		const materialTarget = entry.highlightMaterialTarget
+		entry.highlightMaterialTarget = nil
+		NAmanage.ESP_AdjustHighlightMaterial(materialTarget, false, entry)
+	end
 	if entry.billboardCleanup then
 		entry.billboardCleanup:Disconnect()
 		entry.billboardCleanup = nil

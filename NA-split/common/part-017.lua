@@ -3658,7 +3658,7 @@ NAmanage.CreateBox = function(part, color, transparency, customName)
 	const darker = Color3.fromHSV(h, s, math.clamp(v - off, 0, 1))
 	const lighter = Color3.fromHSV(h, s, math.clamp(v + off, 0, 1))
 	const mode = NAgui.getESPRenderMode("part")
-	const useHighlight = mode == "Highlight" and not part:IsA("Model")
+	const useHighlight = mode == "Highlight"
 	local useDrawing = mode == "Drawing API"
 	const drawingStyle = NAgui.sanitizeESPDrawingBoxStyle(NAStuff.ESP_DrawingPartBoxStyle)
 	local adornTarget = NAgui.getInstanceAdornee(part)
@@ -3870,7 +3870,11 @@ NAmanage.CreateBox = function(part, color, transparency, customName)
 		useDrawing = useDrawing,
 		updateKey = key,
 		customName = displayName,
+		highlightMaterialTarget = useHighlight and part or nil,
 	}
+	if useHighlight then
+		NAmanage.ESP_AdjustHighlightMaterial(part, true, entry)
+	end
 	NAmanage.PartESP_RegisterEntry(entry)
 	return visual or drawingSquare
 end

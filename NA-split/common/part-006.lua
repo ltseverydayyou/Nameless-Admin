@@ -5302,99 +5302,219 @@ NAmanage.ESP_ApplyLabelStyles = function()
 	end
 end
 
-NAgui.adjustHighlightMaterialFor = function(target, enable)
-	if not target then return end
-	local originals = NAStuff.partESPGlassOriginal
-	local counts = NAStuff.partESPGlassCount
-	local ltOriginals = NAStuff.partESPLocalTransOriginal
-	local ltCounts = NAStuff.partESPLocalTransCount
-	if not originals then
-		originals = NAmanage.ensureWeakTable(nil, "k")
-		NAStuff.partESPGlassOriginal = originals
-	else
-		originals = NAmanage.ensureWeakTable(originals, "k")
-		NAStuff.partESPGlassOriginal = originals
+NAgui.highlightNeedsGlass = function(base)
+	if not base or not base:IsA("BasePart") then
+		return false
 	end
-	if not counts then
-		counts = NAmanage.ensureWeakTable(nil, "k")
-		NAStuff.partESPGlassCount = counts
-	else
-		counts = NAmanage.ensureWeakTable(counts, "k")
-		NAStuff.partESPGlassCount = counts
+	const transparency = tonumber(base.Transparency) or 0
+	const localTransparency = tonumber(base.LocalTransparencyModifier) or 0
+	return transparency > 0.01 or localTransparency > 0.01
+end
+
+NAStuff.ESP_HighlightMaterialPartStates = NAmanage.ensureWeakTable(NAStuff.ESP_HighlightMaterialPartStates, "k")
+NAStuff.ESP_HighlightMaterialTargetStates = NAmanage.ensureWeakTable(NAStuff.ESP_HighlightMaterialTargetStates, "k")
+
+NAgui.highlightMaterialApplyPart = function(base, state)
+	if not (base and base:IsA("BasePart") and type(state) == "table") then
+		return
 	end
-	if not ltOriginals then
-		ltOriginals = NAmanage.ensureWeakTable(nil, "k")
-		NAStuff.partESPLocalTransOriginal = ltOriginals
-	else
-		ltOriginals = NAmanage.ensureWeakTable(ltOriginals, "k")
-		NAStuff.partESPLocalTransOriginal = ltOriginals
-	end
-	if not ltCounts then
-		ltCounts = NAmanage.ensureWeakTable(nil, "k")
-		NAStuff.partESPLocalTransCount = ltCounts
-	else
-		ltCounts = NAmanage.ensureWeakTable(ltCounts, "k")
-		NAStuff.partESPLocalTransCount = ltCounts
-	end
-	const function handlePart(base)
-		if not base or not base:IsA("BasePart") then return end
-		local gCount = counts[base] or 0
-		local tCount = ltCounts[base] or 0
-		if enable then
-			if gCount == 0 then
-				originals[base] = base.Material
-			end
-			counts[base] = gCount + 1
-			if base.Material ~= Enum.Material.Glass then
-				NAlib.setProperty(base, "Material", Enum.Material.Glass)
-			end
-			if tCount == 0 then
-				ltOriginals[base] = base.LocalTransparencyModifier
-			end
-			ltCounts[base] = tCount + 1
-			if base.Transparency >= 1 or base.LocalTransparencyModifier >= 1 then
-				NAlib.setProperty(base, "LocalTransparencyModifier", 0.999)
-			end
-		else
-			if gCount > 0 then
-				gCount -= 1
-				if gCount <= 0 then
-					counts[base] = nil
-					const original = originals[base]
-					if original ~= nil then
-						NAlib.setProperty(base, "Material", original)
-						originals[base] = nil
-					end
-				else
-					counts[base] = gCount
-				end
-			end
-			if tCount > 0 then
-				tCount -= 1
-				if tCount <= 0 then
-					ltCounts[base] = nil
-					const lt = ltOriginals[base]
-					if lt ~= nil then
-						NAlib.setProperty(base, "LocalTransparencyModifier", lt)
-						ltOriginals[base] = nil
-					end
-				else
-					ltCounts[base] = tCount
-				end
-			end
+	const active = (tonumber(state.refs) or 0) > 0
+	const needsGlass = active and NAgui.highlightNeedsGlass(base)
+	if needsGlass then
+		if not state.forced then
+			state.desiredMaterial = base.Material
+			state.forced = true
+		elseif not state.writingMaterial and base.Material ~= Enum.Material.Glass then
+			state.desiredMaterial = base.Material
 		end
-	end
-	if target:IsA("BasePart") then
-		handlePart(target)
-	elseif target:IsA("Model") then
-		for _, desc in NAmanage.QueryDescendants(target, "BasePart") do
-			handlePart(desc)
+		if base.Material ~= Enum.Material.Glass then
+			state.writingMaterial = true
+			NAlib.setProperty(base, "Material", Enum.Material.Glass)
+			state.writingMaterial = false
 		end
+	elseif state.forced then
+		const restoreMaterial = state.desiredMaterial
+		state.forced = false
+		if restoreMaterial ~= nil and base.Material ~= restoreMaterial then
+			state.writingMaterial = true
+			NAlib.setProperty(base, "Material", restoreMaterial)
+			state.writingMaterial = false
+		end
+		state.desiredMaterial = nil
 	end
 end
 
-NAmanage.ESP_AdjustHighlightMaterial = function(target, enable)
-	NAgui.adjustHighlightMaterialFor(target, enable)
+NAgui.highlightMaterialAcquirePart = function(base)
+	if not (base and base:IsA("BasePart")) then
+		return
+	end
+	local states = NAmanage.ensureWeakTable(NAStuff.ESP_HighlightMaterialPartStates, "k")
+	NAStuff.ESP_HighlightMaterialPartStates = states
+	local state = states[base]
+	if type(state) == "table" then
+		state.refs = (tonumber(state.refs) or 0) + 1
+		NAgui.highlightMaterialApplyPart(base, state)
+		return
+	end
+	state = {
+		refs = 1,
+		forced = false,
+		writingMaterial = false,
+	}
+	states[base] = state
+	state.materialConn = base:GetPropertyChangedSignal("Material"):Connect(function()
+		if state.writingMaterial or (tonumber(state.refs) or 0) <= 0 then
+			return
+		end
+		if state.forced and base.Material ~= Enum.Material.Glass then
+			state.desiredMaterial = base.Material
+			NAgui.highlightMaterialApplyPart(base, state)
+		end
+	end)
+	state.transparencyConn = base:GetPropertyChangedSignal("Transparency"):Connect(function()
+		if (tonumber(state.refs) or 0) > 0 then
+			NAgui.highlightMaterialApplyPart(base, state)
+		end
+	end)
+	state.localTransparencyConn = base:GetPropertyChangedSignal("LocalTransparencyModifier"):Connect(function()
+		if (tonumber(state.refs) or 0) > 0 then
+			NAgui.highlightMaterialApplyPart(base, state)
+		end
+	end)
+	NAgui.highlightMaterialApplyPart(base, state)
+end
+
+NAgui.highlightMaterialReleasePart = function(base)
+	if not (base and base:IsA("BasePart")) then
+		return
+	end
+	const states = NAStuff.ESP_HighlightMaterialPartStates
+	const state = type(states) == "table" and states[base] or nil
+	if type(state) ~= "table" then
+		return
+	end
+	state.refs = math.max(0, (tonumber(state.refs) or 1) - 1)
+	if state.refs > 0 then
+		NAgui.highlightMaterialApplyPart(base, state)
+		return
+	end
+	NAgui.highlightMaterialApplyPart(base, state)
+	for _, connection in { state.materialConn, state.transparencyConn, state.localTransparencyConn } do
+		if connection then
+			pcall(function()
+				connection:Disconnect()
+			end)
+		end
+	end
+	state.materialConn = nil
+	state.transparencyConn = nil
+	state.localTransparencyConn = nil
+	states[base] = nil
+end
+
+NAgui.highlightMaterialAcquireTarget = function(target, owner)
+	if not (target and typeof(target) == "Instance" and (target:IsA("BasePart") or target:IsA("Model"))) then
+		return
+	end
+	local targetStates = NAmanage.ensureWeakTable(NAStuff.ESP_HighlightMaterialTargetStates, "k")
+	NAStuff.ESP_HighlightMaterialTargetStates = targetStates
+	local state = targetStates[target]
+	if type(state) ~= "table" then
+		state = {
+			owners = {},
+			ownerCount = 0,
+			parts = NAmanage.ensureWeakTable(nil, "k"),
+		}
+		targetStates[target] = state
+	end
+	const ownerKey = owner or target
+	if state.owners[ownerKey] then
+		return
+	end
+	state.owners[ownerKey] = true
+	state.ownerCount = (tonumber(state.ownerCount) or 0) + 1
+	if state.ownerCount > 1 then
+		return
+	end
+	const function acquirePart(base)
+		if base and base:IsA("BasePart") and not state.parts[base] then
+			state.parts[base] = true
+			NAgui.highlightMaterialAcquirePart(base)
+		end
+	end
+	const function releasePart(base)
+		if base and state.parts[base] then
+			state.parts[base] = nil
+			NAgui.highlightMaterialReleasePart(base)
+		end
+	end
+	if target:IsA("BasePart") then
+		acquirePart(target)
+	else
+		for _, desc in NAmanage.QueryDescendants(target, "BasePart") do
+			acquirePart(desc)
+		end
+		state.descAddedConn = target.DescendantAdded:Connect(function(desc)
+			if desc:IsA("BasePart") then
+				acquirePart(desc)
+			end
+		end)
+		state.descRemovingConn = target.DescendantRemoving:Connect(function(desc)
+			if desc:IsA("BasePart") then
+				releasePart(desc)
+			end
+		end)
+	end
+end
+
+NAgui.highlightMaterialReleaseTarget = function(target, owner)
+	if not (target and typeof(target) == "Instance") then
+		return
+	end
+	const targetStates = NAStuff.ESP_HighlightMaterialTargetStates
+	const state = type(targetStates) == "table" and targetStates[target] or nil
+	if type(state) ~= "table" then
+		return
+	end
+	const ownerKey = owner or target
+	if not state.owners[ownerKey] then
+		return
+	end
+	state.owners[ownerKey] = nil
+	state.ownerCount = math.max(0, (tonumber(state.ownerCount) or 1) - 1)
+	if state.ownerCount > 0 then
+		return
+	end
+	for _, connection in { state.descAddedConn, state.descRemovingConn } do
+		if connection then
+			pcall(function()
+				connection:Disconnect()
+			end)
+		end
+	end
+	state.descAddedConn = nil
+	state.descRemovingConn = nil
+	const releaseList = {}
+	for base in state.parts do
+		releaseList[#releaseList + 1] = base
+	end
+	for i = 1, #releaseList do
+		state.parts[releaseList[i]] = nil
+		NAgui.highlightMaterialReleasePart(releaseList[i])
+	end
+	targetStates[target] = nil
+end
+
+NAgui.adjustHighlightMaterialFor = function(target, enable, owner)
+	if enable then
+		NAgui.highlightMaterialAcquireTarget(target, owner)
+	else
+		NAgui.highlightMaterialReleaseTarget(target, owner)
+	end
+end
+
+NAmanage.ESP_AdjustHighlightMaterial = function(target, enable, owner)
+	NAgui.adjustHighlightMaterialFor(target, enable, owner)
 end
 
 NAStuff.partESPEntries = NAStuff.partESPEntries or {}
