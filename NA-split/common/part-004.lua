@@ -3355,6 +3355,18 @@ NAmanage.NASettingsGetSchema=function()
 				return "Soft"
 			end;
 		};
+		pauseVoxelizerLighting = {
+			default = false;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
+			end;
+		};
+		fastParticleEffects = {
+			default = false;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
+			end;
+		};
 		staffwatchIgnoreLocal = {
 			default = true;
 			coerce = function(value)
@@ -4641,10 +4653,15 @@ NAmanage.NASettingsGetSchema=function()
 					stripExplosions = true;
 					simplifyMaterials = true;
 					zeroReflectance = true;
+					optimizeMeshes = true;
+					optimizeModels = true;
+					disableWorldQueries = false;
+					disableWorldTouches = false;
+					disable3dUi = false;
 					forceStreaming = true;
 					streamRadius = 96;
 					flattenLighting = true;
-					ignorePlayers = true;
+					ignorePlayers = false;
 					ignoreSelf = true;
 				}
 			end;
@@ -4662,10 +4679,15 @@ NAmanage.NASettingsGetSchema=function()
 					stripExplosions = true;
 					simplifyMaterials = true;
 					zeroReflectance = true;
+					optimizeMeshes = true;
+					optimizeModels = true;
+					disableWorldQueries = false;
+					disableWorldTouches = false;
+					disable3dUi = false;
 					forceStreaming = true;
 					streamRadius = 96;
 					flattenLighting = true;
-					ignorePlayers = true;
+					ignorePlayers = false;
 					ignoreSelf = true;
 				}
 				if type(value) ~= "table" then
@@ -4710,6 +4732,11 @@ NAmanage.NASettingsGetSchema=function()
 				out.stripExplosions = boolField("stripExplosions", defaults.stripExplosions)
 				out.simplifyMaterials = boolField("simplifyMaterials", defaults.simplifyMaterials)
 				out.zeroReflectance = boolField("zeroReflectance", defaults.zeroReflectance)
+				out.optimizeMeshes = boolField("optimizeMeshes", defaults.optimizeMeshes)
+				out.optimizeModels = boolField("optimizeModels", defaults.optimizeModels)
+				out.disableWorldQueries = boolField("disableWorldQueries", defaults.disableWorldQueries)
+				out.disableWorldTouches = boolField("disableWorldTouches", defaults.disableWorldTouches)
+				out.disable3dUi = boolField("disable3dUi", defaults.disable3dUi)
 				out.forceStreaming = boolField("forceStreaming", defaults.forceStreaming)
 				out.streamRadius = clampRadius(value.streamRadius)
 				out.flattenLighting = boolField("flattenLighting", defaults.flattenLighting)

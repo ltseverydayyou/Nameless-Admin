@@ -2497,6 +2497,8 @@ NAStuff.IYIntegrationMirrorNotifications = NAmanage.NASettingsGet("iyIntegration
 NAStuff.AutoPreloadAssets = NAmanage.NASettingsGet("autoPreloadAssets")
 NAStuff.LightingStyleAutomation = NAmanage.NASettingsGet("lightingStyleAutomation") == true
 NAStuff.LightingStyleAutomationStyle = NAmanage.NASettingsGet("lightingStyleAutomationStyle") or "Soft"
+NAStuff.PauseVoxelizerLighting = NAmanage.NASettingsGet("pauseVoxelizerLighting") == true
+NAStuff.FastParticleEffects = NAmanage.NASettingsGet("fastParticleEffects") == true
 NAStuff.StaffwatchIgnoreLocal = NAmanage.NASettingsGet("staffwatchIgnoreLocal") ~= false
 NAStuff.StaffwatchHighlightEnabled = NAmanage.NASettingsGet("staffwatchHighlight") ~= false
 NAStuff.StaffwatchOverrideESP = NAmanage.NASettingsGet("staffwatchOverrideESP") ~= false

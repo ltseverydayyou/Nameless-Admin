@@ -4588,25 +4588,42 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 	const stripExplosions = boolOpt(fpsOpt.stripExplosions, true);
 	const simplifyMaterials = boolOpt(fpsOpt.simplifyMaterials, true);
 	const zeroReflectance = boolOpt(fpsOpt.zeroReflectance, true);
+	const optimizeMeshes = boolOpt(fpsOpt.optimizeMeshes, true);
+	const optimizeModels = boolOpt(fpsOpt.optimizeModels, true);
+	const disableWorldQueries = boolOpt(fpsOpt.disableWorldQueries, false);
+	const disableWorldTouches = boolOpt(fpsOpt.disableWorldTouches, false);
+	const disable3dUi = boolOpt(fpsOpt.disable3dUi, false);
 	const forceStreaming = boolOpt(fpsOpt.forceStreaming, true);
 	const flattenLighting = boolOpt(fpsOpt.flattenLighting, true);
 	const streamRadius = math.clamp(tonumber(fpsOpt.streamRadius) or 96, 16, 4096);
-	const ignorePlayers = boolOpt(fpsOpt.ignorePlayers, true);
+	const ignorePlayers = boolOpt(fpsOpt.ignorePlayers, false);
 	const ignoreSelf = boolOpt(fpsOpt.ignoreSelf, true);
 	const function setHiddenOrNormal(inst, prop, val)
 		local ok = false;
-		if opt and opt.hiddenprop then
-			ok = pcall(function()
-				opt.hiddenprop(inst, prop, val);
+		const hiddenSetter = (type(__NARootHost) == "table" and (rawget(__NARootHost, "sethiddenproperty") or rawget(__NARootHost, "set_hidden_property") or rawget(__NARootHost, "sethiddenprop") or rawget(__NARootHost, "set_hidden_prop"))) or (opt and opt.hiddenprop);
+		if type(hiddenSetter) == "function" then
+			local called, result = pcall(function()
+				return hiddenSetter(inst, prop, val);
 			end);
+			if called then
+				local current = st.safeGet(inst, prop);
+				ok = current == val or result == true;
+			end;
 		end;
 		if not ok then
-			st.safeSet(inst, prop, val);
+			ok = st.safeSet(inst, prop, val) == true;
 		end;
+		return ok;
 	end;
+	const hiddenForceProps = {
+		LevelOfDetail = true;
+		RenderFidelity = true;
+	};
 	local active = false;
 	local cons = {};
 	local watchers = {};
+	local enforced = setmetatable({}, { __mode = "k" });
+	local enforceElapsed = 0;
 	const function connect(sig, fn)
 		const c = fn and sig:Connect(fn) or sig;
 		if c then
@@ -4632,8 +4649,18 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 		end;
 		const current = st.safeGet(inst, prop);
 		if current ~= nil and current ~= desired then
-			st.safeSet(inst, prop, desired);
+			if hiddenForceProps[prop] then
+				setHiddenOrNormal(inst, prop, desired);
+			else
+				st.safeSet(inst, prop, desired);
+			end;
 		end;
+		local props = enforced[inst];
+		if not props then
+			props = {};
+			enforced[inst] = props;
+		end;
+		props[prop] = desired;
 	end;
 	const A = "NA_FPS_";
 	const function remember(inst, prop, val)
@@ -4738,7 +4765,7 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 			"StreamingEnabled",
 			"StreamingPauseMode",
 			"StreamOutBehavior",
-			"TargetRadius"
+			"StreamingTargetRadius"
 			} do
 			if originals.Workspace[p] == nil then
 				originals.Workspace[p] = st.safeGet(w, p);
@@ -4769,12 +4796,14 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 			st.safeSet(T, "WaterTransparency", 0);
 		end;
 		if forceStreaming then
-			st.safeSet(w, "StreamingEnabled", true);
+			setHiddenOrNormal(w, "StreamingEnabled", true);
 			pcall(function()
-				w.StreamOutBehavior = Enum.StreamOutBehavior.LowMemory or Enum.StreamOutBehavior.Default;
+				setHiddenOrNormal(w, "StreamOutBehavior", Enum.StreamOutBehavior.LowMemory);
 			end);
-			st.safeSet(w, "StreamingPauseMode", Enum.StreamingPauseMode.Default);
-			st.safeSet(w, "TargetRadius", streamRadius);
+			pcall(function()
+				setHiddenOrNormal(w, "StreamingPauseMode", Enum.StreamingPauseMode.Default);
+			end);
+			setHiddenOrNormal(w, "StreamingTargetRadius", streamRadius);
 		end;
 		if stripPostFx then
 			for _, e in __lt.cm("Lighting", "GetChildren") do
@@ -4871,6 +4900,17 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 		const isPost = inst:IsA("PostEffect")
 		const isAtmos = inst:IsA("Atmosphere")
 		const isExplosion = inst:IsA("Explosion")
+		const is3dGui = inst:IsA("BillboardGui") or inst:IsA("SurfaceGui")
+
+		if optimizeModels and inst:IsA("Model") then
+			const lod = st.safeGet(inst, "LevelOfDetail")
+			if lod ~= nil then
+				remember(inst, "LevelOfDetail", lod)
+				pcall(function()
+					forceProperty(inst, "LevelOfDetail", Enum.ModelLevelOfDetail.SLIM)
+				end)
+			end
+		end;
 
 		if inst:IsA("BasePart") and simplifyMaterials then
 			remember(inst, "Material", inst.Material)
@@ -4900,6 +4940,33 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 			end
 			if varChanged then
 				forceProperty(inst, "MaterialVariant", "")
+			end
+		end
+
+		if optimizeMeshes and (inst:IsA("MeshPart") or inst:IsA("PartOperation")) then
+			const fidelity = st.safeGet(inst, "RenderFidelity")
+			if fidelity ~= nil then
+				remember(inst, "RenderFidelity", fidelity)
+				pcall(function()
+					forceProperty(inst, "RenderFidelity", Enum.RenderFidelity.Performance)
+				end)
+			end
+		end
+
+		if inst:IsA("BasePart") then
+			if disableWorldQueries then
+				const query = st.safeGet(inst, "CanQuery")
+				if query ~= nil then
+					remember(inst, "CanQuery", query)
+					forceProperty(inst, "CanQuery", false)
+				end
+			end
+			if disableWorldTouches then
+				const touch = st.safeGet(inst, "CanTouch")
+				if touch ~= nil then
+					remember(inst, "CanTouch", touch)
+					forceProperty(inst, "CanTouch", false)
+				end
 			end
 		end
 
@@ -5064,6 +5131,14 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 			forceProperty(inst, "BlastPressure", 1)
 			forceProperty(inst, "BlastRadius", 1)
 		end
+
+		if disable3dUi and is3dGui then
+			const en = st.safeGet(inst, "Enabled")
+			if en ~= nil then
+				remember(inst, "Enabled", en)
+				forceProperty(inst, "Enabled", false)
+			end
+		end
 	end
 	const function restoreInstance(inst)
 		if inst:IsA("BasePart") then
@@ -5087,12 +5162,40 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 				st.safeSet(inst, "CastShadow", cs);
 				clearAttr(inst, "CastShadow");
 			end;
+			const query = recall(inst, "CanQuery");
+			if query ~= nil then
+				st.safeSet(inst, "CanQuery", query);
+				clearAttr(inst, "CanQuery");
+			end;
+			const touch = recall(inst, "CanTouch");
+			if touch ~= nil then
+				st.safeSet(inst, "CanTouch", touch);
+				clearAttr(inst, "CanTouch");
+			end;
 			if inst:IsA("MeshPart") then
 				const tx = recall(inst, "TextureID");
 				if tx ~= nil then
 					st.safeSet(inst, "TextureID", tx);
 					clearAttr(inst, "TextureID");
 				end;
+			end;
+		end;
+		if inst:IsA("Model") then
+			const lod = recall(inst, "LevelOfDetail");
+			if lod ~= nil then
+				pcall(function()
+					st.safeSet(inst, "LevelOfDetail", Enum.ModelLevelOfDetail[lod] or inst.LevelOfDetail);
+				end);
+				clearAttr(inst, "LevelOfDetail");
+			end;
+		end;
+		if inst:IsA("MeshPart") or inst:IsA("PartOperation") then
+			const fidelity = recall(inst, "RenderFidelity");
+			if fidelity ~= nil then
+				pcall(function()
+					st.safeSet(inst, "RenderFidelity", Enum.RenderFidelity[fidelity] or inst.RenderFidelity);
+				end);
+				clearAttr(inst, "RenderFidelity");
 			end;
 		end;
 		if inst:IsA("SpecialMesh") then
@@ -5178,6 +5281,13 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 			if br ~= nil then
 				st.safeSet(inst, "BlastRadius", br);
 				clearAttr(inst, "BlastRadius");
+			end;
+		end;
+		if inst:IsA("BillboardGui") or inst:IsA("SurfaceGui") then
+			const en = recall(inst, "Enabled");
+			if en ~= nil then
+				st.safeSet(inst, "Enabled", en);
+				clearAttr(inst, "Enabled");
 			end;
 		end;
 	end;
@@ -5308,6 +5418,22 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 			hookCamera(w.CurrentCamera);
 		end);
 		hookCamera(w.CurrentCamera);
+		connect(Services.RunService.Heartbeat, function(dt)
+			enforceElapsed += tonumber(dt) or 0;
+			if enforceElapsed < 0.75 then
+				return;
+			end;
+			enforceElapsed = 0;
+			for inst, props in enforced do
+				if not inst or not inst.Parent then
+					enforced[inst] = nil;
+				else
+					for prop, desired in props do
+						forceProperty(inst, prop, desired);
+					end;
+				end;
+			end;
+		end);
 
 		applyEnv();
 
@@ -5328,10 +5454,22 @@ cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"f
 		disconnectAll();
 		restoreAll();
 		restoreEnv();
+		for inst in enforced do
+			enforced[inst] = nil;
+		end;
+		enforceElapsed = 0;
+	end;
+	_na_env.NA_FPS_REFRESH = function()
+		if active and not effectDestroy then
+			disable();
+			enable();
+		end;
 	end;
 	_na_env.NA_FPS_UNHOOK = function()
 		disable();
 		_na_env.NA_FPS_UNHOOK = nil;
+		_na_env.NA_FPS_REFRESH = nil;
+		_na_env.NA_FPS_REFRESH_PENDING = nil;
 	end;
 	enable();
 	_na_env.NA_FPS_ACTIVE = true;

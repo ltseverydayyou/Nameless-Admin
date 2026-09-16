@@ -303,6 +303,32 @@ end)
 const function buildEngineSettingsControls()
 	NAgui.addSection("Roblox Engine Settings")
 
+	NAgui.addSection("Visual Effects")
+	NAgui.addInfo("Fast Particle Effects Info", "Makes particles, smoke, fire, beams, and similar effects update faster and more repetitively. This changes effect behavior; it is not a general FPS booster.")
+	const function setFastParticleEffects(enabled, notify)
+		const state = enabled == true
+		const ok, err = NAmanage.ApplyStandaloneFFlag("DebugRenderingSetDeterministic", state, { silent = true })
+		if not ok then
+			if notify then
+				DoNotif("Unable to change particle effect behavior on this executor.", 3)
+			end
+			return false, err
+		end
+		NAStuff.FastParticleEffects = state
+		pcall(NAmanage.NASettingsSet, "fastParticleEffects", state)
+		if notify then
+			DoNotif("Fast particle effects "..(state and "enabled" or "disabled"), 2)
+		end
+		return true
+	end
+	setFastParticleEffects(NAStuff.FastParticleEffects == true, false)
+	NAgui.addToggle("Fast Particle Effects", NAStuff.FastParticleEffects == true, function(v)
+		setFastParticleEffects(v == true, true)
+	end)
+	NAmanage.RegisterToggleAutoSync("Fast Particle Effects", function()
+		return NAStuff.FastParticleEffects == true
+	end)
+
 	const function engineBoolValue(entry)
 		return NAmanage.EngineSettings.get(entry.service, entry.property, false) == true
 	end
@@ -917,6 +943,34 @@ const function buildAssetLoadingControls()
 end
 
 buildAssetLoadingControls()
+
+NAgui.addSection("Lighting Performance")
+NAgui.addInfo("Dynamic Lighting Warning", "Freezing dynamic lighting updates stops Roblox's light voxel data from updating. PointLights and SurfaceLights may stop producing or updating light until this is disabled or Roblox is restarted.")
+
+const function setVoxelizerLightingPause(enabled, notify)
+	const state = enabled == true
+	const ok, err = NAmanage.ApplyStandaloneFFlag("DebugPauseVoxelizer", state, { silent = true })
+	if not ok then
+		if notify then
+			DoNotif("Unable to change dynamic lighting updates on this executor.", 3)
+		end
+		return false, err
+	end
+	NAStuff.PauseVoxelizerLighting = state
+	pcall(NAmanage.NASettingsSet, "pauseVoxelizerLighting", state)
+	if notify then
+		DoNotif("Dynamic lighting updates "..(state and "frozen" or "enabled"), 2)
+	end
+	return true
+end
+
+setVoxelizerLightingPause(NAStuff.PauseVoxelizerLighting == true, false)
+NAgui.addToggle("Freeze Dynamic Lighting Updates", NAStuff.PauseVoxelizerLighting == true, function(v)
+		setVoxelizerLightingPause(v == true, true)
+end)
+NAmanage.RegisterToggleAutoSync("Freeze Dynamic Lighting Updates", function()
+	return NAStuff.PauseVoxelizerLighting == true
+end)
 
 NAmanage.setAssetLoadButtonState = function(isRunning)
 	NAStuff.AssetLoadRunning = isRunning and true or false
@@ -1548,6 +1602,16 @@ NAmanage.updateFpsBoostOpt=function(key, value)
 	NAStuff.FPSBoostOptions = NAStuff.FPSBoostOptions or {}
 	NAStuff.FPSBoostOptions[key] = value
 	NAStuff.FPSBoostOptions = NAmanage.NASettingsSet("fpsBoostOptions", NAStuff.FPSBoostOptions) or NAStuff.FPSBoostOptions
+	if _na_env.NA_FPS_ACTIVE and type(_na_env.NA_FPS_REFRESH) == "function" and NAStuff.FPSBoostOptions.effectMode ~= "destroy" and not _na_env.NA_FPS_REFRESH_PENDING then
+		_na_env.NA_FPS_REFRESH_PENDING = true
+		task.spawn(function()
+			task.wait()
+			_na_env.NA_FPS_REFRESH_PENDING = false
+			if type(_na_env.NA_FPS_REFRESH) == "function" then
+				_na_env.NA_FPS_REFRESH()
+			end
+		end)
+	end
 end
 
 NAgui.addSection("FPSBooster Defaults")
@@ -1631,6 +1695,41 @@ NAmanage.RegisterToggleAutoSync("Zero Reflectance", function()
 	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.zeroReflectance ~= false) == true
 end)
 
+NAgui.addToggle("Performance Mesh LOD", NAStuff.FPSBoostOptions.optimizeMeshes ~= false, function(v)
+	NAmanage.updateFpsBoostOpt("optimizeMeshes", v ~= false)
+end)
+NAmanage.RegisterToggleAutoSync("Performance Mesh LOD", function()
+	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.optimizeMeshes ~= false) == true
+end)
+
+NAgui.addToggle("Performance Model LOD", NAStuff.FPSBoostOptions.optimizeModels ~= false, function(v)
+	NAmanage.updateFpsBoostOpt("optimizeModels", v ~= false)
+end)
+NAmanage.RegisterToggleAutoSync("Performance Model LOD", function()
+	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.optimizeModels ~= false) == true
+end)
+
+NAgui.addToggle("Reduce World Queries (Aggressive)", NAStuff.FPSBoostOptions.disableWorldQueries == true, function(v)
+	NAmanage.updateFpsBoostOpt("disableWorldQueries", v == true)
+end)
+NAmanage.RegisterToggleAutoSync("Reduce World Queries (Aggressive)", function()
+	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.disableWorldQueries == true) == true
+end)
+
+NAgui.addToggle("Reduce World Touches (Aggressive)", NAStuff.FPSBoostOptions.disableWorldTouches == true, function(v)
+	NAmanage.updateFpsBoostOpt("disableWorldTouches", v == true)
+end)
+NAmanage.RegisterToggleAutoSync("Reduce World Touches (Aggressive)", function()
+	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.disableWorldTouches == true) == true
+end)
+
+NAgui.addToggle("Disable 3D UI", NAStuff.FPSBoostOptions.disable3dUi == true, function(v)
+	NAmanage.updateFpsBoostOpt("disable3dUi", v == true)
+end)
+NAmanage.RegisterToggleAutoSync("Disable 3D UI", function()
+	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.disable3dUi == true) == true
+end)
+
 NAgui.addToggle("Dampen Explosions", NAStuff.FPSBoostOptions.stripExplosions ~= false, function(v)
 	NAmanage.updateFpsBoostOpt("stripExplosions", v ~= false)
 end)
@@ -1667,7 +1766,7 @@ NAmanage.RegisterToggleAutoSync("Ignore Self", function()
 end)
 
 const streamRadiusDefault = math.clamp(tonumber(NAStuff.FPSBoostOptions.streamRadius) or 96, 16, 4096)
-NAgui.addSlider("Streaming Radius (FPSBooster)", 16, 1024, streamRadiusDefault, 8, " studs", function(val)
+NAgui.addSlider("Streaming Radius (FPSBooster)", 16, 4096, streamRadiusDefault, 8, " studs", function(val)
 	const n = math.clamp(tonumber(val) or streamRadiusDefault, 16, 4096)
 	NAmanage.updateFpsBoostOpt("streamRadius", n)
 end)
@@ -2948,7 +3047,6 @@ NAFFlags.whitelist = {
 	{ name = "GraphicsGLEnableSuperHQShadersExclusion", default = true, valueType = "boolean", category = "Rendering API & Display" };
 
 	{ name = "LCCageDeformLimit", default = -1, valueType = "number", category = "Graphics Quality & Lighting" };
-	{ name = "DebugPauseVoxelizer", default = false, valueType = "boolean", category = "Graphics Quality & Lighting" };
 	{ name = "RobloxGuiBlurIntensity", default = 0, valueType = "number", category = "Graphics Quality & Lighting" };
 	{ name = "RenderShadowmapBias", default = -1, valueType = "number", category = "Graphics Quality & Lighting" };
 	{ name = "DebugForceMSAASamples", default = 0, valueType = "number", category = "Graphics Quality & Lighting" };
@@ -3016,7 +3114,6 @@ NAFFlags.whitelist = {
 	{ name = "RuntimeConcurrency", default = 15, valueType = "number", category = "CPU, Threads & Memory" };
 	{ name = "SimWorldTaskQueueParallelTasks", default = 16, valueType = "number", category = "CPU, Threads & Memory" };
 	{ name = "LuaGcParallelMinMultiTasks", default = 16, valueType = "number", category = "CPU, Threads & Memory" };
-	{ name = "DebugRenderingSetDeterministic", default = true, valueType = "boolean", category = "CPU, Threads & Memory" };
 	{ name = "TaskSchedulerAutoThreadLimit", default = 15, valueType = "number", category = "CPU, Threads & Memory" };
 	{ name = "TaskSchedulerAsyncTasksMinimumThreadCount", default = 15, valueType = "number", category = "CPU, Threads & Memory" };
 	{ name = "SmoothClusterTaskQueueMaxParallelTasks", default = 16, valueType = "number", category = "CPU, Threads & Memory" };
@@ -3119,7 +3216,6 @@ NAFFlags.info = NAFFlags.info or {
 	MegaReplicatorNumParallelTasks = "Extra threads for really heavy replication loads. Only useful in very busy places. If CPU time explodes, go back to 16.";
 	LuaGcParallelMinMultiTasks = "How many threads the Luau garbage collector is willing to use in parallel. It can reduce stutters on fast CPUs; if your CPU is weaker and feels hot, reset to 16.";
 	FixParticleAttachmentCulling = "Stops some particle systems disappearing too early when attached to parts. Usually best left on.";
-	DebugRenderingSetDeterministic = "Makes rendering more repeatable between runs, which is good for debugging. If it ever causes weird issues, just turn it off.";
 
 	TaskSchedulerAutoThreadLimit = "Upper bound for how many worker threads the scheduler can spin up. Tiny changes are okay; big jumps can hurt. If you start seeing random jank, go back to 15.";
 	TaskSchedulerAsyncTasksMinimumThreadCount = "Minimum number of async worker threads that stay alive. Higher means more idle threads. If you see constant CPU usage even when idle, return to 15.";
@@ -3138,7 +3234,6 @@ NAFFlags.info = NAFFlags.info or {
 	DebugForceChatDisabled = "Forces chat off on the client. Useful for distraction-free testing or recording. Leave it false if you want normal chat behavior.";
 	LCCageDeformLimit = "Limit for how much cage-based mesh deforms. -1 basically means no artificial limit. If an avatar looks broken, try using a small positive number or just disable the flag.";
 	FullscreenTitleBarTriggerDelayMillis = "How long you have to hover at the top in fullscreen before the title bar appears, in milliseconds. Set it very high to almost never see the bar. Reset to 2 if you want the default.";
-	DebugPauseVoxelizer = "Freezes updates to the lighting voxel data. Only for debugging; the world lighting will be stuck. Leave it false unless you know what you’re doing.";
 	RobloxGuiBlurIntensity = "How strong the blur behind core UI like the pause menu is. 0 disables the blur, higher makes it blurrier. If you regret changes, just put it back to 0.";
 	DebugDisplayFPS = "Shows a simple FPS counter. Handy for testing, annoying if you hate clutter. Turn it off to hide it.";
 	RenderShadowmapBias = "Fine-tunes how shadows sit on surfaces. -1 lets Roblox pick automatically. If shadows look like they float or crawl, go back to -1.";
@@ -3926,6 +4021,28 @@ NAFFlags.load = function()
 end
 
 NAFFlags.load()
+local removedLegacyManagedFlag = false
+for _, legacyName in { "DebugPauseVoxelizer", "FFlagDebugPauseVoxelizer", "DebugRenderingSetDeterministic", "FFlagDebugRenderingSetDeterministic" } do
+	if NAFFlags.config.flags and NAFFlags.config.flags[legacyName] ~= nil then
+		NAFFlags.config.flags[legacyName] = nil
+		removedLegacyManagedFlag = true
+	end
+	if NAFFlags.config.custom and NAFFlags.config.custom[legacyName] ~= nil then
+		NAFFlags.config.custom[legacyName] = nil
+		removedLegacyManagedFlag = true
+	end
+	if NAFFlags.config.enabledFlags and NAFFlags.config.enabledFlags[legacyName] ~= nil then
+		NAFFlags.config.enabledFlags[legacyName] = nil
+		removedLegacyManagedFlag = true
+	end
+	if NAFFlags.config.clientKeyAliases and NAFFlags.config.clientKeyAliases[legacyName] ~= nil then
+		NAFFlags.config.clientKeyAliases[legacyName] = nil
+		removedLegacyManagedFlag = true
+	end
+end
+if removedLegacyManagedFlag then
+	NAFFlags.save()
+end
 for _, entry in NAFFlags.whitelist do
 	NAFFlags.values[entry.name] = NAFFlags.config.flags[entry.name]
 end

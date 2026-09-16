@@ -1,5 +1,6 @@
 SpawnCall(function()
 	const NAresult = tick() - NAbegin
+	const NAmilliseconds = math.max(0, math.floor((tonumber(NAresult) or 0) * 1000 + 0.5))
 	const nameCheck = nameChecker(Player)
 
 	Delay(0.3, function()
@@ -12,7 +13,7 @@ SpawnCall(function()
 		const notifBody = welcomeMessage..
 			(identifyexecutor and ("\nExecutor: "..executorName) or "")..
 			"\nUpdated on: "..opt.NAupdDate..
-			"\nTime Taken To Load: "..loadedResults(NAresult)
+			"\nTime Taken To Load: "..loadedResults(NAresult).." ("..tostring(NAmilliseconds).." ms)"
 
 		if NAmanage.jlCfg.WelcomeNotif ~= false and not (type(NAmanage.isStartupHidden) == "function" and NAmanage.isStartupHidden() == true) then
 			DoNotif(notifBody, 6, rngMsg().." "..nameCheck)

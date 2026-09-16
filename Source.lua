@@ -394,7 +394,8 @@ for _, root in __NA_SPLIT_LOCAL_ROOTS do
 	end
 end
 
-local __NA_SPLIT_REMOTE_MANIFEST_SOURCE = __NA_SPLIT_READ_REMOTE("manifest.lua")
+local __NA_SPLIT_LOCAL_ONLY = rawget(__NARootHost, "__NA_SPLIT_LOCAL_ONLY") == true
+local __NA_SPLIT_REMOTE_MANIFEST_SOURCE = __NA_SPLIT_LOCAL_ONLY and nil or __NA_SPLIT_READ_REMOTE("manifest.lua")
 local __NA_SPLIT_REMOTE_META = __NA_SPLIT_LOAD_MANIFEST(__NA_SPLIT_REMOTE_MANIFEST_SOURCE, "NA-split/common/manifest.lua")
 if __NA_SPLIT_REMOTE_META and type(__NA_SPLIT_REMOTE_META.version) == "string" and __NA_SPLIT_REMOTE_META.version ~= "" then
 	__NA_SPLIT_REMOTE_QUERY = "?na_build="..__NA_SPLIT_REMOTE_META.version
@@ -487,6 +488,14 @@ local function __NA_SPLIT_LOAD_PART(source, chunkName, environment)
 	return chunk
 end
 
+local function __NA_SPLIT_YIELD_BETWEEN_PARTS()
+	if type(task) == "table" and type(task.wait) == "function" then
+		task.wait()
+	elseif type(wait) == "function" then
+		wait()
+	end
+end
+
 local function __NA_SPLIT_FORMAT_ERROR(value)
 	local text = tostring(value)
 	if type(debug) == "table" and type(debug.traceback) == "function" then
@@ -556,6 +565,9 @@ local function __NA_SPLIT_RUN()
 				rawset(environment, key, nil)
 			end
 			environment = boot.runtimeEnv
+		end
+		if index < __NA_SPLIT_COUNT then
+			__NA_SPLIT_YIELD_BETWEEN_PARTS()
 		end
 	end
 	__NA_SPLIT_CACHE_REMOTE()
