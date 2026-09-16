@@ -305,25 +305,19 @@ const function buildEngineSettingsControls()
 
 	NAgui.addSection("Visual Effects")
 	NAgui.addInfo("Fast Particle Effects Info", "Makes particles, smoke, fire, beams, and similar effects update faster and more repetitively. This changes effect behavior; it is not a general FPS booster.")
-	const function setFastParticleEffects(enabled, notify)
-		const state = enabled == true
-		const ok, err = NAmanage.ApplyStandaloneFFlag("DebugRenderingSetDeterministic", state, { silent = true })
-		if not ok then
-			if notify then
-				DoNotif("Unable to change particle effect behavior on this executor.", 3)
-			end
-			return false, err
-		end
-		NAStuff.FastParticleEffects = state
-		pcall(NAmanage.NASettingsSet, "fastParticleEffects", state)
-		if notify then
-			DoNotif("Fast particle effects "..(state and "enabled" or "disabled"), 2)
-		end
-		return true
+	NAmanage.SetFastParticleEffects = NAmanage.SetFastParticleEffects or function(enabled, opts)
+		return NAmanage.ApplyStandaloneFFlag("DebugRenderingSetDeterministic", enabled == true, opts)
 	end
-	setFastParticleEffects(NAStuff.FastParticleEffects == true, false)
+	NAmanage.SetFastParticleEffects(NAStuff.FastParticleEffects == true, { silent = true })
 	NAgui.addToggle("Fast Particle Effects", NAStuff.FastParticleEffects == true, function(v)
-		setFastParticleEffects(v == true, true)
+		const enabled = v == true
+		const ok = NAmanage.SetFastParticleEffects(enabled)
+		if not ok then
+			return
+		end
+		NAStuff.FastParticleEffects = enabled
+		pcall(NAmanage.NASettingsSet, "fastParticleEffects", enabled)
+		DoNotif("Fast particle effects "..(enabled and "enabled" or "disabled"), 2)
 	end)
 	NAmanage.RegisterToggleAutoSync("Fast Particle Effects", function()
 		return NAStuff.FastParticleEffects == true
@@ -947,26 +941,19 @@ buildAssetLoadingControls()
 NAgui.addSection("Lighting Performance")
 NAgui.addInfo("Dynamic Lighting Warning", "Freezing dynamic lighting updates stops Roblox's light voxel data from updating. PointLights and SurfaceLights may stop producing or updating light until this is disabled or Roblox is restarted.")
 
-const function setVoxelizerLightingPause(enabled, notify)
-	const state = enabled == true
-	const ok, err = NAmanage.ApplyStandaloneFFlag("DebugPauseVoxelizer", state, { silent = true })
-	if not ok then
-		if notify then
-			DoNotif("Unable to change dynamic lighting updates on this executor.", 3)
-		end
-		return false, err
-	end
-	NAStuff.PauseVoxelizerLighting = state
-	pcall(NAmanage.NASettingsSet, "pauseVoxelizerLighting", state)
-	if notify then
-		DoNotif("Dynamic lighting updates "..(state and "frozen" or "enabled"), 2)
-	end
-	return true
+NAmanage.SetVoxelizerLightingPause = NAmanage.SetVoxelizerLightingPause or function(enabled, opts)
+	return NAmanage.ApplyStandaloneFFlag("DebugPauseVoxelizer", enabled == true, opts)
 end
-
-setVoxelizerLightingPause(NAStuff.PauseVoxelizerLighting == true, false)
+NAmanage.SetVoxelizerLightingPause(NAStuff.PauseVoxelizerLighting == true, { silent = true })
 NAgui.addToggle("Freeze Dynamic Lighting Updates", NAStuff.PauseVoxelizerLighting == true, function(v)
-		setVoxelizerLightingPause(v == true, true)
+		const enabled = v == true
+		const ok = NAmanage.SetVoxelizerLightingPause(enabled)
+		if not ok then
+			return
+		end
+		NAStuff.PauseVoxelizerLighting = enabled
+		pcall(NAmanage.NASettingsSet, "pauseVoxelizerLighting", enabled)
+		DoNotif("Dynamic lighting updates "..(enabled and "frozen" or "enabled"), 2)
 end)
 NAmanage.RegisterToggleAutoSync("Freeze Dynamic Lighting Updates", function()
 	return NAStuff.PauseVoxelizerLighting == true
