@@ -2262,6 +2262,67 @@ NAmanage.AntiTouchEnableCanTouch = function()
 	return true, { changed = changed }
 end
 
+NAmanage.AntiTouchEnableAdvanced = function()
+	NAStuff._kbTouchParts = NAStuff._kbTouchParts or {}
+	NAStuff._kbTouchOriginal = NAStuff._kbTouchOriginal or {}
+	const tracked = NAStuff._kbTouchParts
+	const original = NAStuff._kbTouchOriginal
+
+	const function disableWorldPart(part)
+		if not (part and part:IsA("BasePart")) then
+			return false
+		end
+		const char = getChar()
+		if char and part:IsDescendantOf(char) then
+			return false
+		end
+		if original[part] == nil then
+			original[part] = NAlib.isProperty(part, "CanTouch")
+		end
+		const before = NAlib.isProperty(part, "CanTouch")
+		if before ~= false then
+			NAlib.setProperty(part, "CanTouch", false)
+		end
+		tracked[part] = true
+		return before ~= false
+	end
+
+	NAlib.connect("antikb", NAmanage.wsAdd(function(inst)
+		if inst:IsA("BasePart") then
+			disableWorldPart(inst)
+		end
+	end))
+
+	local enforceElapsed = 0
+	NAlib.connect("antikb", Services.RunService.Heartbeat:Connect(function(dt)
+		enforceElapsed += tonumber(dt) or 0
+		if enforceElapsed < 0.75 then
+			return
+		end
+		enforceElapsed = 0
+		for part in tracked do
+			if typeof(part) == "Instance" and part.Parent then
+				if NAlib.isProperty(part, "CanTouch") ~= false then
+					NAlib.setProperty(part, "CanTouch", false)
+				end
+			else
+				tracked[part] = nil
+				original[part] = nil
+			end
+		end
+	end))
+
+	local changed = 0
+	for _, part in NAmanage.QueryDescendants(Services.Workspace, "BasePart") do
+		if disableWorldPart(part) then
+			changed += 1
+		end
+	end
+
+	NAStuff._kbMethod = "advanced"
+	return true, { changed = changed }
+end
+
 NAmanage.AntiTouchNormalizeMethod = function(method)
 	if method == nil then
 		return nil
@@ -2276,6 +2337,9 @@ NAmanage.AntiTouchNormalizeMethod = function(method)
 	if normalized == "cantouch" or normalized == "disabletouch" or normalized == "property" or normalized == "touchoff" or normalized == "autodisable" then
 		return "cantouch"
 	end
+	if normalized == "advanced" then
+		return "advanced"
+	end
 	return nil
 end
 
@@ -2288,6 +2352,8 @@ NAmanage.AntiTouchEnable = function(method, opts)
 	local ok, result
 	if resolved == "cantouch" then
 		ok, result = NAmanage.AntiTouchEnableCanTouch()
+	elseif resolved == "advanced" then
+		ok, result = NAmanage.AntiTouchEnableAdvanced()
 	else
 		ok, result = NAmanage.AntiTouchEnableRemoveParts()
 	end
@@ -2299,18 +2365,19 @@ NAmanage.AntiTouchEnable = function(method, opts)
 	end
 
 	const changed = (type(result) == "table" and tonumber(result.changed)) or 0
-	const methodText = (resolved == "cantouch") and "Disable touchable property" or "Remove parts"
+	const methodText = resolved == "cantouch" and "Disable touchable property" or resolved == "advanced" and "Advanced world CanTouch" or "Remove parts"
+	const targetText = resolved == "advanced" and "world part(s)" or "touchable part(s)"
 	if opts.notify ~= false then
 		if changed > 0 then
-			DoNotif(("AntiTouch enabled (%s). Disabled %d touchable part(s)."):format(methodText, changed), 3, "AntiTouch")
+			DoNotif(("AntiTouch enabled (%s). Disabled %d %s."):format(methodText, changed, targetText), 3, "AntiTouch")
 		else
-			DoNotif(("AntiTouch enabled (%s). No touchable parts found yet (live tracking active)."):format(methodText), 2, "AntiTouch")
+			DoNotif(("AntiTouch enabled (%s). No matching parts found yet (live tracking active)."):format(methodText), 2, "AntiTouch")
 		end
 	end
 	return true, result, resolved
 end
 
-cmd.add({"antitouch","antikillbrick","antikb"},{"antitouch [remove/cantouch/loop] (antikillbrick, antikb)","Disables touchable parts"},function(methodArg)
+cmd.add({"antitouch","antikillbrick","antikb"},{"antitouch [remove/cantouch/advanced/loop] (antikillbrick, antikb)","Disables touchable parts"},function(methodArg)
 	const directMethod = NAmanage.AntiTouchNormalizeMethod(methodArg)
 	if directMethod then
 		NAmanage.AntiTouchEnable(directMethod)
@@ -2318,7 +2385,7 @@ cmd.add({"antitouch","antikillbrick","antikb"},{"antitouch [remove/cantouch/loop
 	end
 
 	if methodArg ~= nil and tostring(methodArg) ~= "" then
-		DoNotif("Unknown AntiTouch method. Use remove, cantouch, or loop.", 2, "AntiTouch")
+		DoNotif("Unknown AntiTouch method. Use remove, cantouch, advanced, or loop.", 2, "AntiTouch")
 		return
 	end
 
@@ -2329,7 +2396,7 @@ cmd.add({"antitouch","antikillbrick","antikb"},{"antitouch [remove/cantouch/loop
 
 	Window({
 		Title = "AntiTouch Method",
-		Description = "Choose which method to use. Both methods live-track new touch parts.",
+		Description = "Choose which method to use. All methods live-track new parts.",
 		Buttons = {
 			{
 				Text = "Method 1: Remove parts",
@@ -2341,6 +2408,12 @@ cmd.add({"antitouch","antikillbrick","antikb"},{"antitouch [remove/cantouch/loop
 				Text = "Method 2: Disable touchable property",
 				Callback = function()
 					NAmanage.AntiTouchEnable("cantouch")
+				end
+			},
+			{
+				Text = "Method 3: Advanced (all world CanTouch)",
+				Callback = function()
+					NAmanage.AntiTouchEnable("advanced")
 				end
 			}
 		}
