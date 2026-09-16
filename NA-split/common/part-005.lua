@@ -2484,6 +2484,7 @@ NAStuff.ForceRconsoleNAConsole = NAmanage.NASettingsGet("forceRconsoleNAConsole"
 NAStuff.FriendRequestAutoDismiss = NAmanage.NASettingsGet("friendRequestAutoDismiss")
 NAStuff.StreamerModeEnabled = NAmanage.NASettingsGet("streamerMode") == true
 NAStuff.PurchasePromptsDisabled = NAmanage.NASettingsGet("purchasePromptsDisabled")
+NAStuff.Order66PurchaseBlock = NAmanage.NASettingsGet("order66PurchaseBlock") == true
 NAStuff.CmdIntegrationAutoRun = NAmanage.NASettingsGet("cmdIntegrationAutoRun")
 NAStuff.CmdIntegrationRoutingMode = NAmanage.CmdIntegrationNormalizeMode(NAmanage.NASettingsGet("cmdIntegrationRoutingMode") or NAStuff.CmdIntegrationRoutingMode)
 NAStuff.CmdIntegrationExposeGateway = NAmanage.NASettingsGet("cmdIntegrationExposeGateway") ~= false
@@ -2501,6 +2502,7 @@ NAStuff.StaffwatchHighlightEnabled = NAmanage.NASettingsGet("staffwatchHighlight
 NAStuff.StaffwatchOverrideESP = NAmanage.NASettingsGet("staffwatchOverrideESP") ~= false
 NAStuff.StaffwatchMarkerColor = NAmanage.NASettingsGet("staffwatchMarkerColor")
 NAStuff.SafeSpeedMethod = NAmanage.NASettingsGet("safeSpeedMethod") ~= false
+NAStuff.EnhancedPhysicsReplication = NAmanage.NASettingsGet("enhancedPhysicsReplication") == true
 NAStuff.SafeJumpMethod = NAmanage.NASettingsGet("safeJumpMethod") ~= false
 NAStuff.CustomMovementSounds = NAStuff.CustomMovementSounds or {}
 NAStuff.CustomMovementSounds.Enabled = NAmanage.NASettingsGet("customMovementSoundsEnabled") == true
