@@ -3735,6 +3735,12 @@ NAmanage.NASettingsGetSchema=function()
 				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
 			end;
 		};
+		enhancedPhysicsReplication = {
+			default = false;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
+			end;
+		};
 		safeJumpMethod = {
 			default = true;
 			coerce = function(value)
@@ -4011,6 +4017,12 @@ NAmanage.NASettingsGetSchema=function()
 			end;
 		};
 		purchasePromptsDisabled = {
+			default = false;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
+			end;
+		};
+		order66PurchaseBlock = {
 			default = false;
 			coerce = function(value)
 				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
