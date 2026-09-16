@@ -4296,6 +4296,58 @@ NAFFlags.stopMaintainLoop = function()
 	end
 end
 
+NAFFlags.disableAll = function()
+	NAFFlags.config.useFFlags = false
+	NAFFlags.config.autoApply = false
+	NAFFlags.config.enabledFlags = NAFFlags.config.enabledFlags or {}
+
+	for _, entry in NAFFlags.whitelist do
+		const name = entry.name
+		NAFFlags.config.enabledFlags[name] = false
+		if entry.valueType == "boolean" then
+			NAFFlags.values[name] = false
+			NAFFlags.config.flags[name] = false
+		end
+	end
+
+	local removedCustom = 0
+	for _, value in NAFFlags.config.custom or {} do
+		if value ~= nil then
+			removedCustom += 1
+		end
+	end
+	NAFFlags.config.custom = {}
+	NAFFlags.stopMaintainLoop()
+	NAFFlags.save()
+
+	if NAgui and NAgui.setToggleState then
+		NAgui.setToggleState("Use FastFlags", false, { force = true, fire = false })
+		NAgui.setToggleState("Auto-apply FastFlags", false, { force = true, fire = false })
+		for _, entry in NAFFlags.whitelist do
+			NAgui.setToggleState(entry.name.."_Enabled", false, { force = true, fire = false })
+			if entry.valueType == "boolean" then
+				NAgui.setToggleState(entry.name, false, { force = true, fire = false })
+			end
+		end
+	end
+
+	if NAStuff then
+		NAStuff.customFFlagName = ""
+		NAStuff.customFFlagValue = ""
+		NAStuff.customFlagIndex = nil
+		NAStuff.customFlagNames = {}
+	end
+	if NAgui and NAgui.setInputValue then
+		NAgui.setInputValue("Custom Flag Name", "")
+		NAgui.setInputValue("Custom Flag Value", "")
+	end
+	if type(NAFFlags.refreshCustomListDisplay) == "function" then
+		NAFFlags.refreshCustomListDisplay()
+	end
+
+	DoNotif(Format("Disabled all FastFlags and removed %d custom flag%s.", removedCustom, removedCustom == 1 and "" or "s"), 3)
+end
+
 NAFFlags.autoApplyWithRetry = function(opts)
 	opts = opts or {}
 	const initialDelays = opts.delays or { 0, 0.5, 1.5 }
@@ -4461,6 +4513,10 @@ end)
 
 NAgui.addButton("Apply All FFlags (including custom)", function()
 	NAFFlags.applyAll()
+end)
+
+NAgui.addButton("Disable All FastFlags", function()
+	NAFFlags.disableAll()
 end)
 
 NAgui.addToggle("Apply Only Whitelisted FFlags", NAFFlags.config.applyWhitelistOnly == true, function(state)
