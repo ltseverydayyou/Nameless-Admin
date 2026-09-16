@@ -4631,8 +4631,8 @@
         "antikillbrick",
         "antikb"
       ],
-      "usage": "antitouch [remove/cantouch/loop] (antikillbrick, antikb)",
-      "args": "[remove/cantouch/loop]",
+      "usage": "antitouch [remove/cantouch/advanced/loop] (antikillbrick, antikb)",
+      "args": "[remove/cantouch/advanced/loop]",
       "desc": "Disables touchable parts"
     },
     {
