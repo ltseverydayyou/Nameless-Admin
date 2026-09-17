@@ -612,20 +612,9 @@ if cmd and type(cmd.add) == "function" then
 		NAgui.nachat()
 	end)
 end
---[[ NA CHAT (WEBSOCKET) ]]--
 originalIO.runNACHAT=function()
-	local Players = Services and Services.Players
-	if not Players then
-		pcall(function()
-			Players = game:GetService("Players")
-		end)
-	end
-	local RunService = Services and Services.RunService
-	if not RunService then
-		pcall(function()
-			RunService = game:GetService("RunService")
-		end)
-	end
+	local Players = (Services and Services.Players) or (SafeGetService and SafeGetService("Players"))
+	local RunService = (Services and Services.RunService) or (SafeGetService and SafeGetService("RunService"))
 	if not Players then
 		warn("[NA Chat] Players service unavailable; chat startup skipped")
 		return
@@ -653,11 +642,20 @@ originalIO.runNACHAT=function()
 	local gameActivityBtn = NAUIMANAGER and NAUIMANAGER.NAchatGameActivity
 	local dmNotifBtn = NAUIMANAGER and NAUIMANAGER.NAchatDmNotifyButton
 
+	local function syncAdminFrameLayout()
+		if adminFrame and chatScroll then
+			adminFrame.AnchorPoint = chatScroll.AnchorPoint or Vector2.new(0.5, 0)
+			adminFrame.Size = chatScroll.Size
+			adminFrame.Position = chatScroll.Position
+		end
+	end
+
 	local function refreshChatResponsive(center)
 		Defer(function()
 			if chatFrame and chatFrame.Parent and NAmanage and type(NAmanage.NAChat_ApplyResponsive) == "function" then
 				pcall(NAmanage.NAChat_ApplyResponsive, center == true)
 			end
+			syncAdminFrameLayout()
 		end)
 	end
 
@@ -1359,7 +1357,7 @@ originalIO.runNACHAT=function()
 			local sz = NAgui.txtSize(lbl, lbl.AbsoluteSize.X, 200)
 			lbl.Size = UDim2.new(1, -6, 0, sz.Y + 6)
 
-			local tr = NAStuff.NAChatTranslator
+			local tr = NAStuff.ChatTranslator
 			if tr then
 				tr:registerMessage(lbl, t, rawMessage or t)
 			end
@@ -1688,7 +1686,6 @@ originalIO.runNACHAT=function()
 				end
 				local hasJoin = joinBtn ~= nil
 
-				-- DM button
 				local dmBtn = fr:FindFirstChild("DMButton")
 				if isSelf then
 					if dmBtn then
@@ -1856,8 +1853,6 @@ originalIO.runNACHAT=function()
 				if isChatUiSuppressed() then
 					updateUsersList({})
 				else
-					-- Render can deliver the list while the chat tab is active. Paint
-					-- the cached list immediately, then request a fresh snapshot.
 					if type(NAChat.users) == "table" and #NAChat.users > 0 then
 						updateUsersList(NAChat.users)
 					end
@@ -1976,9 +1971,12 @@ originalIO.runNACHAT=function()
 			if usersSearchBox then
 				usersSearchBox.ClearTextOnFocus = false
 				usersSearchBox:GetPropertyChangedSignal("Text"):Connect(function()
-					userSearchTerm = Lower(usersSearchBox.Text or "")
-					if not isChatUiSuppressed() then
-						updateUsersList(NAChat.users or {})
+					local nextTerm = Lower(usersSearchBox.Text or "")
+					if nextTerm ~= userSearchTerm then
+						userSearchTerm = nextTerm
+						if not isChatUiSuppressed() then
+							queueUsersListRefresh()
+						end
 					end
 				end)
 			end
@@ -2425,12 +2423,9 @@ originalIO.runNACHAT=function()
 					end
 
 					SpawnCall(function()
-						local ok, err = pcall(function()
+						local ok = pcall(function()
 							cmd.run(args)
 						end)
-						if not ok and DoNotif then
-							--DoNotif("[NA Chat] Remote cmd error: "..tostring(err), 4)
-						end
 					end)
 				end)
 			end
@@ -3071,9 +3066,6 @@ originalIO.runNACHAT=function()
 		end
 
 		local function isLocalAdmin()
-			-- The server is authoritative. Main.py derives this from ADMIN_IDS and
-			-- sends it in the connection handshake; do not expose moderation UI from
-			-- a stale/local client-side list.
 			return NAChat.serverIsAdmin == true
 		end
 
@@ -3100,12 +3092,7 @@ originalIO.runNACHAT=function()
 						ensureChatStroke(adminFrame, CHAT_ACCENT, 0.42)
 					end
 
-					-- Keep admin frame aligned with the users list area
-					if usersScroll then
-						adminFrame.AnchorPoint = usersScroll.AnchorPoint or Vector2.new(0.5, 0)
-						adminFrame.Size = usersScroll.Size
-						adminFrame.Position = usersScroll.Position
-					end
+					syncAdminFrameLayout()
 
 					for _, child in ipairs(adminFrame:GetChildren()) do
 						child:Destroy()
@@ -3596,6 +3583,7 @@ originalIO.runNACHAT=function()
 					end
 
 					updateBanList()
+					adminFrame.Visible = (NAChat.activeTab == "admin")
 				end
 			end
 		end
@@ -3653,17 +3641,20 @@ originalIO.runNACHAT=function()
 					end
 				end
 			else
-			local tabsContainer = chatFrame and chatFrame:FindFirstChild("Tabs")
-			local tab = tabsContainer and tabsContainer:FindFirstChild("AdminTab")
-			if tab then
-				tab.Visible = false
-			end
-			if adminFrame then
-				adminFrame.Visible = false
-			end
-			adminTab = nil
-			adminFrame = nil
-			adminTabBound = false
+				if NAChat.activeTab == "admin" then
+					switchTab("chat")
+				end
+				local tabsContainer = chatFrame and chatFrame:FindFirstChild("Tabs")
+				local tab = tabsContainer and tabsContainer:FindFirstChild("AdminTab")
+				if tab then
+					tab.Visible = false
+				end
+				if adminFrame then
+					adminFrame.Visible = false
+				end
+				adminTab = nil
+				adminFrame = nil
+				adminTabBound = false
 			end
 		end
 		refreshAdminTabUI()

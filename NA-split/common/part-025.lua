@@ -6,6 +6,15 @@ originalIO.naTransLatooor=function()
 	translator.messages = NAmanage.ensureWeakKeyTable(translator.messages)
 	translator.enabled = opt.chatTranslateEnabled ~= false
 	opt.chatTranslateEnabled = translator.enabled
+	translator._controlPairs = type(translator._controlPairs) == "table" and translator._controlPairs or {}
+	if next(translator._controlPairs) == nil and (translator.button or translator.input) then
+		translator._controlPairs.chatLogs = {
+			button = translator.button;
+			input = translator.input;
+			buttonConn = translator._buttonConn;
+			inputConn = translator._inputConn;
+		}
+	end
 
 	NAmanage.toIso=function(value)
 		if not value then return nil end
@@ -889,28 +898,42 @@ originalIO.naTransLatooor=function()
 	end
 
 	function translator:updateUI()
-		if self.button then
-			if not self.button.Parent then
-				self.button = nil
-			else
-				if self:isEnabled() then
-					self.button.Text = "TR: "..string.upper(self.chatTarget or "EN")
-					self.button.BackgroundColor3 = Color3.fromRGB(68, 108, 68)
-					self.button.TextColor3 = Color3.fromRGB(234, 234, 244)
-				else
-					self.button.Text = "TR: OFF"
-					self.button.BackgroundColor3 = Color3.fromRGB(54, 54, 64)
-					self.button.TextColor3 = Color3.fromRGB(178, 178, 188)
+		local controls = self._controlPairs
+		if type(controls) == "table" then
+			for _, pair in pairs(controls) do
+				if type(pair) == "table" then
+					if pair.button and not pair.button.Parent then
+						pair.buttonConn = NAmanage.tryDisconnect(pair.buttonConn)
+						pair.button = nil
+					end
+					if pair.button then
+						if self:isEnabled() then
+							pair.button.Text = "TR: "..string.upper(self.chatTarget or "EN")
+							pair.button.BackgroundColor3 = Color3.fromRGB(68, 108, 68)
+							pair.button.TextColor3 = Color3.fromRGB(234, 234, 244)
+						else
+							pair.button.Text = "TR: OFF"
+							pair.button.BackgroundColor3 = Color3.fromRGB(54, 54, 64)
+							pair.button.TextColor3 = Color3.fromRGB(178, 178, 188)
+						end
+					end
+					if pair.input and not pair.input.Parent then
+						pair.inputConn = NAmanage.tryDisconnect(pair.inputConn)
+						pair.input = nil
+					end
+					if pair.input and not pair.input:IsFocused() then
+						pair.input.Text = string.upper(self.chatTarget or "EN")
+					end
 				end
 			end
 		end
 
-		if self.input then
-			if not self.input.Parent then
-				self.input = nil
-			elseif not self.input:IsFocused() then
-				self.input.Text = string.upper(self.chatTarget or "EN")
-			end
+		local legacy = controls and controls.chatLogs
+		if legacy then
+			self.button = legacy.button
+			self.input = legacy.input
+			self._buttonConn = legacy.buttonConn
+			self._inputConn = legacy.inputConn
 		end
 	end
 
@@ -1690,25 +1713,27 @@ originalIO.naTransLatooor=function()
 		self:updateSettingsUI()
 	end
 
-	function translator:attachControls(button, input)
-		if button and self.button ~= button then
-			self._buttonConn = NAmanage.tryDisconnect(self._buttonConn)
-			self.button = button
-			self._buttonConn = MouseButtonFix(button, function()
+	function translator:attachControls(button, input, key)
+		key = key or "chatLogs"
+		self._controlPairs = type(self._controlPairs) == "table" and self._controlPairs or {}
+		local pair = self._controlPairs[key] or {}
+		self._controlPairs[key] = pair
+
+		if button and pair.button ~= button then
+			pair.buttonConn = NAmanage.tryDisconnect(pair.buttonConn)
+			pair.button = button
+			pair.buttonConn = MouseButtonFix(button, function()
 				const nowEnabled = self:toggle()
 				self:updateUI()
 				DebugNotif("Chat translation "..(nowEnabled and "enabled" or "disabled"), 2)
 			end)
 		end
-		if input and self.input ~= input then
-			if self._inputConn then
-				self._inputConn:Disconnect()
-				self._inputConn = nil
-			end
-			self.input = input
+		if input and pair.input ~= input then
+			pair.inputConn = NAmanage.tryDisconnect(pair.inputConn)
+			pair.input = input
 			input.PlaceholderText = "Lang"
 			input.ClearTextOnFocus = false
-			self._inputConn = input.FocusLost:Connect(function(enterPressed)
+			pair.inputConn = input.FocusLost:Connect(function(enterPressed)
 				local text = input.Text or ""
 				text = text:match("^%s*(.-)%s*$") or ""
 				if text == "" then
@@ -1727,6 +1752,12 @@ originalIO.naTransLatooor=function()
 				end
 			end)
 		end
+		if key == "chatLogs" then
+			self.button = pair.button
+			self.input = pair.input
+			self._buttonConn = pair.buttonConn
+			self._inputConn = pair.inputConn
+		end
 		self:updateUI()
 	end
 
@@ -1736,7 +1767,16 @@ originalIO.naTransLatooor=function()
 			const button = chatFrame:FindFirstChild("Translate", true)
 			const input = chatFrame:FindFirstChild("TranslateInput", true)
 			if button or input then
-				self:attachControls(button, input)
+				self:attachControls(button, input, "chatLogs")
+			end
+		end
+
+		const naChatFrame = NAUIMANAGER and NAUIMANAGER.NAchatFrame
+		if naChatFrame then
+			const button = (NAUIMANAGER and NAUIMANAGER.NAchatTranslateButton) or naChatFrame:FindFirstChild("NAChatTranslate", true)
+			const input = (NAUIMANAGER and NAUIMANAGER.NAchatTranslateInput) or naChatFrame:FindFirstChild("NAChatTranslateInput", true)
+			if button or input then
+				self:attachControls(button, input, "naChat")
 			end
 		end
 
@@ -1775,7 +1815,7 @@ originalIO.naTransLatooor=function()
 
 	translator:tryAttach()
 	const function onTranslatorDesc(inst)
-		if inst and (inst.Name == "Translate" or inst.Name == "TranslateInput") then
+		if inst and (inst.Name == "Translate" or inst.Name == "TranslateInput" or inst.Name == "NAChatTranslate" or inst.Name == "NAChatTranslateInput") then
 			Defer(function()
 				translator:tryAttach()
 			end)
@@ -1787,7 +1827,7 @@ originalIO.naTransLatooor=function()
 			NAlib.connect("chat_translator_watch", NAmanage.descSub(NAStuff.NASCREENGUI, {
 				added = onTranslatorDesc,
 				filterAdded = function(inst)
-					return inst and (inst.Name == "Translate" or inst.Name == "TranslateInput")
+					return inst and (inst.Name == "Translate" or inst.Name == "TranslateInput" or inst.Name == "NAChatTranslate" or inst.Name == "NAChatTranslateInput")
 				end,
 			}))
 			NAlib.connect("chat_translator_watch", NAStuff.NASCREENGUI.AncestryChanged:Connect(function(_, parent)
@@ -1804,7 +1844,7 @@ originalIO.naTransLatooor=function()
 		translator._watchConn = NAmanage.descSub(NAStuff.NASCREENGUI, {
 			added = onTranslatorDesc,
 			filterAdded = function(inst)
-				return inst and (inst.Name == "Translate" or inst.Name == "TranslateInput")
+				return inst and (inst.Name == "Translate" or inst.Name == "TranslateInput" or inst.Name == "NAChatTranslate" or inst.Name == "NAChatTranslateInput")
 			end,
 		})
 	end
