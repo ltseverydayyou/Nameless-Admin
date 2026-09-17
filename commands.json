@@ -9687,6 +9687,65 @@
       "desc": "Stops every spoof feature and restores saved state"
     },
     {
+      "name": "nachat",
+      "aliases": [
+        "nachat",
+        "nachatui",
+        "nachatbox"
+      ],
+      "usage": "nachat",
+      "args": "",
+      "desc": "Open the Nameless Admin chat UI"
+    },
+    {
+      "name": "nacmd",
+      "aliases": [
+        "nacmd",
+        "naremote"
+      ],
+      "usage": "nacmd",
+      "args": "",
+      "desc": ""
+    },
+    {
+      "name": "naannouncement",
+      "aliases": [
+        "naannouncement",
+        "naannc",
+        "announcement"
+      ],
+      "usage": "naannouncement <message>",
+      "args": "<message>",
+      "desc": "Send an announcement to everyone"
+    },
+    {
+      "name": "nanotify",
+      "aliases": [
+        "nanotify"
+      ],
+      "usage": "nanotify <target> [duration] <message>",
+      "args": "<target> [duration] <message>",
+      "desc": "Send a Notify to NA Chat user(s)"
+    },
+    {
+      "name": "nanotify2",
+      "aliases": [
+        "nanotify2"
+      ],
+      "usage": "nanotify2 <target> <message>",
+      "args": "<target> <message>",
+      "desc": "Send a Window to NA Chat user(s)"
+    },
+    {
+      "name": "nanotify3",
+      "aliases": [
+        "nanotify3"
+      ],
+      "usage": "nanotify3 <target> <message>",
+      "args": "<target> <message>",
+      "desc": "Send a Popup to NA Chat user(s)"
+    },
+    {
       "name": "renderstreamedregions",
       "aliases": [
         "renderstreamedregions",
