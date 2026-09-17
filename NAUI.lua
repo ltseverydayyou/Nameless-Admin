@@ -4787,4 +4787,911 @@ do
 	padding.PaddingRight = UDim.new(0, 4)
 end
 
+
+do
+	local root = G2L["1"]
+	local accent = Color3.fromRGB(155, 100, 255)
+	local regularFont = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+	local semiboldFont = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+	local iconFont = Font.new("rbxasset://LuaPackages/Packages/_Index/BuilderIcons/BuilderIcons/BuilderIcons.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+	local function corner(parent, radius)
+		local item = Instance.new("UICorner", parent)
+		item.CornerRadius = UDim.new(0, radius or 5)
+		return item
+	end
+	local function stroke(parent, thickness)
+		local item = Instance.new("UIStroke", parent)
+		item.Name = "UIStroker"
+		item.Thickness = thickness or 1.5
+		item.Color = accent
+		item.Transparency = 0.38
+		item.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		return item
+	end
+	local function button(parent, name, text, size, position, color)
+		local item = Instance.new("TextButton", parent)
+		item.Name = name
+		item.BorderSizePixel = 0
+		item.AutoButtonColor = true
+		item.BackgroundColor3 = color or Color3.fromRGB(31, 32, 42)
+		item.BackgroundTransparency = 0.18
+		item.Text = text
+		item.TextColor3 = Color3.fromRGB(245, 246, 250)
+		item.TextSize = 13
+		item.FontFace = semiboldFont
+		item.Size = size
+		item.Position = position
+		corner(item, 5)
+		stroke(item, 1.5)
+		return item
+	end
+
+	local frame = Instance.new("Frame", root)
+	frame.Name = "ServerList"
+	frame.BorderSizePixel = 0
+	frame.BackgroundColor3 = Color3.fromRGB(15, 16, 21)
+	frame.BackgroundTransparency = 0.1
+	frame.AnchorPoint = Vector2.new(0.5, 0.5)
+	frame.Position = UDim2.new(0.5, 0, 0.5, 0)
+	frame.Size = UDim2.new(0, 820, 0, 560)
+	frame.Visible = false
+	frame.ClipsDescendants = true
+	local frameSizeConstraint = Instance.new("UISizeConstraint", frame)
+	frameSizeConstraint.MinSize = Vector2.new(340, 300)
+	corner(frame, 10)
+	stroke(frame, 1)
+	local frameGradient = Instance.new("UIGradient", frame)
+	frameGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(18, 19, 25)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(15, 16, 21))
+	})
+
+	local topbar = Instance.new("Frame", frame)
+	topbar.Name = "Topbar"
+	topbar.BorderSizePixel = 0
+	topbar.BackgroundColor3 = Color3.fromRGB(21, 22, 29)
+	topbar.BackgroundTransparency = 0.12
+	topbar.Size = UDim2.new(1, 0, 0, 84)
+	local topbarGradient = Instance.new("UIGradient", topbar)
+	topbarGradient.Rotation = 90
+	topbarGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(27, 28, 36)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(18, 19, 25))
+	})
+	corner(topbar, 10)
+	stroke(topbar, 1)
+
+	local title = Instance.new("TextLabel", topbar)
+	title.Name = "Title"
+	title.BackgroundTransparency = 1
+	title.AnchorPoint = Vector2.new(0.5, 0)
+	title.Position = UDim2.new(0.5, 0, 0, 3)
+	title.Size = UDim2.new(1, -150, 0, 34)
+	title.TextXAlignment = Enum.TextXAlignment.Center
+	title.TextTruncate = Enum.TextTruncate.AtEnd
+	title.Text = "Server List"
+	title.TextColor3 = Color3.fromRGB(242, 243, 248)
+	title.TextSize = 18
+	title.FontFace = semiboldFont
+
+	local minimize = button(topbar, "Minimize", "minus", UDim2.new(0, 24, 0, 24), UDim2.new(1, -70, 0, 19))
+	minimize.AnchorPoint = Vector2.new(1, 0.5)
+	minimize.FontFace = iconFont
+	minimize.TextSize = 16
+	local maximize = button(topbar, "Maximize", "square-corner-line", UDim2.new(0, 24, 0, 24), UDim2.new(1, -40, 0, 19))
+	maximize.AnchorPoint = Vector2.new(1, 0.5)
+	maximize.FontFace = iconFont
+	maximize.TextSize = 16
+	local exit = button(topbar, "Exit", "x", UDim2.new(0, 24, 0, 24), UDim2.new(1, -10, 0, 19), Color3.fromRGB(60, 32, 39))
+	exit.AnchorPoint = Vector2.new(1, 0.5)
+	exit.FontFace = iconFont
+	exit.TextSize = 16
+
+	local placeId = Instance.new("TextBox", topbar)
+	placeId.Name = "PlaceId"
+	placeId.BorderSizePixel = 0
+	placeId.BackgroundColor3 = Color3.fromRGB(28, 29, 38)
+	placeId.BackgroundTransparency = 0.08
+	placeId.ClearTextOnFocus = false
+	placeId.PlaceholderText = "Place ID"
+	placeId.PlaceholderColor3 = Color3.fromRGB(132, 136, 152)
+	placeId.Text = ""
+	placeId.TextColor3 = Color3.fromRGB(232, 234, 242)
+	placeId.TextXAlignment = Enum.TextXAlignment.Left
+	placeId.TextSize = 13
+	placeId.FontFace = regularFont
+	placeId.Position = UDim2.new(0, 10, 0, 46)
+	placeId.Size = UDim2.new(1, -226, 0, 28)
+	corner(placeId, 5)
+	stroke(placeId, 1.25)
+	local placePad = Instance.new("UIPadding", placeId)
+	placePad.PaddingLeft = UDim.new(0, 9)
+	placePad.PaddingRight = UDim.new(0, 9)
+
+	local current = button(topbar, "Current", "Current Place", UDim2.new(0, 96, 0, 28), UDim2.new(1, -206, 0, 46), Color3.fromRGB(48, 42, 68))
+	local refresh = button(topbar, "Refresh", "Refresh", UDim2.new(0, 96, 0, 28), UDim2.new(1, -106, 0, 46), Color3.fromRGB(48, 42, 68))
+
+	local container = Instance.new("Frame", frame)
+	container.Name = "Container"
+	container.BorderSizePixel = 0
+	container.BackgroundColor3 = Color3.fromRGB(21, 22, 29)
+	container.BackgroundTransparency = 0.18
+	container.AnchorPoint = Vector2.new(0.5, 1)
+	container.Position = UDim2.new(0.5, 0, 1, -10)
+	container.Size = UDim2.new(1, -20, 1, -106)
+	container.ClipsDescendants = true
+	corner(container, 5)
+	local containerGradient = Instance.new("UIGradient", container)
+	containerGradient.Rotation = 90
+	containerGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(25, 26, 34)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(18, 19, 25))
+	})
+
+	local controls = Instance.new("Frame", container)
+	controls.Name = "Controls"
+	controls.BackgroundTransparency = 1
+	controls.Position = UDim2.new(0, 8, 0, 8)
+	controls.Size = UDim2.new(1, -16, 0, 32)
+	local controlsGrid = Instance.new("UIGridLayout", controls)
+	controlsGrid.CellPadding = UDim2.new(0, 6, 0, 0)
+	controlsGrid.CellSize = UDim2.new(0.25, -5, 1, 0)
+	controlsGrid.FillDirectionMaxCells = 4
+	controlsGrid.SortOrder = Enum.SortOrder.LayoutOrder
+	local layoutMode = button(controls, "Layout", "Layout: List", UDim2.new(), UDim2.new(), Color3.fromRGB(48, 42, 68))
+	layoutMode.LayoutOrder = 1
+	local sortMode = button(controls, "Sort", "Sort: Latency", UDim2.new(), UDim2.new(), Color3.fromRGB(48, 42, 68))
+	sortMode.LayoutOrder = 2
+	local hideFull = button(controls, "HideFull", "Hide Full: OFF", UDim2.new(), UDim2.new())
+	hideFull.LayoutOrder = 3
+	local copyPlayers = button(controls, "CopyPlayers", "Copy Players", UDim2.new(), UDim2.new())
+	copyPlayers.LayoutOrder = 4
+
+	local status = Instance.new("TextLabel", container)
+	status.Name = "Status"
+	status.BackgroundTransparency = 1
+	status.Position = UDim2.new(0, 10, 0, 44)
+	status.Size = UDim2.new(1, -20, 0, 22)
+	status.TextXAlignment = Enum.TextXAlignment.Left
+	status.Text = "Ready"
+	status.TextColor3 = Color3.fromRGB(184, 188, 202)
+	status.TextSize = 13
+	status.FontFace = regularFont
+
+	local list = Instance.new("ScrollingFrame", container)
+	list.Name = "List"
+	list.BorderSizePixel = 0
+	list.BackgroundTransparency = 1
+	list.Position = UDim2.new(0, 8, 0, 70)
+	list.Size = UDim2.new(1, -32, 1, -78)
+	list.ScrollBarThickness = 0
+	list.ScrollBarImageTransparency = 1
+	list.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	list.CanvasSize = UDim2.new()
+	list.ScrollingDirection = Enum.ScrollingDirection.Y
+
+	local listScrollBar = Instance.new("Frame", container)
+	listScrollBar.Name = "CustomScrollBar"
+	listScrollBar.BorderSizePixel = 0
+	listScrollBar.BackgroundColor3 = Color3.fromRGB(21, 22, 29)
+	listScrollBar.BackgroundTransparency = 0.12
+	listScrollBar.Position = UDim2.new(1, -14, 0, 70)
+	listScrollBar.Size = UDim2.new(0, 10, 1, -78)
+	listScrollBar.Visible = false
+	corner(listScrollBar, 4)
+	local listScrollStroke = stroke(listScrollBar, 1)
+	listScrollStroke.Transparency = 0.35
+
+	local listScrollUp = Instance.new("TextButton", listScrollBar)
+	listScrollUp.Name = "Up"
+	listScrollUp.BorderSizePixel = 0
+	listScrollUp.BackgroundColor3 = Color3.fromRGB(31, 32, 42)
+	listScrollUp.BackgroundTransparency = 0.12
+	listScrollUp.Size = UDim2.new(1, 0, 0, 16)
+	listScrollUp.AutoButtonColor = false
+	listScrollUp.Text = "^"
+	listScrollUp.TextColor3 = Color3.fromRGB(232, 234, 242)
+	listScrollUp.TextSize = 14
+	listScrollUp.FontFace = semiboldFont
+	corner(listScrollUp, 3)
+
+	local listScrollTrack = Instance.new("TextButton", listScrollBar)
+	listScrollTrack.Name = "Track"
+	listScrollTrack.BorderSizePixel = 0
+	listScrollTrack.BackgroundColor3 = Color3.fromRGB(23, 24, 31)
+	listScrollTrack.BackgroundTransparency = 0.1
+	listScrollTrack.Position = UDim2.new(0, 0, 0, 16)
+	listScrollTrack.Size = UDim2.new(1, 0, 1, -32)
+	listScrollTrack.AutoButtonColor = false
+	listScrollTrack.Text = ""
+	corner(listScrollTrack, 2)
+
+	local listScrollThumb = Instance.new("TextButton", listScrollTrack)
+	listScrollThumb.Name = "Thumb"
+	listScrollThumb.BorderSizePixel = 0
+	listScrollThumb.BackgroundColor3 = Color3.fromRGB(86, 88, 104)
+	listScrollThumb.BackgroundTransparency = 0.05
+	listScrollThumb.Size = UDim2.new(1, 0, 0, 48)
+	listScrollThumb.AutoButtonColor = false
+	listScrollThumb.Text = ""
+	corner(listScrollThumb, 4)
+	local listThumbStroke = stroke(listScrollThumb, 1)
+	listThumbStroke.Color = Color3.fromRGB(64, 66, 82)
+	listThumbStroke.Transparency = 0.25
+
+	local listScrollDown = Instance.new("TextButton", listScrollBar)
+	listScrollDown.Name = "Down"
+	listScrollDown.BorderSizePixel = 0
+	listScrollDown.BackgroundColor3 = Color3.fromRGB(31, 32, 42)
+	listScrollDown.BackgroundTransparency = 0.12
+	listScrollDown.Position = UDim2.new(0, 0, 1, -16)
+	listScrollDown.Size = UDim2.new(1, 0, 0, 16)
+	listScrollDown.AutoButtonColor = false
+	listScrollDown.Text = "v"
+	listScrollDown.TextColor3 = Color3.fromRGB(232, 234, 242)
+	listScrollDown.TextSize = 14
+	listScrollDown.FontFace = semiboldFont
+	corner(listScrollDown, 3)
+
+	local layout = Instance.new("UIListLayout", list)
+	layout.Name = "Layout"
+	layout.Padding = UDim.new(0, 7)
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	local padding = Instance.new("UIPadding", list)
+	padding.Name = "Padding"
+	padding.PaddingTop = UDim.new(0, 2)
+	padding.PaddingBottom = UDim.new(0, 8)
+	padding.PaddingLeft = UDim.new(0, 2)
+	padding.PaddingRight = UDim.new(0, 6)
+end
+G2L.nc0 = Instance.new("Frame", G2L["1"]);
+G2L.nc0.BorderSizePixel = 0;
+G2L.nc0.BackgroundColor3 = Color3.fromRGB(24, 24, 29);
+G2L.nc0.Size = UDim2.new(0, 480, 0, 400);
+G2L.nc0.AnchorPoint = Vector2.new(0.5, 0.5);
+G2L.nc0.Position = UDim2.new(0.5, 0, 0.5, 0);
+G2L.nc0.Name = "NAChatUI";
+G2L.nc0.Visible = false;
+G2L.nc0.ZIndex = 1;
+G2L.nc0.BackgroundTransparency = 0.05;
+G2L.nc0.ClipsDescendants = true;
+G2L.ndr = Instance.new("UICorner", G2L.nc0);
+G2L.ndr.CornerRadius = UDim.new(0, 10);
+G2L.nds = Instance.new("UIGradient", G2L.nc0);
+G2L.nds.Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(29, 29, 34)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(24, 24, 29))
+});
+G2L.ndt = Instance.new("UIStroke", G2L.nc0);
+G2L.ndt.ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
+G2L.ndt.Thickness = 2;
+G2L.ndt.Color = Color3.fromRGB(154, 99, 255);
+G2L.nc1 = Instance.new("Frame", G2L.nc0);
+G2L.nc1.BorderSizePixel = 0;
+G2L.nc1.BackgroundColor3 = Color3.fromRGB(39, 39, 44);
+G2L.nc1.Size = UDim2.new(1, 0, 0, 40);
+G2L.nc1.Name = "Topbar";
+G2L.nc1.BackgroundTransparency = 0.1;
+G2L.nc1.ZIndex = 5;
+G2L.nc2 = Instance.new("TextButton", G2L.nc1);
+G2L.nc2.BorderSizePixel = 0;
+G2L.nc2.TextSize = 16;
+G2L.nc2.TextColor3 = Color3.fromRGB(244, 244, 244);
+G2L.nc2.BackgroundColor3 = Color3.fromRGB(184, 54, 54);
+G2L.nc2.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L.nc2.AnchorPoint = Vector2.new(1, 0.5);
+G2L.nc2.BackgroundTransparency = 0.2;
+G2L.nc2.Size = UDim2.new(0, 26, 0, 26);
+G2L.nc2.Text = "×";
+G2L.nc2.Name = "Exit";
+G2L.nc2.Position = UDim2.new(1, -10, 0.5, 0);
+G2L.nc2.ZIndex = 5;
+G2L.nc3 = Instance.new("UICorner", G2L.nc2);
+G2L.nc3.CornerRadius = UDim.new(0, 6);
+G2L.nc4 = Instance.new("UIStroke", G2L.nc2);
+G2L.nc4.ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
+G2L.nc4.Thickness = 2;
+G2L.nc4.Color = Color3.fromRGB(154, 99, 255);
+G2L.nc5 = Instance.new("TextButton", G2L.nc1);
+G2L.nc5.BorderSizePixel = 0;
+G2L.nc5.TextSize = 16;
+G2L.nc5.TextColor3 = Color3.fromRGB(234, 234, 244);
+G2L.nc5.BackgroundColor3 = Color3.fromRGB(54, 54, 64);
+G2L.nc5.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L.nc5.AnchorPoint = Vector2.new(1, 0.5);
+G2L.nc5.BackgroundTransparency = 0.2;
+G2L.nc5.Size = UDim2.new(0, 26, 0, 26);
+G2L.nc5.Text = "−";
+G2L.nc5.Name = "Minimize";
+G2L.nc5.Position = UDim2.new(1, -40, 0.5, 0);
+G2L.nc5.ZIndex = 5;
+G2L.nc6 = Instance.new("UICorner", G2L.nc5);
+G2L.nc6.CornerRadius = UDim.new(0, 6);
+G2L.nc7 = Instance.new("UIStroke", G2L.nc5);
+G2L.nc7.ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
+G2L.nc7.Thickness = 2;
+G2L.nc7.Color = Color3.fromRGB(154, 99, 255);
+G2L.nc8 = Instance.new("TextButton", G2L.nc1);
+G2L.nc8.BorderSizePixel = 0;
+G2L.nc8.TextSize = 14;
+G2L.nc8.TextColor3 = Color3.fromRGB(234, 234, 244);
+G2L.nc8.BackgroundColor3 = Color3.fromRGB(54, 54, 64);
+G2L.nc8.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L.nc8.AnchorPoint = Vector2.new(1, 0.5);
+G2L.nc8.BackgroundTransparency = 0.2;
+G2L.nc8.Size = UDim2.new(0, 70, 0, 26);
+G2L.nc8.Text = "Clear";
+G2L.nc8.Name = "ClearChat";
+G2L.nc8.Position = UDim2.new(1, -80, 0.5, 0);
+G2L.nc8.ZIndex = 5;
+G2L.nc9 = Instance.new("UICorner", G2L.nc8);
+G2L.nc9.CornerRadius = UDim.new(0, 6);
+G2L.nca = Instance.new("UIStroke", G2L.nc8);
+G2L.nca.ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
+G2L.nca.Thickness = 2;
+G2L.nca.Color = Color3.fromRGB(154, 99, 255);
+G2L.ncb = Instance.new("TextLabel", G2L.nc1);
+G2L.ncb.BorderSizePixel = 0;
+G2L.ncb.TextSize = 18;
+G2L.ncb.TextXAlignment = Enum.TextXAlignment.Left;
+G2L.ncb.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L.ncb.TextColor3 = Color3.fromRGB(234, 234, 244);
+G2L.ncb.BackgroundTransparency = 1;
+G2L.ncb.AnchorPoint = Vector2.new(0, 0.5);
+G2L.ncb.Size = UDim2.new(0.5, 0, 1, 0);
+G2L.ncb.Text = "NA Chat";
+G2L.ncb.Name = "Title";
+G2L.ncb.Position = UDim2.new(0, 12, 0.5, 0);
+G2L.ncb.ZIndex = 5;
+G2L.ncc = Instance.new("UIGradient", G2L.nc1);
+G2L.ncc.Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(44, 44, 49)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(34, 34, 39))
+});
+G2L.ncd = Instance.new("UICorner", G2L.nc1);
+G2L.ncd.CornerRadius = UDim.new(0, 10);
+G2L.nce = Instance.new("UIStroke", G2L.nc1);
+G2L.nce.ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
+G2L.nce.Thickness = 2;
+G2L.nce.Color = Color3.fromRGB(154, 99, 255);
+G2L.ncf = Instance.new("ScrollingFrame", G2L.nc0);
+G2L.ncf.BackgroundColor3 = Color3.fromRGB(39, 39, 44);
+G2L.ncf.Size = UDim2.new(1, -20, 0, 32);
+G2L.ncf.Position = UDim2.new(0, 10, 0, 45);
+G2L.ncf.Name = "Tabs";
+G2L.ncf.BackgroundTransparency = 0.15;
+G2L.ncf.ScrollingDirection = Enum.ScrollingDirection.X;
+G2L.ncf.ScrollBarThickness = 2;
+G2L.ncf.AutomaticCanvasSize = Enum.AutomaticSize.X;
+G2L.ncf.CanvasSize = UDim2.new(0, 0, 1, 0);
+G2L.nd0 = Instance.new("UICorner", G2L.ncf);
+G2L.nd0.CornerRadius = UDim.new(0, 6);
+G2L.nd1 = Instance.new("UIStroke", G2L.ncf);
+G2L.nd1.ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
+G2L.nd1.Thickness = 2;
+G2L.nd1.Color = Color3.fromRGB(154, 99, 255);
+G2L.nd2 = Instance.new("UIListLayout", G2L.ncf);
+G2L.nd2.FillDirection = Enum.FillDirection.Horizontal;
+G2L.nd2.HorizontalAlignment = Enum.HorizontalAlignment.Left;
+G2L.nd2.SortOrder = Enum.SortOrder.LayoutOrder;
+G2L.nd2.Padding = UDim.new(0, 8);
+G2L.nd2.VerticalAlignment = Enum.VerticalAlignment.Top;
+G2L.ndAdmin = Instance.new("TextButton", G2L.ncf);
+G2L.ndAdmin.BorderSizePixel = 0;
+G2L.ndAdmin.TextSize = 14;
+G2L.ndAdmin.TextColor3 = Color3.fromRGB(234, 234, 244);
+G2L.ndAdmin.BackgroundColor3 = Color3.fromRGB(54, 54, 64);
+G2L.ndAdmin.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L.ndAdmin.BackgroundTransparency = 0.1;
+G2L.ndAdmin.Size = UDim2.new(0, 80, 0, 30);
+G2L.ndAdmin.Text = "Admin";
+G2L.ndAdmin.Name = "AdminTab";
+G2L.ndAdmin.LayoutOrder = 0;
+G2L.ndAdminCorner = Instance.new("UICorner", G2L.ndAdmin);
+G2L.ndAdminCorner.CornerRadius = UDim.new(0, 6);
+G2L.nd3 = Instance.new("TextButton", G2L.ncf);
+G2L.nd3.BorderSizePixel = 0;
+G2L.nd3.TextSize = 14;
+G2L.nd3.TextColor3 = Color3.fromRGB(234, 234, 244);
+G2L.nd3.BackgroundColor3 = Color3.fromRGB(100, 80, 180);
+G2L.nd3.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L.nd3.BackgroundTransparency = 0.1;
+G2L.nd3.Size = UDim2.new(0, 80, 0, 30);
+G2L.nd3.Text = "Chat";
+G2L.nd3.Name = "ChatTab";
+G2L.nd3.LayoutOrder = 1;
+G2L.nd4 = Instance.new("UICorner", G2L.nd3);
+G2L.nd4.CornerRadius = UDim.new(0, 6);
+G2L.nd5 = Instance.new("TextButton", G2L.ncf);
+G2L.nd5.BorderSizePixel = 0;
+G2L.nd5.TextSize = 14;
+G2L.nd5.TextColor3 = Color3.fromRGB(234, 234, 244);
+G2L.nd5.BackgroundColor3 = Color3.fromRGB(54, 54, 64);
+G2L.nd5.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L.nd5.BackgroundTransparency = 0.1;
+G2L.nd5.Size = UDim2.new(0, 80, 0, 30);
+G2L.nd5.Text = "Users";
+G2L.nd5.Name = "UsersTab";
+G2L.nd5.LayoutOrder = 2;
+G2L.nd6 = Instance.new("UICorner", G2L.nd5);
+G2L.nd6.CornerRadius = UDim.new(0, 6);
+G2L.nd7 = Instance.new("TextButton", G2L.ncf);
+G2L.nd7.BorderSizePixel = 0;
+G2L.nd7.TextSize = 14;
+G2L.nd7.TextColor3 = Color3.fromRGB(234, 234, 244);
+G2L.nd7.BackgroundColor3 = Color3.fromRGB(54, 54, 64);
+G2L.nd7.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L.nd7.BackgroundTransparency = 0.1;
+G2L.nd7.Size = UDim2.new(0, 90, 0, 30);
+G2L.nd7.Text = "Visible";
+G2L.nd7.Name = "Visibility";
+G2L.nd7.LayoutOrder = 4;
+G2L.nd8 = Instance.new("UICorner", G2L.nd7);
+G2L.nd8.CornerRadius = UDim.new(0, 6);
+G2L.nd7b = Instance.new("TextButton", G2L.ncf);
+G2L.nd7b.BorderSizePixel = 0;
+G2L.nd7b.TextSize = 14;
+G2L.nd7b.TextColor3 = Color3.fromRGB(234, 234, 244);
+G2L.nd7b.BackgroundColor3 = Color3.fromRGB(54, 54, 64);
+G2L.nd7b.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L.nd7b.BackgroundTransparency = 0.1;
+G2L.nd7b.Size = UDim2.new(0, 110, 0, 30);
+G2L.nd7b.Text = "Game Activity On";
+G2L.nd7b.Name = "GameActivity";
+G2L.nd7b.LayoutOrder = 5;
+G2L.nd8b = Instance.new("UICorner", G2L.nd7b);
+G2L.nd8b.CornerRadius = UDim.new(0, 6);
+G2L.nd7c = Instance.new("TextButton", G2L.ncf);
+G2L.nd7c.BorderSizePixel = 0;
+G2L.nd7c.TextSize = 14;
+G2L.nd7c.TextColor3 = Color3.fromRGB(234, 234, 244);
+G2L.nd7c.BackgroundColor3 = Color3.fromRGB(54, 54, 64);
+G2L.nd7c.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L.nd7c.BackgroundTransparency = 0.1;
+G2L.nd7c.Size = UDim2.new(0, 120, 0, 30);
+G2L.nd7c.Text = "DM Notifs On";
+G2L.nd7c.Name = "DMNotifs";
+G2L.nd7c.LayoutOrder = 3;
+G2L.nd8c = Instance.new("UICorner", G2L.nd7c);
+G2L.nd8c.CornerRadius = UDim.new(0, 6);
+G2L.nd9 = Instance.new("Frame", G2L.nc0);
+G2L.nd9.BorderSizePixel = 0;
+G2L.nd9.BackgroundColor3 = Color3.fromRGB(34, 34, 39);
+G2L.nd9.AnchorPoint = Vector2.new(0.5, 0);
+G2L.nd9.ClipsDescendants = true;
+G2L.nd9.Size = UDim2.new(1, -16, 1, -170);
+G2L.nd9.Position = UDim2.new(0.5, 0, 0, 82);
+G2L.nd9.Name = "Container";
+G2L.nd9.BackgroundTransparency = 0.2;
+G2L.nda = Instance.new("UICorner", G2L.nd9);
+G2L.nda.CornerRadius = UDim.new(0, 8);
+G2L.ndb = Instance.new("UIGradient", G2L.nd9);
+G2L.ndb.Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(44, 44, 49)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(34, 34, 39))
+});
+G2L.ndc = Instance.new("UIStroke", G2L.nd9);
+G2L.ndc.ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
+G2L.ndc.Thickness = 2;
+G2L.ndc.Color = Color3.fromRGB(154, 99, 255);
+G2L.ndd = Instance.new("ScrollingFrame", G2L.nd9);
+G2L.ndd.BorderSizePixel = 0;
+G2L.ndd.BackgroundColor3 = Color3.fromRGB(255, 255, 255);
+G2L.ndd.Name = "ChatScroll";
+G2L.ndd.AnchorPoint = Vector2.new(0.5, 0);
+G2L.ndd.Size = UDim2.new(1, -10, 1, -10);
+G2L.ndd.ScrollBarImageColor3 = Color3.fromRGB(124, 124, 134);
+G2L.ndd.Position = UDim2.new(0.5, 0, 0, 6);
+G2L.ndd.ScrollBarThickness = 3;
+G2L.ndd.BackgroundTransparency = 1;
+G2L.ndd.CanvasSize = UDim2.new(0, 0, 0, 0);
+G2L.nde = Instance.new("UIListLayout", G2L.ndd);
+G2L.nde.Padding = UDim.new(0, 6);
+G2L.nde.SortOrder = Enum.SortOrder.LayoutOrder;
+G2L.nde.VerticalAlignment = Enum.VerticalAlignment.Bottom;
+G2L.ndf = Instance.new("ScrollingFrame", G2L.nd9);
+G2L.ndf.BorderSizePixel = 0;
+G2L.ndf.BackgroundColor3 = Color3.fromRGB(255, 255, 255);
+G2L.ndf.Name = "UsersScroll";
+G2L.ndf.AnchorPoint = Vector2.new(0.5, 0);
+G2L.ndf.Size = UDim2.new(1, -10, 1, -40);
+G2L.ndf.ScrollBarImageColor3 = Color3.fromRGB(124, 124, 134);
+G2L.ndf.Position = UDim2.new(0.5, 0, 0, 36);
+G2L.ndf.ScrollBarThickness = 3;
+G2L.ndf.BackgroundTransparency = 1;
+G2L.ndf.Visible = false;
+G2L.ndf.CanvasSize = UDim2.new(0, 0, 0, 0);
+G2L.ndg = Instance.new("UIListLayout", G2L.ndf);
+G2L.ndg.Padding = UDim.new(0, 6);
+G2L.ndg.SortOrder = Enum.SortOrder.Name;
+G2L.ndu = Instance.new("TextBox", G2L.nd9);
+G2L.ndu.BorderSizePixel = 0;
+G2L.ndu.TextSize = 14;
+G2L.ndu.TextColor3 = Color3.fromRGB(234, 234, 244);
+G2L.ndu.BackgroundColor3 = Color3.fromRGB(48, 48, 58);
+G2L.ndu.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L.ndu.AnchorPoint = Vector2.new(0.5, 0);
+G2L.ndu.PlaceholderText = "Search users...";
+G2L.ndu.Size = UDim2.new(1, -10, 0, 26);
+G2L.ndu.Text = "";
+G2L.ndu.Name = "UsersSearch";
+G2L.ndu.Position = UDim2.new(0.5, 0, 0, 6);
+G2L.ndu.ClearTextOnFocus = false;
+G2L.ndu.Visible = false;
+G2L.ndv = Instance.new("UICorner", G2L.ndu);
+G2L.ndv.CornerRadius = UDim.new(0, 6);
+G2L.ndw = Instance.new("UIStroke", G2L.ndu);
+G2L.ndw.ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
+G2L.ndw.Thickness = 1;
+G2L.ndw.Color = Color3.fromRGB(71, 71, 81);
+G2L.ndh = Instance.new("Frame", G2L.nc0);
+G2L.ndh.BorderSizePixel = 0;
+G2L.ndh.BackgroundColor3 = Color3.fromRGB(39, 39, 44);
+G2L.ndh.AnchorPoint = Vector2.new(0.5, 1);
+G2L.ndh.Size = UDim2.new(1, -16, 0, 78);
+G2L.ndh.Position = UDim2.new(0.5, 0, 1, -8);
+G2L.ndh.Name = "MessageBar";
+G2L.ndh.BackgroundTransparency = 0.1;
+G2L.ndi = Instance.new("UICorner", G2L.ndh);
+G2L.ndi.CornerRadius = UDim.new(0, 8);
+G2L.ndj = Instance.new("UIStroke", G2L.ndh);
+G2L.ndj.ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
+G2L.ndj.Thickness = 2;
+G2L.ndj.Color = Color3.fromRGB(154, 99, 255);
+G2L.ndk = Instance.new("TextLabel", G2L.ndh);
+G2L.ndk.TextWrapped = true;
+G2L.ndk.BorderSizePixel = 0;
+G2L.ndk.TextSize = 12;
+G2L.ndk.TextXAlignment = Enum.TextXAlignment.Left;
+G2L.ndk.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L.ndk.TextColor3 = Color3.fromRGB(214, 214, 224);
+G2L.ndk.BackgroundTransparency = 1;
+G2L.ndk.AnchorPoint = Vector2.new(0, 0);
+G2L.ndk.Size = UDim2.new(1, -86, 0, 14);
+G2L.ndk.Text = "NA Chat: Connecting...";
+G2L.ndk.Name = "ChatStatus";
+G2L.ndk.Position = UDim2.new(0, 6, 0, 6);
+G2L.ndl = Instance.new("TextBox", G2L.ndh);
+G2L.ndl.BorderSizePixel = 0;
+G2L.ndl.TextSize = 14;
+G2L.ndl.TextColor3 = Color3.fromRGB(234, 234, 244);
+G2L.ndl.BackgroundColor3 = Color3.fromRGB(48, 48, 58);
+G2L.ndl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L.ndl.AnchorPoint = Vector2.new(0, 1);
+G2L.ndl.PlaceholderText = "Send a message (/w name)...";
+G2L.ndl.Size = UDim2.new(1, -110, 0, 32);
+G2L.ndl.Position = UDim2.new(0, 6, 1, -8);
+G2L.ndl.Text = "";
+G2L.ndl.TextScaled = true;
+G2L.ndl.Name = "ChatInput";
+G2L.ndl.BackgroundTransparency = 0.2;
+G2L.ndl.ClearTextOnFocus = false;
+G2L.ndm = Instance.new("UICorner", G2L.ndl);
+G2L.ndm.CornerRadius = UDim.new(0, 6);
+G2L.ndn = Instance.new("UIStroke", G2L.ndl);
+G2L.ndn.ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
+G2L.ndn.Thickness = 2;
+G2L.ndn.Color = Color3.fromRGB(154, 99, 255);
+G2L.ndReconnect = Instance.new("TextButton", G2L.ndh);
+G2L.ndReconnect.BorderSizePixel = 0;
+G2L.ndReconnect.TextSize = 12;
+G2L.ndReconnect.TextColor3 = Color3.fromRGB(234, 234, 244);
+G2L.ndReconnect.BackgroundColor3 = Color3.fromRGB(54, 54, 64);
+G2L.ndReconnect.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal);
+G2L.ndReconnect.BackgroundTransparency = 0.1;
+G2L.ndReconnect.AnchorPoint = Vector2.new(1, 0);
+G2L.ndReconnect.Size = UDim2.new(0, 72, 0, 18);
+G2L.ndReconnect.Position = UDim2.new(1, -6, 0, 6);
+G2L.ndReconnect.Text = "Reconnect";
+G2L.ndReconnect.Name = "ReconnectButton";
+G2L.ndReconnectCorner = Instance.new("UICorner", G2L.ndReconnect);
+G2L.ndReconnectCorner.CornerRadius = UDim.new(0, 6);
+G2L.ndu = Instance.new("TextBox", G2L.nc1);
+G2L.ndu.BorderSizePixel = 0;
+G2L.ndu.TextSize = 14;
+G2L.ndu.TextColor3 = Color3.fromRGB(234, 234, 244);
+G2L.ndu.BackgroundColor3 = Color3.fromRGB(48, 48, 58);
+G2L.ndu.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L.ndu.AnchorPoint = Vector2.new(1, 0.5);
+G2L.ndu.PlaceholderText = "Lang";
+G2L.ndu.Size = UDim2.new(0, 70, 0, 24);
+G2L.ndu.Text = "EN";
+G2L.ndu.Name = "NAChatTranslateInput";
+G2L.ndu.Position = UDim2.new(1, -260, 0.5, 0);
+G2L.ndu.ZIndex = 5;
+G2L.ndv = Instance.new("UICorner", G2L.ndu);
+G2L.ndv.CornerRadius = UDim.new(0, 6);
+G2L.ndw = Instance.new("UIStroke", G2L.ndu);
+G2L.ndw.ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
+G2L.ndw.Thickness = 2;
+G2L.ndw.Color = Color3.fromRGB(154, 99, 255);
+G2L.ndx = Instance.new("TextButton", G2L.nc1);
+G2L.ndx.BorderSizePixel = 0;
+G2L.ndx.TextSize = 14;
+G2L.ndx.TextColor3 = Color3.fromRGB(234, 234, 244);
+G2L.ndx.BackgroundColor3 = Color3.fromRGB(54, 54, 64);
+G2L.ndx.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L.ndx.AnchorPoint = Vector2.new(1, 0.5);
+G2L.ndx.BackgroundTransparency = 0.2;
+G2L.ndx.Size = UDim2.new(0, 88, 0, 24);
+G2L.ndx.Text = "Translate";
+G2L.ndx.Name = "NAChatTranslate";
+G2L.ndx.Position = UDim2.new(1, -160, 0.5, 0);
+G2L.ndx.ZIndex = 5;
+G2L.ndy = Instance.new("UICorner", G2L.ndx);
+G2L.ndy.CornerRadius = UDim.new(0, 6);
+G2L.ndz = Instance.new("UIStroke", G2L.ndx);
+G2L.ndz.ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
+G2L.ndz.Thickness = 2;
+G2L.ndz.Color = Color3.fromRGB(154, 99, 255);
+G2L.ndo = Instance.new("TextButton", G2L.ndh);
+G2L.ndo.BorderSizePixel = 0;
+G2L.ndo.TextSize = 14;
+G2L.ndo.TextColor3 = Color3.fromRGB(234, 234, 244);
+G2L.ndo.BackgroundColor3 = Color3.fromRGB(54, 54, 64);
+G2L.ndo.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L.ndo.AnchorPoint = Vector2.new(1, 1);
+G2L.ndo.BackgroundTransparency = 0.1;
+G2L.ndo.Size = UDim2.new(0, 90, 0, 32);
+G2L.ndo.Text = "Send";
+G2L.ndo.Name = "SendButton";
+G2L.ndo.Position = UDim2.new(1, -6, 1, -8);
+G2L.ndp = Instance.new("UICorner", G2L.ndo);
+G2L.ndp.CornerRadius = UDim.new(0, 6);
+G2L.ndq = Instance.new("UIStroke", G2L.ndo);
+G2L.ndq.ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
+G2L.ndq.Thickness = 2;
+G2L.ndq.Color = Color3.fromRGB(154, 99, 255);
+
+do
+	local chat = G2L.nc0;
+	local topbar = G2L.nc1;
+	local container = G2L.nd9;
+	local accent = Color3.fromRGB(155, 100, 255);
+	local iconFont = Font.new("rbxasset://LuaPackages/Packages/_Index/BuilderIcons/BuilderIcons/BuilderIcons.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+
+	chat.BackgroundColor3 = Color3.fromRGB(15, 16, 21);
+	chat.BackgroundTransparency = 0.02;
+	chat.Size = UDim2.new(0, 760, 0, 520);
+	chat.ClipsDescendants = true;
+	local chatConstraint = Instance.new("UISizeConstraint", chat);
+	chatConstraint.Name = "WindowSizeConstraint";
+	chatConstraint.MinSize = Vector2.new(520, 360);
+	local chatGradient = chat:FindFirstChild("WindowGradient") or Instance.new("UIGradient", chat);
+	chatGradient.Name = "WindowGradient";
+	chatGradient.Rotation = 90;
+	chatGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(18, 19, 25)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(15, 16, 21))
+	});
+	G2L.ndt.Thickness = 1;
+	G2L.ndt.Color = accent;
+	G2L.ndt.Transparency = 0.38;
+	G2L.ndr.CornerRadius = UDim.new(0, 10);
+
+	topbar.BackgroundColor3 = Color3.fromRGB(21, 22, 29);
+	topbar.BackgroundTransparency = 0.04;
+	topbar.Size = UDim2.new(1, 0, 0, 44);
+	local topGradient = topbar:FindFirstChild("TopbarGradient") or Instance.new("UIGradient", topbar);
+	topGradient.Name = "TopbarGradient";
+	topGradient.Rotation = 90;
+	topGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(27, 28, 36)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(18, 19, 25))
+	});
+	local headerAccent = topbar:FindFirstChild("HeaderAccent") or Instance.new("Frame", topbar);
+	headerAccent.Name = "HeaderAccent";
+	headerAccent.BorderSizePixel = 0;
+	headerAccent.BackgroundColor3 = accent;
+	headerAccent.AnchorPoint = Vector2.new(0.5, 1);
+	headerAccent.Size = UDim2.new(0, 34, 0, 2);
+	headerAccent.Position = UDim2.new(0.5, 0, 1, -2);
+	local headerAccentCorner = headerAccent:FindFirstChildOfClass("UICorner") or Instance.new("UICorner", headerAccent);
+	headerAccentCorner.CornerRadius = UDim.new(0, 1);
+	local divider = topbar:FindFirstChild("HeaderDivider") or Instance.new("Frame", topbar);
+	divider.Name = "HeaderDivider";
+	divider.BorderSizePixel = 0;
+	divider.BackgroundColor3 = Color3.fromRGB(255, 255, 255);
+	divider.BackgroundTransparency = 0.9;
+	divider.Position = UDim2.new(0, 14, 1, -1);
+	divider.Size = UDim2.new(1, -28, 0, 1);
+	topbar.ClipsDescendants = false;
+	G2L.ncd.CornerRadius = UDim.new(0, 10);
+	G2L.nce.Thickness = 1;
+	G2L.nce.Color = accent;
+	G2L.nce.Transparency = 0.38;
+
+	local title = G2L.ncb;
+	title.AnchorPoint = Vector2.new(0.5, 0.5);
+	title.Position = UDim2.new(0.5, 0, 0.5, 0);
+	title.Size = UDim2.new(0, 180, 1, 0);
+	title.TextXAlignment = Enum.TextXAlignment.Center;
+	title.TextSize = 18;
+	title.TextScaled = false;
+	title.TextColor3 = Color3.fromRGB(232, 234, 242);
+	title.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Medium, Enum.FontStyle.Normal);
+
+	local function skinButton(button, background, textColor)
+		if not button then return end;
+		button.BackgroundColor3 = background;
+		button.BackgroundTransparency = 0.18;
+		button.TextColor3 = textColor or Color3.fromRGB(245, 246, 250);
+		local corner = button:FindFirstChildOfClass("UICorner") or Instance.new("UICorner", button);
+		corner.CornerRadius = UDim.new(0, 5);
+		local stroke = button:FindFirstChildOfClass("UIStroke") or Instance.new("UIStroke", button);
+		stroke.Name = "UIStroker";
+		stroke.Thickness = 1;
+		stroke.Color = accent;
+		stroke.Transparency = 0.38;
+		stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
+	end
+
+	skinButton(G2L.nc2, Color3.fromRGB(60, 32, 39), Color3.fromRGB(255, 205, 212));
+	G2L.nc2.FontFace = iconFont;
+	G2L.nc2.Text = "x";
+	G2L.nc2.Size = UDim2.new(0, 28, 0, 28);
+	G2L.nc2.Position = UDim2.new(1, -10, 0.5, 0);
+	skinButton(G2L.nc5, Color3.fromRGB(31, 32, 42));
+	G2L.nc5.FontFace = iconFont;
+	G2L.nc5.Text = "minus";
+	G2L.nc5.Size = UDim2.new(0, 28, 0, 28);
+	G2L.nc5.Position = UDim2.new(1, -78, 0.5, 0);
+	skinButton(G2L.nc8, Color3.fromRGB(31, 32, 42));
+	G2L.nc8.Size = UDim2.new(0, 70, 0, 28);
+	G2L.nc8.Position = UDim2.new(0, 160, 0.5, 0);
+
+	local maximize = topbar:FindFirstChild("Maximize");
+	if not maximize then
+		maximize = Instance.new("TextButton", topbar);
+		maximize.Name = "Maximize";
+		maximize.BorderSizePixel = 0;
+		maximize.TextSize = 16;
+		maximize.FontFace = iconFont;
+		maximize.Text = "square-corner-line";
+		maximize.AnchorPoint = Vector2.new(1, 0.5);
+		maximize.Size = UDim2.new(0, 28, 0, 28);
+		maximize.Position = UDim2.new(1, -44, 0.5, 0);
+		maximize.ZIndex = 5;
+		skinButton(maximize, Color3.fromRGB(31, 32, 42));
+	end
+	maximize.AnchorPoint = Vector2.new(1, 0.5);
+	maximize.Size = UDim2.new(0, 28, 0, 28);
+	maximize.Position = UDim2.new(1, -44, 0.5, 0);
+
+	local toolsBar = topbar:FindFirstChild("ToolsBar");
+	if not toolsBar then
+		toolsBar = Instance.new("Frame", topbar);
+		toolsBar.Name = "ToolsBar";
+	end
+	toolsBar.BorderSizePixel = 0;
+	toolsBar.BackgroundColor3 = Color3.fromRGB(21, 22, 29);
+	toolsBar.BackgroundTransparency = 0.08;
+	toolsBar.Position = UDim2.new(0, 10, 0, 48);
+	toolsBar.Size = UDim2.new(1, -20, 0, 30);
+	toolsBar.ZIndex = 8;
+	local toolsCorner = toolsBar:FindFirstChildOfClass("UICorner") or Instance.new("UICorner", toolsBar);
+	toolsCorner.CornerRadius = UDim.new(0, 5);
+	local toolsStroke = toolsBar:FindFirstChildOfClass("UIStroke") or Instance.new("UIStroke", toolsBar);
+	toolsStroke.Name = "ToolsStroke";
+	toolsStroke.Thickness = 1;
+	toolsStroke.Color = accent;
+	toolsStroke.Transparency = 0.55;
+	toolsStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border;
+	G2L.ndu.Parent = toolsBar;
+	G2L.ndx.Parent = toolsBar;
+	G2L.nc8.Parent = toolsBar;
+	G2L.ndu.AnchorPoint = Vector2.new(0, 0.5);
+	G2L.ndu.Size = UDim2.new(0, 54, 0, 24);
+	G2L.ndu.Position = UDim2.new(0, 8, 0.5, 0);
+	G2L.ndx.AnchorPoint = Vector2.new(0, 0.5);
+	G2L.ndx.Size = UDim2.new(0, 78, 0, 24);
+	G2L.ndx.Position = UDim2.new(0, 70, 0.5, 0);
+	G2L.nc8.AnchorPoint = Vector2.new(0, 0.5);
+	G2L.nc8.Size = UDim2.new(0, 70, 0, 24);
+	G2L.nc8.Position = UDim2.new(0, 156, 0.5, 0);
+
+	local toolsInputCorner = G2L.ndu:FindFirstChildOfClass("UICorner");
+	if toolsInputCorner then toolsInputCorner.CornerRadius = UDim.new(0, 5); end
+	local toolsInputStroke = G2L.ndu:FindFirstChildOfClass("UIStroke");
+	if toolsInputStroke then toolsInputStroke.Thickness = 1; toolsInputStroke.Color = accent; toolsInputStroke.Transparency = 0.38; end
+
+	G2L.ndu.ZIndex = 9;
+	G2L.ndx.ZIndex = 9;
+	G2L.nc8.ZIndex = 9;
+
+	G2L.ncf.Position = UDim2.new(0, 10, 0, 84);
+	G2L.ncf.Size = UDim2.new(1, -20, 0, 34);
+	G2L.ncf.BackgroundColor3 = Color3.fromRGB(21, 22, 29);
+	G2L.ncf.BackgroundTransparency = 0.06;
+	G2L.nd1.Thickness = 1;
+	G2L.nd1.Color = accent;
+	G2L.nd1.Transparency = 0.38;
+	local tabButtons = { G2L.ndAdmin, G2L.nd3, G2L.nd5, G2L.nd7, G2L.nd7b, G2L.nd7c };
+	for _, button in ipairs(tabButtons) do
+		button.AutoButtonColor = false;
+		button.TextSize = 12;
+		button.BackgroundTransparency = 0.06;
+		skinButton(button, button == G2L.nd3 and Color3.fromRGB(52, 46, 74) or Color3.fromRGB(31, 32, 42), Color3.fromRGB(232, 234, 242));
+	end
+	G2L.ndAdmin.Size = UDim2.new(0, 86, 0, 30);
+	G2L.nd3.Size = UDim2.new(0, 86, 0, 30);
+	G2L.nd5.Size = UDim2.new(0, 86, 0, 30);
+	G2L.nd7c.Size = UDim2.new(0, 132, 0, 30);
+	G2L.nd7.Size = UDim2.new(0, 122, 0, 30);
+	G2L.nd7b.Size = UDim2.new(0, 146, 0, 30);
+	G2L.nd7c.Text = "DM Notifications  •  On";
+	G2L.nd7.Text = "Visibility  •  Visible";
+	G2L.nd7b.Text = "Activity  •  On";
+	G2L.ndAdmin.Visible = false;
+
+	container.BackgroundColor3 = Color3.fromRGB(21, 22, 29);
+	container.BackgroundTransparency = 0.06;
+	container.Position = UDim2.new(0.5, 0, 0, 124);
+	container.Size = UDim2.new(1, -20, 1, -214);
+	local containerGradient = container:FindFirstChild("ContainerGradient") or Instance.new("UIGradient", container);
+	containerGradient.Name = "ContainerGradient";
+	containerGradient.Rotation = 90;
+	containerGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(25, 26, 34)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(18, 19, 25))
+	});
+	G2L.ndc.Thickness = 1;
+	G2L.ndc.Color = accent;
+	G2L.ndc.Transparency = 0.38;
+	G2L.nda.CornerRadius = UDim.new(0, 4);
+
+	G2L.ndh.BackgroundColor3 = Color3.fromRGB(21, 22, 29);
+	G2L.ndh.BackgroundTransparency = 0.06;
+	G2L.ndj.Thickness = 1;
+	G2L.ndj.Color = accent;
+	G2L.ndj.Transparency = 0.38;
+	G2L.ndi.CornerRadius = UDim.new(0, 4);
+	G2L.ndl.BackgroundColor3 = Color3.fromRGB(28, 29, 38);
+	G2L.ndl.BackgroundTransparency = 0.12;
+	G2L.ndn.Thickness = 1;
+	G2L.ndn.Color = accent;
+	G2L.ndn.Transparency = 0.38;
+	skinButton(G2L.ndo, Color3.fromRGB(52, 46, 74));
+	skinButton(G2L.ndReconnect, Color3.fromRGB(31, 32, 42));
+	G2L.ndk.TextColor3 = Color3.fromRGB(206, 209, 220);
+	G2L.ndl.TextScaled = false;
+	G2L.ndl.TextSize = 15;
+	G2L.ndl.PlaceholderColor3 = Color3.fromRGB(146, 148, 162);
+	G2L.ndo.AutoButtonColor = false;
+	G2L.ndReconnect.AutoButtonColor = false;
+
+	G2L.ncb.ZIndex = 6;
+	G2L.nc2.ZIndex = 9;
+	G2L.nc5.ZIndex = 9;
+	maximize.ZIndex = 9;
+	G2L.ncf.ZIndex = 3;
+	G2L.nd9.ZIndex = 3;
+	G2L.ndh.ZIndex = 4;
+	G2L.ndd.ZIndex = 5;
+	G2L.ndf.ZIndex = 5;
+	G2L.ndf.ClipsDescendants = true;
+	G2L.ndu.ZIndex = 7;
+	G2L.ndl.ZIndex = 6;
+	G2L.ndo.ZIndex = 7;
+	G2L.ndk.ZIndex = 7;
+
+end
+G2L["8"] = Instance.new("Frame", G2L["2"]);
+G2L["8"].BorderSizePixel = 0;
+G2L["8"].BackgroundColor3 = Color3.fromRGB(39, 39, 44);
+G2L["8"].Size = UDim2.new(1, 0, 0, 40);
+G2L["8"].Name = "Topbar";
+G2L["8"].BackgroundTransparency = 0.1;
+G2L["9"] = Instance.new("TextLabel", G2L["8"]);
+G2L["9"].BorderSizePixel = 0;
+G2L["9"].TextSize = 20;
+G2L["9"].TextXAlignment = Enum.TextXAlignment.Left;
+G2L["9"].FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal);
+G2L["9"].TextColor3 = Color3.fromRGB(244, 244, 254);
+G2L["9"].BackgroundTransparency = 1;
+G2L["9"].AnchorPoint = Vector2.new(0, 0.5);
+G2L["9"].Size = UDim2.new(0.5, 0, 1, 0);
+G2L["9"].Text = "Chat Logs";
+G2L["9"].Name = "Title";
+G2L["9"].Position = UDim2.new(0, 15, 0.5, 0);
 return G2L["1"];
