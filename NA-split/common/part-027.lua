@@ -385,6 +385,48 @@ NAmanage.RegisterToggleAutoSync("Disable Unsafe Functions", function()
 	return NAStuff.UnsafeFunctionsDisabled == true
 end)
 
+NAgui.addToggle("Disable Virtual Input API", NAStuff.VirtualInputAPIDisabled == true, function(v)
+	pcall(NAmanage.SetVirtualInputAPIDisabled, v == true, {
+		save = true;
+	})
+end)
+NAmanage.RegisterToggleAutoSync("Disable Virtual Input API", function()
+	return NAStuff.VirtualInputAPIDisabled == true
+end)
+
+NAgui.addToggle("Disable HWID functions", NAStuff.HWIDFunctionsDisabled == true, function(v)
+	pcall(NAmanage.SetHWIDFunctionsDisabled, v == true, {
+		save = true;
+	})
+end)
+NAmanage.RegisterToggleAutoSync("Disable HWID functions", function()
+	return NAStuff.HWIDFunctionsDisabled == true
+end)
+
+NAgui.addToggle("Spoof HWID", NAStuff.HWIDSpoofEnabled == true, function(v)
+	pcall(NAmanage.SetHWIDSpoofEnabled, v == true, {
+		save = true;
+	})
+end)
+NAmanage.RegisterToggleAutoSync("Spoof HWID", function()
+	return NAStuff.HWIDSpoofEnabled == true
+end)
+
+NAgui.addInput("Spoofed HWID", "Custom HWID value", tostring(NAStuff.HWIDSpoofValue or ""), function(text)
+	pcall(NAmanage.SetHWIDSpoofValue, text, {
+		save = true;
+	})
+end)
+
+NAgui.addToggle("Syn env", NAStuff.SynEnvEnabled == true, function(v)
+	pcall(NAmanage.SetSynEnv, v == true, {
+		save = true;
+	})
+end)
+NAmanage.RegisterToggleAutoSync("Syn env", function()
+	return NAStuff.SynEnvEnabled == true
+end)
+
 NAgui.addToggle("Force rconsole To NA Console", NAStuff.ForceRconsoleNAConsole ~= false, function(v)
 	pcall(NAmanage.SetForceRconsoleNAConsole, v ~= false, {
 		save = true;

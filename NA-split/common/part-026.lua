@@ -81,6 +81,9 @@ SpawnCall(function()
 				end
 			end
 
+			if keyName == "ActivateAprilMode" then
+				take(_na_boot and _na_boot.hostEnv)
+			end
 			take(primary)
 			take(_na_env)
 			take(_na_shared)

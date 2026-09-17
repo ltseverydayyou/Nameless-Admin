@@ -4639,7 +4639,10 @@ NAmanage.GetBasicInfoSnapshot = function()
 	snapshot.server.placeVersion = serverMeta and serverMeta.placeVersion and tostring(serverMeta.placeVersion) or "Unknown"
 
 	const isTesting = getgenv and _na_env.NATestingVer
-	const aprilMode = getgenv and _na_env.ActivateAprilMode
+	local aprilMode = type(_na_boot) == "table" and type(_na_boot.hostEnv) == "table" and rawget(_na_boot.hostEnv, "ActivateAprilMode") or nil
+	if aprilMode == nil then
+		aprilMode = _na_env.ActivateAprilMode
+	end
 
 	snapshot.flags.version = isTesting and "Testing" or "Normal"
 	snapshot.flags.aprilFools = aprilMode and "Enabled" or "Disabled"
@@ -5861,7 +5864,11 @@ end
 
 function isAprilFools()
 	const d = os.date("*t")
-	return (d.month == 4 and d.day == 1) or _na_env.ActivateAprilMode or false
+	local aprilMode = type(_na_boot) == "table" and type(_na_boot.hostEnv) == "table" and rawget(_na_boot.hostEnv, "ActivateAprilMode") or nil
+	if aprilMode == nil then
+		aprilMode = _na_env.ActivateAprilMode
+	end
+	return (d.month == 4 and d.day == 1) or aprilMode == true
 end
 
 function yayApril(isTesting)

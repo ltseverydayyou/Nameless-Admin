@@ -1956,6 +1956,13 @@ NAmanage.LoadPlugins = function(opts)
 				if type(serviceName) == "string" and pluginServiceNames[serviceName] then
 					return _plugGetService(serviceName)
 				end
+				if k == "syn" and NAStuff.SynEnvEnabled == true then
+					const host = _na_boot and _na_boot.hostEnv
+					const synValue = type(host) == "table" and rawget(host, "syn") or nil
+					if type(synValue) == "table" then
+						return synValue
+					end
+				end
 				if pluginBlockedGlobals[k] then
 					return nil
 				end

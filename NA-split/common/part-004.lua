@@ -4052,6 +4052,36 @@ NAmanage.NASettingsGetSchema=function()
 				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
+		disableVirtualInputAPI = {
+			default = false;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
+			end;
+		};
+		disableHWIDFunctions = {
+			default = false;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
+			end;
+		};
+		spoofHWID = {
+			default = false;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
+			end;
+		};
+		spoofedHWID = {
+			default = "";
+			coerce = function(value)
+				return type(value) == "string" and value or tostring(value or "")
+			end;
+		};
+		synEnv = {
+			default = false;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
+			end;
+		};
 		forceRconsoleNAConsole = {
 			default = true;
 			coerce = function(value)
@@ -5697,6 +5727,7 @@ end
 
 NAmanage.UnsafeFunctionNames = NAmanage.UnsafeFunctionNames or {
 	"messagebox",
+	"messageboxasync",
 	"consoleprint",
 	"consolewarn",
 	"consoleerr",
@@ -5708,6 +5739,7 @@ NAmanage.UnsafeFunctionNames = NAmanage.UnsafeFunctionNames or {
 	"consoleclose",
 	"consolename",
 	"consoleinput",
+	"consolesettitle",
 	"rconsoleprint",
 	"rconsolewarn",
 	"rconsoleerr",
@@ -5719,6 +5751,31 @@ NAmanage.UnsafeFunctionNames = NAmanage.UnsafeFunctionNames or {
 	"rconsoleclose",
 	"rconsolename",
 	"rconsoleinput",
+	"rconsolehide",
+	"rconsoleshow",
+	"rconsolesettitle",
+}
+
+NAmanage.VirtualInputFunctionNames = NAmanage.VirtualInputFunctionNames or {
+	"keypress",
+	"keyrelease",
+	"keytap",
+	"keyclick",
+	"mouse1click",
+	"mouse1press",
+	"mouse1release",
+	"mouse2click",
+	"mouse2press",
+	"mouse2release",
+	"mousemoveabs",
+	"mousemoverel",
+	"mousescroll",
+}
+
+NAmanage.HWIDFunctionNames = NAmanage.HWIDFunctionNames or {
+	"gethwid",
+	"get_hwid",
+	"get_user_identifier",
 }
 
 NAmanage.GetUnsafeFunctionStores = NAmanage.GetUnsafeFunctionStores or function()
@@ -5734,10 +5791,18 @@ NAmanage.GetUnsafeFunctionStores = NAmanage.GetUnsafeFunctionStores or function(
 	addStore(_na_env)
 	addStore(_G)
 	addStore(_na_shared)
+	const host = _na_boot and _na_boot.hostEnv
+	addStore(host)
+	if type(host) == "table" then
+		addStore(rawget(host, "syn"))
+	end
 	if type(getgenv) == "function" then
 		local ok, env = pcall(getgenv)
 		if ok then
 			addStore(env)
+			if type(env) == "table" then
+				addStore(rawget(env, "syn"))
+			end
 		end
 	end
 	if type(getfenv) == "function" then

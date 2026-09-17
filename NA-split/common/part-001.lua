@@ -49,8 +49,25 @@ _na_boot.runtimeEnv._na_shared = _na_shared
 _na_boot.runtimeEnv.shared = _na_shared
 _na_boot.runtimeEnv._G = _na_boot.runtimeEnv
 _na_boot.runtimeEnv.getgenv = function()
-	return _na_boot.runtimeEnv
+	return _na_boot.hostEnv
 end
+
+do
+	local aprilMode = type(_na_boot.hostEnv) == "table" and rawget(_na_boot.hostEnv, "ActivateAprilMode") or nil
+	if aprilMode == nil then
+		aprilMode = type(_na_env) == "table" and rawget(_na_env, "ActivateAprilMode") or nil
+	end
+	if aprilMode == nil then
+		aprilMode = false
+	end
+	if type(_na_boot.hostEnv) == "table" then
+		pcall(rawset, _na_boot.hostEnv, "ActivateAprilMode", aprilMode == true)
+	end
+	if type(_na_env) == "table" then
+		pcall(rawset, _na_env, "ActivateAprilMode", aprilMode == true)
+	end
+end
+
 _na_boot.runtimeEnv.getfenv = function(target)
 	if target == nil or target == 0 then
 		return _na_boot.runtimeEnv
@@ -2059,6 +2076,24 @@ NAStuff = {
 	UnsafeFunctionsDisabled = false;
 	UnsafeFunctionState = {
 		originals = {};
+	};
+	VirtualInputAPIDisabled = false;
+	VirtualInputAPIState = {
+		originals = {};
+	};
+	HWIDFunctionsDisabled = false;
+	HWIDSpoofEnabled = false;
+	HWIDSpoofValue = "";
+	HWIDFunctionState = {
+		originals = {};
+		captured = {};
+	};
+	SynEnvEnabled = false;
+	SynEnvState = {
+		captured = false;
+		originalSyn = nil;
+		createdSyn = false;
+		added = {};
 	};
 	CmdBar2AutoRun = false;
 	CmdInputSafeMode = true;

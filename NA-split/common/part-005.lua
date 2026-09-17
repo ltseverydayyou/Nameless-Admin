@@ -363,6 +363,313 @@ NAmanage.SetUnsafeFunctionsDisabled = NAmanage.SetUnsafeFunctionsDisabled or fun
 	return state
 end
 
+NAmanage.SetFunctionGroupDisabled = NAmanage.SetFunctionGroupDisabled or function(state, opts, config)
+	opts = opts or {}
+	config = config or {}
+	state = state == true
+	const stateKey = tostring(config.stateKey or "")
+	const stateStoreKey = tostring(config.stateStoreKey or "")
+	const settingsKey = tostring(config.settingsKey or "")
+	const label = tostring(config.label or "Functions")
+	const names = type(config.names) == "table" and config.names or {}
+	if stateKey == "" or stateStoreKey == "" then
+		return false
+	end
+	const prev = NAStuff[stateKey] == true
+	NAStuff[stateKey] = state
+	if opts.save ~= false and settingsKey ~= "" and NAmanage.NASettingsSet then
+		pcall(NAmanage.NASettingsSet, settingsKey, state)
+	end
+	local groupState = NAStuff[stateStoreKey]
+	if type(groupState) ~= "table" then
+		groupState = { originals = {} }
+		NAStuff[stateStoreKey] = groupState
+	end
+	if type(groupState.originals) ~= "table" then
+		groupState.originals = {}
+	end
+	if not opts.force and prev == state then
+		return state
+	end
+	const stores = NAmanage.GetUnsafeFunctionStores()
+	if state then
+		for i = 1, #stores do
+			const store = stores[i]
+			local originals = groupState.originals[store]
+			if type(originals) ~= "table" then
+				originals = {}
+				groupState.originals[store] = originals
+			end
+			for j = 1, #names do
+				const name = names[j]
+				const current = rawget(store, name)
+				if originals[name] == nil and current ~= nil then
+					originals[name] = current
+				end
+				pcall(rawset, store, name, nil)
+			end
+		end
+	else
+		for store, originals in groupState.originals do
+			if type(store) == "table" and type(originals) == "table" then
+				for name, original in originals do
+					pcall(rawset, store, name, original)
+				end
+			end
+		end
+	end
+	if not opts.silent and DoNotif then
+		DoNotif(label.." "..(state and "disabled" or "restored"), 2)
+	end
+	return state
+end
+
+NAmanage.SetVirtualInputAPIDisabled = NAmanage.SetVirtualInputAPIDisabled or function(state, opts)
+	return NAmanage.SetFunctionGroupDisabled(state, opts, {
+		stateKey = "VirtualInputAPIDisabled";
+		stateStoreKey = "VirtualInputAPIState";
+		settingsKey = "disableVirtualInputAPI";
+		label = "Virtual input API";
+		names = NAmanage.VirtualInputFunctionNames;
+	})
+end
+
+NAmanage.ApplyHWIDFunctionPolicy = NAmanage.ApplyHWIDFunctionPolicy or function(opts)
+	opts = opts or {}
+	local hwidState = NAStuff.HWIDFunctionState
+	if type(hwidState) ~= "table" then
+		hwidState = { originals = {}; captured = {} }
+		NAStuff.HWIDFunctionState = hwidState
+	end
+	if type(hwidState.originals) ~= "table" then
+		hwidState.originals = {}
+	end
+	if type(hwidState.captured) ~= "table" then
+		hwidState.captured = {}
+	end
+
+	const names = NAmanage.HWIDFunctionNames or {}
+	const stores = NAmanage.GetUnsafeFunctionStores()
+	const disabled = NAStuff.HWIDFunctionsDisabled == true
+	const spoofed = NAStuff.HWIDSpoofEnabled == true
+	const spoofFn = function(...)
+		return tostring(NAStuff.HWIDSpoofValue or "")
+	end
+
+	for i = 1, #stores do
+		const store = stores[i]
+		local originals = hwidState.originals[store]
+		if type(originals) ~= "table" then
+			originals = {}
+			hwidState.originals[store] = originals
+		end
+		local captured = hwidState.captured[store]
+		if type(captured) ~= "table" then
+			captured = {}
+			hwidState.captured[store] = captured
+		end
+		for j = 1, #names do
+			const name = names[j]
+			if captured[name] ~= true then
+				originals[name] = rawget(store, name)
+				captured[name] = true
+			end
+			if disabled then
+				pcall(rawset, store, name, nil)
+			elseif spoofed then
+				pcall(rawset, store, name, spoofFn)
+			else
+				pcall(rawset, store, name, originals[name])
+			end
+		end
+	end
+	return true
+end
+
+NAmanage.SetHWIDFunctionsDisabled = NAmanage.SetHWIDFunctionsDisabled or function(state, opts)
+	opts = opts or {}
+	state = state == true
+	NAStuff.HWIDFunctionsDisabled = state
+	if opts.save ~= false and NAmanage.NASettingsSet then
+		pcall(NAmanage.NASettingsSet, "disableHWIDFunctions", state)
+	end
+	NAmanage.ApplyHWIDFunctionPolicy({ force = true })
+	if not opts.silent and DoNotif then
+		DoNotif("HWID functions "..(state and "disabled" or "restored"), 2)
+	end
+	return state
+end
+
+NAmanage.SetHWIDSpoofEnabled = NAmanage.SetHWIDSpoofEnabled or function(state, opts)
+	opts = opts or {}
+	state = state == true
+	NAStuff.HWIDSpoofEnabled = state
+	if opts.save ~= false and NAmanage.NASettingsSet then
+		pcall(NAmanage.NASettingsSet, "spoofHWID", state)
+	end
+	NAmanage.ApplyHWIDFunctionPolicy({ force = true })
+	if not opts.silent and DoNotif then
+		DoNotif("HWID spoof "..(state and "enabled" or "disabled"), 2)
+	end
+	return state
+end
+
+NAmanage.SetHWIDSpoofValue = NAmanage.SetHWIDSpoofValue or function(value, opts)
+	opts = opts or {}
+	value = tostring(value or "")
+	NAStuff.HWIDSpoofValue = value
+	if opts.save ~= false and NAmanage.NASettingsSet then
+		pcall(NAmanage.NASettingsSet, "spoofedHWID", value)
+	end
+	if NAStuff.HWIDSpoofEnabled == true then
+		NAmanage.ApplyHWIDFunctionPolicy({ force = true })
+	end
+	if not opts.silent and DoNotif then
+		DoNotif("Spoofed HWID updated", 2)
+	end
+	return value
+end
+
+NAmanage.SetSynEnv = NAmanage.SetSynEnv or function(state, opts)
+	opts = opts or {}
+	state = state == true
+	const prev = NAStuff.SynEnvEnabled == true
+	NAStuff.SynEnvEnabled = state
+	if opts.save ~= false and NAmanage.NASettingsSet then
+		pcall(NAmanage.NASettingsSet, "synEnv", state)
+	end
+
+	local synState = NAStuff.SynEnvState
+	if type(synState) ~= "table" then
+		synState = { captured = false; originalSyn = nil; createdSyn = false; added = {} }
+		NAStuff.SynEnvState = synState
+	end
+	if type(synState.added) ~= "table" then
+		synState.added = {}
+	end
+
+	local host = type(_na_boot) == "table" and _na_boot.hostEnv or nil
+	if type(host) ~= "table" and type(getgenv) == "function" then
+		local ok, env = pcall(getgenv)
+		if ok and type(env) == "table" then
+			host = env
+		end
+	end
+	if type(host) ~= "table" then
+		if not opts.silent and DoNotif then
+			DoNotif("Syn env is unavailable because the executor global environment could not be resolved", 3)
+		end
+		return false
+	end
+
+	if not synState.captured then
+		synState.originalSyn = rawget(host, "syn")
+		synState.captured = true
+	end
+
+	const function first(...)
+		for i = 1, select("#", ...) do
+			const value = select(i, ...)
+			if value ~= nil then
+				return value
+			end
+		end
+		return nil
+	end
+
+	const function add(target, key, value)
+		if type(target) ~= "table" or value == nil or rawget(target, key) ~= nil then
+			return
+		end
+		local ok = pcall(rawset, target, key, value)
+		if ok and rawget(target, key) == value then
+			table.insert(synState.added, { target = target; key = key; value = value })
+		end
+	end
+
+	if state then
+		if not opts.force and prev == true then
+			return true
+		end
+
+		local synTable = rawget(host, "syn")
+		if type(synTable) ~= "table" then
+			synTable = {}
+			synState.createdSyn = true
+			pcall(rawset, host, "syn", synTable)
+		else
+			synState.createdSyn = false
+		end
+		synState.syn = synTable
+
+		local http = rawget(host, "http")
+		local ws = first(rawget(host, "WebSocket"), rawget(host, "websocket"))
+		local crypt = first(rawget(host, "crypt"), rawget(host, "crypto"))
+		local cache = rawget(host, "cache")
+		const requestFn = first(rawget(host, "request"), rawget(host, "http_request"), type(http) == "table" and rawget(http, "request") or nil)
+		const queueFn = first(rawget(host, "queue_on_teleport"), rawget(host, "queueonteleport"))
+		const protectGuiFn = first(rawget(host, "protect_gui"), rawget(host, "protectgui"))
+		const unprotectGuiFn = first(rawget(host, "unprotect_gui"), rawget(host, "unprotectgui"))
+		const setIdentityFn = first(rawget(host, "set_thread_identity"), rawget(host, "setthreadidentity"), rawget(host, "setidentity"), rawget(host, "set_thread_context"))
+		const getIdentityFn = first(rawget(host, "get_thread_identity"), rawget(host, "getthreadidentity"), rawget(host, "getidentity"), rawget(host, "get_thread_context"))
+		const clipboardFn = first(rawget(host, "setclipboard"), rawget(host, "toclipboard"), rawget(host, "set_clipboard"))
+		const secureCallFn = first(rawget(host, "secure_call"), rawget(host, "securecall"))
+		const cacheReplaceFn = first(rawget(host, "cache_replace"), type(cache) == "table" and first(rawget(cache, "replace"), rawget(cache, "replaceinstance")) or nil)
+		const cacheInvalidateFn = first(rawget(host, "cache_invalidate"), type(cache) == "table" and first(rawget(cache, "invalidate"), rawget(cache, "invalidateinstance")) or nil)
+		const isCachedFn = first(rawget(host, "is_cached"), type(cache) == "table" and first(rawget(cache, "iscached"), rawget(cache, "is_cached")) or nil)
+
+		add(synTable, "request", requestFn)
+		add(synTable, "http_request", requestFn)
+		add(synTable, "queue_on_teleport", queueFn)
+		add(synTable, "queueonteleport", queueFn)
+		add(synTable, "protect_gui", protectGuiFn)
+		add(synTable, "unprotect_gui", unprotectGuiFn)
+		add(synTable, "set_thread_identity", setIdentityFn)
+		add(synTable, "setthreadidentity", setIdentityFn)
+		add(synTable, "get_thread_identity", getIdentityFn)
+		add(synTable, "getthreadidentity", getIdentityFn)
+		add(synTable, "setclipboard", clipboardFn)
+		add(synTable, "set_clipboard", clipboardFn)
+		add(synTable, "secure_call", secureCallFn)
+		add(synTable, "cache_replace", cacheReplaceFn)
+		add(synTable, "cache_invalidate", cacheInvalidateFn)
+		add(synTable, "is_cached", isCachedFn)
+		if type(ws) == "table" then
+			add(synTable, "websocket", ws)
+			add(synTable, "WebSocket", ws)
+		end
+		if type(crypt) == "table" then
+			add(synTable, "crypt", crypt)
+			add(synTable, "crypto", crypt)
+		end
+
+		if not opts.silent and DoNotif then
+			DoNotif("Syn env enabled", 2)
+		end
+		return true
+	end
+
+	for i = #synState.added, 1, -1 do
+		const entry = synState.added[i]
+		if type(entry) == "table" and type(entry.target) == "table" and rawget(entry.target, entry.key) == entry.value then
+			pcall(rawset, entry.target, entry.key, nil)
+		end
+		synState.added[i] = nil
+	end
+
+	local currentSyn = rawget(host, "syn")
+	if synState.createdSyn and currentSyn == synState.syn and type(currentSyn) == "table" and next(currentSyn) == nil then
+		pcall(rawset, host, "syn", synState.originalSyn)
+	end
+	synState.syn = nil
+	synState.createdSyn = false
+
+	if not opts.silent and DoNotif then
+		DoNotif("Syn env disabled", 2)
+	end
+	return true
+end
+
 NAStuff.deltaPrompted = NAmanage.NASettingsGet("deltaPrompted") == true
 NAStuff.deltaScriptSource = "loadstring(game:HttpGet(\"https://raw.githubusercontent.com/ltseverydayyou/uuuuuuu/refs/heads/main/DeltaCustomizationModule.luau\"))();"
 NAStuff.deltaExecutor = typeof(NAStuff.deltaExecutor) == "boolean" and NAStuff.deltaExecutor or nil
@@ -2480,6 +2787,11 @@ NAStuff.AutoInteractMethod = NAmanage.NASettingsGet("autoInteractMethod") or NAS
 NAStuff.AutoFireRemoteMethod = NAmanage.NASettingsGet("autoFireRemoteMethod") or NAStuff.AutoFireRemoteMethod or "PostSimulation"
 NAStuff.NetworkPauseDisabled = NAmanage.NASettingsGet("networkPauseDisabled")
 NAStuff.UnsafeFunctionsDisabled = NAmanage.NASettingsGet("disableUnsafeFunctions") == true
+NAStuff.VirtualInputAPIDisabled = NAmanage.NASettingsGet("disableVirtualInputAPI") == true
+NAStuff.HWIDFunctionsDisabled = NAmanage.NASettingsGet("disableHWIDFunctions") == true
+NAStuff.HWIDSpoofEnabled = NAmanage.NASettingsGet("spoofHWID") == true
+NAStuff.HWIDSpoofValue = tostring(NAmanage.NASettingsGet("spoofedHWID") or "")
+NAStuff.SynEnvEnabled = NAmanage.NASettingsGet("synEnv") == true
 NAStuff.ForceRconsoleNAConsole = NAmanage.NASettingsGet("forceRconsoleNAConsole") ~= false
 NAStuff.FriendRequestAutoDismiss = NAmanage.NASettingsGet("friendRequestAutoDismiss")
 NAStuff.StreamerModeEnabled = NAmanage.NASettingsGet("streamerMode") == true
@@ -2573,6 +2885,21 @@ NAStuff.SaveInstanceConfig = {
 
 pcall(NAmanage.SetAssetLoadMode, NAStuff.AssetLoadMode)
 pcall(NAmanage.SetUnsafeFunctionsDisabled, NAStuff.UnsafeFunctionsDisabled == true, {
+	save = false;
+	silent = true;
+	force = true;
+})
+pcall(NAmanage.SetVirtualInputAPIDisabled, NAStuff.VirtualInputAPIDisabled == true, {
+	save = false;
+	silent = true;
+	force = true;
+})
+pcall(NAmanage.SetHWIDFunctionsDisabled, NAStuff.HWIDFunctionsDisabled == true, {
+	save = false;
+	silent = true;
+	force = true;
+})
+pcall(NAmanage.SetSynEnv, NAStuff.SynEnvEnabled == true, {
 	save = false;
 	silent = true;
 	force = true;
@@ -5459,8 +5786,8 @@ if NAStuff.onTP and typeof(NAStuff.onTP) == "RBXScriptSignal" then
 						end
 						if isAprilFools() and type(opt.queueteleport) == "function" then
 							pcall(opt.queueteleport, [[
-								local _na_env = (getgenv and getgenv()) or _G or {}
-								_na_env.ActivateAprilMode=true
+								local env = (getgenv and getgenv()) or _G or {}
+								env.ActivateAprilMode = true
 							]])
 						end
 					end)
