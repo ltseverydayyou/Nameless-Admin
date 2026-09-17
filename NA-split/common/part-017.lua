@@ -3717,13 +3717,8 @@ NAmanage.CreateBox = function(part, color, transparency, customName)
 			visual.OutlineColor = darker
 			visual.FillTransparency = entryTransparency
 			visual.OutlineTransparency = NAgui.sanitizeTransparency(NAStuff.ESP_OutlineTransparency or 0)
-			visual.Enabled = false
+			visual.Enabled = true
 			NAmanage.ESP_StoreVisual(visual)
-			Defer(function()
-				if visual and visual.Parent then
-					visual.Enabled = NAgui.isInstanceInViewport(part)
-				end
-			end)
 		else
 			if not adornTarget then
 				return
