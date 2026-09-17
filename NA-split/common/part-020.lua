@@ -3374,6 +3374,58 @@ do
 		end
 	});
 
+	const function naChatMessageWidgets()
+		const mgr = NAUIMANAGER;
+		if not mgr then
+			return nil;
+		end;
+		return {
+			bar = mgr.NAchatMessageCustomScrollBar,
+			upButton = mgr.NAchatMessageCustomScrollUp,
+			downButton = mgr.NAchatMessageCustomScrollDown,
+			track = mgr.NAchatMessageCustomScrollTrack,
+			thumb = mgr.NAchatMessageCustomScrollThumb
+		};
+	end;
+
+	const function naChatUsersWidgets()
+		const mgr = NAUIMANAGER;
+		if not mgr then
+			return nil;
+		end;
+		return {
+			bar = mgr.NAchatUsersCustomScrollBar,
+			upButton = mgr.NAchatUsersCustomScrollUp,
+			downButton = mgr.NAchatUsersCustomScrollDown,
+			track = mgr.NAchatUsersCustomScrollTrack,
+			thumb = mgr.NAchatUsersCustomScrollThumb
+		};
+	end;
+
+	NAmanage.NAChatMessagesScroll = registry.create("na_chat_messages", {
+		getWidgets = naChatMessageWidgets,
+		getTarget = function()
+			return NAUIMANAGER and NAUIMANAGER.NAchatChatScroll or nil;
+		end,
+		layoutForTarget = alignBarToTarget,
+		isActive = function()
+			const frame = NAUIMANAGER and NAUIMANAGER.NAchatFrame;
+			return frame and frame.Visible == true;
+		end
+	});
+
+	NAmanage.NAChatUsersScroll = registry.create("na_chat_users", {
+		getWidgets = naChatUsersWidgets,
+		getTarget = function()
+			return NAUIMANAGER and NAUIMANAGER.NAchatUsersScroll or nil;
+		end,
+		layoutForTarget = alignBarToTarget,
+		isActive = function()
+			const frame = NAUIMANAGER and NAUIMANAGER.NAchatFrame;
+			return frame and frame.Visible == true;
+		end
+	});
+
 	NAmanage.CommandsScroll = registry.create("commands", {
 		getWidgets = commandsWidgets,
 		getTarget = function()
@@ -3507,6 +3559,12 @@ if NAmanage.SettingsScroll and NAmanage.SettingsScroll.install then
 end;
 if NAmanage.ChatScroll and NAmanage.ChatScroll.install then
 	NAmanage.ChatScroll.install();
+end;
+if NAmanage.NAChatMessagesScroll and NAmanage.NAChatMessagesScroll.install then
+	NAmanage.NAChatMessagesScroll.install();
+end;
+if NAmanage.NAChatUsersScroll and NAmanage.NAChatUsersScroll.install then
+	NAmanage.NAChatUsersScroll.install();
 end;
 if NAmanage.CommandsScroll and NAmanage.CommandsScroll.install then
 	NAmanage.CommandsScroll.install();

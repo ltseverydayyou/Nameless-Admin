@@ -5457,6 +5457,79 @@ do
 	local chatConstraint = Instance.new("UISizeConstraint", chat);
 	chatConstraint.Name = "WindowSizeConstraint";
 	chatConstraint.MinSize = Vector2.new(520, 360);
+	local function makeChatScrollBar(name)
+		local bar = Instance.new("Frame", container)
+		bar.Name = name
+		bar.BorderSizePixel = 0
+		bar.BackgroundColor3 = Color3.fromRGB(21, 22, 29)
+		bar.BackgroundTransparency = 0.12
+		bar.Position = UDim2.new(1, -14, 0, 6)
+		bar.Size = UDim2.new(0, 10, 1, -10)
+		bar.Visible = false
+		bar.ClipsDescendants = true
+		local barCorner = Instance.new("UICorner", bar)
+		barCorner.CornerRadius = UDim.new(0, 4)
+		local barStroke = Instance.new("UIStroke", bar)
+		barStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		barStroke.Thickness = 1
+		barStroke.Color = accent
+		barStroke.Transparency = 0.35
+
+		local up = Instance.new("TextButton", bar)
+		up.Name = "Up"
+		up.BorderSizePixel = 0
+		up.BackgroundColor3 = Color3.fromRGB(31, 32, 42)
+		up.BackgroundTransparency = 0.12
+		up.Size = UDim2.new(1, 0, 0, 16)
+		up.AutoButtonColor = false
+		up.Text = "^"
+		up.TextColor3 = Color3.fromRGB(232, 234, 242)
+		up.TextSize = 14
+		up.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+		local upCorner = Instance.new("UICorner", up)
+		upCorner.CornerRadius = UDim.new(0, 3)
+
+		local track = Instance.new("TextButton", bar)
+		track.Name = "Track"
+		track.BorderSizePixel = 0
+		track.BackgroundColor3 = Color3.fromRGB(23, 24, 31)
+		track.BackgroundTransparency = 0.1
+		track.Position = UDim2.new(0, 0, 0, 16)
+		track.Size = UDim2.new(1, 0, 1, -32)
+		track.AutoButtonColor = false
+		track.Text = ""
+		local trackCorner = Instance.new("UICorner", track)
+		trackCorner.CornerRadius = UDim.new(0, 2)
+
+		local thumb = Instance.new("TextButton", track)
+		thumb.Name = "Thumb"
+		thumb.BorderSizePixel = 0
+		thumb.BackgroundColor3 = accent
+		thumb.BackgroundTransparency = 0.05
+		thumb.Size = UDim2.new(1, 0, 0, 48)
+		thumb.AutoButtonColor = false
+		thumb.Text = ""
+		local thumbCorner = Instance.new("UICorner", thumb)
+		thumbCorner.CornerRadius = UDim.new(0, 4)
+
+		local down = Instance.new("TextButton", bar)
+		down.Name = "Down"
+		down.BorderSizePixel = 0
+		down.BackgroundColor3 = Color3.fromRGB(31, 32, 42)
+		down.BackgroundTransparency = 0.12
+		down.Position = UDim2.new(0, 0, 1, -16)
+		down.Size = UDim2.new(1, 0, 0, 16)
+		down.AutoButtonColor = false
+		down.Text = "v"
+		down.TextColor3 = Color3.fromRGB(232, 234, 242)
+		down.TextSize = 14
+		down.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+		local downCorner = Instance.new("UICorner", down)
+		downCorner.CornerRadius = UDim.new(0, 3)
+		return bar
+	end
+	makeChatScrollBar("ChatCustomScrollBar")
+	makeChatScrollBar("UsersCustomScrollBar")
 	local chatGradient = chat:FindFirstChild("WindowGradient") or Instance.new("UIGradient", chat);
 	chatGradient.Name = "WindowGradient";
 	chatGradient.Rotation = 90;

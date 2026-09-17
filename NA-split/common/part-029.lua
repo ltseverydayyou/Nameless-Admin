@@ -602,6 +602,9 @@ NAgui.nachat = function()
 		frame.AnchorPoint = Vector2.new(0, 0)
 		pcall(NAmanage.centerFrame, frame)
 	end
+	if NAmanage and NAmanage.CustomScroll and NAmanage.CustomScroll.refreshAll then
+		pcall(NAmanage.CustomScroll.refreshAll)
+	end
 end
 
 if cmd and type(cmd.add) == "function" then
@@ -832,6 +835,9 @@ originalIO.runNACHAT=function()
 					y = layout.AbsoluteContentSize.Y
 				end)
 				sf.CanvasSize = UDim2.new(0, 0, 0, y + 8)
+				if NAmanage.CustomScroll and NAmanage.CustomScroll.refreshByTarget then
+					NAmanage.CustomScroll.refreshByTarget(sf)
+				end
 				local st = scrollSt[sf]
 				if st and not st.locked and scrollToBottomSoon then
 					scrollToBottomSoon(sf)
@@ -1506,13 +1512,22 @@ originalIO.runNACHAT=function()
 			local seen = {}
 			local alive = {}
 			local idx = 0
+			local detachedLayoutParent = nil
+			if usersLayout and usersLayout.Parent == usersScroll then
+				detachedLayoutParent = usersLayout.Parent
+				usersLayout.Parent = nil
+			end
 
 			for _, info in ipairs(list) do
 				local serverUsername = (type(info) == "table" and info.username) or tostring(info)
 				local userId = type(info) == "table" and tonumber(info.userId) or nil
 				local displayName = type(info) == "table" and tostring(info.displayName or "") or ""
-				local verifiedUsername = getVerifiedUsername(userId, tostring(serverUsername or ""))
-				local canonicalUsername = (verifiedUsername ~= "" and verifiedUsername) or tostring(serverUsername or "")
+				local fallbackUsername = tostring(serverUsername or "")
+				local verifiedUsername = getVerifiedUsernameCached(userId)
+				if not verifiedUsername and userId and fallbackUsername == "" then
+					fetchVerifiedUsernameAsync(userId)
+				end
+				local canonicalUsername = verifiedUsername or fallbackUsername
 				local isAdmin = type(info) == "table" and (info.admin == true) or false
 				local gameStatus = type(info) == "table" and tostring(info.game or "") or ""
 				local placeId = type(info) == "table" and info.placeId or nil
@@ -1729,6 +1744,12 @@ originalIO.runNACHAT=function()
 					userFrames[key] = nil
 				end
 			end
+			if detachedLayoutParent and usersLayout then
+				usersLayout.Parent = detachedLayoutParent
+			end
+			if NAmanage.CustomScroll and NAmanage.CustomScroll.refreshByTarget then
+				NAmanage.CustomScroll.refreshByTarget(usersScroll)
+			end
 
 			if usersScroll and doAutoScroll then
 				scrollToBottomSoon(usersScroll)
@@ -1823,6 +1844,12 @@ originalIO.runNACHAT=function()
 
 			if usersSearchBox then
 				usersSearchBox.Visible = (tab == "users") and not isChatUiSuppressed()
+			end
+			if NAmanage and NAmanage.NAChatMessagesScroll and NAmanage.NAChatMessagesScroll.scheduleRefresh then
+				NAmanage.NAChatMessagesScroll.scheduleRefresh()
+			end
+			if NAmanage and NAmanage.NAChatUsersScroll and NAmanage.NAChatUsersScroll.scheduleRefresh then
+				NAmanage.NAChatUsersScroll.scheduleRefresh()
 			end
 
 			if tab == "users" then
