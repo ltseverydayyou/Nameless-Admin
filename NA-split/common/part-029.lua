@@ -739,7 +739,20 @@ originalIO.runNACHAT=function()
 			activeTab = "chat",
 			users = {},
 			currentDMTarget = nil,
+			activeConversation = "public",
+			activeGroupId = nil,
 		}
+		local conversationHistory = { public = {} }
+		local groupRecords = {}
+		local groupButton = nil
+		local groupPopup = nil
+		local groupListFrame = nil
+		local groupNameInput = nil
+		local groupInviteInput = nil
+		local groupInviteButton = nil
+		local groupLeaveButton = nil
+		local switchConversation
+		local refreshGroupPicker
 		local function isChatUiSuppressed()
 			return NAChat.isHidden and not NAChat.serverIsAdmin
 		end
@@ -1389,6 +1402,370 @@ originalIO.runNACHAT=function()
 			return lbl
 		end
 
+		local function conversationKey(groupId)
+			return groupId and ("group:"..tostring(groupId)) or "public"
+		end
+
+		local function clearConversationView()
+			if not chatScroll then
+				return
+			end
+			for _, child in ipairs(chatScroll:GetChildren()) do
+				if child:IsA("TextLabel") or child:IsA("TextButton") then
+					child:Destroy()
+				end
+			end
+			chatMessageOrder = 0
+		end
+
+		local function renderConversation()
+			clearConversationView()
+			local history = conversationHistory[NAChat.activeConversation] or {}
+			for _, entry in ipairs(history) do
+				makeChatLabel(entry.text, entry.color, entry.raw)
+			end
+			if chatScroll then
+				scrollToBottomSoon(chatScroll)
+			end
+		end
+
+		local function appendConversationMessage(key, text, color, rawMessage)
+			local history = conversationHistory[key]
+			if not history then
+				history = {}
+				conversationHistory[key] = history
+			end
+			history[#history + 1] = {
+				text = text,
+				color = color,
+				raw = rawMessage,
+			}
+			if #history > 500 then
+				table.remove(history, 1)
+			end
+			if key == NAChat.activeConversation then
+				return makeChatLabel(text, color, rawMessage)
+			end
+			return nil
+		end
+
+		local function syncGroupHistory(group)
+			if type(group) ~= "table" or not group.id then
+				return
+			end
+			local key = conversationKey(group.id)
+			local history = {}
+			for _, entry in ipairs(group.messages or {}) do
+				if type(entry) == "table" then
+					local sender = tostring(entry.from or "?")
+					local message = tostring(entry.message or "")
+					if message ~= "" then
+						history[#history + 1] = {
+							text = ("[%s]: %s"):format(sender, message),
+							color = STATUS_COLORS.blue,
+							raw = message,
+						}
+					end
+				end
+			end
+			conversationHistory[key] = history
+		end
+
+		local function makeConversationButton(parent, text, selected)
+			local button = InstanceNew("TextButton", parent)
+			button.Size = UDim2.new(1, -4, 0, 30)
+			button.BackgroundColor3 = selected and Color3.fromRGB(72, 54, 126) or CHAT_OFF
+			button.BackgroundTransparency = 0.04
+			button.TextColor3 = selected and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(224, 226, 238)
+			button.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+			button.TextSize = 12
+			button.TextXAlignment = Enum.TextXAlignment.Left
+			button.Text = text
+			button.AutoButtonColor = false
+			button.ZIndex = (tonumber(parent.ZIndex) or 1) + 1
+			local corner = InstanceNew("UICorner", button)
+			corner.CornerRadius = UDim.new(0, 7)
+			local padding = InstanceNew("UIPadding", button)
+			padding.PaddingLeft = UDim.new(0, 10)
+			ensureChatStroke(button, selected and CHAT_ACCENT or Color3.fromRGB(83, 85, 105), selected and 0.12 or 0.58)
+			return button
+		end
+
+		local function updateGroupButton()
+			if not groupButton then
+				return
+			end
+			if NAChat.activeGroupId and groupRecords[tostring(NAChat.activeGroupId)] then
+				local group = groupRecords[tostring(NAChat.activeGroupId)]
+				groupButton.Text = "# "..tostring(group.name or "Group")
+			else
+				groupButton.Text = "Public Chat"
+			end
+		end
+
+		refreshGroupPicker = function()
+			if not groupListFrame then
+				return
+			end
+			for _, child in ipairs(groupListFrame:GetChildren()) do
+				if child:IsA("TextButton") then
+					child:Destroy()
+				end
+			end
+
+			local publicButton = makeConversationButton(groupListFrame, "Public Chat", not NAChat.activeGroupId)
+			MouseButtonFix(publicButton, function()
+				if switchConversation then
+					switchConversation(nil)
+				end
+			end)
+
+			local ids = {}
+			for id in pairs(groupRecords) do
+				Insert(ids, id)
+			end
+			table.sort(ids, function(a, b)
+				return tostring(groupRecords[a].name or "") < tostring(groupRecords[b].name or "")
+			end)
+			for _, id in ipairs(ids) do
+				local group = groupRecords[id]
+				local count = type(group.members) == "table" and #group.members or 0
+				local label = ("# %s  (%d)"):format(tostring(group.name or "Group"), count)
+				local button = makeConversationButton(groupListFrame, label, tostring(NAChat.activeGroupId or "") == tostring(id))
+				MouseButtonFix(button, function()
+					if switchConversation then
+						switchConversation(id)
+					end
+				end)
+			end
+			updateGroupButton()
+		end
+
+		switchConversation = function(groupId)
+			local normalized = groupId and tostring(groupId) or nil
+			if normalized and not groupRecords[normalized] then
+				return
+			end
+			NAChat.activeGroupId = normalized
+			NAChat.activeConversation = conversationKey(normalized)
+			NAChat.currentDMTarget = nil
+			if inputBox then
+				if normalized and groupRecords[normalized] then
+					inputBox.PlaceholderText = "Message #"..tostring(groupRecords[normalized].name or "group").."..."
+				else
+					inputBox.PlaceholderText = "Send a message (/w name)..."
+				end
+			end
+			if groupInviteInput then
+				groupInviteInput.Visible = normalized ~= nil
+			end
+			if groupInviteButton then
+				groupInviteButton.Visible = normalized ~= nil
+			end
+			if groupLeaveButton then
+				groupLeaveButton.Visible = normalized ~= nil
+			end
+			updateGroupButton()
+			if groupPopup then
+				groupPopup.Visible = false
+			end
+			if NAChat.activeTab ~= "chat" then
+				NAChat.activeTab = "chat"
+				if chatTab then
+					styleChatTab(chatTab, true)
+				end
+				if usersTab then
+					styleChatTab(usersTab, false)
+				end
+				if adminTab then
+					styleChatTab(adminTab, false)
+				end
+				if chatScroll then chatScroll.Visible = true end
+				if usersScroll then usersScroll.Visible = false end
+				if adminFrame then adminFrame.Visible = false end
+				if usersSearchBox then usersSearchBox.Visible = false end
+			end
+			renderConversation()
+			if refreshGroupPicker then
+				refreshGroupPicker()
+			end
+		end
+
+		local function buildGroupUi()
+			if type(MouseButtonFix) ~= "function" then
+				return
+			end
+			local parent = NAChatToolsBar or NAChatTabs or chatFrame
+			if not parent then
+				return
+			end
+			groupButton = parent:FindFirstChild("NAChatGroups")
+			if not groupButton then
+				groupButton = InstanceNew("TextButton", parent)
+				groupButton.Name = "NAChatGroups"
+				groupButton.Size = UDim2.new(0, 88, 0, 30)
+				groupButton.BackgroundColor3 = CHAT_OFF
+				groupButton.BackgroundTransparency = 0.04
+				groupButton.TextColor3 = Color3.fromRGB(224, 226, 238)
+				groupButton.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+				groupButton.TextSize = 12
+				groupButton.Text = "Public Chat"
+				groupButton.AutoButtonColor = false
+				local corner = InstanceNew("UICorner", groupButton)
+				corner.CornerRadius = UDim.new(0, 7)
+				ensureChatStroke(groupButton, CHAT_ACCENT, 0.22)
+			end
+
+			groupPopup = chatFrame:FindFirstChild("NAChatGroupPopup")
+			if not groupPopup then
+				groupPopup = InstanceNew("Frame", chatFrame)
+				groupPopup.Name = "NAChatGroupPopup"
+				groupPopup.Size = UDim2.new(0, 250, 0, 270)
+				groupPopup.Position = UDim2.new(0, 8, 0, 82)
+				groupPopup.BackgroundColor3 = CHAT_SURFACE
+				groupPopup.BackgroundTransparency = 0.02
+				groupPopup.Visible = false
+				groupPopup.ZIndex = 200
+				local popupCorner = InstanceNew("UICorner", groupPopup)
+				popupCorner.CornerRadius = UDim.new(0, 9)
+				ensureChatStroke(groupPopup, CHAT_ACCENT, 0.08)
+
+				local title = InstanceNew("TextLabel", groupPopup)
+				title.Size = UDim2.new(1, -20, 0, 24)
+				title.Position = UDim2.new(0, 10, 0, 8)
+				title.BackgroundTransparency = 1
+				title.Text = "Conversations"
+				title.TextColor3 = Color3.fromRGB(238, 239, 250)
+				title.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+				title.TextSize = 14
+				title.TextXAlignment = Enum.TextXAlignment.Left
+				title.ZIndex = 201
+
+				groupListFrame = InstanceNew("ScrollingFrame", groupPopup)
+				groupListFrame.Name = "GroupList"
+				groupListFrame.Size = UDim2.new(1, -20, 0, 112)
+				groupListFrame.Position = UDim2.new(0, 10, 0, 36)
+				groupListFrame.BackgroundTransparency = 1
+				groupListFrame.BorderSizePixel = 0
+				groupListFrame.ScrollBarThickness = 4
+				groupListFrame.ScrollBarImageColor3 = CHAT_ACCENT
+				groupListFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+				groupListFrame.ZIndex = 201
+				local groupLayout = InstanceNew("UIListLayout", groupListFrame)
+				groupLayout.Padding = UDim.new(0, 5)
+				groupLayout.SortOrder = Enum.SortOrder.LayoutOrder
+				groupLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+					groupListFrame.CanvasSize = UDim2.new(0, 0, 0, groupLayout.AbsoluteContentSize.Y + 4)
+				end)
+
+				groupNameInput = InstanceNew("TextBox", groupPopup)
+				groupNameInput.Name = "GroupNameInput"
+				groupNameInput.Size = UDim2.new(1, -86, 0, 30)
+				groupNameInput.Position = UDim2.new(0, 10, 0, 154)
+				groupNameInput.BackgroundColor3 = CHAT_OFF
+				groupNameInput.BackgroundTransparency = 0.04
+				groupNameInput.TextColor3 = Color3.fromRGB(232, 234, 244)
+				groupNameInput.PlaceholderColor3 = Color3.fromRGB(150, 153, 173)
+				groupNameInput.PlaceholderText = "New group name"
+				groupNameInput.Text = ""
+				groupNameInput.TextSize = 12
+				groupNameInput.ClearTextOnFocus = false
+				groupNameInput.ZIndex = 201
+				local nameCorner = InstanceNew("UICorner", groupNameInput)
+				nameCorner.CornerRadius = UDim.new(0, 7)
+				ensureChatStroke(groupNameInput, Color3.fromRGB(83, 85, 105), 0.45)
+
+				local createButton = makeConversationButton(groupPopup, "Create", false)
+				createButton.Name = "CreateGroup"
+				createButton.Size = UDim2.new(0, 66, 0, 30)
+				createButton.Position = UDim2.new(1, -76, 0, 154)
+				createButton.ZIndex = 202
+				MouseButtonFix(createButton, function()
+					local name = tostring(groupNameInput.Text or ""):gsub("^%s+", ""):gsub("%s+$", "")
+					local svc = NAChat.service
+					if name == "" then
+						return
+					end
+					if svc and svc.CreateGroup then
+						local ok, result = pcall(svc.CreateGroup, name, {})
+						if ok and result ~= false then
+							groupNameInput.Text = ""
+						else
+							originalIO.setStatus("NA Chat: group creation failed", STATUS_COLORS.err)
+						end
+					else
+						originalIO.setStatus("NA Chat: group support unavailable", STATUS_COLORS.err)
+					end
+				end)
+
+				groupInviteInput = InstanceNew("TextBox", groupPopup)
+				groupInviteInput.Name = "GroupInviteInput"
+				groupInviteInput.Size = UDim2.new(1, -86, 0, 30)
+				groupInviteInput.Position = UDim2.new(0, 10, 0, 194)
+				groupInviteInput.BackgroundColor3 = CHAT_OFF
+				groupInviteInput.BackgroundTransparency = 0.04
+				groupInviteInput.TextColor3 = Color3.fromRGB(232, 234, 244)
+				groupInviteInput.PlaceholderColor3 = Color3.fromRGB(150, 153, 173)
+				groupInviteInput.PlaceholderText = "Invite username"
+				groupInviteInput.Text = ""
+				groupInviteInput.TextSize = 12
+				groupInviteInput.ClearTextOnFocus = false
+				groupInviteInput.Visible = false
+				groupInviteInput.ZIndex = 201
+				local inviteCorner = InstanceNew("UICorner", groupInviteInput)
+				inviteCorner.CornerRadius = UDim.new(0, 7)
+				ensureChatStroke(groupInviteInput, Color3.fromRGB(83, 85, 105), 0.45)
+
+				groupInviteButton = makeConversationButton(groupPopup, "Invite", false)
+				groupInviteButton.Name = "InviteGroup"
+				groupInviteButton.Size = UDim2.new(0, 66, 0, 30)
+				groupInviteButton.Position = UDim2.new(1, -76, 0, 194)
+				groupInviteButton.Visible = false
+				groupInviteButton.ZIndex = 202
+				MouseButtonFix(groupInviteButton, function()
+					local svc = NAChat.service
+					local target = tostring(groupInviteInput.Text or ""):gsub("^%s+", ""):gsub("%s+$", "")
+					if svc and svc.InviteToGroup and NAChat.activeGroupId and target ~= "" then
+						local ok, result = pcall(svc.InviteToGroup, NAChat.activeGroupId, target)
+						if ok and result ~= false then
+							groupInviteInput.Text = ""
+						else
+							originalIO.setStatus("NA Chat: invite failed", STATUS_COLORS.err)
+						end
+					end
+				end)
+
+				groupLeaveButton = makeConversationButton(groupPopup, "Leave", false)
+				groupLeaveButton.Name = "LeaveGroup"
+				groupLeaveButton.Size = UDim2.new(0, 66, 0, 30)
+				groupLeaveButton.Position = UDim2.new(1, -76, 0, 234)
+				groupLeaveButton.Visible = false
+				groupLeaveButton.ZIndex = 202
+				MouseButtonFix(groupLeaveButton, function()
+					local svc = NAChat.service
+					if svc and svc.LeaveGroup and NAChat.activeGroupId then
+						local ok, result = pcall(svc.LeaveGroup, NAChat.activeGroupId)
+						if not ok or result == false then
+							originalIO.setStatus("NA Chat: leave failed", STATUS_COLORS.err)
+						end
+					end
+				end)
+			end
+
+			updateGroupButton()
+			refreshGroupPicker()
+			MouseButtonFix(groupButton, function()
+				if groupPopup then
+					groupPopup.Visible = not groupPopup.Visible
+					if groupPopup.Visible then
+						refreshGroupPicker()
+					end
+				end
+			end)
+		end
+
+		buildGroupUi()
+
 		local function buildServerSet(list)
 			local set = {}
 			if type(list) ~= "table" then
@@ -1838,6 +2215,12 @@ originalIO.runNACHAT=function()
 			if adminFrame then
 				adminFrame.Visible = (tab == "admin")
 			end
+			if groupButton then
+				groupButton.Visible = (tab == "chat")
+			end
+			if groupPopup and tab ~= "chat" then
+				groupPopup.Visible = false
+			end
 
 			if usersSearchBox then
 				usersSearchBox.Visible = (tab == "users") and not isChatUiSuppressed()
@@ -1858,6 +2241,10 @@ originalIO.runNACHAT=function()
 					end
 					requestUsersList()
 				end
+			end
+
+			if tab == "chat" then
+				renderConversation()
 			end
 
 			if tab == "admin" then
@@ -2016,7 +2403,7 @@ originalIO.runNACHAT=function()
 					return
 				end
 
-				local lbl = makeChatLabel(labelText, STATUS_COLORS.blue, messageText)
+				local lbl = appendConversationMessage("public", labelText, STATUS_COLORS.blue, messageText)
 
 				if mentioned and DoNotif then
 					local now = os.clock()
@@ -2069,7 +2456,7 @@ originalIO.runNACHAT=function()
 					return
 				end
 				lastSysText, lastSysTime = m, now
-				makeChatLabel(("[System]: %s"):format(m), STATUS_COLORS.info, m)
+				appendConversationMessage("public", ("[System]: %s"):format(m), STATUS_COLORS.info, m)
 				if isBan then
 					banNoticeShown = true
 				end
@@ -2196,7 +2583,82 @@ originalIO.runNACHAT=function()
 						label = ("[DM %s -> %s]: %s"):format(fromName, toName, base)
 					end
 
-					makeChatLabel(label, Color3.fromRGB(250, 220, 140), msgText)
+					appendConversationMessage("public", label, Color3.fromRGB(250, 220, 140), msgText)
+				end)
+			end
+
+			if NAChat.service.OnGroupList then
+				NAChat.service.OnGroupList.Event:Connect(function(list)
+					groupRecords = {}
+					for _, group in ipairs(list or {}) do
+						if type(group) == "table" and group.id then
+							local id = tostring(group.id)
+							groupRecords[id] = group
+							syncGroupHistory(group)
+						end
+					end
+					if NAChat.activeGroupId and not groupRecords[tostring(NAChat.activeGroupId)] then
+						switchConversation(nil)
+					elseif refreshGroupPicker then
+						refreshGroupPicker()
+					end
+				end)
+			end
+
+			if NAChat.service.OnGroupUpdated then
+				NAChat.service.OnGroupUpdated.Event:Connect(function(group)
+					if type(group) ~= "table" or not group.id then
+						return
+					end
+					local id = tostring(group.id)
+					groupRecords[id] = group
+					syncGroupHistory(group)
+					if refreshGroupPicker then
+						refreshGroupPicker()
+					end
+					if tostring(NAChat.activeGroupId or "") == id then
+						renderConversation()
+					end
+				end)
+			end
+
+			if NAChat.service.OnGroupRemoved then
+				NAChat.service.OnGroupRemoved.Event:Connect(function(groupId)
+					local id = tostring(groupId or "")
+					groupRecords[id] = nil
+					conversationHistory[conversationKey(id)] = nil
+					if tostring(NAChat.activeGroupId or "") == id then
+						switchConversation(nil)
+					elseif refreshGroupPicker then
+						refreshGroupPicker()
+					end
+				end)
+			end
+
+			if NAChat.service.OnGroupInvite then
+				NAChat.service.OnGroupInvite.Event:Connect(function(group)
+					if type(DoNotif) == "function" and type(group) == "table" then
+						DoNotif(("Added to group #%s"):format(tostring(group.name or "Group")), 4)
+					end
+				end)
+			end
+
+			if NAChat.service.OnGroupMessage then
+				NAChat.service.OnGroupMessage.Event:Connect(function(groupId, groupName, fromName, text)
+					local id = tostring(groupId or "")
+					local sender = tostring(fromName or "?")
+					local msgText = tostring(text or "")
+					if id == "" or msgText == "" then
+						return
+					end
+					local formatted, mentioned = formatMessageWithMentions(msgText)
+					if formatted == "" then
+						formatted = msgText
+					end
+					appendConversationMessage(conversationKey(id), ("[%s]: %s"):format(sender, formatted), STATUS_COLORS.blue, msgText)
+					if mentioned and type(DoNotif) == "function" then
+						DoNotif(("%s mentioned you in #%s."):format(sender, tostring(groupName or "group")), 3)
+					end
 				end)
 			end
 
@@ -2212,7 +2674,7 @@ originalIO.runNACHAT=function()
 					elseif type(DoWindow) == "function" then
 						DoWindow(msgText, title)
 					else
-						makeChatLabel(("[Announcement] %s: %s"):format(fromName, msgText), STATUS_COLORS.info, msgText)
+						appendConversationMessage("public", ("[Announcement] %s: %s"):format(fromName, msgText), STATUS_COLORS.info, msgText)
 					end
 				end)
 			end
@@ -2230,7 +2692,7 @@ originalIO.runNACHAT=function()
 					elseif type(Notify) == "function" then
 						Notify({ Title = title, Description = msgText, Duration = dur })
 					else
-						makeChatLabel(("[Notify] %s: %s"):format(fromName, msgText), STATUS_COLORS.info, msgText)
+						appendConversationMessage("public", ("[Notify] %s: %s"):format(fromName, msgText), STATUS_COLORS.info, msgText)
 					end
 				end)
 			end
@@ -2246,7 +2708,7 @@ originalIO.runNACHAT=function()
 					elseif type(Window) == "function" then
 						Window({ Title = title, Description = msgText })
 					else
-						makeChatLabel(("[Window] %s: %s"):format(fromName, msgText), STATUS_COLORS.info, msgText)
+						appendConversationMessage("public", ("[Window] %s: %s"):format(fromName, msgText), STATUS_COLORS.info, msgText)
 					end
 				end)
 			end
@@ -2262,7 +2724,7 @@ originalIO.runNACHAT=function()
 					elseif type(Popup) == "function" then
 						Popup({ Title = title, Description = msgText })
 					else
-						makeChatLabel(("[Popup] %s: %s"):format(fromName, msgText), STATUS_COLORS.info, msgText)
+						appendConversationMessage("public", ("[Popup] %s: %s"):format(fromName, msgText), STATUS_COLORS.info, msgText)
 					end
 				end)
 			end
@@ -2292,7 +2754,7 @@ originalIO.runNACHAT=function()
 							if DoNotif then
 								DoNotif(("NA Chat: %s joined your server."):format(name), 5)
 							else
-								makeChatLabel(("[NA Chat] %s joined your server."):format(name), STATUS_COLORS.info, name)
+								appendConversationMessage("public", ("[NA Chat] %s joined your server."):format(name), STATUS_COLORS.info, name)
 							end
 						end
 					end
@@ -2354,7 +2816,7 @@ originalIO.runNACHAT=function()
 								if DoNotif then
 									DoNotif(("NA Chat: %s joined your server."):format(name), 5)
 								else
-									makeChatLabel(("[NA Chat] %s joined your server."):format(name), STATUS_COLORS.info, name)
+									appendConversationMessage("public", ("[NA Chat] %s joined your server."):format(name), STATUS_COLORS.info, name)
 								end
 							end
 						end
@@ -2441,8 +2903,11 @@ originalIO.runNACHAT=function()
 				originalIO.setHiddenState(NAChat.isHidden, true)
 				local lp = Players.LocalPlayer
 				local myName = (lp and lp.Name) or tostring(name or "?")
-				makeChatLabel(("[NA Chat] Connected as %s"):format(myName), STATUS_COLORS.ok)
+				appendConversationMessage("public", ("[NA Chat] Connected as %s"):format(myName), STATUS_COLORS.ok)
 				requestUsersList()
+				if NAChat.service.RequestGroups then
+					pcall(NAChat.service.RequestGroups)
+				end
 				refreshStatus()
 			end)
 
@@ -2456,7 +2921,7 @@ originalIO.runNACHAT=function()
 					refreshStatus()
 					return
 				end
-				makeChatLabel("[NA Chat] Disconnected", STATUS_COLORS.err)
+				appendConversationMessage("public", "[NA Chat] Disconnected", STATUS_COLORS.err)
 				refreshStatus()
 				queueReconnect()
 			end)
@@ -2497,7 +2962,7 @@ originalIO.runNACHAT=function()
 				local now = os.clock()
 				if lastErrText ~= msg or (now - (lastErrTime or 0)) > 15 then
 					lastErrText, lastErrTime = msg, now
-					makeChatLabel(msg, STATUS_COLORS.err)
+					appendConversationMessage("public", msg, STATUS_COLORS.err)
 					if isBan then
 						banNoticeShown = true
 					end
@@ -2572,7 +3037,7 @@ originalIO.runNACHAT=function()
 					local now = os.clock()
 					if lastErrText ~= msg or (now - (lastErrTime or 0)) > 15 then
 						lastErrText, lastErrTime = msg, now
-						makeChatLabel(msg, STATUS_COLORS.err)
+						appendConversationMessage("public", msg, STATUS_COLORS.err)
 					end
 					NAChat.connecting = false
 
@@ -2621,7 +3086,11 @@ originalIO.runNACHAT=function()
 			local hadTarget = NAChat.currentDMTarget ~= nil
 			NAChat.currentDMTarget = nil
 			if inputBox then
-				inputBox.PlaceholderText = "Send a message (/w name)..."
+				if NAChat.activeGroupId and groupRecords[tostring(NAChat.activeGroupId)] then
+					inputBox.PlaceholderText = "Message #"..tostring(groupRecords[tostring(NAChat.activeGroupId)].name or "group").."..."
+				else
+					inputBox.PlaceholderText = "Send a message (/w name)..."
+				end
 			end
 			if reason and hadTarget then
 				originalIO.setStatus(reason, STATUS_COLORS.info)
@@ -2894,7 +3363,9 @@ originalIO.runNACHAT=function()
 					ok = NAChat.service.SendMessage(t)
 				end
 			else
-				if NAChat.currentDMTarget and NAChat.service and NAChat.service.SendPrivateMessage then
+				if NAChat.activeGroupId and NAChat.service and NAChat.service.SendGroupMessage then
+					ok = NAChat.service.SendGroupMessage(NAChat.activeGroupId, t)
+				elseif NAChat.currentDMTarget and NAChat.service and NAChat.service.SendPrivateMessage then
 					ok = NAChat.service.SendPrivateMessage(NAChat.currentDMTarget, t)
 				elseif NAChat.service and NAChat.service.SendMessage then
 					ok = NAChat.service.SendMessage(t)
@@ -2936,12 +3407,8 @@ originalIO.runNACHAT=function()
 
 		if clearBtn and chatScroll then
 			MouseButtonFix(clearBtn, function()
-				for _, v in ipairs(chatScroll:GetChildren()) do
-					if v:IsA("TextLabel") or v:IsA("TextButton") then
-						v:Destroy()
-					end
-				end
-				chatMessageOrder = 0
+				conversationHistory[NAChat.activeConversation] = {}
+				renderConversation()
 			end)
 		end
 
@@ -3006,18 +3473,21 @@ originalIO.runNACHAT=function()
 				local okSvc, svc = pcall(function()
 					return NAChat.service
 				end)
-				if okSvc and svc and svc.Disconnect then
-					pcall(svc.Disconnect)
+				local targetHidden = not settings.naChatGameActivity
+				local sent = false
+				if okSvc and svc and type(svc.SetActivityHidden) == "function" then
+					local okSet, result = pcall(svc.SetActivityHidden, targetHidden)
+					sent = okSet and result == true
+				end
+				if not sent then
+					settings.naChatGameActivity = current
+					NAmanage.NASettingsSave()
+					refreshGameActivityButton()
+					originalIO.setStatus("NA Chat: activity update failed", STATUS_COLORS.err)
 				end
 
-				NAChat.service = nil
-				NAChat.wired = false
-				NAChat.connecting = false
-				resetReconnectBackoff()
-				connect()
-
 				Defer(function()
-					Wait(2)
+					Wait(0.2)
 					gameActivityDebounce = false
 				end)
 			end)
