@@ -6993,6 +6993,7 @@ NAmanage.WindowAppearance.targetKeys = NAmanage.WindowAppearance.targetKeys or {
 	"SettingsFrame";
 	"commandsFrame";
 	"chatLogsFrame";
+	"NAchatFrame";
 	"NAconsoleFrame";
 	"CommandKeybindsFrame";
 	"WaypointFrame";
@@ -7007,6 +7008,9 @@ NAmanage.WindowAppearance.targetKeys = NAmanage.WindowAppearance.targetKeys or {
 }
 if not table.find(NAmanage.WindowAppearance.targetKeys, "ServerListFrame") then
 	NAmanage.WindowAppearance.targetKeys[#NAmanage.WindowAppearance.targetKeys + 1] = "ServerListFrame"
+end
+if not table.find(NAmanage.WindowAppearance.targetKeys, "NAchatFrame") then
+	NAmanage.WindowAppearance.targetKeys[#NAmanage.WindowAppearance.targetKeys + 1] = "NAchatFrame"
 end
 
 NAmanage.WindowAppearance.manifestPath = NAfiles.NAWINDOWBACKGROUNDPATH.."/SavedBackgrounds.json"
@@ -7291,7 +7295,8 @@ NAmanage.WindowAppearance.ensureElementRegistry = function(frame)
 			registry.seen[item] = true
 			registry.items[#registry.items + 1] = item
 			NAmanage.WindowAppearance.captureElementTransparency(item)
-			NAmanage.WindowAppearance.applyElementSurface(item, NAStuff.WindowAppearance.enabled == true and typeof(NAStuff.WindowAppearance.runtimeAsset) == "string" and NAStuff.WindowAppearance.runtimeAsset ~= "")
+			local isChatFrame = NAUIMANAGER and frame == NAUIMANAGER.NAchatFrame
+			NAmanage.WindowAppearance.applyElementSurface(item, not isChatFrame and NAStuff.WindowAppearance.enabled == true and typeof(NAStuff.WindowAppearance.runtimeAsset) == "string" and NAStuff.WindowAppearance.runtimeAsset ~= "")
 		end)
 	end)
 	return registry
@@ -7321,6 +7326,7 @@ NAmanage.WindowAppearance.applyFrame = function(frame)
 		return
 	end
 	const state = NAStuff.WindowAppearance
+	const isChatFrame = NAUIMANAGER and frame == NAUIMANAGER.NAchatFrame
 	const image = NAmanage.WindowAppearance.ensureLayer(frame)
 	const topbar = frame:FindFirstChild("Topbar")
 	const container = frame:FindFirstChild("Container")
@@ -7330,17 +7336,27 @@ NAmanage.WindowAppearance.applyFrame = function(frame)
 	if state.enabled and typeof(state.runtimeAsset) == "string" and state.runtimeAsset ~= "" then
 		image.Image = state.runtimeAsset
 		image.ImageColor3 = Color3.fromRGB(255, 255, 255)
-		image.ImageTransparency = math.clamp(tonumber(state.imageTransparency) or 0.3, 0, 1)
+		local imageTransparency = tonumber(state.imageTransparency) or 0.3
+		if isChatFrame then
+			imageTransparency = math.max(imageTransparency, 0.62)
+		end
+		image.ImageTransparency = math.clamp(imageTransparency, 0, 1)
 		image.ScaleType = NAmanage.WindowAppearance.scaleType(state.scaleMode)
 		image.TileSize = UDim2.fromOffset(160, 160)
 		image.Visible = true
-		if topbar and topbar:IsA("GuiObject") then
-			topbar.BackgroundTransparency = math.clamp(tonumber(state.topbarTransparency) or 0.3, 0, 1)
+		if isChatFrame then
+			NAmanage.WindowAppearance.restoreTransparency(topbar)
+			NAmanage.WindowAppearance.restoreTransparency(container)
+			NAmanage.WindowAppearance.applyElementSurfaces(frame, false)
+		else
+			if topbar and topbar:IsA("GuiObject") then
+				topbar.BackgroundTransparency = math.clamp(tonumber(state.topbarTransparency) or 0.3, 0, 1)
+			end
+			if container and container:IsA("GuiObject") then
+				container.BackgroundTransparency = math.clamp(tonumber(state.containerTransparency) or 0.42, 0, 1)
+			end
+			NAmanage.WindowAppearance.applyElementSurfaces(frame, true)
 		end
-		if container and container:IsA("GuiObject") then
-			container.BackgroundTransparency = math.clamp(tonumber(state.containerTransparency) or 0.42, 0, 1)
-		end
-		NAmanage.WindowAppearance.applyElementSurfaces(frame, true)
 	else
 		image.Visible = false
 		image.Image = ""

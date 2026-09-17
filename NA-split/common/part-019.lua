@@ -4506,6 +4506,12 @@ pcall(function()
 		probe.mark("ui_manager_start")
 	end
 end)
+local NAChatUIRoot = NAStuff.NASCREENGUI:FindFirstChild("NAChatUI")
+local NAChatContainer = NAChatUIRoot and NAChatUIRoot:FindFirstChild("Container")
+local NAChatTabs = NAChatUIRoot and NAChatUIRoot:FindFirstChild("Tabs")
+local NAChatTopbar = NAChatUIRoot and NAChatUIRoot:FindFirstChild("Topbar")
+local NAChatToolsBar = NAChatTopbar and NAChatTopbar:FindFirstChild("ToolsBar")
+local NAChatMessageBar = NAChatUIRoot and NAChatUIRoot:FindFirstChild("MessageBar")
 NAUIMANAGER = {
 	description = NAStuff.NASCREENGUI:FindFirstChild("Description"),
 	AUTOSCALER = NAStuff.NASCREENGUI:FindFirstChild("AutoScale"),
@@ -4519,6 +4525,25 @@ NAUIMANAGER = {
 	chatLogsFrame = NAStuff.NASCREENGUI:FindFirstChild("ChatLogs"),
 	chatLogs = NAStuff.NASCREENGUI:FindFirstChild("ChatLogs") and (NAStuff.NASCREENGUI:FindFirstChild("ChatLogs")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("ChatLogs")):FindFirstChild("Container")):FindFirstChild("Logs"),
 	chatExample = NAStuff.NASCREENGUI:FindFirstChild("ChatLogs") and (NAStuff.NASCREENGUI:FindFirstChild("ChatLogs")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("ChatLogs")):FindFirstChild("Container")):FindFirstChild("Logs") and (((NAStuff.NASCREENGUI:FindFirstChild("ChatLogs")):FindFirstChild("Container")):FindFirstChild("Logs")):FindFirstChildWhichIsA("TextLabel"),
+	NAchatFrame = NAChatUIRoot,
+	NAchatContent = NAChatContainer,
+	NAchatChatScroll = NAChatContainer and NAChatContainer:FindFirstChild("ChatScroll"),
+	NAchatUsersScroll = NAChatContainer and NAChatContainer:FindFirstChild("UsersScroll"),
+	NAchatUsersSearch = NAChatContainer and NAChatContainer:FindFirstChild("UsersSearch"),
+	NAchatListLayout = NAChatContainer and NAChatContainer:FindFirstChild("ChatScroll") and NAChatContainer:FindFirstChild("ChatScroll"):FindFirstChildWhichIsA("UIListLayout"),
+	NAchatUserListLayout = NAChatContainer and NAChatContainer:FindFirstChild("UsersScroll") and NAChatContainer:FindFirstChild("UsersScroll"):FindFirstChildWhichIsA("UIListLayout"),
+	NAchatInput = NAChatMessageBar and NAChatMessageBar:FindFirstChild("ChatInput"),
+	NAchatSendButton = NAChatMessageBar and NAChatMessageBar:FindFirstChild("SendButton"),
+	NAchatTranslateButton = (NAChatToolsBar and NAChatToolsBar:FindFirstChild("NAChatTranslate")) or (NAChatTopbar and NAChatTopbar:FindFirstChild("NAChatTranslate")),
+	NAchatTranslateInput = (NAChatToolsBar and NAChatToolsBar:FindFirstChild("NAChatTranslateInput")) or (NAChatTopbar and NAChatTopbar:FindFirstChild("NAChatTranslateInput")),
+	NAchatClearButton = (NAChatToolsBar and NAChatToolsBar:FindFirstChild("ClearChat")) or (NAChatTopbar and NAChatTopbar:FindFirstChild("ClearChat")),
+	NAchatStatusLabel = NAChatMessageBar and NAChatMessageBar:FindFirstChild("ChatStatus"),
+	NAchatReconnectButton = NAChatMessageBar and NAChatMessageBar:FindFirstChild("ReconnectButton"),
+	NAchatChatTab = NAChatTabs and NAChatTabs:FindFirstChild("ChatTab"),
+	NAchatUsersTab = NAChatTabs and NAChatTabs:FindFirstChild("UsersTab"),
+	NAchatVisibility = NAChatTabs and NAChatTabs:FindFirstChild("Visibility"),
+	NAchatGameActivity = NAChatTabs and NAChatTabs:FindFirstChild("GameActivity"),
+	NAchatDmNotifyButton = NAChatTabs and NAChatTabs:FindFirstChild("DMNotifs"),
 	ChatCustomScrollBar = NAStuff.NASCREENGUI:FindFirstChild("ChatLogs") and (NAStuff.NASCREENGUI:FindFirstChild("ChatLogs")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("ChatLogs")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar"),
 	ChatCustomScrollUp = NAStuff.NASCREENGUI:FindFirstChild("ChatLogs") and (NAStuff.NASCREENGUI:FindFirstChild("ChatLogs")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("ChatLogs")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar") and (((NAStuff.NASCREENGUI:FindFirstChild("ChatLogs")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Up"),
 	ChatCustomScrollDown = NAStuff.NASCREENGUI:FindFirstChild("ChatLogs") and (NAStuff.NASCREENGUI:FindFirstChild("ChatLogs")):FindFirstChild("Container") and ((NAStuff.NASCREENGUI:FindFirstChild("ChatLogs")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar") and (((NAStuff.NASCREENGUI:FindFirstChild("ChatLogs")):FindFirstChild("Container")):FindFirstChild("CustomScrollBar")):FindFirstChild("Down"),
@@ -4613,6 +4638,47 @@ NAUIMANAGER = {
 	ServerListFrame = NAStuff.NASCREENGUI:FindFirstChild("ServerList"),
 	ServerListContainer = NAStuff.NASCREENGUI:FindFirstChild("ServerList") and (NAStuff.NASCREENGUI:FindFirstChild("ServerList")):FindFirstChild("Container")
 };
+
+NAmanage.NAChatNormalizeZIndex = function()
+	local frame = NAUIMANAGER and NAUIMANAGER.NAchatFrame
+	if not (frame and frame.Parent) then
+		return
+	end
+	local topbar = frame:FindFirstChild("Topbar")
+	local tabs = frame:FindFirstChild("Tabs")
+	local container = frame:FindFirstChild("Container")
+	local messageBar = frame:FindFirstChild("MessageBar")
+	frame.ZIndex = 0
+	for _, item in ipairs(frame:GetDescendants()) do
+		if item:IsA("GuiObject") then
+			local layer = 10
+			if topbar and item:IsDescendantOf(topbar) then
+				layer = 50
+			elseif messageBar and item:IsDescendantOf(messageBar) then
+				layer = 50
+			elseif tabs and item:IsDescendantOf(tabs) then
+				layer = 40
+			elseif container and item:IsDescendantOf(container) then
+				layer = 30
+			end
+			if item:GetAttribute("NAWindowBackgroundLayer") == true then
+				layer = 0
+			end
+			item.ZIndex = layer
+		end
+	end
+end
+
+if NAUIMANAGER.NAchatFrame and not NAStuff.NAChatZIndexConnection then
+	NAStuff.NAChatZIndexConnection = NAUIMANAGER.NAchatFrame.DescendantAdded:Connect(function()
+		Defer(function()
+			if NAmanage.NAChatNormalizeZIndex then
+				NAmanage.NAChatNormalizeZIndex()
+			end
+		end)
+	end)
+end
+NAmanage.NAChatNormalizeZIndex()
 NAmanage.ScriptHub = type(NAmanage.ScriptHub) == "table" and NAmanage.ScriptHub or {}
 NAmanage.ScriptHub.engines = { "RScripts", "RobloxScripts", "HaxHell", "ScriptBlox" }
 NAmanage.ScriptHub.filterModes = { "all", "keyless", "key" }

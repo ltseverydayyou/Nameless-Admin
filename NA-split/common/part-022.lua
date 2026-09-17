@@ -1628,6 +1628,20 @@ NAmanage.Topbar_BuildBaseButtons=function()
 				NAmanage.centerFrame(NAUIMANAGER.chatLogsFrame)
 			end
 		end},
+		{name="nachat",icon="we-chat",activeFrame="NAchatFrame",func=function()
+			local frame = NAUIMANAGER and NAUIMANAGER.NAchatFrame
+			if not frame then
+				return
+			end
+			if frame.Visible then
+				frame.Visible = false
+			elseif NAgui and type(NAgui.nachat) == "function" then
+				NAgui.nachat()
+			else
+				frame.Visible = true
+				NAmanage.centerFrame(frame)
+			end
+		end},
 		{name="console",icon="pencil-square",activeFrame="NAconsoleFrame",func=function()
 			if NAUIMANAGER.NAconsoleFrame then
 				NAUIMANAGER.NAconsoleFrame.Visible=not NAUIMANAGER.NAconsoleFrame.Visible
@@ -2844,7 +2858,7 @@ NAgui.menuv2 = function(menu)
 		if value == true then
 			if compactTopbarState.size == nil then compactTopbarState.size = topbar.Size end
 			topbar.Size = UDim2.new(topbar.Size.X.Scale, topbar.Size.X.Offset, 0, getMiniHeight())
-			for _, name in {"Translate", "TranslateInput", "Clear", "HeaderAccent", "HeaderDivider"} do
+			for _, name in {"Translate", "TranslateInput", "Clear", "ToolsBar", "HeaderAccent", "HeaderDivider"} do
 				const item = topbar:FindFirstChild(name)
 				if item and item:IsA("GuiObject") then
 					if compactTopbarState[item] == nil then compactTopbarState[item] = item.Visible end

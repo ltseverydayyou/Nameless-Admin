@@ -4797,7 +4797,8 @@ end
 if _na_env.NATestingVer then
 	opt.loaderUrl="https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NA%20testing.lua"
 	opt.githubUrl="https://api.github.com/repos/ltseverydayyou/Nameless-Admin/commits?per_page=10"
-	opt.NAUILOADER="https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/refs/heads/main/NAUITEST.lua"
+	local __NAUIHost = (type(getgenv) == "function" and getgenv()) or _G or {}
+	opt.NAUILOADER = (type(__NAUIHost) == "table" and rawget(__NAUIHost, "NAChatUIUrl")) or "https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/refs/heads/main/NAUITEST.lua"
 else
 	opt.loaderUrl="https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/Source.lua"
 	opt.githubUrl="https://api.github.com/repos/ltseverydayyou/Nameless-Admin/commits?per_page=10"

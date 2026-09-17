@@ -2884,7 +2884,10 @@ NAmanage.OnUIWindowShown = NAmanage.OnUIWindowShown or function(frame)
 	if NAUIMANAGER and NAgui then
 		local lazyMenuKey = nil
 		local lazyMenuBinder = nil
-		if frame == NAUIMANAGER.chatLogsFrame and type(NAgui.menuv3) == "function" then
+		if frame == NAUIMANAGER.NAchatFrame and type(NAgui.menuv2) == "function" then
+			lazyMenuKey = "NAchatFrame"
+			lazyMenuBinder = function() NAgui.menuv2(frame) end
+		elseif frame == NAUIMANAGER.chatLogsFrame and type(NAgui.menuv3) == "function" then
 			lazyMenuKey = "chatLogsFrame"
 			lazyMenuBinder = function() NAgui.menuv3(frame) end
 		elseif frame == NAUIMANAGER.NAconsoleFrame and type(NAgui.menuv2) == "function" then
@@ -2960,7 +2963,7 @@ NAmanage.InstallUIVisibilityOptimizer = NAmanage.InstallUIVisibilityOptimizer or
 	if not NAUIMANAGER or NAmanage._uiVisOptInstalled then return end
 	NAmanage._uiVisOptInstalled = true
 	NAmanage._uiVisibilityConns = NAmanage._uiVisibilityConns or {}
-	for _, name in {"SettingsFrame","commandsFrame","chatLogsFrame","NAconsoleFrame","CommandKeybindsFrame","WaypointFrame","BindersFrame","ExecutorFrame","NotepadFrame","PluginsFrame","MusicFrame","ScriptHubFrame","SubplaceViewerFrame","ServerListFrame"} do
+	for _, name in {"SettingsFrame","commandsFrame","chatLogsFrame","NAconsoleFrame","NAchatFrame","CommandKeybindsFrame","WaypointFrame","BindersFrame","ExecutorFrame","NotepadFrame","PluginsFrame","MusicFrame","ScriptHubFrame","SubplaceViewerFrame","ServerListFrame"} do
 		const frame = NAUIMANAGER[name]
 		if typeof(frame) == "Instance" and frame.GetPropertyChangedSignal then
 			const function sync()
@@ -2976,6 +2979,30 @@ NAmanage.NARegisterUI=function(gui)
 	gui = NAmanage.uiObj(gui)
 	if not gui then
 		return false
+	end
+	if not gui.Parent then
+		local parent
+		pcall(function()
+			if type(gethui) == "function" then
+				parent = gethui()
+			end
+		end)
+		if not parent then
+			pcall(function()
+				parent = game:GetService("CoreGui")
+			end)
+		end
+		if not parent then
+			pcall(function()
+				local players = game:GetService("Players")
+				parent = players and players.LocalPlayer and players.LocalPlayer:FindFirstChildOfClass("PlayerGui")
+			end)
+		end
+		if parent then
+			pcall(function()
+				gui.Parent = parent
+			end)
+		end
 	end
 
 	NAStuff.NASCREENGUI = gui

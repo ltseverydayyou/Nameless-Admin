@@ -5148,6 +5148,7 @@ NAStartupUI("Responsive:StandardWindows", 0, function()
 	end
 end)
 NAStartupUI("Menu:ChatLogs", 0, function() if NAUIMANAGER.chatLogsFrame then NAgui.menuv3(NAUIMANAGER.chatLogsFrame) end end)
+NAStartupUI("Menu:NAChat", 0.005, function() if NAUIMANAGER.NAchatFrame then NAgui.menuv2(NAUIMANAGER.NAchatFrame) end end)
 NAStartupUI("Menu:Console", 0.01, function() if NAUIMANAGER.NAconsoleFrame then NAgui.menuv2(NAUIMANAGER.NAconsoleFrame) end end)
 NAStartupUI("Menu:Commands", 0.02, function()
 	if NAUIMANAGER.commandsFrame then
@@ -5177,6 +5178,11 @@ NAStartupUI("Menu:ServerList", 0.105, function() if NAUIMANAGER.ServerListFrame 
 --[[ GUI RESIZE FUNCTION ]]--
 
 NAStartupUI("Resize:ChatLogs", 0.1, function() if NAUIMANAGER.chatLogsFrame then NAgui.resizeable(NAUIMANAGER.chatLogsFrame) end end)
+NAStartupUI("Resize:NAChat", 0.105, function()
+	if NAUIMANAGER.NAchatFrame then
+		NAgui.resizeable(NAUIMANAGER.NAchatFrame, Vector2.new(520, 360), Vector2.new(1400, 920))
+	end
+end)
 NAStartupUI("Resize:Console", 0.11, function() if NAUIMANAGER.NAconsoleFrame then NAgui.resizeable(NAUIMANAGER.NAconsoleFrame) end end)
 NAStartupUI("Resize:Commands", 0.12, function()
 	if NAUIMANAGER.commandsFrame then
