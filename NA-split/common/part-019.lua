@@ -4878,6 +4878,36 @@ NAmanage.ExecutorWindowSizing.Apply = function(frame, config)
 	return true, metrics, targetWidth, targetHeight
 end
 
+NAmanage.NAChat_ApplyResponsive = function(center)
+	const frame = NAUIMANAGER and NAUIMANAGER.NAchatFrame
+	if not (frame and frame.Parent) then
+		return false
+	end
+	const ok, metrics = NAmanage.ExecutorWindowSizing.Apply(frame, {
+		key = "NAChat";
+		baseWidth = 760;
+		baseHeight = 520;
+		minWidth = 520;
+		minHeight = 360;
+		mobileMinWidth = 300;
+		mobileMinHeight = 220;
+		viewportRatio = 0.94;
+		center = center == true;
+	})
+	if not ok then
+		return false
+	end
+
+	const constraint = frame:FindFirstChild("WindowSizeConstraint")
+	if constraint and constraint:IsA("UISizeConstraint") and metrics then
+		constraint.MinSize = Vector2.new(
+			math.max(1, tonumber(metrics.minWidth) or 1),
+			math.max(1, tonumber(metrics.minHeight) or 1)
+		)
+	end
+	return true
+end
+
 NAmanage.ScriptHub_UpdateResponsiveLayout = function()
 	const hub = NAmanage.ScriptHub
 	const ui = hub.ui or NAmanage.ScriptHub_GetUI()

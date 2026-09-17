@@ -596,9 +596,10 @@ NAgui.nachat = function()
 		return
 	end
 	frame.Visible = true
-	frame.AnchorPoint = Vector2.new(0.5, 0.5)
-	frame.Position = UDim2.new(0.5, 0, 0.5, 0)
-	if NAmanage and type(NAmanage.centerFrame) == "function" then
+	if NAmanage and type(NAmanage.NAChat_ApplyResponsive) == "function" then
+		pcall(NAmanage.NAChat_ApplyResponsive, true)
+	elseif NAmanage and type(NAmanage.centerFrame) == "function" then
+		frame.AnchorPoint = Vector2.new(0, 0)
 		pcall(NAmanage.centerFrame, frame)
 	end
 end
@@ -648,6 +649,32 @@ originalIO.runNACHAT=function()
 	local visibilityBtn = NAUIMANAGER and NAUIMANAGER.NAchatVisibility
 	local gameActivityBtn = NAUIMANAGER and NAUIMANAGER.NAchatGameActivity
 	local dmNotifBtn = NAUIMANAGER and NAUIMANAGER.NAchatDmNotifyButton
+
+	local function refreshChatResponsive(center)
+		Defer(function()
+			if chatFrame and chatFrame.Parent and NAmanage and type(NAmanage.NAChat_ApplyResponsive) == "function" then
+				pcall(NAmanage.NAChat_ApplyResponsive, center == true)
+			end
+		end)
+	end
+
+	refreshChatResponsive(false)
+	NAlib.disconnect("NAChatResponsive")
+	if Services.Workspace and Services.Workspace.CurrentCamera then
+		NAlib.connect("NAChatResponsive", Services.Workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+			refreshChatResponsive(true)
+		end))
+	end
+	if NAStuff and NAStuff.NASCREENGUI then
+		NAlib.connect("NAChatResponsive", NAStuff.NASCREENGUI:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+			refreshChatResponsive(true)
+		end))
+	end
+	if NAUIMANAGER and NAUIMANAGER.AUTOSCALER then
+		NAlib.connect("NAChatResponsive", NAUIMANAGER.AUTOSCALER:GetPropertyChangedSignal("Scale"):Connect(function()
+			refreshChatResponsive(true)
+		end))
+	end
 
 	if NAmanage and type(NAmanage.NAChatNormalizeZIndex) == "function" then
 		pcall(NAmanage.NAChatNormalizeZIndex)
@@ -786,6 +813,7 @@ originalIO.runNACHAT=function()
 		end
 
 		local scrollSt = setmetatable({}, { __mode = "k" })
+		local scrollToBottomSoon
 
 		local function bindAutoScroll(sf, layout)
 			if not sf or not layout or sf:GetAttribute("NAChatAutoBound") then
@@ -793,7 +821,7 @@ originalIO.runNACHAT=function()
 			end
 			sf:SetAttribute("NAChatAutoBound", true)
 
-			scrollSt[sf] = { locked = false, prog = false }
+			scrollSt[sf] = { locked = false, pending = false, prog = false }
 
 			local function upd()
 				if not (sf and sf.Parent and layout and layout.Parent) then
@@ -804,6 +832,10 @@ originalIO.runNACHAT=function()
 					y = layout.AbsoluteContentSize.Y
 				end)
 				sf.CanvasSize = UDim2.new(0, 0, 0, y + 8)
+				local st = scrollSt[sf]
+				if st and not st.locked and scrollToBottomSoon then
+					scrollToBottomSoon(sf)
+				end
 			end
 
 			upd()
@@ -856,9 +888,17 @@ originalIO.runNACHAT=function()
 			end
 		end
 
-		local function scrollToBottomSoon(scrollFrame)
+		scrollToBottomSoon = function(scrollFrame)
 			if not scrollFrame or not canAutoScroll(scrollFrame) then
 				return
+			end
+
+			local st = scrollSt[scrollFrame]
+			if st and st.pending then
+				return
+			end
+			if st then
+				st.pending = true
 			end
 
 			local scheduledY = 0
@@ -868,13 +908,17 @@ originalIO.runNACHAT=function()
 
 			Defer(function()
 				if not (scrollFrame and scrollFrame.Parent) then
+					if st then st.pending = false end
 					return
 				end
 				Wait()
+				Wait()
 				if not (scrollFrame and scrollFrame.Parent) then
+					if st then st.pending = false end
 					return
 				end
 				if not canAutoScroll(scrollFrame) then
+					if st then st.pending = false end
 					return
 				end
 
@@ -886,10 +930,12 @@ originalIO.runNACHAT=function()
 				local _, _, _, scale = scrollMetrics(scrollFrame)
 				local cancelDelta = 6 / (scale > 0 and scale or 1)
 				if currentY < (scheduledY - cancelDelta) then
+					if st then st.pending = false end
 					return
 				end
 
 				scrollToBottom(scrollFrame)
+				if st then st.pending = false end
 			end)
 		end
 		originalIO.NAChatAuto = originalIO.NAChatAuto or {}
