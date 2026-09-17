@@ -4659,11 +4659,12 @@ NAmanage.NAChatNormalizeZIndex = function()
 	local container = frame:FindFirstChild("Container")
 	local messageBar = frame:FindFirstChild("MessageBar")
 	local groupPopup = frame:FindFirstChild("NAChatGroupPopup")
+	local invitePrompt = frame:FindFirstChild("NAChatInvitePrompt")
 	frame.ZIndex = 0
 	for _, item in ipairs(frame:GetDescendants()) do
 		if item:IsA("GuiObject") then
 			local layer = 10
-			if groupPopup and (item == groupPopup or item:IsDescendantOf(groupPopup)) then
+			if (groupPopup and (item == groupPopup or item:IsDescendantOf(groupPopup))) or (invitePrompt and (item == invitePrompt or item:IsDescendantOf(invitePrompt))) then
 				layer = 60
 			elseif topbar and item:IsDescendantOf(topbar) then
 				layer = 50

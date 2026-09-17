@@ -751,8 +751,17 @@ originalIO.runNACHAT=function()
 		local groupInviteInput = nil
 		local groupInviteButton = nil
 		local groupLeaveButton = nil
+		local groupInvitePrompt = nil
+		local groupInvitePromptTitle = nil
+		local groupInvitePromptText = nil
+		local groupInviteAcceptButton = nil
+		local groupInviteDeclineButton = nil
+		local pendingGroupInvites = {}
+		local pendingGroupInviteOrder = {}
+		local activeGroupInviteId = nil
 		local switchConversation
 		local refreshGroupPicker
+		local refreshGroupInvitePrompt
 		local function isChatUiSuppressed()
 			return NAChat.isHidden and not NAChat.serverIsAdmin
 		end
@@ -963,8 +972,11 @@ originalIO.runNACHAT=function()
 		local userSearchTerm = ""
 		local serverUsers = {}
 		local serverUsersInit = false
+		local serverJoinNoticeAt = {}
+		local serverUserMissingAt = {}
 		local lastUserSig = nil
 		local userFrames = {}
+		local userFrameState = {}
 
 		local STATUS_COLORS = {
 			ok = Color3.fromRGB(120, 200, 140),
@@ -1591,6 +1603,51 @@ originalIO.runNACHAT=function()
 			end
 		end
 
+		local function removePendingGroupInvite(groupId)
+			local id = tostring(groupId or "")
+			pendingGroupInvites[id] = nil
+			for index = #pendingGroupInviteOrder, 1, -1 do
+				if pendingGroupInviteOrder[index] == id then
+					table.remove(pendingGroupInviteOrder, index)
+				end
+			end
+			if activeGroupInviteId == id then
+				activeGroupInviteId = nil
+			end
+			if refreshGroupInvitePrompt then
+				refreshGroupInvitePrompt()
+			end
+		end
+
+		refreshGroupInvitePrompt = function()
+			if not groupInvitePrompt then
+				return
+			end
+			if not activeGroupInviteId or not pendingGroupInvites[activeGroupInviteId] then
+				activeGroupInviteId = nil
+				for _, id in ipairs(pendingGroupInviteOrder) do
+					if pendingGroupInvites[id] then
+						activeGroupInviteId = id
+						break
+					end
+				end
+			end
+			local group = activeGroupInviteId and pendingGroupInvites[activeGroupInviteId]
+			if not group then
+				groupInvitePrompt.Visible = false
+				return
+			end
+			groupInvitePrompt.Visible = true
+			if groupInvitePromptTitle then
+				groupInvitePromptTitle.Text = "Group invitation"
+			end
+			if groupInvitePromptText then
+				local owner = tostring(group.owner or "Someone")
+				local name = tostring(group.name or "Group")
+				groupInvitePromptText.Text = ("%s invited you to join #%s. Join this group chat?"):format(owner, name)
+			end
+		end
+
 		local function buildGroupUi()
 			if type(MouseButtonFix) ~= "function" then
 				return
@@ -1752,7 +1809,84 @@ originalIO.runNACHAT=function()
 				end)
 			end
 
+			if not groupInvitePrompt then
+				groupInvitePrompt = InstanceNew("Frame", chatFrame)
+				groupInvitePrompt.Name = "NAChatInvitePrompt"
+				groupInvitePrompt.Size = UDim2.new(0, 280, 0, 126)
+				groupInvitePrompt.Position = UDim2.new(1, -288, 0, 82)
+				groupInvitePrompt.BackgroundColor3 = CHAT_SURFACE
+				groupInvitePrompt.BackgroundTransparency = 0.02
+				groupInvitePrompt.Visible = false
+				groupInvitePrompt.ZIndex = 210
+				local promptCorner = InstanceNew("UICorner", groupInvitePrompt)
+				promptCorner.CornerRadius = UDim.new(0, 9)
+				ensureChatStroke(groupInvitePrompt, CHAT_ACCENT, 0.08)
+
+				groupInvitePromptTitle = InstanceNew("TextLabel", groupInvitePrompt)
+				groupInvitePromptTitle.Size = UDim2.new(1, -20, 0, 22)
+				groupInvitePromptTitle.Position = UDim2.new(0, 10, 0, 8)
+				groupInvitePromptTitle.BackgroundTransparency = 1
+				groupInvitePromptTitle.TextColor3 = Color3.fromRGB(238, 239, 250)
+				groupInvitePromptTitle.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+				groupInvitePromptTitle.TextSize = 14
+				groupInvitePromptTitle.TextXAlignment = Enum.TextXAlignment.Left
+				groupInvitePromptTitle.ZIndex = 211
+
+				groupInvitePromptText = InstanceNew("TextLabel", groupInvitePrompt)
+				groupInvitePromptText.Size = UDim2.new(1, -20, 0, 48)
+				groupInvitePromptText.Position = UDim2.new(0, 10, 0, 34)
+				groupInvitePromptText.BackgroundTransparency = 1
+				groupInvitePromptText.TextColor3 = Color3.fromRGB(205, 208, 224)
+				groupInvitePromptText.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+				groupInvitePromptText.TextSize = 12
+				groupInvitePromptText.TextWrapped = true
+				groupInvitePromptText.TextXAlignment = Enum.TextXAlignment.Left
+				groupInvitePromptText.TextYAlignment = Enum.TextYAlignment.Top
+				groupInvitePromptText.ZIndex = 211
+
+				groupInviteDeclineButton = makeConversationButton(groupInvitePrompt, "Decline", false)
+				groupInviteDeclineButton.Name = "DeclineGroupInvite"
+				groupInviteDeclineButton.Size = UDim2.new(0, 112, 0, 28)
+				groupInviteDeclineButton.Position = UDim2.new(1, -122, 1, -38)
+				groupInviteDeclineButton.TextXAlignment = Enum.TextXAlignment.Center
+				groupInviteDeclineButton.ZIndex = 212
+				MouseButtonFix(groupInviteDeclineButton, function()
+					local id = activeGroupInviteId
+					local svc = NAChat.service
+					if not id or not svc or not svc.DeclineGroupInvite then
+						return
+					end
+					local ok, result = pcall(svc.DeclineGroupInvite, id)
+					if ok and result ~= false then
+						removePendingGroupInvite(id)
+					else
+						originalIO.setStatus("NA Chat: invite decline failed", STATUS_COLORS.err)
+					end
+				end)
+
+				groupInviteAcceptButton = makeConversationButton(groupInvitePrompt, "Accept", true)
+				groupInviteAcceptButton.Name = "AcceptGroupInvite"
+				groupInviteAcceptButton.Size = UDim2.new(0, 112, 0, 28)
+				groupInviteAcceptButton.Position = UDim2.new(0, 10, 1, -38)
+				groupInviteAcceptButton.TextXAlignment = Enum.TextXAlignment.Center
+				groupInviteAcceptButton.ZIndex = 212
+				MouseButtonFix(groupInviteAcceptButton, function()
+					local id = activeGroupInviteId
+					local svc = NAChat.service
+					if not id or not svc or not svc.AcceptGroupInvite then
+						return
+					end
+					local ok, result = pcall(svc.AcceptGroupInvite, id)
+					if ok and result ~= false then
+						removePendingGroupInvite(id)
+					else
+						originalIO.setStatus("NA Chat: invite accept failed", STATUS_COLORS.err)
+					end
+				end)
+			end
+
 			updateGroupButton()
+			refreshGroupInvitePrompt()
 			refreshGroupPicker()
 			MouseButtonFix(groupButton, function()
 				if groupPopup then
@@ -1768,8 +1902,9 @@ originalIO.runNACHAT=function()
 
 		local function buildServerSet(list)
 			local set = {}
+			local reliable = false
 			if type(list) ~= "table" then
-				return set
+				return set, reliable
 			end
 
 			local lp = Players.LocalPlayer
@@ -1782,6 +1917,9 @@ originalIO.runNACHAT=function()
 					local pid = tonumber(info.placeId)
 					local jid = tostring(info.jobId or "")
 					local name = getVerifiedUsername(uid, tostring(info.username or "Unknown"))
+					if pid and jid ~= "" then
+						reliable = true
+					end
 
 					if uid and pid == myPlace and jid ~= "" and jid == myJob then
 						if not (lp and uid == lp.UserId) then
@@ -1791,7 +1929,47 @@ originalIO.runNACHAT=function()
 				end
 			end
 
-			return set
+			return set, reliable
+		end
+
+		local function updateServerJoinState(newSet, reliable)
+			if not reliable then
+				return
+			end
+
+			local now = os.clock()
+			if not serverUsersInit then
+				serverUsers = newSet
+				serverUsersInit = true
+				for uid in pairs(newSet) do
+					serverJoinNoticeAt[uid] = now
+				end
+				return
+			end
+
+			for uid, name in pairs(newSet) do
+				serverUserMissingAt[uid] = nil
+				if not serverUsers[uid] and (not serverJoinNoticeAt[uid] or now - serverJoinNoticeAt[uid] >= 30) then
+					serverJoinNoticeAt[uid] = now
+					if DoNotif then
+						DoNotif(("NA Chat: %s joined your server."):format(name), 5)
+					else
+						appendConversationMessage("public", ("[NA Chat] %s joined your server."):format(name), STATUS_COLORS.info, name)
+					end
+				end
+				serverUsers[uid] = name
+			end
+
+			for uid in pairs(serverUsers) do
+				if not newSet[uid] then
+					local missingAt = serverUserMissingAt[uid] or now
+					serverUserMissingAt[uid] = missingAt
+					if now - missingAt >= 15 then
+						serverUsers[uid] = nil
+						serverUserMissingAt[uid] = nil
+					end
+				end
+			end
 		end
 
 		local function makeUserSignature(list)
@@ -1844,10 +2022,9 @@ originalIO.runNACHAT=function()
 				return
 			end
 
-			for _, child in ipairs(usersScroll:GetChildren()) do
-				if child:IsA("Frame") and child:GetAttribute("NAChatHiddenNotice") == true then
-					child:Destroy()
-				end
+			local hiddenNotice = usersScroll:FindFirstChild("NAChatHiddenNotice")
+			if hiddenNotice and hiddenNotice:IsA("Frame") then
+				hiddenNotice:Destroy()
 			end
 
 			usersUpdateGeneration += 1
@@ -1862,6 +2039,7 @@ originalIO.runNACHAT=function()
 					end
 				end
 				userFrames = {}
+				userFrameState = {}
 
 				local fr = InstanceNew("Frame", usersScroll)
 				fr.Name = "NAChatHiddenNotice"
@@ -1887,11 +2065,7 @@ originalIO.runNACHAT=function()
 			local seen = {}
 			local alive = {}
 			local idx = 0
-			local detachedLayoutParent = nil
-			if usersLayout and usersLayout.Parent == usersScroll then
-				detachedLayoutParent = usersLayout.Parent
-				usersLayout.Parent = nil
-			end
+			local structureChanged = false
 
 			for _, info in ipairs(list) do
 				local serverUsername = (type(info) == "table" and info.username) or tostring(info)
@@ -1933,10 +2107,35 @@ originalIO.runNACHAT=function()
 				alive[uidKey] = true
 				idx += 1
 
+				local pidNum = tonumber(placeId)
+				local jobStr = tostring(jobId or "")
+				local canJoin = (pidNum ~= nil and pidNum > 0) and jobStr ~= ""
+				local isSelf = userId and Players.LocalPlayer and (userId == Players.LocalPlayer.UserId)
+				local rowSignature = table.concat({
+					tostring(canonicalUsername or ""),
+					tostring(displayName or ""),
+					tostring(isAdmin),
+					tostring(gameStatus or ""),
+					tostring(placeId or ""),
+					jobStr,
+					tostring(isHiddenUser),
+					tostring(activityHidden),
+					tostring(canJoin and not isSelf),
+				}, "\0")
+
 				local fr = userFrames[uidKey]
+				if fr and fr.Parent and userFrameState[uidKey] == rowSignature then
+					if fr.LayoutOrder ~= idx then
+						fr.LayoutOrder = idx
+						structureChanged = true
+					end
+					continue
+				end
+
 				if not (fr and fr.Parent) then
 					fr = InstanceNew("Frame", usersScroll)
 					userFrames[uidKey] = fr
+					structureChanged = true
 					local cr = InstanceNew("UICorner", fr)
 					cr.CornerRadius = UDim.new(0, 9)
 					ensureChatStroke(fr, Color3.fromRGB(72, 75, 99), 0.58)
@@ -1966,6 +2165,7 @@ originalIO.runNACHAT=function()
 					gameLbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
 					gameLbl.TextSize = 12
 				end
+				userFrameState[uidKey] = rowSignature
 
 				fr.Name = keyBase
 				fr.BackgroundColor3 = CHAT_SURFACE
@@ -2012,11 +2212,6 @@ originalIO.runNACHAT=function()
 					end
 					gameLbl.Text = line
 				end
-
-				local pidNum = tonumber(placeId)
-				local jobStr = tostring(jobId or "")
-				local canJoin = (pidNum ~= nil and pidNum > 0) and jobStr ~= ""
-				local isSelf = userId and Players.LocalPlayer and (userId == Players.LocalPlayer.UserId)
 
 				local joinBtn = fr:FindFirstChild("JoinButton")
 				if not canJoin or isSelf then
@@ -2116,16 +2311,15 @@ originalIO.runNACHAT=function()
 						fr:Destroy()
 					end
 					userFrames[key] = nil
+					userFrameState[key] = nil
+					structureChanged = true
 				end
 			end
-			if detachedLayoutParent and usersLayout then
-				usersLayout.Parent = detachedLayoutParent
-			end
-			if NAmanage.CustomScroll and NAmanage.CustomScroll.refreshByTarget then
+			if structureChanged and NAmanage.CustomScroll and NAmanage.CustomScroll.refreshByTarget then
 				NAmanage.CustomScroll.refreshByTarget(usersScroll)
 			end
 
-			if usersScroll and doAutoScroll then
+			if usersScroll and structureChanged and doAutoScroll then
 				scrollToBottomSoon(usersScroll)
 			end
 
@@ -2627,6 +2821,7 @@ originalIO.runNACHAT=function()
 					local id = tostring(groupId or "")
 					groupRecords[id] = nil
 					conversationHistory[conversationKey(id)] = nil
+					removePendingGroupInvite(id)
 					if tostring(NAChat.activeGroupId or "") == id then
 						switchConversation(nil)
 					elseif refreshGroupPicker then
@@ -2637,8 +2832,19 @@ originalIO.runNACHAT=function()
 
 			if NAChat.service.OnGroupInvite then
 				NAChat.service.OnGroupInvite.Event:Connect(function(group)
-					if type(DoNotif) == "function" and type(group) == "table" then
-						DoNotif(("Added to group #%s"):format(tostring(group.name or "Group")), 4)
+					if type(group) ~= "table" or not group.id then
+						return
+					end
+					local id = tostring(group.id)
+					if not pendingGroupInvites[id] then
+						pendingGroupInviteOrder[#pendingGroupInviteOrder + 1] = id
+					end
+					pendingGroupInvites[id] = group
+					if refreshGroupInvitePrompt then
+						refreshGroupInvitePrompt()
+					end
+					if type(DoNotif) == "function" then
+						DoNotif(("Group invite from %s"):format(tostring(group.owner or "someone")), 4)
 					end
 				end)
 			end
@@ -2743,23 +2949,8 @@ originalIO.runNACHAT=function()
 
 				refreshStatus()
 
-				local newSet = buildServerSet(NAChat.users)
-
-				if not serverUsersInit then
-					serverUsers = newSet
-					serverUsersInit = true
-				else
-					for uid, name in pairs(newSet) do
-						if not serverUsers[uid] then
-							if DoNotif then
-								DoNotif(("NA Chat: %s joined your server."):format(name), 5)
-							else
-								appendConversationMessage("public", ("[NA Chat] %s joined your server."):format(name), STATUS_COLORS.info, name)
-							end
-						end
-					end
-					serverUsers = newSet
-				end
+				local newSet, reliable = buildServerSet(NAChat.users)
+				updateServerJoinState(newSet, reliable)
 
 				if NAChat.currentDMTarget then
 					local stillHere = false
@@ -2786,7 +2977,7 @@ originalIO.runNACHAT=function()
 				end
 
 				if changed and not isChatUiSuppressed() and NAChat.activeTab == "users" then
-					updateUsersList(NAChat.users)
+					queueUsersListRefresh()
 				end
 			end)
 
@@ -2805,23 +2996,8 @@ originalIO.runNACHAT=function()
 
 					refreshStatus()
 
-					local newSet = buildServerSet(NAChat.users)
-
-					if not serverUsersInit then
-						serverUsers = newSet
-						serverUsersInit = true
-					else
-						for uid, name in pairs(newSet) do
-							if not serverUsers[uid] then
-								if DoNotif then
-									DoNotif(("NA Chat: %s joined your server."):format(name), 5)
-								else
-									appendConversationMessage("public", ("[NA Chat] %s joined your server."):format(name), STATUS_COLORS.info, name)
-								end
-							end
-						end
-						serverUsers = newSet
-					end
+					local newSet, reliable = buildServerSet(NAChat.users)
+					updateServerJoinState(newSet, reliable)
 
 					if NAChat.currentDMTarget then
 						local stillHere = false
@@ -2848,7 +3024,7 @@ originalIO.runNACHAT=function()
 					end
 
 					if changed and not isChatUiSuppressed() and NAChat.activeTab == "users" then
-						updateUsersList(NAChat.users)
+						queueUsersListRefresh()
 					end
 				end)
 			end
