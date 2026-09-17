@@ -2088,6 +2088,15 @@ NAStuff = {
 		originals = {};
 		captured = {};
 	};
+	ClientIDSpoofEnabled = false;
+	ClientIDSpoofValue = "";
+	ClientIDSpoofState = {
+		hooked = false;
+		directTarget = nil;
+		directOriginal = nil;
+		namecallTarget = nil;
+		namecallOriginal = nil;
+	};
 	SynEnvEnabled = false;
 	SynEnvState = {
 		captured = false;

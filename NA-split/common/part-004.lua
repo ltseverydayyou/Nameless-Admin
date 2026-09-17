@@ -4076,6 +4076,18 @@ NAmanage.NASettingsGetSchema=function()
 				return type(value) == "string" and value or tostring(value or "")
 			end;
 		};
+		spoofClientID = {
+			default = false;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
+			end;
+		};
+		spoofedClientID = {
+			default = "";
+			coerce = function(value)
+				return type(value) == "string" and value or tostring(value or "")
+			end;
+		};
 		synEnv = {
 			default = false;
 			coerce = function(value)

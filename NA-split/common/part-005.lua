@@ -530,6 +530,165 @@ NAmanage.SetHWIDSpoofValue = NAmanage.SetHWIDSpoofValue or function(value, opts)
 	return value
 end
 
+NAmanage.ApplyClientIDSpoof = NAmanage.ApplyClientIDSpoof or function(opts)
+	opts = opts or {}
+	local spoofState = NAStuff.ClientIDSpoofState
+	if type(spoofState) ~= "table" then
+		spoofState = {
+			hooked = false;
+			directTarget = nil;
+			directOriginal = nil;
+			namecallTarget = nil;
+			namecallOriginal = nil;
+		}
+		NAStuff.ClientIDSpoofState = spoofState
+	end
+
+	local host = type(_na_boot) == "table" and _na_boot.hostEnv or nil
+	local hookFn = type(host) == "table" and rawget(host, "hookfunction") or nil
+	if type(hookFn) ~= "function" then
+		hookFn = hookfunction
+	end
+
+	if NAStuff.ClientIDSpoofEnabled ~= true then
+		if spoofState.hooked == true and type(hookFn) == "function" then
+			if type(spoofState.namecallTarget) == "function" and type(spoofState.namecallOriginal) == "function" then
+				pcall(hookFn, spoofState.namecallTarget, spoofState.namecallOriginal)
+			end
+			if type(spoofState.directTarget) == "function" and type(spoofState.directOriginal) == "function" then
+				pcall(hookFn, spoofState.directTarget, spoofState.directOriginal)
+			end
+		end
+		spoofState.hooked = false
+		spoofState.directTarget = nil
+		spoofState.directOriginal = nil
+		spoofState.namecallTarget = nil
+		spoofState.namecallOriginal = nil
+		return true
+	end
+	if spoofState.hooked == true then
+		return true
+	end
+
+	local service
+	if Services and Services.RbxAnalyticsService then
+		service = Services.RbxAnalyticsService
+	else
+		pcall(function()
+			service = game:GetService("RbxAnalyticsService")
+		end)
+	end
+	local directTarget = service and service.GetClientId or nil
+	local rawMetaFn = type(host) == "table" and rawget(host, "getrawmetatable") or nil
+	if type(rawMetaFn) ~= "function" then
+		rawMetaFn = getrawmetatable
+	end
+	local getMethodFn = type(host) == "table" and rawget(host, "getnamecallmethod") or nil
+	if type(getMethodFn) ~= "function" then
+		getMethodFn = getnamecallmethod
+	end
+	local newC = type(host) == "table" and rawget(host, "newcclosure") or nil
+	if type(newC) ~= "function" then
+		newC = newcclosure
+	end
+	if type(directTarget) ~= "function" or type(hookFn) ~= "function" or type(rawMetaFn) ~= "function" or type(getMethodFn) ~= "function" then
+		return false
+	end
+
+	local okMeta, mt = pcall(rawMetaFn, game)
+	local namecallTarget = okMeta and type(mt) == "table" and rawget(mt, "__namecall") or nil
+	if type(namecallTarget) ~= "function" then
+		return false
+	end
+
+	local directOriginal
+	local directWrapper = function(self, ...)
+		if NAStuff.ClientIDSpoofEnabled == true then
+			return tostring(NAStuff.ClientIDSpoofValue or "")
+		end
+		return directOriginal(self, ...)
+	end
+	if type(newC) == "function" then
+		local ok, wrapped = pcall(newC, directWrapper)
+		if ok and type(wrapped) == "function" then
+			directWrapper = wrapped
+		end
+	end
+	local okDirect, oldDirect = pcall(hookFn, directTarget, directWrapper)
+	if not okDirect or type(oldDirect) ~= "function" then
+		return false
+	end
+	directOriginal = oldDirect
+
+	local namecallOriginal
+	local namecallWrapper = function(self, ...)
+		if NAStuff.ClientIDSpoofEnabled == true and self == service and getMethodFn() == "GetClientId" then
+			return tostring(NAStuff.ClientIDSpoofValue or "")
+		end
+		return namecallOriginal(self, ...)
+	end
+	if type(newC) == "function" then
+		local ok, wrapped = pcall(newC, namecallWrapper)
+		if ok and type(wrapped) == "function" then
+			namecallWrapper = wrapped
+		end
+	end
+	local okNamecall, oldNamecall = pcall(hookFn, namecallTarget, namecallWrapper)
+	if not okNamecall or type(oldNamecall) ~= "function" then
+		pcall(hookFn, directTarget, oldDirect)
+		return false
+	end
+	namecallOriginal = oldNamecall
+
+	spoofState.hooked = true
+	spoofState.directTarget = directTarget
+	spoofState.directOriginal = oldDirect
+	spoofState.namecallTarget = namecallTarget
+	spoofState.namecallOriginal = oldNamecall
+	return true
+end
+
+NAmanage.SetClientIDSpoofEnabled = NAmanage.SetClientIDSpoofEnabled or function(state, opts)
+	opts = opts or {}
+	state = state == true
+	NAStuff.ClientIDSpoofEnabled = state
+	if opts.save ~= false and NAmanage.NASettingsSet then
+		pcall(NAmanage.NASettingsSet, "spoofClientID", state)
+	end
+	local ok = NAmanage.ApplyClientIDSpoof({ force = true })
+	if state and ok ~= true then
+		NAStuff.ClientIDSpoofEnabled = false
+		if opts.save ~= false and NAmanage.NASettingsSet then
+			pcall(NAmanage.NASettingsSet, "spoofClientID", false)
+		end
+		if not opts.silent and DoNotif then
+			DoNotif("Client ID spoof unavailable: hookfunction is unsupported or GetClientId could not be hooked", 4)
+		end
+		return false
+	end
+	if not opts.silent and DoNotif then
+		if state then
+			DoNotif("Client ID spoof enabled. This uses hookfunction and may be detectable.", 4)
+		else
+			DoNotif("Client ID spoof disabled", 2)
+		end
+	end
+	return state
+end
+
+NAmanage.SetClientIDSpoofValue = NAmanage.SetClientIDSpoofValue or function(value, opts)
+	opts = opts or {}
+	value = tostring(value or "")
+	NAStuff.ClientIDSpoofValue = value
+	if opts.save ~= false and NAmanage.NASettingsSet then
+		pcall(NAmanage.NASettingsSet, "spoofedClientID", value)
+	end
+	if not opts.silent and DoNotif then
+		DoNotif("Spoofed Client ID updated", 2)
+	end
+	return value
+end
+
 NAmanage.SetSynEnv = NAmanage.SetSynEnv or function(state, opts)
 	opts = opts or {}
 	state = state == true
@@ -2791,6 +2950,8 @@ NAStuff.VirtualInputAPIDisabled = NAmanage.NASettingsGet("disableVirtualInputAPI
 NAStuff.HWIDFunctionsDisabled = NAmanage.NASettingsGet("disableHWIDFunctions") == true
 NAStuff.HWIDSpoofEnabled = NAmanage.NASettingsGet("spoofHWID") == true
 NAStuff.HWIDSpoofValue = tostring(NAmanage.NASettingsGet("spoofedHWID") or "")
+NAStuff.ClientIDSpoofEnabled = NAmanage.NASettingsGet("spoofClientID") == true
+NAStuff.ClientIDSpoofValue = tostring(NAmanage.NASettingsGet("spoofedClientID") or "")
 NAStuff.SynEnvEnabled = NAmanage.NASettingsGet("synEnv") == true
 NAStuff.ForceRconsoleNAConsole = NAmanage.NASettingsGet("forceRconsoleNAConsole") ~= false
 NAStuff.FriendRequestAutoDismiss = NAmanage.NASettingsGet("friendRequestAutoDismiss")
@@ -2895,6 +3056,11 @@ pcall(NAmanage.SetVirtualInputAPIDisabled, NAStuff.VirtualInputAPIDisabled == tr
 	force = true;
 })
 pcall(NAmanage.SetHWIDFunctionsDisabled, NAStuff.HWIDFunctionsDisabled == true, {
+	save = false;
+	silent = true;
+	force = true;
+})
+pcall(NAmanage.SetClientIDSpoofEnabled, NAStuff.ClientIDSpoofEnabled == true, {
 	save = false;
 	silent = true;
 	force = true;
