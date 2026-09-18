@@ -914,6 +914,7 @@ originalIO.runNACHAT=function()
 	if chatFrame then
 		local NAChat = {
 			service = nil,
+			sandbox = nil,
 			connecting = false,
 			wired = false,
 			isHidden = false,
@@ -1585,6 +1586,10 @@ originalIO.runNACHAT=function()
 		local composeEditEntry = nil
 		local settingsPopup = nil
 		local settingsColorInput = nil
+		local debugPopup = nil
+		local debugScroll = nil
+		local debugLogs = {}
+		local MAX_DEBUG_LOGS = 150
 		local refreshRegularMessageColors
 
 		local function getSavedChatColorHex()
@@ -2197,6 +2202,156 @@ originalIO.runNACHAT=function()
 		end
 
 
+		local function refreshDebugLogs()
+			if not debugScroll or not debugScroll.Parent then
+				return
+			end
+			for _, child in debugScroll:GetChildren() do
+				if child:IsA("TextLabel") then
+					child:Destroy()
+				end
+			end
+			for index, record in debugLogs do
+				local label = InstanceNew("TextLabel", debugScroll)
+				label.Name = "Log"..tostring(index)
+				label.BackgroundTransparency = 1
+				label.Size = UDim2.new(1, -12, 0, 18)
+				label.AutomaticSize = Enum.AutomaticSize.Y
+				label.LayoutOrder = index
+				label.FontFace = Font.new("rbxasset://fonts/families/RobotoMono.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+				label.TextSize = 11
+				label.TextWrapped = true
+				label.TextXAlignment = Enum.TextXAlignment.Left
+				label.TextYAlignment = Enum.TextYAlignment.Top
+				label.TextColor3 = record.level == "error" and Color3.fromRGB(255, 155, 165)
+					or record.level == "warn" and Color3.fromRGB(255, 211, 132)
+					or Color3.fromRGB(192, 205, 230)
+				local stamp = os.date("%H:%M:%S", tonumber(record.timestamp) or os.time())
+				label.Text = ("[%s] [%s] %s"):format(stamp, tostring(record.level or "info"):upper(), tostring(record.message or ""))
+				label.ZIndex = 292
+			end
+			task.defer(function()
+				if debugScroll and debugScroll.Parent then
+					debugScroll.CanvasPosition = Vector2.new(0, math.max(0, debugScroll.AbsoluteCanvasSize.Y - debugScroll.AbsoluteWindowSize.Y))
+				end
+			end)
+		end
+
+		local function appendDebugLog(level, message, timestamp)
+			debugLogs[#debugLogs + 1] = {
+				level = tostring(level or "info"):lower(),
+				message = tostring(message or ""),
+				timestamp = tonumber(timestamp) or os.time(),
+			}
+			while #debugLogs > MAX_DEBUG_LOGS do
+				table.remove(debugLogs, 1)
+			end
+			if debugPopup and debugPopup.Visible then
+				refreshDebugLogs()
+			end
+		end
+
+		local function ensureDebugPopup()
+			if debugPopup and debugPopup.Parent then
+				return debugPopup
+			end
+			local popup = InstanceNew("Frame", chatFrame)
+			debugPopup = popup
+			popup.Name = "NAChatDebugLogs"
+			popup.AnchorPoint = Vector2.new(1, 0)
+			popup.Position = UDim2.new(1, -10, 0, 82)
+			popup.Size = UDim2.new(0, 430, 0, 280)
+			popup.BackgroundColor3 = CHAT_SURFACE
+			popup.BackgroundTransparency = 0.01
+			popup.BorderSizePixel = 0
+			popup.ZIndex = 290
+			popup.Visible = false
+			local corner = InstanceNew("UICorner", popup)
+			corner.CornerRadius = UDim.new(0, 8)
+			ensureChatStroke(popup, CHAT_ACCENT, 0.22)
+
+			local title = InstanceNew("TextLabel", popup)
+			title.BackgroundTransparency = 1
+			title.Position = UDim2.new(0, 10, 0, 8)
+			title.Size = UDim2.new(1, -100, 0, 22)
+			title.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+			title.TextSize = 13
+			title.TextXAlignment = Enum.TextXAlignment.Left
+			title.TextColor3 = Color3.fromRGB(238, 239, 250)
+			title.Text = "NA Chat Debug Logs"
+			title.ZIndex = 291
+
+			local clear = InstanceNew("TextButton", popup)
+			clear.AnchorPoint = Vector2.new(1, 0)
+			clear.Position = UDim2.new(1, -54, 0, 7)
+			clear.Size = UDim2.new(0, 58, 0, 24)
+			clear.BackgroundColor3 = CHAT_OFF
+			clear.BorderSizePixel = 0
+			clear.Text = "Clear"
+			clear.TextColor3 = Color3.fromRGB(224, 226, 238)
+			clear.TextSize = 11
+			clear.ZIndex = 291
+			local clearCorner = InstanceNew("UICorner", clear)
+			clearCorner.CornerRadius = UDim.new(0, 6)
+
+			local close = InstanceNew("TextButton", popup)
+			close.AnchorPoint = Vector2.new(1, 0)
+			close.Position = UDim2.new(1, -10, 0, 7)
+			close.Size = UDim2.new(0, 34, 0, 24)
+			close.BackgroundColor3 = CHAT_OFF
+			close.BorderSizePixel = 0
+			close.Text = "X"
+			close.TextColor3 = Color3.fromRGB(224, 226, 238)
+			close.TextSize = 11
+			close.ZIndex = 291
+			local closeCorner = InstanceNew("UICorner", close)
+			closeCorner.CornerRadius = UDim.new(0, 6)
+
+			local scroll = InstanceNew("ScrollingFrame", popup)
+			debugScroll = scroll
+			scroll.Position = UDim2.new(0, 10, 0, 39)
+			scroll.Size = UDim2.new(1, -20, 1, -49)
+			scroll.BackgroundColor3 = CHAT_OFF
+			scroll.BackgroundTransparency = 0.12
+			scroll.BorderSizePixel = 0
+			scroll.ScrollBarThickness = 4
+			scroll.CanvasSize = UDim2.new()
+			scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+			scroll.ZIndex = 291
+			local scrollCorner = InstanceNew("UICorner", scroll)
+			scrollCorner.CornerRadius = UDim.new(0, 6)
+			local padding = InstanceNew("UIPadding", scroll)
+			padding.PaddingTop = UDim.new(0, 4)
+			padding.PaddingBottom = UDim.new(0, 4)
+			padding.PaddingLeft = UDim.new(0, 6)
+			padding.PaddingRight = UDim.new(0, 6)
+			local layout = InstanceNew("UIListLayout", scroll)
+			layout.Padding = UDim.new(0, 4)
+			layout.SortOrder = Enum.SortOrder.LayoutOrder
+
+			MouseButtonFix(clear, function()
+				table.clear(debugLogs)
+				refreshDebugLogs()
+			end)
+			MouseButtonFix(close, function()
+				popup.Visible = false
+			end)
+			refreshDebugLogs()
+			return popup
+		end
+
+		local function toggleDebugPopup()
+			local popup = ensureDebugPopup()
+			if not popup then
+				return
+			end
+			popup.Visible = not popup.Visible
+			if popup.Visible then
+				refreshDebugLogs()
+			end
+		end
+
+
 		local function hideChatSettingsPopup()
 			if settingsPopup then
 				settingsPopup.Visible = false
@@ -2216,7 +2371,7 @@ originalIO.runNACHAT=function()
 			popup.Name = "NAChatSettingsPopup"
 			popup.AnchorPoint = Vector2.new(1, 0)
 			popup.Position = UDim2.new(1, -10, 0, 82)
-			popup.Size = UDim2.new(0, 252, 0, 166)
+			popup.Size = UDim2.new(0, 252, 0, 204)
 			popup.BackgroundColor3 = CHAT_SURFACE
 			popup.BackgroundTransparency = 0.02
 			popup.BorderSizePixel = 0
@@ -2333,6 +2488,20 @@ originalIO.runNACHAT=function()
 			reset.ZIndex = 281
 			local resetCorner = InstanceNew("UICorner", reset)
 			resetCorner.CornerRadius = UDim.new(0, 6)
+
+			local debugButton = InstanceNew("TextButton", popup)
+			debugButton.Position = UDim2.new(0, 10, 0, 166)
+			debugButton.Size = UDim2.new(1, -20, 0, 28)
+			debugButton.BackgroundColor3 = CHAT_OFF
+			debugButton.BorderSizePixel = 0
+			debugButton.TextColor3 = Color3.fromRGB(220, 222, 235)
+			debugButton.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+			debugButton.TextSize = 12
+			debugButton.Text = "Debug Logs"
+			debugButton.ZIndex = 281
+			local debugCorner = InstanceNew("UICorner", debugButton)
+			debugCorner.CornerRadius = UDim.new(0, 6)
+			MouseButtonFix(debugButton, toggleDebugPopup)
 
 			local function refreshPreview()
 				local hex, color = parseColor(input.Text)
@@ -3474,6 +3643,70 @@ originalIO.runNACHAT=function()
 			return false, "failed to fetch IntegrationService script"
 		end
 
+		local function createIntegrationSandbox()
+			local hostEnv = _na_boot and _na_boot.hostEnv or nil
+			local runtimeEnv = _na_boot and _na_boot.runtimeEnv or nil
+			local sandbox = {}
+			local sandboxShared = {}
+
+			rawset(sandbox, "_G", sandbox)
+			rawset(sandbox, "shared", sandboxShared)
+			rawset(sandbox, "__NAServiceResolver", __lt)
+			rawset(sandbox, "ServiceResolver", __lt)
+
+			local cloneRef = type(hostEnv) == "table" and rawget(hostEnv, "cloneref") or cloneref
+			if type(cloneRef) == "function" then
+				rawset(sandbox, "cloneref", cloneRef)
+			end
+
+			local activityFn = type(_G) == "table" and rawget(_G, "NAChatGameActivityEnabled") or nil
+			if type(activityFn) == "function" then
+				rawset(sandbox, "NAChatGameActivityEnabled", activityFn)
+			end
+
+			local adminKey = type(__NAChatEnv) == "table" and rawget(__NAChatEnv, "NAChatAdminKey") or nil
+			if type(adminKey) == "string" and adminKey ~= "" then
+				rawset(sandbox, "NAChatAdminKey", adminKey)
+			end
+
+			rawset(sandbox, "getgenv", function()
+				return sandbox
+			end)
+
+			rawset(sandbox, "getfenv", function()
+				return sandbox
+			end)
+
+			rawset(sandbox, "setfenv", function(fn)
+				local setter = _na_boot and _na_boot.hostSetfenv or setfenv
+				if type(setter) == "function" and type(fn) == "function" then
+					local okSet, result = pcall(setter, fn, sandbox)
+					if okSet then
+						return result or fn
+					end
+				end
+				return fn
+			end)
+
+			setmetatable(sandbox, {
+				__index = function(_, key)
+					if type(runtimeEnv) == "table" then
+						local value = runtimeEnv[key]
+						if value ~= nil then
+							return value
+						end
+					end
+					if type(hostEnv) == "table" then
+						return hostEnv[key]
+					end
+					return nil
+				end,
+				__newindex = rawset,
+			})
+
+			return sandbox
+		end
+
 		local function loadService()
 			if NAChat.service then
 				return true
@@ -3485,17 +3718,28 @@ originalIO.runNACHAT=function()
 				return false
 			end
 
-			local okLoad, res = pcall(function()
-				local chunk, err = loadstring(payload)
+			local okLoad, res, loadedSandbox = pcall(function()
+				local loader = _na_boot and _na_boot.hostLoadstring or loadstring
+				local setter = _na_boot and _na_boot.hostSetfenv or setfenv
+				assert(type(loader) == "function", "loadstring unavailable")
+				assert(type(setter) == "function", "private sandbox unavailable")
+				local chunk, err = loader(payload, "@NAChatIntegration")
 				assert(chunk, err or "loadstring failed")
-				return chunk()
+				local sandbox = createIntegrationSandbox()
+				local okEnv, envErr = pcall(setter, chunk, sandbox)
+				assert(okEnv, envErr or "failed to apply private sandbox")
+				return chunk(), sandbox
 			end)
 
 			if okLoad and type(res) == "table" then
 				NAChat.service = res
+				NAChat.sandbox = loadedSandbox
 				return true
 			end
 
+			if not okLoad then
+				warn("[NA Chat] private IntegrationService load failed: "..tostring(res))
+			end
 			originalIO.setStatus("NA Chat unavailable", STATUS_COLORS.err)
 			return false
 		end
@@ -4193,6 +4437,12 @@ originalIO.runNACHAT=function()
 				queueReconnect()
 			end)
 
+			if NAChat.service.OnDebugLog then
+				NAChat.service.OnDebugLog.Event:Connect(function(level, message, timestamp)
+					appendDebugLog(level, message, timestamp)
+				end)
+			end
+
 			NAChat.service.OnError.Event:Connect(function(err, _, data)
 				NAChat.connecting = false
 				local errText = tostring(err or "Unknown error")
@@ -4577,6 +4827,7 @@ originalIO.runNACHAT=function()
 					pcall(svc.Disconnect)
 				end
 				NAChat.service = nil
+				NAChat.sandbox = nil
 				NAChat.wired = false
 				NAChat.connecting = false
 				NAChat.serverIsAdmin = false

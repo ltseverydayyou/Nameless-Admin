@@ -1,5 +1,5 @@
 local meta = {
-	version = "20260918-users-list-fixed-virtual";
+	version = "20260919-nachat-private-sandbox-debug";
 	count = 29;
 	directory = "common";
 	loader_version = "20260917-2d86c2904d562946";
@@ -32,7 +32,7 @@ local meta = {
 		["part-026.lua"] = "176476b74f9024406cbf3cf02cd76e3ef4175c3c";
 		["part-027.lua"] = "09effdaa660d5fd19ea8c067d66383dde8d295c8";
 		["part-028.lua"] = "39581f0f9679ba7b94ff2b64f7622ce69e4cd625";
-		["part-029.lua"] = "a9961a6ddd5ce86ffb00c77af10898ed43888b56";
+		["part-029.lua"] = "0c102b9e56a8dcd6fd25ed28248f06a1c31eb56e";
 	};
 }
 
