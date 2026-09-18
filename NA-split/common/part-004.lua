@@ -5608,6 +5608,24 @@ NAmanage.NASettingsGetSchema=function()
 				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
+		naChatHidden = {
+			default = false;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
+			end;
+		};
+		naChatGameActivity = {
+			default = true;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
+			end;
+		};
+		naChatDmNotify = {
+			default = true;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
+			end;
+		};
 	}
 
 	return NAStuff.NASettingsSchema
