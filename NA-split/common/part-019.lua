@@ -4662,12 +4662,18 @@ NAmanage.NAChatNormalizeZIndex = function()
 	local messageBar = frame:FindFirstChild("MessageBar")
 	local groupPopup = frame:FindFirstChild("NAChatGroupPopup")
 	local invitePrompt = frame:FindFirstChild("NAChatInvitePrompt")
+	local settingsPopup = frame:FindFirstChild("NAChatSettingsPopup")
+	local messageMenu = frame:FindFirstChild("NAChatMessageMenu")
 	frame.ZIndex = 0
 	for _, item in ipairs(frame:GetDescendants()) do
 		if item:IsA("GuiObject") then
 			local layer = 10
-			if (groupPopup and (item == groupPopup or item:IsDescendantOf(groupPopup))) or (invitePrompt and (item == invitePrompt or item:IsDescendantOf(invitePrompt))) then
-				layer = 60
+			if messageMenu and (item == messageMenu or item:IsDescendantOf(messageMenu)) then
+				layer = 90
+			elseif settingsPopup and (item == settingsPopup or item:IsDescendantOf(settingsPopup)) then
+				layer = 80
+			elseif (groupPopup and (item == groupPopup or item:IsDescendantOf(groupPopup))) or (invitePrompt and (item == invitePrompt or item:IsDescendantOf(invitePrompt))) then
+				layer = 70
 			elseif topbar and item:IsDescendantOf(topbar) then
 				layer = 50
 			elseif messageBar and item:IsDescendantOf(messageBar) then
@@ -4886,7 +4892,9 @@ NAmanage.ExecutorWindowSizing.Apply = function(frame, config)
 			targetHeight = metrics.height
 		end
 	end
-	frame.AnchorPoint = Vector2.new(0, 0)
+	if config.preserveAnchor ~= true then
+		frame.AnchorPoint = Vector2.new(0, 0)
+	end
 	if frame.AbsoluteSize.X ~= math.floor(targetWidth * metrics.scale + 0.5) or frame.AbsoluteSize.Y ~= math.floor(targetHeight * metrics.scale + 0.5) then
 		frame.Size = UDim2.fromOffset(targetWidth, targetHeight)
 	end
@@ -4906,6 +4914,7 @@ NAmanage.NAChat_ApplyResponsive = function(center)
 	if not (frame and frame.Parent) then
 		return false
 	end
+	const shouldCenter = center == true
 	const ok, metrics = NAmanage.ExecutorWindowSizing.Apply(frame, {
 		key = "NAChat";
 		baseWidth = 760;
@@ -4915,7 +4924,8 @@ NAmanage.NAChat_ApplyResponsive = function(center)
 		mobileMinWidth = 300;
 		mobileMinHeight = 220;
 		viewportRatio = 0.94;
-		center = center == true;
+		preserveAnchor = true;
+		center = false;
 	})
 	if not ok then
 		return false
@@ -4927,6 +4937,13 @@ NAmanage.NAChat_ApplyResponsive = function(center)
 			math.max(1, tonumber(metrics.minWidth) or 1),
 			math.max(1, tonumber(metrics.minHeight) or 1)
 		)
+	end
+	if shouldCenter and NAmanage.centerFrame then
+		Defer(function()
+			if frame and frame.Parent then
+				pcall(NAmanage.centerFrame, frame)
+			end
+		end)
 	end
 	return true
 end
