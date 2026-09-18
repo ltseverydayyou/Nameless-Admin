@@ -5632,6 +5632,16 @@ NAmanage.NASettingsGetSchema=function()
 				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
 			end;
 		};
+		naChatMessageColor = {
+			default = "78AAFF";
+			coerce = function(value)
+				local text = tostring(value or ""):gsub("#", ""):upper()
+				if #text == 6 and text:match("^[%x]+$") then
+					return text
+				end
+				return "78AAFF"
+			end;
+		};
 	}
 
 	return NAStuff.NASettingsSchema
