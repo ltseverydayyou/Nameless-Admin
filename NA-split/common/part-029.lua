@@ -1686,6 +1686,14 @@ originalIO.runNACHAT=function()
 			lbl.Size = UDim2.new(1, -6, 0, math.max(24, sz.Y + 8))
 		end
 
+		local function syncChatEntryTranslation(entry)
+			local lbl = entry and entry.frame
+			local tr = NAStuff.ChatTranslator
+			if lbl and lbl.Parent and tr and type(tr.registerMessage) == "function" then
+				tr:registerMessage(lbl, buildChatEntryText(entry), entry.raw or entry.text or "")
+			end
+		end
+
 		local function hideMessageContextMenu()
 			if messageMenuOutsideConn then
 				pcall(function() messageMenuOutsideConn:Disconnect() end)
@@ -1885,10 +1893,7 @@ originalIO.runNACHAT=function()
 			pad.PaddingBottom = UDim.new(0, 4)
 			ensureChatStroke(lbl, Color3.fromRGB(69, 72, 96), 0.7)
 			refreshChatEntry(entry)
-			local tr = NAStuff.ChatTranslator
-			if tr then
-				tr:registerMessage(lbl, lbl.Text, entry.raw or entry.text or "")
-			end
+			syncChatEntryTranslation(entry)
 			bindMessageContextMenu(entry, lbl)
 			if doAutoScroll then
 				scrollToBottomSoon(chatScroll)
@@ -1951,6 +1956,7 @@ originalIO.runNACHAT=function()
 			entry.color = color
 			entry.raw = rawMessage
 			entry.order = chatMessageOrder
+			entry.timestamp = tonumber(entry.timestamp) or os.time()
 			history[#history + 1] = entry
 			if entry.messageId then
 				messageEntriesById[tostring(entry.messageId)] = entry
@@ -1981,6 +1987,105 @@ originalIO.runNACHAT=function()
 				return frame
 			end
 			return nil
+		end
+
+		local function upsertPublicChatRecord(record)
+			if type(record) ~= "table" then
+				return nil
+			end
+
+			local messageId = tostring(record.messageId or record.message_id or "")
+			local messageText = tostring(record.message or "")
+			if messageId == "" or messageText == "" then
+				return nil
+			end
+
+			local senderName = tostring(record.username or "?")
+			if mutedUsers[Lower(senderName)] then
+				return nil
+			end
+
+			local senderDisplayName = tostring(record.displayName or record.display_name or "")
+			local senderId = tonumber(record.userId or record.user_id)
+			local isOwner = senderId == 11761417 or senderId == 530829101
+			local isNAadmin = record.admin == true or record.isAdmin == true
+			local chatColor = tostring(record.chatColor or record.chat_color or "78AAFF")
+			local lp = Players.LocalPlayer
+			local own = lp and ((senderId and tonumber(lp.UserId) == senderId) or Lower(tostring(lp.Name or "")) == Lower(senderName)) or false
+			local existing = messageEntriesById[messageId]
+
+			if existing then
+				existing.kind = "chat"
+				existing.raw = messageText
+				existing.username = senderName
+				existing.displayName = senderDisplayName
+				existing.userId = senderId
+				existing.isOwner = isOwner
+				existing.isAdmin = isNAadmin
+				existing.game = record.game
+				existing.chatColor = chatColor
+				existing.reply = type(record.reply) == "table" and record.reply or nil
+				existing.edited = record.edited == true
+				existing.own = own
+				existing.rainbow = isOwner or isNAadmin
+				existing.useOwnChatColor = own and not (isOwner or isNAadmin)
+				existing.timestamp = tonumber(record.timestamp) or existing.timestamp
+				refreshChatEntry(existing)
+				syncChatEntryTranslation(existing)
+				return existing
+			end
+
+			appendConversationMessage("public", nil, (isOwner or isNAadmin) and Color3.fromRGB(255, 255, 255) or getSavedChatColor(), messageText, {
+				kind = "chat",
+				username = senderName,
+				displayName = senderDisplayName,
+				userId = senderId,
+				isOwner = isOwner,
+				isAdmin = isNAadmin,
+				game = record.game,
+				chatColor = chatColor,
+				messageId = messageId,
+				reply = type(record.reply) == "table" and record.reply or nil,
+				edited = record.edited == true,
+				own = own,
+				rainbow = isOwner or isNAadmin,
+				useOwnChatColor = own and not (isOwner or isNAadmin),
+				timestamp = tonumber(record.timestamp),
+			})
+			return messageEntriesById[messageId]
+		end
+
+		local function syncPublicChatHistory(records)
+			if type(records) ~= "table" then
+				return
+			end
+
+			local rerenderPublic = NAChat.activeConversation == "public"
+			if rerenderPublic then
+				renderedConversation = nil
+			end
+
+			for _, record in ipairs(records) do
+				upsertPublicChatRecord(record)
+			end
+
+			local history = conversationHistory.public or {}
+			table.sort(history, function(a, b)
+				local at = tonumber(a.timestamp) or 0
+				local bt = tonumber(b.timestamp) or 0
+				if at == bt then
+					return (tonumber(a.order) or 0) < (tonumber(b.order) or 0)
+				end
+				return at < bt
+			end)
+			for index, entry in ipairs(history) do
+				entry.order = index
+			end
+			chatMessageOrder = math.max(chatMessageOrder, #history)
+
+			if rerenderPublic then
+				renderConversation(true)
+			end
 		end
 
 		refreshRegularMessageColors = function()
@@ -2837,9 +2942,17 @@ originalIO.runNACHAT=function()
 			local seen = {}
 			local alive = {}
 			local idx = 0
+			local processedUsers = 0
 			local structureChanged = false
 
 			for _, info in ipairs(list) do
+				processedUsers += 1
+				if processedUsers > 1 and (processedUsers - 1) % 8 == 0 then
+					Wait()
+					if usersUpdateGeneration ~= myGeneration then
+						return
+					end
+				end
 				local serverUsername = (type(info) == "table" and info.username) or tostring(info)
 				local userId = type(info) == "table" and tonumber(info.userId) or nil
 				local displayName = type(info) == "table" and tostring(info.displayName or "") or ""
@@ -3092,6 +3205,10 @@ originalIO.runNACHAT=function()
 					avatar.Image = ""
 					Insert(avatarQueue, { avatar = avatar, userId = userId })
 				end
+			end
+
+			if usersUpdateGeneration ~= myGeneration then
+				return
 			end
 
 			for key, fr in pairs(userFrames) do
@@ -3368,7 +3485,13 @@ originalIO.runNACHAT=function()
 			bindAutoScroll(chatScroll, chatLayout)
 			bindAutoScroll(usersScroll, usersLayout)
 
-			NAChat.service.OnChatMessage.Event:Connect(function(name, msg, _, userId, isAdmin, gameStatus, displayName, messageId, reply, edited, chatColor)
+			if NAChat.service.OnChatHistory then
+				NAChat.service.OnChatHistory.Event:Connect(function(records)
+					syncPublicChatHistory(records)
+				end)
+			end
+
+			NAChat.service.OnChatMessage.Event:Connect(function(name, msg, messageTimestamp, userId, isAdmin, gameStatus, displayName, messageId, reply, edited, chatColor)
 				local rawSenderName = tostring(name or "?")
 				local messageText = tostring(msg or "")
 				local senderId = tonumber(userId)
@@ -3393,21 +3516,18 @@ originalIO.runNACHAT=function()
 						or Lower(tostring(lp.Name or "")) == Lower(senderName)
 				end
 
-				appendConversationMessage("public", nil, (isOwner or isNAadmin) and Color3.fromRGB(255, 255, 255) or getSavedChatColor(), messageText, {
-					kind = "chat",
+				upsertPublicChatRecord({
+					messageId = messageId and tostring(messageId) or nil,
 					username = senderName,
 					displayName = senderDisplayName,
+					message = messageText,
+					timestamp = messageTimestamp,
 					userId = senderId,
-					isOwner = isOwner,
-					isAdmin = isNAadmin,
+					admin = isNAadmin,
 					game = gameStatus,
 					chatColor = tostring(chatColor or "78AAFF"),
-					messageId = messageId and tostring(messageId) or nil,
 					reply = type(reply) == "table" and reply or nil,
 					edited = edited == true,
-					own = own,
-					rainbow = isOwner or isNAadmin,
-					useOwnChatColor = own and not (isOwner or isNAadmin),
 				})
 
 				if mentioned and DoNotif then
@@ -3444,6 +3564,7 @@ originalIO.runNACHAT=function()
 					if chatColor ~= nil then entry.chatColor = tostring(chatColor) end
 					if type(reply) == "table" then entry.reply = reply end
 					refreshChatEntry(entry)
+					syncChatEntryTranslation(entry)
 
 					for _, other in ipairs(conversationHistory.public or {}) do
 						if type(other.reply) == "table" and tostring(other.reply.messageId or "") == id then
@@ -3452,6 +3573,7 @@ originalIO.runNACHAT=function()
 							other.reply.username = entry.username
 							other.reply.displayName = entry.displayName
 							refreshChatEntry(other)
+							syncChatEntryTranslation(other)
 						end
 					end
 				end)
@@ -3485,6 +3607,7 @@ originalIO.runNACHAT=function()
 						if type(other.reply) == "table" and tostring(other.reply.messageId or "") == id then
 							other.reply.message = "[deleted message]"
 							refreshChatEntry(other)
+							syncChatEntryTranslation(other)
 						end
 					end
 				end)

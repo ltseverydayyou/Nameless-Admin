@@ -989,11 +989,19 @@ originalIO.naTransLatooor=function()
 		if not info.message or info.message == "" then
 			return
 		end
+		info.revision = tonumber(info.revision) or 0
+		local requestRevision = info.revision
+		local requestTarget = self.chatTarget
 		info.translating = true
-		info.target = self.chatTarget
+		info.translatingRevision = requestRevision
+		info.target = requestTarget
 		Spawn(function()
-			local ok, translated, detected = pcall(translatePayload, info.message, self.chatTarget, "auto")
+			local ok, translated, detected = pcall(translatePayload, info.message, requestTarget, "auto")
+			if self.messages[label] ~= info or info.revision ~= requestRevision or info.target ~= requestTarget then
+				return
+			end
 			info.translating = false
+			info.translatingRevision = nil
 			if not ok then
 				info.translationLine = nil
 				self:applyDisplay(label, info)
@@ -1006,7 +1014,7 @@ originalIO.naTransLatooor=function()
 			end
 			const code = NAmanage.iso2(detected) or detected or "AUTO"
 			const tag = tostring(code):upper()
-			info.translationLine = ("[%s] %s"):format((self.chatTarget or "en"):upper(), escapeForRichText(translated))
+			info.translationLine = ("[%s] %s"):format((requestTarget or "en"):upper(), escapeForRichText(translated))
 			info.detected = tag
 			self:applyDisplay(label, info)
 		end)
@@ -1021,7 +1029,9 @@ originalIO.naTransLatooor=function()
 				message = rawMessage or "";
 				translationLine = nil;
 				translating = false;
+				translatingRevision = nil;
 				target = nil;
+				revision = 0;
 			}
 			self.messages[label] = info
 			if label.Destroying then
@@ -1035,9 +1045,12 @@ originalIO.naTransLatooor=function()
 				end
 			end)
 		else
+			info.revision = (tonumber(info.revision) or 0) + 1
 			info.base = baseText or info.base
 			info.message = rawMessage or info.message
 			info.translationLine = nil
+			info.translating = false
+			info.translatingRevision = nil
 			info.target = nil
 		end
 
@@ -1062,9 +1075,11 @@ originalIO.naTransLatooor=function()
 		opt.chatTranslateTarget = code
 		pcall(NAmanage.NASettingsSet, "chatTranslateTarget", code)
 		for label, info in self.messages do
+			info.revision = (tonumber(info.revision) or 0) + 1
 			info.translationLine = nil
 			info.target = nil
 			info.translating = false
+			info.translatingRevision = nil
 			self:applyDisplay(label, info)
 			self:ensureTranslation(label, info)
 		end

@@ -1,5 +1,5 @@
 local meta = {
-	version = "20260918-nachat-endpoint-discovery";
+	version = "20260918-nachat-history-persistence-perf";
 	count = 29;
 	directory = "common";
 	loader_version = "20260917-2d86c2904d562946";
@@ -28,11 +28,11 @@ local meta = {
 		["part-022.lua"] = "7626927d27ae03c0db0bb6f41bae1b5ac8a8ec37";
 		["part-023.lua"] = "48e8fe8078b451a1bd252fb441fad8571e13e2d2";
 		["part-024.lua"] = "0297f6e4ab0ced840a7a8483dd31e61963e3cff1";
-		["part-025.lua"] = "a0badc0a01c6714a20d44fee8ebf8c4b1e9093d8";
+		["part-025.lua"] = "a7b9d0ccf04ee4d17c43b43234bb4337bc80d5bc";
 		["part-026.lua"] = "176476b74f9024406cbf3cf02cd76e3ef4175c3c";
 		["part-027.lua"] = "05a67660f1734a57a92fd06496966e6e62b253d3";
 		["part-028.lua"] = "39581f0f9679ba7b94ff2b64f7622ce69e4cd625";
-		["part-029.lua"] = "e98d57b3117009d6cb2658c54a077c0ba6859ec3";
+		["part-029.lua"] = "b9c57ff8851d8123dece21c2ef28ef6fb64b785b";
 	};
 }
 
