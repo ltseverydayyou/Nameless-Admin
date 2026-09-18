@@ -260,7 +260,7 @@ local function __NA_SPLIT_REFRESH_FS_LOCK()
 	local path = __NA_SPLIT_FS_LOCK_PATH.."/lease"
 	local okRead, current = pcall(readfile, path)
 	if not okRead or current ~= __NA_SPLIT_FS_LOCK_VALUE then
-		error("Nameless Admin startup lock ownership changed; retry loading", 0)
+		return
 	end
 	local value = tostring(os.time()).."\n"..tostring(__NA_SPLIT_LOAD_TOKEN)
 	local okWrite = pcall(writefile, path, value)
@@ -289,9 +289,6 @@ local function __NA_SPLIT_CLAIM_FS_LOCK()
 	local timestamp = okRead and type(current) == "string" and tonumber(current:match("^(%d+)\n")) or nil
 	local age = timestamp and (os.time() - timestamp) or nil
 	if age and age >= 0 and age < 120 then
-		if type(warn) == "function" then
-			warn("Nameless Admin is already starting; retry if the previous load was interrupted")
-		end
 		return false
 	end
 	pcall(makefolder, "Nameless-Admin")
