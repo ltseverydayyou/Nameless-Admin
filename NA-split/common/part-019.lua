@@ -4862,11 +4862,17 @@ NAmanage.ExecutorWindowSizing.Apply = function(frame, config)
 	const sizeXAttr = "NA"..key.."SavedSizeX"
 	const sizeYAttr = "NA"..key.."SavedSizeY"
 	const initializedAttr = "NA"..key.."DefaultSized"
+	const profileAttr = "NA"..key.."ViewportProfile"
 	const metrics = NAmanage.ExecutorWindowSizing.GetSize(config.baseWidth, config.baseHeight, config)
 	const initialized = frame.GetAttribute and NAmanage.GetAttr(frame, initializedAttr) == true
 	const currentWidth = tonumber(frame.Size.X.Offset) or 0
 	const currentHeight = tonumber(frame.Size.Y.Offset) or 0
 	local savedWidth, savedHeight = NAmanage.ExecutorWindowSizing.GetSaved(frame, sizeXAttr, sizeYAttr)
+	const currentProfile = metrics.mobile and "mobile" or "desktop"
+	const previousProfile = frame.GetAttribute and tostring(NAmanage.GetAttr(frame, profileAttr) or "") or ""
+	if metrics.mobile and previousProfile ~= "mobile" then
+		savedWidth, savedHeight = nil, nil
+	end
 	local targetWidth = metrics.width
 	local targetHeight = metrics.height
 	if savedWidth and savedHeight then
@@ -4886,6 +4892,7 @@ NAmanage.ExecutorWindowSizing.Apply = function(frame, config)
 	end
 	if frame.SetAttribute then
 		NAmanage.SetAttr(frame, initializedAttr, true)
+		NAmanage.SetAttr(frame, profileAttr, currentProfile)
 	end
 	NAmanage.ExecutorWindowSizing.Save(frame, sizeXAttr, sizeYAttr)
 	if config.center == true and NAmanage.centerFrame then
