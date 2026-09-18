@@ -1,5 +1,5 @@
 local meta = {
-	version = "20260918-nachat-mobile-delta";
+	version = "20260918-nachat-actions-ui-fixes";
 	count = 29;
 	directory = "common";
 	loader_version = "20260917-2d86c2904d562946";
@@ -22,7 +22,7 @@ local meta = {
 		["part-016.lua"] = "10d8b30116bd6375020d2ba98c9059bc89faed49";
 		["part-017.lua"] = "e296c9e88e60914d85d21fa547946d2c827254d4";
 		["part-018.lua"] = "ba7263ba338ce4dbed67f2accd90aeeee281e5c9";
-		["part-019.lua"] = "98202c043d34434d12c4ea6d2b54225e3e575571";
+		["part-019.lua"] = "5e324d6c4c2c68b356cc665abf5b41ae355ff2e8";
 		["part-020.lua"] = "8fd2e7d14b62a32068424eb7156abc0c15704e7a";
 		["part-021.lua"] = "20e9e8c9a06fafee053273b56c0721eee89f1408";
 		["part-022.lua"] = "7626927d27ae03c0db0bb6f41bae1b5ac8a8ec37";
@@ -32,7 +32,7 @@ local meta = {
 		["part-026.lua"] = "176476b74f9024406cbf3cf02cd76e3ef4175c3c";
 		["part-027.lua"] = "05a67660f1734a57a92fd06496966e6e62b253d3";
 		["part-028.lua"] = "39581f0f9679ba7b94ff2b64f7622ce69e4cd625";
-		["part-029.lua"] = "bf5a478fe90b37e55499f18bec4fce83326546f2";
+		["part-029.lua"] = "700a1e075aafc0733892209f6703755dab9433be";
 	};
 }
 
