@@ -4058,7 +4058,10 @@ originalIO.runNACHAT=function()
 				local okInit, initErr = true, nil
 				if NAChat.service and NAChat.service.Init then
 					local initCallOk, initResult, initMessage = pcall(NAChat.service.Init, {
-						serverUrl = (type(__NAChatEnv) == "table" and rawget(__NAChatEnv, "NAChatServerUrl")) or "wss://open-cheating-network.onrender.com/axxum",
+						serverUrl = (type(__NAChatEnv) == "table" and rawget(__NAChatEnv, "NAChatServerUrl")) or "wss://sydney-nextel-heath-thriller.trycloudflare.com/axxum",
+						endpointConfigUrl = (type(__NAChatEnv) == "table" and rawget(__NAChatEnv, "NAChatEndpointConfigUrl")) or "https://raw.githubusercontent.com/ltseverydayyou/Open-Cheating-Network/refs/heads/main/Client/endpoint.txt",
+						endpointDiscovery = not (type(__NAChatEnv) == "table" and rawget(__NAChatEnv, "NAChatServerUrl")),
+						endpointRefreshInterval = 15,
 						heartbeatInterval = 10,
 						reconnectDelay = 6,
 						autoReconnect = false,
