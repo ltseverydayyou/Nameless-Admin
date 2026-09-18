@@ -374,8 +374,24 @@ end
 
 local __NA_SPLIT_FS_LOCK_OWNED = false
 local __NA_SPLIT_FS_LOCK_PATH = nil
+local __NA_SPLIT_FS_LOCK_VALUE = nil
+local function __NA_SPLIT_REFRESH_FS_LOCK()
+	if not __NA_SPLIT_FS_LOCK_OWNED then
+		return
+	end
+	local path = __NA_SPLIT_FS_LOCK_PATH.."/lease"
+	local okRead, current = pcall(readfile, path)
+	if not okRead or current ~= __NA_SPLIT_FS_LOCK_VALUE then
+		error("Nameless Admin startup lock ownership changed; retry loading", 0)
+	end
+	local value = tostring(os.time()).."\n"..tostring(__NA_SPLIT_LOAD_TOKEN)
+	local okWrite = pcall(writefile, path, value)
+	if okWrite then
+		__NA_SPLIT_FS_LOCK_VALUE = value
+	end
+end
 local function __NA_SPLIT_CLAIM_FS_LOCK()
-	if type(isfile) ~= "function" or type(isfolder) ~= "function" or type(makefolder) ~= "function" then
+	if type(readfile) ~= "function" or type(writefile) ~= "function" or type(makefolder) ~= "function" then
 		return true
 	end
 	local placeId = "unknown"
@@ -390,15 +406,29 @@ local function __NA_SPLIT_CLAIM_FS_LOCK()
 	local key = (placeId.."_"..jobId):gsub("[^%w_%-]", "_")
 	local stateRoot = "Nameless-Admin/.na-split-runtime"
 	__NA_SPLIT_FS_LOCK_PATH = stateRoot.."/lock-"..key
+	local path = __NA_SPLIT_FS_LOCK_PATH.."/lease"
+	local okRead, current = pcall(readfile, path)
+	local timestamp = okRead and type(current) == "string" and tonumber(current:match("^(%d+)\n")) or nil
+	local age = timestamp and (os.time() - timestamp) or nil
+	if age and age >= 0 and age < 120 then
+		if type(warn) == "function" then
+			warn("Nameless Admin is already starting; retry if the previous load was interrupted")
+		end
+		return false
+	end
 	pcall(makefolder, "Nameless-Admin")
 	pcall(makefolder, stateRoot)
-	if isfolder(__NA_SPLIT_FS_LOCK_PATH) then
+	pcall(makefolder, __NA_SPLIT_FS_LOCK_PATH)
+	local value = tostring(os.time()).."\n"..tostring(__NA_SPLIT_LOAD_TOKEN)
+	local written = pcall(writefile, path, value)
+	if not written then
+		return true
+	end
+	local verified, stored = pcall(readfile, path)
+	if not verified or stored ~= value then
 		return false
 	end
-	local created = pcall(makefolder, __NA_SPLIT_FS_LOCK_PATH)
-	if not created or not isfolder(__NA_SPLIT_FS_LOCK_PATH) then
-		return false
-	end
+	__NA_SPLIT_FS_LOCK_VALUE = value
 	__NA_SPLIT_FS_LOCK_OWNED = true
 	return true
 end
@@ -411,8 +441,13 @@ if not __NA_SPLIT_CLAIM_FS_LOCK() then
 end
 local function __NA_SPLIT_RELEASE(success)
 	if __NA_SPLIT_FS_LOCK_OWNED then
-		if type(delfolder) == "function" and __NA_SPLIT_FS_LOCK_PATH then
-			pcall(delfolder, __NA_SPLIT_FS_LOCK_PATH)
+		local path = __NA_SPLIT_FS_LOCK_PATH.."/lease"
+		local okRead, current = pcall(readfile, path)
+		if okRead and current == __NA_SPLIT_FS_LOCK_VALUE then
+			pcall(writefile, path, "")
+			if type(delfile) == "function" then
+				pcall(delfile, path)
+			end
 		end
 		__NA_SPLIT_FS_LOCK_OWNED = false
 	end
@@ -655,6 +690,7 @@ local function __NA_SPLIT_RUN()
 		end;
 	}})
 	for index = 1, __NA_SPLIT_COUNT do
+		__NA_SPLIT_REFRESH_FS_LOCK()
 		local partName = string.format("part-%03d.lua", index)
 		local source = __NA_SPLIT_READ_PART(partName)
 		local chunk = __NA_SPLIT_LOAD_PART(source, "NA-split/common/"..partName, environment)

@@ -1,8 +1,8 @@
 local meta = {
-	version = "20260919-nachat-isolated-runtime";
+	version = "20260919-nachat-private-context-v2";
 	count = 29;
 	directory = "common";
-	loader_version = "20260917-2d86c2904d562946";
+	loader_version = "20260919-startup-lock-recovery";
 	parts = {
 		["part-001.lua"] = "37f1755efd9d42ab518714182517ed502626d254";
 		["part-002.lua"] = "7f034b13997f9535aeac1776847b86cab48526be";
@@ -32,7 +32,7 @@ local meta = {
 		["part-026.lua"] = "176476b74f9024406cbf3cf02cd76e3ef4175c3c";
 		["part-027.lua"] = "09effdaa660d5fd19ea8c067d66383dde8d295c8";
 		["part-028.lua"] = "39581f0f9679ba7b94ff2b64f7622ce69e4cd625";
-		["part-029.lua"] = "9da78864735b1c8c9008e1f5c215c0414e12277a";
+		["part-029.lua"] = "3e004479c94743b44ede904a92eca587f1bca6b9";
 	};
 }
 
