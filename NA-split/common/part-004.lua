@@ -5626,6 +5626,12 @@ NAmanage.NASettingsGetSchema=function()
 				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
 			end;
 		};
+		naChatDisconnected = {
+			default = false;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
+			end;
+		};
 	}
 
 	return NAStuff.NASettingsSchema
