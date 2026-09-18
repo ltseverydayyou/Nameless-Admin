@@ -5078,7 +5078,7 @@ cmd.add({"unchardebug","uncdebug"},{"unchardebug (uncdebug)","disable character 
 	__lt.cm("RunService", "UnbindFromRenderStep", "CharDebug")
 end)
 
-cmd.add({"naked"}, {"naked", "no clothing gang"}, function()
+cmd.addRestricted({"naked"}, {"naked", "no clothing gang"}, function()
 	for _,clothes in LocalPlayer.Character:GetChildren() do
 		if clothes:IsA("Shirt") or clothes:IsA("Pants") or clothes:IsA("ShirtGraphic") then
 			clothes:Destroy()

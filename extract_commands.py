@@ -5,6 +5,7 @@ from pathlib import Path
 
 
 STRING_RE = re.compile(r'"([^"\\]*(?:\\.[^"\\]*)*)"|\'([^\'\\]*(?:\\.[^\'\\]*)*)\'')
+COMMANDS_JSON_EXCLUDE = {"nacmd", "nanotify", "nanotify2", "nanotify3", "naannouncement"}
 
 
 def strip_lua_comments(src: str) -> str:
@@ -257,8 +258,10 @@ def main():
 
 	clean = strip_lua_comments(filecontent)
 
-	commands = parse_commands(clean, "cmd.add")
+	command_source = clean.replace("cmd.addRestricted", "cmd.add")
+	commands = parse_commands(command_source, "cmd.add")
 	commands.extend(parse_engine_settings_commands(clean))
+	commands = [command for command in commands if command.get("name") not in COMMANDS_JSON_EXCLUDE]
 	patched_commands = parse_commands(clean, "cmd.addPatched")
 
 	result = {

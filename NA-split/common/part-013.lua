@@ -4655,7 +4655,7 @@ originalPos = nil
 platformPart = nil
 activationTime = nil
 
-cmd.add({"antibang"}, {"antibang", "prevents users to bang you (still WORK IN PROGRESS)"}, function()
+cmd.addRestricted({"antibang"}, {"antibang", "prevents users to bang you (still WORK IN PROGRESS)"}, function()
 	NAlib.disconnect("antibang_loop")
 
 	local root = getRoot(LocalPlayer.Character)
@@ -4826,7 +4826,7 @@ cmd.add({"antibang"}, {"antibang", "prevents users to bang you (still WORK IN PR
 	DebugNotif("Antibang Enabled", 3)
 end)
 
-cmd.add({"unantibang"}, {"unantibang", "disables antibang"}, function()
+cmd.addRestricted({"unantibang"}, {"unantibang", "disables antibang"}, function()
 	NAlib.disconnect("antibang_loop")
 	if platformPart then
 		platformPart:Destroy()

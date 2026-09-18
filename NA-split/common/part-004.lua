@@ -3255,6 +3255,10 @@ NAmanage.NASettingsGetSchema=function()
 			default = false;
 			coerce = function(value) return NAmanage.NASettingsSchemaState.coerceBoolean(value, false) end;
 		};
+		sfwMode = {
+			default = true;
+			coerce = function(value) return NAmanage.NASettingsSchemaState.coerceBoolean(value, true) end;
+		};
 		legacyCommandUI = {
 			default = false;
 			coerce = function(value) return NAmanage.NASettingsSchemaState.coerceBoolean(value, false) end;

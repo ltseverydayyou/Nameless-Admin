@@ -648,7 +648,7 @@ do
 		self.Attempts = 0
 		self.Punishing = false
 		local chars = {}
-		for i, value in ipairs(self.EncodedSlurs) do
+		for i, value in self.EncodedSlurs do
 			chars[i] = string.char(value - 3)
 		end
 		local slurs = {}
@@ -665,10 +665,10 @@ do
 		if type(extra) == "string" then
 			addExtra(extra)
 		elseif type(extra) == "table" then
-			for _, value in ipairs(extra) do addExtra(value) end
+			for _, value in extra do addExtra(value) end
 		end
 		local patterns = {}
-		for _, word in ipairs(slurs) do
+		for _, word in slurs do
 			word = self:NormalizeTextLower(word)
 			if word ~= "" then
 				local parts = {}
@@ -686,7 +686,7 @@ do
 		if type(text) ~= "string" then return false end
 		local lower = self:NormalizeTextLower(text):gsub(self.ZeroWidthPattern, "")
 		local squashed = self:NormalizeForSlurs(text)
-		for _, pattern in ipairs(self.Patterns or {}) do
+		for _, pattern in self.Patterns or {} do
 			if lower:match(pattern) or squashed:match(pattern) then return true end
 		end
 		return false
@@ -1157,8 +1157,10 @@ originalIO.runNACHAT=function()
 		local serverJoinNoticeAt = {}
 		local serverUserMissingAt = {}
 		local lastUserSig = nil
+		local lastUsersUpdateAt = 0
 		local userFrames = {}
 		local userFrameState = {}
+		local visibleAvatarRefreshQueued = false
 
 		local STATUS_COLORS = {
 			ok = Color3.fromRGB(120, 200, 140),
@@ -1282,11 +1284,43 @@ originalIO.runNACHAT=function()
 				return
 			end
 			queuedUsersRefresh = true
-			Delay(0.15, function()
+			Defer(function()
 				queuedUsersRefresh = false
 				if type(updateUsersList) == "function" and (not isChatUiSuppressed()) and NAChat.activeTab == "users" then
 					updateUsersList(NAChat.users or {})
 				end
+			end)
+		end
+
+		local function refreshVisibleUserAvatars()
+			if not usersScroll or NAChat.activeTab ~= "users" or isChatUiSuppressed() then
+				return
+			end
+			local top = usersScroll.AbsolutePosition.Y - 80
+			local bottom = usersScroll.AbsolutePosition.Y + usersScroll.AbsoluteSize.Y + 80
+			for _, fr in userFrames do
+				if fr and fr.Parent == usersScroll and fr.Visible then
+					local rowTop = fr.AbsolutePosition.Y
+					local rowBottom = rowTop + fr.AbsoluteSize.Y
+					if rowBottom >= top and rowTop <= bottom then
+						local avatar = fr:FindFirstChild("Avatar")
+						local userId = tonumber(fr:GetAttribute("NAChatUserId"))
+						if avatar and userId and (avatar.Image == nil or avatar.Image == "") then
+							avatar.Image = ("rbxthumb://type=AvatarHeadShot&id=%d&w=150&h=150"):format(userId)
+						end
+					end
+				end
+			end
+		end
+
+		local function queueVisibleUserAvatarRefresh()
+			if visibleAvatarRefreshQueued then
+				return
+			end
+			visibleAvatarRefreshQueued = true
+			Defer(function()
+				visibleAvatarRefreshQueued = false
+				refreshVisibleUserAvatars()
 			end)
 		end
 
@@ -1343,7 +1377,9 @@ originalIO.runNACHAT=function()
 			if cached then
 				return cached
 			end
-			if type(userId) == "number" then
+			local fallbackText = tostring(fallback or "")
+			if type(userId) == "number"
+				and (fallbackText == "" or fallbackText == tostring(userId) or fallbackText == "Unknown") then
 				fetchVerifiedUsernameAsync(userId)
 			end
 			return fallback
@@ -1377,7 +1413,7 @@ originalIO.runNACHAT=function()
 
 			local seen = {}
 
-			for name, expires in pairs(typingUsersByName) do
+			for name, expires in typingUsersByName do
 				if type(expires) ~= "number" or expires <= now then
 					typingUsersByName[name] = nil
 				else
@@ -1389,7 +1425,7 @@ originalIO.runNACHAT=function()
 				end
 			end
 
-			for userId, expires in pairs(typingUsersById) do
+			for userId, expires in typingUsersById do
 				if type(expires) ~= "number" or expires <= now then
 					typingUsersById[userId] = nil
 				else
@@ -1806,7 +1842,7 @@ originalIO.runNACHAT=function()
 			local y = math.clamp(py - framePos.Y, 6, math.max(6, frameSize.Y - ((#actions * 31) + 14)))
 			menu.Position = UDim2.new(0, x, 0, y)
 
-			for index, action in ipairs(actions) do
+			for index, action in actions do
 				makeMessageMenuButton(menu, action[1], index, action[2], action[3])
 			end
 
@@ -1907,8 +1943,8 @@ originalIO.runNACHAT=function()
 
 		local function clearConversationView()
 			hideMessageContextMenu()
-			for _, history in pairs(conversationHistory) do
-				for _, entry in ipairs(history) do
+			for _, history in conversationHistory do
+				for _, entry in history do
 					if entry.frame then
 						rainbowLabels[entry.frame] = nil
 						pcall(function() entry.frame:Destroy() end)
@@ -1917,7 +1953,7 @@ originalIO.runNACHAT=function()
 				end
 			end
 			if chatScroll then
-				for _, child in ipairs(chatScroll:GetChildren()) do
+				for _, child in chatScroll:GetChildren() do
 					if child:IsA("TextLabel") or child:IsA("TextButton") then
 						rainbowLabels[child] = nil
 						pcall(function() child:Destroy() end)
@@ -2065,7 +2101,7 @@ originalIO.runNACHAT=function()
 				renderedConversation = nil
 			end
 
-			for _, record in ipairs(records) do
+			for _, record in records do
 				upsertPublicChatRecord(record)
 			end
 
@@ -2078,7 +2114,7 @@ originalIO.runNACHAT=function()
 				end
 				return at < bt
 			end)
-			for index, entry in ipairs(history) do
+			for index, entry in history do
 				entry.order = index
 			end
 			chatMessageOrder = math.max(chatMessageOrder, #history)
@@ -2089,8 +2125,8 @@ originalIO.runNACHAT=function()
 		end
 
 		refreshRegularMessageColors = function()
-			for _, history in pairs(conversationHistory) do
-				for _, entry in ipairs(history) do
+			for _, history in conversationHistory do
+				for _, entry in history do
 					if (entry.useOwnChatColor or entry.useChatColor) and not entry.rainbow then
 						refreshChatEntry(entry)
 					end
@@ -2112,7 +2148,7 @@ originalIO.runNACHAT=function()
 					math.sin(t * 0.5 + 2 * math.pi / 3) * 127 + 128,
 					math.sin(t * 0.5 + 4 * math.pi / 3) * 127 + 128
 				)
-				for lbl in pairs(rainbowLabels) do
+				for lbl in rainbowLabels do
 					if lbl and lbl.Parent then
 						lbl.TextColor3 = color
 					else
@@ -2129,7 +2165,7 @@ originalIO.runNACHAT=function()
 			local key = conversationKey(group.id)
 			local history = {}
 			local lp = Players.LocalPlayer
-			for _, entry in ipairs(group.messages or {}) do
+			for _, entry in group.messages or {} do
 				if type(entry) == "table" then
 					local sender = tostring(entry.from or "?")
 					local displayName = tostring(entry.displayName or "")
@@ -2392,7 +2428,7 @@ originalIO.runNACHAT=function()
 			if not groupListFrame then
 				return
 			end
-			for _, child in ipairs(groupListFrame:GetChildren()) do
+			for _, child in groupListFrame:GetChildren() do
 				if child:IsA("TextButton") then
 					child:Destroy()
 				end
@@ -2406,13 +2442,13 @@ originalIO.runNACHAT=function()
 			end)
 
 			local ids = {}
-			for id in pairs(groupRecords) do
+			for id in groupRecords do
 				Insert(ids, id)
 			end
 			table.sort(ids, function(a, b)
 				return tostring(groupRecords[a].name or "") < tostring(groupRecords[b].name or "")
 			end)
-			for _, id in ipairs(ids) do
+			for _, id in ids do
 				local group = groupRecords[id]
 				local count = type(group.members) == "table" and #group.members or 0
 				local label = ("# %s  (%d)"):format(tostring(group.name or "Group"), count)
@@ -2502,7 +2538,7 @@ originalIO.runNACHAT=function()
 			end
 			if not activeGroupInviteId or not pendingGroupInvites[activeGroupInviteId] then
 				activeGroupInviteId = nil
-				for _, id in ipairs(pendingGroupInviteOrder) do
+				for _, id in pendingGroupInviteOrder do
 					if pendingGroupInvites[id] then
 						activeGroupInviteId = id
 						break
@@ -2788,7 +2824,7 @@ originalIO.runNACHAT=function()
 			local myJob = tostring(game.JobId or "")
 			local myPlace = game.PlaceId
 
-			for _, info in ipairs(list) do
+			for _, info in list do
 				if type(info) == "table" then
 					local uid = tonumber(info.userId)
 					local pid = tonumber(info.placeId)
@@ -2818,13 +2854,13 @@ originalIO.runNACHAT=function()
 			if not serverUsersInit then
 				serverUsers = newSet
 				serverUsersInit = true
-				for uid in pairs(newSet) do
+				for uid in newSet do
 					serverJoinNoticeAt[uid] = now
 				end
 				return
 			end
 
-			for uid, name in pairs(newSet) do
+			for uid, name in newSet do
 				serverUserMissingAt[uid] = nil
 				if not serverUsers[uid] and (not serverJoinNoticeAt[uid] or now - serverJoinNoticeAt[uid] >= 30) then
 					serverJoinNoticeAt[uid] = now
@@ -2837,7 +2873,7 @@ originalIO.runNACHAT=function()
 				serverUsers[uid] = name
 			end
 
-			for uid in pairs(serverUsers) do
+			for uid in serverUsers do
 				if not newSet[uid] then
 					local missingAt = serverUserMissingAt[uid] or now
 					serverUserMissingAt[uid] = missingAt
@@ -2854,7 +2890,7 @@ originalIO.runNACHAT=function()
 				return ""
 			end
 			local tmp = {}
-			for _, info in ipairs(list) do
+			for _, info in list do
 				if type(info) == "table" then
 					local uid = tonumber(info.userId) or 0
 					local uname = tostring(info.username or "")
@@ -2899,6 +2935,13 @@ originalIO.runNACHAT=function()
 				return
 			end
 
+			for _, spacerName in {"NAChatVirtualTop", "NAChatVirtualBottom"} do
+				local spacer = usersScroll:FindFirstChild(spacerName)
+				if spacer then
+					spacer:Destroy()
+				end
+			end
+
 			local hiddenNotice = usersScroll:FindFirstChild("NAChatHiddenNotice")
 			if hiddenNotice and hiddenNotice:IsA("Frame") then
 				hiddenNotice:Destroy()
@@ -2907,10 +2950,8 @@ originalIO.runNACHAT=function()
 			usersUpdateGeneration += 1
 			local myGeneration = usersUpdateGeneration
 
-			local doAutoScroll = usersScroll and shouldAutoScroll(usersScroll) or false
-
 			if isChatUiSuppressed() then
-				for _, v in ipairs(usersScroll:GetChildren()) do
+				for _, v in usersScroll:GetChildren() do
 					if v:IsA("Frame") then
 						v:Destroy()
 					end
@@ -2938,16 +2979,75 @@ originalIO.runNACHAT=function()
 				return
 			end
 
-			local avatarQueue = {}
+			local filteredTotal = 0
+			local filteredSeen = {}
+			for _, info in list do
+				local serverUsername = (type(info) == "table" and info.username) or tostring(info)
+				local userId = type(info) == "table" and tonumber(info.userId) or nil
+				local displayName = type(info) == "table" and tostring(info.displayName or "") or ""
+				local fallbackUsername = tostring(serverUsername or "")
+				local canonicalUsername = getVerifiedUsernameCached(userId) or fallbackUsername
+				local gameStatus = type(info) == "table" and tostring(info.game or "") or ""
+				local keyBase = Lower(tostring(canonicalUsername or ""))
+				local uidKey = userId and ("id:"..tostring(userId)) or ("n:"..keyBase)
+				if not filteredSeen[uidKey] then
+					filteredSeen[uidKey] = true
+					local matchesSearch = true
+					if userSearchTerm ~= "" then
+						local haystack = Lower(tostring(canonicalUsername or "").." "..displayName.." "..fallbackUsername.." "..gameStatus)
+						matchesSearch = Find(haystack, userSearchTerm, 1, true) ~= nil
+					end
+					if matchesSearch then
+						filteredTotal += 1
+					end
+				end
+			end
+
+			local rowHeight = 52
+			local viewportHeight = math.max(1, usersScroll.AbsoluteSize.Y)
+			if NAmanage and type(NAmanage.GetLogicalWindowSize) == "function" then
+				local okLogical, logicalSize = pcall(NAmanage.GetLogicalWindowSize, usersScroll)
+				if okLogical and logicalSize and tonumber(logicalSize.Y) then
+					viewportHeight = math.max(1, tonumber(logicalSize.Y))
+				end
+			end
+			local rowGap = 0
+			if usersLayout then
+				pcall(function()
+					const padding = usersLayout.Padding
+					rowGap = math.max(0, math.floor((padding.Offset + padding.Scale * viewportHeight) + 0.5))
+				end)
+			end
+			local rowPitch = math.max(1, rowHeight + rowGap)
+			local totalHeight = filteredTotal > 0 and (filteredTotal * rowHeight + math.max(0, filteredTotal - 1) * rowGap) or 0
+			usersScroll.CanvasSize = UDim2.new(0, 0, 0, totalHeight + 4)
+
+			local logicalPos = NAmanage and NAmanage.GetLogicalCanvasPosition and NAmanage.GetLogicalCanvasPosition(usersScroll) or usersScroll.CanvasPosition
+			local currentY = math.max(0, tonumber(logicalPos and logicalPos.Y) or 0)
+			local maxY = math.max(0, totalHeight - viewportHeight)
+			if currentY > maxY then
+				currentY = maxY
+				if NAmanage and NAmanage.SetLogicalCanvasPosition then
+					NAmanage.SetLogicalCanvasPosition(usersScroll, 0, currentY)
+				else
+					usersScroll.CanvasPosition = Vector2.new(0, currentY)
+				end
+			end
+
+			local bufferRows = 5
+			local virtualFirst = filteredTotal > 0 and math.max(1, math.floor(currentY / rowPitch) + 1 - bufferRows) or 1
+			local virtualLast = filteredTotal > 0 and math.min(filteredTotal, math.ceil((currentY + viewportHeight) / rowPitch) + bufferRows) or 0
+
 			local seen = {}
 			local alive = {}
 			local idx = 0
+			local matchOrdinal = 0
 			local processedUsers = 0
-			local structureChanged = false
+			local structureChanged = true
 
-			for _, info in ipairs(list) do
+			for _, info in list do
 				processedUsers += 1
-				if processedUsers > 1 and (processedUsers - 1) % 8 == 0 then
+				if processedUsers > 1 and (processedUsers - 1) % 48 == 0 then
 					Wait()
 					if usersUpdateGeneration ~= myGeneration then
 						return
@@ -2958,9 +3058,6 @@ originalIO.runNACHAT=function()
 				local displayName = type(info) == "table" and tostring(info.displayName or "") or ""
 				local fallbackUsername = tostring(serverUsername or "")
 				local verifiedUsername = getVerifiedUsernameCached(userId)
-				if not verifiedUsername and userId and fallbackUsername == "" then
-					fetchVerifiedUsernameAsync(userId)
-				end
 				local canonicalUsername = verifiedUsername or fallbackUsername
 				local isAdmin = type(info) == "table" and (info.admin == true) or false
 				local gameStatus = type(info) == "table" and tostring(info.game or "") or ""
@@ -2969,12 +3066,11 @@ originalIO.runNACHAT=function()
 				local isHiddenUser = type(info) == "table" and (info.hidden == true) or false
 				local activityHidden = type(info) == "table" and ((info.activityHidden == true) or (info.activity_hidden == true)) or false
 
+				local matchesSearch = true
 				if userSearchTerm ~= "" then
 					local needle = userSearchTerm
 					local haystack = Lower(tostring(canonicalUsername or "").." "..tostring(displayName or "").." "..tostring(serverUsername or "").." "..tostring(gameStatus or ""))
-					if not Find(haystack, needle, 1, true) then
-						continue
-					end
+					matchesSearch = Find(haystack, needle, 1, true) ~= nil
 				end
 
 				local keyBase = Lower(tostring(canonicalUsername or ""))
@@ -2989,8 +3085,22 @@ originalIO.runNACHAT=function()
 					continue
 				end
 				seen[uidKey] = true
+
+				if not matchesSearch then
+					continue
+				end
+
+				matchOrdinal += 1
+				if matchOrdinal < virtualFirst or matchOrdinal > virtualLast then
+					continue
+				end
+
 				alive[uidKey] = true
-				idx += 1
+				idx = matchOrdinal
+				local rowY = (idx - 1) * rowPitch
+				if not verifiedUsername and userId and fallbackUsername == "" then
+					fetchVerifiedUsernameAsync(userId)
+				end
 
 				local pidNum = tonumber(placeId)
 				local jobStr = tostring(jobId or "")
@@ -3010,10 +3120,8 @@ originalIO.runNACHAT=function()
 
 				local fr = userFrames[uidKey]
 				if fr and fr.Parent and userFrameState[uidKey] == rowSignature then
-					if fr.LayoutOrder ~= idx then
-						fr.LayoutOrder = idx
-						structureChanged = true
-					end
+					fr.Visible = true
+					fr.Position = UDim2.new(0, 3, 0, rowY)
 					continue
 				end
 
@@ -3053,10 +3161,12 @@ originalIO.runNACHAT=function()
 				userFrameState[uidKey] = rowSignature
 
 				fr.Name = keyBase
+				fr.Visible = true
+				fr:SetAttribute("NAChatUserId", userId)
 				fr.BackgroundColor3 = CHAT_SURFACE
 				fr.Size = UDim2.new(1, -6, 0, 52)
+				fr.Position = UDim2.new(0, 3, 0, rowY)
 				fr.BackgroundTransparency = 0.03
-				fr.LayoutOrder = idx
 
 				local avatar = fr:FindFirstChild("Avatar")
 				local nameLbl = fr:FindFirstChild("NameLabel")
@@ -3201,17 +3311,13 @@ originalIO.runNACHAT=function()
 					end
 				end
 
-				if avatar and userId and (avatar.Image == nil or avatar.Image == "") then
-					avatar.Image = ""
-					Insert(avatarQueue, { avatar = avatar, userId = userId })
-				end
 			end
 
 			if usersUpdateGeneration ~= myGeneration then
 				return
 			end
 
-			for key, fr in pairs(userFrames) do
+			for key, fr in userFrames do
 				if not alive[key] or not (fr and fr.Parent) then
 					if fr and fr.Parent then
 						fr:Destroy()
@@ -3225,32 +3331,7 @@ originalIO.runNACHAT=function()
 				NAmanage.CustomScroll.refreshByTarget(usersScroll)
 			end
 
-			if usersScroll and structureChanged and doAutoScroll then
-				scrollToBottomSoon(usersScroll)
-			end
-
-			if #avatarQueue > 0 then
-				Spawn(function()
-					for _, taskInfo in ipairs(avatarQueue) do
-						if usersUpdateGeneration ~= myGeneration then
-							break
-						end
-						local avatar = taskInfo.avatar
-						local userId = taskInfo.userId
-						if avatar and avatar.Parent and userId then
-							local ok, image = pcall(function()
-								return Players:GetUserThumbnailAsync(userId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
-							end)
-							if ok and image and image ~= "" then
-								avatar.Image = image
-							else
-								avatar.Image = ("rbxthumb://type=AvatarHeadShot&id=%d&w=420&h=420"):format(userId)
-							end
-						end
-						Wait(0.03)
-					end
-				end)
-			end
+			queueVisibleUserAvatarRefresh()
 		end
 
 		originalIO.setHiddenState = function(newHidden, skipRemote)
@@ -3284,7 +3365,7 @@ originalIO.runNACHAT=function()
 				requestUsersList()
 			end
 			if not newHidden and usersScroll then
-				for _, child in ipairs(usersScroll:GetChildren()) do
+				for _, child in usersScroll:GetChildren() do
 					if child:IsA("Frame") and child:GetAttribute("NAChatHiddenNotice") == true then
 						child:Destroy()
 					end
@@ -3483,7 +3564,22 @@ originalIO.runNACHAT=function()
 			end
 
 			bindAutoScroll(chatScroll, chatLayout)
-			bindAutoScroll(usersScroll, usersLayout)
+			if usersScroll then
+				pcall(function()
+					usersScroll.AutomaticCanvasSize = Enum.AutomaticSize.None
+				end)
+				if usersLayout and usersLayout.Parent == usersScroll then
+					usersLayout.Parent = nil
+				end
+				usersScroll:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
+					queueUsersListRefresh()
+					queueVisibleUserAvatarRefresh()
+				end)
+				usersScroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+					queueUsersListRefresh()
+					queueVisibleUserAvatarRefresh()
+				end)
+			end
 
 			if NAChat.service.OnChatHistory then
 				NAChat.service.OnChatHistory.Event:Connect(function(records)
@@ -3566,7 +3662,7 @@ originalIO.runNACHAT=function()
 					refreshChatEntry(entry)
 					syncChatEntryTranslation(entry)
 
-					for _, other in ipairs(conversationHistory.public or {}) do
+					for _, other in conversationHistory.public or {} do
 						if type(other.reply) == "table" and tostring(other.reply.messageId or "") == id then
 							other.reply.message = entry.raw
 							other.reply.edited = true
@@ -3603,7 +3699,7 @@ originalIO.runNACHAT=function()
 						clearComposeMode()
 					end
 					hideMessageContextMenu()
-					for _, other in ipairs(history) do
+					for _, other in history do
 						if type(other.reply) == "table" and tostring(other.reply.messageId or "") == id then
 							other.reply.message = "[deleted message]"
 							refreshChatEntry(other)
@@ -3674,7 +3770,7 @@ originalIO.runNACHAT=function()
 
 					local banned = {}
 					if type(state.banned) == "table" then
-						for _, name in ipairs(state.banned) do
+						for _, name in state.banned do
 							if type(name) == "string" and name ~= "" then
 								Insert(banned, name)
 							end
@@ -3684,7 +3780,7 @@ originalIO.runNACHAT=function()
 
 					local muted = {}
 					if type(state.muted) == "table" then
-						for _, entry in ipairs(state.muted) do
+						for _, entry in state.muted do
 							if type(entry) == "table" then
 								local uname = tostring(entry.username or entry.user or entry.name or "")
 								local untilEpoch = tonumber(entry["until"] or entry.muted_until or entry.mutedUntil or entry.expires or entry.expiresAt)
@@ -3761,7 +3857,7 @@ originalIO.runNACHAT=function()
 			if NAChat.service.OnGroupList then
 				NAChat.service.OnGroupList.Event:Connect(function(list)
 					groupRecords = {}
-					for _, group in ipairs(list or {}) do
+					for _, group in list or {} do
 						if type(group) == "table" and group.id then
 							local id = tostring(group.id)
 							groupRecords[id] = group
@@ -3931,6 +4027,7 @@ originalIO.runNACHAT=function()
 				end
 				NAChat.users = list or {}
 				usersFetchInFlight = false
+				lastUsersUpdateAt = os.clock()
 
 				local newSig = makeUserSignature(NAChat.users)
 				local changed = (newSig ~= lastUserSig)
@@ -3943,7 +4040,7 @@ originalIO.runNACHAT=function()
 
 				if NAChat.currentDMTarget then
 					local stillHere = false
-					for _, info in ipairs(NAChat.users or {}) do
+					for _, info in NAChat.users or {} do
 						if type(info) == "table" then
 							local uid = tonumber(info.userId)
 							local uname = getVerifiedUsername(uid, tostring(info.username or ""))
@@ -3978,6 +4075,7 @@ originalIO.runNACHAT=function()
 					end
 					NAChat.users = list or {}
 					usersFetchInFlight = false
+					lastUsersUpdateAt = os.clock()
 
 					local newSig = makeUserSignature(NAChat.users)
 					local changed = (newSig ~= lastUserSig)
@@ -3990,7 +4088,7 @@ originalIO.runNACHAT=function()
 
 					if NAChat.currentDMTarget then
 						local stillHere = false
-						for _, info in ipairs(NAChat.users or {}) do
+						for _, info in NAChat.users or {} do
 							if type(info) == "table" then
 								local uid = tonumber(info.userId)
 								local uname = getVerifiedUsername(uid, tostring(info.username or ""))
@@ -4045,7 +4143,7 @@ originalIO.runNACHAT=function()
 					end
 
 					local args = {}
-					for i, v in ipairs(argList) do
+					for i, v in argList do
 						args[i] = tostring(v)
 					end
 
@@ -4285,7 +4383,7 @@ originalIO.runNACHAT=function()
 			local lowerPrefix = prefix:lower()
 			local bestMatch = nil
 
-			for _, info in ipairs(NAChat.users or {}) do
+			for _, info in NAChat.users or {} do
 				if type(info) == "table" then
 					local uid = tonumber(info.userId)
 					local uname = getVerifiedUsername(uid, tostring(info.username or ""))
@@ -4611,12 +4709,13 @@ originalIO.runNACHAT=function()
 
 		Spawn(function()
 			while true do
-				Wait(5)
+				Wait(15)
 
 				refreshStatus()
 
 				local svc = NAChat.service
-				if NAChat.activeTab == "users" and svc and svc.IsConnected and svc.IsConnected() and not isChatUiSuppressed() then
+				local staleUsers = lastUsersUpdateAt <= 0 or (os.clock() - lastUsersUpdateAt) >= 30
+				if staleUsers and NAChat.activeTab == "users" and svc and svc.IsConnected and svc.IsConnected() and not isChatUiSuppressed() then
 					requestUsersList()
 				end
 			end
@@ -4631,7 +4730,24 @@ originalIO.runNACHAT=function()
 		end
 
 		local function isLocalAdmin()
-			return NAChat.serverIsAdmin == true
+			if NAChat.serverIsAdmin == true then
+				return true
+			end
+			local lp = Players and Players.LocalPlayer
+			if not lp then
+				return false
+			end
+			local admins = _na_env and _na_env.NAadminsLol
+			if type(admins) ~= "table" then
+				return false
+			end
+			const userId = tonumber(lp.UserId)
+			for _, id in admins do
+				if userId and userId == tonumber(id) then
+					return true
+				end
+			end
+			return false
 		end
 
 		local function ensureAdminTabUI()
@@ -4659,7 +4775,7 @@ originalIO.runNACHAT=function()
 
 					syncAdminFrameLayout()
 
-					for _, child in ipairs(adminFrame:GetChildren()) do
+					for _, child in adminFrame:GetChildren() do
 						child:Destroy()
 					end
 
@@ -4830,7 +4946,7 @@ originalIO.runNACHAT=function()
 						end
 						local normalized = normalizeName(candidate)
 						local list = adminState.banned or {}
-						for _, existing in ipairs(list) do
+						for _, existing in list do
 							if normalizeName(existing) == normalized then
 								return
 							end
@@ -4868,7 +4984,7 @@ originalIO.runNACHAT=function()
 						if not banScroll then
 							return
 						end
-						for _, child in ipairs(banScroll:GetChildren()) do
+						for _, child in banScroll:GetChildren() do
 							if child:IsA("Frame") then
 								child:Destroy()
 							end
@@ -4917,7 +5033,7 @@ originalIO.runNACHAT=function()
 						addHeader("Muted users")
 						local nowEpoch = os.time()
 						local muted = {}
-						for _, entry in ipairs(adminState.muted or {}) do
+						for _, entry in adminState.muted or {} do
 							if type(entry) == "table" then
 								local uname = tostring(entry.username or "")
 								local untilEpoch = tonumber(entry.untilEpoch)
@@ -4935,7 +5051,7 @@ originalIO.runNACHAT=function()
 						if #muted == 0 then
 							addEmptyRow("None")
 						else
-							for _, entry in ipairs(muted) do
+							for _, entry in muted do
 								order += 1
 								local row = InstanceNew("Frame", banScroll)
 								row.Size = UDim2.new(1, 0, 0, 38)
@@ -5000,7 +5116,7 @@ originalIO.runNACHAT=function()
 						if #list == 0 then
 							addEmptyRow("None")
 						else
-							for _, name in ipairs(list) do
+							for _, name in list do
 								order += 1
 								local row = InstanceNew("Frame", banScroll)
 								row.Size = UDim2.new(1, 0, 0, 34)
@@ -5179,7 +5295,7 @@ originalIO.runNACHAT=function()
 			local matchId = nil
 			local len = #spec
 
-			for _, info in ipairs(NAChat.users or {}) do
+			for _, info in NAChat.users or {} do
 				if type(info) == "table" then
 					local uname = Lower(tostring(info.username or ""))
 					local uid = tonumber(info.userId)
@@ -5224,7 +5340,8 @@ originalIO.runNACHAT=function()
 		end
 		refreshAdminTabUI()
 
-		cmd.add({"nacmd","naremote"}, {"nacmd"}, function(targetSpec, ...)
+		if isLocalAdmin() then
+		cmd.add({"nacmd","naremote"}, {"nacmd <target> <command> (naremote)", "Send a command to NA Chat user(s)"}, function(targetSpec, ...)
 			local svc = NAChat.service
 			if not (svc and svc.IsConnected and svc.IsConnected()) then
 				return
@@ -5245,7 +5362,7 @@ originalIO.runNACHAT=function()
 			end
 		end, true)
 
-		cmd.add({"naannouncement","naannc","announcement"}, {"naannouncement <message>", "Send an announcement to everyone"}, function(...)
+		cmd.add({"naannouncement","naannc","announcement"}, {"naannouncement <message> (naannc, announcement)", "Send an announcement to all NA Chat users"}, function(...)
 			local svc = NAChat.service
 			if not (svc and svc.IsConnected and svc.IsConnected() and svc.SendAnnouncement) then
 				return
@@ -5260,7 +5377,7 @@ originalIO.runNACHAT=function()
 			svc.SendAnnouncement(msg)
 		end, true)
 
-		cmd.add({"nanotify"}, {"nanotify <target> [duration] <message>", "Send a Notify to NA Chat user(s)"}, function(targetSpec, ...)
+		cmd.add({"nanotify"}, {"nanotify <target> [duration] <message>", "Send a notification to NA Chat user(s)"}, function(targetSpec, ...)
 			local svc = NAChat.service
 			if not (svc and svc.IsConnected and svc.IsConnected() and svc.SendNotify) then
 				return
@@ -5297,7 +5414,7 @@ originalIO.runNACHAT=function()
 			svc.SendNotify(target, msg, duration)
 		end, true)
 
-		cmd.add({"nanotify2"}, {"nanotify2 <target> <message>", "Send a Window to NA Chat user(s)"}, function(targetSpec, ...)
+		cmd.add({"nanotify2"}, {"nanotify2 <target> <message>", "Send a window to NA Chat user(s)"}, function(targetSpec, ...)
 			local svc = NAChat.service
 			if not (svc and svc.IsConnected and svc.IsConnected() and svc.SendNotify2) then
 				return
@@ -5321,7 +5438,7 @@ originalIO.runNACHAT=function()
 			svc.SendNotify2(target, msg)
 		end, true)
 
-		cmd.add({"nanotify3"}, {"nanotify3 <target> <message>", "Send a Popup to NA Chat user(s)"}, function(targetSpec, ...)
+		cmd.add({"nanotify3"}, {"nanotify3 <target> <message>", "Send a popup to NA Chat user(s)"}, function(targetSpec, ...)
 			local svc = NAChat.service
 			if not (svc and svc.IsConnected and svc.IsConnected() and svc.SendNotify3) then
 				return
@@ -5344,6 +5461,7 @@ originalIO.runNACHAT=function()
 
 			svc.SendNotify3(target, msg)
 		end, true)
+		end
 
 		switchTab("chat")
 		originalIO.setHiddenState(initialHidden, true)

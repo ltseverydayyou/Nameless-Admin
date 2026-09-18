@@ -351,7 +351,7 @@ bangDied = nil
 doBang = nil
 BANGPARTS = {}
 
-cmd.add({"bang", "fuck"}, {"bang <player> <number> (fuck)", "fucks the player by attaching to them"}, function(h, d)
+cmd.addRestricted({"bang", "fuck"}, {"bang <player> <number> (fuck)", "fucks the player by attaching to them"}, function(h, d)
 	if bangLoop then
 		bangLoop:Disconnect()
 		NAlib.disconnect("bang_loop")
@@ -424,7 +424,7 @@ cmd.add({"bang", "fuck"}, {"bang <player> <number> (fuck)", "fucks the player by
 	end
 end, true)
 
-cmd.add({"unbang", "unfuck"}, {"unbang (unfuck)", "Unbangs the player"}, function()
+cmd.addRestricted({"unbang", "unfuck"}, {"unbang (unfuck)", "Unbangs the player"}, function()
 	if bangLoop then
 		bangLoop:Disconnect()
 		NAlib.disconnect("bang_loop")
@@ -631,7 +631,7 @@ function stopInversebang()
 	INVERSEBANGPARTS = {}
 end
 
-cmd.add({"inversebang","ibang","inverseb"},{"inversebang <player> <number>","you're the one getting fucked today ;)"},function(h,d)
+cmd.addRestricted({"inversebang","ibang","inverseb"},{"inversebang <player> <number>","you're the one getting fucked today ;)"},function(h,d)
 	stopInversebang()
 
 	const speed = d or 10
@@ -696,14 +696,14 @@ cmd.add({"inversebang","ibang","inverseb"},{"inversebang <player> <number>","you
 	end
 end,true)
 
-cmd.add({"uninversebang","unibang","uninverseb"},{"uninversebang","no more fun"},function()
+cmd.addRestricted({"uninversebang","unibang","uninverseb"},{"uninversebang","no more fun"},function()
 	stopInversebang()
 end)
 
 sussyID = "rbxassetid://106772613"
 susTrack, susCONN = nil, nil
 
-cmd.add({"suslay", "laysus"}, {"suslay (laysus)", "Lay down in a suspicious way"}, function()
+cmd.addRestricted({"suslay", "laysus"}, {"suslay (laysus)", "Lay down in a suspicious way"}, function()
 	if not IsR6() then return DoNotif("R6 only") end
 
 	if susTrack then
@@ -744,7 +744,7 @@ cmd.add({"suslay", "laysus"}, {"suslay (laysus)", "Lay down in a suspicious way"
 	end)
 end)
 
-cmd.add({"unsuslay"}, {"unsuslay", "Stand up from the sussy lay"}, function()
+cmd.addRestricted({"unsuslay"}, {"unsuslay", "Stand up from the sussy lay"}, function()
 	const hum = getHum()
 	if hum then
 		NAmanage.LaunchHumanoid(hum)
@@ -761,7 +761,7 @@ cmd.add({"unsuslay"}, {"unsuslay", "Stand up from the sussy lay"}, function()
 	end
 end)
 
-cmd.add({"jerk", "jork"}, {"jerk (jork)", "jorking it"}, function()
+cmd.addRestricted({"jerk", "jork"}, {"jerk (jork)", "jorking it"}, function()
 	const humanoid = getHum()
 	const backpack = getBp()
 	if not humanoid or not backpack then return end

@@ -2928,6 +2928,7 @@ do
 	end
 end
 NAStuff.HideCmdAutofill = NAmanage.NASettingsGet("hideCmdAutofill") == true
+NAStuff.SFWMode = NAmanage.NASettingsGet("sfwMode") ~= false
 NAStuff.LegacyCommandUI = NAmanage.NASettingsGet("legacyCommandUI") == true
 NAStuff.LegacyHorizontalSettingsTabs = NAmanage.NASettingsGet("legacyHorizontalSettingsTabs") == true
 NAStuff.SettingsSidebarCompactMode = NAmanage.NASettingsGet("compactVerticalSettingsTabs") == true
@@ -6189,14 +6190,25 @@ NAmanage.makeUniqueAlias=function(aliasName, seen)
 	if base == "" then
 		return nil, false
 	end
-	if not seen[lowerBase] and not cmds.Commands[lowerBase] and not cmds.Aliases[lowerBase] then
+	const hidden = type(NAStuff.SFWHiddenCommands) == "table" and NAStuff.SFWHiddenCommands or nil
+	const hiddenCommands = hidden and hidden.Commands or nil
+	const hiddenAliases = hidden and hidden.Aliases or nil
+	if not seen[lowerBase]
+		and not cmds.Commands[lowerBase]
+		and not cmds.Aliases[lowerBase]
+		and not (hiddenCommands and hiddenCommands[lowerBase])
+		and not (hiddenAliases and hiddenAliases[lowerBase]) then
 		return base, false
 	end
 	local idx = 1
 	while true do
 		const candidate = base..tostring(idx)
 		const lowerCandidate = Lower(candidate)
-		if not seen[lowerCandidate] and not cmds.Commands[lowerCandidate] and not cmds.Aliases[lowerCandidate] then
+		if not seen[lowerCandidate]
+			and not cmds.Commands[lowerCandidate]
+			and not cmds.Aliases[lowerCandidate]
+			and not (hiddenCommands and hiddenCommands[lowerCandidate])
+			and not (hiddenAliases and hiddenAliases[lowerCandidate]) then
 			return candidate, true
 		end
 		idx = idx + 1
@@ -6394,6 +6406,94 @@ NAmanage.StartupCommandBudgetStep = NAmanage.StartupCommandBudgetStep or functio
 	state.lastYield = os.clock()
 end
 
+NAmanage.IsSFWRestrictedCommand = function(data)
+	return type(data) == "table"
+		and type(data[4]) == "table"
+		and data[4].sfwRestricted == true
+end
+
+NAStuff.SFWHiddenCommands = {
+	Commands = {};
+	Aliases = {};
+}
+
+NAmanage.RefreshSFWCommandRegistry = function(opts)
+	opts = type(opts) == "table" and opts or {}
+	const hidden = NAStuff.SFWHiddenCommands
+	local changed = false
+
+	if NAStuff.SFWMode == true then
+		const commandNames = {}
+		for name, data in cmds.Commands do
+			if NAmanage.IsSFWRestrictedCommand(data) then
+				commandNames[#commandNames + 1] = name
+			end
+		end
+		for _, name in commandNames do
+			hidden.Commands[name] = cmds.Commands[name]
+			cmds.Commands[name] = nil
+			changed = true
+		end
+
+		const aliasNames = {}
+		for name, data in cmds.Aliases do
+			if NAmanage.IsSFWRestrictedCommand(data) then
+				aliasNames[#aliasNames + 1] = name
+			end
+		end
+		for _, name in aliasNames do
+			hidden.Aliases[name] = cmds.Aliases[name]
+			cmds.Aliases[name] = nil
+			changed = true
+		end
+	else
+		const commandNames = {}
+		for name in hidden.Commands do
+			commandNames[#commandNames + 1] = name
+		end
+		for _, name in commandNames do
+			if cmds.Commands[name] == nil then
+				cmds.Commands[name] = hidden.Commands[name]
+				hidden.Commands[name] = nil
+				changed = true
+			end
+		end
+
+		const aliasNames = {}
+		for name in hidden.Aliases do
+			aliasNames[#aliasNames + 1] = name
+		end
+		for _, name in aliasNames do
+			if cmds.Aliases[name] == nil and cmds.Commands[name] == nil then
+				cmds.Aliases[name] = hidden.Aliases[name]
+				hidden.Aliases[name] = nil
+				changed = true
+			end
+		end
+	end
+
+	if changed and type(NAmanage.invalidateCommandBuild) == "function" then
+		NAmanage.invalidateCommandBuild()
+	end
+	if changed and opts.refresh ~= false and type(NAgui) == "table" and type(NAgui.loadCMDS) == "function" then
+		pcall(NAgui.loadCMDS, { force = true })
+	end
+	return changed
+end
+
+NAmanage.SetSFWMode = function(enabled, opts)
+	opts = type(opts) == "table" and opts or {}
+	NAStuff.SFWMode = enabled ~= false
+	if opts.save ~= false and type(NAmanage.NASettingsSet) == "function" then
+		pcall(NAmanage.NASettingsSet, "sfwMode", NAStuff.SFWMode)
+	end
+	NAmanage.RefreshSFWCommandRegistry({ refresh = opts.refresh ~= false })
+	if opts.notify == true then
+		DoNotif("SFW Mode "..(NAStuff.SFWMode and "Enabled" or "Disabled"), 2)
+	end
+	return NAStuff.SFWMode
+end
+
 cmd.add = function(aliases, info, func, requiresArguments, meta)
 	if type(requiresArguments) == "table" and meta == nil then
 		meta = requiresArguments
@@ -6454,17 +6554,23 @@ cmd.add = function(aliases, info, func, requiresArguments, meta)
 		infoTable = NAmanage.ensurePatchedInfo(infoTable)
 	end
 	const data = {func, infoTable, requiresArguments, meta}
+	local commandTarget = cmds.Commands
+	local aliasTarget = cmds.Aliases
+	if meta.sfwRestricted == true and NAStuff.SFWMode == true then
+		commandTarget = NAStuff.SFWHiddenCommands.Commands
+		aliasTarget = NAStuff.SFWHiddenCommands.Aliases
+	end
 	if primaryLower then
-		if not cmds.Commands[primaryLower] then
+		if not commandTarget[primaryLower] then
 			commandcount += 1
 		end
-		cmds.Commands[primaryLower] = data
+		commandTarget[primaryLower] = data
 	end
 
 	for index = 2, #normalized do
 		const aliasName = normalized[index]
 		if type(aliasName) == "string" and aliasName ~= "" then
-			cmds.Aliases[Lower(aliasName)] = data
+			aliasTarget[Lower(aliasName)] = data
 		end
 	end
 	if type(NAmanage.invalidateCommandBuild) == "function" then
@@ -6473,6 +6579,16 @@ cmd.add = function(aliases, info, func, requiresArguments, meta)
 	if type(NAmanage.StartupCommandBudgetStep) == "function" then
 		NAmanage.StartupCommandBudgetStep()
 	end
+end
+
+cmd.addRestricted = function(aliases, info, func, requiresArguments, meta)
+	if type(requiresArguments) == "table" and meta == nil then
+		meta = requiresArguments
+		requiresArguments = nil
+	end
+	meta = type(meta) == "table" and meta or {}
+	meta.sfwRestricted = true
+	return cmd.add(aliases, info, func, requiresArguments, meta)
 end
 
 cmd.addPatched = function(aliases, info, func, requiresArguments)

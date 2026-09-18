@@ -222,6 +222,17 @@ NAmanage.RegisterToggleAutoSync("Hide Command Autofill List", function()
 	return NAStuff.HideCmdAutofill == true
 end)
 
+NAgui.addToggle("SFW Mode", NAStuff.SFWMode ~= false, function(v)
+	NAmanage.SetSFWMode(v ~= false, {
+		save = true;
+		notify = true;
+		refresh = true;
+	})
+end)
+NAmanage.RegisterToggleAutoSync("SFW Mode", function()
+	return NAStuff.SFWMode ~= false
+end)
+
 NAgui.addToggle("Safe Command Input", NAStuff.CmdInputSafeMode ~= false, function(v)
 	NAmanage.SetCmdInputSafeMode(v ~= false, {
 		save = true;

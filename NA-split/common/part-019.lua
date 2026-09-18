@@ -3526,33 +3526,33 @@ do
 	originalIO.bodyModsEnsurePlayerAppearanceHook()
 	originalIO.bodyModsEnsureSpawnConnection()
 
-	cmd.add({"boobs","boobies"},{"boobs <size> (boobies)","Boobs"},function(arg)
+	cmd.addRestricted({"boobs","boobies"},{"boobs <size> (boobies)","Boobs"},function(arg)
 		local value = tonumber(arg) or state.boobs.size or 1
 		value = math.clamp(value, 1, 8)
 		originalIO.bodyModsApplyBoobs(value)
 	end,true)
 
-	cmd.add({"unboobs","unboobies","noboobs","noboobies"},{"unboobs (unboobies,noboobs,noboobies)","Boobs"},function()
+	cmd.addRestricted({"unboobs","unboobies","noboobs","noboobies"},{"unboobs (unboobies,noboobs,noboobies)","Boobs"},function()
 		originalIO.bodyModsRemoveBoobs()
 	end)
 
-	cmd.add({"ass","booty"},{"ass <size> (booty)","Ass"},function(arg)
+	cmd.addRestricted({"ass","booty"},{"ass <size> (booty)","Ass"},function(arg)
 		local value = tonumber(arg) or state.ass.size or 1
 		value = math.clamp(value, 1, 8)
 		originalIO.bodyModsApplyAss(value)
 	end,true)
 
-	cmd.add({"unass","noass"},{"unass (noass)","Ass"},function()
+	cmd.addRestricted({"unass","noass"},{"unass (noass)","Ass"},function()
 		originalIO.bodyModsRemoveAss()
 	end)
 
-	cmd.add({"penis","pp"},{"penis <length> (pp)","penis"},function(arg)
+	cmd.addRestricted({"penis","pp"},{"penis <length> (pp)","penis"},function(arg)
 		local value = tonumber(arg) or state.pp.len or 1
 		value = math.clamp(value, 0.5, 6)
 		originalIO.bodyModsApplyPP(value)
 	end,true)
 
-	cmd.add({"unpenis","unpp","nopenis","nopp"},{"unpenis (unpp,nopenis,nopp)","penis"},function()
+	cmd.addRestricted({"unpenis","unpp","nopenis","nopp"},{"unpenis (unpp,nopenis,nopp)","penis"},function()
 		originalIO.bodyModsRemovePP()
 	end)
 end

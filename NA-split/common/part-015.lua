@@ -4880,7 +4880,7 @@ end, true)
 
 bang, bangAnim, bangLoop, bangDied, bangParts = nil, nil, nil, nil, {}
 
-cmd.add({"headbang", "mouthbang", "headfuck", "mouthfuck", "facebang", "facefuck", "hb", "mb"}, {"headbang <player> (mouthbang,headfuck,mouthfuck,facebang,facefuck,hb,mb)", "Bang them in the mouth because you are gay"}, function(h, d)
+cmd.addRestricted({"headbang", "mouthbang", "headfuck", "mouthfuck", "facebang", "facefuck", "hb", "mb"}, {"headbang <player> (mouthbang,headfuck,mouthfuck,facebang,facefuck,hb,mb)", "Bang them in the mouth because you are gay"}, function(h, d)
 	const speed = d or 10
 	const username = h
 	const hasQuery = username and username ~= ""
@@ -4946,7 +4946,7 @@ cmd.add({"headbang", "mouthbang", "headfuck", "mouthfuck", "facebang", "facefuck
 	end
 end, true)
 
-cmd.add({"unheadbang", "unmouthbang", "unhb", "unmb"}, {"unheadbang (unmouthbang,unhb,unmb)", "Stops headbang"}, function()
+cmd.addRestricted({"unheadbang", "unmouthbang", "unhb", "unmb"}, {"unheadbang (unmouthbang,unhb,unmb)", "Stops headbang"}, function()
 	if bangLoop then
 		bangLoop:Disconnect()
 		NAlib.disconnect("headbang_loop")
@@ -4962,7 +4962,7 @@ end)
 
 jerkAnim, jerkTrack, jerkLoop, jerkDied, jerkParts = nil, nil, nil, nil, {}
 
-cmd.add({"jerkuser", "jorkuser", "handjob", "hjob", "handj"}, {"jerkuser <player> (jorkuser, handjob, hjob, handj)", "Lay under them and vibe"}, function(h, d)
+cmd.addRestricted({"jerkuser", "jorkuser", "handjob", "hjob", "handj"}, {"jerkuser <player> (jorkuser, handjob, hjob, handj)", "Lay under them and vibe"}, function(h, d)
 	if not IsR6() then DoNotif("command requires R6",3) return end
 	const username = h
 	const players = getPlr(username)
@@ -5044,7 +5044,7 @@ cmd.add({"jerkuser", "jorkuser", "handjob", "hjob", "handj"}, {"jerkuser <player
 	end)
 end, true)
 
-cmd.add({"unjerkuser", "unjorkuser", "unhandjob", "unhjob", "unhandj"}, {"unjerkuser (unjorkuser, unhandjob, unhjob, unhandj)", "Stop the jerk user action"}, function()
+cmd.addRestricted({"unjerkuser", "unjorkuser", "unhandjob", "unhjob", "unhandj"}, {"unjerkuser (unjorkuser, unhandjob, unhjob, unhandj)", "Stop the jerk user action"}, function()
 	if jerkLoop then jerkLoop:Disconnect() end
 	NAlib.disconnect("jerkuser_loop")
 	if jerkTrack then jerkTrack:Stop() end
@@ -5074,7 +5074,7 @@ suckDIED = nil
 doSUCKING = nil
 SUCKYSUCKY = {}
 
-cmd.add({"suck","dicksuck"},{"suck <player> <number>","suck it"},function(h,d)
+cmd.addRestricted({"suck","dicksuck"},{"suck <player> <number>","suck it"},function(h,d)
 	if suckLOOP then suckLOOP = nil end
 	if doSUCKING then doSUCKING:Stop() end
 	if suckANIM then suckANIM:Destroy() end
@@ -5155,7 +5155,7 @@ cmd.add({"suck","dicksuck"},{"suck <player> <number>","suck it"},function(h,d)
 	suckLOOP()
 end,true)
 
-cmd.add({"unsuck","undicksuck"},{"unsuck","no more fun"},function()
+cmd.addRestricted({"unsuck","undicksuck"},{"unsuck","no more fun"},function()
 	suckLOOP = nil
 	if doSUCKING then doSUCKING:Stop() end
 	if suckANIM then suckANIM:Destroy() end
