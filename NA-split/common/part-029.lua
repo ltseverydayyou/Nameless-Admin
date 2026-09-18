@@ -3642,22 +3642,21 @@ originalIO.runNACHAT=function()
 				if type(current) ~= "boolean" then
 					current = true
 				end
-				settings.naChatGameActivity = not current
-				NAmanage.NASettingsSave()
+				local enabled = not current
+				NAmanage.NASettingsSet("naChatGameActivity", enabled)
 				refreshGameActivityButton()
 
 				local okSvc, svc = pcall(function()
 					return NAChat.service
 				end)
-				local targetHidden = not settings.naChatGameActivity
+				local targetHidden = not enabled
 				local sent = false
 				if okSvc and svc and type(svc.SetActivityHidden) == "function" then
 					local okSet, result = pcall(svc.SetActivityHidden, targetHidden)
 					sent = okSet and result == true
 				end
 				if not sent then
-					settings.naChatGameActivity = current
-					NAmanage.NASettingsSave()
+					NAmanage.NASettingsSet("naChatGameActivity", current)
 					refreshGameActivityButton()
 					originalIO.setStatus("NA Chat: activity update failed", STATUS_COLORS.err)
 				end
@@ -3683,9 +3682,9 @@ originalIO.runNACHAT=function()
 				if type(current) ~= "boolean" then
 					current = true
 				end
-				settings.naChatDmNotify = not current
-				NAStuff.dmNotificationsEnabled = settings.naChatDmNotify
-				NAmanage.NASettingsSave()
+				local enabled = not current
+				NAmanage.NASettingsSet("naChatDmNotify", enabled)
+				NAStuff.dmNotificationsEnabled = enabled
 				refreshDmNotifButton()
 			end)
 		end
