@@ -596,11 +596,17 @@ NAgui.nachat = function()
 		return
 	end
 	frame.Visible = true
-	if NAmanage and type(NAmanage.NAChat_ApplyResponsive) == "function" then
-		pcall(NAmanage.NAChat_ApplyResponsive, true)
-	elseif NAmanage and type(NAmanage.centerFrame) == "function" then
-		frame.AnchorPoint = Vector2.new(0, 0)
-		pcall(NAmanage.centerFrame, frame)
+	local initialized = false
+	if frame.GetAttribute and NAmanage and type(NAmanage.GetAttr) == "function" then
+		initialized = NAmanage.GetAttr(frame, "NANAChatDefaultSized") == true
+	end
+	if not initialized then
+		if NAmanage and type(NAmanage.NAChat_ApplyResponsive) == "function" then
+			pcall(NAmanage.NAChat_ApplyResponsive, true)
+		elseif NAmanage and type(NAmanage.centerFrame) == "function" then
+			frame.AnchorPoint = Vector2.new(0, 0)
+			pcall(NAmanage.centerFrame, frame)
+		end
 	end
 	if NAmanage and NAmanage.CustomScroll and NAmanage.CustomScroll.refreshAll then
 		pcall(NAmanage.CustomScroll.refreshAll)
@@ -641,6 +647,7 @@ originalIO.runNACHAT=function()
 	local visibilityBtn = NAUIMANAGER and NAUIMANAGER.NAchatVisibility
 	local gameActivityBtn = NAUIMANAGER and NAUIMANAGER.NAchatGameActivity
 	local dmNotifBtn = NAUIMANAGER and NAUIMANAGER.NAchatDmNotifyButton
+	local settingsBtn = NAUIMANAGER and NAUIMANAGER.NAchatSettingsButton
 	local disconnectBtn = NAUIMANAGER and NAUIMANAGER.NAchatDisconnectButton
 
 	local function syncAdminFrameLayout()
@@ -740,13 +747,18 @@ originalIO.runNACHAT=function()
 		return false
 	end
 
-	if not disconnectBtn and dmNotifBtn and dmNotifBtn.Parent then
-		local ok, clone = pcall(function() return dmNotifBtn:Clone() end)
+	if not disconnectBtn and reconnectBtn and reconnectBtn.Parent then
+		local ok, clone = pcall(function() return reconnectBtn:Clone() end)
 		if ok and clone then
 			disconnectBtn = clone
-			disconnectBtn.Name = "Disconnect"
-			disconnectBtn.LayoutOrder = (tonumber(dmNotifBtn.LayoutOrder) or 0) + 1
-			disconnectBtn.Parent = dmNotifBtn.Parent
+			disconnectBtn.Name = "DisconnectButton"
+			disconnectBtn.Size = UDim2.new(0, 104, 0, 18)
+			disconnectBtn.Position = UDim2.new(1, -82, 0, 6)
+			disconnectBtn.TextSize = 11
+			disconnectBtn.Parent = reconnectBtn.Parent
+			if statusLabel then
+				statusLabel.Size = UDim2.new(1, -196, 0, 14)
+			end
 			if NAUIMANAGER then
 				NAUIMANAGER.NAchatDisconnectButton = disconnectBtn
 			end
@@ -754,7 +766,7 @@ originalIO.runNACHAT=function()
 	end
 
 	local function refreshDisconnectButton()
-		styleChatToggle(disconnectBtn, isChatDisconnectedPreference(), "Disconnect  •  On", "Disconnect  •  Off")
+		styleChatToggle(disconnectBtn, isChatDisconnectedPreference(), "Disconnect • On", "Disconnect • Off")
 	end
 
 	if chatFrame then
@@ -1384,26 +1396,333 @@ originalIO.runNACHAT=function()
 		end
 
 		local chatMessageOrder = 0
+		local MAX_CHAT_HISTORY = 500
+		local MAX_RENDERED_MESSAGES = 250
+		local renderedConversation = "public"
+		local messageEntriesById = {}
+		local rainbowLabels = setmetatable({}, {__mode = "k"})
+		local messageContextMenu = nil
+		local messageMenuOutsideConn = nil
+		local composeReplyEntry = nil
+		local composeEditEntry = nil
+		local settingsPopup = nil
+		local settingsColorInput = nil
+		local refreshRegularMessageColors
 
-		local function makeChatLabel(t, c, rawMessage)
-			local doAutoScroll = chatScroll and canAutoScroll(chatScroll) and shouldAutoScroll(chatScroll) or false
+		local function getSavedChatColorHex()
+			local value = "78AAFF"
+			if NAmanage and type(NAmanage.NASettingsGet) == "function" then
+				local ok, saved = pcall(NAmanage.NASettingsGet, "naChatMessageColor")
+				if ok and type(saved) == "string" then
+					value = saved
+				end
+			end
+			value = tostring(value or "78AAFF"):gsub("#", ""):upper()
+			if #value ~= 6 or not value:match("^[%x]+$") then
+				value = "78AAFF"
+			end
+			return value
+		end
 
+		local function colorFromHex(value)
+			value = tostring(value or "78AAFF"):gsub("#", "")
+			local r = tonumber(value:sub(1, 2), 16) or 120
+			local g = tonumber(value:sub(3, 4), 16) or 170
+			local b = tonumber(value:sub(5, 6), 16) or 255
+			return Color3.fromRGB(r, g, b)
+		end
+
+		local function getSavedChatColor()
+			return colorFromHex(getSavedChatColorHex())
+		end
+
+		local function escapeChatRichText(value)
+			value = tostring(value or "")
+			if originalIO.escapeRichTextText then
+				return originalIO.escapeRichTextText(value)
+			end
+			return value:gsub("&", "&amp;"):gsub("<", "&lt;"):gsub(">", "&gt;")
+		end
+
+		local function formatChatIdentity(displayName, username)
+			displayName = tostring(displayName or "")
+			username = tostring(username or "?")
+			if displayName ~= "" and username ~= "" and displayName ~= username then
+				return ("%s (@%s)"):format(displayName, username)
+			end
+			return username ~= "" and username or (displayName ~= "" and displayName or "?")
+		end
+
+		local function defaultInputPlaceholder()
+			if NAChat.activeGroupId and groupRecords[tostring(NAChat.activeGroupId)] then
+				return "Message #"..tostring(groupRecords[tostring(NAChat.activeGroupId)].name or "group").."..."
+		end
+			if NAChat.currentDMTarget then
+				return ("DM to %s..."):format(tostring(NAChat.currentDMTarget))
+		end
+			return "Send a message (/w name)..."
+		end
+
+		local function refreshComposePlaceholder()
+			if not inputBox then
+				return
+			end
+			if composeEditEntry then
+				inputBox.PlaceholderText = "Edit your message..."
+			elseif composeReplyEntry then
+				inputBox.PlaceholderText = "Reply to "..formatChatIdentity(composeReplyEntry.displayName, composeReplyEntry.username).."..."
+			else
+				inputBox.PlaceholderText = defaultInputPlaceholder()
+			end
+		end
+
+		local function clearComposeMode()
+			composeReplyEntry = nil
+			composeEditEntry = nil
+			refreshComposePlaceholder()
+		end
+
+		local function buildChatEntryText(entry)
+			if entry.kind ~= "chat" then
+				return tostring(entry.text or "")
+			end
+
+			local messageText = tostring(entry.raw or "")
+			local displayText = formatMessageWithMentions(messageText)
+			if type(displayText) ~= "string" or displayText == "" then
+				displayText = escapeChatRichText(messageText)
+			end
+			if (entry.isOwner or entry.isAdmin) and messageText:find("@everyone", 1, true) then
+				displayText = displayText:gsub("@everyone", '<font color="#FFD966">@everyone</font>')
+			end
+
+			local prefix = ""
+			if entry.isOwner then
+				prefix = "[OWNER] "
+			elseif entry.isAdmin then
+				prefix = "[ADMIN] "
+			end
+
+			local sender = escapeChatRichText(formatChatIdentity(entry.displayName, entry.username))
+			local replyLine = ""
+			if type(entry.reply) == "table" then
+				local replySender = escapeChatRichText(formatChatIdentity(entry.reply.displayName, entry.reply.username))
+				local replyMessage = tostring(entry.reply.message or "")
+				if #replyMessage > 96 then
+					replyMessage = replyMessage:sub(1, 93).."..."
+				end
+				replyMessage = escapeChatRichText(replyMessage)
+				replyLine = '<font color="#9EA3B8">↪ '..replySender..": "..replyMessage.."</font>\n"
+			end
+
+			local editedMark = entry.edited and ' <font color="#9A9EAF">(edited)</font>' or ""
+			return replyLine..prefix..sender..": "..displayText..editedMark
+		end
+
+		local function refreshChatEntry(entry)
+			local lbl = entry and entry.frame
+			if not (lbl and lbl.Parent) then
+				return
+			end
+			lbl.Text = buildChatEntryText(entry)
+			if entry.rainbow then
+				rainbowLabels[lbl] = true
+			elseif entry.useOwnChatColor then
+				rainbowLabels[lbl] = nil
+				lbl.TextColor3 = getSavedChatColor()
+			elseif type(entry.chatColor) == "string" then
+				rainbowLabels[lbl] = nil
+				lbl.TextColor3 = colorFromHex(entry.chatColor)
+			elseif entry.useChatColor then
+				rainbowLabels[lbl] = nil
+				lbl.TextColor3 = getSavedChatColor()
+			else
+				rainbowLabels[lbl] = nil
+				lbl.TextColor3 = entry.color or Color3.fromRGB(224, 224, 234)
+			end
+			local sz = NAgui.txtSize(lbl, lbl.AbsoluteSize.X, 260)
+			lbl.Size = UDim2.new(1, -6, 0, math.max(24, sz.Y + 8))
+		end
+
+		local function hideMessageContextMenu()
+			if messageMenuOutsideConn then
+				pcall(function() messageMenuOutsideConn:Disconnect() end)
+				messageMenuOutsideConn = nil
+			end
+			if messageContextMenu then
+				pcall(function() messageContextMenu:Destroy() end)
+				messageContextMenu = nil
+			end
+		end
+
+		local function makeMessageMenuButton(parent, text, order, callback, danger)
+			local button = InstanceNew("TextButton", parent)
+			button.Name = "Action"..tostring(order)
+			button.Size = UDim2.new(1, -8, 0, 29)
+			button.Position = UDim2.new(0, 4, 0, 4 + ((order - 1) * 31))
+			button.BackgroundColor3 = danger and CHAT_DANGER or CHAT_OFF
+			button.BackgroundTransparency = 0.04
+			button.BorderSizePixel = 0
+			button.TextColor3 = danger and Color3.fromRGB(255, 224, 230) or Color3.fromRGB(235, 236, 246)
+			button.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+			button.TextSize = 12
+			button.Text = text
+			button.AutoButtonColor = false
+			button.ZIndex = 302
+			local corner = InstanceNew("UICorner", button)
+			corner.CornerRadius = UDim.new(0, 6)
+			ensureChatStroke(button, danger and Color3.fromRGB(205, 91, 111) or Color3.fromRGB(83, 85, 105), 0.45)
+			MouseButtonFix(button, function()
+				hideMessageContextMenu()
+				callback()
+			end)
+			return button
+		end
+
+		local function openMessageContextMenu(entry, inputPosition)
+			if not (entry and entry.kind == "chat" and chatFrame) then
+				return
+			end
+			hideMessageContextMenu()
+
+			local actions = {}
+			actions[#actions + 1] = {"Reply", function()
+				NAChat.currentDMTarget = nil
+				composeEditEntry = nil
+				composeReplyEntry = entry
+				refreshComposePlaceholder()
+				if inputBox then
+					pcall(function() inputBox:CaptureFocus() end)
+				end
+			end, false}
+			if entry.own and entry.messageId then
+				actions[#actions + 1] = {"Edit", function()
+					NAChat.currentDMTarget = nil
+					composeReplyEntry = nil
+					composeEditEntry = entry
+					if inputBox then
+						inputBox.Text = tostring(entry.raw or "")
+						refreshComposePlaceholder()
+						pcall(function() inputBox:CaptureFocus() end)
+					end
+				end, false}
+				actions[#actions + 1] = {"Delete", function()
+					local svc = NAChat.service
+					if svc and type(svc.DeleteMessage) == "function" then
+						local ok, result = pcall(svc.DeleteMessage, entry.messageId)
+						if not (ok and result == true) then
+							originalIO.setStatus("NA Chat: failed to delete message", STATUS_COLORS.err)
+						end
+					end
+				end, true}
+			end
+			actions[#actions + 1] = {"Copy", function()
+				local clip = setclipboard or toclipboard
+				if type(clip) == "function" then
+					pcall(clip, tostring(entry.raw or ""))
+				else
+					originalIO.setStatus("NA Chat: clipboard unavailable", STATUS_COLORS.info)
+				end
+			end, false}
+
+			local menu = InstanceNew("Frame", chatFrame)
+			messageContextMenu = menu
+			menu.Name = "NAChatMessageMenu"
+			menu.Size = UDim2.new(0, 156, 0, (#actions * 31) + 8)
+			menu.BackgroundColor3 = CHAT_SURFACE
+			menu.BackgroundTransparency = 0.02
+			menu.BorderSizePixel = 0
+			menu.ZIndex = 301
+			local corner = InstanceNew("UICorner", menu)
+			corner.CornerRadius = UDim.new(0, 8)
+			ensureChatStroke(menu, CHAT_ACCENT, 0.28)
+
+			local framePos = chatFrame.AbsolutePosition
+			local frameSize = chatFrame.AbsoluteSize
+			local px = tonumber(inputPosition and inputPosition.X) or (framePos.X + 20)
+			local py = tonumber(inputPosition and inputPosition.Y) or (framePos.Y + 80)
+			local x = math.clamp(px - framePos.X, 6, math.max(6, frameSize.X - 162))
+			local y = math.clamp(py - framePos.Y, 6, math.max(6, frameSize.Y - ((#actions * 31) + 14)))
+			menu.Position = UDim2.new(0, x, 0, y)
+
+			for index, action in ipairs(actions) do
+				makeMessageMenuButton(menu, action[1], index, action[2], action[3])
+			end
+
+			local UIS = Services.UserInputService
+			if UIS then
+				messageMenuOutsideConn = UIS.InputBegan:Connect(function(input)
+					if not messageContextMenu then
+						return
+					end
+					if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then
+						return
+					end
+					Defer(function()
+						local pos = input.Position
+						local ap = messageContextMenu and messageContextMenu.AbsolutePosition
+						local as = messageContextMenu and messageContextMenu.AbsoluteSize
+						if not (ap and as and pos.X >= ap.X and pos.X <= ap.X + as.X and pos.Y >= ap.Y and pos.Y <= ap.Y + as.Y) then
+							hideMessageContextMenu()
+						end
+					end)
+				end)
+			end
+		end
+
+		local function bindMessageContextMenu(entry, lbl)
+			if not (entry and entry.kind == "chat" and lbl) then
+				return
+			end
+			lbl.Active = true
+			local pressToken = 0
+			lbl.InputBegan:Connect(function(input)
+				if input.UserInputType == Enum.UserInputType.MouseButton2 then
+					pressToken += 1
+					openMessageContextMenu(entry, input.Position)
+					return
+				end
+				if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then
+					return
+				end
+				pressToken += 1
+				local token = pressToken
+				local startPos = input.Position
+				Delay(0.45, function()
+					if token == pressToken and lbl and lbl.Parent and input.UserInputState ~= Enum.UserInputState.End then
+						openMessageContextMenu(entry, startPos)
+					end
+				end)
+			end)
+			lbl.InputEnded:Connect(function(input)
+				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+					pressToken += 1
+				end
+			end)
+		end
+
+		local function makeChatLabel(entry)
+			if not (entry and chatScroll) then
+				return nil
+			end
+			if entry.frame and entry.frame.Parent then
+				refreshChatEntry(entry)
+				return entry.frame
+			end
+			local doAutoScroll = canAutoScroll(chatScroll) and shouldAutoScroll(chatScroll) or false
 			local lbl = InstanceNew("TextButton", chatScroll)
+			entry.frame = lbl
 			lbl.Size = UDim2.new(1, -6, 0, 24)
 			lbl.BackgroundColor3 = CHAT_SURFACE
 			lbl.BackgroundTransparency = 0.05
-			lbl.TextColor3 = c or Color3.fromRGB(224, 224, 234)
 			lbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
 			lbl.TextSize = 14
 			lbl.TextWrapped = true
 			lbl.RichText = true
 			lbl.TextXAlignment = Enum.TextXAlignment.Left
 			lbl.TextYAlignment = Enum.TextYAlignment.Center
-			chatMessageOrder += 1
-			lbl.LayoutOrder = chatMessageOrder
+			lbl.LayoutOrder = entry.order or 0
 			lbl.AutoButtonColor = false
-			lbl.Text = t
-
 			local cr = InstanceNew("UICorner", lbl)
 			cr.CornerRadius = UDim.new(0, 7)
 			local pad = InstanceNew("UIPadding", lbl)
@@ -1412,39 +1731,15 @@ originalIO.runNACHAT=function()
 			pad.PaddingTop = UDim.new(0, 4)
 			pad.PaddingBottom = UDim.new(0, 4)
 			ensureChatStroke(lbl, Color3.fromRGB(69, 72, 96), 0.7)
-
-			local sz = NAgui.txtSize(lbl, lbl.AbsoluteSize.X, 200)
-			lbl.Size = UDim2.new(1, -6, 0, sz.Y + 6)
-
+			refreshChatEntry(entry)
 			local tr = NAStuff.ChatTranslator
 			if tr then
-				tr:registerMessage(lbl, t, rawMessage or t)
+				tr:registerMessage(lbl, lbl.Text, entry.raw or entry.text or "")
 			end
-
-			if rawMessage and NAmanage.AttachMessageCopy then
-				NAmanage.AttachMessageCopy(lbl, tostring(rawMessage))
-			end
-
-			local MAX_MSG = 500
-			local list = {}
-			for _, v in ipairs(chatScroll:GetChildren()) do
-				if v:IsA("TextLabel") or v:IsA("TextButton") then
-					Insert(list, v)
-				end
-			end
-			table.sort(list, function(a, b)
-				return a.LayoutOrder < b.LayoutOrder
-			end)
-			if #list > MAX_MSG then
-				for i = 1, #list - MAX_MSG do
-					list[i]:Destroy()
-				end
-			end
-
-			if chatScroll and doAutoScroll then
+			bindMessageContextMenu(entry, lbl)
+			if doAutoScroll then
 				scrollToBottomSoon(chatScroll)
 			end
-
 			return lbl
 		end
 
@@ -1453,46 +1748,120 @@ originalIO.runNACHAT=function()
 		end
 
 		local function clearConversationView()
-			if not chatScroll then
-				return
-			end
-			for _, child in ipairs(chatScroll:GetChildren()) do
-				if child:IsA("TextLabel") or child:IsA("TextButton") then
-					child:Destroy()
+			hideMessageContextMenu()
+			for _, history in pairs(conversationHistory) do
+				for _, entry in ipairs(history) do
+					if entry.frame then
+						rainbowLabels[entry.frame] = nil
+						pcall(function() entry.frame:Destroy() end)
+						entry.frame = nil
+					end
 				end
 			end
-			chatMessageOrder = 0
+			if chatScroll then
+				for _, child in ipairs(chatScroll:GetChildren()) do
+					if child:IsA("TextLabel") or child:IsA("TextButton") then
+						rainbowLabels[child] = nil
+						pcall(function() child:Destroy() end)
+					end
+				end
+			end
+			renderedConversation = nil
 		end
 
-		local function renderConversation()
+		local function renderConversation(force)
+			local key = NAChat.activeConversation
+			if not force and renderedConversation == key then
+				return
+			end
 			clearConversationView()
-			local history = conversationHistory[NAChat.activeConversation] or {}
-			for _, entry in ipairs(history) do
-				makeChatLabel(entry.text, entry.color, entry.raw)
+			renderedConversation = key
+			local history = conversationHistory[key] or {}
+			local first = math.max(1, #history - MAX_RENDERED_MESSAGES + 1)
+			for i = first, #history do
+				makeChatLabel(history[i])
 			end
 			if chatScroll then
 				scrollToBottomSoon(chatScroll)
 			end
 		end
 
-		local function appendConversationMessage(key, text, color, rawMessage)
+		local function appendConversationMessage(key, text, color, rawMessage, metadata)
 			local history = conversationHistory[key]
 			if not history then
 				history = {}
 				conversationHistory[key] = history
 			end
-			history[#history + 1] = {
-				text = text,
-				color = color,
-				raw = rawMessage,
-			}
-			if #history > 500 then
-				table.remove(history, 1)
+			chatMessageOrder += 1
+			local entry = type(metadata) == "table" and metadata or {}
+			entry.text = text
+			entry.color = color
+			entry.raw = rawMessage
+			entry.order = chatMessageOrder
+			history[#history + 1] = entry
+			if entry.messageId then
+				messageEntriesById[tostring(entry.messageId)] = entry
 			end
-			if key == NAChat.activeConversation then
-				return makeChatLabel(text, color, rawMessage)
+			if #history > MAX_CHAT_HISTORY then
+				local removed = table.remove(history, 1)
+				if removed then
+					if removed.messageId then
+						messageEntriesById[tostring(removed.messageId)] = nil
+					end
+					if removed.frame then
+						rainbowLabels[removed.frame] = nil
+						pcall(function() removed.frame:Destroy() end)
+					end
+				end
+			end
+			if key == NAChat.activeConversation and renderedConversation == key then
+				local frame = makeChatLabel(entry)
+				local trimIndex = #history - MAX_RENDERED_MESSAGES
+				if trimIndex >= 1 then
+					local oldVisible = history[trimIndex]
+					if oldVisible and oldVisible.frame then
+						rainbowLabels[oldVisible.frame] = nil
+						pcall(function() oldVisible.frame:Destroy() end)
+						oldVisible.frame = nil
+					end
+				end
+				return frame
 			end
 			return nil
+		end
+
+		refreshRegularMessageColors = function()
+			for _, history in pairs(conversationHistory) do
+				for _, entry in ipairs(history) do
+					if (entry.useOwnChatColor or entry.useChatColor) and not entry.rainbow then
+						refreshChatEntry(entry)
+					end
+				end
+			end
+		end
+
+		NAlib.disconnect("NAChatRainbowMessages")
+		if RunService and RunService.Heartbeat then
+			local lastRainbowUpdate = 0
+			NAlib.connect("NAChatRainbowMessages", RunService.Heartbeat:Connect(function()
+				local t = tick()
+				if (t - lastRainbowUpdate) < 0.05 then
+					return
+				end
+				lastRainbowUpdate = t
+				local color = Color3.fromRGB(
+					math.sin(t * 0.5) * 127 + 128,
+					math.sin(t * 0.5 + 2 * math.pi / 3) * 127 + 128,
+					math.sin(t * 0.5 + 4 * math.pi / 3) * 127 + 128
+				)
+				for lbl in pairs(rainbowLabels) do
+					if lbl and lbl.Parent then
+						lbl.TextColor3 = color
+					else
+						rainbowLabels[lbl] = nil
+					end
+				end
+			end))
 		end
 
 		local function syncGroupHistory(group)
@@ -1501,20 +1870,171 @@ originalIO.runNACHAT=function()
 			end
 			local key = conversationKey(group.id)
 			local history = {}
+			local lp = Players.LocalPlayer
 			for _, entry in ipairs(group.messages or {}) do
 				if type(entry) == "table" then
 					local sender = tostring(entry.from or "?")
+					local displayName = tostring(entry.displayName or "")
+					local userId = tonumber(entry.userId)
 					local message = tostring(entry.message or "")
 					if message ~= "" then
+						local isOwner = userId == 11761417 or userId == 530829101
+						local isAdmin = entry.admin == true
+						local own = lp and ((userId and tonumber(lp.UserId) == userId) or Lower(tostring(lp.Name or "")) == Lower(sender)) or false
+						local formatted = formatMessageWithMentions(message)
+						if type(formatted) ~= "string" or formatted == "" then
+							formatted = escapeChatRichText(message)
+						end
+						local prefix = isOwner and "[OWNER] " or (isAdmin and "[ADMIN] " or "")
+						chatMessageOrder += 1
 						history[#history + 1] = {
-							text = ("[%s]: %s"):format(sender, message),
-							color = STATUS_COLORS.blue,
+							text = prefix..escapeChatRichText(formatChatIdentity(displayName, sender))..": "..formatted,
+							color = colorFromHex(entry.chatColor or "78AAFF"),
+							chatColor = tostring(entry.chatColor or "78AAFF"),
 							raw = message,
+							order = chatMessageOrder,
+							rainbow = isOwner or isAdmin,
+							useOwnChatColor = own and not (isOwner or isAdmin),
 						}
 					end
 				end
 			end
 			conversationHistory[key] = history
+		end
+
+
+		local function hideChatSettingsPopup()
+			if settingsPopup then
+				settingsPopup.Visible = false
+			end
+			styleChatTab(settingsBtn, false)
+		end
+
+		local function ensureChatSettingsPopup()
+			if settingsPopup and settingsPopup.Parent then
+				return settingsPopup
+			end
+			if not chatFrame then
+				return nil
+			end
+			local popup = InstanceNew("Frame", chatFrame)
+			settingsPopup = popup
+			popup.Name = "NAChatSettingsPopup"
+			popup.AnchorPoint = Vector2.new(1, 0)
+			popup.Position = UDim2.new(1, -10, 0, 82)
+			popup.Size = UDim2.new(0, 236, 0, 122)
+			popup.BackgroundColor3 = CHAT_SURFACE
+			popup.BackgroundTransparency = 0.02
+			popup.BorderSizePixel = 0
+			popup.ZIndex = 250
+			popup.Visible = false
+			local corner = InstanceNew("UICorner", popup)
+			corner.CornerRadius = UDim.new(0, 8)
+			ensureChatStroke(popup, CHAT_ACCENT, 0.28)
+
+			local title = InstanceNew("TextLabel", popup)
+			title.BackgroundTransparency = 1
+			title.Position = UDim2.new(0, 10, 0, 8)
+			title.Size = UDim2.new(1, -20, 0, 20)
+			title.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+			title.TextSize = 13
+			title.TextXAlignment = Enum.TextXAlignment.Left
+			title.TextColor3 = Color3.fromRGB(238, 239, 250)
+			title.Text = "Chat message color"
+			title.ZIndex = 251
+
+			local hint = InstanceNew("TextLabel", popup)
+			hint.BackgroundTransparency = 1
+			hint.Position = UDim2.new(0, 10, 0, 29)
+			hint.Size = UDim2.new(1, -20, 0, 17)
+			hint.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+			hint.TextSize = 11
+			hint.TextXAlignment = Enum.TextXAlignment.Left
+			hint.TextColor3 = Color3.fromRGB(165, 169, 188)
+			hint.Text = "Normal messages only. Admin/owner RGB stays unchanged."
+			hint.ZIndex = 251
+
+			local input = InstanceNew("TextBox", popup)
+			settingsColorInput = input
+			input.Position = UDim2.new(0, 10, 0, 51)
+			input.Size = UDim2.new(1, -20, 0, 28)
+			input.BackgroundColor3 = CHAT_OFF
+			input.BackgroundTransparency = 0.02
+			input.BorderSizePixel = 0
+			input.TextColor3 = Color3.fromRGB(235, 236, 246)
+			input.PlaceholderColor3 = Color3.fromRGB(145, 149, 168)
+			input.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+			input.TextSize = 13
+			input.ClearTextOnFocus = false
+			input.PlaceholderText = "#RRGGBB"
+			input.Text = "#"..getSavedChatColorHex()
+			input.ZIndex = 251
+			local inputCorner = InstanceNew("UICorner", input)
+			inputCorner.CornerRadius = UDim.new(0, 6)
+			ensureChatStroke(input, Color3.fromRGB(83, 85, 105), 0.45)
+
+			local apply = InstanceNew("TextButton", popup)
+			apply.Position = UDim2.new(0, 10, 0, 87)
+			apply.Size = UDim2.new(0.5, -15, 0, 26)
+			apply.BackgroundColor3 = CHAT_ON
+			apply.BorderSizePixel = 0
+			apply.TextColor3 = Color3.fromRGB(220, 255, 238)
+			apply.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+			apply.TextSize = 12
+			apply.Text = "Apply"
+			apply.ZIndex = 251
+			local applyCorner = InstanceNew("UICorner", apply)
+			applyCorner.CornerRadius = UDim.new(0, 6)
+
+			local reset = InstanceNew("TextButton", popup)
+			reset.AnchorPoint = Vector2.new(1, 0)
+			reset.Position = UDim2.new(1, -10, 0, 87)
+			reset.Size = UDim2.new(0.5, -15, 0, 26)
+			reset.BackgroundColor3 = CHAT_OFF
+			reset.BorderSizePixel = 0
+			reset.TextColor3 = Color3.fromRGB(220, 222, 235)
+			reset.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+			reset.TextSize = 12
+			reset.Text = "Reset"
+			reset.ZIndex = 251
+			local resetCorner = InstanceNew("UICorner", reset)
+			resetCorner.CornerRadius = UDim.new(0, 6)
+
+			local function saveColor(value)
+				value = tostring(value or ""):gsub("#", ""):upper()
+				if NAmanage and type(NAmanage.NASettingsSet) == "function" then
+					pcall(NAmanage.NASettingsSet, "naChatMessageColor", value)
+				end
+				local saved = getSavedChatColorHex()
+				input.Text = "#"..saved
+				if NAChat.service and type(NAChat.service.SetChatColor) == "function" then
+					pcall(NAChat.service.SetChatColor, saved)
+				end
+				if refreshRegularMessageColors then
+					refreshRegularMessageColors()
+				end
+				originalIO.setStatus("NA Chat: message color saved", STATUS_COLORS.info)
+			end
+
+			MouseButtonFix(apply, function()
+				saveColor(input.Text)
+			end)
+			MouseButtonFix(reset, function()
+				saveColor("78AAFF")
+			end)
+			return popup
+		end
+
+		local function toggleChatSettingsPopup()
+			local popup = ensureChatSettingsPopup()
+			if not popup then
+				return
+			end
+			popup.Visible = not popup.Visible
+			if popup.Visible and settingsColorInput then
+				settingsColorInput.Text = "#"..getSavedChatColorHex()
+			end
+			styleChatTab(settingsBtn, popup.Visible)
 		end
 
 		local function makeConversationButton(parent, text, selected)
@@ -1592,6 +2112,9 @@ originalIO.runNACHAT=function()
 			if normalized and not groupRecords[normalized] then
 				return
 			end
+			clearComposeMode()
+			hideMessageContextMenu()
+			hideChatSettingsPopup()
 			NAChat.activeGroupId = normalized
 			NAChat.activeConversation = conversationKey(normalized)
 			NAChat.currentDMTarget = nil
@@ -1626,6 +2149,7 @@ originalIO.runNACHAT=function()
 				if adminTab then
 					styleChatTab(adminTab, false)
 				end
+				styleChatTab(settingsBtn, false)
 				if chatScroll then chatScroll.Visible = true end
 				if usersScroll then usersScroll.Visible = false end
 				if adminFrame then adminFrame.Visible = false end
@@ -2318,6 +2842,7 @@ originalIO.runNACHAT=function()
 							if NAChat.currentDMTarget == uname then
 								clearDMTarget("NA Chat: DM cleared")
 							else
+								clearComposeMode()
 								NAChat.currentDMTarget = uname
 								if inputBox then
 									inputBox.PlaceholderText = ("DM to %s..."):format(uname)
@@ -2426,10 +2951,13 @@ originalIO.runNACHAT=function()
 
 		local function switchTab(tab)
 			NAChat.activeTab = tab
+			hideMessageContextMenu()
+			hideChatSettingsPopup()
 
 			styleChatTab(chatTab, tab == "chat")
 			styleChatTab(usersTab, tab == "users")
 			styleChatTab(adminTab, tab == "admin")
+			styleChatTab(settingsBtn, false)
 			styleChatToggle(dmNotifBtn, isDmNotifyEnabled(), "DM Notifications  •  On", "DM Notifications  •  Off")
 			local activityEnabled = _G.NAChatGameActivityEnabled and _G.NAChatGameActivityEnabled() or true
 			styleChatToggle(gameActivityBtn, activityEnabled, "Activity  •  On", "Activity  •  Off")
@@ -2604,39 +3132,47 @@ originalIO.runNACHAT=function()
 			bindAutoScroll(chatScroll, chatLayout)
 			bindAutoScroll(usersScroll, usersLayout)
 
-			NAChat.service.OnChatMessage.Event:Connect(function(name, msg, _, userId, isAdmin, gameStatus)
+			NAChat.service.OnChatMessage.Event:Connect(function(name, msg, _, userId, isAdmin, gameStatus, displayName, messageId, reply, edited, chatColor)
 				local rawSenderName = tostring(name or "?")
 				local messageText = tostring(msg or "")
 				local senderId = tonumber(userId)
-				local senderName = getVerifiedUsername(senderId, rawSenderName)
-
+				local senderName = rawSenderName
+				local senderDisplayName = tostring(displayName or "")
 				local isOwner = senderId == 11761417 or senderId == 530829101
-				local isNAadmin = (isAdmin == true)
-
-				local displayText, mentioned = formatMessageWithMentions(messageText)
+				local isNAadmin = isAdmin == true
+				local _, mentioned = formatMessageWithMentions(messageText)
 
 				if (isOwner or isNAadmin) and messageText:find("@everyone", 1, true) then
 					mentioned = true
-					displayText = displayText:gsub("@everyone", '<font color="#FFD966">@everyone</font>')
-				end
-				if displayText == "" then
-					displayText = messageText
 				end
 
-				local labelText
-				if isOwner then
-					labelText = ("[OWNER] %s: %s"):format(senderName, displayText)
-				elseif isNAadmin then
-					labelText = ("[ADMIN] %s: %s"):format(senderName, displayText)
-				else
-					labelText = ("[%s]: %s"):format(senderName, displayText)
-				end
-
-				if mutedUsers[Lower(senderName)] or mutedUsers[Lower(rawSenderName)] then
+				if mutedUsers[Lower(senderName)] then
 					return
 				end
 
-				local lbl = appendConversationMessage("public", labelText, STATUS_COLORS.blue, messageText)
+				local lp = Players.LocalPlayer
+				local own = false
+				if lp then
+					own = (senderId ~= nil and tonumber(lp.UserId) == senderId)
+						or Lower(tostring(lp.Name or "")) == Lower(senderName)
+				end
+
+				appendConversationMessage("public", nil, (isOwner or isNAadmin) and Color3.fromRGB(255, 255, 255) or getSavedChatColor(), messageText, {
+					kind = "chat",
+					username = senderName,
+					displayName = senderDisplayName,
+					userId = senderId,
+					isOwner = isOwner,
+					isAdmin = isNAadmin,
+					game = gameStatus,
+					chatColor = tostring(chatColor or "78AAFF"),
+					messageId = messageId and tostring(messageId) or nil,
+					reply = type(reply) == "table" and reply or nil,
+					edited = edited == true,
+					own = own,
+					rainbow = isOwner or isNAadmin,
+					useOwnChatColor = own and not (isOwner or isNAadmin),
+				})
 
 				if mentioned and DoNotif then
 					local now = os.clock()
@@ -2650,30 +3186,73 @@ originalIO.runNACHAT=function()
 							mentionCooldowns[key] = now
 						end
 					end
-
 					if canNotify then
-						DoNotif(("%s mentioned you in NA Chat."):format(senderName), 3)
+						DoNotif(("%s mentioned you in NA Chat."):format(formatChatIdentity(senderDisplayName, senderName)), 3)
 					end
 				end
-
-				if (isNAadmin or isOwner) and lbl then
-					local conn
-					conn = RunService.Heartbeat:Connect(function()
-						if not (lbl and lbl.Parent) then
-							if conn then
-								conn:Disconnect()
-							end
-							return
-						end
-
-						local t = tick()
-						local r = math.sin(t * 0.5) * 127 + 128
-						local g = math.sin(t * 0.5 + 2 * math.pi / 3) * 127 + 128
-						local b = math.sin(t * 0.5 + 4 * math.pi / 3) * 127 + 128
-						lbl.TextColor3 = Color3.fromRGB(r, g, b)
-					end)
-				end
 			end)
+
+			if NAChat.service.OnMessageEdited then
+				NAChat.service.OnMessageEdited.Event:Connect(function(messageId, message, _, username, userId, displayName, isAdmin, reply, chatColor)
+					local id = tostring(messageId or "")
+					local entry = messageEntriesById[id]
+					if not entry then
+						return
+					end
+					entry.raw = tostring(message or entry.raw or "")
+					entry.edited = true
+					if username ~= nil then entry.username = tostring(username) end
+					if displayName ~= nil then entry.displayName = tostring(displayName) end
+					if userId ~= nil then entry.userId = tonumber(userId) or entry.userId end
+					if isAdmin ~= nil then entry.isAdmin = isAdmin == true end
+					if chatColor ~= nil then entry.chatColor = tostring(chatColor) end
+					if type(reply) == "table" then entry.reply = reply end
+					refreshChatEntry(entry)
+
+					for _, other in ipairs(conversationHistory.public or {}) do
+						if type(other.reply) == "table" and tostring(other.reply.messageId or "") == id then
+							other.reply.message = entry.raw
+							other.reply.edited = true
+							other.reply.username = entry.username
+							other.reply.displayName = entry.displayName
+							refreshChatEntry(other)
+						end
+					end
+				end)
+			end
+
+			if NAChat.service.OnMessageDeleted then
+				NAChat.service.OnMessageDeleted.Event:Connect(function(messageId)
+					local id = tostring(messageId or "")
+					local entry = messageEntriesById[id]
+					if not entry then
+						return
+					end
+					messageEntriesById[id] = nil
+					local history = conversationHistory.public or {}
+					for index = #history, 1, -1 do
+						if history[index] == entry then
+							table.remove(history, index)
+							break
+						end
+					end
+					if entry.frame then
+						rainbowLabels[entry.frame] = nil
+						pcall(function() entry.frame:Destroy() end)
+						entry.frame = nil
+					end
+					if composeReplyEntry == entry or composeEditEntry == entry then
+						clearComposeMode()
+					end
+					hideMessageContextMenu()
+					for _, other in ipairs(history) do
+						if type(other.reply) == "table" and tostring(other.reply.messageId or "") == id then
+							other.reply.message = "[deleted message]"
+							refreshChatEntry(other)
+						end
+					end
+				end)
+			end
 
 			NAChat.service.OnSystemMessage.Event:Connect(function(msg)
 				local m = tostring(msg or "System message")
@@ -2850,7 +3429,7 @@ originalIO.runNACHAT=function()
 						refreshGroupPicker()
 					end
 					if tostring(NAChat.activeGroupId or "") == id then
-						renderConversation()
+						renderConversation(true)
 					end
 				end)
 			end
@@ -2889,23 +3468,35 @@ originalIO.runNACHAT=function()
 			end
 
 			if NAChat.service.OnGroupMessage then
-				NAChat.service.OnGroupMessage.Event:Connect(function(groupId, groupName, fromName, text)
+				NAChat.service.OnGroupMessage.Event:Connect(function(groupId, groupName, fromName, text, _, displayName, userId, isAdmin, chatColor)
 					local id = tostring(groupId or "")
 					local sender = tostring(fromName or "?")
+					local senderDisplayName = tostring(displayName or "")
+					local senderId = tonumber(userId)
 					local msgText = tostring(text or "")
 					if id == "" or msgText == "" then
 						return
 					end
 					local formatted, mentioned = formatMessageWithMentions(msgText)
 					if formatted == "" then
-						formatted = msgText
+						formatted = escapeChatRichText(msgText)
 					end
-					appendConversationMessage(conversationKey(id), ("[%s]: %s"):format(sender, formatted), STATUS_COLORS.blue, msgText)
+					local isOwner = senderId == 11761417 or senderId == 530829101
+					local isNAadmin = isAdmin == true
+					local lp = Players.LocalPlayer
+					local own = lp and ((senderId and tonumber(lp.UserId) == senderId) or Lower(tostring(lp.Name or "")) == Lower(sender)) or false
+					local prefix = isOwner and "[OWNER] " or (isNAadmin and "[ADMIN] " or "")
+					appendConversationMessage(conversationKey(id), prefix..escapeChatRichText(formatChatIdentity(senderDisplayName, sender))..": "..formatted, colorFromHex(chatColor or "78AAFF"), msgText, {
+						chatColor = tostring(chatColor or "78AAFF"),
+						rainbow = isOwner or isNAadmin,
+						useOwnChatColor = own and not (isOwner or isNAadmin),
+					})
 					if mentioned and type(DoNotif) == "function" then
-						DoNotif(("%s mentioned you in #%s."):format(sender, tostring(groupName or "group")), 3)
+						DoNotif(("%s mentioned you in #%s."):format(formatChatIdentity(senderDisplayName, sender), tostring(groupName or "group")), 3)
 					end
 				end)
 			end
+
 
 			if NAChat.service.OnAnnouncement then
 				NAChat.service.OnAnnouncement.Event:Connect(function(fromName, text)
@@ -3235,7 +3826,8 @@ originalIO.runNACHAT=function()
 						heartbeatInterval = 10,
 						reconnectDelay = 6,
 						autoReconnect = false,
-						hidden = NAChat.isHidden
+						hidden = NAChat.isHidden,
+						chatColor = getSavedChatColorHex()
 					})
 					if initCallOk then
 						okInit, initErr = initResult, initMessage
@@ -3551,6 +4143,36 @@ originalIO.runNACHAT=function()
 
 			local low = Lower(t)
 
+			if low == "/cancel" then
+				clearComposeMode()
+				clearTyping()
+				return
+			end
+
+			if composeEditEntry then
+				local svc = NAChat.service
+				local ok = svc and type(svc.EditMessage) == "function" and svc.EditMessage(composeEditEntry.messageId, t) or false
+				if ok then
+					clearComposeMode()
+				else
+					originalIO.setStatus("NA Chat: failed to edit message", STATUS_COLORS.err)
+				end
+				clearTyping()
+				return
+			end
+
+			if composeReplyEntry then
+				local svc = NAChat.service
+				local ok = svc and type(svc.SendMessage) == "function" and svc.SendMessage(t, composeReplyEntry.messageId) or false
+				if ok then
+					clearComposeMode()
+				else
+					originalIO.setStatus("NA Chat: failed to send reply", STATUS_COLORS.err)
+				end
+				clearTyping()
+				return
+			end
+
 			if low == "/w" or low == "/whisper" or low == "/dm" or low == "/w off" or low == "/whisper off" or low == "/dm off" then
 				clearDMTarget("NA Chat: DM cleared")
 				clearTyping()
@@ -3563,6 +4185,7 @@ originalIO.runNACHAT=function()
 				if cmdName == "w" or cmdName == "whisper" or cmdName == "dm" then
 					local resolved = findUserByPrefix(shortTarget)
 					if resolved then
+						clearComposeMode()
 						NAChat.currentDMTarget = resolved
 						if inputBox then
 							inputBox.PlaceholderText = ("DM to %s..."):format(resolved)
@@ -3576,6 +4199,7 @@ originalIO.runNACHAT=function()
 				end
 			end
 
+			local ok = false
 			local dmTarget, dmMsg = t:match("^/%a+%s+(%S+)%s+(.+)$")
 			if dmTarget and dmMsg then
 				local cmdName = (t:match("^/(%a+)%s+") or ""):lower()
@@ -3632,8 +4256,9 @@ originalIO.runNACHAT=function()
 
 		if clearBtn and chatScroll then
 			MouseButtonFix(clearBtn, function()
+				clearComposeMode()
 				conversationHistory[NAChat.activeConversation] = {}
-				renderConversation()
+				renderConversation(true)
 			end)
 		end
 
@@ -3665,6 +4290,16 @@ originalIO.runNACHAT=function()
 		if usersTab and MouseButtonFix then
 			MouseButtonFix(usersTab, function()
 				switchTab("users")
+			end)
+		end
+
+		if settingsBtn and MouseButtonFix then
+			styleChatTab(settingsBtn, false)
+			MouseButtonFix(settingsBtn, function()
+				if NAChat.activeTab ~= "chat" then
+					switchTab("chat")
+				end
+				toggleChatSettingsPopup()
 			end)
 		end
 
