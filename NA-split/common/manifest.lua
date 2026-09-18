@@ -1,5 +1,5 @@
 local meta = {
-	version = "20260918-nachat-presence";
+	version = "20260918-nachat-message-actions-ui-state";
 	count = 29;
 	directory = "common";
 	loader_version = "20260917-2d86c2904d562946";
@@ -7,7 +7,7 @@ local meta = {
 		["part-001.lua"] = "89a8f6e5a82d1290c8927bb353b10085dc4fefbc";
 		["part-002.lua"] = "7f034b13997f9535aeac1776847b86cab48526be";
 		["part-003.lua"] = "816cf0eec7a737258923c96fb7edd29829177ac0";
-		["part-004.lua"] = "9d9e9274b14e1235b893d4e955bbc90d196d518a";
+		["part-004.lua"] = "a426fdcc7a093696c8bbcc6318f77abed91c7dff";
 		["part-005.lua"] = "84b5bc6183312c637b17e00e6ca50d8464967c65";
 		["part-006.lua"] = "9b475c5d7a3ed2170f58c880b4189bf020d44447";
 		["part-007.lua"] = "4579a0fa92bb1342552c5a21a7d011f50f6a80ad";
@@ -22,7 +22,7 @@ local meta = {
 		["part-016.lua"] = "10d8b30116bd6375020d2ba98c9059bc89faed49";
 		["part-017.lua"] = "e296c9e88e60914d85d21fa547946d2c827254d4";
 		["part-018.lua"] = "ba7263ba338ce4dbed67f2accd90aeeee281e5c9";
-		["part-019.lua"] = "e69ea4fa1a11ced048e8eea75d68c6ccc354c6b6";
+		["part-019.lua"] = "7dd0dab57f18d8d1bb2e2fab27a269e265b2ca4f";
 		["part-020.lua"] = "8fd2e7d14b62a32068424eb7156abc0c15704e7a";
 		["part-021.lua"] = "20e9e8c9a06fafee053273b56c0721eee89f1408";
 		["part-022.lua"] = "7626927d27ae03c0db0bb6f41bae1b5ac8a8ec37";
@@ -32,7 +32,7 @@ local meta = {
 		["part-026.lua"] = "176476b74f9024406cbf3cf02cd76e3ef4175c3c";
 		["part-027.lua"] = "05a67660f1734a57a92fd06496966e6e62b253d3";
 		["part-028.lua"] = "39581f0f9679ba7b94ff2b64f7622ce69e4cd625";
-		["part-029.lua"] = "f0d5b841bb24627a0204d193feba7bbd05e6df02";
+		["part-029.lua"] = "09b0391aefe581de31b66ea686ce30fd983bc64c";
 	};
 }
 
