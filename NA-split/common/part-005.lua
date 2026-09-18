@@ -4348,18 +4348,18 @@ Admin={}
 CoreGui=Services.CoreGui;
 _na_env.NAadminsLol={
 	11761417; -- Main
-	530829101; --Viper
-	817571515; --Aimlock
-	1844177730; --glexinator
-	2624269701; --Akim
-	2502806181; --Main Alt
-	1594235217; --Purple
-	2845101018; --alt
+	530829101; -- Cosmella (Viper)
+	817571515; -- legshot (ghost)
+	1844177730; -- glexinator
+	2624269701; -- FoxoNoobton7 (akimkapro)
+	2502806181; -- Main Alt
+	1594235217; -- Purple
+	2845101018; -- alt
 	417995559; -- keepoo
-	2064312726;
-	9570736130;
-	137002724;
-	3572567805;
+	2064312726; -- cjsomook (Yukino)
+	9570736130; -- Alex
+	137002724; -- Ryan (femboy)
+	3572567805; -- Cronku (ladyboy)
 }
 
 NAStuff._ctrlLockKeys = NAStuff._ctrlLockKeys or "LeftShift,RightShift"
