@@ -641,6 +641,7 @@ originalIO.runNACHAT=function()
 	local visibilityBtn = NAUIMANAGER and NAUIMANAGER.NAchatVisibility
 	local gameActivityBtn = NAUIMANAGER and NAUIMANAGER.NAchatGameActivity
 	local dmNotifBtn = NAUIMANAGER and NAUIMANAGER.NAchatDmNotifyButton
+	local disconnectBtn = NAUIMANAGER and NAUIMANAGER.NAchatDisconnectButton
 
 	local function syncAdminFrameLayout()
 		if adminFrame and chatScroll then
@@ -727,6 +728,33 @@ originalIO.runNACHAT=function()
 		button.Text = enabled and onText or offText
 		button.TextSize = 12
 		ensureChatStroke(button, enabled and Color3.fromRGB(89, 210, 151) or Color3.fromRGB(83, 85, 105), enabled and 0.12 or 0.58)
+	end
+
+	local function isChatDisconnectedPreference()
+		if NAmanage and type(NAmanage.NASettingsGet) == "function" then
+			local ok, value = pcall(NAmanage.NASettingsGet, "naChatDisconnected")
+			if ok then
+				return value == true
+			end
+		end
+		return false
+	end
+
+	if not disconnectBtn and dmNotifBtn and dmNotifBtn.Parent then
+		local ok, clone = pcall(function() return dmNotifBtn:Clone() end)
+		if ok and clone then
+			disconnectBtn = clone
+			disconnectBtn.Name = "Disconnect"
+			disconnectBtn.LayoutOrder = (tonumber(dmNotifBtn.LayoutOrder) or 0) + 1
+			disconnectBtn.Parent = dmNotifBtn.Parent
+			if NAUIMANAGER then
+				NAUIMANAGER.NAchatDisconnectButton = disconnectBtn
+			end
+		end
+	end
+
+	local function refreshDisconnectButton()
+		styleChatToggle(disconnectBtn, isChatDisconnectedPreference(), "Disconnect  •  On", "Disconnect  •  Off")
 	end
 
 	if chatFrame then
@@ -1304,6 +1332,12 @@ originalIO.runNACHAT=function()
 
 		refreshStatus = function()
 			if not statusLabel then
+				return
+			end
+			if isChatDisconnectedPreference() then
+				baseStatusText = "NA Chat: Disconnected (disabled)"
+				baseStatusColor = STATUS_COLORS.info
+				updateStatusLabel()
 				return
 			end
 			local function applyStatus(text, color)
@@ -2399,6 +2433,7 @@ originalIO.runNACHAT=function()
 			styleChatToggle(dmNotifBtn, isDmNotifyEnabled(), "DM Notifications  •  On", "DM Notifications  •  Off")
 			local activityEnabled = _G.NAChatGameActivityEnabled and _G.NAChatGameActivityEnabled() or true
 			styleChatToggle(gameActivityBtn, activityEnabled, "Activity  •  On", "Activity  •  Off")
+			refreshDisconnectButton()
 
 			if chatScroll then
 				chatScroll.Visible = (tab == "chat")
@@ -2513,6 +2548,10 @@ originalIO.runNACHAT=function()
 		end
 
 		local function queueReconnect()
+			if isChatDisconnectedPreference() then
+				resetReconnectBackoff()
+				return
+			end
 			if reconnectAttempts >= #reconnectBackoff then
 				originalIO.setStatus("NA Chat: offline (auto-reconnect paused)", STATUS_COLORS.err)
 				if DoNotif then
@@ -3097,6 +3136,10 @@ originalIO.runNACHAT=function()
 					refreshStatus()
 					return
 				end
+				if isChatDisconnectedPreference() then
+					originalIO.setStatus("NA Chat: Disconnected (disabled)", STATUS_COLORS.info)
+					return
+				end
 				appendConversationMessage("public", "[NA Chat] Disconnected", STATUS_COLORS.err)
 				refreshStatus()
 				queueReconnect()
@@ -3144,13 +3187,19 @@ originalIO.runNACHAT=function()
 					end
 				end
 				refreshStatus()
-				if not bannedFromChat and not isMute then
+				if not bannedFromChat and not isMute and not isChatDisconnectedPreference() then
 					queueReconnect()
 				end
 			end)
 		end
 
 		connect = function()
+			if isChatDisconnectedPreference() then
+				NAChat.connecting = false
+				resetReconnectBackoff()
+				originalIO.setStatus("NA Chat: Disconnected (disabled)", STATUS_COLORS.info)
+				return
+			end
 			if permanentFailureReason then
 				NAChat.connecting = false
 				originalIO.setStatus("NA Chat unavailable", STATUS_COLORS.err)
@@ -3590,6 +3639,10 @@ originalIO.runNACHAT=function()
 
 		if reconnectBtn and MouseButtonFix then
 			MouseButtonFix(reconnectBtn, function()
+				if NAmanage and type(NAmanage.NASettingsSet) == "function" then
+					pcall(NAmanage.NASettingsSet, "naChatDisconnected", false)
+				end
+				refreshDisconnectButton()
 				local svc = NAChat.service
 				if svc and svc.Disconnect then
 					pcall(svc.Disconnect)
@@ -3612,6 +3665,33 @@ originalIO.runNACHAT=function()
 		if usersTab and MouseButtonFix then
 			MouseButtonFix(usersTab, function()
 				switchTab("users")
+			end)
+		end
+
+		if disconnectBtn then
+			refreshDisconnectButton()
+			MouseButtonFix(disconnectBtn, function()
+				local disabled = not isChatDisconnectedPreference()
+				if NAmanage and type(NAmanage.NASettingsSet) == "function" then
+					pcall(NAmanage.NASettingsSet, "naChatDisconnected", disabled)
+				end
+				refreshDisconnectButton()
+				resetReconnectBackoff()
+				if disabled then
+					local svc = NAChat.service
+					if svc and svc.Disconnect then
+						pcall(svc.Disconnect)
+					end
+					NAChat.users = {}
+					usersFetchInFlight = false
+					if usersScroll then
+						updateUsersList({})
+					end
+					originalIO.setStatus("NA Chat: Disconnected (disabled)", STATUS_COLORS.info)
+				else
+					NAChat.connecting = false
+					connect()
+				end
 			end)
 		end
 
@@ -3650,15 +3730,14 @@ originalIO.runNACHAT=function()
 					return NAChat.service
 				end)
 				local targetHidden = not enabled
-				local sent = false
-				if okSvc and svc and type(svc.SetActivityHidden) == "function" then
+				local connected = okSvc and svc and type(svc.IsConnected) == "function" and svc.IsConnected() == true
+				if connected and type(svc.SetActivityHidden) == "function" then
 					local okSet, result = pcall(svc.SetActivityHidden, targetHidden)
-					sent = okSet and result == true
-				end
-				if not sent then
-					NAmanage.NASettingsSet("naChatGameActivity", current)
-					refreshGameActivityButton()
-					originalIO.setStatus("NA Chat: activity update failed", STATUS_COLORS.err)
+					if not (okSet and result == true) then
+						originalIO.setStatus("NA Chat: activity preference saved; server update pending", STATUS_COLORS.info)
+					end
+				elseif not connected then
+					originalIO.setStatus("NA Chat: activity preference saved", STATUS_COLORS.info)
 				end
 
 				Defer(function()
@@ -3691,12 +3770,12 @@ originalIO.runNACHAT=function()
 
 		Spawn(function()
 			while true do
-				Wait(1)
+				Wait(5)
 
 				refreshStatus()
 
 				local svc = NAChat.service
-				if svc and svc.IsConnected and svc.IsConnected() and not isChatUiSuppressed() then
+				if NAChat.activeTab == "users" and svc and svc.IsConnected and svc.IsConnected() and not isChatUiSuppressed() then
 					requestUsersList()
 				end
 			end
@@ -4428,6 +4507,7 @@ originalIO.runNACHAT=function()
 		switchTab("chat")
 		originalIO.setHiddenState(initialHidden, true)
 		resetReconnectBackoff()
+		refreshDisconnectButton()
 		connect()
 	end
 end
