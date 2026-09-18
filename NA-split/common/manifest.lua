@@ -1,15 +1,15 @@
 local meta = {
-	version = "20260919-nachat-private-sandbox-debug";
+	version = "20260919-nachat-isolated-runtime";
 	count = 29;
 	directory = "common";
 	loader_version = "20260917-2d86c2904d562946";
 	parts = {
-		["part-001.lua"] = "89a8f6e5a82d1290c8927bb353b10085dc4fefbc";
+		["part-001.lua"] = "37f1755efd9d42ab518714182517ed502626d254";
 		["part-002.lua"] = "7f034b13997f9535aeac1776847b86cab48526be";
 		["part-003.lua"] = "816cf0eec7a737258923c96fb7edd29829177ac0";
 		["part-004.lua"] = "b1825cf1f45a8f7cb56034331bf50ec2a7cf0f96";
 		["part-005.lua"] = "4fd67e0c04dd61917ce2da2dae409aeb71765773";
-		["part-006.lua"] = "9b475c5d7a3ed2170f58c880b4189bf020d44447";
+		["part-006.lua"] = "964ad0dd4dcccbeefb862cca57b77f2dee1eabdd";
 		["part-007.lua"] = "4579a0fa92bb1342552c5a21a7d011f50f6a80ad";
 		["part-008.lua"] = "9edef30d6448396dde1e2f26ed59e52d27c4f736";
 		["part-009.lua"] = "744e4a690025634a48800c796fb4a315e8046c28";
@@ -32,7 +32,7 @@ local meta = {
 		["part-026.lua"] = "176476b74f9024406cbf3cf02cd76e3ef4175c3c";
 		["part-027.lua"] = "09effdaa660d5fd19ea8c067d66383dde8d295c8";
 		["part-028.lua"] = "39581f0f9679ba7b94ff2b64f7622ce69e4cd625";
-		["part-029.lua"] = "0c102b9e56a8dcd6fd25ed28248f06a1c31eb56e";
+		["part-029.lua"] = "9da78864735b1c8c9008e1f5c215c0414e12277a";
 	};
 }
 

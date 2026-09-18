@@ -573,21 +573,15 @@ cmd.add({"unloadspoofs","unspoofall"},{"unloadspoofs","Stops every spoof feature
 	NAmanage.Spoof_stop("Spoof state restored")
 end)
 
-do
-	local __NAChatHost = (type(getgenv) == "function" and getgenv()) or _G or {}
-	local __NAChatGlobal = _G
-	if type(__NAChatGlobal) == "table" and type(rawget(__NAChatGlobal, "NAChatGameActivityEnabled")) ~= "function" then
-		rawset(__NAChatGlobal, "NAChatGameActivityEnabled", function()
-			local enabled = true
-			if NAmanage and type(NAmanage.NASettingsEnsure) == "function" then
-				local ok, settings = pcall(NAmanage.NASettingsEnsure)
-				if ok and type(settings) == "table" and type(settings.naChatGameActivity) == "boolean" then
-					enabled = settings.naChatGameActivity
-				end
-			end
-			return enabled
-		end)
+NAmanage.NAChatGameActivityEnabled = function()
+	local enabled = true
+	if type(NAmanage.NASettingsEnsure) == "function" then
+		local ok, settings = pcall(NAmanage.NASettingsEnsure)
+		if ok and type(settings) == "table" and type(settings.naChatGameActivity) == "boolean" then
+			enabled = settings.naChatGameActivity
+		end
 	end
+	return enabled
 end
 
 do
@@ -753,7 +747,7 @@ originalIO.runNACHAT=function()
 	local Players = (Services and Services.Players) or (SafeGetService and SafeGetService("Players"))
 	local RunService = (Services and Services.RunService) or (SafeGetService and SafeGetService("RunService"))
 	if not Players then
-		warn("[NA Chat] Players service unavailable; chat startup skipped")
+		if DoNotif then DoNotif("NA Chat unavailable: Players service missing", 3) end
 		return
 	end
 	local chatFrame = NAUIMANAGER and NAUIMANAGER.NAchatFrame
@@ -924,6 +918,19 @@ originalIO.runNACHAT=function()
 			currentDMTarget = nil,
 			activeConversation = "public",
 			activeGroupId = nil,
+			debug = {
+				popup = nil,
+				scroll = nil,
+				logs = {},
+				max = 150,
+			},
+			config = {
+				integrationUrl = "https://raw.githubusercontent.com/ltseverydayyou/Open-Cheating-Network/refs/heads/main/Client/NewClient.luau",
+				serverUrl = "wss://sydney-nextel-heath-thriller.trycloudflare.com/axxum",
+				endpointConfigUrl = "https://raw.githubusercontent.com/ltseverydayyou/Open-Cheating-Network/refs/heads/main/Client/endpoint.txt",
+				endpointDiscovery = true,
+				adminKey = nil,
+			},
 		}
 		local conversationHistory = { public = {} }
 		local groupRecords = {}
@@ -1507,8 +1514,6 @@ originalIO.runNACHAT=function()
 			return withMarkup, wasMentioned
 		end
 
-		local __NAChatEnv = (type(getgenv) == "function" and getgenv()) or _G or {}
-		local INTEGRATION_URL = (type(__NAChatEnv) == "table" and rawget(__NAChatEnv, "NAChatIntegrationUrl")) or "https://raw.githubusercontent.com/ltseverydayyou/Open-Cheating-Network/refs/heads/main/Client/NewClient.luau"
 		local connect
 
 		originalIO.setStatus = function(t, c)
@@ -1586,10 +1591,6 @@ originalIO.runNACHAT=function()
 		local composeEditEntry = nil
 		local settingsPopup = nil
 		local settingsColorInput = nil
-		local debugPopup = nil
-		local debugScroll = nil
-		local debugLogs = {}
-		local MAX_DEBUG_LOGS = 150
 		local refreshRegularMessageColors
 
 		local function getSavedChatColorHex()
@@ -2202,17 +2203,18 @@ originalIO.runNACHAT=function()
 		end
 
 
-		local function refreshDebugLogs()
-			if not debugScroll or not debugScroll.Parent then
+		NAChat.debug.refresh = function()
+			local scroll = NAChat.debug.scroll
+			if not scroll or not scroll.Parent then
 				return
 			end
-			for _, child in debugScroll:GetChildren() do
+			for _, child in scroll:GetChildren() do
 				if child:IsA("TextLabel") then
 					child:Destroy()
 				end
 			end
-			for index, record in debugLogs do
-				local label = InstanceNew("TextLabel", debugScroll)
+			for index, record in NAChat.debug.logs do
+				local label = InstanceNew("TextLabel", scroll)
 				label.Name = "Log"..tostring(index)
 				label.BackgroundTransparency = 1
 				label.Size = UDim2.new(1, -12, 0, 18)
@@ -2231,32 +2233,36 @@ originalIO.runNACHAT=function()
 				label.ZIndex = 292
 			end
 			task.defer(function()
-				if debugScroll and debugScroll.Parent then
-					debugScroll.CanvasPosition = Vector2.new(0, math.max(0, debugScroll.AbsoluteCanvasSize.Y - debugScroll.AbsoluteWindowSize.Y))
+				local current = NAChat.debug.scroll
+				if current and current.Parent then
+					current.CanvasPosition = Vector2.new(0, math.max(0, current.AbsoluteCanvasSize.Y - current.AbsoluteWindowSize.Y))
 				end
 			end)
 		end
 
-		local function appendDebugLog(level, message, timestamp)
-			debugLogs[#debugLogs + 1] = {
+		NAChat.debug.append = function(level, message, timestamp)
+			local logs = NAChat.debug.logs
+			logs[#logs + 1] = {
 				level = tostring(level or "info"):lower(),
 				message = tostring(message or ""),
 				timestamp = tonumber(timestamp) or os.time(),
 			}
-			while #debugLogs > MAX_DEBUG_LOGS do
-				table.remove(debugLogs, 1)
+			while #logs > NAChat.debug.max do
+				table.remove(logs, 1)
 			end
-			if debugPopup and debugPopup.Visible then
-				refreshDebugLogs()
+			local popup = NAChat.debug.popup
+			if popup and popup.Visible then
+				NAChat.debug.refresh()
 			end
 		end
 
-		local function ensureDebugPopup()
-			if debugPopup and debugPopup.Parent then
-				return debugPopup
+		NAChat.debug.ensurePopup = function()
+			local existing = NAChat.debug.popup
+			if existing and existing.Parent then
+				return existing
 			end
 			local popup = InstanceNew("Frame", chatFrame)
-			debugPopup = popup
+			NAChat.debug.popup = popup
 			popup.Name = "NAChatDebugLogs"
 			popup.AnchorPoint = Vector2.new(1, 0)
 			popup.Position = UDim2.new(1, -10, 0, 82)
@@ -2308,7 +2314,7 @@ originalIO.runNACHAT=function()
 			closeCorner.CornerRadius = UDim.new(0, 6)
 
 			local scroll = InstanceNew("ScrollingFrame", popup)
-			debugScroll = scroll
+			NAChat.debug.scroll = scroll
 			scroll.Position = UDim2.new(0, 10, 0, 39)
 			scroll.Size = UDim2.new(1, -20, 1, -49)
 			scroll.BackgroundColor3 = CHAT_OFF
@@ -2330,24 +2336,24 @@ originalIO.runNACHAT=function()
 			layout.SortOrder = Enum.SortOrder.LayoutOrder
 
 			MouseButtonFix(clear, function()
-				table.clear(debugLogs)
-				refreshDebugLogs()
+				table.clear(NAChat.debug.logs)
+				NAChat.debug.refresh()
 			end)
 			MouseButtonFix(close, function()
 				popup.Visible = false
 			end)
-			refreshDebugLogs()
+			NAChat.debug.refresh()
 			return popup
 		end
 
-		local function toggleDebugPopup()
-			local popup = ensureDebugPopup()
+		NAChat.debug.toggle = function()
+			local popup = NAChat.debug.ensurePopup()
 			if not popup then
 				return
 			end
 			popup.Visible = not popup.Visible
 			if popup.Visible then
-				refreshDebugLogs()
+				NAChat.debug.refresh()
 			end
 		end
 
@@ -2501,7 +2507,7 @@ originalIO.runNACHAT=function()
 			debugButton.ZIndex = 281
 			local debugCorner = InstanceNew("UICorner", debugButton)
 			debugCorner.CornerRadius = UDim.new(0, 6)
-			MouseButtonFix(debugButton, toggleDebugPopup)
+			MouseButtonFix(debugButton, NAChat.debug.toggle)
 
 			local function refreshPreview()
 				local hex, color = parseColor(input.Text)
@@ -3556,14 +3562,7 @@ originalIO.runNACHAT=function()
 			styleChatTab(adminTab, tab == "admin")
 			styleChatTab(settingsBtn, false)
 			styleChatToggle(dmNotifBtn, isDmNotifyEnabled(), "DM Notifications  •  On", "DM Notifications  •  Off")
-			local activityEnabled = true
-			if type(_G.NAChatGameActivityEnabled) == "function" then
-				local okActivity, savedActivity = pcall(_G.NAChatGameActivityEnabled)
-				if okActivity and type(savedActivity) == "boolean" then
-					activityEnabled = savedActivity
-				end
-			end
-			styleChatToggle(gameActivityBtn, activityEnabled, "Activity  •  On", "Activity  •  Off")
+			styleChatToggle(gameActivityBtn, NAmanage.NAChatGameActivityEnabled(), "Activity  •  On", "Activity  •  Off")
 			refreshDisconnectButton()
 
 			if chatScroll then
@@ -3616,69 +3615,106 @@ originalIO.runNACHAT=function()
 		end
 
 		local function fetchIntegrationBody()
-			local body
-			local rq = request or http_request or (syn and syn.request) or opt.NAREQUEST
-
-			if type(rq) == "function" then
-				local ok, res = pcall(rq, {
-					Url = INTEGRATION_URL,
-					Method = "GET"
-				})
-				if ok and type(res) == "table" then
-					body = res.Body or res.body
-				end
+			if not (_na_boot and type(_na_boot.httpGet) == "function") then
+				return false, "NA HTTP unavailable"
 			end
-
-			if type(body) ~= "string" or body == "" then
-				local ok, fb = pcall(game.HttpGet, game, INTEGRATION_URL)
-				if ok and type(fb) == "string" and fb ~= "" then
-					body = fb
-				end
-			end
-
-			if type(body) == "string" and body ~= "" then
+			local ok, body = pcall(_na_boot.httpGet, NAChat.config.integrationUrl, {
+				maxAttempts = 3,
+				timeout = 5,
+			})
+			if ok and type(body) == "string" and body ~= "" then
 				return true, body
 			end
-
-			return false, "failed to fetch IntegrationService script"
+			return false, tostring(body or "failed to fetch IntegrationService script")
 		end
 
 		local function createIntegrationSandbox()
-			local hostEnv = _na_boot and _na_boot.hostEnv or nil
-			local runtimeEnv = _na_boot and _na_boot.runtimeEnv or nil
+			local hostEnv = _na_boot and _na_boot.hostEnv or {}
+			local runtimeEnv = _na_boot and _na_boot.runtimeEnv or {}
 			local sandbox = {}
 			local sandboxShared = {}
+			local capabilities = {
+				serviceResolver = __lt,
+			}
+
+			for _, name in {
+				"assert", "error", "next", "pairs", "ipairs", "pcall", "xpcall", "select",
+				"tonumber", "tostring", "type", "typeof", "unpack", "rawequal", "rawget", "rawset",
+				"setmetatable", "getmetatable", "wait", "spawn", "delay", "tick",
+				"math", "string", "table", "task", "coroutine", "os", "utf8", "bit32",
+				"Enum", "Instance", "Color3", "Vector2", "Vector3", "CFrame", "UDim", "UDim2",
+				"DateTime", "Random", "TweenInfo", "game", "workspace",
+			} do
+				local value = type(runtimeEnv) == "table" and runtimeEnv[name] or nil
+				if value ~= nil then
+					rawset(sandbox, name, value)
+				end
+			end
 
 			rawset(sandbox, "_G", sandbox)
 			rawset(sandbox, "shared", sandboxShared)
 			rawset(sandbox, "__NAServiceResolver", __lt)
 			rawset(sandbox, "ServiceResolver", __lt)
+			rawset(sandbox, "warn", function() end)
+			rawset(sandbox, "print", function() end)
 
-			local cloneRef = type(hostEnv) == "table" and rawget(hostEnv, "cloneref") or cloneref
+			local cloneRef = type(hostEnv) == "table" and rawget(hostEnv, "cloneref") or nil
 			if type(cloneRef) == "function" then
+				capabilities.cloneref = cloneRef
 				rawset(sandbox, "cloneref", cloneRef)
 			end
 
-			local activityFn = type(_G) == "table" and rawget(_G, "NAChatGameActivityEnabled") or nil
-			if type(activityFn) == "function" then
-				rawset(sandbox, "NAChatGameActivityEnabled", activityFn)
+			local requestFn = type(hostEnv) == "table" and (
+				rawget(hostEnv, "request")
+				or rawget(hostEnv, "http_request")
+				or rawget(hostEnv, "httprequest")
+			) or nil
+			local synApi = type(hostEnv) == "table" and rawget(hostEnv, "syn") or nil
+			local httpApi = type(hostEnv) == "table" and rawget(hostEnv, "http") or nil
+			if type(requestFn) ~= "function" and type(synApi) == "table" then
+				requestFn = synApi.request
+			end
+			if type(requestFn) ~= "function" and type(httpApi) == "table" then
+				requestFn = httpApi.request
+			end
+			if type(requestFn) == "function" then
+				capabilities.request = requestFn
+				rawset(sandbox, "request", requestFn)
+				rawset(sandbox, "http_request", requestFn)
+				rawset(sandbox, "httprequest", requestFn)
 			end
 
-			local adminKey = type(__NAChatEnv) == "table" and rawget(__NAChatEnv, "NAChatAdminKey") or nil
-			if type(adminKey) == "string" and adminKey ~= "" then
-				rawset(sandbox, "NAChatAdminKey", adminKey)
+			local websocketApi = type(hostEnv) == "table" and (
+				rawget(hostEnv, "WebSocket")
+				or rawget(hostEnv, "websocket")
+			) or nil
+			if websocketApi == nil and type(synApi) == "table" then
+				websocketApi = synApi.websocket or synApi.WebSocket
+			end
+			if websocketApi == nil and type(httpApi) == "table" then
+				websocketApi = httpApi.websocket or httpApi.WebSocket
+			end
+			if websocketApi == nil and type(hostEnv) == "table" then
+				local solaraApi = rawget(hostEnv, "solara")
+				if type(solaraApi) == "table" then
+					websocketApi = solaraApi.websocket or solaraApi.WebSocket
+				end
+			end
+			if websocketApi ~= nil then
+				capabilities.websocket = websocketApi
+				rawset(sandbox, "WebSocket", websocketApi)
+				rawset(sandbox, "websocket", websocketApi)
 			end
 
+			rawset(sandbox, "__NAChatCapabilities", capabilities)
 			rawset(sandbox, "getgenv", function()
 				return sandbox
 			end)
-
 			rawset(sandbox, "getfenv", function()
 				return sandbox
 			end)
-
 			rawset(sandbox, "setfenv", function(fn)
-				local setter = _na_boot and _na_boot.hostSetfenv or setfenv
+				local setter = _na_boot and _na_boot.hostSetfenv or nil
 				if type(setter) == "function" and type(fn) == "function" then
 					local okSet, result = pcall(setter, fn, sandbox)
 					if okSet then
@@ -3687,22 +3723,6 @@ originalIO.runNACHAT=function()
 				end
 				return fn
 			end)
-
-			setmetatable(sandbox, {
-				__index = function(_, key)
-					if type(runtimeEnv) == "table" then
-						local value = runtimeEnv[key]
-						if value ~= nil then
-							return value
-						end
-					end
-					if type(hostEnv) == "table" then
-						return hostEnv[key]
-					end
-					return nil
-				end,
-				__newindex = rawset,
-			})
 
 			return sandbox
 		end
@@ -3738,7 +3758,7 @@ originalIO.runNACHAT=function()
 			end
 
 			if not okLoad then
-				warn("[NA Chat] private IntegrationService load failed: "..tostring(res))
+				NAChat.debug.append("error", "private IntegrationService load failed: "..tostring(res))
 			end
 			originalIO.setStatus("NA Chat unavailable", STATUS_COLORS.err)
 			return false
@@ -4439,7 +4459,7 @@ originalIO.runNACHAT=function()
 
 			if NAChat.service.OnDebugLog then
 				NAChat.service.OnDebugLog.Event:Connect(function(level, message, timestamp)
-					appendDebugLog(level, message, timestamp)
+					NAChat.debug.append(level, message, timestamp)
 				end)
 			end
 
@@ -4520,7 +4540,7 @@ originalIO.runNACHAT=function()
 				if not wireOk then
 					NAChat.wired = false
 					NAChat.connecting = false
-					warn("[NA Chat] event wiring failed: "..tostring(wireErr))
+					NAChat.debug.append("error", "event wiring failed: "..tostring(wireErr))
 					originalIO.setStatus("NA Chat: UI wiring failed", STATUS_COLORS.err)
 					queueReconnect()
 					return
@@ -4529,14 +4549,16 @@ originalIO.runNACHAT=function()
 				local okInit, initErr = true, nil
 				if NAChat.service and NAChat.service.Init then
 					local initCallOk, initResult, initMessage = pcall(NAChat.service.Init, {
-						serverUrl = (type(__NAChatEnv) == "table" and rawget(__NAChatEnv, "NAChatServerUrl")) or "wss://sydney-nextel-heath-thriller.trycloudflare.com/axxum",
-						endpointConfigUrl = (type(__NAChatEnv) == "table" and rawget(__NAChatEnv, "NAChatEndpointConfigUrl")) or "https://raw.githubusercontent.com/ltseverydayyou/Open-Cheating-Network/refs/heads/main/Client/endpoint.txt",
-						endpointDiscovery = not (type(__NAChatEnv) == "table" and rawget(__NAChatEnv, "NAChatServerUrl")),
+						serverUrl = NAChat.config.serverUrl,
+						endpointConfigUrl = NAChat.config.endpointConfigUrl,
+						endpointDiscovery = NAChat.config.endpointDiscovery == true,
 						endpointRefreshInterval = 15,
 						heartbeatInterval = 10,
 						reconnectDelay = 6,
 						autoReconnect = false,
 						hidden = NAChat.isHidden,
+						activityHidden = not NAmanage.NAChatGameActivityEnabled(),
+						adminKey = NAChat.config.adminKey,
 						chatColor = getSavedChatColorHex()
 					})
 					if initCallOk then
@@ -4895,7 +4917,7 @@ originalIO.runNACHAT=function()
 			local gameActivityDebounce = false
 
 			local function refreshGameActivityButton()
-				local enabled = _G.NAChatGameActivityEnabled()
+				local enabled = NAmanage.NAChatGameActivityEnabled()
 				styleChatToggle(gameActivityBtn, enabled, "Activity  •  On", "Activity  •  Off")
 			end
 

@@ -1179,6 +1179,7 @@ NAmanage.Unload = function(opts)
 			_na_boot.privateRoot.naRuns = nil
 			_na_boot.privateRoot.naSourceTags = nil
 			_na_boot.privateRoot.serviceResolver = nil
+			_na_boot.privateRoot.serviceResolverPrivate = nil
 			_na_boot.privateRoot.uiProtector = nil
 		end
 		if rawget(_na_boot.privateRoot, "testing") == _na_env then

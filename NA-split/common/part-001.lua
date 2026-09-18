@@ -843,7 +843,7 @@ _na_boot.prefetchBootstrapRemotes()
 
 __lt = (function()
 	const cached = rawget(_na_boot.privateRoot, "serviceResolver");
-	if type(cached) == "table" then
+	if type(cached) == "table" and rawget(_na_boot.privateRoot, "serviceResolverPrivate") == true then
 		return cached;
 	end;
 	const loader = loadstring or load;
@@ -854,11 +854,41 @@ __lt = (function()
 	if type(resolver) ~= "function" then
 		error("Service resolver failed to compile");
 	end;
+	const resolverEnv = {};
+	resolverEnv._G = resolverEnv;
+	resolverEnv.shared = _na_shared;
+	resolverEnv.getgenv = function()
+		return resolverEnv;
+	end;
+	resolverEnv.getfenv = function()
+		return resolverEnv;
+	end;
+	resolverEnv.setfenv = function(fn)
+		if type(_na_boot.hostSetfenv) == "function" and type(fn) == "function" then
+			local okSet, result = pcall(_na_boot.hostSetfenv, fn, resolverEnv);
+			if okSet then
+				return result or fn;
+			end;
+		end;
+		return fn;
+	end;
+	setmetatable(resolverEnv, {
+		__index = _na_boot.runtimeEnv;
+		__newindex = rawset;
+	});
+	if type(_na_boot.hostSetfenv) ~= "function" then
+		error("Service resolver private environment unavailable");
+	end;
+	local okResolverEnv, resolverEnvErr = pcall(_na_boot.hostSetfenv, resolver, resolverEnv);
+	if not okResolverEnv then
+		error("Service resolver sandbox failed: "..tostring(resolverEnvErr));
+	end;
 	const loaded = resolver();
 	if type(loaded) ~= "table" then
 		error("Service resolver failed to load");
 	end;
 	_na_boot.privateRoot.serviceResolver = loaded;
+	_na_boot.privateRoot.serviceResolverPrivate = true;
 	return loaded;
 end)();
 
