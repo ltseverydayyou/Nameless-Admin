@@ -2867,7 +2867,7 @@ NAmanage.HttpDelayForAttempt = NAmanage.HttpDelayForAttempt or function(attempt,
 end
 
 NAmanage.GetExecutorRequest = NAmanage.GetExecutorRequest or function()
-	const host = (getgenv and getgenv()) or _G or {}
+	const host = type(_na_boot) == "table" and type(_na_boot.hostEnv) == "table" and _na_boot.hostEnv or {}
 	const candidates = {
 		type(request) == "function" and request or nil,
 		type(http_request) == "function" and http_request or nil,
@@ -4945,7 +4945,7 @@ end
 NAmanage.GetExternalLagProbe = NAmanage.GetExternalLagProbe or function()
 	local probe = nil
 	pcall(function()
-		const genv = getgenv and getgenv() or nil
+		const genv = type(_na_boot) == "table" and type(_na_boot.hostEnv) == "table" and _na_boot.hostEnv or nil
 		if type(genv) == "table" then
 			probe = rawget(genv, "__CodexLagProbe")
 		end

@@ -5193,7 +5193,7 @@ cmd.add({"backpack"},{"backpack","provides a custom backpack gui"},function()
 end)
 
 cmd.add({"unloadbackpack","unbackpack"},{"unloadbackpack (unbackpack)","unloads the custom backpack gui"},function()
-	local env = (getgenv and getgenv()) or _G
+	local env = type(_na_boot) == "table" and type(_na_boot.hostEnv) == "table" and _na_boot.hostEnv or nil
 	local unload = type(env) == "table" and rawget(env, "__NA_MobileBackpackUnload") or nil
 	if type(unload) ~= "function" then
 		DoNotif("Custom backpack is not loaded.", 2)

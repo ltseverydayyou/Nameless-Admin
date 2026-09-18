@@ -49,7 +49,7 @@ _na_boot.runtimeEnv._na_shared = _na_shared
 _na_boot.runtimeEnv.shared = _na_shared
 _na_boot.runtimeEnv._G = _na_boot.runtimeEnv
 _na_boot.runtimeEnv.getgenv = function()
-	return _na_boot.hostEnv
+	return _na_boot.runtimeEnv
 end
 
 do
