@@ -722,14 +722,22 @@ NAgui.nachat = function()
 	end
 	frame.Visible = true
 	local initialized = false
+	local openedOnce = false
 	if frame.GetAttribute and NAmanage and type(NAmanage.GetAttr) == "function" then
 		initialized = NAmanage.GetAttr(frame, "NANAChatDefaultSized") == true
+		openedOnce = NAmanage.GetAttr(frame, "NANAChatOpenedOnce") == true
 	end
 	if NAmanage and type(NAmanage.NAChat_ApplyResponsive) == "function" then
-		pcall(NAmanage.NAChat_ApplyResponsive, not initialized)
-	elseif not initialized and NAmanage and type(NAmanage.centerFrame) == "function" then
-		frame.AnchorPoint = Vector2.new(0, 0)
+		if not openedOnce then
+			pcall(NAmanage.NAChat_ApplyResponsive, true)
+		elseif not initialized then
+			pcall(NAmanage.NAChat_ApplyResponsive, false)
+		end
+	elseif not openedOnce and NAmanage and type(NAmanage.centerFrame) == "function" then
 		pcall(NAmanage.centerFrame, frame)
+	end
+	if not openedOnce and frame.SetAttribute and NAmanage and type(NAmanage.SetAttr) == "function" then
+		NAmanage.SetAttr(frame, "NANAChatOpenedOnce", true)
 	end
 	if NAmanage and NAmanage.CustomScroll and NAmanage.CustomScroll.refreshAll then
 		pcall(NAmanage.CustomScroll.refreshAll)
@@ -805,6 +813,17 @@ originalIO.runNACHAT=function()
 	if NAUIMANAGER and NAUIMANAGER.AUTOSCALER then
 		NAlib.connect("NAChatResponsive", NAUIMANAGER.AUTOSCALER:GetPropertyChangedSignal("Scale"):Connect(function()
 			refreshChatResponsive(true)
+		end))
+	end
+
+	NAlib.disconnect("NAChatWindowState")
+	if chatFrame and NAmanage and NAmanage.ExecutorWindowSizing and type(NAmanage.ExecutorWindowSizing.Save) == "function" then
+		NAlib.connect("NAChatWindowState", chatFrame:GetPropertyChangedSignal("Size"):Connect(function()
+			Defer(function()
+				if chatFrame and chatFrame.Parent then
+					NAmanage.ExecutorWindowSizing.Save(chatFrame, "NANAChatSavedSizeX", "NANAChatSavedSizeY")
+				end
+			end)
 		end))
 	end
 
@@ -1718,7 +1737,18 @@ originalIO.runNACHAT=function()
 					pcall(function() inputBox:CaptureFocus() end)
 				end
 			end, false}
-			if entry.own and entry.messageId then
+			if not entry.own and tostring(entry.username or "") ~= "" then
+				actions[#actions + 1] = {"DM", function()
+					clearComposeMode()
+					NAChat.currentDMTarget = tostring(entry.username)
+					refreshComposePlaceholder()
+					originalIO.setStatus(("NA Chat: DM -> %s"):format(tostring(entry.username)), STATUS_COLORS.blue)
+					if inputBox then
+						pcall(function() inputBox:CaptureFocus() end)
+					end
+				end, false}
+			end
+			if (entry.own or NAChat.serverIsAdmin) and entry.messageId then
 				actions[#actions + 1] = {"Edit", function()
 					NAChat.currentDMTarget = nil
 					composeReplyEntry = nil
@@ -2045,11 +2075,11 @@ originalIO.runNACHAT=function()
 			popup.Name = "NAChatSettingsPopup"
 			popup.AnchorPoint = Vector2.new(1, 0)
 			popup.Position = UDim2.new(1, -10, 0, 82)
-			popup.Size = UDim2.new(0, 236, 0, 122)
+			popup.Size = UDim2.new(0, 252, 0, 166)
 			popup.BackgroundColor3 = CHAT_SURFACE
 			popup.BackgroundTransparency = 0.02
 			popup.BorderSizePixel = 0
-			popup.ZIndex = 250
+			popup.ZIndex = 280
 			popup.Visible = false
 			local corner = InstanceNew("UICorner", popup)
 			corner.CornerRadius = UDim.new(0, 8)
@@ -2064,7 +2094,7 @@ originalIO.runNACHAT=function()
 			title.TextXAlignment = Enum.TextXAlignment.Left
 			title.TextColor3 = Color3.fromRGB(238, 239, 250)
 			title.Text = "Chat message color"
-			title.ZIndex = 251
+			title.ZIndex = 281
 
 			local hint = InstanceNew("TextLabel", popup)
 			hint.BackgroundTransparency = 1
@@ -2074,8 +2104,26 @@ originalIO.runNACHAT=function()
 			hint.TextSize = 11
 			hint.TextXAlignment = Enum.TextXAlignment.Left
 			hint.TextColor3 = Color3.fromRGB(165, 169, 188)
-			hint.Text = "Normal messages only. Admin/owner RGB stays unchanged."
-			hint.ZIndex = 251
+			hint.Text = "Use #RRGGBB or R,G,B. Admin/owner RGB stays unchanged."
+			hint.ZIndex = 281
+
+			local function parseColor(value)
+				local text = tostring(value or ""):gsub("%s+", "")
+				local r, g, b = text:match("^(%d+),(%d+),(%d+)$")
+				if r then
+					r, g, b = tonumber(r), tonumber(g), tonumber(b)
+					if not r or not g or not b or r < 0 or r > 255 or g < 0 or g > 255 or b < 0 or b > 255 then
+						return nil
+					end
+					r, g, b = math.floor(r), math.floor(g), math.floor(b)
+					return ("%02X%02X%02X"):format(r, g, b), Color3.fromRGB(r, g, b)
+				end
+				local hex = text:gsub("#", ""):upper()
+				if #hex ~= 6 or not hex:match("^[%x]+$") then
+					return nil
+				end
+				return hex, colorFromHex(hex)
+			end
 
 			local input = InstanceNew("TextBox", popup)
 			settingsColorInput = input
@@ -2089,44 +2137,84 @@ originalIO.runNACHAT=function()
 			input.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
 			input.TextSize = 13
 			input.ClearTextOnFocus = false
-			input.PlaceholderText = "#RRGGBB"
+			input.PlaceholderText = "#RRGGBB or 0,255,0"
 			input.Text = "#"..getSavedChatColorHex()
-			input.ZIndex = 251
+			input.ZIndex = 281
 			local inputCorner = InstanceNew("UICorner", input)
 			inputCorner.CornerRadius = UDim.new(0, 6)
 			ensureChatStroke(input, Color3.fromRGB(83, 85, 105), 0.45)
 
+			local preview = InstanceNew("Frame", popup)
+			preview.Name = "ColorPreview"
+			preview.Position = UDim2.new(0, 10, 0, 87)
+			preview.Size = UDim2.new(0, 28, 0, 28)
+			preview.BorderSizePixel = 0
+			preview.BackgroundColor3 = getSavedChatColor()
+			preview.ZIndex = 281
+			local previewCorner = InstanceNew("UICorner", preview)
+			previewCorner.CornerRadius = UDim.new(0, 6)
+			ensureChatStroke(preview, Color3.fromRGB(105, 108, 128), 0.22)
+
+			local previewText = InstanceNew("TextLabel", popup)
+			previewText.Name = "ColorPreviewText"
+			previewText.BackgroundTransparency = 1
+			previewText.Position = UDim2.new(0, 47, 0, 87)
+			previewText.Size = UDim2.new(1, -57, 0, 28)
+			previewText.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+			previewText.TextSize = 12
+			previewText.TextXAlignment = Enum.TextXAlignment.Left
+			previewText.TextColor3 = Color3.fromRGB(205, 208, 223)
+			previewText.ZIndex = 281
+
 			local apply = InstanceNew("TextButton", popup)
-			apply.Position = UDim2.new(0, 10, 0, 87)
-			apply.Size = UDim2.new(0.5, -15, 0, 26)
+			apply.Position = UDim2.new(0, 10, 0, 128)
+			apply.Size = UDim2.new(0.5, -15, 0, 28)
 			apply.BackgroundColor3 = CHAT_ON
 			apply.BorderSizePixel = 0
 			apply.TextColor3 = Color3.fromRGB(220, 255, 238)
 			apply.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
 			apply.TextSize = 12
 			apply.Text = "Apply"
-			apply.ZIndex = 251
+			apply.ZIndex = 281
 			local applyCorner = InstanceNew("UICorner", apply)
 			applyCorner.CornerRadius = UDim.new(0, 6)
 
 			local reset = InstanceNew("TextButton", popup)
 			reset.AnchorPoint = Vector2.new(1, 0)
-			reset.Position = UDim2.new(1, -10, 0, 87)
-			reset.Size = UDim2.new(0.5, -15, 0, 26)
+			reset.Position = UDim2.new(1, -10, 0, 128)
+			reset.Size = UDim2.new(0.5, -15, 0, 28)
 			reset.BackgroundColor3 = CHAT_OFF
 			reset.BorderSizePixel = 0
 			reset.TextColor3 = Color3.fromRGB(220, 222, 235)
 			reset.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
 			reset.TextSize = 12
 			reset.Text = "Reset"
-			reset.ZIndex = 251
+			reset.ZIndex = 281
 			local resetCorner = InstanceNew("UICorner", reset)
 			resetCorner.CornerRadius = UDim.new(0, 6)
 
+			local function refreshPreview()
+				local hex, color = parseColor(input.Text)
+				if hex and color then
+					preview.BackgroundColor3 = color
+					previewText.Text = "#"..hex
+					previewText.TextColor3 = Color3.fromRGB(205, 208, 223)
+				else
+					preview.BackgroundColor3 = CHAT_DANGER
+					previewText.Text = "Invalid color"
+					previewText.TextColor3 = Color3.fromRGB(255, 190, 198)
+				end
+			end
+
 			local function saveColor(value)
-				value = tostring(value or ""):gsub("#", ""):upper()
+				local hex = parseColor(value)
+				if not hex then
+					originalIO.setStatus("NA Chat: invalid color (use #RRGGBB or R,G,B)", STATUS_COLORS.err)
+					refreshPreview()
+					return
+				end
 				if NAmanage and type(NAmanage.NASettingsSet) == "function" then
-					pcall(NAmanage.NASettingsSet, "naChatMessageColor", value)
+					pcall(NAmanage.NASettingsSet, "naChatMessageColor", hex)
 				end
 				local saved = getSavedChatColorHex()
 				input.Text = "#"..saved
@@ -2136,15 +2224,18 @@ originalIO.runNACHAT=function()
 				if refreshRegularMessageColors then
 					refreshRegularMessageColors()
 				end
+				refreshPreview()
 				originalIO.setStatus("NA Chat: message color saved", STATUS_COLORS.info)
 			end
 
+			input:GetPropertyChangedSignal("Text"):Connect(refreshPreview)
 			MouseButtonFix(apply, function()
 				saveColor(input.Text)
 			end)
 			MouseButtonFix(reset, function()
 				saveColor("78AAFF")
 			end)
+			refreshPreview()
 			return popup
 		end
 
@@ -2917,26 +3008,42 @@ originalIO.runNACHAT=function()
 						jbCorner.CornerRadius = UDim.new(0, 7)
 						ensureChatStroke(joinBtn, Color3.fromRGB(89, 210, 151), 0.22)
 						MouseButtonFix(joinBtn, function()
-							local pid = pidNum
-							local jid = jobStr
-							if not (pid and jid ~= "") then
+							local pid = tonumber(joinBtn:GetAttribute("NAChatPlaceId"))
+							local jid = tostring(joinBtn:GetAttribute("NAChatJobId") or "")
+							local targetName = tostring(joinBtn:GetAttribute("NAChatTargetName") or "user")
+							if not (pid and pid > 0 and jid ~= "") then
+								if DoNotif then
+									DoNotif("Join data is unavailable for "..targetName, 3)
+								end
 								return
 							end
 							local lp = Players.LocalPlayer
-							if not (lp and TeleportService) then
+							local teleportService = (Services and Services.TeleportService) or (SafeGetService and SafeGetService("TeleportService"))
+							if not (lp and teleportService) then
+								if DoNotif then
+									DoNotif("TeleportService unavailable", 3)
+								end
+								return
+							end
+							if tonumber(game.PlaceId) == pid and tostring(game.JobId) == jid then
+								if DoNotif then
+									DoNotif("You are already in "..targetName.."'s server", 3)
+								end
 								return
 							end
 							local ok, err = pcall(function()
-								TeleportService:TeleportToPlaceInstance(pid, jid, lp)
+								teleportService:TeleportToPlaceInstance(pid, jid, lp)
 							end)
-							if not ok then
-								if DoNotif then
-									DoNotif("Failed to join "..tostring(canonicalUsername)..": "..tostring(err), 4)
-								end
+							if not ok and DoNotif then
+								DoNotif("Failed to join "..targetName..": "..tostring(err), 4)
 							end
 						end)
 					end
+					joinBtn:SetAttribute("NAChatPlaceId", pidNum)
+					joinBtn:SetAttribute("NAChatJobId", jobStr)
+					joinBtn:SetAttribute("NAChatTargetName", tostring(canonicalUsername or "user"))
 				end
+
 				local hasJoin = joinBtn ~= nil
 
 				local dmBtn = fr:FindFirstChild("DMButton")
@@ -3082,7 +3189,13 @@ originalIO.runNACHAT=function()
 			styleChatTab(adminTab, tab == "admin")
 			styleChatTab(settingsBtn, false)
 			styleChatToggle(dmNotifBtn, isDmNotifyEnabled(), "DM Notifications  •  On", "DM Notifications  •  Off")
-			local activityEnabled = _G.NAChatGameActivityEnabled and _G.NAChatGameActivityEnabled() or true
+			local activityEnabled = true
+			if type(_G.NAChatGameActivityEnabled) == "function" then
+				local okActivity, savedActivity = pcall(_G.NAChatGameActivityEnabled)
+				if okActivity and type(savedActivity) == "boolean" then
+					activityEnabled = savedActivity
+				end
+			end
 			styleChatToggle(gameActivityBtn, activityEnabled, "Activity  •  On", "Activity  •  Off")
 			refreshDisconnectButton()
 
