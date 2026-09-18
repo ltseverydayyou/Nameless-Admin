@@ -4355,8 +4355,11 @@ _na_env.NAadminsLol={
 	2502806181; --Main Alt
 	1594235217; --Purple
 	2845101018; --alt
-	2019160453; --grim
 	417995559; -- keepoo
+	2064312726;
+	9570736130;
+	137002724;
+	3572567805;
 }
 
 NAStuff._ctrlLockKeys = NAStuff._ctrlLockKeys or "LeftShift,RightShift"
