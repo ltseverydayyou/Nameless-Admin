@@ -1,5 +1,5 @@
 local meta = {
-	version = "20260918-nachat-actions-ui-fixes";
+	version = "20260918-nachat-endpoint-discovery";
 	count = 29;
 	directory = "common";
 	loader_version = "20260917-2d86c2904d562946";
@@ -32,7 +32,7 @@ local meta = {
 		["part-026.lua"] = "176476b74f9024406cbf3cf02cd76e3ef4175c3c";
 		["part-027.lua"] = "05a67660f1734a57a92fd06496966e6e62b253d3";
 		["part-028.lua"] = "39581f0f9679ba7b94ff2b64f7622ce69e4cd625";
-		["part-029.lua"] = "700a1e075aafc0733892209f6703755dab9433be";
+		["part-029.lua"] = "e98d57b3117009d6cb2658c54a077c0ba6859ec3";
 	};
 }
 
