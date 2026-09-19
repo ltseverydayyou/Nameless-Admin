@@ -443,7 +443,7 @@ NAgui.addInput("Spoofed Client ID", "Custom RbxAnalyticsService Client ID", tost
 		save = true;
 	})
 end)
-NAgui.addInfo("Client ID Spoof Warning", "Spoof Client ID uses hookfunction on both RbxAnalyticsService:GetClientId() and Roblox's __namecall path so normal :GetClientId() calls are covered. These hooks may be detectable by games or anti-cheat systems.")
+NAgui.addInfo("Client ID Spoof Warning", "Spoof Client ID hooks only RbxAnalyticsService:GetClientId(). The targeted hook may still be detectable by games or anti-cheat systems.")
 
 NAgui.addToggle("Syn env", NAStuff.SynEnvEnabled == true, function(v)
 	pcall(NAmanage.SetSynEnv, v == true, {
