@@ -5646,6 +5646,44 @@ NAmanage.NASettingsGetSchema=function()
 				return "78AAFF"
 			end;
 		};
+		naChatMessageColor2 = {
+			default = "";
+			coerce = function(value)
+				local text = tostring(value or ""):gsub("#", ""):upper()
+				if text == "" then
+					return ""
+				end
+				if #text == 6 and text:match("^[%x]+$") then
+					return text
+				end
+				return ""
+			end;
+		};
+		naChatShowTimestamps = {
+			default = false;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
+			end;
+		};
+		naChatCompactMessages = {
+			default = false;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
+			end;
+		};
+		naChatShowSystemMessages = {
+			default = true;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
+			end;
+		};
+		naChatMessageTextSize = {
+			default = 14;
+			coerce = function(value)
+				local n = tonumber(value) or 14
+				return math.clamp(math.floor(n + 0.5), 11, 20)
+			end;
+		};
 	}
 
 	return NAStuff.NASettingsSchema
