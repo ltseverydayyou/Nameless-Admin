@@ -1,5 +1,5 @@
 local meta = {
-	version = "20260919-nachat-registerfix";
+	version = "20260919-nachat-settingsfix";
 	count = 29;
 	directory = "common";
 	loader_version = "20260917-2d86c2904d562946";
@@ -7,7 +7,7 @@ local meta = {
 		["part-001.lua"] = "89a8f6e5a82d1290c8927bb353b10085dc4fefbc";
 		["part-002.lua"] = "7f034b13997f9535aeac1776847b86cab48526be";
 		["part-003.lua"] = "816cf0eec7a737258923c96fb7edd29829177ac0";
-		["part-004.lua"] = "b1825cf1f45a8f7cb56034331bf50ec2a7cf0f96";
+		["part-004.lua"] = "c899b099f37ffc89ed816fcf464c9c00f9633454";
 		["part-005.lua"] = "4fd67e0c04dd61917ce2da2dae409aeb71765773";
 		["part-006.lua"] = "9b475c5d7a3ed2170f58c880b4189bf020d44447";
 		["part-007.lua"] = "4579a0fa92bb1342552c5a21a7d011f50f6a80ad";
