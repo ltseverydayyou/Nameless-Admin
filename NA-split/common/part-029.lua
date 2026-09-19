@@ -3974,19 +3974,23 @@ originalIO.runNACHAT=function()
 			local okLoad, res = pcall(function()
 				local chunk, err = loadstring(payload)
 				assert(chunk, err or "loadstring failed")
-				local resolver = type(__lt) == "table" and __lt or nil
-				local cloneRef = type(cloneref) == "function" and cloneref or nil
-				return chunk({
-					serviceResolver = resolver,
-					cloneref = cloneRef,
-				})
+				return chunk()
 			end)
 
 			if okLoad and type(res) == "table" then
+				local resolver = type(__lt) == "table" and __lt or nil
+				local cloneRef = type(cloneref) == "function" and cloneref or nil
+				if type(res.SetServiceResolver) == "function" and resolver then
+					local okInject, injectErr = pcall(res.SetServiceResolver, resolver, cloneRef)
+					if not okInject then
+						warn("[NA Chat] ServiceResolver injection failed: "..tostring(injectErr))
+					end
+				end
 				NAChat.service = res
 				return true
 			end
 
+			warn("[NA Chat] IntegrationService load failed: "..tostring(res))
 			originalIO.setStatus("NA Chat unavailable", STATUS_COLORS.err)
 			return false
 		end
