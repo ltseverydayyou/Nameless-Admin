@@ -1608,6 +1608,13 @@ originalIO.runNACHAT=function()
 			end
 		end
 
+		NAStuff.NAChatRuntime = type(NAStuff.NAChatRuntime) == "table" and NAStuff.NAChatRuntime or {}
+		NAStuff.NAChatRuntime.SettingsColor2Input = nil
+		NAStuff.NAChatRuntime.VirtualQueued = false
+		NAStuff.NAChatRuntime.VirtualForceBottom = false
+		NAStuff.NAChatRuntime.VirtualGeneration = 0
+		NAStuff.NAChatRuntime.RowGap = 6
+
 		local chatMessageOrder = 0
 		local MAX_CHAT_HISTORY = 500
 		local renderedConversation = "public"
@@ -1619,16 +1626,9 @@ originalIO.runNACHAT=function()
 		local composeEditEntry = nil
 		local settingsPopup = nil
 		local settingsColorInput = nil
-		local settingsColor2Input = nil
 		local refreshRegularMessageColors
-		local queueChatVirtualRefresh
-		local invalidateChatVirtualHeights
-		local chatVirtualQueued = false
-		local chatVirtualForceBottom = false
-		local chatVirtualGeneration = 0
-		local chatRowGap = 6
 
-		local function getChatSetting(key, defaultValue)
+		NAmanage.NAChat_GetSetting = function(key, defaultValue)
 			if NAmanage and type(NAmanage.NASettingsGet) == "function" then
 				local ok, value = pcall(NAmanage.NASettingsGet, key)
 				if ok and value ~= nil then
@@ -1638,26 +1638,26 @@ originalIO.runNACHAT=function()
 			return defaultValue
 		end
 
-		local function setChatSetting(key, value)
+		NAmanage.NAChat_SetSetting = function(key, value)
 			if NAmanage and type(NAmanage.NASettingsSet) == "function" then
 				pcall(NAmanage.NASettingsSet, key, value)
 			end
 		end
 
-		local function getChatMessageTextSize()
-			return math.clamp(math.floor((tonumber(getChatSetting("naChatMessageTextSize", 14)) or 14) + 0.5), 11, 20)
+		NAmanage.NAChat_GetMessageTextSize = function()
+			return math.clamp(math.floor((tonumber(NAmanage.NAChat_GetSetting("naChatMessageTextSize", 14)) or 14) + 0.5), 11, 20)
 		end
 
-		local function getChatCompactMessages()
-			return getChatSetting("naChatCompactMessages", false) == true
+		NAmanage.NAChat_GetCompactMessages = function()
+			return NAmanage.NAChat_GetSetting("naChatCompactMessages", false) == true
 		end
 
-		local function getChatShowTimestamps()
-			return getChatSetting("naChatShowTimestamps", false) == true
+		NAmanage.NAChat_GetShowTimestamps = function()
+			return NAmanage.NAChat_GetSetting("naChatShowTimestamps", false) == true
 		end
 
-		local function getChatShowSystemMessages()
-			return getChatSetting("naChatShowSystemMessages", true) ~= false
+		NAmanage.NAChat_GetShowSystemMessages = function()
+			return NAmanage.NAChat_GetSetting("naChatShowSystemMessages", true) ~= false
 		end
 
 		local function getSavedChatColorHex()
@@ -1687,8 +1687,8 @@ originalIO.runNACHAT=function()
 			return colorFromHex(getSavedChatColorHex())
 		end
 
-		local function getSavedChatColor2Hex()
-			local value = getChatSetting("naChatMessageColor2", "")
+		NAmanage.NAChat_GetSavedColor2Hex = function()
+			local value = NAmanage.NAChat_GetSetting("naChatMessageColor2", "")
 			value = tostring(value or ""):gsub("#", ""):upper()
 			if value == "" then
 				return nil
@@ -1702,7 +1702,7 @@ originalIO.runNACHAT=function()
 			return value
 		end
 
-		local function clearChatGradient(target)
+		NAmanage.NAChat_ClearGradient = function(target)
 			if not target then
 				return
 			end
@@ -1712,7 +1712,7 @@ originalIO.runNACHAT=function()
 			end
 		end
 
-		local function destroyChatGradientText(lbl)
+		NAmanage.NAChat_DestroyGradientText = function(lbl)
 			if not lbl then
 				return
 			end
@@ -1723,7 +1723,7 @@ originalIO.runNACHAT=function()
 			lbl.TextTransparency = 0
 		end
 
-		local function ensureChatGradientText(lbl)
+		NAmanage.NAChat_EnsureGradientText = function(lbl)
 			local child = lbl and lbl:FindFirstChild("NAChatGradientText")
 			if child and child:IsA("TextLabel") then
 				return child
@@ -1747,7 +1747,7 @@ originalIO.runNACHAT=function()
 			return child
 		end
 
-		local function applyChatColor(target, color1Hex, color2Hex, fallbackColor)
+		NAmanage.NAChat_ApplyColor = function(target, color1Hex, color2Hex, fallbackColor)
 			if not target then
 				return
 			end
@@ -1767,7 +1767,7 @@ originalIO.runNACHAT=function()
 				})
 				target.TextColor3 = Color3.fromRGB(255, 255, 255)
 			else
-				clearChatGradient(target)
+				NAmanage.NAChat_ClearGradient(target)
 				target.TextColor3 = primary
 			end
 		end
@@ -1820,7 +1820,7 @@ originalIO.runNACHAT=function()
 
 		local function buildChatEntryText(entry)
 			local timePrefix = ""
-			if getChatShowTimestamps() and tonumber(entry.timestamp) then
+			if NAmanage.NAChat_GetShowTimestamps() and tonumber(entry.timestamp) then
 				timePrefix = '<font color="#777D91">['..os.date("%H:%M", tonumber(entry.timestamp))..']</font> '
 			end
 			if entry.kind ~= "chat" then
@@ -1870,7 +1870,7 @@ originalIO.runNACHAT=function()
 				primaryHex, secondaryHex, fallbackColor = nil, nil, nil
 			elseif entry.useOwnChatColor or entry.useChatColor then
 				primaryHex = getSavedChatColorHex()
-				secondaryHex = getSavedChatColor2Hex()
+				secondaryHex = NAmanage.NAChat_GetSavedColor2Hex()
 				fallbackColor = getSavedChatColor()
 			elseif type(entry.chatColor) == "string" then
 				primaryHex = entry.chatColor
@@ -1883,14 +1883,14 @@ originalIO.runNACHAT=function()
 			local useGradient = not entry.rainbow and type(secondaryHex) == "string" and secondaryHex ~= ""
 			local textTarget
 			if useGradient then
-				textTarget = ensureChatGradientText(lbl)
+				textTarget = NAmanage.NAChat_EnsureGradientText(lbl)
 			else
-				destroyChatGradientText(lbl)
+				NAmanage.NAChat_DestroyGradientText(lbl)
 				textTarget = lbl
 			end
 
 			textTarget.Text = buildChatEntryText(entry)
-			textTarget.TextSize = getChatMessageTextSize()
+			textTarget.TextSize = NAmanage.NAChat_GetMessageTextSize()
 			textTarget.FontFace = lbl.FontFace
 			textTarget.TextWrapped = true
 			textTarget.RichText = true
@@ -1899,22 +1899,22 @@ originalIO.runNACHAT=function()
 
 			local padding = lbl:FindFirstChildWhichIsA("UIPadding")
 			if padding then
-				local py = getChatCompactMessages() and 2 or 4
+				local py = NAmanage.NAChat_GetCompactMessages() and 2 or 4
 				padding.PaddingTop = UDim.new(0, py)
 				padding.PaddingBottom = UDim.new(0, py)
 			end
 
 			if entry.rainbow then
-				clearChatGradient(lbl)
+				NAmanage.NAChat_ClearGradient(lbl)
 				rainbowLabels[lbl] = true
 				lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
 			else
 				rainbowLabels[lbl] = nil
-				applyChatColor(textTarget, primaryHex, secondaryHex, fallbackColor)
+				NAmanage.NAChat_ApplyColor(textTarget, primaryHex, secondaryHex, fallbackColor)
 			end
 
 			local sz = NAgui.txtSize(textTarget, lbl.AbsoluteSize.X, 260)
-			local compact = getChatCompactMessages()
+			local compact = NAmanage.NAChat_GetCompactMessages()
 			local newHeight = math.max(compact and 20 or 24, sz.Y + (compact and 4 or 8))
 			local previousHeight = tonumber(entry.virtualHeight)
 			entry.virtualHeight = newHeight
@@ -1922,8 +1922,8 @@ originalIO.runNACHAT=function()
 			if textTarget ~= lbl then
 				textTarget.Size = UDim2.new(1, 0, 1, 0)
 			end
-			if previousHeight and math.abs(previousHeight - newHeight) >= 1 and queueChatVirtualRefresh then
-				queueChatVirtualRefresh(false)
+			if previousHeight and math.abs(previousHeight - newHeight) >= 1 and NAmanage.NAChat_QueueVirtualRefresh then
+				NAmanage.NAChat_QueueVirtualRefresh(false)
 			end
 		end
 
@@ -2104,7 +2104,7 @@ originalIO.runNACHAT=function()
 			end)
 		end
 
-		local function makeChatLabel(entry, rowY)
+		NAmanage.NAChat_MakeLabel = function(entry, rowY)
 			if not (entry and chatScroll) then
 				return nil
 			end
@@ -2120,7 +2120,7 @@ originalIO.runNACHAT=function()
 			lbl.BackgroundColor3 = CHAT_SURFACE
 			lbl.BackgroundTransparency = 0.05
 			lbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-			lbl.TextSize = getChatMessageTextSize()
+			lbl.TextSize = NAmanage.NAChat_GetMessageTextSize()
 			lbl.TextWrapped = true
 			lbl.RichText = true
 			lbl.TextXAlignment = Enum.TextXAlignment.Left
@@ -2167,7 +2167,7 @@ originalIO.runNACHAT=function()
 			renderedConversation = nil
 		end
 
-		local function getChatViewportHeight()
+		NAmanage.NAChat_GetViewportHeight = function()
 			if not chatScroll then
 				return 1
 			end
@@ -2181,7 +2181,7 @@ originalIO.runNACHAT=function()
 			return viewportHeight
 		end
 
-		local function getChatCanvasY()
+		NAmanage.NAChat_GetCanvasY = function()
 			if not chatScroll then
 				return 0
 			end
@@ -2189,7 +2189,7 @@ originalIO.runNACHAT=function()
 			return math.max(0, tonumber(logicalPos and logicalPos.Y) or 0)
 		end
 
-		local function setChatCanvasY(value)
+		NAmanage.NAChat_SetCanvasY = function(value)
 			if not chatScroll then
 				return
 			end
@@ -2201,12 +2201,12 @@ originalIO.runNACHAT=function()
 			end
 		end
 
-		local function estimatedChatHeight(entry)
+		NAmanage.NAChat_EstimatedHeight = function(entry)
 			local cached = tonumber(entry and entry.virtualHeight)
 			if cached and cached > 0 then
 				return cached
 			end
-			local compact = getChatCompactMessages()
+			local compact = NAmanage.NAChat_GetCompactMessages()
 			local base = compact and 24 or 32
 			local raw = tostring((entry and (entry.raw or entry.text)) or "")
 			local lines = 1
@@ -2216,38 +2216,38 @@ originalIO.runNACHAT=function()
 			if #raw > 96 then
 				lines += math.floor(#raw / 96)
 			end
-			return math.min(260, base + math.max(0, lines - 1) * getChatMessageTextSize())
+			return math.min(260, base + math.max(0, lines - 1) * NAmanage.NAChat_GetMessageTextSize())
 		end
 
-		local function updateChatVirtualized(forceBottom)
+		NAmanage.NAChat_UpdateVirtualized = function(forceBottom)
 			if not chatScroll or NAChat.activeTab ~= "chat" then
 				return
 			end
 
-			chatVirtualGeneration += 1
-			local myGeneration = chatVirtualGeneration
+			NAStuff.NAChatRuntime.VirtualGeneration += 1
+			local myGeneration = NAStuff.NAChatRuntime.VirtualGeneration
 			local history = conversationHistory[NAChat.activeConversation] or {}
-			local viewportHeight = getChatViewportHeight()
+			local viewportHeight = NAmanage.NAChat_GetViewportHeight()
 			local offsets = table.create and table.create(#history) or {}
 			local totalHeight = 0
 
 			for i, entry in history do
 				offsets[i] = totalHeight
-				totalHeight += estimatedChatHeight(entry)
+				totalHeight += NAmanage.NAChat_EstimatedHeight(entry)
 				if i < #history then
-					totalHeight += chatRowGap
+					totalHeight += NAStuff.NAChatRuntime.RowGap
 				end
 			end
 
 			chatScroll.CanvasSize = UDim2.new(0, 0, 0, totalHeight + 4)
 			local maxY = math.max(0, totalHeight - viewportHeight)
-			local currentY = getChatCanvasY()
+			local currentY = NAmanage.NAChat_GetCanvasY()
 			if forceBottom then
 				currentY = maxY
-				setChatCanvasY(currentY)
+				NAmanage.NAChat_SetCanvasY(currentY)
 			elseif currentY > maxY then
 				currentY = maxY
-				setChatCanvasY(currentY)
+				NAmanage.NAChat_SetCanvasY(currentY)
 			end
 
 			local averageHeight = #history > 0 and math.max(1, totalHeight / #history) or 32
@@ -2263,18 +2263,18 @@ originalIO.runNACHAT=function()
 				processedMessages += 1
 				if processedMessages > 1 and (processedMessages - 1) % 48 == 0 then
 					Wait()
-					if chatVirtualGeneration ~= myGeneration then
+					if NAStuff.NAChatRuntime.VirtualGeneration ~= myGeneration then
 						return
 					end
 				end
 				local rowY = offsets[i] or 0
-				local rowHeight = estimatedChatHeight(entry)
+				local rowHeight = NAmanage.NAChat_EstimatedHeight(entry)
 				local inWindow = (rowY + rowHeight) >= visibleStart and rowY <= visibleEnd
 				if inWindow then
 					alive[entry] = true
 					local existed = entry.frame and entry.frame.Parent == chatScroll
 					local beforeHeight = tonumber(entry.virtualHeight)
-					local lbl = makeChatLabel(entry, rowY)
+					local lbl = NAmanage.NAChat_MakeLabel(entry, rowY)
 					if lbl then
 						lbl.Position = UDim2.new(0, 3, 0, rowY)
 						if not existed then
@@ -2288,7 +2288,7 @@ originalIO.runNACHAT=function()
 				end
 			end
 
-			if chatVirtualGeneration ~= myGeneration then
+			if NAStuff.NAChatRuntime.VirtualGeneration ~= myGeneration then
 				return
 			end
 
@@ -2307,32 +2307,32 @@ originalIO.runNACHAT=function()
 			end
 
 			if sizeChanged then
-				queueChatVirtualRefresh(forceBottom)
+				NAmanage.NAChat_QueueVirtualRefresh(forceBottom)
 			elseif forceBottom then
-				setChatCanvasY(math.max(0, totalHeight - viewportHeight))
+				NAmanage.NAChat_SetCanvasY(math.max(0, totalHeight - viewportHeight))
 				if NAmanage.CustomScroll and NAmanage.CustomScroll.refreshByTarget then
 					NAmanage.CustomScroll.refreshByTarget(chatScroll)
 				end
 			end
 		end
 
-		queueChatVirtualRefresh = function(forceBottom)
+		NAmanage.NAChat_QueueVirtualRefresh = function(forceBottom)
 			if forceBottom then
-				chatVirtualForceBottom = true
+				NAStuff.NAChatRuntime.VirtualForceBottom = true
 			end
-			if chatVirtualQueued then
+			if NAStuff.NAChatRuntime.VirtualQueued then
 				return
 			end
-			chatVirtualQueued = true
+			NAStuff.NAChatRuntime.VirtualQueued = true
 			Defer(function()
-				chatVirtualQueued = false
-				local bottom = chatVirtualForceBottom
-				chatVirtualForceBottom = false
-				updateChatVirtualized(bottom)
+				NAStuff.NAChatRuntime.VirtualQueued = false
+				local bottom = NAStuff.NAChatRuntime.VirtualForceBottom
+				NAStuff.NAChatRuntime.VirtualForceBottom = false
+				NAmanage.NAChat_UpdateVirtualized(bottom)
 			end)
 		end
 
-		invalidateChatVirtualHeights = function()
+		NAmanage.NAChat_InvalidateVirtualHeights = function()
 			for _, history in conversationHistory do
 				for _, entry in history do
 					entry.virtualHeight = nil
@@ -2347,7 +2347,7 @@ originalIO.runNACHAT=function()
 				clearConversationView()
 				renderedConversation = key
 			end
-			queueChatVirtualRefresh(force or changed)
+			NAmanage.NAChat_QueueVirtualRefresh(force or changed)
 		end
 
 		local function appendConversationMessage(key, text, color, rawMessage, metadata)
@@ -2382,7 +2382,7 @@ originalIO.runNACHAT=function()
 			end
 			if key == NAChat.activeConversation and renderedConversation == key then
 				local keepBottom = canAutoScroll(chatScroll) and shouldAutoScroll(chatScroll) or false
-				queueChatVirtualRefresh(keepBottom)
+				NAmanage.NAChat_QueueVirtualRefresh(keepBottom)
 			end
 			return entry.frame
 		end
@@ -2652,7 +2652,7 @@ originalIO.runNACHAT=function()
 			ensureChatStroke(input, Color3.fromRGB(83, 85, 105), 0.45)
 
 			local input2 = InstanceNew("TextBox", popup)
-			settingsColor2Input = input2
+			NAStuff.NAChatRuntime.SettingsColor2Input = input2
 			input2.Position = UDim2.new(0, 10, 0, 85)
 			input2.Size = UDim2.new(1, -20, 0, 28)
 			input2.BackgroundColor3 = CHAT_OFF
@@ -2664,7 +2664,7 @@ originalIO.runNACHAT=function()
 			input2.TextSize = 13
 			input2.ClearTextOnFocus = false
 			input2.PlaceholderText = "Gradient end (blank = solid)"
-			local saved2 = getSavedChatColor2Hex()
+			local saved2 = NAmanage.NAChat_GetSavedColor2Hex()
 			input2.Text = saved2 and ("#"..saved2) or ""
 			input2.ZIndex = 281
 			local input2Corner = InstanceNew("UICorner", input2)
@@ -2735,14 +2735,14 @@ originalIO.runNACHAT=function()
 				local corner = InstanceNew("UICorner", button)
 				corner.CornerRadius = UDim.new(0, 6)
 				local function refresh()
-					local enabled = getChatSetting(key, defaultValue) == true
+					local enabled = NAmanage.NAChat_GetSetting(key, defaultValue) == true
 					button.Text = name..(enabled and "  •  On" or "  •  Off")
 					button.BackgroundColor3 = enabled and CHAT_ON or CHAT_OFF
 					button.TextColor3 = enabled and Color3.fromRGB(220, 255, 238) or Color3.fromRGB(220, 222, 235)
 				end
 				MouseButtonFix(button, function()
-					local enabled = not (getChatSetting(key, defaultValue) == true)
-					setChatSetting(key, enabled)
+					local enabled = not (NAmanage.NAChat_GetSetting(key, defaultValue) == true)
+					NAmanage.NAChat_SetSetting(key, enabled)
 					refresh()
 					if onChanged then onChanged(enabled) end
 				end)
@@ -2751,11 +2751,11 @@ originalIO.runNACHAT=function()
 			end
 
 			makeSettingToggle("Timestamps", 200, "naChatShowTimestamps", false, function()
-				invalidateChatVirtualHeights()
+				NAmanage.NAChat_InvalidateVirtualHeights()
 				renderConversation(false)
 			end)
 			makeSettingToggle("Compact messages", 236, "naChatCompactMessages", false, function()
-				invalidateChatVirtualHeights()
+				NAmanage.NAChat_InvalidateVirtualHeights()
 				renderConversation(false)
 			end)
 			makeSettingToggle("System messages", 272, "naChatShowSystemMessages", true)
@@ -2775,14 +2775,14 @@ originalIO.runNACHAT=function()
 			local fontCorner = InstanceNew("UICorner", fontButton)
 			fontCorner.CornerRadius = UDim.new(0, 6)
 			local function refreshFontButton()
-				fontButton.Text = "Message size  •  "..tostring(getChatMessageTextSize()).."  (tap to increase)"
+				fontButton.Text = "Message size  •  "..tostring(NAmanage.NAChat_GetMessageTextSize()).."  (tap to increase)"
 			end
 			MouseButtonFix(fontButton, function()
-				local size = getChatMessageTextSize() + 1
+				local size = NAmanage.NAChat_GetMessageTextSize() + 1
 				if size > 20 then size = 11 end
-				setChatSetting("naChatMessageTextSize", size)
+				NAmanage.NAChat_SetSetting("naChatMessageTextSize", size)
 				refreshFontButton()
-				invalidateChatVirtualHeights()
+				NAmanage.NAChat_InvalidateVirtualHeights()
 				renderConversation(false)
 			end)
 			refreshFontButton()
@@ -2837,10 +2837,10 @@ originalIO.runNACHAT=function()
 						hex2 = nil
 					end
 				end
-				setChatSetting("naChatMessageColor", hex1)
-				setChatSetting("naChatMessageColor2", hex2 or "")
+				NAmanage.NAChat_SetSetting("naChatMessageColor", hex1)
+				NAmanage.NAChat_SetSetting("naChatMessageColor2", hex2 or "")
 				input.Text = "#"..getSavedChatColorHex()
-				local saved2 = getSavedChatColor2Hex()
+				local saved2 = NAmanage.NAChat_GetSavedColor2Hex()
 				input2.Text = saved2 and ("#"..saved2) or ""
 				if NAChat.service and type(NAChat.service.SetChatColor) == "function" then
 					pcall(NAChat.service.SetChatColor, getSavedChatColorHex(), saved2)
@@ -2872,9 +2872,9 @@ originalIO.runNACHAT=function()
 			popup.Visible = not popup.Visible
 			if popup.Visible and settingsColorInput then
 				settingsColorInput.Text = "#"..getSavedChatColorHex()
-				if settingsColor2Input then
-					local saved2 = getSavedChatColor2Hex()
-					settingsColor2Input.Text = saved2 and ("#"..saved2) or ""
+				if NAStuff.NAChatRuntime.SettingsColor2Input then
+					local saved2 = NAmanage.NAChat_GetSavedColor2Hex()
+					NAStuff.NAChatRuntime.SettingsColor2Input.Text = saved2 and ("#"..saved2) or ""
 				end
 			end
 		end
@@ -4057,16 +4057,16 @@ originalIO.runNACHAT=function()
 				if chatLayout and chatLayout.Parent == chatScroll then
 					pcall(function()
 						local padding = chatLayout.Padding
-						chatRowGap = math.max(0, math.floor((padding.Offset + padding.Scale * math.max(1, chatScroll.AbsoluteSize.Y)) + 0.5))
+						NAStuff.NAChatRuntime.RowGap = math.max(0, math.floor((padding.Offset + padding.Scale * math.max(1, chatScroll.AbsoluteSize.Y)) + 0.5))
 					end)
 					chatLayout.Parent = nil
 				end
 				chatScroll:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
-					queueChatVirtualRefresh(false)
+					NAmanage.NAChat_QueueVirtualRefresh(false)
 				end)
 				chatScroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-					invalidateChatVirtualHeights()
-					queueChatVirtualRefresh(false)
+					NAmanage.NAChat_InvalidateVirtualHeights()
+					NAmanage.NAChat_QueueVirtualRefresh(false)
 				end)
 			end
 			if usersScroll then
@@ -4217,7 +4217,7 @@ originalIO.runNACHAT=function()
 			end
 
 			NAChat.service.OnSystemMessage.Event:Connect(function(msg)
-				if not getChatShowSystemMessages() then
+				if not NAmanage.NAChat_GetShowSystemMessages() then
 					return
 				end
 				local m = tostring(msg or "System message")
@@ -4799,7 +4799,7 @@ originalIO.runNACHAT=function()
 						autoReconnect = false,
 						hidden = NAChat.isHidden,
 						chatColor = getSavedChatColorHex(),
-						chatColor2 = getSavedChatColor2Hex()
+						chatColor2 = NAmanage.NAChat_GetSavedColor2Hex()
 					})
 					if initCallOk then
 						okInit, initErr = initResult, initMessage
