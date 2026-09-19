@@ -1296,6 +1296,8 @@ originalIO.runNACHAT=function()
 		local adminState = {
 			banned = {},
 			muted = {},
+			hwidBanned = {},
+			dmLog = {},
 		}
 		local baseStatusText = "NA Chat: Connecting..."
 		local baseStatusColor = STATUS_COLORS.info
@@ -1616,7 +1618,7 @@ originalIO.runNACHAT=function()
 		NAStuff.NAChatRuntime.RowGap = 6
 
 		local chatMessageOrder = 0
-		local MAX_CHAT_HISTORY = 500
+		local MAX_CHAT_HISTORY = 1000
 		local renderedConversation = "public"
 		local messageEntriesById = {}
 		local rainbowLabels = setmetatable({}, {__mode = "k"})
@@ -1997,6 +1999,20 @@ originalIO.runNACHAT=function()
 						pcall(function() inputBox:CaptureFocus() end)
 					end
 				end, false}
+			end
+			if NAChat.serverIsAdmin and (not entry.own) and tostring(entry.username or "") ~= "" then
+				actions[#actions + 1] = {"Kick", function()
+					local svc = NAChat.service
+					if svc and type(svc.SendAdminAction) == "function" then
+						svc.SendAdminAction("kick", tostring(entry.username))
+					end
+				end, true}
+				actions[#actions + 1] = {"Ban", function()
+					local svc = NAChat.service
+					if svc and type(svc.SendAdminAction) == "function" then
+						svc.SendAdminAction("ban", tostring(entry.username))
+					end
+				end, true}
 			end
 			if (entry.own or NAChat.serverIsAdmin) and entry.messageId then
 				actions[#actions + 1] = {"Edit", function()
@@ -4215,37 +4231,52 @@ originalIO.runNACHAT=function()
 				end)
 			end
 
+			local function removeChatMessageById(messageId)
+				local id = tostring(messageId or "")
+				local entry = messageEntriesById[id]
+				if not entry then
+					return
+				end
+				messageEntriesById[id] = nil
+				local history = conversationHistory.public or {}
+				for index = #history, 1, -1 do
+					if history[index] == entry then
+						table.remove(history, index)
+						break
+					end
+				end
+				if entry.frame then
+					rainbowLabels[entry.frame] = nil
+					pcall(function() entry.frame:Destroy() end)
+					entry.frame = nil
+				end
+				if composeReplyEntry == entry or composeEditEntry == entry then
+					clearComposeMode()
+				end
+				for _, other in history do
+					if type(other.reply) == "table" and tostring(other.reply.messageId or "") == id then
+						other.reply.message = "[deleted message]"
+						refreshChatEntry(other)
+						syncChatEntryTranslation(other)
+					end
+				end
+			end
+
 			if NAChat.service.OnMessageDeleted then
 				NAChat.service.OnMessageDeleted.Event:Connect(function(messageId)
-					local id = tostring(messageId or "")
-					local entry = messageEntriesById[id]
-					if not entry then
-						return
-					end
-					messageEntriesById[id] = nil
-					local history = conversationHistory.public or {}
-					for index = #history, 1, -1 do
-						if history[index] == entry then
-							table.remove(history, index)
-							break
+					removeChatMessageById(messageId)
+					hideMessageContextMenu()
+				end)
+			end
+
+			if NAChat.service.OnMessagesPurged then
+				NAChat.service.OnMessagesPurged.Event:Connect(function(messageIds)
+					if type(messageIds) == "table" then
+						for _, messageId in messageIds do
+							removeChatMessageById(messageId)
 						end
-					end
-					if entry.frame then
-						rainbowLabels[entry.frame] = nil
-						pcall(function() entry.frame:Destroy() end)
-						entry.frame = nil
-					end
-					if composeReplyEntry == entry or composeEditEntry == entry then
-						clearComposeMode()
 					end
 					hideMessageContextMenu()
-					for _, other in history do
-						if type(other.reply) == "table" and tostring(other.reply.messageId or "") == id then
-							other.reply.message = "[deleted message]"
-							refreshChatEntry(other)
-							syncChatEntryTranslation(other)
-						end
-					end
 				end)
 			end
 
@@ -4338,6 +4369,39 @@ originalIO.runNACHAT=function()
 					end
 					adminState.muted = muted
 
+					local hwidBanned = {}
+					if type(state.hwidBanned) == "table" then
+						for _, entry in state.hwidBanned do
+							if type(entry) == "table" then
+								local fingerprint = tostring(entry.fingerprint or entry.hwidHash or entry.hash or "")
+								if #fingerprint > 16 then
+									fingerprint = fingerprint:sub(1, 16)
+								end
+								local users = {}
+								if type(entry.users) == "table" then
+									for _, uname in entry.users do
+										uname = tostring(uname or "")
+										if uname ~= "" then
+											Insert(users, uname)
+										end
+									end
+								end
+								if fingerprint ~= "" or #users > 0 then
+									Insert(hwidBanned, {
+										fingerprint = fingerprint,
+										users = users,
+									})
+								end
+							elseif type(entry) == "string" and entry ~= "" then
+								Insert(hwidBanned, {
+									fingerprint = entry:sub(1, 16),
+									users = {},
+								})
+							end
+						end
+					end
+					adminState.hwidBanned = hwidBanned
+
 					if adminFrame and adminFrameUpdateBanList then
 						adminFrameUpdateBanList()
 					end
@@ -4394,6 +4458,54 @@ originalIO.runNACHAT=function()
 					end
 
 					appendConversationMessage("public", label, Color3.fromRGB(250, 220, 140), msgText)
+				end)
+			end
+
+			if NAChat.service.OnAdminDMHistory then
+				NAChat.service.OnAdminDMHistory.Event:Connect(function(list)
+					if NAChat.serverIsAdmin and type(list) == "table" then
+						local dmLog = {}
+						local first = math.max(1, #list - 249)
+						for index = first, #list do
+							local entry = list[index]
+							if type(entry) == "table" and tostring(entry.message or "") ~= "" then
+								Insert(dmLog, {
+									from = tostring(entry.from or "?"),
+									to = tostring(entry.to or "?"),
+									message = tostring(entry.message),
+									timestamp = tonumber(entry.timestamp),
+								})
+							end
+						end
+						adminState.dmLog = dmLog
+						if adminFrame and adminFrameUpdateBanList then
+							adminFrameUpdateBanList()
+						end
+					end
+				end)
+			end
+
+			if NAChat.service.OnAdminPrivateMessage then
+				NAChat.service.OnAdminPrivateMessage.Event:Connect(function(fromName, toName, text, timestamp)
+					if NAChat.serverIsAdmin then
+						local msgText = tostring(text or "")
+						if msgText ~= "" then
+							local dmLog = adminState.dmLog or {}
+							Insert(dmLog, {
+								from = tostring(fromName or "?"),
+								to = tostring(toName or "?"),
+								message = msgText,
+								timestamp = tonumber(timestamp),
+							})
+							while #dmLog > 250 do
+								table.remove(dmLog, 1)
+							end
+							adminState.dmLog = dmLog
+							if adminFrame and adminFrameUpdateBanList then
+								adminFrameUpdateBanList()
+							end
+						end
+					end
 				end)
 			end
 
@@ -5340,7 +5452,7 @@ originalIO.runNACHAT=function()
 					subtitle.TextSize = 12
 					subtitle.TextXAlignment = Enum.TextXAlignment.Left
 					subtitle.TextColor3 = Color3.fromRGB(151, 155, 177)
-					subtitle.Text = "Manage chat access, temporary mutes, and bans"
+					subtitle.Text = "Manage mutes, bans, device bans, purge, and DM audit"
 
 					local function makeInputBox(parent, placeholder, size, pos)
 						local box = InstanceNew("TextBox", parent)
@@ -5452,10 +5564,45 @@ originalIO.runNACHAT=function()
 					)
 					unbanBtn.Name = "AdminUnbanButton"
 
+					local hwidBanBtn = makeActionButton(
+						adminFrame,
+						"HWID Ban",
+						UDim2.new(0, 10, 0, 134),
+						UDim2.new(0.2, -4, 0, 32),
+						CHAT_WARN
+					)
+					hwidBanBtn.Name = "AdminHWIDBanButton"
+
+					local hwidUnbanBtn = makeActionButton(
+						adminFrame,
+						"HWID Unban",
+						UDim2.new(0.2, 8, 0, 134),
+						UDim2.new(0.22, -4, 0, 32),
+						Color3.fromRGB(57, 76, 113)
+					)
+					hwidUnbanBtn.Name = "AdminHWIDUnbanButton"
+
+					local purgeCountBox = makeInputBox(
+						adminFrame,
+						"Purge count",
+						UDim2.new(0.22, -4, 0, 32),
+						UDim2.new(0.42, 6, 0, 134)
+					)
+					purgeCountBox.Name = "AdminPurgeCountInput"
+
+					local purgeBtn = makeActionButton(
+						adminFrame,
+						"Purge",
+						UDim2.new(0.64, 4, 0, 134),
+						UDim2.new(0.36, -14, 0, 32),
+						CHAT_DANGER
+					)
+					purgeBtn.Name = "AdminPurgeButton"
+
 					local bannedLabel = InstanceNew("TextLabel", adminFrame)
 					bannedLabel.BackgroundTransparency = 1
 					bannedLabel.Size = UDim2.new(1, -20, 0, 20)
-					bannedLabel.Position = UDim2.new(0, 12, 0, 138)
+					bannedLabel.Position = UDim2.new(0, 12, 0, 176)
 					bannedLabel.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
 					bannedLabel.TextSize = 14
 					bannedLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -5466,8 +5613,8 @@ originalIO.runNACHAT=function()
 					banScroll.Name = "AdminBanList"
 					banScroll.BackgroundTransparency = 1
 					banScroll.BorderSizePixel = 0
-					banScroll.Size = UDim2.new(1, -20, 1, -170)
-					banScroll.Position = UDim2.new(0, 10, 0, 164)
+					banScroll.Size = UDim2.new(1, -20, 1, -208)
+					banScroll.Position = UDim2.new(0, 10, 0, 202)
 					banScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
 					banScroll.ScrollBarThickness = 3
 					banScroll.ScrollBarImageColor3 = Color3.fromRGB(104, 104, 114)
@@ -5705,6 +5852,116 @@ originalIO.runNACHAT=function()
 							end
 						end
 
+						addHeader("HWID bans")
+						local hwidList = adminState.hwidBanned or {}
+						if #hwidList == 0 then
+							addEmptyRow("None")
+						else
+							for _, entry in hwidList do
+								if type(entry) == "table" then
+									order += 1
+									local row = InstanceNew("Frame", banScroll)
+									row.Size = UDim2.new(1, 0, 0, 38)
+									row.BackgroundColor3 = CHAT_SURFACE_MUTED
+									row.BackgroundTransparency = 0.04
+									row.LayoutOrder = order
+									local rowCorner = InstanceNew("UICorner", row)
+									rowCorner.CornerRadius = UDim.new(0, 7)
+									ensureChatStroke(row, Color3.fromRGB(73, 76, 101), 0.7)
+
+									local users = type(entry.users) == "table" and entry.users or {}
+									local names = #users > 0 and table.concat(users, ", ") or "Unknown user"
+									local fingerprint = tostring(entry.fingerprint or "")
+									local labelText = names
+									if fingerprint ~= "" then
+										labelText = labelText.." - "..fingerprint
+									end
+
+									local lbl = InstanceNew("TextLabel", row)
+									lbl.BackgroundTransparency = 1
+									lbl.Size = UDim2.new(0.72, -6, 1, 0)
+									lbl.Position = UDim2.new(0, 6, 0, 0)
+									lbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+									lbl.TextSize = 13
+									lbl.TextXAlignment = Enum.TextXAlignment.Left
+									lbl.TextColor3 = Color3.fromRGB(230, 230, 240)
+									lbl.TextWrapped = true
+									lbl.Text = labelText
+
+									local removeBtn = InstanceNew("TextButton", row)
+									removeBtn.Size = UDim2.new(0.22, 0, 0, 24)
+									removeBtn.Position = UDim2.new(0.78, -6, 0.5, -12)
+									removeBtn.BackgroundColor3 = CHAT_DANGER
+									removeBtn.BackgroundTransparency = 0.04
+									removeBtn.AutoButtonColor = false
+									removeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+									removeBtn.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+									removeBtn.TextSize = 12
+									removeBtn.Text = "Unban"
+									local removeCorner = InstanceNew("UICorner", removeBtn)
+									removeCorner.CornerRadius = UDim.new(0, 7)
+									ensureChatStroke(removeBtn, Color3.fromRGB(210, 104, 127), 0.35)
+
+									if MouseButtonFix then
+										MouseButtonFix(removeBtn, function()
+											local target = fingerprint
+											if target == "" and #users > 0 then
+												target = tostring(users[1])
+											end
+											local svc = NAChat.service
+											if target ~= "" and svc and svc.SendAdminAction then
+												svc.SendAdminAction("unhwid_ban", target)
+											end
+										end)
+									end
+								end
+							end
+						end
+
+						addHeader("Recent DMs (admin audit)")
+						local dmLog = adminState.dmLog or {}
+						if #dmLog == 0 then
+							addEmptyRow("None")
+						else
+							local first = math.max(1, #dmLog - 49)
+							for index = #dmLog, first, -1 do
+								local entry = dmLog[index]
+								if type(entry) == "table" then
+									order += 1
+									local row = InstanceNew("Frame", banScroll)
+									row.Size = UDim2.new(1, 0, 0, 46)
+									row.BackgroundColor3 = Color3.fromRGB(31, 33, 45)
+									row.BackgroundTransparency = 0.12
+									row.LayoutOrder = order
+									local rowCorner = InstanceNew("UICorner", row)
+									rowCorner.CornerRadius = UDim.new(0, 7)
+									ensureChatStroke(row, Color3.fromRGB(70, 73, 96), 0.76)
+
+									local stamp = tonumber(entry.timestamp)
+									local prefix = ""
+									if stamp then
+										local okDate, formatted = pcall(os.date, "%H:%M", stamp)
+										if okDate and formatted then
+											prefix = "["..tostring(formatted).."] "
+										end
+									end
+									local text = prefix..tostring(entry.from or "?").." -> "..tostring(entry.to or "?")..": "..tostring(entry.message or "")
+
+									local lbl = InstanceNew("TextLabel", row)
+									lbl.BackgroundTransparency = 1
+									lbl.Size = UDim2.new(1, -12, 1, -4)
+									lbl.Position = UDim2.new(0, 6, 0, 2)
+									lbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+									lbl.TextSize = 12
+									lbl.TextXAlignment = Enum.TextXAlignment.Left
+									lbl.TextYAlignment = Enum.TextYAlignment.Center
+									lbl.TextColor3 = Color3.fromRGB(218, 218, 231)
+									lbl.TextWrapped = true
+									lbl.Text = text
+								end
+							end
+						end
+
 						banScroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 4)
 					end
 
@@ -5801,6 +6058,38 @@ originalIO.runNACHAT=function()
 							local svc = NAChat.service
 							if svc and svc.SendAdminAction then
 								svc.SendAdminAction("unmute", targetName)
+							end
+						end)
+
+						MouseButtonFix(hwidBanBtn, function()
+							local targetName = resolveTargetOrWarn("HWID ban")
+							if not targetName then
+								return
+							end
+							local svc = NAChat.service
+							if svc and svc.SendAdminAction then
+								svc.SendAdminAction("hwid_ban", targetName)
+							end
+						end)
+
+						MouseButtonFix(hwidUnbanBtn, function()
+							local targetName = resolveTargetOrWarn("remove HWID ban")
+							if not targetName then
+								return
+							end
+							local svc = NAChat.service
+							if svc and svc.SendAdminAction then
+								svc.SendAdminAction("unhwid_ban", targetName)
+							end
+						end)
+
+						MouseButtonFix(purgeBtn, function()
+							local count = math.floor(tonumber(purgeCountBox.Text) or 1)
+							count = math.clamp(count, 1, 1000)
+							purgeCountBox.Text = tostring(count)
+							local svc = NAChat.service
+							if svc and svc.SendAdminAction then
+								svc.SendAdminAction("purge", "", nil, nil, count)
 							end
 						end)
 					end
