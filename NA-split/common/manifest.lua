@@ -1,5 +1,5 @@
 local meta = {
-	version = "20260919-nachat-serviceresolver-fix";
+	version = "20260919-nachat-stable-recovery";
 	count = 29;
 	directory = "common";
 	loader_version = "20260917-2d86c2904d562946";
@@ -32,7 +32,7 @@ local meta = {
 		["part-026.lua"] = "176476b74f9024406cbf3cf02cd76e3ef4175c3c";
 		["part-027.lua"] = "09effdaa660d5fd19ea8c067d66383dde8d295c8";
 		["part-028.lua"] = "39581f0f9679ba7b94ff2b64f7622ce69e4cd625";
-		["part-029.lua"] = "61c437e621639abc089ec328ce4c45ba2c400870";
+		["part-029.lua"] = "6858b19f649588bbaf143217c9cc85bc075075ca";
 	};
 }
 
