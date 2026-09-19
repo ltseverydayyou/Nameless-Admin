@@ -538,6 +538,8 @@ NAmanage.ApplyClientIDSpoof = NAmanage.ApplyClientIDSpoof or function(opts)
 			hooked = false;
 			directTarget = nil;
 			directOriginal = nil;
+			namecallTarget = nil;
+			namecallOriginal = nil;
 		}
 		NAStuff.ClientIDSpoofState = spoofState
 	end
@@ -548,14 +550,11 @@ NAmanage.ApplyClientIDSpoof = NAmanage.ApplyClientIDSpoof or function(opts)
 		hookFn = hookfunction
 	end
 
-	if type(hookFn) == "function" and type(spoofState.namecallTarget) == "function" and type(spoofState.namecallOriginal) == "function" then
-		pcall(hookFn, spoofState.namecallTarget, spoofState.namecallOriginal)
-	end
-	spoofState.namecallTarget = nil
-	spoofState.namecallOriginal = nil
-
 	if NAStuff.ClientIDSpoofEnabled ~= true then
 		if spoofState.hooked == true and type(hookFn) == "function" then
+			if type(spoofState.namecallTarget) == "function" and type(spoofState.namecallOriginal) == "function" then
+				pcall(hookFn, spoofState.namecallTarget, spoofState.namecallOriginal)
+			end
 			if type(spoofState.directTarget) == "function" and type(spoofState.directOriginal) == "function" then
 				pcall(hookFn, spoofState.directTarget, spoofState.directOriginal)
 			end
@@ -563,6 +562,8 @@ NAmanage.ApplyClientIDSpoof = NAmanage.ApplyClientIDSpoof or function(opts)
 		spoofState.hooked = false
 		spoofState.directTarget = nil
 		spoofState.directOriginal = nil
+		spoofState.namecallTarget = nil
+		spoofState.namecallOriginal = nil
 		return true
 	end
 	if spoofState.hooked == true then
@@ -578,11 +579,25 @@ NAmanage.ApplyClientIDSpoof = NAmanage.ApplyClientIDSpoof or function(opts)
 		end)
 	end
 	local directTarget = service and service.GetClientId or nil
+	local rawMetaFn = type(host) == "table" and rawget(host, "getrawmetatable") or nil
+	if type(rawMetaFn) ~= "function" then
+		rawMetaFn = getrawmetatable
+	end
+	local getMethodFn = type(host) == "table" and rawget(host, "getnamecallmethod") or nil
+	if type(getMethodFn) ~= "function" then
+		getMethodFn = getnamecallmethod
+	end
 	local newC = type(host) == "table" and rawget(host, "newcclosure") or nil
 	if type(newC) ~= "function" then
 		newC = newcclosure
 	end
-	if type(directTarget) ~= "function" or type(hookFn) ~= "function" then
+	if type(directTarget) ~= "function" or type(hookFn) ~= "function" or type(rawMetaFn) ~= "function" or type(getMethodFn) ~= "function" then
+		return false
+	end
+
+	local okMeta, mt = pcall(rawMetaFn, game)
+	local namecallTarget = okMeta and type(mt) == "table" and rawget(mt, "__namecall") or nil
+	if type(namecallTarget) ~= "function" then
 		return false
 	end
 
@@ -605,9 +620,31 @@ NAmanage.ApplyClientIDSpoof = NAmanage.ApplyClientIDSpoof or function(opts)
 	end
 	directOriginal = oldDirect
 
+	local namecallOriginal
+	local namecallWrapper = function(self, ...)
+		if NAStuff.ClientIDSpoofEnabled == true and self == service and getMethodFn() == "GetClientId" then
+			return tostring(NAStuff.ClientIDSpoofValue or "")
+		end
+		return namecallOriginal(self, ...)
+	end
+	if type(newC) == "function" then
+		local ok, wrapped = pcall(newC, namecallWrapper)
+		if ok and type(wrapped) == "function" then
+			namecallWrapper = wrapped
+		end
+	end
+	local okNamecall, oldNamecall = pcall(hookFn, namecallTarget, namecallWrapper)
+	if not okNamecall or type(oldNamecall) ~= "function" then
+		pcall(hookFn, directTarget, oldDirect)
+		return false
+	end
+	namecallOriginal = oldNamecall
+
 	spoofState.hooked = true
 	spoofState.directTarget = directTarget
 	spoofState.directOriginal = oldDirect
+	spoofState.namecallTarget = namecallTarget
+	spoofState.namecallOriginal = oldNamecall
 	return true
 end
 

@@ -573,15 +573,21 @@ cmd.add({"unloadspoofs","unspoofall"},{"unloadspoofs","Stops every spoof feature
 	NAmanage.Spoof_stop("Spoof state restored")
 end)
 
-NAmanage.NAChatGameActivityEnabled = function()
-	local enabled = true
-	if type(NAmanage.NASettingsEnsure) == "function" then
-		local ok, settings = pcall(NAmanage.NASettingsEnsure)
-		if ok and type(settings) == "table" and type(settings.naChatGameActivity) == "boolean" then
-			enabled = settings.naChatGameActivity
-		end
+do
+	local __NAChatHost = (type(getgenv) == "function" and getgenv()) or _G or {}
+	local __NAChatGlobal = _G
+	if type(__NAChatGlobal) == "table" and type(rawget(__NAChatGlobal, "NAChatGameActivityEnabled")) ~= "function" then
+		rawset(__NAChatGlobal, "NAChatGameActivityEnabled", function()
+			local enabled = true
+			if NAmanage and type(NAmanage.NASettingsEnsure) == "function" then
+				local ok, settings = pcall(NAmanage.NASettingsEnsure)
+				if ok and type(settings) == "table" and type(settings.naChatGameActivity) == "boolean" then
+					enabled = settings.naChatGameActivity
+				end
+			end
+			return enabled
+		end)
 	end
-	return enabled
 end
 
 do
@@ -747,7 +753,7 @@ originalIO.runNACHAT=function()
 	local Players = (Services and Services.Players) or (SafeGetService and SafeGetService("Players"))
 	local RunService = (Services and Services.RunService) or (SafeGetService and SafeGetService("RunService"))
 	if not Players then
-		if DoNotif then DoNotif("NA Chat unavailable: Players service missing", 3) end
+		warn("[NA Chat] Players service unavailable; chat startup skipped")
 		return
 	end
 	local chatFrame = NAUIMANAGER and NAUIMANAGER.NAchatFrame
@@ -908,7 +914,6 @@ originalIO.runNACHAT=function()
 	if chatFrame then
 		local NAChat = {
 			service = nil,
-			sandbox = nil,
 			connecting = false,
 			wired = false,
 			isHidden = false,
@@ -918,40 +923,24 @@ originalIO.runNACHAT=function()
 			currentDMTarget = nil,
 			activeConversation = "public",
 			activeGroupId = nil,
-			debug = {
-				popup = nil,
-				scroll = nil,
-				button = nil,
-				logs = {},
-				max = 150,
-			},
-			config = {
-				integrationUrl = "https://raw.githubusercontent.com/ltseverydayyou/Open-Cheating-Network/refs/heads/main/Client/NewClient.luau",
-				serverUrl = "wss://sydney-nextel-heath-thriller.trycloudflare.com/axxum",
-				endpointConfigUrl = "https://raw.githubusercontent.com/ltseverydayyou/Open-Cheating-Network/refs/heads/main/Client/endpoint.txt",
-				endpointDiscovery = true,
-				adminKey = nil,
-			},
-			groupUI = {
-				records = {},
-				button = nil,
-				popup = nil,
-				listFrame = nil,
-				nameInput = nil,
-				inviteInput = nil,
-				inviteButton = nil,
-				leaveButton = nil,
-				invitePrompt = nil,
-				invitePromptTitle = nil,
-				invitePromptText = nil,
-				inviteAcceptButton = nil,
-				inviteDeclineButton = nil,
-				pendingInvites = {},
-				pendingInviteOrder = {},
-				activeInviteId = nil,
-			},
 		}
 		local conversationHistory = { public = {} }
+		local groupRecords = {}
+		local groupButton = nil
+		local groupPopup = nil
+		local groupListFrame = nil
+		local groupNameInput = nil
+		local groupInviteInput = nil
+		local groupInviteButton = nil
+		local groupLeaveButton = nil
+		local groupInvitePrompt = nil
+		local groupInvitePromptTitle = nil
+		local groupInvitePromptText = nil
+		local groupInviteAcceptButton = nil
+		local groupInviteDeclineButton = nil
+		local pendingGroupInvites = {}
+		local pendingGroupInviteOrder = {}
+		local activeGroupInviteId = nil
 		local switchConversation
 		local refreshGroupPicker
 		local refreshGroupInvitePrompt
@@ -1517,6 +1506,8 @@ originalIO.runNACHAT=function()
 			return withMarkup, wasMentioned
 		end
 
+		local __NAChatEnv = (type(getgenv) == "function" and getgenv()) or _G or {}
+		local INTEGRATION_URL = (type(__NAChatEnv) == "table" and rawget(__NAChatEnv, "NAChatIntegrationUrl")) or "https://raw.githubusercontent.com/ltseverydayyou/Open-Cheating-Network/refs/heads/main/Client/NewClient.luau"
 		local connect
 
 		originalIO.setStatus = function(t, c)
@@ -1641,8 +1632,8 @@ originalIO.runNACHAT=function()
 		end
 
 		local function defaultInputPlaceholder()
-			if NAChat.activeGroupId and NAChat.groupUI.records[tostring(NAChat.activeGroupId)] then
-				return "Message #"..tostring(NAChat.groupUI.records[tostring(NAChat.activeGroupId)].name or "group").."..."
+			if NAChat.activeGroupId and groupRecords[tostring(NAChat.activeGroupId)] then
+				return "Message #"..tostring(groupRecords[tostring(NAChat.activeGroupId)].name or "group").."..."
 		end
 			if NAChat.currentDMTarget then
 				return ("DM to %s..."):format(tostring(NAChat.currentDMTarget))
@@ -2206,190 +2197,6 @@ originalIO.runNACHAT=function()
 		end
 
 
-		NAChat.debug.refresh = function()
-			local scroll = NAChat.debug.scroll
-			if not scroll or not scroll.Parent then
-				return
-			end
-			for _, child in scroll:GetChildren() do
-				if child:IsA("TextLabel") then
-					child:Destroy()
-				end
-			end
-			for index, record in NAChat.debug.logs do
-				local label = InstanceNew("TextLabel", scroll)
-				label.Name = "Log"..tostring(index)
-				label.BackgroundTransparency = 1
-				label.Size = UDim2.new(1, -12, 0, 18)
-				label.AutomaticSize = Enum.AutomaticSize.Y
-				label.LayoutOrder = index
-				label.FontFace = Font.new("rbxasset://fonts/families/RobotoMono.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-				label.TextSize = 11
-				label.TextWrapped = true
-				label.TextXAlignment = Enum.TextXAlignment.Left
-				label.TextYAlignment = Enum.TextYAlignment.Top
-				label.TextColor3 = record.level == "error" and Color3.fromRGB(255, 155, 165)
-					or record.level == "warn" and Color3.fromRGB(255, 211, 132)
-					or Color3.fromRGB(192, 205, 230)
-				local stamp = os.date("%H:%M:%S", tonumber(record.timestamp) or os.time())
-				label.Text = ("[%s] [%s] %s"):format(stamp, tostring(record.level or "info"):upper(), tostring(record.message or ""))
-				label.ZIndex = 292
-			end
-			task.defer(function()
-				local current = NAChat.debug.scroll
-				if current and current.Parent then
-					current.CanvasPosition = Vector2.new(0, math.max(0, current.AbsoluteCanvasSize.Y - current.AbsoluteWindowSize.Y))
-				end
-			end)
-		end
-
-		NAChat.debug.append = function(level, message, timestamp)
-			local logs = NAChat.debug.logs
-			level = tostring(level or "info"):lower()
-			logs[#logs + 1] = {
-				level = level,
-				message = tostring(message or ""),
-				timestamp = tonumber(timestamp) or os.time(),
-			}
-			while #logs > NAChat.debug.max do
-				table.remove(logs, 1)
-			end
-			if NAChat.debug.button then
-				NAChat.debug.button.Text = "Debug ("..tostring(#logs)..")"
-				if level == "error" then
-					NAChat.debug.button.BackgroundColor3 = CHAT_DANGER
-					NAChat.debug.button.TextColor3 = Color3.fromRGB(255, 218, 223)
-				end
-			end
-			local popup = NAChat.debug.popup
-			if popup and popup.Visible then
-				NAChat.debug.refresh()
-			end
-		end
-
-		NAChat.debug.ensurePopup = function()
-			local existing = NAChat.debug.popup
-			if existing and existing.Parent then
-				return existing
-			end
-			local popup = InstanceNew("Frame", chatFrame)
-			NAChat.debug.popup = popup
-			popup.Name = "NAChatDebugLogs"
-			popup.AnchorPoint = Vector2.new(1, 0)
-			popup.Position = UDim2.new(1, -10, 0, 82)
-			popup.Size = UDim2.new(0, 430, 0, 280)
-			popup.BackgroundColor3 = CHAT_SURFACE
-			popup.BackgroundTransparency = 0.01
-			popup.BorderSizePixel = 0
-			popup.ZIndex = 290
-			popup.Visible = false
-			local corner = InstanceNew("UICorner", popup)
-			corner.CornerRadius = UDim.new(0, 8)
-			ensureChatStroke(popup, CHAT_ACCENT, 0.22)
-
-			local title = InstanceNew("TextLabel", popup)
-			title.BackgroundTransparency = 1
-			title.Position = UDim2.new(0, 10, 0, 8)
-			title.Size = UDim2.new(1, -100, 0, 22)
-			title.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
-			title.TextSize = 13
-			title.TextXAlignment = Enum.TextXAlignment.Left
-			title.TextColor3 = Color3.fromRGB(238, 239, 250)
-			title.Text = "NA Chat Debug Logs"
-			title.ZIndex = 291
-
-			local clear = InstanceNew("TextButton", popup)
-			clear.AnchorPoint = Vector2.new(1, 0)
-			clear.Position = UDim2.new(1, -54, 0, 7)
-			clear.Size = UDim2.new(0, 58, 0, 24)
-			clear.BackgroundColor3 = CHAT_OFF
-			clear.BorderSizePixel = 0
-			clear.Text = "Clear"
-			clear.TextColor3 = Color3.fromRGB(224, 226, 238)
-			clear.TextSize = 11
-			clear.ZIndex = 291
-			local clearCorner = InstanceNew("UICorner", clear)
-			clearCorner.CornerRadius = UDim.new(0, 6)
-
-			local close = InstanceNew("TextButton", popup)
-			close.AnchorPoint = Vector2.new(1, 0)
-			close.Position = UDim2.new(1, -10, 0, 7)
-			close.Size = UDim2.new(0, 34, 0, 24)
-			close.BackgroundColor3 = CHAT_OFF
-			close.BorderSizePixel = 0
-			close.Text = "X"
-			close.TextColor3 = Color3.fromRGB(224, 226, 238)
-			close.TextSize = 11
-			close.ZIndex = 291
-			local closeCorner = InstanceNew("UICorner", close)
-			closeCorner.CornerRadius = UDim.new(0, 6)
-
-			local scroll = InstanceNew("ScrollingFrame", popup)
-			NAChat.debug.scroll = scroll
-			scroll.Position = UDim2.new(0, 10, 0, 39)
-			scroll.Size = UDim2.new(1, -20, 1, -49)
-			scroll.BackgroundColor3 = CHAT_OFF
-			scroll.BackgroundTransparency = 0.12
-			scroll.BorderSizePixel = 0
-			scroll.ScrollBarThickness = 4
-			scroll.CanvasSize = UDim2.new()
-			scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-			scroll.ZIndex = 291
-			local scrollCorner = InstanceNew("UICorner", scroll)
-			scrollCorner.CornerRadius = UDim.new(0, 6)
-			local padding = InstanceNew("UIPadding", scroll)
-			padding.PaddingTop = UDim.new(0, 4)
-			padding.PaddingBottom = UDim.new(0, 4)
-			padding.PaddingLeft = UDim.new(0, 6)
-			padding.PaddingRight = UDim.new(0, 6)
-			local layout = InstanceNew("UIListLayout", scroll)
-			layout.Padding = UDim.new(0, 4)
-			layout.SortOrder = Enum.SortOrder.LayoutOrder
-
-			MouseButtonFix(clear, function()
-				table.clear(NAChat.debug.logs)
-				NAChat.debug.refresh()
-			end)
-			MouseButtonFix(close, function()
-				popup.Visible = false
-			end)
-			NAChat.debug.refresh()
-			return popup
-		end
-
-		NAChat.debug.toggle = function()
-			local popup = NAChat.debug.ensurePopup()
-			if not popup then
-				return
-			end
-			popup.Visible = not popup.Visible
-			if popup.Visible then
-				NAChat.debug.refresh()
-			end
-		end
-
-		if reconnectBtn and reconnectBtn.Parent and not NAChat.debug.button then
-			local okDebugButton, debugButton = pcall(function()
-				return reconnectBtn:Clone()
-			end)
-			if okDebugButton and debugButton then
-				NAChat.debug.button = debugButton
-				debugButton.Name = "DebugButton"
-				debugButton.AnchorPoint = Vector2.new(1, 0)
-				debugButton.Position = UDim2.new(1, -190, 0, 6)
-				debugButton.Size = UDim2.new(0, 54, 0, 18)
-				debugButton.Text = "Debug"
-				debugButton.TextSize = 11
-				debugButton.Parent = reconnectBtn.Parent
-				styleChatTab(debugButton, false)
-				MouseButtonFix(debugButton, NAChat.debug.toggle)
-				if statusLabel then
-					statusLabel.Size = UDim2.new(1, -254, 0, 14)
-				end
-			end
-		end
-
-
 		local function hideChatSettingsPopup()
 			if settingsPopup then
 				settingsPopup.Visible = false
@@ -2409,7 +2216,7 @@ originalIO.runNACHAT=function()
 			popup.Name = "NAChatSettingsPopup"
 			popup.AnchorPoint = Vector2.new(1, 0)
 			popup.Position = UDim2.new(1, -10, 0, 82)
-			popup.Size = UDim2.new(0, 252, 0, 204)
+			popup.Size = UDim2.new(0, 252, 0, 166)
 			popup.BackgroundColor3 = CHAT_SURFACE
 			popup.BackgroundTransparency = 0.02
 			popup.BorderSizePixel = 0
@@ -2527,20 +2334,6 @@ originalIO.runNACHAT=function()
 			local resetCorner = InstanceNew("UICorner", reset)
 			resetCorner.CornerRadius = UDim.new(0, 6)
 
-			local debugButton = InstanceNew("TextButton", popup)
-			debugButton.Position = UDim2.new(0, 10, 0, 166)
-			debugButton.Size = UDim2.new(1, -20, 0, 28)
-			debugButton.BackgroundColor3 = CHAT_OFF
-			debugButton.BorderSizePixel = 0
-			debugButton.TextColor3 = Color3.fromRGB(220, 222, 235)
-			debugButton.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
-			debugButton.TextSize = 12
-			debugButton.Text = "Debug Logs"
-			debugButton.ZIndex = 281
-			local debugCorner = InstanceNew("UICorner", debugButton)
-			debugCorner.CornerRadius = UDim.new(0, 6)
-			MouseButtonFix(debugButton, NAChat.debug.toggle)
-
 			local function refreshPreview()
 				local hex, color = parseColor(input.Text)
 				if hex and color then
@@ -2620,28 +2413,28 @@ originalIO.runNACHAT=function()
 		end
 
 		local function updateGroupButton()
-			if not NAChat.groupUI.button then
+			if not groupButton then
 				return
 			end
-			if NAChat.activeGroupId and NAChat.groupUI.records[tostring(NAChat.activeGroupId)] then
-				local group = NAChat.groupUI.records[tostring(NAChat.activeGroupId)]
-				NAChat.groupUI.button.Text = "# "..tostring(group.name or "Group")
+			if NAChat.activeGroupId and groupRecords[tostring(NAChat.activeGroupId)] then
+				local group = groupRecords[tostring(NAChat.activeGroupId)]
+				groupButton.Text = "# "..tostring(group.name or "Group")
 			else
-				NAChat.groupUI.button.Text = "Public Chat"
+				groupButton.Text = "Public Chat"
 			end
 		end
 
 		refreshGroupPicker = function()
-			if not NAChat.groupUI.listFrame then
+			if not groupListFrame then
 				return
 			end
-			for _, child in NAChat.groupUI.listFrame:GetChildren() do
+			for _, child in groupListFrame:GetChildren() do
 				if child:IsA("TextButton") then
 					child:Destroy()
 				end
 			end
 
-			local publicButton = makeConversationButton(NAChat.groupUI.listFrame, "Public Chat", not NAChat.activeGroupId)
+			local publicButton = makeConversationButton(groupListFrame, "Public Chat", not NAChat.activeGroupId)
 			MouseButtonFix(publicButton, function()
 				if switchConversation then
 					switchConversation(nil)
@@ -2649,17 +2442,17 @@ originalIO.runNACHAT=function()
 			end)
 
 			local ids = {}
-			for id in NAChat.groupUI.records do
+			for id in groupRecords do
 				Insert(ids, id)
 			end
 			table.sort(ids, function(a, b)
-				return tostring(NAChat.groupUI.records[a].name or "") < tostring(NAChat.groupUI.records[b].name or "")
+				return tostring(groupRecords[a].name or "") < tostring(groupRecords[b].name or "")
 			end)
 			for _, id in ids do
-				local group = NAChat.groupUI.records[id]
+				local group = groupRecords[id]
 				local count = type(group.members) == "table" and #group.members or 0
 				local label = ("# %s  (%d)"):format(tostring(group.name or "Group"), count)
-				local button = makeConversationButton(NAChat.groupUI.listFrame, label, tostring(NAChat.activeGroupId or "") == tostring(id))
+				local button = makeConversationButton(groupListFrame, label, tostring(NAChat.activeGroupId or "") == tostring(id))
 				MouseButtonFix(button, function()
 					if switchConversation then
 						switchConversation(id)
@@ -2671,7 +2464,7 @@ originalIO.runNACHAT=function()
 
 		switchConversation = function(groupId)
 			local normalized = groupId and tostring(groupId) or nil
-			if normalized and not NAChat.groupUI.records[normalized] then
+			if normalized and not groupRecords[normalized] then
 				return
 			end
 			clearComposeMode()
@@ -2681,24 +2474,24 @@ originalIO.runNACHAT=function()
 			NAChat.activeConversation = conversationKey(normalized)
 			NAChat.currentDMTarget = nil
 			if inputBox then
-				if normalized and NAChat.groupUI.records[normalized] then
-					inputBox.PlaceholderText = "Message #"..tostring(NAChat.groupUI.records[normalized].name or "group").."..."
+				if normalized and groupRecords[normalized] then
+					inputBox.PlaceholderText = "Message #"..tostring(groupRecords[normalized].name or "group").."..."
 				else
 					inputBox.PlaceholderText = "Send a message (/w name)..."
 				end
 			end
-			if NAChat.groupUI.inviteInput then
-				NAChat.groupUI.inviteInput.Visible = normalized ~= nil
+			if groupInviteInput then
+				groupInviteInput.Visible = normalized ~= nil
 			end
-			if NAChat.groupUI.inviteButton then
-				NAChat.groupUI.inviteButton.Visible = normalized ~= nil
+			if groupInviteButton then
+				groupInviteButton.Visible = normalized ~= nil
 			end
-			if NAChat.groupUI.leaveButton then
-				NAChat.groupUI.leaveButton.Visible = normalized ~= nil
+			if groupLeaveButton then
+				groupLeaveButton.Visible = normalized ~= nil
 			end
 			updateGroupButton()
-			if NAChat.groupUI.popup then
-				NAChat.groupUI.popup.Visible = false
+			if groupPopup then
+				groupPopup.Visible = false
 			end
 			if NAChat.activeTab ~= "chat" then
 				NAChat.activeTab = "chat"
@@ -2725,14 +2518,14 @@ originalIO.runNACHAT=function()
 
 		local function removePendingGroupInvite(groupId)
 			local id = tostring(groupId or "")
-			NAChat.groupUI.pendingInvites[id] = nil
-			for index = #NAChat.groupUI.pendingInviteOrder, 1, -1 do
-				if NAChat.groupUI.pendingInviteOrder[index] == id then
-					table.remove(NAChat.groupUI.pendingInviteOrder, index)
+			pendingGroupInvites[id] = nil
+			for index = #pendingGroupInviteOrder, 1, -1 do
+				if pendingGroupInviteOrder[index] == id then
+					table.remove(pendingGroupInviteOrder, index)
 				end
 			end
-			if NAChat.groupUI.activeInviteId == id then
-				NAChat.groupUI.activeInviteId = nil
+			if activeGroupInviteId == id then
+				activeGroupInviteId = nil
 			end
 			if refreshGroupInvitePrompt then
 				refreshGroupInvitePrompt()
@@ -2740,31 +2533,31 @@ originalIO.runNACHAT=function()
 		end
 
 		refreshGroupInvitePrompt = function()
-			if not NAChat.groupUI.invitePrompt then
+			if not groupInvitePrompt then
 				return
 			end
-			if not NAChat.groupUI.activeInviteId or not NAChat.groupUI.pendingInvites[NAChat.groupUI.activeInviteId] then
-				NAChat.groupUI.activeInviteId = nil
-				for _, id in NAChat.groupUI.pendingInviteOrder do
-					if NAChat.groupUI.pendingInvites[id] then
-						NAChat.groupUI.activeInviteId = id
+			if not activeGroupInviteId or not pendingGroupInvites[activeGroupInviteId] then
+				activeGroupInviteId = nil
+				for _, id in pendingGroupInviteOrder do
+					if pendingGroupInvites[id] then
+						activeGroupInviteId = id
 						break
 					end
 				end
 			end
-			local group = NAChat.groupUI.activeInviteId and NAChat.groupUI.pendingInvites[NAChat.groupUI.activeInviteId]
+			local group = activeGroupInviteId and pendingGroupInvites[activeGroupInviteId]
 			if not group then
-				NAChat.groupUI.invitePrompt.Visible = false
+				groupInvitePrompt.Visible = false
 				return
 			end
-			NAChat.groupUI.invitePrompt.Visible = true
-			if NAChat.groupUI.invitePromptTitle then
-				NAChat.groupUI.invitePromptTitle.Text = "Group invitation"
+			groupInvitePrompt.Visible = true
+			if groupInvitePromptTitle then
+				groupInvitePromptTitle.Text = "Group invitation"
 			end
-			if NAChat.groupUI.invitePromptText then
+			if groupInvitePromptText then
 				local owner = tostring(group.owner or "Someone")
 				local name = tostring(group.name or "Group")
-				NAChat.groupUI.invitePromptText.Text = ("%s invited you to join #%s. Join this group chat?"):format(owner, name)
+				groupInvitePromptText.Text = ("%s invited you to join #%s. Join this group chat?"):format(owner, name)
 			end
 		end
 
@@ -2776,38 +2569,38 @@ originalIO.runNACHAT=function()
 			if not parent then
 				return
 			end
-			NAChat.groupUI.button = parent:FindFirstChild("NAChatGroups")
-			if not NAChat.groupUI.button then
-				NAChat.groupUI.button = InstanceNew("TextButton", parent)
-				NAChat.groupUI.button.Name = "NAChatGroups"
-				NAChat.groupUI.button.Size = UDim2.new(0, 88, 0, 30)
-				NAChat.groupUI.button.BackgroundColor3 = CHAT_OFF
-				NAChat.groupUI.button.BackgroundTransparency = 0.04
-				NAChat.groupUI.button.TextColor3 = Color3.fromRGB(224, 226, 238)
-				NAChat.groupUI.button.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
-				NAChat.groupUI.button.TextSize = 12
-				NAChat.groupUI.button.Text = "Public Chat"
-				NAChat.groupUI.button.AutoButtonColor = false
-				local corner = InstanceNew("UICorner", NAChat.groupUI.button)
+			groupButton = parent:FindFirstChild("NAChatGroups")
+			if not groupButton then
+				groupButton = InstanceNew("TextButton", parent)
+				groupButton.Name = "NAChatGroups"
+				groupButton.Size = UDim2.new(0, 88, 0, 30)
+				groupButton.BackgroundColor3 = CHAT_OFF
+				groupButton.BackgroundTransparency = 0.04
+				groupButton.TextColor3 = Color3.fromRGB(224, 226, 238)
+				groupButton.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+				groupButton.TextSize = 12
+				groupButton.Text = "Public Chat"
+				groupButton.AutoButtonColor = false
+				local corner = InstanceNew("UICorner", groupButton)
 				corner.CornerRadius = UDim.new(0, 7)
-				ensureChatStroke(NAChat.groupUI.button, CHAT_ACCENT, 0.22)
+				ensureChatStroke(groupButton, CHAT_ACCENT, 0.22)
 			end
 
-			NAChat.groupUI.popup = chatFrame:FindFirstChild("NAChatGroupPopup")
-			if not NAChat.groupUI.popup then
-				NAChat.groupUI.popup = InstanceNew("Frame", chatFrame)
-				NAChat.groupUI.popup.Name = "NAChatGroupPopup"
-				NAChat.groupUI.popup.Size = UDim2.new(0, 250, 0, 270)
-				NAChat.groupUI.popup.Position = UDim2.new(0, 8, 0, 82)
-				NAChat.groupUI.popup.BackgroundColor3 = CHAT_SURFACE
-				NAChat.groupUI.popup.BackgroundTransparency = 0.02
-				NAChat.groupUI.popup.Visible = false
-				NAChat.groupUI.popup.ZIndex = 200
-				local popupCorner = InstanceNew("UICorner", NAChat.groupUI.popup)
+			groupPopup = chatFrame:FindFirstChild("NAChatGroupPopup")
+			if not groupPopup then
+				groupPopup = InstanceNew("Frame", chatFrame)
+				groupPopup.Name = "NAChatGroupPopup"
+				groupPopup.Size = UDim2.new(0, 250, 0, 270)
+				groupPopup.Position = UDim2.new(0, 8, 0, 82)
+				groupPopup.BackgroundColor3 = CHAT_SURFACE
+				groupPopup.BackgroundTransparency = 0.02
+				groupPopup.Visible = false
+				groupPopup.ZIndex = 200
+				local popupCorner = InstanceNew("UICorner", groupPopup)
 				popupCorner.CornerRadius = UDim.new(0, 9)
-				ensureChatStroke(NAChat.groupUI.popup, CHAT_ACCENT, 0.08)
+				ensureChatStroke(groupPopup, CHAT_ACCENT, 0.08)
 
-				local title = InstanceNew("TextLabel", NAChat.groupUI.popup)
+				local title = InstanceNew("TextLabel", groupPopup)
 				title.Size = UDim2.new(1, -20, 0, 24)
 				title.Position = UDim2.new(0, 10, 0, 8)
 				title.BackgroundTransparency = 1
@@ -2818,47 +2611,47 @@ originalIO.runNACHAT=function()
 				title.TextXAlignment = Enum.TextXAlignment.Left
 				title.ZIndex = 201
 
-				NAChat.groupUI.listFrame = InstanceNew("ScrollingFrame", NAChat.groupUI.popup)
-				NAChat.groupUI.listFrame.Name = "GroupList"
-				NAChat.groupUI.listFrame.Size = UDim2.new(1, -20, 0, 112)
-				NAChat.groupUI.listFrame.Position = UDim2.new(0, 10, 0, 36)
-				NAChat.groupUI.listFrame.BackgroundTransparency = 1
-				NAChat.groupUI.listFrame.BorderSizePixel = 0
-				NAChat.groupUI.listFrame.ScrollBarThickness = 4
-				NAChat.groupUI.listFrame.ScrollBarImageColor3 = CHAT_ACCENT
-				NAChat.groupUI.listFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
-				NAChat.groupUI.listFrame.ZIndex = 201
-				local groupLayout = InstanceNew("UIListLayout", NAChat.groupUI.listFrame)
+				groupListFrame = InstanceNew("ScrollingFrame", groupPopup)
+				groupListFrame.Name = "GroupList"
+				groupListFrame.Size = UDim2.new(1, -20, 0, 112)
+				groupListFrame.Position = UDim2.new(0, 10, 0, 36)
+				groupListFrame.BackgroundTransparency = 1
+				groupListFrame.BorderSizePixel = 0
+				groupListFrame.ScrollBarThickness = 4
+				groupListFrame.ScrollBarImageColor3 = CHAT_ACCENT
+				groupListFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+				groupListFrame.ZIndex = 201
+				local groupLayout = InstanceNew("UIListLayout", groupListFrame)
 				groupLayout.Padding = UDim.new(0, 5)
 				groupLayout.SortOrder = Enum.SortOrder.LayoutOrder
 				groupLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-					NAChat.groupUI.listFrame.CanvasSize = UDim2.new(0, 0, 0, groupLayout.AbsoluteContentSize.Y + 4)
+					groupListFrame.CanvasSize = UDim2.new(0, 0, 0, groupLayout.AbsoluteContentSize.Y + 4)
 				end)
 
-				NAChat.groupUI.nameInput = InstanceNew("TextBox", NAChat.groupUI.popup)
-				NAChat.groupUI.nameInput.Name = "GroupNameInput"
-				NAChat.groupUI.nameInput.Size = UDim2.new(1, -86, 0, 30)
-				NAChat.groupUI.nameInput.Position = UDim2.new(0, 10, 0, 154)
-				NAChat.groupUI.nameInput.BackgroundColor3 = CHAT_OFF
-				NAChat.groupUI.nameInput.BackgroundTransparency = 0.04
-				NAChat.groupUI.nameInput.TextColor3 = Color3.fromRGB(232, 234, 244)
-				NAChat.groupUI.nameInput.PlaceholderColor3 = Color3.fromRGB(150, 153, 173)
-				NAChat.groupUI.nameInput.PlaceholderText = "New group name"
-				NAChat.groupUI.nameInput.Text = ""
-				NAChat.groupUI.nameInput.TextSize = 12
-				NAChat.groupUI.nameInput.ClearTextOnFocus = false
-				NAChat.groupUI.nameInput.ZIndex = 201
-				local nameCorner = InstanceNew("UICorner", NAChat.groupUI.nameInput)
+				groupNameInput = InstanceNew("TextBox", groupPopup)
+				groupNameInput.Name = "GroupNameInput"
+				groupNameInput.Size = UDim2.new(1, -86, 0, 30)
+				groupNameInput.Position = UDim2.new(0, 10, 0, 154)
+				groupNameInput.BackgroundColor3 = CHAT_OFF
+				groupNameInput.BackgroundTransparency = 0.04
+				groupNameInput.TextColor3 = Color3.fromRGB(232, 234, 244)
+				groupNameInput.PlaceholderColor3 = Color3.fromRGB(150, 153, 173)
+				groupNameInput.PlaceholderText = "New group name"
+				groupNameInput.Text = ""
+				groupNameInput.TextSize = 12
+				groupNameInput.ClearTextOnFocus = false
+				groupNameInput.ZIndex = 201
+				local nameCorner = InstanceNew("UICorner", groupNameInput)
 				nameCorner.CornerRadius = UDim.new(0, 7)
-				ensureChatStroke(NAChat.groupUI.nameInput, Color3.fromRGB(83, 85, 105), 0.45)
+				ensureChatStroke(groupNameInput, Color3.fromRGB(83, 85, 105), 0.45)
 
-				local createButton = makeConversationButton(NAChat.groupUI.popup, "Create", false)
+				local createButton = makeConversationButton(groupPopup, "Create", false)
 				createButton.Name = "CreateGroup"
 				createButton.Size = UDim2.new(0, 66, 0, 30)
 				createButton.Position = UDim2.new(1, -76, 0, 154)
 				createButton.ZIndex = 202
 				MouseButtonFix(createButton, function()
-					local name = tostring(NAChat.groupUI.nameInput.Text or ""):gsub("^%s+", ""):gsub("%s+$", "")
+					local name = tostring(groupNameInput.Text or ""):gsub("^%s+", ""):gsub("%s+$", "")
 					local svc = NAChat.service
 					if name == "" then
 						return
@@ -2866,7 +2659,7 @@ originalIO.runNACHAT=function()
 					if svc and svc.CreateGroup then
 						local ok, result = pcall(svc.CreateGroup, name, {})
 						if ok and result ~= false then
-							NAChat.groupUI.nameInput.Text = ""
+							groupNameInput.Text = ""
 						else
 							originalIO.setStatus("NA Chat: group creation failed", STATUS_COLORS.err)
 						end
@@ -2875,50 +2668,50 @@ originalIO.runNACHAT=function()
 					end
 				end)
 
-				NAChat.groupUI.inviteInput = InstanceNew("TextBox", NAChat.groupUI.popup)
-				NAChat.groupUI.inviteInput.Name = "GroupInviteInput"
-				NAChat.groupUI.inviteInput.Size = UDim2.new(1, -86, 0, 30)
-				NAChat.groupUI.inviteInput.Position = UDim2.new(0, 10, 0, 194)
-				NAChat.groupUI.inviteInput.BackgroundColor3 = CHAT_OFF
-				NAChat.groupUI.inviteInput.BackgroundTransparency = 0.04
-				NAChat.groupUI.inviteInput.TextColor3 = Color3.fromRGB(232, 234, 244)
-				NAChat.groupUI.inviteInput.PlaceholderColor3 = Color3.fromRGB(150, 153, 173)
-				NAChat.groupUI.inviteInput.PlaceholderText = "Invite username"
-				NAChat.groupUI.inviteInput.Text = ""
-				NAChat.groupUI.inviteInput.TextSize = 12
-				NAChat.groupUI.inviteInput.ClearTextOnFocus = false
-				NAChat.groupUI.inviteInput.Visible = false
-				NAChat.groupUI.inviteInput.ZIndex = 201
-				local inviteCorner = InstanceNew("UICorner", NAChat.groupUI.inviteInput)
+				groupInviteInput = InstanceNew("TextBox", groupPopup)
+				groupInviteInput.Name = "GroupInviteInput"
+				groupInviteInput.Size = UDim2.new(1, -86, 0, 30)
+				groupInviteInput.Position = UDim2.new(0, 10, 0, 194)
+				groupInviteInput.BackgroundColor3 = CHAT_OFF
+				groupInviteInput.BackgroundTransparency = 0.04
+				groupInviteInput.TextColor3 = Color3.fromRGB(232, 234, 244)
+				groupInviteInput.PlaceholderColor3 = Color3.fromRGB(150, 153, 173)
+				groupInviteInput.PlaceholderText = "Invite username"
+				groupInviteInput.Text = ""
+				groupInviteInput.TextSize = 12
+				groupInviteInput.ClearTextOnFocus = false
+				groupInviteInput.Visible = false
+				groupInviteInput.ZIndex = 201
+				local inviteCorner = InstanceNew("UICorner", groupInviteInput)
 				inviteCorner.CornerRadius = UDim.new(0, 7)
-				ensureChatStroke(NAChat.groupUI.inviteInput, Color3.fromRGB(83, 85, 105), 0.45)
+				ensureChatStroke(groupInviteInput, Color3.fromRGB(83, 85, 105), 0.45)
 
-				NAChat.groupUI.inviteButton = makeConversationButton(NAChat.groupUI.popup, "Invite", false)
-				NAChat.groupUI.inviteButton.Name = "InviteGroup"
-				NAChat.groupUI.inviteButton.Size = UDim2.new(0, 66, 0, 30)
-				NAChat.groupUI.inviteButton.Position = UDim2.new(1, -76, 0, 194)
-				NAChat.groupUI.inviteButton.Visible = false
-				NAChat.groupUI.inviteButton.ZIndex = 202
-				MouseButtonFix(NAChat.groupUI.inviteButton, function()
+				groupInviteButton = makeConversationButton(groupPopup, "Invite", false)
+				groupInviteButton.Name = "InviteGroup"
+				groupInviteButton.Size = UDim2.new(0, 66, 0, 30)
+				groupInviteButton.Position = UDim2.new(1, -76, 0, 194)
+				groupInviteButton.Visible = false
+				groupInviteButton.ZIndex = 202
+				MouseButtonFix(groupInviteButton, function()
 					local svc = NAChat.service
-					local target = tostring(NAChat.groupUI.inviteInput.Text or ""):gsub("^%s+", ""):gsub("%s+$", "")
+					local target = tostring(groupInviteInput.Text or ""):gsub("^%s+", ""):gsub("%s+$", "")
 					if svc and svc.InviteToGroup and NAChat.activeGroupId and target ~= "" then
 						local ok, result = pcall(svc.InviteToGroup, NAChat.activeGroupId, target)
 						if ok and result ~= false then
-							NAChat.groupUI.inviteInput.Text = ""
+							groupInviteInput.Text = ""
 						else
 							originalIO.setStatus("NA Chat: invite failed", STATUS_COLORS.err)
 						end
 					end
 				end)
 
-				NAChat.groupUI.leaveButton = makeConversationButton(NAChat.groupUI.popup, "Leave", false)
-				NAChat.groupUI.leaveButton.Name = "LeaveGroup"
-				NAChat.groupUI.leaveButton.Size = UDim2.new(0, 66, 0, 30)
-				NAChat.groupUI.leaveButton.Position = UDim2.new(1, -76, 0, 234)
-				NAChat.groupUI.leaveButton.Visible = false
-				NAChat.groupUI.leaveButton.ZIndex = 202
-				MouseButtonFix(NAChat.groupUI.leaveButton, function()
+				groupLeaveButton = makeConversationButton(groupPopup, "Leave", false)
+				groupLeaveButton.Name = "LeaveGroup"
+				groupLeaveButton.Size = UDim2.new(0, 66, 0, 30)
+				groupLeaveButton.Position = UDim2.new(1, -76, 0, 234)
+				groupLeaveButton.Visible = false
+				groupLeaveButton.ZIndex = 202
+				MouseButtonFix(groupLeaveButton, function()
 					local svc = NAChat.service
 					if svc and svc.LeaveGroup and NAChat.activeGroupId then
 						local ok, result = pcall(svc.LeaveGroup, NAChat.activeGroupId)
@@ -2929,49 +2722,49 @@ originalIO.runNACHAT=function()
 				end)
 			end
 
-			if not NAChat.groupUI.invitePrompt then
-				NAChat.groupUI.invitePrompt = InstanceNew("Frame", chatFrame)
-				NAChat.groupUI.invitePrompt.Name = "NAChatInvitePrompt"
-				NAChat.groupUI.invitePrompt.Size = UDim2.new(0, 280, 0, 126)
-				NAChat.groupUI.invitePrompt.Position = UDim2.new(1, -288, 0, 82)
-				NAChat.groupUI.invitePrompt.BackgroundColor3 = CHAT_SURFACE
-				NAChat.groupUI.invitePrompt.BackgroundTransparency = 0.02
-				NAChat.groupUI.invitePrompt.Visible = false
-				NAChat.groupUI.invitePrompt.ZIndex = 210
-				local promptCorner = InstanceNew("UICorner", NAChat.groupUI.invitePrompt)
+			if not groupInvitePrompt then
+				groupInvitePrompt = InstanceNew("Frame", chatFrame)
+				groupInvitePrompt.Name = "NAChatInvitePrompt"
+				groupInvitePrompt.Size = UDim2.new(0, 280, 0, 126)
+				groupInvitePrompt.Position = UDim2.new(1, -288, 0, 82)
+				groupInvitePrompt.BackgroundColor3 = CHAT_SURFACE
+				groupInvitePrompt.BackgroundTransparency = 0.02
+				groupInvitePrompt.Visible = false
+				groupInvitePrompt.ZIndex = 210
+				local promptCorner = InstanceNew("UICorner", groupInvitePrompt)
 				promptCorner.CornerRadius = UDim.new(0, 9)
-				ensureChatStroke(NAChat.groupUI.invitePrompt, CHAT_ACCENT, 0.08)
+				ensureChatStroke(groupInvitePrompt, CHAT_ACCENT, 0.08)
 
-				NAChat.groupUI.invitePromptTitle = InstanceNew("TextLabel", NAChat.groupUI.invitePrompt)
-				NAChat.groupUI.invitePromptTitle.Size = UDim2.new(1, -20, 0, 22)
-				NAChat.groupUI.invitePromptTitle.Position = UDim2.new(0, 10, 0, 8)
-				NAChat.groupUI.invitePromptTitle.BackgroundTransparency = 1
-				NAChat.groupUI.invitePromptTitle.TextColor3 = Color3.fromRGB(238, 239, 250)
-				NAChat.groupUI.invitePromptTitle.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
-				NAChat.groupUI.invitePromptTitle.TextSize = 14
-				NAChat.groupUI.invitePromptTitle.TextXAlignment = Enum.TextXAlignment.Left
-				NAChat.groupUI.invitePromptTitle.ZIndex = 211
+				groupInvitePromptTitle = InstanceNew("TextLabel", groupInvitePrompt)
+				groupInvitePromptTitle.Size = UDim2.new(1, -20, 0, 22)
+				groupInvitePromptTitle.Position = UDim2.new(0, 10, 0, 8)
+				groupInvitePromptTitle.BackgroundTransparency = 1
+				groupInvitePromptTitle.TextColor3 = Color3.fromRGB(238, 239, 250)
+				groupInvitePromptTitle.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+				groupInvitePromptTitle.TextSize = 14
+				groupInvitePromptTitle.TextXAlignment = Enum.TextXAlignment.Left
+				groupInvitePromptTitle.ZIndex = 211
 
-				NAChat.groupUI.invitePromptText = InstanceNew("TextLabel", NAChat.groupUI.invitePrompt)
-				NAChat.groupUI.invitePromptText.Size = UDim2.new(1, -20, 0, 48)
-				NAChat.groupUI.invitePromptText.Position = UDim2.new(0, 10, 0, 34)
-				NAChat.groupUI.invitePromptText.BackgroundTransparency = 1
-				NAChat.groupUI.invitePromptText.TextColor3 = Color3.fromRGB(205, 208, 224)
-				NAChat.groupUI.invitePromptText.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-				NAChat.groupUI.invitePromptText.TextSize = 12
-				NAChat.groupUI.invitePromptText.TextWrapped = true
-				NAChat.groupUI.invitePromptText.TextXAlignment = Enum.TextXAlignment.Left
-				NAChat.groupUI.invitePromptText.TextYAlignment = Enum.TextYAlignment.Top
-				NAChat.groupUI.invitePromptText.ZIndex = 211
+				groupInvitePromptText = InstanceNew("TextLabel", groupInvitePrompt)
+				groupInvitePromptText.Size = UDim2.new(1, -20, 0, 48)
+				groupInvitePromptText.Position = UDim2.new(0, 10, 0, 34)
+				groupInvitePromptText.BackgroundTransparency = 1
+				groupInvitePromptText.TextColor3 = Color3.fromRGB(205, 208, 224)
+				groupInvitePromptText.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+				groupInvitePromptText.TextSize = 12
+				groupInvitePromptText.TextWrapped = true
+				groupInvitePromptText.TextXAlignment = Enum.TextXAlignment.Left
+				groupInvitePromptText.TextYAlignment = Enum.TextYAlignment.Top
+				groupInvitePromptText.ZIndex = 211
 
-				NAChat.groupUI.inviteDeclineButton = makeConversationButton(NAChat.groupUI.invitePrompt, "Decline", false)
-				NAChat.groupUI.inviteDeclineButton.Name = "DeclineGroupInvite"
-				NAChat.groupUI.inviteDeclineButton.Size = UDim2.new(0, 112, 0, 28)
-				NAChat.groupUI.inviteDeclineButton.Position = UDim2.new(1, -122, 1, -38)
-				NAChat.groupUI.inviteDeclineButton.TextXAlignment = Enum.TextXAlignment.Center
-				NAChat.groupUI.inviteDeclineButton.ZIndex = 212
-				MouseButtonFix(NAChat.groupUI.inviteDeclineButton, function()
-					local id = NAChat.groupUI.activeInviteId
+				groupInviteDeclineButton = makeConversationButton(groupInvitePrompt, "Decline", false)
+				groupInviteDeclineButton.Name = "DeclineGroupInvite"
+				groupInviteDeclineButton.Size = UDim2.new(0, 112, 0, 28)
+				groupInviteDeclineButton.Position = UDim2.new(1, -122, 1, -38)
+				groupInviteDeclineButton.TextXAlignment = Enum.TextXAlignment.Center
+				groupInviteDeclineButton.ZIndex = 212
+				MouseButtonFix(groupInviteDeclineButton, function()
+					local id = activeGroupInviteId
 					local svc = NAChat.service
 					if not id or not svc or not svc.DeclineGroupInvite then
 						return
@@ -2984,14 +2777,14 @@ originalIO.runNACHAT=function()
 					end
 				end)
 
-				NAChat.groupUI.inviteAcceptButton = makeConversationButton(NAChat.groupUI.invitePrompt, "Accept", true)
-				NAChat.groupUI.inviteAcceptButton.Name = "AcceptGroupInvite"
-				NAChat.groupUI.inviteAcceptButton.Size = UDim2.new(0, 112, 0, 28)
-				NAChat.groupUI.inviteAcceptButton.Position = UDim2.new(0, 10, 1, -38)
-				NAChat.groupUI.inviteAcceptButton.TextXAlignment = Enum.TextXAlignment.Center
-				NAChat.groupUI.inviteAcceptButton.ZIndex = 212
-				MouseButtonFix(NAChat.groupUI.inviteAcceptButton, function()
-					local id = NAChat.groupUI.activeInviteId
+				groupInviteAcceptButton = makeConversationButton(groupInvitePrompt, "Accept", true)
+				groupInviteAcceptButton.Name = "AcceptGroupInvite"
+				groupInviteAcceptButton.Size = UDim2.new(0, 112, 0, 28)
+				groupInviteAcceptButton.Position = UDim2.new(0, 10, 1, -38)
+				groupInviteAcceptButton.TextXAlignment = Enum.TextXAlignment.Center
+				groupInviteAcceptButton.ZIndex = 212
+				MouseButtonFix(groupInviteAcceptButton, function()
+					local id = activeGroupInviteId
 					local svc = NAChat.service
 					if not id or not svc or not svc.AcceptGroupInvite then
 						return
@@ -3008,10 +2801,10 @@ originalIO.runNACHAT=function()
 			updateGroupButton()
 			refreshGroupInvitePrompt()
 			refreshGroupPicker()
-			MouseButtonFix(NAChat.groupUI.button, function()
-				if NAChat.groupUI.popup then
-					NAChat.groupUI.popup.Visible = not NAChat.groupUI.popup.Visible
-					if NAChat.groupUI.popup.Visible then
+			MouseButtonFix(groupButton, function()
+				if groupPopup then
+					groupPopup.Visible = not groupPopup.Visible
+					if groupPopup.Visible then
 						refreshGroupPicker()
 					end
 				end
@@ -3594,7 +3387,14 @@ originalIO.runNACHAT=function()
 			styleChatTab(adminTab, tab == "admin")
 			styleChatTab(settingsBtn, false)
 			styleChatToggle(dmNotifBtn, isDmNotifyEnabled(), "DM Notifications  •  On", "DM Notifications  •  Off")
-			styleChatToggle(gameActivityBtn, NAmanage.NAChatGameActivityEnabled(), "Activity  •  On", "Activity  •  Off")
+			local activityEnabled = true
+			if type(_G.NAChatGameActivityEnabled) == "function" then
+				local okActivity, savedActivity = pcall(_G.NAChatGameActivityEnabled)
+				if okActivity and type(savedActivity) == "boolean" then
+					activityEnabled = savedActivity
+				end
+			end
+			styleChatToggle(gameActivityBtn, activityEnabled, "Activity  •  On", "Activity  •  Off")
 			refreshDisconnectButton()
 
 			if chatScroll then
@@ -3606,11 +3406,11 @@ originalIO.runNACHAT=function()
 			if adminFrame then
 				adminFrame.Visible = (tab == "admin")
 			end
-			if NAChat.groupUI.button then
-				NAChat.groupUI.button.Visible = (tab == "chat")
+			if groupButton then
+				groupButton.Visible = (tab == "chat")
 			end
-			if NAChat.groupUI.popup and tab ~= "chat" then
-				NAChat.groupUI.popup.Visible = false
+			if groupPopup and tab ~= "chat" then
+				groupPopup.Visible = false
 			end
 
 			if usersSearchBox then
@@ -3647,130 +3447,31 @@ originalIO.runNACHAT=function()
 		end
 
 		local function fetchIntegrationBody()
-			if not (_na_boot and type(_na_boot.httpGet) == "function") then
-				return false, "NA HTTP unavailable"
+			local body
+			local rq = request or http_request or (syn and syn.request) or opt.NAREQUEST
+
+			if type(rq) == "function" then
+				local ok, res = pcall(rq, {
+					Url = INTEGRATION_URL,
+					Method = "GET"
+				})
+				if ok and type(res) == "table" then
+					body = res.Body or res.body
+				end
 			end
-			local ok, body = pcall(_na_boot.httpGet, NAChat.config.integrationUrl, {
-				maxAttempts = 3,
-				timeout = 5,
-			})
-			if ok and type(body) == "string" and body ~= "" then
+
+			if type(body) ~= "string" or body == "" then
+				local ok, fb = pcall(game.HttpGet, game, INTEGRATION_URL)
+				if ok and type(fb) == "string" and fb ~= "" then
+					body = fb
+				end
+			end
+
+			if type(body) == "string" and body ~= "" then
 				return true, body
 			end
-			return false, tostring(body or "failed to fetch IntegrationService script")
-		end
 
-		local function createIntegrationSandbox()
-			local hostEnv = _na_boot and _na_boot.hostEnv or {}
-			local runtimeEnv = _na_boot and _na_boot.runtimeEnv or {}
-			assert(type(_na_env) == "table" and _na_env ~= hostEnv, "private NA globals unavailable")
-			assert(type(_na_shared) == "table" and _na_shared ~= hostEnv.shared, "private NA shared state unavailable")
-			local sandbox = {}
-			local capabilities = {
-				serviceResolver = __lt,
-			}
-
-			for _, name in {
-				"assert", "error", "next", "pairs", "ipairs", "pcall", "xpcall", "select",
-				"tonumber", "tostring", "type", "typeof", "unpack", "rawequal", "rawget", "rawset",
-				"setmetatable", "getmetatable", "wait", "spawn", "delay", "tick",
-				"math", "string", "table", "task", "coroutine", "os", "utf8", "bit32",
-				"Enum", "Instance", "Color3", "Vector2", "Vector3", "CFrame", "UDim", "UDim2",
-				"DateTime", "Random", "TweenInfo", "game", "workspace",
-			} do
-				local value = type(runtimeEnv) == "table" and runtimeEnv[name] or nil
-				if type(value) == "table" then
-					value = table.clone(value)
-				end
-				if value ~= nil then
-					rawset(sandbox, name, value)
-				end
-			end
-
-			rawset(sandbox, "_G", _na_env)
-			rawset(sandbox, "shared", _na_shared)
-			rawset(sandbox, "__NAServiceResolver", __lt)
-			rawset(sandbox, "ServiceResolver", __lt)
-			rawset(sandbox, "warn", function() end)
-			rawset(sandbox, "print", function() end)
-
-			local cloneRef = type(hostEnv) == "table" and rawget(hostEnv, "cloneref") or nil
-			if type(cloneRef) == "function" then
-				capabilities.cloneref = cloneRef
-				rawset(sandbox, "cloneref", cloneRef)
-			end
-
-			local requestFn = type(hostEnv) == "table" and (
-				rawget(hostEnv, "request")
-				or rawget(hostEnv, "http_request")
-				or rawget(hostEnv, "httprequest")
-			) or nil
-			local synApi = type(hostEnv) == "table" and rawget(hostEnv, "syn") or nil
-			local httpApi = type(hostEnv) == "table" and rawget(hostEnv, "http") or nil
-			if type(requestFn) ~= "function" and type(synApi) == "table" then
-				requestFn = synApi.request
-			end
-			if type(requestFn) ~= "function" and type(httpApi) == "table" then
-				requestFn = httpApi.request
-			end
-			if type(requestFn) == "function" then
-				capabilities.request = requestFn
-				rawset(sandbox, "request", requestFn)
-				rawset(sandbox, "http_request", requestFn)
-				rawset(sandbox, "httprequest", requestFn)
-			end
-
-			local websocketApi = type(hostEnv) == "table" and (
-				rawget(hostEnv, "WebSocket")
-				or rawget(hostEnv, "websocket")
-			) or nil
-			if websocketApi == nil and type(synApi) == "table" then
-				websocketApi = synApi.websocket or synApi.WebSocket
-			end
-			if websocketApi == nil and type(httpApi) == "table" then
-				websocketApi = httpApi.websocket or httpApi.WebSocket
-			end
-			if websocketApi == nil and type(hostEnv) == "table" then
-				local solaraApi = rawget(hostEnv, "solara")
-				if type(solaraApi) == "table" then
-					websocketApi = solaraApi.websocket or solaraApi.WebSocket
-				end
-			end
-			if websocketApi ~= nil then
-				if type(websocketApi) == "table" then
-					websocketApi = table.clone(websocketApi)
-				end
-				capabilities.websocket = websocketApi
-				rawset(sandbox, "WebSocket", websocketApi)
-				rawset(sandbox, "websocket", websocketApi)
-			end
-
-			rawset(_na_env, "__NAChatCapabilities", capabilities)
-			rawset(sandbox, "getgenv", function()
-				return _na_env
-			end)
-			rawset(sandbox, "getfenv", function()
-				return sandbox
-			end)
-			rawset(sandbox, "setfenv", function(fn)
-				local setter = _na_boot and _na_boot.hostSetfenv or nil
-				if type(setter) == "function" and type(fn) == "function" then
-					local okSet, result = pcall(setter, fn, sandbox)
-					assert(okSet, result or "failed to apply private chat environment")
-					return result or fn
-				end
-				error("private chat setfenv requires a function", 2)
-			end)
-
-			setmetatable(sandbox, {
-				__index = _na_env,
-				__newindex = _na_env,
-			})
-			return sandbox, {
-				globals = _na_env,
-				shared = _na_shared,
-				capabilities = capabilities,
-			}
+			return false, "failed to fetch IntegrationService script"
 		end
 
 		local function loadService()
@@ -3784,28 +3485,17 @@ originalIO.runNACHAT=function()
 				return false
 			end
 
-			local okLoad, res, loadedSandbox = pcall(function()
-				local loader = _na_boot and _na_boot.hostLoadstring or loadstring
-				local setter = _na_boot and _na_boot.hostSetfenv or setfenv
-				assert(type(loader) == "function", "loadstring unavailable")
-				assert(type(setter) == "function", "private sandbox unavailable")
-				local chunk, err = loader(payload, "@NAChatIntegration")
+			local okLoad, res = pcall(function()
+				local chunk, err = loadstring(payload)
 				assert(chunk, err or "loadstring failed")
-				local sandbox, context = createIntegrationSandbox()
-				local okEnv, envErr = pcall(setter, chunk, sandbox)
-				assert(okEnv, envErr or "failed to apply private sandbox")
-				return chunk(context), sandbox
+				return chunk()
 			end)
 
 			if okLoad and type(res) == "table" then
 				NAChat.service = res
-				NAChat.sandbox = loadedSandbox
 				return true
 			end
 
-			if not okLoad then
-				NAChat.debug.append("error", "private IntegrationService load failed: "..tostring(res))
-			end
 			originalIO.setStatus("NA Chat unavailable", STATUS_COLORS.err)
 			return false
 		end
@@ -4166,15 +3856,15 @@ originalIO.runNACHAT=function()
 
 			if NAChat.service.OnGroupList then
 				NAChat.service.OnGroupList.Event:Connect(function(list)
-					NAChat.groupUI.records = {}
+					groupRecords = {}
 					for _, group in list or {} do
 						if type(group) == "table" and group.id then
 							local id = tostring(group.id)
-							NAChat.groupUI.records[id] = group
+							groupRecords[id] = group
 							syncGroupHistory(group)
 						end
 					end
-					if NAChat.activeGroupId and not NAChat.groupUI.records[tostring(NAChat.activeGroupId)] then
+					if NAChat.activeGroupId and not groupRecords[tostring(NAChat.activeGroupId)] then
 						switchConversation(nil)
 					elseif refreshGroupPicker then
 						refreshGroupPicker()
@@ -4188,7 +3878,7 @@ originalIO.runNACHAT=function()
 						return
 					end
 					local id = tostring(group.id)
-					NAChat.groupUI.records[id] = group
+					groupRecords[id] = group
 					syncGroupHistory(group)
 					if refreshGroupPicker then
 						refreshGroupPicker()
@@ -4202,7 +3892,7 @@ originalIO.runNACHAT=function()
 			if NAChat.service.OnGroupRemoved then
 				NAChat.service.OnGroupRemoved.Event:Connect(function(groupId)
 					local id = tostring(groupId or "")
-					NAChat.groupUI.records[id] = nil
+					groupRecords[id] = nil
 					conversationHistory[conversationKey(id)] = nil
 					removePendingGroupInvite(id)
 					if tostring(NAChat.activeGroupId or "") == id then
@@ -4219,10 +3909,10 @@ originalIO.runNACHAT=function()
 						return
 					end
 					local id = tostring(group.id)
-					if not NAChat.groupUI.pendingInvites[id] then
-						NAChat.groupUI.pendingInviteOrder[#NAChat.groupUI.pendingInviteOrder + 1] = id
+					if not pendingGroupInvites[id] then
+						pendingGroupInviteOrder[#pendingGroupInviteOrder + 1] = id
 					end
-					NAChat.groupUI.pendingInvites[id] = group
+					pendingGroupInvites[id] = group
 					if refreshGroupInvitePrompt then
 						refreshGroupInvitePrompt()
 					end
@@ -4477,7 +4167,6 @@ originalIO.runNACHAT=function()
 				local lp = Players.LocalPlayer
 				local myName = (lp and lp.Name) or tostring(name or "?")
 				appendConversationMessage("public", ("[NA Chat] Connected as %s"):format(myName), STATUS_COLORS.ok)
-				NAChat.debug.append("info", "Connected as "..tostring(myName))
 				requestUsersList()
 				if NAChat.service.RequestGroups then
 					pcall(NAChat.service.RequestGroups)
@@ -4486,7 +4175,6 @@ originalIO.runNACHAT=function()
 			end)
 
 			NAChat.service.OnDisconnected.Event:Connect(function()
-				NAChat.debug.append("warn", "Disconnected")
 				NAChat.connecting = false
 				NAChat.serverIsAdmin = false
 				if type(refreshAdminTabUI) == "function" then
@@ -4505,16 +4193,9 @@ originalIO.runNACHAT=function()
 				queueReconnect()
 			end)
 
-			if NAChat.service.OnDebugLog then
-				NAChat.service.OnDebugLog.Event:Connect(function(level, message, timestamp)
-					NAChat.debug.append(level, message, timestamp)
-				end)
-			end
-
 			NAChat.service.OnError.Event:Connect(function(err, _, data)
 				NAChat.connecting = false
 				local errText = tostring(err or "Unknown error")
-				NAChat.debug.append("error", errText)
 				local isBan = isBanMessage(errText)
 				local isMute = false
 				if type(data) == "table" and (data.code == "muted" or data.error == "muted") then
@@ -4589,7 +4270,7 @@ originalIO.runNACHAT=function()
 				if not wireOk then
 					NAChat.wired = false
 					NAChat.connecting = false
-					NAChat.debug.append("error", "event wiring failed: "..tostring(wireErr))
+					warn("[NA Chat] event wiring failed: "..tostring(wireErr))
 					originalIO.setStatus("NA Chat: UI wiring failed", STATUS_COLORS.err)
 					queueReconnect()
 					return
@@ -4598,16 +4279,14 @@ originalIO.runNACHAT=function()
 				local okInit, initErr = true, nil
 				if NAChat.service and NAChat.service.Init then
 					local initCallOk, initResult, initMessage = pcall(NAChat.service.Init, {
-						serverUrl = NAChat.config.serverUrl,
-						endpointConfigUrl = NAChat.config.endpointConfigUrl,
-						endpointDiscovery = NAChat.config.endpointDiscovery == true,
+						serverUrl = (type(__NAChatEnv) == "table" and rawget(__NAChatEnv, "NAChatServerUrl")) or "wss://sydney-nextel-heath-thriller.trycloudflare.com/axxum",
+						endpointConfigUrl = (type(__NAChatEnv) == "table" and rawget(__NAChatEnv, "NAChatEndpointConfigUrl")) or "https://raw.githubusercontent.com/ltseverydayyou/Open-Cheating-Network/refs/heads/main/Client/endpoint.txt",
+						endpointDiscovery = not (type(__NAChatEnv) == "table" and rawget(__NAChatEnv, "NAChatServerUrl")),
 						endpointRefreshInterval = 15,
 						heartbeatInterval = 10,
 						reconnectDelay = 6,
 						autoReconnect = false,
 						hidden = NAChat.isHidden,
-						activityHidden = not NAmanage.NAChatGameActivityEnabled(),
-						adminKey = NAChat.config.adminKey,
 						chatColor = getSavedChatColorHex()
 					})
 					if initCallOk then
@@ -4620,9 +4299,6 @@ originalIO.runNACHAT=function()
 				if not okInit then
 					originalIO.setStatus("NA Chat: connect failed (Init)", STATUS_COLORS.err)
 
-					local reason = tostring(initErr or "unknown Init failure")
-					NAChat.debug.append("error", "Init failed: "..reason)
-
 					local permanent = (initErr == "websocket_not_available" or initErr == "no_local_player")
 					if permanent then
 						permanentFailureReason = initErr or "unknown"
@@ -4632,7 +4308,7 @@ originalIO.runNACHAT=function()
 					if initErr == "websocket_not_available" then
 						msg = "[NA Chat] Init failed: WebSocket not available in this executor"
 					else
-						msg = "[NA Chat] Init failed: "..reason
+						msg = "[NA Chat] Init failed (see console for [IntegrationService] errors)"
 					end
 
 					local now = os.clock()
@@ -4687,8 +4363,8 @@ originalIO.runNACHAT=function()
 			local hadTarget = NAChat.currentDMTarget ~= nil
 			NAChat.currentDMTarget = nil
 			if inputBox then
-				if NAChat.activeGroupId and NAChat.groupUI.records[tostring(NAChat.activeGroupId)] then
-					inputBox.PlaceholderText = "Message #"..tostring(NAChat.groupUI.records[tostring(NAChat.activeGroupId)].name or "group").."..."
+				if NAChat.activeGroupId and groupRecords[tostring(NAChat.activeGroupId)] then
+					inputBox.PlaceholderText = "Message #"..tostring(groupRecords[tostring(NAChat.activeGroupId)].name or "group").."..."
 				else
 					inputBox.PlaceholderText = "Send a message (/w name)..."
 				end
@@ -4897,14 +4573,10 @@ originalIO.runNACHAT=function()
 				end
 				refreshDisconnectButton()
 				local svc = NAChat.service
-				if svc then
-					local dispose = svc.Destroy or svc.Disconnect
-					if type(dispose) == "function" then
-						pcall(dispose)
-					end
+				if svc and svc.Disconnect then
+					pcall(svc.Disconnect)
 				end
 				NAChat.service = nil
-				NAChat.sandbox = nil
 				NAChat.wired = false
 				NAChat.connecting = false
 				NAChat.serverIsAdmin = false
@@ -4969,14 +4641,20 @@ originalIO.runNACHAT=function()
 		end
 
 		if gameActivityBtn then
-			NAChat.activityDebounce = false
-			styleChatToggle(gameActivityBtn, NAmanage.NAChatGameActivityEnabled(), "Activity  •  On", "Activity  •  Off")
+			local gameActivityDebounce = false
+
+			local function refreshGameActivityButton()
+				local enabled = _G.NAChatGameActivityEnabled()
+				styleChatToggle(gameActivityBtn, enabled, "Activity  •  On", "Activity  •  Off")
+			end
+
+			refreshGameActivityButton()
 
 			MouseButtonFix(gameActivityBtn, function()
-				if NAChat.activityDebounce then
+				if gameActivityDebounce then
 					return
 				end
-				NAChat.activityDebounce = true
+				gameActivityDebounce = true
 
 				local settings = NAmanage.NASettingsEnsure()
 				local current = settings.naChatGameActivity
@@ -4985,7 +4663,7 @@ originalIO.runNACHAT=function()
 				end
 				local enabled = not current
 				NAmanage.NASettingsSet("naChatGameActivity", enabled)
-				styleChatToggle(gameActivityBtn, enabled, "Activity  •  On", "Activity  •  Off")
+				refreshGameActivityButton()
 
 				local okSvc, svc = pcall(function()
 					return NAChat.service
@@ -5003,13 +4681,18 @@ originalIO.runNACHAT=function()
 
 				Defer(function()
 					Wait(0.2)
-					NAChat.activityDebounce = false
+					gameActivityDebounce = false
 				end)
 			end)
 		end
 
 		if dmNotifBtn then
-			styleChatToggle(dmNotifBtn, isDmNotifyEnabled(), "DM Notifications  •  On", "DM Notifications  •  Off")
+			local function refreshDmNotifButton()
+				local enabled = isDmNotifyEnabled()
+				styleChatToggle(dmNotifBtn, enabled, "DM Notifications  •  On", "DM Notifications  •  Off")
+			end
+
+			refreshDmNotifButton()
 
 			MouseButtonFix(dmNotifBtn, function()
 				local settings = NAmanage.NASettingsEnsure()
@@ -5020,7 +4703,7 @@ originalIO.runNACHAT=function()
 				local enabled = not current
 				NAmanage.NASettingsSet("naChatDmNotify", enabled)
 				NAStuff.dmNotificationsEnabled = enabled
-				styleChatToggle(dmNotifBtn, enabled, "DM Notifications  •  On", "DM Notifications  •  Off")
+				refreshDmNotifButton()
 			end)
 		end
 

@@ -12705,7 +12705,7 @@ NAStuff.ExecutorCodec.PrometheusGetRuntime = function()
 		state.Runtime.math = NAStuff.ExecutorCodec.PrometheusBuildMath(state.Runtime.math)
 		return state.Runtime
 	end
-	const host = type(_na_boot) == "table" and type(_na_boot.hostEnv) == "table" and _na_boot.hostEnv or {}
+	const host = (getgenv and getgenv()) or _G or {}
 	local hostPackage = type(host) == "table" and rawget(host, "package") or nil
 	local hostArg = type(host) == "table" and rawget(host, "arg") or nil
 	const hostMath = type(host) == "table" and rawget(host, "math") or math
