@@ -3974,10 +3974,7 @@ originalIO.runNACHAT=function()
 			local okLoad, res = pcall(function()
 				local chunk, err = loadstring(payload)
 				assert(chunk, err or "loadstring failed")
-				return chunk({
-					serviceResolver = __lt,
-					cloneref = type(cloneref) == "function" and cloneref or nil
-				})
+				return chunk()
 			end)
 
 			if okLoad and type(res) == "table" then
@@ -4823,7 +4820,7 @@ originalIO.runNACHAT=function()
 					if initErr == "websocket_not_available" then
 						msg = "[NA Chat] Init failed: WebSocket not available in this executor"
 					else
-						msg = "[NA Chat] Init failed: "..tostring(initErr or "Unknown IntegrationService error")
+						msg = "[NA Chat] Init failed (see console for [IntegrationService] errors)"
 					end
 
 					local now = os.clock()
