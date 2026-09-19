@@ -781,6 +781,41 @@ originalIO.runNACHAT=function()
 	local settingsBtn = NAUIMANAGER and NAUIMANAGER.NAchatSettingsButton
 	local disconnectBtn = NAUIMANAGER and NAUIMANAGER.NAchatDisconnectButton
 
+	if chatFrame then
+		local topbar = chatFrame:FindFirstChild("Topbar")
+		local oldSettingsBtn = settingsBtn
+		if oldSettingsBtn then
+			oldSettingsBtn.Visible = false
+		end
+		if topbar then
+			settingsBtn = topbar:FindFirstChild("ChatSettings")
+			if not settingsBtn then
+				settingsBtn = InstanceNew("TextButton", topbar)
+				settingsBtn.Name = "ChatSettings"
+				settingsBtn.AnchorPoint = Vector2.new(1, 0.5)
+				settingsBtn.Position = UDim2.new(1, -112, 0, 19)
+				settingsBtn.Size = UDim2.new(0, 28, 0, 28)
+				settingsBtn.BackgroundColor3 = Color3.fromRGB(31, 32, 42)
+				settingsBtn.BackgroundTransparency = 0.12
+				settingsBtn.BorderSizePixel = 0
+				settingsBtn.Text = "gear"
+				settingsBtn.TextSize = 16
+				settingsBtn.TextColor3 = Color3.fromRGB(232, 234, 242)
+				settingsBtn.FontFace = Font.new("rbxasset://LuaPackages/Packages/_Index/BuilderIcons/BuilderIcons/BuilderIcons.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+				settingsBtn.AutoButtonColor = false
+				settingsBtn.ZIndex = 290
+				local c = InstanceNew("UICorner", settingsBtn)
+				c.CornerRadius = UDim.new(0, 5)
+				local st = InstanceNew("UIStroke", settingsBtn)
+				st.Name = "UIStroker"
+				st.Thickness = 1
+				st.Color = Color3.fromRGB(155, 100, 255)
+				st.Transparency = 0.38
+				st.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+			end
+		end
+	end
+
 	local function syncAdminFrameLayout()
 		if adminFrame and chatScroll then
 			adminFrame.AnchorPoint = chatScroll.AnchorPoint or Vector2.new(0.5, 0)
@@ -1575,7 +1610,6 @@ originalIO.runNACHAT=function()
 
 		local chatMessageOrder = 0
 		local MAX_CHAT_HISTORY = 500
-		local MAX_RENDERED_MESSAGES = 250
 		local renderedConversation = "public"
 		local messageEntriesById = {}
 		local rainbowLabels = setmetatable({}, {__mode = "k"})
@@ -1585,7 +1619,46 @@ originalIO.runNACHAT=function()
 		local composeEditEntry = nil
 		local settingsPopup = nil
 		local settingsColorInput = nil
+		local settingsColor2Input = nil
 		local refreshRegularMessageColors
+		local queueChatVirtualRefresh
+		local invalidateChatVirtualHeights
+		local chatVirtualQueued = false
+		local chatVirtualForceBottom = false
+		local chatVirtualGeneration = 0
+		local chatRowGap = 6
+
+		local function getChatSetting(key, defaultValue)
+			if NAmanage and type(NAmanage.NASettingsGet) == "function" then
+				local ok, value = pcall(NAmanage.NASettingsGet, key)
+				if ok and value ~= nil then
+					return value
+				end
+			end
+			return defaultValue
+		end
+
+		local function setChatSetting(key, value)
+			if NAmanage and type(NAmanage.NASettingsSet) == "function" then
+				pcall(NAmanage.NASettingsSet, key, value)
+			end
+		end
+
+		local function getChatMessageTextSize()
+			return math.clamp(math.floor((tonumber(getChatSetting("naChatMessageTextSize", 14)) or 14) + 0.5), 11, 20)
+		end
+
+		local function getChatCompactMessages()
+			return getChatSetting("naChatCompactMessages", false) == true
+		end
+
+		local function getChatShowTimestamps()
+			return getChatSetting("naChatShowTimestamps", false) == true
+		end
+
+		local function getChatShowSystemMessages()
+			return getChatSetting("naChatShowSystemMessages", true) ~= false
+		end
 
 		local function getSavedChatColorHex()
 			local value = "78AAFF"
@@ -1612,6 +1685,91 @@ originalIO.runNACHAT=function()
 
 		local function getSavedChatColor()
 			return colorFromHex(getSavedChatColorHex())
+		end
+
+		local function getSavedChatColor2Hex()
+			local value = getChatSetting("naChatMessageColor2", "")
+			value = tostring(value or ""):gsub("#", ""):upper()
+			if value == "" then
+				return nil
+			end
+			if #value ~= 6 or not value:match("^[%x]+$") then
+				return nil
+			end
+			if value == getSavedChatColorHex() then
+				return nil
+			end
+			return value
+		end
+
+		local function clearChatGradient(target)
+			if not target then
+				return
+			end
+			local gradient = target:FindFirstChild("NAChatMessageGradient")
+			if gradient and gradient:IsA("UIGradient") then
+				gradient:Destroy()
+			end
+		end
+
+		local function destroyChatGradientText(lbl)
+			if not lbl then
+				return
+			end
+			local child = lbl:FindFirstChild("NAChatGradientText")
+			if child then
+				child:Destroy()
+			end
+			lbl.TextTransparency = 0
+		end
+
+		local function ensureChatGradientText(lbl)
+			local child = lbl and lbl:FindFirstChild("NAChatGradientText")
+			if child and child:IsA("TextLabel") then
+				return child
+			end
+			if child then child:Destroy() end
+			child = InstanceNew("TextLabel", lbl)
+			child.Name = "NAChatGradientText"
+			child.BackgroundTransparency = 1
+			child.BorderSizePixel = 0
+			child.Position = UDim2.new(0, 0, 0, 0)
+			child.Size = UDim2.new(1, 0, 1, 0)
+			child.FontFace = lbl.FontFace
+			child.TextSize = lbl.TextSize
+			child.TextWrapped = true
+			child.RichText = true
+			child.TextXAlignment = Enum.TextXAlignment.Left
+			child.TextYAlignment = Enum.TextYAlignment.Center
+			child.TextColor3 = Color3.fromRGB(255, 255, 255)
+			child.ZIndex = (tonumber(lbl.ZIndex) or 1) + 1
+			lbl.TextTransparency = 1
+			return child
+		end
+
+		local function applyChatColor(target, color1Hex, color2Hex, fallbackColor)
+			if not target then
+				return
+			end
+			local primary = type(color1Hex) == "string" and color1Hex ~= "" and colorFromHex(color1Hex) or fallbackColor or Color3.fromRGB(224, 224, 234)
+			local secondary = type(color2Hex) == "string" and color2Hex ~= "" and colorFromHex(color2Hex) or nil
+			if secondary then
+				local gradient = target:FindFirstChild("NAChatMessageGradient")
+				if not (gradient and gradient:IsA("UIGradient")) then
+					if gradient then gradient:Destroy() end
+					gradient = InstanceNew("UIGradient", target)
+					gradient.Name = "NAChatMessageGradient"
+				end
+				gradient.Rotation = 0
+				gradient.Color = ColorSequence.new({
+					ColorSequenceKeypoint.new(0, primary),
+					ColorSequenceKeypoint.new(1, secondary),
+				})
+				target.TextColor3 = Color3.fromRGB(255, 255, 255)
+			else
+				clearChatGradient(target)
+				target.TextColor3 = primary
+			end
 		end
 
 		local function escapeChatRichText(value)
@@ -1661,8 +1819,12 @@ originalIO.runNACHAT=function()
 		end
 
 		local function buildChatEntryText(entry)
+			local timePrefix = ""
+			if getChatShowTimestamps() and tonumber(entry.timestamp) then
+				timePrefix = '<font color="#777D91">['..os.date("%H:%M", tonumber(entry.timestamp))..']</font> '
+			end
 			if entry.kind ~= "chat" then
-				return tostring(entry.text or "")
+				return timePrefix..tostring(entry.text or "")
 			end
 
 			local messageText = tostring(entry.raw or "")
@@ -1694,7 +1856,7 @@ originalIO.runNACHAT=function()
 			end
 
 			local editedMark = entry.edited and ' <font color="#9A9EAF">(edited)</font>' or ""
-			return replyLine..prefix..sender..": "..displayText..editedMark
+			return timePrefix..replyLine..prefix..sender..": "..displayText..editedMark
 		end
 
 		local function refreshChatEntry(entry)
@@ -1702,31 +1864,75 @@ originalIO.runNACHAT=function()
 			if not (lbl and lbl.Parent) then
 				return
 			end
-			lbl.Text = buildChatEntryText(entry)
+
+			local primaryHex, secondaryHex, fallbackColor
 			if entry.rainbow then
-				rainbowLabels[lbl] = true
-			elseif entry.useOwnChatColor then
-				rainbowLabels[lbl] = nil
-				lbl.TextColor3 = getSavedChatColor()
+				primaryHex, secondaryHex, fallbackColor = nil, nil, nil
+			elseif entry.useOwnChatColor or entry.useChatColor then
+				primaryHex = getSavedChatColorHex()
+				secondaryHex = getSavedChatColor2Hex()
+				fallbackColor = getSavedChatColor()
 			elseif type(entry.chatColor) == "string" then
-				rainbowLabels[lbl] = nil
-				lbl.TextColor3 = colorFromHex(entry.chatColor)
-			elseif entry.useChatColor then
-				rainbowLabels[lbl] = nil
-				lbl.TextColor3 = getSavedChatColor()
+				primaryHex = entry.chatColor
+				secondaryHex = type(entry.chatColor2) == "string" and entry.chatColor2 ~= "" and entry.chatColor2 or nil
+				fallbackColor = colorFromHex(entry.chatColor)
+			else
+				fallbackColor = entry.color or Color3.fromRGB(224, 224, 234)
+			end
+
+			local useGradient = not entry.rainbow and type(secondaryHex) == "string" and secondaryHex ~= ""
+			local textTarget
+			if useGradient then
+				textTarget = ensureChatGradientText(lbl)
+			else
+				destroyChatGradientText(lbl)
+				textTarget = lbl
+			end
+
+			textTarget.Text = buildChatEntryText(entry)
+			textTarget.TextSize = getChatMessageTextSize()
+			textTarget.FontFace = lbl.FontFace
+			textTarget.TextWrapped = true
+			textTarget.RichText = true
+			textTarget.TextXAlignment = Enum.TextXAlignment.Left
+			textTarget.TextYAlignment = Enum.TextYAlignment.Center
+
+			local padding = lbl:FindFirstChildWhichIsA("UIPadding")
+			if padding then
+				local py = getChatCompactMessages() and 2 or 4
+				padding.PaddingTop = UDim.new(0, py)
+				padding.PaddingBottom = UDim.new(0, py)
+			end
+
+			if entry.rainbow then
+				clearChatGradient(lbl)
+				rainbowLabels[lbl] = true
+				lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
 			else
 				rainbowLabels[lbl] = nil
-				lbl.TextColor3 = entry.color or Color3.fromRGB(224, 224, 234)
+				applyChatColor(textTarget, primaryHex, secondaryHex, fallbackColor)
 			end
-			local sz = NAgui.txtSize(lbl, lbl.AbsoluteSize.X, 260)
-			lbl.Size = UDim2.new(1, -6, 0, math.max(24, sz.Y + 8))
+
+			local sz = NAgui.txtSize(textTarget, lbl.AbsoluteSize.X, 260)
+			local compact = getChatCompactMessages()
+			local newHeight = math.max(compact and 20 or 24, sz.Y + (compact and 4 or 8))
+			local previousHeight = tonumber(entry.virtualHeight)
+			entry.virtualHeight = newHeight
+			lbl.Size = UDim2.new(1, -6, 0, newHeight)
+			if textTarget ~= lbl then
+				textTarget.Size = UDim2.new(1, 0, 1, 0)
+			end
+			if previousHeight and math.abs(previousHeight - newHeight) >= 1 and queueChatVirtualRefresh then
+				queueChatVirtualRefresh(false)
+			end
 		end
 
 		local function syncChatEntryTranslation(entry)
 			local lbl = entry and entry.frame
 			local tr = NAStuff.ChatTranslator
 			if lbl and lbl.Parent and tr and type(tr.registerMessage) == "function" then
-				tr:registerMessage(lbl, buildChatEntryText(entry), entry.raw or entry.text or "")
+				local target = lbl:FindFirstChild("NAChatGradientText") or lbl
+				tr:registerMessage(target, buildChatEntryText(entry), entry.raw or entry.text or "")
 			end
 		end
 
@@ -1898,22 +2104,23 @@ originalIO.runNACHAT=function()
 			end)
 		end
 
-		local function makeChatLabel(entry)
+		local function makeChatLabel(entry, rowY)
 			if not (entry and chatScroll) then
 				return nil
 			end
 			if entry.frame and entry.frame.Parent then
+				entry.frame.Position = UDim2.new(0, 3, 0, math.max(0, tonumber(rowY) or 0))
 				refreshChatEntry(entry)
 				return entry.frame
 			end
-			local doAutoScroll = canAutoScroll(chatScroll) and shouldAutoScroll(chatScroll) or false
 			local lbl = InstanceNew("TextButton", chatScroll)
 			entry.frame = lbl
-			lbl.Size = UDim2.new(1, -6, 0, 24)
+			lbl.Size = UDim2.new(1, -6, 0, tonumber(entry.virtualHeight) or 24)
+			lbl.Position = UDim2.new(0, 3, 0, math.max(0, tonumber(rowY) or 0))
 			lbl.BackgroundColor3 = CHAT_SURFACE
 			lbl.BackgroundTransparency = 0.05
 			lbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-			lbl.TextSize = 14
+			lbl.TextSize = getChatMessageTextSize()
 			lbl.TextWrapped = true
 			lbl.RichText = true
 			lbl.TextXAlignment = Enum.TextXAlignment.Left
@@ -1931,9 +2138,6 @@ originalIO.runNACHAT=function()
 			refreshChatEntry(entry)
 			syncChatEntryTranslation(entry)
 			bindMessageContextMenu(entry, lbl)
-			if doAutoScroll then
-				scrollToBottomSoon(chatScroll)
-			end
 			return lbl
 		end
 
@@ -1963,21 +2167,187 @@ originalIO.runNACHAT=function()
 			renderedConversation = nil
 		end
 
-		local function renderConversation(force)
-			local key = NAChat.activeConversation
-			if not force and renderedConversation == key then
+		local function getChatViewportHeight()
+			if not chatScroll then
+				return 1
+			end
+			local viewportHeight = math.max(1, chatScroll.AbsoluteSize.Y)
+			if NAmanage and type(NAmanage.GetLogicalWindowSize) == "function" then
+				local okLogical, logicalSize = pcall(NAmanage.GetLogicalWindowSize, chatScroll)
+				if okLogical and logicalSize and tonumber(logicalSize.Y) then
+					viewportHeight = math.max(1, tonumber(logicalSize.Y))
+				end
+			end
+			return viewportHeight
+		end
+
+		local function getChatCanvasY()
+			if not chatScroll then
+				return 0
+			end
+			local logicalPos = NAmanage and NAmanage.GetLogicalCanvasPosition and NAmanage.GetLogicalCanvasPosition(chatScroll) or chatScroll.CanvasPosition
+			return math.max(0, tonumber(logicalPos and logicalPos.Y) or 0)
+		end
+
+		local function setChatCanvasY(value)
+			if not chatScroll then
 				return
 			end
-			clearConversationView()
-			renderedConversation = key
-			local history = conversationHistory[key] or {}
-			local first = math.max(1, #history - MAX_RENDERED_MESSAGES + 1)
-			for i = first, #history do
-				makeChatLabel(history[i])
+			value = math.max(0, tonumber(value) or 0)
+			if NAmanage and NAmanage.SetLogicalCanvasPosition then
+				NAmanage.SetLogicalCanvasPosition(chatScroll, 0, value)
+			else
+				chatScroll.CanvasPosition = Vector2.new(0, value)
 			end
-			if chatScroll then
-				scrollToBottomSoon(chatScroll)
+		end
+
+		local function estimatedChatHeight(entry)
+			local cached = tonumber(entry and entry.virtualHeight)
+			if cached and cached > 0 then
+				return cached
 			end
+			local compact = getChatCompactMessages()
+			local base = compact and 24 or 32
+			local raw = tostring((entry and (entry.raw or entry.text)) or "")
+			local lines = 1
+			for _ in raw:gmatch("\n") do
+				lines += 1
+			end
+			if #raw > 96 then
+				lines += math.floor(#raw / 96)
+			end
+			return math.min(260, base + math.max(0, lines - 1) * getChatMessageTextSize())
+		end
+
+		local function updateChatVirtualized(forceBottom)
+			if not chatScroll or NAChat.activeTab ~= "chat" then
+				return
+			end
+
+			chatVirtualGeneration += 1
+			local myGeneration = chatVirtualGeneration
+			local history = conversationHistory[NAChat.activeConversation] or {}
+			local viewportHeight = getChatViewportHeight()
+			local offsets = table.create and table.create(#history) or {}
+			local totalHeight = 0
+
+			for i, entry in history do
+				offsets[i] = totalHeight
+				totalHeight += estimatedChatHeight(entry)
+				if i < #history then
+					totalHeight += chatRowGap
+				end
+			end
+
+			chatScroll.CanvasSize = UDim2.new(0, 0, 0, totalHeight + 4)
+			local maxY = math.max(0, totalHeight - viewportHeight)
+			local currentY = getChatCanvasY()
+			if forceBottom then
+				currentY = maxY
+				setChatCanvasY(currentY)
+			elseif currentY > maxY then
+				currentY = maxY
+				setChatCanvasY(currentY)
+			end
+
+			local averageHeight = #history > 0 and math.max(1, totalHeight / #history) or 32
+			local bufferPixels = math.max(160, averageHeight * 5)
+			local visibleStart = math.max(0, currentY - bufferPixels)
+			local visibleEnd = currentY + viewportHeight + bufferPixels
+			local alive = {}
+			local structureChanged = false
+			local sizeChanged = false
+			local processedMessages = 0
+
+			for i, entry in history do
+				processedMessages += 1
+				if processedMessages > 1 and (processedMessages - 1) % 48 == 0 then
+					Wait()
+					if chatVirtualGeneration ~= myGeneration then
+						return
+					end
+				end
+				local rowY = offsets[i] or 0
+				local rowHeight = estimatedChatHeight(entry)
+				local inWindow = (rowY + rowHeight) >= visibleStart and rowY <= visibleEnd
+				if inWindow then
+					alive[entry] = true
+					local existed = entry.frame and entry.frame.Parent == chatScroll
+					local beforeHeight = tonumber(entry.virtualHeight)
+					local lbl = makeChatLabel(entry, rowY)
+					if lbl then
+						lbl.Position = UDim2.new(0, 3, 0, rowY)
+						if not existed then
+							structureChanged = true
+						end
+						local afterHeight = tonumber(entry.virtualHeight)
+						if afterHeight and (not beforeHeight or math.abs(afterHeight - beforeHeight) >= 1) then
+							sizeChanged = true
+						end
+					end
+				end
+			end
+
+			if chatVirtualGeneration ~= myGeneration then
+				return
+			end
+
+			for _, entry in history do
+				local fr = entry.frame
+				if fr and fr.Parent and not alive[entry] then
+					rainbowLabels[fr] = nil
+					pcall(function() fr:Destroy() end)
+					entry.frame = nil
+					structureChanged = true
+				end
+			end
+
+			if structureChanged and NAmanage.CustomScroll and NAmanage.CustomScroll.refreshByTarget then
+				NAmanage.CustomScroll.refreshByTarget(chatScroll)
+			end
+
+			if sizeChanged then
+				queueChatVirtualRefresh(forceBottom)
+			elseif forceBottom then
+				setChatCanvasY(math.max(0, totalHeight - viewportHeight))
+				if NAmanage.CustomScroll and NAmanage.CustomScroll.refreshByTarget then
+					NAmanage.CustomScroll.refreshByTarget(chatScroll)
+				end
+			end
+		end
+
+		queueChatVirtualRefresh = function(forceBottom)
+			if forceBottom then
+				chatVirtualForceBottom = true
+			end
+			if chatVirtualQueued then
+				return
+			end
+			chatVirtualQueued = true
+			Defer(function()
+				chatVirtualQueued = false
+				local bottom = chatVirtualForceBottom
+				chatVirtualForceBottom = false
+				updateChatVirtualized(bottom)
+			end)
+		end
+
+		invalidateChatVirtualHeights = function()
+			for _, history in conversationHistory do
+				for _, entry in history do
+					entry.virtualHeight = nil
+				end
+			end
+		end
+
+		local function renderConversation(force)
+			local key = NAChat.activeConversation
+			local changed = renderedConversation ~= key
+			if force or changed then
+				clearConversationView()
+				renderedConversation = key
+			end
+			queueChatVirtualRefresh(force or changed)
 		end
 
 		local function appendConversationMessage(key, text, color, rawMessage, metadata)
@@ -2006,23 +2376,15 @@ originalIO.runNACHAT=function()
 					if removed.frame then
 						rainbowLabels[removed.frame] = nil
 						pcall(function() removed.frame:Destroy() end)
+						removed.frame = nil
 					end
 				end
 			end
 			if key == NAChat.activeConversation and renderedConversation == key then
-				local frame = makeChatLabel(entry)
-				local trimIndex = #history - MAX_RENDERED_MESSAGES
-				if trimIndex >= 1 then
-					local oldVisible = history[trimIndex]
-					if oldVisible and oldVisible.frame then
-						rainbowLabels[oldVisible.frame] = nil
-						pcall(function() oldVisible.frame:Destroy() end)
-						oldVisible.frame = nil
-					end
-				end
-				return frame
+				local keepBottom = canAutoScroll(chatScroll) and shouldAutoScroll(chatScroll) or false
+				queueChatVirtualRefresh(keepBottom)
 			end
-			return nil
+			return entry.frame
 		end
 
 		local function upsertPublicChatRecord(record)
@@ -2046,6 +2408,8 @@ originalIO.runNACHAT=function()
 			local isOwner = senderId == 11761417 or senderId == 530829101
 			local isNAadmin = record.admin == true or record.isAdmin == true
 			local chatColor = tostring(record.chatColor or record.chat_color or "78AAFF")
+			local chatColor2 = record.chatColor2 or record.chat_color2
+			chatColor2 = type(chatColor2) == "string" and chatColor2 ~= "" and tostring(chatColor2) or nil
 			local lp = Players.LocalPlayer
 			local own = lp and ((senderId and tonumber(lp.UserId) == senderId) or Lower(tostring(lp.Name or "")) == Lower(senderName)) or false
 			local existing = messageEntriesById[messageId]
@@ -2060,6 +2424,7 @@ originalIO.runNACHAT=function()
 				existing.isAdmin = isNAadmin
 				existing.game = record.game
 				existing.chatColor = chatColor
+				existing.chatColor2 = chatColor2
 				existing.reply = type(record.reply) == "table" and record.reply or nil
 				existing.edited = record.edited == true
 				existing.own = own
@@ -2080,6 +2445,7 @@ originalIO.runNACHAT=function()
 				isAdmin = isNAadmin,
 				game = record.game,
 				chatColor = chatColor,
+				chatColor2 = chatColor2,
 				messageId = messageId,
 				reply = type(record.reply) == "table" and record.reply or nil,
 				edited = record.edited == true,
@@ -2185,6 +2551,7 @@ originalIO.runNACHAT=function()
 							text = prefix..escapeChatRichText(formatChatIdentity(displayName, sender))..": "..formatted,
 							color = colorFromHex(entry.chatColor or "78AAFF"),
 							chatColor = tostring(entry.chatColor or "78AAFF"),
+							chatColor2 = type(entry.chatColor2) == "string" and entry.chatColor2 ~= "" and tostring(entry.chatColor2) or nil,
 							raw = message,
 							order = chatMessageOrder,
 							rainbow = isOwner or isAdmin,
@@ -2201,7 +2568,6 @@ originalIO.runNACHAT=function()
 			if settingsPopup then
 				settingsPopup.Visible = false
 			end
-			styleChatTab(settingsBtn, false)
 		end
 
 		local function ensureChatSettingsPopup()
@@ -2215,8 +2581,8 @@ originalIO.runNACHAT=function()
 			settingsPopup = popup
 			popup.Name = "NAChatSettingsPopup"
 			popup.AnchorPoint = Vector2.new(1, 0)
-			popup.Position = UDim2.new(1, -10, 0, 82)
-			popup.Size = UDim2.new(0, 252, 0, 166)
+			popup.Position = UDim2.new(1, -10, 0, 42)
+			popup.Size = UDim2.new(0, 280, 0, 356)
 			popup.BackgroundColor3 = CHAT_SURFACE
 			popup.BackgroundTransparency = 0.02
 			popup.BorderSizePixel = 0
@@ -2234,7 +2600,7 @@ originalIO.runNACHAT=function()
 			title.TextSize = 13
 			title.TextXAlignment = Enum.TextXAlignment.Left
 			title.TextColor3 = Color3.fromRGB(238, 239, 250)
-			title.Text = "Chat message color"
+			title.Text = "Chat message colors"
 			title.ZIndex = 281
 
 			local hint = InstanceNew("TextLabel", popup)
@@ -2245,7 +2611,7 @@ originalIO.runNACHAT=function()
 			hint.TextSize = 11
 			hint.TextXAlignment = Enum.TextXAlignment.Left
 			hint.TextColor3 = Color3.fromRGB(165, 169, 188)
-			hint.Text = "Use #RRGGBB or R,G,B. Admin/owner RGB stays unchanged."
+			hint.Text = "Primary + optional gradient end. Admin/owner RGB stays unchanged."
 			hint.ZIndex = 281
 
 			local function parseColor(value)
@@ -2278,16 +2644,36 @@ originalIO.runNACHAT=function()
 			input.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
 			input.TextSize = 13
 			input.ClearTextOnFocus = false
-			input.PlaceholderText = "#RRGGBB or 0,255,0"
+			input.PlaceholderText = "Primary: #RRGGBB or 0,255,0"
 			input.Text = "#"..getSavedChatColorHex()
 			input.ZIndex = 281
 			local inputCorner = InstanceNew("UICorner", input)
 			inputCorner.CornerRadius = UDim.new(0, 6)
 			ensureChatStroke(input, Color3.fromRGB(83, 85, 105), 0.45)
 
+			local input2 = InstanceNew("TextBox", popup)
+			settingsColor2Input = input2
+			input2.Position = UDim2.new(0, 10, 0, 85)
+			input2.Size = UDim2.new(1, -20, 0, 28)
+			input2.BackgroundColor3 = CHAT_OFF
+			input2.BackgroundTransparency = 0.02
+			input2.BorderSizePixel = 0
+			input2.TextColor3 = Color3.fromRGB(235, 236, 246)
+			input2.PlaceholderColor3 = Color3.fromRGB(145, 149, 168)
+			input2.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+			input2.TextSize = 13
+			input2.ClearTextOnFocus = false
+			input2.PlaceholderText = "Gradient end (blank = solid)"
+			local saved2 = getSavedChatColor2Hex()
+			input2.Text = saved2 and ("#"..saved2) or ""
+			input2.ZIndex = 281
+			local input2Corner = InstanceNew("UICorner", input2)
+			input2Corner.CornerRadius = UDim.new(0, 6)
+			ensureChatStroke(input2, Color3.fromRGB(83, 85, 105), 0.45)
+
 			local preview = InstanceNew("Frame", popup)
 			preview.Name = "ColorPreview"
-			preview.Position = UDim2.new(0, 10, 0, 87)
+			preview.Position = UDim2.new(0, 10, 0, 121)
 			preview.Size = UDim2.new(0, 28, 0, 28)
 			preview.BorderSizePixel = 0
 			preview.BackgroundColor3 = getSavedChatColor()
@@ -2299,7 +2685,7 @@ originalIO.runNACHAT=function()
 			local previewText = InstanceNew("TextLabel", popup)
 			previewText.Name = "ColorPreviewText"
 			previewText.BackgroundTransparency = 1
-			previewText.Position = UDim2.new(0, 47, 0, 87)
+			previewText.Position = UDim2.new(0, 47, 0, 121)
 			previewText.Size = UDim2.new(1, -57, 0, 28)
 			previewText.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
 			previewText.TextSize = 12
@@ -2308,7 +2694,7 @@ originalIO.runNACHAT=function()
 			previewText.ZIndex = 281
 
 			local apply = InstanceNew("TextButton", popup)
-			apply.Position = UDim2.new(0, 10, 0, 128)
+			apply.Position = UDim2.new(0, 10, 0, 162)
 			apply.Size = UDim2.new(0.5, -15, 0, 28)
 			apply.BackgroundColor3 = CHAT_ON
 			apply.BorderSizePixel = 0
@@ -2322,7 +2708,7 @@ originalIO.runNACHAT=function()
 
 			local reset = InstanceNew("TextButton", popup)
 			reset.AnchorPoint = Vector2.new(1, 0)
-			reset.Position = UDim2.new(1, -10, 0, 128)
+			reset.Position = UDim2.new(1, -10, 0, 162)
 			reset.Size = UDim2.new(0.5, -15, 0, 28)
 			reset.BackgroundColor3 = CHAT_OFF
 			reset.BorderSizePixel = 0
@@ -2334,11 +2720,95 @@ originalIO.runNACHAT=function()
 			local resetCorner = InstanceNew("UICorner", reset)
 			resetCorner.CornerRadius = UDim.new(0, 6)
 
+			local function makeSettingToggle(name, y, key, defaultValue, onChanged)
+				local button = InstanceNew("TextButton", popup)
+				button.Name = name:gsub("%s+", "")
+				button.Position = UDim2.new(0, 10, 0, y)
+				button.Size = UDim2.new(1, -20, 0, 30)
+				button.BorderSizePixel = 0
+				button.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+				button.TextSize = 12
+				button.TextXAlignment = Enum.TextXAlignment.Left
+				button.ZIndex = 281
+				local pad = InstanceNew("UIPadding", button)
+				pad.PaddingLeft = UDim.new(0, 10)
+				local corner = InstanceNew("UICorner", button)
+				corner.CornerRadius = UDim.new(0, 6)
+				local function refresh()
+					local enabled = getChatSetting(key, defaultValue) == true
+					button.Text = name..(enabled and "  •  On" or "  •  Off")
+					button.BackgroundColor3 = enabled and CHAT_ON or CHAT_OFF
+					button.TextColor3 = enabled and Color3.fromRGB(220, 255, 238) or Color3.fromRGB(220, 222, 235)
+				end
+				MouseButtonFix(button, function()
+					local enabled = not (getChatSetting(key, defaultValue) == true)
+					setChatSetting(key, enabled)
+					refresh()
+					if onChanged then onChanged(enabled) end
+				end)
+				refresh()
+				return button
+			end
+
+			makeSettingToggle("Timestamps", 200, "naChatShowTimestamps", false, function()
+				invalidateChatVirtualHeights()
+				renderConversation(false)
+			end)
+			makeSettingToggle("Compact messages", 236, "naChatCompactMessages", false, function()
+				invalidateChatVirtualHeights()
+				renderConversation(false)
+			end)
+			makeSettingToggle("System messages", 272, "naChatShowSystemMessages", true)
+
+			local fontButton = InstanceNew("TextButton", popup)
+			fontButton.Position = UDim2.new(0, 10, 0, 308)
+			fontButton.Size = UDim2.new(1, -20, 0, 30)
+			fontButton.BackgroundColor3 = CHAT_OFF
+			fontButton.BorderSizePixel = 0
+			fontButton.TextColor3 = Color3.fromRGB(220, 222, 235)
+			fontButton.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
+			fontButton.TextSize = 12
+			fontButton.TextXAlignment = Enum.TextXAlignment.Left
+			fontButton.ZIndex = 281
+			local fontPad = InstanceNew("UIPadding", fontButton)
+			fontPad.PaddingLeft = UDim.new(0, 10)
+			local fontCorner = InstanceNew("UICorner", fontButton)
+			fontCorner.CornerRadius = UDim.new(0, 6)
+			local function refreshFontButton()
+				fontButton.Text = "Message size  •  "..tostring(getChatMessageTextSize()).."  (tap to increase)"
+			end
+			MouseButtonFix(fontButton, function()
+				local size = getChatMessageTextSize() + 1
+				if size > 20 then size = 11 end
+				setChatSetting("naChatMessageTextSize", size)
+				refreshFontButton()
+				invalidateChatVirtualHeights()
+				renderConversation(false)
+			end)
+			refreshFontButton()
+
 			local function refreshPreview()
-				local hex, color = parseColor(input.Text)
-				if hex and color then
-					preview.BackgroundColor3 = color
-					previewText.Text = "#"..hex
+				local hex1, color1 = parseColor(input.Text)
+				local raw2 = tostring(input2.Text or ""):gsub("%s+", "")
+				local hex2, color2
+				if raw2 ~= "" then
+					hex2, color2 = parseColor(raw2)
+				end
+				local oldGradient = preview:FindFirstChild("NAChatSettingsGradient")
+				if oldGradient then oldGradient:Destroy() end
+				if hex1 and color1 and (raw2 == "" or (hex2 and color2)) then
+					preview.BackgroundColor3 = color1
+					if color2 and hex2 ~= hex1 then
+						local gradient = InstanceNew("UIGradient", preview)
+						gradient.Name = "NAChatSettingsGradient"
+						gradient.Color = ColorSequence.new({
+							ColorSequenceKeypoint.new(0, color1),
+							ColorSequenceKeypoint.new(1, color2),
+						})
+						previewText.Text = "#"..hex1.." → #"..hex2
+					else
+						previewText.Text = "#"..hex1
+					end
 					previewText.TextColor3 = Color3.fromRGB(205, 208, 223)
 				else
 					preview.BackgroundColor3 = CHAT_DANGER
@@ -2347,34 +2817,48 @@ originalIO.runNACHAT=function()
 				end
 			end
 
-			local function saveColor(value)
-				local hex = parseColor(value)
-				if not hex then
-					originalIO.setStatus("NA Chat: invalid color (use #RRGGBB or R,G,B)", STATUS_COLORS.err)
+			local function saveColors(value1, value2)
+				local hex1 = parseColor(value1)
+				if not hex1 then
+					originalIO.setStatus("NA Chat: invalid primary color", STATUS_COLORS.err)
 					refreshPreview()
 					return
 				end
-				if NAmanage and type(NAmanage.NASettingsSet) == "function" then
-					pcall(NAmanage.NASettingsSet, "naChatMessageColor", hex)
+				local raw2 = tostring(value2 or ""):gsub("%s+", "")
+				local hex2 = nil
+				if raw2 ~= "" then
+					hex2 = parseColor(raw2)
+					if not hex2 then
+						originalIO.setStatus("NA Chat: invalid gradient color", STATUS_COLORS.err)
+						refreshPreview()
+						return
+					end
+					if hex2 == hex1 then
+						hex2 = nil
+					end
 				end
-				local saved = getSavedChatColorHex()
-				input.Text = "#"..saved
+				setChatSetting("naChatMessageColor", hex1)
+				setChatSetting("naChatMessageColor2", hex2 or "")
+				input.Text = "#"..getSavedChatColorHex()
+				local saved2 = getSavedChatColor2Hex()
+				input2.Text = saved2 and ("#"..saved2) or ""
 				if NAChat.service and type(NAChat.service.SetChatColor) == "function" then
-					pcall(NAChat.service.SetChatColor, saved)
+					pcall(NAChat.service.SetChatColor, getSavedChatColorHex(), saved2)
 				end
 				if refreshRegularMessageColors then
 					refreshRegularMessageColors()
 				end
 				refreshPreview()
-				originalIO.setStatus("NA Chat: message color saved", STATUS_COLORS.info)
+				originalIO.setStatus(saved2 and "NA Chat: message gradient saved" or "NA Chat: message color saved", STATUS_COLORS.info)
 			end
 
 			input:GetPropertyChangedSignal("Text"):Connect(refreshPreview)
+			input2:GetPropertyChangedSignal("Text"):Connect(refreshPreview)
 			MouseButtonFix(apply, function()
-				saveColor(input.Text)
+				saveColors(input.Text, input2.Text)
 			end)
 			MouseButtonFix(reset, function()
-				saveColor("78AAFF")
+				saveColors("78AAFF", "")
 			end)
 			refreshPreview()
 			return popup
@@ -2388,8 +2872,11 @@ originalIO.runNACHAT=function()
 			popup.Visible = not popup.Visible
 			if popup.Visible and settingsColorInput then
 				settingsColorInput.Text = "#"..getSavedChatColorHex()
+				if settingsColor2Input then
+					local saved2 = getSavedChatColor2Hex()
+					settingsColor2Input.Text = saved2 and ("#"..saved2) or ""
+				end
 			end
-			styleChatTab(settingsBtn, popup.Visible)
 		end
 
 		local function makeConversationButton(parent, text, selected)
@@ -2504,8 +2991,7 @@ originalIO.runNACHAT=function()
 				if adminTab then
 					styleChatTab(adminTab, false)
 				end
-				styleChatTab(settingsBtn, false)
-				if chatScroll then chatScroll.Visible = true end
+					if chatScroll then chatScroll.Visible = true end
 				if usersScroll then usersScroll.Visible = false end
 				if adminFrame then adminFrame.Visible = false end
 				if usersSearchBox then usersSearchBox.Visible = false end
@@ -3564,6 +4050,25 @@ originalIO.runNACHAT=function()
 			end
 
 			bindAutoScroll(chatScroll, chatLayout)
+			if chatScroll then
+				pcall(function()
+					chatScroll.AutomaticCanvasSize = Enum.AutomaticSize.None
+				end)
+				if chatLayout and chatLayout.Parent == chatScroll then
+					pcall(function()
+						local padding = chatLayout.Padding
+						chatRowGap = math.max(0, math.floor((padding.Offset + padding.Scale * math.max(1, chatScroll.AbsoluteSize.Y)) + 0.5))
+					end)
+					chatLayout.Parent = nil
+				end
+				chatScroll:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
+					queueChatVirtualRefresh(false)
+				end)
+				chatScroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+					invalidateChatVirtualHeights()
+					queueChatVirtualRefresh(false)
+				end)
+			end
 			if usersScroll then
 				pcall(function()
 					usersScroll.AutomaticCanvasSize = Enum.AutomaticSize.None
@@ -3587,7 +4092,7 @@ originalIO.runNACHAT=function()
 				end)
 			end
 
-			NAChat.service.OnChatMessage.Event:Connect(function(name, msg, messageTimestamp, userId, isAdmin, gameStatus, displayName, messageId, reply, edited, chatColor)
+			NAChat.service.OnChatMessage.Event:Connect(function(name, msg, messageTimestamp, userId, isAdmin, gameStatus, displayName, messageId, reply, edited, chatColor, chatColor2)
 				local rawSenderName = tostring(name or "?")
 				local messageText = tostring(msg or "")
 				local senderId = tonumber(userId)
@@ -3622,6 +4127,7 @@ originalIO.runNACHAT=function()
 					admin = isNAadmin,
 					game = gameStatus,
 					chatColor = tostring(chatColor or "78AAFF"),
+					chatColor2 = type(chatColor2) == "string" and chatColor2 ~= "" and tostring(chatColor2) or nil,
 					reply = type(reply) == "table" and reply or nil,
 					edited = edited == true,
 				})
@@ -3645,7 +4151,7 @@ originalIO.runNACHAT=function()
 			end)
 
 			if NAChat.service.OnMessageEdited then
-				NAChat.service.OnMessageEdited.Event:Connect(function(messageId, message, _, username, userId, displayName, isAdmin, reply, chatColor)
+				NAChat.service.OnMessageEdited.Event:Connect(function(messageId, message, _, username, userId, displayName, isAdmin, reply, chatColor, chatColor2)
 					local id = tostring(messageId or "")
 					local entry = messageEntriesById[id]
 					if not entry then
@@ -3658,6 +4164,7 @@ originalIO.runNACHAT=function()
 					if userId ~= nil then entry.userId = tonumber(userId) or entry.userId end
 					if isAdmin ~= nil then entry.isAdmin = isAdmin == true end
 					if chatColor ~= nil then entry.chatColor = tostring(chatColor) end
+					entry.chatColor2 = type(chatColor2) == "string" and chatColor2 ~= "" and tostring(chatColor2) or nil
 					if type(reply) == "table" then entry.reply = reply end
 					refreshChatEntry(entry)
 					syncChatEntryTranslation(entry)
@@ -3710,6 +4217,9 @@ originalIO.runNACHAT=function()
 			end
 
 			NAChat.service.OnSystemMessage.Event:Connect(function(msg)
+				if not getChatShowSystemMessages() then
+					return
+				end
 				local m = tostring(msg or "System message")
 				local isBan = isBanMessage(m)
 				if isBan then
@@ -3923,7 +4433,7 @@ originalIO.runNACHAT=function()
 			end
 
 			if NAChat.service.OnGroupMessage then
-				NAChat.service.OnGroupMessage.Event:Connect(function(groupId, groupName, fromName, text, _, displayName, userId, isAdmin, chatColor)
+				NAChat.service.OnGroupMessage.Event:Connect(function(groupId, groupName, fromName, text, _, displayName, userId, isAdmin, chatColor, chatColor2)
 					local id = tostring(groupId or "")
 					local sender = tostring(fromName or "?")
 					local senderDisplayName = tostring(displayName or "")
@@ -3943,6 +4453,7 @@ originalIO.runNACHAT=function()
 					local prefix = isOwner and "[OWNER] " or (isNAadmin and "[ADMIN] " or "")
 					appendConversationMessage(conversationKey(id), prefix..escapeChatRichText(formatChatIdentity(senderDisplayName, sender))..": "..formatted, colorFromHex(chatColor or "78AAFF"), msgText, {
 						chatColor = tostring(chatColor or "78AAFF"),
+						chatColor2 = type(chatColor2) == "string" and chatColor2 ~= "" and tostring(chatColor2) or nil,
 						rainbow = isOwner or isNAadmin,
 						useOwnChatColor = own and not (isOwner or isNAadmin),
 					})
@@ -4287,7 +4798,8 @@ originalIO.runNACHAT=function()
 						reconnectDelay = 6,
 						autoReconnect = false,
 						hidden = NAChat.isHidden,
-						chatColor = getSavedChatColorHex()
+						chatColor = getSavedChatColorHex(),
+						chatColor2 = getSavedChatColor2Hex()
 					})
 					if initCallOk then
 						okInit, initErr = initResult, initMessage
