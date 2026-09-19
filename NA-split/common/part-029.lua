@@ -3974,7 +3974,12 @@ originalIO.runNACHAT=function()
 			local okLoad, res = pcall(function()
 				local chunk, err = loadstring(payload)
 				assert(chunk, err or "loadstring failed")
-				return chunk()
+				local resolver = type(__lt) == "table" and __lt or nil
+				local cloneRef = type(cloneref) == "function" and cloneref or nil
+				return chunk({
+					serviceResolver = resolver,
+					cloneref = cloneRef,
+				})
 			end)
 
 			if okLoad and type(res) == "table" then
