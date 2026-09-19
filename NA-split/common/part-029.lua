@@ -3933,31 +3933,53 @@ originalIO.runNACHAT=function()
 		end
 
 		local function fetchIntegrationBody()
-			local body
+			local canonical = "https://raw.githubusercontent.com/ltseverydayyou/Open-Cheating-Network/main/Client/NewClient.luau"
+			local configured = tostring(INTEGRATION_URL or "")
+			local urls = {}
+			if configured ~= "" then
+				urls[#urls + 1] = configured
+			end
+			if configured ~= canonical then
+				urls[#urls + 1] = canonical
+			end
+
 			local rq = request or http_request or (syn and syn.request) or opt.NAREQUEST
+			local errors = {}
+			local stamp = tostring(os.time()).."-"..tostring(math.floor((os.clock() % 1) * 1000000))
 
-			if type(rq) == "function" then
-				local ok, res = pcall(rq, {
-					Url = INTEGRATION_URL,
-					Method = "GET"
-				})
-				if ok and type(res) == "table" then
-					body = res.Body or res.body
+			for _, baseUrl in urls do
+				local sep = baseUrl:find("?", 1, true) and "&" or "?"
+				local url = baseUrl..sep.."na_chat="..stamp
+
+				if type(rq) == "function" then
+					local ok, res = pcall(rq, {
+						Url = url,
+						Method = "GET",
+						Headers = {
+							["Cache-Control"] = "no-cache",
+							["Pragma"] = "no-cache"
+						}
+					})
+					if ok and type(res) == "table" then
+						local body = res.Body or res.body
+						local status = tonumber(res.StatusCode or res.statusCode or res.Status)
+						if type(body) == "string" and body ~= "" and (not status or status < 400) then
+							return true, body
+						end
+						errors[#errors + 1] = "request status="..tostring(status or "?")
+					else
+						errors[#errors + 1] = "request error="..tostring(res)
+					end
 				end
-			end
 
-			if type(body) ~= "string" or body == "" then
-				local ok, fb = pcall(game.HttpGet, game, INTEGRATION_URL)
-				if ok and type(fb) == "string" and fb ~= "" then
-					body = fb
+				local ok, body = pcall(game.HttpGet, game, url)
+				if ok and type(body) == "string" and body ~= "" then
+					return true, body
 				end
+				errors[#errors + 1] = "HttpGet error="..tostring(body)
 			end
 
-			if type(body) == "string" and body ~= "" then
-				return true, body
-			end
-
-			return false, "failed to fetch IntegrationService script"
+			return false, (#errors > 0 and table.concat(errors, " | ") or "failed to fetch IntegrationService script")
 		end
 
 		local function loadService()
@@ -3967,7 +3989,9 @@ originalIO.runNACHAT=function()
 
 			local ok, payload = fetchIntegrationBody()
 			if not ok then
-				originalIO.setStatus("NA Chat unavailable", STATUS_COLORS.err)
+				local detail = tostring(payload or "fetch failed")
+				originalIO.setStatus("NA Chat: integration fetch failed", STATUS_COLORS.err)
+				warn("[NA Chat] IntegrationService fetch failed: "..detail)
 				return false
 			end
 
@@ -4769,9 +4793,7 @@ originalIO.runNACHAT=function()
 				return
 			end
 			if permanentFailureReason then
-				NAChat.connecting = false
-				originalIO.setStatus("NA Chat unavailable", STATUS_COLORS.err)
-				return
+				permanentFailureReason = nil
 			end
 			if NAChat.connecting then
 				return
@@ -4820,10 +4842,8 @@ originalIO.runNACHAT=function()
 				if not okInit then
 					originalIO.setStatus("NA Chat: connect failed (Init)", STATUS_COLORS.err)
 
-					local permanent = (initErr == "websocket_not_available" or initErr == "no_local_player")
-					if permanent then
-						permanentFailureReason = initErr or "unknown"
-					end
+					local permanent = false
+					permanentFailureReason = nil
 
 					local msg
 					if initErr == "websocket_not_available" then
@@ -5101,6 +5121,7 @@ originalIO.runNACHAT=function()
 				NAChat.wired = false
 				NAChat.connecting = false
 				NAChat.serverIsAdmin = false
+				permanentFailureReason = nil
 				resetReconnectBackoff()
 				connect()
 			end)
