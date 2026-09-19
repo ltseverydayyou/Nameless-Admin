@@ -4799,7 +4799,9 @@ originalIO.runNACHAT=function()
 						autoReconnect = false,
 						hidden = NAChat.isHidden,
 						chatColor = getSavedChatColorHex(),
-						chatColor2 = NAmanage.NAChat_GetSavedColor2Hex()
+						chatColor2 = NAmanage.NAChat_GetSavedColor2Hex(),
+						serviceResolver = __lt,
+						cloneref = type(cloneref) == "function" and cloneref or nil
 					})
 					if initCallOk then
 						okInit, initErr = initResult, initMessage
@@ -4811,20 +4813,16 @@ originalIO.runNACHAT=function()
 				if not okInit then
 					originalIO.setStatus("NA Chat: connect failed (Init)", STATUS_COLORS.err)
 
-					local permanent = (initErr == "websocket_not_available" or initErr == "no_local_player")
-					if permanent then
-						permanentFailureReason = initErr or "unknown"
-					end
-
-					local msg
-					if initErr == "websocket_not_available" then
-						msg = "[NA Chat] Init failed: WebSocket not available in this executor"
-					else
-						msg = "[NA Chat] Init failed (see console for [IntegrationService] errors)"
-					end
+					local permanent = false
+					local msg = "[NA Chat] Init failed: "..tostring(initErr or "Unknown IntegrationService error")
 
 					local now = os.clock()
-					if lastErrText ~= msg or (now - (lastErrTime or 0)) > 15 then
+					if not (
+						type(lastErrText) == "string"
+						and tostring(initErr or "") ~= ""
+						and lastErrText:find(tostring(initErr), 1, true) ~= nil
+						and (now - (lastErrTime or 0)) <= 3
+					) and (lastErrText ~= msg or (now - (lastErrTime or 0)) > 15) then
 						lastErrText, lastErrTime = msg, now
 						appendConversationMessage("public", msg, STATUS_COLORS.err)
 					end
