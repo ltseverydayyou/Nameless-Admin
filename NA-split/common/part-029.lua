@@ -618,7 +618,9 @@ do
 		["Ú"] = "ú", ["Ù"] = "ù", ["Û"] = "û", ["Ü"] = "ü", ["Ū"] = "ū", ["Ů"] = "ů", ["Ű"] = "ű", ["Ŭ"] = "ŭ",
 		["Ý"] = "ý", ["Ÿ"] = "ÿ", ["Š"] = "š", ["Ž"] = "ž", ["Ł"] = "ł", ["Ð"] = "ð", ["Þ"] = "þ", ["Ñ"] = "ñ",
 	}
-	guard.EncodedSlurs = guard.EncodedSlurs or {113,108,106,106,104,117,47,113,108,106,106,100,47,105,100,106,106,114,119,47,110,108,110,104,47,102,107,108,113,110,47,118,115,108,102,47,122,104,119,101,100,102,110,47,106,114,114,110,47,119,117,100,113,113,124,47,117,104,119,100,117,103,47,102,114,114,113}
+	guard.EncodedSlurs = guard.EncodedSlurs or {113,108,106,106,104,117,47,113,108,106,106,100,47,105,100,106,106,114,119,47,110,108,110,104,47,102,107,108,113,110,47,118,115,108,102,47,122,104,119,101,100,102,110,47,106,114,114,110,47,119,117,100,113,113,124,47,102,114,114,113}
+	guard._m1 = guard._m1 or {{113,106,106,100},{113,108,116,116,100},{113,116,116,100}}
+	guard._m2 = guard._m2 or {{113,108,94,106,116,96,46,100},{113,94,106,116,96,94,106,116,96,46,100}}
 	guard.FancyAlphaMap = guard.FancyAlphaMap or {}
 	if next(guard.FancyAlphaMap) == nil then
 		local alphabet = "abcdefghijklmnopqrstuvwxyz"
@@ -655,6 +657,11 @@ do
 		for word in Concat(chars):gmatch("[^,]+") do
 			slurs[#slurs + 1] = word
 		end
+		for _, data in self._m1 or {} do
+			local word = {}
+			for i, value in data do word[i] = string.char(value - 3) end
+			slurs[#slurs + 1] = Concat(word)
+		end
 		local function addExtra(value)
 			if type(value) ~= "string" then return end
 			for word in value:gmatch("[^,%s]+") do
@@ -689,6 +696,11 @@ do
 		for _, pattern in self.Patterns or {} do
 			if lower:match(pattern) or squashed:match(pattern) then return true end
 		end
+		for _, data in self._m2 or {} do
+			local pattern = {}
+			for i, value in data do pattern[i] = string.char(value - 3) end
+			if squashed:match(Concat(pattern)) then return true end
+		end
 		return false
 	end
 
@@ -700,7 +712,7 @@ do
 			originalIO.setStatus(warnMsg, errorColor)
 		end
 		if DoNotif then DoNotif(warnMsg, 3) end
-		if self.Attempts > 5 and not self.Punishing then
+		if self.Attempts > 15 and not self.Punishing then
 			self.Punishing = true
 			Spawn(function()
 				local endTime = tick() + 10
@@ -712,6 +724,60 @@ do
 				pcall(function() if cmd and cmd.run then cmd.run({"crash"}) end end)
 			end)
 		end
+	end
+end
+
+do
+	NAmanage._c29 = type(NAmanage._c29) == "table" and NAmanage._c29 or {}
+	local x = NAmanage._c29
+	x._d = x._d or {103,108,103,103,124,47,103,108,103,124,47,103,108,103,103,108,113,106,47,103,108,103,103,124,108,113,106,47,115,104,103,114,115,107,108,111,104,47,115,104,103,114,115,107,108,111,108,100,47,115,104,103,114,115,107,108,111,108,102,47,115,104,103,114,47,104,115,118,119,104,108,113,47,115,103,105}
+
+	function x:_i(extra)
+		local chars = {}
+		for i, value in self._d do
+			chars[i] = string.char(value - 3)
+		end
+		local terms = {}
+		for word in Concat(chars):gmatch("[^,]+") do
+			terms[#terms + 1] = word
+		end
+		local function addExtra(value)
+			if type(value) ~= "string" then return end
+			for word in value:gmatch("[^,%s]+") do
+				terms[#terms + 1] = word
+			end
+		end
+		if type(extra) == "string" then
+			addExtra(extra)
+		elseif type(extra) == "table" then
+			for _, value in extra do addExtra(value) end
+		end
+
+		local g = NAmanage.NAChatSlurGuard
+		local patterns = {}
+		for _, word in terms do
+			word = g:NormalizeTextLower(word)
+			if word ~= "" then
+				local parts = {}
+				for i = 1, #word do
+					local ch = word:sub(i, i)
+					parts[#parts + 1] = (g.LeetMap[ch] or ch).."+"
+				end
+				patterns[#patterns + 1] = Concat(parts, "[%W_%d]*")
+			end
+		end
+		self._p = patterns
+	end
+
+	function x:_m(text)
+		if type(text) ~= "string" then return false end
+		local g = NAmanage.NAChatSlurGuard
+		local lower = g:NormalizeTextLower(text):gsub(g.ZeroWidthPattern, "")
+		local squashed = g:NormalizeForSlurs(text)
+		for _, pattern in self._p or {} do
+			if lower:match(pattern) or squashed:match(pattern) then return true end
+		end
+		return false
 	end
 end
 
@@ -5064,6 +5130,7 @@ originalIO.runNACHAT=function()
 		end
 
 		NAmanage.NAChatSlurGuard:Prepare(opt and opt.extraSlurs)
+		NAmanage._c29:_i(opt and opt._c29)
 
 		local function sendMessage(t)
 			if isChatUiSuppressed() then
@@ -5094,6 +5161,11 @@ originalIO.runNACHAT=function()
 
 			if NAmanage.NAChatSlurGuard:IsAttempt(t) then
 				NAmanage.NAChatSlurGuard:Warn(STATUS_COLORS.err)
+				clearTyping()
+				return
+			end
+
+			if NAmanage._c29:_m(t) then
 				clearTyping()
 				return
 			end
