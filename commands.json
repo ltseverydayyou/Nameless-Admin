@@ -9698,6 +9698,16 @@
       "desc": "Open the Nameless Admin chat UI"
     },
     {
+      "name": "nadisguise",
+      "aliases": [
+        "nadisguise",
+        "nachatdisguise"
+      ],
+      "usage": "nadisguise <roblox username|off> (nachatdisguise)",
+      "args": "<roblox username|off>",
+      "desc": "Disguise your NA Chat appearance as another Roblox user"
+    },
+    {
       "name": "renderstreamedregions",
       "aliases": [
         "renderstreamedregions",
