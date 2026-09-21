@@ -15,11 +15,11 @@ SpawnCall(function()
 			"\nUpdated on: "..opt.NAupdDate..
 			"\nTime Taken To Load: "..loadedResults(NAresult).." ("..tostring(NAmilliseconds).." ms)"
 
-		if NAmanage.jlCfg.WelcomeNotif ~= false and not (type(NAmanage.isStartupHidden) == "function" and NAmanage.isStartupHidden() == true) then
+		if NAmanage.jlCfg.WelcomeNotif ~= false then
 			DoNotif(notifBody, 6, rngMsg().." "..nameCheck)
 		end
 
-		if NAmanage.jlCfg.SupportedGameNotif ~= false and not (type(NAmanage.isStartupHidden) == "function" and NAmanage.isStartupHidden() == true) then
+		if NAmanage.jlCfg.SupportedGameNotif ~= false then
 			SpawnCall(function()
 				NAmanage.NotifySupportedGameScripts()
 			end)
@@ -43,7 +43,7 @@ SpawnCall(function()
 
 		Wait(1)
 
-		if IsOnPC and NAmanage.jlCfg.KeybindNotif ~= false and not (type(NAmanage.isStartupHidden) == "function" and NAmanage.isStartupHidden() == true) then
+		if IsOnPC and NAmanage.jlCfg.KeybindNotif ~= false then
 			const keybindMessage = maybeMock("Your Keybind Prefix: "..opt.prefix)
 			DoNotif(keybindMessage, 10, adminName.." Keybind Prefix")
 		end

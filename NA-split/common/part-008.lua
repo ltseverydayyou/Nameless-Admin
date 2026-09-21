@@ -2092,8 +2092,7 @@ NAmanage.LoadPlugins = function(opts)
 		pcall(NAmanage.RenderUserButtons)
 	end
 
-	const hideStartupNotif = opts.startup == true and type(NAmanage.isStartupHidden) == "function" and NAmanage.isStartupHidden() == true
-	const allowNotif = (forceNotify == true) or ((NAmanage.jlCfg.PluginNotif ~= false) and not hideStartupNotif)
+	const allowNotif = (forceNotify == true) or (NAmanage.jlCfg.PluginNotif ~= false)
 	if #loadedSumm > 0 and allowNotif and not silent then
 		DoNotif("Loaded plugins:\n\n"..Concat(loadedSumm, "\n\n"), 5.7)
 	end

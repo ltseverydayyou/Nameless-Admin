@@ -3406,11 +3406,18 @@ if FileSupport then
 		NAmanage.NASettingsSet("uiScale", 1)
 		DoNotif("UI Scale has been reset to default due to invalid data.")
 	end
-	if isfile(NAfiles.NAJOINLEAVE) then
+	if FileSupport and type(NAmanage.safeReadJsonFileWithRecovery) == "function" then
+		local success, data = NAmanage.safeReadJsonFileWithRecovery(NAfiles.NAJOINLEAVE, {
+			tempPath = NAfiles.NAJOINLEAVE..".tmp";
+			backupPath = NAfiles.NAJOINLEAVE..".bak";
+		})
+		if success and type(data) == "table" then
+			NAmanage.jlCfg = data
+		end
+	elseif type(isfile) == "function" and isfile(NAfiles.NAJOINLEAVE) then
 		local success, data = pcall(function()
 			return Services.HttpService:JSONDecode(readfile(NAfiles.NAJOINLEAVE))
 		end)
-
 		if success and type(data) == "table" then
 			NAmanage.jlCfg = data
 		end

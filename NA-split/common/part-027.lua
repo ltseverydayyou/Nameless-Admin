@@ -11595,11 +11595,33 @@ function NAmanage.jlSave()
 	NAmanage.jlCfg = NAmanage.jlNorm(NAmanage.jlCfg)
 	NAmanage.logApply()
 	if FileSupport then
-		writefile(NAfiles.NAJOINLEAVE, Services.HttpService:JSONEncode(NAmanage.jlCfg))
+		local okEncode, encoded = pcall(function()
+			return Services.HttpService:JSONEncode(NAmanage.jlCfg)
+		end)
+		if not okEncode or type(encoded) ~= "string" then
+			DebugNotif("Failed to encode logging settings: "..tostring(encoded))
+			return false
+		end
+
+		local okWrite, writeErr
+		if type(NAmanage.safeWriteJsonFileWithRecovery) == "function" then
+			okWrite, writeErr = NAmanage.safeWriteJsonFileWithRecovery(NAfiles.NAJOINLEAVE, encoded, {
+				tempPath = NAfiles.NAJOINLEAVE..".tmp";
+				backupPath = NAfiles.NAJOINLEAVE..".bak";
+			})
+		else
+			okWrite, writeErr = NAmanage.safeWriteFile(NAfiles.NAJOINLEAVE, encoded)
+		end
+		if not okWrite then
+			DebugNotif("Failed to save logging settings: "..tostring(writeErr))
+			return false
+		end
+		return true
 	elseif not NAStuff.joinLeaveWarned then
 		NAStuff.joinLeaveWarned = true
 		DebugNotif("Logging settings will reset after this session (no file support detected).")
 	end
+	return false
 end
 
 NAgui.addTab(NA_TABS.TAB_LOGGING, { order = 11, textIcon = "list-bulleted" })
@@ -11744,6 +11766,32 @@ NAgui.addToggle("Log Physics Errors", NAmanage.jlCfg.PhysicsLog, function(v)
 	NAmanage.jlSave()
 	DoNotif("Physics error logging "..(v and "enabled" or "disabled"), 2)
 end)
+
+if type(NAmanage.RegisterToggleAutoSync) == "function" then
+	local loggingToggleGetters = {
+		["Log Player Joins"] = function() return NAmanage.jlCfg.JoinLog == true end;
+		["Log Player Leaves"] = function() return NAmanage.jlCfg.LeaveLog == true end;
+		["Notify If Followed Into"] = function() return NAmanage.jlCfg.NotifyFollowed == true end;
+		["Save Join/Leave Logs"] = function() return NAmanage.jlCfg.SaveLog == true end;
+		["Include User IDs In Join/Leave Logs"] = function() return NAmanage.jlCfg.JoinLeaveShowUserIds == true end;
+		["Log Chat Messages"] = function() return NAmanage.jlCfg.ChatLog ~= false end;
+		["Save Chat Logs"] = function() return NAmanage.jlCfg.SaveChatLog == true end;
+		["Show Chat Timestamps"] = function() return NAmanage.jlCfg.ChatShowTimestamps ~= false end;
+		["Use Display Names In Chat Log"] = function() return NAmanage.jlCfg.ChatUseDisplayNames ~= false end;
+		["Include User IDs In Chat Log"] = function() return NAmanage.jlCfg.ChatShowUserIds == true end;
+		["Log Your Own Chat Messages"] = function() return NAmanage.jlCfg.ChatLogLocalPlayer ~= false end;
+		["Include Game/Server Info In Saved Logs"] = function() return NAmanage.jlCfg.LogIncludeGameInfo ~= false end;
+		["Show Welcome Notification"] = function() return NAmanage.jlCfg.WelcomeNotif ~= false end;
+		["Supported Game Alerts"] = function() return NAmanage.jlCfg.SupportedGameNotif ~= false end;
+		["Show Keybind Prefix Reminder"] = function() return NAmanage.jlCfg.KeybindNotif ~= false end;
+		["Show Plugin Load Summary"] = function() return NAmanage.jlCfg.PluginNotif ~= false end;
+		["Show Intro Text Label"] = function() return NAmanage.jlCfg.IconLabel ~= false end;
+		["Log Physics Errors"] = function() return NAmanage.jlCfg.PhysicsLog == true end;
+	}
+	for label, getter in loggingToggleGetters do
+		NAmanage.RegisterToggleAutoSync(label, getter)
+	end
+end
 
 NAgui.addSection("Log Maintenance")
 
