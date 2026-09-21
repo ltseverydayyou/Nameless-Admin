@@ -1695,6 +1695,7 @@ originalIO.runNACHAT=function()
 		local settingsPopup = nil
 		local settingsColorInput = nil
 		local refreshRegularMessageColors
+		local refreshGameActivityButton
 
 		NAmanage.NAChat_GetSetting = function(key, defaultValue)
 			if NAmanage and type(NAmanage.NASettingsGet) == "function" then
@@ -1981,9 +1982,9 @@ originalIO.runNACHAT=function()
 				NAmanage.NAChat_ApplyColor(textTarget, primaryHex, secondaryHex, fallbackColor)
 			end
 
-			local sz = NAgui.txtSize(textTarget, lbl.AbsoluteSize.X, 260)
 			local compact = NAmanage.NAChat_GetCompactMessages()
-			local newHeight = math.max(compact and 20 or 24, sz.Y + (compact and 4 or 8))
+			local newHeight = NAmanage.NAChat_MeasureEntryHeight and NAmanage.NAChat_MeasureEntryHeight(entry)
+				or (compact and 20 or 24)
 			local previousHeight = tonumber(entry.virtualHeight)
 			entry.virtualHeight = newHeight
 			lbl.Size = UDim2.new(1, -6, 0, newHeight)
@@ -2046,6 +2047,7 @@ originalIO.runNACHAT=function()
 			hideMessageContextMenu()
 
 			local actions = {}
+			local moderationTarget = tostring(entry.moderationUsername or entry.authorUsername or entry.username or "")
 			actions[#actions + 1] = {"Reply", function()
 				NAChat.currentDMTarget = nil
 				composeEditEntry = nil
@@ -2066,17 +2068,29 @@ originalIO.runNACHAT=function()
 					end
 				end, false}
 			end
-			if NAChat.serverIsAdmin and (not entry.own) and tostring(entry.username or "") ~= "" then
+			if NAChat.serverIsAdmin and (not entry.own) and moderationTarget ~= "" then
 				actions[#actions + 1] = {"Kick", function()
 					local svc = NAChat.service
 					if svc and type(svc.SendAdminAction) == "function" then
-						svc.SendAdminAction("kick", tostring(entry.username))
+						svc.SendAdminAction("kick", moderationTarget)
 					end
 				end, true}
+				actions[#actions + 1] = {"Mute 5m", function()
+					local svc = NAChat.service
+					if svc and type(svc.SendAdminAction) == "function" then
+						svc.SendAdminAction("mute", moderationTarget, 300)
+					end
+				end, false}
 				actions[#actions + 1] = {"Ban", function()
 					local svc = NAChat.service
 					if svc and type(svc.SendAdminAction) == "function" then
-						svc.SendAdminAction("ban", tostring(entry.username))
+						svc.SendAdminAction("ban", moderationTarget)
+					end
+				end, true}
+				actions[#actions + 1] = {"HWID Ban", function()
+					local svc = NAChat.service
+					if svc and type(svc.SendAdminAction) == "function" then
+						svc.SendAdminAction("hwid_ban", moderationTarget)
 					end
 				end, true}
 			end
@@ -2283,22 +2297,73 @@ originalIO.runNACHAT=function()
 			end
 		end
 
+		NAmanage.NAChat_GetMessageMeasureWidth = function()
+			local width = 320
+			if chatScroll then
+				local logicalSize = nil
+				if NAmanage and type(NAmanage.GetLogicalWindowSize) == "function" then
+					local ok, value = pcall(NAmanage.GetLogicalWindowSize, chatScroll)
+					if ok and value then
+						logicalSize = value
+					end
+				end
+				if logicalSize and tonumber(logicalSize.X) then
+					width = tonumber(logicalSize.X)
+				elseif chatScroll.AbsoluteSize then
+					local scale = getUIScale()
+					width = (tonumber(chatScroll.AbsoluteSize.X) or width) / math.max(scale, 0.01)
+				end
+			end
+			return math.max(80, width - 30)
+		end
+
+		local function virtualMeasureText(entry)
+			local value = tostring(buildChatEntryText(entry) or "")
+			value = value:gsub("<[^>]->", "")
+			value = value:gsub("&lt;", "<"):gsub("&gt;", ">"):gsub("&amp;", "&")
+			return value
+		end
+
+		NAmanage.NAChat_MeasureEntryHeight = function(entry)
+			local compact = NAmanage.NAChat_GetCompactMessages()
+			local minHeight = compact and 20 or 24
+			local padding = compact and 4 or 8
+			local width = NAmanage.NAChat_GetMessageMeasureWidth()
+			local textSize = NAmanage.NAChat_GetMessageTextSize()
+			local measuredY = 0
+			local textService = Services.TextService
+			if textService then
+				local ok, bounds = pcall(textService.GetTextSize, textService, virtualMeasureText(entry), textSize, Enum.Font.Roboto, Vector2.new(width, 2000))
+				if ok and bounds then
+					measuredY = tonumber(bounds.Y) or 0
+				end
+			end
+			if measuredY <= 0 then
+				local charsPerLine = math.max(8, math.floor(width / math.max(5, textSize * 0.54)))
+				local lines = 0
+				for line in (virtualMeasureText(entry).."\n"):gmatch("(.-)\n") do
+					lines += math.max(1, math.ceil(#line / charsPerLine))
+				end
+				measuredY = math.max(textSize, lines * (textSize + 2))
+			end
+			return math.max(minHeight, math.min(720, math.ceil(measuredY + padding)))
+		end
+
 		NAmanage.NAChat_EstimatedHeight = function(entry)
 			local cached = tonumber(entry and entry.virtualHeight)
 			if cached and cached > 0 then
 				return cached
 			end
 			local compact = NAmanage.NAChat_GetCompactMessages()
-			local base = compact and 24 or 32
-			local raw = tostring((entry and (entry.raw or entry.text)) or "")
-			local lines = 1
-			for _ in raw:gmatch("\n") do
-				lines += 1
+			local base = compact and 20 or 24
+			local width = NAmanage.NAChat_GetMessageMeasureWidth()
+			local textSize = NAmanage.NAChat_GetMessageTextSize()
+			local charsPerLine = math.max(8, math.floor(width / math.max(5, textSize * 0.54)))
+			local lines = 0
+			for line in (virtualMeasureText(entry).."\n"):gmatch("(.-)\n") do
+				lines += math.max(1, math.ceil(#line / charsPerLine))
 			end
-			if #raw > 96 then
-				lines += math.floor(#raw / 96)
-			end
-			return math.min(260, base + math.max(0, lines - 1) * NAmanage.NAChat_GetMessageTextSize())
+			return math.max(base, math.min(720, base + math.max(0, lines - 1) * (textSize + 2)))
 		end
 
 		NAmanage.NAChat_UpdateVirtualized = function(forceBottom)
@@ -2339,6 +2404,7 @@ originalIO.runNACHAT=function()
 			local alive = {}
 			local structureChanged = false
 			local sizeChanged = false
+			local anchorDelta = 0
 			local processedMessages = 0
 
 			for i, entry in history do
@@ -2365,6 +2431,9 @@ originalIO.runNACHAT=function()
 						local afterHeight = tonumber(entry.virtualHeight)
 						if afterHeight and (not beforeHeight or math.abs(afterHeight - beforeHeight) >= 1) then
 							sizeChanged = true
+							if beforeHeight and (rowY + beforeHeight) <= currentY then
+								anchorDelta += (afterHeight - beforeHeight)
+							end
 						end
 					end
 				end
@@ -2389,6 +2458,9 @@ originalIO.runNACHAT=function()
 			end
 
 			if sizeChanged then
+				if not forceBottom and math.abs(anchorDelta) >= 1 then
+					NAmanage.NAChat_SetCanvasY(math.max(0, currentY + anchorDelta))
+				end
 				NAmanage.NAChat_QueueVirtualRefresh(forceBottom)
 			elseif forceBottom then
 				NAmanage.NAChat_SetCanvasY(math.max(0, totalHeight - viewportHeight))
@@ -2487,13 +2559,15 @@ originalIO.runNACHAT=function()
 
 			local senderDisplayName = tostring(record.displayName or record.display_name or "")
 			local senderId = tonumber(record.userId or record.user_id)
-			local isOwner = senderId == 11761417 or senderId == 530829101
+			local canonicalUsername = tostring(record.authorUsername or record.author_username or senderName)
+			local canonicalUserId = tonumber(record.authorUserId or record.author_user_id) or senderId
+			local isOwner = canonicalUserId == 11761417 or canonicalUserId == 530829101
 			local isNAadmin = record.admin == true or record.isAdmin == true
 			local chatColor = tostring(record.chatColor or record.chat_color or "78AAFF")
 			local chatColor2 = record.chatColor2 or record.chat_color2
 			chatColor2 = type(chatColor2) == "string" and chatColor2 ~= "" and tostring(chatColor2) or nil
 			local lp = Players.LocalPlayer
-			local own = lp and ((senderId and tonumber(lp.UserId) == senderId) or Lower(tostring(lp.Name or "")) == Lower(senderName)) or false
+			local own = lp and ((canonicalUserId and tonumber(lp.UserId) == canonicalUserId) or Lower(tostring(lp.Name or "")) == Lower(canonicalUsername)) or false
 			local existing = messageEntriesById[messageId]
 
 			if existing then
@@ -2502,6 +2576,9 @@ originalIO.runNACHAT=function()
 				existing.username = senderName
 				existing.displayName = senderDisplayName
 				existing.userId = senderId
+				existing.authorUsername = canonicalUsername
+				existing.authorUserId = canonicalUserId
+				existing.moderationUsername = canonicalUsername
 				existing.isOwner = isOwner
 				existing.isAdmin = isNAadmin
 				existing.game = record.game
@@ -2523,6 +2600,9 @@ originalIO.runNACHAT=function()
 				username = senderName,
 				displayName = senderDisplayName,
 				userId = senderId,
+				authorUsername = canonicalUsername,
+				authorUserId = canonicalUserId,
+				moderationUsername = canonicalUsername,
 				isOwner = isOwner,
 				isAdmin = isNAadmin,
 				game = record.game,
@@ -4207,13 +4287,15 @@ originalIO.runNACHAT=function()
 				end)
 			end
 
-			NAChat.service.OnChatMessage.Event:Connect(function(name, msg, messageTimestamp, userId, isAdmin, gameStatus, displayName, messageId, reply, edited, chatColor, chatColor2)
+			NAChat.service.OnChatMessage.Event:Connect(function(name, msg, messageTimestamp, userId, isAdmin, gameStatus, displayName, messageId, reply, edited, chatColor, chatColor2, authorUsername, authorUserId)
 				local rawSenderName = tostring(name or "?")
 				local messageText = tostring(msg or "")
 				local senderId = tonumber(userId)
 				local senderName = rawSenderName
 				local senderDisplayName = tostring(displayName or "")
-				local isOwner = senderId == 11761417 or senderId == 530829101
+				local canonicalUsername = tostring(authorUsername or senderName)
+				local canonicalUserId = tonumber(authorUserId) or senderId
+				local isOwner = canonicalUserId == 11761417 or canonicalUserId == 530829101
 				local isNAadmin = isAdmin == true
 				local _, mentioned = formatMessageWithMentions(messageText)
 
@@ -4228,8 +4310,8 @@ originalIO.runNACHAT=function()
 				local lp = Players.LocalPlayer
 				local own = false
 				if lp then
-					own = (senderId ~= nil and tonumber(lp.UserId) == senderId)
-						or Lower(tostring(lp.Name or "")) == Lower(senderName)
+					own = (canonicalUserId ~= nil and tonumber(lp.UserId) == canonicalUserId)
+						or Lower(tostring(lp.Name or "")) == Lower(canonicalUsername)
 				end
 
 				upsertPublicChatRecord({
@@ -4239,6 +4321,8 @@ originalIO.runNACHAT=function()
 					message = messageText,
 					timestamp = messageTimestamp,
 					userId = senderId,
+					authorUsername = canonicalUsername,
+					authorUserId = canonicalUserId,
 					admin = isNAadmin,
 					game = gameStatus,
 					chatColor = tostring(chatColor or "78AAFF"),
@@ -4399,6 +4483,29 @@ originalIO.runNACHAT=function()
 						end
 					end
 					updateStatusLabel()
+				end)
+			end
+
+			if NAChat.service.OnActivityState then
+				NAChat.service.OnActivityState.Event:Connect(function(visible)
+					local enabled = visible == true
+					if NAmanage and type(NAmanage.NASettingsSet) == "function" then
+						pcall(NAmanage.NASettingsSet, "naChatGameActivity", enabled)
+					end
+					if refreshGameActivityButton then
+						refreshGameActivityButton(enabled)
+					end
+				end)
+			end
+
+			if NAChat.service.OnAdminDisguise then
+				NAChat.service.OnAdminDisguise.Event:Connect(function(enabled, username, displayName)
+					if enabled then
+						originalIO.setStatus(("NA Chat: disguised as %s"):format(formatChatIdentity(tostring(displayName or ""), tostring(username or "?"))), STATUS_COLORS.info)
+					else
+						originalIO.setStatus("NA Chat: disguise disabled", STATUS_COLORS.info)
+					end
+					requestUsersList()
 				end)
 			end
 
@@ -4644,11 +4751,13 @@ originalIO.runNACHAT=function()
 			end
 
 			if NAChat.service.OnGroupMessage then
-				NAChat.service.OnGroupMessage.Event:Connect(function(groupId, groupName, fromName, text, _, displayName, userId, isAdmin, chatColor, chatColor2)
+				NAChat.service.OnGroupMessage.Event:Connect(function(groupId, groupName, fromName, text, _, displayName, userId, isAdmin, chatColor, chatColor2, authorUsername, authorUserId)
 					local id = tostring(groupId or "")
 					local sender = tostring(fromName or "?")
 					local senderDisplayName = tostring(displayName or "")
 					local senderId = tonumber(userId)
+					local canonicalUsername = tostring(authorUsername or sender)
+					local canonicalUserId = tonumber(authorUserId) or senderId
 					local msgText = tostring(text or "")
 					if id == "" or msgText == "" then
 						return
@@ -4657,10 +4766,10 @@ originalIO.runNACHAT=function()
 					if formatted == "" then
 						formatted = escapeChatRichText(msgText)
 					end
-					local isOwner = senderId == 11761417 or senderId == 530829101
+					local isOwner = canonicalUserId == 11761417 or canonicalUserId == 530829101
 					local isNAadmin = isAdmin == true
 					local lp = Players.LocalPlayer
-					local own = lp and ((senderId and tonumber(lp.UserId) == senderId) or Lower(tostring(lp.Name or "")) == Lower(sender)) or false
+					local own = lp and ((canonicalUserId and tonumber(lp.UserId) == canonicalUserId) or Lower(tostring(lp.Name or "")) == Lower(canonicalUsername)) or false
 					local prefix = isOwner and "[OWNER] " or (isNAadmin and "[ADMIN] " or "")
 					appendConversationMessage(conversationKey(id), prefix..escapeChatRichText(formatChatIdentity(senderDisplayName, sender))..": "..formatted, colorFromHex(chatColor or "78AAFF"), msgText, {
 						chatColor = tostring(chatColor or "78AAFF"),
@@ -4889,6 +4998,19 @@ originalIO.runNACHAT=function()
 				local lp = Players.LocalPlayer
 				local myName = (lp and lp.Name) or tostring(name or "?")
 				appendConversationMessage("public", ("[NA Chat] Connected as %s"):format(myName), STATUS_COLORS.ok)
+				local activityEnabled = true
+				if type(_G.NAChatGameActivityEnabled) == "function" then
+					local okActivity, savedActivity = pcall(_G.NAChatGameActivityEnabled)
+					if okActivity and type(savedActivity) == "boolean" then
+						activityEnabled = savedActivity
+					end
+				end
+				if refreshGameActivityButton then
+					refreshGameActivityButton(activityEnabled)
+				end
+				if NAChat.service and type(NAChat.service.SetActivityHidden) == "function" then
+					pcall(NAChat.service.SetActivityHidden, not activityEnabled)
+				end
 				requestUsersList()
 				if NAChat.service.RequestGroups then
 					pcall(NAChat.service.RequestGroups)
@@ -5369,9 +5491,12 @@ originalIO.runNACHAT=function()
 		if gameActivityBtn then
 			local gameActivityDebounce = false
 
-			local function refreshGameActivityButton()
-				local enabled = _G.NAChatGameActivityEnabled()
-				styleChatToggle(gameActivityBtn, enabled, "Activity  •  On", "Activity  •  Off")
+			refreshGameActivityButton = function(enabledOverride)
+				local enabled = enabledOverride
+				if type(enabled) ~= "boolean" then
+					enabled = _G.NAChatGameActivityEnabled()
+				end
+				styleChatToggle(gameActivityBtn, enabled == true, "Activity  •  On", "Activity  •  Off")
 			end
 
 			refreshGameActivityButton()
@@ -6244,6 +6369,30 @@ originalIO.runNACHAT=function()
 		refreshAdminTabUI()
 
 		if isLocalAdmin() then
+		local function takeAnonymousFlag(parts)
+			local anonymous = false
+			for i = #parts, 1, -1 do
+				local value = Lower(tostring(parts[i] or ""))
+				if value == "--anon" or value == "--anonymous" or value == "-a" then
+					table.remove(parts, i)
+					anonymous = true
+				end
+			end
+			return anonymous
+		end
+
+		cmd.add({"nadisguise","nachatdisguise"}, {"nadisguise <roblox username|off> (nachatdisguise)", "Disguise your NA Chat appearance as another Roblox user"}, function(username)
+			local svc = NAChat.service
+			if not (svc and svc.IsConnected and svc.IsConnected() and svc.SetAdminDisguise) then
+				return
+			end
+			username = tostring(username or "")
+			if username == "" then
+				return
+			end
+			svc.SetAdminDisguise(username)
+		end, true)
+
 		cmd.add({"nacmd","naremote"}, {"nacmd <target> <command> (naremote)", "Send a command to NA Chat user(s)"}, function(targetSpec, ...)
 			local svc = NAChat.service
 			if not (svc and svc.IsConnected and svc.IsConnected()) then
@@ -6265,28 +6414,30 @@ originalIO.runNACHAT=function()
 			end
 		end, true)
 
-		cmd.add({"naannouncement","naannc","announcement"}, {"naannouncement <message> (naannc, announcement)", "Send an announcement to all NA Chat users"}, function(...)
+		cmd.add({"naannouncement","naannc","announcement"}, {"naannouncement [--anon] <message> (naannc, announcement)", "Send an announcement to all NA Chat users"}, function(...)
 			local svc = NAChat.service
 			if not (svc and svc.IsConnected and svc.IsConnected() and svc.SendAnnouncement) then
 				return
 			end
 
 			local parts = { ... }
+			local anonymous = takeAnonymousFlag(parts)
 			if #parts == 0 then
 				return
 			end
 
 			local msg = Concat(parts, " ")
-			svc.SendAnnouncement(msg)
+			svc.SendAnnouncement(msg, anonymous)
 		end, true)
 
-		cmd.add({"nanotify"}, {"nanotify <target> [duration] <message>", "Send a notification to NA Chat user(s)"}, function(targetSpec, ...)
+		cmd.add({"nanotify"}, {"nanotify <target> [duration] [--anon] <message>", "Send a notification to NA Chat user(s)"}, function(targetSpec, ...)
 			local svc = NAChat.service
 			if not (svc and svc.IsConnected and svc.IsConnected() and svc.SendNotify) then
 				return
 			end
 
 			local parts = { ... }
+			local anonymous = takeAnonymousFlag(parts)
 			if #parts == 0 then
 				return
 			end
@@ -6314,16 +6465,17 @@ originalIO.runNACHAT=function()
 				return
 			end
 
-			svc.SendNotify(target, msg, duration)
+			svc.SendNotify(target, msg, duration, anonymous)
 		end, true)
 
-		cmd.add({"nanotify2"}, {"nanotify2 <target> <message>", "Send a window to NA Chat user(s)"}, function(targetSpec, ...)
+		cmd.add({"nanotify2"}, {"nanotify2 <target> [--anon] <message>", "Send a window to NA Chat user(s)"}, function(targetSpec, ...)
 			local svc = NAChat.service
 			if not (svc and svc.IsConnected and svc.IsConnected() and svc.SendNotify2) then
 				return
 			end
 
 			local parts = { ... }
+			local anonymous = takeAnonymousFlag(parts)
 			if #parts == 0 then
 				return
 			end
@@ -6338,16 +6490,17 @@ originalIO.runNACHAT=function()
 				return
 			end
 
-			svc.SendNotify2(target, msg)
+			svc.SendNotify2(target, msg, anonymous)
 		end, true)
 
-		cmd.add({"nanotify3"}, {"nanotify3 <target> <message>", "Send a popup to NA Chat user(s)"}, function(targetSpec, ...)
+		cmd.add({"nanotify3"}, {"nanotify3 <target> [--anon] <message>", "Send a popup to NA Chat user(s)"}, function(targetSpec, ...)
 			local svc = NAChat.service
 			if not (svc and svc.IsConnected and svc.IsConnected() and svc.SendNotify3) then
 				return
 			end
 
 			local parts = { ... }
+			local anonymous = takeAnonymousFlag(parts)
 			if #parts == 0 then
 				return
 			end
@@ -6362,7 +6515,7 @@ originalIO.runNACHAT=function()
 				return
 			end
 
-			svc.SendNotify3(target, msg)
+			svc.SendNotify3(target, msg, anonymous)
 		end, true)
 		end
 
