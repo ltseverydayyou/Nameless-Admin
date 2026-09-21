@@ -1928,6 +1928,8 @@ originalIO.runNACHAT=function()
 			return timePrefix..replyLine..prefix..sender..": "..displayText..editedMark
 		end
 
+		local syncChatEntryTranslation
+
 		local function refreshChatEntry(entry)
 			local lbl = entry and entry.frame
 			if not (lbl and lbl.Parent) then
@@ -1994,15 +1996,42 @@ originalIO.runNACHAT=function()
 			if previousHeight and math.abs(previousHeight - newHeight) >= 1 and NAmanage.NAChat_QueueVirtualRefresh then
 				NAmanage.NAChat_QueueVirtualRefresh(false)
 			end
+			if syncChatEntryTranslation then
+				syncChatEntryTranslation(entry)
+			end
 		end
 
-		local function syncChatEntryTranslation(entry)
+		syncChatEntryTranslation = function(entry)
 			local lbl = entry and entry.frame
 			local tr = NAStuff.ChatTranslator
-			if lbl and lbl.Parent and tr and type(tr.registerMessage) == "function" then
-				local target = lbl:FindFirstChild("NAChatGradientText") or lbl
-				tr:registerMessage(target, buildChatEntryText(entry), entry.raw or entry.text or "")
+			if not (lbl and lbl.Parent and tr and type(tr.registerMessage) == "function") then
+				return
 			end
+			local target = lbl:FindFirstChild("NAChatGradientText") or lbl
+			local info = type(entry.translationInfo) == "table" and entry.translationInfo or {}
+			entry.translationInfo = info
+			info.onDisplay = function(activeLabel)
+				if not entry or not activeLabel or not activeLabel.Parent then
+					return
+				end
+				local previousHeight = tonumber(entry.virtualHeight)
+				local newHeight = NAmanage.NAChat_MeasureEntryHeight and NAmanage.NAChat_MeasureEntryHeight(entry) or previousHeight
+				if newHeight and newHeight > 0 then
+					entry.virtualHeight = newHeight
+					local frame = entry.frame
+					if frame and frame.Parent then
+						frame.Size = UDim2.new(1, -6, 0, newHeight)
+						local gradient = frame:FindFirstChild("NAChatGradientText")
+						if gradient then
+							gradient.Size = UDim2.new(1, 0, 1, 0)
+						end
+					end
+					if previousHeight and math.abs(previousHeight - newHeight) >= 1 and NAmanage.NAChat_QueueVirtualRefresh then
+						NAmanage.NAChat_QueueVirtualRefresh(false)
+					end
+				end
+			end
+			entry.translationInfo = tr:registerMessage(target, buildChatEntryText(entry), entry.raw or entry.text or "", info) or info
 		end
 
 		local function hideMessageContextMenu()
@@ -2319,6 +2348,11 @@ originalIO.runNACHAT=function()
 
 		local function virtualMeasureText(entry)
 			local value = tostring(buildChatEntryText(entry) or "")
+			local tr = NAStuff.ChatTranslator
+			local info = entry and entry.translationInfo
+			if tr and type(tr.isEnabled) == "function" and tr:isEnabled() and type(info) == "table" and type(info.translationLine) == "string" and info.translationLine ~= "" and info.target == tr.chatTarget then
+				value ..= "\n"..info.translationLine
+			end
 			value = value:gsub("<[^>]->", "")
 			value = value:gsub("&lt;", "<"):gsub("&gt;", ">"):gsub("&amp;", "&")
 			return value

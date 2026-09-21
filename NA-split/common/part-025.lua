@@ -968,15 +968,20 @@ originalIO.naTransLatooor=function()
 	function translator:applyDisplay(label, info)
 		if not (label and info) then return end
 		if not (label and label.Parent) then
-			self.messages[label] = nil
+			if self.messages[label] == info then
+				self.messages[label] = nil
+			end
 			return
 		end
 		local text = normalizeRichTextEntities(info.base or "")
-		if self:isEnabled() and info.translationLine then
+		if self:isEnabled() and info.translationLine and info.target == self.chatTarget then
 			text = text.."\n"..normalizeRichTextEntities(info.translationLine)
 		end
 		label.Text = text
 		resizeLabel(label)
+		if type(info.onDisplay) == "function" then
+			pcall(info.onDisplay, label, info)
+		end
 	end
 
 	function translator:ensureTranslation(label, info)
@@ -997,33 +1002,41 @@ originalIO.naTransLatooor=function()
 		info.target = requestTarget
 		Spawn(function()
 			local ok, translated, detected = pcall(translatePayload, info.message, requestTarget, "auto")
-			if self.messages[label] ~= info or info.revision ~= requestRevision or info.target ~= requestTarget then
+			if info.revision ~= requestRevision or info.target ~= requestTarget then
 				return
 			end
 			info.translating = false
 			info.translatingRevision = nil
+			local function applyActive()
+				local activeLabel = info.boundLabel or label
+				if activeLabel and self.messages[activeLabel] == info then
+					self:applyDisplay(activeLabel, info)
+				end
+			end
 			if not ok then
 				info.translationLine = nil
-				self:applyDisplay(label, info)
+				applyActive()
 				return
 			end
 			if not translated or translated == "" then
 				info.translationLine = nil
-				self:applyDisplay(label, info)
+				applyActive()
 				return
 			end
 			const code = NAmanage.iso2(detected) or detected or "AUTO"
 			const tag = tostring(code):upper()
 			info.translationLine = ("[%s] %s"):format((requestTarget or "en"):upper(), escapeForRichText(translated))
 			info.detected = tag
-			self:applyDisplay(label, info)
+			applyActive()
 		end)
 	end
 
-	function translator:registerMessage(label, baseText, rawMessage)
-		if not label then return end
-		local info = self.messages[label]
-		if not info then
+	function translator:registerMessage(label, baseText, rawMessage, persistentInfo)
+		if not label then return nil end
+		local existing = self.messages[label]
+		local info = type(persistentInfo) == "table" and persistentInfo or existing
+		local isNew = type(info) ~= "table"
+		if isNew then
 			info = {
 				base = baseText or "";
 				message = rawMessage or "";
@@ -1033,29 +1046,46 @@ originalIO.naTransLatooor=function()
 				target = nil;
 				revision = 0;
 			}
-			self.messages[label] = info
-			if label.Destroying then
-				label.Destroying:Connect(function()
-					self.messages[label] = nil
-				end)
-			end
-			label.AncestryChanged:Connect(function(_, parent)
-				if not parent then
-					self.messages[label] = nil
-				end
-			end)
-		else
+		end
+
+		local nextBase = baseText or info.base or ""
+		local nextMessage = rawMessage or info.message or ""
+		local changed = not isNew and (info.base ~= nextBase or info.message ~= nextMessage)
+		if changed then
 			info.revision = (tonumber(info.revision) or 0) + 1
-			info.base = baseText or info.base
-			info.message = rawMessage or info.message
 			info.translationLine = nil
 			info.translating = false
 			info.translatingRevision = nil
 			info.target = nil
 		end
+		info.base = nextBase
+		info.message = nextMessage
+		info.revision = tonumber(info.revision) or 0
+		local previousLabel = info.boundLabel
+		if previousLabel and previousLabel ~= label and self.messages[previousLabel] == info then
+			self.messages[previousLabel] = nil
+		end
+		info.boundLabel = label
+		self.messages[label] = info
+
+		if existing == nil then
+			if label.Destroying then
+				label.Destroying:Connect(function()
+					if self.messages[label] == info then
+						self.messages[label] = nil
+					end
+				end)
+			end
+			label.AncestryChanged:Connect(function(_, parent)
+				if not parent and self.messages[label] == info then
+					self.messages[label] = nil
+				end
+			end)
+		end
 
 		self:applyDisplay(label, info)
 		self:ensureTranslation(label, info)
+		return info
 	end
 
 	function translator:setChatTarget(lang)
