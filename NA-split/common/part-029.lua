@@ -2569,7 +2569,13 @@ originalIO.runNACHAT=function()
 				end
 			end
 			if key == NAChat.activeConversation and renderedConversation == key then
-				local keepBottom = canAutoScroll(chatScroll) and shouldAutoScroll(chatScroll) or false
+				local keepBottom = shouldAutoScroll(chatScroll)
+				if keepBottom then
+					local st = scrollSt[chatScroll]
+					if st then
+						st.locked = false
+					end
+				end
 				NAmanage.NAChat_QueueVirtualRefresh(keepBottom)
 			end
 			return entry.frame
