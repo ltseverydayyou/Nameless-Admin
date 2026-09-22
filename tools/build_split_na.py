@@ -289,10 +289,8 @@ def _git_blob_sha(data: bytes) -> str:
     return hashlib.sha1(header + data).hexdigest()
 
 
-def write_chunks(chunks: list[list[str]]) -> None:
+def write_chunks(chunks: list[list[str]], loader_version: str) -> None:
     previous_manifest = (COMMON / "manifest.lua").read_text(encoding="utf-8") if (COMMON / "manifest.lua").exists() else ""
-    loader_version_match = re.search(r'loader_version\s*=\s*"([^"]+)"', previous_manifest)
-    loader_version = loader_version_match.group(1) if loader_version_match else None
     cache_loader_start = previous_manifest.find("local function cacheLoader()")
     cache_loader_suffix = previous_manifest[cache_loader_start:] if cache_loader_start >= 0 else ""
 
@@ -328,7 +326,7 @@ def write_chunks(chunks: list[list[str]]) -> None:
     else:
         manifest.append("return meta")
     manifest.append("")
-    (COMMON / "manifest.lua").write_text("\n".join(manifest), encoding="utf-8", newline="\n")
+    (COMMON / "manifest.lua").write_bytes("\r\n".join(manifest).encode("utf-8"))
 
 BOOT_LOADER = r'''local __NA_SPLIT_SOURCE_TAG = "{source_tag}"
 local __NA_SPLIT_CONFIG = {{
@@ -516,7 +514,7 @@ for _, root in __NA_SPLIT_LOCAL_ROOTS do
 	end
 end
 
-local __NA_SPLIT_REMOTE_MANIFEST_SOURCE = __NA_SPLIT_READ_REMOTE("manifest.lua")
+local __NA_SPLIT_REMOTE_MANIFEST_SOURCE = __NA_SPLIT_READ_REMOTE("manifest.lua?na_manifest="..tostring(os.time()))
 local __NA_SPLIT_REMOTE_META = __NA_SPLIT_LOAD_MANIFEST(__NA_SPLIT_REMOTE_MANIFEST_SOURCE, "NA-split/common/manifest.lua")
 if __NA_SPLIT_REMOTE_META and type(__NA_SPLIT_REMOTE_META.version) == "string" and __NA_SPLIT_REMOTE_META.version ~= "" then
 	__NA_SPLIT_REMOTE_QUERY = "?na_build="..__NA_SPLIT_REMOTE_META.version
@@ -709,12 +707,13 @@ __NA_SPLIT_RELEASE(false)
 '''
 
 
-def write_boots(source_lines: list[str], chunk_count: int) -> None:
+def write_boots(source_lines: list[str], chunk_count: int) -> str:
     marker = next(i for i, line in enumerate(source_lines) if line.strip() == "local __NARootResult = table.pack(NACaller({")
     prefix = "\n".join(source_lines[:marker]).replace(
         '"NA Source: NA testing.lua"',
         '"NA Source: "..__NA_SPLIT_SOURCE_TAG',
     )
+    digest = hashlib.sha256()
     for name, testing in (("Source.lua", "false"), ("NA testing.lua", "true")):
         boot = BOOT_LOADER.format(
             source_tag=name,
@@ -722,7 +721,12 @@ def write_boots(source_lines: list[str], chunk_count: int) -> None:
             prefix=prefix if name == "Source.lua" else prefix,
             chunk_count=chunk_count,
         )
-        (ROOT / name).write_text(boot, encoding="utf-8", newline="\n")
+        data = boot.encode("utf-8")
+        (ROOT / name).write_bytes(data)
+        digest.update(name.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(data)
+    return "loader-" + digest.hexdigest()[:16]
 
 
 def main() -> None:
@@ -757,8 +761,8 @@ def main() -> None:
         piece = piece.replace("NATestingVer = false", "NATestingVer = _na_boot.splitConfig.testing")
         piece = piece.replace('__NAKeySource = "Source.lua"', "__NAKeySource = _na_boot.splitConfig.sourceTag")
         rebuilt.append(piece.splitlines())
-    write_chunks(rebuilt)
-    write_boots(source, len(rebuilt))
+    loader_version = write_boots(source, len(rebuilt))
+    write_chunks(rebuilt, loader_version)
     print(f"wrote {len(rebuilt)} chunks to {COMMON}")
     print(f"source body: {len(body):,} lines; largest chunk: {max(map(len, rebuilt)):,} lines")
 
