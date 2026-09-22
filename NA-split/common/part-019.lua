@@ -2254,10 +2254,50 @@ NAmanage.EnsureHook = function()
 		return NAStuff.BlockedRemoteModes[remote] or "fakeok"
 	end
 
+	local hookNotifySetIdentity
+	local hookNotifyGetIdentity
+	do
+		local hostEnv = type(_na_boot) == "table" and _na_boot.hostEnv or nil
+		const function pick(nameA, nameB, nameC, fallback)
+			local value = type(hostEnv) == "table" and (rawget(hostEnv, nameA) or rawget(hostEnv, nameB) or rawget(hostEnv, nameC)) or nil
+			if type(value) == "function" then return value end
+			return type(fallback) == "function" and fallback or nil
+		end
+		hookNotifySetIdentity = pick("set_thread_identity", "setthreadidentity", "setidentity", setthreadidentity or setidentity)
+		hookNotifyGetIdentity = pick("get_thread_identity", "getthreadidentity", "getidentity", getthreadidentity or getidentity)
+	end
+
+	const function hookDebugNotif(text, duration, title)
+		if not NAStuff.nuhuhNotifs or type(DebugNotif) ~= "function" then
+			return
+		end
+		const rawDefer = NAmanage._rawTaskDefer or (type(task) == "table" and task.defer or nil)
+		const function emit()
+			local oldIdentity
+			if type(hookNotifyGetIdentity) == "function" then
+				pcall(function()
+					oldIdentity = hookNotifyGetIdentity()
+				end)
+			end
+			if type(hookNotifySetIdentity) == "function" then
+				pcall(hookNotifySetIdentity, 8)
+			end
+			pcall(DebugNotif, text, duration, title)
+			if oldIdentity ~= nil and type(hookNotifySetIdentity) == "function" then
+				pcall(hookNotifySetIdentity, oldIdentity)
+			end
+		end
+		if type(rawDefer) == "function" then
+			pcall(rawDefer, emit)
+		else
+			pcall(emit)
+		end
+	end
+
 	const function blockOutbound(remote, method)
 		const mode = blockedMode(remote)
 		if NAStuff.nuhuhNotifs then
-			Defer(DebugNotif, ("Blocked -> %s (%s) [%s]"):format(remote:GetFullName(), method, mode == "error" and "ERROR" or "FAKEOK"), 2, "Remote Block")
+			hookDebugNotif(("Blocked -> %s (%s) [%s]"):format(remote:GetFullName(), method, mode == "error" and "ERROR" or "FAKEOK"), 2, "Remote Block")
 		end
 		if mode == "error" then
 			error("Blocked remote: "..remote:GetFullName().." ["..method.."]", 0)
@@ -2290,7 +2330,7 @@ NAmanage.EnsureHook = function()
 				return false
 			end
 			if NAStuff.nuhuhNotifs then
-				Defer(DebugNotif, "Blocked OnClientEvent:"..method.."()", 2, "Remote Block")
+				hookDebugNotif("Blocked OnClientEvent:"..method.."()", 2, "Remote Block")
 			end
 			local conn = originalCall(self, function() end)
 			pcall(function() conn:Disconnect() end)
@@ -2301,7 +2341,7 @@ NAmanage.EnsureHook = function()
 			const remote = signalRemote(self)
 			const mode = remote and blockedMode(remote) or "fakeok"
 			if NAStuff.nuhuhNotifs then
-				Defer(DebugNotif, "Blocked OnClientEvent:Wait()", 2, "Remote Block")
+				hookDebugNotif("Blocked OnClientEvent:Wait()", 2, "Remote Block")
 			end
 			if mode == "error" then
 				error("Blocked OnClientEvent:Wait()", 0)
