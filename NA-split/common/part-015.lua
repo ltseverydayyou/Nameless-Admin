@@ -2638,6 +2638,8 @@ function stopHeadSit(launchHumanoid)
 
 	NAlib.disconnect("headsit_follow")
 	NAlib.disconnect("headsit_died")
+	NAlib.disconnect("headsit_jump")
+	NAlib.disconnect("headsit_state")
 
 	if headsitWeld then
 		headsitWeld:Destroy()
@@ -2651,10 +2653,11 @@ function stopHeadSit(launchHumanoid)
 	end
 	platformParts = {}
 
-	if launchHumanoid then
-		const char = getChar()
-		const hum = char and getHum(char)
-		if hum then
+	const char = getChar()
+	const hum = char and getHum(char)
+	if hum then
+		hum.Sit = false
+		if launchHumanoid then
 			NAmanage.LaunchHumanoid(hum, getRoot(char))
 		end
 	end
@@ -2694,10 +2697,91 @@ cmd.add({"headsit"}, {"headsit <player|npc:filter>", "Sit on a player or NPC's h
 	NAlib.connect("headsit_died", NAmanage.ConnectHumanoidDeath(hum, function()
 		stopHeadSit(false)
 	end))
+	NAlib.connect("headsit_jump", hum:GetPropertyChangedSignal("Jump"):Connect(function()
+		if hum.Jump then
+			stopHeadSit(false)
+		end
+	end))
+	NAlib.connect("headsit_state", hum.StateChanged:Connect(function(_, state)
+		if state == Enum.HumanoidStateType.Jumping then
+			stopHeadSit(false)
+		end
+	end))
 end, true)
 
 cmd.add({"unheadsit"}, {"unheadsit", "Stop the headsit command."}, function()
 	stopHeadSit(true)
+end)
+
+piggybackWeld = nil
+
+function stopPiggyback()
+	NAlib.disconnect("piggyback_died")
+	NAlib.disconnect("piggyback_jump")
+	NAlib.disconnect("piggyback_state")
+
+	if piggybackWeld then
+		piggybackWeld:Destroy()
+		piggybackWeld = nil
+	end
+
+	const char = getChar()
+	const hum = char and getHum(char)
+	if hum then
+		hum.Sit = false
+	end
+end
+
+NAmanage.RegisterUnloadCleanup("piggyback_cleanup", function()
+	stopPiggyback()
+end, 60)
+
+cmd.add({"piggyback", "pback"}, {"piggyback <player> (pback)", "Attach to a player's back while sitting"}, function(...)
+	const query = Concat({...}, " ")
+	const targets = getPlr(query)
+	const plr = targets and targets[1]
+	if not plr then return end
+
+	stopPiggyback()
+
+	const char = getChar()
+	const hum = char and getHum(char)
+	const targetChar = NAmanage.PlayerArgChar(plr)
+	const targetPart = targetChar and (
+		targetChar:FindFirstChild("UpperTorso")
+		or targetChar:FindFirstChild("Torso")
+		or getRoot(targetChar)
+	)
+	if not char or not char.Parent
+		or not hum or not hum.Parent or hum.Health <= 0
+		or not targetPart or not targetPart.Parent then
+		return
+	end
+
+	hum.Sit = true
+	piggybackWeld = NAmanage.WeldToPlayerPart(targetPart, CFrame.new(0, 0.25, 1.15), LocalPlayer, nil)
+	if not piggybackWeld then
+		hum.Sit = false
+		return
+	end
+
+	NAlib.connect("piggyback_died", NAmanage.ConnectHumanoidDeath(hum, function()
+		stopPiggyback()
+	end))
+	NAlib.connect("piggyback_jump", hum:GetPropertyChangedSignal("Jump"):Connect(function()
+		if hum.Jump then
+			stopPiggyback()
+		end
+	end))
+	NAlib.connect("piggyback_state", hum.StateChanged:Connect(function(_, state)
+		if state == Enum.HumanoidStateType.Jumping then
+			stopPiggyback()
+		end
+	end))
+end, true)
+
+cmd.add({"unpiggyback", "unpback"}, {"unpiggyback (unpback)", "Stop piggybacking a player"}, function()
+	stopPiggyback()
 end)
 
 NAmanage.wallTpFlat = NAmanage.wallTpFlat or function(v)

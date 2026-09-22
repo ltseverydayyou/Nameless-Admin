@@ -5362,6 +5362,26 @@
       "desc": "Stop the headsit command."
     },
     {
+      "name": "piggyback",
+      "aliases": [
+        "piggyback",
+        "pback"
+      ],
+      "usage": "piggyback <player> (pback)",
+      "args": "<player>",
+      "desc": "Attach to a player's back while sitting"
+    },
+    {
+      "name": "unpiggyback",
+      "aliases": [
+        "unpiggyback",
+        "unpback"
+      ],
+      "usage": "unpiggyback (unpback)",
+      "args": "",
+      "desc": "Stop piggybacking a player"
+    },
+    {
       "name": "walltp",
       "aliases": [
         "walltp",
