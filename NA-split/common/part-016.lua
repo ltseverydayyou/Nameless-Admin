@@ -390,24 +390,15 @@ cmd.addRestricted({"unbang", "unfuck"}, {"unbang (unfuck)", "Unbangs the player"
 end)
 
 carpetLoop = nil
-carpetAnim = nil
-carpetTrack = nil
 carpetDied = nil
-CARPETPARTS = {}
-carpetWeld = nil
 carpetCollisionState = {}
 carpetHumanoidState = nil
 
 originalIO.stopCarpet=function()
-	if carpetWeld then carpetWeld:Destroy() carpetWeld = nil end
 	if carpetLoop then carpetLoop:Disconnect() carpetLoop = nil end
 	NAlib.disconnect("carpet_loop")
 	NAlib.disconnect("carpet_noclip")
 	if carpetDied then carpetDied:Disconnect() carpetDied = nil end
-	if carpetTrack then carpetTrack:Stop() carpetTrack = nil end
-	if carpetAnim then carpetAnim:Destroy() carpetAnim = nil end
-	for _, part in CARPETPARTS do pcall(function() part:Destroy() end) end
-	CARPETPARTS = {}
 
 	const char = getChar()
 	const root = char and getRoot(char)
@@ -438,7 +429,7 @@ originalIO.stopCarpet=function()
 				hum.AutoRotate = true
 			end
 		end)
-		if humState and humState.r15 and humState.platformStand ~= true then
+		if humState and humState.platformStand ~= true then
 			pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end)
 		end
 	end
@@ -460,16 +451,14 @@ cmd.add({"carpet"}, {"carpet <player>", "Be someone's carpet"}, function(usernam
 	const root = character and getRoot(character)
 	if not (targetPlayer and targetChar and targetRoot and character and humanoid and root) then return end
 
-	const isR15 = IsR15(Services.Players.LocalPlayer)
 	carpetHumanoidState = {
 		humanoid = humanoid;
 		sit = humanoid.Sit;
 		platformStand = humanoid.PlatformStand;
 		autoRotate = humanoid.AutoRotate;
-		r15 = isR15;
 	}
 
-	for _, part in character:QueryDescendants("BasePart") do
+	for _, part in NAmanage.QueryDescendants(character, "BasePart") do
 		carpetCollisionState[part] = part.CanCollide
 		part.CanCollide = false
 	end
@@ -479,7 +468,7 @@ cmd.add({"carpet"}, {"carpet <player>", "Be someone's carpet"}, function(usernam
 		if currentChar ~= character then
 			return originalIO.stopCarpet()
 		end
-		for _, part in currentChar:QueryDescendants("BasePart") do
+		for _, part in NAmanage.QueryDescendants(currentChar, "BasePart") do
 			if carpetCollisionState[part] == nil then
 				carpetCollisionState[part] = part.CanCollide
 			end
@@ -487,22 +476,18 @@ cmd.add({"carpet"}, {"carpet <player>", "Be someone's carpet"}, function(usernam
 		end
 	end))
 
-	if isR15 then
-		humanoid.Sit = false
-		humanoid.AutoRotate = false
-		humanoid.PlatformStand = true
-		pcall(function() humanoid:ChangeState(Enum.HumanoidStateType.Physics) end)
-	else
-		carpetAnim = InstanceNew("Animation")
-		carpetAnim.AnimationId = "rbxassetid://282574440"
-		carpetTrack = humanoid:LoadAnimation(carpetAnim)
-		carpetTrack:Play(0.1, 1, 1)
-	end
+	-- Use the same forced flat pose on both R6 and R15. The old R6 carpet
+	-- animation sat at a different height and made the support position inconsistent.
+	humanoid.Sit = false
+	humanoid.AutoRotate = false
+	humanoid.PlatformStand = true
+	pcall(function() humanoid:ChangeState(Enum.HumanoidStateType.Physics) end)
 
 	const targetRef = NAmanage.NewPersistentPlayerRef(targetPlayer)
-	const layRotation = isR15 and CFrame.Angles(math.pi * 0.5, 0, 0) or CFrame.new()
-	const function getFeetDistance(tgtChar, tgtRoot)
-		local lowest = nil
+	const layRotation = CFrame.Angles(math.pi * 0.5, 0, 0)
+
+	const function feetFromRoot(tgtChar, tgtRoot, tgtHum)
+		local lowest
 		for _, name in {"LeftFoot", "RightFoot", "Left Leg", "Right Leg"} do
 			const foot = tgtChar:FindFirstChild(name)
 			if foot and foot:IsA("BasePart") then
@@ -511,10 +496,14 @@ cmd.add({"carpet"}, {"carpet <player>", "Be someone's carpet"}, function(usernam
 			end
 		end
 		if lowest then
-			return math.max(1.5, tgtRoot.Position.Y - lowest)
+			return math.max(0, tgtRoot.Position.Y - lowest)
 		end
-		const tgtHum = getHum(tgtChar)
-		return (tgtHum and tgtHum.HipHeight or 2) + (tgtRoot.Size.Y * 0.5)
+
+		const hrpHalf = ((NAlib.isProperty(tgtRoot, "Size") and tgtRoot.Size.Y) or 2) * 0.5
+		if tgtHum.RigType == Enum.HumanoidRigType.R6 then
+			return hrpHalf + ((tgtHum.HipHeight and tgtHum.HipHeight > 0) and tgtHum.HipHeight or 2)
+		end
+		return hrpHalf + (tgtHum.HipHeight or 2)
 	end
 
 	carpetLoop = NAlib.reconnect("carpet_loop", Services.RunService.Heartbeat:Connect(function()
@@ -522,14 +511,17 @@ cmd.add({"carpet"}, {"carpet <player>", "Be someone's carpet"}, function(usernam
 			const target = NAmanage.ResolvePersistentPlayer(targetRef)
 			const tgtChar = target and NAmanage.PlayerArgChar(target)
 			const tgtRoot = tgtChar and getRoot(tgtChar)
+			const tgtHum = tgtChar and getHum(tgtChar)
 			const localChar = getChar()
 			const localRoot = localChar and getRoot(localChar)
-			if not (tgtChar and tgtRoot and localChar == character and localRoot) then
+			if not (target and tgtChar and tgtRoot and tgtHum and localChar == character and localRoot) then
 				return originalIO.stopCarpet()
 			end
 
-			const feetDistance = getFeetDistance(tgtChar, tgtRoot)
-			const offset = CFrame.new(0, -(feetDistance + 0.65), 0) * layRotation
+			const footDistance = feetFromRoot(tgtChar, tgtRoot, tgtHum)
+			const torso = localChar:FindFirstChild("UpperTorso") or localChar:FindFirstChild("Torso")
+			const flatHalf = math.max(0.25, (((torso and torso.Size.Z) or localRoot.Size.Z or 1) * 0.5) - 0.1)
+			const offset = CFrame.new(0, -(footDistance + flatHalf), 0) * layRotation
 			localRoot.CFrame = tgtRoot.CFrame * offset
 			localRoot.AssemblyLinearVelocity = Vector3.zero
 			localRoot.AssemblyAngularVelocity = Vector3.zero
