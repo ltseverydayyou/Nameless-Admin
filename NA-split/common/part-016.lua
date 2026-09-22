@@ -393,6 +393,7 @@ carpetLoop = nil
 carpetDied = nil
 carpetCollisionState = {}
 carpetHumanoidState = nil
+carpetPoseState = {}
 
 originalIO.stopCarpet=function()
 	if carpetLoop then carpetLoop:Disconnect() carpetLoop = nil end
@@ -415,6 +416,13 @@ originalIO.stopCarpet=function()
 		end
 	end
 	carpetCollisionState = {}
+
+	for motor, transform in carpetPoseState do
+		if motor and motor.Parent then
+			pcall(function() motor.Transform = transform end)
+		end
+	end
+	carpetPoseState = {}
 
 	const humState = carpetHumanoidState
 	carpetHumanoidState = nil
@@ -463,6 +471,34 @@ cmd.add({"carpet"}, {"carpet <player>", "Be someone's carpet"}, function(usernam
 		part.CanCollide = false
 	end
 
+	const poseTargets = {
+		["Right Shoulder"] = CFrame.Angles(0, 0, math.rad(90));
+		["Left Shoulder"] = CFrame.Angles(0, 0, math.rad(-90));
+		["Right Hip"] = CFrame.Angles(0, 0, math.rad(18));
+		["Left Hip"] = CFrame.Angles(0, 0, math.rad(-18));
+		RightShoulder = CFrame.Angles(0, 0, math.rad(90));
+		LeftShoulder = CFrame.Angles(0, 0, math.rad(-90));
+		RightHip = CFrame.Angles(0, 0, math.rad(18));
+		LeftHip = CFrame.Angles(0, 0, math.rad(-18));
+		RightElbow = CFrame.new();
+		LeftElbow = CFrame.new();
+		RightKnee = CFrame.new();
+		LeftKnee = CFrame.new();
+	}
+
+	const function applyCarpetPose(currentChar)
+		for _, motor in NAmanage.QueryDescendants(currentChar, "Motor6D") do
+			const target = poseTargets[motor.Name]
+			if target then
+				if carpetPoseState[motor] == nil then
+					carpetPoseState[motor] = motor.Transform
+				end
+				motor.Transform = target
+			end
+		end
+	end
+
+	applyCarpetPose(character)
 	NAlib.connect("carpet_noclip", Services.RunService.PreSimulation:Connect(function()
 		const currentChar = getChar()
 		if currentChar ~= character then
@@ -474,6 +510,7 @@ cmd.add({"carpet"}, {"carpet <player>", "Be someone's carpet"}, function(usernam
 			end
 			if part.CanCollide then part.CanCollide = false end
 		end
+		applyCarpetPose(currentChar)
 	end))
 
 	-- Use the same forced flat pose on both R6 and R15. The old R6 carpet
