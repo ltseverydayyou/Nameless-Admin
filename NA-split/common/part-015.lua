@@ -2759,7 +2759,7 @@ cmd.add({"piggyback", "pback"}, {"piggyback <player> (pback)", "Attach to a play
 	end
 
 	hum.Sit = true
-	piggybackWeld = NAmanage.WeldToPlayerPart(targetPart, CFrame.new(0, 0.25, 1.15), LocalPlayer, nil)
+	piggybackWeld = NAmanage.WeldToPlayerPart(targetPart, CFrame.new(0, 0.25, 1.15) * CFrame.Angles(0, math.pi, 0), LocalPlayer, nil)
 	if not piggybackWeld then
 		hum.Sit = false
 		return
