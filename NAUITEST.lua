@@ -5776,22 +5776,4 @@ do
 	G2L.ndk.ZIndex = 7;
 
 end
-G2L["8"] = Instance.new("Frame", G2L["2"]);
-G2L["8"].BorderSizePixel = 0;
-G2L["8"].BackgroundColor3 = Color3.fromRGB(39, 39, 44);
-G2L["8"].Size = UDim2.new(1, 0, 0, 40);
-G2L["8"].Name = "Topbar";
-G2L["8"].BackgroundTransparency = 0.1;
-G2L["9"] = Instance.new("TextLabel", G2L["8"]);
-G2L["9"].BorderSizePixel = 0;
-G2L["9"].TextSize = 20;
-G2L["9"].TextXAlignment = Enum.TextXAlignment.Left;
-G2L["9"].FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal);
-G2L["9"].TextColor3 = Color3.fromRGB(244, 244, 254);
-G2L["9"].BackgroundTransparency = 1;
-G2L["9"].AnchorPoint = Vector2.new(0, 0.5);
-G2L["9"].Size = UDim2.new(0.5, 0, 1, 0);
-G2L["9"].Text = "Chat Logs";
-G2L["9"].Name = "Title";
-G2L["9"].Position = UDim2.new(0, 15, 0.5, 0);
 return G2L["1"];
