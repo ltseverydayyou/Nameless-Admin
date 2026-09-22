@@ -2573,18 +2573,18 @@ end
 
 
 NAmanage.WeldToPlayerPart = NAmanage.WeldToPlayerPart or function(TargetPart, Offset, Speaker, AnimationId)
-	local Character = Speaker.Character
+	local Character = Speaker == LocalPlayer and getChar() or getPlrChar(Speaker)
 	if not Character then return nil end
 
-	local Root = Character:FindFirstChild("HumanoidRootPart")
-	local Humanoid = Character:FindFirstChildWhichIsA("Humanoid")
+	local Root = getRoot(Character)
+	local Humanoid = getHum(Character)
 	if not Root or not Humanoid then return nil end
 
 	local AnimTrack = nil
 	if AnimationId then
 		local Animator = Character:FindFirstChildWhichIsA("Animator", true)
 		if Animator then
-			local Animation = Instance.new("Animation")
+			local Animation = InstanceNew("Animation")
 			Animation.AnimationId = "rbxassetid://" .. tostring(AnimationId)
 			AnimTrack = Animator:LoadAnimation(Animation)
 			AnimTrack:Play()
@@ -2611,10 +2611,8 @@ NAmanage.WeldToPlayerPart = NAmanage.WeldToPlayerPart or function(TargetPart, Of
 		Root.AssemblyLinearVelocity = Vector3.zero
 		Root.AssemblyAngularVelocity = Vector3.zero
 
-		if sethiddenproperty then
-			pcall(function()
-				sethiddenproperty(Root, "PhysicsRepRootPart", TargetPart)
-			end)
+		if opt and type(opt.hiddenprop) == "function" then
+			pcall(opt.hiddenprop, Root, "PhysicsRepRootPart", TargetPart)
 		end
 	end)
 
