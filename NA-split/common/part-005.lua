@@ -623,12 +623,8 @@ NAmanage.SetClientIDSpoofEnabled = NAmanage.SetClientIDSpoofEnabled or function(
 		end
 		return false
 	end
-	if not opts.silent and DoNotif then
-		if state then
-			DoNotif("Client ID spoof enabled", 2)
-		else
-			DoNotif("Client ID spoof disabled", 2)
-		end
+	if not state and not opts.silent and DoNotif then
+		DoNotif("Client ID spoof disabled", 2)
 	end
 	return state
 end

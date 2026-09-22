@@ -2164,50 +2164,161 @@ NAmanage.UnblockRemote = function(remote)
 end
 
 NAmanage.EnsureHook = function()
-	if _na_env.NA_BlockHooked then return end
-	const mt = getrawmetatable(game)
-	const oldNamecall = mt.__namecall
-	setreadonly(mt, false)
-	mt.__namecall = newcclosure(function(self, ...)
-		const method = getnamecallmethod()
-		if (method == "FireServer" or method == "InvokeServer") and Discover(NAStuff.BlockedRemotes, self) then
-			const m = NAStuff.BlockedRemoteModes[self] or "fakeok"
-			if NAStuff.nuhuhNotifs then Defer(DebugNotif, ("Blocked -> %s (%s) [%s]"):format(self:GetFullName(), method, m == "error" and "ERROR" or "FAKEOK"), 2, "Remote Block") end
-			if m == "error" then error("Blocked remote: "..self:GetFullName().." ["..method.."]", 0) end
-			if method == "InvokeServer" then
-				local ret = NAStuff.BlockedRemoteReturns[self]
-				if ret == nil then ret = NAStuff.RemoteFakeReturn end
-				return ret
+	if _na_env.NA_BlockHooked then return true end
+
+	local host = type(_na_boot) == "table" and _na_boot.hostEnv or nil
+	local hookFn = type(host) == "table" and rawget(host, "hookfunction") or nil
+	if type(hookFn) ~= "function" then
+		hookFn = hookfunction
+	end
+	local newC = type(host) == "table" and rawget(host, "newcclosure") or nil
+	if type(newC) ~= "function" then
+		newC = newcclosure
+	end
+	if type(hookFn) ~= "function" then
+		return false
+	end
+
+	local state = NAStuff.BlockRemoteHookState
+	if type(state) ~= "table" then
+		state = { hooked = false; originals = {}; targets = {}; targetSet = {} }
+		NAStuff.BlockRemoteHookState = state
+	end
+	if state.hooked == true then
+		_na_env.NA_BlockHooked = true
+		return true
+	end
+	state.originals = type(state.originals) == "table" and state.originals or {}
+	state.targets = type(state.targets) == "table" and state.targets or {}
+	state.targetSet = type(state.targetSet) == "table" and state.targetSet or {}
+
+	const function wrap(fn)
+		if type(newC) == "function" then
+			local ok, wrapped = pcall(newC, fn)
+			if ok and type(wrapped) == "function" then
+				return wrapped
 			end
-			return
 		end
-		if NAStuff.BlockedSignals[self] then
+		return fn
+	end
+
+	const function install(key, target, handler)
+		if type(target) ~= "function" then
+			return false
+		end
+		if state.targetSet[target] then
+			return true
+		end
+		local original
+		local replacement = wrap(function(self, ...)
+			return handler(original, self, ...)
+		end)
+		local ok, old = pcall(hookFn, target, replacement)
+		if not ok or type(old) ~= "function" then
+			return false
+		end
+		original = old
+		state.originals[key] = old
+		state.targets[key] = target
+		state.targetSet[target] = true
+		return true
+	end
+
+	const function blockedMode(remote)
+		return NAStuff.BlockedRemoteModes[remote] or "fakeok"
+	end
+
+	const function outboundHandler(method)
+		return function(original, self, ...)
+			if Discover(NAStuff.BlockedRemotes, self) then
+				const mode = blockedMode(self)
+				if NAStuff.nuhuhNotifs then
+					Defer(DebugNotif, ("Blocked -> %s (%s) [%s]"):format(self:GetFullName(), method, mode == "error" and "ERROR" or "FAKEOK"), 2, "Remote Block")
+				end
+				if mode == "error" then
+					error("Blocked remote: "..self:GetFullName().." ["..method.."]", 0)
+				end
+				if method == "InvokeServer" then
+					local ret = NAStuff.BlockedRemoteReturns[self]
+					if ret == nil then ret = NAStuff.RemoteFakeReturn end
+					return ret
+				end
+				return
+			end
+			return original(self, ...)
+		end
+	end
+
+	const function signalRemote(signal)
+		for _, remote in NAStuff.BlockedRemotes do
+			if typeof(remote) == "Instance" and (remote:IsA("RemoteEvent") or remote:IsA("UnreliableRemoteEvent")) and signal == remote.OnClientEvent then
+				return remote
+			end
+		end
+		return nil
+	end
+
+	const function signalHandler(method)
+		return function(original, self, ...)
+			if not NAStuff.BlockedSignals[self] then
+				return original(self, ...)
+			end
+
 			if method == "Connect" or method == "Once" then
 				const cb = select(1, ...)
 				if type(cb) == "function" and NAmanage.isCoreFunc(cb) then
-					return oldNamecall(self, ...)
+					return original(self, ...)
 				end
-				if NAStuff.nuhuhNotifs then Defer(DebugNotif, "Blocked OnClientEvent:"..method.."()", 2, "Remote Block") end
-				const conn = oldNamecall(self, function() end)
+				if NAStuff.nuhuhNotifs then
+					Defer(DebugNotif, "Blocked OnClientEvent:"..method.."()", 2, "Remote Block")
+				end
+				local conn = original(self, function() end)
 				pcall(function() conn:Disconnect() end)
 				return conn
-			elseif method == "Wait" then
-				local mode = "fakeok"
-				for r,_ in NAStuff.BlockedRemotes do
-					if typeof(r)=="Instance" and (r:IsA("RemoteEvent") or r:IsA("UnreliableRemoteEvent")) and self==r.OnClientEvent then
-						mode = NAStuff.BlockedRemoteModes[r] or "fakeok"
-						break
-					end
+			end
+
+			if method == "Wait" then
+				const remote = signalRemote(self)
+				const mode = remote and blockedMode(remote) or "fakeok"
+				if NAStuff.nuhuhNotifs then
+					Defer(DebugNotif, "Blocked OnClientEvent:Wait()", 2, "Remote Block")
 				end
-				if NAStuff.nuhuhNotifs then Defer(DebugNotif, "Blocked OnClientEvent:Wait()", 2, "Remote Block") end
-				if mode == "error" then error("Blocked OnClientEvent:Wait()", 0) end
+				if mode == "error" then
+					error("Blocked OnClientEvent:Wait()", 0)
+				end
 				return nil
 			end
+
+			return original(self, ...)
 		end
-		return oldNamecall(self, ...)
+	end
+
+	local remoteEvent = Instance.new("RemoteEvent")
+	local remoteFunction = Instance.new("RemoteFunction")
+	local unreliable
+	pcall(function()
+		unreliable = Instance.new("UnreliableRemoteEvent")
 	end)
-	setreadonly(mt, true)
+
+	local installed = 0
+	if install("RemoteEvent.FireServer", remoteEvent.FireServer, outboundHandler("FireServer")) then installed += 1 end
+	if unreliable and install("UnreliableRemoteEvent.FireServer", unreliable.FireServer, outboundHandler("FireServer")) then installed += 1 end
+	if install("RemoteFunction.InvokeServer", remoteFunction.InvokeServer, outboundHandler("InvokeServer")) then installed += 1 end
+	if install("RBXScriptSignal.Connect", remoteEvent.OnClientEvent.Connect, signalHandler("Connect")) then installed += 1 end
+	if install("RBXScriptSignal.Once", remoteEvent.OnClientEvent.Once, signalHandler("Once")) then installed += 1 end
+	if install("RBXScriptSignal.Wait", remoteEvent.OnClientEvent.Wait, signalHandler("Wait")) then installed += 1 end
+
+	pcall(function() remoteEvent:Destroy() end)
+	pcall(function() remoteFunction:Destroy() end)
+	if unreliable then pcall(function() unreliable:Destroy() end) end
+
+	if installed < 5 then
+		return false
+	end
+
+	state.hooked = true
 	_na_env.NA_BlockHooked = true
+	return true
 end
 
 cmd.add({"blockremote","br"},{"blockremote [name]","Block a remote event/function by name (or pick from list)"},function(name)
