@@ -619,13 +619,13 @@ NAmanage.SetClientIDSpoofEnabled = NAmanage.SetClientIDSpoofEnabled or function(
 			pcall(NAmanage.NASettingsSet, "spoofClientID", false)
 		end
 		if not opts.silent and DoNotif then
-			DoNotif("Client ID spoof unavailable: hookfunction is unsupported or GetClientId could not be hooked", 4)
+			DoNotif("Client ID spoof unavailable: executor cannot hook RbxAnalyticsService.GetClientId", 4)
 		end
 		return false
 	end
 	if not opts.silent and DoNotif then
 		if state then
-			DoNotif("Client ID spoof enabled. This uses hookfunction and may be detectable.", 4)
+			DoNotif("Client ID spoof enabled", 2)
 		else
 			DoNotif("Client ID spoof disabled", 2)
 		end
