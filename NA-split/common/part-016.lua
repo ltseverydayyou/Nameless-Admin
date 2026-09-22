@@ -394,15 +394,26 @@ carpetAnim = nil
 carpetTrack = nil
 carpetDied = nil
 CARPETPARTS = {}
-carpetWeld = nil
+carpetCollision = {}
 originalIO.stopCarpet=function()
-	if carpetWeld then carpetWeld:Destroy() carpetWeld = nil end
 	NAlib.disconnect("carpet_loop")
+	if carpetLoop then
+		carpetLoop:Disconnect()
+		carpetLoop = nil
+	end
 	if carpetDied then carpetDied:Disconnect() carpetDied = nil end
 	if carpetTrack then carpetTrack:Stop() carpetTrack = nil end
 	if carpetAnim then carpetAnim:Destroy() carpetAnim = nil end
 	for _, part in CARPETPARTS do pcall(function() part:Destroy() end) end
 	CARPETPARTS = {}
+	for part, canCollide in carpetCollision do
+		if part and part.Parent then
+			pcall(function()
+				part.CanCollide = canCollide
+			end)
+		end
+	end
+	carpetCollision = {}
 	const char = getChar()
 	const root = char and getRoot(char)
 	if root then
@@ -419,18 +430,56 @@ cmd.add({"carpet"}, {"carpet <player>", "Be someone's carpet"}, function(usernam
 	const targets = username and username ~= "" and getPlr(username) or {}
 	if username and username ~= "" and #targets == 0 then return DoNotif("No targets found", 2) end
 	const targetPlayer = targets[1]
-	const targetRoot = targetPlayer and targetPlayer.Character and getRoot(targetPlayer.Character)
+	const targetRef = targetPlayer and NAmanage.NewPersistentPlayerRef(targetPlayer)
+	const targetChar = targetPlayer and targetPlayer.Character
+	const targetRoot = targetChar and getRoot(targetChar)
+	const targetHumanoid = targetChar and getHum(targetChar)
 	const character = getChar()
 	const humanoid = character and getHum(character)
-	if not (targetRoot and character and humanoid) then return end
+	const root = character and getRoot(character)
+	if not (targetRef and targetRoot and targetHumanoid and character and humanoid and root) then return end
+
+	for _, part in NAmanage.QueryDescendants(character, "BasePart") do
+		carpetCollision[part] = part.CanCollide
+		part.CanCollide = false
+	end
 
 	carpetAnim = InstanceNew("Animation")
 	carpetAnim.AnimationId = "rbxassetid://282574440"
 	carpetTrack = humanoid:LoadAnimation(carpetAnim)
 	carpetTrack:Play(0.1, 1, 1)
-	carpetWeld = NAmanage.WeldToPlayerPart(targetRoot, CFrame.new(), LocalPlayer, nil)
-	if not carpetWeld then return originalIO.stopCarpet() end
 	carpetDied = NAmanage.ConnectHumanoidDeath(humanoid, originalIO.stopCarpet)
+
+	carpetLoop = NAlib.reconnect("carpet_loop", Services.RunService.Heartbeat:Connect(function()
+		NACaller(function()
+			const target = NAmanage.ResolvePersistentPlayer(targetRef)
+			const tgtChar = target and target.Character
+			const tgtRoot = tgtChar and getRoot(tgtChar)
+			const tgtHum = tgtChar and getHum(tgtChar)
+			const localChar = getChar()
+			const localRoot = localChar and getRoot(localChar)
+			if not (target and tgtChar and tgtRoot and tgtHum and localChar and localRoot) then
+				return originalIO.stopCarpet()
+			end
+
+			const hrpHalf = ((NAlib.isProperty(tgtRoot, "Size") and tgtRoot.Size.Y) or 2) * 0.5
+			local feetFromRoot
+			if tgtHum.RigType == Enum.HumanoidRigType.R6 then
+				feetFromRoot = hrpHalf + 2
+				if tgtHum.HipHeight and tgtHum.HipHeight > 0 then
+					feetFromRoot = hrpHalf + tgtHum.HipHeight
+				end
+			else
+				feetFromRoot = hrpHalf + (tgtHum.HipHeight or 2)
+			end
+
+			const torso = localChar:FindFirstChild("Torso")
+			const carpetHalf = (((torso and torso.Size.Z) or 1) * 0.5) + 0.05
+			localRoot.CFrame = tgtRoot.CFrame * CFrame.new(0, -(feetFromRoot + carpetHalf), 0)
+			localRoot.AssemblyLinearVelocity = Vector3.zero
+			localRoot.AssemblyAngularVelocity = Vector3.zero
+		end)
+	end))
 end, true)
 
 cmd.add({"uncarpet", "nocarpet"}, {"uncarpet (nocarpet)", "Undoes carpet"}, function()
