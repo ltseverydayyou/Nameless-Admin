@@ -2075,6 +2075,9 @@ NAmanage.pruneBlockedRemoteState = NAmanage.pruneBlockedRemoteState or function(
 						NAStuff.BlockedSignals[remote.OnClientEvent] = nil
 					end
 				end)
+				if type(NAStuff.BlockedRemoteSet) == "table" then
+					NAStuff.BlockedRemoteSet[remote] = nil
+				end
 				NAStuff.BlockedRemoteModes[remote] = nil
 				NAStuff.BlockedRemoteReturns[remote] = nil
 				NAStuff.BlockedEventSaved[remote] = nil
@@ -2090,12 +2093,18 @@ end
 
 NAmanage.BlockRemote = function(remote, mode)
 	mode = mode or "fakeok"
+	if type(NAmanage.EnsureHook) == "function" and not NAmanage.EnsureHook() then
+		DebugNotif("Remote blocking unavailable: executor cannot intercept __namecall", 4, "Remote Block")
+		return false
+	end
 	if type(NAmanage.pruneBlockedRemoteState) == "function" then
 		NAmanage.pruneBlockedRemoteState()
 	end
+	NAStuff.BlockedRemoteSet = type(NAStuff.BlockedRemoteSet) == "table" and NAStuff.BlockedRemoteSet or {}
 	if not Discover(NAStuff.BlockedRemotes, remote) then
 		Insert(NAStuff.BlockedRemotes, remote)
 	end
+	NAStuff.BlockedRemoteSet[remote] = true
 	NAStuff.BlockedRemoteModes[remote] = mode
 	if remote:IsA("RemoteEvent") or remote:IsA("UnreliableRemoteEvent") then
 		NAStuff.BlockedSignals[remote.OnClientEvent] = true
@@ -2127,6 +2136,7 @@ NAmanage.BlockRemote = function(remote, mode)
 		end
 	end
 	DebugNotif(("Blocked: %s (%s)"):format(remote:GetFullName(), NAStuff.BlockedRemoteModes[remote]), 3, "Remote Block")
+	return true
 end
 
 NAmanage.UnblockRemote = function(remote)
@@ -2137,6 +2147,9 @@ NAmanage.UnblockRemote = function(remote)
 	if idx then
 		const name = NAStuff.BlockedRemotes[idx]:GetFullName()
 		table.remove(NAStuff.BlockedRemotes, idx)
+		if type(NAStuff.BlockedRemoteSet) == "table" then
+			NAStuff.BlockedRemoteSet[remote] = nil
+		end
 		NAStuff.BlockedRemoteModes[remote] = nil
 		NAStuff.BlockedRemoteReturns[remote] = nil
 		if remote:IsA("RemoteEvent") or remote:IsA("UnreliableRemoteEvent") then
@@ -2164,30 +2177,54 @@ NAmanage.UnblockRemote = function(remote)
 end
 
 NAmanage.EnsureHook = function()
-	if _na_env.NA_BlockHooked then return true end
-
-	local host = type(_na_boot) == "table" and _na_boot.hostEnv or nil
-	local hookFn = type(host) == "table" and rawget(host, "hookfunction") or nil
-	if type(hookFn) ~= "function" then
-		hookFn = hookfunction
-	end
-	local newC = type(host) == "table" and rawget(host, "newcclosure") or nil
-	if type(newC) ~= "function" then
-		newC = newcclosure
-	end
-	if type(hookFn) ~= "function" then
-		return false
-	end
-
 	local state = NAStuff.BlockRemoteHookState
 	if type(state) ~= "table" then
-		state = { hooked = false; originals = {}; targets = {}; targetSet = {} }
+		state = {
+			hooked = false;
+			namecallHooked = false;
+			originals = {};
+			targets = {};
+			targetSet = {};
+		}
 		NAStuff.BlockRemoteHookState = state
 	end
-	if state.hooked == true then
+	if state.namecallHooked == true then
+		state.hooked = true
 		_na_env.NA_BlockHooked = true
 		return true
 	end
+
+	local host = type(_na_boot) == "table" and _na_boot.hostEnv or nil
+	local function resolve(name, fallback)
+		local value = type(host) == "table" and rawget(host, name) or nil
+		if type(value) == "function" then
+			return value
+		end
+		return type(fallback) == "function" and fallback or nil
+	end
+
+	local hookFn = resolve("hookfunction", hookfunction)
+	local hookMeta = resolve("hookmetamethod", hookmetamethod)
+	local getNamecall = resolve("getnamecallmethod", getnamecallmethod)
+	local newC = resolve("newcclosure", newcclosure)
+	local getRawMeta = resolve("getrawmetatable", getrawmetatable)
+	if not getRawMeta and type(debug) == "table" and type(debug.getmetatable) == "function" then
+		getRawMeta = debug.getmetatable
+	end
+	local setReadOnly = resolve("setreadonly", setreadonly)
+	if not setReadOnly then
+		local makeWriteable = resolve("make_writeable", make_writeable)
+		local makeReadonly = resolve("make_readonly", make_readonly)
+		if makeWriteable and makeReadonly then
+			setReadOnly = function(mt, readOnly)
+				if readOnly then
+					return makeReadonly(mt)
+				end
+				return makeWriteable(mt)
+			end
+		end
+	end
+
 	state.originals = type(state.originals) == "table" and state.originals or {}
 	state.targets = type(state.targets) == "table" and state.targets or {}
 	state.targetSet = type(state.targetSet) == "table" and state.targetSet or {}
@@ -2202,8 +2239,81 @@ NAmanage.EnsureHook = function()
 		return fn
 	end
 
-	const function install(key, target, handler)
-		if type(target) ~= "function" then
+	const function isBlockedRemote(remote)
+		if typeof(remote) ~= "Instance" then
+			return false
+		end
+		local blockedSet = NAStuff.BlockedRemoteSet
+		if type(blockedSet) == "table" and blockedSet[remote] == true then
+			return true
+		end
+		return Discover(NAStuff.BlockedRemotes, remote) ~= nil
+	end
+
+	const function blockedMode(remote)
+		return NAStuff.BlockedRemoteModes[remote] or "fakeok"
+	end
+
+	const function blockOutbound(remote, method)
+		const mode = blockedMode(remote)
+		if NAStuff.nuhuhNotifs then
+			Defer(DebugNotif, ("Blocked -> %s (%s) [%s]"):format(remote:GetFullName(), method, mode == "error" and "ERROR" or "FAKEOK"), 2, "Remote Block")
+		end
+		if mode == "error" then
+			error("Blocked remote: "..remote:GetFullName().." ["..method.."]", 0)
+		end
+		if method == "InvokeServer" then
+			local ret = NAStuff.BlockedRemoteReturns[remote]
+			if ret == nil then ret = NAStuff.RemoteFakeReturn end
+			return true, ret
+		end
+		return true, nil
+	end
+
+	const function signalRemote(signal)
+		for _, remote in NAStuff.BlockedRemotes do
+			if typeof(remote) == "Instance" and (remote:IsA("RemoteEvent") or remote:IsA("UnreliableRemoteEvent")) and signal == remote.OnClientEvent then
+				return remote
+			end
+		end
+		return nil
+	end
+
+	const function blockSignal(originalCall, self, method, ...)
+		if not NAStuff.BlockedSignals[self] then
+			return false
+		end
+
+		if method == "Connect" or method == "Once" then
+			const cb = select(1, ...)
+			if type(cb) == "function" and NAmanage.isCoreFunc(cb) then
+				return false
+			end
+			if NAStuff.nuhuhNotifs then
+				Defer(DebugNotif, "Blocked OnClientEvent:"..method.."()", 2, "Remote Block")
+			end
+			local conn = originalCall(self, function() end)
+			pcall(function() conn:Disconnect() end)
+			return true, conn
+		end
+
+		if method == "Wait" then
+			const remote = signalRemote(self)
+			const mode = remote and blockedMode(remote) or "fakeok"
+			if NAStuff.nuhuhNotifs then
+				Defer(DebugNotif, "Blocked OnClientEvent:Wait()", 2, "Remote Block")
+			end
+			if mode == "error" then
+				error("Blocked OnClientEvent:Wait()", 0)
+			end
+			return true, nil
+		end
+
+		return false
+	end
+
+	const function installFunction(key, target, handler)
+		if type(hookFn) ~= "function" or type(target) ~= "function" then
 			return false
 		end
 		if state.targetSet[target] then
@@ -2224,98 +2334,100 @@ NAmanage.EnsureHook = function()
 		return true
 	end
 
-	const function blockedMode(remote)
-		return NAStuff.BlockedRemoteModes[remote] or "fakeok"
-	end
-
 	const function outboundHandler(method)
 		return function(original, self, ...)
-			if Discover(NAStuff.BlockedRemotes, self) then
-				const mode = blockedMode(self)
-				if NAStuff.nuhuhNotifs then
-					Defer(DebugNotif, ("Blocked -> %s (%s) [%s]"):format(self:GetFullName(), method, mode == "error" and "ERROR" or "FAKEOK"), 2, "Remote Block")
-				end
-				if mode == "error" then
-					error("Blocked remote: "..self:GetFullName().." ["..method.."]", 0)
-				end
-				if method == "InvokeServer" then
-					local ret = NAStuff.BlockedRemoteReturns[self]
-					if ret == nil then ret = NAStuff.RemoteFakeReturn end
-					return ret
-				end
-				return
+			if isBlockedRemote(self) then
+				local blocked, ret = blockOutbound(self, method)
+				if blocked then return ret end
 			end
 			return original(self, ...)
 		end
-	end
-
-	const function signalRemote(signal)
-		for _, remote in NAStuff.BlockedRemotes do
-			if typeof(remote) == "Instance" and (remote:IsA("RemoteEvent") or remote:IsA("UnreliableRemoteEvent")) and signal == remote.OnClientEvent then
-				return remote
-			end
-		end
-		return nil
 	end
 
 	const function signalHandler(method)
 		return function(original, self, ...)
-			if not NAStuff.BlockedSignals[self] then
-				return original(self, ...)
-			end
-
-			if method == "Connect" or method == "Once" then
-				const cb = select(1, ...)
-				if type(cb) == "function" and NAmanage.isCoreFunc(cb) then
-					return original(self, ...)
-				end
-				if NAStuff.nuhuhNotifs then
-					Defer(DebugNotif, "Blocked OnClientEvent:"..method.."()", 2, "Remote Block")
-				end
-				local conn = original(self, function() end)
-				pcall(function() conn:Disconnect() end)
-				return conn
-			end
-
-			if method == "Wait" then
-				const remote = signalRemote(self)
-				const mode = remote and blockedMode(remote) or "fakeok"
-				if NAStuff.nuhuhNotifs then
-					Defer(DebugNotif, "Blocked OnClientEvent:Wait()", 2, "Remote Block")
-				end
-				if mode == "error" then
-					error("Blocked OnClientEvent:Wait()", 0)
-				end
-				return nil
-			end
-
+			local blocked, ret = blockSignal(original, self, method, ...)
+			if blocked then return ret end
 			return original(self, ...)
 		end
 	end
 
-	local remoteEvent = Instance.new("RemoteEvent")
-	local remoteFunction = Instance.new("RemoteFunction")
-	local unreliable
-	pcall(function()
-		unreliable = Instance.new("UnreliableRemoteEvent")
-	end)
+	if type(hookFn) == "function" then
+		local remoteEvent = Instance.new("RemoteEvent")
+		local remoteFunction = Instance.new("RemoteFunction")
+		local unreliable
+		pcall(function()
+			unreliable = Instance.new("UnreliableRemoteEvent")
+		end)
 
-	local installed = 0
-	if install("RemoteEvent.FireServer", remoteEvent.FireServer, outboundHandler("FireServer")) then installed += 1 end
-	if unreliable and install("UnreliableRemoteEvent.FireServer", unreliable.FireServer, outboundHandler("FireServer")) then installed += 1 end
-	if install("RemoteFunction.InvokeServer", remoteFunction.InvokeServer, outboundHandler("InvokeServer")) then installed += 1 end
-	if install("RBXScriptSignal.Connect", remoteEvent.OnClientEvent.Connect, signalHandler("Connect")) then installed += 1 end
-	if install("RBXScriptSignal.Once", remoteEvent.OnClientEvent.Once, signalHandler("Once")) then installed += 1 end
-	if install("RBXScriptSignal.Wait", remoteEvent.OnClientEvent.Wait, signalHandler("Wait")) then installed += 1 end
+		installFunction("RemoteEvent.FireServer", remoteEvent.FireServer, outboundHandler("FireServer"))
+		if unreliable then
+			installFunction("UnreliableRemoteEvent.FireServer", unreliable.FireServer, outboundHandler("FireServer"))
+		end
+		installFunction("RemoteFunction.InvokeServer", remoteFunction.InvokeServer, outboundHandler("InvokeServer"))
+		installFunction("RBXScriptSignal.Connect", remoteEvent.OnClientEvent.Connect, signalHandler("Connect"))
+		installFunction("RBXScriptSignal.Once", remoteEvent.OnClientEvent.Once, signalHandler("Once"))
+		installFunction("RBXScriptSignal.Wait", remoteEvent.OnClientEvent.Wait, signalHandler("Wait"))
 
-	pcall(function() remoteEvent:Destroy() end)
-	pcall(function() remoteFunction:Destroy() end)
-	if unreliable then pcall(function() unreliable:Destroy() end) end
+		pcall(function() remoteEvent:Destroy() end)
+		pcall(function() remoteFunction:Destroy() end)
+		if unreliable then pcall(function() unreliable:Destroy() end) end
+	end
 
-	if installed < 5 then
+	if type(getNamecall) ~= "function" then
+		state.hooked = false
+		_na_env.NA_BlockHooked = false
 		return false
 	end
 
+	local originalNamecall
+	local replacement = wrap(function(self, ...)
+		local method = getNamecall()
+		if type(method) == "string" then
+			if (method == "FireServer" or method == "InvokeServer") and isBlockedRemote(self) then
+				local blocked, ret = blockOutbound(self, method)
+				if blocked then return ret end
+			elseif (method == "Connect" or method == "Once" or method == "Wait") and NAStuff.BlockedSignals[self] then
+				local blocked, ret = blockSignal(originalNamecall, self, method, ...)
+				if blocked then return ret end
+			end
+		end
+		return originalNamecall(self, ...)
+	end)
+
+	local installedNamecall = false
+	if type(hookMeta) == "function" then
+		local ok, old = pcall(hookMeta, game, "__namecall", replacement)
+		if ok and type(old) == "function" then
+			originalNamecall = old
+			installedNamecall = true
+		end
+	end
+
+	if not installedNamecall and type(getRawMeta) == "function" and type(setReadOnly) == "function" then
+		local okMeta, mt = pcall(getRawMeta, game)
+		if okMeta and type(mt) == "table" and type(mt.__namecall) == "function" then
+			originalNamecall = mt.__namecall
+			local changed = false
+			pcall(function()
+				setReadOnly(mt, false)
+				mt.__namecall = replacement
+				changed = mt.__namecall == replacement
+				setReadOnly(mt, true)
+			end)
+			installedNamecall = changed
+		end
+	end
+
+	if not installedNamecall or type(originalNamecall) ~= "function" then
+		state.hooked = false
+		state.namecallHooked = false
+		_na_env.NA_BlockHooked = false
+		return false
+	end
+
+	state.originalNamecall = originalNamecall
+	state.namecallHooked = true
 	state.hooked = true
 	_na_env.NA_BlockHooked = true
 	return true
@@ -2361,7 +2473,10 @@ cmd.add({"blockremote","br"},{"blockremote [name]","Block a remote event/functio
 			Insert(buttons, {
 				Text = ("%s | %s"):format(r.Name, r:GetFullName()),
 				Callback = function()
-					NAmanage.EnsureHook()
+					if not NAmanage.EnsureHook() then
+						DebugNotif("Remote blocking unavailable: executor cannot intercept __namecall", 4, "Remote Block")
+						return
+					end
 					NAmanage.BlockRemote(r, modeSel)
 				end
 			})
@@ -2373,7 +2488,10 @@ cmd.add({"blockremote","br"},{"blockremote [name]","Block a remote event/functio
 		if q ~= "" then
 			const exact = exactByName(q)
 			if #exact >= 1 then
-				NAmanage.EnsureHook()
+				if not NAmanage.EnsureHook() then
+					DebugNotif("Remote blocking unavailable: executor cannot intercept __namecall", 4, "Remote Block")
+					return
+				end
 				for _, r in exact do
 					NAmanage.BlockRemote(r, modeSel)
 				end
@@ -2381,7 +2499,10 @@ cmd.add({"blockremote","br"},{"blockremote [name]","Block a remote event/functio
 			end
 			const fuzzy = fuzzyByName(q)
 			if #fuzzy == 1 then
-				NAmanage.EnsureHook()
+				if not NAmanage.EnsureHook() then
+					DebugNotif("Remote blocking unavailable: executor cannot intercept __namecall", 4, "Remote Block")
+					return
+				end
 				NAmanage.BlockRemote(fuzzy[1], modeSel)
 				return
 			end
