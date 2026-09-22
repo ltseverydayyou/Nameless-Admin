@@ -2593,17 +2593,24 @@ NAmanage.WeldToPlayerPart = NAmanage.WeldToPlayerPart or function(TargetPart, Of
 
 	local Weld = {}
 	local Connection = nil
+	local Destroyed = false
+	local PartState = {}
 
 	for _, v in pairs(Character:GetDescendants()) do
 		if v:IsA("BasePart") then
+			PartState[v] = {
+				CanCollide = v.CanCollide;
+				Massless = v.Massless;
+			}
 			v.CanCollide = false
 			v.Massless = true
 		end
 	end
 
 	Connection = Services.RunService.Heartbeat:Connect(function()
+		if Destroyed then return end
 		if not Character.Parent or not TargetPart.Parent then
-			if Weld.Destroy then Weld:Destroy() end
+			Weld:Destroy()
 			return
 		end
 
@@ -2617,10 +2624,34 @@ NAmanage.WeldToPlayerPart = NAmanage.WeldToPlayerPart or function(TargetPart, Of
 	end)
 
 	function Weld:Destroy()
-		if Connection then Connection:Disconnect() end
-		if AnimTrack then AnimTrack:Stop(); AnimTrack:Destroy() end
+		if Destroyed then return end
+		Destroyed = true
 
-		if Root then
+		if Connection then
+			Connection:Disconnect()
+			Connection = nil
+		end
+		if AnimTrack then
+			AnimTrack:Stop()
+			AnimTrack:Destroy()
+			AnimTrack = nil
+		end
+
+		if Root and opt and type(opt.hiddenprop) == "function" then
+			pcall(opt.hiddenprop, Root, "PhysicsRepRootPart", Root)
+		end
+
+		for part, state in PartState do
+			if part and part.Parent then
+				pcall(function()
+					part.CanCollide = state.CanCollide
+					part.Massless = state.Massless
+				end)
+			end
+		end
+		PartState = {}
+
+		if Root and Root.Parent then
 			Root.AssemblyLinearVelocity = Vector3.zero
 			Root.AssemblyAngularVelocity = Vector3.zero
 		end
