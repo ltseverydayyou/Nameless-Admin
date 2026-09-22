@@ -2254,44 +2254,43 @@ NAmanage.EnsureHook = function()
 		return NAStuff.BlockedRemoteModes[remote] or "fakeok"
 	end
 
-	local hookNotifySetIdentity
-	local hookNotifyGetIdentity
-	do
-		local hostEnv = type(_na_boot) == "table" and _na_boot.hostEnv or nil
-		const function pick(nameA, nameB, nameC, fallback)
-			local value = type(hostEnv) == "table" and (rawget(hostEnv, nameA) or rawget(hostEnv, nameB) or rawget(hostEnv, nameC)) or nil
-			if type(value) == "function" then return value end
-			return type(fallback) == "function" and fallback or nil
+	state.notifyQueue = type(state.notifyQueue) == "table" and state.notifyQueue or {}
+	if state.notifyWorkerStarted ~= true then
+		local rawSpawn = NAmanage._rawTaskSpawn or (type(task) == "table" and task.spawn or nil)
+		local rawWait = NAmanage._rawTaskWait or (type(task) == "table" and task.wait or nil)
+		if type(rawSpawn) == "function" and type(rawWait) == "function" then
+			state.notifyWorkerStarted = true
+			local workerToken = {}
+			state.notifyWorkerToken = workerToken
+			rawSpawn(function()
+				while state.notifyWorkerToken == workerToken
+					and not (NAmanage._runtimeState and NAmanage._runtimeState.unloading == true) do
+					local item = table.remove(state.notifyQueue, 1)
+					if item then
+						if NAStuff.nuhuhNotifs and type(DebugNotif) == "function" then
+							pcall(DebugNotif, item.text, item.duration, item.title)
+						end
+					else
+						rawWait(0.05)
+					end
+				end
+				if state.notifyWorkerToken == workerToken then
+					state.notifyWorkerStarted = false
+					state.notifyWorkerToken = nil
+				end
+			end)
 		end
-		hookNotifySetIdentity = pick("set_thread_identity", "setthreadidentity", "setidentity", setthreadidentity or setidentity)
-		hookNotifyGetIdentity = pick("get_thread_identity", "getthreadidentity", "getidentity", getthreadidentity or getidentity)
 	end
 
 	const function hookDebugNotif(text, duration, title)
-		if not NAStuff.nuhuhNotifs or type(DebugNotif) ~= "function" then
+		if not NAStuff.nuhuhNotifs then
 			return
 		end
-		const rawDefer = NAmanage._rawTaskDefer or (type(task) == "table" and task.defer or nil)
-		const function emit()
-			local oldIdentity
-			if type(hookNotifyGetIdentity) == "function" then
-				pcall(function()
-					oldIdentity = hookNotifyGetIdentity()
-				end)
-			end
-			if type(hookNotifySetIdentity) == "function" then
-				pcall(hookNotifySetIdentity, 8)
-			end
-			pcall(DebugNotif, text, duration, title)
-			if oldIdentity ~= nil and type(hookNotifySetIdentity) == "function" then
-				pcall(hookNotifySetIdentity, oldIdentity)
-			end
-		end
-		if type(rawDefer) == "function" then
-			pcall(rawDefer, emit)
-		else
-			pcall(emit)
-		end
+		state.notifyQueue[#state.notifyQueue + 1] = {
+			text = text;
+			duration = duration;
+			title = title;
+		}
 	end
 
 	const function blockOutbound(remote, method)
