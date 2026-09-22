@@ -393,7 +393,6 @@ carpetLoop = nil
 carpetDied = nil
 carpetCollisionState = {}
 carpetHumanoidState = nil
-carpetPoseState = {}
 
 originalIO.stopCarpet=function()
 	if carpetLoop then carpetLoop:Disconnect() carpetLoop = nil end
@@ -417,12 +416,6 @@ originalIO.stopCarpet=function()
 	end
 	carpetCollisionState = {}
 
-	for motor, transform in carpetPoseState do
-		if motor and motor.Parent then
-			pcall(function() motor.Transform = transform end)
-		end
-	end
-	carpetPoseState = {}
 
 	const humState = carpetHumanoidState
 	carpetHumanoidState = nil
@@ -471,34 +464,6 @@ cmd.add({"carpet"}, {"carpet <player>", "Be someone's carpet"}, function(usernam
 		part.CanCollide = false
 	end
 
-	const poseTargets = {
-		["Right Shoulder"] = CFrame.Angles(0, 0, math.rad(90));
-		["Left Shoulder"] = CFrame.Angles(0, 0, math.rad(-90));
-		["Right Hip"] = CFrame.Angles(0, 0, math.rad(18));
-		["Left Hip"] = CFrame.Angles(0, 0, math.rad(-18));
-		RightShoulder = CFrame.Angles(0, 0, math.rad(90));
-		LeftShoulder = CFrame.Angles(0, 0, math.rad(-90));
-		RightHip = CFrame.Angles(0, 0, math.rad(18));
-		LeftHip = CFrame.Angles(0, 0, math.rad(-18));
-		RightElbow = CFrame.new();
-		LeftElbow = CFrame.new();
-		RightKnee = CFrame.new();
-		LeftKnee = CFrame.new();
-	}
-
-	const function applyCarpetPose(currentChar)
-		for _, motor in NAmanage.QueryDescendants(currentChar, "Motor6D") do
-			const target = poseTargets[motor.Name]
-			if target then
-				if carpetPoseState[motor] == nil then
-					carpetPoseState[motor] = motor.Transform
-				end
-				motor.Transform = target
-			end
-		end
-	end
-
-	applyCarpetPose(character)
 	NAlib.connect("carpet_noclip", Services.RunService.PreSimulation:Connect(function()
 		const currentChar = getChar()
 		if currentChar ~= character then
@@ -510,7 +475,6 @@ cmd.add({"carpet"}, {"carpet <player>", "Be someone's carpet"}, function(usernam
 			end
 			if part.CanCollide then part.CanCollide = false end
 		end
-		applyCarpetPose(currentChar)
 	end))
 
 	-- Use the same forced flat pose on both R6 and R15. The old R6 carpet
@@ -556,8 +520,17 @@ cmd.add({"carpet"}, {"carpet <player>", "Be someone's carpet"}, function(usernam
 			end
 
 			const footDistance = feetFromRoot(tgtChar, tgtRoot, tgtHum)
-			const torso = localChar:FindFirstChild("UpperTorso") or localChar:FindFirstChild("Torso")
-			const flatHalf = math.max(0.25, (((torso and torso.Size.Z) or localRoot.Size.Z or 1) * 0.5) - 0.1)
+			-- The 90-degree X rotation makes the character's original Z depth its vertical thickness.
+			-- Place the root by half of the thickest central body part so the flattened body's top
+			-- sits on the target's foot-bottom plane instead of using an animation/limb offset.
+			local flatThickness = localRoot.Size.Z
+			for _, name in {"Torso", "UpperTorso", "LowerTorso"} do
+				const bodyPart = localChar:FindFirstChild(name)
+				if bodyPart and bodyPart:IsA("BasePart") then
+					flatThickness = math.max(flatThickness, bodyPart.Size.Z)
+				end
+			end
+			const flatHalf = math.max(0.05, flatThickness * 0.5)
 			const offset = CFrame.new(0, -(footDistance + flatHalf), 0) * layRotation
 			localRoot.CFrame = tgtRoot.CFrame * offset
 			localRoot.AssemblyLinearVelocity = Vector3.zero
