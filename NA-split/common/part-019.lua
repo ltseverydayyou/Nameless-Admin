@@ -5185,6 +5185,9 @@ NAmanage.NAChat_ApplyResponsive = function(center)
 	if not (frame and frame.Parent) then
 		return false
 	end
+	if NAmanage.GetAttr and NAmanage.GetAttr(frame, "NAMenuMinimized") == true then
+		return true
+	end
 	const shouldCenter = center == true
 	const ok, metrics = NAmanage.ExecutorWindowSizing.Apply(frame, {
 		key = "NAChat";

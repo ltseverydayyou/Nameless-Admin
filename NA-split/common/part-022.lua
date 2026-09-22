@@ -2822,7 +2822,8 @@ NAgui.menuv2 = function(menu)
 
 	local minimized = false
 	local isAnimating = false
-	const compactMinimize = menu == (NAUIMANAGER and NAUIMANAGER.chatLogsFrame) or menu.Name == "ChatLogs"
+	const isNAChat = menu == (NAUIMANAGER and NAUIMANAGER.NAchatFrame) or menu.Name == "NAChatUI"
+	const compactMinimize = isNAChat or menu == (NAUIMANAGER and NAUIMANAGER.chatLogsFrame) or menu.Name == "ChatLogs"
 	const sizeXAttr = "NAMenuStoredSizeX"
 	const sizeYAttr = "NAMenuStoredSizeY"
 	const function setStoredSize(x, y)
@@ -2843,11 +2844,43 @@ NAgui.menuv2 = function(menu)
 	end
 	const minimizedConstraintSizes = {}
 	const compactTopbarState = {}
+	const compactBodyState = {}
 	const function getMiniHeight()
+		if isNAChat then
+			const topbar = menu:FindFirstChild("Topbar")
+			if topbar and topbar:IsA("GuiObject") then
+				const offset = tonumber(topbar.Size.Y.Offset) or 0
+				if offset > 0 then
+					return math.max(30, offset)
+				end
+			end
+			return 40
+		end
 		return 35
 	end
 	const function setBodyVisible(value)
 		if not compactMinimize then return end
+		if isNAChat then
+			if value == true then
+				for item, wasVisible in compactBodyState do
+					if typeof(item) == "Instance" and item:IsA("GuiObject") and item.Parent == menu then
+						item.Visible = wasVisible == true
+					end
+					compactBodyState[item] = nil
+				end
+			else
+				const topbar = menu:FindFirstChild("Topbar")
+				for _, item in menu:GetChildren() do
+					if item ~= topbar and item:IsA("GuiObject") then
+						if compactBodyState[item] == nil then
+							compactBodyState[item] = item.Visible
+						end
+						item.Visible = false
+					end
+				end
+			end
+			return
+		end
 		const body = menu:FindFirstChild("Container")
 		if body and body:IsA("GuiObject") then body.Visible = value == true end
 	end

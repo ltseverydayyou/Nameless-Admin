@@ -883,10 +883,131 @@ originalIO.runNACHAT=function()
 	end
 
 	local function syncAdminFrameLayout()
-		if adminFrame and chatScroll then
-			adminFrame.AnchorPoint = chatScroll.AnchorPoint or Vector2.new(0.5, 0)
-			adminFrame.Size = chatScroll.Size
-			adminFrame.Position = chatScroll.Position
+		if not (adminFrame and chatScroll) then
+			return
+		end
+		adminFrame.AnchorPoint = chatScroll.AnchorPoint or Vector2.new(0.5, 0)
+		adminFrame.Size = chatScroll.Size
+		adminFrame.Position = chatScroll.Position
+
+		local logicalWidth = tonumber(adminFrame.AbsoluteSize.X) or 0
+		local logicalHeight = tonumber(adminFrame.AbsoluteSize.Y) or 0
+		if NAmanage and type(NAmanage.GetLogicalWindowSize) == "function" then
+			local okLogical, logicalSize = pcall(NAmanage.GetLogicalWindowSize, adminFrame)
+			if okLogical and logicalSize then
+				logicalWidth = tonumber(logicalSize.X) or logicalWidth
+				logicalHeight = tonumber(logicalSize.Y) or logicalHeight
+			end
+		end
+
+		local title = adminFrame:FindFirstChild("AdminTitle")
+		local subtitle = adminFrame:FindFirstChild("AdminSubtitle")
+		local userBox = adminFrame:FindFirstChild("AdminUserInput")
+		local durBox = adminFrame:FindFirstChild("AdminMuteDurationInput")
+		local reasonBox = adminFrame:FindFirstChild("AdminMuteReasonInput")
+		local muteBtn = adminFrame:FindFirstChild("AdminMuteButton")
+		local banBtn = adminFrame:FindFirstChild("AdminBanButton")
+		local unmuteBtn = adminFrame:FindFirstChild("AdminUnmuteButton")
+		local unbanBtn = adminFrame:FindFirstChild("AdminUnbanButton")
+		local hwidBanBtn = adminFrame:FindFirstChild("AdminHWIDBanButton")
+		local hwidUnbanBtn = adminFrame:FindFirstChild("AdminHWIDUnbanButton")
+		local purgeCountBox = adminFrame:FindFirstChild("AdminPurgeCountInput")
+		local purgeBtn = adminFrame:FindFirstChild("AdminPurgeButton")
+		local accessLabel = adminFrame:FindFirstChild("AdminAccessLabel")
+		local banScroll = adminFrame:FindFirstChild("AdminBanList")
+
+		if not (userBox and durBox and reasonBox and muteBtn and banBtn and unmuteBtn and unbanBtn
+			and hwidBanBtn and hwidUnbanBtn and purgeCountBox and purgeBtn and accessLabel and banScroll) then
+			return
+		end
+
+		local compactHeight = logicalHeight > 0 and logicalHeight < 340
+		local wideEnough = logicalWidth <= 0 or logicalWidth >= 620
+		if compactHeight and wideEnough then
+			if title then
+				title.Position = UDim2.new(0, 12, 0, 6)
+				title.Size = UDim2.new(1, -24, 0, 20)
+				title.TextSize = 14
+			end
+			local showSubtitle = logicalHeight >= 285
+			if subtitle then
+				subtitle.Visible = showSubtitle
+				subtitle.Position = UDim2.new(0, 12, 0, 25)
+				subtitle.Size = UDim2.new(1, -24, 0, 15)
+				subtitle.TextSize = 11
+			end
+			local row1Y = showSubtitle and 43 or 30
+			local row2Y = row1Y + 36
+			local rowHeight = 30
+
+			userBox.Position = UDim2.new(0, 10, 0, row1Y)
+			userBox.Size = UDim2.new(0.34, -12, 0, rowHeight)
+			durBox.Position = UDim2.new(0.34, 0, 0, row1Y)
+			durBox.Size = UDim2.new(0.16, -4, 0, rowHeight)
+			muteBtn.Position = UDim2.new(0.50, 4, 0, row1Y)
+			muteBtn.Size = UDim2.new(0.125, -5, 0, rowHeight)
+			banBtn.Position = UDim2.new(0.625, 3, 0, row1Y)
+			banBtn.Size = UDim2.new(0.125, -5, 0, rowHeight)
+			unmuteBtn.Position = UDim2.new(0.75, 2, 0, row1Y)
+			unmuteBtn.Size = UDim2.new(0.125, -5, 0, rowHeight)
+			unbanBtn.Position = UDim2.new(0.875, 1, 0, row1Y)
+			unbanBtn.Size = UDim2.new(0.125, -11, 0, rowHeight)
+
+			reasonBox.Position = UDim2.new(0, 10, 0, row2Y)
+			reasonBox.Size = UDim2.new(0.36, -8, 0, rowHeight)
+			hwidBanBtn.Position = UDim2.new(0.36, 6, 0, row2Y)
+			hwidBanBtn.Size = UDim2.new(0.15, -4, 0, rowHeight)
+			hwidUnbanBtn.Position = UDim2.new(0.51, 4, 0, row2Y)
+			hwidUnbanBtn.Size = UDim2.new(0.17, -4, 0, rowHeight)
+			purgeCountBox.Position = UDim2.new(0.68, 2, 0, row2Y)
+			purgeCountBox.Size = UDim2.new(0.14, -4, 0, rowHeight)
+			purgeBtn.Position = UDim2.new(0.82, 0, 0, row2Y)
+			purgeBtn.Size = UDim2.new(0.18, -10, 0, rowHeight)
+
+			local labelY = row2Y + 35
+			accessLabel.Position = UDim2.new(0, 12, 0, labelY)
+			accessLabel.Size = UDim2.new(1, -24, 0, 18)
+			local listY = labelY + 21
+			banScroll.Position = UDim2.new(0, 10, 0, listY)
+			banScroll.Size = UDim2.new(1, -20, 1, -(listY + 6))
+		else
+			if title then
+				title.Position = UDim2.new(0, 12, 0, 10)
+				title.Size = UDim2.new(1, -24, 0, 24)
+				title.TextSize = 16
+			end
+			if subtitle then
+				subtitle.Visible = true
+				subtitle.Position = UDim2.new(0, 12, 0, 34)
+				subtitle.Size = UDim2.new(1, -24, 0, 18)
+				subtitle.TextSize = 12
+			end
+			userBox.Position = UDim2.new(0, 10, 0, 58)
+			userBox.Size = UDim2.new(0.36, -12, 0, 32)
+			durBox.Position = UDim2.new(0.36, 0, 0, 58)
+			durBox.Size = UDim2.new(0.18, -6, 0, 32)
+			muteBtn.Position = UDim2.new(0.54, 6, 0, 58)
+			muteBtn.Size = UDim2.new(0.11, -4, 0, 32)
+			banBtn.Position = UDim2.new(0.65, 2, 0, 58)
+			banBtn.Size = UDim2.new(0.11, -4, 0, 32)
+			unmuteBtn.Position = UDim2.new(0.76, -2, 0, 58)
+			unmuteBtn.Size = UDim2.new(0.11, -4, 0, 32)
+			unbanBtn.Position = UDim2.new(0.87, -2, 0, 58)
+			unbanBtn.Size = UDim2.new(0.11, -4, 0, 32)
+			reasonBox.Position = UDim2.new(0, 10, 0, 96)
+			reasonBox.Size = UDim2.new(1, -20, 0, 32)
+			hwidBanBtn.Position = UDim2.new(0, 10, 0, 134)
+			hwidBanBtn.Size = UDim2.new(0.2, -4, 0, 32)
+			hwidUnbanBtn.Position = UDim2.new(0.2, 8, 0, 134)
+			hwidUnbanBtn.Size = UDim2.new(0.22, -4, 0, 32)
+			purgeCountBox.Position = UDim2.new(0.42, 6, 0, 134)
+			purgeCountBox.Size = UDim2.new(0.22, -4, 0, 32)
+			purgeBtn.Position = UDim2.new(0.64, 4, 0, 134)
+			purgeBtn.Size = UDim2.new(0.36, -14, 0, 32)
+			accessLabel.Position = UDim2.new(0, 12, 0, 176)
+			accessLabel.Size = UDim2.new(1, -24, 0, 20)
+			banScroll.Position = UDim2.new(0, 10, 0, 202)
+			banScroll.Size = UDim2.new(1, -20, 1, -208)
 		end
 	end
 
@@ -922,6 +1043,9 @@ originalIO.runNACHAT=function()
 		NAlib.connect("NAChatWindowState", chatFrame:GetPropertyChangedSignal("Size"):Connect(function()
 			Defer(function()
 				if chatFrame and chatFrame.Parent then
+					if NAmanage.GetAttr and NAmanage.GetAttr(chatFrame, "NAMenuMinimized") == true then
+						return
+					end
 					NAmanage.ExecutorWindowSizing.Save(chatFrame, "NANAChatSavedSizeX", "NANAChatSavedSizeY")
 				end
 			end)
@@ -1261,7 +1385,14 @@ originalIO.runNACHAT=function()
 		local lastUsersUpdateAt = 0
 		local userFrames = {}
 		local userFrameState = {}
-		local visibleAvatarRefreshQueued = false
+		local usersViewCache = {
+			source = nil,
+			search = nil,
+			rows = {},
+			present = {},
+			dirty = true,
+		}
+		local usersViewportQueued = false
 
 		local STATUS_COLORS = {
 			ok = Color3.fromRGB(120, 200, 140),
@@ -1383,11 +1514,12 @@ originalIO.runNACHAT=function()
 		end
 
 		local function queueUsersListRefresh()
+			usersViewCache.dirty = true
 			if queuedUsersRefresh then
 				return
 			end
 			queuedUsersRefresh = true
-			Defer(function()
+			Delay(0.02, function()
 				queuedUsersRefresh = false
 				if type(updateUsersList) == "function" and (not isChatUiSuppressed()) and NAChat.activeTab == "users" then
 					updateUsersList(NAChat.users or {})
@@ -1395,37 +1527,19 @@ originalIO.runNACHAT=function()
 			end)
 		end
 
-		local function refreshVisibleUserAvatars()
-			if not usersScroll or NAChat.activeTab ~= "users" or isChatUiSuppressed() then
+		local function queueUsersViewportRefresh()
+			if queuedUsersRefresh or usersViewportQueued then
 				return
 			end
-			local top = usersScroll.AbsolutePosition.Y - 80
-			local bottom = usersScroll.AbsolutePosition.Y + usersScroll.AbsoluteSize.Y + 80
-			for _, fr in userFrames do
-				if fr and fr.Parent == usersScroll and fr.Visible then
-					local rowTop = fr.AbsolutePosition.Y
-					local rowBottom = rowTop + fr.AbsoluteSize.Y
-					if rowBottom >= top and rowTop <= bottom then
-						local avatar = fr:FindFirstChild("Avatar")
-						local userId = tonumber(fr:GetAttribute("NAChatUserId"))
-						if avatar and userId and (avatar.Image == nil or avatar.Image == "") then
-							avatar.Image = ("rbxthumb://type=AvatarHeadShot&id=%d&w=150&h=150"):format(userId)
-						end
-					end
+			usersViewportQueued = true
+			Delay(0.03, function()
+				usersViewportQueued = false
+				if type(updateUsersList) == "function" and (not isChatUiSuppressed()) and NAChat.activeTab == "users" then
+					updateUsersList(NAChat.users or {})
 				end
-			end
-		end
-
-		local function queueVisibleUserAvatarRefresh()
-			if visibleAvatarRefreshQueued then
-				return
-			end
-			visibleAvatarRefreshQueued = true
-			Defer(function()
-				visibleAvatarRefreshQueued = false
-				refreshVisibleUserAvatars()
 			end)
 		end
+
 
 		local function queueStatusLabelRefresh()
 			if queuedStatusRefresh then
@@ -1681,6 +1795,15 @@ originalIO.runNACHAT=function()
 		NAStuff.NAChatRuntime.VirtualQueued = false
 		NAStuff.NAChatRuntime.VirtualForceBottom = false
 		NAStuff.NAChatRuntime.VirtualGeneration = 0
+		NAStuff.NAChatRuntime.VirtualLayoutDirty = true
+		NAStuff.NAChatRuntime.VirtualLayoutHistory = nil
+		NAStuff.NAChatRuntime.VirtualOffsets = {}
+		NAStuff.NAChatRuntime.VirtualHeights = {}
+		NAStuff.NAChatRuntime.VirtualCount = 0
+		NAStuff.NAChatRuntime.VirtualTotalHeight = 0
+		NAStuff.NAChatRuntime.VirtualActive = {}
+		NAStuff.NAChatRuntime.VirtualLastRefresh = 0
+		NAStuff.NAChatRuntime.RenderRevision = (tonumber(NAStuff.NAChatRuntime.RenderRevision) or 0) + 1
 		NAStuff.NAChatRuntime.RowGap = 6
 
 		local chatMessageOrder = 0
@@ -1858,6 +1981,17 @@ originalIO.runNACHAT=function()
 			return username ~= "" and username or (displayName ~= "" and displayName or "?")
 		end
 
+		NAmanage.NAChat_GetEntryAvatarUserId = function(entry)
+			if type(entry) ~= "table" then
+				return nil
+			end
+			local userId = tonumber(entry.authorUserId or entry.avatarUserId or entry.userId)
+			if userId and userId > 0 then
+				return userId
+			end
+			return nil
+		end
+
 		local function defaultInputPlaceholder()
 			if NAChat.activeGroupId and groupRecords[tostring(NAChat.activeGroupId)] then
 				return "Message #"..tostring(groupRecords[tostring(NAChat.activeGroupId)].name or "group").."..."
@@ -1925,7 +2059,7 @@ originalIO.runNACHAT=function()
 			end
 
 			local editedMark = entry.edited and ' <font color="#9A9EAF">(edited)</font>' or ""
-			return timePrefix..replyLine..prefix..sender..": "..displayText..editedMark
+			return timePrefix..replyLine.."<b>"..prefix..sender.."</b>: "..displayText..editedMark
 		end
 
 		local syncChatEntryTranslation
@@ -1935,6 +2069,54 @@ originalIO.runNACHAT=function()
 			if not (lbl and lbl.Parent) then
 				return
 			end
+
+			local compact = NAmanage.NAChat_GetCompactMessages()
+			local avatarUserId = NAmanage.NAChat_GetEntryAvatarUserId(entry)
+			local avatar = lbl:FindFirstChild("Avatar")
+			if avatarUserId then
+				if not avatar then
+					avatar = InstanceNew("ImageLabel", lbl)
+					avatar.Name = "Avatar"
+					avatar.BackgroundTransparency = 1
+					avatar.BorderSizePixel = 0
+					avatar.ScaleType = Enum.ScaleType.Crop
+					avatar.ZIndex = (tonumber(lbl.ZIndex) or 1) + 2
+					local avatarCorner = InstanceNew("UICorner", avatar)
+					avatarCorner.CornerRadius = UDim.new(1, 0)
+					ensureChatStroke(avatar, CHAT_ACCENT, 0.48)
+				end
+				local avatarSize = compact and 26 or 30
+				avatar.Visible = true
+				avatar.AnchorPoint = Vector2.new(0, 0.5)
+				avatar.Size = UDim2.new(0, avatarSize, 0, avatarSize)
+				avatar.Position = UDim2.new(0, 8, 0.5, 0)
+				if tonumber(avatar:GetAttribute("NAChatAvatarUserId")) ~= avatarUserId then
+					avatar:SetAttribute("NAChatAvatarUserId", avatarUserId)
+					avatar.Image = ("rbxthumb://type=AvatarHeadShot&id=%d&w=150&h=150"):format(avatarUserId)
+				end
+			elseif avatar then
+				avatar.Visible = false
+			end
+
+			local messageLabel = lbl:FindFirstChild("MessageText")
+			if not messageLabel then
+				messageLabel = InstanceNew("TextLabel", lbl)
+				messageLabel.Name = "MessageText"
+				messageLabel.BackgroundTransparency = 1
+				messageLabel.BorderSizePixel = 0
+				messageLabel.TextWrapped = true
+				messageLabel.RichText = true
+				messageLabel.TextXAlignment = Enum.TextXAlignment.Left
+				messageLabel.TextYAlignment = Enum.TextYAlignment.Center
+				messageLabel.ZIndex = (tonumber(lbl.ZIndex) or 1) + 1
+			end
+
+			local textLeft = avatarUserId and (compact and 42 or 46) or 10
+			messageLabel.AnchorPoint = Vector2.new(0, 0.5)
+			messageLabel.Position = UDim2.new(0, textLeft, 0.5, 0)
+			messageLabel.Size = UDim2.new(1, -(textLeft + 10), 1, -8)
+			messageLabel.FontFace = lbl.FontFace
+			messageLabel.TextSize = NAmanage.NAChat_GetMessageTextSize()
 
 			local primaryHex, secondaryHex, fallbackColor
 			if entry.rainbow then
@@ -1954,10 +2136,10 @@ originalIO.runNACHAT=function()
 			local useGradient = not entry.rainbow and type(secondaryHex) == "string" and secondaryHex ~= ""
 			local textTarget
 			if useGradient then
-				textTarget = NAmanage.NAChat_EnsureGradientText(lbl)
+				textTarget = NAmanage.NAChat_EnsureGradientText(messageLabel)
 			else
-				NAmanage.NAChat_DestroyGradientText(lbl)
-				textTarget = lbl
+				NAmanage.NAChat_DestroyGradientText(messageLabel)
+				textTarget = messageLabel
 			end
 
 			textTarget.Text = buildChatEntryText(entry)
@@ -1968,33 +2150,30 @@ originalIO.runNACHAT=function()
 			textTarget.TextXAlignment = Enum.TextXAlignment.Left
 			textTarget.TextYAlignment = Enum.TextYAlignment.Center
 
-			local padding = lbl:FindFirstChildWhichIsA("UIPadding")
-			if padding then
-				local py = NAmanage.NAChat_GetCompactMessages() and 2 or 4
-				padding.PaddingTop = UDim.new(0, py)
-				padding.PaddingBottom = UDim.new(0, py)
-			end
-
 			if entry.rainbow then
-				NAmanage.NAChat_ClearGradient(lbl)
-				rainbowLabels[lbl] = true
-				lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+				NAmanage.NAChat_ClearGradient(messageLabel)
+				rainbowLabels[messageLabel] = true
+				messageLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 			else
-				rainbowLabels[lbl] = nil
+				rainbowLabels[messageLabel] = nil
 				NAmanage.NAChat_ApplyColor(textTarget, primaryHex, secondaryHex, fallbackColor)
 			end
 
-			local compact = NAmanage.NAChat_GetCompactMessages()
 			local newHeight = NAmanage.NAChat_MeasureEntryHeight and NAmanage.NAChat_MeasureEntryHeight(entry)
-				or (compact and 20 or 24)
+				or (avatarUserId and (compact and 36 or 40) or (compact and 20 or 24))
 			local previousHeight = tonumber(entry.virtualHeight)
 			entry.virtualHeight = newHeight
+			entry._naRenderRevision = NAStuff.NAChatRuntime.RenderRevision
 			lbl.Size = UDim2.new(1, -6, 0, newHeight)
-			if textTarget ~= lbl then
+			messageLabel.Size = UDim2.new(1, -(textLeft + 10), 1, -8)
+			if textTarget ~= messageLabel then
 				textTarget.Size = UDim2.new(1, 0, 1, 0)
 			end
-			if previousHeight and math.abs(previousHeight - newHeight) >= 1 and NAmanage.NAChat_QueueVirtualRefresh then
-				NAmanage.NAChat_QueueVirtualRefresh(false)
+			if previousHeight and math.abs(previousHeight - newHeight) >= 1 then
+				NAStuff.NAChatRuntime.VirtualLayoutDirty = true
+				if NAmanage.NAChat_QueueVirtualRefresh then
+					NAmanage.NAChat_QueueVirtualRefresh(false)
+				end
 			end
 			if syncChatEntryTranslation then
 				syncChatEntryTranslation(entry)
@@ -2007,7 +2186,11 @@ originalIO.runNACHAT=function()
 			if not (lbl and lbl.Parent and tr and type(tr.registerMessage) == "function") then
 				return
 			end
-			local target = lbl:FindFirstChild("NAChatGradientText") or lbl
+			local messageLabel = lbl:FindFirstChild("MessageText")
+			if not messageLabel then
+				return
+			end
+			local target = messageLabel:FindFirstChild("NAChatGradientText") or messageLabel
 			local info = type(entry.translationInfo) == "table" and entry.translationInfo or {}
 			entry.translationInfo = info
 			info.onDisplay = function(activeLabel)
@@ -2021,13 +2204,17 @@ originalIO.runNACHAT=function()
 					local frame = entry.frame
 					if frame and frame.Parent then
 						frame.Size = UDim2.new(1, -6, 0, newHeight)
-						local gradient = frame:FindFirstChild("NAChatGradientText")
+						local textLabel = frame:FindFirstChild("MessageText")
+						local gradient = textLabel and textLabel:FindFirstChild("NAChatGradientText")
 						if gradient then
 							gradient.Size = UDim2.new(1, 0, 1, 0)
 						end
 					end
-					if previousHeight and math.abs(previousHeight - newHeight) >= 1 and NAmanage.NAChat_QueueVirtualRefresh then
-						NAmanage.NAChat_QueueVirtualRefresh(false)
+					if previousHeight and math.abs(previousHeight - newHeight) >= 1 then
+						NAStuff.NAChatRuntime.VirtualLayoutDirty = true
+						if NAmanage.NAChat_QueueVirtualRefresh then
+							NAmanage.NAChat_QueueVirtualRefresh(false)
+						end
 					end
 				end
 			end
@@ -2235,7 +2422,9 @@ originalIO.runNACHAT=function()
 			end
 			if entry.frame and entry.frame.Parent then
 				entry.frame.Position = UDim2.new(0, 3, 0, math.max(0, tonumber(rowY) or 0))
-				refreshChatEntry(entry)
+				if entry._naRenderRevision ~= NAStuff.NAChatRuntime.RenderRevision then
+					refreshChatEntry(entry)
+				end
 				return entry.frame
 			end
 			local lbl = InstanceNew("TextButton", chatScroll)
@@ -2244,24 +2433,16 @@ originalIO.runNACHAT=function()
 			lbl.Position = UDim2.new(0, 3, 0, math.max(0, tonumber(rowY) or 0))
 			lbl.BackgroundColor3 = CHAT_SURFACE
 			lbl.BackgroundTransparency = 0.05
+			lbl.BorderSizePixel = 0
+			lbl.ClipsDescendants = true
 			lbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-			lbl.TextSize = NAmanage.NAChat_GetMessageTextSize()
-			lbl.TextWrapped = true
-			lbl.RichText = true
-			lbl.TextXAlignment = Enum.TextXAlignment.Left
-			lbl.TextYAlignment = Enum.TextYAlignment.Center
+			lbl.Text = ""
 			lbl.LayoutOrder = entry.order or 0
 			lbl.AutoButtonColor = false
 			local cr = InstanceNew("UICorner", lbl)
-			cr.CornerRadius = UDim.new(0, 7)
-			local pad = InstanceNew("UIPadding", lbl)
-			pad.PaddingLeft = UDim.new(0, 10)
-			pad.PaddingRight = UDim.new(0, 10)
-			pad.PaddingTop = UDim.new(0, 4)
-			pad.PaddingBottom = UDim.new(0, 4)
-			ensureChatStroke(lbl, Color3.fromRGB(69, 72, 96), 0.7)
+			cr.CornerRadius = UDim.new(0, 8)
+			ensureChatStroke(lbl, Color3.fromRGB(69, 72, 96), 0.72)
 			refreshChatEntry(entry)
-			syncChatEntryTranslation(entry)
 			bindMessageContextMenu(entry, lbl)
 			return lbl
 		end
@@ -2275,12 +2456,16 @@ originalIO.runNACHAT=function()
 			for _, history in conversationHistory do
 				for _, entry in history do
 					if entry.frame then
-						rainbowLabels[entry.frame] = nil
+						local messageLabel = entry.frame:FindFirstChild("MessageText")
+						if messageLabel then
+							rainbowLabels[messageLabel] = nil
+						end
 						pcall(function() entry.frame:Destroy() end)
 						entry.frame = nil
 					end
 				end
 			end
+			NAStuff.NAChatRuntime.VirtualActive = {}
 			if chatScroll then
 				for _, child in chatScroll:GetChildren() do
 					if child:IsA("TextLabel") or child:IsA("TextButton") then
@@ -2326,7 +2511,7 @@ originalIO.runNACHAT=function()
 			end
 		end
 
-		NAmanage.NAChat_GetMessageMeasureWidth = function()
+		NAmanage.NAChat_GetMessageMeasureWidth = function(entry)
 			local width = 320
 			if chatScroll then
 				local logicalSize = nil
@@ -2343,7 +2528,8 @@ originalIO.runNACHAT=function()
 					width = (tonumber(chatScroll.AbsoluteSize.X) or width) / math.max(scale, 0.01)
 				end
 			end
-			return math.max(80, width - 30)
+			local avatarInset = NAmanage.NAChat_GetEntryAvatarUserId(entry) and 42 or 0
+			return math.max(80, width - 30 - avatarInset)
 		end
 
 		local function virtualMeasureText(entry)
@@ -2360,9 +2546,10 @@ originalIO.runNACHAT=function()
 
 		NAmanage.NAChat_MeasureEntryHeight = function(entry)
 			local compact = NAmanage.NAChat_GetCompactMessages()
-			local minHeight = compact and 20 or 24
+			local hasAvatar = NAmanage.NAChat_GetEntryAvatarUserId(entry) ~= nil
+			local minHeight = hasAvatar and (compact and 36 or 40) or (compact and 20 or 24)
 			local padding = compact and 4 or 8
-			local width = NAmanage.NAChat_GetMessageMeasureWidth()
+			local width = NAmanage.NAChat_GetMessageMeasureWidth(entry)
 			local textSize = NAmanage.NAChat_GetMessageTextSize()
 			local measuredY = 0
 			local textService = Services.TextService
@@ -2389,8 +2576,9 @@ originalIO.runNACHAT=function()
 				return cached
 			end
 			local compact = NAmanage.NAChat_GetCompactMessages()
-			local base = compact and 20 or 24
-			local width = NAmanage.NAChat_GetMessageMeasureWidth()
+			local hasAvatar = NAmanage.NAChat_GetEntryAvatarUserId(entry) ~= nil
+			local base = hasAvatar and (compact and 36 or 40) or (compact and 20 or 24)
+			local width = NAmanage.NAChat_GetMessageMeasureWidth(entry)
 			local textSize = NAmanage.NAChat_GetMessageTextSize()
 			local charsPerLine = math.max(8, math.floor(width / math.max(5, textSize * 0.54)))
 			local lines = 0
@@ -2405,22 +2593,47 @@ originalIO.runNACHAT=function()
 				return
 			end
 
-			NAStuff.NAChatRuntime.VirtualGeneration += 1
-			local myGeneration = NAStuff.NAChatRuntime.VirtualGeneration
+			local runtime = NAStuff.NAChatRuntime
+			runtime.VirtualGeneration += 1
+			local myGeneration = runtime.VirtualGeneration
 			local history = conversationHistory[NAChat.activeConversation] or {}
 			local viewportHeight = NAmanage.NAChat_GetViewportHeight()
-			local offsets = table.create and table.create(#history) or {}
-			local totalHeight = 0
+			local count = #history
+			local rebuildLayout = runtime.VirtualLayoutDirty
+				or runtime.VirtualLayoutHistory ~= history
+				or runtime.VirtualCount ~= count
+			local offsets = runtime.VirtualOffsets
+			local heights = runtime.VirtualHeights
+			local totalHeight = tonumber(runtime.VirtualTotalHeight) or 0
 
-			for i, entry in history do
-				offsets[i] = totalHeight
-				totalHeight += NAmanage.NAChat_EstimatedHeight(entry)
-				if i < #history then
-					totalHeight += NAStuff.NAChatRuntime.RowGap
+			if rebuildLayout then
+				offsets = table.create and table.create(count) or {}
+				heights = table.create and table.create(count) or {}
+				totalHeight = 0
+				for i, entry in history do
+					local height = NAmanage.NAChat_EstimatedHeight(entry)
+					offsets[i] = totalHeight
+					heights[i] = height
+					totalHeight += height
+					if i < count then
+						totalHeight += runtime.RowGap
+					end
+				end
+				if runtime.VirtualGeneration ~= myGeneration then
+					return
+				end
+				runtime.VirtualOffsets = offsets
+				runtime.VirtualHeights = heights
+				runtime.VirtualTotalHeight = totalHeight
+				runtime.VirtualLayoutHistory = history
+				runtime.VirtualCount = count
+				runtime.VirtualLayoutDirty = false
+				chatScroll.CanvasSize = UDim2.new(0, 0, 0, totalHeight + 4)
+				if NAmanage.CustomScroll and NAmanage.CustomScroll.refreshByTarget then
+					NAmanage.CustomScroll.refreshByTarget(chatScroll)
 				end
 			end
 
-			chatScroll.CanvasSize = UDim2.new(0, 0, 0, totalHeight + 4)
 			local maxY = math.max(0, totalHeight - viewportHeight)
 			local currentY = NAmanage.NAChat_GetCanvasY()
 			if forceBottom then
@@ -2431,99 +2644,123 @@ originalIO.runNACHAT=function()
 				NAmanage.NAChat_SetCanvasY(currentY)
 			end
 
-			local averageHeight = #history > 0 and math.max(1, totalHeight / #history) or 32
-			local bufferPixels = math.max(160, averageHeight * 5)
+			local averageHeight = count > 0 and math.max(1, totalHeight / count) or 32
+			local bufferPixels = math.max(120, averageHeight * 3)
 			local visibleStart = math.max(0, currentY - bufferPixels)
 			local visibleEnd = currentY + viewportHeight + bufferPixels
-			local alive = {}
-			local structureChanged = false
-			local sizeChanged = false
-			local anchorDelta = 0
-			local processedMessages = 0
+			local firstIndex, lastIndex = 1, 0
 
-			for i, entry in history do
-				processedMessages += 1
-				if processedMessages > 1 and (processedMessages - 1) % 48 == 0 then
-					Wait()
-					if NAStuff.NAChatRuntime.VirtualGeneration ~= myGeneration then
-						return
+			if count > 0 then
+				local lo, hi, found = 1, count, count + 1
+				while lo <= hi do
+					local mid = math.floor((lo + hi) / 2)
+					local rowBottom = (offsets[mid] or 0) + (heights[mid] or 0)
+					if rowBottom >= visibleStart then
+						found = mid
+						hi = mid - 1
+					else
+						lo = mid + 1
 					end
 				end
+				firstIndex = math.min(count + 1, found)
+
+				lo, hi, found = firstIndex, count, firstIndex - 1
+				while lo <= hi do
+					local mid = math.floor((lo + hi) / 2)
+					if (offsets[mid] or 0) <= visibleEnd then
+						found = mid
+						lo = mid + 1
+					else
+						hi = mid - 1
+					end
+				end
+				lastIndex = math.min(count, found)
+			end
+
+			local alive = {}
+			local active = runtime.VirtualActive
+			local sizeChanged = false
+			local anchorDelta = 0
+
+			for i = firstIndex, lastIndex do
+				local entry = history[i]
 				local rowY = offsets[i] or 0
-				local rowHeight = NAmanage.NAChat_EstimatedHeight(entry)
-				local inWindow = (rowY + rowHeight) >= visibleStart and rowY <= visibleEnd
-				if inWindow then
-					alive[entry] = true
-					local existed = entry.frame and entry.frame.Parent == chatScroll
-					local beforeHeight = tonumber(entry.virtualHeight)
-					local lbl = NAmanage.NAChat_MakeLabel(entry, rowY)
-					if lbl then
-						lbl.Position = UDim2.new(0, 3, 0, rowY)
-						if not existed then
-							structureChanged = true
-						end
-						local afterHeight = tonumber(entry.virtualHeight)
-						if afterHeight and (not beforeHeight or math.abs(afterHeight - beforeHeight) >= 1) then
-							sizeChanged = true
-							if beforeHeight and (rowY + beforeHeight) <= currentY then
-								anchorDelta += (afterHeight - beforeHeight)
-							end
+				alive[entry] = true
+				active[entry] = true
+				local beforeHeight = tonumber(entry.virtualHeight)
+				local lbl = NAmanage.NAChat_MakeLabel(entry, rowY)
+				if lbl then
+					lbl.Position = UDim2.new(0, 3, 0, rowY)
+					local afterHeight = tonumber(entry.virtualHeight)
+					if afterHeight and (not beforeHeight or math.abs(afterHeight - beforeHeight) >= 1) then
+						sizeChanged = true
+						if beforeHeight and (rowY + beforeHeight) <= currentY then
+							anchorDelta += (afterHeight - beforeHeight)
 						end
 					end
 				end
 			end
 
-			if NAStuff.NAChatRuntime.VirtualGeneration ~= myGeneration then
+			if runtime.VirtualGeneration ~= myGeneration then
 				return
 			end
 
-			for _, entry in history do
-				local fr = entry.frame
-				if fr and fr.Parent and not alive[entry] then
-					rainbowLabels[fr] = nil
-					pcall(function() fr:Destroy() end)
-					entry.frame = nil
-					structureChanged = true
+			for entry in active do
+				if not alive[entry] then
+					local fr = entry and entry.frame
+					if fr and fr.Parent then
+						local messageLabel = fr:FindFirstChild("MessageText")
+						if messageLabel then
+							rainbowLabels[messageLabel] = nil
+						end
+						pcall(function() fr:Destroy() end)
+					end
+					if entry then
+						entry.frame = nil
+					end
+					active[entry] = nil
 				end
 			end
 
-			if structureChanged and NAmanage.CustomScroll and NAmanage.CustomScroll.refreshByTarget then
-				NAmanage.CustomScroll.refreshByTarget(chatScroll)
-			end
-
 			if sizeChanged then
+				runtime.VirtualLayoutDirty = true
 				if not forceBottom and math.abs(anchorDelta) >= 1 then
 					NAmanage.NAChat_SetCanvasY(math.max(0, currentY + anchorDelta))
 				end
 				NAmanage.NAChat_QueueVirtualRefresh(forceBottom)
 			elseif forceBottom then
 				NAmanage.NAChat_SetCanvasY(math.max(0, totalHeight - viewportHeight))
-				if NAmanage.CustomScroll and NAmanage.CustomScroll.refreshByTarget then
-					NAmanage.CustomScroll.refreshByTarget(chatScroll)
-				end
 			end
 		end
 
 		NAmanage.NAChat_QueueVirtualRefresh = function(forceBottom)
+			local runtime = NAStuff.NAChatRuntime
 			if forceBottom then
-				NAStuff.NAChatRuntime.VirtualForceBottom = true
+				runtime.VirtualForceBottom = true
 			end
-			if NAStuff.NAChatRuntime.VirtualQueued then
+			if runtime.VirtualQueued then
 				return
 			end
-			NAStuff.NAChatRuntime.VirtualQueued = true
-			Defer(function()
-				NAStuff.NAChatRuntime.VirtualQueued = false
-				local bottom = NAStuff.NAChatRuntime.VirtualForceBottom
-				NAStuff.NAChatRuntime.VirtualForceBottom = false
+			runtime.VirtualQueued = true
+			local now = os.clock()
+			local elapsed = now - (tonumber(runtime.VirtualLastRefresh) or 0)
+			local waitFor = forceBottom and 0 or math.max(0, 0.03 - elapsed)
+			Delay(waitFor, function()
+				runtime.VirtualQueued = false
+				runtime.VirtualLastRefresh = os.clock()
+				local bottom = runtime.VirtualForceBottom
+				runtime.VirtualForceBottom = false
 				NAmanage.NAChat_UpdateVirtualized(bottom)
 			end)
 		end
 
 		NAmanage.NAChat_InvalidateVirtualHeights = function()
+			NAStuff.NAChatRuntime.RenderRevision += 1
+			NAStuff.NAChatRuntime.VirtualLayoutDirty = true
 			for _, history in conversationHistory do
 				for _, entry in history do
 					entry.virtualHeight = nil
+					entry._naRenderRevision = nil
 				end
 			end
 		end
@@ -2534,6 +2771,8 @@ originalIO.runNACHAT=function()
 			if force or changed then
 				clearConversationView()
 				renderedConversation = key
+				NAStuff.NAChatRuntime.VirtualLayoutDirty = true
+				NAStuff.NAChatRuntime.VirtualLayoutHistory = nil
 			end
 			NAmanage.NAChat_QueueVirtualRefresh(force or changed)
 		end
@@ -2552,6 +2791,7 @@ originalIO.runNACHAT=function()
 			entry.order = chatMessageOrder
 			entry.timestamp = tonumber(entry.timestamp) or os.time()
 			history[#history + 1] = entry
+			NAStuff.NAChatRuntime.VirtualLayoutDirty = true
 			if entry.messageId then
 				messageEntriesById[tostring(entry.messageId)] = entry
 			end
@@ -2561,8 +2801,12 @@ originalIO.runNACHAT=function()
 					if removed.messageId then
 						messageEntriesById[tostring(removed.messageId)] = nil
 					end
+					NAStuff.NAChatRuntime.VirtualActive[removed] = nil
 					if removed.frame then
-						rainbowLabels[removed.frame] = nil
+						local messageLabel = removed.frame:FindFirstChild("MessageText")
+						if messageLabel then
+							rainbowLabels[messageLabel] = nil
+						end
 						pcall(function() removed.frame:Destroy() end)
 						removed.frame = nil
 					end
@@ -2631,7 +2875,6 @@ originalIO.runNACHAT=function()
 				existing.useOwnChatColor = own and not (isOwner or isNAadmin)
 				existing.timestamp = tonumber(record.timestamp) or existing.timestamp
 				refreshChatEntry(existing)
-				syncChatEntryTranslation(existing)
 				return existing
 			end
 
@@ -2738,11 +2981,12 @@ originalIO.runNACHAT=function()
 					local sender = tostring(entry.from or "?")
 					local displayName = tostring(entry.displayName or "")
 					local userId = tonumber(entry.userId)
+					local canonicalUserId = tonumber(entry.authorUserId or entry.author_user_id) or userId
 					local message = tostring(entry.message or "")
 					if message ~= "" then
-						local isOwner = userId == 11761417 or userId == 530829101
+						local isOwner = canonicalUserId == 11761417 or canonicalUserId == 530829101
 						local isAdmin = entry.admin == true
-						local own = lp and ((userId and tonumber(lp.UserId) == userId) or Lower(tostring(lp.Name or "")) == Lower(sender)) or false
+						local own = lp and ((canonicalUserId and tonumber(lp.UserId) == canonicalUserId) or Lower(tostring(lp.Name or "")) == Lower(sender)) or false
 						local formatted = formatMessageWithMentions(message)
 						if type(formatted) ~= "string" or formatted == "" then
 							formatted = escapeChatRichText(message)
@@ -2750,8 +2994,9 @@ originalIO.runNACHAT=function()
 						local prefix = isOwner and "[OWNER] " or (isAdmin and "[ADMIN] " or "")
 						chatMessageOrder += 1
 						history[#history + 1] = {
-							text = prefix..escapeChatRichText(formatChatIdentity(displayName, sender))..": "..formatted,
+							text = "<b>"..prefix..escapeChatRichText(formatChatIdentity(displayName, sender)).."</b>: "..formatted,
 							color = colorFromHex(entry.chatColor or "78AAFF"),
+							avatarUserId = canonicalUserId,
 							chatColor = tostring(entry.chatColor or "78AAFF"),
 							chatColor2 = type(entry.chatColor2) == "string" and entry.chatColor2 ~= "" and tostring(entry.chatColor2) or nil,
 							raw = message,
@@ -2763,6 +3008,7 @@ originalIO.runNACHAT=function()
 				end
 			end
 			conversationHistory[key] = history
+			NAStuff.NAChatRuntime.VirtualLayoutDirty = true
 		end
 
 
@@ -2784,7 +3030,7 @@ originalIO.runNACHAT=function()
 			popup.Name = "NAChatSettingsPopup"
 			popup.AnchorPoint = Vector2.new(1, 0)
 			popup.Position = UDim2.new(1, -10, 0, 42)
-			popup.Size = UDim2.new(0, 280, 0, 356)
+			popup.Size = UDim2.new(1, -20, 0, 366)
 			popup.BackgroundColor3 = CHAT_SURFACE
 			popup.BackgroundTransparency = 0.02
 			popup.BorderSizePixel = 0
@@ -2802,18 +3048,20 @@ originalIO.runNACHAT=function()
 			title.TextSize = 13
 			title.TextXAlignment = Enum.TextXAlignment.Left
 			title.TextColor3 = Color3.fromRGB(238, 239, 250)
-			title.Text = "Chat message colors"
+			title.Text = "Message appearance"
 			title.ZIndex = 281
 
 			local hint = InstanceNew("TextLabel", popup)
 			hint.BackgroundTransparency = 1
 			hint.Position = UDim2.new(0, 10, 0, 29)
-			hint.Size = UDim2.new(1, -20, 0, 17)
+			hint.Size = UDim2.new(1, -20, 0, 30)
 			hint.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
 			hint.TextSize = 11
 			hint.TextXAlignment = Enum.TextXAlignment.Left
 			hint.TextColor3 = Color3.fromRGB(165, 169, 188)
-			hint.Text = "Primary + optional gradient end. Admin/owner RGB stays unchanged."
+			hint.TextWrapped = true
+			hint.TextYAlignment = Enum.TextYAlignment.Top
+			hint.Text = "Choose a solid color or optional gradient. Admin/owner RGB stays unchanged."
 			hint.ZIndex = 281
 
 			local function parseColor(value)
@@ -2836,7 +3084,7 @@ originalIO.runNACHAT=function()
 
 			local input = InstanceNew("TextBox", popup)
 			settingsColorInput = input
-			input.Position = UDim2.new(0, 10, 0, 51)
+			input.Position = UDim2.new(0, 10, 0, 65)
 			input.Size = UDim2.new(1, -20, 0, 28)
 			input.BackgroundColor3 = CHAT_OFF
 			input.BackgroundTransparency = 0.02
@@ -2855,7 +3103,7 @@ originalIO.runNACHAT=function()
 
 			local input2 = InstanceNew("TextBox", popup)
 			NAStuff.NAChatRuntime.SettingsColor2Input = input2
-			input2.Position = UDim2.new(0, 10, 0, 85)
+			input2.Position = UDim2.new(0, 10, 0, 99)
 			input2.Size = UDim2.new(1, -20, 0, 28)
 			input2.BackgroundColor3 = CHAT_OFF
 			input2.BackgroundTransparency = 0.02
@@ -2875,7 +3123,7 @@ originalIO.runNACHAT=function()
 
 			local preview = InstanceNew("Frame", popup)
 			preview.Name = "ColorPreview"
-			preview.Position = UDim2.new(0, 10, 0, 121)
+			preview.Position = UDim2.new(0, 10, 0, 135)
 			preview.Size = UDim2.new(0, 28, 0, 28)
 			preview.BorderSizePixel = 0
 			preview.BackgroundColor3 = getSavedChatColor()
@@ -2887,7 +3135,7 @@ originalIO.runNACHAT=function()
 			local previewText = InstanceNew("TextLabel", popup)
 			previewText.Name = "ColorPreviewText"
 			previewText.BackgroundTransparency = 1
-			previewText.Position = UDim2.new(0, 47, 0, 121)
+			previewText.Position = UDim2.new(0, 47, 0, 135)
 			previewText.Size = UDim2.new(1, -57, 0, 28)
 			previewText.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
 			previewText.TextSize = 12
@@ -2896,7 +3144,7 @@ originalIO.runNACHAT=function()
 			previewText.ZIndex = 281
 
 			local apply = InstanceNew("TextButton", popup)
-			apply.Position = UDim2.new(0, 10, 0, 162)
+			apply.Position = UDim2.new(0, 10, 0, 176)
 			apply.Size = UDim2.new(0.5, -15, 0, 28)
 			apply.BackgroundColor3 = CHAT_ON
 			apply.BorderSizePixel = 0
@@ -2910,7 +3158,7 @@ originalIO.runNACHAT=function()
 
 			local reset = InstanceNew("TextButton", popup)
 			reset.AnchorPoint = Vector2.new(1, 0)
-			reset.Position = UDim2.new(1, -10, 0, 162)
+			reset.Position = UDim2.new(1, -10, 0, 176)
 			reset.Size = UDim2.new(0.5, -15, 0, 28)
 			reset.BackgroundColor3 = CHAT_OFF
 			reset.BorderSizePixel = 0
@@ -2952,18 +3200,18 @@ originalIO.runNACHAT=function()
 				return button
 			end
 
-			makeSettingToggle("Timestamps", 200, "naChatShowTimestamps", false, function()
+			makeSettingToggle("Timestamps", 214, "naChatShowTimestamps", false, function()
 				NAmanage.NAChat_InvalidateVirtualHeights()
 				renderConversation(false)
 			end)
-			makeSettingToggle("Compact messages", 236, "naChatCompactMessages", false, function()
+			makeSettingToggle("Compact messages", 250, "naChatCompactMessages", false, function()
 				NAmanage.NAChat_InvalidateVirtualHeights()
 				renderConversation(false)
 			end)
-			makeSettingToggle("System messages", 272, "naChatShowSystemMessages", true)
+			makeSettingToggle("System messages", 286, "naChatShowSystemMessages", true)
 
 			local fontButton = InstanceNew("TextButton", popup)
-			fontButton.Position = UDim2.new(0, 10, 0, 308)
+			fontButton.Position = UDim2.new(0, 10, 0, 322)
 			fontButton.Size = UDim2.new(1, -20, 0, 30)
 			fontButton.BackgroundColor3 = CHAT_OFF
 			fontButton.BorderSizePixel = 0
@@ -3148,6 +3396,35 @@ originalIO.runNACHAT=function()
 					end
 				end)
 			end
+
+			local buttonCount = 1 + #ids
+			local listHeight = math.min(112, math.max(30, (buttonCount * 30) + (math.max(0, buttonCount - 1) * 5)))
+			groupListFrame.Size = UDim2.new(1, -20, 0, listHeight)
+			local createY = 36 + listHeight + 6
+			if groupNameInput then
+				groupNameInput.Position = UDim2.new(0, 10, 0, createY)
+			end
+			local createButton = groupPopup and groupPopup:FindFirstChild("CreateGroup")
+			if createButton then
+				createButton.Position = UDim2.new(1, -76, 0, createY)
+			end
+			local inviteY = createY + 40
+			if groupInviteInput then
+				groupInviteInput.Position = UDim2.new(0, 10, 0, inviteY)
+			end
+			if groupInviteButton then
+				groupInviteButton.Position = UDim2.new(1, -76, 0, inviteY)
+			end
+			local leaveY = inviteY + 40
+			if groupLeaveButton then
+				groupLeaveButton.Position = UDim2.new(0, 10, 0, leaveY)
+				groupLeaveButton.Size = UDim2.new(1, -20, 0, 30)
+				groupLeaveButton.Text = "Leave group"
+			end
+			if groupPopup then
+				local bottomY = NAChat.activeGroupId and (leaveY + 40) or (createY + 40)
+				groupPopup.Size = UDim2.new(1, -16, 0, bottomY)
+			end
 			updateGroupButton()
 		end
 
@@ -3278,7 +3555,7 @@ originalIO.runNACHAT=function()
 			if not groupPopup then
 				groupPopup = InstanceNew("Frame", chatFrame)
 				groupPopup.Name = "NAChatGroupPopup"
-				groupPopup.Size = UDim2.new(0, 250, 0, 270)
+				groupPopup.Size = UDim2.new(1, -16, 0, 194)
 				groupPopup.Position = UDim2.new(0, 8, 0, 82)
 				groupPopup.BackgroundColor3 = CHAT_SURFACE
 				groupPopup.BackgroundTransparency = 0.02
@@ -3588,7 +3865,10 @@ originalIO.runNACHAT=function()
 					local jid = tostring(info.jobId or "")
 					local adminFlag = (info.admin == true) and 1 or 0
 					local gameStr = tostring(info.game or "")
-					tmp[#tmp+1] = uid.."|"..uname.."|"..hiddenFlag.."|"..activityFlag.."|"..pid.."|"..jid.."|"..adminFlag.."|"..gameStr
+					local executorStr = tostring(info.executor or "")
+					local executorVersionStr = tostring(info.executorVersion or info.executor_version or "")
+					local deviceStr = tostring(info.device or "")
+					tmp[#tmp+1] = uid.."|"..uname.."|"..hiddenFlag.."|"..activityFlag.."|"..pid.."|"..jid.."|"..adminFlag.."|"..gameStr.."|"..executorStr.."|"..executorVersionStr.."|"..deviceStr
 				end
 			end
 			table.sort(tmp)
@@ -3639,6 +3919,8 @@ originalIO.runNACHAT=function()
 			local myGeneration = usersUpdateGeneration
 
 			if isChatUiSuppressed() then
+				usersViewCache.dirty = true
+				usersViewCache.source = nil
 				for _, v in usersScroll:GetChildren() do
 					if v:IsA("Frame") then
 						v:Destroy()
@@ -3667,31 +3949,64 @@ originalIO.runNACHAT=function()
 				return
 			end
 
-			local filteredTotal = 0
-			local filteredSeen = {}
-			for _, info in list do
-				local serverUsername = (type(info) == "table" and info.username) or tostring(info)
-				local userId = type(info) == "table" and tonumber(info.userId) or nil
-				local displayName = type(info) == "table" and tostring(info.displayName or "") or ""
-				local fallbackUsername = tostring(serverUsername or "")
-				local canonicalUsername = getVerifiedUsernameCached(userId) or fallbackUsername
-				local gameStatus = type(info) == "table" and tostring(info.game or "") or ""
-				local keyBase = Lower(tostring(canonicalUsername or ""))
-				local uidKey = userId and ("id:"..tostring(userId)) or ("n:"..keyBase)
-				if not filteredSeen[uidKey] then
-					filteredSeen[uidKey] = true
-					local matchesSearch = true
-					if userSearchTerm ~= "" then
-						local haystack = Lower(tostring(canonicalUsername or "").." "..displayName.." "..fallbackUsername.." "..gameStatus)
-						matchesSearch = Find(haystack, userSearchTerm, 1, true) ~= nil
-					end
-					if matchesSearch then
-						filteredTotal += 1
+			local cacheNeedsRebuild = usersViewCache.dirty
+				or usersViewCache.source ~= list
+				or usersViewCache.search ~= userSearchTerm
+			if cacheNeedsRebuild then
+				local rows = {}
+				local present = {}
+				local filteredSeen = {}
+				for _, info in list do
+					local serverUsername = (type(info) == "table" and info.username) or tostring(info)
+					local userId = type(info) == "table" and tonumber(info.userId) or nil
+					local displayName = type(info) == "table" and tostring(info.displayName or "") or ""
+					local fallbackUsername = tostring(serverUsername or "")
+					local verifiedUsername = getVerifiedUsernameCached(userId)
+					local canonicalUsername = verifiedUsername or fallbackUsername
+					local gameStatus = type(info) == "table" and tostring(info.game or "") or ""
+					local executorName = type(info) == "table" and tostring(info.executor or "") or ""
+					local executorVersion = type(info) == "table" and tostring(info.executorVersion or info.executor_version or "") or ""
+					local deviceType = type(info) == "table" and Lower(tostring(info.device or "")) or ""
+					local keyBase = Lower(tostring(canonicalUsername or ""))
+					local uidKey = userId and ("id:"..tostring(userId)) or ("n:"..keyBase)
+					if not filteredSeen[uidKey] then
+						filteredSeen[uidKey] = true
+						present[uidKey] = true
+						local matchesSearch = true
+						if userSearchTerm ~= "" then
+							local haystack = Lower(tostring(canonicalUsername or "").." "..displayName.." "..fallbackUsername.." "..gameStatus.." "..executorName.." "..executorVersion.." "..deviceType)
+							matchesSearch = Find(haystack, userSearchTerm, 1, true) ~= nil
+						end
+						if matchesSearch then
+							rows[#rows + 1] = {
+								info = info,
+								serverUsername = serverUsername,
+								userId = userId,
+								displayName = displayName,
+								fallbackUsername = fallbackUsername,
+								verifiedUsername = verifiedUsername,
+								canonicalUsername = canonicalUsername,
+								gameStatus = gameStatus,
+								executorName = executorName,
+								executorVersion = executorVersion,
+								deviceType = deviceType,
+								keyBase = keyBase,
+								uidKey = uidKey,
+							}
+						end
 					end
 				end
+				usersViewCache.source = list
+				usersViewCache.search = userSearchTerm
+				usersViewCache.rows = rows
+				usersViewCache.present = present
+				usersViewCache.dirty = false
 			end
+			local filteredRows = usersViewCache.rows
+			local presentKeys = usersViewCache.present
+			local filteredTotal = #filteredRows
 
-			local rowHeight = 52
+			local rowHeight = 64
 			local viewportHeight = math.max(1, usersScroll.AbsoluteSize.Y)
 			if NAmanage and type(NAmanage.GetLogicalWindowSize) == "function" then
 				local okLogical, logicalSize = pcall(NAmanage.GetLogicalWindowSize, usersScroll)
@@ -3708,7 +4023,11 @@ originalIO.runNACHAT=function()
 			end
 			local rowPitch = math.max(1, rowHeight + rowGap)
 			local totalHeight = filteredTotal > 0 and (filteredTotal * rowHeight + math.max(0, filteredTotal - 1) * rowGap) or 0
-			usersScroll.CanvasSize = UDim2.new(0, 0, 0, totalHeight + 4)
+			local canvasChanged = tonumber(usersViewCache.canvasHeight) ~= totalHeight
+			if canvasChanged then
+				usersViewCache.canvasHeight = totalHeight
+				usersScroll.CanvasSize = UDim2.new(0, 0, 0, totalHeight + 4)
+			end
 
 			local logicalPos = NAmanage and NAmanage.GetLogicalCanvasPosition and NAmanage.GetLogicalCanvasPosition(usersScroll) or usersScroll.CanvasPosition
 			local currentY = math.max(0, tonumber(logicalPos and logicalPos.Y) or 0)
@@ -3726,66 +4045,34 @@ originalIO.runNACHAT=function()
 			local virtualFirst = filteredTotal > 0 and math.max(1, math.floor(currentY / rowPitch) + 1 - bufferRows) or 1
 			local virtualLast = filteredTotal > 0 and math.min(filteredTotal, math.ceil((currentY + viewportHeight) / rowPitch) + bufferRows) or 0
 
-			local seen = {}
 			local alive = {}
-			local idx = 0
-			local matchOrdinal = 0
-			local processedUsers = 0
-			local structureChanged = true
 
-			for _, info in list do
-				processedUsers += 1
-				if processedUsers > 1 and (processedUsers - 1) % 48 == 0 then
-					Wait()
-					if usersUpdateGeneration ~= myGeneration then
-						return
-					end
+			for matchOrdinal = virtualFirst, virtualLast do
+				local row = filteredRows[matchOrdinal]
+				if not row then
+					continue
 				end
-				local serverUsername = (type(info) == "table" and info.username) or tostring(info)
-				local userId = type(info) == "table" and tonumber(info.userId) or nil
-				local displayName = type(info) == "table" and tostring(info.displayName or "") or ""
-				local fallbackUsername = tostring(serverUsername or "")
-				local verifiedUsername = getVerifiedUsernameCached(userId)
-				local canonicalUsername = verifiedUsername or fallbackUsername
+				local info = row.info
+				local serverUsername = row.serverUsername
+				local userId = row.userId
+				local displayName = row.displayName
+				local fallbackUsername = row.fallbackUsername
+				local verifiedUsername = row.verifiedUsername
+				local canonicalUsername = row.canonicalUsername
+				local gameStatus = row.gameStatus
+				local executorName = row.executorName
+				local executorVersion = row.executorVersion
+				local deviceType = row.deviceType
+				local keyBase = row.keyBase
+				local uidKey = row.uidKey
 				local isAdmin = type(info) == "table" and (info.admin == true) or false
-				local gameStatus = type(info) == "table" and tostring(info.game or "") or ""
 				local placeId = type(info) == "table" and info.placeId or nil
 				local jobId = type(info) == "table" and info.jobId or nil
 				local isHiddenUser = type(info) == "table" and (info.hidden == true) or false
 				local activityHidden = type(info) == "table" and ((info.activityHidden == true) or (info.activity_hidden == true)) or false
 
-				local matchesSearch = true
-				if userSearchTerm ~= "" then
-					local needle = userSearchTerm
-					local haystack = Lower(tostring(canonicalUsername or "").." "..tostring(displayName or "").." "..tostring(serverUsername or "").." "..tostring(gameStatus or ""))
-					matchesSearch = Find(haystack, needle, 1, true) ~= nil
-				end
-
-				local keyBase = Lower(tostring(canonicalUsername or ""))
-				local uidKey
-				if userId then
-					uidKey = "id:"..tostring(userId)
-				else
-					uidKey = "n:"..keyBase
-				end
-
-				if seen[uidKey] then
-					continue
-				end
-				seen[uidKey] = true
-
-				if not matchesSearch then
-					continue
-				end
-
-				matchOrdinal += 1
-				if matchOrdinal < virtualFirst or matchOrdinal > virtualLast then
-					continue
-				end
-
 				alive[uidKey] = true
-				idx = matchOrdinal
-				local rowY = (idx - 1) * rowPitch
+				local rowY = (matchOrdinal - 1) * rowPitch
 				if not verifiedUsername and userId and fallbackUsername == "" then
 					fetchVerifiedUsernameAsync(userId)
 				end
@@ -3799,6 +4086,9 @@ originalIO.runNACHAT=function()
 					tostring(displayName or ""),
 					tostring(isAdmin),
 					tostring(gameStatus or ""),
+					tostring(executorName or ""),
+					tostring(executorVersion or ""),
+					tostring(deviceType or ""),
 					tostring(placeId or ""),
 					jobStr,
 					tostring(isHiddenUser),
@@ -3816,7 +4106,6 @@ originalIO.runNACHAT=function()
 				if not (fr and fr.Parent) then
 					fr = InstanceNew("Frame", usersScroll)
 					userFrames[uidKey] = fr
-					structureChanged = true
 					local cr = InstanceNew("UICorner", fr)
 					cr.CornerRadius = UDim.new(0, 9)
 					ensureChatStroke(fr, Color3.fromRGB(72, 75, 99), 0.58)
@@ -3832,8 +4121,8 @@ originalIO.runNACHAT=function()
 					local nameLbl = InstanceNew("TextLabel", fr)
 					nameLbl.Name = "NameLabel"
 					nameLbl.BackgroundTransparency = 1
-					nameLbl.Size = UDim2.new(1, -190, 0, 20)
-					nameLbl.Position = UDim2.new(0, 58, 0, 6)
+					nameLbl.Size = UDim2.new(1, -190, 0, 18)
+					nameLbl.Position = UDim2.new(0, 58, 0, 5)
 					nameLbl.TextXAlignment = Enum.TextXAlignment.Left
 					nameLbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
 					nameLbl.TextSize = 14
@@ -3841,10 +4130,18 @@ originalIO.runNACHAT=function()
 					gameLbl.Name = "GameLabel"
 					gameLbl.BackgroundTransparency = 1
 					gameLbl.Size = UDim2.new(1, -190, 0, 16)
-					gameLbl.Position = UDim2.new(0, 58, 0, 27)
+					gameLbl.Position = UDim2.new(0, 58, 0, 24)
 					gameLbl.TextXAlignment = Enum.TextXAlignment.Left
 					gameLbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
 					gameLbl.TextSize = 12
+					local execLbl = InstanceNew("TextLabel", fr)
+					execLbl.Name = "ExecutorLabel"
+					execLbl.BackgroundTransparency = 1
+					execLbl.Size = UDim2.new(1, -190, 0, 15)
+					execLbl.Position = UDim2.new(0, 58, 0, 42)
+					execLbl.TextXAlignment = Enum.TextXAlignment.Left
+					execLbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+					execLbl.TextSize = 11
 				end
 				userFrameState[uidKey] = rowSignature
 
@@ -3852,13 +4149,18 @@ originalIO.runNACHAT=function()
 				fr.Visible = true
 				fr:SetAttribute("NAChatUserId", userId)
 				fr.BackgroundColor3 = CHAT_SURFACE
-				fr.Size = UDim2.new(1, -6, 0, 52)
+				fr.Size = UDim2.new(1, -6, 0, rowHeight)
 				fr.Position = UDim2.new(0, 3, 0, rowY)
 				fr.BackgroundTransparency = 0.03
 
 				local avatar = fr:FindFirstChild("Avatar")
 				local nameLbl = fr:FindFirstChild("NameLabel")
 				local gameLbl = fr:FindFirstChild("GameLabel")
+				local execLbl = fr:FindFirstChild("ExecutorLabel")
+
+				if avatar and userId and (avatar.Image == nil or avatar.Image == "") then
+					avatar.Image = ("rbxthumb://type=AvatarHeadShot&id=%d&w=150&h=150"):format(userId)
+				end
 
 				local isOwner = userId == 11761417 or userId == 530829101
 
@@ -3881,7 +4183,15 @@ originalIO.runNACHAT=function()
 					if displayName ~= "" and canonicalUsername ~= "" and displayName ~= canonicalUsername then
 						display = ("%s (@%s)"):format(displayName, canonicalUsername)
 					end
-					nameLbl.Text = prefix..display
+					local deviceIcon = ""
+					if deviceType == "mobile" then
+						deviceIcon = "📱 "
+					elseif deviceType == "desktop" then
+						deviceIcon = "💻 "
+					elseif deviceType == "console" then
+						deviceIcon = "🎮 "
+					end
+					nameLbl.Text = deviceIcon..prefix..display
 				end
 
 				if gameLbl then
@@ -3894,6 +4204,18 @@ originalIO.runNACHAT=function()
 						line = line.." (invisible)"
 					end
 					gameLbl.Text = line
+				end
+
+				if execLbl then
+					execLbl.TextColor3 = Color3.fromRGB(132, 137, 160)
+					local execLine = tostring(executorName or "")
+					if execLine == "" then
+						execLine = "Unknown executor"
+					end
+					if tostring(executorVersion or "") ~= "" then
+						execLine = execLine.."  •  "..tostring(executorVersion)
+					end
+					execLbl.Text = execLine
 				end
 
 				local joinBtn = fr:FindFirstChild("JoinButton")
@@ -3979,7 +4301,10 @@ originalIO.runNACHAT=function()
 						dmCorner.CornerRadius = UDim.new(0, 7)
 						ensureChatStroke(dmBtn, CHAT_ACCENT, 0.22)
 						MouseButtonFix(dmBtn, function()
-							local uname = tostring(canonicalUsername or "")
+							local uname = tostring(dmBtn:GetAttribute("NAChatTargetName") or "")
+							if uname == "" then
+								return
+							end
 							if NAChat.currentDMTarget == uname then
 								clearDMTarget("NA Chat: DM cleared")
 							else
@@ -3992,6 +4317,7 @@ originalIO.runNACHAT=function()
 							end
 						end)
 					end
+					dmBtn:SetAttribute("NAChatTargetName", tostring(canonicalUsername or ""))
 					if hasJoin then
 						dmBtn.Position = UDim2.new(1, -148, 0.5, -13)
 					else
@@ -4006,20 +4332,20 @@ originalIO.runNACHAT=function()
 			end
 
 			for key, fr in userFrames do
-				if not alive[key] or not (fr and fr.Parent) then
+				if not presentKeys[key] or not (fr and fr.Parent) then
 					if fr and fr.Parent then
 						fr:Destroy()
 					end
 					userFrames[key] = nil
 					userFrameState[key] = nil
-					structureChanged = true
+				elseif not alive[key] then
+					fr.Visible = false
 				end
 			end
-			if structureChanged and NAmanage.CustomScroll and NAmanage.CustomScroll.refreshByTarget then
+			if canvasChanged and NAmanage.CustomScroll and NAmanage.CustomScroll.refreshByTarget then
 				NAmanage.CustomScroll.refreshByTarget(usersScroll)
 			end
 
-			queueVisibleUserAvatarRefresh()
 		end
 
 		originalIO.setHiddenState = function(newHidden, skipRemote)
@@ -4312,12 +4638,10 @@ originalIO.runNACHAT=function()
 					usersLayout.Parent = nil
 				end
 				usersScroll:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
-					queueUsersListRefresh()
-					queueVisibleUserAvatarRefresh()
+					queueUsersViewportRefresh()
 				end)
 				usersScroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-					queueUsersListRefresh()
-					queueVisibleUserAvatarRefresh()
+					queueUsersViewportRefresh()
 				end)
 			end
 
@@ -4406,7 +4730,6 @@ originalIO.runNACHAT=function()
 					entry.chatColor2 = type(chatColor2) == "string" and chatColor2 ~= "" and tostring(chatColor2) or nil
 					if type(reply) == "table" then entry.reply = reply end
 					refreshChatEntry(entry)
-					syncChatEntryTranslation(entry)
 
 					for _, other in conversationHistory.public or {} do
 						if type(other.reply) == "table" and tostring(other.reply.messageId or "") == id then
@@ -4415,7 +4738,6 @@ originalIO.runNACHAT=function()
 							other.reply.username = entry.username
 							other.reply.displayName = entry.displayName
 							refreshChatEntry(other)
-							syncChatEntryTranslation(other)
 						end
 					end
 				end)
@@ -4436,10 +4758,15 @@ originalIO.runNACHAT=function()
 					end
 				end
 				if entry.frame then
-					rainbowLabels[entry.frame] = nil
+					local messageLabel = entry.frame:FindFirstChild("MessageText")
+					if messageLabel then
+						rainbowLabels[messageLabel] = nil
+					end
+					NAStuff.NAChatRuntime.VirtualActive[entry] = nil
 					pcall(function() entry.frame:Destroy() end)
 					entry.frame = nil
 				end
+				NAStuff.NAChatRuntime.VirtualLayoutDirty = true
 				if composeReplyEntry == entry or composeEditEntry == entry then
 					clearComposeMode()
 				end
@@ -4447,8 +4774,10 @@ originalIO.runNACHAT=function()
 					if type(other.reply) == "table" and tostring(other.reply.messageId or "") == id then
 						other.reply.message = "[deleted message]"
 						refreshChatEntry(other)
-						syncChatEntryTranslation(other)
 					end
+				end
+				if NAChat.activeConversation == "public" and NAmanage.NAChat_QueueVirtualRefresh then
+					NAmanage.NAChat_QueueVirtualRefresh(false)
 				end
 			end
 
@@ -4811,7 +5140,8 @@ originalIO.runNACHAT=function()
 					local lp = Players.LocalPlayer
 					local own = lp and ((canonicalUserId and tonumber(lp.UserId) == canonicalUserId) or Lower(tostring(lp.Name or "")) == Lower(canonicalUsername)) or false
 					local prefix = isOwner and "[OWNER] " or (isNAadmin and "[ADMIN] " or "")
-					appendConversationMessage(conversationKey(id), prefix..escapeChatRichText(formatChatIdentity(senderDisplayName, sender))..": "..formatted, colorFromHex(chatColor or "78AAFF"), msgText, {
+					appendConversationMessage(conversationKey(id), "<b>"..prefix..escapeChatRichText(formatChatIdentity(senderDisplayName, sender)).."</b>: "..formatted, colorFromHex(chatColor or "78AAFF"), msgText, {
+						avatarUserId = canonicalUserId,
 						chatColor = tostring(chatColor or "78AAFF"),
 						chatColor2 = type(chatColor2) == "string" and chatColor2 ~= "" and tostring(chatColor2) or nil,
 						rainbow = isOwner or isNAadmin,
@@ -5671,6 +6001,7 @@ originalIO.runNACHAT=function()
 					end
 
 					local title = InstanceNew("TextLabel", adminFrame)
+					title.Name = "AdminTitle"
 					title.BackgroundTransparency = 1
 					title.Size = UDim2.new(1, -12, 0, 24)
 					title.Position = UDim2.new(0, 12, 0, 10)
@@ -5837,6 +6168,7 @@ originalIO.runNACHAT=function()
 					purgeBtn.Name = "AdminPurgeButton"
 
 					local bannedLabel = InstanceNew("TextLabel", adminFrame)
+					bannedLabel.Name = "AdminAccessLabel"
 					bannedLabel.BackgroundTransparency = 1
 					bannedLabel.Size = UDim2.new(1, -20, 0, 20)
 					bannedLabel.Position = UDim2.new(0, 12, 0, 176)
@@ -6203,6 +6535,10 @@ originalIO.runNACHAT=function()
 					end
 
 					adminFrameUpdateBanList = updateBanList
+					syncAdminFrameLayout()
+					adminFrame:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+						syncAdminFrameLayout()
+					end)
 
 					if not adminListTickerActive then
 						adminListTickerActive = true
