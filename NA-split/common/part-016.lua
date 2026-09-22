@@ -350,98 +350,43 @@ bangAnim = nil
 bangDied = nil
 doBang = nil
 BANGPARTS = {}
+bangWeld = nil
+
+originalIO.stopBang = function()
+	if bangWeld then bangWeld:Destroy() bangWeld = nil end
+	NAlib.disconnect("bang_loop")
+	if doBang then doBang:Stop() doBang = nil end
+	if bangAnim then bangAnim:Destroy() bangAnim = nil end
+	if bangDied then bangDied:Disconnect() bangDied = nil end
+	for _, p in BANGPARTS do pcall(function() p:Destroy() end) end
+	BANGPARTS = {}
+end
 
 cmd.addRestricted({"bang", "fuck"}, {"bang <player> <number> (fuck)", "fucks the player by attaching to them"}, function(h, d)
-	if bangLoop then
-		bangLoop:Disconnect()
-		NAlib.disconnect("bang_loop")
-	end
-	if doBang then
-		doBang:Stop()
-	end
-	if bangAnim then
-		bangAnim:Destroy()
-	end
-	if bangDied then
-		bangDied:Disconnect()
-	end
-	for _, p in BANGPARTS do
-		p:Destroy()
-	end
-	BANGPARTS = {}
-
+	originalIO.stopBang()
 	const speed = d or 10
-	const username = h
-	const hasQuery = username and username ~= ""
-	const targets = hasQuery and getPlr(username) or {}
+	const targets = h and h ~= "" and getPlr(h) or {}
 	const plr = targets[1]
-	if hasQuery and not plr then
-		DoNotif("No targets found", 2)
-	end
+	if h and h ~= "" and not plr then return DoNotif("No targets found", 2) end
+	const targetChar = plr and plr.Character
+	const targetRoot = targetChar and getRoot(targetChar)
+	if not targetRoot then return end
 
 	bangAnim = InstanceNew("Animation")
-	if not IsR15(Services.Players.LocalPlayer) then
-		bangAnim.AnimationId = "rbxassetid://148840371"
-	else
-		bangAnim.AnimationId = "rbxassetid://5918726674"
-	end
+	bangAnim.AnimationId = not IsR15(Services.Players.LocalPlayer) and "rbxassetid://148840371" or "rbxassetid://5918726674"
 	const hum = getHum()
+	if not hum then return end
 	doBang = hum:LoadAnimation(bangAnim)
 	doBang:Play(0.1, 1, 1)
 	doBang:AdjustSpeed(speed)
 
-	const bangplr = NAmanage.NewPersistentPlayerRef(plr)
-	bangDied = NAmanage.ConnectHumanoidDeath(hum, function()
-		if bangLoop then
-			bangLoop:Disconnect()
-		end
-		doBang:Stop()
-		bangAnim:Destroy()
-		if bangDied then
-			bangDied:Disconnect()
-		end
-		for _, part in BANGPARTS do
-			part:Destroy()
-		end
-		BANGPARTS = {}
-	end)
-
-	const bangOffset = CFrame.new(0, 0, 1.1)
-	if bangplr then
-		bangLoop = NAlib.reconnect("bang_loop", Services.RunService.RenderStepped:Connect(function()
-			NACaller(function()
-				const targetPlayer = NAmanage.ResolvePersistentPlayer(bangplr)
-				if not targetPlayer or not targetPlayer.Character then return end
-				const targetRoot = getRoot(targetPlayer.Character)
-				const localChar = getChar()
-				const localRoot = localChar and getRoot(localChar)
-				if not (targetRoot and localRoot) then return end
-				localRoot.CFrame = targetRoot.CFrame * bangOffset
-				localRoot.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-				localRoot.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-			end)
-		end))
-	end
+	bangWeld = NAmanage.WeldToPlayerPart(targetRoot, CFrame.new(0, 0, 1.1), LocalPlayer, nil)
+	if not bangWeld then return originalIO.stopBang() end
+	bangDied = NAmanage.ConnectHumanoidDeath(hum, originalIO.stopBang)
 end, true)
 
 cmd.addRestricted({"unbang", "unfuck"}, {"unbang (unfuck)", "Unbangs the player"}, function()
-	if bangLoop then
-		bangLoop:Disconnect()
-		NAlib.disconnect("bang_loop")
-	end
-	if doBang then
-		doBang:Stop()
-	end
-	if bangAnim then
-		bangAnim:Destroy()
-	end
-	if bangDied then
-		bangDied:Disconnect()
-	end
-	for _, p in BANGPARTS do
-		p:Destroy()
-	end
-	BANGPARTS = {}
+	originalIO.stopBang()
 end)
 
 carpetLoop = nil
@@ -449,92 +394,43 @@ carpetAnim = nil
 carpetTrack = nil
 carpetDied = nil
 CARPETPARTS = {}
+carpetWeld = nil
 originalIO.stopCarpet=function()
-	if carpetLoop then
-		carpetLoop:Disconnect()
-		carpetLoop = nil
-	end
+	if carpetWeld then carpetWeld:Destroy() carpetWeld = nil end
 	NAlib.disconnect("carpet_loop")
-	if carpetDied then
-		carpetDied:Disconnect()
-		carpetDied = nil
-	end
-	if carpetTrack then
-		carpetTrack:Stop()
-		carpetTrack = nil
-	end
-	if carpetAnim then
-		carpetAnim:Destroy()
-		carpetAnim = nil
-	end
-	for _, part in CARPETPARTS do
-		part:Destroy()
-	end
+	if carpetDied then carpetDied:Disconnect() carpetDied = nil end
+	if carpetTrack then carpetTrack:Stop() carpetTrack = nil end
+	if carpetAnim then carpetAnim:Destroy() carpetAnim = nil end
+	for _, part in CARPETPARTS do pcall(function() part:Destroy() end) end
 	CARPETPARTS = {}
 	const char = getChar()
 	const root = char and getRoot(char)
 	if root then
-		root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-		root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+		root.AssemblyLinearVelocity = Vector3.zero
+		root.AssemblyAngularVelocity = Vector3.zero
 	end
 	const hum = getHum(char)
-	if hum then
-		hum.Sit = false
-		hum.PlatformStand = false
-	end
+	if hum then hum.Sit = false hum.PlatformStand = false end
 end
 
 cmd.add({"carpet"}, {"carpet <player>", "Be someone's carpet"}, function(username)
-	if not IsR6() then
-		DoNotif("This command requires the R6 rig type", 3)
-		return
-	end
-
+	if not IsR6() then return DoNotif("This command requires the R6 rig type", 3) end
 	originalIO.stopCarpet()
-
-	const hasQuery = username and username ~= ""
-	const targets = hasQuery and getPlr(username) or {}
-	if hasQuery and #targets == 0 then
-		DoNotif("No targets found", 2)
-	end
-
-	const character = getChar()
-	const humanoid = getHum(character)
-	const root = character and getRoot(character)
-	if not (character and humanoid and root) then
-		return DoNotif("Your character is unavailable.", 3)
-	end
-
+	const targets = username and username ~= "" and getPlr(username) or {}
+	if username and username ~= "" and #targets == 0 then return DoNotif("No targets found", 2) end
 	const targetPlayer = targets[1]
-	const targetRef = NAmanage.NewPersistentPlayerRef(targetPlayer)
 	const targetRoot = targetPlayer and targetPlayer.Character and getRoot(targetPlayer.Character)
-	if hasQuery and targetPlayer and not targetRoot then
-		return DoNotif("Target has no character or root.", 3)
-	end
+	const character = getChar()
+	const humanoid = character and getHum(character)
+	if not (targetRoot and character and humanoid) then return end
 
 	carpetAnim = InstanceNew("Animation")
 	carpetAnim.AnimationId = "rbxassetid://282574440"
 	carpetTrack = humanoid:LoadAnimation(carpetAnim)
 	carpetTrack:Play(0.1, 1, 1)
-
+	carpetWeld = NAmanage.WeldToPlayerPart(targetRoot, CFrame.new(), LocalPlayer, nil)
+	if not carpetWeld then return originalIO.stopCarpet() end
 	carpetDied = NAmanage.ConnectHumanoidDeath(humanoid, originalIO.stopCarpet)
-	if targetPlayer and targetRoot then
-		carpetLoop = NAlib.reconnect("carpet_loop", Services.RunService.Heartbeat:Connect(function()
-			NACaller(function()
-				const target = NAmanage.ResolvePersistentPlayer(targetRef)
-				const tgtChar = target and target.Character
-				if not tgtChar then return end
-				const tgtRoot = getRoot(tgtChar)
-				const localChar = getChar()
-				const localRoot = localChar and getRoot(localChar)
-				if tgtRoot and localRoot then
-					localRoot.CFrame = tgtRoot.CFrame
-					localRoot.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-					localRoot.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-				end
-			end)
-		end))
-	end
 end, true)
 
 cmd.add({"uncarpet", "nocarpet"}, {"uncarpet (nocarpet)", "Undoes carpet"}, function()
@@ -598,50 +494,28 @@ inversebangDied = nil
 doInversebang = nil
 doInversebang2 = nil
 INVERSEBANGPARTS = {}
+inversebangWeld = nil
 
 function stopInversebang()
-	if inversebangLoop then
-		inversebangLoop:Disconnect()
-		inversebangLoop = nil
-	end
+	if inversebangWeld then inversebangWeld:Destroy() inversebangWeld = nil end
 	NAlib.disconnect("inversebang_loop")
-	if inversebangDied then
-		inversebangDied:Disconnect()
-		inversebangDied = nil
-	end
-	if doInversebang then
-		doInversebang:Stop()
-		doInversebang = nil
-	end
-	if doInversebang2 then
-		doInversebang2:Stop()
-		doInversebang2 = nil
-	end
-	if inversebangAnim then
-		inversebangAnim:Destroy()
-		inversebangAnim = nil
-	end
-	if inversebangAnim2 then
-		inversebangAnim2:Destroy()
-		inversebangAnim2 = nil
-	end
-	for _,p in INVERSEBANGPARTS do
-		p:Destroy()
-	end
+	if inversebangDied then inversebangDied:Disconnect() inversebangDied = nil end
+	if doInversebang then doInversebang:Stop() doInversebang = nil end
+	if doInversebang2 then doInversebang2:Stop() doInversebang2 = nil end
+	if inversebangAnim then inversebangAnim:Destroy() inversebangAnim = nil end
+	if inversebangAnim2 then inversebangAnim2:Destroy() inversebangAnim2 = nil end
+	for _, p in INVERSEBANGPARTS do pcall(function() p:Destroy() end) end
 	INVERSEBANGPARTS = {}
 end
 
 cmd.addRestricted({"inversebang","ibang","inverseb"},{"inversebang <player> <number>","you're the one getting fucked today ;)"},function(h,d)
 	stopInversebang()
-
 	const speed = d or 10
-	const hasQuery = h and h ~= ""
-	const targets = hasQuery and getPlr(h) or {}
+	const targets = h and h ~= "" and getPlr(h) or {}
 	const plr = targets[1]
-	if hasQuery and not plr then
-		DoNotif("No targets found", 2)
-	end
-	const bangplr = NAmanage.NewPersistentPlayerRef(plr)
+	if h and h ~= "" and not plr then return DoNotif("No targets found", 2) end
+	const targetRoot = plr and plr.Character and getRoot(plr.Character)
+	if not targetRoot then return end
 
 	inversebangAnim = InstanceNew("Animation")
 	const isR15 = IsR15(Services.Players.LocalPlayer)
@@ -653,8 +527,8 @@ cmd.addRestricted({"inversebang","ibang","inverseb"},{"inversebang <player> <num
 		inversebangAnim.AnimationId = "rbxassetid://10714360343"
 		inversebangAnim2 = nil
 	end
-
 	const hum = getHum()
+	if not hum then return end
 	doInversebang = hum:LoadAnimation(inversebangAnim)
 	doInversebang:Play(0.1,1,1)
 	doInversebang:AdjustSpeed(speed)
@@ -664,36 +538,9 @@ cmd.addRestricted({"inversebang","ibang","inverseb"},{"inversebang <player> <num
 		doInversebang2:AdjustSpeed(speed)
 	end
 
+	inversebangWeld = NAmanage.WeldToPlayerPart(targetRoot, CFrame.new(0,0,-1.3), LocalPlayer, nil)
+	if not inversebangWeld then return stopInversebang() end
 	inversebangDied = NAmanage.ConnectHumanoidDeath(hum, stopInversebang)
-
-	if bangplr then
-		local lastStep = 0
-		inversebangLoop = NAlib.reconnect("inversebang_loop", Services.RunService.Heartbeat:Connect(function()
-			if tick() - lastStep < 0.1 then return end
-			lastStep = tick()
-			NACaller(function()
-				const targetPlayer = NAmanage.ResolvePersistentPlayer(bangplr)
-				const targetCharacter = targetPlayer and targetPlayer.Character
-				const localCharacter = getChar()
-				if not targetCharacter or not localCharacter then return end
-
-				const targetHRP = getRoot(targetCharacter)
-				const localHRP = getRoot(localCharacter)
-				if not (targetHRP and localHRP) then return end
-
-				const forwardCFrame = targetHRP.CFrame * CFrame.new(0,0,-2.5)
-				const backwardCFrame = targetHRP.CFrame * CFrame.new(0,0,-1.3)
-				const tweenForward = __lt.cm("TweenService", "Create", localHRP,TweenInfo.new(0.15,Enum.EasingStyle.Linear,Enum.EasingDirection.Out),{CFrame=forwardCFrame})
-				tweenForward:Play()
-				tweenForward.Completed:Wait()
-				const tweenBackward = __lt.cm("TweenService", "Create", localHRP,TweenInfo.new(0.15,Enum.EasingStyle.Linear,Enum.EasingDirection.Out),{CFrame=backwardCFrame})
-				tweenBackward:Play()
-				tweenBackward.Completed:Wait()
-				localHRP.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-				localHRP.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-			end)
-		end))
-	end
 end,true)
 
 cmd.addRestricted({"uninversebang","unibang","uninverseb"},{"uninversebang","no more fun"},function()
@@ -812,170 +659,128 @@ huggiePARTS = {}
 hugUI = nil
 currentHugTracks = {}
 currentHugTarget = nil
+currentHugWeld = nil
 hugFromFront = false
 hugModeEnabled = false
 
+originalIO.stopCurrentHugWeld = function()
+	if currentHugWeld then
+		currentHugWeld:Destroy()
+		currentHugWeld = nil
+	end
+end
+
+originalIO.startCurrentHugWeld = function(targetCharacter)
+	originalIO.stopCurrentHugWeld()
+	if not targetCharacter then return false end
+	const targetHRP = getRoot(targetCharacter)
+	if not targetHRP then return false end
+	local offset
+	if hugFromFront then
+		offset = CFrame.new(0, 0, -1.5) * CFrame.Angles(0, math.pi, 0)
+	else
+		offset = CFrame.new(0, 0, 1.5)
+	end
+	currentHugWeld = NAmanage.WeldToPlayerPart(targetHRP, offset, LocalPlayer, nil)
+	return currentHugWeld ~= nil
+end
+
 cmd.add({"hug", "clickhug"}, {"hug (clickhug)", "huggies time (click on a target to hug)"}, function()
-	if IsR6() then
-		const mouse = NAmanage.GetMouse(LocalPlayer)
+	if not IsR6() then return DoNotif("command requires R6") end
+	const mouse = NAmanage.GetMouse(LocalPlayer)
+	NAlib.disconnect("hug_toggle")
+	NAlib.disconnect("hug_side")
+	NAlib.disconnect("hug_click")
+	NAlib.disconnect("hug_plat")
+	originalIO.stopCurrentHugWeld()
+	for _, track in currentHugTracks do NACaller(function() track:Stop() end) end
+	currentHugTracks = {}
+	if hugUI then hugUI:Destroy() end
+	hugFromFront = false
+	currentHugTarget = nil
+	hugModeEnabled = false
+	for _, part in huggiePARTS do pcall(function() part:Destroy() end) end
+	huggiePARTS = {}
 
-		NAlib.disconnect("hug_toggle")
-		NAlib.disconnect("hug_side")
-		NAlib.disconnect("hug_click")
-		NAlib.disconnect("hug_plat")
+	hugUI = InstanceNew("ScreenGui")
+	hugUI.Name = "HugModeUI"
+	NAgui.NaProtectUI(hugUI)
+	const toggleHugButton = InstanceNew("TextButton")
+	toggleHugButton.AnchorPoint = Vector2.new(0.5, 0)
+	toggleHugButton.Size = UDim2.new(0, 150, 0, 50)
+	toggleHugButton.Position = UDim2.new(0.4, 0, 0.1, 0)
+	toggleHugButton.Text = "Hug Mode: OFF"
+	toggleHugButton.TextSize = 14
+	toggleHugButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	toggleHugButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+	toggleHugButton.Parent = hugUI
+	const sideToggleButton = InstanceNew("TextButton")
+	sideToggleButton.AnchorPoint = Vector2.new(0.5, 0)
+	sideToggleButton.Size = UDim2.new(0, 150, 0, 50)
+	sideToggleButton.Position = UDim2.new(0.6, 0, 0.1, 0)
+	sideToggleButton.Text = "Hug Side: Back"
+	sideToggleButton.TextSize = 14
+	sideToggleButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	sideToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+	sideToggleButton.Parent = hugUI
+	const uiCorner = InstanceNew("UICorner")
+	uiCorner.CornerRadius = UDim.new(0, 6)
+	uiCorner.Parent = toggleHugButton
+	const sideUICorner = InstanceNew("UICorner")
+	sideUICorner.CornerRadius = UDim.new(0, 6)
+	sideUICorner.Parent = sideToggleButton
+	NAgui.draggerV2(toggleHugButton)
+	NAgui.draggerV2(sideToggleButton)
 
+	const function performHug(targetCharacter)
+		currentHugTarget = targetCharacter
 		for _, track in currentHugTracks do NACaller(function() track:Stop() end) end
 		currentHugTracks = {}
-
-		if hugUI then hugUI:Destroy() end
-		hugFromFront = false
-		currentHugTarget = nil
-		for _, part in huggiePARTS do part:Destroy() end
-		huggiePARTS = {}
-
-		hugUI = InstanceNew("ScreenGui")
-		hugUI.Name = "HugModeUI"
-		NAgui.NaProtectUI(hugUI)
-
-		const toggleHugButton = InstanceNew("TextButton")
-		toggleHugButton.AnchorPoint = Vector2.new(0.5, 0)
-		toggleHugButton.Size = UDim2.new(0, 150, 0, 50)
-		toggleHugButton.Position = UDim2.new(0.4, 0, 0.1, 0)
-		toggleHugButton.Text = "Hug Mode: OFF"
-		toggleHugButton.TextSize = 14
-		toggleHugButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-		toggleHugButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-		toggleHugButton.Parent = hugUI
-
-		const sideToggleButton = InstanceNew("TextButton")
-		sideToggleButton.AnchorPoint = Vector2.new(0.5, 0)
-		sideToggleButton.Size = UDim2.new(0, 150, 0, 50)
-		sideToggleButton.Position = UDim2.new(0.6, 0, 0.1, 0)
-		sideToggleButton.Text = "Hug Side: Back"
-		sideToggleButton.TextSize = 14
-		sideToggleButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-		sideToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-		sideToggleButton.Parent = hugUI
-
-		const uiCorner = InstanceNew("UICorner")
-		uiCorner.CornerRadius = UDim.new(0, 6)
-		uiCorner.Parent = toggleHugButton
-
-		const sideUICorner = InstanceNew("UICorner")
-		sideUICorner.CornerRadius = UDim.new(0, 6)
-		sideUICorner.Parent = sideToggleButton
-
-		NAgui.draggerV2(toggleHugButton)
-		NAgui.draggerV2(sideToggleButton)
-
-		hugModeEnabled = false
-
-		const function performHug(targetCharacter)
-			currentHugTarget = targetCharacter
-
-			const offsetDistance = 1.5
-			local targetHRP = getRoot(targetCharacter)
-			const localCharacter = LocalPlayer.Character
-			if not localCharacter then return end
-			const localHRP = getRoot(localCharacter)
-			if targetHRP and localHRP then
-				local offset = (hugFromFront and (targetHRP.CFrame.LookVector * offsetDistance)) or (-(targetHRP.CFrame.LookVector * offsetDistance))
-				const initialHugPos = targetHRP.Position + offset
-				NAmanage.UG_setRootCFrame(localHRP, CFrame.new(initialHugPos, targetHRP.Position))
-				const humanoid = getPlrHum(localCharacter)
-				if humanoid then
-					const anim1 = InstanceNew("Animation")
-					anim1.AnimationId = "rbxassetid://283545583"
-					const track1 = humanoid:LoadAnimation(anim1)
-					const anim2 = InstanceNew("Animation")
-					anim2.AnimationId = "rbxassetid://225975820"
-					const track2 = humanoid:LoadAnimation(anim2)
-					Insert(currentHugTracks, track1)
-					Insert(currentHugTracks, track2)
-					track1:Play()
-					track2:Play()
-
-					if #huggiePARTS == 0 then
-						const thick = 0.2
-						const halfWidth = 2
-						const halfDepth = 2
-						const halfHeight = 3
-						const walls = {
-							{offset = CFrame.new(0, 0, halfDepth + thick/500), size = Vector3.new(4, 6, thick)},
-							{offset = CFrame.new(0, 0, -(halfDepth + thick/500)), size = Vector3.new(4, 6, thick)},
-							{offset = CFrame.new(halfWidth + thick/500, 0, 0), size = Vector3.new(thick, 6, 4)},
-							{offset = CFrame.new(-(halfWidth + thick/500), 0, 0), size = Vector3.new(thick, 6, 4)},
-							{offset = CFrame.new(0, halfHeight + thick/500, 0), size = Vector3.new(4, thick, 4)},
-							{offset = CFrame.new(0, -(halfHeight + thick/500), 0), size = Vector3.new(4, thick, 4)}
-						}
-						for i, wall in walls do
-							const part = InstanceNew("Part")
-							part.Size = wall.size
-							part.Anchored = true
-							part.CanCollide = true
-							part.Transparency = 1
-							part.Parent = Services.Workspace
-							Insert(huggiePARTS, part)
-						end
-						NAlib.connect("hug_plat", Services.RunService.RenderStepped:Connect(function()
-							const charRoot = getRoot(LocalPlayer.Character)
-							if charRoot then
-								for i, wall in walls do
-									huggiePARTS[i].CFrame = charRoot.CFrame * wall.offset
-								end
-							end
-						end))
-					end
-
-					SpawnCall(function()
-						while hugModeEnabled and targetCharacter and getRoot(targetCharacter) and (currentHugTarget == targetCharacter) do
-							targetHRP = getRoot(targetCharacter)
-							offset = (hugFromFront and (targetHRP.CFrame.LookVector * offsetDistance)) or (-(targetHRP.CFrame.LookVector * offsetDistance))
-							const newHugPos = targetHRP.Position + offset
-							if localHRP then
-								NAmanage.UG_setRootCFrame(localHRP, CFrame.new(newHugPos, targetHRP.Position))
-							end
-							Wait()
-						end
-					end)
-				end
-			end
+		const humanoid = getPlrHum(LocalPlayer.Character)
+		if humanoid then
+			const anim1 = InstanceNew("Animation")
+			anim1.AnimationId = "rbxassetid://283545583"
+			const track1 = humanoid:LoadAnimation(anim1)
+			const anim2 = InstanceNew("Animation")
+			anim2.AnimationId = "rbxassetid://225975820"
+			const track2 = humanoid:LoadAnimation(anim2)
+			Insert(currentHugTracks, track1)
+			Insert(currentHugTracks, track2)
+			track1:Play()
+			track2:Play()
 		end
-
-		NAlib.connect("hug_toggle", MouseButtonFix(toggleHugButton, function()
-			hugModeEnabled = not hugModeEnabled
-			if hugModeEnabled then
-				toggleHugButton.Text = "Hug Mode: ON"
-			else
-				toggleHugButton.Text = "Hug Mode: OFF"
-				for _, track in currentHugTracks do NACaller(function() track:Stop() end) end
-				currentHugTracks = {}
-				currentHugTarget = nil
-				for _, part in huggiePARTS do part:Destroy() end
-				huggiePARTS = {}
-				NAlib.disconnect("hug_plat")
-			end
-		end))
-
-		NAlib.connect("hug_side", MouseButtonFix(sideToggleButton, function()
-			hugFromFront = not hugFromFront
-			sideToggleButton.Text = (hugFromFront and "Hug Side: Front") or "Hug Side: Back"
-		end))
-
-		NAlib.connect("hug_click", mouse.Button1Down:Connect(function()
-			if not hugModeEnabled then return end
-			const target = NAmanage.GetMouseTargetPart(mouse, { LocalPlayer and LocalPlayer.Character }, 1024)
-			if target then
-				const targetCharacter = NAmanage.ResolveHumanoidModelFromPart(target)
-				const targetPlayer = targetCharacter and __lt.cm("Players", "GetPlayerFromCharacter", targetCharacter)
-				if targetPlayer and targetPlayer ~= LocalPlayer and targetPlayer.Character then
-					performHug(targetPlayer.Character)
-				end
-			end
-		end))
-	else
-		DoNotif("command requires R6")
+		originalIO.startCurrentHugWeld(targetCharacter)
 	end
+
+	NAlib.connect("hug_toggle", MouseButtonFix(toggleHugButton, function()
+		hugModeEnabled = not hugModeEnabled
+		toggleHugButton.Text = hugModeEnabled and "Hug Mode: ON" or "Hug Mode: OFF"
+		if not hugModeEnabled then
+			originalIO.stopCurrentHugWeld()
+			for _, track in currentHugTracks do NACaller(function() track:Stop() end) end
+			currentHugTracks = {}
+			currentHugTarget = nil
+		end
+	end))
+
+	NAlib.connect("hug_side", MouseButtonFix(sideToggleButton, function()
+		hugFromFront = not hugFromFront
+		sideToggleButton.Text = hugFromFront and "Hug Side: Front" or "Hug Side: Back"
+		if hugModeEnabled and currentHugTarget then
+			originalIO.startCurrentHugWeld(currentHugTarget)
+		end
+	end))
+
+	NAlib.connect("hug_click", mouse.Button1Down:Connect(function()
+		if not hugModeEnabled then return end
+		const target = NAmanage.GetMouseTargetPart(mouse, { LocalPlayer and LocalPlayer.Character }, 1024)
+		if not target then return end
+		const targetCharacter = NAmanage.ResolveHumanoidModelFromPart(target)
+		const targetPlayer = targetCharacter and __lt.cm("Players", "GetPlayerFromCharacter", targetCharacter)
+		if targetPlayer and targetPlayer ~= LocalPlayer and targetPlayer.Character then
+			performHug(targetPlayer.Character)
+		end
+	end))
 end)
 
 cmd.add({"unhug"}, {"unhug", "no huggies :("}, function()
@@ -983,13 +788,13 @@ cmd.add({"unhug"}, {"unhug", "no huggies :("}, function()
 	NAlib.disconnect("hug_side")
 	NAlib.disconnect("hug_click")
 	NAlib.disconnect("hug_plat")
-
+	originalIO.stopCurrentHugWeld()
 	for _, track in currentHugTracks do NACaller(function() track:Stop() end) end
 	currentHugTracks = {}
 	currentHugTarget = nil
 	hugFromFront = false
 	hugModeEnabled = false
-	for _, part in huggiePARTS do part:Destroy() end
+	for _, part in huggiePARTS do pcall(function() part:Destroy() end) end
 	huggiePARTS = {}
 	if hugUI then hugUI:Destroy() hugUI = nil end
 end)
@@ -997,55 +802,44 @@ end)
 glueloop = {}
 
 cmd.add({"glue","loopgoto","lgoto"},{"glue <player>","Loop teleport to a player"},function(...)
-	const input = (...)
-	const players = getPlr(input)
+	const players = getPlr((...))
 	for _, p in next, players do
 		const name = p.Name
-		const ref = NAmanage.NewPersistentPlayerRef(p)
-		if glueloop[name] then glueloop[name]:Disconnect() end
-		NAlib.disconnect("glue_loop_"..name)
-		glueloop[name] = NAlib.reconnect("glue_loop_"..name, Services.RunService.RenderStepped:Connect(function()
-			const target = NAmanage.ResolvePersistentPlayer(ref)
-			const localRoot = getRoot(getChar())
-			const targetRoot = target and target.Character and getRoot(target.Character)
-			if localRoot and targetRoot then
-				localRoot.CFrame = targetRoot.CFrame
-			end
-		end))
+		if glueloop[name] then glueloop[name]:Destroy() end
+		const targetRoot = p.Character and getRoot(p.Character)
+		if targetRoot then
+			glueloop[name] = NAmanage.WeldToPlayerPart(targetRoot, CFrame.new(), LocalPlayer, nil)
+		end
 	end
 end,true)
 
 cmd.add({"unglue","unloopgoto","noloopgoto"},{"unglue","Stops teleporting you to a player"},function()
-	for name, conn in glueloop do conn:Disconnect() NAlib.disconnect("glue_loop_"..name) end
+	for name, weld in glueloop do
+		if weld and weld.Destroy then weld:Destroy() end
+		NAlib.disconnect("glue_loop_"..name)
+	end
 	glueloop = {}
 end)
 
 glueBACKER = {}
 
 cmd.add({"glueback","loopbehind","lbehind"},{"glueback <player>","Loop teleport behind a player"},function(...)
-	const input   = (...)
-	const targets = getPlr(input)
-	for _,target in next,targets do
+	const targets = getPlr((...))
+	for _, target in next, targets do
 		const name = target.Name
-		const ref = NAmanage.NewPersistentPlayerRef(target)
-		if glueBACKER[name] then
-			glueBACKER[name]:Disconnect()
-			glueBACKER[name] = nil
+		if glueBACKER[name] then glueBACKER[name]:Destroy() end
+		const targetRoot = target.Character and getRoot(target.Character)
+		if targetRoot then
+			glueBACKER[name] = NAmanage.WeldToPlayerPart(targetRoot, CFrame.new(0,0,3), LocalPlayer, nil)
 		end
-		NAlib.disconnect("glueback_loop_"..name)
-		glueBACKER[name] = NAlib.reconnect("glueback_loop_"..name, Services.RunService.RenderStepped:Connect(function()
-			const player = NAmanage.ResolvePersistentPlayer(ref)
-			const localRoot = getRoot(getChar())
-			const targetRoot = player and player.Character and getRoot(player.Character)
-			if localRoot and targetRoot then
-				localRoot.CFrame = targetRoot.CFrame * CFrame.new(0,0,3)
-			end
-		end))
 	end
 end,true)
 
 cmd.add({"unglueback","unloopbehind","unlbehind"},{"unglueback","Stops teleporting you to a player"},function()
-	for name,conn in glueBACKER do conn:Disconnect() NAlib.disconnect("glueback_loop_"..name) end
+	for name, weld in glueBACKER do
+		if weld and weld.Destroy then weld:Destroy() end
+		NAlib.disconnect("glueback_loop_"..name)
+	end
 	glueBACKER = {}
 end)
 

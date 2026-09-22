@@ -2571,7 +2571,68 @@ if IsOnPC then
 	end)
 end
 
+
+NAmanage.WeldToPlayerPart = NAmanage.WeldToPlayerPart or function(TargetPart, Offset, Speaker, AnimationId)
+	local Character = Speaker.Character
+	if not Character then return nil end
+
+	local Root = Character:FindFirstChild("HumanoidRootPart")
+	local Humanoid = Character:FindFirstChildWhichIsA("Humanoid")
+	if not Root or not Humanoid then return nil end
+
+	local AnimTrack = nil
+	if AnimationId then
+		local Animator = Character:FindFirstChildWhichIsA("Animator", true)
+		if Animator then
+			local Animation = Instance.new("Animation")
+			Animation.AnimationId = "rbxassetid://" .. tostring(AnimationId)
+			AnimTrack = Animator:LoadAnimation(Animation)
+			AnimTrack:Play()
+		end
+	end
+
+	local Weld = {}
+	local Connection = nil
+
+	for _, v in pairs(Character:GetDescendants()) do
+		if v:IsA("BasePart") then
+			v.CanCollide = false
+			v.Massless = true
+		end
+	end
+
+	Connection = Services.RunService.Heartbeat:Connect(function()
+		if not Character.Parent or not TargetPart.Parent then
+			if Weld.Destroy then Weld:Destroy() end
+			return
+		end
+
+		Root.CFrame = TargetPart.CFrame * Offset
+		Root.AssemblyLinearVelocity = Vector3.zero
+		Root.AssemblyAngularVelocity = Vector3.zero
+
+		if sethiddenproperty then
+			pcall(function()
+				sethiddenproperty(Root, "PhysicsRepRootPart", TargetPart)
+			end)
+		end
+	end)
+
+	function Weld:Destroy()
+		if Connection then Connection:Disconnect() end
+		if AnimTrack then AnimTrack:Stop(); AnimTrack:Destroy() end
+
+		if Root then
+			Root.AssemblyLinearVelocity = Vector3.zero
+			Root.AssemblyAngularVelocity = Vector3.zero
+		end
+	end
+
+	return Weld
+end
+
 platformParts = {}
+headsitWeld = nil
 
 function stopHeadSit(launchHumanoid)
 	NAStuff.headsitActive = false
@@ -2579,6 +2640,11 @@ function stopHeadSit(launchHumanoid)
 
 	NAlib.disconnect("headsit_follow")
 	NAlib.disconnect("headsit_died")
+
+	if headsitWeld then
+		headsitWeld:Destroy()
+		headsitWeld = nil
+	end
 
 	for _, part in platformParts do
 		pcall(function()
@@ -2601,7 +2667,6 @@ NAmanage.RegisterUnloadCleanup("headsit_cleanup", function()
 end, 60)
 
 cmd.add({"headsit"}, {"headsit <player|npc:filter>", "Sit on a player or NPC's head"}, function(...)
-	const RawPlayers = __lt.gs("Players")
 	const query = Concat({...}, " ")
 	const targets = getPlr(query)
 	const plr = targets and targets[1]
@@ -2611,105 +2676,25 @@ cmd.add({"headsit"}, {"headsit <player|npc:filter>", "Sit on a player or NPC's h
 
 	const char = getChar()
 	const hum = char and getHum(char)
-	const root = char and getRoot(char)
 	const targetChar = NAmanage.PlayerArgChar(plr)
 	const targetHead = targetChar and getHead(targetChar)
 	if not char or not char.Parent
 		or not hum or not hum.Parent or hum.Health <= 0
-		or not root or not root.Parent
 		or not targetHead or not targetHead.Parent then
 		return
 	end
 
-	const function targetExists()
-		return (plr:IsA("Player") and plr.Parent == RawPlayers) or (plr:IsA("Model") and plr.Parent ~= nil)
-	end
-
-	const token = NAStuff.headsitToken
 	NAStuff.headsitActive = true
-
-	const thick = 1
-	const halfWidth = 2
-	const halfDepth = 2
-	const halfHeight = 3
-	const walls = {
-		{offset = CFrame.new(0, 0, halfDepth + thick / 500), size = Vector3.new(4, 6, thick)},
-		{offset = CFrame.new(0, 0, -(halfDepth + thick / 500)), size = Vector3.new(4, 6, thick)},
-		{offset = CFrame.new(halfWidth + thick / 500, 0, 0), size = Vector3.new(thick, 6, 4)},
-		{offset = CFrame.new(-(halfWidth + thick / 500), 0, 0), size = Vector3.new(thick, 6, 4)},
-		{offset = CFrame.new(0, halfHeight + thick / 500, 0), size = Vector3.new(4, thick, 4)},
-		{offset = CFrame.new(0, -(halfHeight + thick / 500), 0), size = Vector3.new(4, thick, 4)},
-	}
-
-	const function updatePosition()
-		const currentTargetChar = NAmanage.PlayerArgChar(plr)
-		const currentTargetHead = currentTargetChar and getHead(currentTargetChar)
-		if not targetExists()
-			or not char.Parent
-			or not hum.Parent or hum.Health <= 0
-			or not root.Parent
-			or not currentTargetHead or not currentTargetHead.Parent then
-			return false
-		end
-
-		const targetCFrame = currentTargetHead.CFrame * CFrame.new(0, 1.6, 0.4)
-		root.CFrame = targetCFrame
-		root.AssemblyLinearVelocity = Vector3.zero
-		root.AssemblyAngularVelocity = Vector3.zero
-
-		for i, wall in walls do
-			const part = platformParts[i]
-			if not part or not part.Parent then
-				return false
-			end
-			part.CFrame = targetCFrame * wall.offset
-		end
-
-		return true
-	end
-
-	const initialCFrame = targetHead.CFrame * CFrame.new(0, 1.6, 0.4)
-	for _, wall in walls do
-		const part = InstanceNew("Part")
-		part.Size = wall.size
-		part.CFrame = initialCFrame * wall.offset
-		part.Anchored = true
-		part.CanCollide = true
-		part.Transparency = 1
-		pcall(function()
-			part.CanQuery = false
-			part.CanTouch = false
-			part.CastShadow = false
-		end)
-		part.Parent = Services.Workspace
-		Insert(platformParts, part)
-	end
-
-	root.CFrame = initialCFrame
-	root.AssemblyLinearVelocity = Vector3.zero
-	root.AssemblyAngularVelocity = Vector3.zero
 	hum.Sit = true
+	headsitWeld = NAmanage.WeldToPlayerPart(targetHead, CFrame.new(0, 1.6, 0.4), LocalPlayer, nil)
+	if not headsitWeld then
+		NAStuff.headsitActive = false
+		hum.Sit = false
+		return
+	end
 
 	NAlib.connect("headsit_died", NAmanage.ConnectHumanoidDeath(hum, function()
-		if NAStuff.headsitToken == token then
-			stopHeadSit(false)
-		end
-	end))
-
-	NAlib.connect("headsit_follow", Services.RunService.PreSimulation:Connect(function()
-		if NAStuff.headsitActive ~= true
-			or NAStuff.headsitToken ~= token
-			or hum.Sit == false then
-			if NAStuff.headsitToken == token then
-				stopHeadSit(false)
-			end
-			return
-		end
-
-		local ok, keepRunning = pcall(updatePosition)
-		if (not ok or keepRunning ~= true) and NAStuff.headsitToken == token then
-			stopHeadSit(false)
-		end
+		stopHeadSit(false)
 	end))
 end, true)
 
@@ -3408,90 +3393,44 @@ cmd.add({"chattranslate","ctranslate","chatt"},{"chattranslate","the very old ch
 end)
 
 standParts = {}
+headstandWeld = nil
 
-cmd.add({"headstand"}, {"headstand <player|npc:filter>", "Stand on a player or NPC's head."}, function(p)
-	const RawPlayers = __lt.gs("Players")
+originalIO.stopHeadstand = function()
 	NAlib.disconnect("headstand_follow")
 	NAlib.disconnect("headstand_died")
+	if headstandWeld then
+		headstandWeld:Destroy()
+		headstandWeld = nil
+	end
+	for _, part in standParts do
+		pcall(function() part:Destroy() end)
+	end
+	standParts = {}
+end
+
+cmd.add({"headstand"}, {"headstand <player|npc:filter>", "Stand on a player or NPC's head."}, function(p)
+	originalIO.stopHeadstand()
 
 	const targets = getPlr(p)
 	if #targets == 0 then return end
 
 	const plr = targets[1]
 	const char = getChar()
-	if not char then return end
-	const hum = getHum()
-	if not hum then return end
+	const hum = char and getHum(char)
+	const targetChar = NAmanage.PlayerArgChar(plr)
+	const targetRoot = targetChar and getRoot(targetChar)
+	if not char or not hum or not targetRoot then return end
+
+	headstandWeld = NAmanage.WeldToPlayerPart(targetRoot, CFrame.new(0, 4.6, 0.4), LocalPlayer, nil)
+	if not headstandWeld then return end
 
 	NAlib.connect("headstand_died", NAmanage.ConnectHumanoidDeath(hum, function()
-		NAlib.disconnect("headstand_follow")
-		NAlib.disconnect("headstand_died")
-		for _, part in standParts do
-			part:Destroy()
-		end
-		standParts = {}
-	end))
-
-	for _, part in standParts do
-		part:Destroy()
-	end
-	standParts = {}
-
-	const thick = 1
-	const halfWidth = 2
-	const halfDepth = 2
-	const halfHeight = 3
-
-	const walls = {
-		{offset = CFrame.new(0, 0, halfDepth + thick/500), size = Vector3.new(4, 6, thick)},
-		{offset = CFrame.new(0, 0, -(halfDepth + thick/500)), size = Vector3.new(4, 6, thick)},
-		{offset = CFrame.new(halfWidth + thick/500, 0, 0), size = Vector3.new(thick, 6, 4)},
-		{offset = CFrame.new(-(halfWidth + thick/500), 0, 0), size = Vector3.new(thick, 6, 4)},
-		{offset = CFrame.new(0, halfHeight + thick/500, 0), size = Vector3.new(4, thick, 4)},
-		{offset = CFrame.new(0, -(halfHeight + thick/500), 0), size = Vector3.new(4, thick, 4)}
-	}
-
-	for _, wall in walls do
-		const part = InstanceNew("Part")
-		part.Size = wall.size
-		part.Anchored = true
-		part.CanCollide = true
-		part.Transparency = 1
-		part.Parent = Services.Workspace
-		Insert(standParts, part)
-	end
-
-	const function targetExists()
-		return (plr:IsA("Player") and plr.Parent == RawPlayers) or (plr:IsA("Model") and plr.Parent ~= nil)
-	end
-
-	NAlib.connect("headstand_follow", Services.RunService.PreSimulation:Connect(function()
-		const plrCharacter = NAmanage.PlayerArgChar(plr)
-		if targetExists() and plrCharacter and getRoot(plrCharacter) and getRoot(char) then
-			const charRoot = getRoot(char)
-			charRoot.CFrame = getRoot(plrCharacter).CFrame * CFrame.new(0, 4.6, 0.4)
-			for i, wall in walls do
-				standParts[i].CFrame = charRoot.CFrame * wall.offset
-			end
-		else
-			NAlib.disconnect("headstand_follow")
-			NAlib.disconnect("headstand_died")
-			for _, part in standParts do
-				part:Destroy()
-			end
-			standParts = {}
-		end
+		originalIO.stopHeadstand()
 	end))
 end, true)
 
 cmd.add({"unheadstand"}, {"unheadstand", "Stop the headstand command."}, function()
-	NAlib.disconnect("headstand_follow")
-	NAlib.disconnect("headstand_died")
-
-	for _, part in standParts do
-		part:Destroy()
-	end
-	standParts = {}
+	originalIO.stopHeadstand()
 end)
 
 _na_env.NamelessWs = nil
@@ -4879,193 +4818,89 @@ cmd.add({"waveat", "wat"}, {"waveat <player|npc:filter> (wat)", "Wave to a playe
 end, true)
 
 bang, bangAnim, bangLoop, bangDied, bangParts = nil, nil, nil, nil, {}
+headbangWeld = nil
+
+originalIO.stopHeadbang = function()
+	if headbangWeld then
+		headbangWeld:Destroy()
+		headbangWeld = nil
+	end
+	NAlib.disconnect("headbang_loop")
+	if bang then bang:Stop() bang = nil end
+	if bangAnim then bangAnim:Destroy() bangAnim = nil end
+	if bangDied then bangDied:Disconnect() bangDied = nil end
+	for _, part in bangParts do pcall(function() part:Destroy() end) end
+	bangParts = {}
+end
 
 cmd.addRestricted({"headbang", "mouthbang", "headfuck", "mouthfuck", "facebang", "facefuck", "hb", "mb"}, {"headbang <player> (mouthbang,headfuck,mouthfuck,facebang,facefuck,hb,mb)", "Bang them in the mouth because you are gay"}, function(h, d)
+	originalIO.stopHeadbang()
 	const speed = d or 10
-	const username = h
-	const hasQuery = username and username ~= ""
-	const players = hasQuery and getPlr(username) or {}
+	const players = h and h ~= "" and getPlr(h) or {}
 	const plr = players[1]
-	if hasQuery and not plr then
-		DoNotif("No targets found", 2)
-	end
+	if h and h ~= "" and not plr then return DoNotif("No targets found", 2) end
+	const targetChar = plr and plr.Character
+	const targetHead = targetChar and getHead(targetChar)
+	if not targetHead then return end
+
 	bangAnim = InstanceNew("Animation")
-	if not IsR15(Services.Players.LocalPlayer) then
-		bangAnim.AnimationId = "rbxassetid://148840371"
-	else
-		bangAnim.AnimationId = "rbxassetid://5918726674"
-	end
+	bangAnim.AnimationId = not IsR15(Services.Players.LocalPlayer) and "rbxassetid://148840371" or "rbxassetid://5918726674"
 	const humanoid = getHum()
 	if not humanoid then return end
 	bang = humanoid:LoadAnimation(bangAnim)
 	bang:Play(0.1, 1, 1)
 	bang:AdjustSpeed(speed)
-	const bangplr = NAmanage.NewPersistentPlayerRef(plr)
-	bangDied = NAmanage.ConnectHumanoidDeath(humanoid, function()
-		if bangLoop then
-			bangLoop:Disconnect()
-			NAlib.disconnect("headbang_loop")
-		end
-		bang:Stop()
-		bangAnim:Destroy()
-		bangDied:Disconnect()
-		for _, part in bangParts do
-			part:Destroy()
-		end
-		bangParts = {}
-	end)
-	for _, part in bangParts do
-		part:Destroy()
-	end
-	bangParts = {}
-	const bangOffset = CFrame.new(0, 1, -1.1)
-	if bangplr then
-		bangLoop = NAlib.reconnect("headbang_loop", Services.RunService.RenderStepped:Connect(function()
-			NACaller(function()
-				const targetPlayer = NAmanage.ResolvePersistentPlayer(bangplr)
-				if not targetPlayer or not targetPlayer.Character then return end
-				const targetCharacter = targetPlayer.Character
-				const localCharacter = getChar()
-				const localRoot = localCharacter and getRoot(localCharacter)
-				if not (localCharacter and localRoot) then return end
-				const otherHead = getHead(targetCharacter)
-				if otherHead then
-					localRoot.CFrame = otherHead.CFrame * bangOffset
-				end
-				const targetRoot = getRoot(targetCharacter)
-				const localPrimary = localCharacter.PrimaryPart
-				if targetRoot and localPrimary then
-					const charPos = localPrimary.Position
-					const newCFrame = CFrame.new(charPos, Vector3.new(targetRoot.Position.X, charPos.Y, targetRoot.Position.Z))
-					NAmanage.UG_pivotModel(localCharacter, newCFrame)
-				end
-				localRoot.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-				localRoot.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-			end)
-		end))
-	end
+
+	headbangWeld = NAmanage.WeldToPlayerPart(targetHead, CFrame.new(0, 1, -1.1), LocalPlayer, nil)
+	if not headbangWeld then return originalIO.stopHeadbang() end
+	bangDied = NAmanage.ConnectHumanoidDeath(humanoid, originalIO.stopHeadbang)
 end, true)
 
 cmd.addRestricted({"unheadbang", "unmouthbang", "unhb", "unmb"}, {"unheadbang (unmouthbang,unhb,unmb)", "Stops headbang"}, function()
-	if bangLoop then
-		bangLoop:Disconnect()
-		NAlib.disconnect("headbang_loop")
-		bang:Stop()
-		bangAnim:Destroy()
-		bangDied:Disconnect()
-	end
-	for _, part in bangParts do
-		part:Destroy()
-	end
-	bangParts = {}
+	originalIO.stopHeadbang()
 end)
 
 jerkAnim, jerkTrack, jerkLoop, jerkDied, jerkParts = nil, nil, nil, nil, {}
+jerkWeld = nil
+
+originalIO.stopJerkUser = function()
+	if jerkWeld then jerkWeld:Destroy() jerkWeld = nil end
+	NAlib.disconnect("jerkuser_loop")
+	if jerkTrack then jerkTrack:Stop() jerkTrack = nil end
+	if jerkAnim then jerkAnim:Destroy() jerkAnim = nil end
+	if jerkDied then jerkDied:Disconnect() jerkDied = nil end
+	const humanoid = getHum()
+	if humanoid then humanoid.Sit = false end
+	for _, part in jerkParts do pcall(function() part:Destroy() end) end
+	jerkParts = {}
+end
 
 cmd.addRestricted({"jerkuser", "jorkuser", "handjob", "hjob", "handj"}, {"jerkuser <player> (jorkuser, handjob, hjob, handj)", "Lay under them and vibe"}, function(h, d)
 	if not IsR6() then DoNotif("command requires R6",3) return end
-	const username = h
-	const players = getPlr(username)
+	originalIO.stopJerkUser()
+	const players = getPlr(h)
 	if #players == 0 then return end
-	const plr = players[1]
-	const targetRef = NAmanage.NewPersistentPlayerRef(plr)
-
+	const targetChar = players[1].Character
+	const targetRoot = targetChar and getRoot(targetChar)
 	const char = getChar()
-	if not char then return end
-
-	const humanoid = getHum()
-	if not humanoid then return end
+	const humanoid = char and getHum(char)
+	if not targetRoot or not humanoid then return end
 
 	jerkAnim = InstanceNew("Animation")
 	jerkAnim.AnimationId = "rbxassetid://95383980"
 	jerkTrack = humanoid:LoadAnimation(jerkAnim)
 	jerkTrack.Looped = true
 	jerkTrack:Play()
-
 	humanoid.Sit = true
-	Wait(0.1)
-
-	const root = getRoot(char)
-	if not root then return end
-
-	NAmanage.UG_setRootCFrame(root, (NAmanage.UG_clientCFrame(root) or root.CFrame) * CFrame.Angles(math.pi * 0.5, math.pi, 0))
-
-	for _, part in jerkParts do
-		part:Destroy()
-	end
-	jerkParts = {}
-
-	const thick = 0.2
-	const halfWidth = 2
-	const halfDepth = 2
-	const halfHeight = 3
-	const walls = {
-		{offset = CFrame.new(0, 0, halfDepth + thick / 500), size = Vector3.new(4, 6, thick)},
-		{offset = CFrame.new(0, 0, -(halfDepth + thick / 500)), size = Vector3.new(4, 6, thick)},
-		{offset = CFrame.new(halfWidth + thick / 500, 0, 0), size = Vector3.new(thick, 6, 4)},
-		{offset = CFrame.new(-(halfWidth + thick / 500), 0, 0), size = Vector3.new(thick, 6, 4)},
-		{offset = CFrame.new(0, halfHeight + thick / 500, 0), size = Vector3.new(4, thick, 4)},
-		{offset = CFrame.new(0, -(halfHeight + thick / 500), 0), size = Vector3.new(4, thick, 4)}
-	}
-
-	for i, wall in walls do
-		const part = InstanceNew("Part")
-		part.Size = wall.size
-		part.Anchored = true
-		part.CanCollide = true
-		part.Transparency = 1
-		part.Parent = Services.Workspace
-		Insert(jerkParts, part)
-	end
 
 	const jerkOffset = CFrame.new(0, -2.5, -0.25) * CFrame.Angles(math.pi * 0.5, 0, math.pi)
-	jerkLoop = NAlib.reconnect("jerkuser_loop", Services.RunService.RenderStepped:Connect(function()
-		NACaller(function()
-			for i, wall in walls do
-				jerkParts[i].CFrame = root.CFrame * wall.offset
-			end
-			const target = NAmanage.ResolvePersistentPlayer(targetRef)
-			const targetChar = target and target.Character
-			const targetRoot = targetChar and getRoot(targetChar)
-			if targetRoot then
-				NAmanage.UG_setRootCFrame(root, targetRoot.CFrame * jerkOffset)
-			end
-		end)
-	end))
-
-	jerkDied = NAmanage.ConnectHumanoidDeath(humanoid, function()
-		if jerkLoop then jerkLoop:Disconnect() NAlib.disconnect("jerkuser_loop") end
-		if jerkTrack then jerkTrack:Stop() end
-		if jerkAnim then jerkAnim:Destroy() end
-		for _, part in jerkParts do
-			part:Destroy()
-		end
-		jerkParts = {}
-	end)
+	jerkWeld = NAmanage.WeldToPlayerPart(targetRoot, jerkOffset, LocalPlayer, nil)
+	if not jerkWeld then return originalIO.stopJerkUser() end
+	jerkDied = NAmanage.ConnectHumanoidDeath(humanoid, originalIO.stopJerkUser)
 end, true)
 
 cmd.addRestricted({"unjerkuser", "unjorkuser", "unhandjob", "unhjob", "unhandj"}, {"unjerkuser (unjorkuser, unhandjob, unhjob, unhandj)", "Stop the jerk user action"}, function()
-	if jerkLoop then jerkLoop:Disconnect() end
-	NAlib.disconnect("jerkuser_loop")
-	if jerkTrack then jerkTrack:Stop() end
-	if jerkAnim then jerkAnim:Destroy() end
-	if jerkDied then jerkDied:Disconnect() end
-
-	const char = getChar()
-	const root = getRoot(char)
-	if root then
-		NAmanage.UG_setRootCFrame(root, (NAmanage.UG_clientCFrame(root) or root.CFrame) * CFrame.Angles(0, math.pi, 0))
-	end
-
-	const humanoid = getHum()
-	if humanoid then
-		humanoid.Sit = false
-	end
-
-	for _, part in jerkParts do
-		part:Destroy()
-	end
-	jerkParts = {}
+	originalIO.stopJerkUser()
 end)
 
 suckLOOP = nil
@@ -5073,95 +4908,43 @@ suckANIM = nil
 suckDIED = nil
 doSUCKING = nil
 SUCKYSUCKY = {}
+suckWeld = nil
+
+originalIO.stopSuck = function()
+	if suckWeld then suckWeld:Destroy() suckWeld = nil end
+	if doSUCKING then doSUCKING:Stop() doSUCKING = nil end
+	if suckANIM then suckANIM:Destroy() suckANIM = nil end
+	if suckDIED then suckDIED:Disconnect() suckDIED = nil end
+	for _, p in SUCKYSUCKY do pcall(function() p:Destroy() end) end
+	SUCKYSUCKY = {}
+	suckLOOP = nil
+end
 
 cmd.addRestricted({"suck","dicksuck"},{"suck <player> <number>","suck it"},function(h,d)
-	if suckLOOP then suckLOOP = nil end
-	if doSUCKING then doSUCKING:Stop() end
-	if suckANIM then suckANIM:Destroy() end
-	if suckDIED then suckDIED:Disconnect() end
-	for _,p in SUCKYSUCKY do p:Destroy() end
-	SUCKYSUCKY = {}
-
+	originalIO.stopSuck()
 	const speed = d or 10
-	const tweenDuration = 1/speed
-	const tweenInfo = TweenInfo.new(tweenDuration,Enum.EasingStyle.Sine,Enum.EasingDirection.Out)
 	const targets = getPlr(h)
 	if #targets == 0 then return end
-	const plr = targets[1]
-	const targetRef = NAmanage.NewPersistentPlayerRef(plr)
+	const targetChar = targets[1].Character
+	const targetRoot = targetChar and getRoot(targetChar)
+	if not targetRoot then return end
 
 	suckANIM = InstanceNew("Animation")
-	if not IsR15(Services.Players.LocalPlayer) then
-		suckANIM.AnimationId = "rbxassetid://189854234"
-	else
-		suckANIM.AnimationId = "rbxassetid://5918726674"
-	end
+	suckANIM.AnimationId = not IsR15(Services.Players.LocalPlayer) and "rbxassetid://189854234" or "rbxassetid://5918726674"
 	const hum = getHum()
+	if not hum then return end
 	doSUCKING = hum:LoadAnimation(suckANIM)
 	doSUCKING:Play(0.1,1,1)
 	doSUCKING:AdjustSpeed(speed)
 
-	suckDIED = NAmanage.ConnectHumanoidDeath(hum, function()
-		if suckLOOP then suckLOOP = nil end
-		doSUCKING:Stop()
-		suckANIM:Destroy()
-		suckDIED:Disconnect()
-		for _,part in SUCKYSUCKY do part:Destroy() end
-		SUCKYSUCKY = {}
-	end)
-
-	const thick,halfWidth,halfDepth,halfHeight = 0.2,2,2,3
-	const walls = {
-		{offset=CFrame.new(0,0,halfDepth+thick/500), size=Vector3.new(4,6,thick)},
-		{offset=CFrame.new(0,0,-(halfDepth+thick/500)), size=Vector3.new(4,6,thick)},
-		{offset=CFrame.new(halfWidth+thick/500,0,0), size=Vector3.new(thick,6,4)},
-		{offset=CFrame.new(-(halfWidth+thick/500),0,0), size=Vector3.new(thick,6,4)},
-		{offset=CFrame.new(0,halfHeight+thick/500,0), size=Vector3.new(4,thick,4)},
-		{offset=CFrame.new(0,-(halfHeight+thick/500),0), size=Vector3.new(4,thick,4)},
-	}
-	for i,wall in walls do
-		const part = InstanceNew("Part")
-		part.Size=wall.size
-		part.Anchored=true
-		part.CanCollide=true
-		part.Transparency=1
-		part.Parent=Services.Workspace
-		Insert(SUCKYSUCKY,part)
-	end
-
-	suckLOOP = NAmanage.Wrap(function()
-		while true do
-			const targetPlayer = NAmanage.ResolvePersistentPlayer(targetRef)
-			const targetCharacter = targetPlayer and targetPlayer.Character
-			const localCharacter = getChar()
-			if targetCharacter and getRoot(targetCharacter) and localCharacter and getRoot(localCharacter) then
-				const targetHRP = getRoot(targetCharacter)
-				const localHRP = getRoot(localCharacter)
-				const forwardCFrame = targetHRP.CFrame * CFrame.new(0,-2.3,-2.5) * CFrame.Angles(0,math.pi,0)
-				const backwardCFrame = targetHRP.CFrame * CFrame.new(0,-2.3,-1.3) * CFrame.Angles(0,math.pi,0)
-				const tweenForward = __lt.cm("TweenService", "Create", localHRP,TweenInfo.new(0.15,Enum.EasingStyle.Linear,Enum.EasingDirection.Out),{CFrame=forwardCFrame})
-				tweenForward:Play()
-				tweenForward.Completed:Wait()
-				const tweenBackward = __lt.cm("TweenService", "Create", localHRP,TweenInfo.new(0.15,Enum.EasingStyle.Linear,Enum.EasingDirection.Out),{CFrame=backwardCFrame})
-				tweenBackward:Play()
-				tweenBackward.Completed:Wait()
-				for i,wall in walls do
-					SUCKYSUCKY[i].CFrame = localHRP.CFrame * wall.offset
-				end
-			end
-			Wait(0.1)
-		end
-	end)
-	suckLOOP()
+	const suckOffset = CFrame.new(0,-2.3,-1.3) * CFrame.Angles(0,math.pi,0)
+	suckWeld = NAmanage.WeldToPlayerPart(targetRoot, suckOffset, LocalPlayer, nil)
+	if not suckWeld then return originalIO.stopSuck() end
+	suckDIED = NAmanage.ConnectHumanoidDeath(hum, originalIO.stopSuck)
 end,true)
 
 cmd.addRestricted({"unsuck","undicksuck"},{"unsuck","no more fun"},function()
-	suckLOOP = nil
-	if doSUCKING then doSUCKING:Stop() end
-	if suckANIM then suckANIM:Destroy() end
-	if suckDIED then suckDIED:Disconnect() end
-	for _,p in SUCKYSUCKY do p:Destroy() end
-	SUCKYSUCKY = {}
+	originalIO.stopSuck()
 end)
 
 cmd.add({"improvetextures"},{"improvetextures","Switches Textures"},function()
