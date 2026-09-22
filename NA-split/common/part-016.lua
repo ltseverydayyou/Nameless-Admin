@@ -394,92 +394,152 @@ carpetAnim = nil
 carpetTrack = nil
 carpetDied = nil
 CARPETPARTS = {}
-carpetCollision = {}
+carpetWeld = nil
+carpetCollisionState = {}
+carpetHumanoidState = nil
+
 originalIO.stopCarpet=function()
+	if carpetWeld then carpetWeld:Destroy() carpetWeld = nil end
+	if carpetLoop then carpetLoop:Disconnect() carpetLoop = nil end
 	NAlib.disconnect("carpet_loop")
-	if carpetLoop then
-		carpetLoop:Disconnect()
-		carpetLoop = nil
-	end
+	NAlib.disconnect("carpet_noclip")
 	if carpetDied then carpetDied:Disconnect() carpetDied = nil end
 	if carpetTrack then carpetTrack:Stop() carpetTrack = nil end
 	if carpetAnim then carpetAnim:Destroy() carpetAnim = nil end
 	for _, part in CARPETPARTS do pcall(function() part:Destroy() end) end
 	CARPETPARTS = {}
-	for part, canCollide in carpetCollision do
-		if part and part.Parent then
-			pcall(function()
-				part.CanCollide = canCollide
-			end)
-		end
-	end
-	carpetCollision = {}
+
 	const char = getChar()
 	const root = char and getRoot(char)
 	if root then
 		root.AssemblyLinearVelocity = Vector3.zero
 		root.AssemblyAngularVelocity = Vector3.zero
 	end
-	const hum = getHum(char)
-	if hum then hum.Sit = false hum.PlatformStand = false end
+
+	for part, canCollide in carpetCollisionState do
+		if part and part.Parent then
+			pcall(function()
+				part.CanCollide = NAStuff._ncClip == false and false or canCollide
+			end)
+		end
+	end
+	carpetCollisionState = {}
+
+	const humState = carpetHumanoidState
+	carpetHumanoidState = nil
+	const hum = humState and humState.humanoid or getHum(char)
+	if hum and hum.Parent then
+		pcall(function() hum.Sit = humState and humState.sit or false end)
+		pcall(function() hum.PlatformStand = humState and humState.platformStand or false end)
+		pcall(function()
+			if humState then
+				hum.AutoRotate = humState.autoRotate
+			else
+				hum.AutoRotate = true
+			end
+		end)
+		if humState and humState.r15 and humState.platformStand ~= true then
+			pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end)
+		end
+	end
 end
 
+NAmanage.RegisterUnloadCleanup("carpet_cleanup", function()
+	originalIO.stopCarpet()
+end, 60)
+
 cmd.add({"carpet"}, {"carpet <player>", "Be someone's carpet"}, function(username)
-	if not IsR6() then return DoNotif("This command requires the R6 rig type", 3) end
 	originalIO.stopCarpet()
 	const targets = username and username ~= "" and getPlr(username) or {}
 	if username and username ~= "" and #targets == 0 then return DoNotif("No targets found", 2) end
 	const targetPlayer = targets[1]
-	const targetRef = targetPlayer and NAmanage.NewPersistentPlayerRef(targetPlayer)
-	const targetChar = targetPlayer and targetPlayer.Character
+	const targetChar = targetPlayer and NAmanage.PlayerArgChar(targetPlayer)
 	const targetRoot = targetChar and getRoot(targetChar)
-	const targetHumanoid = targetChar and getHum(targetChar)
 	const character = getChar()
 	const humanoid = character and getHum(character)
 	const root = character and getRoot(character)
-	if not (targetRef and targetRoot and targetHumanoid and character and humanoid and root) then return end
+	if not (targetPlayer and targetChar and targetRoot and character and humanoid and root) then return end
 
-	for _, part in NAmanage.QueryDescendants(character, "BasePart") do
-		carpetCollision[part] = part.CanCollide
+	const isR15 = IsR15(Services.Players.LocalPlayer)
+	carpetHumanoidState = {
+		humanoid = humanoid;
+		sit = humanoid.Sit;
+		platformStand = humanoid.PlatformStand;
+		autoRotate = humanoid.AutoRotate;
+		r15 = isR15;
+	}
+
+	for _, part in character:QueryDescendants("BasePart") do
+		carpetCollisionState[part] = part.CanCollide
 		part.CanCollide = false
 	end
 
-	carpetAnim = InstanceNew("Animation")
-	carpetAnim.AnimationId = "rbxassetid://282574440"
-	carpetTrack = humanoid:LoadAnimation(carpetAnim)
-	carpetTrack:Play(0.1, 1, 1)
-	carpetDied = NAmanage.ConnectHumanoidDeath(humanoid, originalIO.stopCarpet)
+	NAlib.connect("carpet_noclip", Services.RunService.PreSimulation:Connect(function()
+		const currentChar = getChar()
+		if currentChar ~= character then
+			return originalIO.stopCarpet()
+		end
+		for _, part in currentChar:QueryDescendants("BasePart") do
+			if carpetCollisionState[part] == nil then
+				carpetCollisionState[part] = part.CanCollide
+			end
+			if part.CanCollide then part.CanCollide = false end
+		end
+	end))
+
+	if isR15 then
+		humanoid.Sit = false
+		humanoid.AutoRotate = false
+		humanoid.PlatformStand = true
+		pcall(function() humanoid:ChangeState(Enum.HumanoidStateType.Physics) end)
+	else
+		carpetAnim = InstanceNew("Animation")
+		carpetAnim.AnimationId = "rbxassetid://282574440"
+		carpetTrack = humanoid:LoadAnimation(carpetAnim)
+		carpetTrack:Play(0.1, 1, 1)
+	end
+
+	const targetRef = NAmanage.NewPersistentPlayerRef(targetPlayer)
+	const layRotation = isR15 and CFrame.Angles(math.pi * 0.5, 0, 0) or CFrame.new()
+	const function getFeetDistance(tgtChar, tgtRoot)
+		local lowest = nil
+		for _, name in {"LeftFoot", "RightFoot", "Left Leg", "Right Leg"} do
+			const foot = tgtChar:FindFirstChild(name)
+			if foot and foot:IsA("BasePart") then
+				const bottom = foot.Position.Y - (foot.Size.Y * 0.5)
+				lowest = lowest and math.min(lowest, bottom) or bottom
+			end
+		end
+		if lowest then
+			return math.max(1.5, tgtRoot.Position.Y - lowest)
+		end
+		const tgtHum = getHum(tgtChar)
+		return (tgtHum and tgtHum.HipHeight or 2) + (tgtRoot.Size.Y * 0.5)
+	end
 
 	carpetLoop = NAlib.reconnect("carpet_loop", Services.RunService.Heartbeat:Connect(function()
 		NACaller(function()
 			const target = NAmanage.ResolvePersistentPlayer(targetRef)
-			const tgtChar = target and target.Character
+			const tgtChar = target and NAmanage.PlayerArgChar(target)
 			const tgtRoot = tgtChar and getRoot(tgtChar)
-			const tgtHum = tgtChar and getHum(tgtChar)
 			const localChar = getChar()
 			const localRoot = localChar and getRoot(localChar)
-			if not (target and tgtChar and tgtRoot and tgtHum and localChar and localRoot) then
+			if not (tgtChar and tgtRoot and localChar == character and localRoot) then
 				return originalIO.stopCarpet()
 			end
 
-			const hrpHalf = ((NAlib.isProperty(tgtRoot, "Size") and tgtRoot.Size.Y) or 2) * 0.5
-			local feetFromRoot
-			if tgtHum.RigType == Enum.HumanoidRigType.R6 then
-				feetFromRoot = hrpHalf + 2
-				if tgtHum.HipHeight and tgtHum.HipHeight > 0 then
-					feetFromRoot = hrpHalf + tgtHum.HipHeight
-				end
-			else
-				feetFromRoot = hrpHalf + (tgtHum.HipHeight or 2)
-			end
-
-			const torso = localChar:FindFirstChild("Torso")
-			const carpetHalf = (((torso and torso.Size.Z) or 1) * 0.5) + 0.05
-			localRoot.CFrame = tgtRoot.CFrame * CFrame.new(0, -(feetFromRoot + carpetHalf), 0)
+			const feetDistance = getFeetDistance(tgtChar, tgtRoot)
+			const offset = CFrame.new(0, -(feetDistance + 0.65), 0) * layRotation
+			localRoot.CFrame = tgtRoot.CFrame * offset
 			localRoot.AssemblyLinearVelocity = Vector3.zero
 			localRoot.AssemblyAngularVelocity = Vector3.zero
+			if opt and type(opt.hiddenprop) == "function" then
+				pcall(opt.hiddenprop, localRoot, "PhysicsRepRootPart", tgtRoot)
+			end
 		end)
 	end))
+
+	carpetDied = NAmanage.ConnectHumanoidDeath(humanoid, originalIO.stopCarpet)
 end, true)
 
 cmd.add({"uncarpet", "nocarpet"}, {"uncarpet (nocarpet)", "Undoes carpet"}, function()
