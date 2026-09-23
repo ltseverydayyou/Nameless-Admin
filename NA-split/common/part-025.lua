@@ -4828,6 +4828,7 @@ SpawnCall(function()
 		NAmanage.connectVFlyKey()
 		NAmanage.connectCFlyKey()
 		NAmanage.connectTFlyKey()
+		NAmanage.connectTPFlyKey()
 		NAmanage.startWatcher()
 
 		SpawnCall(function()

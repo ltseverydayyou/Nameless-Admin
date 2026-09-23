@@ -4522,6 +4522,21 @@ cmd.add({"untfly","untweenfly"},{"untfly","Disables tween flying"},function()
 	NAmanage.deactivateMode("tfly")
 end)
 
+cmd.add({"tpfly","translatefly"},{"tpfly [speed] (translatefly)","Enable TranslateBy-based flight without forcing PlatformStand"},function(...)
+	const arg=(...) or nil
+	flyVariables.tpFlySpeed=math.max(0, tonumber(arg) or flyVariables.tpFlySpeed or 1)
+	NAmanage.connectTPFlyKey()
+	NAmanage.activateFlightModeFromCommand("tpfly")
+	if not IsOnMobile then
+		Wait()
+		DebugNotif("TPFly enabled. Press '"..string.upper(flyVariables.tpFlyToggleKey).."' to tpfly/untpfly.")
+	end
+end,true)
+
+cmd.add({"untpfly","untranslatefly"},{"untpfly","Disable TranslateBy-based flight"},function()
+	NAmanage.deactivateMode("tpfly")
+end)
+
 -- idk what i am doing lol (bored af :P)
 
 cmd.add({"noclip","nclip","nc"},{"noclip","Disable your player's collision"},function()

@@ -17,6 +17,7 @@ NAmanage._destroyMobileFlyUI=function()
 	if flyVariables.cFlyGUI then pcall(function() flyVariables.cFlyGUI:Destroy() end) flyVariables.cFlyGUI=nil end
 	if flyVariables.TFLYBTN then pcall(function() flyVariables.TFLYBTN:Destroy() end) flyVariables.TFLYBTN=nil end
 	if flyVariables.tflyButtonUI then pcall(function() flyVariables.tflyButtonUI:Destroy() end) flyVariables.tflyButtonUI=nil end
+	if flyVariables.tpFlyButtonUI then pcall(function() flyVariables.tpFlyButtonUI:Destroy() end) flyVariables.tpFlyButtonUI=nil end
 end
 
 NAmanage._ensureMobileFlyUI=function(mode)
@@ -104,6 +105,8 @@ NAmanage._ensureMobileFlyUI=function(mode)
 		mk("cfly",function() return FLYING and "UnCfly" or "CFly" end,function() NAmanage.toggleCFly() end,function() return flyVariables.cFlySpeed end,function(v) flyVariables.cFlySpeed=v flyVariables.flySpeed=v end,function(btn) flyVariables.cFlyGUI=btn end)
 	elseif mode=="tfly" then
 		mk("tfly",function() return FLYING and "UnTFly" or "TFly" end,function() NAmanage.toggleTFly() end,function() return flyVariables.TflySpeed end,function(v) flyVariables.TflySpeed=v end,function(btn) flyVariables.tflyButtonUI=btn flyVariables.TFLYBTN=btn end)
+	elseif mode=="tpfly" then
+		mk("tpfly",function() return FLYING and "UnTPFly" or "TPFly" end,function() NAmanage.toggleTPFly() end,function() return flyVariables.tpFlySpeed end,function(v) flyVariables.tpFlySpeed=v end,function(btn) flyVariables.tpFlyButtonUI=btn end)
 	end
 	if flyVariables.uiUpdateConn then pcall(function() flyVariables.uiUpdateConn:Disconnect() end) end
 	flyVariables.uiUpdateConn=NAlib.reconnect("fly_mobile_ui_update",Services.RunService.Heartbeat:Connect(function()
@@ -119,6 +122,9 @@ NAmanage._ensureMobileFlyUI=function(mode)
 		elseif mode=="tfly" and flyVariables.tflyButtonUI then
 			const b=flyVariables.tflyButtonUI
 			if b then b.Text=FLYING and "UnTFly" or "TFly" b.BackgroundColor3=FLYING and Color3.fromRGB(0,170,0) or Color3.fromRGB(30,30,30) end
+		elseif mode=="tpfly" and flyVariables.tpFlyButtonUI then
+			const b=flyVariables.tpFlyButtonUI
+			if b then b.Text=FLYING and "UnTPFly" or "TPFly" b.BackgroundColor3=FLYING and Color3.fromRGB(0,170,0) or Color3.fromRGB(30,30,30) end
 		end
 	end))
 end

@@ -2891,6 +2891,12 @@ flyVariables = {
 	tflyKeyConn = nil;
 	TflySpeed = 2;
 
+	tpFlyEnabled = false;
+	tpFlySpeed = 1;
+	tpFlyToggleKey = "y";
+	tpFlyKeyConn = nil;
+	tpFlyButtonUI = nil;
+
 	uiPosConns = {};
 }
 
@@ -2916,6 +2922,7 @@ NAmanage.SaveFlyKeybinds = function()
 		vfly = NAmanage.normalizeFlyBindKey(flyVariables.vToggleKey, "v");
 		cfly = NAmanage.normalizeFlyBindKey(flyVariables.cToggleKey, "c");
 		tfly = NAmanage.normalizeFlyBindKey(flyVariables.tflyToggleKey, "t");
+		tpfly = NAmanage.normalizeFlyBindKey(flyVariables.tpFlyToggleKey, "y");
 		flyUp = NAmanage.normalizeFlyBindKey(flyVariables.flyUpKey, "e");
 		flyDown = NAmanage.normalizeFlyBindKey(flyVariables.flyDownKey, "q");
 		freecamUp = NAmanage.normalizeFlyBindKey(flyVariables.freecamUpKey, "e");
@@ -2936,6 +2943,7 @@ NAmanage.LoadFlyKeybinds = function()
 	flyVariables.vToggleKey = NAmanage.normalizeFlyBindKey(flyVariables.vToggleKey, "v")
 	flyVariables.cToggleKey = NAmanage.normalizeFlyBindKey(flyVariables.cToggleKey, "c")
 	flyVariables.tflyToggleKey = NAmanage.normalizeFlyBindKey(flyVariables.tflyToggleKey, "t")
+	flyVariables.tpFlyToggleKey = NAmanage.normalizeFlyBindKey(flyVariables.tpFlyToggleKey, "y")
 	flyVariables.flyUpKey = NAmanage.normalizeFlyBindKey(flyVariables.flyUpKey, "e")
 	flyVariables.flyDownKey = NAmanage.normalizeFlyBindKey(flyVariables.flyDownKey, "q")
 	flyVariables.freecamUpKey = NAmanage.normalizeFlyBindKey(flyVariables.freecamUpKey, "e")
@@ -2963,6 +2971,7 @@ NAmanage.LoadFlyKeybinds = function()
 	flyVariables.vToggleKey = NAmanage.normalizeFlyBindKey(decoded.vfly, flyVariables.vToggleKey or "v")
 	flyVariables.cToggleKey = NAmanage.normalizeFlyBindKey(decoded.cfly, flyVariables.cToggleKey or "c")
 	flyVariables.tflyToggleKey = NAmanage.normalizeFlyBindKey(decoded.tfly, flyVariables.tflyToggleKey or "t")
+	flyVariables.tpFlyToggleKey = NAmanage.normalizeFlyBindKey(decoded.tpfly, flyVariables.tpFlyToggleKey or "y")
 	flyVariables.flyUpKey = NAmanage.normalizeFlyBindKey(decoded.flyUp, flyVariables.flyUpKey or "e")
 	flyVariables.flyDownKey = NAmanage.normalizeFlyBindKey(decoded.flyDown, flyVariables.flyDownKey or "q")
 	flyVariables.freecamUpKey = NAmanage.normalizeFlyBindKey(decoded.freecamUp, flyVariables.freecamUpKey or "e")
@@ -2999,6 +3008,7 @@ NAmanage._modeEnabled=function(m)
 	elseif m=="vfly" then return flyVariables.vFlyEnabled
 	elseif m=="cfly" then return flyVariables.cFlyEnabled
 	elseif m=="tfly" then return flyVariables.TFlyEnabled
+	elseif m=="tpfly" then return flyVariables.tpFlyEnabled
 	end
 	return false
 end
@@ -3017,11 +3027,17 @@ NAmanage._handleFlyVerticalKey=function(keyName, isDown)
 	if keyName == "" then
 		return false
 	end
+	local verticalSpeed = tonumber(flyVariables.flySpeed) or 1
+	if NAmanage._state.mode=="vfly" then
+		verticalSpeed = tonumber(flyVariables.vFlySpeed) or verticalSpeed
+	elseif NAmanage._state.mode=="tpfly" then
+		verticalSpeed = tonumber(flyVariables.tpFlySpeed) or verticalSpeed
+	end
 	if keyName == downKey then
-		CONTROL.Q=isDown and -((NAmanage._state.mode=="vfly" and tonumber(flyVariables.vFlySpeed) or tonumber(flyVariables.flySpeed) or 1)*2) or 0
+		CONTROL.Q=isDown and -(verticalSpeed*2) or 0
 		return true
 	elseif keyName == upKey then
-		CONTROL.E=isDown and ((NAmanage._state.mode=="vfly" and tonumber(flyVariables.vFlySpeed) or tonumber(flyVariables.flySpeed) or 1)*2) or 0
+		CONTROL.E=isDown and (verticalSpeed*2) or 0
 		return true
 	end
 	return false
@@ -3035,6 +3051,43 @@ NAmanage._bindQE=function()
 	flyVariables.qeUpConn=mouse.KeyUp:Connect(function(k)
 		NAmanage._handleFlyVerticalKey(k, false)
 	end)
+end
+
+NAmanage._flyKeyCodeMap = NAmanage._flyKeyCodeMap or nil
+NAmanage.GetFlyKeyCode = function(value)
+	local keyMap = NAmanage._flyKeyCodeMap
+	if type(keyMap) ~= "table" then
+		keyMap = {}
+		for _, item in Enum.KeyCode:GetEnumItems() do
+			keyMap[Lower(item.Name)] = item
+		end
+		NAmanage._flyKeyCodeMap = keyMap
+	end
+	return keyMap[Lower(tostring(value or ""))]
+end
+
+NAmanage.GetTPFlyVerticalDirection = function()
+	if NAmanage.isAnyNAInputActive and NAmanage.isAnyNAInputActive() then
+		return 0
+	end
+	local vertical = 0
+	const upKey = NAmanage.GetFlyKeyCode(flyVariables.flyUpKey or "e")
+	const downKey = NAmanage.GetFlyKeyCode(flyVariables.flyDownKey or "q")
+	if Services.UserInputService then
+		if upKey then
+			local ok, down = pcall(Services.UserInputService.IsKeyDown, Services.UserInputService, upKey)
+			if ok and down then vertical += 1 end
+		end
+		if downKey then
+			local ok, down = pcall(Services.UserInputService.IsKeyDown, Services.UserInputService, downKey)
+			if ok and down then vertical -= 1 end
+		end
+	end
+	if vertical == 0 then
+		if (CONTROL and tonumber(CONTROL.E) or 0) > 0 then vertical += 1 end
+		if (CONTROL and tonumber(CONTROL.Q) or 0) < 0 then vertical -= 1 end
+	end
+	return math.clamp(vertical, -1, 1)
 end
 
 NAmanage.IsFlyVelocityClampDisabled=function()
@@ -3057,6 +3110,8 @@ NAmanage._clearPhysics = function(full)
 	if CFloop then pcall(function() CFloop:Disconnect() end) end
 	CFloop = nil
 	NAlib.disconnect("fly_cfly_loop")
+	NAlib.disconnect("fly_tpfly_loop")
+	flyVariables._tpFlyLoop = false
 
 	if not full then
 		return
@@ -3107,6 +3162,8 @@ NAmanage._clearPhysics = function(full)
 end
 
 NAmanage._destroyFlyHelper = function()
+	NAlib.disconnect("fly_tpfly_loop")
+	flyVariables._tpFlyLoop = false
 	if flyVariables._goofyAC then
 		pcall(function() flyVariables._goofyAC:Disconnect() end)
 		flyVariables._goofyAC = nil
@@ -3465,6 +3522,9 @@ NAmanage.pauseCurrent = function()
 	elseif NAmanage._state.mode=="tfly" then
 		if flyVariables.TFpos then flyVariables.TFpos.maxForce=Vector3.new(0,0,0) end
 		if flyVariables.TFgyro then flyVariables.TFgyro.maxTorque=Vector3.new(0,0,0) end
+	elseif NAmanage._state.mode=="tpfly" then
+		if flyVariables.BV then flyVariables.BV.velocity=Vector3.zero flyVariables.BV.maxForce=Vector3.new(0,0,0) end
+		if flyVariables.BG then flyVariables.BG.maxTorque=Vector3.new(0,0,0) end
 	elseif NAmanage._state.mode=="fly" or NAmanage._state.mode=="vfly" then
 		if flyVariables.BV then flyVariables.BV.velocity=Vector3.zero flyVariables.BV.maxForce=Vector3.new(0,0,0) end
 		if flyVariables.BG then flyVariables.BG.maxTorque=Vector3.new(0,0,0) end
@@ -3505,6 +3565,9 @@ NAmanage.resumeCurrent=function()
 		if flyVariables.TFgyro and cam then flyVariables.TFgyro.cframe=cam.CFrame end
 		if flyVariables.TFpos then flyVariables.TFpos.maxForce=Vector3.new(math.huge,math.huge,math.huge) end
 		if flyVariables.TFgyro then flyVariables.TFgyro.maxTorque=Vector3.new(9e9,9e9,9e9) end
+	elseif NAmanage._state.mode=="tpfly" then
+		if flyVariables.BV then flyVariables.BV.velocity=Vector3.zero flyVariables.BV.maxForce=Vector3.new(9e9,9e9,9e9) end
+		if flyVariables.BG then flyVariables.BG.maxTorque=Vector3.new(0,9e9,0) end
 	elseif NAmanage._state.mode=="fly" then
 		if flyVariables.BV then flyVariables.BV.maxForce=Vector3.new(9e9,9e9,9e9) end
 		if flyVariables.BG then flyVariables.BG.maxTorque=Vector3.new(9e9,9e9,9e9) end
@@ -3529,6 +3592,7 @@ NAmanage._destroyMobileFlyUI=function()
 	if flyVariables.cFlyGUI then pcall(function() flyVariables.cFlyGUI:Destroy() end) flyVariables.cFlyGUI=nil end
 	if flyVariables.TFLYBTN then pcall(function() flyVariables.TFLYBTN:Destroy() end) flyVariables.TFLYBTN=nil end
 	if flyVariables.tflyButtonUI then pcall(function() flyVariables.tflyButtonUI:Destroy() end) flyVariables.tflyButtonUI=nil end
+	if flyVariables.tpFlyButtonUI then pcall(function() flyVariables.tpFlyButtonUI:Destroy() end) flyVariables.tpFlyButtonUI=nil end
 end
 
 NAmanage._ensureMobileFlyUI=function(mode)
@@ -3614,6 +3678,8 @@ NAmanage._ensureMobileFlyUI=function(mode)
 		mk("cfly",function() return FLYING and "UnCfly" or "CFly" end,function() NAmanage.toggleCFly() end,function() return flyVariables.cFlySpeed end,function(v) flyVariables.cFlySpeed=v flyVariables.flySpeed=v end,function(gui,btn) flyVariables.cFlyGUI=gui end)
 	elseif mode=="tfly" then
 		mk("tfly",function() return FLYING and "UnTFly" or "TFly" end,function() NAmanage.toggleTFly() end,function() return flyVariables.TflySpeed end,function(v) flyVariables.TflySpeed=v end,function(gui,btn) flyVariables.tflyButtonUI=gui flyVariables.TFLYBTN=btn end)
+	elseif mode=="tpfly" then
+		mk("tpfly",function() return FLYING and "UnTPFly" or "TPFly" end,function() NAmanage.toggleTPFly() end,function() return flyVariables.tpFlySpeed end,function(v) flyVariables.tpFlySpeed=v end,function(gui,btn) flyVariables.tpFlyButtonUI=gui end)
 	end
 	if flyVariables.uiUpdateConn then pcall(function() flyVariables.uiUpdateConn:Disconnect() end) end
 	flyVariables.uiUpdateConn=NAlib.reconnect("fly_mobile_ui_update", Services.RunService.Heartbeat:Connect(function()
@@ -3629,6 +3695,9 @@ NAmanage._ensureMobileFlyUI=function(mode)
 		elseif mode=="tfly" and flyVariables.tflyButtonUI then
 			const b=flyVariables.tflyButtonUI:FindFirstChildOfClass("TextButton")
 			if b then b.Text=FLYING and "UnTFly" or "TFly" b.BackgroundColor3=FLYING and Color3.fromRGB(0,170,0) or Color3.fromRGB(30,30,30) end
+		elseif mode=="tpfly" and flyVariables.tpFlyButtonUI then
+			const b=flyVariables.tpFlyButtonUI:FindFirstChildOfClass("TextButton")
+			if b then b.Text=FLYING and "UnTPFly" or "TPFly" b.BackgroundColor3=FLYING and Color3.fromRGB(0,170,0) or Color3.fromRGB(30,30,30) end
 		end
 	end))
 end
@@ -3651,11 +3720,12 @@ NAmanage.deactivateMode=function(m)
 	if m=="vfly" then flyVariables.vFlyEnabled=false end
 	if m=="cfly" then flyVariables.cFlyEnabled=false end
 	if m=="tfly" then flyVariables.TFlyEnabled=false end
+	if m=="tpfly" then flyVariables.tpFlyEnabled=false end
 	NAmanage.startWatcher()
 	NAmanage._destroyMobileFlyUI()
 end
 
-NAmanage.sFLY=function(vfly,cfly,tfly)
+NAmanage.sFLY=function(vfly,cfly,tfly,tpfly)
 	while not getChar() or not getRoot(getChar()) or not getHum() do Wait() end
 	CONTROL={Q=0,E=0}; lCONTROL={Q=0,E=0}; SPEED=0
 	const hum=getHum(); const head=getHead(getChar()); const root=getRoot(getChar())
@@ -3714,6 +3784,20 @@ NAmanage.sFLY=function(vfly,cfly,tfly)
 				flyVariables._tflyLoop=false
 			end)
 		end
+	elseif tpfly then
+		goofyFLY=goofyFLY or InstanceNew("Part",Services.Workspace)
+		NAmanage.configureFlyHelper(goofyFLY)
+		if not goofyFLY:FindFirstChildOfClass("Weld") then
+			const w=InstanceNew("Weld",goofyFLY) w.Part0=goofyFLY w.Part1=root w.C0=CFrame.new()
+		end
+		flyVariables.BG=flyVariables.BG or InstanceNew("BodyGyro",goofyFLY)
+		flyVariables.BG.P=9e4
+		flyVariables.BG.maxTorque=Vector3.new(0,9e9,0)
+		flyVariables.BV=flyVariables.BV or InstanceNew("BodyVelocity",goofyFLY)
+		flyVariables.BV.velocity=Vector3.zero
+		flyVariables.BV.maxForce=Vector3.new(9e9,9e9,9e9)
+		if CFloop then pcall(function() CFloop:Disconnect() end) end
+		CFloop=nil
 	elseif cfly then
 		goofyFLY=goofyFLY or InstanceNew("Part",Services.Workspace)
 		NAmanage.configureFlyHelper(goofyFLY)
@@ -3852,6 +3936,19 @@ NAmanage._ensureForces=function()
 			NAmanage._trackFlyAnchor(cflyTarget)
 			cflyTarget.Anchored=true
 		end
+	elseif NAmanage._state.mode=="tpfly" then
+		NAmanage._ensureWeldTarget()
+		if not flyVariables.BG or flyVariables.BG.Parent~=goofyFLY then
+			flyVariables.BG=InstanceNew("BodyGyro",goofyFLY)
+			flyVariables.BG.P=9e4
+		end
+		if not flyVariables.BV or flyVariables.BV.Parent~=goofyFLY then
+			flyVariables.BV=InstanceNew("BodyVelocity",goofyFLY)
+			flyVariables.BV.velocity=Vector3.zero
+		end
+		if cam then flyVariables.BG.cframe=cam.CFrame end
+		flyVariables.BG.maxTorque=FLYING and Vector3.new(0,9e9,0) or Vector3.new(0,0,0)
+		flyVariables.BV.maxForce=FLYING and Vector3.new(9e9,9e9,9e9) or Vector3.new(0,0,0)
 	else
 		NAmanage._ensureWeldTarget()
 		if not flyVariables.BG or flyVariables.BG.Parent~=goofyFLY then
@@ -3921,6 +4018,60 @@ NAmanage._ensureLoops=function()
 				NAmanage.ClearVelocityWalkSpeedClampState()
 				flyVariables._tflyLoop=false
 			end)
+		end
+	elseif NAmanage._state.mode=="tpfly" then
+		if not flyVariables._tpFlyLoop or not NAlib.isConnected("fly_tpfly_loop") then
+			flyVariables._tpFlyLoop=true
+			NAlib.reconnect("fly_tpfly_loop", Services.RunService.Heartbeat:Connect(function(deltaTime)
+				if NAmanage._state.mode~="tpfly" then
+					NAlib.disconnect("fly_tpfly_loop")
+					flyVariables._tpFlyLoop=false
+					return
+				end
+				if not FLYING then
+					if flyVariables.BV then pcall(function() flyVariables.BV.velocity=Vector3.zero end) end
+					return
+				end
+				const currentChar=getChar()
+				const currentHum=getHum(currentChar)
+				const currentRoot=currentChar and getRoot(currentChar)
+				if not (currentChar and currentHum and currentRoot) then
+					return
+				end
+				if not goofyFLY or not flyVariables.BG or not flyVariables.BV or goofyFLY.Parent==nil or flyVariables.BG.Parent~=goofyFLY or flyVariables.BV.Parent~=goofyFLY then
+					NAmanage._ensureForces()
+					return
+				end
+				const cam=NAmanage._camera()
+				if cam and flyVariables.BG then
+					pcall(function()
+						flyVariables.BG.cframe=cam.CFrame
+					end)
+				end
+				pcall(function()
+					flyVariables.BV.velocity=Vector3.zero
+				end)
+				local moveDirection=Vector3.zero
+				if cam then
+					moveDirection=NAmanage.GetCFlyMoveDirection(cam)
+				end
+				if typeof(moveDirection)~="Vector3" then
+					moveDirection=Vector3.zero
+				end
+				const vertical=NAmanage.GetTPFlyVerticalDirection()
+				const dt=math.clamp(tonumber(deltaTime) or (1/60), 0, 0.05)
+				const sp=math.max(0, tonumber(flyVariables.tpFlySpeed) or 1)
+				const frameScale=dt*60
+				local offset=moveDirection*(sp*frameScale)
+				if cam and vertical~=0 then
+					offset += cam.CFrame.UpVector*(vertical*sp*frameScale)
+				end
+				if offset.Magnitude>0 then
+					pcall(function()
+						currentChar:TranslateBy(offset)
+					end)
+				end
+			end))
 		end
 	elseif NAmanage._state.mode=="fly" or NAmanage._state.mode=="vfly" then
 		if not flyVariables._stdLoop then
@@ -4034,7 +4185,7 @@ NAmanage._ensureWeldTarget=function()
 end
 
 NAmanage.startWatcher=function()
-	const shouldWatch = flyVariables.flyEnabled or flyVariables.vFlyEnabled or flyVariables.cFlyEnabled or flyVariables.TFlyEnabled
+	const shouldWatch = flyVariables.flyEnabled or flyVariables.vFlyEnabled or flyVariables.cFlyEnabled or flyVariables.TFlyEnabled or flyVariables.tpFlyEnabled
 	if not shouldWatch then
 		if flyVariables._watchConn then
 			pcall(function() flyVariables._watchConn:Disconnect() end)
@@ -4053,7 +4204,7 @@ NAmanage.startWatcher=function()
 		return
 	end
 	flyVariables._watchConn=NAlib.reconnect("fly_watch", Services.RunService.Heartbeat:Connect(function()
-		const watching = flyVariables.flyEnabled or flyVariables.vFlyEnabled or flyVariables.cFlyEnabled or flyVariables.TFlyEnabled
+		const watching = flyVariables.flyEnabled or flyVariables.vFlyEnabled or flyVariables.cFlyEnabled or flyVariables.TFlyEnabled or flyVariables.tpFlyEnabled
 		if not watching then
 			if flyVariables._watchConn then
 				pcall(function() flyVariables._watchConn:Disconnect() end)
@@ -4069,6 +4220,7 @@ NAmanage.startWatcher=function()
 		local desired="none"
 		if flyVariables.cFlyEnabled then desired="cfly"
 		elseif flyVariables.TFlyEnabled then desired="tfly"
+		elseif flyVariables.tpFlyEnabled then desired="tpfly"
 		elseif flyVariables.vFlyEnabled then desired="vfly"
 		elseif flyVariables.flyEnabled then desired="fly" end
 		if NAmanage._state.mode=="none" and desired~="none" then
@@ -4201,6 +4353,7 @@ NAmanage._forceEnableFlags = function(mode)
 	flyVariables.vFlyEnabled=(mode=="vfly")
 	flyVariables.cFlyEnabled=(mode=="cfly")
 	flyVariables.TFlyEnabled=(mode=="tfly")
+	flyVariables.tpFlyEnabled=(mode=="tpfly")
 end
 
 NAmanage._applyMode = function(mode, resume)
@@ -4216,11 +4369,13 @@ NAmanage._applyMode = function(mode, resume)
 		end
 		NAmanage.sFLY(false,true,false)
 	elseif mode=="tfly" then
-		NAmanage.sFLY(false,false,true)
+		NAmanage.sFLY(false,false,true,false)
+	elseif mode=="tpfly" then
+		NAmanage.sFLY(false,false,false,true)
 	elseif mode=="vfly" then
-		NAmanage.sFLY(true,false,false)
+		NAmanage.sFLY(true,false,false,false)
 	else
-		NAmanage.sFLY(false,false,false)
+		NAmanage.sFLY(false,false,false,false)
 	end
 	if resume then
 		NAmanage.resumeCurrent()
@@ -4341,6 +4496,18 @@ NAmanage.toggleTFly=function()
 	end
 end
 
+NAmanage.toggleTPFly=function()
+	if not flyVariables.tpFlyEnabled then
+		NAmanage.activateMode("tpfly")
+	else
+		if NAmanage._state.mode~="tpfly" then
+			NAmanage.activateMode("tpfly")
+		else
+			if FLYING then NAmanage.pauseCurrent() else NAmanage.resumeCurrent() end
+		end
+	end
+end
+
 NAmanage._shouldIgnoreFlyKeyInput = function(input, gameProcessed)
 	if gameProcessed then
 		return true
@@ -4390,6 +4557,10 @@ end
 
 NAmanage.connectTFlyKey=function()
 	NAmanage._connectFlyToggleKey("tflyKeyConn", "tflyToggleKey", "tfly")
+end
+
+NAmanage.connectTPFlyKey=function()
+	NAmanage._connectFlyToggleKey("tpFlyKeyConn", "tpFlyToggleKey", "tpfly")
 end
 
 NAmanage.readAliasFile = function()

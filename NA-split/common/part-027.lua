@@ -13253,6 +13253,14 @@ if not IsOnMobile or NAmanage.CanUseCommandKeybinds() then
 			"Please provide a key."
 			))
 
+		NAgui.addKeybind("TPFly Keybind", string.upper(flyVariables.tpFlyToggleKey or "Y"), createFlyKeybindHandler(
+			"tpFlyToggleKey",
+			"tpFlyKeyConn",
+			NAmanage.connectTPFlyKey,
+			"TPFly keybind set to '%s'",
+			"Please provide a key."
+			))
+
 		NAgui.addSection("Fly / Freecam Vertical")
 		const function createStoredFlyKeyHandler(varField, successTemplate, afterSave)
 			return function(keyName)
