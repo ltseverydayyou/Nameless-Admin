@@ -3200,10 +3200,8 @@ NAlib.connect = function(name, conn)
 	end
 	Insert(bucket, conn)
 	NAStuff.prCnt = (tonumber(NAStuff.prCnt) or 0) + 1
-	if NAStuff.prCnt % 128 == 0 then
-		for key in conns do
-			NAmanage.prnCon(key)
-		end
+	if NAStuff.prCnt % 64 == 0 then
+		NAmanage.prnAllCon(24)
 	end
 	return conn
 end
@@ -5181,7 +5179,9 @@ NAmanage.RunAfterSettingsBuild = NAmanage.RunAfterSettingsBuild or function(dela
 		const deadline = os.clock() + 60
 		while os.clock() < deadline do
 			const state = NAgui and NAgui.SettingsBuildState
-			if type(state) ~= "table" or state.building ~= true then
+			const running = NAStuff and NAStuff.SettingsBuildRunning == true
+			const building = type(state) == "table" and state.building == true
+			if not running and not building then
 				break
 			end
 			Wait(0.1)

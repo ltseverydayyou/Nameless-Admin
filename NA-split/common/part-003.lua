@@ -5729,6 +5729,15 @@ NAmanage.StartProtectedInstanceWatcher = NAmanage.StartProtectedInstanceWatcher 
 							end
 						end)
 					end
+					if type(info.props) == "table" then
+						for prop, wanted in info.props do
+							pcall(function()
+								if inst[prop] ~= wanted then
+									inst[prop] = wanted
+								end
+							end)
+						end
+					end
 				end
 			end
 			Wait(any and 1.25 or 4)
@@ -5756,12 +5765,13 @@ NAmanage.ProtectInstance = NAmanage.ProtectInstance or function(inst, opts)
 			NAmanage.RandomizeInstanceName(desc)
 		end
 	end
-	if opts.register ~= false and (opts.enforceName == true or opts.enforceParent == true) then
+	if opts.register ~= false and (opts.enforceName == true or opts.enforceParent == true or type(opts.props) == "table") then
 		NAmanage.ProtectedInstances[inst] = {
 			enforceName = opts.enforceName == true and type(protectedName) == "string",
 			name = protectedName,
 			enforceParent = opts.enforceParent == true,
 			parent = opts.parent,
+			props = type(opts.props) == "table" and opts.props or nil,
 		}
 		NAmanage.StartProtectedInstanceWatcher()
 	end
@@ -5836,6 +5846,10 @@ NAgui.NaProtectUI=function(gui)
 		props.ResetOnSpawn   = nil
 		props.IgnoreGuiInset = nil
 	end
+	local protectionInfo = NAmanage.ProtectedInstances and NAmanage.ProtectedInstances[gui]
+	if type(protectionInfo) == "table" then
+		protectionInfo.props = props
+	end
 	for prop, val in props do
 		if val ~= nil then
 			gui:GetPropertyChangedSignal(prop):Connect(function()
@@ -5848,16 +5862,6 @@ NAgui.NaProtectUI=function(gui)
 	gui.AncestryChanged:Connect(function(_, newParent)
 		if gui.Parent ~= target then
 			pcall(function() gui.Parent = target end)
-		end
-	end)
-	Spawn(function()
-		while gui and gui.Parent do
-			Wait(0.75)
-			for prop, val in props do
-				if val ~= nil and gui[prop] ~= val then
-					pcall(function() gui[prop] = val end)
-				end
-			end
 		end
 	end)
 	return gui

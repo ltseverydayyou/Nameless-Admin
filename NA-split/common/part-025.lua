@@ -5002,6 +5002,7 @@ do
 		local nextCanvasAt = 0
 		local nextMemAt = 0
 		local nextPrefixAt = 0
+		local maintenancePhase = 0
 		while watcher.Connected and NAStuff and NAStuff._mainLoopToken == mainLoopToken do
 			const now = os.clock()
 			const uiVisible = NAStuff and NAStuff.NASCREENGUI and NAStuff.NASCREENGUI.Parent and NAStuff.NASCREENGUI.Enabled ~= false
@@ -5017,42 +5018,36 @@ do
 			end
 
 			if now >= nextMemAt then
-				nextMemAt = now + 10
-				if NAgui and type(NAgui.pruneRegisteredStrokes) == "function" then
-					pcall(NAgui.pruneRegisteredStrokes, false)
-				end
-				if NAmanage and type(NAmanage.prnAllCon) == "function" then
-					const connMap = NAStuff and NAStuff.conns
-					const connKeyCount = type(NAmanage.countMapKeys) == "function" and NAmanage.countMapKeys(connMap, 2048) or 0
-					local pruneBudget
-					if connKeyCount >= 1024 then
-						pruneBudget = nil
-					elseif connKeyCount >= 512 then
-						pruneBudget = 512
-					elseif connKeyCount >= 256 then
-						pruneBudget = 256
-					else
-						pruneBudget = 128
+				nextMemAt = now + 2.5
+				maintenancePhase = (maintenancePhase % 4) + 1
+				if maintenancePhase == 1 then
+					if NAgui and type(NAgui.pruneRegisteredStrokes) == "function" then
+						pcall(NAgui.pruneRegisteredStrokes, false)
 					end
-					pcall(NAmanage.prnAllCon, pruneBudget)
-				end
-				if NAmanage and type(NAmanage.wsReleaseCacheIfIdle) == "function" then
-					pcall(NAmanage.wsReleaseCacheIfIdle)
-				end
-				if NAmanage and type(NAmanage.pruneBlockedRemoteState) == "function" then
-					pcall(NAmanage.pruneBlockedRemoteState)
-				end
-				if NAmanage and type(NAmanage.pruneRuntimeInstanceState) == "function" then
-					pcall(NAmanage.pruneRuntimeInstanceState)
-				end
-				if NAAssetsLoading and type(NAAssetsLoading._trimRemoteStatus) == "function" then
-					pcall(NAAssetsLoading._trimRemoteStatus)
-				end
-				if NAAssetsLoading and type(NAAssetsLoading._trimKnownRemotes) == "function" then
-					pcall(NAAssetsLoading._trimKnownRemotes)
-				end
-				if NAAssetsLoading and type(NAAssetsLoading._trimPrefetchedRemoteCache) == "function" then
-					pcall(NAAssetsLoading._trimPrefetchedRemoteCache)
+					if NAmanage and type(NAmanage.prnAllCon) == "function" then
+						pcall(NAmanage.prnAllCon, 128)
+					end
+				elseif maintenancePhase == 2 then
+					if NAmanage and type(NAmanage.wsReleaseCacheIfIdle) == "function" then
+						pcall(NAmanage.wsReleaseCacheIfIdle)
+					end
+					if NAmanage and type(NAmanage.pruneBlockedRemoteState) == "function" then
+						pcall(NAmanage.pruneBlockedRemoteState)
+					end
+				elseif maintenancePhase == 3 then
+					if NAmanage and type(NAmanage.pruneRuntimeInstanceState) == "function" then
+						pcall(NAmanage.pruneRuntimeInstanceState)
+					end
+				else
+					if NAAssetsLoading and type(NAAssetsLoading._trimRemoteStatus) == "function" then
+						pcall(NAAssetsLoading._trimRemoteStatus)
+					end
+					if NAAssetsLoading and type(NAAssetsLoading._trimKnownRemotes) == "function" then
+						pcall(NAAssetsLoading._trimKnownRemotes)
+					end
+					if NAAssetsLoading and type(NAAssetsLoading._trimPrefetchedRemoteCache) == "function" then
+						pcall(NAAssetsLoading._trimPrefetchedRemoteCache)
+					end
 				end
 			end
 

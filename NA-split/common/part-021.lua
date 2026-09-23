@@ -2970,8 +2970,8 @@ end
 NAgui.SettingsBuildState = NAgui.SettingsBuildState or {
 	count = 0;
 	lastYield = 0;
-	batch = 10;
-	budget = 0.012;
+	batch = 12;
+	budget = 0.004;
 	building = false;
 	background = false;
 	userInteracted = false;
@@ -2987,6 +2987,22 @@ NAgui.SettingsBuildStep = NAgui.SettingsBuildStep or function()
 	state.building = true
 	while NAmanage and type(NAmanage.IsSettingsBuildTeleportPaused) == "function" and NAmanage.IsSettingsBuildTeleportPaused() do
 		Wait(0.1)
+	end
+
+	const now = os.clock()
+	local lastYield = tonumber(state.lastYield) or 0
+	if lastYield <= 0 then
+		state.lastYield = now
+		lastYield = now
+	end
+	const userActive = state.userInteracted == true
+	const batch = math.max(4, math.floor(tonumber(state.batch) or 12))
+	const budget = math.max(0.0015, tonumber(state.budget) or 0.004)
+	const activeBatch = userActive and math.max(4, math.floor(batch * 0.5)) or batch
+	const activeBudget = userActive and math.min(budget, 0.0025) or budget
+	if state.count % activeBatch == 0 or (now - lastYield) >= activeBudget then
+		Wait()
+		state.lastYield = os.clock()
 	end
 end
 

@@ -1811,6 +1811,36 @@ originalIO.runNACHAT=function()
 		local renderedConversation = "public"
 		local messageEntriesById = {}
 		local rainbowLabels = setmetatable({}, {__mode = "k"})
+		local function ensureRainbowLoop()
+			if NAlib.isConnected("NAChatRainbowMessages") then
+				return
+			end
+			local lastRainbowUpdate = 0
+			NAlib.connect("NAChatRainbowMessages", RunService.Heartbeat:Connect(function()
+				local t = tick()
+				if (t - lastRainbowUpdate) < 0.05 then
+					return
+				end
+				lastRainbowUpdate = t
+				local color = Color3.fromRGB(
+					math.sin(t * 0.5) * 127 + 128,
+					math.sin(t * 0.5 + 2 * math.pi / 3) * 127 + 128,
+					math.sin(t * 0.5 + 4 * math.pi / 3) * 127 + 128
+				)
+				local active = false
+				for lbl in rainbowLabels do
+					if lbl and lbl.Parent then
+						active = true
+						lbl.TextColor3 = color
+					else
+						rainbowLabels[lbl] = nil
+					end
+				end
+				if not active then
+					NAlib.disconnect("NAChatRainbowMessages")
+				end
+			end))
+		end
 		local messageContextMenu = nil
 		local messageMenuOutsideConn = nil
 		local composeReplyEntry = nil
@@ -2153,6 +2183,7 @@ originalIO.runNACHAT=function()
 			if entry.rainbow then
 				NAmanage.NAChat_ClearGradient(messageLabel)
 				rainbowLabels[messageLabel] = true
+				ensureRainbowLoop()
 				messageLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 			else
 				rainbowLabels[messageLabel] = nil
@@ -2946,28 +2977,6 @@ originalIO.runNACHAT=function()
 		end
 
 		NAlib.disconnect("NAChatRainbowMessages")
-		if RunService and RunService.Heartbeat then
-			local lastRainbowUpdate = 0
-			NAlib.connect("NAChatRainbowMessages", RunService.Heartbeat:Connect(function()
-				local t = tick()
-				if (t - lastRainbowUpdate) < 0.05 then
-					return
-				end
-				lastRainbowUpdate = t
-				local color = Color3.fromRGB(
-					math.sin(t * 0.5) * 127 + 128,
-					math.sin(t * 0.5 + 2 * math.pi / 3) * 127 + 128,
-					math.sin(t * 0.5 + 4 * math.pi / 3) * 127 + 128
-				)
-				for lbl in rainbowLabels do
-					if lbl and lbl.Parent then
-						lbl.TextColor3 = color
-					else
-						rainbowLabels[lbl] = nil
-					end
-				end
-			end))
-		end
 
 		local function syncGroupHistory(group)
 			if type(group) ~= "table" or not group.id then
@@ -5793,8 +5802,6 @@ originalIO.runNACHAT=function()
 				if svc and svc.Disconnect then
 					pcall(svc.Disconnect)
 				end
-				NAChat.service = nil
-				NAChat.wired = false
 				NAChat.connecting = false
 				NAChat.serverIsAdmin = false
 				permanentFailureReason = nil

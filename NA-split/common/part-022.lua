@@ -3546,14 +3546,29 @@ NAmanage.queueCommandDataBuild = NAmanage.queueCommandDataBuild or function(opts
 		return false
 	end
 	if NAStuff.cmdAutofillLoading == true or NAStuff.CommandBuildWorkerQueued == true then
-		NAStuff.cmdAutofillLoadRequested = true
+		if opts.startup ~= true then
+			NAStuff.cmdAutofillLoadRequested = true
+		end
 		return false
 	end
 	NAStuff.CommandBuildWorkerQueued = true
+	if opts.startup == true then
+		Spawn(function()
+			Wait(0.08)
+			local ok, err = pcall(NAgui.loadCMDS, {
+				force = opts.force,
+				signature = signature,
+			})
+			NAStuff.CommandBuildWorkerQueued = false
+			if not ok then
+				warn("[NA] Command rebuild failed:", err)
+			end
+		end)
+		return true
+	end
 	local ok, err = pcall(NAgui.loadCMDS, {
 		force = opts.force,
 		signature = signature,
-		background = false,
 	})
 	NAStuff.CommandBuildWorkerQueued = false
 	if not ok then

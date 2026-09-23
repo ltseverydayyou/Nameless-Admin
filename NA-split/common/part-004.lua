@@ -2462,7 +2462,8 @@ NAmanage.FinishStartupPerformance = NAmanage.FinishStartupPerformance or functio
 	end
 	perf.finished = true
 	perf.finishedStatus = tostring(statusText or "ready")
-	perf.elapsed = os.clock() - (tonumber(perf.started) or os.clock())
+	perf.totalElapsed = os.clock() - (tonumber(perf.started) or os.clock())
+	perf.elapsed = tonumber(perf.readyElapsed) or perf.totalElapsed
 	perf.uiSourceInstances = tonumber(NAStuff.UIFrameBudgetReplacementCount) or 0
 	pcall(function()
 		const probe = NAmanage.GetExternalLagProbe and NAmanage.GetExternalLagProbe()
@@ -2492,6 +2493,7 @@ NAmanage.completeStartupLoading = NAmanage.completeStartupLoading or function(st
 	const settingsStillBuilding = NAStuff.SettingsBuildRunning == true or (type(st) == "table" and st.building == true)
 	if type(perf) == "table" then
 		perf.readyElapsed = os.clock() - (tonumber(perf.started) or os.clock())
+		perf.elapsed = perf.readyElapsed
 		perf.readyBeforeSettings = settingsStillBuilding == true
 		perf.uiSourceInstances = tonumber(NAStuff.UIFrameBudgetReplacementCount) or 0
 	end
@@ -2506,7 +2508,7 @@ NAmanage.completeStartupLoading = NAmanage.completeStartupLoading or function(st
 				NAAssetsLoading.setStatus("warming command list and autofill")
 			end
 			if type(NAmanage.queueCommandDataBuild) == "function" then
-				pcall(NAmanage.queueCommandDataBuild, { force = true })
+				pcall(NAmanage.queueCommandDataBuild, { force = true; startup = true; })
 			elseif type(NAgui.loadCMDS) == "function" then
 				pcall(NAgui.loadCMDS, { force = true })
 			end

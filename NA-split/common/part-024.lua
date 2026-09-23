@@ -2467,10 +2467,237 @@ NAmanage.SubplaceViewer_ClearTeleportGui = function(gui)
 	end
 end
 
+NAmanage.TeleportGui_GetViewportSize = function(gui)
+	local viewport = Vector2.new(1280, 720)
+	const camera = Services.Workspace and Services.Workspace.CurrentCamera
+	if camera then
+		local ok, size = pcall(function() return camera.ViewportSize end)
+		if ok and typeof(size) == "Vector2" and size.X > 0 and size.Y > 0 then
+			viewport = size
+		end
+	end
+	const root = gui and gui:FindFirstChild("Root")
+	if root and root.AbsoluteSize.X > 0 and root.AbsoluteSize.Y > 0 then
+		viewport = root.AbsoluteSize
+	end
+	return viewport
+end
+
+NAmanage.TeleportGui_ApplyResponsiveLayout = function(gui)
+	if not gui then return false end
+	const root = gui:FindFirstChild("Root")
+	if not root then return false end
+	const foreground = root:FindFirstChild("Foreground")
+	if not foreground then return false end
+	const topBrand = foreground:FindFirstChild("TopBrand")
+	const content = foreground:FindFirstChild("Content")
+	const progressTrack = foreground:FindFirstChild("ProgressTrack")
+	const progressCaption = foreground:FindFirstChild("ProgressCaption")
+	const placeTag = foreground:FindFirstChild("PlaceTag")
+	const topEdge = root:FindFirstChild("TopEdge")
+	const innerFrame = root:FindFirstChild("InnerFrame")
+	if not (topBrand and content) then return false end
+
+	const viewport = NAmanage.TeleportGui_GetViewportSize(gui)
+	const width = math.max(240, tonumber(viewport.X) or 1280)
+	const height = math.max(240, tonumber(viewport.Y) or 720)
+	const compact = width < 760 or height < 500
+	const tiny = width < 480 or height < 360
+	const portrait = height > width
+	local insetTop = 0
+	local insetBottom = 0
+	local insetLeft = 0
+	local insetRight = 0
+	if Services.GuiService and Services.GuiService.GetGuiInset then
+		local okInset, topLeftInset, bottomRightInset = pcall(Services.GuiService.GetGuiInset, Services.GuiService)
+		if okInset and typeof(topLeftInset) == "Vector2" then
+			insetTop = math.max(0, tonumber(topLeftInset.Y) or 0)
+			insetLeft = math.max(0, tonumber(topLeftInset.X) or 0)
+		end
+		if okInset and typeof(bottomRightInset) == "Vector2" then
+			insetBottom = math.max(0, tonumber(bottomRightInset.Y) or 0)
+			insetRight = math.max(0, tonumber(bottomRightInset.X) or 0)
+		end
+	end
+
+	const baseSidePad = tiny and 12 or (compact and 18 or math.clamp(math.floor(width * 0.04), 32, 52))
+	const sidePad = math.max(baseSidePad, insetLeft + 8, insetRight + 8)
+	const topPad = math.max(tiny and 48 or (compact and 62 or 88), insetTop + (tiny and 10 or (compact and 14 or 24)))
+	const bottomPad = math.max(tiny and 40 or (compact and 52 or 64), insetBottom + (tiny and 16 or 22))
+	const outerPad = tiny and 8 or (compact and 10 or 18)
+	const cardHeight = tiny and 126 or (compact and 148 or 170)
+	const innerPad = tiny and 12 or (compact and 14 or 18)
+	local iconSize = tiny and 86 or (compact and 108 or 128)
+	iconSize = math.min(iconSize, cardHeight - (tiny and 24 or 28))
+	const iconGap = tiny and 10 or (compact and 12 or 18)
+
+	if innerFrame then
+		innerFrame.Position = UDim2.fromOffset(outerPad, outerPad)
+		innerFrame.Size = UDim2.new(1, -(outerPad * 2), 1, -(outerPad * 2))
+	end
+	if topEdge then
+		topEdge.Position = UDim2.new(0, sidePad, 0, outerPad)
+		topEdge.Size = UDim2.fromOffset(tiny and 58 or (compact and 76 or 112), 2)
+	end
+
+	local logoHolder = topBrand:FindFirstChild("LogoHolder")
+	local brand = topBrand:FindFirstChild("Brand")
+	local subBrand = topBrand:FindFirstChild("SubBrand")
+	const logoSize = tiny and 34 or (compact and 38 or 42)
+	const brandGap = tiny and 10 or 14
+	const brandOffset = logoSize + brandGap
+	topBrand.Position = UDim2.new(0, sidePad, 0, topPad)
+	topBrand.Size = UDim2.new(1, -(sidePad * 2), 0, logoSize)
+	topBrand:SetAttribute("FinalX", sidePad)
+	topBrand:SetAttribute("FinalY", topPad)
+	if logoHolder then
+		logoHolder.Size = UDim2.fromOffset(logoSize, logoSize)
+	end
+	if brand then
+		brand.Position = UDim2.new(0, brandOffset, 0, tiny and 0 or 1)
+		brand.Size = UDim2.new(1, -brandOffset, 0, tiny and 18 or 22)
+		brand.TextSize = tiny and 12 or (compact and 14 or 15)
+	end
+	if subBrand then
+		subBrand.Position = UDim2.new(0, brandOffset, 0, tiny and 19 or 25)
+		subBrand.Size = UDim2.new(1, -brandOffset, 0, 14)
+		subBrand.TextSize = tiny and 7 or 8
+	end
+
+	content.Position = UDim2.new(0, sidePad, 1, -bottomPad)
+	if compact or portrait then
+		content.Size = UDim2.new(1, -(sidePad * 2), 0, cardHeight)
+	else
+		content.Size = UDim2.new(0.62, 0, 0, cardHeight)
+	end
+	content:SetAttribute("FinalX", sidePad)
+	content:SetAttribute("FinalY", -bottomPad)
+	local contentSize = content:FindFirstChildOfClass("UISizeConstraint")
+	if contentSize then
+		contentSize.MinSize = Vector2.new(math.min(220, math.max(180, width - sidePad * 2)), cardHeight)
+		contentSize.MaxSize = Vector2.new(math.max(220, math.min(760, width - sidePad * 2)), cardHeight)
+	end
+
+	const accent = content:FindFirstChild("Accent")
+	const statusPill = content:FindFirstChild("StatusPill")
+	const destinationIcon = content:FindFirstChild("DestinationIcon")
+	const destination = content:FindFirstChild("Destination")
+	const info = content:FindFirstChild("Info")
+	const footer = content:FindFirstChild("Footer")
+	if accent then
+		accent.Position = UDim2.fromOffset(0, innerPad)
+		accent.Size = UDim2.new(0, 2, 1, -(innerPad * 2))
+	end
+	if statusPill then
+		statusPill.Position = UDim2.fromOffset(innerPad, tiny and 11 or (compact and 13 or 17))
+		statusPill.Size = UDim2.fromOffset(tiny and 124 or (compact and 145 or 164), tiny and 22 or 24)
+	end
+	if destinationIcon then
+		destinationIcon.AnchorPoint = Vector2.new(1, 0.5)
+		destinationIcon.Position = UDim2.new(1, -innerPad, 0.5, 0)
+		destinationIcon.Size = UDim2.fromOffset(iconSize, iconSize)
+		local aspect = destinationIcon:FindFirstChild("SquareAspect")
+		if not aspect then
+			aspect = Instance.new("UIAspectRatioConstraint")
+			aspect.Name = "SquareAspect"
+			aspect.AspectRatio = 1
+			aspect.DominantAxis = Enum.DominantAxis.Width
+			aspect.Parent = destinationIcon
+		end
+	end
+
+	const rightInset = innerPad + iconSize + iconGap
+	if destination then
+		destination.Position = UDim2.new(0, innerPad, 0, tiny and 39 or (compact and 46 or 52))
+		destination.Size = UDim2.new(1, -(rightInset + innerPad), 0, tiny and 30 or (compact and 34 or 42))
+		destination.TextSize = tiny and 21 or (compact and 25 or 34)
+	end
+	if info then
+		info.Position = UDim2.new(0, innerPad + 1, 0, tiny and 73 or (compact and 84 or 98))
+		info.Size = UDim2.new(1, -(rightInset + innerPad + 1), 0, tiny and 16 or 18)
+		info.TextSize = tiny and 9 or (compact and 10 or 11)
+	end
+	if footer then
+		footer.Position = UDim2.new(0, innerPad + 1, 0, tiny and 99 or (compact and 111 or 130))
+		footer.Size = UDim2.new(1, -(rightInset + innerPad + 1), 0, 17)
+		footer.TextSize = tiny and 8 or 9
+	end
+
+	if progressTrack then
+		progressTrack.Position = UDim2.new(0, sidePad, 1, -(tiny and 19 or 27))
+		progressTrack.Size = UDim2.new(1, -(sidePad * 2), 0, 1)
+	end
+	if progressCaption then
+		progressCaption.Position = UDim2.new(0, sidePad, 1, -(tiny and 37 or 48))
+		progressCaption.Size = UDim2.fromOffset(tiny and 120 or 180, 14)
+		progressCaption.TextSize = tiny and 6 or 7
+	end
+	if placeTag then
+		placeTag.Position = UDim2.new(1, -sidePad, 1, -(tiny and 37 or 48))
+		placeTag.Size = UDim2.fromOffset(math.min(220, math.max(120, width * 0.42)), 14)
+		placeTag.TextSize = tiny and 6 or 7
+		placeTag.Visible = width >= 420
+	end
+	local rightTag = foreground:FindFirstChild("RightTag")
+	if rightTag then
+		rightTag.Position = UDim2.new(1, -sidePad, 0, topPad + 12)
+		rightTag.Visible = rightTag.Text ~= "" and not compact
+	end
+	return true
+end
+
+NAmanage._teleportGuiLayoutConns = NAmanage._teleportGuiLayoutConns or setmetatable({}, { __mode = "k" })
+NAmanage.TeleportGui_BindResponsiveLayout = function(gui)
+	if not gui then return false end
+	const root = gui:FindFirstChild("Root")
+	if not root then return false end
+	local old = NAmanage._teleportGuiLayoutConns[gui]
+	if type(old) == "table" then
+		for _, connection in old do
+			pcall(function() connection:Disconnect() end)
+		end
+	elseif old then
+		pcall(function() old:Disconnect() end)
+	end
+	NAmanage.TeleportGui_ApplyResponsiveLayout(gui)
+	local queued = false
+	local sizeConn
+	local destroyConn
+	const function cleanup()
+		if sizeConn then
+			pcall(function() sizeConn:Disconnect() end)
+			sizeConn = nil
+		end
+		if destroyConn then
+			pcall(function() destroyConn:Disconnect() end)
+			destroyConn = nil
+		end
+		NAmanage._teleportGuiLayoutConns[gui] = nil
+	end
+	sizeConn = root:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+		if queued then return end
+		queued = true
+		Defer(function()
+			queued = false
+			if gui and gui.Parent then
+				NAmanage.TeleportGui_ApplyResponsiveLayout(gui)
+			else
+				cleanup()
+			end
+		end)
+	end)
+	if gui.Destroying then
+		destroyConn = gui.Destroying:Connect(cleanup)
+	end
+	NAmanage._teleportGuiLayoutConns[gui] = { sizeConn, destroyConn }
+	return true
+end
+
 NAmanage.TeleportGui_ApplyStaticState = function(gui)
 	if not gui then return false end
 	const root = gui:FindFirstChild("Root")
 	if not root then return false end
+	pcall(NAmanage.TeleportGui_ApplyResponsiveLayout, gui)
 	const backdrop = root:FindFirstChild("Backdrop")
 	const innerFrame = root:FindFirstChild("InnerFrame")
 	const innerFrameStroke = innerFrame and innerFrame:FindFirstChildOfClass("UIStroke")
@@ -2872,7 +3099,7 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 	ui.destinationIcon.Name = "DestinationIcon"
 	ui.destinationIcon.AnchorPoint = Vector2.new(1, 0.5)
 	ui.destinationIcon.Position = UDim2.new(1, mobile and -14 or -18, 0.5, 0)
-	ui.destinationIcon.Size = UDim2.fromOffset(mobile and 82 or 128, mobile and 116 or 134)
+	ui.destinationIcon.Size = UDim2.fromOffset(mobile and 108 or 128, mobile and 108 or 128)
 	ui.destinationIcon.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 	ui.destinationIcon.BackgroundTransparency = 0.06
 	ui.destinationIcon.BorderSizePixel = 0
@@ -2992,6 +3219,8 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 	ui.placeTag.ZIndex = 13
 	ui.placeTag.Parent = ui.foreground
 
+	pcall(NAmanage.TeleportGui_ApplyResponsiveLayout, ui.gui)
+
 	if prearm then
 		pcall(function() ui.gui:SetAttribute("NAGameTeleportPrearmed", true) end)
 		NAmanage.TeleportGui_ApplyStaticState(ui.gui)
@@ -3007,6 +3236,7 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 	if playerGui then
 		ui.gui.Parent = playerGui
 	end
+	pcall(NAmanage.TeleportGui_BindResponsiveLayout, ui.gui)
 
 	ui.handoffGui = ui.gui:Clone()
 	ui.handoffGui.Name = "NATeleportGui"
@@ -3020,6 +3250,13 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 	state.teleportGuiToken += 1
 	const token = state.teleportGuiToken
 
+	const finalTopX = tonumber(ui.topBrand:GetAttribute("FinalX")) or sidePad
+	const finalTopY = tonumber(ui.topBrand:GetAttribute("FinalY")) or topPad
+	const finalContentX = tonumber(ui.content:GetAttribute("FinalX")) or sidePad
+	const finalContentY = tonumber(ui.content:GetAttribute("FinalY")) or -bottomPad
+	ui.topBrand.Position = UDim2.new(0, finalTopX, 0, finalTopY - 10)
+	ui.content.Position = UDim2.new(0, finalContentX, 1, finalContentY + 12)
+
 	pcall(function()
 		Services.TweenService:Create(ui.backdrop, TweenInfo.new(0.78, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
 			Position = UDim2.fromScale(0.5, 0.5);
@@ -3027,8 +3264,8 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 			ImageTransparency = 0.22;
 		}):Play()
 		Services.TweenService:Create(ui.innerFrameStroke, TweenInfo.new(0.65, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Transparency = 0.78 }):Play()
-		Services.TweenService:Create(ui.topBrand, TweenInfo.new(0.48, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), { Position = UDim2.new(0, sidePad, 0, topPad) }):Play()
-		Services.TweenService:Create(ui.content, TweenInfo.new(0.56, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), { Position = UDim2.new(0, sidePad, 1, -bottomPad); BackgroundTransparency = 0.16 }):Play()
+		Services.TweenService:Create(ui.topBrand, TweenInfo.new(0.48, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), { Position = UDim2.new(0, finalTopX, 0, finalTopY) }):Play()
+		Services.TweenService:Create(ui.content, TweenInfo.new(0.56, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), { Position = UDim2.new(0, finalContentX, 1, finalContentY); BackgroundTransparency = 0.16 }):Play()
 		Services.TweenService:Create(ui.contentStroke, TweenInfo.new(0.58, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Transparency = 0.56 }):Play()
 		Services.TweenService:Create(ui.accent, TweenInfo.new(0.46, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 0 }):Play()
 		Services.TweenService:Create(ui.logo, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { ImageTransparency = 0 }):Play()
@@ -3143,6 +3380,7 @@ NAmanage.SubplaceViewer_HandleArrivingTeleportGui = function()
 		pcall(function() gui.Parent = playerGui end)
 	end
 	NAmanage.TeleportGui_ApplyStaticState(gui)
+	pcall(NAmanage.TeleportGui_BindResponsiveLayout, gui)
 	const root = gui:FindFirstChild("Root")
 	const backdrop = root and root:FindFirstChild("Backdrop")
 	const wash = root and root:FindFirstChild("Wash")

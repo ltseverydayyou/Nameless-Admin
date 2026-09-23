@@ -95,7 +95,7 @@ cmd.add({"seat"}, {"seat", "Finds a seat and automatically sits on it"}, functio
 	end
 
 	const seats = {}
-	for _, v in NAmanage.QueryDescendants(game, "Seat") do
+	for _, v in NAmanage.QueryDescendants(Services.Workspace, "Seat") do
 		if not v.Occupant then
 			Insert(seats, v)
 		end
@@ -130,7 +130,7 @@ cmd.add({"vehicleseat", "vseat"}, {"vehicleseat (vseat)", "Sits you in a vehicle
 	end
 
 	const vehicleSeats = {}
-	for _, v in NAmanage.QueryDescendants(game, "VehicleSeat") do
+	for _, v in NAmanage.QueryDescendants(Services.Workspace, "VehicleSeat") do
 		if not v.Occupant then
 			Insert(vehicleSeats, v)
 		end

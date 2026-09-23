@@ -5392,8 +5392,34 @@ NAmanage.resetCommandWorkBudget = function()
 	end
 end
 
-NAmanage.cmdYield=function()
-	return
+NAmanage.cmdYield=function(step, every)
+	const thread = coroutine.running()
+	if type(thread) ~= "thread" then
+		return
+	end
+	local state = NAmanage._commandWorkStates and NAmanage._commandWorkStates[thread]
+	if type(state) ~= "table" then
+		NAmanage.resetCommandWorkBudget()
+		state = NAmanage._commandWorkStates and NAmanage._commandWorkStates[thread]
+		if type(state) ~= "table" then
+			return
+		end
+	end
+	state.count = (tonumber(state.count) or 0) + 1
+	const now = os.clock()
+	const interval = math.max(8, math.floor(tonumber(every) or 96))
+	const budget = state.lowImpact and 0.002 or 0.004
+	if (tonumber(step) or state.count) % interval ~= 0 and (now - (tonumber(state.last) or now)) < budget then
+		return
+	end
+	local canYield = true
+	if coroutine and type(coroutine.isyieldable) == "function" then
+		canYield = coroutine.isyieldable()
+	end
+	if canYield then
+		Wait()
+		state.last = os.clock()
+	end
 end
 
 NAmanage.sortCommandEntries = function(entries)

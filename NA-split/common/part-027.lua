@@ -1,4 +1,5 @@
 SpawnCall(function()
+	Wait(0.08)
 	const settingsBuildStart = os.clock()
 	const perf = NAStuff and NAStuff.StartupPerformance
 	if type(perf) == "table" then
@@ -2373,6 +2374,7 @@ NAmanage.GetStartupPerformanceSnapshot = function()
 	return {
 		finished = perf.finished == true,
 		elapsed = perf.elapsed,
+		totalElapsed = perf.totalElapsed,
 		readyElapsed = perf.readyElapsed,
 		readyBeforeSettings = perf.readyBeforeSettings,
 		finishedStatus = perf.finishedStatus,

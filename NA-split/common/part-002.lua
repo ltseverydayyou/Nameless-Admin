@@ -5489,7 +5489,18 @@ NAmanage._loaderQueue = NAmanage._loaderQueue or {}
 NAmanage._loaderQueueHead = tonumber(NAmanage._loaderQueueHead) or 1
 NAmanage._loaderQueueTail = tonumber(NAmanage._loaderQueueTail) or 0
 NAmanage._loaderQueueRunning = tonumber(NAmanage._loaderQueueRunning) or 0
+NAmanage._loaderQueueHeavyRunning = tonumber(NAmanage._loaderQueueHeavyRunning) or 0
 NAmanage._loaderQueuePumping = NAmanage._loaderQueuePumping == true
+
+NAmanage._loaderQueueProfile = NAmanage._loaderQueueProfile or function()
+	const configuredMax = tonumber(NAStuff and NAStuff.LoaderMaxConcurrency)
+	const configuredHeavy = tonumber(NAStuff and NAStuff.LoaderMaxHeavyConcurrency)
+	const configuredSpacing = tonumber(NAStuff and NAStuff.LoaderLaunchSpacing)
+	const maxRunning = math.clamp(math.floor(configuredMax or 4), 1, 16)
+	const maxHeavy = math.clamp(math.floor(configuredHeavy or 1), 1, maxRunning)
+	const launchSpacing = math.max(0, configuredSpacing ~= nil and configuredSpacing or 0.01)
+	return maxRunning, maxHeavy, launchSpacing
+end
 
 function NAmanage.pumpLoaderQueue()
 	if NAStuff and NAStuff.StartupInitializersReady == false then
@@ -5501,20 +5512,35 @@ function NAmanage.pumpLoaderQueue()
 	NAmanage._loaderQueuePumping = true
 	Spawn(function()
 		while NAmanage._loaderQueueHead <= NAmanage._loaderQueueTail do
-			const maxRunning = math.clamp(math.floor(tonumber(NAStuff and NAStuff.LoaderMaxConcurrency) or 8), 1, 16)
-			if (tonumber(NAmanage._loaderQueueRunning) or 0) >= maxRunning then
+			const maxRunning, maxHeavy, launchSpacing = NAmanage._loaderQueueProfile()
+			const job = NAmanage._loaderQueue[NAmanage._loaderQueueHead]
+			const heavy = job and job.heavy == true
+			if (tonumber(NAmanage._loaderQueueRunning) or 0) >= maxRunning
+				or (heavy and (tonumber(NAmanage._loaderQueueHeavyRunning) or 0) >= maxHeavy) then
 				Wait()
 				continue
 			end
-			const job = NAmanage._loaderQueue[NAmanage._loaderQueueHead]
 			NAmanage._loaderQueue[NAmanage._loaderQueueHead] = nil
 			NAmanage._loaderQueueHead += 1
 			if job and type(job.callback) == "function" then
 				NAmanage._loaderQueueRunning = (tonumber(NAmanage._loaderQueueRunning) or 0) + 1
+				if heavy then
+					NAmanage._loaderQueueHeavyRunning = (tonumber(NAmanage._loaderQueueHeavyRunning) or 0) + 1
+				end
 				Spawn(function()
 					pcall(NAmanage.runLoader, job.label, job.callback, job.opts)
 					NAmanage._loaderQueueRunning = math.max(0, (tonumber(NAmanage._loaderQueueRunning) or 1) - 1)
+					if heavy then
+						NAmanage._loaderQueueHeavyRunning = math.max(0, (tonumber(NAmanage._loaderQueueHeavyRunning) or 1) - 1)
+					end
 				end)
+				local spacing = tonumber(job.spacing)
+				if spacing == nil then
+					spacing = launchSpacing
+				end
+				if spacing > 0 then
+					Wait(spacing)
+				end
 			end
 		end
 		while (tonumber(NAmanage._loaderQueueRunning) or 0) > 0 do
@@ -5523,6 +5549,7 @@ function NAmanage.pumpLoaderQueue()
 		NAmanage._loaderQueue = {}
 		NAmanage._loaderQueueHead = 1
 		NAmanage._loaderQueueTail = 0
+		NAmanage._loaderQueueHeavyRunning = 0
 		NAmanage._loaderQueuePumping = false
 	end)
 end
@@ -5535,6 +5562,7 @@ function NAmanage.scheduleLoader(label, callback, opts)
 		callback = callback,
 		opts = opts,
 		spacing = opts.spacing,
+		heavy = opts.heavy == true,
 	}
 	if not (NAStuff and NAStuff.StartupInitializersReady == false) then
 		NAmanage.pumpLoaderQueue()

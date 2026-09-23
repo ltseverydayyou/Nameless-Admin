@@ -1580,7 +1580,7 @@ NAmanage.scheduleLoader('UserButtons', function()
 	end
 	NAmanage.loadButtonIDS()
 	return NAmanage.RenderUserButtons()
-end, { requiresGui = true, retries = 5, delay = 0.4, retryOnFalse = true })
+end, { requiresGui = true, retries = 5, delay = 0.4, retryOnFalse = true, heavy = true, spacing = 0.03 })
 NAmanage.scheduleLoader('CmdIntegrationAutoRun', function()
 	if NAStuff.CmdIntegrationAutoRun == true and NAmanage.loadCmdIntegration then
 		local ok, err = NAmanage.loadCmdIntegration({ silent = true })
@@ -1617,7 +1617,7 @@ NAmanage.scheduleLoader('Plugins', function()
 	NAmanage.InitPlugs()
 	const silent = (NAmanage.jlCfg and NAmanage.jlCfg.PluginNotif == false) or false
 	return NAmanage.LoadPlugins({ silent = silent, startup = true })
-end, { retries = 4, delay = 0.5, retryOnFalse = true })
+end, { retries = 4, delay = 0.5, retryOnFalse = true, heavy = true, spacing = 0.05 })
 NAmanage.scheduleLoader('Waypoints', NAmanage.UpdateWaypointList, { spacing = 0.12 })
 NAmanage.scheduleLoader('ESPSettings', NAmanage.LoadESPSettings, { spacing = 0.12 })
 
@@ -2536,8 +2536,13 @@ NAgui.SettingsBuildState = NAgui.SettingsBuildState or {}
 NAgui.SettingsBuildState.background = true
 NAgui.SettingsBuildState.userInteracted = false
 NAgui.SettingsBuildState.userSelectedTab = nil
+NAgui.SettingsBuildState.lastYield = os.clock()
 if NAgui.setSettingsTabContext then
 	NAgui.setSettingsTabContext(nil)
+end
+NAStuff.StartupInitializersReady = true
+if NAmanage.finalizeLoadingState then
+	pcall(NAmanage.finalizeLoadingState)
 end
 if NAmanage.pumpLoaderQueue then
 	pcall(NAmanage.pumpLoaderQueue)
