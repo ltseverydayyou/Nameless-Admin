@@ -4116,6 +4116,26 @@
       "desc": "Disables tween flying"
     },
     {
+      "name": "tpfly",
+      "aliases": [
+        "tpfly",
+        "translatefly"
+      ],
+      "usage": "tpfly [speed] (translatefly)",
+      "args": "[speed]",
+      "desc": "Enable TranslateBy-based flight without forcing PlatformStand"
+    },
+    {
+      "name": "untpfly",
+      "aliases": [
+        "untpfly",
+        "untranslatefly"
+      ],
+      "usage": "untpfly",
+      "args": "",
+      "desc": "Disable TranslateBy-based flight"
+    },
+    {
       "name": "noclip",
       "aliases": [
         "noclip",
