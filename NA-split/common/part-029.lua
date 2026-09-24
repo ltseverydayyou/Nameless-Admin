@@ -4679,18 +4679,23 @@ originalIO.runNACHAT=function()
 			return false
 		end
 
-		local reconnectBackoff = {3, 8, 15, 30}
+		local reconnectBackoff = {8, 20, 45, 90}
 		local reconnectAttempts = 0
 		local reconnectToken = 0
+		local reconnectScheduled = false
 
 		local function resetReconnectBackoff()
 			reconnectAttempts = 0
 			reconnectToken = reconnectToken + 1
+			reconnectScheduled = false
 		end
 
-		local function queueReconnect()
+		local function queueReconnect(reason)
 			if isChatDisconnectedPreference() then
 				resetReconnectBackoff()
+				return
+			end
+			if reconnectScheduled then
 				return
 			end
 			if reconnectAttempts >= #reconnectBackoff then
@@ -4704,11 +4709,16 @@ originalIO.runNACHAT=function()
 			reconnectAttempts = reconnectAttempts + 1
 			local token = reconnectToken
 			local delaySeconds = reconnectBackoff[math.min(reconnectAttempts, #reconnectBackoff)]
+			if tostring(reason or "") == "registration_timeout" then
+				delaySeconds = math.max(delaySeconds, 30)
+			end
+			reconnectScheduled = true
 
 			Delay(delaySeconds, function()
 				if token ~= reconnectToken then
 					return
 				end
+				reconnectScheduled = false
 				if NAChat.connecting then
 					return
 				end
@@ -5573,11 +5583,10 @@ originalIO.runNACHAT=function()
 				end
 				appendConversationMessage("public", "[NA Chat] Disconnected", STATUS_COLORS.err)
 				refreshStatus()
-				queueReconnect()
+				queueReconnect("disconnected")
 			end)
 
 			NAChat.service.OnError.Event:Connect(function(err, _, data)
-				NAChat.connecting = false
 				local errText = tostring(err or "Unknown error")
 				local isBan = isBanMessage(errText)
 				local isMute = false
@@ -5618,9 +5627,6 @@ originalIO.runNACHAT=function()
 					end
 				end
 				refreshStatus()
-				if not bannedFromChat and not isMute and not isChatDisconnectedPreference() then
-					queueReconnect()
-				end
 			end)
 		end
 
@@ -5700,7 +5706,7 @@ originalIO.runNACHAT=function()
 					NAChat.connecting = false
 
 					if not permanent then
-						queueReconnect()
+						queueReconnect(reason)
 					end
 					return
 				end
