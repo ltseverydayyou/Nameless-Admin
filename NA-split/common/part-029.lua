@@ -2911,9 +2911,6 @@ originalIO.runNACHAT=function()
 				history = {}
 				conversationHistory[key] = history
 			end
-
-			local runtime = NAStuff.NAChatRuntime
-			local previousCount = #history
 			chatMessageOrder += 1
 			local entry = type(metadata) == "table" and metadata or {}
 			entry.text = text
@@ -2921,21 +2918,18 @@ originalIO.runNACHAT=function()
 			entry.raw = rawMessage
 			entry.order = chatMessageOrder
 			entry.timestamp = tonumber(entry.timestamp) or os.time()
-			history[previousCount + 1] = entry
-
+			history[#history + 1] = entry
+			NAStuff.NAChatRuntime.VirtualLayoutDirty = true
 			if entry.messageId then
 				messageEntriesById[tostring(entry.messageId)] = entry
 			end
-
-			local trimmed = false
 			if #history > MAX_CHAT_HISTORY then
-				trimmed = true
 				local removed = table.remove(history, 1)
 				if removed then
 					if removed.messageId then
 						messageEntriesById[tostring(removed.messageId)] = nil
 					end
-					runtime.VirtualActive[removed] = nil
+					NAStuff.NAChatRuntime.VirtualActive[removed] = nil
 					if removed.frame then
 						local messageLabel = removed.frame:FindFirstChild("MessageText")
 						if messageLabel then
@@ -2946,37 +2940,7 @@ originalIO.runNACHAT=function()
 					end
 				end
 			end
-
 			if key == NAChat.activeConversation and renderedConversation == key then
-				local canAppendLayout = not trimmed
-					and runtime.VirtualLayoutDirty ~= true
-					and runtime.VirtualLayoutHistory == history
-					and tonumber(runtime.VirtualCount) == previousCount
-					and type(runtime.VirtualOffsets) == "table"
-					and type(runtime.VirtualHeights) == "table"
-
-				if canAppendLayout then
-					local index = previousCount + 1
-					local height = NAmanage.NAChat_MeasureEntryHeight(entry)
-					entry.virtualHeight = height
-					local rowY = tonumber(runtime.VirtualTotalHeight) or 0
-					if previousCount > 0 then
-						rowY += runtime.RowGap
-					end
-					runtime.VirtualOffsets[index] = rowY
-					runtime.VirtualHeights[index] = height
-					runtime.VirtualTotalHeight = rowY + height
-					runtime.VirtualCount = index
-					if chatScroll then
-						chatScroll.CanvasSize = UDim2.new(0, 0, 0, runtime.VirtualTotalHeight + 4)
-						if NAmanage.CustomScroll and NAmanage.CustomScroll.refreshByTarget then
-							NAmanage.CustomScroll.refreshByTarget(chatScroll)
-						end
-					end
-				else
-					runtime.VirtualLayoutDirty = true
-				end
-
 				local keepBottom = shouldAutoScroll(chatScroll)
 				if keepBottom then
 					local st = scrollSt[chatScroll]
