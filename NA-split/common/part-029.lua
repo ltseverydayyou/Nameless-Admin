@@ -1946,17 +1946,30 @@ originalIO.runNACHAT=function()
 			return NAmanage.NAChat_GetSetting("naChatAdminRainbowMessages", true) ~= false
 		end
 
-		pushAdminPresentation = function()
+		pushAdminPresentation = function(showTagOverride, rainbowOverride)
 			local svc = NAChat.service
-			if not (NAChat.serverIsAdmin and svc and type(svc.SetAdminPresentation) == "function") then
-				return false
+			if not NAChat.serverIsAdmin then
+				return false, "not_admin"
 			end
-			local ok, result = pcall(
-				svc.SetAdminPresentation,
-				NAmanage.NAChat_GetShowAdminTag(),
-				NAmanage.NAChat_GetAdminRainbowMessages()
-			)
-			return ok and result ~= false
+			if not (svc and type(svc.SetAdminPresentation) == "function") then
+				return false, "service_unavailable"
+			end
+			local showTag = showTagOverride
+			if showTag == nil then
+				showTag = NAmanage.NAChat_GetShowAdminTag()
+			end
+			local rainbow = rainbowOverride
+			if rainbow == nil then
+				rainbow = NAmanage.NAChat_GetAdminRainbowMessages()
+			end
+			local ok, result = pcall(svc.SetAdminPresentation, showTag == true, rainbow == true)
+			if not ok then
+				return false, tostring(result)
+			end
+			if result == false then
+				return false, "send_failed"
+			end
+			return true
 		end
 
 		local function getSavedChatColorHex()
@@ -4703,6 +4716,11 @@ originalIO.runNACHAT=function()
 					resetReconnectBackoff()
 					return
 				end
+				local svc = NAChat.service
+				if svc and type(svc.Disconnect) == "function" then
+					pcall(svc.Disconnect)
+				end
+				NAChat.connecting = false
 				connect()
 			end)
 		end
@@ -5666,11 +5684,12 @@ originalIO.runNACHAT=function()
 					local permanent = false
 					permanentFailureReason = nil
 
+					local reason = tostring(initErr or "unknown IntegrationService error")
 					local msg
-					if initErr == "websocket_not_available" then
+					if reason == "websocket_not_available" then
 						msg = "[NA Chat] Init failed: WebSocket not available in this executor"
 					else
-						msg = "[NA Chat] Init failed (see console for [IntegrationService] errors)"
+						msg = "[NA Chat] Init failed: "..reason
 					end
 
 					local now = os.clock()
@@ -6734,15 +6753,29 @@ originalIO.runNACHAT=function()
 
 					if MouseButtonFix then
 						MouseButtonFix(adminTagToggleBtn, function()
-							NAmanage.NAChat_SetSetting("naChatShowAdminTag", not NAmanage.NAChat_GetShowAdminTag())
+							local previous = NAmanage.NAChat_GetShowAdminTag()
+							local desired = not previous
+							NAmanage.NAChat_SetSetting("naChatShowAdminTag", desired)
 							if refreshAdminAppearanceSettingsUI then refreshAdminAppearanceSettingsUI() end
-							pushAdminPresentation()
+							local sent, sendErr = pushAdminPresentation(desired, nil)
+							if not sent then
+								NAmanage.NAChat_SetSetting("naChatShowAdminTag", previous)
+								if refreshAdminAppearanceSettingsUI then refreshAdminAppearanceSettingsUI() end
+								appendConversationMessage("public", "[NA Chat] Failed to update admin tag: "..tostring(sendErr or "unknown error"), STATUS_COLORS.err)
+							end
 						end)
 
 						MouseButtonFix(adminRainbowToggleBtn, function()
-							NAmanage.NAChat_SetSetting("naChatAdminRainbowMessages", not NAmanage.NAChat_GetAdminRainbowMessages())
+							local previous = NAmanage.NAChat_GetAdminRainbowMessages()
+							local desired = not previous
+							NAmanage.NAChat_SetSetting("naChatAdminRainbowMessages", desired)
 							if refreshAdminAppearanceSettingsUI then refreshAdminAppearanceSettingsUI() end
-							pushAdminPresentation()
+							local sent, sendErr = pushAdminPresentation(nil, desired)
+							if not sent then
+								NAmanage.NAChat_SetSetting("naChatAdminRainbowMessages", previous)
+								if refreshAdminAppearanceSettingsUI then refreshAdminAppearanceSettingsUI() end
+								appendConversationMessage("public", "[NA Chat] Failed to update rainbow messages: "..tostring(sendErr or "unknown error"), STATUS_COLORS.err)
+							end
 						end)
 
 						local function resolveTargetOrWarn(actionLabel)

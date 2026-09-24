@@ -5661,6 +5661,18 @@ NAmanage.NASettingsGetSchema=function()
 				return ""
 			end;
 		};
+		naChatShowAdminTag = {
+			default = true;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
+			end;
+		};
+		naChatAdminRainbowMessages = {
+			default = true;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
+			end;
+		};
 		naChatShowTimestamps = {
 			default = false;
 			coerce = function(value)
