@@ -2911,6 +2911,9 @@ originalIO.runNACHAT=function()
 				history = {}
 				conversationHistory[key] = history
 			end
+
+			local runtime = NAStuff.NAChatRuntime
+			local previousCount = #history
 			chatMessageOrder += 1
 			local entry = type(metadata) == "table" and metadata or {}
 			entry.text = text
@@ -2918,18 +2921,21 @@ originalIO.runNACHAT=function()
 			entry.raw = rawMessage
 			entry.order = chatMessageOrder
 			entry.timestamp = tonumber(entry.timestamp) or os.time()
-			history[#history + 1] = entry
-			NAStuff.NAChatRuntime.VirtualLayoutDirty = true
+			history[previousCount + 1] = entry
+
 			if entry.messageId then
 				messageEntriesById[tostring(entry.messageId)] = entry
 			end
+
+			local trimmed = false
 			if #history > MAX_CHAT_HISTORY then
+				trimmed = true
 				local removed = table.remove(history, 1)
 				if removed then
 					if removed.messageId then
 						messageEntriesById[tostring(removed.messageId)] = nil
 					end
-					NAStuff.NAChatRuntime.VirtualActive[removed] = nil
+					runtime.VirtualActive[removed] = nil
 					if removed.frame then
 						local messageLabel = removed.frame:FindFirstChild("MessageText")
 						if messageLabel then
@@ -2940,7 +2946,37 @@ originalIO.runNACHAT=function()
 					end
 				end
 			end
+
 			if key == NAChat.activeConversation and renderedConversation == key then
+				local canAppendLayout = not trimmed
+					and runtime.VirtualLayoutDirty ~= true
+					and runtime.VirtualLayoutHistory == history
+					and tonumber(runtime.VirtualCount) == previousCount
+					and type(runtime.VirtualOffsets) == "table"
+					and type(runtime.VirtualHeights) == "table"
+
+				if canAppendLayout then
+					local index = previousCount + 1
+					local height = NAmanage.NAChat_MeasureEntryHeight(entry)
+					entry.virtualHeight = height
+					local rowY = tonumber(runtime.VirtualTotalHeight) or 0
+					if previousCount > 0 then
+						rowY += runtime.RowGap
+					end
+					runtime.VirtualOffsets[index] = rowY
+					runtime.VirtualHeights[index] = height
+					runtime.VirtualTotalHeight = rowY + height
+					runtime.VirtualCount = index
+					if chatScroll then
+						chatScroll.CanvasSize = UDim2.new(0, 0, 0, runtime.VirtualTotalHeight + 4)
+						if NAmanage.CustomScroll and NAmanage.CustomScroll.refreshByTarget then
+							NAmanage.CustomScroll.refreshByTarget(chatScroll)
+						end
+					end
+				else
+					runtime.VirtualLayoutDirty = true
+				end
+
 				local keepBottom = shouldAutoScroll(chatScroll)
 				if keepBottom then
 					local st = scrollSt[chatScroll]
@@ -5803,7 +5839,7 @@ originalIO.runNACHAT=function()
 		local function sendMessage(t)
 			if isChatUiSuppressed() then
 				originalIO.setStatus("NA Chat: Hidden (message not sent)", STATUS_COLORS.info)
-				return
+				return false
 			end
 
 			local muteLeft = getMuteRemainingSeconds()
@@ -5815,28 +5851,28 @@ originalIO.runNACHAT=function()
 				originalIO.setStatus(text, STATUS_COLORS.err)
 				ensureMuteCountdown()
 				clearTyping()
-				return
+				return false
 			end
 
 			if not t then
-				return
+				return true
 			end
 
 			t = tostring(t):gsub("^%s+", ""):gsub("%s+$", "")
 			if t == "" then
-				return
+				return true
 			end
 
 			if not NAChat.serverIsAdmin then
 				if NAmanage.NAChatSlurGuard:IsAttempt(t) then
 					NAmanage.NAChatSlurGuard:Warn(STATUS_COLORS.err)
 					clearTyping()
-					return
+					return true
 				end
 
 				if NAmanage._c29:_m(t) then
 					clearTyping()
-					return
+					return true
 				end
 			end
 
@@ -5845,7 +5881,7 @@ originalIO.runNACHAT=function()
 			if low == "/cancel" then
 				clearComposeMode()
 				clearTyping()
-				return
+				return true
 			end
 
 			if composeEditEntry then
@@ -5857,7 +5893,7 @@ originalIO.runNACHAT=function()
 					originalIO.setStatus("NA Chat: failed to edit message", STATUS_COLORS.err)
 				end
 				clearTyping()
-				return
+				return ok
 			end
 
 			if composeReplyEntry then
@@ -5869,13 +5905,13 @@ originalIO.runNACHAT=function()
 					originalIO.setStatus("NA Chat: failed to send reply", STATUS_COLORS.err)
 				end
 				clearTyping()
-				return
+				return ok
 			end
 
 			if low == "/w" or low == "/whisper" or low == "/dm" or low == "/w off" or low == "/whisper off" or low == "/dm off" then
 				clearDMTarget("NA Chat: DM cleared")
 				clearTyping()
-				return
+				return true
 			end
 
 			local shortTarget = t:match("^/%a+%s+(%S+)$")
@@ -5894,7 +5930,7 @@ originalIO.runNACHAT=function()
 						originalIO.setStatus(("NA Chat: user '%s' not found"):format(shortTarget), STATUS_COLORS.err)
 					end
 					clearTyping()
-					return
+					return true
 				end
 			end
 
@@ -5925,14 +5961,21 @@ originalIO.runNACHAT=function()
 			end
 
 			clearTyping()
+			return ok
 		end
 
 		if sendBtn then
 			MouseButtonFix(sendBtn, function()
-				sendMessage(inputBox and inputBox.Text)
+				local pendingText = inputBox and inputBox.Text or ""
 				if inputBox then
 					inputBox.Text = ""
 				end
+				Defer(function()
+					local ok = sendMessage(pendingText)
+					if ok == false and inputBox and inputBox.Text == "" then
+						inputBox.Text = pendingText
+					end
+				end)
 			end)
 		end
 
@@ -5947,8 +5990,14 @@ originalIO.runNACHAT=function()
 			end)
 			inputBox.FocusLost:Connect(function(enter)
 				if enter then
-					sendMessage(inputBox.Text)
+					local pendingText = inputBox.Text
 					inputBox.Text = ""
+					Defer(function()
+						local ok = sendMessage(pendingText)
+						if ok == false and inputBox and inputBox.Text == "" then
+							inputBox.Text = pendingText
+						end
+					end)
 				end
 			end)
 		end
