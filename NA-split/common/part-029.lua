@@ -6976,7 +6976,7 @@ originalIO.runNACHAT=function()
 		refreshAdminTabUI()
 
 		if isLocalAdmin() then
-		local function takeAnonymousFlag(parts)
+		NAmanage.NAChatTakeAnonymousFlag = function(parts)
 			local anonymous = false
 			for i = #parts, 1, -1 do
 				local value = Lower(tostring(parts[i] or ""))
@@ -7028,7 +7028,7 @@ originalIO.runNACHAT=function()
 			end
 
 			local parts = { ... }
-			local anonymous = takeAnonymousFlag(parts)
+			local anonymous = NAmanage.NAChatTakeAnonymousFlag(parts)
 			if #parts == 0 then
 				return
 			end
@@ -7044,7 +7044,7 @@ originalIO.runNACHAT=function()
 			end
 
 			local parts = { ... }
-			local anonymous = takeAnonymousFlag(parts)
+			local anonymous = NAmanage.NAChatTakeAnonymousFlag(parts)
 			if #parts == 0 then
 				return
 			end
@@ -7082,7 +7082,7 @@ originalIO.runNACHAT=function()
 			end
 
 			local parts = { ... }
-			local anonymous = takeAnonymousFlag(parts)
+			local anonymous = NAmanage.NAChatTakeAnonymousFlag(parts)
 			if #parts == 0 then
 				return
 			end
@@ -7107,7 +7107,7 @@ originalIO.runNACHAT=function()
 			end
 
 			local parts = { ... }
-			local anonymous = takeAnonymousFlag(parts)
+			local anonymous = NAmanage.NAChatTakeAnonymousFlag(parts)
 			if #parts == 0 then
 				return
 			end
