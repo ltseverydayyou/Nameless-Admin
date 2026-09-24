@@ -752,6 +752,7 @@ do
 		elseif type(extra) == "table" then
 			for _, value in extra do addExtra(value) end
 		end
+		self._t = terms
 
 		local g = NAmanage.NAChatSlurGuard
 		local patterns = {}
@@ -776,6 +777,48 @@ do
 		local squashed = g:NormalizeForSlurs(text)
 		for _, pattern in self._p or {} do
 			if lower:match(pattern) or squashed:match(pattern) then return true end
+		end
+
+		local tokens = {}
+		for i = 1, #lower do
+			local ch = lower:sub(i, i)
+			local mapped = g.DigitLeetMap[ch] or g.ExtraLeetMap[ch] or ch
+			if mapped:match("%a") then
+				tokens[#tokens + 1] = mapped
+			else
+				tokens[#tokens + 1] = "*"
+			end
+		end
+
+		for _, term in self._t or {} do
+			term = g:NormalizeForSlurs(term)
+			if #term >= 5 then
+				for start = 1, #tokens do
+					local states = {[0] = true}
+					for index = start, #tokens do
+						local token = tokens[index]
+						local nextStates = {}
+						for matched in pairs(states) do
+							if matched >= #term then
+								return true
+							end
+							if token == "*" then
+								nextStates[matched] = true
+								nextStates[matched + 1] = true
+							elseif token == term:sub(matched + 1, matched + 1) then
+								nextStates[matched + 1] = true
+							end
+						end
+						if nextStates[#term] then
+							return true
+						end
+						states = nextStates
+						if next(states) == nil then
+							break
+						end
+					end
+				end
+			end
 		end
 		return false
 	end
@@ -913,11 +956,13 @@ originalIO.runNACHAT=function()
 		local hwidUnbanBtn = adminFrame:FindFirstChild("AdminHWIDUnbanButton")
 		local purgeCountBox = adminFrame:FindFirstChild("AdminPurgeCountInput")
 		local purgeBtn = adminFrame:FindFirstChild("AdminPurgeButton")
+		local tagToggleBtn = adminFrame:FindFirstChild("AdminTagToggleButton")
+		local rainbowToggleBtn = adminFrame:FindFirstChild("AdminRainbowToggleButton")
 		local accessLabel = adminFrame:FindFirstChild("AdminAccessLabel")
 		local banScroll = adminFrame:FindFirstChild("AdminBanList")
 
 		if not (userBox and durBox and reasonBox and muteBtn and banBtn and unmuteBtn and unbanBtn
-			and hwidBanBtn and hwidUnbanBtn and purgeCountBox and purgeBtn and accessLabel and banScroll) then
+			and hwidBanBtn and hwidUnbanBtn and purgeCountBox and purgeBtn and tagToggleBtn and rainbowToggleBtn and accessLabel and banScroll) then
 			return
 		end
 
@@ -964,7 +1009,12 @@ originalIO.runNACHAT=function()
 			purgeBtn.Position = UDim2.new(0.82, 0, 0, row2Y)
 			purgeBtn.Size = UDim2.new(0.18, -10, 0, rowHeight)
 
-			local labelY = row2Y + 35
+			local toggleY = row2Y + 35
+			tagToggleBtn.Position = UDim2.new(0, 10, 0, toggleY)
+			tagToggleBtn.Size = UDim2.new(0.5, -15, 0, rowHeight)
+			rainbowToggleBtn.Position = UDim2.new(0.5, 5, 0, toggleY)
+			rainbowToggleBtn.Size = UDim2.new(0.5, -15, 0, rowHeight)
+			local labelY = toggleY + 35
 			accessLabel.Position = UDim2.new(0, 12, 0, labelY)
 			accessLabel.Size = UDim2.new(1, -24, 0, 18)
 			local listY = labelY + 21
@@ -1004,10 +1054,14 @@ originalIO.runNACHAT=function()
 			purgeCountBox.Size = UDim2.new(0.22, -4, 0, 32)
 			purgeBtn.Position = UDim2.new(0.64, 4, 0, 134)
 			purgeBtn.Size = UDim2.new(0.36, -14, 0, 32)
-			accessLabel.Position = UDim2.new(0, 12, 0, 176)
+			tagToggleBtn.Position = UDim2.new(0, 10, 0, 172)
+			tagToggleBtn.Size = UDim2.new(0.5, -15, 0, 32)
+			rainbowToggleBtn.Position = UDim2.new(0.5, 5, 0, 172)
+			rainbowToggleBtn.Size = UDim2.new(0.5, -15, 0, 32)
+			accessLabel.Position = UDim2.new(0, 12, 0, 210)
 			accessLabel.Size = UDim2.new(1, -24, 0, 20)
-			banScroll.Position = UDim2.new(0, 10, 0, 202)
-			banScroll.Size = UDim2.new(1, -20, 1, -208)
+			banScroll.Position = UDim2.new(0, 10, 0, 236)
+			banScroll.Size = UDim2.new(1, -20, 1, -242)
 		end
 	end
 
@@ -1849,6 +1903,8 @@ originalIO.runNACHAT=function()
 		local settingsColorInput = nil
 		local refreshRegularMessageColors
 		local refreshGameActivityButton
+		local pushAdminPresentation
+		local refreshAdminAppearanceSettingsUI
 
 		NAmanage.NAChat_GetSetting = function(key, defaultValue)
 			if NAmanage and type(NAmanage.NASettingsGet) == "function" then
@@ -1880,6 +1936,27 @@ originalIO.runNACHAT=function()
 
 		NAmanage.NAChat_GetShowSystemMessages = function()
 			return NAmanage.NAChat_GetSetting("naChatShowSystemMessages", true) ~= false
+		end
+
+		NAmanage.NAChat_GetShowAdminTag = function()
+			return NAmanage.NAChat_GetSetting("naChatShowAdminTag", true) ~= false
+		end
+
+		NAmanage.NAChat_GetAdminRainbowMessages = function()
+			return NAmanage.NAChat_GetSetting("naChatAdminRainbowMessages", true) ~= false
+		end
+
+		pushAdminPresentation = function()
+			local svc = NAChat.service
+			if not (NAChat.serverIsAdmin and svc and type(svc.SetAdminPresentation) == "function") then
+				return false
+			end
+			local ok, result = pcall(
+				svc.SetAdminPresentation,
+				NAmanage.NAChat_GetShowAdminTag(),
+				NAmanage.NAChat_GetAdminRainbowMessages()
+			)
+			return ok and result ~= false
 		end
 
 		local function getSavedChatColorHex()
@@ -2015,7 +2092,12 @@ originalIO.runNACHAT=function()
 			if type(entry) ~= "table" then
 				return nil
 			end
-			local userId = tonumber(entry.authorUserId or entry.avatarUserId or entry.userId)
+			local userId
+			if entry.disguised then
+				userId = tonumber(entry.avatarUserId or entry.userId)
+			else
+				userId = tonumber(entry.authorUserId or entry.avatarUserId or entry.userId)
+			end
 			if userId and userId > 0 then
 				return userId
 			end
@@ -2070,10 +2152,12 @@ originalIO.runNACHAT=function()
 			end
 
 			local prefix = ""
-			if entry.isOwner then
-				prefix = "[OWNER] "
-			elseif entry.isAdmin then
-				prefix = "[ADMIN] "
+			if entry.showAdminTag ~= false then
+				if entry.isOwner then
+					prefix = "[OWNER] "
+				elseif entry.isAdmin then
+					prefix = "[ADMIN] "
+				end
 			end
 
 			local sender = escapeChatRichText(formatChatIdentity(entry.displayName, entry.username))
@@ -2878,6 +2962,13 @@ originalIO.runNACHAT=function()
 			local canonicalUserId = tonumber(record.authorUserId or record.author_user_id) or senderId
 			local isOwner = canonicalUserId == 11761417 or canonicalUserId == 530829101
 			local isNAadmin = record.admin == true or record.isAdmin == true
+			local disguised = record.disguised == true
+			local showAdminTag = record.showAdminTag
+			if showAdminTag == nil then showAdminTag = isOwner or isNAadmin end
+			showAdminTag = showAdminTag == true and not disguised
+			local rainbow = record.rainbowMessages
+			if rainbow == nil then rainbow = isOwner or isNAadmin end
+			rainbow = rainbow == true and not disguised
 			local chatColor = tostring(record.chatColor or record.chat_color or "78AAFF")
 			local chatColor2 = record.chatColor2 or record.chat_color2
 			chatColor2 = type(chatColor2) == "string" and chatColor2 ~= "" and tostring(chatColor2) or nil
@@ -2896,20 +2987,23 @@ originalIO.runNACHAT=function()
 				existing.moderationUsername = canonicalUsername
 				existing.isOwner = isOwner
 				existing.isAdmin = isNAadmin
+				existing.disguised = disguised
+				existing.showAdminTag = showAdminTag
+				existing.avatarUserId = senderId
 				existing.game = record.game
 				existing.chatColor = chatColor
 				existing.chatColor2 = chatColor2
 				existing.reply = type(record.reply) == "table" and record.reply or nil
 				existing.edited = record.edited == true
 				existing.own = own
-				existing.rainbow = isOwner or isNAadmin
-				existing.useOwnChatColor = own and not (isOwner or isNAadmin)
+				existing.rainbow = rainbow
+				existing.useOwnChatColor = own and not rainbow
 				existing.timestamp = tonumber(record.timestamp) or existing.timestamp
 				refreshChatEntry(existing)
 				return existing
 			end
 
-			appendConversationMessage("public", nil, (isOwner or isNAadmin) and Color3.fromRGB(255, 255, 255) or getSavedChatColor(), messageText, {
+			appendConversationMessage("public", nil, rainbow and Color3.fromRGB(255, 255, 255) or colorFromHex(chatColor), messageText, {
 				kind = "chat",
 				username = senderName,
 				displayName = senderDisplayName,
@@ -2919,6 +3013,9 @@ originalIO.runNACHAT=function()
 				moderationUsername = canonicalUsername,
 				isOwner = isOwner,
 				isAdmin = isNAadmin,
+				disguised = disguised,
+				showAdminTag = showAdminTag,
+				avatarUserId = senderId,
 				game = record.game,
 				chatColor = chatColor,
 				chatColor2 = chatColor2,
@@ -2926,8 +3023,8 @@ originalIO.runNACHAT=function()
 				reply = type(record.reply) == "table" and record.reply or nil,
 				edited = record.edited == true,
 				own = own,
-				rainbow = isOwner or isNAadmin,
-				useOwnChatColor = own and not (isOwner or isNAadmin),
+				rainbow = rainbow,
+				useOwnChatColor = own and not rainbow,
 				timestamp = tonumber(record.timestamp),
 			})
 			return messageEntriesById[messageId]
@@ -2995,23 +3092,32 @@ originalIO.runNACHAT=function()
 					if message ~= "" then
 						local isOwner = canonicalUserId == 11761417 or canonicalUserId == 530829101
 						local isAdmin = entry.admin == true
+						local disguised = entry.disguised == true
+						local showAdminTag = entry.showAdminTag
+						if showAdminTag == nil then showAdminTag = isOwner or isAdmin end
+						showAdminTag = showAdminTag == true and not disguised
+						local rainbow = entry.rainbowMessages
+						if rainbow == nil then rainbow = isOwner or isAdmin end
+						rainbow = rainbow == true and not disguised
 						local own = lp and ((canonicalUserId and tonumber(lp.UserId) == canonicalUserId) or Lower(tostring(lp.Name or "")) == Lower(sender)) or false
 						local formatted = formatMessageWithMentions(message)
 						if type(formatted) ~= "string" or formatted == "" then
 							formatted = escapeChatRichText(message)
 						end
-						local prefix = isOwner and "[OWNER] " or (isAdmin and "[ADMIN] " or "")
+						local prefix = showAdminTag and (isOwner and "[OWNER] " or (isAdmin and "[ADMIN] " or "")) or ""
 						chatMessageOrder += 1
 						history[#history + 1] = {
 							text = "<b>"..prefix..escapeChatRichText(formatChatIdentity(displayName, sender)).."</b>: "..formatted,
 							color = colorFromHex(entry.chatColor or "78AAFF"),
-							avatarUserId = canonicalUserId,
+							avatarUserId = disguised and userId or canonicalUserId,
+							disguised = disguised,
+							showAdminTag = showAdminTag,
 							chatColor = tostring(entry.chatColor or "78AAFF"),
 							chatColor2 = type(entry.chatColor2) == "string" and entry.chatColor2 ~= "" and tostring(entry.chatColor2) or nil,
 							raw = message,
 							order = chatMessageOrder,
-							rainbow = isOwner or isAdmin,
-							useOwnChatColor = own and not (isOwner or isAdmin),
+							rainbow = rainbow,
+							useOwnChatColor = own and not rainbow,
 						}
 					end
 				end
@@ -4075,6 +4181,7 @@ originalIO.runNACHAT=function()
 				local keyBase = row.keyBase
 				local uidKey = row.uidKey
 				local isAdmin = type(info) == "table" and (info.admin == true) or false
+				local showAdminTag = type(info) ~= "table" or info.showAdminTag ~= false
 				local placeId = type(info) == "table" and info.placeId or nil
 				local jobId = type(info) == "table" and info.jobId or nil
 				local isHiddenUser = type(info) == "table" and (info.hidden == true) or false
@@ -4094,6 +4201,7 @@ originalIO.runNACHAT=function()
 					tostring(canonicalUsername or ""),
 					tostring(displayName or ""),
 					tostring(isAdmin),
+					tostring(showAdminTag),
 					tostring(gameStatus or ""),
 					tostring(executorName or ""),
 					tostring(executorVersion or ""),
@@ -4178,13 +4286,15 @@ originalIO.runNACHAT=function()
 					if isHiddenUser then
 						prefix = prefix.."[HIDDEN] "
 					end
-					if isOwner then
-						prefix = prefix.."[OWNER] "
-					elseif isAdmin then
-						prefix = prefix.."[ADMIN] "
+					if showAdminTag then
+						if isOwner then
+							prefix = prefix.."[OWNER] "
+						elseif isAdmin then
+							prefix = prefix.."[ADMIN] "
+						end
 					end
 
-					nameLbl.TextColor3 = (isAdmin or isOwner) and Color3.fromRGB(255, 214, 126) or Color3.fromRGB(235, 236, 246)
+					nameLbl.TextColor3 = (showAdminTag and (isAdmin or isOwner)) and Color3.fromRGB(255, 214, 126) or Color3.fromRGB(235, 236, 246)
 					if isHiddenUser then
 						nameLbl.TextColor3 = Color3.fromRGB(200, 200, 210)
 					end
@@ -4660,7 +4770,7 @@ originalIO.runNACHAT=function()
 				end)
 			end
 
-			NAChat.service.OnChatMessage.Event:Connect(function(name, msg, messageTimestamp, userId, isAdmin, gameStatus, displayName, messageId, reply, edited, chatColor, chatColor2, authorUsername, authorUserId)
+			NAChat.service.OnChatMessage.Event:Connect(function(name, msg, messageTimestamp, userId, isAdmin, gameStatus, displayName, messageId, reply, edited, chatColor, chatColor2, authorUsername, authorUserId, disguised, showAdminTag, rainbowMessages)
 				local rawSenderName = tostring(name or "?")
 				local messageText = tostring(msg or "")
 				local senderId = tonumber(userId)
@@ -4697,6 +4807,9 @@ originalIO.runNACHAT=function()
 					authorUsername = canonicalUsername,
 					authorUserId = canonicalUserId,
 					admin = isNAadmin,
+					disguised = disguised == true,
+					showAdminTag = showAdminTag,
+					rainbowMessages = rainbowMessages,
 					game = gameStatus,
 					chatColor = tostring(chatColor or "78AAFF"),
 					chatColor2 = type(chatColor2) == "string" and chatColor2 ~= "" and tostring(chatColor2) or nil,
@@ -4723,7 +4836,7 @@ originalIO.runNACHAT=function()
 			end)
 
 			if NAChat.service.OnMessageEdited then
-				NAChat.service.OnMessageEdited.Event:Connect(function(messageId, message, _, username, userId, displayName, isAdmin, reply, chatColor, chatColor2)
+				NAChat.service.OnMessageEdited.Event:Connect(function(messageId, message, _, username, userId, displayName, isAdmin, reply, chatColor, chatColor2, disguised, showAdminTag, rainbowMessages)
 					local id = tostring(messageId or "")
 					local entry = messageEntriesById[id]
 					if not entry then
@@ -4735,6 +4848,10 @@ originalIO.runNACHAT=function()
 					if displayName ~= nil then entry.displayName = tostring(displayName) end
 					if userId ~= nil then entry.userId = tonumber(userId) or entry.userId end
 					if isAdmin ~= nil then entry.isAdmin = isAdmin == true end
+					if disguised ~= nil then entry.disguised = disguised == true end
+					if showAdminTag ~= nil then entry.showAdminTag = showAdminTag == true end
+					if rainbowMessages ~= nil then entry.rainbow = rainbowMessages == true end
+					if entry.disguised then entry.avatarUserId = entry.userId end
 					if chatColor ~= nil then entry.chatColor = tostring(chatColor) end
 					entry.chatColor2 = type(chatColor2) == "string" and chatColor2 ~= "" and tostring(chatColor2) or nil
 					if type(reply) == "table" then entry.reply = reply end
@@ -4884,6 +5001,20 @@ originalIO.runNACHAT=function()
 						originalIO.setStatus("NA Chat: disguise disabled", STATUS_COLORS.info)
 					end
 					requestUsersList()
+				end)
+			end
+
+			if NAChat.service.OnAdminPresentation then
+				NAChat.service.OnAdminPresentation.Event:Connect(function(showTag, rainbowMessages)
+					if type(showTag) == "boolean" then
+						NAmanage.NAChat_SetSetting("naChatShowAdminTag", showTag)
+					end
+					if type(rainbowMessages) == "boolean" then
+						NAmanage.NAChat_SetSetting("naChatAdminRainbowMessages", rainbowMessages)
+					end
+					if refreshAdminAppearanceSettingsUI then
+						refreshAdminAppearanceSettingsUI()
+					end
 				end)
 			end
 
@@ -5103,7 +5234,8 @@ originalIO.runNACHAT=function()
 					removePendingGroupInvite(id)
 					if tostring(NAChat.activeGroupId or "") == id then
 						switchConversation(nil)
-					elseif refreshGroupPicker then
+					end
+					if refreshGroupPicker then
 						refreshGroupPicker()
 					end
 				end)
@@ -5129,7 +5261,7 @@ originalIO.runNACHAT=function()
 			end
 
 			if NAChat.service.OnGroupMessage then
-				NAChat.service.OnGroupMessage.Event:Connect(function(groupId, groupName, fromName, text, _, displayName, userId, isAdmin, chatColor, chatColor2, authorUsername, authorUserId)
+				NAChat.service.OnGroupMessage.Event:Connect(function(groupId, groupName, fromName, text, _, displayName, userId, isAdmin, chatColor, chatColor2, authorUsername, authorUserId, disguised, showAdminTag, rainbowMessages)
 					local id = tostring(groupId or "")
 					local sender = tostring(fromName or "?")
 					local senderDisplayName = tostring(displayName or "")
@@ -5144,17 +5276,24 @@ originalIO.runNACHAT=function()
 					if formatted == "" then
 						formatted = escapeChatRichText(msgText)
 					end
-					local isOwner = canonicalUserId == 11761417 or canonicalUserId == 530829101
+					local isOwner = canonicalUserId == 11761417 or canonicalUserId == 530829101 or canonicalUserId == 2502806181
 					local isNAadmin = isAdmin == true
+					local isDisguised = disguised == true
+					if showAdminTag == nil then showAdminTag = isOwner or isNAadmin end
+					showAdminTag = showAdminTag == true and not isDisguised
+					if rainbowMessages == nil then rainbowMessages = isOwner or isNAadmin end
+					rainbowMessages = rainbowMessages == true and not isDisguised
 					local lp = Players.LocalPlayer
 					local own = lp and ((canonicalUserId and tonumber(lp.UserId) == canonicalUserId) or Lower(tostring(lp.Name or "")) == Lower(canonicalUsername)) or false
-					local prefix = isOwner and "[OWNER] " or (isNAadmin and "[ADMIN] " or "")
+					local prefix = showAdminTag and (isOwner and "[OWNER] " or (isNAadmin and "[ADMIN] " or "")) or ""
 					appendConversationMessage(conversationKey(id), "<b>"..prefix..escapeChatRichText(formatChatIdentity(senderDisplayName, sender)).."</b>: "..formatted, colorFromHex(chatColor or "78AAFF"), msgText, {
-						avatarUserId = canonicalUserId,
+						avatarUserId = isDisguised and senderId or canonicalUserId,
+						disguised = isDisguised,
+						showAdminTag = showAdminTag,
 						chatColor = tostring(chatColor or "78AAFF"),
 						chatColor2 = type(chatColor2) == "string" and chatColor2 ~= "" and tostring(chatColor2) or nil,
-						rainbow = isOwner or isNAadmin,
-						useOwnChatColor = own and not (isOwner or isNAadmin),
+						rainbow = rainbowMessages,
+						useOwnChatColor = own and not rainbowMessages,
 					})
 					if mentioned and type(DoNotif) == "function" then
 						DoNotif(("%s mentioned you in #%s."):format(formatChatIdentity(senderDisplayName, sender), tostring(groupName or "group")), 3)
@@ -5371,6 +5510,9 @@ originalIO.runNACHAT=function()
 				NAChat.serverIsAdmin = (isAdmin == true)
 				if type(refreshAdminTabUI) == "function" then
 					refreshAdminTabUI()
+				end
+				if refreshAdminAppearanceSettingsUI then
+					pcall(refreshAdminAppearanceSettingsUI)
 				end
 				NAChat.isHidden = hidden or false
 				originalIO.setHiddenState(NAChat.isHidden, true)
@@ -5660,15 +5802,17 @@ originalIO.runNACHAT=function()
 				return
 			end
 
-			if NAmanage.NAChatSlurGuard:IsAttempt(t) then
-				NAmanage.NAChatSlurGuard:Warn(STATUS_COLORS.err)
-				clearTyping()
-				return
-			end
+			if not NAChat.serverIsAdmin then
+				if NAmanage.NAChatSlurGuard:IsAttempt(t) then
+					NAmanage.NAChatSlurGuard:Warn(STATUS_COLORS.err)
+					clearTyping()
+					return
+				end
 
-			if NAmanage._c29:_m(t) then
-				clearTyping()
-				return
+				if NAmanage._c29:_m(t) then
+					clearTyping()
+					return
+				end
 			end
 
 			local low = Lower(t)
@@ -6174,11 +6318,39 @@ originalIO.runNACHAT=function()
 					)
 					purgeBtn.Name = "AdminPurgeButton"
 
+					local adminTagToggleBtn = makeActionButton(
+						adminFrame,
+						"Admin tag: On",
+						UDim2.new(0, 10, 0, 172),
+						UDim2.new(0.5, -15, 0, 32),
+						CHAT_ON
+					)
+					adminTagToggleBtn.Name = "AdminTagToggleButton"
+
+					local adminRainbowToggleBtn = makeActionButton(
+						adminFrame,
+						"Rainbow messages: On",
+						UDim2.new(0.5, 5, 0, 172),
+						UDim2.new(0.5, -15, 0, 32),
+						CHAT_ON
+					)
+					adminRainbowToggleBtn.Name = "AdminRainbowToggleButton"
+
+					refreshAdminAppearanceSettingsUI = function()
+						local tagEnabled = NAmanage.NAChat_GetShowAdminTag()
+						local rainbowEnabled = NAmanage.NAChat_GetAdminRainbowMessages()
+						adminTagToggleBtn.Text = tagEnabled and "Admin tag: On" or "Admin tag: Off"
+						adminTagToggleBtn.BackgroundColor3 = tagEnabled and CHAT_ON or CHAT_OFF
+						adminRainbowToggleBtn.Text = rainbowEnabled and "Rainbow messages: On" or "Rainbow messages: Off"
+						adminRainbowToggleBtn.BackgroundColor3 = rainbowEnabled and CHAT_ON or CHAT_OFF
+					end
+					refreshAdminAppearanceSettingsUI()
+
 					local bannedLabel = InstanceNew("TextLabel", adminFrame)
 					bannedLabel.Name = "AdminAccessLabel"
 					bannedLabel.BackgroundTransparency = 1
 					bannedLabel.Size = UDim2.new(1, -20, 0, 20)
-					bannedLabel.Position = UDim2.new(0, 12, 0, 176)
+					bannedLabel.Position = UDim2.new(0, 12, 0, 210)
 					bannedLabel.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
 					bannedLabel.TextSize = 14
 					bannedLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -6189,8 +6361,8 @@ originalIO.runNACHAT=function()
 					banScroll.Name = "AdminBanList"
 					banScroll.BackgroundTransparency = 1
 					banScroll.BorderSizePixel = 0
-					banScroll.Size = UDim2.new(1, -20, 1, -208)
-					banScroll.Position = UDim2.new(0, 10, 0, 202)
+					banScroll.Size = UDim2.new(1, -20, 1, -242)
+					banScroll.Position = UDim2.new(0, 10, 0, 236)
 					banScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
 					banScroll.ScrollBarThickness = 3
 					banScroll.ScrollBarImageColor3 = Color3.fromRGB(104, 104, 114)
@@ -6561,6 +6733,18 @@ originalIO.runNACHAT=function()
 					end
 
 					if MouseButtonFix then
+						MouseButtonFix(adminTagToggleBtn, function()
+							NAmanage.NAChat_SetSetting("naChatShowAdminTag", not NAmanage.NAChat_GetShowAdminTag())
+							if refreshAdminAppearanceSettingsUI then refreshAdminAppearanceSettingsUI() end
+							pushAdminPresentation()
+						end)
+
+						MouseButtonFix(adminRainbowToggleBtn, function()
+							NAmanage.NAChat_SetSetting("naChatAdminRainbowMessages", not NAmanage.NAChat_GetAdminRainbowMessages())
+							if refreshAdminAppearanceSettingsUI then refreshAdminAppearanceSettingsUI() end
+							pushAdminPresentation()
+						end)
+
 						local function resolveTargetOrWarn(actionLabel)
 							local targetName = userBox.Text or ""
 							targetName = targetName:match("^%s*(.-)%s*$") or ""
@@ -6747,6 +6931,7 @@ originalIO.runNACHAT=function()
 				adminTab = nil
 				adminFrame = nil
 				adminTabBound = false
+				refreshAdminAppearanceSettingsUI = nil
 			end
 		end
 		refreshAdminTabUI()
