@@ -349,6 +349,14 @@ const function buildEngineSettingsControls()
 		end)
 	end
 
+	NAgui.addSection("Streaming")
+	NAgui.addToggle("Keep Full Map Rendered", NAmanage.NASettingsGet("fullMapStreamingEnabled") == true, function(v)
+		NAmanage.SetFullMapStreaming(v == true, { save = true; notify = true; })
+	end)
+	NAmanage.RegisterToggleAutoSync("Keep Full Map Rendered", function()
+		return NAmanage.NASettingsGet("fullMapStreamingEnabled") == true
+	end)
+
 	NAgui.addSection("Engine Number Settings")
 	for _, entry in NAmanage.EngineSettings.numberCommands or {} do
 		NAmanage.MarkExternalLagProbe("settings_engine_number:"..tostring(entry.label or entry.property or "?"))
