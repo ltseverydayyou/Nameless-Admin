@@ -4124,6 +4124,30 @@ NAmanage.NASettingsGetSchema=function()
 				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
 			end;
 		};
+		devConsoleTimestamps = {
+			default = true;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
+			end;
+		};
+		devConsoleCollapseDuplicates = {
+			default = true;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
+			end;
+		};
+		devConsoleShowSource = {
+			default = true;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
+			end;
+		};
+		devConsoleCopyContext = {
+			default = true;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, true)
+			end;
+		};
 		devConsoleLogLimit = {
 			default = 1200;
 			coerce = function(value)
@@ -5242,6 +5266,12 @@ NAmanage.NASettingsGetSchema=function()
 			end;
 		};
 		saveInstanceTreatUnionsAsParts = {
+			default = false;
+			coerce = function(value)
+				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
+			end;
+		};
+		fullMapStreamingEnabled = {
 			default = false;
 			coerce = function(value)
 				return NAmanage.NASettingsSchemaState.coerceBoolean(value, false)
