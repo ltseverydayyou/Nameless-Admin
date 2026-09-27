@@ -692,6 +692,12 @@ _na_boot.isRetryableHttp = function(response, err)
 		or text:find("rate limit", 1, true) ~= nil
 		or text:find("timed out", 1, true) ~= nil
 		or text:find("timeout", 1, true) ~= nil
+		or text:find("connectfail", 1, true) ~= nil
+		or text:find("connect fail", 1, true) ~= nil
+		or text:find("connection failed", 1, true) ~= nil
+		or text:find("connection reset", 1, true) ~= nil
+		or text:find("network is unreachable", 1, true) ~= nil
+		or text:find("temporary failure", 1, true) ~= nil
 end
 
 _na_boot.sleepHttp = function(seconds)

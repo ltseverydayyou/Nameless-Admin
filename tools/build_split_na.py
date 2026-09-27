@@ -760,6 +760,17 @@ def main() -> None:
             )
         piece = piece.replace("NATestingVer = false", "NATestingVer = _na_boot.splitConfig.testing")
         piece = piece.replace('__NAKeySource = "Source.lua"', "__NAKeySource = _na_boot.splitConfig.sourceTag")
+        piece = piece.replace(
+            '\t\tor text:find("timeout", 1, true) ~= nil',
+            '\t\tor text:find("timeout", 1, true) ~= nil\n'
+            '\t\tor text:find("connectfail", 1, true) ~= nil\n'
+            '\t\tor text:find("connect fail", 1, true) ~= nil\n'
+            '\t\tor text:find("connection failed", 1, true) ~= nil\n'
+            '\t\tor text:find("connection reset", 1, true) ~= nil\n'
+            '\t\tor text:find("network is unreachable", 1, true) ~= nil\n'
+            '\t\tor text:find("temporary failure", 1, true) ~= nil',
+            1,
+        )
         rebuilt.append(piece.splitlines())
     loader_version = write_boots(source, len(rebuilt))
     write_chunks(rebuilt, loader_version)
