@@ -302,7 +302,7 @@ def write_chunks(chunks: list[list[str]], loader_version: str) -> None:
     for index, chunk in enumerate(chunks, start=1):
         part_name = f"part-{index:03d}.lua"
         path = COMMON / part_name
-        data = ("\n".join(chunk).rstrip() + "\n").encode("utf-8")
+        data = ("\r\n".join(chunk).rstrip() + "\r\n").encode("utf-8")
         path.write_bytes(data)
         digest.update(f"{part_name}\0".encode("utf-8"))
         digest.update(data)
