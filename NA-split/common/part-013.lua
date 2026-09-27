@@ -2336,6 +2336,275 @@ NAmanage.RunSaveInstance = NAmanage.RunSaveInstance or function(extra)
 	return result
 end
 
+
+NAStuff.FullMapStreamingState = type(NAStuff.FullMapStreamingState) == "table" and NAStuff.FullMapStreamingState or {
+	enabled = false;
+	token = 0;
+	connection = nil;
+	previousStreamOutBehavior = nil;
+	originalModelModes = nil;
+	sweepRunning = false;
+	completed = 0;
+	failed = 0;
+	total = 0;
+}
+
+NAmanage.StopFullMapStreaming = NAmanage.StopFullMapStreaming or function(opts)
+	opts = type(opts) == "table" and opts or {}
+	local state = NAStuff.FullMapStreamingState
+	state.enabled = false
+	state.token = (tonumber(state.token) or 0) + 1
+	state.sweepRunning = false
+
+	if state.connection then
+		pcall(function()
+			state.connection:Disconnect()
+		end)
+		state.connection = nil
+	end
+
+	if type(state.originalModelModes) == "table" then
+		for model, mode in state.originalModelModes do
+			if typeof(model) == "Instance" and model.Parent ~= nil and mode ~= nil then
+				pcall(function()
+					model.ModelStreamingMode = mode
+				end)
+			end
+		end
+	end
+	state.originalModelModes = nil
+
+	if state.previousStreamOutBehavior ~= nil then
+		pcall(function()
+			if type(sethiddenproperty) == "function" then
+				sethiddenproperty(workspace, "StreamOutBehavior", state.previousStreamOutBehavior)
+			else
+				workspace.StreamOutBehavior = state.previousStreamOutBehavior
+			end
+		end)
+	end
+	state.previousStreamOutBehavior = nil
+
+	if opts.save ~= false then
+		pcall(NAmanage.NASettingsSet, "fullMapStreamingEnabled", false)
+	end
+	if opts.notify == true then
+		DoNotif("Full map streaming disabled. Loaded chunks can stream out normally again.", 3, "Full Map Streaming")
+	end
+	return true
+end
+
+NAmanage.SetFullMapStreaming = NAmanage.SetFullMapStreaming or function(enabled, opts)
+	opts = type(opts) == "table" and opts or {}
+	enabled = enabled == true
+
+	if not enabled then
+		return NAmanage.StopFullMapStreaming(opts)
+	end
+
+	local state = NAStuff.FullMapStreamingState
+	if state.enabled == true then
+		if opts.save ~= false then
+			pcall(NAmanage.NASettingsSet, "fullMapStreamingEnabled", true)
+		end
+		return true
+	end
+
+	local player = Services.Players.LocalPlayer
+	if not player or type(player.RequestStreamAroundAsync) ~= "function" then
+		if opts.notify ~= false then
+			DoNotif("RequestStreamAroundAsync is unavailable.", 3, "Full Map Streaming")
+		end
+		return false
+	end
+
+	if workspace.StreamingEnabled ~= true then
+		if opts.notify ~= false then
+			DoNotif("Workspace streaming is disabled in this game, so there is nothing for this mode to force-load.", 4, "Full Map Streaming")
+		end
+		if opts.save ~= false then
+			pcall(NAmanage.NASettingsSet, "fullMapStreamingEnabled", false)
+		end
+		return false
+	end
+
+	state.enabled = true
+	state.token = (tonumber(state.token) or 0) + 1
+	local token = state.token
+	state.completed = 0
+	state.failed = 0
+	state.total = 0
+	state.originalModelModes = setmetatable({}, { __mode = "k" })
+
+	pcall(function()
+		if type(gethiddenproperty) == "function" then
+			state.previousStreamOutBehavior = gethiddenproperty(workspace, "StreamOutBehavior")
+		else
+			state.previousStreamOutBehavior = workspace.StreamOutBehavior
+		end
+	end)
+	pcall(function()
+		if type(sethiddenproperty) == "function" then
+			sethiddenproperty(workspace, "StreamOutBehavior", Enum.StreamOutBehavior.LowMemory)
+		else
+			workspace.StreamOutBehavior = Enum.StreamOutBehavior.LowMemory
+		end
+	end)
+
+	local function persistModel(model)
+		if state.enabled ~= true or token ~= state.token or not model:IsA("Model") then
+			return
+		end
+		if state.originalModelModes[model] == nil then
+			pcall(function()
+				state.originalModelModes[model] = model.ModelStreamingMode
+			end)
+		end
+		pcall(function()
+			model.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
+		end)
+	end
+
+	local okModels, models = pcall(function()
+		return workspace:QueryDescendants("Model")
+	end)
+	if okModels and type(models) == "table" then
+		for _, model in models do
+			persistModel(model)
+		end
+	else
+		for _, descendant in workspace:GetDescendants() do
+			if descendant:IsA("Model") then
+				persistModel(descendant)
+			end
+		end
+	end
+
+	state.connection = workspace.DescendantAdded:Connect(function(descendant)
+		if descendant:IsA("Model") then
+			persistModel(descendant)
+		end
+	end)
+
+	local cfg = NAStuff.SaveInstanceConfig or {}
+	local areaSize = math.max(256, tonumber(cfg.streamingAreaSize) or 10000)
+	local configuredRadius = math.max(64, tonumber(cfg.streamingRadius) or 1024)
+	local timeout = math.max(1, tonumber(cfg.streamingTimeout) or 20)
+	local slices = math.clamp(math.floor((tonumber(cfg.streamingSlices) or 2) + 0.5), 1, 16)
+	local concurrency = math.max(0, math.floor((tonumber(cfg.streamingConcurrency) or 0) + 0.5))
+	if concurrency <= 0 then
+		concurrency = math.clamp(math.floor(areaSize / 750), 4, 24)
+	end
+
+	local targetRadius = configuredRadius
+	pcall(function()
+		if type(gethiddenproperty) == "function" then
+			local value = tonumber(gethiddenproperty(workspace, "StreamingTargetRadius"))
+			if value and value > 0 then
+				targetRadius = math.max(64, math.min(configuredRadius, value))
+			end
+		end
+	end)
+	local step = math.max(64, targetRadius)
+	local character = player.Character
+	local center = Vector3.zero
+	if character then
+		pcall(function()
+			center = character:GetPivot().Position
+		end)
+	elseif workspace.CurrentCamera then
+		center = workspace.CurrentCamera.CFrame.Position
+	end
+
+	local half = areaSize * 0.5
+	local verticalSpan = math.max(step, configuredRadius)
+	local points = {}
+	local yValues = {}
+	if slices <= 1 then
+		yValues[1] = center.Y
+	else
+		for index = 1, slices do
+			local alpha = (index - 1) / (slices - 1)
+			yValues[#yValues + 1] = center.Y + ((alpha * 2) - 1) * verticalSpan
+		end
+	end
+	for _, y in yValues do
+		local x = center.X - half
+		while x <= center.X + half + 0.001 do
+			local z = center.Z - half
+			while z <= center.Z + half + 0.001 do
+				points[#points + 1] = Vector3.new(x, y, z)
+				z += step
+			end
+			x += step
+		end
+	end
+
+	state.total = #points
+	state.sweepRunning = true
+	if opts.save ~= false then
+		pcall(NAmanage.NASettingsSet, "fullMapStreamingEnabled", true)
+	end
+	if opts.notify ~= false then
+		DoNotif(("Streaming %d map cells in the background without moving your character."):format(#points), 4, "Full Map Streaming")
+	end
+
+	task.spawn(function()
+		local nextIndex = 1
+		local workersLeft = concurrency
+		for _ = 1, concurrency do
+			task.spawn(function()
+				while state.enabled == true and token == state.token do
+					local index = nextIndex
+					nextIndex += 1
+					if index > #points then
+						break
+					end
+					local ok = pcall(function()
+						player:RequestStreamAroundAsync(points[index], timeout)
+					end)
+					if ok then
+						state.completed += 1
+					else
+						state.failed += 1
+					end
+					task.wait()
+				end
+				workersLeft -= 1
+			end)
+		end
+
+		while state.enabled == true and token == state.token and workersLeft > 0 do
+			task.wait(0.1)
+		end
+		if token ~= state.token then
+			return
+		end
+		state.sweepRunning = false
+		if state.enabled == true and opts.notify ~= false then
+			DoNotif(("Full map streaming pass finished: %d/%d requests succeeded%s."):format(
+				state.completed,
+				state.total,
+				state.failed > 0 and (", "..tostring(state.failed).." failed") or ""
+			), 4, "Full Map Streaming")
+		end
+	end)
+
+	return true
+end
+
+if type(NAmanage.RegisterUnloadCleanup) == "function" then
+	NAmanage.RegisterUnloadCleanup("full_map_streaming_restore", function()
+		NAmanage.StopFullMapStreaming({ save = false; notify = false; })
+	end, 115)
+end
+
+task.defer(function()
+	if NAmanage.NASettingsGet("fullMapStreamingEnabled") == true then
+		NAmanage.SetFullMapStreaming(true, { save = false; notify = false; })
+	end
+end)
+
 NAmanage.BuildSaveInstanceTab = NAmanage.BuildSaveInstanceTab or function()
 	const cfg = NAStuff.SaveInstanceConfig
 	const function setValue(configKey, settingKey, value)
@@ -2489,6 +2758,9 @@ NAmanage.BuildSaveInstanceTab = NAmanage.BuildSaveInstanceTab or function()
 	end)
 
 	NAgui.addSection("Streaming and Export")
+	NAgui.addToggle("Keep Full Map Rendered", NAmanage.NASettingsGet("fullMapStreamingEnabled") == true, function(v)
+		NAmanage.SetFullMapStreaming(v == true, { save = true; notify = true; })
+	end)
 	NAgui.addToggle("Capture Full Streaming Map", cfg.setStreaming == true, function(v)
 		setValue("setStreaming", "saveInstanceSetStreaming", v == true)
 	end)
