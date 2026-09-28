@@ -507,12 +507,62 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		OWNERSHIP_CACHE[userId][badgeId] = { v = value, t = os.time() }
 	end
 
-	const function checkBadgesViaAwardedDates(userId, badgeIds)
+	const function clearOwnershipCache(userId)
+		OWNERSHIP_CACHE[userId] = nil
+	end
+
+	const function checkBadgesViaGetUserBadges(userId, badgeIds, bypassCache)
 		const pending = {}
 		const results = {}
 
 		for _, badgeId in badgeIds do
-			const cached = cacheGet(userId, badgeId)
+			const cached = not bypassCache and cacheGet(userId, badgeId) or nil
+			if cached ~= nil then
+				results[badgeId] = cached
+			else
+				Insert(pending, badgeId)
+			end
+		end
+
+		if #pending == 0 then
+			return true, results
+		end
+		if type(BadgeService.GetUserBadgesAsync) ~= "function" then
+			return false, nil
+		end
+
+		local tries, delay = 0, 0.6
+		while tries < 3 do
+			tries += 1
+			local ok, ownedEntries = pcall(BadgeService.GetUserBadgesAsync, BadgeService, userId, pending)
+			if ok and type(ownedEntries) == "table" then
+				for _, badgeId in pending do
+					results[badgeId] = false
+				end
+				for _, entry in ownedEntries do
+					const badgeId = tonumber(entry and (entry.BadgeId or entry.badgeId or entry.Id or entry.id))
+					if badgeId then
+						results[badgeId] = true
+					end
+				end
+				for _, badgeId in pending do
+					cachePut(userId, badgeId, results[badgeId] == true)
+				end
+				return true, results
+			end
+			Wait(delay)
+			delay = math.min(delay * 1.8, 4)
+		end
+
+		return false, nil
+	end
+
+	const function checkBadgesViaAwardedDates(userId, badgeIds, bypassCache)
+		const pending = {}
+		const results = {}
+
+		for _, badgeId in badgeIds do
+			const cached = not bypassCache and cacheGet(userId, badgeId) or nil
 			if cached ~= nil then
 				results[badgeId] = cached
 			else
@@ -553,8 +603,13 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		return true, results
 	end
 
-	const function checkBadgesBatchWithRetry(userId, badgeIds)
-		local okApi, apiResults = checkBadgesViaAwardedDates(userId, badgeIds)
+	const function checkBadgesBatchWithRetry(userId, badgeIds, bypassCache)
+		local okEngine, engineResults = checkBadgesViaGetUserBadges(userId, badgeIds, bypassCache)
+		if okEngine and engineResults then
+			return true, engineResults
+		end
+
+		local okApi, apiResults = checkBadgesViaAwardedDates(userId, badgeIds, bypassCache)
 		if okApi and apiResults then
 			return true, apiResults
 		end
@@ -1402,7 +1457,7 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 
 		NAgui.dragger(main, header)
 
-		const function runOwnershipChecks(dataset)
+		const function runOwnershipChecks(dataset, forceRefresh)
 			ownershipRunId += 1
 			const runId = ownershipRunId
 			setLoadingOverlayVisible(true)
@@ -1416,7 +1471,7 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 				refreshBtn.Active = true
 				return
 			end
-			const batchSize = 50
+			const batchSize = 100
 
 			Spawn(function()
 				local processed = 0
@@ -1433,7 +1488,7 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 					end
 
 					loadingText.Text = ("Loading... %d/%d"):format(processed, total)
-					local ok, results = checkBadgesBatchWithRetry(Player.UserId, badgeIds)
+					local ok, results = checkBadgesBatchWithRetry(Player.UserId, badgeIds, forceRefresh)
 					if ok and results then
 						for _, badgeId in badgeIds do
 							const has = results[badgeId]
@@ -1482,6 +1537,7 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		MouseButtonFix(refreshBtn, function()
 			if refreshBtn.Active == false then return end
 			ownershipRunId += 1
+			clearOwnershipCache(Player.UserId)
 			refreshBtn.Active = false
 			refreshBtn.AutoButtonColor = false
 			refreshBtn.Text = "Refreshing..."
@@ -1509,7 +1565,7 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 					makeListCard(b)
 				end
 				attachLayout()
-				runOwnershipChecks(badgesData)
+				runOwnershipChecks(badgesData, true)
 			else
 				setLoadingOverlayVisible(false)
 				refreshBtn.AutoButtonColor = true
