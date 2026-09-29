@@ -4123,6 +4123,268 @@ cmd.add({"breakcars", "bcars"}, {"breakcars (bcars)", "Breaks any car"}, functio
 	end)
 end)
 
+NAmanage.NetworkClaimGetState = function()
+	local state = NAStuff._networkClaimState
+	if type(state) ~= "table" then
+		state = {
+			enabled = false;
+			radius = 200;
+			all = false;
+			lastScan = 0;
+			changedRules = NAmanage.ensureWeakKeyTable(nil);
+			previousPhysics = nil;
+			radiusCaptured = false;
+			previousSimulationRadius = nil;
+			previousMaximumSimulationRadius = nil;
+		}
+		NAStuff._networkClaimState = state
+	end
+	state.changedRules = NAmanage.ensureWeakKeyTable(state.changedRules)
+	return state
+end
+
+NAmanage.NetworkClaimGetHidden = function(inst, property)
+	if type(gethiddenproperty) == "function" then
+		local ok, value = pcall(gethiddenproperty, inst, property)
+		if ok then
+			return true, value
+		end
+	end
+	local ok, value = pcall(function()
+		return inst[property]
+	end)
+	return ok, value
+end
+
+NAmanage.NetworkClaimApplyRadius = function(state)
+	if not state.radiusCaptured then
+		state.radiusCaptured = true
+		local okSim, simRadius = NAmanage.NetworkClaimGetHidden(LocalPlayer, "SimulationRadius")
+		if okSim then
+			state.previousSimulationRadius = simRadius
+		end
+		pcall(function()
+			state.previousMaximumSimulationRadius = LocalPlayer.MaximumSimulationRadius
+		end)
+	end
+
+	local radius = state.all and math.huge or math.max(25, tonumber(state.radius) or 200)
+	pcall(function()
+		opt.hiddenprop(LocalPlayer, "SimulationRadius", radius)
+	end)
+	pcall(function()
+		LocalPlayer.MaximumSimulationRadius = radius
+	end)
+	if type(setsimulationradius) == "function" then
+		pcall(setsimulationradius, radius)
+	end
+end
+
+NAmanage.NetworkClaimRestoreRadius = function(state)
+	if not state.radiusCaptured then
+		return
+	end
+	state.radiusCaptured = false
+	if state.previousSimulationRadius ~= nil then
+		pcall(function()
+			opt.hiddenprop(LocalPlayer, "SimulationRadius", state.previousSimulationRadius)
+		end)
+	end
+	if state.previousMaximumSimulationRadius ~= nil then
+		pcall(function()
+			LocalPlayer.MaximumSimulationRadius = state.previousMaximumSimulationRadius
+		end)
+	end
+	state.previousSimulationRadius = nil
+	state.previousMaximumSimulationRadius = nil
+end
+
+NAmanage.NetworkClaimSetPhysics = function(state)
+	if state.previousPhysics ~= nil then
+		return
+	end
+	local backup = {}
+	local okSettings, physics = pcall(function()
+		return settings().Physics
+	end)
+	if not okSettings or not physics then
+		state.previousPhysics = backup
+		return
+	end
+	local okSleep, oldSleep = pcall(function()
+		return physics.AllowSleep
+	end)
+	if okSleep then
+		backup.allowSleep = oldSleep
+		pcall(function()
+			physics.AllowSleep = false
+		end)
+	end
+	local okThrottle, oldThrottle = pcall(function()
+		return physics.PhysicsEnvironmentalThrottle
+	end)
+	if okThrottle then
+		backup.throttle = oldThrottle
+		pcall(function()
+			physics.PhysicsEnvironmentalThrottle = Enum.EnviromentalPhysicsThrottle.Disabled
+		end)
+	end
+	state.previousPhysics = backup
+end
+
+NAmanage.NetworkClaimRestorePhysics = function(state)
+	local backup = state.previousPhysics
+	state.previousPhysics = nil
+	if type(backup) ~= "table" then
+		return
+	end
+	local okSettings, physics = pcall(function()
+		return settings().Physics
+	end)
+	if not okSettings or not physics then
+		return
+	end
+	if backup.allowSleep ~= nil then
+		pcall(function()
+			physics.AllowSleep = backup.allowSleep
+		end)
+	end
+	if backup.throttle ~= nil then
+		pcall(function()
+			physics.PhysicsEnvironmentalThrottle = backup.throttle
+		end)
+	end
+end
+
+NAmanage.NetworkClaimScan = function(notify)
+	local state = NAmanage.NetworkClaimGetState()
+	NAmanage.NetworkClaimApplyRadius(state)
+
+	local currentCharacter = getChar()
+	local candidates = {}
+	if state.all == true then
+		candidates = NAmanage.QueryDescendants(Services.Workspace, "BasePart")
+	else
+		local characterRoot = currentCharacter and getRoot(currentCharacter)
+		if not characterRoot then
+			if notify then
+				DoNotif("Network claim: character root unavailable", 2)
+			end
+			return 0, 0, 0
+		end
+		local overlap = OverlapParams.new()
+		overlap.FilterType = Enum.RaycastFilterType.Exclude
+		overlap.FilterDescendantsInstances = currentCharacter and { currentCharacter } or {}
+		overlap.MaxParts = 1000
+		local ok, parts = pcall(function()
+			return Services.Workspace:GetPartBoundsInRadius(characterRoot.Position, tonumber(state.radius) or 200, overlap)
+		end)
+		if ok and type(parts) == "table" then
+			candidates = parts
+		end
+	end
+
+	local seen = NAmanage.ensureWeakKeyTable(nil)
+	local processed = 0
+	local changed = 0
+	local owned = 0
+	for _, part in candidates do
+		if typeof(part) == "Instance" and part:IsA("BasePart") and not part.Anchored then
+			local assembly = part.AssemblyRootPart or part
+			if assembly and not assembly.Anchored and not seen[assembly] and (not currentCharacter or not assembly:IsDescendantOf(currentCharacter)) then
+				seen[assembly] = true
+				processed += 1
+
+				local readable, rule = NAmanage.NetworkClaimGetHidden(assembly, "NetworkOwnershipRule")
+				if readable and rule ~= Enum.NetworkOwnership.Automatic then
+					if state.changedRules[assembly] == nil then
+						state.changedRules[assembly] = rule
+					end
+					pcall(opt.hiddenprop, assembly, "NetworkOwnershipRule", Enum.NetworkOwnership.Automatic)
+					local okAfter, afterRule = NAmanage.NetworkClaimGetHidden(assembly, "NetworkOwnershipRule")
+					if okAfter and afterRule == Enum.NetworkOwnership.Automatic then
+						changed += 1
+					end
+				elseif not readable then
+					pcall(opt.hiddenprop, assembly, "NetworkOwnershipRule", Enum.NetworkOwnership.Automatic)
+				end
+
+				pcall(opt.hiddenprop, assembly, "NetworkIsSleeping", false)
+
+				if type(isnetworkowner) == "function" then
+					local okOwner, result = pcall(isnetworkowner, assembly)
+					if okOwner and result == true then
+						owned += 1
+					end
+				end
+			end
+		end
+	end
+
+	if notify then
+		local scope = state.all and "all Workspace parts" or (tostring(state.radius).." studs")
+		local ownerText = type(isnetworkowner) == "function" and (", owned "..tostring(owned)) or ""
+		DoNotif("Network claim active ("..scope.."): scanned "..tostring(processed)..", changed "..tostring(changed)..ownerText, 4)
+	end
+	return processed, changed, owned
+end
+
+NAmanage.NetworkClaimStart = function(value)
+	local state = NAmanage.NetworkClaimGetState()
+	local text = tostring(value or ""):lower()
+	if text == "all" then
+		state.all = true
+	else
+		state.all = false
+		state.radius = math.clamp(tonumber(value) or tonumber(state.radius) or 200, 25, 2048)
+	end
+	state.enabled = true
+	state.lastScan = 0
+	NAmanage.NetworkClaimSetPhysics(state)
+	NAmanage.NetworkClaimScan(true)
+	NAlib.reconnect("network_claim_loop", Services.RunService.Heartbeat:Connect(function()
+		if not state.enabled then
+			return
+		end
+		local now = os.clock()
+		if now - (tonumber(state.lastScan) or 0) < 0.35 then
+			return
+		end
+		state.lastScan = now
+		NAmanage.NetworkClaimScan(false)
+	end))
+end
+
+NAmanage.NetworkClaimStop = function(notify)
+	local state = NAmanage.NetworkClaimGetState()
+	local wasEnabled = state.enabled == true
+	state.enabled = false
+	NAlib.disconnect("network_claim_loop")
+	for part, rule in state.changedRules do
+		if typeof(part) == "Instance" and part.Parent then
+			pcall(opt.hiddenprop, part, "NetworkOwnershipRule", rule)
+		end
+	end
+	state.changedRules = NAmanage.ensureWeakKeyTable(nil)
+	NAmanage.NetworkClaimRestoreRadius(state)
+	NAmanage.NetworkClaimRestorePhysics(state)
+	if notify ~= false then
+		DoNotif(wasEnabled and "Network claim disabled and reversible changes restored" or "Network claim is already disabled", 3)
+	end
+end
+
+NAmanage.RegisterUnloadCleanup("network_claim_restore", function()
+	NAmanage.NetworkClaimStop(false)
+end, 115)
+
+cmd.add({"netclaim", "claimnetwork", "networkclaim"},{"netclaim [radius|all] (claimnetwork, networkclaim)","Try to acquire network ownership using SimulationRadius, automatic ownership, and awake physics without moving your character"},function(...)
+	NAmanage.NetworkClaimStart(...)
+end,true)
+
+cmd.add({"unnetclaim", "unclaimnetwork", "unnetworkclaim"},{"unnetclaim (unclaimnetwork, unnetworkclaim)","Stop network ownership attempts and restore changed ownership rules, radius, and physics settings"},function()
+	NAmanage.NetworkClaimStop(true)
+end)
+
 cmd.add({"setsimradius", "ssr", "simrad"},{"setsimradius <number>","Set sim radius using available methods. Usage: setsimradius <radius>"},function(...)
 	const r = tonumber(...)
 	if not r then
