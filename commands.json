@@ -8239,6 +8239,28 @@
       "desc": "Breaks any car"
     },
     {
+      "name": "netclaim",
+      "aliases": [
+        "netclaim",
+        "claimnetwork",
+        "networkclaim"
+      ],
+      "usage": "netclaim [radius|all] (claimnetwork, networkclaim)",
+      "args": "[radius|all]",
+      "desc": "Try to acquire network ownership using SimulationRadius, automatic ownership, and awake physics without moving your character"
+    },
+    {
+      "name": "unnetclaim",
+      "aliases": [
+        "unnetclaim",
+        "unclaimnetwork",
+        "unnetworkclaim"
+      ],
+      "usage": "unnetclaim (unclaimnetwork, unnetworkclaim)",
+      "args": "",
+      "desc": "Stop network ownership attempts and restore changed ownership rules, radius, and physics settings"
+    },
+    {
       "name": "setsimradius",
       "aliases": [
         "setsimradius",
