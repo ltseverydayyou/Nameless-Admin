@@ -197,6 +197,26 @@
       "desc": "Aggressively patches common cooldown, reload, recoil, spread, ammo, fire-rate, range, and damage settings for a tool"
     },
     {
+      "name": "patchtool",
+      "aliases": [
+        "patchtool",
+        "pt"
+      ],
+      "usage": "patchtool [tool|all] [category] (pt)",
+      "args": "[tool|all] [category]",
+      "desc": "Lightweight tool patcher for cooldown, reload, recoil, spread, ammo, fire-rate, range, or damage without runtime/GC scanning"
+    },
+    {
+      "name": "unpatchtool",
+      "aliases": [
+        "unpatchtool",
+        "unpt"
+      ],
+      "usage": "unpatchtool (unpt)",
+      "args": "",
+      "desc": "Restores values changed by Patch Tool and disables its guards"
+    },
+    {
       "name": "unautopatchtool",
       "aliases": [
         "unautopatchtool",
