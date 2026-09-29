@@ -108,8 +108,8 @@ originalIO.naTransLatooor=function()
 	opt.settingsTranslateTarget = translator.settingsTarget
 	translator.target = translator.chatTarget
 
-	translator.provider = tostring(opt.translateProvider or translator.provider or "mymemory"):lower()
-	opt.translateProvider = translator.provider
+	translator.provider = "google"
+	opt.translateProvider = "google"
 	opt.translateFallbackGoogle = opt.translateFallbackGoogle == true
 	opt.translateUseDeepLFree = opt.translateUseDeepLFree ~= false
 	opt.translateLibreEndpoint = opt.translateLibreEndpoint or ""
@@ -222,17 +222,7 @@ originalIO.naTransLatooor=function()
 	end
 
 	const function getProvider()
-		local provider = cfgValue("NATranslateProvider", "translateProvider", "translatorProvider") or "mymemory"
-		provider = tostring(provider):lower()
-		if provider == "memory" or provider == "mm" then
-			provider = "mymemory"
-		elseif provider == "libretranslate" then
-			provider = "libre"
-		end
-		if provider == "mymemory" or provider == "deepl" or provider == "libre" or provider == "google" then
-			return provider
-		end
-		return "mymemory"
+		return "google"
 	end
 
 	const function getDeepLKey()
@@ -991,6 +981,9 @@ originalIO.naTransLatooor=function()
 		if info.translationLine and info.target == self.chatTarget then
 			return
 		end
+		if info.translationSkippedTarget == self.chatTarget then
+			return
+		end
 		if not info.message or info.message == "" then
 			return
 		end
@@ -1025,6 +1018,18 @@ originalIO.naTransLatooor=function()
 			end
 			const code = NAmanage.iso2(detected) or detected or "AUTO"
 			const tag = tostring(code):upper()
+			const detectedCode = NAmanage.iso2(detected) or tostring(detected or ""):lower()
+			const targetCode = NAmanage.iso2(requestTarget) or tostring(requestTarget or ""):lower()
+			local originalComparable = tostring(info.message or ""):gsub("%s+", " "):match("^%s*(.-)%s*$") or ""
+			local translatedComparable = tostring(translated or ""):gsub("%s+", " "):match("^%s*(.-)%s*$") or ""
+			if detectedCode == targetCode or Lower(originalComparable) == Lower(translatedComparable) then
+				info.translationLine = nil
+				info.translationSkippedTarget = requestTarget
+				info.detected = tag
+				applyActive()
+				return
+			end
+			info.translationSkippedTarget = nil
 			info.translationLine = ("[%s] %s"):format((requestTarget or "en"):upper(), escapeForRichText(translated))
 			info.detected = tag
 			applyActive()
@@ -1044,6 +1049,7 @@ originalIO.naTransLatooor=function()
 				translating = false;
 				translatingRevision = nil;
 				target = nil;
+				translationSkippedTarget = nil;
 				revision = 0;
 			}
 		end
@@ -1057,6 +1063,7 @@ originalIO.naTransLatooor=function()
 			info.translating = false
 			info.translatingRevision = nil
 			info.target = nil
+			info.translationSkippedTarget = nil
 		end
 		info.base = nextBase
 		info.message = nextMessage
@@ -1110,6 +1117,7 @@ originalIO.naTransLatooor=function()
 			info.target = nil
 			info.translating = false
 			info.translatingRevision = nil
+			info.translationSkippedTarget = nil
 			self:applyDisplay(label, info)
 			self:ensureTranslation(label, info)
 		end

@@ -2807,6 +2807,391 @@ cmd.add({"autopatchtool", "apt"}, {"autopatchtool [tool|all] (apt)", "Aggressive
 	end)
 end)
 
+NAmanage.GetPatchToolState = function()
+	const host = _na_boot.hostEnv
+	local state = type(host) == "table" and rawget(host, "__NA_PatchToolState") or nil
+	if type(state) ~= "table" then
+		state = {
+			enabled = false;
+			all = false;
+			category = "all";
+			records = {};
+			seenTables = setmetatable({}, { __mode = "k" });
+			seenInstances = setmetatable({}, { __mode = "k" });
+			connections = {};
+			guardConnections = setmetatable({}, { __mode = "k" });
+			patchedTools = setmetatable({}, { __mode = "k" });
+		}
+		if type(host) == "table" then
+			pcall(rawset, host, "__NA_PatchToolState", state)
+		end
+	end
+	state.records = type(state.records) == "table" and state.records or {}
+	state.seenTables = type(state.seenTables) == "table" and state.seenTables or setmetatable({}, { __mode = "k" })
+	state.seenInstances = type(state.seenInstances) == "table" and state.seenInstances or setmetatable({}, { __mode = "k" })
+	state.connections = type(state.connections) == "table" and state.connections or {}
+	state.guardConnections = type(state.guardConnections) == "table" and state.guardConnections or setmetatable({}, { __mode = "k" })
+	state.patchedTools = type(state.patchedTools) == "table" and state.patchedTools or setmetatable({}, { __mode = "k" })
+	state.category = tostring(state.category or "all")
+	return state
+end
+
+NAmanage.PatchToolRules = {
+	cooldown = {
+		zero = {
+			cooldown=true; cooldowntime=true; cooldownseconds=true; attackdelay=true; recoverydelay=true;
+			chargetime=true; winduptime=true; windup=true;
+		};
+		falseValue = { coolingdown=true; oncooldown=true; overheated=true; isoverheated=true; };
+	};
+	reload = {
+		zero = { reloadtime=true; reloadduration=true; equiptime=true; equipdelay=true; };
+		high = { reloadspeed=true; };
+		falseValue = { reloading=true; isreloading=true; jammed=true; isjammed=true; };
+	};
+	recoil = {
+		zero = {
+			recoil=true; recoilx=true; recoily=true; recoilz=true; kick=true; kickback=true; sway=true;
+			heatperbullet=true;
+		};
+	};
+	spread = {
+		zero = { spread=true; maxspread=true; minspread=true; bloom=true; deviation=true; inaccuracy=true; };
+	};
+	ammo = {
+		high = {
+			ammo=true; currentammo=true; maxammo=true; ammocount=true; reserveammo=true; maxreserveammo=true;
+			magazine=true; magsize=true; magazinesize=true; clipsize=true; clip=true; capacity=true;
+		};
+		trueValue = { infiniteammo=true; unlimitedammo=true; };
+	};
+	firerate = {
+		zero = { firedelay=true; shotdelay=true; fireinterval=true; };
+		high = { firerate=true; rateoffire=true; rpm=true; };
+		trueValue = { automatic=true; auto=true; fullauto=true; canfire=true; canshoot=true; };
+	};
+	range = {
+		high = { range=true; maxrange=true; projectilerange=true; bulletspeed=true; projectilespeed=true; velocity=true; };
+	};
+	damage = {
+		high = { damage=true; basedamage=true; bulletdamage=true; hitdamage=true; };
+	};
+}
+
+NAmanage.PatchToolCategoryOrder = { "cooldown", "reload", "recoil", "spread", "ammo", "firerate", "range", "damage" }
+
+NAmanage.PatchToolNormalizeCategory = function(value)
+	local category = Lower(tostring(value or "")):gsub("[^%w]", "")
+	const aliases = {
+		all="all";
+		cooldown="cooldown"; cd="cooldown";
+		reload="reload";
+		recoil="recoil";
+		spread="spread"; bloom="spread";
+		ammo="ammo";
+		firerate="firerate"; fire="firerate"; rate="firerate"; rof="firerate";
+		range="range";
+		damage="damage"; dmg="damage";
+	}
+	return aliases[category]
+end
+
+NAmanage.PatchToolKey = function(key, value, category)
+	const compact = Lower(tostring(key or "")):gsub("[^%w]", "")
+	if compact == "" then return nil end
+	category = NAmanage.PatchToolNormalizeCategory(category) or "all"
+
+	local function applyRule(rule)
+		if type(rule) ~= "table" then return nil end
+		if type(value) == "number" then
+			if type(rule.zero) == "table" and rule.zero[compact] then return 0 end
+			if type(rule.high) == "table" and rule.high[compact] then return 1000000 end
+		elseif type(value) == "boolean" then
+			if type(rule.trueValue) == "table" and rule.trueValue[compact] then return true end
+			if type(rule.falseValue) == "table" and rule.falseValue[compact] then return false end
+		end
+		return nil
+	end
+
+	if category ~= "all" then
+		return applyRule(NAmanage.PatchToolRules[category])
+	end
+
+	for _, ruleCategory in ipairs(NAmanage.PatchToolCategoryOrder) do
+		local replacement = applyRule(NAmanage.PatchToolRules[ruleCategory])
+		if replacement ~= nil then
+			return replacement
+		end
+	end
+	return nil
+end
+
+NAmanage.PatchToolTable = function(state, tbl, stats, depth, visited)
+	if type(tbl) ~= "table" then return end
+	depth = tonumber(depth) or 0
+	if depth > 3 then return end
+	visited = visited or setmetatable({}, { __mode = "k" })
+	if visited[tbl] then return end
+	visited[tbl] = true
+
+	local checked = 0
+	for key, value in next, tbl do
+		checked += 1
+		local replacement = NAmanage.PatchToolKey(key, value, state.category)
+		if replacement ~= nil and replacement ~= value then
+			NAmanage.AutoPatchToolRememberTable(state, tbl, key, value)
+			if pcall(function() tbl[key] = replacement end) then
+				stats.tables += 1
+			end
+		elseif type(value) == "table" and depth < 3 then
+			NAmanage.PatchToolTable(state, value, stats, depth + 1, visited)
+		end
+		if checked >= 900 then break end
+	end
+end
+
+NAmanage.PatchToolValue = function(state, inst, stats)
+	if not (inst and inst.Parent and inst:IsA("ValueBase")) then return end
+	local okValue, oldValue = pcall(function() return inst.Value end)
+	if not okValue then return end
+	local replacement = NAmanage.PatchToolKey(inst.Name, oldValue, state.category)
+	if replacement == nil or replacement == oldValue then return end
+	NAmanage.AutoPatchToolRememberInstance(state, inst, "Value", oldValue, "value")
+	if pcall(function() inst.Value = replacement end) then
+		stats.values += 1
+	end
+	if not state.guardConnections[inst] then
+		local conn = inst.Changed:Connect(function()
+			if not state.enabled or not inst.Parent then return end
+			local current = inst.Value
+			local nextValue = NAmanage.PatchToolKey(inst.Name, current, state.category)
+			if nextValue ~= nil and current ~= nextValue then
+				pcall(function() inst.Value = nextValue end)
+			end
+		end)
+		state.guardConnections[inst] = conn
+	end
+end
+
+NAmanage.PatchToolAttributes = function(state, inst, stats)
+	if typeof(inst) ~= "Instance" then return end
+	local okAttributes, attributes = pcall(inst.GetAttributes, inst)
+	if not okAttributes or type(attributes) ~= "table" then return end
+	for key, oldValue in next, attributes do
+		local replacement = NAmanage.PatchToolKey(key, oldValue, state.category)
+		if replacement ~= nil and replacement ~= oldValue then
+			NAmanage.AutoPatchToolRememberInstance(state, inst, key, oldValue, "attribute")
+			if pcall(inst.SetAttribute, inst, key, replacement) then
+				stats.attributes += 1
+			end
+			local guardKey = tostring(inst:GetDebugId())..":"..tostring(key)
+			if not state.guardConnections[guardKey] then
+				local conn = inst:GetAttributeChangedSignal(key):Connect(function()
+					if not state.enabled or not inst.Parent then return end
+					local current = inst:GetAttribute(key)
+					local nextValue = NAmanage.PatchToolKey(key, current, state.category)
+					if nextValue ~= nil and current ~= nextValue then
+						pcall(inst.SetAttribute, inst, key, nextValue)
+					end
+				end)
+				state.guardConnections[guardKey] = conn
+			end
+		end
+	end
+end
+
+NAmanage.PatchToolObject = function(state, inst, stats)
+	if typeof(inst) ~= "Instance" then return end
+	NAmanage.PatchToolAttributes(state, inst, stats)
+	if inst:IsA("ValueBase") then
+		NAmanage.PatchToolValue(state, inst, stats)
+	elseif inst:IsA("ModuleScript") then
+		local okModule, exported = pcall(require, inst)
+		if okModule and type(exported) == "table" then
+			stats.modules += 1
+			NAmanage.PatchToolTable(state, exported, stats, 0)
+		end
+	end
+end
+
+NAmanage.PatchToolApply = function(tool)
+	if typeof(tool) ~= "Instance" or not tool:IsA("Tool") then
+		return nil, "tool unavailable"
+	end
+	const state = NAmanage.GetPatchToolState()
+	const stats = { values=0; attributes=0; tables=0; modules=0; }
+	state.patchedTools[tool] = true
+	state.lastTool = tool
+
+	NAmanage.PatchToolObject(state, tool, stats)
+	local descendants = tool:GetDescendants()
+	for index = 1, #descendants do
+		NAmanage.PatchToolObject(state, descendants[index], stats)
+		if index % 150 == 0 then Wait() end
+	end
+
+	if not state.guardConnections[tool] then
+		local conn = tool.DescendantAdded:Connect(function(inst)
+			if not state.enabled or not tool.Parent then return end
+			Defer(function()
+				local liveStats = { values=0; attributes=0; tables=0; modules=0; }
+				NAmanage.PatchToolObject(state, inst, liveStats)
+			end)
+		end)
+		state.guardConnections[tool] = conn
+	end
+
+	return stats
+end
+
+NAmanage.PatchToolDisconnect = function(state)
+	for key, conn in next, state.connections do
+		if conn and type(conn.Disconnect) == "function" then pcall(conn.Disconnect, conn) end
+		state.connections[key] = nil
+	end
+	for key, conn in next, state.guardConnections do
+		if conn and type(conn.Disconnect) == "function" then pcall(conn.Disconnect, conn) end
+		state.guardConnections[key] = nil
+	end
+end
+
+NAmanage.PatchToolRestore = function()
+	const state = NAmanage.GetPatchToolState()
+	state.enabled = false
+	state.all = false
+	NAmanage.PatchToolDisconnect(state)
+	local restored = 0
+	for index = #state.records, 1, -1 do
+		const record = state.records[index]
+		if type(record) == "table" then
+			if record.kind == "table" and type(record.target) == "table" then
+				if pcall(function() record.target[record.key] = record.old end) then restored += 1 end
+			elseif record.kind == "value" and typeof(record.target) == "Instance" and record.target.Parent then
+				if pcall(function() record.target.Value = record.old end) then restored += 1 end
+			elseif record.kind == "attribute" and typeof(record.target) == "Instance" and record.target.Parent then
+				if pcall(record.target.SetAttribute, record.target, record.key, record.old) then restored += 1 end
+			end
+		end
+		state.records[index] = nil
+	end
+	state.category = "all"
+	state.seenTables = setmetatable({}, { __mode = "k" })
+	state.seenInstances = setmetatable({}, { __mode = "k" })
+	state.patchedTools = setmetatable({}, { __mode = "k" })
+	state.guardConnections = setmetatable({}, { __mode = "k" })
+	return restored
+end
+
+NAmanage.PatchToolEnableAll = function(state)
+	state.all = true
+	const function patch(inst)
+		if not state.enabled or typeof(inst) ~= "Instance" or not inst:IsA("Tool") then return end
+		SpawnCall(function()
+			NAmanage.PatchToolApply(inst)
+		end)
+	end
+	const function bindCharacter(char)
+		if state.connections.char then
+			pcall(state.connections.char.Disconnect, state.connections.char)
+			state.connections.char = nil
+		end
+		if char then
+			state.connections.char = char.ChildAdded:Connect(patch)
+		end
+	end
+	const function bindBackpack(backpack)
+		if state.connections.backpack then
+			pcall(state.connections.backpack.Disconnect, state.connections.backpack)
+			state.connections.backpack = nil
+		end
+		if backpack then
+			state.connections.backpack = backpack.ChildAdded:Connect(patch)
+		end
+	end
+
+	const player = Services.Players.LocalPlayer
+	bindCharacter(getChar())
+	bindBackpack(getBp())
+	if player then
+		state.connections.characterAdded = player.CharacterAdded:Connect(function(char)
+			if state.enabled and state.all then bindCharacter(char) end
+		end)
+		state.connections.playerChildAdded = player.ChildAdded:Connect(function(child)
+			if state.enabled and state.all and child:IsA("Backpack") then bindBackpack(child) end
+		end)
+	end
+end
+
+cmd.add({"patchtool", "pt"}, {"patchtool [tool|all] [category] (pt)", "Lightweight tool patcher for cooldown, reload, recoil, spread, ammo, fire-rate, range, or damage without runtime/GC scanning"}, function(...)
+	local args = {...}
+	local category = "all"
+	local query = ""
+
+	if #args == 1 and Lower(tostring(args[1])) == "all" then
+		query = "all"
+	elseif #args > 0 then
+		local lastCategory = NAmanage.PatchToolNormalizeCategory(args[#args])
+		if lastCategory then
+			category = lastCategory
+			local queryParts = {}
+			for index = 1, #args - 1 do
+				queryParts[#queryParts + 1] = tostring(args[index])
+			end
+			query = Concat(queryParts, " ")
+		else
+			query = Concat(args, " ")
+		end
+	end
+
+	local state = NAmanage.GetPatchToolState()
+	if state.enabled or #state.records > 0 then
+		NAmanage.PatchToolRestore()
+		state = NAmanage.GetPatchToolState()
+	end
+	state.enabled = true
+	state.category = category
+	state.guardConnections = setmetatable({}, { __mode = "k" })
+
+	const allMode = Lower(query) == "all"
+	local tools = NAmanage.AutoPatchToolFind(query)
+	if #tools == 0 and not allMode then
+		state.enabled = false
+		return DoNotif(query == "" and "Equip a tool first, or use patchtool all / patchtool <name> [category]." or ("No tool matched '"..query.."'."),
+			4, "Patch Tool")
+	end
+
+	if allMode then
+		NAmanage.PatchToolEnableAll(state)
+		tools = NAmanage.AutoPatchToolFind("all")
+	end
+
+	SpawnCall(function()
+		local totals = { values=0; attributes=0; tables=0; modules=0; }
+		for _, tool in ipairs(tools) do
+			local stats = NAmanage.PatchToolApply(tool)
+			if stats then
+				for key, value in next, stats do
+					totals[key] = (totals[key] or 0) + (tonumber(value) or 0)
+				end
+			end
+		end
+		DoNotif(("Patched %d tool%s [%s] | values %d | attributes %d | table fields %d | modules %d"):format(
+			#tools,
+			#tools == 1 and "" or "s",
+			category,
+			totals.values,
+			totals.attributes,
+			totals.tables,
+			totals.modules
+		), 5, "Patch Tool")
+	end)
+end)
+
+cmd.add({"unpatchtool", "unpt"}, {"unpatchtool (unpt)", "Restores values changed by Patch Tool and disables its guards"}, function()
+	const restored = NAmanage.PatchToolRestore()
+	DoNotif("Patch Tool disabled. Restored "..tostring(restored).." recorded value(s).", 4, "Patch Tool")
+end)
+
 cmd.add({"unautopatchtool", "unapt"}, {"unautopatchtool (unapt)", "Restores values changed by Auto Patch Tool and disables its guards"}, function()
 	const restored = NAmanage.AutoPatchToolRestore()
 	DoNotif("Auto Patch Tool disabled. Restored "..tostring(restored).." recorded value(s).", 4, "Auto Patch Tool")

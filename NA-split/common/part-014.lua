@@ -671,13 +671,17 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 			for _, b in body.data or {} do
 				Insert(all, {
 					id = b.id,
-					name = b.name,
+					name = b.displayName or b.name,
 					desc = b.displayDescription or b.description or "",
-					icon = b.iconImageId,
+					icon = b.displayIconImageId or b.iconImageId,
 					rarity = (b.statistics and b.statistics.winRatePercentage) or 0,
 					awarded = (b.statistics and b.statistics.awardedCount) or 0,
 					pastDay = (b.statistics and b.statistics.pastDayAwardedCount) or 0,
 					universe = (b.awardingUniverse and b.awardingUniverse.name) or "Unknown",
+					rootPlaceId = b.awardingUniverse and b.awardingUniverse.rootPlaceId,
+					created = b.created,
+					updated = b.updated,
+					enabled = b.enabled ~= false,
 				})
 			end
 			cursor = body.nextPageCursor or ""
@@ -709,12 +713,21 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 	end
 
 	const function applyOwnedStyle(card, stroke, ownedTag)
-		stroke.Color = COLORS.OWNED
-		stroke.Transparency = 0
-		stroke.Thickness = 2
-		card.BackgroundTransparency = 0.1
-		card.BackgroundColor3 = Color3.fromRGB(35, 44, 38)
+		const firstReveal = not ownedTag.Visible
 		ownedTag.Visible = true
+		__lt.cm("TweenService", "Create", stroke, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Color = COLORS.OWNED;
+			Transparency = 0.08;
+			Thickness = 2;
+		}):Play()
+		if firstReveal then
+			ownedTag.BackgroundTransparency = 1
+			ownedTag.TextTransparency = 1
+			__lt.cm("TweenService", "Create", ownedTag, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				BackgroundTransparency = 0.08;
+				TextTransparency = 0;
+			}):Play()
+		end
 	end
 
 	const function copyToClipboard(str, msg)
@@ -729,26 +742,51 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		end
 	end
 
+	const function getExperienceCreatorName()
+		local creatorName = "Unknown creator"
+		local ok = pcall(function()
+			if game.CreatorType == Enum.CreatorType.Group then
+				const GroupService = SafeGetService("GroupService", false)
+				const info = GroupService and GroupService:GetGroupInfoAsync(game.CreatorId)
+				if type(info) == "table" and type(info.Name) == "string" and info.Name ~= "" then
+					creatorName = info.Name
+				end
+			else
+				const name = Services.Players:GetNameFromUserIdAsync(game.CreatorId)
+				if type(name) == "string" and name ~= "" then
+					creatorName = name
+				end
+			end
+		end)
+		return ok and creatorName or "Unknown creator"
+	end
+
 	const function createBadgeUI(data)
+		const creatorName = getExperienceCreatorName()
 		const sgui = InstanceNew("ScreenGui")
 		NAgui.NaProtectUI(sgui)
 		sgui.Name = "BadgeViewer"
 
-		const headerH = 70
-		const expandedMainSize = IsOnMobile and UDim2.new(0.96,0,0.86,0) or UDim2.new(0.75,0,0.78,0)
+		const headerH = 76
+		const expandedMainSize = IsOnMobile and UDim2.new(0.96,0,0.88,0) or UDim2.new(0.86,0,0.84,0)
 
 		const main = InstanceNew("Frame", sgui)
 		main.Size = expandedMainSize
-		main.Position = UDim2.new(0.5,0,0.5,0)
-		main.AnchorPoint = Vector2.new(0.5,0.5)
+		main.Position = UDim2.new(0,0,0,0)
+		main.AnchorPoint = Vector2.new(0,0)
 		main.BackgroundColor3 = COLORS.PANEL
-		main.BackgroundTransparency = 0.08
+		main.BackgroundTransparency = 0
 		main.BorderSizePixel = 0
 		main.ClipsDescendants = true
 		main.Active = true
 		main.Name = "Main"
-		const uicorner = InstanceNew("UICorner", main); uicorner.CornerRadius = UDim.new(0, 6)
+		const uicorner = InstanceNew("UICorner", main); uicorner.CornerRadius = UDim.new(0, 14)
 		const stroke = InstanceNew("UIStroke", main); stroke.Color = COLORS.STROKE; stroke.Thickness = 1; stroke.Transparency = 0.2
+		const mainAnimScale = InstanceNew("UIScale", main)
+		mainAnimScale.Scale = 1
+		if type(NAmanage.centerFrame) == "function" then
+			pcall(NAmanage.centerFrame, main)
+		end
 
 		const grad = InstanceNew("UIGradient", main)
 		grad.Rotation = 90
@@ -766,12 +804,30 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		header.BackgroundColor3 = COLORS.TOP
 		header.BackgroundTransparency = 0.12
 
-		const headerC = InstanceNew("UICorner", header); headerC.CornerRadius = UDim.new(0, 6)
+		const headerC = InstanceNew("UICorner", header); headerC.CornerRadius = UDim.new(0, 14)
+
+		const function animateMainOpen()
+			if type(NAmanage.centerFrame) == "function" then
+				pcall(NAmanage.centerFrame, main)
+			end
+			local finalPosition = main.Position
+			local abs = main.AbsoluteSize
+			local dx = math.floor((abs.X > 0 and abs.X or 500) * 0.02)
+			local dy = math.floor((abs.Y > 0 and abs.Y or 400) * 0.02)
+			mainAnimScale.Scale = 0.96
+			main.Position = UDim2.new(finalPosition.X.Scale, finalPosition.X.Offset + dx, finalPosition.Y.Scale, finalPosition.Y.Offset + dy)
+			stroke.Transparency = 1
+			header.BackgroundTransparency = 0.75
+			__lt.cm("TweenService", "Create", mainAnimScale, TweenInfo.new(0.24, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Scale = 1}):Play()
+			__lt.cm("TweenService", "Create", main, TweenInfo.new(0.24, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Position = finalPosition}):Play()
+			__lt.cm("TweenService", "Create", stroke, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Transparency = 0.2}):Play()
+			__lt.cm("TweenService", "Create", header, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0.12}):Play()
+		end
 
 		const title = InstanceNew("TextLabel", header)
 		title.Position = UDim2.new(0, 12, 0, 6)
 		title.Size = UDim2.new(0.5, -24, 0, 24)
-		title.Text = "Badge Viewer"
+		title.Text = "Badges"
 		title.Font = Enum.Font.GothamBold
 		title.TextColor3 = COLORS.TEXT
 		title.BackgroundTransparency = 1
@@ -933,7 +989,7 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		ownedOnlyBtn.LayoutOrder = 2
 		const unownedOnlyBtn = mkBtn(tabsRow, "Unowned: OFF", 130)
 		unownedOnlyBtn.LayoutOrder = 3
-		const layoutToggle = mkBtn(tabsRow, "List", 80)
+		const layoutToggle = mkBtn(tabsRow, "Grid", 80)
 		layoutToggle.LayoutOrder = 4
 		const sortBtn = mkBtn(tabsRow, "Sort: Default", 130)
 		sortBtn.LayoutOrder = 5
@@ -1003,24 +1059,28 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 			const w = scroll.AbsoluteSize.X
 			if w <= 0 then return end
 			local cols
-			if w < 480 then
-				cols = 1
-			elseif w < 900 then
+			if w < 430 then
 				cols = 2
-			else
+			elseif w < 650 then
 				cols = 3
+			elseif w < 900 then
+				cols = 4
+			elseif w < 1180 then
+				cols = 5
+			else
+				cols = 6
 			end
-			const padScale = 0.02
-			const widthScale = (1 - padScale * (cols - 1)) / cols
-			gridLayout.CellPadding = UDim2.new(padScale,0,0,8)
-			gridLayout.CellSize = UDim2.new(widthScale,0,0,200)
+			const gap = 12
+			const offset = -((gap * (cols - 1)) / cols)
+			gridLayout.CellPadding = UDim2.new(0, gap, 0, 12)
+			gridLayout.CellSize = UDim2.new(1 / cols, offset, 0, 174)
 		end
 		scroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateGridColumns)
 		Defer(updateGridColumns)
 
 		local ownedOnly = false
 		local unownedOnly = false
-		local useGrid = false
+		local useGrid = true
 		local ownedMap = {}
 		local listCards, gridCards = {}, {}
 		local idToCards = {}
@@ -1053,181 +1113,518 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 			return b
 		end
 
+		local openBadgeDetail
 		const function makeListCard(b)
 			const f = InstanceNew("Frame")
-			f.Size = UDim2.new(1, 0, 0, 138)
-			f.BackgroundColor3 = Color3.fromRGB(36, 36, 40)
-			f.BackgroundTransparency = 0.12
+			f.Size = UDim2.new(1, 0, 0, 126)
+			f.BackgroundColor3 = Color3.fromRGB(31, 32, 38)
+			f.BackgroundTransparency = 0
+			f.BorderSizePixel = 0
 			f.ClipsDescendants = true
-			const fc = InstanceNew("UICorner", f); fc.CornerRadius = UDim.new(0, 6)
-			const fs = InstanceNew("UIStroke", f); fs.Color = COLORS.STROKE; fs.Thickness = 1; fs.Transparency = 0.2
+			const fc = InstanceNew("UICorner", f); fc.CornerRadius = UDim.new(0, 10)
+			const fs = InstanceNew("UIStroke", f); fs.Color = Color3.fromRGB(48, 50, 58); fs.Thickness = 1; fs.Transparency = 0.4
+			const animScale = InstanceNew("UIScale", f)
+			animScale.Scale = 1
 
-			const img = InstanceNew("ImageLabel", f)
-			img.Size = UDim2.new(0, 96, 0, 96)
-			img.Position = UDim2.new(0, 14, 0, 16)
+			const imageBack = InstanceNew("Frame", f)
+			imageBack.Position = UDim2.new(0, 12, 0, 12)
+			imageBack.Size = UDim2.new(0, 102, 0, 102)
+			imageBack.BackgroundColor3 = Color3.fromRGB(43, 44, 51)
+			imageBack.BorderSizePixel = 0
+			imageBack.ZIndex = 2
+			const imageCorner = InstanceNew("UICorner", imageBack); imageCorner.CornerRadius = UDim.new(0, 9)
+
+			const img = InstanceNew("ImageLabel", imageBack)
+			img.AnchorPoint = Vector2.new(0.5, 0.5)
+			img.Position = UDim2.new(0.5, 0, 0.5, 0)
+			img.Size = UDim2.new(0, 84, 0, 84)
 			img.BackgroundTransparency = 1
 			img.Image = "rbxthumb://type=Asset&id="..tostring(b.icon or 0).."&w=420&h=420"
+			img.ZIndex = 3
 
 			const titleL = InstanceNew("TextLabel", f)
-			titleL.Position = UDim2.new(0, 120, 0, 14)
-			titleL.Size = UDim2.new(1, -140, 0, 24)
+			titleL.Position = UDim2.new(0, 128, 0, 14)
+			titleL.Size = UDim2.new(1, -300, 0, 26)
+			titleL.BackgroundTransparency = 1
 			titleL.Text = b.name or ("Badge "..tostring(b.id))
 			titleL.TextColor3 = COLORS.TEXT
-			titleL.BackgroundTransparency = 1
 			titleL.Font = Enum.Font.GothamSemibold
+			titleL.TextSize = 16
 			titleL.TextXAlignment = Enum.TextXAlignment.Left
 			titleL.TextTruncate = Enum.TextTruncate.AtEnd
-			titleL.TextScaled = true
-			const tsLT = InstanceNew("UITextSizeConstraint", titleL); tsLT.MinTextSize = 10; tsLT.MaxTextSize = 18
+			titleL.ZIndex = 3
 
 			const desc = InstanceNew("TextLabel", f)
-			desc.Position = UDim2.new(0, 120, 0, 42)
-			desc.Size = UDim2.new(1, -140, 0, 34)
-			desc.Text = b.desc
-			desc.TextWrapped = true
-			desc.TextColor3 = COLORS.MUTED
+			desc.Position = UDim2.new(0, 128, 0, 43)
+			desc.Size = UDim2.new(1, -300, 0, 40)
 			desc.BackgroundTransparency = 1
+			desc.Text = b.desc ~= "" and b.desc or "No description provided."
+			desc.TextWrapped = true
+			desc.TextColor3 = Color3.fromRGB(188, 190, 198)
 			desc.Font = Enum.Font.Gotham
+			desc.TextSize = 12
 			desc.TextXAlignment = Enum.TextXAlignment.Left
 			desc.TextYAlignment = Enum.TextYAlignment.Top
-			desc.TextScaled = true
-			const tsLD = InstanceNew("UITextSizeConstraint", desc); tsLD.MinTextSize = 9; tsLD.MaxTextSize = 14
+			desc.ZIndex = 3
 
-			const stat = InstanceNew("TextLabel", f)
-			stat.Position = UDim2.new(0, 120, 0, 80)
-			stat.Size = UDim2.new(1, -200, 0, 26)
-			stat.Text = Format("🎯 %.2f%%   📈 %d   ⏱️ %d   🧭 %s", b.rarity, b.awarded, b.pastDay, b.universe)
-			stat.TextColor3 = Color3.fromRGB(160, 160, 165)
-			stat.BackgroundTransparency = 1
-			stat.Font = Enum.Font.Gotham
-			stat.TextXAlignment = Enum.TextXAlignment.Left
-			stat.TextScaled = true
-			const tsLS = InstanceNew("UITextSizeConstraint", stat); tsLS.MinTextSize = 9; tsLS.MaxTextSize = 13
+			const meta = InstanceNew("TextLabel", f)
+			meta.Position = UDim2.new(0, 128, 1, -34)
+			meta.Size = UDim2.new(1, -300, 0, 20)
+			meta.BackgroundTransparency = 1
+			meta.Text = ("%.2f%% rarity  •  %s won  •  %s yesterday"):format(
+				tonumber(b.rarity) or 0,
+				tostring(tonumber(b.awarded) or 0),
+				tostring(tonumber(b.pastDay) or 0)
+			)
+			meta.TextColor3 = Color3.fromRGB(145, 148, 158)
+			meta.Font = Enum.Font.Gotham
+			meta.TextSize = 11
+			meta.TextXAlignment = Enum.TextXAlignment.Left
+			meta.TextTruncate = Enum.TextTruncate.AtEnd
+			meta.ZIndex = 3
 
 			const tools = InstanceNew("Frame", f)
-			tools.AnchorPoint = Vector2.new(1,1)
-			tools.Position = UDim2.new(1, -10, 1, -8)
-			tools.Size = UDim2.new(0, 190, 0, 22)
-			tools.BackgroundColor3 = COLORS.BUTTON
-			tools.BackgroundTransparency = 0.35
-			tools.BorderSizePixel = 0
-			const tC = InstanceNew("UICorner", tools); tC.CornerRadius = UDim.new(0, 6)
-			const tS = InstanceNew("UIStroke", tools); tS.Color = COLORS.STROKE; tS.Thickness = 1; tS.Transparency = 0.7
+			tools.AnchorPoint = Vector2.new(1, 0)
+			tools.Position = UDim2.new(1, -12, 0, 14)
+			tools.Size = UDim2.new(0, 150, 0, 34)
+			tools.BackgroundTransparency = 1
+			tools.ZIndex = 5
 			const tl = InstanceNew("UIListLayout", tools)
 			tl.FillDirection = Enum.FillDirection.Horizontal
+			tl.HorizontalAlignment = Enum.HorizontalAlignment.Right
 			tl.VerticalAlignment = Enum.VerticalAlignment.Center
-			tl.HorizontalAlignment = Enum.HorizontalAlignment.Center
 			tl.Padding = UDim.new(0, 6)
 
-			mkToolBtn(tools, "Name", function()
+			const function quickButton(label, callback)
+				const button = InstanceNew("TextButton", tools)
+				button.Size = UDim2.new(0, 46, 0, 30)
+				button.BackgroundColor3 = Color3.fromRGB(44, 45, 53)
+				button.BorderSizePixel = 0
+				button.Text = label
+				button.Font = Enum.Font.GothamSemibold
+				button.TextSize = 11
+				button.TextColor3 = COLORS.TEXT
+				button.ZIndex = 6
+				const corner = InstanceNew("UICorner", button); corner.CornerRadius = UDim.new(0, 9)
+				NAlib.connect("BadgeViewer", MouseButtonFix(button, callback))
+				return button
+			end
+
+			quickButton("Name", function()
 				copyToClipboard(b.name or ("Badge "..tostring(b.id)), "Copied badge name")
 			end)
-			mkToolBtn(tools, "ID", function()
+			quickButton("ID", function()
 				copyToClipboard(b.id, "Copied badge ID")
 			end)
-			mkToolBtn(tools, "URL", function()
+			quickButton("URL", function()
 				copyToClipboard("https://www.roblox.com/badges/"..tostring(b.id), "Copied badge URL")
 			end)
 
-			const ownedTag = pill(f, "OWNED", COLORS.OWNED)
+			const ownedTag = InstanceNew("TextLabel", f)
+			ownedTag.AnchorPoint = Vector2.new(1, 1)
+			ownedTag.Position = UDim2.new(1, -14, 1, -14)
+			ownedTag.Size = UDim2.new(0, 62, 0, 22)
+			ownedTag.BackgroundColor3 = Color3.fromRGB(38, 109, 72)
+			ownedTag.BackgroundTransparency = 0.08
+			ownedTag.Text = "OWNED"
+			ownedTag.Font = Enum.Font.GothamBold
+			ownedTag.TextSize = 10
+			ownedTag.TextColor3 = Color3.new(1,1,1)
+			ownedTag.Visible = false
+			ownedTag.ZIndex = 5
+			const ownedCorner = InstanceNew("UICorner", ownedTag); ownedCorner.CornerRadius = UDim.new(1, 0)
+
+			if IsOnMobile then
+				f.Size = UDim2.new(1, 0, 0, 154)
+				imageBack.Position = UDim2.new(0, 10, 0, 10)
+				imageBack.Size = UDim2.new(0, 90, 0, 90)
+				img.Size = UDim2.new(0, 74, 0, 74)
+				titleL.Position = UDim2.new(0, 112, 0, 10)
+				titleL.Size = UDim2.new(1, -122, 0, 24)
+				desc.Position = UDim2.new(0, 112, 0, 38)
+				desc.Size = UDim2.new(1, -122, 0, 52)
+				meta.Position = UDim2.new(0, 112, 0, 94)
+				meta.Size = UDim2.new(1, -122, 0, 18)
+				tools.AnchorPoint = Vector2.new(0, 1)
+				tools.Position = UDim2.new(0, 10, 1, -10)
+				ownedTag.Position = UDim2.new(1, -10, 1, -14)
+			end
+
+			const hit = InstanceNew("TextButton", f)
+			hit.Size = UDim2.new(1, 0, 1, 0)
+			hit.BackgroundTransparency = 1
+			hit.Text = ""
+			hit.AutoButtonColor = false
+			hit.ZIndex = 4
+			NAlib.connect("BadgeViewer", MouseButtonFix(hit, function()
+				if openBadgeDetail then openBadgeDetail(b) end
+			end))
+
+			if IsOnPC then
+				NAlib.connect("BadgeViewer", hit.MouseEnter:Connect(function()
+					__lt.cm("TweenService", "Create", f, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+						BackgroundColor3 = Color3.fromRGB(36, 37, 44)
+					}):Play()
+				end))
+				NAlib.connect("BadgeViewer", hit.MouseLeave:Connect(function()
+					__lt.cm("TweenService", "Create", f, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+						BackgroundColor3 = Color3.fromRGB(31, 32, 38)
+					}):Play()
+				end))
+			end
 
 			f.Parent = scroll
-			const card = {frame=f, data=b, stroke=fs, ownedTag=ownedTag}
+			const card = {frame=f, data=b, stroke=fs, ownedTag=ownedTag, animScale=animScale}
 			idToCards[b.id] = idToCards[b.id] or {}
 			idToCards[b.id].list = card
 			Insert(listCards, card)
 			return card
 		end
+		const function formatBadgeDate(value)
+			if type(value) ~= "string" or value == "" then return "—" end
+			local year, month, day = value:match("^(%d%d%d%d)%-(%d%d)%-(%d%d)")
+			if not year then return value end
+			const months = {"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"}
+			return ("%s %d, %s"):format(months[tonumber(month)] or month, tonumber(day) or 0, year)
+		end
 
+		const function fetchEarnedDate(badgeId)
+			const url = ("https://badges.roblox.com/v1/users/%d/badges/awarded-dates?badgeIds=%s"):format(
+				Player.UserId,
+				Services.HttpService:UrlEncode(tostring(badgeId))
+			)
+			const result = NAmanage.FetchRobloxApiJSON(url, { Timeout = 5 })
+			const entry = type(result) == "table" and type(result.data) == "table" and result.data[1] or nil
+			if type(entry) ~= "table" then return nil end
+			return formatBadgeDate(entry.awardedDate or entry.awardedAt or entry.created)
+		end
+
+		local activeDetail = nil
+		openBadgeDetail = function(b)
+			if activeDetail and activeDetail.Parent then
+				activeDetail:Destroy()
+			end
+
+			const detailRoot = InstanceNew("Frame", sgui)
+			detailRoot.Name = "BadgeDetailRoot"
+			detailRoot.Size = UDim2.new(1, 0, 1, 0)
+			detailRoot.BackgroundTransparency = 1
+			detailRoot.BorderSizePixel = 0
+			detailRoot.ZIndex = 99
+			activeDetail = detailRoot
+
+			const overlay = InstanceNew("TextButton", detailRoot)
+			overlay.Name = "DismissArea"
+			overlay.Size = UDim2.new(1, 0, 1, 0)
+			overlay.BackgroundColor3 = Color3.new(0, 0, 0)
+			overlay.BackgroundTransparency = 1
+			overlay.BorderSizePixel = 0
+			overlay.Text = ""
+			overlay.AutoButtonColor = false
+			overlay.ZIndex = 100
+
+			const panel = InstanceNew("Frame", detailRoot)
+			panel.AnchorPoint = Vector2.new(0.5, 0.5)
+			panel.Position = UDim2.new(0.5, 0, 0.5, 0)
+			panel.Size = IsOnMobile and UDim2.new(0.92, 0, 0.86, 0) or UDim2.new(0.78, 0, 0.9, 0)
+			panel.BackgroundColor3 = Color3.fromRGB(25, 26, 31)
+			panel.BorderSizePixel = 0
+			panel.Active = true
+			panel.ZIndex = 101
+			const panelCorner = InstanceNew("UICorner", panel); panelCorner.CornerRadius = UDim.new(0, 16)
+			const panelStroke = InstanceNew("UIStroke", panel); panelStroke.Color = Color3.fromRGB(48, 50, 58); panelStroke.Thickness = 1; panelStroke.Transparency = 0.15
+			const panelSize = InstanceNew("UISizeConstraint", panel)
+			panelSize.MinSize = IsOnMobile and Vector2.new(300, 480) or Vector2.new(380, 500)
+			panelSize.MaxSize = Vector2.new(520, 680)
+			const detailAnimScale = InstanceNew("UIScale", panel)
+			detailAnimScale.Scale = 0.94
+
+			const panelInputBlocker = InstanceNew("TextButton", panel)
+			panelInputBlocker.Size = UDim2.new(1, 0, 1, 0)
+			panelInputBlocker.BackgroundTransparency = 1
+			panelInputBlocker.Text = ""
+			panelInputBlocker.AutoButtonColor = false
+			panelInputBlocker.ZIndex = 102
+
+			local closingDetail = false
+			const function destroyDetail()
+				if closingDetail or not detailRoot.Parent then return end
+				closingDetail = true
+				__lt.cm("TweenService", "Create", detailAnimScale, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Scale = 0.96}):Play()
+				__lt.cm("TweenService", "Create", panel, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {BackgroundTransparency = 0.18}):Play()
+				__lt.cm("TweenService", "Create", overlay, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {BackgroundTransparency = 1}):Play()
+				Delay(0.14, function()
+					if detailRoot.Parent then detailRoot:Destroy() end
+					if activeDetail == detailRoot then activeDetail = nil end
+				end)
+			end
+			NAlib.connect("BadgeViewer", MouseButtonFix(overlay, destroyDetail))
+
+			const close = InstanceNew("TextButton", panel)
+			close.AnchorPoint = Vector2.new(1, 0)
+			close.Position = UDim2.new(1, -14, 0, 10)
+			close.Size = UDim2.new(0, 36, 0, 36)
+			close.BackgroundTransparency = 1
+			close.Text = "×"
+			close.Font = Enum.Font.Gotham
+			close.TextSize = 30
+			close.TextColor3 = COLORS.TEXT
+			close.ZIndex = 108
+			NAlib.connect("BadgeViewer", MouseButtonFix(close, destroyDetail))
+
+			const detailScroll = InstanceNew("ScrollingFrame", panel)
+			detailScroll.Position = UDim2.new(0, 0, 0, 52)
+			detailScroll.Size = UDim2.new(1, 0, 1, -52)
+			detailScroll.BackgroundTransparency = 1
+			detailScroll.BorderSizePixel = 0
+			detailScroll.ScrollBarThickness = 4
+			detailScroll.ScrollBarImageColor3 = Color3.fromRGB(90, 92, 100)
+			detailScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+			detailScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+			detailScroll.ZIndex = 103
+
+			const icon = InstanceNew("ImageLabel", detailScroll)
+			icon.AnchorPoint = Vector2.new(0.5, 0)
+			icon.Position = UDim2.new(0.5, 0, 0, 8)
+			icon.Size = UDim2.new(0, 150, 0, 150)
+			icon.BackgroundTransparency = 1
+			icon.Image = "rbxthumb://type=Asset&id="..tostring(b.icon or 0).."&w=420&h=420"
+			icon.ZIndex = 103
+
+			const name = InstanceNew("TextLabel", detailScroll)
+			name.Position = UDim2.new(0, 24, 0, 174)
+			name.Size = UDim2.new(1, -48, 0, 46)
+			name.BackgroundTransparency = 1
+			name.Text = b.name or ("Badge "..tostring(b.id))
+			name.Font = Enum.Font.GothamSemibold
+			name.TextSize = 20
+			name.TextColor3 = COLORS.TEXT
+			name.TextXAlignment = Enum.TextXAlignment.Left
+			name.TextWrapped = true
+			name.TextTruncate = Enum.TextTruncate.AtEnd
+			name.TextYAlignment = Enum.TextYAlignment.Top
+			name.ZIndex = 103
+
+			const creator = InstanceNew("TextLabel", detailScroll)
+			creator.Position = UDim2.new(0, 24, 0, 224)
+			creator.Size = UDim2.new(1, -48, 0, 22)
+			creator.BackgroundTransparency = 1
+			creator.Text = creatorName
+			creator.Font = Enum.Font.Gotham
+			creator.TextSize = 14
+			creator.TextColor3 = Color3.fromRGB(200, 202, 208)
+			creator.TextXAlignment = Enum.TextXAlignment.Left
+			creator.TextTruncate = Enum.TextTruncate.AtEnd
+			creator.ZIndex = 103
+
+			const actions = InstanceNew("Frame", detailScroll)
+			actions.Position = UDim2.new(0, 24, 0, 262)
+			actions.Size = UDim2.new(1, -48, 0, 38)
+			actions.BackgroundTransparency = 1
+			actions.ZIndex = 103
+			const actionsLayout = InstanceNew("UIListLayout", actions)
+			actionsLayout.FillDirection = Enum.FillDirection.Horizontal
+			actionsLayout.Padding = UDim.new(0, 8)
+			actionsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+			const function detailButton(label, width, callback)
+				const button = InstanceNew("TextButton", actions)
+				button.Size = UDim2.new(0, width, 1, 0)
+				button.BackgroundColor3 = Color3.fromRGB(45, 46, 54)
+				button.BorderSizePixel = 0
+				button.Text = label
+				button.Font = Enum.Font.GothamSemibold
+				button.TextSize = 13
+				button.TextColor3 = COLORS.TEXT
+				button.AutoButtonColor = true
+				button.ZIndex = 104
+				const corner = InstanceNew("UICorner", button); corner.CornerRadius = UDim.new(0, 12)
+				NAlib.connect("BadgeViewer", MouseButtonFix(button, callback))
+				return button
+			end
+
+			detailButton("Share", IsOnMobile and 68 or 76, function()
+				copyToClipboard("https://www.roblox.com/badges/"..tostring(b.id), "Copied badge URL")
+			end)
+			detailButton("Copy Name", IsOnMobile and 94 or 104, function()
+				copyToClipboard(b.name or ("Badge "..tostring(b.id)), "Copied badge name")
+			end)
+			detailButton("Copy ID", IsOnMobile and 70 or 82, function()
+				copyToClipboard(b.id, "Copied badge ID")
+			end)
+
+			const desc = InstanceNew("TextLabel", detailScroll)
+			desc.Position = UDim2.new(0, 24, 0, 322)
+			desc.Size = UDim2.new(1, -48, 0, 74)
+			desc.AutomaticSize = Enum.AutomaticSize.Y
+			desc.BackgroundTransparency = 1
+			desc.Text = b.desc ~= "" and b.desc or "No description provided."
+			desc.TextWrapped = true
+			desc.Font = Enum.Font.Gotham
+			desc.TextSize = 14
+			desc.TextColor3 = Color3.fromRGB(218, 219, 224)
+			desc.TextXAlignment = Enum.TextXAlignment.Left
+			desc.TextYAlignment = Enum.TextYAlignment.Top
+			desc.ZIndex = 103
+
+			const rows = InstanceNew("Frame", detailScroll)
+			rows.Position = UDim2.new(0, 24, 0, 414)
+			rows.Size = UDim2.new(1, -48, 0, 350)
+			rows.BackgroundTransparency = 1
+			rows.ZIndex = 103
+			const rowsLayout = InstanceNew("UIListLayout", rows)
+			rowsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+			const function updateDetailRowsPosition()
+				const descHeight = math.max(74, desc.AbsoluteSize.Y)
+				rows.Position = UDim2.new(0, 24, 0, desc.Position.Y.Offset + descHeight + 18)
+			end
+			desc:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateDetailRowsPosition)
+			Defer(updateDetailRowsPosition)
+
+			const function addRow(label, value)
+				const row = InstanceNew("Frame", rows)
+				row.Size = UDim2.new(1, 0, 0, 50)
+				row.BackgroundTransparency = 1
+				row.ZIndex = 103
+
+				const left = InstanceNew("TextLabel", row)
+				left.Size = UDim2.new(0.36, 0, 1, 0)
+				left.BackgroundTransparency = 1
+				left.Text = label
+				left.Font = Enum.Font.Gotham
+				left.TextSize = 14
+				left.TextColor3 = Color3.fromRGB(205, 206, 212)
+				left.TextXAlignment = Enum.TextXAlignment.Left
+				left.ZIndex = 104
+
+				const right = InstanceNew("TextLabel", row)
+				right.AnchorPoint = Vector2.new(1, 0)
+				right.Position = UDim2.new(1, 0, 0, 0)
+				right.Size = UDim2.new(0.62, 0, 1, 0)
+				right.BackgroundTransparency = 1
+				right.Text = tostring(value)
+				right.Font = Enum.Font.Gotham
+				right.TextSize = 14
+				right.TextColor3 = Color3.fromRGB(225, 226, 230)
+				right.TextXAlignment = Enum.TextXAlignment.Right
+				right.TextWrapped = true
+				right.TextTruncate = Enum.TextTruncate.AtEnd
+				right.ZIndex = 104
+
+				const divider = InstanceNew("Frame", row)
+				divider.AnchorPoint = Vector2.new(0, 1)
+				divider.Position = UDim2.new(0, 0, 1, 0)
+				divider.Size = UDim2.new(1, 0, 0, 1)
+				divider.BackgroundColor3 = Color3.fromRGB(52, 54, 62)
+				divider.BackgroundTransparency = 0.15
+				divider.BorderSizePixel = 0
+				divider.ZIndex = 103
+				return right
+			end
+
+			addRow("Type", "Badge")
+			const earnedValue = addRow("Earned", ownedMap[b.id] == true and "Owned" or (ownedMap[b.id] == false and "Not earned" or "Checking…"))
+			addRow("Updated", formatBadgeDate(b.updated))
+			addRow("Experience", b.universe or "Unknown")
+			addRow("Rarity", ("%.2f%%"):format(tonumber(b.rarity) or 0))
+			addRow("Won Yesterday", tostring(tonumber(b.pastDay) or 0))
+			addRow("Won Ever", tostring(tonumber(b.awarded) or 0))
+
+			if ownedMap[b.id] == true then
+				Spawn(function()
+					const earnedDate = fetchEarnedDate(b.id)
+					if detailRoot.Parent and earnedDate then
+						earnedValue.Text = earnedDate
+					end
+				end)
+			end
+
+			panel.BackgroundTransparency = 0.08
+			__lt.cm("TweenService", "Create", detailAnimScale, TweenInfo.new(0.2, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Scale = 1}):Play()
+			__lt.cm("TweenService", "Create", panel, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
+			__lt.cm("TweenService", "Create", overlay, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0.36}):Play()
+		end
 		const function makeGridCard(b)
 			const f = InstanceNew("Frame")
-			f.Size = UDim2.new(1, 0, 0, 200)
-			f.BackgroundColor3 = Color3.fromRGB(36, 36, 40)
-			f.BackgroundTransparency = 0.12
+			f.Size = UDim2.new(1, 0, 0, 174)
+			f.BackgroundColor3 = Color3.fromRGB(31, 32, 38)
+			f.BackgroundTransparency = 0
+			f.BorderSizePixel = 0
 			f.ClipsDescendants = true
-			const fc = InstanceNew("UICorner", f); fc.CornerRadius = UDim.new(0, 6)
-			const fs = InstanceNew("UIStroke", f); fs.Color = COLORS.STROKE; fs.Thickness = 1; fs.Transparency = 0.2
+			const fc = InstanceNew("UICorner", f); fc.CornerRadius = UDim.new(0, 8)
+			const fs = InstanceNew("UIStroke", f); fs.Color = Color3.fromRGB(48, 50, 58); fs.Thickness = 1; fs.Transparency = 0.45
+			const animScale = InstanceNew("UIScale", f)
+			animScale.Scale = 1
 
-			const img = InstanceNew("ImageLabel", f)
-			img.AnchorPoint = Vector2.new(0.5,0)
-			img.Position = UDim2.new(0.5, 0, 0, 12)
-			img.Size = UDim2.new(0, 72, 0, 72)
+			const imageBack = InstanceNew("Frame", f)
+			imageBack.Size = UDim2.new(1, 0, 0, 122)
+			imageBack.BackgroundColor3 = Color3.fromRGB(43, 44, 51)
+			imageBack.BorderSizePixel = 0
+
+			const img = InstanceNew("ImageLabel", imageBack)
+			img.AnchorPoint = Vector2.new(0.5, 0.5)
+			img.Position = UDim2.new(0.5, 0, 0.5, 0)
+			img.Size = UDim2.new(0, 94, 0, 94)
 			img.BackgroundTransparency = 1
 			img.Image = "rbxthumb://type=Asset&id="..tostring(b.icon or 0).."&w=420&h=420"
 
 			const titleL = InstanceNew("TextLabel", f)
-			titleL.AnchorPoint = Vector2.new(0.5,0)
-			titleL.Position = UDim2.new(0.5, 0, 0, 90)
-			titleL.Size = UDim2.new(0.9, 0, 0, 20)
+			titleL.Position = UDim2.new(0, 9, 0, 130)
+			titleL.Size = UDim2.new(1, -18, 0, 34)
+			titleL.BackgroundTransparency = 1
 			titleL.Text = b.name or ("Badge "..tostring(b.id))
 			titleL.TextColor3 = COLORS.TEXT
-			titleL.BackgroundTransparency = 1
-			titleL.Font = Enum.Font.GothamSemibold
-			titleL.TextXAlignment = Enum.TextXAlignment.Center
+			titleL.Font = Enum.Font.Gotham
+			titleL.TextSize = 13
+			titleL.TextXAlignment = Enum.TextXAlignment.Left
+			titleL.TextYAlignment = Enum.TextYAlignment.Top
+			titleL.TextWrapped = true
 			titleL.TextTruncate = Enum.TextTruncate.AtEnd
-			titleL.TextScaled = true
-			const tsGT = InstanceNew("UITextSizeConstraint", titleL); tsGT.MinTextSize = 10; tsGT.MaxTextSize = 16
 
-			const desc = InstanceNew("TextLabel", f)
-			desc.AnchorPoint = Vector2.new(0.5,0)
-			desc.Position = UDim2.new(0.5, 0, 0, 112)
-			desc.Size = UDim2.new(0.9, 0, 0, 30)
-			desc.Text = b.desc
-			desc.TextWrapped = true
-			desc.TextColor3 = COLORS.MUTED
-			desc.BackgroundTransparency = 1
-			desc.Font = Enum.Font.Gotham
-			desc.TextXAlignment = Enum.TextXAlignment.Center
-			desc.TextYAlignment = Enum.TextYAlignment.Top
-			desc.TextScaled = true
-			const tsGD = InstanceNew("UITextSizeConstraint", desc); tsGD.MinTextSize = 9; tsGD.MaxTextSize = 13
+			const ownedTag = InstanceNew("TextLabel", f)
+			ownedTag.AnchorPoint = Vector2.new(1, 0)
+			ownedTag.Position = UDim2.new(1, -8, 0, 8)
+			ownedTag.Size = UDim2.new(0, 54, 0, 22)
+			ownedTag.BackgroundColor3 = Color3.fromRGB(38, 109, 72)
+			ownedTag.BackgroundTransparency = 0.08
+			ownedTag.Text = "OWNED"
+			ownedTag.Font = Enum.Font.GothamBold
+			ownedTag.TextSize = 10
+			ownedTag.TextColor3 = Color3.new(1,1,1)
+			ownedTag.Visible = false
+			ownedTag.ZIndex = 4
+			const ownedCorner = InstanceNew("UICorner", ownedTag); ownedCorner.CornerRadius = UDim.new(1, 0)
 
-			const stat = InstanceNew("TextLabel", f)
-			stat.AnchorPoint = Vector2.new(0.5,0)
-			stat.Position = UDim2.new(0.5, 0, 0, 144)
-			stat.Size = UDim2.new(0.9, 0, 0, 20)
-			stat.Text = Format("🎯 %.1f%%  📈 %d  ⏱️ %d", b.rarity, b.awarded, b.pastDay)
-			stat.TextColor3 = Color3.fromRGB(160, 160, 165)
-			stat.BackgroundTransparency = 1
-			stat.Font = Enum.Font.Gotham
-			stat.TextXAlignment = Enum.TextXAlignment.Center
-			stat.TextScaled = true
-			const tsGS = InstanceNew("UITextSizeConstraint", stat); tsGS.MinTextSize = 9; tsGS.MaxTextSize = 13
+			const hit = InstanceNew("TextButton", f)
+			hit.Size = UDim2.new(1, 0, 1, 0)
+			hit.BackgroundTransparency = 1
+			hit.Text = ""
+			hit.AutoButtonColor = false
+			hit.ZIndex = 5
+			NAlib.connect("BadgeViewer", MouseButtonFix(hit, function()
+				openBadgeDetail(b)
+			end))
 
-			const tools = InstanceNew("Frame", f)
-			tools.AnchorPoint = Vector2.new(0.5,1)
-			tools.Position = UDim2.new(0.5, 0, 1, -10)
-			tools.Size = UDim2.new(0.9, 0, 0, 22)
-			tools.BackgroundColor3 = COLORS.BUTTON
-			tools.BackgroundTransparency = 0.35
-			tools.BorderSizePixel = 0
-			const tC = InstanceNew("UICorner", tools); tC.CornerRadius = UDim.new(0, 6)
-			const tS = InstanceNew("UIStroke", tools); tS.Color = COLORS.STROKE; tS.Thickness = 1; tS.Transparency = 0.7
-			const tl = InstanceNew("UIListLayout", tools)
-			tl.FillDirection = Enum.FillDirection.Horizontal
-			tl.VerticalAlignment = Enum.VerticalAlignment.Center
-			tl.HorizontalAlignment = Enum.HorizontalAlignment.Center
-			tl.Padding = UDim.new(0, 6)
+			if IsOnPC then
+				NAlib.connect("BadgeViewer", hit.MouseEnter:Connect(function()
+					__lt.cm("TweenService", "Create", imageBack, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+						BackgroundColor3 = Color3.fromRGB(50, 51, 59)
+					}):Play()
+				end))
+				NAlib.connect("BadgeViewer", hit.MouseLeave:Connect(function()
+					__lt.cm("TweenService", "Create", imageBack, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+						BackgroundColor3 = Color3.fromRGB(43, 44, 51)
+					}):Play()
+				end))
+			end
 
-			mkToolBtn(tools, "Name", function()
-				copyToClipboard(b.name or ("Badge "..tostring(b.id)), "Copied badge name")
-			end)
-			mkToolBtn(tools, "ID", function()
-				copyToClipboard(b.id, "Copied badge ID")
-			end)
-			mkToolBtn(tools, "URL", function()
-				copyToClipboard("https://www.roblox.com/badges/"..tostring(b.id), "Copied badge URL")
-			end)
-
-			const ownedTag = pill(f, "OWNED", COLORS.OWNED)
-
-			const card = {frame=f, data=b, stroke=fs, ownedTag=ownedTag}
+			const card = {frame=f, data=b, stroke=fs, ownedTag=ownedTag, animScale=animScale}
 			idToCards[b.id] = idToCards[b.id] or {}
 			idToCards[b.id].grid = card
 			Insert(gridCards, card)
 			return card
 		end
-
 		for _, b in badgesData do
 			makeListCard(b)
 		end
@@ -1245,6 +1642,26 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 			if n == "" then return true end
 			h = Lower(h or ""); n = Lower(n or "")
 			return Find(h, n, 1, true) ~= nil
+		end
+
+		const function animateBadgeCards(cards)
+			local animated = 0
+			for _, card in cards do
+				if card.frame.Parent == scroll and card.frame.Visible and card.animScale then
+					animated += 1
+					if animated <= 24 then
+						card.animScale.Scale = 0.94
+						const delayTime = math.min((animated - 1) * 0.012, 0.16)
+						Delay(delayTime, function()
+							if card.frame.Parent == scroll and card.animScale.Parent == card.frame then
+								__lt.cm("TweenService", "Create", card.animScale, TweenInfo.new(0.18, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {Scale = 1}):Play()
+							end
+						end)
+					else
+						card.animScale.Scale = 1
+					end
+				end
+			end
 		end
 
 		const function setStatLabel()
@@ -1371,6 +1788,7 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 			refreshOwnedStylesForAll()
 			applySort()
 			applyFilters()
+			animateBadgeCards(useGrid and gridCards or listCards)
 		end
 
 		const function setOwnedOnly(v)
@@ -1549,14 +1967,14 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 			gridBuilt = false
 			ownedOnly = false
 			unownedOnly = false
-			useGrid = false
+			useGrid = true
 			sortModeIndex = 1
 			sortMode = "default"
 			search.Text = ""
 			clearSearch.Visible = false
 			ownedOnlyBtn.Text = "Owned: OFF"
 			unownedOnlyBtn.Text = "Unowned: OFF"
-			layoutToggle.Text = "List"
+			layoutToggle.Text = "Grid"
 			sortBtn.Text = "Sort: Default"
 			local ok2, res2 = NACaller(getBadges)
 			if ok2 then
@@ -1576,6 +1994,7 @@ cmd.add({"badgeviewer", "badgeview", "bviewer","badgev","bv"},{"badgeviewer (bad
 		end)
 
 		attachLayout()
+		Defer(animateMainOpen)
 		runOwnershipChecks(badgesData)
 	end
 
