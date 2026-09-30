@@ -1563,11 +1563,18 @@ end
 
 NAmanage.ApplyCommandUIMode({ skipPosition = true })
 
-fillSizes = {
-	right = NAUIMANAGER.rightFill.Size,
-	left = NAUIMANAGER.leftFill.Size
-};
-cmdBarExpandedSize = NAmanage.IsLegacyCommandUI() and UDim2.new(0, 280, 1, 10) or (NAUIMANAGER.centerBar and NAUIMANAGER.centerBar.Size or UDim2.new(0, 520, 1, 0))
+do
+	const legacy = NAmanage.IsLegacyCommandUI()
+	const fallbackFillSize = legacy and UDim2.new(0.5, -140, 1, 0) or UDim2.new(0, 0, 1, 0)
+	const rightFill = NAUIMANAGER and NAUIMANAGER.rightFill
+	const leftFill = NAUIMANAGER and NAUIMANAGER.leftFill
+	fillSizes = {
+		right = rightFill and rightFill.Size or fallbackFillSize,
+		left = leftFill and leftFill.Size or fallbackFillSize
+	}
+	const centerBar = NAUIMANAGER and NAUIMANAGER.centerBar
+	cmdBarExpandedSize = legacy and UDim2.new(0, 280, 1, 10) or (centerBar and centerBar.Size or UDim2.new(0, 520, 1, 0))
+end
 NAmanage.PositionCmdBarAtViewportCenter = function()
 	const bar = NAUIMANAGER and NAUIMANAGER.cmdBar
 	if not (bar and bar:IsA("GuiObject")) then return end

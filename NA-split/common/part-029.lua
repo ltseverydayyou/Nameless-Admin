@@ -1791,6 +1791,24 @@ originalIO.runNACHAT=function()
 			updateStatusLabel()
 		end
 
+		const chatRunToken = NAmanage and NAmanage._runToken
+		const chatStatusSetter = originalIO.setStatus
+		local function chatRuntimeActive()
+			if chatRunToken == nil then
+				return true
+			end
+			return type(NAmanage) == "table"
+				and type(NAmanage.IsActiveRun) == "function"
+				and NAmanage.IsActiveRun(chatRunToken)
+		end
+		local function setChatStatus(t, c)
+			if not chatRuntimeActive() or type(chatStatusSetter) ~= "function" then
+				return false
+			end
+			chatStatusSetter(t, c)
+			return true
+		end
+
 		refreshStatus = function()
 			if not statusLabel then
 				return
@@ -5631,10 +5649,13 @@ originalIO.runNACHAT=function()
 		end
 
 		connect = function()
+			if not chatRuntimeActive() then
+				return
+			end
 			if isChatDisconnectedPreference() then
 				NAChat.connecting = false
 				resetReconnectBackoff()
-				originalIO.setStatus("NA Chat: Disconnected (disabled)", STATUS_COLORS.info)
+				setChatStatus("NA Chat: Disconnected (disabled)", STATUS_COLORS.info)
 				return
 			end
 			if permanentFailureReason then
@@ -5645,20 +5666,32 @@ originalIO.runNACHAT=function()
 			end
 			NAChat.connecting = true
 			Defer(function()
-				originalIO.setStatus("NA Chat: Connecting...", STATUS_COLORS.info)
+				if not chatRuntimeActive() then
+					return
+				end
+				setChatStatus("NA Chat: Connecting...", STATUS_COLORS.info)
 
 				if not loadService() then
+					if not chatRuntimeActive() then
+						return
+					end
 					NAChat.connecting = false
 					queueReconnect()
 					return
 				end
+				if not chatRuntimeActive() then
+					return
+				end
 
 				local wireOk, wireErr = pcall(wireEvents)
+				if not chatRuntimeActive() then
+					return
+				end
 				if not wireOk then
 					NAChat.wired = false
 					NAChat.connecting = false
 					warn("[NA Chat] event wiring failed: "..tostring(wireErr))
-					originalIO.setStatus("NA Chat: UI wiring failed", STATUS_COLORS.err)
+					setChatStatus("NA Chat: UI wiring failed", STATUS_COLORS.err)
 					queueReconnect()
 					return
 				end
@@ -5683,9 +5716,12 @@ originalIO.runNACHAT=function()
 						okInit, initErr = false, initResult
 					end
 				end
+				if not chatRuntimeActive() then
+					return
+				end
 
 				if not okInit then
-					originalIO.setStatus("NA Chat: connect failed (Init)", STATUS_COLORS.err)
+					setChatStatus("NA Chat: connect failed (Init)", STATUS_COLORS.err)
 
 					local permanent = false
 					permanentFailureReason = nil
@@ -5711,7 +5747,7 @@ originalIO.runNACHAT=function()
 					return
 				end
 
-				originalIO.setStatus("NA Chat: Waiting for server...", STATUS_COLORS.info)
+				setChatStatus("NA Chat: Waiting for server...", STATUS_COLORS.info)
 			end)
 		end
 

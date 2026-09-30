@@ -4761,6 +4761,25 @@ do
 	NAStuff.NASCREENGUI = ready
 end
 
+do
+	const gui = NAStuff.NASCREENGUI
+	if gui then
+		const deadline = tick() + 2
+		repeat
+			const cmdBar = gui:FindFirstChild("CmdBar")
+			const centerBar = cmdBar and cmdBar:FindFirstChild("CenterBar")
+			const leftFill = cmdBar and cmdBar:FindFirstChild("LeftFill")
+			const rightFill = cmdBar and cmdBar:FindFirstChild("RightFill")
+			const autofill = cmdBar and cmdBar:FindFirstChild("Autofill")
+			const input = centerBar and centerBar:FindFirstChild("Input")
+			if cmdBar and centerBar and leftFill and rightFill and autofill and input then
+				break
+			end
+			Wait(0.02)
+		until tick() >= deadline
+	end
+end
+
 if NAStuff.NASCREENGUI and NAStuff.NASCREENGUI:IsA("ScreenGui") then
 	NAStuff.uiBootHidden = true
 	pcall(function()
