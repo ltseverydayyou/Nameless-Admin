@@ -3362,21 +3362,10 @@ NAgui.addInfo = function(label, value, opts)
 	local resizePending = false
 	local resize
 	local requestResize
-	const resizeRunToken = NAmanage and NAmanage._runToken
-	const resizeGetTextWidth = NAgui.getInputTextWidth
-	const resizeGetMinWidth = NAgui.getInputMinWidth
-	const resizeIsSettingsLayoutSuspended = NAgui.isSettingsLayoutSuspended
-	const function resizeRunActive()
-		if resizeRunToken == nil then
-			return true
-		end
-		return type(NAmanage) == "table"
-			and type(NAmanage.IsActiveRun) == "function"
-			and NAmanage.IsActiveRun(resizeRunToken)
-	end
+	opts._naResizeRunToken = NAmanage and NAmanage._runToken
 
 	requestResize = function()
-		if not resizeRunActive() then
+		if type(NAmanage) == "table" and type(NAmanage.IsActiveRun) == "function" and not NAmanage.IsActiveRun(opts._naResizeRunToken) then
 			return
 		end
 		if resizeBusy then
@@ -3389,7 +3378,7 @@ NAgui.addInfo = function(label, value, opts)
 		resizeQueued = true
 		Delay(0.03, function()
 			resizeQueued = false
-			if not resizeRunActive() then
+			if type(NAmanage) == "table" and type(NAmanage.IsActiveRun) == "function" and not NAmanage.IsActiveRun(opts._naResizeRunToken) then
 				return
 			end
 			if resize and info and info.Parent then
@@ -3407,14 +3396,14 @@ NAgui.addInfo = function(label, value, opts)
 	end
 
 	resize = function()
-		if not resizeRunActive() then
+		if type(NAmanage) == "table" and type(NAmanage.IsActiveRun) == "function" and not NAmanage.IsActiveRun(opts._naResizeRunToken) then
 			return
 		end
 		if resizeBusy then
 			resizePending = true
 			return
 		end
-		if type(resizeIsSettingsLayoutSuspended) == "function" and resizeIsSettingsLayoutSuspended() then
+		if type(NAgui.isSettingsLayoutSuspended) == "function" and NAgui.isSettingsLayoutSuspended() then
 			resizePending = true
 			Delay(0.08, function()
 				if info and info.Parent then
@@ -3429,8 +3418,8 @@ NAgui.addInfo = function(label, value, opts)
 
 		resizeBusy = true
 
-		const textW = type(resizeGetTextWidth) == "function" and resizeGetTextWidth(box) or 56
-		const minW = type(resizeGetMinWidth) == "function" and resizeGetMinWidth(frame) or 56
+		const textW = type(NAgui.getInputTextWidth) == "function" and NAgui.getInputTextWidth(box) or 56
+		const minW = type(NAgui.getInputMinWidth) == "function" and NAgui.getInputMinWidth(frame) or 56
 		local maxW
 
 		local cw = info.AbsoluteSize.X
