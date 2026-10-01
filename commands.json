@@ -6148,9 +6148,9 @@
         "loopgoto",
         "lgoto"
       ],
-      "usage": "glue <player>",
-      "args": "<player>",
-      "desc": "Loop teleport to a player"
+      "usage": "glue <player|npc:filter>",
+      "args": "<player|npc:filter>",
+      "desc": "Loop teleport to a player or NPC"
     },
     {
       "name": "unglue",
@@ -6159,9 +6159,9 @@
         "unloopgoto",
         "noloopgoto"
       ],
-      "usage": "unglue",
+      "usage": "unglue (unloopgoto, noloopgoto)",
       "args": "",
-      "desc": "Stops teleporting you to a player"
+      "desc": "Stops teleporting you to a player or NPC"
     },
     {
       "name": "glueback",
