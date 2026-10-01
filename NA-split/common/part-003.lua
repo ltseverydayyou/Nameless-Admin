@@ -4019,7 +4019,16 @@ flingManager.GetPartVelocity = function(part)
 end
 
 flingManager.GetPlayerCharacter = function(plr)
-	if not plr or typeof(plr) ~= "Instance" or not plr:IsA("Player") then
+	if not plr or typeof(plr) ~= "Instance" then
+		return nil
+	end
+	if plr:IsA("Model") then
+		if plr.Parent and plr:IsDescendantOf(Services.Workspace) then
+			return plr
+		end
+		return nil
+	end
+	if not plr:IsA("Player") then
 		return nil
 	end
 

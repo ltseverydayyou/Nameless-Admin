@@ -3376,7 +3376,40 @@ cmd.add({"fixcam", "fix"}, {"fixcam", "Fix your camera"}, function()
 	getHead(plr.Character).Anchored = false
 end)
 
-cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(...)
+flingManager.IsTargetActive = function(target)
+	if typeof(target) ~= "Instance" then
+		return false
+	end
+	if target:IsA("Player") then
+		return target.Parent == __lt.gs("Players")
+	end
+	if target:IsA("Model") then
+		return target.Parent ~= nil and target:IsDescendantOf(Services.Workspace)
+	end
+	return false
+end
+
+flingManager.GetTargetPrediction = function(part, humanoid)
+	const velocity, speed = flingManager.GetPartVelocity(part)
+	if not part or speed <= 0.01 then
+		return Vector3.zero, speed, velocity
+	end
+
+	local prediction = Vector3.zero
+	const moveDirection = humanoid and humanoid.MoveDirection or Vector3.zero
+	if speed < 50 and moveDirection.Magnitude > 0.01 then
+		prediction = moveDirection.Unit * (speed / 1.25)
+	elseif velocity.Magnitude > 0.01 then
+		prediction = velocity * (speed >= 50 and 0.04 or 0.08)
+	end
+
+	if prediction.Magnitude > 4 then
+		prediction = prediction.Unit * 4
+	end
+	return prediction, speed, velocity
+end
+
+cmd.add({"fling"}, {"fling <player|npc:filter>", "Fling the given player or NPC"}, function(...)
 	const RawPlayers = __lt.gs("Players")
 	const LocalPlayer = Services.Players.LocalPlayer
 	const query = Concat({ ... }, " ")
@@ -3400,12 +3433,16 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(...)
 
 	const targets = {}
 	for _, TargetPlayer in getPlr(query) do
-		if typeof(TargetPlayer) == "Instance" and TargetPlayer:IsA("Player") and not IsLocalTarget(TargetPlayer) then
+		if typeof(TargetPlayer) == "Instance"
+			and not IsLocalTarget(TargetPlayer)
+			and flingManager.IsTargetActive(TargetPlayer)
+			and flingManager.GetPlayerCharacter(TargetPlayer)
+		then
 			Insert(targets, TargetPlayer)
 		end
 	end
 	if #targets == 0 then
-		return DebugNotif("No players matched: "..query, 3)
+		return DebugNotif("No player or NPC matched: "..query, 3)
 	end
 
 	const flingManager       = flingManager
@@ -3509,7 +3546,7 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(...)
 						break
 					end
 				until targetChangedOrLost(BasePart)
-					or TargetPlayer.Parent ~= RawPlayers
+					or not flingManager.IsTargetActive(TargetPlayer)
 					or Humanoid.Health <= 0
 					or tick() > Time + TimeToWait
 			end
@@ -3559,8 +3596,423 @@ cmd.add({"fling"}, {"fling <player>", "Fling the given player"}, function(...)
 	end
 
 	for _, TargetPlayer in targets do
-		if typeof(TargetPlayer) == "Instance" and TargetPlayer:IsA("Player") and not IsLocalTarget(TargetPlayer) then
+		if typeof(TargetPlayer) == "Instance" and not IsLocalTarget(TargetPlayer) and flingManager.IsTargetActive(TargetPlayer) then
 			SkidFling(TargetPlayer)
+		end
+	end
+end)
+
+cmd.add({"verticalfling", "vfling", "updownfling", "udfling"}, {"verticalfling <player|npc:filter> (vfling, updownfling, udfling)", "Fling a player or NPC vertically by moving above and below them"}, function(...)
+	const RawPlayers = __lt.gs("Players")
+	const LocalPlayer = Services.Players.LocalPlayer
+	const query = Concat({ ... }, " ")
+	if query == "" then
+		return DebugNotif("Player name or selector required", 3)
+	end
+
+	const LocalUserId = tonumber(LocalPlayer.UserId)
+	const function IsLocalTarget(TargetPlayer)
+		if TargetPlayer == LocalPlayer then
+			return true
+		end
+		return typeof(TargetPlayer) == "Instance"
+			and TargetPlayer:IsA("Player")
+			and tonumber(TargetPlayer.UserId) == LocalUserId
+	end
+
+	const Character = flingManager.GetPlayerCharacter(LocalPlayer) or LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+	const Humanoid = getPlrHum(Character)
+	const RootPart = Humanoid and Humanoid.RootPart or getRoot(Character)
+	if not RootPart then return end
+
+	const targets = {}
+	for _, TargetPlayer in getPlr(query) do
+		if typeof(TargetPlayer) == "Instance"
+			and not IsLocalTarget(TargetPlayer)
+			and flingManager.IsTargetActive(TargetPlayer)
+			and flingManager.GetPlayerCharacter(TargetPlayer)
+		then
+			Insert(targets, TargetPlayer)
+		end
+	end
+	if #targets == 0 then
+		return DebugNotif("No player or NPC matched: "..query, 3)
+	end
+
+	const OrgDestroyHeight = Services.Workspace.FallenPartsDestroyHeight
+	const VerticalSpeed = 9e8
+
+	const function VerticalFling(TargetPlayer)
+		if IsLocalTarget(TargetPlayer) then
+			return
+		end
+
+		const Character = flingManager.GetPlayerCharacter(LocalPlayer) or LocalPlayer.Character
+		const Humanoid = getPlrHum(Character)
+		const RootPart = Humanoid and Humanoid.RootPart or getRoot(Character)
+		const TChar = flingManager.GetPlayerCharacter(TargetPlayer)
+		if not (Character and Humanoid and RootPart and TChar) then return end
+
+		const THumanoid = getPlrHum(TChar)
+		const TRootPart = THumanoid and THumanoid.RootPart or getRoot(TChar)
+		const THead = getHead(TChar)
+		const Acc = TChar:FindFirstChildOfClass("Accessory")
+		const Handle = Acc and Acc:FindFirstChild("Handle")
+
+		const function targetChangedOrLost(BasePart)
+			const current = flingManager.GetPlayerCharacter(TargetPlayer)
+			return not current or current ~= TChar or not BasePart:IsDescendantOf(current)
+		end
+
+		if not TChar:FindFirstChildWhichIsA("BasePart") then
+			return
+		end
+
+		local flingPart = InstanceNew("Part")
+		flingPart.Anchored = false
+		flingPart.CanCollide = false
+		flingPart.Transparency = 1
+		flingPart.Size = Vector3.new(1, 1, 1)
+		flingPart.CFrame = RootPart.CFrame
+		flingPart.Parent = Services.Workspace
+
+		const flingWeld = InstanceNew("WeldConstraint")
+		flingWeld.Part0 = flingPart
+		flingWeld.Part1 = RootPart
+		flingWeld.Parent = flingPart
+
+		const function cleanupFlingPart()
+			if flingPart then
+				flingPart:Destroy()
+				flingPart = nil
+			end
+		end
+
+		local _, rootSpeed = flingManager.GetPartVelocity(RootPart)
+		if not flingManager.cFlingOldPos or rootSpeed < 50 then
+			flingManager.cFlingOldPos = NAmanage.UG_clientCFrame(RootPart) or RootPart.CFrame
+		end
+
+		if THead then
+			Services.Workspace.CurrentCamera.CameraSubject = THead
+		elseif Handle then
+			Services.Workspace.CurrentCamera.CameraSubject = Handle
+		elseif THumanoid and TRootPart then
+			Services.Workspace.CurrentCamera.CameraSubject = THumanoid
+		end
+
+		Services.Workspace.FallenPartsDestroyHeight = 0/0
+		Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+
+		const BV = InstanceNew("BodyVelocity")
+		BV.Parent = flingPart
+		BV.MaxForce = Vector3.new(0, 1/0, 0)
+
+		const function SetVerticalVelocity(direction)
+			const velocity = Vector3.new(0, VerticalSpeed * direction, 0)
+			pcall(function() flingPart.AssemblyLinearVelocity = velocity end)
+			pcall(function() flingPart.AssemblyAngularVelocity = Vector3.zero end)
+			pcall(function() flingPart.Velocity = velocity end)
+			pcall(function() flingPart.RotVelocity = Vector3.zero end)
+			pcall(function() BV.Velocity = velocity end)
+		end
+
+		const function VPos(BasePart, yOffset, direction)
+			if not (BasePart and BasePart.Parent and flingPart and flingPart.Parent) then
+				return false
+			end
+			if targetChangedOrLost(BasePart) then
+				return false
+			end
+
+			const prediction = flingManager.GetTargetPrediction(BasePart, THumanoid)
+			const targetCFrame = CFrame.new(BasePart.Position + prediction + Vector3.new(0, yOffset, 0))
+			flingPart.CFrame = targetCFrame
+			NAmanage.UG_pivotModel(Character, targetCFrame)
+			SetVerticalVelocity(direction)
+			return true
+		end
+
+		const function VFBasePart(BasePart)
+			const TimeToWait = 2
+			const Time = tick()
+			repeat
+				if not VPos(BasePart, -4, 1) then break end
+				Wait()
+				if not VPos(BasePart, -2.5, 1) then break end
+				Wait()
+				if not VPos(BasePart, -1.25, 1) then break end
+				Wait()
+				if not VPos(BasePart, 1.25, -1) then break end
+				Wait()
+				if not VPos(BasePart, 2.5, -1) then break end
+				Wait()
+				if not VPos(BasePart, 4, -1) then break end
+				Wait()
+				if not VPos(BasePart, 2.5, -1) then break end
+				Wait()
+				if not VPos(BasePart, 1.25, -1) then break end
+				Wait()
+				if not VPos(BasePart, -1.25, 1) then break end
+				Wait()
+				if not VPos(BasePart, -2.5, 1) then break end
+				Wait()
+			until targetChangedOrLost(BasePart)
+				or not flingManager.IsTargetActive(TargetPlayer)
+				or Humanoid.Health <= 0
+				or tick() > Time + TimeToWait
+		end
+
+		if TRootPart and THead then
+			if (TRootPart.CFrame.p - THead.CFrame.p).Magnitude > 5 then
+				VFBasePart(THead)
+			else
+				VFBasePart(TRootPart)
+			end
+		elseif TRootPart then
+			VFBasePart(TRootPart)
+		elseif THead then
+			VFBasePart(THead)
+		elseif Handle then
+			VFBasePart(Handle)
+		end
+
+		BV:Destroy()
+		cleanupFlingPart()
+		Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
+		Services.Workspace.CurrentCamera.CameraSubject = Humanoid
+
+		if flingManager.cFlingOldPos then
+			repeat
+				NAmanage.UG_setRootCFrame(RootPart, flingManager.cFlingOldPos * CFrame.new(0, .5, 0))
+				NAmanage.UG_pivotModel(Character, flingManager.cFlingOldPos * CFrame.new(0, .5, 0))
+				Humanoid:ChangeState("GettingUp")
+				for _, x in next, Character:GetChildren() do
+					if x:IsA("BasePart") then
+						flingManager.ClearPartVelocity(x)
+					end
+				end
+				Wait()
+			until (RootPart.Position - flingManager.cFlingOldPos.p).Magnitude < 25
+		end
+
+		Services.Workspace.FallenPartsDestroyHeight = OrgDestroyHeight
+	end
+
+	for _, TargetPlayer in targets do
+		if typeof(TargetPlayer) == "Instance" and not IsLocalTarget(TargetPlayer) and flingManager.IsTargetActive(TargetPlayer) then
+			VerticalFling(TargetPlayer)
+		end
+	end
+end)
+
+cmd.add({"horizontalfling", "hfling", "sidefling", "lrfling"}, {"horizontalfling <player|npc:filter> (hfling, sidefling, lrfling)", "Fling a player or NPC horizontally by moving left and right through them"}, function(...)
+	const RawPlayers = __lt.gs("Players")
+	const LocalPlayer = Services.Players.LocalPlayer
+	const query = Concat({ ... }, " ")
+	if query == "" then
+		return DebugNotif("Player name or selector required", 3)
+	end
+
+	const LocalUserId = tonumber(LocalPlayer.UserId)
+	const function IsLocalTarget(TargetPlayer)
+		if TargetPlayer == LocalPlayer then
+			return true
+		end
+		return typeof(TargetPlayer) == "Instance"
+			and TargetPlayer:IsA("Player")
+			and tonumber(TargetPlayer.UserId) == LocalUserId
+	end
+
+	const Character = flingManager.GetPlayerCharacter(LocalPlayer) or LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+	const Humanoid = getPlrHum(Character)
+	const RootPart = Humanoid and Humanoid.RootPart or getRoot(Character)
+	if not RootPart then return end
+
+	const targets = {}
+	for _, TargetPlayer in getPlr(query) do
+		if typeof(TargetPlayer) == "Instance"
+			and not IsLocalTarget(TargetPlayer)
+			and flingManager.IsTargetActive(TargetPlayer)
+			and flingManager.GetPlayerCharacter(TargetPlayer)
+		then
+			Insert(targets, TargetPlayer)
+		end
+	end
+	if #targets == 0 then
+		return DebugNotif("No player or NPC matched: "..query, 3)
+	end
+
+	const OrgDestroyHeight = Services.Workspace.FallenPartsDestroyHeight
+	const HorizontalSpeed = 9e8
+
+	const function HorizontalFling(TargetPlayer)
+		if IsLocalTarget(TargetPlayer) then
+			return
+		end
+
+		const Character = flingManager.GetPlayerCharacter(LocalPlayer) or LocalPlayer.Character
+		const Humanoid = getPlrHum(Character)
+		const RootPart = Humanoid and Humanoid.RootPart or getRoot(Character)
+		const TChar = flingManager.GetPlayerCharacter(TargetPlayer)
+		if not (Character and Humanoid and RootPart and TChar) then return end
+
+		const THumanoid = getPlrHum(TChar)
+		const TRootPart = THumanoid and THumanoid.RootPart or getRoot(TChar)
+		const THead = getHead(TChar)
+		const Acc = TChar:FindFirstChildOfClass("Accessory")
+		const Handle = Acc and Acc:FindFirstChild("Handle")
+		local HorizontalAxis = (TRootPart and TRootPart.CFrame.RightVector) or RootPart.CFrame.RightVector
+		HorizontalAxis = Vector3.new(HorizontalAxis.X, 0, HorizontalAxis.Z)
+		if HorizontalAxis.Magnitude < 0.001 then
+			HorizontalAxis = Vector3.new(1, 0, 0)
+		else
+			HorizontalAxis = HorizontalAxis.Unit
+		end
+
+		const function targetChangedOrLost(BasePart)
+			const current = flingManager.GetPlayerCharacter(TargetPlayer)
+			return not current or current ~= TChar or not BasePart:IsDescendantOf(current)
+		end
+
+		if not TChar:FindFirstChildWhichIsA("BasePart") then
+			return
+		end
+
+		local flingPart = InstanceNew("Part")
+		flingPart.Anchored = false
+		flingPart.CanCollide = false
+		flingPart.Transparency = 1
+		flingPart.Size = Vector3.new(1, 1, 1)
+		flingPart.CFrame = RootPart.CFrame
+		flingPart.Parent = Services.Workspace
+
+		const flingWeld = InstanceNew("WeldConstraint")
+		flingWeld.Part0 = flingPart
+		flingWeld.Part1 = RootPart
+		flingWeld.Parent = flingPart
+
+		const function cleanupFlingPart()
+			if flingPart then
+				flingPart:Destroy()
+				flingPart = nil
+			end
+		end
+
+		local _, rootSpeed = flingManager.GetPartVelocity(RootPart)
+		if not flingManager.cFlingOldPos or rootSpeed < 50 then
+			flingManager.cFlingOldPos = NAmanage.UG_clientCFrame(RootPart) or RootPart.CFrame
+		end
+
+		if THead then
+			Services.Workspace.CurrentCamera.CameraSubject = THead
+		elseif Handle then
+			Services.Workspace.CurrentCamera.CameraSubject = Handle
+		elseif THumanoid and TRootPart then
+			Services.Workspace.CurrentCamera.CameraSubject = THumanoid
+		end
+
+		Services.Workspace.FallenPartsDestroyHeight = 0/0
+		Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+
+		const BV = InstanceNew("BodyVelocity")
+		BV.Parent = flingPart
+		BV.MaxForce = Vector3.new(1/0, 0, 1/0)
+
+		const function SetHorizontalVelocity(side, direction)
+			const velocity = side * (HorizontalSpeed * direction)
+			pcall(function() flingPart.AssemblyLinearVelocity = velocity end)
+			pcall(function() flingPart.AssemblyAngularVelocity = Vector3.zero end)
+			pcall(function() flingPart.Velocity = velocity end)
+			pcall(function() flingPart.RotVelocity = Vector3.zero end)
+			pcall(function() BV.Velocity = velocity end)
+		end
+
+		const function HPos(BasePart, distance, direction)
+			if not (BasePart and BasePart.Parent and flingPart and flingPart.Parent) then
+				return false
+			end
+			if targetChangedOrLost(BasePart) then
+				return false
+			end
+
+			const prediction = flingManager.GetTargetPrediction(BasePart, THumanoid)
+			const targetCFrame = CFrame.new(BasePart.Position + prediction + HorizontalAxis * distance)
+			flingPart.CFrame = targetCFrame
+			NAmanage.UG_pivotModel(Character, targetCFrame)
+			SetHorizontalVelocity(HorizontalAxis, direction)
+			return true
+		end
+
+		const function HFBasePart(BasePart)
+			const TimeToWait = 2
+			const Time = tick()
+			repeat
+				if not HPos(BasePart, -4, 1) then break end
+				Wait()
+				if not HPos(BasePart, -2.5, 1) then break end
+				Wait()
+				if not HPos(BasePart, -1.25, 1) then break end
+				Wait()
+				if not HPos(BasePart, 1.25, -1) then break end
+				Wait()
+				if not HPos(BasePart, 2.5, -1) then break end
+				Wait()
+				if not HPos(BasePart, 4, -1) then break end
+				Wait()
+				if not HPos(BasePart, 2.5, -1) then break end
+				Wait()
+				if not HPos(BasePart, 1.25, -1) then break end
+				Wait()
+				if not HPos(BasePart, -1.25, 1) then break end
+				Wait()
+				if not HPos(BasePart, -2.5, 1) then break end
+				Wait()
+			until targetChangedOrLost(BasePart)
+				or not flingManager.IsTargetActive(TargetPlayer)
+				or Humanoid.Health <= 0
+				or tick() > Time + TimeToWait
+		end
+
+		if TRootPart and THead then
+			if (TRootPart.CFrame.p - THead.CFrame.p).Magnitude > 5 then
+				HFBasePart(THead)
+			else
+				HFBasePart(TRootPart)
+			end
+		elseif TRootPart then
+			HFBasePart(TRootPart)
+		elseif THead then
+			HFBasePart(THead)
+		elseif Handle then
+			HFBasePart(Handle)
+		end
+
+		BV:Destroy()
+		cleanupFlingPart()
+		Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
+		Services.Workspace.CurrentCamera.CameraSubject = Humanoid
+
+		if flingManager.cFlingOldPos then
+			repeat
+				NAmanage.UG_setRootCFrame(RootPart, flingManager.cFlingOldPos * CFrame.new(0, .5, 0))
+				NAmanage.UG_pivotModel(Character, flingManager.cFlingOldPos * CFrame.new(0, .5, 0))
+				Humanoid:ChangeState("GettingUp")
+				for _, x in next, Character:GetChildren() do
+					if x:IsA("BasePart") then
+						flingManager.ClearPartVelocity(x)
+					end
+				end
+				Wait()
+			until (RootPart.Position - flingManager.cFlingOldPos.p).Magnitude < 25
+		end
+
+		Services.Workspace.FallenPartsDestroyHeight = OrgDestroyHeight
+	end
+
+	for _, TargetPlayer in targets do
+		if typeof(TargetPlayer) == "Instance" and not IsLocalTarget(TargetPlayer) and flingManager.IsTargetActive(TargetPlayer) then
+			HorizontalFling(TargetPlayer)
 		end
 	end
 end)
@@ -5559,7 +6011,7 @@ end)
 LOOPPROTECT = nil
 LOOPFLING_ID = LOOPFLING_ID or 0
 
-cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(...)
+cmd.add({"loopfling"}, {"loopfling <player|npc:filter>", "Continuously flings a player or NPC"}, function(...)
 	const RawPlayers = __lt.gs("Players")
 	const query = Concat({ ... }, " ")
 	if query == "" then
@@ -5577,19 +6029,24 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(.
 			and tonumber(TargetPlayer.UserId) == LocalUserId
 	end
 
+	if NAmanage.StopDirectionalFlingLoops then
+		NAmanage.StopDirectionalFlingLoops()
+	end
 	Loopvoid = false
 	Wait()
 	Loopvoid = true
 	LOOPFLING_ID += 1
 
 	const id = LOOPFLING_ID
+	const npcQuery = NAmanage.ParseNPCPlayerArg and NAmanage.ParseNPCPlayerArg(query) ~= nil
 
 	const function SkidFling(TargetPlayer)
-		if not Loopvoid or id ~= LOOPFLING_ID or IsLocalTarget(TargetPlayer) or TargetPlayer.Parent ~= RawPlayers then
+		if not Loopvoid or id ~= LOOPFLING_ID or IsLocalTarget(TargetPlayer) or not flingManager.IsTargetActive(TargetPlayer) then
 			return
 		end
 
-		cmd.run({"fling", TargetPlayer.Name})
+		const selector = TargetPlayer:IsA("Model") and ("npc:"..TargetPlayer.Name) or TargetPlayer.Name
+		cmd.run({"fling", selector})
 	end
 
 	if not _na_env.Welcome then
@@ -5598,9 +6055,17 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(.
 	_na_env.Welcome = true
 
 	const targets = {}
-	for _, ref in NAmanage.PersistentPlayerRefs(query) do
-		if tonumber(ref.UserId) ~= LocalUserId then
-			Insert(targets, ref)
+	if npcQuery then
+		for _, target in getPlr(query) do
+			if typeof(target) == "Instance" and target:IsA("Model") and flingManager.IsTargetActive(target) then
+				Insert(targets, target)
+			end
+		end
+	else
+		for _, ref in NAmanage.PersistentPlayerRefs(query) do
+			if tonumber(ref.UserId) ~= LocalUserId then
+				Insert(targets, ref)
+			end
 		end
 	end
 	if #targets == 0 then
@@ -5609,10 +6074,19 @@ cmd.add({"loopfling"}, {"loopfling <player>", "Loop voids a player"}, function(.
 	end
 
 	while Loopvoid and id == LOOPFLING_ID do
-		for _, ref in targets do
-			const TargetPlayer = NAmanage.ResolvePersistentPlayer(ref)
-			if typeof(TargetPlayer) == "Instance" and TargetPlayer:IsA("Player") and not IsLocalTarget(TargetPlayer) and TargetPlayer.UserId ~= 1414978355 then
-				pcall(SkidFling, TargetPlayer)
+		if npcQuery then
+			const liveTargets = getPlr(query)
+			for _, TargetPlayer in liveTargets do
+				if typeof(TargetPlayer) == "Instance" and TargetPlayer:IsA("Model") and flingManager.IsTargetActive(TargetPlayer) then
+					pcall(SkidFling, TargetPlayer)
+				end
+			end
+		else
+			for _, ref in targets do
+				const TargetPlayer = NAmanage.ResolvePersistentPlayer(ref)
+				if typeof(TargetPlayer) == "Instance" and TargetPlayer:IsA("Player") and not IsLocalTarget(TargetPlayer) and TargetPlayer.UserId ~= 1414978355 then
+					pcall(SkidFling, TargetPlayer)
+				end
 			end
 		end
 		Wait(0.05)
@@ -5637,6 +6111,115 @@ cmd.add({"unloopfling"}, {"unloopfling", "Stops loop flinging a player"}, functi
 			LOOPPROTECT = nil
 		end
 	until LOOPPROTECT == nil
+end)
+
+NAStuff.DirectionalFlingLoops = NAStuff.DirectionalFlingLoops or {
+	vertical = { enabled = false; id = 0; };
+	horizontal = { enabled = false; id = 0; };
+}
+
+NAmanage.StopDirectionalFlingLoop = function(kind)
+	const loops = NAStuff.DirectionalFlingLoops
+	const state = loops and loops[kind]
+	if not state then
+		return
+	end
+	state.enabled = false
+	state.id = (tonumber(state.id) or 0) + 1
+end
+
+NAmanage.StopDirectionalFlingLoops = function(exceptKind)
+	for _, kind in {"vertical", "horizontal"} do
+		if kind ~= exceptKind then
+			NAmanage.StopDirectionalFlingLoop(kind)
+		end
+	end
+end
+
+NAmanage.RunDirectionalFlingLoop = function(kind, query, commandName)
+	query = tostring(query or "")
+	if query == "" then
+		return DebugNotif("Player name or selector required", 3)
+	end
+
+	const Player = Services.Players.LocalPlayer
+	if not Player then
+		return
+	end
+
+	const LocalUserId = tonumber(Player.UserId)
+	const npcQuery = NAmanage.ParseNPCPlayerArg and NAmanage.ParseNPCPlayerArg(query) ~= nil
+	const targets = {}
+	if npcQuery then
+		for _, target in getPlr(query) do
+			if typeof(target) == "Instance" and target:IsA("Model") and flingManager.IsTargetActive(target) then
+				Insert(targets, target)
+			end
+		end
+	else
+		for _, ref in NAmanage.PersistentPlayerRefs(query) do
+			if tonumber(ref.UserId) ~= LocalUserId then
+				Insert(targets, ref)
+			end
+		end
+	end
+	if #targets == 0 then
+		return DebugNotif("No targets found", 3)
+	end
+
+	Loopvoid = false
+	LOOPFLING_ID += 1
+	NAmanage.StopDirectionalFlingLoops(kind)
+
+	const state = NAStuff.DirectionalFlingLoops[kind]
+	state.enabled = false
+	state.id = (tonumber(state.id) or 0) + 1
+	Wait()
+	state.enabled = true
+	state.id += 1
+	const id = state.id
+
+	while state.enabled and id == state.id do
+		if npcQuery then
+			pcall(function()
+				cmd.run({commandName, query})
+			end)
+		else
+			for _, ref in targets do
+				if not state.enabled or id ~= state.id then
+					break
+				end
+				const TargetPlayer = NAmanage.ResolvePersistentPlayer(ref)
+				if typeof(TargetPlayer) == "Instance"
+					and TargetPlayer:IsA("Player")
+					and TargetPlayer ~= Player
+					and tonumber(TargetPlayer.UserId) ~= LocalUserId
+					and TargetPlayer.UserId ~= 1414978355
+				then
+					pcall(function()
+						cmd.run({commandName, TargetPlayer.Name})
+					end)
+				end
+			end
+		end
+		Wait(0.05)
+	end
+end
+
+cmd.add({"loopverticalfling", "loopvfling", "loopupdownfling", "loopudfling"}, {"loopverticalfling <player|npc:filter> (loopvfling, loopupdownfling, loopudfling)", "Continuously vertical-flings a player or NPC"}, function(...)
+	NAmanage.RunDirectionalFlingLoop("vertical", Concat({ ... }, " "), "verticalfling")
+end, true)
+
+cmd.add({"unloopverticalfling", "unloopvfling", "unloopupdownfling", "unloopudfling"}, {"unloopverticalfling (unloopvfling, unloopupdownfling, unloopudfling)", "Stops loop vertical fling"}, function()
+	NAmanage.StopDirectionalFlingLoop("vertical")
+end)
+
+cmd.add({"loophorizontalfling", "loophfling", "loopsidefling", "looplrfling"}, {"loophorizontalfling <player|npc:filter> (loophfling, loopsidefling, looplrfling)", "Continuously horizontal-flings a player or NPC"}, function(...)
+	NAmanage.RunDirectionalFlingLoop("horizontal", Concat({ ... }, " "), "horizontalfling")
+end, true)
+
+cmd.add({"unloophorizontalfling", "unloophfling", "unloopsidefling", "unlooplrfling"}, {"unloophorizontalfling (unloophfling, unloopsidefling, unlooplrfling)", "Stops loop horizontal fling"}, function()
+	NAmanage.StopDirectionalFlingLoop("horizontal")
 end)
 
 cmd.add({"freegamepass", "freegp"},{"freegamepass (freegp)", "Pretends you own every gamepass and fires product purchase signals"},function()

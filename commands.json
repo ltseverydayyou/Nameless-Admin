@@ -4870,9 +4870,33 @@
       "aliases": [
         "fling"
       ],
-      "usage": "fling <player>",
-      "args": "<player>",
-      "desc": "Fling the given player"
+      "usage": "fling <player|npc:filter>",
+      "args": "<player|npc:filter>",
+      "desc": "Fling the given player or NPC"
+    },
+    {
+      "name": "verticalfling",
+      "aliases": [
+        "verticalfling",
+        "vfling",
+        "updownfling",
+        "udfling"
+      ],
+      "usage": "verticalfling <player|npc:filter> (vfling, updownfling, udfling)",
+      "args": "<player|npc:filter>",
+      "desc": "Fling a player or NPC vertically by moving above and below them"
+    },
+    {
+      "name": "horizontalfling",
+      "aliases": [
+        "horizontalfling",
+        "hfling",
+        "sidefling",
+        "lrfling"
+      ],
+      "usage": "horizontalfling <player|npc:filter> (hfling, sidefling, lrfling)",
+      "args": "<player|npc:filter>",
+      "desc": "Fling a player or NPC horizontally by moving left and right through them"
     },
     {
       "name": "commitoof",
@@ -5223,9 +5247,9 @@
       "aliases": [
         "loopfling"
       ],
-      "usage": "loopfling <player>",
-      "args": "<player>",
-      "desc": "Loop voids a player"
+      "usage": "loopfling <player|npc:filter>",
+      "args": "<player|npc:filter>",
+      "desc": "Continuously flings a player or NPC"
     },
     {
       "name": "unloopfling",
@@ -5235,6 +5259,54 @@
       "usage": "unloopfling",
       "args": "",
       "desc": "Stops loop flinging a player"
+    },
+    {
+      "name": "loopverticalfling",
+      "aliases": [
+        "loopverticalfling",
+        "loopvfling",
+        "loopupdownfling",
+        "loopudfling"
+      ],
+      "usage": "loopverticalfling <player|npc:filter> (loopvfling, loopupdownfling, loopudfling)",
+      "args": "<player|npc:filter>",
+      "desc": "Continuously vertical-flings a player or NPC"
+    },
+    {
+      "name": "unloopverticalfling",
+      "aliases": [
+        "unloopverticalfling",
+        "unloopvfling",
+        "unloopupdownfling",
+        "unloopudfling"
+      ],
+      "usage": "unloopverticalfling (unloopvfling, unloopupdownfling, unloopudfling)",
+      "args": "",
+      "desc": "Stops loop vertical fling"
+    },
+    {
+      "name": "loophorizontalfling",
+      "aliases": [
+        "loophorizontalfling",
+        "loophfling",
+        "loopsidefling",
+        "looplrfling"
+      ],
+      "usage": "loophorizontalfling <player|npc:filter> (loophfling, loopsidefling, looplrfling)",
+      "args": "<player|npc:filter>",
+      "desc": "Continuously horizontal-flings a player or NPC"
+    },
+    {
+      "name": "unloophorizontalfling",
+      "aliases": [
+        "unloophorizontalfling",
+        "unloophfling",
+        "unloopsidefling",
+        "unlooplrfling"
+      ],
+      "usage": "unloophorizontalfling (unloophfling, unloopsidefling, unlooplrfling)",
+      "args": "",
+      "desc": "Stops loop horizontal fling"
     },
     {
       "name": "freegamepass",
