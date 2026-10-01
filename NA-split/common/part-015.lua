@@ -2595,6 +2595,16 @@ NAmanage.WeldToPlayerPart = NAmanage.WeldToPlayerPart or function(TargetPart, Of
 	local Connection = nil
 	local Destroyed = false
 	local PartState = {}
+	local OriginalPhysicsRepRootPart = nil
+	local HasOriginalPhysicsRepRootPart = false
+	const hiddenGetter = gethiddenproperty or get_hidden_property or gethiddenprop or get_hidden_prop
+	if Root and type(hiddenGetter) == "function" then
+		local ok, value = pcall(hiddenGetter, Root, "PhysicsRepRootPart")
+		if ok then
+			OriginalPhysicsRepRootPart = value
+			HasOriginalPhysicsRepRootPart = true
+		end
+	end
 
 	for _, v in pairs(Character:GetDescendants()) do
 		if v:IsA("BasePart") then
@@ -2638,7 +2648,11 @@ NAmanage.WeldToPlayerPart = NAmanage.WeldToPlayerPart or function(TargetPart, Of
 		end
 
 		if Root and opt and type(opt.hiddenprop) == "function" then
-			pcall(opt.hiddenprop, Root, "PhysicsRepRootPart", Root)
+			if HasOriginalPhysicsRepRootPart then
+				pcall(opt.hiddenprop, Root, "PhysicsRepRootPart", OriginalPhysicsRepRootPart)
+			else
+				pcall(opt.hiddenprop, Root, "PhysicsRepRootPart", Root)
+			end
 		end
 
 		for part, state in PartState do

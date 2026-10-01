@@ -911,26 +911,98 @@ cmd.add({"unhug"}, {"unhug", "no huggies :("}, function()
 end)
 
 glueloop = {}
+GLUE_LOOP_ID = GLUE_LOOP_ID or 0
 
-cmd.add({"glue","loopgoto","lgoto"},{"glue <player>","Loop teleport to a player"},function(...)
-	const players = getPlr((...))
-	for _, p in next, players do
-		const name = p.Name
-		if glueloop[name] then glueloop[name]:Destroy() end
-		const targetRoot = p.Character and getRoot(p.Character)
-		if targetRoot then
-			glueloop[name] = NAmanage.WeldToPlayerPart(targetRoot, CFrame.new(), LocalPlayer, nil)
+NAmanage.StopGlueTarget = function(target)
+	const entry = glueloop[target]
+	if not entry then
+		return
+	end
+	glueloop[target] = nil
+
+	if entry.ConnectionName then
+		NAlib.disconnect(entry.ConnectionName)
+	end
+
+	const weld = entry.Weld or entry
+	if weld and weld.Destroy then
+		pcall(function()
+			weld:Destroy()
+		end)
+	end
+end
+
+NAmanage.StopAllGlueTargets = function()
+	const targets = {}
+	for target in glueloop do
+		Insert(targets, target)
+	end
+	for _, target in targets do
+		NAmanage.StopGlueTarget(target)
+	end
+	glueloop = {}
+end
+
+cmd.add({"glue","loopgoto","lgoto"},{"glue <player|npc:filter>","Loop teleport to a player or NPC"},function(...)
+	const RawPlayers = __lt.gs("Players")
+	const query = Concat({...}, " ")
+	const targets = getPlr(query)
+	if #targets == 0 then
+		return DebugNotif("No player or NPC matched: "..query, 3)
+	end
+
+	for _, target in next, targets do
+		if typeof(target) == "Instance" and target ~= LocalPlayer then
+			NAmanage.StopGlueTarget(target)
+
+			const targetChar = NAmanage.PlayerArgChar(target)
+			const targetRoot = targetChar and getRoot(targetChar)
+			const localChar = getChar()
+			if targetChar and targetRoot and localChar then
+				const weld = NAmanage.WeldToPlayerPart(targetRoot, CFrame.new(), LocalPlayer, nil)
+				if weld then
+					GLUE_LOOP_ID += 1
+					const connectionName = "glue_loop_"..tostring(GLUE_LOOP_ID)
+					const entry = {
+						Weld = weld;
+						ConnectionName = connectionName;
+						TargetCharacter = targetChar;
+						TargetRoot = targetRoot;
+						LocalCharacter = localChar;
+					}
+					glueloop[target] = entry
+
+					NAlib.connect(connectionName, Services.RunService.Heartbeat:Connect(function()
+						if glueloop[target] ~= entry then
+							return NAlib.disconnect(connectionName)
+						end
+
+						const currentTargetChar = NAmanage.PlayerArgChar(target)
+						const targetGone = not target.Parent
+							or (target:IsA("Player") and target.Parent ~= RawPlayers)
+							or (target:IsA("Model") and not target:IsDescendantOf(Services.Workspace))
+						const targetChanged = currentTargetChar ~= targetChar
+							or not targetRoot.Parent
+							or not targetRoot:IsDescendantOf(targetChar)
+						const localChanged = getChar() ~= localChar or not localChar.Parent
+
+						if targetGone or targetChanged or localChanged then
+							NAmanage.StopGlueTarget(target)
+						end
+					end))
+				end
+			end
 		end
 	end
 end,true)
 
-cmd.add({"unglue","unloopgoto","noloopgoto"},{"unglue","Stops teleporting you to a player"},function()
-	for name, weld in glueloop do
-		if weld and weld.Destroy then weld:Destroy() end
-		NAlib.disconnect("glue_loop_"..name)
-	end
-	glueloop = {}
+cmd.add({"unglue","unloopgoto","noloopgoto"},{"unglue (unloopgoto, noloopgoto)","Stops teleporting you to a player or NPC"},function()
+	NAmanage.StopAllGlueTargets()
 end)
+
+NAmanage.RegisterUnloadCleanup("glue_cleanup", function()
+	NAmanage.StopAllGlueTargets()
+end, 60)
 
 glueBACKER = {}
 
