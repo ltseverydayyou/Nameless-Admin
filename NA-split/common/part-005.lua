@@ -4321,6 +4321,7 @@ _na_env.NAadminsLol={
 	9570736130; -- Alex
 	137002724; -- Ryan (femboy)
 	3572567805; -- Cronku (ladyboy)
+	126394602;
 }
 
 NAStuff._ctrlLockKeys = NAStuff._ctrlLockKeys or "LeftShift,RightShift"
