@@ -1571,7 +1571,7 @@ NAmanage.GetOffsetWalkState = function()
 		NAStuff.OffsetWalkState = {}
 	end
 	const state = NAStuff.OffsetWalkState
-	state.interval = math.max(0.01, tonumber(state.interval) or 0.2)
+	state.interval = math.max(0.01, tonumber(state.interval) or 0.13)
 	state.bindName = tostring(state.bindName or "NA_OffsetWalkReplication")
 	state.externalTeleportDistance = math.max(0.5, tonumber(state.externalTeleportDistance) or 4)
 	return state
@@ -1707,7 +1707,7 @@ NAmanage.StartOffsetWalk = function(value)
 		NAmanage.StopVelocityWalkSpeed()
 		hum.WalkSpeed = speed
 	end
-	state.interval = 0.2
+	state.interval = 0.13
 	NAlib.disconnect("na_offsetwalk_heartbeat")
 	NAlib.disconnect("na_offsetwalk_post")
 	if Services.RunService and Services.RunService.UnbindFromRenderStep then
