@@ -8,12 +8,28 @@ NAmanage.UG_disable = function(state, message)
 		return root
 	end
 
-	for _ = 1, 10 do
+	const offsetWalkState = NAStuff.OffsetWalkState
+	const offsetWalkActive = type(offsetWalkState) == "table" and offsetWalkState.active == true
+	if offsetWalkActive then
 		const root = fetchRoot()
-		if root then
-			root.CFrame = state.UndergroundCurrent or root.CFrame
+		const localCFrame = typeof(offsetWalkState.localCFrame) == "CFrame"
+			and offsetWalkState.localCFrame
+			or state.UndergroundCurrent
+		if root and typeof(localCFrame) == "CFrame" then
+			offsetWalkState.localCFrame = localCFrame
+			offsetWalkState.suppressExternalAdoptUntil = os.clock() + 0.1
+			pcall(function()
+				root.CFrame = localCFrame
+			end)
 		end
-		Wait()
+	else
+		for _ = 1, 10 do
+			const root = fetchRoot()
+			if root then
+				root.CFrame = state.UndergroundCurrent or root.CFrame
+			end
+			Wait()
+		end
 	end
 
 	state.UndergroundCurrent = nil
@@ -85,7 +101,12 @@ NAmanage.UG_enable = function(state, rootPart)
 	end
 
 	state.Underground = true
-	state.UndergroundCurrent = rootPart.CFrame
+	const offsetWalkState = NAStuff.OffsetWalkState
+	state.UndergroundCurrent = type(offsetWalkState) == "table"
+		and offsetWalkState.active == true
+		and offsetWalkState.root == rootPart
+		and typeof(offsetWalkState.localCFrame) == "CFrame"
+		and offsetWalkState.localCFrame or rootPart.CFrame
 	state.UndergroundServerCFrame = nil
 	state.PendingTranslation = nil
 
@@ -105,9 +126,18 @@ NAmanage.UG_enable = function(state, rootPart)
 		end
 
 		local observed = currentRoot.CFrame
-		if not NAmanage.UG_cframeNear(observed, state.UndergroundServerCFrame) then
-			if not NAmanage.UG_adoptExternalCFrame(state, observed) then
-				state.UndergroundCurrent = observed
+		const offsetWalkState = NAStuff.OffsetWalkState
+		const offsetWalkActive = type(offsetWalkState) == "table"
+			and offsetWalkState.active == true
+			and offsetWalkState.root == currentRoot
+			and typeof(offsetWalkState.localCFrame) == "CFrame"
+		if offsetWalkActive then
+			state.UndergroundCurrent = offsetWalkState.localCFrame
+		else
+			if not NAmanage.UG_cframeNear(observed, state.UndergroundServerCFrame) then
+				if not NAmanage.UG_adoptExternalCFrame(state, observed) then
+					state.UndergroundCurrent = observed
+				end
 			end
 		end
 		local baseCFrame = state.UndergroundCurrent or observed
@@ -115,6 +145,9 @@ NAmanage.UG_enable = function(state, rootPart)
 		if typeof(pendingTranslation) == "Vector3" and pendingTranslation.Magnitude > 0 then
 			baseCFrame += pendingTranslation
 			state.PendingTranslation = nil
+			if offsetWalkActive then
+				offsetWalkState.localCFrame = baseCFrame
+			end
 		end
 
 		state.UndergroundCurrent = baseCFrame
@@ -122,11 +155,15 @@ NAmanage.UG_enable = function(state, rootPart)
 			hum.Sit = false
 		end
 
+		const replicationBase = offsetWalkActive and typeof(offsetWalkState.serverCFrame) == "CFrame"
+			and offsetWalkState.serverCFrame or baseCFrame
 		const activeTransform = NAmanage.UG_getTransform(state)
 		const activeOffset = NAmanage.UG_getActiveOffset(state, currentRoot, hum)
 		state.UndergroundResolvedOffset = activeOffset
-		state.UndergroundServerCFrame = (baseCFrame * activeTransform) + activeOffset
-		currentRoot.CFrame = state.UndergroundServerCFrame
+		state.UndergroundServerCFrame = (replicationBase * activeTransform) + activeOffset
+		if not offsetWalkActive then
+			currentRoot.CFrame = state.UndergroundServerCFrame
+		end
 	end))
 
 	if Services.RunService and Services.RunService.UnbindFromRenderStep then
@@ -135,18 +172,28 @@ NAmanage.UG_enable = function(state, rootPart)
 	state.UndergroundBind = true
 	__lt.cm("RunService", "BindToRenderStep", NAStuff.NA_UNDERGROUND_BIND_NAME, Enum.RenderPriority.First.Value, function()
 		local _, root = NAmanage.UG_fetchCharPieces()
+		const offsetWalkState = NAStuff.OffsetWalkState
+		const offsetWalkActive = root
+			and type(offsetWalkState) == "table"
+			and offsetWalkState.active == true
+			and offsetWalkState.root == root
+			and typeof(offsetWalkState.localCFrame) == "CFrame"
 		if root then
-			local observed = root.CFrame
-			if not NAmanage.UG_cframeNear(observed, state.UndergroundServerCFrame) then
-				NAmanage.UG_adoptExternalCFrame(state, observed)
+			if offsetWalkActive then
+				state.UndergroundCurrent = offsetWalkState.localCFrame
+			else
+				local observed = root.CFrame
+				if not NAmanage.UG_cframeNear(observed, state.UndergroundServerCFrame) then
+					NAmanage.UG_adoptExternalCFrame(state, observed)
+				end
 			end
 		end
 		const current = state.UndergroundCurrent
-		if state.Underground and current then
-			if root then
+		if state.Underground and current and root then
+			if not offsetWalkActive then
 				root.CFrame = current
-				NAmanage.UG_updateVisualizer(state, root, current)
 			end
+			NAmanage.UG_updateVisualizer(state, root, current)
 		end
 	end)
 
