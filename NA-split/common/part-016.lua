@@ -1571,9 +1571,8 @@ NAmanage.GetOffsetWalkState = function()
 		NAStuff.OffsetWalkState = {}
 	end
 	const state = NAStuff.OffsetWalkState
-	state.freezeDuration = math.max(0.01, tonumber(state.freezeDuration) or 0.15)
-	state.releaseDuration = math.max(0.01, tonumber(state.releaseDuration) or 0.05)
-	state.interval = state.freezeDuration + state.releaseDuration
+	state.holdDuration = math.max(0.01, tonumber(state.holdDuration) or 0.2)
+	state.interval = state.holdDuration
 	state.bindName = tostring(state.bindName or "NA_OffsetWalkReplication")
 	state.externalTeleportDistance = math.max(0.5, tonumber(state.externalTeleportDistance) or 4)
 	return state
@@ -1676,6 +1675,9 @@ NAmanage.StopOffsetWalk = function(silent)
 	if root and typeof(localCFrame) == "CFrame" then
 		pcall(function()
 			root.CFrame = localCFrame
+			if typeof(state.localLinearVelocity) == "Vector3" then
+				root.AssemblyLinearVelocity = state.localLinearVelocity
+			end
 		end)
 	end
 	const hum = getHum()
@@ -1687,6 +1689,8 @@ NAmanage.StopOffsetWalk = function(silent)
 	state.serverCFrame = nil
 	state.lastBurst = nil
 	state.lastWriteCFrame = nil
+	state.lastAnchorUpdate = nil
+	state.localLinearVelocity = nil
 	state.phase = nil
 	state.phaseStarted = nil
 	state.suppressExternalAdoptUntil = nil
@@ -1706,6 +1710,113 @@ NAmanage.StopOffsetWalk = function(silent)
 	end
 	if not silent then
 		DoNotif("Offset Walk disabled", 2)
+	end
+end
+
+NAmanage.OffsetWalkResetRootState = function(state, root, hum)
+	if not (state and root and hum) then
+		return false
+	end
+	state.root = root
+	state.humanoid = hum
+	state.originalWalkSpeed = state.originalWalkSpeed or tonumber(hum.WalkSpeed)
+	const undergroundState = NAmanage.OffsetWalkGetUndergroundState(root)
+	const resetCFrame = undergroundState and typeof(undergroundState.UndergroundCurrent) == "CFrame"
+		and undergroundState.UndergroundCurrent or root.CFrame
+	state.localCFrame = resetCFrame
+	state.serverCFrame = resetCFrame
+	state.lastAnchorUpdate = os.clock()
+	state.lastBurst = state.lastAnchorUpdate
+	state.lastWriteCFrame = resetCFrame
+	const velocity = NAlib.isProperty(root, "AssemblyLinearVelocity")
+	if typeof(velocity) == "Vector3" then
+		state.localLinearVelocity = velocity
+	end
+	return true
+end
+
+NAmanage.OffsetWalkWriteAnchor = function(state, root, hum)
+	if not (state and root and hum) then
+		return
+	end
+	const anchor = state.serverCFrame or state.localCFrame or root.CFrame
+	const replicationCFrame = NAmanage.OffsetWalkReplicationCFrame(root, hum, anchor, state.localCFrame) or anchor
+	state.lastWriteCFrame = replicationCFrame
+	pcall(function()
+		root.CFrame = replicationCFrame
+		if typeof(state.localLinearVelocity) == "Vector3" then
+			root.AssemblyLinearVelocity = Vector3.zero
+		end
+	end)
+end
+
+NAmanage.OffsetWalkStep = function(state)
+	if not (state and state.active == true) then
+		return
+	end
+	const currentChar = getChar()
+	const currentHum = getHum(currentChar)
+	const currentRoot = getRoot(currentChar)
+	if not (currentChar and currentHum and currentRoot) then
+		return
+	end
+	if state.root ~= currentRoot then
+		NAmanage.OffsetWalkResetRootState(state, currentRoot, currentHum)
+	end
+	if NAStuff.SafeSpeedMethod ~= false then
+		if not NAlib.isConnected("na_velocityws_apply") then
+			NAmanage.RefreshVelocityWalkSpeed()
+		end
+	elseif currentHum.WalkSpeed ~= state.speed then
+		currentHum.WalkSpeed = state.speed
+	end
+
+	const observed = currentRoot.CFrame
+	const heldBase = state.serverCFrame
+	const heldReplication = typeof(heldBase) == "CFrame"
+		and NAmanage.OffsetWalkReplicationCFrame(currentRoot, currentHum, heldBase, state.localCFrame) or nil
+	const nearHeld = NAmanage.OffsetWalkCFrameNear(observed, heldBase)
+		or NAmanage.OffsetWalkCFrameNear(observed, heldReplication)
+	const suppressExternalAdopt = os.clock() < (tonumber(state.suppressExternalAdoptUntil) or 0)
+	if typeof(state.localCFrame) ~= "CFrame" or (not nearHeld and not suppressExternalAdopt) then
+		state.localCFrame = observed
+		const velocity = NAlib.isProperty(currentRoot, "AssemblyLinearVelocity")
+		if typeof(velocity) == "Vector3" then
+			state.localLinearVelocity = velocity
+		end
+	end
+
+	const now = os.clock()
+	if now - (tonumber(state.lastAnchorUpdate) or now) >= state.holdDuration then
+		state.serverCFrame = state.localCFrame or observed
+		state.lastAnchorUpdate = now
+		state.lastBurst = now
+	end
+
+	NAmanage.OffsetWalkWriteAnchor(state, currentRoot, currentHum)
+end
+
+NAmanage.OffsetWalkRender = function(state)
+	if not (state and state.active == true) then
+		return
+	end
+	const currentRoot = getRoot(getChar())
+	if not currentRoot then
+		return
+	end
+	const localCFrame = state.localCFrame
+	if typeof(localCFrame) ~= "CFrame" then
+		return
+	end
+	pcall(function()
+		currentRoot.CFrame = localCFrame
+		if typeof(state.localLinearVelocity) == "Vector3" then
+			currentRoot.AssemblyLinearVelocity = state.localLinearVelocity
+		end
+	end)
+	const undergroundState = NAmanage.OffsetWalkGetUndergroundState(currentRoot)
+	if undergroundState then
+		undergroundState.UndergroundCurrent = localCFrame
 	end
 end
 
@@ -1731,17 +1842,9 @@ NAmanage.StartOffsetWalk = function(value)
 	end
 	state.active = true
 	state.speed = speed
-	state.root = root
-	state.humanoid = hum
-	const undergroundState = NAmanage.OffsetWalkGetUndergroundState(root)
-	const startingCFrame = undergroundState and typeof(undergroundState.UndergroundCurrent) == "CFrame"
-		and undergroundState.UndergroundCurrent or root.CFrame
-	state.localCFrame = startingCFrame
-	state.serverCFrame = startingCFrame
-	state.phase = "freeze"
-	state.phaseStarted = os.clock()
-	state.lastBurst = state.phaseStarted
-	state.lastWriteCFrame = startingCFrame
+	state.holdDuration = 0.2
+	state.interval = state.holdDuration
+	NAmanage.OffsetWalkResetRootState(state, root, hum)
 	NAmanage.StopLegacyLoopWalkSpeed()
 	if NAStuff.SafeSpeedMethod ~= false then
 		NAmanage.RefreshVelocityWalkSpeed()
@@ -1749,9 +1852,6 @@ NAmanage.StartOffsetWalk = function(value)
 		NAmanage.StopVelocityWalkSpeed()
 		hum.WalkSpeed = speed
 	end
-	state.freezeDuration = 0.15
-	state.releaseDuration = 0.05
-	state.interval = state.freezeDuration + state.releaseDuration
 	NAlib.disconnect("na_offsetwalk_heartbeat")
 	NAlib.disconnect("na_offsetwalk_post")
 	if Services.RunService and Services.RunService.UnbindFromRenderStep then
@@ -1759,149 +1859,15 @@ NAmanage.StartOffsetWalk = function(value)
 	end
 	if Services.RunService and Services.RunService.PostSimulation then
 		NAlib.connect("na_offsetwalk_post", Services.RunService.PostSimulation:Connect(function()
-			if state.active ~= true then
-				return
-			end
-			const currentChar = getChar()
-			const currentHum = getHum(currentChar)
-			const currentRoot = getRoot(currentChar)
-			if not (currentChar and currentHum and currentRoot) then
-				return
-			end
-			if state.root ~= currentRoot then
-				state.root = currentRoot
-				state.humanoid = currentHum
-				state.originalWalkSpeed = tonumber(currentHum.WalkSpeed)
-				const undergroundState = NAmanage.OffsetWalkGetUndergroundState(currentRoot)
-				const resetCFrame = undergroundState and typeof(undergroundState.UndergroundCurrent) == "CFrame"
-					and undergroundState.UndergroundCurrent or currentRoot.CFrame
-				state.localCFrame = resetCFrame
-				state.serverCFrame = resetCFrame
-				state.phase = "freeze"
-				state.phaseStarted = os.clock()
-				state.lastBurst = state.phaseStarted
-				state.lastWriteCFrame = resetCFrame
-			end
-			if NAStuff.SafeSpeedMethod ~= false then
-				if not NAlib.isConnected("na_velocityws_apply") then
-					NAmanage.RefreshVelocityWalkSpeed()
-				end
-			elseif currentHum.WalkSpeed ~= state.speed then
-				currentHum.WalkSpeed = state.speed
-			end
-			const observed = currentRoot.CFrame
-			const undergroundState = NAmanage.OffsetWalkGetUndergroundState(currentRoot)
-			local localCFrame = observed
-			if undergroundState and typeof(state.localCFrame) == "CFrame" then
-				const heldBase = state.serverCFrame
-				const heldReplication = typeof(heldBase) == "CFrame"
-					and NAmanage.OffsetWalkReplicationCFrame(currentRoot, currentHum, heldBase, state.localCFrame) or nil
-				if NAmanage.OffsetWalkCFrameNear(observed, heldBase)
-					or NAmanage.OffsetWalkCFrameNear(observed, heldReplication) then
-					localCFrame = state.localCFrame
-				end
-			end
-			state.localCFrame = localCFrame
-			const now = os.clock()
-			local phase = state.phase == "release" and "release" or "freeze"
-			local phaseStarted = tonumber(state.phaseStarted) or now
-			if phase == "freeze" then
-				if now - phaseStarted >= state.freezeDuration then
-					phase = "release"
-					phaseStarted = now
-					state.serverCFrame = localCFrame
-				end
-			else
-				state.serverCFrame = localCFrame
-				if now - phaseStarted >= state.releaseDuration then
-					phase = "freeze"
-					phaseStarted = now
-					state.serverCFrame = localCFrame
-				end
-			end
-			state.phase = phase
-			state.phaseStarted = phaseStarted
-			state.lastBurst = phaseStarted
-			const serverCFrame = state.serverCFrame or localCFrame
-			const replicationCFrame = NAmanage.OffsetWalkReplicationCFrame(currentRoot, currentHum, serverCFrame, localCFrame) or serverCFrame
-			state.lastWriteCFrame = replicationCFrame
-			pcall(function()
-				currentRoot.CFrame = replicationCFrame
-			end)
+			NAmanage.OffsetWalkStep(state)
 		end))
 	end
 	NAlib.connect("na_offsetwalk_heartbeat", Services.RunService.Heartbeat:Connect(function()
-		if state.active ~= true then
-			return
-		end
-		const currentChar = getChar()
-		const currentHum = getHum(currentChar)
-		const currentRoot = getRoot(currentChar)
-		if not (currentChar and currentHum and currentRoot) then
-			return
-		end
-		if state.root ~= currentRoot then
-			state.root = currentRoot
-			state.humanoid = currentHum
-			state.originalWalkSpeed = tonumber(currentHum.WalkSpeed)
-			const undergroundState = NAmanage.OffsetWalkGetUndergroundState(currentRoot)
-			const resetCFrame = undergroundState and typeof(undergroundState.UndergroundCurrent) == "CFrame"
-				and undergroundState.UndergroundCurrent or currentRoot.CFrame
-			state.localCFrame = resetCFrame
-			state.serverCFrame = resetCFrame
-			state.phase = "freeze"
-			state.phaseStarted = os.clock()
-			state.lastBurst = state.phaseStarted
-			state.lastWriteCFrame = resetCFrame
-		end
-		const undergroundState = NAmanage.OffsetWalkGetUndergroundState(currentRoot)
-		if undergroundState then
-			const serverCFrame = state.serverCFrame or state.localCFrame or currentRoot.CFrame
-			const replicationCFrame = NAmanage.OffsetWalkReplicationCFrame(currentRoot, currentHum, serverCFrame, state.localCFrame) or serverCFrame
-			state.lastWriteCFrame = replicationCFrame
-			pcall(function()
-				currentRoot.CFrame = replicationCFrame
-			end)
-			return
-		end
-		const observed = currentRoot.CFrame
-		if typeof(state.serverCFrame) ~= "CFrame" then
-			state.serverCFrame = observed
-		end
-		const suppressExternalAdopt = os.clock() < (tonumber(state.suppressExternalAdoptUntil) or 0)
-		if not suppressExternalAdopt and not NAmanage.OffsetWalkCFrameNear(observed, state.serverCFrame) then
-			state.localCFrame = observed
-			state.serverCFrame = observed
-			state.lastBurst = os.clock()
-		end
-		const serverCFrame = state.serverCFrame or observed
-		state.lastWriteCFrame = serverCFrame
-		pcall(function()
-			currentRoot.CFrame = serverCFrame
-		end)
+		NAmanage.OffsetWalkStep(state)
 	end))
 	if Services.RunService and Services.RunService.BindToRenderStep then
 		Services.RunService:BindToRenderStep(state.bindName, Enum.RenderPriority.First.Value, function()
-			if state.active ~= true then
-				return
-			end
-			const currentRoot = getRoot(getChar())
-			if not currentRoot then
-				return
-			end
-			const undergroundState = NAmanage.OffsetWalkGetUndergroundState(currentRoot)
-			const observed = currentRoot.CFrame
-			const suppressExternalAdopt = os.clock() < (tonumber(state.suppressExternalAdoptUntil) or 0)
-			if not undergroundState and not suppressExternalAdopt and typeof(state.serverCFrame) == "CFrame" and not NAmanage.OffsetWalkCFrameNear(observed, state.serverCFrame) then
-				state.localCFrame = observed
-				state.serverCFrame = observed
-				state.lastBurst = os.clock()
-			end
-			const localCFrame = state.localCFrame or (undergroundState and undergroundState.UndergroundCurrent) or observed
-			state.localCFrame = localCFrame
-			pcall(function()
-				currentRoot.CFrame = localCFrame
-			end)
+			NAmanage.OffsetWalkRender(state)
 		end)
 	end
 	return true
