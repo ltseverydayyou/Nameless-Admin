@@ -1571,7 +1571,7 @@ NAmanage.GetOffsetWalkState = function()
 		NAStuff.OffsetWalkState = {}
 	end
 	const state = NAStuff.OffsetWalkState
-	state.interval = math.max(0.01, tonumber(state.interval) or 0.1)
+	state.interval = math.max(0.01, tonumber(state.interval) or 0.2)
 	state.bindName = tostring(state.bindName or "NA_OffsetWalkReplication")
 	state.externalTeleportDistance = math.max(0.5, tonumber(state.externalTeleportDistance) or 4)
 	return state
@@ -1634,6 +1634,7 @@ NAmanage.StopOffsetWalk = function(silent)
 	const localCFrame = state.localCFrame
 	state.active = false
 	NAlib.disconnect("na_offsetwalk_heartbeat")
+	NAlib.disconnect("na_offsetwalk_post")
 	if Services.RunService and Services.RunService.UnbindFromRenderStep then
 		pcall(Services.RunService.UnbindFromRenderStep, Services.RunService, state.bindName)
 	end
@@ -1706,9 +1707,52 @@ NAmanage.StartOffsetWalk = function(value)
 		NAmanage.StopVelocityWalkSpeed()
 		hum.WalkSpeed = speed
 	end
+	state.interval = 0.2
 	NAlib.disconnect("na_offsetwalk_heartbeat")
+	NAlib.disconnect("na_offsetwalk_post")
 	if Services.RunService and Services.RunService.UnbindFromRenderStep then
 		pcall(Services.RunService.UnbindFromRenderStep, Services.RunService, state.bindName)
+	end
+	if Services.RunService and Services.RunService.PostSimulation then
+		NAlib.connect("na_offsetwalk_post", Services.RunService.PostSimulation:Connect(function()
+			if state.active ~= true then
+				return
+			end
+			const currentChar = getChar()
+			const currentHum = getHum(currentChar)
+			const currentRoot = getRoot(currentChar)
+			if not (currentChar and currentHum and currentRoot) then
+				return
+			end
+			if state.root ~= currentRoot then
+				state.root = currentRoot
+				state.humanoid = currentHum
+				state.originalWalkSpeed = tonumber(currentHum.WalkSpeed)
+				state.localCFrame = currentRoot.CFrame
+				state.serverCFrame = currentRoot.CFrame
+				state.lastBurst = os.clock()
+				state.lastWriteCFrame = currentRoot.CFrame
+			end
+			if NAStuff.SafeSpeedMethod ~= false then
+				if not NAlib.isConnected("na_velocityws_apply") then
+					NAmanage.RefreshVelocityWalkSpeed()
+				end
+			elseif currentHum.WalkSpeed ~= state.speed then
+				currentHum.WalkSpeed = state.speed
+			end
+			const observed = currentRoot.CFrame
+			state.localCFrame = observed
+			const now = os.clock()
+			if now - (tonumber(state.lastBurst) or 0) >= state.interval then
+				state.serverCFrame = observed
+				state.lastBurst = now
+			end
+			const serverCFrame = state.serverCFrame or observed
+			state.lastWriteCFrame = serverCFrame
+			pcall(function()
+				currentRoot.CFrame = serverCFrame
+			end)
+		end))
 	end
 	NAlib.connect("na_offsetwalk_heartbeat", Services.RunService.Heartbeat:Connect(function()
 		if state.active ~= true then
@@ -1729,26 +1773,14 @@ NAmanage.StartOffsetWalk = function(value)
 			state.lastBurst = os.clock()
 			state.lastWriteCFrame = currentRoot.CFrame
 		end
-		if NAStuff.SafeSpeedMethod ~= false then
-			if not NAlib.isConnected("na_velocityws_apply") then
-				NAmanage.RefreshVelocityWalkSpeed()
-			end
-		else
-			if currentHum.WalkSpeed ~= state.speed then
-				currentHum.WalkSpeed = state.speed
-			end
-		end
 		const observed = currentRoot.CFrame
-		if not NAmanage.OffsetWalkCFrameNear(observed, state.serverCFrame) then
-			NAmanage.OffsetWalkAdoptExternalCFrame(currentRoot, observed)
+		if typeof(state.serverCFrame) ~= "CFrame" then
+			state.serverCFrame = observed
 		end
 		if not NAmanage.OffsetWalkCFrameNear(observed, state.serverCFrame) then
 			state.localCFrame = observed
-		end
-		const now = os.clock()
-		if now - (tonumber(state.lastBurst) or 0) >= state.interval then
-			state.serverCFrame = state.localCFrame or observed
-			state.lastBurst = now
+			state.serverCFrame = observed
+			state.lastBurst = os.clock()
 		end
 		const serverCFrame = state.serverCFrame or observed
 		state.lastWriteCFrame = serverCFrame
@@ -1766,8 +1798,10 @@ NAmanage.StartOffsetWalk = function(value)
 				return
 			end
 			const observed = currentRoot.CFrame
-			if not NAmanage.OffsetWalkCFrameNear(observed, state.serverCFrame) then
-				NAmanage.OffsetWalkAdoptExternalCFrame(currentRoot, observed)
+			if typeof(state.serverCFrame) == "CFrame" and not NAmanage.OffsetWalkCFrameNear(observed, state.serverCFrame) then
+				state.localCFrame = observed
+				state.serverCFrame = observed
+				state.lastBurst = os.clock()
 			end
 			const localCFrame = state.localCFrame or observed
 			state.localCFrame = localCFrame
