@@ -2897,6 +2897,9 @@ flyVariables = {
 	tpFlyKeyConn = nil;
 	tpFlyButtonUI = nil;
 
+	toggleKeybindsEnabled = true;
+	verticalKeybindsEnabled = true;
+
 	uiPosConns = {};
 }
 
@@ -2927,6 +2930,8 @@ NAmanage.SaveFlyKeybinds = function()
 		flyDown = NAmanage.normalizeFlyBindKey(flyVariables.flyDownKey, "q");
 		freecamUp = NAmanage.normalizeFlyBindKey(flyVariables.freecamUpKey, "e");
 		freecamDown = NAmanage.normalizeFlyBindKey(flyVariables.freecamDownKey, "q");
+		toggleKeybindsEnabled = flyVariables.toggleKeybindsEnabled ~= false;
+		verticalKeybindsEnabled = flyVariables.verticalKeybindsEnabled ~= false;
 	}
 	NAStuff.FreecamUpKey = payload.freecamUp
 	NAStuff.FreecamDownKey = payload.freecamDown
@@ -2948,6 +2953,8 @@ NAmanage.LoadFlyKeybinds = function()
 	flyVariables.flyDownKey = NAmanage.normalizeFlyBindKey(flyVariables.flyDownKey, "q")
 	flyVariables.freecamUpKey = NAmanage.normalizeFlyBindKey(flyVariables.freecamUpKey, "e")
 	flyVariables.freecamDownKey = NAmanage.normalizeFlyBindKey(flyVariables.freecamDownKey, "q")
+	flyVariables.toggleKeybindsEnabled = flyVariables.toggleKeybindsEnabled ~= false
+	flyVariables.verticalKeybindsEnabled = flyVariables.verticalKeybindsEnabled ~= false
 	NAStuff.FreecamUpKey = flyVariables.freecamUpKey
 	NAStuff.FreecamDownKey = flyVariables.freecamDownKey
 
@@ -2976,6 +2983,12 @@ NAmanage.LoadFlyKeybinds = function()
 	flyVariables.flyDownKey = NAmanage.normalizeFlyBindKey(decoded.flyDown, flyVariables.flyDownKey or "q")
 	flyVariables.freecamUpKey = NAmanage.normalizeFlyBindKey(decoded.freecamUp, flyVariables.freecamUpKey or "e")
 	flyVariables.freecamDownKey = NAmanage.normalizeFlyBindKey(decoded.freecamDown, flyVariables.freecamDownKey or "q")
+	if type(decoded.toggleKeybindsEnabled) == "boolean" then
+		flyVariables.toggleKeybindsEnabled = decoded.toggleKeybindsEnabled
+	end
+	if type(decoded.verticalKeybindsEnabled) == "boolean" then
+		flyVariables.verticalKeybindsEnabled = decoded.verticalKeybindsEnabled
+	end
 	NAStuff.FreecamUpKey = flyVariables.freecamUpKey
 	NAStuff.FreecamDownKey = flyVariables.freecamDownKey
 end
@@ -3021,6 +3034,13 @@ NAmanage._releaseQE=function()
 end
 
 NAmanage._handleFlyVerticalKey=function(keyName, isDown)
+	if flyVariables.verticalKeybindsEnabled == false then
+		if CONTROL then
+			CONTROL.Q = 0
+			CONTROL.E = 0
+		end
+		return false
+	end
 	keyName=Lower(tostring(keyName or ""))
 	const downKey=NAmanage.normalizeFlyBindKey(flyVariables.flyDownKey, "q")
 	const upKey=NAmanage.normalizeFlyBindKey(flyVariables.flyUpKey, "e")
@@ -3045,6 +3065,13 @@ end
 
 NAmanage._bindQE=function()
 	NAmanage._releaseQE()
+	if flyVariables.verticalKeybindsEnabled == false then
+		if CONTROL then
+			CONTROL.Q = 0
+			CONTROL.E = 0
+		end
+		return
+	end
 	flyVariables.qeDownConn=mouse.KeyDown:Connect(function(k)
 		NAmanage._handleFlyVerticalKey(k, true)
 	end)
@@ -3067,6 +3094,9 @@ NAmanage.GetFlyKeyCode = function(value)
 end
 
 NAmanage.GetTPFlyVerticalDirection = function()
+	if flyVariables.verticalKeybindsEnabled == false then
+		return 0
+	end
 	if NAmanage.isAnyNAInputActive and NAmanage.isAnyNAInputActive() then
 		return 0
 	end
@@ -3964,17 +3994,25 @@ NAmanage._ensureForces=function()
 		flyVariables.BV.maxForce=FLYING and Vector3.new(9e9,9e9,9e9) or Vector3.new(0,0,0)
 		if NAmanage._state.mode=="fly" then hum.PlatformStand=FLYING else hum.PlatformStand=false end
 	end
-	if not flyVariables.qeDownConn or flyVariables.qeDownConn.Connected==false then
-		if flyVariables.qeDownConn then pcall(function() flyVariables.qeDownConn:Disconnect() end) end
-		flyVariables.qeDownConn=mouse.KeyDown:Connect(function(k)
-			NAmanage._handleFlyVerticalKey(k, true)
-		end)
-	end
-	if not flyVariables.qeUpConn or flyVariables.qeUpConn.Connected==false then
-		if flyVariables.qeUpConn then pcall(function() flyVariables.qeUpConn:Disconnect() end) end
-		flyVariables.qeUpConn=mouse.KeyUp:Connect(function(k)
-			NAmanage._handleFlyVerticalKey(k, false)
-		end)
+	if flyVariables.verticalKeybindsEnabled == false then
+		NAmanage._releaseQE()
+		if CONTROL then
+			CONTROL.Q = 0
+			CONTROL.E = 0
+		end
+	else
+		if not flyVariables.qeDownConn or flyVariables.qeDownConn.Connected==false then
+			if flyVariables.qeDownConn then pcall(function() flyVariables.qeDownConn:Disconnect() end) end
+			flyVariables.qeDownConn=mouse.KeyDown:Connect(function(k)
+				NAmanage._handleFlyVerticalKey(k, true)
+			end)
+		end
+		if not flyVariables.qeUpConn or flyVariables.qeUpConn.Connected==false then
+			if flyVariables.qeUpConn then pcall(function() flyVariables.qeUpConn:Disconnect() end) end
+			flyVariables.qeUpConn=mouse.KeyUp:Connect(function(k)
+				NAmanage._handleFlyVerticalKey(k, false)
+			end)
+		end
 	end
 end
 
@@ -4526,6 +4564,9 @@ NAmanage._connectFlyToggleKey = function(connField, keyField, mode)
 	if oldConn then
 		oldConn:Disconnect()
 		flyVariables[connField] = nil
+	end
+	if flyVariables.toggleKeybindsEnabled == false then
+		return
 	end
 	flyVariables[connField] = Services.UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		if NAmanage._shouldIgnoreFlyKeyInput(input, gameProcessed) then

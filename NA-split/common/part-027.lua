@@ -13209,6 +13209,30 @@ if not IsOnMobile or NAmanage.CanUseCommandKeybinds() then
 		end)
 
 		NAgui.addSection("Fly Keybinds")
+		NAgui.addToggle("Enable Fly Toggle Keybinds", flyVariables.toggleKeybindsEnabled ~= false, function(state)
+			flyVariables.toggleKeybindsEnabled = state ~= false
+			if flyVariables.toggleKeybindsEnabled then
+				NAmanage.connectFlyKey()
+				NAmanage.connectVFlyKey()
+				NAmanage.connectCFlyKey()
+				NAmanage.connectTFlyKey()
+				NAmanage.connectTPFlyKey()
+			else
+				for _, connField in {"keybindConn", "vKeybindConn", "cKeybindConn", "tflyKeyConn", "tpFlyKeyConn"} do
+					const conn = flyVariables[connField]
+					if conn then
+						pcall(function() conn:Disconnect() end)
+						flyVariables[connField] = nil
+					end
+				end
+			end
+			NAmanage.SaveFlyKeybinds()
+			DebugNotif("Fly toggle keybinds "..(flyVariables.toggleKeybindsEnabled and "enabled" or "disabled"))
+		end)
+		NAmanage.RegisterToggleAutoSync("Enable Fly Toggle Keybinds", function()
+			return flyVariables.toggleKeybindsEnabled ~= false
+		end)
+
 		const function createFlyKeybindHandler(varField, connField, connectFunc, successTemplate, emptyMessage)
 			emptyMessage = emptyMessage or "Please provide a keybind."
 			return function(keyName)
@@ -13270,6 +13294,24 @@ if not IsOnMobile or NAmanage.CanUseCommandKeybinds() then
 			))
 
 		NAgui.addSection("Fly / Freecam Vertical")
+		NAgui.addToggle("Enable Fly Up/Down Keybinds", flyVariables.verticalKeybindsEnabled ~= false, function(state)
+			flyVariables.verticalKeybindsEnabled = state ~= false
+			if flyVariables.verticalKeybindsEnabled then
+				NAmanage._bindQE()
+			else
+				NAmanage._releaseQE()
+				if CONTROL then
+					CONTROL.Q = 0
+					CONTROL.E = 0
+				end
+			end
+			NAmanage.SaveFlyKeybinds()
+			DebugNotif("Fly up/down keybinds "..(flyVariables.verticalKeybindsEnabled and "enabled" or "disabled"))
+		end)
+		NAmanage.RegisterToggleAutoSync("Enable Fly Up/Down Keybinds", function()
+			return flyVariables.verticalKeybindsEnabled ~= false
+		end)
+
 		const function createStoredFlyKeyHandler(varField, successTemplate, afterSave)
 			return function(keyName)
 				if keyName == nil then
