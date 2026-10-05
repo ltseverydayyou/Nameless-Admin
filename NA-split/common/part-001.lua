@@ -913,6 +913,8 @@ pcall(function()
 	_na_boot.privateRoot.uiProtector = __NAUIProtector
 end)
 
+table.clear(_na_boot.bootstrapRemoteSources)
+
 NAbegin=tick()
 CMDAUTOFILL={}
 
@@ -998,7 +1000,9 @@ Spawn = function(callback, ...)
 	const token = NAmanage._runToken
 	const args = table.pack(...)
 	const thread = _naRawTaskSpawn(runTrackedTask, token, callback, args)
-	NAmanage._runtimeState.spawnActive[thread] = true
+	if coroutine.status(thread) ~= "dead" then
+		NAmanage._runtimeState.spawnActive[thread] = true
+	end
 	return thread
 end
 
@@ -1030,13 +1034,13 @@ Wait = function(...)
 	if type(running) == "thread" then
 		NAmanage._runtimeState.waitingThreads[running] = true
 	end
-	const results = table.pack(_naRawTaskWait(...))
+	const elapsed = _naRawTaskWait(...)
 	if type(running) == "thread" then
 		NAmanage._runtimeState.waitingThreads[running] = nil
 	end
 	if rawget(_na_env, "_NARunToken") ~= token or NAmanage._runtimeState.unloading == true then
 		if running == NAmanage._runtimeState.unloadThread then
-			return table.unpack(results, 1, results.n)
+			return elapsed
 		end
 		if type(running) == "thread" then
 			_naRawTaskDefer(function()
@@ -1046,7 +1050,36 @@ Wait = function(...)
 		end
 		return nil
 	end
-	return table.unpack(results, 1, results.n)
+	return elapsed
+end
+
+NAmanage.WorkBudgetStep = function(state, batch, budget)
+	state.count = (tonumber(state.count) or 0) + 1
+	const now = os.clock()
+	if not state.lastYield then state.lastYield = now end
+	if state.count < batch and now - state.lastYield < budget then
+		return false
+	end
+	if coroutine.isyieldable and not coroutine.isyieldable() then
+		return false
+	end
+	Wait()
+	state.count = 0
+	state.lastYield = os.clock()
+	return true
+end
+
+NAmanage.CancelRuntimeTask = function(thread)
+	if type(thread) ~= "thread" or thread == coroutine.running() then return false end
+	const ok = pcall(task.cancel, thread)
+	if ok then
+		const state = NAmanage._runtimeState
+		if type(state) == "table" then
+			if type(state.spawnActive) == "table" then state.spawnActive[thread] = nil end
+			if type(state.waitingThreads) == "table" then state.waitingThreads[thread] = nil end
+		end
+	end
+	return ok
 end
 
 NAmanage.Wrap = function(callback)
@@ -3198,16 +3231,19 @@ NAlib.connect = function(name, conn)
 		conns = {}
 		NAStuff.conns = conns
 	end
-	NAmanage.prnCon(name)
 	local bucket = conns[name]
+	if type(bucket) == "table" and #bucket < 16 then
+		NAmanage.prnCon(name)
+		bucket = conns[name]
+	end
 	if type(bucket) ~= "table" then
 		bucket = {}
 		conns[name] = bucket
 	end
 	Insert(bucket, conn)
 	NAStuff.prCnt = (tonumber(NAStuff.prCnt) or 0) + 1
-	if NAStuff.prCnt % 64 == 0 then
-		NAmanage.prnAllCon(24)
+	if NAStuff.prCnt % 256 == 0 then
+		NAmanage.prnAllCon(4)
 	end
 	return conn
 end
@@ -3323,15 +3359,16 @@ NAmanage.prnAllCon = NAmanage.prnAllCon or function(limit)
 		key = nextConnKey(nil)
 	end
 
-	while key ~= nil and checked < maxKeys do
+	const seen = {}
+	const started = os.clock()
+	while key ~= nil and checked < maxKeys and not seen[key] do
+		seen[key] = true
 		NAmanage.prnCon(key)
 		checked += 1
 		cursor = key
 		key = nextConnKey(key)
-		if key == nil and checked < maxKeys then
-			cursor = nil
-			key = nextConnKey(nil)
-		end
+		if key == nil then cursor = nil end
+		if os.clock() - started >= 0.002 then break end
 	end
 
 	NAStuff._prnAllConCursor = cursor
@@ -3415,8 +3452,8 @@ NAmanage._uiEvtPush = NAmanage._uiEvtPush or function(hub, kind, inst, capKind, 
 		end
 	end
 
-	const allowAny = isAdd and hub.addClassAny or hub.remClassAny
-	const classGate = isAdd and hub.addClassGate or hub.remClassGate
+	const allowAny = if isAdd then hub.addClassAny else hub.remClassAny
+	const classGate = if isAdd then hub.addClassGate else hub.remClassGate
 	if not allowAny and classGate and not NAmanage._evtClassPass(classGate, inst) then
 		return false
 	end
@@ -3598,14 +3635,41 @@ NAmanage._evtHubFire = NAmanage._evtHubFire or function(hub, kind, inst)
 	return NAmanage._uiEvtPush(hub, kind, inst, nil, true)
 end
 
-NAmanage._evtHubDeferFire = NAmanage._evtHubDeferFire or function(hub, kind, inst)
+NAmanage._evtHubDeferFire = function(hub, kind, inst)
 	if not (type(hub) == "table" and hub.alive and inst ~= nil) then
 		return false
 	end
+	const isAdd = kind == "add"
+	if (isAdd and (hub.addCount or 0) <= 0) or (not isAdd and (hub.remCount or 0) <= 0) then
+		return false
+	end
+	const any = if isAdd then hub.addClassAny else hub.remClassAny
+	const gate = if isAdd then hub.addClassGate else hub.remClassGate
+	if not any and gate and not NAmanage._evtClassPass(gate, inst) then
+		return false
+	end
+	if hub.skipTeleport and NAStuff.teleportTransition then return false end
+	hub.events = hub.events or {}
+	hub.evtTail = (hub.evtTail or 0) + 1
+	hub.events[hub.evtTail] = { kind, inst }
+	if hub.evtRunning then return false end
+	hub.evtRunning = true
 	Defer(function()
-		if type(hub) == "table" and hub.alive and inst ~= nil then
-			NAmanage._evtHubFire(hub, kind, inst)
+		const queue = hub.events
+		const work = {}
+		local head = 1
+		while hub.alive and head <= (hub.evtTail or 0) do
+			const event = queue[head]
+			queue[head] = nil
+			head += 1
+			if event then
+				Spawn(NAmanage._evtHubFire, hub, event[1], event[2])
+			end
+			NAmanage.WorkBudgetStep(work, 64, IsOnMobile and 0.0015 or 0.0025)
 		end
+		table.clear(queue)
+		hub.evtTail = 0
+		hub.evtRunning = false
 	end)
 	return false
 end
@@ -3628,6 +3692,8 @@ NAmanage._evtHubClear = function(hub)
 	hub.cacheAdd = NAmanage._evtHubDisc(hub.cacheAdd)
 	hub.cacheRem = NAmanage._evtHubDisc(hub.cacheRem)
 	hub.rAnc = NAmanage._evtHubDisc(hub.rAnc)
+	if type(hub.events) == "table" then table.clear(hub.events) end
+	hub.evtTail = 0
 	hub.added = {}
 	hub.removing = {}
 	hub.addCount = 0
@@ -3810,6 +3876,7 @@ NAmanage.wsReleaseCache = function(hub)
 	if type(hub) == "table" then
 		hub.cacheLive = false
 		hub.cacheBuilding = false
+		hub.cacheToken = nil
 		hub.cache = {}
 		hub.idx = NAmanage.ensureWeakTable(nil, "k")
 		hub.cacheAdd = NAmanage._evtHubDisc(hub.cacheAdd)
@@ -3948,6 +4015,8 @@ NAmanage._wsCacheBuildAsync = function(hub, opts)
 		return
 	end
 	opts = type(opts) == "table" and opts or {}
+	const token = {}
+	hub.cacheToken = token
 	hub.cacheLive = true
 	hub.cacheBuilding = true
 	hub.cache = {}
@@ -3957,13 +4026,14 @@ NAmanage._wsCacheBuildAsync = function(hub, opts)
 	Spawn(function()
 		const q = { Services.Workspace }
 		local qi, qn = 1, 1
-		while qi <= qn and hub.cacheBuilding == true and (hub.root == Services.Workspace or hub.root == RawWorkspace) do
+		while qi <= qn and hub.cacheBuilding == true and hub.cacheToken == token
+			and (hub.root == Services.Workspace or hub.root == RawWorkspace) do
 			local budget, waitDelay = NAmanage._evtHubBudget(tonumber(opts.buildBudget) or 192, {
 				delay = tonumber(opts.delayTime) or 0,
 				ldSc = 0.25,
 				ldDel = 0.012,
 			})
-			while budget > 0 and qi <= qn and hub.cacheBuilding == true do
+			while budget > 0 and qi <= qn and hub.cacheBuilding == true and hub.cacheToken == token do
 				const inst = q[qi]
 				q[qi] = nil
 				qi += 1
@@ -3989,7 +4059,7 @@ NAmanage._wsCacheBuildAsync = function(hub, opts)
 				end
 			end
 		end
-		if type(hub) == "table" then
+		if hub.alive and hub.cacheLive and hub.cacheBuilding and hub.cacheToken == token then
 			hub.cacheBuilding = false
 			hub.cacheBuiltAt = os.clock()
 			hub.cacheTouched = hub.cacheBuiltAt
@@ -4355,6 +4425,43 @@ NAmanage.descRem = NAmanage.descRem or function(root, fn, filter)
 		removing = fn,
 		filterRemoving = filter,
 	})
+end
+
+NAmanage.CreatePartCache = function(root)
+	const cache = { root = root; parts = NAmanage.ensureWeakKeyTable(nil); Connected = true; }
+	const function add(part)
+		if cache.Connected and part:IsA("BasePart") and part:IsDescendantOf(root) then cache.parts[part] = true end
+	end
+	cache.conn = NAmanage.descSub(root, {
+		classNames = "BasePart";
+		added = add;
+		removing = function(part) cache.parts[part] = nil end;
+	})
+	for _, part in NAmanage.QueryDescendants(root, "BasePart") do add(part) end
+	function cache:Disconnect()
+		if not self.Connected then return end
+		self.Connected = false
+		self.conn = NAmanage.tryDisconnect(self.conn)
+		self.anc = NAmanage.tryDisconnect(self.anc)
+		self.root = nil
+		table.clear(self.parts)
+	end
+	if root then
+		cache.anc = NAmanage.safeConnect(root.AncestryChanged, function(_, parent)
+			if not parent then cache:Disconnect() end
+		end)
+	end
+	return cache
+end
+
+NAmanage.GetCharacterParts = function(char)
+	local cache = NAmanage._charPartCache
+	if not cache or cache.root ~= char then
+		if cache then cache:Disconnect() end
+		cache = NAmanage.CreatePartCache(char)
+		NAmanage._charPartCache = cache
+	end
+	return cache.parts
 end
 
 NAmanage._childHubs = NAmanage.ensureWeakTable(NAmanage._childHubs, "kv")
@@ -5090,10 +5197,11 @@ NAmanage.ForEachDescendantYield = function(root, handler, opts)
 	const includeRoot = opts.includeRoot == true
 	const maxItems = tonumber(opts.maxItems)
 	const stopOnResult = opts.stopOnResult == true
-	const yieldEvery = tonumber(opts.yieldEvery) or tonumber(opts.batchSize) or 0
+	const yieldEvery = tonumber(opts.yieldEvery) or tonumber(opts.batchSize) or 96
 	const delayTime = tonumber(opts.delayTime) or tonumber(opts.delay) or 0
 	const skipChildren = type(opts.skipChildren) == "function" and opts.skipChildren or nil
 	local processed = 0
+	const work = {}
 
 	const function run(inst)
 		if cancelToken and cancelToken.cancelled then
@@ -5125,12 +5233,8 @@ NAmanage.ForEachDescendantYield = function(root, handler, opts)
 					if run(inst) then
 						break
 					end
-					if yieldEvery > 0 and processed % yieldEvery == 0 then
-						if delayTime > 0 then
-							Wait(delayTime)
-						else
-							Wait()
-						end
+					if yieldEvery > 0 and NAmanage.WorkBudgetStep(work, yieldEvery, 0.003) and delayTime > 0 then
+						Wait(delayTime)
 					end
 				end
 				local shouldSkipChildren = false
@@ -5213,6 +5317,7 @@ NAmanage.ForEachWorkspaceYield = function(handler, opts)
 	const delayTime = tonumber(opts.delayTime) or tonumber(opts.delay) or 0
 	const maxItems = tonumber(opts.maxItems) or 0
 	local processed = 0
+	const work = {}
 	const q = { Services.Workspace }
 	local qi, qn = 1, 1
 
@@ -5239,12 +5344,8 @@ NAmanage.ForEachWorkspaceYield = function(handler, opts)
 				end
 			end
 		end
-		if yieldEvery > 0 and processed > 0 and processed % yieldEvery == 0 then
-			if delayTime > 0 then
-				Wait(delayTime)
-			else
-				Wait()
-			end
+		if yieldEvery > 0 and NAmanage.WorkBudgetStep(work, yieldEvery, 0.003) and delayTime > 0 then
+			Wait(delayTime)
 		end
 	end
 
@@ -5496,7 +5597,7 @@ NAmanage.RegisterTeleportFallback = NAmanage.RegisterTeleportFallback or functio
 		method = method;
 		startedAt = os.clock();
 	}
-	task.delay(35, function()
+	Delay(35, function()
 		const pending = NAStuff.TeleportExperienceFallback
 		if pending and pending.token == token then
 			NAStuff.TeleportExperienceFallback = nil

@@ -3499,7 +3499,7 @@ cmd.add({"shaders", "shader", "rtx", "hd"}, {"shaders (shader, rtx, hd)", "Enabl
 				pcall(function() inst.Parent = lighting end)
 			end
 			for prop, val in def.props do
-				st.safeSet(inst, prop, val)
+				if st.safeGet(inst, prop) ~= val then st.safeSet(inst, prop, val) end
 			end
 		end
 	end
@@ -3516,7 +3516,7 @@ cmd.add({"shaders", "shader", "rtx", "hd"}, {"shaders (shader, rtx, hd)", "Enabl
 	if not shader.apply then
 		shader.apply = function()
 			for prop, val in shader.target do
-				st.safeSet(lighting, prop, val)
+				if st.safeGet(lighting, prop) ~= val then st.safeSet(lighting, prop, val) end
 			end
 		end
 	end
@@ -3548,8 +3548,12 @@ cmd.add({"shaders", "shader", "rtx", "hd"}, {"shaders (shader, rtx, hd)", "Enabl
 				end) end)
 		end
 
-		st.hook("shader_effects_loop", function() return Services.RunService.RenderStepped:Connect(function()
+		local elapsed = 0
+		st.hook("shader_effects_loop", function() return Services.RunService.Heartbeat:Connect(function(dt)
 				if not (st.shader and st.shader.enabled) then return end
+				elapsed += dt
+				if elapsed < 0.1 then return end
+				elapsed = 0
 				ensureEffects()
 				shader.apply()
 			end) end)

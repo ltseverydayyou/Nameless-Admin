@@ -3523,11 +3523,10 @@ NAgui.loadCMDS = function(opts)
 	end
 	if NAStuff.cmdAutofillLoadRequested == true then
 		NAStuff.cmdAutofillLoadRequested = false
-		if type(NAgui.loadCMDS) == "function" then
-			local ok, err = pcall(NAgui.loadCMDS, { force = true })
-			if not ok then
-				warn("[NA] Queued command rebuild failed:", err)
-			end
+		if NAmanage.isCommandDataStale and NAmanage.isCommandDataStale() then
+			Defer(function()
+				NAmanage.queueCommandDataBuild()
+			end)
 		end
 	end
 	return entries

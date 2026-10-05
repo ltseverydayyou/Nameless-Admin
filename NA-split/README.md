@@ -4,11 +4,15 @@
 files in `common/`, compile each file independently, and execute them in the
 same private environment.
 
-On each run the bootstrap checks the small remote `manifest.lua`. If its build
-version differs from the local manifest, the new chunks are downloaded and
-written to the local cache after a successful load. The remote manifest also
-keeps a validated local copy of whichever loader is being used, so the last
-working `Source.lua` / `NA testing.lua` can be used when GitHub is unavailable.
+On each run the bootstrap checks the small remote `manifest.lua`. Matching
+chunk fingerprints reuse the local copy; only changed or missing chunks are
+downloaded. Downloaded chunks are cached separately in `common/.parts/`, using
+their fingerprint as the filename. The local manifest is updated after all
+chunks execute successfully and their cache writes succeed. A failed update
+therefore keeps the previous cached build usable.
+
+The manifest contains data only. After a successful load, the bootstrap caches
+a compile-checked copy of the selected loader and its version marker.
 
 The bootstrap checks these local chunk paths first:
 
@@ -26,7 +30,10 @@ GitHub URL. An executor can override the chunk URL with
 
 The loader yields between chunks when `task.wait` is available. This spreads
 compilation and top-level startup work across frames instead of presenting the
-executor with one 5 MB source/bytecode unit.
+executor with one large source/bytecode unit. Settings construction and queued
+startup jobs keep their instance budgets after the loading screen closes.
+Heavy queued jobs wait for the settings build to finish; startup frame tracking
+continues until queued work settles, with a 60-second limit.
 
 To split a future monolithic source file, pass it explicitly:
 
@@ -36,3 +43,21 @@ python tools/build_split_na.py --input path/to/monolith.lua
 
 The builder is intended for a monolithic input. Normal changes
 should be made in the generated chunks once the split distribution is in use.
+
+After editing existing chunks or launchers, refresh their metadata without
+splitting a monolith again:
+
+```text
+python tools/build_split_na.py --refresh-metadata
+```
+
+Run the regression suite with Luau tools on `PATH`, or supply their paths:
+
+```text
+python tests/na_split_regression.py --luau /path/to/luau --compiler /path/to/luau-compile
+```
+
+The suite uses the pinned pre-audit commit for comparisons, so that commit must
+be available in the local Git history. `--baseline` can select another baseline.
+See [the audit notes](../docs/na-split-performance-audit.md) for coverage and
+live-client validation requirements.

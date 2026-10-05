@@ -14817,38 +14817,7 @@ SpawnCall(function()
 	end
 end)
 
-const settingsBuildState = NAgui and NAgui.SettingsBuildState
-local settingsRequestedTab = type(settingsBuildState) == "table" and settingsBuildState.userSelectedTab or nil
-if not (settingsRequestedTab and TabManager and TabManager.tabs and TabManager.tabs[settingsRequestedTab]) then
-	settingsRequestedTab = nil
-end
-const settingsDefaultTab = settingsRequestedTab or (NA_TABS and NA_TABS.TAB_GENERAL) or NAgui.getActiveTab()
-if settingsDefaultTab and NAgui.setTab then
-	NAgui.setTab(settingsDefaultTab, { forceMount = true })
-end
-
-SpawnCall(function()
-	Wait()
-	const currentTab = TabManager and TabManager.current
-	if currentTab and TabManager.tabs and TabManager.tabs[currentTab] and NAgui and NAgui.setTab then
-		NAgui.setTab(currentTab, { forceMount = true })
-	end
-end)
 	end)
-	pcall(function()
-		const mountTab = (NA_TABS and NA_TABS.TAB_GENERAL) or (TabManager and TabManager.lastNonAll)
-		if mountTab and TabManager and TabManager.tabs then
-			const info = TabManager.tabs[mountTab]
-			TabManager.current = mountTab
-			TabManager.lastNonAll = mountTab
-			if info and info.page then
-				NAUIMANAGER.SettingsList = info.page
-			end
-		end
-	end)
-	if NAgui.SettingsBuildDone then
-		pcall(NAgui.SettingsBuildDone)
-	end
 	if type(perf) == "table" then
 		perf.settingsBuildElapsed = os.clock() - settingsBuildStart
 		perf.settingsBuildOk = okBuild == true
@@ -14859,9 +14828,6 @@ end)
 			probe.mark("settings_build_done")
 		end
 	end)
-	NAStuff.SettingsBuildRunning = false
-	NAStuff._loadingFinalizePending = false
-	NAStuff.SettingsBuildReady = okBuild == true
 	pcall(function()
 		const state = NAgui and NAgui.SettingsBuildState
 		local requestedTab = type(state) == "table" and state.userSelectedTab or nil
@@ -14877,6 +14843,12 @@ end)
 			state.userSelectedTab = nil
 		end
 	end)
+	if NAgui.SettingsBuildDone then
+		pcall(NAgui.SettingsBuildDone)
+	end
+	NAStuff.SettingsBuildRunning = false
+	NAStuff._loadingFinalizePending = false
+	NAStuff.SettingsBuildReady = okBuild == true
 	if NAmanage.finalizeLoadingState then
 		pcall(NAmanage.finalizeLoadingState)
 	end
@@ -14884,8 +14856,8 @@ end)
 	if NAmanage.pumpLoaderQueue then
 		pcall(NAmanage.pumpLoaderQueue)
 	end
-	if type(NAmanage.FinishStartupPerformance) == "function" then
-		pcall(NAmanage.FinishStartupPerformance, okBuild and "settings ready" or "settings failed")
+	if type(NAmanage.FinishStartupPerformanceWhenIdle) == "function" then
+		pcall(NAmanage.FinishStartupPerformanceWhenIdle, okBuild and "settings ready" or "settings failed")
 	end
 	if not okBuild then
 		warn(errBuild)

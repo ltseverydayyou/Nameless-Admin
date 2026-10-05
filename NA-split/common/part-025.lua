@@ -4755,7 +4755,9 @@ end);
 
 SpawnCall(function()
 	const fbHumCons = {}
+	const token = NAmanage._runToken
 	const function clrFbHum()
+		NAlib.disconnect("flashback_character")
 		for i = 1, #fbHumCons do
 			const con = fbHumCons[i]
 			if con then
@@ -4766,6 +4768,8 @@ SpawnCall(function()
 			end
 		end
 	end
+
+	NAmanage.RegisterUnloadCleanup("flashback_character", clrFbHum)
 
 	const function saveFb(c, fallback)
 		const root = c and getRoot(c)
@@ -4788,12 +4792,12 @@ SpawnCall(function()
 				hum = waited
 			end
 		end
-		if not hum then
+		if not hum or not NAmanage.IsActiveRun(token) then
 			return
 		end
 		local lastSafe = 0
 		const safeSampleInterval = 0.35
-		fbHumCons[#fbHumCons + 1] = Services.RunService.Heartbeat:Connect(function()
+		fbHumCons[#fbHumCons + 1] = NAlib.connect("flashback_character", Services.RunService.Heartbeat:Connect(function()
 			const now = os.clock()
 			if now - lastSafe < safeSampleInterval then
 				return
@@ -4806,13 +4810,13 @@ SpawnCall(function()
 			if NAmanage.fbaSafe and NAmanage.fbaSafe(root, hum, c) then
 				NAStuff.fba_safe = NAmanage.UG_clientCFrame(root) or root.CFrame
 			end
-		end)
-		fbHumCons[#fbHumCons + 1] = hum.HealthChanged:Connect(function(hp)
+		end))
+		fbHumCons[#fbHumCons + 1] = NAlib.connect("flashback_character", hum.HealthChanged:Connect(function(hp)
 			if tonumber(hp) and hp <= 0 then
 				saveFb(c, NAStuff.fba_safe)
 			end
-		end)
-		fbHumCons[#fbHumCons + 1] = NAmanage.ConnectHumanoidDeath(hum, function()
+		end))
+		fbHumCons[#fbHumCons + 1] = NAlib.connect("flashback_character", NAmanage.ConnectHumanoidDeath(hum, function()
 			saveFb(c, NAStuff.fba_cf or NAStuff.fba_safe)
 			NAmanage._persist.lastMode=NAmanage._state and NAmanage._state.mode or "none"
 			NAmanage._persist.wasFlying=(FLYING==true)
@@ -4821,12 +4825,13 @@ SpawnCall(function()
 			end
 			NAmanage._clearPhysics(true)
 			NAmanage._persist.resumeAfterSpawn=false
-		end)
+		end))
 	end
 
 	NAlib.disconnect("flashback_char_added")
 	NAlib.connect("flashback_char_added", LocalPlayer.CharacterAdded:Connect(function(c)
 		setupFLASHBACK(c)
+		if not NAmanage.IsActiveRun(token) then return end
 		NAmanage.ExecuteBindings("OnSpawn", LocalPlayer, c)
 		if NAmanage.abQueue then
 			NAmanage.abQueue(c)

@@ -6329,7 +6329,8 @@ NAmanage.invalidateCommandBuild = NAmanage.invalidateCommandBuild or function()
 end
 
 NAmanage.StartupCommandBudgetStep = NAmanage.StartupCommandBudgetStep or function()
-	if NAStuff._loadingFinalizedOnce == true or (NAAssetsLoading and NAAssetsLoading._finalized == true) then
+	if (NAStuff._loadingFinalizedOnce == true or (NAAssetsLoading and NAAssetsLoading._finalized == true))
+		and not (NAmanage.IsStartupBuilding and NAmanage.IsStartupBuilding()) then
 		return
 	end
 	local state = NAStuff._startupCommandBudget
@@ -6344,7 +6345,7 @@ NAmanage.StartupCommandBudgetStep = NAmanage.StartupCommandBudgetStep or functio
 	const lastFrameDt = type(perf) == "table" and tonumber(perf.lastFrameDt) or nil
 	const highFps = lastFrameDt and lastFrameDt > 0 and lastFrameDt < (1 / 240)
 	const batch = highFps and (lowImpact and 32 or 64) or (lowImpact and 64 or 96)
-	const budget = highFps and 0.006 or (lowImpact and 0.018 or 0.025)
+	const budget = highFps and 0.0015 or (lowImpact and 0.002 or 0.003)
 
 	if type(NAmanage.pulseLoadingUI) == "function" and state.count % 40 == 0 then
 		pcall(NAmanage.pulseLoadingUI, "registering commands ("..tostring(state.count)..")", math.min(0.989, 0.965 + state.count / 40000))

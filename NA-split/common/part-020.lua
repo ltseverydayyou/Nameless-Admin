@@ -4002,7 +4002,7 @@ NAgui.setTab = function(name, opts)
 		end;
 		const keepMounted = name == ((NA_TABS and NA_TABS.TAB_GENERAL) or nil);
 		if info.page then
-			info.page.Visible = false;
+			if info.page.Visible then info.page.Visible = false end;
 			if keepMounted and TabManager.container then
 				if info.page.Parent ~= TabManager.container then
 					info.page.Parent = TabManager.container;
@@ -4014,7 +4014,7 @@ NAgui.setTab = function(name, opts)
 		end;
 		for tabName, tabInfo in TabManager.tabs do
 			if tabInfo.page then
-				tabInfo.page.Visible = false;
+				if tabInfo.page.Visible then tabInfo.page.Visible = false end;
 				const keepTabMounted = tabName == ((NA_TABS and NA_TABS.TAB_GENERAL) or nil);
 				if keepTabMounted and TabManager.container then
 					if tabInfo.page.Parent ~= TabManager.container then
@@ -4024,7 +4024,9 @@ NAgui.setTab = function(name, opts)
 					tabInfo.page.Parent = nil;
 				end;
 			end;
-			NAmanage.updateTabVisual(tabInfo, tabName == name);
+			if tabInfo._isActive ~= (tabName == name) then
+				NAmanage.updateTabVisual(tabInfo, tabName == name);
+			end;
 		end;
 		return info.page;
 	end;

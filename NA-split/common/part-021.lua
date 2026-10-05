@@ -2996,9 +2996,10 @@ NAgui.SettingsBuildStep = NAgui.SettingsBuildStep or function()
 		lastYield = now
 	end
 	const userActive = state.userInteracted == true
-	const batch = math.max(4, math.floor(tonumber(state.batch) or 12))
-	const budget = math.max(0.0015, tonumber(state.budget) or 0.004)
-	const activeBatch = userActive and math.max(4, math.floor(batch * 0.5)) or batch
+	const lowEnd = IsOnMobile == true or (NAmanage.IsLowEndUI and NAmanage.IsLowEndUI() == true)
+	const batch = math.max(2, math.min(math.floor(tonumber(state.batch) or 12), lowEnd and 3 or 6))
+	const budget = math.max(0.0005, math.min(tonumber(state.budget) or 0.004, lowEnd and 0.0015 or 0.0025))
+	const activeBatch = userActive and math.max(2, math.floor(batch * 0.5)) or batch
 	const activeBudget = userActive and math.min(budget, 0.0025) or budget
 	if state.count % activeBatch == 0 or (now - lastYield) >= activeBudget then
 		Wait()

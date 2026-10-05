@@ -5234,8 +5234,8 @@ cmd.add({"creep"}, {"creep <player|npc:filter>", "Teleports from a player or NPC
 	NAlib.connect("creep_noclip", Services.RunService.PreSimulation:Connect(function()
 		const char = getChar()
 		if not char then return end
-		for _, part in char:QueryDescendants("BasePart") do
-			part.CanCollide = false
+		for part in NAmanage.GetCharacterParts(char) do
+			if part.Parent and part.CanCollide then part.CanCollide = false end
 		end
 	end))
 	Wait()
@@ -5267,8 +5267,8 @@ cmd.add({"netless","net"},{"netless (net)","Executes netless which makes scripts
 	NAlib.connect("netless", Services.RunService.PreSimulation:Connect(function()
 		const c = getChar()
 		if not c then return end
-		for _, v in NAmanage.QueryDescendants(c, "BasePart") do
-			if v.Name ~= "HumanoidRootPart" then
+		for v in NAmanage.GetCharacterParts(c) do
+			if v.Parent and v.Name ~= "HumanoidRootPart" then
 				v.Velocity = Vector3.new(-30, 0, 0)
 			end
 		end

@@ -1492,53 +1492,40 @@ cmd.add({"cbring", "clientbring", "clientb"}, {"cbring <player|npc:filter> [dist
 	end
 end, true)
 
+NAmanage.CBringStop = function()
+	NAlib.disconnect("cbring")
+	NAlib.disconnect("cbnoclip")
+	table.clear(bringc)
+end
+NAmanage.RegisterUnloadCleanup("cbring_cleanup", NAmanage.CBringStop)
+
 cmd.add({"loopcbring", "loopclientb", "loppclientb", "loopclientbring", "lcbring", "lclientb"}, {"loopcbring <player|npc:filter> [distance]", "Continuously brings a player or NPC on your client"}, function(...)
 	const args = {...}
 	const distance = NAmanage.parseBringDistance(args, 3)
-	const username = args[1]
-	const target = getPlr(username)
+	const target = getPlr(args[1])
 	if #target == 0 then return end
-	for _, conn in bringc do
-		conn:Disconnect()
-	end
-	bringc = {}
-	NAlib.disconnect("cbring")
-	if NAlib.isConnected("cbnoclip") then
-		NAlib.disconnect("cbnoclip")
-	end
-	NAlib.connect("cbnoclip", Services.RunService.RenderStepped:Connect(function()
+	NAmanage.CBringStop()
+	NAlib.connect("cbnoclip", Services.RunService.PreSimulation:Connect(function()
 		const char = getChar()
 		if not char then return end
-		for _, descendant in char:QueryDescendants("BasePart") do
-			descendant.CanCollide = false
+		for part in NAmanage.GetCharacterParts(char) do
+			if part.Parent and part.CanCollide then part.CanCollide = false end
 		end
 	end))
-	for _, plr in next, target do
-		if not plr then return end
-		Insert(bringc, NAlib.connect("cbring", Services.RunService.RenderStepped:Connect(function()
-			const targetChar = getPlrChar(plr)
-			const localChar = getChar()
-			if targetChar and localChar then
-				const targetRoot = getRoot(targetChar)
-				const localRoot = getRoot(localChar)
-				if targetRoot and localRoot then
-					targetRoot.CFrame = NAmanage.bringOffsetCFrame(localRoot.CFrame, distance)
-				end
-			end
-		end)))
-	end
+	Insert(bringc, NAlib.connect("cbring", Services.RunService.RenderStepped:Connect(function()
+		const char = getChar()
+		const root = char and getRoot(char)
+		if not root then return end
+		const cf = NAmanage.bringOffsetCFrame(root.CFrame, distance)
+		for _, plr in target do
+			const model = getPlrChar(plr)
+			const part = model and getRoot(model)
+			if part then part.CFrame = cf end
+		end
+	end)))
 end, true)
 
-cmd.add({"unloopcbring", "unloopclientb", "unloopcientb", "unlcbring", "unlclientb", "uncbring", "unclientb"}, {"unloopcbring", "Disable looped client bring"}, function()
-	for _, conn in bringc do
-		conn:Disconnect()
-	end
-	bringc = {}
-	NAlib.disconnect("cbring")
-	if NAlib.isConnected("cbnoclip") then
-		NAlib.disconnect("cbnoclip")
-	end
-end)
+cmd.add({"unloopcbring", "unloopclientb", "unloopcientb", "unlcbring", "unlclientb", "uncbring", "unclientb"}, {"unloopcbring", "Disable looped client bring"}, NAmanage.CBringStop)
 
 cmd.add({"mute", "muteboombox"}, {"mute <player|npc:filter> (muteboombox)", "Mutes sounds from a player or NPC"}, function(...)
 	const uuuu = ...

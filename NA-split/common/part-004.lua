@@ -1395,7 +1395,7 @@ NAmanage.createLoadingUI=function(text, opts)
 
 	local pulseConn
 	if Services.RunService then
-		pulseConn = Services.RunService.RenderStepped:Connect(function()
+		pulseConn = NAlib.connect("NA_LoadingPulse", Services.RunService.RenderStepped:Connect(function()
 			if ui.container and ui.container.Parent then
 				cStroke.Transparency = 0.8 + math.sin(tick() * 3) * 0.05
 			else
@@ -1403,7 +1403,7 @@ NAmanage.createLoadingUI=function(text, opts)
 					pulseConn:Disconnect()
 				end
 			end
-		end)
+		end))
 	end
 
 	if flags.autoSkip then
@@ -1689,18 +1689,20 @@ NAAssetsLoading.runWithTimeout = function(timeoutSeconds, callback)
 	end
 	local finished = false
 	local ok, a, b, c
-	Spawn(function()
+	const thread = Spawn(function()
 		ok, a, b, c = pcall(callback)
 		finished = true
 	end)
 	const deadline = os.clock() + timeoutSeconds
 	while not finished and os.clock() < deadline do
 		if NAAssetsLoading.getSkip and NAAssetsLoading.getSkip() then
+			NAmanage.CancelRuntimeTask(thread)
 			return false, nil, "skipped"
 		end
 		Wait(0.05)
 	end
 	if not finished then
+		NAmanage.CancelRuntimeTask(thread)
 		return false, nil, Format("timeout after %.1fs", timeoutSeconds)
 	end
 	if not ok then
@@ -1725,7 +1727,7 @@ NAAssetsLoading.runWithTimeoutNoSkip = function(timeoutSeconds, callback)
 	end
 	local finished = false
 	local ok, a, b, c
-	Spawn(function()
+	const thread = Spawn(function()
 		ok, a, b, c = pcall(callback)
 		finished = true
 	end)
@@ -1734,6 +1736,7 @@ NAAssetsLoading.runWithTimeoutNoSkip = function(timeoutSeconds, callback)
 		Wait(0.05)
 	end
 	if not finished then
+		NAmanage.CancelRuntimeTask(thread)
 		return false, nil, Format("timeout after %.1fs", timeoutSeconds)
 	end
 	if not ok then
@@ -2479,6 +2482,23 @@ NAmanage.FinishStartupPerformance = NAmanage.FinishStartupPerformance or functio
 	end
 end
 
+NAmanage.FinishStartupPerformanceWhenIdle = function(statusText)
+	const perf = NAStuff and NAStuff.StartupPerformance
+	if type(perf) ~= "table" or perf.finished or perf.finishQueued then return end
+	perf.finishQueued = true
+	Spawn(function()
+		const deadline = os.clock() + 60
+		while os.clock() < deadline and (NAmanage._loaderQueuePumping == true
+			or (tonumber(NAmanage._loaderQueueRunning) or 0) > 0
+			or NAStuff.CommandBuildWorkerQueued == true or NAStuff.cmdAutofillLoading == true
+			or NAStuff.SettingsBuildRunning == true) do
+			Wait(0.1)
+		end
+		Wait(0.25)
+		NAmanage.FinishStartupPerformance(statusText)
+	end)
+end
+
 NAmanage.completeStartupLoading = NAmanage.completeStartupLoading or function(statusText)
 	if NAStuff._loadingFinalizedOnce == true then
 		return
@@ -2500,7 +2520,7 @@ NAmanage.completeStartupLoading = NAmanage.completeStartupLoading or function(st
 	NAStuff._startupCommandBudget = nil
 	NAStuff._startupInstanceBudget = nil
 	if not settingsStillBuilding and type(NAmanage.FinishStartupPerformance) == "function" then
-		NAmanage.FinishStartupPerformance(statusText or "ready")
+		NAmanage.FinishStartupPerformanceWhenIdle(statusText or "ready")
 	end
 	pcall(function()
 		if type(NAmanage.isCommandDataStale) == "function" and NAmanage.isCommandDataStale() then

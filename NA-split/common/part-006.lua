@@ -36,6 +36,8 @@ NAmanage.UnloadDisconnectTree = function(root, summary)
 		if type(value) ~= "table" or seen[value] then
 			return
 		end
+		if type(_na_boot) == "table" and (value == _na_boot or value == _na_boot.hostEnv
+			or value == _na_boot.privateRegistry or value == _na_boot.privateRoot) then return end
 		seen[value] = true
 		const disconnect = rawget(value, "Disconnect")
 		if type(disconnect) == "function" and (rawget(value, "Connected") ~= nil or type(rawget(value, "_conns")) == "table") then
@@ -46,9 +48,9 @@ NAmanage.UnloadDisconnectTree = function(root, summary)
 		end
 		for key, child in value do
 			const kind = typeof(child)
-			const kindLower = string.lower(tostring(kind or ""))
-			local connectionLike = kindLower:find("connection", 1, true) ~= nil
-			if not connectionLike then
+			const childType = type(child)
+			local connectionLike = kind == "RBXScriptConnection"
+			if not connectionLike and kind ~= "Instance" and (childType == "table" or childType == "userdata") then
 				local okDisconnect, disconnectMethod = pcall(function()
 					return child and child.Disconnect
 				end)
@@ -708,6 +710,8 @@ NAmanage.Unload = function(opts)
 		instances = 0,
 		errors = 0,
 	}
+	const bootState = (type(_na_boot.splitConfig) == "table" and _na_boot.splitConfig.state)
+		or (type(_na_boot.hostEnv) == "table" and rawget(_na_boot.hostEnv, "__NamelessAdminRuntimeState"))
 	const oldBridge = NAmanage.MCP
 	const oldBridgeRun = type(oldBridge) == "table" and oldBridge.run or nil
 	const oldUI = NAmanage.getUI and NAmanage.getUI() or nil
@@ -852,6 +856,7 @@ NAmanage.Unload = function(opts)
 					end
 				end
 				NAmanage.UnloadDisconnectTree(runStuff, summary)
+				NAmanage.UnloadDisconnectTree(record.manage, summary)
 			end
 		end
 	else
@@ -887,7 +892,7 @@ NAmanage.Unload = function(opts)
 			NAlib.disconnect(names[i])
 		end
 	end
-	for _, root in { NAStuff, NAjobs, NAmanage._runtimeState, NAgui, NAUIMANAGER, TopBarApp, SideSwipeApp, NAindex } do
+	for _, root in { NAStuff, NAjobs, NAmanage, NAgui, NAUIMANAGER, TopBarApp, SideSwipeApp, NAindex, _na_boot.runtimeEnv } do
 		NAmanage.UnloadDisconnectTree(root, summary)
 	end
 	const roots = {}
@@ -922,6 +927,7 @@ NAmanage.Unload = function(opts)
 	end
 	addRoot(oldUI)
 	addRoot(NAStuff.NASCREENGUI)
+	addRoot(NAAssetsLoading and NAAssetsLoading.ui)
 	addRoot(rawget(_na_env, "NA_UI_INSTANCE"))
 	addRoot(rawget(_na_env, "NA_RAW_UI"))
 	addRoot(rawget(_na_shared, "NA_UI_INSTANCE"))
@@ -973,15 +979,23 @@ NAmanage.Unload = function(opts)
 	NAmanage.RemovePlexityGradients()
 	const rawDelay = NAmanage._rawTaskDelay or task.delay
 	const rawSpawn = NAmanage._rawTaskSpawn or task.spawn
-	pcall(rawDelay, 0.1, NAmanage.RemovePlexityGradients)
-	pcall(rawDelay, 0.5, NAmanage.RemovePlexityGradients)
+	const function ownsCleanup()
+		const current = rawget(_na_boot.hostEnv, "__NamelessAdminRuntimeState")
+		return current == nil or current == bootState
+	end
+	const function cleanGradients()
+		if ownsCleanup() then NAmanage.RemovePlexityGradients() end
+	end
+	pcall(rawDelay, 0.1, cleanGradients)
+	pcall(rawDelay, 0.5, cleanGradients)
 	pcall(rawSpawn, function()
 		const deadline = os.clock() + 4
 		repeat
+			if not ownsCleanup() then return end
 			NAmanage.RemovePlexityGradients()
 			task.wait(0.2)
 		until os.clock() >= deadline
-		NAmanage.RemovePlexityGradients()
+		cleanGradients()
 	end)
 	if type(knownRuns) == "table" then
 		table.clear(knownRuns)
@@ -1076,6 +1090,8 @@ NAmanage.Unload = function(opts)
 	end
 
 	const function clearRuntimeExports()
+		const current = rawget(_na_boot.hostEnv, "__NamelessAdminRuntimeState")
+		if current ~= nil and current ~= bootState then return end
 		const targets = {}
 		const targetSet = setmetatable({}, { __mode = "k" })
 		const function addTarget(target, force)
@@ -1111,15 +1127,6 @@ NAmanage.Unload = function(opts)
 				addTarget(rawget(privateRoot, "admin"), false)
 			end
 		end)
-		pcall(function()
-			if type(getgc) == "function" then
-				for _, value in getgc(true) do
-					if type(value) == "table" then
-						addTarget(value, false)
-					end
-				end
-			end
-		end)
 
 		for i = 1, #targets do
 			const target = targets[i]
@@ -1151,6 +1158,16 @@ NAmanage.Unload = function(opts)
 	end
 
 	clearRuntimeExports()
+	pcall(function()
+		const current = rawget(_na_boot.hostEnv, "__NamelessAdminRuntimeState")
+		const caller = rawget(_na_boot.hostEnv, "NACaller")
+		if (current == nil or current == bootState) and (caller == NACaller or caller == __NARootNACaller) then
+			rawset(_na_boot.hostEnv, "NACaller", __NARootPreviousNACaller)
+		end
+	end)
+	if rawget(_na_boot.hostEnv, "__NamelessAdminRuntimeState") == bootState then
+		rawset(_na_boot.hostEnv, "__NamelessAdminRuntimeState", nil)
+	end
 	pcall(rawDelay, 0.1, clearRuntimeExports)
 	pcall(rawDelay, 0.5, clearRuntimeExports)
 	pcall(function()

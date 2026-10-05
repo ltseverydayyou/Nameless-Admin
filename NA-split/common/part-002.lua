@@ -5496,9 +5496,11 @@ NAmanage._loaderQueueProfile = NAmanage._loaderQueueProfile or function()
 	const configuredMax = tonumber(NAStuff and NAStuff.LoaderMaxConcurrency)
 	const configuredHeavy = tonumber(NAStuff and NAStuff.LoaderMaxHeavyConcurrency)
 	const configuredSpacing = tonumber(NAStuff and NAStuff.LoaderLaunchSpacing)
-	const maxRunning = math.clamp(math.floor(configuredMax or 4), 1, 16)
-	const maxHeavy = math.clamp(math.floor(configuredHeavy or 1), 1, maxRunning)
-	const launchSpacing = math.max(0, configuredSpacing ~= nil and configuredSpacing or 0.01)
+	const lowEnd = IsOnMobile == true or (NAmanage.IsLowEndUI and NAmanage.IsLowEndUI() == true)
+	const building = NAStuff.SettingsBuildRunning == true
+	const maxRunning = building and 1 or math.clamp(math.floor(configuredMax or (lowEnd and 2 or 4)), 1, 16)
+	const maxHeavy = building and 0 or math.clamp(math.floor(configuredHeavy or 1), 1, maxRunning)
+	const launchSpacing = math.max(0, configuredSpacing ~= nil and configuredSpacing or (lowEnd and 0.04 or 0.02))
 	return maxRunning, maxHeavy, launchSpacing
 end
 
@@ -5511,7 +5513,11 @@ function NAmanage.pumpLoaderQueue()
 	end
 	NAmanage._loaderQueuePumping = true
 	Spawn(function()
-		while NAmanage._loaderQueueHead <= NAmanage._loaderQueueTail do
+		while NAmanage._loaderQueueHead <= NAmanage._loaderQueueTail or NAmanage._loaderQueueRunning > 0 do
+			if NAmanage._loaderQueueHead > NAmanage._loaderQueueTail then
+				Wait()
+				continue
+			end
 			const maxRunning, maxHeavy, launchSpacing = NAmanage._loaderQueueProfile()
 			const job = NAmanage._loaderQueue[NAmanage._loaderQueueHead]
 			const heavy = job and job.heavy == true
@@ -5538,13 +5544,8 @@ function NAmanage.pumpLoaderQueue()
 				if spacing == nil then
 					spacing = launchSpacing
 				end
-				if spacing > 0 then
-					Wait(spacing)
-				end
+				Wait(math.max(0, spacing))
 			end
-		end
-		while (tonumber(NAmanage._loaderQueueRunning) or 0) > 0 do
-			Wait()
 		end
 		NAmanage._loaderQueue = {}
 		NAmanage._loaderQueueHead = 1
@@ -5555,6 +5556,7 @@ function NAmanage.pumpLoaderQueue()
 end
 
 function NAmanage.scheduleLoader(label, callback, opts)
+	if type(callback) ~= "function" then return false end
 	opts = opts or {}
 	NAmanage._loaderQueueTail = (tonumber(NAmanage._loaderQueueTail) or 0) + 1
 	NAmanage._loaderQueue[NAmanage._loaderQueueTail] = {
@@ -5580,7 +5582,7 @@ NAmanage.spawnStartupLoader = NAmanage.spawnStartupLoader or function(label, cal
 		return nil
 	end
 	NAmanage._startupLoaderThreads[name] = true
-	return Spawn(function()
+	NAmanage.scheduleLoader(name, function()
 		const started = os.clock()
 		pcall(function()
 			const probe = NAmanage.GetExternalLagProbe and NAmanage.GetExternalLagProbe()
@@ -5615,7 +5617,8 @@ NAmanage.spawnStartupLoader = NAmanage.spawnStartupLoader or function(label, cal
 			end
 		end)
 		NAmanage._startupLoaderThreads[name] = nil
-	end)
+	end, opts)
+	return true
 end
 
 searchIndex = {}

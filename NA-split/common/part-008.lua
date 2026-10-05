@@ -4531,24 +4531,25 @@ NAmanage.InitPlugs=function()
 		local topbar = pm.Topbar
 		if not frame or not topbar or not Services.UserInputService then return end
 		pm.dragging = false
-		topbar.InputBegan:Connect(function(input)
+		NAlib.reconnect("plugin_maker_drag_start", topbar.InputBegan:Connect(function(input)
 			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 				pm.dragging = true
 				pm.dragStart = input.Position
 				pm.dragPos = frame.Position
-				input.Changed:Connect(function()
+				NAlib.reconnect("plugin_maker_drag_end", input.Changed:Connect(function()
 					if input.UserInputState == Enum.UserInputState.End then
 						pm.dragging = false
+						NAlib.disconnect("plugin_maker_drag_end")
 					end
-				end)
+				end))
 			end
-		end)
-		Services.UserInputService.InputChanged:Connect(function(input)
+		end))
+		NAlib.reconnect("plugin_maker_drag_move", Services.UserInputService.InputChanged:Connect(function(input)
 			if not pm.dragging or not pm.dragStart or not pm.dragPos then return end
 			if input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Touch then return end
 			local delta = input.Position - pm.dragStart
 			frame.Position = UDim2.new(pm.dragPos.X.Scale, pm.dragPos.X.Offset + delta.X, pm.dragPos.Y.Scale, pm.dragPos.Y.Offset + delta.Y)
-		end)
+		end))
 	end
 
 	NAmanage.PluginMaker_BuildUI = function()
@@ -4927,14 +4928,14 @@ NAmanage.InitPlugs=function()
 		NAmanage.PluginMaker_BindDrag()
 
 		if Services.Workspace and Services.Workspace.CurrentCamera then
-			Services.Workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+			NAlib.reconnect("plugin_maker_viewport", Services.Workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
 				if pm.Frame and pm.Frame.Parent then
 					NAmanage.PluginMaker_Resize(false)
 					if type(NAmanage.centerFrame) == "function" then
 						pcall(NAmanage.centerFrame, pm.Frame)
 					end
 				end
-			end)
+			end))
 		end
 		return true
 	end
