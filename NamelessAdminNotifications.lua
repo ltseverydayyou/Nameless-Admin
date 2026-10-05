@@ -166,7 +166,7 @@ local UI_ATTR = {
 	OWNER = "_na_en_owner"
 }
 
-local UI_REV = 2
+local UI_REV = 3
 
 local function isTrustedGui(inst)
 	if typeof(inst) ~= "Instance" or not inst:IsA("ScreenGui") then
@@ -591,14 +591,10 @@ function NotifFuns.inz()
 			tl = a
 			br = b
 		end
-	end
-	if gs and gs.GetGuiInset then
-		local ok, a, b = pcall(gs.GetGuiInset, gs)
-		if ok and typeof(a) == "Vector2" then
-			tl = Vector2.new(math.max(tl.X, a.X), math.max(tl.Y, a.Y))
-		end
-		if ok and typeof(b) == "Vector2" then
-			br = Vector2.new(math.max(br.X, b.X), math.max(br.Y, b.Y))
+	elseif gs and gs.GetGuiInset then
+		local ok, v = pcall(gs.GetGuiInset, gs)
+		if ok and typeof(v) == "Vector2" then
+			tl = v
 		end
 	end
 	return tl, br
@@ -1167,14 +1163,16 @@ function NotifFuns.mkHdr(par, z, kind, onPause, owner)
 	local state = ctx(owner or par)
 	local btnSize = isMobile and 36 or 30
 	local gap = 8
+	local hh = isMobile and 60 or 56
 	local hdr = Instance.new("Frame")
 	protectUiInst(hdr, UI_ATTR.HEADER)
 	hdr.BackgroundTransparency = 1
 	hdr.Active = kind == "Popup"
-	hdr.Size = UDim2.new(1, 0, 0, 96)
+	hdr.Size = UDim2.new(1, 0, 0, hh)
 	hdr.ZIndex = z + 200
 	hdr.Parent = par
 	state.hdr = hdr
+	state.headH = hh
 	local line = Instance.new("Frame")
 	protectUiInst(line)
 	line.BorderSizePixel = 0
@@ -1186,8 +1184,8 @@ function NotifFuns.mkHdr(par, z, kind, onPause, owner)
 	line.Parent = hdr
 	local act = Instance.new("Frame")
 	protectUiInst(act)
-	act.AnchorPoint = Vector2.new(1, 0)
-	act.Position = UDim2.new(1, -PAD, 0, 48)
+	act.AnchorPoint = Vector2.new(1, 0.5)
+	act.Position = UDim2.new(1, -PAD, 0.5, 0)
 	act.Size = UDim2.fromOffset(0, btnSize)
 	act.BackgroundTransparency = 1
 	act.ZIndex = z + 220
@@ -1209,23 +1207,25 @@ function NotifFuns.mkHdr(par, z, kind, onPause, owner)
 	cls.LayoutOrder = 50
 	local ttl = Instance.new("TextLabel")
 	protectUiInst(ttl)
-	ttl.Position = UDim2.fromOffset(PAD, PAD)
-	ttl.Size = UDim2.new(1, -PAD * 2, 0, isMobile and 26 or 24)
-	ttl.AutomaticSize = Enum.AutomaticSize.Y
+	ttl.AnchorPoint = Vector2.new(0, 0.5)
+	ttl.Position = UDim2.new(0, PAD, 0.5, 0)
+	ttl.Size = UDim2.new(1, -PAD * 2, 1, -16)
 	ttl.BackgroundTransparency = 1
-	ttl.TextWrapped = true
+	ttl.TextWrapped = false
 	ttl.TextScaled = false
-	ttl.TextTruncate = Enum.TextTruncate.None
+	ttl.TextTruncate = Enum.TextTruncate.AtEnd
+	ttl.ClipsDescendants = true
 	ttl.Font = CURF[kind]
 	ttl.TextSize = kind == "Popup" and (isMobile and 22 or 20) or (isMobile and 20 or 18)
 	ttl.TextXAlignment = Enum.TextXAlignment.Left
-	ttl.TextYAlignment = Enum.TextYAlignment.Top
+	ttl.TextYAlignment = Enum.TextYAlignment.Center
 	ttl.TextColor3 = TH.Ttl
 	ttl.RichText = true
 	ttl.ZIndex = z + 210
 	ttl.Parent = hdr
 	local cnt = Instance.new("TextLabel")
 	protectUiInst(cnt)
+	cnt.AnchorPoint = Vector2.new(1, 0.5)
 	cnt.BackgroundColor3 = TH.BtnHover
 	cnt.BackgroundTransparency = 0.2
 	cnt.BorderSizePixel = 0
@@ -1241,25 +1241,8 @@ function NotifFuns.mkHdr(par, z, kind, onPause, owner)
 	local ccon = Instance.new("UITextSizeConstraint", cnt)
 	ccon.MinTextSize = 10
 	ccon.MaxTextSize = isMobile and 14 or 12
-	local hint = Instance.new("TextLabel")
-	protectUiInst(hint)
-	hint.BackgroundTransparency = 1
-	hint.Font = CURF[kind]
-	hint.TextSize = isMobile and 12 or 11
-	hint.TextColor3 = TH.Mut
-	hint.TextXAlignment = Enum.TextXAlignment.Left
-	hint.TextTruncate = Enum.TextTruncate.AtEnd
-	hint.Text = kind == "Notify" and "Notification" or kind
-	hint.ZIndex = z + 210
-	hint.Parent = hdr
 	local function refTitle()
-		if state.closing then
-			return
-		end
-		local sca = csc(owner or par)
-		local th = math.max(ttl.Size.Y.Offset, math.ceil(ttl.AbsoluteSize.Y / sca))
-		local rowY = PAD + th + 10
-		local hh = rowY + btnSize + 12
+		if state.closing then return end
 		local ax, num = 0, 0
 		for _, b in act:GetChildren() do
 			if b:IsA("GuiObject") and b.Visible then
@@ -1268,40 +1251,28 @@ function NotifFuns.mkHdr(par, z, kind, onPause, owner)
 			end
 		end
 		ax += math.max(0, num - 1) * gap
-		local ap = UDim2.new(1, -PAD, 0, rowY)
 		local as = UDim2.fromOffset(ax, btnSize)
-		local hs = UDim2.new(1, 0, 0, hh)
-		if act.Position ~= ap then act.Position = ap end
 		if act.Size ~= as then act.Size = as end
-		if hdr.Size ~= hs then hdr.Size = hs end
-		state.headH = hh
-		local room = math.max(0, (owner or par).Size.X.Offset - PAD * 2 - ax - gap)
+		local w = owner and owner.Size.X.Offset or par.AbsoluteSize.X / csc(par)
+		local room = math.max(0, w - PAD * 2 - ax - gap)
 		local cw = 0
-		local stacked = (state.stackCount or 1) > 1
-		if stacked and room >= 28 then
-			cw = math.min(room, math.max(32, ts:GetTextSize(cnt.Text, ccon.MaxTextSize, CURF[kind], Vector2.new(200, 24)).X + 12))
+		if (state.stackCount or 1) > 1 and room >= 60 then
+			cw = math.min(64, room - 32, math.max(32, ts:GetTextSize(cnt.Text, ccon.MaxTextSize, CURF[kind], Vector2.new(200, 24)).X + 12))
 		end
-		cnt.Visible = cw > 0
-		cnt.Position = UDim2.fromOffset(PAD, rowY + 4)
-		cnt.Size = UDim2.fromOffset(cw, btnSize - 8)
-		local hx = PAD + (cw > 0 and cw + gap or 0)
-		hint.Position = UDim2.fromOffset(hx, rowY)
-		hint.Size = UDim2.fromOffset(math.max(0, room - (hx - PAD)), btnSize)
-		hint.Visible = hint.Size.X.Offset >= 76
+		local vis = cw > 0
+		local cp = UDim2.new(1, -PAD - ax - gap, 0.5, 0)
+		local cs = UDim2.fromOffset(cw, btnSize - 8)
+		local titleW = math.max(0, room - (vis and cw + gap or 0))
+		local size = UDim2.new(0, titleW, 1, -16)
+		if cnt.Visible ~= vis then cnt.Visible = vis end
+		if cnt.Position ~= cp then cnt.Position = cp end
+		if cnt.Size ~= cs then cnt.Size = cs end
+		if ttl.Size ~= size then ttl.Size = size end
 		if state.body then
 			local bp = UDim2.fromOffset(0, hh)
 			local bh = UDim2.new(1, 0, 1, -hh - (state.footH or 0))
 			if state.body.Position ~= bp then state.body.Position = bp end
 			if state.body.Size ~= bh then state.body.Size = bh end
-		end
-		if state.opened and not state.resizeQueued then
-			state.resizeQueued = true
-			task.defer(function()
-				state.resizeQueued = false
-				if ctxMap[owner] == state and owner.Parent and not state.closing then
-					NotifFuns.resizeCard(owner)
-				end
-			end)
 		end
 	end
 	local function watchBtn(b)
@@ -1316,9 +1287,9 @@ function NotifFuns.mkHdr(par, z, kind, onPause, owner)
 		refTitle()
 	end))
 	addConnection(act, act.ChildRemoved:Connect(refTitle))
-	addConnection(ttl, ttl:GetPropertyChangedSignal("AbsoluteSize"):Connect(refTitle))
-	addConnection(ttl, ttl:GetPropertyChangedSignal("Text"):Connect(refTitle))
-	addConnection(ttl, ttl:GetPropertyChangedSignal("Font"):Connect(refTitle))
+	if owner then
+		addConnection(owner, owner:GetPropertyChangedSignal("Size"):Connect(refTitle))
+	end
 	state.stackCount = 1
 	state.setStackCount = function(n)
 		local v = math.max(1, math.floor(tonumber(n) or 1))
@@ -2223,7 +2194,7 @@ function NotifFuns.cardSize(card)
 	local tl, br = inz()
 	local off = isMobile and 16 or 24
 	local room = math.max(1, gui.AbsoluteSize.Y - tl.Y - br.Y - off * 2) / sca
-	local hh = s.headH or 96
+	local hh = s.headH or (isMobile and 60 or 56)
 	local fh = (s.trk and s.trk.Visible) and (isMobile and 14 or 12) or 0
 	s.footH = fh
 	local need = cntH(s.cnt)
@@ -2285,7 +2256,7 @@ function NotifFuns.appear(card, sc, st, tgt, from, cntObj)
 	local info = TweenInfo.new(0.28, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
 	s.sizeTween = NotifFuns.tween(card, info, { Size = tgt })
 	s.motion = {
-		NotifFuns.tween(shell, info, { Position = UDim2.fromOffset(0, 0), BackgroundTransparency = 0.08 }),
+		NotifFuns.tween(shell, info, { Position = UDim2.fromOffset(0, 0), BackgroundTransparency = 0.5 }),
 		NotifFuns.tween(st, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Transparency = 0.82 })
 	}
 	NotifFuns.fadeNACardContent(shell, false, 0.22)
@@ -2354,7 +2325,7 @@ function NotifFuns.mkCard(w, baseZ, kind, onPause)
 	s0.sc = sc
 	s0.baseScale = sc.Scale
 	s0.shell = shell
-	local hdrHeight = 96
+	local hdrHeight = isMobile and 60 or 56
 	local body = Instance.new("Frame")
 	protectUiInst(body)
 	body.BackgroundTransparency = 1
@@ -2630,7 +2601,7 @@ function NotifFuns.build(kind, p)
 		NotifFuns.resizeCard(card)
 		s.motion = {
 			NotifFuns.tween(s.shell, TweenInfo.new(0.24, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
-				Position = UDim2.fromOffset(0, 0), BackgroundTransparency = 0.08
+				Position = UDim2.fromOffset(0, 0), BackgroundTransparency = 0.5
 			}),
 			NotifFuns.tween(st, TweenInfo.new(0.2), { Transparency = 0.82 })
 		}
