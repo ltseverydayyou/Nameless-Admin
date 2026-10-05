@@ -15,7 +15,8 @@ Audited against `a2276c3cd5b79392b8021f01678a28523ae639d6` on 2026-10-05. The re
 | Settings | Reduce control batches and time budgets. Avoid repeated final mounts, preserve the selected tab, and mark construction complete after the final mount. Skip unchanged tab visuals during background construction. |
 | Connections | Avoid rescanning growing connection buckets on every append. Periodic maintenance visits each bucket at most once per call and stops at its time budget. |
 | Descendant events | Filter irrelevant classes before scheduling, batch queued events across frames, release consumed references, and keep yielding callbacks independent. Correct separate addition/removal class gates. |
-| World caches | Cancel asynchronous builders by generation so an old worker cannot overwrite a newer cache or mark a released cache complete. Make default descendant traversal yield with count/time limits. |
+| CoreGui startup | Replace the blocking, duplicate NetworkPause tree walk with deferred class queries. Coalesce scans, install watchers before scanning, cancel stale work, release removed GUI connections, and restore the original enabled state on unload. |
+| World caches | Cancel asynchronous builders by generation so an old worker cannot overwrite a newer cache or mark a released cache complete. Stream world traversal with count/time limits; use native snapshots for UI trees. Apply configured sleeps at count boundaries only and yield once at each budget boundary. |
 | Character/NPC commands | Cache part membership for noclip, creep, netless, client bring, and NPC bring. Track additions/removals and character replacement. Remove per-frame queries, repeated target callbacks, and per-NPC task creation. |
 | ESP | Remove the redundant periodic part rescan from models already covered by descendant watchers. |
 | Chat UI | Normalize added objects in batches instead of scanning the entire chat frame for each added descendant. Skip unchanged Z-index assignments. |
@@ -27,7 +28,7 @@ Audited against `a2276c3cd5b79392b8021f01678a28523ae639d6` on 2026-10-05. The re
 
 `tests/na_split_regression.py` compiles both launchers, the manifest, and all 29 chunks. It also verifies CRLF/no BOM for runtime files, chunk and loader fingerprints, and generator parity. The behavioral suite extracts the current implementation into a deterministic Luau scheduler with mocked Roblox signals and instances.
 
-Thirty-one scenarios cover cold/warm/offline/delta/incomplete loads, content caches, duplicate guards, cache-write and lock failures, failed-load retries, cancellation, event bursts and yielding callbacks, traversal limits, respawns, stale cache workers, queue ordering/concurrency/errors, settings completion, lighting changes/restoration, input rebinding, task timeouts, unload ownership, and quick reloads. The executor dataset is compared recursively with the original dataset.
+Thirty-three scenarios cover cold/warm/offline/delta/incomplete loads, content caches, duplicate guards, cache-write and lock failures, failed-load retries, cancellation, event bursts and yielding callbacks, traversal limits, respawns, stale cache workers, queue ordering/concurrency/errors, settings completion, lighting changes/restoration, input rebinding, task timeouts, unload ownership, and quick reloads. The executor dataset is compared recursively with the original dataset.
 
 Reproducible CLI observations:
 

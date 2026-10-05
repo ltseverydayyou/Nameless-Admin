@@ -2816,7 +2816,7 @@ function NAmanage.setNetworkPauseGuiBlocked(gui, blocked)
 			local ok, enabled = pcall(function()
 				return gui.Enabled
 			end)
-			tbl.guiEnabled[gui] = ok and enabled or true
+			tbl.guiEnabled[gui] = if ok then enabled else true
 		end
 		pcall(function()
 			gui.Enabled = false
@@ -2846,36 +2846,27 @@ function NAmanage.setNetworkPauseGuiBlocked(gui, blocked)
 	return true
 end
 
-function NAmanage.scanNetworkPauseItems(callback)
+function NAmanage.scanNetworkPauseItems(callback, token)
 	if type(callback) ~= "function" then
 		return
 	end
-	const roots = {}
-	const seen = {}
-	const function add(root)
-		if typeof(root) == "Instance" and not seen[root] then
-			seen[root] = true
-			roots[#roots + 1] = root
-		end
-	end
-	add(Services.CoreGui)
-	add(__lt.cm("CoreGui", "FindFirstChild", "RobloxGui"))
-	for i = 1, #roots do
-		const root = roots[i]
-		if NAmanage.isNetworkPauseGui(root) or NAmanage.isNetworkPauseScript(root) then
-			callback(root)
-		end
-		NAmanage.ForEachDescendantYield(root, function(inst)
+	const root = Services.CoreGui
+	const work = {}
+	for _, class in { "ScreenGui", "BaseScript" } do
+		if token and token.cancelled then return end
+		const list = NAmanage.QueryDescendants(root, class)
+		for i = 1, #list do
+			if token and token.cancelled then return end
+			const inst = list[i]
+			list[i] = nil
 			const name = Lower(tostring(inst.Name or ""))
 			if name:find("networkpause", 1, true) then
 				if NAmanage.isNetworkPauseGui(inst) or NAmanage.isNetworkPauseScript(inst) then
 					callback(inst)
 				end
 			end
-		end, {
-			yieldEvery = 120,
-			delayTime = 0.02,
-		})
+			NAmanage.WorkBudgetStep(work, 96, 0.002)
+		end
 	end
 end
 
@@ -2899,35 +2890,48 @@ function NAmanage.setNetworkPauseBlocked(disable)
 				end
 				return
 			end
-			NAmanage.scanNetworkPauseItems(function(item)
-				trackAndDisable(item)
+			if tbl.scanToken and not tbl.scanToken.cancelled then return end
+			const token = NAmanage.NewCancelToken()
+			tbl.scanToken = token
+			Defer(function()
+				NAmanage.scanNetworkPauseItems(trackAndDisable, token)
+				if tbl.scanToken ~= token then return end
+				tbl.scanToken = nil
+				if tbl.blocking and not token.cancelled then
+					NAmanage.fireNetworkPauseEnabled(false)
+					NAmanage.setNetworkPauseFocused(false)
+				end
 			end)
-			NAmanage.fireNetworkPauseEnabled(false)
-			NAmanage.setNetworkPauseFocused(false)
 		end
 		if disable then
 			const wasBlocking = tbl.blocking == true
 			tbl.blocking = true
 			NAmanage.fireNetworkPauseEnabled(false)
-			trackAndDisable(nil)
 			if not wasBlocking then
 				const function watchRoot(root)
 					if typeof(root) ~= "Instance" then
 						return
 					end
-					const conn = NAmanage.descAdd(root, function(inst)
-						if not tbl.blocking or typeof(inst) ~= "Instance" then
-							return
-						end
-						trackAndDisable(inst)
-						NAmanage.fireNetworkPauseEnabled(false)
-						NAmanage.setNetworkPauseFocused(false)
-					end, function(inst)
-						if typeof(inst) ~= "Instance" then
-							return false
-						end
-						return Lower(tostring(inst.Name or "")):find("networkpause", 1, true) ~= nil
-					end)
+					const conn = NAmanage.descSub(root, {
+						classes = { "ScreenGui", "BaseScript" },
+						added = function(inst)
+							if not tbl.blocking or typeof(inst) ~= "Instance" then return end
+							trackAndDisable(inst)
+							NAmanage.fireNetworkPauseEnabled(false)
+							NAmanage.setNetworkPauseFocused(false)
+						end,
+						filterAdded = function(inst)
+							return typeof(inst) == "Instance" and Lower(tostring(inst.Name or "")):find("networkpause", 1, true) ~= nil
+						end,
+						removing = function(inst)
+							if tbl.guiConns[inst] then
+								NAmanage.tryDisconnect(tbl.guiConns[inst])
+								tbl.guiConns[inst] = nil
+							end
+							tbl.tracked[inst] = nil
+							tbl.guiEnabled[inst] = nil
+						end,
+					})
 					if conn then
 						Insert(tbl.conns, conn)
 					end
@@ -2946,6 +2950,7 @@ function NAmanage.setNetworkPauseBlocked(disable)
 					Insert(tbl.conns, pauseConn)
 				end
 			end
+			trackAndDisable(nil)
 		else
 			if not tbl.blocking then
 				NAmanage.fireNetworkPauseEnabled(true)
@@ -2983,6 +2988,10 @@ function NAmanage.setNetworkPauseBlocked(disable)
 		end
 	end)
 end
+
+NAmanage.RegisterUnloadCleanup("network_pause_cleanup", function()
+	if networkPauseBlock.blocking then NAmanage.setNetworkPauseBlocked(false) end
+end)
 
 if NAStuff and NAStuff.NetworkPauseDisabled == true then
 	NAmanage.setNetworkPauseBlocked(true)

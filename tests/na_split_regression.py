@@ -66,7 +66,7 @@ def main():
         expected = builder.BOOT_LOADER.format(source_tag=path.name, testing=testing, prefix=prefix, chunk_count=len(parts))
         assert expected == path.read_text(), f'generator differs: {path.name}'
     print('PASS: compilation, CRLF, manifest fingerprints, and generator parity', flush=True)
-    p1, p2, p3, p4, p6, p19, p21, p23, p25, p27 = [parts[i - 1].read_text() for i in (1, 2, 3, 4, 6, 19, 21, 23, 25, 27)]
+    p1, p2, p3, p4, p6, p16, p19, p21, p23, p25, p27 = [parts[i - 1].read_text() for i in (1, 2, 3, 4, 6, 16, 19, 21, 23, 25, 27)]
     snippets = {
         'loader': source,
         'pluginDrag': between(parts[7].read_text(), 'NAmanage.PluginMaker_BindDrag =', 'NAmanage.PluginMaker_BuildUI ='),
@@ -87,6 +87,8 @@ def main():
         'events': between(p1, 'NAmanage._evtHubInit =', 'NAmanage._descHubBaseDispose ='),
         'parts': between(p1, 'NAmanage.CreatePartCache =', 'NAmanage._childHubs ='),
         'traversal': between(p1, 'NAmanage.ForEachDescendantYield =', 'NAmanage.RunAfterSettingsBuild ='),
+        'cancelTokens': between(p1, 'NAmanage.NewCancelToken =', 'NAmanage.isLoad ='),
+        'networkPause': between(p16, 'networkPauseBlock =', 'if NAStuff and NAStuff.NetworkPauseDisabled == true then'),
         'queue': between(p2, 'NAmanage._loaderQueue =', 'searchIndex ='),
         'cleanup': between(p6, 'NAmanage.UnloadDisconnectTree =', 'NAmanage.UnloadLegacySharedStates ='),
         'unload': between(p6, 'NAmanage.Unload =', 'cmd.add({"unload",'),

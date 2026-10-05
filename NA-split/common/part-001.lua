@@ -1053,7 +1053,7 @@ Wait = function(...)
 	return elapsed
 end
 
-NAmanage.WorkBudgetStep = function(state, batch, budget)
+NAmanage.WorkBudgetStep = function(state, batch, budget, delayTime)
 	state.count = (tonumber(state.count) or 0) + 1
 	const now = os.clock()
 	if not state.lastYield then state.lastYield = now end
@@ -1063,7 +1063,7 @@ NAmanage.WorkBudgetStep = function(state, batch, budget)
 	if coroutine.isyieldable and not coroutine.isyieldable() then
 		return false
 	end
-	Wait()
+	Wait(if state.count >= batch then delayTime else nil)
 	state.count = 0
 	state.lastYield = os.clock()
 	return true
@@ -5218,7 +5218,10 @@ NAmanage.ForEachDescendantYield = function(root, handler, opts)
 		return false
 	end
 
-	if yieldEvery > 0 or opts.streaming == true then
+	const world = Services and Services.Workspace
+	const streaming = opts.streaming == true or skipChildren ~= nil or root:IsA("Workspace")
+		or root:IsA("DataModel") or (world and root:IsDescendantOf(world))
+	if streaming then
 		const q = { root }
 		local qi, qn = 1, 1
 		while qi <= qn do
@@ -5233,9 +5236,7 @@ NAmanage.ForEachDescendantYield = function(root, handler, opts)
 					if run(inst) then
 						break
 					end
-					if yieldEvery > 0 and NAmanage.WorkBudgetStep(work, yieldEvery, 0.003) and delayTime > 0 then
-						Wait(delayTime)
-					end
+					if yieldEvery > 0 then NAmanage.WorkBudgetStep(work, yieldEvery, 0.003, delayTime) end
 				end
 				local shouldSkipChildren = false
 				if skipChildren then
@@ -5261,20 +5262,16 @@ NAmanage.ForEachDescendantYield = function(root, handler, opts)
 		if run(root) then
 			return processed
 		end
+		if yieldEvery > 0 then NAmanage.WorkBudgetStep(work, yieldEvery, 0.003, delayTime) end
 	end
 	for i = 1, #list do
 		const inst = list[i]
+		list[i] = nil
 		if typeof(inst) == "Instance" then
 			if run(inst) then
 				break
 			end
-			if yieldEvery > 0 and processed % yieldEvery == 0 then
-				if delayTime > 0 then
-					Wait(delayTime)
-				else
-					Wait()
-				end
-			end
+			if yieldEvery > 0 then NAmanage.WorkBudgetStep(work, yieldEvery, 0.003, delayTime) end
 		end
 	end
 

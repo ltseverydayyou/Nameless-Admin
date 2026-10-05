@@ -112,6 +112,10 @@ local function instance(class, parent)
 	function obj:FindFirstChild(name)
 		for _, child in self.kids do if child.Name == name then return child end end
 	end
+	function obj:FindFirstAncestor(name)
+		local current = self.Parent
+		while current do if current.Name == name then return current end; current = current.Parent end
+	end
 	function obj:GetAttribute(name) return self[name] end
 	function obj:Destroy() self.Parent = nil; self.destroyed = true end
 	if parent then parent.kids[#parent.kids + 1] = obj end
@@ -304,6 +308,7 @@ test("streaming traversal yields and honors cancellation, limits, and subtree sk
 	load(source.tasks:sub((source.tasks:find("NAmanage.WorkBudgetStep", 1, true))), env)
 	load(source.traversal, env)
 	local world = instance("Workspace")
+	env.Services = { Workspace = world }
 	local root = instance("Model", world)
 	for i = 1, 500 do instance("Part", root) end
 	local total
@@ -321,6 +326,73 @@ test("streaming traversal yields and honors cancellation, limits, and subtree sk
 	api.spawn(function() total = env.NAmanage.ForEachDescendantYield(root, function() end, { includeRoot = true; skipChildren = function(obj) return obj == root end }) end)
 	api.drain()
 	check(total == 1, "subtree skip ignored")
+end)
+
+test("UI traversal uses native snapshots and one wait per count or time budget", function()
+	local env, api = environment()
+	load(source.tasks:sub((source.tasks:find("NAmanage.WorkBudgetStep", 1, true))), env)
+	load(source.traversal, env)
+	local gui = instance("ScreenGui")
+	for i = 1, 120 do instance("Frame", gui) end
+	local waits, total = {}, 0
+	env.Wait = function(delay) waits[#waits + 1] = delay or 0; return api.wait(delay) end
+	api.spawn(function() total = env.NAmanage.ForEachDescendantYield(gui, function() end, { yieldEvery = 40; delayTime = 0.02 }) end)
+	api.drain()
+	check(gui.queries == 1 and total == 120 and #waits == 3, "UI snapshot performed per-instance walks or double waits")
+	for _, delay in waits do check(delay == 0.02, "count boundary lost configured delay") end
+	table.clear(waits)
+	api.spawn(function() total = env.NAmanage.ForEachDescendantYield(gui, function() api.advance(0.004) end, { yieldEvery = 40; delayTime = 0.02 }) end)
+	api.drain()
+	check(total == 120 and #waits >= 60 and #waits <= 120, "slow handlers bypassed time budgets or waited twice")
+	for _, delay in waits do check(delay == 0, "time boundary added the count-boundary sleep") end
+end)
+
+test("network pause startup is deferred, coalesced, selective, cancellable, and restored", function()
+	local env, api = environment()
+	load(source.tasks:sub((source.tasks:find("NAmanage.WorkBudgetStep", 1, true))), env)
+	load(source.cancelTokens, env)
+	local core = instance("CoreGui")
+	local roblox = instance("Frame", core); roblox.Name = "RobloxGui"
+	for i = 1, 10000 do instance("ModuleScript", roblox) end
+	local off = instance("ScreenGui", core); off.Name = "RobloxNetworkPauseNotification"; off.Enabled = false
+	local on = instance("ScreenGui", core); on.Name = "NetworkPauseOverlay"; on.Enabled = true
+	local other = instance("ScreenGui", core); other.Name = "Other"; other.Enabled = true
+	env.LocalPlayer = instance("Player"); env.LocalPlayer.GameplayPaused = false
+	env.Services = { CoreGui = core; RunService = { SetRobloxGuiFocused = function() end } }
+	env.Lower, env.NACaller = string.lower, function(fn) return fn() end
+	local watches, spec, cleanup = 0, nil, nil
+	env.NAmanage.descSub = function(root, current)
+		check(root == core, "network pause scanned a duplicate root")
+		watches += 1; spec = current
+		return signal():Connect(function() end)
+	end
+	env.NAmanage.tryDisconnect = function(conn) conn:Disconnect() end
+	env.NAmanage.RegisterUnloadCleanup = function(_, fn) cleanup = fn end
+	load(source.networkPause, env)
+	env.NAmanage.setNetworkPauseBlocked(true)
+	check(watches == 1 and spec and core.queries == 0 and api.pending() == 1, "network pause blocked startup or installed watchers too late")
+	env.NAmanage.setNetworkPauseBlocked(true)
+	check(api.pending() == 1 and watches == 1, "repeated requests duplicated scans or watchers")
+	api.drain()
+	check(core.queries == 2 and not off.Enabled and not on.Enabled and other.Enabled, "network pause scanned unrelated descendants or missed overlays")
+	check(env.networkPauseBlock.guiEnabled[off] == false, "disabled overlay baseline became enabled")
+	local added = instance("ScreenGui", core); added.Name = "NetworkPauseAdded"; added.Enabled = true
+	if spec.filterAdded(added) then spec.added(added) end
+	check(not added.Enabled, "overlay added after startup was missed")
+	spec.removing(added)
+	check(env.networkPauseBlock.guiConns[added] == nil and env.networkPauseBlock.guiEnabled[added] == nil, "removed overlay retained a connection or baseline")
+	cleanup()
+	check(not env.networkPauseBlock.blocking and not off.Enabled and on.Enabled, "cleanup did not restore original overlay states")
+	local queries = core.queries
+	env.NAmanage.setNetworkPauseBlocked(true)
+	local cancelled = env.networkPauseBlock.scanToken
+	env.NAmanage.setNetworkPauseBlocked(false)
+	env.NAmanage.setNetworkPauseBlocked(true)
+	local current = env.networkPauseBlock.scanToken
+	api.drain()
+	check(cancelled.cancelled and cancelled ~= current and core.queries == queries + 2, "cancelled scan ran or replaced its successor")
+	check(env.networkPauseBlock.scanToken == nil, "finished network pause scan was retained")
+	cleanup()
 end)
 
 test("settings construction yields within mobile and desktop batches", function()
