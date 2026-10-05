@@ -266,6 +266,15 @@ NAmanage.RemovePlexityGradients = function()
 	return removed
 end
 
+NAmanage.OwnsRuntimeCallback = function(callback)
+	if type(callback) ~= "function" or type(_na_boot.hostGetfenv) ~= "function" then return false end
+	const ok, env = pcall(_na_boot.hostGetfenv, callback)
+	if not ok or type(env) ~= "table" then return false end
+	if env == _na_boot.runtimeEnv then return true end
+	const boot = rawget(env, "_na_boot")
+	return type(boot) == "table" and boot.privateRoot == _na_boot.privateRoot
+end
+
 NAmanage.UnloadLegacySignalConnections = function(summary)
 	if type(getconnections) ~= "function" then
 		return
@@ -382,7 +391,7 @@ NAmanage.UnloadLegacySignalConnections = function(summary)
 		if ok and type(connections) == "table" then
 			for _, connection in connections do
 				const callback = connection and connection.Function
-				if type(callback) == "function" and hasFingerprint(callback) then
+				if NAmanage.OwnsRuntimeCallback(callback) and hasFingerprint(callback) then
 					const source = getFunctionSource(callback)
 					if source ~= "" then
 						sourceTags[source] = true
@@ -397,7 +406,7 @@ NAmanage.UnloadLegacySignalConnections = function(summary)
 		if ok and type(connections) == "table" then
 			for _, connection in connections do
 				const callback = connection and connection.Function
-				if type(callback) == "function" and sourceTags[getFunctionSource(callback)] then
+				if NAmanage.OwnsRuntimeCallback(callback) and sourceTags[getFunctionSource(callback)] then
 					local disconnected = pcall(function()
 						connection:Disconnect()
 					end)
@@ -465,7 +474,7 @@ NAmanage.UnloadLegacyEditorConnections = function(summary)
 		end
 	end
 	const function inspectCallback(callback)
-		if type(callback) ~= "function" or not sourceTags[getFunctionSource(callback)] then
+		if not NAmanage.OwnsRuntimeCallback(callback) or not sourceTags[getFunctionSource(callback)] then
 			return false
 		end
 		if type(getUpvalues) == "function" then
@@ -530,7 +539,7 @@ NAmanage.UnloadLegacyEditorConnections = function(summary)
 		pcall(function() scanSignal(root.ChildAdded) end)
 		pcall(function() scanSignal(root.ChildRemoved) end)
 		local ok, descendants = pcall(function()
-			return root:GetDescendants()
+			return root:QueryDescendants("LayerCollector, GuiObject, UIComponent")
 		end)
 		if ok and type(descendants) == "table" then
 			for j = 1, #descendants do

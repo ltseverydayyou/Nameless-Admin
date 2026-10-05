@@ -395,6 +395,37 @@ test("network pause startup is deferred, coalesced, selective, cancellable, and 
 	cleanup()
 end)
 
+test("FastFlag batches yield, skip unchanged writes, and repair external changes", function()
+	local env, api = environment()
+	load(source.tasks:sub((source.tasks:find("NAmanage.WorkBudgetStep", 1, true))), env)
+	local flags = { whitelist = {}; config = { useFFlags = true; custom = {}; }; values = {}; _availableFlags = {}; }
+	flags.hasSupport = function() return true end
+	flags.isFlagEnabled = function() return true end
+	flags.normalizeRenderingPrefs = function() end
+	env.NAFFlags, env.Lower = flags, string.lower
+	local current, writes, reads = {}, 0, 0
+	env.getfflag = function(name) reads += 1; api.advance(0.0007); return current[name] end
+	env.setfflag = function(name, value) writes += 1; api.advance(0.0007); current[name] = value end
+	for i = 1, 168 do local name = "flag"..i; flags.whitelist[i] = { name = name }; flags.values[name] = i % 2 == 0 end
+	load(source.flags, env)
+	local applied, ok
+	api.spawn(function() applied, ok = flags.applyAll({ notify = false }) end)
+	api.drain()
+	check(ok and applied == 168 and writes == 168 and api.yields() >= 63, "initial flags ran an unbounded batch or lost values")
+	local before = api.yields()
+	api.spawn(function() applied, ok = flags.applyAll({ notify = false }) end)
+	api.drain()
+	check(ok and applied == 168 and writes == 168 and api.yields() > before, "maintenance rewrote unchanged flags or stopped yielding")
+	current.flag2 = "false"
+	api.spawn(function() flags.applyAll({ notify = false }) end)
+	api.drain()
+	check(current.flag2 == "true" and writes == 169, "external flag changes were not repaired selectively")
+	flags.config.useFFlags = false
+	api.spawn(function() applied, ok = flags.applyAll({ notify = false }) end)
+	api.drain()
+	check(applied == 0 and ok == false and writes == 169, "disabled FastFlags were applied")
+end)
+
 test("settings construction yields within mobile and desktop batches", function()
 	for _, mobile in { false, true } do
 		local env, api = environment()
@@ -426,6 +457,30 @@ test("incremental chat normalization avoids whole-frame queries", function()
 	check(frame.queries == 0, "added chat object triggered full-frame query")
 	env.NAmanage.NAChatNormalizeZIndex()
 	check(frame.queries == 1 and frame.ZIndex == 0, "initial normalization failed")
+end)
+
+test("legacy cleanup rejects external callbacks with matching source names and constants", function()
+	local env = environment()
+	local core = instance("CoreGui")
+	local rs = instance("RunService")
+	env.Services = { CoreGui = core; RunService = rs; }
+	env._na_boot = { privateRoot = { naSourceTags = { ["shared-source"] = true } }; runtimeEnv = {}; }
+	local own, external = function() end, function() end
+	local borrowed = {}
+	env._na_boot.hostGetfenv = function(fn) return fn == own and env._na_boot.runtimeEnv or borrowed end
+	env.debug = { info = function() return "shared-source" end }
+	env.getconstants = function() return { "NAlib", "NAmanage" } end
+	local ownedConn, externalConn = signal():Connect(own), signal():Connect(external)
+	ownedConn.Function, externalConn.Function = own, external
+	rs.Heartbeat = signal()
+	env.getconnections = function(sig) return sig == rs.Heartbeat and { ownedConn, externalConn } or {} end
+	load(source.legacyCleanup, env)
+	local summary = { connections = 0 }
+	env.NAmanage.UnloadLegacySignalConnections(summary)
+	check(not ownedConn.Connected and externalConn.Connected and summary.connections == 1, "shared source tag disconnected external callback")
+	check(env.NAmanage.OwnsRuntimeCallback(own) and not env.NAmanage.OwnsRuntimeCallback(external), "callback environment ownership was ignored")
+	env.NAmanage.UnloadLegacyEditorConnections(summary)
+	check(externalConn.Connected and core.queries == 1, "editor cleanup scanned all instance classes or external callbacks")
 end)
 
 test("cleanup reaches owned connections and suspended tasks through cyclic tables", function()
