@@ -861,6 +861,19 @@ local conn = { _kind = "RBXScriptConnection"; Disconnect = function() stats.disc
 NAStuff.conns[1] = conn
 local thread = task.spawn(function() task.wait(5); stats.late = true end)
 NAmanage._runtimeState.spawnActive[thread] = true
+if fixtureSafeCleanup then
+	stats.probes = 0
+	NAStuff.guard = setmetatable({ _kind = "table" }, {
+		__iter = function() stats.probes += 1; error("borrowed iterator") end;
+		__index = function() stats.probes += 1; error("borrowed lookup") end;
+	})
+	_na_boot.runtimeEnv.borrowed = { _kind = "RBXScriptConnection"; Disconnect = function() stats.borrowedDisconnected = true end; }
+	NAStuff.runtimeRef = _na_boot.runtimeEnv
+	local dead = task.spawn(function() end)
+	NAmanage._runtimeState.spawnActive[dead] = true
+NAmanage.dead = dead
+end
+if fixtureDeclineUnload then NAmanage.Unload = function() return false end end
 stats.ran[#stats.ran + 1] = 1
 ]]
 	local sources = { first, options.failRun and 'error("fixture runtime failure")' or 'stats.ran[#stats.ran + 1] = 2', options.failCompile and 'local =' or 'stats.ran[#stats.ran + 1] = 3' }
@@ -870,6 +883,15 @@ stats.ran[#stats.ran + 1] = 1
 		sources[2] = '_na_boot.privateRoot.testing = {}; error("shared fixture")'
 	end
 	host.fixtureEarlyFailure = options.earlyFailure
+	host.fixtureSafeCleanup = options.safeCleanup
+	host.fixtureDeclineUnload = options.declineUnload
+	if options.safeCleanup then
+		local cancel = api.cancel
+		api.cancel = function(thread)
+			if coroutine.status(thread) == "dead" then host.stats.deadCancels = (host.stats.deadCancels or 0) + 1; error("dead task") end
+			return cancel(thread)
+		end
+	end
 	remote["manifest.lua"] = manifest("new", stamps)
 	for i = 1, 3 do remote[string.format("part-%03d.lua", i)] = sources[i] end
 	if options.localMode then
@@ -995,6 +1017,18 @@ test("failed chunks clean partial runtimes and allow retries", function()
 		fixture.remote["part-003.lua"] = 'stats.ran[#stats.ran + 1] = 3'
 		fixture.run(); fixture.api.drain()
 		check(fixture.host.__NamelessAdminRuntimeState and fixture.host.__NamelessAdminRuntimeState.loaded, "failed load could not be retried")
+	end
+end)
+
+test("failed-load fallback avoids borrowed roots, metatables, and dead tasks", function()
+	for _, declined in { false, true } do
+		local fixture = loaderFixture({ earlyFailure = true; failRun = true; safeCleanup = true; declineUnload = declined })
+		fixture.run(); fixture.api.drain()
+		local stats = fixture.host.stats
+		check(stats.probes == 0 and not stats.borrowedDisconnected, "fallback inspected borrowed objects or the runtime root")
+		check(not stats.deadCancels, "fallback cancelled a dead task")
+		check(stats.disconnected == 1 and not stats.late, "fallback retained owned connections or tasks")
+		check(stats.root.testing == nil and stats.root.uiProtector == nil, "fallback stopped before releasing private roots")
 	end
 end)
 

@@ -743,9 +743,10 @@ local function __NA_SPLIT_ABORT()
 	local boot = rawget(environment, "_na_boot")
 	local runtime = type(boot) == "table" and boot.runtimeEnv or environment
 	local manage = rawget(runtime, "NAmanage")
-	if type(manage) == "table" and type(manage.Unload) == "function" then
-		local ok = pcall(manage.Unload, { silent = true })
-		if ok then return end
+	local unload = type(manage) == "table" and rawget(manage, "Unload")
+	if type(unload) == "function" then
+		local ok, done = pcall(unload, { silent = true })
+		if ok and done ~= false then return end
 	end
 	if type(manage) == "table" and type(manage._runtimeState) == "table" then
 		manage._runtimeState.unloading = true
@@ -756,20 +757,20 @@ local function __NA_SPLIT_ABORT()
 	local function clean(value)
 		if type(value) ~= "table" or seen[value] then return end
 		if type(boot) == "table" and (value == boot or value == boot.hostEnv
-			or value == boot.privateRegistry or value == boot.privateRoot) then return end
+			or value == boot.privateRegistry or value == boot.privateRoot or value == runtime) then return end
 		seen[value] = true
 		if rawget(value, "Connected") ~= nil and type(rawget(value, "Disconnect")) == "function" then
-			pcall(value.Disconnect, value)
+			pcall(rawget(value, "Disconnect"), value)
 		end
-		for key, child in value do
+		for key, child in next, value do
 			if typeof(child) == "RBXScriptConnection" then
 				pcall(function() child:Disconnect() end)
-			elseif type(child) == "thread" and child ~= current and type(task) == "table" then
+			elseif type(child) == "thread" and child ~= current and coroutine.status(child) ~= "dead" and type(task) == "table" then
 				pcall(task.cancel, child)
 			elseif type(child) == "table" then
 				clean(child)
 			end
-			if type(key) == "thread" and key ~= current and type(task) == "table" then pcall(task.cancel, key) end
+			if type(key) == "thread" and key ~= current and coroutine.status(key) ~= "dead" and type(task) == "table" then pcall(task.cancel, key) end
 		end
 	end
 	for _, name in { "NAmanage", "NAStuff", "NAjobs", "NAgui", "NAUIMANAGER", "NAindex", "NAAssetsLoading" } do clean(rawget(runtime, name)) end
