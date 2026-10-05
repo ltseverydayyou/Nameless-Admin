@@ -138,6 +138,196 @@ local function test(name, fn)
 	print("PASS: "..name)
 end
 
+local function moduleFixture(files)
+	local env = environment()
+	local fixture = { env = env; files = files or {}; requests = 0; writes = {}; replies = {}; }
+	env.__NARootHost = env
+	env.__NA_SPLIT_CACHE_ROOT = "NA-split/common/"
+	env.readfile = function(path)
+		local data = fixture.files[path]
+		if not data then error("file missing") end
+		return data
+	end
+	env.writefile = function(path, data)
+		fixture.writes[#fixture.writes + 1] = path
+		local backup = path:sub(-7) == ".backup"
+		if fixture.fault == "backup" and backup then
+			fixture.files[path] = "partial"
+			error("backup write interrupted")
+		end
+		if fixture.fault == "main" and not backup then
+			fixture.files[path] = "partial"
+			error("module write interrupted")
+		end
+		if (fixture.fault == "short" and not backup) or (fixture.fault == "shortBackup" and backup) then
+			fixture.files[path] = data:sub(1, 5)
+			return
+		end
+		fixture.files[path] = data
+	end
+	env.makefolder = function() end
+	local cache = load(source.moduleCache.."\nreturn { read = __NA_SPLIT_READ_MODULE; write = __NA_SPLIT_SAVE_MODULE; }", env)
+	fixture.cfg = { moduleRead = cache.read; moduleWrite = cache.write; offline = false; }
+	env._na_boot = { splitConfig = fixture.cfg; privateRoot = {}; }
+	env._na_boot.httpGet = function(url)
+		fixture.requests += 1
+		local body = fixture.replies[url]
+		if type(body) ~= "string" then error("GitHub unavailable") end
+		return body
+	end
+	env.NAAssetsLoading = {
+		githubTimeoutSeconds = 5;
+		httpGetNoSkipWithTimeout = function(url)
+			local ok, body = pcall(env._na_boot.httpGet, url)
+			return ok, ok and body or nil, not ok and body or nil
+		end;
+	}
+	load(source.moduleFetch, env)
+	env.NAAssetsLoading.notificationUrl = "https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NamelessAdminNotifications.lua"
+	env.opt = { NAUILOADER = env.NAAssetsLoading.uiModuleUrls.NAUI; }
+	env.NAmanage.uiObj = function(result)
+		return type(result) == "table" and result.isGui == true and result or nil
+	end
+	load(source.moduleUi, env)
+	return fixture
+end
+
+test("module caches preserve a usable copy across bad updates and interrupted writes", function()
+	local f = moduleFixture()
+	local url = f.env.opt.NAUILOADER
+	local first = "return { isGui = true; version = 1; }"
+	local second = "return { isGui = true; version = 2; }"
+	local third = "return { isGui = true; version = 3; }"
+	local path = "NA-split/common/.modules/NAUI.cache"
+	check(f.cfg.moduleWrite("NAUI", url, first), "first module was not cached")
+	check(f.cfg.moduleRead("NAUI", url) == first, "cached module could not be read")
+	local writes = #f.writes
+	check(f.cfg.moduleWrite("NAUI", url, first) and #f.writes == writes, "unchanged module was rewritten")
+	check(f.cfg.moduleRead("NAUI", "https://different.invalid/NAUI.lua") == nil, "cache mixed source URLs")
+	check(not f.cfg.moduleWrite("../bad", url, first) and not f.cfg.moduleWrite("NAUI", url, "return {"), "invalid cache key or source was accepted")
+	check(f.cfg.moduleRead("NAUI", url) == first, "invalid update replaced the cache")
+	check(f.cfg.moduleWrite("NAUI", url, second), "valid module update failed")
+	check(f.files[path..".backup"] == url.."\n"..first, "previous module was not backed up")
+	f.fault = "main"
+	check(not f.cfg.moduleWrite("NAUI", url, third), "interrupted write was reported as successful")
+	check(f.cfg.moduleRead("NAUI", url) == second, "interrupted update lost the last usable module")
+	f.files[path] = url.."\nreturn {"
+	check(f.cfg.moduleRead("NAUI", url) == second, "corrupt source prevented backup recovery")
+	f.files[path] = "wrong metadata"
+	check(f.cfg.moduleRead("NAUI", url) == second, "corrupt metadata prevented backup recovery")
+	local g = moduleFixture()
+	check(g.cfg.moduleWrite("NAUI", url, first), "backup fixture was not seeded")
+	g.fault = "shortBackup"
+	check(not g.cfg.moduleWrite("NAUI", url, second) and g.cfg.moduleRead("NAUI", url) == first, "short backup write replaced the good primary")
+	g.fault = "short"
+	check(not g.cfg.moduleWrite("NAUI", url, second) and g.cfg.moduleRead("NAUI", url) == first, "short primary write lost backup recovery")
+	g.env.readfile, g.env.writefile = nil, nil
+	check(g.cfg.moduleRead("NAUI", url) == nil and not g.cfg.moduleWrite("NAUI", url, second), "missing filesystem APIs caused unsafe cache behavior")
+end)
+
+test("UI caching supports fresh offline clients, rejected updates, custom URLs, and both variants", function()
+	local f = moduleFixture()
+	local env, urls = f.env, f.env.NAAssetsLoading.uiModuleUrls
+	local first = "return { isGui = true; version = 1; }"
+	local second = "return { isGui = true; version = 2; }"
+	f.replies[urls.NAUI] = first
+	local ok, ui = env.NAmanage.uiRun(false)
+	check(ok and ui.version == 1 and f.cfg.moduleRead("NAUI", urls.NAUI) == first, "cold UI load did not save its working source")
+	local offline = moduleFixture(f.files)
+	offline.cfg.offline = true
+	ok, ui = offline.env.NAmanage.uiRun(false)
+	check(ok and ui.version == 1 and offline.requests == 0, "fresh offline UI client attempted a download or lost its cache")
+	for _, broken in { 'error("broken UI")', 'return {}', '<html>GitHub outage</html>', 'return {' } do
+		f.replies[urls.NAUI] = broken
+		ok, ui = env.NAmanage.uiRun(true)
+		check(ok and ui.version == 1 and f.cfg.moduleRead("NAUI", urls.NAUI) == first, "bad UI update replaced a working cache")
+	end
+	f.replies[urls.NAUI] = nil
+	ok, ui = env.NAmanage.uiRun(true)
+	check(ok and ui.version == 1, "download failure did not fall back to the UI cache")
+	f.replies[urls.NAUI] = second
+	ok, ui = env.NAmanage.uiRun(true)
+	check(ok and ui.version == 2 and f.cfg.moduleRead("NAUI", urls.NAUI) == second, "working online update was not saved")
+	local alias = urls.NAUI:gsub("/refs/heads/main/", "/main/")
+	local aliased = moduleFixture(f.files)
+	aliased.cfg.offline = true
+	aliased.env.opt.NAUILOADER = alias
+	ok, ui = aliased.env.NAmanage.uiRun(false)
+	check(ok and ui.version == 2 and aliased.requests == 0, "equivalent default UI URLs did not share their cache")
+	local custom = "https://example.invalid/NAUI.lua"
+	local customSrc = "return { isGui = true; version = 9; }"
+	env.opt.NAUILOADER = custom
+	f.replies[custom] = customSrc
+	ok, ui = env.NAmanage.uiRun(false)
+	check(ok and ui.version == 9 and f.cfg.moduleRead("NAUI_custom", custom) == customSrc, "custom UI did not get a separate cache")
+	f.replies[urls.NAUITEST] = "return { isGui = true; version = 7; }"
+	env.NAAssetsLoading.cacheUiVariants()
+	check(f.cfg.moduleRead("NAUI", urls.NAUI) == second and f.cfg.moduleRead("NAUITEST", urls.NAUITEST) ~= nil, "both default UI variants were not available offline")
+	check(f.cfg.moduleRead("NAUI_custom", custom) == customSrc, "warming default variants replaced the custom UI")
+	local testUi = moduleFixture(f.files)
+	testUi.cfg.offline = true
+	testUi.env.opt.NAUILOADER = urls.NAUITEST
+	ok, ui = testUi.env.NAmanage.uiRun(false)
+	check(ok and ui.version == 7 and testUi.requests == 0, "testing UI variant could not load offline")
+	testUi.env.NAAssetsLoading.cacheUiVariants()
+	check(testUi.requests == 0, "offline variant warming made network requests")
+	local nofs = moduleFixture()
+	nofs.env.readfile, nofs.env.writefile = nil, nil
+	nofs.replies[urls.NAUI] = first
+	ok, ui = nofs.env.NAmanage.uiRun(false)
+	check(ok and ui.version == 1, "cache support broke online loading without filesystem APIs")
+end)
+
+test("notification caches reject broken libraries and reload without the network", function()
+	local f = moduleFixture()
+	local api = f.env.NAAssetsLoading
+	local url = api.notificationUrl
+	local good = "return { version = 4; Notify = function() end; Window = function() end; Popup = function() end; }"
+	f.replies[url] = good
+	local fetched, body = api.fetchCachedScript("NamelessAdminNotifications", url)
+	check(fetched and f.cfg.moduleRead("NamelessAdminNotifications", url) == nil, "notification source was saved before its API loaded")
+	local ok, lib = api.loadNotificationSource(body)
+	check(ok and lib.version == 4 and f.cfg.moduleRead("NamelessAdminNotifications", url) == good, "working notification library was not saved")
+	for _, broken in { 'error("broken notifications")', 'return {}', 'return {' } do
+		ok, lib = api.loadNotificationSource(broken)
+		check(ok and lib.version == 4 and f.cfg.moduleRead("NamelessAdminNotifications", url) == good, "bad notifications update replaced the working library")
+	end
+	local offline = moduleFixture(f.files)
+	offline.cfg.offline = true
+	fetched, body = offline.env.NAAssetsLoading.fetchCachedScript("NamelessAdminNotifications", url)
+	ok, lib = offline.env.NAAssetsLoading.loadNotificationSource(body)
+	check(fetched and ok and lib.version == 4 and offline.requests == 0, "fresh offline notification client downloaded or lost its library")
+	local empty = moduleFixture()
+	fetched = empty.env.NAAssetsLoading.fetchCachedScript("NamelessAdminNotifications", url)
+	ok = empty.env.NAAssetsLoading.loadNotificationSource(nil)
+	check(not fetched and not ok, "missing notification cache was reported as available")
+end)
+
+test("bootstrap dependencies use persistent caches before networking during an outage", function()
+	local f = moduleFixture()
+	local resolverUrl = "https://ltseverydayyou.github.io/ServiceResolver.luau"
+	local protectorUrl = "https://ltseverydayyou.github.io/UIprotector.luau"
+	local resolver = 'return { kind = "resolver"; }'
+	local protector = 'return { kind = "protector"; }'
+	check(f.cfg.moduleWrite("serviceResolver", resolverUrl, resolver) and f.cfg.moduleWrite("uiProtector", protectorUrl, protector), "bootstrap caches were not seeded")
+	local offline = moduleFixture(f.files)
+	offline.cfg.offline = true
+	load(source.moduleBoot, offline.env)
+	check(offline.requests == 0, "offline bootstrap dependency prefetch used the network")
+	check(offline.env._na_boot.getBootstrapRemoteSource("serviceResolver", resolverUrl) == resolver, "offline resolver cache was unavailable")
+	check(offline.env._na_boot.getBootstrapRemoteSource("uiProtector", protectorUrl) == protector, "offline UI protector cache was unavailable")
+	local warm = moduleFixture()
+	warm.env._na_boot.privateRoot.serviceResolver = { kind = "live resolver"; }
+	warm.env._na_boot.privateRoot.uiProtector = { ready = true; build = "session_name_cursed_null_v1"; kind = "live protector"; }
+	warm.replies[resolverUrl], warm.replies[protectorUrl] = resolver, protector
+	load(source.moduleBoot, warm.env)
+	check(warm.requests == 2 and warm.cfg.moduleRead("serviceResolver", resolverUrl) == resolver and warm.cfg.moduleRead("uiProtector", protectorUrl) == protector, "already-loaded helpers were not persisted for a fresh client")
+	check(warm.env.__lt.kind == "live resolver" and warm.env.__NAUIProtector.kind == "live protector", "caching replaced active helper objects")
+	local failing = moduleFixture(f.files)
+	load(source.moduleBoot, failing.env)
+	check(failing.requests == 2 and failing.env._na_boot.getBootstrapRemoteSource("serviceResolver", resolverUrl) == resolver, "dependency download failure did not use the persisted cache")
+end)
+
 test("tracked task completion, cancellation, and wait values", function()
 	local env, api = environment()
 	local token = {}

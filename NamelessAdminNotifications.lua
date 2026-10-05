@@ -63,6 +63,10 @@ local __lt = (function()
 	return loaded
 end)()
 local __NAUIProtector = (function()
+	local cached = rawget(_naNotif_private_root, "uiProtector");
+	if type(cached) == "table" then
+		return cached;
+	end;
 	local globalEnv = (getgenv and getgenv()) or _G or {};
 	local sharedEnv = rawget(_G, "shared");
 	local cacheHost = type(sharedEnv) == "table" and sharedEnv or (type(globalEnv) == "table" and globalEnv or nil);

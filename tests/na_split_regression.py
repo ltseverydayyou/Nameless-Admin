@@ -35,7 +35,7 @@ def main():
         parser.error('provide --luau and --compiler or put Luau tools on PATH')
     parts = sorted((ROOT / 'NA-split/common').glob('part-*.lua'))
     loaders = [ROOT / 'Source.lua', ROOT / 'NA testing.lua']
-    subprocess.run([args.compiler, '--null', *map(str, loaders), str(ROOT / 'NA-split/common/manifest.lua'), *map(str, parts), str(ROOT / 'tests/na_split_client_probe.lua')], check=True)
+    subprocess.run([args.compiler, '--null', *map(str, loaders), str(ROOT / 'NA-split/common/manifest.lua'), *map(str, parts), str(ROOT / 'tests/na_split_client_probe.lua'), str(ROOT / 'NAUI.lua'), str(ROOT / 'NAUITEST.lua'), str(ROOT / 'NamelessAdminNotifications.lua')], check=True)
     manifest = (ROOT / 'NA-split/common/manifest.lua').read_text()
     digest = hashlib.sha256()
     for index, path in enumerate(parts, 1):
@@ -69,6 +69,11 @@ def main():
     p1, p2, p3, p4, p6, p16, p19, p21, p23, p25, p27 = [parts[i - 1].read_text() for i in (1, 2, 3, 4, 6, 16, 19, 21, 23, 25, 27)]
     snippets = {
         'loader': source,
+        'moduleCache': between(source, 'local function __NA_SPLIT_MODULE_PATH(', 'local __NA_SPLIT_ENV'),
+        'moduleFetch': between(p4, 'NAAssetsLoading.moduleModes =', 'NAAssetsLoading.fetchNAStuffJson ='),
+        'moduleUi': between(p4, 'NAmanage.uiSrcGet =', 'NAAssetsLoading._finalized ='),
+        'moduleBoot': between(p1, '_na_boot.bootstrapRemoteSources =', 'pcall(function()\n\tfor _, target in { _na_env, _na_shared, _na_boot.runtimeEnv }'),
+
         'pluginDrag': between(parts[7].read_text(), 'NAmanage.PluginMaker_BindDrag =', 'NAmanage.PluginMaker_BuildUI ='),
         'timeout': between(p4, 'NAAssetsLoading.runWithTimeout =', 'NAAssetsLoading.httpGetNoSkipWithTimeout ='),
         'instanceBudget': between(p3, 'NAmanage.StartupInstanceBudgetStep =', 'NAmanage.GetFastStartupInstanceName ='),

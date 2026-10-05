@@ -7086,6 +7086,28 @@
       "desc": "Restores tracked proximity prompt HoldDuration values"
     },
     {
+      "name": "promptwalls",
+      "aliases": [
+        "promptwalls",
+        "proximitypromptwalls",
+        "ppwalls"
+      ],
+      "usage": "promptwalls (proximitypromptwalls,ppwalls)",
+      "args": "",
+      "desc": "Allows proximity prompts to be used through walls"
+    },
+    {
+      "name": "unpromptwalls",
+      "aliases": [
+        "unpromptwalls",
+        "unproximitypromptwalls",
+        "unppwalls"
+      ],
+      "usage": "unpromptwalls (unproximitypromptwalls,unppwalls)",
+      "args": "",
+      "desc": "Restores the original proximity prompt wall checks"
+    },
+    {
       "name": "enableproximitypromptservice",
       "aliases": [
         "enableproximitypromptservice",

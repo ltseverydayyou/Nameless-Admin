@@ -1767,6 +1767,94 @@ NAAssetsLoading.httpGetImportant = function(url)
 	return true, body
 end
 
+NAAssetsLoading.moduleModes = {}
+NAAssetsLoading.uiModuleUrls = {
+	NAUI = "https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/refs/heads/main/NAUI.lua";
+	NAUITEST = "https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/refs/heads/main/NAUITEST.lua";
+}
+
+NAAssetsLoading.uiModuleKey = function(url)
+	if type(url) == "string" then
+		const plain = url:gsub("/refs/heads/main/", "/main/")
+		for key, target in NAAssetsLoading.uiModuleUrls do
+			if plain == target:gsub("/refs/heads/main/", "/main/") then return key end
+		end
+	end
+	return "NAUI_custom"
+end
+
+NAAssetsLoading.readCachedScript = function(key, url)
+	const cfg = _na_boot.splitConfig or {}
+	if type(cfg.moduleRead) ~= "function" then return nil end
+	local ok, source = pcall(cfg.moduleRead, key, NAAssetsLoading.uiModuleUrls[key] or url)
+	return ok and type(source) == "string" and source ~= "" and source or nil
+end
+
+NAAssetsLoading.writeCachedScript = function(key, url, source)
+	const cfg = _na_boot.splitConfig or {}
+	if type(cfg.moduleWrite) ~= "function" then return false end
+	local ok, saved = pcall(cfg.moduleWrite, key, NAAssetsLoading.uiModuleUrls[key] or url, source)
+	return ok and saved == true
+end
+
+NAAssetsLoading.fetchCachedScript = function(key, url, force)
+	if type(url) ~= "string" or url == "" then return false, nil, "missing module url" end
+	const cached = NAAssetsLoading.readCachedScript(key, url)
+	const cfg = _na_boot.splitConfig or {}
+	if cached and cfg.offline == true and force ~= true then
+		NAAssetsLoading.moduleModes[url] = "cache"
+		return true, cached, "cache"
+	end
+	local ok, body, err = NAAssetsLoading.httpGetNoSkipWithTimeout(url, NAAssetsLoading.githubTimeoutSeconds or 5)
+	if ok and type(body) == "string" and body ~= "" then
+		local valid, chunk, reason = pcall(loadstring, body, "@"..url)
+		if valid and type(chunk) == "function" then
+			NAAssetsLoading.moduleModes[url] = "network"
+			return true, body, "network"
+		end
+		err = reason or chunk or "module failed to compile"
+	end
+	if cached then
+		NAAssetsLoading.moduleModes[url] = "cache"
+		return true, cached, "cache"
+	end
+	return false, nil, err or body or "module download failed"
+end
+
+NAAssetsLoading.loadNotificationSource = function(source)
+	const function run(body)
+		const fn, err = loadstring(body, "@NamelessAdminNotifications.lua")
+		if type(fn) ~= "function" then error(err or "notification compile failed", 0) end
+		const lib = fn()
+		if type(lib) ~= "table" or type(lib.Notify) ~= "function" or type(lib.Window) ~= "function" or type(lib.Popup) ~= "function" then
+			error("notification library is missing its API", 0)
+		end
+		return lib
+	end
+	local ok, lib = pcall(run, source)
+	if not ok then
+		const cached = NAAssetsLoading.readCachedScript("NamelessAdminNotifications", NAAssetsLoading.notificationUrl)
+		if cached and cached ~= source then
+			ok, lib = pcall(run, cached)
+			if ok then source = cached end
+		end
+	end
+	if not ok then return false, nil, lib end
+	NAAssetsLoading.writeCachedScript("NamelessAdminNotifications", NAAssetsLoading.notificationUrl, source)
+	return true, lib
+end
+
+NAAssetsLoading.cacheUiVariants = function()
+	const cfg = _na_boot.splitConfig or {}
+	if cfg.offline == true or type(readfile) ~= "function" or type(writefile) ~= "function" then return end
+	for key, url in NAAssetsLoading.uiModuleUrls do
+		if key ~= NAAssetsLoading.uiModuleKey(opt.NAUILOADER) and not NAAssetsLoading.readCachedScript(key, url) then
+			local ok, source = NAAssetsLoading.fetchCachedScript(key, url)
+			if ok then NAAssetsLoading.writeCachedScript(key, url, source) end
+		end
+	end
+end
+
 NAAssetsLoading.fetchNAStuffJson = function(timeoutSeconds)
 	timeoutSeconds = math.clamp(tonumber(timeoutSeconds) or NAAssetsLoading.githubTimeoutSeconds or 5, 0.5, 30)
 	const deadline = os.clock() + timeoutSeconds
@@ -1872,11 +1960,10 @@ NAmanage.registerRemoteForPreload=function(url, options)
 end
 
 NAmanage.uiSrcGet = NAmanage.uiSrcGet or function(force)
-	if not force and type(NAStuff.uiSrc) == "string" and NAStuff.uiSrc ~= "" then
+	const url = opt and opt.NAUILOADER
+	if not force and NAStuff.uiSrcUrl == url and type(NAStuff.uiSrc) == "string" and NAStuff.uiSrc ~= "" then
 		return NAStuff.uiSrc
 	end
-
-	const url = opt and opt.NAUILOADER
 	if type(url) ~= "string" or url == "" then
 		return nil, "missing UI loader url"
 	end
@@ -1888,26 +1975,18 @@ NAmanage.uiSrcGet = NAmanage.uiSrcGet or function(force)
 	if type(src) == "string" and src ~= "" then
 		const perf = NAStuff and NAStuff.StartupPerformance
 		if type(perf) == "table" then
-			perf.uiSourceMode = "prefetched"
+			perf.uiSourceMode = NAAssetsLoading.moduleModes[url] or "prefetched"
 			perf.uiSourceBytes = #src
 		end
 	end
 
 	if type(src) ~= "string" or src == "" then
-		local ok, body
-		local fetchErr
 		const start = os.clock()
-		if NAAssetsLoading and NAAssetsLoading.httpGetNoSkipWithTimeout then
-			ok, body, fetchErr = NAAssetsLoading.httpGetNoSkipWithTimeout(url, NAAssetsLoading.githubTimeoutSeconds or 5)
-		elseif NAAssetsLoading and NAAssetsLoading.httpGetWithTimeout then
-			ok, body, fetchErr = NAAssetsLoading.httpGetWithTimeout(url, NAAssetsLoading.githubTimeoutSeconds or 5)
-		else
-			ok, body = NAmanage.HttpGet(url, { timeout = NAAssetsLoading.githubTimeoutSeconds or 5 })
-		end
+		local ok, body, fetchErr = NAAssetsLoading.fetchCachedScript(NAAssetsLoading.uiModuleKey(url), url, force)
 		const perf = NAStuff and NAStuff.StartupPerformance
 		if type(perf) == "table" then
 			perf.uiFetchElapsed = os.clock() - start
-			perf.uiSourceMode = "network"
+			perf.uiSourceMode = NAAssetsLoading.moduleModes[url] or "network"
 			perf.uiSourceUrl = url
 			perf.uiSourceOk = ok == true
 			perf.uiSourceBytes = type(body) == "string" and #body or 0
@@ -1922,6 +2001,8 @@ NAmanage.uiSrcGet = NAmanage.uiSrcGet or function(force)
 	end
 
 	NAStuff.uiSrc = src
+	NAStuff.uiSrcUrl = url
+	NAStuff.uiCacheSaved = false
 	NAStuff.uiFn = nil
 	NAStuff.uiErr = nil
 	return src
@@ -1967,7 +2048,7 @@ end
 end
 
 NAmanage.uiFnGet = NAmanage.uiFnGet or function(force)
-	if not force and type(NAStuff.uiFn) == "function" then
+	if not force and NAStuff.uiSrcUrl == (opt and opt.NAUILOADER) and type(NAStuff.uiFn) == "function" then
 		return NAStuff.uiFn
 	end
 
@@ -2022,18 +2103,45 @@ NAmanage.uiFnGet = NAmanage.uiFnGet or function(force)
 end
 
 NAmanage.uiRun = NAmanage.uiRun or function(force)
-	local fn, err = NAmanage.uiFnGet(force)
-	if type(fn) ~= "function" then
-		return false, err
+	const function run(chunk)
+		local ok, result = pcall(chunk)
+		if ok and type(NAmanage.uiObj) == "function" and not NAmanage.uiObj(result) then
+			return false, "UI loader did not return a ScreenGui"
+		end
+		return ok, result
 	end
+	local fn, err = NAmanage.uiFnGet(force)
 	if type(NAmanage.pulseLoadingUI) == "function" then
 		pcall(NAmanage.pulseLoadingUI, "building interface", 0.974)
 	end
-	local ok, res = pcall(fn)
+	local ok, res = false, err
+	if type(fn) == "function" then ok, res = run(fn) end
+	if not ok then
+		const url = opt and opt.NAUILOADER
+		const cached = NAAssetsLoading.readCachedScript(NAAssetsLoading.uiModuleKey(url), url)
+		if cached and cached ~= NAStuff.uiSrc then
+			NAStuff.uiSrc = cached
+			NAStuff.uiSrcUrl = url
+			NAStuff.uiCacheSaved = false
+			NAStuff.uiFn = nil
+			fn, err = NAmanage.uiFnGet(false)
+			if type(fn) == "function" then
+				ok, res = run(fn)
+			else
+				res = err
+			end
+			const perf = NAStuff and NAStuff.StartupPerformance
+			if type(perf) == "table" then perf.uiSourceMode = "cache" end
+		end
+	end
 	if not ok then
 		NAStuff.uiErr = tostring(res)
 		return false, res
 	end
+	if NAStuff.uiCacheSaved ~= true then
+		NAStuff.uiCacheSaved = NAAssetsLoading.writeCachedScript(NAAssetsLoading.uiModuleKey(NAStuff.uiSrcUrl), NAStuff.uiSrcUrl, NAStuff.uiSrc)
+	end
+	NAStuff.uiErr = nil
 	return true, res
 end
 
@@ -2157,7 +2265,7 @@ NAAssetsLoading.awaitStartupFetch = function(key, timeoutSeconds)
 end
 NAAssetsLoading.notificationUrl = "https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/NamelessAdminNotifications.lua"
 NAAssetsLoading.startStartupFetch("notifications", function()
-	return NAAssetsLoading.httpGetNoSkipWithTimeout(NAAssetsLoading.notificationUrl, NAAssetsLoading.githubTimeoutSeconds or 5)
+	return NAAssetsLoading.fetchCachedScript("NamelessAdminNotifications", NAAssetsLoading.notificationUrl)
 end)
 NAAssetsLoading.startStartupFetch("nastuff", function()
 	return NAAssetsLoading.fetchNAStuffJson(NAAssetsLoading.githubTimeoutSeconds or 5)
@@ -2166,7 +2274,7 @@ NAAssetsLoading.startStartupFetch("ui", function()
 	if type(opt.NAUILOADER) ~= "string" or opt.NAUILOADER == "" then
 		return false, nil, "missing UI loader url"
 	end
-	local ok, body, err = NAAssetsLoading.httpGetNoSkipWithTimeout(opt.NAUILOADER, NAAssetsLoading.githubTimeoutSeconds or 5)
+	local ok, body, err = NAAssetsLoading.fetchCachedScript(NAAssetsLoading.uiModuleKey(opt.NAUILOADER), opt.NAUILOADER)
 	if ok and type(body) == "string" and body ~= "" then
 		NAAssetsLoading.cachePrefetchedRemote(opt.NAUILOADER, body)
 	end
@@ -2187,15 +2295,12 @@ repeat
 		local okFetch, sourceOrErr, fetchErr
 		if notifAttempts == 1 and NAAssetsLoading._startupFetches and NAAssetsLoading._startupFetches.notifications then
 			okFetch, sourceOrErr, fetchErr = NAAssetsLoading.awaitStartupFetch("notifications", NAAssetsLoading.githubTimeoutSeconds or 5)
-		elseif NAAssetsLoading and NAAssetsLoading.httpGetImportant then
-			okFetch, sourceOrErr = NAAssetsLoading.httpGetImportant(NAAssetsLoading.notificationUrl)
 		else
-			okFetch, sourceOrErr = NAmanage.HttpGet(NAAssetsLoading.notificationUrl, { timeout = NAAssetsLoading.githubTimeoutSeconds or 5 })
+			okFetch, sourceOrErr, fetchErr = NAAssetsLoading.fetchCachedScript("NamelessAdminNotifications", NAAssetsLoading.notificationUrl)
 		end
-		if not okFetch then
-			error(fetchErr or sourceOrErr or "notification fetch failed")
-		end
-		return loadstring(sourceOrErr)()
+		const okLoad, lib, loadErr = NAAssetsLoading.loadNotificationSource(okFetch and sourceOrErr or nil)
+		if not okLoad then error(loadErr or fetchErr or "notification load failed", 0) end
+		return lib
 	end)
 	if NAAssetsLoading.ok and type(NAAssetsLoading.res) == "table" then
 		NAStuff.Notification = NAAssetsLoading.res
@@ -2543,6 +2648,9 @@ NAmanage.completeStartupLoading = NAmanage.completeStartupLoading or function(st
 		if type(NAmanage.queueStartupAssetPreload) == "function" then
 			NAmanage.queueStartupAssetPreload()
 		end
+	end)
+	pcall(function()
+		NAmanage.RunAfterSettingsBuild(0.2, NAAssetsLoading.cacheUiVariants)
 	end)
 end
 

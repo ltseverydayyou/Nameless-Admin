@@ -808,14 +808,51 @@ _na_boot.httpGet = function(url, opts)
 end
 
 _na_boot.bootstrapRemoteSources = {}
+_na_boot.getBootstrapRemoteSource = function(key, url)
+	const memo = _na_boot.bootstrapRemoteSources[key]
+	if type(memo) == "string" and memo ~= "" then
+		return memo
+	end
+	const cfg = _na_boot.splitConfig or {}
+	local cached
+	if type(cfg.moduleRead) == "function" then
+		local ok, source = pcall(cfg.moduleRead, key, url)
+		if ok then cached = source end
+	end
+	if type(cached) == "string" and cfg.offline == true then
+		return cached
+	end
+	local ok, source = pcall(_na_boot.httpGet, url, { maxAttempts = 2; timeout = 5; })
+	if ok and type(source) == "string" and source ~= "" then
+		const loader = loadstring or load
+		local valid, chunk = pcall(loader, source, "@"..url)
+		if valid and type(chunk) == "function" then
+			return source
+		end
+	end
+	if type(cached) == "string" then return cached end
+	error(tostring(source or "bootstrap download failed"), 2)
+end
+_na_boot.cacheBootstrapModule = function(key, url, source)
+	const cfg = _na_boot.splitConfig or {}
+	if type(cfg.moduleWrite) == "function" then
+		pcall(cfg.moduleWrite, key, url, source)
+	end
+end
 _na_boot.prefetchBootstrapRemotes = function()
 	const targets = {}
-	if type(rawget(_na_boot.privateRoot, "serviceResolver")) ~= "table" then
+	const function needsCache(key, url)
+		const cfg = _na_boot.splitConfig or {}
+		if type(cfg.moduleRead) ~= "function" or type(readfile) ~= "function" or type(writefile) ~= "function" then return false end
+		local ok, source = pcall(cfg.moduleRead, key, url)
+		return not ok or type(source) ~= "string"
+	end
+	if type(rawget(_na_boot.privateRoot, "serviceResolver")) ~= "table" or needsCache("serviceResolver", "https://ltseverydayyou.github.io/ServiceResolver.luau") then
 		targets.serviceResolver = "https://ltseverydayyou.github.io/ServiceResolver.luau"
 	end
 	const uiProtectorBuild = "session_name_cursed_null_v1"
 	const cachedProtector = rawget(_na_boot.privateRoot, "uiProtector")
-	if type(cachedProtector) ~= "table" or rawget(cachedProtector, "ready") ~= true or rawget(cachedProtector, "build") ~= uiProtectorBuild then
+	if type(cachedProtector) ~= "table" or rawget(cachedProtector, "ready") ~= true or rawget(cachedProtector, "build") ~= uiProtectorBuild or needsCache("uiProtector", "https://ltseverydayyou.github.io/UIprotector.luau") then
 		targets.uiProtector = "https://ltseverydayyou.github.io/UIprotector.luau"
 	end
 
@@ -825,12 +862,12 @@ _na_boot.prefetchBootstrapRemotes = function()
 		if canParallel then
 			pending += 1
 			task.spawn(function()
-				local ok, source = pcall(_na_boot.httpGet, url, { maxAttempts = 2; timeout = 5; })
+				local ok, source = pcall(_na_boot.getBootstrapRemoteSource, key, url)
 				_na_boot.bootstrapRemoteSources[key] = ok and source or false
 				pending -= 1
 			end)
 		else
-			local ok, source = pcall(_na_boot.httpGet, url, { maxAttempts = 2; timeout = 5; })
+			local ok, source = pcall(_na_boot.getBootstrapRemoteSource, key, url)
 			_na_boot.bootstrapRemoteSources[key] = ok and source or false
 		end
 	end
@@ -838,25 +875,20 @@ _na_boot.prefetchBootstrapRemotes = function()
 		task.wait()
 	end
 end
-_na_boot.getBootstrapRemoteSource = function(key, url)
-	const cached = _na_boot.bootstrapRemoteSources[key]
-	if type(cached) == "string" and cached ~= "" then
-		return cached
-	end
-	return _na_boot.httpGet(url, { maxAttempts = 3; timeout = 5; })
-end
 _na_boot.prefetchBootstrapRemotes()
 
 __lt = (function()
 	const cached = rawget(_na_boot.privateRoot, "serviceResolver");
 	if type(cached) == "table" then
+		_na_boot.cacheBootstrapModule("serviceResolver", "https://ltseverydayyou.github.io/ServiceResolver.luau", _na_boot.bootstrapRemoteSources.serviceResolver);
 		return cached;
 	end;
 	const loader = loadstring or load;
 	if type(loader) ~= "function" then
 		error("Service resolver loader unavailable");
 	end;
-	const resolver = loader(_na_boot.getBootstrapRemoteSource("serviceResolver", "https://ltseverydayyou.github.io/ServiceResolver.luau"), "@ServiceResolver.luau");
+	const source = _na_boot.getBootstrapRemoteSource("serviceResolver", "https://ltseverydayyou.github.io/ServiceResolver.luau");
+	const resolver = loader(source, "@ServiceResolver.luau");
 	if type(resolver) ~= "function" then
 		error("Service resolver failed to compile");
 	end;
@@ -865,6 +897,7 @@ __lt = (function()
 		error("Service resolver failed to load");
 	end;
 	_na_boot.privateRoot.serviceResolver = loaded;
+	_na_boot.cacheBootstrapModule("serviceResolver", "https://ltseverydayyou.github.io/ServiceResolver.luau", source);
 	return loaded;
 end)();
 
@@ -872,6 +905,7 @@ __NAUIProtector = (function()
 	const uiProtectorBuild = "session_name_cursed_null_v1";
 	const cached = rawget(_na_boot.privateRoot, "uiProtector");
 	if type(cached) == "table" and rawget(cached, "ready") == true and rawget(cached, "build") == uiProtectorBuild then
+		_na_boot.cacheBootstrapModule("uiProtector", "https://ltseverydayyou.github.io/UIprotector.luau", _na_boot.bootstrapRemoteSources.uiProtector);
 		return cached;
 	end;
 	if type(cached) == "table" then
@@ -890,7 +924,8 @@ __NAUIProtector = (function()
 	if type(loader) ~= "function" then
 		error("UI protector loader unavailable");
 	end;
-	const protector = loader(_na_boot.getBootstrapRemoteSource("uiProtector", "https://ltseverydayyou.github.io/UIprotector.luau"), "@UIprotector.luau");
+	const source = _na_boot.getBootstrapRemoteSource("uiProtector", "https://ltseverydayyou.github.io/UIprotector.luau");
+	const protector = loader(source, "@UIprotector.luau");
 	if type(protector) ~= "function" then
 		error("UI protector failed to compile");
 	end;
@@ -899,6 +934,7 @@ __NAUIProtector = (function()
 		error("UI protector failed to load");
 	end;
 	_na_boot.privateRoot.uiProtector = loaded;
+	_na_boot.cacheBootstrapModule("uiProtector", "https://ltseverydayyou.github.io/UIprotector.luau", source);
 	return loaded;
 end)();
 

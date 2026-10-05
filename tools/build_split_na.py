@@ -794,9 +794,66 @@ local function __NA_SPLIT_CACHE_LOADER(meta)
 end
 
 
+local function __NA_SPLIT_MODULE_PATH(key)
+	if type(key) ~= "string" or not key:match("^[%w_-]+$") then return nil end
+	return __NA_SPLIT_CACHE_ROOT..".modules/"..key..".cache"
+end
+
+local function __NA_SPLIT_MODULE_SOURCE(data, url)
+	if type(data) ~= "string" or type(url) ~= "string" or url == "" or url:find("[\r\n]") then return nil end
+	local prefix = url.."\n"
+	if data:sub(1, #prefix) ~= prefix then return nil end
+	local source = data:sub(#prefix + 1)
+	if source == "" then return nil end
+	local loader = rawget(__NARootHost, "loadstring") or loadstring or load
+	if type(loader) ~= "function" then return nil end
+	local ok, chunk = pcall(loader, source, "@"..url)
+	return ok and type(chunk) == "function" and source or nil
+end
+
+local function __NA_SPLIT_READ_MODULE(key, url)
+	local path = __NA_SPLIT_MODULE_PATH(key)
+	if not path or type(readfile) ~= "function" then return nil end
+	for _, name in {{ path, path..".backup" }} do
+		local ok, data = pcall(readfile, name)
+		local source = ok and __NA_SPLIT_MODULE_SOURCE(data, url)
+		if source then return source end
+	end
+	return nil
+end
+
+local function __NA_SPLIT_SAVE_MODULE(key, url, source)
+	local path = __NA_SPLIT_MODULE_PATH(key)
+	if not path or type(readfile) ~= "function" or type(writefile) ~= "function" or type(source) ~= "string" then return false end
+	if type(url) ~= "string" or url == "" or url:find("[\r\n]") then return false end
+	local data = url.."\n"..source
+	if not __NA_SPLIT_MODULE_SOURCE(data, url) then return false end
+	local okOld, old = pcall(readfile, path)
+	if okOld and old == data then return true end
+	if type(makefolder) == "function" then
+		local current = ""
+		for segment in (__NA_SPLIT_CACHE_ROOT..".modules"):gmatch("[^/]+") do
+			current = current == "" and segment or current.."/"..segment
+			pcall(makefolder, current)
+		end
+	end
+	if okOld and __NA_SPLIT_MODULE_SOURCE(old, url) then
+		if not pcall(writefile, path..".backup", old) then return false end
+		local okBackup, backup = pcall(readfile, path..".backup")
+		if not okBackup or backup ~= old then return false end
+	end
+	if not pcall(writefile, path, data) then return false end
+	local okRead, written = pcall(readfile, path)
+	return okRead and written == data
+end
+
 local __NA_SPLIT_ENV
 local function __NA_SPLIT_RUN()
 	__NA_SPLIT_CONFIG.state = __NA_GLOBAL_STATE
+	__NA_SPLIT_CONFIG.cacheRoot = __NA_SPLIT_CACHE_ROOT
+	__NA_SPLIT_CONFIG.offline = __NA_SPLIT_REMOTE_META == nil
+	__NA_SPLIT_CONFIG.moduleRead = __NA_SPLIT_READ_MODULE
+	__NA_SPLIT_CONFIG.moduleWrite = __NA_SPLIT_SAVE_MODULE
 	local environment = setmetatable({{
 		__NA_SPLIT_CONFIG = __NA_SPLIT_CONFIG;
 		NACaller = __NARootNACaller;

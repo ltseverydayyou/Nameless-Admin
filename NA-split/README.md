@@ -24,6 +24,19 @@ The matching loader is cached one directory above `common/`, for example
 `NA-split/Source.lua` or `NA-split/NA testing.lua`. The loader cache has its own
 version marker, so it does not need to redownload the loader every run.
 
+The bootstrap also stores notification and UI source files in
+`common/.modules/`, alongside ServiceResolver and UIprotector. A successful
+notification load and UI build save their source. The unused default UI variant
+is downloaded and checked in the background after settings finish building, so
+both `NAUI.lua` and `NAUITEST.lua` can be available offline.
+
+Modules use the network for updates when the manifest is reachable. If the
+manifest is unavailable, cached modules load immediately; failed or invalid
+downloads also fall back to the cache. Each cache record identifies its source
+URL, and updates preserve a verified backup before replacing the current file.
+A custom UI URL has its own cache. Executors need working filesystem APIs, and
+at least one successful online load is needed to create the cached files.
+
 If the files are not present, it downloads them from the repository's raw
 GitHub URL. An executor can override the chunk URL with
 `getgenv().__NA_SPLIT_BASE_URL` before loading Nameless Admin.

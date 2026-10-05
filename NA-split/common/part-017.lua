@@ -85,6 +85,111 @@ cmd.add({"unfastprompts","unfastproximityprompts","unfastpp"},{"unfastprompts (u
 	NAmanage.FastProximityPromptsDisable()
 end)
 
+NAStuff.ppWalls = {
+	active = false;
+	prompts = NAmanage.ensureWeakKeyTable();
+}
+
+NAmanage.PromptWallsTrack = function(pp)
+	const state = NAStuff.ppWalls
+	if state.active ~= true or typeof(pp) ~= "Instance" or not pp:IsA("ProximityPrompt") or state.prompts[pp] then
+		return
+	end
+	local ok, value = pcall(function()
+		return pp.RequiresLineOfSight
+	end)
+	if not ok then
+		return
+	end
+	const rec = {
+		restore = value;
+		conn = nil;
+	}
+	state.prompts[pp] = rec
+	local linked, conn = pcall(function()
+		return pp:GetPropertyChangedSignal("RequiresLineOfSight"):Connect(function()
+			if state.active ~= true or state.prompts[pp] ~= rec then
+				return
+			end
+			pcall(function()
+				if pp.RequiresLineOfSight ~= false then
+					pp.RequiresLineOfSight = false
+				end
+			end)
+		end)
+	end)
+	if not linked then
+		state.prompts[pp] = nil
+		return
+	end
+	rec.conn = conn
+	pcall(function()
+		if pp.RequiresLineOfSight ~= false then
+			pp.RequiresLineOfSight = false
+		end
+	end)
+end
+
+NAmanage.PromptWallsUntrack = function(pp, restore)
+	const state = NAStuff.ppWalls
+	const rec = state.prompts[pp]
+	if not rec then
+		return
+	end
+	state.prompts[pp] = nil
+	rec.conn = NAmanage.tryDisconnect(rec.conn)
+	if restore == true then
+		pcall(function()
+			if pp.RequiresLineOfSight ~= rec.restore then
+				pp.RequiresLineOfSight = rec.restore
+			end
+		end)
+	end
+end
+
+NAmanage.PromptWallsDisable = function()
+	const state = NAStuff.ppWalls
+	state.active = false
+	NAmanage.clrWsH("ppwalls")
+	const prompts = {}
+	for pp in state.prompts do
+		prompts[#prompts + 1] = pp
+	end
+	for _, pp in prompts do
+		NAmanage.PromptWallsUntrack(pp, true)
+	end
+end
+
+NAmanage.RegisterUnloadCleanup("promptwalls_restore", NAmanage.PromptWallsDisable)
+
+cmd.add({"promptwalls","proximitypromptwalls","ppwalls"},{"promptwalls (proximitypromptwalls,ppwalls)","Allows proximity prompts to be used through walls"},function()
+	const state = NAStuff.ppWalls
+	if state.active == true then
+		return
+	end
+	state.active = true
+	NAmanage.setWsH("ppwalls", {
+		added = NAmanage.PromptWallsTrack;
+		removing = function(pp)
+			NAmanage.PromptWallsUntrack(pp, true)
+		end;
+		classNames = { "ProximityPrompt" };
+		enabled = function()
+			return state.active == true
+		end;
+	})
+	NAindex.init()
+	for _, pp in InstancesTbl.proxy do
+		NAmanage.PromptWallsTrack(pp)
+	end
+	DebugNotif("Prompts can now be used through walls",2)
+end)
+
+cmd.add({"unpromptwalls","unproximitypromptwalls","unppwalls"},{"unpromptwalls (unproximitypromptwalls,unppwalls)","Restores the original proximity prompt wall checks"},function()
+	NAmanage.PromptWallsDisable()
+	DebugNotif("Prompt wall checks restored",2)
+end)
+
 cmd.add({"enableproximitypromptservice","enablepps","epps","ppson","ppon"},{"enableproximitypromptservice (enablepps,epps,ppson,ppon)","enable proximity prompt buttons"},function()
 	SafeGetService("ProximityPromptService",false).Enabled = true
 end,true)
