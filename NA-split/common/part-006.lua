@@ -76,9 +76,9 @@ NAmanage.UnloadDisconnectTree = function(root, summary, shallow)
 					value[key] = nil
 				end)
 			elseif kind == "thread" and child ~= currentThread and child ~= unloadThread and task and type(task.cancel) == "function" then
-				const ok = pcall(task.cancel, child)
-				if ok then
-					summary.threads += 1
+				if coroutine.status(child) ~= "dead" then
+					const ok = pcall(task.cancel, child)
+					if ok then summary.threads += 1 end
 				end
 				pcall(function()
 					value[key] = nil
@@ -115,7 +115,7 @@ NAmanage.UnloadCancelRuntimeTasks = function(runtimeState, summary)
 	collect(runtimeState.spawnActive)
 	for i = 1, #pending do
 		const thread = pending[i]
-		if thread ~= currentThread and thread ~= unloadThread then
+		if thread ~= currentThread and thread ~= unloadThread and coroutine.status(thread) ~= "dead" then
 			const ok = pcall(task.cancel, thread)
 			if ok and summary then
 				summary.threads += 1

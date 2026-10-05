@@ -500,6 +500,19 @@ test("cleanup reaches owned connections and suspended tasks through cyclic table
 	check(next(state.waitingThreads) == nil and next(state.spawnActive) == nil and api.pending() == 0, "tracked task retained")
 end)
 
+test("cleanup releases dead task references without cancelling them again", function()
+	local env, api = environment()
+	load(source.cleanup, env)
+	local dead = api.spawn(function() end)
+	env.task.cancel = function(thread) check(coroutine.status(thread) ~= "dead", "dead task was cancelled again") end
+	local summary = { threads = 0; connections = 0 }
+	local root = { task = dead }
+	env.NAmanage.UnloadDisconnectTree(root, summary)
+	local state = { spawnActive = { [dead] = true }; waitingThreads = { [dead] = true } }
+	env.NAmanage.UnloadCancelRuntimeTasks(state, summary)
+	check(root.task == nil and summary.threads == 0 and next(state.spawnActive) == nil and next(state.waitingThreads) == nil, "dead task references remained")
+end)
+
 test("cancelled workspace cache workers cannot complete or overwrite a newer build", function()
 	local env, api = environment()
 	local world = instance("Workspace")

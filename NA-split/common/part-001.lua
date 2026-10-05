@@ -1071,7 +1071,7 @@ end
 
 NAmanage.CancelRuntimeTask = function(thread)
 	if type(thread) ~= "thread" or thread == coroutine.running() then return false end
-	const ok = pcall(task.cancel, thread)
+	const ok = coroutine.status(thread) == "dead" or pcall(task.cancel, thread)
 	if ok then
 		const state = NAmanage._runtimeState
 		if type(state) == "table" then
