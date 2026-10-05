@@ -46,15 +46,15 @@ The deferred executor table adds approximately **1,093 KiB** of live allocations
 
 The full script was executed through the connected Windows client using Potassium v2.5.1. The pinned baseline produced post-loading maximum frames of **100.8 and 149.0 ms**. Completed captures after the FastFlag fix ranged from **26.1 to 67.0 ms**, with no post-loading frames above 100 ms in those captures. These are observations on one desktop, with different cache/session conditions, rather than a controlled low-end benchmark. See [the client results](na-split-client-results.md) and [capture data](na-split-client-captures.json) for individual measurements, lifecycle checks, and limitations.
 
-Physical low-end hardware and long-running gameplay remain unmeasured. Before merging, compare identical settings/plugins on those devices, including chat-history restoration, NPC/ESP activity, executor first open, respawn, and repeated unload/reload. Compare maximum frame duration and retained memory after settling as well as total readiness time. More frequent yields can increase elapsed initialization time while reducing concentrated frame work. Individual native compilation, asset loading/cloning, and arbitrary plugin callbacks remain indivisible unless their implementations cooperate with the budgets. Repeated desktop reloads retained weakly observed runtime objects; neither the engine memory counters nor the audit prove complete garbage collection or the elimination of every leak.
+Physical low-end hardware and long-running gameplay remain unmeasured. Compare identical settings/plugins on those devices, including chat-history restoration, NPC/ESP activity, executor first open, respawn, and repeated unload/reload. Compare maximum frame duration and retained memory after settling as well as total readiness time. More frequent yields can increase elapsed initialization time while reducing concentrated frame work. Individual native compilation, asset loading/cloning, and arbitrary plugin callbacks remain indivisible unless their implementations cooperate with the budgets. Repeated desktop reloads retained weakly observed runtime objects; neither the engine memory counters nor the audit prove complete garbage collection or the elimination of every leak.
 
 Use a fresh baseline cache when testing the old launcher: it does not understand the new fingerprint cache layout. Current launchers accept legacy flat caches and the new layout.
 
-To test this draft branch, unload an existing NA session first, then select its chunk URL before executing its launcher:
+To run the runtime from `main`, unload an existing NA session first and clear any previous chunk URL override before executing its launcher:
 
 ```lua
-getgenv().__NA_SPLIT_BASE_URL = "https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/perf/na-split-audit-20261005/NA-split/common/"
-loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/perf/na-split-audit-20261005/Source.lua"))()
+getgenv().__NA_SPLIT_BASE_URL = nil
+loadstring(game:HttpGet("https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/Source.lua"))()
 ```
 
-Clear `getgenv().__NA_SPLIT_BASE_URL` when returning to the default branch. Loading only the branch launcher without the override still selects the default branch's runtime chunks.
+When testing another branch or pinned commit, set `getgenv().__NA_SPLIT_BASE_URL` to its matching `NA-split/common/` URL before loading that reference's launcher. Clear the override when returning to `main`.
