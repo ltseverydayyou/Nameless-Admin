@@ -500,6 +500,20 @@ test("cleanup reaches owned connections and suspended tasks through cyclic table
 	check(next(state.waitingThreads) == nil and next(state.spawnActive) == nil and api.pending() == 0, "tracked task retained")
 end)
 
+test("cleanup ignores synthetic Disconnect methods and custom iterators", function()
+	local env = environment()
+	load(source.cleanup, env)
+	local probes, iterations, closed = 0, 0, 0
+	local obj = setmetatable({ _kind = "table"; data = {} }, {
+		__index = function(_, key) if key == "Disconnect" then probes += 1; return function() error("borrowed method") end end end;
+		__iter = function() iterations += 1; error("borrowed iterator") end;
+	})
+	local custom = { Disconnect = function() closed += 1 end }
+	local root = { borrowed = obj; owned = custom }
+	env.NAmanage.UnloadDisconnectTree(root, { connections = 0; threads = 0 })
+	check(probes == 0 and iterations == 0 and closed == 1 and root.borrowed == obj and root.owned == nil, "cleanup invoked a metatable or missed a stored handle")
+end)
+
 test("cleanup releases dead task references without cancelling them again", function()
 	local env, api = environment()
 	load(source.cleanup, env)

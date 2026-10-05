@@ -48,25 +48,24 @@ NAmanage.UnloadDisconnectTree = function(root, summary, shallow)
 				summary.connections += 1
 			end
 		end
-		for key, child in value do
+		for key, child in next, value do
 			const kind = typeof(child)
 			const childType = type(child)
+			const disconnectMethod = childType == "table" and rawget(child, "Disconnect") or nil
 			local connectionLike = kind == "RBXScriptConnection"
-			if not shallow and not connectionLike and kind ~= "Instance" and (childType == "table" or childType == "userdata") then
-				local okDisconnect, disconnectMethod = pcall(function()
-					return child and child.Disconnect
-				end)
-				connectionLike = okDisconnect and type(disconnectMethod) == "function"
-			end
+			if not shallow and type(disconnectMethod) == "function" then connectionLike = true end
 			if connectionLike then
 				local ok = pcall(function()
-					child:Disconnect()
+					if childType == "table" then
+						if rawget(child, "Connected") ~= false then disconnectMethod(child) end
+					elseif child.Connected then
+						child:Disconnect()
+					end
 				end)
-				if not ok then
+				if not ok and childType == "table" then
 					ok = pcall(function()
-						if type(child.Disable) == "function" then
-							child:Disable()
-						end
+						const disable = rawget(child, "Disable")
+						if type(disable) == "function" then disable(child) end
 					end)
 				end
 				if ok then
