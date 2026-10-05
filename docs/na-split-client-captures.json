@@ -1,0 +1,2547 @@
+{
+  "baseline": "a2276c3cd5b79392b8021f01678a28523ae639d6",
+  "capturedDate": "2026-10-05",
+  "captures": [
+    {
+      "after": {
+        "elapsed": 23.2638304,
+        "engineLuaMb": 354.09829711914,
+        "executorLuaKb": 35092,
+        "instances": 42150,
+        "totalMb": 2383.24609375
+      },
+      "afterLoadingClose": {
+        "fps": 229.57574411309,
+        "frames": 4619,
+        "maxMs": 149.04054999352,
+        "over100Ms": 2,
+        "over16Ms": 11,
+        "over33Ms": 4,
+        "p95Ms": 5.9914560988545,
+        "p99Ms": 7.9379603266716
+      },
+      "afterSettingsReady": {
+        "fps": 240.05990794716,
+        "frames": 3812,
+        "maxMs": 8.0240191891789,
+        "over100Ms": 0,
+        "over16Ms": 0,
+        "over33Ms": 0,
+        "p95Ms": 5.1576821133494,
+        "p99Ms": 6.0536521486938
+      },
+      "all": {
+        "fps": 228.30093065758,
+        "frames": 5312,
+        "maxMs": 149.04054999352,
+        "over100Ms": 2,
+        "over16Ms": 16,
+        "over33Ms": 7,
+        "p95Ms": 5.9915999881923,
+        "p99Ms": 8.7660420686007
+      },
+      "before": {
+        "elapsed": 1.9999999949505e-06,
+        "engineLuaMb": 321.14636230469,
+        "executorLuaKb": 5359,
+        "instances": 39748,
+        "totalMb": 2271.75
+      },
+      "beforeLoadingClose": {
+        "fps": 220.15277114841,
+        "frames": 693,
+        "maxMs": 63.454017043114,
+        "over100Ms": 0,
+        "over16Ms": 5,
+        "over33Ms": 3,
+        "p95Ms": 6.0127321630716,
+        "p99Ms": 16.017807647586
+      },
+      "cache": [
+        {
+          "root": "NA-split/common/",
+          "version": "db17ac595a02d6be"
+        }
+      ],
+      "captureKey": "na_baseline_1_raw",
+      "elapsed": 23.2638289,
+      "label": "baseline-1",
+      "loaderReturned": 3.3199956000001,
+      "loadingClosed": 3.2615049999999,
+      "reason": "settled",
+      "ref": "a2276c3cd5b79392b8021f01678a28523ae639d6",
+      "runtime": {
+        "connectionBuckets": 1110,
+        "liveConnections": 3246,
+        "perf": {
+          "commandYields": 17,
+          "elapsed": 2.1022410999999,
+          "finished": true,
+          "frames": 429,
+          "instanceYields": 9,
+          "maxFrameMs": 63.454017043114,
+          "readyElapsed": 2.1022410999999,
+          "settingsBuildElapsed": 4.013725,
+          "settingsBuildOk": true,
+          "stages": [
+            {
+              "elapsed": 2.970000014102e-05
+            },
+            {
+              "elapsed": 0.2180636999999
+            },
+            {
+              "elapsed": 0.00097630000004756
+            },
+            {
+              "elapsed": 0.10017010000001
+            },
+            {
+              "elapsed": 9.200000022247e-06
+            },
+            {
+              "elapsed": 0.00031680000006418
+            },
+            {
+              "elapsed": 1.0199999906035e-05
+            },
+            {
+              "elapsed": 6.400000074791e-06
+            },
+            {
+              "elapsed": 1.7200000002049e-05
+            },
+            {
+              "elapsed": 1.3200000012148e-05
+            },
+            {
+              "elapsed": 1.7725868999999
+            }
+          ],
+          "status": "ready",
+          "uiCompileElapsed": 0.011353299999882,
+          "uiFetchElapsed": 0.10408130000019,
+          "uiPrepareElapsed": 0.0015329000000293,
+          "uiSourceMode": "network"
+        },
+        "queuePumping": false,
+        "queueRunning": 0,
+        "settingsReady": true,
+        "spawnActive": 56,
+        "waitingThreads": 9
+      },
+      "settingsReady": 7.3910978000001,
+      "spikes": [
+        {
+          "elapsed": 0.62688079999998,
+          "ms": 34.221101552248,
+          "phase": 1
+        },
+        {
+          "elapsed": 1.1711614000001,
+          "ms": 36.43274307251,
+          "phase": 1
+        },
+        {
+          "elapsed": 1.5717043,
+          "ms": 63.454017043114,
+          "phase": 1
+        },
+        {
+          "elapsed": 3.3227945000001,
+          "ms": 110.52519083023,
+          "phase": 2
+        },
+        {
+          "elapsed": 3.3642651,
+          "ms": 91.200083494186,
+          "phase": 2
+        },
+        {
+          "elapsed": 6.4257501,
+          "ms": 98.920837044716,
+          "phase": 2
+        },
+        {
+          "elapsed": 6.8753482,
+          "ms": 149.04054999352,
+          "phase": 2
+        }
+      ],
+      "splitLoaded": 3.3227945000001
+    },
+    {
+      "after": {
+        "elapsed": 22.5776134,
+        "engineLuaMb": 399.98687744141,
+        "executorLuaKb": 40459,
+        "instances": 42256,
+        "totalMb": 2456.86328125
+      },
+      "afterLoadingClose": {
+        "fps": 232.8105999053,
+        "frames": 4681,
+        "maxMs": 100.82033276558,
+        "over100Ms": 1,
+        "over16Ms": 9,
+        "over33Ms": 2,
+        "p95Ms": 5.9905019588768,
+        "p99Ms": 7.0440508425236
+      },
+      "afterSettingsReady": {
+        "fps": 239.93255868505,
+        "frames": 3716,
+        "maxMs": 11.998356319964,
+        "over100Ms": 0,
+        "over16Ms": 0,
+        "over33Ms": 0,
+        "p95Ms": 5.2628479897976,
+        "p99Ms": 6.0284701175988
+      },
+      "all": {
+        "fps": 231.04215681955,
+        "frames": 5217,
+        "maxMs": 100.82033276558,
+        "over100Ms": 1,
+        "over16Ms": 15,
+        "over33Ms": 5,
+        "p95Ms": 5.993478000164,
+        "p99Ms": 8.0191278830171
+      },
+      "before": {
+        "elapsed": 1.200000042445e-06,
+        "engineLuaMb": 355.69171142578,
+        "executorLuaKb": 5068,
+        "instances": 39829,
+        "totalMb": 2372.0078125
+      },
+      "beforeLoadingClose": {
+        "fps": 216.66878883273,
+        "frames": 536,
+        "maxMs": 60.630157589912,
+        "over100Ms": 0,
+        "over16Ms": 6,
+        "over33Ms": 3,
+        "p95Ms": 6.0173999518156,
+        "p99Ms": 18.280029296875
+      },
+      "cache": [
+        {
+          "root": "NA-split/common/",
+          "version": "db17ac595a02d6be"
+        }
+      ],
+      "captureKey": "na_baseline_session2_raw",
+      "elapsed": 22.5776124,
+      "label": "baseline-session2",
+      "loaderReturned": 2.6386189999998,
+      "loadingClosed": 2.5766558999999,
+      "reason": "settled",
+      "ref": "a2276c3cd5b79392b8021f01678a28523ae639d6",
+      "runtime": {
+        "connectionBuckets": 1114,
+        "liveConnections": 3250,
+        "perf": {
+          "commandYields": 22,
+          "elapsed": 2.0491154000001,
+          "finished": true,
+          "frames": 420,
+          "instanceYields": 9,
+          "maxFrameMs": 60.630157589912,
+          "readyElapsed": 2.0491154000001,
+          "settingsBuildElapsed": 4.3959476,
+          "settingsBuildOk": true,
+          "stages": [
+            {
+              "at": 0.010277000000315,
+              "elapsed": 3.1999999919208e-05,
+              "name": "engine"
+            },
+            {
+              "at": 0.27907410000034,
+              "elapsed": 0.26879710000003,
+              "name": "notifications"
+            },
+            {
+              "at": 0.27977989999999,
+              "elapsed": 0.00070579999965048,
+              "name": "assets"
+            },
+            {
+              "at": 0.27979170000026,
+              "elapsed": 1.1800000265794e-05,
+              "name": "nastuff"
+            },
+            {
+              "at": 0.27979530000039,
+              "elapsed": 3.6000001273351e-06,
+              "name": "loader"
+            },
+            {
+              "at": 0.27999550000004,
+              "elapsed": 0.00020019999965371,
+              "name": "changelog"
+            },
+            {
+              "at": 0.28000220000013,
+              "elapsed": 6.7000000854023e-06,
+              "name": "uiloader"
+            },
+            {
+              "at": 0.28000920000022,
+              "elapsed": 7.0000000960135e-06,
+              "name": "queue"
+            },
+            {
+              "at": 0.28002560000004,
+              "elapsed": 1.639999982217e-05,
+              "name": "prefetch"
+            },
+            {
+              "at": 0.28003960000024,
+              "elapsed": 1.4000000192027e-05,
+              "name": "roblox_api_prefetch"
+            },
+            {
+              "at": 2.0491068000001,
+              "elapsed": 1.7690671999999,
+              "name": "final"
+            }
+          ],
+          "status": "ready",
+          "uiCompileElapsed": 0.010222699999758,
+          "uiFetchElapsed": 0.10353649999979,
+          "uiPrepareElapsed": 0.0015766999999869,
+          "uiSourceMode": "network"
+        },
+        "queuePumping": false,
+        "queueRunning": 0,
+        "settingsReady": true,
+        "spawnActive": 58,
+        "waitingThreads": 9
+      },
+      "settingsReady": 7.0933150999999,
+      "spikes": [
+        {
+          "elapsed": 0.53981380000005,
+          "ms": 35.24724021554,
+          "phase": 1
+        },
+        {
+          "elapsed": 0.87720189999982,
+          "ms": 60.630157589912,
+          "phase": 1
+        },
+        {
+          "elapsed": 2.4565853999998,
+          "ms": 33.941078931093,
+          "phase": 1
+        },
+        {
+          "elapsed": 2.6413561999998,
+          "ms": 100.82033276558,
+          "phase": 2
+        },
+        {
+          "elapsed": 2.6817526,
+          "ms": 92.595912516117,
+          "phase": 2
+        }
+      ],
+      "splitLoaded": 2.6413561999998
+    },
+    {
+      "after": {
+        "elapsed": 22.8109995,
+        "engineLuaMb": 436.11172485352,
+        "executorLuaKb": 37695,
+        "instances": 41415,
+        "totalMb": 1206.359375
+      },
+      "afterLoadingClose": {
+        "fps": 234.57562596029,
+        "frames": 4693,
+        "maxMs": 171.7271655798,
+        "over100Ms": 2,
+        "over16Ms": 7,
+        "over33Ms": 3,
+        "p95Ms": 5.9887561947107,
+        "p99Ms": 6.353375967592
+      },
+      "afterSettingsReady": {
+        "fps": 239.65404217903,
+        "frames": 3240,
+        "maxMs": 15.956480056047,
+        "over100Ms": 0,
+        "over16Ms": 0,
+        "over33Ms": 0,
+        "p95Ms": 5.9812557883561,
+        "p99Ms": 6.0229259543121
+      },
+      "all": {
+        "fps": 232.27265414531,
+        "frames": 5299,
+        "maxMs": 171.7271655798,
+        "over100Ms": 2,
+        "over16Ms": 10,
+        "over33Ms": 4,
+        "p95Ms": 5.9937359765172,
+        "p99Ms": 8.0267116427422
+      },
+      "before": {
+        "elapsed": 6.8999997893116e-06,
+        "engineLuaMb": 393.66705322266,
+        "executorLuaKb": 7885,
+        "instances": 39008,
+        "totalMb": 1128.046875
+      },
+      "beforeLoadingClose": {
+        "fps": 215.86080693263,
+        "frames": 606,
+        "maxMs": 38.887869566679,
+        "over100Ms": 0,
+        "over16Ms": 3,
+        "over33Ms": 1,
+        "p95Ms": 8.9970389381051,
+        "p99Ms": 15.041099861264
+      },
+      "cache": [
+        {
+          "root": "NA-split/common/",
+          "version": "7ea75982904b6d8c"
+        }
+      ],
+      "captureKey": "na_opt_c3_valid",
+      "chunks": [
+        {
+          "compile": 0.0081873999997697,
+          "execute": 0.20389279999927,
+          "fetch": 0.30026820000057,
+          "part": "part-001.lua"
+        },
+        {
+          "compile": 0.0085675000000265,
+          "execute": 0.00047670000003563,
+          "fetch": 0.00071699999989505,
+          "part": "part-002.lua"
+        },
+        {
+          "compile": 0.0076423999998951,
+          "execute": 0.0019007000000784,
+          "fetch": 0.00076549999994313,
+          "part": "part-003.lua"
+        },
+        {
+          "compile": 0.0076640000006591,
+          "execute": 0.43752889999996,
+          "fetch": 0.00080859999980021,
+          "part": "part-004.lua"
+        },
+        {
+          "compile": 0.010490500000742,
+          "execute": 0.0066473000006226,
+          "fetch": 0.0006892000001244,
+          "part": "part-005.lua"
+        },
+        {
+          "compile": 0.008549099999982,
+          "execute": 0.00016090000008262,
+          "fetch": 0.30868699999974,
+          "part": "part-006.lua"
+        },
+        {
+          "compile": 0.010921699999926,
+          "execute": 0.0007236000001285,
+          "fetch": 0.0014885000000504,
+          "part": "part-007.lua"
+        },
+        {
+          "compile": 0.007704300000114,
+          "execute": 1.1699999959092e-05,
+          "fetch": 0.00071810000008554,
+          "part": "part-008.lua"
+        },
+        {
+          "compile": 0.010970299999826,
+          "execute": 0.0028486000001067,
+          "fetch": 0.00082939999992959,
+          "part": "part-009.lua"
+        },
+        {
+          "compile": 0.0098774000007325,
+          "execute": 0.010540000000219,
+          "fetch": 0.0011926999995922,
+          "part": "part-010.lua"
+        },
+        {
+          "compile": 0.007760600000438,
+          "execute": 0.0049226999999519,
+          "fetch": 0.00064670000028855,
+          "part": "part-011.lua"
+        },
+        {
+          "compile": 0.0079735999997865,
+          "execute": 0.013190499999837,
+          "fetch": 0.0007605999999214,
+          "part": "part-012.lua"
+        },
+        {
+          "compile": 0.010244299999613,
+          "execute": 0.010662199999388,
+          "fetch": 0.000805799999398,
+          "part": "part-013.lua"
+        },
+        {
+          "compile": 0.0086953999998514,
+          "execute": 0.0029196000004958,
+          "fetch": 0.00064360000033048,
+          "part": "part-014.lua"
+        },
+        {
+          "compile": 0.0087573000000702,
+          "execute": 0.0064607000003889,
+          "fetch": 0.00065230000018346,
+          "part": "part-015.lua"
+        },
+        {
+          "compile": 0.008858400000463,
+          "execute": 0.0045219000003272,
+          "fetch": 0.31347129999995,
+          "part": "part-016.lua"
+        },
+        {
+          "compile": 0.0081036999999924,
+          "execute": 0.0035867000005965,
+          "fetch": 0.0017907000001287,
+          "part": "part-017.lua"
+        },
+        {
+          "compile": 0.0087647999998808,
+          "execute": 0.006850900000245,
+          "fetch": 0.0013505000006262,
+          "part": "part-018.lua"
+        },
+        {
+          "compile": 0.012321100000008,
+          "execute": 0.38747609999973,
+          "fetch": 0.0016387000005125,
+          "part": "part-019.lua"
+        },
+        {
+          "compile": 0.010087399999975,
+          "execute": 0.014869000000544,
+          "fetch": 0.0015426999998454,
+          "part": "part-020.lua"
+        },
+        {
+          "compile": 0.0085676999997304,
+          "execute": 0.00019009999959962,
+          "fetch": 0.0012475000003178,
+          "part": "part-021.lua"
+        },
+        {
+          "compile": 0.0088088999991669,
+          "execute": 0.00050009999995382,
+          "fetch": 0.0014310000005935,
+          "part": "part-022.lua"
+        },
+        {
+          "compile": 0.032083600000078,
+          "execute": 0.00038370000038412,
+          "fetch": 0.0028990000000704,
+          "part": "part-023.lua"
+        },
+        {
+          "compile": 0.012408200000209,
+          "execute": 0.00040889999945648,
+          "fetch": 0.0019273999996585,
+          "part": "part-024.lua"
+        },
+        {
+          "compile": 0.0080814999992072,
+          "execute": 0.039289600000302,
+          "fetch": 0.00097900000037043,
+          "part": "part-025.lua"
+        },
+        {
+          "compile": 0.0039635000002818,
+          "execute": 0.0035601999998107,
+          "fetch": 0.0013239999998405,
+          "part": "part-026.lua"
+        },
+        {
+          "compile": 0.028153799999927,
+          "execute": 7.0799999775772e-05,
+          "fetch": 0.002169700000195,
+          "part": "part-027.lua"
+        },
+        {
+          "compile": 0.0010813000008056,
+          "execute": 0.00012700000024779,
+          "fetch": 0.0011308000002828,
+          "part": "part-028.lua"
+        },
+        {
+          "compile": 0.01102660000015,
+          "execute": 0.042525400000159,
+          "fetch": 0.0014107999995758,
+          "part": "part-029.lua"
+        }
+      ],
+      "elapsed": 22.8109979,
+      "guard": {
+        "loading": "nil",
+        "ok": true,
+        "sameHost": true,
+        "stateWritten": true
+      },
+      "label": "optimized-c3-delta",
+      "loaderReturned": 3.0317317999998,
+      "loadingClosed": 2.8087984000003,
+      "reason": "settled",
+      "ref": "c3f33ad82bbb9fd6c01d780bc33d335f1daed404",
+      "runtime": {
+        "connectionBuckets": 1107,
+        "liveConnections": 3246,
+        "perf": {
+          "commandYields": 30,
+          "elapsed": 1.9008140000005,
+          "finished": true,
+          "frames": 2969,
+          "instanceYields": 593,
+          "maxFrameMs": 171.7271655798,
+          "readyElapsed": 1.9008140000005,
+          "settingsBuildElapsed": 6.3415337000006,
+          "settingsBuildOk": true,
+          "stages": [
+            {
+              "at": 0.01257170000008,
+              "elapsed": 2.9599999834318e-05,
+              "name": "engine"
+            },
+            {
+              "at": 0.22809360000065,
+              "elapsed": 0.21552190000057,
+              "name": "notifications"
+            },
+            {
+              "at": 0.22901009999987,
+              "elapsed": 0.00091649999922083,
+              "name": "assets"
+            },
+            {
+              "at": 0.27691080000022,
+              "elapsed": 0.047900700000355,
+              "name": "nastuff"
+            },
+            {
+              "at": 0.27693069999987,
+              "elapsed": 1.9899999642803e-05,
+              "name": "loader"
+            },
+            {
+              "at": 0.2773143000004,
+              "elapsed": 0.00038360000053217,
+              "name": "changelog"
+            },
+            {
+              "at": 0.44686869999987,
+              "elapsed": 0.16955439999947,
+              "name": "uiloader"
+            },
+            {
+              "at": 0.44688470000074,
+              "elapsed": 1.6000000869099e-05,
+              "name": "queue"
+            },
+            {
+              "at": 0.4469151000003,
+              "elapsed": 3.0399999559449e-05,
+              "name": "prefetch"
+            },
+            {
+              "at": 0.44692990000021,
+              "elapsed": 1.4799999917159e-05,
+              "name": "roblox_api_prefetch"
+            },
+            {
+              "at": 1.9008081000002,
+              "elapsed": 1.4538782,
+              "name": "final"
+            }
+          ],
+          "status": "ready",
+          "uiCompileElapsed": 0.011609199999839,
+          "uiFetchElapsed": 0.10821450000003,
+          "uiPrepareElapsed": 0.001376899999741,
+          "uiSourceMode": "network"
+        },
+        "queuePumping": false,
+        "queueRunning": 0,
+        "settingsReady": true,
+        "spawnActive": 14,
+        "waitingThreads": 9
+      },
+      "settingsReady": 9.2949981000002,
+      "spikes": [
+        {
+          "elapsed": 2.7531528,
+          "ms": 38.887869566679,
+          "phase": 1
+        },
+        {
+          "elapsed": 2.8651381999998,
+          "ms": 34.940779209137,
+          "phase": 2
+        },
+        {
+          "elapsed": 5.4412879000001,
+          "ms": 104.70508784056,
+          "phase": 2
+        },
+        {
+          "elapsed": 5.9092805,
+          "ms": 171.7271655798,
+          "phase": 2
+        }
+      ],
+      "splitLoaded": 3.0324594000003
+    },
+    {
+      "after": {
+        "elapsed": 23.0789295,
+        "engineLuaMb": 367.16384887695,
+        "executorLuaKb": 35339,
+        "instances": 45235,
+        "totalMb": 2498.046875
+      },
+      "afterLoadingClose": {
+        "fps": 235.79090047227,
+        "frames": 4718,
+        "maxMs": 26.137620210648,
+        "over100Ms": 0,
+        "over16Ms": 3,
+        "over33Ms": 0,
+        "p95Ms": 5.9972759336233,
+        "p99Ms": 7.9060159623623
+      },
+      "afterSettingsReady": {
+        "fps": 239.71122698233,
+        "frames": 2922,
+        "maxMs": 15.946224331856,
+        "over100Ms": 0,
+        "over16Ms": 0,
+        "over33Ms": 0,
+        "p95Ms": 5.297624040395,
+        "p99Ms": 6.0391020961106
+      },
+      "all": {
+        "fps": 232.95723777613,
+        "frames": 5378,
+        "maxMs": 36.505147814751,
+        "over100Ms": 0,
+        "over16Ms": 7,
+        "over33Ms": 1,
+        "p95Ms": 6.0070441104472,
+        "p99Ms": 8.9476285502315
+      },
+      "before": {
+        "elapsed": 5.3999992815079e-06,
+        "engineLuaMb": 321.19293212891,
+        "executorLuaKb": 5215,
+        "instances": 42793,
+        "totalMb": 2407.48046875
+      },
+      "beforeLoadingClose": {
+        "fps": 214.52754186616,
+        "frames": 660,
+        "maxMs": 36.505147814751,
+        "over100Ms": 0,
+        "over16Ms": 4,
+        "over33Ms": 1,
+        "p95Ms": 8.0506717786193,
+        "p99Ms": 15.893887728453
+      },
+      "cache": [
+        {
+          "root": "NA-split/common/",
+          "version": "727ed042b568bcff"
+        }
+      ],
+      "captureKey": "na_after_flags_1",
+      "chunks": [
+        {
+          "compile": 0.0093080999995436,
+          "execute": 0.067422400000396,
+          "fetch": 0.00080919999982143,
+          "part": "part-001.lua"
+        },
+        {
+          "compile": 0.010408300000563,
+          "execute": 0.00045940000018163,
+          "fetch": 0.0009844999995039,
+          "part": "part-002.lua"
+        },
+        {
+          "compile": 0.0083253000002514,
+          "execute": 0.0014767000002394,
+          "fetch": 0.0018313000000489,
+          "part": "part-003.lua"
+        },
+        {
+          "compile": 0.0085597000006601,
+          "execute": 0.47546299999976,
+          "fetch": 0.0010371000007581,
+          "part": "part-004.lua"
+        },
+        {
+          "compile": 0.010376700000052,
+          "execute": 0.0067935999995825,
+          "fetch": 0.0013083000003462,
+          "part": "part-005.lua"
+        },
+        {
+          "compile": 0.0081318000002284,
+          "execute": 0.00013169999965612,
+          "fetch": 0.4879664,
+          "part": "part-006.lua"
+        },
+        {
+          "compile": 0.010359400000198,
+          "execute": 0.00084830000014335,
+          "fetch": 0.0008812999994916,
+          "part": "part-007.lua"
+        },
+        {
+          "compile": 0.0090355000002091,
+          "execute": 4.100000296603e-06,
+          "fetch": 0.00096499999926891,
+          "part": "part-008.lua"
+        },
+        {
+          "compile": 0.011086700000305,
+          "execute": 0.0026514000001043,
+          "fetch": 0.00082089999978052,
+          "part": "part-009.lua"
+        },
+        {
+          "compile": 0.011886599999343,
+          "execute": 0.0099513000004663,
+          "fetch": 0.00074390000008862,
+          "part": "part-010.lua"
+        },
+        {
+          "compile": 0.0080263999998351,
+          "execute": 0.01325209999959,
+          "fetch": 0.00082060000022466,
+          "part": "part-011.lua"
+        },
+        {
+          "compile": 0.0096430000003238,
+          "execute": 0.0061746999999741,
+          "fetch": 0.00067029999991064,
+          "part": "part-012.lua"
+        },
+        {
+          "compile": 0.010025100000348,
+          "execute": 0.0045392000001812,
+          "fetch": 0.00074000000040542,
+          "part": "part-013.lua"
+        },
+        {
+          "compile": 0.011220600000343,
+          "execute": 0.0031070999993972,
+          "fetch": 0.00066820000029111,
+          "part": "part-014.lua"
+        },
+        {
+          "compile": 0.0096562999997332,
+          "execute": 0.006856300000436,
+          "fetch": 0.00071529999968334,
+          "part": "part-015.lua"
+        },
+        {
+          "compile": 0.0091081999999005,
+          "execute": 0.0079101000001174,
+          "fetch": 0.0007249000000229,
+          "part": "part-016.lua"
+        },
+        {
+          "compile": 0.0099837999996453,
+          "execute": 0.0045637000002898,
+          "fetch": 0.0011383000000933,
+          "part": "part-017.lua"
+        },
+        {
+          "compile": 0.010599600000205,
+          "execute": 0.0093888000001243,
+          "fetch": 0.00074000000040542,
+          "part": "part-018.lua"
+        },
+        {
+          "compile": 0.012126499999795,
+          "execute": 0.39368879999984,
+          "fetch": 0.00084229999993113,
+          "part": "part-019.lua"
+        },
+        {
+          "compile": 0.010702300000048,
+          "execute": 0.013842499999555,
+          "fetch": 0.00095509999937349,
+          "part": "part-020.lua"
+        },
+        {
+          "compile": 0.0094710000003033,
+          "execute": 0.00021170000036363,
+          "fetch": 0.00073760000032053,
+          "part": "part-021.lua"
+        },
+        {
+          "compile": 0.0096390000007887,
+          "execute": 0.00045480000062526,
+          "fetch": 0.000829600000543,
+          "part": "part-022.lua"
+        },
+        {
+          "compile": 0.032183499999519,
+          "execute": 0.00031439999929717,
+          "fetch": 0.0021444999993037,
+          "part": "part-023.lua"
+        },
+        {
+          "compile": 0.012726899999507,
+          "execute": 0.00041560000045138,
+          "fetch": 0.0010412000001452,
+          "part": "part-024.lua"
+        },
+        {
+          "compile": 0.0086460000002262,
+          "execute": 0.03825549999965,
+          "fetch": 0.00068539999938366,
+          "part": "part-025.lua"
+        },
+        {
+          "compile": 0.0032756000000518,
+          "execute": 0.0029875999998694,
+          "fetch": 0.00057730000025913,
+          "part": "part-026.lua"
+        },
+        {
+          "compile": 0.024679799999831,
+          "execute": 3.98000001951e-05,
+          "fetch": 0.3875921000008,
+          "part": "part-027.lua"
+        },
+        {
+          "compile": 0.00080800000068848,
+          "execute": 6.1099999584258e-05,
+          "fetch": 0.00065730000005715,
+          "part": "part-028.lua"
+        },
+        {
+          "compile": 0.010750399999779,
+          "execute": 0.041168299999299,
+          "fetch": 0.00089180000031774,
+          "part": "part-029.lua"
+        }
+      ],
+      "elapsed": 23.0789282,
+      "guard": {
+        "loading": "nil",
+        "ok": true,
+        "sameHost": true,
+        "stateWritten": true
+      },
+      "label": "optimized-3e-delta",
+      "loaderReturned": 3.6612379999997,
+      "loadingClosed": 3.075742,
+      "reason": "settled",
+      "ref": "3e1552bfbc1c88e614e2253a2dd38ff1c5341c38",
+      "runtime": {
+        "connectionBuckets": 1115,
+        "liveConnections": 3254,
+        "lowEndMode": false,
+        "networkPauseDisabled": true,
+        "perf": {
+          "commandYields": 31,
+          "elapsed": 1.829753,
+          "finished": true,
+          "frames": 3147,
+          "instanceYields": 583,
+          "maxFrameMs": 36.505147814751,
+          "readyElapsed": 1.829753,
+          "settingsBuildElapsed": 7.2943284000003,
+          "settingsBuildOk": true,
+          "stages": [
+            {
+              "at": 0.014764399999876,
+              "elapsed": 4.0100000660459e-05,
+              "name": "engine"
+            },
+            {
+              "at": 0.39631159999954,
+              "elapsed": 0.38154719999966,
+              "name": "notifications"
+            },
+            {
+              "at": 0.39700449999964,
+              "elapsed": 0.00069290000010369,
+              "name": "assets"
+            },
+            {
+              "at": 0.39701599999989,
+              "elapsed": 1.1500000255182e-05,
+              "name": "nastuff"
+            },
+            {
+              "at": 0.39702359999956,
+              "elapsed": 7.5999996624887e-06,
+              "name": "loader"
+            },
+            {
+              "at": 0.39723090000007,
+              "elapsed": 0.00020730000051117,
+              "name": "changelog"
+            },
+            {
+              "at": 0.48672159999933,
+              "elapsed": 0.08949069999926,
+              "name": "uiloader"
+            },
+            {
+              "at": 0.48673509999935,
+              "elapsed": 1.3500000022759e-05,
+              "name": "queue"
+            },
+            {
+              "at": 0.48676189999969,
+              "elapsed": 2.6800000341609e-05,
+              "name": "prefetch"
+            },
+            {
+              "at": 0.48677709999993,
+              "elapsed": 1.5200000234472e-05,
+              "name": "roblox_api_prefetch"
+            },
+            {
+              "at": 1.8297468000001,
+              "elapsed": 1.3429697000001,
+              "name": "final"
+            }
+          ],
+          "status": "ready",
+          "uiCompileElapsed": 0.012426199999936,
+          "uiFetchElapsed": 0.1054137000001,
+          "uiPrepareElapsed": 0.0018308999997316,
+          "uiSourceMode": "network"
+        },
+        "queuePumping": false,
+        "queueRunning": 0,
+        "settingsReady": true,
+        "spawnActive": 17,
+        "waitingThreads": 9
+      },
+      "segments": {},
+      "settingsReady": 10.8936697,
+      "spikes": [
+        {
+          "elapsed": 3.0220850999995,
+          "ms": 36.505147814751,
+          "phase": 1
+        }
+      ],
+      "splitLoaded": 3.6615031000001
+    },
+    {
+      "after": {
+        "elapsed": 22.413496,
+        "engineLuaMb": 360.07135009766,
+        "executorLuaKb": 42068,
+        "instances": 45389,
+        "totalMb": 2468.8984375
+      },
+      "afterLoadingClose": {
+        "fps": 234.57652398214,
+        "frames": 4693,
+        "maxMs": 34.436043351889,
+        "over100Ms": 0,
+        "over16Ms": 4,
+        "over33Ms": 1,
+        "p95Ms": 5.9945518150926,
+        "p99Ms": 8.0414963886142
+      },
+      "afterSettingsReady": {
+        "fps": 239.43455866555,
+        "frames": 2960,
+        "maxMs": 18.986759707332,
+        "over100Ms": 0,
+        "over16Ms": 1,
+        "over33Ms": 0,
+        "p95Ms": 5.4638008587062,
+        "p99Ms": 6.0256319120526
+      },
+      "all": {
+        "fps": 231.8884809155,
+        "frames": 5198,
+        "maxMs": 38.76069560647,
+        "over100Ms": 0,
+        "over16Ms": 9,
+        "over33Ms": 2,
+        "p95Ms": 6.0011819005013,
+        "p99Ms": 9.046683087945
+      },
+      "before": {
+        "elapsed": 4.2000001485576e-06,
+        "engineLuaMb": 315.13446044922,
+        "executorLuaKb": 4435,
+        "instances": 42964,
+        "totalMb": 2373.47265625
+      },
+      "beforeLoadingClose": {
+        "fps": 209.57114556168,
+        "frames": 505,
+        "maxMs": 38.76069560647,
+        "over100Ms": 0,
+        "over16Ms": 5,
+        "over33Ms": 1,
+        "p95Ms": 10.610274039209,
+        "p99Ms": 16.041344031692
+      },
+      "cache": [
+        {
+          "root": "NA-split/common/",
+          "version": "544fea68a932244d"
+        }
+      ],
+      "captureKey": "na_b4_warm_1",
+      "chunks": [
+        {
+          "compile": 0.0083884999994552,
+          "execute": 0.56743329999972,
+          "fetch": 0.0012815999998566,
+          "part": "part-001.lua"
+        },
+        {
+          "compile": 0.0094053000002532,
+          "execute": 0.00056060000042635,
+          "fetch": 0.00079619999996794,
+          "part": "part-002.lua"
+        },
+        {
+          "compile": 0.0080324000000473,
+          "execute": 0.0016400000004069,
+          "fetch": 0.00068709999959538,
+          "part": "part-003.lua"
+        },
+        {
+          "compile": 0.0077861999998277,
+          "execute": 0.27399380000043,
+          "fetch": 0.00081700000009732,
+          "part": "part-004.lua"
+        },
+        {
+          "compile": 0.011267700000644,
+          "execute": 0.0069167999999991,
+          "fetch": 0.0008068999995885,
+          "part": "part-005.lua"
+        },
+        {
+          "compile": 0.0091578999999911,
+          "execute": 0.00013440000020637,
+          "fetch": 0.00097090000053868,
+          "part": "part-006.lua"
+        },
+        {
+          "compile": 0.0090350999998918,
+          "execute": 0.00069329999951151,
+          "fetch": 0.00079499999992549,
+          "part": "part-007.lua"
+        },
+        {
+          "compile": 0.0074242000000595,
+          "execute": 6.7999999373569e-06,
+          "fetch": 0.00097310000001016,
+          "part": "part-008.lua"
+        },
+        {
+          "compile": 0.0099170000003141,
+          "execute": 0.0030138000001898,
+          "fetch": 0.0007300999996005,
+          "part": "part-009.lua"
+        },
+        {
+          "compile": 0.010623600000145,
+          "execute": 0.0094814999993105,
+          "fetch": 0.0007644999996046,
+          "part": "part-010.lua"
+        },
+        {
+          "compile": 0.0096240000002581,
+          "execute": 0.0067835999998351,
+          "fetch": 0.00091859999974986,
+          "part": "part-011.lua"
+        },
+        {
+          "compile": 0.0078593999996883,
+          "execute": 0.0077905999996801,
+          "fetch": 0.00072040000031848,
+          "part": "part-012.lua"
+        },
+        {
+          "compile": 0.010901699999522,
+          "execute": 0.0095288000002256,
+          "fetch": 0.00067570000010164,
+          "part": "part-013.lua"
+        },
+        {
+          "compile": 0.01062820000061,
+          "execute": 0.0025753999998415,
+          "fetch": 0.0006653999998889,
+          "part": "part-014.lua"
+        },
+        {
+          "compile": 0.011109199999737,
+          "execute": 0.0042128000004595,
+          "fetch": 0.0017475000004197,
+          "part": "part-015.lua"
+        },
+        {
+          "compile": 0.0092755000005127,
+          "execute": 0.011707599999681,
+          "fetch": 0.00067239999953017,
+          "part": "part-016.lua"
+        },
+        {
+          "compile": 0.0093300999997155,
+          "execute": 0.0039869999991424,
+          "fetch": 0.00077169999985927,
+          "part": "part-017.lua"
+        },
+        {
+          "compile": 0.0093346000003294,
+          "execute": 0.0062479000007443,
+          "fetch": 0.00070310000046447,
+          "part": "part-018.lua"
+        },
+        {
+          "compile": 0.012468199999603,
+          "execute": 0.42838670000037,
+          "fetch": 0.0013128000000506,
+          "part": "part-019.lua"
+        },
+        {
+          "compile": 0.010208300000158,
+          "execute": 0.015645700000277,
+          "fetch": 0.0012529999994513,
+          "part": "part-020.lua"
+        },
+        {
+          "compile": 0.010293899999851,
+          "execute": 0.00025300000015704,
+          "fetch": 0.0006853000004412,
+          "part": "part-021.lua"
+        },
+        {
+          "compile": 0.010177900000599,
+          "execute": 0.00045479999971576,
+          "fetch": 0.00069650000023103,
+          "part": "part-022.lua"
+        },
+        {
+          "compile": 0.032261999999719,
+          "execute": 0.00035730000035983,
+          "fetch": 0.0021444000003612,
+          "part": "part-023.lua"
+        },
+        {
+          "compile": 0.012428299999556,
+          "execute": 0.0004823999997825,
+          "fetch": 0.0011013000003004,
+          "part": "part-024.lua"
+        },
+        {
+          "compile": 0.0089986000002682,
+          "execute": 0.039944200000718,
+          "fetch": 0.00071519999983138,
+          "part": "part-025.lua"
+        },
+        {
+          "compile": 0.003970499999923,
+          "execute": 0.0030464999999822,
+          "fetch": 0.00052690000029543,
+          "part": "part-026.lua"
+        },
+        {
+          "compile": 0.02674130000014,
+          "execute": 4.1700000110723e-05,
+          "fetch": 0.0015053999995871,
+          "part": "part-027.lua"
+        },
+        {
+          "compile": 0.00080690000049799,
+          "execute": 6.9699999585282e-05,
+          "fetch": 0.00049530000069353,
+          "part": "part-028.lua"
+        },
+        {
+          "compile": 0.011436699999649,
+          "execute": 0.055206899999575,
+          "fetch": 0.00083840000024793,
+          "part": "part-029.lua"
+        }
+      ],
+      "elapsed": 22.4134942,
+      "guard": {
+        "loading": "nil",
+        "ok": true,
+        "sameHost": true,
+        "stateWritten": true
+      },
+      "label": "optimized-b4-content-warm",
+      "loaderReturned": 2.5398316999999,
+      "loadingClosed": 2.4116374000005,
+      "reason": "settled",
+      "ref": "b4afe3b68e0e1c81b447e25036da4ed26218781c",
+      "runtime": {
+        "connectionBuckets": 1112,
+        "liveConnections": 3251,
+        "lowEndMode": false,
+        "networkPauseDisabled": true,
+        "perf": {
+          "commandYields": 30,
+          "elapsed": 1.1760639000004,
+          "finished": true,
+          "frames": 2997,
+          "instanceYields": 586,
+          "maxFrameMs": 38.76069560647,
+          "readyElapsed": 1.1760639000004,
+          "settingsBuildElapsed": 7.4973661000004,
+          "settingsBuildOk": true,
+          "stages": [
+            {
+              "at": 0.0129594,
+              "elapsed": 1.0799999472511e-05,
+              "name": "engine"
+            },
+            {
+              "at": 0.28278500000033,
+              "elapsed": 0.26982560000033,
+              "name": "notifications"
+            },
+            {
+              "at": 0.28350880000016,
+              "elapsed": 0.00072379999983241,
+              "name": "assets"
+            },
+            {
+              "at": 0.28352600000017,
+              "elapsed": 1.7200000002049e-05,
+              "name": "nastuff"
+            },
+            {
+              "at": 0.28353040000002,
+              "elapsed": 4.3999998524669e-06,
+              "name": "loader"
+            },
+            {
+              "at": 0.28384740000001,
+              "elapsed": 0.00031699999999546,
+              "name": "changelog"
+            },
+            {
+              "at": 0.28385750000052,
+              "elapsed": 1.0100000508828e-05,
+              "name": "uiloader"
+            },
+            {
+              "at": 0.2838655000005,
+              "elapsed": 7.9999999798019e-06,
+              "name": "queue"
+            },
+            {
+              "at": 0.28389460000017,
+              "elapsed": 2.909999966505e-05,
+              "name": "prefetch"
+            },
+            {
+              "at": 0.28391400000055,
+              "elapsed": 1.940000038303e-05,
+              "name": "roblox_api_prefetch"
+            },
+            {
+              "at": 1.176058,
+              "elapsed": 0.89214399999946,
+              "name": "final"
+            }
+          ],
+          "status": "ready",
+          "uiCompileElapsed": 0.011898400000064,
+          "uiFetchElapsed": 0.1546913000002,
+          "uiPrepareElapsed": 0.0016473000005135,
+          "uiSourceMode": "network"
+        },
+        "queuePumping": false,
+        "queueRunning": 0,
+        "settingsReady": true,
+        "spawnActive": 14,
+        "waitingThreads": 9
+      },
+      "segments": {},
+      "settingsReady": 10.054575300001,
+      "spikes": [
+        {
+          "elapsed": 2.3555219,
+          "ms": 38.76069560647,
+          "phase": 1
+        },
+        {
+          "elapsed": 2.4655468000001,
+          "ms": 34.436043351889,
+          "phase": 2
+        }
+      ],
+      "splitLoaded": 2.5416781000004
+    },
+    {
+      "after": {
+        "elapsed": 22.358523,
+        "engineLuaMb": 403.2685546875,
+        "executorLuaKb": 56991,
+        "instances": 44903,
+        "totalMb": 795.28125
+      },
+      "afterLoadingClose": {
+        "fps": 233.0186950946,
+        "frames": 4662,
+        "maxMs": 37.952270358801,
+        "over100Ms": 0,
+        "over16Ms": 8,
+        "over33Ms": 2,
+        "p95Ms": 6.0332221910357,
+        "p99Ms": 8.0006076022983
+      },
+      "afterSettingsReady": {
+        "fps": 237.0084080881,
+        "frames": 3257,
+        "maxMs": 37.952270358801,
+        "over100Ms": 0,
+        "over16Ms": 2,
+        "over33Ms": 1,
+        "p95Ms": 6.0218698345125,
+        "p99Ms": 7.0176399312913
+      },
+      "all": {
+        "fps": 229.6093524779,
+        "frames": 5135,
+        "maxMs": 40.780115872622,
+        "over100Ms": 0,
+        "over16Ms": 17,
+        "over33Ms": 3,
+        "p95Ms": 6.0428101569414,
+        "p99Ms": 12.014532461762
+      },
+      "before": {
+        "elapsed": 6.299999768089e-06,
+        "engineLuaMb": 374.90725708008,
+        "executorLuaKb": 36100,
+        "instances": 41613,
+        "totalMb": 434.13671875
+      },
+      "beforeLoadingClose": {
+        "fps": 200.67089386836,
+        "frames": 473,
+        "maxMs": 40.780115872622,
+        "over100Ms": 0,
+        "over16Ms": 9,
+        "over33Ms": 1,
+        "p95Ms": 12.992524541914,
+        "p99Ms": 19.025985151529
+      },
+      "cache": [
+        {
+          "root": "NA-split/common/",
+          "version": "544fea68a932244d"
+        }
+      ],
+      "captureKey": "na_a4_reload_1",
+      "chunks": [
+        {
+          "compile": 0.009425100000044,
+          "execute": 0.066842700000052,
+          "fetch": 0.0019120999995721,
+          "part": "part-001.lua"
+        },
+        {
+          "compile": 0.011236199999985,
+          "execute": 0.00096880000000965,
+          "fetch": 0.0017302000005657,
+          "part": "part-002.lua"
+        },
+        {
+          "compile": 0.01010529999985,
+          "execute": 0.0024553000002925,
+          "fetch": 0.0016390999999203,
+          "part": "part-003.lua"
+        },
+        {
+          "compile": 0.0093532999999297,
+          "execute": 0.3337818,
+          "fetch": 0.0021109999997861,
+          "part": "part-004.lua"
+        },
+        {
+          "compile": 0.013860000000022,
+          "execute": 0.0093104999996285,
+          "fetch": 0.0024558999994042,
+          "part": "part-005.lua"
+        },
+        {
+          "compile": 0.0094161000006352,
+          "execute": 0.00025170000026264,
+          "fetch": 0.38626530000056,
+          "part": "part-006.lua"
+        },
+        {
+          "compile": 0.0097255000000587,
+          "execute": 0.00083540000014182,
+          "fetch": 0.0017006000007314,
+          "part": "part-007.lua"
+        },
+        {
+          "compile": 0.0094697000004089,
+          "execute": 5.8999994507758e-06,
+          "fetch": 0.0021151999999347,
+          "part": "part-008.lua"
+        },
+        {
+          "compile": 0.010609400000249,
+          "execute": 0.0063289999998233,
+          "fetch": 0.0018467999998393,
+          "part": "part-009.lua"
+        },
+        {
+          "compile": 0.011037899999792,
+          "execute": 0.010662599999705,
+          "fetch": 0.0015542000001005,
+          "part": "part-010.lua"
+        },
+        {
+          "compile": 0.008994700000585,
+          "execute": 0.006381600000168,
+          "fetch": 0.001465599999392,
+          "part": "part-011.lua"
+        },
+        {
+          "compile": 0.0092685999998139,
+          "execute": 0.0099084000003131,
+          "fetch": 0.0016637999997329,
+          "part": "part-012.lua"
+        },
+        {
+          "compile": 0.010497399999622,
+          "execute": 0.0038947000002736,
+          "fetch": 0.0017195000000356,
+          "part": "part-013.lua"
+        },
+        {
+          "compile": 0.010616400000799,
+          "execute": 0.0027815000003102,
+          "fetch": 0.0014251999991757,
+          "part": "part-014.lua"
+        },
+        {
+          "compile": 0.0089477999999872,
+          "execute": 0.0049819999994725,
+          "fetch": 0.0015676000002713,
+          "part": "part-015.lua"
+        },
+        {
+          "compile": 0.009758399999555,
+          "execute": 0.006969900000513,
+          "fetch": 0.0022244000001592,
+          "part": "part-016.lua"
+        },
+        {
+          "compile": 0.0085514000002149,
+          "execute": 0.0047679000008429,
+          "fetch": 0.0017139999999927,
+          "part": "part-017.lua"
+        },
+        {
+          "compile": 0.010183700000198,
+          "execute": 0.0086119999996299,
+          "fetch": 0.0015982000004442,
+          "part": "part-018.lua"
+        },
+        {
+          "compile": 0.012305199999901,
+          "execute": 0.43922789999942,
+          "fetch": 0.001512100000582,
+          "part": "part-019.lua"
+        },
+        {
+          "compile": 0.010281199999554,
+          "execute": 0.017780700000003,
+          "fetch": 0.0017145000001619,
+          "part": "part-020.lua"
+        },
+        {
+          "compile": 0.0091314999999668,
+          "execute": 0.00027160000081494,
+          "fetch": 0.00076710000030289,
+          "part": "part-021.lua"
+        },
+        {
+          "compile": 0.0094164000001911,
+          "execute": 0.00048849999984668,
+          "fetch": 0.00082010000005539,
+          "part": "part-022.lua"
+        },
+        {
+          "compile": 0.032643700000335,
+          "execute": 0.0004638000000341,
+          "fetch": 0.0031808000003366,
+          "part": "part-023.lua"
+        },
+        {
+          "compile": 0.01308760000029,
+          "execute": 0.0005764999996245,
+          "fetch": 0.001834400000007,
+          "part": "part-024.lua"
+        },
+        {
+          "compile": 0.0082487999998193,
+          "execute": 0.045207000000119,
+          "fetch": 0.00073479999991832,
+          "part": "part-025.lua"
+        },
+        {
+          "compile": 0.003847400000268,
+          "execute": 0.0042071999996551,
+          "fetch": 0.00070410000080301,
+          "part": "part-026.lua"
+        },
+        {
+          "compile": 0.025790900000175,
+          "execute": 4.8000000788306e-05,
+          "fetch": 0.0029694000004383,
+          "part": "part-027.lua"
+        },
+        {
+          "compile": 0.00090009999985341,
+          "execute": 8.4100000094622e-05,
+          "fetch": 0.00068150000060996,
+          "part": "part-028.lua"
+        },
+        {
+          "compile": 0.010691199999201,
+          "execute": 0.05769969999983,
+          "fetch": 0.00082769999971788,
+          "part": "part-029.lua"
+        }
+      ],
+      "elapsed": 22.3585212,
+      "guard": {
+        "loading": "nil",
+        "ok": true,
+        "sameHost": true,
+        "stateWritten": true
+      },
+      "label": "optimized-a4-reload-1",
+      "loaderReturned": 2.5992236000002,
+      "loadingClosed": 2.3577218,
+      "reason": "settled",
+      "ref": "a4cad663131a76aa20dff451819103162ebba273",
+      "runtime": {
+        "connectionBuckets": 1113,
+        "liveConnections": 3252,
+        "lowEndMode": false,
+        "networkPauseDisabled": true,
+        "perf": {
+          "commandYields": 29,
+          "elapsed": 1.6588946000002,
+          "finished": true,
+          "frames": 2912,
+          "instanceYields": 567,
+          "maxFrameMs": 40.780115872622,
+          "readyElapsed": 1.6588946000002,
+          "settingsBuildElapsed": 6.1176081000003,
+          "settingsBuildOk": true,
+          "stages": [
+            {
+              "at": 0.01652809999996,
+              "elapsed": 6.5600000198174e-05,
+              "name": "engine"
+            },
+            {
+              "at": 0.29583379999985,
+              "elapsed": 0.2793056999999,
+              "name": "notifications"
+            },
+            {
+              "at": 0.29676949999975,
+              "elapsed": 0.00093569999989995,
+              "name": "assets"
+            },
+            {
+              "at": 0.29678469999999,
+              "elapsed": 1.5200000234472e-05,
+              "name": "nastuff"
+            },
+            {
+              "at": 0.29678890000014,
+              "elapsed": 4.2000001485576e-06,
+              "name": "loader"
+            },
+            {
+              "at": 0.2970249,
+              "elapsed": 0.0002359999998589,
+              "name": "changelog"
+            },
+            {
+              "at": 0.34656160000031,
+              "elapsed": 0.049536700000317,
+              "name": "uiloader"
+            },
+            {
+              "at": 0.34657750000042,
+              "elapsed": 1.5900000107649e-05,
+              "name": "queue"
+            },
+            {
+              "at": 0.34660890000032,
+              "elapsed": 3.1399999897985e-05,
+              "name": "prefetch"
+            },
+            {
+              "at": 0.34662839999964,
+              "elapsed": 1.949999932549e-05,
+              "name": "roblox_api_prefetch"
+            },
+            {
+              "at": 1.6588886,
+              "elapsed": 1.3122602000003,
+              "name": "final"
+            }
+          ],
+          "status": "ready",
+          "uiCompileElapsed": 0.012443200000234,
+          "uiFetchElapsed": 0.15857370000049,
+          "uiPrepareElapsed": 0.0016138000000865,
+          "uiSourceMode": "network"
+        },
+        "queuePumping": false,
+        "queueRunning": 0,
+        "settingsReady": true,
+        "spawnActive": 14,
+        "waitingThreads": 9
+      },
+      "segments": {},
+      "settingsReady": 8.6211141000003,
+      "spikes": [
+        {
+          "elapsed": 2.2984155000004,
+          "ms": 40.780115872622,
+          "phase": 1
+        },
+        {
+          "elapsed": 2.4131877999998,
+          "ms": 34.094553440809,
+          "phase": 2
+        },
+        {
+          "elapsed": 20.3173627,
+          "ms": 37.952270358801,
+          "phase": 3
+        }
+      ],
+      "splitLoaded": 2.6006281999998
+    },
+    {
+      "after": {
+        "elapsed": 63.8122215,
+        "engineLuaMb": 425.30093383789,
+        "executorLuaKb": 81023,
+        "instances": 45532,
+        "totalMb": 1013.953125
+      },
+      "afterLoadingClose": {
+        "fps": 236.09254813923,
+        "frames": 14170,
+        "maxMs": 66.997990012169,
+        "over100Ms": 0,
+        "over16Ms": 11,
+        "over33Ms": 2,
+        "p95Ms": 6.0298261232674,
+        "p99Ms": 7.0476909168065
+      },
+      "afterSettingsReady": {
+        "fps": 239.03173721276,
+        "frames": 12076,
+        "maxMs": 30.096810311079,
+        "over100Ms": 0,
+        "over16Ms": 2,
+        "over33Ms": 0,
+        "p95Ms": 6.0215760022402,
+        "p99Ms": 7.016709074378
+      },
+      "all": {
+        "fps": 232.55104717027,
+        "frames": 14841,
+        "maxMs": 66.997990012169,
+        "over100Ms": 0,
+        "over16Ms": 36,
+        "over33Ms": 6,
+        "p95Ms": 6.0359160415828,
+        "p99Ms": 8.0174403265119
+      },
+      "before": {
+        "elapsed": 1.4199999895936e-05,
+        "engineLuaMb": 404.14971923828,
+        "executorLuaKb": 64104,
+        "instances": 43164,
+        "totalMb": 1025.1328125
+      },
+      "beforeLoadingClose": {
+        "fps": 176.60636926852,
+        "frames": 671,
+        "maxMs": 56.943479925394,
+        "over100Ms": 0,
+        "over16Ms": 25,
+        "over33Ms": 4,
+        "p95Ms": 14.095256105065,
+        "p99Ms": 26.860086247325
+      },
+      "cache": [
+        {
+          "root": "NA-split/common/",
+          "version": "825a6e6fa30a783b"
+        }
+      ],
+      "captureKey": "na_a4_warm_2",
+      "chunks": [
+        {
+          "compile": 0.011570599999686,
+          "execute": 0.26052620000064,
+          "fetch": 0.00086350000037783,
+          "part": "part-001.lua"
+        },
+        {
+          "compile": 0.01359980000052,
+          "execute": 0.0014959999998609,
+          "fetch": 0.001106499999878,
+          "part": "part-002.lua"
+        },
+        {
+          "compile": 0.012870999999905,
+          "execute": 0.0012164999998276,
+          "fetch": 0.0019845000006171,
+          "part": "part-003.lua"
+        },
+        {
+          "compile": 0.011001899999428,
+          "execute": 0.38587580000058,
+          "fetch": 0.0017551000000822,
+          "part": "part-004.lua"
+        },
+        {
+          "compile": 0.013761400000476,
+          "execute": 0.00858049999988,
+          "fetch": 0.0012429000007614,
+          "part": "part-005.lua"
+        },
+        {
+          "compile": 0.0095947999998316,
+          "execute": 0.0002346999999645,
+          "fetch": 0.0009570000001986,
+          "part": "part-006.lua"
+        },
+        {
+          "compile": 0.022237299999688,
+          "execute": 0.0027151999993293,
+          "fetch": 0.0017676000006759,
+          "part": "part-007.lua"
+        },
+        {
+          "compile": 0.010815899999216,
+          "execute": 4.4999997044215e-06,
+          "fetch": 0.0017490999998699,
+          "part": "part-008.lua"
+        },
+        {
+          "compile": 0.011932299999899,
+          "execute": 0.0047192000001814,
+          "fetch": 0.00077380000038829,
+          "part": "part-009.lua"
+        },
+        {
+          "compile": 0.012809399999242,
+          "execute": 0.0075783000002048,
+          "fetch": 0.0021266000003379,
+          "part": "part-010.lua"
+        },
+        {
+          "compile": 0.011700500000188,
+          "execute": 0.011166199999934,
+          "fetch": 0.001065400000698,
+          "part": "part-011.lua"
+        },
+        {
+          "compile": 0.010511899999983,
+          "execute": 0.011750100000427,
+          "fetch": 0.0016499000003023,
+          "part": "part-012.lua"
+        },
+        {
+          "compile": 0.013677099999768,
+          "execute": 0.0068861999998262,
+          "fetch": 0.0012108000000808,
+          "part": "part-013.lua"
+        },
+        {
+          "compile": 0.011642100000245,
+          "execute": 0.0075941000004605,
+          "fetch": 0.00089500000012777,
+          "part": "part-014.lua"
+        },
+        {
+          "compile": 0.011400600000343,
+          "execute": 0.0068114000005153,
+          "fetch": 0.00089200000002165,
+          "part": "part-015.lua"
+        },
+        {
+          "compile": 0.012928699999975,
+          "execute": 0.025996299999861,
+          "fetch": 0.0010933999992631,
+          "part": "part-016.lua"
+        },
+        {
+          "compile": 0.025321999999505,
+          "execute": 0.022830699999759,
+          "fetch": 0.0010790000005727,
+          "part": "part-017.lua"
+        },
+        {
+          "compile": 0.024830000000293,
+          "execute": 0.019908100000066,
+          "fetch": 0.003566000000319,
+          "part": "part-018.lua"
+        },
+        {
+          "compile": 0.03702869999961,
+          "execute": 0.65679510000064,
+          "fetch": 0.0030667000000903,
+          "part": "part-019.lua"
+        },
+        {
+          "compile": 0.014255899999625,
+          "execute": 0.018062199999804,
+          "fetch": 0.0012321000003794,
+          "part": "part-020.lua"
+        },
+        {
+          "compile": 0.011643400000139,
+          "execute": 0.00022900000021764,
+          "fetch": 0.00098520000028657,
+          "part": "part-021.lua"
+        },
+        {
+          "compile": 0.011918399999558,
+          "execute": 0.00065110000014101,
+          "fetch": 0.00096500000017841,
+          "part": "part-022.lua"
+        },
+        {
+          "compile": 0.045940999999402,
+          "execute": 0.0011277000003247,
+          "fetch": 0.0033770999998524,
+          "part": "part-023.lua"
+        },
+        {
+          "compile": 0.015000600000349,
+          "execute": 0.0004493000005823,
+          "fetch": 0.001273100000617,
+          "part": "part-024.lua"
+        },
+        {
+          "compile": 0.010947800000395,
+          "execute": 0.10595759999978,
+          "fetch": 0.0011799000003521,
+          "part": "part-025.lua"
+        },
+        {
+          "compile": 0.0056875000000218,
+          "execute": 0.0078778000006423,
+          "fetch": 0.0014830999998594,
+          "part": "part-026.lua"
+        },
+        {
+          "compile": 0.055403600000318,
+          "execute": 7.259999983944e-05,
+          "fetch": 0.003731499999958,
+          "part": "part-027.lua"
+        },
+        {
+          "compile": 0.00086620000001858,
+          "execute": 6.2500000240107e-05,
+          "fetch": 0.00065020000056393,
+          "part": "part-028.lua"
+        },
+        {
+          "compile": 0.013017000000218,
+          "execute": 0.095207600000322,
+          "fetch": 0.0012477999998737,
+          "part": "part-029.lua"
+        }
+      ],
+      "elapsed": 63.8122197,
+      "guard": {
+        "loading": "nil",
+        "ok": true,
+        "sameHost": true,
+        "stateWritten": true
+      },
+      "label": "optimized-a4-content-warm-2",
+      "loaderReturned": 4.0389444000002,
+      "loadingClosed": 3.8096232999997,
+      "reason": "settled",
+      "ref": "a4cad663131a76aa20dff451819103162ebba273",
+      "runtime": {
+        "connectionBuckets": 1126,
+        "liveConnections": 3265,
+        "lowEndMode": false,
+        "networkPauseDisabled": true,
+        "perf": {
+          "commandYields": 31,
+          "elapsed": 1.7988896999996,
+          "finished": true,
+          "frames": 3317,
+          "instanceYields": 571,
+          "maxFrameMs": 66.997990012169,
+          "readyElapsed": 1.7988896999996,
+          "settingsBuildElapsed": 9.283829,
+          "settingsBuildOk": true,
+          "stages": [
+            {
+              "at": 0.020391699999891,
+              "elapsed": 7.4399999903108e-05,
+              "name": "engine"
+            },
+            {
+              "at": 0.34973790000004,
+              "elapsed": 0.32934620000015,
+              "name": "notifications"
+            },
+            {
+              "at": 0.35062730000027,
+              "elapsed": 0.00088940000023285,
+              "name": "assets"
+            },
+            {
+              "at": 0.3506440000001,
+              "elapsed": 1.6699999832781e-05,
+              "name": "nastuff"
+            },
+            {
+              "at": 0.35064839999995,
+              "elapsed": 4.3999998524669e-06,
+              "name": "loader"
+            },
+            {
+              "at": 0.35090299999956,
+              "elapsed": 0.00025459999960731,
+              "name": "changelog"
+            },
+            {
+              "at": 0.40157100000033,
+              "elapsed": 0.050668000000769,
+              "name": "uiloader"
+            },
+            {
+              "at": 0.40158950000023,
+              "elapsed": 1.8499999896449e-05,
+              "name": "queue"
+            },
+            {
+              "at": 0.40162429999964,
+              "elapsed": 3.4799999411916e-05,
+              "name": "prefetch"
+            },
+            {
+              "at": 0.40164180000011,
+              "elapsed": 1.7500000467408e-05,
+              "name": "roblox_api_prefetch"
+            },
+            {
+              "at": 1.7988765,
+              "elapsed": 1.3972346999999,
+              "name": "final"
+            }
+          ],
+          "status": "ready",
+          "uiCompileElapsed": 0.014333000000079,
+          "uiFetchElapsed": 0.32151950000025,
+          "uiPrepareElapsed": 0.0022827000002508,
+          "uiSourceMode": "network"
+        },
+        "queuePumping": false,
+        "queueRunning": 0,
+        "settingsReady": true,
+        "spawnActive": 11,
+        "waitingThreads": 8
+      },
+      "segments": {},
+      "settingsReady": 13.2960755,
+      "spikes": [
+        {
+          "elapsed": 2.7614480000002,
+          "ms": 39.142213761806,
+          "phase": 1
+        },
+        {
+          "elapsed": 2.8167524,
+          "ms": 37.086468189955,
+          "phase": 1
+        },
+        {
+          "elapsed": 2.8830626999998,
+          "ms": 46.986442059278,
+          "phase": 1
+        },
+        {
+          "elapsed": 3.6859217000001,
+          "ms": 56.943479925394,
+          "phase": 1
+        },
+        {
+          "elapsed": 3.9164203,
+          "ms": 66.997990012169,
+          "phase": 2
+        },
+        {
+          "elapsed": 7.7120653000002,
+          "ms": 37.093054503202,
+          "phase": 2
+        }
+      ],
+      "splitLoaded": 4.0395862000005
+    },
+    {
+      "after": {
+        "elapsed": 21.695121799999,
+        "engineLuaMb": 457.18524169922,
+        "executorLuaKb": 104741,
+        "instances": 46735,
+        "totalMb": 1085.68359375
+      },
+      "afterLoadingClose": {
+        "fps": 234.94456129523,
+        "frames": 4701,
+        "maxMs": 35.037066787481,
+        "over100Ms": 0,
+        "over16Ms": 6,
+        "over33Ms": 1,
+        "p95Ms": 6.0359579510987,
+        "p99Ms": 7.1879578754306
+      },
+      "afterSettingsReady": {
+        "fps": 238.84554959145,
+        "frames": 2568,
+        "maxMs": 21.055083721876,
+        "over100Ms": 0,
+        "over16Ms": 1,
+        "over33Ms": 0,
+        "p95Ms": 6.0173221863806,
+        "p99Ms": 7.0255710743368
+      },
+      "all": {
+        "fps": 231.38324883913,
+        "frames": 5021,
+        "maxMs": 42.76617243886,
+        "over100Ms": 0,
+        "over16Ms": 13,
+        "over33Ms": 2,
+        "p95Ms": 6.0432301834226,
+        "p99Ms": 10.994697920978
+      },
+      "before": {
+        "elapsed": 5.6000008044066e-06,
+        "engineLuaMb": 435.52709960938,
+        "executorLuaKb": 82327,
+        "instances": 44341,
+        "totalMb": 1034.16015625
+      },
+      "beforeLoadingClose": {
+        "fps": 189.24239020583,
+        "frames": 320,
+        "maxMs": 42.76617243886,
+        "over100Ms": 0,
+        "over16Ms": 7,
+        "over33Ms": 1,
+        "p95Ms": 14.455795288086,
+        "p99Ms": 20.795775577426
+      },
+      "cache": [
+        {
+          "root": "NA-split/common/",
+          "version": "825a6e6fa30a783b"
+        }
+      ],
+      "captureKey": "na_final_retry",
+      "chunks": [
+        {
+          "compile": 0.008853100000124,
+          "execute": 0.07630170000084,
+          "fetch": 0.0010308000000805,
+          "part": "part-001.lua"
+        },
+        {
+          "compile": 0.0091901000014332,
+          "execute": 0.00069040000016685,
+          "fetch": 0.0015629999998055,
+          "part": "part-002.lua"
+        },
+        {
+          "compile": 0.0083348999996815,
+          "execute": 0.0013365000013437,
+          "fetch": 0.0011102999997092,
+          "part": "part-003.lua"
+        },
+        {
+          "compile": 0.0090039000006072,
+          "execute": 0.28411859999869,
+          "fetch": 0.0018505000007281,
+          "part": "part-004.lua"
+        },
+        {
+          "compile": 0.011089400000856,
+          "execute": 0.0076976000000286,
+          "fetch": 0.0010288999983459,
+          "part": "part-005.lua"
+        },
+        {
+          "compile": 0.0085739999994985,
+          "execute": 0.00043890000051761,
+          "fetch": 0.00096120000125666,
+          "part": "part-006.lua"
+        },
+        {
+          "compile": 0.0094011000001046,
+          "execute": 0.0008906000002753,
+          "fetch": 0.00095800000053714,
+          "part": "part-007.lua"
+        },
+        {
+          "compile": 0.008856200000082,
+          "execute": 9.3999988166615e-06,
+          "fetch": 0.0008932000000641,
+          "part": "part-008.lua"
+        },
+        {
+          "compile": 0.010954900000797,
+          "execute": 0.0050635999996302,
+          "fetch": 0.0014100000007602,
+          "part": "part-009.lua"
+        },
+        {
+          "compile": 0.011821800000689,
+          "execute": 0.0099284999996598,
+          "fetch": 0.0016964999995253,
+          "part": "part-010.lua"
+        },
+        {
+          "compile": 0.010855900000024,
+          "execute": 0.0073797000004561,
+          "fetch": 0.00092869999934919,
+          "part": "part-011.lua"
+        },
+        {
+          "compile": 0.0084783000002062,
+          "execute": 0.0073866999991878,
+          "fetch": 0.0012062999994669,
+          "part": "part-012.lua"
+        },
+        {
+          "compile": 0.011841899999126,
+          "execute": 0.0088756999994075,
+          "fetch": 0.00078240000038932,
+          "part": "part-013.lua"
+        },
+        {
+          "compile": 0.0099914999991597,
+          "execute": 0.0070049000005383,
+          "fetch": 0.00097559999994701,
+          "part": "part-014.lua"
+        },
+        {
+          "compile": 0.010572799999863,
+          "execute": 0.0060727000000043,
+          "fetch": 0.0011720999991667,
+          "part": "part-015.lua"
+        },
+        {
+          "compile": 0.0097358999992139,
+          "execute": 0.011302300001262,
+          "fetch": 0.00079949999962992,
+          "part": "part-016.lua"
+        },
+        {
+          "compile": 0.010110799999893,
+          "execute": 0.0050683999998,
+          "fetch": 0.0025855000003503,
+          "part": "part-017.lua"
+        },
+        {
+          "compile": 0.0097501000000193,
+          "execute": 0.0089886000005208,
+          "fetch": 0.0012855000004492,
+          "part": "part-018.lua"
+        },
+        {
+          "compile": 0.012110699999539,
+          "execute": 0.60574960000122,
+          "fetch": 0.0012664000005316,
+          "part": "part-019.lua"
+        },
+        {
+          "compile": 0.010632599998644,
+          "execute": 0.017384000000675,
+          "fetch": 0.0015367000014521,
+          "part": "part-020.lua"
+        },
+        {
+          "compile": 0.011409599999752,
+          "execute": 0.00022050000006857,
+          "fetch": 0.0011873999992531,
+          "part": "part-021.lua"
+        },
+        {
+          "compile": 0.0099647999995796,
+          "execute": 0.0005633000000671,
+          "fetch": 0.0010676000001695,
+          "part": "part-022.lua"
+        },
+        {
+          "compile": 0.035728700000618,
+          "execute": 0.00044970000089961,
+          "fetch": 0.0019840000004478,
+          "part": "part-023.lua"
+        },
+        {
+          "compile": 0.014111799999228,
+          "execute": 0.00048090000018419,
+          "fetch": 0.0014551000003848,
+          "part": "part-024.lua"
+        },
+        {
+          "compile": 0.0090861999997287,
+          "execute": 0.049210400000447,
+          "fetch": 0.00083540000014182,
+          "part": "part-025.lua"
+        },
+        {
+          "compile": 0.0036744000008184,
+          "execute": 0.0040107000004355,
+          "fetch": 0.0012298000001465,
+          "part": "part-026.lua"
+        },
+        {
+          "compile": 0.02923440000086,
+          "execute": 5.1900000471505e-05,
+          "fetch": 0.001727299999402,
+          "part": "part-027.lua"
+        },
+        {
+          "compile": 0.00090269999964221,
+          "execute": 8.3000000813627e-05,
+          "fetch": 0.00067549999948824,
+          "part": "part-028.lua"
+        },
+        {
+          "compile": 0.010825100000147,
+          "execute": 0.048010500000601,
+          "fetch": 0.0015824000001885,
+          "part": "part-029.lua"
+        }
+      ],
+      "elapsed": 21.69512,
+      "guard": {
+        "loading": "nil",
+        "ok": true,
+        "sameHost": true,
+        "stateWritten": true
+      },
+      "label": "final-failure-retry",
+      "loaderReturned": 1.9822920000006,
+      "loadingClosed": 1.6934937000005,
+      "reason": "settled",
+      "ref": "29e9042c1d60d5c06438b8792495050d333e4c51",
+      "runtime": {
+        "connectionBuckets": 1134,
+        "liveConnections": 3273,
+        "lowEndMode": false,
+        "networkPauseDisabled": true,
+        "perf": {
+          "commandYields": 32,
+          "elapsed": 1.4068266000013,
+          "finished": true,
+          "frames": 4105,
+          "instanceYields": 584,
+          "maxFrameMs": 42.76617243886,
+          "readyElapsed": 1.4068266000013,
+          "settingsBuildElapsed": 9.1073422999998,
+          "settingsBuildOk": true,
+          "stages": [
+            {
+              "at": 0.016889600001377,
+              "elapsed": 5.5100001191022e-05,
+              "name": "engine"
+            },
+            {
+              "at": 0.2965490000006,
+              "elapsed": 0.27965939999922,
+              "name": "notifications"
+            },
+            {
+              "at": 0.29731710000124,
+              "elapsed": 0.00076810000064143,
+              "name": "assets"
+            },
+            {
+              "at": 0.29733940000006,
+              "elapsed": 2.2299998818198e-05,
+              "name": "nastuff"
+            },
+            {
+              "at": 0.29734470000039,
+              "elapsed": 5.300000339048e-06,
+              "name": "loader"
+            },
+            {
+              "at": 0.29761400000098,
+              "elapsed": 0.00026930000058201,
+              "name": "changelog"
+            },
+            {
+              "at": 0.29762149999988,
+              "elapsed": 7.4999989010394e-06,
+              "name": "uiloader"
+            },
+            {
+              "at": 0.29762930000106,
+              "elapsed": 7.8000011853874e-06,
+              "name": "queue"
+            },
+            {
+              "at": 0.29764760000035,
+              "elapsed": 1.8299999283045e-05,
+              "name": "prefetch"
+            },
+            {
+              "at": 0.29766330000166,
+              "elapsed": 1.5700001313235e-05,
+              "name": "roblox_api_prefetch"
+            },
+            {
+              "at": 1.4068129000007,
+              "elapsed": 1.109149599999,
+              "name": "final"
+            }
+          ],
+          "status": "ready",
+          "uiCompileElapsed": 0.011662199998682,
+          "uiFetchElapsed": 0.3206283999989,
+          "uiPrepareElapsed": 0.0032941000008577,
+          "uiSourceMode": "network"
+        },
+        "queuePumping": false,
+        "queueRunning": 0,
+        "settingsReady": true,
+        "spawnActive": 14,
+        "waitingThreads": 9
+      },
+      "segments": {},
+      "settingsReady": 10.947773800001,
+      "spikes": [
+        {
+          "elapsed": 1.6303396000003,
+          "ms": 42.76617243886,
+          "phase": 1
+        },
+        {
+          "elapsed": 1.7514212000006,
+          "ms": 35.037066787481,
+          "phase": 2
+        }
+      ],
+      "splitLoaded": 1.9856096999993
+    }
+  ],
+  "finalFreshLifecycle": {
+    "completed": true,
+    "loadOk": true,
+    "loadSeconds": 1.9820015000005,
+    "loaded": true,
+    "phase": "finished",
+    "ref": "29e9042c1d60d5c06438b8792495050d333e4c51",
+    "registryCleared": true,
+    "settingsReady": true,
+    "settingsSeconds": 10.038182799999,
+    "stateCleared": true,
+    "summary": {
+      "cleanups": 51,
+      "connections": 1441,
+      "errors": 0,
+      "instances": 807,
+      "threads": 83
+    },
+    "trackedBefore": 3184,
+    "trackedConnectionsLeft": 0,
+    "unloadOk": true,
+    "unloadSeconds": 0.24388559999898
+  },
+  "unloads": [
+    {
+      "completed": true,
+      "label": "a4-unmodified-unload",
+      "ok": true,
+      "phase": "returned",
+      "seconds": 0.27607179999995,
+      "summary": {
+        "cleanups": 51,
+        "connections": 1425,
+        "errors": 0,
+        "instances": 794,
+        "threads": 9
+      },
+      "trackedConnectionsLeft": 0
+    },
+    {
+      "completed": true,
+      "label": "a4-second-unmodified-unload",
+      "ok": true,
+      "phase": "returned",
+      "registryCleared": true,
+      "seconds": 0.31561739999961,
+      "stateCleared": true,
+      "summary": {
+        "cleanups": 51,
+        "connections": 1437,
+        "errors": 0,
+        "instances": 794,
+        "threads": 8
+      },
+      "trackedConnectionsLeft": 0
+    }
+  ],
+  "partialLoadFailure": {
+    "ref": "29e9042c1d60d5c06438b8792495050d333e4c51",
+    "injectedBeforeChunk": 5,
+    "expectedRootErrorObserved": true,
+    "registryCleared": true,
+    "stateCleared": true,
+    "loadingCleared": true,
+    "retryCapture": "final-failure-retry"
+  }
+}

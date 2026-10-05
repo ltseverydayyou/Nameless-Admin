@@ -382,6 +382,7 @@ SpawnCall(function()
 			perf.autoExecCommands = {}
 		end
 		for i = 1, #commands do
+			if i > 1 then Wait() end
 			const it = commands[i]
 			local c, a
 

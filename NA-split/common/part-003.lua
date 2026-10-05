@@ -4948,10 +4948,9 @@ end))
 NAmanage.StartupInstanceBudgetStep = NAmanage.StartupInstanceBudgetStep or function()
 	const buildState = NAgui and NAgui.SettingsBuildState
 	const settingsBuilding = NAStuff.SettingsBuildRunning == true or (type(buildState) == "table" and buildState.building == true)
-	if settingsBuilding then
-		return
-	end
-	if NAStuff._loadingFinalizedOnce == true or (NAAssetsLoading and NAAssetsLoading._finalized == true) then
+	const perf = NAStuff.StartupPerformance
+	const backgroundBuilding = type(perf) == "table" and perf.finished ~= true
+	if not settingsBuilding and not backgroundBuilding and (NAStuff._loadingFinalizedOnce == true or (NAAssetsLoading and NAAssetsLoading._finalized == true)) then
 		return
 	end
 	local state = NAStuff._startupInstanceBudget
@@ -4961,15 +4960,14 @@ NAmanage.StartupInstanceBudgetStep = NAmanage.StartupInstanceBudgetStep or funct
 	end
 	state.count += 1
 	const now = os.clock()
-	const mobile = IsOnMobile == true
-	const perf = NAStuff.StartupPerformance
+	const mobile = IsOnMobile == true or (NAmanage.IsLowEndUI and NAmanage.IsLowEndUI() == true)
 	const lastFrameDt = type(perf) == "table" and tonumber(perf.lastFrameDt) or nil
 	const highFps = lastFrameDt and lastFrameDt > 0 and lastFrameDt < (1 / 240)
 	local batch
 	local budget
-	if settingsBuilding then
-		batch = highFps and (mobile and 2 or 3) or (mobile and 3 or 6)
-		budget = highFps and 0.00075 or (mobile and 0.002 or 0.003)
+	if settingsBuilding or backgroundBuilding then
+		batch = mobile and 12 or 20
+		budget = mobile and 0.0015 or 0.0025
 	else
 		batch = highFps and (mobile and 3 or 5) or (mobile and 12 or 22)
 		budget = highFps and 0.0009 or (mobile and 0.004 or 0.006)
@@ -4992,7 +4990,9 @@ NAmanage.StartupInstanceBudgetStep = NAmanage.StartupInstanceBudgetStep or funct
 end
 
 NAmanage.IsStartupBuilding = NAmanage.IsStartupBuilding or function()
-	return not (NAStuff and (NAStuff._loadingFinalizedOnce == true or (NAAssetsLoading and NAAssetsLoading._finalized == true)))
+	const perf = NAStuff and NAStuff.StartupPerformance
+	return (type(perf) == "table" and perf.finished ~= true) or NAStuff.SettingsBuildRunning == true
+		or not (NAStuff and (NAStuff._loadingFinalizedOnce == true or (NAAssetsLoading and NAAssetsLoading._finalized == true)))
 end
 
 NAmanage.GetFastStartupInstanceName = NAmanage.GetFastStartupInstanceName or function()

@@ -5370,9 +5370,9 @@ else
 end
 NAUIMANAGER.cmdBar.Visible=true
 
-function NAStartupUI(label, _, callback)
+function NAStartupUI(label, spacing, callback)
 	if NAmanage.spawnStartupLoader then
-		return NAmanage.spawnStartupLoader(label, callback)
+		return NAmanage.spawnStartupLoader(label, callback, { spacing = spacing })
 	end
 	return Spawn(function()
 		local ok, err = pcall(callback)

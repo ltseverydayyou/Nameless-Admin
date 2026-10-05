@@ -289,44 +289,54 @@ def _git_blob_sha(data: bytes) -> str:
     return hashlib.sha1(header + data).hexdigest()
 
 
-def write_chunks(chunks: list[list[str]], loader_version: str) -> None:
-    previous_manifest = (COMMON / "manifest.lua").read_text(encoding="utf-8") if (COMMON / "manifest.lua").exists() else ""
-    cache_loader_start = previous_manifest.find("local function cacheLoader()")
-    cache_loader_suffix = previous_manifest[cache_loader_start:] if cache_loader_start >= 0 else ""
+def write_manifest(parts: list[tuple[str, bytes]], loader_version: str) -> None:
+    digest = hashlib.sha256()
+    fingerprints: dict[str, str] = {}
+    for name, data in parts:
+        digest.update(f"{name}\0".encode("utf-8"))
+        digest.update(data)
+        fingerprints[name] = _git_blob_sha(data)
+    manifest = [
+        "local meta = {",
+        f'\tversion = "{digest.hexdigest()[:16]}";',
+        f"\tcount = {len(parts)};",
+        '\tdirectory = "common";',
+        f'\tloader_version = "{loader_version}";',
+        "\tparts = {",
+    ]
+    for name, fingerprint in fingerprints.items():
+        manifest.append(f'\t\t["{name}"] = "{fingerprint}";')
+    manifest.extend(["\t};", "}", "", "return meta", ""])
+    (COMMON / "manifest.lua").write_bytes("\r\n".join(manifest).encode("utf-8"))
 
+
+def loader_digest() -> str:
+    digest = hashlib.sha256()
+    for name in ("Source.lua", "NA testing.lua"):
+        digest.update(name.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update((ROOT / name).read_bytes())
+    return "loader-" + digest.hexdigest()[:16]
+
+
+def refresh_metadata() -> None:
+    paths = sorted(COMMON.glob("part-*.lua"))
+    if not paths or [path.name for path in paths] != [f"part-{i:03d}.lua" for i in range(1, len(paths) + 1)]:
+        raise ValueError("split chunks must be nonempty and numbered consecutively")
+    write_manifest([(path.name, path.read_bytes()) for path in paths], loader_digest())
+
+
+def write_chunks(chunks: list[list[str]], loader_version: str) -> None:
     if COMMON.exists():
         shutil.rmtree(COMMON)
     COMMON.mkdir(parents=True)
-    digest = hashlib.sha256()
-    fingerprints: dict[str, str] = {}
+    parts: list[tuple[str, bytes]] = []
     for index, chunk in enumerate(chunks, start=1):
-        part_name = f"part-{index:03d}.lua"
-        path = COMMON / part_name
+        name = f"part-{index:03d}.lua"
         data = ("\r\n".join(chunk).rstrip() + "\r\n").encode("utf-8")
-        path.write_bytes(data)
-        digest.update(f"{part_name}\0".encode("utf-8"))
-        digest.update(data)
-        fingerprints[part_name] = _git_blob_sha(data)
-    version = digest.hexdigest()[:16]
-
-    manifest = [
-        "local meta = {",
-        f'\tversion = "{version}";',
-        f"\tcount = {len(chunks)};",
-        '\tdirectory = "common";',
-    ]
-    if loader_version:
-        manifest.append(f'\tloader_version = "{loader_version}";')
-    manifest.append("\tparts = {")
-    for part_name, fingerprint in fingerprints.items():
-        manifest.append(f'\t\t["{part_name}"] = "{fingerprint}";')
-    manifest.extend(["\t};", "}", ""])
-    if cache_loader_suffix:
-        manifest.append(cache_loader_suffix.rstrip())
-    else:
-        manifest.append("return meta")
-    manifest.append("")
-    (COMMON / "manifest.lua").write_bytes("\r\n".join(manifest).encode("utf-8"))
+        (COMMON / name).write_bytes(data)
+        parts.append((name, data))
+    write_manifest(parts, loader_version)
 
 BOOT_LOADER = r'''local __NA_SPLIT_SOURCE_TAG = "{source_tag}"
 local __NA_SPLIT_CONFIG = {{
@@ -351,8 +361,8 @@ if type(__NA_GLOBAL_ENV) == "table" then
 	end
 end
 local __NA_SPLIT_HOST_LOADING = type(__NARootHost) == "table" and rawget(__NARootHost, "__NA_SPLIT_LOADING") or nil
-local __NA_SPLIT_HOST_LOADED = type(__NARootHost) == "table" and (rawget(__NARootHost, "ltseverydayyou_NA") ~= nil or rawget(__NARootHost, "NA_LOADED") ~= nil)
-if __NA_SPLIT_HOST_LOADING ~= nil or __NA_SPLIT_HOST_LOADED then
+local __NA_SPLIT_HOST_LOADED = type(__NARootHost) == "table" and (rawget(__NARootHost, "ltseverydayyou_NA") or rawget(__NARootHost, "NA_LOADED"))
+if __NA_SPLIT_HOST_LOADING or __NA_SPLIT_HOST_LOADED then
 	if type(__NA_GLOBAL_ENV) == "table" and rawget(__NA_GLOBAL_ENV, __NA_GLOBAL_STATE_KEY) == __NA_GLOBAL_STATE then
 		rawset(__NA_GLOBAL_ENV, __NA_GLOBAL_STATE_KEY, nil)
 	end
@@ -394,19 +404,29 @@ local function __NA_SPLIT_CLAIM_FS_LOCK()
 		return false
 	end
 	local created = pcall(makefolder, __NA_SPLIT_FS_LOCK_PATH)
-	if not created or not isfolder(__NA_SPLIT_FS_LOCK_PATH) then
+	__NA_SPLIT_FS_LOCK_OWNED = created
+	local ok, exists = pcall(isfolder, __NA_SPLIT_FS_LOCK_PATH)
+	if not created or not ok or not exists then
 		return false
 	end
-	__NA_SPLIT_FS_LOCK_OWNED = true
 	return true
 end
-if not __NA_SPLIT_CLAIM_FS_LOCK() then
+local __NA_SPLIT_LOCK_OK, __NA_SPLIT_LOCKED = pcall(__NA_SPLIT_CLAIM_FS_LOCK)
+if not __NA_SPLIT_LOCK_OK or not __NA_SPLIT_LOCKED then
+	if __NA_SPLIT_FS_LOCK_OWNED and type(delfolder) == "function" then
+		pcall(delfolder, __NA_SPLIT_FS_LOCK_PATH)
+		__NA_SPLIT_FS_LOCK_OWNED = false
+	end
 	__NA_SPLIT_CLEAR_LOADING()
 	if type(__NA_GLOBAL_ENV) == "table" and rawget(__NA_GLOBAL_ENV, __NA_GLOBAL_STATE_KEY) == __NA_GLOBAL_STATE then
 		rawset(__NA_GLOBAL_ENV, __NA_GLOBAL_STATE_KEY, nil)
 	end
 	return
 end
+if type(__NARootHost) == "table" then
+	pcall(rawset, __NARootHost, "NACaller", __NARootNACaller)
+end
+
 local function __NA_SPLIT_RELEASE(success)
 	if __NA_SPLIT_FS_LOCK_OWNED then
 		if type(delfolder) == "function" and __NA_SPLIT_FS_LOCK_PATH then
@@ -488,30 +508,77 @@ local function __NA_SPLIT_LOAD_MANIFEST(source, name)
 		return nil
 	end
 	local okRun, manifest = pcall(chunk)
-	if okRun and type(manifest) == "table" and tonumber(manifest.count) then
+	local count = type(manifest) == "table" and tonumber(manifest.count)
+	if okRun and count and count >= 1 and count <= 256 and count % 1 == 0 then
+		manifest.count = count
 		return manifest
 	end
 	return nil
 end
 
+local function __NA_SPLIT_YIELD()
+	if type(task) == "table" and type(task.wait) == "function" then
+		task.wait()
+	end
+end
+
+local function __NA_SPLIT_PART_FINGERPRINT(meta, partName)
+	local parts = type(meta) == "table" and meta.parts or nil
+	local value = type(parts) == "table" and parts[partName] or nil
+	if type(value) == "string" and #value == 40 and value:match("^%x+$") then
+		return value
+	end
+	return nil
+end
+
+local function __NA_SPLIT_LOCAL_PART(root, meta, name)
+	local fingerprint = __NA_SPLIT_PART_FINGERPRINT(meta, name)
+	if fingerprint then
+		local path = root..".parts/"..fingerprint..".lua"
+		local exists = true
+		if type(isfile) == "function" then
+			local ok, value = pcall(isfile, path)
+			exists = ok and value
+		end
+		if exists then
+			local source = __NA_SPLIT_READ_LOCAL(root..".parts/", fingerprint..".lua")
+			if source then return source end
+		end
+	end
+	return __NA_SPLIT_READ_LOCAL(root, name)
+end
+
 local __NA_SPLIT_LOCAL_ROOT = nil
 local __NA_SPLIT_LOCAL_META = nil
+local __NA_SPLIT_FALLBACK_ROOT = nil
+local __NA_SPLIT_FALLBACK_META = nil
 for _, root in __NA_SPLIT_LOCAL_ROOTS do
 	local manifest = __NA_SPLIT_LOAD_MANIFEST(__NA_SPLIT_READ_LOCAL(root, "manifest.lua"), root.."manifest.lua")
 	if manifest then
 		local complete = true
-		for index = 1, math.max(0, math.floor(tonumber(manifest.count) or 0)) do
-			if not __NA_SPLIT_READ_LOCAL(root, string.format("part-%03d.lua", index)) then
-				complete = false
-				break
+		if type(isfile) == "function" then
+			for index = 1, manifest.count do
+				local name = string.format("part-%03d.lua", index)
+				local fingerprint = __NA_SPLIT_PART_FINGERPRINT(manifest, name)
+				local ok, exists = false, false
+				if fingerprint then ok, exists = pcall(isfile, root..".parts/"..fingerprint..".lua") end
+				if not (ok and exists) then ok, exists = pcall(isfile, root..name) end
+				if not (ok and exists) then complete = false; break end
 			end
 		end
 		if complete then
 			__NA_SPLIT_LOCAL_ROOT = root
 			__NA_SPLIT_LOCAL_META = manifest
 			break
+		elseif not __NA_SPLIT_FALLBACK_ROOT then
+			__NA_SPLIT_FALLBACK_ROOT = root
+			__NA_SPLIT_FALLBACK_META = manifest
 		end
 	end
+end
+if not __NA_SPLIT_LOCAL_ROOT then
+	__NA_SPLIT_LOCAL_ROOT = __NA_SPLIT_FALLBACK_ROOT
+	__NA_SPLIT_LOCAL_META = __NA_SPLIT_FALLBACK_META
 end
 
 local __NA_SPLIT_REMOTE_MANIFEST_SOURCE = __NA_SPLIT_READ_REMOTE("manifest.lua?na_manifest="..tostring(os.time()))
@@ -528,6 +595,8 @@ local __NA_SPLIT_COUNT = math.max(0, math.floor(tonumber(
 ) or 0))
 local __NA_SPLIT_CACHE_ROOT = __NA_SPLIT_LOCAL_ROOT or __NA_SPLIT_LOCAL_ROOTS[1]
 local __NA_SPLIT_PENDING_CACHE = {{}}
+local __NA_SPLIT_CACHE_OK = type(writefile) == "function"
+local __NA_SPLIT_CACHE_READY = false
 local __NA_SPLIT_CACHE_MANIFEST = __NA_SPLIT_REMOTE_META ~= nil and (
 	__NA_SPLIT_LOCAL_META == nil
 	or __NA_SPLIT_REMOTE_CHANGED
@@ -535,56 +604,67 @@ local __NA_SPLIT_CACHE_MANIFEST = __NA_SPLIT_REMOTE_META ~= nil and (
 	or __NA_SPLIT_LOCAL_META.loader_version ~= __NA_SPLIT_REMOTE_META.loader_version
 )
 
-local function __NA_SPLIT_PART_FINGERPRINT(meta, partName)
-	local parts = type(meta) == "table" and meta.parts or nil
-	local fingerprint = type(parts) == "table" and parts[partName] or nil
-	return type(fingerprint) == "string" and fingerprint ~= "" and fingerprint or nil
-end
-
 local function __NA_SPLIT_READ_PART(partName)
-	local localSource = __NA_SPLIT_LOCAL_ROOT and __NA_SPLIT_READ_LOCAL(__NA_SPLIT_LOCAL_ROOT, partName) or nil
 	if not __NA_SPLIT_REMOTE_META then
-		if localSource then
-			return localSource
-		end
+		local source = __NA_SPLIT_LOCAL_ROOT and __NA_SPLIT_LOCAL_PART(__NA_SPLIT_LOCAL_ROOT, __NA_SPLIT_LOCAL_META, partName)
+		if source then return source end
 		error("Nameless Admin chunk unavailable: "..partName, 0)
 	end
 
-	if localSource then
-		local remoteFingerprint = __NA_SPLIT_PART_FINGERPRINT(__NA_SPLIT_REMOTE_META, partName)
-		local localFingerprint = __NA_SPLIT_PART_FINGERPRINT(__NA_SPLIT_LOCAL_META, partName)
-		if remoteFingerprint and localFingerprint and remoteFingerprint == localFingerprint then
-			return localSource
-		end
-		if not __NA_SPLIT_REMOTE_CHANGED and not localFingerprint then
-			return localSource
-		end
+	local remoteFingerprint = __NA_SPLIT_PART_FINGERPRINT(__NA_SPLIT_REMOTE_META, partName)
+	local localFingerprint = __NA_SPLIT_PART_FINGERPRINT(__NA_SPLIT_LOCAL_META, partName)
+	if __NA_SPLIT_LOCAL_ROOT and ((remoteFingerprint and remoteFingerprint == localFingerprint)
+		or (not __NA_SPLIT_REMOTE_CHANGED and not localFingerprint)) then
+		local source = __NA_SPLIT_LOCAL_PART(__NA_SPLIT_LOCAL_ROOT, __NA_SPLIT_LOCAL_META, partName)
+		if source then return source end
 	end
 
-	local remote = __NA_SPLIT_READ_REMOTE(partName)
-	if remote then
-		__NA_SPLIT_PENDING_CACHE[partName] = remote
-		return remote
+	local source = __NA_SPLIT_READ_REMOTE(partName)
+	if source then
+		__NA_SPLIT_PENDING_CACHE[partName] = source
+		return source
 	end
 	error("Nameless Admin chunk unavailable: "..partName, 0)
 end
 
-local function __NA_SPLIT_CACHE_REMOTE()
-	if not __NA_SPLIT_CACHE_MANIFEST or not __NA_SPLIT_REMOTE_MANIFEST_SOURCE or type(writefile) ~= "function" then
+local function __NA_SPLIT_CACHE_PART(partName)
+	local source = __NA_SPLIT_PENDING_CACHE[partName]
+	__NA_SPLIT_PENDING_CACHE[partName] = nil
+	if not source then return end
+	__NA_SPLIT_CACHE_MANIFEST = true
+	local fingerprint = __NA_SPLIT_PART_FINGERPRINT(__NA_SPLIT_REMOTE_META, partName)
+	if not __NA_SPLIT_CACHE_OK or not fingerprint then
+		__NA_SPLIT_CACHE_OK = false
 		return
 	end
-	if type(makefolder) == "function" then
-		local parent = __NA_SPLIT_CACHE_ROOT:gsub("/$", "")
-		local current = ""
-		for segment in parent:gmatch("[^/]+") do
-			current = current == "" and segment or current.."/"..segment
-			pcall(makefolder, current)
+	if not __NA_SPLIT_CACHE_READY then
+		if type(makefolder) == "function" then
+			local current = ""
+			for segment in (__NA_SPLIT_CACHE_ROOT..".parts"):gmatch("[^/]+") do
+				current = current == "" and segment or current.."/"..segment
+				pcall(makefolder, current)
+			end
 		end
+		__NA_SPLIT_CACHE_READY = true
 	end
-	for partName, source in __NA_SPLIT_PENDING_CACHE do
-		pcall(writefile, __NA_SPLIT_CACHE_ROOT..partName, source)
+	if not pcall(writefile, __NA_SPLIT_CACHE_ROOT..".parts/"..fingerprint..".lua", source) then
+		__NA_SPLIT_CACHE_OK = false
 	end
-	pcall(writefile, __NA_SPLIT_CACHE_ROOT.."manifest.lua", __NA_SPLIT_REMOTE_MANIFEST_SOURCE)
+end
+
+local function __NA_SPLIT_CACHE_REMOTE()
+	if not __NA_SPLIT_CACHE_OK or not __NA_SPLIT_CACHE_MANIFEST or not __NA_SPLIT_REMOTE_MANIFEST_SOURCE then return end
+	if not pcall(writefile, __NA_SPLIT_CACHE_ROOT.."manifest.lua", __NA_SPLIT_REMOTE_MANIFEST_SOURCE) then return end
+	if type(listfiles) ~= "function" or type(delfile) ~= "function" then return end
+	local ok, files = pcall(listfiles, __NA_SPLIT_CACHE_ROOT..".parts")
+	if not ok or type(files) ~= "table" then return end
+	local keep = {{}}
+	for _, value in __NA_SPLIT_REMOTE_META.parts or {{}} do keep[value] = true end
+	for _, path in files do
+		local name = tostring(path):gsub("\\", "/"):match("/([%x]+)%.lua$")
+		if name and #name == 40 and not keep[name] then pcall(delfile, path) end
+		__NA_SPLIT_YIELD()
+	end
 end
 
 local function __NA_SPLIT_LOAD_PART(source, chunkName, environment)
@@ -618,7 +698,105 @@ local function __NA_SPLIT_FORMAT_ERROR(value)
 	return text
 end
 
+local function __NA_SPLIT_CACHE_LOADER(meta)
+	if type(meta) ~= "table" or type(meta.loader_version) ~= "string" then return end
+	if type(writefile) ~= "function" then
+		return
+	end
+
+	local host = (type(getgenv) == "function" and getgenv()) or _G or {{}}
+	local state = type(host) == "table" and rawget(host, "__NamelessAdminRuntimeState") or nil
+	local sourceTag = type(state) == "table" and state.source or nil
+	if sourceTag ~= "Source.lua" and sourceTag ~= "NA testing.lua" then
+		return
+	end
+
+	local roots = {{
+		"NA-split/";
+		"Nameless-Admin/NA-split/";
+		"Nameless Admin/NA-split/";
+	}}
+	local root = roots[1]
+	if type(isfile) == "function" then
+		for _, candidate in roots do
+			local ok, exists = pcall(isfile, candidate.."common/manifest.lua")
+			if ok and exists then
+				root = candidate
+				break
+			end
+		end
+	end
+
+	local cachePath = root..sourceTag
+	local versionPath = root.."."..sourceTag:gsub("[^%w]+", "_")..".version"
+	if type(readfile) == "function" then
+		local okVersion, cachedVersion = pcall(readfile, versionPath)
+		local okLoader, exists = false, false
+		if type(isfile) == "function" then okLoader, exists = pcall(isfile, cachePath) end
+		if okVersion and cachedVersion == meta.loader_version and okLoader and exists then
+			return
+		end
+	end
+
+	local remoteName = sourceTag:gsub(" ", "%%20")
+	local loaderRoot = __NA_SPLIT_REMOTE_ROOT:gsub("NA%-split/common/$", "")
+	if loaderRoot == __NA_SPLIT_REMOTE_ROOT then return end
+	local url = loaderRoot..remoteName.."?na_loader="..meta.loader_version
+	local requestFn = type(host) == "table" and (rawget(host, "request") or rawget(host, "http_request")) or nil
+	local synTable = type(host) == "table" and rawget(host, "syn") or nil
+	if type(requestFn) ~= "function" and type(synTable) == "table" then
+		requestFn = synTable.request
+	end
+
+	local source
+	if type(requestFn) == "function" then
+		local ok, response = pcall(requestFn, {{ Method = "GET"; Url = url; }})
+		local status = type(response) == "table" and tonumber(response.StatusCode or response.statusCode or response.Status) or nil
+		local body = type(response) == "table" and (response.Body or response.body) or nil
+		if ok and type(body) == "string" and body ~= "" and (not status or status < 400) then
+			source = body
+		end
+	end
+
+	if not source and (type(game) == "userdata" or type(game) == "table") then
+		local ok, body = pcall(function()
+			return game:HttpGet(url)
+		end)
+		if ok and type(body) == "string" and body ~= "" then
+			source = body
+		end
+	end
+	if not source then
+		return
+	end
+
+	local loader = type(host) == "table" and rawget(host, "loadstring") or nil
+	loader = loader or loadstring or load
+	if type(loader) ~= "function" then
+		return
+	end
+	local okCompile, chunk = pcall(loader, source, "@"..sourceTag)
+	if not okCompile or type(chunk) ~= "function" then
+		return
+	end
+
+	if type(makefolder) == "function" then
+		local parent = root:gsub("/$", "")
+		local current = ""
+		for segment in parent:gmatch("[^/]+") do
+			current = current == "" and segment or current.."/"..segment
+			pcall(makefolder, current)
+		end
+	end
+	if pcall(writefile, cachePath, source) then
+		pcall(writefile, versionPath, meta.loader_version)
+	end
+end
+
+
+local __NA_SPLIT_ENV
 local function __NA_SPLIT_RUN()
+	__NA_SPLIT_CONFIG.state = __NA_GLOBAL_STATE
 	local environment = setmetatable({{
 		__NA_SPLIT_CONFIG = __NA_SPLIT_CONFIG;
 		NACaller = __NARootNACaller;
@@ -652,11 +830,17 @@ local function __NA_SPLIT_RUN()
 			end
 		end;
 	}})
+	__NA_SPLIT_ENV = environment
 	for index = 1, __NA_SPLIT_COUNT do
+		if rawget(__NA_GLOBAL_ENV, __NA_GLOBAL_STATE_KEY) ~= __NA_GLOBAL_STATE then
+			error("Nameless Admin loading was cancelled", 0)
+		end
 		local partName = string.format("part-%03d.lua", index)
 		local source = __NA_SPLIT_READ_PART(partName)
 		local chunk = __NA_SPLIT_LOAD_PART(source, "NA-split/common/"..partName, environment)
 		local okRun, runError = xpcall(chunk, __NA_SPLIT_FORMAT_ERROR)
+		chunk = nil
+		source = nil
 		if not okRun then
 			error(__NA_SPLIT_FORMAT_ERROR(runError), 0)
 		end
@@ -676,17 +860,88 @@ local function __NA_SPLIT_RUN()
 				rawset(environment, key, nil)
 			end
 			environment = boot.runtimeEnv
+			__NA_SPLIT_ENV = environment
 		end
+		__NA_SPLIT_CACHE_PART(partName)
+		__NA_SPLIT_YIELD()
+	end
+	if rawget(__NA_GLOBAL_ENV, __NA_GLOBAL_STATE_KEY) ~= __NA_GLOBAL_STATE then
+		error("Nameless Admin loading was cancelled", 0)
 	end
 	__NA_SPLIT_CACHE_REMOTE()
+	pcall(__NA_SPLIT_CACHE_LOADER, __NA_SPLIT_REMOTE_META or __NA_SPLIT_LOCAL_META)
 end
 
-local __NARootResult = table.pack(NACaller({{
+local function __NA_SPLIT_ABORT()
+	local environment = __NA_SPLIT_ENV
+	if type(environment) ~= "table" then return end
+	local boot = rawget(environment, "_na_boot")
+	local runtime = type(boot) == "table" and boot.runtimeEnv or environment
+	local manage = rawget(runtime, "NAmanage")
+	local unload = type(manage) == "table" and rawget(manage, "Unload")
+	if type(unload) == "function" then
+		local ok, done = pcall(unload, {{ silent = true }})
+		if ok and done ~= false then return end
+	end
+	if type(manage) == "table" and type(manage._runtimeState) == "table" then
+		manage._runtimeState.unloading = true
+		manage._runtimeState.runToken = nil
+	end
+	local seen = {{}}
+	local current = coroutine.running()
+	local function clean(value)
+		if type(value) ~= "table" or seen[value] then return end
+		if type(boot) == "table" and (value == boot or value == boot.hostEnv
+			or value == boot.privateRegistry or value == boot.privateRoot or value == runtime) then return end
+		seen[value] = true
+		if rawget(value, "Connected") ~= nil and type(rawget(value, "Disconnect")) == "function" then
+			pcall(rawget(value, "Disconnect"), value)
+		end
+		for key, child in next, value do
+			if typeof(child) == "RBXScriptConnection" then
+				pcall(function() child:Disconnect() end)
+			elseif type(child) == "thread" and child ~= current and coroutine.status(child) ~= "dead" and type(task) == "table" then
+				pcall(task.cancel, child)
+			elseif type(child) == "table" then
+				clean(child)
+			end
+			if type(key) == "thread" and key ~= current and coroutine.status(key) ~= "dead" and type(task) == "table" then pcall(task.cancel, key) end
+		end
+	end
+	for _, name in {{ "NAmanage", "NAStuff", "NAjobs", "NAgui", "NAUIMANAGER", "NAindex", "NAAssetsLoading" }} do clean(rawget(runtime, name)) end
+	local stuff = rawget(runtime, "NAStuff")
+	if type(stuff) == "table" and typeof(stuff.NASCREENGUI) == "Instance" then
+		pcall(function() stuff.NASCREENGUI:Destroy() end)
+	end
+	local assets = rawget(runtime, "NAAssetsLoading")
+	if type(assets) == "table" and typeof(assets.ui) == "Instance" then
+		pcall(function() assets.ui:Destroy() end)
+	end
+	if type(boot) == "table" and type(boot.privateRoot) == "table" then
+		local root = boot.privateRoot
+		local owned = rawget(runtime, "_na_env")
+		local ownsRoot = type(owned) == "table" and root.testing == owned
+		local protector = rawget(runtime, "__NAUIProtector")
+		if type(protector) ~= "table" and ownsRoot then protector = root.uiProtector end
+		if type(protector) == "table" and (ownsRoot or root.uiProtector ~= protector) then
+			if type(protector.destroy) == "function" then pcall(protector.destroy) end
+			if root.uiProtector == protector then root.uiProtector = nil end
+		end
+		if ownsRoot then
+			root.testing = nil
+			root.naRuns = nil
+		end
+	end
+end
+
+local __NARootResult = table.pack(__NARootNACaller({{
 	context = "Nameless Admin Main Runtime";
 	severity = "fatal";
 	warn = true;
 	log = true;
 }}, __NA_SPLIT_RUN))
+
+if not __NARootResult[1] then pcall(__NA_SPLIT_ABORT) end
 
 if not __NARootResult[1] and type(__NARootHost) == "table" then
 	pcall(function()
@@ -713,7 +968,7 @@ def write_boots(source_lines: list[str], chunk_count: int) -> str:
         '"NA Source: NA testing.lua"',
         '"NA Source: "..__NA_SPLIT_SOURCE_TAG',
     )
-    digest = hashlib.sha256()
+    prefix = prefix.replace('if type(__NARootHost) == "table" then\n\tpcall(rawset, __NARootHost, "NACaller", __NARootNACaller)\nend', "").rstrip()
     for name, testing in (("Source.lua", "false"), ("NA testing.lua", "true")):
         boot = BOOT_LOADER.format(
             source_tag=name,
@@ -721,12 +976,9 @@ def write_boots(source_lines: list[str], chunk_count: int) -> str:
             prefix=prefix if name == "Source.lua" else prefix,
             chunk_count=chunk_count,
         )
-        data = boot.encode("utf-8")
+        data = boot.replace("\n", "\r\n").encode("utf-8")
         (ROOT / name).write_bytes(data)
-        digest.update(name.encode("utf-8"))
-        digest.update(b"\0")
-        digest.update(data)
-    return "loader-" + digest.hexdigest()[:16]
+    return loader_digest()
 
 
 def main() -> None:
@@ -736,7 +988,12 @@ def main() -> None:
         default="Source.lua",
         help="monolithic source file to split (default: Source.lua)",
     )
+    parser.add_argument("--refresh-metadata", action="store_true", help="refresh fingerprints after editing split chunks")
     args = parser.parse_args()
+    if args.refresh_metadata:
+        refresh_metadata()
+        print(f"refreshed metadata for {len(list(COMMON.glob('part-*.lua')))} chunks")
+        return
     input_path = Path(args.input)
     if not input_path.is_absolute():
         input_path = ROOT / input_path

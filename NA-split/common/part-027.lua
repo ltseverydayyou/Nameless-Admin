@@ -4153,6 +4153,7 @@ NAFFlags.enabled = function()
 end
 
 NAFFlags._lockedDefaults = NAFFlags._lockedDefaults or {}
+NAFFlags._appliedValues = NAFFlags._appliedValues or {}
 
 NAFFlags.apply = function(flagName, flagValue, opts)
 	opts = opts or {}
@@ -4175,12 +4176,19 @@ NAFFlags.apply = function(flagName, flagValue, opts)
 	if NAFFlags.isFlagAvailable and not NAFFlags.isFlagAvailable(flagName, { notify = not opts.silent }) then
 		return false, "unavailable"
 	end
+	const value = tostring(flagValue)
+	if NAFFlags._appliedValues[flagName] == value and type(getfflag) == "function" then
+		const ok, current = pcall(getfflag, flagName)
+		if ok and (tostring(current) == value or (type(flagValue) == "boolean" and Lower(tostring(current)) == value)) then
+			return true
+		end
+	end
 
 	const setter = type(setfflag) == "function" and setfflag or function(name, value)
 		return game:DefineFastFlag(name, value)
 	end
 
-	local ok, err = pcall(setter, flagName, tostring(flagValue))
+	local ok, err = pcall(setter, flagName, value)
 	if not ok then
 		const msg = tostring(err or "")
 		const l = msg:lower()
@@ -4207,6 +4215,7 @@ NAFFlags.apply = function(flagName, flagValue, opts)
 		end
 		return false, err
 	end
+	NAFFlags._appliedValues[flagName] = value
 
 	if not opts.silent then
 		DoNotif(Format("%s set to %s", tostring(flagName), tostring(flagValue)), 2)
@@ -4217,6 +4226,7 @@ end
 NAFFlags.getTargets = function()
 	const targets = {}
 	const seen = {}
+	const work = {}
 	for _, entry in NAFFlags.whitelist do
 		const name = entry.name
 		if NAgui and NAgui.SCREEN_GUI_NO_RENDER_FLAG and name == NAgui.SCREEN_GUI_NO_RENDER_FLAG then
@@ -4229,6 +4239,7 @@ NAFFlags.getTargets = function()
 			targets[#targets + 1] = { name = name, value = NAFFlags.values[name] }
 			seen[name] = true
 		end
+		NAmanage.WorkBudgetStep(work, 8, 0.002)
 	end
 	if not NAFFlags.config.applyWhitelistOnly then
 		for customName, customValue in NAFFlags.config.custom or {} do
@@ -4238,6 +4249,7 @@ NAFFlags.getTargets = function()
 			if not seen[customName] and customValue ~= nil then
 				targets[#targets + 1] = { name = customName, value = customValue }
 			end
+			NAmanage.WorkBudgetStep(work, 8, 0.002)
 		end
 	end
 	return targets
@@ -4266,10 +4278,13 @@ NAFFlags.applyAll = function(opts)
 	const targets = NAFFlags.getTargets()
 
 	local applied = 0
+	const work = {}
 	for _, target in targets do
+		if not NAFFlags.enabled() then break end
 		if NAFFlags.apply(target.name, target.value, { silent = true }) then
 			applied = applied + 1
 		end
+		NAmanage.WorkBudgetStep(work, 4, 0.002)
 	end
 
 	if shouldNotify then
@@ -14817,38 +14832,7 @@ SpawnCall(function()
 	end
 end)
 
-const settingsBuildState = NAgui and NAgui.SettingsBuildState
-local settingsRequestedTab = type(settingsBuildState) == "table" and settingsBuildState.userSelectedTab or nil
-if not (settingsRequestedTab and TabManager and TabManager.tabs and TabManager.tabs[settingsRequestedTab]) then
-	settingsRequestedTab = nil
-end
-const settingsDefaultTab = settingsRequestedTab or (NA_TABS and NA_TABS.TAB_GENERAL) or NAgui.getActiveTab()
-if settingsDefaultTab and NAgui.setTab then
-	NAgui.setTab(settingsDefaultTab, { forceMount = true })
-end
-
-SpawnCall(function()
-	Wait()
-	const currentTab = TabManager and TabManager.current
-	if currentTab and TabManager.tabs and TabManager.tabs[currentTab] and NAgui and NAgui.setTab then
-		NAgui.setTab(currentTab, { forceMount = true })
-	end
-end)
 	end)
-	pcall(function()
-		const mountTab = (NA_TABS and NA_TABS.TAB_GENERAL) or (TabManager and TabManager.lastNonAll)
-		if mountTab and TabManager and TabManager.tabs then
-			const info = TabManager.tabs[mountTab]
-			TabManager.current = mountTab
-			TabManager.lastNonAll = mountTab
-			if info and info.page then
-				NAUIMANAGER.SettingsList = info.page
-			end
-		end
-	end)
-	if NAgui.SettingsBuildDone then
-		pcall(NAgui.SettingsBuildDone)
-	end
 	if type(perf) == "table" then
 		perf.settingsBuildElapsed = os.clock() - settingsBuildStart
 		perf.settingsBuildOk = okBuild == true
@@ -14859,9 +14843,6 @@ end)
 			probe.mark("settings_build_done")
 		end
 	end)
-	NAStuff.SettingsBuildRunning = false
-	NAStuff._loadingFinalizePending = false
-	NAStuff.SettingsBuildReady = okBuild == true
 	pcall(function()
 		const state = NAgui and NAgui.SettingsBuildState
 		local requestedTab = type(state) == "table" and state.userSelectedTab or nil
@@ -14877,6 +14858,12 @@ end)
 			state.userSelectedTab = nil
 		end
 	end)
+	if NAgui.SettingsBuildDone then
+		pcall(NAgui.SettingsBuildDone)
+	end
+	NAStuff.SettingsBuildRunning = false
+	NAStuff._loadingFinalizePending = false
+	NAStuff.SettingsBuildReady = okBuild == true
 	if NAmanage.finalizeLoadingState then
 		pcall(NAmanage.finalizeLoadingState)
 	end
@@ -14884,8 +14871,8 @@ end)
 	if NAmanage.pumpLoaderQueue then
 		pcall(NAmanage.pumpLoaderQueue)
 	end
-	if type(NAmanage.FinishStartupPerformance) == "function" then
-		pcall(NAmanage.FinishStartupPerformance, okBuild and "settings ready" or "settings failed")
+	if type(NAmanage.FinishStartupPerformanceWhenIdle) == "function" then
+		pcall(NAmanage.FinishStartupPerformanceWhenIdle, okBuild and "settings ready" or "settings failed")
 	end
 	if not okBuild then
 		warn(errBuild)

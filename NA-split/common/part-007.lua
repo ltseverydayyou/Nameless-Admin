@@ -2388,14 +2388,7 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 					if box.Transparency ~= displayTransparency then box.Transparency = displayTransparency end
 				end
 			end
-			if now >= (tonumber(data.nextPartRescan) or 0) then
-				data.nextPartRescan = now + 0.5
-				for _, part in NAmanage.QueryDescendants(model, "BasePart") do
-					if part.Parent and not data.boxTable[part] then
-						NAmanage.ESP_AddBoxForPart(model, part)
-					end
-				end
-			end
+
 		end
 	end
 

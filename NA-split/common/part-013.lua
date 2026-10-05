@@ -4821,7 +4821,8 @@ cmd.add({"noclip","nclip","nc"},{"noclip","Disable your player's collision"},fun
 	const function step()
 		const char = getChar()
 		if NAStuff._ncClip == false and char ~= nil then
-			for _, part in char:QueryDescendants("BasePart") do
+			for part in NAmanage.GetCharacterParts(char) do
+				if not part.Parent then continue end
 				if col[part] == nil then
 					col[part] = part.CanCollide
 				end

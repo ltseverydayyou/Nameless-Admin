@@ -26,43 +26,46 @@ NAmanage.RunUnloadCleanups = function(summary)
 	table.clear(NAmanage._unloadCleanups)
 end
 
-NAmanage.UnloadDisconnectTree = function(root, summary)
+NAmanage.UnloadDisconnectTree = function(root, summary, shallow)
 	if type(root) ~= "table" then
 		return
 	end
 	const seen = {}
 	const currentThread = coroutine.running()
+	const unloadThread = NAmanage._runtimeState and NAmanage._runtimeState.unloadThread
 	const function walk(value)
 		if type(value) ~= "table" or seen[value] then
 			return
 		end
+		if type(_na_boot) == "table" and (value == _na_boot or value == _na_boot.hostEnv
+			or value == _na_boot.privateRegistry or value == _na_boot.privateRoot
+			or (value == _na_boot.runtimeEnv and value ~= root)) then return end
 		seen[value] = true
 		const disconnect = rawget(value, "Disconnect")
-		if type(disconnect) == "function" and (rawget(value, "Connected") ~= nil or type(rawget(value, "_conns")) == "table") then
+		if not shallow and type(disconnect) == "function" and (rawget(value, "Connected") ~= nil or type(rawget(value, "_conns")) == "table") then
 			const ok = pcall(disconnect, value)
 			if ok then
 				summary.connections += 1
 			end
 		end
-		for key, child in value do
+		for key, child in next, value do
 			const kind = typeof(child)
-			const kindLower = string.lower(tostring(kind or ""))
-			local connectionLike = kindLower:find("connection", 1, true) ~= nil
-			if not connectionLike then
-				local okDisconnect, disconnectMethod = pcall(function()
-					return child and child.Disconnect
-				end)
-				connectionLike = okDisconnect and type(disconnectMethod) == "function"
-			end
+			const childType = type(child)
+			const disconnectMethod = childType == "table" and rawget(child, "Disconnect") or nil
+			local connectionLike = kind == "RBXScriptConnection"
+			if not shallow and type(disconnectMethod) == "function" then connectionLike = true end
 			if connectionLike then
 				local ok = pcall(function()
-					child:Disconnect()
+					if childType == "table" then
+						if rawget(child, "Connected") ~= false then disconnectMethod(child) end
+					elseif child.Connected then
+						child:Disconnect()
+					end
 				end)
-				if not ok then
+				if not ok and childType == "table" then
 					ok = pcall(function()
-						if type(child.Disable) == "function" then
-							child:Disable()
-						end
+						const disable = rawget(child, "Disable")
+						if type(disable) == "function" then disable(child) end
 					end)
 				end
 				if ok then
@@ -71,15 +74,15 @@ NAmanage.UnloadDisconnectTree = function(root, summary)
 				pcall(function()
 					value[key] = nil
 				end)
-			elseif kind == "thread" and child ~= currentThread and task and type(task.cancel) == "function" then
-				const ok = pcall(task.cancel, child)
-				if ok then
-					summary.threads += 1
+			elseif kind == "thread" and child ~= currentThread and child ~= unloadThread and task and type(task.cancel) == "function" then
+				if coroutine.status(child) ~= "dead" then
+					const ok = pcall(task.cancel, child)
+					if ok then summary.threads += 1 end
 				end
 				pcall(function()
 					value[key] = nil
 				end)
-			elseif type(child) == "table" then
+			elseif not shallow and type(child) == "table" then
 				walk(child)
 			end
 		end
@@ -111,7 +114,7 @@ NAmanage.UnloadCancelRuntimeTasks = function(runtimeState, summary)
 	collect(runtimeState.spawnActive)
 	for i = 1, #pending do
 		const thread = pending[i]
-		if thread ~= currentThread and thread ~= unloadThread then
+		if thread ~= currentThread and thread ~= unloadThread and coroutine.status(thread) ~= "dead" then
 			const ok = pcall(task.cancel, thread)
 			if ok and summary then
 				summary.threads += 1
@@ -262,6 +265,15 @@ NAmanage.RemovePlexityGradients = function()
 	return removed
 end
 
+NAmanage.OwnsRuntimeCallback = function(callback)
+	if type(callback) ~= "function" or type(_na_boot.hostGetfenv) ~= "function" then return false end
+	const ok, env = pcall(_na_boot.hostGetfenv, callback)
+	if not ok or type(env) ~= "table" then return false end
+	if env == _na_boot.runtimeEnv then return true end
+	const boot = rawget(env, "_na_boot")
+	return type(boot) == "table" and boot.privateRoot == _na_boot.privateRoot
+end
+
 NAmanage.UnloadLegacySignalConnections = function(summary)
 	if type(getconnections) ~= "function" then
 		return
@@ -378,7 +390,7 @@ NAmanage.UnloadLegacySignalConnections = function(summary)
 		if ok and type(connections) == "table" then
 			for _, connection in connections do
 				const callback = connection and connection.Function
-				if type(callback) == "function" and hasFingerprint(callback) then
+				if NAmanage.OwnsRuntimeCallback(callback) and hasFingerprint(callback) then
 					const source = getFunctionSource(callback)
 					if source ~= "" then
 						sourceTags[source] = true
@@ -393,7 +405,7 @@ NAmanage.UnloadLegacySignalConnections = function(summary)
 		if ok and type(connections) == "table" then
 			for _, connection in connections do
 				const callback = connection and connection.Function
-				if type(callback) == "function" and sourceTags[getFunctionSource(callback)] then
+				if NAmanage.OwnsRuntimeCallback(callback) and sourceTags[getFunctionSource(callback)] then
 					local disconnected = pcall(function()
 						connection:Disconnect()
 					end)
@@ -461,7 +473,7 @@ NAmanage.UnloadLegacyEditorConnections = function(summary)
 		end
 	end
 	const function inspectCallback(callback)
-		if type(callback) ~= "function" or not sourceTags[getFunctionSource(callback)] then
+		if not NAmanage.OwnsRuntimeCallback(callback) or not sourceTags[getFunctionSource(callback)] then
 			return false
 		end
 		if type(getUpvalues) == "function" then
@@ -526,7 +538,7 @@ NAmanage.UnloadLegacyEditorConnections = function(summary)
 		pcall(function() scanSignal(root.ChildAdded) end)
 		pcall(function() scanSignal(root.ChildRemoved) end)
 		local ok, descendants = pcall(function()
-			return root:GetDescendants()
+			return root:QueryDescendants("LayerCollector, GuiObject, UIComponent")
 		end)
 		if ok and type(descendants) == "table" then
 			for j = 1, #descendants do
@@ -708,6 +720,8 @@ NAmanage.Unload = function(opts)
 		instances = 0,
 		errors = 0,
 	}
+	const bootState = (type(_na_boot.splitConfig) == "table" and _na_boot.splitConfig.state)
+		or (type(_na_boot.hostEnv) == "table" and rawget(_na_boot.hostEnv, "__NamelessAdminRuntimeState"))
 	const oldBridge = NAmanage.MCP
 	const oldBridgeRun = type(oldBridge) == "table" and oldBridge.run or nil
 	const oldUI = NAmanage.getUI and NAmanage.getUI() or nil
@@ -852,6 +866,7 @@ NAmanage.Unload = function(opts)
 					end
 				end
 				NAmanage.UnloadDisconnectTree(runStuff, summary)
+				NAmanage.UnloadDisconnectTree(record.manage, summary)
 			end
 		end
 	else
@@ -887,9 +902,10 @@ NAmanage.Unload = function(opts)
 			NAlib.disconnect(names[i])
 		end
 	end
-	for _, root in { NAStuff, NAjobs, NAmanage._runtimeState, NAgui, NAUIMANAGER, TopBarApp, SideSwipeApp, NAindex } do
+	for _, root in { NAStuff, NAjobs, NAmanage, NAgui, NAUIMANAGER, TopBarApp, SideSwipeApp, NAindex } do
 		NAmanage.UnloadDisconnectTree(root, summary)
 	end
+	NAmanage.UnloadDisconnectTree(_na_boot.runtimeEnv, summary, true)
 	const roots = {}
 	const rootSet = setmetatable({}, { __mode = "k" })
 	const function addRoot(instance)
@@ -922,6 +938,7 @@ NAmanage.Unload = function(opts)
 	end
 	addRoot(oldUI)
 	addRoot(NAStuff.NASCREENGUI)
+	addRoot(NAAssetsLoading and NAAssetsLoading.ui)
 	addRoot(rawget(_na_env, "NA_UI_INSTANCE"))
 	addRoot(rawget(_na_env, "NA_RAW_UI"))
 	addRoot(rawget(_na_shared, "NA_UI_INSTANCE"))
@@ -973,15 +990,23 @@ NAmanage.Unload = function(opts)
 	NAmanage.RemovePlexityGradients()
 	const rawDelay = NAmanage._rawTaskDelay or task.delay
 	const rawSpawn = NAmanage._rawTaskSpawn or task.spawn
-	pcall(rawDelay, 0.1, NAmanage.RemovePlexityGradients)
-	pcall(rawDelay, 0.5, NAmanage.RemovePlexityGradients)
+	const function ownsCleanup()
+		const current = rawget(_na_boot.hostEnv, "__NamelessAdminRuntimeState")
+		return current == nil or current == bootState
+	end
+	const function cleanGradients()
+		if ownsCleanup() then NAmanage.RemovePlexityGradients() end
+	end
+	pcall(rawDelay, 0.1, cleanGradients)
+	pcall(rawDelay, 0.5, cleanGradients)
 	pcall(rawSpawn, function()
 		const deadline = os.clock() + 4
 		repeat
+			if not ownsCleanup() then return end
 			NAmanage.RemovePlexityGradients()
 			task.wait(0.2)
 		until os.clock() >= deadline
-		NAmanage.RemovePlexityGradients()
+		cleanGradients()
 	end)
 	if type(knownRuns) == "table" then
 		table.clear(knownRuns)
@@ -1076,6 +1101,8 @@ NAmanage.Unload = function(opts)
 	end
 
 	const function clearRuntimeExports()
+		const current = rawget(_na_boot.hostEnv, "__NamelessAdminRuntimeState")
+		if current ~= nil and current ~= bootState then return end
 		const targets = {}
 		const targetSet = setmetatable({}, { __mode = "k" })
 		const function addTarget(target, force)
@@ -1111,15 +1138,6 @@ NAmanage.Unload = function(opts)
 				addTarget(rawget(privateRoot, "admin"), false)
 			end
 		end)
-		pcall(function()
-			if type(getgc) == "function" then
-				for _, value in getgc(true) do
-					if type(value) == "table" then
-						addTarget(value, false)
-					end
-				end
-			end
-		end)
 
 		for i = 1, #targets do
 			const target = targets[i]
@@ -1151,6 +1169,16 @@ NAmanage.Unload = function(opts)
 	end
 
 	clearRuntimeExports()
+	pcall(function()
+		const current = rawget(_na_boot.hostEnv, "__NamelessAdminRuntimeState")
+		const caller = rawget(_na_boot.hostEnv, "NACaller")
+		if (current == nil or current == bootState) and (caller == NACaller or caller == __NARootNACaller) then
+			rawset(_na_boot.hostEnv, "NACaller", __NARootPreviousNACaller)
+		end
+	end)
+	if rawget(_na_boot.hostEnv, "__NamelessAdminRuntimeState") == bootState then
+		rawset(_na_boot.hostEnv, "__NamelessAdminRuntimeState", nil)
+	end
 	pcall(rawDelay, 0.1, clearRuntimeExports)
 	pcall(rawDelay, 0.5, clearRuntimeExports)
 	pcall(function()

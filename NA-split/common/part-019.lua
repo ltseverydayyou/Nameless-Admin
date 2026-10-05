@@ -428,16 +428,25 @@ cmd.add({"loopnoeffect","lnoeffect","loopne","lne"},{"loopnoeffect","Keeps Light
 				if not (st.ne and st.ne.enabled) then return end
 				attachCameraWatcher()
 			end) end)
-		st.hook("ne_loop", function() return Services.RunService.RenderStepped:Connect(function()
+		st.hook("ne_lighting_added", function() return NAmanage.descSub(Services.Lighting, {
+				classNames = {"PostEffect", "Atmosphere"};
+				added = function(inst) if st.ne and st.ne.enabled then disableEffect(inst) end end;
+			}) end)
+		local elapsed = 0
+		st.hook("ne_loop", function() return Services.RunService.Heartbeat:Connect(function(dt)
 				if not (st.ne and st.ne.enabled) then return end
-				processLighting()
-				processCamera()
+				elapsed += dt
+				if elapsed < 0.1 then return end
+				elapsed = 0
+				for inst in ne.cache do
+					if inst.Parent and (inst:IsDescendantOf(Services.Lighting)
+						or (ne.lastCamera and inst:IsDescendantOf(ne.lastCamera))) then disableEffect(inst) end
+				end
 			end) end)
 	end
 	ne.enabled=true
 	ne.sticky=true
 	processLighting()
-	processCamera()
 	attachCameraWatcher()
 end)
 
@@ -508,13 +517,21 @@ cmd.add({"loopnofog","lnofog","lnf","loopnf"},{"loopnofog","See clearly forever!
 		nf.cache[inst]=saved
 	end
 	const function disableEffect(inst)
-		if inst and inst:IsA("PostEffect") then cacheOnce(inst,{"Enabled"}); st.safeSet(inst,"Enabled",false) end
-		if inst and inst:IsA("Atmosphere") then cacheOnce(inst,{"Density","Haze","Glare"}); st.safeSet(inst,"Density",0); st.safeSet(inst,"Haze",0); st.safeSet(inst,"Glare",0) end
+		if inst and inst:IsA("PostEffect") then
+			cacheOnce(inst,{"Enabled"})
+			if st.safeGet(inst,"Enabled") ~= false then st.safeSet(inst,"Enabled",false) end
+		end
+		if inst and inst:IsA("Atmosphere") then
+			cacheOnce(inst,{"Density","Haze","Glare"})
+			for _, prop in {"Density","Haze","Glare"} do
+				if st.safeGet(inst,prop) ~= 0 then st.safeSet(inst,prop,0) end
+			end
+		end
 	end
 	const function enforceNoFog()
 		if not (st.nf and st.nf.enabled) then return end
-		st.safeSet(Services.Lighting,"FogEnd",786543)
-		if st.safeGet(Services.Lighting,"FogStart") ~= nil then
+		if st.safeGet(Services.Lighting,"FogEnd") ~= 786543 then st.safeSet(Services.Lighting,"FogEnd",786543) end
+		if st.safeGet(Services.Lighting,"FogStart") ~= 0 then
 			st.safeSet(Services.Lighting,"FogStart",0)
 		end
 		for inst,_ in nf.cache do
@@ -540,23 +557,21 @@ cmd.add({"loopnofog","lnofog","lnf","loopnf"},{"loopnofog","See clearly forever!
 				if not (st.nf and st.nf.enabled) then return end
 				disableEffect(inst)
 			end) end)
-		st.hook("nf_loop", function() return Services.RunService.RenderStepped:Connect(function(dt)
+		st.hook("nf_loop", function() return Services.RunService.Heartbeat:Connect(function(dt)
 				if not (st.nf and st.nf.enabled) then return end
+				scanAccumulator += dt
+				if scanAccumulator < 0.1 then return end
+				scanAccumulator = 0
 				enforceNoFog()
-				scanAccumulator = scanAccumulator + dt
-				if scanAccumulator >= 0.5 then
-					scanAccumulator = 0
-					for _, inst in NAmanage.QueryDescendants(Services.Lighting, "Instance") do
-						disableEffect(inst)
-					end
-				end
 			end) end)
+	end
+	if not nf.enabled then
+		nf.baselineFogEnd = st.safeGet(Services.Lighting,"FogEnd") or nf.baselineFogEnd
+		nf.baselineFogStart = st.safeGet(Services.Lighting,"FogStart") or nf.baselineFogStart
 	end
 	nf.enabled = true
 	enforceNoFog()
 	nf.sticky = true
-	nf.baselineFogEnd = st.safeGet(Services.Lighting,"FogEnd") or nf.baselineFogEnd
-	nf.baselineFogStart = st.safeGet(Services.Lighting,"FogStart") or nf.baselineFogStart
 	st.safeSet(Services.Lighting,"FogEnd",786543)
 	st.safeSet(Services.Lighting,"FogStart",0)
 	for _,v in NAmanage.QueryDescendants(Services.Lighting, "Instance") do disableEffect(v) end
@@ -3976,51 +3991,60 @@ cmd.add({"bringnpcs"}, {"bringnpcs [distance]", "Brings NPCs"}, function(...)
 end)
 
 npcCache = {}
+NAStuff._npcBringParts = {}
+NAmanage.NPCBringStop = function()
+	NAlib.disconnect("loopbringnpcs")
+	for hum, cache in NAStuff._npcBringParts do
+		cache:Disconnect()
+		NAStuff._npcBringParts[hum] = nil
+	end
+	table.clear(npcCache)
+end
+NAmanage.RegisterUnloadCleanup("npc_bring_cleanup", NAmanage.NPCBringStop)
+
 cmd.add({"loopbringnpcs", "lbnpcs", "loopbnpcs", "lbringnpcs", "lbringnpc", "loopbringnpc"}, {"loopbringnpcs [distance] (lbnpcs, loopbnpcs, lbringnpcs)", "Loops NPC bringing"}, function(...)
 	const args = {...}
 	const distance = NAmanage.parseBringDistance(args, 0)
-	if NAlib.isConnected("loopbringnpcs") then NAlib.disconnect("loopbringnpcs") end
-	table.clear(npcCache)
+	NAmanage.NPCBringStop()
 	for _, hum in NAmanage.QueryDescendants(Services.Workspace, "Humanoid") do
 		if CheckIfNPC(hum.Parent) then
 			Insert(npcCache, hum)
+			NAStuff._npcBringParts[hum] = NAmanage.CreatePartCache(hum.Parent)
 		end
 	end
-
-	NAlib.connect("loopbringnpcs", Services.RunService.RenderStepped:Connect(function()
+	NAlib.connect("loopbringnpcs", Services.RunService.PreSimulation:Connect(function()
+		const char = getChar()
+		const localRoot = char and getRoot(char)
+		const cf = localRoot and NAmanage.bringOffsetCFrame(localRoot.CFrame, distance)
 		local w = 1
 		for i = 1, #npcCache do
 			const hum = npcCache[i]
-			if hum and hum.Parent and hum.Health > 0 then
+			const cache = NAStuff._npcBringParts[hum]
+			if hum and hum.Parent and hum.Health > 0 and cache and cache.root == hum.Parent
+				and hum:IsDescendantOf(Services.Workspace) then
 				npcCache[w] = hum
 				w += 1
-				const model = hum.Parent
-				const rootPart = getRoot(model)
-				const localRoot = LocalPlayer.Character and getRoot(LocalPlayer.Character)
-				if rootPart and localRoot then
-					rootPart.CFrame = NAmanage.bringOffsetCFrame(localRoot.CFrame, distance)
+				const root = getRoot(hum.Parent)
+				if root and cf then root.CFrame = cf end
+				for part in cache.parts do
+					if part.Parent and part.CanCollide then part.CanCollide = false end
 				end
-				SpawnCall(function()
-					for _, part in NAmanage.QueryDescendants(model, "BasePart") do
-						if NAlib.isProperty(part, "CanCollide") then
-							NAlib.setProperty(part, "CanCollide", false)
-						end
-					end
-				end)
+			elseif cache then
+				cache:Disconnect()
+				NAStuff._npcBringParts[hum] = nil
 			end
 		end
-		for i = w, #npcCache do
-			npcCache[i] = nil
+		for i = w, #npcCache do npcCache[i] = nil end
+		for hum, cache in NAStuff._npcBringParts do
+			if not hum.Parent or hum.Health <= 0 or not cache.Connected then
+				cache:Disconnect()
+				NAStuff._npcBringParts[hum] = nil
+			end
 		end
 	end))
 end)
 
-cmd.add({"unloopbringnpcs", "unlbnpcs", "unloopbnpcs", "unlbringnpcs", "unlbringnpc", "unloopbringnpc"}, {"unloopbringnpcs (unlbnpcs, unloopbnpcs, unlbringnpcs)", "Stops NPC bring loop"}, function()
-	NAlib.disconnect("loopbringnpcs")
-	if type(npcCache) == "table" then
-		table.clear(npcCache)
-	end
-end)
+cmd.add({"unloopbringnpcs", "unlbnpcs", "unloopbnpcs", "unlbringnpcs", "unlbringnpc", "unloopbringnpc"}, {"unloopbringnpcs (unlbnpcs, unloopbnpcs, unlbringnpcs)", "Stops NPC bring loop"}, NAmanage.NPCBringStop)
 
 cmd.add({"gotonpcs"}, {"gotonpcs", "Teleports to each NPC"}, function()
 	const LocalPlayer = Services.Players.LocalPlayer
@@ -4941,54 +4965,68 @@ NAUIMANAGER = {
 	ServerListContainer = NAStuff.NASCREENGUI:FindFirstChild("ServerList") and (NAStuff.NASCREENGUI:FindFirstChild("ServerList")):FindFirstChild("Container")
 };
 
-NAmanage.NAChatNormalizeZIndex = function()
-	local frame = NAUIMANAGER and NAUIMANAGER.NAchatFrame
-	if not (frame and frame.Parent) then
+NAmanage.NAChatNormalizeZIndex = function(added)
+	const frame = NAUIMANAGER and NAUIMANAGER.NAchatFrame
+	if not (frame and frame.Parent) then return end
+	const topbar = frame:FindFirstChild("Topbar")
+	const tabs = frame:FindFirstChild("Tabs")
+	const container = frame:FindFirstChild("Container")
+	const messageBar = frame:FindFirstChild("MessageBar")
+	const groupPopup = frame:FindFirstChild("NAChatGroupPopup")
+	const invitePrompt = frame:FindFirstChild("NAChatInvitePrompt")
+	const settingsPopup = frame:FindFirstChild("NAChatSettingsPopup")
+	const messageMenu = frame:FindFirstChild("NAChatMessageMenu")
+	const function apply(item)
+		if not (item and item:IsA("GuiObject") and item:IsDescendantOf(frame)) then return end
+		local layer = 10
+		if messageMenu and (item == messageMenu or item:IsDescendantOf(messageMenu)) then
+			layer = 90
+		elseif settingsPopup and (item == settingsPopup or item:IsDescendantOf(settingsPopup)) then
+			layer = 80
+		elseif (groupPopup and (item == groupPopup or item:IsDescendantOf(groupPopup))) or (invitePrompt and (item == invitePrompt or item:IsDescendantOf(invitePrompt))) then
+			layer = 70
+		elseif (topbar and item:IsDescendantOf(topbar)) or (messageBar and item:IsDescendantOf(messageBar)) then
+			layer = 50
+		elseif tabs and item:IsDescendantOf(tabs) then
+			layer = 40
+		elseif container and item:IsDescendantOf(container) then
+			layer = 30
+		end
+		if item:GetAttribute("NAWindowBackgroundLayer") == true then layer = 0 end
+		if item.ZIndex ~= layer then item.ZIndex = layer end
+	end
+	if added then
+		apply(added)
 		return
 	end
-	local topbar = frame:FindFirstChild("Topbar")
-	local tabs = frame:FindFirstChild("Tabs")
-	local container = frame:FindFirstChild("Container")
-	local messageBar = frame:FindFirstChild("MessageBar")
-	local groupPopup = frame:FindFirstChild("NAChatGroupPopup")
-	local invitePrompt = frame:FindFirstChild("NAChatInvitePrompt")
-	local settingsPopup = frame:FindFirstChild("NAChatSettingsPopup")
-	local messageMenu = frame:FindFirstChild("NAChatMessageMenu")
-	frame.ZIndex = 0
-	for _, item in ipairs(frame:GetDescendants()) do
-		if item:IsA("GuiObject") then
-			local layer = 10
-			if messageMenu and (item == messageMenu or item:IsDescendantOf(messageMenu)) then
-				layer = 90
-			elseif settingsPopup and (item == settingsPopup or item:IsDescendantOf(settingsPopup)) then
-				layer = 80
-			elseif (groupPopup and (item == groupPopup or item:IsDescendantOf(groupPopup))) or (invitePrompt and (item == invitePrompt or item:IsDescendantOf(invitePrompt))) then
-				layer = 70
-			elseif topbar and item:IsDescendantOf(topbar) then
-				layer = 50
-			elseif messageBar and item:IsDescendantOf(messageBar) then
-				layer = 50
-			elseif tabs and item:IsDescendantOf(tabs) then
-				layer = 40
-			elseif container and item:IsDescendantOf(container) then
-				layer = 30
-			end
-			if item:GetAttribute("NAWindowBackgroundLayer") == true then
-				layer = 0
-			end
-			item.ZIndex = layer
-		end
+	if frame.ZIndex ~= 0 then frame.ZIndex = 0 end
+	const work = {}
+	for _, item in NAmanage.QueryDescendants(frame, "GuiObject") do
+		apply(item)
+		NAmanage.WorkBudgetStep(work, 64, 0.002)
 	end
 end
 
-if NAUIMANAGER.NAchatFrame and not NAStuff.NAChatZIndexConnection then
-	NAStuff.NAChatZIndexConnection = NAUIMANAGER.NAchatFrame.DescendantAdded:Connect(function()
+if NAUIMANAGER.NAchatFrame then
+	NAlib.disconnect("NAChatZIndex")
+	const pending = {}
+	local queued = false
+	NAStuff.NAChatZIndexConnection = NAlib.connect("NAChatZIndex", NAUIMANAGER.NAchatFrame.DescendantAdded:Connect(function(item)
+		if not item:IsA("GuiObject") then return end
+		pending[item] = true
+		if queued then return end
+		queued = true
 		Defer(function()
-			if NAmanage.NAChatNormalizeZIndex then
-				NAmanage.NAChatNormalizeZIndex()
+			const work = {}
+			while next(pending) do
+				const obj = next(pending)
+				pending[obj] = nil
+				pcall(NAmanage.NAChatNormalizeZIndex, obj)
+				NAmanage.WorkBudgetStep(work, 48, 0.002)
 			end
+			queued = false
 		end)
-	end)
+	end))
 end
 NAmanage.NAChatNormalizeZIndex()
 NAmanage.ScriptHub = type(NAmanage.ScriptHub) == "table" and NAmanage.ScriptHub or {}
