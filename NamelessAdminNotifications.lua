@@ -166,7 +166,7 @@ local UI_ATTR = {
 	OWNER = "_na_en_owner"
 }
 
-local UI_REV = 3
+local UI_REV = 4
 
 local function isTrustedGui(inst)
 	if typeof(inst) ~= "Instance" or not inst:IsA("ScreenGui") then
@@ -634,6 +634,7 @@ wW = NotifFuns.wW
 
 local ctxMap = {}
 local stacks = {}
+local motion = { active = {} }
 
 function NotifFuns.mkStack(key)
 	local tl, br = inz()
@@ -922,9 +923,94 @@ function NotifFuns.addTween(obj, tween)
 end
 addTween = NotifFuns.addTween
 
+function NotifFuns.idleMotion()
+	if motion.conn and not next(motion.active) then
+		motion.conn:Disconnect()
+		motion.conn = nil
+	end
+end
+
+function NotifFuns.stopSpring(obj, key)
+	local s = ctxMap[obj]
+	local r = s and s.springs and s.springs[key]
+	if r then
+		motion.active[r] = nil
+		s.springs[key] = nil
+	end
+	NotifFuns.idleMotion()
+end
+
+function NotifFuns.stepMotion(dt)
+	local done
+	for r in motion.active do
+		local s = ctxMap[r.obj]
+		if s ~= r.state or not r.obj.Parent then
+			motion.active[r] = nil
+			if s == r.state then s.springs[r.key] = nil end
+		else
+			local d = r.val - r.goal
+			local t = (r.vel + d * r.rate) * dt
+			local f = math.exp(-r.rate * dt)
+			r.val = r.goal + (d + t) * f
+			r.vel = (r.vel - t * r.rate) * f
+			local err = r.val - r.goal
+			local dist = typeof(err) == "Vector2" and err.Magnitude or math.abs(err)
+			local speed = typeof(r.vel) == "Vector2" and r.vel.Magnitude or math.abs(r.vel)
+			if dist <= r.eps and speed <= r.eps * r.rate then
+				r.val = r.goal
+				r.vel = r.goal * 0
+				motion.active[r] = nil
+				s.springs[r.key] = nil
+				r.step(r.val)
+				if r.done then
+					done = done or {}
+					table.insert(done, r.done)
+				end
+			else
+				r.step(r.val)
+			end
+		end
+	end
+	if done then
+		for _, fn in done do fn() end
+	end
+	NotifFuns.idleMotion()
+end
+
+function NotifFuns.spring(obj, key, start, goal, rate, step, done, eps)
+	local s = ctx(obj)
+	s.springs = s.springs or {}
+	local r = s.springs[key]
+	if not r then
+		r = { obj = obj, state = s, key = key, val = start, vel = start * 0 }
+		s.springs[key] = r
+	end
+	r.goal = goal
+	r.rate = rate
+	r.step = step
+	r.done = done
+	r.eps = eps or (typeof(goal) == "Vector2" and 0.025 or 0.0005)
+	motion.active[r] = true
+	if not motion.conn then
+		motion.conn = rs.RenderStepped:Connect(NotifFuns.stepMotion)
+	end
+	return r
+end
+
+function NotifFuns.springProp(obj, key, inst, prop, goal, rate, done, eps)
+	return NotifFuns.spring(obj, key, inst[prop], goal, rate, function(v)
+		inst[prop] = v
+	end, done, eps)
+end
+
 function NotifFuns.clrSt(s)
 	if not s then
 		return
+	end
+	if s.springs then
+		for _, r in s.springs do motion.active[r] = nil end
+		s.springs = {}
+		NotifFuns.idleMotion()
 	end
 	if s.connections then
 		for conn in s.connections do
@@ -948,6 +1034,10 @@ clrSt = NotifFuns.clrSt
 function NotifFuns.cleanup(obj)
 	local s = ctxMap[obj]
 	if s then
+		if s.menuFrames then
+			for m in s.menuFrames do NotifFuns.destroyMenu(m) end
+			s.menuFrames = nil
+		end
 		clrSt(s)
 	end
 	if typeof(obj) == "Instance" then
@@ -1053,7 +1143,7 @@ function NotifFuns.mkIcn(par, txt, z, font, stl)
 		NotifFuns.tween(b, info, { BackgroundColor3 = bg, BackgroundTransparency = tr })
 		NotifFuns.tween(lb, info, { TextColor3 = sel and not bad and TH.Bg or TH.Txt })
 		NotifFuns.tween(st, info, { Transparency = hov and 0.86 or 0.94 })
-		NotifFuns.tween(sc, info, { Scale = 1 })
+		NotifFuns.springProp(sc, "press", sc, "Scale", 1, 34, nil, 0.0001)
 	end
 	addConnection(b, b.MouseEnter:Connect(function()
 		b:SetAttribute("hov", true)
@@ -1064,7 +1154,7 @@ function NotifFuns.mkIcn(par, txt, z, font, stl)
 		updateColors()
 	end))
 	addConnection(b, b.MouseButton1Down:Connect(function()
-		NotifFuns.tween(sc, TweenInfo.new(0.08), { Scale = 0.94 })
+		NotifFuns.springProp(sc, "press", sc, "Scale", 0.94, 48, nil, 0.0001)
 	end))
 	addConnection(b, b.MouseButton1Up:Connect(updateColors))
 	local function setSel(on)
@@ -1152,6 +1242,55 @@ function NotifFuns.placeMenu(btn, menu)
 	end
 end
 placeMenu = NotifFuns.placeMenu
+
+function NotifFuns.destroyMenu(m)
+	local s = ctxMap[m]
+	local owner = s and ctxMap[s.owner]
+	if owner and owner.menuFrames then owner.menuFrames[m] = nil end
+	cleanup(m)
+	m:Destroy()
+end
+
+function NotifFuns.showMenu(m, owner)
+	local s = ctx(m)
+	s.owner = owner
+	local own = ctx(owner)
+	own.menuFrames = own.menuFrames or {}
+	own.menuFrames[m] = true
+	addConnection(m, m.Destroying:Connect(function()
+		if own.menuFrames then own.menuFrames[m] = nil end
+		cleanup(m)
+	end))
+	local sc = Instance.new("UIScale", m)
+	sc.Scale = 0.96
+	s.sc = sc
+	m.BackgroundTransparency = 1
+	local st = m:FindFirstChildOfClass("UIStroke")
+	st.Transparency = 1
+	NotifFuns.springProp(m, "scale", sc, "Scale", 1, 32, nil, 0.0001)
+	NotifFuns.springProp(m, "bg", m, "BackgroundTransparency", 0.05, 38)
+	NotifFuns.springProp(m, "stroke", st, "Transparency", 0.8, 38)
+	NotifFuns.fadeNACardContent(m, true)
+	NotifFuns.fadeNACardContent(m, false, 0.16)
+	s.shown = true
+end
+
+function NotifFuns.hideMenu(m)
+	local s = ctxMap[m]
+	if not s or s.leaving then return end
+	s.leaving = true
+	for _, d in m:QueryDescendants("Instance") do
+		if d:IsA("GuiObject") then d.Active = false end
+		local sd = ctxMap[d]
+		if sd then clrSt(sd) end
+	end
+	NotifFuns.fadeNACardContent(m, true, 0.11)
+	NotifFuns.springProp(m, "scale", s.sc, "Scale", 0.96, 40, nil, 0.0001)
+	NotifFuns.springProp(m, "stroke", m:FindFirstChildOfClass("UIStroke"), "Transparency", 1, 44)
+	NotifFuns.springProp(m, "bg", m, "BackgroundTransparency", 1, 44, function()
+		if ctxMap[m] == s then NotifFuns.destroyMenu(m) end
+	end)
+end
 
 NotifFuns.NAStyle = NotifFuns.NAStyle or {}
 NotifFuns.NAStyle.fadeTextAttr = NotifFuns.NAStyle.fadeTextAttr or "_na_notif_text_trans"
@@ -1351,8 +1490,7 @@ function NotifFuns.mkHdr(par, z, kind, onPause, owner)
 		fNonce += 1
 		fCon = disconnectMenuConn(fCon)
 		if fMenu and fMenu.Parent then
-			cleanup(fMenu)
-			fMenu:Destroy()
+			NotifFuns.hideMenu(fMenu)
 		end
 		fMenu = nil
 		rec = nil
@@ -1410,22 +1548,15 @@ function NotifFuns.mkHdr(par, z, kind, onPause, owner)
 			local b = mkMenuBtn(sf, pair[1], sf.ZIndex + 1, CURF[kind])
 			local setSel = function(on)
 				b:SetAttribute("sel", on)
-				if on then
-					tw:Create(b, TweenInfo.new(0.12), {
-						BackgroundColor3 = TH.BtnSel,
-						BackgroundTransparency = 0
-					}):Play()
-					tw:Create(b, TweenInfo.new(0.12), {
-						TextColor3 = TH.Bg
-					}):Play()
+				local props = {
+					BackgroundColor3 = on and TH.BtnSel or TH.Btn,
+					BackgroundTransparency = on and 0 or 1,
+					TextColor3 = on and TH.Bg or TH.Txt
+				}
+				if ctxMap[m] and ctxMap[m].shown then
+					NotifFuns.tween(b, TweenInfo.new(0.12), props)
 				else
-					tw:Create(b, TweenInfo.new(0.12), {
-						BackgroundColor3 = TH.Btn,
-						BackgroundTransparency = 1
-					}):Play()
-					tw:Create(b, TweenInfo.new(0.12), {
-						TextColor3 = TH.Txt
-					}):Play()
+					for prop, v in props do b[prop] = v end
 				end
 			end
 			table.insert(rec, {
@@ -1465,19 +1596,7 @@ function NotifFuns.mkHdr(par, z, kind, onPause, owner)
 			end
 		end)
 		addConnection(par, fCon)
-		local sc = Instance.new("UIScale", m)
-		sc.Scale = 0.97
-		m.BackgroundTransparency = 1
-		local t1 = tw:Create(sc, TweenInfo.new(0.16, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
-			Scale = 1
-		})
-		local t2 = tw:Create(m, TweenInfo.new(0.15), {
-			BackgroundTransparency = 0.05
-		})
-		t1:Play()
-		t2:Play()
-		addTween(m, t1)
-		addTween(m, t2)
+		NotifFuns.showMenu(m, owner or par)
 	end
 	addConnection(fbtn, fbtn.MouseButton1Click:Connect(function()
 		if not canToggleMenu() then
@@ -1505,8 +1624,7 @@ function NotifFuns.mkHdr(par, z, kind, onPause, owner)
 			pNonce += 1
 			pCon = disconnectMenuConn(pCon)
 			if pMenu and pMenu.Parent then
-				cleanup(pMenu)
-				pMenu:Destroy()
+				NotifFuns.hideMenu(pMenu)
 			end
 			pMenu = nil
 			setPosSel(false)
@@ -1596,19 +1714,7 @@ function NotifFuns.mkHdr(par, z, kind, onPause, owner)
 				end
 			end)
 			addConnection(par, pCon)
-			local sc = Instance.new("UIScale", m)
-			sc.Scale = 0.97
-			m.BackgroundTransparency = 1
-			local t1 = tw:Create(sc, TweenInfo.new(0.16, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
-				Scale = 1
-			})
-			local t2 = tw:Create(m, TweenInfo.new(0.15), {
-				BackgroundTransparency = 0.05
-			})
-			t1:Play()
-			t2:Play()
-			addTween(m, t1)
-			addTween(m, t2)
+			NotifFuns.showMenu(m, owner or par)
 		end
 		addConnection(posBtn, posBtn.MouseButton1Click:Connect(function()
 			if not canToggleMenu() then
@@ -2123,50 +2229,41 @@ NotifFuns.NAStyle.rememberTransparency = function(inst, attr, prop)
 	return current
 end
 
-NotifFuns.NAStyle.setOrTweenTransparency = function(rootObj, inst, prop, value, tweenInfo)
-	if tweenInfo then
-		local okTween, t = pcall(function()
-			return tw:Create(inst, tweenInfo, {
-				[prop] = value
-			})
-		end)
-		if okTween and t then
-			t:Play()
-			addTween(rootObj, t)
-			return
-		end
-	end
-	pcall(function()
-		inst[prop] = value
-	end)
-end
-
 function NotifFuns.fadeNACardContent(rootObj, hidden, duration)
 	if not (rootObj and rootObj.Parent) then
 		return
 	end
 	local style = NotifFuns.NAStyle
-	local tweenInfo = duration and TweenInfo.new(duration, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out) or nil
+	local props = {}
+	NotifFuns.stopSpring(rootObj, "fade")
+	local function add(inst, attr, prop)
+		local stored = style.rememberTransparency(inst, attr, prop)
+		local target = hidden and 1 or stored
+		if duration then
+			table.insert(props, { inst, prop, inst[prop], target })
+		else
+			inst[prop] = target
+		end
+	end
 	for _, inst in rootObj:QueryDescendants("Instance") do
 		if inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox") then
-			local stored = style.rememberTransparency(inst, style.fadeTextAttr, "TextTransparency")
-			local target = hidden and 1 or stored
-			style.setOrTweenTransparency(rootObj, inst, "TextTransparency", target, tweenInfo)
+			add(inst, style.fadeTextAttr, "TextTransparency")
 		end
 		if inst:IsA("ImageLabel") or inst:IsA("ImageButton") then
-			local stored = style.rememberTransparency(inst, style.fadeImageAttr, "ImageTransparency")
-			local target = hidden and 1 or stored
-			style.setOrTweenTransparency(rootObj, inst, "ImageTransparency", target, tweenInfo)
+			add(inst, style.fadeImageAttr, "ImageTransparency")
 		end
 		if inst:IsA("GuiObject") and inst ~= rootObj then
-			local stored = style.rememberTransparency(inst, style.fadeBgAttr, "BackgroundTransparency")
-			local target = hidden and 1 or stored
-			style.setOrTweenTransparency(rootObj, inst, "BackgroundTransparency", target, tweenInfo)
+			add(inst, style.fadeBgAttr, "BackgroundTransparency")
 		elseif inst:IsA("UIStroke") and inst.Parent ~= rootObj then
-			local stored = style.rememberTransparency(inst, style.fadeStrokeAttr, "Transparency")
-			local target = hidden and 1 or stored
-			style.setOrTweenTransparency(rootObj, inst, "Transparency", target, tweenInfo)
+			add(inst, style.fadeStrokeAttr, "Transparency")
 		end
+	end
+	if duration then
+		NotifFuns.spring(rootObj, "fade", 0, 1, 6 / duration, function(v)
+			for _, p in props do
+				if p[1].Parent then p[1][p[2]] = p[3] + (p[4] - p[3]) * v end
+			end
+		end)
 	end
 end
 
@@ -2224,19 +2321,52 @@ function NotifFuns.resizeCard(card)
 		return
 	end
 	s.wantSize = size
-	if s.sizeTween then s.sizeTween:Cancel() end
-	s.sizeTween = NotifFuns.tween(card, TweenInfo.new(0.2, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), { Size = size })
+	NotifFuns.sizeCard(card, Vector2.new(size.X.Offset, size.Y.Offset))
+end
+
+function NotifFuns.sizeCard(card, goal, done)
+	local size = card.Size
+	return NotifFuns.spring(card, "size", Vector2.new(size.X.Offset, size.Y.Offset), goal, 28, function(v)
+		card.Size = UDim2.fromOffset(math.max(1, v.X), math.max(0, v.Y))
+	end, done)
+end
+
+function NotifFuns.moveCard(card, goal, rate, start)
+	local s = ctx(card)
+	local shell = s.shell
+	local pos = shell.Position
+	local r = NotifFuns.spring(card, "pos", start or Vector2.new(pos.X.Offset, pos.Y.Offset), goal, rate, function(v)
+		shell.Position = UDim2.fromOffset(v.X, v.Y)
+	end)
+	if start then
+		r.val = start
+		r.step(start)
+	end
+	return r
+end
+
+function NotifFuns.trackCard(card)
+	local s = ctxMap[card]
+	local pos = card.AbsolutePosition
+	local old = s.lastPos
+	s.lastPos = pos
+	if not old or not s.opened or s.rebase or s.kind == "Popup" then return end
+	local d = (old - pos) / csc(card)
+	if d.Magnitude < 0.01 then return end
+	local r = s.springs and s.springs.pos
+	if r then
+		r.val += d
+		r.step(r.val)
+	else
+		local p = s.shell.Position
+		NotifFuns.moveCard(card, Vector2.new(0, 0), 24, Vector2.new(p.X.Offset, p.Y.Offset) + d)
+	end
 end
 
 function NotifFuns.stopMotion(card)
-	local s = ctxMap[card]
-	if not s then return end
-	if s.sizeTween then
-		s.sizeTween:Cancel()
-		s.sizeTween = nil
+	for _, key in { "size", "pos", "bg", "stroke" } do
+		NotifFuns.stopSpring(card, key)
 	end
-	for _, t in s.motion or {} do t:Cancel() end
-	s.motion = {}
 end
 
 function NotifFuns.appear(card, sc, st, tgt, from, cntObj)
@@ -2252,33 +2382,29 @@ function NotifFuns.appear(card, sc, st, tgt, from, cntObj)
 	shell.Position = UDim2.fromOffset(from.dx or 0, from.dy or 0)
 	shell.BackgroundTransparency = 1
 	st.Transparency = 1
+	s.lastPos = card.AbsolutePosition
 	NotifFuns.fadeNACardContent(shell, true)
-	local info = TweenInfo.new(0.28, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
-	s.sizeTween = NotifFuns.tween(card, info, { Size = tgt })
-	s.motion = {
-		NotifFuns.tween(shell, info, { Position = UDim2.fromOffset(0, 0), BackgroundTransparency = 0.5 }),
-		NotifFuns.tween(st, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Transparency = 0.82 })
-	}
+	NotifFuns.sizeCard(card, Vector2.new(tgt.X.Offset, tgt.Y.Offset))
+	NotifFuns.moveCard(card, Vector2.new(0, 0), 22)
+	NotifFuns.springProp(card, "bg", shell, "BackgroundTransparency", 0.5, 30)
+	NotifFuns.springProp(card, "stroke", st, "Transparency", 0.82, 32)
 	NotifFuns.fadeNACardContent(shell, false, 0.22)
 end
 appear = NotifFuns.appear
 
 function NotifFuns.disappear(card, sc, st)
 	local s = ctx(card)
-	NotifFuns.stopMotion(card)
 	local shell = s.shell or card
 	local from = dirFrom(s.dock or "topRight")
-	local info = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 	NotifFuns.fadeNACardContent(shell, true, 0.14)
-	s.motion = {
-		NotifFuns.tween(shell, info, { Position = UDim2.fromOffset(from.dx * 1.5, from.dy), BackgroundTransparency = 1 }),
-		NotifFuns.tween(st, info, { Transparency = 1 })
-	}
-	task.delay(0.12, function()
+	NotifFuns.moveCard(card, Vector2.new(from.dx * 1.5, from.dy), 26)
+	NotifFuns.springProp(card, "bg", shell, "BackgroundTransparency", 1, 36)
+	NotifFuns.springProp(card, "stroke", st, "Transparency", 1, 36)
+	task.delay(0.1, function()
 		if ctxMap[card] ~= s or not card.Parent then return end
-		s.sizeTween = NotifFuns.tween(card, TweenInfo.new(0.18, Enum.EasingStyle.Quint, Enum.EasingDirection.InOut), {
-			Size = UDim2.new(card.Size.X.Scale, card.Size.X.Offset, 0, 0)
-		})
+		NotifFuns.sizeCard(card, Vector2.new(card.Size.X.Offset, 0), function()
+			if ctxMap[card] == s and s.finish then s.finish() end
+		end)
 	end)
 end
 disappear = NotifFuns.disappear
@@ -2325,6 +2451,9 @@ function NotifFuns.mkCard(w, baseZ, kind, onPause)
 	s0.sc = sc
 	s0.baseScale = sc.Scale
 	s0.shell = shell
+	addConnection(card, card:GetPropertyChangedSignal("AbsolutePosition"):Connect(function()
+		if ctxMap[card] then NotifFuns.trackCard(card) end
+	end))
 	local hdrHeight = isMobile and 60 or 56
 	local body = Instance.new("Frame")
 	protectUiInst(body)
@@ -2406,7 +2535,7 @@ function NotifFuns.openIn(card, par, ftr, trk, st, sc, from, cntObj)
 		local s = ctxMap[card]
 		if not (s and card.Parent and gui) or s.closing then return end
 		if s.refTitle then s.refTitle() end
-		appear(card, sc, st, NotifFuns.cardSize(card), from, cntObj)
+		appear(card, sc, st, NotifFuns.cardSize(card), dirFrom(s.dock), cntObj)
 	end)
 end
 openIn = NotifFuns.openIn
@@ -2542,6 +2671,14 @@ function NotifFuns.build(kind, p)
 		s.setStackCount(1)
 	end
 	s.closing = false
+	s.finish = function()
+		if ctxMap[card] ~= s then return end
+		cleanup(card)
+		for _, t in ACT do t[card] = nil end
+		syncOverlayActive()
+		pcall(function() card:Destroy() end)
+		destroyPopupRoot()
+	end
 	s.close = function()
 		if s.closing then
 			return
@@ -2554,19 +2691,6 @@ function NotifFuns.build(kind, p)
 			s.closeMenus()
 		end
 		disappear(card, sc, st)
-		task.delay(0.34, function()
-			if card then
-				cleanup(card)
-				for _, t in ACT do
-					t[card] = nil
-				end
-				syncOverlayActive()
-				pcall(function()
-					card:Destroy()
-				end)
-				destroyPopupRoot()
-			end
-		end)
 	end
 	addConnection(card, card.Destroying:Connect(function()
 		s.closing = true
@@ -2593,18 +2717,16 @@ function NotifFuns.build(kind, p)
 			CURD[kind] = newDock
 			saveDocks()
 		end
-		NotifFuns.stopMotion(card)
+		local pos = s.shell.AbsolutePosition
+		s.rebase = true
 		card.Parent = getStack(newDock)
-		local from = dirFrom(newDock)
-		s.shell.Position = UDim2.fromOffset(from.dx, from.dy)
+		s.lastPos = card.AbsolutePosition
+		if s.opened then
+			NotifFuns.moveCard(card, Vector2.new(0, 0), 18, (pos - s.lastPos) / csc(card))
+		end
+		s.rebase = false
 		s.wantSize = nil
 		NotifFuns.resizeCard(card)
-		s.motion = {
-			NotifFuns.tween(s.shell, TweenInfo.new(0.24, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
-				Position = UDim2.fromOffset(0, 0), BackgroundTransparency = 0.5
-			}),
-			NotifFuns.tween(st, TweenInfo.new(0.2), { Transparency = 0.82 })
-		}
 	end
 	if p.Description and p.Description ~= "" then
 		local d = Instance.new("TextLabel")
