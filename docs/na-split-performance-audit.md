@@ -27,9 +27,9 @@ Audited against `a2276c3cd5b79392b8021f01678a28523ae639d6` on 2026-10-05. The re
 
 ## Validation
 
-`tests/na_split_regression.py` compiles both launchers, the manifest, and all 29 chunks. It also verifies CRLF/no BOM for runtime files, chunk and loader fingerprints, and generator parity. The behavioral suite extracts the current implementation into a deterministic Luau scheduler with mocked Roblox signals and instances.
+`tests/na_split_regression.py` compiles both launchers, the manifest, all 29 chunks, and the optional client probe. It also verifies CRLF/no BOM for runtime files, chunk and loader fingerprints, and generator parity. The behavioral suite extracts the current implementation into a deterministic Luau scheduler with mocked Roblox signals and instances.
 
-Thirty-seven scenarios cover cold/warm/offline/delta/incomplete loads, content caches, duplicate guards, cache-write and lock failures, failed-load retries, cancellation, event bursts and yielding callbacks, traversal limits, respawns, stale cache workers, queue ordering/concurrency/errors, settings completion, lighting changes/restoration, input rebinding, task timeouts, unload ownership, and quick reloads. The executor dataset is compared recursively with the original dataset.
+Thirty-eight scenarios pass **77,406 assertions**. They cover cold/warm/offline/delta/incomplete loads, content caches, duplicate guards, cache-write and lock failures, failed-load retries, cancellation, event bursts and yielding callbacks, traversal limits, respawns, stale cache workers, queue ordering/concurrency/errors, settings completion, lighting changes/restoration, input rebinding, task timeouts, unload ownership, and quick reloads. Both normal unload and failed-load fallback avoid borrowed roots, synthetic methods, custom iterators, and dead-task cancellation. The executor dataset is compared recursively with the original dataset.
 
 Reproducible CLI observations:
 
@@ -44,9 +44,9 @@ The deferred executor table adds approximately **1,093 KiB** of live allocations
 
 ## Live-client validation
 
-The full script was not executed in Roblox during this audit. Mock tests establish specific control-flow and ownership behavior; they cannot measure device FPS, renderer cost, executor compatibility, native allocation behavior, or arbitrary plugin work.
+The full script was executed through the connected Windows client using Potassium v2.5.1. The pinned baseline produced post-loading maximum frames of **100.8 and 149.0 ms**. Completed captures after the FastFlag fix ranged from **26.1 to 67.0 ms**, with no post-loading frames above 100 ms in those captures. These are observations on one desktop, with different cache/session conditions, rather than a controlled low-end benchmark. See [the client results](na-split-client-results.md) and [capture data](na-split-client-captures.json) for individual measurements, lifecycle checks, and limitations.
 
-Before merging, compare the pinned baseline and this branch in the same place on a low-end device with identical settings/plugins. Capture cold and warm startup, the first 60 seconds after the loading screen closes, settings interaction during construction, long chat-history restoration, NPC/ESP activity, executor first open, respawn, and repeated unload/reload. Compare maximum frame duration and retained memory after settling as well as total readiness time. More frequent yields can increase elapsed initialization time while reducing concentrated frame work. Individual native compilation, asset loading/cloning, and arbitrary plugin callbacks remain indivisible unless their implementations cooperate with the budgets.
+Physical low-end hardware and long-running gameplay remain unmeasured. Before merging, compare identical settings/plugins on those devices, including chat-history restoration, NPC/ESP activity, executor first open, respawn, and repeated unload/reload. Compare maximum frame duration and retained memory after settling as well as total readiness time. More frequent yields can increase elapsed initialization time while reducing concentrated frame work. Individual native compilation, asset loading/cloning, and arbitrary plugin callbacks remain indivisible unless their implementations cooperate with the budgets. Repeated desktop reloads retained weakly observed runtime objects; neither the engine memory counters nor the audit prove complete garbage collection or the elimination of every leak.
 
 Use a fresh baseline cache when testing the old launcher: it does not understand the new fingerprint cache layout. Current launchers accept legacy flat caches and the new layout.
 

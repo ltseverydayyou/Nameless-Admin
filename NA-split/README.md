@@ -60,4 +60,5 @@ python tests/na_split_regression.py --luau /path/to/luau --compiler /path/to/lua
 The suite uses the pinned pre-audit commit for comparisons, so that commit must
 be available in the local Git history. `--baseline` can select another baseline.
 See [the audit notes](../docs/na-split-performance-audit.md) for coverage and
-live-client validation requirements.
+[client results](../docs/na-split-client-results.md) for pinned captures,
+measurement limits, and instructions for the optional client probe.

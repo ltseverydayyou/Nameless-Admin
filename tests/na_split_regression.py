@@ -35,7 +35,7 @@ def main():
         parser.error('provide --luau and --compiler or put Luau tools on PATH')
     parts = sorted((ROOT / 'NA-split/common').glob('part-*.lua'))
     loaders = [ROOT / 'Source.lua', ROOT / 'NA testing.lua']
-    subprocess.run([args.compiler, '--null', *map(str, loaders), str(ROOT / 'NA-split/common/manifest.lua'), *map(str, parts)], check=True)
+    subprocess.run([args.compiler, '--null', *map(str, loaders), str(ROOT / 'NA-split/common/manifest.lua'), *map(str, parts), str(ROOT / 'tests/na_split_client_probe.lua')], check=True)
     manifest = (ROOT / 'NA-split/common/manifest.lua').read_text()
     digest = hashlib.sha256()
     for index, path in enumerate(parts, 1):
