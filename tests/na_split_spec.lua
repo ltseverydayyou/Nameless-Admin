@@ -501,6 +501,18 @@ test("flashback connections are owned and delayed character binds stop after unl
 	check(env.NAStuff.conns.flashback_character == nil, "character bind created connections after unload")
 end)
 
+test("cleanup helpers preserve the designated unload thread", function()
+	local env, api = environment()
+	load(source.cleanup, env)
+	local owner = api.spawn(function() api.wait(100) end)
+	env.NAmanage._runtimeState = { unloadThread = owner }
+	local summary = { connections = 0; threads = 0 }
+	api.defer(function() env.NAmanage.UnloadDisconnectTree({ owner = owner }, summary) end)
+	api.step()
+	check(coroutine.status(owner) == "suspended" and summary.threads == 0, "cleanup helper cancelled the unload caller")
+	api.cancel(owner)
+end)
+
 test("full unload releases runtime resources, preserves external resources, and tolerates quick reload", function()
 	local env, api = environment()
 	local state, token = {}, {}
@@ -519,6 +531,8 @@ test("full unload releases runtime resources, preserves external resources, and 
 	local extra = signal():Connect(function() end)
 	env.NAmanage.nested = { owned = owned; external = host }
 	env.otherConnection = extra
+	local bridgeThread = api.spawn(function() api.wait(100) end)
+	env.borrowedBridge = { connection = external; thread = bridgeThread }
 	local thread = api.spawn(function() api.wait(100) end)
 	env.NAmanage._runtimeState.spawnActive[thread] = true
 	local summary
@@ -527,7 +541,7 @@ test("full unload releases runtime resources, preserves external resources, and 
 	local sweeps = 0
 	env.NAmanage.RemovePlexityGradients = function() sweeps += 1 end
 	api.spawn(function() local ok; ok, summary = env.NAmanage.Unload(); check(ok, "full unload failed") end)
-	check(not owned.Connected and not extra.Connected and external.Connected, "unload leaked runtime connections or touched host connections")
+	check(not owned.Connected and not extra.Connected and external.Connected and coroutine.status(bridgeThread) == "suspended", "unload leaked runtime connections or touched borrowed resources")
 	check(host.__NamelessAdminRuntimeState == nil and host.NACaller == previous and coroutine.status(thread) == "dead", "unload retained runtime state, caller, or task")
 	local replacement = {}
 	local newCaller = function() end

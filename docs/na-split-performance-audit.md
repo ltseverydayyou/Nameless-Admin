@@ -21,13 +21,13 @@ Audited against `a2276c3cd5b79392b8021f01678a28523ae639d6` on 2026-10-05. The re
 | Chat UI | Normalize added objects in batches instead of scanning the entire chat frame for each added descendant. Skip unchanged Z-index assignments. |
 | Lighting | Replace per-frame lighting/camera descendant scans with initial scans and additions/camera watchers. Throttle cached effect/shader enforcement and avoid unchanged property writes. Restore the original no-fog baseline. |
 | Executor | Construct the complete autocomplete dataset only on first use; reuse it and its index thereafter. Release bootstrap helper source strings after their modules load. |
-| Tasks and unload | Do not retain synchronously completed tasks. Cancel timed-out/skipped workers and release their tracking entries. Register flashback and plugin-maker input connections. Include owned runtime state in cleanup while excluding host/registry roots. Restore the previous global caller and prevent delayed cleanup from affecting a reloaded runtime. |
+| Tasks and unload | Do not retain synchronously completed tasks. Cancel timed-out/skipped workers and release their tracking entries. Register flashback and plugin-maker input connections. Clean managed namespaces and direct runtime connections while excluding host/registry roots and borrowed global tables. Preserve the designated unload thread even when cleanup runs in another thread. Restore the previous global caller and prevent delayed cleanup from affecting a reloaded runtime. |
 
 ## Validation
 
 `tests/na_split_regression.py` compiles both launchers, the manifest, and all 29 chunks. It also verifies CRLF/no BOM for runtime files, chunk and loader fingerprints, and generator parity. The behavioral suite extracts the current implementation into a deterministic Luau scheduler with mocked Roblox signals and instances.
 
-Thirty scenarios cover cold/warm/offline/delta/incomplete loads, content caches, duplicate guards, cache-write and lock failures, failed-load retries, cancellation, event bursts and yielding callbacks, traversal limits, respawns, stale cache workers, queue ordering/concurrency/errors, settings completion, lighting changes/restoration, input rebinding, task timeouts, unload ownership, and quick reloads. The executor dataset is compared recursively with the original dataset.
+Thirty-one scenarios cover cold/warm/offline/delta/incomplete loads, content caches, duplicate guards, cache-write and lock failures, failed-load retries, cancellation, event bursts and yielding callbacks, traversal limits, respawns, stale cache workers, queue ordering/concurrency/errors, settings completion, lighting changes/restoration, input rebinding, task timeouts, unload ownership, and quick reloads. The executor dataset is compared recursively with the original dataset.
 
 Reproducible CLI observations:
 

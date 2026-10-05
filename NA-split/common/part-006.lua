@@ -26,21 +26,23 @@ NAmanage.RunUnloadCleanups = function(summary)
 	table.clear(NAmanage._unloadCleanups)
 end
 
-NAmanage.UnloadDisconnectTree = function(root, summary)
+NAmanage.UnloadDisconnectTree = function(root, summary, shallow)
 	if type(root) ~= "table" then
 		return
 	end
 	const seen = {}
 	const currentThread = coroutine.running()
+	const unloadThread = NAmanage._runtimeState and NAmanage._runtimeState.unloadThread
 	const function walk(value)
 		if type(value) ~= "table" or seen[value] then
 			return
 		end
 		if type(_na_boot) == "table" and (value == _na_boot or value == _na_boot.hostEnv
-			or value == _na_boot.privateRegistry or value == _na_boot.privateRoot) then return end
+			or value == _na_boot.privateRegistry or value == _na_boot.privateRoot
+			or (value == _na_boot.runtimeEnv and value ~= root)) then return end
 		seen[value] = true
 		const disconnect = rawget(value, "Disconnect")
-		if type(disconnect) == "function" and (rawget(value, "Connected") ~= nil or type(rawget(value, "_conns")) == "table") then
+		if not shallow and type(disconnect) == "function" and (rawget(value, "Connected") ~= nil or type(rawget(value, "_conns")) == "table") then
 			const ok = pcall(disconnect, value)
 			if ok then
 				summary.connections += 1
@@ -50,7 +52,7 @@ NAmanage.UnloadDisconnectTree = function(root, summary)
 			const kind = typeof(child)
 			const childType = type(child)
 			local connectionLike = kind == "RBXScriptConnection"
-			if not connectionLike and kind ~= "Instance" and (childType == "table" or childType == "userdata") then
+			if not shallow and not connectionLike and kind ~= "Instance" and (childType == "table" or childType == "userdata") then
 				local okDisconnect, disconnectMethod = pcall(function()
 					return child and child.Disconnect
 				end)
@@ -73,7 +75,7 @@ NAmanage.UnloadDisconnectTree = function(root, summary)
 				pcall(function()
 					value[key] = nil
 				end)
-			elseif kind == "thread" and child ~= currentThread and task and type(task.cancel) == "function" then
+			elseif kind == "thread" and child ~= currentThread and child ~= unloadThread and task and type(task.cancel) == "function" then
 				const ok = pcall(task.cancel, child)
 				if ok then
 					summary.threads += 1
@@ -81,7 +83,7 @@ NAmanage.UnloadDisconnectTree = function(root, summary)
 				pcall(function()
 					value[key] = nil
 				end)
-			elseif type(child) == "table" then
+			elseif not shallow and type(child) == "table" then
 				walk(child)
 			end
 		end
@@ -892,9 +894,10 @@ NAmanage.Unload = function(opts)
 			NAlib.disconnect(names[i])
 		end
 	end
-	for _, root in { NAStuff, NAjobs, NAmanage, NAgui, NAUIMANAGER, TopBarApp, SideSwipeApp, NAindex, _na_boot.runtimeEnv } do
+	for _, root in { NAStuff, NAjobs, NAmanage, NAgui, NAUIMANAGER, TopBarApp, SideSwipeApp, NAindex } do
 		NAmanage.UnloadDisconnectTree(root, summary)
 	end
+	NAmanage.UnloadDisconnectTree(_na_boot.runtimeEnv, summary, true)
 	const roots = {}
 	const rootSet = setmetatable({}, { __mode = "k" })
 	const function addRoot(instance)
