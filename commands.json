@@ -2072,12 +2072,11 @@
         "lowgraphics",
         "boostfps",
         "lowg",
-        "antilag",
-        "boostfps"
+        "antilag"
       ],
       "usage": "fpsbooster",
       "args": "",
-      "desc": "Enables maximum-performance low graphics mode, run again to restore"
+      "desc": "Toggle low graphics using your FPSBooster settings"
     },
     {
       "name": "annoy",
@@ -9051,21 +9050,23 @@
       "name": "blockremote",
       "aliases": [
         "blockremote",
+        "blockremotes",
         "br"
       ],
-      "usage": "blockremote [name]",
-      "args": "[name]",
-      "desc": "Block a remote event/function by name (or pick from list)"
+      "usage": "blockremote [name|path|#id]",
+      "args": "[name|path|#id]",
+      "desc": "Choose matching remotes and block with Hooks, Signals, or Both"
     },
     {
       "name": "unblockremote",
       "aliases": [
         "unblockremote",
+        "unblockremotes",
         "ubr"
       ],
-      "usage": "unblockremote [name|all]",
-      "args": "[name|all]",
-      "desc": "Unblock a remote by name, or pick from blocked list"
+      "usage": "unblockremote [name|path|#id|all]",
+      "args": "[name|path|#id|all]",
+      "desc": "Choose a blocked remote to restore, or unblock all"
     },
     {
       "name": "bypassspeed",
