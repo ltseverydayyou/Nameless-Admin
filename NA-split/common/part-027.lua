@@ -10109,14 +10109,12 @@ NAmanage.NAInitCoreGuiCustomization=function()
 
 			const function makeBuilderIconRichSegment(text)
 				const entry = getBuilderIconCatalogEntryByText(text)
-				if type(entry) == "table" then
-					const token = getBuilderIconTextTokenForEntry(entry)
-					if type(token) == "string" and token ~= "" then
-						return Format(
-							'<font family="rbxasset://LuaPackages/Packages/_Index/BuilderIcons/BuilderIcons/BuilderIcons.json">%s</font>',
-							escapeBuilderIconRichText(token)
-						)
-					end
+				const token = entry and getBuilderIconTextTokenForEntry(entry) or tostring(text or "")
+				if type(token) == "string" and token ~= "" then
+					return Format(
+						'<font family="rbxasset://LuaPackages/Packages/_Index/BuilderIcons/BuilderIcons/BuilderIcons.json">%s</font>',
+						escapeBuilderIconRichText(token)
+					)
 				end
 				const preview = resolveBuilderIconDisplayText and resolveBuilderIconDisplayText(text) or getBuilderIconPreviewText(text)
 				return escapeBuilderIconRichText(preview)
@@ -10238,16 +10236,9 @@ NAmanage.NAInitCoreGuiCustomization=function()
 			local syncBuilderIconInput
 
 			const function getVisibleBuilderIconCatalogOptions()
-				const selectedLabel = BuilderIconEditor.selectedIconLabel
 				const visible = {}
 				for _, option in BuilderIconEditor.catalogOptions or {} do
-					if type(option) == "table" then
-						if option.value ~= selectedLabel then
-							visible[#visible + 1] = option
-						end
-					else
-						visible[#visible + 1] = option
-					end
+					visible[#visible + 1] = option
 				end
 				if #visible == 0 then
 					if BuilderIconEditor.catalogLoading then
@@ -10801,6 +10792,10 @@ NAmanage.NAInitCoreGuiCustomization=function()
 						})
 					end
 				end)
+				fetchBuilderIconCatalog({
+					notify = false,
+					timeout = 8,
+				})
 			else
 				syncBuilderIconCatalogDropdown()
 				disconnectBuilderIconWatchers()
