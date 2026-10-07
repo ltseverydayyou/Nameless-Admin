@@ -6318,7 +6318,7 @@
       ],
       "usage": "offsetwalk <number|off> (owalk,offsetspeed,ospeed)",
       "args": "<number|off>",
-      "desc": "Moves using speed with frozen replication and 0.1-second teleports"
+      "desc": "moves the character by teleporting it a set number of studs every frame"
     },
     {
       "name": "unoffsetwalk",
