@@ -23,9 +23,10 @@ def main():
     args=parser.parse_args()
     if not args.luau or not args.compiler: parser.error('provide --luau and --compiler')
     parts=args.source/'NA-split/common'
-    src={n:(parts/f'part-{n:03d}.lua').read_text() for n in (2,20,21,24,25,29)}
+    src={n:(parts/f'part-{n:03d}.lua').read_text() for n in (2,3,20,21,24,25,29)}
     pieces={
         'logical':between(src[2], 'updateCanvasSize =', 'NAmanage.CreateNAFreecam='),
+        'instances':between(src[3], 'NAmanage.StartupInstanceBudgetStep =', 'NAStuff.NACallerErrors ='),
         'view':between(src[20], 'COMMAND_LIST_TOP_PADDING =', 'NAmanage.cmdResp ='),
         'commands':between(src[21], 'NAmanage.Commands_UpdateExpandedMetrics =', 'NAgui.commands ='),
         'filter':between(src[24], 'NAgui.filterCommandList =', 'commandFilterTick ='),

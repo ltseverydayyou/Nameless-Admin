@@ -124,6 +124,7 @@ local function env()
  e.Vector2,e.UDim,e.UDim2,e.Enum=Vector2,UDim,UDim2,enums
  e.typeof=function(v) return type(v)=="table" and (v.ClassName and "Instance" or v._type) or typeof(v) end
  e.InstanceNew=instance
+ e.Instance={new=instance}
  e.Font={new=function(...) return {...} end}
  e.Color3={fromRGB=function(...) return {...} end}
  e.TweenInfo={new=function() return {} end}
@@ -201,6 +202,69 @@ local function test(name,fn)
  cases+=1
  print("PASS: "..name)
 end
+test("search during budgeted row creation does not leave orphan frames",function()
+ local e,list=setup()
+ local st=e.NAmanage.ensureCommandListState()
+ local tasks={}
+ local yields=0
+ local function schedule(fn) tasks[#tasks+1]=coroutine.create(fn) end
+ e.Defer=schedule
+ e.Delay=function(_,fn) schedule(fn) end
+ e.Wait=function() yields+=1; coroutine.yield() end
+ e.Instance={new=instance}
+ e.IsOnMobile=true
+ e.NAStuff.StartupPerformance={finished=false}
+ e.NAStuff.SettingsBuildRunning=true
+ e.NAStuff._loadingFinalizedOnce=true
+ e.NAmanage.cmdYield=function(i) if i%60==0 then e.Wait() end end
+ inject(e,"instances")
+ st.entries=entries(360)
+ st.filteredEntries=st.entries
+ schedule(function() e.NAmanage.syncVisibleCommandRows(st) end)
+ schedule(function() e.NAmanage.syncVisibleCommandRows(st) end)
+ schedule(function() e.NAgui.filterCommandList("cmd3") end)
+ local turns=0
+ while #tasks>0 do
+  turns+=1
+  assert(turns<3000,"budgeted command refresh did not settle")
+  local thread=table.remove(tasks,1)
+  local ok,err=coroutine.resume(thread)
+  assert(ok,err)
+  if coroutine.status(thread)~="dead" then tasks[#tasks+1]=thread end
+ end
+ flush()
+ check(yields>0,"test did not exercise budgeted creation")
+ verify(st)
+ for _,row in st.visibleLabels do check(row.Name:sub(1,4)=="cmd3","old search result remains attached") end
+ e.NAStuff.StartupPerformance.finished=true
+ e.NAStuff.SettingsBuildRunning=false
+ e.NAmanage.cmdYield=function() end
+ local orphan=instance("Frame",st.virtualCanvas)
+ orphan.Name="old_search_row"
+ e.NAgui.filterCommandList("missing")
+ verify(st)
+ check(orphan.Parent==nil and orphan.props.dead,"existing orphan frame survives search cleanup")
+ check(#st.virtualCanvas:GetChildren()==0,"zero matches leave stale frames")
+ local peak=0
+ for _,query in {"","cmd3","cmd36","missing","cmd2","","cmd1"} do
+  e.NAgui.filterCommandList(query)
+  flush()
+  verify(st)
+  peak=math.max(peak,#st.visibleLabels+#st.pooledLabels)
+ end
+ check(peak<80,"repeated searches grow the command row pool")
+ local step=e.NAmanage.cmdYield
+ e.NAmanage.cmdYield=function(i)
+  if i==120 then
+   e.NAmanage.cmdYield=step
+   e.NAgui.filterCommandList("cmd360")
+  end
+ end
+ e.NAgui.filterCommandList("cmd")
+ flush()
+ verify(st)
+ check(#st.filteredEntries==1 and st.filteredEntries[1].name=="cmd360","older yielding filter replaces the latest query")
+end)
 test("short canvas and elastic scrolling retain stable measurements",function()
  local e,list=setup()
  for _,scale in {0.5,1,1.5,2} do

@@ -123,6 +123,7 @@ function createCommandListLabel(state)
 	const tmpl = NAUIMANAGER.commandExample
 	const label = InstanceNew("Frame")
 	label.Name = "CommandRow"
+	label.Visible = false
 	label.BackgroundColor3 = tmpl.BackgroundColor3
 	label.BackgroundTransparency = tmpl.BackgroundTransparency
 	label.BorderSizePixel = tmpl.BorderSizePixel
@@ -285,7 +286,7 @@ function createCommandListLabel(state)
 end
 
 function releaseCommandListLabel(state, label)
-	if not label then
+	if not label or table.find(state.pooledLabels, label) then
 		return
 	end
 	NAmanage.Commands_StopInlineTween(label)
@@ -318,8 +319,32 @@ function acquireCommandListLabel(state)
 	end
 
 	label = createCommandListLabel(state)
+	if NAStuff.CommandListState ~= state or state.virtualCanvas.Parent ~= state.list then
+		label:Destroy()
+		return nil
+	end
 	label.Parent = state.virtualCanvas
 	return label
+end
+
+function pruneCommandListRows(state, wanted)
+	const active, keep = {}, {}
+	for entry, label in state.activeRows or {} do
+		if wanted[entry] and label.Parent == state.virtualCanvas and not keep[label] then
+			active[entry] = label
+			keep[label] = true
+		else
+			releaseCommandListLabel(state, label)
+		end
+	end
+	state.activeRows = active
+	table.clear(state.visibleLabels)
+	for _, label in state.virtualCanvas:GetChildren() do
+		if label:IsA("GuiObject") and not keep[label] then
+			if state.applied then state.applied[label] = nil end
+			label:Destroy()
+		end
+	end
 end
 
 function applyCommandListEntry(state, label, entry, index, animation)
@@ -633,7 +658,7 @@ NAmanage.ensureCommandListState=function()
 	if not staticMode then
 		virtualCanvas = cList:FindFirstChild("VirtualCanvas")
 		if not virtualCanvas then
-			virtualCanvas = InstanceNew("Frame")
+			virtualCanvas = Instance.new("Frame")
 			virtualCanvas.Name = "VirtualCanvas"
 			virtualCanvas.BackgroundTransparency = 1
 			virtualCanvas.BorderSizePixel = 0
@@ -717,8 +742,7 @@ NAmanage.ensureCommandListState=function()
 	return state
 end
 
-NAmanage.syncVisibleCommandRows=function(state)
-	state = state or NAmanage.ensureCommandListState()
+function syncCommandListRows(state)
 	if not state or NAStuff.CommandListState ~= state then
 		return
 	end
@@ -772,10 +796,7 @@ NAmanage.syncVisibleCommandRows=function(state)
 
 	if count <= 0 then
 		state.commandExpansionAnimation = nil
-		table.clear(state.activeRows)
-		while #state.visibleLabels > 0 do
-			releaseCommandListLabel(state, table.remove(state.visibleLabels))
-		end
+		pruneCommandListRows(state, {})
 		if virtualCanvas then
 			virtualCanvas.Size = UDim2.new(1, 0, 0, 0)
 		end
@@ -845,18 +866,18 @@ NAmanage.syncVisibleCommandRows=function(state)
 	for i = firstIndex, lastIndex do
 		wanted[filteredEntries[i]] = true
 	end
-	for entry, label in state.activeRows do
-		if not wanted[entry] then
-			releaseCommandListLabel(state, label)
-			state.activeRows[entry] = nil
-		end
-	end
-	table.clear(state.visibleLabels)
+	pruneCommandListRows(state, wanted)
 	for i = firstIndex, lastIndex do
 		const entry = filteredEntries[i]
 		local label = state.activeRows[entry]
 		if not label then
 			label = acquireCommandListLabel(state)
+			if not label then return end
+			if state.filteredEntries ~= filteredEntries then
+				releaseCommandListLabel(state, label)
+				state.syncAgain = true
+				return
+			end
 			state.activeRows[entry] = label
 		end
 		state.visibleLabels[#state.visibleLabels + 1] = label
@@ -874,6 +895,23 @@ NAmanage.syncVisibleCommandRows=function(state)
 			end
 		end)
 	end
+end
+
+NAmanage.syncVisibleCommandRows=function(state)
+	state = state or NAmanage.ensureCommandListState()
+	if not state or NAStuff.CommandListState ~= state then return end
+	if state.syncing == true then
+		state.syncAgain = true
+		return
+	end
+	state.syncing = true
+	const ok, err = pcall(syncCommandListRows, state)
+	state.syncing = false
+	if state.syncAgain == true then
+		state.syncAgain = false
+		requestCommandListSync(state)
+	end
+	if not ok then error(err, 0) end
 end
 
 NAgui.commands = function(opts)
