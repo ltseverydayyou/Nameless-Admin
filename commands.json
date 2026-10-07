@@ -6318,7 +6318,7 @@
       ],
       "usage": "offsetwalk <number|off> (owalk,offsetspeed,ospeed)",
       "args": "<number|off>",
-      "desc": "Moves using speed while freezing the replicated character between frames"
+      "desc": "Moves using speed with frozen replication and 0.1-second teleports"
     },
     {
       "name": "unoffsetwalk",
