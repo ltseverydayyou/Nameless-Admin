@@ -1662,177 +1662,57 @@ NAgui.addSlider("Offset Visual Outline Transparency", 0, 1, math.clamp(tonumber(
 	NAmanage.ovLive(false)
 end)
 
-NAmanage.updateFpsBoostOpt=function(key, value)
+NAmanage.updateFpsBoostOpt = function(key, value)
 	NAStuff.FPSBoostOptions = NAStuff.FPSBoostOptions or {}
 	NAStuff.FPSBoostOptions[key] = value
 	NAStuff.FPSBoostOptions = NAmanage.NASettingsSet("fpsBoostOptions", NAStuff.FPSBoostOptions) or NAStuff.FPSBoostOptions
-	if _na_env.NA_FPS_ACTIVE and type(_na_env.NA_FPS_REFRESH) == "function" and NAStuff.FPSBoostOptions.effectMode ~= "destroy" and not _na_env.NA_FPS_REFRESH_PENDING then
+	if _na_env.NA_FPS_ACTIVE and type(_na_env.NA_FPS_REFRESH) == "function" and not _na_env.NA_FPS_REFRESH_PENDING then
 		_na_env.NA_FPS_REFRESH_PENDING = true
-		task.spawn(function()
-			task.wait()
+		Defer(function()
+			Wait(0.15)
 			_na_env.NA_FPS_REFRESH_PENDING = false
-			if type(_na_env.NA_FPS_REFRESH) == "function" then
-				_na_env.NA_FPS_REFRESH()
-			end
+			if _na_env.NA_FPS_ACTIVE and not NAStuff._unloading and type(_na_env.NA_FPS_REFRESH) == "function" then _na_env.NA_FPS_REFRESH() end
 		end)
 	end
 end
 
 NAgui.addSection("FPSBooster Defaults")
-
-NAgui.addToggle("Destroy Effects (FPSBooster)", NAStuff.FPSBoostOptions.effectMode == "destroy", function(v)
-	NAmanage.updateFpsBoostOpt("effectMode", v and "destroy" or "disable")
-	DoNotif("FPSBooster will "..(v and "destroy" or "disable").." visual effects", 3)
-end)
-NAmanage.RegisterToggleAutoSync("Destroy Effects (FPSBooster)", function()
-	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.effectMode == "destroy") == true
-end)
-
-NAgui.addToggle("Strip Particles & Trails", NAStuff.FPSBoostOptions.stripParticles ~= false, function(v)
-	NAmanage.updateFpsBoostOpt("stripParticles", v ~= false)
-end)
-NAmanage.RegisterToggleAutoSync("Strip Particles & Trails", function()
-	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.stripParticles ~= false) == true
-end)
-
-NAgui.addToggle("Remove Decals", NAStuff.FPSBoostOptions.stripDecals ~= false, function(v)
-	NAmanage.updateFpsBoostOpt("stripDecals", v ~= false)
-end)
-NAmanage.RegisterToggleAutoSync("Remove Decals", function()
-	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.stripDecals ~= false) == true
-end)
-
-NAgui.addToggle("Remove Textures", NAStuff.FPSBoostOptions.stripTextures ~= false, function(v)
-	NAmanage.updateFpsBoostOpt("stripTextures", v ~= false)
-end)
-NAmanage.RegisterToggleAutoSync("Remove Textures", function()
-	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.stripTextures ~= false) == true
-end)
-
-NAgui.addToggle("Strip SurfaceAppearance", NAStuff.FPSBoostOptions.stripSurfaceAppearance ~= false, function(v)
-	NAmanage.updateFpsBoostOpt("stripSurfaceAppearance", v ~= false)
-end)
-NAmanage.RegisterToggleAutoSync("Strip SurfaceAppearance", function()
-	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.stripSurfaceAppearance ~= false) == true
-end)
-
-NAgui.addToggle("Disable Highlights", NAStuff.FPSBoostOptions.stripHighlights ~= false, function(v)
-	NAmanage.updateFpsBoostOpt("stripHighlights", v ~= false)
-end)
-NAmanage.RegisterToggleAutoSync("Disable Highlights", function()
-	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.stripHighlights ~= false) == true
-end)
-
-NAgui.addToggle("Disable Lights", NAStuff.FPSBoostOptions.stripLights ~= false, function(v)
-	NAmanage.updateFpsBoostOpt("stripLights", v ~= false)
-end)
-NAmanage.RegisterToggleAutoSync("Disable Lights", function()
-	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.stripLights ~= false) == true
-end)
-
-NAgui.addToggle("Disable Post Effects", NAStuff.FPSBoostOptions.stripPostFx ~= false, function(v)
-	NAmanage.updateFpsBoostOpt("stripPostFx", v ~= false)
-end)
-NAmanage.RegisterToggleAutoSync("Disable Post Effects", function()
-	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.stripPostFx ~= false) == true
-end)
-
-NAgui.addToggle("Clear Atmospheres", NAStuff.FPSBoostOptions.stripAtmosphere ~= false, function(v)
-	NAmanage.updateFpsBoostOpt("stripAtmosphere", v ~= false)
-end)
-NAmanage.RegisterToggleAutoSync("Clear Atmospheres", function()
-	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.stripAtmosphere ~= false) == true
-end)
-
-NAgui.addToggle("Simplify Materials & Shadows", NAStuff.FPSBoostOptions.simplifyMaterials ~= false, function(v)
-	NAmanage.updateFpsBoostOpt("simplifyMaterials", v ~= false)
-	NAmanage.updateFpsBoostOpt("zeroReflectance", v ~= false)
-end)
-NAmanage.RegisterToggleAutoSync("Simplify Materials & Shadows", function()
-	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.simplifyMaterials ~= false) == true
-end)
-
-NAgui.addToggle("Zero Reflectance", NAStuff.FPSBoostOptions.zeroReflectance ~= false, function(v)
-	NAmanage.updateFpsBoostOpt("zeroReflectance", v ~= false)
-end)
-NAmanage.RegisterToggleAutoSync("Zero Reflectance", function()
-	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.zeroReflectance ~= false) == true
-end)
-
-NAgui.addToggle("Performance Mesh LOD", NAStuff.FPSBoostOptions.optimizeMeshes ~= false, function(v)
-	NAmanage.updateFpsBoostOpt("optimizeMeshes", v ~= false)
-end)
-NAmanage.RegisterToggleAutoSync("Performance Mesh LOD", function()
-	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.optimizeMeshes ~= false) == true
-end)
-
-NAgui.addToggle("Performance Model LOD", NAStuff.FPSBoostOptions.optimizeModels ~= false, function(v)
-	NAmanage.updateFpsBoostOpt("optimizeModels", v ~= false)
-end)
-NAmanage.RegisterToggleAutoSync("Performance Model LOD", function()
-	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.optimizeModels ~= false) == true
-end)
-
-NAgui.addToggle("Reduce World Queries (Aggressive)", NAStuff.FPSBoostOptions.disableWorldQueries == true, function(v)
-	NAmanage.updateFpsBoostOpt("disableWorldQueries", v == true)
-end)
-NAmanage.RegisterToggleAutoSync("Reduce World Queries (Aggressive)", function()
-	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.disableWorldQueries == true) == true
-end)
-
-NAgui.addToggle("Reduce World Touches (Aggressive)", NAStuff.FPSBoostOptions.disableWorldTouches == true, function(v)
-	NAmanage.updateFpsBoostOpt("disableWorldTouches", v == true)
-end)
-NAmanage.RegisterToggleAutoSync("Reduce World Touches (Aggressive)", function()
-	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.disableWorldTouches == true) == true
-end)
-
-NAgui.addToggle("Disable 3D UI", NAStuff.FPSBoostOptions.disable3dUi == true, function(v)
-	NAmanage.updateFpsBoostOpt("disable3dUi", v == true)
-end)
-NAmanage.RegisterToggleAutoSync("Disable 3D UI", function()
-	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.disable3dUi == true) == true
-end)
-
-NAgui.addToggle("Dampen Explosions", NAStuff.FPSBoostOptions.stripExplosions ~= false, function(v)
-	NAmanage.updateFpsBoostOpt("stripExplosions", v ~= false)
-end)
-NAmanage.RegisterToggleAutoSync("Dampen Explosions", function()
-	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.stripExplosions ~= false) == true
-end)
-
-NAgui.addToggle("Flatten Lighting (Fog/Shadows)", NAStuff.FPSBoostOptions.flattenLighting ~= false, function(v)
-	NAmanage.updateFpsBoostOpt("flattenLighting", v ~= false)
-end)
-NAmanage.RegisterToggleAutoSync("Flatten Lighting (Fog/Shadows)", function()
-	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.flattenLighting ~= false) == true
-end)
-
-NAgui.addToggle("Force Streaming Optimizations", NAStuff.FPSBoostOptions.forceStreaming ~= false, function(v)
-	NAmanage.updateFpsBoostOpt("forceStreaming", v ~= false)
-end)
-NAmanage.RegisterToggleAutoSync("Force Streaming Optimizations", function()
-	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.forceStreaming ~= false) == true
-end)
-
-NAgui.addToggle("Ignore Players", NAStuff.FPSBoostOptions.ignorePlayers ~= false, function(v)
-	NAmanage.updateFpsBoostOpt("ignorePlayers", v == true)
-end)
-NAmanage.RegisterToggleAutoSync("Ignore Players", function()
-	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.ignorePlayers ~= false) == true
-end)
-
-NAgui.addToggle("Ignore Self", NAStuff.FPSBoostOptions.ignoreSelf ~= false, function(v)
-	NAmanage.updateFpsBoostOpt("ignoreSelf", v == true)
-end)
-NAmanage.RegisterToggleAutoSync("Ignore Self", function()
-	return (NAStuff.FPSBoostOptions and NAStuff.FPSBoostOptions.ignoreSelf ~= false) == true
-end)
-
-const streamRadiusDefault = math.clamp(tonumber(NAStuff.FPSBoostOptions.streamRadius) or 96, 16, 4096)
-NAgui.addSlider("Streaming Radius (FPSBooster)", 16, 4096, streamRadiusDefault, 8, " studs", function(val)
-	const n = math.clamp(tonumber(val) or streamRadiusDefault, 16, 4096)
-	NAmanage.updateFpsBoostOpt("streamRadius", n)
+NAStuff.FPSBoostOptions = NAStuff.FPSBoostOptions or NAmanage.NASettingsGet("fpsBoostOptions") or {}
+do
+	for _, spec in {
+		{ "lowQuality", "Lowest Graphics Quality", true },
+		{ "disableShadows", "Disable Shadows", true },
+		{ "disableGrass", "Disable Terrain Grass", true },
+		{ "simpleWater", "Simplify Water", true },
+		{ "stripParticles", "Disable Particles, Trails & Beams", true },
+		{ "stripDecals", "Hide Decals", true },
+		{ "stripTextures", "Remove Mesh & Surface Textures", true },
+		{ "stripSurfaceAppearance", "Hide SurfaceAppearance", true },
+		{ "stripLights", "Disable Lights", true },
+		{ "stripPostFx", "Disable Post Effects", true },
+		{ "stripAtmosphere", "Clear Atmospheres", true },
+		{ "stripHighlights", "Disable Highlights", true },
+		{ "stripExplosions", "Hide Explosion Visuals", true },
+		{ "simplifyMaterials", "Simplify Materials", true },
+		{ "zeroReflectance", "Remove Reflectance", true },
+		{ "optimizeMeshes", "Performance Mesh LOD", true },
+		{ "disable3dUi", "Disable 3D UI", false },
+		{ "ignorePlayers", "Ignore Other Players", false },
+		{ "ignoreSelf", "Ignore Self", true },
+		{ "liveUpdates", "Optimize Newly Added Objects", true },
+		{ "keepEffectsOff", "Keep Effects Disabled", false },
+	} do
+		const key, label, fallback = spec[1], spec[2], spec[3]
+		const function state()
+			const value = NAStuff.FPSBoostOptions[key]
+			return if value == nil then fallback else value == true
+		end
+		NAgui.addToggle(label, state(), function(value) NAmanage.updateFpsBoostOpt(key, value == true) end)
+		NAmanage.RegisterToggleAutoSync(label, state)
+	end
+end
+NAgui.addSlider("Particle Rate Limit (0 = unlimited)", 0, 1000, tonumber(NAStuff.FPSBoostOptions.particleRate) or 0, 10, " /s", function(value)
+	NAmanage.updateFpsBoostOpt("particleRate", math.clamp(tonumber(value) or 0, 0, 1000))
 end)
 
 NAgui.addSection("Hitbox Defaults")

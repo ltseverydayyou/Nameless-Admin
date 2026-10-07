@@ -748,6 +748,7 @@ NAmanage.Unload = function(opts)
 		end
 		return ok
 	end
+	invoke("RemoteBlockUnload")
 	invoke("FollowUnload")
 	invoke("XrayUnload")
 	invoke("FontEditorUnload")

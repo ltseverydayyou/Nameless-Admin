@@ -1553,7 +1553,11 @@ NAmanage.pruneRuntimeInstanceState = NAmanage.pruneRuntimeInstanceState or funct
 	NAmanage.pruneInstanceArray(state.collisionfalseESPList)
 	NAmanage.pruneInstanceArray(state.propertyESPList)
 	NAmanage.pruneInstanceArray(state.ESP_ModelList)
-	NAmanage.pruneInstanceArray(state.BlockedRemotes)
+	if type(NAmanage.pruneBlockedRemoteState) == "function" then
+		NAmanage.pruneBlockedRemoteState()
+	else
+		NAmanage.pruneInstanceArray(state.BlockedRemotes)
+	end
 	NAmanage.pruneInstanceArray(state.RobloxVersionRows)
 
 	NAmanage.pruneInstanceKeyMap(state.npcCandidates)
@@ -1581,10 +1585,12 @@ NAmanage.pruneRuntimeInstanceState = NAmanage.pruneRuntimeInstanceState or funct
 			pcall(hook.cleanup)
 		end
 	end)
-	NAmanage.pruneInstanceKeyMap(state.BlockedRemoteModes)
-	NAmanage.pruneInstanceKeyMap(state.BlockedRemoteReturns)
-	NAmanage.pruneInstanceKeyMap(state.BlockedEventSaved)
-	NAmanage.pruneInstanceKeyMap(state.BlockedInvokeSaved)
+	if type(NAmanage.pruneBlockedRemoteState) ~= "function" then
+		NAmanage.pruneInstanceKeyMap(state.BlockedRemoteModes)
+		NAmanage.pruneInstanceKeyMap(state.BlockedRemoteReturns)
+		NAmanage.pruneInstanceKeyMap(state.BlockedEventSaved)
+		NAmanage.pruneInstanceKeyMap(state.BlockedInvokeSaved)
+	end
 	NAmanage.pruneInstanceKeyMap(state.ESP_OcclusionCache)
 	NAmanage.pruneInstanceKeyMap(NAmanage._canvasLayoutCache)
 	NAmanage.pruneInstanceKeyMap(NAmanage._canvasHeightCache)

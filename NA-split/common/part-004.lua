@@ -4841,7 +4841,10 @@ NAmanage.NASettingsGetSchema=function()
 		fpsBoostOptions = {
 			default = function()
 				return {
-					effectMode = "disable";
+					lowQuality = true;
+					disableShadows = true;
+					disableGrass = true;
+					simpleWater = true;
 					stripParticles = true;
 					stripDecals = true;
 					stripTextures = true;
@@ -4854,20 +4857,20 @@ NAmanage.NASettingsGetSchema=function()
 					simplifyMaterials = true;
 					zeroReflectance = true;
 					optimizeMeshes = true;
-					optimizeModels = true;
-					disableWorldQueries = false;
-					disableWorldTouches = false;
 					disable3dUi = false;
-					forceStreaming = true;
-					streamRadius = 96;
-					flattenLighting = true;
 					ignorePlayers = false;
 					ignoreSelf = true;
+					liveUpdates = true;
+					keepEffectsOff = false;
+					particleRate = 0;
 				}
 			end;
 			coerce = function(value)
 				const defaults = {
-					effectMode = "disable";
+					lowQuality = true;
+					disableShadows = true;
+					disableGrass = true;
+					simpleWater = true;
 					stripParticles = true;
 					stripDecals = true;
 					stripTextures = true;
@@ -4880,68 +4883,23 @@ NAmanage.NASettingsGetSchema=function()
 					simplifyMaterials = true;
 					zeroReflectance = true;
 					optimizeMeshes = true;
-					optimizeModels = true;
-					disableWorldQueries = false;
-					disableWorldTouches = false;
 					disable3dUi = false;
-					forceStreaming = true;
-					streamRadius = 96;
-					flattenLighting = true;
 					ignorePlayers = false;
 					ignoreSelf = true;
+					liveUpdates = true;
+					keepEffectsOff = false;
+					particleRate = 0;
 				}
-				if type(value) ~= "table" then
-					value = {}
-				end
-				const function boolField(key, fallback)
-					return NAmanage.NASettingsSchemaState.coerceBoolean(value[key], fallback)
-				end
-				const function clampRadius(v)
-					local n = tonumber(v)
-					if not n then
-						return defaults.streamRadius
-					end
-					if n < 16 then
-						n = 16
-					elseif n > 4096 then
-						n = 4096
-					end
-					return n
-				end
-				local mode = value.effectMode
-				if type(mode) == "string" then
-					const lower = mode:lower()
-					if lower == "destroy" or lower == "delete" or lower == "remove" then
-						mode = "destroy"
-					else
-						mode = "disable"
-					end
-				else
-					mode = defaults.effectMode
-				end
+				value = type(value) == "table" and value or {}
 				const out = {}
-				out.effectMode = mode
-				out.stripParticles = boolField("stripParticles", defaults.stripParticles)
-				out.stripDecals = boolField("stripDecals", defaults.stripDecals)
-				out.stripTextures = boolField("stripTextures", defaults.stripTextures)
-				out.stripLights = boolField("stripLights", defaults.stripLights)
-				out.stripPostFx = boolField("stripPostFx", defaults.stripPostFx)
-				out.stripAtmosphere = boolField("stripAtmosphere", defaults.stripAtmosphere)
-				out.stripSurfaceAppearance = boolField("stripSurfaceAppearance", defaults.stripSurfaceAppearance)
-				out.stripHighlights = boolField("stripHighlights", defaults.stripHighlights)
-				out.stripExplosions = boolField("stripExplosions", defaults.stripExplosions)
-				out.simplifyMaterials = boolField("simplifyMaterials", defaults.simplifyMaterials)
-				out.zeroReflectance = boolField("zeroReflectance", defaults.zeroReflectance)
-				out.optimizeMeshes = boolField("optimizeMeshes", defaults.optimizeMeshes)
-				out.optimizeModels = boolField("optimizeModels", defaults.optimizeModels)
-				out.disableWorldQueries = boolField("disableWorldQueries", defaults.disableWorldQueries)
-				out.disableWorldTouches = boolField("disableWorldTouches", defaults.disableWorldTouches)
-				out.disable3dUi = boolField("disable3dUi", defaults.disable3dUi)
-				out.forceStreaming = boolField("forceStreaming", defaults.forceStreaming)
-				out.streamRadius = clampRadius(value.streamRadius)
-				out.flattenLighting = boolField("flattenLighting", defaults.flattenLighting)
-				out.ignorePlayers = boolField("ignorePlayers", defaults.ignorePlayers)
-				out.ignoreSelf = boolField("ignoreSelf", defaults.ignoreSelf)
+				for key, fallback in defaults do
+					if type(fallback) == "boolean" then
+						out[key] = NAmanage.NASettingsSchemaState.coerceBoolean(value[key], fallback)
+					end
+				end
+				local rate = tonumber(value.particleRate) or 0
+				if rate ~= rate then rate = 0 end
+				out.particleRate = math.clamp(math.floor(rate), 0, 1000)
 				return out
 			end;
 		};

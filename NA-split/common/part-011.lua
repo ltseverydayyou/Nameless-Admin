@@ -4530,950 +4530,308 @@ cmd.addPatched({"breaklayeredclothing","blc"},{"breaklayeredclothing (blc)","Str
 	NAmanage.RunURL('https://raw.githubusercontent.com/ltseverydayyou/Nameless-Admin/main/leg%20resize')
 end)
 
-cmd.add({"fpsbooster","lowgraphics","boostfps","lowg","antilag","boostfps"}, {"fpsbooster","Enables maximum-performance low graphics mode, run again to restore"}, function()
-	if _na_env.NA_FPS_ACTIVE then
-		_na_env.NA_FPS_ACTIVE = false;
-		if _na_env.NA_FPS_UNHOOK then
-			_na_env.NA_FPS_UNHOOK();
-		end;
-		return;
-	end;
-	const w = Services.Workspace;
-	const st = NAmanage and NAmanage._ensureL and NAmanage._ensureL() or {
-		safeGet = function(i, p)
-			local ok, v = pcall(function()
-				return i[p];
-			end);
-			return ok and v or nil;
-		end,
-		safeSet = function(i, p, v)
-			NAlib.setProperty(i, p, v);
+do
+	local active, restoring = false, false
+	local rev = 0
+	local cfg = {}
+	local saved = setmetatable({}, { __mode = "k" })
+	local held, cons, queue = {}, {}, {}
+	local seen = setmetatable({}, { __mode = "k" })
+	local queued = setmetatable({}, { __mode = "k" })
+	local watches = setmetatable({}, { __mode = "k" })
+	local chars = setmetatable({}, { __mode = "k" })
+	local players = setmetatable({}, { __mode = "k" })
+	local scans = {}
+	local head, tail, running = 1, 0, false
+	const world = Services.Workspace
+	const classes = { "BasePart", "ParticleEmitter", "Trail", "Beam", "Fire", "Smoke", "Sparkles", "Light", "PostEffect", "Highlight", "Atmosphere", "SurfaceAppearance", "Decal", "SpecialMesh", "Explosion", "BillboardGui", "SurfaceGui" }
+	const kinds = {
+		ParticleEmitter = true, Trail = true, Beam = true, Fire = true, Smoke = true, Sparkles = true,
+		PointLight = true, SpotLight = true, SurfaceLight = true, Highlight = true, Atmosphere = true,
+		SurfaceAppearance = true, Decal = true, Texture = true, SpecialMesh = true, Explosion = true,
+		BillboardGui = true, SurfaceGui = true,
+	}
+	const selector = "BasePart, ParticleEmitter, Trail, Beam, Fire, Smoke, Sparkles, Light, PostEffect, Highlight, Atmosphere, SurfaceAppearance, Decal, SpecialMesh, Explosion, BillboardGui, SurfaceGui"
+	const function option(key, fallback)
+		const value = cfg[key]
+		if value == nil then return fallback end
+		return value == true
+	end
+	const function connect(signal, fn)
+		const conn = signal:Connect(fn)
+		cons[#cons + 1] = conn
+		return conn
+	end
+	const function read(obj, prop)
+		return pcall(function() return obj[prop] end)
+	end
+	const function write(obj, prop, value)
+		local ok = pcall(function() obj[prop] = value end)
+		if not ok and (prop == "Decoration" or prop == "RenderFidelity") and type(sethiddenproperty) == "function" then
+			ok = pcall(sethiddenproperty, obj, prop, value)
 		end
-	};
-	const opt = opt or {
-		hiddenprop = function()
-		end
-	};
-	const fpsOpt = NAStuff.FPSBoostOptions or {};
-	const function boolOpt(v, default)
-		if v == nil then
-			return default;
-		end;
-		if type(v) == "boolean" then
-			return v;
-		end;
-		if type(v) == "string" then
-			const l = v:lower();
-			if l == "false" or l == "0" or l == "off" or l == "nil" then
-				return false;
-			end;
-			if l == "true" or l == "1" or l == "on" then
-				return true;
-			end;
-		end;
-		if type(v) == "number" then
-			return v ~= 0;
-		end;
-		return v ~= false;
-	end;
-	const effectDestroy = type(fpsOpt.effectMode) == "string" and fpsOpt.effectMode:lower() == "destroy";
-	const stripParticles = boolOpt(fpsOpt.stripParticles, true);
-	const stripDecals = boolOpt(fpsOpt.stripDecals, true);
-	const stripTextures = boolOpt(fpsOpt.stripTextures, true);
-	const stripLights = boolOpt(fpsOpt.stripLights, true);
-	const stripPostFx = boolOpt(fpsOpt.stripPostFx, true);
-	const stripAtmosphere = boolOpt(fpsOpt.stripAtmosphere, true);
-	const stripSurfaceAppearance = boolOpt(fpsOpt.stripSurfaceAppearance, true);
-	const stripHighlights = boolOpt(fpsOpt.stripHighlights, true);
-	const stripExplosions = boolOpt(fpsOpt.stripExplosions, true);
-	const simplifyMaterials = boolOpt(fpsOpt.simplifyMaterials, true);
-	const zeroReflectance = boolOpt(fpsOpt.zeroReflectance, true);
-	const optimizeMeshes = boolOpt(fpsOpt.optimizeMeshes, true);
-	const optimizeModels = boolOpt(fpsOpt.optimizeModels, true);
-	const disableWorldQueries = boolOpt(fpsOpt.disableWorldQueries, false);
-	const disableWorldTouches = boolOpt(fpsOpt.disableWorldTouches, false);
-	const disable3dUi = boolOpt(fpsOpt.disable3dUi, false);
-	const forceStreaming = boolOpt(fpsOpt.forceStreaming, true);
-	const flattenLighting = boolOpt(fpsOpt.flattenLighting, true);
-	const streamRadius = math.clamp(tonumber(fpsOpt.streamRadius) or 96, 16, 4096);
-	const ignorePlayers = boolOpt(fpsOpt.ignorePlayers, false);
-	const ignoreSelf = boolOpt(fpsOpt.ignoreSelf, true);
-	const function setHiddenOrNormal(inst, prop, val)
-		local ok = false;
-		const hiddenSetter = (type(__NARootHost) == "table" and (rawget(__NARootHost, "sethiddenproperty") or rawget(__NARootHost, "set_hidden_property") or rawget(__NARootHost, "sethiddenprop") or rawget(__NARootHost, "set_hidden_prop"))) or (opt and opt.hiddenprop);
-		if type(hiddenSetter) == "function" then
-			local called, result = pcall(function()
-				return hiddenSetter(inst, prop, val);
-			end);
-			if called then
-				local current = st.safeGet(inst, prop);
-				ok = current == val or result == true;
-			end;
-		end;
-		if not ok then
-			ok = st.safeSet(inst, prop, val) == true;
-		end;
-		return ok;
-	end;
-	const hiddenForceProps = {
-		LevelOfDetail = true;
-		RenderFidelity = true;
-	};
-	local active = false;
-	local cons = {};
-	local watchers = {};
-	local enforced = setmetatable({}, { __mode = "k" });
-	local enforceElapsed = 0;
-	const function connect(sig, fn)
-		const c = fn and sig:Connect(fn) or sig;
-		if c then
-			Insert(cons, c);
-		end;
-		return c;
-	end;
-	const function disconnectAll()
-		for _, c in cons do
-			pcall(function()
-				c:Disconnect();
-			end);
-		end;
-		cons = {};
-		watchers = {};
-	end;
-	const function forceProperty(inst, prop, desired)
-		if not inst then
-			return;
-		end;
-		if not active then
-			return;
-		end;
-		const current = st.safeGet(inst, prop);
-		if current ~= nil and current ~= desired then
-			if hiddenForceProps[prop] then
-				setHiddenOrNormal(inst, prop, desired);
-			else
-				st.safeSet(inst, prop, desired);
-			end;
-		end;
-		local props = enforced[inst];
-		if not props then
-			props = {};
-			enforced[inst] = props;
-		end;
-		props[prop] = desired;
-	end;
-	const A = "NA_FPS_";
-	const function remember(inst, prop, val)
-		const key = A .. prop;
-		if NAmanage.GetAttr(inst, key) == nil then
-			if typeof(val) == "EnumItem" then
-				NAmanage.SetAttr(inst, key, val.Name);
-			else
-				NAmanage.SetAttr(inst, key, val);
-			end;
-		end;
-	end;
-	const function recall(inst, prop)
-		return NAmanage.GetAttr(inst, A .. prop);
-	end;
-	const function clearAttr(inst, prop)
-		NAmanage.SetAttr(inst, A .. prop, nil);
-	end;
-	const function getCharacterModel(inst)
-		local a = inst;
-		while a do
-			if a:IsA("Model") and a:FindFirstChildOfClass("Humanoid") then
-				return a;
-			end;
-			a = a.Parent;
-		end;
-		return nil;
-	end;
-	const function playerFromCharacter(model)
-		local ok, plr = pcall(function()
-			return __lt.cm("Players", "GetPlayerFromCharacter", model);
-		end);
-		if ok then
-			return plr;
-		end;
-		return nil;
-	end;
-	const function isClothingLike(inst)
-		return inst:IsA("Shirt") or inst:IsA("Pants") or inst:IsA("ShirtGraphic") or inst:IsA("Accessory") or inst:IsA("Clothing") or inst:IsA("HumanoidDescription");
-	end;
-	const originals = {
-		quality = nil,
-		lighting = {},
-		terrain = {},
-		Workspace = {},
-		postFx = {},
-		postFxCam = {}
-	};
-	const function snapshotEnv()
-		if originals.quality == nil then
-			pcall(function()
-				originals.quality = (settings()).Rendering.QualityLevel;
-			end);
-		end;
-		for _, p in {
-			"GlobalShadows",
-			"FogEnd",
-			"Brightness",
-			"Ambient",
-			"OutdoorAmbient",
-			"LightingStyle",
-			"Technology"
-			} do
-			if originals.lighting[p] == nil then
-				originals.lighting[p] = st.safeGet(Services.Lighting, p);
-			end;
-		end;
-		for _, e in __lt.cm("Lighting", "GetChildren") do
-			if e:IsA("BlurEffect") or e:IsA("SunRaysEffect") or e:IsA("ColorCorrectionEffect") or e:IsA("BloomEffect") or e:IsA("DepthOfFieldEffect") or e:IsA("Atmosphere") then
-				if originals.postFx[e] == nil then
-					const en = st.safeGet(e, "Enabled");
-					originals.postFx[e] = en == nil and true or en;
-				end;
-			end;
-		end;
-		const cam = w.CurrentCamera;
-		if cam then
-			for _, e in cam:GetChildren() do
-				if e:IsA("BlurEffect") or e:IsA("SunRaysEffect") or e:IsA("ColorCorrectionEffect") or e:IsA("BloomEffect") or e:IsA("DepthOfFieldEffect") or e:IsA("Atmosphere") then
-					if originals.postFxCam[e] == nil then
-						const en = st.safeGet(e, "Enabled");
-						originals.postFxCam[e] = en == nil and true or en;
-					end;
-				end;
-			end;
-		end;
-		const T = w:FindFirstChildOfClass("Terrain");
-		if T then
-			for _, p in {
-				"Decoration",
-				"WaterWaveSize",
-				"WaterWaveSpeed",
-				"WaterReflectance",
-				"WaterTransparency"
-				} do
-				if originals.terrain[p] == nil then
-					originals.terrain[p] = st.safeGet(T, p);
-				end;
-			end;
-		end;
-		for _, p in {
-			"StreamingEnabled",
-			"StreamingPauseMode",
-			"StreamOutBehavior",
-			"StreamingTargetRadius"
-			} do
-			if originals.Workspace[p] == nil then
-				originals.Workspace[p] = st.safeGet(w, p);
-			end;
-		end;
-	end;
-	const function applyEnv()
-		if flattenLighting or simplifyMaterials then
-			pcall(function()
-				(settings()).Rendering.QualityLevel = Enum.QualityLevel.Level01;
-			end);
-		end;
-		if flattenLighting then
-			st.safeSet(Services.Lighting, "GlobalShadows", false);
-			st.safeSet(Services.Lighting, "FogEnd", math.huge);
-			st.safeSet(Services.Lighting, "Brightness", 0);
-			st.safeSet(Services.Lighting, "Ambient", Color3.new(0.4, 0.4, 0.4));
-			st.safeSet(Services.Lighting, "OutdoorAmbient", Color3.new(0.4, 0.4, 0.4));
-			setHiddenOrNormal(Services.Lighting, "LightingStyle", Enum.LightingStyle.Soft);
-			setHiddenOrNormal(Services.Lighting, "Technology", Enum.Technology.Compatibility);
-		end;
-		const T = w:FindFirstChildOfClass("Terrain");
-		if T and simplifyMaterials then
-			st.safeSet(T, "Decoration", false);
-			st.safeSet(T, "WaterWaveSize", 0);
-			st.safeSet(T, "WaterWaveSpeed", 0);
-			st.safeSet(T, "WaterReflectance", 0);
-			st.safeSet(T, "WaterTransparency", 0);
-		end;
-		if forceStreaming then
-			setHiddenOrNormal(w, "StreamingEnabled", true);
-			pcall(function()
-				setHiddenOrNormal(w, "StreamOutBehavior", Enum.StreamOutBehavior.LowMemory);
-			end);
-			pcall(function()
-				setHiddenOrNormal(w, "StreamingPauseMode", Enum.StreamingPauseMode.Default);
-			end);
-			setHiddenOrNormal(w, "StreamingTargetRadius", streamRadius);
-		end;
-		if stripPostFx then
-			for _, e in __lt.cm("Lighting", "GetChildren") do
-				if e:IsA("PostEffect") then
-					st.safeSet(e, "Enabled", false);
-				end;
-			end;
-			const cam = w.CurrentCamera;
-			if cam then
-				for _, e in cam:GetChildren() do
-					if e:IsA("PostEffect") then
-						st.safeSet(e, "Enabled", false);
-					end;
-				end;
-			end;
-		end;
-	end;
-	const function restoreEnv()
-		pcall(function()
-			if originals.quality ~= nil then
-				(settings()).Rendering.QualityLevel = originals.quality;
-			end;
-		end);
-		for p, v in originals.lighting do
-			if v ~= nil then
-				if p == "LightingStyle" then
-					setHiddenOrNormal(Services.Lighting, p, typeof(v) == "EnumItem" and v or Enum.LightingStyle[v] or Enum.LightingStyle.Soft);
-				elseif p == "Technology" then
-					setHiddenOrNormal(Services.Lighting, p, typeof(v) == "EnumItem" and v or Enum.Technology[v] or Enum.Technology.Compatibility);
-				else
-					st.safeSet(Services.Lighting, p, v);
-				end;
-			end;
-		end;
-		for e, wasEnabled in originals.postFx do
-			if e and e.Parent and st.safeGet(e, "Enabled") ~= nil then
-				st.safeSet(e, "Enabled", wasEnabled);
-			end;
-		end;
-		for e, wasEnabled in originals.postFxCam do
-			if e and e.Parent and st.safeGet(e, "Enabled") ~= nil then
-				st.safeSet(e, "Enabled", wasEnabled);
-			end;
-		end;
-		const T = w:FindFirstChildOfClass("Terrain");
-		if T then
-			for p, v in originals.terrain do
-				if v ~= nil then
-					st.safeSet(T, p, v);
-				end;
-			end;
-		end;
-		for p, v in originals.Workspace do
-			if v ~= nil then
-				st.safeSet(w, p, v);
-			end;
-		end;
-	end;
-	const function optimizeInstance(inst)
-		if not active then
-			return
-		end
-
-		const cm = getCharacterModel(inst)
-		if cm then
-			local isNPC = false
-			if CheckIfNPC then
-				local ok, r = pcall(CheckIfNPC, cm)
-				if ok and r then
-					isNPC = true
-				end
-			end
-			if not isNPC then
-				const pl = playerFromCharacter(cm)
-				if pl then
-					if ignoreSelf and pl == Services.Players.LocalPlayer then
-						return
-					end
-					if ignorePlayers and pl ~= Services.Players.LocalPlayer then
-						return
-					end
-				end
-			end
-		end
-
-		if isClothingLike(inst) then
-			return
-		end
-
-		const isParticle = inst:IsA("ParticleEmitter") or inst:IsA("Trail") or inst:IsA("Fire") or inst:IsA("Smoke") or inst:IsA("Sparkles") or inst:IsA("Beam")
-		const isLight = inst:IsA("PointLight") or inst:IsA("SurfaceLight") or inst:IsA("SpotLight")
-		const isSurfApp = inst:IsA("SurfaceAppearance")
-		const isHighlight = inst:IsA("Highlight")
-		const isPost = inst:IsA("PostEffect")
-		const isAtmos = inst:IsA("Atmosphere")
-		const isExplosion = inst:IsA("Explosion")
-		const is3dGui = inst:IsA("BillboardGui") or inst:IsA("SurfaceGui")
-
-		if optimizeModels and inst:IsA("Model") then
-			const lod = st.safeGet(inst, "LevelOfDetail")
-			if lod ~= nil then
-				remember(inst, "LevelOfDetail", lod)
-				pcall(function()
-					forceProperty(inst, "LevelOfDetail", Enum.ModelLevelOfDetail.SLIM)
-				end)
-			end
-		end;
-
-		if inst:IsA("BasePart") and simplifyMaterials then
-			remember(inst, "Material", inst.Material)
-			remember(inst, "MaterialVariant", st.safeGet(inst, "MaterialVariant"))
-			remember(inst, "Reflectance", inst.Reflectance)
-			remember(inst, "CastShadow", inst.CastShadow)
-
-			const dMat = Enum.Material.Plastic
-			const cMat = inst.Material
-			const cVar = st.safeGet(inst, "MaterialVariant")
-			const matChanged = cMat ~= dMat
-			const varChanged = cVar ~= "" and cVar ~= nil
-
-			st.safeSet(inst, "Material", dMat)
-			st.safeSet(inst, "MaterialVariant", "")
-
-			if zeroReflectance then
-				st.safeSet(inst, "Reflectance", 0)
-				forceProperty(inst, "Reflectance", 0)
-			end
-
-			st.safeSet(inst, "CastShadow", false)
-			forceProperty(inst, "CastShadow", false)
-
-			if matChanged then
-				forceProperty(inst, "Material", dMat)
-			end
-			if varChanged then
-				forceProperty(inst, "MaterialVariant", "")
-			end
-		end
-
-		if optimizeMeshes and (inst:IsA("MeshPart") or inst:IsA("PartOperation")) then
-			const fidelity = st.safeGet(inst, "RenderFidelity")
-			if fidelity ~= nil then
-				remember(inst, "RenderFidelity", fidelity)
-				pcall(function()
-					forceProperty(inst, "RenderFidelity", Enum.RenderFidelity.Performance)
-				end)
-			end
-		end
-
-		if inst:IsA("BasePart") then
-			if disableWorldQueries then
-				const query = st.safeGet(inst, "CanQuery")
-				if query ~= nil then
-					remember(inst, "CanQuery", query)
-					forceProperty(inst, "CanQuery", false)
-				end
-			end
-			if disableWorldTouches then
-				const touch = st.safeGet(inst, "CanTouch")
-				if touch ~= nil then
-					remember(inst, "CanTouch", touch)
-					forceProperty(inst, "CanTouch", false)
-				end
-			end
-		end
-
-		if stripTextures and inst:IsA("MeshPart") then
-			const tx = st.safeGet(inst, "TextureID")
-			if tx ~= nil and tx ~= "" then
-				remember(inst, "TextureID", tx)
-				st.safeSet(inst, "TextureID", "")
-				forceProperty(inst, "TextureID", "")
-			end
-		end
-
-		if stripTextures and inst:IsA("SpecialMesh") then
-			const tx = st.safeGet(inst, "TextureId")
-			if tx ~= nil and tx ~= "" then
-				remember(inst, "TextureId", tx)
-				st.safeSet(inst, "TextureId", "")
-				forceProperty(inst, "TextureId", "")
-			end
-		end
-
-		if stripDecals and inst:IsA("Decal") then
-			const t = inst.Transparency
-			remember(inst, "Transparency", t)
-			st.safeSet(inst, "Transparency", 1)
-			forceProperty(inst, "Transparency", 1)
-		end
-
-		if stripTextures and inst:IsA("Texture") then
-			const t = inst.Transparency
-			remember(inst, "Transparency", t)
-			st.safeSet(inst, "Transparency", 1)
-			forceProperty(inst, "Transparency", 1)
-		end
-
-		if stripParticles and isParticle then
-			if effectDestroy then
-				pcall(function()
-					inst:Destroy()
-				end)
-				return
-			end
-			const en = st.safeGet(inst, "Enabled")
-			if en ~= nil then
-				remember(inst, "Enabled", en)
-				st.safeSet(inst, "Enabled", false)
-				forceProperty(inst, "Enabled", false)
-			end
-			if inst:IsA("ParticleEmitter") then
-				const rate = st.safeGet(inst, "Rate")
-				if rate ~= nil then
-					remember(inst, "Rate", rate)
-					st.safeSet(inst, "Rate", 0)
-					forceProperty(inst, "Rate", 0)
-				end
-				pcall(function()
-					inst:Clear()
-				end)
-			elseif inst:IsA("Trail") then
-				pcall(function()
-					if inst.Clear then
-						inst:Clear()
-					end
-				end)
-			end
-		end
-
-		if stripLights and isLight then
-			if effectDestroy then
-				pcall(function()
-					inst:Destroy()
-				end)
-				return
-			end
-			const en = st.safeGet(inst, "Enabled")
-			if en ~= nil then
-				remember(inst, "Enabled", en)
-				st.safeSet(inst, "Enabled", false)
-				forceProperty(inst, "Enabled", false)
-			end
-		end
-
-		if stripSurfaceAppearance and isSurfApp then
-			if effectDestroy then
-				pcall(function()
-					inst:Destroy()
-				end)
-				return
-			end
-			const en = st.safeGet(inst, "Enabled")
-			if en ~= nil then
-				remember(inst, "Enabled", en)
-				st.safeSet(inst, "Enabled", false)
-				forceProperty(inst, "Enabled", false)
-			end
-		end
-
-		if stripHighlights and isHighlight then
-			if effectDestroy then
-				pcall(function()
-					inst:Destroy()
-				end)
-				return
-			end
-			const en = st.safeGet(inst, "Enabled")
-			if en ~= nil then
-				remember(inst, "Enabled", en)
-				st.safeSet(inst, "Enabled", false)
-				forceProperty(inst, "Enabled", false)
-			end
-		end
-
-		if stripPostFx and isPost then
-			if effectDestroy then
-				pcall(function()
-					inst:Destroy()
-				end)
-				return
-			end
-			const en = st.safeGet(inst, "Enabled")
-			if en ~= nil then
-				remember(inst, "Enabled", en)
-				forceProperty(inst, "Enabled", false)
-			end
-		end
-
-		if stripAtmosphere and isAtmos then
-			if effectDestroy then
-				pcall(function()
-					inst:Destroy()
-				end)
-				return
-			end
-			const d = st.safeGet(inst, "Density")
-			if d ~= nil then
-				remember(inst, "Density", d)
-				forceProperty(inst, "Density", 0)
-			end
-			const h = st.safeGet(inst, "Haze")
-			if h ~= nil then
-				remember(inst, "Haze", h)
-				forceProperty(inst, "Haze", 0)
-			end
-			const g = st.safeGet(inst, "Glare")
-			if g ~= nil then
-				remember(inst, "Glare", g)
-				forceProperty(inst, "Glare", 0)
-			end
-		end
-
-		if stripExplosions and isExplosion then
-			if effectDestroy then
-				pcall(function()
-					inst:Destroy()
-				end)
-				return
-			end
-			remember(inst, "BlastPressure", inst.BlastPressure)
-			remember(inst, "BlastRadius", inst.BlastRadius)
-			st.safeSet(inst, "BlastPressure", 1)
-			st.safeSet(inst, "BlastRadius", 1)
-			forceProperty(inst, "BlastPressure", 1)
-			forceProperty(inst, "BlastRadius", 1)
-		end
-
-		if disable3dUi and is3dGui then
-			const en = st.safeGet(inst, "Enabled")
-			if en ~= nil then
-				remember(inst, "Enabled", en)
-				forceProperty(inst, "Enabled", false)
-			end
+		return ok
+	end
+	const function change(obj, prop, value)
+		const ok, old = read(obj, prop)
+		if not ok or old == value then return false end
+		if not write(obj, prop, value) then return false end
+		local props = saved[obj]
+		if not props then props = {}; saved[obj] = props end
+		if props[prop] == nil then props[prop] = old end
+		return true
+	end
+	const function unwatch(obj)
+		const props = watches[obj]
+		if props then
+			for _, conn in props do pcall(function() conn:Disconnect() end) end
+			watches[obj] = nil
 		end
 	end
-	const function restoreInstance(inst)
-		if inst:IsA("BasePart") then
-			const m = recall(inst, "Material");
-			if m ~= nil then
-				st.safeSet(inst, "Material", Enum.Material[m] or inst.Material);
-				clearAttr(inst, "Material");
-			end;
-			const mv = recall(inst, "MaterialVariant");
-			if mv ~= nil then
-				st.safeSet(inst, "MaterialVariant", mv);
-				clearAttr(inst, "MaterialVariant");
-			end;
-			const r = recall(inst, "Reflectance");
-			if r ~= nil then
-				st.safeSet(inst, "Reflectance", r);
-				clearAttr(inst, "Reflectance");
-			end;
-			const cs = recall(inst, "CastShadow");
-			if cs ~= nil then
-				st.safeSet(inst, "CastShadow", cs);
-				clearAttr(inst, "CastShadow");
-			end;
-			const query = recall(inst, "CanQuery");
-			if query ~= nil then
-				st.safeSet(inst, "CanQuery", query);
-				clearAttr(inst, "CanQuery");
-			end;
-			const touch = recall(inst, "CanTouch");
-			if touch ~= nil then
-				st.safeSet(inst, "CanTouch", touch);
-				clearAttr(inst, "CanTouch");
-			end;
-			if inst:IsA("MeshPart") then
-				const tx = recall(inst, "TextureID");
-				if tx ~= nil then
-					st.safeSet(inst, "TextureID", tx);
-					clearAttr(inst, "TextureID");
-				end;
-			end;
-		end;
-		if inst:IsA("Model") then
-			const lod = recall(inst, "LevelOfDetail");
-			if lod ~= nil then
-				pcall(function()
-					st.safeSet(inst, "LevelOfDetail", Enum.ModelLevelOfDetail[lod] or inst.LevelOfDetail);
-				end);
-				clearAttr(inst, "LevelOfDetail");
-			end;
-		end;
-		if inst:IsA("MeshPart") or inst:IsA("PartOperation") then
-			const fidelity = recall(inst, "RenderFidelity");
-			if fidelity ~= nil then
-				pcall(function()
-					st.safeSet(inst, "RenderFidelity", Enum.RenderFidelity[fidelity] or inst.RenderFidelity);
-				end);
-				clearAttr(inst, "RenderFidelity");
-			end;
-		end;
-		if inst:IsA("SpecialMesh") then
-			const t = recall(inst, "TextureId");
-			if t ~= nil then
-				st.safeSet(inst, "TextureId", t);
-				clearAttr(inst, "TextureId");
-			end;
-		end;
-		if inst:IsA("Decal") or inst:IsA("Texture") then
-			const t = recall(inst, "Transparency");
-			if t ~= nil then
-				st.safeSet(inst, "Transparency", t);
-				clearAttr(inst, "Transparency");
-			end;
-		end;
-		if inst:IsA("ParticleEmitter") or inst:IsA("Trail") or inst:IsA("Fire") or inst:IsA("Smoke") or inst:IsA("Sparkles") then
-			const e = recall(inst, "Enabled");
-			if e ~= nil then
-				st.safeSet(inst, "Enabled", e);
-				clearAttr(inst, "Enabled");
-			end;
-		end;
-		if inst:IsA("ParticleEmitter") then
-			const r = recall(inst, "Rate");
-			if r ~= nil then
-				st.safeSet(inst, "Rate", r);
-				clearAttr(inst, "Rate");
-			end;
-		end;
-		if inst:IsA("Beam") then
-			const e = recall(inst, "Enabled");
-			if e ~= nil then
-				st.safeSet(inst, "Enabled", e);
-				clearAttr(inst, "Enabled");
-			end;
-		end;
-		if inst:IsA("PointLight") or inst:IsA("SurfaceLight") or inst:IsA("SpotLight") then
-			const e = recall(inst, "Enabled");
-			if e ~= nil then
-				st.safeSet(inst, "Enabled", e);
-				clearAttr(inst, "Enabled");
-			end;
-		end;
-		if inst:IsA("SurfaceAppearance") or inst:IsA("Highlight") then
-			const e = recall(inst, "Enabled");
-			if e ~= nil then
-				st.safeSet(inst, "Enabled", e);
-				clearAttr(inst, "Enabled");
-			end;
-		end;
-		if inst:IsA("PostEffect") then
-			const e = recall(inst, "Enabled");
-			if e ~= nil then
-				st.safeSet(inst, "Enabled", e);
-				clearAttr(inst, "Enabled");
-			end;
-		end;
-		if inst:IsA("Atmosphere") then
-			const d = recall(inst, "Density");
-			if d ~= nil then
-				st.safeSet(inst, "Density", d);
-				clearAttr(inst, "Density");
-			end;
-			const h = recall(inst, "Haze");
-			if h ~= nil then
-				st.safeSet(inst, "Haze", h);
-				clearAttr(inst, "Haze");
-			end;
-			const g = recall(inst, "Glare");
-			if g ~= nil then
-				st.safeSet(inst, "Glare", g);
-				clearAttr(inst, "Glare");
-			end;
-		end;
-		if inst:IsA("Explosion") then
-			const bp = recall(inst, "BlastPressure");
-			if bp ~= nil then
-				st.safeSet(inst, "BlastPressure", bp);
-				clearAttr(inst, "BlastPressure");
-			end;
-			const br = recall(inst, "BlastRadius");
-			if br ~= nil then
-				st.safeSet(inst, "BlastRadius", br);
-				clearAttr(inst, "BlastRadius");
-			end;
-		end;
-		if inst:IsA("BillboardGui") or inst:IsA("SurfaceGui") then
-			const en = recall(inst, "Enabled");
-			if en ~= nil then
-				st.safeSet(inst, "Enabled", en);
-				clearAttr(inst, "Enabled");
-			end;
-		end;
-	end;
-
-	const function getChildrenSafe(inst)
-		local ok, ch = pcall(inst.GetChildren, inst);
-		return ok and ch or {};
-	end;
-
-	const function safeOptimize(inst)
-		pcall(optimizeInstance, inst);
-	end;
-
-	const function safeRestore(inst)
-		pcall(restoreInstance, inst);
-	end;
-
-	const function optimizeSubtree(root)
-		const q = getChildrenSafe(root);
-		local qi, qn = 1, #q;
-		const step = 256;
-		local n = 0;
-		while qi <= qn do
-			const inst = q[qi];
-			qi = qi + 1;
-			const ch = getChildrenSafe(inst);
-			safeOptimize(inst);
-			for i = 1, #ch do
-				qn = qn + 1;
-				q[qn] = ch[i];
-			end;
-			n = n + 1;
-			if n >= step then
-				n = 0;
-				Wait();
-			end;
-		end;
-	end;
-
-	const function handleAdded(inst)
-		if not inst then
-			return;
-		end;
-		safeOptimize(inst);
-		if inst:IsA("Attachment") or inst:IsA("BasePart") then
-			optimizeSubtree(inst);
-		end;
-	end;
-
-	const function sweepAll()
-		const root = w;
-		if not root then
-			return;
-		end;
-		const q = {
-			root
-		};
-		local qi, qn = 1, 1;
-		const step = 256;
-		local n = 0;
-		while qi <= qn do
-			const inst = q[qi];
-			qi = qi + 1;
-			const ch = getChildrenSafe(inst);
-			safeOptimize(inst);
-			for i = 1, #ch do
-				qn = qn + 1;
-				q[qn] = ch[i];
-			end;
-			n = n + 1;
-			if n >= step then
-				n = 0;
-				Wait();
-			end;
-		end;
-	end;
-	const function restoreAll()
-		const root = w;
-		if not root then
-			return;
-		end;
-		const q = {
-			root
-		};
-		local qi, qn = 1, 1;
-		const step = 256;
-		local n = 0;
-		while qi <= qn do
-			const inst = q[qi];
-			qi = qi + 1;
-			const ch = getChildrenSafe(inst);
-			safeRestore(inst);
-			for i = 1, #ch do
-				qn = qn + 1;
-				q[qn] = ch[i];
-			end;
-			n = n + 1;
-			if n >= step then
-				n = 0;
-				Wait();
-			end;
-		end;
-	end;
-	const function enable()
-		if active then
-			return;
-		end;
-		active = true;
-		snapshotEnv();
-
-		connect(NAmanage.descAdd(w, handleAdded));
-		connect(NAmanage.descAdd(Services.Lighting, handleAdded));
-
-		const camSeen = {};
-		const function hookCamera(cam)
-			if not cam or camSeen[cam] then
-				return;
-			end;
-			camSeen[cam] = true;
-			for _, e in getChildrenSafe(cam) do
-				handleAdded(e);
-			end;
-			connect(cam.ChildAdded, function(e)
-				handleAdded(e);
-			end);
-		end;
-		connect(w:GetPropertyChangedSignal("CurrentCamera"), function()
-			hookCamera(w.CurrentCamera);
-		end);
-		hookCamera(w.CurrentCamera);
-		connect(Services.RunService.Heartbeat, function(dt)
-			enforceElapsed += tonumber(dt) or 0;
-			if enforceElapsed < 0.75 then
-				return;
-			end;
-			enforceElapsed = 0;
-			for inst, props in enforced do
-				if not inst or not inst.Parent then
-					enforced[inst] = nil;
-				else
-					for prop, desired in props do
-						forceProperty(inst, prop, desired);
-					end;
-				end;
-			end;
-		end);
-
-		applyEnv();
-
-		if effectDestroy then
-			DoNotif("FPSBooster destroy mode: effects are removed until you rejoin", 3);
-		end;
-
-		for _, v in NAmanage.QueryDescendants(Services.Lighting, "Instance") do
-			safeOptimize(v);
-		end;
-		sweepAll();
-	end;
-	const function disable()
-		if not active then
-			return;
-		end;
-		active = false;
-		disconnectAll();
-		restoreAll();
-		restoreEnv();
-		for inst in enforced do
-			enforced[inst] = nil;
-		end;
-		enforceElapsed = 0;
-	end;
-	_na_env.NA_FPS_REFRESH = function()
-		if active and not effectDestroy then
-			disable();
-			enable();
-		end;
-	end;
+	const function watch(obj, prop, value)
+		if not option("keepEffectsOff", false) then return end
+		local props = watches[obj]
+		if not props then props = {}; watches[obj] = props end
+		if props[prop] then return end
+		const mark = rev
+		local ok, conn = pcall(function()
+			return obj:GetPropertyChangedSignal(prop):Connect(function()
+				if active and mark == rev then
+					const good, current = read(obj, prop)
+					if good and current ~= value then change(obj, prop, value) end
+				end
+			end)
+		end)
+		if ok then props[prop] = conn end
+	end
+	const function ignore(obj)
+		if not option("ignoreSelf", true) and not option("ignorePlayers", false) then return false end
+		local node = obj
+		while node do
+			const plr = chars[node]
+			if plr then
+				return if plr == LocalPlayer then option("ignoreSelf", true) else option("ignorePlayers", false)
+			end
+			node = node.Parent
+		end
+		return false
+	end
+	const function apply(obj)
+		if not active or not obj.Parent or ignore(obj) then return end
+		const kind = obj.ClassName
+		if obj:IsA("BasePart") then
+			if option("simplifyMaterials", true) then
+				change(obj, "Material", Enum.Material.Plastic)
+				change(obj, "MaterialVariant", "")
+			end
+			if option("disableShadows", true) then change(obj, "CastShadow", false) end
+			if option("zeroReflectance", true) then change(obj, "Reflectance", 0) end
+			if obj:IsA("MeshPart") or obj:IsA("PartOperation") then
+				if option("optimizeMeshes", true) then change(obj, "RenderFidelity", Enum.RenderFidelity.Performance) end
+				if kind == "MeshPart" and option("stripTextures", true) then change(obj, "TextureID", "") end
+			end
+		elseif kind == "ParticleEmitter" or kind == "Trail" or kind == "Beam" or kind == "Fire" or kind == "Smoke" or kind == "Sparkles" then
+			if option("stripParticles", true) then
+				change(obj, "Enabled", false)
+				watch(obj, "Enabled", false)
+				if kind == "ParticleEmitter" or kind == "Trail" then pcall(function() obj:Clear() end) end
+			elseif kind == "ParticleEmitter" then
+				const rate = math.clamp(tonumber(cfg.particleRate) or 0, 0, 1000)
+				if rate > 0 and obj.Rate > rate then change(obj, "Rate", rate) end
+			end
+		elseif obj:IsA("Light") then
+			if option("stripLights", true) then change(obj, "Enabled", false); watch(obj, "Enabled", false) end
+			if option("disableShadows", true) then change(obj, "Shadows", false) end
+		elseif obj:IsA("PostEffect") then
+			if option("stripPostFx", true) then change(obj, "Enabled", false); watch(obj, "Enabled", false) end
+		elseif kind == "Highlight" then
+			if option("stripHighlights", true) then change(obj, "Enabled", false); watch(obj, "Enabled", false) end
+		elseif kind == "Atmosphere" then
+			if option("stripAtmosphere", true) then
+				for _, prop in { "Density", "Haze", "Glare" } do change(obj, prop, 0) end
+			end
+		elseif kind == "SurfaceAppearance" then
+			if option("stripSurfaceAppearance", true) then
+				const parent = obj.Parent
+				if write(obj, "Parent", nil) then held[obj] = parent end
+			end
+		elseif kind == "Texture" then
+			if option("stripTextures", true) then change(obj, "Transparency", 1) end
+		elseif kind == "Decal" then
+			if option("stripDecals", true) then change(obj, "Transparency", 1) end
+		elseif kind == "SpecialMesh" then
+			if option("stripTextures", true) then change(obj, "TextureId", "") end
+		elseif kind == "Explosion" then
+			if option("stripExplosions", true) then change(obj, "Visible", false) end
+		elseif kind == "BillboardGui" or kind == "SurfaceGui" then
+			if option("disable3dUi", false) then change(obj, "Enabled", false); watch(obj, "Enabled", false) end
+		end
+	end
+	const function enqueue(obj)
+		if not active or seen[obj] == rev or queued[obj] then return end
+		if not kinds[obj.ClassName] and not obj:IsA("BasePart") and not obj:IsA("PostEffect") then return end
+		queued[obj] = true
+		tail += 1
+		queue[tail] = obj
+		if running then return end
+		running = true
+		const mark = rev
+		Defer(function()
+			local count, at = 0, os.clock()
+			while active and mark == rev and head <= tail do
+				const item = queue[head]
+				queue[head] = nil
+				head += 1
+				queued[item] = nil
+				if seen[item] ~= mark then seen[item] = mark; pcall(apply, item) end
+				count += 1
+				if count >= 64 or os.clock() - at >= 0.002 then
+					Wait()
+					count, at = 0, os.clock()
+				end
+			end
+			if mark == rev then queue = {}; head, tail, running = 1, 0, false end
+		end)
+	end
+	const function scan(root)
+		if not root then return end
+		const mark = rev
+		const token = { cancelled = false }
+		scans[#scans + 1] = token
+		const function finish()
+			const index = table.find(scans, token)
+			if index then table.remove(scans, index) end
+		end
+		Defer(function()
+			if not active or mark ~= rev then finish(); return end
+			local ok, list = pcall(function() return root:QueryDescendants(selector) end)
+			if not ok then
+				NAmanage.ForEachDescendantYield(root, function(obj)
+					if active and mark == rev then enqueue(obj) end
+				end, { yieldEvery = 64; cancelToken = token })
+				finish()
+				return
+			end
+			for i = 1, #list do
+				if not active or mark ~= rev then break end
+				enqueue(list[i])
+				list[i] = nil
+				if i % 128 == 0 then Wait() end
+			end
+			finish()
+		end)
+	end
+	const function stop()
+		if restoring and not NAStuff._unloading then return end
+		active = false
+		rev += 1
+		for _, token in scans do token.cancelled = true end
+		scans = {}
+		queue = {}; queued = setmetatable({}, { __mode = "k" }); head, tail, running = 1, 0, false
+		for _, conn in cons do pcall(function() conn:Disconnect() end) end
+		cons = {}
+		for plr, rec in players do
+			rec.conn:Disconnect()
+			players[plr] = nil
+		end
+		for obj in watches do unwatch(obj) end
+		restoring = true
+		local count, at = 0, os.clock()
+		for obj, props in saved do
+			for prop, value in props do
+				const ok, current = read(obj, prop)
+				if ok and current ~= value then write(obj, prop, value) end
+			end
+			saved[obj] = nil
+			count += 1
+			if (count >= 64 or os.clock() - at >= 0.002) and not NAStuff._unloading then
+				Wait(); count, at = 0, os.clock()
+			end
+		end
+		for obj, parent in held do
+			if not obj.Parent and parent.Parent then write(obj, "Parent", parent) end
+			held[obj] = nil
+		end
+		seen = setmetatable({}, { __mode = "k" })
+		chars = setmetatable({}, { __mode = "k" })
+		restoring = false
+	end
+	const function start()
+		while restoring and _na_env.NA_FPS_ACTIVE and not NAStuff._unloading do Wait() end
+		if active or not _na_env.NA_FPS_ACTIVE or NAStuff._unloading then return end
+		cfg = table.clone(NAStuff.FPSBoostOptions or {})
+		rev += 1
+		active = true
+		const function player(plr)
+			if players[plr] then return end
+			const rec = { char = plr.Character }
+			if rec.char then chars[rec.char] = plr end
+			rec.conn = plr.CharacterAdded:Connect(function(char)
+				if rec.char then chars[rec.char] = nil end
+				rec.char = char
+				chars[char] = plr
+			end)
+			players[plr] = rec
+		end
+		for _, plr in Services.Players:GetPlayers() do player(plr) end
+		connect(Services.Players.PlayerAdded, player)
+		connect(Services.Players.PlayerRemoving, function(plr)
+			const rec = players[plr]
+			if rec then
+				rec.conn:Disconnect()
+				if rec.char then chars[rec.char] = nil end
+				players[plr] = nil
+			end
+		end)
+		if option("lowQuality", true) then
+			pcall(function() change(settings().Rendering, "QualityLevel", Enum.QualityLevel.Level01) end)
+			pcall(function() change(UserSettings():GetService("UserGameSettings"), "SavedQualityLevel", Enum.SavedQualitySetting.QualityLevel1) end)
+		end
+		if option("disableShadows", true) then change(Services.Lighting, "GlobalShadows", false) end
+		const terrain = world:FindFirstChildOfClass("Terrain")
+		if terrain then
+			if option("disableGrass", true) then change(terrain, "Decoration", false) end
+			if option("simpleWater", true) then
+				for _, prop in { "WaterWaveSize", "WaterWaveSpeed", "WaterReflectance" } do change(terrain, prop, 0) end
+			end
+		end
+		if option("liveUpdates", true) then
+			cons[#cons + 1] = NAmanage.descSub(world, { added = enqueue; classNames = classes })
+			cons[#cons + 1] = NAmanage.descSub(Services.Lighting, { added = enqueue; classNames = classes })
+		end
+		cons[#cons + 1] = NAmanage.descSub(world, { removing = unwatch; classNames = classes })
+		cons[#cons + 1] = NAmanage.descSub(Services.Lighting, { removing = unwatch; classNames = classes })
+		local camConn
+		const function camera()
+			if camConn then camConn:Disconnect(); camConn = nil end
+			const cam = world.CurrentCamera
+			if cam and not cam:IsDescendantOf(world) then
+				if option("liveUpdates", true) then camConn = cam.DescendantAdded:Connect(enqueue) end
+				scan(cam)
+			end
+		end
+		connect(world:GetPropertyChangedSignal("CurrentCamera"), camera)
+		cons[#cons + 1] = { Disconnect = function() if camConn then camConn:Disconnect(); camConn = nil end end }
+		camera()
+		scan(world)
+		scan(Services.Lighting)
+	end
 	_na_env.NA_FPS_UNHOOK = function()
-		disable();
-		_na_env.NA_FPS_UNHOOK = nil;
-		_na_env.NA_FPS_REFRESH = nil;
-		_na_env.NA_FPS_REFRESH_PENDING = nil;
-	end;
-	enable();
-	_na_env.NA_FPS_ACTIVE = true;
-end);
+		_na_env.NA_FPS_ACTIVE = false
+		stop()
+	end
+	_na_env.NA_FPS_REFRESH = function()
+		if not _na_env.NA_FPS_ACTIVE then return end
+		stop()
+		start()
+	end
+	cmd.add({ "fpsbooster", "lowgraphics", "boostfps", "lowg", "antilag" }, { "fpsbooster", "Toggle low graphics using your FPSBooster settings" }, function()
+		_na_env.NA_FPS_ACTIVE = not _na_env.NA_FPS_ACTIVE
+		if _na_env.NA_FPS_ACTIVE then start() else stop() end
+		DebugNotif("FPSBooster: "..(_na_env.NA_FPS_ACTIVE and "ON" or "OFF"), 3)
+	end)
+end
+
 
 NAStuff.annoyLoop = false
 

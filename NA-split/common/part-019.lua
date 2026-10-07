@@ -2072,124 +2072,321 @@ NAmanage.isCoreFunc=function(fn)
 	return typeof(sc) == "Instance" and sc:IsDescendantOf(Services.CoreGui)
 end
 
-NAmanage.pruneBlockedRemoteState = NAmanage.pruneBlockedRemoteState or function()
-	const list = NAStuff.BlockedRemotes
-	if type(list) ~= "table" then
-		return 0
-	end
-	local write = 0
-	for i = 1, #list do
-		const remote = list[i]
-		if typeof(remote) == "Instance" and remote.Parent then
-			write += 1
-			list[write] = remote
-		else
-			if remote ~= nil then
-				pcall(function()
-					if typeof(remote) == "Instance" and (remote:IsA("RemoteEvent") or remote:IsA("UnreliableRemoteEvent")) then
-						NAStuff.BlockedSignals[remote.OnClientEvent] = nil
-					end
-				end)
-				if type(NAStuff.BlockedRemoteSet) == "table" then
-					NAStuff.BlockedRemoteSet[remote] = nil
-				end
-				NAStuff.BlockedRemoteModes[remote] = nil
-				NAStuff.BlockedRemoteReturns[remote] = nil
-				NAStuff.BlockedEventSaved[remote] = nil
-				NAStuff.BlockedInvokeSaved[remote] = nil
-			end
-		end
-	end
-	for i = write + 1, #list do
-		list[i] = nil
-	end
-	return write
+NAStuff.BlockedRemoteSet = NAStuff.BlockedRemoteSet or setmetatable({}, { __mode = "k" })
+NAStuff.BlockedRemoteMethods = NAStuff.BlockedRemoteMethods or setmetatable({}, { __mode = "k" })
+NAStuff.BlockedRemoteWatches = NAStuff.BlockedRemoteWatches or setmetatable({}, { __mode = "k" })
+NAStuff.RemotePickIds = NAStuff.RemotePickIds or setmetatable({}, { __mode = "k" })
+NAStuff.RemoteDead = NAStuff.RemoteDead or setmetatable({}, { __mode = "k" })
+
+NAmanage.IsRemote = function(obj)
+	if typeof(obj) ~= "Instance" or NAStuff.RemoteDead[obj] then return false end
+	const kind = obj.ClassName
+	return kind == "RemoteEvent" or kind == "UnreliableRemoteEvent" or kind == "RemoteFunction"
 end
 
-NAmanage.BlockRemote = function(remote, mode)
-	mode = mode or "fakeok"
-	if type(NAmanage.EnsureHook) == "function" and not NAmanage.EnsureHook() then
-		DebugNotif("Remote blocking unavailable: executor cannot intercept __namecall", 4, "Remote Block")
-		return false
+NAmanage.RemotePath = function(obj)
+	local ok, name = pcall(function() return obj:GetFullName() end)
+	name = ok and tostring(name) or tostring(obj.Name)
+	local live, parented = pcall(function() return obj:IsDescendantOf(game) end)
+	return if live and parented then name else "[Unparented] "..name
+end
+
+NAmanage.RemoteId = function(obj)
+	local id = NAStuff.RemotePickIds[obj]
+	if not id then
+		id = (NAStuff.RemotePickNext or 0) + 1
+		NAStuff.RemotePickNext = id
+		NAStuff.RemotePickIds[obj] = id
 	end
-	if type(NAmanage.pruneBlockedRemoteState) == "function" then
-		NAmanage.pruneBlockedRemoteState()
+	return id
+end
+
+NAmanage.RemoteLabel = function(obj)
+	return ("#%d | %s | %s"):format(NAmanage.RemoteId(obj), obj.ClassName, NAmanage.RemotePath(obj))
+end
+
+NAmanage.ScanRemotes = function(extra)
+	const list, seen, paths = {}, {}, {}
+	const selector = "RemoteEvent, UnreliableRemoteEvent, RemoteFunction"
+	const function add(obj)
+		if NAmanage.IsRemote(obj) and not seen[obj] then
+			seen[obj] = true
+			list[#list + 1] = obj
+			paths[obj] = NAmanage.RemotePath(obj)
+			NAmanage.RemoteId(obj)
+		end
 	end
-	NAStuff.BlockedRemoteSet = type(NAStuff.BlockedRemoteSet) == "table" and NAStuff.BlockedRemoteSet or {}
-	if not Discover(NAStuff.BlockedRemotes, remote) then
-		Insert(NAStuff.BlockedRemotes, remote)
-	end
-	NAStuff.BlockedRemoteSet[remote] = true
-	NAStuff.BlockedRemoteModes[remote] = mode
-	if remote:IsA("RemoteEvent") or remote:IsA("UnreliableRemoteEvent") then
-		NAStuff.BlockedSignals[remote.OnClientEvent] = true
-		if typeof(getconnections) == "function" then
-			const saved = {funcs = {}}
-			for _, c in getconnections(remote.OnClientEvent) do
-				local ok, f = pcall(function() return c.Function end)
-				if ok and type(f) == "function" and not NAmanage.isCoreFunc(f) then
-					Insert(saved.funcs, f)
-					pcall(function() c:Disconnect() end)
+	local ok, roots = pcall(function() return game:GetChildren() end)
+	if ok then
+		for _, root in roots do
+			add(root)
+			const good, found = pcall(function() return root:QueryDescendants(selector) end)
+			if good and type(found) == "table" then
+				for i = 1, #found do
+					add(found[i])
+					if i % 128 == 0 then Wait() end
 				end
-			end
-			NAStuff.BlockedEventSaved[remote] = saved
-		end
-	elseif remote:IsA("RemoteFunction") then
-		if NAStuff.BlockedInvokeSaved[remote] == nil then
-			local ok, current = pcall(function() return remote.OnClientInvoke end)
-			NAStuff.BlockedInvokeSaved[remote] = ok and type(current)=="function" and current or NAStuff.NIL_SENTINEL
-		end
-		remote.OnClientInvoke = function(...)
-			const m = NAStuff.BlockedRemoteModes[remote] or "fakeok"
-			if m == "error" then
-				error("Blocked remote: "..remote:GetFullName().." [OnClientInvoke]", 0)
 			else
-				local ret = NAStuff.BlockedRemoteReturns[remote]
-				if ret == nil then ret = NAStuff.RemoteFakeReturn end
-				return ret
+				NAmanage.ForEachDescendantYield(root, add, { streaming = true; yieldEvery = 96 })
 			end
+			Wait()
 		end
 	end
-	DebugNotif(("Blocked: %s (%s)"):format(remote:GetFullName(), NAStuff.BlockedRemoteModes[remote]), 3, "Remote Block")
+	if extra then
+		if type(getinstances) == "function" then
+			const good, found = pcall(getinstances)
+			if good and type(found) == "table" then
+				for i = 1, #found do
+					add(found[i])
+					if i % 128 == 0 then Wait() end
+				end
+			else
+				DebugNotif("The executor could not enumerate unparented instances.", 4, "Remote Block")
+			end
+		else
+			DebugNotif("Unparented discovery needs getinstances support.", 4, "Remote Block")
+		end
+	end
+	table.sort(list, function(a, b)
+		if paths[a] ~= paths[b] then return paths[a] < paths[b] end
+		if a.ClassName ~= b.ClassName then return a.ClassName < b.ClassName end
+		return NAmanage.RemoteId(a) < NAmanage.RemoteId(b)
+	end)
+	return list
+end
+
+NAmanage.MatchRemotes = function(list, query)
+	const q = tostring(query or ""):gsub("^%s+", ""):gsub("%s+$", ""):lower():gsub("^game%.", "")
+	if q == "" or q == "*" then return list end
+	const id = tonumber(q:match("^#(%d+)$"))
+	const exact, prefix, fuzzy = {}, {}, {}
+	for _, obj in list do
+		const name = obj.Name:lower()
+		const path = NAmanage.RemotePath(obj):lower()
+		if id then
+			if NAmanage.RemoteId(obj) == id then exact[#exact + 1] = obj end
+		elseif path == q then
+			exact[#exact + 1] = obj
+		elseif name:sub(1, #q) == q or path:sub(1, #q) == q then
+			prefix[#prefix + 1] = obj
+		elseif name:find(q, 1, true) or path:find(q, 1, true) then
+			fuzzy[#fuzzy + 1] = obj
+		end
+	end
+	return if #exact > 0 then exact elseif #prefix > 0 then prefix else fuzzy
+end
+
+NAmanage.ReleaseRemoteSignals = function(remote)
+	const saved = NAStuff.BlockedEventSaved[remote]
+	if saved then
+		for _, conn in saved.conns or {} do pcall(function() conn:Enable() end) end
+		NAStuff.BlockedEventSaved[remote] = nil
+	end
+end
+
+NAmanage.SyncRemoteSignals = function(remote)
+	local saved = NAStuff.BlockedEventSaved[remote]
+	if not saved then
+		saved = { conns = {}; seen = {}; }
+		NAStuff.BlockedEventSaved[remote] = saved
+	end
+	const ok, list = pcall(getconnections, remote.OnClientEvent)
+	if not ok or type(list) ~= "table" then return false, "getconnections failed for this remote." end
+	saved.unsupported = false
+	for _, conn in list do
+		const good = pcall(function()
+			if conn.ForeignState == true or conn.Enabled == false then return end
+			const fn = conn.Function
+			if type(fn) == "function" and NAmanage.isCoreFunc(fn) then return end
+			if type(fn) ~= "function" and conn.LuaConnection ~= true then return end
+			if type(conn.Disable) ~= "function" or type(conn.Enable) ~= "function" then
+				saved.unsupported = true
+				return
+			end
+			conn:Disable()
+			if conn.Enabled ~= false then saved.unsupported = true; return end
+			if not saved.seen[conn] then
+				saved.seen[conn] = true
+				saved.conns[#saved.conns + 1] = conn
+			end
+		end)
+		if not good then saved.unsupported = true end
+	end
+	if saved.unsupported then return false, "The executor cannot pause and restore all Lua connections." end
 	return true
 end
 
-NAmanage.UnblockRemote = function(remote)
-	if type(NAmanage.pruneBlockedRemoteState) == "function" then
-		NAmanage.pruneBlockedRemoteState()
-	end
-	const idx = Discover(NAStuff.BlockedRemotes, remote)
-	if idx then
-		const name = NAStuff.BlockedRemotes[idx]:GetFullName()
-		table.remove(NAStuff.BlockedRemotes, idx)
-		if type(NAStuff.BlockedRemoteSet) == "table" then
-			NAStuff.BlockedRemoteSet[remote] = nil
-		end
-		NAStuff.BlockedRemoteModes[remote] = nil
-		NAStuff.BlockedRemoteReturns[remote] = nil
-		if remote:IsA("RemoteEvent") or remote:IsA("UnreliableRemoteEvent") then
-			NAStuff.BlockedSignals[remote.OnClientEvent] = nil
-			const saved = NAStuff.BlockedEventSaved[remote]
-			if saved and saved.funcs then
-				for _, f in saved.funcs do
-					pcall(function() remote.OnClientEvent:Connect(f) end)
+NAmanage.StartRemoteSignalWorker = function()
+	if NAStuff.RemoteSignalToken then return end
+	const token = {}
+	NAStuff.RemoteSignalToken = token
+	Defer(function()
+		while NAStuff.RemoteSignalToken == token and not NAStuff._unloading do
+			local count = 0
+			for _, remote in NAStuff.BlockedRemotes do
+				const method = NAStuff.BlockedRemoteMethods[remote]
+				if (method == "signals" or method == "both") and NAmanage.IsRemote(remote) and remote.ClassName ~= "RemoteFunction" then
+					count += 1
+					const ok, reason = NAmanage.SyncRemoteSignals(remote)
+					const saved = NAStuff.BlockedEventSaved[remote]
+					if not ok and saved and not saved.warned then
+						saved.warned = true
+						DebugNotif(reason.." "..NAmanage.RemoteLabel(remote), 4, "Remote Block")
+					elseif ok and saved then saved.warned = nil end
+					if count % 16 == 0 then Wait() end
 				end
 			end
-			NAStuff.BlockedEventSaved[remote] = nil
-		elseif remote:IsA("RemoteFunction") then
-			const saved = NAStuff.BlockedInvokeSaved[remote]
-			if saved == NAStuff.NIL_SENTINEL then
-				remote.OnClientInvoke = nil
-			elseif type(saved) == "function" then
-				remote.OnClientInvoke = saved
-			else
-				remote.OnClientInvoke = nil
-			end
-			NAStuff.BlockedInvokeSaved[remote] = nil
+			if count == 0 then break end
+			Wait(0.5)
 		end
-		DebugNotif(("Unblocked: %s"):format(name), 3, "Remote Block")
+		if NAStuff.RemoteSignalToken == token then NAStuff.RemoteSignalToken = nil end
+	end)
+end
+
+NAmanage.ReadRemoteInvoke = function(remote)
+	if type(getcallbackvalue) == "function" then
+		const ok, fn = pcall(getcallbackvalue, remote, "OnClientInvoke")
+		if ok then return true, fn end
+	end
+	return pcall(function() return remote.OnClientInvoke end)
+end
+
+NAmanage.WriteRemoteInvoke = function(remote, value)
+	const state = NAStuff.BlockRemoteHookState
+	if state then state.settingInvoke = true end
+	const ok = pcall(function() remote.OnClientInvoke = value end)
+	if state then state.settingInvoke = false end
+	return ok
+end
+
+NAmanage.ReleaseRemoteInvoke = function(remote)
+	const saved = NAStuff.BlockedInvokeSaved[remote]
+	if type(saved) == "table" then
+		const ok, current = NAmanage.ReadRemoteInvoke(remote)
+		if not ok or current == saved.wrapper then NAmanage.WriteRemoteInvoke(remote, saved.callback) end
+		NAStuff.BlockedInvokeSaved[remote] = nil
 	end
 end
+
+NAmanage.pruneBlockedRemoteState = function()
+	const list = NAStuff.BlockedRemotes
+	local at = 0
+	for i = 1, #list do
+		const remote = list[i]
+		if NAmanage.IsRemote(remote) then
+			at += 1
+			list[at] = remote
+		else
+			NAmanage.ReleaseRemoteSignals(remote)
+			NAmanage.ReleaseRemoteInvoke(remote)
+			NAStuff.BlockedRemoteSet[remote] = nil
+			NAStuff.BlockedRemoteMethods[remote] = nil
+			NAStuff.BlockedRemoteModes[remote] = nil
+			NAStuff.BlockedRemoteReturns[remote] = nil
+			const conn = NAStuff.BlockedRemoteWatches[remote]
+			if conn then pcall(function() conn:Disconnect() end) end
+			NAStuff.BlockedRemoteWatches[remote] = nil
+		end
+	end
+	for i = at + 1, #list do list[i] = nil end
+	return at
+end
+
+NAmanage.BlockRemote = function(remote, mode, method, quiet)
+	method = method or NAStuff.RemoteBlockMethod or "both"
+	mode = mode or NAStuff.RemoteBlockMode or "fakeok"
+	const function fail(message)
+		if not quiet then DebugNotif(message, 4, "Remote Block") end
+		return false, message
+	end
+	if not NAmanage.IsRemote(remote) then return fail("Remote is no longer available.") end
+	if method ~= "hooks" and method ~= "signals" and method ~= "both" then return fail("Choose hooks, signals, or both.") end
+	const event = remote.ClassName ~= "RemoteFunction"
+	if method == "signals" and not event then return fail("RemoteFunctions have callbacks rather than event signals. Choose Hooks or Both.") end
+	if method ~= "hooks" and event and type(getconnections) ~= "function" then return fail("Signal blocking needs getconnections support. Choose Hooks to block outgoing calls.") end
+	local callback
+	if not event and not NAStuff.BlockedInvokeSaved[remote] then
+		const ok, fn = NAmanage.ReadRemoteInvoke(remote)
+		if not ok then return fail("Cannot save OnClientInvoke. The executor needs getcallbackvalue support.") end
+		callback = fn
+	end
+	if method ~= "signals" and not NAmanage.EnsureHook() then return fail("The executor cannot install remote hooks. Choose Signals for incoming events.") end
+	const prev = NAStuff.BlockedRemoteMethods[remote]
+	if event and method ~= "hooks" then
+		const ok, err = NAmanage.SyncRemoteSignals(remote)
+		if not ok then
+			if prev ~= "signals" and prev ~= "both" then NAmanage.ReleaseRemoteSignals(remote) end
+			return fail(err)
+		end
+	end
+	if not NAStuff.BlockedRemoteSet[remote] then NAStuff.BlockedRemotes[#NAStuff.BlockedRemotes + 1] = remote end
+	NAStuff.BlockedRemoteSet[remote] = true
+	NAStuff.BlockedRemoteModes[remote] = mode
+	NAStuff.BlockedRemoteMethods[remote] = method
+	if event then
+		NAStuff.BlockedSignals[remote.OnClientEvent] = if method ~= "signals" then true else nil
+		if method == "hooks" then NAmanage.ReleaseRemoteSignals(remote) else NAmanage.StartRemoteSignalWorker() end
+	else
+		local saved = NAStuff.BlockedInvokeSaved[remote]
+		if not saved then
+			saved = { callback = callback }
+			saved.wrapper = function(...)
+				if not NAStuff.BlockedRemoteSet[remote] then
+					if type(saved.callback) == "function" then return saved.callback(...) end
+					return nil
+				end
+				if NAStuff.BlockedRemoteModes[remote] == "error" then error("Blocked remote: "..NAmanage.RemotePath(remote).." [OnClientInvoke]", 0) end
+				local value = NAStuff.BlockedRemoteReturns[remote]
+				if value == nil then value = NAStuff.RemoteFakeReturn end
+				return value
+			end
+			NAStuff.BlockedInvokeSaved[remote] = saved
+			if not NAmanage.WriteRemoteInvoke(remote, saved.wrapper) then
+				NAmanage.UnblockRemote(remote, true)
+				return fail("The executor could not replace OnClientInvoke.")
+			end
+		end
+	end
+	if not NAStuff.BlockedRemoteWatches[remote] then
+		const ok, conn = pcall(function()
+			return remote.Destroying:Connect(function()
+				NAmanage.UnblockRemote(remote, true)
+				NAStuff.RemoteDead[remote] = true
+			end)
+		end)
+		if ok then NAStuff.BlockedRemoteWatches[remote] = conn end
+	end
+	if not quiet then DebugNotif("Blocked: "..NAmanage.RemoteLabel(remote).." ("..method..", "..mode..")", 3, "Remote Block") end
+	return true
+end
+
+NAmanage.UnblockRemote = function(remote, quiet)
+	const index = table.find(NAStuff.BlockedRemotes, remote)
+	if not index then return false end
+	const name = NAmanage.RemoteLabel(remote)
+	NAStuff.BlockedRemoteSet[remote] = nil
+	NAStuff.BlockedRemoteMethods[remote] = nil
+	if remote.ClassName ~= "RemoteFunction" then NAStuff.BlockedSignals[remote.OnClientEvent] = nil end
+	NAmanage.ReleaseRemoteSignals(remote)
+	NAmanage.ReleaseRemoteInvoke(remote)
+	NAStuff.BlockedRemoteModes[remote] = nil
+	NAStuff.BlockedRemoteReturns[remote] = nil
+	const conn = NAStuff.BlockedRemoteWatches[remote]
+	if conn then pcall(function() conn:Disconnect() end) end
+	NAStuff.BlockedRemoteWatches[remote] = nil
+	table.remove(NAStuff.BlockedRemotes, index)
+	if #NAStuff.BlockedRemotes == 0 then NAStuff.RemoteSignalToken = nil end
+	if not quiet then DebugNotif("Unblocked: "..name, 3, "Remote Block") end
+	return true
+end
+
+NAmanage.RemoteBlockUnload = function()
+	NAStuff.RemoteSignalToken = nil
+	for i = #NAStuff.BlockedRemotes, 1, -1 do NAmanage.UnblockRemote(NAStuff.BlockedRemotes[i], true) end
+	const state = NAStuff.BlockRemoteHookState
+	if state then state.notifyWorkerToken = nil; state.notifyQueue = {} end
+end
+
 
 NAmanage.EnsureHook = function()
 	local state = NAStuff.BlockRemoteHookState
@@ -2258,59 +2455,39 @@ NAmanage.EnsureHook = function()
 		if typeof(remote) ~= "Instance" then
 			return false
 		end
-		local blockedSet = NAStuff.BlockedRemoteSet
-		if type(blockedSet) == "table" and blockedSet[remote] == true then
-			return true
-		end
-		return Discover(NAStuff.BlockedRemotes, remote) ~= nil
+		return not NAStuff._unloading and NAStuff.BlockedRemoteSet[remote] == true
+			and NAStuff.BlockedRemoteMethods[remote] ~= "signals"
 	end
 
 	const function blockedMode(remote)
 		return NAStuff.BlockedRemoteModes[remote] or "fakeok"
 	end
 
-	state.notifyQueue = type(state.notifyQueue) == "table" and state.notifyQueue or {}
-	if state.notifyWorkerStarted ~= true then
-		local rawSpawn = NAmanage._rawTaskSpawn or (type(task) == "table" and task.spawn or nil)
-		local rawWait = NAmanage._rawTaskWait or (type(task) == "table" and task.wait or nil)
-		if type(rawSpawn) == "function" and type(rawWait) == "function" then
-			state.notifyWorkerStarted = true
-			local workerToken = {}
-			state.notifyWorkerToken = workerToken
-			rawSpawn(function()
-				while state.notifyWorkerToken == workerToken
-					and not (NAmanage._runtimeState and NAmanage._runtimeState.unloading == true) do
-					local item = table.remove(state.notifyQueue, 1)
-					if item then
-						if NAStuff.nuhuhNotifs and type(DebugNotif) == "function" then
-							pcall(DebugNotif, item.text, item.duration, item.title)
-						end
-					else
-						rawWait(0.05)
-					end
-				end
-				if state.notifyWorkerToken == workerToken then
-					state.notifyWorkerStarted = false
-					state.notifyWorkerToken = nil
-				end
-			end)
-		end
-	end
-
+	state.notifyQueue = state.notifyQueue or {}
+	state.notifyLast = state.notifyLast or setmetatable({}, { __mode = "k" })
 	const function hookDebugNotif(text, duration, title)
-		if not NAStuff.nuhuhNotifs then
-			return
-		end
-		state.notifyQueue[#state.notifyQueue + 1] = {
-			text = text;
-			duration = duration;
-			title = title;
-		}
+		if not NAStuff.nuhuhNotifs or #state.notifyQueue >= 32 then return end
+		state.notifyQueue[#state.notifyQueue + 1] = { text = text; duration = duration; title = title }
+		if state.notifyWorkerToken then return end
+		const token = {}
+		state.notifyWorkerToken = token
+		const spawn = NAmanage._rawTaskDefer or (type(task) == "table" and task.defer)
+		if type(spawn) ~= "function" then state.notifyQueue = {}; state.notifyWorkerToken = nil; return end
+		spawn(function()
+			while state.notifyWorkerToken == token and #state.notifyQueue > 0 and not NAStuff._unloading do
+				const item = table.remove(state.notifyQueue, 1)
+				if NAStuff.nuhuhNotifs then pcall(DebugNotif, item.text, item.duration, item.title) end
+				Wait(0.05)
+			end
+			if state.notifyWorkerToken == token then state.notifyWorkerToken = nil end
+		end)
 	end
 
 	const function blockOutbound(remote, method)
 		const mode = blockedMode(remote)
-		if NAStuff.nuhuhNotifs then
+		const now = os.clock()
+		if NAStuff.nuhuhNotifs and now - (state.notifyLast[remote] or -math.huge) >= 1 then
+			state.notifyLast[remote] = now
 			hookDebugNotif(("Blocked -> %s (%s) [%s]"):format(remote:GetFullName(), method, mode == "error" and "ERROR" or "FAKEOK"), 2, "Remote Block")
 		end
 		if mode == "error" then
@@ -2371,6 +2548,7 @@ NAmanage.EnsureHook = function()
 			return false
 		end
 		if state.targetSet[target] then
+			state.targets[key] = target
 			return true
 		end
 		local original
@@ -2416,6 +2594,7 @@ NAmanage.EnsureHook = function()
 
 		installFunction("RemoteEvent.FireServer", remoteEvent.FireServer, outboundHandler("FireServer"))
 		if unreliable then
+			state.hasUnreliable = true
 			installFunction("UnreliableRemoteEvent.FireServer", unreliable.FireServer, outboundHandler("FireServer"))
 		end
 		installFunction("RemoteFunction.InvokeServer", remoteFunction.InvokeServer, outboundHandler("InvokeServer"))
@@ -2428,21 +2607,56 @@ NAmanage.EnsureHook = function()
 		if unreliable then pcall(function() unreliable:Destroy() end) end
 	end
 
+	const function directReady()
+		return state.targets["RemoteEvent.FireServer"] ~= nil
+			and state.targets["RemoteFunction.InvokeServer"] ~= nil
+			and (not state.hasUnreliable or state.targets["UnreliableRemoteEvent.FireServer"] ~= nil)
+	end
+	if not state.newindexHooked then
+		local originalNewindex
+		const replace = wrap(function(self, key, value)
+			const saved = NAStuff.BlockedInvokeSaved[self]
+			if not state.settingInvoke and not NAStuff._unloading and key == "OnClientInvoke"
+				and type(saved) == "table" and NAStuff.BlockedRemoteSet[self] and value ~= saved.wrapper then
+				saved.callback = value
+				return originalNewindex(self, key, saved.wrapper)
+			end
+			return originalNewindex(self, key, value)
+		end)
+		if type(hookMeta) == "function" then
+			const ok, old = pcall(hookMeta, game, "__newindex", replace)
+			if ok and type(old) == "function" then originalNewindex = old; state.newindexHooked = true end
+		end
+		if not state.newindexHooked and type(getRawMeta) == "function" and type(setReadOnly) == "function" then
+			const ok, mt = pcall(getRawMeta, game)
+			if ok and type(mt) == "table" and type(mt.__newindex) == "function" then
+				originalNewindex = mt.__newindex
+				pcall(function()
+					setReadOnly(mt, false)
+					mt.__newindex = replace
+					state.newindexHooked = mt.__newindex == replace
+					setReadOnly(mt, true)
+				end)
+			end
+		end
+		if state.newindexHooked then state.originalNewindex = originalNewindex end
+	end
+
 	if type(getNamecall) ~= "function" then
-		state.hooked = false
-		_na_env.NA_BlockHooked = false
-		return false
+		state.hooked = directReady()
+		_na_env.NA_BlockHooked = state.hooked
+		return state.hooked
 	end
 
 	local originalNamecall
 	local replacement = wrap(function(self, ...)
-		local method = getNamecall()
+		local method = getNamecall():lower()
 		if type(method) == "string" then
-			if (method == "FireServer" or method == "InvokeServer") and isBlockedRemote(self) then
-				local blocked, ret = blockOutbound(self, method)
+			if (method == "fireserver" or method == "invokeserver") and isBlockedRemote(self) then
+				local blocked, ret = blockOutbound(self, if method == "fireserver" then "FireServer" else "InvokeServer")
 				if blocked then return ret end
-			elseif (method == "Connect" or method == "Once" or method == "Wait") and NAStuff.BlockedSignals[self] then
-				local blocked, ret = blockSignal(originalNamecall, self, method, ...)
+			elseif (method == "connect" or method == "once" or method == "wait") and NAStuff.BlockedSignals[self] then
+				local blocked, ret = blockSignal(originalNamecall, self, if method == "connect" then "Connect" elseif method == "once" then "Once" else "Wait", ...)
 				if blocked then return ret end
 			end
 		end
@@ -2474,10 +2688,10 @@ NAmanage.EnsureHook = function()
 	end
 
 	if not installedNamecall or type(originalNamecall) ~= "function" then
-		state.hooked = false
+		state.hooked = directReady()
 		state.namecallHooked = false
-		_na_env.NA_BlockHooked = false
-		return false
+		_na_env.NA_BlockHooked = state.hooked
+		return state.hooked
 	end
 
 	state.originalNamecall = originalNamecall
@@ -2487,152 +2701,74 @@ NAmanage.EnsureHook = function()
 	return true
 end
 
-cmd.add({"blockremote","br"},{"blockremote [name]","Block a remote event/function by name (or pick from list)"},function(name)
-	const function scanAll()
-		const list, seen = {}, {}
-		const function scan(parent)
-			for _, className in { "RemoteEvent", "UnreliableRemoteEvent", "RemoteFunction" } do
-				for _, obj in NAmanage.QueryDescendants(parent, className) do
-					if not seen[obj] then
-						seen[obj] = true
-						Insert(list, obj)
-					end
-				end
+cmd.add({ "blockremote", "blockremotes", "br" }, { "blockremote [name|path|#id]", "Choose matching remotes and block with Hooks, Signals, or Both" }, function(...)
+	const query = table.concat({ ... }, " ")
+	local openList
+	const function choose(list)
+		const function block(method, mode)
+			local count, failed, reason = 0, 0, nil
+			for i = 1, #list do
+				const ok, err = NAmanage.BlockRemote(list[i], mode, method, true)
+				if ok then count += 1 else failed += 1; reason = err end
+				if i % 16 == 0 then Wait() end
 			end
+			DebugNotif(("Blocked %d remote(s) using %s."):format(count, method)..(failed > 0 and (" %d failed: %s"):format(failed, tostring(reason)) or ""), 4, "Remote Block")
 		end
-		scan(Services.ReplicatedStorage)
-		const plr = Services.Players.LocalPlayer
-		const pg = PlrGui or plr:FindFirstChildOfClass("PlayerGui")
-		if pg then scan(pg) else scan(plr) end
-		return list
-	end
-	const function exactByName(q)
-		const out, lq = {}, Lower(q)
-		for _, r in scanAll() do
-			if Lower(r.Name) == lq then Insert(out, r) end
+		const function mode(method)
+			if method == "signals" then block(method, "fakeok"); return end
+			Window({ Title = "Remote Block Response", Buttons = {
+				{ Text = "Fake Success", Callback = function() block(method, "fakeok") end },
+				{ Text = "Error", Callback = function() block(method, "error") end },
+			} })
 		end
-		return out
+		Window({ Title = "Remote Blocking Method", Buttons = {
+			{ Text = "Both | outgoing hooks + incoming connections", Callback = function() mode("both") end },
+			{ Text = "Hooks | outgoing calls + future subscriptions", Callback = function() mode("hooks") end },
+			{ Text = "Signals | incoming events (0.5s refresh)", Callback = function() mode("signals") end },
+		} })
 	end
-	const function fuzzyByName(q)
-		const out, lq = {}, Lower(q)
-		for _, r in scanAll() do
-			if Find(Lower(r.Name), lq, 1, true) then Insert(out, r) end
-		end
-		return out
-	end
-	const function openPicker(list, titleText, modeSel)
-		if #list == 0 then DebugNotif("No remotes found.", 3, "Remote Block") return end
+	openList = function(extra)
+		const list = NAmanage.MatchRemotes(NAmanage.ScanRemotes(extra), query)
 		const buttons = {}
-		for _, r in list do
-			Insert(buttons, {
-				Text = ("%s | %s"):format(r.Name, r:GetFullName()),
-				Callback = function()
-					if not NAmanage.EnsureHook() then
-						DebugNotif("Remote blocking unavailable: executor cannot intercept __namecall", 4, "Remote Block")
-						return
-					end
-					NAmanage.BlockRemote(r, modeSel)
-				end
-			})
+		if #list > 1 then
+			buttons[#buttons + 1] = { Text = ("[ Block ALL %d matches ]"):format(#list), Callback = function() choose(list) end }
 		end
-		Window({ Title = titleText, Buttons = buttons })
-	end
-	const function afterMode(modeSel)
-		const q = tostring(name or ""):gsub("^%s+",""):gsub("%s+$","")
-		if q ~= "" then
-			const exact = exactByName(q)
-			if #exact >= 1 then
-				if not NAmanage.EnsureHook() then
-					DebugNotif("Remote blocking unavailable: executor cannot intercept __namecall", 4, "Remote Block")
-					return
-				end
-				for _, r in exact do
-					NAmanage.BlockRemote(r, modeSel)
-				end
-				return
-			end
-			const fuzzy = fuzzyByName(q)
-			if #fuzzy == 1 then
-				if not NAmanage.EnsureHook() then
-					DebugNotif("Remote blocking unavailable: executor cannot intercept __namecall", 4, "Remote Block")
-					return
-				end
-				NAmanage.BlockRemote(fuzzy[1], modeSel)
-				return
-			end
-			openPicker(fuzzy, ("Select remote(s) to BLOCK for '%s'"):format(q), modeSel)
-			return
+		for _, remote in list do
+			buttons[#buttons + 1] = { Text = NAmanage.RemoteLabel(remote), Callback = function() choose({ remote }) end }
 		end
-		openPicker(scanAll(), "Select remote(s) to BLOCK", modeSel)
+		buttons[#buttons + 1] = { Text = "[ Refresh remotes ]", Callback = function() openList(extra) end }
+		if not extra and type(getinstances) == "function" then
+			buttons[#buttons + 1] = { Text = "[ Include unparented remotes ]", Callback = function() openList(true) end }
+		end
+		if #list == 0 then DebugNotif("No accessible remotes match '"..query.."'. Refresh after they load.", 4, "Remote Block") end
+		Window({ Title = "Select remote to BLOCK ("..#list.." matches)", Buttons = buttons })
 	end
-	Window({
-		Title = "Remote Block Mode",
-		Buttons = {
-			{ Text = "Fake Success", Callback = function() afterMode("fakeok") end },
-			{ Text = "Error",        Callback = function() afterMode("error")  end }
-		}
-	})
-end,true)
+	openList(false)
+end, true)
 
-cmd.add({"unblockremote","ubr"},{"unblockremote [name|all]","Unblock a remote by name, or pick from blocked list"},function(name)
-	if not name or name == "" then
-		const blocked = NAStuff.BlockedRemotes
-		if #blocked == 0 then
-			DebugNotif("No remotes are currently blocked.", 3, "Remote Block")
-			return
-		end
-		const buttons = {}
-		for _, r in blocked do
-			Insert(buttons, {
-				Text = ("%s | %s"):format(r.Name, r:GetFullName()),
-				Callback = function() NAmanage.UnblockRemote(r) end
-			})
-		end
-		Insert(buttons, {
-			Text = "[ Unblock ALL ]",
-			Callback = function()
-				for i = #blocked, 1, -1 do
-					NAmanage.UnblockRemote(blocked[i])
-				end
-			end
-		})
-		Window({ Title = "Blocked Remotes", Buttons = buttons })
+cmd.add({ "unblockremote", "unblockremotes", "ubr" }, { "unblockremote [name|path|#id|all]", "Choose a blocked remote to restore, or unblock all" }, function(...)
+	const query = table.concat({ ... }, " "):gsub("^%s+", ""):gsub("%s+$", "")
+	NAmanage.pruneBlockedRemoteState()
+	const list = table.clone(NAStuff.BlockedRemotes)
+	if query:lower() == "all" or query == "*" then
+		for _, remote in list do NAmanage.UnblockRemote(remote, true) end
+		DebugNotif("Unblocked "..#list.." remote(s).", 3, "Remote Block")
 		return
 	end
-	if Lower(name) == "all" or name == "*" then
-		for i = #NAStuff.BlockedRemotes, 1, -1 do
-			NAmanage.UnblockRemote(NAStuff.BlockedRemotes[i])
-		end
-		return
-	end
-	const lname = Lower(name)
-	const exact, suggestions = {}, {}
-	for _, r in NAStuff.BlockedRemotes do
-		if Lower(r.Name) == lname then
-			Insert(exact, r)
-		elseif Find(Lower(r.Name), lname, 1, true) then
-			Insert(suggestions, r)
-		end
-	end
-	if #exact > 0 then
-		for _, r in exact do
-			NAmanage.UnblockRemote(r)
-		end
-		return
-	end
-	if #suggestions == 0 then
-		DebugNotif(("No BLOCKED remotes match '%s'"):format(name), 3, "Remote Block")
-		return
-	end
+	const found = NAmanage.MatchRemotes(list, query)
+	if #found == 0 then DebugNotif("No blocked remotes match '"..query.."'.", 3, "Remote Block"); return end
+	if #found == 1 and query ~= "" then NAmanage.UnblockRemote(found[1]); return end
 	const buttons = {}
-	for _, r in suggestions do
-		Insert(buttons, {
-			Text = ("%s | %s"):format(r.Name, r:GetFullName()),
-			Callback = function() NAmanage.UnblockRemote(r) end
-		})
+	for _, remote in found do
+		buttons[#buttons + 1] = { Text = NAmanage.RemoteLabel(remote), Callback = function() NAmanage.UnblockRemote(remote) end }
 	end
-	Window({ Title = ("Select remote to UNBLOCK for '%s'"):format(name), Buttons = buttons })
-end,true)
+	buttons[#buttons + 1] = { Text = "[ Unblock ALL matches ]", Callback = function()
+		for _, remote in found do NAmanage.UnblockRemote(remote, true) end
+		DebugNotif("Unblocked "..#found.." remote(s).", 3, "Remote Block")
+	end }
+	Window({ Title = "Blocked Remotes", Buttons = buttons })
+end, true)
+
 
 NAmanage.EnsureWalkSpeedBypassHook = function()
 	if _na_env.NA_WSBP_Hooked then return end
