@@ -1558,7 +1558,7 @@ NAmanage.GetOffsetWalkState = function()
 		NAStuff.OffsetWalkState = {}
 	end
 	const state = NAStuff.OffsetWalkState
-	state.holdDuration = math.max(0.01, tonumber(state.holdDuration) or 0.2)
+	state.holdDuration = math.max(0.01, tonumber(state.holdDuration) or 0.13)
 	state.interval = state.holdDuration
 	state.bindName = tostring(state.bindName or "NA_OffsetWalkReplication")
 	state.externalTeleportDistance = math.max(0.5, tonumber(state.externalTeleportDistance) or 4)
@@ -1829,7 +1829,7 @@ NAmanage.StartOffsetWalk = function(value)
 	end
 	state.active = true
 	state.speed = speed
-	state.holdDuration = 0.2
+	state.holdDuration = 0.13
 	state.interval = state.holdDuration
 	NAmanage.OffsetWalkResetRootState(state, root, hum)
 	NAmanage.StopLegacyLoopWalkSpeed()
