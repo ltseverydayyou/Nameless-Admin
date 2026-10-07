@@ -5898,299 +5898,344 @@ NAmanage.GetDataPingText = NAmanage.GetDataPingText or function()
 	return nil
 end
 
-NAmanage.StreamerEscapePattern = NAmanage.StreamerEscapePattern or function(value)
-	value = tostring(value or "")
-	return value:gsub("([%%%^%$%(%)%.%[%]%*%+%-%?])", "%%%1")
+NAmanage.StreamerEscapePattern = function(value)
+	return tostring(value or ""):gsub("([%%%^%$%(%)%.%[%]%*%+%-%?])", "%%%1")
 end
 
-NAmanage.StreamerGetState = NAmanage.StreamerGetState or function()
-	local state = NAStuff and NAStuff.StreamerModeState
+NAmanage.StreamerGetState = function()
+	local state = NAStuff.StreamerModeState
 	if type(state) ~= "table" then
-		state = {
-			cache = {};
-			nameTokens = {};
-			token = nil;
-			restoreToken = nil;
-			applied = false;
-			scrubBusy = false;
-		}
+		state = {}
 		NAStuff.StreamerModeState = state
 	end
-	if type(state.cache) ~= "table" then
-		state.cache = {}
-	end
-	state.cache = NAmanage.ensureWeakTable(state.cache, "k")
-	if type(state.nameTokens) ~= "table" then
+	if not state.ready then
+		state.cache = NAmanage.ensureWeakTable(state.cache, "k")
+		state.overlays = NAmanage.ensureWeakTable(nil, "k")
+		state.names = {}
 		state.nameTokens = {}
+		state.trie = {}
+		state.rev = 0
+		state.ready = true
 	end
 	return state
 end
 
-NAmanage.StreamerSetPlayerListHidden = NAmanage.StreamerSetPlayerListHidden or function(hidden)
+NAmanage.StreamerSetPlayerListHidden = function(hidden)
 	const state = NAmanage.StreamerGetState()
-	const starterGui = Services.StarterGui or SafeGetService("StarterGui")
-	if not starterGui or not Enum or not Enum.CoreGuiType or not Enum.CoreGuiType.PlayerList then
-		return false
-	end
-
-	if hidden == true then
+	if hidden then
 		if state.playerListOriginal == nil then
-			local okEnabled, enabled = pcall(function()
-				return __lt.cm("StarterGui", "GetCoreGuiEnabled", Enum.CoreGuiType.PlayerList)
-			end)
-			if okEnabled then
-				state.playerListOriginal = enabled == true
-			else
-				state.playerListOriginal = true
-			end
+			const ok, value = pcall(__lt.cm, "StarterGui", "GetCoreGuiEnabled", Enum.CoreGuiType.PlayerList)
+			if not ok then return false end
+			state.playerListOriginal = value
 		end
-		const okSet = pcall(function()
-			__lt.cm("StarterGui", "SetCoreGuiEnabled", Enum.CoreGuiType.PlayerList, false)
-		end)
-		state.playerListHidden = okSet == true
-		return okSet == true
+		const ok = pcall(__lt.cm, "StarterGui", "SetCoreGuiEnabled", Enum.CoreGuiType.PlayerList, false)
+		state.playerListHidden = ok
+		return ok
 	end
-
-	if state.playerListOriginal ~= nil or state.playerListHidden == true then
-		const restoreValue = state.playerListOriginal ~= false
-		pcall(function()
-			__lt.cm("StarterGui", "SetCoreGuiEnabled", Enum.CoreGuiType.PlayerList, restoreValue)
-		end)
+	if state.playerListOriginal ~= nil then
+		const ok = pcall(__lt.cm, "StarterGui", "SetCoreGuiEnabled", Enum.CoreGuiType.PlayerList, state.playerListOriginal)
+		if not ok then return false end
 	end
 	state.playerListOriginal = nil
 	state.playerListHidden = nil
 	return true
 end
 
-NAmanage.StreamerCacheCount = NAmanage.StreamerCacheCount or function(cache)
+NAmanage.StreamerCacheCount = function(cache)
 	local count = 0
-	if type(cache) == "table" then
-		for _ in cache do
-			count += 1
-		end
-	end
+	for _ in cache or {} do count += 1 end
 	return count
 end
 
-NAmanage.StreamerIsRunActive = NAmanage.StreamerIsRunActive or function(token)
-	if not (NAStuff and NAStuff.StreamerModeEnabled == true) then
-		return false
-	end
-	if type(token) ~= "table" then
-		return true
-	end
-	if token.cancelled then
-		return false
-	end
-	const state = NAmanage.StreamerGetState()
-	return state.token == token
+NAmanage.StreamerIsRunActive = function(token)
+	return NAStuff.StreamerModeEnabled == true and (token == nil or (not token.cancelled and NAmanage.StreamerGetState().token == token))
 end
 
-NAmanage.StreamerGetRecord = NAmanage.StreamerGetRecord or function(inst)
-	if typeof(inst) ~= "Instance" then
-		return nil
-	end
-	const state = NAmanage.StreamerGetState()
-	const cache = state.cache
+NAmanage.StreamerGetRecord = function(inst)
+	if typeof(inst) ~= "Instance" then return end
+	const cache = NAmanage.StreamerGetState().cache
 	local rec = cache[inst]
-	if type(rec) ~= "table" then
-		rec = {}
+	if not rec then
+		rec = { props = {}, links = {} }
 		cache[inst] = rec
 	end
+	rec.props = rec.props or {}
+	rec.links = rec.links or {}
 	return rec
 end
 
-NAmanage.StreamerRefreshNameTokens = NAmanage.StreamerRefreshNameTokens or function()
+NAmanage.StreamerAddName = function(name)
+	if type(name) ~= "string" or name == "" then return false end
 	const state = NAmanage.StreamerGetState()
-	const tokens = {}
-	const seen = {}
-	if Services.Players then
-		for _, plr in __lt.cm("Players", "GetPlayers") do
-			const names = {
-				plr and plr.Name or nil,
-				plr and plr.DisplayName or nil,
-			}
-			for i = 1, #names do
-				const value = names[i]
-				if type(value) == "string" and value ~= "" and not seen[value] then
-					seen[value] = true
-					Insert(tokens, value)
-				end
-			end
-		end
+	const key = string.lower(name)
+	if state.names[key] then return false end
+	state.names[key] = true
+	state.nameTokens[#state.nameTokens + 1] = key
+	local node = state.trie
+	for i = 1, #key do
+		const byte = string.byte(key, i)
+		node[byte] = node[byte] or {}
+		node = node[byte]
 	end
-	table.sort(tokens, function(a, b)
-		if #a == #b then
-			return a < b
-		end
-		return #a > #b
-	end)
-	state.nameTokens = tokens
-	return tokens
+	node.done = true
+	state.rev += 1
+	return true
 end
 
-NAmanage.StreamerScheduleNameRefresh = NAmanage.StreamerScheduleNameRefresh or function(refreshCached)
-	const state = NAmanage.StreamerGetState()
-	if refreshCached then
-		state.nameRefreshNeedsCached = true
+NAmanage.StreamerTrackIdentity = function(info)
+	if not NAStuff.StreamerModeEnabled or type(info) ~= "table" then return end
+	local changed = false
+	for _, key in { "username", "displayName", "authorUsername", "moderationUsername", "fromName" } do
+		if NAmanage.StreamerAddName(info[key]) then changed = true end
 	end
-	if state.nameRefreshQueued then
-		return
+	if type(info.reply) == "table" then
+		if NAmanage.StreamerAddName(info.reply.username) then changed = true end
+		if NAmanage.StreamerAddName(info.reply.displayName) then changed = true end
 	end
-	state.nameRefreshQueued = true
-	Delay(0.05, function()
-		state.nameRefreshQueued = false
-		if not (NAStuff and NAStuff.StreamerModeEnabled == true) then
-			state.nameRefreshNeedsCached = false
-			return
+	if changed then NAmanage.StreamerScheduleNameRefresh(true) end
+end
+
+NAmanage.StreamerRefreshNameTokens = function(chat)
+	if Services.Players then
+		for _, plr in __lt.cm("Players", "GetPlayers") do
+			NAmanage.StreamerAddName(plr.Name)
+			NAmanage.StreamerAddName(plr.DisplayName)
 		end
-		NAmanage.StreamerRefreshNameTokens()
-		if state.nameRefreshNeedsCached then
-			state.nameRefreshNeedsCached = false
+	end
+	if chat ~= false and type(NAmanage.StreamerGetChatNames) == "function" then
+		pcall(NAmanage.StreamerGetChatNames, NAmanage.StreamerAddName)
+	end
+	return NAmanage.StreamerGetState().nameTokens
+end
+
+NAmanage.StreamerScheduleNameRefresh = function(refresh)
+	const state = NAmanage.StreamerGetState()
+	const token = state.token
+	if not NAmanage.StreamerIsRunActive(token) then return end
+	if refresh then state.refresh = true end
+	if state.nameJob then return end
+	const job = {}
+	state.nameJob = job
+	Delay(0.05, function()
+		if state.nameJob ~= job then return end
+		state.nameJob = nil
+		if not NAmanage.StreamerIsRunActive(token) then return end
+		NAmanage.StreamerRefreshNameTokens(false)
+		if state.refresh then
+			state.refresh = false
 			NAmanage.StreamerRefreshCachedTargets()
 		end
 	end)
 end
 
-NAmanage.StreamerRefreshCachedTargets = NAmanage.StreamerRefreshCachedTargets or function()
+NAmanage.StreamerRefreshCachedTargets = function()
 	const state = NAmanage.StreamerGetState()
-	const pending = {}
-	for inst in state.cache do
-		if typeof(inst) == "Instance" and inst.Parent and NAmanage.StreamerIsTarget(inst) then
-			Insert(pending, inst)
-		end
-	end
-	for i = 1, #pending do
-		NAmanage.StreamerScrubInstance(pending[i])
-	end
+	const token = state.token
+	if not NAmanage.StreamerIsRunActive(token) then return end
+	if state.refreshJob then state.refreshAgain = true; return end
+	const job = {}
+	state.refreshJob = job
+	Spawn(function()
+		repeat
+			state.refreshAgain = false
+			const work = {}
+			for inst in state.cache do
+				if not NAmanage.StreamerIsRunActive(token) then break end
+				if inst.Parent and NAmanage.StreamerIsTarget(inst) then
+					NAmanage.StreamerScrubInstance(inst)
+					NAmanage.WorkBudgetStep(work, 48, 0.002)
+				end
+			end
+		until not state.refreshAgain or not NAmanage.StreamerIsRunActive(token)
+		if NAmanage.StreamerIsRunActive(token) and NAmanage.StreamerChatChanged then pcall(NAmanage.StreamerChatChanged) end
+		if state.refreshJob == job then state.refreshJob = nil end
+	end)
 end
 
-NAmanage.StreamerMaskText = NAmanage.StreamerMaskText or function(text)
-	if text == nil then
-		return nil
+NAmanage.StreamerTextRanges = function(text)
+	const trie = NAmanage.StreamerGetState().trie
+	const lower = string.lower(text)
+	const ranges = {}
+	const function word(byte)
+		return byte and ((byte >= 48 and byte <= 57) or (byte >= 97 and byte <= 122) or byte == 95 or byte >= 128)
 	end
+	local i = 1
+	while i <= #text do
+		local last
+		if not word(string.byte(lower, i - 1)) then
+			local node = trie
+			local j = i
+			while j <= #text do
+				node = node[string.byte(lower, j)]
+				if not node then break end
+				if node.done and not word(string.byte(lower, j + 1)) then last = j end
+				j += 1
+			end
+		end
+		if last then
+			ranges[#ranges + 1] = { i, last }
+			i = last + 1
+		else
+			i += 1
+		end
+	end
+	return ranges
+end
+
+NAmanage.StreamerMaskText = function(text, rich)
+	if text == nil then return nil end
 	const source = tostring(text)
-	const tokens = NAmanage.StreamerGetState().nameTokens
-	if type(tokens) ~= "table" or #tokens == 0 then
-		return source
+	const state = NAmanage.StreamerGetState()
+	if #state.nameTokens == 0 or source == "" then return source end
+	local rep = tostring(NAStuff.StreamerModeText or "User")
+	const parts, plain = {}, {}
+	local count, at = 0, 1
+	const entities = { amp = "&", lt = "<", gt = ">", quot = '"', apos = "'" }
+	const function add(raw, value)
+		parts[#parts + 1] = { raw = raw, text = value, first = count + 1 }
+		if value then count += #value; plain[#plain + 1] = value end
 	end
-	local masked = source
-	const replacement = tostring(NAStuff.StreamerModeText or "\0")
-	for i = 1, #tokens do
-		const token = tokens[i]
-		if token ~= "" then
-			masked = masked:gsub(NAmanage.StreamerEscapePattern(token), replacement)
+	if rich then
+		while at <= #source do
+			const start = source:find("[<&]", at)
+			if not start then add(source:sub(at), source:sub(at)); break end
+			if start > at then add(source:sub(at, start - 1), source:sub(at, start - 1)) end
+			local last, value
+			if source:sub(start, start) == "<" then
+				local quote
+				for i = start + 1, #source do
+					const ch = source:sub(i, i)
+					if quote then
+						if ch == quote then quote = nil end
+					elseif ch == '"' or ch == "'" then quote = ch
+					elseif ch == ">" then last = i; break end
+				end
+				if last then
+					const tag = source:sub(start, last)
+					if tag:match("^<%s*br%s*/?%s*>$") then value = "\n" end
+					add(tag, value)
+				end
+			else
+				const key = source:match("^&([%w#]+);", start)
+				value = key and entities[key]
+				if key and not value and key:sub(1, 1) == "#" then
+					local n = key:sub(2, 2):lower() == "x" and tonumber(key:sub(3), 16) or tonumber(key:sub(2))
+					if n and n >= 0 and n <= 0x10ffff then
+						const ok, char = pcall(utf8.char, n)
+						if ok then value = char end
+					end
+				end
+				if value then last = start + #key + 1; add(source:sub(start, last), value) end
+			end
+			if not last then add(source:sub(start, start), source:sub(start, start)); last = start end
+			at = last + 1
+		end
+		rep = rep:gsub("&", "&amp;"):gsub("<", "&lt;"):gsub(">", "&gt;")
+	else
+		add(source, source)
+	end
+	const ranges = NAmanage.StreamerTextRanges(table.concat(plain))
+	if #ranges == 0 then return source end
+	const out = {}
+	local ri = 1
+	for _, part in parts do
+		if not part.text then
+			out[#out + 1] = part.raw
+		else
+			local pos = part.first
+			const last = pos + #part.text - 1
+			while pos <= last do
+				local range = ranges[ri]
+				if range and pos > range[2] then ri += 1
+				elseif range and pos >= range[1] then
+					if pos == range[1] then out[#out + 1] = rep end
+					pos = math.min(last + 1, range[2] + 1)
+				else
+					const endAt = range and math.min(last, range[1] - 1) or last
+					if part.raw ~= part.text then out[#out + 1] = part.raw
+					else out[#out + 1] = part.text:sub(pos - part.first + 1, endAt - part.first + 1) end
+					pos = endAt + 1
+				end
+			end
 		end
 	end
-	return masked
+	return table.concat(out)
 end
 
-NAmanage.StreamerShouldMaskImage = NAmanage.StreamerShouldMaskImage or function(image)
-	const value = Lower(tostring(image or ""))
-	if value == "" then
-		return false
+NAmanage.StreamerShouldMaskImage = function(image)
+	const value = string.lower(tostring(image or ""))
+	if value:sub(1, 11) == "rbxthumb://" then
+		const kind = value:match("[?&/]?type=([^&]+)")
+		return kind == "avatar" or kind == "avatarheadshot" or kind == "avatarbust"
 	end
-	if value:find("rbxthumb://", 1, true) then
-		return true
-	end
-	if value:find("avatar", 1, true) or value:find("headshot", 1, true) or value:find("bust", 1, true) then
-		return true
-	end
-	if value:find("user-thumbnail", 1, true) or value:find("thumbnail", 1, true) then
-		return true
-	end
-	if value:find("rbxcdn.com", 1, true) and value:find("/users/", 1, true) then
-		return true
-	end
-	return false
+	return value:find("/users/", 1, true) ~= nil and (value:find("avatar", 1, true) ~= nil or value:find("thumbnail", 1, true) ~= nil)
+		or value:find("headshot", 1, true) ~= nil
 end
 
-NAmanage.StreamerIsContainer = NAmanage.StreamerIsContainer or function(inst)
-	if typeof(inst) ~= "Instance" then
-		return false
-	end
-	return inst:IsA("BillboardGui")
-		or inst:IsA("SurfaceGui")
+NAmanage.StreamerIsContainer = function(inst)
+	return typeof(inst) == "Instance" and (inst:IsA("BillboardGui") or inst:IsA("SurfaceGui"))
 end
 
-NAmanage.StreamerIsTarget = NAmanage.StreamerIsTarget or function(inst)
-	if typeof(inst) ~= "Instance" then
-		return false
-	end
-	return inst:IsA("TextLabel")
-		or inst:IsA("TextButton")
-		or inst:IsA("TextBox")
-		or inst:IsA("ImageLabel")
-		or inst:IsA("ImageButton")
+NAmanage.StreamerIsTarget = function(inst)
+	if typeof(inst) ~= "Instance" or NAmanage.StreamerGetState().overlays[inst] then return false end
+	const kind = inst.ClassName
+	if kind == "ImageLabel" or kind == "ImageButton" then return true end
+	if kind ~= "TextLabel" and kind ~= "TextButton" and kind ~= "TextBox" then return false end
+	const font = NAlib.isProperty(inst, "FontFace")
+	const family = font and NAlib.isProperty(font, "Family")
+	return not (type(family) == "string" and family:find("BuilderIcons", 1, true))
 end
 
-NAmanage.StreamerIsRelevant = NAmanage.StreamerIsRelevant or function(inst)
+NAmanage.StreamerIsRelevant = function(inst)
 	return NAmanage.StreamerIsTarget(inst) or NAmanage.StreamerIsContainer(inst)
 end
 
-NAmanage.StreamerDisconnectConn = NAmanage.StreamerDisconnectConn or function(conn)
-	if conn and type(conn.Disconnect) == "function" then
-		pcall(function()
-			conn:Disconnect()
-		end)
-	end
+NAmanage.StreamerDisconnectConn = function(conn)
+	if conn then pcall(function() conn:Disconnect() end) end
 end
 
-NAmanage.StreamerWatchTarget = NAmanage.StreamerWatchTarget or function(inst)
-	if not NAmanage.StreamerIsTarget(inst) then
-		return
+NAmanage.StreamerInScope = function(inst)
+	if not inst.Parent then return false end
+	const state = NAmanage.StreamerGetState()
+	for _, root in state.roots or {} do
+		if root ~= Services.Workspace and (inst == root or inst:IsDescendantOf(root)) then return true end
 	end
+	return Services.Workspace and inst:IsDescendantOf(Services.Workspace)
+		and (inst:FindFirstAncestorOfClass("BillboardGui") ~= nil or inst:FindFirstAncestorOfClass("SurfaceGui") ~= nil)
+end
+
+NAmanage.StreamerWatchTarget = function(inst)
 	const rec = NAmanage.StreamerGetRecord(inst)
-	rec.signalConns = rec.signalConns or {}
-	const function bindSignal(key, signal)
-		if rec.signalConns[key] then
-			return
-		end
-		rec.signalConns[key] = signal:Connect(function()
-			if NAStuff and NAStuff.StreamerModeEnabled == true then
-				NAmanage.StreamerScrubInstance(inst)
-			end
+	if rec.links.text then return end
+	if inst:IsA("TextBox") then
+		rec.links.text = inst.Changed:Connect(function(prop)
+			if not rec.busy and NAmanage.StreamerIsRunActive() and NAmanage.StreamerBoxProps[prop] then NAmanage.StreamerScrubInstance(inst) end
 		end)
-	end
-	if inst:IsA("TextLabel") or inst:IsA("TextButton") or inst:IsA("TextBox") then
-		bindSignal("Text", inst:GetPropertyChangedSignal("Text"))
-		if inst:IsA("TextBox") then
-			bindSignal("PlaceholderText", inst:GetPropertyChangedSignal("PlaceholderText"))
+	else
+		const prop = (inst:IsA("ImageLabel") or inst:IsA("ImageButton")) and "Image" or "Text"
+		rec.links.text = inst:GetPropertyChangedSignal(prop):Connect(function()
+			if not rec.busy then NAmanage.StreamerScrubInstance(inst) end
+		end)
+		if prop == "Text" then
+			rec.links.rich = inst:GetPropertyChangedSignal("RichText"):Connect(function()
+				if not rec.busy then NAmanage.StreamerScrubInstance(inst) end
+			end)
 		end
 	end
-	if inst:IsA("ImageLabel") or inst:IsA("ImageButton") then
-		bindSignal("Image", inst:GetPropertyChangedSignal("Image"))
-	end
-	if not rec.ancConn then
-		rec.ancConn = inst.AncestryChanged:Connect(function(_, parent)
-			if parent then
-				return
-			end
-			NAmanage.StreamerRestoreInstance(inst)
-		end)
-	end
+	rec.links.anc = inst.AncestryChanged:Connect(function()
+		if not NAmanage.StreamerInScope(inst) then NAmanage.StreamerRestoreInstance(inst) end
+	end)
 end
 
-NAmanage.StreamerScanContainer = NAmanage.StreamerScanContainer or function(root, token, opts)
-	if typeof(root) ~= "Instance" then
-		return
-	end
-	if token and not NAmanage.StreamerIsRunActive(token) then
-		return
-	end
+NAmanage.StreamerScanContainer = function(root, token, opts)
+	if typeof(root) ~= "Instance" or not NAmanage.StreamerIsRunActive(token) then return end
 	opts = opts or {}
-	if opts.includeRoot == true and NAmanage.StreamerIsTarget(root) then
-		NAmanage.StreamerScrubInstance(root)
+	const work = {}
+	const query = root == Services.Workspace and "BillboardGui >> GuiObject, SurfaceGui >> GuiObject" or "TextLabel, TextButton, TextBox, ImageLabel, ImageButton"
+	if opts.includeRoot and NAmanage.StreamerIsTarget(root) then NAmanage.StreamerScrubInstance(root) end
+	for _, inst in NAmanage.QueryDescendants(root, query) do
+		if not NAmanage.StreamerIsRunActive(token) then break end
+		if inst.Parent and NAmanage.StreamerIsTarget(inst) then NAmanage.StreamerScrubInstance(inst) end
+		NAmanage.WorkBudgetStep(work, tonumber(opts.yieldEvery) or 64, 0.002)
 	end
-	NAmanage.ForEachDescendantYield(root, function(inst)
-		if token and not NAmanage.StreamerIsRunActive(token) then
-			return
-		end
-		if NAmanage.StreamerIsTarget(inst) then
-			NAmanage.StreamerScrubInstance(inst)
-		end
-	end, {
-		yieldEvery = tonumber(opts.yieldEvery) or 96;
-		cancelToken = token;
-	})
 end

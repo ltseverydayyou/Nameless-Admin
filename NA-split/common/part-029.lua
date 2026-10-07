@@ -1204,6 +1204,18 @@ originalIO.runNACHAT=function()
 			activeGroupId = nil,
 		}
 		local conversationHistory = { public = {} }
+		NAmanage.StreamerGetChatNames = function(add)
+			if not chatFrame.Parent then return end
+			for _, info in NAChat.users do
+				if type(info) == "table" then add(info.username); add(info.displayName) end
+			end
+			for _, history in conversationHistory do
+				for _, entry in history do
+					add(entry.username); add(entry.displayName); add(entry.authorUsername); add(entry.moderationUsername)
+					if type(entry.reply) == "table" then add(entry.reply.username); add(entry.reply.displayName) end
+				end
+			end
+		end
 		local groupRecords = {}
 		local groupButton = nil
 		local groupPopup = nil
@@ -1308,7 +1320,7 @@ originalIO.runNACHAT=function()
 			scrollSt[sf] = { locked = false, pending = false, prog = false }
 
 			local function upd()
-				if not (sf and sf.Parent and layout and layout.Parent) then
+				if sf:GetAttribute("NAManualCanvasSize") == true or not (sf and sf.Parent and layout and layout.Parent) then
 					return
 				end
 				local y = 0
@@ -1382,6 +1394,12 @@ originalIO.runNACHAT=function()
 
 			local st = scrollSt[scrollFrame]
 			if st and st.pending then
+				return
+			end
+			if scrollFrame == chatScroll and scrollFrame:GetAttribute("NAManualCanvasSize") == true then
+				if shouldAutoScroll(scrollFrame) and NAmanage.NAChat_QueueVirtualRefresh then
+					NAmanage.NAChat_QueueVirtualRefresh(true)
+				end
 				return
 			end
 			if st then
@@ -2210,6 +2228,7 @@ originalIO.runNACHAT=function()
 		local syncChatEntryTranslation
 
 		local function refreshChatEntry(entry)
+			NAmanage.StreamerTrackIdentity(entry)
 			local lbl = entry and entry.frame
 			if not (lbl and lbl.Parent) then
 				return
@@ -2685,6 +2704,7 @@ originalIO.runNACHAT=function()
 			if tr and type(tr.isEnabled) == "function" and tr:isEnabled() and type(info) == "table" and type(info.translationLine) == "string" and info.translationLine ~= "" and info.target == tr.chatTarget then
 				value ..= "\n"..info.translationLine
 			end
+			if NAStuff.StreamerModeEnabled then value = NAmanage.StreamerMaskText(value, true) end
 			value = value:gsub("<[^>]->", "")
 			value = value:gsub("&lt;", "<"):gsub("&gt;", ">"):gsub("&amp;", "&")
 			return value
@@ -2694,15 +2714,16 @@ originalIO.runNACHAT=function()
 			local compact = NAmanage.NAChat_GetCompactMessages()
 			local hasAvatar = NAmanage.NAChat_GetEntryAvatarUserId(entry) ~= nil
 			local minHeight = hasAvatar and (compact and 36 or 40) or (compact and 20 or 24)
-			local padding = compact and 4 or 8
+			local padding = 8
 			local width = NAmanage.NAChat_GetMessageMeasureWidth(entry)
 			local textSize = NAmanage.NAChat_GetMessageTextSize()
 			local measuredY = 0
 			local textService = Services.TextService
 			if textService then
-				local ok, bounds = pcall(textService.GetTextSize, textService, virtualMeasureText(entry), textSize, Enum.Font.Roboto, Vector2.new(width, 2000))
+				const scale = math.max(0.01, NAmanage.GetUIScaleFactor and NAmanage.GetUIScaleFactor(chatScroll) or 1)
+				local ok, bounds = pcall(textService.GetTextSize, textService, virtualMeasureText(entry), math.max(1, textSize * scale), Enum.Font.Roboto, Vector2.new(math.max(1, width * scale), 1000000))
 				if ok and bounds then
-					measuredY = tonumber(bounds.Y) or 0
+					measuredY = (tonumber(bounds.Y) or 0) / scale
 				end
 			end
 			if measuredY <= 0 then
@@ -2713,7 +2734,7 @@ originalIO.runNACHAT=function()
 				end
 				measuredY = math.max(textSize, lines * (textSize + 2))
 			end
-			return math.max(minHeight, math.min(720, math.ceil(measuredY + padding)))
+			return math.max(minHeight, math.ceil(measuredY + padding))
 		end
 
 		NAmanage.NAChat_EstimatedHeight = function(entry)
@@ -2731,171 +2752,134 @@ originalIO.runNACHAT=function()
 			for line in (virtualMeasureText(entry).."\n"):gmatch("(.-)\n") do
 				lines += math.max(1, math.ceil(#line / charsPerLine))
 			end
-			return math.max(base, math.min(720, base + math.max(0, lines - 1) * (textSize + 2)))
+			return math.max(base, base + math.max(0, lines - 1) * (textSize + 2))
+		end
+
+		NAmanage.NAChat_BuildVirtualLayout = function(history)
+			const rt = NAStuff.NAChatRuntime
+			const tops, heights = {}, {}
+			local total = 0
+			for i, entry in history do
+				const height = NAmanage.NAChat_EstimatedHeight(entry)
+				tops[i], heights[i] = total, height
+				total += height + (i < #history and rt.RowGap or 0)
+			end
+			rt.VirtualOffsets, rt.VirtualHeights = tops, heights
+			rt.VirtualEntries = table.clone(history)
+			rt.VirtualTotalHeight = total
+			rt.VirtualLayoutHistory = history
+			rt.VirtualCount = #history
+			rt.VirtualLayoutDirty = false
 		end
 
 		NAmanage.NAChat_UpdateVirtualized = function(forceBottom)
-			if not chatScroll or NAChat.activeTab ~= "chat" then
-				return
+			if not chatScroll or not chatScroll.Parent or NAChat.activeTab ~= "chat" then return end
+			const rt = NAStuff.NAChatRuntime
+			if NAmanage.GetAttr(chatScroll, "NAManualCanvasSize") ~= true then
+				NAmanage.SetAttr(chatScroll, "NAManualCanvasSize", true)
+				chatScroll.AutomaticCanvasSize = Enum.AutomaticSize.None
+				if chatLayout and chatLayout.Parent == chatScroll then
+					rt.RowGap = math.max(0, chatLayout.Padding.Offset + chatLayout.Padding.Scale * NAmanage.NAChat_GetViewportHeight())
+					chatLayout.Parent = nil
+				end
 			end
-
-			local runtime = NAStuff.NAChatRuntime
-			runtime.VirtualGeneration += 1
-			local myGeneration = runtime.VirtualGeneration
-			local history = conversationHistory[NAChat.activeConversation] or {}
-			local viewportHeight = NAmanage.NAChat_GetViewportHeight()
-			local count = #history
-			local rebuildLayout = runtime.VirtualLayoutDirty
-				or runtime.VirtualLayoutHistory ~= history
-				or runtime.VirtualCount ~= count
-			local offsets = runtime.VirtualOffsets
-			local heights = runtime.VirtualHeights
-			local totalHeight = tonumber(runtime.VirtualTotalHeight) or 0
-
-			if rebuildLayout then
-				offsets = table.create and table.create(count) or {}
-				heights = table.create and table.create(count) or {}
-				totalHeight = 0
-				for i, entry in history do
-					local height = NAmanage.NAChat_EstimatedHeight(entry)
-					offsets[i] = totalHeight
-					heights[i] = height
-					totalHeight += height
-					if i < count then
-						totalHeight += runtime.RowGap
+			rt.VirtualGeneration += 1
+			const gen = rt.VirtualGeneration
+			const history = conversationHistory[NAChat.activeConversation] or {}
+			const view = NAmanage.NAChat_GetViewportHeight()
+			local y = NAmanage.NAChat_GetCanvasY()
+			local pin, pinGap
+			if rt.VirtualLayoutHistory == history and rt.VirtualEntries then
+				const i = NAmanage.virtRange(rt.VirtualOffsets, rt.VirtualHeights, y, y)
+				pin = rt.VirtualEntries[i]
+				if pin then pinGap = y - rt.VirtualOffsets[i] end
+			end
+			local changed = rt.VirtualLayoutDirty or rt.VirtualLayoutHistory ~= history or rt.VirtualCount ~= #history
+			if changed then NAmanage.NAChat_BuildVirtualLayout(history) end
+			const pinIndex = pin and table.find(history, pin)
+			const function resolveY()
+				if forceBottom then
+					y = math.max(0, rt.VirtualTotalHeight - view)
+				elseif pinIndex and changed then
+					y = rt.VirtualOffsets[pinIndex] + math.min(pinGap, rt.VirtualHeights[pinIndex] - 1)
+				end
+				y = math.clamp(y, 0, math.max(0, rt.VirtualTotalHeight - view))
+			end
+			resolveY()
+			const buffer = math.max(120, math.min(360, view * 0.5))
+			const measured = {}
+			local first, last
+			while true do
+				first, last = NAmanage.virtRange(rt.VirtualOffsets, rt.VirtualHeights, math.max(0, y - buffer), y + view + buffer)
+				local resized = false
+				for i = first, last do
+					const entry = history[i]
+					if not measured[entry] and (not entry.virtualHeight or entry._naRenderRevision ~= rt.RenderRevision) then
+						measured[entry] = true
+						const height = NAmanage.NAChat_MeasureEntryHeight(entry)
+						entry.virtualHeight = height
+						if height ~= rt.VirtualHeights[i] then resized = true end
 					end
 				end
-				if runtime.VirtualGeneration ~= myGeneration then
-					return
-				end
-				runtime.VirtualOffsets = offsets
-				runtime.VirtualHeights = heights
-				runtime.VirtualTotalHeight = totalHeight
-				runtime.VirtualLayoutHistory = history
-				runtime.VirtualCount = count
-				runtime.VirtualLayoutDirty = false
-				chatScroll.CanvasSize = UDim2.new(0, 0, 0, totalHeight + 4)
-				if NAmanage.CustomScroll and NAmanage.CustomScroll.refreshByTarget then
-					NAmanage.CustomScroll.refreshByTarget(chatScroll)
-				end
+				if not resized then break end
+				changed = true
+				NAmanage.NAChat_BuildVirtualLayout(history)
+				resolveY()
 			end
-
-			local maxY = math.max(0, totalHeight - viewportHeight)
-			local currentY = NAmanage.NAChat_GetCanvasY()
-			if forceBottom then
-				currentY = maxY
-				NAmanage.NAChat_SetCanvasY(currentY)
-			elseif currentY > maxY then
-				currentY = maxY
-				NAmanage.NAChat_SetCanvasY(currentY)
+			const alive = {}
+			const active = rt.VirtualActive
+			local resized = false
+			for i = first, last do
+				const entry = history[i]
+				alive[entry], active[entry] = true, true
+				NAmanage.NAChat_MakeLabel(entry, rt.VirtualOffsets[i])
+				if entry.virtualHeight ~= rt.VirtualHeights[i] then resized = true end
 			end
-
-			local averageHeight = count > 0 and math.max(1, totalHeight / count) or 32
-			local bufferPixels = math.max(120, averageHeight * 3)
-			local visibleStart = math.max(0, currentY - bufferPixels)
-			local visibleEnd = currentY + viewportHeight + bufferPixels
-			local firstIndex, lastIndex = 1, 0
-
-			if count > 0 then
-				local lo, hi, found = 1, count, count + 1
-				while lo <= hi do
-					local mid = math.floor((lo + hi) / 2)
-					local rowBottom = (offsets[mid] or 0) + (heights[mid] or 0)
-					if rowBottom >= visibleStart then
-						found = mid
-						hi = mid - 1
-					else
-						lo = mid + 1
-					end
-				end
-				firstIndex = math.min(count + 1, found)
-
-				lo, hi, found = firstIndex, count, firstIndex - 1
-				while lo <= hi do
-					local mid = math.floor((lo + hi) / 2)
-					if (offsets[mid] or 0) <= visibleEnd then
-						found = mid
-						lo = mid + 1
-					else
-						hi = mid - 1
-					end
-				end
-				lastIndex = math.min(count, found)
-			end
-
-			local alive = {}
-			local active = runtime.VirtualActive
-			local sizeChanged = false
-			local anchorDelta = 0
-
-			for i = firstIndex, lastIndex do
-				local entry = history[i]
-				local rowY = offsets[i] or 0
-				alive[entry] = true
-				active[entry] = true
-				local beforeHeight = tonumber(entry.virtualHeight)
-				local lbl = NAmanage.NAChat_MakeLabel(entry, rowY)
-				if lbl then
-					lbl.Position = UDim2.new(0, 3, 0, rowY)
-					local afterHeight = tonumber(entry.virtualHeight)
-					if afterHeight and (not beforeHeight or math.abs(afterHeight - beforeHeight) >= 1) then
-						sizeChanged = true
-						if beforeHeight and (rowY + beforeHeight) <= currentY then
-							anchorDelta += (afterHeight - beforeHeight)
-						end
-					end
-				end
-			end
-
-			if runtime.VirtualGeneration ~= myGeneration then
-				return
-			end
-
+			if rt.VirtualGeneration ~= gen then return end
 			for entry in active do
 				if not alive[entry] then
-					local fr = entry and entry.frame
-					if fr and fr.Parent then
-						local messageLabel = fr:FindFirstChild("MessageText")
-						if messageLabel then
-							rainbowLabels[messageLabel] = nil
-						end
-						pcall(function() fr:Destroy() end)
+					const frame = entry.frame
+					if frame then
+						const label = frame:FindFirstChild("MessageText")
+						if label then rainbowLabels[label] = nil end
+						frame:Destroy()
 					end
-					if entry then
-						entry.frame = nil
-					end
+					entry.frame = nil
 					active[entry] = nil
 				end
 			end
-
-			if sizeChanged then
-				runtime.VirtualLayoutDirty = true
-				if not forceBottom and math.abs(anchorDelta) >= 1 then
-					NAmanage.NAChat_SetCanvasY(math.max(0, currentY + anchorDelta))
+			if resized then
+				changed = true
+				NAmanage.NAChat_BuildVirtualLayout(history)
+				resolveY()
+				for i = first, last do
+					const frame = history[i].frame
+					if frame then frame.Position = UDim2.new(0, 3, 0, rt.VirtualOffsets[i]) end
 				end
 				NAmanage.NAChat_QueueVirtualRefresh(forceBottom)
-			elseif forceBottom then
-				NAmanage.NAChat_SetCanvasY(math.max(0, totalHeight - viewportHeight))
+			end
+			const size = UDim2.new(0, 0, 0, rt.VirtualTotalHeight)
+			if chatScroll.CanvasSize ~= size then chatScroll.CanvasSize = size end
+			if forceBottom or changed then NAmanage.NAChat_SetCanvasY(y) end
+			if NAmanage.CustomScroll and NAmanage.CustomScroll.refreshByTarget then
+				NAmanage.CustomScroll.refreshByTarget(chatScroll)
 			end
 		end
 
 		NAmanage.NAChat_QueueVirtualRefresh = function(forceBottom)
-			local runtime = NAStuff.NAChatRuntime
+			const rt = NAStuff.NAChatRuntime
 			if forceBottom then
-				runtime.VirtualForceBottom = true
+				rt.VirtualForceBottom = true
+				rt.VirtualForceY = NAmanage.NAChat_GetCanvasY()
 			end
-			if runtime.VirtualQueued then
-				return
-			end
-			runtime.VirtualQueued = true
-			local now = os.clock()
-			local elapsed = now - (tonumber(runtime.VirtualLastRefresh) or 0)
-			local waitFor = forceBottom and 0 or math.max(0, 0.03 - elapsed)
-			Delay(waitFor, function()
-				runtime.VirtualQueued = false
-				runtime.VirtualLastRefresh = os.clock()
-				local bottom = runtime.VirtualForceBottom
-				runtime.VirtualForceBottom = false
+			if rt.VirtualQueued then return end
+			rt.VirtualQueued = true
+			Defer(function()
+				rt.VirtualQueued = false
+				if not chatScroll or not chatScroll.Parent or NAStuff.NAChatRuntime ~= rt then return end
+				const bottom = rt.VirtualForceBottom and NAmanage.NAChat_GetCanvasY() >= (rt.VirtualForceY or 0) - 1
+				rt.VirtualForceBottom = false
+				rt.VirtualLastRefresh = os.clock()
 				NAmanage.NAChat_UpdateVirtualized(bottom)
 			end)
 		end
@@ -2909,6 +2893,12 @@ originalIO.runNACHAT=function()
 					entry._naRenderRevision = nil
 				end
 			end
+		end
+
+		NAmanage.StreamerChatChanged = function()
+			if not chatFrame.Parent then return end
+			NAmanage.NAChat_InvalidateVirtualHeights()
+			NAmanage.NAChat_QueueVirtualRefresh(false)
 		end
 
 		local function renderConversation(force)
@@ -2936,6 +2926,7 @@ originalIO.runNACHAT=function()
 			entry.raw = rawMessage
 			entry.order = chatMessageOrder
 			entry.timestamp = tonumber(entry.timestamp) or os.time()
+			NAmanage.StreamerTrackIdentity(entry)
 			history[#history + 1] = entry
 			NAStuff.NAChatRuntime.VirtualLayoutDirty = true
 			if entry.messageId then
@@ -4061,6 +4052,9 @@ originalIO.runNACHAT=function()
 				hiddenNotice:Destroy()
 			end
 
+			NAmanage.SetAttr(usersScroll, "NAManualCanvasSize", true)
+			usersScroll.AutomaticCanvasSize = Enum.AutomaticSize.None
+			if usersLayout and usersLayout.Parent == usersScroll then usersLayout.Parent = nil end
 			usersUpdateGeneration += 1
 			local myGeneration = usersUpdateGeneration
 
@@ -4074,8 +4068,13 @@ originalIO.runNACHAT=function()
 				end
 				userFrames = {}
 				userFrameState = {}
+				usersViewCache.canvasHeight = 40
+				const canvas = UDim2.new(0, 0, 0, 40)
+				if usersScroll.CanvasSize ~= canvas then usersScroll.CanvasSize = canvas end
+				NAmanage.SetLogicalCanvasPosition(usersScroll, 0, 0)
 
 				local fr = InstanceNew("Frame", usersScroll)
+				fr.ClipsDescendants = true
 				fr.Name = "NAChatHiddenNotice"
 				fr:SetAttribute("NAChatHiddenNotice", true)
 				fr.BackgroundTransparency = 1
@@ -4172,20 +4171,11 @@ originalIO.runNACHAT=function()
 			local canvasChanged = tonumber(usersViewCache.canvasHeight) ~= totalHeight
 			if canvasChanged then
 				usersViewCache.canvasHeight = totalHeight
-				usersScroll.CanvasSize = UDim2.new(0, 0, 0, totalHeight + 4)
+				usersScroll.CanvasSize = UDim2.new(0, 0, 0, totalHeight)
 			end
 
 			local logicalPos = NAmanage and NAmanage.GetLogicalCanvasPosition and NAmanage.GetLogicalCanvasPosition(usersScroll) or usersScroll.CanvasPosition
-			local currentY = math.max(0, tonumber(logicalPos and logicalPos.Y) or 0)
-			local maxY = math.max(0, totalHeight - viewportHeight)
-			if currentY > maxY then
-				currentY = maxY
-				if NAmanage and NAmanage.SetLogicalCanvasPosition then
-					NAmanage.SetLogicalCanvasPosition(usersScroll, 0, currentY)
-				else
-					usersScroll.CanvasPosition = Vector2.new(0, currentY)
-				end
-			end
+			local currentY = math.clamp(tonumber(logicalPos and logicalPos.Y) or 0, 0, math.max(0, totalHeight - viewportHeight))
 
 			local bufferRows = 5
 			local virtualFirst = filteredTotal > 0 and math.max(1, math.floor(currentY / rowPitch) + 1 - bufferRows) or 1
@@ -4253,6 +4243,7 @@ originalIO.runNACHAT=function()
 
 				if not (fr and fr.Parent) then
 					fr = InstanceNew("Frame", usersScroll)
+					fr.ClipsDescendants = true
 					userFrames[uidKey] = fr
 					local cr = InstanceNew("UICorner", fr)
 					cr.CornerRadius = UDim.new(0, 9)
@@ -4272,6 +4263,8 @@ originalIO.runNACHAT=function()
 					nameLbl.Size = UDim2.new(1, -190, 0, 18)
 					nameLbl.Position = UDim2.new(0, 58, 0, 5)
 					nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+					nameLbl.TextTruncate = Enum.TextTruncate.AtEnd
+					nameLbl.AutoLocalize = false
 					nameLbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
 					nameLbl.TextSize = 14
 					local gameLbl = InstanceNew("TextLabel", fr)
@@ -4280,6 +4273,8 @@ originalIO.runNACHAT=function()
 					gameLbl.Size = UDim2.new(1, -190, 0, 16)
 					gameLbl.Position = UDim2.new(0, 58, 0, 24)
 					gameLbl.TextXAlignment = Enum.TextXAlignment.Left
+					gameLbl.TextTruncate = Enum.TextTruncate.AtEnd
+					gameLbl.AutoLocalize = false
 					gameLbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
 					gameLbl.TextSize = 12
 					local execLbl = InstanceNew("TextLabel", fr)
@@ -4288,6 +4283,8 @@ originalIO.runNACHAT=function()
 					execLbl.Size = UDim2.new(1, -190, 0, 15)
 					execLbl.Position = UDim2.new(0, 58, 0, 42)
 					execLbl.TextXAlignment = Enum.TextXAlignment.Left
+					execLbl.TextTruncate = Enum.TextTruncate.AtEnd
+					execLbl.AutoLocalize = false
 					execLbl.FontFace = Font.new("rbxasset://fonts/families/Roboto.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
 					execLbl.TextSize = 11
 				end
@@ -4489,7 +4486,9 @@ originalIO.runNACHAT=function()
 					userFrames[key] = nil
 					userFrameState[key] = nil
 				elseif not alive[key] then
-					fr.Visible = false
+					fr:Destroy()
+					userFrames[key] = nil
+					userFrameState[key] = nil
 				end
 			end
 			if canvasChanged and NAmanage.CustomScroll and NAmanage.CustomScroll.refreshByTarget then
@@ -4775,27 +4774,37 @@ originalIO.runNACHAT=function()
 				end)
 			end
 
-			bindAutoScroll(chatScroll, chatLayout)
 			if chatScroll then
+				NAmanage.SetAttr(chatScroll, "NAManualCanvasSize", true)
+				bindAutoScroll(chatScroll, chatLayout)
 				pcall(function()
 					chatScroll.AutomaticCanvasSize = Enum.AutomaticSize.None
 				end)
 				if chatLayout and chatLayout.Parent == chatScroll then
 					pcall(function()
 						local padding = chatLayout.Padding
-						NAStuff.NAChatRuntime.RowGap = math.max(0, math.floor((padding.Offset + padding.Scale * math.max(1, chatScroll.AbsoluteSize.Y)) + 0.5))
+						NAStuff.NAChatRuntime.RowGap = math.max(0, math.floor((padding.Offset + padding.Scale * NAmanage.NAChat_GetViewportHeight()) + 0.5))
 					end)
 					chatLayout.Parent = nil
 				end
 				chatScroll:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
 					NAmanage.NAChat_QueueVirtualRefresh(false)
 				end)
+				NAStuff.NAChatRuntime.VirtualWidth = NAmanage.GetLogicalWindowSize(chatScroll).X
+				NAStuff.NAChatRuntime.VirtualScale = NAmanage.GetUIScaleFactor(chatScroll)
 				chatScroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-					NAmanage.NAChat_InvalidateVirtualHeights()
+					const width = NAmanage.GetLogicalWindowSize(chatScroll).X
+					const scale = NAmanage.GetUIScaleFactor(chatScroll)
+					if NAStuff.NAChatRuntime.VirtualWidth ~= width or NAStuff.NAChatRuntime.VirtualScale ~= scale then
+						NAStuff.NAChatRuntime.VirtualWidth = width
+						NAStuff.NAChatRuntime.VirtualScale = scale
+						NAmanage.NAChat_InvalidateVirtualHeights()
+					end
 					NAmanage.NAChat_QueueVirtualRefresh(false)
 				end)
 			end
 			if usersScroll then
+				NAmanage.SetAttr(usersScroll, "NAManualCanvasSize", true)
 				pcall(function()
 					usersScroll.AutomaticCanvasSize = Enum.AutomaticSize.None
 				end)
@@ -5421,6 +5430,7 @@ originalIO.runNACHAT=function()
 					return
 				end
 				NAChat.users = list or {}
+				for _, info in NAChat.users do NAmanage.StreamerTrackIdentity(info) end
 				usersFetchInFlight = false
 				lastUsersUpdateAt = os.clock()
 
@@ -5469,6 +5479,7 @@ originalIO.runNACHAT=function()
 						return
 					end
 					NAChat.users = list or {}
+					for _, info in NAChat.users do NAmanage.StreamerTrackIdentity(info) end
 					usersFetchInFlight = false
 					lastUsersUpdateAt = os.clock()
 

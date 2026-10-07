@@ -3034,6 +3034,10 @@ NAmanage.bindToDevConsole = function()
 		end
 	end
 	const logsFrame = NAUIMANAGER.NAconsoleLogs;
+	const oldManual = NAmanage.GetAttr(logsFrame, "NAManualCanvasSize")
+	const oldAuto = logsFrame.AutomaticCanvasSize
+	NAmanage.SetAttr(logsFrame, "NAManualCanvasSize", true)
+	logsFrame.AutomaticCanvasSize = Enum.AutomaticSize.None
 	local logsLayout = logsFrame:FindFirstChildOfClass("UIListLayout");
 	if not logsLayout then
 		logsLayout = InstanceNew("UIListLayout");
@@ -3041,6 +3045,8 @@ NAmanage.bindToDevConsole = function()
 		logsLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center;
 		logsLayout.Parent = logsFrame;
 	end;
+	logsLayout.Parent = nil
+	const activeRows = {}
 	const pool, visibleLabels = {}, {};
 	local allMessages, filteredMessages = {}, {};
 	NAStuff.NAConsoleRuntimeRecords = allMessages;
@@ -3073,7 +3079,6 @@ NAmanage.bindToDevConsole = function()
 	const MAX_MESSAGES = math.floor(clampNumber(NAStuff.DevConsoleLogLimit, 200, 5000, 1200) or 1200);
 	const MAX_PENDING = math.floor(clampNumber(NAStuff.DevConsoleQueueLimit, 100, 4000, 600) or 600);
 	const overscanPx = math.floor(clampNumber(NAStuff.DevConsoleOverscan, 60, 2000, 320) or 320);
-	const minConsoleRows = 12;
 	local savedFilters;
 	if NAmanage and NAmanage.NASettingsGet then
 		local ok, result = pcall(function()
@@ -3100,6 +3105,7 @@ NAmanage.bindToDevConsole = function()
 	virtualCanvas.BorderSizePixel = 0;
 	virtualCanvas.Size = UDim2.new(1, 0, 0, 0);
 	virtualCanvas.Position = UDim2.new(0, 0, 0, 0);
+	virtualCanvas.ClipsDescendants = true
 	virtualCanvas.Parent = logsFrame;
 	NAmanage.SetAttr(virtualCanvas, "NA_DevConsoleVirtual", true);
 	const FilterButtons = InstanceNew("Frame");
@@ -3141,9 +3147,12 @@ NAmanage.bindToDevConsole = function()
 		return toggles[tagText] == true;
 	end;
 	const function getMeasureWidth()
-		const logicalSize = NAmanage.GetLogicalAbsoluteSize and NAmanage.GetLogicalAbsoluteSize(logsFrame) or nil;
+		const logicalSize = NAmanage.GetLogicalWindowSize and NAmanage.GetLogicalWindowSize(logsFrame) or nil;
 		const width = logicalSize and logicalSize.X or (logsFrame.AbsoluteSize.X or 0);
-		return math.max(1, math.floor(width + 0.5));
+		return math.max(1, math.floor(width));
+	end;
+	const function getMeasureScale()
+		return math.max(0.01, NAmanage.GetUIScaleFactor and NAmanage.GetUIScaleFactor(logsFrame) or 1);
 	end;
 	const function getPadding()
 		return (logsLayout and logsLayout.Padding and logsLayout.Padding.Offset) or 0;
@@ -3156,22 +3165,25 @@ NAmanage.bindToDevConsole = function()
 	end;
 	const function measureHeightFromText(plain, width)
 		const baseSize = NAUIMANAGER.NAconsoleExample.TextSize or 14;
-		const vec = __lt.cm("TextService", "GetTextSize", plain, baseSize, NAUIMANAGER.NAconsoleExample.Font, Vector2.new(width, 1000000));
-		local h = vec.Y;
+		const scale = getMeasureScale();
+		const vec = __lt.cm("TextService", "GetTextSize", plain, math.max(1, baseSize * scale), NAUIMANAGER.NAconsoleExample.Font, Vector2.new(math.max(1, width * scale), 1000000));
+		local h = vec.Y / scale;
 		if h < 18 then
 			h = 18;
 		end;
-		return math.floor(h + 0.5);
+		return math.ceil(h);
 	end;
 	const function ensureRecordHeight(record, width, force)
 		if not record then
 			return 18;
 		end;
 		width = width or getMeasureWidth();
-		if (not force) and record.height and record.measureWidth == width then
+		const scale = getMeasureScale();
+		if (not force) and record.height and record.measureWidth == width and record.measureScale == scale then
 			return record.height;
 		end;
 		record.measureWidth = width;
+		record.measureScale = scale;
 		record.height = measureHeightFromText(record.plainText, width);
 		return record.height;
 	end;
@@ -3222,6 +3234,10 @@ NAmanage.bindToDevConsole = function()
 		end);
 		lbl.TextWrapped = true;
 		lbl.TextScaled = false;
+		lbl.AnchorPoint = Vector2.new(0, 0)
+		lbl.AutomaticSize = Enum.AutomaticSize.None
+		lbl.ClipsDescendants = true
+		lbl.TextYAlignment = Enum.TextYAlignment.Top
 		NAmanage.SetAttr(lbl, "NA_DevConsoleLog", true);
 		if NAmanage.AttachMessageCopy and NAmanage.GetAttr(lbl, "NA_CopyHooked") ~= true then
 			NAmanage.AttachMessageCopy(lbl, function(target)
@@ -3248,9 +3264,11 @@ NAmanage.bindToDevConsole = function()
 			NAmanage.SetAttr(lbl, "NA_RecordId", record.id);
 			NAmanage.SetAttr(lbl, "NA_RecordRevision", record.revision);
 		end;
-		lbl.Size = UDim2.new(1, 0, 0, record.height or 18);
-		lbl.Position = UDim2.new(0, 0, 0, record.top or 0);
-		lbl.Visible = true;
+		const size = UDim2.new(1, 0, 0, record.height or 18)
+		const pos = UDim2.new(0, 0, 0, record.top or 0)
+		if lbl.Size ~= size then lbl.Size = size end
+		if lbl.Position ~= pos then lbl.Position = pos end
+		if not lbl.Visible then lbl.Visible = true end
 	end;
 	const function removeFilteredRecord(record)
 		for i = 1, #filteredMessages do
@@ -3263,6 +3281,7 @@ NAmanage.bindToDevConsole = function()
 	end;
 	local layoutDirty = true;
 	local layoutWidth = 0;
+	local layoutScale = 0;
 	local layoutContentHeight = 0;
 	local syncQueued = false;
 	local syncQueuedFollowBottom = false;
@@ -3271,10 +3290,12 @@ NAmanage.bindToDevConsole = function()
 			return;
 		end;
 		const width = getMeasureWidth();
-		if (not force) and (not layoutDirty) and layoutWidth == width then
+		const scale = getMeasureScale();
+		if (not force) and (not layoutDirty) and layoutWidth == width and layoutScale == scale then
 			return;
 		end;
 		layoutWidth = width;
+		layoutScale = scale;
 		const count = #filteredMessages;
 		const padding = getPadding();
 		local totalHeight = 0;
@@ -3303,16 +3324,16 @@ NAmanage.bindToDevConsole = function()
 			return;
 		end;
 		syncQueued = true;
-		syncQueued = false;
-		if not isBindActive() then
+		Defer(function()
+			syncQueued = false;
+			if not isBindActive() or not logsFrame.Parent then
+				syncQueuedFollowBottom = false;
+				return;
+			end;
+			const followBottom = syncQueuedFollowBottom;
 			syncQueuedFollowBottom = false;
-			return;
-		end;
-		const followBottom = syncQueuedFollowBottom;
-		syncQueuedFollowBottom = false;
-		syncVisibleMessages({
-			followBottom = followBottom
-		});
+			syncVisibleMessages({ followBottom = followBottom });
+		end)
 	end;
 	const function rebuildFilteredMessages()
 		filteredMessages = {};
@@ -3413,6 +3434,7 @@ NAmanage.bindToDevConsole = function()
 		pendingTail = 0;
 		overflowCounts = {};
 		overflowTotal = 0;
+		table.clear(activeRows)
 		while #visibleLabels > 0 do
 			releaseLabel(table.remove(visibleLabels));
 		end;
@@ -3428,7 +3450,8 @@ NAmanage.bindToDevConsole = function()
 			else
 				logsFrame.CanvasPosition = Vector2.new(0, 0);
 			end
-			updateCanvasSize(logsFrame, NAUIMANAGER.AUTOSCALER.Scale);
+			logsFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+			if NAmanage.CustomScroll then NAmanage.CustomScroll.refreshByTarget(logsFrame) end
 		end;
 	end;
 	syncVisibleMessages = function(opts)
@@ -3436,92 +3459,50 @@ NAmanage.bindToDevConsole = function()
 		if (not isBindActive()) or not logsFrame or (not logsFrame.Parent) then
 			return;
 		end;
-		const count = #filteredMessages;
-		if count <= 0 then
-			while #visibleLabels > 0 do
-				releaseLabel(table.remove(visibleLabels));
-			end;
-			if virtualCanvas then
-				virtualCanvas.Size = UDim2.new(1, 0, 0, 0);
-			end;
-			updateCanvasSize(logsFrame, NAUIMANAGER.AUTOSCALER.Scale);
-			return;
-		end;
 		rebuildRecordLayout(false);
-		const logPos = NAmanage.GetLogicalCanvasPosition and NAmanage.GetLogicalCanvasPosition(logsFrame) or logsFrame.CanvasPosition;
-		local scrollY = logPos.Y;
+		const canvas = UDim2.new(0, 0, 0, layoutContentHeight)
+		if logsFrame.CanvasSize ~= canvas then logsFrame.CanvasSize = canvas end
 		local viewHeight = getVisibleHeight();
-		if NAmanage.virtView then
-			viewHeight, scrollY = NAmanage.virtView(logsFrame, viewHeight, layoutContentHeight, 54);
-		end;
-		const rowFloor = math.max(18, math.floor(viewHeight / math.max(1, minConsoleRows) + 0.5));
-		const dynOverscan = math.max(overscanPx, viewHeight, rowFloor * minConsoleRows);
-		const startY = math.max(0, scrollY - dynOverscan);
-		const endY = scrollY + viewHeight + dynOverscan;
-		local firstIndex, lastIndex;
-		for i = 1, count do
-			const record = filteredMessages[i];
-			const rowStart = record.top or 0;
-			const rowEnd = rowStart + (record.height or 18);
-			if (not firstIndex) and rowEnd >= startY then
-				firstIndex = i;
-			end;
-			if firstIndex and rowStart <= endY then
-				lastIndex = i;
-			end;
-			if firstIndex and rowStart > endY then
-				break;
-			end;
-		end;
-		if not firstIndex then
-			firstIndex = count;
-			lastIndex = count;
-		end;
-		lastIndex = math.max(firstIndex, lastIndex or firstIndex);
-		const needed = math.max(0, lastIndex - firstIndex + 1);
-		while #visibleLabels > needed do
-			releaseLabel(table.remove(visibleLabels));
-		end;
-		if virtualCanvas then
-			virtualCanvas.Size = UDim2.new(1, 0, 0, layoutContentHeight);
-			virtualCanvas.LayoutOrder = 1;
-		end;
-		for offset = 1, needed do
-			const record = filteredMessages[firstIndex + offset - 1];
-			local lbl = visibleLabels[offset];
-			if not lbl then
-				lbl = acquireLabel();
-				visibleLabels[offset] = lbl;
-			end;
-			if lbl then
-				if lbl.Parent ~= virtualCanvas then
-					const ok = pcall(function()
-						lbl.Parent = virtualCanvas;
-					end)
-					if not ok then
-						lbl = acquireLabel();
-						visibleLabels[offset] = lbl;
-					end
-				end;
-				if lbl then
-					applyRecordToLabel(lbl, record);
-					lbl.LayoutOrder = offset;
-				end;
-			end;
-		end;
-		updateCanvasSize(logsFrame, NAUIMANAGER.AUTOSCALER.Scale);
+		const pos = NAmanage.GetLogicalCanvasPosition and NAmanage.GetLogicalCanvasPosition(logsFrame) or logsFrame.CanvasPosition
+		local scrollY = math.clamp(pos.Y, 0, math.max(0, layoutContentHeight - viewHeight))
 		if opts.followBottom == true then
-			local followH = getVisibleHeight();
-			if NAmanage.virtView then
-				followH = NAmanage.virtView(logsFrame, followH, logsFrame.CanvasSize.Y.Offset, 54);
-			end;
-			const targetY = math.max(0, logsFrame.CanvasSize.Y.Offset - followH);
-			if NAmanage.SetLogicalCanvasPosition then
-				NAmanage.SetLogicalCanvasPosition(logsFrame, 0, targetY);
-			else
-				logsFrame.CanvasPosition = Vector2.new(0, targetY);
+			scrollY = math.max(0, layoutContentHeight - viewHeight)
+			NAmanage.SetLogicalCanvasPosition(logsFrame, 0, scrollY)
+		end
+		const count = #filteredMessages
+		const padding = math.max(overscanPx, math.min(viewHeight, 600))
+		const firstY = math.max(0, scrollY - padding)
+		const lastY = scrollY + viewHeight + padding
+		local lo, hi, first = 1, count, count + 1
+		while lo <= hi do
+			const mid = math.floor((lo + hi) / 2)
+			const rec = filteredMessages[mid]
+			if rec.top + rec.height >= firstY then first = mid; hi = mid - 1 else lo = mid + 1 end
+		end
+		local last = first - 1
+		lo, hi = first, count
+		while lo <= hi do
+			const mid = math.floor((lo + hi) / 2)
+			if filteredMessages[mid].top <= lastY then last = mid; lo = mid + 1 else hi = mid - 1 end
+		end
+		const wanted = {}
+		for i = first, last do wanted[filteredMessages[i]] = true end
+		for rec, lbl in activeRows do
+			if not wanted[rec] then releaseLabel(lbl); activeRows[rec] = nil end
+		end
+		table.clear(visibleLabels)
+		for i = first, last do
+			const rec = filteredMessages[i]
+			local lbl = activeRows[rec]
+			if not lbl then lbl = acquireLabel(); activeRows[rec] = lbl end
+			if lbl then
+				visibleLabels[#visibleLabels + 1] = lbl
+				applyRecordToLabel(lbl, rec)
 			end
-		end;
+		end
+		if NAmanage.CustomScroll and NAmanage.CustomScroll.refreshByTarget then
+			NAmanage.CustomScroll.refreshByTarget(logsFrame)
+		end
 	end;
 	for _, logType in buttonTypes do
 		const btnContainer = InstanceNew("Frame");
@@ -3759,14 +3740,7 @@ NAmanage.bindToDevConsole = function()
 	end);
 	pcall(function()
 		NAlib.connect(CONN_KEY, (NAUIMANAGER.NAconsoleLogs:GetPropertyChangedSignal("AbsoluteSize")):Connect(function()
-			const width = getMeasureWidth();
-			for i = 1, #filteredMessages do
-				const record = filteredMessages[i];
-				if record then
-					ensureRecordHeight(record, width, true);
-				end;
-			end;
-			layoutDirty = true;
+			if getMeasureWidth() ~= layoutWidth or getMeasureScale() ~= layoutScale then layoutDirty = true end
 			requestSync({
 				followBottom = isNearBottom()
 			});
@@ -3815,6 +3789,12 @@ NAmanage.bindToDevConsole = function()
 		end
 		allMessages = {}
 		filteredMessages = {}
+		table.clear(activeRows)
+		pcall(function()
+			NAmanage.SetAttr(logsFrame, "NAManualCanvasSize", oldManual)
+			logsFrame.AutomaticCanvasSize = oldAuto
+			if logsFrame.Parent then logsLayout.Parent = logsFrame else logsLayout:Destroy() end
+		end)
 		pcall(function()
 			if FilterButtons then
 				FilterButtons:Destroy()

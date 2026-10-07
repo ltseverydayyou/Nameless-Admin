@@ -5975,19 +5975,25 @@ NAmanage.virtView = function(sf, viewH, totalH, minH)
 	end
 
 	const maxY = math.max(0, totalH - viewH)
-	const nextY = math.clamp(y, 0, maxY)
-	if sf and math.abs(nextY - y) > 0.5 then
-		y = nextY
-		if NAmanage.SetLogicalCanvasPosition then
-			NAmanage.SetLogicalCanvasPosition(sf, x, y)
-		else
-			sf.CanvasPosition = Vector2.new(x, y)
-		end
-	else
-		y = nextY
-	end
+	y = math.clamp(y, 0, maxY)
 
 	return viewH, y
+end
+
+NAmanage.virtRange = function(tops, heights, firstY, lastY)
+	const count = #tops
+	local lo, hi, first = 1, count, count + 1
+	while lo <= hi do
+		const mid = math.floor((lo + hi) / 2)
+		if tops[mid] + heights[mid] >= firstY then first = mid; hi = mid - 1 else lo = mid + 1 end
+	end
+	local last = first - 1
+	lo, hi = first, count
+	while lo <= hi do
+		const mid = math.floor((lo + hi) / 2)
+		if tops[mid] <= lastY then last = mid; lo = mid + 1 else hi = mid - 1 end
+	end
+	return first, last
 end
 
 NAmanage.cmdResp = function(center)

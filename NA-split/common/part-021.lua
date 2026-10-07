@@ -2,11 +2,18 @@ NAmanage.Commands_UpdateExpandedMetrics = function(state)
 	if type(state) ~= "table" then
 		return
 	end
+	const prev = state.expandedIndex
 	state.expandedIndex = nil
 	state.expandedExtra = 0
 	const expandedName = tostring(state.expandedName or "")
 	if expandedName == "" then
 		state.expandedName = nil
+		return
+	end
+	const entry = prev and (state.filteredEntries or {})[prev]
+	if entry and tostring(entry.name or "") == expandedName then
+		state.expandedIndex = prev
+		state.expandedExtra = 44
 		return
 	end
 	for index, entry in state.filteredEntries or {} do
@@ -94,6 +101,7 @@ NAmanage.Commands_SetInlineExpanded = function(state, commandName, expanded)
 		return false
 	end
 	state.expandedName = nextName
+	state.applied = setmetatable({}, { __mode = "k" })
 	state.commandExpansionAnimation = {
 		openingName = nextName and tostring(nextName) ~= tostring(previousName or "") and tostring(nextName) or nil;
 		closingName = previousName and tostring(previousName) ~= tostring(nextName or "") and tostring(previousName) or nil;
@@ -112,28 +120,41 @@ NAmanage.Commands_SetInlineExpanded = function(state, commandName, expanded)
 end
 
 function createCommandListLabel(state)
-	const label = NAUIMANAGER.commandExample:Clone()
+	const tmpl = NAUIMANAGER.commandExample
+	const label = InstanceNew("Frame")
+	label.Name = "CommandRow"
+	label.BackgroundColor3 = tmpl.BackgroundColor3
+	label.BackgroundTransparency = tmpl.BackgroundTransparency
+	label.BorderSizePixel = tmpl.BorderSizePixel
+	label.Size = UDim2.new(tmpl.Size.X.Scale, tmpl.Size.X.Offset, 0, state.templateHeight or 32)
+	label.AnchorPoint = Vector2.new(0, 0)
 	label.ClipsDescendants = true
+	label.ZIndex = tmpl.ZIndex
+	for _, child in tmpl:GetChildren() do
+		if child:IsA("UICorner") or child:IsA("UIStroke") or child:IsA("UIGradient") then
+			child:Clone().Parent = label
+		end
+	end
 
 	const title = InstanceNew("TextLabel", label)
 	title.Name = "CommandTitle"
 	title.BackgroundTransparency = 1
 	title.BorderSizePixel = 0
-	title.Position = UDim2.fromOffset(0, 0)
-	title.Size = UDim2.new(1, 0, 0, state.templateHeight or 32)
-	title.FontFace = label.FontFace
-	title.TextSize = label.TextSize
-	title.TextScaled = label.TextScaled
-	title.TextWrapped = label.TextWrapped
-	title.TextXAlignment = label.TextXAlignment
-	title.TextYAlignment = label.TextYAlignment
-	title.TextTruncate = label.TextTruncate
-	title.RichText = label.RichText
-	title.TextColor3 = label.TextColor3
-	title.TextStrokeColor3 = label.TextStrokeColor3
-	title.TextStrokeTransparency = label.TextStrokeTransparency
+	title.Position = UDim2.fromOffset(8, 0)
+	title.Size = UDim2.new(1, -16, 0, state.templateHeight or 32)
+	title.FontFace = tmpl.FontFace
+	title.TextSize = tmpl.TextSize
+	title.Text = ""
+	title.TextScaled = false
+	title.TextWrapped = false
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.TextYAlignment = Enum.TextYAlignment.Center
+	title.TextTruncate = Enum.TextTruncate.AtEnd
+	title.RichText = tmpl.RichText
+	title.AutoLocalize = false
+	title.TextColor3 = tmpl.TextColor3
+	title.TextStrokeTransparency = 1
 	title.ZIndex = label.ZIndex + 1
-	label.TextTransparency = 1
 
 	const clickTarget = InstanceNew("TextButton", label)
 	clickTarget.Name = "CommandClickTarget"
@@ -273,6 +294,11 @@ function releaseCommandListLabel(state, label)
 		NAmanage.Commands_StopInlineTween(expansion)
 	end
 	label.Visible = false
+	if state.applied then state.applied[label] = nil end
+	const args = expansion and expansion:FindFirstChild("Arguments")
+	if args and args:IsFocused() then
+		args:ReleaseFocus(false)
+	end
 	label.Parent = nil
 	Insert(state.pooledLabels, label)
 end
@@ -314,16 +340,25 @@ function applyCommandListEntry(state, label, entry, index, animation)
 	const openingThis = animationRunning and tostring(animation.openingName or "") == tostring(cmdName or "")
 	const closingThis = animationRunning and tostring(animation.closingName or "") == tostring(cmdName or "")
 
+	local ink = state.defaultCmdColor
 	if isPatched then
-		label.TextColor3 = patchedCommandColor
+		ink = patchedCommandColor
 	elseif isCmdIntegration then
-		label.TextColor3 = cmdIntegrationColor
+		ink = cmdIntegrationColor
 	elseif isIYIntegration then
-		label.TextColor3 = iyIntegrationColor
+		ink = iyIntegrationColor
 	elseif isPluginCmd then
-		label.TextColor3 = pluginCommandColor
-	elseif state.defaultCmdColor then
-		label.TextColor3 = state.defaultCmdColor
+		ink = pluginCommandColor
+	end
+
+	const saved = state.applied and state.applied[label]
+	if saved and saved.entry == entry and saved.index == index
+		and saved.height == state.templateHeight and saved.expanded == isExpanded
+		and saved.before == state.expandedIndex and saved.text == finalText and saved.ink == ink
+		and saved.desc == meta.desc and saved.usage == meta.usage
+		and saved.hint == meta.argumentHint and saved.needs == meta.requiresArguments
+		and not saved.animated and not animationRunning then
+		return
 	end
 
 	local desc = meta.desc
@@ -346,9 +381,8 @@ function applyCommandListEntry(state, label, entry, index, animation)
 	end
 
 	label.Name = cmdName
-	label.Text = " "..finalText
 	const baseSize = state.templateSize or label.Size
-	const targetSize = UDim2.new(baseSize.X.Scale, baseSize.X.Offset, baseSize.Y.Scale, baseSize.Y.Offset + (isExpanded and 44 or 0))
+	const targetSize = UDim2.new(baseSize.X.Scale, baseSize.X.Offset, 0, (state.templateHeight or 32) + (isExpanded and 44 or 0))
 	local targetPosition
 	if state.staticMode then
 		label.LayoutOrder = index
@@ -373,9 +407,9 @@ function applyCommandListEntry(state, label, entry, index, animation)
 
 	const title = label:FindFirstChild("CommandTitle")
 	if title and title:IsA("TextLabel") then
-		title.Text = " "..finalText
-		title.TextColor3 = label.TextColor3
-		title.Size = UDim2.new(1, 0, 0, state.templateHeight or 32)
+		title.Text = finalText
+		title.TextColor3 = ink
+		title.Size = UDim2.new(1, -16, 0, state.templateHeight or 32)
 	end
 	const clickTarget = label:FindFirstChild("CommandClickTarget")
 	if clickTarget and clickTarget:IsA("GuiObject") then
@@ -441,6 +475,13 @@ function applyCommandListEntry(state, label, entry, index, animation)
 		end
 	end
 	label.Visible = true
+	state.applied = state.applied or setmetatable({}, { __mode = "k" })
+	state.applied[label] = {
+		entry = entry; index = index; height = state.templateHeight;
+		expanded = isExpanded; before = state.expandedIndex; animated = animationRunning;
+		text = finalText; ink = ink; desc = meta.desc; usage = meta.usage;
+		hint = meta.argumentHint; needs = meta.requiresArguments;
+	}
 end
 
 function clearStaticCommandLabels(state)
@@ -514,12 +555,15 @@ function getCommandTemplateHeight()
 		return 18
 	end
 
+	const minH = math.max(18, math.ceil((tonumber(template.TextSize) or 16) + 8))
 	const size = template.Size
 	if size and size.Y then
-		const offset = tonumber(size.Y.Offset) or 0
-		if offset > 0 then
-			return offset
+		local height = tonumber(size.Y.Offset) or 0
+		if size.Y.Scale ~= 0 and NAUIMANAGER.commandsList then
+			const view = NAmanage.GetLogicalWindowSize(NAUIMANAGER.commandsList)
+			height += size.Y.Scale * view.Y
 		end
+		if height > 0 then return math.max(minH, math.ceil(height)) end
 	end
 
 	const logicalSize = NAmanage.GetLogicalAbsoluteSize and NAmanage.GetLogicalAbsoluteSize(template) or nil
@@ -539,6 +583,7 @@ NAmanage.ensureCommandListState=function()
 	const staticMode = NAmanage.cmdStatic and NAmanage.cmdStatic() or false
 	pcall(function()
 		NAmanage.SetAttr(cList, "NAManualCanvasSize", staticMode ~= true)
+		cList.AutomaticCanvasSize = Enum.AutomaticSize.None
 	end)
 	local state = NAStuff.CommandListState
 	const listLayout = cList:FindFirstChildOfClass("UIListLayout")
@@ -577,6 +622,13 @@ NAmanage.ensureCommandListState=function()
 		state = nil
 	end
 
+	for _, child in cList:GetChildren() do
+		if child == NAUIMANAGER.commandExample then
+			child.Parent = nil
+		elseif child:IsA("TextLabel") or child:IsA("TextButton") or NAmanage.GetAttr(child, "CmdName") ~= nil then
+			child:Destroy()
+		end
+	end
 	local virtualCanvas = nil
 	if not staticMode then
 		virtualCanvas = cList:FindFirstChild("VirtualCanvas")
@@ -612,11 +664,9 @@ NAmanage.ensureCommandListState=function()
 
 	const pooled = {}
 	for _, label in NAStuff.CommandLabelPool or {} do
-		if typeof(label) == "Instance" then
-			Insert(pooled, label)
-		end
+		if typeof(label) == "Instance" then label:Destroy() end
 	end
-	NAStuff.CommandLabelPool = pooled
+	NAStuff.CommandLabelPool = nil
 
 	const templateHeight = getCommandTemplateHeight()
 	const rowGap = math.max(2, math.floor(templateHeight * 0.15 + 0.5))
@@ -628,6 +678,8 @@ NAmanage.ensureCommandListState=function()
 		entries = {};
 		filteredEntries = {};
 		visibleLabels = {};
+		activeRows = {};
+		applied = setmetatable({}, { __mode = "k" });
 		pooledLabels = pooled;
 		defaultCmdColor = NAUIMANAGER.commandExample.TextColor3;
 		templateSize = NAUIMANAGER.commandExample.Size;
@@ -720,6 +772,7 @@ NAmanage.syncVisibleCommandRows=function(state)
 
 	if count <= 0 then
 		state.commandExpansionAnimation = nil
+		table.clear(state.activeRows)
 		while #state.visibleLabels > 0 do
 			releaseCommandListLabel(state, table.remove(state.visibleLabels))
 		end
@@ -733,10 +786,21 @@ NAmanage.syncVisibleCommandRows=function(state)
 		return
 	end
 
+	const height = getCommandTemplateHeight()
+	if state.templateHeight ~= height then
+		state.templateHeight = height
+		state.rowGap = math.max(2, math.floor(height * 0.15 + 0.5))
+		state.rowStep = height + state.rowGap
+	end
 	const rowStep = state.rowStep or 20
 	const totalHeight = COMMAND_LIST_TOP_PADDING + (count * rowStep) + (state.expandedExtra or 0)
-	virtualCanvas.Size = UDim2.new(1, 0, 0, totalHeight)
-	cList.CanvasSize = UDim2.new(0, 0, 0, totalHeight)
+	const canvas = UDim2.new(0, 0, 0, totalHeight)
+	if virtualCanvas.Size.Y.Offset ~= totalHeight then
+		virtualCanvas.Size = UDim2.new(1, 0, 0, totalHeight)
+	end
+	if cList.CanvasSize ~= canvas then
+		cList.CanvasSize = canvas
+	end
 
 	local logicalListSize = nil
 	if NAmanage.GetLogicalWindowSize then
@@ -757,32 +821,46 @@ NAmanage.syncVisibleCommandRows=function(state)
 	const overscanPx = math.max(COMMAND_OVERSCAN_ROWS * rowStep, viewHeight, rowStep * 10)
 	const firstY = math.max(0, scrollY - COMMAND_LIST_TOP_PADDING - overscanPx)
 	const lastY = math.max(firstY + rowStep, scrollY + viewHeight - COMMAND_LIST_TOP_PADDING + overscanPx)
-	local firstIndex = math.min(count, math.max(1, math.floor(firstY / rowStep) + 1))
-	local lastIndex = math.min(count, math.max(firstIndex, math.ceil(lastY / rowStep) + 1))
+	const function rowAt(y)
+		const exp = state.expandedIndex
+		if exp then
+			const top = (exp - 1) * rowStep
+			if y >= top + rowStep + state.expandedExtra then
+				y -= state.expandedExtra
+			elseif y >= top then
+				return exp
+			end
+		end
+		return math.clamp(math.floor(y / rowStep) + 1, 1, count)
+	end
+	local firstIndex = rowAt(firstY)
+	local lastIndex = math.max(firstIndex, rowAt(lastY))
 	const minNeeded = math.min(count, viewRows)
 	if (lastIndex - firstIndex + 1) < minNeeded then
 		lastIndex = math.min(count, firstIndex + minNeeded - 1)
 		firstIndex = math.max(1, math.min(firstIndex, lastIndex - minNeeded + 1))
 	end
 
-	const needed = math.max(0, lastIndex - firstIndex + 1)
-	while #state.visibleLabels > needed do
-		releaseCommandListLabel(state, table.remove(state.visibleLabels))
+	const wanted = {}
+	for i = firstIndex, lastIndex do
+		wanted[filteredEntries[i]] = true
 	end
-
-	for offset = 1, needed do
-		const entryIndex = firstIndex + offset - 1
-		const entry = filteredEntries[entryIndex]
-		if entry then
-			local label = state.visibleLabels[offset]
-			if not label then
-				label = acquireCommandListLabel(state)
-				state.visibleLabels[offset] = label
-			elseif label.Parent ~= virtualCanvas then
-				label.Parent = virtualCanvas
-			end
-			applyCommandListEntry(state, label, entry, entryIndex, expansionAnimation)
+	for entry, label in state.activeRows do
+		if not wanted[entry] then
+			releaseCommandListLabel(state, label)
+			state.activeRows[entry] = nil
 		end
+	end
+	table.clear(state.visibleLabels)
+	for i = firstIndex, lastIndex do
+		const entry = filteredEntries[i]
+		local label = state.activeRows[entry]
+		if not label then
+			label = acquireCommandListLabel(state)
+			state.activeRows[entry] = label
+		end
+		state.visibleLabels[#state.visibleLabels + 1] = label
+		applyCommandListEntry(state, label, entry, i, expansionAnimation)
 	end
 
 	if type(expansionAnimation) == "table" and expansionAnimation.started ~= true then
