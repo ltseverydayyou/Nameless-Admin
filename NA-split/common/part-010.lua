@@ -12,22 +12,15 @@ NAmanage.UG_disable = function(state, message)
 	const offsetWalkActive = type(offsetWalkState) == "table" and offsetWalkState.active == true
 	if offsetWalkActive then
 		const root = fetchRoot()
-		if root and type(NAmanage.OffsetWalkGetRoot) == "function" then
-			NAmanage.OffsetWalkGetRoot(offsetWalkState)
-		end
-		if root and type(NAmanage.OffsetWalkAdoptExternalCFrame) == "function" then
-			NAmanage.OffsetWalkAdoptExternalCFrame(root, root.CFrame)
-		end
-		const cf = typeof(offsetWalkState.localCFrame) == "CFrame"
-			and offsetWalkState.localCFrame or state.UndergroundCurrent
-		if root and offsetWalkState.root == root and typeof(cf) == "CFrame" then
-			offsetWalkState.localCFrame = cf
-			offsetWalkState.serverCFrame = cf
-			if type(NAmanage.OffsetWalkWriteCFrame) == "function" then
-				NAmanage.OffsetWalkWriteCFrame(offsetWalkState, root, cf, offsetWalkState.localLinearVelocity)
-			else
-				pcall(function() root.CFrame = cf end)
-			end
+		const localCFrame = typeof(offsetWalkState.localCFrame) == "CFrame"
+			and offsetWalkState.localCFrame
+			or state.UndergroundCurrent
+		if root and typeof(localCFrame) == "CFrame" then
+			offsetWalkState.localCFrame = localCFrame
+			offsetWalkState.suppressExternalAdoptUntil = os.clock() + 0.1
+			pcall(function()
+				root.CFrame = localCFrame
+			end)
 		end
 	else
 		for _ = 1, 10 do

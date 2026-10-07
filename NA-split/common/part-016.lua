@@ -1558,73 +1558,73 @@ NAmanage.GetOffsetWalkState = function()
 		NAStuff.OffsetWalkState = {}
 	end
 	const state = NAStuff.OffsetWalkState
-	state.holdDuration = math.max(0.01, tonumber(state.holdDuration) or 0.1)
+	state.holdDuration = math.max(0.01, tonumber(state.holdDuration) or 0.2)
 	state.interval = state.holdDuration
 	state.bindName = tostring(state.bindName or "NA_OffsetWalkReplication")
+	state.externalTeleportDistance = math.max(0.5, tonumber(state.externalTeleportDistance) or 4)
 	return state
 end
 
 NAmanage.OffsetWalkCFrameNear = function(a, b, distance)
 	return typeof(a) == "CFrame" and typeof(b) == "CFrame"
-		and (a.Position - b.Position).Magnitude <= (distance or 0.0001)
-		and (a.LookVector - b.LookVector).Magnitude <= 0.0001
-		and (a.UpVector - b.UpVector).Magnitude <= 0.0001
+		and (a.Position - b.Position).Magnitude <= (distance or 0.05)
+end
+
+NAmanage.OffsetWalkAdoptExternalCFrame = function(root, observed)
+	const state = NAmanage.GetOffsetWalkState()
+	if not root or typeof(observed) ~= "CFrame" then
+		return false
+	end
+	if typeof(state.localCFrame) ~= "CFrame" then
+		state.localCFrame = observed
+		state.serverCFrame = observed
+		state.lastBurst = os.clock()
+		return true
+	end
+	if NAmanage.OffsetWalkCFrameNear(observed, state.serverCFrame) then
+		return false
+	end
+	const dynamicDistance = math.max(state.externalTeleportDistance, (tonumber(state.speed) or 16) * 0.04)
+	if (observed.Position - state.localCFrame.Position).Magnitude < dynamicDistance then
+		return false
+	end
+	state.localCFrame = observed
+	state.serverCFrame = observed
+	state.lastBurst = os.clock()
+	state.lastWriteCFrame = observed
+	return true
 end
 
 NAmanage.OffsetWalkGetUndergroundState = function(root)
-	const state = NAStuff.NAundergroundState
-	if type(state) ~= "table" or state.Underground ~= true then
+	const undergroundState = NAStuff.NAundergroundState
+	if type(undergroundState) ~= "table" or undergroundState.Underground ~= true then
 		return nil
 	end
 	if root and type(NAmanage.UG_isLocalRoot) == "function" and not NAmanage.UG_isLocalRoot(root) then
 		return nil
 	end
-	return state
-end
-
-NAmanage.OffsetWalkAdoptExternalCFrame = function(root, observed)
-	const state = NAmanage.GetOffsetWalkState()
-	if state.active ~= true or state.root ~= root or state.writing or typeof(observed) ~= "CFrame" then
-		return false
-	end
-	if NAmanage.OffsetWalkCFrameNear(observed, state.lastWriteCFrame) then
-		return false
-	end
-	state.localCFrame = observed
-	state.serverCFrame = observed
-	state.lastAnchorUpdate = os.clock()
-	const velocity = NAlib.isProperty(root, "AssemblyLinearVelocity")
-	if typeof(velocity) == "Vector3" and (state.phase ~= "frozen" or velocity ~= Vector3.zero) then
-		state.localLinearVelocity = velocity
-	end
-	const underground = NAmanage.OffsetWalkGetUndergroundState(root)
-	if underground then
-		underground.UndergroundCurrent = observed
-		underground.UndergroundServerCFrame = nil
-		underground.PendingTranslation = nil
-	end
-	return true
+	return undergroundState
 end
 
 NAmanage.OffsetWalkReplicationCFrame = function(root, hum, baseCFrame, localCFrame)
 	if typeof(baseCFrame) ~= "CFrame" then
 		return baseCFrame
 	end
-	const state = NAmanage.OffsetWalkGetUndergroundState(root)
-	if not state then
+	const undergroundState = NAmanage.OffsetWalkGetUndergroundState(root)
+	if not undergroundState then
 		return baseCFrame
 	end
 	if typeof(localCFrame) == "CFrame" then
-		state.UndergroundCurrent = localCFrame
+		undergroundState.UndergroundCurrent = localCFrame
 	end
-	const transform = type(NAmanage.UG_getTransform) == "function"
-		and NAmanage.UG_getTransform(state) or CFrame.new()
-	const offset = type(NAmanage.UG_getActiveOffset) == "function"
-		and NAmanage.UG_getActiveOffset(state, root, hum)
-		or (state.UndergroundOffset or Vector3.zero)
-	state.UndergroundResolvedOffset = offset
-	state.UndergroundServerCFrame = (baseCFrame * transform) + offset
-	return state.UndergroundServerCFrame
+	const activeTransform = type(NAmanage.UG_getTransform) == "function"
+		and NAmanage.UG_getTransform(undergroundState) or CFrame.new()
+	const activeOffset = type(NAmanage.UG_getActiveOffset) == "function"
+		and NAmanage.UG_getActiveOffset(undergroundState, root, hum)
+		or (undergroundState.UndergroundOffset or Vector3.new(0, 0, 0))
+	undergroundState.UndergroundResolvedOffset = activeOffset
+	undergroundState.UndergroundServerCFrame = (baseCFrame * activeTransform) + activeOffset
+	return undergroundState.UndergroundServerCFrame
 end
 
 NAmanage.OffsetWalkRestoreDirectSpeed = function(state, hum)
@@ -1644,57 +1644,43 @@ NAmanage.OffsetWalkRestoreDirectSpeed = function(state, hum)
 	restore = restore or tonumber(state.originalWalkSpeed)
 	if restore then
 		pcall(function()
-			if hum.WalkSpeed ~= restore then
-				hum.WalkSpeed = restore
-			end
+			hum.WalkSpeed = restore
 		end)
 	end
 end
 
-NAmanage.OffsetWalkWriteCFrame = function(state, root, cf, velocity)
-	if not root or typeof(cf) ~= "CFrame" then
-		return false
-	end
-	state.lastWriteCFrame = cf
-	state.writing = true
-	const ok = pcall(function()
-		if root.CFrame ~= cf then
-			root.CFrame = cf
-		end
-		if typeof(velocity) == "Vector3" and root.AssemblyLinearVelocity ~= velocity then
-			root.AssemblyLinearVelocity = velocity
-		end
-	end)
-	state.writing = false
-	return ok
-end
-
 NAmanage.StopOffsetWalk = function(silent)
 	const state = NAmanage.GetOffsetWalkState()
-	const root = getRoot(getChar())
-	if state.active == true and state.root == root and root then
-		NAmanage.OffsetWalkAdoptExternalCFrame(root, root.CFrame)
-		NAmanage.OffsetWalkWriteCFrame(state, root, state.localCFrame, state.localLinearVelocity)
-	end
+	const localCFrame = state.localCFrame
 	state.active = false
-	for _, key in {"na_offsetwalk_pre", "na_offsetwalk_post", "na_offsetwalk_heartbeat", "na_offsetwalk_cframe", "na_offsetwalk_ws"} do
-		NAlib.disconnect(key)
-	end
+	NAlib.disconnect("na_offsetwalk_heartbeat")
+	NAlib.disconnect("na_offsetwalk_post")
 	if Services.RunService and Services.RunService.UnbindFromRenderStep then
 		pcall(Services.RunService.UnbindFromRenderStep, Services.RunService, state.bindName)
 	end
-	NAmanage.OffsetWalkRestoreDirectSpeed(state, state.humanoid)
+	const root = getRoot(getChar())
+	if root and typeof(localCFrame) == "CFrame" then
+		pcall(function()
+			root.CFrame = localCFrame
+			if typeof(state.localLinearVelocity) == "Vector3" then
+				root.AssemblyLinearVelocity = state.localLinearVelocity
+			end
+		end)
+	end
+	const hum = getHum()
+	NAmanage.OffsetWalkRestoreDirectSpeed(state, hum)
 	state.root = nil
 	state.humanoid = nil
 	state.originalWalkSpeed = nil
 	state.localCFrame = nil
 	state.serverCFrame = nil
-	state.lastAnchorUpdate = nil
+	state.lastBurst = nil
 	state.lastWriteCFrame = nil
+	state.lastAnchorUpdate = nil
 	state.localLinearVelocity = nil
 	state.phase = nil
-	state.direct = nil
-	state.writing = nil
+	state.phaseStarted = nil
+	state.suppressExternalAdoptUntil = nil
 	state.speed = nil
 	if NAStuff._unloading ~= true then
 		if NAStuff.SafeSpeedMethod ~= false then
@@ -1718,123 +1704,112 @@ NAmanage.OffsetWalkResetRootState = function(state, root, hum)
 	if not (state and root and hum) then
 		return false
 	end
-	const changed = state.root and state.root ~= root
-	if state.humanoid ~= hum then
-		if state.humanoid and state.humanoid.Parent then
-			NAmanage.OffsetWalkRestoreDirectSpeed(state, state.humanoid)
-		end
-		state.originalWalkSpeed = tonumber(hum.WalkSpeed)
-	end
 	state.root = root
 	state.humanoid = hum
-	const underground = NAmanage.OffsetWalkGetUndergroundState(root)
-	const cf = not changed and underground and typeof(underground.UndergroundCurrent) == "CFrame"
-		and underground.UndergroundCurrent or root.CFrame
-	state.localCFrame = cf
-	state.serverCFrame = cf
+	state.originalWalkSpeed = state.originalWalkSpeed or tonumber(hum.WalkSpeed)
+	const undergroundState = NAmanage.OffsetWalkGetUndergroundState(root)
+	const resetCFrame = undergroundState and typeof(undergroundState.UndergroundCurrent) == "CFrame"
+		and undergroundState.UndergroundCurrent or root.CFrame
+	state.localCFrame = resetCFrame
+	state.serverCFrame = resetCFrame
 	state.lastAnchorUpdate = os.clock()
-	state.lastWriteCFrame = root.CFrame
+	state.lastBurst = state.lastAnchorUpdate
+	state.lastWriteCFrame = resetCFrame
 	const velocity = NAlib.isProperty(root, "AssemblyLinearVelocity")
-	state.localLinearVelocity = typeof(velocity) == "Vector3" and velocity or Vector3.zero
-	state.phase = "local"
-	NAlib.disconnect("na_offsetwalk_cframe")
-	NAlib.connect("na_offsetwalk_cframe", root:GetPropertyChangedSignal("CFrame"):Connect(function()
-		if state.active == true and state.root == root and not state.writing then
-			NAmanage.OffsetWalkAdoptExternalCFrame(root, root.CFrame)
-		end
-	end))
-	NAlib.disconnect("na_offsetwalk_ws")
+	if typeof(velocity) == "Vector3" then
+		state.localLinearVelocity = velocity
+	end
 	return true
-end
-
-NAmanage.OffsetWalkGetRoot = function(state)
-	if not (state and state.active == true) then
-		return nil, nil
-	end
-	const char = getChar()
-	const hum = getHum(char)
-	const root = getRoot(char)
-	if not (char and hum and root) then
-		return nil, nil
-	end
-	if state.root ~= root or state.humanoid ~= hum then
-		NAmanage.OffsetWalkResetRootState(state, root, hum)
-	end
-	return root, hum
 end
 
 NAmanage.OffsetWalkWriteAnchor = function(state, root, hum)
 	if not (state and root and hum) then
 		return
 	end
-	state.serverCFrame = state.serverCFrame or state.localCFrame or root.CFrame
-	const cf = NAmanage.OffsetWalkReplicationCFrame(root, hum, state.serverCFrame, state.localCFrame)
-	state.phase = "frozen"
-	NAmanage.OffsetWalkWriteCFrame(state, root, cf, Vector3.zero)
-end
-
-NAmanage.OffsetWalkSyncSpeed = function(state, hum)
-	if NAStuff.SafeSpeedMethod ~= false then
-		if state.direct then
-			NAmanage.OffsetWalkRestoreDirectSpeed(state, hum)
+	const anchor = state.serverCFrame or state.localCFrame or root.CFrame
+	const replicationCFrame = NAmanage.OffsetWalkReplicationCFrame(root, hum, anchor, state.localCFrame) or anchor
+	state.lastWriteCFrame = replicationCFrame
+	pcall(function()
+		root.CFrame = replicationCFrame
+		if typeof(state.localLinearVelocity) == "Vector3" then
+			root.AssemblyLinearVelocity = Vector3.zero
 		end
-		state.direct = false
-		if not NAlib.isConnected("na_velocityws_apply") then
-			NAmanage.RefreshVelocityWalkSpeed()
-		end
-	else
-		if state.direct ~= true then
-			NAmanage.StopVelocityWalkSpeed()
-		end
-		state.direct = true
-		if hum.WalkSpeed ~= state.speed then
-			hum.WalkSpeed = state.speed
-		end
-	end
+	end)
 end
 
 NAmanage.OffsetWalkStep = function(state)
-	const root, hum = NAmanage.OffsetWalkGetRoot(state)
-	if not root then
+	if not (state and state.active == true) then
 		return
 	end
-	if state.phase == "frozen" then
-		NAmanage.OffsetWalkAdoptExternalCFrame(root, root.CFrame)
+	const currentChar = getChar()
+	const currentHum = getHum(currentChar)
+	const currentRoot = getRoot(currentChar)
+	if not (currentChar and currentHum and currentRoot) then
+		return
 	end
-	NAmanage.OffsetWalkSyncSpeed(state, hum)
-	const observed = root.CFrame
-	if state.phase ~= "frozen" or not NAmanage.OffsetWalkCFrameNear(observed, state.lastWriteCFrame) then
+	if state.root ~= currentRoot then
+		NAmanage.OffsetWalkResetRootState(state, currentRoot, currentHum)
+	end
+	if NAStuff.SafeSpeedMethod ~= false then
+		if not NAlib.isConnected("na_velocityws_apply") then
+			NAmanage.RefreshVelocityWalkSpeed()
+		end
+	elseif currentHum.WalkSpeed ~= state.speed then
+		currentHum.WalkSpeed = state.speed
+	end
+
+	const observed = currentRoot.CFrame
+	const heldBase = state.serverCFrame
+	const heldReplication = typeof(heldBase) == "CFrame"
+		and NAmanage.OffsetWalkReplicationCFrame(currentRoot, currentHum, heldBase, state.localCFrame) or nil
+	const nearHeld = NAmanage.OffsetWalkCFrameNear(observed, heldBase)
+		or NAmanage.OffsetWalkCFrameNear(observed, heldReplication)
+	const suppressExternalAdopt = os.clock() < (tonumber(state.suppressExternalAdoptUntil) or 0)
+	if typeof(state.localCFrame) ~= "CFrame" or (not nearHeld and not suppressExternalAdopt) then
 		state.localCFrame = observed
-		const velocity = NAlib.isProperty(root, "AssemblyLinearVelocity")
+		const velocity = NAlib.isProperty(currentRoot, "AssemblyLinearVelocity")
 		if typeof(velocity) == "Vector3" then
 			state.localLinearVelocity = velocity
 		end
 	end
+
 	const now = os.clock()
 	if now - (tonumber(state.lastAnchorUpdate) or now) >= state.holdDuration then
 		state.serverCFrame = state.localCFrame or observed
 		state.lastAnchorUpdate = now
+		state.lastBurst = now
 	end
-	NAmanage.OffsetWalkWriteAnchor(state, root, hum)
+
+	NAmanage.OffsetWalkWriteAnchor(state, currentRoot, currentHum)
 end
 
 NAmanage.OffsetWalkRender = function(state)
-	const root = NAmanage.OffsetWalkGetRoot(state)
-	if not root then
+	if not (state and state.active == true) then
 		return
 	end
-	NAmanage.OffsetWalkAdoptExternalCFrame(root, root.CFrame)
-	state.phase = "local"
-	NAmanage.OffsetWalkWriteCFrame(state, root, state.localCFrame, state.localLinearVelocity or Vector3.zero)
-	const underground = NAmanage.OffsetWalkGetUndergroundState(root)
-	if underground then
-		underground.UndergroundCurrent = state.localCFrame
+	const currentRoot = getRoot(getChar())
+	if not currentRoot then
+		return
+	end
+	const localCFrame = state.localCFrame
+	if typeof(localCFrame) ~= "CFrame" then
+		return
+	end
+	pcall(function()
+		currentRoot.CFrame = localCFrame
+		if typeof(state.localLinearVelocity) == "Vector3" then
+			currentRoot.AssemblyLinearVelocity = state.localLinearVelocity
+		end
+	end)
+	const undergroundState = NAmanage.OffsetWalkGetUndergroundState(currentRoot)
+	if undergroundState then
+		undergroundState.UndergroundCurrent = localCFrame
 	end
 end
 
 NAmanage.StartOffsetWalk = function(value)
 	const speed = tonumber(value)
-	if not speed or speed ~= speed or speed == math.huge or speed <= 0 then
+	if not speed or speed <= 0 then
 		NAmanage.StopOffsetWalk(true)
 		return false
 	end
@@ -1849,27 +1824,31 @@ NAmanage.StartOffsetWalk = function(value)
 		NAlib.disconnect("TPWalkingConnection")
 	end
 	const state = NAmanage.GetOffsetWalkState()
-	if state.active == true and state.root == root then
-		NAmanage.OffsetWalkAdoptExternalCFrame(root, root.CFrame)
-		NAmanage.OffsetWalkWriteCFrame(state, root, state.localCFrame, state.localLinearVelocity)
+	if state.active ~= true or state.root ~= root then
+		state.originalWalkSpeed = tonumber(hum.WalkSpeed)
 	end
 	state.active = true
 	state.speed = speed
-	state.holdDuration = 0.1
+	state.holdDuration = 0.2
 	state.interval = state.holdDuration
-	NAmanage.StopLegacyLoopWalkSpeed()
 	NAmanage.OffsetWalkResetRootState(state, root, hum)
-	NAmanage.OffsetWalkSyncSpeed(state, hum)
-	NAmanage.OffsetWalkWriteAnchor(state, root, hum)
-	for _, key in {"na_offsetwalk_pre", "na_offsetwalk_post", "na_offsetwalk_heartbeat"} do
-		NAlib.disconnect(key)
+	NAmanage.StopLegacyLoopWalkSpeed()
+	if NAStuff.SafeSpeedMethod ~= false then
+		NAmanage.RefreshVelocityWalkSpeed()
+	else
+		NAmanage.StopVelocityWalkSpeed()
+		hum.WalkSpeed = speed
 	end
+	NAlib.disconnect("na_offsetwalk_heartbeat")
+	NAlib.disconnect("na_offsetwalk_post")
 	if Services.RunService and Services.RunService.UnbindFromRenderStep then
 		pcall(Services.RunService.UnbindFromRenderStep, Services.RunService, state.bindName)
 	end
-	NAlib.connect("na_offsetwalk_post", Services.RunService.PostSimulation:Connect(function()
-		NAmanage.OffsetWalkStep(state)
-	end))
+	if Services.RunService and Services.RunService.PostSimulation then
+		NAlib.connect("na_offsetwalk_post", Services.RunService.PostSimulation:Connect(function()
+			NAmanage.OffsetWalkStep(state)
+		end))
+	end
 	NAlib.connect("na_offsetwalk_heartbeat", Services.RunService.Heartbeat:Connect(function()
 		NAmanage.OffsetWalkStep(state)
 	end))
@@ -1880,7 +1859,8 @@ NAmanage.StartOffsetWalk = function(value)
 	end
 	return true
 end
-cmd.add({"offsetwalk", "owalk", "offsetspeed", "ospeed"}, {"offsetwalk <number|off> (owalk,offsetspeed,ospeed)", "Moves using speed with frozen replication and 0.1-second teleports"}, function(...)
+
+cmd.add({"offsetwalk", "owalk", "offsetspeed", "ospeed"}, {"offsetwalk <number|off> (owalk,offsetspeed,ospeed)", "moves the character by teleporting it a set number of studs every frame"}, function(...)
 	const args = {...}
 	const value = args[2] or args[1]
 	const text = string.lower(tostring(value or "16"))
