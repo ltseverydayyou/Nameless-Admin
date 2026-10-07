@@ -1624,25 +1624,6 @@ NAmanage.GetCanvasPositionScale = function(sf, axis)
 	if not fallback or fallback <= 0 then
 		fallback = 1
 	end
-	if not (sf and sf:IsA("ScrollingFrame")) then
-		return fallback
-	end
-
-	const axisName = (axis == "X" or axis == "Horizontal") and "X" or "Y"
-	local canvasOffset = 0
-	local absCanvas = nil
-	pcall(function()
-		canvasOffset = axisName == "X" and sf.CanvasSize.X.Offset or sf.CanvasSize.Y.Offset
-		absCanvas = sf.AbsoluteCanvasSize
-	end)
-	const absOffset = absCanvas and (axisName == "X" and absCanvas.X or absCanvas.Y) or 0
-	if canvasOffset and canvasOffset > 0 and absOffset and absOffset > 0 then
-		const ratio = absOffset / canvasOffset
-		if ratio and ratio > 0.01 and ratio < 100 then
-			return ratio
-		end
-	end
-
 	return fallback
 end
 
@@ -1662,7 +1643,10 @@ NAmanage.SetLogicalCanvasPosition = function(sf, x, y)
 	end
 	const sx = NAmanage.GetCanvasPositionScale and NAmanage.GetCanvasPositionScale(sf, "X") or 1
 	const sy = NAmanage.GetCanvasPositionScale and NAmanage.GetCanvasPositionScale(sf, "Y") or 1
-	sf.CanvasPosition = Vector2.new((tonumber(x) or 0) * math.max(sx, 0.01), (tonumber(y) or 0) * math.max(sy, 0.01))
+	const pos = Vector2.new((tonumber(x) or 0) * math.max(sx, 0.01), (tonumber(y) or 0) * math.max(sy, 0.01))
+	if sf.CanvasPosition ~= pos then
+		sf.CanvasPosition = pos
+	end
 end
 
 NAmanage.GetLogicalWindowSize = function(inst)

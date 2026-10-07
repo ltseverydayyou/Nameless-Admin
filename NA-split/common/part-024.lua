@@ -5582,6 +5582,8 @@ end
 NAgui.filterCommandList = function(rawText)
 	const state = NAmanage.ensureCommandListState and NAmanage.ensureCommandListState()
 	if not (state and NAUIMANAGER.commandsList) then return end
+	const rev = (tonumber(state.filterGen) or 0) + 1
+	state.filterGen = rev
 	const searchText = NAgui.normalizeCommandFilter(rawText)
 	const entries = state.entries
 	if type(entries) ~= "table" then
@@ -5602,6 +5604,9 @@ NAgui.filterCommandList = function(rawText)
 	end
 	for i = 1, #entries do
 		NAmanage.cmdYield(i, yieldEvery)
+		if state.filterGen ~= rev or NAStuff.CommandListState ~= state then
+			return
+		end
 		const entry = entries[i]
 		if entry then
 			const meta = entry.meta or {}
@@ -5646,6 +5651,9 @@ NAgui.filterCommandList = function(rawText)
 		end
 		for i = 1, #labels do
 			NAmanage.cmdYield(i, yieldEvery)
+			if state.filterGen ~= rev or NAStuff.CommandListState ~= state then
+				return
+			end
 			const label = labels[i]
 			const entry = entries[i]
 			if label and entry then

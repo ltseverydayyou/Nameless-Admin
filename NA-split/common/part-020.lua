@@ -5956,11 +5956,13 @@ NAmanage.virtView = function(sf, viewH, totalH, minH)
 		end
 	end
 
-	if not viewH or viewH <= 0 then
+	if winH > 0 then
+		viewH = winH
+	elseif (tonumber(viewH) or 0) <= 0 then
 		const vp = NAmanage.vpSize and NAmanage.vpSize() or Vector2.new(1280, 720)
-		viewH = math.max(floorH, winH, vp.Y * 0.25)
+		viewH = math.max(floorH, vp.Y * 0.25)
 	else
-		viewH = math.max(floorH, tonumber(viewH) or 0, winH)
+		viewH = tonumber(viewH)
 	end
 
 	totalH = math.max(0, tonumber(totalH) or 0)

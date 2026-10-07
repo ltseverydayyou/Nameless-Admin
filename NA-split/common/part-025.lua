@@ -3221,7 +3221,7 @@ NAmanage.bindToDevConsole = function()
 			lbl.Active = true;
 		end);
 		lbl.TextWrapped = true;
-		lbl.TextScaled = true;
+		lbl.TextScaled = false;
 		NAmanage.SetAttr(lbl, "NA_DevConsoleLog", true);
 		if NAmanage.AttachMessageCopy and NAmanage.GetAttr(lbl, "NA_CopyHooked") ~= true then
 			NAmanage.AttachMessageCopy(lbl, function(target)
@@ -3594,17 +3594,19 @@ NAmanage.bindToDevConsole = function()
 		end;
 		const container = logs.Parent;
 		const containerPos = container.AbsolutePosition;
+		const scale = NAmanage.GetUIScaleFactor and NAmanage.GetUIScaleFactor(container) or 1;
+		const height = NAmanage.GetLogicalAbsoluteSize and NAmanage.GetLogicalAbsoluteSize(container).Y or (container.AbsoluteSize.Y / scale);
 		local cursorY = 0;
 		if filterBox and filterBox.Parent == container then
-			cursorY = filterBox.AbsolutePosition.Y - containerPos.Y + filterBox.AbsoluteSize.Y;
+			cursorY = (filterBox.AbsolutePosition.Y - containerPos.Y + filterBox.AbsoluteSize.Y) / scale;
 		end;
 		cursorY = cursorY + 6;
 		FilterButtons.AnchorPoint = Vector2.new(0.5, 0);
 		FilterButtons.Position = UDim2.new(0.5, 0, 0, cursorY);
-		cursorY = cursorY + FilterButtons.AbsoluteSize.Y + 6;
+		cursorY = cursorY + FilterButtons.AbsoluteSize.Y / scale + 6;
 		logs.AnchorPoint = Vector2.new(0.5, 0);
 		logs.Position = UDim2.new(0.5, 0, 0, cursorY);
-		const availableHeight = math.max(0, container.AbsoluteSize.Y - cursorY - 8);
+		const availableHeight = math.max(0, height - cursorY - 8);
 		logs.Size = UDim2.new(1, -28, 0, availableHeight);
 		const width = getMeasureWidth();
 		for i = 1, #filteredMessages do

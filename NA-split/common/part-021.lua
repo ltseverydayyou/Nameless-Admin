@@ -493,12 +493,12 @@ function rebuildStaticCommandLabels(state)
 end
 
 function requestCommandListSync(state)
-	if not state or state.syncQueued == true then
+	if not state or NAStuff.CommandListState ~= state or state.syncQueued == true then
 		return
 	end
 	state.syncQueued = true
 	Defer(function()
-		if not state then
+		if NAStuff.CommandListState ~= state then
 			return
 		end
 		state.syncQueued = false
@@ -540,14 +540,16 @@ NAmanage.ensureCommandListState=function()
 	pcall(function()
 		NAmanage.SetAttr(cList, "NAManualCanvasSize", staticMode ~= true)
 	end)
+	local state = NAStuff.CommandListState
 	const listLayout = cList:FindFirstChildOfClass("UIListLayout")
+		or (type(state) == "table" and state.list == cList and state.listLayout)
 	if listLayout then
-		pcall(function()
-			listLayout.Enabled = staticMode == true
-		end)
+		const parent = staticMode and cList or nil
+		if listLayout.Parent ~= parent then
+			listLayout.Parent = parent
+		end
 	end
 
-	local state = NAStuff.CommandListState
 	if type(state) == "table" and state.list == cList and state.staticMode == staticMode then
 		if staticMode then
 			return state
@@ -557,11 +559,15 @@ NAmanage.ensureCommandListState=function()
 		end
 	end
 
-	if type(state) == "table" and state.list == cList and state.staticMode ~= staticMode then
+	if type(state) == "table" then
 		clearStaticCommandLabels(state)
 		while #state.visibleLabels > 0 do
 			releaseCommandListLabel(state, table.remove(state.visibleLabels))
 		end
+		for _, label in state.pooledLabels or {} do
+			pcall(function() label:Destroy() end)
+		end
+		table.clear(state.pooledLabels)
 		if state.virtualCanvas then
 			pcall(function()
 				state.virtualCanvas:Destroy()
@@ -586,6 +592,12 @@ NAmanage.ensureCommandListState=function()
 		else
 			virtualCanvas.AnchorPoint = Vector2.new(0, 0)
 			virtualCanvas.Position = UDim2.new(0, 0, 0, 0)
+		end
+		virtualCanvas.ClipsDescendants = true
+		for _, label in virtualCanvas:GetChildren() do
+			if label:IsA("GuiObject") then
+				label:Destroy()
+			end
 		end
 	else
 		virtualCanvas = cList:FindFirstChild("VirtualCanvas")
@@ -655,7 +667,7 @@ end
 
 NAmanage.syncVisibleCommandRows=function(state)
 	state = state or NAmanage.ensureCommandListState()
-	if not state then
+	if not state or NAStuff.CommandListState ~= state then
 		return
 	end
 
