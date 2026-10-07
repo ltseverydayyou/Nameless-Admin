@@ -3991,7 +3991,8 @@ NAmanage.StopLegacyLoopWalkSpeed = function()
 end
 
 NAmanage.StartLegacyLoopWalkSpeed = function(val)
-	if not val then
+	const state = NAStuff.OffsetWalkState
+	if not val or (type(state) == "table" and state.active == true) then
 		return
 	end
 	NAmanage.StopLegacyLoopWalkSpeed()
