@@ -1558,6 +1558,8 @@ NAmanage.GetOffsetWalkState = function()
 		NAStuff.OffsetWalkState = {}
 	end
 	const state = NAStuff.OffsetWalkState
+	state.holdDuration = math.max(0.01, tonumber(state.holdDuration) or 0.1)
+	state.interval = state.holdDuration
 	state.bindName = tostring(state.bindName or "NA_OffsetWalkReplication")
 	return state
 end
@@ -1590,6 +1592,7 @@ NAmanage.OffsetWalkAdoptExternalCFrame = function(root, observed)
 	end
 	state.localCFrame = observed
 	state.serverCFrame = observed
+	state.lastAnchorUpdate = os.clock()
 	const velocity = NAlib.isProperty(root, "AssemblyLinearVelocity")
 	if typeof(velocity) == "Vector3" and (state.phase ~= "frozen" or velocity ~= Vector3.zero) then
 		state.localLinearVelocity = velocity
@@ -1686,6 +1689,7 @@ NAmanage.StopOffsetWalk = function(silent)
 	state.originalWalkSpeed = nil
 	state.localCFrame = nil
 	state.serverCFrame = nil
+	state.lastAnchorUpdate = nil
 	state.lastWriteCFrame = nil
 	state.localLinearVelocity = nil
 	state.phase = nil
@@ -1728,6 +1732,7 @@ NAmanage.OffsetWalkResetRootState = function(state, root, hum)
 		and underground.UndergroundCurrent or root.CFrame
 	state.localCFrame = cf
 	state.serverCFrame = cf
+	state.lastAnchorUpdate = os.clock()
 	state.lastWriteCFrame = root.CFrame
 	const velocity = NAlib.isProperty(root, "AssemblyLinearVelocity")
 	state.localLinearVelocity = typeof(velocity) == "Vector3" and velocity or Vector3.zero
@@ -1762,7 +1767,7 @@ NAmanage.OffsetWalkWriteAnchor = function(state, root, hum)
 	if not (state and root and hum) then
 		return
 	end
-	state.serverCFrame = state.localCFrame or root.CFrame
+	state.serverCFrame = state.serverCFrame or state.localCFrame or root.CFrame
 	const cf = NAmanage.OffsetWalkReplicationCFrame(root, hum, state.serverCFrame, state.localCFrame)
 	state.phase = "frozen"
 	NAmanage.OffsetWalkWriteCFrame(state, root, cf, Vector3.zero)
@@ -1788,29 +1793,27 @@ NAmanage.OffsetWalkSyncSpeed = function(state, hum)
 	end
 end
 
-NAmanage.OffsetWalkPreSimulation = function(state)
-	const root, hum = NAmanage.OffsetWalkGetRoot(state)
-	if not root then
-		return
-	end
-	NAmanage.OffsetWalkAdoptExternalCFrame(root, root.CFrame)
-	NAmanage.OffsetWalkSyncSpeed(state, hum)
-	state.phase = "simulate"
-	NAmanage.OffsetWalkWriteCFrame(state, root, state.localCFrame, state.localLinearVelocity or Vector3.zero)
-end
-
 NAmanage.OffsetWalkStep = function(state)
 	const root, hum = NAmanage.OffsetWalkGetRoot(state)
 	if not root then
 		return
 	end
-	NAmanage.OffsetWalkAdoptExternalCFrame(root, root.CFrame)
+	if state.phase == "frozen" then
+		NAmanage.OffsetWalkAdoptExternalCFrame(root, root.CFrame)
+	end
 	NAmanage.OffsetWalkSyncSpeed(state, hum)
-	if state.phase ~= "frozen" then
+	const observed = root.CFrame
+	if state.phase ~= "frozen" or not NAmanage.OffsetWalkCFrameNear(observed, state.lastWriteCFrame) then
+		state.localCFrame = observed
 		const velocity = NAlib.isProperty(root, "AssemblyLinearVelocity")
 		if typeof(velocity) == "Vector3" then
 			state.localLinearVelocity = velocity
 		end
+	end
+	const now = os.clock()
+	if now - (tonumber(state.lastAnchorUpdate) or now) >= state.holdDuration then
+		state.serverCFrame = state.localCFrame or observed
+		state.lastAnchorUpdate = now
 	end
 	NAmanage.OffsetWalkWriteAnchor(state, root, hum)
 end
@@ -1852,9 +1855,11 @@ NAmanage.StartOffsetWalk = function(value)
 	end
 	state.active = true
 	state.speed = speed
+	state.holdDuration = 0.1
+	state.interval = state.holdDuration
 	NAmanage.StopLegacyLoopWalkSpeed()
 	NAmanage.OffsetWalkResetRootState(state, root, hum)
-	NAmanage.OffsetWalkPreSimulation(state)
+	NAmanage.OffsetWalkSyncSpeed(state, hum)
 	NAmanage.OffsetWalkWriteAnchor(state, root, hum)
 	for _, key in {"na_offsetwalk_pre", "na_offsetwalk_post", "na_offsetwalk_heartbeat"} do
 		NAlib.disconnect(key)
@@ -1862,9 +1867,6 @@ NAmanage.StartOffsetWalk = function(value)
 	if Services.RunService and Services.RunService.UnbindFromRenderStep then
 		pcall(Services.RunService.UnbindFromRenderStep, Services.RunService, state.bindName)
 	end
-	NAlib.connect("na_offsetwalk_pre", Services.RunService.PreSimulation:Connect(function()
-		NAmanage.OffsetWalkPreSimulation(state)
-	end))
 	NAlib.connect("na_offsetwalk_post", Services.RunService.PostSimulation:Connect(function()
 		NAmanage.OffsetWalkStep(state)
 	end))
@@ -1878,7 +1880,7 @@ NAmanage.StartOffsetWalk = function(value)
 	end
 	return true
 end
-cmd.add({"offsetwalk", "owalk", "offsetspeed", "ospeed"}, {"offsetwalk <number|off> (owalk,offsetspeed,ospeed)", "Moves using speed while freezing the replicated character between frames"}, function(...)
+cmd.add({"offsetwalk", "owalk", "offsetspeed", "ospeed"}, {"offsetwalk <number|off> (owalk,offsetspeed,ospeed)", "Moves using speed with frozen replication and 0.1-second teleports"}, function(...)
 	const args = {...}
 	const value = args[2] or args[1]
 	const text = string.lower(tostring(value or "16"))
