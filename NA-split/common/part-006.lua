@@ -4383,6 +4383,7 @@ chamsEnabled=false
 ESPAutoTrackAll=false
 ESPPlayersEnabled=false
 NPCESPenabled=false
+NAStuff.NPC_ESP_Chams = false
 NAStuff.ESP_IgnoreTeam = NAStuff.ESP_IgnoreTeam == true
 NAStuff.ESP_TargetTeam = tostring(NAStuff.ESP_TargetTeam or "")
 NAStuff.ESP_PlayerTargetMode = tostring(NAStuff.ESP_PlayerTargetMode or "all")

@@ -861,12 +861,19 @@ NAmanage.ESP_UpdateDrawingLabel = function(model, text, color)
 	})
 end
 
+NAmanage.ESP_ShouldShowLabel = function(data, owner)
+	if not data then return false end
+	if data.isNPC == true then
+		return NAStuff.NPC_ESP_Chams ~= true and NAStuff.NPC_ESP_ShowLabels ~= false
+	end
+	return not chamsEnabled or (owner and NAmanage.ESP_HasPlayerLabelOverride(owner) == true)
+end
+
 NAmanage.ESP_EnsureLabel = function(model)
 	const data = espCONS[model]
 	if not data then return end
 	const owner = __lt.cm("Players", "GetPlayerFromCharacter", model)
-	const forceLabel = owner and NAmanage.ESP_HasPlayerLabelOverride(owner) == true
-	if chamsEnabled and data.isNPC ~= true and not forceLabel then return end
+	if not NAmanage.ESP_ShouldShowLabel(data, owner) then return end
 	const renderTarget = (data.isNPC == true) and "npcs" or "players"
 	if NAgui.espUsesDrawing(renderTarget) and NAmanage.DrawingTextSupported() then
 		if data.billboard then
@@ -2022,8 +2029,17 @@ NAmanage.ESP_ClearPlayerOrphanVisuals = function(characters)
 	if not (container and container.Parent and type(characters) == "table" and next(characters) ~= nil) then
 		return
 	end
+	const npcVisuals = {}
+	for _, data in espCONS do
+		if data and data.isNPC == true then
+			if data.billboard then npcVisuals[data.billboard] = true end
+			if data.highlight then npcVisuals[data.highlight] = true end
+			if data.charBox then npcVisuals[data.charBox] = true end
+		end
+	end
 	for _, child in container:GetChildren() do
 		if (child:IsA("Highlight") or child:IsA("BoxHandleAdornment") or child:IsA("BillboardGui"))
+			and not npcVisuals[child]
 			and not NAmanage.ESP_IsKnownPartVisual(child)
 			and NAmanage.ESP_AdorneeBelongsToCharacterSet(child, characters) then
 			pcall(function()
@@ -2262,12 +2278,9 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 	const boxDist = isNPC and (NAStuff.NPC_ESP_BoxMaxDistance or NAStuff.ESP_BoxMaxDistance or 120) or (NAStuff.ESP_BoxMaxDistance or 120)
 	const wantBoxes = ESPenabled and NAmanage.ESP_IsWithinDistance(dist, boxDist)
 	const labelDist = isNPC and (NAStuff.NPC_ESP_LabelMaxDistance or NAStuff.ESP_LabelMaxDistance or 600) or (NAStuff.ESP_LabelMaxDistance or 1000)
-	const allowLabel = (not isNPC) or (NAStuff.NPC_ESP_ShowLabels ~= false)
-	const forceLabel = owner and NAmanage.ESP_HasPlayerLabelOverride(owner) == true
 	local wantLabel = ESPenabled
-		and allowLabel
+		and NAmanage.ESP_ShouldShowLabel(data, owner)
 		and NAmanage.ESP_IsWithinDistance(dist, labelDist)
-		and (isNPC or not chamsEnabled or forceLabel)
 
 	local occluded = false
 	const checkOcclusion = (isNPC and NAStuff.ESP_OcclusionIncludeNPCs == true)

@@ -4681,6 +4681,11 @@ NAmanage.ESP_EnablePlayerMode = function(mode, teamPrefix, useChams, label, opts
 		})
 	end
 	NAmanage.ESP_ClearPlayers()
+	if NPCESPenabled then
+		for _, data in espCONS do
+			if data and data.isNPC == true then data.next = 0 end
+		end
+	end
 	if NAmanage.ESP_StartPlayerRosterWatch then
 		NAmanage.ESP_StartPlayerRosterWatch()
 	end
@@ -4902,12 +4907,23 @@ NAmanage.ResolveNPCESPFilter = function(pool, speaker, raw)
 	return out
 end
 
-cmd.add({"npcesp","espnpc"},{"npcesp [npc:name|filter] (espnpc)","locate all NPCs or only NPCs matching a name/filter"},function(...)
-	NAStuff.NPC_ESP_Filter = Concat({...}, " "):match("^%s*(.-)%s*$") or ""
+NAmanage.ESP_EnableNPCMode = function(useChams, ...)
+	const filter = Concat({...}, " "):match("^%s*(.-)%s*$") or ""
+	const wasEnabled = NPCESPenabled == true
+	NAStuff.NPC_ESP_Filter = filter
+	NAStuff.NPC_ESP_Chams = useChams == true
 	NPCESPenabled = true
 	NAmanage.ESP_RecomputeEnabled()
-	NAmanage.ClearNpcTables()
-	NAmanage.SeedNpcCandidates()
+	if not wasEnabled then
+		NAmanage.ClearNpcTables()
+		NAmanage.SeedNpcCandidates()
+	end
+	for model, data in espCONS do
+		if data and data.isNPC == true then
+			data.next = 0
+			if useChams then NAmanage.ESP_DestroyLabel(model) end
+		end
+	end
 	if not NAlib.isConnected(NAStuff.NPC_SCAN_KEY) then
 		local acc = 0
 		NAlib.connect(NAStuff.NPC_SCAN_KEY, Services.RunService.Heartbeat:Connect(function(dt)
@@ -4984,10 +5000,19 @@ cmd.add({"npcesp","espnpc"},{"npcesp [npc:name|filter] (espnpc)","locate all NPC
 		end))
 	end
 	NAmanage.ESP_StartGlobal()
-end)
+end
 
-cmd.add({"unnpcesp","unespnpc"},{"unnpcesp (unespnpc)","stop locating npcs"},function()
+cmd.add({"npcesp","espnpc"},{"npcesp [npc:name|filter] (espnpc)","Locate NPCs with highlights and labels"},function(...)
+	NAmanage.ESP_EnableNPCMode(false, ...)
+end, true)
+
+cmd.add({"npcchams","chamsnpc"},{"npcchams [npc:name|filter] (chamsnpc)","Highlight NPCs without labels; independent of player chams"},function(...)
+	NAmanage.ESP_EnableNPCMode(true, ...)
+end, true)
+
+cmd.add({"unnpcesp","unespnpc","unnpcchams","unchamsnpc"},{"unnpcesp (unnpcchams)","Disable NPC ESP or NPC Chams without changing player ESP"},function()
 	NPCESPenabled = false
+	NAStuff.NPC_ESP_Chams = false
 	NAmanage.ESP_RecomputeEnabled()
 	if NAlib.isConnected(NAStuff.NPC_SCAN_KEY) then
 		NAlib.disconnect(NAStuff.NPC_SCAN_KEY)
