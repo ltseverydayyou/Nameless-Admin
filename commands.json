@@ -1528,7 +1528,7 @@
       ],
       "usage": "cancelteleport",
       "args": "",
-      "desc": "Cancel an in-progress teleport"
+      "desc": "Cancel an in-progress teleport and dismiss the custom teleport UI"
     },
     {
       "name": "cancelteleportloop",

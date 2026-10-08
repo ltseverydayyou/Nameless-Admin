@@ -1503,14 +1503,20 @@ end)
 	end
 end)
 
-cmd.add({"cancelteleport","canceltp"},{"cancelteleport","Cancel an in-progress teleport"},function()
+cmd.add({"cancelteleport","canceltp"},{"cancelteleport","Cancel an in-progress teleport and dismiss the teleport UI"},function()
 	local ok,err=pcall(function()
 		__lt.cm("TeleportService", "TeleportCancel")
 	end)
-	if ok then
-		DoNotif("Cancelled pending teleports.",2)
+	local uiOk = true
+	if type(NAmanage.TeleportGui_Cancel) == "function" then
+		uiOk = pcall(NAmanage.TeleportGui_Cancel)
+	end
+	if ok and uiOk then
+		DoNotif("Cancelled pending teleports and cleared the teleport UI.",2)
+	elseif uiOk then
+		DoNotif("Cleared teleport UI; cancel failed: "..tostring(err),3)
 	else
-		DoNotif("Failed to cancel teleport: "..tostring(err),3)
+		DoNotif("Failed to clear teleport UI.",3)
 	end
 end)
 
@@ -1532,6 +1538,9 @@ cmd.add({"cancelteleportloop","canceltploop","loopcancelteleport","loopcanceltp"
 		pcall(function()
 			__lt.cm("TeleportService", "TeleportCancel")
 		end)
+		if type(NAmanage.TeleportGui_Cancel) == "function" and ((NAmanage.SubplaceViewer and NAmanage.SubplaceViewer.teleportGui) or NAStuff.teleportTransition) then
+			pcall(NAmanage.TeleportGui_Cancel)
+		end
 	end))
 
 	DoNotif("CancelTeleport loop enabled ("..tostring(tickRate).."s interval).",2)
