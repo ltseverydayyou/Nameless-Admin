@@ -3443,17 +3443,29 @@
       ],
       "usage": "npcesp [npc:name|filter] (espnpc)",
       "args": "[npc:name|filter]",
-      "desc": "locate all NPCs or only NPCs matching a name/filter"
+      "desc": "Locate NPCs with highlights and labels"
+    },
+    {
+      "name": "npcchams",
+      "aliases": [
+        "npcchams",
+        "chamsnpc"
+      ],
+      "usage": "npcchams [npc:name|filter] (chamsnpc)",
+      "args": "[npc:name|filter]",
+      "desc": "Highlight NPCs without labels; independent of player chams"
     },
     {
       "name": "unnpcesp",
       "aliases": [
         "unnpcesp",
-        "unespnpc"
+        "unespnpc",
+        "unnpcchams",
+        "unchamsnpc"
       ],
-      "usage": "unnpcesp (unespnpc)",
+      "usage": "unnpcesp (unnpcchams)",
       "args": "",
-      "desc": "stop locating npcs"
+      "desc": "Disable NPC ESP or NPC Chams without changing player ESP"
     },
     {
       "name": "unesp",
