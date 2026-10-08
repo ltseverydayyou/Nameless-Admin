@@ -5101,6 +5101,20 @@ NAUIMANAGER = {
 	ServerListContainer = NAStuff.NASCREENGUI:FindFirstChild("ServerList") and (NAStuff.NASCREENGUI:FindFirstChild("ServerList")):FindFirstChild("Container")
 };
 
+for key, frame in {
+	NAChatUI = NAUIMANAGER.NAchatFrame,
+	SubplaceViewer = NAUIMANAGER.SubplaceViewerFrame,
+	ServerList = NAUIMANAGER.ServerListFrame,
+} do
+	if frame then
+		NAmanage.ProtectInstance(frame, {
+			renameRoot = true,
+			enforceName = true,
+			nameKey = key,
+		})
+	end
+end
+
 NAmanage.NAChatNormalizeZIndex = function(added)
 	const frame = NAUIMANAGER and NAUIMANAGER.NAchatFrame
 	if not (frame and frame.Parent) then return end

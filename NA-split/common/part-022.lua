@@ -2695,7 +2695,7 @@ NAgui.menu = function(menu)
 		return math.max(1, x), math.max(1, y)
 	end
 	const function getMiniHeight()
-		if menu.Name == "ServerList" then return 35 end
+		if menu == (NAUIMANAGER and NAUIMANAGER.ServerListFrame) then return 35 end
 		local h = 35
 		const top = menu:FindFirstChild("Topbar")
 		if top and top:IsA("GuiObject") then
