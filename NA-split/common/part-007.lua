@@ -224,7 +224,7 @@ NAmanage.PartESP_UpdateTexts = function(force)
 	if not entries then
 		return
 	end
-	const interval = NAgui.espUsesDrawing("part") and 0.05 or 0.25
+	const interval = 0.05
 	if not force then
 		const now = tick()
 		const nextUpdate = NAStuff.partESPLastUpdate or 0
@@ -255,7 +255,7 @@ NAmanage.PartESP_UpdateTexts = function(force)
 			end
 		end
 	else
-		const perStep = math.clamp(math.floor(tonumber(NAStuff.ESP_PartUpdatePerStep) or 48), 1, 512)
+		const perStep = math.clamp(math.max(math.floor(tonumber(NAStuff.ESP_PartUpdatePerStep) or 48), math.ceil((tonumber(NAStuff.partESPActiveCount) or 0) / 12)), 1, 256)
 		local cursor = NAStuff.partESPUpdateCursor
 		local startCursor = cursor
 		local wrapped = false
@@ -285,6 +285,10 @@ NAmanage.PartESP_UpdateTexts = function(force)
 			if entry and not entry.removed then
 				hasEntry = true
 				NAmanage.PartESP_UpdateEntry(entry, false, rootPart)
+			end
+			if entries[key] == nil then
+				cursor = nil
+				startCursor = nil
 			end
 		end
 		NAStuff.partESPUpdateCursor = cursor
@@ -420,6 +424,9 @@ NAmanage.PartESP_UnregisterEntry = function(entry)
 		entry.updateKey = nil
 	end
 	if entry.entryKey and NAStuff.partESPEntries then
+		if NAStuff.partESPUpdateCursor == entry.entryKey then
+			NAStuff.partESPUpdateCursor = nil
+		end
 		NAStuff.partESPEntries[entry.entryKey] = nil
 	end
 	if entry._partESPCounted then
