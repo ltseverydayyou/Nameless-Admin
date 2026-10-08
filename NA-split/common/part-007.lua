@@ -866,7 +866,7 @@ NAmanage.ESP_EnsureLabel = function(model)
 	if not data then return end
 	const owner = __lt.cm("Players", "GetPlayerFromCharacter", model)
 	const forceLabel = owner and NAmanage.ESP_HasPlayerLabelOverride(owner) == true
-	if chamsEnabled and not forceLabel then return end
+	if chamsEnabled and data.isNPC ~= true and not forceLabel then return end
 	const renderTarget = (data.isNPC == true) and "npcs" or "players"
 	if NAgui.espUsesDrawing(renderTarget) and NAmanage.DrawingTextSupported() then
 		if data.billboard then
@@ -2267,7 +2267,7 @@ NAmanage.ESP_UpdateOne = function(model, now, localRoot)
 	local wantLabel = ESPenabled
 		and allowLabel
 		and NAmanage.ESP_IsWithinDistance(dist, labelDist)
-		and ((not chamsEnabled) or forceLabel)
+		and (isNPC or not chamsEnabled or forceLabel)
 
 	local occluded = false
 	const checkOcclusion = (isNPC and NAStuff.ESP_OcclusionIncludeNPCs == true)

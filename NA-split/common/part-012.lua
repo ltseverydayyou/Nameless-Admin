@@ -4906,8 +4906,6 @@ cmd.add({"npcesp","espnpc"},{"npcesp [npc:name|filter] (espnpc)","locate all NPC
 	NAStuff.NPC_ESP_Filter = Concat({...}, " "):match("^%s*(.-)%s*$") or ""
 	NPCESPenabled = true
 	NAmanage.ESP_RecomputeEnabled()
-	chamsEnabled = false
-	ESPAutoTrackAll = false
 	NAmanage.ClearNpcTables()
 	NAmanage.SeedNpcCandidates()
 	if not NAlib.isConnected(NAStuff.NPC_SCAN_KEY) then
