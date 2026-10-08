@@ -13910,6 +13910,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	NAStuff.ExecutorTools.LSP.Accepting = false
 	NAStuff.ExecutorTools.LSP.ActionName = "NAExecutorLSPCompletion"
 	NAStuff.ExecutorTools.LSP.Rows = {}
+	NAStuff.ExecutorTools.LSP.TouchPick = false
 
 	NAStuff.ExecutorTools.LSP.CompletionFrame = InstanceNew("Frame")
 	NAStuff.ExecutorTools.LSP.CompletionFrame.Name = "LSPCompletion"
@@ -14004,24 +14005,30 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	end
 
 	NAStuff.ExecutorTools.LSP.Position = function()
-		local x, y, _, lineHeight = NAStuff.ExecutorTools.LSP.GetCursorMetrics()
+		local lsp = NAStuff.ExecutorTools.LSP
 		local frameSize = frame.AbsoluteSize
-		if NAStuff.ExecutorTools.LSP.CompletionFrame.Visible then
-			local w, h = NAStuff.ExecutorTools.LSP.CompletionFrame.AbsoluteSize.X, NAStuff.ExecutorTools.LSP.CompletionFrame.AbsoluteSize.Y
-			if w <= 0 then w = 350 end
-			if h <= 0 then h = 218 end
+		local w = lsp.CompletionFrame.AbsoluteSize.X
+		local h = lsp.CompletionFrame.AbsoluteSize.Y
+		local x, y, _, lineHeight = lsp.GetCursorMetrics()
+		if lsp.Mobile then
+			local panePos = editorPane.AbsolutePosition - frame.AbsolutePosition
+			local paneSize = editorPane.AbsoluteSize
+			x = math.clamp(panePos.X + paneSize.X - w - 6, 6, math.max(6, frameSize.X - w - 6))
+			y = math.clamp(panePos.Y + 6, 6, math.max(6, frameSize.Y - h - 6))
+		else
 			if x + w > frameSize.X - 8 then x = math.max(8, frameSize.X - w - 8) end
 			if y + h > frameSize.Y - 8 then y = math.max(8, y - h - lineHeight - 4) end
-			NAStuff.ExecutorTools.LSP.CompletionFrame.Position = UDim2.fromOffset(math.max(8, x), math.max(8, y))
 		end
-		if NAStuff.ExecutorTools.LSP.SignatureFrame.Visible then
-			local sx = x
-			local sy = y - 34
-			local sw = math.min(420, math.max(220, frameSize.X - 16))
-			NAStuff.ExecutorTools.LSP.SignatureFrame.Size = UDim2.fromOffset(sw, 30)
-			if sx + sw > frameSize.X - 8 then sx = math.max(8, frameSize.X - sw - 8) end
-			if sy < 8 then sy = y + (NAStuff.ExecutorTools.LSP.CompletionFrame.Visible and 222 or 4) end
-			NAStuff.ExecutorTools.LSP.SignatureFrame.Position = UDim2.fromOffset(math.max(8, sx), math.max(8, sy))
+		if lsp.CompletionFrame.Visible then
+			lsp.CompletionFrame.Position = UDim2.fromOffset(x, y)
+		end
+		if lsp.SignatureFrame.Visible then
+			local sw = math.min(420, math.max(120, frameSize.X - 16))
+			local sy = lsp.Mobile and (y + (lsp.CompletionFrame.Visible and h + 4 or 0)) or (y - 34)
+			if sy + 30 > frameSize.Y - 6 then sy = math.max(6, y - 34) end
+			if sy < 6 then sy = math.min(frameSize.Y - 36, y + h + 4) end
+			lsp.SignatureFrame.Size = UDim2.fromOffset(sw, 30)
+			lsp.SignatureFrame.Position = UDim2.fromOffset(math.clamp(x, 6, math.max(6, frameSize.X - sw - 6)), math.max(6, sy))
 		end
 	end
 
@@ -14044,7 +14051,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 					BackgroundTransparency = selected and 0 or 1,
 				}):Play()
 			end
-			if scale and scale:IsA("UIScale") then
+			if scale and scale:IsA("UIScale") and not NAStuff.ExecutorTools.LSP.Mobile then
 				Services.TweenService:Create(scale, tweenInfo, { Scale = selected and 1.015 or 1 }):Play()
 			end
 		end
@@ -14053,32 +14060,37 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	end
 
 	NAStuff.ExecutorTools.LSP.UpdateResponsive = function()
+		local lsp = NAStuff.ExecutorTools.LSP
 		local touchOnly = UserInputServiceRef and UserInputServiceRef.TouchEnabled and not UserInputServiceRef.KeyboardEnabled
 		local mobile = execResponsive.phone or IsOnMobile or touchOnly
-		NAStuff.ExecutorTools.LSP.Mobile = mobile == true
-		NAStuff.ExecutorTools.LSP.VisibleRows = mobile and 5 or 8
-		local frameWidth = math.max(220, frame.AbsoluteSize.X - 16)
-		local width = mobile and math.min(390, frameWidth) or math.min(350, frameWidth)
-		local rowHeight = mobile and 34 or 20
-		local titleHeight = mobile and 24 or 20
-		local detailHeight = mobile and 28 or 20
-		local gap = mobile and 3 or 1
-		local rowCount = math.max(1, math.min(NAStuff.ExecutorTools.LSP.VisibleRows, #NAStuff.ExecutorTools.LSP.Results > 0 and #NAStuff.ExecutorTools.LSP.Results or NAStuff.ExecutorTools.LSP.VisibleRows))
-		local height = titleHeight + rowCount * rowHeight + math.max(0, rowCount - 1) * gap + detailHeight + 12
-		NAStuff.ExecutorTools.LSP.CompletionFrame.Size = UDim2.fromOffset(width, height)
-		NAStuff.ExecutorTools.LSP.CompletionTitle.Position = UDim2.fromOffset(8, 4)
-		NAStuff.ExecutorTools.LSP.CompletionTitle.Size = UDim2.new(1, -16, 0, titleHeight - 4)
-		NAStuff.ExecutorTools.LSP.CompletionTitle.TextSize = mobile and 13 or 11
-		NAStuff.ExecutorTools.LSP.CompletionList.Position = UDim2.fromOffset(4, titleHeight + 2)
-		NAStuff.ExecutorTools.LSP.CompletionList.Size = UDim2.new(1, -8, 0, rowCount * rowHeight + math.max(0, rowCount - 1) * gap)
-		NAStuff.ExecutorTools.LSP.CompletionLayout.Padding = UDim.new(0, gap)
-		NAStuff.ExecutorTools.LSP.CompletionDetail.Position = UDim2.new(0, 4, 1, -(detailHeight + 4))
-		NAStuff.ExecutorTools.LSP.CompletionDetail.Size = UDim2.new(1, -8, 0, detailHeight)
-		NAStuff.ExecutorTools.LSP.CompletionDetail.TextSize = mobile and 11 or 10
-		for i, row in NAStuff.ExecutorTools.LSP.Rows do
+		lsp.Mobile = mobile == true
+		local paneWidth = math.max(140, editorPane.AbsoluteSize.X - 12)
+		local paneHeight = math.max(90, editorPane.AbsoluteSize.Y - 12)
+		local width = mobile and math.min(310, paneWidth) or math.min(350, math.max(140, frame.AbsoluteSize.X - 16))
+		local rowHeight = mobile and 32 or 20
+		local titleHeight = mobile and 22 or 20
+		local detailHeight = mobile and 24 or 20
+		local gap = mobile and 2 or 1
+		local maxRows = mobile and math.min(4, math.max(1, math.floor((paneHeight - titleHeight - detailHeight - 16 + gap) / (rowHeight + gap)))) or 8
+		lsp.VisibleRows = maxRows
+		local count = math.max(1, math.min(maxRows, #lsp.Results))
+		local height = titleHeight + count * rowHeight + math.max(0, count - 1) * gap + detailHeight + 12
+		lsp.CompletionFrame.Size = UDim2.fromOffset(width, height)
+		lsp.CompletionTitle.Position = UDim2.fromOffset(8, 4)
+		lsp.CompletionTitle.Size = UDim2.new(1, -16, 0, titleHeight - 4)
+		lsp.CompletionTitle.TextSize = mobile and 12 or 11
+		lsp.CompletionList.Position = UDim2.fromOffset(4, titleHeight + 2)
+		lsp.CompletionList.Size = UDim2.new(1, -8, 0, count * rowHeight + math.max(0, count - 1) * gap)
+		lsp.CompletionLayout.Padding = UDim.new(0, gap)
+		lsp.CompletionDetail.Position = UDim2.new(0, 4, 1, -(detailHeight + 4))
+		lsp.CompletionDetail.Size = UDim2.new(1, -8, 0, detailHeight)
+		lsp.CompletionDetail.TextSize = mobile and 11 or 10
+		for i, row in lsp.Rows do
 			row.Size = UDim2.new(1, 0, 0, rowHeight)
-			row.TextSize = mobile and 13 or 11
-			row.Visible = i <= NAStuff.ExecutorTools.LSP.VisibleRows and NAStuff.ExecutorTools.LSP.Results[i] ~= nil
+			row.TextSize = mobile and 12 or 11
+			row.Visible = i <= maxRows and lsp.Results[i] ~= nil
+			local scale = row:FindFirstChild("SelectionScale")
+			if scale then scale.Scale = 1 end
 		end
 	end
 
@@ -14110,6 +14122,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		local item = itemOverride or NAStuff.ExecutorTools.LSP.Results[index or NAStuff.ExecutorTools.LSP.Selected]
 		if not item then return end
 		NAStuff.ExecutorTools.LSP.Accepting = true
+		NAStuff.ExecutorTools.LSP.TouchPick = false
 		local source = type(sourceOverride) == "string" and sourceOverride or tostring(textBox.Text or "")
 		local startPos = math.clamp(tonumber(item.replaceStart) or 1, 1, #source + 1)
 		local endPos = math.clamp(tonumber(item.replaceEnd) or (startPos - 1), 0, #source)
@@ -14211,6 +14224,16 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 				NAStuff.ExecutorTools.LSP.SetSelected(i)
 			end
 		end)
+		row.InputBegan:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.Touch and row.Visible then
+				NAStuff.ExecutorTools.LSP.TouchPick = true
+				task.delay(0.5, function()
+					if NAStuff.ExecutorTools and NAStuff.ExecutorTools.LSP then
+						NAStuff.ExecutorTools.LSP.TouchPick = false
+					end
+				end)
+			end
+		end)
 		row.Activated:Connect(function()
 			if row.Visible and NAStuff.ExecutorTools.LSP.Results[i] then
 				NAStuff.ExecutorTools.LSP.SetSelected(i)
@@ -14225,6 +14248,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		local focusedBox = UserInputServiceRef and UserInputServiceRef:GetFocusedTextBox() or nil
 		local focused = NAmanage.ExecutorLSP_SameInstance(focusedBox, textBox)
 		if not focused then
+			if NAStuff.ExecutorTools.LSP.TouchPick then return end
 			NAStuff.ExecutorTools.LSP.Hide()
 			return
 		end
@@ -16149,7 +16173,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		end
 		Defer(function()
 			local focusedBox = UserInputServiceRef:GetFocusedTextBox()
-			if not NAmanage.ExecutorLSP_SameInstance(focusedBox, textBox) then
+			if not NAmanage.ExecutorLSP_SameInstance(focusedBox, textBox) and not NAStuff.ExecutorTools.LSP.TouchPick then
 				NAStuff.ExecutorTools.LSP.Hide()
 			end
 		end)
