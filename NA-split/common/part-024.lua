@@ -2347,6 +2347,8 @@ NAmanage.SubplaceViewer.favorites = type(NAmanage.SubplaceViewer.favorites) == "
 NAmanage.SubplaceViewer.places = type(NAmanage.SubplaceViewer.places) == "table" and NAmanage.SubplaceViewer.places or {}
 NAmanage.SubplaceViewer.placeIconAssets = type(NAmanage.SubplaceViewer.placeIconAssets) == "table" and NAmanage.SubplaceViewer.placeIconAssets or {}
 NAmanage.SubplaceViewer.placeIconRequests = type(NAmanage.SubplaceViewer.placeIconRequests) == "table" and NAmanage.SubplaceViewer.placeIconRequests or {}
+NAmanage.SubplaceViewer.teleportUniverseIds = type(NAmanage.SubplaceViewer.teleportUniverseIds) == "table" and NAmanage.SubplaceViewer.teleportUniverseIds or {}
+NAmanage.SubplaceViewer.teleportUniverseRequests = type(NAmanage.SubplaceViewer.teleportUniverseRequests) == "table" and NAmanage.SubplaceViewer.teleportUniverseRequests or {}
 NAmanage.SubplaceViewer.filter = NAmanage.SubplaceViewer.filter or "all"
 NAmanage.SubplaceViewer.sort = NAmanage.SubplaceViewer.sort == "id" and "id" or "name"
 NAmanage.SubplaceViewer.loaded = false
@@ -2418,50 +2420,82 @@ NAmanage.TeleportGui_Protect = function(gui)
 	return pcall(function() gui.Parent = parent end)
 end
 
+NAmanage.TeleportGui_GetIcon = function(placeId)
+	const state = NAmanage.SubplaceViewer
+	const id = tonumber(placeId) or tonumber(game.PlaceId) or 0
+	local universeId = tonumber(state.teleportUniverseIds[id])
+	if not universeId then
+		if id == tonumber(game.PlaceId) then
+			universeId = tonumber(game.GameId)
+		else
+			for _, place in state.places do
+				if tonumber(place.PlaceId) == id then
+					universeId = tonumber(game.GameId)
+					break
+				end
+			end
+		end
+		if universeId and universeId > 0 then
+			state.teleportUniverseIds[id] = universeId
+		end
+	end
+	if universeId and universeId > 0 then
+		return "rbxthumb://type=GameIcon&id="..tostring(universeId).."&w=512&h=512"
+	end
+	return NAmanage.SubplaceViewer_GetPlaceIcon(id, 420, 420)
+end
+
 NAmanage.TeleportGui_ResolveDestinationIcon = function(gui, placeId)
 	if not gui then return false end
 	const state = NAmanage.SubplaceViewer
-	const destinationId = tonumber(placeId) or tonumber(game.PlaceId) or 0
-	const function applyIcon(target, iconAssetId)
-		if not target then return false end
-		local matchesDestination = false
-		local okAlive = pcall(function()
-			matchesDestination = target:GetAttribute("NADestinationPlaceId") == destinationId
+	const id = tonumber(placeId) or tonumber(game.PlaceId) or 0
+	const function apply(target)
+		if typeof(target) ~= "Instance" then return end
+		local ok, currentId = pcall(function()
+			return target:GetAttribute("NADestinationPlaceId")
 		end)
-		if not okAlive or not matchesDestination then return false end
+		if not ok or tonumber(currentId) ~= id then return end
 		const root = target:FindFirstChild("Root")
-		const foreground = root and root:FindFirstChild("Foreground")
-		const content = foreground and foreground:FindFirstChild("Content")
+		const fg = root and root:FindFirstChild("Foreground")
+		const content = fg and fg:FindFirstChild("Content")
 		const icon = content and content:FindFirstChild("DestinationIcon")
 		if icon and icon:IsA("ImageLabel") then
-			icon.Image = NAmanage.SubplaceViewer_GetPlaceIcon(destinationId, 420, 420, iconAssetId)
-			return true
+			icon.Image = NAmanage.TeleportGui_GetIcon(id)
+			icon.ImageTransparency = 0
+			icon.ImageColor3 = Color3.new(1, 1, 1)
+			icon.Visible = true
 		end
-		return false
 	end
-
-	const cached = state.placeIconAssets[destinationId]
-	if cached ~= nil then
-		return applyIcon(gui, type(cached) == "number" and cached or 0)
+	apply(gui)
+	if tonumber(state.teleportUniverseIds[id]) then return true end
+	local pending = state.teleportUniverseRequests[id]
+	if pending then
+		pending[gui] = true
+		return true
 	end
-	local waiting = state.placeIconRequests[destinationId]
-	if type(waiting) ~= "table" then
-		waiting = {}
-		state.placeIconRequests[destinationId] = waiting
-	end
-	waiting[#waiting + 1] = gui
-	if #waiting > 1 then return true end
+	pending = setmetatable({}, { __mode = "k" })
+	pending[gui] = true
+	state.teleportUniverseRequests[id] = pending
 	Spawn(function()
-		local iconAssetId = 0
-		local ok, info = pcall(Services.MarketplaceService.GetProductInfo, Services.MarketplaceService, destinationId, Enum.InfoType.Asset)
-		if ok and type(info) == "table" then
-			iconAssetId = tonumber(info.IconImageAssetId) or 0
-			state.placeIconAssets[destinationId] = iconAssetId > 0 and iconAssetId or false
+		local universeId
+		local ok, raw = pcall(_na_boot.httpGet,
+			"https://apis.roblox.com/universes/v1/places/"..tostring(id).."/universe",
+			{ maxAttempts = 2; timeout = 6 }
+		)
+		if ok and type(raw) == "string" then
+			local parsed, data = pcall(Services.HttpService.JSONDecode, Services.HttpService, raw)
+			if parsed and type(data) == "table" then
+				universeId = tonumber(data.universeId or data.UniverseId)
+			end
 		end
-		const targets = state.placeIconRequests[destinationId] or waiting
-		state.placeIconRequests[destinationId] = nil
-		for _, target in targets do
-			applyIcon(target, iconAssetId)
+		if universeId and universeId > 0 then
+			state.teleportUniverseIds[id] = universeId
+		end
+		if state.teleportUniverseRequests[id] == pending then
+			state.teleportUniverseRequests[id] = nil
+		end
+		for target in pending do
+			apply(target)
 		end
 	end)
 	return true
@@ -2535,7 +2569,7 @@ NAmanage.TeleportGui_ApplyResponsiveLayout = function(gui)
 	const width = math.max(240, viewport.X)
 	const height = math.max(240, viewport.Y)
 	const compact = width < 700 or height < 500
-	const tiny = width < 430 or height < 370
+	const tiny = width < 390 or height < 340
 	local topInset, bottomInset, leftInset, rightInset = 0, 0, 0, 0
 	if Services.GuiService then
 		local ok, a, b = pcall(Services.GuiService.GetGuiInset, Services.GuiService)
@@ -2544,30 +2578,43 @@ NAmanage.TeleportGui_ApplyResponsiveLayout = function(gui)
 			leftInset, rightInset = math.max(0, a.X), math.max(0, b.X)
 		end
 	end
-	const side = math.max(tiny and 12 or 20, leftInset + 8, rightInset + 8)
-	const top = math.max(topInset + 10, tiny and 17 or 26)
-	const bottom = math.max(bottomInset + 15, tiny and 34 or 42)
-	const cardHeight = tiny and 100 or (compact and 110 or 122)
-	const contentWidth = math.min(768, math.max(180, width - side * 2))
+	const side = math.max(tiny and 10 or 18, leftInset + 8, rightInset + 8)
+	const top = math.max(topInset + 10, tiny and 14 or 24)
+	const bottom = math.max(bottomInset + 20, tiny and 28 or 40)
+	const cardHeight = tiny and 94 or (compact and 106 or 118)
+	const contentWidth = math.min(710, math.max(180, width - side * 2))
+	const iconSize = tiny and 54 or (compact and 64 or 78)
+	const pad = tiny and 10 or 15
+	const textX = pad + iconSize + (tiny and 10 or 15)
+	const textWidth = math.max(60, contentWidth - textX - pad)
+	const logoSize = tiny and 30 or 36
 	local logo = brand:FindFirstChild("LogoHolder")
 	local title = brand:FindFirstChild("Brand")
 	local sub = brand:FindFirstChild("SubBrand")
-	const logoSize = tiny and 28 or 34
 	brand.Position = UDim2.fromOffset(side, top)
 	brand.Size = UDim2.new(1, -(side * 2), 0, logoSize)
 	brand:SetAttribute("FinalX", side)
 	brand:SetAttribute("FinalY", top)
 	if logo then logo.Size = UDim2.fromOffset(logoSize, logoSize) end
 	if title then
-		title.Position = UDim2.fromOffset(logoSize + 9, 0)
-		title.Size = UDim2.new(1, -(logoSize + 9), 0, 18)
+		title.Position = UDim2.fromOffset(logoSize + 10, 0)
+		title.Size = UDim2.new(1, -(logoSize + 10), 0, 20)
 		title.TextSize = tiny and 12 or 14
 	end
 	if sub then
-		sub.Position = UDim2.fromOffset(logoSize + 9, 19)
-		sub.Size = UDim2.new(1, -(logoSize + 9), 0, 12)
-		sub.TextSize = 8
+		sub.Position = UDim2.fromOffset(logoSize + 10, 21)
+		sub.Size = UDim2.new(1, -(logoSize + 10), 0, 12)
+		sub.TextSize = 9
 	end
+	image.AnchorPoint = Vector2.new(0.5, 0.5)
+	image.Position = UDim2.fromScale(0.5, 0.5)
+	image.Size = UDim2.fromScale(1, 1)
+	image.ScaleType = Enum.ScaleType.Crop
+	image.ZIndex = 2
+	local imgCorner = image:FindFirstChild("HeroCorner")
+	if imgCorner then imgCorner:Destroy() end
+	local imgStroke = image:FindFirstChild("HeroStroke")
+	if imgStroke then imgStroke:Destroy() end
 	content.AnchorPoint = Vector2.new(0.5, 1)
 	content.Position = UDim2.new(0.5, 0, 1, -bottom)
 	content.Size = UDim2.fromOffset(contentWidth, cardHeight)
@@ -2575,75 +2622,55 @@ NAmanage.TeleportGui_ApplyResponsiveLayout = function(gui)
 	local limit = content:FindFirstChildOfClass("UISizeConstraint")
 	if limit then
 		limit.MinSize = Vector2.new(1, 1)
-		limit.MaxSize = Vector2.new(768, 150)
+		limit.MaxSize = Vector2.new(710, 130)
 	end
-	const heroTop = top + logoSize + (tiny and 12 or 20)
-	const heroBottom = height - bottom - cardHeight - (tiny and 8 or 16)
-	const heroMaxHeight = math.max(48, heroBottom - heroTop)
-	const heroWidth = math.min(768, width - side * 2, heroMaxHeight * (16 / 9))
-	const heroHeight = heroWidth * (9 / 16)
-	image.AnchorPoint = Vector2.new(0.5, 0.5)
-	image.Position = UDim2.fromOffset(width * 0.5, (heroTop + heroBottom) * 0.5)
-	image.Size = UDim2.fromOffset(heroWidth, heroHeight)
-	image.ScaleType = Enum.ScaleType.Fit
-	local imgCorner = image:FindFirstChild("HeroCorner")
-	if not imgCorner then
-		imgCorner = Instance.new("UICorner")
-		imgCorner.Name = "HeroCorner"
-		imgCorner.CornerRadius = UDim.new(0, 6)
-		imgCorner.Parent = image
-	end
-	local imgStroke = image:FindFirstChild("HeroStroke")
-	if not imgStroke then
-		imgStroke = Instance.new("UIStroke")
-		imgStroke.Name = "HeroStroke"
-		imgStroke.Color = Color3.fromRGB(120, 120, 125)
-		imgStroke.Transparency = 0.5
-		imgStroke.Thickness = 1
-		imgStroke.Parent = image
-	end
-	local tag = content:FindFirstChild("StatusPill")
 	local icon = content:FindFirstChild("DestinationIcon")
+	local tag = content:FindFirstChild("StatusPill")
 	local dest = content:FindFirstChild("Destination")
 	local info = content:FindFirstChild("Info")
 	local footer = content:FindFirstChild("Footer")
 	local accent = content:FindFirstChild("Accent")
-	const pad = tiny and 12 or 18
-	if icon then icon.Visible = false end
+	if icon then
+		icon.Visible = true
+		icon.AnchorPoint = Vector2.new(0, 0.5)
+		icon.Position = UDim2.new(0, pad, 0.5, 0)
+		icon.Size = UDim2.fromOffset(iconSize, iconSize)
+		icon.ImageTransparency = 0
+		icon.ImageColor3 = Color3.new(1, 1, 1)
+		icon.ScaleType = Enum.ScaleType.Crop
+	end
 	if accent then accent.Visible = false end
 	if tag then
-		tag.Position = UDim2.fromOffset(pad, tiny and 6 or 9)
-		tag.Size = UDim2.fromOffset(tiny and 132 or 158, 22)
+		tag.Position = UDim2.fromOffset(textX, tiny and 8 or 10)
+		tag.Size = UDim2.fromOffset(math.min(textWidth, tiny and 145 or 165), 22)
 	end
 	if dest then
-		dest.Position = UDim2.fromOffset(pad, tiny and 31 or 36)
-		dest.Size = UDim2.new(1, -(pad * 2), 0, tiny and 28 or 37)
-		dest.TextSize = tiny and 21 or (compact and 25 or 30)
+		dest.Position = UDim2.fromOffset(textX, tiny and 32 or 38)
+		dest.Size = UDim2.fromOffset(textWidth, tiny and 28 or 38)
+		dest.TextSize = tiny and 17 or (compact and 23 or 29)
 	end
 	if info then
-		info.Position = UDim2.fromOffset(pad, tiny and 62 or 77)
-		info.Size = UDim2.new(1, -(pad * 2), 0, 15)
+		info.Position = UDim2.fromOffset(textX, tiny and 64 or 82)
+		info.Size = UDim2.fromOffset(textWidth, 16)
 		info.TextSize = tiny and 10 or 11
 	end
 	if footer then
-		footer.Visible = contentWidth >= 300
-		footer.Position = UDim2.new(1, -pad, 0, tiny and 7 or 11)
+		footer.Visible = not tiny and textWidth >= 240
+		footer.Position = UDim2.new(1, -pad, 0, 12)
 		footer.AnchorPoint = Vector2.new(1, 0)
-		footer.Size = UDim2.fromOffset(tiny and 85 or 110, 17)
+		footer.Size = UDim2.fromOffset(80, 16)
 		footer.TextSize = 10
 		footer.TextXAlignment = Enum.TextXAlignment.Right
 	end
 	local track = fg:FindFirstChild("ProgressTrack")
-	local caption = fg:FindFirstChild("ProgressCaption")
-	local placeTag = fg:FindFirstChild("PlaceTag")
 	if track then
-		track.Position = UDim2.new(0.5, 0, 1, -math.max(12, bottom - 14))
 		track.AnchorPoint = Vector2.new(0.5, 1)
+		track.Position = UDim2.new(0.5, 0, 1, -(bottom - 11))
 		track.Size = UDim2.fromOffset(contentWidth, 2)
 	end
-	if caption then
-		caption.Visible = false
-	end
+	local caption = fg:FindFirstChild("ProgressCaption")
+	if caption then caption.Visible = false end
+	local placeTag = fg:FindFirstChild("PlaceTag")
 	if placeTag then placeTag.Visible = false end
 	local rightTag = fg:FindFirstChild("RightTag")
 	if rightTag then rightTag.Visible = false end
@@ -2753,7 +2780,10 @@ NAmanage.TeleportGui_ApplyStaticState = function(gui)
 	if statusDot and statusDot:IsA("Frame") then statusDot.BackgroundTransparency = 0 end
 	if actionLabel and actionLabel:IsA("TextLabel") then actionLabel.TextTransparency = 0 end
 	if destination and destination:IsA("TextLabel") then destination.TextTransparency = 0 end
-	if destinationIcon and destinationIcon:IsA("ImageLabel") then destinationIcon.Visible = false end
+	if destinationIcon and destinationIcon:IsA("ImageLabel") then
+		destinationIcon.Visible = true
+		destinationIcon.ImageTransparency = 0
+	end
 	if info and info:IsA("TextLabel") then info.TextTransparency = 0.08 end
 	if footer and footer:IsA("TextLabel") then footer.TextTransparency = 0.18 end
 	if progressTrack and progressTrack:IsA("Frame") then progressTrack.BackgroundTransparency = 0.58 end
@@ -2789,7 +2819,7 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 	const topPad = math.max(mobile and 78 or 88, guiInsetTop + (mobile and 22 or 28))
 	const bottomPad = mobile and 62 or 64
 	const destinationThumbnail = NAmanage.TeleportGui_GetBackdrop(destinationId)
-	const destinationIconImage = NAmanage.SubplaceViewer_GetPlaceIcon(destinationId, 420, 420)
+	const destinationIconImage = NAmanage.TeleportGui_GetIcon(destinationId)
 
 	ui.gui = Instance.new("ScreenGui")
 	ui.gui.Name = "NATeleportGui"
@@ -2816,21 +2846,21 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 	ui.backdrop = Instance.new("ImageLabel")
 	ui.backdrop.Name = "Backdrop"
 	ui.backdrop.AnchorPoint = Vector2.new(0.5, 0.5)
-	ui.backdrop.Position = UDim2.fromScale(0.486, 0.5)
-	ui.backdrop.Size = UDim2.fromScale(1.16, 1.16)
+	ui.backdrop.Position = UDim2.fromScale(0.5, 0.5)
+	ui.backdrop.Size = UDim2.fromScale(1, 1)
 	ui.backdrop.BackgroundTransparency = 1
 	ui.backdrop.Image = destinationThumbnail
 	ui.backdrop.ImageColor3 = Color3.fromRGB(255, 255, 255)
 	ui.backdrop.ImageTransparency = 0
-	ui.backdrop.ScaleType = Enum.ScaleType.Fit
-	ui.backdrop.ZIndex = 7
+	ui.backdrop.ScaleType = Enum.ScaleType.Crop
+	ui.backdrop.ZIndex = 2
 	ui.backdrop.Parent = ui.root
 
 	ui.wash = Instance.new("Frame")
 	ui.wash.Name = "Wash"
 	ui.wash.Size = UDim2.fromScale(1, 1)
 	ui.wash.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	ui.wash.BackgroundTransparency = 1
+	ui.wash.BackgroundTransparency = 0.54
 	ui.wash.BorderSizePixel = 0
 	ui.wash.ZIndex = 3
 	ui.wash.Parent = ui.root
@@ -2847,7 +2877,7 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 	ui.sideShade.Name = "SideShade"
 	ui.sideShade.Size = UDim2.fromScale(1, 1)
 	ui.sideShade.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	ui.sideShade.BackgroundTransparency = 1
+	ui.sideShade.BackgroundTransparency = 0.64
 	ui.sideShade.BorderSizePixel = 0
 	ui.sideShade.ZIndex = 4
 	ui.sideShade.Parent = ui.root
@@ -2867,7 +2897,7 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 	ui.bottomShade.Position = UDim2.fromScale(0, 1)
 	ui.bottomShade.Size = UDim2.fromScale(1, 0.58)
 	ui.bottomShade.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	ui.bottomShade.BackgroundTransparency = 1
+	ui.bottomShade.BackgroundTransparency = 0.28
 	ui.bottomShade.BorderSizePixel = 0
 	ui.bottomShade.ZIndex = 5
 	ui.bottomShade.Parent = ui.root
@@ -3110,9 +3140,9 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 	ui.destinationIcon.BackgroundTransparency = 0.06
 	ui.destinationIcon.BorderSizePixel = 0
 	ui.destinationIcon.Image = destinationIconImage
-	ui.destinationIcon.ImageColor3 = Color3.fromRGB(220, 220, 220)
-	ui.destinationIcon.ImageTransparency = 1
-	ui.destinationIcon.Visible = false
+	ui.destinationIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
+	ui.destinationIcon.ImageTransparency = 0
+	ui.destinationIcon.Visible = true
 	ui.destinationIcon.ScaleType = Enum.ScaleType.Crop
 	ui.destinationIcon.ZIndex = 13
 	ui.destinationIcon.Parent = ui.content
@@ -3231,6 +3261,7 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 	if prearm then
 		pcall(function() ui.gui:SetAttribute("NAGameTeleportPrearmed", true) end)
 		NAmanage.TeleportGui_ApplyStaticState(ui.gui)
+		NAmanage.TeleportGui_ResolveDestinationIcon(ui.gui, destinationId)
 		state.teleportHandoffGui = ui.gui
 		state.teleportGui = nil
 		pcall(Services.TeleportService.SetTeleportGui, Services.TeleportService, ui.gui)
@@ -3247,6 +3278,8 @@ NAmanage.SubplaceViewer_CreateTeleportGui = function(placeId, placeName, action,
 	ui.handoffGui.Name = "NATeleportGui"
 	ui.handoffGui.Enabled = true
 	NAmanage.TeleportGui_ApplyStaticState(ui.handoffGui)
+	NAmanage.TeleportGui_ResolveDestinationIcon(ui.gui, destinationId)
+	NAmanage.TeleportGui_ResolveDestinationIcon(ui.handoffGui, destinationId)
 	state.teleportHandoffGui = ui.handoffGui
 	pcall(Services.TeleportService.SetTeleportGui, Services.TeleportService, ui.handoffGui)
 	state.teleportGui = ui.gui
@@ -3366,6 +3399,9 @@ NAmanage.SubplaceViewer_HandleArrivingTeleportGui = function()
 	end
 	NAmanage.TeleportGui_ApplyStaticState(gui)
 	pcall(NAmanage.TeleportGui_BindResponsiveLayout, gui)
+	local placeId
+	pcall(function() placeId = gui:GetAttribute("NADestinationPlaceId") end)
+	if placeId then NAmanage.TeleportGui_ResolveDestinationIcon(gui, placeId) end
 	const root = gui:FindFirstChild("Root")
 	const backdrop = root and root:FindFirstChild("Backdrop")
 	const wash = root and root:FindFirstChild("Wash")
@@ -3600,7 +3636,7 @@ NAmanage.TeleportGui_UpdateDestination = function(gui, placeId, placeName, actio
 	const progressCaption = foreground and foreground:FindFirstChild("ProgressCaption")
 	const placeTag = foreground and foreground:FindFirstChild("PlaceTag")
 	const destinationThumbnail = NAmanage.TeleportGui_GetBackdrop(placeId)
-	const destinationIconImage = NAmanage.SubplaceViewer_GetPlaceIcon(placeId, 420, 420)
+	const destinationIconImage = NAmanage.TeleportGui_GetIcon(placeId)
 	if backdrop and backdrop:IsA("ImageLabel") then
 		backdrop.Image = destinationThumbnail
 	end
@@ -3630,6 +3666,7 @@ NAmanage.TeleportGui_UpdateDestination = function(gui, placeId, placeName, actio
 		runner.Size = UDim2.new(0.22, 0, 1, 0)
 	end
 	NAmanage.TeleportGui_ApplyStaticState(gui)
+	NAmanage.TeleportGui_ResolveDestinationIcon(gui, placeId)
 	return true
 end
 
@@ -3757,6 +3794,7 @@ NAmanage.GameTeleportGui_OnTeleport = function(tpState, placeId, spawnName)
 		visible:SetAttribute("NAGameTeleportPrearmed", nil)
 		if NAmanage.TeleportGui_Protect(visible) then
 			NAmanage.TeleportGui_ApplyStaticState(visible)
+			NAmanage.TeleportGui_ResolveDestinationIcon(visible, placeId)
 			pcall(NAmanage.TeleportGui_BindResponsiveLayout, visible)
 			teleportState.teleportGui = visible
 			state.lastGui = visible
