@@ -2875,9 +2875,16 @@ NAmanage.uiObj = NAmanage.uiObj or function(v, seen)
 	return nil
 end
 
+NAmanage.isUIComplete = NAmanage.isUIComplete or function(gui)
+	if typeof(gui) ~= "Instance" or not gui:IsA("ScreenGui") then return false end
+	local cmdBar = gui:FindFirstChild("CmdBar")
+	local center = cmdBar and cmdBar:FindFirstChild("CenterBar")
+	return center ~= nil and center:FindFirstChild("Input") ~= nil
+end
+
 NAmanage.getUI = NAmanage.getUI or function()
 	local gui = NAmanage.uiObj(NAStuff and NAStuff.NASCREENGUI)
-	if gui then
+	if NAmanage.isUIComplete(gui) then
 		return gui
 	end
 
@@ -2885,7 +2892,7 @@ NAmanage.getUI = NAmanage.getUI or function()
 		gui = NAmanage.uiObj(rawget(_na_env, "NA_UI_INSTANCE"))
 			or NAmanage.uiObj(rawget(_na_env, "NA_RAW_UI"))
 			or NAmanage.uiObj(rawget(_na_env, "NA_UI"))
-		if gui then
+		if NAmanage.isUIComplete(gui) then
 			return gui
 		end
 	end
@@ -2894,7 +2901,7 @@ NAmanage.getUI = NAmanage.getUI or function()
 		gui = NAmanage.uiObj(rawget(_na_shared, "NA_UI_INSTANCE"))
 			or NAmanage.uiObj(rawget(_na_shared, "NA_RAW_UI"))
 			or NAmanage.uiObj(rawget(_na_shared, "NA_UI"))
-		if gui then
+		if NAmanage.isUIComplete(gui) then
 			return gui
 		end
 	end
@@ -3058,7 +3065,7 @@ end
 
 NAmanage.NARegisterUI=function(gui)
 	gui = NAmanage.uiObj(gui)
-	if not gui then
+	if not NAmanage.isUIComplete(gui) then
 		return false
 	end
 	if not gui.Parent then
