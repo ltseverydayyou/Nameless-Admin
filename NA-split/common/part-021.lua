@@ -1301,6 +1301,17 @@ NAmanage.MusicWindowInit = NAmanage.MusicWindowInit or function()
 		end
 		return tracks[((idx or 0) % #tracks) + 1]
 	end
+	local cmp = type(compareinstances) == "function" and compareinstances or nil
+	if not cmp and __NAUIProtector and type(__NAUIProtector.getFunction) == "function" then
+		const ok, fn = pcall(__NAUIProtector.getFunction, "compareinstances")
+		if ok and type(fn) == "function" then cmp = fn end
+	end
+	const function sameInst(a, b)
+		if a == b then return true end
+		if typeof(a) ~= "Instance" or typeof(b) ~= "Instance" or not cmp then return false end
+		const ok, res = pcall(cmp, a, b)
+		return ok and res == true
+	end
 	const function protRoot()
 		local root
 		if __NAUIProtector and type(__NAUIProtector.parent) == "function" then
@@ -1321,16 +1332,34 @@ NAmanage.MusicWindowInit = NAmanage.MusicWindowInit or function()
 		if ok then return par end
 		return nil
 	end
+	const function lockHost(host, root, rename)
+		if NAmanage and type(NAmanage.ProtectInstance) == "function" then
+			pcall(NAmanage.ProtectInstance, host, {
+				register = true,
+				enforceParent = true,
+				parent = root,
+				renameRoot = rename,
+				nameKey = "MusicHost",
+			})
+		end
+	end
 	const function ensureHost()
 		const root = protRoot()
 		if not root then return frame end
 		local host = st.host
 		if typeof(host) == "Instance" then
 			local par = safeParent(host)
-			if par ~= root then
+			if not sameInst(par, root) then
 				const ok = pcall(function() host.Parent = root end)
 				par = safeParent(host)
-				if not ok or par ~= root then host = nil end
+				if ok and par then
+					lockHost(host, root, false)
+					par = safeParent(host)
+				end
+				if not ok or not sameInst(par, root) then
+					if par then return host end
+					host = nil
+				end
 			end
 		else
 			host = nil
@@ -1340,15 +1369,7 @@ NAmanage.MusicWindowInit = NAmanage.MusicWindowInit or function()
 			host.Name = NAmanage.GetSessionInstanceName and NAmanage.GetSessionInstanceName("MusicHost") or "NA_MusicHost"
 			host.Parent = root
 			st.host = host
-			if NAmanage and type(NAmanage.ProtectInstance) == "function" then
-				pcall(NAmanage.ProtectInstance, host, {
-					register = true,
-					enforceParent = true,
-					parent = root,
-					renameRoot = true,
-					nameKey = "MusicHost",
-				})
-			end
+			lockHost(host, root, true)
 		end
 		return host
 	end
@@ -1390,7 +1411,7 @@ NAmanage.MusicWindowInit = NAmanage.MusicWindowInit or function()
 		syncMix()
 		saveCfg()
 		const function clearGroup()
-			if st.snd == s and safeParent(s) then pcall(function() s.SoundGroup = nil end) end
+			if st.snd == s and safeParent(s) then pcall(function() if s.SoundGroup ~= nil then s.SoundGroup = nil end end) end
 		end
 		const function markRepair()
 			if st.snd ~= s then return end
@@ -1532,7 +1553,6 @@ NAmanage.MusicWindowInit = NAmanage.MusicWindowInit or function()
 		st.tick = (tonumber(st.tick) or 0) + (tonumber(dt) or 0)
 		if st.tick < 0.18 then return end
 		st.tick = 0
-		if st.host and safeParent(st.host) == nil then st.host = nil end
 		if st.snd then
 			const par = safeParent(st.snd)
 			const want = ensureHost()
@@ -1540,9 +1560,9 @@ NAmanage.MusicWindowInit = NAmanage.MusicWindowInit or function()
 				st.needsRepair = false
 				repairSound(false)
 				return
-			elseif want and par ~= want then
+			elseif want and not sameInst(par, want) then
 				const ok = pcall(function() st.snd.Parent = want end)
-				if not ok or safeParent(st.snd) ~= want then
+				if not ok or not sameInst(safeParent(st.snd), want) then
 					repairSound(false)
 					return
 				end
