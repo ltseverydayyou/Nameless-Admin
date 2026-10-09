@@ -2046,6 +2046,88 @@ NAmanage.CanUseCommandKeybinds = function(showNotif)
 	return allowed and true or false
 end
 
+NAmanage.RunPicker = function(config, choice)
+	if choice == nil or tostring(choice) == "" then
+		return Window(config)
+	end
+	const query = Lower(tostring(choice))
+	for _, btn in config.Buttons or {} do
+		if Lower(tostring(btn.Value or btn.Text or "")) == query then
+			return btn.Callback()
+		end
+	end
+	DoNotif("No matching option for "..tostring(config.Title or "command")..": "..tostring(choice), 3)
+end
+
+NAmanage.KeybindPreset = function(source, done)
+	const args = table.clone(source)
+	const key = Lower(tostring(args[1] or ""))
+	const data = cmds.Commands[key] or cmds.Aliases[key]
+	const spec = data and data[4] and data[4].keyPreset
+	if not spec then return done(args) end
+	if spec.needArgs and (args[2] == nil or tostring(args[2]) == "") then
+		local filled = false
+		return Window({
+			Title = "Arguments for "..tostring(args[1]),
+			Description = "Enter the target and optional size before choosing a preset.",
+			InputField = true,
+			Buttons = {
+				{ Text = "Next", Callback = function(text)
+					if filled then return end
+					filled = true
+					const extra = ParseArguments(tostring(text or ""))
+					if not extra or #extra == 0 then
+						DoNotif("Enter a target first.", 2)
+						return done(nil)
+					end
+					for _, value in extra do Insert(args, value) end
+					NAmanage.KeybindPreset(args, done)
+				end },
+				{ Text = "Cancel", Callback = function()
+					if filled then return end
+					filled = true
+					done(nil)
+				end },
+			},
+		})
+	end
+	if args[spec.index] ~= nil and tostring(args[spec.index]) ~= "" then
+		return done(args)
+	end
+	const values = type(spec.choices) == "function" and spec.choices(args) or spec.choices
+	if type(values) ~= "table" or #values == 0 then
+		DoNotif("No preset choices available for "..tostring(args[1]).." right now.", 3)
+		return done(nil)
+	end
+	const buttons = {}
+	local picked = false
+	const function finish(value)
+		if picked then return end
+		picked = true
+		done(value)
+	end
+	for _, entry in values do
+		const value = type(entry) == "table" and entry.value or tostring(entry)
+		const label = type(entry) == "table" and entry.label or value
+		Insert(buttons, { Text = tostring(label), Callback = function()
+			const preset = table.clone(args)
+			if type(spec.defaults) == "function" then spec.defaults(preset) end
+			for i = 2, spec.index - 1 do
+				if preset[i] == nil then preset[i] = "" end
+			end
+			preset[spec.index] = tostring(value)
+			finish(preset)
+		end })
+	end
+	Insert(buttons, { Text = "Keep picker on keypress", Callback = function() finish(args) end })
+	Insert(buttons, { Text = "Cancel", Callback = function() finish(nil) end })
+	return Window({
+		Title = "Preset for "..tostring(args[1]),
+		Description = "Choose the option this keybind will run. The command runs when you press the key.",
+		Buttons = buttons,
+	})
+end
+
 NAmanage.SaveCommandKeybinds=function()
 	if not FileSupport then return end
 

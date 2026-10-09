@@ -2294,26 +2294,28 @@ cmd.add({"unviewpart", "unviewp"}, {"unviewpart (unviewp)", "Resets the camera t
 	end
 end)
 
-cmd.add({"console", "debug"}, {"console (debug)", "Opens developer console"}, function()
+cmd.add({"console", "debug"}, {"console [roblox|custom] (debug)", "Opens developer console"}, function(mode)
 	const consoleButtons = {
 		{
 			Text = "Roblox Console",
+			Value = "roblox",
 			Callback = function()
 				__lt.cm("StarterGui", "SetCore", "DevConsoleVisible", true)
 			end
 		},
 		{
 			Text = "Custom Console",
+			Value = "custom",
 			Callback = function()
 				NAgui.consoleeee()
 			end
 		}
 	}
 
-	Window({
+	NAmanage.RunPicker({
 		Title = "Select Console",
 		Buttons = consoleButtons
-	})
+	}, mode)
 end)
 
 cmd.add({"oldconsole", "olddebug"}, {"oldconsole", "opens old version of the developer console"}, function()
@@ -2505,7 +2507,7 @@ function NAmanage.HitboxUpdateActive(newOpts)
 	updateCfg(NAStuff.HB and NAStuff.HB.N)
 end
 
-cmd.add({"hitbox","hbox"}, {"hitbox <player|npc:filter> {size}",""}, function(pArg, sArg)
+cmd.add({"hitbox","hbox"}, {"hitbox <player|npc:filter> [size] [limb]","Resize a selected body part or All"}, function(pArg, sArg, ...)
 	NAStuff.HB = NAStuff.HB or {};
 	NAStuff.HB.P = NAStuff.HB.P or {
 		ps = {},
@@ -2565,9 +2567,11 @@ cmd.add({"hitbox","hbox"}, {"hitbox <player|npc:filter> {size}",""}, function(pA
 			return t;
 		end;
 	end;
+	const limbArg = Concat({...}, " ");
 	const partSet = {
 		All = true
 	};
+	if limbArg ~= "" then partSet[limbArg] = true end;
 	if #targets == 0 then
 		const defaults = {
 			"Head",
@@ -3077,11 +3081,11 @@ cmd.add({"hitbox","hbox"}, {"hitbox <player|npc:filter> {size}",""}, function(pA
 			end
 		});
 	end;
-	Window({
+	NAmanage.RunPicker({
 		Title = "Hitbox Menu",
 		Description = "Choose limb to resize",
 		Buttons = btns
-	});
+	}, limbArg);
 end, true);
 
 cmd.add({"unhitbox","unhbox"}, {"unhitbox <player|npc:filter>",""}, function(pArg)

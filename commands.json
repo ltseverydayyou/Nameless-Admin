@@ -1755,8 +1755,8 @@
         "reach",
         "swordreach"
       ],
-      "usage": "reach [number] (swordreach)",
-      "args": "[number]",
+      "usage": "reach [number] [part] (swordreach)",
+      "args": "[number] [part]",
       "desc": "Extends sword reach in one direction"
     },
     {
@@ -1764,8 +1764,8 @@
       "aliases": [
         "boxreach"
       ],
-      "usage": "boxreach [number]",
-      "args": "[number]",
+      "usage": "boxreach [number] [part]",
+      "args": "[number] [part]",
       "desc": "Creates a box-shaped hitbox around your tool"
     },
     {
@@ -2929,8 +2929,8 @@
         "tptool",
         "clicktptool"
       ],
-      "usage": "tptool",
-      "args": "",
+      "usage": "tptool [ui|tools]",
+      "args": "[ui|tools]",
       "desc": "Create click/tween teleport buttons or backpack tools"
     },
     {
@@ -8263,8 +8263,8 @@
         "console",
         "debug"
       ],
-      "usage": "console (debug)",
-      "args": "",
+      "usage": "console [roblox|custom] (debug)",
+      "args": "[roblox|custom]",
       "desc": "Opens developer console"
     },
     {
@@ -8294,9 +8294,9 @@
         "hitbox",
         "hbox"
       ],
-      "usage": "",
-      "args": "",
-      "desc": ""
+      "usage": "hitbox <player|npc:filter> [size] [limb]",
+      "args": "<player|npc:filter> [size] [limb]",
+      "desc": "Resize a selected body part or All"
     },
     {
       "name": "unhitbox",

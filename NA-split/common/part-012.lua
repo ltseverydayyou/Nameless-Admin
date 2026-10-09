@@ -2950,15 +2950,15 @@ NAmanage.makeClickTweenTools = function()
 	newTool("Tween TP", true)
 end
 
-cmd.add({"tptool","clicktptool"},{"tptool","Create click/tween teleport buttons or backpack tools"},function()
-	Window({
+cmd.add({"tptool","clicktptool"},{"tptool [ui|tools]","Create click/tween teleport buttons or backpack tools"},function(mode)
+	NAmanage.RunPicker({
 		Title = "Choose Teleport Mode",
 		Description = "Would you like to use on-screen buttons, or equipable Tools in your Backpack?",
 		Buttons = {
-			{Text="UI Buttons",Callback=NAmanage.makeClickTweenUI},
-			{Text="Backpack Tools",Callback=NAmanage.makeClickTweenTools}
+			{Text="UI Buttons",Value="ui",Callback=NAmanage.makeClickTweenUI},
+			{Text="Backpack Tools",Value="tools",Callback=NAmanage.makeClickTweenTools}
 		}
-	})
+	}, mode)
 end)
 
 cmd.add({"unclicktptool","untptool"},{"unclicktptool","Remove teleport buttons or tools"},function()

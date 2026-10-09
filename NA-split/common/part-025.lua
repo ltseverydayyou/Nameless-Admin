@@ -1905,6 +1905,77 @@ originalIO.naTransLatooor=function()
 end
 originalIO.naTransLatooor()
 
+do
+	const function bind(name, index, choices, defaults, needArgs)
+		const data = cmds.Commands[name] or cmds.Aliases[name]
+		if not data then return end
+		data[4] = data[4] or {}
+		data[4].keyPreset = { index = index, choices = choices, defaults = defaults, needArgs = needArgs }
+	end
+	const function enumChoices(name, extra)
+		return function()
+			const values = table.clone(extra or {})
+			for _, item in Enum[name]:GetEnumItems() do Insert(values, item.Name) end
+			return values
+		end
+	end
+	const function toolParts()
+		const char, bp = getChar(), getBp()
+		const tool = char and char:FindFirstChildOfClass("Tool") or bp and bp:FindFirstChildOfClass("Tool")
+		const values, seen = {}, {}
+		if tool then
+			for _, part in NAmanage.QueryDescendants(tool, "BasePart") do
+				if not seen[part.Name] then
+					seen[part.Name] = true
+					Insert(values, part.Name)
+				end
+			end
+		end
+		if #values == 0 then Insert(values, "Handle") end
+		table.sort(values)
+		return values
+	end
+	const function bodyParts(args)
+		const values = { "All", "Head", "HumanoidRootPart", "Torso", "UpperTorso", "LowerTorso", "Left Arm", "Right Arm", "Left Leg", "Right Leg", "LeftUpperArm", "LeftLowerArm", "LeftHand", "RightUpperArm", "RightLowerArm", "RightHand", "LeftUpperLeg", "LeftLowerLeg", "LeftFoot", "RightUpperLeg", "RightLowerLeg", "RightFoot" }
+		const seen = {}
+		for _, value in values do seen[value] = true end
+		for _, target in getPlr(args[2]) do
+			const char = typeof(target) == "Instance" and target:IsA("Model") and target or getPlrChar(target)
+			if char then
+				for _, part in char:GetChildren() do
+					if part:IsA("BasePart") and not seen[part.Name] then
+						seen[part.Name] = true
+						Insert(values, part.Name)
+					end
+				end
+			end
+		end
+		return values
+	end
+	const function reachSize(args)
+		if args[2] == nil or args[2] == "" then args[2] = "15" end
+	end
+	bind("hitbox", 4, bodyParts, function(args)
+		if args[3] == nil or args[3] == "" then args[3] = tostring(NAmanage.GetHitboxOpts().size or 10) end
+	end, true)
+	bind("reach", 3, toolParts, reachSize)
+	bind("boxreach", 3, toolParts, reachSize)
+	for _, name in { "reverb", "forcereverb" } do bind(name, 2, enumChoices("ReverbType")) end
+	for _, name in { "cam", "forcecam" } do bind(name, 2, enumChoices("CameraType")) end
+	for _, name in { "enable", "disable" } do bind(name, 2, enumChoices("CoreGuiType", { "Shiftlock", "Reset" })) end
+	bind("quality", 2, enumChoices("QualityLevel"))
+	bind("lighting", 2, enumChoices("Technology"))
+	bind("material", 2, enumChoices("Material"))
+	bind("screenorientation", 2, enumChoices("ScreenOrientation", { "Default" }))
+	for _, name in { "antikick", "antiteleport" } do
+		bind(name, 2, { { value = "success", label = "Fake Success" }, { value = "error", label = "Error" } })
+	end
+	bind("antitouch", 2, { "remove", "cantouch", "advanced" })
+	bind("godmode", 2, { "strong", "hooking", "alt", "off" })
+	bind("console", 2, { { value = "roblox", label = "Roblox Console" }, { value = "custom", label = "Custom Console" } })
+	bind("tptool", 2, { { value = "ui", label = "UI Buttons" }, { value = "tools", label = "Backpack Tools" } })
+end
+
 NAmanage.CommandKeybindsAdd=function()
 	const UIS = Services.UserInputService
 	if not UIS then return end
@@ -1941,10 +2012,14 @@ NAmanage.CommandKeybindsAdd=function()
 						DoNotif("Command could not be parsed.", 2)
 						return
 					end
-					CommandKeybinds[keyName] = args
-					NAmanage.SaveCommandKeybinds()
-					NAmanage.ApplyCommandKeybinds()
-					DoNotif(("Bound %s to '%s'"):format(keyName, raw), 2)
+					NAmanage.KeybindPreset(args, function(preset)
+						if not preset then return end
+						CommandKeybinds[keyName] = preset
+						CommandKeybindOptions[keyName] = nil
+						NAmanage.SaveCommandKeybinds()
+						NAmanage.ApplyCommandKeybinds()
+						DoNotif(("Bound %s to '%s'"):format(keyName, Concat(preset, " ")), 2)
+					end)
 				end
 			}}
 		})
@@ -2120,7 +2195,7 @@ NAmanage.CommandKeybindsUIInit=function()
 	cmdBox.Size = UDim2.new(0.34, -10, 0, 30)
 	cmdBox.Position = UDim2.new(0.28, 10, 0, 8)
 
-	const argsBox = cloneSearchBox(root, "Args (space separated)")
+	const argsBox = cloneSearchBox(root, "Args (picker choice saved on Save)")
 	argsBox.Name = "ArgsBox"
 	argsBox.Size = UDim2.new(0.38, -10, 0, 30)
 	argsBox.Position = UDim2.new(0.62, 10, 0, 8)
@@ -2490,6 +2565,7 @@ NAmanage.CommandKeybindsUIRefresh=function()
 		NAgui.RegisterStrokesFrom(remBtn)
 
 		MouseButtonFix(editBtn, function()
+			ui._saveTok = (ui._saveTok or 0) + 1
 			ui.selectedKey = tostring(keyName)
 			if ui.keyBox then ui.keyBox.Text = tostring(keyName) end
 			if ui.cmdBox then ui.cmdBox.Text = (type(args) == "table" and tostring(args[1] or "")) or "" end
@@ -2540,6 +2616,7 @@ NAmanage.CommandKeybindsUIRefresh=function()
 
 		MouseButtonFix(disableBtn, function()
 			const k = tostring(keyName)
+			if ui.selectedKey == k then ui._saveTok = (ui._saveTok or 0) + 1 end
 			const opt = CommandKeybindOptions[k] or {}
 			opt.disabled = not (opt.disabled == true)
 			if not opt.toggle and not opt.spam and not opt.disabled then
@@ -2599,6 +2676,7 @@ NAmanage.CommandKeybindsUIWire=function()
 	end
 
 	const function clearEditor()
+		ui._saveTok = (ui._saveTok or 0) + 1
 		ui.selectedKey = nil
 		if ui.keyBox then ui.keyBox.Text = "" end
 		if ui.cmdBox then ui.cmdBox.Text = "" end
@@ -2620,6 +2698,7 @@ NAmanage.CommandKeybindsUIWire=function()
 
 	if ui.toggleBtn then
 		MouseButtonFix(ui.toggleBtn, function()
+			ui._saveTok = (ui._saveTok or 0) + 1
 			ui.toggleState = not ui.toggleState
 			if ui.toggleState then
 				ui.spamState = false
@@ -2635,6 +2714,7 @@ NAmanage.CommandKeybindsUIWire=function()
 
 	if ui.spamBtn then
 		MouseButtonFix(ui.spamBtn, function()
+			ui._saveTok = (ui._saveTok or 0) + 1
 			ui.spamState = not ui.spamState
 			if ui.spamState then
 				ui.toggleState = false
@@ -2651,6 +2731,7 @@ NAmanage.CommandKeybindsUIWire=function()
 				DoNotif("Enable Toggle or Spam before using Hold mode.", 1.5)
 				return
 			end
+			ui._saveTok = (ui._saveTok or 0) + 1
 			ui.holdState = not ui.holdState
 			NAmanage.CommandKeybindsUpdateToggleLayout(ui)
 		end)
@@ -2710,6 +2791,12 @@ NAmanage.CommandKeybindsUIWire=function()
 		end)
 	end
 
+	for _, box in { ui.keyBox, ui.cmdBox, ui.argsBox, ui.toggleCmdBox, ui.toggleArgsBox } do
+		box:GetPropertyChangedSignal("Text"):Connect(function()
+			ui._saveTok = (ui._saveTok or 0) + 1
+		end)
+	end
+
 	if ui.saveBtn then
 		MouseButtonFix(ui.saveBtn, function()
 			const rawKey = ui.keyBox and tostring(ui.keyBox.Text or ""):match("^%s*(.-)%s*$") or ""
@@ -2738,62 +2825,63 @@ NAmanage.CommandKeybindsUIWire=function()
 				end
 			end
 
+			ui._saveTok = (ui._saveTok or 0) + 1
+			const token = ui._saveTok
 			const prevKey = ui.selectedKey
-			if prevKey and prevKey ~= "" and prevKey ~= keyName then
-				CommandKeybinds[prevKey] = nil
-				CommandKeybindOptions[prevKey] = nil
-			end
-			CommandKeybinds[keyName] = args
-			const opt = CommandKeybindOptions[keyName] or {}
-			if ui.spamState then
-				opt.spam = true
-				opt.toggle = nil
-				opt.state = false
-				opt.args2 = nil
-				opt.hold = ui.holdState and true or nil
-			elseif ui.toggleState then
-				opt.toggle = true
-				opt.spam = nil
-				opt.state = false
-				opt.hold = ui.holdState and true or nil
-				-- build second layer: either from explicit toggle fields or just reuse the first command
-				local args2 = nil
+			const toggle, spam, hold, disabled = ui.toggleState, ui.spamState, ui.holdState, ui.disabledState
+			local args2
+			if toggle and not spam then
 				if toggleCmdName ~= "" then
 					args2 = { toggleCmdName }
-					const extra2 = ParseArguments(toggleArgsRaw)
-					if extra2 then
-						for _, v in extra2 do
-							Insert(args2, v)
-						end
-					end
-				else
-					args2 = {}
-					for i, v in args do
-						args2[i] = v
-					end
+					for _, value in ParseArguments(toggleArgsRaw) or {} do Insert(args2, value) end
 				end
-				opt.args2 = args2
-			else
-				opt.spam = nil
-				opt.toggle = nil
-				opt.state = nil
-				opt.args2 = nil
-				opt.hold = nil
-				ui.holdState = false
 			end
-			opt.disabled = ui.disabledState and true or nil
-			if not opt.toggle and not opt.spam and not opt.disabled then
-				CommandKeybindOptions[keyName] = nil
-			else
+			const function valid()
+				return token == ui._saveTok and ui.root and ui.root.Parent
+			end
+			const function save(first, second)
+				if not valid() then return end
+				if prevKey and prevKey ~= "" and prevKey ~= keyName then
+					CommandKeybinds[prevKey] = nil
+					CommandKeybindOptions[prevKey] = nil
+				end
+				CommandKeybinds[keyName] = first
+				local opt
+				if toggle or spam or disabled then
+					opt = {
+						toggle = toggle and not spam or nil,
+						spam = spam or nil,
+						hold = (toggle or spam) and hold or nil,
+						disabled = disabled or nil,
+						state = false,
+						args2 = toggle and not spam and second or nil,
+					}
+				end
 				CommandKeybindOptions[keyName] = opt
+				ui.selectedKey = keyName
+				const parts = {}
+				for i = 2, #first do Insert(parts, tostring(first[i])) end
+				if ui.argsBox then ui.argsBox.Text = Concat(parts, " ") end
+				if second and ui.toggleArgsBox then
+					table.clear(parts)
+					for i = 2, #second do Insert(parts, tostring(second[i])) end
+					ui.toggleArgsBox.Text = Concat(parts, " ")
+				end
+				NAmanage.SaveCommandKeybinds()
+				NAmanage.ApplyCommandKeybinds()
+				NAmanage.CommandKeybindsUIRefresh()
+				DoNotif(("Saved %s > %s"):format(keyName, Concat(first, " ")), 2)
 			end
-			ui.selectedKey = keyName
-			ui.disabledState = opt and opt.disabled == true or false
-
-			NAmanage.SaveCommandKeybinds()
-			NAmanage.ApplyCommandKeybinds()
-			NAmanage.CommandKeybindsUIRefresh()
-			DoNotif(("Saved %s > %s"):format(keyName, Concat(args, " ")), 2)
+			NAmanage.KeybindPreset(args, function(first)
+				if not first or not valid() then return end
+				if args2 then
+					NAmanage.KeybindPreset(args2, function(second)
+						if second then save(first, second) end
+					end)
+				else
+					save(first, toggle and not spam and table.clone(first) or nil)
+				end
+			end)
 		end)
 	end
 

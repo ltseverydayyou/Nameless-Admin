@@ -2283,7 +2283,7 @@ NAmanage.cacheReachOrig=function(part)
 	end
 end
 
-cmd.add({"reach", "swordreach"}, {"reach [number] (swordreach)", "Extends sword reach in one direction"}, function(reachsize)
+cmd.add({"reach", "swordreach"}, {"reach [number] [part] (swordreach)", "Extends sword reach in one direction"}, function(reachsize, ...)
 	reachsize = tonumber(reachsize) or 15
 
 	const char = getChar()
@@ -2301,7 +2301,7 @@ cmd.add({"reach", "swordreach"}, {"reach [number] (swordreach)", "Extends sword 
 		Insert(btns, {
 			Text = partName,
 			Callback = function()
-				const toolPart = Tool:FindFirstChild(partName)
+				const toolPart = Tool:FindFirstChild(partName, true)
 				if not toolPart then return end
 
 				NAmanage.cacheReachOrig(toolPart)
@@ -2324,14 +2324,14 @@ cmd.add({"reach", "swordreach"}, {"reach [number] (swordreach)", "Extends sword 
 		})
 	end
 
-	Window({
+	NAmanage.RunPicker({
 		Title = "Reach Menu",
 		Description = "Choose part to extend reach",
 		Buttons = btns
-	})
+	}, Concat({...}, " "))
 end, true)
 
-cmd.add({"boxreach"}, {"boxreach [number]", "Creates a box-shaped hitbox around your tool"}, function(reachsize)
+cmd.add({"boxreach"}, {"boxreach [number] [part]", "Creates a box-shaped hitbox around your tool"}, function(reachsize, ...)
 	reachsize = tonumber(reachsize) or 15
 
 	const char = getChar()
@@ -2349,7 +2349,7 @@ cmd.add({"boxreach"}, {"boxreach [number]", "Creates a box-shaped hitbox around 
 		Insert(btns, {
 			Text = partName,
 			Callback = function()
-				const toolPart = Tool:FindFirstChild(partName)
+				const toolPart = Tool:FindFirstChild(partName, true)
 				if not toolPart then return end
 
 				NAmanage.cacheReachOrig(toolPart)
@@ -2372,11 +2372,11 @@ cmd.add({"boxreach"}, {"boxreach [number]", "Creates a box-shaped hitbox around 
 		})
 	end
 
-	Window({
+	NAmanage.RunPicker({
 		Title = "Box Reach Menu",
 		Description = "Choose part to extend box reach",
 		Buttons = btns
-	})
+	}, Concat({...}, " "))
 end, true)
 
 cmd.add({"resetreach", "normalreach", "unreach"}, {"resetreach (normalreach, unreach)", "Resets tool to normal size"}, function()

@@ -13096,6 +13096,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 
 	const frame = NAUIMANAGER.ExecutorFrame
 	const container = NAUIMANAGER.ExecutorContainer
+	frame.ClipsDescendants = false
 	if frame.GetAttribute and NAmanage.GetAttr(frame, "NAExecutorReady") then
 		return true
 	end
@@ -13858,6 +13859,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	textBox.ClearTextOnFocus = false
 	textBox.Font = Enum.Font.Code
 	textBox.MultiLine = true
+	textBox.ShowNativeInput = false
 	textBox.PlaceholderColor3 = colors.subtle
 	textBox.PlaceholderText = "-- Write your script here"
 	textBox.Position = UDim2.new(0, 8, 0, 0)
@@ -13901,6 +13903,8 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	const bracketLayer = makeLayer("Brackets", colors.bracket, 4)
 	textBox.ZIndex = 3
 
+	local editorLastCursorPosition = 1
+	NAlib.disconnect("NAExecutorLSP")
 	NAStuff.ExecutorTools = NAStuff.ExecutorTools or {}
 	NAStuff.ExecutorTools.LSP = {}
 	NAStuff.ExecutorTools.LSP.Results = {}
@@ -13916,6 +13920,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	NAStuff.ExecutorTools.LSP.CompletionFrame.Name = "LSPCompletion"
 	NAStuff.ExecutorTools.LSP.CompletionFrame.BackgroundColor3 = colors.panel2
 	NAStuff.ExecutorTools.LSP.CompletionFrame.BorderSizePixel = 0
+	NAStuff.ExecutorTools.LSP.CompletionFrame.Active = true
 	NAStuff.ExecutorTools.LSP.CompletionFrame.Size = UDim2.fromOffset(350, 218)
 	NAStuff.ExecutorTools.LSP.CompletionFrame.Visible = false
 	NAStuff.ExecutorTools.LSP.CompletionFrame.ZIndex = 70
@@ -13935,9 +13940,15 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	NAStuff.ExecutorTools.LSP.CompletionTitle.ZIndex = 71
 	NAStuff.ExecutorTools.LSP.CompletionTitle.Parent = NAStuff.ExecutorTools.LSP.CompletionFrame
 
-	NAStuff.ExecutorTools.LSP.CompletionList = InstanceNew("Frame")
+	NAStuff.ExecutorTools.LSP.CompletionList = InstanceNew("ScrollingFrame")
 	NAStuff.ExecutorTools.LSP.CompletionList.BackgroundTransparency = 1
 	NAStuff.ExecutorTools.LSP.CompletionList.BorderSizePixel = 0
+	NAStuff.ExecutorTools.LSP.CompletionList.Active = true
+	NAStuff.ExecutorTools.LSP.CompletionList.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	NAStuff.ExecutorTools.LSP.CompletionList.CanvasSize = UDim2.fromOffset(0, 0)
+	NAStuff.ExecutorTools.LSP.CompletionList.ScrollBarThickness = 3
+	NAStuff.ExecutorTools.LSP.CompletionList.ScrollBarImageColor3 = colors.subtle
+	NAStuff.ExecutorTools.LSP.CompletionList.ScrollingDirection = Enum.ScrollingDirection.Y
 	NAStuff.ExecutorTools.LSP.CompletionList.Position = UDim2.fromOffset(4, 24)
 	NAStuff.ExecutorTools.LSP.CompletionList.Size = UDim2.new(1, -8, 1, -50)
 	NAStuff.ExecutorTools.LSP.CompletionList.ZIndex = 71
@@ -13999,36 +14010,61 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		local lineHeight = math.max(1, math.ceil(TextServiceRef:GetTextSize("M", textBox.TextSize, textBox.Font, Vector2.new(1000, 1000)).Y))
 		local xWidth = TextServiceRef:GetTextSize(currentLine, textBox.TextSize, textBox.Font, Vector2.new(10000, 1000)).X
 		local base = frame.AbsolutePosition
-		local x = textBox.AbsolutePosition.X - base.X + xWidth + 4
-		local y = textBox.AbsolutePosition.Y - base.Y + (line - 1) * lineHeight + lineHeight + 2
+		const scale = math.max(0.01, NAmanage.GetUIScaleFactor(frame))
+		local x = (textBox.AbsolutePosition.X - base.X) / scale + xWidth + 4
+		local y = (textBox.AbsolutePosition.Y - base.Y) / scale + (line - 1) * lineHeight + lineHeight + 2
 		return x, y, cursor, lineHeight
 	end
 
+	NAStuff.ExecutorTools.LSP.GetBounds = function()
+		const scale = math.max(0.01, NAmanage.GetUIScaleFactor(frame))
+		const base = frame.AbsolutePosition
+		const vp = getExecutorViewport()
+		const left = math.max(6, (6 - base.X) / scale)
+		const right = math.min((frame.AbsoluteSize.X - 6) / scale, (vp.X - base.X - 6) / scale)
+		local top = math.max(6, (6 - base.Y) / scale)
+		local bottom = math.min((frame.AbsoluteSize.Y - 6) / scale, (vp.Y - base.Y - 6) / scale)
+		if NAStuff.ExecutorTools.LSP.Mobile then
+			pcall(function()
+				if UserInputServiceRef.OnScreenKeyboardVisible then
+					const pos = UserInputServiceRef.OnScreenKeyboardPosition
+					if pos.Y > 0 and UserInputServiceRef.OnScreenKeyboardSize.Y > 0 then
+						bottom = math.min(bottom, (pos.Y - base.Y - 6) / scale)
+					end
+				end
+			end)
+			if bottom - top < 90 / scale then top = math.min(top, (6 - base.Y) / scale) end
+		end
+		return left, top, math.max(left + 1, right), math.max(top + 1, bottom), scale
+	end
+
 	NAStuff.ExecutorTools.LSP.Position = function()
-		local lsp = NAStuff.ExecutorTools.LSP
-		local frameSize = frame.AbsoluteSize
-		local w = lsp.CompletionFrame.AbsoluteSize.X
-		local h = lsp.CompletionFrame.AbsoluteSize.Y
+		const lsp = NAStuff.ExecutorTools.LSP
+		if lsp.TouchPick then return end
+		lsp.UpdateResponsive()
+		const left, top, right, bottom, scale = lsp.GetBounds()
+		const w, h = lsp.CompletionFrame.Size.X.Offset, lsp.CompletionFrame.Size.Y.Offset
 		local x, y, _, lineHeight = lsp.GetCursorMetrics()
 		if lsp.Mobile then
-			local panePos = editorPane.AbsolutePosition - frame.AbsolutePosition
-			local paneSize = editorPane.AbsoluteSize
-			x = math.clamp(panePos.X + paneSize.X - w - 6, 6, math.max(6, frameSize.X - w - 6))
-			y = math.clamp(panePos.Y + 6, 6, math.max(6, frameSize.Y - h - 6))
+			const pane = (editorPane.AbsolutePosition - frame.AbsolutePosition) / scale
+			x = right - w
+			y = pane.Y + 6
 		else
-			if x + w > frameSize.X - 8 then x = math.max(8, frameSize.X - w - 8) end
-			if y + h > frameSize.Y - 8 then y = math.max(8, y - h - lineHeight - 4) end
+			if y + h > bottom then y -= h + lineHeight + 4 end
 		end
-		if lsp.CompletionFrame.Visible then
-			lsp.CompletionFrame.Position = UDim2.fromOffset(x, y)
-		end
+		x = math.clamp(x, left, math.max(left, right - w))
+		y = math.clamp(y, top, math.max(top, bottom - h))
+		if lsp.CompletionFrame.Visible then lsp.CompletionFrame.Position = UDim2.fromOffset(x, y) end
 		if lsp.SignatureFrame.Visible then
-			local sw = math.min(420, math.max(120, frameSize.X - 16))
-			local sy = lsp.Mobile and (y + (lsp.CompletionFrame.Visible and h + 4 or 0)) or (y - 34)
-			if sy + 30 > frameSize.Y - 6 then sy = math.max(6, y - 34) end
-			if sy < 6 then sy = math.min(frameSize.Y - 36, y + h + 4) end
-			lsp.SignatureFrame.Size = UDim2.fromOffset(sw, 30)
-			lsp.SignatureFrame.Position = UDim2.fromOffset(math.clamp(x, 6, math.max(6, frameSize.X - sw - 6)), math.max(6, sy))
+			const sw = math.min(420, right - left)
+			local sy = lsp.Mobile and y + (lsp.CompletionFrame.Visible and h + 4 or 0) or y - 34
+			if sy + 30 > bottom then sy = y - 34 end
+			if lsp.Mobile and (sy < top or bottom - top < h + 34) then
+				lsp.SignatureFrame.Visible = false
+			else
+				lsp.SignatureFrame.Size = UDim2.fromOffset(sw, 30)
+				lsp.SignatureFrame.Position = UDim2.fromOffset(math.clamp(x, left, math.max(left, right - sw)), math.clamp(sy, top, math.max(top, bottom - 30)))
+			end
 		end
 	end
 
@@ -14060,37 +14096,40 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	end
 
 	NAStuff.ExecutorTools.LSP.UpdateResponsive = function()
-		local lsp = NAStuff.ExecutorTools.LSP
-		local touchOnly = UserInputServiceRef and UserInputServiceRef.TouchEnabled and not UserInputServiceRef.KeyboardEnabled
-		local mobile = execResponsive.phone or IsOnMobile or touchOnly
+		const lsp = NAStuff.ExecutorTools.LSP
+		const touchOnly = UserInputServiceRef.TouchEnabled and not UserInputServiceRef.KeyboardEnabled
+		const mobile = execResponsive.phone or IsOnMobile or touchOnly
 		lsp.Mobile = mobile == true
-		local paneWidth = math.max(140, editorPane.AbsoluteSize.X - 12)
-		local paneHeight = math.max(90, editorPane.AbsoluteSize.Y - 12)
-		local width = mobile and math.min(310, paneWidth) or math.min(350, math.max(140, frame.AbsoluteSize.X - 16))
-		local rowHeight = mobile and 32 or 20
-		local titleHeight = mobile and 22 or 20
-		local detailHeight = mobile and 24 or 20
-		local gap = mobile and 2 or 1
-		local maxRows = mobile and math.min(4, math.max(1, math.floor((paneHeight - titleHeight - detailHeight - 16 + gap) / (rowHeight + gap)))) or 8
+		const left, top, right, bottom, scale = lsp.GetBounds()
+		const area = bottom - top
+		const width = math.min(mobile and 310 / scale or 350, right - left)
+		const titleHeight = mobile and (area < 65 / scale and 0 or 22 / scale) or 20
+		const detailHeight = mobile and (area < 110 / scale and 0 or 24 / scale) or 20
+		const rowHeight = math.min(mobile and 40 / scale or 20, math.max(1, area - titleHeight - detailHeight - 12))
+		const gap = mobile and 2 / scale or 1
+		const maxRows = math.clamp(math.floor((area - titleHeight - detailHeight - 12 + gap) / (rowHeight + gap)), 1, mobile and 4 or 8)
 		lsp.VisibleRows = maxRows
-		local count = math.max(1, math.min(maxRows, #lsp.Results))
-		local height = titleHeight + count * rowHeight + math.max(0, count - 1) * gap + detailHeight + 12
+		const count = math.max(1, math.min(maxRows, #lsp.Results))
+		const height = math.min(area, titleHeight + count * rowHeight + math.max(0, count - 1) * gap + detailHeight + 12)
 		lsp.CompletionFrame.Size = UDim2.fromOffset(width, height)
 		lsp.CompletionTitle.Position = UDim2.fromOffset(8, 4)
-		lsp.CompletionTitle.Size = UDim2.new(1, -16, 0, titleHeight - 4)
-		lsp.CompletionTitle.TextSize = mobile and 12 or 11
+		lsp.CompletionTitle.Size = UDim2.new(1, -16, 0, math.max(1, titleHeight - 4))
+		lsp.CompletionTitle.Text = mobile and "Tap a suggestion" or "Luau Autocomplete"
+		lsp.CompletionTitle.TextSize = mobile and 12 / scale or 11
+		lsp.CompletionTitle.Visible = titleHeight > 0
 		lsp.CompletionList.Position = UDim2.fromOffset(4, titleHeight + 2)
-		lsp.CompletionList.Size = UDim2.new(1, -8, 0, count * rowHeight + math.max(0, count - 1) * gap)
+		lsp.CompletionList.Size = UDim2.new(1, -8, 0, math.max(1, height - titleHeight - detailHeight - 12))
 		lsp.CompletionLayout.Padding = UDim.new(0, gap)
 		lsp.CompletionDetail.Position = UDim2.new(0, 4, 1, -(detailHeight + 4))
 		lsp.CompletionDetail.Size = UDim2.new(1, -8, 0, detailHeight)
-		lsp.CompletionDetail.TextSize = mobile and 11 or 10
+		lsp.CompletionDetail.TextSize = mobile and 11 / scale or 10
+		lsp.CompletionDetail.Visible = detailHeight > 0
 		for i, row in lsp.Rows do
-			row.Size = UDim2.new(1, 0, 0, rowHeight)
-			row.TextSize = mobile and 12 or 11
-			row.Visible = i <= maxRows and lsp.Results[i] ~= nil
-			local scale = row:FindFirstChild("SelectionScale")
-			if scale then scale.Scale = 1 end
+			row.Size = UDim2.new(1, -4, 0, rowHeight)
+			row.TextSize = mobile and 13 / scale or 11
+			row.Visible = lsp.Results[i] ~= nil
+			const zoom = row:FindFirstChild("SelectionScale")
+			if zoom then zoom.Scale = 1 end
 		end
 	end
 
@@ -14105,6 +14144,8 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		NAStuff.ExecutorTools.LSP.CompletionFrame.Visible = false
 		NAStuff.ExecutorTools.LSP.Results = {}
 		NAStuff.ExecutorTools.LSP.Selected = 1
+		NAStuff.ExecutorTools.LSP.TouchPick = nil
+		NAStuff.ExecutorTools.LSP.PickSource = nil
 		NAStuff.ExecutorTools.LSP.UnbindAction()
 	end
 
@@ -14122,7 +14163,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		local item = itemOverride or NAStuff.ExecutorTools.LSP.Results[index or NAStuff.ExecutorTools.LSP.Selected]
 		if not item then return end
 		NAStuff.ExecutorTools.LSP.Accepting = true
-		NAStuff.ExecutorTools.LSP.TouchPick = false
+		NAStuff.ExecutorTools.LSP.TouchPick = nil
 		local source = type(sourceOverride) == "string" and sourceOverride or tostring(textBox.Text or "")
 		local startPos = math.clamp(tonumber(item.replaceStart) or 1, 1, #source + 1)
 		local endPos = math.clamp(tonumber(item.replaceEnd) or (startPos - 1), 0, #source)
@@ -14138,10 +14179,14 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		editorLastCursorPosition = newCursor
 		NAStuff.ExecutorTools.LSP.HideCompletion()
 		Defer(function()
+			if not frame.Parent or not frame.Visible then
+				NAStuff.ExecutorTools.LSP.Accepting = false
+				return
+			end
 			pcall(function()
 				textBox:CaptureFocus()
-				textBox.CursorPosition = newCursor
-				textBox.SelectionStart = -1
+				if textBox.CursorPosition ~= newCursor then textBox.CursorPosition = newCursor end
+				if textBox.SelectionStart ~= -1 then textBox.SelectionStart = -1 end
 			end)
 			NAStuff.ExecutorTools.LSP.Accepting = false
 			NAStuff.ExecutorTools.LSP.Queue()
@@ -14152,7 +14197,9 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		if not input or not NAStuff.ExecutorTools.LSP.CompletionFrame.Visible then return false end
 		local focusedBox = UserInputServiceRef and UserInputServiceRef:GetFocusedTextBox() or nil
 		if not NAmanage.ExecutorLSP_SameInstance(focusedBox, textBox) then return false end
+		if input.UserInputType ~= Enum.UserInputType.Keyboard then return false end
 		local key = input.KeyCode
+		if NAStuff.ExecutorTools.LSP.Mobile and UserInputServiceRef.OnScreenKeyboardVisible and (key == Enum.KeyCode.Return or key == Enum.KeyCode.KeypadEnter) then return false end
 		if key ~= Enum.KeyCode.Tab and key ~= Enum.KeyCode.Return and key ~= Enum.KeyCode.KeypadEnter and key ~= Enum.KeyCode.Escape then
 			return false
 		end
@@ -14176,12 +14223,86 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		return true
 	end
 
-	if NAStuff.ExecutorTools.LSP.KeyConnection then
-		pcall(function() NAStuff.ExecutorTools.LSP.KeyConnection:Disconnect() end)
+	NAStuff.ExecutorTools.LSP.Contains = function(gui, pos)
+		const base, size = gui.AbsolutePosition, gui.AbsoluteSize
+		return pos.X >= base.X and pos.Y >= base.Y and pos.X <= base.X + size.X and pos.Y <= base.Y + size.Y
 	end
-	NAStuff.ExecutorTools.LSP.KeyConnection = UserInputServiceRef.InputBegan:Connect(function(input)
-		NAStuff.ExecutorTools.LSP.HandleFocusedKey(input)
-	end)
+
+	NAStuff.ExecutorTools.LSP.BeginPick = function(input)
+		const lsp = NAStuff.ExecutorTools.LSP
+		if not input or not lsp.CompletionFrame.Visible or lsp.Accepting then return false end
+		if input.UserInputType ~= Enum.UserInputType.Touch and input.UserInputType ~= Enum.UserInputType.MouseButton1 then return false end
+		if lsp.TouchPick and lsp.TouchPick.input == input then return true end
+		const pos = Vector2.new(input.Position.X, input.Position.Y)
+		if not lsp.Contains(lsp.CompletionFrame, pos) then return false end
+		const pick = { input = input, start = pos, source = tostring(textBox.Text or ""), moved = false }
+		if lsp.Contains(lsp.CompletionList, pos) then
+			for i, row in lsp.Rows do
+				if row.Visible and lsp.Contains(row, pos) then
+					pick.index, pick.item = i, lsp.Results[i]
+					break
+				end
+			end
+		end
+		lsp.TouchPick = pick
+		lsp.PickSource = pick.source
+		return true
+	end
+
+	NAStuff.ExecutorTools.LSP.EndPick = function(input)
+		const lsp = NAStuff.ExecutorTools.LSP
+		const pick = lsp.TouchPick
+		if not pick or pick.input ~= input then return end
+		const pos = Vector2.new(input.Position.X, input.Position.Y)
+		if (pos - pick.start).Magnitude > 12 then pick.moved = true end
+		Defer(function()
+			if lsp.TouchPick ~= pick then return end
+			lsp.TouchPick = nil
+			if input.UserInputType == Enum.UserInputType.Touch and input.UserInputState ~= Enum.UserInputState.Cancel and not pick.moved and pick.item and pick.source == tostring(textBox.Text or "") then
+				lsp.Accept(pick.index, pick.source, pick.item)
+			else
+				lsp.Queue()
+			end
+		end)
+	end
+
+	NAStuff.ExecutorTools.LSP.KeyConnection = NAlib.connect("NAExecutorLSP", UserInputServiceRef.InputBegan:Connect(function(input)
+		const lsp = NAStuff.ExecutorTools.LSP
+		if lsp.BeginPick(input) then return end
+		if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+			lsp.PickSource = nil
+			lsp.TouchPick = nil
+			const pos = Vector2.new(input.Position.X, input.Position.Y)
+			if not lsp.Contains(editorPane, pos) then lsp.Hide() end
+		else
+			lsp.HandleFocusedKey(input)
+		end
+	end))
+	NAlib.connect("NAExecutorLSP", UserInputServiceRef.InputChanged:Connect(function(input)
+		const pick = NAStuff.ExecutorTools.LSP.TouchPick
+		if pick and pick.input == input then
+			const pos = Vector2.new(input.Position.X, input.Position.Y)
+			if (pos - pick.start).Magnitude > 12 then pick.moved = true end
+		end
+	end))
+	NAlib.connect("NAExecutorLSP", UserInputServiceRef.InputEnded:Connect(NAStuff.ExecutorTools.LSP.EndPick))
+	for _, prop in { "OnScreenKeyboardVisible", "OnScreenKeyboardPosition", "OnScreenKeyboardSize" } do
+		NAlib.connect("NAExecutorLSP", UserInputServiceRef:GetPropertyChangedSignal(prop):Connect(function()
+			NAStuff.ExecutorTools.LSP.Queue()
+		end))
+	end
+	NAlib.connect("NAExecutorLSP", frame:GetPropertyChangedSignal("AbsolutePosition"):Connect(function()
+		NAStuff.ExecutorTools.LSP.Queue()
+	end))
+	NAlib.connect("NAExecutorLSP", frame:GetPropertyChangedSignal("Visible"):Connect(function()
+		if not frame.Visible then NAStuff.ExecutorTools.LSP.Hide() end
+	end))
+	NAlib.connect("NAExecutorLSP", frame.AncestryChanged:Connect(function(_, parent)
+		if not parent then
+			NAStuff.ExecutorTools.LSP.Hide()
+			NAlib.disconnect("NAExecutorLSP")
+		end
+	end))
 
 	for i = 1, 8 do
 		local row = InstanceNew("TextButton")
@@ -14220,35 +14341,34 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		accentCorner.CornerRadius = UDim.new(1, 0)
 		accentCorner.Parent = accent
 		row.MouseEnter:Connect(function()
-			if row.Visible and NAStuff.ExecutorTools.LSP.Results[i] then
+			if not NAStuff.ExecutorTools.LSP.Mobile and row.Visible and NAStuff.ExecutorTools.LSP.Results[i] then
 				NAStuff.ExecutorTools.LSP.SetSelected(i)
 			end
 		end)
-		row.InputBegan:Connect(function(input)
-			if input.UserInputType == Enum.UserInputType.Touch and row.Visible then
-				NAStuff.ExecutorTools.LSP.TouchPick = true
-				task.delay(0.5, function()
-					if NAStuff.ExecutorTools and NAStuff.ExecutorTools.LSP then
-						NAStuff.ExecutorTools.LSP.TouchPick = false
-					end
-				end)
-			end
-		end)
-		row.Activated:Connect(function()
-			if row.Visible and NAStuff.ExecutorTools.LSP.Results[i] then
-				NAStuff.ExecutorTools.LSP.SetSelected(i)
-				NAStuff.ExecutorTools.LSP.Accept(i)
+		row.InputBegan:Connect(NAStuff.ExecutorTools.LSP.BeginPick)
+		row.Activated:Connect(function(input)
+			if input and input.UserInputType == Enum.UserInputType.Touch then return end
+			const lsp = NAStuff.ExecutorTools.LSP
+			const pick = lsp.TouchPick
+			if pick and (pick.moved or pick.index ~= i or pick.source ~= tostring(textBox.Text or "")) then return end
+			if row.Visible and lsp.Results[i] then
+				lsp.SetSelected(i)
+				lsp.Accept(i, pick and pick.source, pick and pick.item)
 			end
 		end)
 		NAStuff.ExecutorTools.LSP.Rows[i] = row
 	end
 
 	NAStuff.ExecutorTools.LSP.Refresh = function()
-		if NAStuff.ExecutorTools.LSP.Accepting then return end
+		if NAStuff.ExecutorTools.LSP.Accepting or NAStuff.ExecutorTools.LSP.TouchPick then return end
+		if not frame.Visible or not frame.Parent then NAStuff.ExecutorTools.LSP.Hide() return end
 		local focusedBox = UserInputServiceRef and UserInputServiceRef:GetFocusedTextBox() or nil
 		local focused = NAmanage.ExecutorLSP_SameInstance(focusedBox, textBox)
 		if not focused then
-			if NAStuff.ExecutorTools.LSP.TouchPick then return end
+			if not focusedBox and NAStuff.ExecutorTools.LSP.PickSource == tostring(textBox.Text or "") then
+				NAStuff.ExecutorTools.LSP.Position()
+				return
+			end
 			NAStuff.ExecutorTools.LSP.Hide()
 			return
 		end
@@ -14257,8 +14377,13 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		if cursor <= 0 then cursor = tonumber(editorLastCursorPosition) or (#source + 1) end
 		cursor = math.clamp(cursor, 1, #source + 1)
 		NAStuff.ExecutorTools.LSP.UpdateResponsive()
+		if NAStuff.ExecutorTools.LSP.QuerySource ~= source or NAStuff.ExecutorTools.LSP.QueryCursor ~= cursor then
+			NAStuff.ExecutorTools.LSP.QuerySource = source
+			NAStuff.ExecutorTools.LSP.QueryCursor = cursor
+			NAStuff.ExecutorTools.LSP.CompletionList.CanvasPosition = Vector2.new(0, 0)
+		end
 		if cfg.autocomplete then
-			NAStuff.ExecutorTools.LSP.Results = NAmanage.ExecutorLSP_GetCompletions(source, cursor, NAStuff.ExecutorTools.LSP.VisibleRows or 8)
+			NAStuff.ExecutorTools.LSP.Results = NAmanage.ExecutorLSP_GetCompletions(source, cursor, 8)
 		else
 			NAStuff.ExecutorTools.LSP.Results = {}
 		end
@@ -14266,7 +14391,7 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		NAStuff.ExecutorTools.LSP.UpdateResponsive()
 		for i, row in NAStuff.ExecutorTools.LSP.Rows do
 			local item = NAStuff.ExecutorTools.LSP.Results[i]
-			row.Visible = item ~= nil and i <= (NAStuff.ExecutorTools.LSP.VisibleRows or 8)
+			row.Visible = item ~= nil
 			if item then
 				local icon = item.kind == "Function" and "ƒ" or (item.kind == "Method" and "m" or (item.kind == "Property" and "p" or (item.kind == "Event" and "e" or (item.kind == "Service" and "S" or (item.kind == "Class" and "C" or "•")))))
 				row.Text = "  "..icon.."  "..item.label.."    ["..item.kind.."]"
@@ -14931,7 +15056,6 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 	local editorRenderedText = ""
 	local editorRenderedStart = 1
 	local editorRenderedEnd = 1
-	local editorLastCursorPosition = 1
 	NAStuff.ExecutorTools.TabsLoaded = false
 	local commitCurrentPage
 	local queueRefreshEditor
@@ -16165,16 +16289,18 @@ NAmanage.Executor_Init = NAmanage.Executor_Init or function()
 		NAStuff.ExecutorTools.LSP.Queue()
 	end)
 	textBox.Focused:Connect(function()
+		NAStuff.ExecutorTools.LSP.PickSource = nil
 		NAStuff.ExecutorTools.LSP.Queue()
 	end)
-	textBox.FocusLost:Connect(function()
+	textBox.FocusLost:Connect(function(_, input)
+		NAStuff.ExecutorTools.LSP.BeginPick(input)
 		if editorLoaded and type(saveTabsNow) == "function" then
 			saveTabsNow()
 		end
 		Defer(function()
 			local focusedBox = UserInputServiceRef:GetFocusedTextBox()
-			if not NAmanage.ExecutorLSP_SameInstance(focusedBox, textBox) and not NAStuff.ExecutorTools.LSP.TouchPick then
-				NAStuff.ExecutorTools.LSP.Hide()
+			if not NAmanage.ExecutorLSP_SameInstance(focusedBox, textBox) then
+				NAStuff.ExecutorTools.LSP.Queue()
 			end
 		end)
 	end)
