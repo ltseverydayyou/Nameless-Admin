@@ -244,7 +244,7 @@ NAmanage.RegisterToggleAutoSync("Safe Command Input", function()
 	return NAStuff.CmdInputSafeMode ~= false
 end)
 
-NAmanage.ApplyStandaloneFFlag = NAmanage.ApplyStandaloneFFlag or function(flagName, flagValue, opts)
+NAmanage.ApplyStandaloneFFlag = function(flagName, flagValue, opts)
 	opts = opts or {}
 	local setter = nil
 	if type(setfflag) == "function" then
@@ -262,7 +262,15 @@ NAmanage.ApplyStandaloneFFlag = NAmanage.ApplyStandaloneFFlag or function(flagNa
 		return false, "unsupported"
 	end
 
-	local ok, err = pcall(setter, flagName, tostring(flagValue))
+	const value = tostring(flagValue)
+	if type(getfflag) == "function" then
+		const ok, current = pcall(getfflag, flagName)
+		if ok and (tostring(current) == value or (type(flagValue) == "boolean" and tostring(current):lower() == value)) then
+			return true
+		end
+	end
+
+	local ok, err = pcall(setter, flagName, value)
 	if not ok then
 		if not opts.silent then
 			DoNotif("Failed to set "..tostring(flagName)..".", 3)
@@ -272,6 +280,67 @@ NAmanage.ApplyStandaloneFFlag = NAmanage.ApplyStandaloneFFlag or function(flagNa
 
 	return true
 end
+
+NAlib.disconnect("standalone_fflags")
+NAmanage._standaloneFFlags = {}
+
+NAmanage.EnsureStandaloneFFlagLoop = function()
+	const flags = NAmanage._standaloneFFlags
+	if not next(flags) or NAlib.isConnected("standalone_fflags") then
+		return
+	end
+	const token = NAmanage._runToken
+	local elapsed = 0
+	local conn
+	conn = Services.RunService.Heartbeat:Connect(function(dt)
+		if not NAmanage.IsActiveRun(token) or NAStuff._unloading then
+			conn:Disconnect()
+			return
+		end
+		elapsed += dt
+		if elapsed < 0.1 then
+			return
+		end
+		elapsed %= 0.1
+		for name, entry in flags do
+			NAmanage.ApplyStandaloneFFlag(name, entry.value, { silent = true })
+		end
+	end)
+	NAlib.reconnect("standalone_fflags", conn)
+end
+
+NAmanage.SetStandaloneFFlag = function(flagName, enabled, opts, onValue, offValue)
+	enabled = enabled == true
+	if onValue == nil then onValue = true end
+	if offValue == nil then offValue = false end
+	local value = offValue
+	if enabled then value = onValue end
+	const ok, err = NAmanage.ApplyStandaloneFFlag(flagName, value, opts)
+	if not ok then
+		return false, err
+	end
+	const flags = NAmanage._standaloneFFlags
+	if enabled then
+		flags[flagName] = { value = value, reset = offValue }
+		NAmanage.EnsureStandaloneFFlagLoop()
+	else
+		flags[flagName] = nil
+		if not next(flags) then
+			NAlib.disconnect("standalone_fflags")
+		end
+	end
+	return true
+end
+
+NAmanage.ClearStandaloneFFlags = function()
+	NAlib.disconnect("standalone_fflags")
+	const flags = NAmanage._standaloneFFlags
+	for name, entry in flags do
+		NAmanage.ApplyStandaloneFFlag(name, entry.reset, { silent = true })
+	end
+	table.clear(flags)
+end
+NAmanage.RegisterUnloadCleanup("standalone_fflags", NAmanage.ClearStandaloneFFlags)
 
 NAgui.addToggle("Hide Purchase Prompt GUI", NAStuff.PurchasePromptsDisabled == true, function(v)
 	NAStuff.PurchasePromptsDisabled = v == true
@@ -283,8 +352,8 @@ NAmanage.RegisterToggleAutoSync("Hide Purchase Prompt GUI", function()
 	return NAStuff.PurchasePromptsDisabled == true
 end)
 
-NAmanage.SetOrder66PurchaseBlock = NAmanage.SetOrder66PurchaseBlock or function(enabled, opts)
-	return NAmanage.ApplyStandaloneFFlag("Order66", enabled == true, opts)
+NAmanage.SetOrder66PurchaseBlock = function(enabled, opts)
+	return NAmanage.SetStandaloneFFlag("Order66", enabled, opts)
 end
 
 NAmanage.SetOrder66PurchaseBlock(NAStuff.Order66PurchaseBlock == true, { silent = true })
@@ -317,8 +386,8 @@ const function buildEngineSettingsControls()
 
 	NAgui.addSection("Visual Effects")
 	NAgui.addInfo("Fast Particle Effects Info", "Makes particles, smoke, fire, beams, and similar effects update faster and more repetitively. This changes effect behavior; it is not a general FPS booster.")
-	NAmanage.SetFastParticleEffects = NAmanage.SetFastParticleEffects or function(enabled, opts)
-		return NAmanage.ApplyStandaloneFFlag("DebugRenderingSetDeterministic", enabled == true, opts)
+	NAmanage.SetFastParticleEffects = function(enabled, opts)
+		return NAmanage.SetStandaloneFFlag("DebugRenderingSetDeterministic", enabled, opts)
 	end
 	NAmanage.SetFastParticleEffects(NAStuff.FastParticleEffects == true, { silent = true })
 	NAgui.addToggle("Fast Particle Effects", NAStuff.FastParticleEffects == true, function(v)
@@ -1018,8 +1087,8 @@ buildAssetLoadingControls()
 NAgui.addSection("Lighting Performance")
 NAgui.addInfo("Dynamic Lighting Warning", "Freezing dynamic lighting updates stops Roblox's light voxel data from updating. PointLights and SurfaceLights may stop producing or updating light until this is disabled or Roblox is restarted.")
 
-NAmanage.SetVoxelizerLightingPause = NAmanage.SetVoxelizerLightingPause or function(enabled, opts)
-	return NAmanage.ApplyStandaloneFFlag("DebugPauseVoxelizer", enabled == true, opts)
+NAmanage.SetVoxelizerLightingPause = function(enabled, opts)
+	return NAmanage.SetStandaloneFFlag("DebugPauseVoxelizer", enabled, opts)
 end
 NAmanage.SetVoxelizerLightingPause(NAStuff.PauseVoxelizerLighting == true, { silent = true })
 NAgui.addToggle("Freeze Dynamic Lighting Updates", NAStuff.PauseVoxelizerLighting == true, function(v)
@@ -1283,35 +1352,15 @@ NAgui.ScreenGuiNoRenderGet=function()
 end
 
 NAgui.ScreenGuiNoRenderSet=function(enabled, opts)
-	opts = opts or {}
-	const silent = opts.silent == true
-	if NAFFlags and NAFFlags.apply then
-		local ok, err = NAFFlags.apply(NAgui.SCREEN_GUI_NO_RENDER_FLAG, enabled, { allowDisabled = true, silent = silent })
-		if ok then
-			NAStuff._DebugDontRenderScreenGui = enabled
-		end
-		return ok, err
-	end
-	local setter
-	if type(setfflag) == "function" then
-		setter = setfflag
-	elseif game and type(game.DefineFastFlag) == "function" then
-		setter = function(name, value)
-			return game:DefineFastFlag(name, value)
-		end
-	end
-	if not setter then
-		return false, "unsupported"
-	end
-	local ok, err = pcall(setter, NAgui.SCREEN_GUI_NO_RENDER_FLAG, enabled and "true" or "false")
+	local ok, err = NAmanage.SetStandaloneFFlag(NAgui.SCREEN_GUI_NO_RENDER_FLAG, enabled, opts)
 	if ok then
-		NAStuff._DebugDontRenderScreenGui = enabled
+		NAStuff._DebugDontRenderScreenGui = enabled == true
 	end
 	return ok, err
 end
 
 NAgui.ScreenGuiNoRenderToggle=function()
-	const desired = not NAgui.ScreenGuiNoRenderGet()
+	const desired = not (NAStuff._DebugDontRenderScreenGui == true)
 	local ok, err = NAgui.ScreenGuiNoRenderSet(desired)
 	if not ok then
 		DoNotif("ScreenGui render toggle failed: "..tostring(err), 3)
@@ -13288,9 +13337,9 @@ NAmanage.ApplyJump = function(val)
 end
 
 NAgui.addSection("Methods")
-NAmanage.SetEnhancedPhysicsReplication = NAmanage.SetEnhancedPhysicsReplication or function(enabled, opts)
+NAmanage.SetEnhancedPhysicsReplication = function(enabled, opts)
 	const rate = enabled == true and 64 or 15
-	return NAmanage.ApplyStandaloneFFlag("S2PhysicsSenderRate", rate, opts), rate
+	return NAmanage.SetStandaloneFFlag("S2PhysicsSenderRate", enabled, opts, 64, 15), rate
 end
 
 NAmanage.SetEnhancedPhysicsReplication(NAStuff.EnhancedPhysicsReplication == true, { silent = true })
