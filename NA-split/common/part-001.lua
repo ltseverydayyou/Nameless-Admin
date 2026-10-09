@@ -2877,8 +2877,16 @@ end
 
 NAmanage.isUIComplete = NAmanage.isUIComplete or function(gui)
 	if typeof(gui) ~= "Instance" or not gui:IsA("ScreenGui") then return false end
-	local cmdBar = gui:FindFirstChild("CmdBar")
-	local center = cmdBar and cmdBar:FindFirstChild("CenterBar")
+	local refs = type(NAUIMANAGER) == "table" and NAUIMANAGER or nil
+	local bar = refs and refs.cmdBar
+	local center = refs and refs.centerBar
+	local input = refs and refs.cmdInput
+	if typeof(bar) == "Instance" and typeof(center) == "Instance" and typeof(input) == "Instance"
+		and bar.Parent == gui and center.Parent == bar and input.Parent == center then
+		return true
+	end
+	bar = gui:FindFirstChild("CmdBar")
+	center = bar and bar:FindFirstChild("CenterBar")
 	return center ~= nil and center:FindFirstChild("Input") ~= nil
 end
 
