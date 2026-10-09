@@ -8,6 +8,10 @@ local __NA_SPLIT_CONFIG = {
 -- © 2026 Nameless Admin. All rights reserved. Do not copy, paste, redistribute, or claim as your own.
 
 local __NARootHost = (getgenv and getgenv()) or _G or {}
+local __naPrev = type(__NARootHost) == "table" and rawget(__NARootHost, "_na_boot") or nil
+if type(__naPrev) == "table" and rawget(__naPrev, "runtimeEnv") == __NARootHost and type(rawget(__naPrev, "hostEnv")) == "table" then
+	__NARootHost = __naPrev.hostEnv
+end
 local __NARootPreviousNACaller = type(__NARootHost) == "table" and rawget(__NARootHost, "NACaller") or nil
 local __NARootErrorState = type(__NARootHost) == "table" and rawget(__NARootHost, "__NAErrorLogState") or nil
 if type(__NARootErrorState) ~= "table" then
@@ -212,7 +216,7 @@ local function __NARootNACaller(fnOrOptions, ...)
 end
 
 local __NA_SPLIT_LOAD_TOKEN = {}
-local __NA_GLOBAL_ENV = (type(getgenv) == "function" and getgenv()) or _G or {}
+local __NA_GLOBAL_ENV = __NARootHost
 local __NA_GLOBAL_STATE_KEY = "__NamelessAdminRuntimeState"
 local __NA_SPLIT_SESSION = tostring(game.PlaceId).."_"..tostring(game.JobId)
 local __NA_GLOBAL_PREVIOUS_STATE = type(__NA_GLOBAL_ENV) == "table" and rawget(__NA_GLOBAL_ENV, __NA_GLOBAL_STATE_KEY) or nil

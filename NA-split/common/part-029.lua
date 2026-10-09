@@ -1795,7 +1795,7 @@ originalIO.runNACHAT=function()
 			return withMarkup, wasMentioned
 		end
 
-		local __NAChatEnv = (type(getgenv) == "function" and getgenv()) or _G or {}
+		local __NAChatEnv = _na_boot.hostEnv
 		local INTEGRATION_URL = (type(__NAChatEnv) == "table" and rawget(__NAChatEnv, "NAChatIntegrationUrl")) or "https://raw.githubusercontent.com/ltseverydayyou/Open-Cheating-Network/refs/heads/main/Client/NewClient.luau"
 		local connect
 

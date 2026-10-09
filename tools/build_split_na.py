@@ -347,7 +347,7 @@ local __NA_SPLIT_CONFIG = {{
 {prefix}
 
 local __NA_SPLIT_LOAD_TOKEN = {{}}
-local __NA_GLOBAL_ENV = (type(getgenv) == "function" and getgenv()) or _G or {{}}
+local __NA_GLOBAL_ENV = __NARootHost
 local __NA_GLOBAL_STATE_KEY = "__NamelessAdminRuntimeState"
 local __NA_GLOBAL_PREVIOUS_STATE = type(__NA_GLOBAL_ENV) == "table" and rawget(__NA_GLOBAL_ENV, __NA_GLOBAL_STATE_KEY) or nil
 if type(__NA_GLOBAL_PREVIOUS_STATE) == "table" and (__NA_GLOBAL_PREVIOUS_STATE.loading == true or __NA_GLOBAL_PREVIOUS_STATE.loaded == true) then
@@ -1025,6 +1025,15 @@ def write_boots(source_lines: list[str], chunk_count: int) -> str:
         '"NA Source: NA testing.lua"',
         '"NA Source: "..__NA_SPLIT_SOURCE_TAG',
     )
+    host_line = 'local __NARootHost = (getgenv and getgenv()) or _G or {}'
+    unwrap = (
+        'local __naPrev = type(__NARootHost) == "table" and rawget(__NARootHost, "_na_boot") or nil\n'
+        'if type(__naPrev) == "table" and rawget(__naPrev, "runtimeEnv") == __NARootHost and type(rawget(__naPrev, "hostEnv")) == "table" then\n'
+        '\t__NARootHost = __naPrev.hostEnv\n'
+        'end'
+    )
+    if host_line in prefix and 'local __naPrev = ' not in prefix:
+        prefix = prefix.replace(host_line, host_line + '\n' + unwrap, 1)
     prefix = prefix.replace('if type(__NARootHost) == "table" then\n\tpcall(rawset, __NARootHost, "NACaller", __NARootNACaller)\nend', "").rstrip()
     for name, testing in (("Source.lua", "false"), ("NA testing.lua", "true")):
         boot = BOOT_LOADER.format(

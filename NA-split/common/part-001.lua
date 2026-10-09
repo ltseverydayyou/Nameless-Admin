@@ -49,7 +49,25 @@ _na_boot.runtimeEnv._na_shared = _na_shared
 _na_boot.runtimeEnv.shared = _na_shared
 _na_boot.runtimeEnv._G = _na_boot.runtimeEnv
 _na_boot.runtimeEnv.getgenv = function()
-	return _na_boot.hostEnv
+	return _na_boot.runtimeEnv
+end
+
+_na_boot.bindChunk = function(loader, ...)
+	local fn, err = loader(...)
+	if type(fn) == "function" and type(_na_boot.hostSetfenv) == "function" then
+		_na_boot.hostSetfenv(fn, _na_boot.runtimeEnv)
+	end
+	return fn, err
+end
+if type(_na_boot.hostLoadstring) == "function" then
+	_na_boot.runtimeEnv.loadstring = function(...)
+		return _na_boot.bindChunk(_na_boot.hostLoadstring, ...)
+	end
+end
+if type(_na_boot.hostLoad) == "function" then
+	_na_boot.runtimeEnv.load = function(...)
+		return _na_boot.bindChunk(_na_boot.hostLoad, ...)
+	end
 end
 
 do
@@ -73,6 +91,9 @@ _na_boot.runtimeEnv.getfenv = function(target)
 		return _na_boot.runtimeEnv
 	end
 	if type(_na_boot.hostGetfenv) == "function" then
+		if type(target) == "number" and target > 0 then
+			target += 1
+		end
 		return _na_boot.hostGetfenv(target)
 	end
 	return _na_boot.runtimeEnv
@@ -2803,6 +2824,17 @@ Services = {
 	LogService = SafeGetService("LogService");
 }
 
+NAmanage.sameInst = function(a, b)
+	if a == b then
+		return true
+	end
+	if type(compareinstances) == "function" and typeof(a) == "Instance" and typeof(b) == "Instance" then
+		local ok, same = pcall(compareinstances, a, b)
+		return ok and same == true
+	end
+	return false
+end
+
 NAmanage.SafeCloneRef = NAmanage.SafeCloneRef or function(value)
 	if value == nil then
 		return nil
@@ -3085,12 +3117,12 @@ NAmanage.NARegisterUI=function(gui)
 		end)
 		if not parent then
 			pcall(function()
-				parent = game:GetService("CoreGui")
+				parent = Services.CoreGui or SafeGetService("CoreGui")
 			end)
 		end
 		if not parent then
 			pcall(function()
-				local players = game:GetService("Players")
+				const players = Services.Players or SafeGetService("Players")
 				parent = players and players.LocalPlayer and players.LocalPlayer:FindFirstChildOfClass("PlayerGui")
 			end)
 		end
@@ -4445,8 +4477,6 @@ NAmanage._descHubGet = NAmanage._descHubGet or function(root)
 end
 
 NAmanage.descSub = NAmanage.descSub or function(root, spec)
-	const RawWorkspace = __lt.gs("Workspace")
-	const RawCoreGui = __lt.gs("CoreGui")
 	const noop = {
 		Connected = false,
 		Disconnect = function() end,
@@ -4454,11 +4484,11 @@ NAmanage.descSub = NAmanage.descSub or function(root, spec)
 	if typeof(root) ~= "Instance" then
 		return noop
 	end
-	if (root == Services.Workspace or root == RawWorkspace) and NAmanage.wsSub then
+	if NAmanage.sameInst(root, Services.Workspace) and NAmanage.wsSub then
 		return NAmanage.wsSub(spec)
 	end
 	const coreRoot = (typeof(Services.CoreGui) == "Instance" and Services.CoreGui) or SafeGetService("CoreGui")
-	if coreRoot and (root == coreRoot or root == RawCoreGui) and NAmanage.cgSub then
+	if coreRoot and NAmanage.sameInst(root, coreRoot) and NAmanage.cgSub then
 		return NAmanage.cgSub(spec)
 	end
 	if NAmanage.pgSub and NAmanage._pgHubGet then
