@@ -2907,19 +2907,31 @@ NAmanage.uiObj = NAmanage.uiObj or function(v, seen)
 	return nil
 end
 
+NAmanage.hasUIRefs = function(gui)
+	if typeof(gui) ~= "Instance" or not gui:IsA("ScreenGui") then return false end
+	const refs = type(NAUIMANAGER) == "table" and NAUIMANAGER or nil
+	const bar = refs and refs.cmdBar
+	const center = refs and refs.centerBar
+	const input = refs and refs.cmdInput
+	return typeof(bar) == "Instance" and bar:IsA("GuiObject")
+		and typeof(center) == "Instance" and center:IsA("GuiObject")
+		and typeof(input) == "Instance" and input:IsA("TextBox")
+		and NAmanage.sameInst(bar.Parent, gui)
+		and NAmanage.sameInst(center.Parent, bar)
+		and NAmanage.sameInst(input.Parent, center)
+end
+
 NAmanage.isUIComplete = NAmanage.isUIComplete or function(gui)
 	if typeof(gui) ~= "Instance" or not gui:IsA("ScreenGui") then return false end
-	local refs = type(NAUIMANAGER) == "table" and NAUIMANAGER or nil
-	local bar = refs and refs.cmdBar
-	local center = refs and refs.centerBar
-	local input = refs and refs.cmdInput
-	if typeof(bar) == "Instance" and typeof(center) == "Instance" and typeof(input) == "Instance"
-		and bar.Parent == gui and center.Parent == bar and input.Parent == center then
+	if NAmanage.hasUIRefs(gui) then
 		return true
 	end
-	bar = gui:FindFirstChild("CmdBar")
-	center = bar and bar:FindFirstChild("CenterBar")
-	return center ~= nil and center:FindFirstChild("Input") ~= nil
+	const bar = gui:FindFirstChild("CmdBar")
+	const center = bar and bar:FindFirstChild("CenterBar")
+	const input = center and center:FindFirstChild("Input")
+	return bar ~= nil and bar:IsA("GuiObject")
+		and center ~= nil and center:IsA("GuiObject")
+		and input ~= nil and input:IsA("TextBox")
 end
 
 NAmanage.getUI = NAmanage.getUI or function()

@@ -4552,7 +4552,20 @@ NAmanage.stripChar = function(text, trimWhitespace)
 	return cleaned
 end
 
-predictionInput = NAUIMANAGER.cmdInput:Clone()
+if not NAmanage.hasUIRefs(NAStuff.NASCREENGUI) then
+	error("Nameless Admin command input is unavailable for autocomplete", 0)
+end
+
+do
+	const prev = predictionInput
+	predictionInput = NAUIMANAGER.cmdInput:Clone()
+	if not predictionInput then
+		error("Nameless Admin command input could not be cloned for autocomplete", 0)
+	end
+	if typeof(prev) == "Instance" and not NAmanage.sameInst(prev, NAUIMANAGER.cmdInput) then
+		prev:Destroy()
+	end
+end
 predictionInput.Name = "predictionInput"
 predictionInput.TextEditable = false
 predictionInput.Active = false
