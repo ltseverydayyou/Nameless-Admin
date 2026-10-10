@@ -216,9 +216,28 @@ local function __NARootNACaller(fnOrOptions, ...)
 end
 
 local __NA_SPLIT_LOAD_TOKEN = {}
-local __NA_GLOBAL_ENV = __NARootHost
 local __NA_GLOBAL_STATE_KEY = "__NamelessAdminRuntimeState"
 local __NA_SPLIT_SESSION = tostring(game.PlaceId).."_"..tostring(game.JobId)
+local function __NA_SPLIT_ROOT()
+	local reg
+	local get = rawget(__NARootHost, "getreg") or getreg
+	if type(get) == "function" then
+		pcall(function() reg = get() end)
+	end
+	local dbg = rawget(__NARootHost, "debug") or debug
+	if type(reg) ~= "table" and type(dbg) == "table" and type(dbg.getregistry) == "function" then
+		pcall(function() reg = dbg.getregistry() end)
+	end
+	if type(reg) ~= "table" then reg = __NARootHost end
+	local root = rawget(reg, "__nameless_admin_private")
+	local state = type(root) == "table" and rawget(root, __NA_GLOBAL_STATE_KEY)
+	if type(root) ~= "table" or (type(state) == "table" and state.session ~= nil and state.session ~= __NA_SPLIT_SESSION) then
+		root = {}
+		rawset(reg, "__nameless_admin_private", root)
+	end
+	return root, reg
+end
+local __NA_GLOBAL_ENV, __NA_SPLIT_REG = __NA_SPLIT_ROOT()
 local __NA_GLOBAL_PREVIOUS_STATE = type(__NA_GLOBAL_ENV) == "table" and rawget(__NA_GLOBAL_ENV, __NA_GLOBAL_STATE_KEY) or nil
 local function __NA_SPLIT_ACTIVE(state)
 	if type(state) ~= "table" then return false end
@@ -230,7 +249,7 @@ local function __NA_SPLIT_ACTIVE(state)
 	if state.loading == true then
 		if type(state.thread) == "thread" then
 			local ok, status = pcall(coroutine.status, state.thread)
-			if ok and status == "dead" then return false end
+			if ok then return status ~= "dead" end
 		end
 		local updated = tonumber(state.updated or state.started)
 		return not updated or os.clock() - updated < 180
@@ -274,9 +293,18 @@ if not __NA_SPLIT_READY then
 end
 
 __NA_SPLIT_SESSION = tostring(game.PlaceId).."_"..tostring(game.JobId)
+__NA_GLOBAL_ENV, __NA_SPLIT_REG = __NA_SPLIT_ROOT()
 __NA_GLOBAL_PREVIOUS_STATE = type(__NA_GLOBAL_ENV) == "table" and rawget(__NA_GLOBAL_ENV, __NA_GLOBAL_STATE_KEY) or nil
 if __NA_SPLIT_ACTIVE(__NA_GLOBAL_PREVIOUS_STATE) then
 	return
+end
+
+local __NA_SPLIT_HOST_STATE = rawget(__NARootHost, __NA_GLOBAL_STATE_KEY)
+if type(__NA_SPLIT_HOST_STATE) == "table" and __NA_SPLIT_HOST_STATE.session ~= nil and __NA_SPLIT_HOST_STATE.session ~= __NA_SPLIT_SESSION then
+	rawset(__NARootHost, __NA_GLOBAL_STATE_KEY, nil)
+	rawset(__NARootHost, "__NA_SPLIT_LOADING", nil)
+	rawset(__NARootHost, "NA_LOADED", nil)
+	rawset(__NARootHost, "ltseverydayyou_NA", nil)
 end
 
 local __NA_SPLIT_STALE = type(__NA_GLOBAL_PREVIOUS_STATE) == "table"
@@ -309,6 +337,12 @@ if type(__NA_GLOBAL_ENV) == "table" then
 	end
 end
 
+local function __NA_SPLIT_OWNS()
+	return rawget(__NA_SPLIT_REG, "__nameless_admin_private") == __NA_GLOBAL_ENV
+		and rawget(__NA_GLOBAL_ENV, __NA_GLOBAL_STATE_KEY) == __NA_GLOBAL_STATE
+		and tostring(game.PlaceId).."_"..tostring(game.JobId) == __NA_SPLIT_SESSION
+end
+
 local function __NA_SPLIT_SET_STAGE(stage)
 	__NA_GLOBAL_STATE.stage = stage
 	__NA_GLOBAL_STATE.updated = os.clock()
@@ -330,6 +364,7 @@ if __NA_SPLIT_HOST_LOADING or __NA_SPLIT_HOST_LOADED then
 	return
 end
 if type(__NARootHost) == "table" then
+	rawset(__NARootHost, __NA_GLOBAL_STATE_KEY, __NA_GLOBAL_STATE)
 	rawset(__NARootHost, "__NA_SPLIT_LOADING", __NA_SPLIT_LOAD_TOKEN)
 	if rawget(__NARootHost, "__NA_SPLIT_LOADING") ~= __NA_SPLIT_LOAD_TOKEN then
 		return
@@ -368,11 +403,12 @@ local function __NA_SPLIT_RELEASE(success)
 			__NA_SPLIT_SET_STAGE("ready")
 		else
 			rawset(__NA_GLOBAL_ENV, __NA_GLOBAL_STATE_KEY, nil)
-			if type(__NARootHost) == "table" then
-				rawset(__NARootHost, "NA_LOADED", nil)
-				rawset(__NARootHost, "ltseverydayyou_NA", nil)
-			end
 		end
+	end
+	if not success and rawget(__NARootHost, __NA_GLOBAL_STATE_KEY) == __NA_GLOBAL_STATE then
+		rawset(__NARootHost, __NA_GLOBAL_STATE_KEY, nil)
+		rawset(__NARootHost, "NA_LOADED", nil)
+		rawset(__NARootHost, "ltseverydayyou_NA", nil)
 	end
 	__NA_SPLIT_CLEAR_LOADING()
 end
@@ -811,6 +847,8 @@ end
 local __NA_SPLIT_ENV
 local function __NA_SPLIT_RUN()
 	__NA_SPLIT_CONFIG.state = __NA_GLOBAL_STATE
+	__NA_SPLIT_CONFIG.privateRoot = __NA_GLOBAL_ENV
+	__NA_SPLIT_CONFIG.privateRegistry = __NA_SPLIT_REG
 	__NA_SPLIT_CONFIG.cacheRoot = __NA_SPLIT_CACHE_ROOT
 	__NA_SPLIT_CONFIG.offline = __NA_SPLIT_REMOTE_META == nil
 	__NA_SPLIT_CONFIG.moduleRead = __NA_SPLIT_READ_MODULE
@@ -850,7 +888,7 @@ local function __NA_SPLIT_RUN()
 	})
 	__NA_SPLIT_ENV = environment
 	for index = 1, __NA_SPLIT_COUNT do
-		if rawget(__NA_GLOBAL_ENV, __NA_GLOBAL_STATE_KEY) ~= __NA_GLOBAL_STATE then
+		if not __NA_SPLIT_OWNS() then
 			error("Nameless Admin loading was cancelled", 0)
 		end
 		local partName = string.format("part-%03d.lua", index)
@@ -858,6 +896,7 @@ local function __NA_SPLIT_RUN()
 		__NA_GLOBAL_STATE.details.fingerprint = __NA_SPLIT_PART_FINGERPRINT(__NA_SPLIT_REMOTE_META or __NA_SPLIT_LOCAL_META, partName)
 		__NA_SPLIT_SET_STAGE(partName)
 		local source = __NA_SPLIT_READ_PART(partName)
+		if not __NA_SPLIT_OWNS() then error("Nameless Admin loading was cancelled", 0) end
 		local chunk = __NA_SPLIT_LOAD_PART(source, "NA-split/common/"..partName, environment)
 		local okRun, runError = xpcall(chunk, __NA_SPLIT_FORMAT_ERROR)
 		chunk = nil
@@ -866,6 +905,11 @@ local function __NA_SPLIT_RUN()
 			error(__NA_SPLIT_FORMAT_ERROR(runError), 0)
 		end
 		if index == 1 then
+			if runError == "__NA_SPLIT_DUPLICATE" then
+				__NA_SPLIT_CONFIG.duplicate = true
+				__NA_SPLIT_ENV = nil
+				return
+			end
 			local boot = rawget(environment, "_na_boot")
 			if type(boot) ~= "table" or type(boot.runtimeEnv) ~= "table" then
 				error("Nameless Admin split bootstrap did not initialize", 0)
@@ -886,7 +930,7 @@ local function __NA_SPLIT_RUN()
 		__NA_SPLIT_CACHE_PART(partName)
 		__NA_SPLIT_YIELD()
 	end
-	if rawget(__NA_GLOBAL_ENV, __NA_GLOBAL_STATE_KEY) ~= __NA_GLOBAL_STATE then
+	if not __NA_SPLIT_OWNS() then
 		error("Nameless Admin loading was cancelled", 0)
 	end
 	__NA_SPLIT_SET_STAGE("cache")
@@ -896,9 +940,11 @@ local function __NA_SPLIT_RUN()
 end
 
 local function __NA_SPLIT_ABORT()
+	if not __NA_SPLIT_OWNS() then return end
 	local environment = __NA_SPLIT_ENV
 	if type(environment) ~= "table" then return end
 	local boot = rawget(environment, "_na_boot")
+	if type(boot) == "table" and type(boot.splitConfig) == "table" and boot.splitConfig.state ~= __NA_GLOBAL_STATE then return end
 	local runtime = type(boot) == "table" and boot.runtimeEnv or environment
 	local manage = rawget(runtime, "NAmanage")
 	local unload = type(manage) == "table" and rawget(manage, "Unload")
@@ -973,7 +1019,8 @@ local __NARootResult = table.pack(__NARootNACaller({
 
 if not __NARootResult[1] then pcall(__NA_SPLIT_ABORT) end
 
-if not __NARootResult[1] and type(__NARootHost) == "table" then
+if (not __NARootResult[1] or __NA_SPLIT_CONFIG.duplicate) and type(__NARootHost) == "table"
+	and rawget(__NARootHost, "NACaller") == __NARootNACaller then
 	pcall(function()
 		if __NARootPreviousNACaller ~= nil then
 			rawset(__NARootHost, "NACaller", __NARootPreviousNACaller)
@@ -984,7 +1031,7 @@ if not __NARootResult[1] and type(__NARootHost) == "table" then
 end
 
 if __NARootResult[1] then
-	__NA_SPLIT_RELEASE(true)
+	__NA_SPLIT_RELEASE(not __NA_SPLIT_CONFIG.duplicate)
 	return table.unpack(__NARootResult, 2, __NARootResult.n)
 end
 

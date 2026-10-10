@@ -37,9 +37,23 @@ _na_boot.ensureTable = function(host, key)
 	end
 	return value
 end
-_na_boot.privateRegistry = _na_boot.getPrivateRegistry()
-_na_boot.privateRoot = _na_boot.ensureTable(_na_boot.privateRegistry, "__nameless_admin_private")
-_na_env = _na_boot.ensureTable(_na_boot.privateRoot, "testing")
+_na_boot.privateRegistry = type(_na_boot.splitConfig) == "table" and _na_boot.splitConfig.privateRegistry or _na_boot.getPrivateRegistry()
+do
+	const cfg = _na_boot.splitConfig
+	const root = type(cfg) == "table" and cfg.privateRoot
+	_na_boot.privateRoot = type(root) == "table" and root or _na_boot.ensureTable(_na_boot.privateRegistry, "__nameless_admin_private")
+	const state = type(cfg) == "table" and cfg.state
+	const prev = rawget(_na_boot.privateRoot, "__NamelessAdminRuntimeState")
+	if type(state) == "table" and type(prev) == "table" and prev ~= state and prev.session == state.session and (prev.loading == true or prev.loaded == true) then
+		return "__NA_SPLIT_DUPLICATE"
+	end
+end
+if type(_na_boot.splitConfig) == "table" and type(_na_boot.splitConfig.state) == "table" then
+	_na_env = {}
+	_na_boot.privateRoot.testing = _na_env
+else
+	_na_env = _na_boot.ensureTable(_na_boot.privateRoot, "testing")
+end
 _na_shared = _na_boot.ensureTable(_na_env, "shared")
 _na_boot.runtimeEnv = _na_boot.ensureTable(_na_env, "runtime")
 _na_boot.runtimeEnv._na_boot = _na_boot
@@ -634,7 +648,7 @@ end
 
 if naAlreadyLoaded() then
 	_na_boot.installExistingMCPBridge()
-	return
+	return "__NA_SPLIT_DUPLICATE"
 end
 
 naFlagValue = tick()

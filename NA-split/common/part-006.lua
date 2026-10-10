@@ -993,7 +993,9 @@ NAmanage.Unload = function(opts)
 	const rawSpawn = NAmanage._rawTaskSpawn or task.spawn
 	const function ownsCleanup()
 		const current = rawget(_na_boot.hostEnv, "__NamelessAdminRuntimeState")
-		return current == nil or current == bootState
+		const state = rawget(_na_boot.privateRoot, "__NamelessAdminRuntimeState")
+		const root = rawget(_na_boot.privateRegistry, "__nameless_admin_private")
+		return root == _na_boot.privateRoot and (current == nil or current == bootState) and (state == nil or state == bootState)
 	end
 	const function cleanGradients()
 		if ownsCleanup() then NAmanage.RemovePlexityGradients() end
@@ -1102,8 +1104,7 @@ NAmanage.Unload = function(opts)
 	end
 
 	const function clearRuntimeExports()
-		const current = rawget(_na_boot.hostEnv, "__NamelessAdminRuntimeState")
-		if current ~= nil and current ~= bootState then return end
+		if not ownsCleanup() then return end
 		const targets = {}
 		const targetSet = setmetatable({}, { __mode = "k" })
 		const function addTarget(target, force)
@@ -1179,6 +1180,9 @@ NAmanage.Unload = function(opts)
 	end)
 	if rawget(_na_boot.hostEnv, "__NamelessAdminRuntimeState") == bootState then
 		rawset(_na_boot.hostEnv, "__NamelessAdminRuntimeState", nil)
+	end
+	if rawget(_na_boot.privateRoot, "__NamelessAdminRuntimeState") == bootState then
+		rawset(_na_boot.privateRoot, "__NamelessAdminRuntimeState", nil)
 	end
 	pcall(rawDelay, 0.1, clearRuntimeExports)
 	pcall(rawDelay, 0.5, clearRuntimeExports)

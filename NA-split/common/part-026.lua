@@ -32,7 +32,7 @@ SpawnCall(function()
 				Description = maybeMock("With QueueOnTeleport, "..adminName.." will automatically execute itself upon teleporting to a game or place."),
 				Buttons = {
 					{Text = "Yes", Callback = function()
-						opt.queueteleport(opt.loader)
+						NAmanage.queueNA()
 					end},
 					{Text = "No", Callback = function() end}
 				}

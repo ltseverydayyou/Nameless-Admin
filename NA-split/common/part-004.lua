@@ -2993,7 +2993,7 @@ NAmanage.logApply = function()
 	end
 end
 
-opt.loader = Format('loadstring(game:HttpGet("%s"))();', opt.loaderUrl or "")
+opt.loader = Format('loadstring(game:HttpGet("%s?na_qot="..tostring(os.time())))();', opt.loaderUrl or "")
 
 --Custom file functions checker checker
 NAmanage.loaderState.settingsPath = NAfiles.NAMAINSETTINGSPATH

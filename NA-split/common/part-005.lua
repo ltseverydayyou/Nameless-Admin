@@ -5958,6 +5958,18 @@ NAmanage.prepareTeleportCleanup = NAmanage.prepareTeleportCleanup or function()
 	end
 end
 
+NAmanage.queueNA = function()
+	if NAStuff._qotQueued then return true end
+	if type(opt.queueteleport) ~= "function" or type(opt.loader) ~= "string" or opt.loader == "" then return false end
+	NAStuff._qotQueued = true
+	const ok, res = pcall(opt.queueteleport, opt.loader)
+	if not ok or res == false then
+		NAStuff._qotQueued = false
+		return false
+	end
+	return true
+end
+
 NAStuff.onTP = LocalPlayer.OnTeleport
 if NAStuff.onTP and typeof(NAStuff.onTP) == "RBXScriptSignal" then
 	if NAStuff.onTPConnection then
@@ -5972,6 +5984,7 @@ if NAStuff.onTP and typeof(NAStuff.onTP) == "RBXScriptSignal" then
 				NAStuff.teleportTransition = false
 				NAStuff.teleportTransitionSince = nil
 				NAStuff._qotQueued = false
+				NAStuff._qotAprilQueued = false
 				if type(NAmanage.TeleportGui_Clear) == "function" then
 					pcall(NAmanage.TeleportGui_Clear)
 				end
@@ -5991,19 +6004,15 @@ if NAStuff.onTP and typeof(NAStuff.onTP) == "RBXScriptSignal" then
 					pcall(NAmanage.GameTeleportGui_OnTeleport, tpState, select(2, ...), select(3, ...))
 				end
 				NAmanage.prepareTeleportCleanup()
-				if not NAStuff._qotQueued then
-					NAStuff._qotQueued = true
-					Defer(function()
-						if NAQoTEnabled and type(opt.queueteleport) == "function" and type(opt.loader) == "string" and opt.loader ~= "" then
-							pcall(opt.queueteleport, opt.loader)
-						end
-						if isAprilFools() and type(opt.queueteleport) == "function" then
-							pcall(opt.queueteleport, [[
-								local env = (getgenv and getgenv()) or _G or {}
-								env.ActivateAprilMode = true
-							]])
-						end
-					end)
+				if NAQoTEnabled then
+					NAmanage.queueNA()
+				end
+				if not NAStuff._qotAprilQueued and isAprilFools() and type(opt.queueteleport) == "function" then
+					NAStuff._qotAprilQueued = true
+					pcall(opt.queueteleport, [[
+						local env = (getgenv and getgenv()) or _G or {}
+						env.ActivateAprilMode = true
+					]])
 				end
 			end
 		end)
@@ -6020,6 +6029,7 @@ if Services.TeleportService then
 				NAStuff.teleportTransition = false
 				NAStuff.teleportTransitionSince = nil
 				NAStuff._qotQueued = false
+				NAStuff._qotAprilQueued = false
 				if type(NAmanage.TeleportGui_Clear) == "function" then
 					pcall(NAmanage.TeleportGui_Clear)
 				end
