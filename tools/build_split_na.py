@@ -14,6 +14,7 @@ import re
 import shutil
 import argparse
 import hashlib
+import zlib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -290,7 +291,7 @@ def _git_blob_sha(data: bytes) -> str:
 
 
 def write_manifest(parts: list[tuple[str, bytes]], loader_version: str) -> None:
-    digest = hashlib.sha256()
+    digest = hashlib.sha256(b"adler32-v1\0")
     fingerprints: dict[str, str] = {}
     for name, data in parts:
         digest.update(f"{name}\0".encode("utf-8"))
@@ -306,6 +307,9 @@ def write_manifest(parts: list[tuple[str, bytes]], loader_version: str) -> None:
     ]
     for name, fingerprint in fingerprints.items():
         manifest.append(f'\t\t["{name}"] = "{fingerprint}";')
+    manifest.extend(["\t};", "\tintegrity = {"])
+    for name, data in parts:
+        manifest.append(f'\t\t["{name}"] = {{{len(data)}, {zlib.adler32(data)}}};')
     manifest.extend(["\t};", "}", "", "return meta", ""])
     (COMMON / "manifest.lua").write_bytes("\r\n".join(manifest).encode("utf-8"))
 
@@ -473,13 +477,20 @@ local function __NA_SPLIT_READ_LOCAL(root, name)
 	return ok and type(data) == "string" and data ~= "" and data or nil
 end
 
-local function __NA_SPLIT_READ_REMOTE(name)
+local function __NA_SPLIT_READ_REMOTE(name, fresh)
 	local url = __NA_SPLIT_REMOTE_ROOT..name..__NA_SPLIT_REMOTE_QUERY
+	if fresh then
+		url ..= (url:find("?", 1, true) and "&" or "?").."na_retry="..tostring(os.time()).."_"..tostring(math.floor(os.clock() * 1000000))
+	end
 	local requestFn = rawget(__NARootHost, "request")
 		or rawget(__NARootHost, "http_request")
 		or (type(syn) == "table" and syn.request)
 	if type(requestFn) == "function" then
-		local ok, response = pcall(requestFn, {{ Method = "GET"; Url = url; }})
+		local ok, response = pcall(requestFn, {{
+			Method = "GET";
+			Url = url;
+			Headers = fresh and {{ ["Cache-Control"] = "no-cache"; }} or nil;
+		}})
 		local status = type(response) == "table" and tonumber(response.StatusCode or response.statusCode or response.Status) or nil
 		local body = type(response) == "table" and (response.Body or response.body) or nil
 		if ok and type(body) == "string" and body ~= "" and (not status or status < 400) then
@@ -531,6 +542,29 @@ local function __NA_SPLIT_PART_FINGERPRINT(meta, partName)
 	return nil
 end
 
+local function __NA_SPLIT_PART_VALID(source, meta, name)
+	if type(source) ~= "string" or source == "" then return false end
+	local checks = type(meta) == "table" and meta.integrity or nil
+	if checks == nil then return true end
+	local check = type(checks) == "table" and checks[name] or nil
+	if type(check) ~= "table" or #source ~= check[1] or type(check[2]) ~= "number" then return false end
+	local a, b = 1, 0
+	local nextYield = os.clock() + 0.004
+	for start = 1, #source, 4096 do
+		for index = start, math.min(start + 4095, #source) do
+			a += string.byte(source, index)
+			b += a
+		end
+		a %= 65521
+		b %= 65521
+		if start + 4095 < #source and os.clock() >= nextYield then
+			__NA_SPLIT_YIELD()
+			nextYield = os.clock() + 0.004
+		end
+	end
+	return b * 65536 + a == check[2]
+end
+
 local function __NA_SPLIT_LOCAL_PART(root, meta, name)
 	local fingerprint = __NA_SPLIT_PART_FINGERPRINT(meta, name)
 	if fingerprint then
@@ -542,10 +576,11 @@ local function __NA_SPLIT_LOCAL_PART(root, meta, name)
 		end
 		if exists then
 			local source = __NA_SPLIT_READ_LOCAL(root..".parts/", fingerprint..".lua")
-			if source then return source end
+			if __NA_SPLIT_PART_VALID(source, meta, name) then return source end
 		end
 	end
-	return __NA_SPLIT_READ_LOCAL(root, name)
+	local source = __NA_SPLIT_READ_LOCAL(root, name)
+	return __NA_SPLIT_PART_VALID(source, meta, name) and source or nil
 end
 
 local __NA_SPLIT_LOCAL_ROOT = nil
@@ -608,23 +643,25 @@ local function __NA_SPLIT_READ_PART(partName)
 	if not __NA_SPLIT_REMOTE_META then
 		local source = __NA_SPLIT_LOCAL_ROOT and __NA_SPLIT_LOCAL_PART(__NA_SPLIT_LOCAL_ROOT, __NA_SPLIT_LOCAL_META, partName)
 		if source then return source end
-		error("Nameless Admin chunk unavailable: "..partName, 0)
+		error("Nameless Admin chunk unavailable or invalid: "..partName, 0)
 	end
 
 	local remoteFingerprint = __NA_SPLIT_PART_FINGERPRINT(__NA_SPLIT_REMOTE_META, partName)
 	local localFingerprint = __NA_SPLIT_PART_FINGERPRINT(__NA_SPLIT_LOCAL_META, partName)
 	if __NA_SPLIT_LOCAL_ROOT and ((remoteFingerprint and remoteFingerprint == localFingerprint)
 		or (not __NA_SPLIT_REMOTE_CHANGED and not localFingerprint)) then
-		local source = __NA_SPLIT_LOCAL_PART(__NA_SPLIT_LOCAL_ROOT, __NA_SPLIT_LOCAL_META, partName)
+		local source = __NA_SPLIT_LOCAL_PART(__NA_SPLIT_LOCAL_ROOT, __NA_SPLIT_REMOTE_META, partName)
 		if source then return source end
 	end
 
-	local source = __NA_SPLIT_READ_REMOTE(partName)
-	if source then
-		__NA_SPLIT_PENDING_CACHE[partName] = source
-		return source
+	for attempt = 1, 2 do
+		local source = __NA_SPLIT_READ_REMOTE(partName, attempt == 2)
+		if __NA_SPLIT_PART_VALID(source, __NA_SPLIT_REMOTE_META, partName) then
+			__NA_SPLIT_PENDING_CACHE[partName] = source
+			return source
+		end
 	end
-	error("Nameless Admin chunk unavailable: "..partName, 0)
+	error("Nameless Admin chunk unavailable or invalid: "..partName, 0)
 end
 
 local function __NA_SPLIT_CACHE_PART(partName)
@@ -893,6 +930,8 @@ local function __NA_SPLIT_RUN()
 			error("Nameless Admin loading was cancelled", 0)
 		end
 		local partName = string.format("part-%03d.lua", index)
+		__NA_GLOBAL_STATE.details.stage = partName
+		__NA_GLOBAL_STATE.details.fingerprint = __NA_SPLIT_PART_FINGERPRINT(__NA_SPLIT_REMOTE_META or __NA_SPLIT_LOCAL_META, partName)
 		local source = __NA_SPLIT_READ_PART(partName)
 		local chunk = __NA_SPLIT_LOAD_PART(source, "NA-split/common/"..partName, environment)
 		local okRun, runError = xpcall(chunk, __NA_SPLIT_FORMAT_ERROR)
@@ -925,6 +964,7 @@ local function __NA_SPLIT_RUN()
 	if rawget(__NA_GLOBAL_ENV, __NA_GLOBAL_STATE_KEY) ~= __NA_GLOBAL_STATE then
 		error("Nameless Admin loading was cancelled", 0)
 	end
+	__NA_GLOBAL_STATE.details.stage = "cache"
 	__NA_SPLIT_CACHE_REMOTE()
 	pcall(__NA_SPLIT_CACHE_LOADER, __NA_SPLIT_REMOTE_META or __NA_SPLIT_LOCAL_META)
 end
@@ -991,8 +1031,15 @@ local function __NA_SPLIT_ABORT()
 	end
 end
 
+__NA_GLOBAL_STATE.details = {{
+	stage = "manifest";
+	session = tostring(game.PlaceId).."_"..tostring(game.JobId);
+	build = (__NA_SPLIT_REMOTE_META and __NA_SPLIT_REMOTE_META.version) or (__NA_SPLIT_LOCAL_META and __NA_SPLIT_LOCAL_META.version) or "unknown";
+}}
+
 local __NARootResult = table.pack(__NARootNACaller({{
 	context = "Nameless Admin Main Runtime";
+	details = __NA_GLOBAL_STATE.details;
 	severity = "fatal";
 	warn = true;
 	log = true;
